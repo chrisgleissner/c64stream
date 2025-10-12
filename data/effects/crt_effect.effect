@@ -47,11 +47,7 @@ struct VertData {
     float2 uv  : TEXCOORD0;
 };
 
-// -----------------------------------------------------------------------------
 // CRT phosphor afterglow: decaying-maximum persistence model
-// -----------------------------------------------------------------------------
-
-// ApplyAfterglow — integrates phosphor persistence model
 float3 ApplyAfterglow(float2 uv, float3 current_rgb)
 {
     float4 prev = texture_accum_prev.Sample(linear_clamp, uv);
@@ -62,9 +58,9 @@ float3 ApplyAfterglow(float2 uv, float3 current_rgb)
     if (afterglow_curve == 0) {
         curve_scale = 4.0;  // InstantFade
     } else if (afterglow_curve == 1) {
-        curve_scale = 1.0;  // GradualFade
-    } else if (afterglow_curve == 2) {
         curve_scale = 2.0;  // RapidFade
+    } else if (afterglow_curve == 2) {
+        curve_scale = 1.0;  // GradualFade
     } else if (afterglow_curve == 3) {
         curve_scale = 0.5;  // LongTail
     }

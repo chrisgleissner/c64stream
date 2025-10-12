@@ -121,6 +121,7 @@ Recreate the authentic look and feel of classic CRT monitors and TVs with config
 - **[Amber Monitor](./docs/images/effects/amber-monitor.png)** - Warm amber tint reminiscent of early computer monitors
 - **[Green Monitor](./docs/images/effects/green-monitor.png)** - Classic green phosphor terminal look
 - **[Sharp Pixels](./docs/images/effects/sharp-pixels.png)** - Crisp pixel doubling for arcade-style clarity
+- **[Phosphor Glow](./docs/images/effects/phosphor-glow.png)** - Dramatic phosphor persistence trails with extended afterglow
 - **[Vintage TV](./docs/images/effects/vintage-tv.png)** - Softer look with prominent scan lines for old television feel
 - **[Arcade Cabinet](./docs/images/effects/arcade-cabinet.png)** - High-contrast effects for authentic arcade experience
 
@@ -130,6 +131,7 @@ Recreate the authentic look and feel of classic CRT monitors and TVs with config
 - **Bloom:** Configurable glow effect that makes bright pixels bleed into darker areas
 - **Pixel Geometry:** Independent width/height scaling for authentic pixel aspect ratios
 - **Blur Control:** Fine-tune between crisp pixels and soft scaling
+- **Afterglow:** Physically accurate phosphor persistence with per-channel decay. Configure duration (0-3000ms) and decay curve (InstantFade, RapidFade, GradualFade, LongTail) to create realistic trailing effects as pixels change brightness
 - **Screen Tint:** Amber, green, or monochrome overlays for period-accurate monitor simulation
 
 **Usage:** Access via the **Effects** group in plugin properties. Select a preset for instant results, or customize individual settings to create your perfect retro display aesthetic.

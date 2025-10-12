@@ -161,8 +161,8 @@ obs_properties_t *c64_create_properties(void *data)
     obs_property_t *afterglow_curve_prop = obs_properties_add_list(
         effects_props, "afterglow_curve", obs_module_text("AfterglowCurve"), OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
     obs_property_list_add_int(afterglow_curve_prop, obs_module_text("AfterglowCurve.InstantFade"), 0);
-    obs_property_list_add_int(afterglow_curve_prop, obs_module_text("AfterglowCurve.GradualFade"), 1);
-    obs_property_list_add_int(afterglow_curve_prop, obs_module_text("AfterglowCurve.RapidFade"), 2);
+    obs_property_list_add_int(afterglow_curve_prop, obs_module_text("AfterglowCurve.RapidFade"), 1);
+    obs_property_list_add_int(afterglow_curve_prop, obs_module_text("AfterglowCurve.GradualFade"), 2);
     obs_property_list_add_int(afterglow_curve_prop, obs_module_text("AfterglowCurve.LongTail"), 3);
     obs_property_set_long_description(afterglow_curve_prop, obs_module_text("AfterglowCurve.Description"));
 
@@ -258,7 +258,7 @@ void c64_set_property_defaults(obs_data_t *settings)
     obs_data_set_default_double(settings, "blur_strength", 0.0);
     obs_data_set_default_double(settings, "bloom_strength", 0.0);
     obs_data_set_default_int(settings, "afterglow_duration_ms", 0);
-    obs_data_set_default_int(settings, "afterglow_curve", 1);
+    obs_data_set_default_int(settings, "afterglow_curve", 2);
     obs_data_set_default_int(settings, "tint_mode", 0);
     obs_data_set_default_double(settings, "tint_strength", 0.0);
 }
