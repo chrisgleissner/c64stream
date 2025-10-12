@@ -36,10 +36,44 @@ sampler_state textureSampler {
     MaxLOD   = 0.0;
 };
 
+sampler_state linear_clamp {
+    Filter   = Linear;
+    AddressU = Clamp;
+    AddressV = Clamp;
+};
+
 struct VertData {
     float4 pos : POSITION;
     float2 uv  : TEXCOORD0;
 };
+
+// -----------------------------------------------------------------------------
+// CRT phosphor afterglow: decaying-maximum persistence model
+// -----------------------------------------------------------------------------
+
+// ApplyAfterglow — integrates phosphor persistence model
+float3 ApplyAfterglow(float2 uv, float3 current_rgb)
+{
+    float4 prev = texture_accum_prev.Sample(linear_clamp, uv);
+    float duration_s = max(float(afterglow_duration_ms), 1.0) / 1000.0;
+    float3 tau = float3(0.6, 0.8, 0.3) * duration_s;
+
+    float curve_scale = 1.0;
+    if (afterglow_curve == 0) {
+        curve_scale = 4.0;  // InstantFade
+    } else if (afterglow_curve == 1) {
+        curve_scale = 1.0;  // GradualFade
+    } else if (afterglow_curve == 2) {
+        curve_scale = 2.0;  // RapidFade
+    } else if (afterglow_curve == 3) {
+        curve_scale = 0.5;  // LongTail
+    }
+    tau *= curve_scale;
+
+    float3 decay = exp(-dt_ms / 1000.0 / max(tau, float3(0.001, 0.001, 0.001)));
+    float3 persisted = max(current_rgb, prev.rgb * decay);
+    return persisted;
+}
 
 VertData VSDefault(VertData v_in)
 {
@@ -206,37 +240,9 @@ float4 PSDefault(VertData v_in) : TARGET
     }
 
     // === AFTERGLOW EFFECT ===
-    // Temporal afterglow - blend with previous frame to create phosphor persistence
+    // CRT phosphor afterglow: decaying-maximum persistence model
     if (afterglow_duration_ms > 0) {
-        // Sample the previous frame at the same UV coordinate with clamped UV for DirectX 11
-        float4 prev_frame = texture_accum_prev.Sample(textureSampler, saturate(uv));
-
-        // Calculate decay factor based on duration (frame-to-frame persistence)
-        // Higher duration = slower decay = more persistent afterglow
-        float decay_factor = 1.0f - (dt_ms / max(float(afterglow_duration_ms), 1.0f)); // Prevent division by zero
-        decay_factor = saturate(decay_factor); // Use saturate for DirectX 11 compatibility
-        decay_factor = min(decay_factor, 0.95f); // Clamp to prevent infinite persistence
-
-        // Apply decay curve to modify the decay behavior
-        if (afterglow_curve == 1) { // Gradual Fade (Slow Start)
-            decay_factor = decay_factor * decay_factor; // Quadratic - slower initial fade
-        }
-        else if (afterglow_curve == 2) { // Rapid Fade (Fast Start)
-            decay_factor = sqrt(abs(decay_factor)); // Square root - faster initial fade, abs for DirectX 11
-        }
-        else if (afterglow_curve == 3) { // Long Tail (Exponential)
-            decay_factor = pow(abs(decay_factor), 0.5f); // More persistent tail, abs for DirectX 11
-        }
-        // Linear (0) uses decay_factor as-is
-
-        // Blend previous frame with current frame
-        // Only non-black pixels from previous frame should contribute to afterglow
-        float prev_brightness = dot(prev_frame.rgb, float3(0.299f, 0.587f, 0.114f));
-        if (prev_brightness > 0.01f) { // Threshold to avoid amplifying pure black
-            // Mix the previous frame's color with current color
-            // This creates true temporal persistence - red→blue becomes red→purple→blue
-            color.rgb = max(color.rgb, prev_frame.rgb * decay_factor);
-        }
+        color.rgb = ApplyAfterglow(uv, color.rgb);
     }
 
     // === SCREEN TINT EFFECT ===

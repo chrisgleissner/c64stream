@@ -316,10 +316,9 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->blur_strength = (float)obs_data_get_double(settings, "blur_strength");
     context->bloom_strength = (float)obs_data_get_double(settings, "bloom_strength");
     context->bloom_enable = context->bloom_strength > 0.0f;
-    // TODO: Afterglow effect needs more work - force disabled for now
     context->afterglow_duration_ms = 0;
     context->afterglow_enable = false;
-    context->afterglow_curve = 0;
+    context->afterglow_curve = 1;
     context->tint_mode = (int)obs_data_get_int(settings, "tint_mode");
     context->tint_strength = (float)obs_data_get_double(settings, "tint_strength");
     context->tint_enable = (context->tint_mode > 0 && context->tint_strength > 0.0f);
@@ -547,10 +546,9 @@ void c64_update(void *data, obs_data_t *settings)
     context->blur_strength = (float)obs_data_get_double(settings, "blur_strength");
     context->bloom_strength = (float)obs_data_get_double(settings, "bloom_strength");
     context->bloom_enable = context->bloom_strength > 0.0f;
-    // TODO: Afterglow effect needs more work - force disabled for now
-    context->afterglow_duration_ms = 0;
-    context->afterglow_enable = false;
-    context->afterglow_curve = 0;
+    context->afterglow_duration_ms = (int)obs_data_get_int(settings, "afterglow_duration_ms");
+    context->afterglow_curve = (int)obs_data_get_int(settings, "afterglow_curve");
+    context->afterglow_enable = (context->afterglow_duration_ms > 0);
     context->tint_mode = (int)obs_data_get_int(settings, "tint_mode");
     context->tint_strength = (float)obs_data_get_double(settings, "tint_strength");
     context->tint_enable = (context->tint_mode > 0 && context->tint_strength > 0.0f);
