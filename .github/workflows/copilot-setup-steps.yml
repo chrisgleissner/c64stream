@@ -8,7 +8,7 @@ on:
         default: 'Manual Copilot session setup'
 
 jobs:
-  copilot-setuo-steps:
+  copilot-setup-steps:
     name: Setup Copilot Build Environment
     runs-on: ubuntu-24.04
     defaults:
