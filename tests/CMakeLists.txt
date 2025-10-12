@@ -132,3 +132,6 @@ endif()
 if(TEST_TARGETS)
   install(TARGETS ${TEST_TARGETS} RUNTIME DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 endif()
+
+# Add acceptance tests subdirectory
+add_subdirectory(acceptance)
