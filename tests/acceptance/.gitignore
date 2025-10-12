@@ -1,0 +1,17 @@
+# C64 Stream Acceptance Test Artifacts
+# These are generated during testing and should not be committed
+
+# Test packets
+test_packets/
+
+# Test output
+test_output/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Temporary files
+*.tmp
+*.log
