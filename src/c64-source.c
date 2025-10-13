@@ -914,11 +914,13 @@ void c64_video_render(void *data, gs_effect_t *effect)
             gs_draw_sprite(context->render_texture, 0, render_width, render_height);
         }
 
-        // Restore previous state
+        // Restore to default render target FIRST (before popping state)
+        gs_set_render_target(NULL, NULL);
+
+        // Then restore previous transform state
         gs_matrix_pop();
         gs_projection_pop();
         gs_viewport_pop();
-        gs_set_render_target(NULL, NULL);
 
         // === STEP 2: DISPLAY FROM ACCUMULATION BUFFER TO SCREEN ===
         // Now draw the accumulated result (with afterglow) directly to the screen

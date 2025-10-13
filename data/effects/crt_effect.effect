@@ -66,15 +66,34 @@ float3 ApplyAfterglow(float2 uv, float3 current_rgb)
     } else if (afterglow_curve == 1) {
         curve_scale = 0.5;   // RapidFade
     } else if (afterglow_curve == 2) {
-        curve_scale = 1.0;   // GradualFade
+        curve_scale = 1.0;   // GradualFade (dual-phase)
     } else if (afterglow_curve == 3) {
-        curve_scale = 2.0;   // LongTail (slowest decay)
+        curve_scale = 2.0;   // LongTail (dual-phase, slowest)
     }
     tau *= curve_scale;
     tau = max(tau, float3(0.001, 0.001, 0.001));
 
     // Compute decay factor per channel for this frame (0..1)
     float3 decay = exp(-dt_ms / 1000.0 / tau);
+
+    // === DUAL-PHASE DECAY FOR CURVES 2 & 3 ===
+    // Real CRT phosphors exhibit two-component decay:
+    // - Fast component: rapid initial falloff (first ~100-200ms)
+    // - Slow component: long dim tail (persists for seconds)
+    float3 final_decay = decay;
+    if (afterglow_curve >= 2) {
+        // Fast component: decays 4x faster than base
+        float3 tau_fast = tau * 0.25;
+        float3 decay_fast = exp(-dt_ms / 1000.0 / tau_fast);
+
+        // Slow component: decays 10x slower than base (very long tail)
+        float3 tau_slow = tau * 10.0;
+        float3 decay_slow = exp(-dt_ms / 1000.0 / tau_slow);
+
+        // Blend: 70% fast component, 30% slow component
+        // This creates rapid initial falloff with a persistent dim glow
+        final_decay = decay_fast * 0.7 + decay_slow * 0.3;
+    }
 
     // === CRT PHOSPHOR NON-LINEAR DECAY MODEL ===
     // Real CRT phosphors have dual-phase decay:
@@ -91,7 +110,7 @@ float3 ApplyAfterglow(float2 uv, float3 current_rgb)
     float flash_factor = saturate(luma_increase * 3.0); // Amplify sudden brightness changes
 
     // Standard exponential smoothing for the base persistence
-    float3 base_persisted = prev.rgb * decay + current_rgb * (1.0 - decay);
+    float3 base_persisted = prev.rgb * final_decay + current_rgb * (1.0 - final_decay);
 
     // Add extra intensity for newly-lit pixels (the "flash" component)
     // This makes fast-moving bright objects much more visible
