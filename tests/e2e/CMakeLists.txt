@@ -1,11 +1,11 @@
-# C64 Stream Acceptance Tests
+# C64 Stream End-to-End Tests
 #
-# This directory contains automated acceptance tests that verify the plugin
+# This directory contains automated E2E tests that verify the plugin
 # with simulated C64 Ultimate streams following the exact protocol specification.
 #
 cmake_minimum_required(VERSION 3.28)
 
-project(c64stream-acceptance-tests)
+project(c64stream-e2e-tests)
 
 # Build the UDP replay tool
 add_executable(udp_replay udp_replay.c)
@@ -23,18 +23,18 @@ foreach(script ${PYTHON_SCRIPTS})
   file(CHMOD ${script} PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
 endforeach()
 
-# Install acceptance test files
+# Install E2E test files
 install(TARGETS udp_replay RUNTIME DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 install(FILES 
   generate_packets.py
-  run_acceptance_test.py
+  run_e2e_test.py
   verify_output.py
   PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
   DESTINATION ${CMAKE_CURRENT_BINARY_DIR}
 )
 
-message(STATUS "Acceptance test components configured:")
+message(STATUS "E2E test components configured:")
 message(STATUS "  UDP replay tool: udp_replay")
 message(STATUS "  Packet generator: generate_packets.py")
-message(STATUS "  Test orchestrator: run_acceptance_test.py")
+message(STATUS "  Test orchestrator: run_e2e_test.py")
 message(STATUS "  Output verifier: verify_output.py")

@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-C64 Stream - Acceptance Test Orchestrator
+C64 Stream - E2E Test Orchestrator
 Copyright (C) 2025 Christian Gleissner
 
 Licensed under the GNU General Public License v2.0 or later.
 See <https://www.gnu.org/licenses/> for details.
 
-Orchestrates the complete acceptance test pipeline:
+Orchestrates the complete e2e test pipeline:
 1. Starts Xvfb (virtual display)
 2. Starts OBS with C64 Stream plugin
 3. Replays pre-generated packets via UDP
@@ -28,7 +28,7 @@ import json
 from pathlib import Path
 
 
-class AcceptanceTest:
+class E2ETest:
     def __init__(self, test_dir, video_port=11000, audio_port=11001, 
                  format='PAL', frames=30, verbose=False):
         self.test_dir = Path(test_dir)
@@ -120,7 +120,7 @@ class AcceptanceTest:
         2. OBS Python bindings (obs-scripting)
         3. Pre-configured OBS scene collection
         
-        For this acceptance test, we assume a test profile exists or we use
+        For this e2e test, we assume a test profile exists or we use
         the simple recorder approach.
         """
         self.log("Starting OBS")
@@ -247,13 +247,13 @@ class AcceptanceTest:
     
     def run(self, udp_replay_path):
         """
-        Run the complete acceptance test.
+        Run the complete e2e test.
         
         Returns:
             bool: True if test passed, False otherwise
         """
         print(f"\n{'='*60}")
-        print(f"C64 Stream Acceptance Test - {self.format}")
+        print(f"C64 Stream E2E Test - {self.format}")
         print(f"{'='*60}\n")
         
         try:
@@ -291,7 +291,7 @@ class AcceptanceTest:
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Run C64 Stream acceptance tests',
+        description='Run C64 Stream e2e tests',
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
     
@@ -320,7 +320,7 @@ def main():
         return 1
     
     # Create and run test
-    test = AcceptanceTest(
+    test = E2ETest(
         args.test_dir,
         video_port=args.video_port,
         audio_port=args.audio_port,

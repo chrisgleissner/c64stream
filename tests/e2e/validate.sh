@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Validation Script for C64 Stream Acceptance Test Framework
+# Validation Script for C64 Stream E2E Test Framework
 # Runs comprehensive checks to ensure everything works correctly
 #
 
@@ -9,7 +9,7 @@ REPO_ROOT="$SCRIPT_DIR/../.."
 BUILD_DIR="$REPO_ROOT/build_x86_64"
 
 echo "============================================================"
-echo "C64 Stream Acceptance Test Framework Validation"
+echo "C64 Stream E2E Test Framework Validation"
 echo "============================================================"
 echo ""
 
@@ -18,7 +18,7 @@ FAIL=0
 
 # Test 1: Check if Python scripts are executable
 echo "Test 1: Checking Python scripts..."
-for script in generate_packets.py run_acceptance_test.py verify_output.py; do
+for script in generate_packets.py run_e2e_test.py verify_output.py; do
     if [ -x "$SCRIPT_DIR/$script" ]; then
         echo "  ✅ $script is executable"
         ((PASS++))
@@ -42,7 +42,7 @@ echo ""
 
 # Test 3: Check if UDP replay tool is built
 echo "Test 3: Checking UDP replay tool..."
-if [ -f "$BUILD_DIR/tests/acceptance/udp_replay" ]; then
+if [ -f "$BUILD_DIR/tests/e2e/udp_replay" ]; then
     echo "  ✅ udp_replay is built"
     ((PASS++))
 else
@@ -89,7 +89,7 @@ echo ""
 
 # Test 6: Test UDP replay
 echo "Test 6: Testing UDP replay tool..."
-if "$BUILD_DIR/tests/acceptance/udp_replay" \
+if "$BUILD_DIR/tests/e2e/udp_replay" \
     "$SCRIPT_DIR/test_packets/video/PAL" \
     127.0.0.1 11000 780 >/dev/null 2>&1; then
     echo "  ✅ UDP replay successful"
@@ -102,7 +102,7 @@ echo ""
 
 # Test 7: Check documentation
 echo "Test 7: Checking documentation..."
-if [ -f "$SCRIPT_DIR/README.md" ] && [ -f "$REPO_ROOT/doc/acceptance-testing.md" ]; then
+if [ -f "$SCRIPT_DIR/README.md" ] && [ -f "$REPO_ROOT/doc/e2e-testing.md" ]; then
     echo "  ✅ Documentation files present"
     ((PASS++))
 else
@@ -113,7 +113,7 @@ echo ""
 
 # Test 8: Check GitHub Actions workflow
 echo "Test 8: Checking GitHub Actions workflow..."
-if [ -f "$REPO_ROOT/.github/workflows/acceptance-test.yaml" ]; then
+if [ -f "$REPO_ROOT/.github/workflows/e2e-test.yaml" ]; then
     echo "  ✅ GitHub Actions workflow present"
     ((PASS++))
 else
@@ -138,7 +138,7 @@ echo ""
 if [ $FAIL -eq 0 ]; then
     echo "✅ All validation tests passed!"
     echo ""
-    echo "The acceptance test framework is ready to use."
+    echo "The e2e test framework is ready to use."
     echo "Run './quick_test.sh' for a quick demonstration."
     exit 0
 else

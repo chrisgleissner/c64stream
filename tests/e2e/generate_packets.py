@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-C64 Stream - Packet Generator for Acceptance Testing
+C64 Stream - Packet Generator for E2E Testing
 Copyright (C) 2025 Christian Gleissner
 
 Licensed under the GNU General Public License v2.0 or later.
@@ -195,7 +195,7 @@ def generate_packets(output_dir, num_frames=30, formats=None):
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Generate C64 Ultimate test packets for acceptance testing',
+        description='Generate C64 Ultimate test packets for e2e testing',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:

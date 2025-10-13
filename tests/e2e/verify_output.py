@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-C64 Stream - Output Verification for Acceptance Testing
+C64 Stream - Output Verification for E2E Testing
 Copyright (C) 2025 Christian Gleissner
 
 Licensed under the GNU General Public License v2.0 or later.
@@ -238,7 +238,7 @@ class OutputVerifier:
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Verify C64 Stream acceptance test output',
+        description='Verify C64 Stream e2e test output',
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
     

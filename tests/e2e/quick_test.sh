@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Quick Test Script for C64 Stream Acceptance Tests
+# Quick Test Script for C64 Stream E2E Tests
 # Demonstrates the complete workflow without requiring OBS
 #
 
@@ -10,12 +10,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUILD_DIR="$SCRIPT_DIR/../../build_x86_64"
 
 echo "================================================"
-echo "C64 Stream Acceptance Test - Quick Demo"
+echo "C64 Stream E2E Test - Quick Demo"
 echo "================================================"
 echo ""
 
 # Check if udp_replay is built
-if [ ! -f "$BUILD_DIR/tests/acceptance/udp_replay" ]; then
+if [ ! -f "$BUILD_DIR/tests/e2e/udp_replay" ]; then
     echo "❌ UDP replay tool not found. Please build it first:"
     echo "   cd build_x86_64 && cmake --build . --target udp_replay"
     exit 1
@@ -44,19 +44,19 @@ echo ""
 echo "🚀 Testing UDP replay tool..."
 echo ""
 echo "Video stream replay:"
-"$BUILD_DIR/tests/acceptance/udp_replay" \
+"$BUILD_DIR/tests/e2e/udp_replay" \
     "$SCRIPT_DIR/test_packets/video/PAL" \
     127.0.0.1 11000 780 --verbose
 
 echo ""
 echo "Audio stream replay:"
-"$BUILD_DIR/tests/acceptance/udp_replay" \
+"$BUILD_DIR/tests/e2e/udp_replay" \
     "$SCRIPT_DIR/test_packets/audio/PAL" \
     127.0.0.1 11001 770 --verbose
 
 echo ""
 echo "================================================"
-echo "✅ Acceptance Test Quick Demo Complete"
+echo "✅ E2E Test Quick Demo Complete"
 echo "================================================"
 echo ""
 echo "To run with actual OBS integration:"
