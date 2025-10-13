@@ -50,6 +50,7 @@ struct VertData {
 // CRT phosphor afterglow: decaying-maximum persistence model
 float3 ApplyAfterglow(float2 uv, float3 current_rgb)
 {
+    // Use exact UV coordinates for precise alignment
     float4 prev = texture_accum_prev.Sample(linear_clamp, uv);
     float duration_s = max(float(afterglow_duration_ms), 1.0) / 1000.0;
     float3 tau = float3(0.6, 0.8, 0.3) * duration_s;

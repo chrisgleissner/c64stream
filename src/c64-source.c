@@ -902,8 +902,8 @@ void c64_video_render(void *data, gs_effect_t *effect)
         gs_set_render_target(context->afterglow_accum_next, NULL);
         gs_clear(GS_CLEAR_COLOR, &(struct vec4){0.0f, 0.0f, 0.0f, 0.0f}, 0.0f, 0);
 
-        // Set up orthographic projection for accumulation buffer
-        gs_ortho(0.0f, (float)render_width, 0.0f, (float)render_height, -100.0f, 100.0f);
+        // Use the default OBS coordinate system without custom projection
+        // This should eliminate coordinate system mismatches
         gs_set_viewport(0, 0, render_width, render_height);
 
         // Render with CRT effect (including afterglow) to accumulation buffer
