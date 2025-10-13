@@ -891,30 +891,34 @@ void c64_video_render(void *data, gs_effect_t *effect)
     // Set output resolution for scanline calculation
     gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "output_height"), (float)render_height);
 
-    // If afterglow is enabled, we need to render to the accumulation buffer first,
-    // then display from that buffer (creating proper temporal feedback)
+    // If afterglow is enabled, render to accumulation buffer with ping-pong feedback
     if (context->afterglow_enable && context->afterglow_accum_prev && context->afterglow_accum_next) {
         // === RENDER TO ACCUMULATION BUFFER (WITH AFTERGLOW APPLIED) ===
         gs_viewport_push();
         gs_projection_push();
+        gs_matrix_push();
 
         // Set up render target for accumulation buffer
         gs_set_render_target(context->afterglow_accum_next, NULL);
         gs_clear(GS_CLEAR_COLOR, &(struct vec4){0.0f, 0.0f, 0.0f, 0.0f}, 0.0f, 0);
 
-        // Use the default OBS coordinate system without custom projection
-        // This should eliminate coordinate system mismatches
+        // Set up coordinate system for offscreen rendering
+        // Use identity matrix to prevent any transforms
+        gs_matrix_identity();
+        gs_ortho(0.0f, (float)render_width, 0.0f, (float)render_height, -100.0f, 100.0f);
         gs_set_viewport(0, 0, render_width, render_height);
 
         // Render with CRT effect (including afterglow) to accumulation buffer
+        // Shader samples from afterglow_accum_prev (set above at line 879)
         while (gs_effect_loop(context->crt_effect, "Draw")) {
             gs_draw_sprite(context->render_texture, 0, render_width, render_height);
         }
 
-        // Restore previous render target and projection
-        gs_set_render_target(NULL, NULL);
+        // Restore previous state
+        gs_matrix_pop();
         gs_projection_pop();
         gs_viewport_pop();
+        gs_set_render_target(NULL, NULL);
 
         // === DISPLAY FROM ACCUMULATION BUFFER ===
         // Now draw the accumulated result (with afterglow) to the screen

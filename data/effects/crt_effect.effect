@@ -47,14 +47,19 @@ struct VertData {
     float2 uv  : TEXCOORD0;
 };
 
-// CRT phosphor afterglow: decaying-maximum persistence model
+// CRT phosphor afterglow: exponential smoothing persistence model
 float3 ApplyAfterglow(float2 uv, float3 current_rgb)
 {
     // Use exact UV coordinates for precise alignment
     float4 prev = texture_accum_prev.Sample(linear_clamp, uv);
+
+    // Duration in seconds (clamp to at least 0.001s to prevent div-by-zero)
     float duration_s = max(float(afterglow_duration_ms), 1.0) / 1000.0;
+
+    // Per-channel time constants (seconds) - red, green, blue phosphor decay rates
     float3 tau = float3(0.6, 0.8, 0.3) * duration_s;
 
+    // Scale by curve selection
     float curve_scale = 1.0;
     if (afterglow_curve == 0) {
         curve_scale = 4.0;  // InstantFade
@@ -66,10 +71,17 @@ float3 ApplyAfterglow(float2 uv, float3 current_rgb)
         curve_scale = 0.5;  // LongTail
     }
     tau *= curve_scale;
+    tau = max(tau, float3(0.001, 0.001, 0.001));
 
-    float3 decay = exp(-dt_ms / 1000.0 / max(tau, float3(0.001, 0.001, 0.001)));
-    float3 persisted = max(current_rgb, prev.rgb * decay);
-    return persisted;
+    // Compute decay factor per channel for this frame (0..1)
+    float3 decay = exp(-dt_ms / 1000.0 / tau);
+
+    // Use exponential smoothing: new = prev*decay + curr*(1-decay)
+    // This is deterministic and safe, avoiding max-based feedback amplification
+    float3 persisted = prev.rgb * decay + current_rgb * (1.0 - decay);
+
+    // Clamp to valid range
+    return saturate(persisted);
 }
 
 VertData VSDefault(VertData v_in)
@@ -82,8 +94,8 @@ VertData VSDefault(VertData v_in)
 
 float4 PSDefault(VertData v_in) : TARGET
 {
-    // Ensure UV coordinates are properly normalized (Windows DirectX fix)
-    float2 uv = saturate(v_in.uv);
+    // Clamp UV coordinates to valid range to prevent out-of-bounds sampling
+    float2 uv = clamp(v_in.uv, 0.0, 1.0);
 
     // === PIXEL GEOMETRY WITH BLUR CONTROL ===
     // Pixel geometry scaling is handled by matrix transforms
@@ -104,7 +116,7 @@ float4 PSDefault(VertData v_in) : TARGET
         float2 uv_tr = saturate(uv + float2(blur_radius, blur_radius));
         float2 uv_bl = saturate(uv - float2(blur_radius, blur_radius));
         float2 uv_tl = saturate(uv + float2(-blur_radius, blur_radius));
-        float2 uv_br = saturate(uv - float2(-blur_radius, blur_radius));
+        float2 uv_br = saturate(uv + float2(blur_radius, -blur_radius));
 
         // 9-tap gaussian-style sampling with clamped coordinates
         color  = image.Sample(textureSampler, uv_center) * 0.25f;  // Center (main weight)
@@ -157,7 +169,7 @@ float4 PSDefault(VertData v_in) : TARGET
         // Add small epsilon for floating point precision on DirectX 11
         if (position_in_scanline_unit >= (scanline_pixels_per_unit - 0.001f)) {
             // This pixel is in the gap portion - darken it
-            color.rgb = lerp(color.rgb, color.rgb * (1.0f - scan_line_strength), 1.0f);
+            color.rgb = color.rgb * (1.0f - scan_line_strength);
         }
         // position_in_scanline_unit < scanline_pixels_per_unit: This pixel is the scanline itself (remains bright)
     }
