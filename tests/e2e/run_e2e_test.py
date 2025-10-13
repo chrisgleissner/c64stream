@@ -101,7 +101,7 @@ class E2ETest:
 
         profile_dir.mkdir(parents=True, exist_ok=True)
         scenes_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Create global configuration to disable crash recovery
         global_ini = obs_config_dir / 'global.ini'
         with open(global_ini, 'w') as f:
@@ -563,10 +563,10 @@ DockAreaVisible=false
                 if WEBSOCKET_AVAILABLE:
                     self.send_obs_request("StopRecord")
                     time.sleep(1)
-                
+
                 # Send SIGTERM for graceful shutdown
                 self.obs_process.terminate()
-                
+
                 # Wait for graceful shutdown
                 try:
                     self.obs_process.wait(timeout=8)
@@ -576,7 +576,7 @@ DockAreaVisible=false
                     self.obs_process.kill()
                     self.obs_process.wait(timeout=3)
                     self.log("✅ OBS stopped forcefully")
-                    
+
             except Exception as e:
                 self.log(f"Error stopping OBS: {e}")
                 try:
@@ -584,7 +584,7 @@ DockAreaVisible=false
                     self.obs_process.wait()
                 except:
                     pass
-            
+
             # Clean up any OBS lock files that might cause crash recovery dialogs
             self.cleanup_obs_locks()
 
@@ -608,7 +608,7 @@ DockAreaVisible=false
         try:
             import glob
             obs_config_dir = Path.home() / '.config' / 'obs-studio'
-            
+
             # Remove common OBS lock/crash files
             lock_patterns = [
                 str(obs_config_dir / '*.lock'),
@@ -617,7 +617,7 @@ DockAreaVisible=false
                 '/tmp/obs-studio-*',
                 '/tmp/.obs-*'
             ]
-            
+
             for pattern in lock_patterns:
                 for lock_file in glob.glob(pattern):
                     try:
@@ -625,10 +625,10 @@ DockAreaVisible=false
                         self.log(f"Cleaned up: {lock_file}")
                     except (OSError, IOError):
                         pass
-                        
+
         except Exception as e:
             self.log(f"Warning: Could not clean up OBS locks: {e}")
-    
+
     def cleanup(self):
         """Cleanup all test processes."""
         self.log("Cleaning up test environment")
@@ -706,16 +706,16 @@ DockAreaVisible=false
 def main():
     # Set up signal handler for clean shutdown
     test_instance = None
-    
+
     def signal_handler(signum, frame):
         print(f"\n\u26a0\ufe0f  Received signal {signum}, cleaning up...")
         if test_instance:
             test_instance.cleanup()
         sys.exit(1)
-    
+
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
-    
+
     parser = argparse.ArgumentParser(
         description='Run C64 Stream e2e tests',
         formatter_class=argparse.RawDescriptionHelpFormatter
@@ -754,7 +754,7 @@ def main():
         frames=args.frames,
         verbose=args.verbose
     )
-    
+
     # Store reference for signal handler
     test_instance = test
 
