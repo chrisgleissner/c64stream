@@ -10,24 +10,54 @@ stream packets. Designed for maximum throughput to handle the high bandwidth
 requirements of the C64 Ultimate protocol.
 */
 
-// Define POSIX version for nanosleep
+#ifndef _WIN32
+// Define POSIX version for nanosleep before any includes
 #define _POSIX_C_SOURCE 199309L
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
+#include <time.h>
+
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#pragma comment(lib, "ws2_32.lib")
+
+#define close closesocket
+typedef int ssize_t;
+
+// Windows directory handling
+#include <io.h>
+#include <direct.h>
+typedef struct _finddata_t finddata_t;
+
+// Windows timing
+static inline double get_time_ms(void)
+{
+    LARGE_INTEGER freq, counter;
+    QueryPerformanceFrequency(&freq);
+    QueryPerformanceCounter(&counter);
+    return (double)counter.QuadPart * 1000.0 / (double)freq.QuadPart;
+}
+
+static void sleep_us(long microseconds)
+{
+    Sleep((DWORD)(microseconds / 1000));
+}
+#else
+// POSIX includes
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <sys/time.h>
-#include <errno.h>
 #include <dirent.h>
-#include <time.h>
 
-#define MAX_PACKET_SIZE 1024
-#define MAX_PATH_LEN 512
-
-// Timing utilities
+// POSIX timing
 static inline double get_time_ms(void)
 {
     struct timeval tv;
@@ -42,11 +72,107 @@ static void sleep_us(long microseconds)
     ts.tv_nsec = (microseconds % 1000000) * 1000;
     nanosleep(&ts, NULL);
 }
+#endif
+
+#define MAX_PACKET_SIZE 1024
+#define MAX_PATH_LEN 512
 
 int compare_filenames(const void *a, const void *b)
 {
     return strcmp(*(const char **)a, *(const char **)b);
 }
+
+// Cross-platform directory scanning
+#ifdef _WIN32
+static int scan_directory(const char *dir_path, char ***filenames, int *file_count)
+{
+    char search_path[MAX_PATH_LEN];
+    snprintf(search_path, sizeof(search_path), "%s\\*.bin", dir_path);
+
+    intptr_t handle;
+    finddata_t fileinfo;
+    int file_capacity = 1000;
+
+    *filenames = malloc(file_capacity * sizeof(char *));
+    if (!*filenames)
+        return -1;
+
+    *file_count = 0;
+    handle = _findfirst(search_path, &fileinfo);
+
+    if (handle == -1) {
+        free(*filenames);
+        return -1;
+    }
+
+    do {
+        if (*file_count >= file_capacity) {
+            file_capacity *= 2;
+            char **new_filenames = realloc(*filenames, file_capacity * sizeof(char *));
+            if (!new_filenames) {
+                for (int i = 0; i < *file_count; i++)
+                    free((*filenames)[i]);
+                free(*filenames);
+                _findclose(handle);
+                return -1;
+            }
+            *filenames = new_filenames;
+        }
+
+        (*filenames)[*file_count] = malloc(strlen(fileinfo.name) + 1);
+        if ((*filenames)[*file_count]) {
+            strcpy((*filenames)[*file_count], fileinfo.name);
+            (*file_count)++;
+        }
+    } while (_findnext(handle, &fileinfo) == 0);
+
+    _findclose(handle);
+    return 0;
+}
+#else
+static int scan_directory(const char *dir_path, char ***filenames, int *file_count)
+{
+    DIR *dir;
+    struct dirent *entry;
+    int file_capacity = 1000;
+
+    *filenames = malloc(file_capacity * sizeof(char *));
+    if (!*filenames)
+        return -1;
+
+    dir = opendir(dir_path);
+    if (!dir) {
+        free(*filenames);
+        return -1;
+    }
+
+    *file_count = 0;
+    while ((entry = readdir(dir)) != NULL) {
+        if (strstr(entry->d_name, ".bin")) {
+            if (*file_count >= file_capacity) {
+                file_capacity *= 2;
+                char **new_filenames = realloc(*filenames, file_capacity * sizeof(char *));
+                if (!new_filenames) {
+                    for (int i = 0; i < *file_count; i++)
+                        free((*filenames)[i]);
+                    free(*filenames);
+                    closedir(dir);
+                    return -1;
+                }
+                *filenames = new_filenames;
+            }
+
+            (*filenames)[*file_count] = malloc(strlen(entry->d_name) + 1);
+            if ((*filenames)[*file_count]) {
+                strcpy((*filenames)[*file_count], entry->d_name);
+                (*file_count)++;
+            }
+        }
+    }
+    closedir(dir);
+    return 0;
+}
+#endif
 
 int send_packets_from_directory(const char *dir_path, const char *host, int port, int packet_size, long delay_us,
                                 int verbose)
@@ -54,16 +180,25 @@ int send_packets_from_directory(const char *dir_path, const char *host, int port
     struct sockaddr_in addr;
     int sock;
     int packets_sent = 0;
-    DIR *dir;
-    struct dirent *entry;
     char **filenames = NULL;
     int file_count = 0;
-    int file_capacity = 1000;
+
+#ifdef _WIN32
+    // Initialize Winsock
+    WSADATA wsaData;
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+        fprintf(stderr, "WSAStartup failed\n");
+        return -1;
+    }
+#endif
 
     // Create UDP socket
     sock = socket(AF_INET, SOCK_DGRAM, 0);
     if (sock < 0) {
         fprintf(stderr, "Failed to create socket: %s\n", strerror(errno));
+#ifdef _WIN32
+        WSACleanup();
+#endif
         return -1;
     }
 
@@ -74,51 +209,21 @@ int send_packets_from_directory(const char *dir_path, const char *host, int port
     if (inet_pton(AF_INET, host, &addr.sin_addr) <= 0) {
         fprintf(stderr, "Invalid address: %s\n", host);
         close(sock);
+#ifdef _WIN32
+        WSACleanup();
+#endif
         return -1;
     }
 
-    // Allocate array for filenames
-    filenames = malloc(file_capacity * sizeof(char *));
-    if (!filenames) {
-        fprintf(stderr, "Failed to allocate memory for filenames\n");
+    // Scan directory for .bin files
+    if (scan_directory(dir_path, &filenames, &file_count) != 0) {
+        fprintf(stderr, "Failed to scan directory: %s\n", dir_path);
         close(sock);
+#ifdef _WIN32
+        WSACleanup();
+#endif
         return -1;
     }
-
-    // Read directory and collect .bin files
-    dir = opendir(dir_path);
-    if (!dir) {
-        fprintf(stderr, "Failed to open directory: %s\n", strerror(errno));
-        free(filenames);
-        close(sock);
-        return -1;
-    }
-
-    while ((entry = readdir(dir)) != NULL) {
-        if (strstr(entry->d_name, ".bin")) {
-            if (file_count >= file_capacity) {
-                file_capacity *= 2;
-                char **new_filenames = realloc(filenames, file_capacity * sizeof(char *));
-                if (!new_filenames) {
-                    fprintf(stderr, "Failed to reallocate memory for filenames\n");
-                    for (int i = 0; i < file_count; i++)
-                        free(filenames[i]);
-                    free(filenames);
-                    closedir(dir);
-                    close(sock);
-                    return -1;
-                }
-                filenames = new_filenames;
-            }
-
-            filenames[file_count] = malloc(strlen(entry->d_name) + 1);
-            if (filenames[file_count]) {
-                strcpy(filenames[file_count], entry->d_name);
-                file_count++;
-            }
-        }
-    }
-    closedir(dir);
 
     // Sort filenames alphabetically to ensure correct order
     qsort(filenames, file_count, sizeof(char *), compare_filenames);
@@ -133,7 +238,11 @@ int send_packets_from_directory(const char *dir_path, const char *host, int port
     // Send each packet file
     for (int i = 0; i < file_count; i++) {
         char filepath[MAX_PATH_LEN];
+#ifdef _WIN32
+        snprintf(filepath, sizeof(filepath), "%s\\%s", dir_path, filenames[i]);
+#else
         snprintf(filepath, sizeof(filepath), "%s/%s", dir_path, filenames[i]);
+#endif
 
         FILE *f = fopen(filepath, "rb");
         if (!f) {
@@ -154,7 +263,7 @@ int send_packets_from_directory(const char *dir_path, const char *host, int port
         }
 
         // Send packet
-        ssize_t sent = sendto(sock, buffer, packet_size, 0, (struct sockaddr *)&addr, sizeof(addr));
+        ssize_t sent = sendto(sock, (const char *)buffer, packet_size, 0, (struct sockaddr *)&addr, sizeof(addr));
         if (sent < 0) {
             fprintf(stderr, "Send failed: %s\n", strerror(errno));
             break;
@@ -186,6 +295,10 @@ int send_packets_from_directory(const char *dir_path, const char *host, int port
     }
     free(filenames);
     close(sock);
+
+#ifdef _WIN32
+    WSACleanup();
+#endif
 
     return packets_sent;
 }

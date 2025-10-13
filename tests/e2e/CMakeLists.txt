@@ -13,6 +13,8 @@ add_executable(udp_replay udp_replay.c)
 # Compiler flags for the UDP replay tool
 if(MSVC)
   target_compile_options(udp_replay PRIVATE /W4 /std:c17)
+  # Link with Winsock on Windows
+  target_link_libraries(udp_replay PRIVATE ws2_32)
 else()
   target_compile_options(udp_replay PRIVATE -Wall -Wextra -std=c17 -O2)
 endif()
@@ -25,7 +27,7 @@ endforeach()
 
 # Install E2E test files
 install(TARGETS udp_replay RUNTIME DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-install(FILES 
+install(FILES
   generate_packets.py
   run_e2e_test.py
   verify_output.py

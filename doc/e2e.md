@@ -5,8 +5,9 @@ Automated end-to-end (E2E) tests for the C64 Stream OBS plugin. These tests vali
 ## Overview
 
 The E2E test system provides:
+
 - **Visual Verification**: Animated raster bars for human inspection of smooth playback
-- **Automated Validation**: Binary frame markers and audio patterns for programmatic verification  
+- **Automated Validation**: Binary frame markers and audio patterns for programmatic verification
 - **A/V Sync Testing**: Heartbeat sound synchronized with visual bouncing
 - **CI Integration**: 5-second tests on GitHub Actions
 - **Local Testing**: Extended duration tests at production load
@@ -35,6 +36,7 @@ flowchart TD
 ### Raster Bars
 
 Animated rainbow-colored bars that bounce vertically:
+
 - **Appearance**: Full-width horizontal bars (~50 pixels tall) with all 16 VIC-II colors
 - **3D Effect**: Simulated cylindrical tube with lighting (brightest 30% from top)
 - **Physics**: Realistic bouncing between floor and ceiling with gravity
@@ -44,6 +46,7 @@ Animated rainbow-colored bars that bounce vertically:
 ### Binary Metadata Encoding
 
 Top-left corner (8×7 pixels) encodes frame metadata:
+
 - **Format**: `[32-bit sequence][8 zero bits][16-bit frame]` = 56 bits
 - **Encoding**: Black pixel = 0, White pixel = 1
 - **Purpose**: Precise frame identification and dropped frame detection
@@ -70,13 +73,27 @@ cmake --build . --target udp_replay
 
 ## Usage
 
-### Quick Test
+### One-Stop E2E Test (Recommended)
+
 ```bash
+# Quick 5-second test (default)
 cd tests/e2e
-./quick_test.sh
+./run_e2e_local.sh
+
+# Extended 30-second stress test
+./run_e2e_local.sh --duration 30 --verbose
+
+# NTSC format test
+./run_e2e_local.sh --format NTSC --duration 10
+
+# Development mode - skip build, keep artifacts
+./run_e2e_local.sh --skip-build --no-cleanup --verbose
 ```
 
-### Generate Packets
+### Manual Testing (Advanced)
+
+#### Generate Packets
+
 ```bash
 # 5-second CI test
 ./generate_packets.py --frames 250 --format PAL
@@ -85,12 +102,14 @@ cd tests/e2e
 ./generate_packets.py --frames 600 --format PAL
 ```
 
-### Run E2E Test
+#### Run E2E Test
+
 ```bash
 ./run_e2e_test.py --format PAL --frames 250 --record
 ```
 
-### Verify Output
+#### Verify Output
+
 ```bash
 ./verify_output.py recording_PAL.mkv --format PAL --frames 250
 ```
@@ -100,6 +119,7 @@ cd tests/e2e
 ### Video (780 bytes)
 
 **Header (12 bytes):**
+
 ```
 - Sequence number (16-bit LE)
 - Frame number (16-bit LE)
@@ -111,17 +131,20 @@ cd tests/e2e
 ```
 
 **Payload (768 bytes):**
+
 - 4 lines × 384 pixels, 4-bit VIC colors
 - Raster bars + binary markers + border
 
 ### Audio (770 bytes)
 
 **Header (2 bytes):**
+
 ```
 - Sequence number (16-bit LE)
 ```
 
 **Payload (768 bytes):**
+
 - 192 stereo samples (16-bit signed LE)
 - 440Hz carrier + frame marker + heartbeat
 
@@ -142,6 +165,7 @@ cd tests/e2e
 ### Manual Inspection
 
 Review recording for:
+
 - Smooth raster bar animation
 - Correct bounce physics
 - Audio/visual synchronization
@@ -150,6 +174,7 @@ Review recording for:
 ## CI Integration
 
 GitHub Actions workflow (`e2e-test.yaml`):
+
 1. Build plugin + UDP replay tool
 2. Generate 5-second test packets
 3. Start OBS with C64 Stream source
@@ -160,6 +185,7 @@ GitHub Actions workflow (`e2e-test.yaml`):
 ## Performance
 
 **GitHub Actions runners:**
+
 - UDP replay: 70,000+ pps (no delay)
 - UDP replay: 3,500+ pps (300μs delay)
 - Packet generation: <500ms for 250 frames
@@ -168,6 +194,7 @@ GitHub Actions workflow (`e2e-test.yaml`):
 ## Troubleshooting
 
 ### OBS Issues
+
 ```bash
 # Verify OBS
 obs --version
@@ -180,6 +207,7 @@ tail -f ~/.config/obs-studio/logs/*.txt
 ```
 
 ### UDP Packet Loss
+
 ```bash
 # Increase buffer
 sudo sysctl -w net.core.rmem_max=8388608
@@ -189,6 +217,7 @@ sudo sysctl -w net.core.rmem_max=8388608
 ```
 
 ### Marker Verification Fails
+
 - Check ffmpeg/PIL installation
 - Use lossless/high-quality recording
 - Inspect frame manually: `ffmpeg -i recording.mkv -vframes 1 frame.png`
@@ -196,6 +225,7 @@ sudo sysctl -w net.core.rmem_max=8388608
 ## Implementation Details
 
 ### Raster Bar Physics
+
 ```python
 velocity = initial_velocity
 for frame in frames:
@@ -206,6 +236,7 @@ for frame in frames:
 ```
 
 ### Binary Encoding
+
 ```python
 bits = [(metadata >> i) & 1 for i in range(55, -1, -1)]
 for i, bit in enumerate(bits):
@@ -214,6 +245,7 @@ for i, bit in enumerate(bits):
 ```
 
 ### Audio Heartbeat
+
 ```python
 t = np.linspace(0, 0.3, int(0.3 * sample_rate))
 heartbeat = (1 - t/0.3) * np.sin(2*np.pi*60*t)
