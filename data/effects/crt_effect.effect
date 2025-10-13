@@ -59,16 +59,16 @@ float3 ApplyAfterglow(float2 uv, float3 current_rgb)
     // Per-channel time constants (seconds) - red, green, blue phosphor decay rates
     float3 tau = float3(0.6, 0.8, 0.3) * duration_s;
 
-    // Scale by curve selection
+    // Scale by curve selection (smaller scale = faster decay)
     float curve_scale = 1.0;
     if (afterglow_curve == 0) {
-        curve_scale = 4.0;  // InstantFade
+        curve_scale = 0.25;  // InstantFade (fastest decay)
     } else if (afterglow_curve == 1) {
-        curve_scale = 2.0;  // RapidFade
+        curve_scale = 0.5;   // RapidFade
     } else if (afterglow_curve == 2) {
-        curve_scale = 1.0;  // GradualFade
+        curve_scale = 1.0;   // GradualFade
     } else if (afterglow_curve == 3) {
-        curve_scale = 0.5;  // LongTail
+        curve_scale = 2.0;   // LongTail (slowest decay)
     }
     tau *= curve_scale;
     tau = max(tau, float3(0.001, 0.001, 0.001));
@@ -248,14 +248,9 @@ float4 PSDefault(VertData v_in) : TARGET
         color.rgb = bloom_result;
     }
 
-    // === AFTERGLOW EFFECT ===
-    // CRT phosphor afterglow: decaying-maximum persistence model
-    if (afterglow_duration_ms > 0) {
-        color.rgb = ApplyAfterglow(uv, color.rgb);
-    }
-
     // === SCREEN TINT EFFECT ===
     // Emulate 1980s monochrome CRTs: first convert to monochrome, then apply tint
+    // Apply BEFORE afterglow to prevent brightness feedback loops
     if (tint_mode > 0) {
         // Step 1: ALWAYS convert to monochrome first (grayscale) using proper luminance calculation
         float luminance = dot(color.rgb, float3(0.299f, 0.587f, 0.114f));
@@ -286,6 +281,13 @@ float4 PSDefault(VertData v_in) : TARGET
         }
 
         color.rgb = tinted_color;
+    }
+
+    // === AFTERGLOW EFFECT ===
+    // CRT phosphor afterglow: exponential smoothing persistence model
+    // Applied AFTER tint to ensure consistent brightness levels
+    if (afterglow_duration_ms > 0) {
+        color.rgb = ApplyAfterglow(uv, color.rgb);
     }
 
     // Ensure final color is properly clamped for DirectX 11

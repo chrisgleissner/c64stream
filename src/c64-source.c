@@ -893,7 +893,7 @@ void c64_video_render(void *data, gs_effect_t *effect)
 
     // If afterglow is enabled, render to accumulation buffer with ping-pong feedback
     if (context->afterglow_enable && context->afterglow_accum_prev && context->afterglow_accum_next) {
-        // === RENDER TO ACCUMULATION BUFFER (WITH AFTERGLOW APPLIED) ===
+        // === STEP 1: RENDER TO ACCUMULATION BUFFER (WITH AFTERGLOW APPLIED) ===
         gs_viewport_push();
         gs_projection_push();
         gs_matrix_push();
@@ -920,8 +920,9 @@ void c64_video_render(void *data, gs_effect_t *effect)
         gs_viewport_pop();
         gs_set_render_target(NULL, NULL);
 
-        // === DISPLAY FROM ACCUMULATION BUFFER ===
-        // Now draw the accumulated result (with afterglow) to the screen
+        // === STEP 2: DISPLAY FROM ACCUMULATION BUFFER TO SCREEN ===
+        // Now draw the accumulated result (with afterglow) directly to the screen
+        // Use default effect for simple passthrough rendering
         gs_effect_t *default_effect = obs_get_base_effect(OBS_EFFECT_DEFAULT);
         if (default_effect) {
             gs_effect_set_texture(gs_effect_get_param_by_name(default_effect, "image"), context->afterglow_accum_next);
@@ -930,7 +931,7 @@ void c64_video_render(void *data, gs_effect_t *effect)
             }
         }
 
-        // Swap accumulation buffers for next frame
+        // === STEP 3: SWAP BUFFERS FOR NEXT FRAME ===
         gs_texture_t *temp = context->afterglow_accum_prev;
         context->afterglow_accum_prev = context->afterglow_accum_next;
         context->afterglow_accum_next = temp;
