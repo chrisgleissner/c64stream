@@ -878,6 +878,10 @@ void c64_video_render(void *data, gs_effect_t *effect)
     if (context->afterglow_accum_prev) {
         gs_effect_set_texture(gs_effect_get_param_by_name(context->crt_effect, "texture_accum_prev"),
                               context->afterglow_accum_prev);
+    } else {
+        // Bind current render texture as fallback for first frame
+        gs_effect_set_texture(gs_effect_get_param_by_name(context->crt_effect, "texture_accum_prev"),
+                              context->render_texture);
     }
 
     // Render the texture with the CRT effect using scaled dimensions
@@ -898,12 +902,11 @@ void c64_video_render(void *data, gs_effect_t *effect)
         gs_set_render_target(context->afterglow_accum_next, NULL);
         gs_clear(GS_CLEAR_COLOR, &(struct vec4){0.0f, 0.0f, 0.0f, 0.0f}, 0.0f, 0);
 
-        // Set up orthographic projection for the accumulation buffer
+        // Set up orthographic projection for accumulation buffer
         gs_ortho(0.0f, (float)render_width, 0.0f, (float)render_height, -100.0f, 100.0f);
         gs_set_viewport(0, 0, render_width, render_height);
 
         // Render with CRT effect (including afterglow) to accumulation buffer
-        // This captures the shader output which includes the blended afterglow
         while (gs_effect_loop(context->crt_effect, "Draw")) {
             gs_draw_sprite(context->render_texture, 0, render_width, render_height);
         }
@@ -915,7 +918,6 @@ void c64_video_render(void *data, gs_effect_t *effect)
 
         // === DISPLAY FROM ACCUMULATION BUFFER ===
         // Now draw the accumulated result (with afterglow) to the screen
-        // Use default effect for simple texture display
         gs_effect_t *default_effect = obs_get_base_effect(OBS_EFFECT_DEFAULT);
         if (default_effect) {
             gs_effect_set_texture(gs_effect_get_param_by_name(default_effect, "image"), context->afterglow_accum_next);
@@ -925,7 +927,6 @@ void c64_video_render(void *data, gs_effect_t *effect)
         }
 
         // Swap accumulation buffers for next frame
-        // Next frame will use this frame's output as its "previous frame"
         gs_texture_t *temp = context->afterglow_accum_prev;
         context->afterglow_accum_prev = context->afterglow_accum_next;
         context->afterglow_accum_next = temp;
