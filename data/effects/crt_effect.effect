@@ -76,9 +76,29 @@ float3 ApplyAfterglow(float2 uv, float3 current_rgb)
     // Compute decay factor per channel for this frame (0..1)
     float3 decay = exp(-dt_ms / 1000.0 / tau);
 
-    // Use exponential smoothing: new = prev*decay + curr*(1-decay)
-    // This is deterministic and safe, avoiding max-based feedback amplification
-    float3 persisted = prev.rgb * decay + current_rgb * (1.0 - decay);
+    // === CRT PHOSPHOR NON-LINEAR DECAY MODEL ===
+    // Real CRT phosphors have dual-phase decay:
+    // 1. Intense initial flash (high brightness, short duration)
+    // 2. Long tail (dim glow, extended persistence)
+    //
+    // We model this by tracking luminance change and boosting newly-lit pixels
+    float prev_luma = dot(prev.rgb, float3(0.299, 0.587, 0.114));
+    float curr_luma = dot(current_rgb, float3(0.299, 0.587, 0.114));
+
+    // Detect "flash" - when current pixel is significantly brighter than previous
+    // This captures fast-moving objects lighting up new phosphor areas
+    float luma_increase = max(0.0, curr_luma - prev_luma);
+    float flash_factor = saturate(luma_increase * 3.0); // Amplify sudden brightness changes
+
+    // Standard exponential smoothing for the base persistence
+    float3 base_persisted = prev.rgb * decay + current_rgb * (1.0 - decay);
+
+    // Add extra intensity for newly-lit pixels (the "flash" component)
+    // This makes fast-moving bright objects much more visible
+    float3 flash_boost = current_rgb * flash_factor * 0.5; // 50% extra brightness for flash
+
+    // Combine base persistence with flash boost
+    float3 persisted = base_persisted + flash_boost;
 
     // Clamp to valid range
     return saturate(persisted);

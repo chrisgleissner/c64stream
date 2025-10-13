@@ -922,11 +922,11 @@ void c64_video_render(void *data, gs_effect_t *effect)
 
         // === STEP 2: DISPLAY FROM ACCUMULATION BUFFER TO SCREEN ===
         // Now draw the accumulated result (with afterglow) directly to the screen
-        // Use default effect for simple passthrough rendering
-        gs_effect_t *default_effect = obs_get_base_effect(OBS_EFFECT_DEFAULT);
-        if (default_effect) {
-            gs_effect_set_texture(gs_effect_get_param_by_name(default_effect, "image"), context->afterglow_accum_next);
-            while (gs_effect_loop(default_effect, "Draw")) {
+        // Use opaque effect for sources (no alpha blending)
+        gs_effect_t *opaque_effect = obs_get_base_effect(OBS_EFFECT_OPAQUE);
+        if (opaque_effect) {
+            gs_effect_set_texture(gs_effect_get_param_by_name(opaque_effect, "image"), context->afterglow_accum_next);
+            while (gs_effect_loop(opaque_effect, "Draw")) {
                 gs_draw_sprite(context->afterglow_accum_next, 0, render_width, render_height);
             }
         }
