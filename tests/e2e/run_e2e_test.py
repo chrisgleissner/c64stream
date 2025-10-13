@@ -55,6 +55,12 @@ class E2ETest:
         self.tcp_server_running = False
         self.udp_replay_triggered = threading.Event()
 
+        # UDP destination addresses (updated from TCP commands)
+        self.video_dest_ip = '127.0.0.1'
+        self.video_dest_port = self.video_port
+        self.audio_dest_ip = '127.0.0.1'
+        self.audio_dest_port = self.audio_port
+
         # Test artifacts
         self.packet_dir = self.test_dir / 'test_packets'
         self.output_dir = self.test_dir / 'test_output'
@@ -64,6 +70,22 @@ class E2ETest:
         """Print log message if verbose mode is enabled."""
         if self.verbose:
             print(f"[TEST] {message}")
+
+    def clean_test_output(self):
+        """Clean the test output directory before starting E2E test."""
+        import shutil
+
+        if self.output_dir.exists():
+            self.log(f"Cleaning test output directory: {self.output_dir}")
+            try:
+                shutil.rmtree(self.output_dir)
+                self.output_dir.mkdir(parents=True, exist_ok=True)
+                self.log("✅ Test output directory cleaned")
+            except Exception as e:
+                self.log(f"❌ Failed to clean test output directory: {e}")
+        else:
+            self.output_dir.mkdir(parents=True, exist_ok=True)
+            self.log("✅ Created fresh test output directory")
 
     def start_xvfb(self, display=':99'):
         """Start Xvfb virtual framebuffer for headless testing."""
@@ -376,10 +398,11 @@ DockAreaVisible=false
                 'obs',
                 '--profile', 'C64StreamTest',
                 '--scene-collection', 'C64StreamTest',
+                '--startrecording',  # Auto-start recording
                 '--minimize-to-tray',
                 '--disable-updater',
                 '--disable-missing-files-check',
-                '--disable-shutdown-check'
+                '--multi'  # Allow multiple instances
             ]
 
             self.log(f"Running: {' '.join(obs_cmd)}")
@@ -392,7 +415,7 @@ DockAreaVisible=false
             )
 
             # Give OBS time to initialize
-            time.sleep(8)
+            time.sleep(3)
 
             if self.obs_process.poll() is not None:
                 stdout, stderr = self.obs_process.communicate()
@@ -400,8 +423,29 @@ DockAreaVisible=false
 
             self.log("✅ OBS started successfully")
 
-            # Wait a bit more for full initialization
-            time.sleep(2)
+            # Wait for OBS to be ready (check for WebSocket or use longer delay)
+            obs_ready = False
+            for i in range(10):  # Try for up to 10 seconds
+                if self.obs_process.poll() is not None:
+                    break  # OBS has crashed
+
+                # Try to connect to WebSocket to check if OBS is ready
+                if WEBSOCKET_AVAILABLE:
+                    try:
+                        import requests
+                        response = requests.get('http://127.0.0.1:4455/api', timeout=1)
+                        if response.status_code == 200:
+                            obs_ready = True
+                            self.log("✅ OBS WebSocket API is ready")
+                            break
+                    except:
+                        pass
+
+                self.log(f"⏳ Waiting for OBS to be ready... ({i+1}/10)")
+                time.sleep(1)
+
+            if not obs_ready:
+                self.log("⚠️ OBS WebSocket not available, but OBS appears to be running")
 
             return True
 
@@ -542,8 +586,100 @@ DockAreaVisible=false
         self.log("❌ No valid recording files found")
         return None
 
+    def check_csv_recordings(self):
+        """Check if CSV recordings were created and analyze their content."""
+        self.log("🔍 Checking for CSV recordings...")
+
+        # Look for CSV files in the plugin's recording directory
+        recordings_base = Path.home() / 'Documents' / 'obs-studio' / 'c64stream' / 'recordings'
+
+        if not recordings_base.exists():
+            self.log(f"❌ CSV recordings directory doesn't exist: {recordings_base}")
+            return False
+
+        # Find the most recent session folder
+        session_folders = []
+        for folder in recordings_base.glob('session_*'):
+            if folder.is_dir():
+                session_folders.append(folder)
+
+        if not session_folders:
+            self.log("❌ No CSV recording session folders found")
+            return False
+
+        # Sort by modification time, newest first
+        session_folders.sort(key=lambda f: f.stat().st_mtime, reverse=True)
+        latest_session = session_folders[0]
+
+        self.log(f"📁 Found latest session folder: {latest_session}")
+
+        # Check for CSV files
+        network_csv = latest_session / 'network.csv'
+        obs_csv = latest_session / 'obs.csv'
+
+        csv_results = {}
+
+        # Analyze network.csv
+        if network_csv.exists():
+            self.log(f"✅ Found network.csv: {network_csv} ({network_csv.stat().st_size} bytes)")
+            try:
+                with open(network_csv, 'r') as f:
+                    lines = f.readlines()
+                    csv_results['network_packets'] = len(lines) - 1  # Subtract header
+                    self.log(f"📊 Network CSV contains {csv_results['network_packets']} packet entries")
+
+                    # Show first few entries
+                    if len(lines) > 1:
+                        self.log(f"📝 First network entry: {lines[1].strip()}")
+                    if len(lines) > 2:
+                        self.log(f"📝 Second network entry: {lines[2].strip()}")
+
+            except Exception as e:
+                self.log(f"❌ Failed to read network.csv: {e}")
+        else:
+            self.log(f"❌ network.csv not found: {network_csv}")
+
+        # Analyze obs.csv
+        if obs_csv.exists():
+            self.log(f"✅ Found obs.csv: {obs_csv} ({obs_csv.stat().st_size} bytes)")
+            try:
+                with open(obs_csv, 'r') as f:
+                    lines = f.readlines()
+                    csv_results['obs_frames'] = len(lines) - 1  # Subtract header
+                    self.log(f"📊 OBS CSV contains {csv_results['obs_frames']} frame entries")
+
+                    # Show first few entries
+                    if len(lines) > 1:
+                        self.log(f"📝 First OBS entry: {lines[1].strip()}")
+                    if len(lines) > 2:
+                        self.log(f"📝 Second OBS entry: {lines[2].strip()}")
+
+            except Exception as e:
+                self.log(f"❌ Failed to read obs.csv: {e}")
+        else:
+            self.log(f"❌ obs.csv not found: {obs_csv}")
+
+        # Copy CSV files to test output for analysis
+        try:
+            if network_csv.exists():
+                import shutil
+                dest_network = self.output_dir / 'network.csv'
+                shutil.copy2(network_csv, dest_network)
+                self.log(f"✅ Copied network.csv to: {dest_network}")
+
+            if obs_csv.exists():
+                import shutil
+                dest_obs = self.output_dir / 'obs.csv'
+                shutil.copy2(obs_csv, dest_obs)
+                self.log(f"✅ Copied obs.csv to: {dest_obs}")
+
+        except Exception as e:
+            self.log(f"⚠️ Failed to copy CSV files: {e}")
+
+        return network_csv.exists() or obs_csv.exists()
+
     def replay_packets(self, udp_replay_path):
-        """Replay video and audio packets concurrently, waiting for TCP trigger."""
+        """Replay video and audio packets with precise interleaved timing."""
         self.log(f"Waiting for plugin to request streaming via TCP...")
 
         # Wait for the plugin to send TCP start commands (with timeout)
@@ -553,57 +689,145 @@ DockAreaVisible=false
 
         self.log(f"✅ Received streaming request, starting {self.format} packet replay")
 
+        # Add extra delay to ensure plugin UDP sockets are fully bound (critical fix!)
+        import time
+        time.sleep(5.0)  # Increased from 2.0s - plugin needs time to bind UDP sockets
+        self.log("✅ UDP socket readiness delay complete")
+
+        # Additional delay for plugin UDP socket initialization and buffer setup
+        time.sleep(2.0)  # Increased from 1.0s
+        self.log("✅ Plugin UDP socket initialization delay complete")
+
+        return self._replay_interleaved_packets()
+
+    def _replay_interleaved_packets(self):
+        """Replay packets with proper interleaving and precise timing."""
+        import socket
+        import time
+        import glob
+        import os
+
         video_dir = self.packet_dir / 'video' / self.format
         audio_dir = self.packet_dir / 'audio' / self.format
 
         if not video_dir.exists() or not audio_dir.exists():
             raise FileNotFoundError(f"Packet directories not found: {video_dir}, {audio_dir}")
 
-        # Video packets: ~300 microseconds between packets (matching C64U timing)
-        video_cmd = [
-            str(udp_replay_path),
-            str(video_dir),
-            '127.0.0.1',
-            str(self.video_port),
-            '780',  # Video packet size
-            '--delay', '300',  # 300 microseconds between packets
-        ]
-        if self.verbose:
-            video_cmd.append('--verbose')
+        # Load packet files
+        video_files = sorted(glob.glob(str(video_dir / "*.bin")))
+        audio_files = sorted(glob.glob(str(audio_dir / "*.bin")))
 
-        # Audio packets: ~4000 microseconds between packets (4ms @ 250 packets/sec)
-        audio_cmd = [
-            str(udp_replay_path),
-            str(audio_dir),
-            '127.0.0.1',
-            str(self.audio_port),
-            '770',  # Audio packet size
-            '--delay', '4000',  # 4000 microseconds between packets
-        ]
-        if self.verbose:
-            audio_cmd.append('--verbose')
+        if not video_files or not audio_files:
+            self.log("❌ No packet files found")
+            return False
 
-        # Use results list to track success from threads
-        results = {'video': False, 'audio': False}
+        self.log(f"📦 Loaded {len(video_files)} video packets, {len(audio_files)} audio packets")
 
-        # Start both in parallel
-        video_thread = threading.Thread(target=self._run_replay, args=(video_cmd, 'video', results))
-        audio_thread = threading.Thread(target=self._run_replay, args=(audio_cmd, 'audio', results))
+        # Precise timing based on C64 Stream specification
+        if self.format == 'PAL':
+            video_interval_us = 293  # PAL: 0.293 ms = 293 μs between video packets
+            audio_interval_us = 4000  # PAL: 4.000 ms = 4000 μs between audio packets
+        else:  # NTSC
+            video_interval_us = 279  # NTSC: 0.279 ms = 279 μs between video packets
+            audio_interval_us = 4004  # NTSC: 4.004 ms = 4004 μs between audio packets
 
-        video_thread.start()
-        audio_thread.start()
+        # Create UDP sockets
+        video_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        audio_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-        # Wait for both to complete
-        video_thread.join()
-        audio_thread.join()
+        # Skip test packets to avoid interference with real packet reception
+        # The plugin might be processing test packets when real packets arrive
+        self.log(f"🔍 UDP sockets ready for {self.video_dest_ip}:{self.video_dest_port} and {self.audio_dest_ip}:{self.audio_dest_port}")
 
-        success = results['video'] and results['audio']
-        if success:
-            self.log("✅ Packet replay complete")
-        else:
-            self.log("❌ Packet replay failed")
+        try:
+            # Calculate interleaved timeline
+            timeline = []
+            start_time_us = 0
 
-        return success
+            # Add video packets to timeline
+            for i, video_file in enumerate(video_files):
+                timeline.append({
+                    'time_us': start_time_us + i * video_interval_us,
+                    'type': 'video',
+                    'file': video_file,
+                    'sock': video_sock,
+                    'dest': (self.video_dest_ip, self.video_dest_port)
+                })
+
+            # Add audio packets to timeline
+            for i, audio_file in enumerate(audio_files):
+                timeline.append({
+                    'time_us': start_time_us + i * audio_interval_us,
+                    'type': 'audio',
+                    'file': audio_file,
+                    'sock': audio_sock,
+                    'dest': (self.audio_dest_ip, self.audio_dest_port)
+                })
+
+            # Sort by timestamp for proper interleaving
+            timeline.sort(key=lambda x: x['time_us'])
+
+            self.log(f"🎯 Generated {len(timeline)} interleaved packets over {timeline[-1]['time_us']/1000:.1f}ms")
+
+            # Send packets with precise timing and better error handling
+            replay_start_time = time.time()
+            packets_sent = 0
+            failed_packets = 0
+
+            for event in timeline:
+                # Calculate when this packet should be sent
+                target_time = replay_start_time + event['time_us'] / 1_000_000.0
+
+                # Wait until the precise moment
+                current_time = time.time()
+                if current_time < target_time:
+                    time.sleep(target_time - current_time)
+
+                # Read and send packet
+                try:
+                    with open(event['file'], 'rb') as f:
+                        packet_data = f.read()
+
+                    if len(packet_data) == 0:
+                        self.log(f"❌ Empty packet file: {event['file']}")
+                        failed_packets += 1
+                        continue
+
+                    bytes_sent = event['sock'].sendto(packet_data, event['dest'])
+                    packets_sent += 1
+
+                    # Verify socket operation was successful
+                    if bytes_sent != len(packet_data):
+                        self.log(f"⚠️ Partial send: {bytes_sent}/{len(packet_data)} bytes for {event['type']} packet #{packets_sent}")
+
+                    # Debug first few packets to verify sending
+                    if packets_sent <= 5:
+                        self.log(f"🔍 DEBUG: Sent {event['type']} packet #{packets_sent}: {len(packet_data)} bytes to {event['dest']}, socket returned {bytes_sent}")
+                        # Add small delay after first few packets to ensure plugin processes them
+                        if packets_sent <= 3:
+                            time.sleep(0.001)  # 1ms delay
+
+                    if self.verbose and packets_sent % 500 == 0:
+                        elapsed_ms = (time.time() - replay_start_time) * 1000
+                        self.log(f"📡 Sent {packets_sent}/{len(timeline)} packets ({elapsed_ms:.1f}ms elapsed)")
+
+                except Exception as e:
+                    self.log(f"❌ Failed to send {event['type']} packet {event['file']}: {e}")
+                    failed_packets += 1
+                    continue
+
+            elapsed_ms = (time.time() - replay_start_time) * 1000
+            self.log(f"✅ Packet replay complete: {packets_sent} packets sent, {failed_packets} failed in {elapsed_ms:.1f}ms")
+
+            # Give plugin time to process the packets
+            time.sleep(1.0)
+            self.log("✅ Plugin processing delay complete")
+
+            return packets_sent > 0
+
+        finally:
+            video_sock.close()
+            audio_sock.close()
 
     def _run_replay(self, cmd, stream_type, results):
         """Run a UDP replay command."""
@@ -689,6 +913,25 @@ DockAreaVisible=false
                             if param_len > 2 and len(data) >= 6 + param_len - 2:
                                 dest_str = data[6:6+param_len-2].decode('ascii', errors='ignore')
                                 self.log(f"Stream destination: {dest_str}")
+
+                                # Parse and store the destination for UDP replay
+                                # For E2E testing, force localhost destination regardless of requested IP
+                                if ':' in dest_str:
+                                    dest_ip, dest_port_str = dest_str.split(':', 1)
+                                    try:
+                                        dest_port = int(dest_port_str)
+                                        # Force localhost for E2E testing to avoid network routing issues
+                                        force_dest_ip = "127.0.0.1"
+                                        if stream_id == 0:  # Video
+                                            self.video_dest_ip = force_dest_ip
+                                            self.video_dest_port = dest_port
+                                            self.log(f"Updated video destination: {force_dest_ip}:{dest_port} (forced localhost)")
+                                        elif stream_id == 1:  # Audio
+                                            self.audio_dest_ip = force_dest_ip
+                                            self.audio_dest_port = dest_port
+                                            self.log(f"Updated audio destination: {force_dest_ip}:{dest_port} (forced localhost)")
+                                    except ValueError:
+                                        self.log(f"Invalid port in destination: {dest_str}")
 
                         # Signal that we should start UDP packet replay
                         self.udp_replay_triggered.set()
@@ -855,6 +1098,9 @@ DockAreaVisible=false
         print(f"{'='*60}\n")
 
         try:
+            # Clean test output directory first
+            self.clean_test_output()
+
             # Setup test environment
             if not self.start_xvfb():
                 return False
@@ -864,17 +1110,25 @@ DockAreaVisible=false
                 self.log("❌ Failed to copy E2E properties")
                 return False
 
-            # Start mock C64 Ultimate TCP server
-            if not self.start_mock_c64_server():
-                self.log("❌ Failed to start mock C64 server")
-                return False
-
-            # Start OBS with our test profile
+            # Start OBS first and let it fully initialize
             if not self.start_obs_recording():
                 self.log("❌ Failed to start OBS")
                 return False
 
-            # Start recording
+            # Wait longer for OBS and plugin initialization
+            self.log("⏳ Waiting for OBS and plugin to fully initialize...")
+            time.sleep(8)  # Give plugin time to bind UDP sockets
+
+            # Now start mock C64 Ultimate TCP server after plugin is ready
+            if not self.start_mock_c64_server():
+                self.log("❌ Failed to start mock C64 server")
+                return False
+
+            # Wait longer for OBS initialization and WebSocket availability
+            self.log("⏳ Waiting for OBS to fully initialize...")
+            time.sleep(5)
+
+            # Check if WebSocket is available and start recording if needed
             if not self.start_recording():
                 self.log("❌ Failed to start recording")
                 return False
@@ -891,6 +1145,18 @@ DockAreaVisible=false
             # Stop recording
             self.stop_recording()
 
+            # Wait a moment for files to be written
+            time.sleep(2)
+
+            # Check CSV recordings first (crucial for debugging packet reception)
+            csv_found = self.check_csv_recordings()
+            if csv_found:
+                self.log("✅ CSV recordings found and analyzed")
+                csv_success = True
+            else:
+                self.log("⚠️ No CSV recordings found - may indicate packet reception issues")
+                csv_success = False
+
             # Check if recording file was created
             recording_file = self.check_recording_output()
             if recording_file:
@@ -900,11 +1166,15 @@ DockAreaVisible=false
                 self.log("❌ No recording file found")
                 recording_success = False
 
-            # Overall success requires both replay and recording to work
+            # Overall success requires replay and recording to work
             overall_success = replay_success and recording_success
 
             if overall_success:
-                print("\n✅ Complete E2E test passed: packets replayed and video recorded")
+                if csv_success:
+                    print("\n✅ Complete E2E test passed: packets replayed, video recorded, and CSV data captured")
+                else:
+                    print("\n✅ E2E test passed: packets replayed and video recorded")
+                    print("⚠️  No CSV data found - plugin may not be receiving complete packets")
             else:
                 print("\n❌ E2E test failed - check logs for details")
 

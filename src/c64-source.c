@@ -120,6 +120,9 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
         return NULL;
     }
 
+    // Load configuration file before initializing settings-dependent values
+    c64_load_configuration(settings);
+
     context->source = source;
 
     // Initialize configuration from settings
@@ -149,7 +152,7 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->control_port = (uint32_t)obs_data_get_int(settings, "control_port");
     context->streaming = false;
 
-    // Initialize OBS IP address from settings or auto-detect on first run
+    // Initialize OBS IP address from settings or auto-detect if enabled
     memset(context->obs_ip_address, 0, sizeof(context->obs_ip_address));
     const char *saved_obs_ip = obs_data_get_string(settings, "obs_ip_address");
 
@@ -157,18 +160,21 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
         // Use previously saved/configured OBS IP address
         strncpy(context->obs_ip_address, saved_obs_ip, sizeof(context->obs_ip_address) - 1);
         context->initial_ip_detected = true;
-        C64_LOG_INFO("Using saved OBS IP address: %s", context->obs_ip_address);
-    } else {
-        // First time - detect local IP address
+        C64_LOG_INFO("Using configured OBS IP address: %s", context->obs_ip_address);
+    } else if (context->auto_detect_ip) {
+        // Auto-detect local IP address only if auto-detection is enabled
         if (c64_detect_local_ip(context->obs_ip_address, sizeof(context->obs_ip_address))) {
-            C64_LOG_INFO("Successfully detected OBS IP address: %s", context->obs_ip_address);
+            C64_LOG_INFO("Auto-detected OBS IP address: %s", context->obs_ip_address);
             context->initial_ip_detected = true;
             // Save the detected IP to settings for future use
             obs_data_set_string(settings, "obs_ip_address", context->obs_ip_address);
         } else {
-            C64_LOG_WARNING("Failed to detect OBS IP address, will use configured value");
+            C64_LOG_WARNING("Failed to auto-detect OBS IP address, will use localhost fallback");
             context->initial_ip_detected = false;
         }
+    } else {
+        C64_LOG_INFO("Auto-detection disabled, will use localhost fallback");
+        context->initial_ip_detected = false;
     }
 
     // Ensure we have a valid OBS IP address - use localhost as last resort

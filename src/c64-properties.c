@@ -391,6 +391,10 @@ bool c64_load_configuration(obs_data_t *settings)
                 obs_data_set_default_bool(settings, "auto_detect_ip", enabled);
                 C64_LOG_DEBUG("Config: auto_detect_ip = %s", enabled ? "true" : "false");
                 loaded_settings++;
+            } else if (strcmp(key, "obs_ip_address") == 0) {
+                obs_data_set_default_string(settings, "obs_ip_address", value);
+                C64_LOG_INFO("Config: obs_ip_address = %s", value);
+                loaded_settings++;
             } else if (strcmp(key, "buffer_delay_ms") == 0) {
                 int delay = atoi(value);
                 if (delay >= 0 && delay <= 500) {

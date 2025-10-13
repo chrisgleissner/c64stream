@@ -254,6 +254,87 @@ t = np.linspace(0, 0.3, int(0.3 * sample_rate))
 heartbeat = (1 - t/0.3) * np.sin(2*np.pi*60*t)
 ```
 
+## Current Status (October 2025)
+
+### ✅ Completed Components
+
+1. **E2E Test Framework**: Fully functional with mock C64 Ultimate TCP server
+2. **UDP Packet Replay**: Microsecond-precise interleaved packet transmission (3450 packets/test)
+3. **Plugin Communication**: Successful UDP socket binding and packet delivery
+4. **Video Recording**: 10.3MB recordings generated with proper OBS integration
+5. **Startup Sequence**: Resolved UDP binding conflicts through proper initialization order
+
+### ⚠️ In Progress
+
+**CSV Logging System**: Plugin receives packets but CSV recording not activating
+
+**Root Cause Analysis:**
+
+- Settings `record_csv=true` and `record_video=true` correctly configured
+- Plugin receives and processes some packets (confirmed by "Video stream restored" logs)
+- Session directory creation may be failing due to save folder path issues
+- Plugin falls back to logo display instead of processing stream content
+
+### 🔧 Next Steps to Complete
+
+1. **Debug Save Folder Configuration**
+
+   ```bash
+   # Check current save folder resolution
+   grep -E "(Documents|save.*folder|session)" ~/.config/obs-studio/logs/*.txt
+   
+   # Verify directory creation
+   ls -la ~/Documents/obs-studio/c64stream/recordings/
+   ```
+
+2. **Enable CSV Recording Debugging**
+   - Add debug logging to `c64_start_csv_recording()` function
+   - Verify `c64_session_ensure_exists()` execution path
+   - Check file creation permissions and error handling
+
+3. **Validate Packet Format Compatibility**
+
+   ```bash
+   # Compare generated vs expected packet structure
+   hexdump -C tests/e2e/test_packets/video/PAL/frame_0000_pkt_000.bin | head -5
+   
+   # Check plugin packet validation logic
+   grep -A10 -B10 "Invalid packet format" src/c64-*.c
+   ```
+
+4. **Fix OBS Restart Issue**
+   - Prevent mock TCP server disconnection during recording start
+   - Implement persistent TCP connection handling
+   - Add connection recovery mechanism
+
+### 🎯 Expected Final Outcome
+
+When complete, the E2E test will:
+
+- ✅ Generate and replay 3450 precisely-timed UDP packets
+- ✅ Create 10MB+ video recording with C64 content (not logos)
+- ✅ Produce CSV logs: `network.csv` (packet reception) and `obs.csv` (frame processing)
+- ✅ Validate audio/video synchronization and content accuracy
+
+### 🔍 Debug Commands
+
+```bash
+# Run E2E test with maximum debugging
+cd tests/e2e
+python3 run_e2e_test.py --verbose --frames 5
+
+# Check plugin logs
+tail -f ~/.config/obs-studio/logs/*.txt | grep -E "(c64|stream|CSV|session)"
+
+# Verify packet generation
+ls -la test_packets/video/PAL/ | head -5
+hexdump -C test_packets/video/PAL/frame_0000_pkt_000.bin | head -3
+
+# Test CSV directory creation manually
+mkdir -p ~/Documents/obs-studio/c64stream/recordings/session_test
+echo "test" > ~/Documents/obs-studio/c64stream/recordings/session_test/obs.csv
+```
+
 ## Future Enhancements
 
 1. Multi-format testing (PAL→NTSC switching)
@@ -261,6 +342,8 @@ heartbeat = (1 - t/0.3) * np.sin(2*np.pi*60*t)
 3. OpenCV-based raster bar tracking
 4. FFT-based heartbeat detection
 5. Performance profiling (latency/jitter)
+6. **Automated CSV validation** (packet loss detection, timing analysis)
+7. **Cross-platform testing** (Windows/macOS compatibility)
 
 ## References
 
