@@ -37,11 +37,12 @@ except ImportError:
 
 
 class E2ETest:
-    def __init__(self, test_dir, video_port=11000, audio_port=11001,
+    def __init__(self, test_dir, video_port=11000, audio_port=11001, control_port=6400,
                  format='PAL', frames=30, verbose=False):
         self.test_dir = Path(test_dir)
         self.video_port = video_port
         self.audio_port = audio_port
+        self.control_port = control_port
         self.format = format
         self.frames = frames
         self.verbose = verbose
@@ -49,6 +50,10 @@ class E2ETest:
         # Process handles
         self.xvfb_process = None
         self.obs_process = None
+        self.tcp_server_thread = None
+        self.tcp_server_socket = None
+        self.tcp_server_running = False
+        self.udp_replay_triggered = threading.Event()
 
         # Test artifacts
         self.packet_dir = self.test_dir / 'test_packets'
@@ -88,6 +93,34 @@ class E2ETest:
             print(f"❌ Failed to start Xvfb: {e}")
             return False
 
+    def copy_e2e_properties(self):
+        """Copy E2E properties configuration to plugin data directory."""
+        import shutil
+
+        # Get the plugin data directory
+        obs_config_dir = Path.home() / '.config' / 'obs-studio'
+        plugin_data_dir = obs_config_dir / 'plugins' / 'c64stream' / 'data'
+
+        if not plugin_data_dir.exists():
+            self.log("❌ Plugin data directory not found, plugin may not be installed")
+            return False
+
+        # Copy E2E properties file
+        e2e_properties = self.test_dir / 'properties_e2e.ini'
+        target_properties = plugin_data_dir / 'properties.ini'
+
+        if e2e_properties.exists():
+            try:
+                shutil.copy2(e2e_properties, target_properties)
+                self.log(f"✅ Copied E2E properties: {e2e_properties} -> {target_properties}")
+                return True
+            except Exception as e:
+                self.log(f"❌ Failed to copy E2E properties: {e}")
+                return False
+        else:
+            self.log(f"❌ E2E properties file not found: {e2e_properties}")
+            return False
+
     def create_obs_profile(self):
         """
         Create a minimal OBS profile and scene collection for testing.
@@ -102,7 +135,7 @@ class E2ETest:
         profile_dir.mkdir(parents=True, exist_ok=True)
         scenes_dir.mkdir(parents=True, exist_ok=True)
 
-        # Create global configuration to disable crash recovery
+        # Create global configuration to disable crash recovery system-wide
         global_ini = obs_config_dir / 'global.ini'
         with open(global_ini, 'w') as f:
             f.write("""[General]
@@ -114,7 +147,12 @@ KeepRecordingWhenStreamStops=false
 WarnBeforeStartingStream=false
 WarnBeforeStoppingStream=false
 WarnBeforeStoppingRecord=false
+SafeMode=false
+DisableSafeMode=true
 """)
+
+        # Clean up any existing OBS state files that might trigger dialogs
+        self.cleanup_obs_state_files(obs_config_dir)
 
                 # Create basic.ini for the profile
         basic_ini = profile_dir / 'basic.ini'
@@ -204,10 +242,11 @@ DockAreaVisible=false
                     "push-to-talk": False,
                     "push-to-talk-delay": 1000,
                     "settings": {
-                        "ip_address": "127.0.0.1",
+                        "c64_host": "localhost",
                         "video_port": self.video_port,
                         "audio_port": self.audio_port,
-                        "format": self.format
+                        "control_port": self.control_port,
+                        "record_csv": True
                     },
                     "sync": 0,
                     "volume": 1.0
@@ -340,8 +379,7 @@ DockAreaVisible=false
                 '--minimize-to-tray',
                 '--disable-updater',
                 '--disable-missing-files-check',
-                '--disable-shutdown-check',
-                '--safe-mode'
+                '--disable-shutdown-check'
             ]
 
             self.log(f"Running: {' '.join(obs_cmd)}")
@@ -404,8 +442,7 @@ DockAreaVisible=false
                 '--minimize-to-tray',
                 '--disable-updater',
                 '--disable-missing-files-check',
-                '--disable-shutdown-check',
-                '--safe-mode'
+                '--disable-shutdown-check'
             ]
 
             self.log(f"Restarting OBS with recording: {' '.join(obs_cmd)}")
@@ -506,8 +543,15 @@ DockAreaVisible=false
         return None
 
     def replay_packets(self, udp_replay_path):
-        """Replay video and audio packets concurrently."""
-        self.log(f"Replaying {self.format} packets")
+        """Replay video and audio packets concurrently, waiting for TCP trigger."""
+        self.log(f"Waiting for plugin to request streaming via TCP...")
+
+        # Wait for the plugin to send TCP start commands (with timeout)
+        if not self.udp_replay_triggered.wait(timeout=30):
+            self.log("❌ Timeout waiting for plugin to request streaming")
+            return False
+
+        self.log(f"✅ Received streaming request, starting {self.format} packet replay")
 
         video_dir = self.packet_dir / 'video' / self.format
         audio_dir = self.packet_dir / 'audio' / self.format
@@ -539,7 +583,27 @@ DockAreaVisible=false
         if self.verbose:
             audio_cmd.append('--verbose')
 
-        # Use results list to track success from threads\n        results = {'video': False, 'audio': False}\n\n        # Start both in parallel\n        video_thread = threading.Thread(target=self._run_replay, args=(video_cmd, 'video', results))\n        audio_thread = threading.Thread(target=self._run_replay, args=(audio_cmd, 'audio', results))\n\n        video_thread.start()\n        audio_thread.start()\n\n        # Wait for both to complete\n        video_thread.join()\n        audio_thread.join()\n\n        success = results['video'] and results['audio']\n        if success:\n            self.log(\"✅ Packet replay complete\")\n        else:\n            self.log(\"❌ Packet replay failed\")\n            \n        return success
+        # Use results list to track success from threads
+        results = {'video': False, 'audio': False}
+
+        # Start both in parallel
+        video_thread = threading.Thread(target=self._run_replay, args=(video_cmd, 'video', results))
+        audio_thread = threading.Thread(target=self._run_replay, args=(audio_cmd, 'audio', results))
+
+        video_thread.start()
+        audio_thread.start()
+
+        # Wait for both to complete
+        video_thread.join()
+        audio_thread.join()
+
+        success = results['video'] and results['audio']
+        if success:
+            self.log("✅ Packet replay complete")
+        else:
+            self.log("❌ Packet replay failed")
+
+        return success
 
     def _run_replay(self, cmd, stream_type, results):
         """Run a UDP replay command."""
@@ -552,6 +616,113 @@ DockAreaVisible=false
         except subprocess.CalledProcessError as e:
             print(f"❌ {stream_type} replay failed: {e.stderr}")
             results[stream_type] = False
+
+    def start_mock_c64_server(self):
+        """Start mock C64 Ultimate TCP server on configurable control port."""
+        self.log(f"Starting mock C64 Ultimate TCP server on port {self.control_port}")
+
+        try:
+            self.tcp_server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.tcp_server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self.tcp_server_socket.bind(('127.0.0.1', self.control_port))
+            self.tcp_server_socket.listen(5)
+            self.tcp_server_running = True
+
+            self.tcp_server_thread = threading.Thread(target=self._tcp_server_worker)
+            self.tcp_server_thread.daemon = True
+            self.tcp_server_thread.start()
+
+            self.log("✅ Mock C64 Ultimate TCP server started")
+            return True
+
+        except Exception as e:
+            self.log(f"❌ Failed to start mock C64 Ultimate TCP server: {e}")
+            return False
+
+    def _tcp_server_worker(self):
+        """TCP server worker thread - handles incoming connections."""
+        self.log("TCP server worker started, waiting for connections...")
+
+        while self.tcp_server_running:
+            try:
+                self.tcp_server_socket.settimeout(1.0)  # Non-blocking accept
+                conn, addr = self.tcp_server_socket.accept()
+                self.log(f"TCP connection received from {addr}")
+
+                # Handle the connection in a separate thread
+                conn_thread = threading.Thread(target=self._handle_tcp_connection, args=(conn, addr))
+                conn_thread.daemon = True
+                conn_thread.start()
+
+            except socket.timeout:
+                continue  # Check if we should still be running
+            except Exception as e:
+                if self.tcp_server_running:
+                    self.log(f"TCP server error: {e}")
+                break
+
+        self.log("TCP server worker stopped")
+
+    def _handle_tcp_connection(self, conn, addr):
+        """Handle a single TCP connection from the C64 Stream plugin."""
+        try:
+            conn.settimeout(5.0)  # 5 second timeout for receive
+            data = conn.recv(1024)
+
+            if len(data) >= 4:
+                self.log(f"Received TCP command from {addr}: {data.hex()}")
+
+                # Parse the command according to C64 protocol
+                # Format: [command_byte][0xFF][param_len][0x00][duration_bytes...][ip:port_string]
+                cmd_byte = data[0]
+
+                if data[1] == 0xFF:  # Valid command marker
+                    stream_id = cmd_byte & 0x0F  # Extract stream ID (0=video, 1=audio)
+                    is_start = (cmd_byte & 0xF0) == 0x20  # 0x20 = start, 0x30 = stop
+
+                    if is_start:
+                        self.log(f"✅ Received START command for stream {stream_id}")
+
+                        # Extract destination IP:port if present
+                        if len(data) > 6:
+                            param_len = data[2]
+                            if param_len > 2 and len(data) >= 6 + param_len - 2:
+                                dest_str = data[6:6+param_len-2].decode('ascii', errors='ignore')
+                                self.log(f"Stream destination: {dest_str}")
+
+                        # Signal that we should start UDP packet replay
+                        self.udp_replay_triggered.set()
+
+                    else:
+                        self.log(f"Received STOP command for stream {stream_id}")
+
+            conn.close()
+
+        except Exception as e:
+            self.log(f"Error handling TCP connection from {addr}: {e}")
+            try:
+                conn.close()
+            except:
+                pass
+
+    def stop_mock_c64_server(self):
+        """Stop the mock C64 Ultimate TCP server."""
+        self.log("Stopping mock C64 Ultimate TCP server")
+
+        self.tcp_server_running = False
+
+        if self.tcp_server_socket:
+            try:
+                self.tcp_server_socket.close()
+            except:
+                pass
+            self.tcp_server_socket = None
+
+        if self.tcp_server_thread:
+            self.tcp_server_thread.join(timeout=2)
+            self.tcp_server_thread = None
+
+        self.log("✅ Mock C64 Ultimate TCP server stopped")
 
     def stop_obs(self):
         """Stop OBS recording with proper cleanup."""
@@ -603,6 +774,38 @@ DockAreaVisible=false
 
             self.log("✅ Xvfb stopped")
 
+    def cleanup_obs_state_files(self, obs_config_dir):
+        """Clean up OBS state files that can trigger popup dialogs."""
+        try:
+            import glob
+
+            # Files/patterns that can trigger dialogs
+            state_patterns = [
+                str(obs_config_dir / 'safe_mode'),
+                str(obs_config_dir / '.safe_mode'),
+                str(obs_config_dir / 'crashed'),
+                str(obs_config_dir / '.crashed'),
+                str(obs_config_dir / 'basic/crashed'),
+                str(obs_config_dir / 'plugin_config/.safe_mode*'),
+                '/tmp/obs-safe-mode-*',
+                '/tmp/.obs-crashed*'
+            ]
+
+            for pattern in state_patterns:
+                for state_file in glob.glob(pattern):
+                    try:
+                        if Path(state_file).is_dir():
+                            import shutil
+                            shutil.rmtree(state_file)
+                        else:
+                            Path(state_file).unlink(missing_ok=True)
+                        self.log(f"Cleaned up state file: {state_file}")
+                    except (OSError, IOError):
+                        pass
+
+        except Exception as e:
+            self.log(f"Warning: Could not clean up OBS state files: {e}")
+
     def cleanup_obs_locks(self):
         """Clean up OBS lock files and crash recovery state."""
         try:
@@ -626,12 +829,16 @@ DockAreaVisible=false
                     except (OSError, IOError):
                         pass
 
+            # Also clean state files that trigger dialogs
+            self.cleanup_obs_state_files(obs_config_dir)
+
         except Exception as e:
             self.log(f"Warning: Could not clean up OBS locks: {e}")
 
     def cleanup(self):
         """Cleanup all test processes."""
         self.log("Cleaning up test environment")
+        self.stop_mock_c64_server()
         self.stop_obs()
         self.stop_xvfb()
         self.cleanup_obs_locks()
@@ -650,6 +857,16 @@ DockAreaVisible=false
         try:
             # Setup test environment
             if not self.start_xvfb():
+                return False
+
+            # Copy E2E properties configuration to plugin
+            if not self.copy_e2e_properties():
+                self.log("❌ Failed to copy E2E properties")
+                return False
+
+            # Start mock C64 Ultimate TCP server
+            if not self.start_mock_c64_server():
+                self.log("❌ Failed to start mock C64 server")
                 return False
 
             # Start OBS with our test profile
@@ -731,6 +948,8 @@ def main():
                         help='Video UDP port (default: 11000)')
     parser.add_argument('--audio-port', type=int, default=11001,
                         help='Audio UDP port (default: 11001)')
+    parser.add_argument('--control-port', type=int, default=6400,
+                        help='Control TCP port for mock C64 Ultimate server (default: 6400)')
     parser.add_argument('--udp-replay', default='./udp_replay',
                         help='Path to udp_replay executable (default: ./udp_replay)')
     parser.add_argument('--verbose', action='store_true',
@@ -750,6 +969,7 @@ def main():
         args.test_dir,
         video_port=args.video_port,
         audio_port=args.audio_port,
+        control_port=args.control_port,
         format=args.format,
         frames=args.frames,
         verbose=args.verbose

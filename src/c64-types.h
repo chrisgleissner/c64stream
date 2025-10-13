@@ -48,6 +48,7 @@ struct c64_source {
     bool initial_ip_detected;  // Flag to track if initial IP detection was done
     uint32_t video_port;
     uint32_t audio_port;
+    uint32_t control_port;
     bool streaming;
 
     // Video data

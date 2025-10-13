@@ -52,7 +52,7 @@ void c64_async_retry_task(void *data)
     } else {
         // Already streaming - test connectivity and send start commands
         // Use quick connectivity test instead of recreating sockets (avoids race conditions)
-        if (c64_test_connectivity(context->ip_address, C64_CONTROL_PORT)) {
+        if (c64_test_connectivity(context->ip_address, context->control_port)) {
             c64_send_control_command(context, true, 0); // Video
             c64_send_control_command(context, true, 1); // Audio
             tcp_success = true;
@@ -146,6 +146,7 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->auto_detect_ip = obs_data_get_bool(settings, "auto_detect_ip");
     context->video_port = (uint32_t)obs_data_get_int(settings, "video_port");
     context->audio_port = (uint32_t)obs_data_get_int(settings, "audio_port");
+    context->control_port = (uint32_t)obs_data_get_int(settings, "control_port");
     context->streaming = false;
 
     // Initialize OBS IP address from settings or auto-detect on first run
@@ -442,6 +443,7 @@ void c64_update(void *data, obs_data_t *settings)
     const char *new_obs_ip = obs_data_get_string(settings, "obs_ip_address");
     uint32_t new_video_port = (uint32_t)obs_data_get_int(settings, "video_port");
     uint32_t new_audio_port = (uint32_t)obs_data_get_int(settings, "audio_port");
+    uint32_t new_control_port = (uint32_t)obs_data_get_int(settings, "control_port");
 
     // Set defaults
     if (!new_host)
@@ -450,13 +452,17 @@ void c64_update(void *data, obs_data_t *settings)
         new_video_port = C64_DEFAULT_VIDEO_PORT;
     if (new_audio_port == 0)
         new_audio_port = C64_DEFAULT_AUDIO_PORT;
+    if (new_control_port == 0)
+        new_control_port = C64_CONTROL_PORT;
 
     // Check if ports have changed (requires socket recreation)
-    bool ports_changed = (new_video_port != context->video_port) || (new_audio_port != context->audio_port);
+    bool ports_changed = (new_video_port != context->video_port) || (new_audio_port != context->audio_port) ||
+                         (new_control_port != context->control_port);
 
     if (ports_changed && context->streaming) {
-        C64_LOG_INFO("Port configuration changed (video: %u->%u, audio: %u->%u), recreating sockets",
-                     context->video_port, new_video_port, context->audio_port, new_audio_port);
+        C64_LOG_INFO("Port configuration changed (video: %u->%u, audio: %u->%u, control: %u->%u), recreating sockets",
+                     context->video_port, new_video_port, context->audio_port, new_audio_port, context->control_port,
+                     new_control_port);
 
         // Stop streaming and close existing sockets
         c64_stop_streaming(context);
@@ -488,6 +494,7 @@ void c64_update(void *data, obs_data_t *settings)
     }
     context->video_port = new_video_port;
     context->audio_port = new_audio_port;
+    context->control_port = new_control_port;
 
     // Update buffer delay setting with debouncing to prevent timestamp reset storms
     uint32_t new_buffer_delay_ms = (uint32_t)obs_data_get_int(settings, "buffer_delay_ms");

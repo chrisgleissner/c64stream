@@ -9,8 +9,8 @@ The E2E test system provides:
 - **Visual Verification**: Animated raster bars for human inspection of smooth playback
 - **Automated Validation**: Binary frame markers and audio patterns for programmatic verification
 - **A/V Sync Testing**: Heartbeat sound synchronized with visual bouncing
-- **CI Integration**: 5-second tests on GitHub Actions
-- **Local Testing**: Extended duration tests at production load
+- **CI Integration**: Automated tests on GitHub Actions with artifact collection
+- **Local Testing**: One-command execution with automatic dependency management
 
 ## Architecture
 
@@ -73,39 +73,42 @@ cmake --build . --target udp_replay
 
 ## Usage
 
-### One-Stop E2E Test (Recommended)
+### Local Testing
 
 ```bash
-# Quick 5-second test (default)
+# Quick test with auto-dependency installation
 cd tests/e2e
 ./run_e2e_local.sh
 
-# Extended 30-second stress test
-./run_e2e_local.sh --duration 30 --verbose
+# Specify test parameters
+./run_e2e_local.sh --format PAL --frames 100 --verbose
 
-# NTSC format test
-./run_e2e_local.sh --format NTSC --duration 10
-
-# Development mode - skip build, keep artifacts
+# Development mode - preserve artifacts for debugging
 ./run_e2e_local.sh --skip-build --no-cleanup --verbose
 ```
 
-### Manual Testing (Advanced)
+### CI/GitHub Actions
+
+E2E tests run automatically on:
+
+- Pull requests to main branch
+- Manual workflow dispatch
+- After successful build completion
+
+Test artifacts (recordings, logs, reports) are automatically collected and available for download from the GitHub Actions UI.
+
+### Manual Component Testing
 
 #### Generate Packets
 
 ```bash
-# 5-second CI test
-./generate_packets.py --frames 250 --format PAL
-
-# Extended local test
-./generate_packets.py --frames 600 --format PAL
+./generate_packets.py --frames 250 --format PAL --output test_packets
 ```
 
-#### Run E2E Test
+#### Run UDP Replay
 
 ```bash
-./run_e2e_test.py --format PAL --frames 250 --record
+../../build_x86_64/tests/e2e/udp_replay test_packets/video/PAL 127.0.0.1 11000 780
 ```
 
 #### Verify Output
@@ -120,7 +123,7 @@ cd tests/e2e
 
 **Header (12 bytes):**
 
-```
+```text
 - Sequence number (16-bit LE)
 - Frame number (16-bit LE)
 - Line number (16-bit LE, bit 15 = last packet flag)
@@ -139,7 +142,7 @@ cd tests/e2e
 
 **Header (2 bytes):**
 
-```
+```text
 - Sequence number (16-bit LE)
 ```
 
