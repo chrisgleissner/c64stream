@@ -62,16 +62,46 @@ on:
         type: boolean
 
 jobs:
+  # For manual dispatch only: optionally build first
   build:
     name: Build Project First 🔨
-    if: ${{ !inputs.skip_build }}
-    uses: ./.github/workflows/build-project.yaml
+    if: ${{ !inputs.skip_build && github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-24.04
+    outputs:
+      pluginName: ${{ steps.setup.outputs.pluginName }}
+      pluginVersion: ${{ steps.setup.outputs.pluginVersion }}
+    steps:
+      - name: Checkout Code 📥
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
 
+      - name: Set Up Build Environment 🔧
+        id: setup
+        run: |
+          : Set Up Build Environment 🔧
+          plugin_name="$(jq -r '.name' buildspec.json)"
+          plugin_version="$(jq -r '.version' buildspec.json)"
+          echo "pluginName=${plugin_name}" >> $GITHUB_OUTPUT
+          echo "pluginVersion=${plugin_version}" >> $GITHUB_OUTPUT
+
+      - name: Install Dependencies 🛍️
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y build-essential cmake ninja-build ccache
+
+      - name: Configure and Build 🔨
+        run: |
+          cmake --preset ubuntu-x86_64
+          cmake --build build_x86_64
+
+  # Main E2E test job - works for both workflow_dispatch and workflow_call
   e2e-test:
     name: Run E2E Tests 🧪
     runs-on: ubuntu-24.04
     needs: [build]
-    if: always() && (needs.build.result == 'success' || inputs.skip_build)
+    if: always()  # Run regardless of build success/failure/skip
     defaults:
       run:
         shell: bash
