@@ -20,30 +20,144 @@ jobs:
           sudo apt-get install -y \
             build-essential \
             cmake \
+            ninja-build \
+            zsh \
             python3 \
             python3-pip \
             python3-numpy \
             python3-pil \
-            ffmpeg
+            python3-websockets \
+            ffmpeg \
+            xvfb \
+            x11-utils \
+            pulseaudio \
+            obs-studio
 
-      - name: Build E2E Test Tools 🔨
-        run: |
-          # Build only the UDP replay tool standalone
-          cd tests/e2e
-          gcc -std=c17 -O2 -o udp_replay udp_replay.c
+      - name: Build Plugin and E2E Tools 🔨
+        uses: ./.github/actions/build-plugin
+        with:
+          target: x86_64
+          config: RelWithDebInfo
 
-      - name: Generate Test Packets
+      - name: Install Plugin for E2E Test 🔌
         run: |
-          cd tests/e2e
-          ./generate_packets.py --frames 250 --format PAL --output test_packets
-          ls -lh test_packets/video/PAL/ | head -5
-          ls -lh test_packets/audio/PAL/ | head -5
+          # Set up OBS directories with proper permissions
+          mkdir -p ~/.config/obs-studio/plugins/c64stream/bin/64bit
+          mkdir -p ~/.config/obs-studio/plugins/c64stream/data
+          mkdir -p ~/.config/obs-studio/basic/profiles/E2E-Test
+          mkdir -p /tmp/obs-test-output
+          chmod -R 755 ~/.config/obs-studio
 
-      - name: Test UDP Replay Tool
+          # Install plugin files
+          cp build_x86_64/c64stream.so ~/.config/obs-studio/plugins/c64stream/bin/64bit/
+          cp -r data/* ~/.config/obs-studio/plugins/c64stream/data/
+
+          # Verify plugin installation
+          ls -la ~/.config/obs-studio/plugins/c64stream/bin/64bit/
+          echo "✅ Plugin installed successfully"
+
+      - name: Run Full E2E Test 🎬
+        timeout-minutes: 15
         run: |
           cd tests/e2e
-          # Quick test to ensure UDP replay works
-          ./udp_replay test_packets/video/PAL 127.0.0.1 11000 780 --verbose
+
+          # Function for lightweight resource monitoring
+          monitor_resources() {
+            while true; do
+              # One-line system stats: CPU%, MEM_USED/TOTAL, DISK_USED%, LOAD_AVG, PROCS
+              printf "📊 [%s] CPU:%s%% MEM:%s/%s(%s%%) DISK:%s%% LOAD:%s PROCS:%d\n" \
+                "$(date '+%H:%M:%S')" \
+                "$(top -bn1 | grep "Cpu(s)" | awk '{print $2}' | cut -d'%' -f1)" \
+                "$(free -h | awk '/^Mem:/ {print $3}')" \
+                "$(free -h | awk '/^Mem:/ {print $2}')" \
+                "$(free | awk '/^Mem:/ {printf "%.0f", $3/$2*100}')" \
+                "$(df /tmp | awk 'NR==2 {print $5}' | cut -d'%' -f1)" \
+                "$(uptime | awk -F'load average:' '{print $2}' | awk '{print $1}' | cut -d',' -f1)" \
+                "$(ps aux | wc -l)"
+              sleep 5  # Log every 5 seconds
+            done
+          }
+
+          # Start background monitoring
+          monitor_resources &
+          MONITOR_PID=$!
+
+          # Cleanup function for proper resource cleanup
+          cleanup_monitoring() {
+            kill $MONITOR_PID 2>/dev/null || true
+            kill $XVFB_PID 2>/dev/null || true
+          }
+          trap cleanup_monitoring EXIT INT TERM
+
+          # Show initial system state
+          echo "=== Initial System State ==="
+          echo "Hardware: $(nproc) CPUs, $(free -h | awk '/^Mem:/ {print $2}') RAM, $(df -h /tmp | awk 'NR==2 {print $2}') /tmp"
+          monitor_resources | head -1  # Show first reading
+
+          # Set up audio system for headless operation
+          export PULSE_SERVER="unix:${XDG_RUNTIME_DIR}/pulse/native"
+          export DISPLAY=:99
+
+          # Start virtual display with more generous settings
+          echo "Starting Xvfb..."
+          Xvfb :99 -screen 0 1280x720x24 -ac +extension GLX +render -noreset &
+          XVFB_PID=$!
+
+          # Wait longer for Xvfb and verify it's running
+          sleep 5
+          if ! xdpyinfo -display :99 >/dev/null 2>&1; then
+            echo "❌ Xvfb failed to start properly"
+            exit 1
+          fi
+          echo "✅ Xvfb running on :99"
+
+          # Run E2E test with shorter duration for CI
+          echo "Starting E2E test..."
+          ./e2e.sh --format PAL --frames 100 --verbose --skip-build
+          E2E_EXIT_CODE=$?
+
+          # Stop monitoring and show final stats
+          kill $MONITOR_PID 2>/dev/null || true
+          echo "=== Final System State ==="
+          monitor_resources | head -1  # Show final reading
+
+          # Cleanup
+          kill $XVFB_PID 2>/dev/null || true
+
+          # Exit with E2E test result
+          exit $E2E_EXIT_CODE
+
+      - name: Collect Diagnostic Info
+        if: always()
+        run: |
+          echo "=== Post-test Diagnostics ==="
+
+          # Final resource snapshot
+          echo "Final resource usage:"
+          printf "📊 CPU:%s%% MEM:%s/%s(%s%%) DISK:%s%% LOAD:%s PROCS:%d\n" \
+            "$(top -bn1 | grep "Cpu(s)" | awk '{print $2}' | cut -d'%' -f1)" \
+            "$(free -h | awk '/^Mem:/ {print $3}')" \
+            "$(free -h | awk '/^Mem:/ {print $2}')" \
+            "$(free | awk '/^Mem:/ {printf "%.0f", $3/$2*100}')" \
+            "$(df /tmp | awk 'NR==2 {print $5}' | cut -d'%' -f1)" \
+            "$(uptime | awk -F'load average:' '{print $2}' | awk '{print $1}' | cut -d',' -f1)" \
+            "$(ps aux | wc -l)"
+
+          # Process information
+          echo "Running processes:"
+          ps aux | grep -E "(obs|Xvfb|python)" || true
+
+          # Check for core dumps
+          echo "Core dumps:"
+          ls -la /tmp/core* 2>/dev/null || echo "No core dumps found"
+
+          # OBS logs
+          echo "OBS config and logs:"
+          ls -la ~/.config/obs-studio/ 2>/dev/null || true
+
+          # Test output summary
+          echo "Test output files:"
+          find tests/e2e/test_output -type f -exec ls -la {} \; 2>/dev/null || true
 
       - name: Upload Test Artifacts
         if: always()
@@ -53,20 +167,31 @@ jobs:
           path: |
             tests/e2e/test_output/**/*
             tests/e2e/test_packets/**/*.bin
+            tests/e2e/*.log
+            ~/.config/obs-studio/logs/**/*
           retention-days: 7
 
       - name: Test Summary 📊
+        if: always()
         run: |
+          cd tests/e2e
           echo "## E2E Test Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          if [[ -f tests/e2e/test_output/test_result.json ]]; then
-            echo "✅ E2E test completed" >> $GITHUB_STEP_SUMMARY
-            echo "$(cat tests/e2e/test_output/test_result.json)" >> $GITHUB_STEP_SUMMARY
+          if [[ -f test_output/test_report.txt ]]; then
+            echo "### Full E2E Test Report" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            cat test_output/test_report.txt >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           else
-            echo "⚠️ E2E test completed (packet replay only)" >> $GITHUB_STEP_SUMMARY
-            echo "- Format: PAL" >> $GITHUB_STEP_SUMMARY
-            echo "- Frames: 250 (5 seconds)" >> $GITHUB_STEP_SUMMARY
-            echo "- Video packets: ~17,000" >> $GITHUB_STEP_SUMMARY
-            echo "- Audio packets: ~250" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ E2E test report not found" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Check for key artifacts
+          if [[ -f test_output/recording_PAL.mkv ]]; then
+            echo "✅ Video recording created" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [[ -f test_output/network.csv ]]; then
+            echo "✅ Network data captured" >> $GITHUB_STEP_SUMMARY
           fi
