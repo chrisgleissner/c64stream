@@ -418,7 +418,7 @@ jobs:
           cd tests/e2e
 
           # Run the orchestrated E2E test
-          python3 ./run_e2e_test.py \
+          python3 ./e2e.py \
             --test-dir . \
             --format PAL \
             --frames 250 \
