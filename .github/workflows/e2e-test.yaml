@@ -126,7 +126,6 @@ jobs:
           path: ./artifacts
 
       - name: Install Plugin 🔌
-        continue-on-error: true
         run: |
           : Install Plugin 🔌
           # Extract and install from artifacts
@@ -156,7 +155,6 @@ jobs:
           ls -la ~/.config/obs-studio/plugins/c64stream/data/
 
       - name: Build E2E Tools 🔧
-        continue-on-error: true
         run: |
           : Build E2E Tools 🔧
           # Configure CMake for E2E tools only
@@ -169,7 +167,6 @@ jobs:
 
       - name: Run E2E Test 🎬
         timeout-minutes: 10
-        continue-on-error: true
         id: e2e_test
         run: |
           : Run E2E Test 🎬
@@ -218,8 +215,9 @@ jobs:
             echo "✅ E2E test completed successfully"
           else
             echo "E2E_RESULT=failure" >> $GITHUB_OUTPUT
-            echo "⚠️ E2E test completed with errors - treating as warning"
-            exit 0  # Exit successfully to prevent job failure
+            echo "⚠️ E2E test failed - marking build as warning"
+            echo "::warning::E2E test validation failed but build artifacts are still valid"
+            exit 1  # Exit with failure to show yellow warning status
           fi
 
       - name: Upload Test Results 📤
@@ -252,8 +250,8 @@ jobs:
           if [[ "${{ steps.e2e_test.outputs.E2E_RESULT }}" == "success" ]]; then
             echo "✅ E2E test completed successfully" >> $GITHUB_STEP_SUMMARY
           elif [[ "${{ steps.e2e_test.outputs.E2E_RESULT }}" == "failure" ]]; then
-            echo "⚠️ E2E test completed with warnings" >> $GITHUB_STEP_SUMMARY
-            echo "> **Note:** E2E test failures are treated as warnings and do not fail the build." >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ E2E test failed - build marked as warning" >> $GITHUB_STEP_SUMMARY
+            echo "> **Note:** Build artifacts are valid but E2E validation failed." >> $GITHUB_STEP_SUMMARY
           else
             echo "❓ E2E test status unknown" >> $GITHUB_STEP_SUMMARY
           fi
