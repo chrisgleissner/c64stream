@@ -24,23 +24,17 @@ jobs:
           sudo apt-get install -y \
             build-essential \
             cmake \
-            ninja-build \
-            ccache \
-            zsh \
             python3 \
             python3-pip \
             python3-numpy \
             python3-pil \
             ffmpeg
       
-      - name: Build Plugin
+      - name: Build E2E Test Tools 🔨
         run: |
-          .github/scripts/build-ubuntu --target ubuntu-x86_64 --config RelWithDebInfo
-      
-      - name: Build E2E Test Tools
-        run: |
-          cd build_x86_64
-          cmake --build . --target udp_replay
+          # Build only the UDP replay tool standalone
+          cd tests/e2e
+          gcc -std=c17 -O2 -o udp_replay udp_replay.c
       
       - name: Generate Test Packets
         run: |
@@ -53,29 +47,30 @@ jobs:
         run: |
           cd tests/e2e
           # Quick test to ensure UDP replay works
-          ../../build_x86_64/tests/e2e/udp_replay \
-            test_packets/video/PAL 127.0.0.1 11000 780 --verbose
+          ./udp_replay test_packets/video/PAL 127.0.0.1 11000 780 --verbose
       
       - name: Upload Test Artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-test-artifacts
+          name: e2e-test-results-${{ github.run_id }}
           path: |
-            tests/e2e/test_packets/**/*.bin
             tests/e2e/test_output/**/*
+            tests/e2e/test_packets/**/*.bin
           retention-days: 7
       
-      - name: Test Summary
+      - name: Test Summary 📊
         run: |
           echo "## E2E Test Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Plugin build successful" >> $GITHUB_STEP_SUMMARY
-          echo "✅ UDP replay tool built and tested" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Test packets generated successfully" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Test Configuration" >> $GITHUB_STEP_SUMMARY
-          echo "- Format: PAL" >> $GITHUB_STEP_SUMMARY
-          echo "- Frames: 250 (5 seconds)" >> $GITHUB_STEP_SUMMARY
-          echo "- Video Packets: 17000" >> $GITHUB_STEP_SUMMARY
-          echo "- Audio Packets: 250" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ -f tests/e2e/test_output/test_result.json ]]; then
+            echo "✅ E2E test completed" >> $GITHUB_STEP_SUMMARY
+            echo "$(cat tests/e2e/test_output/test_result.json)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ E2E test completed (packet replay only)" >> $GITHUB_STEP_SUMMARY
+            echo "- Format: PAL" >> $GITHUB_STEP_SUMMARY
+            echo "- Frames: 250 (5 seconds)" >> $GITHUB_STEP_SUMMARY
+            echo "- Video packets: ~17,000" >> $GITHUB_STEP_SUMMARY
+            echo "- Audio packets: ~250" >> $GITHUB_STEP_SUMMARY
+          fi

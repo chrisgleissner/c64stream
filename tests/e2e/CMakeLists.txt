@@ -22,17 +22,19 @@ endif()
 # Make the Python scripts executable
 file(GLOB PYTHON_SCRIPTS "${CMAKE_CURRENT_SOURCE_DIR}/*.py")
 foreach(script ${PYTHON_SCRIPTS})
-  file(CHMOD ${script} PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+  file(
+    CHMOD
+    ${script}
+    PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+  )
 endforeach()
 
 # Install E2E test files
-install(TARGETS udp_replay RUNTIME DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-install(FILES
-  generate_packets.py
-  run_e2e_test.py
-  verify_output.py
+install(TARGETS udp_replay RUNTIME DESTINATION bin)
+install(
+  FILES generate_packets.py run_e2e_test.py verify_output.py
   PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
-  DESTINATION ${CMAKE_CURRENT_BINARY_DIR}
+  DESTINATION bin
 )
 
 message(STATUS "E2E test components configured:")

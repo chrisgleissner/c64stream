@@ -10,7 +10,9 @@ stream packets. Designed for maximum throughput to handle the high bandwidth
 requirements of the C64 Ultimate protocol.
 */
 
-#ifndef _WIN32
+#ifdef _WIN32
+#define _CRT_SECURE_NO_WARNINGS
+#else
 // Define POSIX version for nanosleep before any includes
 #define _POSIX_C_SOURCE 199309L
 #endif
@@ -178,7 +180,11 @@ int send_packets_from_directory(const char *dir_path, const char *host, int port
                                 int verbose)
 {
     struct sockaddr_in addr;
+#ifdef _WIN32
+    SOCKET sock;
+#else
     int sock;
+#endif
     int packets_sent = 0;
     char **filenames = NULL;
     int file_count = 0;
@@ -194,18 +200,23 @@ int send_packets_from_directory(const char *dir_path, const char *host, int port
 
     // Create UDP socket
     sock = socket(AF_INET, SOCK_DGRAM, 0);
-    if (sock < 0) {
-        fprintf(stderr, "Failed to create socket: %s\n", strerror(errno));
 #ifdef _WIN32
+    if (sock == INVALID_SOCKET) {
+        fprintf(stderr, "Failed to create socket: %d\n", WSAGetLastError());
         WSACleanup();
-#endif
         return -1;
     }
+#else
+    if (sock < 0) {
+        fprintf(stderr, "Failed to create socket: %s\n", strerror(errno));
+        return -1;
+    }
+#endif
 
     // Configure destination address
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
-    addr.sin_port = htons(port);
+    addr.sin_port = htons((unsigned short)port);
     if (inet_pton(AF_INET, host, &addr.sin_addr) <= 0) {
         fprintf(stderr, "Invalid address: %s\n", host);
         close(sock);
