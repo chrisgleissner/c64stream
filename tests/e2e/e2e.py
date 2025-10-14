@@ -328,12 +328,12 @@ DockAreaVisible=false
     def wait_for_plugin_initialization(self, timeout=10):
         """Wait for C64 plugin to initialize by monitoring OBS logs."""
         self.log("⏳ Monitoring OBS logs for C64 plugin initialization...")
-        
+
         obs_config_dir = Path.home() / '.config' / 'obs-studio'
         logs_dir = obs_config_dir / 'logs'
-        
+
         start_time = time.time()
-        
+
         # Plugin initialization indicators to look for
         init_patterns = [
             b"[C64]",  # Any C64 plugin log message
@@ -341,42 +341,42 @@ DockAreaVisible=false
             b"C64 Stream",  # Plugin name in logs
             b"UDP socket",  # Plugin creating UDP sockets
         ]
-        
+
         checked_files = set()
-        
+
         while time.time() - start_time < timeout:
             # Check if OBS process crashed
             if self.obs_process.poll() is not None:
                 stdout, stderr = self.obs_process.communicate()
                 raise RuntimeError(f"OBS crashed during initialization:\nSTDOUT: {stdout.decode()}\nSTDERR: {stderr.decode()}")
-            
+
             # Find latest log files
             if logs_dir.exists():
                 log_files = list(logs_dir.glob('*.txt'))
                 log_files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
-                
+
                 # Check the most recent log files
                 for log_file in log_files[:3]:  # Check up to 3 most recent files
                     if log_file in checked_files:
                         continue
-                        
+
                     try:
                         with open(log_file, 'rb') as f:
                             content = f.read()
-                            
+
                             # Look for plugin initialization patterns
                             for pattern in init_patterns:
                                 if pattern in content:
                                     self.log(f"✅ C64 plugin initialized (found '{pattern.decode()}' in {log_file.name})")
                                     return True
-                                    
+
                         checked_files.add(log_file)
-                        
+
                     except (OSError, IOError):
                         continue
-            
+
             time.sleep(0.1)  # Check every 100ms
-        
+
         self.log(f"⚠️ C64 plugin initialization not detected in logs within {timeout}s")
         return False
 
@@ -845,9 +845,10 @@ DockAreaVisible=false
                         if packets_sent <= 3:
                             time.sleep(0.001)  # 1ms delay
 
-                    if self.verbose and packets_sent % 500 == 0:
+                    # Show progress every 500 packets (always visible)
+                    if packets_sent % 500 == 0:
                         elapsed_ms = (time.time() - replay_start_time) * 1000
-                        self.log(f"📡 Sent {packets_sent}/{len(timeline)} packets ({elapsed_ms:.1f}ms elapsed)")
+                        print(f"📡 Sent {packets_sent}/{len(timeline)} packets ({elapsed_ms:.1f}ms elapsed)")
 
                 except Exception as e:
                     self.log(f"❌ Failed to send {event['type']} packet {event['file']}: {e}")
@@ -1116,6 +1117,163 @@ DockAreaVisible=false
         except Exception as e:
             self.log(f"Warning: Could not clean up OBS locks: {e}")
 
+    def validate_test_results(self, replay_success, recording_success, csv_success, recording_file):
+        """
+        Comprehensive validation of E2E test results.
+        Provides clear, concise validation with detailed error info when needed.
+        Returns: (overall_success, validation_results_dict)
+        """
+        print(f"\n{'='*60}")
+        print("E2E Test Validation Results")
+        print(f"{'='*60}")
+        
+        validation_errors = []
+        validation_warnings = []
+        
+        # Track individual validation results
+        validation_results = {
+            'udp_reception': {'status': 'unknown', 'details': ''},
+            'frame_processing': {'status': 'unknown', 'details': ''},
+            'video_recording': {'status': 'unknown', 'details': ''},
+            'packet_integrity': {'status': 'unknown', 'details': ''}
+        }        # Calculate expected packet counts
+        if self.format == 'PAL':
+            video_packets_per_frame = 68  # 272 lines / 4 lines per packet
+            audio_packets_per_frame = 1   # One audio packet per frame
+        else:  # NTSC
+            video_packets_per_frame = 60  # 240 lines / 4 lines per packet
+            audio_packets_per_frame = 1   # One audio packet per frame
+
+        expected_video_packets = self.frames * video_packets_per_frame
+        expected_audio_packets = self.frames * audio_packets_per_frame
+        expected_total_packets = expected_video_packets + expected_audio_packets
+
+        print(f"Expected: {expected_total_packets} packets ({expected_video_packets} video + {expected_audio_packets} audio)")
+
+        # 1. UDP Packet Reception Validation
+        network_csv = self.output_dir / 'network.csv'
+        if network_csv.exists():
+            try:
+                with open(network_csv, 'r') as f:
+                    lines = f.readlines()
+                    received_packets = len(lines) - 1  # Subtract header
+
+                video_packets = sum(1 for line in lines[1:] if line.startswith('video,'))
+                audio_packets = sum(1 for line in lines[1:] if line.startswith('audio,'))
+
+                if received_packets == expected_total_packets:
+                    print(f"✅ UDP Reception: {received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio)")
+                    validation_results['udp_reception'] = {'status': 'pass', 'details': f"{received_packets}/{expected_total_packets} packets"}
+                elif received_packets >= expected_total_packets * 0.95:  # 95% threshold
+                    print(f"⚠️  UDP Reception: {received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio)")
+                    validation_warnings.append(f"Packet loss: {expected_total_packets - received_packets} packets missing")
+                    validation_results['udp_reception'] = {'status': 'warning', 'details': f"{received_packets}/{expected_total_packets} packets (minor loss)"}
+                else:
+                    print(f"❌ UDP Reception: {received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio)")
+                    validation_errors.append(f"Significant packet loss: {expected_total_packets - received_packets} packets missing")
+                    validation_results['udp_reception'] = {'status': 'fail', 'details': f"{received_packets}/{expected_total_packets} packets (major loss)"}
+
+            except Exception as e:
+                print(f"❌ UDP Reception: Failed to validate network.csv - {e}")
+                validation_errors.append(f"Network CSV validation failed: {e}")
+                validation_results['udp_reception'] = {'status': 'fail', 'details': 'CSV validation error'}
+        else:
+            print("❌ UDP Reception: No network.csv found")
+            validation_errors.append("Missing network.csv - plugin may not be receiving UDP packets")
+            validation_results['udp_reception'] = {'status': 'fail', 'details': 'No CSV file found'}
+        
+        # 2. Frame Processing Validation  
+        obs_csv = self.output_dir / 'obs.csv'
+        if obs_csv.exists():
+            try:
+                with open(obs_csv, 'r') as f:
+                    lines = f.readlines()
+                    processed_frames = len(lines) - 1  # Subtract header
+                    
+                # For short tests, we might not get exactly the expected frames due to timing
+                min_expected_frames = max(1, int(self.frames * 0.8))  # At least 80% of frames
+                
+                if processed_frames >= min_expected_frames:
+                    print(f"✅ Frame Processing: {processed_frames} frames processed (≥{min_expected_frames} expected)")
+                    validation_results['frame_processing'] = {'status': 'pass', 'details': f"{processed_frames} frames processed"}
+                else:
+                    print(f"❌ Frame Processing: {processed_frames} frames processed (<{min_expected_frames} expected)")
+                    validation_errors.append(f"Insufficient frame processing: {processed_frames} < {min_expected_frames}")
+                    validation_results['frame_processing'] = {'status': 'fail', 'details': f"{processed_frames} frames (insufficient)"}
+                    
+            except Exception as e:
+                print(f"❌ Frame Processing: Failed to validate obs.csv - {e}")
+                validation_errors.append(f"OBS CSV validation failed: {e}")
+                validation_results['frame_processing'] = {'status': 'fail', 'details': 'CSV validation error'}
+        else:
+            print("❌ Frame Processing: No obs.csv found")
+            validation_errors.append("Missing obs.csv - plugin may not be processing frames")
+            validation_results['frame_processing'] = {'status': 'fail', 'details': 'No CSV file found'}        # 3. Video Recording Validation
+        if recording_file and Path(recording_file).exists():
+            try:
+                file_size = Path(recording_file).stat().st_size
+                min_expected_size = 100 * 1024  # At least 100KB for a valid recording
+
+                if file_size >= min_expected_size:
+                    print(f"✅ Video Recording: {file_size:,} bytes ({file_size/1024/1024:.1f} MB)")
+                    validation_results['video_recording'] = {'status': 'pass', 'details': f"{file_size/1024/1024:.1f} MB"}
+                    
+                    # Optional: Quick video validation using ffprobe if available
+                    try:
+                        import subprocess
+                        result = subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 
+                                               'format=duration', '-of', 'csv=p=0', recording_file], 
+                                               capture_output=True, text=True, timeout=5)
+                        if result.returncode == 0:
+                            duration = float(result.stdout.strip())
+                            expected_duration = self.frames / (59.826 if self.format == 'NTSC' else 50.125)
+                            if duration >= expected_duration * 0.5:  # At least 50% of expected duration
+                                print(f"✅ Video Duration: {duration:.1f}s (≥{expected_duration*0.5:.1f}s expected)")
+                                validation_results['packet_integrity'] = {'status': 'pass', 'details': f"{duration:.1f}s duration"}
+                            else:
+                                validation_warnings.append(f"Short video duration: {duration:.1f}s < {expected_duration*0.5:.1f}s")
+                                validation_results['packet_integrity'] = {'status': 'warning', 'details': f"{duration:.1f}s (short)"}
+                    except Exception:
+                        validation_results['packet_integrity'] = {'status': 'unknown', 'details': 'Duration check failed'}
+                        
+                else:
+                    print(f"❌ Video Recording: {file_size:,} bytes (<{min_expected_size:,} bytes)")
+                    validation_errors.append(f"Video file too small: {file_size} < {min_expected_size} bytes")
+                    validation_results['video_recording'] = {'status': 'fail', 'details': f"{file_size/1024:.0f} KB (too small)"}
+                    
+            except Exception as e:
+                print(f"❌ Video Recording: Failed to validate file - {e}")
+                validation_errors.append(f"Video file validation failed: {e}")
+                validation_results['video_recording'] = {'status': 'fail', 'details': 'Validation error'}
+        else:
+            print("❌ Video Recording: No recording file found")
+            validation_errors.append("Missing video recording")
+            validation_results['video_recording'] = {'status': 'fail', 'details': 'No file found'}
+
+        # Summary
+        print(f"\n{'='*60}")
+
+        if not validation_errors and not validation_warnings:
+            print("🎉 PERFECT: All validations passed!")
+            overall_success = True
+        elif not validation_errors:
+            print(f"✅ SUCCESS: Test passed with {len(validation_warnings)} warning(s)")
+            for warning in validation_warnings:
+                print(f"   ⚠️  {warning}")
+            overall_success = True
+        else:
+            print(f"❌ FAILED: {len(validation_errors)} critical error(s)")
+            for error in validation_errors:
+                print(f"   💥 {error}")
+            if validation_warnings:
+                print(f"   Additional {len(validation_warnings)} warning(s):")
+                for warning in validation_warnings:
+                    print(f"   ⚠️  {warning}")
+            overall_success = False
+
+        print(f"{'='*60}\n")
+        return overall_success, validation_results
+
     def cleanup(self):
         """Cleanup all test processes."""
         self.log("Cleaning up test environment")
@@ -1199,19 +1357,16 @@ DockAreaVisible=false
                 self.log("❌ No recording file found")
                 recording_success = False
 
-            # Overall success requires replay and recording to work
-            overall_success = replay_success and recording_success
+            # Comprehensive validation
+            validation_success, validation_results = self.validate_test_results(replay_success, recording_success, csv_success, recording_file)
+            
+            # Store validation results for shell script access
+            results_file = self.output_dir / 'validation_results.json'
+            import json
+            with open(results_file, 'w') as f:
+                json.dump(validation_results, f, indent=2)
 
-            if overall_success:
-                if csv_success:
-                    print("\n✅ Complete E2E test passed: packets replayed, video recorded, and CSV data captured")
-                else:
-                    print("\n✅ E2E test passed: packets replayed and video recorded")
-                    print("⚠️  No CSV data found - plugin may not be receiving complete packets")
-            else:
-                print("\n❌ E2E test failed - check logs for details")
-
-            return overall_success
+            return validation_success
 
         except Exception as e:
             print(f"\n❌ Test failed: {e}")

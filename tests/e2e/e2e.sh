@@ -551,21 +551,71 @@ main() {
     generate_report
     cleanup
 
-    # Show summary
+    # Show detailed test summary
     local end_time=$(date +%s)
     local duration=$((end_time - start_time))
 
     echo
     echo "=========================================="
-    echo "           Test Summary"
+    echo "         Test Summary"
     echo "=========================================="
     echo "Duration: ${duration} seconds"
+    echo
+
+    # Show detailed validation results if available
+    local validation_file="${OUTPUT_DIR}/validation_results.json"
+    if [[ -f "${validation_file}" ]] && command -v jq >/dev/null 2>&1; then
+        echo "Validation Results:"
+        
+        # UDP Reception
+        local udp_status=$(jq -r '.udp_reception.status' "${validation_file}" 2>/dev/null || echo "unknown")
+        local udp_details=$(jq -r '.udp_reception.details' "${validation_file}" 2>/dev/null || echo "")
+        case "${udp_status}" in
+            "pass") echo "  ✅ UDP Packet Reception: ${udp_details}" ;;
+            "warning") echo "  ⚠️  UDP Packet Reception: ${udp_details}" ;;
+            "fail") echo "  ❌ UDP Packet Reception: ${udp_details}" ;;
+            *) echo "  ❓ UDP Packet Reception: Status unknown" ;;
+        esac
+        
+        # Frame Processing
+        local frame_status=$(jq -r '.frame_processing.status' "${validation_file}" 2>/dev/null || echo "unknown")
+        local frame_details=$(jq -r '.frame_processing.details' "${validation_file}" 2>/dev/null || echo "")
+        case "${frame_status}" in
+            "pass") echo "  ✅ Frame Processing: ${frame_details}" ;;
+            "warning") echo "  ⚠️  Frame Processing: ${frame_details}" ;;
+            "fail") echo "  ❌ Frame Processing: ${frame_details}" ;;
+            *) echo "  ❓ Frame Processing: Status unknown" ;;
+        esac
+        
+        # Video Recording
+        local video_status=$(jq -r '.video_recording.status' "${validation_file}" 2>/dev/null || echo "unknown")
+        local video_details=$(jq -r '.video_recording.details' "${validation_file}" 2>/dev/null || echo "")
+        case "${video_status}" in
+            "pass") echo "  ✅ Video Recording: ${video_details}" ;;
+            "warning") echo "  ⚠️  Video Recording: ${video_details}" ;;
+            "fail") echo "  ❌ Video Recording: ${video_details}" ;;
+            *) echo "  ❓ Video Recording: Status unknown" ;;
+        esac
+        
+        # Packet Integrity (Duration Check)
+        local integrity_status=$(jq -r '.packet_integrity.status' "${validation_file}" 2>/dev/null || echo "unknown")
+        local integrity_details=$(jq -r '.packet_integrity.details' "${validation_file}" 2>/dev/null || echo "")
+        case "${integrity_status}" in
+            "pass") echo "  ✅ Content Integrity: ${integrity_details}" ;;
+            "warning") echo "  ⚠️  Content Integrity: ${integrity_details}" ;;
+            "fail") echo "  ❌ Content Integrity: ${integrity_details}" ;;
+            "unknown") echo "  ❓ Content Integrity: ${integrity_details}" ;;
+            *) echo "  ❓ Content Integrity: Status unknown" ;;
+        esac
+        
+        echo
+    fi
 
     if [[ ${test_result} -eq 0 ]]; then
-        log_success "All tests passed!"
-        echo "View report: ${OUTPUT_DIR}/test_report.txt"
+        log_success "E2E test completed successfully!"
+        echo "View detailed report: ${OUTPUT_DIR}/test_report.txt"
     else
-        log_warning "Some tests encountered issues"
+        log_warning "E2E test encountered issues"
         echo "Check logs in: ${OUTPUT_DIR}/"
     fi
 

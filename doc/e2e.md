@@ -10,8 +10,8 @@ Validates complete UDP packet reception, video processing, audio synchronization
 
 ```bash
 cd tests/e2e
-./e2e.sh              # 5-second PAL test
-./e2e.sh --format NTSC --frames 299 --verbose  # 5-second NTSC test
+./e2e.sh              # 5-second NTSC test
+./e2e.sh --format PAL --frames 299 --verbose  # 5-second PAL test
 ```
 
 ## What It Does
@@ -61,7 +61,7 @@ cd tests/e2e
 ## Future Enhancements
 
 - **Bouncing Raster Bars**: Visual verification with animated rainbow bars and physics simulation
-- **Binary Frame Markers**: Embedded metadata for precise frame tracking  
+- **Binary Frame Markers**: Embedded metadata for precise frame tracking
 - **Audio Sync Testing**: Heartbeat patterns aligned with visual cues
 - **Extended Duration**: Configurable test lengths for stress testing
 - **Cross-Platform**: Windows and macOS compatibility
