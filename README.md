@@ -1,9 +1,7 @@
 
 # C64 Stream
 
-[![Build Status](https://github.com/chrisgleissner/c64u-obs/actions/workflows/push.yaml/badge.svg?branch=main)](https://github.com/chrisgleissner/c64u-obs/actions/workflows/push.yaml)
-[![Pull Request](https://github.com/chrisgleissner/c64u-obs/actions/workflows/pr-pull.yaml/badge.svg)](https://github.com/chrisgleissner/c64u-obs/actions/workflows/pr-pull.yaml)
-[![Code Format](https://github.com/chrisgleissner/c64u-obs/actions/workflows/check-format.yaml/badge.svg)](https://github.com/chrisgleissner/c64u-obs/actions/workflows/check-format.yaml)
+[![Build](https://github.com/chrisgleissner/c64u-obs/actions/workflows/push.yaml/badge.svg?branch=main)](https://github.com/chrisgleissner/c64u-obs/actions/workflows/push.yaml)
 [![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](https://github.com/chrisgleissner/c64u-obs/releases)
 

@@ -245,11 +245,16 @@ check_dependencies() {
 
     # Optional tools
     if [[ "${OBS_ENABLED}" == true ]]; then
-        for tool in obs ffmpeg; do
-            if ! command -v "${tool}" &> /dev/null; then
-                missing_deps+=("${tool}")
-            fi
-        done
+        # Check for OBS Studio (don't try to install it via apt as it's not available)
+        if ! command -v obs &> /dev/null; then
+            log_warning "OBS Studio not found - E2E tests will run in validation-only mode"
+            log_info "To install OBS Studio: https://obsproject.com/download"
+        fi
+        
+        # Check for ffmpeg (can be installed via apt)
+        if ! command -v ffmpeg &> /dev/null; then
+            missing_deps+=("ffmpeg")
+        fi
     fi
 
     if [[ ${#missing_deps[@]} -gt 0 ]]; then

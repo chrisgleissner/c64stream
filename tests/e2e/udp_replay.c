@@ -32,7 +32,6 @@ requirements of the C64 Ultimate protocol.
 #include <ws2tcpip.h>
 #pragma comment(lib, "ws2_32.lib")
 
-#define close(s) closesocket((SOCKET)(s))
 typedef int ssize_t;
 
 // Windows directory handling
@@ -221,9 +220,11 @@ int send_packets_from_directory(const char *dir_path, const char *host, int port
     addr.sin_port = htons((unsigned short)port);
     if (inet_pton(AF_INET, host, &addr.sin_addr) <= 0) {
         fprintf(stderr, "Invalid address: %s\n", host);
-        close(sock);
 #ifdef _WIN32
+        closesocket(sock);
         WSACleanup();
+#else
+        close(sock);
 #endif
         return -1;
     }
@@ -231,9 +232,11 @@ int send_packets_from_directory(const char *dir_path, const char *host, int port
     // Scan directory for .bin files
     if (scan_directory(dir_path, &filenames, &file_count) != 0) {
         fprintf(stderr, "Failed to scan directory: %s\n", dir_path);
-        close(sock);
 #ifdef _WIN32
+        closesocket(sock);
         WSACleanup();
+#else
+        close(sock);
 #endif
         return -1;
     }
@@ -307,10 +310,11 @@ int send_packets_from_directory(const char *dir_path, const char *host, int port
         free(filenames[i]);
     }
     free(filenames);
-    close(sock);
-
 #ifdef _WIN32
+    closesocket(sock);
     WSACleanup();
+#else
+    close(sock);
 #endif
 
     return packets_sent;
