@@ -189,8 +189,25 @@ def generate_packets(output_dir, num_frames=30, formats=None):
             packet_file.write_bytes(packet_data)
         
         print(f"    Generated {num_frames} audio packets")
+        
+        # Calculate disk space usage for this format
+        format_size = 0
+        for video_file in video_dir.glob("*.bin"):
+            format_size += video_file.stat().st_size
+        for audio_file in audio_dir.glob("*.bin"):
+            format_size += audio_file.stat().st_size
+        
+        print(f"  💾 {format_name} disk usage: {format_size:,} bytes ({format_size / 1024 / 1024:.1f} MB)")
+    
+    # Calculate total disk space usage
+    total_size = 0
+    for format_dir in output_path.glob("*/*"):
+        if format_dir.is_dir():
+            for packet_file in format_dir.glob("*.bin"):
+                total_size += packet_file.stat().st_size
     
     print(f"\n✅ Packet generation complete: {output_dir}")
+    print(f"💾 Total disk usage: {total_size:,} bytes ({total_size / 1024 / 1024:.1f} MB)")
 
 
 def main():
