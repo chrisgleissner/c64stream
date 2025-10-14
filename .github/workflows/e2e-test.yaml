@@ -60,49 +60,22 @@ jobs:
         timeout-minutes: 15
         run: |
           cd tests/e2e
-
-          # Function for lightweight resource monitoring
-          monitor_resources() {
-            while true; do
-              # One-line system stats: CPU%, MEM_USED/TOTAL, DISK_USED%, LOAD_AVG, PROCS
-              printf "📊 [%s] CPU:%s%% MEM:%s/%s(%s%%) DISK:%s%% LOAD:%s PROCS:%d\n" \
-                "$(date '+%H:%M:%S')" \
-                "$(top -bn1 | grep "Cpu(s)" | awk '{print $2}' | cut -d'%' -f1)" \
-                "$(free -h | awk '/^Mem:/ {print $3}')" \
-                "$(free -h | awk '/^Mem:/ {print $2}')" \
-                "$(free | awk '/^Mem:/ {printf "%.0f", $3/$2*100}')" \
-                "$(df /tmp | awk 'NR==2 {print $5}' | cut -d'%' -f1)" \
-                "$(uptime | awk -F'load average:' '{print $2}' | awk '{print $1}' | cut -d',' -f1)" \
-                "$(ps aux | wc -l)"
-              sleep 5  # Log every 5 seconds
-            done
-          }
-
-          # Start background monitoring
-          monitor_resources &
-          MONITOR_PID=$!
-
-          # Cleanup function for proper resource cleanup
-          cleanup_monitoring() {
-            kill $MONITOR_PID 2>/dev/null || true
-            kill $XVFB_PID 2>/dev/null || true
-          }
-          trap cleanup_monitoring EXIT INT TERM
-
-          # Show initial system state
-          echo "=== Initial System State ==="
-          echo "Hardware: $(nproc) CPUs, $(free -h | awk '/^Mem:/ {print $2}') RAM, $(df -h /tmp | awk 'NR==2 {print $2}') /tmp"
-          monitor_resources | head -1  # Show first reading
-
+          
           # Set up audio system for headless operation
           export PULSE_SERVER="unix:${XDG_RUNTIME_DIR}/pulse/native"
           export DISPLAY=:99
-
+          
           # Start virtual display with more generous settings
           echo "Starting Xvfb..."
           Xvfb :99 -screen 0 1280x720x24 -ac +extension GLX +render -noreset &
           XVFB_PID=$!
-
+          
+          # Cleanup function
+          cleanup_xvfb() {
+            kill $XVFB_PID 2>/dev/null || true
+          }
+          trap cleanup_xvfb EXIT INT TERM
+          
           # Wait longer for Xvfb and verify it's running
           sleep 5
           if ! xdpyinfo -display :99 >/dev/null 2>&1; then
@@ -110,56 +83,31 @@ jobs:
             exit 1
           fi
           echo "✅ Xvfb running on :99"
-
-          # Run E2E test with shorter duration for CI
+          
+          # Run E2E test with resource monitoring enabled for CI
           echo "Starting E2E test..."
-          ./e2e.sh --format PAL --frames 100 --verbose --skip-build
-          E2E_EXIT_CODE=$?
-
-          # Stop monitoring and show final stats
-          kill $MONITOR_PID 2>/dev/null || true
-          echo "=== Final System State ==="
-          monitor_resources | head -1  # Show final reading
-
-          # Cleanup
-          kill $XVFB_PID 2>/dev/null || true
-
-          # Exit with E2E test result
-          exit $E2E_EXIT_CODE
+          ./e2e.sh --format PAL --frames 100 --verbose --skip-build --monitor-resources
 
       - name: Collect Diagnostic Info
         if: always()
         run: |
           echo "=== Post-test Diagnostics ==="
-
-          # Final resource snapshot
-          echo "Final resource usage:"
-          printf "📊 CPU:%s%% MEM:%s/%s(%s%%) DISK:%s%% LOAD:%s PROCS:%d\n" \
-            "$(top -bn1 | grep "Cpu(s)" | awk '{print $2}' | cut -d'%' -f1)" \
-            "$(free -h | awk '/^Mem:/ {print $3}')" \
-            "$(free -h | awk '/^Mem:/ {print $2}')" \
-            "$(free | awk '/^Mem:/ {printf "%.0f", $3/$2*100}')" \
-            "$(df /tmp | awk 'NR==2 {print $5}' | cut -d'%' -f1)" \
-            "$(uptime | awk -F'load average:' '{print $2}' | awk '{print $1}' | cut -d',' -f1)" \
-            "$(ps aux | wc -l)"
-
+          
           # Process information
           echo "Running processes:"
           ps aux | grep -E "(obs|Xvfb|python)" || true
-
+          
           # Check for core dumps
           echo "Core dumps:"
           ls -la /tmp/core* 2>/dev/null || echo "No core dumps found"
-
+          
           # OBS logs
           echo "OBS config and logs:"
           ls -la ~/.config/obs-studio/ 2>/dev/null || true
-
+          
           # Test output summary
           echo "Test output files:"
-          find tests/e2e/test_output -type f -exec ls -la {} \; 2>/dev/null || true
-
-      - name: Upload Test Artifacts
+          find tests/e2e/test_output -type f -exec ls -la {} \; 2>/dev/null || true      - name: Upload Test Artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:

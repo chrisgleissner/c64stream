@@ -37,6 +37,7 @@ DEFAULT_VERBOSE=false
 DEFAULT_SKIP_BUILD=false
 DEFAULT_CLEANUP=true
 DEFAULT_OBS_ENABLED=true   # OBS integration now implemented
+DEFAULT_MONITOR_RESOURCES=false  # Resource monitoring for CI
 
 # Color output
 RED='\033[0;31m'
@@ -62,6 +63,67 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $*"
 }
 
+# Resource monitoring functions
+MONITOR_PID=""
+
+start_resource_monitoring() {
+    if [[ "${MONITOR_RESOURCES}" != true ]]; then
+        return
+    fi
+
+    log_info "Starting resource monitoring..."
+    
+    # Function to get system stats (called inline, not as background process)
+    get_resource_stats() {
+        printf "📊 [%s] CPU:%s%% MEM:%s/%s(%s%%) DISK:%s%% LOAD:%s PROCS:%d" \
+            "$(date '+%H:%M:%S')" \
+            "$(top -bn1 | grep "Cpu(s)" | awk '{print $2}' | cut -d'%' -f1)" \
+            "$(free -h | awk '/^Mem:/ {print $3}')" \
+            "$(free -h | awk '/^Mem:/ {print $2}')" \
+            "$(free | awk '/^Mem:/ {printf "%.0f", $3/$2*100}')" \
+            "$(df /tmp | awk 'NR==2 {print $5}' | cut -d'%' -f1)" \
+            "$(uptime | awk -F'load average:' '{print $2}' | awk '{print $1}' | cut -d',' -f1)" \
+            "$(ps aux | wc -l)"
+    }
+    
+    # Show initial system state
+    echo "=== Initial System State ==="
+    echo "Hardware: $(nproc) CPUs, $(free -h | awk '/^Mem:/ {print $2}') RAM, $(df -h /tmp | awk 'NR==2 {print $2}') /tmp"
+    get_resource_stats
+    echo
+    
+    # Start background monitoring with simple while loop
+    (
+        while true; do
+            sleep 10
+            get_resource_stats
+            echo
+        done
+    ) &
+    MONITOR_PID=$!
+}
+
+stop_resource_monitoring() {
+    if [[ "${MONITOR_RESOURCES}" != true ]] || [[ -z "${MONITOR_PID}" ]]; then
+        return
+    fi
+
+    log_info "Stopping resource monitoring..."
+    kill "${MONITOR_PID}" 2>/dev/null || true
+    wait "${MONITOR_PID}" 2>/dev/null || true
+    
+    # Show final state
+    echo "=== Final System State ==="
+    printf "📊 Final: CPU:%s%% MEM:%s/%s(%s%%) DISK:%s%% LOAD:%s PROCS:%d\n" \
+        "$(top -bn1 | grep "Cpu(s)" | awk '{print $2}' | cut -d'%' -f1)" \
+        "$(free -h | awk '/^Mem:/ {print $3}')" \
+        "$(free -h | awk '/^Mem:/ {print $2}')" \
+        "$(free | awk '/^Mem:/ {printf "%.0f", $3/$2*100}')" \
+        "$(df /tmp | awk 'NR==2 {print $5}' | cut -d'%' -f1)" \
+        "$(uptime | awk -F'load average:' '{print $2}' | awk '{print $1}' | cut -d',' -f1)" \
+        "$(ps aux | wc -l)"
+}
+
 # Help message
 show_help() {
     cat << EOF
@@ -78,10 +140,10 @@ OPTIONS:
     -d, --duration SECONDS  Test duration in seconds (overrides --frames)
     -v, --verbose           Enable verbose logging
     -s, --skip-build        Skip building plugin and tools
-    -o, --obs               Enable OBS integration (experimental)
-    --no-cleanup           Don't cleanup temporary files
-    --video-port PORT      Video UDP port [default: ${DEFAULT_VIDEO_PORT}]
-    --audio-port PORT      Audio UDP port [default: ${DEFAULT_AUDIO_PORT}]
+    -o, --obs               Enable OBS integration (default)
+    --no-obs                Disable OBS integration
+    --no-cleanup            Skip cleanup of temporary files
+    --monitor-resources     Enable periodic system resource monitoring
     -h, --help             Show this help message
 
 EXAMPLES:
@@ -127,6 +189,7 @@ parse_args() {
     SKIP_BUILD="${DEFAULT_SKIP_BUILD}"
     CLEANUP="${DEFAULT_CLEANUP}"
     OBS_ENABLED="${DEFAULT_OBS_ENABLED}"
+    MONITOR_RESOURCES="${DEFAULT_MONITOR_RESOURCES}"
 
     while [[ $# -gt 0 ]]; do
         case $1 in
@@ -182,8 +245,16 @@ parse_args() {
                 OBS_ENABLED=true
                 shift
                 ;;
+            --no-obs)
+                OBS_ENABLED=false
+                shift
+                ;;
             --no-cleanup)
                 CLEANUP=false
+                shift
+                ;;
+            --monitor-resources)
+                MONITOR_RESOURCES=true
                 shift
                 ;;
             -h|--help)
@@ -506,6 +577,9 @@ EOF
 
 # Cleanup temporary files
 cleanup() {
+    # Always stop resource monitoring regardless of cleanup flag
+    stop_resource_monitoring
+    
     if [[ "${CLEANUP}" == false ]]; then
         log_info "Skipping cleanup (--no-cleanup specified)"
         return
@@ -538,11 +612,22 @@ main() {
     echo "  Verbose: ${VERBOSE}"
     echo "  Skip Build: ${SKIP_BUILD}"
     echo "  OBS Enabled: ${OBS_ENABLED}"
+    echo "  Monitor Resources: ${MONITOR_RESOURCES}"
     echo
+
+    # Cleanup function to handle interruptions
+    cleanup_on_exit() {
+        stop_resource_monitoring
+        cleanup
+        exit 1
+    }
+    trap cleanup_on_exit INT TERM
 
     # Execute test pipeline
     local start_time=$(date +%s)
     local test_result=0
+
+    start_resource_monitoring
 
     check_dependencies
     build_project
