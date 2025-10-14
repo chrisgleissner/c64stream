@@ -254,85 +254,121 @@ t = np.linspace(0, 0.3, int(0.3 * sample_rate))
 heartbeat = (1 - t/0.3) * np.sin(2*np.pi*60*t)
 ```
 
-## Current Status (October 2025)
+## Current Status (October 14, 2025)
 
 ### ✅ Completed Components
 
 1. **E2E Test Framework**: Fully functional with mock C64 Ultimate TCP server
-2. **UDP Packet Replay**: Microsecond-precise interleaved packet transmission (3450 packets/test)
-3. **Plugin Communication**: Successful UDP socket binding and packet delivery
-4. **Video Recording**: 10.3MB recordings generated with proper OBS integration
-5. **Startup Sequence**: Resolved UDP binding conflicts through proper initialization order
+2. **UDP Packet Replay**: Auto-building `udp_replay` tool with microsecond-precise transmission (3450 packets/test)
+3. **Plugin Communication**: Successful TCP control channel communication with stream configuration
+4. **Video Recording**: 19MB MP4 recordings generated successfully
+5. **Properties Loading**: Fixed `obs_data_set_bool` vs `obs_data_set_default_bool` bug for CSV recording activation
+6. **CSV Session Creation**: Plugin correctly creates session directories and CSV files
 
-### ⚠️ In Progress
+### 🚨 Critical Issue - UDP Packet Reception
 
-**CSV Logging System**: Plugin receives packets but CSV recording not activating
+**Status**: E2E test shows **3450 packets sent, 0 packets logged** in CSV files
 
-**Root Cause Analysis:**
+**Symptoms**:
 
-- Settings `record_csv=true` and `record_video=true` correctly configured
-- Plugin receives and processes some packets (confirmed by "Video stream restored" logs)
-- Session directory creation may be failing due to save folder path issues
-- Plugin falls back to logo display instead of processing stream content
+- Mock TCP server receives multiple START commands (stream setup working)
+- `udp_replay` successfully sends 3450 packets (3400 video + 50 audio)
+- CSV files created with proper headers but **zero data rows**
+- OBS logs show "Crash or unclean shutdown detected"
+- Plugin likely crashes during UDP packet processing
 
-### 🔧 Next Steps to Complete
+**Evidence**:
 
-1. **Debug Save Folder Configuration**
+```bash
+# CSV files exist but empty
+$ wc -l tests/e2e/test_output/network.csv
+1 tests/e2e/test_output/network.csv  # Only header line
+
+# UDP replay successful
+[TEST] ✅ Packet replay complete: 3450 packets sent, 0 failed in 996.1ms
+
+# Plugin creates session
+[TEST] ✅ Found network.csv: .../session_19700101_013441/network.csv (177 bytes)
+```
+
+### 🔧 Immediate Next Steps
+
+1. **Debug Plugin Crash During Packet Reception**
 
    ```bash
-   # Check current save folder resolution
-   grep -E "(Documents|save.*folder|session)" ~/.config/obs-studio/logs/*.txt
-
-   # Verify directory creation
-   ls -la ~/Documents/obs-studio/c64stream/recordings/
+   # Check for core dumps
+   ls -la /tmp/core* /var/crash/
+   
+   # Run with GDB debugging
+   gdb --args obs --profile C64StreamTest
+   
+   # Enable detailed UDP logging
+   # Add C64_LOG_DEBUG to c64_network_receive_packet() function
    ```
 
-2. **Enable CSV Recording Debugging**
-   - Add debug logging to `c64_start_csv_recording()` function
-   - Verify `c64_session_ensure_exists()` execution path
-   - Check file creation permissions and error handling
-
-3. **Validate Packet Format Compatibility**
+2. **Validate UDP Socket Binding**
 
    ```bash
-   # Compare generated vs expected packet structure
-   hexdump -C tests/e2e/test_packets/video/PAL/frame_0000_pkt_000.bin | head -5
-
-   # Check plugin packet validation logic
-   grep -A10 -B10 "Invalid packet format" src/c64-*.c
+   # Check if plugin binds to correct ports during test
+   ss -ulnp | grep -E ":(11000|11001)"
+   
+   # Monitor packet arrival with tcpdump
+   sudo tcpdump -i lo -n port 11000 or port 11001
    ```
 
-4. **Fix OBS Restart Issue**
-   - Prevent mock TCP server disconnection during recording start
-   - Implement persistent TCP connection handling
-   - Add connection recovery mechanism
+3. **Fix Packet Processing Logic**
+   - Review `c64_network_receive_packet()` for crash conditions
+   - Check buffer overflow protection in packet validation
+   - Verify thread safety in UDP receive handlers
+   - Add defensive programming for malformed packets
+
+4. **Validate Packet Format Compatibility**
+
+   ```bash
+   # Examine generated packet structure
+   hexdump -C tests/e2e/test_packets/video/PAL/frame_0000_pkt_000.bin | head -3
+   
+   # Expected format: [2B seq][2B frame][2B line][768B payload] = 780 bytes
+   # Check against plugin's packet parsing expectations
+   ```
 
 ### 🎯 Expected Final Outcome
 
 When complete, the E2E test will:
 
 - ✅ Generate and replay 3450 precisely-timed UDP packets
-- ✅ Create 10MB+ video recording with C64 content (not logos)
-- ✅ Produce CSV logs: `network.csv` (packet reception) and `obs.csv` (frame processing)
-- ✅ Validate audio/video synchronization and content accuracy
+- ⚠️ Create 19MB+ video recording with C64 content (currently records but content unknown)
+- ❌ Produce CSV logs: `network.csv` (packet reception) and `obs.csv` (frame processing) - **BLOCKING ISSUE**
+- ⚠️ Validate audio/video synchronization and content accuracy (pending CSV fix)
 
-### 🔍 Debug Commands
+### 🔍 Debug Commands for Current Issues
 
 ```bash
 # Run E2E test with maximum debugging
 cd tests/e2e
 python3 run_e2e_test.py --verbose --frames 5
 
-# Check plugin logs
-tail -f ~/.config/obs-studio/logs/*.txt | grep -E "(c64|stream|CSV|session)"
+# Monitor UDP packet arrival during test
+sudo tcpdump -i lo -w packets.pcap port 11000 or port 11001 &
+python3 run_e2e_test.py --frames 5
+sudo pkill tcpdump
+tcpdump -r packets.pcap -c 20
 
-# Verify packet generation
-ls -la test_packets/video/PAL/ | head -5
-hexdump -C test_packets/video/PAL/frame_0000_pkt_000.bin | head -3
+# Check for plugin crashes
+dmesg | tail -20
+ls -la /tmp/core* /var/crash/ 2>/dev/null
 
-# Test CSV directory creation manually
+# Examine OBS logs for crash details  
+tail -50 ~/.config/obs-studio/logs/*.txt | grep -E "(error|crash|abort|segfault)"
+
+# Verify packet format matches plugin expectations
+hexdump -C tests/e2e/test_packets/video/PAL/frame_0000_pkt_000.bin | head -3
+# Should show: [2B seq][2B frame][2B line][768B payload] = 780 total bytes
+
+# Test manual CSV session creation (should work)
 mkdir -p ~/Documents/obs-studio/c64stream/recordings/session_test
 echo "test" > ~/Documents/obs-studio/c64stream/recordings/session_test/obs.csv
+ls -la ~/Documents/obs-studio/c64stream/recordings/session_test/
 ```
 
 ## Future Enhancements
