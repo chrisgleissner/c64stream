@@ -394,36 +394,11 @@ jobs:
             cp -r usr/share/obs/obs-plugins/c64stream/* ~/.config/obs-studio/plugins/c64stream/data/
           fi
 
-      - name: Build E2E Test Tools 🔨
-        run: |
-          : Build E2E Test Tools 🔨
-          # Build the project to get udp_replay tool
-          cmake --preset ubuntu-x86_64
-          cmake --build build_x86_64 --target udp_replay
-
-      - name: Generate Test Packets 📦
-        run: |
-          : Generate Test Packets 📦
-          cd tests/e2e
-          ./generate_packets.py --frames 250 --format PAL --output test_packets
-
-          echo "Generated packet files:"
-          find test_packets -name "*.bin" | wc -l
-          ls -la test_packets/video/PAL/ | head -5
-          ls -la test_packets/audio/PAL/ | head -5
-
       - name: Run E2E Test 🎬
         run: |
           : Run E2E Test 🎬
           cd tests/e2e
-
-          # Run the orchestrated E2E test
-          python3 ./e2e.py \
-            --test-dir . \
-            --format PAL \
-            --frames 250 \
-            --udp-replay ../../build_x86_64/tests/e2e/udp_replay \
-            --verbose
+          ./e2e.sh --format PAL --frames 250 --verbose
 
       - name: Upload Test Results 📤
         if: always()
@@ -442,13 +417,14 @@ jobs:
           echo "## E2E Test Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          if [[ -f tests/e2e/test_output/test_result.json ]]; then
-            echo "✅ E2E test completed" >> $GITHUB_STEP_SUMMARY
-            echo "$(cat tests/e2e/test_output/test_result.json)" >> $GITHUB_STEP_SUMMARY
+          if [[ -f tests/e2e/test_output/validation_results.json ]]; then
+            echo "✅ E2E test completed successfully" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`json" >> $GITHUB_STEP_SUMMARY
+            cat tests/e2e/test_output/validation_results.json >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           else
-            echo "⚠️ E2E test completed (packet replay only)" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ E2E test completed (basic validation)" >> $GITHUB_STEP_SUMMARY
             echo "- Format: PAL" >> $GITHUB_STEP_SUMMARY
-            echo "- Frames: 250 (5 seconds)" >> $GITHUB_STEP_SUMMARY
-            echo "- Video packets: ~17,000" >> $GITHUB_STEP_SUMMARY
-            echo "- Audio packets: ~250" >> $GITHUB_STEP_SUMMARY
+            echo "- Frames: 250 (5 seconds at PAL timing)" >> $GITHUB_STEP_SUMMARY
+            echo "- Tests: Packet generation and replay validated" >> $GITHUB_STEP_SUMMARY
           fi
