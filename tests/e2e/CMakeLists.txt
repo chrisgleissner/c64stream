@@ -32,7 +32,7 @@ endforeach()
 # Install E2E test files
 install(TARGETS udp_replay RUNTIME DESTINATION bin)
 install(
-  FILES generate_packets.py run_e2e_test.py verify_output.py
+  FILES generate_packets.py e2e.py verify_output.py
   PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
   DESTINATION bin
 )
@@ -40,5 +40,5 @@ install(
 message(STATUS "E2E test components configured:")
 message(STATUS "  UDP replay tool: udp_replay")
 message(STATUS "  Packet generator: generate_packets.py")
-message(STATUS "  Test orchestrator: run_e2e_test.py")
+message(STATUS "  Test orchestrator: e2e.py")
 message(STATUS "  Output verifier: verify_output.py")

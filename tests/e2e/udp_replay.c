@@ -11,7 +11,9 @@ requirements of the C64 Ultimate protocol.
 */
 
 #ifdef _WIN32
+#ifndef _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_WARNINGS
+#endif
 #else
 // Define POSIX version for nanosleep before any includes
 #define _POSIX_C_SOURCE 199309L
@@ -30,7 +32,7 @@ requirements of the C64 Ultimate protocol.
 #include <ws2tcpip.h>
 #pragma comment(lib, "ws2_32.lib")
 
-#define close closesocket
+#define close(s) closesocket((SOCKET)(s))
 typedef int ssize_t;
 
 // Windows directory handling
