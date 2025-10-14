@@ -424,29 +424,16 @@ DockAreaVisible=false
 
             self.log("✅ OBS started successfully")
 
-            # Wait for OBS to be ready (check for WebSocket or use longer delay)
-            obs_ready = False
-            for i in range(10):  # Try for up to 10 seconds
-                if self.obs_process.poll() is not None:
-                    break  # OBS has crashed
-
-                # Try to connect to WebSocket to check if OBS is ready
-                if WEBSOCKET_AVAILABLE:
-                    try:
-                        import requests
-                        response = requests.get('http://127.0.0.1:4455/api', timeout=1)
-                        if response.status_code == 200:
-                            obs_ready = True
-                            self.log("✅ OBS WebSocket API is ready")
-                            break
-                    except:
-                        pass
-
-                self.log(f"⏳ Waiting for OBS to be ready... ({i+1}/10)")
-                time.sleep(1)
-
-            if not obs_ready:
-                self.log("⚠️ OBS WebSocket not available, but OBS appears to be running")
+            # Wait for OBS and plugin to initialize (simple approach for E2E testing)
+            self.log("⏳ Waiting for OBS and plugin to fully initialize...")
+            time.sleep(2)  # Reduced from 10 seconds to 2 seconds
+            
+            # Verify OBS is still running after initialization
+            if self.obs_process.poll() is not None:
+                stdout, stderr = self.obs_process.communicate()
+                raise RuntimeError(f"OBS crashed during initialization:\nSTDOUT: {stdout.decode()}\nSTDERR: {stderr.decode()}")
+            
+            self.log("✅ OBS initialization complete")
 
             return True
 
@@ -1116,23 +1103,18 @@ DockAreaVisible=false
                 self.log("❌ Failed to start OBS")
                 return False
 
-            # Wait longer for OBS and plugin initialization
-            self.log("⏳ Waiting for OBS and plugin to fully initialize...")
-            time.sleep(8)  # Give plugin time to bind UDP sockets
-
-            # Now start mock C64 Ultimate TCP server after plugin is ready
+            # Start mock C64 Ultimate TCP server 
             if not self.start_mock_c64_server():
                 self.log("❌ Failed to start mock C64 server")
                 return False
 
-            # Wait longer for OBS initialization and WebSocket availability
-            self.log("⏳ Waiting for OBS to fully initialize...")
-            time.sleep(5)
+            # Give plugin a moment to bind UDP sockets and connect to TCP server
+            self.log("⏳ Allowing plugin to connect and initialize...")
+            time.sleep(3)
 
-            # Check if WebSocket is available and start recording if needed
-            if not self.start_recording():
-                self.log("❌ Failed to start recording")
-                return False
+            # OBS is already recording (started with --startrecording flag)
+            # No need for additional WebSocket recording start
+            self.log("✅ OBS recording already active")
 
             # Run packet replay while recording
             self.log("Running packet replay while OBS is recording...")

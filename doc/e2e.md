@@ -298,10 +298,10 @@ $ wc -l tests/e2e/test_output/network.csv
    ```bash
    # Check for core dumps
    ls -la /tmp/core* /var/crash/
-   
+
    # Run with GDB debugging
    gdb --args obs --profile C64StreamTest
-   
+
    # Enable detailed UDP logging
    # Add C64_LOG_DEBUG to c64_network_receive_packet() function
    ```
@@ -311,7 +311,7 @@ $ wc -l tests/e2e/test_output/network.csv
    ```bash
    # Check if plugin binds to correct ports during test
    ss -ulnp | grep -E ":(11000|11001)"
-   
+
    # Monitor packet arrival with tcpdump
    sudo tcpdump -i lo -n port 11000 or port 11001
    ```
@@ -327,7 +327,7 @@ $ wc -l tests/e2e/test_output/network.csv
    ```bash
    # Examine generated packet structure
    hexdump -C tests/e2e/test_packets/video/PAL/frame_0000_pkt_000.bin | head -3
-   
+
    # Expected format: [2B seq][2B frame][2B line][768B payload] = 780 bytes
    # Check against plugin's packet parsing expectations
    ```
@@ -358,7 +358,7 @@ tcpdump -r packets.pcap -c 20
 dmesg | tail -20
 ls -la /tmp/core* /var/crash/ 2>/dev/null
 
-# Examine OBS logs for crash details  
+# Examine OBS logs for crash details
 tail -50 ~/.config/obs-studio/logs/*.txt | grep -E "(error|crash|abort|segfault)"
 
 # Verify packet format matches plugin expectations
