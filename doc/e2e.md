@@ -43,7 +43,7 @@ sequenceDiagram
     participant O as OBS + Plugin
     participant M as Mock C64
     participant V as Validator
-    
+
     T->>T: Build & Generate Packets
     T->>O: Start OBS Recording
     T->>M: Start Mock Server

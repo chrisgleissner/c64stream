@@ -72,7 +72,7 @@ start_resource_monitoring() {
     fi
 
     log_info "Starting resource monitoring..."
-    
+
     # Function to get system stats (called inline, not as background process)
     get_resource_stats() {
         printf "📊 [%s] CPU:%s%% MEM:%s/%s(%s%%) DISK:%s%% LOAD:%s PROCS:%d" \
@@ -85,13 +85,13 @@ start_resource_monitoring() {
             "$(uptime | awk -F'load average:' '{print $2}' | awk '{print $1}' | cut -d',' -f1)" \
             "$(ps aux | wc -l)"
     }
-    
+
     # Show initial system state
     echo "=== Initial System State ==="
     echo "Hardware: $(nproc) CPUs, $(free -h | awk '/^Mem:/ {print $2}') RAM, $(df -h /tmp | awk 'NR==2 {print $2}') /tmp"
     get_resource_stats
     echo
-    
+
     # Start background monitoring with simple while loop
     (
         while true; do
@@ -111,7 +111,7 @@ stop_resource_monitoring() {
     log_info "Stopping resource monitoring..."
     kill "${MONITOR_PID}" 2>/dev/null || true
     wait "${MONITOR_PID}" 2>/dev/null || true
-    
+
     # Show final state
     echo "=== Final System State ==="
     printf "📊 Final: CPU:%s%% MEM:%s/%s(%s%%) DISK:%s%% LOAD:%s PROCS:%d\n" \
@@ -579,7 +579,7 @@ EOF
 cleanup() {
     # Always stop resource monitoring regardless of cleanup flag
     stop_resource_monitoring
-    
+
     if [[ "${CLEANUP}" == false ]]; then
         log_info "Skipping cleanup (--no-cleanup specified)"
         return

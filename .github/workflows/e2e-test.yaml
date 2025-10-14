@@ -230,7 +230,7 @@ jobs:
             cmake --preset ubuntu-x86_64
             cmake --build build_x86_64 --target udp_replay
           fi
-          
+
           cd tests/e2e
           # Build Python dependencies
           python3 -m pip install --user numpy pillow
@@ -242,16 +242,16 @@ jobs:
         run: |
           : Run E2E Test 🎬
           cd tests/e2e
-          
+
           # Set up environment for headless operation
           export DISPLAY=:99
           export PULSE_SERVER="unix:${XDG_RUNTIME_DIR}/pulse/native"
-          
+
           # Start Xvfb with generous settings
           echo "Starting Xvfb..."
           Xvfb :99 -screen 0 1280x720x24 -ac +extension GLX +render -noreset &
           XVFB_PID=$!
-          
+
           # Cleanup function
           cleanup_xvfb() {
             echo "Cleaning up Xvfb (PID: $XVFB_PID)..."
@@ -259,7 +259,7 @@ jobs:
             wait $XVFB_PID 2>/dev/null || true
           }
           trap cleanup_xvfb EXIT INT TERM
-          
+
           # Wait for Xvfb and verify it's running
           sleep 5
           if ! xdpyinfo -display :99 >/dev/null 2>&1; then
@@ -268,22 +268,22 @@ jobs:
           else
             echo "✅ Xvfb running on :99"
           fi
-          
+
           # Build command arguments
           cmd_args=(
             "--format" "${{ steps.setup.outputs.format }}"
             "--frames" "${{ steps.setup.outputs.frames }}"
             "--verbose"
           )
-          
+
           if [[ "${{ steps.setup.outputs.skip_build }}" == "true" ]]; then
             cmd_args+=("--skip-build")
           fi
-          
+
           if [[ "${{ steps.setup.outputs.monitor_resources }}" == "true" ]]; then
             cmd_args+=("--monitor-resources")
           fi
-          
+
           echo "Running E2E test with args: ${cmd_args[*]}"
           if ./e2e.sh "${cmd_args[@]}"; then
             echo "E2E_RESULT=success" >> $GITHUB_OUTPUT
