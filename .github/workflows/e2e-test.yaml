@@ -16,7 +16,7 @@ on:
       monitor_resources:
         description: 'Enable resource monitoring'
         required: false
-        default: false
+        default: true
         type: boolean
       skip_build:
         description: 'Skip build phase (use existing artifacts)'
@@ -53,7 +53,7 @@ on:
       monitor_resources:
         description: 'Enable resource monitoring'
         required: false
-        default: false
+        default: true
         type: boolean
       skip_build:
         description: 'Skip build phase (use existing artifacts)'
@@ -120,6 +120,7 @@ jobs:
       - name: Install System Dependencies 🛍️
         run: |
           : Install System Dependencies 🛍️
+          sudo add-apt-repository -y ppa:obsproject/obs-studio
           sudo apt-get update -qq
           sudo apt-get install -y \
             build-essential \
@@ -133,12 +134,8 @@ jobs:
             python3-pil \
             ffmpeg \
             xvfb \
-            software-properties-common
-
-          # Install OBS Studio using official PPA (more reliable than manual dependencies)
-          sudo add-apt-repository -y ppa:obsproject/obs-studio
-          sudo apt-get update -qq
-          sudo apt-get install -y obs-studio
+            software-properties-common \
+            obs-studio
 
       - name: Set up OBS Studio Configuration 🎛️
         run: |
@@ -181,6 +178,7 @@ jobs:
           path: ./artifacts
 
       - name: Install Plugin 🔌
+        continue-on-error: true
         run: |
           : Install Plugin 🔌
           if [[ "${{ steps.setup.outputs.skip_build }}" == "false" ]]; then
@@ -223,6 +221,7 @@ jobs:
           ls -la ~/.config/obs-studio/plugins/c64stream/data/
 
       - name: Build E2E Tools 🔧
+        continue-on-error: true
         run: |
           : Build E2E Tools 🔧
           if [[ "${{ steps.setup.outputs.skip_build }}" == "false" ]]; then
@@ -236,7 +235,7 @@ jobs:
           python3 -m pip install --user numpy pillow
 
       - name: Run E2E Test 🎬
-        timeout-minutes: 15
+        timeout-minutes: 10
         continue-on-error: true
         id: e2e_test
         run: |
@@ -306,7 +305,7 @@ jobs:
             tests/e2e/test_output/**/*.json
             tests/e2e/test_output/**/*.txt
             tests/e2e/test_output/**/*.log
-          retention-days: 7
+          retention-days: 14
 
       - name: Test Summary 📊
         if: always()

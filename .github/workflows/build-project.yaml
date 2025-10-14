@@ -330,7 +330,6 @@ jobs:
     name: E2E Test 🧪
     needs: [check-event, ubuntu-build]
     if: always() && needs.ubuntu-build.result == 'success'
-    continue-on-error: true
     uses: ./.github/workflows/e2e-test.yaml
     with:
       format: 'PAL'
