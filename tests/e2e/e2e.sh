@@ -566,7 +566,7 @@ main() {
     local validation_file="${OUTPUT_DIR}/validation_results.json"
     if [[ -f "${validation_file}" ]] && command -v jq >/dev/null 2>&1; then
         echo "Validation Results:"
-        
+
         # UDP Reception
         local udp_status=$(jq -r '.udp_reception.status' "${validation_file}" 2>/dev/null || echo "unknown")
         local udp_details=$(jq -r '.udp_reception.details' "${validation_file}" 2>/dev/null || echo "")
@@ -576,7 +576,7 @@ main() {
             "fail") echo "  ❌ UDP Packet Reception: ${udp_details}" ;;
             *) echo "  ❓ UDP Packet Reception: Status unknown" ;;
         esac
-        
+
         # Frame Processing
         local frame_status=$(jq -r '.frame_processing.status' "${validation_file}" 2>/dev/null || echo "unknown")
         local frame_details=$(jq -r '.frame_processing.details' "${validation_file}" 2>/dev/null || echo "")
@@ -586,7 +586,7 @@ main() {
             "fail") echo "  ❌ Frame Processing: ${frame_details}" ;;
             *) echo "  ❓ Frame Processing: Status unknown" ;;
         esac
-        
+
         # Video Recording
         local video_status=$(jq -r '.video_recording.status' "${validation_file}" 2>/dev/null || echo "unknown")
         local video_details=$(jq -r '.video_recording.details' "${validation_file}" 2>/dev/null || echo "")
@@ -596,7 +596,7 @@ main() {
             "fail") echo "  ❌ Video Recording: ${video_details}" ;;
             *) echo "  ❓ Video Recording: Status unknown" ;;
         esac
-        
+
         # Packet Integrity (Duration Check)
         local integrity_status=$(jq -r '.packet_integrity.status' "${validation_file}" 2>/dev/null || echo "unknown")
         local integrity_details=$(jq -r '.packet_integrity.details' "${validation_file}" 2>/dev/null || echo "")
@@ -607,7 +607,7 @@ main() {
             "unknown") echo "  ❓ Content Integrity: ${integrity_details}" ;;
             *) echo "  ❓ Content Integrity: Status unknown" ;;
         esac
-        
+
         echo
     fi
 

@@ -1126,10 +1126,10 @@ DockAreaVisible=false
         print(f"\n{'='*60}")
         print("E2E Test Validation Results")
         print(f"{'='*60}")
-        
+
         validation_errors = []
         validation_warnings = []
-        
+
         # Track individual validation results
         validation_results = {
             'udp_reception': {'status': 'unknown', 'details': ''},
@@ -1181,18 +1181,18 @@ DockAreaVisible=false
             print("❌ UDP Reception: No network.csv found")
             validation_errors.append("Missing network.csv - plugin may not be receiving UDP packets")
             validation_results['udp_reception'] = {'status': 'fail', 'details': 'No CSV file found'}
-        
-        # 2. Frame Processing Validation  
+
+        # 2. Frame Processing Validation
         obs_csv = self.output_dir / 'obs.csv'
         if obs_csv.exists():
             try:
                 with open(obs_csv, 'r') as f:
                     lines = f.readlines()
                     processed_frames = len(lines) - 1  # Subtract header
-                    
+
                 # For short tests, we might not get exactly the expected frames due to timing
                 min_expected_frames = max(1, int(self.frames * 0.8))  # At least 80% of frames
-                
+
                 if processed_frames >= min_expected_frames:
                     print(f"✅ Frame Processing: {processed_frames} frames processed (≥{min_expected_frames} expected)")
                     validation_results['frame_processing'] = {'status': 'pass', 'details': f"{processed_frames} frames processed"}
@@ -1200,7 +1200,7 @@ DockAreaVisible=false
                     print(f"❌ Frame Processing: {processed_frames} frames processed (<{min_expected_frames} expected)")
                     validation_errors.append(f"Insufficient frame processing: {processed_frames} < {min_expected_frames}")
                     validation_results['frame_processing'] = {'status': 'fail', 'details': f"{processed_frames} frames (insufficient)"}
-                    
+
             except Exception as e:
                 print(f"❌ Frame Processing: Failed to validate obs.csv - {e}")
                 validation_errors.append(f"OBS CSV validation failed: {e}")
@@ -1217,12 +1217,12 @@ DockAreaVisible=false
                 if file_size >= min_expected_size:
                     print(f"✅ Video Recording: {file_size:,} bytes ({file_size/1024/1024:.1f} MB)")
                     validation_results['video_recording'] = {'status': 'pass', 'details': f"{file_size/1024/1024:.1f} MB"}
-                    
+
                     # Optional: Quick video validation using ffprobe if available
                     try:
                         import subprocess
-                        result = subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 
-                                               'format=duration', '-of', 'csv=p=0', recording_file], 
+                        result = subprocess.run(['ffprobe', '-v', 'error', '-show_entries',
+                                               'format=duration', '-of', 'csv=p=0', recording_file],
                                                capture_output=True, text=True, timeout=5)
                         if result.returncode == 0:
                             duration = float(result.stdout.strip())
@@ -1235,12 +1235,12 @@ DockAreaVisible=false
                                 validation_results['packet_integrity'] = {'status': 'warning', 'details': f"{duration:.1f}s (short)"}
                     except Exception:
                         validation_results['packet_integrity'] = {'status': 'unknown', 'details': 'Duration check failed'}
-                        
+
                 else:
                     print(f"❌ Video Recording: {file_size:,} bytes (<{min_expected_size:,} bytes)")
                     validation_errors.append(f"Video file too small: {file_size} < {min_expected_size} bytes")
                     validation_results['video_recording'] = {'status': 'fail', 'details': f"{file_size/1024:.0f} KB (too small)"}
-                    
+
             except Exception as e:
                 print(f"❌ Video Recording: Failed to validate file - {e}")
                 validation_errors.append(f"Video file validation failed: {e}")
@@ -1359,7 +1359,7 @@ DockAreaVisible=false
 
             # Comprehensive validation
             validation_success, validation_results = self.validate_test_results(replay_success, recording_success, csv_success, recording_file)
-            
+
             # Store validation results for shell script access
             results_file = self.output_dir / 'validation_results.json'
             import json
