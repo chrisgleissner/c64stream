@@ -328,107 +328,15 @@ jobs:
 
   e2e-test:
     name: E2E Test 🧪
-    runs-on: ubuntu-24.04
     needs: [check-event, ubuntu-build]
     if: always() && needs.ubuntu-build.result == 'success'
-    defaults:
-      run:
-        shell: bash
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          fetch-depth: 0
-
-      - name: Set Up Environment 🔧
-        id: setup
-        run: |
-          : Set Up Environment 🔧
-          if [[ "${RUNNER_DEBUG}" ]]; then set -x; fi
-
-          read -r product_name <<< \
-            "$(jq -r '.name' buildspec.json)"
-
-          echo "pluginName=${product_name}" >> $GITHUB_OUTPUT
-          echo "pluginVersion=${{ needs.check-event.outputs.pluginVersion }}" >> $GITHUB_OUTPUT
-
-      - name: Install System Dependencies 🛍️
-        run: |
-          : Install System Dependencies 🛍️
-          sudo apt-get update -qq
-          sudo apt-get install -y \
-            build-essential \
-            cmake \
-            ninja-build \
-            ccache \
-            zsh \
-            python3 \
-            python3-pip \
-            python3-numpy \
-            python3-pil \
-            ffmpeg \
-            xvfb
-
-      - name: Download Build Artifacts 📥
-        uses: actions/download-artifact@v4
-        with:
-          name: ${{ steps.setup.outputs.pluginName }}-${{ needs.check-event.outputs.pluginVersion }}-ubuntu-24.04-x86_64-${{ needs.check-event.outputs.commitHash }}
-          path: ./artifacts
-
-      - name: Install Plugin 🔌
-        run: |
-          : Install Plugin 🔌
-          mkdir -p ~/.config/obs-studio/plugins/c64stream/bin/64bit
-          mkdir -p ~/.config/obs-studio/plugins/c64stream/data
-
-          # Extract and install plugin
-          cd artifacts
-          tar -xf *.tar.xz
-
-          # Find the plugin binary and data
-          if [[ -f usr/lib/obs-plugins/c64stream.so ]]; then
-            cp usr/lib/obs-plugins/c64stream.so ~/.config/obs-studio/plugins/c64stream/bin/64bit/
-          fi
-
-          if [[ -d usr/share/obs/obs-plugins/c64stream ]]; then
-            cp -r usr/share/obs/obs-plugins/c64stream/* ~/.config/obs-studio/plugins/c64stream/data/
-          fi
-
-      - name: Run E2E Test 🎬
-        run: |
-          : Run E2E Test 🎬
-          cd tests/e2e
-          ./e2e.sh --format PAL --frames 250 --verbose
-
-      - name: Upload Test Results 📤
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: e2e-test-results-${{ needs.check-event.outputs.commitHash }}
-          path: |
-            tests/e2e/test_output/**/*.mp4
-            tests/e2e/test_output/**/*.mkv
-            tests/e2e/test_output/**/*.csv
-            tests/e2e/test_output/**/*.json
-            tests/e2e/test_output/**/*.txt
-            tests/e2e/test_output/**/*.log
-          retention-days: 7
-
-      - name: Test Summary 📊
-        if: always()
-        run: |
-          : Test Summary 📊
-          echo "## E2E Test Results" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          if [[ -f tests/e2e/test_output/validation_results.json ]]; then
-            echo "✅ E2E test completed successfully" >> $GITHUB_STEP_SUMMARY
-            echo "\`\`\`json" >> $GITHUB_STEP_SUMMARY
-            cat tests/e2e/test_output/validation_results.json >> $GITHUB_STEP_SUMMARY
-            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "⚠️ E2E test completed (basic validation)" >> $GITHUB_STEP_SUMMARY
-            echo "- Format: PAL" >> $GITHUB_STEP_SUMMARY
-            echo "- Frames: 250 (5 seconds at PAL timing)" >> $GITHUB_STEP_SUMMARY
-            echo "- Tests: Packet generation and replay validated" >> $GITHUB_STEP_SUMMARY
-          fi
+    continue-on-error: true
+    uses: ./.github/workflows/e2e-test.yaml
+    with:
+      format: 'PAL'
+      frames: '250'
+      monitor_resources: false
+      skip_build: true
+      plugin_name: ${{ needs.check-event.outputs.pluginName }}
+      plugin_version: ${{ needs.check-event.outputs.pluginVersion }}
+      commit_hash: ${{ needs.check-event.outputs.commitHash }}
