@@ -148,7 +148,7 @@ local-build.bat windows
 
 **Note:** The Linux build will fail if code is not properly formatted. Always run clang-format before committing changes made on Windows.
 
-## Testing
+## Unit Testing
 
 **Run all tests:**
 ```bash
@@ -167,6 +167,17 @@ ctest -V
 ```bash
 ./c64_mock_server --port 11000
 ```
+
+## E2E Testing
+
+**Complete plugin validation:**
+```bash
+cd tests/e2e
+./e2e.sh              # Full end-to-end test
+./e2e.sh --verbose     # With detailed logging
+```
+
+See [`doc/e2e.md`](e2e.md) for comprehensive E2E testing documentation.
 
 ## Build Configurations
 
@@ -313,5 +324,6 @@ act -j ubuntu-build
 ## Resources
 
 - **Specification:** [`doc/c64-stream-spec.md`](c64-stream-spec.md)
+- **E2E Testing:** [`doc/e2e.md`](e2e.md)
 - **C64 Ultimate Docs:** [Data Streams](https://1541u-documentation.readthedocs.io/en/latest/data_streams.html)
 - **OBS Plugin Guide:** [OBS Studio Documentation](https://obsproject.com/wiki/Plugin-Development)

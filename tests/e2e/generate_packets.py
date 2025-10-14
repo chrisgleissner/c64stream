@@ -48,7 +48,7 @@ AUDIO_SAMPLES_PER_PACKET = 192  # Stereo samples
 def generate_video_packet(frame_num, packet_num, width, height, packets_per_frame):
     """
     Generate a single video packet following C64 Ultimate spec.
-    
+
     Packet Header (12 bytes):
     1. Sequence number (16-bit LE)
     2. Frame number (16-bit LE)
@@ -60,10 +60,10 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
     """
     line_num = packet_num * LINES_PER_PACKET
     is_last_packet = (packet_num == packets_per_frame - 1)
-    
+
     # Set bit 15 if this is the last packet of the frame
     line_num_with_flag = line_num | (0x8000 if is_last_packet else 0)
-    
+
     # Build header (12 bytes)
     header = struct.pack('<HHHHBBH',
                          packet_num,           # Sequence number
@@ -73,16 +73,16 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                          LINES_PER_PACKET,     # Lines per packet
                          BITS_PER_PIXEL,       # Bits per pixel
                          0)                    # Encoding type (0 = uncompressed)
-    
+
     # Generate deterministic test pattern payload (768 bytes)
     # Use frame number as the marker pattern in the top-left block
     # This allows verification that frames are in correct order
     payload = bytearray(768)
-    
+
     for line in range(LINES_PER_PACKET):
         for byte_idx in range(width // 2):  # 2 pixels per byte (4-bit color)
             pixel_line = line_num + line
-            
+
             # Create a visible marker pattern in top-left corner (first 32x32 pixels)
             if pixel_line < 32 and byte_idx < 16:
                 # Use frame_num modulo 16 as the color in marker area
@@ -93,51 +93,51 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                 color1 = (byte_idx + pixel_line + frame_num) % 16
                 color2 = (byte_idx + pixel_line + frame_num + 1) % 16
                 payload[line * (width // 2) + byte_idx] = (color2 << 4) | color1
-    
+
     return header + bytes(payload)
 
 
 def generate_audio_packet(frame_num, sample_rate):
     """
     Generate a single audio packet following C64 Ultimate spec.
-    
+
     Packet Structure:
     1. Header: Sequence number (16-bit LE)
     2. Payload: 192 stereo samples (16-bit signed LE, interleaved L/R)
     """
     # Build header (2 bytes)
     header = struct.pack('<H', frame_num)
-    
+
     # Generate deterministic audio pattern (440Hz tone with frame marker)
     # Add a unique amplitude envelope at the start of each frame
-    t = np.linspace(0, AUDIO_SAMPLES_PER_PACKET / sample_rate, 
+    t = np.linspace(0, AUDIO_SAMPLES_PER_PACKET / sample_rate,
                     AUDIO_SAMPLES_PER_PACKET, endpoint=False)
-    
+
     # 440Hz sine wave
     tone = np.sin(2 * np.pi * 440 * t)
-    
+
     # Add frame marker: amplitude modulation in first few samples
     # This allows verification of A/V sync
     envelope = np.ones(AUDIO_SAMPLES_PER_PACKET)
     marker_length = 10
     for i in range(marker_length):
         envelope[i] = 0.5 + 0.5 * (frame_num % 16) / 16.0
-    
+
     # Apply envelope and convert to 16-bit signed
     audio_signal = (tone * envelope * 0.5 * 32767).astype(np.int16)
-    
+
     # Interleave left and right channels (same signal for both)
     payload = np.empty(AUDIO_SAMPLES_PER_PACKET * 2, dtype=np.int16)
     payload[0::2] = audio_signal  # Left channel
     payload[1::2] = audio_signal  # Right channel
-    
+
     return header + payload.tobytes()
 
 
 def generate_packets(output_dir, num_frames=30, formats=None):
     """
     Generate test packets for all specified formats.
-    
+
     Args:
         output_dir: Base directory for output packets
         num_frames: Number of frames to generate per format
@@ -145,67 +145,67 @@ def generate_packets(output_dir, num_frames=30, formats=None):
     """
     if formats is None:
         formats = ['PAL', 'NTSC']
-    
+
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
-    
+
     for format_name in formats:
         if format_name not in VIDEO_FORMATS:
             print(f"Warning: Unknown format '{format_name}', skipping")
             continue
-        
+
         fmt = VIDEO_FORMATS[format_name]
         print(f"\nGenerating {format_name} packets ({num_frames} frames)...")
-        
+
         # Create format-specific directories
         video_dir = output_path / 'video' / format_name
         audio_dir = output_path / 'audio' / format_name
         video_dir.mkdir(parents=True, exist_ok=True)
         audio_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Generate video packets
         print(f"  Video: {fmt['packets_per_frame']} packets per frame")
         for frame_num in range(num_frames):
             for packet_num in range(fmt['packets_per_frame']):
                 packet_data = generate_video_packet(
-                    frame_num, packet_num, fmt['width'], 
+                    frame_num, packet_num, fmt['width'],
                     fmt['height'], fmt['packets_per_frame']
                 )
-                
+
                 # Write packet to file
                 packet_file = video_dir / f"frame_{frame_num:04d}_pkt_{packet_num:03d}.bin"
                 packet_file.write_bytes(packet_data)
-        
+
         total_video_packets = num_frames * fmt['packets_per_frame']
         print(f"    Generated {total_video_packets} video packets")
-        
+
         # Generate audio packets (one per frame for simplicity)
         print(f"  Audio: {fmt['audio_sample_rate']} Hz sample rate")
         for frame_num in range(num_frames):
             packet_data = generate_audio_packet(frame_num, fmt['audio_sample_rate'])
-            
+
             # Write packet to file
             packet_file = audio_dir / f"frame_{frame_num:04d}.bin"
             packet_file.write_bytes(packet_data)
-        
+
         print(f"    Generated {num_frames} audio packets")
-        
+
         # Calculate disk space usage for this format
         format_size = 0
         for video_file in video_dir.glob("*.bin"):
             format_size += video_file.stat().st_size
         for audio_file in audio_dir.glob("*.bin"):
             format_size += audio_file.stat().st_size
-        
+
         print(f"  💾 {format_name} disk usage: {format_size:,} bytes ({format_size / 1024 / 1024:.1f} MB)")
-    
+
     # Calculate total disk space usage
     total_size = 0
     for format_dir in output_path.glob("*/*"):
         if format_dir.is_dir():
             for packet_file in format_dir.glob("*.bin"):
                 total_size += packet_file.stat().st_size
-    
+
     print(f"\n✅ Packet generation complete: {output_dir}")
     print(f"💾 Total disk usage: {total_size:,} bytes ({total_size / 1024 / 1024:.1f} MB)")
 
@@ -218,10 +218,10 @@ def main():
 Examples:
   # Generate 30 frames for both PAL and NTSC
   %(prog)s
-  
+
   # Generate 60 frames for PAL only
   %(prog)s --frames 60 --format PAL
-  
+
   # Generate to custom directory
   %(prog)s --output /tmp/test_packets
         """
@@ -233,9 +233,9 @@ Examples:
     parser.add_argument('--format', choices=['PAL', 'NTSC'], action='append',
                         dest='formats',
                         help='Format(s) to generate (can specify multiple times, default: both)')
-    
+
     args = parser.parse_args()
-    
+
     generate_packets(args.output, args.frames, args.formats)
 
 

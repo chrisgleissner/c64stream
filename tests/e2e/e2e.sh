@@ -28,8 +28,8 @@ TEST_DIR="${PROJECT_ROOT}/tests/e2e"
 OUTPUT_DIR="${TEST_DIR}/test_output"
 
 # Default test parameters
-DEFAULT_FORMAT="PAL"
-DEFAULT_FRAMES=250  # ~5 seconds at PAL timing
+DEFAULT_FORMAT="NTSC"
+DEFAULT_FRAMES=300  # ~5 seconds at NTSC timing
 DEFAULT_DURATION=5  # seconds - alternative to frames
 DEFAULT_VIDEO_PORT=11000
 DEFAULT_AUDIO_PORT=11001
@@ -409,7 +409,7 @@ run_e2e_test() {
 
     # Build test command
     local cmd=(
-        "python3" "./run_e2e_test.py"
+        "python3" "./e2e.py"
         "--test-dir" "."
         "--format" "${FORMAT}"
         "--frames" "${FRAMES}"

@@ -328,12 +328,12 @@ DockAreaVisible=false
     def wait_for_plugin_initialization(self, timeout=10):
         """Wait for C64 plugin to initialize by monitoring OBS logs."""
         self.log("⏳ Monitoring OBS logs for C64 plugin initialization...")
-
+        
         obs_config_dir = Path.home() / '.config' / 'obs-studio'
         logs_dir = obs_config_dir / 'logs'
-
+        
         start_time = time.time()
-
+        
         # Plugin initialization indicators to look for
         init_patterns = [
             b"[C64]",  # Any C64 plugin log message
@@ -341,42 +341,42 @@ DockAreaVisible=false
             b"C64 Stream",  # Plugin name in logs
             b"UDP socket",  # Plugin creating UDP sockets
         ]
-
+        
         checked_files = set()
-
+        
         while time.time() - start_time < timeout:
             # Check if OBS process crashed
             if self.obs_process.poll() is not None:
                 stdout, stderr = self.obs_process.communicate()
                 raise RuntimeError(f"OBS crashed during initialization:\nSTDOUT: {stdout.decode()}\nSTDERR: {stderr.decode()}")
-
+            
             # Find latest log files
             if logs_dir.exists():
                 log_files = list(logs_dir.glob('*.txt'))
                 log_files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
-
+                
                 # Check the most recent log files
                 for log_file in log_files[:3]:  # Check up to 3 most recent files
                     if log_file in checked_files:
                         continue
-
+                        
                     try:
                         with open(log_file, 'rb') as f:
                             content = f.read()
-
+                            
                             # Look for plugin initialization patterns
                             for pattern in init_patterns:
                                 if pattern in content:
                                     self.log(f"✅ C64 plugin initialized (found '{pattern.decode()}' in {log_file.name})")
                                     return True
-
+                                    
                         checked_files.add(log_file)
-
+                        
                     except (OSError, IOError):
                         continue
-
+            
             time.sleep(0.1)  # Check every 100ms
-
+        
         self.log(f"⚠️ C64 plugin initialization not detected in logs within {timeout}s")
         return False
 
