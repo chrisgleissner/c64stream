@@ -315,6 +315,9 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     // Initialize recording for this source
     c64_record_init(context);
 
+    // Apply initial recording settings from configuration
+    c64_record_update_settings(context, settings);
+
     // Initialize CRT effect state from settings
     context->scan_line_distance = (float)obs_data_get_double(settings, "scan_line_distance");
     context->scan_line_strength = (float)obs_data_get_double(settings, "scan_line_strength");

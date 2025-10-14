@@ -128,7 +128,8 @@ class E2ETest:
             return False
 
         # Copy E2E properties file
-        e2e_properties = self.test_dir / 'properties_e2e.ini'
+        script_dir = Path(__file__).parent
+        e2e_properties = script_dir / 'properties_e2e.ini'
         target_properties = plugin_data_dir / 'properties.ini'
 
         if e2e_properties.exists():
@@ -1208,8 +1209,8 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
 
-    parser.add_argument('--test-dir', default='.',
-                        help='Test directory (default: current directory)')
+    parser.add_argument('--test-dir', default=str(Path(__file__).parent),
+                        help='Test directory (default: script directory)')
     parser.add_argument('--format', choices=['PAL', 'NTSC'], default='PAL',
                         help='Video format to test (default: PAL)')
     parser.add_argument('--frames', type=int, default=30,
@@ -1227,12 +1228,33 @@ def main():
 
     args = parser.parse_args()
 
-    # Verify UDP replay tool exists
+    # Verify UDP replay tool exists, build if needed
     udp_replay_path = Path(args.udp_replay)
     if not udp_replay_path.exists():
-        print(f"❌ UDP replay tool not found: {udp_replay_path}")
-        print("   Build it with: gcc -O2 -o udp_replay udp_replay.c")
-        return 1
+        print(f"⚠️  UDP replay tool not found: {udp_replay_path}")
+        print("🔨 Building UDP replay tool...")
+
+        # Find the udp_replay.c source file
+        script_dir = Path(__file__).parent
+        udp_replay_src = script_dir / "udp_replay.c"
+
+        if not udp_replay_src.exists():
+            print(f"❌ UDP replay source not found: {udp_replay_src}")
+            return 1
+
+        # Build the tool
+        build_cmd = ["gcc", "-O2", "-o", str(udp_replay_path), str(udp_replay_src)]
+        try:
+            result = subprocess.run(build_cmd, check=True, capture_output=True, text=True)
+            print(f"✅ Successfully built UDP replay tool: {udp_replay_path}")
+        except subprocess.CalledProcessError as e:
+            print(f"❌ Failed to build UDP replay tool:")
+            print(f"   Command: {' '.join(build_cmd)}")
+            print(f"   Error: {e.stderr}")
+            return 1
+        except FileNotFoundError:
+            print("❌ gcc compiler not found. Install build-essential package.")
+            return 1
 
     # Create and run test
     test = E2ETest(

@@ -356,6 +356,8 @@ bool c64_load_configuration(obs_data_t *settings)
             trim_config_string(key);
             trim_config_string(value);
 
+            C64_LOG_INFO("Properties: Processing key='%s' value='%s'", key, value);
+
             // Apply configuration based on key name
             if (strcmp(key, "c64_host") == 0) {
                 obs_data_set_default_string(settings, "c64_host", value);
@@ -414,13 +416,13 @@ bool c64_load_configuration(obs_data_t *settings)
                 loaded_settings++;
             } else if (strcmp(key, "record_video") == 0) {
                 bool enabled = (strcmp(value, "true") == 0) || (strcmp(value, "1") == 0);
-                obs_data_set_default_bool(settings, "record_video", enabled);
-                C64_LOG_DEBUG("Config: record_video = %s", enabled ? "true" : "false");
+                obs_data_set_bool(settings, "record_video", enabled);
+                C64_LOG_DEBUG("Config: record_video = %s - SET DIRECTLY", enabled ? "true" : "false");
                 loaded_settings++;
             } else if (strcmp(key, "record_csv") == 0) {
                 bool enabled = (strcmp(value, "true") == 0) || (strcmp(value, "1") == 0);
-                obs_data_set_default_bool(settings, "record_csv", enabled);
-                C64_LOG_DEBUG("Config: record_csv = %s", enabled ? "true" : "false");
+                obs_data_set_bool(settings, "record_csv", enabled);
+                C64_LOG_INFO("Config: record_csv = %s (value='%s') - SET DIRECTLY", enabled ? "true" : "false", value);
                 loaded_settings++;
             } else if (strcmp(key, "save_folder") == 0 && strlen(value) > 0) {
                 obs_data_set_default_string(settings, "save_folder", value);

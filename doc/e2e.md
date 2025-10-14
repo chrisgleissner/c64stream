@@ -282,7 +282,7 @@ heartbeat = (1 - t/0.3) * np.sin(2*np.pi*60*t)
    ```bash
    # Check current save folder resolution
    grep -E "(Documents|save.*folder|session)" ~/.config/obs-studio/logs/*.txt
-   
+
    # Verify directory creation
    ls -la ~/Documents/obs-studio/c64stream/recordings/
    ```
@@ -297,7 +297,7 @@ heartbeat = (1 - t/0.3) * np.sin(2*np.pi*60*t)
    ```bash
    # Compare generated vs expected packet structure
    hexdump -C tests/e2e/test_packets/video/PAL/frame_0000_pkt_000.bin | head -5
-   
+
    # Check plugin packet validation logic
    grep -A10 -B10 "Invalid packet format" src/c64-*.c
    ```

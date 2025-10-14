@@ -159,11 +159,13 @@ void c64_start_csv_recording(struct c64_source *context)
     }
 
     // Ensure we have a recording session
+    C64_LOG_INFO("Creating CSV recording session...");
     c64_session_ensure_exists(context);
     if (context->session_folder[0] == '\0') {
         C64_LOG_WARNING("Failed to create recording session for CSV logging");
         return;
     }
+    C64_LOG_INFO("Session folder created: %s", context->session_folder);
 
     // Create CSV timing file
     char timing_filename[950];
@@ -191,11 +193,13 @@ void c64_start_network_recording(struct c64_source *context)
     }
 
     // Ensure we have a recording session
+    C64_LOG_DEBUG("Creating network recording session...");
     c64_session_ensure_exists(context);
     if (context->session_folder[0] == '\0') {
         C64_LOG_WARNING("Failed to create recording session for network logging");
         return;
     }
+    C64_LOG_DEBUG("Network session folder: %s", context->session_folder);
 
     // Create network packet file
     char network_filename[950];
@@ -326,6 +330,7 @@ void c64_record_init(struct c64_source *context)
 
     // Initialize video recording
     context->record_video = false;
+    context->record_csv = false;
     context->video_file = NULL;
     context->audio_file = NULL;
     context->timing_file = NULL;
@@ -377,6 +382,8 @@ void c64_record_update_settings(struct c64_source *context, void *settings_ptr)
 {
     obs_data_t *settings = (obs_data_t *)settings_ptr;
 
+    C64_LOG_INFO("c64_record_update_settings() called - checking CSV settings...");
+
     // Update frame saving settings
     const char *new_save_folder = obs_data_get_string(settings, "save_folder");
     if (new_save_folder && strlen(new_save_folder) > 0) {
@@ -398,11 +405,14 @@ void c64_record_update_settings(struct c64_source *context, void *settings_ptr)
 
     // Update CSV recording setting
     bool new_record_csv = obs_data_get_bool(settings, "record_csv");
+    C64_LOG_INFO("CSV recording setting: current=%s, new=%s", context->record_csv ? "true" : "false",
+                 new_record_csv ? "true" : "false");
     if (new_record_csv != context->record_csv) {
         context->record_csv = new_record_csv;
 
         if (new_record_csv) {
             // Start CSV recording independently
+            C64_LOG_INFO("Starting CSV recording...");
             c64_start_csv_recording(context);
             c64_start_network_recording(context);
             C64_LOG_INFO("CSV recording started");
