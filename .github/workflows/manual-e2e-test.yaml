@@ -1,0 +1,205 @@
+name: Manual E2E Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag to test (e.g., v1.0.0, latest for most recent)'
+        required: false
+        default: 'latest'
+        type: string
+      format:
+        description: 'Video format (PAL or NTSC)'
+        required: false
+        default: 'PAL'
+        type: choice
+        options:
+          - PAL
+          - NTSC
+      frames:
+        description: 'Number of frames to test'
+        required: false
+        default: '250'
+        type: string
+
+
+jobs:
+  manual-e2e-test:
+    name: Manual E2E Test 🧪
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout Code 📥
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Set Up Environment 🔧
+        id: setup
+        run: |
+          : Set Up Environment 🔧
+          if [[ "${RUNNER_DEBUG}" ]]; then set -x; fi
+
+          # Determine which release to download
+          if [[ "${{ inputs.release_tag }}" == "latest" ]]; then
+            # Get latest release info
+            release_info=$(curl -s https://api.github.com/repos/chrisgleissner/c64stream/releases/latest)
+            release_tag=$(echo "$release_info" | jq -r '.tag_name')
+            echo "📦 Using latest release: $release_tag"
+          else
+            release_tag="${{ inputs.release_tag }}"
+            echo "📦 Using specified release: $release_tag"
+          fi
+
+          echo "releaseTag=${release_tag}" >> $GITHUB_OUTPUT
+          echo "format=${{ inputs.format || 'PAL' }}" >> $GITHUB_OUTPUT
+          echo "frames=${{ inputs.frames || '250' }}" >> $GITHUB_OUTPUT
+
+      - name: Install System Dependencies 🛍️
+        run: |
+          : Install System Dependencies 🛍️
+          sudo add-apt-repository -y ppa:obsproject/obs-studio
+          sudo apt-get update -qq
+          sudo apt-get install -y \
+            obs-studio \
+            python3 \
+            python3-pip \
+            python3-numpy \
+            python3-pil \
+            ffmpeg \
+            xvfb \
+            curl \
+            jq
+
+      - name: Set up OBS Studio Configuration 🎛️
+        run: |
+          : Set up OBS Studio Configuration 🎛️
+          mkdir -p ~/.config/obs-studio/basic/profiles/E2E-Test
+          mkdir -p $HOME/obs-recordings
+
+      - name: Download and Install Release 📥
+        run: |
+          : Download and Install Release 📥
+          release_tag="${{ steps.setup.outputs.releaseTag }}"
+
+          # Get release info
+          release_info=$(curl -s "https://api.github.com/repos/chrisgleissner/c64stream/releases/tags/${release_tag}")
+
+          # Prefer .deb package, fallback to .tar.xz
+          deb_url=$(echo "$release_info" | jq -r '.assets[] | select(.name | contains(".deb")) | .browser_download_url' | head -1)
+
+          if [[ -n "$deb_url" && "$deb_url" != "null" ]]; then
+            echo "📦 Downloading .deb package: $deb_url"
+            curl -L -o plugin-release.deb "$deb_url"
+            sudo dpkg -i plugin-release.deb
+            echo "✅ Plugin installed via .deb package"
+          else
+            # Fallback to tar.xz
+            tar_url=$(echo "$release_info" | jq -r '.assets[] | select(.name | contains("ubuntu") and contains(".tar.xz")) | .browser_download_url' | head -1)
+
+            if [[ -z "$tar_url" || "$tar_url" == "null" ]]; then
+              echo "❌ No suitable artifact found in release $release_tag"
+              echo "Available assets:"
+              echo "$release_info" | jq -r '.assets[].name'
+              exit 1
+            fi
+
+            echo "📦 Downloading .tar.xz: $tar_url"
+            curl -L -o plugin-release.tar.xz "$tar_url"
+            tar -xf plugin-release.tar.xz
+
+            # Manual installation for tar.xz
+            sudo mkdir -p /usr/lib/obs-plugins /usr/share/obs/obs-plugins
+            if [[ -f usr/lib/obs-plugins/c64stream.so ]]; then
+              sudo cp usr/lib/obs-plugins/c64stream.so /usr/lib/obs-plugins/
+              echo "✅ Plugin binary installed"
+            fi
+            if [[ -d usr/share/obs/obs-plugins/c64stream ]]; then
+              sudo cp -r usr/share/obs/obs-plugins/c64stream /usr/share/obs/obs-plugins/
+              echo "✅ Plugin data installed"
+            fi
+          fi      - name: Verify Plugin Installation 🔍
+        run: |
+          : Verify Plugin Installation 🔍
+          if [[ -f /usr/lib/obs-plugins/c64stream.so ]]; then
+            echo "✅ Plugin binary found at /usr/lib/obs-plugins/c64stream.so"
+          else
+            echo "❌ Plugin binary not found"
+            exit 1
+          fi
+
+          if [[ -d /usr/share/obs/obs-plugins/c64stream ]]; then
+            echo "✅ Plugin data found at /usr/share/obs/obs-plugins/c64stream"
+          else
+            echo "⚠️ Plugin data not found"
+          fi
+
+      - name: Prepare E2E Test Environment 🔧
+        run: |
+          : Prepare E2E Test Environment 🔧
+          # Build only the UDP replay tool needed for testing
+          cmake --preset ubuntu-x86_64
+          cmake --build build_x86_64 --target udp_replay
+
+          # Install Python dependencies
+          python3 -m pip install --user numpy pillow
+
+      - name: Run E2E Test 🎬
+        timeout-minutes: 10
+        id: e2e_test
+        run: |
+          : Run E2E Test 🎬
+          cd tests/e2e
+
+          # Start Xvfb for headless operation
+          export DISPLAY=:99
+          Xvfb :99 -screen 0 1280x720x24 &
+          XVFB_PID=$!
+          sleep 3
+
+          # Cleanup on exit
+          trap "kill $XVFB_PID 2>/dev/null || true" EXIT
+
+          # Run E2E test
+          if ./e2e.sh --format "${{ steps.setup.outputs.format }}" --frames "${{ steps.setup.outputs.frames }}" --skip-build --verbose; then
+            echo "E2E_RESULT=success" >> $GITHUB_OUTPUT
+            echo "✅ E2E test completed successfully"
+          else
+            echo "E2E_RESULT=failure" >> $GITHUB_OUTPUT
+            echo "❌ E2E test failed"
+            exit 1
+          fi
+
+      - name: Upload Test Results 📤
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: manual-e2e-test-results-${{ steps.setup.outputs.releaseTag }}-${{ github.run_id }}
+          path: |
+            tests/e2e/test_output/**/*.mp4
+            tests/e2e/test_output/**/*.mkv
+            tests/e2e/test_output/**/*.csv
+            tests/e2e/test_output/**/*.json
+            tests/e2e/test_output/**/*.txt
+            tests/e2e/test_output/**/*.log
+          retention-days: 14
+
+      - name: Test Summary 📊
+        if: always()
+        run: |
+          : Test Summary 📊
+          echo "## Manual E2E Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Release: ${{ steps.setup.outputs.releaseTag }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Format: ${{ steps.setup.outputs.format }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Frames: ${{ steps.setup.outputs.frames }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [[ "${{ steps.e2e_test.outputs.E2E_RESULT }}" == "success" ]]; then
+            echo "✅ Test completed successfully" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Test failed" >> $GITHUB_STEP_SUMMARY
+          fi
