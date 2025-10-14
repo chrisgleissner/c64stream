@@ -250,7 +250,7 @@ check_dependencies() {
             log_warning "OBS Studio not found - E2E tests will run in validation-only mode"
             log_info "To install OBS Studio: https://obsproject.com/download"
         fi
-        
+
         # Check for ffmpeg (can be installed via apt)
         if ! command -v ffmpeg &> /dev/null; then
             missing_deps+=("ffmpeg")

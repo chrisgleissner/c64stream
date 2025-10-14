@@ -7,13 +7,13 @@ jobs:
   e2e-test:
     name: Run E2E Tests
     runs-on: ubuntu-24.04
-    
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
+
       - name: Install System Dependencies
         run: |
           sudo apt-get update -qq
@@ -25,26 +25,26 @@ jobs:
             python3-numpy \
             python3-pil \
             ffmpeg
-      
+
       - name: Build E2E Test Tools 🔨
         run: |
           # Build only the UDP replay tool standalone
           cd tests/e2e
           gcc -std=c17 -O2 -o udp_replay udp_replay.c
-      
+
       - name: Generate Test Packets
         run: |
           cd tests/e2e
           ./generate_packets.py --frames 250 --format PAL --output test_packets
           ls -lh test_packets/video/PAL/ | head -5
           ls -lh test_packets/audio/PAL/ | head -5
-      
+
       - name: Test UDP Replay Tool
         run: |
           cd tests/e2e
           # Quick test to ensure UDP replay works
           ./udp_replay test_packets/video/PAL 127.0.0.1 11000 780 --verbose
-      
+
       - name: Upload Test Artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -54,12 +54,12 @@ jobs:
             tests/e2e/test_output/**/*
             tests/e2e/test_packets/**/*.bin
           retention-days: 7
-      
+
       - name: Test Summary 📊
         run: |
           echo "## E2E Test Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          
+
           if [[ -f tests/e2e/test_output/test_result.json ]]; then
             echo "✅ E2E test completed" >> $GITHUB_STEP_SUMMARY
             echo "$(cat tests/e2e/test_output/test_result.json)" >> $GITHUB_STEP_SUMMARY

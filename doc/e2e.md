@@ -25,11 +25,41 @@ cd tests/e2e
 
 ## Architecture
 
-- **`e2e.sh`** - Main entry point, handles dependencies and orchestration
-- **`e2e.py`** - Test orchestrator with OBS integration
-- **`generate_packets.py`** - Creates test packets with visual patterns
-- **`udp_replay`** - High-performance UDP packet transmission
-- **Mock TCP Server** - Simulates C64 Ultimate control protocol
+### System Overview
+
+```mermaid
+graph LR
+    A[Test Packets] --> B[UDP Replay]
+    B --> C[C64 Plugin]
+    C --> D[OBS Recording]
+    D --> E[Validation]
+```
+
+### Test Flow
+
+```mermaid
+sequenceDiagram
+    participant T as Test Runner
+    participant O as OBS + Plugin
+    participant M as Mock C64
+    participant V as Validator
+    
+    T->>T: Build & Generate Packets
+    T->>O: Start OBS Recording
+    T->>M: Start Mock Server
+    T->>O: Replay UDP Packets
+    O->>O: Process A/V Stream
+    T->>V: Validate Results
+    V-->>T: Pass/Fail
+```
+
+### Key Components
+
+- **`e2e.sh`** - Main orchestrator, handles dependencies and build process
+- **`e2e.py`** - Python test runner with OBS integration and validation
+- **`generate_packets.py`** - Creates deterministic test packets with visual markers
+- **`udp_replay`** - High-performance C utility for precise UDP packet transmission
+- **Mock TCP Server** - Simulates C64 Ultimate control protocol handshake
 
 ## Test Data
 
