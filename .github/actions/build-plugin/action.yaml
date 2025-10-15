@@ -51,7 +51,7 @@ runs:
       run: |
         : Install Dependencies 🛍️
         echo ::group::Install Dependencies
-        
+
         # Check if we're in a container with dependencies already installed
         if command -v zsh >/dev/null 2>&1 && command -v obs >/dev/null 2>&1; then
           echo "Dependencies already available (likely in container)"
@@ -75,7 +75,7 @@ runs:
           --target ubuntu-${{ inputs.target }}
           --config ${{ inputs.config }}
         )
-        
+
         # Skip dependency installation if we're in a container with pre-installed deps
         if command -v obs >/dev/null 2>&1 && [[ -f "/usr/include/obs/obs.h" ]]; then
           build_args+=(--skip-deps)

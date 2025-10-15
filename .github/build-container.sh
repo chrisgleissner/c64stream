@@ -24,15 +24,15 @@ echo "🧪 Testing the container..."
 docker run --rm c64stream/ubuntu-build:latest bash -c '
     echo "Testing build tools..."
     cmake --version
-    ninja --version  
+    ninja --version
     obs --version
     ccache --version
-    
+
     echo "Testing Qt6..."
     pkg-config --exists Qt6Core && echo "✅ Qt6Core found"
     pkg-config --exists Qt6Widgets && echo "✅ Qt6Widgets found"
     pkg-config --exists Qt6Svg && echo "✅ Qt6Svg found"
-    
+
     echo "Testing OBS headers..."
     if [ -f "/usr/include/obs/obs.h" ]; then
         echo "✅ OBS headers found"
@@ -40,7 +40,7 @@ docker run --rm c64stream/ubuntu-build:latest bash -c '
         echo "❌ OBS headers missing"
         exit 1
     fi
-    
+
     echo "✅ All tests passed!"
 '
 

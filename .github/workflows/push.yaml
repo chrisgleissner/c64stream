@@ -25,6 +25,7 @@ jobs:
     permissions:
       contents: read
       packages: read
+      actions: write
 
   create-release:
     name: Create Release 🛫

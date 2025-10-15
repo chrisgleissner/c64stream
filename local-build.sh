@@ -484,28 +484,28 @@ install_plugin() {
 
 run_e2e_tests() {
     local platform=$1
-    
+
     # Only support Linux for E2E tests currently
     if [[ "$platform" != "linux" ]]; then
         log_warning "E2E tests are currently only supported on Linux"
         return 0
     fi
-    
+
     log_info "Running E2E tests..."
-    
+
     # Check if E2E test directory exists
     if [[ ! -d "tests/e2e" ]]; then
         log_error "E2E test directory not found: tests/e2e"
         return 1
     fi
-    
+
     # Check if plugin is installed
     local plugin_installed=false
     local plugin_locations=(
         "$HOME/.config/obs-studio/plugins/c64stream/bin/64bit/c64stream.so"
         "/usr/lib/obs-plugins/c64stream.so"
     )
-    
+
     for plugin_path in "${plugin_locations[@]}"; do
         if [[ -f "$plugin_path" ]]; then
             log_success "Found plugin at: $plugin_path"
@@ -513,7 +513,7 @@ run_e2e_tests() {
             break
         fi
     done
-    
+
     if [[ "$plugin_installed" == "false" ]]; then
         log_error "Plugin not found in expected locations. Run with --install first."
         log_error "Expected locations:"
@@ -522,51 +522,51 @@ run_e2e_tests() {
         done
         return 1
     fi
-    
+
     # Check dependencies
     local missing_deps=()
-    
+
     # Check for required system packages
     if ! command -v obs >/dev/null 2>&1; then
         missing_deps+=("obs-studio")
     fi
-    
+
     if ! command -v python3 >/dev/null 2>&1; then
         missing_deps+=("python3")
     fi
-    
+
     if ! command -v xvfb-run >/dev/null 2>&1; then
         missing_deps+=("xvfb")
     fi
-    
+
     # Check for Python packages
     if ! python3 -c "import numpy" >/dev/null 2>&1; then
         missing_deps+=("python3-numpy")
     fi
-    
+
     if ! python3 -c "import PIL" >/dev/null 2>&1; then
         missing_deps+=("python3-pil")
     fi
-    
+
     if [[ ${#missing_deps[@]} -gt 0 ]]; then
         log_warning "Missing dependencies for E2E tests: ${missing_deps[*]}"
         log_info "Install them with: sudo apt-get install ${missing_deps[*]}"
         log_info "Continuing with E2E tests (may fail)..."
     fi
-    
+
     # Build E2E tools if needed
     log_info "Building E2E tools..."
     if ! cmake --build build_x86_64 --target udp_replay; then
         log_error "Failed to build E2E tools"
         return 1
     fi
-    
+
     # Change to E2E directory (with error handling)
     if ! cd tests/e2e; then
         log_error "Failed to change to E2E test directory"
         return 1
     fi
-    
+
     # Set E2E test parameters
     local e2e_args=(
         "--format" "PAL"
@@ -574,24 +574,24 @@ run_e2e_tests() {
         "--skip-build"  # We already built and installed
         "--verbose"
     )
-    
+
     if [[ "$VERBOSE" == "true" ]]; then
         e2e_args+=("--verbose")
     fi
-    
+
     # Check if E2E script exists and is executable
     if [[ ! -x "./e2e.sh" ]]; then
         log_error "E2E test script not found or not executable: tests/e2e/e2e.sh"
         cd "$PROJECT_ROOT"
         return 1
     fi
-    
+
     log_info "Running E2E test with args: ${e2e_args[*]}"
-    
+
     # Run E2E test
     if ./e2e.sh "${e2e_args[@]}"; then
         log_success "E2E tests completed successfully!"
-        
+
         # Show test results if available
         if [[ -d "test_output" ]]; then
             log_info "Test output directory: tests/e2e/test_output"
@@ -604,7 +604,7 @@ run_e2e_tests() {
         log_error "E2E tests failed!"
         return 1
     fi
-    
+
     # Return to project root
     cd "$PROJECT_ROOT"
 }

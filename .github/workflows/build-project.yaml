@@ -204,15 +204,98 @@ jobs:
           path: ${{ github.workspace }}/.ccache
           key: ${{ runner.os }}-ccache-${{ needs.check-event.outputs.config }}
 
+  build-docker-image:
+    name: Ensure Docker Image �
+    runs-on: ubuntu-latest
+    needs: check-event
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image-tag: ${{ steps.check.outputs.image-tag }}
+      needs-build: ${{ steps.check.outputs.needs-build }}
+    steps:
+      - name: Log in to Container Registry 🔐
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check Image Freshness 🕐
+        id: check
+        run: |
+          : Check Image Freshness 🕐
+          IMAGE_NAME="ghcr.io/${{ github.repository }}/ubuntu-build:latest"
+          echo "image-tag=${IMAGE_NAME}" >> $GITHUB_OUTPUT
+
+          # Try to get image metadata
+          if IMAGE_INFO=$(docker manifest inspect "${IMAGE_NAME}" 2>/dev/null); then
+            # Extract creation date from manifest
+            CREATED_DATE=$(echo "${IMAGE_INFO}" | jq -r '.history[0].created // empty')
+
+            if [[ -n "${CREATED_DATE}" ]]; then
+              # Convert to Unix timestamp
+              CREATED_TIMESTAMP=$(date -d "${CREATED_DATE}" +%s 2>/dev/null || echo "0")
+              CURRENT_TIMESTAMP=$(date +%s)
+              AGE_DAYS=$(( (CURRENT_TIMESTAMP - CREATED_TIMESTAMP) / 86400 ))
+
+              echo "📊 Image age: ${AGE_DAYS} days"
+
+              if [[ ${AGE_DAYS} -gt 7 ]]; then
+                echo "🔄 Image is ${AGE_DAYS} days old (>7 days) - needs rebuild"
+                echo "needs-build=true" >> $GITHUB_OUTPUT
+              else
+                echo "✅ Image is ${AGE_DAYS} days old (<7 days) - using existing"
+                echo "needs-build=false" >> $GITHUB_OUTPUT
+              fi
+            else
+              echo "⚠️ Could not determine image age - rebuilding to be safe"
+              echo "needs-build=true" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "🆕 Image does not exist - needs initial build"
+            echo "needs-build=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout repository 📥
+        if: steps.check.outputs.needs-build == 'true'
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx 🏗️
+        if: steps.check.outputs.needs-build == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push Docker image 🚀
+        if: steps.check.outputs.needs-build == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./.github/docker/Dockerfile.ubuntu-build
+          push: true
+          tags: ghcr.io/${{ github.repository }}/ubuntu-build:latest
+          platforms: linux/amd64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Image Status Summary 📋
+        run: |
+          : Image Status Summary 📋
+          if [[ "${{ steps.check.outputs.needs-build }}" == "true" ]]; then
+            echo "🔨 Docker image built/updated - future builds will be faster"
+          else
+            echo "♻️ Using existing Docker image - fast build mode"
+          fi
+
   ubuntu-build:
     name: Fast Ubuntu Build 🐧🐳
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/${{ github.repository }}/ubuntu-build:latest
+      image: ${{ needs.build-docker-image.outputs.image-tag }}
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
-    needs: check-event
+    needs: [check-event, build-docker-image]
     defaults:
       run:
         shell: bash
@@ -233,7 +316,6 @@ jobs:
 
           echo "pluginName=${product_name}" >> $GITHUB_OUTPUT
           echo "pluginVersion=${{ needs.check-event.outputs.pluginVersion }}" >> $GITHUB_OUTPUT
-          echo "osName=ubuntu-24.04" >> $GITHUB_OUTPUT
 
       - uses: actions/cache/restore@v4
         id: ccache-cache
@@ -261,20 +343,20 @@ jobs:
       - name: Upload Source Tarball 🗜️
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-${{ steps.setup.outputs.osName }}-sources-${{ needs.check-event.outputs.commitHash }}
+          name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-ubuntu-24.04-sources-${{ needs.check-event.outputs.commitHash }}
           path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-source.*
 
       - name: Upload Artifacts 📡
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-${{ steps.setup.outputs.osName }}-x86_64-${{ needs.check-event.outputs.commitHash }}
+          name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-ubuntu-24.04-x86_64-${{ needs.check-event.outputs.commitHash }}
           path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-x86_64*.*
 
       - name: Upload debug symbol artifacts 🪲
         uses: actions/upload-artifact@v4
         if: ${{ fromJSON(needs.check-event.outputs.package) }}
         with:
-          name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-${{ steps.setup.outputs.osName }}-x86_64-${{ needs.check-event.outputs.commitHash }}-dbgsym
+          name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-ubuntu-24.04-x86_64-${{ needs.check-event.outputs.commitHash }}-dbgsym
           path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-x86_64*-dbgsym.ddeb
 
       - uses: actions/cache/save@v4
@@ -289,7 +371,7 @@ jobs:
     needs: check-event
     defaults:
       run:
-        shell: pwsh
+        shell: bash
     steps:
       - uses: actions/checkout@v4
         with:
@@ -299,16 +381,22 @@ jobs:
       - name: Set Up Environment 🔧
         id: setup
         run: |
-          # Set Up Environment 🔧
-          if ( $Env:RUNNER_DEBUG -ne $null ) {
-            Set-PSDebug -Trace 1
-          }
+          : Set Up Environment 🔧
+          if [[ "${RUNNER_DEBUG}" ]]; then set -x; fi
 
-          $BuildSpec = Get-Content -Path buildspec.json -Raw | ConvertFrom-Json
-          $ProductName = $BuildSpec.name
+          read -r product_name <<< \
+            "$(jq -r '.name' buildspec.json)"
 
-          "pluginName=${ProductName}" >> $env:GITHUB_OUTPUT
-          "pluginVersion=${{ needs.check-event.outputs.pluginVersion }}" >> $env:GITHUB_OUTPUT
+          echo "pluginName=${product_name}" >> $GITHUB_OUTPUT
+          echo "pluginVersion=${{ needs.check-event.outputs.pluginVersion }}" >> $GITHUB_OUTPUT
+
+      - uses: actions/cache/restore@v4
+        id: ccache-cache
+        with:
+          path: ${{ github.workspace }}/.ccache
+          key: ${{ runner.os }}-ccache-${{ needs.check-event.outputs.config }}
+          restore-keys: |
+            ${{ runner.os }}-ccache-
 
       - name: Build Plugin 🧱
         uses: ./.github/actions/build-plugin
@@ -329,6 +417,12 @@ jobs:
         with:
           name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-windows-x64-${{ needs.check-event.outputs.commitHash }}
           path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-windows-x64*.*
+
+      - uses: actions/cache/save@v4
+        if: github.event_name != 'pull_request' && steps.ccache-cache.outputs.cache-hit != 'true'
+        with:
+          path: ${{ github.workspace }}/.ccache
+          key: "${{ runner.os }}-ccache-${{ needs.check-event.outputs.config }}"
 
   e2e-test:
     name: E2E Test 🧪

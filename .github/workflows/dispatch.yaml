@@ -19,3 +19,4 @@ jobs:
     permissions:
       contents: read
       packages: read
+      actions: write
