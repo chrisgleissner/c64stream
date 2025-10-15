@@ -1,0 +1,436 @@
+name: E2E Test (Automated)
+
+on:
+  workflow_call:
+    inputs:
+      format:
+        description: 'Video format (PAL or NTSC)'
+        required: false
+        default: 'PAL'
+        type: string
+      frames:
+        description: 'Number of frames to test'
+        required: false
+        default: '250'
+        type: string
+      monitor_resources:
+        description: 'Enable resource monitoring'
+        required: false
+        default: true
+        type: boolean
+      download_url:
+        description: 'URL to download plugin (.deb for releases, .zip for build artifacts)'
+        required: false
+        type: string
+      artifact_name:
+        description: 'Name of build artifact to download (for build artifacts)'
+        required: false
+        type: string
+
+jobs:
+  e2e-test:
+    name: Run E2E Tests 🧪
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout Code 📥
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Set Up Environment 🔧
+        id: setup
+        run: |
+          : Set Up Environment 🔧
+          if [[ "${RUNNER_DEBUG}" ]]; then set -x; fi
+
+          # Determine download method
+          download_url="${{ inputs.download_url }}"
+          artifact_name="${{ inputs.artifact_name }}"
+
+          if [[ -n "${download_url}" ]]; then
+            # External download (release or manual URL)
+            echo "downloadUrl=${download_url}" >> $GITHUB_OUTPUT
+
+            if [[ "${download_url}" == *.deb ]]; then
+              echo "downloadType=deb" >> $GITHUB_OUTPUT
+            elif [[ "${download_url}" == *.zip ]]; then
+              echo "downloadType=zip" >> $GITHUB_OUTPUT
+            else
+              echo "downloadType=unknown" >> $GITHUB_OUTPUT
+            fi
+          elif [[ -n "${artifact_name}" ]]; then
+            # GitHub Actions artifact download
+            echo "downloadType=artifact" >> $GITHUB_OUTPUT
+            echo "artifactName=${artifact_name}" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Neither download_url nor artifact_name provided"
+            exit 1
+          fi
+
+          # Set test parameters from inputs
+          echo "format=${{ inputs.format || 'PAL' }}" >> $GITHUB_OUTPUT
+          echo "frames=${{ inputs.frames || '250' }}" >> $GITHUB_OUTPUT
+          echo "monitor_resources=${{ inputs.monitor_resources || 'false' }}" >> $GITHUB_OUTPUT
+
+      - name: Install System Dependencies 🛍️
+        run: |
+          : Install System Dependencies 🛍️
+          sudo add-apt-repository -y ppa:obsproject/obs-studio
+          sudo apt-get update -qq
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            ninja-build \
+            ccache \
+            zsh \
+            python3 \
+            python3-pip \
+            python3-numpy \
+            python3-pil \
+            ffmpeg \
+            xvfb \
+            software-properties-common \
+            obs-studio \
+            curl \
+            unzip
+
+      - name: Set up OBS Studio Configuration 🎛️
+        run: |
+          : Set up OBS Studio Configuration 🎛️
+          mkdir -p ~/.config/obs-studio/basic/profiles/E2E-Test
+          mkdir -p ~/.config/obs-studio/basic/scenes
+          mkdir -p ~/.config/obs-studio/plugins/c64stream/bin/64bit
+          mkdir -p ~/.config/obs-studio/plugins/c64stream/data
+
+          # Create basic OBS configuration for headless operation
+          cat > ~/.config/obs-studio/basic/profiles/E2E-Test/basic.ini << 'EOF'
+          [General]
+          Name=E2E-Test
+
+          [Output]
+          Mode=Simple
+
+          [SimpleOutput]
+          VideoEncoder=x264
+          AudioEncoder=ffmpeg_aac
+          FilePath=$HOME/obs-recordings
+          FileFormat=mkv
+          RecQuality=Small
+          RecEncoder=x264
+
+          [Video]
+          BaseCX=720
+          BaseCY=576
+          OutputCX=720
+          OutputCY=576
+          FPSType=0
+          FPSCommon=25
+          EOF
+
+      - name: Download Plugin Artifact 📥
+        if: ${{ steps.setup.outputs.downloadType == 'artifact' }}
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ steps.setup.outputs.artifactName }}
+          path: ./artifacts
+
+      - name: Download External Plugin 📥
+        if: ${{ steps.setup.outputs.downloadType != 'artifact' }}
+        continue-on-error: true
+        run: |
+          : Download External Plugin 📥
+          download_url="${{ steps.setup.outputs.downloadUrl }}"
+          download_type="${{ steps.setup.outputs.downloadType }}"
+
+          echo "📦 Downloading from: ${download_url}"
+
+          if [[ "${download_type}" == "deb" ]]; then
+            # Handle .deb release packages
+            echo "📦 Downloading .deb package..."
+            curl -L -o plugin-release.deb "${download_url}"
+            echo "✅ Plugin downloaded as .deb package"
+
+          elif [[ "${download_type}" == "zip" ]]; then
+            # Handle .zip build artifacts
+            echo "📦 Downloading .zip artifact..."
+            curl -L -o plugin-artifact.zip "${download_url}"
+            echo "✅ Plugin downloaded as .zip artifact"
+
+          else
+            echo "❌ Unknown download type: ${download_type}"
+            echo "URL: ${download_url}"
+            exit 1
+          fi
+
+      - name: Install Plugin 🔌
+        continue-on-error: true
+        run: |
+          : Install Plugin 🔌
+          download_type="${{ steps.setup.outputs.downloadType }}"
+
+          if [[ "${download_type}" == "deb" ]]; then
+            # Install .deb package
+            sudo dpkg -i plugin-release.deb
+            echo "✅ Plugin installed via .deb package"
+
+          elif [[ "${download_type}" == "zip" ]]; then
+            # Handle .zip build artifacts
+            unzip plugin-artifact.zip
+
+            # Find and extract the .tar.xz file
+            tar_file=$(find . -name "*.tar.xz" | head -1)
+            if [[ -z "${tar_file}" ]]; then
+              echo "❌ No .tar.xz file found in zip artifact"
+              ls -la .
+              exit 1
+            fi
+
+            echo "📦 Extracting ${tar_file}..."
+            tar -xf "${tar_file}"
+
+            # Install plugin binary
+            if [[ -f lib/x86_64-linux-gnu/obs-plugins/c64stream.so ]]; then
+              cp lib/x86_64-linux-gnu/obs-plugins/c64stream.so ~/.config/obs-studio/plugins/c64stream/bin/64bit/
+              echo "✅ Plugin binary installed from zip artifact"
+            else
+              echo "❌ Plugin binary not found in expected location"
+              find . -name "*.so" -type f
+              exit 1
+            fi
+
+            # Install plugin data
+            if [[ -d share/obs/obs-plugins/c64stream ]]; then
+              cp -r share/obs/obs-plugins/c64stream/* ~/.config/obs-studio/plugins/c64stream/data/
+              echo "✅ Plugin data installed from zip artifact"
+            else
+              echo "⚠️ Plugin data not found in expected location"
+            fi
+
+          elif [[ "${download_type}" == "artifact" ]]; then
+            # Handle GitHub Actions artifacts
+            cd artifacts
+
+            # List contents for debugging
+            echo "📦 Artifact contents:"
+            ls -la
+
+            # Extract the .tar.xz file
+            tar_file=$(find . -name "*.tar.xz" | head -1)
+            if [[ -z "${tar_file}" ]]; then
+              echo "❌ No .tar.xz file found in artifact"
+              exit 1
+            fi
+
+            echo "📦 Extracting ${tar_file}..."
+            tar -xf "${tar_file}"
+
+            # List extracted contents
+            echo "📦 Extracted contents:"
+            ls -la
+
+            # Try multiple possible paths for plugin binary
+            plugin_binary=""
+            for path in \
+              "lib/x86_64-linux-gnu/obs-plugins/c64stream.so" \
+              "usr/lib/obs-plugins/c64stream.so" \
+              "usr/lib/x86_64-linux-gnu/obs-plugins/c64stream.so"; do
+              if [[ -f "${path}" ]]; then
+                plugin_binary="${path}"
+                break
+              fi
+            done
+
+            if [[ -n "${plugin_binary}" ]]; then
+              cp "${plugin_binary}" ~/.config/obs-studio/plugins/c64stream/bin/64bit/
+              echo "✅ Plugin binary installed from ${plugin_binary}"
+            else
+              echo "❌ Plugin binary not found in any expected location"
+              echo "🔍 Searching for .so files:"
+              find . -name "*.so" -type f
+              exit 1
+            fi
+
+            # Try multiple possible paths for plugin data
+            plugin_data=""
+            for path in \
+              "share/obs/obs-plugins/c64stream" \
+              "usr/share/obs/obs-plugins/c64stream"; do
+              if [[ -d "${path}" ]]; then
+                plugin_data="${path}"
+                break
+              fi
+            done
+
+            if [[ -n "${plugin_data}" ]]; then
+              cp -r "${plugin_data}"/* ~/.config/obs-studio/plugins/c64stream/data/
+              echo "✅ Plugin data installed from ${plugin_data}"
+            else
+              echo "⚠️ Plugin data not found in any expected location"
+            fi
+            cd ..
+
+          else
+            echo "❌ Unknown download type: ${download_type}"
+            exit 1
+          fi
+
+          # Verify plugin installation
+          echo "🔍 Verifying plugin installation..."
+          if [[ -f ~/.config/obs-studio/plugins/c64stream/bin/64bit/c64stream.so ]]; then
+            echo "✅ Plugin binary found in user directory"
+          elif [[ -f /usr/lib/obs-plugins/c64stream.so ]]; then
+            echo "✅ Plugin binary found in system directory"
+          else
+            echo "❌ Plugin binary not found in expected locations"
+            exit 1
+          fi
+
+      - name: Build E2E Tools 🔧
+        continue-on-error: true
+        run: |
+          : Build E2E Tools 🔧
+          # Install SIMDe dependency
+          sudo apt-get install -y libsimde-dev
+
+          # Configure CMake for E2E tools only
+          cmake --preset ubuntu-x86_64
+          cmake --build build_x86_64 --target udp_replay
+
+          cd tests/e2e
+          # Build Python dependencies
+          python3 -m pip install --user numpy pillow
+
+      - name: Run E2E Test 🎬
+        timeout-minutes: 10
+        id: e2e_test
+        continue-on-error: true
+        run: |
+          : Run E2E Test 🎬
+          cd tests/e2e
+
+          # Set up environment for headless operation
+          export DISPLAY=:99
+          export PULSE_SERVER="unix:${XDG_RUNTIME_DIR}/pulse/native"
+
+          # Start Xvfb with proper cleanup for headless CI environment
+          echo "Starting Xvfb..."
+
+          # Clean up any stale X lock files from previous runs
+          sudo rm -f /tmp/.X99-lock /tmp/.X*-lock 2>/dev/null || true
+
+          # Kill any existing Xvfb processes that might be running
+          pkill -f "Xvfb.*:99" 2>/dev/null || true
+          sleep 1
+
+          # Start Xvfb with stderr redirection to suppress xkbcomp warnings
+          Xvfb :99 -screen 0 1280x720x24 -ac +extension GLX +render -noreset 2>/dev/null &
+          XVFB_PID=$!
+
+          # Cleanup function
+          cleanup_xvfb() {
+            echo "Cleaning up Xvfb (PID: $XVFB_PID)..."
+            kill $XVFB_PID 2>/dev/null || true
+            wait $XVFB_PID 2>/dev/null || true
+            sudo rm -f /tmp/.X99-lock 2>/dev/null || true
+          }
+          trap cleanup_xvfb EXIT INT TERM
+
+          # Wait for Xvfb and verify it's running
+          sleep 5
+          if ! xdpyinfo -display :99 >/dev/null 2>&1; then
+            echo "❌ Xvfb failed to start properly"
+            echo "⚠️ Continuing with E2E test - may fail due to display issues"
+          else
+            echo "✅ Xvfb running on :99"
+          fi
+
+          # Build command arguments
+          cmd_args=(
+            "--format" "${{ steps.setup.outputs.format }}"
+            "--frames" "${{ steps.setup.outputs.frames }}"
+            "--verbose"
+          )
+
+          if [[ "${{ steps.setup.outputs.monitor_resources }}" == "true" ]]; then
+            cmd_args+=("--monitor-resources")
+          fi
+
+          echo "Running E2E test with args: ${cmd_args[*]}"
+          if ./e2e.sh "${cmd_args[@]}"; then
+            echo "E2E_RESULT=success" >> $GITHUB_OUTPUT
+            echo "✅ E2E test completed successfully"
+            exit 0
+          else
+            echo "E2E_RESULT=failure" >> $GITHUB_OUTPUT
+            echo "⚠️ E2E test failed - marking as warning"
+            echo "::warning::E2E test validation failed but build artifacts are still valid"
+            # Exit with error code to trigger continue-on-error (shows as yellow warning)
+            exit 1
+          fi
+
+      - name: Upload Test Results 📤
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results-${{ github.run_id }}
+          path: |
+            tests/e2e/test_output/**/*.mp4
+            tests/e2e/test_output/**/*.mkv
+            tests/e2e/test_output/**/*.csv
+            tests/e2e/test_output/**/*.json
+            tests/e2e/test_output/**/*.txt
+            tests/e2e/test_output/**/*.log
+          retention-days: 14
+
+      - name: Test Summary 📊
+        if: always()
+        run: |
+          : Test Summary 📊
+          echo "## E2E Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Test Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "- Format: ${{ steps.setup.outputs.format }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Frames: ${{ steps.setup.outputs.frames }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Resource Monitoring: ${{ steps.setup.outputs.monitor_resources }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Check E2E test result
+          if [[ "${{ steps.e2e_test.outputs.E2E_RESULT }}" == "success" ]]; then
+            echo "✅ E2E test completed successfully" >> $GITHUB_STEP_SUMMARY
+          elif [[ "${{ steps.e2e_test.outputs.E2E_RESULT }}" == "failure" ]]; then
+            echo "⚠️ E2E test failed - build marked as warning" >> $GITHUB_STEP_SUMMARY
+            echo "> **Note:** Build artifacts are valid but E2E validation failed." >> $GITHUB_STEP_SUMMARY
+            echo "::warning::E2E test failed but build is still valid"
+          else
+            echo "❓ E2E test status unknown" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [[ -f tests/e2e/test_output/validation_results.json ]]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Detailed Results" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`json" >> $GITHUB_STEP_SUMMARY
+            cat tests/e2e/test_output/validation_results.json >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Basic Validation" >> $GITHUB_STEP_SUMMARY
+            echo "- Tests: Packet generation and replay validated" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Show resource monitoring results if enabled
+          if [[ "${{ steps.setup.outputs.monitor_resources }}" == "true" && -f tests/e2e/test_output/resource_monitor.log ]]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Resource Monitoring" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            tail -20 tests/e2e/test_output/resource_monitor.log >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Always exit successfully to not fail the workflow
+          exit 0

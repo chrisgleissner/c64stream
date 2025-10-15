@@ -39,6 +39,8 @@
         "*.h": "c",
         "*.cpp": "cpp",
         "*.hpp": "cpp",
+        "*.yml": "yaml",
+        "*.yaml": "yaml",
         "fstream": "c"
     },
 
@@ -71,5 +73,48 @@
     },
     "[markdown]": {
         "editor.defaultFormatter": "DavidAnson.vscode-markdownlint"
-    }
+    },
+
+    // GitHub Actions settings
+    "github-actions.workflows.pinned.workflows": [
+        ".github/workflows"
+    ],
+    "github-actions.remote-name": "origin",
+    "github-actions.runner.terminal.timeout": 20000,
+    "github-actions.workflows.validateWhenShown": false,
+    "github-actions.workflows.experimentalLocalActions": true,
+    "github-actions.cache.disabled": false,
+    "github-actions.validation.enabled": false,
+    "github-actions.workflow-run-logs": true,
+    "yaml.schemas": {
+        "https://json.schemastore.org/github-workflow.json": [
+            ".github/workflows/*.yml",
+            ".github/workflows/*.yaml"
+        ],
+        "https://json.schemastore.org/github-action.json": [
+            ".github/actions/*/action.yml",
+            ".github/actions/*/action.yaml"
+        ]
+    },
+    "yaml.validate": true,
+    "yaml.completion": true,
+    "yaml.customTags": [
+        "!And",
+        "!If",
+        "!Not",
+        "!Equals",
+        "!Or",
+        "!FindInMap sequence",
+        "!Base64",
+        "!Cidr",
+        "!Ref",
+        "!Sub",
+        "!GetAtt",
+        "!GetAZs",
+        "!ImportValue",
+        "!Join",
+        "!Select",
+        "!Split",
+        "!Transform"
+    ]
 }

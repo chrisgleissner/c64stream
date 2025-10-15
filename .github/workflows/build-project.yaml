@@ -325,3 +325,14 @@ jobs:
         with:
           name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-windows-x64-${{ needs.check-event.outputs.commitHash }}
           path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-windows-x64*.*
+
+  e2e-test:
+    name: E2E Test 🧪
+    needs: [check-event, ubuntu-build]
+    if: always() && needs.ubuntu-build.result == 'success'
+    uses: ./.github/workflows/e2e-test.yaml
+    with:
+      format: 'PAL'
+      frames: '250'
+      monitor_resources: false
+      artifact_name: c64stream-${{ needs.check-event.outputs.pluginVersion }}-ubuntu-24.04-x86_64-${{ needs.check-event.outputs.commitHash }}

@@ -19,8 +19,16 @@ obs_properties_t *c64_create_properties(void *data);
 
 /**
  * Set default values for all C64 Ultimate source properties
+ * Loads values from properties.ini if available, otherwise uses hardcoded defaults
  * @param settings Settings object to populate with defaults
  */
 void c64_set_property_defaults(obs_data_t *settings);
+
+/**
+ * Load configuration values from properties.ini file
+ * @param settings Settings object to populate with loaded values
+ * @return true if configuration file was loaded successfully, false otherwise
+ */
+bool c64_load_configuration(obs_data_t *settings);
 
 #endif  // C64_PROPERTIES_H

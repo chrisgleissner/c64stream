@@ -15,6 +15,10 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-file.h"
 #include "c64-presets.h"
 #include <obs-module.h>
+#include <util/dstr.h>
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
 
 // Forward declaration of callbacks
 static bool crt_preset_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings);
@@ -68,6 +72,11 @@ obs_properties_t *c64_create_properties(void *data)
     obs_property_t *audio_port_prop =
         obs_properties_add_int(network_props, "audio_port", obs_module_text("AudioPort"), 1024, 65535, 1);
     obs_property_set_long_description(audio_port_prop, obs_module_text("AudioPort.Description"));
+
+    // Control Port (TCP)
+    obs_property_t *control_port_prop =
+        obs_properties_add_int(network_props, "control_port", obs_module_text("ControlPort"), 1024, 65535, 1);
+    obs_property_set_long_description(control_port_prop, obs_module_text("ControlPort.Description"));
 
     // Buffer Delay
     obs_property_t *delay_prop =
@@ -215,6 +224,7 @@ void c64_set_property_defaults(obs_data_t *settings)
     obs_data_set_default_string(settings, "obs_ip_address", ""); // Empty by default, will be auto-detected
     obs_data_set_default_int(settings, "video_port", C64_DEFAULT_VIDEO_PORT);
     obs_data_set_default_int(settings, "audio_port", C64_DEFAULT_AUDIO_PORT);
+    obs_data_set_default_int(settings, "control_port", C64_CONTROL_PORT);
     obs_data_set_default_int(settings, "buffer_delay_ms", 10); // Default 10ms buffer delay
 
     // Frame saving defaults
@@ -261,4 +271,168 @@ void c64_set_property_defaults(obs_data_t *settings)
     obs_data_set_default_int(settings, "afterglow_curve", 2);
     obs_data_set_default_int(settings, "tint_mode", 0);
     obs_data_set_default_double(settings, "tint_strength", 0.0);
+
+    // Load configuration overrides from properties.ini if available
+    c64_load_configuration(settings);
+}
+
+// Helper function to trim whitespace from both ends of a string
+static void trim_config_string(char *str)
+{
+    if (!str || !*str)
+        return;
+
+    // Trim leading whitespace
+    char *start = str;
+    while (*start && (*start == ' ' || *start == '\t' || *start == '\r' || *start == '\n'))
+        start++;
+
+    // Trim trailing whitespace
+    char *end = start + strlen(start) - 1;
+    while (end > start && (*end == ' ' || *end == '\t' || *end == '\r' || *end == '\n'))
+        end--;
+
+    // Copy trimmed string back
+    size_t len = (end - start) + 1;
+    memmove(str, start, len);
+    str[len] = '\0';
+}
+
+bool c64_load_configuration(obs_data_t *settings)
+{
+    if (!settings) {
+        C64_LOG_WARNING("Cannot load configuration - invalid settings object");
+        return false;
+    }
+
+    // Get the plugin data directory path
+    char *plugin_data_path = obs_module_file("properties.ini");
+    if (!plugin_data_path) {
+        C64_LOG_WARNING("Failed to get plugin data path for properties.ini");
+        return false;
+    }
+
+    FILE *file = fopen(plugin_data_path, "r");
+    bfree(plugin_data_path);
+
+    if (!file) {
+        C64_LOG_INFO("No properties.ini found, using built-in defaults");
+        return false;
+    }
+
+    C64_LOG_INFO("Loading configuration from properties.ini");
+
+    char line[512];
+    char current_section[64] = "";
+    int loaded_settings = 0;
+
+    while (fgets(line, sizeof(line), file)) {
+        trim_config_string(line);
+
+        // Skip empty lines and comments
+        if (line[0] == '\0' || line[0] == ';' || line[0] == '#')
+            continue;
+
+        // Check for section header [SectionName]
+        if (line[0] == '[') {
+            char *end = strchr(line, ']');
+            if (end) {
+                *end = '\0';
+                strncpy(current_section, line + 1, sizeof(current_section) - 1);
+                current_section[sizeof(current_section) - 1] = '\0';
+                C64_LOG_DEBUG("Processing configuration section: %s", current_section);
+            }
+            continue;
+        }
+
+        // Parse key=value pairs
+        char *equals = strchr(line, '=');
+        if (equals) {
+            *equals = '\0';
+            char *key = line;
+            char *value = equals + 1;
+
+            trim_config_string(key);
+            trim_config_string(value);
+
+            C64_LOG_INFO("Properties: Processing key='%s' value='%s'", key, value);
+
+            // Apply configuration based on key name
+            if (strcmp(key, "c64_host") == 0) {
+                obs_data_set_default_string(settings, "c64_host", value);
+                C64_LOG_INFO("Config: c64_host = %s", value);
+                loaded_settings++;
+            } else if (strcmp(key, "dns_server_ip") == 0) {
+                obs_data_set_default_string(settings, "dns_server_ip", value);
+                C64_LOG_DEBUG("Config: dns_server_ip = %s", value);
+                loaded_settings++;
+            } else if (strcmp(key, "video_port") == 0) {
+                int port = atoi(value);
+                if (port >= 1024 && port <= 65535) {
+                    obs_data_set_default_int(settings, "video_port", port);
+                    C64_LOG_DEBUG("Config: video_port = %d", port);
+                    loaded_settings++;
+                }
+            } else if (strcmp(key, "audio_port") == 0) {
+                int port = atoi(value);
+                if (port >= 1024 && port <= 65535) {
+                    obs_data_set_default_int(settings, "audio_port", port);
+                    C64_LOG_DEBUG("Config: audio_port = %d", port);
+                    loaded_settings++;
+                }
+            } else if (strcmp(key, "control_port") == 0) {
+                int port = atoi(value);
+                if (port >= 1024 && port <= 65535) {
+                    obs_data_set_default_int(settings, "control_port", port);
+                    C64_LOG_DEBUG("Config: control_port = %d", port);
+                    loaded_settings++;
+                }
+            } else if (strcmp(key, "auto_detect_ip") == 0) {
+                bool enabled = (strcmp(value, "true") == 0) || (strcmp(value, "1") == 0);
+                obs_data_set_default_bool(settings, "auto_detect_ip", enabled);
+                C64_LOG_DEBUG("Config: auto_detect_ip = %s", enabled ? "true" : "false");
+                loaded_settings++;
+            } else if (strcmp(key, "obs_ip_address") == 0) {
+                obs_data_set_default_string(settings, "obs_ip_address", value);
+                C64_LOG_INFO("Config: obs_ip_address = %s", value);
+                loaded_settings++;
+            } else if (strcmp(key, "buffer_delay_ms") == 0) {
+                int delay = atoi(value);
+                if (delay >= 0 && delay <= 500) {
+                    obs_data_set_default_int(settings, "buffer_delay_ms", delay);
+                    C64_LOG_DEBUG("Config: buffer_delay_ms = %d", delay);
+                    loaded_settings++;
+                }
+            } else if (strcmp(key, "debug_logging") == 0) {
+                bool enabled = (strcmp(value, "true") == 0) || (strcmp(value, "1") == 0);
+                obs_data_set_default_bool(settings, "debug_logging", enabled);
+                C64_LOG_DEBUG("Config: debug_logging = %s", enabled ? "true" : "false");
+                loaded_settings++;
+            } else if (strcmp(key, "save_frames") == 0) {
+                bool enabled = (strcmp(value, "true") == 0) || (strcmp(value, "1") == 0);
+                obs_data_set_default_bool(settings, "save_frames", enabled);
+                C64_LOG_DEBUG("Config: save_frames = %s", enabled ? "true" : "false");
+                loaded_settings++;
+            } else if (strcmp(key, "record_video") == 0) {
+                bool enabled = (strcmp(value, "true") == 0) || (strcmp(value, "1") == 0);
+                obs_data_set_bool(settings, "record_video", enabled);
+                C64_LOG_DEBUG("Config: record_video = %s - SET DIRECTLY", enabled ? "true" : "false");
+                loaded_settings++;
+            } else if (strcmp(key, "record_csv") == 0) {
+                bool enabled = (strcmp(value, "true") == 0) || (strcmp(value, "1") == 0);
+                obs_data_set_bool(settings, "record_csv", enabled);
+                C64_LOG_INFO("Config: record_csv = %s (value='%s') - SET DIRECTLY", enabled ? "true" : "false", value);
+                loaded_settings++;
+            } else if (strcmp(key, "save_folder") == 0 && strlen(value) > 0) {
+                obs_data_set_default_string(settings, "save_folder", value);
+                C64_LOG_DEBUG("Config: save_folder = %s", value);
+                loaded_settings++;
+            }
+            // Note: CRT effects can be configured here too if needed in the future
+        }
+    }
+
+    fclose(file);
+    C64_LOG_INFO("Configuration loaded successfully: %d settings applied", loaded_settings);
+    return true;
 }

@@ -26,7 +26,7 @@ void c64_send_control_command(struct c64_source *context, bool enable, uint8_t s
         return;
     }
 
-    socket_t sock = c64_create_tcp_socket(context->ip_address, C64_CONTROL_PORT);
+    socket_t sock = c64_create_tcp_socket(context->ip_address, context->control_port);
     if (sock == INVALID_SOCKET_VALUE) {
         return; // Error already logged in c64_create_tcp_socket
     }
