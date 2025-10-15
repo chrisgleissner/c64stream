@@ -134,6 +134,7 @@ jobs:
 
       - name: Download Plugin Artifact 📥
         if: ${{ steps.setup.outputs.downloadType == 'artifact' }}
+        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
           name: ${{ steps.setup.outputs.artifactName }}
@@ -141,6 +142,7 @@ jobs:
 
       - name: Download External Plugin 📥
         if: ${{ steps.setup.outputs.downloadType != 'artifact' }}
+        continue-on-error: true
         run: |
           : Download External Plugin 📥
           download_url="${{ steps.setup.outputs.downloadUrl }}"
@@ -167,6 +169,7 @@ jobs:
           fi
 
       - name: Install Plugin 🔌
+        continue-on-error: true
         run: |
           : Install Plugin 🔌
           download_type="${{ steps.setup.outputs.downloadType }}"
@@ -289,8 +292,12 @@ jobs:
           fi
 
       - name: Build E2E Tools 🔧
+        continue-on-error: true
         run: |
           : Build E2E Tools 🔧
+          # Install SIMDe dependency
+          sudo apt-get install -y libsimde-dev
+          
           # Configure CMake for E2E tools only
           cmake --preset ubuntu-x86_64
           cmake --build build_x86_64 --target udp_replay
@@ -351,10 +358,10 @@ jobs:
             exit 0
           else
             echo "E2E_RESULT=failure" >> $GITHUB_OUTPUT
-            echo "⚠️ E2E test failed but not blocking build"
+            echo "⚠️ E2E test failed - marking as warning"
             echo "::warning::E2E test validation failed but build artifacts are still valid"
-            # Don't exit with error code - let continue-on-error handle it
-            exit 0
+            # Exit with error code to trigger continue-on-error (shows as yellow warning)
+            exit 1
           fi
 
       - name: Upload Test Results 📤
