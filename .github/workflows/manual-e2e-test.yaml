@@ -121,7 +121,9 @@ jobs:
               sudo cp -r usr/share/obs/obs-plugins/c64stream /usr/share/obs/obs-plugins/
               echo "✅ Plugin data installed"
             fi
-          fi      - name: Verify Plugin Installation 🔍
+          fi
+
+      - name: Verify Plugin Installation 🔍
         run: |
           : Verify Plugin Installation 🔍
           if [[ -f /usr/lib/obs-plugins/c64stream.so ]]; then
