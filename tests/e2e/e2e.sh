@@ -434,6 +434,22 @@ install_plugin() {
         cp -r "${PROJECT_ROOT}/data"/* "${obs_plugin_dir}/data/"
     fi
 
+    if [[ "${VERBOSE}" == true ]]; then
+        log_info "Plugin installation details:"
+        echo "  Binary location: ${obs_plugin_dir}/bin/64bit/c64stream.so"
+        if [[ -f "${obs_plugin_dir}/bin/64bit/c64stream.so" ]]; then
+            echo "    Size: $(du -h "${obs_plugin_dir}/bin/64bit/c64stream.so" | cut -f1)"
+            echo "    MD5: $(md5sum "${obs_plugin_dir}/bin/64bit/c64stream.so" | cut -d' ' -f1)"
+        fi
+        echo "  Data location: ${obs_plugin_dir}/data"
+        if [[ -d "${obs_plugin_dir}/data" ]]; then
+            echo "  Data contents:"
+            ls -lah "${obs_plugin_dir}/data" 2>/dev/null | sed 's/^/    /' || echo "    (empty)"
+        fi
+        echo "  Full plugin directory structure:"
+        find "${obs_plugin_dir}" -type f -o -type d 2>/dev/null | sed 's/^/    /' || echo "    (not found)"
+    fi
+
     log_success "Plugin installed to OBS"
 }
 
