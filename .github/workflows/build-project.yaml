@@ -226,7 +226,7 @@ jobs:
         id: check
         run: |
           : Check Image Freshness 🕐
-          IMAGE_NAME="ghcr.io/${{ github.repository }}/ubuntu-build:latest"
+          IMAGE_NAME="ghcr.io/chrisgleissner/c64stream/ubuntu-build:latest"
           echo "image-tag=${IMAGE_NAME}" >> $GITHUB_OUTPUT
 
           # Try to get image metadata
@@ -273,7 +273,7 @@ jobs:
           context: .
           file: ./.github/docker/Dockerfile.ubuntu-build
           push: true
-          tags: ghcr.io/${{ github.repository }}/ubuntu-build:latest
+          tags: ghcr.io/chrisgleissner/c64stream/ubuntu-build:latest
           platforms: linux/amd64
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -288,14 +288,9 @@ jobs:
           fi
 
   ubuntu-build:
-    name: Fast Ubuntu Build 🐧🐳
-    runs-on: ubuntu-latest
-    container:
-      image: ${{ needs.build-docker-image.outputs.image-tag }}
-      credentials:
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-    needs: [check-event, build-docker-image]
+    name: Ubuntu Build 🐧
+    runs-on: ubuntu-24.04
+    needs: [check-event]
     defaults:
       run:
         shell: bash
@@ -304,6 +299,18 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 0
+
+      - name: Install Dependencies 🛠️
+        run: |
+          : Install Dependencies 🛠️
+          sudo apt-get update -qq
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            ninja-build \
+            ccache \
+            pkg-config \
+            libsimde-dev
 
       - name: Set Up Environment 🔧
         id: setup
