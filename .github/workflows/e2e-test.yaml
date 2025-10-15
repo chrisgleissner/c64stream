@@ -215,25 +215,25 @@ jobs:
           elif [[ "${download_type}" == "artifact" ]]; then
             # Handle GitHub Actions artifacts
             cd artifacts
-            
+
             # List contents for debugging
             echo "📦 Artifact contents:"
             ls -la
-            
+
             # Extract the .tar.xz file
             tar_file=$(find . -name "*.tar.xz" | head -1)
             if [[ -z "${tar_file}" ]]; then
               echo "❌ No .tar.xz file found in artifact"
               exit 1
             fi
-            
+
             echo "📦 Extracting ${tar_file}..."
             tar -xf "${tar_file}"
-            
+
             # List extracted contents
             echo "📦 Extracted contents:"
             ls -la
-            
+
             # Try multiple possible paths for plugin binary
             plugin_binary=""
             for path in \
@@ -245,7 +245,7 @@ jobs:
                 break
               fi
             done
-            
+
             if [[ -n "${plugin_binary}" ]]; then
               cp "${plugin_binary}" ~/.config/obs-studio/plugins/c64stream/bin/64bit/
               echo "✅ Plugin binary installed from ${plugin_binary}"
@@ -266,7 +266,7 @@ jobs:
                 break
               fi
             done
-            
+
             if [[ -n "${plugin_data}" ]]; then
               cp -r "${plugin_data}"/* ~/.config/obs-studio/plugins/c64stream/data/
               echo "✅ Plugin data installed from ${plugin_data}"
@@ -297,7 +297,7 @@ jobs:
           : Build E2E Tools 🔧
           # Install SIMDe dependency
           sudo apt-get install -y libsimde-dev
-          
+
           # Configure CMake for E2E tools only
           cmake --preset ubuntu-x86_64
           cmake --build build_x86_64 --target udp_replay
@@ -318,9 +318,18 @@ jobs:
           export DISPLAY=:99
           export PULSE_SERVER="unix:${XDG_RUNTIME_DIR}/pulse/native"
 
-          # Start Xvfb with generous settings
+          # Start Xvfb with proper cleanup for headless CI environment
           echo "Starting Xvfb..."
-          Xvfb :99 -screen 0 1280x720x24 -ac +extension GLX +render -noreset &
+
+          # Clean up any stale X lock files from previous runs
+          sudo rm -f /tmp/.X99-lock /tmp/.X*-lock 2>/dev/null || true
+
+          # Kill any existing Xvfb processes that might be running
+          pkill -f "Xvfb.*:99" 2>/dev/null || true
+          sleep 1
+
+          # Start Xvfb with stderr redirection to suppress xkbcomp warnings
+          Xvfb :99 -screen 0 1280x720x24 -ac +extension GLX +render -noreset 2>/dev/null &
           XVFB_PID=$!
 
           # Cleanup function
@@ -328,6 +337,7 @@ jobs:
             echo "Cleaning up Xvfb (PID: $XVFB_PID)..."
             kill $XVFB_PID 2>/dev/null || true
             wait $XVFB_PID 2>/dev/null || true
+            sudo rm -f /tmp/.X99-lock 2>/dev/null || true
           }
           trap cleanup_xvfb EXIT INT TERM
 
@@ -421,6 +431,6 @@ jobs:
             tail -20 tests/e2e/test_output/resource_monitor.log >> $GITHUB_STEP_SUMMARY
             echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           fi
-          
+
           # Always exit successfully to not fail the workflow
           exit 0

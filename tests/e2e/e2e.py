@@ -92,10 +92,29 @@ class E2ETest:
         self.log(f"Starting Xvfb on display {display}")
 
         try:
+            # Clean up any stale lock files
+            display_num = display.lstrip(':')
+            lock_file = f"/tmp/.X{display_num}-lock"
+            try:
+                if os.path.exists(lock_file):
+                    os.remove(lock_file)
+                    self.log(f"Removed stale lock file: {lock_file}")
+            except OSError:
+                pass  # Ignore permission errors
+
+            # Kill any existing Xvfb processes on this display
+            try:
+                subprocess.run(['pkill', '-f', f'Xvfb.*{display}'],
+                             capture_output=True, check=False)
+                time.sleep(1)
+            except Exception:
+                pass  # Ignore errors
+
+            # Start Xvfb with stderr redirection to suppress xkbcomp warnings
             self.xvfb_process = subprocess.Popen(
                 ['Xvfb', display, '-screen', '0', '1280x720x24'],
                 stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE
+                stderr=subprocess.DEVNULL
             )
 
             # Set DISPLAY environment variable
@@ -105,8 +124,8 @@ class E2ETest:
             time.sleep(2)
 
             if self.xvfb_process.poll() is not None:
-                stderr = self.xvfb_process.stderr.read().decode()
-                raise RuntimeError(f"Xvfb failed to start: {stderr}")
+                # Since stderr is redirected to DEVNULL, we can't read it
+                raise RuntimeError(f"Xvfb process exited unexpectedly")
 
             self.log("✅ Xvfb started successfully")
             return True
@@ -1042,7 +1061,7 @@ DockAreaVisible=false
             self.cleanup_obs_locks()
 
     def stop_xvfb(self):
-        """Stop Xvfb."""
+        """Stop Xvfb and clean up lock files."""
         self.log("Stopping Xvfb")
 
         if self.xvfb_process:
@@ -1053,6 +1072,17 @@ DockAreaVisible=false
             except subprocess.TimeoutExpired:
                 self.xvfb_process.kill()
                 self.xvfb_process.wait()
+
+            # Clean up lock files
+            try:
+                display = os.environ.get('DISPLAY', ':99')
+                display_num = display.lstrip(':')
+                lock_file = f"/tmp/.X{display_num}-lock"
+                if os.path.exists(lock_file):
+                    os.remove(lock_file)
+                    self.log(f"Cleaned up lock file: {lock_file}")
+            except OSError:
+                pass  # Ignore permission errors
 
             self.log("✅ Xvfb stopped")
 

@@ -122,8 +122,9 @@ jobs:
               echo "✅ Plugin data installed"
             fi
           fi      - name: Verify Plugin Installation 🔍
+
+      - name: Verify Plugin Installation
         run: |
-          : Verify Plugin Installation 🔍
           if [[ -f /usr/lib/obs-plugins/c64stream.so ]]; then
             echo "✅ Plugin binary found at /usr/lib/obs-plugins/c64stream.so"
           else
@@ -154,14 +155,23 @@ jobs:
           : Run E2E Test 🎬
           cd tests/e2e
 
-          # Start Xvfb for headless operation
+          # Start Xvfb for headless operation with proper cleanup
           export DISPLAY=:99
-          Xvfb :99 -screen 0 1280x720x24 &
+
+          # Clean up any stale X lock files from previous runs
+          sudo rm -f /tmp/.X99-lock /tmp/.X*-lock 2>/dev/null || true
+
+          # Kill any existing Xvfb processes
+          pkill -f "Xvfb.*:99" 2>/dev/null || true
+          sleep 1
+
+          # Start Xvfb with stderr redirection to suppress xkbcomp warnings
+          Xvfb :99 -screen 0 1280x720x24 2>/dev/null &
           XVFB_PID=$!
           sleep 3
 
           # Cleanup on exit
-          trap "kill $XVFB_PID 2>/dev/null || true" EXIT
+          trap "kill $XVFB_PID 2>/dev/null || true; sudo rm -f /tmp/.X99-lock 2>/dev/null || true" EXIT
 
           # Run E2E test
           if ./e2e.sh --format "${{ steps.setup.outputs.format }}" --frames "${{ steps.setup.outputs.frames }}" --skip-build --verbose; then
