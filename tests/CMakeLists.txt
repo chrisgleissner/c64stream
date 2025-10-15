@@ -132,3 +132,8 @@ endif()
 if(TEST_TARGETS)
   install(TARGETS ${TEST_TARGETS} RUNTIME DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 endif()
+
+# Add E2E tests subdirectory (Linux only for now)
+if(NOT IS_CI_BUILD OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  add_subdirectory(e2e)
+endif()

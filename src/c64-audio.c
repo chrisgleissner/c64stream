@@ -33,7 +33,10 @@ void *audio_thread_func(void *data)
             continue;
         }
 
-        ssize_t received = recv(context->audio_socket, (char *)packet, (int)sizeof(packet), 0);
+        struct sockaddr_in sender_addr;
+        socklen_t sender_len = sizeof(sender_addr);
+        ssize_t received = recvfrom(context->audio_socket, (char *)packet, (int)sizeof(packet), 0,
+                                    (struct sockaddr *)&sender_addr, &sender_len);
 
         if (received < 0) {
             int error = c64_get_socket_error();

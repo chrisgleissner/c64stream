@@ -15,6 +15,7 @@ CLEAN_BUILD=false
 RUN_TESTS=false
 INSTALL_DEPS=false
 INSTALL_PLUGIN=false
+RUN_E2E=false
 VERBOSE=false
 
 # Colors for output
@@ -57,6 +58,7 @@ OPTIONS:
     --tests             Run tests after building
     --install-deps      Install build dependencies
     --install           Install plugin to OBS after building
+    --e2e               Run E2E tests after building and installing
     --verbose           Enable verbose output
     --help              Show this help message
 
@@ -64,6 +66,7 @@ EXAMPLES:
     $0 linux                                    # Build for Linux with RelWithDebInfo
     $0 linux --config Release --tests          # Build Release for Linux and run tests
     $0 linux --install                         # Build and install to OBS
+    $0 linux --e2e --install                   # Build, install and run E2E tests
     $0 windows --clean --install-deps          # Clean build for Windows, install deps
     $0 macos --verbose                          # Build for macOS with verbose output
 
@@ -71,6 +74,7 @@ NOTES:
     - This script replicates CI build behavior locally
     - Dependencies are automatically downloaded where possible
     - Cross-compilation is supported for Windows on Linux (MinGW)
+    - E2E tests require OBS Studio, Python3, xvfb, and additional dependencies
     - Each platform may have specific prerequisites (see README.md)
 EOF
 }
@@ -478,6 +482,133 @@ install_plugin() {
     fi
 }
 
+run_e2e_tests() {
+    local platform=$1
+    
+    # Only support Linux for E2E tests currently
+    if [[ "$platform" != "linux" ]]; then
+        log_warning "E2E tests are currently only supported on Linux"
+        return 0
+    fi
+    
+    log_info "Running E2E tests..."
+    
+    # Check if E2E test directory exists
+    if [[ ! -d "tests/e2e" ]]; then
+        log_error "E2E test directory not found: tests/e2e"
+        return 1
+    fi
+    
+    # Check if plugin is installed
+    local plugin_installed=false
+    local plugin_locations=(
+        "$HOME/.config/obs-studio/plugins/c64stream/bin/64bit/c64stream.so"
+        "/usr/lib/obs-plugins/c64stream.so"
+    )
+    
+    for plugin_path in "${plugin_locations[@]}"; do
+        if [[ -f "$plugin_path" ]]; then
+            log_success "Found plugin at: $plugin_path"
+            plugin_installed=true
+            break
+        fi
+    done
+    
+    if [[ "$plugin_installed" == "false" ]]; then
+        log_error "Plugin not found in expected locations. Run with --install first."
+        log_error "Expected locations:"
+        for plugin_path in "${plugin_locations[@]}"; do
+            log_error "  - $plugin_path"
+        done
+        return 1
+    fi
+    
+    # Check dependencies
+    local missing_deps=()
+    
+    # Check for required system packages
+    if ! command -v obs >/dev/null 2>&1; then
+        missing_deps+=("obs-studio")
+    fi
+    
+    if ! command -v python3 >/dev/null 2>&1; then
+        missing_deps+=("python3")
+    fi
+    
+    if ! command -v xvfb-run >/dev/null 2>&1; then
+        missing_deps+=("xvfb")
+    fi
+    
+    # Check for Python packages
+    if ! python3 -c "import numpy" >/dev/null 2>&1; then
+        missing_deps+=("python3-numpy")
+    fi
+    
+    if ! python3 -c "import PIL" >/dev/null 2>&1; then
+        missing_deps+=("python3-pil")
+    fi
+    
+    if [[ ${#missing_deps[@]} -gt 0 ]]; then
+        log_warning "Missing dependencies for E2E tests: ${missing_deps[*]}"
+        log_info "Install them with: sudo apt-get install ${missing_deps[*]}"
+        log_info "Continuing with E2E tests (may fail)..."
+    fi
+    
+    # Build E2E tools if needed
+    log_info "Building E2E tools..."
+    if ! cmake --build build_x86_64 --target udp_replay; then
+        log_error "Failed to build E2E tools"
+        return 1
+    fi
+    
+    # Change to E2E directory (with error handling)
+    if ! cd tests/e2e; then
+        log_error "Failed to change to E2E test directory"
+        return 1
+    fi
+    
+    # Set E2E test parameters
+    local e2e_args=(
+        "--format" "PAL"
+        "--frames" "250"
+        "--skip-build"  # We already built and installed
+        "--verbose"
+    )
+    
+    if [[ "$VERBOSE" == "true" ]]; then
+        e2e_args+=("--verbose")
+    fi
+    
+    # Check if E2E script exists and is executable
+    if [[ ! -x "./e2e.sh" ]]; then
+        log_error "E2E test script not found or not executable: tests/e2e/e2e.sh"
+        cd "$PROJECT_ROOT"
+        return 1
+    fi
+    
+    log_info "Running E2E test with args: ${e2e_args[*]}"
+    
+    # Run E2E test
+    if ./e2e.sh "${e2e_args[@]}"; then
+        log_success "E2E tests completed successfully!"
+        
+        # Show test results if available
+        if [[ -d "test_output" ]]; then
+            log_info "Test output directory: tests/e2e/test_output"
+            if [[ -f "test_output/validation_results.json" ]]; then
+                log_info "Validation results:"
+                cat test_output/validation_results.json | jq . 2>/dev/null || cat test_output/validation_results.json
+            fi
+        fi
+    else
+        log_error "E2E tests failed!"
+        return 1
+    fi
+    
+    # Return to project root
+    cd "$PROJECT_ROOT"
+}
+
 main() {
     # Parse arguments
     if [[ $# -eq 0 ]]; then
@@ -532,6 +663,10 @@ main() {
                 INSTALL_PLUGIN=true
                 shift
                 ;;
+            --e2e)
+                RUN_E2E=true
+                shift
+                ;;
             --verbose)
                 VERBOSE=true
                 shift
@@ -579,10 +714,24 @@ main() {
         install_plugin "$PLATFORM"
     fi
 
+    if [[ "$RUN_E2E" == "true" ]]; then
+        # E2E tests require the plugin to be installed
+        if [[ "$INSTALL_PLUGIN" != "true" ]]; then
+            log_warning "E2E tests require plugin installation. Installing plugin first..."
+            install_plugin "$PLATFORM"
+        fi
+        run_e2e_tests "$PLATFORM"
+    fi
+
     log_success "Local build workflow completed!"
     log_info ""
     log_info "Next steps:"
-    log_info "  - Install plugin: See tools/install-plugin.sh"
+    if [[ "$INSTALL_PLUGIN" != "true" ]]; then
+        log_info "  - Install plugin: $0 $PLATFORM --install"
+    fi
+    if [[ "$RUN_E2E" != "true" ]]; then
+        log_info "  - Run E2E tests: $0 $PLATFORM --e2e --install"
+    fi
     log_info "  - Test with OBS: Start OBS and add C64 Stream source"
     log_info "  - Package: cmake --build <build_dir> --target package"
 }
