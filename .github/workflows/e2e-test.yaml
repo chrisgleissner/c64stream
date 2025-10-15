@@ -324,24 +324,24 @@ jobs:
 
           # Start Xvfb with comprehensive error handling and debugging
           echo "🖥️ Setting up virtual display..."
-          
+
           # Clean up any stale processes and lock files
           echo "🧹 Cleaning up previous X11 sessions..."
           sudo pkill -f "Xvfb.*:99" 2>/dev/null || true
           sudo rm -f /tmp/.X99-lock /tmp/.X*-lock 2>/dev/null || true
           sleep 2
-          
+
           # Ensure X11 directories exist with proper permissions
           mkdir -p /tmp/.X11-unix
           sudo chmod 1777 /tmp/.X11-unix 2>/dev/null || true
-          
+
           # Create Xauthority file
           export XAUTHORITY="/tmp/.Xauth$$"
           touch "$XAUTHORITY"
           chmod 600 "$XAUTHORITY"
-          
+
           echo "🚀 Starting Xvfb with debug output..."
-          
+
           # Start Xvfb with comprehensive logging and error capture
           XVFB_LOG_FILE="/tmp/xvfb.log"
           Xvfb :99 \
@@ -355,9 +355,9 @@ jobs:
             -dpi 96 \
             > "$XVFB_LOG_FILE" 2>&1 &
           XVFB_PID=$!
-          
+
           echo "📋 Xvfb started with PID: $XVFB_PID"
-          
+
           # Cleanup function with improved error handling
           cleanup_xvfb() {
             echo "🧹 Cleaning up Xvfb (PID: $XVFB_PID)..."
@@ -377,13 +377,13 @@ jobs:
             fi
           }
           trap cleanup_xvfb EXIT INT TERM
-          
+
           # Wait for Xvfb to initialize with progressive checks
           echo "⏳ Waiting for Xvfb to initialize..."
           for i in {1..15}; do
             if ps -p "$XVFB_PID" > /dev/null 2>&1; then
               echo "✅ Xvfb process is running (attempt $i/15)"
-              
+
               # Test X11 connection
               if xdpyinfo -display :99 >/dev/null 2>&1; then
                 echo "✅ X11 display :99 is responding"
@@ -414,7 +414,7 @@ jobs:
             fi
             sleep 1
           done
-          
+
           # Final verification
           if ! xdpyinfo -display :99 >/dev/null 2>&1; then
             echo "❌ Xvfb failed to start after 15 attempts"
@@ -423,15 +423,15 @@ jobs:
             echo "- Groups: $(groups)"
             echo "- /tmp permissions: $(ls -ld /tmp)"
             echo "- /tmp/.X11-unix: $(ls -ld /tmp/.X11-unix 2>/dev/null || echo 'does not exist')"
-            
+
             if [[ -f "$XVFB_LOG_FILE" ]]; then
               echo "📋 Final Xvfb log:"
               cat "$XVFB_LOG_FILE"
             fi
-            
+
             echo "🔍 Running processes with 'X' in name:"
             ps aux | grep -i xvfb || true
-            
+
             echo "❌ E2E test cannot continue without display"
             exit 1
           else
