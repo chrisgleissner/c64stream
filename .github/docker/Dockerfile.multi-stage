@@ -1,0 +1,83 @@
+# Multi-stage Docker build for C64 Stream plugin
+# Alternative approach using Docker layer caching for optimal build speeds
+
+FROM ubuntu:24.04 AS base
+
+# Prevent interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=UTC
+
+# Install base dependencies
+RUN apt-get update -qq && \
+    apt-get install -y --no-install-recommends \
+        software-properties-common \
+        ca-certificates \
+        curl \
+        wget \
+        gnupg \
+        lsb-release \
+        git \
+        jq && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Build dependencies stage - this layer gets cached
+FROM base AS build-deps
+
+# Add OBS Studio PPA and update
+RUN add-apt-repository --yes ppa:obsproject/obs-studio && \
+    apt-get update -qq
+
+# Install build tools and OBS Studio dependencies (the slow part)
+RUN apt-get install -y --no-install-recommends \
+        build-essential \
+        cmake \
+        ninja-build \
+        pkg-config \
+        zsh \
+        ccache \
+        libgles2-mesa-dev \
+        libsimde-dev \
+        obs-studio \
+        qt6-base-dev \
+        libqt6svg6-dev \
+        qt6-base-private-dev && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Configure ccache
+RUN mkdir -p /usr/local/bin && \
+    ln -sf /usr/bin/ccache /usr/local/bin/gcc && \
+    ln -sf /usr/bin/ccache /usr/local/bin/g++ && \
+    ln -sf /usr/bin/ccache /usr/local/bin/cc && \
+    ln -sf /usr/bin/ccache /usr/local/bin/c++
+
+# Plugin build stage
+FROM build-deps AS plugin-build
+
+WORKDIR /workspace
+
+# Configure Git for container environment
+RUN git config --global --add safe.directory /workspace && \
+    git config --global --add safe.directory '*'
+
+# Copy source code (this layer changes frequently)
+COPY . /workspace/
+
+# Build the plugin
+RUN cmake --preset ubuntu-x86_64 && \
+    cmake --build build_x86_64
+
+# Runtime stage - minimal image with just the built plugin
+FROM ubuntu:24.04 AS runtime
+
+RUN apt-get update -qq && \
+    apt-get install -y --no-install-recommends \
+        obs-studio && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY --from=plugin-build /workspace/build_x86_64/c64stream.so /usr/lib/obs-plugins/
+COPY --from=plugin-build /workspace/data/ /usr/share/obs/obs-plugins/c64stream/
+
+CMD ["obs"]

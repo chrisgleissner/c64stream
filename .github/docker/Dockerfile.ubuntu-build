@@ -1,0 +1,68 @@
+# Pre-built Ubuntu container with OBS Studio and Qt6 dependencies
+# This dramatically speeds up CI builds by avoiding 3.5+ minute APT installations
+
+FROM ubuntu:24.04
+
+LABEL org.opencontainers.image.title="C64 Stream Ubuntu Build Environment"
+LABEL org.opencontainers.image.description="Pre-built Ubuntu container with OBS Studio and Qt6 for fast CI builds"
+LABEL org.opencontainers.image.source="https://github.com/chrisgleissner/c64stream"
+LABEL org.opencontainers.image.licenses="GPL-2.0-or-later"
+
+# Prevent interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=UTC
+
+# Install essential packages and add OBS Studio PPA
+RUN apt-get update -qq && \
+    apt-get install -y --no-install-recommends \
+        software-properties-common \
+        ca-certificates \
+        curl \
+        wget \
+        gnupg \
+        lsb-release && \
+    add-apt-repository --yes ppa:obsproject/obs-studio && \
+    apt-get update -qq
+
+# Install build dependencies and OBS Studio (the time-consuming part)
+RUN apt-get install -y --no-install-recommends \
+        build-essential \
+        cmake \
+        ninja-build \
+        pkg-config \
+        git \
+        zsh \
+        jq \
+        ccache \
+        libgles2-mesa-dev \
+        libsimde-dev \
+        obs-studio \
+        qt6-base-dev \
+        libqt6svg6-dev \
+        qt6-base-private-dev && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Configure ccache for optimal build caching
+RUN mkdir -p /usr/local/bin && \
+    ln -sf /usr/bin/ccache /usr/local/bin/gcc && \
+    ln -sf /usr/bin/ccache /usr/local/bin/g++ && \
+    ln -sf /usr/bin/ccache /usr/local/bin/cc && \
+    ln -sf /usr/bin/ccache /usr/local/bin/c++
+
+# Set up working directory
+WORKDIR /workspace
+
+# Configure Git to avoid issues with file ownership in containers
+RUN git config --global --add safe.directory /workspace && \
+    git config --global --add safe.directory '*'
+
+# Set default shell to bash for compatibility
+SHELL ["/bin/bash", "-c"]
+
+# Verify installations work correctly
+RUN obs --version && \
+    cmake --version && \
+    ninja --version && \
+    ccache --version && \
+    echo "✅ Ubuntu build environment ready"
