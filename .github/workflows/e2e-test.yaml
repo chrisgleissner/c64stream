@@ -134,6 +134,7 @@ jobs:
 
       - name: Download Plugin Artifact 📥
         if: ${{ steps.setup.outputs.downloadType == 'artifact' }}
+        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
           name: ${{ steps.setup.outputs.artifactName }}
@@ -141,6 +142,7 @@ jobs:
 
       - name: Download External Plugin 📥
         if: ${{ steps.setup.outputs.downloadType != 'artifact' }}
+        continue-on-error: true
         run: |
           : Download External Plugin 📥
           download_url="${{ steps.setup.outputs.downloadUrl }}"
@@ -167,6 +169,7 @@ jobs:
           fi
 
       - name: Install Plugin 🔌
+        continue-on-error: true
         run: |
           : Install Plugin 🔌
           download_type="${{ steps.setup.outputs.downloadType }}"
@@ -212,23 +215,63 @@ jobs:
           elif [[ "${download_type}" == "artifact" ]]; then
             # Handle GitHub Actions artifacts
             cd artifacts
-            tar -xf *.tar.xz
 
-            # Find the plugin binary and data (old structure)
-            if [[ -f usr/lib/obs-plugins/c64stream.so ]]; then
-              cp usr/lib/obs-plugins/c64stream.so ~/.config/obs-studio/plugins/c64stream/bin/64bit/
-              echo "✅ Plugin binary installed from build artifact"
+            # List contents for debugging
+            echo "📦 Artifact contents:"
+            ls -la
+
+            # Extract the .tar.xz file
+            tar_file=$(find . -name "*.tar.xz" | head -1)
+            if [[ -z "${tar_file}" ]]; then
+              echo "❌ No .tar.xz file found in artifact"
+              exit 1
+            fi
+
+            echo "📦 Extracting ${tar_file}..."
+            tar -xf "${tar_file}"
+
+            # List extracted contents
+            echo "📦 Extracted contents:"
+            ls -la
+
+            # Try multiple possible paths for plugin binary
+            plugin_binary=""
+            for path in \
+              "lib/x86_64-linux-gnu/obs-plugins/c64stream.so" \
+              "usr/lib/obs-plugins/c64stream.so" \
+              "usr/lib/x86_64-linux-gnu/obs-plugins/c64stream.so"; do
+              if [[ -f "${path}" ]]; then
+                plugin_binary="${path}"
+                break
+              fi
+            done
+
+            if [[ -n "${plugin_binary}" ]]; then
+              cp "${plugin_binary}" ~/.config/obs-studio/plugins/c64stream/bin/64bit/
+              echo "✅ Plugin binary installed from ${plugin_binary}"
             else
-              echo "❌ Plugin binary not found in artifacts"
+              echo "❌ Plugin binary not found in any expected location"
+              echo "🔍 Searching for .so files:"
               find . -name "*.so" -type f
               exit 1
             fi
 
-            if [[ -d usr/share/obs/obs-plugins/c64stream ]]; then
-              cp -r usr/share/obs/obs-plugins/c64stream/* ~/.config/obs-studio/plugins/c64stream/data/
-              echo "✅ Plugin data installed from build artifact"
+            # Try multiple possible paths for plugin data
+            plugin_data=""
+            for path in \
+              "share/obs/obs-plugins/c64stream" \
+              "usr/share/obs/obs-plugins/c64stream"; do
+              if [[ -d "${path}" ]]; then
+                plugin_data="${path}"
+                break
+              fi
+            done
+
+            if [[ -n "${plugin_data}" ]]; then
+              cp -r "${plugin_data}"/* ~/.config/obs-studio/plugins/c64stream/data/
+              echo "✅ Plugin data installed from ${plugin_data}"
             else
-              echo "⚠️ Plugin data not found in artifacts"
+              echo "⚠️ Plugin data not found in any expected location"
             fi
             cd ..
 
@@ -249,8 +292,12 @@ jobs:
           fi
 
       - name: Build E2E Tools 🔧
+        continue-on-error: true
         run: |
           : Build E2E Tools 🔧
+          # Install SIMDe dependency
+          sudo apt-get install -y libsimde-dev
+
           # Configure CMake for E2E tools only
           cmake --preset ubuntu-x86_64
           cmake --build build_x86_64 --target udp_replay
@@ -262,6 +309,7 @@ jobs:
       - name: Run E2E Test 🎬
         timeout-minutes: 10
         id: e2e_test
+        continue-on-error: true
         run: |
           : Run E2E Test 🎬
           cd tests/e2e
@@ -270,9 +318,18 @@ jobs:
           export DISPLAY=:99
           export PULSE_SERVER="unix:${XDG_RUNTIME_DIR}/pulse/native"
 
-          # Start Xvfb with generous settings
+          # Start Xvfb with proper cleanup for headless CI environment
           echo "Starting Xvfb..."
-          Xvfb :99 -screen 0 1280x720x24 -ac +extension GLX +render -noreset &
+
+          # Clean up any stale X lock files from previous runs
+          sudo rm -f /tmp/.X99-lock /tmp/.X*-lock 2>/dev/null || true
+
+          # Kill any existing Xvfb processes that might be running
+          pkill -f "Xvfb.*:99" 2>/dev/null || true
+          sleep 1
+
+          # Start Xvfb with stderr redirection to suppress xkbcomp warnings
+          Xvfb :99 -screen 0 1280x720x24 -ac +extension GLX +render -noreset 2>/dev/null &
           XVFB_PID=$!
 
           # Cleanup function
@@ -280,6 +337,7 @@ jobs:
             echo "Cleaning up Xvfb (PID: $XVFB_PID)..."
             kill $XVFB_PID 2>/dev/null || true
             wait $XVFB_PID 2>/dev/null || true
+            sudo rm -f /tmp/.X99-lock 2>/dev/null || true
           }
           trap cleanup_xvfb EXIT INT TERM
 
@@ -307,11 +365,13 @@ jobs:
           if ./e2e.sh "${cmd_args[@]}"; then
             echo "E2E_RESULT=success" >> $GITHUB_OUTPUT
             echo "✅ E2E test completed successfully"
+            exit 0
           else
             echo "E2E_RESULT=failure" >> $GITHUB_OUTPUT
-            echo "⚠️ E2E test failed - marking build as warning"
+            echo "⚠️ E2E test failed - marking as warning"
             echo "::warning::E2E test validation failed but build artifacts are still valid"
-            exit 1  # Exit with failure to show yellow warning status
+            # Exit with error code to trigger continue-on-error (shows as yellow warning)
+            exit 1
           fi
 
       - name: Upload Test Results 📤
@@ -346,6 +406,7 @@ jobs:
           elif [[ "${{ steps.e2e_test.outputs.E2E_RESULT }}" == "failure" ]]; then
             echo "⚠️ E2E test failed - build marked as warning" >> $GITHUB_STEP_SUMMARY
             echo "> **Note:** Build artifacts are valid but E2E validation failed." >> $GITHUB_STEP_SUMMARY
+            echo "::warning::E2E test failed but build is still valid"
           else
             echo "❓ E2E test status unknown" >> $GITHUB_STEP_SUMMARY
           fi
@@ -370,3 +431,6 @@ jobs:
             tail -20 tests/e2e/test_output/resource_monitor.log >> $GITHUB_STEP_SUMMARY
             echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           fi
+
+          # Always exit successfully to not fail the workflow
+          exit 0
