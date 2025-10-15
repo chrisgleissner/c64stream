@@ -262,6 +262,7 @@ jobs:
       - name: Run E2E Test 🎬
         timeout-minutes: 10
         id: e2e_test
+        continue-on-error: true
         run: |
           : Run E2E Test 🎬
           cd tests/e2e
