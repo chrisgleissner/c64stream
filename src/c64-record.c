@@ -95,7 +95,6 @@ void c64_stop_network_recording(struct c64_source *context)
     if (context->network_file) {
         fclose(context->network_file);
         context->network_file = NULL;
-        context->network_timing_base_ns = 0; // Reset timing base for next recording session
         C64_LOG_INFO("Network packet recording stopped");
     }
 }
@@ -337,7 +336,6 @@ void c64_record_init(struct c64_source *context)
     context->network_file = NULL;
     context->recording_start_time = 0;
     context->csv_timing_base_ns = 0;
-    context->network_timing_base_ns = 0;
     os_atomic_store_long(&context->recorded_frames, 0);
     os_atomic_store_long(&context->recorded_audio_samples, 0);
 

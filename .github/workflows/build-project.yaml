@@ -335,6 +335,4 @@ jobs:
       format: 'PAL'
       frames: '250'
       monitor_resources: false
-      plugin_name: ${{ needs.check-event.outputs.pluginName }}
-      plugin_version: ${{ needs.check-event.outputs.pluginVersion }}
-      commit_hash: ${{ needs.check-event.outputs.commitHash }}
+      artifact_name: ${{ needs.check-event.outputs.pluginName }}-${{ needs.check-event.outputs.pluginVersion }}-ubuntu-24.04-x86_64-${{ needs.check-event.outputs.commitHash }}

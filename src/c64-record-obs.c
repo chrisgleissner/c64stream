@@ -28,8 +28,8 @@ void c64_obs_write_header(struct c64_source *context)
         return;
     }
 
-    // Set timing base to current time for microsecond calculations
-    context->csv_timing_base_ns = os_gettime_ns();
+    // Initialize shared timing base to 0 - will be set on first actual event (network or OBS)
+    context->csv_timing_base_ns = 0;
 
     // Write CSV header with all timing columns
     fprintf(
@@ -54,8 +54,14 @@ void c64_obs_log_video_event(struct c64_source *context, uint16_t frame_num, uin
         return; // Silently ignore if timing file not available
     }
 
-    // Calculate elapsed microseconds since CSV timing started
+    // Calculate elapsed microseconds since shared CSV timing started
     uint64_t current_ns = os_gettime_ns();
+
+    // Set shared timing base on first event (network or OBS) to ensure elapsed_us starts at 0
+    if (context->csv_timing_base_ns == 0) {
+        context->csv_timing_base_ns = current_ns;
+    }
+
     uint64_t elapsed_us = (current_ns - context->csv_timing_base_ns) / 1000;
 
     // Write video timing event to CSV with actual frame number
@@ -87,8 +93,14 @@ void c64_obs_log_audio_event(struct c64_source *context, uint64_t calculated_tim
         return; // Silently ignore if timing file not available
     }
 
-    // Calculate elapsed microseconds since CSV timing started
+    // Calculate elapsed microseconds since shared CSV timing started
     uint64_t current_ns = os_gettime_ns();
+
+    // Set shared timing base on first event (network or OBS) to ensure elapsed_us starts at 0
+    if (context->csv_timing_base_ns == 0) {
+        context->csv_timing_base_ns = current_ns;
+    }
+
     uint64_t elapsed_us = (current_ns - context->csv_timing_base_ns) / 1000;
 
     // Write audio timing event to CSV (frame_num = 0 since audio doesn't correspond to specific video frames)

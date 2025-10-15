@@ -28,8 +28,8 @@ void c64_network_write_header(struct c64_source *context)
         return;
     }
 
-    // Set timing base to current time for microsecond calculations
-    context->network_timing_base_ns = os_gettime_ns();
+    // Initialize shared timing base to 0 - will be set on first actual event (network or OBS)
+    context->csv_timing_base_ns = 0;
 
     // Write CSV header for network packet analysis
     fprintf(context->network_file,
@@ -59,9 +59,15 @@ void c64_network_log_video_packet(struct c64_source *context, uint16_t sequence_
         return; // Silently ignore if network file not available
     }
 
-    // Calculate elapsed microseconds since network timing started
+    // Calculate elapsed microseconds since shared CSV timing started
     uint64_t current_ns = os_gettime_ns();
-    uint64_t elapsed_us = (current_ns - context->network_timing_base_ns) / 1000;
+
+    // Set shared timing base on first event (network or OBS) to ensure elapsed_us starts at 0
+    if (context->csv_timing_base_ns == 0) {
+        context->csv_timing_base_ns = current_ns;
+    }
+
+    uint64_t elapsed_us = (current_ns - context->csv_timing_base_ns) / 1000;
 
     // Calculate packet interval from last video packet
     static uint64_t last_video_packet_us = 0;
@@ -102,9 +108,15 @@ void c64_network_log_audio_packet(struct c64_source *context, uint16_t sequence_
         return; // Silently ignore if network file not available
     }
 
-    // Calculate elapsed microseconds since network timing started
+    // Calculate elapsed microseconds since shared CSV timing started
     uint64_t current_ns = os_gettime_ns();
-    uint64_t elapsed_us = (current_ns - context->network_timing_base_ns) / 1000;
+
+    // Set shared timing base on first event (network or OBS) to ensure elapsed_us starts at 0
+    if (context->csv_timing_base_ns == 0) {
+        context->csv_timing_base_ns = current_ns;
+    }
+
+    uint64_t elapsed_us = (current_ns - context->csv_timing_base_ns) / 1000;
 
     // Calculate packet interval from last audio packet
     static uint64_t last_audio_packet_us = 0;

@@ -74,6 +74,13 @@ mkdir -p ~/.config/obs-studio/plugins/c64stream/bin/64bit
 cp build_x86_64/c64stream.so ~/.config/obs-studio/plugins/c64stream/bin/64bit/
 ```
 
+**Convenience script with E2E testing:**
+
+```bash
+./local-build.sh linux --install          # Build and install
+./local-build.sh linux --e2e --install    # Build, install, and run E2E tests
+```
+
 ### macOS
 
 **Configure:**
@@ -197,6 +204,12 @@ ctest -V
 cd tests/e2e
 ./e2e.sh              # Full end-to-end test
 ./e2e.sh --verbose     # With detailed logging
+```
+
+**Integrated build + E2E testing (Linux only):**
+
+```bash
+./local-build.sh linux --e2e --install    # Build, install, and run E2E tests
 ```
 
 See [`doc/e2e.md`](e2e.md) for comprehensive E2E testing documentation.

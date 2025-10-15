@@ -164,8 +164,7 @@ struct c64_source {
     FILE *network_file;
     char session_folder[800];  // Current session folder path
     uint64_t recording_start_time;
-    uint64_t csv_timing_base_ns;      // Nanosecond timestamp when first CSV entry is written
-    uint64_t network_timing_base_ns;  // Nanosecond timestamp when first network entry is written
+    uint64_t csv_timing_base_ns;  // Shared nanosecond timestamp when first CSV entry is written (network or OBS)
     volatile long recorded_frames;
     volatile long recorded_audio_samples;
     pthread_mutex_t recording_mutex;
