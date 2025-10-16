@@ -245,20 +245,20 @@ jobs:
         continue-on-error: true
         run: |
           : Check Image Age 🔍
-          
+
           # Try to pull and inspect existing image
           if docker pull ghcr.io/${{ github.repository }}/ubuntu-build:latest >/dev/null 2>&1; then
             created_timestamp=$(docker inspect ghcr.io/${{ github.repository }}/ubuntu-build:latest --format='{{.Created}}' 2>/dev/null || echo "")
-            
+
             if [[ -n "$created_timestamp" ]]; then
               created_date=$(echo "$created_timestamp" | cut -d'T' -f1)
               current_date=$(date -u +%Y-%m-%d)
               created_epoch=$(date -d "$created_date" +%s 2>/dev/null || echo "0")
               current_epoch=$(date -d "$current_date" +%s)
               age_days=$(( (current_epoch - created_epoch) / 86400 ))
-              
+
               echo "Image age: $age_days days"
-              
+
               if [ "$age_days" -le 7 ]; then
                 echo "needs_build=false" >> $GITHUB_OUTPUT
                 echo "✅ Using existing image (age: $age_days days)"
@@ -266,7 +266,7 @@ jobs:
               fi
             fi
           fi
-          
+
           echo "needs_build=true" >> $GITHUB_OUTPUT
           echo "🔨 Will build new image"
 
@@ -355,10 +355,10 @@ jobs:
         run: |
           : Build Plugin 🧱
           export PATH="/usr/local/bin:$PATH"
-          
+
           # Configure CMake
           cmake --preset ubuntu-x86_64
-          
+
           # Build with Ninja
           cmake --build build_x86_64 --config ${{ needs.check-event.outputs.config }} --parallel
 
@@ -372,7 +372,7 @@ jobs:
         run: |
           : Prepare Artifacts 📋
           mkdir -p release
-          
+
           # Move artifacts to release directory
           if [[ -f build_x86_64/*.tar.xz ]]; then
             mv build_x86_64/*.tar.xz release/
@@ -383,7 +383,7 @@ jobs:
           if [[ -f build_x86_64/*.ddeb ]]; then
             mv build_x86_64/*.ddeb release/
           fi
-          
+
           # List what we built
           echo "📦 Built artifacts:"
           ls -la release/ || echo "No release artifacts found"
@@ -503,7 +503,7 @@ jobs:
       - name: Install Plugin 📦
         run: |
           : Install Plugin 📦
-          
+
           # Find and install the .deb package
           if [[ -f artifacts/*.deb ]]; then
             echo "Installing .deb package..."
@@ -513,43 +513,43 @@ jobs:
             echo "Manual plugin installation..."
             mkdir -p ~/.config/obs-studio/plugins/c64stream/bin/64bit
             mkdir -p ~/.config/obs-studio/plugins/c64stream/data
-            
+
             if [[ -f artifacts/c64stream.so ]]; then
               cp artifacts/c64stream.so ~/.config/obs-studio/plugins/c64stream/bin/64bit/
             else
               echo "❌ Plugin binary not found"
               exit 1
             fi
-            
+
             if [[ -d data ]]; then
               cp -r data/* ~/.config/obs-studio/plugins/c64stream/data/
             fi
           fi
-          
+
           echo "✅ Plugin installed"
 
       - name: Setup X11 Display 🖥️
         run: |
           : Setup X11 Display 🖥️
-          
+
           # Start Xvfb for headless display
           Xvfb :99 -screen 0 1024x768x24 &
           sleep 2
-          
+
           # Verify display is working
           DISPLAY=:99 xdpyinfo >/dev/null 2>&1 || {
             echo "❌ X11 display setup failed"
             exit 1
           }
-          
+
           echo "✅ X11 display ready"
 
       - name: Run E2E Tests 🧪
         run: |
           : Run E2E Tests 🧪
-          
+
           cd tests/e2e
-          
+
           # Run the E2E test with specified parameters
           python3 e2e_test.py \
             --format "${{ inputs.e2e_format }}" \
@@ -560,20 +560,20 @@ jobs:
         if: always()
         run: |
           : Collect Test Artifacts 📋
-          
+
           mkdir -p e2e-artifacts
-          
+
           # Collect test results
           if [[ -d e2e-results ]]; then
             cp -r e2e-results/* e2e-artifacts/
           fi
-          
+
           # Collect OBS logs
           if [[ -d ~/.config/obs-studio/logs ]]; then
             mkdir -p e2e-artifacts/obs-logs
             cp ~/.config/obs-studio/logs/* e2e-artifacts/obs-logs/ 2>/dev/null || true
           fi
-          
+
           # Create summary
           echo "E2E Test Summary" > e2e-artifacts/summary.txt
           echo "Format: ${{ inputs.e2e_format }}" >> e2e-artifacts/summary.txt

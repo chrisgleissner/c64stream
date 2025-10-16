@@ -59,87 +59,87 @@ jobs:
         id: get-plugin
         run: |
           : Get Plugin Source 📦
-          
+
           mkdir -p ./plugin-download
           cd ./plugin-download
-          
+
           case "${{ inputs.source_type }}" in
             latest_build)
               echo "🔍 Fetching latest build from main branch..."
-              
+
               # Get latest workflow run info
               WORKFLOW_INFO=$(curl -s -H "Accept: application/vnd.github.v3+json" \
                 "https://api.github.com/repos/${{ github.repository }}/actions/workflows/push.yaml/runs?branch=main&status=success&per_page=1")
-              
+
               RUN_ID=$(echo "$WORKFLOW_INFO" | jq -r '.workflow_runs[0].id')
               if [[ "$RUN_ID" == "null" || -z "$RUN_ID" ]]; then
                 echo "❌ No successful builds found on main branch"
                 exit 1
               fi
-              
+
               echo "📥 Latest successful run ID: $RUN_ID"
-              
+
               # Get artifacts for this run
               ARTIFACTS_INFO=$(curl -s -H "Accept: application/vnd.github.v3+json" \
                 "https://api.github.com/repos/${{ github.repository }}/actions/runs/$RUN_ID/artifacts")
-              
+
               # Find Ubuntu artifact
               ARTIFACT_NAME=$(echo "$ARTIFACTS_INFO" | jq -r '.artifacts[] | select(.name | contains("ubuntu-24.04-x86_64")) | .name' | head -1)
               if [[ -z "$ARTIFACT_NAME" ]]; then
                 echo "❌ No Ubuntu artifacts found"
                 exit 1
               fi
-              
+
               echo "📦 Artifact name: $ARTIFACT_NAME"
-              
+
               # Download via nightly.link (no auth required)
               DOWNLOAD_URL="https://nightly.link/${{ github.repository }}/actions/runs/$RUN_ID/$ARTIFACT_NAME.zip"
               echo "⬇️  Downloading from: $DOWNLOAD_URL"
-              
+
               curl -L -o artifact.zip "$DOWNLOAD_URL"
               ;;
-              
+
             latest_release)
               echo "🔍 Fetching latest release..."
-              
+
               RELEASE_INFO=$(curl -s -H "Accept: application/vnd.github.v3+json" \
                 "https://api.github.com/repos/${{ github.repository }}/releases/latest")
-              
+
               DOWNLOAD_URL=$(echo "$RELEASE_INFO" | jq -r '.assets[] | select(.name | contains("ubuntu") and contains("x86_64") and endswith(".deb")) | .browser_download_url' | head -1)
               if [[ -z "$DOWNLOAD_URL" || "$DOWNLOAD_URL" == "null" ]]; then
                 echo "❌ No Ubuntu .deb found in latest release"
                 exit 1
               fi
-              
+
               echo "⬇️  Downloading from: $DOWNLOAD_URL"
               curl -L -o $(basename "$DOWNLOAD_URL") "$DOWNLOAD_URL"
               ;;
-              
+
             specific_release)
               echo "🔍 Fetching release: ${{ inputs.release_tag }}"
-              
+
               RELEASE_INFO=$(curl -s -H "Accept: application/vnd.github.v3+json" \
                 "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ inputs.release_tag }}")
-              
+
               DOWNLOAD_URL=$(echo "$RELEASE_INFO" | jq -r '.assets[] | select(.name | contains("ubuntu") and contains("x86_64") and endswith(".deb")) | .browser_download_url' | head -1)
               if [[ -z "$DOWNLOAD_URL" || "$DOWNLOAD_URL" == "null" ]]; then
                 echo "❌ No Ubuntu .deb found in release ${{ inputs.release_tag }}"
                 exit 1
               fi
-              
+
               echo "⬇️  Downloading from: $DOWNLOAD_URL"
               curl -L -o $(basename "$DOWNLOAD_URL") "$DOWNLOAD_URL"
               ;;
           esac
-          
+
           # Extract and prepare plugin
           echo "📂 Extracting plugin..."
           ls -la
-          
+
           if [[ -f artifact.zip ]]; then
             unzip -o artifact.zip
             ls -la
-            
+
             # Look for the plugin binary and packages
             if [[ -f *.deb ]]; then
               echo "plugin_type=deb" >> $GITHUB_OUTPUT
@@ -161,63 +161,63 @@ jobs:
             echo "❌ No plugin files found"
             exit 1
           fi
-          
+
           echo "✅ Plugin source prepared"
 
       - name: Install Plugin 📦
         run: |
           : Install Plugin 📦
-          
+
           cd ./plugin-download
-          
+
           case "${{ steps.get-plugin.outputs.plugin_type }}" in
             deb)
               echo "🔧 Installing .deb package..."
               dpkg -i "${{ steps.get-plugin.outputs.plugin_file }}" || apt-get install -f -y
               echo "✅ Plugin installed via .deb"
               ;;
-              
+
             archive)
               echo "🔧 Extracting and installing from archive..."
               tar -xf "${{ steps.get-plugin.outputs.plugin_file }}"
-              
+
               # Find the plugin binary
               PLUGIN_SO=$(find . -name "c64stream.so" | head -1)
               if [[ -z "$PLUGIN_SO" ]]; then
                 echo "❌ c64stream.so not found in archive"
                 exit 1
               fi
-              
+
               # Manual installation
               mkdir -p ~/.config/obs-studio/plugins/c64stream/bin/64bit
               mkdir -p ~/.config/obs-studio/plugins/c64stream/data
-              
+
               cp "$PLUGIN_SO" ~/.config/obs-studio/plugins/c64stream/bin/64bit/
-              
+
               # Copy data if available
               if [[ -d ../data ]]; then
                 cp -r ../data/* ~/.config/obs-studio/plugins/c64stream/data/
               fi
-              
+
               echo "✅ Plugin installed manually from archive"
               ;;
-              
+
             binary)
               echo "🔧 Installing plugin binary..."
               mkdir -p ~/.config/obs-studio/plugins/c64stream/bin/64bit
               mkdir -p ~/.config/obs-studio/plugins/c64stream/data
-              
+
               cp "${{ steps.get-plugin.outputs.plugin_file }}" ~/.config/obs-studio/plugins/c64stream/bin/64bit/
-              
+
               # Copy data
               if [[ -d ../data ]]; then
                 cp -r ../data/* ~/.config/obs-studio/plugins/c64stream/data/
               fi
-              
+
               echo "✅ Plugin installed manually"
               ;;
           esac
-          
+
           # Verify installation
           if [[ -f ~/.config/obs-studio/plugins/c64stream/bin/64bit/c64stream.so ]]; then
             echo "✅ Plugin verification successful"
@@ -230,30 +230,30 @@ jobs:
       - name: Setup X11 Display 🖥️
         run: |
           : Setup X11 Display 🖥️
-          
+
           # Start Xvfb for headless display
           Xvfb :99 -screen 0 1024x768x24 &
           sleep 2
-          
+
           # Verify display is working
           DISPLAY=:99 xdpyinfo >/dev/null 2>&1 || {
             echo "❌ X11 display setup failed"
             exit 1
           }
-          
+
           echo "✅ X11 display ready"
 
       - name: Run E2E Tests 🧪
         run: |
           : Run E2E Tests 🧪
-          
+
           cd tests/e2e
-          
+
           # Build E2E tools first
           echo "🔧 Building E2E tools..."
           cmake --preset ubuntu-x86_64
           cmake --build ../../build_x86_64 --target udp_replay
-          
+
           # Run the E2E test with specified parameters
           echo "🧪 Running E2E test..."
           python3 e2e.py \
@@ -267,20 +267,20 @@ jobs:
         if: always()
         run: |
           : Collect Test Artifacts 📋
-          
+
           mkdir -p e2e-artifacts
-          
+
           # Collect test results
           if [[ -d e2e-results ]]; then
             cp -r e2e-results/* e2e-artifacts/
           fi
-          
+
           # Collect OBS logs
           if [[ -d ~/.config/obs-studio/logs ]]; then
             mkdir -p e2e-artifacts/obs-logs
             cp ~/.config/obs-studio/logs/* e2e-artifacts/obs-logs/ 2>/dev/null || true
           fi
-          
+
           # Collect plugin info
           echo "Plugin Installation Details:" > e2e-artifacts/plugin-info.txt
           echo "Source Type: ${{ inputs.source_type }}" >> e2e-artifacts/plugin-info.txt
@@ -289,7 +289,7 @@ jobs:
           echo "Plugin Type: ${{ steps.get-plugin.outputs.plugin_type }}" >> e2e-artifacts/plugin-info.txt
           echo "Plugin File: ${{ steps.get-plugin.outputs.plugin_file }}" >> e2e-artifacts/plugin-info.txt
           echo "Date: $(date)" >> e2e-artifacts/plugin-info.txt
-          
+
           # List installed plugin files
           echo "" >> e2e-artifacts/plugin-info.txt
           echo "Installed Plugin Files:" >> e2e-artifacts/plugin-info.txt
