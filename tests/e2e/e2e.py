@@ -269,6 +269,13 @@ DockAreaVisible=false
 
         # Create scene collection
         scene_file = scenes_dir / 'C64StreamTest.json'
+        # Generate a stable UUID for the source in this run
+        try:
+            import uuid as _uuid
+            source_uuid = str(_uuid.uuid4())
+        except Exception:
+            source_uuid = "00000000-0000-0000-0000-000000000001"
+
         scene_config = {
             "AuxAudioDevice1": {
                 "balance": 0.5,
@@ -300,6 +307,7 @@ DockAreaVisible=false
             ],
             "sources": [
                 {
+                    "uuid": source_uuid,
                     "balance": 0.5,
                     "deinterlace_field_order": 0,
                     "deinterlace_mode": 0,
@@ -352,6 +360,7 @@ DockAreaVisible=false
                             "id": 1,
                             "locked": False,
                             "name": "C64 Stream Source",
+                            "source_uuid": source_uuid,
                             "pos": {
                                 "x": 0.0,
                                 "y": 0.0
