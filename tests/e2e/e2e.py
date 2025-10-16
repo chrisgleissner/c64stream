@@ -1413,20 +1413,21 @@ DockAreaVisible=false
                 self.log("❌ Failed to copy E2E properties")
                 return False
 
-            # Start OBS first and let it fully initialize
-            if not self.start_obs_recording():
-                self.log("❌ Failed to start OBS")
-                return False
-
-            # Start mock C64 Ultimate TCP server
+            # Start mock C64 Ultimate TCP server BEFORE OBS
+            # This is critical because the plugin auto-connects when it's created
             if not self.start_mock_c64_server():
                 self.log("❌ Failed to start mock C64 server")
+                return False
+
+            # Start OBS - plugin will auto-connect to TCP server on initialization
+            if not self.start_obs_recording():
+                self.log("❌ Failed to start OBS")
                 return False
 
             # Brief moment for plugin to connect to TCP server
             self.log("⏳ Allowing plugin to connect to mock server...")
             time.sleep(0.1)  # Minimal delay - plugin connects very quickly
-            
+
             # Try to manually trigger plugin connection via WebSocket API
             self.log("🔧 Attempting to manually trigger plugin connection...")
             try:
@@ -1440,21 +1441,21 @@ DockAreaVisible=false
                         "control_port": self.control_port,
                         "record_csv": True
                     }
-                    
+
                     # Send request to update source settings
                     request_data = {
                         "request-type": "SetSourceSettings",
                         "sourceName": "C64 Stream Source",
                         "sourceSettings": source_settings
                     }
-                    
+
                     self.log(f"  - Sending WebSocket request: {request_data}")
                     response = self.send_obs_request("SetSourceSettings", request_data)
                     if response:
                         self.log("  - ✅ Successfully updated source settings")
                     else:
                         self.log("  - ❌ Failed to update source settings")
-                        
+
                     # Give plugin time to process the update
                     time.sleep(2)
                 else:
