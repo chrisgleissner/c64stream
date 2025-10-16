@@ -1437,9 +1437,11 @@ DockAreaVisible=false
                 self.log("❌ Failed to start OBS")
                 return False
 
-            # Brief moment for plugin to connect to TCP server
-            self.log("⏳ Allowing plugin to connect to mock server...")
-            time.sleep(0.1)  # Minimal delay - plugin connects very quickly
+            # Wait longer for plugin to connect to TCP server via async task
+            self.log("⏳ Allowing plugin to connect to mock server via async task...")
+            self.log("  - Plugin should auto-connect when source is created")
+            self.log("  - Async retry task should call c64_start_streaming()")
+            time.sleep(5)  # Give async task time to execute
 
             # Try to manually trigger plugin connection via WebSocket API
             self.log("🔧 Attempting to manually trigger plugin connection...")
@@ -1500,10 +1502,19 @@ DockAreaVisible=false
                         plugin_lines = [line for line in content.split('\n') if 'c64' in line.lower() or 'C64' in line]
                         if plugin_lines:
                             self.log(f"  - Found {len(plugin_lines)} plugin-related log entries:")
-                            for line in plugin_lines[-10:]:  # Show last 10 lines
+                            for line in plugin_lines[-15:]:  # Show last 15 lines
                                 self.log(f"    {line}")
                         else:
                             self.log("  - No plugin-related log entries found")
+                            
+                        # Look for async task or streaming messages
+                        async_lines = [line for line in content.split('\n') if 'async' in line.lower() or 'streaming' in line.lower() or 'retry' in line.lower()]
+                        if async_lines:
+                            self.log(f"  - Found {len(async_lines)} async/streaming log entries:")
+                            for line in async_lines[-5:]:  # Show last 5 lines
+                                self.log(f"    {line}")
+                        else:
+                            self.log("  - No async/streaming log entries found")
 
                         # Look for any error messages
                         error_lines = [line for line in content.split('\n') if 'error' in line.lower() or 'failed' in line.lower()]
