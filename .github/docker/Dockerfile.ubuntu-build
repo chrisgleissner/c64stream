@@ -34,6 +34,7 @@ RUN apt-get install -y --no-install-recommends \
         zsh \
         jq \
         ccache \
+        file \
         libgles2-mesa-dev \
         libsimde-dev \
         obs-studio \
