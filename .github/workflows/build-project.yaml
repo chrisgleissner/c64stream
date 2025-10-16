@@ -268,7 +268,9 @@ jobs:
           fi
 
           echo "needs_build=true" >> $GITHUB_OUTPUT
-          echo "🔨 Image not found - will build new image"      - name: Set up Docker Buildx 🔧
+          echo "🔨 Image not found - will build new image"
+
+      - name: Set up Docker Buildx 🔧
         if: steps.check.outputs.needs_build == 'true'
         uses: docker/setup-buildx-action@v3
 

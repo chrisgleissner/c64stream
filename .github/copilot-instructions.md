@@ -96,12 +96,16 @@ fi
 # Format validation
 ./build-aux/run-clang-format --check
 ./build-aux/run-gersemi --check
+
+# Workflow validation (MANDATORY for any .github/workflows/ changes)
+./build-aux/validate-workflows
 ```
 
 **Checklist:**
 - [ ] Linux build succeeds without warnings
 - [ ] Code formatting passes
 - [ ] CMake formatting passes
+- [ ] Workflow validation passes (if .github/workflows/ modified)
 - [ ] Cross-platform compatibility maintained
 - [ ] Code committed with clear commit message
 
