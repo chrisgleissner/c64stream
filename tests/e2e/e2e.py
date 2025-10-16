@@ -751,13 +751,13 @@ DockAreaVisible=false
             self.log(f"  - Expected TCP connection to: 127.0.0.1:{self.control_port}")
             self.log(f"  - Video destination: {self.video_dest_ip}:{self.video_dest_port}")
             self.log(f"  - Audio destination: {self.audio_dest_ip}:{self.audio_dest_port}")
-            
+
             # Check if TCP server is still running
             if self.tcp_server_running:
                 self.log("  - TCP server is still running")
             else:
                 self.log("  - TCP server is not running")
-                
+
             # Check current network connections
             import subprocess
             try:
@@ -769,7 +769,7 @@ DockAreaVisible=false
                             self.log(f"    {line}")
             except Exception as e:
                 self.log(f"  - Could not check netstat: {e}")
-            
+
             return False
 
         self.log(f"✅ Received streaming request, starting {self.format} packet replay")
@@ -828,7 +828,7 @@ DockAreaVisible=false
         self.log(f"🔍 UDP sockets ready for {self.video_dest_ip}:{self.video_dest_port} and {self.audio_dest_ip}:{self.audio_dest_port}")
         self.log(f"  - Video socket: {video_sock}")
         self.log(f"  - Audio socket: {audio_sock}")
-        
+
         # Test UDP connectivity
         try:
             test_data = b"test"
@@ -894,7 +894,7 @@ DockAreaVisible=false
 
                     bytes_sent = event['sock'].sendto(packet_data, event['dest'])
                     packets_sent += 1
-                    
+
                     # Log first few packets for debugging
                     if packets_sent <= 3:
                         self.log(f"📤 Sent {event['type']} packet #{packets_sent}: {len(packet_data)} bytes to {event['dest']}")
@@ -952,13 +952,13 @@ DockAreaVisible=false
         try:
             self.tcp_server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.tcp_server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            
+
             # Add network diagnostics
             self.log(f"🔍 Network diagnostics:")
             self.log(f"  - Binding to 127.0.0.1:{self.control_port}")
             self.log(f"  - Socket family: AF_INET")
             self.log(f"  - Socket type: SOCK_STREAM")
-            
+
             # Check if port is already in use
             import subprocess
             try:
@@ -970,7 +970,7 @@ DockAreaVisible=false
                             self.log(f"    {line}")
             except Exception as e:
                 self.log(f"  - Could not check netstat: {e}")
-            
+
             self.tcp_server_socket.bind(('127.0.0.1', self.control_port))
             self.tcp_server_socket.listen(5)
             self.tcp_server_running = True
@@ -1022,7 +1022,7 @@ DockAreaVisible=false
         self.log(f"  - Connection details: {conn}")
         self.log(f"  - Local address: {conn.getsockname()}")
         self.log(f"  - Remote address: {conn.getpeername()}")
-        
+
         try:
             conn.settimeout(5.0)  # 5 second timeout for receive
             data = conn.recv(1024)
@@ -1430,6 +1430,36 @@ DockAreaVisible=false
             # OBS is already recording (started with --startrecording flag)
             # No need for additional WebSocket recording start
             self.log("✅ OBS recording already active")
+            
+            # Add OBS log analysis
+            self.log("🔍 Analyzing OBS logs for plugin behavior...")
+            obs_config_dir = Path.home() / '.config' / 'obs-studio'
+            logs_dir = obs_config_dir / 'logs'
+            if logs_dir.exists():
+                log_files = list(logs_dir.glob('*.txt'))
+                log_files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
+                
+                # Check the most recent log file for plugin activity
+                if log_files:
+                    latest_log = log_files[0]
+                    self.log(f"  - Checking latest log: {latest_log.name}")
+                    try:
+                        with open(latest_log, 'r') as f:
+                            content = f.read()
+                            
+                        # Look for plugin-related messages
+                        plugin_lines = [line for line in content.split('\n') if 'c64' in line.lower() or 'C64' in line]
+                        if plugin_lines:
+                            self.log(f"  - Found {len(plugin_lines)} plugin-related log entries:")
+                            for line in plugin_lines[-5:]:  # Show last 5 lines
+                                self.log(f"    {line}")
+                        else:
+                            self.log("  - No plugin-related log entries found")
+                            
+                    except Exception as e:
+                        self.log(f"  - Could not read log file: {e}")
+            else:
+                self.log("  - OBS logs directory not found")
 
             # Run packet replay while recording
             self.log("Running packet replay while OBS is recording...")
