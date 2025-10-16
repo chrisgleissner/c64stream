@@ -12,6 +12,8 @@ on:
           - e2e-test
 permissions:
   contents: write
+  packages: write
+  actions: write
 jobs:
   check-and-build:
     if: inputs.job == 'build'
@@ -22,9 +24,6 @@ jobs:
       e2e_format: 'PAL'
       e2e_frames: '250'
     secrets: inherit
-    permissions:
-      contents: read
-      packages: write
 
   manual-e2e:
     if: inputs.job == 'e2e-test'
@@ -35,7 +34,3 @@ jobs:
       format: 'PAL'
       frames: '250'
     secrets: inherit
-    permissions:
-      contents: read
-      packages: read
-      actions: write

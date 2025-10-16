@@ -51,14 +51,26 @@ check_prerequisites() {
 validate_yaml_syntax() {
     local file="$1"
     local filename=$(basename "$file")
-    
+
     log_info "Validating YAML syntax: $filename"
-    
+
     # Basic YAML syntax check with yq
     if command -v yq >/dev/null 2>&1; then
-        if ! yq eval '.' "$file" >/dev/null 2>&1; then
+        # Try mikefarah/yq (Go version) first, then kislyuk/yq (Python version)
+        if yq eval '.' "$file" >/dev/null 2>&1; then
+            # Success with Go yq
+            true
+        elif yq '.' "$file" >/dev/null 2>&1; then
+            # Success with Python yq
+            true
+        else
             log_error "Invalid YAML syntax in $filename"
-            yq eval '.' "$file" 2>&1 | head -5
+            # Try both yq versions for error output
+            if yq eval '.' "$file" 2>&1 | grep -q "error parsing"; then
+                yq eval '.' "$file" 2>&1 | head -3
+            else
+                yq '.' "$file" 2>&1 | head -3
+            fi
             return 1
         fi
     else
@@ -73,55 +85,55 @@ validate_yaml_syntax() {
             log_warning "No YAML validator available - skipping syntax check for $filename"
         fi
     fi
-    
+
     return 0
 }
 
 validate_workflow_structure() {
     local file="$1"
     local filename=$(basename "$file")
-    
+
     log_info "Validating workflow structure: $filename"
-    
+
     # Check required top-level fields
     local required_fields=("name" "on" "jobs")
     local missing_fields=()
-    
+
     for field in "${required_fields[@]}"; do
         if ! grep -q "^${field}:" "$file"; then
             missing_fields+=("$field")
         fi
     done
-    
+
     if [ ${#missing_fields[@]} -gt 0 ]; then
         log_error "Missing required fields in $filename: ${missing_fields[*]}"
         return 1
     fi
-    
+
     # Check for common issues
     if grep -q "^    uses:" "$file" && ! grep -q "^  [a-zA-Z].*:" "$file"; then
         log_error "Found 'uses:' without proper job structure in $filename"
         return 1
     fi
-    
+
     # Check indentation consistency (should be 2 spaces)
     if grep -q $'^\t' "$file"; then
         log_error "Found tab characters in $filename - use 2 spaces for indentation"
         return 1
     fi
-    
+
     return 0
 }
 
 validate_github_actions_syntax() {
     local file="$1"
     local filename=$(basename "$file")
-    
+
     log_info "Validating GitHub Actions syntax: $filename"
-    
+
     # Check for common GitHub Actions issues
     local issues=0
-    
+
     # Check for proper workflow_call syntax
     if grep -q "workflow_call:" "$file"; then
         if ! grep -q "^  workflow_call:" "$file"; then
@@ -129,7 +141,7 @@ validate_github_actions_syntax() {
             ((issues++))
         fi
     fi
-    
+
     # Check for proper permissions syntax
     if grep -q "permissions:" "$file"; then
         local perms_count=$(grep -c "permissions:" "$file")
@@ -138,95 +150,105 @@ validate_github_actions_syntax() {
             log_warning "Multiple permissions blocks found in $filename - verify they don't conflict"
         fi
     fi
-    
+
     # Check for uses: with proper action format
     while IFS= read -r line; do
-        if [[ $line =~ uses:.*[^@v0-9] ]]; then
-            if [[ ! $line =~ ^\s*uses:\s*\./ ]]; then  # Allow local workflows
-                log_warning "Action should specify version (e.g., @v4) in $filename: $line"
+        if [[ $line =~ uses: ]]; then
+            # Skip local actions (./.github/actions/*) and local workflows (./.github/workflows/*)
+            if [[ $line =~ uses:[[:space:]]*\./ ]]; then
+                continue  # Local actions/workflows don't need version tags
+            fi
+
+            # Check if external action doesn't have @version tag
+            if [[ ! $line =~ @v[0-9] ]] && [[ ! $line =~ @main ]] && [[ ! $line =~ @master ]] && [[ ! $line =~ @[0-9a-f]{40} ]]; then
+                log_warning "External action should specify version (e.g., @v4) in $filename: $line"
+            # Check for very old versions (v1, v2, v3) on external actions
+            elif [[ $line =~ @v[123]([^0-9]|$) ]]; then
+                log_warning "Found potentially outdated action version in $filename: $line"
+                log_warning "Consider updating to v4+ for security and features"
             fi
         fi
     done < "$file"
-    
+
     return $issues
 }
 
 main() {
     log_info "C64 Stream - Workflow Validation Tool"
     echo
-    
+
     local workflows_dir="$PROJECT_ROOT/.github/workflows"
     local total_files=0
     local valid_files=0
     local has_yq=false
-    
+
     if ! [ -d "$workflows_dir" ]; then
         log_error "Workflows directory not found: $workflows_dir"
         exit 1
     fi
-    
+
     # Check prerequisites
     if check_prerequisites; then
         has_yq=true
     fi
-    
+
     # Find all workflow files
     local workflow_files=()
     while IFS= read -r -d '' file; do
         workflow_files+=("$file")
     done < <(find "$workflows_dir" -name "*.yml" -o -name "*.yaml" -print0 2>/dev/null)
-    
+
     if [ ${#workflow_files[@]} -eq 0 ]; then
         log_warning "No workflow files found in $workflows_dir"
         exit 0
     fi
-    
+
     echo "Found ${#workflow_files[@]} workflow files to validate:"
     for file in "${workflow_files[@]}"; do
         echo "  - $(basename "$file")"
     done
     echo
-    
+
     # Validate each workflow file
     for file in "${workflow_files[@]}"; do
         local filename=$(basename "$file")
         local file_valid=true
-        
+
         total_files=$((total_files + 1))
-        
+
         echo "----------------------------------------"
-        
+
         # 1. YAML syntax validation
         if ! validate_yaml_syntax "$file"; then
             file_valid=false
         fi
-        
+
         # 2. Workflow structure validation
         if ! validate_workflow_structure "$file"; then
             file_valid=false
         fi
-        
+
         # 3. GitHub Actions specific validation
         if ! validate_github_actions_syntax "$file"; then
             file_valid=false
         fi
-        
+
         if [ "$file_valid" = true ]; then
             log_success "$filename is valid"
             valid_files=$((valid_files + 1))
         else
             log_error "$filename has validation errors"
         fi
-        
+
         echo
     done
-    
+
     echo "========================================"
     echo "Validation Summary:"
     echo "  Total files: $total_files"
     echo "  Valid files: $valid_files"
     echo "  Invalid files: $((total_files - valid_files))"
-    
+
     if [ "$has_yq" = false ]; then
         echo
         log_warning "Install 'yq' for more comprehensive YAML validation"
@@ -234,7 +256,7 @@ main() {
         log_info "  macOS: brew install yq"
         log_info "  Or download from: https://github.com/mikefarah/yq/releases"
     fi
-    
+
     if [ $valid_files -eq $total_files ]; then
         echo
         log_success "All workflow files are valid! ✅"

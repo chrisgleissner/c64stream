@@ -99,6 +99,9 @@ fi
 
 # Workflow validation (MANDATORY for any .github/workflows/ changes)
 ./build-aux/validate-workflows
+
+# E2E (MANDATORY for any changes to the plugin itself. This is only applicable for local builds, not for builds on the GitHub CI environment.)
+./local-build linux --install --e2e
 ```
 
 **Checklist:**

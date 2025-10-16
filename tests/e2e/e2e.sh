@@ -550,7 +550,7 @@ EOF
 
     # Add OBS results if enabled
     if [[ "${OBS_ENABLED}" == true ]]; then
-        if [[ -f "${OUTPUT_DIR}/recording_${FORMAT}.mkv" ]]; then
+        if [[ -f "${OUTPUT_DIR}/c64_recording.mp4" || -f "${OUTPUT_DIR}/c64_recording.mkv" ]]; then
             echo "  ✅ OBS Recording: Available" >> "${report_file}"
         else
             echo "  ❌ OBS Recording: Not found" >> "${report_file}"

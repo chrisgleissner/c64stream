@@ -12,8 +12,8 @@ if(DEFINED ENV{GITHUB_EVENT_NAME} AND "$ENV{GITHUB_EVENT_NAME}" STREQUAL "pull_r
 
   if(DEFINED ENV{GITHUB_RUN_NUMBER})
     # Use development patch number with limited range to avoid potential issues
-    math(EXPR run_mod "$ENV{GITHUB_RUN_NUMBER} % 1000")  # Limit to 0-999 range
-    math(EXPR dev_patch "900 + ${run_mod}")  # Results in 900-1899 range
+    math(EXPR run_mod "$ENV{GITHUB_RUN_NUMBER} % 1000") # Limit to 0-999 range
+    math(EXPR dev_patch "900 + ${run_mod}") # Results in 900-1899 range
     set(AUTHORITATIVE_VERSION "${major}.${minor}.${dev_patch}")
   else()
     # Local development builds use 999
@@ -62,7 +62,8 @@ if(AUTHORITATIVE_VERSION)
   # Update buildspec.json with the calculated version to keep it in sync
   # Use a cross-platform approach with temporary file to avoid sed -i incompatibilities
   execute_process(
-    COMMAND sed "41s/\"version\": \"[^\"]*\"/\"version\": \"${AUTHORITATIVE_VERSION}\"/" "${CMAKE_SOURCE_DIR}/buildspec.json"
+    COMMAND
+      sed "41s/\"version\": \"[^\"]*\"/\"version\": \"${AUTHORITATIVE_VERSION}\"/" "${CMAKE_SOURCE_DIR}/buildspec.json"
     OUTPUT_FILE "${CMAKE_SOURCE_DIR}/buildspec.json.tmp"
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
     RESULT_VARIABLE sed_result
@@ -99,10 +100,9 @@ endif()
 
 string(TIMESTAMP BUILD_TIME "%Y-%m-%d %H:%M:%S" UTC)
 
-target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
-  C64_VERSION_TAG="${DISPLAY_VERSION}"
-  C64_GIT_HASH="${GIT_HASH}"
-  C64_BUILD_TIME="${BUILD_TIME}"
+target_compile_definitions(
+  ${CMAKE_PROJECT_NAME}
+  PRIVATE C64_VERSION_TAG="${DISPLAY_VERSION}" C64_GIT_HASH="${GIT_HASH}" C64_BUILD_TIME="${BUILD_TIME}"
 )
 
 find_package(libobs REQUIRED)

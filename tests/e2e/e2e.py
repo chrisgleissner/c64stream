@@ -61,6 +61,10 @@ class E2ETest:
         self.audio_dest_ip = '127.0.0.1'
         self.audio_dest_port = self.audio_port
 
+        # Packet timing for graceful OBS shutdown
+        self.last_packet_time = None
+        self.obs_shutdown_timeout = 0.5  # seconds after last packet (plugin needs ~500ms max)
+
         # Test artifacts
         self.packet_dir = self.test_dir / 'test_packets'
         self.output_dir = self.test_dir / 'test_output'
@@ -852,6 +856,9 @@ DockAreaVisible=false
 
                     bytes_sent = event['sock'].sendto(packet_data, event['dest'])
                     packets_sent += 1
+                    
+                    # Update last packet time for graceful OBS shutdown
+                    self.last_packet_time = time.time()
 
                     # Verify socket operation was successful
                     if bytes_sent != len(packet_data):
@@ -1025,6 +1032,24 @@ DockAreaVisible=false
 
         self.log("✅ Mock C64 Ultimate TCP server stopped")
 
+    def graceful_obs_shutdown(self):
+        """Wait for OBS shutdown timeout after last packet, then terminate gracefully."""
+        if self.last_packet_time is None:
+            self.log("No packets sent, proceeding with immediate OBS shutdown")
+            self.stop_obs()
+            return
+            
+        # Calculate remaining wait time
+        elapsed_since_last_packet = time.time() - self.last_packet_time
+        remaining_wait = self.obs_shutdown_timeout - elapsed_since_last_packet
+        
+        if remaining_wait > 0:
+            self.log(f"⏳ Waiting {remaining_wait:.1f}s for graceful OBS shutdown after last UDP packet...")
+            time.sleep(remaining_wait)
+        
+        self.log(f"✅ {self.obs_shutdown_timeout}s timeout reached, gracefully terminating OBS")
+        self.stop_obs()
+    
     def stop_obs(self):
         """Stop OBS recording with proper cleanup."""
         self.log("Stopping OBS")
@@ -1307,8 +1332,12 @@ DockAreaVisible=false
     def cleanup(self):
         """Cleanup all test processes."""
         self.log("Cleaning up test environment")
-        self.stop_mock_c64_server()
-        self.stop_obs()
+        # Stop mock server if still running (may have been stopped after graceful shutdown)
+        if hasattr(self, 'tcp_server_running') and self.tcp_server_running:
+            self.stop_mock_c64_server()
+        # Only stop OBS if it's still running (may have been stopped by graceful shutdown)
+        if self.obs_process and self.obs_process.poll() is None:
+            self.stop_obs()
         self.stop_xvfb()
         self.cleanup_obs_locks()
 
@@ -1363,8 +1392,15 @@ DockAreaVisible=false
             else:
                 self.log("❌ Packet replay failed")
 
-            # Stop recording
+            # Stop recording but keep OBS running for graceful shutdown
             self.stop_recording()
+            
+            # Stop mock TCP server immediately to prevent plugin reconnection attempts during shutdown
+            self.log("Stopping mock TCP server to prevent reconnections")
+            self.stop_mock_c64_server()
+
+            # Wait gracefully for OBS shutdown timeout after last packet
+            self.graceful_obs_shutdown()
 
             # Wait a moment for files to be written
             time.sleep(2)
