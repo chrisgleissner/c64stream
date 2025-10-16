@@ -360,9 +360,26 @@ jobs:
       - name: Prepare E2E Test Environment 🔧
         run: |
           : Prepare E2E Test Environment 🔧
-          # Build only the UDP replay tool needed for testing
+          # Configure build
           cmake --preset ubuntu-x86_64
-          cmake --build build_x86_64 --target udp_replay
+          # Build plugin and UDP replay tool from this branch
+          cmake --build build_x86_64 --target c64stream udp_replay
+
+          # Install branch-built plugin to user plugin directory to override system one
+          mkdir -p ~/.config/obs-studio/plugins/c64stream/bin/64bit
+          mkdir -p ~/.config/obs-studio/plugins/c64stream/data
+          if [[ -f build_x86_64/c64stream.so ]]; then
+            cp build_x86_64/c64stream.so ~/.config/obs-studio/plugins/c64stream/bin/64bit/
+            echo "✅ Installed branch-built plugin to user dir"
+          else
+            echo "❌ Branch-built c64stream.so not found"
+            ls -la build_x86_64 || true
+          fi
+          # Copy plugin data (effects, locale, presets)
+          if [[ -d data ]]; then
+            cp -r data/* ~/.config/obs-studio/plugins/c64stream/data/
+            echo "✅ Copied plugin data to user dir"
+          fi
 
           # Install Python dependencies
           python3 -m pip install --user numpy pillow
