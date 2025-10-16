@@ -652,6 +652,16 @@ DockAreaVisible=false
             Path('/tmp'),  # Temporary directory
         ]
 
+        # Also accept plugin's own raw recording as valid evidence on CI
+        plugin_recordings_base = Path.home() / 'Documents' / 'obs-studio' / 'c64stream' / 'recordings'
+        if plugin_recordings_base.exists():
+            # Find latest session folder
+            session_folders = [f for f in plugin_recordings_base.glob('session_*') if f.is_dir()]
+            if session_folders:
+                session_folders.sort(key=lambda f: f.stat().st_mtime, reverse=True)
+                latest_session = session_folders[0]
+                search_dirs.insert(0, latest_session)  # Prefer latest plugin session folder
+
         recording_files = []
 
         for search_dir in search_dirs:
