@@ -21,10 +21,11 @@ jobs:
 
   build-project:
     name: Build Project 🧱
-    uses: ./.github/workflows/build-project-flexible.yaml
+    uses: ./.github/workflows/build-project.yaml
     with:
-      use_containerized: true
-      use_containerized_e2e: false  # Keep traditional E2E for PRs for stability
+      run_e2e: true
+      e2e_format: 'PAL'
+      e2e_frames: '250'
     secrets: inherit
     permissions:
       contents: read

@@ -12,18 +12,16 @@ The C64 Stream project now supports **Dockerized builds** that dramatically redu
 
 ## What's Changed
 
-### New Workflow Files
+### Simplified Workflow Structure
 
-1. **`build-docker-images.yaml`** - Builds and publishes Ubuntu build container
-2. **`containerized-build.yaml`** - Fast Ubuntu plugin build using pre-built container
-3. **`containerized-e2e-test.yaml`** - E2E tests using containerized environment
-4. **`build-project-flexible.yaml`** - Flexible build system allowing choice between traditional and containerized
+**Single Build Workflow**: `build-project.yaml` - Consolidated workflow with Docker-based Ubuntu builds and integrated E2E testing
 
-### Updated Workflow Files
+**Entry Point Workflows**:
 
-- **`push.yaml`** - Now uses containerized builds by default
-- **`dispatch.yaml`** - Now uses containerized builds by default
-- **`pr-pull.yaml`** - Uses containerized builds, traditional E2E for stability
+- **`push.yaml`** - Triggers builds on push to master/main/release branches
+- **`dispatch.yaml`** - Manual build dispatch
+- **`pr-pull.yaml`** - Pull request builds
+- **`check-format.yaml`** - Code formatting validation
 
 ### Container Infrastructure
 
@@ -72,17 +70,17 @@ cmake --build build_x86_64
 ### Workflow Configuration
 
 ```yaml
-# Use containerized builds (recommended for speed)
-uses: ./.github/workflows/build-project-flexible.yaml
+# Standard build with E2E testing
+uses: ./.github/workflows/build-project.yaml
 with:
-  use_containerized: true
-  use_containerized_e2e: true
+  run_e2e: true
+  e2e_format: 'PAL'
+  e2e_frames: '250'
 
-# Use traditional builds (for compatibility)
-uses: ./.github/workflows/build-project-flexible.yaml
+# Build without E2E testing
+uses: ./.github/workflows/build-project.yaml
 with:
-  use_containerized: false
-  use_containerized_e2e: false
+  run_e2e: false
 ```
 
 ## Monitoring & Validation

@@ -1,13 +1,36 @@
 name: Build Project
+run-name: ${{ github.ref_name }} build run 🧱
+
 on:
   workflow_call:
+    inputs:
+      run_e2e:
+        description: 'Run E2E tests after build'
+        required: false
+        default: true
+        type: boolean
+      e2e_format:
+        description: 'E2E video format (PAL or NTSC)'
+        required: false
+        default: 'PAL'
+        type: string
+      e2e_frames:
+        description: 'Number of E2E frames to test'
+        required: false
+        default: '250'
+        type: string
     outputs:
       pluginName:
         description: Project name detected by parsing build spec file
-        value: ${{ jobs.check-event.outputs.pluginName }}
+        value: ${{ jobs.ubuntu-build.outputs.pluginName }}
       pluginVersion:
         description: Project version detected by parsing build spec file
-        value: ${{ jobs.check-event.outputs.pluginVersion }}
+        value: ${{ jobs.ubuntu-build.outputs.pluginVersion }}
+
+permissions:
+  contents: read
+  packages: read
+
 jobs:
   check-event:
     name: Check GitHub Event Data 🔎
@@ -204,30 +227,103 @@ jobs:
           path: ${{ github.workspace }}/.ccache
           key: ${{ runner.os }}-ccache-${{ needs.check-event.outputs.config }}
 
+  # Step 1: Build Docker Image (creates/updates if missing or >7 days old)
+  build-docker-image:
+    name: Build Docker Image �
+    runs-on: ubuntu-24.04
+    needs: [check-event]
+    outputs:
+      image-tag: ${{ steps.image.outputs.tag }}
+    steps:
+      - name: Checkout Repository 📥
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check Image Age 🔍
+        id: check
+        continue-on-error: true
+        run: |
+          : Check Image Age 🔍
+          
+          # Try to pull and inspect existing image
+          if docker pull ghcr.io/${{ github.repository }}/ubuntu-build:latest >/dev/null 2>&1; then
+            created_timestamp=$(docker inspect ghcr.io/${{ github.repository }}/ubuntu-build:latest --format='{{.Created}}' 2>/dev/null || echo "")
+            
+            if [[ -n "$created_timestamp" ]]; then
+              created_date=$(echo "$created_timestamp" | cut -d'T' -f1)
+              current_date=$(date -u +%Y-%m-%d)
+              created_epoch=$(date -d "$created_date" +%s 2>/dev/null || echo "0")
+              current_epoch=$(date -d "$current_date" +%s)
+              age_days=$(( (current_epoch - created_epoch) / 86400 ))
+              
+              echo "Image age: $age_days days"
+              
+              if [ "$age_days" -le 7 ]; then
+                echo "needs_build=false" >> $GITHUB_OUTPUT
+                echo "✅ Using existing image (age: $age_days days)"
+                exit 0
+              fi
+            fi
+          fi
+          
+          echo "needs_build=true" >> $GITHUB_OUTPUT
+          echo "🔨 Will build new image"
+
+      - name: Set up Docker Buildx 🔧
+        if: steps.check.outputs.needs_build == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry 🔑
+        if: steps.check.outputs.needs_build == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and Push Docker Image 🚀
+        if: steps.check.outputs.needs_build == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: .github/docker/Dockerfile.ubuntu-build
+          platforms: linux/amd64
+          push: true
+          tags: ghcr.io/${{ github.repository }}/ubuntu-build:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Set Image Tag Output 📝
+        id: image
+        run: |
+          echo "tag=ghcr.io/${{ github.repository }}/ubuntu-build:latest" >> $GITHUB_OUTPUT
+          if [[ "${{ steps.check.outputs.needs_build }}" == "true" ]]; then
+            echo "✅ Built and pushed new image"
+          else
+            echo "✅ Using existing image"
+          fi
+
+  # Step 2: Ubuntu Build (uses Docker image, fails hard if issues)
   ubuntu-build:
     name: Ubuntu Build 🐧
     runs-on: ubuntu-24.04
-    needs: [check-event]
-    defaults:
-      run:
-        shell: bash
+    needs: [check-event, build-docker-image]
+    container:
+      image: ${{ needs.build-docker-image.outputs.image-tag }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    outputs:
+      pluginName: ${{ steps.setup.outputs.pluginName }}
+      pluginVersion: ${{ steps.setup.outputs.pluginVersion }}
+      artifactName: ${{ steps.setup.outputs.artifactName }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Repository �
+        uses: actions/checkout@v4
         with:
           submodules: recursive
           fetch-depth: 0
-
-      - name: Install Dependencies 🛠️
-        run: |
-          : Install Dependencies 🛠️
-          sudo apt-get update -qq
-          sudo apt-get install -y \
-            build-essential \
-            cmake \
-            ninja-build \
-            ccache \
-            pkg-config \
-            libsimde-dev
 
       - name: Set Up Environment 🔧
         id: setup
@@ -235,59 +331,87 @@ jobs:
           : Set Up Environment 🔧
           if [[ "${RUNNER_DEBUG}" ]]; then set -x; fi
 
+          # Extract project info
           read -r product_name <<< \
             "$(jq -r '.name' buildspec.json)"
 
+          artifact_name="${product_name}-${{ needs.check-event.outputs.pluginVersion }}-ubuntu-24.04-x86_64-${{ needs.check-event.outputs.commitHash }}"
+
           echo "pluginName=${product_name}" >> $GITHUB_OUTPUT
           echo "pluginVersion=${{ needs.check-event.outputs.pluginVersion }}" >> $GITHUB_OUTPUT
+          echo "artifactName=${artifact_name}" >> $GITHUB_OUTPUT
 
-      - uses: actions/cache/restore@v4
-        id: ccache-cache
-        with:
-          path: ${{ github.workspace }}/.ccache
-          key: containerized-ccache-${{ needs.check-event.outputs.config }}-${{ github.sha }}
-          restore-keys: |
-            containerized-ccache-${{ needs.check-event.outputs.config }}-
-            containerized-ccache-
+          echo "🔧 Building ${product_name} v${{ needs.check-event.outputs.pluginVersion }} in container"
+
+      - name: Configure ccache 🗂️
+        run: |
+          : Configure ccache �️
+          ccache --set-config cache_dir=/workspace/.ccache
+          ccache --set-config max_size=2G
+          ccache --show-config
+          ccache --zero-stats
 
       - name: Build Plugin 🧱
-        uses: ./.github/actions/build-plugin
-        with:
-          target: x86_64
-          config: ${{ needs.check-event.outputs.config }}
+        run: |
+          : Build Plugin 🧱
+          export PATH="/usr/local/bin:$PATH"
+          
+          # Configure CMake
+          cmake --preset ubuntu-x86_64
+          
+          # Build with Ninja
+          cmake --build build_x86_64 --config ${{ needs.check-event.outputs.config }} --parallel
 
-      - name: Package Plugin 📀
-        uses: ./.github/actions/package-plugin
+      - name: Package Plugin 📦
+        run: |
+          : Package Plugin 📦
+          cd build_x86_64
+          cpack -G "TXZ;DEB;External" -C ${{ needs.check-event.outputs.config }}
+
+      - name: Prepare Artifacts 📋
+        run: |
+          : Prepare Artifacts 📋
+          mkdir -p release
+          
+          # Move artifacts to release directory
+          if [[ -f build_x86_64/*.tar.xz ]]; then
+            mv build_x86_64/*.tar.xz release/
+          fi
+          if [[ -f build_x86_64/*.deb ]]; then
+            mv build_x86_64/*.deb release/
+          fi
+          if [[ -f build_x86_64/*.ddeb ]]; then
+            mv build_x86_64/*.ddeb release/
+          fi
+          
+          # List what we built
+          echo "📦 Built artifacts:"
+          ls -la release/ || echo "No release artifacts found"
+          ls -la build_x86_64/ | grep -E '\.(so|tar\.xz|deb|ddeb)$' || echo "No build artifacts found"
+
+      - name: Upload Plugin Binary 📤
+        uses: actions/upload-artifact@v4
         with:
-          target: x86_64
-          config: ${{ needs.check-event.outputs.config }}
-          package: ${{ fromJSON(needs.check-event.outputs.package) }}
-          version: ${{ needs.check-event.outputs.pluginVersion }}
+          name: ${{ steps.setup.outputs.artifactName }}
+          path: |
+            build_x86_64/c64stream.so
+            release/*x86_64*.tar.xz
+            release/*x86_64*.deb
+          if-no-files-found: error
 
       - name: Upload Source Tarball 🗜️
         uses: actions/upload-artifact@v4
+        if: ${{ fromJSON(needs.check-event.outputs.package) }}
         with:
           name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-ubuntu-24.04-sources-${{ needs.check-event.outputs.commitHash }}
-          path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-source.*
+          path: release/*source.*
 
-      - name: Upload Artifacts 📡
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-ubuntu-24.04-x86_64-${{ needs.check-event.outputs.commitHash }}
-          path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-x86_64*.*
-
-      - name: Upload debug symbol artifacts 🪲
+      - name: Upload Debug Symbols 🪲
         uses: actions/upload-artifact@v4
         if: ${{ fromJSON(needs.check-event.outputs.package) }}
         with:
-          name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-ubuntu-24.04-x86_64-${{ needs.check-event.outputs.commitHash }}-dbgsym
-          path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-x86_64*-dbgsym.ddeb
-
-      - uses: actions/cache/save@v4
-        if: github.event_name != 'pull_request' && steps.ccache-cache.outputs.cache-hit != 'true'
-        with:
-          path: ${{ github.workspace }}/.ccache
-          key: containerized-ccache-${{ needs.check-event.outputs.config }}-${{ github.sha }}
+          name: ${{ steps.setup.outputs.artifactName }}-dbgsym
+          path: release/*dbgsym.ddeb
 
   windows-build:
     name: Build for Windows 🪟
@@ -348,13 +472,118 @@ jobs:
           path: ${{ github.workspace }}/.ccache
           key: "${{ runner.os }}-ccache-${{ needs.check-event.outputs.config }}"
 
+  # Step 3: E2E Test
   e2e-test:
     name: E2E Test 🧪
+    if: ${{ inputs.run_e2e && needs.ubuntu-build.result == 'success' }}
+    runs-on: ubuntu-24.04
     needs: [check-event, ubuntu-build]
-    if: always() && needs.ubuntu-build.result == 'success'
-    uses: ./.github/workflows/e2e-test.yaml
-    with:
-      format: 'PAL'
-      frames: '250'
-      monitor_resources: false
-      artifact_name: c64stream-${{ needs.check-event.outputs.pluginVersion }}-ubuntu-24.04-x86_64-${{ needs.check-event.outputs.commitHash }}
+    container:
+      image: ghcr.io/${{ github.repository }}/ubuntu-build:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+      options: >-
+        --user root
+        --privileged
+    env:
+      DISPLAY: ":99"
+    steps:
+      - name: Checkout Repository 📥
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download Plugin Artifact 📥
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.ubuntu-build.outputs.artifactName }}
+          path: ./artifacts
+
+      - name: Install Plugin 📦
+        run: |
+          : Install Plugin 📦
+          
+          # Find and install the .deb package
+          if [[ -f artifacts/*.deb ]]; then
+            echo "Installing .deb package..."
+            dpkg -i artifacts/*.deb || apt-get install -f -y
+          else
+            # Fallback to manual installation
+            echo "Manual plugin installation..."
+            mkdir -p ~/.config/obs-studio/plugins/c64stream/bin/64bit
+            mkdir -p ~/.config/obs-studio/plugins/c64stream/data
+            
+            if [[ -f artifacts/c64stream.so ]]; then
+              cp artifacts/c64stream.so ~/.config/obs-studio/plugins/c64stream/bin/64bit/
+            else
+              echo "❌ Plugin binary not found"
+              exit 1
+            fi
+            
+            if [[ -d data ]]; then
+              cp -r data/* ~/.config/obs-studio/plugins/c64stream/data/
+            fi
+          fi
+          
+          echo "✅ Plugin installed"
+
+      - name: Setup X11 Display 🖥️
+        run: |
+          : Setup X11 Display 🖥️
+          
+          # Start Xvfb for headless display
+          Xvfb :99 -screen 0 1024x768x24 &
+          sleep 2
+          
+          # Verify display is working
+          DISPLAY=:99 xdpyinfo >/dev/null 2>&1 || {
+            echo "❌ X11 display setup failed"
+            exit 1
+          }
+          
+          echo "✅ X11 display ready"
+
+      - name: Run E2E Tests 🧪
+        run: |
+          : Run E2E Tests 🧪
+          
+          cd tests/e2e
+          
+          # Run the E2E test with specified parameters
+          python3 e2e_test.py \
+            --format "${{ inputs.e2e_format }}" \
+            --frames "${{ inputs.e2e_frames }}" \
+            --output-dir "../../e2e-results"
+
+      - name: Collect Test Artifacts 📋
+        if: always()
+        run: |
+          : Collect Test Artifacts 📋
+          
+          mkdir -p e2e-artifacts
+          
+          # Collect test results
+          if [[ -d e2e-results ]]; then
+            cp -r e2e-results/* e2e-artifacts/
+          fi
+          
+          # Collect OBS logs
+          if [[ -d ~/.config/obs-studio/logs ]]; then
+            mkdir -p e2e-artifacts/obs-logs
+            cp ~/.config/obs-studio/logs/* e2e-artifacts/obs-logs/ 2>/dev/null || true
+          fi
+          
+          # Create summary
+          echo "E2E Test Summary" > e2e-artifacts/summary.txt
+          echo "Format: ${{ inputs.e2e_format }}" >> e2e-artifacts/summary.txt
+          echo "Frames: ${{ inputs.e2e_frames }}" >> e2e-artifacts/summary.txt
+          echo "Date: $(date)" >> e2e-artifacts/summary.txt
+
+      - name: Upload E2E Artifacts 📤
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results-${{ needs.check-event.outputs.commitHash }}
+          path: e2e-artifacts/
+          if-no-files-found: warn
