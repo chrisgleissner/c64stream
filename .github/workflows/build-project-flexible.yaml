@@ -102,12 +102,12 @@ jobs:
     needs: [check-event]
     uses: ./.github/workflows/containerized-build.yaml
 
-  # Traditional Ubuntu Build (Fallback)
+  # Traditional Ubuntu Build (Fallback - runs if containerized disabled OR failed)
   ubuntu-build-traditional:
     name: Ubuntu Build (Traditional) 🐧
     runs-on: ubuntu-24.04
-    if: ${{ !inputs.use_containerized }}
-    needs: [check-event]
+    if: ${{ !inputs.use_containerized || (always() && needs.ubuntu-build-containerized.result == 'failure') }}
+    needs: [check-event, ubuntu-build-containerized]
     outputs:
       pluginName: ${{ steps.setup.outputs.pluginName }}
       pluginVersion: ${{ steps.setup.outputs.pluginVersion }}
