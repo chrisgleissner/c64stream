@@ -747,9 +747,35 @@ DockAreaVisible=false
         # Wait for the plugin to send TCP start commands (with timeout)
         if not self.udp_replay_triggered.wait(timeout=30):
             self.log("❌ Timeout waiting for plugin to request streaming")
+            self.log("🔍 Network diagnostics:")
+            self.log(f"  - Expected TCP connection to: 127.0.0.1:{self.control_port}")
+            self.log(f"  - Video destination: {self.video_dest_ip}:{self.video_dest_port}")
+            self.log(f"  - Audio destination: {self.audio_dest_ip}:{self.audio_dest_port}")
+            
+            # Check if TCP server is still running
+            if self.tcp_server_running:
+                self.log("  - TCP server is still running")
+            else:
+                self.log("  - TCP server is not running")
+                
+            # Check current network connections
+            import subprocess
+            try:
+                result = subprocess.run(['netstat', '-tlnp'], capture_output=True, text=True, timeout=5)
+                if result.returncode == 0:
+                    self.log("  - Current TCP listeners:")
+                    for line in result.stdout.split('\n'):
+                        if f':{self.control_port}' in line or f'127.0.0.1:{self.control_port}' in line:
+                            self.log(f"    {line}")
+            except Exception as e:
+                self.log(f"  - Could not check netstat: {e}")
+            
             return False
 
         self.log(f"✅ Received streaming request, starting {self.format} packet replay")
+        self.log(f"🔍 UDP replay targets:")
+        self.log(f"  - Video: {self.video_dest_ip}:{self.video_dest_port}")
+        self.log(f"  - Audio: {self.audio_dest_ip}:{self.audio_dest_port}")
 
         # Minimal delay to ensure plugin UDP sockets are ready (optimized for speed)
         import time
@@ -800,6 +826,17 @@ DockAreaVisible=false
         # Skip test packets to avoid interference with real packet reception
         # The plugin might be processing test packets when real packets arrive
         self.log(f"🔍 UDP sockets ready for {self.video_dest_ip}:{self.video_dest_port} and {self.audio_dest_ip}:{self.audio_dest_port}")
+        self.log(f"  - Video socket: {video_sock}")
+        self.log(f"  - Audio socket: {audio_sock}")
+        
+        # Test UDP connectivity
+        try:
+            test_data = b"test"
+            video_sock.sendto(test_data, (self.video_dest_ip, self.video_dest_port))
+            audio_sock.sendto(test_data, (self.audio_dest_ip, self.audio_dest_port))
+            self.log(f"  - Test packets sent successfully")
+        except Exception as e:
+            self.log(f"  - Failed to send test packets: {e}")
 
         try:
             # Calculate interleaved timeline
@@ -857,6 +894,10 @@ DockAreaVisible=false
 
                     bytes_sent = event['sock'].sendto(packet_data, event['dest'])
                     packets_sent += 1
+                    
+                    # Log first few packets for debugging
+                    if packets_sent <= 3:
+                        self.log(f"📤 Sent {event['type']} packet #{packets_sent}: {len(packet_data)} bytes to {event['dest']}")
 
                     # Verify socket operation was successful
                     if bytes_sent != len(packet_data):
@@ -911,9 +952,32 @@ DockAreaVisible=false
         try:
             self.tcp_server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.tcp_server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            
+            # Add network diagnostics
+            self.log(f"🔍 Network diagnostics:")
+            self.log(f"  - Binding to 127.0.0.1:{self.control_port}")
+            self.log(f"  - Socket family: AF_INET")
+            self.log(f"  - Socket type: SOCK_STREAM")
+            
+            # Check if port is already in use
+            import subprocess
+            try:
+                result = subprocess.run(['netstat', '-tlnp'], capture_output=True, text=True, timeout=5)
+                if result.returncode == 0:
+                    self.log(f"  - Current TCP listeners:")
+                    for line in result.stdout.split('\n'):
+                        if f':{self.control_port}' in line or f'127.0.0.1:{self.control_port}' in line:
+                            self.log(f"    {line}")
+            except Exception as e:
+                self.log(f"  - Could not check netstat: {e}")
+            
             self.tcp_server_socket.bind(('127.0.0.1', self.control_port))
             self.tcp_server_socket.listen(5)
             self.tcp_server_running = True
+
+            # Verify binding worked
+            actual_addr = self.tcp_server_socket.getsockname()
+            self.log(f"  - Successfully bound to {actual_addr}")
 
             self.tcp_server_thread = threading.Thread(target=self._tcp_server_worker)
             self.tcp_server_thread.daemon = True
@@ -924,6 +988,8 @@ DockAreaVisible=false
 
         except Exception as e:
             self.log(f"❌ Failed to start mock C64 Ultimate TCP server: {e}")
+            self.log(f"  - Error type: {type(e).__name__}")
+            self.log(f"  - Error details: {str(e)}")
             return False
 
     def _tcp_server_worker(self):
@@ -952,9 +1018,15 @@ DockAreaVisible=false
 
     def _handle_tcp_connection(self, conn, addr):
         """Handle a single TCP connection from the C64 Stream plugin."""
+        self.log(f"🔍 TCP connection received from {addr}")
+        self.log(f"  - Connection details: {conn}")
+        self.log(f"  - Local address: {conn.getsockname()}")
+        self.log(f"  - Remote address: {conn.getpeername()}")
+        
         try:
             conn.settimeout(5.0)  # 5 second timeout for receive
             data = conn.recv(1024)
+            self.log(f"📨 Received {len(data)} bytes from {addr}")
 
             if len(data) >= 4:
                 self.log(f"Received TCP command from {addr}: {data.hex()}")
