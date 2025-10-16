@@ -45,23 +45,32 @@ BITS_PER_PIXEL = 4
 AUDIO_SAMPLES_PER_PACKET = 192  # Stereo samples
 
 
-def is_sync_marker_active(frame_num, format_name):
+def get_sync_timing_info(format_name):
     """
-    Determine if the A/V sync marker (black rectangle + audio beep) should be active.
-    Returns True if this frame should show the black rectangle.
+    Get unified sync timing information for both audio and video.
+    Returns (frame_rate, frame_duration_ms, sync_period_ms, sync_duration_ms)
     """
-    # Calculate frame timing
     if format_name == 'PAL':
         frame_rate = 50.125
     else:  # NTSC
         frame_rate = 59.826
 
     frame_duration_ms = 1000.0 / frame_rate
-    time_in_test_ms = frame_num * frame_duration_ms
+    sync_period_ms = 1000.0  # Sync marker every 1000ms
+    sync_duration_ms = 4 * frame_duration_ms  # 4 frames duration
 
-    # Sync marker every 1000ms for 4 frames duration
-    sync_period_ms = 1000.0
-    sync_duration_ms = 4 * frame_duration_ms
+    return frame_rate, frame_duration_ms, sync_period_ms, sync_duration_ms
+
+
+def is_sync_marker_active(frame_num, format_name):
+    """
+    Determine if the A/V sync marker (black rectangle + audio beep) should be active.
+    Returns True if this frame should show the black rectangle.
+    """
+    _, frame_duration_ms, sync_period_ms, sync_duration_ms = get_sync_timing_info(format_name)
+
+    # Calculate frame timing - use precise timing aligned to sync boundaries
+    time_in_test_ms = frame_num * frame_duration_ms
 
     time_in_current_second = time_in_test_ms % sync_period_ms
     return time_in_current_second < sync_duration_ms
@@ -129,6 +138,7 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
             elif pixel_line < 32 and byte_idx < 16:
                 # Frame number marker pattern in top-left corner (first 32x32 pixels)
                 # Show frame number modulo 16 as solid VIC color
+                # This should create a solid block of color for the entire 32x32 area
                 marker_color = frame_num % 16
                 payload[line * (width // 2) + byte_idx] = (marker_color << 4) | marker_color
             else:
@@ -157,17 +167,11 @@ def generate_audio_packet(audio_packet_num, sample_rate, total_test_duration_ms)
     packet_duration_ms = (AUDIO_SAMPLES_PER_PACKET / sample_rate) * 1000
     time_in_test_ms = audio_packet_num * packet_duration_ms
 
-    # Determine sync marker timing: beep every 1000ms for 4 video frames duration
-    # Calculate frame duration based on format
-    if sample_rate > 47960:  # PAL: 47983 Hz
-        frame_duration_ms = 1000.0 / 50.125  # PAL: 19.95ms per frame
-    else:  # NTSC: 47940 Hz
-        frame_duration_ms = 1000.0 / 59.826  # NTSC: 16.71ms per frame
+    # Use unified sync timing to ensure perfect A/V alignment
+    format_name = 'PAL' if sample_rate > 47960 else 'NTSC'
+    _, frame_duration_ms, sync_period_ms, sync_duration_ms = get_sync_timing_info(format_name)
 
-    sync_period_ms = 1000.0  # One beep every second
-    sync_duration_ms = 4 * frame_duration_ms  # 4 video frames duration
-
-    # Check if we're in a sync beep period
+    # Check if we're in a sync beep period using same calculation as video
     time_in_current_second = time_in_test_ms % sync_period_ms
     is_sync_beep = time_in_current_second < sync_duration_ms
 
@@ -180,8 +184,41 @@ def generate_audio_packet(audio_packet_num, sample_rate, total_test_duration_ms)
         # Generate 200Hz sine wave during sync periods for clear distinction
         tone = np.sin(2 * np.pi * 200 * t)
 
-        # Apply maximum volume for clear audio
-        audio_signal = (tone * 1.0 * 32767).astype(np.int16)
+        # Apply smooth ramp-up (1ms) and ramp-down (5ms) envelope
+        envelope = np.ones_like(tone)
+
+        # Ramp timing in milliseconds
+        ramp_up_ms = 1.0
+        ramp_down_ms = 5.0
+
+        # Calculate precise position within the current sync beep period
+        # Use exact same boundary calculation as video sync markers
+        beep_start_time_ms = (time_in_test_ms // sync_period_ms) * sync_period_ms
+
+        for i in range(len(envelope)):
+            # Calculate precise sample time within the sync period
+            sample_time_ms = time_in_test_ms + (i / sample_rate) * 1000
+            sample_time_in_beep = sample_time_ms - beep_start_time_ms
+
+            if sample_time_in_beep < 0:
+                # Before beep starts
+                envelope[i] = 0.0
+            elif sample_time_in_beep < ramp_up_ms:
+                # Ramp up phase
+                envelope[i] = sample_time_in_beep / ramp_up_ms
+            elif sample_time_in_beep >= (sync_duration_ms - ramp_down_ms):
+                # Ramp down phase
+                time_to_end = sync_duration_ms - sample_time_in_beep
+                envelope[i] = max(0.0, time_to_end / ramp_down_ms)
+            elif sample_time_in_beep < sync_duration_ms:
+                # Full volume phase
+                envelope[i] = 1.0
+            else:
+                # After beep ends
+                envelope[i] = 0.0
+
+        # Apply envelope and convert to 16-bit signed
+        audio_signal = (tone * envelope * 1.0 * 32767).astype(np.int16)
     else:
         # Silence between sync beeps (realistic - Ultimate continues streaming)
         audio_signal = np.zeros(AUDIO_SAMPLES_PER_PACKET, dtype=np.int16)
@@ -246,7 +283,8 @@ def generate_packets(output_dir, num_frames=30, formats=None):
         frame_duration_ms = 1000.0 / fmt['frame_rate']
         total_test_duration_ms = num_frames * frame_duration_ms
         audio_packet_duration_ms = (AUDIO_SAMPLES_PER_PACKET / fmt['audio_sample_rate']) * 1000
-        total_audio_packets = int(total_test_duration_ms / audio_packet_duration_ms) + 1
+        # Use exact calculation without extra packet - this ensures precise timing alignment
+        total_audio_packets = int(total_test_duration_ms / audio_packet_duration_ms)
 
         for audio_packet_num in range(total_audio_packets):
             packet_data = generate_audio_packet(audio_packet_num, fmt['audio_sample_rate'], total_test_duration_ms)
