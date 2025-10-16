@@ -153,7 +153,11 @@ jobs:
             ffmpeg \
             xvfb \
             curl \
-            jq
+            jq \
+            build-essential \
+            cmake \
+            ninja-build \
+            libsimde-dev
 
       - name: Set up OBS Studio Configuration 🎛️
         run: |
