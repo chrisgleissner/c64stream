@@ -92,6 +92,19 @@ class E2ETest:
         self.log(f"Starting Xvfb on display {display}")
 
         try:
+            # Check if Xvfb is already running on this display
+            try:
+                result = subprocess.run(['pgrep', '-f', f'Xvfb.*{display}'],
+                                      capture_output=True, check=False)
+                if result.returncode == 0 and result.stdout.strip():
+                    self.log(f"✅ Xvfb already running on {display} (started by workflow)")
+                    # Set DISPLAY environment variable
+                    os.environ['DISPLAY'] = display
+                    self.xvfb_process = None  # Not managed by us
+                    return True
+            except Exception:
+                pass  # Ignore errors
+
             # Clean up any stale lock files
             display_num = display.lstrip(':')
             lock_file = f"/tmp/.X{display_num}-lock"
