@@ -24,14 +24,14 @@ VIDEO_FORMATS = {
         'height': 272,
         'packets_per_frame': 68,
         'frame_rate': 50.125,
-        'audio_sample_rate': 47983,
+        'audio_sample_rate': 47983,  # PAL: 47983 Hz per C64 Ultimate spec
     },
     'NTSC': {
         'width': 384,
         'height': 240,
         'packets_per_frame': 60,
         'frame_rate': 59.826,
-        'audio_sample_rate': 47940,
+        'audio_sample_rate': 47940,  # NTSC: 47940 Hz per C64 Ultimate spec
     }
 }
 
@@ -45,7 +45,28 @@ BITS_PER_PIXEL = 4
 AUDIO_SAMPLES_PER_PACKET = 192  # Stereo samples
 
 
-def generate_video_packet(frame_num, packet_num, width, height, packets_per_frame):
+def is_sync_marker_active(frame_num, format_name):
+    """
+    Determine if the A/V sync marker (black rectangle + audio beep) should be active.
+    Returns True if this frame should show the black rectangle.
+    """
+    # Calculate frame timing
+    if format_name == 'PAL':
+        frame_rate = 50.125
+    else:  # NTSC
+        frame_rate = 59.826
+
+    frame_duration_ms = 1000.0 / frame_rate
+    time_in_test_ms = frame_num * frame_duration_ms
+
+    # Sync marker every 1000ms for 4 frames duration
+    sync_period_ms = 1000.0
+    sync_duration_ms = 4 * frame_duration_ms
+
+    time_in_current_second = time_in_test_ms % sync_period_ms
+    return time_in_current_second < sync_duration_ms
+
+def generate_video_packet(frame_num, packet_num, width, height, packets_per_frame, format_name):
     """
     Generate a single video packet following C64 Ultimate spec.
 
@@ -79,13 +100,35 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
     # This allows verification that frames are in correct order
     payload = bytearray(768)
 
+    # Check if A/V sync marker should be active
+    sync_active = is_sync_marker_active(frame_num, format_name)
+
+    # Calculate center coordinates for 100x100 black rectangle
+    # Center should be based on full frame dimensions, not current packet
+    frame_center_x = width // 2
+    frame_center_y = height // 2
+    rect_size = 100
+    rect_left = frame_center_x - rect_size // 2
+    rect_right = frame_center_x + rect_size // 2
+    rect_top = frame_center_y - rect_size // 2
+    rect_bottom = frame_center_y + rect_size // 2
+
     for line in range(LINES_PER_PACKET):
         for byte_idx in range(width // 2):  # 2 pixels per byte (4-bit color)
             pixel_line = line_num + line
+            pixel_x = byte_idx * 2  # Each byte contains 2 pixels
 
-            # Create a visible marker pattern in top-left corner (first 32x32 pixels)
-            if pixel_line < 32 and byte_idx < 16:
-                # Use frame_num modulo 16 as the color in marker area
+            # Check if we're in the sync marker rectangle (100x100 black square in center)
+            in_sync_rect = (sync_active and
+                          rect_top <= pixel_line < rect_bottom and
+                          rect_left <= pixel_x < rect_right)
+
+            if in_sync_rect:
+                # Black rectangle for A/V sync (VIC color 0 = black)
+                payload[line * (width // 2) + byte_idx] = 0x00  # Both pixels black
+            elif pixel_line < 32 and byte_idx < 16:
+                # Frame number marker pattern in top-left corner (first 32x32 pixels)
+                # Show frame number modulo 16 as solid VIC color
                 marker_color = frame_num % 16
                 payload[line * (width // 2) + byte_idx] = (marker_color << 4) | marker_color
             else:
@@ -97,34 +140,51 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
     return header + bytes(payload)
 
 
-def generate_audio_packet(frame_num, sample_rate):
+def generate_audio_packet(audio_packet_num, sample_rate, total_test_duration_ms):
     """
     Generate a single audio packet following C64 Ultimate spec.
 
     Packet Structure:
     1. Header: Sequence number (16-bit LE)
     2. Payload: 192 stereo samples (16-bit signed LE, interleaved L/R)
+
+    Audio Pattern: Continuous stream with 100Hz beep for 4 video frames every 1 second for A/V sync
     """
     # Build header (2 bytes)
-    header = struct.pack('<H', frame_num)
+    header = struct.pack('<H', audio_packet_num)
 
-    # Generate deterministic audio pattern (440Hz tone with frame marker)
-    # Add a unique amplitude envelope at the start of each frame
-    t = np.linspace(0, AUDIO_SAMPLES_PER_PACKET / sample_rate,
+    # Calculate timing - each audio packet represents exactly 192 samples at the given sample rate
+    packet_duration_ms = (AUDIO_SAMPLES_PER_PACKET / sample_rate) * 1000
+    time_in_test_ms = audio_packet_num * packet_duration_ms
+
+    # Determine sync marker timing: beep every 1000ms for 4 video frames duration
+    # Calculate frame duration based on format
+    if sample_rate > 47960:  # PAL: 47983 Hz
+        frame_duration_ms = 1000.0 / 50.125  # PAL: 19.95ms per frame
+    else:  # NTSC: 47940 Hz
+        frame_duration_ms = 1000.0 / 59.826  # NTSC: 16.71ms per frame
+
+    sync_period_ms = 1000.0  # One beep every second
+    sync_duration_ms = 4 * frame_duration_ms  # 4 video frames duration
+
+    # Check if we're in a sync beep period
+    time_in_current_second = time_in_test_ms % sync_period_ms
+    is_sync_beep = time_in_current_second < sync_duration_ms
+
+    # Generate time array for this packet's 192 samples
+    t = np.linspace(time_in_test_ms / 1000.0,
+                    (time_in_test_ms + packet_duration_ms) / 1000.0,
                     AUDIO_SAMPLES_PER_PACKET, endpoint=False)
 
-    # 440Hz sine wave
-    tone = np.sin(2 * np.pi * 440 * t)
+    if is_sync_beep:
+        # Generate 200Hz sine wave during sync periods for clear distinction
+        tone = np.sin(2 * np.pi * 200 * t)
 
-    # Add frame marker: amplitude modulation in first few samples
-    # This allows verification of A/V sync
-    envelope = np.ones(AUDIO_SAMPLES_PER_PACKET)
-    marker_length = 10
-    for i in range(marker_length):
-        envelope[i] = 0.5 + 0.5 * (frame_num % 16) / 16.0
-
-    # Apply envelope and convert to 16-bit signed
-    audio_signal = (tone * envelope * 0.5 * 32767).astype(np.int16)
+        # Apply maximum volume for clear audio
+        audio_signal = (tone * 1.0 * 32767).astype(np.int16)
+    else:
+        # Silence between sync beeps (realistic - Ultimate continues streaming)
+        audio_signal = np.zeros(AUDIO_SAMPLES_PER_PACKET, dtype=np.int16)
 
     # Interleave left and right channels (same signal for both)
     payload = np.empty(AUDIO_SAMPLES_PER_PACKET * 2, dtype=np.int16)
@@ -169,7 +229,7 @@ def generate_packets(output_dir, num_frames=30, formats=None):
             for packet_num in range(fmt['packets_per_frame']):
                 packet_data = generate_video_packet(
                     frame_num, packet_num, fmt['width'],
-                    fmt['height'], fmt['packets_per_frame']
+                    fmt['height'], fmt['packets_per_frame'], format_name
                 )
 
                 # Write packet to file
@@ -179,16 +239,23 @@ def generate_packets(output_dir, num_frames=30, formats=None):
         total_video_packets = num_frames * fmt['packets_per_frame']
         print(f"    Generated {total_video_packets} video packets")
 
-        # Generate audio packets (one per frame for simplicity)
+        # Generate audio packets with realistic timing per C64 Ultimate spec
         print(f"  Audio: {fmt['audio_sample_rate']} Hz sample rate")
-        for frame_num in range(num_frames):
-            packet_data = generate_audio_packet(frame_num, fmt['audio_sample_rate'])
 
-            # Write packet to file
-            packet_file = audio_dir / f"frame_{frame_num:04d}.bin"
+        # Calculate total test duration and required audio packets
+        frame_duration_ms = 1000.0 / fmt['frame_rate']
+        total_test_duration_ms = num_frames * frame_duration_ms
+        audio_packet_duration_ms = (AUDIO_SAMPLES_PER_PACKET / fmt['audio_sample_rate']) * 1000
+        total_audio_packets = int(total_test_duration_ms / audio_packet_duration_ms) + 1
+
+        for audio_packet_num in range(total_audio_packets):
+            packet_data = generate_audio_packet(audio_packet_num, fmt['audio_sample_rate'], total_test_duration_ms)
+
+            # Write packet to file with sequential numbering
+            packet_file = audio_dir / f"audio_{audio_packet_num:04d}.bin"
             packet_file.write_bytes(packet_data)
 
-        print(f"    Generated {num_frames} audio packets")
+        print(f"    Generated {total_audio_packets} audio packets ({audio_packet_duration_ms:.1f}ms/packet)")
 
         # Calculate disk space usage for this format
         format_size = 0

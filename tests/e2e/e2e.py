@@ -856,7 +856,7 @@ DockAreaVisible=false
 
                     bytes_sent = event['sock'].sendto(packet_data, event['dest'])
                     packets_sent += 1
-                    
+
                     # Update last packet time for graceful OBS shutdown
                     self.last_packet_time = time.time()
 
@@ -1038,18 +1038,18 @@ DockAreaVisible=false
             self.log("No packets sent, proceeding with immediate OBS shutdown")
             self.stop_obs()
             return
-            
+
         # Calculate remaining wait time
         elapsed_since_last_packet = time.time() - self.last_packet_time
         remaining_wait = self.obs_shutdown_timeout - elapsed_since_last_packet
-        
+
         if remaining_wait > 0:
             self.log(f"⏳ Waiting {remaining_wait:.1f}s for graceful OBS shutdown after last UDP packet...")
             time.sleep(remaining_wait)
-        
+
         self.log(f"✅ {self.obs_shutdown_timeout}s timeout reached, gracefully terminating OBS")
         self.stop_obs()
-    
+
     def stop_obs(self):
         """Stop OBS recording with proper cleanup."""
         self.log("Stopping OBS")
@@ -1394,7 +1394,7 @@ DockAreaVisible=false
 
             # Stop recording but keep OBS running for graceful shutdown
             self.stop_recording()
-            
+
             # Stop mock TCP server immediately to prevent plugin reconnection attempts during shutdown
             self.log("Stopping mock TCP server to prevent reconnections")
             self.stop_mock_c64_server()
