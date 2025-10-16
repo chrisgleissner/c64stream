@@ -238,23 +238,23 @@ jobs:
         id: check
         run: |
           : Check Image Age 🔍
-          
+
           # Check if image exists and get its creation date
           if docker manifest inspect ghcr.io/${{ github.repository }}/ubuntu-build:latest >/dev/null 2>&1; then
             # Pull image to inspect it locally (manifest doesn't have creation date)
             docker pull ghcr.io/${{ github.repository }}/ubuntu-build:latest >/dev/null 2>&1
-            
+
             created_timestamp=$(docker inspect ghcr.io/${{ github.repository }}/ubuntu-build:latest --format='{{.Created}}' 2>/dev/null || echo "")
-            
+
             if [[ -n "$created_timestamp" ]]; then
               created_date=$(echo "$created_timestamp" | cut -d'T' -f1)
               current_date=$(date -u +%Y-%m-%d)
               created_epoch=$(date -d "$created_date" +%s 2>/dev/null || echo "0")
               current_epoch=$(date -d "$current_date" +%s)
               age_days=$(( (current_epoch - created_epoch) / 86400 ))
-              
+
               echo "📅 Image age: $age_days days"
-              
+
               if [ "$age_days" -le 7 ]; then
                 echo "needs_build=false" >> $GITHUB_OUTPUT
                 echo "✅ Using existing image (age: $age_days days)"
@@ -266,7 +266,7 @@ jobs:
               fi
             fi
           fi
-          
+
           echo "needs_build=true" >> $GITHUB_OUTPUT
           echo "🔨 Image not found - will build new image"      - name: Set up Docker Buildx 🔧
         if: steps.check.outputs.needs_build == 'true'
