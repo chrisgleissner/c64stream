@@ -154,6 +154,7 @@ jobs:
             xvfb \
             curl \
             jq \
+            net-tools \
             build-essential \
             cmake \
             ninja-build \
@@ -344,6 +345,16 @@ jobs:
             echo "✅ Plugin data found at ~/.config/obs-studio/plugins/c64stream/data"
           else
             echo "⚠️ Plugin data directory not found"
+          fi
+
+      - name: Apply E2E Properties to System Plugin Data 🧩
+        run: |
+          : Apply E2E Properties to System Plugin Data 🧩
+          if [[ -d /usr/share/obs/obs-plugins/c64stream ]]; then
+            sudo cp tests/e2e/properties_e2e.ini /usr/share/obs/obs-plugins/c64stream/properties.ini
+            echo "✅ Applied E2E properties.ini to /usr/share/obs/obs-plugins/c64stream/"
+          else
+            echo "ℹ️ System plugin data dir not present; user data dir will be used by test harness"
           fi
 
       - name: Prepare E2E Test Environment 🔧

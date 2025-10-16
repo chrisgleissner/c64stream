@@ -164,7 +164,7 @@ class E2ETest:
                 self.log(f"❌ Failed to create plugin data directory: {e}")
                 return False
 
-        # Copy E2E properties file
+        # Copy E2E properties file (user plugin data dir)
         script_dir = Path(__file__).parent
         e2e_properties = script_dir / 'properties_e2e.ini'
         target_properties = plugin_data_dir / 'properties.ini'
@@ -173,6 +173,21 @@ class E2ETest:
             try:
                 shutil.copy2(e2e_properties, target_properties)
                 self.log(f"✅ Copied E2E properties: {e2e_properties} -> {target_properties}")
+                # Best-effort: if plugin is installed system-wide, also try to apply
+                # properties to the module data path used by obs_module_file()
+                # This is where presets were loaded from on CI (e.g. /usr/share/obs/obs-plugins/c64stream)
+                system_data_dir = Path('/usr/share/obs/obs-plugins/c64stream')
+                if system_data_dir.exists():
+                    try:
+                        sys_target = system_data_dir / 'properties.ini'
+                        # Only attempt if writable; actual privileged overwrite is handled in CI workflow
+                        if os.access(system_data_dir, os.W_OK):
+                            shutil.copy2(e2e_properties, sys_target)
+                            self.log(f"✅ Applied E2E properties to system data dir: {sys_target}")
+                        else:
+                            self.log(f"ℹ️ System data dir not writable (will be handled by workflow): {system_data_dir}")
+                    except Exception as se:
+                        self.log(f"⚠️ Could not apply system properties.ini: {se}")
                 return True
             except Exception as e:
                 self.log(f"❌ Failed to copy E2E properties: {e}")
@@ -359,6 +374,22 @@ DockAreaVisible=false
         with open(scene_file, 'w') as f:
             json.dump(scene_config, f, indent=2)
 
+        # Register the scene collection so OBS can discover it by name
+        try:
+            scenes_index = obs_config_dir / 'basic' / 'scenes' / 'scenes.json'
+            scenes_index.parent.mkdir(parents=True, exist_ok=True)
+            index_payload = {
+                "current_scene_collection": "C64StreamTest",
+                "scene_collections": [
+                    {"name": "C64StreamTest", "path": "C64StreamTest.json"}
+                ]
+            }
+            with open(scenes_index, 'w') as idx:
+                json.dump(index_payload, idx, indent=2)
+            self.log(f"✅ Registered scene collection: {scenes_index}")
+        except Exception as e:
+            self.log(f"⚠️ Failed to register scene collection: {e}")
+
         self.log(f"✅ Created OBS profile at {profile_dir}")
         return profile_dir
 
@@ -491,6 +522,7 @@ DockAreaVisible=false
                 'obs',
                 '--profile', 'C64StreamTest',
                 '--scene-collection', 'C64StreamTest',
+                '--scene', 'C64 Test Scene',
                 '--startrecording',  # Auto-start recording
                 '--minimize-to-tray',
                 '--disable-updater',
@@ -1506,7 +1538,7 @@ DockAreaVisible=false
                                 self.log(f"    {line}")
                         else:
                             self.log("  - No plugin-related log entries found")
-                            
+
                         # Look for async task or streaming messages
                         async_lines = [line for line in content.split('\n') if 'async' in line.lower() or 'streaming' in line.lower() or 'retry' in line.lower()]
                         if async_lines:
