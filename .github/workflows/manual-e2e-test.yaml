@@ -409,6 +409,8 @@ jobs:
 
           # Start Xvfb for headless operation with proper cleanup
           export DISPLAY=:99
+          # Enable plugin auto-create of source for CI reliability
+          export C64_E2E_AUTOCREATE=1
 
           # Clean up any stale X lock files from previous runs
           sudo rm -f /tmp/.X99-lock /tmp/.X*-lock 2>/dev/null || true

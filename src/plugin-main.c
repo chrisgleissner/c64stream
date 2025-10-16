@@ -31,6 +31,9 @@ bool c64_debug_logging = true;
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en")
 
+// E2E test support: keep a reference to an auto-created source (if enabled via env)
+static obs_source_t *g_e2e_autocreated_source = NULL;
+
 bool obs_module_load(void)
 {
     C64_LOG_INFO("Loading %s", c64_get_version_string());
@@ -59,12 +62,30 @@ bool obs_module_load(void)
 
     obs_register_source(&c64_info);
     C64_LOG_INFO("C64 Stream plugin loaded successfully");
+
+    // E2E: Auto-create a source instance when requested via environment variable.
+    // This avoids dependency on scene collection behavior on CI runners.
+    const char *auto_env = getenv("C64_E2E_AUTOCREATE");
+    if (auto_env && (strcmp(auto_env, "1") == 0 || strcasecmp(auto_env, "true") == 0)) {
+        obs_data_t *settings = obs_data_create();
+        g_e2e_autocreated_source = obs_source_create("c64_source", "C64 Stream Source", settings, NULL);
+        if (g_e2e_autocreated_source) {
+            C64_LOG_INFO("E2E: Auto-created hidden C64 source for CI testing");
+        } else {
+            C64_LOG_WARNING("E2E: Failed to auto-create C64 source");
+        }
+        obs_data_release(settings);
+    }
     return true;
 }
 
 void obs_module_unload(void)
 {
     C64_LOG_INFO("Unloading C64 Stream plugin");
+    if (g_e2e_autocreated_source) {
+        obs_source_release(g_e2e_autocreated_source);
+        g_e2e_autocreated_source = NULL;
+    }
     c64_presets_cleanup();
     c64_cleanup_networking();
 }
