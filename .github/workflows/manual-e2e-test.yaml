@@ -356,6 +356,39 @@ jobs:
           # Install Python dependencies
           python3 -m pip install --user numpy pillow
 
+      - name: Debug Plugin Installation 🔍
+        run: |
+          : Debug Plugin Installation 🔍
+          echo "=== OBS Plugin Directory Structure ==="
+          echo "User plugin directory:"
+          ls -la ~/.config/obs-studio/plugins/ 2>/dev/null || echo "User plugin directory does not exist"
+          echo
+          echo "C64 Stream plugin directory:"
+          ls -la ~/.config/obs-studio/plugins/c64stream/ 2>/dev/null || echo "C64 Stream plugin directory does not exist"
+          echo
+          echo "C64 Stream plugin binary directory:"
+          ls -la ~/.config/obs-studio/plugins/c64stream/bin/ 2>/dev/null || echo "C64 Stream plugin binary directory does not exist"
+          echo
+          echo "C64 Stream plugin data directory:"
+          ls -la ~/.config/obs-studio/plugins/c64stream/data/ 2>/dev/null || echo "C64 Stream plugin data directory does not exist"
+          echo
+          echo "System plugin directories:"
+          ls -la /usr/lib/obs-plugins/ 2>/dev/null || echo "System plugin directory does not exist"
+          ls -la /usr/lib/x86_64-linux-gnu/obs-plugins/ 2>/dev/null || echo "System arch plugin directory does not exist"
+          echo
+          echo "System plugin data directories:"
+          ls -la /usr/share/obs/obs-plugins/ 2>/dev/null || echo "System plugin data directory does not exist"
+          echo
+          echo "=== Plugin Binary Details ==="
+          for path in ~/.config/obs-studio/plugins/c64stream/bin/64bit/c64stream.so /usr/lib/obs-plugins/c64stream.so /usr/lib/x86_64-linux-gnu/obs-plugins/c64stream.so; do
+            if [[ -f "$path" ]]; then
+              echo "Found plugin at: $path"
+              ls -la "$path"
+              file "$path"
+              echo
+            fi
+          done
+
       - name: Run E2E Test 🎬
         timeout-minutes: 10
         id: e2e_test
