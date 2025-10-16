@@ -238,7 +238,7 @@ jobs:
         id: check
         run: |
           : Check Image Availability 🔍
-          
+
           # Check if image exists and is accessible
           if docker manifest inspect ghcr.io/${{ github.repository }}/ubuntu-build:latest >/dev/null 2>&1; then
             echo "needs_build=false" >> $GITHUB_OUTPUT
