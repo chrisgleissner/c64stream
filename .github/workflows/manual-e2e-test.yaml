@@ -12,8 +12,14 @@ on:
           - latest_build  # Latest successful build from main branch
           - latest_release  # Latest GitHub release
           - specific_release  # Specific release tag
+          - branch_build  # Latest successful build from a specific branch
       release_tag:
         description: 'Release tag (only used when source_type is specific_release, e.g., v1.0.0)'
+        required: false
+        default: ''
+        type: string
+      branch:
+        description: 'Branch name (only used when source_type is branch_build)'
         required: false
         default: ''
         type: string
@@ -101,6 +107,31 @@ jobs:
             echo "📦 Using specified release: ${release_tag}"
             echo "sourceType=release" >> $GITHUB_OUTPUT
             echo "releaseTag=${release_tag}" >> $GITHUB_OUTPUT
+          elif [[ "${source_type}" == "branch_build" ]]; then
+            branch_name="${{ inputs.branch }}"
+            if [[ -z "${branch_name}" ]]; then
+              echo "❌ Branch name must be specified for source_type=branch_build"
+              exit 1
+            fi
+            echo "📦 Fetching latest successful build from branch '${branch_name}'..."
+            workflow_run=$(curl -s \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/chrisgleissner/c64stream/actions/runs?status=success&branch=${branch_name}&per_page=1" \
+              | jq -r '.workflow_runs[0]')
+
+            run_id=$(echo "$workflow_run" | jq -r '.id')
+            commit_sha=$(echo "$workflow_run" | jq -r '.head_sha')
+
+            if [[ -z "${run_id}" || "${run_id}" == "null" ]]; then
+              echo "❌ Could not find latest successful build for branch '${branch_name}'"
+              exit 1
+            fi
+
+            echo "📦 Found workflow run: ${run_id} (commit: ${commit_sha:0:9})"
+            echo "sourceType=branch_build" >> $GITHUB_OUTPUT
+            echo "workflowRunId=${run_id}" >> $GITHUB_OUTPUT
+            echo "branchName=${branch_name}" >> $GITHUB_OUTPUT
           fi
 
           echo "format=${{ inputs.format || 'PAL' }}" >> $GITHUB_OUTPUT
@@ -133,7 +164,7 @@ jobs:
           : Download and Install Plugin 📥
           source_type="${{ steps.setup.outputs.sourceType }}"
           
-          if [[ "${source_type}" == "latest_build" ]]; then
+          if [[ "${source_type}" == "latest_build" || "${source_type}" == "branch_build" ]]; then
             # Download from latest successful build artifact
             run_id="${{ steps.setup.outputs.workflowRunId }}"
             echo "📦 Downloading artifact from workflow run ${run_id}..."
@@ -283,21 +314,27 @@ jobs:
                 echo "✅ Plugin data installed"
               fi
             fi
-          fi      - name: Verify Plugin Installation 🔍
+          fi
 
-      - name: Verify Plugin Installation
+      - name: Verify Plugin Installation 🔍
         run: |
-          if [[ -f /usr/lib/obs-plugins/c64stream.so ]]; then
-            echo "✅ Plugin binary found at /usr/lib/obs-plugins/c64stream.so"
+          user_bin="$HOME/.config/obs-studio/plugins/c64stream/bin/64bit/c64stream.so"
+          sys_bin="/usr/lib/obs-plugins/c64stream.so"
+          if [[ -f "$sys_bin" ]]; then
+            echo "✅ Plugin binary found at $sys_bin"
+          elif [[ -f "$user_bin" ]]; then
+            echo "✅ Plugin binary found at $user_bin"
           else
-            echo "❌ Plugin binary not found"
+            echo "❌ Plugin binary not found (checked $sys_bin and $user_bin)"
             exit 1
           fi
 
           if [[ -d /usr/share/obs/obs-plugins/c64stream ]]; then
             echo "✅ Plugin data found at /usr/share/obs/obs-plugins/c64stream"
+          elif [[ -d "$HOME/.config/obs-studio/plugins/c64stream/data" ]]; then
+            echo "✅ Plugin data found at ~/.config/obs-studio/plugins/c64stream/data"
           else
-            echo "⚠️ Plugin data not found"
+            echo "⚠️ Plugin data directory not found"
           fi
 
       - name: Prepare E2E Test Environment 🔧
