@@ -24,7 +24,7 @@ jobs:
     secrets: inherit
     permissions:
       contents: read
-      packages: read
+      packages: write
 
   manual-e2e:
     if: inputs.job == 'e2e-test'
