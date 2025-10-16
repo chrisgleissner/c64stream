@@ -8,9 +8,9 @@ This directory contains Docker-based build configurations that dramatically spee
 - **Docker Container Build**: ~1-2 minutes (0.5min container start + 1min plugin build)
 - **Speed Improvement**: ~60-75% faster
 
-## Build Strategies
+## Build Strategy
 
-### 1. Pre-built Container (`Dockerfile.ubuntu-build`)
+### Pre-built Container (`Dockerfile.ubuntu-build`)
 
 Uses a pre-built base image with OBS Studio and Qt6 already installed.
 
@@ -19,12 +19,13 @@ Uses a pre-built base image with OBS Studio and Qt6 already installed.
 - Fastest builds (~1-2 minutes)
 - Consistent environment
 - Cached dependency installation
+- Automatic rebuild when Dockerfile changes
 
 **Cons:**
 
 - Requires maintaining custom image
 - Initial image build takes ~10 minutes
-- Monthly rebuilds needed for security updates
+- Weekly rebuilds for security updates (automatic)
 
 **Usage:**
 
@@ -36,54 +37,24 @@ jobs:
       image: ghcr.io/chrisgleissner/c64stream/ubuntu-build:latest
 ```
 
-### 2. Multi-stage Build (`Dockerfile.multi-stage`)
+## Current Implementation
 
-Builds dependencies and plugin in separate stages for optimal caching.
+The Docker build system is integrated into the main `build-project.yaml` workflow:
 
-**Pros:**
-
-- No custom base image needed
-- Docker layer caching optimizes builds
-- Self-contained build process
-
-**Cons:**
-
-- Slightly slower than pre-built (~2-3 minutes)
-- More complex Dockerfile
-
-**Usage:**
-
-```bash
-docker build -f .github/docker/Dockerfile.multi-stage --target plugin-build .
-```
-
-## Workflows
-
-### Build Docker Images (`build-docker-images.yaml`)
-
-- Builds and publishes the base Ubuntu build image
-- Runs monthly to get security updates
-- Triggered by changes to Docker files
-
-### Containerized Build (`containerized-build.yaml`)
-
-- Fast plugin builds using multi-stage Docker
-- Alternative to traditional VM-based builds
-- Produces same artifacts as main build
+- **Automatic Image Management**: Checks if Docker image exists and is recent
+- **Smart Rebuilding**: Rebuilds image when Dockerfile changes or age > 7 days  
+- **Transparent Integration**: Uses Docker container for Ubuntu builds seamlessly
+- **No Manual Steps**: Everything works automatically
 
 ## Local Development
 
 ### Build Plugin with Docker
 
 ```bash
-# Using pre-built image (fastest)
+# Using pre-built image (matches CI environment)
 docker run --rm -v $(pwd):/workspace \
   ghcr.io/chrisgleissner/c64stream/ubuntu-build:latest \
   bash -c "cd /workspace && cmake --preset ubuntu-x86_64 && cmake --build build_x86_64"
-
-# Using multi-stage build (self-contained)
-docker build -f .github/docker/Dockerfile.multi-stage --target plugin-build -t c64stream-build .
-docker run --rm -v $(pwd)/output:/output c64stream-build cp /workspace/build_x86_64/c64stream.so /output/
 ```
 
 ### Update Base Image
