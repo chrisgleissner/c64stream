@@ -83,9 +83,8 @@ jobs:
 
           echo "commitHash=${GITHUB_SHA:0:9}" >> $GITHUB_OUTPUT
 
-          local product_name product_version
-          read -r product_name product_version <<< \
-            "$(jq -r '. | {name, version} | join(" ")' buildspec.json)"
+          product_name_version=$(jq -r '. | {name, version} | join(" ")' buildspec.json)
+          read -r product_name product_version <<< "${product_name_version}"
 
           echo "pluginName=${product_name}" >> $GITHUB_OUTPUT
           echo "pluginVersion=${product_version}" >> $GITHUB_OUTPUT
@@ -93,8 +92,8 @@ jobs:
           echo "🏗️ Build Configuration:"
           echo "  - Containerized Ubuntu: ${{ inputs.use_containerized }}"
           echo "  - Containerized E2E: ${{ inputs.use_containerized_e2e }}"
-          echo "  - Package: ${package}"
-          echo "  - Config: ${config}"
+          echo "  - Package: Setting from config_data"
+          echo "  - Config: Setting from config_data"
 
   # Containerized Ubuntu Build (Fast)
   ubuntu-build-containerized:
@@ -106,9 +105,79 @@ jobs:
   # Traditional Ubuntu Build (Fallback)
   ubuntu-build-traditional:
     name: Ubuntu Build (Traditional) 🐧
+    runs-on: ubuntu-24.04
     if: ${{ !inputs.use_containerized }}
     needs: [check-event]
-    uses: ./.github/workflows/build-project.yaml
+    outputs:
+      pluginName: ${{ steps.setup.outputs.pluginName }}
+      pluginVersion: ${{ steps.setup.outputs.pluginVersion }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install Dependencies 🛠️
+        run: |
+          : Install Dependencies 🛠️
+          sudo apt-get update -qq
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            ninja-build \
+            ccache \
+            pkg-config \
+            libsimde-dev
+
+      - name: Set Up Environment 🔧
+        id: setup
+        run: |
+          : Set Up Environment 🔧
+          if [[ "${RUNNER_DEBUG}" ]]; then set -x; fi
+
+          product_name_version=$(jq -r '. | {name, version} | join(" ")' buildspec.json)
+          read -r product_name product_version <<< "${product_name_version}"
+
+          echo "pluginName=${product_name}" >> $GITHUB_OUTPUT
+          echo "pluginVersion=${product_version}" >> $GITHUB_OUTPUT
+
+      - uses: actions/cache/restore@v4
+        id: ccache-cache
+        with:
+          path: ${{ github.workspace }}/.ccache
+          key: traditional-ccache-${{ needs.check-event.outputs.config }}-${{ github.sha }}
+          restore-keys: |
+            traditional-ccache-${{ needs.check-event.outputs.config }}-
+            traditional-ccache-
+
+      - name: Build Plugin 🧱
+        uses: ./.github/actions/build-plugin
+        with:
+          target: x86_64
+          config: ${{ needs.check-event.outputs.config }}
+
+      - name: Package Plugin 📀
+        uses: ./.github/actions/package-plugin
+        with:
+          target: x86_64
+          config: ${{ needs.check-event.outputs.config }}
+          package: ${{ fromJSON(needs.check-event.outputs.package) }}
+          version: ${{ needs.check-event.outputs.pluginVersion }}
+
+      - name: Upload Artifacts 📡
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-ubuntu-24.04-x86_64-${{ needs.check-event.outputs.commitHash }}
+          path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-x86_64*.*
+
+      - uses: actions/cache/save@v4
+        if: github.event_name != 'pull_request' && steps.ccache-cache.outputs.cache-hit != 'true'
+        with:
+          path: ${{ github.workspace }}/.ccache
+          key: traditional-ccache-${{ needs.check-event.outputs.config }}-${{ github.sha }}
 
   # macOS Build (unchanged)
   macos-build:
