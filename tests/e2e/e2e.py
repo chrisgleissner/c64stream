@@ -1426,6 +1426,41 @@ DockAreaVisible=false
             # Brief moment for plugin to connect to TCP server
             self.log("⏳ Allowing plugin to connect to mock server...")
             time.sleep(0.1)  # Minimal delay - plugin connects very quickly
+            
+            # Try to manually trigger plugin connection via WebSocket API
+            self.log("🔧 Attempting to manually trigger plugin connection...")
+            try:
+                # Wait for OBS WebSocket to be ready
+                if self.wait_for_obs_websocket(timeout=10):
+                    # Update the C64 Stream source settings to trigger connection
+                    source_settings = {
+                        "c64_host": "localhost",
+                        "video_port": self.video_port,
+                        "audio_port": self.audio_port,
+                        "control_port": self.control_port,
+                        "record_csv": True
+                    }
+                    
+                    # Send request to update source settings
+                    request_data = {
+                        "request-type": "SetSourceSettings",
+                        "sourceName": "C64 Stream Source",
+                        "sourceSettings": source_settings
+                    }
+                    
+                    self.log(f"  - Sending WebSocket request: {request_data}")
+                    response = self.send_obs_request("SetSourceSettings", request_data)
+                    if response:
+                        self.log("  - ✅ Successfully updated source settings")
+                    else:
+                        self.log("  - ❌ Failed to update source settings")
+                        
+                    # Give plugin time to process the update
+                    time.sleep(2)
+                else:
+                    self.log("  - ❌ OBS WebSocket not available")
+            except Exception as e:
+                self.log(f"  - ❌ Error triggering plugin connection: {e}")
 
             # OBS is already recording (started with --startrecording flag)
             # No need for additional WebSocket recording start
@@ -1438,7 +1473,7 @@ DockAreaVisible=false
             if logs_dir.exists():
                 log_files = list(logs_dir.glob('*.txt'))
                 log_files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
-                
+
                 # Check the most recent log file for plugin activity
                 if log_files:
                     latest_log = log_files[0]
@@ -1446,7 +1481,7 @@ DockAreaVisible=false
                     try:
                         with open(latest_log, 'r') as f:
                             content = f.read()
-                            
+
                         # Look for plugin-related messages
                         plugin_lines = [line for line in content.split('\n') if 'c64' in line.lower() or 'C64' in line]
                         if plugin_lines:
@@ -1455,19 +1490,19 @@ DockAreaVisible=false
                                 self.log(f"    {line}")
                         else:
                             self.log("  - No plugin-related log entries found")
-                            
+
                         # Look for any error messages
                         error_lines = [line for line in content.split('\n') if 'error' in line.lower() or 'failed' in line.lower()]
                         if error_lines:
                             self.log(f"  - Found {len(error_lines)} error/warning messages:")
                             for line in error_lines[-5:]:  # Show last 5 error lines
                                 self.log(f"    {line}")
-                            
+
                     except Exception as e:
                         self.log(f"  - Could not read log file: {e}")
             else:
                 self.log("  - OBS logs directory not found")
-                
+
             # Check if plugin properties file exists and is readable
             plugin_props_file = Path.home() / '.config' / 'obs-studio' / 'plugins' / 'c64stream' / 'data' / 'properties.ini'
             if plugin_props_file.exists():
