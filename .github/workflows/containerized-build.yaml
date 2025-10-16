@@ -10,107 +10,11 @@ on:
         description: Project version detected by parsing build spec file  
         value: ${{ jobs.containerized-ubuntu-build.outputs.pluginVersion }}
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}/ubuntu-build
-
 jobs:
-  check-or-build-image:
-    name: Check/Build Docker Image 🐳
-    runs-on: ubuntu-24.04
-    outputs:
-      image-available: ${{ steps.check.outputs.available }}
-      image-tag: ${{ steps.check.outputs.tag }}
-    steps:
-      - name: Check Image Availability 🔍
-        id: check
-        continue-on-error: true
-        run: |
-          : Check Image Availability 🔍
-          
-          # Try to pull image to check if it exists and is accessible
-          if docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest >/dev/null 2>&1; then
-            echo "✅ Image exists and is accessible"
-            
-            # Get image creation date (simplified approach)
-            created_timestamp=$(docker inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest --format='{{.Created}}' 2>/dev/null || echo "")
-            
-            if [[ -n "$created_timestamp" ]]; then
-              # Extract date part (YYYY-MM-DD) 
-              created_date=$(echo "$created_timestamp" | cut -d'T' -f1)
-              current_date=$(date -u +%Y-%m-%d)
-              
-              # Simple age calculation using date command
-              created_epoch=$(date -d "$created_date" +%s 2>/dev/null || echo "0")
-              current_epoch=$(date -d "$current_date" +%s)
-              age_days=$(( (current_epoch - created_epoch) / 86400 ))
-              
-              echo "Image age: $age_days days"
-              
-              if [ "$age_days" -le 7 ]; then
-                echo "available=true" >> $GITHUB_OUTPUT
-                echo "✅ Using existing image (age: $age_days days)"
-              else
-                echo "available=false" >> $GITHUB_OUTPUT
-                echo "⚠️ Image too old ($age_days days), will rebuild"
-              fi
-            else
-              echo "available=false" >> $GITHUB_OUTPUT
-              echo "⚠️ Cannot determine image age, will rebuild"
-            fi
-          else
-            echo "available=false" >> $GITHUB_OUTPUT
-            echo "⚠️ Image not found or not accessible, will build"
-          fi
-          
-          # Always set tag output for consistency
-          echo "tag=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_OUTPUT
-
-      - name: Checkout Repository 📥
-        if: steps.check.outputs.available != 'true'
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up Docker Buildx 🔧
-        if: steps.check.outputs.available != 'true'
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to Container Registry 🔑
-        if: steps.check.outputs.available != 'true'
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and Push Image 🚀
-        if: steps.check.outputs.available != 'true'
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: .github/docker/Dockerfile.ubuntu-build
-          platforms: linux/amd64
-          push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Update Output for New Image 📝
-        if: steps.check.outputs.available != 'true'
-        run: |
-          echo "tag=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_OUTPUT
-          echo "✅ Built and pushed new image"
-
   containerized-ubuntu-build:
     name: Ubuntu Build (Containerized) 🐧🐳
     runs-on: ubuntu-24.04
-    needs: [check-or-build-image]
-    container:
-      image: ghcr.io/chrisgleissner/c64stream/ubuntu-build:latest
-      credentials:
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
+    # No pre-built container - we'll use Docker build with multi-stage
     outputs:
       pluginName: ${{ steps.setup.outputs.pluginName }}
       pluginVersion: ${{ steps.setup.outputs.pluginVersion }}
@@ -140,50 +44,52 @@ jobs:
 
           echo "🔧 Building ${product_name} v${product_version}"
 
-      - name: Configure ccache 🗄️
-        run: |
-          : Configure ccache 🗄️
-          ccache --set-config cache_dir=/workspace/.ccache
-          ccache --set-config max_size=2G
-          ccache --show-config
-          ccache --zero-stats
+      - name: Set up Docker Buildx 🔧
+        uses: docker/setup-buildx-action@v3
 
-      - name: Restore ccache 💾
-        uses: actions/cache/restore@v4
-        id: ccache-cache
-        with:
-          path: /workspace/.ccache
-          key: containerized-ccache-RelWithDebInfo-${{ github.sha }}
-          restore-keys: |
-            containerized-ccache-RelWithDebInfo-
-            containerized-ccache-
-
-      - name: Build Plugin 🧱
+      - name: Build Plugin with Docker 🧱
         id: build
         run: |
-          : Build Plugin 🧱
-          # Use the build script from the repository
-          export PATH="/usr/local/bin:$PATH"
+          : Build Plugin with Docker 🧱
           
-          # Configure CMake
-          cmake --preset ubuntu-x86_64
+          # Use multi-stage Docker build that automatically builds the environment if needed
+          docker build -f .github/docker/Dockerfile.multi-stage --target plugin-build -t c64stream-build .
           
-          # Build with Ninja
-          cmake --build build_x86_64 --config RelWithDebInfo --parallel
+          # Extract the built plugin from the container
+          docker run --rm -v "$(pwd):/output" c64stream-build bash -c "
+            cp /workspace/build_x86_64/c64stream.so /output/ 2>/dev/null || 
+            cp /workspace/build*/c64stream.so /output/ 2>/dev/null || 
+            cp /workspace/*/c64stream.so /output/ 2>/dev/null || 
+            (echo 'Plugin not found in expected locations:' && find /workspace -name 'c64stream.so' -type f)
+          "
           
-          # Mark success
-          echo "success=true" >> $GITHUB_OUTPUT
+          # Verify the plugin was extracted
+          if [[ -f "c64stream.so" ]]; then
+            echo "✅ Plugin built successfully"
+            echo "success=true" >> $GITHUB_OUTPUT
+            
+            # Create proper build structure for packaging
+            mkdir -p build_x86_64
+            cp c64stream.so build_x86_64/
+          else
+            echo "❌ Plugin build failed - file not found"
+            exit 1
+          fi
 
-      - name: Show ccache stats 📊
-        run: |
-          : Show ccache stats 📊
-          ccache --show-stats
-
-      - name: Package Plugin 📦
+      - name: Package Plugin �
         run: |
           : Package Plugin 📦
-          cd build_x86_64
-          cpack -G "TXZ;DEB;External" -C RelWithDebInfo
+          
+          # Create a simple tarball package since we have the plugin binary
+          mkdir -p release
+          
+          product_name_version=$(jq -r '. | {name, version} | join(" ")' buildspec.json)
+          read -r product_name product_version <<< "${product_name_version}"
+          
+          # Create tarball
+          tar -czf "release/${product_name}-${product_version}-x86_64-containerized.tar.gz" -C build_x86_64 c64stream.so
+          
+          echo "📦 Created package: release/${product_name}-${product_version}-x86_64-containerized.tar.gz"
 
       - name: Prepare Artifacts 📋
         run: |
@@ -204,7 +110,7 @@ jobs:
           # List what we built
           echo "📦 Built artifacts:"
           ls -la release/ || echo "No release artifacts found"
-          ls -la build_x86_64/ | grep -E '\.(so|tar\.xz|deb|ddeb)$' || echo "No build artifacts found"
+          ls -la build_x86_64/ | grep -E '\.(so|tar\.gz)$' || echo "No build artifacts found"
 
       - name: Upload Plugin Binary 📤
         uses: actions/upload-artifact@v4
@@ -212,22 +118,5 @@ jobs:
           name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-ubuntu-24.04-x86_64-${{ steps.setup.outputs.commitHash }}
           path: |
             build_x86_64/c64stream.so
-            release/*x86_64*.tar.xz
-            release/*x86_64*.deb
+            release/*x86_64*.tar.gz
           if-no-files-found: error
-
-      - name: Upload Debug Symbols 🪲
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-ubuntu-24.04-x86_64-${{ steps.setup.outputs.commitHash }}-dbgsym
-          path: |
-            release/*x86_64*-dbgsym.ddeb
-          if-no-files-found: warn
-
-      - name: Save ccache 💾
-        uses: actions/cache/save@v4
-        if: github.event_name != 'pull_request' && steps.ccache-cache.outputs.cache-hit != 'true'
-        with:
-          path: /workspace/.ccache
-          key: containerized-ccache-RelWithDebInfo-${{ github.sha }}
