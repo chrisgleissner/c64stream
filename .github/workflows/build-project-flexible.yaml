@@ -1,0 +1,185 @@
+name: Build Project (Flexible)
+
+on:
+  workflow_call:
+    inputs:
+      use_containerized:
+        description: 'Use containerized builds for faster execution'
+        required: false
+        default: true
+        type: boolean
+      use_containerized_e2e:
+        description: 'Use containerized E2E tests'
+        required: false
+        default: true
+        type: boolean
+    outputs:
+      pluginName:
+        description: Project name detected by parsing build spec file
+        value: ${{ jobs.check-event.outputs.pluginName }}
+      pluginVersion:
+        description: Project version detected by parsing build spec file
+        value: ${{ jobs.check-event.outputs.pluginVersion }}
+
+jobs:
+  check-event:
+    name: Check GitHub Event Data 🔎
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        shell: bash
+    outputs:
+      package: ${{ steps.setup.outputs.package }}
+      codesign: ${{ steps.setup.outputs.codesign }}
+      notarize: ${{ steps.setup.outputs.notarize }}
+      config: ${{ steps.setup.outputs.config }}
+      commitHash: ${{ steps.setup.outputs.commitHash }}
+      pluginName: ${{ steps.setup.outputs.pluginName }}
+      pluginVersion: ${{ steps.setup.outputs.pluginVersion }}
+      useContainerized: ${{ inputs.use_containerized }}
+      useContainerizedE2E: ${{ inputs.use_containerized_e2e }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check Event Data ☑️
+        id: setup
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          : Check Event Data ☑️
+          if [[ "${RUNNER_DEBUG}" ]]; then set -x; fi
+
+          case "${GITHUB_EVENT_NAME}" in
+            pull_request)
+              config_data=('codesign:false' 'notarize:false' 'package:false' 'config:RelWithDebInfo')
+              if gh pr view ${{ github.event.number }} --json labels \
+                | jq -e -r '.labels[] | select(.name == "Seeking Testers")' > /dev/null; then
+                config_data[0]='codesign:true'
+                config_data[2]='package:true'
+              fi
+              ;;
+            push)
+              config_data=('codesign:true' 'notarize:false' 'package:true' 'config:RelWithDebInfo')
+              if [[ ${GITHUB_REF_NAME} =~ [0-9]+.[0-9]+.[0-9]+(-(rc|beta).+)? ]]; then
+                config_data[1]='notarize:true'
+              fi
+              ;;
+            workflow_dispatch)
+              config_data=('codesign:false' 'notarize:false' 'package:true' 'config:RelWithDebInfo')
+              ;;
+            schedule)
+              config_data=('codesign:true' 'notarize:true' 'package:true' 'config:RelWithDebInfo')
+              ;;
+            *)
+              config_data=('codesign:false' 'notarize:false' 'package:false' 'config:RelWithDebInfo')
+              ;;
+          esac
+
+          for config in "${config_data[@]}"; do
+            IFS=':' read -r key value <<< "${config}"
+            echo "${key}=${value}" >> $GITHUB_OUTPUT
+          done
+
+          echo "commitHash=${GITHUB_SHA:0:9}" >> $GITHUB_OUTPUT
+
+          local product_name product_version
+          read -r product_name product_version <<< \
+            "$(jq -r '. | {name, version} | join(" ")' buildspec.json)"
+
+          echo "pluginName=${product_name}" >> $GITHUB_OUTPUT
+          echo "pluginVersion=${product_version}" >> $GITHUB_OUTPUT
+
+          echo "🏗️ Build Configuration:"
+          echo "  - Containerized Ubuntu: ${{ inputs.use_containerized }}"
+          echo "  - Containerized E2E: ${{ inputs.use_containerized_e2e }}"
+          echo "  - Package: ${package}"
+          echo "  - Config: ${config}"
+
+  # Containerized Ubuntu Build (Fast)
+  ubuntu-build-containerized:
+    name: Ubuntu Build (Containerized) 🐧🐳
+    if: ${{ inputs.use_containerized }}
+    needs: [check-event]
+    uses: ./.github/workflows/containerized-build.yaml
+
+  # Traditional Ubuntu Build (Fallback)
+  ubuntu-build-traditional:
+    name: Ubuntu Build (Traditional) 🐧
+    if: ${{ !inputs.use_containerized }}
+    needs: [check-event]
+    uses: ./.github/workflows/build-project.yaml
+
+  # macOS Build (unchanged)
+  macos-build:
+    name: Build for macOS 🍏
+    runs-on: macos-15
+    needs: check-event
+    defaults:
+      run:
+        shell: zsh --no-rcs --errexit --pipefail {0}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Set Up Environment 🔧
+        id: setup
+        run: |
+          : Set Up Environment 🔧
+          if (( ${+RUNNER_DEBUG} )) setopt XTRACE
+
+          print '::group::Enable Xcode 16.1'
+          sudo xcode-select --switch /Applications/Xcode_16.1.0.app/Contents/Developer
+          print '::endgroup::'
+
+          local product_name
+          read -r product_name <<< \
+            "$(jq -r '.name' buildspec.json)"
+
+          print "pluginName=${product_name}" >> $GITHUB_OUTPUT
+          print "pluginVersion=${{ needs.check-event.outputs.pluginVersion }}" >> $GITHUB_OUTPUT
+
+      - uses: actions/cache/restore@v4
+        id: ccache-cache
+        with:
+          path: ${{ github.workspace }}/.ccache
+          key: ${{ runner.os }}-ccache-${{ needs.check-event.outputs.config }}
+          restore-keys: |
+            ${{ runner.os }}-ccache-
+
+      - name: Build Plugin 🧱
+        uses: ./.github/actions/build-plugin
+        with:
+          target: macos-universal
+          config: ${{ needs.check-event.outputs.config }}
+
+      - name: Upload Artifacts 📡
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-macos-universal-${{ needs.check-event.outputs.commitHash }}
+          path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-macos-universal.*
+
+  # E2E Test (Containerized or Traditional)
+  e2e-test-containerized:
+    name: E2E Test (Containerized) 🧪🐳
+    if: ${{ inputs.use_containerized_e2e && always() && (needs.ubuntu-build-containerized.result == 'success' || needs.ubuntu-build-traditional.result == 'success') }}
+    needs: [check-event, ubuntu-build-containerized, ubuntu-build-traditional]
+    uses: ./.github/workflows/containerized-e2e-test.yaml
+    with:
+      format: 'PAL'
+      frames: '250'
+      monitor_resources: false
+      artifact_name: c64stream-${{ needs.check-event.outputs.pluginVersion }}-ubuntu-24.04-x86_64-${{ needs.check-event.outputs.commitHash }}
+
+  e2e-test-traditional:
+    name: E2E Test (Traditional) 🧪
+    if: ${{ !inputs.use_containerized_e2e && always() && (needs.ubuntu-build-containerized.result == 'success' || needs.ubuntu-build-traditional.result == 'success') }}
+    needs: [check-event, ubuntu-build-containerized, ubuntu-build-traditional]
+    uses: ./.github/workflows/e2e-test.yaml
+    with:
+      format: 'PAL'
+      frames: '250'
+      monitor_resources: false
+      artifact_name: c64stream-${{ needs.check-event.outputs.pluginVersion }}-ubuntu-24.04-x86_64-${{ needs.check-event.outputs.commitHash }}

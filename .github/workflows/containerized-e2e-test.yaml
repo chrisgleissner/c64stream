@@ -1,0 +1,310 @@
+name: Containerized E2E Test
+
+on:
+  workflow_call:
+    inputs:
+      format:
+        description: 'Video format (PAL or NTSC)'
+        required: false
+        default: 'PAL'
+        type: string
+      frames:
+        description: 'Number of frames to test'
+        required: false
+        default: '250'
+        type: string
+      monitor_resources:
+        description: 'Enable resource monitoring'
+        required: false
+        default: true
+        type: boolean
+      download_url:
+        description: 'URL to download plugin (.deb for releases, .zip for build artifacts)'
+        required: false
+        type: string
+      artifact_name:
+        description: 'Name of build artifact to download (for build artifacts)'
+        required: false
+        type: string
+
+jobs:
+  containerized-e2e-test:
+    name: Run E2E Tests (Containerized) 🧪🐳
+    runs-on: ubuntu-24.04
+    container:
+      image: ghcr.io/chrisgleissner/c64stream/ubuntu-build:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+      options: --shm-size=1g
+
+    steps:
+      - name: Checkout Code 📥
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Set Up Environment 🔧
+        id: setup
+        run: |
+          : Set Up Environment 🔧
+          if [[ "${RUNNER_DEBUG}" ]]; then set -x; fi
+
+          # Determine download method
+          download_url="${{ inputs.download_url }}"
+          artifact_name="${{ inputs.artifact_name }}"
+
+          if [[ -n "${download_url}" ]]; then
+            # External download (release or manual URL)
+            echo "downloadUrl=${download_url}" >> $GITHUB_OUTPUT
+
+            if [[ "${download_url}" == *.deb ]]; then
+              echo "downloadType=deb" >> $GITHUB_OUTPUT
+            elif [[ "${download_url}" == *.zip ]]; then
+              echo "downloadType=zip" >> $GITHUB_OUTPUT
+            else
+              echo "downloadType=unknown" >> $GITHUB_OUTPUT
+            fi
+          elif [[ -n "${artifact_name}" ]]; then
+            # GitHub Actions artifact download
+            echo "downloadType=artifact" >> $GITHUB_OUTPUT
+            echo "artifactName=${artifact_name}" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Neither download_url nor artifact_name provided"
+            exit 1
+          fi
+
+          # Set test parameters from inputs
+          echo "format=${{ inputs.format || 'PAL' }}" >> $GITHUB_OUTPUT
+          echo "frames=${{ inputs.frames || '250' }}" >> $GITHUB_OUTPUT
+          echo "monitor_resources=${{ inputs.monitor_resources || 'false' }}" >> $GITHUB_OUTPUT
+
+      - name: Install Additional E2E Dependencies 🛠️
+        run: |
+          : Install Additional E2E Dependencies 🛠️
+          # Container already has most dependencies, just add E2E-specific ones
+          apt-get update -qq
+          apt-get install -y --no-install-recommends \
+            python3-pip \
+            python3-numpy \
+            python3-pil \
+            ffmpeg \
+            xvfb \
+            curl \
+            unzip
+
+      - name: Set Up Virtual Display 🖥️
+        run: |
+          : Set Up Virtual Display 🖥️
+          export DISPLAY=:99
+          Xvfb :99 -screen 0 1920x1080x24 -ac +extension GLX +render -noreset &
+          echo "DISPLAY=:99" >> $GITHUB_ENV
+
+          # Wait for X server to start
+          sleep 2
+
+          # Verify display is working
+          if ! xdpyinfo -display :99 >/dev/null 2>&1; then
+            echo "❌ Virtual display setup failed"
+            exit 1
+          fi
+          echo "✅ Virtual display :99 is ready"
+
+      - name: Download Plugin (Release/URL) 📦
+        if: steps.setup.outputs.downloadType == 'deb' || steps.setup.outputs.downloadType == 'zip'
+        run: |
+          : Download Plugin 📦
+          download_url="${{ steps.setup.outputs.downloadUrl }}"
+
+          echo "📥 Downloading from: $download_url"
+          curl -sL "$download_url" -o plugin_package
+
+          # Determine file type and extract/install
+          if [[ "$download_url" == *.deb ]]; then
+            echo "📦 Installing .deb package"
+            sudo dpkg -i plugin_package || sudo apt-get install -f -y
+          elif [[ "$download_url" == *.zip ]]; then
+            echo "📦 Extracting .zip package"
+            unzip -q plugin_package
+            # Find the .so file and copy to plugin directory
+            find . -name "*.so" -exec cp {} . \;
+          fi
+
+      - name: Download Plugin (Artifact) 📦
+        if: steps.setup.outputs.downloadType == 'artifact'
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ steps.setup.outputs.artifactName }}
+          path: ./plugin_download
+
+      - name: Install Plugin from Artifact 🔧
+        if: steps.setup.outputs.downloadType == 'artifact'
+        run: |
+          : Install Plugin from Artifact 🔧
+
+          # Find and install the plugin
+          if [[ -f plugin_download/*.deb ]]; then
+            echo "📦 Installing .deb package from artifact"
+            sudo dpkg -i plugin_download/*.deb || sudo apt-get install -f -y
+          elif [[ -f plugin_download/c64stream.so ]]; then
+            echo "📦 Installing .so file from artifact"
+            mkdir -p ~/.config/obs-studio/plugins/c64stream/bin/64bit
+            mkdir -p ~/.config/obs-studio/plugins/c64stream/data
+            cp plugin_download/c64stream.so ~/.config/obs-studio/plugins/c64stream/bin/64bit/
+            if [[ -d data ]]; then
+              cp -r data/* ~/.config/obs-studio/plugins/c64stream/data/
+            fi
+          else
+            echo "❌ No suitable plugin file found in artifact"
+            ls -la plugin_download/
+            exit 1
+          fi
+
+      - name: Set Up OBS Studio Configuration 📺
+        run: |
+          : Set Up OBS Studio Configuration 📺
+
+          # Create OBS Studio configuration directories
+          mkdir -p ~/.config/obs-studio/basic/profiles/E2E-Test
+          mkdir -p ~/.config/obs-studio/basic/scenes
+          mkdir -p ~/.config/obs-studio/logs
+
+          # Create basic profile configuration
+          cat > ~/.config/obs-studio/basic/profiles/E2E-Test/basic.ini << 'EOF'
+          [General]
+          Name=E2E-Test
+
+          [Video]
+          BaseCX=1920
+          BaseCY=1080
+          OutputCX=1920
+          OutputCY=1080
+          FPSType=0
+          FPSNum=30000
+          FPSDen=1001
+
+          [Audio]
+          SampleRate=44100
+          ChannelSetup=Stereo
+          EOF
+
+          # Set default profile
+          cat > ~/.config/obs-studio/basic/profiles.ini << 'EOF'
+          [General]
+          Profile=E2E-Test
+          EOF
+
+          # Verify OBS can start (but don't keep it running)
+          echo "🔍 Testing OBS startup..."
+          timeout 10s obs --version || true
+
+          # Check if plugin is loaded
+          echo "🔍 Checking plugin installation..."
+          if obs --help 2>&1 | grep -q "c64" || [[ -f ~/.config/obs-studio/plugins/c64stream/bin/64bit/c64stream.so ]]; then
+            echo "✅ Plugin appears to be installed"
+          else
+            echo "⚠️ Plugin may not be properly installed"
+            find ~/.config/obs-studio -name "*c64*" || true
+          fi
+
+      - name: Build E2E Tools 🔧
+        run: |
+          : Build E2E Tools 🔧
+
+          # Build E2E test tools
+          cd tests/e2e
+          cmake -B build -G Ninja
+          cmake --build build
+
+      - name: Run E2E Test 🎬
+        id: e2e_test
+        run: |
+          : Run E2E Test 🎬
+          cd tests/e2e
+
+          # Set up test parameters
+          export DISPLAY=:99
+
+          # Prepare command arguments
+          cmd_args=()
+          cmd_args+=("--format" "${{ steps.setup.outputs.format }}")
+          cmd_args+=("--frames" "${{ steps.setup.outputs.frames }}")
+
+          if [[ "${{ steps.setup.outputs.monitor_resources }}" == "true" ]]; then
+            cmd_args+=("--monitor-resources")
+          fi
+
+          # Check X11 display before running
+          if ! xdpyinfo -display $DISPLAY >/dev/null 2>&1; then
+            echo "❌ X11 display not available - E2E test cannot run"
+            echo "⚠️ This is expected in containerized environments without X11 forwarding"
+            echo "⚠️ Continuing with E2E test - may fail due to display issues"
+          fi
+
+          # Run the test
+          echo "🎬 Running E2E test with args: ${cmd_args[*]}"
+          if timeout 300s ./e2e.sh "${cmd_args[@]}"; then
+            echo "E2E_RESULT=success" >> $GITHUB_OUTPUT
+            echo "✅ E2E test completed successfully"
+          else
+            exit_code=$?
+            echo "E2E_RESULT=failure" >> $GITHUB_OUTPUT
+            if [[ $exit_code -eq 124 ]]; then
+              echo "❌ E2E test timed out after 5 minutes"
+            else
+              echo "❌ E2E test failed with exit code $exit_code"
+            fi
+            exit $exit_code
+          fi
+
+      - name: Collect Test Artifacts 📊
+        if: always()
+        run: |
+          : Collect Test Artifacts 📊
+
+          # Create artifacts directory
+          mkdir -p e2e-artifacts
+
+          # Collect OBS logs
+          if [[ -d ~/.config/obs-studio/logs ]]; then
+            cp -r ~/.config/obs-studio/logs e2e-artifacts/obs-logs
+          fi
+
+          # Collect E2E test outputs
+          if [[ -d tests/e2e/output ]]; then
+            cp -r tests/e2e/output e2e-artifacts/test-output
+          fi
+
+          # Collect any crash dumps or core files
+          find . -name "core.*" -o -name "*.crash" -o -name "*.dmp" 2>/dev/null | head -5 | while read file; do
+            cp "$file" e2e-artifacts/ 2>/dev/null || true
+          done
+
+          echo "📊 Collected test artifacts:"
+          find e2e-artifacts -type f | head -20
+
+      - name: Upload Test Artifacts 📤
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-test-artifacts-${{ github.run_number }}
+          path: e2e-artifacts/
+          retention-days: 7
+
+      - name: Test Results Summary 📋
+        if: always()
+        run: |
+          : Test Results Summary 📋
+
+          result="${{ steps.e2e_test.outputs.E2E_RESULT || 'failure' }}"
+
+          if [[ "$result" == "success" ]]; then
+            echo "🎉 **E2E Test PASSED**"
+            echo "✅ Plugin loaded and functioned correctly"
+            echo "✅ Video format: ${{ steps.setup.outputs.format }}"
+            echo "✅ Frames processed: ${{ steps.setup.outputs.frames }}"
+          else
+            echo "❌ **E2E Test FAILED**"
+            echo "⚠️ Check artifacts for logs and debugging information"
+          fi

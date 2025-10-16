@@ -1,0 +1,136 @@
+name: Containerized Build
+
+on:
+  workflow_call:
+    outputs:
+      pluginName:
+        description: Project name detected by parsing build spec file
+        value: ${{ jobs.containerized-ubuntu-build.outputs.pluginName }}
+      pluginVersion:
+        description: Project version detected by parsing build spec file
+        value: ${{ jobs.containerized-ubuntu-build.outputs.pluginVersion }}
+
+jobs:
+  containerized-ubuntu-build:
+    name: Ubuntu Build (Containerized) 🐧🐳
+    runs-on: ubuntu-24.04
+    container:
+      image: ghcr.io/chrisgleissner/c64stream/ubuntu-build:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    outputs:
+      pluginName: ${{ steps.setup.outputs.pluginName }}
+      pluginVersion: ${{ steps.setup.outputs.pluginVersion }}
+      commitHash: ${{ steps.setup.outputs.commitHash }}
+
+    steps:
+      - name: Checkout Repository 📥
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Set Up Environment 🔧
+        id: setup
+        run: |
+          : Set Up Environment 🔧
+          if [[ "${RUNNER_DEBUG}" ]]; then set -x; fi
+
+          # Extract project info
+          read -r product_name product_version <<< \
+            "$(jq -r '. | {name, version} | join(" ")' buildspec.json)"
+
+          echo "pluginName=${product_name}" >> $GITHUB_OUTPUT
+          echo "pluginVersion=${product_version}" >> $GITHUB_OUTPUT
+          echo "commitHash=${GITHUB_SHA:0:9}" >> $GITHUB_OUTPUT
+
+          echo "🔧 Building ${product_name} v${product_version}"
+
+      - name: Configure ccache 🗄️
+        run: |
+          : Configure ccache 🗄️
+          ccache --set-config cache_dir=/workspace/.ccache
+          ccache --set-config max_size=2G
+          ccache --show-config
+          ccache --zero-stats
+
+      - name: Restore ccache 💾
+        uses: actions/cache/restore@v4
+        id: ccache-cache
+        with:
+          path: /workspace/.ccache
+          key: containerized-ccache-RelWithDebInfo-${{ github.sha }}
+          restore-keys: |
+            containerized-ccache-RelWithDebInfo-
+            containerized-ccache-
+
+      - name: Build Plugin 🧱
+        run: |
+          : Build Plugin 🧱
+          # Use the build script from the repository
+          export PATH="/usr/local/bin:$PATH"
+
+          # Configure CMake
+          cmake --preset ubuntu-x86_64
+
+          # Build with Ninja
+          cmake --build build_x86_64 --config RelWithDebInfo --parallel
+
+      - name: Show ccache stats 📊
+        run: |
+          : Show ccache stats 📊
+          ccache --show-stats
+
+      - name: Package Plugin 📦
+        run: |
+          : Package Plugin 📦
+          cd build_x86_64
+          cpack -G "TXZ;DEB;External" -C RelWithDebInfo
+
+      - name: Prepare Artifacts 📋
+        run: |
+          : Prepare Artifacts 📋
+          mkdir -p release
+
+          # Move artifacts to release directory
+          if [[ -f build_x86_64/*.tar.xz ]]; then
+            mv build_x86_64/*.tar.xz release/
+          fi
+          if [[ -f build_x86_64/*.deb ]]; then
+            mv build_x86_64/*.deb release/
+          fi
+          if [[ -f build_x86_64/*.ddeb ]]; then
+            mv build_x86_64/*.ddeb release/
+          fi
+
+          # List what we built
+          echo "📦 Built artifacts:"
+          ls -la release/ || echo "No release artifacts found"
+          ls -la build_x86_64/ | grep -E '\.(so|tar\.xz|deb|ddeb)$' || echo "No build artifacts found"
+
+      - name: Upload Plugin Binary 📤
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-ubuntu-24.04-x86_64-${{ steps.setup.outputs.commitHash }}
+          path: |
+            build_x86_64/c64stream.so
+            release/*x86_64*.tar.xz
+            release/*x86_64*.deb
+          if-no-files-found: error
+
+      - name: Upload Debug Symbols 🪲
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-ubuntu-24.04-x86_64-${{ steps.setup.outputs.commitHash }}-dbgsym
+          path: |
+            release/*x86_64*-dbgsym.ddeb
+          if-no-files-found: warn
+
+      - name: Save ccache 💾
+        uses: actions/cache/save@v4
+        if: github.event_name != 'pull_request' && steps.ccache-cache.outputs.cache-hit != 'true'
+        with:
+          path: /workspace/.ccache
+          key: containerized-ccache-RelWithDebInfo-${{ github.sha }}

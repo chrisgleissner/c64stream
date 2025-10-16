@@ -20,7 +20,10 @@ jobs:
 
   build-project:
     name: Build Project 🧱
-    uses: ./.github/workflows/build-project.yaml
+    uses: ./.github/workflows/build-project-flexible.yaml
+    with:
+      use_containerized: true
+      use_containerized_e2e: true
     secrets: inherit
     permissions:
       contents: read
