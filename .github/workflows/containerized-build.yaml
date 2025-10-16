@@ -7,7 +7,7 @@ on:
         description: Project name detected by parsing build spec file
         value: ${{ jobs.containerized-ubuntu-build.outputs.pluginName }}
       pluginVersion:
-        description: Project version detected by parsing build spec file  
+        description: Project version detected by parsing build spec file
         value: ${{ jobs.containerized-ubuntu-build.outputs.pluginVersion }}
 
 jobs:
@@ -20,7 +20,7 @@ jobs:
       pluginVersion: ${{ steps.setup.outputs.pluginVersion }}
       commitHash: ${{ steps.setup.outputs.commitHash }}
       success: ${{ steps.build.outputs.success }}
-    
+
     steps:
       - name: Checkout Repository 📥
         uses: actions/checkout@v4
@@ -51,23 +51,23 @@ jobs:
         id: build
         run: |
           : Build Plugin with Docker 🧱
-          
+
           # Use multi-stage Docker build that automatically builds the environment if needed
           docker build -f .github/docker/Dockerfile.multi-stage --target plugin-build -t c64stream-build .
-          
+
           # Extract the built plugin from the container
           docker run --rm -v "$(pwd):/output" c64stream-build bash -c "
-            cp /workspace/build_x86_64/c64stream.so /output/ 2>/dev/null || 
-            cp /workspace/build*/c64stream.so /output/ 2>/dev/null || 
-            cp /workspace/*/c64stream.so /output/ 2>/dev/null || 
+            cp /workspace/build_x86_64/c64stream.so /output/ 2>/dev/null ||
+            cp /workspace/build*/c64stream.so /output/ 2>/dev/null ||
+            cp /workspace/*/c64stream.so /output/ 2>/dev/null ||
             (echo 'Plugin not found in expected locations:' && find /workspace -name 'c64stream.so' -type f)
           "
-          
+
           # Verify the plugin was extracted
           if [[ -f "c64stream.so" ]]; then
             echo "✅ Plugin built successfully"
             echo "success=true" >> $GITHUB_OUTPUT
-            
+
             # Create proper build structure for packaging
             mkdir -p build_x86_64
             cp c64stream.so build_x86_64/
@@ -79,16 +79,16 @@ jobs:
       - name: Package Plugin �
         run: |
           : Package Plugin 📦
-          
+
           # Create a simple tarball package since we have the plugin binary
           mkdir -p release
-          
+
           product_name_version=$(jq -r '. | {name, version} | join(" ")' buildspec.json)
           read -r product_name product_version <<< "${product_name_version}"
-          
+
           # Create tarball
           tar -czf "release/${product_name}-${product_version}-x86_64-containerized.tar.gz" -C build_x86_64 c64stream.so
-          
+
           echo "📦 Created package: release/${product_name}-${product_version}-x86_64-containerized.tar.gz"
 
       - name: Prepare Artifacts 📋

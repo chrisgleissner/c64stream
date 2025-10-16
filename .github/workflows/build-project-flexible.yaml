@@ -230,21 +230,69 @@ jobs:
           name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-macos-universal-${{ needs.check-event.outputs.commitHash }}
           path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-macos-universal.*
 
-  # E2E Test (Containerized or Traditional)
-  e2e-test-containerized:
-    name: E2E Test (Containerized) 🧪🐳
-    if: ${{ inputs.use_containerized_e2e && always() && (needs.ubuntu-build-containerized.result == 'success' || needs.ubuntu-build-traditional.result == 'success') }}
-    needs: [check-event, ubuntu-build-containerized, ubuntu-build-traditional]
-    uses: ./.github/workflows/containerized-e2e-test.yaml
-    with:
-      format: 'PAL'
-      frames: '250'
-      monitor_resources: false
-      artifact_name: c64stream-${{ needs.check-event.outputs.pluginVersion }}-ubuntu-24.04-x86_64-${{ needs.check-event.outputs.commitHash }}
+  windows-build:
+    name: Build for Windows 🪟
+    runs-on: windows-2022
+    needs: check-event
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
 
-  e2e-test-traditional:
-    name: E2E Test (Traditional) 🧪
-    if: ${{ !inputs.use_containerized_e2e && always() && (needs.ubuntu-build-containerized.result == 'success' || needs.ubuntu-build-traditional.result == 'success') }}
+      - name: Set Up Environment 🔧
+        id: setup
+        run: |
+          : Set Up Environment 🔧
+          if [[ "${RUNNER_DEBUG}" ]]; then set -x; fi
+
+          product_name_version=$(jq -r '. | {name, version} | join(" ")' buildspec.json)
+          read -r product_name product_version <<< "${product_name_version}"
+
+          echo "pluginName=${product_name}" >> $GITHUB_OUTPUT
+          echo "pluginVersion=${product_version}" >> $GITHUB_OUTPUT
+
+      - uses: actions/cache/restore@v4
+        id: ccache-cache
+        with:
+          path: ${{ github.workspace }}/.ccache
+          key: ${{ runner.os }}-ccache-${{ needs.check-event.outputs.config }}
+          restore-keys: |
+            ${{ runner.os }}-ccache-
+
+      - name: Build Plugin 🧱
+        uses: ./.github/actions/build-plugin
+        with:
+          target: x64
+          config: ${{ needs.check-event.outputs.config }}
+
+      - name: Package Plugin 📀
+        uses: ./.github/actions/package-plugin
+        with:
+          target: x64
+          config: ${{ needs.check-event.outputs.config }}
+          package: ${{ fromJSON(needs.check-event.outputs.package) }}
+          version: ${{ needs.check-event.outputs.pluginVersion }}
+
+      - name: Upload Artifacts 📡
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-windows-x64-${{ needs.check-event.outputs.commitHash }}
+          path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-windows-x64*.*
+
+      - uses: actions/cache/save@v4
+        if: github.event_name != 'pull_request' && steps.ccache-cache.outputs.cache-hit != 'true'
+        with:
+          path: ${{ github.workspace }}/.ccache
+          key: "${{ runner.os }}-ccache-${{ needs.check-event.outputs.config }}"
+
+  # E2E Test (Single, Smart)
+  e2e-test:
+    name: E2E Test 🧪
+    if: ${{ always() && (needs.ubuntu-build-containerized.result == 'success' || needs.ubuntu-build-traditional.result == 'success') }}
     needs: [check-event, ubuntu-build-containerized, ubuntu-build-traditional]
     uses: ./.github/workflows/e2e-test.yaml
     with:
