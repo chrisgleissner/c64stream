@@ -143,8 +143,13 @@ class E2ETest:
         plugin_data_dir = obs_config_dir / 'plugins' / 'c64stream' / 'data'
 
         if not plugin_data_dir.exists():
-            self.log("❌ Plugin data directory not found, plugin may not be installed")
-            return False
+            self.log("⚠️ Plugin data directory not found, creating it...")
+            try:
+                plugin_data_dir.mkdir(parents=True, exist_ok=True)
+                self.log("✅ Created plugin data directory")
+            except Exception as e:
+                self.log(f"❌ Failed to create plugin data directory: {e}")
+                return False
 
         # Copy E2E properties file
         script_dir = Path(__file__).parent
