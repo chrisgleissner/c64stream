@@ -322,12 +322,15 @@ jobs:
         run: |
           user_bin="$HOME/.config/obs-studio/plugins/c64stream/bin/64bit/c64stream.so"
           sys_bin="/usr/lib/obs-plugins/c64stream.so"
+          sys_bin_arch="/usr/lib/x86_64-linux-gnu/obs-plugins/c64stream.so"
           if [[ -f "$sys_bin" ]]; then
             echo "✅ Plugin binary found at $sys_bin"
+          elif [[ -f "$sys_bin_arch" ]]; then
+            echo "✅ Plugin binary found at $sys_bin_arch"
           elif [[ -f "$user_bin" ]]; then
             echo "✅ Plugin binary found at $user_bin"
           else
-            echo "❌ Plugin binary not found (checked $sys_bin and $user_bin)"
+            echo "❌ Plugin binary not found (checked $sys_bin, $sys_bin_arch, and $user_bin)"
             exit 1
           fi
 
