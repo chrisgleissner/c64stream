@@ -393,7 +393,7 @@ DockAreaVisible=false
         self.log(f"✅ Created OBS profile at {profile_dir}")
         return profile_dir
 
-    def wait_for_plugin_initialization(self, timeout=10):
+    def wait_for_plugin_initialization(self, timeout=30):
         """Wait for C64 plugin to initialize by monitoring OBS logs."""
         self.log("⏳ Monitoring OBS logs for C64 plugin initialization...")
 
@@ -410,8 +410,6 @@ DockAreaVisible=false
             b"UDP socket",  # Plugin creating UDP sockets
         ]
 
-        checked_files = set()
-
         while time.time() - start_time < timeout:
             # Check if OBS process crashed
             if self.obs_process.poll() is not None:
@@ -423,25 +421,17 @@ DockAreaVisible=false
                 log_files = list(logs_dir.glob('*.txt'))
                 log_files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
 
-                # Check the most recent log files
-                for log_file in log_files[:3]:  # Check up to 3 most recent files
-                    if log_file in checked_files:
-                        continue
-
+                # Always re-read the latest log to catch late writes
+                for log_file in log_files[:1]:
                     try:
                         with open(log_file, 'rb') as f:
                             content = f.read()
-
-                            # Look for plugin initialization patterns
                             for pattern in init_patterns:
                                 if pattern in content:
                                     self.log(f"✅ C64 plugin initialized (found '{pattern.decode()}' in {log_file.name})")
                                     return True
-
-                        checked_files.add(log_file)
-
                     except (OSError, IOError):
-                        continue
+                        pass
 
             time.sleep(0.1)  # Check every 100ms
 
