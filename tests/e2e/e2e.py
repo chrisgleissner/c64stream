@@ -1430,7 +1430,7 @@ DockAreaVisible=false
             # OBS is already recording (started with --startrecording flag)
             # No need for additional WebSocket recording start
             self.log("✅ OBS recording already active")
-            
+
             # Add OBS log analysis
             self.log("🔍 Analyzing OBS logs for plugin behavior...")
             obs_config_dir = Path.home() / '.config' / 'obs-studio'
@@ -1451,15 +1451,36 @@ DockAreaVisible=false
                         plugin_lines = [line for line in content.split('\n') if 'c64' in line.lower() or 'C64' in line]
                         if plugin_lines:
                             self.log(f"  - Found {len(plugin_lines)} plugin-related log entries:")
-                            for line in plugin_lines[-5:]:  # Show last 5 lines
+                            for line in plugin_lines[-10:]:  # Show last 10 lines
                                 self.log(f"    {line}")
                         else:
                             self.log("  - No plugin-related log entries found")
+                            
+                        # Look for any error messages
+                        error_lines = [line for line in content.split('\n') if 'error' in line.lower() or 'failed' in line.lower()]
+                        if error_lines:
+                            self.log(f"  - Found {len(error_lines)} error/warning messages:")
+                            for line in error_lines[-5:]:  # Show last 5 error lines
+                                self.log(f"    {line}")
                             
                     except Exception as e:
                         self.log(f"  - Could not read log file: {e}")
             else:
                 self.log("  - OBS logs directory not found")
+                
+            # Check if plugin properties file exists and is readable
+            plugin_props_file = Path.home() / '.config' / 'obs-studio' / 'plugins' / 'c64stream' / 'data' / 'properties.ini'
+            if plugin_props_file.exists():
+                self.log(f"  - Plugin properties file exists: {plugin_props_file}")
+                try:
+                    with open(plugin_props_file, 'r') as f:
+                        props_content = f.read()
+                    self.log(f"  - Properties file content (first 500 chars):")
+                    self.log(f"    {props_content[:500]}...")
+                except Exception as e:
+                    self.log(f"  - Could not read properties file: {e}")
+            else:
+                self.log(f"  - Plugin properties file not found: {plugin_props_file}")
 
             # Run packet replay while recording
             self.log("Running packet replay while OBS is recording...")
