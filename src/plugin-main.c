@@ -34,6 +34,24 @@ OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en")
 // E2E test support: keep a reference to an auto-created source (if enabled via env)
 static obs_source_t *g_e2e_autocreated_source = NULL;
 
+static void c64_e2e_autocreate_task(void *unused)
+{
+    UNUSED_PARAMETER(unused);
+
+    if (g_e2e_autocreated_source) {
+        return;
+    }
+
+    obs_data_t *settings = obs_data_create();
+    g_e2e_autocreated_source = obs_source_create("c64_source", "C64 Stream Source", settings, NULL);
+    if (g_e2e_autocreated_source) {
+        C64_LOG_INFO("E2E: Auto-created hidden C64 source on UI thread");
+    } else {
+        C64_LOG_WARNING("E2E: Failed to auto-create C64 source on UI thread");
+    }
+    obs_data_release(settings);
+}
+
 bool obs_module_load(void)
 {
     C64_LOG_INFO("Loading %s", c64_get_version_string());
@@ -67,14 +85,8 @@ bool obs_module_load(void)
     // This avoids dependency on scene collection behavior on CI runners.
     const char *auto_env = getenv("C64_E2E_AUTOCREATE");
     if (auto_env && (strcmp(auto_env, "1") == 0 || strcasecmp(auto_env, "true") == 0)) {
-        obs_data_t *settings = obs_data_create();
-        g_e2e_autocreated_source = obs_source_create("c64_source", "C64 Stream Source", settings, NULL);
-        if (g_e2e_autocreated_source) {
-            C64_LOG_INFO("E2E: Auto-created hidden C64 source for CI testing");
-        } else {
-            C64_LOG_WARNING("E2E: Failed to auto-create C64 source");
-        }
-        obs_data_release(settings);
+        C64_LOG_INFO("E2E: Scheduling auto-create of hidden C64 source");
+        obs_queue_task(OBS_TASK_UI, c64_e2e_autocreate_task, NULL, false);
     }
     return true;
 }
