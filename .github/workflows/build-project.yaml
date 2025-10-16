@@ -221,15 +221,9 @@ jobs:
           name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-macos-universal-${{ needs.check-event.outputs.commitHash }}-dSYMs
           path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-macos-universal-dSYMs.*
 
-      - uses: actions/cache/save@v4
-        if: github.event_name != 'pull_request' && steps.ccache-cache.outputs.cache-hit != 'true'
-        with:
-          path: ${{ github.workspace }}/.ccache
-          key: ${{ runner.os }}-ccache-${{ needs.check-event.outputs.config }}
-
-  # Step 1: Build Docker Image (creates/updates if missing or >7 days old)
-  build-docker-image:
-    name: Build Docker Image �
+  # Step 1: Ensure Docker Image (uses existing or builds if needed)
+  ensure-docker-image:
+    name: Ensure Docker Image 🐳
     runs-on: ubuntu-24.04
     needs: [check-event]
     outputs:
@@ -240,35 +234,19 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Check Image Age 🔍
+      - name: Check Image Availability 🔍
         id: check
-        continue-on-error: true
         run: |
-          : Check Image Age 🔍
-
-          # Try to pull and inspect existing image
-          if docker pull ghcr.io/${{ github.repository }}/ubuntu-build:latest >/dev/null 2>&1; then
-            created_timestamp=$(docker inspect ghcr.io/${{ github.repository }}/ubuntu-build:latest --format='{{.Created}}' 2>/dev/null || echo "")
-
-            if [[ -n "$created_timestamp" ]]; then
-              created_date=$(echo "$created_timestamp" | cut -d'T' -f1)
-              current_date=$(date -u +%Y-%m-%d)
-              created_epoch=$(date -d "$created_date" +%s 2>/dev/null || echo "0")
-              current_epoch=$(date -d "$current_date" +%s)
-              age_days=$(( (current_epoch - created_epoch) / 86400 ))
-
-              echo "Image age: $age_days days"
-
-              if [ "$age_days" -le 7 ]; then
-                echo "needs_build=false" >> $GITHUB_OUTPUT
-                echo "✅ Using existing image (age: $age_days days)"
-                exit 0
-              fi
-            fi
+          : Check Image Availability 🔍
+          
+          # Check if image exists and is accessible
+          if docker manifest inspect ghcr.io/${{ github.repository }}/ubuntu-build:latest >/dev/null 2>&1; then
+            echo "needs_build=false" >> $GITHUB_OUTPUT
+            echo "✅ Using existing image from registry"
+          else
+            echo "needs_build=true" >> $GITHUB_OUTPUT
+            echo "🔨 Image not found - will build new image"
           fi
-
-          echo "needs_build=true" >> $GITHUB_OUTPUT
-          echo "🔨 Will build new image"
 
       - name: Set up Docker Buildx 🔧
         if: steps.check.outputs.needs_build == 'true'
@@ -304,13 +282,13 @@ jobs:
             echo "✅ Using existing image"
           fi
 
-  # Step 2: Ubuntu Build (uses Docker image, fails hard if issues)
+  # Step 2: Ubuntu Build (uses Docker image)
   ubuntu-build:
     name: Ubuntu Build 🐧
     runs-on: ubuntu-24.04
-    needs: [check-event, build-docker-image]
+    needs: [check-event, ensure-docker-image]
     container:
-      image: ${{ needs.build-docker-image.outputs.image-tag }}
+      image: ${{ needs.ensure-docker-image.outputs.image-tag }}
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -341,7 +319,7 @@ jobs:
           echo "pluginVersion=${{ needs.check-event.outputs.pluginVersion }}" >> $GITHUB_OUTPUT
           echo "artifactName=${artifact_name}" >> $GITHUB_OUTPUT
 
-          echo "🔧 Building ${product_name} v${{ needs.check-event.outputs.pluginVersion }} in container"
+          echo "🔧 Building ${product_name} v${{ needs.check-event.outputs.pluginVersion }}"
 
       - name: Configure ccache 🗂️
         run: |
@@ -466,20 +444,16 @@ jobs:
           name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-windows-x64-${{ needs.check-event.outputs.commitHash }}
           path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-windows-x64*.*
 
-      - uses: actions/cache/save@v4
-        if: github.event_name != 'pull_request' && steps.ccache-cache.outputs.cache-hit != 'true'
-        with:
-          path: ${{ github.workspace }}/.ccache
-          key: "${{ runner.os }}-ccache-${{ needs.check-event.outputs.config }}"
+
 
   # Step 3: E2E Test
   e2e-test:
     name: E2E Test 🧪
     if: ${{ inputs.run_e2e && needs.ubuntu-build.result == 'success' }}
     runs-on: ubuntu-24.04
-    needs: [check-event, ubuntu-build]
+    needs: [check-event, ubuntu-build, ensure-docker-image]
     container:
-      image: ghcr.io/${{ github.repository }}/ubuntu-build:latest
+      image: ${{ needs.ensure-docker-image.outputs.image-tag }}
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}

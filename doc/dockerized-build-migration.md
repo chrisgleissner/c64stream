@@ -1,14 +1,14 @@
-# Dockerized Build System Migration Guide
+# Docker Build System
 
 ## Overview 🎯
 
-The C64 Stream project now supports **Dockerized builds** that dramatically reduce build times by using pre-built containers with OBS Studio and Qt6 dependencies already installed.
+The C64 Stream project uses **Docker builds** for Ubuntu that provide consistent build environments with pre-built containers containing OBS Studio and Qt6 dependencies.
 
-## Performance Improvement 🚀
+## Build Approach 🚀
 
-- **Traditional Build**: ~4.5 minutes (3.5min APT packages + 1min plugin build)
-- **Dockerized Build**: ~1-2 minutes (0.5min container start + 1min plugin build)
-- **Speed Improvement**: 60-75% faster builds
+- **Docker Build**: Uses pre-built containers with OBS Studio and dependencies
+- **Consistent Environment**: Same build environment across CI and local development
+- **Automatic Image Management**: Images are built when needed and cached
 
 ## What's Changed
 
@@ -33,24 +33,15 @@ The C64 Stream project now supports **Dockerized builds** that dramatically redu
 
 ### ✅ What Works Out of the Box
 
-- **Faster CI Builds**: Immediate 60-75% speed improvement
-- **Same Artifacts**: Produces identical build outputs
-- **Backward Compatible**: Traditional builds still available
-- **E2E Testing**: Both containerized and traditional E2E tests supported
+- **Consistent Builds**: Same artifacts produced across environments
+- **Docker-based**: Uses containerized build environment
+- **Integrated E2E**: E2E testing built into main workflow
 
-### ⚠️ What to Watch For
+### ⚠️ Requirements
 
 - **Container Registry**: Requires GitHub Container Registry access
-- **First Run**: Initial container pull takes ~30 seconds
-- **E2E Tests**: Containerized E2E may have different display behavior
-
-### 🔄 Fallback Strategy
-
-If containerized builds fail, you can:
-
-1. Set `use_containerized: false` in workflow inputs
-2. Use traditional build workflows directly
-3. Local builds continue to work unchanged
+- **Docker Support**: Build environment uses Docker containers
+- **Image Management**: Automatic Docker image building and caching
 
 ## Usage Examples
 
