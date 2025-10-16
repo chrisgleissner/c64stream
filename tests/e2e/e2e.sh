@@ -419,6 +419,11 @@ build_project() {
 
 # Install plugin to OBS
 install_plugin() {
+    if [[ "${SKIP_BUILD}" == true ]]; then
+        log_info "Skipping plugin installation (--skip-build specified, plugin already installed by workflow)"
+        return
+    fi
+
     log_info "Installing plugin to OBS..."
 
     local obs_plugin_dir="${HOME}/.config/obs-studio/plugins/c64stream"
