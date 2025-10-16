@@ -226,6 +226,9 @@ jobs:
     name: Ensure Docker Image 🐳
     runs-on: ubuntu-24.04
     needs: [check-event]
+    defaults:
+      run:
+        shell: bash
     outputs:
       image-tag: ${{ steps.image.outputs.tag }}
     steps:
@@ -309,6 +312,9 @@ jobs:
     name: Ubuntu Build 🐧
     runs-on: ubuntu-24.04
     needs: [check-event, ensure-docker-image]
+    defaults:
+      run:
+        shell: bash
     container:
       image: ${{ needs.ensure-docker-image.outputs.image-tag }}
       credentials:
@@ -474,6 +480,9 @@ jobs:
     if: ${{ inputs.run_e2e && needs.ubuntu-build.result == 'success' }}
     runs-on: ubuntu-24.04
     needs: [check-event, ubuntu-build, ensure-docker-image]
+    defaults:
+      run:
+        shell: bash
     container:
       image: ${{ needs.ensure-docker-image.outputs.image-tag }}
       credentials:
