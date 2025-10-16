@@ -35,6 +35,8 @@ RUN apt-get install -y --no-install-recommends \
         jq \
         ccache \
         file \
+        dpkg-dev \
+        xz-utils \
         libgles2-mesa-dev \
         libsimde-dev \
         obs-studio \
@@ -44,9 +46,13 @@ RUN apt-get install -y --no-install-recommends \
         python3 \
         python3-pip \
         python3-numpy \
+        python3-opencv \
         python3-pil \
+        python3-requests \
+        python3-websocket \
         ffmpeg \
         xvfb \
+        procps \
         unzip && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
