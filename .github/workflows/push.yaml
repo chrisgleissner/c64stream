@@ -16,7 +16,6 @@ permissions:
 jobs:
   check-format:
     name: Check Formatting 🔍
-    if: github.ref_name == 'master' || github.ref_name == 'main'
     uses: ./.github/workflows/check-format.yaml
 
   build-project:

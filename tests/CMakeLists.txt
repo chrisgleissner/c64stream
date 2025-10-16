@@ -33,12 +33,16 @@ if(IS_CI_BUILD)
   set(DEFAULT_ENABLE_INTEGRATION_TESTS OFF)
 else()
   set(DEFAULT_ENABLE_MOCK_SERVER ON)
-  set(DEFAULT_ENABLE_INTEGRATION_TESTS OFF)  # Disabled by default due to OBS header conflicts
+  set(DEFAULT_ENABLE_INTEGRATION_TESTS OFF) # Disabled by default due to OBS header conflicts
 endif()
 
 # Options for controlling what gets built
 option(ENABLE_MOCK_SERVER "Build the C64 Ultimate mock server for local testing" ${DEFAULT_ENABLE_MOCK_SERVER})
-option(ENABLE_INTEGRATION_TESTS "Build integration tests (requires refactoring to avoid OBS header conflicts)" ${DEFAULT_ENABLE_INTEGRATION_TESTS})
+option(
+  ENABLE_INTEGRATION_TESTS
+  "Build integration tests (requires refactoring to avoid OBS header conflicts)"
+  ${DEFAULT_ENABLE_INTEGRATION_TESTS}
+)
 
 # Automatically enable mock server if integration tests are enabled
 if(ENABLE_INTEGRATION_TESTS AND NOT ENABLE_MOCK_SERVER)
