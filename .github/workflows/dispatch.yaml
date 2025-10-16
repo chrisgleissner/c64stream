@@ -9,6 +9,7 @@ on:
         type: choice
         options:
           - build
+          - e2e-test
 permissions:
   contents: write
 jobs:
@@ -20,6 +21,19 @@ jobs:
       run_e2e: true
       e2e_format: 'PAL'
       e2e_frames: '250'
+    secrets: inherit
+    permissions:
+      contents: read
+      packages: read
+
+  manual-e2e:
+    if: inputs.job == 'e2e-test'
+    name: Manual E2E Test 🧪
+    uses: ./.github/workflows/manual-e2e-test.yaml
+    with:
+      source_type: 'latest_build'
+      format: 'PAL'
+      frames: '250'
     secrets: inherit
     permissions:
       contents: read
