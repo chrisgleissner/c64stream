@@ -382,11 +382,6 @@ jobs:
         run: |
           : Package Plugin 📦
           cd build_x86_64
-          command -v file || find / -type f -name file
-          find . 
-          echo "PATH before CPack: $PATH"
-          which file || echo "file not found"
-          ls -l /usr/bin/file || echo "file binary missing"
           cpack -G "TXZ;DEB;External" -C ${{ needs.check-event.outputs.config }}
 
       - name: Prepare Artifacts 📋
