@@ -566,8 +566,26 @@ EOF
 
     # Add OBS results if enabled
     if [[ "${OBS_ENABLED}" == true ]]; then
+        # Accept either legacy naming (recording_${FORMAT}.mkv) or new copied name (c64_recording.*)
+        local recording_found=""
         if [[ -f "${OUTPUT_DIR}/recording_${FORMAT}.mkv" ]]; then
-            echo "  ✅ OBS Recording: Available" >> "${report_file}"
+            recording_found="${OUTPUT_DIR}/recording_${FORMAT}.mkv"
+        else
+            # Prefer explicitly copied file from e2e.py
+            if compgen -G "${OUTPUT_DIR}/c64_recording.*" > /dev/null; then
+                recording_found=$(ls -t ${OUTPUT_DIR}/c64_recording.* 2>/dev/null | head -1)
+            else
+                # Fallback: any recent mkv/mp4 in output dir
+                if compgen -G "${OUTPUT_DIR}/*.mkv" > /dev/null; then
+                    recording_found=$(ls -t ${OUTPUT_DIR}/*.mkv 2>/dev/null | head -1)
+                elif compgen -G "${OUTPUT_DIR}/*.mp4" > /dev/null; then
+                    recording_found=$(ls -t ${OUTPUT_DIR}/*.mp4 2>/dev/null | head -1)
+                fi
+            fi
+        fi
+
+        if [[ -n "${recording_found}" && -f "${recording_found}" ]]; then
+            echo "  ✅ OBS Recording: ${recording_found}" >> "${report_file}"
         else
             echo "  ❌ OBS Recording: Not found" >> "${report_file}"
         fi
