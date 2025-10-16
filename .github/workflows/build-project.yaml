@@ -382,6 +382,7 @@ jobs:
         run: |
           : Package Plugin 📦
           cd build_x86_64
+          command -v file || find / -type f -name file
           find . 
           echo "PATH before CPack: $PATH"
           which file || echo "file not found"
