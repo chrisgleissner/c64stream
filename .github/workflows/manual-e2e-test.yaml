@@ -462,6 +462,7 @@ jobs:
           path: |
             tests/e2e/test_output/**/*.mp4
             tests/e2e/test_output/**/*.mkv
+            tests/e2e/test_output/**/*.avi
             tests/e2e/test_output/**/*.csv
             tests/e2e/test_output/**/*.json
             tests/e2e/test_output/**/*.txt
