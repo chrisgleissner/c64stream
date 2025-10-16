@@ -241,11 +241,12 @@ jobs:
         id: check
         run: |
           : Check Image Age 🔍
-
+          
           # First, check if Dockerfile has been modified recently
           dockerfile_path=".github/docker/Dockerfile.ubuntu-build"
           
           # Check if Dockerfile was modified in the last commit or if this is the first run on a branch
+          git fetch --depth=2 origin ${{ github.ref }}
           if git diff --name-only HEAD~1 2>/dev/null | grep -q "$dockerfile_path" || ! git rev-parse HEAD~1 >/dev/null 2>&1; then
             echo "needs_build=true" >> $GITHUB_OUTPUT
             echo "🔧 Dockerfile modified - rebuilding image"
