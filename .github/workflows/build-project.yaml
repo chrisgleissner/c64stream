@@ -607,9 +607,20 @@ jobs:
         run: |
           : Setup X11 Display 🖥️
 
-          # Start Xvfb for headless display
-          Xvfb :99 -screen 0 1024x768x24 &
-          sleep 2
+          # Clean up any stale X lock files from previous runs
+          sudo rm -f /tmp/.X99-lock /tmp/.X*-lock 2>/dev/null || true
+
+          # Kill any existing Xvfb processes
+          pkill -f "Xvfb.*:99" 2>/dev/null || true
+          sleep 1
+
+          # Start Xvfb with stderr redirection to suppress xkbcomp warnings
+          Xvfb :99 -screen 0 1280x720x24 2>/dev/null &
+          XVFB_PID=$!
+          sleep 3
+
+          # Setup cleanup on exit
+          trap "kill $XVFB_PID 2>/dev/null || true; sudo rm -f /tmp/.X99-lock 2>/dev/null || true" EXIT
 
           # Verify display is working
           DISPLAY=:99 xdpyinfo >/dev/null 2>&1 || {
