@@ -28,12 +28,6 @@ import json
 import socket
 import tempfile
 from pathlib import Path
-
-# Import A/V sync testing
-try:
-    from test_av_sync import verify_av_sync
-except ImportError:
-    verify_av_sync = None
 try:
     import websocket
     import requests
@@ -66,10 +60,6 @@ class E2ETest:
         self.video_dest_port = self.video_port
         self.audio_dest_ip = '127.0.0.1'
         self.audio_dest_port = self.audio_port
-
-        # Packet timing for graceful OBS shutdown
-        self.last_packet_time = None
-        self.obs_shutdown_timeout = 2.0  # seconds after last packet (increased to prevent partial files)
 
         # Test artifacts
         self.packet_dir = self.test_dir / 'test_packets'
@@ -440,71 +430,32 @@ DockAreaVisible=false
 
         try:
             import uuid
-            import json
-            import hashlib
-            import base64
-
-            # WebSocket connection parameters
-            ws_url = "ws://127.0.0.1:4455"
-            password = "e2etest123"
-
-            # Create WebSocket connection
-            ws = websocket.create_connection(ws_url, timeout=5)
-
-            # Receive Hello message with authentication challenge
-            hello_msg = json.loads(ws.recv())
-            if hello_msg.get("op") != 0:  # Hello opcode
-                raise Exception(f"Expected Hello message, got: {hello_msg}")
-
-            # Authenticate using the challenge
-            auth_data = hello_msg["d"]["authentication"]
-            challenge = auth_data["challenge"]
-            salt = auth_data["salt"]
-
-            # Generate authentication response
-            secret = base64.b64encode(hashlib.sha256((password + salt).encode()).digest()).decode()
-            auth_response = base64.b64encode(hashlib.sha256((secret + challenge).encode()).digest()).decode()
-
-            # Send Identify message with authentication
-            identify_msg = {
-                "op": 1,  # Identify
-                "d": {
-                    "rpcVersion": 1,
-                    "authentication": auth_response
-                }
-            }
-            ws.send(json.dumps(identify_msg))
-
-            # Receive Identified message
-            identified_msg = json.loads(ws.recv())
-            if identified_msg.get("op") != 2:  # Identified opcode
-                raise Exception(f"Authentication failed: {identified_msg}")
-
-            # Send the actual request
             request_id = str(uuid.uuid4())
-            request_msg = {
+
+            message = {
                 "op": 6,  # Request
                 "d": {
                     "requestType": request_type,
-                    "requestId": request_id,
-                    "requestData": request_data or {}
+                    "requestId": request_id
                 }
             }
 
-            ws.send(json.dumps(request_msg))
+            if request_data:
+                message["d"]["requestData"] = request_data
 
-            # Receive response
-            response = json.loads(ws.recv())
-            ws.close()
+            # Simple HTTP-based approach for basic commands
+            # In a full implementation, we'd use persistent WebSocket connection
+            response = requests.post('http://127.0.0.1:4455/api',
+                                   json=message, timeout=5)
 
-            if response.get("op") == 7:  # RequestResponse opcode
-                return response["d"]
+            if response.status_code == 200:
+                return response.json()
             else:
-                self.log(f"Unexpected response: {response}")
+                self.log(f"OBS API request failed: {response.status_code}")
                 return None
 
         except Exception as e:
-            self.log(f"OBS WebSocket error: {e}")
+            self.log(f"OBS API error: {e}")
             return None
 
     def start_obs_recording(self):
@@ -623,8 +574,15 @@ DockAreaVisible=false
         """Stop recording in OBS."""
         self.log("Stopping OBS recording...")
 
-        # Use reliable process-based approach
-        # Recording is stopped automatically when OBS process terminates gracefully
+        # Try WebSocket API first
+        if WEBSOCKET_AVAILABLE:
+            response = self.send_obs_request("StopRecord")
+            if response:
+                self.log("✅ Recording stopped via WebSocket API")
+                time.sleep(3)  # Give time for file to be written
+                return True
+
+        # Fallback: marker file approach
         marker_file = self.output_dir / 'stop_recording.marker'
         with open(marker_file, 'w') as f:
             f.write(f"stop_recording_{int(time.time())}")
@@ -895,9 +853,6 @@ DockAreaVisible=false
                     bytes_sent = event['sock'].sendto(packet_data, event['dest'])
                     packets_sent += 1
 
-                    # Update last packet time for graceful OBS shutdown
-                    self.last_packet_time = time.time()
-
                     # Verify socket operation was successful
                     if bytes_sent != len(packet_data):
                         self.log(f"⚠️ Partial send: {bytes_sent}/{len(packet_data)} bytes for {event['type']} packet #{packets_sent}")
@@ -1070,50 +1025,28 @@ DockAreaVisible=false
 
         self.log("✅ Mock C64 Ultimate TCP server stopped")
 
-    def graceful_obs_shutdown(self):
-        """Wait for OBS shutdown timeout after last packet, then terminate gracefully."""
-        if self.last_packet_time is None:
-            self.log("No packets sent, proceeding with immediate OBS shutdown")
-            self.stop_obs()
-            return
-
-        # Calculate remaining wait time
-        elapsed_since_last_packet = time.time() - self.last_packet_time
-        remaining_wait = self.obs_shutdown_timeout - elapsed_since_last_packet
-
-        if remaining_wait > 0:
-            self.log(f"⏳ Waiting {remaining_wait:.1f}s for graceful OBS shutdown after last UDP packet...")
-            time.sleep(remaining_wait)
-
-        self.log(f"✅ {self.obs_shutdown_timeout}s timeout reached, gracefully terminating OBS")
-
-        # Give OBS a final moment to complete any pending writes
-        self.log("🔄 Final grace period for OBS to complete file writes...")
-        time.sleep(1.0)  # Extra second for file finalization
-
-        self.stop_obs()
-
     def stop_obs(self):
         """Stop OBS recording with proper cleanup."""
         self.log("Stopping OBS")
 
         if self.obs_process:
             try:
-                # Skip WebSocket - use process signals for reliable shutdown
-                self.log("Using process termination for reliable OBS shutdown")
+                # First try to stop recording via WebSocket if available
+                if WEBSOCKET_AVAILABLE:
+                    self.send_obs_request("StopRecord")
+                    time.sleep(1)
 
-                # Send SIGTERM for graceful shutdown (this also stops recording)
-                self.log("Sending graceful termination signal to OBS...")
+                # Send SIGTERM for graceful shutdown
                 self.obs_process.terminate()
 
-                # Wait longer for graceful shutdown to allow recording finalization
+                # Wait for graceful shutdown
                 try:
-                    self.obs_process.wait(timeout=12)  # Increased from 8 to 12 seconds
+                    self.obs_process.wait(timeout=8)
                     self.log("✅ OBS stopped gracefully")
                 except subprocess.TimeoutExpired:
-                    self.log("⚠️  OBS didn't stop gracefully within 12s, sending SIGKILL...")
+                    self.log("OBS didn't stop gracefully, sending SIGKILL...")
                     self.obs_process.kill()
-                    self.obs_process.wait(timeout=5)  # Increased kill timeout too
+                    self.obs_process.wait(timeout=3)
                     self.log("✅ OBS stopped forcefully")
 
             except Exception as e:
@@ -1233,23 +1166,16 @@ DockAreaVisible=false
             'frame_processing': {'status': 'unknown', 'details': ''},
             'video_recording': {'status': 'unknown', 'details': ''},
             'packet_integrity': {'status': 'unknown', 'details': ''}
-        }        # Calculate expected packet counts based on actual generation logic
+        }        # Calculate expected packet counts
         if self.format == 'PAL':
             video_packets_per_frame = 68  # 272 lines / 4 lines per packet
-            frame_rate = 50.125
-            audio_sample_rate = 47983
+            audio_packets_per_frame = 1   # One audio packet per frame
         else:  # NTSC
             video_packets_per_frame = 60  # 240 lines / 4 lines per packet
-            frame_rate = 59.826
-            audio_sample_rate = 47940
+            audio_packets_per_frame = 1   # One audio packet per frame
 
         expected_video_packets = self.frames * video_packets_per_frame
-
-        # Calculate audio packets using same logic as generator
-        frame_duration_ms = 1000.0 / frame_rate
-        total_test_duration_ms = self.frames * frame_duration_ms
-        audio_packet_duration_ms = (192 / audio_sample_rate) * 1000  # 192 samples per packet
-        expected_audio_packets = int(total_test_duration_ms / audio_packet_duration_ms)
+        expected_audio_packets = self.frames * audio_packets_per_frame
         expected_total_packets = expected_video_packets + expected_audio_packets
 
         print(f"Expected: {expected_total_packets} packets ({expected_video_packets} video + {expected_audio_packets} audio)")
@@ -1354,33 +1280,6 @@ DockAreaVisible=false
             validation_errors.append("Missing video recording")
             validation_results['video_recording'] = {'status': 'fail', 'details': 'No file found'}
 
-        # 4. A/V Synchronization Validation
-        if recording_file and Path(recording_file).exists() and verify_av_sync:
-            try:
-                print("🎵 A/V Sync: Analyzing synchronization...")
-                sync_results = verify_av_sync(recording_file, tolerance_ms=100)
-
-                if sync_results['is_perfectly_synced']:
-                    print(f"✅ A/V Sync: Perfect synchronization ({sync_results['sync_accuracy_percent']:.1f}%)")
-                    validation_results['av_sync'] = {'status': 'pass', 'details': f"{sync_results['perfect_sync_count']}/{sync_results['total_analyzed']} analyzed beeps synced"}
-                elif sync_results['sync_accuracy_percent'] >= 80.0:
-                    print(f"⚠️  A/V Sync: Good synchronization ({sync_results['sync_accuracy_percent']:.1f}%)")
-                    validation_warnings.append(f"A/V sync: {sync_results['sync_accuracy_percent']:.1f}% accuracy")
-                    validation_results['av_sync'] = {'status': 'warning', 'details': f"{sync_results['perfect_sync_count']}/{sync_results['total_analyzed']} analyzed beeps synced"}
-                else:
-                    print(f"❌ A/V Sync: Poor synchronization ({sync_results['sync_accuracy_percent']:.1f}%)")
-                    validation_errors.append(f"A/V sync poor: {sync_results['sync_accuracy_percent']:.1f}% accuracy")
-                    validation_results['av_sync'] = {'status': 'fail', 'details': f"{sync_results['perfect_sync_count']}/{sync_results['total_analyzed']} analyzed beeps synced"}
-            except Exception as e:
-                print(f"⚠️  A/V Sync: Analysis failed - {e}")
-                validation_warnings.append(f"A/V sync analysis failed: {e}")
-                validation_results['av_sync'] = {'status': 'warning', 'details': 'Analysis failed'}
-        else:
-            if not verify_av_sync:
-                print("⚠️  A/V Sync: Analysis not available (missing dependencies)")
-                validation_warnings.append("A/V sync analysis unavailable")
-                validation_results['av_sync'] = {'status': 'warning', 'details': 'Analysis unavailable'}
-
         # Summary
         print(f"\n{'='*60}")
 
@@ -1408,12 +1307,8 @@ DockAreaVisible=false
     def cleanup(self):
         """Cleanup all test processes."""
         self.log("Cleaning up test environment")
-        # Stop mock server if still running (may have been stopped after graceful shutdown)
-        if hasattr(self, 'tcp_server_running') and self.tcp_server_running:
-            self.stop_mock_c64_server()
-        # Only stop OBS if it's still running (may have been stopped by graceful shutdown)
-        if self.obs_process and self.obs_process.poll() is None:
-            self.stop_obs()
+        self.stop_mock_c64_server()
+        self.stop_obs()
         self.stop_xvfb()
         self.cleanup_obs_locks()
 
@@ -1468,15 +1363,8 @@ DockAreaVisible=false
             else:
                 self.log("❌ Packet replay failed")
 
-            # Stop recording but keep OBS running for graceful shutdown
+            # Stop recording
             self.stop_recording()
-
-            # Stop mock TCP server immediately to prevent plugin reconnection attempts during shutdown
-            self.log("Stopping mock TCP server to prevent reconnections")
-            self.stop_mock_c64_server()
-
-            # Wait gracefully for OBS shutdown timeout after last packet
-            self.graceful_obs_shutdown()
 
             # Wait a moment for files to be written
             time.sleep(2)

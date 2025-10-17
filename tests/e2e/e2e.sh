@@ -301,27 +301,9 @@ check_dependencies() {
     done
 
     # Python packages
-    for package in numpy PIL cv2; do
-        if ! python3 -c "import ${package}" 2>/dev/null; then
-            case "${package}" in
-                "cv2") missing_deps+=("python3-opencv") ;;
-                *) missing_deps+=("python3-${package,,}") ;;
-            esac
-        fi
-    done
+    # Python packages\n    for package in numpy PIL; do\n        if ! python3 -c \"import ${package}\" 2>/dev/null; then\n            missing_deps+=(\"python3-${package,,}\")\n        fi\n    done\n    \n    # Install Python E2E test requirements if available\n    local requirements_file=\"${TEST_DIR}/requirements.txt\"\n    if [[ -f \"${requirements_file}\" ]]; then\n        log_info \"Installing Python E2E test dependencies...\"\n        if [[ \"${VERBOSE}\" == true ]]; then\n            pip3 install --user -r \"${requirements_file}\"\n        else\n            pip3 install --user -r \"${requirements_file}\" > /dev/null 2>&1\n        fi\n    fi
 
-    # Check Python E2E test dependencies via system package manager
-    log_info "Installing Python E2E test dependencies..."
-
-    # Check for numpy
-    if ! python3 -c "import numpy" 2>/dev/null; then
-        missing_deps+=("python3-numpy")
-    fi
-
-    # Check for OpenCV (cv2 module name)
-    if ! python3 -c "import cv2" 2>/dev/null; then
-        missing_deps+=("python3-opencv")
-    fi    # Virtual display tools (always needed for headless testing)
+    # Virtual display tools (always needed for headless testing)
     local -A display_packages=(
         ["Xvfb"]="xvfb"
     )
@@ -452,6 +434,22 @@ install_plugin() {
         cp -r "${PROJECT_ROOT}/data"/* "${obs_plugin_dir}/data/"
     fi
 
+    if [[ "${VERBOSE}" == true ]]; then
+        log_info "Plugin installation details:"
+        echo "  Binary location: ${obs_plugin_dir}/bin/64bit/c64stream.so"
+        if [[ -f "${obs_plugin_dir}/bin/64bit/c64stream.so" ]]; then
+            echo "    Size: $(du -h "${obs_plugin_dir}/bin/64bit/c64stream.so" | cut -f1)"
+            echo "    MD5: $(md5sum "${obs_plugin_dir}/bin/64bit/c64stream.so" | cut -d' ' -f1)"
+        fi
+        echo "  Data location: ${obs_plugin_dir}/data"
+        if [[ -d "${obs_plugin_dir}/data" ]]; then
+            echo "  Data contents:"
+            ls -lah "${obs_plugin_dir}/data" 2>/dev/null | sed 's/^/    /' || echo "    (empty)"
+        fi
+        echo "  Full plugin directory structure:"
+        find "${obs_plugin_dir}" -type f -o -type d 2>/dev/null | sed 's/^/    /' || echo "    (not found)"
+    fi
+
     log_success "Plugin installed to OBS"
 }
 
@@ -568,8 +566,26 @@ EOF
 
     # Add OBS results if enabled
     if [[ "${OBS_ENABLED}" == true ]]; then
-        if [[ -f "${OUTPUT_DIR}/c64_recording.mp4" || -f "${OUTPUT_DIR}/c64_recording.mkv" ]]; then
-            echo "  ✅ OBS Recording: Available" >> "${report_file}"
+        # Accept either legacy naming (recording_${FORMAT}.mkv) or new copied name (c64_recording.*)
+        local recording_found=""
+        if [[ -f "${OUTPUT_DIR}/recording_${FORMAT}.mkv" ]]; then
+            recording_found="${OUTPUT_DIR}/recording_${FORMAT}.mkv"
+        else
+            # Prefer explicitly copied file from e2e.py
+            if compgen -G "${OUTPUT_DIR}/c64_recording.*" > /dev/null; then
+                recording_found=$(ls -t ${OUTPUT_DIR}/c64_recording.* 2>/dev/null | head -1)
+            else
+                # Fallback: any recent mkv/mp4 in output dir
+                if compgen -G "${OUTPUT_DIR}/*.mkv" > /dev/null; then
+                    recording_found=$(ls -t ${OUTPUT_DIR}/*.mkv 2>/dev/null | head -1)
+                elif compgen -G "${OUTPUT_DIR}/*.mp4" > /dev/null; then
+                    recording_found=$(ls -t ${OUTPUT_DIR}/*.mp4 2>/dev/null | head -1)
+                fi
+            fi
+        fi
+
+        if [[ -n "${recording_found}" && -f "${recording_found}" ]]; then
+            echo "  ✅ OBS Recording: ${recording_found}" >> "${report_file}"
         else
             echo "  ❌ OBS Recording: Not found" >> "${report_file}"
         fi

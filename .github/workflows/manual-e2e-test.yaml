@@ -1,25 +1,31 @@
 name: Manual E2E Test
-run-name: "Manual E2E Test - ${{ inputs.source_type }} (${{ inputs.format }}) 🧪"
 
 on:
   workflow_dispatch:
     inputs:
       source_type:
         description: 'Source type for plugin'
-        required: true
+        required: false
         default: 'latest_build'
         type: choice
         options:
-          - latest_build
-          - latest_release
-          - specific_release
+          - latest_build  # Latest successful build from main branch
+          - latest_release  # Latest GitHub release
+          - specific_release  # Specific release tag
+          - branch_build  # Latest successful build from a specific branch
       release_tag:
-        description: 'Release tag (only for specific_release)'
+        description: 'Release tag (only used when source_type is specific_release, e.g., v1.0.0)'
         required: false
+        default: ''
+        type: string
+      branch:
+        description: 'Branch name (only used when source_type is branch_build)'
+        required: false
+        default: ''
         type: string
       format:
-        description: 'Video format'
-        required: true
+        description: 'Video format (PAL or NTSC)'
+        required: false
         default: 'PAL'
         type: choice
         options:
@@ -27,279 +33,397 @@ on:
           - NTSC
       frames:
         description: 'Number of frames to test'
-        required: true
+        required: false
         default: '250'
         type: string
 
-permissions:
-  contents: read
-  packages: read
 
 jobs:
   manual-e2e-test:
     name: Manual E2E Test 🧪
     runs-on: ubuntu-24.04
-    container:
-      image: ghcr.io/chrisgleissner/c64stream/ubuntu-build:latest
-      credentials:
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-      options: >-
-        --user root
-        --privileged
-    env:
-      DISPLAY: ":99"
+    defaults:
+      run:
+        shell: bash
     steps:
-      - name: Checkout Repository 📥
+      - name: Checkout Code 📥
         uses: actions/checkout@v4
         with:
+          submodules: recursive
           fetch-depth: 0
 
-      - name: Get Plugin Source 📦
-        id: get-plugin
+      - name: Set Up Environment 🔧
+        id: setup
         run: |
-          : Get Plugin Source 📦
+          : Set Up Environment 🔧
+          if [[ "${RUNNER_DEBUG}" ]]; then set -x; fi
 
-          mkdir -p ./plugin-download
-          cd ./plugin-download
+          source_type="${{ inputs.source_type }}"
+          echo "📦 Source type: ${source_type}"
 
-          case "${{ inputs.source_type }}" in
-            latest_build)
-              echo "🔍 Fetching latest build from main branch..."
-
-              # Get latest workflow run info
-              WORKFLOW_INFO=$(curl -s -H "Accept: application/vnd.github.v3+json" \
-                "https://api.github.com/repos/${{ github.repository }}/actions/workflows/push.yaml/runs?branch=main&status=success&per_page=1")
-
-              RUN_ID=$(echo "$WORKFLOW_INFO" | jq -r '.workflow_runs[0].id')
-              if [[ "$RUN_ID" == "null" || -z "$RUN_ID" ]]; then
-                echo "❌ No successful builds found on main branch"
-                exit 1
-              fi
-
-              echo "📥 Latest successful run ID: $RUN_ID"
-
-              # Get artifacts for this run
-              ARTIFACTS_INFO=$(curl -s -H "Accept: application/vnd.github.v3+json" \
-                "https://api.github.com/repos/${{ github.repository }}/actions/runs/$RUN_ID/artifacts")
-
-              # Find Ubuntu artifact
-              ARTIFACT_NAME=$(echo "$ARTIFACTS_INFO" | jq -r '.artifacts[] | select(.name | contains("ubuntu-24.04-x86_64")) | .name' | head -1)
-              if [[ -z "$ARTIFACT_NAME" ]]; then
-                echo "❌ No Ubuntu artifacts found"
-                exit 1
-              fi
-
-              echo "📦 Artifact name: $ARTIFACT_NAME"
-
-              # Download via nightly.link (no auth required)
-              DOWNLOAD_URL="https://nightly.link/${{ github.repository }}/actions/runs/$RUN_ID/$ARTIFACT_NAME.zip"
-              echo "⬇️  Downloading from: $DOWNLOAD_URL"
-
-              curl -L -o artifact.zip "$DOWNLOAD_URL"
-              ;;
-
-            latest_release)
-              echo "🔍 Fetching latest release..."
-
-              RELEASE_INFO=$(curl -s -H "Accept: application/vnd.github.v3+json" \
-                "https://api.github.com/repos/${{ github.repository }}/releases/latest")
-
-              DOWNLOAD_URL=$(echo "$RELEASE_INFO" | jq -r '.assets[] | select(.name | contains("ubuntu") and contains("x86_64") and endswith(".deb")) | .browser_download_url' | head -1)
-              if [[ -z "$DOWNLOAD_URL" || "$DOWNLOAD_URL" == "null" ]]; then
-                echo "❌ No Ubuntu .deb found in latest release"
-                exit 1
-              fi
-
-              echo "⬇️  Downloading from: $DOWNLOAD_URL"
-              curl -L -o $(basename "$DOWNLOAD_URL") "$DOWNLOAD_URL"
-              ;;
-
-            specific_release)
-              echo "🔍 Fetching release: ${{ inputs.release_tag }}"
-
-              RELEASE_INFO=$(curl -s -H "Accept: application/vnd.github.v3+json" \
-                "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ inputs.release_tag }}")
-
-              DOWNLOAD_URL=$(echo "$RELEASE_INFO" | jq -r '.assets[] | select(.name | contains("ubuntu") and contains("x86_64") and endswith(".deb")) | .browser_download_url' | head -1)
-              if [[ -z "$DOWNLOAD_URL" || "$DOWNLOAD_URL" == "null" ]]; then
-                echo "❌ No Ubuntu .deb found in release ${{ inputs.release_tag }}"
-                exit 1
-              fi
-
-              echo "⬇️  Downloading from: $DOWNLOAD_URL"
-              curl -L -o $(basename "$DOWNLOAD_URL") "$DOWNLOAD_URL"
-              ;;
-          esac
-
-          # Extract and prepare plugin
-          echo "📂 Extracting plugin..."
-          ls -la
-
-          if [[ -f artifact.zip ]]; then
-            unzip -o artifact.zip
-            ls -la
-
-            # Look for the plugin binary and packages
-            if [[ -f *.deb ]]; then
-              echo "plugin_type=deb" >> $GITHUB_OUTPUT
-              echo "plugin_file=$(ls *.deb | head -1)" >> $GITHUB_OUTPUT
-            elif [[ -f *.tar.xz ]]; then
-              echo "plugin_type=archive" >> $GITHUB_OUTPUT
-              echo "plugin_file=$(ls *.tar.xz | head -1)" >> $GITHUB_OUTPUT
-            elif [[ -f c64stream.so ]]; then
-              echo "plugin_type=binary" >> $GITHUB_OUTPUT
-              echo "plugin_file=c64stream.so" >> $GITHUB_OUTPUT
-            else
-              echo "❌ No plugin binary found in artifact"
-              exit 1
-            fi
-          elif [[ -f *.deb ]]; then
-            echo "plugin_type=deb" >> $GITHUB_OUTPUT
-            echo "plugin_file=$(ls *.deb | head -1)" >> $GITHUB_OUTPUT
-          else
-            echo "❌ No plugin files found"
-            exit 1
-          fi
-
-          echo "✅ Plugin source prepared"
-
-      - name: Install Plugin 📦
-        run: |
-          : Install Plugin 📦
-
-          cd ./plugin-download
-
-          case "${{ steps.get-plugin.outputs.plugin_type }}" in
-            deb)
-              echo "🔧 Installing .deb package..."
-              dpkg -i "${{ steps.get-plugin.outputs.plugin_file }}" || apt-get install -f -y
-              echo "✅ Plugin installed via .deb"
-              ;;
-
-            archive)
-              echo "🔧 Extracting and installing from archive..."
-              tar -xf "${{ steps.get-plugin.outputs.plugin_file }}"
-
-              # Find the plugin binary
-              PLUGIN_SO=$(find . -name "c64stream.so" | head -1)
-              if [[ -z "$PLUGIN_SO" ]]; then
-                echo "❌ c64stream.so not found in archive"
-                exit 1
-              fi
-
-              # Manual installation
-              mkdir -p ~/.config/obs-studio/plugins/c64stream/bin/64bit
-              mkdir -p ~/.config/obs-studio/plugins/c64stream/data
-
-              cp "$PLUGIN_SO" ~/.config/obs-studio/plugins/c64stream/bin/64bit/
-
-              # Copy data if available
-              if [[ -d ../data ]]; then
-                cp -r ../data/* ~/.config/obs-studio/plugins/c64stream/data/
-              fi
-
-              echo "✅ Plugin installed manually from archive"
-              ;;
-
-            binary)
-              echo "🔧 Installing plugin binary..."
-              mkdir -p ~/.config/obs-studio/plugins/c64stream/bin/64bit
-              mkdir -p ~/.config/obs-studio/plugins/c64stream/data
-
-              cp "${{ steps.get-plugin.outputs.plugin_file }}" ~/.config/obs-studio/plugins/c64stream/bin/64bit/
-
-              # Copy data
-              if [[ -d ../data ]]; then
-                cp -r ../data/* ~/.config/obs-studio/plugins/c64stream/data/
-              fi
-
-              echo "✅ Plugin installed manually"
-              ;;
-          esac
-
-          # Verify installation
-          if [[ -f ~/.config/obs-studio/plugins/c64stream/bin/64bit/c64stream.so ]]; then
-            echo "✅ Plugin verification successful"
-            ls -la ~/.config/obs-studio/plugins/c64stream/bin/64bit/
-          else
-            echo "❌ Plugin verification failed"
-            exit 1
-          fi
-
-      - name: Setup X11 Display 🖥️
-        run: |
-          : Setup X11 Display 🖥️
-
-          # Start Xvfb for headless display
-          Xvfb :99 -screen 0 1024x768x24 &
-          sleep 2
-
-          # Verify display is working
-          DISPLAY=:99 xdpyinfo >/dev/null 2>&1 || {
-            echo "❌ X11 display setup failed"
-            exit 1
+          get_latest_build_run() {
+            local branch="$1"
+            # Query latest successful runs for push workflow (which calls build-project.yaml)
+            curl -s \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/chrisgleissner/c64stream/actions/workflows/push.yaml/runs?status=success&branch=${branch}&per_page=1" \
+              | jq -r '.workflow_runs[0]'
           }
 
-          echo "✅ X11 display ready"
+          if [[ "${source_type}" == "latest_build" ]]; then
+            # Get latest successful build-project workflow run from main branch
+            echo "📦 Fetching latest build from main branch (push.yaml)..."
+            workflow_run=$(get_latest_build_run "main")
 
-      - name: Run E2E Tests 🧪
+            run_id=$(echo "$workflow_run" | jq -r '.id')
+            commit_sha=$(echo "$workflow_run" | jq -r '.head_sha')
+
+            if [[ -z "${run_id}" || "${run_id}" == "null" ]]; then
+              echo "❌ Could not find latest successful build"
+              exit 1
+            fi
+
+            echo "📦 Found workflow run: ${run_id} (commit: ${commit_sha:0:9})"
+            echo "sourceType=latest_build" >> $GITHUB_OUTPUT
+            echo "workflowRunId=${run_id}" >> $GITHUB_OUTPUT
+
+          elif [[ "${source_type}" == "latest_release" ]]; then
+            # Get latest release info
+            release_info=$(curl -s https://api.github.com/repos/chrisgleissner/c64stream/releases/latest)
+            release_tag=$(echo "$release_info" | jq -r '.tag_name')
+
+            if [[ -z "${release_tag}" || "${release_tag}" == "null" ]]; then
+              echo "❌ Could not find latest release"
+              exit 1
+            fi
+
+            echo "📦 Using latest release: ${release_tag}"
+            echo "sourceType=release" >> $GITHUB_OUTPUT
+            echo "releaseTag=${release_tag}" >> $GITHUB_OUTPUT
+
+          elif [[ "${source_type}" == "specific_release" ]]; then
+            release_tag="${{ inputs.release_tag }}"
+
+            if [[ -z "${release_tag}" ]]; then
+              echo "❌ Release tag must be specified for source_type=specific_release"
+              exit 1
+            fi
+
+            echo "📦 Using specified release: ${release_tag}"
+            echo "sourceType=release" >> $GITHUB_OUTPUT
+            echo "releaseTag=${release_tag}" >> $GITHUB_OUTPUT
+          elif [[ "${source_type}" == "branch_build" ]]; then
+            branch_name="${{ inputs.branch }}"
+            if [[ -z "${branch_name}" ]]; then
+              echo "❌ Branch name must be specified for source_type=branch_build"
+              exit 1
+            fi
+            echo "📦 Fetching latest successful build from branch '${branch_name}' (push.yaml)..."
+            workflow_run=$(get_latest_build_run "${branch_name}")
+
+            run_id=$(echo "$workflow_run" | jq -r '.id')
+            commit_sha=$(echo "$workflow_run" | jq -r '.head_sha')
+
+            if [[ -z "${run_id}" || "${run_id}" == "null" ]]; then
+              echo "❌ Could not find latest successful build for branch '${branch_name}'"
+              exit 1
+            fi
+
+            echo "📦 Found workflow run: ${run_id} (commit: ${commit_sha:0:9})"
+            echo "sourceType=branch_build" >> $GITHUB_OUTPUT
+            echo "workflowRunId=${run_id}" >> $GITHUB_OUTPUT
+            echo "branchName=${branch_name}" >> $GITHUB_OUTPUT
+          fi
+
+          echo "format=${{ inputs.format || 'PAL' }}" >> $GITHUB_OUTPUT
+          echo "frames=${{ inputs.frames || '250' }}" >> $GITHUB_OUTPUT
+
+      - name: Install System Dependencies 🛍️
         run: |
-          : Run E2E Tests 🧪
+          : Install System Dependencies 🛍️
+          sudo add-apt-repository -y ppa:obsproject/obs-studio
+          sudo apt-get update -qq
+          sudo apt-get install -y \
+            obs-studio \
+            python3 \
+            python3-pip \
+            python3-numpy \
+            python3-pil \
+            ffmpeg \
+            xvfb \
+            curl \
+            jq
 
+      - name: Set up OBS Studio Configuration 🎛️
+        run: |
+          : Set up OBS Studio Configuration 🎛️
+          mkdir -p ~/.config/obs-studio/basic/profiles/E2E-Test
+          mkdir -p $HOME/obs-recordings
+
+      - name: Download and Install Plugin 📥
+        run: |
+          : Download and Install Plugin 📥
+          source_type="${{ steps.setup.outputs.sourceType }}"
+
+          if [[ "${source_type}" == "latest_build" || "${source_type}" == "branch_build" ]]; then
+            # Download from latest successful build artifact
+            run_id="${{ steps.setup.outputs.workflowRunId }}"
+            echo "📦 Downloading artifact from workflow run ${run_id}..."
+
+            # Get artifact list
+            artifacts=$(curl -s \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/chrisgleissner/c64stream/actions/runs/${run_id}/artifacts")
+
+            # Find Ubuntu x86_64 artifact (exclude dbgsym)
+            artifact_id=$(echo "$artifacts" | jq -r '.artifacts[] | select(.name | contains("ubuntu") and contains("x86_64") and (contains("dbgsym") | not)) | .id' | head -1)
+
+            if [[ -z "${artifact_id}" || "${artifact_id}" == "null" ]]; then
+              echo "❌ Could not find Ubuntu x86_64 artifact"
+              echo "Available artifacts:"
+              echo "$artifacts" | jq -r '.artifacts[].name'
+              exit 1
+            fi
+
+            echo "📦 Downloading artifact ${artifact_id}..."
+
+            # Download using nightly.link (public access to artifacts)
+            curl -L -o plugin-artifact.zip \
+              "https://nightly.link/chrisgleissner/c64stream/actions/artifacts/${artifact_id}.zip"
+
+            echo "📦 Extracting artifact..."
+            unzip -q plugin-artifact.zip
+
+            echo "📦 Artifact contents:"
+            ls -la
+
+            # Find .tar.xz or .deb file
+            tar_file=$(find . -name "*.tar.xz" | head -1)
+            deb_file=$(find . -name "*.deb" -not -name "*-dbgsym.ddeb" | head -1)
+
+            if [[ -n "${deb_file}" ]]; then
+              echo "📦 Installing .deb package: ${deb_file}"
+              sudo dpkg -i "${deb_file}" || sudo apt-get install -f -y
+              echo "✅ Plugin installed via .deb package"
+            elif [[ -n "${tar_file}" ]]; then
+              echo "📦 Extracting ${tar_file}..."
+              tar -xf "${tar_file}"
+
+              echo "📦 Extracted contents:"
+              ls -laR
+
+              # Install to user plugin directory
+              mkdir -p ~/.config/obs-studio/plugins/c64stream/bin/64bit
+              mkdir -p ~/.config/obs-studio/plugins/c64stream/data
+
+              # Find and copy plugin binary
+              plugin_binary=""
+              for path in \
+                "lib/x86_64-linux-gnu/obs-plugins/c64stream.so" \
+                "usr/lib/obs-plugins/c64stream.so" \
+                "usr/lib/x86_64-linux-gnu/obs-plugins/c64stream.so"; do
+                if [[ -f "${path}" ]]; then
+                  plugin_binary="${path}"
+                  break
+                fi
+              done
+
+              if [[ -n "${plugin_binary}" ]]; then
+                cp "${plugin_binary}" ~/.config/obs-studio/plugins/c64stream/bin/64bit/
+                echo "✅ Plugin binary installed from ${plugin_binary}"
+              else
+                echo "❌ Plugin binary not found"
+                find . -name "*.so" -type f
+                exit 1
+              fi
+
+              # Find and copy plugin data
+              plugin_data=""
+              for path in \
+                "share/obs/obs-plugins/c64stream" \
+                "usr/share/obs/obs-plugins/c64stream"; do
+                if [[ -d "${path}" ]]; then
+                  plugin_data="${path}"
+                  break
+                fi
+              done
+
+              if [[ -n "${plugin_data}" ]]; then
+                cp -r "${plugin_data}"/* ~/.config/obs-studio/plugins/c64stream/data/
+                echo "✅ Plugin data installed from ${plugin_data}"
+              else
+                echo "⚠️ Plugin data not found (may not be required)"
+              fi
+            else
+              echo "❌ No .deb or .tar.xz file found in artifact"
+              find . -type f
+              exit 1
+            fi
+
+          elif [[ "${source_type}" == "release" ]]; then
+            # Download from GitHub release
+            release_tag="${{ steps.setup.outputs.releaseTag }}"
+            echo "📦 Downloading release ${release_tag}..."
+
+            # Get release info
+            release_info=$(curl -s "https://api.github.com/repos/chrisgleissner/c64stream/releases/tags/${release_tag}")
+
+            # Prefer .deb package, fallback to .tar.xz
+            deb_url=$(echo "$release_info" | jq -r '.assets[] | select(.name | contains(".deb") and (contains("dbgsym") | not)) | .browser_download_url' | head -1)
+
+            if [[ -n "$deb_url" && "$deb_url" != "null" ]]; then
+              echo "📦 Downloading .deb package: $deb_url"
+              curl -L -o plugin-release.deb "$deb_url"
+              sudo dpkg -i plugin-release.deb || sudo apt-get install -f -y
+              echo "✅ Plugin installed via .deb package"
+            else
+              # Fallback to tar.xz
+              tar_url=$(echo "$release_info" | jq -r '.assets[] | select(.name | contains("ubuntu") and contains(".tar.xz")) | .browser_download_url' | head -1)
+
+              if [[ -z "$tar_url" || "$tar_url" == "null" ]]; then
+                echo "❌ No suitable artifact found in release $release_tag"
+                echo "Available assets:"
+                echo "$release_info" | jq -r '.assets[].name'
+                exit 1
+              fi
+
+              echo "📦 Downloading .tar.xz: $tar_url"
+              curl -L -o plugin-release.tar.xz "$tar_url"
+              tar -xf plugin-release.tar.xz
+
+              # Manual installation for tar.xz
+              mkdir -p ~/.config/obs-studio/plugins/c64stream/bin/64bit
+              mkdir -p ~/.config/obs-studio/plugins/c64stream/data
+
+              if [[ -f lib/x86_64-linux-gnu/obs-plugins/c64stream.so ]]; then
+                cp lib/x86_64-linux-gnu/obs-plugins/c64stream.so ~/.config/obs-studio/plugins/c64stream/bin/64bit/
+                echo "✅ Plugin binary installed"
+              elif [[ -f usr/lib/obs-plugins/c64stream.so ]]; then
+                cp usr/lib/obs-plugins/c64stream.so ~/.config/obs-studio/plugins/c64stream/bin/64bit/
+                echo "✅ Plugin binary installed"
+              else
+                echo "❌ Plugin binary not found"
+                exit 1
+              fi
+
+              if [[ -d share/obs/obs-plugins/c64stream ]]; then
+                cp -r share/obs/obs-plugins/c64stream/* ~/.config/obs-studio/plugins/c64stream/data/
+                echo "✅ Plugin data installed"
+              elif [[ -d usr/share/obs/obs-plugins/c64stream ]]; then
+                cp -r usr/share/obs/obs-plugins/c64stream/* ~/.config/obs-studio/plugins/c64stream/data/
+                echo "✅ Plugin data installed"
+              fi
+            fi
+          fi
+
+      - name: Verify Plugin Installation 🔍
+        run: |
+          user_bin="$HOME/.config/obs-studio/plugins/c64stream/bin/64bit/c64stream.so"
+          sys_bin="/usr/lib/obs-plugins/c64stream.so"
+          sys_bin_arch="/usr/lib/x86_64-linux-gnu/obs-plugins/c64stream.so"
+          if [[ -f "$sys_bin" ]]; then
+            echo "✅ Plugin binary found at $sys_bin"
+          elif [[ -f "$sys_bin_arch" ]]; then
+            echo "✅ Plugin binary found at $sys_bin_arch"
+          elif [[ -f "$user_bin" ]]; then
+            echo "✅ Plugin binary found at $user_bin"
+          else
+            echo "❌ Plugin binary not found (checked $sys_bin, $sys_bin_arch, and $user_bin)"
+            exit 1
+          fi
+
+          if [[ -d /usr/share/obs/obs-plugins/c64stream ]]; then
+            echo "✅ Plugin data found at /usr/share/obs/obs-plugins/c64stream"
+          elif [[ -d "$HOME/.config/obs-studio/plugins/c64stream/data" ]]; then
+            echo "✅ Plugin data found at ~/.config/obs-studio/plugins/c64stream/data"
+          else
+            echo "⚠️ Plugin data directory not found"
+          fi
+
+      - name: Prepare E2E Test Environment 🔧
+        run: |
+          : Prepare E2E Test Environment 🔧
+          # Build only the UDP replay tool needed for testing
+          cmake --preset ubuntu-x86_64
+          cmake --build build_x86_64 --target udp_replay
+
+          # Install Python dependencies
+          python3 -m pip install --user numpy pillow
+
+      - name: Run E2E Test 🎬
+        timeout-minutes: 10
+        id: e2e_test
+        run: |
+          : Run E2E Test 🎬
           cd tests/e2e
 
-          # Build E2E tools first
-          echo "🔧 Building E2E tools..."
-          cmake --preset ubuntu-x86_64
-          cmake --build ../../build_x86_64 --target udp_replay
+          # Start Xvfb for headless operation with proper cleanup
+          export DISPLAY=:99
 
-          # Run the E2E test with specified parameters
-          echo "🧪 Running E2E test..."
-          python3 e2e.py \
-            --format "${{ inputs.format }}" \
-            --frames "${{ inputs.frames }}" \
-            --output-dir "../../e2e-results" \
-            --udp-replay "../../build_x86_64/tests/e2e/udp_replay" \
-            --verbose
+          # Clean up any stale X lock files from previous runs
+          sudo rm -f /tmp/.X99-lock /tmp/.X*-lock 2>/dev/null || true
 
-      - name: Collect Test Artifacts 📋
-        if: always()
-        run: |
-          : Collect Test Artifacts 📋
+          # Kill any existing Xvfb processes
+          pkill -f "Xvfb.*:99" 2>/dev/null || true
+          sleep 1
 
-          mkdir -p e2e-artifacts
+          # Start Xvfb with stderr redirection to suppress xkbcomp warnings
+          Xvfb :99 -screen 0 1280x720x24 2>/dev/null &
+          XVFB_PID=$!
+          sleep 3
 
-          # Collect test results
-          if [[ -d e2e-results ]]; then
-            cp -r e2e-results/* e2e-artifacts/
+          # Cleanup on exit
+          trap "kill $XVFB_PID 2>/dev/null || true; sudo rm -f /tmp/.X99-lock 2>/dev/null || true" EXIT
+
+          # Run E2E test
+          if ./e2e.sh --format "${{ steps.setup.outputs.format }}" --frames "${{ steps.setup.outputs.frames }}" --skip-build --verbose; then
+            echo "E2E_RESULT=success" >> $GITHUB_OUTPUT
+            echo "✅ E2E test completed successfully"
+          else
+            echo "E2E_RESULT=failure" >> $GITHUB_OUTPUT
+            echo "❌ E2E test failed"
+            exit 1
           fi
 
-          # Collect OBS logs
-          if [[ -d ~/.config/obs-studio/logs ]]; then
-            mkdir -p e2e-artifacts/obs-logs
-            cp ~/.config/obs-studio/logs/* e2e-artifacts/obs-logs/ 2>/dev/null || true
-          fi
-
-          # Collect plugin info
-          echo "Plugin Installation Details:" > e2e-artifacts/plugin-info.txt
-          echo "Source Type: ${{ inputs.source_type }}" >> e2e-artifacts/plugin-info.txt
-          echo "Format: ${{ inputs.format }}" >> e2e-artifacts/plugin-info.txt
-          echo "Frames: ${{ inputs.frames }}" >> e2e-artifacts/plugin-info.txt
-          echo "Plugin Type: ${{ steps.get-plugin.outputs.plugin_type }}" >> e2e-artifacts/plugin-info.txt
-          echo "Plugin File: ${{ steps.get-plugin.outputs.plugin_file }}" >> e2e-artifacts/plugin-info.txt
-          echo "Date: $(date)" >> e2e-artifacts/plugin-info.txt
-
-          # List installed plugin files
-          echo "" >> e2e-artifacts/plugin-info.txt
-          echo "Installed Plugin Files:" >> e2e-artifacts/plugin-info.txt
-          ls -la ~/.config/obs-studio/plugins/c64stream/ >> e2e-artifacts/plugin-info.txt 2>/dev/null || true
-          ls -la ~/.config/obs-studio/plugins/c64stream/bin/64bit/ >> e2e-artifacts/plugin-info.txt 2>/dev/null || true
-
-      - name: Upload E2E Artifacts 📤
+      - name: Upload Test Results 📤
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: manual-e2e-test-results-${{ inputs.source_type }}-${{ inputs.format }}-${{ github.run_number }}
-          path: e2e-artifacts/
-          if-no-files-found: warn
+          name: manual-e2e-test-results-${{ steps.setup.outputs.sourceType }}-${{ github.run_id }}
+          path: |
+            tests/e2e/test_output/**/*.mp4
+            tests/e2e/test_output/**/*.mkv
+            tests/e2e/test_output/**/*.csv
+            tests/e2e/test_output/**/*.json
+            tests/e2e/test_output/**/*.txt
+            tests/e2e/test_output/**/*.log
+            ~/.config/obs-studio/logs/*.txt
+            ~/.config/obs-studio/logs/*.log
+          retention-days: 14
+
+      - name: Test Summary 📊
+        if: always()
+        run: |
+          : Test Summary 📊
+          echo "## Manual E2E Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          source_type="${{ steps.setup.outputs.sourceType }}"
+          if [[ "${source_type}" == "latest_build" ]]; then
+            echo "- Source: Latest build from main branch" >> $GITHUB_STEP_SUMMARY
+            echo "- Workflow Run: ${{ steps.setup.outputs.workflowRunId }}" >> $GITHUB_STEP_SUMMARY
+          elif [[ "${source_type}" == "release" ]]; then
+            echo "- Source: Release ${{ steps.setup.outputs.releaseTag }}" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "- Format: ${{ steps.setup.outputs.format }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Frames: ${{ steps.setup.outputs.frames }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [[ "${{ steps.e2e_test.outputs.E2E_RESULT }}" == "success" ]]; then
+            echo "✅ Test completed successfully" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Test failed" >> $GITHUB_STEP_SUMMARY
+          fi
