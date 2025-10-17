@@ -274,6 +274,11 @@ jobs:
               age_hours=$(( age_seconds / 3600 ))
               age_days=$(( age_seconds / 86400 ))
 
+              # Ensure variables are proper integers (remove leading zeros)
+              age_seconds=$((10#$age_seconds + 0))
+              age_hours=$((10#$age_hours + 0))
+              age_days=$((10#$age_days + 0))
+
               # 7 days = 1209600 seconds
               max_age_seconds=1209600
 
