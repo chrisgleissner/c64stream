@@ -432,75 +432,244 @@ reset_obs_configuration() {
 EOF
     fi
 
-    # Reset C64 Stream source settings in main scene collection to defaults
+    # Ensure Untitled.json scene exists with C64 Stream source (no hardcoded settings)
     local untitled_scene="$obs_config_dir/basic/scenes/Untitled.json"
+    if [[ ! -f "$untitled_scene" ]]; then
+        log_info "Creating default Untitled.json scene with C64 Stream source"
+        mkdir -p "$(dirname "$untitled_scene")"
+        
+        # Create a minimal scene with C64 Stream source but NO settings section
+        # This allows properties.ini to control all configuration
+        cat > "$untitled_scene" << 'EOF'
+{
+    "current_scene": "Scene",
+    "current_program_scene": "Scene",
+    "scene_order": [
+        {
+            "name": "Scene"
+        }
+    ],
+    "name": "Untitled",
+    "sources": [
+        {
+            "prev_ver": 536870912,
+            "name": "Scene",
+            "uuid": "69b87014-e000-45ba-ac29-1fc5622b9e2b",
+            "id": "scene",
+            "versioned_id": "scene",
+            "settings": {
+                "id_counter": 1,
+                "custom_size": false,
+                "items": [
+                    {
+                        "name": "C64 Stream",
+                        "source_uuid": "e353c5b3-1b56-42cc-ac6d-2ce94ff2df5e",
+                        "visible": true,
+                        "locked": false,
+                        "rot": 0.0,
+                        "scale_ref": {
+                            "x": 1280.0,
+                            "y": 720.0
+                        },
+                        "align": 5,
+                        "bounds_type": 0,
+                        "bounds_align": 0,
+                        "bounds_crop": false,
+                        "crop_left": 0,
+                        "crop_top": 0,
+                        "crop_right": 0,
+                        "crop_bottom": 0,
+                        "id": 1,
+                        "group_item_backup": false,
+                        "pos": {
+                            "x": 0.0,
+                            "y": 0.0
+                        },
+                        "pos_rel": {
+                            "x": -1.7777777910232544,
+                            "y": -1.0
+                        },
+                        "scale": {
+                            "x": 2.3046875,
+                            "y": 2.3051471710205078
+                        },
+                        "scale_rel": {
+                            "x": 2.3046875,
+                            "y": 2.3051471710205078
+                        },
+                        "bounds": {
+                            "x": 0.0,
+                            "y": 0.0
+                        },
+                        "bounds_rel": {
+                            "x": 0.0,
+                            "y": 0.0
+                        },
+                        "scale_filter": "disable",
+                        "blend_method": "default",
+                        "blend_type": "normal",
+                        "show_transition": {
+                            "duration": 0
+                        },
+                        "hide_transition": {
+                            "duration": 0
+                        },
+                        "private_settings": {}
+                    }
+                ]
+            },
+            "mixers": 0,
+            "sync": 0,
+            "flags": 0,
+            "volume": 1.0,
+            "balance": 0.5,
+            "enabled": true,
+            "muted": false,
+            "push-to-mute": false,
+            "push-to-mute-delay": 0,
+            "push-to-talk": false,
+            "push-to-talk-delay": 0,
+            "hotkeys": {
+                "OBSBasic.SelectScene": [],
+                "libobs.show_scene_item.1": [],
+                "libobs.hide_scene_item.1": []
+            },
+            "deinterlace_mode": 0,
+            "deinterlace_field_order": 0,
+            "monitoring_type": 0,
+            "canvas_uuid": "6c69626f-6273-4c00-9d88-c5136d61696e",
+            "private_settings": {}
+        },
+        {
+            "prev_ver": 536870912,
+            "name": "C64 Stream",
+            "uuid": "e353c5b3-1b56-42cc-ac6d-2ce94ff2df5e",
+            "id": "c64_source",
+            "versioned_id": "c64_source",
+            "mixers": 255,
+            "sync": 0,
+            "flags": 0,
+            "volume": 1.0,
+            "balance": 0.5,
+            "enabled": true,
+            "muted": false,
+            "push-to-mute": false,
+            "push-to-mute-delay": 0,
+            "push-to-talk": false,
+            "push-to-talk-delay": 0,
+            "hotkeys": {
+                "libobs.mute": [],
+                "libobs.unmute": [],
+                "libobs.push-to-mute": [],
+                "libobs.push-to-talk": []
+            },
+            "deinterlace_mode": 0,
+            "deinterlace_field_order": 0,
+            "monitoring_type": 0,
+            "private_settings": {}
+        }
+    ],
+    "groups": [],
+    "quick_transitions": [
+        {
+            "name": "Cut",
+            "duration": 300,
+            "hotkeys": [],
+            "id": 1,
+            "fade_to_black": false
+        },
+        {
+            "name": "Fade",
+            "duration": 300,
+            "hotkeys": [],
+            "id": 2,
+            "fade_to_black": false
+        },
+        {
+            "name": "Fade",
+            "duration": 300,
+            "hotkeys": [],
+            "id": 3,
+            "fade_to_black": true
+        }
+    ],
+    "transitions": [],
+    "saved_projectors": [],
+    "canvases": [],
+    "current_transition": "Fade",
+    "transition_duration": 300,
+    "preview_locked": false,
+    "scaling_enabled": false,
+    "scaling_level": 1,
+    "scaling_off_x": 0.0,
+    "scaling_off_y": 0.0,
+    "virtual-camera": {
+        "type2": 3
+    },
+    "modules": {
+        "scripts-tool": [],
+        "output-timer": {
+            "streamTimerHours": 0,
+            "streamTimerMinutes": 0,
+            "streamTimerSeconds": 30,
+            "recordTimerHours": 0,
+            "recordTimerMinutes": 0,
+            "recordTimerSeconds": 30,
+            "autoStartStreamTimer": false,
+            "autoStartRecordTimer": false,
+            "pauseRecordTimer": true
+        }
+    },
+    "resolution": {
+        "x": 1280,
+        "y": 720
+    },
+    "version": 2
+}
+EOF
+        log_success "Created default scene with C64 Stream source (properties.ini will control settings)"
+    fi
+
+    # Remove any hardcoded settings from existing C64 Stream source to ensure properties.ini takes precedence
     if [[ -f "$untitled_scene" ]]; then
-        # Check if there's a C64 Stream source
-        if grep -q "c64_source" "$untitled_scene"; then
-            log_info "Found C64 Stream source in main scene - resetting to default settings"
+        # Check if there's a C64 Stream source with settings that need to be cleared
+        if grep -q '"settings".*c64_host\|"settings".*video_port\|"settings".*audio_port' "$untitled_scene"; then
+            log_info "Found C64 Stream source with hardcoded settings - removing to let properties.ini take precedence"
             # Create a backup
             cp "$untitled_scene" "${untitled_scene}.backup"
 
-            # Reset C64 source settings to defaults using Python for JSON manipulation
+            # Remove hardcoded settings from C64 source using Python for JSON manipulation
             python3 << PYTHON_SCRIPT
 import json
 import sys
 import os
 
 scene_file = os.path.expanduser("~/.config/obs-studio/basic/scenes/Untitled.json")
-skip_e2e_props = "$skip_e2e_props"
 
 try:
     with open(scene_file, 'r') as f:
         data = json.load(f)
 
-    # Find and reset C64 Stream source settings
+    # Find and clear C64 Stream source settings to let properties.ini take precedence
+    settings_cleared = False
     for source in data.get('sources', []):
         if source.get('id') == 'c64_source':
-            print(f"Resetting C64 Stream source: {source.get('name')}")
+            print(f"Clearing hardcoded settings from C64 Stream source: {source.get('name')}")
+            # Remove the settings section entirely so properties.ini values are used
+            if 'settings' in source:
+                del source['settings']
+                settings_cleared = True
+                print("✅ Removed hardcoded settings - properties.ini will now control all configuration")
 
-            if skip_e2e_props == "true":
-                # E2E tests are running - preserve E2E settings for test compatibility
-                source['settings'] = {
-                    "c64_host": "localhost",
-                    "control_port": 6400,
-                    "dns_server_ip": "127.0.0.1",
-                    "video_port": 21000,
-                    "audio_port": 21001,
-                    "auto_detect_ip": False,
-                    "obs_ip_address": "127.0.0.1",
-                    "buffer_delay_ms": 10,
-                    "record_csv": True,
-                    "debug_logging": True
-                }
-                print("✅ Reset to E2E settings for test compatibility")
-            else:
-                # Normal install - reset to default settings for real C64 Ultimate use
-                source['settings'] = {
-                    "c64_host": "c64u",
-                    "control_port": 64,
-                    "dns_server_ip": "192.168.1.1",
-                    "video_port": 21000,
-                    "audio_port": 21001,
-                    "auto_detect_ip": True,
-                    "obs_ip_address": "192.168.1.185",
-                    "buffer_delay_ms": 50,
-                    "save_frames": False,
-                    "record_video": False,
-                    "record_csv": False,
-                    "debug_logging": False,
-                    "scan_line_distance": 0.0,
-                    "scan_line_strength": 0.0
-                }
-                print("✅ Reset to real C64 Ultimate settings")
-
-    with open(scene_file, 'w') as f:
-        json.dump(data, f, indent=2)
-
-    print("✅ C64 Stream source settings reset successfully")
+    if settings_cleared:
+        with open(scene_file, 'w') as f:
+            json.dump(data, f, indent=2)
+        print("✅ C64 Stream source settings cleared successfully")
+    else:
+        print("✅ No hardcoded settings found - properties.ini already controls configuration")
 
 except Exception as e:
-    print(f"❌ Failed to reset C64 source settings: {e}")
+    print(f"❌ Failed to process C64 source settings: {e}")
     sys.exit(1)
 PYTHON_SCRIPT
         fi

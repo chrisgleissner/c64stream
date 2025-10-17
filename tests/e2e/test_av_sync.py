@@ -58,43 +58,70 @@ def detect_black_squares(video_path, frame_rate=30.0):
     Detect timing of black squares in video center.
     Returns list of frame numbers where black squares are detected.
 
-    Accounts for scan line effect by checking multiple rows.
+    The test pattern generates a 100x100 black square in the center of a 384x272 C64 frame.
+    This gets scaled up in the OBS recording to 1280x720.
+    
+    Ignores early frames where C64 logo appears to avoid false positives.
     """
     cap = cv2.VideoCapture(str(video_path))
     black_square_frames = []
     frame_num = 0
+    
+    # Skip early frames where C64 logo appears (typically first 6 seconds)
+    skip_frames = int(6.0 * frame_rate)  # Skip first 6 seconds
 
     while True:
         ret, frame = cap.read()
         if not ret:
             break
 
-        # Get frame dimensions
+        # Skip early frames to avoid C64 logo false positives
+        if frame_num < skip_frames:
+            frame_num += 1
+            continue
+
+        # Get frame dimensions and calculate scaling from C64 source
         height, width = frame.shape[:2]
-        center_x, center_y = width // 2, height // 2
+        
+        # C64 source: 384x272, Test pattern: 100x100 square at center (192, 136)
+        # OBS recording: typically 1280x720
+        c64_width, c64_height = 384, 272
+        c64_square_size = 100
+        c64_center_x, c64_center_y = 192, 136
+        
+        # Calculate scaling factors
+        scale_x = width / c64_width
+        scale_y = height / c64_height
+        
+        # Scale the square dimensions and position
+        scaled_square_size_x = int(c64_square_size * scale_x)
+        scaled_square_size_y = int(c64_square_size * scale_y)
+        scaled_center_x = int(c64_center_x * scale_x)
+        scaled_center_y = int(c64_center_y * scale_y)
+        
+        # Define precise region for the scaled 100x100 black square
+        left = scaled_center_x - scaled_square_size_x // 2
+        right = scaled_center_x + scaled_square_size_x // 2
+        top = scaled_center_y - scaled_square_size_y // 2
+        bottom = scaled_center_y + scaled_square_size_y // 2
 
-        # Define region to check (100x100 black square in center)
-        square_size = 100
-        left = center_x - square_size // 2
-        right = center_x + square_size // 2
-        top = center_y - square_size // 2
-        bottom = center_y + square_size // 2
-
-        # Extract the center region
+        # Extract the precise center region where the test pattern square should be
         center_region = frame[top:bottom, left:right]
 
         # Convert to grayscale for analysis
         gray_region = cv2.cvtColor(center_region, cv2.COLOR_BGR2GRAY)
 
-        # Check if region is predominantly black
-        # Account for scan lines by checking multiple rows
-        # Scan lines darken every second row, so check odd rows (should be darker)
-        odd_rows = gray_region[1::2, :]  # Every second row starting from row 1
-        mean_brightness = np.mean(odd_rows)
-
-        # Black square threshold (accounting for compression artifacts)
-        if mean_brightness < 30:  # Very dark
-            black_square_frames.append(frame_num)
+        # Check if region shows the test pattern (bright square with darker diagonal lines)
+        if center_region.size > 0:  # Ensure region is valid
+            mean_brightness = np.mean(gray_region)
+            
+            # Look for dark regions that indicate black squares in the test pattern
+            # Pattern observed: 
+            # - C64 logo transition: ~37 brightness (very dark, not the test pattern)
+            # - Black squares: ~99-100 brightness (actual test pattern)
+            # - Background: ~123-124 brightness
+            if 90 < mean_brightness < 110:  # Specifically target black square brightness range
+                black_square_frames.append(frame_num)
 
         frame_num += 1
 

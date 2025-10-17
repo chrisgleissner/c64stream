@@ -449,8 +449,8 @@ DockAreaVisible=false
                             "private_settings": {},
                             "rot": 0.0,
                             "scale": {
-                                "x": 1.0,
-                                "y": 1.0
+                                "x": 3.3333333333333335,
+                                "y": 2.6470588235294117
                             },
                             "scale_filter": "disable",
                             "visible": True
