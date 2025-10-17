@@ -548,20 +548,20 @@ jobs:
           find artifacts/ -type f -exec ls -la {} \; 2>/dev/null || true
 
           # Try DEB package installation first (preferred method)
-          deb_files=(artifacts/*.deb)
-          if [[ -f "${deb_files[0]}" ]]; then
-            echo "📦 Installing DEB package: ${deb_files[0]}"
-            dpkg -i "${deb_files[0]}" || apt-get install -f -y
+          deb_file=$(find artifacts/ -name "*.deb" -type f | head -1)
+          if [[ -n "$deb_file" ]]; then
+            echo "📦 Installing DEB package: $deb_file"
+            dpkg -i "$deb_file" || apt-get install -f -y
             echo "✅ Plugin installed via DEB package"
             exit 0
           fi
 
           # Try TAR.XZ extraction and manual installation
-          tarxz_files=(artifacts/*.tar.xz)
-          if [[ -f "${tarxz_files[0]}" ]]; then
-            echo "📦 Extracting TAR.XZ package: ${tarxz_files[0]}"
+          tarxz_file=$(find artifacts/ -name "*.tar.xz" -type f | head -1)
+          if [[ -n "$tarxz_file" ]]; then
+            echo "📦 Extracting TAR.XZ package: $tarxz_file"
             mkdir -p /tmp/plugin_extract
-            tar -xf "${tarxz_files[0]}" -C /tmp/plugin_extract
+            tar -xf "$tarxz_file" -C /tmp/plugin_extract
 
             # Find the .so file and data directory
             so_file=$(find /tmp/plugin_extract -name "*.so" -type f | head -1)
@@ -581,12 +581,12 @@ jobs:
             fi
           fi
 
-          # Fallback: Direct .so file installation
-          so_files=(artifacts/*.so)
-          if [[ -f "${so_files[0]}" ]]; then
-            echo "📦 Installing SO file directly: ${so_files[0]}"
+          # Fallback: Direct .so file installation (handles artifacts/build_x86_64/c64stream.so)
+          so_file=$(find artifacts/ -name "*.so" -type f | head -1)
+          if [[ -n "$so_file" ]]; then
+            echo "📦 Installing SO file directly: $so_file"
             mkdir -p ~/.config/obs-studio/plugins/c64stream/bin/64bit
-            cp "${so_files[0]}" ~/.config/obs-studio/plugins/c64stream/bin/64bit/
+            cp "$so_file" ~/.config/obs-studio/plugins/c64stream/bin/64bit/
 
             # Copy data directory if available
             if [[ -d data ]]; then
