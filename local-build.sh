@@ -57,6 +57,7 @@ OPTIONS:
     --clean             Clean build directory before building
     --tests             Run tests after building
     --install-deps      Install build dependencies
+    --install-e2e-deps  Also install E2E testing dependencies (OBS, xvfb, etc.)
     --install           Install plugin to OBS after building
     --e2e               Run E2E tests after building and installing
     --verbose           Enable verbose output
@@ -68,13 +69,14 @@ EXAMPLES:
     $0 linux --install                         # Build and install to OBS
     $0 linux --e2e --install                   # Build, install and run E2E tests
     $0 windows --clean --install-deps          # Clean build for Windows, install deps
+    $0 linux --install-e2e-deps --e2e          # Install all deps including E2E and run E2E tests
     $0 macos --verbose                          # Build for macOS with verbose output
 
 NOTES:
     - This script replicates CI build behavior locally
     - Dependencies are automatically downloaded where possible
     - Cross-compilation is supported for Windows on Linux (MinGW)
-    - E2E tests require OBS Studio, Python3, xvfb, and additional dependencies
+    - E2E tests require OBS Studio, Python3, xvfb, and additional dependencies (auto-installed)
     - Each platform may have specific prerequisites (see README.md)
 EOF
 }
@@ -145,7 +147,10 @@ install_dependencies() {
         linux)
             # Install build essentials and required tools
             if command -v apt-get >/dev/null 2>&1; then
-                sudo apt-get update
+                log_info "Updating package lists..."
+                sudo apt-get update -qq
+
+                log_info "Installing core build dependencies..."
                 sudo apt-get install -y \
                     build-essential \
                     cmake \
@@ -153,14 +158,38 @@ install_dependencies() {
                     pkg-config \
                     git \
                     clang-format \
+                    ccache \
+                    python3 \
                     python3-pip
+                log_info "✅ Core build dependencies installed"
 
                 # Install gersemi for CMake formatting
-                pip3 install --user gersemi
+                if ! command -v gersemi >/dev/null 2>&1; then
+                    log_info "Installing gersemi for CMake formatting..."
+                    pip3 install --user gersemi
+                fi
 
                 # Install SIMDe if available, otherwise continue without system libobs
                 if apt-cache show libsimde-dev >/dev/null 2>&1; then
                     sudo apt-get install -y libsimde-dev
+                    log_info "Installed libsimde-dev for SIMD optimizations"
+                fi
+
+                # Install E2E testing dependencies if requested
+                if [[ "${INSTALL_E2E_DEPS:-false}" == "true" ]]; then
+                    log_info "Installing E2E testing dependencies..."
+                    sudo apt-get install -y \
+                        obs-studio \
+                        python3-numpy \
+                        python3-pil \
+                        python3-requests \
+                        python3-websocket \
+                        xvfb \
+                        x11-utils
+                    log_info "✅ E2E testing dependencies installed successfully"
+                    log_info "   - OBS Studio (video streaming software)"
+                    log_info "   - Python libraries (numpy, PIL, requests, websocket)"
+                    log_info "   - Xvfb (virtual display for headless testing)"
                 fi
 
                 log_info "Note: OBS dependencies will be downloaded automatically by build system"
@@ -659,6 +688,11 @@ main() {
                 INSTALL_DEPS=true
                 shift
                 ;;
+            --install-e2e-deps)
+                INSTALL_DEPS=true
+                INSTALL_E2E_DEPS=true
+                shift
+                ;;
             --install)
                 INSTALL_PLUGIN=true
                 shift
@@ -699,6 +733,34 @@ main() {
 
     # Execute workflow
     check_prerequisites "$PLATFORM"
+
+    # Auto-install E2E dependencies if E2E is requested and dependencies are missing
+    if [[ "$RUN_E2E" == "true" && "$INSTALL_DEPS" == "false" ]]; then
+        # Check if essential E2E dependencies are missing
+        local missing_e2e_deps=()
+
+        if ! command -v obs >/dev/null 2>&1; then
+            missing_e2e_deps+=("obs-studio")
+        fi
+        if ! command -v xvfb-run >/dev/null 2>&1; then
+            missing_e2e_deps+=("xvfb")
+        fi
+        if ! python3 -c "import numpy" >/dev/null 2>&1; then
+            missing_e2e_deps+=("python3-numpy")
+        fi
+        if ! python3 -c "import PIL" >/dev/null 2>&1; then
+            missing_e2e_deps+=("python3-pil")
+        fi
+
+        if [[ ${#missing_e2e_deps[@]} -gt 0 ]]; then
+            log_info "E2E testing requested but missing dependencies: ${missing_e2e_deps[*]}"
+            log_info "Auto-installing missing E2E dependencies..."
+            INSTALL_DEPS=true
+            INSTALL_E2E_DEPS=true
+        else
+            log_info "E2E testing requested - all dependencies already installed"
+        fi
+    fi
 
     if [[ "$INSTALL_DEPS" == "true" ]]; then
         install_dependencies "$PLATFORM"

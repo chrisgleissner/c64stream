@@ -188,7 +188,9 @@ def verify_av_sync(video_path, tolerance_ms=100):
             prev_time = time
         sync_periods.append(current_period_start)
 
-    print(f"⬛ Detected {len(sync_periods)} black square periods at: {sync_periods} ms")
+    # Format timestamps to show only one decimal place
+    formatted_periods = [f"{period:.1f}" for period in sync_periods]
+    print(f"⬛ Detected {len(sync_periods)} black square periods at: {formatted_periods} ms")
 
     # Verify synchronization
     sync_results = []
@@ -222,7 +224,7 @@ def verify_av_sync(video_path, tolerance_ms=100):
         })
 
         status = "✅" if is_synced else "❌"
-        print(f"{status} Beep #{i+1}: {beep_time}ms, Square: {closest_square}ms, Diff: {min_diff:.1f}ms")
+        print(f"{status} Beep #{i+1}: {beep_time}ms, Square: {closest_square:.1f}ms, Diff: {min_diff:.1f}ms")
 
     # Calculate sync accuracy based only on analyzed beeps
     sync_accuracy = (perfect_sync_count / total_analyzed * 100) if total_analyzed > 0 else 0

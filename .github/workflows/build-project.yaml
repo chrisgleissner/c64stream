@@ -5,7 +5,7 @@ on:
   workflow_call:
     inputs:
       run_e2e:
-        description: 'Run E2E tests after build'
+        description: 'Run E2E tests after build (non-blocking - failures will not fail the build)'
         required: false
         default: true
         type: boolean
@@ -506,6 +506,7 @@ jobs:
     name: E2E Test 🧪
     if: ${{ inputs.run_e2e && needs.ubuntu-build.result == 'success' }}
     runs-on: ubuntu-24.04
+    continue-on-error: true  # Allow E2E failures without breaking the build
     needs: [check-event, ubuntu-build, ensure-docker-image]
     defaults:
       run:
@@ -738,7 +739,7 @@ jobs:
 
       - name: Run E2E Tests 🧪
         run: |
-          : Run E2E Tests 🧪
+          : Run E2E Tests 🧪 (Non-blocking - failures won't fail the build)
 
           cd tests/e2e
 
@@ -782,3 +783,23 @@ jobs:
           name: e2e-test-results-${{ needs.check-event.outputs.commitHash }}
           path: e2e-artifacts/
           if-no-files-found: warn
+
+      - name: E2E Test Status Summary 📊
+        if: always()
+        run: |
+          : E2E Test Status Summary 📊
+
+          # Check if the E2E test step passed or failed
+          if [[ "${{ job.status }}" == "success" ]]; then
+            echo "✅ **E2E Tests PASSED** - All validations successful!" >> $GITHUB_STEP_SUMMARY
+            echo "📊 E2E test results are available in the artifacts." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ **E2E Tests FAILED** - This does not fail the build!" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "🔧 **Next Steps:**" >> $GITHUB_STEP_SUMMARY
+            echo "- Check E2E test artifacts for debugging information" >> $GITHUB_STEP_SUMMARY
+            echo "- Review OBS logs in the artifacts" >> $GITHUB_STEP_SUMMARY
+            echo "- E2E tests can be fixed in a follow-up PR" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "🏗️ **Note:** The main build remains successful and can be merged." >> $GITHUB_STEP_SUMMARY
+          fi

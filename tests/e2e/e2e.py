@@ -28,6 +28,12 @@ import json
 import socket
 import tempfile
 from pathlib import Path
+
+# Import A/V sync testing
+try:
+    from test_av_sync import verify_av_sync
+except ImportError:
+    verify_av_sync = None
 try:
     import websocket
     import requests
@@ -553,6 +559,14 @@ DockAreaVisible=false
 
     def wait_for_obs_websocket(self, timeout=30):
         """Wait for OBS WebSocket server to be ready."""
+        if not self.enable_websocket:
+            self.log("⚠️  WebSocket disabled, skipping WebSocket server check")
+            return False
+
+        if not WEBSOCKET_AVAILABLE:
+            self.log("⚠️  WebSocket not available, skipping WebSocket server check")
+            return False
+
         self.log("Waiting for OBS WebSocket server...")
 
         start_time = time.time()
@@ -658,34 +672,77 @@ DockAreaVisible=false
             self.log("⚠️  WebSocket not available, skipping OBS API call")
             return None
 
+        if not self.enable_websocket:
+            self.log("⚠️  WebSocket disabled, skipping OBS API call")
+            return None
+
         try:
             import uuid
-            request_id = str(uuid.uuid4())
+            import json
+            import hashlib
+            import base64
 
-            message = {
+            # WebSocket connection parameters
+            ws_url = "ws://127.0.0.1:4455"
+            password = "e2etest123"
+
+            # Create WebSocket connection
+            ws = websocket.create_connection(ws_url, timeout=5)
+
+            # Receive Hello message with authentication challenge
+            hello_msg = json.loads(ws.recv())
+            if hello_msg.get("op") != 0:  # Hello opcode
+                raise Exception(f"Expected Hello message, got: {hello_msg}")
+
+            # Authenticate using the challenge
+            auth_data = hello_msg["d"]["authentication"]
+            challenge = auth_data["challenge"]
+            salt = auth_data["salt"]
+
+            # Generate authentication response
+            secret = base64.b64encode(hashlib.sha256((password + salt).encode()).digest()).decode()
+            auth_response = base64.b64encode(hashlib.sha256((secret + challenge).encode()).digest()).decode()
+
+            # Send Identify message with authentication
+            identify_msg = {
+                "op": 1,  # Identify
+                "d": {
+                    "rpcVersion": 1,
+                    "authentication": auth_response
+                }
+            }
+            ws.send(json.dumps(identify_msg))
+
+            # Receive Identified message
+            identified_msg = json.loads(ws.recv())
+            if identified_msg.get("op") != 2:  # Identified opcode
+                raise Exception(f"Authentication failed: {identified_msg}")
+
+            # Send the actual request
+            request_id = str(uuid.uuid4())
+            request_msg = {
                 "op": 6,  # Request
                 "d": {
                     "requestType": request_type,
-                    "requestId": request_id
+                    "requestId": request_id,
+                    "requestData": request_data or {}
                 }
             }
 
-            if request_data:
-                message["d"]["requestData"] = request_data
+            ws.send(json.dumps(request_msg))
 
-            # Simple HTTP-based approach for basic commands
-            # In a full implementation, we'd use persistent WebSocket connection
-            response = requests.post('http://127.0.0.1:4455/api',
-                                   json=message, timeout=5)
+            # Receive response
+            response = json.loads(ws.recv())
+            ws.close()
 
-            if response.status_code == 200:
-                return response.json()
+            if response.get("op") == 7:  # RequestResponse opcode
+                return response["d"]
             else:
-                self.log(f"OBS API request failed: {response.status_code}")
+                self.log(f"Unexpected response: {response}")
                 return None
 
         except Exception as e:
-            self.log(f"OBS API error: {e}")
+            self.log(f"OBS WebSocket error: {e}")
             return None
 
     def start_obs_recording(self):
@@ -942,15 +999,15 @@ DockAreaVisible=false
         """Start recording in OBS."""
         self.log("Starting OBS recording...")
 
-        # Try WebSocket API first, fallback to command line approach
-        if self.wait_for_obs_websocket(timeout=5):
+        # Try WebSocket API first if enabled, fallback to command line approach
+        if self.enable_websocket and self.wait_for_obs_websocket(timeout=5):
             response = self.send_obs_request("StartRecord")
             if response:
                 self.log("✅ Recording started via WebSocket API")
                 return True
 
         # Fallback: Kill and restart OBS with recording enabled
-        self.log("WebSocket not available, using command line recording")
+        self.log("WebSocket not available or disabled, using command line recording")
 
         # Stop current OBS process
         if self.obs_process:
@@ -1002,12 +1059,12 @@ DockAreaVisible=false
         """Stop recording in OBS."""
         self.log("Stopping OBS recording...")
 
-        # Try WebSocket API first
-        if WEBSOCKET_AVAILABLE:
+        # Try WebSocket API first if enabled
+        if WEBSOCKET_AVAILABLE and self.enable_websocket:
             response = self.send_obs_request("StopRecord")
             if response:
                 self.log("✅ Recording stopped via WebSocket API")
-                time.sleep(3)  # Give time for file to be written
+                time.sleep(4)  # Give time for file to be written (increased from 3s)
                 return True
 
         # Fallback: marker file approach
@@ -1015,7 +1072,7 @@ DockAreaVisible=false
         with open(marker_file, 'w') as f:
             f.write(f"stop_recording_{int(time.time())}")
 
-        time.sleep(3)
+        time.sleep(4)  # Increased from 3s for consistency
         return True
 
     def check_recording_output(self):
@@ -1357,8 +1414,8 @@ DockAreaVisible=false
             elapsed_ms = (time.time() - replay_start_time) * 1000
             self.log(f"✅ Packet replay complete: {packets_sent} packets sent, {failed_packets} failed in {elapsed_ms:.1f}ms")
 
-            # Give plugin time to process the packets
-            time.sleep(1.0)
+            # Give plugin time to process the packets (increased from 1.0s to prevent packet loss)
+            time.sleep(1.5)
             self.log("✅ Plugin processing delay complete")
 
             return packets_sent > 0
@@ -1544,22 +1601,22 @@ DockAreaVisible=false
 
         if self.obs_process:
             try:
-                # First try to stop recording via WebSocket if available
-                if WEBSOCKET_AVAILABLE:
+                # First try to stop recording via WebSocket if available and enabled
+                if WEBSOCKET_AVAILABLE and self.enable_websocket:
                     self.send_obs_request("StopRecord")
                     time.sleep(1)
 
                 # Send SIGTERM for graceful shutdown
                 self.obs_process.terminate()
 
-                # Wait for graceful shutdown
+                # Wait for graceful shutdown (increased from 8s to allow complete processing)
                 try:
-                    self.obs_process.wait(timeout=8)
+                    self.obs_process.wait(timeout=12)
                     self.log("✅ OBS stopped gracefully")
                 except subprocess.TimeoutExpired:
-                    self.log("OBS didn't stop gracefully, sending SIGKILL...")
+                    self.log("OBS didn't stop gracefully within 12s, sending SIGKILL...")
                     self.obs_process.kill()
-                    self.obs_process.wait(timeout=3)
+                    self.obs_process.wait(timeout=5)  # Also increased kill timeout
                     self.log("✅ OBS stopped forcefully")
 
             except Exception as e:
@@ -1864,6 +1921,33 @@ DockAreaVisible=false
             validation_errors.append("Missing video recording")
             validation_results['video_recording'] = {'status': 'fail', 'details': 'No file found'}
 
+        # 4. A/V Synchronization Validation
+        if recording_file and Path(recording_file).exists() and verify_av_sync:
+            try:
+                print("🎵 A/V Sync: Analyzing synchronization...")
+                sync_results = verify_av_sync(recording_file, tolerance_ms=100)
+
+                if sync_results['is_perfectly_synced']:
+                    print(f"✅ A/V Sync: Perfect synchronization ({sync_results['sync_accuracy_percent']:.1f}%)")
+                    validation_results['av_sync'] = {'status': 'pass', 'details': f"{sync_results['perfect_sync_count']}/{sync_results['total_analyzed']} analyzed beeps synced"}
+                elif sync_results['sync_accuracy_percent'] >= 80.0:
+                    print(f"⚠️  A/V Sync: Good synchronization ({sync_results['sync_accuracy_percent']:.1f}%)")
+                    validation_warnings.append(f"A/V sync: {sync_results['sync_accuracy_percent']:.1f}% accuracy")
+                    validation_results['av_sync'] = {'status': 'warning', 'details': f"{sync_results['perfect_sync_count']}/{sync_results['total_analyzed']} analyzed beeps synced"}
+                else:
+                    print(f"❌ A/V Sync: Poor synchronization ({sync_results['sync_accuracy_percent']:.1f}%)")
+                    validation_errors.append(f"A/V sync poor: {sync_results['sync_accuracy_percent']:.1f}% accuracy")
+                    validation_results['av_sync'] = {'status': 'fail', 'details': f"{sync_results['perfect_sync_count']}/{sync_results['total_analyzed']} analyzed beeps synced"}
+            except Exception as e:
+                print(f"⚠️  A/V Sync: Analysis failed - {e}")
+                validation_warnings.append(f"A/V sync analysis failed: {e}")
+                validation_results['av_sync'] = {'status': 'warning', 'details': 'Analysis failed'}
+        else:
+            if not verify_av_sync:
+                print("⚠️  A/V Sync: Analysis not available (missing dependencies)")
+                validation_warnings.append("A/V sync analysis unavailable")
+                validation_results['av_sync'] = {'status': 'warning', 'details': 'Analysis unavailable'}
+
         # Summary
         print(f"\n{'='*60}")
 
@@ -2000,8 +2084,8 @@ DockAreaVisible=false
             # Stop recording
             self.stop_recording()
 
-            # Wait a moment for files to be written
-            time.sleep(2)
+            # Wait a moment for files to be written (increased from 2s to prevent data loss)
+            time.sleep(3)
 
             # Check CSV recordings first (crucial for debugging packet reception)
             csv_found = self.check_csv_recordings()
