@@ -238,6 +238,27 @@ class E2ETest:
             try:
                 shutil.copy2(e2e_properties, target_properties)
                 self.log(f"✅ Copied E2E properties: {e2e_properties} -> {target_properties}")
+
+                # In CI, force the plugin's save_folder to the actual $HOME/Documents path
+                # so that CSVs and recordings land where this test expects them.
+                if self.is_ci:
+                    try:
+                        ci_save_folder = Path.home() / 'Documents' / 'obs-studio' / 'c64stream' / 'recordings'
+                        ci_save_folder.mkdir(parents=True, exist_ok=True)
+
+                        # Rewrite save_folder in the copied properties.ini
+                        props_text = target_properties.read_text(encoding='utf-8', errors='ignore')
+                        if 'save_folder=' in props_text:
+                            # Replace existing assignment (including empty value)
+                            import re
+                            props_text = re.sub(r'^\s*save_folder\s*=.*$', f'save_folder={ci_save_folder}', props_text, flags=re.MULTILINE)
+                        else:
+                            # Append setting; parser in plugin is key-based and not section-bound
+                            props_text += f"\nsave_folder={ci_save_folder}\n"
+                        target_properties.write_text(props_text, encoding='utf-8')
+                        self.log(f"🔧 CI save folder set to: {ci_save_folder}")
+                    except Exception as adjust_e:
+                        self.log(f"⚠️ Could not enforce CI save_folder: {adjust_e}")
                 # Best-effort: if plugin is installed system-wide, also try to apply
                 # properties to the module data path used by obs_module_file()
                 # This is where presets were loaded from on CI (e.g. /usr/share/obs/obs-plugins/c64stream)
@@ -249,6 +270,20 @@ class E2ETest:
                         if os.access(system_data_dir, os.W_OK):
                             shutil.copy2(e2e_properties, sys_target)
                             self.log(f"✅ Applied E2E properties to system data dir: {sys_target}")
+                            # Keep system properties aligned with CI save folder as well
+                            if self.is_ci:
+                                try:
+                                    props_text = sys_target.read_text(encoding='utf-8', errors='ignore')
+                                    if 'save_folder=' in props_text:
+                                        import re
+                                        ci_save_folder = Path.home() / 'Documents' / 'obs-studio' / 'c64stream' / 'recordings'
+                                        ci_save_folder.mkdir(parents=True, exist_ok=True)
+                                        props_text = re.sub(r'^\s*save_folder\s*=.*$', f'save_folder={ci_save_folder}', props_text, flags=re.MULTILINE)
+                                    else:
+                                        props_text += f"\nsave_folder={Path.home() / 'Documents' / 'obs-studio' / 'c64stream' / 'recordings'}\n"
+                                    sys_target.write_text(props_text, encoding='utf-8')
+                                except Exception as _:
+                                    pass
                         else:
                             self.log(f"ℹ️ System data dir not writable (will be handled by workflow): {system_data_dir}")
                             # On CI, check if properties were already applied by workflow
