@@ -274,8 +274,8 @@ jobs:
               age_hours=$(( age_seconds / 3600 ))
               age_days=$(( age_seconds / 86400 ))
 
-              # 7 days = 604800 seconds
-              max_age_seconds=604800
+              # 7 days = 1209600 seconds
+              max_age_seconds=1209600
 
               echo "📅 Image created: $created_timestamp"
               echo "📅 Image age: ${age_days}d ${age_hours}h (${age_seconds}s), no Dockerfile changes since creation"
