@@ -123,9 +123,9 @@ bool c64_presets_init(void)
     memset(presets, 0, sizeof(presets));
 
     // Get the path to the presets.ini file
-    char *filepath = obs_module_file("presets.ini");
+    char *filepath = obs_module_file("effect_presets.ini");
     if (!filepath) {
-        C64_LOG_WARNING("Failed to get presets.ini path");
+        C64_LOG_WARNING("Failed to get effect_presets.ini path");
         return false;
     }
 

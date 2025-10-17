@@ -25,7 +25,18 @@ The plugin connects directly to the Ultimate's network interface, eliminating th
 - **Authentic CRT effects** with configurable presets (scan lines, bloom, tint, pixel geometry)
 - Built-in recording capabilities (BMP frames, AVI video, WAV audio)
 
-## Getting Started 🚀
+## Configuration
+
+The plugin uses a `properties.ini` file to provide default settings for connecting to your C64 Ultimate device. This file is automatically installed with the plugin and contains the standard C64 Ultimate network settings:
+
+- **Hostname**: `c64u` (the default C64 Ultimate hostname)
+- **Control Port**: `64` (the standard C64 Ultimate control port)
+- **DNS Server**: `192.168.1.1` (common router DNS)
+- **Video/Audio Ports**: `11000`/`11001` (C64 Ultimate streaming ports)
+
+These settings work out-of-the-box with most C64 Ultimate setups. You can override any of these settings directly in the OBS source properties if your setup differs.
+
+## Quick Start
 
 ### What You'll Need
 

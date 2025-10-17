@@ -383,7 +383,7 @@ bool c64_load_configuration(obs_data_t *settings)
                 }
             } else if (strcmp(key, "control_port") == 0) {
                 int port = atoi(value);
-                if (port >= 1024 && port <= 65535) {
+                if (port >= 64 && port <= 65535) {
                     obs_data_set_default_int(settings, "control_port", port);
                     C64_LOG_DEBUG("Config: control_port = %d", port);
                     loaded_settings++;

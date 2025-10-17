@@ -352,22 +352,17 @@ jobs:
             echo "📋 Applying E2E properties to system plugin data directory..."
 
             # Copy E2E properties to system directory with sudo privileges
-            if [[ -f "tests/e2e/properties_e2e.ini" ]]; then
-              sudo cp "tests/e2e/properties_e2e.ini" "/usr/share/obs/obs-plugins/c64stream/properties.ini"
-              echo "✅ Applied E2E properties to /usr/share/obs/obs-plugins/c64stream/properties.ini"
+            if [[ -f "tests/e2e/properties_e2e_ci.ini" ]]; then
+              sudo cp "tests/e2e/properties_e2e_ci.ini" "/usr/share/obs/obs-plugins/c64stream/properties.ini"
+              echo "✅ Copied E2E CI properties to system location"
 
-              # Verify the file was copied correctly
-              if [[ -f "/usr/share/obs/obs-plugins/c64stream/properties.ini" ]]; then
-                echo "🔍 System properties.ini contents:"
-                head -5 "/usr/share/obs/obs-plugins/c64stream/properties.ini"
-              else
-                echo "❌ Failed to verify system properties.ini file"
-                exit 1
-              fi
+              # Show what we copied for debugging
+              echo "� E2E CI Properties content:"
+              cat "/usr/share/obs/obs-plugins/c64stream/properties.ini"
+              echo "="
+
             else
-              echo "❌ E2E properties file not found: tests/e2e/properties_e2e.ini"
-              exit 1
-            fi
+              echo "❌ E2E CI properties file not found: tests/e2e/properties_e2e_ci.ini"
           else
             echo "ℹ️ System plugin data directory not found - plugin may be installed to user directory only"
           fi

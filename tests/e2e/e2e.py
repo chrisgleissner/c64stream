@@ -43,7 +43,7 @@ except ImportError:
 
 
 class E2ETest:
-    def __init__(self, test_dir, video_port=11000, audio_port=11001, control_port=6400,
+    def __init__(self, test_dir, video_port=21000, audio_port=21001, control_port=6400,
                  format='NTSC', frames=30, verbose=False, enable_websocket=False):  # Default to NTSC for faster testing
         self.test_dir = Path(test_dir)
         self.video_port = video_port
@@ -221,7 +221,7 @@ class E2ETest:
         script_dir = Path(__file__).parent
         # Use local properties file for local environments to avoid CI-specific behavior
         if self.is_ci:
-            e2e_properties = script_dir / 'properties_e2e.ini'
+            e2e_properties = script_dir / 'properties_e2e_ci.ini'
         else:
             # Check if local properties exist, fallback to CI properties if not
             local_properties = script_dir / 'properties_e2e_local.ini'
@@ -229,7 +229,7 @@ class E2ETest:
                 e2e_properties = local_properties
                 self.log("📋 Using local E2E properties (non-CI environment)")
             else:
-                e2e_properties = script_dir / 'properties_e2e.ini'
+                e2e_properties = script_dir / 'properties_e2e_ci.ini'
                 self.log("⚠️ Local E2E properties not found, using CI properties")
         target_properties = plugin_data_dir / 'properties.ini'
 
@@ -2160,10 +2160,10 @@ def main():
                         help='Video format to test (default: NTSC for speed)')
     parser.add_argument('--frames', type=int, default=299,
                         help='Number of frames to test (default: 299 = 5s NTSC)')
-    parser.add_argument('--video-port', type=int, default=11000,
-                        help='Video UDP port (default: 11000)')
-    parser.add_argument('--audio-port', type=int, default=11001,
-                        help='Audio UDP port (default: 11001)')
+    parser.add_argument('--video-port', type=int, default=21000,
+                        help='Video UDP port (default: 21000)')
+    parser.add_argument('--audio-port', type=int, default=21001,
+                        help='Audio UDP port (default: 21001)')
     parser.add_argument('--control-port', type=int, default=6400,
                         help='Control TCP port for mock C64 Ultimate server (default: 6400)')
     parser.add_argument('--udp-replay', default='./udp_replay',

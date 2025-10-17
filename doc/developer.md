@@ -4,6 +4,61 @@ C64 Ultimate video/audio streaming plugin for OBS Studio.
 
 ## Prerequisites
 
+### Properties Configuration System
+
+The plugin uses a multi-tier configuration system to handle different environments:
+
+1. **Production Settings** (`data/properties.ini`): Default settings for real C64 Ultimate devices
+   - `c64_host=c64u`
+   - `control_port=64`
+   - `dns_server_ip=192.168.1.1`
+   - Shipped to end users with the plugin
+
+2. **E2E Testing Settings**:
+   - `tests/e2e/properties_e2e_local.ini`: Local development E2E testing
+   - `tests/e2e/properties_e2e_ci.ini`: CI environment E2E testing
+   - Both use `localhost` and `control_port=6400` for mock servers
+
+### OBS Configuration Pollution Prevention
+
+**Problem**: E2E tests temporarily copy test-specific properties to the plugin directory, but OBS also caches source settings in its scene collections. This means that even after restoring correct properties.ini, OBS still has cached test settings.
+
+**Solution**: The `local-build.sh --install` command performs comprehensive cleanup:
+
+1. **Properties File Reset**: Restores `data/properties.ini` with real C64 Ultimate settings
+2. **OBS Scene Reset**: Clears all cached C64 Stream source settings in scene collections
+3. **Profile Cleanup**: Removes E2E test profiles and scene collections
+
+```bash
+# Clear OBS scene collection settings (forces reload from properties.ini)
+source['settings'] = {}  # Empty settings object
+```
+
+This ensures that after E2E tests, subsequent OBS launches load fresh settings from the correct properties.ini file.
+
+### Development Workflow
+
+**Clean Installation**:
+
+```bash
+./local-build.sh linux --install --clean
+```
+
+**E2E Testing**:
+
+```bash
+./local-build.sh linux --e2e --install
+```
+
+**Post-E2E Cleanup** (automatic during install):
+
+- Backs up any E2E properties files
+- Restores production properties.ini
+- Clears OBS cached settings
+- Removes E2E profiles/scenes
+
+## System Prerequisites
+
 **Windows:**
 
 - Visual Studio 2022 (with C++ workload)

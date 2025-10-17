@@ -376,6 +376,250 @@ run_tests() {
     fi
 }
 
+reset_obs_configuration() {
+    local platform=$1
+    local skip_e2e_props=${2:-false}
+
+    if [[ "$platform" != "linux" ]]; then
+        log_info "OBS configuration reset only supported on Linux"
+        return 0
+    fi
+
+    log_info "Resetting OBS configuration to clean state..."
+
+    local obs_config_dir="$HOME/.config/obs-studio"
+
+    # Backup existing configuration
+    if [[ -d "$obs_config_dir/basic" ]]; then
+        local backup_dir="$obs_config_dir/backup_$(date +%Y%m%d_%H%M%S)"
+        log_info "Creating backup: $backup_dir"
+        cp -r "$obs_config_dir/basic" "$backup_dir"
+    fi
+
+    # Remove E2E test profile and scene collection
+    if [[ -d "$obs_config_dir/basic/profiles/C64StreamTest" ]]; then
+        log_info "Removing E2E test profile: C64StreamTest"
+        rm -rf "$obs_config_dir/basic/profiles/C64StreamTest"
+    fi
+
+    if [[ -f "$obs_config_dir/basic/scenes/C64StreamTest.json" ]]; then
+        log_info "Removing E2E test scene collection: C64StreamTest.json"
+        rm -f "$obs_config_dir/basic/scenes/C64StreamTest.json"
+        rm -f "$obs_config_dir/basic/scenes/C64StreamTest.json.bak"
+    fi
+
+    # Reset scenes.json to use default collection
+    local scenes_file="$obs_config_dir/basic/scenes/scenes.json"
+    if [[ -f "$scenes_file" ]]; then
+        log_info "Resetting default scene collection to Untitled"
+        cat > "$scenes_file" << 'EOF'
+{
+  "current": "Untitled",
+  "collections": [
+    {
+      "name": "Untitled",
+      "path": "Untitled.json"
+    }
+  ],
+  "current_collection": "Untitled",
+  "scene_collections": [
+    {
+      "name": "Untitled",
+      "path": "Untitled.json"
+    }
+  ]
+}
+EOF
+    fi
+
+    # Reset C64 Stream source settings in main scene collection to defaults
+    local untitled_scene="$obs_config_dir/basic/scenes/Untitled.json"
+    if [[ -f "$untitled_scene" ]]; then
+        # Check if there's a C64 Stream source
+        if grep -q "c64_source" "$untitled_scene"; then
+            log_info "Found C64 Stream source in main scene - resetting to default settings"
+            # Create a backup
+            cp "$untitled_scene" "${untitled_scene}.backup"
+
+            # Reset C64 source settings to defaults using Python for JSON manipulation
+            python3 << PYTHON_SCRIPT
+import json
+import sys
+import os
+
+scene_file = os.path.expanduser("~/.config/obs-studio/basic/scenes/Untitled.json")
+skip_e2e_props = "$skip_e2e_props"
+
+try:
+    with open(scene_file, 'r') as f:
+        data = json.load(f)
+
+    # Find and reset C64 Stream source settings
+    for source in data.get('sources', []):
+        if source.get('id') == 'c64_source':
+            print(f"Resetting C64 Stream source: {source.get('name')}")
+
+            if skip_e2e_props == "true":
+                # E2E tests are running - preserve E2E settings for test compatibility
+                source['settings'] = {
+                    "c64_host": "localhost",
+                    "control_port": 6400,
+                    "dns_server_ip": "127.0.0.1",
+                    "video_port": 21000,
+                    "audio_port": 21001,
+                    "auto_detect_ip": False,
+                    "obs_ip_address": "127.0.0.1",
+                    "buffer_delay_ms": 10,
+                    "record_csv": True,
+                    "debug_logging": True
+                }
+                print("✅ Reset to E2E settings for test compatibility")
+            else:
+                # Normal install - reset to default settings for real C64 Ultimate use
+                source['settings'] = {
+                    "c64_host": "c64u",
+                    "control_port": 64,
+                    "dns_server_ip": "192.168.1.1",
+                    "video_port": 21000,
+                    "audio_port": 21001,
+                    "auto_detect_ip": True,
+                    "obs_ip_address": "192.168.1.185",
+                    "buffer_delay_ms": 50,
+                    "save_frames": False,
+                    "record_video": False,
+                    "record_csv": False,
+                    "debug_logging": False,
+                    "scan_line_distance": 0.0,
+                    "scan_line_strength": 0.0
+                }
+                print("✅ Reset to real C64 Ultimate settings")
+
+    with open(scene_file, 'w') as f:
+        json.dump(data, f, indent=2)
+
+    print("✅ C64 Stream source settings reset successfully")
+
+except Exception as e:
+    print(f"❌ Failed to reset C64 source settings: {e}")
+    sys.exit(1)
+PYTHON_SCRIPT
+        fi
+    fi
+
+    # Handle E2E properties file restoration/removal
+    if [[ "$skip_e2e_props" != "true" ]]; then
+        local props_file="$obs_config_dir/plugins/c64stream/data/properties.ini"
+        if [[ -f "$props_file" ]]; then
+            # Check if it's an E2E properties file (contains localhost)
+            if grep -q "localhost" "$props_file"; then
+                log_info "Found E2E properties file with localhost settings"
+                mv "$props_file" "${props_file}.e2e_backup_$(date +%Y%m%d_%H%M%S)"
+                log_info "Backed up E2E properties file"
+
+                # Restore correct properties.ini with real C64 Ultimate settings
+                if [[ -f "$PROJECT_ROOT/data/properties.ini" ]]; then
+                    cp "$PROJECT_ROOT/data/properties.ini" "$props_file"
+                    log_success "Restored default properties.ini (real C64 Ultimate settings: port 64, host c64u)"
+                else
+                    log_warning "Default properties.ini not found at $PROJECT_ROOT/data/properties.ini"
+                fi
+            fi
+        elif [[ ! -f "$props_file" && -f "$PROJECT_ROOT/data/properties.ini" ]]; then
+            # Properties file missing entirely - restore default
+            log_info "Properties file missing, restoring default"
+            mkdir -p "$(dirname "$props_file")"
+            cp "$PROJECT_ROOT/data/properties.ini" "$props_file"
+            log_success "Restored default properties.ini"
+        fi
+    else
+        log_info "Skipping E2E properties removal (E2E tests will be run)"
+    fi
+
+    log_success "OBS configuration reset completed"
+}
+
+kill_obs_processes() {
+    local skip_udp_cleanup=${1:-false}
+
+    log_info "Checking for running OBS processes..."
+
+    # Find all OBS processes
+    local obs_pids=$(pgrep -f "obs" 2>/dev/null || true)
+
+    if [[ -n "$obs_pids" ]]; then
+        log_info "Found running OBS processes: $obs_pids"
+
+        # Try graceful shutdown first
+        log_info "Attempting graceful shutdown..."
+        pkill -TERM -f "obs" 2>/dev/null || true
+
+        # Wait up to 5 seconds for graceful shutdown
+        for i in {1..5}; do
+            sleep 1
+            if ! pgrep -f "obs" >/dev/null 2>&1; then
+                log_success "OBS processes shut down gracefully"
+                return 0
+            fi
+        done
+
+        # Force kill if still running
+        log_warning "Graceful shutdown failed, force killing OBS processes..."
+        pkill -KILL -f "obs" 2>/dev/null || true
+
+        # Wait a moment for cleanup
+        sleep 1
+
+        # Verify all processes are gone
+        local remaining_pids=$(pgrep -f "obs" 2>/dev/null || true)
+        if [[ -n "$remaining_pids" ]]; then
+            log_error "Failed to kill OBS processes: $remaining_pids"
+            return 1
+        else
+            log_success "All OBS processes terminated"
+        fi
+    else
+        log_info "No running OBS processes found"
+    fi
+
+    # Also check for any lingering UDP sockets on our ports (skip during E2E tests)
+    if [[ "$skip_udp_cleanup" != "true" ]]; then
+        local busy_ports=$(ss -ulnp | grep -E ":(21000|21001) " || true)
+        if [[ -n "$busy_ports" ]]; then
+            log_warning "Found processes still using UDP ports 21000/21001:"
+            echo "$busy_ports"
+            log_warning "Attempting to kill processes using these ports..."
+
+            # Extract PIDs from ss output and kill them
+            local pids_to_kill=$(echo "$busy_ports" | grep -oE 'pid=[0-9]+' | cut -d= -f2 | sort -u || true)
+            if [[ -n "$pids_to_kill" ]]; then
+                for pid in $pids_to_kill; do
+                    if kill -TERM "$pid" 2>/dev/null; then
+                        log_info "Killed process $pid using UDP ports"
+                        sleep 1
+                        # Force kill if still alive
+                        if kill -0 "$pid" 2>/dev/null; then
+                            kill -KILL "$pid" 2>/dev/null || true
+                            log_info "Force killed stubborn process $pid"
+                        fi
+                    fi
+                done
+            fi
+
+            # Recheck after cleanup
+            busy_ports=$(ss -ulnp | grep -E ":(21000|21001) " || true)
+            if [[ -n "$busy_ports" ]]; then
+                log_error "Still have processes using UDP ports after cleanup:"
+                echo "$busy_ports"
+                log_error "E2E tests will likely fail due to port conflicts"
+            else
+                log_success "Successfully cleared UDP port conflicts"
+            fi
+        fi
+    else
+        log_info "Skipping UDP port cleanup (E2E tests will use these ports)"
+    fi
+}
+
 install_plugin() {
     local platform=$1
     local build_dir
@@ -393,6 +637,9 @@ install_plugin() {
     esac
 
     log_info "Installing plugin to OBS..."
+
+    # Reset OBS configuration to clean state before installing
+    reset_obs_configuration "$platform" "$RUN_E2E"
 
     # Define installation directory based on platform
     local install_dir
@@ -475,6 +722,33 @@ install_plugin() {
     if [[ -d "data" ]]; then
         cp -r data/* "$install_dir/data/"
         log_success "Copied data files to $install_dir/data/"
+
+        # Ensure we always have the correct properties.ini with real C64 Ultimate settings
+        # This overwrites any E2E properties that might be lingering
+        local properties_file="$install_dir/data/properties.ini"
+        if [[ -f "data/properties.ini" ]]; then
+            # Force copy the default properties.ini (real C64 Ultimate settings)
+            cp "data/properties.ini" "$properties_file"
+            log_success "Installed default properties.ini (real C64 Ultimate settings)"
+
+            # Backup and remove any E2E properties files that might override
+            for e2e_props in "$install_dir/data/properties_e2e"*.ini; do
+                if [[ -f "$e2e_props" ]]; then
+                    local backup_name="${e2e_props}.backup_$(date +%Y%m%d_%H%M%S)"
+                    mv "$e2e_props" "$backup_name"
+                    log_info "Backed up E2E properties: $(basename "$e2e_props") -> $(basename "$backup_name")"
+                fi
+            done
+
+            # Verify the installed properties have correct settings
+            if grep -q "control_port.*64" "$properties_file" && grep -q "c64u" "$properties_file"; then
+                log_success "✅ Verified properties.ini has real C64 Ultimate settings (port 64, host c64u)"
+            else
+                log_warning "⚠️ Properties.ini may not have correct C64 Ultimate settings - check manually"
+            fi
+        else
+            log_warning "Default properties.ini not found in data/ directory"
+        fi
     else
         log_warning "Data directory not found, skipping data files"
     fi
@@ -511,6 +785,126 @@ install_plugin() {
     fi
 }
 
+install_plugin_for_e2e() {
+    local platform=$1
+    local build_dir
+
+    case $platform in
+        linux) build_dir="build_x86_64" ;;
+        macos) build_dir="build_macos" ;;
+        windows)
+            if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+                build_dir="build_mingw"
+            else
+                build_dir="build_x64"
+            fi
+            ;;
+    esac
+
+    log_info "Installing plugin to OBS for E2E testing..."
+
+    # Reset OBS configuration to clean state with E2E settings
+    reset_obs_configuration "$platform" "true"
+
+    # Define installation directory based on platform
+    local install_dir
+    case $platform in
+        linux)
+            install_dir="$HOME/.config/obs-studio/plugins/c64stream"
+            ;;
+        macos)
+            # Check both user and system library paths for plugins
+            if [[ -d "$HOME/Library/Application Support/obs-studio/plugins" ]]; then
+                install_dir="$HOME/Library/Application Support/obs-studio/plugins/c64stream"
+            else
+                install_dir="/Library/Application Support/obs-studio/plugins/c64stream"
+            fi
+            ;;
+        windows)
+            # Use OBS's default plugin directory
+            install_dir="$APPDATA/obs-studio/plugins/c64stream"
+            ;;
+    esac
+
+    # Create installation directories
+    mkdir -p "$install_dir/bin/64bit"
+    mkdir -p "$install_dir/data"
+
+    # Copy plugin files
+    case $platform in
+        linux)
+            if [[ ! -f "$build_dir/c64stream.so" ]]; then
+                log_error "Plugin file not found: $build_dir/c64stream.so"
+                log_error "Please build the plugin first with: $0 $platform"
+                return 1
+            fi
+            log_success "Copied c64stream.so to $install_dir/bin/64bit"
+            cp "$build_dir/c64stream.so" "$install_dir/bin/64bit/"
+            ;;
+        macos)
+            if [[ ! -f "$build_dir/c64stream.so" ]]; then
+                log_error "Plugin file not found: $build_dir/c64stream.so"
+                log_error "Please build the plugin first with: $0 $platform"
+                return 1
+            fi
+            cp "$build_dir/c64stream.so" "$install_dir/bin/64bit/"
+            log_success "Copied c64stream.so to $install_dir/bin/64bit"
+            ;;
+        windows)
+            if [[ ! -f "$build_dir/c64stream.dll" ]]; then
+                log_error "Plugin file not found: $build_dir/c64stream.dll"
+                log_error "Please build the plugin first with: $0 $platform"
+                return 1
+            fi
+            cp "$build_dir/c64stream.dll" "$install_dir/bin/64bit/"
+            log_success "Copied c64stream.dll to $install_dir/bin/64bit"
+            ;;
+    esac
+
+    # Copy data files (effects, images, locales, etc.)
+    if [[ -d "data" ]]; then
+        cp -r data/* "$install_dir/data/"
+        log_success "Copied data files to $install_dir/data/"
+    fi
+
+    # Install E2E properties file
+    local e2e_props=""
+    if [[ -f "tests/e2e/properties_e2e_local.ini" ]]; then
+        e2e_props="tests/e2e/properties_e2e_local.ini"
+    elif [[ -f "tests/e2e/properties_e2e_ci.ini" ]]; then
+        e2e_props="tests/e2e/properties_e2e_ci.ini"
+    fi
+
+    if [[ -n "$e2e_props" ]]; then
+        # Create backup of existing properties.ini if it exists
+        if [[ -f "$install_dir/data/properties.ini" ]]; then
+            cp "$install_dir/data/properties.ini" "$install_dir/data/properties.ini.e2e_backup_$(date +%Y%m%d_%H%M%S)"
+        fi
+        
+        cp "$e2e_props" "$install_dir/data/properties.ini"
+        log_success "Installed E2E properties.ini from $e2e_props"
+        
+        # Verify E2E settings
+        if grep -q "control_port=6400" "$install_dir/data/properties.ini"; then
+            log_success "✅ Verified properties.ini has E2E settings (port 6400, localhost)"
+        else
+            log_error "❌ Properties.ini verification failed - E2E settings not found"
+            return 1
+        fi
+    else
+        log_warning "No E2E properties file found - using default settings"
+    fi
+
+    log_success "Plugin installation for E2E testing completed!"
+    log_info "Plugin installed to: $install_dir"
+
+    # Show the installed structure
+    if command -v find >/dev/null 2>&1; then
+        log_info "Installed files:"
+        find "$install_dir" -type f | head -20
+    fi
+}
+
 run_e2e_tests() {
     local platform=$1
 
@@ -521,6 +915,10 @@ run_e2e_tests() {
     fi
 
     log_info "Running E2E tests..."
+
+    # Kill any existing OBS processes to avoid port conflicts
+    # Skip UDP port cleanup during E2E tests since the plugin needs those ports
+    kill_obs_processes "true"
 
     # Check if E2E test directory exists
     if [[ ! -d "tests/e2e" ]]; then
@@ -773,14 +1171,19 @@ main() {
     fi
 
     if [[ "$INSTALL_PLUGIN" == "true" ]]; then
-        install_plugin "$PLATFORM"
+        # If E2E tests will also be run, install with E2E settings
+        if [[ "$RUN_E2E" == "true" ]]; then
+            install_plugin_for_e2e "$PLATFORM"
+        else
+            install_plugin "$PLATFORM"
+        fi
     fi
 
     if [[ "$RUN_E2E" == "true" ]]; then
         # E2E tests require the plugin to be installed
         if [[ "$INSTALL_PLUGIN" != "true" ]]; then
             log_warning "E2E tests require plugin installation. Installing plugin first..."
-            install_plugin "$PLATFORM"
+            install_plugin_for_e2e "$PLATFORM"
         fi
         run_e2e_tests "$PLATFORM"
     fi

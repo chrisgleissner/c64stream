@@ -17,8 +17,8 @@ See <https://www.gnu.org/licenses/> for details.
 #define C64_VIDEO_HEADER_SIZE 12
 #define C64_AUDIO_HEADER_SIZE 2
 #define C64_CONTROL_PORT 64
-#define C64_DEFAULT_VIDEO_PORT 11000
-#define C64_DEFAULT_AUDIO_PORT 11001
+#define C64_DEFAULT_VIDEO_PORT 21000
+#define C64_DEFAULT_AUDIO_PORT 21001
 #define C64_DEFAULT_HOST "c64u"
 
 // Video format constants

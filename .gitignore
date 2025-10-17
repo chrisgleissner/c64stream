@@ -26,9 +26,6 @@
 
 # Include development helper files
 !local-build.sh
-!local-act.sh
-!install-ubuntu-deps.sh
-!LOCAL-DEVELOPMENT.md
 
 # Include private folder (for private repo only - excluded in public sync)
 !private

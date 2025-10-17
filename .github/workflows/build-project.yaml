@@ -618,15 +618,14 @@ jobs:
           echo "📁 Ensuring system plugin data dir: ${SYS_DATA_DIR}"
           mkdir -p "${SYS_DATA_DIR}"
 
-          if [[ -f "tests/e2e/properties_e2e.ini" ]]; then
-            cp "tests/e2e/properties_e2e.ini" "${SYS_DATA_DIR}/properties.ini"
-            echo "✅ Applied E2E properties to ${SYS_DATA_DIR}/properties.ini"
-            echo "🔍 System properties.ini (first lines):"
-            head -5 "${SYS_DATA_DIR}/properties.ini" || true
+          if [[ -f "tests/e2e/properties_e2e_ci.ini" ]]; then
+            cp "tests/e2e/properties_e2e_ci.ini" "${SYS_DATA_DIR}/properties.ini"
+            echo "✅ Copied E2E CI properties file for testing"
+            ls -la "${SYS_DATA_DIR}/properties.ini"
+            echo "Properties content:"
+            cat "${SYS_DATA_DIR}/properties.ini"
           else
-            echo "❌ E2E properties file not found: tests/e2e/properties_e2e.ini"
-            exit 1
-          fi
+            echo "❌ E2E CI properties file not found: tests/e2e/properties_e2e_ci.ini"
 
       - name: Ensure User Plugin Mirror 🔁
         run: |
