@@ -570,17 +570,17 @@ jobs:
 
             # Find the .so file and data directory
             so_file=$(find /tmp/plugin_extract -name "*.so" -type f | head -1)
-            data_dir=$(find /tmp/plugin_extract -name "data" -type d | head -1)
+            data_dir=$(find /tmp/plugin_extract -path "*/obs-plugins/c64stream" -type d | head -1)
 
             if [[ -n "$so_file" ]]; then
               echo "📦 Installing from TAR.XZ: $so_file"
               mkdir -p ~/.config/obs-studio/plugins/c64stream/bin/64bit
               cp "$so_file" ~/.config/obs-studio/plugins/c64stream/bin/64bit/
 
-              if [[ -n "$data_dir" ]]; then
-                mkdir -p ~/.config/obs-studio/plugins/c64stream/data
-                cp -r "$data_dir"/* ~/.config/obs-studio/plugins/c64stream/data/
-              fi
+            if [[ -n "$data_dir" ]]; then
+              mkdir -p ~/.config/obs-studio/plugins/c64stream/data
+              cp -r "$data_dir"/* ~/.config/obs-studio/plugins/c64stream/data/
+            fi
               echo "✅ Plugin installed via TAR.XZ extraction"
               exit 0
             fi
@@ -634,6 +634,9 @@ jobs:
 
           # Set up environment for headless operation
           export DISPLAY=:99
+          export QT_QPA_PLATFORM=xcb
+          export QT_X11_NO_MITSHM=1
+          export LIBGL_ALWAYS_SOFTWARE=1
           export PULSE_SERVER="unix:${XDG_RUNTIME_DIR}/pulse/native"
 
           # Clean up any stale processes and lock files
@@ -712,7 +715,8 @@ jobs:
             --frames "${{ inputs.e2e_frames }}" \
             --output-dir "../../e2e-results" \
             --skip-build \
-            --verbose
+            --verbose \
+            --display ":99"
 
       - name: Collect Test Artifacts 📋
         if: always()

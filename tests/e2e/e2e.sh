@@ -37,6 +37,7 @@ DEFAULT_VERBOSE=false
 DEFAULT_SKIP_BUILD=false
 DEFAULT_CLEANUP=true
 DEFAULT_OBS_ENABLED=true   # OBS integration now implemented
+DEFAULT_X11_DISPLAY=":99"
 DEFAULT_MONITOR_RESOURCES=false  # Resource monitoring for CI
 
 # Color output
@@ -266,6 +267,10 @@ parse_args() {
             --monitor-resources)
                 MONITOR_RESOURCES=true
                 shift
+                ;;
+            --display)
+                DEFAULT_X11_DISPLAY="$2"
+                shift 2
                 ;;
             -h|--help)
                 show_help
@@ -532,6 +537,12 @@ run_e2e_test() {
         "--audio-port" "${AUDIO_PORT}"
         "--udp-replay" "${udp_replay_path}"
     )
+
+    # Ensure X environment variables are set for Qt/OBS in CI
+    export DISPLAY="${DEFAULT_X11_DISPLAY}"
+    export QT_QPA_PLATFORM=xcb
+    export QT_X11_NO_MITSHM=1
+    export LIBGL_ALWAYS_SOFTWARE=1
 
     if [[ "${VERBOSE}" == true ]]; then
         cmd+=("--verbose")
