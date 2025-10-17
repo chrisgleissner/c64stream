@@ -523,29 +523,77 @@ jobs:
         run: |
           : Install Plugin 📦
 
-          # Find and install the .deb package
-          if [[ -f artifacts/*.deb ]]; then
-            echo "Installing .deb package..."
-            dpkg -i artifacts/*.deb || apt-get install -f -y
-          else
-            # Fallback to manual installation
-            echo "Manual plugin installation..."
-            mkdir -p ~/.config/obs-studio/plugins/c64stream/bin/64bit
-            mkdir -p ~/.config/obs-studio/plugins/c64stream/data
+          echo "📋 Examining downloaded artifacts..."
+          ls -la artifacts/ || echo "No artifacts directory"
+          find artifacts/ -type f -exec file {} \; 2>/dev/null || true
 
-            if [[ -f artifacts/c64stream.so ]]; then
-              cp artifacts/c64stream.so ~/.config/obs-studio/plugins/c64stream/bin/64bit/
-            else
-              echo "❌ Plugin binary not found"
-              exit 1
+          # Extract any ZIP files in artifacts directory
+          for zip_file in artifacts/*.zip; do
+            if [[ -f "$zip_file" ]]; then
+              echo "📦 Extracting $zip_file..."
+              cd artifacts && unzip -o "$(basename "$zip_file")" && cd ..
             fi
+          done
 
-            if [[ -d data ]]; then
-              cp -r data/* ~/.config/obs-studio/plugins/c64stream/data/
+          # List contents after extraction
+          echo "📋 Artifacts after extraction:"
+          find artifacts/ -type f -exec ls -la {} \; 2>/dev/null || true
+
+          # Try DEB package installation first (preferred method)
+          deb_files=(artifacts/*.deb)
+          if [[ -f "${deb_files[0]}" ]]; then
+            echo "📦 Installing DEB package: ${deb_files[0]}"
+            dpkg -i "${deb_files[0]}" || apt-get install -f -y
+            echo "✅ Plugin installed via DEB package"
+            exit 0
+          fi
+
+          # Try TAR.XZ extraction and manual installation  
+          tarxz_files=(artifacts/*.tar.xz)
+          if [[ -f "${tarxz_files[0]}" ]]; then
+            echo "📦 Extracting TAR.XZ package: ${tarxz_files[0]}"
+            mkdir -p /tmp/plugin_extract
+            tar -xf "${tarxz_files[0]}" -C /tmp/plugin_extract
+            
+            # Find the .so file and data directory
+            so_file=$(find /tmp/plugin_extract -name "*.so" -type f | head -1)
+            data_dir=$(find /tmp/plugin_extract -name "data" -type d | head -1)
+            
+            if [[ -n "$so_file" ]]; then
+              echo "📦 Installing from TAR.XZ: $so_file"
+              mkdir -p ~/.config/obs-studio/plugins/c64stream/bin/64bit
+              cp "$so_file" ~/.config/obs-studio/plugins/c64stream/bin/64bit/
+              
+              if [[ -n "$data_dir" ]]; then
+                mkdir -p ~/.config/obs-studio/plugins/c64stream/data
+                cp -r "$data_dir"/* ~/.config/obs-studio/plugins/c64stream/data/
+              fi
+              echo "✅ Plugin installed via TAR.XZ extraction"
+              exit 0
             fi
           fi
 
-          echo "✅ Plugin installed"
+          # Fallback: Direct .so file installation
+          so_files=(artifacts/*.so)
+          if [[ -f "${so_files[0]}" ]]; then
+            echo "📦 Installing SO file directly: ${so_files[0]}"
+            mkdir -p ~/.config/obs-studio/plugins/c64stream/bin/64bit
+            cp "${so_files[0]}" ~/.config/obs-studio/plugins/c64stream/bin/64bit/
+            
+            # Copy data directory if available
+            if [[ -d data ]]; then
+              mkdir -p ~/.config/obs-studio/plugins/c64stream/data
+              cp -r data/* ~/.config/obs-studio/plugins/c64stream/data/
+            fi
+            echo "✅ Plugin installed via direct SO file"
+            exit 0
+          fi
+
+          # If we get here, nothing worked
+          echo "❌ No installable plugin artifacts found"
+          echo "Available files:"
+          find artifacts/ -type f 2>/dev/null || echo "No files found"
+          exit 1
 
       - name: Setup X11 Display 🖥️
         run: |
