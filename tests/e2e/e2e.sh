@@ -514,6 +514,14 @@ run_e2e_test() {
     # Prepare output directory
     mkdir -p "${OUTPUT_DIR}"
 
+    # Determine udp_replay path
+    local udp_replay_path="${BUILD_DIR}/tests/e2e/udp_replay"
+    if [[ ! -f "${udp_replay_path}" ]]; then
+        # If the prebuilt tool doesn't exist (e.g., when --skip-build is used),
+        # let the Python harness auto-build into the current directory.
+        udp_replay_path="./udp_replay"
+    fi
+
     # Build test command
     local cmd=(
         "python3" "./e2e.py"
@@ -522,7 +530,7 @@ run_e2e_test() {
         "--frames" "${FRAMES}"
         "--video-port" "${VIDEO_PORT}"
         "--audio-port" "${AUDIO_PORT}"
-        "--udp-replay" "${BUILD_DIR}/tests/e2e/udp_replay"
+        "--udp-replay" "${udp_replay_path}"
     )
 
     if [[ "${VERBOSE}" == true ]]; then
