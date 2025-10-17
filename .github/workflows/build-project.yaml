@@ -686,8 +686,8 @@ jobs:
 
           cd tests/e2e
 
-          # Run the E2E test with specified parameters
-          python3 e2e.py \
+          # Run the E2E test with specified parameters using standardized shell entry point
+          ./e2e.sh \
             --format "${{ inputs.e2e_format }}" \
             --frames "${{ inputs.e2e_frames }}" \
             --output-dir "../../e2e-results"

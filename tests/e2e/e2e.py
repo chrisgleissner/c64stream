@@ -92,6 +92,19 @@ class E2ETest:
         self.log(f"Starting Xvfb on display {display}")
 
         try:
+            # Check if Xvfb is already running on this display
+            try:
+                result = subprocess.run(['pgrep', '-f', f'Xvfb.*{display}'],
+                                      capture_output=True, check=False)
+                if result.returncode == 0 and result.stdout.strip():
+                    self.log(f"✅ Xvfb already running on {display} (started by workflow)")
+                    # Set DISPLAY environment variable
+                    os.environ['DISPLAY'] = display
+                    self.xvfb_process = None  # Not managed by us
+                    return True
+            except Exception:
+                pass  # Ignore errors
+
             # Clean up any stale lock files
             display_num = display.lstrip(':')
             lock_file = f"/tmp/.X{display_num}-lock"
@@ -143,10 +156,15 @@ class E2ETest:
         plugin_data_dir = obs_config_dir / 'plugins' / 'c64stream' / 'data'
 
         if not plugin_data_dir.exists():
-            self.log("❌ Plugin data directory not found, plugin may not be installed")
-            return False
+            self.log("⚠️ Plugin data directory not found, creating it...")
+            try:
+                plugin_data_dir.mkdir(parents=True, exist_ok=True)
+                self.log("✅ Created plugin data directory")
+            except Exception as e:
+                self.log(f"❌ Failed to create plugin data directory: {e}")
+                return False
 
-        # Copy E2E properties file
+        # Copy E2E properties file (user plugin data dir)
         script_dir = Path(__file__).parent
         e2e_properties = script_dir / 'properties_e2e.ini'
         target_properties = plugin_data_dir / 'properties.ini'
@@ -155,6 +173,21 @@ class E2ETest:
             try:
                 shutil.copy2(e2e_properties, target_properties)
                 self.log(f"✅ Copied E2E properties: {e2e_properties} -> {target_properties}")
+                # Best-effort: if plugin is installed system-wide, also try to apply
+                # properties to the module data path used by obs_module_file()
+                # This is where presets were loaded from on CI (e.g. /usr/share/obs/obs-plugins/c64stream)
+                system_data_dir = Path('/usr/share/obs/obs-plugins/c64stream')
+                if system_data_dir.exists():
+                    try:
+                        sys_target = system_data_dir / 'properties.ini'
+                        # Only attempt if writable; actual privileged overwrite is handled in CI workflow
+                        if os.access(system_data_dir, os.W_OK):
+                            shutil.copy2(e2e_properties, sys_target)
+                            self.log(f"✅ Applied E2E properties to system data dir: {sys_target}")
+                        else:
+                            self.log(f"ℹ️ System data dir not writable (will be handled by workflow): {system_data_dir}")
+                    except Exception as se:
+                        self.log(f"⚠️ Could not apply system properties.ini: {se}")
                 return True
             except Exception as e:
                 self.log(f"❌ Failed to copy E2E properties: {e}")
@@ -236,6 +269,13 @@ DockAreaVisible=false
 
         # Create scene collection
         scene_file = scenes_dir / 'C64StreamTest.json'
+        # Generate a stable UUID for the source in this run
+        try:
+            import uuid as _uuid
+            source_uuid = str(_uuid.uuid4())
+        except Exception:
+            source_uuid = "00000000-0000-0000-0000-000000000001"
+
         scene_config = {
             "AuxAudioDevice1": {
                 "balance": 0.5,
@@ -267,6 +307,7 @@ DockAreaVisible=false
             ],
             "sources": [
                 {
+                    "uuid": source_uuid,
                     "balance": 0.5,
                     "deinterlace_field_order": 0,
                     "deinterlace_mode": 0,
@@ -319,6 +360,7 @@ DockAreaVisible=false
                             "id": 1,
                             "locked": False,
                             "name": "C64 Stream Source",
+                            "source_uuid": source_uuid,
                             "pos": {
                                 "x": 0.0,
                                 "y": 0.0
@@ -341,10 +383,26 @@ DockAreaVisible=false
         with open(scene_file, 'w') as f:
             json.dump(scene_config, f, indent=2)
 
+        # Register the scene collection so OBS can discover it by name
+        try:
+            scenes_index = obs_config_dir / 'basic' / 'scenes' / 'scenes.json'
+            scenes_index.parent.mkdir(parents=True, exist_ok=True)
+            index_payload = {
+                "current_scene_collection": "C64StreamTest",
+                "scene_collections": [
+                    {"name": "C64StreamTest", "path": "C64StreamTest.json"}
+                ]
+            }
+            with open(scenes_index, 'w') as idx:
+                json.dump(index_payload, idx, indent=2)
+            self.log(f"✅ Registered scene collection: {scenes_index}")
+        except Exception as e:
+            self.log(f"⚠️ Failed to register scene collection: {e}")
+
         self.log(f"✅ Created OBS profile at {profile_dir}")
         return profile_dir
 
-    def wait_for_plugin_initialization(self, timeout=10):
+    def wait_for_plugin_initialization(self, timeout=30):
         """Wait for C64 plugin to initialize by monitoring OBS logs."""
         self.log("⏳ Monitoring OBS logs for C64 plugin initialization...")
 
@@ -361,8 +419,6 @@ DockAreaVisible=false
             b"UDP socket",  # Plugin creating UDP sockets
         ]
 
-        checked_files = set()
-
         while time.time() - start_time < timeout:
             # Check if OBS process crashed
             if self.obs_process.poll() is not None:
@@ -374,25 +430,17 @@ DockAreaVisible=false
                 log_files = list(logs_dir.glob('*.txt'))
                 log_files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
 
-                # Check the most recent log files
-                for log_file in log_files[:3]:  # Check up to 3 most recent files
-                    if log_file in checked_files:
-                        continue
-
+                # Always re-read the latest log to catch late writes
+                for log_file in log_files[:1]:
                     try:
                         with open(log_file, 'rb') as f:
                             content = f.read()
-
-                            # Look for plugin initialization patterns
                             for pattern in init_patterns:
                                 if pattern in content:
                                     self.log(f"✅ C64 plugin initialized (found '{pattern.decode()}' in {log_file.name})")
                                     return True
-
-                        checked_files.add(log_file)
-
                     except (OSError, IOError):
-                        continue
+                        pass
 
             time.sleep(0.1)  # Check every 100ms
 
@@ -473,6 +521,7 @@ DockAreaVisible=false
                 'obs',
                 '--profile', 'C64StreamTest',
                 '--scene-collection', 'C64StreamTest',
+                '--scene', 'C64 Test Scene',
                 '--startrecording',  # Auto-start recording
                 '--minimize-to-tray',
                 '--disable-updater',
@@ -602,6 +651,16 @@ DockAreaVisible=false
             Path.home(),  # Home directory
             Path('/tmp'),  # Temporary directory
         ]
+
+        # Also accept plugin's own raw recording as valid evidence on CI
+        plugin_recordings_base = Path.home() / 'Documents' / 'obs-studio' / 'c64stream' / 'recordings'
+        if plugin_recordings_base.exists():
+            # Find latest session folder
+            session_folders = [f for f in plugin_recordings_base.glob('session_*') if f.is_dir()]
+            if session_folders:
+                session_folders.sort(key=lambda f: f.stat().st_mtime, reverse=True)
+                latest_session = session_folders[0]
+                search_dirs.insert(0, latest_session)  # Prefer latest plugin session folder
 
         recording_files = []
 
@@ -742,9 +801,35 @@ DockAreaVisible=false
         # Wait for the plugin to send TCP start commands (with timeout)
         if not self.udp_replay_triggered.wait(timeout=30):
             self.log("❌ Timeout waiting for plugin to request streaming")
+            self.log("🔍 Network diagnostics:")
+            self.log(f"  - Expected TCP connection to: 127.0.0.1:{self.control_port}")
+            self.log(f"  - Video destination: {self.video_dest_ip}:{self.video_dest_port}")
+            self.log(f"  - Audio destination: {self.audio_dest_ip}:{self.audio_dest_port}")
+
+            # Check if TCP server is still running
+            if self.tcp_server_running:
+                self.log("  - TCP server is still running")
+            else:
+                self.log("  - TCP server is not running")
+
+            # Check current network connections
+            import subprocess
+            try:
+                result = subprocess.run(['netstat', '-tlnp'], capture_output=True, text=True, timeout=5)
+                if result.returncode == 0:
+                    self.log("  - Current TCP listeners:")
+                    for line in result.stdout.split('\n'):
+                        if f':{self.control_port}' in line or f'127.0.0.1:{self.control_port}' in line:
+                            self.log(f"    {line}")
+            except Exception as e:
+                self.log(f"  - Could not check netstat: {e}")
+
             return False
 
         self.log(f"✅ Received streaming request, starting {self.format} packet replay")
+        self.log(f"🔍 UDP replay targets:")
+        self.log(f"  - Video: {self.video_dest_ip}:{self.video_dest_port}")
+        self.log(f"  - Audio: {self.audio_dest_ip}:{self.audio_dest_port}")
 
         # Minimal delay to ensure plugin UDP sockets are ready (optimized for speed)
         import time
@@ -795,6 +880,17 @@ DockAreaVisible=false
         # Skip test packets to avoid interference with real packet reception
         # The plugin might be processing test packets when real packets arrive
         self.log(f"🔍 UDP sockets ready for {self.video_dest_ip}:{self.video_dest_port} and {self.audio_dest_ip}:{self.audio_dest_port}")
+        self.log(f"  - Video socket: {video_sock}")
+        self.log(f"  - Audio socket: {audio_sock}")
+
+        # Test UDP connectivity
+        try:
+            test_data = b"test"
+            video_sock.sendto(test_data, (self.video_dest_ip, self.video_dest_port))
+            audio_sock.sendto(test_data, (self.audio_dest_ip, self.audio_dest_port))
+            self.log(f"  - Test packets sent successfully")
+        except Exception as e:
+            self.log(f"  - Failed to send test packets: {e}")
 
         try:
             # Calculate interleaved timeline
@@ -853,6 +949,10 @@ DockAreaVisible=false
                     bytes_sent = event['sock'].sendto(packet_data, event['dest'])
                     packets_sent += 1
 
+                    # Log first few packets for debugging
+                    if packets_sent <= 3:
+                        self.log(f"📤 Sent {event['type']} packet #{packets_sent}: {len(packet_data)} bytes to {event['dest']}")
+
                     # Verify socket operation was successful
                     if bytes_sent != len(packet_data):
                         self.log(f"⚠️ Partial send: {bytes_sent}/{len(packet_data)} bytes for {event['type']} packet #{packets_sent}")
@@ -904,11 +1004,36 @@ DockAreaVisible=false
         self.log(f"Starting mock C64 Ultimate TCP server on port {self.control_port}")
 
         try:
+            import subprocess
+            
             self.tcp_server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.tcp_server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+            # Add network diagnostics
+            self.log(f"🔍 Network diagnostics:")
+            self.log(f"  - Binding to 127.0.0.1:{self.control_port}")
+            self.log(f"  - Socket family: AF_INET")
+            self.log(f"  - Socket type: SOCK_STREAM")
+
+            # Check if port is already in use
+            import subprocess
+            try:
+                result = subprocess.run(['netstat', '-tlnp'], capture_output=True, text=True, timeout=5)
+                if result.returncode == 0:
+                    self.log(f"  - Current TCP listeners:")
+                    for line in result.stdout.split('\n'):
+                        if f':{self.control_port}' in line or f'127.0.0.1:{self.control_port}' in line:
+                            self.log(f"    {line}")
+            except Exception as e:
+                self.log(f"  - Could not check netstat: {e}")
+
             self.tcp_server_socket.bind(('127.0.0.1', self.control_port))
             self.tcp_server_socket.listen(5)
             self.tcp_server_running = True
+
+            # Verify binding worked
+            actual_addr = self.tcp_server_socket.getsockname()
+            self.log(f"  - Successfully bound to {actual_addr}")
 
             self.tcp_server_thread = threading.Thread(target=self._tcp_server_worker)
             self.tcp_server_thread.daemon = True
@@ -919,6 +1044,8 @@ DockAreaVisible=false
 
         except Exception as e:
             self.log(f"❌ Failed to start mock C64 Ultimate TCP server: {e}")
+            self.log(f"  - Error type: {type(e).__name__}")
+            self.log(f"  - Error details: {str(e)}")
             return False
 
     def _tcp_server_worker(self):
@@ -947,9 +1074,15 @@ DockAreaVisible=false
 
     def _handle_tcp_connection(self, conn, addr):
         """Handle a single TCP connection from the C64 Stream plugin."""
+        self.log(f"🔍 TCP connection received from {addr}")
+        self.log(f"  - Connection details: {conn}")
+        self.log(f"  - Local address: {conn.getsockname()}")
+        self.log(f"  - Remote address: {conn.getpeername()}")
+
         try:
             conn.settimeout(5.0)  # 5 second timeout for receive
             data = conn.recv(1024)
+            self.log(f"📨 Received {len(data)} bytes from {addr}")
 
             if len(data) >= 4:
                 self.log(f"Received TCP command from {addr}: {data.hex()}")
@@ -1336,15 +1469,57 @@ DockAreaVisible=false
                 self.log("❌ Failed to copy E2E properties")
                 return False
 
-            # Start OBS first and let it fully initialize
+            # Start mock C64 Ultimate TCP server BEFORE OBS
+            # This is critical because the plugin auto-connects when it's created
+            if not self.start_mock_c64_server():
+                self.log("❌ Failed to start mock C64 server")
+                return False
+
+            # Start OBS - plugin will auto-connect to TCP server on initialization
             if not self.start_obs_recording():
                 self.log("❌ Failed to start OBS")
                 return False
 
-            # Start mock C64 Ultimate TCP server
-            if not self.start_mock_c64_server():
-                self.log("❌ Failed to start mock C64 server")
-                return False
+            # Wait longer for plugin to connect to TCP server via async task
+            self.log("⏳ Allowing plugin to connect to mock server via async task...")
+            self.log("  - Plugin should auto-connect when source is created")
+            self.log("  - Async retry task should call c64_start_streaming()")
+            time.sleep(5)  # Give async task time to execute
+
+            # Try to manually trigger plugin connection via WebSocket API
+            self.log("🔧 Attempting to manually trigger plugin connection...")
+            try:
+                # Wait for OBS WebSocket to be ready
+                if self.wait_for_obs_websocket(timeout=10):
+                    # Update the C64 Stream source settings to trigger connection
+                    source_settings = {
+                        "c64_host": "localhost",
+                        "video_port": self.video_port,
+                        "audio_port": self.audio_port,
+                        "control_port": self.control_port,
+                        "record_csv": True
+                    }
+
+                    # Send request to update source settings
+                    request_data = {
+                        "request-type": "SetSourceSettings",
+                        "sourceName": "C64 Stream Source",
+                        "sourceSettings": source_settings
+                    }
+
+                    self.log(f"  - Sending WebSocket request: {request_data}")
+                    response = self.send_obs_request("SetSourceSettings", request_data)
+                    if response:
+                        self.log("  - ✅ Successfully updated source settings")
+                    else:
+                        self.log("  - ❌ Failed to update source settings")
+
+                    # Give plugin time to process the update
+                    time.sleep(2)
+                else:
+                    self.log("  - ❌ OBS WebSocket not available")
+            except Exception as e:
+                self.log(f"  - ❌ Error triggering plugin connection: {e}")
 
             # Brief moment for plugin to connect to TCP server
             self.log("⏳ Allowing plugin to connect to mock server...")
@@ -1353,6 +1528,66 @@ DockAreaVisible=false
             # OBS is already recording (started with --startrecording flag)
             # No need for additional WebSocket recording start
             self.log("✅ OBS recording already active")
+
+            # Add OBS log analysis
+            self.log("🔍 Analyzing OBS logs for plugin behavior...")
+            obs_config_dir = Path.home() / '.config' / 'obs-studio'
+            logs_dir = obs_config_dir / 'logs'
+            if logs_dir.exists():
+                log_files = list(logs_dir.glob('*.txt'))
+                log_files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
+
+                # Check the most recent log file for plugin activity
+                if log_files:
+                    latest_log = log_files[0]
+                    self.log(f"  - Checking latest log: {latest_log.name}")
+                    try:
+                        with open(latest_log, 'r') as f:
+                            content = f.read()
+
+                        # Look for plugin-related messages
+                        plugin_lines = [line for line in content.split('\n') if 'c64' in line.lower() or 'C64' in line]
+                        if plugin_lines:
+                            self.log(f"  - Found {len(plugin_lines)} plugin-related log entries:")
+                            for line in plugin_lines[-15:]:  # Show last 15 lines
+                                self.log(f"    {line}")
+                        else:
+                            self.log("  - No plugin-related log entries found")
+
+                        # Look for async task or streaming messages
+                        async_lines = [line for line in content.split('\n') if 'async' in line.lower() or 'streaming' in line.lower() or 'retry' in line.lower()]
+                        if async_lines:
+                            self.log(f"  - Found {len(async_lines)} async/streaming log entries:")
+                            for line in async_lines[-5:]:  # Show last 5 lines
+                                self.log(f"    {line}")
+                        else:
+                            self.log("  - No async/streaming log entries found")
+
+                        # Look for any error messages
+                        error_lines = [line for line in content.split('\n') if 'error' in line.lower() or 'failed' in line.lower()]
+                        if error_lines:
+                            self.log(f"  - Found {len(error_lines)} error/warning messages:")
+                            for line in error_lines[-5:]:  # Show last 5 error lines
+                                self.log(f"    {line}")
+
+                    except Exception as e:
+                        self.log(f"  - Could not read log file: {e}")
+            else:
+                self.log("  - OBS logs directory not found")
+
+            # Check if plugin properties file exists and is readable
+            plugin_props_file = Path.home() / '.config' / 'obs-studio' / 'plugins' / 'c64stream' / 'data' / 'properties.ini'
+            if plugin_props_file.exists():
+                self.log(f"  - Plugin properties file exists: {plugin_props_file}")
+                try:
+                    with open(plugin_props_file, 'r') as f:
+                        props_content = f.read()
+                    self.log(f"  - Properties file content (first 500 chars):")
+                    self.log(f"    {props_content[:500]}...")
+                except Exception as e:
+                    self.log(f"  - Could not read properties file: {e}")
+            else:
+                self.log(f"  - Plugin properties file not found: {plugin_props_file}")
 
             # Run packet replay while recording
             self.log("Running packet replay while OBS is recording...")

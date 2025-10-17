@@ -25,7 +25,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 BUILD_DIR="${PROJECT_ROOT}/build_x86_64"
 TEST_DIR="${PROJECT_ROOT}/tests/e2e"
-OUTPUT_DIR="${TEST_DIR}/test_output"
+DEFAULT_OUTPUT_DIR="${TEST_DIR}/test_output"
 
 # Default test parameters
 DEFAULT_FORMAT="NTSC"
@@ -138,6 +138,7 @@ OPTIONS:
     -f, --format FORMAT     Video format (PAL, NTSC) [default: ${DEFAULT_FORMAT}]
     -F, --frames FRAMES     Number of frames to test [default: ${DEFAULT_FRAMES}]
     -d, --duration SECONDS  Test duration in seconds (overrides --frames)
+    --output-dir DIR        Output directory for test artifacts [default: ${DEFAULT_OUTPUT_DIR}]
     -v, --verbose           Enable verbose logging
     -s, --skip-build        Skip building plugin and tools
     -o, --obs               Enable OBS integration (default)
@@ -170,7 +171,7 @@ PACKET GENERATION:
     Audio packets: 770 bytes, ~4ms intervals
 
 OUTPUT:
-    Test artifacts are saved to: ${OUTPUT_DIR}
+    Test artifacts are saved to: \${OUTPUT_DIR}
     - Generated packets: test_packets/
     - Test logs: test_output/
     - Recordings (if OBS enabled): recording_*.mkv
@@ -183,6 +184,7 @@ parse_args() {
     FORMAT="${DEFAULT_FORMAT}"
     FRAMES="${DEFAULT_FRAMES}"
     DURATION=""
+    OUTPUT_DIR="${DEFAULT_OUTPUT_DIR}"
     VIDEO_PORT="${DEFAULT_VIDEO_PORT}"
     AUDIO_PORT="${DEFAULT_AUDIO_PORT}"
     VERBOSE="${DEFAULT_VERBOSE}"
@@ -213,6 +215,14 @@ parse_args() {
                 DURATION="$2"
                 if ! [[ "${DURATION}" =~ ^[0-9]+$ ]] || [[ "${DURATION}" -lt 1 ]]; then
                     log_error "Invalid duration: ${DURATION}. Must be a positive integer."
+                    exit 1
+                fi
+                shift 2
+                ;;
+            --output-dir)
+                OUTPUT_DIR="$2"
+                if [[ -z "${OUTPUT_DIR}" ]]; then
+                    log_error "Output directory cannot be empty."
                     exit 1
                 fi
                 shift 2
@@ -419,6 +429,11 @@ build_project() {
 
 # Install plugin to OBS
 install_plugin() {
+    if [[ "${SKIP_BUILD}" == true ]]; then
+        log_info "Skipping plugin installation (--skip-build specified, plugin already installed by workflow)"
+        return
+    fi
+
     log_info "Installing plugin to OBS..."
 
     local obs_plugin_dir="${HOME}/.config/obs-studio/plugins/c64stream"
