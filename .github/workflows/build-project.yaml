@@ -607,28 +607,73 @@ jobs:
         run: |
           : Setup X11 Display 🖥️
 
-          # Clean up any stale X lock files from previous runs
-          sudo rm -f /tmp/.X99-lock /tmp/.X*-lock 2>/dev/null || true
+          # Set up environment for headless operation
+          export DISPLAY=:99
+          export PULSE_SERVER="unix:${XDG_RUNTIME_DIR}/pulse/native"
 
-          # Kill any existing Xvfb processes
+          # Clean up any stale processes and lock files
+          echo "🧹 Cleaning up previous X11 sessions..."
           pkill -f "Xvfb.*:99" 2>/dev/null || true
-          sleep 1
+          rm -f /tmp/.X99-lock /tmp/.X*-lock 2>/dev/null || true
+          sleep 2
 
-          # Start Xvfb with stderr redirection to suppress xkbcomp warnings
-          Xvfb :99 -screen 0 1280x720x24 2>/dev/null &
+          # Ensure X11 directories exist with proper permissions
+          mkdir -p /tmp/.X11-unix
+          chmod 1777 /tmp/.X11-unix 2>/dev/null || true
+
+          # Create Xauthority file
+          export XAUTHORITY="/tmp/.Xauth$$"
+          touch "$XAUTHORITY"
+          chmod 600 "$XAUTHORITY"
+
+          echo "🚀 Starting Xvfb with comprehensive configuration..."
+
+          # Start Xvfb with advanced parameters from E2E branch
+          XVFB_LOG_FILE="/tmp/xvfb.log"
+          Xvfb :99 \
+            -screen 0 1280x720x24 \
+            -ac \
+            +extension GLX \
+            +extension RANDR \
+            +render \
+            -noreset \
+            -nolisten tcp \
+            -dpi 96 \
+            > "$XVFB_LOG_FILE" 2>&1 &
           XVFB_PID=$!
-          sleep 3
 
-          # Setup cleanup on exit
-          trap "kill $XVFB_PID 2>/dev/null || true; sudo rm -f /tmp/.X99-lock 2>/dev/null || true" EXIT
-
-          # Verify display is working
-          DISPLAY=:99 xdpyinfo >/dev/null 2>&1 || {
-            echo "❌ X11 display setup failed"
-            exit 1
+          # Setup comprehensive cleanup on exit
+          cleanup_xvfb() {
+            if [[ -n "$XVFB_PID" ]] && kill -0 "$XVFB_PID" 2>/dev/null; then
+              echo "🧹 Cleaning up Xvfb process..."
+              kill "$XVFB_PID" 2>/dev/null || true
+              sleep 2
+              # Force kill if still running
+              kill -9 "$XVFB_PID" 2>/dev/null || true
+              wait "$XVFB_PID" 2>/dev/null || true
+            fi
+            rm -f /tmp/.X99-lock "$XAUTHORITY" 2>/dev/null || true
           }
+          trap cleanup_xvfb EXIT INT TERM
 
-          echo "✅ X11 display ready"
+          # Wait for Xvfb to initialize with progressive checks
+          echo "⏳ Waiting for Xvfb to initialize..."
+          for i in {1..15}; do
+            if xdpyinfo -display :99 >/dev/null 2>&1; then
+              echo "✅ Xvfb initialized successfully (attempt $i)"
+              break
+            fi
+            if [[ $i -eq 15 ]]; then
+              echo "❌ Xvfb failed to start after 15 attempts"
+              echo "📋 Xvfb log:"
+              cat "$XVFB_LOG_FILE" 2>/dev/null || echo "No log available"
+              exit 1
+            fi
+            echo "   Attempt $i/15 - waiting..."
+            sleep 1
+          done
+
+          echo "✅ X11 display ready with advanced configuration"
 
       - name: Run E2E Tests 🧪
         run: |

@@ -52,6 +52,10 @@ RUN apt-get install -y --no-install-recommends \
         python3-websocket \
         ffmpeg \
         xvfb \
+        x11-utils \
+        x11-xserver-utils \
+        xauth \
+        dbus-x11 \
         procps \
         unzip && \
     apt-get update -qq && apt-get install -y file && \
