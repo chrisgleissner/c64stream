@@ -46,6 +46,10 @@ class E2ETest:
         self.format = format
         self.frames = frames
         self.verbose = verbose
+        
+        # Detect CI environment and set appropriate timeouts
+        self.is_ci = self._detect_ci_environment()
+        self._configure_timeouts()
 
         # Process handles
         self.xvfb_process = None
@@ -65,6 +69,36 @@ class E2ETest:
         self.packet_dir = self.test_dir / 'test_packets'
         self.output_dir = self.test_dir / 'test_output'
         self.output_dir.mkdir(parents=True, exist_ok=True)
+
+    def _detect_ci_environment(self):
+        """Detect if running in CI environment."""
+        ci_indicators = [
+            'CI', 'CONTINUOUS_INTEGRATION', 'GITHUB_ACTIONS',
+            'GITLAB_CI', 'JENKINS_URL', 'TRAVIS', 'CIRCLECI',
+            'BUILDKITE', 'DRONE', 'TEAMCITY_VERSION'
+        ]
+        return any(os.environ.get(indicator) for indicator in ci_indicators)
+
+    def _configure_timeouts(self):
+        """Configure timeouts based on environment."""
+        if self.is_ci:
+            # CI environment: longer timeouts for resource-constrained environments
+            self.plugin_init_timeout = 30
+            self.obs_startup_delay = 3
+            self.async_task_delay = 5
+            self.websocket_settings_delay = 2
+            self.udp_socket_delay = 0.5
+            self.buffer_setup_delay = 0.2
+            self.log("🏗️ CI environment detected - using extended timeouts")
+        else:
+            # Local environment: minimal timeouts for fast development iteration
+            self.plugin_init_timeout = 10
+            self.obs_startup_delay = 1
+            self.async_task_delay = 1
+            self.websocket_settings_delay = 0.5
+            self.udp_socket_delay = 0.1
+            self.buffer_setup_delay = 0.1
+            self.log("🚀 Local environment detected - using minimal timeouts")
 
     def log(self, message):
         """Print log message if verbose mode is enabled."""
@@ -402,9 +436,11 @@ DockAreaVisible=false
         self.log(f"✅ Created OBS profile at {profile_dir}")
         return profile_dir
 
-    def wait_for_plugin_initialization(self, timeout=30):
+    def wait_for_plugin_initialization(self, timeout=None):
         """Wait for C64 plugin to initialize by monitoring OBS logs."""
-        self.log("⏳ Monitoring OBS logs for C64 plugin initialization...")
+        if timeout is None:
+            timeout = self.plugin_init_timeout
+        self.log(f"⏳ Monitoring OBS logs for C64 plugin initialization (timeout: {timeout}s)...")
 
         obs_config_dir = Path.home() / '.config' / 'obs-studio'
         logs_dir = obs_config_dir / 'logs'
@@ -539,7 +575,7 @@ DockAreaVisible=false
             )
 
             # Give OBS time to initialize
-            time.sleep(3)
+            time.sleep(self.obs_startup_delay)
 
             if self.obs_process.poll() is not None:
                 stdout, stderr = self.obs_process.communicate()
@@ -831,13 +867,13 @@ DockAreaVisible=false
         self.log(f"  - Video: {self.video_dest_ip}:{self.video_dest_port}")
         self.log(f"  - Audio: {self.audio_dest_ip}:{self.audio_dest_port}")
 
-        # Minimal delay to ensure plugin UDP sockets are ready (optimized for speed)
+        # Delay to ensure plugin UDP sockets are ready (environment-optimized)
         import time
-        time.sleep(0.3)  # Minimal delay - plugin binds sockets very quickly
+        time.sleep(self.udp_socket_delay)  # Environment-optimized delay
         self.log("✅ UDP socket readiness delay complete")
 
-        # Brief buffer setup delay
-        time.sleep(0.2)  # Minimal buffer setup time
+        # Buffer setup delay
+        time.sleep(self.buffer_setup_delay)  # Environment-optimized buffer setup
         self.log("✅ Plugin UDP socket initialization delay complete")
 
         return self._replay_interleaved_packets()
@@ -1480,11 +1516,11 @@ DockAreaVisible=false
                 self.log("❌ Failed to start OBS")
                 return False
 
-            # Wait longer for plugin to connect to TCP server via async task
-            self.log("⏳ Allowing plugin to connect to mock server via async task...")
+            # Wait for plugin to connect to TCP server via async task
+            self.log(f"⏳ Allowing plugin to connect to mock server via async task ({self.async_task_delay}s)...")
             self.log("  - Plugin should auto-connect when source is created")
             self.log("  - Async retry task should call c64_start_streaming()")
-            time.sleep(5)  # Give async task time to execute
+            time.sleep(self.async_task_delay)  # Environment-optimized async task delay
 
             # Try to manually trigger plugin connection via WebSocket API
             self.log("🔧 Attempting to manually trigger plugin connection...")
@@ -1515,7 +1551,7 @@ DockAreaVisible=false
                         self.log("  - ❌ Failed to update source settings")
 
                     # Give plugin time to process the update
-                    time.sleep(2)
+                    time.sleep(self.websocket_settings_delay)
                 else:
                     self.log("  - ❌ OBS WebSocket not available")
             except Exception as e:
