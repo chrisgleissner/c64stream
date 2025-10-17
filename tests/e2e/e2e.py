@@ -135,6 +135,10 @@ class E2ETest:
                     self.log(f"✅ Xvfb already running on {display} (started by workflow)")
                     # Set DISPLAY environment variable
                     os.environ['DISPLAY'] = display
+                    # Ensure Qt/GL behave in headless container
+                    os.environ.setdefault('QT_QPA_PLATFORM', 'xcb')
+                    os.environ.setdefault('QT_X11_NO_MITSHM', '1')
+                    os.environ.setdefault('LIBGL_ALWAYS_SOFTWARE', '1')
                     self.xvfb_process = None  # Not managed by us
                     return True
             except Exception:
@@ -167,6 +171,9 @@ class E2ETest:
 
             # Set DISPLAY environment variable
             os.environ['DISPLAY'] = display
+            os.environ.setdefault('QT_QPA_PLATFORM', 'xcb')
+            os.environ.setdefault('QT_X11_NO_MITSHM', '1')
+            os.environ.setdefault('LIBGL_ALWAYS_SOFTWARE', '1')
 
             # Give Xvfb time to start
             time.sleep(2)
@@ -641,11 +648,16 @@ DockAreaVisible=false
 
             self.log(f"Running: {' '.join(obs_cmd)}")
 
+            env_vars = dict(os.environ, DISPLAY=os.environ.get('DISPLAY', ':99'))
+            # Ensure predictable Qt platform in container
+            env_vars.setdefault('QT_QPA_PLATFORM', 'xcb')
+            env_vars.setdefault('QT_X11_NO_MITSHM', '1')
+            env_vars.setdefault('LIBGL_ALWAYS_SOFTWARE', '1')
             self.obs_process = subprocess.Popen(
                 obs_cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                env=dict(os.environ, DISPLAY=os.environ.get('DISPLAY', ':99'))
+                env=env_vars
             )
 
             # Give OBS time to initialize

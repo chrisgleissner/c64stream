@@ -37,6 +37,13 @@ RUN apt-get install -y --no-install-recommends \
         file \
         dpkg-dev \
         xz-utils \
+        net-tools \
+        libgl1 \
+        libgl1-mesa-dri \
+        libglu1-mesa \
+        libxkbcommon-x11-0 \
+        libxcb-xinerama0 \
+        fonts-dejavu-core \
         libgles2-mesa-dev \
         libsimde-dev \
         obs-studio \
