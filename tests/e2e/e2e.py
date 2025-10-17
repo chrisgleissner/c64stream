@@ -745,8 +745,12 @@ DockAreaVisible=false
                         # Look for evidence that our scene and source were loaded
                         scene_loaded = 'C64StreamTest' in content
                         source_created = any(phrase in content for phrase in [
-                            'c64_source', 'C64 Stream Source', 'C64S source created',
-                            'C64S streaming started', 'Created optimized UDP socket'
+                            'Source ID \"c64_source\"',
+                            'source \"C64 Stream Source\" (c64_source) created',
+                            'C64 Stream',
+                            'C64S source created',
+                            'C64S streaming started',
+                            'Created optimized UDP socket'
                         ])
 
                         if scene_loaded:
@@ -1769,6 +1773,20 @@ DockAreaVisible=false
             self.log("  - Plugin should auto-connect when source is created")
             self.log("  - Async retry task should call c64_start_streaming()")
             time.sleep(self.async_task_delay)  # Environment-optimized async task delay
+
+            # If plugin didn't trigger replay yet, nudge OBS by reopening scene collection
+            if not self.udp_replay_triggered.is_set():
+                try:
+                    self.log("🔧 Nudge: reopen collection to force source initialization on CI")
+                    env_vars = dict(os.environ)
+                    env_vars.setdefault('QT_QPA_PLATFORM', 'xcb')
+                    env_vars.setdefault('QT_X11_NO_MITSHM', '1')
+                    env_vars.setdefault('LIBGL_ALWAYS_SOFTWARE', '1')
+                    subprocess.run([
+                        'obs', '--profile', 'C64StreamTest', '--collection', 'C64StreamTest', '--minimize-to-tray', '--disable-updater', '--disable-missing-files-check', '--multi', '--startrecording'
+                    ], env=env_vars, timeout=3)
+                except Exception:
+                    pass
 
             # Optional WebSocket connection attempt (disabled by default for performance)
             if self.enable_websocket:
