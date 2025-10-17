@@ -135,10 +135,12 @@ class E2ETest:
                     self.log(f"✅ Xvfb already running on {display} (started by workflow)")
                     # Set DISPLAY environment variable
                     os.environ['DISPLAY'] = display
-                    # Ensure Qt/GL behave in headless container
-                    os.environ.setdefault('QT_QPA_PLATFORM', 'xcb')
-                    os.environ.setdefault('QT_X11_NO_MITSHM', '1')
-                    os.environ.setdefault('LIBGL_ALWAYS_SOFTWARE', '1')
+                    # Only set CI-specific Qt/GL environment variables in CI environment
+                    if self.is_ci:
+                        os.environ.setdefault('QT_QPA_PLATFORM', 'xcb')
+                        os.environ.setdefault('QT_X11_NO_MITSHM', '1')
+                        os.environ.setdefault('LIBGL_ALWAYS_SOFTWARE', '1')
+                        self.log("🏗️ Applied CI-specific Qt/GL environment variables")
                     self.xvfb_process = None  # Not managed by us
                     return True
             except Exception:
@@ -171,9 +173,12 @@ class E2ETest:
 
             # Set DISPLAY environment variable
             os.environ['DISPLAY'] = display
-            os.environ.setdefault('QT_QPA_PLATFORM', 'xcb')
-            os.environ.setdefault('QT_X11_NO_MITSHM', '1')
-            os.environ.setdefault('LIBGL_ALWAYS_SOFTWARE', '1')
+            # Only set CI-specific Qt/GL environment variables in CI environment
+            if self.is_ci:
+                os.environ.setdefault('QT_QPA_PLATFORM', 'xcb')
+                os.environ.setdefault('QT_X11_NO_MITSHM', '1')
+                os.environ.setdefault('LIBGL_ALWAYS_SOFTWARE', '1')
+                self.log("🏗️ Applied CI-specific Qt/GL environment variables")
 
             # Give Xvfb time to start
             time.sleep(2)
@@ -208,7 +213,18 @@ class E2ETest:
 
         # Copy E2E properties file (user plugin data dir)
         script_dir = Path(__file__).parent
-        e2e_properties = script_dir / 'properties_e2e.ini'
+        # Use local properties file for local environments to avoid CI-specific behavior
+        if self.is_ci:
+            e2e_properties = script_dir / 'properties_e2e.ini'
+        else:
+            # Check if local properties exist, fallback to CI properties if not
+            local_properties = script_dir / 'properties_e2e_local.ini'
+            if local_properties.exists():
+                e2e_properties = local_properties
+                self.log("📋 Using local E2E properties (non-CI environment)")
+            else:
+                e2e_properties = script_dir / 'properties_e2e.ini'
+                self.log("⚠️ Local E2E properties not found, using CI properties")
         target_properties = plugin_data_dir / 'properties.ini'
 
         if e2e_properties.exists():
@@ -456,7 +472,16 @@ DockAreaVisible=false
         try:
             scenes_index = obs_config_dir / 'basic' / 'scenes' / 'scenes.json'
             scenes_index.parent.mkdir(parents=True, exist_ok=True)
+            # Write both legacy and new keys for broad OBS compatibility (OBS 27-32+)
+            # - Legacy: "current" and "collections"
+            # - Newer:  "current_collection" and "scene_collections"
             index_payload = {
+                # Legacy keys (OBS <= 32)
+                "current": "C64StreamTest",
+                "collections": [
+                    {"name": "C64StreamTest", "path": "C64StreamTest.json"}
+                ],
+                # Newer keys (future compatibility)
                 "current_collection": "C64StreamTest",
                 "scene_collections": [
                     {"name": "C64StreamTest", "path": "C64StreamTest.json"}
@@ -549,6 +574,84 @@ DockAreaVisible=false
 
         return False
 
+    def wait_for_receiver_threads(self, timeout=None):
+        """Wait until the plugin's receiver threads (or UDP sockets) are ready by scanning OBS logs.
+
+        Success when BOTH video and audio readiness patterns are seen:
+        - Preferred: "Video receiver thread started on port" and "Audio receiver thread started on port"
+        - Fallback:  "Created optimized UDP socket on port <video_port>" AND same for <audio_port>
+        """
+        if timeout is None:
+            timeout = 20 if self.is_ci else 5
+
+        self.log(f"⏳ Waiting for receiver readiness in OBS logs (timeout: {timeout}s)...")
+
+        obs_config_dir = Path.home() / '.config' / 'obs-studio'
+        logs_dir = obs_config_dir / 'logs'
+
+        start_time = time.time()
+
+        # Primary thread-start patterns (debug level)
+        primary_video = b"Video receiver thread started on port"
+        primary_audio = b"Audio receiver thread started on port"
+
+        # Fallback socket creation patterns (info level)
+        fallback_video = f"Created optimized UDP socket on port {self.video_port}".encode()
+        fallback_audio = f"Created optimized UDP socket on port {self.audio_port}".encode()
+
+        saw_video = False
+        saw_audio = False
+        saw_video_fallback = False
+        saw_audio_fallback = False
+
+        while time.time() - start_time < timeout:
+            # Check if OBS died
+            if self.obs_process and self.obs_process.poll() is not None:
+                try:
+                    stdout, stderr = self.obs_process.communicate()
+                except Exception:
+                    stdout = b""; stderr = b""
+                raise RuntimeError(
+                    f"OBS exited while waiting for receiver threads.\nSTDOUT: {stdout.decode()}\nSTDERR: {stderr.decode()}"
+                )
+
+            if logs_dir.exists():
+                log_files = list(logs_dir.glob('*.txt'))
+                log_files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
+                for log_file in log_files[:1]:  # Only need the newest
+                    try:
+                        with open(log_file, 'rb') as f:
+                            content = f.read()
+                            if not saw_video and primary_video in content:
+                                saw_video = True
+                                self.log(f"✅ Detected video receiver thread start ({log_file.name})")
+                            if not saw_audio and primary_audio in content:
+                                saw_audio = True
+                                self.log(f"✅ Detected audio receiver thread start ({log_file.name})")
+
+                            if not saw_video_fallback and fallback_video in content:
+                                saw_video_fallback = True
+                                self.log(f"ℹ️ Detected video UDP socket creation ({log_file.name})")
+                            if not saw_audio_fallback and fallback_audio in content:
+                                saw_audio_fallback = True
+                                self.log(f"ℹ️ Detected audio UDP socket creation ({log_file.name})")
+
+                            # Success if both primary seen, or both fallbacks seen
+                            if (saw_video and saw_audio) or (saw_video_fallback and saw_audio_fallback):
+                                self.log("✅ Receiver readiness confirmed")
+                                return True
+                    except (OSError, IOError):
+                        pass
+
+            time.sleep(0.1)
+
+        # Final state log for diagnostics
+        self.log(
+            f"⚠️ Receiver readiness not confirmed within {timeout}s (video: {saw_video or saw_video_fallback}, "
+            f"audio: {saw_audio or saw_audio_fallback})"
+        )
+        return False
+
     def send_obs_request(self, request_type, request_data=None):
         """Send a request to OBS via WebSocket API."""
         if not WEBSOCKET_AVAILABLE:
@@ -627,18 +730,18 @@ DockAreaVisible=false
         else:
             time.sleep(0.5)  # Shorter delay locally
 
-        try:
-            # Start OBS with our test profile
+        def _launch_obs(collection_flag: str):
+            # Build the OBS command with the provided collection flag name
             obs_cmd = [
                 'obs',
                 '--profile', 'C64StreamTest',
-                '--collection', 'C64StreamTest',
+                collection_flag, 'C64StreamTest',
                 '--scene', 'C64 Test Scene',
-                '--startrecording',  # Auto-start recording
+                '--startrecording',
                 '--minimize-to-tray',
                 '--disable-updater',
                 '--disable-missing-files-check',
-                '--multi'  # Allow multiple instances
+                '--multi'
             ]
 
             # Add verbose logging on CI
@@ -649,10 +752,14 @@ DockAreaVisible=false
             self.log(f"Running: {' '.join(obs_cmd)}")
 
             env_vars = dict(os.environ, DISPLAY=os.environ.get('DISPLAY', ':99'))
-            # Ensure predictable Qt platform in container
-            env_vars.setdefault('QT_QPA_PLATFORM', 'xcb')
-            env_vars.setdefault('QT_X11_NO_MITSHM', '1')
-            env_vars.setdefault('LIBGL_ALWAYS_SOFTWARE', '1')
+            # Only set CI-specific Qt/GL environment variables in CI environment
+            if self.is_ci:
+                env_vars.setdefault('QT_QPA_PLATFORM', 'xcb')
+                env_vars.setdefault('QT_X11_NO_MITSHM', '1')
+                env_vars.setdefault('LIBGL_ALWAYS_SOFTWARE', '1')
+                self.log("🏗️ Applied CI-specific Qt/GL environment variables to OBS subprocess")
+
+            # Start OBS process
             self.obs_process = subprocess.Popen(
                 obs_cmd,
                 stdout=subprocess.PIPE,
@@ -665,9 +772,70 @@ DockAreaVisible=false
 
             if self.obs_process.poll() is not None:
                 stdout, stderr = self.obs_process.communicate()
-                raise RuntimeError(f"OBS failed to start:\nSTDOUT: {stdout.decode()}\nSTDERR: {stderr.decode()}")
+                raise RuntimeError(f"OBS failed to start with {collection_flag}:\nSTDOUT: {stdout.decode()}\nSTDERR: {stderr.decode()}")
 
-            self.log("✅ OBS started successfully")
+            self.log(f"✅ OBS started successfully with {collection_flag}")
+            return True
+
+        try:
+            # Try preferred flag first, then fallback
+            # For CI: prefer '--collection' (OBS 32+), fallback to '--scene-collection' (older OBS)
+            # For local: prefer '--scene-collection' for wider compatibility, fallback to '--collection'
+            if self.is_ci:
+                collection_flags = ['--collection', '--scene-collection']
+                self.log("🏗️ CI environment: trying --collection first (OBS 32+)")
+            else:
+                collection_flags = ['--scene-collection', '--collection']
+                self.log("🚀 Local environment: trying --scene-collection first (wider compatibility)")
+
+            launched = False
+            init_ok = False
+            last_error = None
+
+            for idx, flag in enumerate(collection_flags):
+                # If there's a previous OBS instance, ensure it's stopped before retry
+                if self.obs_process:
+                    try:
+                        self.obs_process.terminate()
+                        self.obs_process.wait(timeout=3)
+                    except Exception:
+                        try:
+                            self.obs_process.kill()
+                            self.obs_process.wait(timeout=2)
+                        except Exception:
+                            pass
+                    finally:
+                        self.obs_process = None
+
+                try:
+                    launched = _launch_obs(flag)
+                except Exception as e:
+                    last_error = e
+                    self.log(f"⚠️ OBS launch attempt with {flag} failed: {e}")
+                    continue
+
+                # Quick check: wait briefly for plugin init; if not seen, we may be on wrong flag
+                short_timeout = max(2.0, min(self.plugin_init_timeout, 6)) if not self.is_ci else 8.0
+                self.log(f"🔍 Probing plugin init with {flag} (timeout: {short_timeout}s)...")
+                if self.wait_for_plugin_initialization(timeout=short_timeout):
+                    init_ok = True
+                    break
+                else:
+                    self.log(f"⚠️ Plugin init not detected quickly with {flag}; will try alternate flag if available")
+                    # Loop will try next flag
+
+            if not launched:
+                # All attempts to launch failed
+                raise RuntimeError(f"OBS failed to start: {last_error}")
+
+            if not init_ok:
+                # As a last resort, run full init wait on the last launch
+                self.log("⏳ Running full plugin init wait on last OBS launch...")
+                if not self.wait_for_plugin_initialization():
+                    self._analyze_obs_logs()
+                    raise RuntimeError("C64 plugin failed to initialize within timeout")
+                else:
+                    self.log("✅ C64 plugin initialization complete")
 
             # Post-startup validation: verify OBS loaded our configuration
             self.log("🔍 Validating OBS loaded our scene collection...")
@@ -720,14 +888,8 @@ DockAreaVisible=false
             else:
                 self.log(f"  ❌ No user properties file found")
 
-            # Wait for C64 plugin to initialize by monitoring OBS logs
-            self.log("🔍 Waiting for C64 plugin to initialize and create source...")
-            if not self.wait_for_plugin_initialization():
-                self.log("❌ C64 plugin failed to initialize - running diagnostic check...")
-                self._analyze_obs_logs()
-                raise RuntimeError("C64 plugin failed to initialize within timeout")
-
-            self.log("✅ C64 plugin initialization complete")
+            # Note: plugin init was already probed above with a short timeout.
+            # If not successful then, we did a full wait here as a fallback.
 
             # Additional validation: check if the C64 source was actually created
             self.log("🔍 Verifying C64 source creation in OBS logs...")
@@ -748,8 +910,8 @@ DockAreaVisible=false
                             'Source ID \"c64_source\"',
                             'source \"C64 Stream Source\" (c64_source) created',
                             'C64 Stream',
-                            'C64S source created',
-                            'C64S streaming started',
+                            'C6 Stream source created',
+                            'C64 Stream streaming started',
                             'Created optimized UDP socket'
                         ])
 
@@ -1048,14 +1210,15 @@ DockAreaVisible=false
         self.log(f"  - Video: {self.video_dest_ip}:{self.video_dest_port}")
         self.log(f"  - Audio: {self.audio_dest_ip}:{self.audio_dest_port}")
 
-        # Delay to ensure plugin UDP sockets are ready (environment-optimized)
-        import time
-        time.sleep(self.udp_socket_delay)  # Environment-optimized delay
-        self.log("✅ UDP socket readiness delay complete")
-
-        # Buffer setup delay
-        time.sleep(self.buffer_setup_delay)  # Environment-optimized buffer setup
-        self.log("✅ Plugin UDP socket initialization delay complete")
+        # Prefer log-based readiness over fixed sleeps
+        ready = self.wait_for_receiver_threads()
+        if not ready:
+            # Fallback to minimal delays if logs didn't show readiness
+            import time
+            time.sleep(self.udp_socket_delay)
+            self.log("⏱️ Fallback UDP socket delay complete")
+            time.sleep(self.buffer_setup_delay)
+            self.log("⏱️ Fallback buffer setup delay complete")
 
         return self._replay_interleaved_packets()
 
@@ -1779,9 +1942,11 @@ DockAreaVisible=false
                 try:
                     self.log("🔧 Nudge: reopen collection to force source initialization on CI")
                     env_vars = dict(os.environ)
-                    env_vars.setdefault('QT_QPA_PLATFORM', 'xcb')
-                    env_vars.setdefault('QT_X11_NO_MITSHM', '1')
-                    env_vars.setdefault('LIBGL_ALWAYS_SOFTWARE', '1')
+                    # Only set CI-specific Qt/GL environment variables in CI environment
+                    if self.is_ci:
+                        env_vars.setdefault('QT_QPA_PLATFORM', 'xcb')
+                        env_vars.setdefault('QT_X11_NO_MITSHM', '1')
+                        env_vars.setdefault('LIBGL_ALWAYS_SOFTWARE', '1')
                     subprocess.run([
                         'obs', '--profile', 'C64StreamTest', '--collection', 'C64StreamTest', '--minimize-to-tray', '--disable-updater', '--disable-missing-files-check', '--multi', '--startrecording'
                     ], env=env_vars, timeout=3)

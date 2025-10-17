@@ -569,11 +569,18 @@ run_e2e_test() {
         "--udp-replay" "${udp_replay_path}"
     )
 
-    # Ensure X environment variables are set for Qt/OBS in CI
+    # Ensure X environment variables are set
     export DISPLAY="${DEFAULT_X11_DISPLAY}"
-    export QT_QPA_PLATFORM=xcb
-    export QT_X11_NO_MITSHM=1
-    export LIBGL_ALWAYS_SOFTWARE=1
+    
+    # Only set CI-specific Qt/GL environment variables in CI environment
+    if [[ "${CI:-false}" == "true" ]] || [[ "${GITHUB_ACTIONS:-false}" == "true" ]]; then
+        export QT_QPA_PLATFORM=xcb
+        export QT_X11_NO_MITSHM=1
+        export LIBGL_ALWAYS_SOFTWARE=1
+        log_info "🏗️ CI environment detected - applied Qt/GL environment variables"
+    else
+        log_info "🚀 Local environment detected - using default Qt/GL settings"
+    fi
 
     if [[ "${VERBOSE}" == true ]]; then
         cmd+=("--verbose")
