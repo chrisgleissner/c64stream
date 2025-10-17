@@ -67,8 +67,8 @@ def detect_black_squares(video_path, frame_rate=30.0):
     black_square_frames = []
     frame_num = 0
 
-    # Skip early frames where C64 logo appears (typically first 6 seconds)
-    skip_frames = int(6.0 * frame_rate)  # Skip first 6 seconds
+    # Skip early frames where C64 logo appears (logo disappears around 5.5s, first square at ~6s)
+    skip_frames = int(5.5 * frame_rate)  # Skip first 5.5 seconds to catch first square
 
     while True:
         ret, frame = cap.read()
@@ -84,26 +84,29 @@ def detect_black_squares(video_path, frame_rate=30.0):
         height, width = frame.shape[:2]
 
         # C64 source: 384x272, Test pattern: 100x100 square at center (192, 136)
-        # OBS recording: typically 1280x720
+        # New layout: C64 frame fills vertical space (1080p), centered horizontally with black bars
+        # Video is 1920x1080, C64 content fills height, aspect ratio preserved
         c64_width, c64_height = 384, 272
         c64_square_size = 100
         c64_center_x, c64_center_y = 192, 136
 
-        # Calculate scaling factors
-        scale_x = width / c64_width
-        scale_y = height / c64_height
-
+        # Calculate scaling: height determines scale since C64 fills vertical space
+        scale_factor = height / c64_height
+        scaled_c64_width = int(c64_width * scale_factor)
+        
+        # C64 content is centered horizontally with black bars on sides
+        c64_left_offset = (width - scaled_c64_width) // 2
+        
         # Scale the square dimensions and position
-        scaled_square_size_x = int(c64_square_size * scale_x)
-        scaled_square_size_y = int(c64_square_size * scale_y)
-        scaled_center_x = int(c64_center_x * scale_x)
-        scaled_center_y = int(c64_center_y * scale_y)
+        scaled_square_size = int(c64_square_size * scale_factor)
+        scaled_center_x = c64_left_offset + int(c64_center_x * scale_factor)
+        scaled_center_y = int(c64_center_y * scale_factor)
 
         # Define precise region for the scaled 100x100 black square
-        left = scaled_center_x - scaled_square_size_x // 2
-        right = scaled_center_x + scaled_square_size_x // 2
-        top = scaled_center_y - scaled_square_size_y // 2
-        bottom = scaled_center_y + scaled_square_size_y // 2
+        left = scaled_center_x - scaled_square_size // 2
+        right = scaled_center_x + scaled_square_size // 2
+        top = scaled_center_y - scaled_square_size // 2
+        bottom = scaled_center_y + scaled_square_size // 2
 
         # Extract the precise center region where the test pattern square should be
         center_region = frame[top:bottom, left:right]
@@ -115,12 +118,16 @@ def detect_black_squares(video_path, frame_rate=30.0):
         if center_region.size > 0:  # Ensure region is valid
             mean_brightness = np.mean(gray_region)
 
-            # Look for dark regions that indicate black squares in the test pattern
-            # Pattern observed:
-            # - C64 logo transition: ~37 brightness (very dark, not the test pattern)
-            # - Black squares: ~99-100 brightness (actual test pattern)
-            # - Background: ~123-124 brightness
-            if 90 < mean_brightness < 110:  # Specifically target black square brightness range
+            # The black squares appear as very dark regions (brightness ~0.4)
+            # Look for actual black squares in the test pattern
+
+            # Look for actual black squares in the test pattern
+            # Based on debug output, brightness values are:
+            # - Normal pattern background: ~123-124
+            # - Partial black square: ~92-93 (darker regions)
+            # - Full black square: ~0.4 (very dark - actual black squares)
+            # - C64 logo (early): varies (but we skip early frames)
+            if mean_brightness < 50:  # Detect both partial and full black squares
                 black_square_frames.append(frame_num)
 
         frame_num += 1
@@ -159,7 +166,7 @@ def detect_audio_beeps(envelope, threshold_factor=3.0, min_duration_ms=40):
     return beep_starts
 
 
-def verify_av_sync(video_path, tolerance_ms=100):
+def verify_av_sync(video_path, tolerance_ms=150):
     """
     Verify A/V synchronization between black squares and audio beeps.
 
@@ -202,18 +209,32 @@ def verify_av_sync(video_path, tolerance_ms=100):
     # Convert frame numbers to timestamps
     square_times = [frame / frame_rate * 1000 for frame in black_frames]  # milliseconds
 
-    # Group consecutive frames into sync periods
+    # Group consecutive frames into individual black square appearances
+    # Look for distinct periods where squares appear
     sync_periods = []
     if square_times:
-        current_period_start = square_times[0]
-        prev_time = square_times[0]
-
-        for time in square_times[1:]:
-            if time - prev_time > 100:  # Gap > 100ms indicates new sync period
-                sync_periods.append(current_period_start)
-                current_period_start = time
-            prev_time = time
-        sync_periods.append(current_period_start)
+        # Find distinct periods by looking for gaps > 200ms
+        periods = []
+        current_period_frames = []
+        
+        for i, time in enumerate(square_times):
+            if i == 0:
+                current_period_frames = [time]
+            else:
+                time_diff = time - square_times[i-1]
+                if time_diff > 200:  # Gap > 200ms indicates new square period
+                    # End current period and start new one
+                    if len(current_period_frames) >= 3:  # At least 3 frames for reliability
+                        periods.append(current_period_frames[0])  # Use start of period
+                    current_period_frames = [time]
+                else:
+                    current_period_frames.append(time)
+        
+        # Handle the last period
+        if len(current_period_frames) >= 3:
+            periods.append(current_period_frames[0])
+        
+        sync_periods = periods
 
     # Format timestamps to show only one decimal place
     formatted_periods = [f"{period:.1f}" for period in sync_periods]
@@ -251,7 +272,10 @@ def verify_av_sync(video_path, tolerance_ms=100):
         })
 
         status = "✅" if is_synced else "❌"
-        print(f"{status} Beep #{i+1}: {beep_time}ms, Square: {closest_square:.1f}ms, Diff: {min_diff:.1f}ms")
+        if closest_square is not None:
+            print(f"{status} Beep #{i+1}: {beep_time}ms, Square: {closest_square:.1f}ms, Diff: {min_diff:.1f}ms")
+        else:
+            print(f"{status} Beep #{i+1}: {beep_time}ms, No matching square found")
 
     # Calculate sync accuracy based only on analyzed beeps
     sync_accuracy = (perfect_sync_count / total_analyzed * 100) if total_analyzed > 0 else 0

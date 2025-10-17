@@ -9,9 +9,9 @@
     "name": "Untitled",
     "sources": [
         {
-            "prev_ver": 0,
+            "prev_ver": 536870912,
             "name": "Scene",
-            "uuid": "056e6d9e-701e-4014-9914-6ca3d3d1947f",
+            "uuid": "0920f7c0-fbad-4fc3-a4cb-dfda5635529b",
             "id": "scene",
             "versioned_id": "scene",
             "settings": {
@@ -20,7 +20,7 @@
                 "items": [
                     {
                         "name": "C64 Stream",
-                        "source_uuid": "e4232553-c3cc-4d08-bbf9-9fce742c85c1",
+                        "source_uuid": "4ffa4ec6-fa34-4983-8492-54657ed52240",
                         "visible": true,
                         "locked": false,
                         "rot": 0.0,
@@ -39,20 +39,20 @@
                         "id": 1,
                         "group_item_backup": false,
                         "pos": {
-                            "x": 198.0,
+                            "x": 197.0,
                             "y": 0.0
                         },
                         "pos_rel": {
-                            "x": -1.4111111164093018,
+                            "x": -1.4129629135131836,
                             "y": -1.0
                         },
                         "scale": {
-                            "x": 3.9661457538604736,
-                            "y": 3.966911792755127
+                            "x": 3.9713542461395264,
+                            "y": 3.970588207244873
                         },
                         "scale_rel": {
-                            "x": 3.9661457538604736,
-                            "y": 3.966911792755127
+                            "x": 3.9713542461395264,
+                            "y": 3.970588207244873
                         },
                         "bounds": {
                             "x": 0.0,
@@ -95,6 +95,49 @@
             "deinterlace_field_order": 0,
             "monitoring_type": 0,
             "canvas_uuid": "6c69626f-6273-4c00-9d88-c5136d61696e",
+            "private_settings": {}
+        },
+        {
+            "prev_ver": 536870912,
+            "name": "C64 Stream",
+            "uuid": "4ffa4ec6-fa34-4983-8492-54657ed52240",
+            "id": "c64_source",
+            "versioned_id": "c64_source",
+            "settings": {
+                "crt_preset": "Default",
+                "afterglow_duration_ms": 0,
+                "afterglow_curve": 0,
+                "record_video": true,
+                "record_csv": true,
+                "scan_line_distance": 0.0,
+                "scan_line_strength": 0.59999999999999998,
+                "pixel_width": 1.0,
+                "pixel_height": 1.0,
+                "blur_strength": 0.0,
+                "bloom_strength": 0.0,
+                "tint_mode": 0,
+                "tint_strength": 1.0
+            },
+            "mixers": 255,
+            "sync": 0,
+            "flags": 0,
+            "volume": 1.0,
+            "balance": 0.5,
+            "enabled": true,
+            "muted": false,
+            "push-to-mute": false,
+            "push-to-mute-delay": 0,
+            "push-to-talk": false,
+            "push-to-talk-delay": 0,
+            "hotkeys": {
+                "libobs.mute": [],
+                "libobs.unmute": [],
+                "libobs.push-to-mute": [],
+                "libobs.push-to-talk": []
+            },
+            "deinterlace_mode": 0,
+            "deinterlace_field_order": 0,
+            "monitoring_type": 0,
             "private_settings": {}
         }
     ],
@@ -149,5 +192,5 @@
             "pauseRecordTimer": true
         }
     },
-    "version": 1
+    "version": 2
 }

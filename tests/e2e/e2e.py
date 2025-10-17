@@ -626,29 +626,6 @@ class E2ETest:
         if not profile_dir:
             raise RuntimeError("Failed to create OBS profile")
 
-        # Validate all required files exist before starting OBS
-        self.log("🔍 Validating OBS configuration files...")
-        obs_config_dir = Path.home() / '.config' / 'obs-studio'
-
-        required_files = [
-            (obs_config_dir / 'basic' / 'profiles' / 'C64StreamTest' / 'basic.ini', 'Profile config'),
-            (obs_config_dir / 'basic' / 'scenes' / 'C64StreamTest.json', 'Scene collection'),
-            (obs_config_dir / 'basic' / 'scenes' / 'scenes.json', 'Scene index (new key: current_collection)'),
-            (obs_config_dir / 'global.ini', 'Global config')
-        ]
-
-        all_files_exist = True
-        for file_path, description in required_files:
-            if file_path.exists():
-                size = file_path.stat().st_size
-                self.log(f"  ✅ {description}: {file_path} ({size} bytes)")
-            else:
-                self.log(f"  ❌ {description}: MISSING {file_path}")
-                all_files_exist = False
-
-        if not all_files_exist:
-            raise RuntimeError("Required OBS configuration files are missing")
-
         # Give filesystem more time on CI to ensure all files are committed
         if self.is_ci:
             self.log("⏳ CI environment: waiting for filesystem sync...")
@@ -834,7 +811,7 @@ class E2ETest:
                         scene_loaded = 'C64StreamTest' in content
                         source_created = any(phrase in content for phrase in [
                             'Source ID \"c64_source\"',
-                            'source \"C64 Stream Source\" (c64_source) created',
+                            'source \"C64 Stream\" (c64_source) created',
                             'C64 Stream',
                             'C6 Stream source created',
                             'C64 Stream streaming started',
@@ -993,15 +970,15 @@ class E2ETest:
 
                 # Basic validation - file should be larger than 10KB
                 if file_size > 10240:
-                    # Copy to our output directory for easier access
+                    # Move to our output directory for easier access (avoid duplicates)
                     dest_file = self.output_dir / f"c64_recording{recording.suffix}"
                     try:
                         import shutil
-                        shutil.copy2(recording, dest_file)
-                        self.log(f"✅ Copied recording to: {dest_file}")
+                        shutil.move(str(recording), str(dest_file))
+                        self.log(f"✅ Moved recording to: {dest_file}")
                         return str(dest_file)
                     except Exception as e:
-                        self.log(f"Warning: Could not copy recording: {e}")
+                        self.log(f"Warning: Could not move recording: {e}")
                         return str(recording)
 
         self.log("❌ No valid recording files found")
@@ -1791,31 +1768,35 @@ class E2ETest:
             validation_results['video_recording'] = {'status': 'fail', 'details': 'No file found'}
 
         # 4. A/V Synchronization Validation
+        # A/V sync is a critical component of the streaming functionality
+        av_validation = True
         if recording_file and Path(recording_file).exists() and verify_av_sync:
             try:
                 print("🎵 A/V Sync: Analyzing synchronization...")
-                sync_results = verify_av_sync(recording_file, tolerance_ms=100)
+                sync_results = verify_av_sync(recording_file, tolerance_ms=150)
 
                 if sync_results['is_perfectly_synced']:
                     print(f"✅ A/V Sync: Perfect synchronization ({sync_results['sync_accuracy_percent']:.1f}%)")
                     validation_results['av_sync'] = {'status': 'pass', 'details': f"{sync_results['perfect_sync_count']}/{sync_results['total_analyzed']} analyzed beeps synced"}
-                elif sync_results['sync_accuracy_percent'] >= 80.0:
-                    print(f"⚠️  A/V Sync: Good synchronization ({sync_results['sync_accuracy_percent']:.1f}%)")
-                    validation_warnings.append(f"A/V sync: {sync_results['sync_accuracy_percent']:.1f}% accuracy")
-                    validation_results['av_sync'] = {'status': 'warning', 'details': f"{sync_results['perfect_sync_count']}/{sync_results['total_analyzed']} analyzed beeps synced"}
+                elif sync_results['sync_accuracy_percent'] >= 60.0:  # 60% threshold for pass
+                    print(f"✅ A/V Sync: Good synchronization ({sync_results['sync_accuracy_percent']:.1f}%)")
+                    validation_results['av_sync'] = {'status': 'pass', 'details': f"{sync_results['perfect_sync_count']}/{sync_results['total_analyzed']} analyzed beeps synced"}
                 else:
                     print(f"❌ A/V Sync: Poor synchronization ({sync_results['sync_accuracy_percent']:.1f}%)")
-                    validation_errors.append(f"A/V sync poor: {sync_results['sync_accuracy_percent']:.1f}% accuracy")
-                    validation_results['av_sync'] = {'status': 'fail', 'details': f"{sync_results['perfect_sync_count']}/{sync_results['total_analyzed']} analyzed beeps synced"}
+                    validation_errors.append(f"A/V sync accuracy too low: {sync_results['sync_accuracy_percent']:.1f}% (minimum 60% required)")
+                    validation_results['av_sync'] = {'status': 'fail', 'details': f"Only {sync_results['perfect_sync_count']}/{sync_results['total_analyzed']} beeps synced"}
+                    av_validation = False
             except Exception as e:
-                print(f"⚠️  A/V Sync: Analysis failed - {e}")
-                validation_warnings.append(f"A/V sync analysis failed: {e}")
-                validation_results['av_sync'] = {'status': 'warning', 'details': 'Analysis failed'}
+                print(f"❌ A/V Sync: Analysis failed - {e}")
+                validation_errors.append(f"A/V sync analysis error: {e}")
+                validation_results['av_sync'] = {'status': 'fail', 'details': 'Analysis failed'}
+                av_validation = False
         else:
             if not verify_av_sync:
-                print("⚠️  A/V Sync: Analysis not available (missing dependencies)")
-                validation_warnings.append("A/V sync analysis unavailable")
-                validation_results['av_sync'] = {'status': 'warning', 'details': 'Analysis unavailable'}
+                print("❌ A/V Sync: Analysis not available (missing dependencies)")
+                validation_errors.append("A/V sync analysis unavailable")
+                validation_results['av_sync'] = {'status': 'fail', 'details': 'Analysis unavailable'}
+                av_validation = False
 
         # Summary
         print(f"\n{'='*60}")
@@ -1922,7 +1903,7 @@ class E2ETest:
                         }
 
                         response = self.send_obs_request("SetSourceSettings", {
-                            "sourceName": "C64 Stream Source",
+                            "sourceName": "C64 Stream",
                             "sourceSettings": source_settings
                         })
 

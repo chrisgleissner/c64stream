@@ -94,53 +94,6 @@ detect_platform() {
     fi
 }
 
-replace_obs_config_variables() {
-    local obs_config_dir=$1
-    local output_dir=${2:-"$HOME"}
-
-    local basic_ini="$obs_config_dir/basic/profiles/C64StreamTest/basic.ini"
-    if [[ -f "$basic_ini" ]]; then
-        # Replace variables with actual values
-        sed -i "s|\$OUTPUT_DIR|$output_dir|g" "$basic_ini"
-        log_info "Updated configuration variables in $basic_ini"
-    fi
-}
-
-cleanup_obs_state_files() {
-    local obs_config_dir=$1
-
-    # Files/patterns that can trigger dialogs
-    local state_patterns=(
-        "$obs_config_dir/safe_mode"
-        "$obs_config_dir/.safe_mode"
-        "$obs_config_dir/crashed"
-        "$obs_config_dir/.crashed"
-        "$obs_config_dir/basic/crashed"
-        "$obs_config_dir/plugin_config/.safe_mode"*
-        "/tmp/obs-safe-mode-"*
-        "/tmp/.obs-crashed"*
-    )
-
-    local cleaned_count=0
-    for pattern in "${state_patterns[@]}"; do
-        for state_file in $pattern; do
-            if [[ -e "$state_file" ]]; then
-                if [[ -d "$state_file" ]]; then
-                    rm -rf "$state_file" 2>/dev/null && ((cleaned_count++))
-                else
-                    rm -f "$state_file" 2>/dev/null && ((cleaned_count++))
-                fi
-            fi
-        done
-    done
-
-    if [[ $cleaned_count -gt 0 ]]; then
-        log_info "Cleaned up $cleaned_count OBS state files"
-    else
-        log_info "No OBS state files to clean up"
-    fi
-}
-
 check_prerequisites() {
     local platform=$1
 
@@ -459,35 +412,6 @@ reset_obs_configuration() {
     local scenes_file="$obs_config_dir/basic/scenes/scenes.json"
     if [[ -f "$scenes_file" ]]; then
         log_info "Resetting default scene collection to Untitled"
-    fi
-
-    # Copy OBS configuration from clean baseline instead of generating inline
-    local config_source="$SCRIPT_DIR/tests/e2e/config/obs-studio"
-    if [[ -d "$config_source" ]]; then
-        log_info "Copying OBS configuration from clean baseline"
-        # Remove existing basic directory to ensure clean state
-        if [[ -d "$obs_config_dir/basic" ]]; then
-            log_info "Removing existing OBS basic config: $obs_config_dir/basic"
-            rm -rf "$obs_config_dir/basic"
-        fi
-        # Ensure parent directory exists
-        mkdir -p "$obs_config_dir"
-        # Copy baseline configuration
-        cp -r "$config_source"/* "$obs_config_dir/"
-
-        # Replace variables in the copied configuration
-        replace_obs_config_variables "$obs_config_dir"
-
-        # Clean up state files that could trigger dialogs
-        cleanup_obs_state_files "$obs_config_dir"
-
-        log_success "OBS configuration copied from baseline"
-    else
-        log_warning "Baseline OBS config not found at $config_source - falling back to minimal setup"
-        # Minimal fallback if baseline doesn't exist
-        mkdir -p "$obs_config_dir/basic/scenes"
-        mkdir -p "$obs_config_dir/basic/profiles/C64StreamTest"
-        log_info "Created minimal OBS directory structure"
     fi
 
     local untitled_scene="$obs_config_dir/basic/scenes/Untitled.json"
