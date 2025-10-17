@@ -241,9 +241,9 @@ jobs:
         id: check
         run: |
           : Check Image Age 🔍
-          
+
           dockerfile_path=".github/docker/Dockerfile.ubuntu-build"
-          
+
           # Check if Docker image exists and get its creation timestamp
           if docker manifest inspect ghcr.io/${{ github.repository }}/ubuntu-build:latest >/dev/null 2>&1; then
             # Pull image to inspect it locally
@@ -254,31 +254,39 @@ jobs:
             if [[ -n "$created_timestamp" ]]; then
               # Check if Dockerfile has been modified since the image was created
               image_created_epoch=$(date -d "$created_timestamp" +%s 2>/dev/null || echo "0")
-              
+
               # Find commits since the image was created that modified the Dockerfile
-              commits_since_image=$(git log --since="$created_timestamp" --oneline --pretty=format:"%H" -- "$dockerfile_path" 2>/dev/null | wc -l)
-              
+              echo "🔍 Checking for Dockerfile changes since image creation: $created_timestamp"
+              dockerfile_commits=$(git log --since="$created_timestamp" --oneline --pretty=format:"%H %ci %s" -- "$dockerfile_path" 2>/dev/null)
+              commits_since_image=$(echo "$dockerfile_commits" | grep -c . 2>/dev/null || echo "0")
+
               if [[ "$commits_since_image" -gt 0 ]]; then
+                echo "🔧 Found $commits_since_image Dockerfile commits since image creation:"
+                echo "$dockerfile_commits"
                 echo "needs_build=true" >> $GITHUB_OUTPUT
-                echo "🔧 Dockerfile modified since image creation ($commits_since_image commits) - rebuilding"
+                echo "🔧 Dockerfile modified since image creation - rebuilding"
                 exit 0
               fi
 
-              # No Dockerfile changes - check image age  
-              created_date=$(echo "$created_timestamp" | cut -d'T' -f1)
-              current_date=$(date -u +%Y-%m-%d)
-              current_epoch=$(date -d "$current_date" +%s)
-              age_days=$(( (current_epoch - image_created_epoch) / 86400 ))
+              # No Dockerfile changes - check precise image age
+              current_epoch=$(date +%s)
+              age_seconds=$(( current_epoch - image_created_epoch ))
+              age_hours=$(( age_seconds / 3600 ))
+              age_days=$(( age_seconds / 86400 ))
 
-              echo "📅 Image age: $age_days days, no Dockerfile changes since creation"
+              # 7 days = 604800 seconds
+              max_age_seconds=604800
 
-              if [ "$age_days" -le 7 ]; then
+              echo "📅 Image created: $created_timestamp"
+              echo "📅 Image age: ${age_days}d ${age_hours}h (${age_seconds}s), no Dockerfile changes since creation"
+
+              if [ "$age_seconds" -le "$max_age_seconds" ]; then
                 echo "needs_build=false" >> $GITHUB_OUTPUT
-                echo "✅ Using existing image (age: $age_days days, Dockerfile unchanged)"
+                echo "✅ Using existing image (${age_days}d ${age_hours}h old, Dockerfile unchanged)"
                 exit 0
               else
                 echo "needs_build=true" >> $GITHUB_OUTPUT
-                echo "🔄 Image is $age_days days old - rebuilding for freshness"
+                echo "🔄 Image is ${age_days}d ${age_hours}h old - rebuilding for freshness"
                 exit 0
               fi
             fi
@@ -548,22 +556,22 @@ jobs:
             exit 0
           fi
 
-          # Try TAR.XZ extraction and manual installation  
+          # Try TAR.XZ extraction and manual installation
           tarxz_files=(artifacts/*.tar.xz)
           if [[ -f "${tarxz_files[0]}" ]]; then
             echo "📦 Extracting TAR.XZ package: ${tarxz_files[0]}"
             mkdir -p /tmp/plugin_extract
             tar -xf "${tarxz_files[0]}" -C /tmp/plugin_extract
-            
+
             # Find the .so file and data directory
             so_file=$(find /tmp/plugin_extract -name "*.so" -type f | head -1)
             data_dir=$(find /tmp/plugin_extract -name "data" -type d | head -1)
-            
+
             if [[ -n "$so_file" ]]; then
               echo "📦 Installing from TAR.XZ: $so_file"
               mkdir -p ~/.config/obs-studio/plugins/c64stream/bin/64bit
               cp "$so_file" ~/.config/obs-studio/plugins/c64stream/bin/64bit/
-              
+
               if [[ -n "$data_dir" ]]; then
                 mkdir -p ~/.config/obs-studio/plugins/c64stream/data
                 cp -r "$data_dir"/* ~/.config/obs-studio/plugins/c64stream/data/
@@ -579,7 +587,7 @@ jobs:
             echo "📦 Installing SO file directly: ${so_files[0]}"
             mkdir -p ~/.config/obs-studio/plugins/c64stream/bin/64bit
             cp "${so_files[0]}" ~/.config/obs-studio/plugins/c64stream/bin/64bit/
-            
+
             # Copy data directory if available
             if [[ -d data ]]; then
               mkdir -p ~/.config/obs-studio/plugins/c64stream/data
