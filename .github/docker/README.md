@@ -42,7 +42,7 @@ jobs:
 The Docker build system is integrated into the main `build-project.yaml` workflow:
 
 - **Automatic Image Management**: Checks if Docker image exists and is recent
-- **Smart Rebuilding**: Rebuilds image when Dockerfile changes or age > 7 days  
+- **Smart Rebuilding**: Rebuilds image when Dockerfile changes or age > 7 days
 - **Transparent Integration**: Uses Docker container for Ubuntu builds seamlessly
 - **No Manual Steps**: Everything works automatically
 
