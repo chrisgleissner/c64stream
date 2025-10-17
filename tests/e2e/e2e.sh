@@ -315,8 +315,24 @@ check_dependencies() {
         fi
     done
 
-    # Python packages
-    # Python packages\n    for package in numpy PIL; do\n        if ! python3 -c \"import ${package}\" 2>/dev/null; then\n            missing_deps+=(\"python3-${package,,}\")\n        fi\n    done\n    \n    # Install Python E2E test requirements if available\n    local requirements_file=\"${TEST_DIR}/requirements.txt\"\n    if [[ -f \"${requirements_file}\" ]]; then\n        log_info \"Installing Python E2E test dependencies...\"\n        if [[ \"${VERBOSE}\" == true ]]; then\n            pip3 install --user -r \"${requirements_file}\"\n        else\n            pip3 install --user -r \"${requirements_file}\" > /dev/null 2>&1\n        fi\n    fi
+    # Python packages (numpy and PIL required by generate_packets.py)
+    for package in numpy PIL; do
+        if ! python3 -c "import ${package}" >/dev/null 2>&1; then
+            # Prefer distro packages for these heavy deps
+            missing_deps+=("python3-${package,,}")
+        fi
+    done
+
+    # Install Python E2E test requirements if available (websocket-client, requests)
+    local requirements_file="${TEST_DIR}/requirements.txt"
+    if [[ -f "${requirements_file}" ]]; then
+        log_info "Installing Python E2E test dependencies..."
+        if [[ "${VERBOSE}" == true ]]; then
+            pip3 install --user -r "${requirements_file}"
+        else
+            pip3 install --user -r "${requirements_file}" > /dev/null 2>&1
+        fi
+    fi
 
     # Virtual display tools (always needed for headless testing)
     local -A display_packages=(
