@@ -308,6 +308,9 @@ class E2ETest:
         # Replace variables in the copied configuration
         self._replace_config_variables(obs_config_dir)
 
+        # Clean up state files that could trigger dialogs
+        self._cleanup_obs_state_files(obs_config_dir)
+
         self.log("✅ OBS configuration copied from baseline")
         return obs_config_dir / 'basic' / 'profiles' / 'C64StreamTest'
 
@@ -328,6 +331,44 @@ class E2ETest:
             self.log(f"Updated configuration variables in {basic_ini}")
 
         self.log("✅ Configuration variables replaced")
+
+    def _cleanup_obs_state_files(self, obs_config_dir):
+        """Clean up OBS state files that can trigger popup dialogs."""
+        try:
+            import glob
+
+            # Files/patterns that can trigger dialogs
+            state_patterns = [
+                str(obs_config_dir / 'safe_mode'),
+                str(obs_config_dir / '.safe_mode'),
+                str(obs_config_dir / 'crashed'),
+                str(obs_config_dir / '.crashed'),
+                str(obs_config_dir / 'basic/crashed'),
+                str(obs_config_dir / 'plugin_config/.safe_mode*'),
+                '/tmp/obs-safe-mode-*',
+                '/tmp/.obs-crashed*'
+            ]
+
+            cleaned_count = 0
+            for pattern in state_patterns:
+                for state_file in glob.glob(pattern):
+                    try:
+                        state_path = Path(state_file)
+                        if state_path.is_dir():
+                            shutil.rmtree(state_path)
+                        else:
+                            state_path.unlink()
+                        cleaned_count += 1
+                    except (OSError, IOError):
+                        pass
+
+            if cleaned_count > 0:
+                self.log(f"Cleaned up {cleaned_count} OBS state files")
+            else:
+                self.log("No OBS state files to clean up")
+
+        except Exception as e:
+            self.log(f"Warning: Could not clean up OBS state files: {e}")
 
     def wait_for_plugin_initialization(self, timeout=None):
         """Wait for C64 plugin to initialize by monitoring OBS logs."""

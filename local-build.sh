@@ -97,12 +97,47 @@ detect_platform() {
 replace_obs_config_variables() {
     local obs_config_dir=$1
     local output_dir=${2:-"$HOME"}
-    
+
     local basic_ini="$obs_config_dir/basic/profiles/C64StreamTest/basic.ini"
     if [[ -f "$basic_ini" ]]; then
         # Replace variables with actual values
         sed -i "s|\$OUTPUT_DIR|$output_dir|g" "$basic_ini"
         log_info "Updated configuration variables in $basic_ini"
+    fi
+}
+
+cleanup_obs_state_files() {
+    local obs_config_dir=$1
+
+    # Files/patterns that can trigger dialogs
+    local state_patterns=(
+        "$obs_config_dir/safe_mode"
+        "$obs_config_dir/.safe_mode"
+        "$obs_config_dir/crashed"
+        "$obs_config_dir/.crashed"
+        "$obs_config_dir/basic/crashed"
+        "$obs_config_dir/plugin_config/.safe_mode"*
+        "/tmp/obs-safe-mode-"*
+        "/tmp/.obs-crashed"*
+    )
+
+    local cleaned_count=0
+    for pattern in "${state_patterns[@]}"; do
+        for state_file in $pattern; do
+            if [[ -e "$state_file" ]]; then
+                if [[ -d "$state_file" ]]; then
+                    rm -rf "$state_file" 2>/dev/null && ((cleaned_count++))
+                else
+                    rm -f "$state_file" 2>/dev/null && ((cleaned_count++))
+                fi
+            fi
+        done
+    done
+
+    if [[ $cleaned_count -gt 0 ]]; then
+        log_info "Cleaned up $cleaned_count OBS state files"
+    else
+        log_info "No OBS state files to clean up"
     fi
 }
 
@@ -437,10 +472,13 @@ reset_obs_configuration() {
         fi
         # Copy baseline configuration
         cp -r "$config_source" "$obs_config_dir"
-        
+
         # Replace variables in the copied configuration
         replace_obs_config_variables "$obs_config_dir"
-        
+
+        # Clean up state files that could trigger dialogs
+        cleanup_obs_state_files "$obs_config_dir"
+
         log_success "OBS configuration copied from baseline"
     else
         log_warning "Baseline OBS config not found at $config_source - falling back to minimal setup"
