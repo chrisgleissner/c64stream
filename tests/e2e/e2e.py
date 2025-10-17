@@ -457,7 +457,7 @@ DockAreaVisible=false
             scenes_index = obs_config_dir / 'basic' / 'scenes' / 'scenes.json'
             scenes_index.parent.mkdir(parents=True, exist_ok=True)
             index_payload = {
-                "current_scene_collection": "C64StreamTest",
+                "current_collection": "C64StreamTest",
                 "scene_collections": [
                     {"name": "C64StreamTest", "path": "C64StreamTest.json"}
                 ]
@@ -604,7 +604,7 @@ DockAreaVisible=false
         required_files = [
             (obs_config_dir / 'basic' / 'profiles' / 'C64StreamTest' / 'basic.ini', 'Profile config'),
             (obs_config_dir / 'basic' / 'scenes' / 'C64StreamTest.json', 'Scene collection'),
-            (obs_config_dir / 'basic' / 'scenes' / 'scenes.json', 'Scene index'),
+            (obs_config_dir / 'basic' / 'scenes' / 'scenes.json', 'Scene index (new key: current_collection)'),
             (obs_config_dir / 'global.ini', 'Global config')
         ]
 
@@ -632,7 +632,7 @@ DockAreaVisible=false
             obs_cmd = [
                 'obs',
                 '--profile', 'C64StreamTest',
-                '--scene-collection', 'C64StreamTest',
+                '--collection', 'C64StreamTest',
                 '--scene', 'C64 Test Scene',
                 '--startrecording',  # Auto-start recording
                 '--minimize-to-tray',
@@ -800,7 +800,7 @@ DockAreaVisible=false
             obs_cmd = [
                 'obs',
                 '--profile', 'C64StreamTest',
-                '--scene-collection', 'C64StreamTest',
+                '--collection', 'C64StreamTest',
                 '--startrecording',
                 '--minimize-to-tray',
                 '--disable-updater',
