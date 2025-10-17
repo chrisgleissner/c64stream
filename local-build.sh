@@ -465,13 +465,15 @@ reset_obs_configuration() {
     local config_source="$SCRIPT_DIR/tests/e2e/config/obs-studio"
     if [[ -d "$config_source" ]]; then
         log_info "Copying OBS configuration from clean baseline"
-        # Remove existing config to ensure clean state
-        if [[ -d "$obs_config_dir" ]]; then
-            log_info "Removing existing OBS config: $obs_config_dir"
-            rm -rf "$obs_config_dir"
+        # Remove existing basic directory to ensure clean state
+        if [[ -d "$obs_config_dir/basic" ]]; then
+            log_info "Removing existing OBS basic config: $obs_config_dir/basic"
+            rm -rf "$obs_config_dir/basic"
         fi
+        # Ensure parent directory exists
+        mkdir -p "$obs_config_dir"
         # Copy baseline configuration
-        cp -r "$config_source" "$obs_config_dir"
+        cp -r "$config_source"/* "$obs_config_dir/"
 
         # Replace variables in the copied configuration
         replace_obs_config_variables "$obs_config_dir"

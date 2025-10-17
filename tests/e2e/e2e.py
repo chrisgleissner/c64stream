@@ -290,10 +290,14 @@ class E2ETest:
         else:
             obs_config_dir = Path.home() / '.config' / 'obs-studio'
 
-        # Remove entire existing OBS config to ensure clean state
-        if obs_config_dir.exists():
-            self.log(f"Removing existing OBS config: {obs_config_dir}")
-            shutil.rmtree(obs_config_dir)
+        # Remove the basic directory to ensure completely clean state
+        basic_dir = obs_config_dir / 'basic'
+        if basic_dir.exists():
+            self.log(f"Removing existing OBS basic config: {basic_dir}")
+            shutil.rmtree(basic_dir)
+
+        # Ensure parent directory exists
+        obs_config_dir.mkdir(parents=True, exist_ok=True)
 
         # Copy baseline config from tests/e2e/config
         script_dir = Path(__file__).parent
@@ -303,7 +307,12 @@ class E2ETest:
             raise RuntimeError(f"Baseline OBS config not found: {config_source}")
 
         self.log(f"Copying baseline config from {config_source} to {obs_config_dir}")
-        shutil.copytree(config_source, obs_config_dir)
+        # Copy the contents of the baseline config directory
+        for item in config_source.iterdir():
+            if item.is_dir():
+                shutil.copytree(item, obs_config_dir / item.name)
+            else:
+                shutil.copy2(item, obs_config_dir / item.name)
 
         # Replace variables in the copied configuration
         self._replace_config_variables(obs_config_dir)
