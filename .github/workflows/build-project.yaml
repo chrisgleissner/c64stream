@@ -739,7 +739,7 @@ jobs:
 
       - name: Run E2E Tests 🧪
         run: |
-          : Run E2E Tests 🧪 (Non-blocking - failures won't fail the build)
+          : "Run E2E Tests 🧪 (Non-blocking - failures won't fail the build)"
 
           cd tests/e2e
 
