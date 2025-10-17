@@ -6,7 +6,6 @@ on:
       - master
       - main
       - 'release/**'
-      - 'feature/dockerized-ubuntu-build'  # Temporary for development
     tags:
       - '*'
 permissions:
