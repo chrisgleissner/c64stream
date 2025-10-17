@@ -47,7 +47,7 @@ class E2ETest:
         self.frames = frames
         self.verbose = verbose
         self.enable_websocket = enable_websocket  # Disable WebSocket by default for performance
-        
+
         # Detect CI environment and set appropriate timeouts
         self.is_ci = self._detect_ci_environment()
         self._configure_timeouts()
@@ -85,7 +85,7 @@ class E2ETest:
         if self.is_ci:
             # CI environment: longer timeouts for resource-constrained environments
             self.plugin_init_timeout = 45  # Increased from 30s for more robust CI
-            self.obs_startup_delay = 4     # Increased from 3s 
+            self.obs_startup_delay = 4     # Increased from 3s
             self.async_task_delay = 6      # Increased from 5s
             self.websocket_settings_delay = 3  # Increased from 2s
             self.udp_socket_delay = 1.0    # Increased from 0.5s
@@ -459,7 +459,7 @@ DockAreaVisible=false
                 json.dump(index_payload, idx, indent=2)
                 idx.flush()
                 os.fsync(idx.fileno())
-            
+
             # Verify scenes index was created
             if scenes_index.exists():
                 index_size = scenes_index.stat().st_size
@@ -586,21 +586,21 @@ DockAreaVisible=false
 
         # Create the OBS profile first
         profile_dir = self.create_obs_profile()
-        
+
         if not profile_dir:
             raise RuntimeError("Failed to create OBS profile")
 
         # Validate all required files exist before starting OBS
         self.log("🔍 Validating OBS configuration files...")
         obs_config_dir = Path.home() / '.config' / 'obs-studio'
-        
+
         required_files = [
             (obs_config_dir / 'basic' / 'profiles' / 'C64StreamTest' / 'basic.ini', 'Profile config'),
             (obs_config_dir / 'basic' / 'scenes' / 'C64StreamTest.json', 'Scene collection'),
             (obs_config_dir / 'basic' / 'scenes' / 'scenes.json', 'Scene index'),
             (obs_config_dir / 'global.ini', 'Global config')
         ]
-        
+
         all_files_exist = True
         for file_path, description in required_files:
             if file_path.exists():
@@ -609,10 +609,10 @@ DockAreaVisible=false
             else:
                 self.log(f"  ❌ {description}: MISSING {file_path}")
                 all_files_exist = False
-        
+
         if not all_files_exist:
             raise RuntimeError("Required OBS configuration files are missing")
-        
+
         # Give filesystem more time on CI to ensure all files are committed
         if self.is_ci:
             self.log("⏳ CI environment: waiting for filesystem sync...")
@@ -625,7 +625,7 @@ DockAreaVisible=false
             obs_cmd = [
                 'obs',
                 '--profile', 'C64StreamTest',
-                '--scene-collection', 'C64StreamTest', 
+                '--scene-collection', 'C64StreamTest',
                 '--scene', 'C64 Test Scene',
                 '--startrecording',  # Auto-start recording
                 '--minimize-to-tray',
@@ -633,7 +633,7 @@ DockAreaVisible=false
                 '--disable-missing-files-check',
                 '--multi'  # Allow multiple instances
             ]
-            
+
             # Add verbose logging on CI
             if self.is_ci:
                 obs_cmd.append('--verbose')
@@ -656,11 +656,11 @@ DockAreaVisible=false
                 raise RuntimeError(f"OBS failed to start:\nSTDOUT: {stdout.decode()}\nSTDERR: {stderr.decode()}")
 
             self.log("✅ OBS started successfully")
-            
+
             # Post-startup validation: verify OBS loaded our configuration
             self.log("🔍 Validating OBS loaded our scene collection...")
             time.sleep(1.0)  # Give OBS a moment to fully initialize
-            
+
             # Check if OBS created expected recording session directory
             recordings_base = Path.home() / 'Documents' / 'obs-studio' / 'c64stream' / 'recordings'
             if recordings_base.exists():
@@ -679,7 +679,7 @@ DockAreaVisible=false
             self.log("🔍 Checking which properties file is being used by plugin...")
             user_props = Path.home() / '.config' / 'obs-studio' / 'plugins' / 'c64stream' / 'data' / 'properties.ini'
             system_props = Path('/usr/share/obs/obs-plugins/c64stream/properties.ini')
-            
+
             if system_props.exists():
                 self.log(f"  📄 System properties found: {system_props}")
                 try:
@@ -693,7 +693,7 @@ DockAreaVisible=false
                     self.log(f"  ⚠️ Could not read system properties: {e}")
             else:
                 self.log(f"  📄 No system properties file (plugin will use user properties)")
-                
+
             if user_props.exists():
                 self.log(f"  📄 User properties found: {user_props}")
                 try:
@@ -716,7 +716,7 @@ DockAreaVisible=false
                 raise RuntimeError("C64 plugin failed to initialize within timeout")
 
             self.log("✅ C64 plugin initialization complete")
-            
+
             # Additional validation: check if the C64 source was actually created
             self.log("🔍 Verifying C64 source creation in OBS logs...")
             obs_config_dir = Path.home() / '.config' / 'obs-studio'
@@ -729,19 +729,19 @@ DockAreaVisible=false
                     try:
                         with open(latest_log, 'r') as f:
                             content = f.read()
-                        
+
                         # Look for evidence that our scene and source were loaded
                         scene_loaded = 'C64StreamTest' in content
                         source_created = any(phrase in content for phrase in [
-                            'c64_source', 'C64 Stream Source', 'C64S source created', 
+                            'c64_source', 'C64 Stream Source', 'C64S source created',
                             'C64S streaming started', 'Created optimized UDP socket'
                         ])
-                        
+
                         if scene_loaded:
                             self.log("  ✅ C64StreamTest scene collection detected in logs")
                         else:
                             self.log("  ⚠️ C64StreamTest scene collection NOT found in logs")
-                            
+
                         if source_created:
                             self.log("  ✅ C64 source creation detected in logs")
                         else:
@@ -750,7 +750,7 @@ DockAreaVisible=false
                                 self.log("  🔍 CI environment: this may be normal timing variation")
                             else:
                                 self.log("  🔍 This likely means OBS didn't load our scene collection properly")
-                            
+
                     except Exception as e:
                         self.log(f"  ❌ Could not analyze logs: {e}")
 
@@ -1485,7 +1485,7 @@ DockAreaVisible=false
         """Analyze OBS logs for debugging purposes (called only when needed)."""
         obs_config_dir = Path.home() / '.config' / 'obs-studio'
         logs_dir = obs_config_dir / 'logs'
-        
+
         if not logs_dir.exists():
             self.log("  - OBS logs directory not found")
             return
@@ -1499,7 +1499,7 @@ DockAreaVisible=false
 
         latest_log = log_files[0]
         self.log(f"  - Checking latest log: {latest_log.name}")
-        
+
         try:
             with open(latest_log, 'r') as f:
                 content = f.read()
@@ -1573,14 +1573,14 @@ DockAreaVisible=false
 
         # Video packets calculation (unchanged)
         expected_video_packets = self.frames * video_packets_per_frame
-        
+
         # Audio packets calculation (matches generate_packets.py logic)
         frame_duration_ms = 1000.0 / frame_rate
         total_test_duration_ms = self.frames * frame_duration_ms
         audio_samples_per_packet = 192  # Stereo samples
         audio_packet_duration_ms = (audio_samples_per_packet / audio_sample_rate) * 1000
         expected_audio_packets = int(total_test_duration_ms / audio_packet_duration_ms)
-        
+
         expected_total_packets = expected_video_packets + expected_audio_packets
 
         print(f"Expected: {expected_total_packets} packets ({expected_video_packets} video + {expected_audio_packets} audio)")
@@ -1777,7 +1777,7 @@ DockAreaVisible=false
                             "sourceName": "C64 Stream Source",
                             "sourceSettings": source_settings
                         })
-                        
+
                         if response:
                             self.log("  - ✅ Updated source settings via WebSocket")
                             time.sleep(self.websocket_settings_delay)

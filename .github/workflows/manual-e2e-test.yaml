@@ -347,15 +347,15 @@ jobs:
           : Apply E2E Properties to System Plugin Data 🔧
           # This step is critical for CI - it ensures the system-wide plugin installation
           # uses E2E test properties instead of default properties
-          
+
           if [[ -d "/usr/share/obs/obs-plugins/c64stream" ]]; then
             echo "📋 Applying E2E properties to system plugin data directory..."
-            
+
             # Copy E2E properties to system directory with sudo privileges
             if [[ -f "tests/e2e/properties_e2e.ini" ]]; then
               sudo cp "tests/e2e/properties_e2e.ini" "/usr/share/obs/obs-plugins/c64stream/properties.ini"
               echo "✅ Applied E2E properties to /usr/share/obs/obs-plugins/c64stream/properties.ini"
-              
+
               # Verify the file was copied correctly
               if [[ -f "/usr/share/obs/obs-plugins/c64stream/properties.ini" ]]; then
                 echo "🔍 System properties.ini contents:"
