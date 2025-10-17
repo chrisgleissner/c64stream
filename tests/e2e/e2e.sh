@@ -323,14 +323,23 @@ check_dependencies() {
         fi
     done
 
-    # Install Python E2E test requirements if available (websocket-client, requests)
+    # Check for Python runtime deps (requests, websocket) and prefer apt packages
+    if ! python3 -c "import requests" >/dev/null 2>&1; then
+        missing_deps+=("python3-requests")
+    fi
+    if ! python3 -c "import websocket" >/dev/null 2>&1; then
+        missing_deps+=("python3-websocket")
+    fi
+
+    # Install Python E2E test requirements via pip as a best-effort (non-fatal)
+    # This complements apt-based installs and avoids breaking on PEP 668.
     local requirements_file="${TEST_DIR}/requirements.txt"
     if [[ -f "${requirements_file}" ]]; then
-        log_info "Installing Python E2E test dependencies..."
+        log_info "Installing Python E2E test dependencies (best-effort pip)..."
         if [[ "${VERBOSE}" == true ]]; then
-            pip3 install --user -r "${requirements_file}"
+            pip3 install --user -r "${requirements_file}" || true
         else
-            pip3 install --user -r "${requirements_file}" > /dev/null 2>&1
+            pip3 install --user -r "${requirements_file}" > /dev/null 2>&1 || true
         fi
     fi
 
@@ -363,18 +372,24 @@ check_dependencies() {
         log_warning "Missing dependencies: ${missing_deps[*]}"
         log_info "Installing missing dependencies..."
 
+        # Determine privilege escalation (use sudo if available, else run directly if root)
+        local SUDO="sudo"
+        if [[ $(id -u) -eq 0 ]] || ! command -v sudo >/dev/null 2>&1; then
+            SUDO=""
+        fi
+
         # Update package list
         if [[ "${VERBOSE}" == true ]]; then
-            sudo apt-get update
+            ${SUDO} apt-get update
         else
-            sudo apt-get update -qq
+            ${SUDO} apt-get update -qq
         fi
 
         # Install missing packages
         if [[ "${VERBOSE}" == true ]]; then
-            sudo apt-get install -y "${missing_deps[@]}"
+            ${SUDO} apt-get install -y "${missing_deps[@]}"
         else
-            sudo apt-get install -y "${missing_deps[@]}" > /dev/null 2>&1
+            ${SUDO} apt-get install -y "${missing_deps[@]}" > /dev/null 2>&1
         fi
 
         # Verify installation succeeded
