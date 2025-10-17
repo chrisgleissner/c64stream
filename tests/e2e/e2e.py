@@ -305,8 +305,29 @@ class E2ETest:
         self.log(f"Copying baseline config from {config_source} to {obs_config_dir}")
         shutil.copytree(config_source, obs_config_dir)
 
+        # Replace variables in the copied configuration
+        self._replace_config_variables(obs_config_dir)
+
         self.log("✅ OBS configuration copied from baseline")
         return obs_config_dir / 'basic' / 'profiles' / 'C64StreamTest'
+
+    def _replace_config_variables(self, obs_config_dir):
+        """Replace variables in OBS configuration files with actual values."""
+        # Define variable replacements
+        variables = {
+            '$OUTPUT_DIR': str(self.output_dir)
+        }
+
+        # Process basic.ini profile file
+        basic_ini = obs_config_dir / 'basic' / 'profiles' / 'C64StreamTest' / 'basic.ini'
+        if basic_ini.exists():
+            content = basic_ini.read_text()
+            for var, value in variables.items():
+                content = content.replace(var, value)
+            basic_ini.write_text(content)
+            self.log(f"Updated configuration variables in {basic_ini}")
+
+        self.log("✅ Configuration variables replaced")
 
     def wait_for_plugin_initialization(self, timeout=None):
         """Wait for C64 plugin to initialize by monitoring OBS logs."""

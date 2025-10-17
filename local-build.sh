@@ -94,6 +94,18 @@ detect_platform() {
     fi
 }
 
+replace_obs_config_variables() {
+    local obs_config_dir=$1
+    local output_dir=${2:-"$HOME"}
+    
+    local basic_ini="$obs_config_dir/basic/profiles/C64StreamTest/basic.ini"
+    if [[ -f "$basic_ini" ]]; then
+        # Replace variables with actual values
+        sed -i "s|\$OUTPUT_DIR|$output_dir|g" "$basic_ini"
+        log_info "Updated configuration variables in $basic_ini"
+    fi
+}
+
 check_prerequisites() {
     local platform=$1
 
@@ -425,6 +437,10 @@ reset_obs_configuration() {
         fi
         # Copy baseline configuration
         cp -r "$config_source" "$obs_config_dir"
+        
+        # Replace variables in the copied configuration
+        replace_obs_config_variables "$obs_config_dir"
+        
         log_success "OBS configuration copied from baseline"
     else
         log_warning "Baseline OBS config not found at $config_source - falling back to minimal setup"
