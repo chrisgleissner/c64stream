@@ -627,6 +627,40 @@ jobs:
             exit 1
           fi
 
+      - name: Ensure User Plugin Mirror 🔁
+        run: |
+          : Ensure User Plugin Mirror 🔁
+          set -e
+          USER_PLUGIN_DIR="$HOME/.config/obs-studio/plugins/c64stream/bin/64bit"
+          mkdir -p "${USER_PLUGIN_DIR}"
+
+          # Prefer system-installed .so from .deb
+          SYS_SO=""
+          for path in \
+            "/usr/lib/obs-plugins/c64stream.so" \
+            "/usr/lib/x86_64-linux-gnu/obs-plugins/c64stream.so" \
+            "artifacts/build_x86_64/c64stream.so"; do
+            if [[ -f "${path}" ]]; then
+              SYS_SO="${path}"
+              break
+            fi
+          done
+
+          if [[ -n "${SYS_SO}" ]]; then
+            echo "📦 Mirroring plugin to user dir from: ${SYS_SO}"
+            cp "${SYS_SO}" "${USER_PLUGIN_DIR}/c64stream.so"
+            ls -la "${USER_PLUGIN_DIR}/c64stream.so"
+          else
+            echo "❌ Could not locate c64stream.so to mirror"
+            exit 1
+          fi
+
+          # Ensure user data dir exists and seeded from system data
+          if [[ -d "/usr/share/obs/obs-plugins/c64stream" ]]; then
+            mkdir -p "$HOME/.config/obs-studio/plugins/c64stream/data"
+            cp -r /usr/share/obs/obs-plugins/c64stream/* "$HOME/.config/obs-studio/plugins/c64stream/data/" || true
+          fi
+
       - name: Setup X11 Display 🖥️
         run: |
           : Setup X11 Display 🖥️
