@@ -38,7 +38,7 @@ except ImportError:
 
 class E2ETest:
     def __init__(self, test_dir, video_port=11000, audio_port=11001, control_port=6400,
-                 format='NTSC', frames=30, verbose=False):  # Default to NTSC for faster testing
+                 format='NTSC', frames=30, verbose=False, enable_websocket=False):  # Default to NTSC for faster testing
         self.test_dir = Path(test_dir)
         self.video_port = video_port
         self.audio_port = audio_port
@@ -46,6 +46,7 @@ class E2ETest:
         self.format = format
         self.frames = frames
         self.verbose = verbose
+        self.enable_websocket = enable_websocket  # Disable WebSocket by default for performance
         
         # Detect CI environment and set appropriate timeouts
         self.is_ci = self._detect_ci_environment()
@@ -91,14 +92,14 @@ class E2ETest:
             self.buffer_setup_delay = 0.2
             self.log("🏗️ CI environment detected - using extended timeouts")
         else:
-            # Local environment: minimal timeouts for fast development iteration
-            self.plugin_init_timeout = 10
-            self.obs_startup_delay = 1
-            self.async_task_delay = 1
-            self.websocket_settings_delay = 0.5
-            self.udp_socket_delay = 0.1
-            self.buffer_setup_delay = 0.1
-            self.log("🚀 Local environment detected - using minimal timeouts")
+            # Local environment: ultra-minimal timeouts for 6-second target
+            self.plugin_init_timeout = 6
+            self.obs_startup_delay = 0.5
+            self.async_task_delay = 0.3
+            self.websocket_settings_delay = 0.2
+            self.udp_socket_delay = 0.05
+            self.buffer_setup_delay = 0.05
+            self.log("🚀 Local environment detected - using ultra-minimal timeouts")
 
     def log(self, message):
         """Print log message if verbose mode is enabled."""
@@ -1316,6 +1317,67 @@ DockAreaVisible=false
         except Exception as e:
             self.log(f"Warning: Could not clean up OBS locks: {e}")
 
+    def _analyze_obs_logs(self):
+        """Analyze OBS logs for debugging purposes (called only when needed)."""
+        obs_config_dir = Path.home() / '.config' / 'obs-studio'
+        logs_dir = obs_config_dir / 'logs'
+        
+        if not logs_dir.exists():
+            self.log("  - OBS logs directory not found")
+            return
+
+        log_files = list(logs_dir.glob('*.txt'))
+        log_files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
+
+        if not log_files:
+            self.log("  - No OBS log files found")
+            return
+
+        latest_log = log_files[0]
+        self.log(f"  - Checking latest log: {latest_log.name}")
+        
+        try:
+            with open(latest_log, 'r') as f:
+                content = f.read()
+
+            # Look for plugin-related messages
+            plugin_lines = [line for line in content.split('\n') if 'c64' in line.lower() or 'C64' in line]
+            if plugin_lines:
+                self.log(f"  - Found {len(plugin_lines)} plugin-related log entries:")
+                for line in plugin_lines[-10:]:  # Show last 10 lines
+                    self.log(f"    {line}")
+
+            # Look for async task or streaming messages
+            async_lines = [line for line in content.split('\n') if 'async' in line.lower() or 'streaming' in line.lower() or 'retry' in line.lower()]
+            if async_lines:
+                self.log(f"  - Found {len(async_lines)} async/streaming log entries:")
+                for line in async_lines[-5:]:  # Show last 5 lines
+                    self.log(f"    {line}")
+
+            # Look for any error messages
+            error_lines = [line for line in content.split('\n') if 'error' in line.lower() or 'failed' in line.lower()]
+            if error_lines:
+                self.log(f"  - Found {len(error_lines)} error/warning messages:")
+                for line in error_lines[-5:]:  # Show last 5 error lines
+                    self.log(f"    {line}")
+
+            # Check plugin properties file
+            plugin_props_file = obs_config_dir / 'plugins' / 'c64stream' / 'data' / 'properties.ini'
+            if plugin_props_file.exists():
+                self.log(f"  - Plugin properties file exists: {plugin_props_file}")
+                try:
+                    with open(plugin_props_file, 'r') as f:
+                        props_content = f.read()
+                    self.log(f"  - Properties file content (first 300 chars):")
+                    self.log(f"    {props_content[:300]}...")
+                except Exception as e:
+                    self.log(f"  - Could not read properties file: {e}")
+            else:
+                self.log(f"  - Plugin properties file not found: {plugin_props_file}")
+
+        except Exception as e:
+            self.log(f"  - Could not read log file: {e}")
+
     def validate_test_results(self, replay_success, recording_success, csv_success, recording_file):
         """
         Comprehensive validation of E2E test results.
@@ -1335,16 +1397,26 @@ DockAreaVisible=false
             'frame_processing': {'status': 'unknown', 'details': ''},
             'video_recording': {'status': 'unknown', 'details': ''},
             'packet_integrity': {'status': 'unknown', 'details': ''}
-        }        # Calculate expected packet counts
+        }        # Calculate expected packet counts using actual generation logic
         if self.format == 'PAL':
             video_packets_per_frame = 68  # 272 lines / 4 lines per packet
-            audio_packets_per_frame = 1   # One audio packet per frame
+            frame_rate = 50.125
+            audio_sample_rate = 47983
         else:  # NTSC
             video_packets_per_frame = 60  # 240 lines / 4 lines per packet
-            audio_packets_per_frame = 1   # One audio packet per frame
+            frame_rate = 59.826
+            audio_sample_rate = 47940
 
+        # Video packets calculation (unchanged)
         expected_video_packets = self.frames * video_packets_per_frame
-        expected_audio_packets = self.frames * audio_packets_per_frame
+        
+        # Audio packets calculation (matches generate_packets.py logic)
+        frame_duration_ms = 1000.0 / frame_rate
+        total_test_duration_ms = self.frames * frame_duration_ms
+        audio_samples_per_packet = 192  # Stereo samples
+        audio_packet_duration_ms = (audio_samples_per_packet / audio_sample_rate) * 1000
+        expected_audio_packets = int(total_test_duration_ms / audio_packet_duration_ms)
+        
         expected_total_packets = expected_video_packets + expected_audio_packets
 
         print(f"Expected: {expected_total_packets} packets ({expected_video_packets} video + {expected_audio_packets} audio)")
@@ -1522,108 +1594,40 @@ DockAreaVisible=false
             self.log("  - Async retry task should call c64_start_streaming()")
             time.sleep(self.async_task_delay)  # Environment-optimized async task delay
 
-            # Try to manually trigger plugin connection via WebSocket API
-            self.log("🔧 Attempting to manually trigger plugin connection...")
-            try:
-                # Wait for OBS WebSocket to be ready
-                if self.wait_for_obs_websocket(timeout=10):
-                    # Update the C64 Stream source settings to trigger connection
-                    source_settings = {
-                        "c64_host": "localhost",
-                        "video_port": self.video_port,
-                        "audio_port": self.audio_port,
-                        "control_port": self.control_port,
-                        "record_csv": True
-                    }
+            # Optional WebSocket connection attempt (disabled by default for performance)
+            if self.enable_websocket:
+                self.log("🔧 Attempting to manually trigger plugin connection via WebSocket...")
+                try:
+                    # Wait for OBS WebSocket to be ready
+                    if self.wait_for_obs_websocket(timeout=5):  # Reduced timeout
+                        # Update the C64 Stream source settings to trigger connection
+                        source_settings = {
+                            "c64_host": "localhost",
+                            "video_port": self.video_port,
+                            "audio_port": self.audio_port,
+                            "control_port": self.control_port,
+                            "record_csv": True
+                        }
 
-                    # Send request to update source settings
-                    request_data = {
-                        "request-type": "SetSourceSettings",
-                        "sourceName": "C64 Stream Source",
-                        "sourceSettings": source_settings
-                    }
-
-                    self.log(f"  - Sending WebSocket request: {request_data}")
-                    response = self.send_obs_request("SetSourceSettings", request_data)
-                    if response:
-                        self.log("  - ✅ Successfully updated source settings")
+                        response = self.send_obs_request("SetSourceSettings", {
+                            "sourceName": "C64 Stream Source",
+                            "sourceSettings": source_settings
+                        })
+                        
+                        if response:
+                            self.log("  - ✅ Updated source settings via WebSocket")
+                            time.sleep(self.websocket_settings_delay)
+                        else:
+                            self.log("  - ❌ Failed to update source settings")
                     else:
-                        self.log("  - ❌ Failed to update source settings")
-
-                    # Give plugin time to process the update
-                    time.sleep(self.websocket_settings_delay)
-                else:
-                    self.log("  - ❌ OBS WebSocket not available")
-            except Exception as e:
-                self.log(f"  - ❌ Error triggering plugin connection: {e}")
-
-            # Brief moment for plugin to connect to TCP server
-            self.log("⏳ Allowing plugin to connect to mock server...")
-            time.sleep(0.1)  # Minimal delay - plugin connects very quickly
+                        self.log("  - ❌ OBS WebSocket not available")
+                except Exception as e:
+                    self.log(f"  - ❌ WebSocket error: {e}")
+            else:
+                self.log("⚡ Skipping WebSocket checks for optimal performance")
 
             # OBS is already recording (started with --startrecording flag)
-            # No need for additional WebSocket recording start
             self.log("✅ OBS recording already active")
-
-            # Add OBS log analysis
-            self.log("🔍 Analyzing OBS logs for plugin behavior...")
-            obs_config_dir = Path.home() / '.config' / 'obs-studio'
-            logs_dir = obs_config_dir / 'logs'
-            if logs_dir.exists():
-                log_files = list(logs_dir.glob('*.txt'))
-                log_files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
-
-                # Check the most recent log file for plugin activity
-                if log_files:
-                    latest_log = log_files[0]
-                    self.log(f"  - Checking latest log: {latest_log.name}")
-                    try:
-                        with open(latest_log, 'r') as f:
-                            content = f.read()
-
-                        # Look for plugin-related messages
-                        plugin_lines = [line for line in content.split('\n') if 'c64' in line.lower() or 'C64' in line]
-                        if plugin_lines:
-                            self.log(f"  - Found {len(plugin_lines)} plugin-related log entries:")
-                            for line in plugin_lines[-15:]:  # Show last 15 lines
-                                self.log(f"    {line}")
-                        else:
-                            self.log("  - No plugin-related log entries found")
-
-                        # Look for async task or streaming messages
-                        async_lines = [line for line in content.split('\n') if 'async' in line.lower() or 'streaming' in line.lower() or 'retry' in line.lower()]
-                        if async_lines:
-                            self.log(f"  - Found {len(async_lines)} async/streaming log entries:")
-                            for line in async_lines[-5:]:  # Show last 5 lines
-                                self.log(f"    {line}")
-                        else:
-                            self.log("  - No async/streaming log entries found")
-
-                        # Look for any error messages
-                        error_lines = [line for line in content.split('\n') if 'error' in line.lower() or 'failed' in line.lower()]
-                        if error_lines:
-                            self.log(f"  - Found {len(error_lines)} error/warning messages:")
-                            for line in error_lines[-5:]:  # Show last 5 error lines
-                                self.log(f"    {line}")
-
-                    except Exception as e:
-                        self.log(f"  - Could not read log file: {e}")
-            else:
-                self.log("  - OBS logs directory not found")
-
-            # Check if plugin properties file exists and is readable
-            plugin_props_file = Path.home() / '.config' / 'obs-studio' / 'plugins' / 'c64stream' / 'data' / 'properties.ini'
-            if plugin_props_file.exists():
-                self.log(f"  - Plugin properties file exists: {plugin_props_file}")
-                try:
-                    with open(plugin_props_file, 'r') as f:
-                        props_content = f.read()
-                    self.log(f"  - Properties file content (first 500 chars):")
-                    self.log(f"    {props_content[:500]}...")
-                except Exception as e:
-                    self.log(f"  - Could not read properties file: {e}")
-            else:
-                self.log(f"  - Plugin properties file not found: {plugin_props_file}")
 
             # Run packet replay while recording
             self.log("Running packet replay while OBS is recording...")
@@ -1657,6 +1661,16 @@ DockAreaVisible=false
             else:
                 self.log("❌ No recording file found")
                 recording_success = False
+
+            # Post-test log analysis for debugging if needed
+            if not replay_success or not csv_success:
+                self.log("🔍 Analyzing OBS logs for debugging...")
+                self._analyze_obs_logs()
+
+            # Post-test log analysis for debugging if needed
+            if not replay_success or not csv_success:
+                self.log("🔍 Analyzing OBS logs for debugging...")
+                self._analyze_obs_logs()
 
             # Comprehensive validation
             validation_success, validation_results = self.validate_test_results(replay_success, recording_success, csv_success, recording_file)
@@ -1713,6 +1727,8 @@ def main():
                         help='Path to udp_replay executable (default: ./udp_replay)')
     parser.add_argument('--verbose', action='store_true',
                         help='Enable verbose logging')
+    parser.add_argument('--enable-websocket', action='store_true',
+                        help='Enable WebSocket API attempts (disabled by default for performance)')
 
     args = parser.parse_args()
 
@@ -1752,7 +1768,8 @@ def main():
         control_port=args.control_port,
         format=args.format,
         frames=args.frames,
-        verbose=args.verbose
+        verbose=args.verbose,
+        enable_websocket=args.enable_websocket
     )
 
     # Store reference for signal handler
