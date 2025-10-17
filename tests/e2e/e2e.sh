@@ -323,24 +323,15 @@ check_dependencies() {
         fi
     done
 
-    # Check for Python runtime deps (requests, websocket) and prefer apt packages
+    # Check for optional Python runtime deps (requests, websocket) - used for OBS WebSocket API
+    # These are optional - E2E tests work without them by gracefully degrading functionality
     if ! python3 -c "import requests" >/dev/null 2>&1; then
         missing_deps+=("python3-requests")
+        log_info "Optional: python3-requests not found (OBS WebSocket API will be disabled)"
     fi
     if ! python3 -c "import websocket" >/dev/null 2>&1; then
         missing_deps+=("python3-websocket")
-    fi
-
-    # Install Python E2E test requirements via pip as a best-effort (non-fatal)
-    # This complements apt-based installs and avoids breaking on PEP 668.
-    local requirements_file="${TEST_DIR}/requirements.txt"
-    if [[ -f "${requirements_file}" ]]; then
-        log_info "Installing Python E2E test dependencies (best-effort pip)..."
-        if [[ "${VERBOSE}" == true ]]; then
-            pip3 install --user -r "${requirements_file}" || true
-        else
-            pip3 install --user -r "${requirements_file}" > /dev/null 2>&1 || true
-        fi
+        log_info "Optional: python3-websocket not found (OBS WebSocket API will be disabled)"
     fi
 
     # Virtual display tools (always needed for headless testing)
@@ -571,7 +562,7 @@ run_e2e_test() {
 
     # Ensure X environment variables are set
     export DISPLAY="${DEFAULT_X11_DISPLAY}"
-    
+
     # Only set CI-specific Qt/GL environment variables in CI environment
     if [[ "${CI:-false}" == "true" ]] || [[ "${GITHUB_ACTIONS:-false}" == "true" ]]; then
         export QT_QPA_PLATFORM=xcb

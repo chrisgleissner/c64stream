@@ -1,4 +1,0 @@
-# E2E Test Dependencies
-# Used for OBS WebSocket API communication
-websocket-client>=1.0.0
-requests>=2.25.0
