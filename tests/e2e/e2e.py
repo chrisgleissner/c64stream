@@ -27,6 +27,7 @@ import argparse
 import json
 import socket
 import tempfile
+import shutil
 from pathlib import Path
 
 # Import A/V sync testing
@@ -279,236 +280,33 @@ class E2ETest:
 
     def create_obs_profile(self):
         """
-        Create a minimal OBS profile and scene collection for testing.
+        Copy clean OBS configuration from config directory to establish reproducible baseline.
         """
-        self.log("Creating OBS test profile")
+        self.log("Setting up OBS configuration from baseline")
 
-        # Create OBS config directory
-        obs_config_dir = Path.home() / '.config' / 'obs-studio'
-        profile_dir = obs_config_dir / 'basic' / 'profiles' / 'C64StreamTest'
-        scenes_dir = obs_config_dir / 'basic' / 'scenes'
-
-        profile_dir.mkdir(parents=True, exist_ok=True)
-        scenes_dir.mkdir(parents=True, exist_ok=True)
-
-        # Create global configuration to disable crash recovery system-wide
-        global_ini = obs_config_dir / 'global.ini'
-        with open(global_ini, 'w') as f:
-            f.write("""[General]
-EnableCrashReporting=false
-EnableUpdater=false
-FirstRun=false
-RecordWhenStreaming=false
-KeepRecordingWhenStreamStops=false
-WarnBeforeStartingStream=false
-WarnBeforeStoppingStream=false
-WarnBeforeStoppingRecord=false
-SafeMode=false
-DisableSafeMode=true
-""")
-
-        # Clean up any existing OBS state files that might trigger dialogs
-        self.cleanup_obs_state_files(obs_config_dir)
-
-                # Create basic.ini for the profile
-        basic_ini = profile_dir / 'basic.ini'
-        with open(basic_ini, 'w') as f:
-            config_content = f"""[General]
-Name=C64StreamTest
-EnableCrashRecovery=false
-WarnBeforeStartingStream=false
-WarnBeforeStoppingStream=false
-WarnBeforeStoppingRecord=false
-RecordWhenStreaming=false
-KeepRecordingWhenStreamStops=false
-
-[Video]
-BaseCX=1280
-BaseCY=720
-OutputCX=1280
-OutputCY=720
-FPSType=0
-FPSNum=30
-FPSDen=1
-
-[Audio]
-SampleRate=48000
-Channels=2
-
-[Output]
-Mode=Simple
-FilePath={self.output_dir}
-RecFormat=mkv
-RecEncoder=x264
-RecQuality=Stream
-RecRB=false
-
-[BasicWindow]
-DockAreaVisible=false
-"""
-            f.write(config_content)
-
-        # Create scene collection
-        scene_file = scenes_dir / 'C64StreamTest.json'
-        # Generate a stable UUID for the source in this run
-        try:
-            import uuid as _uuid
-            source_uuid = str(_uuid.uuid4())
-        except Exception:
-            source_uuid = "00000000-0000-0000-0000-000000000001"
-
-        scene_config = {
-            "AuxAudioDevice1": {
-                "balance": 0.5,
-                "deinterlace_field_order": 0,
-                "deinterlace_mode": 0,
-                "enabled": True,
-                "flags": 0,
-                "hotkeys": {},
-                "id": "pulse_input_capture",
-                "mixers": 255,
-                "monitoring_type": 0,
-                "muted": False,
-                "name": "Mic/Aux",
-                "private_settings": {},
-                "push-to-mute": False,
-                "push-to-mute-delay": 1000,
-                "push-to-talk": False,
-                "push-to-talk-delay": 1000,
-                "settings": {},
-                "sync": 0,
-                "volume": 1.0
-            },
-            "current_scene": "C64 Test Scene",
-            "current_program_scene": "C64 Test Scene",
-            "scene_order": [
-                {
-                    "name": "C64 Test Scene"
-                }
-            ],
-            "sources": [
-                {
-                    "uuid": source_uuid,
-                    "balance": 0.5,
-                    "deinterlace_field_order": 0,
-                    "deinterlace_mode": 0,
-                    "enabled": True,
-                    "flags": 0,
-                    "hotkeys": {},
-                    "id": "c64_source",
-                    "mixers": 255,
-                    "monitoring_type": 0,
-                    "muted": False,
-                    "name": "C64 Stream Source",
-                    "private_settings": {},
-                    "push-to-mute": False,
-                    "push-to-mute-delay": 1000,
-                    "push-to-talk": False,
-                    "push-to-talk-delay": 1000,
-                    "settings": {
-                        "c64_host": "localhost",
-                        "video_port": self.video_port,
-                        "audio_port": self.audio_port,
-                        "control_port": self.control_port,
-                        "record_csv": True
-                    },
-                    "sync": 0,
-                    "volume": 1.0
-                }
-            ],
-            "scenes": [
-                {
-                    "hotkeys": {},
-                    "id": 1,
-                    "name": "C64 Test Scene",
-                    "sources": [
-                        {
-                            "align": 5,
-                            "blend_method": "default",
-                            "blend_type": "normal",
-                            "bounds": {
-                                "alignment": 0,
-                                "type": "OBS_BOUNDS_NONE"
-                            },
-                            "bounds_align": 0,
-                            "bounds_type": 0,
-                            "crop_bottom": 0,
-                            "crop_left": 0,
-                            "crop_right": 0,
-                            "crop_top": 0,
-                            "group_children": False,
-                            "hotkeys": {},
-                            "id": 1,
-                            "locked": False,
-                            "name": "C64 Stream Source",
-                            "source_uuid": source_uuid,
-                            "pos": {
-                                "x": 0.0,
-                                "y": 0.0
-                            },
-                            "private_settings": {},
-                            "rot": 0.0,
-                            "scale": {
-                                "x": 3.3333333333333335,
-                                "y": 2.6470588235294117
-                            },
-                            "scale_filter": "disable",
-                            "visible": True
-                        }
-                    ]
-                }
-            ],
-            "version": 1
-        }
-
-        with open(scene_file, 'w') as f:
-            json.dump(scene_config, f, indent=2)
-            f.flush()  # Ensure file is written immediately
-            os.fsync(f.fileno())  # Force filesystem sync
-
-        # Verify scene file was created successfully
-        if scene_file.exists():
-            file_size = scene_file.stat().st_size
-            self.log(f"✅ Created scene file: {scene_file} ({file_size} bytes)")
+        # Determine OBS config directory (handle CI environment where ~ doesn't resolve)
+        if os.environ.get('HOME'):
+            obs_config_dir = Path(os.environ['HOME']) / '.config' / 'obs-studio'
         else:
-            self.log(f"❌ Scene file creation failed: {scene_file}")
-            return None
+            obs_config_dir = Path.home() / '.config' / 'obs-studio'
 
-        # Register the scene collection so OBS can discover it by name
-        try:
-            scenes_index = obs_config_dir / 'basic' / 'scenes' / 'scenes.json'
-            scenes_index.parent.mkdir(parents=True, exist_ok=True)
-            # Write both legacy and new keys for broad OBS compatibility (OBS 27-32+)
-            # - Legacy: "current" and "collections"
-            # - Newer:  "current_collection" and "scene_collections"
-            index_payload = {
-                # Legacy keys (OBS <= 32)
-                "current": "C64StreamTest",
-                "collections": [
-                    {"name": "C64StreamTest", "path": "C64StreamTest.json"}
-                ],
-                # Newer keys (future compatibility)
-                "current_collection": "C64StreamTest",
-                "scene_collections": [
-                    {"name": "C64StreamTest", "path": "C64StreamTest.json"}
-                ]
-            }
-            with open(scenes_index, 'w') as idx:
-                json.dump(index_payload, idx, indent=2)
-                idx.flush()
-                os.fsync(idx.fileno())
+        # Remove entire existing OBS config to ensure clean state
+        if obs_config_dir.exists():
+            self.log(f"Removing existing OBS config: {obs_config_dir}")
+            shutil.rmtree(obs_config_dir)
 
-            # Verify scenes index was created
-            if scenes_index.exists():
-                index_size = scenes_index.stat().st_size
-                self.log(f"✅ Registered scene collection: {scenes_index} ({index_size} bytes)")
-            else:
-                self.log(f"❌ Failed to create scenes index: {scenes_index}")
-        except Exception as e:
-            self.log(f"⚠️ Failed to register scene collection: {e}")
+        # Copy baseline config from tests/e2e/config
+        script_dir = Path(__file__).parent
+        config_source = script_dir / 'config' / 'obs-studio'
 
-        self.log(f"✅ Created OBS profile at {profile_dir}")
-        return profile_dir
+        if not config_source.exists():
+            raise RuntimeError(f"Baseline OBS config not found: {config_source}")
+
+        self.log(f"Copying baseline config from {config_source} to {obs_config_dir}")
+        shutil.copytree(config_source, obs_config_dir)
+
+        self.log("✅ OBS configuration copied from baseline")
+        return obs_config_dir / 'basic' / 'profiles' / 'C64StreamTest'
 
     def wait_for_plugin_initialization(self, timeout=None):
         """Wait for C64 plugin to initialize by monitoring OBS logs."""

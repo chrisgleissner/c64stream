@@ -1,0 +1,12 @@
+{
+    "current": "C64StreamTest",
+    "collections": [
+        {"name": "C64StreamTest", "path": "C64StreamTest.json"},
+        {"name": "Untitled", "path": "Untitled.json"}
+    ],
+    "current_collection": "C64StreamTest",
+    "scene_collections": [
+        {"name": "C64StreamTest", "path": "C64StreamTest.json"},
+        {"name": "Untitled", "path": "Untitled.json"}
+    ]
+}

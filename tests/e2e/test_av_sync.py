@@ -60,13 +60,13 @@ def detect_black_squares(video_path, frame_rate=30.0):
 
     The test pattern generates a 100x100 black square in the center of a 384x272 C64 frame.
     This gets scaled up in the OBS recording to 1280x720.
-    
+
     Ignores early frames where C64 logo appears to avoid false positives.
     """
     cap = cv2.VideoCapture(str(video_path))
     black_square_frames = []
     frame_num = 0
-    
+
     # Skip early frames where C64 logo appears (typically first 6 seconds)
     skip_frames = int(6.0 * frame_rate)  # Skip first 6 seconds
 
@@ -82,23 +82,23 @@ def detect_black_squares(video_path, frame_rate=30.0):
 
         # Get frame dimensions and calculate scaling from C64 source
         height, width = frame.shape[:2]
-        
+
         # C64 source: 384x272, Test pattern: 100x100 square at center (192, 136)
         # OBS recording: typically 1280x720
         c64_width, c64_height = 384, 272
         c64_square_size = 100
         c64_center_x, c64_center_y = 192, 136
-        
+
         # Calculate scaling factors
         scale_x = width / c64_width
         scale_y = height / c64_height
-        
+
         # Scale the square dimensions and position
         scaled_square_size_x = int(c64_square_size * scale_x)
         scaled_square_size_y = int(c64_square_size * scale_y)
         scaled_center_x = int(c64_center_x * scale_x)
         scaled_center_y = int(c64_center_y * scale_y)
-        
+
         # Define precise region for the scaled 100x100 black square
         left = scaled_center_x - scaled_square_size_x // 2
         right = scaled_center_x + scaled_square_size_x // 2
@@ -114,9 +114,9 @@ def detect_black_squares(video_path, frame_rate=30.0):
         # Check if region shows the test pattern (bright square with darker diagonal lines)
         if center_region.size > 0:  # Ensure region is valid
             mean_brightness = np.mean(gray_region)
-            
+
             # Look for dark regions that indicate black squares in the test pattern
-            # Pattern observed: 
+            # Pattern observed:
             # - C64 logo transition: ~37 brightness (very dark, not the test pattern)
             # - Black squares: ~99-100 brightness (actual test pattern)
             # - Background: ~123-124 brightness
