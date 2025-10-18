@@ -31,6 +31,14 @@ Generated: 2025-10-18 12:14:37 UTC
 
 ### Pop synchronization
 
+![NTSC POP Frame](./ntsc-pop-frame.png)
+*Figure: Video POP frame extracted at ~7.47s.*
+
+- Top-left: sequence marker (frame ID overlay) for test traceability.
+- Center band: full C64 palette sweep moving horizontally across the field.
+- Bottom-right: POP check region used to confirm precise A/V sync.
+- The POP (white flash) coincides with the audio pop to validate sync.
+
 - ✅ Good synchronization (100.0%): avg offset 10.8ms, max 13.3ms
 - ⬜ Detected video pop(s): [7466.7, 8466.7, 9483.3, 10483.3] ms
 
