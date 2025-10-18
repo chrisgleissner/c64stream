@@ -227,8 +227,7 @@ When **"Network and Streaming Events (CSV)"** recording is enabled, the plugin g
 - `obs.csv` - OBS processing timeline with microsecond precision
 - `network.csv` - UDP packet reception log with network timing analysis
 
-Examples from recent automated E2E runs:
-
+Examples from recent automated E2E runs against a 'mocked' (i.e. simulated) Ultimate 64:
 - PAL: [`obs.csv`](tests/e2e/results/pal/obs.csv), [`network.csv`](tests/e2e/results/pal/network.csv)
 - NTSC: [`obs.csv`](tests/e2e/results/ntsc/obs.csv), [`network.csv`](tests/e2e/results/ntsc/network.csv)
 
