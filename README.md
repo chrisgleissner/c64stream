@@ -473,6 +473,11 @@ This project is continuously validated with automated end-to-end (E2E) tests tha
 - How to run locally (Linux): `./local-build.sh linux --e2e-scenarios --install` (produces the report above)
 - Learn more: see the in-depth guide in [`doc/e2e.md`](doc/e2e.md)
 
+### Quick links to latest artifacts
+
+- PAL: [Recording](tests/e2e/results/pal/c64_recording.mp4), [Sample POP frame](tests/e2e/results/pal/pop-frame.png)
+- NTSC: [Recording](tests/e2e/results/ntsc/c64_recording.mp4), [Sample POP frame](tests/e2e/results/ntsc/pop-frame.png)
+
 ## For Developers 🔧
 
 See the [Developer Documentation](doc/developer.md) for build instructions, testing procedures, and contribution guidelines.

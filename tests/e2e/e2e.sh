@@ -816,6 +816,40 @@ EOF
         cat "${report_file}"
     fi
 
+    # Append sample POP frame at bottom if available and extractable
+    # Determine recording file within OUTPUT_DIR
+    local sample_frame_path="${OUTPUT_DIR}/pop-frame.png"
+    local recording_mp4=""
+    if compgen -G "${OUTPUT_DIR}/c64_recording.*" > /dev/null; then
+        # Prefer explicitly copied file from e2e.py
+        recording_mp4=$(ls -t ${OUTPUT_DIR}/c64_recording.* 2>/dev/null | head -1)
+    elif compgen -G "${OUTPUT_DIR}/*.mp4" > /dev/null; then
+        recording_mp4=$(ls -t ${OUTPUT_DIR}/*.mp4 2>/dev/null | head -1)
+    elif [[ -f "${OUTPUT_DIR}/recording_${FORMAT}.mkv" ]]; then
+        recording_mp4="${OUTPUT_DIR}/recording_${FORMAT}.mkv"
+    fi
+
+    # Try to extract first POP frame using validation_results.json if present
+    if [[ -n "${recording_mp4}" && -f "${recording_mp4}" && -f "${validation_file}" ]] && command -v jq >/dev/null 2>&1; then
+        first_pop_ms=$(jq -r '.av_sync_details.video_pop_times_ms[0] // empty' "${validation_file}" 2>/dev/null || true)
+        if [[ -n "${first_pop_ms}" ]]; then
+            # Convert ms to seconds with three decimals
+            first_pop_s=$(awk -v ms="${first_pop_ms}" 'BEGIN{printf "%.3f", ms/1000.0}')
+            if [[ -x "${TEST_DIR}/extract.frame" ]]; then
+                "${TEST_DIR}/extract.frame" --input "${recording_mp4}" --output "${sample_frame_path}" --time "${first_pop_s}" || true
+            fi
+        fi
+    fi
+
+    # If a sample frame exists, append a section at the bottom of the report
+    if [[ -f "${sample_frame_path}" ]]; then
+        echo >> "${report_file}"
+        echo "### Sample POP frame" >> "${report_file}"
+        echo >> "${report_file}"
+        echo "![Sample POP Frame](./$(basename "${sample_frame_path}"))" >> "${report_file}"
+        echo "*Figure: First detected video POP frame.*" >> "${report_file}"
+    fi
+
     log_success "Markdown report saved to ${report_file}"
 }
 

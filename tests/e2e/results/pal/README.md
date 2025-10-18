@@ -42,3 +42,8 @@ Generated: 2025-10-18 12:16:04 UTC
 
 - Channels: LRL
 - 🔁 Channel alternation: OK (alternating, starts with L)
+
+### Sample POP frame
+
+![Sample POP Frame](./pop-frame.png)
+*Figure: First detected video POP frame.*
