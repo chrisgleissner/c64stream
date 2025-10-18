@@ -227,6 +227,10 @@ When **"Network and Streaming Events (CSV)"** recording is enabled, the plugin g
 - `obs.csv` - OBS processing timeline with microsecond precision
 - `network.csv` - UDP packet reception log with network timing analysis
 
+Examples from recent automated E2E runs:
+- PAL: [`obs.csv`](tests/e2e/results/pal/obs.csv), [`network.csv`](tests/e2e/results/pal/network.csv)
+- NTSC: [`obs.csv`](tests/e2e/results/ntsc/obs.csv), [`network.csv`](tests/e2e/results/ntsc/network.csv)
+
 **Sample OBS Timeline (obs.csv):**
 
 ```csv
@@ -462,7 +466,10 @@ If the plugin can't resolve your C64 Ultimate hostname (e.g., `c64u`), try these
 This project is continuously validated with automated end-to-end (E2E) tests that simulate a C64 Ultimate, drive OBS, and verify the full pipeline from UDP packets to recorded video/audio.
 
 - What you get: a short, self-contained report with packet stats, recording links, and an A/V “Pop synchronization” summary (timing precision 0.1 ms)
-- Where to see it: each E2E run writes a Markdown report to `tests/e2e/test_output/README.md`
+- Where to see it: the latest reports are published to the repository under
+  - [Main E2E results](tests/e2e/results/README.md)
+  - [PAL results](tests/e2e/results/pal/README.md)
+  - [NTSC results](tests/e2e/results/ntsc/README.md)
 - How to run locally (Linux): `./local-build.sh linux --e2e-scenarios --install` (produces the report above)
 - Learn more: see the in-depth guide in [`doc/e2e.md`](doc/e2e.md)
 
