@@ -687,7 +687,6 @@ Generated: ${timestamp}
 EOF
 
     echo >> "${report_file}"
-    echo "Overview:" >> "${report_file}"
 
     local video_count=0
     local audio_count=0
@@ -900,7 +899,6 @@ EOF
         fi
 
         echo >> "${report_file}"
-        echo "Recorded by OBS." >> "${report_file}"
     elif [[ "${OBS_ENABLED}" == true ]]; then
         echo >> "${report_file}"
         echo "### Video" >> "${report_file}"
@@ -931,7 +929,7 @@ EOF
         echo "### Sample Frame" >> "${report_file}"
         echo >> "${report_file}"
         echo "![Sample Frame](./$(basename "${sample_frame_path}"))" >> "${report_file}"
-        echo "Top-left shows frame progression. Center shows slow C64 colour bars for smooth playback and colour rendering checks. Bottom-right flashes with the pop sound for A/V sync." >> "${report_file}"
+        echo "- Top-left cycles through all C64 colours to check frame progression. Center shows scrolling colour bars. Bottom-right flashes with a pop sound for A/V sync checks." >> "${report_file}"
 
         local origin_parts=()
         if [[ -n "${sample_frame_index}" ]]; then
@@ -950,15 +948,15 @@ EOF
 
         if [[ -n "${origin_text}" ]]; then
             if [[ -n "${video_duration_fmt}" ]]; then
-                echo "Taken from ${origin_text} of the ${video_duration_fmt} s video above." >> "${report_file}"
+                echo "- Taken from ${origin_text} of the ${video_duration_fmt} s video above." >> "${report_file}"
             else
                 echo "Taken from ${origin_text} of the video above." >> "${report_file}"
             fi
         else
             if [[ -n "${video_duration_fmt}" ]]; then
-                echo "Taken from the ${video_duration_fmt} s video above." >> "${report_file}"
+                echo "- Taken from the ${video_duration_fmt} s video above." >> "${report_file}"
             else
-                echo "Taken from the video above." >> "${report_file}"
+                echo "- Taken from the video above." >> "${report_file}"
             fi
         fi
     fi
