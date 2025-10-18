@@ -7,7 +7,13 @@ Licensed under the GNU General Public License v2.0 or later.
 See <https://www.gnu.org/licenses/> for details.
 
 Generates test packets following the C64 Ultimate stream specification.
-Creates deterministic PAL and NTSC video/audio packets with verification markers.
+Creates deterministic PAL and NTSC video/audio packets with verification pops
+(A/V sync generator):
+    - Video pop: pure white 50x50 square centered inside a permanently black
+        80x80 area located at the lower-right corner of the C64 frame; instant on/off
+    - Audio pop: pleasant, band-limited noise burst ("rushing water"-like), instant on/off
+    - Pop cadence: first pop at ~1000ms after start, then every 1000ms
+    - Pop duration: 1 video frame
 """
 
 import os
@@ -15,6 +21,7 @@ import struct
 import numpy as np
 import argparse
 from pathlib import Path
+import math
 
 
 # Video format specifications (from doc/c64-stream-spec.md)
@@ -48,7 +55,7 @@ AUDIO_SAMPLES_PER_PACKET = 192  # Stereo samples
 def get_sync_timing_info(format_name):
     """
     Get unified sync timing information for both audio and video.
-    Returns (frame_rate, frame_duration_ms, sync_period_ms, sync_duration_ms)
+    Returns (frame_rate, frame_duration_ms, sync_period_ms, sync_duration_ms, sync_offset_ms)
     """
     if format_name == 'PAL':
         frame_rate = 50.125
@@ -56,10 +63,11 @@ def get_sync_timing_info(format_name):
         frame_rate = 59.826
 
     frame_duration_ms = 1000.0 / frame_rate
-    sync_period_ms = 1000.0  # Sync marker every 1000ms
-    sync_duration_ms = 4 * frame_duration_ms  # 4 frames duration
+    sync_period_ms = 1000.0  # Pop every 1000ms
+    sync_duration_ms = 1 * frame_duration_ms  # 1 frame duration (video pop)
+    sync_offset_ms = 1000.0  # First pop at ~1000ms
 
-    return frame_rate, frame_duration_ms, sync_period_ms, sync_duration_ms
+    return frame_rate, frame_duration_ms, sync_period_ms, sync_duration_ms, sync_offset_ms
 
 
 def is_sync_marker_active(frame_num, format_name):
@@ -67,13 +75,15 @@ def is_sync_marker_active(frame_num, format_name):
     Determine if the A/V sync marker (black rectangle + audio beep) should be active.
     Returns True if this frame should show the black rectangle.
     """
-    _, frame_duration_ms, sync_period_ms, sync_duration_ms = get_sync_timing_info(format_name)
+    _, frame_duration_ms, sync_period_ms, sync_duration_ms, sync_offset_ms = get_sync_timing_info(format_name)
 
     # Calculate frame timing - use precise timing aligned to sync boundaries
     time_in_test_ms = frame_num * frame_duration_ms
-
-    time_in_current_second = time_in_test_ms % sync_period_ms
-    return time_in_current_second < sync_duration_ms
+    time_since_offset = time_in_test_ms - sync_offset_ms
+    if time_since_offset < 0:
+        return False
+    time_in_current_period = time_since_offset % sync_period_ms
+    return time_in_current_period < sync_duration_ms
 
 def generate_video_packet(frame_num, packet_num, width, height, packets_per_frame, format_name):
     """
@@ -109,36 +119,47 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
     # This allows verification that frames are in correct order
     payload = bytearray(768)
 
-    # Check if A/V sync marker should be active
+    # Check if A/V sync pop should be active
     sync_active = is_sync_marker_active(frame_num, format_name)
 
-    # Calculate center coordinates for 100x100 black rectangle
-    # Center should be based on full frame dimensions, not current packet
-    frame_center_x = width // 2
-    frame_center_y = height // 2
-    rect_size = 100
-    rect_left = frame_center_x - rect_size // 2
-    rect_right = frame_center_x + rect_size // 2
-    rect_top = frame_center_y - rect_size // 2
-    rect_bottom = frame_center_y + rect_size // 2
+    # Define permanent black pop area: 80x80 at lower-right corner of C64 frame
+    area_size = 80
+    area_left = width - area_size
+    area_right = width
+    area_top = height - area_size
+    area_bottom = height
+
+    # Define white pop subregion: 50x50 centered within the black area
+    pop_size = 50
+    pop_left = area_left + (area_size - pop_size) // 2
+    pop_right = pop_left + pop_size
+    pop_top = area_top + (area_size - pop_size) // 2
+    pop_bottom = pop_top + pop_size
 
     for line in range(LINES_PER_PACKET):
         for byte_idx in range(width // 2):  # 2 pixels per byte (4-bit color)
             pixel_line = line_num + line
             pixel_x = byte_idx * 2  # Each byte contains 2 pixels
 
-            # Check if we're in the sync marker rectangle (100x100 black square in center)
-            in_sync_rect = (sync_active and
-                          rect_top <= pixel_line < rect_bottom and
-                          rect_left <= pixel_x < rect_right)
+            # Determine if current location is within the permanent black area
+            in_black_area = (area_top <= pixel_line < area_bottom and
+                             area_left <= pixel_x < area_right)
 
-            if in_sync_rect:
-                # Black rectangle for A/V sync (VIC color 0 = black)
-                payload[line * (width // 2) + byte_idx] = 0x00  # Both pixels black
-            elif pixel_line < 32 and byte_idx < 16:
-                # Frame number marker pattern in top-left corner (first 32x32 pixels)
+            # Determine if current location is within the white pop region
+            in_white_pop = (sync_active and
+                            pop_top <= pixel_line < pop_bottom and
+                            pop_left <= pixel_x < pop_right)
+
+            if in_white_pop:
+                # White pop: set both pixels to VIC color 1 (white)
+                payload[line * (width // 2) + byte_idx] = 0x11
+            elif in_black_area:
+                # Permanent black background for the pop area (VIC color 0)
+                payload[line * (width // 2) + byte_idx] = 0x00
+            elif pixel_line < 40 and byte_idx < 20:
+                # Frame number marker pattern in top-left corner (first 40x40 pixels)
                 # Show frame number modulo 16 as solid VIC color
-                # This should create a solid block of color for the entire 32x32 area
+                # This creates a solid block of color across the entire 40x40 area
                 marker_color = frame_num % 16
                 payload[line * (width // 2) + byte_idx] = (marker_color << 4) | marker_color
             else:
@@ -150,6 +171,41 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
     return header + bytes(payload)
 
 
+def _one_pole_lowpass(x: np.ndarray, cutoff_hz: float, sample_rate: float) -> np.ndarray:
+    """Simple one-pole low-pass filter."""
+    if x.size == 0:
+        return x
+    rc = 1.0 / (2.0 * math.pi * cutoff_hz)
+    dt = 1.0 / float(sample_rate)
+    alpha = dt / (rc + dt)
+    y = np.empty_like(x, dtype=np.float64)
+    acc = float(x[0])
+    y[0] = acc
+    for n in range(1, x.size):
+        acc = acc + alpha * (float(x[n]) - acc)
+        y[n] = acc
+    return y
+
+
+def _one_pole_highpass(x: np.ndarray, cutoff_hz: float, sample_rate: float) -> np.ndarray:
+    """Simple one-pole high-pass filter."""
+    if x.size == 0:
+        return x
+    rc = 1.0 / (2.0 * math.pi * cutoff_hz)
+    dt = 1.0 / float(sample_rate)
+    alpha = rc / (rc + dt)
+    y = np.empty_like(x, dtype=np.float64)
+    prev_y = float(x[0])
+    prev_x = float(x[0])
+    y[0] = 0.0
+    for n in range(1, x.size):
+        yn = alpha * (prev_y + float(x[n]) - prev_x)
+        y[n] = yn
+        prev_y = yn
+        prev_x = float(x[n])
+    return y
+
+
 def generate_audio_packet(audio_packet_num, sample_rate, total_test_duration_ms):
     """
     Generate a single audio packet following C64 Ultimate spec.
@@ -158,7 +214,8 @@ def generate_audio_packet(audio_packet_num, sample_rate, total_test_duration_ms)
     1. Header: Sequence number (16-bit LE)
     2. Payload: 192 stereo samples (16-bit signed LE, interleaved L/R)
 
-    Audio Pattern: Continuous stream with 100Hz beep for 4 video frames every 1 second for A/V sync
+    Audio Pattern: Continuous stream with 200Hz audio pop for 2 video frames every 1 second
+    for A/V sync (A/V sync generator), with instant on/off (no ramp)
     """
     # Build header (2 bytes)
     header = struct.pack('<H', audio_packet_num)
@@ -169,58 +226,31 @@ def generate_audio_packet(audio_packet_num, sample_rate, total_test_duration_ms)
 
     # Use unified sync timing to ensure perfect A/V alignment
     format_name = 'PAL' if sample_rate > 47960 else 'NTSC'
-    _, frame_duration_ms, sync_period_ms, sync_duration_ms = get_sync_timing_info(format_name)
+    _, frame_duration_ms, sync_period_ms, sync_duration_ms, sync_offset_ms = get_sync_timing_info(format_name)
 
-    # Check if we're in a sync beep period using same calculation as video
-    time_in_current_second = time_in_test_ms % sync_period_ms
-    is_sync_beep = time_in_current_second < sync_duration_ms
+    # Check if we're in a sync pop period using same calculation as video
+    time_since_offset = time_in_test_ms - sync_offset_ms
+    is_sync_pop = time_since_offset >= 0 and (time_since_offset % sync_period_ms) < sync_duration_ms
 
     # Generate time array for this packet's 192 samples
     t = np.linspace(time_in_test_ms / 1000.0,
                     (time_in_test_ms + packet_duration_ms) / 1000.0,
                     AUDIO_SAMPLES_PER_PACKET, endpoint=False)
 
-    if is_sync_beep:
-        # Generate 200Hz sine wave during sync periods for clear distinction
-        tone = np.sin(2 * np.pi * 200 * t)
-
-        # Apply smooth ramp-up (1ms) and ramp-down (5ms) envelope
-        envelope = np.ones_like(tone)
-
-        # Ramp timing in milliseconds
-        ramp_up_ms = 1.0
-        ramp_down_ms = 5.0
-
-        # Calculate precise position within the current sync beep period
-        # Use exact same boundary calculation as video sync markers
-        beep_start_time_ms = (time_in_test_ms // sync_period_ms) * sync_period_ms
-
-        for i in range(len(envelope)):
-            # Calculate precise sample time within the sync period
-            sample_time_ms = time_in_test_ms + (i / sample_rate) * 1000
-            sample_time_in_beep = sample_time_ms - beep_start_time_ms
-
-            if sample_time_in_beep < 0:
-                # Before beep starts
-                envelope[i] = 0.0
-            elif sample_time_in_beep < ramp_up_ms:
-                # Ramp up phase
-                envelope[i] = sample_time_in_beep / ramp_up_ms
-            elif sample_time_in_beep >= (sync_duration_ms - ramp_down_ms):
-                # Ramp down phase
-                time_to_end = sync_duration_ms - sample_time_in_beep
-                envelope[i] = max(0.0, time_to_end / ramp_down_ms)
-            elif sample_time_in_beep < sync_duration_ms:
-                # Full volume phase
-                envelope[i] = 1.0
-            else:
-                # After beep ends
-                envelope[i] = 0.0
-
-        # Apply envelope and convert to 16-bit signed
-        audio_signal = (tone * envelope * 1.0 * 32767).astype(np.int16)
+    if is_sync_pop:
+        # Generate band-limited noise burst (pleasant, "rushing water"-like)
+        # Deterministic seed per packet for reproducibility
+        rng = np.random.RandomState(0xC64A ^ audio_packet_num)
+        white = rng.randn(AUDIO_SAMPLES_PER_PACKET).astype(np.float64)
+        # Band-limit: high-pass ~200 Hz to remove rumble; low-pass ~3 kHz to soften harshness
+        noise = _one_pole_highpass(white, cutoff_hz=200.0, sample_rate=sample_rate)
+        noise = _one_pole_lowpass(noise, cutoff_hz=3000.0, sample_rate=sample_rate)
+        # Normalize and scale to comfortable level
+        peak = np.max(np.abs(noise)) if np.max(np.abs(noise)) > 0 else 1.0
+        noise = 0.55 * (noise / peak)
+        audio_signal = (noise * 32767.0).astype(np.int16)
     else:
-        # Silence between sync beeps (realistic - Ultimate continues streaming)
+        # Silence between pops
         audio_signal = np.zeros(AUDIO_SAMPLES_PER_PACKET, dtype=np.int16)
 
     # Interleave left and right channels (same signal for both)
@@ -233,84 +263,48 @@ def generate_audio_packet(audio_packet_num, sample_rate, total_test_duration_ms)
 
 def generate_packets(output_dir, num_frames=30, formats=None):
     """
-    Generate test packets for all specified formats.
-
-    Args:
-        output_dir: Base directory for output packets
-        num_frames: Number of frames to generate per format
-        formats: List of formats to generate ('PAL', 'NTSC'), or None for all
+    Generate test packets for specified formats with A/V sync pops.
     """
-    if formats is None:
-        formats = ['PAL', 'NTSC']
-
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 
-    for format_name in formats:
-        if format_name not in VIDEO_FORMATS:
-            print(f"Warning: Unknown format '{format_name}', skipping")
-            continue
+    target_formats = formats if formats else ['PAL', 'NTSC']
 
+    for format_name in target_formats:
         fmt = VIDEO_FORMATS[format_name]
-        print(f"\nGenerating {format_name} packets ({num_frames} frames)...")
-
-        # Create format-specific directories
         video_dir = output_path / 'video' / format_name
         audio_dir = output_path / 'audio' / format_name
         video_dir.mkdir(parents=True, exist_ok=True)
         audio_dir.mkdir(parents=True, exist_ok=True)
 
-        # Generate video packets
-        print(f"  Video: {fmt['packets_per_frame']} packets per frame")
-        for frame_num in range(num_frames):
-            for packet_num in range(fmt['packets_per_frame']):
-                packet_data = generate_video_packet(
-                    frame_num, packet_num, fmt['width'],
-                    fmt['height'], fmt['packets_per_frame'], format_name
-                )
+        width = fmt['width']
+        height = fmt['height']
+        ppf = fmt['packets_per_frame']
 
-                # Write packet to file
-                packet_file = video_dir / f"frame_{frame_num:04d}_pkt_{packet_num:03d}.bin"
+        # Generate video packets
+        for frame_num in range(num_frames):
+            for packet_num in range(ppf):
+                packet_data = generate_video_packet(frame_num, packet_num, width, height, ppf, format_name)
+                packet_file = video_dir / f"video_{frame_num:04d}_{packet_num:04d}.bin"
                 packet_file.write_bytes(packet_data)
 
-        total_video_packets = num_frames * fmt['packets_per_frame']
-        print(f"    Generated {total_video_packets} video packets")
-
-        # Generate audio packets with realistic timing per C64 Ultimate spec
-        print(f"  Audio: {fmt['audio_sample_rate']} Hz sample rate")
-
-        # Calculate total test duration and required audio packets
+        # Generate audio packets for total test duration
         frame_duration_ms = 1000.0 / fmt['frame_rate']
         total_test_duration_ms = num_frames * frame_duration_ms
-        audio_packet_duration_ms = (AUDIO_SAMPLES_PER_PACKET / fmt['audio_sample_rate']) * 1000
-        # Use exact calculation without extra packet - this ensures precise timing alignment
+        audio_packet_duration_ms = (AUDIO_SAMPLES_PER_PACKET / fmt['audio_sample_rate']) * 1000.0
         total_audio_packets = int(total_test_duration_ms / audio_packet_duration_ms)
 
         for audio_packet_num in range(total_audio_packets):
             packet_data = generate_audio_packet(audio_packet_num, fmt['audio_sample_rate'], total_test_duration_ms)
-
-            # Write packet to file with sequential numbering
             packet_file = audio_dir / f"audio_{audio_packet_num:04d}.bin"
             packet_file.write_bytes(packet_data)
 
-        print(f"    Generated {total_audio_packets} audio packets ({audio_packet_duration_ms:.1f}ms/packet)")
+        print(f"  ✅ {format_name}: Generated {num_frames*ppf} video packets and {total_audio_packets} audio packets")
 
-        # Calculate disk space usage for this format
-        format_size = 0
-        for video_file in video_dir.glob("*.bin"):
-            format_size += video_file.stat().st_size
-        for audio_file in audio_dir.glob("*.bin"):
-            format_size += audio_file.stat().st_size
-
-        print(f"  💾 {format_name} disk usage: {format_size:,} bytes ({format_size / 1024 / 1024:.1f} MB)")
-
-    # Calculate total disk space usage
+    # Report disk usage
     total_size = 0
-    for format_dir in output_path.glob("*/*"):
-        if format_dir.is_dir():
-            for packet_file in format_dir.glob("*.bin"):
-                total_size += packet_file.stat().st_size
-
+    for p in output_path.rglob('*.bin'):
+        total_size += p.stat().st_size
     print(f"\n✅ Packet generation complete: {output_dir}")
     print(f"💾 Total disk usage: {total_size:,} bytes ({total_size / 1024 / 1024:.1f} MB)")
 

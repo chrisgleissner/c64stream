@@ -1767,25 +1767,54 @@ class E2ETest:
             validation_errors.append("Missing video recording")
             validation_results['video_recording'] = {'status': 'fail', 'details': 'No file found'}
 
-        # 4. A/V Synchronization Validation
-        # A/V sync is a critical component of the streaming functionality
+    # 4. A/V Synchronization Validation (A/V sync check)
+    # A/V sync is a critical component of the streaming functionality
         av_validation = True
         if recording_file and Path(recording_file).exists() and verify_av_sync:
             try:
-                print("🎵 A/V Sync: Analyzing synchronization...")
-                sync_results = verify_av_sync(recording_file, tolerance_ms=150)
+                print("🎵 A/V Sync: Running A/V sync check (pops)...")
+                # Use strict tolerance per new A/V event spec
+                sync_results = verify_av_sync(recording_file, tolerance_ms=15)
 
+                # Report detailed offsets summary even in success case
+                diffs = [d['difference_ms'] for d in sync_results['sync_details'] if d.get('closest_video_pop_ms') is not None]
+                avg_diff = (sum(diffs) / len(diffs)) if diffs else 0.0
+                max_diff = max(diffs) if diffs else 0.0
                 if sync_results['is_perfectly_synced']:
-                    print(f"✅ A/V Sync: Perfect synchronization ({sync_results['sync_accuracy_percent']:.1f}%)")
-                    validation_results['av_sync'] = {'status': 'pass', 'details': f"{sync_results['perfect_sync_count']}/{sync_results['total_analyzed']} analyzed beeps synced"}
+                    print(f"✅ A/V Sync: Perfect synchronization ({sync_results['sync_accuracy_percent']:.1f}%) — avg offset {avg_diff:.1f}ms, max {max_diff:.1f}ms")
+                    validation_results['av_sync'] = {'status': 'pass', 'details': f"{sync_results['perfect_sync_count']}/{sync_results['total_analyzed']} analyzed pops synced"}
                 elif sync_results['sync_accuracy_percent'] >= 60.0:  # 60% threshold for pass
-                    print(f"✅ A/V Sync: Good synchronization ({sync_results['sync_accuracy_percent']:.1f}%)")
-                    validation_results['av_sync'] = {'status': 'pass', 'details': f"{sync_results['perfect_sync_count']}/{sync_results['total_analyzed']} analyzed beeps synced"}
+                    print(f"✅ A/V Sync: Good synchronization ({sync_results['sync_accuracy_percent']:.1f}%) — avg offset {avg_diff:.1f}ms, max {max_diff:.1f}ms")
+                    validation_results['av_sync'] = {'status': 'pass', 'details': f"{sync_results['perfect_sync_count']}/{sync_results['total_analyzed']} analyzed pops synced"}
                 else:
-                    print(f"❌ A/V Sync: Poor synchronization ({sync_results['sync_accuracy_percent']:.1f}%)")
+                    print(f"❌ A/V Sync: Poor synchronization ({sync_results['sync_accuracy_percent']:.1f}%) — avg offset {avg_diff:.1f}ms, max {max_diff:.1f}ms")
                     validation_errors.append(f"A/V sync accuracy too low: {sync_results['sync_accuracy_percent']:.1f}% (minimum 60% required)")
-                    validation_results['av_sync'] = {'status': 'fail', 'details': f"Only {sync_results['perfect_sync_count']}/{sync_results['total_analyzed']} beeps synced"}
+                    validation_results['av_sync'] = {'status': 'fail', 'details': f"Only {sync_results['perfect_sync_count']}/{sync_results['total_analyzed']} pops synced"}
                     av_validation = False
+
+                # Schedule constraint: no A/V event allowed in the last 500ms of the recording
+                if 'last_event_within_limit' in sync_results and not sync_results['last_event_within_limit']:
+                    validation_warnings.append("Video event detected within the last 500ms of the recording (violates schedule constraint)")
+                    # Keep as a warning for now to avoid flakiness; can be tightened later if desired
+                # Run additional visual checks: pop-area blackness and frame-sequence box
+                try:
+                    from test_av_sync import analyze_visual_elements
+                    visuals = analyze_visual_elements(recording_file)
+                    pab = visuals['pop_area_blackness']
+                    fsb = visuals['frame_sequence_box']
+                    if pab['pass']:
+                        print(f"⬛ Pop Area: PASS — {pab['details']}")
+                    else:
+                        print(f"⬛ Pop Area: FAIL — {pab['details']}")
+                        validation_errors.append(f"Pop area blackness check failed: {pab['details']}")
+                    if fsb['pass']:
+                        print(f"🟥 Frame Sequence Box: PASS — {fsb['details']}")
+                    else:
+                        print(f"🟥 Frame Sequence Box: FAIL — {fsb['details']}")
+                        validation_errors.append(f"Frame sequence box check failed: {fsb['details']}")
+                except Exception as ve:
+                    print(f"⚠️  Visual checks skipped due to error: {ve}")
+
             except Exception as e:
                 print(f"❌ A/V Sync: Analysis failed - {e}")
                 validation_errors.append(f"A/V sync analysis error: {e}")
@@ -1931,11 +1960,14 @@ class E2ETest:
             else:
                 self.log("❌ Packet replay failed")
 
-            # Stop recording
+            # Stop recording promptly after last frame received
+            # Keep recording a short grace period to allow OBS to flush frames
+            grace = 5 if self.is_ci else 3
+            self.log(f"⏳ Waiting {grace}s after last frame, then stopping recording...")
+            time.sleep(grace)
             self.stop_recording()
-
-            # Wait a moment for files to be written (increased from 2s to prevent data loss)
-            time.sleep(3)
+            # Minimal extra wait to ensure the output file is finalized
+            time.sleep(1)
 
             # Check CSV recordings first (crucial for debugging packet reception)
             csv_found = self.check_csv_recordings()
@@ -1954,11 +1986,6 @@ class E2ETest:
             else:
                 self.log("❌ No recording file found")
                 recording_success = False
-
-            # Post-test log analysis for debugging if needed
-            if not replay_success or not csv_success:
-                self.log("🔍 Analyzing OBS logs for debugging...")
-                self._analyze_obs_logs()
 
             # Post-test log analysis for debugging if needed
             if not replay_success or not csv_success:

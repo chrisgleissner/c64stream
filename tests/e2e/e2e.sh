@@ -502,6 +502,7 @@ generate_packets() {
     cd "${TEST_DIR}"
 
     # Create output directory
+    rm -rf test_packets
     mkdir -p test_packets
 
     # Generate packets
