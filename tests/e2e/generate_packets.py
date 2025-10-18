@@ -11,7 +11,8 @@ Creates deterministic PAL and NTSC video/audio packets with verification pops
 (A/V sync generator):
     - Video pop: pure white 50x50 square centered inside a permanently black
         80x80 area located at the lower-right corner of the C64 frame; instant on/off
-    - Audio pop: pleasant, band-limited noise burst ("rushing water"-like), instant on/off
+    - Audio pop: pleasant, band-limited noise burst ("rushing water"-like), instant on/off,
+        alternating speakers per pop (L, R, L, R, ...), starting with LEFT
     - Pop cadence: first pop at ~1000ms after start, then every 1000ms
     - Pop duration: 1 video frame
 """
@@ -104,9 +105,13 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
     # Set bit 15 if this is the last packet of the frame
     line_num_with_flag = line_num | (0x8000 if is_last_packet else 0)
 
+    # Sequence number should be a monotonically increasing 16-bit value across the whole stream,
+    # not reset per frame. This helps consumers correctly detect ordering and frame boundaries.
+    seq_num = (frame_num * packets_per_frame + packet_num) & 0xFFFF
+
     # Build header (12 bytes)
     header = struct.pack('<HHHHBBH',
-                         packet_num,           # Sequence number
+                         seq_num,              # Sequence number (monotonic across frames)
                          frame_num,            # Frame number
                          line_num_with_flag,   # Line number with last packet flag
                          width,                # Pixels per line
@@ -163,9 +168,12 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                 marker_color = frame_num % 16
                 payload[line * (width // 2) + byte_idx] = (marker_color << 4) | marker_color
             else:
-                # Rest of frame: simple pattern based on position
-                color1 = (byte_idx + pixel_line + frame_num) % 16
-                color2 = (byte_idx + pixel_line + frame_num + 1) % 16
+                # Rest of frame: vertical 4px-wide color bands moving right->left, shifting 1px per frame
+                # For each pixel position x, color index = ((x + frame_num) // 4) % 16
+                x0 = pixel_x
+                x1 = pixel_x + 1
+                color1 = ((x0 + frame_num) // 4) % 16
+                color2 = ((x1 + frame_num) // 4) % 16
                 payload[line * (width // 2) + byte_idx] = (color2 << 4) | color1
 
     return header + bytes(payload)
@@ -231,6 +239,8 @@ def generate_audio_packet(audio_packet_num, sample_rate, total_test_duration_ms)
     # Check if we're in a sync pop period using same calculation as video
     time_since_offset = time_in_test_ms - sync_offset_ms
     is_sync_pop = time_since_offset >= 0 and (time_since_offset % sync_period_ms) < sync_duration_ms
+    # Determine which pop index (0-based) we're in to alternate speakers L/R starting with LEFT
+    pop_index = int(time_since_offset // sync_period_ms) if time_since_offset >= 0 else -1
 
     # Generate time array for this packet's 192 samples
     t = np.linspace(time_in_test_ms / 1000.0,
@@ -253,10 +263,22 @@ def generate_audio_packet(audio_packet_num, sample_rate, total_test_duration_ms)
         # Silence between pops
         audio_signal = np.zeros(AUDIO_SAMPLES_PER_PACKET, dtype=np.int16)
 
-    # Interleave left and right channels (same signal for both)
+    # Interleave left and right channels
+    # During pops, alternate speakers per pop: even pop_index => LEFT, odd => RIGHT
     payload = np.empty(AUDIO_SAMPLES_PER_PACKET * 2, dtype=np.int16)
-    payload[0::2] = audio_signal  # Left channel
-    payload[1::2] = audio_signal  # Right channel
+    if is_sync_pop and pop_index >= 0:
+        if (pop_index % 2) == 0:
+            # LEFT pop
+            payload[0::2] = audio_signal   # Left
+            payload[1::2] = 0              # Right
+        else:
+            # RIGHT pop
+            payload[0::2] = 0              # Left
+            payload[1::2] = audio_signal   # Right
+    else:
+        # Silence or non-pop portion of packet
+        payload[0::2] = audio_signal
+        payload[1::2] = audio_signal
 
     return header + payload.tobytes()
 

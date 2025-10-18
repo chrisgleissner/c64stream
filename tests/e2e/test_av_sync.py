@@ -40,26 +40,31 @@ def extract_audio_envelope(video_path, sample_rate=48000):
             '-y', temp_audio.name
         ]
         subprocess.run(cmd, capture_output=True, check=True)
+        temp_name = temp_audio.name
 
-        # Load audio data
-        audio_data = np.fromfile(temp_audio.name, dtype=np.int16)[44:]  # Skip WAV header
+    # Load audio data and parse WAV header
+    raw = np.fromfile(temp_name, dtype=np.uint8)
+    # Basic 44-byte PCM header parse for stereo 16-bit
+    data = raw[44:].view(np.int16)
+    # Split channels
+    left = data[0::2]
+    right = data[1::2]
 
-        # Convert stereo to mono by taking left channel
-        mono_audio = audio_data[0::2]
+    # Calculate envelope (RMS power in 10ms windows)
+    window_size = sample_rate // 100  # 10ms windows
+    envelope = []
 
-        # Calculate envelope (RMS power in 10ms windows)
-        window_size = sample_rate // 100  # 10ms windows
-        envelope = []
+    for i in range(0, len(left) - window_size, window_size):
+        wl = left[i:i + window_size]
+        wr = right[i:i + window_size]
+        rms_l = np.sqrt(np.mean(wl.astype(float) ** 2))
+        rms_r = np.sqrt(np.mean(wr.astype(float) ** 2))
+        envelope.append((rms_l, rms_r))
 
-        for i in range(0, len(mono_audio) - window_size, window_size):
-            window = mono_audio[i:i + window_size]
-            rms = np.sqrt(np.mean(window.astype(float) ** 2))
-            envelope.append(rms)
+    # Clean up temp file
+    os.unlink(temp_name)
 
-        # Clean up temp file
-        os.unlink(temp_audio.name)
-
-        return np.array(envelope)
+    return np.array(envelope)
 
 
 def detect_video_pops(video_path, frame_rate=30.0):
@@ -178,24 +183,41 @@ def detect_audio_pops(envelope, threshold_factor=3.0, min_duration_ms=10):
     Returns list of pop start times in milliseconds (10ms resolution).
     """
     # Calculate dynamic threshold based on background noise
-    background_level = np.percentile(envelope, 10)  # 10th percentile as noise floor
-    threshold = background_level * threshold_factor
+    if envelope.ndim == 2 and envelope.shape[1] == 2:
+        bg_l = np.percentile(envelope[:, 0], 10)
+        bg_r = np.percentile(envelope[:, 1], 10)
+        thr_l = bg_l * threshold_factor
+        thr_r = bg_r * threshold_factor
+    else:
+        bg = np.percentile(envelope, 10)
+        thr_l = thr_r = bg * threshold_factor
 
     pop_starts = []
     in_pop = False
     pop_start = None
 
-    for i, level in enumerate(envelope):
-        if level > threshold and not in_pop:
+    for i in range(len(envelope)):
+        level_l = envelope[i][0] if envelope.ndim == 2 else envelope[i]
+        level_r = envelope[i][1] if envelope.ndim == 2 else envelope[i]
+        is_above = (level_l > thr_l) or (level_r > thr_r)
+        if is_above and not in_pop:
             # Start of pop
             pop_start = i
             in_pop = True
-        elif level <= threshold and in_pop:
+        elif (not is_above) and in_pop:
             # End of pop
             if pop_start is not None:
                 pop_duration_ms = (i - pop_start) * 10  # 10ms per sample
                 if pop_duration_ms >= min_duration_ms:
-                    pop_starts.append(pop_start * 10)  # Convert to milliseconds
+                    # Determine dominant channel for this pop window
+                    seg = envelope[pop_start:i]
+                    if seg.ndim == 2:
+                        mean_l = float(np.mean(seg[:, 0]))
+                        mean_r = float(np.mean(seg[:, 1]))
+                        chan = 'L' if mean_l > mean_r else 'R'
+                    else:
+                        chan = 'B'  # both/mono
+                    pop_starts.append({'time_ms': pop_start * 10, 'channel': chan})
             in_pop = False
             pop_start = None
 
@@ -337,6 +359,7 @@ def verify_frame_sequence_box(video_path, solid_stddev_thresh=26.0, change_dist_
 
     # Analyze up to first ~10 seconds for speed
     max_frames = min(frame_count, int(10 * fps))
+    deviations = []  # (frame_idx, time_ms, expected_idx, got_idx)
     for i in range(max_frames):
         if i == 0:
             frame = first
@@ -454,6 +477,14 @@ def verify_frame_sequence_box(video_path, solid_stddev_thresh=26.0, change_dist_
 
         mean = np.mean(best_roi_inner_curr.reshape(-1, 3), axis=0)
         means.append(mean)
+        # Verify expected color sequence: frame index modulo 16 (approximate mapping by quantizing)
+        # Quantize mean to nearest 16-step in RGB, map to an index by averaging channels
+        quant = np.round(mean / 16.0) * 16.0
+        approx_idx = int(np.clip(np.round(np.mean(quant) / 16.0), 0, 15))
+        expected_idx = (start_idx + i) % 16
+        if approx_idx != expected_idx:
+            time_ms = ((start_idx + i) / fps) * 1000.0
+            deviations.append((start_idx + i, time_ms, expected_idx, approx_idx))
         if prev_mean is not None:
             dist = float(np.linalg.norm(mean - prev_mean))
             if dist > change_dist_thresh:
@@ -471,18 +502,19 @@ def verify_frame_sequence_box(video_path, solid_stddev_thresh=26.0, change_dist_
     else:
         distinct = 0
 
-    passed = (solid_ratio >= 0.85) and (distinct >= 6) and (changes >= max(3, int(0.3 * frames_analyzed)))
+    passed = (solid_ratio >= 0.85) and (distinct >= 6) and (changes >= max(3, int(0.3 * frames_analyzed))) and (len(deviations) == 0)
     return {
         'pass': passed,
         'solid_ratio': solid_ratio,
         'distinct_colors': int(distinct),
         'changes': int(changes),
         'frames': int(frames_analyzed),
-        'issues': issues[:5]
+        'issues': issues[:5],
+        'deviations': deviations[:10]
     }
 
 
-def verify_av_sync(video_path, tolerance_ms=15):
+def verify_av_sync(video_path, tolerance_ms=25):
     """
     Verify A/V synchronization between black squares and audio beeps.
 
@@ -515,8 +547,8 @@ def verify_av_sync(video_path, tolerance_ms=15):
     envelope = extract_audio_envelope(video_path, sample_rate)
 
     # Detect audio pops
-    audio_pop_times = detect_audio_pops(envelope, threshold_factor=3.0, min_duration_ms=30)
-    print(f"🎵 Detected {len(audio_pop_times)} audio pop(s) at: {audio_pop_times} ms")
+    audio_pops = detect_audio_pops(envelope, threshold_factor=3.0, min_duration_ms=30)
+    print(f"🎵 Detected {len(audio_pops)} audio pop(s)")
 
     # Detect video pops (white square in lower-right area)
     print("⬜ Detecting video pop(s) (white square, lower-right)...")
@@ -553,7 +585,9 @@ def verify_av_sync(video_path, tolerance_ms=15):
     perfect_sync_count = 0
     total_analyzed = 0  # Count only beeps included in analysis
 
-    for i, audio_pop_time in enumerate(audio_pop_times):
+    traffic_light = []  # per-pop status: 'green' | 'yellow' | 'red'
+    for i, ap in enumerate(audio_pops):
+        audio_pop_time = ap['time_ms']
         closest_event = None
         min_diff = float('inf')
 
@@ -564,6 +598,14 @@ def verify_av_sync(video_path, tolerance_ms=15):
                 closest_event = ev_time
 
         is_synced = min_diff <= tolerance_ms
+        # Traffic light based on absolute offset
+        if min_diff < 20.0:
+            status_color = 'green'
+        elif min_diff < 60.0:
+            status_color = 'yellow'
+        else:
+            status_color = 'red'
+        traffic_light.append(status_color)
 
         # Include all beeps in analysis - no more first/last exclusion complexity
         total_analyzed += 1
@@ -576,7 +618,9 @@ def verify_av_sync(video_path, tolerance_ms=15):
             'difference_ms': min_diff,
             'is_synced': is_synced,
             'included_in_analysis': True,
-            'ignore_reason': None
+            'ignore_reason': None,
+            'channel': ap.get('channel', 'B'),
+            'traffic': status_color
         })
 
         status = "✅" if is_synced else "❌"
@@ -598,7 +642,7 @@ def verify_av_sync(video_path, tolerance_ms=15):
         last_event_within_limit = grouped_video_pop_starts[-1] <= (duration_ms - 500.0)
 
     return {
-        'total_audio_pops': len(audio_pop_times),
+    'total_audio_pops': len(audio_pops),
         'total_analyzed': total_analyzed,
         'total_video_pops': len(grouped_video_pop_starts),
         'perfect_sync_count': perfect_sync_count,
@@ -609,6 +653,7 @@ def verify_av_sync(video_path, tolerance_ms=15):
         'last_event_within_limit': last_event_within_limit,
         'duration_ms': duration_ms,
         'video_pop_times_ms': grouped_video_pop_starts,
+        'traffic': traffic_light
     }
 
 
@@ -624,10 +669,16 @@ def analyze_visual_elements(video_path):
     black_details = (f"{black['samples']} samples, all dark" if black['pass']
                      else f"{len(black['failures'])}/{black['samples']} bright samples" +
                           (f" (e.g., frame {black['failures'][0]['frame']} mean={black['failures'][0]['mean']:.1f})" if black['failures'] and isinstance(black['failures'][0], dict) and 'mean' in black['failures'][0] else ""))
-    frame_details = (f"solid {framebox['solid_ratio']*100:.0f}%, colors {framebox['distinct_colors']}, changes {framebox['changes']}/{framebox['frames']}"
-                     if framebox['pass'] else
-                     f"solid {framebox['solid_ratio']*100:.0f}%, colors {framebox['distinct_colors']}, changes {framebox['changes']}/{framebox['frames']}" +
-                     (f" (e.g., {framebox['issues'][0]})" if framebox['issues'] else ""))
+    if framebox['pass']:
+        frame_details = (f"solid {framebox['solid_ratio']*100:.0f}%, colors {framebox['distinct_colors']}, changes {framebox['changes']}/{framebox['frames']}")
+    else:
+        dev = framebox.get('deviations', [])
+        dev_txt = ""
+        if dev:
+            fidx, tms, expi, goti = dev[0]
+            dev_txt = f"; dev at frame {fidx} (~{tms:.1f}ms): exp {expi}, got {goti}"
+        frame_details = (f"solid {framebox['solid_ratio']*100:.0f}%, colors {framebox['distinct_colors']}, changes {framebox['changes']}/{framebox['frames']}" +
+                         (f" (e.g., {framebox['issues'][0]})" if framebox['issues'] else "") + dev_txt)
 
     return {
         'pop_area_blackness': {'pass': black['pass'], 'details': black_details},

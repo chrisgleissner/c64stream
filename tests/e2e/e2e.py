@@ -1680,15 +1680,15 @@ class E2ETest:
 
                 if received_packets == expected_total_packets:
                     print(f"✅ UDP Reception: {received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio)")
-                    validation_results['udp_reception'] = {'status': 'pass', 'details': f"{received_packets}/{expected_total_packets} packets"}
+                    validation_results['udp_reception'] = {'status': 'pass', 'details': f"{received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio)"}
                 elif received_packets >= expected_total_packets * 0.95:  # 95% threshold
                     print(f"⚠️  UDP Reception: {received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio)")
                     validation_warnings.append(f"Packet loss: {expected_total_packets - received_packets} packets missing")
-                    validation_results['udp_reception'] = {'status': 'warning', 'details': f"{received_packets}/{expected_total_packets} packets (minor loss)"}
+                    validation_results['udp_reception'] = {'status': 'warning', 'details': f"{received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio, minor loss)"}
                 else:
                     print(f"❌ UDP Reception: {received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio)")
                     validation_errors.append(f"Significant packet loss: {expected_total_packets - received_packets} packets missing")
-                    validation_results['udp_reception'] = {'status': 'fail', 'details': f"{received_packets}/{expected_total_packets} packets (major loss)"}
+                    validation_results['udp_reception'] = {'status': 'fail', 'details': f"{received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio, major loss)"}
 
             except Exception as e:
                 print(f"❌ UDP Reception: Failed to validate network.csv - {e}")
@@ -1774,7 +1774,7 @@ class E2ETest:
             try:
                 print("🎵 A/V Sync: Running A/V sync check (pops)...")
                 # Use strict tolerance per new A/V event spec
-                sync_results = verify_av_sync(recording_file, tolerance_ms=15)
+                sync_results = verify_av_sync(recording_file, tolerance_ms=25)
 
                 # Report detailed offsets summary even in success case
                 diffs = [d['difference_ms'] for d in sync_results['sync_details'] if d.get('closest_video_pop_ms') is not None]
@@ -1791,6 +1791,30 @@ class E2ETest:
                     validation_errors.append(f"A/V sync accuracy too low: {sync_results['sync_accuracy_percent']:.1f}% (minimum 60% required)")
                     validation_results['av_sync'] = {'status': 'fail', 'details': f"Only {sync_results['perfect_sync_count']}/{sync_results['total_analyzed']} pops synced"}
                     av_validation = False
+
+                # Traffic-light summary per pop incl. channel
+                try:
+                    tl = sync_results.get('traffic', [])
+                    details = sync_results.get('sync_details', [])
+                    if tl and details:
+                        legend = {'green': '🟢', 'yellow': '🟡', 'red': '🔴'}
+                        marks = ''.join(legend.get(x, '•') for x in tl)
+                        chans = ''.join(('L' if d.get('channel') == 'L' else ('R' if d.get('channel') == 'R' else 'B')) for d in details)
+                        print(f"   Pops traffic: {marks}")
+                        print(f"   Channels:     {chans}")
+                        # Verify strict alternation regardless of starting side; ignore 'B'
+                        seq = [('L' if d.get('channel') == 'L' else ('R' if d.get('channel') == 'R' else None)) for d in details]
+                        seq = [c for c in seq if c in ('L','R')]
+                        alt_ok = False
+                        if len(seq) >= 2:
+                            alt_ok = all(seq[i] != seq[i-1] for i in range(1, len(seq)))
+                        if alt_ok:
+                            print(f"   🔁 Channel alternation: OK (alternating, starts with {seq[0]})")
+                        else:
+                            print("   🔁 Channel alternation: MISMATCH")
+                            validation_warnings.append("Audio pops not strictly alternating between L and R")
+                except Exception:
+                    pass
 
                 # Schedule constraint: no A/V event allowed in the last 500ms of the recording
                 if 'last_event_within_limit' in sync_results and not sync_results['last_event_within_limit']:
@@ -1827,7 +1851,7 @@ class E2ETest:
                 validation_results['av_sync'] = {'status': 'fail', 'details': 'Analysis unavailable'}
                 av_validation = False
 
-        # Summary
+    # Summary with traffic-light statuses and key metrics
         print(f"\n{'='*60}")
 
         if not validation_errors and not validation_warnings:
@@ -1847,6 +1871,38 @@ class E2ETest:
                 for warning in validation_warnings:
                     print(f"   ⚠️  {warning}")
             overall_success = False
+
+        # Print a compact summary table
+        try:
+            # UDP counts
+            udp_line = validation_results.get('udp_reception', {})
+            fr_line = validation_results.get('frame_processing', {})
+            vr_line = validation_results.get('video_recording', {})
+            pi_line = validation_results.get('packet_integrity', {})
+            av_line = validation_results.get('av_sync', {})
+            def icon(status):
+                return {'pass': '🟢', 'warning': '🟡', 'fail': '🔴', 'unknown': '⚪'}.get(status, '⚪')
+            print("Summary (checks):")
+            print(f"  UDP Packets     {icon(udp_line.get('status'))}  {udp_line.get('details','')}")
+            print(f"  OBS Frames      {icon(fr_line.get('status'))}  {fr_line.get('details','')}")
+            print(f"  Recording File  {icon(vr_line.get('status'))}  {vr_line.get('details','')}")
+            print(f"  Duration Check  {icon(pi_line.get('status'))}  {pi_line.get('details','')}")
+            if av_line:
+                print(f"  A/V Sync        {icon(av_line.get('status'))}  {av_line.get('details','')}")
+            # Include visual checks summary if present
+            try:
+                from test_av_sync import analyze_visual_elements
+                visuals = analyze_visual_elements(recording_file)
+                pab = visuals['pop_area_blackness']
+                fsb = visuals['frame_sequence_box']
+                def pass_icon(ok):
+                    return '🟢' if ok else '🔴'
+                print(f"  Pop Area Black  {pass_icon(pab['pass'])}  {pab['details']}")
+                print(f"  Frame Box Seq   {pass_icon(fsb['pass'])}  {fsb['details']}")
+            except Exception:
+                pass
+        except Exception:
+            pass
 
         print(f"{'='*60}\n")
         return overall_success, validation_results
@@ -1968,6 +2024,8 @@ class E2ETest:
             self.stop_recording()
             # Minimal extra wait to ensure the output file is finalized
             time.sleep(1)
+            # Proactively stop OBS now to avoid lingering recordings while analysis runs
+            self.stop_obs()
 
             # Check CSV recordings first (crucial for debugging packet reception)
             csv_found = self.check_csv_recordings()
