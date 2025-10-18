@@ -1254,6 +1254,36 @@ class E2ETest:
             except Exception as e:
                 self.log(f"🔎 Could not snapshot UDP listeners: {e}")
 
+            # /proc diagnostics: per-socket drops and system UDP stats
+            try:
+                import re
+                udp_lines = Path('/proc/net/udp').read_text().splitlines()
+                header = udp_lines[0]
+                entries = udp_lines[1:]
+                # Ports in hex (uppercase, zero-padded 4)
+                vhex = f"{int(self.video_dest_port):04X}"
+                ahex = f"{int(self.audio_dest_port):04X}"
+                v_matches = []
+                a_matches = []
+                for line in entries:
+                    parts = line.split()
+                    if len(parts) < 12:
+                        continue
+                    local = parts[1]  # local_address
+                    drops = parts[-1]
+                    if local.endswith(':'+vhex):
+                        v_matches.append((local, drops))
+                    if local.endswith(':'+ahex):
+                        a_matches.append((local, drops))
+                if v_matches or a_matches:
+                    self.log("🔎 /proc/net/udp entries (local:port -> drops):")
+                    for local, drops in v_matches:
+                        self.log(f"    {local} -> drops={drops} (video)")
+                    for local, drops in a_matches:
+                        self.log(f"    {local} -> drops={drops} (audio)")
+            except Exception as e:
+                self.log(f"🔎 Could not read /proc/net/udp: {e}")
+
         try:
             # Calculate interleaved timeline
             timeline = []
