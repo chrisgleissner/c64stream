@@ -326,6 +326,7 @@ bool c64_load_configuration(obs_data_t *settings)
     char line[512];
     char current_section[64] = "";
     int loaded_settings = 0;
+    bool ci_enforced = false; // When true, apply values directly (not as defaults)
 
     while (fgets(line, sizeof(line), file)) {
         trim_config_string(line);
@@ -358,9 +359,23 @@ bool c64_load_configuration(obs_data_t *settings)
 
             C64_LOG_INFO("Properties: Processing key='%s' value='%s'", key, value);
 
+            // Detect CI enforcement flag inside [ci] section
+            if (strcmp(key, "is_ci") == 0) {
+                bool enabled = (strcmp(value, "true") == 0) || (strcmp(value, "1") == 0);
+                if (enabled) {
+                    ci_enforced = true;
+                    C64_LOG_INFO("CI mode detected in properties.ini - applying values directly");
+                }
+                continue;
+            }
+
             // Apply configuration based on key name
             if (strcmp(key, "c64_host") == 0) {
-                obs_data_set_default_string(settings, "c64_host", value);
+                if (ci_enforced) {
+                    obs_data_set_string(settings, "c64_host", value);
+                } else {
+                    obs_data_set_default_string(settings, "c64_host", value);
+                }
                 C64_LOG_INFO("Config: c64_host = %s", value);
                 loaded_settings++;
             } else if (strcmp(key, "dns_server_ip") == 0) {
@@ -370,31 +385,51 @@ bool c64_load_configuration(obs_data_t *settings)
             } else if (strcmp(key, "video_port") == 0) {
                 int port = atoi(value);
                 if (port >= 1024 && port <= 65535) {
-                    obs_data_set_default_int(settings, "video_port", port);
+                    if (ci_enforced) {
+                        obs_data_set_int(settings, "video_port", port);
+                    } else {
+                        obs_data_set_default_int(settings, "video_port", port);
+                    }
                     C64_LOG_DEBUG("Config: video_port = %d", port);
                     loaded_settings++;
                 }
             } else if (strcmp(key, "audio_port") == 0) {
                 int port = atoi(value);
                 if (port >= 1024 && port <= 65535) {
-                    obs_data_set_default_int(settings, "audio_port", port);
+                    if (ci_enforced) {
+                        obs_data_set_int(settings, "audio_port", port);
+                    } else {
+                        obs_data_set_default_int(settings, "audio_port", port);
+                    }
                     C64_LOG_DEBUG("Config: audio_port = %d", port);
                     loaded_settings++;
                 }
             } else if (strcmp(key, "control_port") == 0) {
                 int port = atoi(value);
                 if (port >= 64 && port <= 65535) {
-                    obs_data_set_default_int(settings, "control_port", port);
+                    if (ci_enforced) {
+                        obs_data_set_int(settings, "control_port", port);
+                    } else {
+                        obs_data_set_default_int(settings, "control_port", port);
+                    }
                     C64_LOG_DEBUG("Config: control_port = %d", port);
                     loaded_settings++;
                 }
             } else if (strcmp(key, "auto_detect_ip") == 0) {
                 bool enabled = (strcmp(value, "true") == 0) || (strcmp(value, "1") == 0);
-                obs_data_set_default_bool(settings, "auto_detect_ip", enabled);
+                if (ci_enforced) {
+                    obs_data_set_bool(settings, "auto_detect_ip", enabled);
+                } else {
+                    obs_data_set_default_bool(settings, "auto_detect_ip", enabled);
+                }
                 C64_LOG_DEBUG("Config: auto_detect_ip = %s", enabled ? "true" : "false");
                 loaded_settings++;
             } else if (strcmp(key, "obs_ip_address") == 0) {
-                obs_data_set_default_string(settings, "obs_ip_address", value);
+                if (ci_enforced) {
+                    obs_data_set_string(settings, "obs_ip_address", value);
+                } else {
+                    obs_data_set_default_string(settings, "obs_ip_address", value);
+                }
                 C64_LOG_INFO("Config: obs_ip_address = %s", value);
                 loaded_settings++;
             } else if (strcmp(key, "buffer_delay_ms") == 0) {
@@ -425,7 +460,11 @@ bool c64_load_configuration(obs_data_t *settings)
                 C64_LOG_INFO("Config: record_csv = %s (value='%s') - SET DIRECTLY", enabled ? "true" : "false", value);
                 loaded_settings++;
             } else if (strcmp(key, "save_folder") == 0 && strlen(value) > 0) {
-                obs_data_set_default_string(settings, "save_folder", value);
+                if (ci_enforced) {
+                    obs_data_set_string(settings, "save_folder", value);
+                } else {
+                    obs_data_set_default_string(settings, "save_folder", value);
+                }
                 C64_LOG_DEBUG("Config: save_folder = %s", value);
                 loaded_settings++;
             }
