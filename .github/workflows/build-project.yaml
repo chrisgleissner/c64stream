@@ -764,6 +764,18 @@ jobs:
             cp -r e2e-results/* e2e-artifacts/
           fi
 
+          # Collect MP4/AVI/WAV/CSV from test_output if present
+          if [[ -d tests/e2e/test_output ]]; then
+            mkdir -p e2e-artifacts/output
+            cp -r tests/e2e/test_output/* e2e-artifacts/output/ 2>/dev/null || true
+          fi
+
+          # Collect plugin recording session folder if present
+          if [[ -d "$HOME/Documents/obs-studio/c64stream/recordings" ]]; then
+            mkdir -p e2e-artifacts/recordings
+            cp -r "$HOME/Documents/obs-studio/c64stream/recordings"/* e2e-artifacts/recordings/ 2>/dev/null || true
+          fi
+
           # Collect OBS logs
           if [[ -d ~/.config/obs-studio/logs ]]; then
             mkdir -p e2e-artifacts/obs-logs
