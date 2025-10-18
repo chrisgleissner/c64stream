@@ -33,14 +33,17 @@ def extract_audio_envelope(video_path, sample_rate=48000):
     Returns array of audio power levels over time.
     """
     with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_audio:
-        # Extract audio as WAV for analysis
+        # Extract audio as WAV for analysis (fallback: raise gracefully if ffmpeg missing)
         cmd = [
             'ffmpeg', '-loglevel', 'error', '-i', str(video_path),
             '-vn', '-acodec', 'pcm_s16le',
             '-ar', str(sample_rate), '-ac', '2',
             '-y', temp_audio.name
         ]
-        subprocess.run(cmd, capture_output=True, check=True)
+        try:
+            subprocess.run(cmd, capture_output=True, check=True)
+        except Exception as e:
+            raise RuntimeError(f"audio_extract_failed: {e}")
         temp_name = temp_audio.name
 
     # Load audio data and parse WAV header
@@ -523,55 +526,61 @@ def verify_av_sync(video_path, tolerance_ms=25):
     """
     print(f"🔍 Analyzing A/V sync for: {video_path}")
 
-    # Get video properties
-    cmd = ['ffprobe', '-v', 'quiet', '-show_format', '-show_streams',
-           '-of', 'json', str(video_path)]
-    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-    video_info = json.loads(result.stdout)
-
-    # Find video and audio streams
-    video_stream = next(s for s in video_info['streams'] if s['codec_type'] == 'video')
-    audio_stream = next(s for s in video_info['streams'] if s['codec_type'] == 'audio')
-
-    frame_rate = eval(video_stream['r_frame_rate'])  # e.g., "30/1" -> 30.0
-    sample_rate = int(audio_stream['sample_rate'])
+    # Get video properties (prefer ffprobe, fallback to OpenCV if unavailable)
+    frame_rate = None
+    sample_rate = 48000
+    try:
+        cmd = ['ffprobe', '-v', 'quiet', '-show_format', '-show_streams',
+               '-of', 'json', str(video_path)]
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        video_info = json.loads(result.stdout)
+        video_stream = next(s for s in video_info['streams'] if s['codec_type'] == 'video')
+        frame_rate = eval(video_stream['r_frame_rate'])  # e.g., "30/1" -> 30.0
+        try:
+            audio_stream = next(s for s in video_info['streams'] if s['codec_type'] == 'audio')
+            sample_rate = int(audio_stream.get('sample_rate', sample_rate))
+        except StopIteration:
+            pass
+    except Exception:
+        cap_probe = cv2.VideoCapture(str(video_path))
+        frame_rate = cap_probe.get(cv2.CAP_PROP_FPS) or 30.0
+        cap_probe.release()
 
     print(f"📊 Video: {frame_rate} fps, Audio: {sample_rate} Hz")
 
     # Extract audio envelope
     print("🔊 Extracting audio envelope...")
-    envelope = extract_audio_envelope(video_path, sample_rate)
-
-    # Detect audio pops
-    audio_pops = detect_audio_pops(envelope, threshold_factor=3.0, min_duration_ms=30)
-    print(f"🎵 Detected {len(audio_pops)} audio pop(s)")
+    audio_pops = []
+    try:
+        envelope = extract_audio_envelope(video_path, sample_rate)
+        # Detect audio pops
+        audio_pops = detect_audio_pops(envelope, threshold_factor=3.0, min_duration_ms=30)
+        print(f"🎵 Detected {len(audio_pops)} audio pop(s)")
+    except Exception as e:
+        print(f"⚠️  Audio analysis skipped ({e})")
 
     # Detect video pops (white square in lower-right area)
     print("⬜ Detecting video pop(s) (white square, lower-right)...")
     pop_frames = detect_video_pops(video_path, frame_rate)
 
-    # Convert frame numbers to timestamps (ms)
-    video_pop_times_ms = [frame / frame_rate * 1000.0 for frame in pop_frames]
-
-    # Group consecutive frames into individual video pops (1 frame duration now)
-    grouped_video_pop_starts = []
-    if video_pop_times_ms:
-        current_group_start = video_pop_times_ms[0]
-        last_time = video_pop_times_ms[0]
-        group_len = 1
-        frame_interval_ms = 1000.0 / float(frame_rate)
-        for t in video_pop_times_ms[1:]:
-            if (t - last_time) <= (frame_interval_ms * 1.5):
-                group_len += 1
+    # Group consecutive frames into individual video pops by frame index (robust to FPS rounding)
+    grouped_video_pop_frame_starts = []
+    if pop_frames:
+        current_start = int(pop_frames[0])
+        last_idx = int(pop_frames[0])
+        for f in pop_frames[1:]:
+            f = int(f)
+            if (f - last_idx) <= 1:
+                # same pop (consecutive frame)
+                pass
             else:
-                if group_len >= 1:  # accept >=1 frames as one pop
-                    grouped_video_pop_starts.append(current_group_start)
-                current_group_start = t
-                group_len = 1
-            last_time = t
-        # last group
-        if group_len >= 1:
-            grouped_video_pop_starts.append(current_group_start)
+                grouped_video_pop_frame_starts.append(current_start)
+                current_start = f
+            last_idx = f
+        grouped_video_pop_frame_starts.append(current_start)
+
+    # Convert frame numbers to timestamps (ms) for human-readable reporting
+    grouped_video_pop_starts = [frame / frame_rate * 1000.0 for frame in grouped_video_pop_frame_starts]
 
     formatted_pops = [f"{t:.1f}" for t in grouped_video_pop_starts]
     print(f"⬜ Detected {len(grouped_video_pop_starts)} video pop(s) at: {formatted_pops} ms")
@@ -585,13 +594,15 @@ def verify_av_sync(video_path, tolerance_ms=25):
     for i, ap in enumerate(audio_pops):
         audio_pop_time = ap['time_ms']
         closest_event = None
+        closest_event_idx = None
         min_diff = float('inf')
 
-        for ev_time in grouped_video_pop_starts:
+        for idx, ev_time in enumerate(grouped_video_pop_starts):
             diff = abs(audio_pop_time - ev_time)
             if diff < min_diff:
                 min_diff = diff
                 closest_event = ev_time
+                closest_event_idx = idx
 
         is_synced = min_diff <= tolerance_ms
         # Traffic light based on absolute offset
@@ -611,6 +622,9 @@ def verify_av_sync(video_path, tolerance_ms=25):
         sync_results.append({
             'audio_pop_time_ms': audio_pop_time,
             'closest_video_pop_ms': closest_event,
+            'closest_video_pop_frame': (grouped_video_pop_frame_starts[closest_event_idx]
+                                        if closest_event_idx is not None and 0 <= closest_event_idx < len(grouped_video_pop_frame_starts)
+                                        else None),
             'difference_ms': min_diff,
             'is_synced': is_synced,
             'included_in_analysis': True,
@@ -629,10 +643,20 @@ def verify_av_sync(video_path, tolerance_ms=25):
     sync_accuracy = (perfect_sync_count / total_analyzed * 100) if total_analyzed > 0 else 0
 
     # Additional schedule checks: no event within last 1000ms of recording
+    # Duration from ffprobe if available; else estimate via OpenCV
+    duration_ms = None
     try:
-        duration_ms = float(video_info['format']['duration']) * 1000.0
+        # may be available from ffprobe path above
+        if 'video_info' in locals():
+            duration_ms = float(video_info['format']['duration']) * 1000.0
     except Exception:
-        duration_ms = None
+        pass
+    if duration_ms is None:
+        cap_dur = cv2.VideoCapture(str(video_path))
+        frames = cap_dur.get(cv2.CAP_PROP_FRAME_COUNT) or 0
+        fps_dur = cap_dur.get(cv2.CAP_PROP_FPS) or frame_rate or 30.0
+        cap_dur.release()
+        duration_ms = (frames / fps_dur) * 1000.0 if fps_dur else None
     last_event_within_limit = True
     if duration_ms and grouped_video_pop_starts:
         last_event_within_limit = grouped_video_pop_starts[-1] <= (duration_ms - 1000.0)
@@ -649,6 +673,7 @@ def verify_av_sync(video_path, tolerance_ms=25):
         'last_event_within_limit': last_event_within_limit,
         'duration_ms': duration_ms,
         'video_pop_times_ms': grouped_video_pop_starts,
+        'video_pop_frame_indices': grouped_video_pop_frame_starts,
         'traffic': traffic_light
     }
 

@@ -733,7 +733,7 @@ EOF
                 echo "- ❌ Poor synchronization (${sync_accuracy}%): avg offset ${avg_diff_fmt}ms, max ${max_diff_fmt}ms" >> "${report_file}"
             fi
 
-            # Detected video pops list
+            # Detected video pops list (times)
             local video_pops_raw video_pops_list
             video_pops_raw=$(jq -r '.av_sync_details.video_pop_times_ms // [] | join(" ")' "${validation_file}")
             video_pops_list=""
@@ -748,6 +748,20 @@ EOF
                 done
             fi
             echo "- ⬜ Detected video pop(s): [${video_pops_list}] ms" >> "${report_file}"
+
+            # Detected video pop frame indices (if available)
+            local video_pop_idx_raw video_pop_idx_list
+            video_pop_idx_raw=$(jq -r '.av_sync_details.video_pop_frame_indices // [] | join(" ")' "${validation_file}")
+            if [[ -n "${video_pop_idx_raw}" ]]; then
+                video_pop_idx_list=""
+                for idx in ${video_pop_idx_raw}; do
+                    if [[ -n "${video_pop_idx_list}" ]]; then
+                        video_pop_idx_list+=", "
+                    fi
+                    video_pop_idx_list+="${idx}"
+                done
+                echo "- ⬜ Video pop frame index(es): [${video_pop_idx_list}]" >> "${report_file}"
+            fi
 
             # Per-pop lines with traffic light and channel
             echo >> "${report_file}"
@@ -769,11 +783,16 @@ EOF
                     chan=$(jq -r ".av_sync_details.sync_details[$i].channel // \"?\"" "${validation_file}")
                     a_ms=$(jq -r ".av_sync_details.sync_details[$i].audio_pop_time_ms // \"\"" "${validation_file}")
                     v_ms=$(jq -r ".av_sync_details.sync_details[$i].closest_video_pop_ms // empty" "${validation_file}")
+                    v_fr=$(jq -r ".av_sync_details.sync_details[$i].closest_video_pop_frame // empty" "${validation_file}")
                     diff_ms=$(jq -r ".av_sync_details.sync_details[$i].difference_ms // empty" "${validation_file}")
                     # Format to 0.1 ms (tenth of a millisecond)
                     a_ms_fmt=$(printf '%.1f' "${a_ms:-0}")
                     if [[ -n "${v_ms}" ]] && [[ -n "${diff_ms}" ]]; then
-                        echo "- ${emoji} Pop #$((i+1)) [${chan}]: audio=${a_ms_fmt}ms, video=$(printf '%.1f' "${v_ms}")ms, diff=$(printf '%.1f' "${diff_ms}")ms" >> "${report_file}"
+                        if [[ -n "${v_fr}" && "${v_fr}" != "null" ]]; then
+                            echo "- ${emoji} Pop #$((i+1)) [${chan}]: audio=${a_ms_fmt}ms, video=$(printf '%.1f' "${v_ms}")ms (frame ${v_fr}), diff=$(printf '%.1f' "${diff_ms}")ms" >> "${report_file}"
+                        else
+                            echo "- ${emoji} Pop #$((i+1)) [${chan}]: audio=${a_ms_fmt}ms, video=$(printf '%.1f' "${v_ms}")ms, diff=$(printf '%.1f' "${diff_ms}")ms" >> "${report_file}"
+                        fi
                     else
                         echo "- ${emoji} Pop #$((i+1)) [${chan}]: audio=${a_ms_fmt}ms, no matching video pop found" >> "${report_file}"
                     fi
@@ -831,12 +850,19 @@ EOF
 
     # Try to extract first POP frame using validation_results.json if present
     if [[ -n "${recording_mp4}" && -f "${recording_mp4}" && -f "${validation_file}" ]] && command -v jq >/dev/null 2>&1; then
-        first_pop_ms=$(jq -r '.av_sync_details.video_pop_times_ms[0] // empty' "${validation_file}" 2>/dev/null || true)
-        if [[ -n "${first_pop_ms}" ]]; then
-            # Convert ms to seconds with three decimals
-            first_pop_s=$(awk -v ms="${first_pop_ms}" 'BEGIN{printf "%.3f", ms/1000.0}')
+        first_pop_frame=$(jq -r '.av_sync_details.video_pop_frame_indices[0] // empty' "${validation_file}" 2>/dev/null || true)
+        if [[ -n "${first_pop_frame}" ]]; then
             if [[ -x "${TEST_DIR}/extract.frame" ]]; then
-                "${TEST_DIR}/extract.frame" --input "${recording_mp4}" --output "${sample_frame_path}" --time "${first_pop_s}" || true
+                "${TEST_DIR}/extract.frame" --input "${recording_mp4}" --output "${sample_frame_path}" --frame "${first_pop_frame}" || true
+            fi
+        else
+            first_pop_ms=$(jq -r '.av_sync_details.video_pop_times_ms[0] // empty' "${validation_file}" 2>/dev/null || true)
+            if [[ -n "${first_pop_ms}" ]]; then
+                # Convert ms to seconds with three decimals
+                first_pop_s=$(awk -v ms="${first_pop_ms}" 'BEGIN{printf "%.3f", ms/1000.0}')
+                if [[ -x "${TEST_DIR}/extract.frame" ]]; then
+                    "${TEST_DIR}/extract.frame" --input "${recording_mp4}" --output "${sample_frame_path}" --time "${first_pop_s}" || true
+                fi
             fi
         fi
     fi
