@@ -595,15 +595,15 @@ def verify_av_sync(video_path, tolerance_ms=25):
 
         is_synced = min_diff <= tolerance_ms
         # Traffic light based on absolute offset
-        if min_diff < 20.0:
+        if min_diff < 30.0:
             status_color = 'green'
-        elif min_diff < 60.0:
+        elif min_diff < 50.0:
             status_color = 'yellow'
         else:
             status_color = 'red'
         traffic_light.append(status_color)
 
-        # Include all beeps in analysis - no more first/last exclusion complexity
+        # Include all beeps in analysis
         total_analyzed += 1
         if is_synced:
             perfect_sync_count += 1

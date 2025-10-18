@@ -39,6 +39,7 @@ DEFAULT_CLEANUP=true
 DEFAULT_OBS_ENABLED=true   # OBS integration now implemented
 DEFAULT_X11_DISPLAY=":99"
 DEFAULT_MONITOR_RESOURCES=false  # Resource monitoring for CI
+DEFAULT_SCENARIO_OVERRIDES=""
 
 # Color output
 RED='\033[0;31m'
@@ -193,6 +194,7 @@ parse_args() {
     CLEANUP="${DEFAULT_CLEANUP}"
     OBS_ENABLED="${DEFAULT_OBS_ENABLED}"
     MONITOR_RESOURCES="${DEFAULT_MONITOR_RESOURCES}"
+    SCENARIO_OVERRIDES="${DEFAULT_SCENARIO_OVERRIDES}"
 
     while [[ $# -gt 0 ]]; do
         case $1 in
@@ -270,6 +272,10 @@ parse_args() {
                 ;;
             --display)
                 DEFAULT_X11_DISPLAY="$2"
+                shift 2
+                ;;
+            --scenario-overrides)
+                SCENARIO_OVERRIDES="$2"
                 shift 2
                 ;;
             -h|--help)
@@ -559,6 +565,11 @@ run_e2e_test() {
         "--udp-replay" "${udp_replay_path}"
     )
 
+    # Pass scenario overrides if provided
+    if [[ -n "${SCENARIO_OVERRIDES}" ]]; then
+        cmd+=("--scenario-overrides" "${SCENARIO_OVERRIDES}")
+    fi
+
     # Ensure X environment variables are set
     export DISPLAY="${DEFAULT_X11_DISPLAY}"
 
@@ -592,26 +603,37 @@ run_e2e_test() {
 generate_report() {
     log_info "Generating test report..."
 
-    local report_file="${OUTPUT_DIR}/test_report.txt"
+    local report_file="${OUTPUT_DIR}/README.md"
     local timestamp=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
 
-    cat > "${report_file}" << EOF
-C64 Stream E2E Test Report
+        # Resolve plugin version via shared helper (mirrors CI logic)
+        local resolved_version
+        if [[ -x "${PROJECT_ROOT}/build-aux/resolve-plugin-version.sh" ]]; then
+            resolved_version=$("${PROJECT_ROOT}/build-aux/resolve-plugin-version.sh")
+        else
+            resolved_version=$(jq -r '.version // "unknown"' "${PROJECT_ROOT}/buildspec.json" 2>/dev/null)
+        fi
+
+        cat > "${report_file}" << EOF
+# C64 Stream E2E Test Report
+
 Generated: ${timestamp}
 
-Test Configuration:
-  Format: ${FORMAT}
-  Frames: ${FRAMES}
-  Duration: $(if [[ "${FORMAT}" == "PAL" ]]; then awk "BEGIN {printf \"%.1f\", ${FRAMES}/50}"; else awk "BEGIN {printf \"%.1f\", ${FRAMES}/60}"; fi) seconds
-  Video Port: ${VIDEO_PORT}
-  Audio Port: ${AUDIO_PORT}
-  OBS Enabled: ${OBS_ENABLED}
+## Test configuration
 
-Build Information:
-  Project: $(jq -r '.name // "unknown"' "${PROJECT_ROOT}/buildspec.json" 2>/dev/null)
-  Version: $(jq -r '.version // "unknown"' "${PROJECT_ROOT}/buildspec.json" 2>/dev/null)
+- Format: ${FORMAT}
+- Frames: ${FRAMES}
+- Duration: $(if [[ "${FORMAT}" == "PAL" ]]; then awk "BEGIN {printf \"%.1f\", ${FRAMES}/50}"; else awk "BEGIN {printf \"%.1f\", ${FRAMES}/60}"; fi) seconds
+- Video Port: ${VIDEO_PORT}
+- Audio Port: ${AUDIO_PORT}
+- OBS Enabled: ${OBS_ENABLED}
 
-Test Results:
+## Build information
+
+- Project: $(jq -r '.name // "unknown"' "${PROJECT_ROOT}/buildspec.json" 2>/dev/null)
+- Version: ${resolved_version}
+
+## Test results
 EOF
 
     # Add packet statistics
@@ -620,9 +642,9 @@ EOF
         video_count=$(find "${TEST_DIR}/test_packets/video/${FORMAT}" -name "*.bin" 2>/dev/null | wc -l)
         audio_count=$(find "${TEST_DIR}/test_packets/audio/${FORMAT}" -name "*.bin" 2>/dev/null | wc -l)
 
-        cat >> "${report_file}" << EOF
-  ✅ Packet Generation: ${video_count} video, ${audio_count} audio packets
-  ✅ UDP Replay: Completed successfully
+    cat >> "${report_file}" << EOF
+- ✅ Packet Generation: ${video_count} video, ${audio_count} audio packets
+- ✅ UDP Replay: Completed successfully
 EOF
     fi
 
@@ -647,28 +669,45 @@ EOF
         fi
 
         if [[ -n "${recording_found}" && -f "${recording_found}" ]]; then
-            echo "  ✅ OBS Recording: ${recording_found}" >> "${report_file}"
+            echo >> "${report_file}"
+            echo "### Recording" >> "${report_file}"
+            echo >> "${report_file}"
+            # Only show a single Download link for the recording
+            rel_name=$(basename "${recording_found}")
+            if [[ -f "${OUTPUT_DIR}/${rel_name}" ]]; then
+                echo "- Download: [${rel_name}](${rel_name})" >> "${report_file}"
+            else
+                # Fallback to absolute link if file not under OUTPUT_DIR
+                echo "- Download: [${rel_name}](${recording_found})" >> "${report_file}"
+            fi
         else
-            echo "  ❌ OBS Recording: Not found" >> "${report_file}"
+            echo "- ❌ OBS Recording: Not found" >> "${report_file}"
         fi
     else
-        echo "  ⚠️  OBS Integration: Disabled (use --obs to enable)" >> "${report_file}"
+        echo "- ⚠️  OBS Integration: Disabled (use --obs to enable)" >> "${report_file}"
     fi
 
-    cat >> "${report_file}" << EOF
-
-Artifacts:
-  Report: ${report_file}
-  Packets: ${TEST_DIR}/test_packets/
-  Output: ${OUTPUT_DIR}/
-EOF
+    # Add data file links if available
+    local data_section_added=false
+    if [[ -f "${OUTPUT_DIR}/network.csv" || -f "${OUTPUT_DIR}/obs.csv" ]]; then
+        echo >> "${report_file}"
+        echo "### Data" >> "${report_file}"
+        echo >> "${report_file}"
+        data_section_added=true
+    fi
+    if [[ -f "${OUTPUT_DIR}/network.csv" ]]; then
+        echo "- Network CSV: [network.csv](network.csv)" >> "${report_file}"
+    fi
+    if [[ -f "${OUTPUT_DIR}/obs.csv" ]]; then
+        echo "- OBS CSV: [obs.csv](obs.csv)" >> "${report_file}"
+    fi
 
     if [[ "${VERBOSE}" == true ]]; then
         echo
         cat "${report_file}"
     fi
 
-    log_success "Test report saved to ${report_file}"
+    log_success "Markdown report saved to ${report_file}"
 }
 
 # Cleanup temporary files
@@ -799,7 +838,7 @@ main() {
 
     if [[ ${test_result} -eq 0 ]]; then
         log_success "E2E test completed successfully!"
-        echo "View detailed report: ${OUTPUT_DIR}/test_report.txt"
+    echo "View detailed report: ${OUTPUT_DIR}/README.md"
     else
         log_warning "E2E test encountered issues"
         echo "Check logs in: ${OUTPUT_DIR}/"

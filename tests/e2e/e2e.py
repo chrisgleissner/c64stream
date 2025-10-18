@@ -45,7 +45,8 @@ except ImportError:
 
 class E2ETest:
     def __init__(self, test_dir, video_port=21000, audio_port=21001, control_port=6400,
-                 format='NTSC', frames=30, verbose=False, enable_websocket=False):  # Default to NTSC for faster testing
+                 format='NTSC', frames=30, verbose=False, enable_websocket=False,
+                 scenario_overrides_dir: str | None = None):  # Default to NTSC for faster testing
         self.test_dir = Path(test_dir)
         self.video_port = video_port
         self.audio_port = audio_port
@@ -54,6 +55,7 @@ class E2ETest:
         self.frames = frames
         self.verbose = verbose
         self.enable_websocket = enable_websocket  # Disable WebSocket by default for performance
+        self.scenario_overrides_dir = Path(scenario_overrides_dir).resolve() if scenario_overrides_dir else None
 
         # Detect CI environment and set appropriate timeouts
         self.is_ci = self._detect_ci_environment()
@@ -92,7 +94,7 @@ class E2ETest:
     def _configure_timeouts(self):
         """Configure timeouts based on environment."""
         if self.is_ci:
-            # CI environment: longer timeouts for resource-constrained environments
+            # CI environment: Extended timeouts
             self.plugin_init_timeout = 45  # Increased from 30s for more robust CI
             self.obs_startup_delay = 4     # Increased from 3s
             self.async_task_delay = 6      # Increased from 5s
@@ -102,14 +104,14 @@ class E2ETest:
             self.buffer_setup_delay = 1.0  # Increased from 0.5s
             self.log("🏗️ CI environment detected - using extended timeouts")
         else:
-            # Local environment: ultra-minimal timeouts for 6-second target
+            # Local environment: Short timeouts
             self.plugin_init_timeout = 6
             self.obs_startup_delay = 0.5
             self.async_task_delay = 0.3
             self.websocket_settings_delay = 0.2
             self.udp_socket_delay = 0.05
             self.buffer_setup_delay = 0.05
-            self.log("🚀 Local environment detected - using ultra-minimal timeouts")
+            self.log("🚀 Local environment detected - using short timeouts")
 
     def log(self, message):
         """Print log message if verbose mode is enabled."""
@@ -355,11 +357,42 @@ class E2ETest:
         # Replace variables in the copied configuration
         self._replace_config_variables(obs_config_dir)
 
+        # Apply scenario overrides if provided
+        if self.scenario_overrides_dir and self.scenario_overrides_dir.exists():
+            try:
+                self._apply_scenario_overrides(obs_config_dir, self.scenario_overrides_dir)
+                self.log(f"✅ Applied scenario overrides from {self.scenario_overrides_dir}")
+            except Exception as e:
+                self.log(f"⚠️ Failed to apply scenario overrides from {self.scenario_overrides_dir}: {e}")
+
         # Clean up state files that could trigger dialogs
         self._cleanup_obs_state_files(obs_config_dir)
 
         self.log("✅ OBS configuration copied from baseline")
         return obs_config_dir / 'basic' / 'profiles' / 'C64StreamTest'
+
+    def _apply_scenario_overrides(self, obs_config_dir: Path, overrides_dir: Path):
+        """Copy scenario override files into the OBS config directory after baseline copy.
+
+        The overrides_dir may contain a tree that mirrors files under ~/.config/obs-studio, for example:
+        - basic/profiles/C64StreamTest/basic.ini
+        - basic/scenes/C64StreamTest.json
+        - plugins/c64stream/data/properties.ini
+        Files and directories are copied over the baseline (merge behavior for directories).
+        """
+        for root, dirs, files in os.walk(overrides_dir):
+            rel = Path(root).relative_to(overrides_dir)
+            dest_root = obs_config_dir / rel
+            dest_root.mkdir(parents=True, exist_ok=True)
+            # Copy files in this directory
+            for fname in files:
+                src = Path(root) / fname
+                dst = dest_root / fname
+                try:
+                    shutil.copy2(src, dst)
+                    self.log(f"  ↳ Override: {src.relative_to(overrides_dir)} -> {dst}")
+                except Exception as e:
+                    self.log(f"  ⚠️ Could not copy override {src}: {e}")
 
     def _replace_config_variables(self, obs_config_dir):
         """Replace variables in OBS configuration files with actual values."""
@@ -2281,6 +2314,8 @@ def main():
                         help='Enable verbose logging')
     parser.add_argument('--enable-websocket', action='store_true',
                         help='Enable WebSocket API attempts (disabled by default for performance)')
+    parser.add_argument('--scenario-overrides', default=None,
+                        help='Path to a directory with files to overlay onto ~/.config/obs-studio after baseline copy')
 
     args = parser.parse_args()
 
@@ -2321,7 +2356,8 @@ def main():
         format=args.format,
         frames=args.frames,
         verbose=args.verbose,
-        enable_websocket=args.enable_websocket
+        enable_websocket=args.enable_websocket,
+        scenario_overrides_dir=args.scenario_overrides
     )
 
     # Store reference for signal handler
