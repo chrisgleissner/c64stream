@@ -1254,6 +1254,23 @@ class E2ETest:
             except Exception as e:
                 self.log(f"🔎 Could not snapshot UDP listeners: {e}")
 
+            # Also show ss snapshot with Recv-Q/Send-Q
+            try:
+                import subprocess
+                cmd = ['ss', '-u', '-l', '-n', '-p']
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+                if result.returncode == 0:
+                    vpat = f":{self.video_dest_port}"
+                    apat = f":{self.audio_dest_port}"
+                    lines = [l for l in result.stdout.split('\n') if vpat in l or apat in l]
+                    self.log("🔎 ss -u -l -n -p snapshot:")
+                    for l in lines[:20]:
+                        self.log(f"    {l}")
+                else:
+                    self.log(f"🔎 ss returned {result.returncode}")
+            except Exception as e:
+                self.log(f"🔎 Could not run ss: {e}")
+
             # /proc diagnostics: per-socket drops and system UDP stats
             try:
                 import re
