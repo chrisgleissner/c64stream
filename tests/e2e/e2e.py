@@ -558,6 +558,18 @@ class E2ETest:
                                 saw_audio_fallback = True
                                 self.log(f"ℹ️ Detected audio UDP socket creation ({log_file.name})")
 
+                            # Extra diagnostics in verbose mode: print actual ports parsed from logs
+                            if self.verbose:
+                                try:
+                                    import re
+                                    # Patterns for both thread start and socket creation lines
+                                    ports = set(re.findall(rb"(?:port\s+)(\d{2,5})", content))
+                                    if ports:
+                                        decoded_ports = ', '.join(sorted({p.decode('ascii') for p in ports}))
+                                        self.log(f"🔎 Observed port mentions in OBS logs: {decoded_ports}")
+                                except Exception:
+                                    pass
+
                             # Success if both primary seen, or both fallbacks seen
                             if (saw_video and saw_audio) or (saw_video_fallback and saw_audio_fallback):
                                 self.log("✅ Receiver readiness confirmed")
@@ -1213,7 +1225,7 @@ class E2ETest:
         self.log(f"  - Video socket: {video_sock}")
         self.log(f"  - Audio socket: {audio_sock}")
 
-        # Test UDP connectivity
+        # Test UDP connectivity and snapshot listeners before replay (diag only)
         try:
             test_data = b"test"
             video_sock.sendto(test_data, (self.video_dest_ip, self.video_dest_port))
@@ -1221,6 +1233,23 @@ class E2ETest:
             self.log(f"  - Test packets sent successfully")
         except Exception as e:
             self.log(f"  - Failed to send test packets: {e}")
+
+        # Diagnostic: show current UDP listeners if available (no extra tools installed)
+        if self.verbose:
+            try:
+                import subprocess
+                # netstat is present in image; show UDP listeners for our ports
+                cmd = ['netstat', '-ulnp']
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+                if result.returncode == 0:
+                    lines = [l for l in result.stdout.split('\n') if any(str(p) in l for p in [self.video_dest_port, self.audio_dest_port])]
+                    self.log("🔎 UDP listeners snapshot:")
+                    for l in lines[:20]:
+                        self.log(f"    {l}")
+                else:
+                    self.log(f"🔎 netstat -ulnp returned {result.returncode}")
+            except Exception as e:
+                self.log(f"🔎 Could not snapshot UDP listeners: {e}")
 
         try:
             # Calculate interleaved timeline
@@ -1307,8 +1336,8 @@ class E2ETest:
             elapsed_ms = (time.time() - replay_start_time) * 1000
             self.log(f"✅ Packet replay complete: {packets_sent} packets sent, {failed_packets} failed in {elapsed_ms:.1f}ms")
 
-            # Give plugin time to process the packets (increased from 1.0s to prevent packet loss)
-            time.sleep(1.5)
+            # Give plugin time to process the packets (increased slightly for CI)
+            time.sleep(2.0)
             self.log("✅ Plugin processing delay complete")
 
             return packets_sent > 0
