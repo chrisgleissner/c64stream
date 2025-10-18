@@ -456,6 +456,15 @@ If the plugin can't resolve your C64 Ultimate hostname (e.g., `c64u`), try these
 - **Large disk usage:** AVI recording creates uncompressed files (~50MB/minute); monitor disk space
 - **Recording stops unexpectedly:** Check disk space and folder permissions
 
+## End-to-end tests ✅
+
+This project is continuously validated with automated end-to-end (E2E) tests that simulate a C64 Ultimate, drive OBS, and verify the full pipeline from UDP packets to recorded video/audio.
+
+- What you get: a short, self-contained report with packet stats, recording links, and an A/V “Pop synchronization” summary (timing precision 0.1 ms)
+- Where to see it: each E2E run writes a Markdown report to `tests/e2e/test_output/README.md`
+- How to run locally (Linux): `./local-build.sh linux --e2e-scenarios --install` (produces the report above)
+- Learn more: see the in-depth guide in [`doc/e2e.md`](doc/e2e.md)
+
 ## For Developers 🔧
 
 See the [Developer Documentation](doc/developer.md) for build instructions, testing procedures, and contribution guidelines.

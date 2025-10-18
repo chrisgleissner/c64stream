@@ -269,6 +269,46 @@ cd tests/e2e
 
 See [`doc/e2e.md`](e2e.md) for comprehensive E2E testing documentation.
 
+### End-to-end tests (in-depth)
+
+The E2E harness validates the full path: deterministic packet generation → UDP replay → OBS + plugin processing → recording → result validation.
+
+- Orchestrators:
+  - `tests/e2e/e2e.sh` — shell wrapper for deps/build/run/report (generates `tests/e2e/test_output/README.md`)
+  - `tests/e2e/e2e.py` — launches Xvfb/OBS, starts packet replay, validates results, writes `validation_results.json`
+- Generators/Tools:
+  - `tests/e2e/generate_packets.py` — PAL/NTSC packets with visual and audio pop markers
+  - `build_x86_64/tests/e2e/udp_replay` — precise UDP timing sender
+
+Key behaviors and correctness guards:
+
+- FPS configuration:
+  - PAL: FPSType=Common, `FPSCommon="50 PAL"`, `FPSInt=30`, `FPSNum=30` (label is critical)
+  - NTSC: `FPSCommon="60"`
+- CFR enforcement during compression: final MP4 is normalized to constant frame rate (50/60) to avoid 30 fps artifacts from VFR containers.
+- Validation artifacts:
+  - `validation_results.json` — statuses for UDP reception, frame processing, recording, duration/integrity, and `av_sync_details`
+  - Recording file (mkv/mp4) — linked from the generated `README.md`
+  - CSVs: `network.csv`, `obs.csv` when recorded
+- A/V sync analysis (Pop synchronization):
+  - Detects video and audio pops, pairs closest matches, and assigns a traffic light (green/yellow/red)
+  - Summary includes sync accuracy %, average and max offset, and a channel alternation verdict
+  - All timings displayed with 0.1 ms precision
+
+Output locations:
+
+- Human-friendly report: `tests/e2e/test_output/README.md`
+- Machine-readable: `tests/e2e/test_output/validation_results.json`
+- Artifacts: recording file(s), optional `network.csv` and `obs.csv`
+
+Running locally (Linux):
+
+```bash
+./local-build.sh linux --e2e --install
+```
+
+More details and CI usage in [`doc/e2e.md`](e2e.md).
+
 ## Build Configurations
 
 **Debug** - Full debug symbols, no optimization

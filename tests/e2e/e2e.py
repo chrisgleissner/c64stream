@@ -406,8 +406,22 @@ class E2ETest:
         basic_ini = obs_config_dir / 'basic' / 'profiles' / 'C64StreamTest' / 'basic.ini'
         if basic_ini.exists():
             content = basic_ini.read_text()
-            for var, value in variables.items():
-                content = content.replace(var, value)
+            # First, handle FPSCommon specifically: some OBS installs expect a labeled entry like "50 PAL"
+            # We only change the FPSCommon line; other numeric fields (FPSInt/FPSNum) remain numeric.
+            if self.format == 'PAL':
+                content = content.replace('FPSCommon=$FPS', 'FPSCommon=50 PAL')
+                # For PAL, also set integer/fractional placeholders explicitly to 30 as requested
+                content = content.replace('FPSInt=$FPS', 'FPSInt=30')
+                content = content.replace('FPSNum=$FPS', 'FPSNum=30')
+            else:
+                # NTSC stays a plain numeric common value
+                content = content.replace('FPSCommon=$FPS', 'FPSCommon=60')
+
+            # Replace remaining placeholders with actual values (numeric FPS used for FPSInt/FPSNum etc.)
+            for key, value in variables.items():
+                # We already handled the FPSCommon line above; remaining $FPS occurrences should be numeric
+                content = content.replace(key, value)
+
             basic_ini.write_text(content)
             self.log(f"Updated configuration variables in {basic_ini}")
 
@@ -1999,6 +2013,11 @@ class E2ETest:
                 diffs = [d['difference_ms'] for d in sync_results['sync_details'] if d.get('closest_video_pop_ms') is not None]
                 avg_diff = (sum(diffs) / len(diffs)) if diffs else 0.0
                 max_diff = max(diffs) if diffs else 0.0
+                # Persist full sync analysis to validation results for report generation
+                try:
+                    validation_results['av_sync_details'] = sync_results
+                except Exception:
+                    pass
                 if sync_results['is_perfectly_synced']:
                     print(f"✅ A/V Sync: Perfect synchronization ({sync_results['sync_accuracy_percent']:.1f}%) — avg offset {avg_diff:.1f}ms, max {max_diff:.1f}ms")
                     validation_results['av_sync'] = {'status': 'pass', 'details': f"{sync_results['perfect_sync_count']}/{sync_results['total_analyzed']} analyzed pops synced"}

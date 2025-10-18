@@ -21,10 +21,19 @@ if [[ "$OUTPUT" == "$INPUT" ]]; then
   tmp_out="${OUTPUT}.tmp"
 fi
 
+# Detect input FPS via ffprobe (fallback to 50)
+in_fps=$(ffprobe -v error -select_streams v:0 -show_entries stream=r_frame_rate -of default=nokey=1:noprint_wrappers=1 "$INPUT" | awk -F'/' '{ if ($2>0) printf "%.6f", $1/$2; else print $1 }' || true)
+if [[ -z "$in_fps" ]]; then in_fps=50; fi
+# Snap to nearest common rate (50 or 60) to preserve cadence
+target_fps=50
+awk_cmp=$(awk -v f="$in_fps" 'BEGIN{print (f>55)?"60":"50"}')
+if [[ "$awk_cmp" == "60" ]]; then target_fps=60; fi
+
 ffmpeg -y -i "$INPUT" \
   -c:v libx265 \
   -preset slow \
   -x265-params crf=24:qcomp=0.7:psy-rd=1.0:aq-strength=1.0:me=2:subme=3 \
+  -r "$target_fps" -vsync cfr \
   -c:a aac -b:a 128k \
   -movflags +faststart \
   "$tmp_out"

@@ -702,6 +702,115 @@ EOF
         echo "- OBS CSV: [obs.csv](obs.csv)" >> "${report_file}"
     fi
 
+    # Add Pop synchronization section if validation results with details are available
+    local validation_file="${OUTPUT_DIR}/validation_results.json"
+    if [[ -f "${validation_file}" ]] && command -v jq >/dev/null 2>&1; then
+        # Extract the av_sync_details block if present
+        local has_details
+        has_details=$(jq -r 'has("av_sync_details")' "${validation_file}" 2>/dev/null || echo "false")
+        if [[ "${has_details}" == "true" ]]; then
+            echo >> "${report_file}"
+            echo "### Pop synchronization" >> "${report_file}"
+            echo >> "${report_file}"
+
+            # Overall verdict line similar to console output
+            local sync_accuracy is_perfect total_analyzed perfect_count avg_diff max_diff avg_diff_fmt max_diff_fmt
+            sync_accuracy=$(jq -r '.av_sync_details.sync_accuracy_percent // 0' "${validation_file}")
+            is_perfect=$(jq -r '.av_sync_details.is_perfectly_synced // false' "${validation_file}")
+            total_analyzed=$(jq -r '.av_sync_details.total_analyzed // 0' "${validation_file}")
+            perfect_count=$(jq -r '.av_sync_details.perfect_sync_count // 0' "${validation_file}")
+            # Compute avg/max over diffs when available
+            avg_diff=$(jq -r '[.av_sync_details.sync_details[] | select(has("closest_video_pop_ms")) | .difference_ms] | if length>0 then (add/length) else 0 end' "${validation_file}" 2>/dev/null || echo "0")
+            max_diff=$(jq -r '[.av_sync_details.sync_details[] | select(has("closest_video_pop_ms")) | .difference_ms] | if length>0 then max else 0 end' "${validation_file}" 2>/dev/null || echo "0")
+            avg_diff_fmt=$(printf '%.1f' "${avg_diff}")
+            max_diff_fmt=$(printf '%.1f' "${max_diff}")
+
+            if [[ "${is_perfect}" == "true" ]]; then
+                echo "- ✅ Good synchronization (${sync_accuracy}%): avg offset ${avg_diff_fmt}ms, max ${max_diff_fmt}ms" >> "${report_file}"
+            elif awk -v acc="${sync_accuracy}" 'BEGIN{exit !(acc>=60)}'; then
+                echo "- ✅ Acceptable synchronization (${sync_accuracy}%): avg offset ${avg_diff_fmt}ms, max ${max_diff_fmt}ms" >> "${report_file}"
+            else
+                echo "- ❌ Poor synchronization (${sync_accuracy}%): avg offset ${avg_diff_fmt}ms, max ${max_diff_fmt}ms" >> "${report_file}"
+            fi
+
+            # Detected video pops list
+            local video_pops_raw video_pops_list
+            video_pops_raw=$(jq -r '.av_sync_details.video_pop_times_ms // [] | join(" ")' "${validation_file}")
+            video_pops_list=""
+            if [[ -n "${video_pops_raw}" ]]; then
+                for val in ${video_pops_raw}; do
+                    local val_fmt
+                    printf -v val_fmt '%.1f' "${val}"
+                    if [[ -n "${video_pops_list}" ]]; then
+                        video_pops_list+=", "
+                    fi
+                    video_pops_list+="${val_fmt}"
+                done
+            fi
+            echo "- ⬜ Detected video pop(s): [${video_pops_list}] ms" >> "${report_file}"
+
+            # Per-pop lines with traffic light and channel
+            echo >> "${report_file}"
+            echo "#### Per-pop synchronization" >> "${report_file}"
+            echo >> "${report_file}"
+            # Build arrays
+            local count
+            count=$(jq -r '.av_sync_details.sync_details | length' "${validation_file}")
+            if [[ "${count}" =~ ^[0-9]+$ ]] && [[ ${count} -gt 0 ]]; then
+                for ((i=0; i<count; i++)); do
+                    local status emoji chan a_ms v_ms diff_ms
+                    status=$(jq -r ".av_sync_details.sync_details[$i].traffic // \"\"" "${validation_file}")
+                    case "${status}" in
+                        green) emoji="🟢" ;;
+                        yellow) emoji="🟡" ;;
+                        red) emoji="🔴" ;;
+                        *) emoji="•" ;;
+                    esac
+                    chan=$(jq -r ".av_sync_details.sync_details[$i].channel // \"?\"" "${validation_file}")
+                    a_ms=$(jq -r ".av_sync_details.sync_details[$i].audio_pop_time_ms // \"\"" "${validation_file}")
+                    v_ms=$(jq -r ".av_sync_details.sync_details[$i].closest_video_pop_ms // empty" "${validation_file}")
+                    diff_ms=$(jq -r ".av_sync_details.sync_details[$i].difference_ms // empty" "${validation_file}")
+                    # Format to 0.1 ms (tenth of a millisecond)
+                    a_ms_fmt=$(printf '%.1f' "${a_ms:-0}")
+                    if [[ -n "${v_ms}" ]] && [[ -n "${diff_ms}" ]]; then
+                        echo "- ${emoji} Pop #$((i+1)) [${chan}]: audio=${a_ms_fmt}ms, video=$(printf '%.1f' "${v_ms}")ms, diff=$(printf '%.1f' "${diff_ms}")ms" >> "${report_file}"
+                    else
+                        echo "- ${emoji} Pop #$((i+1)) [${chan}]: audio=${a_ms_fmt}ms, no matching video pop found" >> "${report_file}"
+                    fi
+                done
+            fi
+
+            # Traffic lights summary and channels
+            local traffic marks channels
+            traffic=$(jq -r '.av_sync_details.traffic // [] | map(.)' "${validation_file}")
+            # Compose marks string via jq
+            marks=$(jq -r '[.av_sync_details.traffic[]? | if .=="green" then "🟢" elif .=="yellow" then "🟡" elif .=="red" then "🔴" else "•" end] | join("")' "${validation_file}")
+            channels=$(jq -r '[.av_sync_details.sync_details[]? | if .channel=="L" then "L" elif .channel=="R" then "R" else "B" end] | join("")' "${validation_file}")
+            echo >> "${report_file}"
+            echo "- Channels: ${channels}" >> "${report_file}"
+
+            # Alternation check (ignore B), report verdict
+            local seq_str alternates
+            seq_str=$(jq -r '[.av_sync_details.sync_details[]? | select(.channel=="L" or .channel=="R") | .channel] | join(" ")' "${validation_file}")
+            # Convert space-separated string to bash array
+            IFS=' ' read -r -a seq <<< "${seq_str}"
+            alternates=true
+            if [[ ${#seq[@]} -ge 2 ]]; then
+                for ((i=1; i<${#seq[@]}; i++)); do
+                    if [[ "${seq[$i]}" == "${seq[$((i-1))]}" ]]; then
+                        alternates=false
+                        break
+                    fi
+                done
+            fi
+            if [[ "${alternates}" == true && ${#seq[@]} -ge 1 ]]; then
+                echo "- 🔁 Channel alternation: OK (alternating, starts with ${seq[0]})" >> "${report_file}"
+            else
+                echo "- 🔁 Channel alternation: MISMATCH" >> "${report_file}"
+            fi
+        fi
+    fi
+
     if [[ "${VERBOSE}" == true ]]; then
         echo
         cat "${report_file}"
