@@ -1242,7 +1242,10 @@ class E2ETest:
                 cmd = ['netstat', '-ulnp']
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
                 if result.returncode == 0:
-                    lines = [l for l in result.stdout.split('\n') if any(str(p) in l for p in [self.video_dest_port, self.audio_dest_port])]
+                    # Filter lines for exact port matches to avoid false positives
+                    vpat = f":{self.video_dest_port}"
+                    apat = f":{self.audio_dest_port}"
+                    lines = [l for l in result.stdout.split('\n') if vpat in l or apat in l]
                     self.log("🔎 UDP listeners snapshot:")
                     for l in lines[:20]:
                         self.log(f"    {l}")
@@ -1484,21 +1487,34 @@ class E2ETest:
                                 self.log(f"Stream destination: {dest_str}")
 
                                 # Parse and store the destination for UDP replay
-                                # For E2E testing, force localhost destination regardless of requested IP
+                                # For CI, prefer container's primary IPv4 over loopback to avoid edge cases
                                 if ':' in dest_str:
                                     dest_ip, dest_port_str = dest_str.split(':', 1)
                                     try:
                                         dest_port = int(dest_port_str)
-                                        # Force localhost for E2E testing to avoid network routing issues
+                                        # Select destination IP
                                         force_dest_ip = "127.0.0.1"
+                                        if self.is_ci:
+                                            try:
+                                                import socket as pysock
+                                                tmp = pysock.socket(pysock.AF_INET, pysock.SOCK_DGRAM)
+                                                # This doesn't send traffic but yields the chosen source IP
+                                                tmp.connect(("8.8.8.8", 80))
+                                                primary_ip = tmp.getsockname()[0]
+                                                tmp.close()
+                                                if primary_ip and not primary_ip.startswith("127."):
+                                                    force_dest_ip = primary_ip
+                                                    self.log(f"🌐 CI: Using primary container IP for UDP replay: {force_dest_ip}")
+                                            except Exception as _:
+                                                pass
                                         if stream_id == 0:  # Video
                                             self.video_dest_ip = force_dest_ip
                                             self.video_dest_port = dest_port
-                                            self.log(f"Updated video destination: {force_dest_ip}:{dest_port} (forced localhost)")
+                                            self.log(f"Updated video destination: {force_dest_ip}:{dest_port}")
                                         elif stream_id == 1:  # Audio
                                             self.audio_dest_ip = force_dest_ip
                                             self.audio_dest_port = dest_port
-                                            self.log(f"Updated audio destination: {force_dest_ip}:{dest_port} (forced localhost)")
+                                            self.log(f"Updated audio destination: {force_dest_ip}:{dest_port}")
                                     except ValueError:
                                         self.log(f"Invalid port in destination: {dest_str}")
 
