@@ -112,7 +112,7 @@ void *audio_thread_func(void *data)
         }
     }
 
-    C64_LOG_DEBUG("Audio thread stopped for C64S source '%s'", obs_source_get_name(context->source));
+    C64_LOG_DEBUG("Audio thread stopped for C64 Stream source '%s'", obs_source_get_name(context->source));
     return NULL;
 }
 

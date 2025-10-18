@@ -25,7 +25,18 @@ The plugin connects directly to the Ultimate's network interface, eliminating th
 - **Authentic CRT effects** with configurable presets (scan lines, bloom, tint, pixel geometry)
 - Built-in recording capabilities (BMP frames, AVI video, WAV audio)
 
-## Getting Started 🚀
+## Configuration
+
+The plugin uses a `properties.ini` file to provide default settings for connecting to your C64 Ultimate device. This file is automatically installed with the plugin and contains the standard C64 Ultimate network settings:
+
+- **Hostname**: `c64u` (the default C64 Ultimate hostname)
+- **Control Port**: `64` (the standard C64 Ultimate control port)
+- **DNS Server**: `192.168.1.1` (common router DNS)
+- **Video/Audio Ports**: `11000`/`11001` (C64 Ultimate streaming ports)
+
+These settings work out-of-the-box with most C64 Ultimate setups. You can override any of these settings directly in the OBS source properties if your setup differs.
+
+## Quick Start
 
 ### What You'll Need
 
@@ -444,6 +455,15 @@ If the plugin can't resolve your C64 Ultimate hostname (e.g., `c64u`), try these
 - **Performance drops with BMP saving:** Frame saving impacts performance significantly; disable if not needed
 - **Large disk usage:** AVI recording creates uncompressed files (~50MB/minute); monitor disk space
 - **Recording stops unexpectedly:** Check disk space and folder permissions
+
+## End-to-end tests ✅
+
+This project is continuously validated with automated end-to-end (E2E) tests that simulate a C64 Ultimate, drive OBS, and verify the full pipeline from UDP packets to recorded video/audio.
+
+- What you get: a short, self-contained report with packet stats, recording links, and an A/V “Pop synchronization” summary (timing precision 0.1 ms)
+- Where to see it: each E2E run writes a Markdown report to `tests/e2e/test_output/README.md`
+- How to run locally (Linux): `./local-build.sh linux --e2e-scenarios --install` (produces the report above)
+- Learn more: see the in-depth guide in [`doc/e2e.md`](doc/e2e.md)
 
 ## For Developers 🔧
 

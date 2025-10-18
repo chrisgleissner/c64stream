@@ -9,20 +9,21 @@ on:
       - '*'
 permissions:
   contents: write
+  packages: write
+  actions: write
 jobs:
   check-format:
     name: Check Formatting 🔍
-    if: github.ref_name == 'master' || github.ref_name == 'main'
     uses: ./.github/workflows/check-format.yaml
-    permissions:
-      contents: read
 
   build-project:
     name: Build Project 🧱
     uses: ./.github/workflows/build-project.yaml
+    with:
+      run_e2e: true
+      e2e_format: 'PAL'
+      e2e_frames: '250'
     secrets: inherit
-    permissions:
-      contents: read
 
   create-release:
     name: Create Release 🛫

@@ -12,8 +12,14 @@ on:
           - latest_build  # Latest successful build from main branch
           - latest_release  # Latest GitHub release
           - specific_release  # Specific release tag
+          - branch_build  # Latest successful build from a specific branch
       release_tag:
         description: 'Release tag (only used when source_type is specific_release, e.g., v1.0.0)'
+        required: false
+        default: ''
+        type: string
+      branch:
+        description: 'Branch name (only used when source_type is branch_build)'
         required: false
         default: ''
         type: string
@@ -54,53 +60,80 @@ jobs:
 
           source_type="${{ inputs.source_type }}"
           echo "📦 Source type: ${source_type}"
-          
-          if [[ "${source_type}" == "latest_build" ]]; then
-            # Get latest successful workflow run from main branch
-            echo "📦 Fetching latest build from main branch..."
-            workflow_run=$(curl -s \
+
+          get_latest_build_run() {
+            local branch="$1"
+            # Query latest successful runs for push workflow (which calls build-project.yaml)
+            curl -s \
               -H "Accept: application/vnd.github+json" \
               -H "X-GitHub-Api-Version: 2022-11-28" \
-              "https://api.github.com/repos/chrisgleissner/c64stream/actions/runs?status=success&branch=main&per_page=1" \
-              | jq -r '.workflow_runs[0]')
-            
+              "https://api.github.com/repos/chrisgleissner/c64stream/actions/workflows/push.yaml/runs?status=success&branch=${branch}&per_page=1" \
+              | jq -r '.workflow_runs[0]'
+          }
+
+          if [[ "${source_type}" == "latest_build" ]]; then
+            # Get latest successful build-project workflow run from main branch
+            echo "📦 Fetching latest build from main branch (push.yaml)..."
+            workflow_run=$(get_latest_build_run "main")
+
             run_id=$(echo "$workflow_run" | jq -r '.id')
             commit_sha=$(echo "$workflow_run" | jq -r '.head_sha')
-            
+
             if [[ -z "${run_id}" || "${run_id}" == "null" ]]; then
               echo "❌ Could not find latest successful build"
               exit 1
             fi
-            
+
             echo "📦 Found workflow run: ${run_id} (commit: ${commit_sha:0:9})"
             echo "sourceType=latest_build" >> $GITHUB_OUTPUT
             echo "workflowRunId=${run_id}" >> $GITHUB_OUTPUT
-            
+
           elif [[ "${source_type}" == "latest_release" ]]; then
             # Get latest release info
             release_info=$(curl -s https://api.github.com/repos/chrisgleissner/c64stream/releases/latest)
             release_tag=$(echo "$release_info" | jq -r '.tag_name')
-            
+
             if [[ -z "${release_tag}" || "${release_tag}" == "null" ]]; then
               echo "❌ Could not find latest release"
               exit 1
             fi
-            
+
             echo "📦 Using latest release: ${release_tag}"
             echo "sourceType=release" >> $GITHUB_OUTPUT
             echo "releaseTag=${release_tag}" >> $GITHUB_OUTPUT
-            
+
           elif [[ "${source_type}" == "specific_release" ]]; then
             release_tag="${{ inputs.release_tag }}"
-            
+
             if [[ -z "${release_tag}" ]]; then
               echo "❌ Release tag must be specified for source_type=specific_release"
               exit 1
             fi
-            
+
             echo "📦 Using specified release: ${release_tag}"
             echo "sourceType=release" >> $GITHUB_OUTPUT
             echo "releaseTag=${release_tag}" >> $GITHUB_OUTPUT
+          elif [[ "${source_type}" == "branch_build" ]]; then
+            branch_name="${{ inputs.branch }}"
+            if [[ -z "${branch_name}" ]]; then
+              echo "❌ Branch name must be specified for source_type=branch_build"
+              exit 1
+            fi
+            echo "📦 Fetching latest successful build from branch '${branch_name}' (push.yaml)..."
+            workflow_run=$(get_latest_build_run "${branch_name}")
+
+            run_id=$(echo "$workflow_run" | jq -r '.id')
+            commit_sha=$(echo "$workflow_run" | jq -r '.head_sha')
+
+            if [[ -z "${run_id}" || "${run_id}" == "null" ]]; then
+              echo "❌ Could not find latest successful build for branch '${branch_name}'"
+              exit 1
+            fi
+
+            echo "📦 Found workflow run: ${run_id} (commit: ${commit_sha:0:9})"
+            echo "sourceType=branch_build" >> $GITHUB_OUTPUT
+            echo "workflowRunId=${run_id}" >> $GITHUB_OUTPUT
+            echo "branchName=${branch_name}" >> $GITHUB_OUTPUT
           fi
 
           echo "format=${{ inputs.format || 'PAL' }}" >> $GITHUB_OUTPUT
@@ -132,44 +165,44 @@ jobs:
         run: |
           : Download and Install Plugin 📥
           source_type="${{ steps.setup.outputs.sourceType }}"
-          
-          if [[ "${source_type}" == "latest_build" ]]; then
+
+          if [[ "${source_type}" == "latest_build" || "${source_type}" == "branch_build" ]]; then
             # Download from latest successful build artifact
             run_id="${{ steps.setup.outputs.workflowRunId }}"
             echo "📦 Downloading artifact from workflow run ${run_id}..."
-            
+
             # Get artifact list
             artifacts=$(curl -s \
               -H "Accept: application/vnd.github+json" \
               -H "X-GitHub-Api-Version: 2022-11-28" \
               "https://api.github.com/repos/chrisgleissner/c64stream/actions/runs/${run_id}/artifacts")
-            
-            # Find Ubuntu x86_64 artifact
+
+            # Find Ubuntu x86_64 artifact (exclude dbgsym)
             artifact_id=$(echo "$artifacts" | jq -r '.artifacts[] | select(.name | contains("ubuntu") and contains("x86_64") and (contains("dbgsym") | not)) | .id' | head -1)
-            
+
             if [[ -z "${artifact_id}" || "${artifact_id}" == "null" ]]; then
               echo "❌ Could not find Ubuntu x86_64 artifact"
               echo "Available artifacts:"
               echo "$artifacts" | jq -r '.artifacts[].name'
               exit 1
             fi
-            
+
             echo "📦 Downloading artifact ${artifact_id}..."
-            
+
             # Download using nightly.link (public access to artifacts)
             curl -L -o plugin-artifact.zip \
               "https://nightly.link/chrisgleissner/c64stream/actions/artifacts/${artifact_id}.zip"
-            
+
             echo "📦 Extracting artifact..."
             unzip -q plugin-artifact.zip
-            
+
             echo "📦 Artifact contents:"
             ls -la
-            
+
             # Find .tar.xz or .deb file
             tar_file=$(find . -name "*.tar.xz" | head -1)
             deb_file=$(find . -name "*.deb" -not -name "*-dbgsym.ddeb" | head -1)
-            
+
             if [[ -n "${deb_file}" ]]; then
               echo "📦 Installing .deb package: ${deb_file}"
               sudo dpkg -i "${deb_file}" || sudo apt-get install -f -y
@@ -177,14 +210,14 @@ jobs:
             elif [[ -n "${tar_file}" ]]; then
               echo "📦 Extracting ${tar_file}..."
               tar -xf "${tar_file}"
-              
+
               echo "📦 Extracted contents:"
               ls -laR
-              
+
               # Install to user plugin directory
               mkdir -p ~/.config/obs-studio/plugins/c64stream/bin/64bit
               mkdir -p ~/.config/obs-studio/plugins/c64stream/data
-              
+
               # Find and copy plugin binary
               plugin_binary=""
               for path in \
@@ -196,7 +229,7 @@ jobs:
                   break
                 fi
               done
-              
+
               if [[ -n "${plugin_binary}" ]]; then
                 cp "${plugin_binary}" ~/.config/obs-studio/plugins/c64stream/bin/64bit/
                 echo "✅ Plugin binary installed from ${plugin_binary}"
@@ -205,7 +238,7 @@ jobs:
                 find . -name "*.so" -type f
                 exit 1
               fi
-              
+
               # Find and copy plugin data
               plugin_data=""
               for path in \
@@ -216,7 +249,7 @@ jobs:
                   break
                 fi
               done
-              
+
               if [[ -n "${plugin_data}" ]]; then
                 cp -r "${plugin_data}"/* ~/.config/obs-studio/plugins/c64stream/data/
                 echo "✅ Plugin data installed from ${plugin_data}"
@@ -228,12 +261,12 @@ jobs:
               find . -type f
               exit 1
             fi
-            
+
           elif [[ "${source_type}" == "release" ]]; then
             # Download from GitHub release
             release_tag="${{ steps.setup.outputs.releaseTag }}"
             echo "📦 Downloading release ${release_tag}..."
-            
+
             # Get release info
             release_info=$(curl -s "https://api.github.com/repos/chrisgleissner/c64stream/releases/tags/${release_tag}")
 
@@ -263,7 +296,7 @@ jobs:
               # Manual installation for tar.xz
               mkdir -p ~/.config/obs-studio/plugins/c64stream/bin/64bit
               mkdir -p ~/.config/obs-studio/plugins/c64stream/data
-              
+
               if [[ -f lib/x86_64-linux-gnu/obs-plugins/c64stream.so ]]; then
                 cp lib/x86_64-linux-gnu/obs-plugins/c64stream.so ~/.config/obs-studio/plugins/c64stream/bin/64bit/
                 echo "✅ Plugin binary installed"
@@ -274,7 +307,7 @@ jobs:
                 echo "❌ Plugin binary not found"
                 exit 1
               fi
-              
+
               if [[ -d share/obs/obs-plugins/c64stream ]]; then
                 cp -r share/obs/obs-plugins/c64stream/* ~/.config/obs-studio/plugins/c64stream/data/
                 echo "✅ Plugin data installed"
@@ -283,21 +316,55 @@ jobs:
                 echo "✅ Plugin data installed"
               fi
             fi
-          fi      - name: Verify Plugin Installation 🔍
+          fi
 
-      - name: Verify Plugin Installation
+      - name: Verify Plugin Installation 🔍
         run: |
-          if [[ -f /usr/lib/obs-plugins/c64stream.so ]]; then
-            echo "✅ Plugin binary found at /usr/lib/obs-plugins/c64stream.so"
+          user_bin="$HOME/.config/obs-studio/plugins/c64stream/bin/64bit/c64stream.so"
+          sys_bin="/usr/lib/obs-plugins/c64stream.so"
+          sys_bin_arch="/usr/lib/x86_64-linux-gnu/obs-plugins/c64stream.so"
+          if [[ -f "$sys_bin" ]]; then
+            echo "✅ Plugin binary found at $sys_bin"
+          elif [[ -f "$sys_bin_arch" ]]; then
+            echo "✅ Plugin binary found at $sys_bin_arch"
+          elif [[ -f "$user_bin" ]]; then
+            echo "✅ Plugin binary found at $user_bin"
           else
-            echo "❌ Plugin binary not found"
+            echo "❌ Plugin binary not found (checked $sys_bin, $sys_bin_arch, and $user_bin)"
             exit 1
           fi
 
           if [[ -d /usr/share/obs/obs-plugins/c64stream ]]; then
             echo "✅ Plugin data found at /usr/share/obs/obs-plugins/c64stream"
+          elif [[ -d "$HOME/.config/obs-studio/plugins/c64stream/data" ]]; then
+            echo "✅ Plugin data found at ~/.config/obs-studio/plugins/c64stream/data"
           else
-            echo "⚠️ Plugin data not found"
+            echo "⚠️ Plugin data directory not found"
+          fi
+
+      - name: Apply E2E Properties to System Plugin Data 🔧
+        run: |
+          : Apply E2E Properties to System Plugin Data 🔧
+          # This step is critical for CI - it ensures the system-wide plugin installation
+          # uses E2E test properties instead of default properties
+
+          if [[ -d "/usr/share/obs/obs-plugins/c64stream" ]]; then
+            echo "📋 Applying E2E properties to system plugin data directory..."
+
+            # Copy E2E properties to system directory with sudo privileges
+            if [[ -f "tests/e2e/properties_e2e_ci.ini" ]]; then
+              sudo cp "tests/e2e/properties_e2e_ci.ini" "/usr/share/obs/obs-plugins/c64stream/properties.ini"
+              echo "✅ Copied E2E CI properties to system location"
+
+              # Show what we copied for debugging
+              echo "� E2E CI Properties content:"
+              cat "/usr/share/obs/obs-plugins/c64stream/properties.ini"
+              echo "="
+
+            else
+              echo "❌ E2E CI properties file not found: tests/e2e/properties_e2e_ci.ini"
+          else
+            echo "ℹ️ System plugin data directory not found - plugin may be installed to user directory only"
           fi
 
       - name: Prepare E2E Test Environment 🔧
@@ -367,7 +434,7 @@ jobs:
           : Test Summary 📊
           echo "## Manual E2E Test Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          
+
           source_type="${{ steps.setup.outputs.sourceType }}"
           if [[ "${source_type}" == "latest_build" ]]; then
             echo "- Source: Latest build from main branch" >> $GITHUB_STEP_SUMMARY
@@ -375,7 +442,7 @@ jobs:
           elif [[ "${source_type}" == "release" ]]; then
             echo "- Source: Release ${{ steps.setup.outputs.releaseTag }}" >> $GITHUB_STEP_SUMMARY
           fi
-          
+
           echo "- Format: ${{ steps.setup.outputs.format }}" >> $GITHUB_STEP_SUMMARY
           echo "- Frames: ${{ steps.setup.outputs.frames }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY

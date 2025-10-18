@@ -51,8 +51,15 @@ runs:
       run: |
         : Install Dependencies 🛍️
         echo ::group::Install Dependencies
-        sudo apt-get update -qq
-        sudo apt-get install -y zsh
+
+        # Check if we're in a container with dependencies already installed
+        if command -v zsh >/dev/null 2>&1 && command -v obs >/dev/null 2>&1; then
+          echo "Dependencies already available (likely in container)"
+        else
+          echo "Installing dependencies..."
+          sudo apt-get update -qq
+          sudo apt-get install -y zsh
+        fi
         echo ::endgroup::
 
     - name: Run Ubuntu Build
@@ -68,6 +75,12 @@ runs:
           --target ubuntu-${{ inputs.target }}
           --config ${{ inputs.config }}
         )
+
+        # Skip dependency installation if we're in a container with pre-installed deps
+        if command -v obs >/dev/null 2>&1 && [[ -f "/usr/include/obs/obs.h" ]]; then
+          build_args+=(--skip-deps)
+          echo "Detected container environment - skipping dependency installation"
+        fi
         if (( ${+RUNNER_DEBUG} )) build_args+=(--debug)
 
         .github/scripts/build-ubuntu ${build_args}
