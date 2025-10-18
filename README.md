@@ -276,23 +276,15 @@ The following recordings were produced by the latest E2E test runs for PAL and N
 
 #### PAL
 
-<video controls width="640" muted playsinline>
-  <source src="./tests/e2e/results/pal/c64_recording.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
-
-[Sample frame](tests/e2e/results/pal/c64_recording_still.png)
+- [Video](tests/e2e/results/pal/c64_recording.mp4)
+- [Sample frame](tests/e2e/results/pal/c64_recording_still.png)
 
 ---
 
 #### NTSC
 
-<video controls width="640" muted playsinline>
-  <source src="./tests/e2e/results/ntsc/c64_recording.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
-
-[Sample frame](tests/e2e/results/ntsc/c64_recording_still.png)
+- [Video](tests/e2e/results/ntsc/c64_recording.mp4)
+- [Sample frame](tests/e2e/results/ntsc/c64_recording_still.png)
 
 
 ## Network Details
