@@ -738,8 +738,9 @@ jobs:
           echo "✅ X11 display ready with advanced configuration"
 
       - name: Run E2E Tests 🧪
+        continue-on-error: true
         run: |
-          : "Run E2E Tests 🧪 (Non-blocking - failures won't fail the build)"
+          : "Run E2E Tests 🧪"
 
           cd tests/e2e
 

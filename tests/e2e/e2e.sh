@@ -475,45 +475,6 @@ build_project() {
     cd "${PROJECT_ROOT}"
 
     # Configure build
-    # Render Video section after A/V Sync for better flow
-    local rel_name=""
-    if [[ -n "${recording_found}" && -f "${recording_found}" ]]; then
-        echo >> "${report_file}"
-        echo "### Video" >> "${report_file}"
-        echo >> "${report_file}"
-
-        rel_name=$(basename "${recording_found}")
-        if [[ -f "${OUTPUT_DIR}/${rel_name}" ]]; then
-            echo "- Download: [${rel_name}](${rel_name})" >> "${report_file}"
-        else
-            echo "- Download: [${rel_name}](${recording_found})" >> "${report_file}"
-        fi
-
-        if command -v ffprobe >/dev/null 2>&1; then
-            video_duration_sec=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${recording_found}" 2>/dev/null | head -1 || true)
-            if [[ -n "${video_duration_sec}" ]]; then
-                video_duration_fmt=$(format_to_one_decimal "${video_duration_sec}")
-                echo "- Duration: ${video_duration_fmt} s" >> "${report_file}"
-            fi
-        fi
-
-        if [[ -z "${video_duration_fmt}" ]]; then
-            if [[ "${FORMAT}" == "PAL" ]]; then
-                video_duration_fmt=$(awk -v frames="${FRAMES}" 'BEGIN{printf "%.1f", frames/50.0}')
-            else
-                video_duration_fmt=$(awk -v frames="${FRAMES}" 'BEGIN{printf "%.1f", frames/60.0}')
-            fi
-            echo "- Duration: ${video_duration_fmt} s" >> "${report_file}"
-        fi
-
-        echo >> "${report_file}"
-        echo "Recorded by OBS." >> "${report_file}"
-    elif [[ "${OBS_ENABLED}" == true ]]; then
-        echo >> "${report_file}"
-        echo "### Video" >> "${report_file}"
-        echo >> "${report_file}"
-        echo "- ❌ Video: Recording not found" >> "${report_file}"
-    fi
 
     if [[ "${VERBOSE}" == true ]]; then
         cmake --preset ubuntu-x86_64
@@ -767,7 +728,7 @@ EOF
         echo "- ⚠️ OBS Integration: Disabled (use --obs to enable)" >> "${report_file}"
     fi
 
-    # Video section is rendered after A/V Sync
+    # Video section is rendered after A/V Sync (just before Sample Frame)
 
     # Add Pop synchronization section if validation results with details are available
     local validation_file="${OUTPUT_DIR}/validation_results.json"
@@ -876,7 +837,7 @@ EOF
 
     # Append sample frame details if available
     local sample_frame_path="${OUTPUT_DIR}/c64_recording_still.png"
-    local recording_mp4="${recording_found}"
+    local recording_mp4="${recording_found:-}"
     if [[ -z "${recording_mp4}" || ! -f "${recording_mp4}" ]]; then
         if compgen -G "${OUTPUT_DIR}/c64_recording.*" > /dev/null; then
             recording_mp4=$(ls -t ${OUTPUT_DIR}/c64_recording.* 2>/dev/null | head -1)
@@ -907,6 +868,44 @@ EOF
         if [[ ! -f "${sample_frame_path}" && -n "${sample_frame_seconds}" && -x "${TEST_DIR}/extract.frame" ]]; then
             "${TEST_DIR}/extract.frame" --input "${recording_mp4}" --output "${sample_frame_path}" --time "${sample_frame_seconds}" || true
         fi
+    fi
+
+    # Emit a Video block with download link before the Sample Frame
+    if [[ -n "${recording_mp4}" && -f "${recording_mp4}" ]]; then
+        echo >> "${report_file}"
+        echo "### Video" >> "${report_file}"
+        echo >> "${report_file}"
+        rel_name=$(basename "${recording_mp4}")
+        if [[ -f "${OUTPUT_DIR}/${rel_name}" ]]; then
+            echo "- Download: [${rel_name}](${rel_name})" >> "${report_file}"
+        else
+            echo "- Download: [${rel_name}](${recording_mp4})" >> "${report_file}"
+        fi
+
+        if command -v ffprobe >/dev/null 2>&1; then
+            video_duration_sec=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${recording_mp4}" 2>/dev/null | head -1 || true)
+            if [[ -n "${video_duration_sec}" ]]; then
+                video_duration_fmt=$(format_to_one_decimal "${video_duration_sec}")
+                echo "- Duration: ${video_duration_fmt} s" >> "${report_file}"
+            fi
+        fi
+
+        if [[ -z "${video_duration_fmt}" ]]; then
+            if [[ "${FORMAT}" == "PAL" ]]; then
+                video_duration_fmt=$(awk -v frames="${FRAMES}" 'BEGIN{printf "%.1f", frames/50.0}')
+            else
+                video_duration_fmt=$(awk -v frames="${FRAMES}" 'BEGIN{printf "%.1f", frames/60.0}')
+            fi
+            echo "- Duration: ${video_duration_fmt} s" >> "${report_file}"
+        fi
+
+        echo >> "${report_file}"
+        echo "Recorded by OBS." >> "${report_file}"
+    elif [[ "${OBS_ENABLED}" == true ]]; then
+        echo >> "${report_file}"
+        echo "### Video" >> "${report_file}"
+        echo >> "${report_file}"
+        echo "- ❌ Video: Recording not found" >> "${report_file}"
     fi
 
     if [[ -z "${sample_frame_seconds}" && -n "${sample_frame_index}" ]]; then

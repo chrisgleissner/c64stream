@@ -281,7 +281,7 @@ The following recordings were produced by the latest E2E test runs for PAL and N
   Your browser does not support the video tag.
 </video>
 
-[Sample frame](tests/e2e/results/pal/recording-still.png)
+[Sample frame](tests/e2e/results/pal/c64_recording_still.png)
 
 ---
 
@@ -292,7 +292,7 @@ The following recordings were produced by the latest E2E test runs for PAL and N
   Your browser does not support the video tag.
 </video>
 
-[Sample frame](tests/e2e/results/ntsc/recording-still.png)
+[Sample frame](tests/e2e/results/ntsc/c64_recording_still.png)
 
 
 ## Network Details
