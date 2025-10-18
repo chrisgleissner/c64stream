@@ -181,14 +181,13 @@ install_dependencies() {
                     sudo apt-get install -y \
                         obs-studio \
                         python3-numpy \
-                        python3-pil \
                         python3-requests \
                         python3-websocket \
                         xvfb \
                         x11-utils
                     log_info "✅ E2E testing dependencies installed successfully"
                     log_info "   - OBS Studio (video streaming software)"
-                    log_info "   - Python libraries (numpy, PIL, requests, websocket)"
+                    log_info "   - Python libraries (numpy; requests/websocket optional)"
                     log_info "   - Xvfb (virtual display for headless testing)"
                 fi
 
@@ -694,7 +693,8 @@ install_plugin() {
     # Show the installed structure
     if command -v find >/dev/null 2>&1; then
         log_info "Installed files:"
-        find "$install_dir" -type f | head -20
+    # Limit output but avoid SIGPIPE causing failure under pipefail
+    find "$install_dir" -type f | head -20 || true
     fi
 }
 
@@ -814,7 +814,8 @@ install_plugin_for_e2e() {
     # Show the installed structure
     if command -v find >/dev/null 2>&1; then
         log_info "Installed files:"
-        find "$install_dir" -type f | head -20
+    # Limit output but avoid SIGPIPE causing failure under pipefail
+    find "$install_dir" -type f | head -20 || true
     fi
 }
 
@@ -879,13 +880,9 @@ run_e2e_tests() {
         missing_deps+=("xvfb")
     fi
 
-    # Check for Python packages
+    # Check for Python packages (keep minimal)
     if ! python3 -c "import numpy" >/dev/null 2>&1; then
         missing_deps+=("python3-numpy")
-    fi
-
-    if ! python3 -c "import PIL" >/dev/null 2>&1; then
-        missing_deps+=("python3-pil")
     fi
 
     if [[ ${#missing_deps[@]} -gt 0 ]]; then
@@ -907,11 +904,11 @@ run_e2e_tests() {
         return 1
     fi
 
-    # Set E2E test parameters
+    # Set E2E test parameters (default to NTSC 60Hz for consistent 1-frame pop visibility)
     local e2e_args=(
-        "--format" "PAL"
-        "--frames" "250"
-        "--skip-build"  # We already built and installed
+        "--format" "NTSC"
+        "--duration" "5"   # ~5 seconds at 60 FPS => ~300 frames
+        "--skip-build"      # We already built and installed
         "--verbose"
     )
 
@@ -920,8 +917,8 @@ run_e2e_tests() {
     fi
 
     # Check if E2E script exists and is executable
-    if [[ ! -x "./e2e.sh" ]]; then
-        log_error "E2E test script not found or not executable: tests/e2e/e2e.sh"
+    if [[ ! -f "./e2e.sh" ]]; then
+        log_error "E2E test script not found: tests/e2e/e2e.sh"
         cd "$PROJECT_ROOT"
         return 1
     fi
@@ -929,7 +926,8 @@ run_e2e_tests() {
     log_info "Running E2E test with args: ${e2e_args[*]}"
 
     # Run E2E test
-    if ./e2e.sh "${e2e_args[@]}"; then
+    # Run via bash to avoid executable-bit issues
+    if bash ./e2e.sh "${e2e_args[@]}"; then
         log_success "E2E tests completed successfully!"
 
         # Show test results if available
@@ -1059,9 +1057,7 @@ main() {
         if ! python3 -c "import numpy" >/dev/null 2>&1; then
             missing_e2e_deps+=("python3-numpy")
         fi
-        if ! python3 -c "import PIL" >/dev/null 2>&1; then
-            missing_e2e_deps+=("python3-pil")
-        fi
+        # Keep Python deps minimal; only numpy is required
 
         if [[ ${#missing_e2e_deps[@]} -gt 0 ]]; then
             log_info "E2E testing requested but missing dependencies: ${missing_e2e_deps[*]}"

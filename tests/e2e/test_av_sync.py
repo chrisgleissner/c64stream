@@ -628,17 +628,17 @@ def verify_av_sync(video_path, tolerance_ms=25):
     # Calculate sync accuracy based only on analyzed beeps
     sync_accuracy = (perfect_sync_count / total_analyzed * 100) if total_analyzed > 0 else 0
 
-    # Additional schedule checks: no event within last 500ms of recording
+    # Additional schedule checks: no event within last 1000ms of recording
     try:
         duration_ms = float(video_info['format']['duration']) * 1000.0
     except Exception:
         duration_ms = None
     last_event_within_limit = True
     if duration_ms and grouped_video_pop_starts:
-        last_event_within_limit = grouped_video_pop_starts[-1] <= (duration_ms - 500.0)
+        last_event_within_limit = grouped_video_pop_starts[-1] <= (duration_ms - 1000.0)
 
     return {
-    'total_audio_pops': len(audio_pops),
+        'total_audio_pops': len(audio_pops),
         'total_analyzed': total_analyzed,
         'total_video_pops': len(grouped_video_pop_starts),
         'perfect_sync_count': perfect_sync_count,

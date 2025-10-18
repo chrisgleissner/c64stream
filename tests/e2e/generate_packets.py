@@ -86,7 +86,7 @@ def is_sync_marker_active(frame_num, format_name):
     time_in_current_period = time_since_offset % sync_period_ms
     return time_in_current_period < sync_duration_ms
 
-def generate_video_packet(frame_num, packet_num, width, height, packets_per_frame, format_name):
+def generate_video_packet(frame_num, packet_num, width, height, packets_per_frame, format_name, total_test_duration_ms):
     """
     Generate a single video packet following C64 Ultimate spec.
 
@@ -126,6 +126,11 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
 
     # Check if A/V sync pop should be active
     sync_active = is_sync_marker_active(frame_num, format_name)
+    # Enforce schedule constraint: no pop in the last 1000ms of recording
+    frame_rate, frame_duration_ms, *_ = get_sync_timing_info(format_name)
+    frame_start_ms = frame_num * frame_duration_ms
+    if frame_start_ms >= (total_test_duration_ms - 1000.0):
+        sync_active = False
 
     # Define permanent black pop area: 80x80 at lower-right corner of C64 frame
     area_size = 80
@@ -252,6 +257,9 @@ def generate_audio_packet(audio_packet_num, sample_rate, total_test_duration_ms)
     # Check if we're in a sync pop period using same calculation as video
     time_since_offset = time_in_test_ms - sync_offset_ms
     is_sync_pop = time_since_offset >= 0 and (time_since_offset % sync_period_ms) < sync_duration_ms
+    # Enforce schedule constraint: no pop in the last 1000ms of recording
+    if time_in_test_ms >= (total_test_duration_ms - 1000.0):
+        is_sync_pop = False
     # Determine which pop index (0-based) we're in to alternate speakers L/R starting with LEFT
     pop_index = int(time_since_offset // sync_period_ms) if time_since_offset >= 0 else -1
 
@@ -316,16 +324,20 @@ def generate_packets(output_dir, num_frames=30, formats=None):
         height = fmt['height']
         ppf = fmt['packets_per_frame']
 
+        # Compute total test duration upfront (needed to suppress last-second pops)
+        frame_duration_ms = 1000.0 / fmt['frame_rate']
+        total_test_duration_ms = num_frames * frame_duration_ms
+
         # Generate video packets
         for frame_num in range(num_frames):
             for packet_num in range(ppf):
-                packet_data = generate_video_packet(frame_num, packet_num, width, height, ppf, format_name)
+                packet_data = generate_video_packet(
+                    frame_num, packet_num, width, height, ppf, format_name, total_test_duration_ms
+                )
                 packet_file = video_dir / f"video_{frame_num:04d}_{packet_num:04d}.bin"
                 packet_file.write_bytes(packet_data)
 
         # Generate audio packets for total test duration
-        frame_duration_ms = 1000.0 / fmt['frame_rate']
-        total_test_duration_ms = num_frames * frame_duration_ms
         audio_packet_duration_ms = (AUDIO_SAMPLES_PER_PACKET / fmt['audio_sample_rate']) * 1000.0
         total_audio_packets = int(total_test_duration_ms / audio_packet_duration_ms)
 

@@ -365,7 +365,8 @@ class E2ETest:
         """Replace variables in OBS configuration files with actual values."""
         # Define variable replacements
         variables = {
-            '$OUTPUT_DIR': str(self.output_dir)
+            '$OUTPUT_DIR': str(self.output_dir),
+            '$FPS': '50' if self.format == 'PAL' else '60'
         }
 
         # Process basic.ini profile file
@@ -376,6 +377,8 @@ class E2ETest:
                 content = content.replace(var, value)
             basic_ini.write_text(content)
             self.log(f"Updated configuration variables in {basic_ini}")
+
+        # No further FPS regex edits needed; basic.ini uses $FPS for all FPS keys
 
         self.log("✅ Configuration variables replaced")
 
@@ -1999,18 +2002,17 @@ class E2ETest:
                 except Exception:
                     pass
 
-                # Schedule constraint: no A/V event allowed in the last 500ms of the recording
+                # Schedule constraint: no A/V event allowed in the last 1000ms of the recording
                 if 'last_event_within_limit' in sync_results and not sync_results['last_event_within_limit']:
-                    validation_warnings.append("Video event detected within the last 500ms of the recording (violates schedule constraint)")
-                # Run additional visual checks: frame-sequence box only (Pop Area disabled)
-                try:
-                    from test_av_sync import analyze_visual_elements
-                    visuals_results = analyze_visual_elements(recording_file)
-                    fsb = visuals_results['frame_sequence_box']
-                    # Permanently disabled for now (TODO: re-enable when stable)
-                    print(f"⚪ Frame Sequence Box: {fsb['details']}")
-                except Exception as ve:
-                    print(f"⚠️  Visual checks skipped due to error: {ve}")
+                    validation_warnings.append("Video event detected within the last 1000ms of the recording (violates schedule constraint)")
+                # Visual checks are disabled: do not perform any analysis, only log as skipped.
+                visuals_results = {
+                    'frame_sequence_box': {
+                        'status': 'skipped',
+                        'details': 'Skipped (disabled)'
+                    }
+                }
+                print("⚪ Frame Sequence Box: Skipped (disabled)")
 
             except Exception as e:
                 print(f"❌ A/V Sync: Analysis failed - {e}")
@@ -2063,15 +2065,16 @@ class E2ETest:
             if av_line:
                 print(f"  A/V Sync        {icon(av_line.get('status'))}  {av_line.get('details','')}")
             # Include visual checks summary if present
-            try:
-                if visuals_results is None:
-                    from test_av_sync import analyze_visual_elements
-                    visuals_results = analyze_visual_elements(recording_file)
-                fsb = visuals_results['frame_sequence_box']
-                # Permanently disabled for now
-                print(f"  Frame Box Seq   ⚪  {fsb['details']}")
-            except Exception:
-                pass
+            # Visual checks disabled: ensure placeholder is printed without analysis
+            if visuals_results is None:
+                visuals_results = {
+                    'frame_sequence_box': {
+                        'status': 'skipped',
+                        'details': 'Skipped (disabled)'
+                    }
+                }
+            fsb = visuals_results['frame_sequence_box']
+            print(f"  Frame Box Seq   ⚪  {fsb['details']}")
         except Exception:
             pass
 

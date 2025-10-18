@@ -315,10 +315,10 @@ check_dependencies() {
         fi
     done
 
-    # Python packages (numpy and PIL required by generate_packets.py)
-    for package in numpy PIL; do
+    # Python packages (only numpy required by generate_packets.py)
+    for package in numpy; do
         if ! python3 -c "import ${package}" >/dev/null 2>&1; then
-            # Prefer distro packages for these heavy deps
+            # Prefer distro package when not using a virtual environment
             missing_deps+=("python3-${package,,}")
         fi
     done
@@ -326,11 +326,9 @@ check_dependencies() {
     # Check for optional Python runtime deps (requests, websocket) - used for OBS WebSocket API
     # These are optional - E2E tests work without them by gracefully degrading functionality
     if ! python3 -c "import requests" >/dev/null 2>&1; then
-        missing_deps+=("python3-requests")
         log_info "Optional: python3-requests not found (OBS WebSocket API will be disabled)"
     fi
     if ! python3 -c "import websocket" >/dev/null 2>&1; then
-        missing_deps+=("python3-websocket")
         log_info "Optional: python3-websocket not found (OBS WebSocket API will be disabled)"
     fi
 
@@ -397,7 +395,7 @@ check_dependencies() {
             fi
         done
 
-        for package in numpy PIL; do
+        for package in numpy; do
             if ! python3 -c "import ${package}" 2>/dev/null; then
                 still_missing+=("python3-${package,,}")
             fi
