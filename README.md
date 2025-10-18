@@ -47,7 +47,7 @@ These settings work out-of-the-box with most C64 Ultimate setups. You can overri
 
 ### Easy Installation 📦
 
-Grab the right package for your system from the [Releases page](https://github.com/chrisgleissner/c64u-obs/releases):
+Grab the right package for your system from the [Releases page](../../releases):
 
 **Windows:**
 
