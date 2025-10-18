@@ -36,6 +36,10 @@ Overview:
 - Channels: LRL
 - 🔁 Channel alternation: OK (alternating, starts with L)
 
+### Video
+
+- Download: [c64_recording.mp4](./c64_recording.mp4)
+
 ### Sample Frame
 
 ![Sample Frame](./c64_recording_still.png)

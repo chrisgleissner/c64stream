@@ -47,7 +47,7 @@ These settings work out-of-the-box with most C64 Ultimate setups. You can overri
 
 ### Easy Installation 📦
 
-Grab the right package for your system from the [Releases page](../../releases):
+Grab the right package for your system from the [Releases page](https://github.com/chrisgleissner/c64u-obs/releases):
 
 **Windows:**
 
@@ -281,7 +281,7 @@ The following recordings were produced by the latest E2E test runs for PAL and N
   Your browser does not support the video tag.
 </video>
 
-[Sample frame](tests/e2e/results/pal/recording-still.png)
+[Sample frame](tests/e2e/results/pal/c64_recording_still.png)
 
 ---
 
@@ -292,7 +292,7 @@ The following recordings were produced by the latest E2E test runs for PAL and N
   Your browser does not support the video tag.
 </video>
 
-[Sample frame](tests/e2e/results/ntsc/recording-still.png)
+[Sample frame](tests/e2e/results/ntsc/c64_recording_still.png)
 
 
 ## Network Details
