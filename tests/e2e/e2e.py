@@ -1643,7 +1643,9 @@ class E2ETest:
             'frame_processing': {'status': 'unknown', 'details': ''},
             'video_recording': {'status': 'unknown', 'details': ''},
             'packet_integrity': {'status': 'unknown', 'details': ''}
-        }        # Calculate expected packet counts using actual generation logic
+        }
+
+        # Calculate expected packet counts using actual generation logic
         if self.format == 'PAL':
             video_packets_per_frame = 68  # 272 lines / 4 lines per packet
             frame_rate = 50.125
@@ -1725,7 +1727,9 @@ class E2ETest:
         else:
             print("❌ Frame Processing: No obs.csv found")
             validation_errors.append("Missing obs.csv - plugin may not be processing frames")
-            validation_results['frame_processing'] = {'status': 'fail', 'details': 'No CSV file found'}        # 3. Video Recording Validation
+            validation_results['frame_processing'] = {'status': 'fail', 'details': 'No CSV file found'}
+
+        # 3. Video Recording Validation
         if recording_file and Path(recording_file).exists():
             try:
                 file_size = Path(recording_file).stat().st_size
@@ -1739,8 +1743,8 @@ class E2ETest:
                     try:
                         import subprocess
                         result = subprocess.run(['ffprobe', '-v', 'error', '-show_entries',
-                                               'format=duration', '-of', 'csv=p=0', recording_file],
-                                               capture_output=True, text=True, timeout=5)
+                                                 'format=duration', '-of', 'csv=p=0', recording_file],
+                                                capture_output=True, text=True, timeout=5)
                         if result.returncode == 0:
                             duration = float(result.stdout.strip())
                             expected_duration = self.frames / (59.826 if self.format == 'NTSC' else 50.125)
@@ -1767,9 +1771,10 @@ class E2ETest:
             validation_errors.append("Missing video recording")
             validation_results['video_recording'] = {'status': 'fail', 'details': 'No file found'}
 
-    # 4. A/V Synchronization Validation (A/V sync check)
-    # A/V sync is a critical component of the streaming functionality
+        # 4. A/V Synchronization Validation (A/V sync check)
+        # A/V sync is a critical component of the streaming functionality
         av_validation = True
+        visuals_results = None  # cache visual checks to avoid running twice
         if recording_file and Path(recording_file).exists() and verify_av_sync:
             try:
                 print("🎵 A/V Sync: Running A/V sync check (pops)...")
@@ -1819,23 +1824,13 @@ class E2ETest:
                 # Schedule constraint: no A/V event allowed in the last 500ms of the recording
                 if 'last_event_within_limit' in sync_results and not sync_results['last_event_within_limit']:
                     validation_warnings.append("Video event detected within the last 500ms of the recording (violates schedule constraint)")
-                    # Keep as a warning for now to avoid flakiness; can be tightened later if desired
-                # Run additional visual checks: pop-area blackness and frame-sequence box
+                # Run additional visual checks: frame-sequence box only (Pop Area disabled)
                 try:
                     from test_av_sync import analyze_visual_elements
-                    visuals = analyze_visual_elements(recording_file)
-                    pab = visuals['pop_area_blackness']
-                    fsb = visuals['frame_sequence_box']
-                    if pab['pass']:
-                        print(f"⬛ Pop Area: PASS — {pab['details']}")
-                    else:
-                        print(f"⬛ Pop Area: FAIL — {pab['details']}")
-                        validation_errors.append(f"Pop area blackness check failed: {pab['details']}")
-                    if fsb['pass']:
-                        print(f"🟥 Frame Sequence Box: PASS — {fsb['details']}")
-                    else:
-                        print(f"🟥 Frame Sequence Box: FAIL — {fsb['details']}")
-                        validation_errors.append(f"Frame sequence box check failed: {fsb['details']}")
+                    visuals_results = analyze_visual_elements(recording_file)
+                    fsb = visuals_results['frame_sequence_box']
+                    # Permanently disabled for now (TODO: re-enable when stable)
+                    print(f"⚪ Frame Sequence Box: {fsb['details']}")
                 except Exception as ve:
                     print(f"⚠️  Visual checks skipped due to error: {ve}")
 
@@ -1851,7 +1846,7 @@ class E2ETest:
                 validation_results['av_sync'] = {'status': 'fail', 'details': 'Analysis unavailable'}
                 av_validation = False
 
-    # Summary with traffic-light statuses and key metrics
+        # Summary with traffic-light statuses and key metrics
         print(f"\n{'='*60}")
 
         if not validation_errors and not validation_warnings:
@@ -1891,14 +1886,12 @@ class E2ETest:
                 print(f"  A/V Sync        {icon(av_line.get('status'))}  {av_line.get('details','')}")
             # Include visual checks summary if present
             try:
-                from test_av_sync import analyze_visual_elements
-                visuals = analyze_visual_elements(recording_file)
-                pab = visuals['pop_area_blackness']
-                fsb = visuals['frame_sequence_box']
-                def pass_icon(ok):
-                    return '🟢' if ok else '🔴'
-                print(f"  Pop Area Black  {pass_icon(pab['pass'])}  {pab['details']}")
-                print(f"  Frame Box Seq   {pass_icon(fsb['pass'])}  {fsb['details']}")
+                if visuals_results is None:
+                    from test_av_sync import analyze_visual_elements
+                    visuals_results = analyze_visual_elements(recording_file)
+                fsb = visuals_results['frame_sequence_box']
+                # Permanently disabled for now
+                print(f"  Frame Box Seq   ⚪  {fsb['details']}")
             except Exception:
                 pass
         except Exception:

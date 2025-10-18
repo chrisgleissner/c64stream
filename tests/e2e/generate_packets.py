@@ -168,13 +168,26 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                 marker_color = frame_num % 16
                 payload[line * (width // 2) + byte_idx] = (marker_color << 4) | marker_color
             else:
-                # Rest of frame: vertical 4px-wide color bands moving right->left, shifting 1px per frame
-                # For each pixel position x, color index = ((x + frame_num) // 4) % 16
-                x0 = pixel_x
-                x1 = pixel_x + 1
-                color1 = ((x0 + frame_num) // 4) % 16
-                color2 = ((x1 + frame_num) // 4) % 16
-                payload[line * (width // 2) + byte_idx] = (color2 << 4) | color1
+                # Rest of frame: diagonal, slowly moving lines
+                # Create thin diagonal slanted lines by combining x and y, with a slow motion term.
+                # Lines are 2 pixels wide every 32 diagonal steps; color cycles across 16 VIC colors.
+                # Motion: shift by +1 pixel per frame along the diagonal direction.
+                def diag_color(px):
+                    # Thin diagonal stripes (in_stripe controlled by motion S),
+                    # color tied to invariant diagonal index so color remains constant as it moves.
+                    S = px + pixel_line + frame_num
+                    stripe_period = 8
+                    stripe_width = 2
+                    in_stripe = (S % stripe_period) < stripe_width
+                    if not in_stripe:
+                        return 0
+                    # Diagonal index invariant under motion along S: use (px - pixel_line)
+                    diag_index = ( (px - pixel_line) // stripe_period ) % 16
+                    return int(diag_index)
+
+                c1 = diag_color(pixel_x)
+                c2 = diag_color(pixel_x + 1)
+                payload[line * (width // 2) + byte_idx] = (c2 << 4) | c1
 
     return header + bytes(payload)
 
