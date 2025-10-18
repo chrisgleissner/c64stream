@@ -258,6 +258,43 @@ audio,2341,847,0,0,192,125
 
 **Activation:** Enable the **"Network and Streaming Events (CSV)"** checkbox in the Recording properties. CSV files are generated only when this option is explicitly enabled.
 
+## End-to-end tests 🧪
+
+This project is continuously validated with automated end-to-end (E2E) tests that simulate a C64 Ultimate, drive OBS, and verify the full pipeline from UDP packets to recorded video/audio.
+
+- What you get: a short, self-contained report with packet stats, recording links, and an A/V “Pop synchronization” summary (timing precision 0.1 ms)
+- Where to see it: the latest reports are published to the repository under
+  - [Main E2E results](tests/e2e/results/README.md)
+  - [PAL results](tests/e2e/results/pal/README.md)
+  - [NTSC results](tests/e2e/results/ntsc/README.md)
+- How to run locally (Linux): `./local-build.sh linux --e2e-scenarios --install` (produces the report above)
+- Learn more: see the in-depth guide in [`doc/e2e.md`](doc/e2e.md)
+
+### Latest recordings
+
+The following recordings were produced by the latest E2E test runs for PAL and NTSC formats.
+
+#### PAL
+
+<video controls width="640" muted playsinline>
+  <source src="./tests/e2e/results/pal/c64_recording.mp4" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
+
+[Sample frame](tests/e2e/results/pal/recording-still.png)
+
+---
+
+#### NTSC
+
+<video controls width="640" muted playsinline>
+  <source src="./tests/e2e/results/ntsc/c64_recording.mp4" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
+
+[Sample frame](tests/e2e/results/ntsc/recording-still.png)
+
+
 ## Network Details
 
 ### Hostname vs IP Address 🌐
@@ -461,17 +498,6 @@ If the plugin can't resolve your C64 Ultimate hostname (e.g., `c64u`), try these
 - **Large disk usage:** AVI recording creates uncompressed files (~50MB/minute); monitor disk space
 - **Recording stops unexpectedly:** Check disk space and folder permissions
 
-## End-to-end tests ✅
-
-This project is continuously validated with automated end-to-end (E2E) tests that simulate a C64 Ultimate, drive OBS, and verify the full pipeline from UDP packets to recorded video/audio.
-
-- What you get: a short, self-contained report with packet stats, recording links, and an A/V “Pop synchronization” summary (timing precision 0.1 ms)
-- Where to see it: the latest reports are published to the repository under
-  - [Main E2E results](tests/e2e/results/README.md)
-  - [PAL results](tests/e2e/results/pal/README.md)
-  - [NTSC results](tests/e2e/results/ntsc/README.md)
-- How to run locally (Linux): `./local-build.sh linux --e2e-scenarios --install` (produces the report above)
-- Learn more: see the in-depth guide in [`doc/e2e.md`](doc/e2e.md)
 
 ## For Developers 🔧
 
