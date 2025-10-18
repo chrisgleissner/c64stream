@@ -14,31 +14,58 @@ echo "Compressing: $INPUT"
 echo "Output will be: $OUTPUT"
 echo
 
-# High compression while preserving perceptual fidelity
 tmp_out="$OUTPUT"
-# If output equals input, write to a temp file then move over the original
 if [[ "$OUTPUT" == "$INPUT" ]]; then
   tmp_out="${OUTPUT}.tmp"
 fi
 
-# Detect input FPS via ffprobe (fallback to 50)
-in_fps=$(ffprobe -v error -select_streams v:0 -show_entries stream=r_frame_rate -of default=nokey=1:noprint_wrappers=1 "$INPUT" | awk -F'/' '{ if ($2>0) printf "%.6f", $1/$2; else print $1 }' || true)
+in_fps=$(ffprobe -v error -select_streams v:0 \
+  -show_entries stream=r_frame_rate -of default=nokey=1:noprint_wrappers=1 "$INPUT" | \
+  awk -F'/' '{ if ($2>0) printf "%.6f", $1/$2; else print $1 }' || true)
 if [[ -z "$in_fps" ]]; then in_fps=50; fi
-# Snap to nearest common rate (50 or 60) to preserve cadence
+
 target_fps=50
 awk_cmp=$(awk -v f="$in_fps" 'BEGIN{print (f>55)?"60":"50"}')
 if [[ "$awk_cmp" == "60" ]]; then target_fps=60; fi
 
-ffmpeg -y -i "$INPUT" \
-  -c:v libx265 \
-  -preset slow \
-  -x265-params crf=24:qcomp=0.7:psy-rd=1.0:aq-strength=1.0:me=2:subme=3 \
-  -r "$target_fps" -vsync cfr \
-  -c:a aac -b:a 128k \
-  -movflags +faststart \
-  "$tmp_out"
+# You can detect a hardware H.264 encoder similarly if you want (e.g., h264_qsv or h264_nvenc).
+use_h264_qsv=false
+if ffmpeg -hide_banner -encoders 2>/dev/null | grep -q 'h264_qsv'; then
+  if [[ -r /dev/dri/renderD128 ]]; then
+    use_h264_qsv=true
+  fi
+fi
 
-# If we wrote to a temp file for in-place overwrite, move it over
+if [[ "$use_h264_qsv" == "true" ]]; then
+  echo "Intel Quick Sync H.264 encoder detected. Using h264_qsv for faster encode."
+  hw_init=(-init_hw_device qsv=hw:/dev/dri/renderD128 -filter_hw_device hw)
+  if [[ ! -r /dev/dri/renderD128 ]]; then
+    hw_init=(-init_hw-device qsv=hw -filter_hw_device hw)
+  fi
+
+  ffmpeg -y \
+    "${hw_init[@]}" \
+    -i "$INPUT" \
+    -vf "fps=$target_fps,format=nv12,hwupload=extra_hw_frames=64" \
+    -c:v h264_qsv \
+    -preset medium \
+    -b:v 0 \
+    -look_ahead 1 \
+    -c:a aac -b:a 128k \
+    -movflags +faststart \
+    "$tmp_out"
+else
+  echo "Falling back to libx264 software encode."
+  ffmpeg -y -i "$INPUT" \
+    -c:v libx264 \
+    -preset medium \
+    -crf 23 \
+    -r "$target_fps" -vsync cfr \
+    -c:a aac -b:a 128k \
+    -movflags +faststart \
+    "$tmp_out"
+fi
+
 if [[ "$tmp_out" != "$OUTPUT" ]]; then
   mv -f "$tmp_out" "$OUTPUT"
 fi

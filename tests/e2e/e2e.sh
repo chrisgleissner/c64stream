@@ -65,6 +65,50 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $*"
 }
 
+join_by() {
+    local sep="$1"; shift || true
+    local out=""; local first=1
+    for part in "$@"; do
+        if (( first )); then
+            out="$part"; first=0
+        else
+            out+="${sep}${part}"
+        fi
+    done
+    printf "%s" "$out"
+}
+
+format_to_one_decimal() {
+    local value="$1"
+    if [[ -z "${value}" || "${value}" == "null" ]]; then
+        echo ""
+        return
+    fi
+    LC_ALL=C printf '%.1f' "${value}"
+}
+
+format_seconds_to_timestamp() {
+    local seconds="$1"
+    if [[ -z "${seconds}" || "${seconds}" == "null" ]]; then
+        echo ""
+        return
+    fi
+    # Convert to tenths with rounding
+    local tenths
+    tenths=$(awk -v s="${seconds}" 'BEGIN{printf "%.0f", s*10}')
+    local hours=$((tenths / 36000))
+    local rem=$((tenths % 36000))
+    local minutes=$((rem / 600))
+    rem=$((rem % 600))
+    local sec=$((rem / 10))
+    local tenth=$((rem % 10))
+    if (( hours > 0 )); then
+        printf "%02d:%02d:%02d.%d" "${hours}" "${minutes}" "${sec}" "${tenth}"
+    else
+        printf "%02d:%02d.%d" "${minutes}" "${sec}" "${tenth}"
+    fi
+}
+
 # Resource monitoring functions
 MONITOR_PID=""
 
@@ -431,6 +475,46 @@ build_project() {
     cd "${PROJECT_ROOT}"
 
     # Configure build
+    # Render Video section after A/V Sync for better flow
+    local rel_name=""
+    if [[ -n "${recording_found}" && -f "${recording_found}" ]]; then
+        echo >> "${report_file}"
+        echo "### Video" >> "${report_file}"
+        echo >> "${report_file}"
+
+        rel_name=$(basename "${recording_found}")
+        if [[ -f "${OUTPUT_DIR}/${rel_name}" ]]; then
+            echo "- Download: [${rel_name}](${rel_name})" >> "${report_file}"
+        else
+            echo "- Download: [${rel_name}](${recording_found})" >> "${report_file}"
+        fi
+
+        if command -v ffprobe >/dev/null 2>&1; then
+            video_duration_sec=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${recording_found}" 2>/dev/null | head -1 || true)
+            if [[ -n "${video_duration_sec}" ]]; then
+                video_duration_fmt=$(format_to_one_decimal "${video_duration_sec}")
+                echo "- Duration: ${video_duration_fmt} s" >> "${report_file}"
+            fi
+        fi
+
+        if [[ -z "${video_duration_fmt}" ]]; then
+            if [[ "${FORMAT}" == "PAL" ]]; then
+                video_duration_fmt=$(awk -v frames="${FRAMES}" 'BEGIN{printf "%.1f", frames/50.0}')
+            else
+                video_duration_fmt=$(awk -v frames="${FRAMES}" 'BEGIN{printf "%.1f", frames/60.0}')
+            fi
+            echo "- Duration: ${video_duration_fmt} s" >> "${report_file}"
+        fi
+
+        echo >> "${report_file}"
+        echo "Recorded by OBS." >> "${report_file}"
+    elif [[ "${OBS_ENABLED}" == true ]]; then
+        echo >> "${report_file}"
+        echo "### Video" >> "${report_file}"
+        echo >> "${report_file}"
+        echo "- ❌ Video: Recording not found" >> "${report_file}"
+    fi
+
     if [[ "${VERBOSE}" == true ]]; then
         cmake --preset ubuntu-x86_64
     else
@@ -605,6 +689,11 @@ generate_report() {
 
     local report_file="${OUTPUT_DIR}/README.md"
     local timestamp=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+    local video_duration_sec=""
+    local video_duration_fmt=""
+    local sample_frame_index=""
+    local sample_frame_seconds=""
+    local sample_frame_timestamp=""
 
         # Resolve plugin version via shared helper (mirrors CI logic)
         local resolved_version
@@ -636,71 +725,49 @@ Generated: ${timestamp}
 ## Test results
 EOF
 
-    # Add packet statistics
+    echo >> "${report_file}"
+    echo "Overview:" >> "${report_file}"
+
+    local video_count=0
+    local audio_count=0
     if [[ -d "${TEST_DIR}/test_packets" ]]; then
-        local video_count audio_count
         video_count=$(find "${TEST_DIR}/test_packets/video/${FORMAT}" -name "*.bin" 2>/dev/null | wc -l)
         audio_count=$(find "${TEST_DIR}/test_packets/audio/${FORMAT}" -name "*.bin" 2>/dev/null | wc -l)
-
-    cat >> "${report_file}" << EOF
-- ✅ Packet Generation: ${video_count} video, ${audio_count} audio packets
-- ✅ UDP Replay: Completed successfully
-EOF
+        echo "- ✅ Packet Generation: ${video_count} video, ${audio_count} audio packets" >> "${report_file}"
+    else
+        echo "- ⚠️ Packet Generation: Not captured" >> "${report_file}"
     fi
+    echo "- ✅ UDP Replay: Completed successfully" >> "${report_file}"
+
+    local event_links=()
+    if [[ -f "${OUTPUT_DIR}/network.csv" ]]; then
+        event_links+=("[network.csv](network.csv)")
+    fi
+    if [[ -f "${OUTPUT_DIR}/obs.csv" ]]; then
+        event_links+=("[obs.csv](obs.csv)")
+    fi
+    if (( ${#event_links[@]} > 0 )); then
+        echo "- Events: $(join_by ', ' "${event_links[@]}")" >> "${report_file}"
+    fi
+
+    local recording_found=""
 
     # Add OBS results if enabled
     if [[ "${OBS_ENABLED}" == true ]]; then
-        # Accept either legacy naming (recording_${FORMAT}.mkv) or new copied name (c64_recording.*)
-        local recording_found=""
         if [[ -f "${OUTPUT_DIR}/recording_${FORMAT}.mkv" ]]; then
             recording_found="${OUTPUT_DIR}/recording_${FORMAT}.mkv"
-        else
-            # Prefer explicitly copied file from e2e.py
-            if compgen -G "${OUTPUT_DIR}/c64_recording.*" > /dev/null; then
-                recording_found=$(ls -t ${OUTPUT_DIR}/c64_recording.* 2>/dev/null | head -1)
-            else
-                # Fallback: any recent mkv/mp4 in output dir
-                if compgen -G "${OUTPUT_DIR}/*.mkv" > /dev/null; then
-                    recording_found=$(ls -t ${OUTPUT_DIR}/*.mkv 2>/dev/null | head -1)
-                elif compgen -G "${OUTPUT_DIR}/*.mp4" > /dev/null; then
-                    recording_found=$(ls -t ${OUTPUT_DIR}/*.mp4 2>/dev/null | head -1)
-                fi
-            fi
-        fi
-
-        if [[ -n "${recording_found}" && -f "${recording_found}" ]]; then
-            echo >> "${report_file}"
-            echo "### Recording" >> "${report_file}"
-            echo >> "${report_file}"
-            # Only show a single Download link for the recording
-            rel_name=$(basename "${recording_found}")
-            if [[ -f "${OUTPUT_DIR}/${rel_name}" ]]; then
-                echo "- Download: [${rel_name}](${rel_name})" >> "${report_file}"
-            else
-                # Fallback to absolute link if file not under OUTPUT_DIR
-                echo "- Download: [${rel_name}](${recording_found})" >> "${report_file}"
-            fi
-        else
-            echo "- ❌ OBS Recording: Not found" >> "${report_file}"
+        elif compgen -G "${OUTPUT_DIR}/c64_recording.*" > /dev/null; then
+            recording_found=$(ls -t ${OUTPUT_DIR}/c64_recording.* 2>/dev/null | head -1)
+        elif compgen -G "${OUTPUT_DIR}/*.mkv" > /dev/null; then
+            recording_found=$(ls -t ${OUTPUT_DIR}/*.mkv 2>/dev/null | head -1)
+        elif compgen -G "${OUTPUT_DIR}/*.mp4" > /dev/null; then
+            recording_found=$(ls -t ${OUTPUT_DIR}/*.mp4 2>/dev/null | head -1)
         fi
     else
-        echo "- ⚠️  OBS Integration: Disabled (use --obs to enable)" >> "${report_file}"
+        echo "- ⚠️ OBS Integration: Disabled (use --obs to enable)" >> "${report_file}"
     fi
 
-    # Add data file links if available
-    local data_section_added=false
-    if [[ -f "${OUTPUT_DIR}/network.csv" || -f "${OUTPUT_DIR}/obs.csv" ]]; then
-        echo >> "${report_file}"
-        echo "### Data" >> "${report_file}"
-        echo >> "${report_file}"
-        data_section_added=true
-    fi
-    if [[ -f "${OUTPUT_DIR}/network.csv" ]]; then
-        echo "- Network CSV: [network.csv](network.csv)" >> "${report_file}"
-    fi
-    if [[ -f "${OUTPUT_DIR}/obs.csv" ]]; then
-        echo "- OBS CSV: [obs.csv](obs.csv)" >> "${report_file}"
-    fi
+    # Video section is rendered after A/V Sync
 
     # Add Pop synchronization section if validation results with details are available
     local validation_file="${OUTPUT_DIR}/validation_results.json"
@@ -710,62 +777,34 @@ EOF
         has_details=$(jq -r 'has("av_sync_details")' "${validation_file}" 2>/dev/null || echo "false")
         if [[ "${has_details}" == "true" ]]; then
             echo >> "${report_file}"
-            echo "### Pop synchronization" >> "${report_file}"
+            echo "### A/V Sync" >> "${report_file}"
             echo >> "${report_file}"
 
             # Overall verdict line similar to console output
-            local sync_accuracy is_perfect total_analyzed perfect_count avg_diff max_diff avg_diff_fmt max_diff_fmt
+            local sync_accuracy is_perfect avg_diff max_diff avg_diff_fmt max_diff_fmt sync_accuracy_fmt
             sync_accuracy=$(jq -r '.av_sync_details.sync_accuracy_percent // 0' "${validation_file}")
             is_perfect=$(jq -r '.av_sync_details.is_perfectly_synced // false' "${validation_file}")
-            total_analyzed=$(jq -r '.av_sync_details.total_analyzed // 0' "${validation_file}")
-            perfect_count=$(jq -r '.av_sync_details.perfect_sync_count // 0' "${validation_file}")
             # Compute avg/max over diffs when available
             avg_diff=$(jq -r '[.av_sync_details.sync_details[] | select(has("closest_video_pop_ms")) | .difference_ms] | if length>0 then (add/length) else 0 end' "${validation_file}" 2>/dev/null || echo "0")
             max_diff=$(jq -r '[.av_sync_details.sync_details[] | select(has("closest_video_pop_ms")) | .difference_ms] | if length>0 then max else 0 end' "${validation_file}" 2>/dev/null || echo "0")
-            avg_diff_fmt=$(printf '%.1f' "${avg_diff}")
-            max_diff_fmt=$(printf '%.1f' "${max_diff}")
+            sync_accuracy_fmt=$(format_to_one_decimal "${sync_accuracy}")
+            [[ -z "${sync_accuracy_fmt}" ]] && sync_accuracy_fmt="${sync_accuracy}"
+            avg_diff_fmt=$(format_to_one_decimal "${avg_diff}")
+            max_diff_fmt=$(format_to_one_decimal "${max_diff}")
 
             if [[ "${is_perfect}" == "true" ]]; then
-                echo "- ✅ Good synchronization (${sync_accuracy}%): avg offset ${avg_diff_fmt}ms, max ${max_diff_fmt}ms" >> "${report_file}"
+                echo "- ✅ Good synchronization (${sync_accuracy_fmt}%): avg offset ${avg_diff_fmt}ms, max ${max_diff_fmt}ms" >> "${report_file}"
             elif awk -v acc="${sync_accuracy}" 'BEGIN{exit !(acc>=60)}'; then
-                echo "- ✅ Acceptable synchronization (${sync_accuracy}%): avg offset ${avg_diff_fmt}ms, max ${max_diff_fmt}ms" >> "${report_file}"
+                echo "- ✅ Acceptable synchronization (${sync_accuracy_fmt}%): avg offset ${avg_diff_fmt}ms, max ${max_diff_fmt}ms" >> "${report_file}"
             else
-                echo "- ❌ Poor synchronization (${sync_accuracy}%): avg offset ${avg_diff_fmt}ms, max ${max_diff_fmt}ms" >> "${report_file}"
+                echo "- ❌ Poor synchronization (${sync_accuracy_fmt}%): avg offset ${avg_diff_fmt}ms, max ${max_diff_fmt}ms" >> "${report_file}"
             fi
 
-            # Detected video pops list (times)
-            local video_pops_raw video_pops_list
-            video_pops_raw=$(jq -r '.av_sync_details.video_pop_times_ms // [] | join(" ")' "${validation_file}")
-            video_pops_list=""
-            if [[ -n "${video_pops_raw}" ]]; then
-                for val in ${video_pops_raw}; do
-                    local val_fmt
-                    printf -v val_fmt '%.1f' "${val}"
-                    if [[ -n "${video_pops_list}" ]]; then
-                        video_pops_list+=", "
-                    fi
-                    video_pops_list+="${val_fmt}"
-                done
-            fi
-            echo "- ⬜ Detected video pop(s): [${video_pops_list}] ms" >> "${report_file}"
-
-            # Detected video pop frame indices (if available)
-            local video_pop_idx_raw video_pop_idx_list
-            video_pop_idx_raw=$(jq -r '.av_sync_details.video_pop_frame_indices // [] | join(" ")' "${validation_file}")
-            if [[ -n "${video_pop_idx_raw}" ]]; then
-                video_pop_idx_list=""
-                for idx in ${video_pop_idx_raw}; do
-                    if [[ -n "${video_pop_idx_list}" ]]; then
-                        video_pop_idx_list+=", "
-                    fi
-                    video_pop_idx_list+="${idx}"
-                done
-                echo "- ⬜ Video pop frame index(es): [${video_pop_idx_list}]" >> "${report_file}"
-            fi
+            # (Omit raw pop/time index lists to avoid duplication)
 
             # Per-pop lines with traffic light and channel
             echo >> "${report_file}"
-            echo "#### Per-pop synchronization" >> "${report_file}"
+            echo "#### Sync Details" >> "${report_file}"
             echo >> "${report_file}"
             # Build arrays
             local count
@@ -835,45 +874,94 @@ EOF
         cat "${report_file}"
     fi
 
-    # Append sample POP frame at bottom if available and extractable
-    # Determine recording file within OUTPUT_DIR
-    local sample_frame_path="${OUTPUT_DIR}/pop-frame.png"
-    local recording_mp4=""
-    if compgen -G "${OUTPUT_DIR}/c64_recording.*" > /dev/null; then
-        # Prefer explicitly copied file from e2e.py
-        recording_mp4=$(ls -t ${OUTPUT_DIR}/c64_recording.* 2>/dev/null | head -1)
-    elif compgen -G "${OUTPUT_DIR}/*.mp4" > /dev/null; then
-        recording_mp4=$(ls -t ${OUTPUT_DIR}/*.mp4 2>/dev/null | head -1)
-    elif [[ -f "${OUTPUT_DIR}/recording_${FORMAT}.mkv" ]]; then
-        recording_mp4="${OUTPUT_DIR}/recording_${FORMAT}.mkv"
-    fi
-
-    # Try to extract first POP frame using validation_results.json if present
-    if [[ -n "${recording_mp4}" && -f "${recording_mp4}" && -f "${validation_file}" ]] && command -v jq >/dev/null 2>&1; then
-        first_pop_frame=$(jq -r '.av_sync_details.video_pop_frame_indices[0] // empty' "${validation_file}" 2>/dev/null || true)
-        if [[ -n "${first_pop_frame}" ]]; then
-            if [[ -x "${TEST_DIR}/extract.frame" ]]; then
-                "${TEST_DIR}/extract.frame" --input "${recording_mp4}" --output "${sample_frame_path}" --frame "${first_pop_frame}" || true
-            fi
-        else
-            first_pop_ms=$(jq -r '.av_sync_details.video_pop_times_ms[0] // empty' "${validation_file}" 2>/dev/null || true)
-            if [[ -n "${first_pop_ms}" ]]; then
-                # Convert ms to seconds with three decimals
-                first_pop_s=$(awk -v ms="${first_pop_ms}" 'BEGIN{printf "%.3f", ms/1000.0}')
-                if [[ -x "${TEST_DIR}/extract.frame" ]]; then
-                    "${TEST_DIR}/extract.frame" --input "${recording_mp4}" --output "${sample_frame_path}" --time "${first_pop_s}" || true
-                fi
-            fi
+    # Append sample frame details if available
+    local sample_frame_path="${OUTPUT_DIR}/c64_recording_still.png"
+    local recording_mp4="${recording_found}"
+    if [[ -z "${recording_mp4}" || ! -f "${recording_mp4}" ]]; then
+        if compgen -G "${OUTPUT_DIR}/c64_recording.*" > /dev/null; then
+            recording_mp4=$(ls -t ${OUTPUT_DIR}/c64_recording.* 2>/dev/null | head -1)
+        elif compgen -G "${OUTPUT_DIR}/*.mp4" > /dev/null; then
+            recording_mp4=$(ls -t ${OUTPUT_DIR}/*.mp4 2>/dev/null | head -1)
+        elif [[ -f "${OUTPUT_DIR}/recording_${FORMAT}.mkv" ]]; then
+            recording_mp4="${OUTPUT_DIR}/recording_${FORMAT}.mkv"
         fi
     fi
 
-    # If a sample frame exists, append a section at the bottom of the report
+    local first_pop_frame=""
+    local first_pop_ms=""
+    if [[ -n "${recording_mp4}" && -f "${recording_mp4}" && -f "${validation_file}" ]] && command -v jq >/dev/null 2>&1; then
+        first_pop_frame=$(jq -r '.av_sync_details.video_pop_frame_indices[0] // empty' "${validation_file}" 2>/dev/null || true)
+        first_pop_ms=$(jq -r '.av_sync_details.video_pop_times_ms[0] // empty' "${validation_file}" 2>/dev/null || true)
+
+        if [[ -n "${first_pop_frame}" && "${first_pop_frame}" != "null" ]]; then
+            sample_frame_index="${first_pop_frame}"
+            if [[ -x "${TEST_DIR}/extract.frame" ]]; then
+                "${TEST_DIR}/extract.frame" --input "${recording_mp4}" --output "${sample_frame_path}" --frame "${first_pop_frame}" || true
+            fi
+        fi
+
+        if [[ -n "${first_pop_ms}" && "${first_pop_ms}" != "null" ]]; then
+            sample_frame_seconds=$(awk -v ms="${first_pop_ms}" 'BEGIN{printf "%.3f", ms/1000.0}')
+        fi
+
+        if [[ ! -f "${sample_frame_path}" && -n "${sample_frame_seconds}" && -x "${TEST_DIR}/extract.frame" ]]; then
+            "${TEST_DIR}/extract.frame" --input "${recording_mp4}" --output "${sample_frame_path}" --time "${sample_frame_seconds}" || true
+        fi
+    fi
+
+    if [[ -z "${sample_frame_seconds}" && -n "${sample_frame_index}" ]]; then
+        local fps=0
+        if [[ "${FORMAT}" == "PAL" ]]; then
+            fps=50
+        else
+            fps=60
+        fi
+        if (( fps > 0 )); then
+            sample_frame_seconds=$(awk -v frame="${sample_frame_index}" -v rate="${fps}" 'BEGIN{printf "%.3f", frame/rate}')
+        fi
+    fi
+
+    local sample_frame_seconds_fmt=""
+    if [[ -n "${sample_frame_seconds}" ]]; then
+        sample_frame_seconds_fmt=$(format_to_one_decimal "${sample_frame_seconds}")
+        sample_frame_timestamp=$(format_seconds_to_timestamp "${sample_frame_seconds}")
+    fi
+
     if [[ -f "${sample_frame_path}" ]]; then
         echo >> "${report_file}"
-        echo "### Sample POP frame" >> "${report_file}"
+        echo "### Sample Frame" >> "${report_file}"
         echo >> "${report_file}"
-        echo "![Sample POP Frame](./$(basename "${sample_frame_path}"))" >> "${report_file}"
-        echo "*Figure: First detected video POP frame.*" >> "${report_file}"
+        echo "![Sample Frame](./$(basename "${sample_frame_path}"))" >> "${report_file}"
+        echo "Top-left shows frame progression. Center shows slow C64 colour bars for smooth playback and colour rendering checks. Bottom-right flashes with the pop sound for A/V sync." >> "${report_file}"
+
+        local origin_parts=()
+        if [[ -n "${sample_frame_index}" ]]; then
+            origin_parts+=("frame ${sample_frame_index}")
+        fi
+        if [[ -n "${sample_frame_timestamp}" ]]; then
+            origin_parts+=("${sample_frame_timestamp}")
+        elif [[ -n "${sample_frame_seconds_fmt}" ]]; then
+            origin_parts+=("${sample_frame_seconds_fmt}s")
+        fi
+
+        local origin_text=""
+        if (( ${#origin_parts[@]} > 0 )); then
+            origin_text=$(join_by " at " "${origin_parts[@]}")
+        fi
+
+        if [[ -n "${origin_text}" ]]; then
+            if [[ -n "${video_duration_fmt}" ]]; then
+                echo "Taken from ${origin_text} of the ${video_duration_fmt} s video above." >> "${report_file}"
+            else
+                echo "Taken from ${origin_text} of the video above." >> "${report_file}"
+            fi
+        else
+            if [[ -n "${video_duration_fmt}" ]]; then
+                echo "Taken from the ${video_duration_fmt} s video above." >> "${report_file}"
+            else
+                echo "Taken from the video above." >> "${report_file}"
+            fi
+        fi
     fi
 
     log_success "Markdown report saved to ${report_file}"

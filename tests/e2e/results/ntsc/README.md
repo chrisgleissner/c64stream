@@ -1,6 +1,6 @@
 # C64 Stream E2E Test Report
 
-Generated: 2025-10-18 12:14:37 UTC
+Generated: 2025-10-18 16:52:12 UTC
 
 ## Test configuration
 
@@ -17,42 +17,28 @@ Generated: 2025-10-18 12:14:37 UTC
 - Version: 0.8.0
 
 ## Test results
+
+Overview:
 - ✅ Packet Generation: 18000 video, 1252 audio packets
 - ✅ UDP Replay: Completed successfully
+- Events: [network.csv](network.csv), [obs.csv](obs.csv)
 
-### Recording
+### A/V Sync
 
-- Download: [c64_recording.mp4](c64_recording.mp4)
+- ✅ Good synchronization (100.0%): avg offset 4.2ms, max 16.7ms
 
-### Data
+#### Sync Details
 
-- Network CSV: [network.csv](network.csv)
-- OBS CSV: [obs.csv](obs.csv)
-
-### Pop synchronization
-
-![NTSC POP Frame](./ntsc-pop-frame.png)
-*Figure: Video POP frame extracted at ~7.47s.*
-
-- Top-left: sequence marker (frame ID overlay) for test traceability.
-- Center band: full C64 palette sweep moving horizontally across the field.
-- Bottom-right: POP check region used to confirm precise A/V sync.
-- The POP (white flash) coincides with the audio pop to validate sync.
-
-- ✅ Good synchronization (100.0%): avg offset 10.8ms, max 13.3ms
-- ⬜ Detected video pop(s): [7466.7, 8466.7, 9483.3, 10483.3] ms
-
-#### Per-pop synchronization
-
-- 🟢 Pop #1 [L]: audio=7480.0ms, video=7466.7ms, diff=13.3ms
-- 🟢 Pop #2 [R]: audio=8480.0ms, video=8466.7ms, diff=13.3ms
-- 🟢 Pop #3 [L]: audio=9480.0ms, video=9483.3ms, diff=3.3ms
-- 🟢 Pop #4 [R]: audio=10470.0ms, video=10483.3ms, diff=13.3ms
+- 🟢 Pop #1 [L]: audio=7500.0ms, video=7483.3ms (frame 449), diff=16.7ms
+- 🟢 Pop #2 [R]: audio=8500.0ms, video=8500.0ms (frame 510), diff=0.0ms
+- 🟢 Pop #3 [L]: audio=9500.0ms, video=9500.0ms (frame 570), diff=0.0ms
+- 🟢 Pop #4 [R]: audio=10500.0ms, video=10500.0ms (frame 630), diff=0.0ms
 
 - Channels: LRLR
 - 🔁 Channel alternation: OK (alternating, starts with L)
 
-### Sample POP frame
+### Sample Frame
 
-![Sample POP Frame](./pop-frame.png)
-*Figure: First detected video POP frame.*
+![Sample Frame](./c64_recording_still.png)
+Top-left shows frame progression. Center shows slow C64 colour bars for smooth playback and colour rendering checks. Bottom-right flashes with the pop sound for A/V sync.
+Taken from frame 449 at 00:07.5 of the video above.

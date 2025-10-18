@@ -228,6 +228,7 @@ When **"Network and Streaming Events (CSV)"** recording is enabled, the plugin g
 - `network.csv` - UDP packet reception log with network timing analysis
 
 Examples from recent automated E2E runs:
+
 - PAL: [`obs.csv`](tests/e2e/results/pal/obs.csv), [`network.csv`](tests/e2e/results/pal/network.csv)
 - NTSC: [`obs.csv`](tests/e2e/results/ntsc/obs.csv), [`network.csv`](tests/e2e/results/ntsc/network.csv)
 
@@ -257,6 +258,43 @@ audio,2341,847,0,0,192,125
 **Sample Recording:** See [docs/recordings/session_19700101_024625](docs/recordings/session_19700101_024625) for complete examples with all file types.
 
 **Activation:** Enable the **"Network and Streaming Events (CSV)"** checkbox in the Recording properties. CSV files are generated only when this option is explicitly enabled.
+
+## End-to-end tests 🧪
+
+This project is continuously validated with automated end-to-end (E2E) tests that simulate a C64 Ultimate, drive OBS, and verify the full pipeline from UDP packets to recorded video/audio.
+
+- What you get: a short, self-contained report with packet stats, recording links, and an A/V “Pop synchronization” summary (timing precision 0.1 ms)
+- Where to see it: the latest reports are published to the repository under
+  - [Main E2E results](tests/e2e/results/README.md)
+  - [PAL results](tests/e2e/results/pal/README.md)
+  - [NTSC results](tests/e2e/results/ntsc/README.md)
+- How to run locally (Linux): `./local-build.sh linux --e2e-scenarios --install` (produces the report above)
+- Learn more: see the in-depth guide in [`doc/e2e.md`](doc/e2e.md)
+
+### Latest recordings
+
+The following recordings were produced by the latest E2E test runs for PAL and NTSC formats.
+
+#### PAL
+
+<video controls width="640" muted playsinline>
+  <source src="./tests/e2e/results/pal/c64_recording.mp4" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
+
+[Sample frame](tests/e2e/results/pal/recording-still.png)
+
+---
+
+#### NTSC
+
+<video controls width="640" muted playsinline>
+  <source src="./tests/e2e/results/ntsc/c64_recording.mp4" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
+
+[Sample frame](tests/e2e/results/ntsc/recording-still.png)
+
 
 ## Network Details
 
@@ -461,22 +499,6 @@ If the plugin can't resolve your C64 Ultimate hostname (e.g., `c64u`), try these
 - **Large disk usage:** AVI recording creates uncompressed files (~50MB/minute); monitor disk space
 - **Recording stops unexpectedly:** Check disk space and folder permissions
 
-## End-to-end tests ✅
-
-This project is continuously validated with automated end-to-end (E2E) tests that simulate a C64 Ultimate, drive OBS, and verify the full pipeline from UDP packets to recorded video/audio.
-
-- What you get: a short, self-contained report with packet stats, recording links, and an A/V “Pop synchronization” summary (timing precision 0.1 ms)
-- Where to see it: the latest reports are published to the repository under
-  - [Main E2E results](tests/e2e/results/README.md)
-  - [PAL results](tests/e2e/results/pal/README.md)
-  - [NTSC results](tests/e2e/results/ntsc/README.md)
-- How to run locally (Linux): `./local-build.sh linux --e2e-scenarios --install` (produces the report above)
-- Learn more: see the in-depth guide in [`doc/e2e.md`](doc/e2e.md)
-
-### Quick links to latest artifacts
-
-- PAL: [Recording](tests/e2e/results/pal/c64_recording.mp4), [Sample POP frame](tests/e2e/results/pal/pop-frame.png)
-- NTSC: [Recording](tests/e2e/results/ntsc/c64_recording.mp4), [Sample POP frame](tests/e2e/results/ntsc/pop-frame.png)
 
 ## For Developers 🔧
 
