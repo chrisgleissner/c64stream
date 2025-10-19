@@ -47,40 +47,49 @@ These settings work out-of-the-box with most C64 Ultimate setups. You can overri
 
 ### Easy Installation 📦
 
-Grab the right package for your system from the [Releases page](../../releases):
-
-**Windows:**
+### Windows
 
 1. Close OBS Studio
-2. Extract `c64stream-*-windows-x64.zip` to `C:\ProgramData\obs-studio\plugins`
-3. Restart OBS Studio
+2. [Download](../../releases) the plugin package with name `c64stream-$VERSION-windows-x64.zip`. It should now be in your `~/Downloads` directory.
+3. Install the plugin to `C:\ProgramData\obs-studio\plugins` by either extracting the ZIP with a tool of your choice or by running the following in Powershell:
+```powershell
+Expand-Archive -Path "$env:USERPROFILE\Downloads\c64stream-*-windows-x64.zip" -DestinationPath "C:\ProgramData\obs-studio\plugins" -Force
+```
+4. Start OBS Studio
 
-If you are using Windows Firewall and block all incoming connections, you may have to setup an exclusion to allow for incoming UDP connections
-to port 11000 (Video) and 11001 (Audio) from the C64 Ultimate.
-
-You can do this with the following Powershell script. Be sure to adjust the `RemoteAddress` to the IP of your C64 Ultimate:
-
+If you are using Windows Firewall and block all incoming connections, you may have to setup an exclusion to allow for incoming UDP connections to port 11000 (Video) and 11001 (Audio) from the C64 Ultimate a follows. Be sure to adjust the `RemoteAddress` to the IP of your C64 Ultimate before you run this in Powershell:
 ```powershell
 New-NetFirewallRule -DisplayName "C64 Stream" -Direction Inbound -Protocol UDP -LocalPort 11000,11001 -RemoteAddress 192.168.1.64 -Action Allow
 ```
 
-**macOS:**
+### macOS
 
 1. Close OBS Studio
-2. Install `c64stream-*-macos-universal.pkg` to `~/Library/Application Support/obs-studio/plugins`
-3. Restart OBS Studio
+2. [Download](../../releases) the plugin package with name `c64stream-$VERSION-macos-universal.pkg`. It should now be in your `~/Downloads` directory.
+3. Install the plugin to `$HOME/Library/Application Support/obs-studio/plugins/c64stream.plugin` by running the following on the command line:
+```zsh
+cd ~/Downloads && \
+xattr -dr com.apple.quarantine c64stream-*-macos-universal.pkg && \
+sudo installer -pkg c64stream-*-macos-universal.pkg -target / && \
+mkdir -p "$HOME/Library/Application Support/obs-studio/plugins" && \
+cp -R "/Library/Application Support/obs-studio/plugins/c64stream.plugin" \
+      "$HOME/Library/Application Support/obs-studio/plugins/" && \
+chmod -R 755 "$HOME/Library/Application Support/obs-studio/plugins/c64stream.plugin"
+```
+4. Start OBS Studio
 
 > [!NOTE]
-> macOS support is currently under active development and is not yet fully functional. We're working to resolve compatibility issues and will update this documentation when macOS builds are stable.
+> The macOS installation currently requires a few command line steps due to platform packaging constraints. This process will be simplified in a future release.
 
-**Linux (Ubuntu/Debian):**
+#### Linux (Ubuntu/Debian)
 
 1. Close OBS Studio
-2. Install `c64stream-*-x86_64-linux-gnu.deb` to `~/.config/obs-studio/plugins` by running:
-
+2. [Download](../../releases) the plugin package with name `c64stream-$VERSION-x86_64-linux-gnu.deb`. It should now be in your `~/Downloads` directory.
+3. Install the plugin to `~/.config/obs-studio/plugins` by running the following on the command line:
 ```bash
 sudo dpkg -i c64stream-plugin-linux.deb
 ```
+4. Start OBS Studio
 
 **Further Details:**
 See the [OBS Plugins Guide](https://obsproject.com/kb/plugins-guide).
