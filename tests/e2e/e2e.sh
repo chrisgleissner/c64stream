@@ -40,6 +40,7 @@ DEFAULT_OBS_ENABLED=true   # OBS integration now implemented
 DEFAULT_X11_DISPLAY=":99"
 DEFAULT_MONITOR_RESOURCES=false  # Resource monitoring for CI
 DEFAULT_SCENARIO_OVERRIDES=""
+DEFAULT_SCENARIO_NAME=""
 
 # Color output
 RED='\033[0;31m'
@@ -239,6 +240,7 @@ parse_args() {
     OBS_ENABLED="${DEFAULT_OBS_ENABLED}"
     MONITOR_RESOURCES="${DEFAULT_MONITOR_RESOURCES}"
     SCENARIO_OVERRIDES="${DEFAULT_SCENARIO_OVERRIDES}"
+    SCENARIO_NAME="${DEFAULT_SCENARIO_NAME}"
 
     while [[ $# -gt 0 ]]; do
         case $1 in
@@ -320,6 +322,10 @@ parse_args() {
                 ;;
             --scenario-overrides)
                 SCENARIO_OVERRIDES="$2"
+                shift 2
+                ;;
+            --scenario-name)
+                SCENARIO_NAME="$2"
                 shift 2
                 ;;
             -h|--help)
@@ -584,7 +590,11 @@ generate_packets() {
 
 # Run E2E test
 run_e2e_test() {
-    log_info "Running E2E test..."
+    if [[ -n "${SCENARIO_NAME}" ]]; then
+        log_info "Running E2E test for scenario: ${SCENARIO_NAME}"
+    else
+        log_info "Running E2E test..."
+    fi
 
     cd "${TEST_DIR}"
 
@@ -609,6 +619,10 @@ run_e2e_test() {
         "--audio-port" "${AUDIO_PORT}"
         "--udp-replay" "${udp_replay_path}"
     )
+
+    if [[ -n "${SCENARIO_NAME}" ]]; then
+        cmd+=("--scenario-name" "${SCENARIO_NAME}")
+    fi
 
     # Pass scenario overrides if provided
     if [[ -n "${SCENARIO_OVERRIDES}" ]]; then

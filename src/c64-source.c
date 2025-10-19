@@ -26,9 +26,25 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-version.h"
 #include "c64-properties.h"
 #include "plugin-support.h"
+#include "c64-presets.h"
 
 // Forward declarations
 static void close_and_reset_sockets(struct c64_source *context);
+
+static bool settings_have_effect_overrides(obs_data_t *settings)
+{
+    if (!settings)
+        return false;
+
+    return obs_data_has_user_value(settings, "scan_line_distance") ||
+           obs_data_has_user_value(settings, "scan_line_strength") ||
+           obs_data_has_user_value(settings, "pixel_width") ||
+           obs_data_has_user_value(settings, "pixel_height") ||
+           obs_data_has_user_value(settings, "blur_strength") ||
+           obs_data_has_user_value(settings, "bloom_strength") ||
+           obs_data_has_user_value(settings, "tint_mode") ||
+           obs_data_has_user_value(settings, "tint_strength");
+}
 
 // Async retry task - runs in OBS thread pool (NOT render thread)
 void c64_async_retry_task(void *data)
@@ -122,6 +138,19 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
 
     // Load configuration file before initializing settings-dependent values
     c64_load_configuration(settings);
+
+    // Apply CRT preset from settings (if present) so effects activate on load
+    bool has_effect_overrides = settings_have_effect_overrides(settings);
+    const char *initial_preset = obs_data_get_string(settings, "crt_preset");
+    if (!has_effect_overrides && initial_preset && initial_preset[0] != '\0') {
+        if (c64_presets_apply(settings, initial_preset)) {
+            C64_LOG_INFO("Applied CRT preset from settings: %s", initial_preset);
+        } else {
+            C64_LOG_WARNING("CRT preset not found: %s", initial_preset);
+        }
+    } else if (has_effect_overrides) {
+        C64_LOG_INFO("Skipping preset auto-apply; custom effect overrides detected");
+    }
 
     context->source = source;
 
@@ -428,6 +457,19 @@ void c64_update(void *data, obs_data_t *settings)
     struct c64_source *context = data;
     if (!context)
         return;
+
+    // If a preset is specified and no manual overrides exist, apply it before reading effect values
+    bool has_effect_overrides = settings_have_effect_overrides(settings);
+    const char *preset_name = obs_data_get_string(settings, "crt_preset");
+    if (!has_effect_overrides && preset_name && preset_name[0] != '\0') {
+        if (c64_presets_apply(settings, preset_name)) {
+            C64_LOG_INFO("Applied CRT preset on update: %s", preset_name);
+        } else {
+            C64_LOG_WARNING("CRT preset in update not found: %s", preset_name);
+        }
+    } else if (has_effect_overrides) {
+        C64_LOG_DEBUG("Preset update skipped; manual effect overrides present");
+    }
 
     // Update debug logging setting
     c64_debug_logging = obs_data_get_bool(settings, "debug_logging");

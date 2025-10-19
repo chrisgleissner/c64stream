@@ -1,9 +1,0 @@
-{
-    "ubuntu-24.04": "catthehacker/ubuntu:act-24.04",
-    "ubuntu-latest": "catthehacker/ubuntu:act-24.04", 
-    "ubuntu-22.04": "catthehacker/ubuntu:act-22.04",
-    "macos-15": "catthehacker/ubuntu:act-24.04",
-    "macos-latest": "catthehacker/ubuntu:act-24.04",
-    "windows-2022": "catthehacker/ubuntu:act-24.04",
-    "windows-latest": "catthehacker/ubuntu:act-24.04"
-}

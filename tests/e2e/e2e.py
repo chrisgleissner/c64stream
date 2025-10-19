@@ -46,7 +46,7 @@ except ImportError:
 class E2ETest:
     def __init__(self, test_dir, video_port=21000, audio_port=21001, control_port=6400,
                  format='NTSC', frames=30, verbose=False, enable_websocket=False,
-                 scenario_overrides_dir: str | None = None):  # Default to NTSC for faster testing
+                 scenario_overrides_dir: str | None = None, scenario_name: str | None = None):
         self.test_dir = Path(test_dir)
         self.video_port = video_port
         self.audio_port = audio_port
@@ -56,6 +56,7 @@ class E2ETest:
         self.verbose = verbose
         self.enable_websocket = enable_websocket  # Disable WebSocket by default for performance
         self.scenario_overrides_dir = Path(scenario_overrides_dir).resolve() if scenario_overrides_dir else None
+        self.scenario_name = scenario_name
 
         # Detect CI environment and set appropriate timeouts
         self.is_ci = self._detect_ci_environment()
@@ -2149,7 +2150,10 @@ class E2ETest:
             bool: True if test passed, False otherwise
         """
         print(f"\n{'='*60}")
-        print(f"C64 Stream E2E Test - {self.format}")
+        heading = self.scenario_name or self.format
+        print(f"C64 Stream E2E Test - {heading}")
+        if self.scenario_name:
+            print(f"Format: {self.format}")
         print(f"{'='*60}\n")
 
         try:
@@ -2335,6 +2339,8 @@ def main():
                         help='Enable WebSocket API attempts (disabled by default for performance)')
     parser.add_argument('--scenario-overrides', default=None,
                         help='Path to a directory with files to overlay onto ~/.config/obs-studio after baseline copy')
+    parser.add_argument('--scenario-name', default=None,
+                        help='Human-readable scenario name for logging/reporting')
 
     args = parser.parse_args()
 
@@ -2376,7 +2382,8 @@ def main():
         frames=args.frames,
         verbose=args.verbose,
         enable_websocket=args.enable_websocket,
-        scenario_overrides_dir=args.scenario_overrides
+        scenario_overrides_dir=args.scenario_overrides,
+        scenario_name=args.scenario_name
     )
 
     # Store reference for signal handler

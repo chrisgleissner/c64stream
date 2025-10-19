@@ -17,7 +17,7 @@ The plugin uses a multi-tier configuration system to handle different environmen
 2. **E2E Testing Settings**:
    - `tests/e2e/properties_e2e_local.ini`: Local development E2E testing
    - `tests/e2e/properties_e2e_ci.ini`: CI environment E2E testing
-   - Both use `localhost` and `control_port=6400` for mock servers
+   - Both use `localhost` and `control_port=6400` for the local streaming harness
 
 ### OBS Configuration Pollution Prevention
 
@@ -227,29 +227,6 @@ local-build.bat windows
 - **When switching between platforms** (to catch any platform-specific formatting drift)
 
 **Note:** The Linux build will fail if code is not properly formatted. Always run clang-format before committing changes made on Windows.
-
-## Unit Testing
-
-**Run all tests:**
-
-```bash
-cd build_x86_64  # or build_x64 on Windows, build_macos on macOS
-ctest -V
-```
-
-**Run specific test:**
-
-```bash
-./test_vic_colors           # Color conversion tests
-./test_hostname_resolution  # DNS resolution tests
-./test_enhanced_dns         # Enhanced DNS tests
-```
-
-**Mock C64 Ultimate server:**
-
-```bash
-./c64_mock_server --port 11000
-```
 
 ## E2E Testing
 
