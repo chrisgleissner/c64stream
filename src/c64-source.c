@@ -38,12 +38,9 @@ static bool settings_have_effect_overrides(obs_data_t *settings)
 
     return obs_data_has_user_value(settings, "scan_line_distance") ||
            obs_data_has_user_value(settings, "scan_line_strength") ||
-           obs_data_has_user_value(settings, "pixel_width") ||
-           obs_data_has_user_value(settings, "pixel_height") ||
-           obs_data_has_user_value(settings, "blur_strength") ||
-           obs_data_has_user_value(settings, "bloom_strength") ||
-           obs_data_has_user_value(settings, "tint_mode") ||
-           obs_data_has_user_value(settings, "tint_strength");
+           obs_data_has_user_value(settings, "pixel_width") || obs_data_has_user_value(settings, "pixel_height") ||
+           obs_data_has_user_value(settings, "blur_strength") || obs_data_has_user_value(settings, "bloom_strength") ||
+           obs_data_has_user_value(settings, "tint_mode") || obs_data_has_user_value(settings, "tint_strength");
 }
 
 // Async retry task - runs in OBS thread pool (NOT render thread)

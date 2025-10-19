@@ -2,12 +2,14 @@
     "current_scene": "Scene",
     "current_program_scene": "Scene",
     "scene_order": [
-        { "name": "Scene" }
+        {
+            "name": "Scene"
+        }
     ],
     "name": "C64StreamTest",
     "sources": [
         {
-            "prev_ver": 0,
+            "prev_ver": 536870912,
             "name": "Scene",
             "uuid": "056e6d9e-701e-4014-9914-6ca3d3d1947f",
             "id": "scene",
@@ -22,7 +24,10 @@
                         "visible": true,
                         "locked": false,
                         "rot": 0.0,
-                        "scale_ref": { "x": 1920.0, "y": 1080.0 },
+                        "scale_ref": {
+                            "x": 1920.0,
+                            "y": 1080.0
+                        },
                         "align": 5,
                         "bounds_type": 0,
                         "bounds_align": 0,
@@ -33,17 +38,39 @@
                         "crop_bottom": 0,
                         "id": 1,
                         "group_item_backup": false,
-                        "pos": { "x": 96.0, "y": 0.0 },
-                        "pos_rel": { "x": -1.4111111164093018, "y": -1.0 },
-                        "scale": { "x": 1.5, "y": 1.5 },
-                        "scale_rel": { "x": 1.5, "y": 1.5 },
-                        "bounds": { "x": 0.0, "y": 0.0 },
-                        "bounds_rel": { "x": 0.0, "y": 0.0 },
+                        "pos": {
+                            "x": 96.0,
+                            "y": 0.0
+                        },
+                        "pos_rel": {
+                            "x": -1.4111111164093018,
+                            "y": -1.0
+                        },
+                        "scale": {
+                            "x": 1.5,
+                            "y": 1.5
+                        },
+                        "scale_rel": {
+                            "x": 1.5,
+                            "y": 1.5
+                        },
+                        "bounds": {
+                            "x": 0.0,
+                            "y": 0.0
+                        },
+                        "bounds_rel": {
+                            "x": 0.0,
+                            "y": 0.0
+                        },
                         "scale_filter": "disable",
                         "blend_method": "default",
                         "blend_type": "normal",
-                        "show_transition": { "duration": 0 },
-                        "hide_transition": { "duration": 0 },
+                        "show_transition": {
+                            "duration": 0
+                        },
+                        "hide_transition": {
+                            "duration": 0
+                        },
                         "private_settings": {}
                     }
                 ]
@@ -59,7 +86,11 @@
             "push-to-mute-delay": 0,
             "push-to-talk": false,
             "push-to-talk-delay": 0,
-            "hotkeys": { "OBSBasic.SelectScene": [], "libobs.show_scene_item.1": [], "libobs.hide_scene_item.1": [] },
+            "hotkeys": {
+                "OBSBasic.SelectScene": [],
+                "libobs.show_scene_item.1": [],
+                "libobs.hide_scene_item.1": []
+            },
             "deinterlace_mode": 0,
             "deinterlace_field_order": 0,
             "monitoring_type": 0,
@@ -67,7 +98,7 @@
             "private_settings": {}
         },
         {
-            "prev_ver": 0,
+            "prev_ver": 536870912,
             "name": "C64 Stream",
             "uuid": "e4232553-c3cc-4d08-bbf9-9fce742c85c1",
             "id": "c64_source",
@@ -83,7 +114,19 @@
                 "afterglow_duration_ms": 50,
                 "afterglow_curve": 1,
                 "tint_mode": 0,
-                "tint_strength": 1.0
+                "tint_strength": 1.0,
+                "record_video": false,
+                "record_csv": true,
+                "save_frames": false,
+                "debug_logging": true,
+                "dns_server_ip": "127.0.0.1",
+                "c64_host": "localhost",
+                "auto_detect_ip": false,
+                "obs_ip_address": "127.0.0.1",
+                "video_port": 21000,
+                "audio_port": 21001,
+                "control_port": 6400,
+                "buffer_delay_ms": 10
             },
             "mixers": 255,
             "sync": 0,
@@ -105,9 +148,27 @@
     ],
     "groups": [],
     "quick_transitions": [
-        { "name": "Cut", "duration": 300, "hotkeys": [], "id": 1, "fade_to_black": false },
-        { "name": "Fade", "duration": 300, "hotkeys": [], "id": 2, "fade_to_black": false },
-        { "name": "Fade", "duration": 300, "hotkeys": [], "id": 3, "fade_to_black": true }
+        {
+            "name": "Cut",
+            "duration": 300,
+            "hotkeys": [],
+            "id": 1,
+            "fade_to_black": false
+        },
+        {
+            "name": "Fade",
+            "duration": 300,
+            "hotkeys": [],
+            "id": 2,
+            "fade_to_black": false
+        },
+        {
+            "name": "Fade",
+            "duration": 300,
+            "hotkeys": [],
+            "id": 3,
+            "fade_to_black": true
+        }
     ],
     "transitions": [],
     "saved_projectors": [],
@@ -119,7 +180,26 @@
     "scaling_level": -5,
     "scaling_off_x": 0.0,
     "scaling_off_y": 0.0,
-    "virtual-camera": { "type2": 3 },
-    "modules": { "scripts-tool": [], "output-timer": { "streamTimerHours": 0, "streamTimerMinutes": 0, "streamTimerSeconds": 30, "recordTimerHours": 0, "recordTimerMinutes": 0, "recordTimerSeconds": 30, "autoStartStreamTimer": false, "autoStartRecordTimer": false, "pauseRecordTimer": true } },
-    "version": 1
+    "virtual-camera": {
+        "type2": 3
+    },
+    "modules": {
+        "scripts-tool": [],
+        "output-timer": {
+            "streamTimerHours": 0,
+            "streamTimerMinutes": 0,
+            "streamTimerSeconds": 30,
+            "recordTimerHours": 0,
+            "recordTimerMinutes": 0,
+            "recordTimerSeconds": 30,
+            "autoStartStreamTimer": false,
+            "autoStartRecordTimer": false,
+            "pauseRecordTimer": true
+        }
+    },
+    "version": 2,
+    "resolution": {
+        "x": 1920,
+        "y": 1080
+    }
 }
