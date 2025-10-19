@@ -46,10 +46,10 @@
         "traffic": "green"
       },
       {
-        "audio_pop_time_ms": 9550,
-        "closest_video_pop_ms": 9533.333333333334,
-        "closest_video_pop_frame": 572,
-        "difference_ms": 16.66666666666606,
+        "audio_pop_time_ms": 9520,
+        "closest_video_pop_ms": 9516.666666666668,
+        "closest_video_pop_frame": 571,
+        "difference_ms": 3.3333333333321207,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -58,9 +58,9 @@
       },
       {
         "audio_pop_time_ms": 10540,
-        "closest_video_pop_ms": 10533.333333333334,
-        "closest_video_pop_frame": 632,
-        "difference_ms": 6.66666666666606,
+        "closest_video_pop_ms": 10516.666666666668,
+        "closest_video_pop_frame": 631,
+        "difference_ms": 23.33333333333212,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -74,14 +74,14 @@
     "video_pop_times_ms": [
       7516.666666666667,
       8516.666666666668,
-      9533.333333333334,
-      10533.333333333334
+      9516.666666666668,
+      10516.666666666668
     ],
     "video_pop_frame_indices": [
       451,
       511,
-      572,
-      632
+      571,
+      631
     ],
     "traffic": [
       "green",
