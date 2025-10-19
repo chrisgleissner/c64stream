@@ -47,6 +47,8 @@ These settings work out-of-the-box with most C64 Ultimate setups. You can overri
 
 ### Easy Installation 📦
 
+In the following instructions, please replace `$VERSION` with the latest released version as shown on the [Releases](../../releases) page.
+
 ### Windows
 
 1. Close OBS Studio
