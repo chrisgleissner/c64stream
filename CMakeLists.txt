@@ -161,4 +161,13 @@ set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${_nam
 if(ENABLE_TESTS)
   enable_testing()
   add_subdirectory(tests)
+  # Ensure the udp_replay tool is available next to the plugin binaries when installing on macOS CI
+  # Xcode generator places runtime outputs under per-config directories
+  if(APPLE)
+    install(
+      FILES ${CMAKE_BINARY_DIR}/tests/e2e/$<CONFIG>/udp_replay
+      PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+      DESTINATION bin
+    )
+  endif()
 endif()
