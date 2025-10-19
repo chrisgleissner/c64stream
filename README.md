@@ -47,9 +47,14 @@ These settings work out-of-the-box with most C64 Ultimate setups. You can overri
 
 ### Easy Installation 📦
 
-In the following instructions, please replace `$VERSION` with the latest released version as shown on the [Releases](../../releases) page.
+In the following instructions, replace `$VERSION` with the latest released version as shown on the [Releases](../../releases) page.
 
-### Windows
+The plugin has been **verified to work** on the systems listed below.  
+For complete and up-to-date hardware and software requirements, please refer to the [OBS Studio System Requirements](https://obsproject.com/kb/system-requirements).
+
+#### Windows
+
+Verified on Windows 11:
 
 1. Close OBS Studio
 2. [Download](../../releases) the plugin package with name `c64stream-$VERSION-windows-x64.zip`. It should now be in your `Downloads` folder (typically `C:\Users\<YourName>\Downloads`).
@@ -64,7 +69,9 @@ If you are using Windows Firewall and block all incoming connections, you may ha
 New-NetFirewallRule -DisplayName "C64 Stream" -Direction Inbound -Protocol UDP -LocalPort 11000,11001 -RemoteAddress 192.168.1.64 -Action Allow
 ```
 
-### macOS
+#### macOS
+
+Verified on macOS Sequoia 15.6.1 with Apple Silicon (Intel systems are also supported):
 
 1. Close OBS Studio
 2. [Download](../../releases) the plugin package with name `c64stream-$VERSION-macos-universal.pkg`. It should now be in your `~/Downloads` directory.
@@ -83,6 +90,8 @@ chmod -R 755 "$HOME/Library/Application Support/obs-studio/plugins/c64stream.plu
 4. Start OBS Studio
 
 #### Linux (Ubuntu/Debian)
+
+Verified on Kubuntu 24.04.3:
 
 1. Close OBS Studio
 2. [Download](../../releases) the plugin package with name `c64stream-$VERSION-x86_64-linux-gnu.deb`. It should now be in your `~/Downloads` directory.
