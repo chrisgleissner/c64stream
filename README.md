@@ -67,6 +67,8 @@ New-NetFirewallRule -DisplayName "C64 Stream" -Direction Inbound -Protocol UDP -
 1. Close OBS Studio
 2. [Download](../../releases) the plugin package with name `c64stream-$VERSION-macos-universal.pkg`. It should now be in your `~/Downloads` directory.
 3. Install the plugin to `$HOME/Library/Application Support/obs-studio/plugins/c64stream.plugin` by running the following on the command line:
+> [!NOTE]
+> These commands are required due to platform packaging constraints on macOS and will be simplified in a future release.
 ```zsh
 cd ~/Downloads && \
 xattr -dr com.apple.quarantine c64stream-*-macos-universal.pkg && \
@@ -77,9 +79,6 @@ cp -R "/Library/Application Support/obs-studio/plugins/c64stream.plugin" \
 chmod -R 755 "$HOME/Library/Application Support/obs-studio/plugins/c64stream.plugin"
 ```
 4. Start OBS Studio
-
-> [!NOTE]
-> The macOS installation currently requires a few command line steps due to platform packaging constraints. This process will be simplified in a future release.
 
 #### Linux (Ubuntu/Debian)
 
