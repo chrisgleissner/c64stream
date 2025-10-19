@@ -102,6 +102,8 @@ build() {
   if (( debug )) cmake_args+=(--debug-output)
 
   cmake_args+=(--preset 'macos-ci')
+  # Ensure command-line tools are preferred on CI runners to avoid SDK path issues
+  typeset -gx SDKROOT=""
   cmake_args+=(-DENABLE_TESTS=ON)
 
   typeset -gx NSUnbufferedIO=YES
