@@ -1,6 +1,6 @@
 /*
 C64 Stream Plugin Integration Tests
-Copyright (C) 2025 Chris Gleissner
+Copyright (C) 2025 Christian Gleissner
 
 Integration tests that verify the plugin works end-to-end with the mock server.
 This uses a real OBS environment to properly test the plugin.

@@ -1,6 +1,6 @@
 /*
 VIC Color Conversion Tests
-Copyright (C) 2025 Chris Gleissner
+Copyright (C) 2025 Christian Gleissner
 
 Unit tests for VIC color palette and conversion functions.
 */

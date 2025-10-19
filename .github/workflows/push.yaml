@@ -67,6 +67,7 @@ jobs:
           if [[ "${RUNNER_DEBUG}" ]]; then set -x; fi
           shopt -s extglob
           shopt -s nullglob
+          shopt -s globstar
 
           root_dir="$(pwd)"
           commit_hash="${GITHUB_SHA:0:9}"
@@ -84,7 +85,11 @@ jobs:
             IFS=';' read -r variant suffix <<< "${variant_data}"
 
             # Look for artifacts with the actual version number from the tag
-            candidates=(*-${version}-${variant}-${commit_hash}/@(*|*-dbgsym).@(${suffix}))
+            candidates=(*-${version}-${variant}-${commit_hash}*/**/@(*|*-dbgsym).@(${suffix}))
+
+            if (( ${#candidates[@]} == 0 )); then
+              echo "⚠️ No artifacts found for variant '${variant}' (suffixes: ${suffix})"
+            fi
 
             for candidate in "${candidates[@]}"; do
               mv "${candidate}" "${root_dir}"
