@@ -87,7 +87,7 @@ chmod -R 755 "$HOME/Library/Application Support/obs-studio/plugins/c64stream.plu
 2. [Download](../../releases) the plugin package with name `c64stream-$VERSION-x86_64-linux-gnu.deb`. It should now be in your `~/Downloads` directory.
 3. Install the plugin to `~/.config/obs-studio/plugins` by running the following on the command line:
 ```bash
-sudo dpkg -i c64stream-plugin-linux.deb
+sudo dpkg -i ~/Downloads/c64stream-*-x86_64-linux-gnu.deb
 ```
 4. Start OBS Studio
 
