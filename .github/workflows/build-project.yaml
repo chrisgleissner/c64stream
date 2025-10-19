@@ -358,6 +358,12 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
+      - name: Fetch Git Tags 🏷️
+        run: |
+          : Fetch Git Tags 🏷️
+          git config --global --add safe.directory "$(pwd)"
+          git fetch --force --tags
+
       - name: Set Up Environment 🔧
         id: setup
         run: |
@@ -396,10 +402,12 @@ jobs:
           cmake --build build_x86_64 --config ${{ needs.check-event.outputs.config }} --parallel
 
       - name: Package Plugin 📦
+        env:
+          PLUGIN_VERSION_OVERRIDE: ${{ needs.check-event.outputs.pluginVersion }}
         run: |
           : Package Plugin 📦
-          cd build_x86_64
-          cpack -G "TXZ;DEB;External" -C ${{ needs.check-event.outputs.config }}
+          cmake --build build_x86_64 --config ${{ needs.check-event.outputs.config }} -t package_source
+          cmake --build build_x86_64 --config ${{ needs.check-event.outputs.config }} -t package
 
       - name: Prepare Artifacts 📋
         run: |
