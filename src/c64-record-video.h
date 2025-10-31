@@ -23,4 +23,4 @@ void c64_video_start_recording(struct c64_source *context);
 void c64_video_record_frame(struct c64_source *context, uint32_t *frame_buffer);
 void c64_video_stop_recording(struct c64_source *context);
 
-#endif  // C64_RECORD_VIDEO_H
+#endif // C64_RECORD_VIDEO_H

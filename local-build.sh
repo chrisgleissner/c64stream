@@ -458,19 +458,19 @@ kill_obs_processes() {
     log_info "Checking for running OBS processes..."
 
     # Find all OBS processes
-    local obs_pids=$(pgrep -f "obs" 2>/dev/null || true)
+    local obs_pids=$(pgrep -x "obs" 2>/dev/null || true)
 
     if [[ -n "$obs_pids" ]]; then
         log_info "Found running OBS processes: $obs_pids"
 
         # Try graceful shutdown first
         log_info "Attempting graceful shutdown..."
-        pkill -TERM -f "obs" 2>/dev/null || true
+        pkill -TERM -x "obs" 2>/dev/null || true
 
         # Wait up to 5 seconds for graceful shutdown
         for i in {1..5}; do
             sleep 1
-            if ! pgrep -f "obs" >/dev/null 2>&1; then
+            if ! pgrep -x "obs" >/dev/null 2>&1; then
                 log_success "OBS processes shut down gracefully"
                 return 0
             fi
@@ -478,13 +478,13 @@ kill_obs_processes() {
 
         # Force kill if still running
         log_warning "Graceful shutdown failed, force killing OBS processes..."
-        pkill -KILL -f "obs" 2>/dev/null || true
+        pkill -KILL -x "obs" 2>/dev/null || true
 
         # Wait a moment for cleanup
         sleep 1
 
         # Verify all processes are gone
-        local remaining_pids=$(pgrep -f "obs" 2>/dev/null || true)
+        local remaining_pids=$(pgrep -x "obs" 2>/dev/null || true)
         if [[ -n "$remaining_pids" ]]; then
             log_error "Failed to kill OBS processes: $remaining_pids"
             return 1

@@ -31,4 +31,4 @@ void c64_set_property_defaults(obs_data_t *settings);
  */
 bool c64_load_configuration(obs_data_t *settings);
 
-#endif  // C64_PROPERTIES_H
+#endif // C64_PROPERTIES_H

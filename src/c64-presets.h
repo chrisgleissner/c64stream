@@ -42,4 +42,4 @@ bool c64_presets_apply(obs_data_t *settings, const char *preset_name);
  */
 int c64_presets_get_count(void);
 
-#endif  // C64_PRESETS_H
+#endif // C64_PRESETS_H

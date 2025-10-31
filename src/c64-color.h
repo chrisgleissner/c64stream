@@ -42,4 +42,4 @@ void c64_init_color_conversion_lut(void);
  */
 void c64_convert_pixels_optimized(const uint8_t *src, uint32_t *dst, int pixel_pairs);
 
-#endif  // C64_COLOR_H
+#endif // C64_COLOR_H
