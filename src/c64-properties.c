@@ -104,11 +104,6 @@ obs_properties_t *c64_create_properties(void *data)
         obs_properties_add_int(network_props, "audio_port", obs_module_text("AudioPort"), 1024, 65535, 1);
     obs_property_set_long_description(audio_port_prop, obs_module_text("AudioPort.Description"));
 
-    // Control Port (TCP)
-    obs_property_t *control_port_prop =
-        obs_properties_add_int(network_props, "control_port", obs_module_text("ControlPort"), 64, 65535, 1);
-    obs_property_set_long_description(control_port_prop, obs_module_text("ControlPort.Description"));
-
     // Buffer Delay
     obs_property_t *delay_prop =
         obs_properties_add_int_slider(network_props, "buffer_delay_ms", obs_module_text("BufferDelay"), 0, 500, 1);
