@@ -457,8 +457,7 @@ kill_obs_processes() {
 
     log_info "Checking for running OBS processes..."
 
-    # Find all OBS processes - use exact match for the OBS executable to avoid matching other processes like windsurf
-    # Match only processes with the exact executable name 'obs' (not processes containing 'obs' in their path)
+    # Find all OBS processes
     local obs_pids=$(pgrep -x "obs" 2>/dev/null || true)
 
     if [[ -n "$obs_pids" ]]; then
