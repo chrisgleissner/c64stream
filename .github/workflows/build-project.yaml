@@ -396,7 +396,7 @@ jobs:
           export PATH="/usr/local/bin:$PATH"
 
           # Configure CMake
-          cmake --preset ubuntu-x86_64
+          cmake --preset ubuntu-x86_64 -DCMAKE_INSTALL_PREFIX=/usr
 
           # Build with Ninja
           cmake --build build_x86_64 --config ${{ needs.check-event.outputs.config }} --parallel
