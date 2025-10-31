@@ -43,6 +43,11 @@ endif()
 
 project(${_name} VERSION ${AUTHORITATIVE_VERSION})
 
+# Default to system installation paths for Linux packages unless explicitly overridden
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+  set(CMAKE_INSTALL_PREFIX "/usr" CACHE PATH "Install prefix for Linux packages" FORCE)
+endif()
+
 # Set dummy VirtualCam GUID to prevent Windows build warning
 set(VIRTUALCAM_GUID "{00000000-0000-0000-0000-000000000000}")
 
