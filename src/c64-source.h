@@ -30,4 +30,4 @@ void c64_start_streaming(struct c64_source *context);
 void c64_stop_streaming(struct c64_source *context);
 void c64_async_retry_task(void *data);
 
-#endif  // C64_SOURCE_H
+#endif // C64_SOURCE_H

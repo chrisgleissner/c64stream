@@ -48,4 +48,4 @@ void c64_log_video_packet_if_enabled(struct c64_source *context, const uint8_t *
 void c64_log_audio_packet_if_enabled(struct c64_source *context, const uint8_t *packet, size_t packet_size,
                                      uint64_t timestamp_ns);
 
-#endif  // C64_PROTOCOL_H
+#endif // C64_PROTOCOL_H

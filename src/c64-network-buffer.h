@@ -36,31 +36,31 @@ extern "C" {
 #define C64_MAX_VIDEO_PACKETS ((C64_MAX_VIDEO_RATE * C64_MAX_DELAY_MS * 12) / 10000) // 20% margin
 #define C64_MAX_AUDIO_PACKETS ((C64_MAX_AUDIO_RATE * C64_MAX_DELAY_MS * 12) / 10000) // 20% margin
 
-    struct c64_network_buffer;
+struct c64_network_buffer;
 
-    // Create/destroy buffer (allocates maximum size buffers)
-    struct c64_network_buffer *c64_network_buffer_create(void);
-    void c64_network_buffer_destroy(struct c64_network_buffer *buf);
+// Create/destroy buffer (allocates maximum size buffers)
+struct c64_network_buffer *c64_network_buffer_create(void);
+void c64_network_buffer_destroy(struct c64_network_buffer *buf);
 
-    // Set dynamic delay in milliseconds (flushes buffer)
-    void c64_network_buffer_set_delay(struct c64_network_buffer *buf, size_t video_delay_ms, size_t audio_delay_ms);
+// Set dynamic delay in milliseconds (flushes buffer)
+void c64_network_buffer_set_delay(struct c64_network_buffer *buf, size_t video_delay_ms, size_t audio_delay_ms);
 
-    // Push packet from network thread (timestamp in nanoseconds, converted internally to microseconds)
-    void c64_network_buffer_push_video(struct c64_network_buffer *buf, const uint8_t *data, size_t len,
-                                       uint64_t timestamp_ns);
-    void c64_network_buffer_push_audio(struct c64_network_buffer *buf, const uint8_t *data, size_t len,
-                                       uint64_t timestamp_ns);
+// Push packet from network thread (timestamp in nanoseconds, converted internally to microseconds)
+void c64_network_buffer_push_video(struct c64_network_buffer *buf, const uint8_t *data, size_t len,
+                                   uint64_t timestamp_ns);
+void c64_network_buffer_push_audio(struct c64_network_buffer *buf, const uint8_t *data, size_t len,
+                                   uint64_t timestamp_ns);
 
-    // Pop the latest aligned pair for render thread
-    // Returns 1 if a pair is available, 0 if buffers empty
-    int c64_network_buffer_pop(struct c64_network_buffer *buf, const uint8_t **video_data, size_t *video_size,
-                               const uint8_t **audio_data, size_t *audio_size, uint64_t *timestamp_us);
+// Pop the latest aligned pair for render thread
+// Returns 1 if a pair is available, 0 if buffers empty
+int c64_network_buffer_pop(struct c64_network_buffer *buf, const uint8_t **video_data, size_t *video_size,
+                           const uint8_t **audio_data, size_t *audio_size, uint64_t *timestamp_us);
 
-    // Flush all buffers (clear all pending data)
-    void c64_network_buffer_flush(struct c64_network_buffer *buf);
+// Flush all buffers (clear all pending data)
+void c64_network_buffer_flush(struct c64_network_buffer *buf);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // C64_NETWORK_BUFFER_H
+#endif // C64_NETWORK_BUFFER_H
