@@ -67,10 +67,16 @@ This ensures that after E2E tests, subsequent OBS launches load fresh settings f
 
 **Linux:**
 
-- build-essential
-- cmake 3.28+
-- zsh
-- clang-format 21.1.1+
+```
+sudo apt update
+sudo apt install -y \
+  build-essential \
+  cmake \
+  ninja-build \
+  pkg-config \
+  gcc g++ \
+  libobs-dev
+```
 
 **macOS:**
 
