@@ -1,83 +1,26 @@
 {
   "udp_reception": {
     "status": "warning",
-    "details": "18245/18246 packets (17000 video, 1245 audio, minor loss)"
+    "details": "126330/4140 packets (minor loss)"
   },
   "frame_processing": {
     "status": "pass",
-    "details": "1742 frames processed"
+    "details": "10360 frames processed"
   },
   "video_recording": {
     "status": "pass",
-    "details": "14.2 MB"
+    "details": "23.8 MB"
   },
   "packet_integrity": {
     "status": "pass",
-    "details": "19.5s duration"
+    "details": "32.5s duration"
   },
-  "av_sync_details": {
-    "total_audio_pops": 3,
-    "total_analyzed": 3,
-    "total_video_pops": 3,
-    "perfect_sync_count": 3,
-    "sync_accuracy_percent": 100.0,
-    "tolerance_ms": 25,
-    "sync_details": [
-      {
-        "audio_pop_time_ms": 7530,
-        "closest_video_pop_ms": 7540.0,
-        "closest_video_pop_frame": 377,
-        "difference_ms": 10.0,
-        "is_synced": true,
-        "included_in_analysis": true,
-        "ignore_reason": null,
-        "channel": "L",
-        "traffic": "green"
-      },
-      {
-        "audio_pop_time_ms": 8530,
-        "closest_video_pop_ms": 8540.0,
-        "closest_video_pop_frame": 427,
-        "difference_ms": 10.0,
-        "is_synced": true,
-        "included_in_analysis": true,
-        "ignore_reason": null,
-        "channel": "R",
-        "traffic": "green"
-      },
-      {
-        "audio_pop_time_ms": 9530,
-        "closest_video_pop_ms": 9520.0,
-        "closest_video_pop_frame": 476,
-        "difference_ms": 10.0,
-        "is_synced": true,
-        "included_in_analysis": true,
-        "ignore_reason": null,
-        "channel": "L",
-        "traffic": "green"
-      }
-    ],
-    "is_perfectly_synced": true,
-    "last_event_within_limit": true,
-    "duration_ms": 19520.0,
-    "video_pop_times_ms": [
-      7540.0,
-      8540.0,
-      9520.0
-    ],
-    "video_pop_frame_indices": [
-      377,
-      427,
-      476
-    ],
-    "traffic": [
-      "green",
-      "green",
-      "green"
-    ]
+  "tint_validation": {
+    "status": "skipped",
+    "details": "Tint validation not enabled"
   },
-  "av_sync": {
-    "status": "pass",
-    "details": "3/3 analyzed pops synced"
+  "afterglow_validation": {
+    "status": "skipped",
+    "details": "Afterglow validation not enabled"
   }
 }
