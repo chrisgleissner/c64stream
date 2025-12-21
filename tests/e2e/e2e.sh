@@ -563,9 +563,8 @@ generate_packets() {
     )
 
     # Optional pattern selection (e.g., afterglow pulse pattern).
-    if [[ "${C64_E2E_PATTERN:-}" != "" ]]; then
-        cmd+=("--pattern" "${C64_E2E_PATTERN}")
-    fi
+    # Note: upstream packet generator no longer supports --pattern; it always emits the A/V pop sync marker.
+    # Keep C64_E2E_PATTERN as an env toggle for other parts of the harness, but do not pass it to generate_packets.py.
 
     if [[ "${VERBOSE}" == true ]]; then
         log_info "Running: ${cmd[*]}"
