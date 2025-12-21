@@ -1,6 +1,6 @@
 # C64 Stream E2E Test Report
 
-Generated: 2025-12-21 22:45:25 UTC
+Generated: 2025-12-21 22:58:55 UTC
 
 ## Test configuration
 
@@ -32,4 +32,4 @@ Generated: 2025-12-21 22:45:25 UTC
 
 ![Sample Frame](./c64_recording_still.png)
 - Top-left shows the frame index (color = frame_num % 16). Top-right shows a stable 4×4 tile of all 16 VIC colours (drift check). Center shows scrolling colour bars. Bottom-right flashes with a pop sound for A/V sync checks / afterglow tail.
-- Taken from 00:04.7 of the 9.5 s video above.
+- Taken from 00:04.6 of the 9.5 s video above.

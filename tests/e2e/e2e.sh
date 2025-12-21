@@ -851,35 +851,53 @@ EOF
         fi
     fi
 
-    # Sample frame: choose a representative mid-run timestamp.
+    # Sample frame: extract a frame showing the A/V pop white square.
     #
-    # Using the first A/V pop can land too early while OBS/plugin are still settling,
-    # yielding a placeholder frame. A mid-run frame consistently shows the full test pattern.
+    # Use the closest_video_pop_ms from validation results to find a frame with the A/V pop visible.
+    # This ensures the sample frame shows the test pattern with the white sync square.
     if [[ -n "${recording_mp4}" && -f "${recording_mp4}" && -x "${TEST_DIR}/extract.frame" ]]; then
-        local dur_sec mid_sec min_sec max_sec
-        dur_sec=""
-        if command -v ffprobe >/dev/null 2>&1; then
-            dur_sec=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${recording_mp4}" 2>/dev/null | head -1 || true)
+        local pop_time_ms pop_frame_num frame_rate
+
+        # Try to get the first video pop timestamp from validation results
+        if [[ -f "${validation_file}" ]] && command -v jq >/dev/null 2>&1; then
+            pop_time_ms=$(jq -r '.av_sync_details.sync_details[0].closest_video_pop_ms // empty' "${validation_file}" 2>/dev/null || true)
+            if [[ -n "${pop_time_ms}" && "${pop_time_ms}" != "null" ]]; then
+                sample_frame_seconds=$(awk -v ms="${pop_time_ms}" 'BEGIN{printf "%.3f", ms/1000.0}')
+            fi
         fi
 
-        # Default to ~4.5s which is safely past startup for our current suite runs.
-        mid_sec="4.500"
-        if [[ -n "${dur_sec}" ]]; then
-            mid_sec=$(awk -v d="${dur_sec}" 'BEGIN{printf "%.3f", d*0.50}')
+        # Fallback: directly detect a video pop frame using test_av_sync.py
+        if [[ -z "${sample_frame_seconds}" ]] && command -v python3 >/dev/null 2>&1; then
+            if [[ "${FORMAT}" == "PAL" ]]; then
+                frame_rate="50.0"
+            else
+                frame_rate="60.0"
+            fi
+            pop_frame_num=$(python3 -c "
+import sys
+sys.path.insert(0, '${TEST_DIR}')
+from test_av_sync import detect_video_pops
+pops = detect_video_pops('${recording_mp4}', frame_rate=${frame_rate})
+if pops:
+    print(pops[0])  # first detected pop frame
+" 2>/dev/null || true)
+            if [[ -n "${pop_frame_num}" && "${pop_frame_num}" =~ ^[0-9]+$ ]]; then
+                # Convert frame number to seconds
+                sample_frame_seconds=$(awk -v f="${pop_frame_num}" -v fps="${frame_rate}" 'BEGIN{printf "%.3f", f/fps}')
+            fi
         fi
 
-        # Clamp to [2.5s, duration-0.5s] when duration is known.
-        min_sec="2.500"
-        if [[ -n "${dur_sec}" ]]; then
-            max_sec=$(awk -v d="${dur_sec}" 'BEGIN{printf "%.3f", (d>0.5 ? d-0.5 : d)}')
-        else
-            max_sec=""
-        fi
-
-        if [[ -n "${dur_sec}" ]]; then
-            sample_frame_seconds=$(awk -v t="${mid_sec}" -v lo="${min_sec}" -v hi="${max_sec}" 'BEGIN{v=t; if(v<lo) v=lo; if(hi!="" && v>hi) v=hi; printf "%.3f", v}')
-        else
-            sample_frame_seconds="${mid_sec}"
+        # Final fallback to mid-point if no pop found
+        if [[ -z "${sample_frame_seconds}" ]]; then
+            local dur_sec
+            if command -v ffprobe >/dev/null 2>&1; then
+                dur_sec=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${recording_mp4}" 2>/dev/null | head -1 || true)
+            fi
+            if [[ -n "${dur_sec}" ]]; then
+                sample_frame_seconds=$(awk -v d="${dur_sec}" 'BEGIN{printf "%.3f", d*0.50}')
+            else
+                sample_frame_seconds="4.500"
+            fi
         fi
 
         "${TEST_DIR}/extract.frame" --input "${recording_mp4}" --output "${sample_frame_path}" --time "${sample_frame_seconds}" || true

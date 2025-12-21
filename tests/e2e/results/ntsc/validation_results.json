@@ -9,11 +9,11 @@
   },
   "video_recording": {
     "status": "pass",
-    "details": "6.9 MB"
+    "details": "7.0 MB"
   },
   "packet_integrity": {
     "status": "pass",
-    "details": "9.5s duration"
+    "details": "9.6s duration"
   },
   "tint_validation": {
     "status": "skipped",
