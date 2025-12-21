@@ -1,0 +1,87 @@
+name: Bug report
+description: Report a reproducible defect or regression
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time to report a bug.
+        Please provide complete and accurate information so the issue can be reproduced and resolved efficiently.
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system and version
+      placeholder: "e.g. Windows 11 23H2, Ubuntu 24.04, macOS 15.x"
+    validations:
+      required: true
+
+  - type: textarea
+    id: hardware
+    attributes:
+      label: Hardware and network configuration
+      description: Include CPU, network setup, and whether the device is directly connected or via a switch.
+      placeholder: |
+        C64 device (e.g. Ultimate 64 Elite I/II, C64 Ultimate):
+        C64 firmware version:
+        OBS host CPU:
+        OBS host RAM:
+        Network configuration (e.g. bandwidth/topology/etc):
+        Direct connection or via switch/router/etc (including model):
+        Other relevant hardware:
+    validations:
+      required: true
+
+  - type: input
+    id: obs_version
+    attributes:
+      label: OBS version
+      placeholder: "e.g. 31.0.0"
+    validations:
+      required: true
+
+  - type: input
+    id: plugin_version
+    attributes:
+      label: Plugin version and installation method
+      description: Specify whether this is a released build or a local source build.
+      placeholder: "e.g. 1.2.3 - downloaded release / local build (commit hash)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: OBS logs (verbose logging enabled)
+      description: Attach or paste logs generated with verbose logging enabled.
+      placeholder: "Paste logs here or drag-and-drop log files."
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Provide exact steps to reliably reproduce the issue.
+      placeholder: |
+        1.
+        2.
+        3.
+        Expected result:
+        Actual result:
+    validations:
+      required: true
+
+  - type: textarea
+    id: diagnosis
+    attributes:
+      label: Diagnostics already performed
+      description: Include any troubleshooting, testing, or analysis already carried out.
+      placeholder: |
+        - Tests performed:
+        - Observations:
+        - Suspected cause (if any):
+    validations:
+      required: true
