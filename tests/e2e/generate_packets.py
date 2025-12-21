@@ -45,7 +45,7 @@ BITS_PER_PIXEL = 4
 AUDIO_SAMPLES_PER_PACKET = 192  # Stereo samples
 
 
-def generate_video_packet(frame_num, packet_num, width, height, packets_per_frame):
+def generate_video_packet(frame_num, packet_num, width, height, packets_per_frame, pattern: str | None = None):
     """
     Generate a single video packet following C64 Ultimate spec.
 
@@ -79,20 +79,42 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
     # This allows verification that frames are in correct order
     payload = bytearray(768)
 
+    # Optional afterglow test pattern: black background with a short white pulse square in the bottom-right.
+    pulse_enabled = (pattern == "avpop")
+    pulse_period_frames = 25
+    pulse_on_frames = 2
+    pulse_is_on = pulse_enabled and ((frame_num % pulse_period_frames) < pulse_on_frames)
+
+    pulse_size = 56
+    pulse_x0 = width - pulse_size - 8
+    pulse_y0 = height - pulse_size - 8
+    pulse_x1 = pulse_x0 + pulse_size
+    pulse_y1 = pulse_y0 + pulse_size
+
     for line in range(LINES_PER_PACKET):
         for byte_idx in range(width // 2):  # 2 pixels per byte (4-bit color)
             pixel_line = line_num + line
 
-            # Create a visible marker pattern in top-left corner (first 32x32 pixels)
-            if pixel_line < 32 and byte_idx < 16:
-                # Use frame_num modulo 16 as the color in marker area
-                marker_color = frame_num % 16
-                payload[line * (width // 2) + byte_idx] = (marker_color << 4) | marker_color
+            if pulse_enabled:
+                # Background black; pulse square white when enabled.
+                x0 = byte_idx * 2
+                x1 = x0 + 1
+                in0 = pulse_is_on and (pulse_x0 <= x0 < pulse_x1) and (pulse_y0 <= pixel_line < pulse_y1)
+                in1 = pulse_is_on and (pulse_x0 <= x1 < pulse_x1) and (pulse_y0 <= pixel_line < pulse_y1)
+                c0 = 1 if in0 else 0  # VIC-II palette index: 1=white, 0=black
+                c1 = 1 if in1 else 0
+                payload[line * (width // 2) + byte_idx] = (c1 << 4) | c0
             else:
-                # Rest of frame: simple pattern based on position
-                color1 = (byte_idx + pixel_line + frame_num) % 16
-                color2 = (byte_idx + pixel_line + frame_num + 1) % 16
-                payload[line * (width // 2) + byte_idx] = (color2 << 4) | color1
+                # Create a visible marker pattern in top-left corner (first 32x32 pixels)
+                if pixel_line < 32 and byte_idx < 16:
+                    # Use frame_num modulo 16 as the color in marker area
+                    marker_color = frame_num % 16
+                    payload[line * (width // 2) + byte_idx] = (marker_color << 4) | marker_color
+                else:
+                    # Rest of frame: simple pattern based on position
+                    color1 = (byte_idx + pixel_line + frame_num) % 16
+                    color2 = (byte_idx + pixel_line + frame_num + 1) % 16
+                    payload[line * (width // 2) + byte_idx] = (color2 << 4) | color1
 
     return header + bytes(payload)
 
@@ -134,7 +156,7 @@ def generate_audio_packet(frame_num, sample_rate):
     return header + payload.tobytes()
 
 
-def generate_packets(output_dir, num_frames=30, formats=None):
+def generate_packets(output_dir, num_frames=30, formats=None, pattern: str | None = None):
     """
     Generate test packets for all specified formats.
 
@@ -169,7 +191,8 @@ def generate_packets(output_dir, num_frames=30, formats=None):
             for packet_num in range(fmt['packets_per_frame']):
                 packet_data = generate_video_packet(
                     frame_num, packet_num, fmt['width'],
-                    fmt['height'], fmt['packets_per_frame']
+                    fmt['height'], fmt['packets_per_frame'],
+                    pattern=pattern
                 )
 
                 # Write packet to file
@@ -233,10 +256,13 @@ Examples:
     parser.add_argument('--format', choices=['PAL', 'NTSC'], action='append',
                         dest='formats',
                         help='Format(s) to generate (can specify multiple times, default: both)')
+    parser.add_argument('--pattern', choices=['default', 'avpop'], default='default',
+                        help="Video pattern: 'default' (markers) or 'avpop' (afterglow pulse)")
 
     args = parser.parse_args()
 
-    generate_packets(args.output, args.frames, args.formats)
+    pattern = None if args.pattern == 'default' else args.pattern
+    generate_packets(args.output, args.frames, args.formats, pattern=pattern)
 
 
 if __name__ == '__main__':

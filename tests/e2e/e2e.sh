@@ -454,6 +454,11 @@ generate_packets() {
         "--output" "test_packets"
     )
 
+    # Optional pattern selection (e.g., afterglow pulse pattern).
+    if [[ "${C64_E2E_PATTERN:-}" != "" ]]; then
+        cmd+=("--pattern" "${C64_E2E_PATTERN}")
+    fi
+
     if [[ "${VERBOSE}" == true ]]; then
         log_info "Running: ${cmd[*]}"
         "${cmd[@]}"

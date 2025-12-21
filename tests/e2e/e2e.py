@@ -234,108 +234,173 @@ DockAreaVisible=false
 """
             f.write(config_content)
 
-        # Create scene collection
+        # Create scene collection (OBS 30+/32+ schema, version 2)
+        #
+        # OBS 32+ ignores legacy schema (v1), so we emit the modern format with UUIDs.
+        import uuid
+
         scene_file = scenes_dir / 'C64StreamTest.json'
+
+        scene_name = "C64 Test Scene"
+        source_name = "C64 Stream"
+        scene_uuid = str(uuid.uuid4())
+        source_uuid = str(uuid.uuid4())
+
+        # Matches the default canvas UUID used by OBS for the main canvas
+        canvas_uuid = "6c69626f-6273-4c00-9d88-c5136d61696e"
+
+        # Optional effect toggles for E2E verification.
+        # We keep defaults off to preserve established behavior unless explicitly enabled.
+        tint_green = os.environ.get("C64_E2E_TINT", "").lower() in ("green", "green_tint") or os.environ.get("C64_E2E_GREEN_TINT", "0") == "1"
+        tint_mode = 2 if tint_green else 0  # 2 = Green CRT in crt_effect.effect
+        tint_strength = 1.0 if tint_green else 0.0
+
+        afterglow_enabled = os.environ.get("C64_E2E_AFTERGLOW", "0") == "1" or os.environ.get("C64_E2E_PATTERN", "").lower() == "avpop"
+        afterglow_duration_ms = 600 if afterglow_enabled else 0
+        afterglow_curve = 2
+
         scene_config = {
-            "AuxAudioDevice1": {
-                "balance": 0.5,
-                "deinterlace_field_order": 0,
-                "deinterlace_mode": 0,
-                "enabled": True,
-                "flags": 0,
-                "hotkeys": {},
-                "id": "pulse_input_capture",
-                "mixers": 255,
-                "monitoring_type": 0,
-                "muted": False,
-                "name": "Mic/Aux",
-                "private_settings": {},
-                "push-to-mute": False,
-                "push-to-mute-delay": 1000,
-                "push-to-talk": False,
-                "push-to-talk-delay": 1000,
-                "settings": {},
-                "sync": 0,
-                "volume": 1.0
-            },
-            "current_scene": "C64 Test Scene",
-            "current_program_scene": "C64 Test Scene",
-            "scene_order": [
-                {
-                    "name": "C64 Test Scene"
-                }
-            ],
+            "current_scene": scene_name,
+            "current_program_scene": scene_name,
+            "scene_order": [{"name": scene_name}],
+            "name": "C64StreamTest",
             "sources": [
                 {
-                    "balance": 0.5,
-                    "deinterlace_field_order": 0,
-                    "deinterlace_mode": 0,
-                    "enabled": True,
+                    "prev_ver": 536870914,
+                    "name": scene_name,
+                    "uuid": scene_uuid,
+                    "id": "scene",
+                    "versioned_id": "scene",
+                    "settings": {
+                        "id_counter": 1,
+                        "custom_size": False,
+                        "items": [
+                            {
+                                "name": source_name,
+                                "source_uuid": source_uuid,
+                                "visible": True,
+                                "locked": False,
+                                "rot": 0.0,
+                                "align": 5,
+                                "bounds_type": 0,
+                                "bounds_align": 0,
+                                "bounds_crop": False,
+                                "crop_left": 0,
+                                "crop_top": 0,
+                                "crop_right": 0,
+                                "crop_bottom": 0,
+                                "id": 1,
+                                "group_item_backup": False,
+                                "pos": {"x": 0.0, "y": 0.0},
+                                "scale": {"x": 1.0, "y": 1.0},
+                                "bounds": {"x": 0.0, "y": 0.0},
+                                "scale_filter": "disable",
+                                "blend_method": "default",
+                                "blend_type": "normal",
+                                "show_transition": {"duration": 0},
+                                "hide_transition": {"duration": 0},
+                                "private_settings": {},
+                            }
+                        ],
+                    },
+                    "mixers": 0,
+                    "sync": 0,
                     "flags": 0,
-                    "hotkeys": {},
-                    "id": "c64_source",
-                    "mixers": 255,
-                    "monitoring_type": 0,
+                    "volume": 1.0,
+                    "balance": 0.5,
+                    "enabled": True,
                     "muted": False,
-                    "name": "C64 Stream Source",
-                    "private_settings": {},
                     "push-to-mute": False,
-                    "push-to-mute-delay": 1000,
+                    "push-to-mute-delay": 0,
                     "push-to-talk": False,
-                    "push-to-talk-delay": 1000,
+                    "push-to-talk-delay": 0,
+                    "hotkeys": {"OBSBasic.SelectScene": [], "libobs.show_scene_item.1": [], "libobs.hide_scene_item.1": []},
+                    "deinterlace_mode": 0,
+                    "deinterlace_field_order": 0,
+                    "monitoring_type": 0,
+                    "canvas_uuid": canvas_uuid,
+                    "private_settings": {},
+                },
+                {
+                    "prev_ver": 536870914,
+                    "name": source_name,
+                    "uuid": source_uuid,
+                    "id": "c64_source_dev",
+                    "versioned_id": "c64_source_dev",
                     "settings": {
                         "c64_host": "localhost",
+                        "obs_ip_address": "127.0.0.1",
+                        "auto_detect_ip": False,
+                        "dns_server_ip": "127.0.0.1",
                         "video_port": self.video_port,
                         "audio_port": self.audio_port,
                         "control_port": self.control_port,
-                        "record_csv": True
+                        "record_csv": True,
+                        "record_video": True,
+                        # Effects: explicitly set so the test can verify filter output deterministically.
+                        "tint_mode": tint_mode,
+                        "tint_strength": tint_strength,
+                        "afterglow_duration_ms": afterglow_duration_ms,
+                        "afterglow_curve": afterglow_curve,
                     },
+                    "mixers": 255,
                     "sync": 0,
-                    "volume": 1.0
-                }
+                    "flags": 0,
+                    "volume": 1.0,
+                    "balance": 0.5,
+                    "enabled": True,
+                    "muted": False,
+                    "push-to-mute": False,
+                    "push-to-mute-delay": 0,
+                    "push-to-talk": False,
+                    "push-to-talk-delay": 0,
+                    "hotkeys": {"libobs.mute": [], "libobs.unmute": [], "libobs.push-to-mute": [], "libobs.push-to-talk": []},
+                    "deinterlace_mode": 0,
+                    "deinterlace_field_order": 0,
+                    "monitoring_type": 0,
+                    "private_settings": {},
+                },
             ],
-            "scenes": [
-                {
-                    "hotkeys": {},
-                    "id": 1,
-                    "name": "C64 Test Scene",
-                    "sources": [
-                        {
-                            "align": 5,
-                            "blend_method": "default",
-                            "blend_type": "normal",
-                            "bounds": {
-                                "alignment": 0,
-                                "type": "OBS_BOUNDS_NONE"
-                            },
-                            "bounds_align": 0,
-                            "bounds_type": 0,
-                            "crop_bottom": 0,
-                            "crop_left": 0,
-                            "crop_right": 0,
-                            "crop_top": 0,
-                            "group_children": False,
-                            "hotkeys": {},
-                            "id": 1,
-                            "locked": False,
-                            "name": "C64 Stream Source",
-                            "pos": {
-                                "x": 0.0,
-                                "y": 0.0
-                            },
-                            "private_settings": {},
-                            "rot": 0.0,
-                            "scale": {
-                                "x": 1.0,
-                                "y": 1.0
-                            },
-                            "scale_filter": "disable",
-                            "visible": True
-                        }
-                    ]
-                }
+            "groups": [],
+            "quick_transitions": [
+                {"name": "Cut", "duration": 300, "hotkeys": [], "id": 1, "fade_to_black": False},
+                {"name": "Fade", "duration": 300, "hotkeys": [], "id": 2, "fade_to_black": False},
+                {"name": "Fade", "duration": 300, "hotkeys": [], "id": 3, "fade_to_black": True},
             ],
-            "version": 1
+            "transitions": [],
+            "saved_projectors": [],
+            "canvases": [],
+            "current_transition": "Fade",
+            "transition_duration": 300,
+            "preview_locked": False,
+            "scaling_enabled": False,
+            "scaling_level": -63,
+            "scaling_off_x": 0.0,
+            "scaling_off_y": 0.0,
+            "virtual-camera": {"type2": 3},
+            "modules": {
+                "scripts-tool": [],
+                "output-timer": {
+                    "streamTimerHours": 0,
+                    "streamTimerMinutes": 0,
+                    "streamTimerSeconds": 30,
+                    "recordTimerHours": 0,
+                    "recordTimerMinutes": 0,
+                    "recordTimerSeconds": 30,
+                    "autoStartStreamTimer": False,
+                    "autoStartRecordTimer": False,
+                    "pauseRecordTimer": True,
+                },
+                "auto-scene-switcher": {
+                    "interval": 300,
+                    "non_matching_scene": "",
+                    "switch_if_not_matching": False,
+                    "active": False,
+                    "switches": [],
+                },
+            },
+            "resolution": {"x": 1280, "y": 720},
+            "version": 2,
         }
 
         with open(scene_file, 'w') as f:
@@ -472,7 +537,7 @@ DockAreaVisible=false
             obs_cmd = [
                 'obs',
                 '--profile', 'C64StreamTest',
-                '--scene-collection', 'C64StreamTest',
+                '--collection', 'C64StreamTest',
                 '--startrecording',  # Auto-start recording
                 '--minimize-to-tray',
                 '--disable-updater',
@@ -538,7 +603,7 @@ DockAreaVisible=false
             obs_cmd = [
                 'obs',
                 '--profile', 'C64StreamTest',
-                '--scene-collection', 'C64StreamTest',
+                '--collection', 'C64StreamTest',
                 '--startrecording',
                 '--minimize-to-tray',
                 '--disable-updater',
@@ -1165,8 +1230,12 @@ DockAreaVisible=false
             'udp_reception': {'status': 'unknown', 'details': ''},
             'frame_processing': {'status': 'unknown', 'details': ''},
             'video_recording': {'status': 'unknown', 'details': ''},
-            'packet_integrity': {'status': 'unknown', 'details': ''}
-        }        # Calculate expected packet counts
+            'packet_integrity': {'status': 'unknown', 'details': ''},
+            'tint_validation': {'status': 'skipped', 'details': 'Tint validation not enabled'},
+            'afterglow_validation': {'status': 'skipped', 'details': 'Afterglow validation not enabled'},
+        }
+
+        # Calculate expected packet counts
         if self.format == 'PAL':
             video_packets_per_frame = 68  # 272 lines / 4 lines per packet
             audio_packets_per_frame = 1   # One audio packet per frame
@@ -1279,6 +1348,61 @@ DockAreaVisible=false
             print("❌ Video Recording: No recording file found")
             validation_errors.append("Missing video recording")
             validation_results['video_recording'] = {'status': 'fail', 'details': 'No file found'}
+
+        # 4. Optional tint validation (POC to prove we can detect filters in recorded output)
+        if recording_file and Path(recording_file).exists() and (
+            os.environ.get("C64_E2E_TINT", "").lower() in ("green", "green_tint")
+            or os.environ.get("C64_E2E_GREEN_TINT", "0") == "1"
+        ):
+            try:
+                verify_tint = Path(__file__).parent / "verify_tint.py"
+                result = subprocess.run(
+                    ["python3", str(verify_tint), str(recording_file)],
+                    capture_output=True,
+                    text=True,
+                    timeout=90,
+                )
+                if result.returncode == 0:
+                    print("✅ Tint Validation: green tint verified")
+                    validation_results['tint_validation'] = {'status': 'pass', 'details': 'Green tint verified'}
+                else:
+                    details = (result.stdout or result.stderr or "").strip()
+                    if not details:
+                        details = "Tint verifier failed"
+                    print("❌ Tint Validation: failed")
+                    validation_errors.append("Tint validation failed")
+                    validation_results['tint_validation'] = {'status': 'fail', 'details': details[:8000]}
+            except Exception as e:
+                print(f"❌ Tint Validation: error - {e}")
+                validation_errors.append("Tint validation error")
+                validation_results['tint_validation'] = {'status': 'fail', 'details': f"Tint validation error: {e}"}
+
+        # 5. Optional afterglow validation (avpop pattern)
+        if recording_file and Path(recording_file).exists() and (
+            os.environ.get("C64_E2E_AFTERGLOW", "0") == "1" or os.environ.get("C64_E2E_PATTERN", "").lower() == "avpop"
+        ):
+            try:
+                verify_output = Path(__file__).parent / "verify_output.py"
+                result = subprocess.run(
+                    ["python3", str(verify_output), str(recording_file), "--format", str(self.format), "--frames", str(self.frames), "--verify-afterglow"],
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                )
+                if result.returncode == 0:
+                    print("✅ Afterglow Validation: persistence verified")
+                    validation_results['afterglow_validation'] = {'status': 'pass', 'details': 'Afterglow persistence verified'}
+                else:
+                    details = (result.stdout or result.stderr or "").strip()
+                    if not details:
+                        details = "Afterglow verifier failed"
+                    print("❌ Afterglow Validation: failed")
+                    validation_errors.append("Afterglow validation failed")
+                    validation_results['afterglow_validation'] = {'status': 'fail', 'details': details[:8000]}
+            except Exception as e:
+                print(f"❌ Afterglow Validation: error - {e}")
+                validation_errors.append("Afterglow validation error")
+                validation_results['afterglow_validation'] = {'status': 'fail', 'details': f"Afterglow validation error: {e}"}
 
         # Summary
         print(f"\n{'='*60}")

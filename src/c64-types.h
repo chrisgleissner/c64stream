@@ -189,10 +189,19 @@ struct c64_source {
     int tint_mode;                       // Tint mode (0=none, 1=amber, 2=green, 3=monochrome)
     float tint_strength;                 // Tint strength (0.0-1.0)
     gs_texture_t *render_texture;        // GPU texture for rendering with effects
+    uint32_t render_texture_width;       // Cached render_texture width (avoid gs_texture_get_width outside graphics)
+    uint32_t render_texture_height;      // Cached render_texture height
     gs_effect_t *crt_effect;             // CRT shader effect
     gs_texture_t *afterglow_accum_prev;  // Ping-pong texture for afterglow accumulation
     gs_texture_t *afterglow_accum_next;  // Ping-pong texture for afterglow accumulation
     uint64_t last_frame_time_ns;         // Last frame timestamp for afterglow delta calculation
+    float afterglow_dt_ms;              // Stable per-tick delta time (ms) used by afterglow shader
+    uint64_t afterglow_last_tick_ns;    // Timestamp of last video_tick (ns) for dt calculation
+
+    // CPU afterglow accumulation (fallback / deterministic path for E2E + headless)
+    uint32_t *afterglow_cpu_accum;  // RGBA accumulator in output space (same size as frame_buffer)
+    size_t afterglow_cpu_bytes;     // Allocated size in bytes for afterglow_cpu_accum
+    bool afterglow_cpu_valid;       // Whether accumulator contains valid prior state
 };
 
 #endif  // C64_TYPES_H

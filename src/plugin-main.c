@@ -41,7 +41,10 @@ bool obs_module_load(void)
         C64_LOG_WARNING("Failed to load CRT effect presets - continuing without presets");
     }
 
-    struct obs_source_info c64_info = {.id = "c64_source",
+    // NOTE (dev/E2E): Many systems may also have a packaged `c64_source` installed globally.
+    // Use a distinct source id for local builds to avoid duplicate-id conflicts and ensure E2E
+    // uses *this* module (user plugin) rather than the system-installed one.
+    struct obs_source_info c64_info = {.id = "c64_source_dev",
                                        .type = OBS_SOURCE_TYPE_INPUT,
                                        .output_flags = OBS_SOURCE_ASYNC_VIDEO | OBS_SOURCE_AUDIO |
                                                        OBS_SOURCE_CUSTOM_DRAW,
