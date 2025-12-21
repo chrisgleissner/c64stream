@@ -21,4 +21,4 @@ void c64_obs_log_video_event(struct c64_source *context, uint16_t frame_num, uin
 void c64_obs_log_audio_event(struct c64_source *context, uint64_t calculated_timestamp_ms, uint64_t actual_timestamp_ms,
                              size_t data_size);
 
-#endif  // C64_RECORD_OBS_H
+#endif // C64_RECORD_OBS_H

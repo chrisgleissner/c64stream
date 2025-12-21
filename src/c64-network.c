@@ -377,11 +377,11 @@ socket_t c64_create_udp_socket(uint32_t port)
     }
 
     // Configure UDP socket buffer sizes for high-frequency packet reception
-    // C64S video stream: ~3400 packets/sec × 780 bytes = ~2.6 Mbps
+    // C64 Stream video stream: ~3400 packets/sec × 780 bytes = ~2.6 Mbps
     // We need large enough buffers to handle temporary bursts and OS scheduling delays
 #ifdef _WIN32
     // Windows: Increase receive buffer to handle high packet rates
-    // Default Windows UDP buffer is often only 8KB, insufficient for C64S video streams
+    // Default Windows UDP buffer is often only 8KB, insufficient for C64 Stream video streams
     int recv_buffer_size = 2 * 1024 * 1024; // 2MB receive buffer
     if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF, (char *)&recv_buffer_size, sizeof(recv_buffer_size)) < 0) {
         int error = c64_get_socket_error();

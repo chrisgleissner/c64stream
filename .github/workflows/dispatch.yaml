@@ -9,10 +9,28 @@ on:
         type: choice
         options:
           - build
+          - e2e-test
 permissions:
   contents: write
+  packages: write
+  actions: write
 jobs:
   check-and-build:
     if: inputs.job == 'build'
+    name: Build Project 🧱
     uses: ./.github/workflows/build-project.yaml
+    with:
+      run_e2e: true
+      e2e_format: 'PAL'
+      e2e_frames: '250'
+    secrets: inherit
+
+  manual-e2e:
+    if: inputs.job == 'e2e-test'
+    name: Manual E2E Test 🧪
+    uses: ./.github/workflows/manual-e2e-test.yaml
+    with:
+      source_type: 'latest_build'
+      format: 'PAL'
+      frames: '250'
     secrets: inherit

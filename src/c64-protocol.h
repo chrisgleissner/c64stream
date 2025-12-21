@@ -17,8 +17,8 @@ See <https://www.gnu.org/licenses/> for details.
 #define C64_VIDEO_HEADER_SIZE 12
 #define C64_AUDIO_HEADER_SIZE 2
 #define C64_CONTROL_PORT 64
-#define C64_DEFAULT_VIDEO_PORT 11000
-#define C64_DEFAULT_AUDIO_PORT 11001
+#define C64_DEFAULT_VIDEO_PORT 21000
+#define C64_DEFAULT_AUDIO_PORT 21001
 #define C64_DEFAULT_HOST "c64u"
 
 // Video format constants
@@ -48,4 +48,4 @@ void c64_log_video_packet_if_enabled(struct c64_source *context, const uint8_t *
 void c64_log_audio_packet_if_enabled(struct c64_source *context, const uint8_t *packet, size_t packet_size,
                                      uint64_t timestamp_ns);
 
-#endif  // C64_PROTOCOL_H
+#endif // C64_PROTOCOL_H

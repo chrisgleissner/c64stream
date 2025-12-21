@@ -18,7 +18,7 @@ See <https://www.gnu.org/licenses/> for details.
 #define WIN32_LEAN_AND_MEAN
 #endif
 #ifndef _WINSOCKAPI_
-#define _WINSOCKAPI_  // Prevent winsock.h from being included
+#define _WINSOCKAPI_ // Prevent winsock.h from being included
 #endif
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -88,4 +88,4 @@ bool c64_test_connectivity(const char *ip, uint32_t port);
 int c64_get_socket_error(void);
 const char *c64_get_socket_error_string(int error);
 
-#endif  // C64_NETWORK_H
+#endif // C64_NETWORK_H

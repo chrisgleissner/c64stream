@@ -19,7 +19,14 @@ if(CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION VERSION_LESS 10.0.20348)
   )
 endif()
 
-set(_obs_msvc_c_options /MP /Zc:__cplusplus /Zc:preprocessor /std:c17 /experimental:c11atomics)
+set(
+  _obs_msvc_c_options
+  /MP
+  /Zc:__cplusplus
+  /Zc:preprocessor
+  /std:c17
+  /experimental:c11atomics
+)
 set(_obs_msvc_cpp_options /MP /Zc:__cplusplus /Zc:preprocessor)
 
 if(CMAKE_CXX_STANDARD GREATER_EQUAL 20)

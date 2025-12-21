@@ -11,7 +11,13 @@ Validates complete UDP packet reception, video processing, audio synchronization
 ```bash
 cd tests/e2e
 ./e2e.sh              # 5-second NTSC test
-./e2e.sh --format PAL --frames 299 --verbose  # 5-second PAL test
+./e2e.sh --format PAL --duration 5 --verbose  # 5-second PAL test
+```
+
+Or via convenience script (Linux):
+
+```bash
+./local-build.sh linux --e2e --install
 ```
 
 ## What It Does
@@ -22,6 +28,13 @@ cd tests/e2e
 4. **Replays** packets via UDP at precise timing
 5. **Records** video and CSV data
 6. **Validates** packet reception and synchronization
+
+Artifacts are written to `tests/e2e/test_output/`:
+
+- `README.md` — human-readable report with packet stats, recording link, and Pop synchronization summary
+- `validation_results.json` — machine-readable results including `av_sync_details`
+- Recording file — `.mkv` or `.mp4` (normalized to constant frame rate)
+- Optional: `network.csv`, `obs.csv`
 
 ## Architecture
 
@@ -61,6 +74,12 @@ sequenceDiagram
 - **`udp_replay`** - High-performance C utility for precise UDP packet transmission
 - **Mock TCP Server** - Simulates C64 Ultimate control protocol handshake
 
+Notes on timing and FPS:
+
+- PAL uses OBS Common FPS label: `FPSCommon = "50 PAL"` with `FPSInt = 30` and `FPSNum = 30`
+- NTSC uses `FPSCommon = "60"`
+- Final compressed output is forced to constant frame rate (CFR: 50 or 60) to preserve frames and avoid 30 fps artifacts
+
 ## Test Data
 
 **Video Packets** (780 bytes):
@@ -81,12 +100,29 @@ sequenceDiagram
 - **Video Recording**: Visual verification of raster bar animation
 - **Audio Sync**: Heartbeat alignment with visual cues
 
+### Pop synchronization
+
+The harness detects audio and video “pop” markers and pairs them to measure A/V offset. Results are included in `validation_results.json` under `av_sync_details` and summarized in the report.
+
+- Output includes: overall sync accuracy %, average/max offset, per-pop traffic lights, and channel alternation verdict
+- Per-pop details list channel (L/R/B), audio/video times, and difference; times are formatted with 0.1 ms precision
+
 ## Performance
 
 - **Packet Rate**: 18,239 packets in 5 seconds (3,648 pps)
 - **Bandwidth**: ~23 Mbps (matches real C64 Ultimate)
 - **Test Duration**: ~30 seconds including setup
 - **Output**: 8MB+ video recording, CSV logs
+
+## CI usage
+
+E2E tests run in CI on Ubuntu runners. The harness adapts to headless environments using Xvfb and enforces CFR in compression. Artifacts and the Markdown report are uploaded for inspection.
+
+## Troubleshooting
+
+- If OBS is not available, the harness runs in validation-only mode and skips recording steps
+- Ensure `jq` is installed to render the Pop synchronization section in the report
+- If output video reports 30 fps, verify CFR post-processing is enabled; the harness script enforces 50/60 fps
 
 ## Future Enhancements
 

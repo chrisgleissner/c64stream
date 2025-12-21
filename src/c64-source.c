@@ -93,9 +93,9 @@ static void close_and_reset_sockets(struct c64_source *context)
 
 void *c64_create(obs_data_t *settings, obs_source_t *source)
 {
-    C64_LOG_INFO("Creating C64S source");
+    C64_LOG_INFO("Creating C64 Stream source");
 
-    // C64S source creation
+    // C64 Stream source creation
 
     // Initialize networking on first use
     static bool networking_initialized = false;
@@ -348,7 +348,7 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->afterglow_cpu_valid = false;
 
     // Start initial connection asynchronously to avoid blocking OBS startup
-    C64_LOG_INFO("C64S source created successfully - queuing async initial connection");
+    C64_LOG_INFO("C64 Stream source created successfully - queuing async initial connection");
     context->retry_in_progress = true; // Prevent render thread from also starting retry
     obs_queue_task(OBS_TASK_UI, c64_async_retry_task, context, false);
 
@@ -361,7 +361,7 @@ void c64_destroy(void *data)
     if (!context)
         return;
 
-    C64_LOG_INFO("Destroying C64S source");
+    C64_LOG_INFO("Destroying C64 Stream source");
 
     // No retry thread to shutdown - using async delegation approach
 
@@ -437,7 +437,7 @@ void c64_destroy(void *data)
     }
 
     bfree(context);
-    C64_LOG_INFO("C64S source destroyed");
+    C64_LOG_INFO("C64 Stream source destroyed");
 }
 
 void c64_update(void *data, obs_data_t *settings)
@@ -609,7 +609,7 @@ void c64_start_streaming(struct c64_source *context)
         return;
     }
 
-    C64_LOG_INFO("Starting C64S streaming to C64 %s (OBS IP: %s, video:%u, audio:%u)...", context->ip_address,
+    C64_LOG_INFO("Starting C64 Stream streaming to C64 %s (OBS IP: %s, video:%u, audio:%u)...", context->ip_address,
                  context->obs_ip_address, context->video_port, context->audio_port);
 
     // Stop existing threads BEFORE closing sockets (prevents race conditions on Windows)
@@ -701,7 +701,7 @@ void c64_start_streaming(struct c64_source *context)
     }
     os_atomic_set_bool(&context->audio_thread_active, true);
 
-    C64_LOG_INFO("C64S streaming started successfully");
+    C64_LOG_INFO("C64 Stream streaming started successfully");
 }
 
 void c64_stop_streaming(struct c64_source *context)
@@ -711,7 +711,7 @@ void c64_stop_streaming(struct c64_source *context)
         return;
     }
 
-    C64_LOG_INFO("Stopping C64S streaming...");
+    C64_LOG_INFO("Stopping C64 Stream streaming...");
 
     context->streaming = false;
     os_atomic_set_bool(&context->thread_active, false);
@@ -752,7 +752,7 @@ void c64_stop_streaming(struct c64_source *context)
         pthread_mutex_unlock(&context->assembly_mutex);
     }
 
-    C64_LOG_INFO("C64S streaming stopped");
+    C64_LOG_INFO("C64 Stream streaming stopped");
 }
 
 // Video tick callback - updates texture from async frame buffer when CRT effects are enabled

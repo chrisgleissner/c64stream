@@ -46,4 +46,4 @@ void c64_record_init(struct c64_source *context);
 void c64_record_cleanup(struct c64_source *context);
 void c64_record_update_settings(struct c64_source *context, void *settings);
 
-#endif  // C64_RECORD_H
+#endif // C64_RECORD_H

@@ -25,7 +25,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 BUILD_DIR="${PROJECT_ROOT}/build_x86_64"
 TEST_DIR="${PROJECT_ROOT}/tests/e2e"
-OUTPUT_DIR="${TEST_DIR}/test_output"
+DEFAULT_OUTPUT_DIR="${TEST_DIR}/test_output"
 
 # Default test parameters
 DEFAULT_FORMAT="NTSC"
@@ -37,7 +37,9 @@ DEFAULT_VERBOSE=false
 DEFAULT_SKIP_BUILD=false
 DEFAULT_CLEANUP=true
 DEFAULT_OBS_ENABLED=true   # OBS integration now implemented
+DEFAULT_X11_DISPLAY=":99"
 DEFAULT_MONITOR_RESOURCES=false  # Resource monitoring for CI
+DEFAULT_SCENARIO_OVERRIDES=""
 
 # Color output
 RED='\033[0;31m'
@@ -61,6 +63,50 @@ log_warning() {
 
 log_error() {
     echo -e "${RED}[ERROR]${NC} $*"
+}
+
+join_by() {
+    local sep="$1"; shift || true
+    local out=""; local first=1
+    for part in "$@"; do
+        if (( first )); then
+            out="$part"; first=0
+        else
+            out+="${sep}${part}"
+        fi
+    done
+    printf "%s" "$out"
+}
+
+format_to_one_decimal() {
+    local value="$1"
+    if [[ -z "${value}" || "${value}" == "null" ]]; then
+        echo ""
+        return
+    fi
+    LC_ALL=C printf '%.1f' "${value}"
+}
+
+format_seconds_to_timestamp() {
+    local seconds="$1"
+    if [[ -z "${seconds}" || "${seconds}" == "null" ]]; then
+        echo ""
+        return
+    fi
+    # Convert to tenths with rounding
+    local tenths
+    tenths=$(awk -v s="${seconds}" 'BEGIN{printf "%.0f", s*10}')
+    local hours=$((tenths / 36000))
+    local rem=$((tenths % 36000))
+    local minutes=$((rem / 600))
+    rem=$((rem % 600))
+    local sec=$((rem / 10))
+    local tenth=$((rem % 10))
+    if (( hours > 0 )); then
+        printf "%02d:%02d:%02d.%d" "${hours}" "${minutes}" "${sec}" "${tenth}"
+    else
+        printf "%02d:%02d.%d" "${minutes}" "${sec}" "${tenth}"
+    fi
 }
 
 # Resource monitoring functions
@@ -138,6 +184,7 @@ OPTIONS:
     -f, --format FORMAT     Video format (PAL, NTSC) [default: ${DEFAULT_FORMAT}]
     -F, --frames FRAMES     Number of frames to test [default: ${DEFAULT_FRAMES}]
     -d, --duration SECONDS  Test duration in seconds (overrides --frames)
+    --output-dir DIR        Output directory for test artifacts [default: ${DEFAULT_OUTPUT_DIR}]
     -v, --verbose           Enable verbose logging
     -s, --skip-build        Skip building plugin and tools
     -o, --obs               Enable OBS integration (default)
@@ -170,7 +217,7 @@ PACKET GENERATION:
     Audio packets: 770 bytes, ~4ms intervals
 
 OUTPUT:
-    Test artifacts are saved to: ${OUTPUT_DIR}
+    Test artifacts are saved to: \${OUTPUT_DIR}
     - Generated packets: test_packets/
     - Test logs: test_output/
     - Recordings (if OBS enabled): recording_*.mkv
@@ -183,6 +230,7 @@ parse_args() {
     FORMAT="${DEFAULT_FORMAT}"
     FRAMES="${DEFAULT_FRAMES}"
     DURATION=""
+    OUTPUT_DIR="${DEFAULT_OUTPUT_DIR}"
     VIDEO_PORT="${DEFAULT_VIDEO_PORT}"
     AUDIO_PORT="${DEFAULT_AUDIO_PORT}"
     VERBOSE="${DEFAULT_VERBOSE}"
@@ -190,6 +238,7 @@ parse_args() {
     CLEANUP="${DEFAULT_CLEANUP}"
     OBS_ENABLED="${DEFAULT_OBS_ENABLED}"
     MONITOR_RESOURCES="${DEFAULT_MONITOR_RESOURCES}"
+    SCENARIO_OVERRIDES="${DEFAULT_SCENARIO_OVERRIDES}"
 
     while [[ $# -gt 0 ]]; do
         case $1 in
@@ -213,6 +262,14 @@ parse_args() {
                 DURATION="$2"
                 if ! [[ "${DURATION}" =~ ^[0-9]+$ ]] || [[ "${DURATION}" -lt 1 ]]; then
                     log_error "Invalid duration: ${DURATION}. Must be a positive integer."
+                    exit 1
+                fi
+                shift 2
+                ;;
+            --output-dir)
+                OUTPUT_DIR="$2"
+                if [[ -z "${OUTPUT_DIR}" ]]; then
+                    log_error "Output directory cannot be empty."
                     exit 1
                 fi
                 shift 2
@@ -257,6 +314,14 @@ parse_args() {
                 MONITOR_RESOURCES=true
                 shift
                 ;;
+            --display)
+                DEFAULT_X11_DISPLAY="$2"
+                shift 2
+                ;;
+            --scenario-overrides)
+                SCENARIO_OVERRIDES="$2"
+                shift 2
+                ;;
             -h|--help)
                 show_help
                 exit 0
@@ -300,8 +365,22 @@ check_dependencies() {
         fi
     done
 
-    # Python packages
-    # Python packages\n    for package in numpy PIL; do\n        if ! python3 -c \"import ${package}\" 2>/dev/null; then\n            missing_deps+=(\"python3-${package,,}\")\n        fi\n    done\n    \n    # Install Python E2E test requirements if available\n    local requirements_file=\"${TEST_DIR}/requirements.txt\"\n    if [[ -f \"${requirements_file}\" ]]; then\n        log_info \"Installing Python E2E test dependencies...\"\n        if [[ \"${VERBOSE}\" == true ]]; then\n            pip3 install --user -r \"${requirements_file}\"\n        else\n            pip3 install --user -r \"${requirements_file}\" > /dev/null 2>&1\n        fi\n    fi
+    # Python packages (only numpy required by generate_packets.py)
+    for package in numpy; do
+        if ! python3 -c "import ${package}" >/dev/null 2>&1; then
+            # Prefer distro package when not using a virtual environment
+            missing_deps+=("python3-${package,,}")
+        fi
+    done
+
+    # Check for optional Python runtime deps (requests, websocket) - used for OBS WebSocket API
+    # These are optional - E2E tests work without them by gracefully degrading functionality
+    if ! python3 -c "import requests" >/dev/null 2>&1; then
+        log_info "Optional: python3-requests not found (OBS WebSocket API will be disabled)"
+    fi
+    if ! python3 -c "import websocket" >/dev/null 2>&1; then
+        log_info "Optional: python3-websocket not found (OBS WebSocket API will be disabled)"
+    fi
 
     # Virtual display tools (always needed for headless testing)
     local -A display_packages=(
@@ -332,18 +411,24 @@ check_dependencies() {
         log_warning "Missing dependencies: ${missing_deps[*]}"
         log_info "Installing missing dependencies..."
 
+        # Determine privilege escalation (use sudo if available, else run directly if root)
+        local SUDO="sudo"
+        if [[ $(id -u) -eq 0 ]] || ! command -v sudo >/dev/null 2>&1; then
+            SUDO=""
+        fi
+
         # Update package list
         if [[ "${VERBOSE}" == true ]]; then
-            sudo apt-get update
+            ${SUDO} apt-get update
         else
-            sudo apt-get update -qq
+            ${SUDO} apt-get update -qq
         fi
 
         # Install missing packages
         if [[ "${VERBOSE}" == true ]]; then
-            sudo apt-get install -y "${missing_deps[@]}"
+            ${SUDO} apt-get install -y "${missing_deps[@]}"
         else
-            sudo apt-get install -y "${missing_deps[@]}" > /dev/null 2>&1
+            ${SUDO} apt-get install -y "${missing_deps[@]}" > /dev/null 2>&1
         fi
 
         # Verify installation succeeded
@@ -360,7 +445,7 @@ check_dependencies() {
             fi
         done
 
-        for package in numpy PIL; do
+        for package in numpy; do
             if ! python3 -c "import ${package}" 2>/dev/null; then
                 still_missing+=("python3-${package,,}")
             fi
@@ -390,6 +475,7 @@ build_project() {
     cd "${PROJECT_ROOT}"
 
     # Configure build
+
     if [[ "${VERBOSE}" == true ]]; then
         cmake --preset ubuntu-x86_64
     else
@@ -419,6 +505,11 @@ build_project() {
 
 # Install plugin to OBS
 install_plugin() {
+    if [[ "${SKIP_BUILD}" == true ]]; then
+        log_info "Skipping plugin installation (--skip-build specified, plugin already installed by workflow)"
+        return
+    fi
+
     log_info "Installing plugin to OBS..."
 
     local obs_plugin_dir="${HOME}/.config/obs-studio/plugins/c64stream"
@@ -434,6 +525,22 @@ install_plugin() {
         cp -r "${PROJECT_ROOT}/data"/* "${obs_plugin_dir}/data/"
     fi
 
+    if [[ "${VERBOSE}" == true ]]; then
+        log_info "Plugin installation details:"
+        echo "  Binary location: ${obs_plugin_dir}/bin/64bit/c64stream.so"
+        if [[ -f "${obs_plugin_dir}/bin/64bit/c64stream.so" ]]; then
+            echo "    Size: $(du -h "${obs_plugin_dir}/bin/64bit/c64stream.so" | cut -f1)"
+            echo "    MD5: $(md5sum "${obs_plugin_dir}/bin/64bit/c64stream.so" | cut -d' ' -f1)"
+        fi
+        echo "  Data location: ${obs_plugin_dir}/data"
+        if [[ -d "${obs_plugin_dir}/data" ]]; then
+            echo "  Data contents:"
+            ls -lah "${obs_plugin_dir}/data" 2>/dev/null | sed 's/^/    /' || echo "    (empty)"
+        fi
+        echo "  Full plugin directory structure:"
+        find "${obs_plugin_dir}" -type f -o -type d 2>/dev/null | sed 's/^/    /' || echo "    (not found)"
+    fi
+
     log_success "Plugin installed to OBS"
 }
 
@@ -444,6 +551,7 @@ generate_packets() {
     cd "${TEST_DIR}"
 
     # Create output directory
+    rm -rf test_packets
     mkdir -p test_packets
 
     # Generate packets
@@ -488,6 +596,14 @@ run_e2e_test() {
     # Prepare output directory
     mkdir -p "${OUTPUT_DIR}"
 
+    # Determine udp_replay path
+    local udp_replay_path="${BUILD_DIR}/tests/e2e/udp_replay"
+    if [[ ! -f "${udp_replay_path}" ]]; then
+        # If the prebuilt tool doesn't exist (e.g., when --skip-build is used),
+        # let the Python harness auto-build into the current directory.
+        udp_replay_path="./udp_replay"
+    fi
+
     # Build test command
     local cmd=(
         "python3" "./e2e.py"
@@ -496,8 +612,26 @@ run_e2e_test() {
         "--frames" "${FRAMES}"
         "--video-port" "${VIDEO_PORT}"
         "--audio-port" "${AUDIO_PORT}"
-        "--udp-replay" "${BUILD_DIR}/tests/e2e/udp_replay"
+        "--udp-replay" "${udp_replay_path}"
     )
+
+    # Pass scenario overrides if provided
+    if [[ -n "${SCENARIO_OVERRIDES}" ]]; then
+        cmd+=("--scenario-overrides" "${SCENARIO_OVERRIDES}")
+    fi
+
+    # Ensure X environment variables are set
+    export DISPLAY="${DEFAULT_X11_DISPLAY}"
+
+    # Only set CI-specific Qt/GL environment variables in CI environment
+    if [[ "${CI:-false}" == "true" ]] || [[ "${GITHUB_ACTIONS:-false}" == "true" ]]; then
+        export QT_QPA_PLATFORM=xcb
+        export QT_X11_NO_MITSHM=1
+        export LIBGL_ALWAYS_SOFTWARE=1
+        log_info "🏗️ CI environment detected - applied Qt/GL environment variables"
+    else
+        log_info "🚀 Local environment detected - using default Qt/GL settings"
+    fi
 
     if [[ "${VERBOSE}" == true ]]; then
         cmd+=("--verbose")
@@ -519,65 +653,320 @@ run_e2e_test() {
 generate_report() {
     log_info "Generating test report..."
 
-    local report_file="${OUTPUT_DIR}/test_report.txt"
+    local report_file="${OUTPUT_DIR}/README.md"
     local timestamp=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+    local video_duration_sec=""
+    local video_duration_fmt=""
+    local sample_frame_index=""
+    local sample_frame_seconds=""
+    local sample_frame_timestamp=""
 
-    cat > "${report_file}" << EOF
-C64 Stream E2E Test Report
+        # Resolve plugin version via shared helper (mirrors CI logic)
+        local resolved_version
+        if [[ -x "${PROJECT_ROOT}/build-aux/resolve-plugin-version.sh" ]]; then
+            resolved_version=$("${PROJECT_ROOT}/build-aux/resolve-plugin-version.sh")
+        else
+            resolved_version=$(jq -r '.version // "unknown"' "${PROJECT_ROOT}/buildspec.json" 2>/dev/null)
+        fi
+
+        cat > "${report_file}" << EOF
+# C64 Stream E2E Test Report
+
 Generated: ${timestamp}
 
-Test Configuration:
-  Format: ${FORMAT}
-  Frames: ${FRAMES}
-  Duration: $(if [[ "${FORMAT}" == "PAL" ]]; then awk "BEGIN {printf \"%.1f\", ${FRAMES}/50}"; else awk "BEGIN {printf \"%.1f\", ${FRAMES}/60}"; fi) seconds
-  Video Port: ${VIDEO_PORT}
-  Audio Port: ${AUDIO_PORT}
-  OBS Enabled: ${OBS_ENABLED}
+## Test configuration
 
-Build Information:
-  Project: $(jq -r '.name // "unknown"' "${PROJECT_ROOT}/buildspec.json" 2>/dev/null)
-  Version: $(jq -r '.version // "unknown"' "${PROJECT_ROOT}/buildspec.json" 2>/dev/null)
+- Format: ${FORMAT}
+- Frames: ${FRAMES}
+- Duration: $(if [[ "${FORMAT}" == "PAL" ]]; then awk "BEGIN {printf \"%.1f\", ${FRAMES}/50}"; else awk "BEGIN {printf \"%.1f\", ${FRAMES}/60}"; fi) seconds
+- Video Port: ${VIDEO_PORT}
+- Audio Port: ${AUDIO_PORT}
+- OBS Enabled: ${OBS_ENABLED}
 
-Test Results:
+## Build information
+
+- Project: $(jq -r '.name // "unknown"' "${PROJECT_ROOT}/buildspec.json" 2>/dev/null)
+- Version: ${resolved_version}
+
+## Test results
 EOF
 
-    # Add packet statistics
+    echo >> "${report_file}"
+
+    local video_count=0
+    local audio_count=0
     if [[ -d "${TEST_DIR}/test_packets" ]]; then
-        local video_count audio_count
         video_count=$(find "${TEST_DIR}/test_packets/video/${FORMAT}" -name "*.bin" 2>/dev/null | wc -l)
         audio_count=$(find "${TEST_DIR}/test_packets/audio/${FORMAT}" -name "*.bin" 2>/dev/null | wc -l)
-
-        cat >> "${report_file}" << EOF
-  ✅ Packet Generation: ${video_count} video, ${audio_count} audio packets
-  ✅ UDP Replay: Completed successfully
-EOF
+        echo "- ✅ Packet Generation: ${video_count} video, ${audio_count} audio packets" >> "${report_file}"
+    else
+        echo "- ⚠️ Packet Generation: Not captured" >> "${report_file}"
     fi
+    echo "- ✅ UDP Replay: Completed successfully" >> "${report_file}"
+
+    local event_links=()
+    if [[ -f "${OUTPUT_DIR}/network.csv" ]]; then
+        event_links+=("[network.csv](network.csv)")
+    fi
+    if [[ -f "${OUTPUT_DIR}/obs.csv" ]]; then
+        event_links+=("[obs.csv](obs.csv)")
+    fi
+    if (( ${#event_links[@]} > 0 )); then
+        echo "- Events: $(join_by ', ' "${event_links[@]}")" >> "${report_file}"
+    fi
+
+    local recording_found=""
 
     # Add OBS results if enabled
     if [[ "${OBS_ENABLED}" == true ]]; then
         if [[ -f "${OUTPUT_DIR}/recording_${FORMAT}.mkv" ]]; then
-            echo "  ✅ OBS Recording: Available" >> "${report_file}"
-        else
-            echo "  ❌ OBS Recording: Not found" >> "${report_file}"
+            recording_found="${OUTPUT_DIR}/recording_${FORMAT}.mkv"
+        elif compgen -G "${OUTPUT_DIR}/c64_recording.*" > /dev/null; then
+            recording_found=$(ls -t ${OUTPUT_DIR}/c64_recording.* 2>/dev/null | head -1)
+        elif compgen -G "${OUTPUT_DIR}/*.mkv" > /dev/null; then
+            recording_found=$(ls -t ${OUTPUT_DIR}/*.mkv 2>/dev/null | head -1)
+        elif compgen -G "${OUTPUT_DIR}/*.mp4" > /dev/null; then
+            recording_found=$(ls -t ${OUTPUT_DIR}/*.mp4 2>/dev/null | head -1)
         fi
     else
-        echo "  ⚠️  OBS Integration: Disabled (use --obs to enable)" >> "${report_file}"
+        echo "- ⚠️ OBS Integration: Disabled (use --obs to enable)" >> "${report_file}"
     fi
 
-    cat >> "${report_file}" << EOF
+    # Video section is rendered after A/V Sync (just before Sample Frame)
 
-Artifacts:
-  Report: ${report_file}
-  Packets: ${TEST_DIR}/test_packets/
-  Output: ${OUTPUT_DIR}/
-EOF
+    # Add Pop synchronization section if validation results with details are available
+    local validation_file="${OUTPUT_DIR}/validation_results.json"
+    if [[ -f "${validation_file}" ]] && command -v jq >/dev/null 2>&1; then
+        # Extract the av_sync_details block if present
+        local has_details
+        has_details=$(jq -r 'has("av_sync_details")' "${validation_file}" 2>/dev/null || echo "false")
+        if [[ "${has_details}" == "true" ]]; then
+            echo >> "${report_file}"
+            echo "### A/V Sync" >> "${report_file}"
+            echo >> "${report_file}"
+
+            # Overall verdict line similar to console output
+            local sync_accuracy is_perfect avg_diff max_diff avg_diff_fmt max_diff_fmt sync_accuracy_fmt
+            sync_accuracy=$(jq -r '.av_sync_details.sync_accuracy_percent // 0' "${validation_file}")
+            is_perfect=$(jq -r '.av_sync_details.is_perfectly_synced // false' "${validation_file}")
+            # Compute avg/max over diffs when available
+            avg_diff=$(jq -r '[.av_sync_details.sync_details[] | select(has("closest_video_pop_ms")) | .difference_ms] | if length>0 then (add/length) else 0 end' "${validation_file}" 2>/dev/null || echo "0")
+            max_diff=$(jq -r '[.av_sync_details.sync_details[] | select(has("closest_video_pop_ms")) | .difference_ms] | if length>0 then max else 0 end' "${validation_file}" 2>/dev/null || echo "0")
+            sync_accuracy_fmt=$(format_to_one_decimal "${sync_accuracy}")
+            [[ -z "${sync_accuracy_fmt}" ]] && sync_accuracy_fmt="${sync_accuracy}"
+            avg_diff_fmt=$(format_to_one_decimal "${avg_diff}")
+            max_diff_fmt=$(format_to_one_decimal "${max_diff}")
+
+            if [[ "${is_perfect}" == "true" ]]; then
+                echo "- ✅ Good synchronization (${sync_accuracy_fmt}%): avg offset ${avg_diff_fmt}ms, max ${max_diff_fmt}ms" >> "${report_file}"
+            elif awk -v acc="${sync_accuracy}" 'BEGIN{exit !(acc>=60)}'; then
+                echo "- ✅ Acceptable synchronization (${sync_accuracy_fmt}%): avg offset ${avg_diff_fmt}ms, max ${max_diff_fmt}ms" >> "${report_file}"
+            else
+                echo "- ❌ Poor synchronization (${sync_accuracy_fmt}%): avg offset ${avg_diff_fmt}ms, max ${max_diff_fmt}ms" >> "${report_file}"
+            fi
+
+            # (Omit raw pop/time index lists to avoid duplication)
+
+            # Per-pop lines with traffic light and channel
+            echo >> "${report_file}"
+            echo "#### Sync Details" >> "${report_file}"
+            echo >> "${report_file}"
+            # Build arrays
+            local count
+            count=$(jq -r '.av_sync_details.sync_details | length' "${validation_file}")
+            if [[ "${count}" =~ ^[0-9]+$ ]] && [[ ${count} -gt 0 ]]; then
+                for ((i=0; i<count; i++)); do
+                    local status emoji chan a_ms v_ms diff_ms
+                    status=$(jq -r ".av_sync_details.sync_details[$i].traffic // \"\"" "${validation_file}")
+                    case "${status}" in
+                        green) emoji="🟢" ;;
+                        yellow) emoji="🟡" ;;
+                        red) emoji="🔴" ;;
+                        *) emoji="•" ;;
+                    esac
+                    chan=$(jq -r ".av_sync_details.sync_details[$i].channel // \"?\"" "${validation_file}")
+                    a_ms=$(jq -r ".av_sync_details.sync_details[$i].audio_pop_time_ms // \"\"" "${validation_file}")
+                    v_ms=$(jq -r ".av_sync_details.sync_details[$i].closest_video_pop_ms // empty" "${validation_file}")
+                    v_fr=$(jq -r ".av_sync_details.sync_details[$i].closest_video_pop_frame // empty" "${validation_file}")
+                    diff_ms=$(jq -r ".av_sync_details.sync_details[$i].difference_ms // empty" "${validation_file}")
+                    # Format to 0.1 ms (tenth of a millisecond)
+                    a_ms_fmt=$(printf '%.1f' "${a_ms:-0}")
+                    if [[ -n "${v_ms}" ]] && [[ -n "${diff_ms}" ]]; then
+                        if [[ -n "${v_fr}" && "${v_fr}" != "null" ]]; then
+                            echo "- ${emoji} Pop #$((i+1)) [${chan}]: audio=${a_ms_fmt}ms, video=$(printf '%.1f' "${v_ms}")ms (frame ${v_fr}), diff=$(printf '%.1f' "${diff_ms}")ms" >> "${report_file}"
+                        else
+                            echo "- ${emoji} Pop #$((i+1)) [${chan}]: audio=${a_ms_fmt}ms, video=$(printf '%.1f' "${v_ms}")ms, diff=$(printf '%.1f' "${diff_ms}")ms" >> "${report_file}"
+                        fi
+                    else
+                        echo "- ${emoji} Pop #$((i+1)) [${chan}]: audio=${a_ms_fmt}ms, no matching video pop found" >> "${report_file}"
+                    fi
+                done
+            fi
+
+            # Traffic lights summary and channels
+            local traffic marks channels
+            traffic=$(jq -r '.av_sync_details.traffic // [] | map(.)' "${validation_file}")
+            # Compose marks string via jq
+            marks=$(jq -r '[.av_sync_details.traffic[]? | if .=="green" then "🟢" elif .=="yellow" then "🟡" elif .=="red" then "🔴" else "•" end] | join("")' "${validation_file}")
+            channels=$(jq -r '[.av_sync_details.sync_details[]? | if .channel=="L" then "L" elif .channel=="R" then "R" else "B" end] | join("")' "${validation_file}")
+            echo >> "${report_file}"
+            echo "- Channels: ${channels}" >> "${report_file}"
+
+            # Alternation check (ignore B), report verdict
+            local seq_str alternates
+            seq_str=$(jq -r '[.av_sync_details.sync_details[]? | select(.channel=="L" or .channel=="R") | .channel] | join(" ")' "${validation_file}")
+            # Convert space-separated string to bash array
+            IFS=' ' read -r -a seq <<< "${seq_str}"
+            alternates=true
+            if [[ ${#seq[@]} -ge 2 ]]; then
+                for ((i=1; i<${#seq[@]}; i++)); do
+                    if [[ "${seq[$i]}" == "${seq[$((i-1))]}" ]]; then
+                        alternates=false
+                        break
+                    fi
+                done
+            fi
+            if [[ "${alternates}" == true && ${#seq[@]} -ge 1 ]]; then
+                echo "- 🔁 Channel alternation: OK (alternating, starts with ${seq[0]})" >> "${report_file}"
+            else
+                echo "- 🔁 Channel alternation: MISMATCH" >> "${report_file}"
+            fi
+        fi
+    fi
 
     if [[ "${VERBOSE}" == true ]]; then
         echo
         cat "${report_file}"
     fi
 
-    log_success "Test report saved to ${report_file}"
+    # Append sample frame details if available
+    local sample_frame_path="${OUTPUT_DIR}/c64_recording_still.png"
+    local recording_mp4="${recording_found:-}"
+    if [[ -z "${recording_mp4}" || ! -f "${recording_mp4}" ]]; then
+        if compgen -G "${OUTPUT_DIR}/c64_recording.*" > /dev/null; then
+            recording_mp4=$(ls -t ${OUTPUT_DIR}/c64_recording.* 2>/dev/null | head -1)
+        elif compgen -G "${OUTPUT_DIR}/*.mp4" > /dev/null; then
+            recording_mp4=$(ls -t ${OUTPUT_DIR}/*.mp4 2>/dev/null | head -1)
+        elif [[ -f "${OUTPUT_DIR}/recording_${FORMAT}.mkv" ]]; then
+            recording_mp4="${OUTPUT_DIR}/recording_${FORMAT}.mkv"
+        fi
+    fi
+
+    local first_pop_frame=""
+    local first_pop_ms=""
+    if [[ -n "${recording_mp4}" && -f "${recording_mp4}" && -f "${validation_file}" ]] && command -v jq >/dev/null 2>&1; then
+        first_pop_frame=$(jq -r '.av_sync_details.video_pop_frame_indices[0] // empty' "${validation_file}" 2>/dev/null || true)
+        first_pop_ms=$(jq -r '.av_sync_details.video_pop_times_ms[0] // empty' "${validation_file}" 2>/dev/null || true)
+
+        if [[ -n "${first_pop_frame}" && "${first_pop_frame}" != "null" ]]; then
+            sample_frame_index="${first_pop_frame}"
+            if [[ -x "${TEST_DIR}/extract.frame" ]]; then
+                "${TEST_DIR}/extract.frame" --input "${recording_mp4}" --output "${sample_frame_path}" --frame "${first_pop_frame}" || true
+            fi
+        fi
+
+        if [[ -n "${first_pop_ms}" && "${first_pop_ms}" != "null" ]]; then
+            sample_frame_seconds=$(awk -v ms="${first_pop_ms}" 'BEGIN{printf "%.3f", ms/1000.0}')
+        fi
+
+        if [[ ! -f "${sample_frame_path}" && -n "${sample_frame_seconds}" && -x "${TEST_DIR}/extract.frame" ]]; then
+            "${TEST_DIR}/extract.frame" --input "${recording_mp4}" --output "${sample_frame_path}" --time "${sample_frame_seconds}" || true
+        fi
+    fi
+
+    # Emit a Video block with download link before the Sample Frame
+    if [[ -n "${recording_mp4}" && -f "${recording_mp4}" ]]; then
+        echo >> "${report_file}"
+        echo "### Video" >> "${report_file}"
+        echo >> "${report_file}"
+        rel_name=$(basename "${recording_mp4}")
+        if [[ -f "${OUTPUT_DIR}/${rel_name}" ]]; then
+            echo "- Download: [${rel_name}](${rel_name})" >> "${report_file}"
+        else
+            echo "- Download: [${rel_name}](${recording_mp4})" >> "${report_file}"
+        fi
+
+        if command -v ffprobe >/dev/null 2>&1; then
+            video_duration_sec=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${recording_mp4}" 2>/dev/null | head -1 || true)
+            if [[ -n "${video_duration_sec}" ]]; then
+                video_duration_fmt=$(format_to_one_decimal "${video_duration_sec}")
+                echo "- Duration: ${video_duration_fmt} s" >> "${report_file}"
+            fi
+        fi
+
+        if [[ -z "${video_duration_fmt}" ]]; then
+            if [[ "${FORMAT}" == "PAL" ]]; then
+                video_duration_fmt=$(awk -v frames="${FRAMES}" 'BEGIN{printf "%.1f", frames/50.0}')
+            else
+                video_duration_fmt=$(awk -v frames="${FRAMES}" 'BEGIN{printf "%.1f", frames/60.0}')
+            fi
+            echo "- Duration: ${video_duration_fmt} s" >> "${report_file}"
+        fi
+
+        echo >> "${report_file}"
+    elif [[ "${OBS_ENABLED}" == true ]]; then
+        echo >> "${report_file}"
+        echo "### Video" >> "${report_file}"
+        echo >> "${report_file}"
+        echo "- ❌ Video: Recording not found" >> "${report_file}"
+    fi
+
+    if [[ -z "${sample_frame_seconds}" && -n "${sample_frame_index}" ]]; then
+        local fps=0
+        if [[ "${FORMAT}" == "PAL" ]]; then
+            fps=50
+        else
+            fps=60
+        fi
+        if (( fps > 0 )); then
+            sample_frame_seconds=$(awk -v frame="${sample_frame_index}" -v rate="${fps}" 'BEGIN{printf "%.3f", frame/rate}')
+        fi
+    fi
+
+    local sample_frame_seconds_fmt=""
+    if [[ -n "${sample_frame_seconds}" ]]; then
+        sample_frame_seconds_fmt=$(format_to_one_decimal "${sample_frame_seconds}")
+        sample_frame_timestamp=$(format_seconds_to_timestamp "${sample_frame_seconds}")
+    fi
+
+    if [[ -f "${sample_frame_path}" ]]; then
+        echo >> "${report_file}"
+        echo "### Sample Frame" >> "${report_file}"
+        echo >> "${report_file}"
+        echo "![Sample Frame](./$(basename "${sample_frame_path}"))" >> "${report_file}"
+        echo "- Top-left cycles through all C64 colours to check frame progression. Center shows scrolling colour bars. Bottom-right flashes with a pop sound for A/V sync checks." >> "${report_file}"
+
+        local origin_parts=()
+        if [[ -n "${sample_frame_index}" ]]; then
+            origin_parts+=("frame ${sample_frame_index}")
+        fi
+        if [[ -n "${sample_frame_timestamp}" ]]; then
+            origin_parts+=("${sample_frame_timestamp}")
+        elif [[ -n "${sample_frame_seconds_fmt}" ]]; then
+            origin_parts+=("${sample_frame_seconds_fmt}s")
+        fi
+
+        local origin_text=""
+        if (( ${#origin_parts[@]} > 0 )); then
+            origin_text=$(join_by " at " "${origin_parts[@]}")
+        fi
+
+        if [[ -n "${origin_text}" ]]; then
+            if [[ -n "${video_duration_fmt}" ]]; then
+                echo "- Taken from ${origin_text} of the ${video_duration_fmt} s video above." >> "${report_file}"
+            else
+                echo "Taken from ${origin_text} of the video above." >> "${report_file}"
+            fi
+        else
+            if [[ -n "${video_duration_fmt}" ]]; then
+                echo "- Taken from the ${video_duration_fmt} s video above." >> "${report_file}"
+            else
+                echo "- Taken from the video above." >> "${report_file}"
+            fi
+        fi
+    fi
+
+    log_success "Markdown report saved to ${report_file}"
 }
 
 # Cleanup temporary files
@@ -708,7 +1097,7 @@ main() {
 
     if [[ ${test_result} -eq 0 ]]; then
         log_success "E2E test completed successfully!"
-        echo "View detailed report: ${OUTPUT_DIR}/test_report.txt"
+    echo "View detailed report: ${OUTPUT_DIR}/README.md"
     else
         log_warning "E2E test encountered issues"
         echo "Check logs in: ${OUTPUT_DIR}/"

@@ -21,4 +21,4 @@ void *audio_thread_func(void *data);
 void c64_process_audio_packet(struct c64_source *context, const uint8_t *audio_data, size_t data_size,
                               uint64_t timestamp_ns);
 
-#endif  // C64_AUDIO_H
+#endif // C64_AUDIO_H

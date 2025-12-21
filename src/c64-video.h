@@ -51,4 +51,4 @@ void c64_process_video_packet_direct(struct c64_source *context, const uint8_t *
 // Logo rendering function
 void c64_render_logo_frame(struct c64_source *context, uint64_t timestamp_ns);
 
-#endif  // C64_VIDEO_H
+#endif // C64_VIDEO_H
