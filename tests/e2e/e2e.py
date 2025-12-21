@@ -26,6 +26,7 @@ import signal
 import argparse
 import json
 import socket
+import shutil
 from pathlib import Path
 try:
     import websocket
@@ -36,7 +37,7 @@ except ImportError:
 
 class E2ETest:
     def __init__(self, test_dir, video_port=11000, audio_port=11001, control_port=6400,
-                 format='NTSC', frames=30, verbose=False):  # Default to NTSC for faster testing
+                 format='NTSC', frames=30, verbose=False, scenario_overrides=None):  # Default to NTSC for faster testing
         self.test_dir = Path(test_dir)
         self.video_port = video_port
         self.audio_port = audio_port
@@ -44,6 +45,7 @@ class E2ETest:
         self.format = format
         self.frames = frames
         self.verbose = verbose
+        self.scenario_overrides = Path(scenario_overrides) if scenario_overrides else None
 
         # Process handles
         self.xvfb_process = None
@@ -68,6 +70,32 @@ class E2ETest:
         """Print log message if verbose mode is enabled."""
         if self.verbose:
             print(f"[TEST] {message}")
+
+    def apply_scenario_overrides(self):
+        """
+        Apply scenario override files into the OBS config directory.
+
+        The override directory mirrors the structure under ~/.config/obs-studio, e.g.:
+          - basic/profiles/C64StreamTest/basic.ini
+          - basic/scenes/C64StreamTest.json
+          - plugins/c64stream/data/properties.ini
+        """
+        if not self.scenario_overrides:
+            return
+        if not self.scenario_overrides.exists() or not self.scenario_overrides.is_dir():
+            self.log(f"Scenario overrides not found (skipping): {self.scenario_overrides}")
+            return
+
+        obs_config_dir = Path.home() / '.config' / 'obs-studio'
+        self.log(f"Applying scenario overrides: {self.scenario_overrides} -> {obs_config_dir}")
+
+        for src in self.scenario_overrides.rglob('*'):
+            if src.is_dir():
+                continue
+            rel = src.relative_to(self.scenario_overrides)
+            dst = obs_config_dir / rel
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dst)
 
     def clean_test_output(self):
         """Clean the test output directory before starting E2E test."""
@@ -1551,6 +1579,9 @@ DockAreaVisible=false
         print(f"{'='*60}\n")
 
         try:
+            # Apply scenario-specific OBS config overrides (if any).
+            self.apply_scenario_overrides()
+
             # Clean test output directory first
             self.clean_test_output()
 
@@ -1668,6 +1699,8 @@ def main():
                         help='Control TCP port for mock C64 Ultimate server (default: 6400)')
     parser.add_argument('--udp-replay', default='./udp_replay',
                         help='Path to udp_replay executable (default: ./udp_replay)')
+    parser.add_argument('--scenario-overrides', default=None,
+                        help='Directory with OBS config override files to overlay into ~/.config/obs-studio (optional)')
     parser.add_argument('--verbose', action='store_true',
                         help='Enable verbose logging')
 
@@ -1709,7 +1742,8 @@ def main():
         control_port=args.control_port,
         format=args.format,
         frames=args.frames,
-        verbose=args.verbose
+        verbose=args.verbose,
+        scenario_overrides=args.scenario_overrides
     )
 
     # Store reference for signal handler

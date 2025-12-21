@@ -1,19 +1,19 @@
 {
   "udp_reception": {
     "status": "warning",
-    "details": "126330/4140 packets (minor loss)"
+    "details": "18246/17250 packets (minor loss)"
   },
   "frame_processing": {
     "status": "pass",
-    "details": "10360 frames processed"
+    "details": "1494 frames processed"
   },
   "video_recording": {
     "status": "pass",
-    "details": "23.8 MB"
+    "details": "6.9 MB"
   },
   "packet_integrity": {
     "status": "pass",
-    "details": "32.5s duration"
+    "details": "9.5s duration"
   },
   "tint_validation": {
     "status": "skipped",

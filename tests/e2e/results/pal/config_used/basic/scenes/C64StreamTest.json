@@ -1,17 +1,17 @@
 {
-    "current_scene": "Scene",
-    "current_program_scene": "Scene",
+    "current_scene": "C64 Test Scene",
+    "current_program_scene": "C64 Test Scene",
     "scene_order": [
         {
-            "name": "Scene"
+            "name": "C64 Test Scene"
         }
     ],
     "name": "C64StreamTest",
     "sources": [
         {
-            "prev_ver": 0,
-            "name": "Scene",
-            "uuid": "056e6d9e-701e-4014-9914-6ca3d3d1947f",
+            "prev_ver": 536870914,
+            "name": "C64 Test Scene",
+            "uuid": "ded21573-ac42-4942-99d6-0d5e5a5d0e54",
             "id": "scene",
             "versioned_id": "scene",
             "settings": {
@@ -20,13 +20,13 @@
                 "items": [
                     {
                         "name": "C64 Stream",
-                        "source_uuid": "e4232553-c3cc-4d08-bbf9-9fce742c85c1",
+                        "source_uuid": "702d12b6-cc57-4b08-9bfa-6d5ff6c7fb69",
                         "visible": true,
                         "locked": false,
                         "rot": 0.0,
                         "scale_ref": {
-                            "x": 1920.0,
-                            "y": 1080.0
+                            "x": 1280.0,
+                            "y": 720.0
                         },
                         "align": 5,
                         "bounds_type": 0,
@@ -39,20 +39,20 @@
                         "id": 1,
                         "group_item_backup": false,
                         "pos": {
-                            "x": 198.0,
+                            "x": 0.0,
                             "y": 0.0
                         },
                         "pos_rel": {
-                            "x": -1.4111111164093018,
+                            "x": -1.7777777910232544,
                             "y": -1.0
                         },
                         "scale": {
-                            "x": 3.9661457538604736,
-                            "y": 3.966911792755127
+                            "x": 1.0,
+                            "y": 1.0
                         },
                         "scale_rel": {
-                            "x": 3.9661457538604736,
-                            "y": 3.966911792755127
+                            "x": 1.0,
+                            "y": 1.0
                         },
                         "bounds": {
                             "x": 0.0,
@@ -98,11 +98,26 @@
             "private_settings": {}
         },
         {
-            "prev_ver": 0,
+            "prev_ver": 536870914,
             "name": "C64 Stream",
-            "uuid": "e4232553-c3cc-4d08-bbf9-9fce742c85c1",
-            "id": "c64_source",
-            "versioned_id": "c64_source",
+            "uuid": "702d12b6-cc57-4b08-9bfa-6d5ff6c7fb69",
+            "id": "c64_source_dev",
+            "versioned_id": "c64_source_dev",
+            "settings": {
+                "auto_detect_ip": false,
+                "dns_server_ip": "127.0.0.1",
+                "obs_ip_address": "127.0.0.1",
+                "video_port": 11000,
+                "audio_port": 11001,
+                "control_port": 6400,
+                "record_video": false,
+                "record_csv": true,
+                "afterglow_duration_ms": 0,
+                "afterglow_curve": 2,
+                "tint_mode": 0,
+                "tint_strength": 0.0,
+                "c64_host": "localhost"
+            },
             "mixers": 255,
             "sync": 0,
             "flags": 0,
@@ -114,7 +129,12 @@
             "push-to-mute-delay": 0,
             "push-to-talk": false,
             "push-to-talk-delay": 0,
-            "hotkeys": {},
+            "hotkeys": {
+                "libobs.mute": [],
+                "libobs.unmute": [],
+                "libobs.push-to-mute": [],
+                "libobs.push-to-talk": []
+            },
             "deinterlace_mode": 0,
             "deinterlace_field_order": 0,
             "monitoring_type": 0,
@@ -152,7 +172,7 @@
     "transition_duration": 300,
     "preview_locked": false,
     "scaling_enabled": false,
-    "scaling_level": -5,
+    "scaling_level": -10,
     "scaling_off_x": 0.0,
     "scaling_off_y": 0.0,
     "virtual-camera": {
@@ -170,7 +190,18 @@
             "autoStartStreamTimer": false,
             "autoStartRecordTimer": false,
             "pauseRecordTimer": true
+        },
+        "auto-scene-switcher": {
+            "interval": 300,
+            "non_matching_scene": "",
+            "switch_if_not_matching": false,
+            "active": false,
+            "switches": []
         }
     },
-    "version": 1
+    "resolution": {
+        "x": 1280,
+        "y": 720
+    },
+    "version": 2
 }

@@ -851,31 +851,37 @@ EOF
         fi
     fi
 
-    local first_pop_frame=""
-    local first_pop_ms=""
-    if [[ -n "${recording_mp4}" && -f "${recording_mp4}" && -f "${validation_file}" ]] && command -v jq >/dev/null 2>&1; then
-        first_pop_frame=$(jq -r '.av_sync_details.video_pop_frame_indices[0] // empty' "${validation_file}" 2>/dev/null || true)
-        first_pop_ms=$(jq -r '.av_sync_details.video_pop_times_ms[0] // empty' "${validation_file}" 2>/dev/null || true)
-
-        if [[ -n "${first_pop_frame}" && "${first_pop_frame}" != "null" ]]; then
-            sample_frame_index="${first_pop_frame}"
-            if [[ -x "${TEST_DIR}/extract.frame" ]]; then
-                "${TEST_DIR}/extract.frame" --input "${recording_mp4}" --output "${sample_frame_path}" --frame "${first_pop_frame}" || true
-            fi
+    # Sample frame: choose a representative mid-run timestamp.
+    #
+    # Using the first A/V pop can land too early while OBS/plugin are still settling,
+    # yielding a placeholder frame. A mid-run frame consistently shows the full test pattern.
+    if [[ -n "${recording_mp4}" && -f "${recording_mp4}" && -x "${TEST_DIR}/extract.frame" ]]; then
+        local dur_sec mid_sec min_sec max_sec
+        dur_sec=""
+        if command -v ffprobe >/dev/null 2>&1; then
+            dur_sec=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${recording_mp4}" 2>/dev/null | head -1 || true)
         fi
 
-        if [[ -n "${first_pop_ms}" && "${first_pop_ms}" != "null" ]]; then
-            sample_frame_seconds=$(awk -v ms="${first_pop_ms}" 'BEGIN{printf "%.3f", ms/1000.0}')
+        # Default to ~4.5s which is safely past startup for our current suite runs.
+        mid_sec="4.500"
+        if [[ -n "${dur_sec}" ]]; then
+            mid_sec=$(awk -v d="${dur_sec}" 'BEGIN{printf "%.3f", d*0.50}')
         fi
 
-        if [[ ! -f "${sample_frame_path}" && -n "${sample_frame_seconds}" && -x "${TEST_DIR}/extract.frame" ]]; then
-            "${TEST_DIR}/extract.frame" --input "${recording_mp4}" --output "${sample_frame_path}" --time "${sample_frame_seconds}" || true
+        # Clamp to [2.5s, duration-0.5s] when duration is known.
+        min_sec="2.500"
+        if [[ -n "${dur_sec}" ]]; then
+            max_sec=$(awk -v d="${dur_sec}" 'BEGIN{printf "%.3f", (d>0.5 ? d-0.5 : d)}')
+        else
+            max_sec=""
         fi
-    fi
 
-    # Fallback: if we didn't get A/V pop timings, still extract a sample frame for documentation and sanity checks.
-    if [[ -n "${recording_mp4}" && -f "${recording_mp4}" && ! -f "${sample_frame_path}" && -x "${TEST_DIR}/extract.frame" ]]; then
-        sample_frame_seconds="1.000"
+        if [[ -n "${dur_sec}" ]]; then
+            sample_frame_seconds=$(awk -v t="${mid_sec}" -v lo="${min_sec}" -v hi="${max_sec}" 'BEGIN{v=t; if(v<lo) v=lo; if(hi!="" && v>hi) v=hi; printf "%.3f", v}')
+        else
+            sample_frame_seconds="${mid_sec}"
+        fi
+
         "${TEST_DIR}/extract.frame" --input "${recording_mp4}" --output "${sample_frame_path}" --time "${sample_frame_seconds}" || true
     fi
 
