@@ -22,6 +22,7 @@
 !local-build.sh
 !LICENSE
 !README.md
+!AGENTS.md
 !build-docker.sh
 
 # Include development helper files
