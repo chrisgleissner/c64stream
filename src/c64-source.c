@@ -804,7 +804,8 @@ void c64_video_tick(void *data, float seconds)
 
         // Upload initial pixels immediately to avoid a black/undefined frame and to keep update path consistent.
         if (context->render_texture && context->frame_buffer) {
-            gs_texture_set_image(context->render_texture, (const uint8_t *)context->frame_buffer, context->width * 4, false);
+            gs_texture_set_image(context->render_texture, (const uint8_t *)context->frame_buffer, context->width * 4,
+                                 false);
         }
 
         // Create afterglow accumulation textures (ping-pong buffers)

@@ -67,8 +67,7 @@ static const uint32_t *c64_get_afterglow_output_pixels(struct c64_source *contex
         dt_ms = (float)(1000.0 / context->expected_fps);
     }
 
-    const float base_duration_ms =
-        (float)((context->afterglow_duration_ms > 1) ? context->afterglow_duration_ms : 1);
+    const float base_duration_ms = (float)((context->afterglow_duration_ms > 1) ? context->afterglow_duration_ms : 1);
 
     // Curve mapping: 0=linear-ish, 1=faster fade, 2=normal, 3=long tail
     float duration_ms = base_duration_ms;
