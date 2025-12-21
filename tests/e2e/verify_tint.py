@@ -9,6 +9,7 @@ visual filters in recorded output before we move on to afterglow validation.
 import argparse
 import json
 import subprocess
+from contextlib import suppress
 from pathlib import Path
 
 
@@ -65,10 +66,9 @@ def iter_rgb_frames(path: Path, max_frames: int, fps: float) -> tuple[int, int, 
             b_sum = sum(buf[2::3])
             frames.append((r_sum, g_sum, b_sum))
     finally:
-        try:
+        # Best-effort cleanup: ffmpeg may exit early and close pipes.
+        with suppress(Exception):
             proc.stdout.close()
-        except Exception:
-            pass
         proc.kill()
         proc.wait(timeout=5)
 

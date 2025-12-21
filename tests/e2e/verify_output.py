@@ -19,6 +19,7 @@ import argparse
 import subprocess
 from pathlib import Path
 import numpy as np
+from contextlib import suppress
 
 
 class OutputVerifier:
@@ -200,10 +201,9 @@ class OutputVerifier:
                     break
                 frames.append(np.frombuffer(buf, dtype=np.uint8).reshape((h, w, 3)))
         finally:
-            try:
+            # Best-effort cleanup: ffmpeg may exit early and close pipes.
+            with suppress(Exception):
                 proc.stdout.close()
-            except Exception:
-                pass
             proc.kill()
             proc.wait(timeout=5)
         if not frames:

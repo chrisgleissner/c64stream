@@ -26,7 +26,6 @@ import signal
 import argparse
 import json
 import socket
-import tempfile
 from pathlib import Path
 try:
     import websocket
@@ -596,9 +595,6 @@ DockAreaVisible=false
                     ws.close()
                     return msg
 
-            # unreachable
-            return None
-
         except Exception as e:
             self.log(f"OBS API error: {e}")
             return None
@@ -610,7 +606,7 @@ DockAreaVisible=false
         self.log("Starting OBS with C64 Stream test profile")
 
         # Create the OBS profile first
-        profile_dir = self.create_obs_profile()
+        self.create_obs_profile()
 
         try:
             # Start OBS with our test profile
@@ -1168,7 +1164,8 @@ DockAreaVisible=false
             self.log(f"Error handling TCP connection from {addr}: {e}")
             try:
                 conn.close()
-            except:
+            except Exception:
+                # Best-effort cleanup: connection may already be closed.
                 pass
 
     def stop_mock_c64_server(self):
@@ -1180,7 +1177,8 @@ DockAreaVisible=false
         if self.tcp_server_socket:
             try:
                 self.tcp_server_socket.close()
-            except:
+            except Exception:
+                # Best-effort cleanup: socket may already be closed.
                 pass
             self.tcp_server_socket = None
 
@@ -1220,7 +1218,8 @@ DockAreaVisible=false
                 try:
                     self.obs_process.kill()
                     self.obs_process.wait()
-                except:
+                except Exception:
+                    # Best-effort cleanup: OBS process may already be gone.
                     pass
 
             # Mark as stopped so cleanup() won't try again.
