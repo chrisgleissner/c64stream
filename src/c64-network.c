@@ -43,6 +43,15 @@ static bool resolve_hostname_direct_dns(const char *hostname, const char *dns_se
         return false;
     }
 
+    // IMPORTANT: bound the resolver so it cannot block indefinitely.
+    // On some macOS versions, resolver calls from the UI thread can appear to hang.
+    // Even in a background thread we want a hard upper bound.
+    //
+    // retrans: per-try timeout in seconds
+    // retry: number of retries
+    res.retrans = 1;
+    res.retry = 1;
+
     // Set custom DNS server
     struct sockaddr_in dns_addr;
     memset(&dns_addr, 0, sizeof(dns_addr));

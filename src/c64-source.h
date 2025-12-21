@@ -29,5 +29,6 @@ void c64_defaults(obs_data_t *settings);
 void c64_start_streaming(struct c64_source *context);
 void c64_stop_streaming(struct c64_source *context);
 void c64_async_retry_task(void *data);
+void c64_schedule_retry_task(struct c64_source *context, const char *reason);
 
 #endif // C64_SOURCE_H

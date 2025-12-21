@@ -766,8 +766,8 @@ void *c64_video_processor_thread_func(void *data)
                 context->retry_in_progress = true;
                 last_retry_attempt = current_time;
 
-                // Queue async retry task to avoid blocking this thread
-                obs_queue_task(OBS_TASK_UI, c64_async_retry_task, context, false);
+                // Schedule retry in a background thread (never on OBS UI thread).
+                c64_schedule_retry_task(context, "no video packets");
             }
 
             os_sleep_ms(1);
