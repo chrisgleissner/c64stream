@@ -14,8 +14,23 @@ main() {
   local formatter=""
 
   # Find clang-format
-  if [[ -x /home/linuxbrew/.linuxbrew/bin/clang-format ]]; then
+  # 1) Explicit override
+  if [[ -n "${CLANG_FORMAT:-}" && -x "${CLANG_FORMAT}" ]]; then
+    formatter="${CLANG_FORMAT}"
+
+  # 2) Common CI location (GitHub Actions linuxbrew)
+  elif [[ -x /home/linuxbrew/.linuxbrew/bin/clang-format ]]; then
     formatter="/home/linuxbrew/.linuxbrew/bin/clang-format"
+
+  # 3) Common local Homebrew locations (no sudo, per-user install)
+  elif [[ -x "$HOME/.linuxbrew/bin/clang-format" ]]; then
+    formatter="$HOME/.linuxbrew/bin/clang-format"
+  elif [[ -x "$HOME/.linuxbrew/opt/llvm/bin/clang-format" ]]; then
+    formatter="$HOME/.linuxbrew/opt/llvm/bin/clang-format"
+  elif [[ -x "$HOME/.linuxbrew/opt/llvm@21/bin/clang-format" ]]; then
+    formatter="$HOME/.linuxbrew/opt/llvm@21/bin/clang-format"
+
+  # 4) PATH lookup
   elif command -v clang-format >/dev/null 2>&1; then
     formatter="clang-format"
   else

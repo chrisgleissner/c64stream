@@ -35,6 +35,7 @@ If it fails, format the files and re-check:
 ```
 
 **Important**: CI requires **clang-format 21.1.1+**. Distro packages are often too old.
+The wrapper auto-detects common Homebrew installs; you can also override via `CLANG_FORMAT=/path/to/clang-format`.
 
 ### Unit tests
 
