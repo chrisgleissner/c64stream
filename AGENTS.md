@@ -61,5 +61,3 @@ cd tests/e2e
 - Low latency and robustness (network jitter, missing packets, reconnects).
 - Deterministic render/effect behavior across OBS render paths (preview/program/recording).
 - Tests that are stable, fast, and don’t depend on flaky external state (especially in CI).
-
-

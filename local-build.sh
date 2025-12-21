@@ -1075,18 +1075,15 @@ EOS
             mkdir -p "$config_used_dir/basic/profiles"
             cp -a "$obs_cfg_root/basic/profiles/C64StreamTest" "$config_used_dir/basic/profiles/"
         fi
-        # Scene collection JSON
+        # Scene collection JSON (deterministic).
+        #
+        # We intentionally do NOT fall back to copying "latest" because OBS may create additional
+        # collections (e.g. Untitled.json) that are not the test collection and cause noisy diffs.
         if [[ -f "$obs_cfg_root/basic/scenes/C64StreamTest.json" ]]; then
             mkdir -p "$config_used_dir/basic/scenes"
             cp -a "$obs_cfg_root/basic/scenes/C64StreamTest.json" "$config_used_dir/basic/scenes/"
         else
-            # Fallback: copy latest scene collection
-            if compgen -G "$obs_cfg_root/basic/scenes/*.json" > /dev/null; then
-                mkdir -p "$config_used_dir/basic/scenes"
-                local latest_scene
-                latest_scene=$(ls -t "$obs_cfg_root/basic/scenes"/*.json | head -1)
-                cp -a "$latest_scene" "$config_used_dir/basic/scenes/"
-            fi
+            log_warning "Scene collection not found: $obs_cfg_root/basic/scenes/C64StreamTest.json (skipping config_used scene copy)"
         fi
 
         # Compress from standard source to scenario result target per spec

@@ -873,6 +873,12 @@ EOF
         fi
     fi
 
+    # Fallback: if we didn't get A/V pop timings, still extract a sample frame for documentation and sanity checks.
+    if [[ -n "${recording_mp4}" && -f "${recording_mp4}" && ! -f "${sample_frame_path}" && -x "${TEST_DIR}/extract.frame" ]]; then
+        sample_frame_seconds="1.000"
+        "${TEST_DIR}/extract.frame" --input "${recording_mp4}" --output "${sample_frame_path}" --time "${sample_frame_seconds}" || true
+    fi
+
     # Emit a Video block with download link before the Sample Frame
     if [[ -n "${recording_mp4}" && -f "${recording_mp4}" ]]; then
         echo >> "${report_file}"
@@ -933,7 +939,7 @@ EOF
         echo "### Sample Frame" >> "${report_file}"
         echo >> "${report_file}"
         echo "![Sample Frame](./$(basename "${sample_frame_path}"))" >> "${report_file}"
-        echo "- Top-left cycles through all C64 colours to check frame progression. Center shows scrolling colour bars. Bottom-right flashes with a pop sound for A/V sync checks." >> "${report_file}"
+        echo "- Top-left shows the frame index (color = frame_num % 16). Top-right shows a stable 4×4 tile of all 16 VIC colours (drift check). Center shows scrolling colour bars. Bottom-right flashes with a pop sound for A/V sync checks / afterglow tail." >> "${report_file}"
 
         local origin_parts=()
         if [[ -n "${sample_frame_index}" ]]; then

@@ -30,7 +30,6 @@ import tempfile
 from pathlib import Path
 try:
     import websocket
-    import requests
     WEBSOCKET_AVAILABLE = True
 except ImportError:
     WEBSOCKET_AVAILABLE = False
@@ -146,9 +145,22 @@ class E2ETest:
             self.log("❌ Plugin data directory not found, plugin may not be installed")
             return False
 
-        # Copy E2E properties file
+        # Copy E2E properties file.
+        #
+        # Prefer local/CI variants; keep properties_e2e.ini as a compatibility fallback.
         script_dir = Path(__file__).parent
-        e2e_properties = script_dir / 'properties_e2e.ini'
+        is_ci = os.environ.get("GITHUB_ACTIONS", "").lower() == "true" or os.environ.get("CI", "").lower() == "true"
+        choice = os.environ.get("C64_E2E_PROPERTIES", "").lower()
+
+        if choice == "ci":
+            e2e_properties = script_dir / 'properties_e2e_ci.ini'
+        elif choice == "local":
+            e2e_properties = script_dir / 'properties_e2e_local.ini'
+        else:
+            e2e_properties = script_dir / ('properties_e2e_ci.ini' if is_ci else 'properties_e2e_local.ini')
+
+        if not e2e_properties.exists():
+            e2e_properties = script_dir / 'properties_e2e.ini'
         target_properties = plugin_data_dir / 'properties.ini'
 
         if e2e_properties.exists():
@@ -193,10 +205,35 @@ SafeMode=false
 DisableSafeMode=true
 """)
 
+        # Enable OBS WebSocket server for deterministic "stop recording" in E2E.
+        # (OBS ships obs-websocket built-in; it is disabled by default.)
+        ws_cfg_dir = obs_config_dir / 'plugin_config' / 'obs-websocket'
+        ws_cfg_dir.mkdir(parents=True, exist_ok=True)
+        ws_cfg = ws_cfg_dir / 'config.json'
+        try:
+            with open(ws_cfg, 'w') as f:
+                json.dump(
+                    {
+                        "alerts_enabled": False,
+                        "auth_required": False,
+                        "first_load": False,
+                        "server_enabled": True,
+                        "server_password": "",
+                        "server_port": 4455,
+                    },
+                    f,
+                    indent=2,
+                )
+        except Exception as e:
+            self.log(f"Warning: failed to write obs-websocket config: {e}")
+
         # Clean up any existing OBS state files that might trigger dialogs
         self.cleanup_obs_state_files(obs_config_dir)
 
-                # Create basic.ini for the profile
+        # Create basic.ini for the profile.
+        #
+        # OBS uses [SimpleOutput] when Output/Mode=Simple. Without that section, OBS may ignore
+        # our intended recording path and write elsewhere (or not record at all).
         basic_ini = profile_dir / 'basic.ini'
         with open(basic_ini, 'w') as f:
             config_content = f"""[General]
@@ -214,20 +251,47 @@ BaseCY=720
 OutputCX=1280
 OutputCY=720
 FPSType=0
+FPSCommon=30
+FPSInt=30
 FPSNum=30
 FPSDen=1
+ScaleType=bicubic
+ColorFormat=NV12
+ColorSpace=709
+ColorRange=Partial
 
 [Audio]
 SampleRate=48000
-Channels=2
+ChannelSetup=Stereo
 
 [Output]
 Mode=Simple
+FilenameFormatting=%CCYY-%MM-%DD %hh-%mm-%ss
+DelayEnable=false
+DelaySec=20
+DelayPreserve=true
+Reconnect=true
+RetryDelay=2
+MaxRetries=25
+BindIP=default
+IPFamily=IPv4+IPv6
+NewSocketLoopEnable=false
+LowLatencyEnable=false
+
+[SimpleOutput]
 FilePath={self.output_dir}
-RecFormat=mkv
-RecEncoder=x264
+RecFormat2=hybrid_mp4
+VBitrate=6000
+ABitrate=160
+UseAdvanced=false
+Preset=veryfast
 RecQuality=Stream
 RecRB=false
+RecTracks=1
+StreamAudioEncoder=aac
+RecAudioEncoder=aac
+StreamEncoder=x264
+RecEncoder=x264
 
 [BasicWindow]
 DockAreaVisible=false
@@ -258,6 +322,8 @@ DockAreaVisible=false
         afterglow_enabled = os.environ.get("C64_E2E_AFTERGLOW", "0") == "1" or os.environ.get("C64_E2E_PATTERN", "").lower() == "avpop"
         afterglow_duration_ms = 600 if afterglow_enabled else 0
         afterglow_curve = 2
+
+        plugin_record_video = os.environ.get("C64_E2E_PLUGIN_RECORD_VIDEO", "0") == "1"
 
         scene_config = {
             "current_scene": scene_name,
@@ -336,7 +402,9 @@ DockAreaVisible=false
                         "audio_port": self.audio_port,
                         "control_port": self.control_port,
                         "record_csv": True,
-                        "record_video": True,
+                        # Prefer OBS recording for E2E validation. The plugin's internal recorder is only
+                        # enabled explicitly for debugging.
+                        "record_video": plugin_record_video,
                         # Effects: explicitly set so the test can verify filter output deterministically.
                         "tint_mode": tint_mode,
                         "tint_strength": tint_strength,
@@ -497,27 +565,39 @@ DockAreaVisible=false
             import uuid
             request_id = str(uuid.uuid4())
 
-            message = {
-                "op": 6,  # Request
-                "d": {
-                    "requestType": request_type,
-                    "requestId": request_id
-                }
-            }
+            ws = websocket.create_connection("ws://127.0.0.1:4455", timeout=5)
 
-            if request_data:
-                message["d"]["requestData"] = request_data
+            # Hello (op=0)
+            hello = json.loads(ws.recv())
+            if hello.get("op") != 0:
+                raise RuntimeError(f"Unexpected OBS WS hello: {hello}")
 
-            # Simple HTTP-based approach for basic commands
-            # In a full implementation, we'd use persistent WebSocket connection
-            response = requests.post('http://127.0.0.1:4455/api',
-                                   json=message, timeout=5)
+            auth = hello.get("d", {}).get("authentication")
+            if auth:
+                # E2E explicitly disables auth; if it's still enabled, bail with a clear error.
+                raise RuntimeError("OBS WebSocket auth is enabled; E2E expects auth_required=false")
 
-            if response.status_code == 200:
-                return response.json()
-            else:
-                self.log(f"OBS API request failed: {response.status_code}")
-                return None
+            # Identify (op=1)
+            ws.send(json.dumps({"op": 1, "d": {"rpcVersion": 1}}))
+            identified = json.loads(ws.recv())
+            if identified.get("op") != 2:
+                raise RuntimeError(f"OBS WS identify failed: {identified}")
+
+            # Request (op=6)
+            req = {"op": 6, "d": {"requestType": request_type, "requestId": request_id}}
+            if request_data is not None:
+                req["d"]["requestData"] = request_data
+            ws.send(json.dumps(req))
+
+            # Response (op=7)
+            while True:
+                msg = json.loads(ws.recv())
+                if msg.get("op") == 7 and msg.get("d", {}).get("requestId") == request_id:
+                    ws.close()
+                    return msg
+
+            # unreachable
+            return None
 
         except Exception as e:
             self.log(f"OBS API error: {e}")
@@ -539,7 +619,6 @@ DockAreaVisible=false
                 '--profile', 'C64StreamTest',
                 '--collection', 'C64StreamTest',
                 '--startrecording',  # Auto-start recording
-                '--minimize-to-tray',
                 '--disable-updater',
                 '--disable-missing-files-check',
                 '--multi'  # Allow multiple instances
@@ -547,11 +626,16 @@ DockAreaVisible=false
 
             self.log(f"Running: {' '.join(obs_cmd)}")
 
+            env = dict(os.environ)
+            env["DISPLAY"] = os.environ.get("DISPLAY", ':99')
+            env.setdefault("QT_QPA_PLATFORM", "xcb")
+            env.setdefault("LIBGL_ALWAYS_SOFTWARE", "1")
+
             self.obs_process = subprocess.Popen(
                 obs_cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                env=dict(os.environ, DISPLAY=os.environ.get('DISPLAY', ':99'))
+                env=env
             )
 
             # Give OBS time to initialize
@@ -605,7 +689,6 @@ DockAreaVisible=false
                 '--profile', 'C64StreamTest',
                 '--collection', 'C64StreamTest',
                 '--startrecording',
-                '--minimize-to-tray',
                 '--disable-updater',
                 '--disable-missing-files-check',
                 '--disable-shutdown-check'
@@ -613,11 +696,16 @@ DockAreaVisible=false
 
             self.log(f"Restarting OBS with recording: {' '.join(obs_cmd)}")
 
+            env = dict(os.environ)
+            env["DISPLAY"] = os.environ.get("DISPLAY", ':99')
+            env.setdefault("QT_QPA_PLATFORM", "xcb")
+            env.setdefault("LIBGL_ALWAYS_SOFTWARE", "1")
+
             self.obs_process = subprocess.Popen(
                 obs_cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                env=dict(os.environ, DISPLAY=os.environ.get('DISPLAY', ':99'))
+                env=env
             )
 
             # Give OBS time to start recording
@@ -659,13 +747,13 @@ DockAreaVisible=false
         """Check if recording file was created successfully."""
         self.log("Checking for recording output...")
 
-        # Look for video files in multiple directories
+        # Look for OBS recording output.
+        #
+        # IMPORTANT: Do NOT treat plugin-internal recordings as success. Those only prove the plugin
+        # ran, not that OBS produced a recording.
         video_extensions = ['.mkv', '.mp4', '.mov', '.avi', '.flv']
         search_dirs = [
-            self.output_dir,  # Our test output directory
-            Path.home() / 'Videos',  # Default OBS recording directory
-            Path.home(),  # Home directory
-            Path('/tmp'),  # Temporary directory
+            self.output_dir,  # OBS profile is configured to record here
         ]
 
         recording_files = []
@@ -694,15 +782,27 @@ DockAreaVisible=false
 
                 # Basic validation - file should be larger than 10KB
                 if file_size > 10240:
-                    # Copy to our output directory for easier access
+                    # Ensure the file is no longer growing (avoid partial copies).
+                    try:
+                        prev_size = file_size
+                        for _ in range(10):
+                            time.sleep(0.25)
+                            cur_size = recording.stat().st_size
+                            if cur_size == prev_size:
+                                break
+                            prev_size = cur_size
+                    except Exception:
+                        pass
+
+                    # Normalize name for downstream scripts (and to make scenario archival deterministic).
                     dest_file = self.output_dir / f"c64_recording{recording.suffix}"
                     try:
-                        import shutil
-                        shutil.copy2(recording, dest_file)
-                        self.log(f"✅ Copied recording to: {dest_file}")
+                        if recording.resolve() != dest_file.resolve():
+                            recording.replace(dest_file)
+                        self.log(f"✅ Recording available at: {dest_file}")
                         return str(dest_file)
                     except Exception as e:
-                        self.log(f"Warning: Could not copy recording: {e}")
+                        self.log(f"Warning: Could not move recording into place: {e}")
                         return str(recording)
 
         self.log("❌ No valid recording files found")
@@ -1097,16 +1197,17 @@ DockAreaVisible=false
         if self.obs_process:
             try:
                 # First try to stop recording via WebSocket if available
-                if WEBSOCKET_AVAILABLE:
+                if WEBSOCKET_AVAILABLE and self.wait_for_obs_websocket(timeout=3):
                     self.send_obs_request("StopRecord")
-                    time.sleep(1)
+                    # Give OBS time to finalize/remux recordings (especially hybrid_mp4).
+                    time.sleep(2)
 
                 # Send SIGTERM for graceful shutdown
                 self.obs_process.terminate()
 
                 # Wait for graceful shutdown
                 try:
-                    self.obs_process.wait(timeout=8)
+                    self.obs_process.wait(timeout=30)
                     self.log("✅ OBS stopped gracefully")
                 except subprocess.TimeoutExpired:
                     self.log("OBS didn't stop gracefully, sending SIGKILL...")
@@ -1121,6 +1222,9 @@ DockAreaVisible=false
                     self.obs_process.wait()
                 except:
                     pass
+
+            # Mark as stopped so cleanup() won't try again.
+            self.obs_process = None
 
             # Clean up any OBS lock files that might cause crash recovery dialogs
             self.cleanup_obs_locks()
@@ -1487,10 +1591,11 @@ DockAreaVisible=false
             else:
                 self.log("❌ Packet replay failed")
 
-            # Stop recording
-            self.stop_recording()
+            # Stop OBS to finalize the OBS-managed recording file before we attempt to inspect/copy it.
+            # (Copying while OBS is still recording can produce partial/corrupt MP4s.)
+            self.stop_obs()
 
-            # Wait a moment for files to be written
+            # Give filesystem a moment to settle.
             time.sleep(2)
 
             # Check CSV recordings first (crucial for debugging packet reception)
