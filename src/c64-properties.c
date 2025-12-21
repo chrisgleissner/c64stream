@@ -75,27 +75,11 @@ obs_properties_t *c64_create_properties(void *data)
                                                           OBS_GROUP_NORMAL, obs_properties_create());
     obs_properties_t *info_props = obs_property_group_content(info_group);
 
-    // Version information (read-only
+    // Version information (read-only)
     obs_property_t *version_prop =
         obs_properties_add_text(info_props, "version_info", obs_module_text("Version"), OBS_TEXT_INFO);
     obs_property_set_long_description(version_prop, c64_get_build_info());
     obs_property_text_set_info_type(version_prop, OBS_TEXT_INFO_NORMAL);
-
-    // Export / Import configuration (INI) right below version info.
-    //
-    // OBS does not provide a generic "open file dialog" API for button callbacks in libobs,
-    // so we pair each action button with an OBS path selector which provides the native chooser.
-    obs_property_t *export_path_prop = obs_properties_add_path(info_props, C64_CONFIG_EXPORT_PATH_KEY,
-                                                               obs_module_text("ExportConfigPath"), OBS_PATH_FILE_SAVE,
-                                                               "INI Files (*.ini);;All Files (*.*)", NULL);
-    obs_property_set_long_description(export_path_prop, obs_module_text("ExportConfigPath.Description"));
-    obs_properties_add_button(info_props, "export_config", obs_module_text("ExportConfig"), export_config_clicked);
-
-    obs_property_t *import_path_prop = obs_properties_add_path(info_props, C64_CONFIG_IMPORT_PATH_KEY,
-                                                               obs_module_text("ImportConfigPath"), OBS_PATH_FILE,
-                                                               "INI Files (*.ini);;All Files (*.*)", NULL);
-    obs_property_set_long_description(import_path_prop, obs_module_text("ImportConfigPath.Description"));
-    obs_properties_add_button(info_props, "import_config", obs_module_text("ImportConfig"), import_config_clicked);
 
     UNUSED_PARAMETER(context);
 
@@ -247,6 +231,29 @@ obs_properties_t *c64_create_properties(void *data)
     obs_property_t *tint_strength_prop = obs_properties_add_float_slider(
         effects_props, "tint_strength", obs_module_text("TintStrength"), 0.0, 1.0, 0.05);
     obs_property_set_long_description(tint_strength_prop, obs_module_text("TintStrength.Description"));
+
+    // Import/Export Group
+    obs_property_t *importexport_group = obs_properties_add_group(
+        props, "importexport_group", obs_module_text("ImportExport"), OBS_GROUP_NORMAL, obs_properties_create());
+    obs_properties_t *importexport_props = obs_property_group_content(importexport_group);
+
+    // Import configuration (INI)
+    // OBS does not provide a generic "open file dialog" API for button callbacks in libobs,
+    // so we pair each action button with an OBS path selector which provides the native chooser.
+    obs_property_t *import_path_prop = obs_properties_add_path(importexport_props, C64_CONFIG_IMPORT_PATH_KEY,
+                                                               obs_module_text("ImportConfigPath"), OBS_PATH_FILE,
+                                                               "INI Files (*.ini);;All Files (*.*)", NULL);
+    obs_property_set_long_description(import_path_prop, obs_module_text("ImportConfigPath.Description"));
+    obs_properties_add_button(importexport_props, "import_config", obs_module_text("ImportConfig"),
+                              import_config_clicked);
+
+    // Export configuration (INI)
+    obs_property_t *export_path_prop = obs_properties_add_path(importexport_props, C64_CONFIG_EXPORT_PATH_KEY,
+                                                               obs_module_text("ExportConfigPath"), OBS_PATH_FILE_SAVE,
+                                                               "INI Files (*.ini);;All Files (*.*)", NULL);
+    obs_property_set_long_description(export_path_prop, obs_module_text("ExportConfigPath.Description"));
+    obs_properties_add_button(importexport_props, "export_config", obs_module_text("ExportConfig"),
+                              export_config_clicked);
 
     return props;
 }

@@ -138,7 +138,7 @@ class E2ETest:
 
             # Start Xvfb with stderr redirection to suppress xkbcomp warnings
             self.xvfb_process = subprocess.Popen(
-                ['Xvfb', display, '-screen', '0', '1280x720x24'],
+                ['Xvfb', display, '-screen', '0', '1920x1080x24'],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL
             )
@@ -202,6 +202,41 @@ class E2ETest:
             self.log(f"❌ E2E properties file not found: {e2e_properties}")
             return False
 
+    def restore_production_properties(self):
+        """Restore production properties.ini after E2E test completes.
+
+        This ensures the OBS "Defaults" button always resets to production defaults,
+        not E2E test configuration. Always called during cleanup, regardless of
+        test success/failure.
+        """
+        import shutil
+
+        # Get the plugin data directory
+        obs_config_dir = Path.home() / '.config' / 'obs-studio'
+        plugin_data_dir = obs_config_dir / 'plugins' / 'c64stream' / 'data'
+        target_properties = plugin_data_dir / 'properties.ini'
+
+        # Production properties.ini is in data/ relative to project root
+        script_dir = Path(__file__).parent
+        project_root = script_dir.parent.parent  # tests/e2e -> tests -> project root
+        production_properties = project_root / 'data' / 'properties.ini'
+
+        if not production_properties.exists():
+            self.log(f"⚠️ Production properties.ini not found at {production_properties}")
+            return False
+
+        if not plugin_data_dir.exists():
+            self.log("⚠️ Plugin data directory not found, skipping properties restore")
+            return False
+
+        try:
+            shutil.copy2(production_properties, target_properties)
+            self.log(f"✅ Restored production properties: {production_properties} -> {target_properties}")
+            return True
+        except Exception as e:
+            self.log(f"⚠️ Failed to restore production properties: {e}")
+            return False
+
     def create_obs_profile(self):
         """
         Create a minimal OBS profile and scene collection for testing.
@@ -262,6 +297,17 @@ DisableSafeMode=true
         # OBS uses [SimpleOutput] when Output/Mode=Simple. Without that section, OBS may ignore
         # our intended recording path and write elsewhere (or not record at all).
         basic_ini = profile_dir / 'basic.ini'
+        # Determine FPS settings based on video format
+        # PAL: 50 FPS, NTSC: 60 FPS
+        if self.format == "PAL":
+            fps_common = "50 PAL"
+            fps_int = 50
+            fps_num = 50
+        else:  # NTSC
+            fps_common = "60"
+            fps_int = 60
+            fps_num = 60
+
         with open(basic_ini, 'w') as f:
             config_content = f"""[General]
 Name=C64StreamTest
@@ -273,14 +319,14 @@ RecordWhenStreaming=false
 KeepRecordingWhenStreamStops=false
 
 [Video]
-BaseCX=1280
-BaseCY=720
-OutputCX=1280
-OutputCY=720
+BaseCX=1920
+BaseCY=1080
+OutputCX=1920
+OutputCY=1080
 FPSType=0
-FPSCommon=30
-FPSInt=30
-FPSNum=30
+FPSCommon={fps_common}
+FPSInt={fps_int}
+FPSNum={fps_num}
 FPSDen=1
 ScaleType=bicubic
 ColorFormat=NV12
@@ -340,6 +386,23 @@ DockAreaVisible=false
         # Matches the default canvas UUID used by OBS for the main canvas
         canvas_uuid = "6c69626f-6273-4c00-9d88-c5136d61696e"
 
+        # Canvas dimensions (matches profile basic.ini settings)
+        canvas_width = 1920.0
+        canvas_height = 1080.0
+
+        # C64 source dimensions (native resolution from the plugin)
+        # PAL: 384x272, NTSC: 384x240
+        source_width = 384.0
+        source_height = 272.0 if self.format == "PAL" else 240.0
+
+        # Calculate scale factor to fill the canvas height (maintain aspect ratio)
+        scale_factor = canvas_height / source_height
+        scaled_width = source_width * scale_factor
+
+        # Calculate X offset to center the source horizontally
+        pos_x = (canvas_width - scaled_width) / 2.0
+        pos_y = 0.0
+
         # Optional effect toggles for E2E verification.
         # We keep defaults off to preserve established behavior unless explicitly enabled.
         tint_green = os.environ.get("C64_E2E_TINT", "").lower() in ("green", "green_tint") or os.environ.get("C64_E2E_GREEN_TINT", "0") == "1"
@@ -374,6 +437,7 @@ DockAreaVisible=false
                                 "visible": True,
                                 "locked": False,
                                 "rot": 0.0,
+                                "scale_ref": {"x": canvas_width, "y": canvas_height},
                                 "align": 5,
                                 "bounds_type": 0,
                                 "bounds_align": 0,
@@ -384,8 +448,8 @@ DockAreaVisible=false
                                 "crop_bottom": 0,
                                 "id": 1,
                                 "group_item_backup": False,
-                                "pos": {"x": 0.0, "y": 0.0},
-                                "scale": {"x": 1.0, "y": 1.0},
+                                "pos": {"x": pos_x, "y": pos_y},
+                                "scale": {"x": scale_factor, "y": scale_factor},
                                 "bounds": {"x": 0.0, "y": 0.0},
                                 "scale_filter": "disable",
                                 "blend_method": "default",
@@ -494,7 +558,7 @@ DockAreaVisible=false
                     "switches": [],
                 },
             },
-            "resolution": {"x": 1280, "y": 720},
+            "resolution": {"x": 1920, "y": 1080},
             "version": 2,
         }
 
@@ -1560,12 +1624,14 @@ DockAreaVisible=false
         return overall_success, validation_results
 
     def cleanup(self):
-        """Cleanup all test processes."""
+        """Cleanup all test processes and restore production configuration."""
         self.log("Cleaning up test environment")
         self.stop_mock_c64_server()
         self.stop_obs()
         self.stop_xvfb()
         self.cleanup_obs_locks()
+        # Always restore production properties.ini so OBS "Defaults" button works correctly
+        self.restore_production_properties()
 
     def run(self, udp_replay_path):
         """
