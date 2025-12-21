@@ -123,6 +123,14 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     // Load configuration file before initializing settings-dependent values
     c64_load_configuration(settings);
 
+    // If a preset is selected, remember it as "last applied" so reopening Properties doesn't
+    // re-apply the preset and clobber user slider tweaks. Presets should only apply on user selection changes.
+    const char *preset = obs_data_get_string(settings, "crt_preset");
+    const char *preset_last = obs_data_get_string(settings, "crt_preset_last_applied");
+    if (preset && preset[0] != '\0' && (!preset_last || preset_last[0] == '\0')) {
+        obs_data_set_string(settings, "crt_preset_last_applied", preset);
+    }
+
     context->source = source;
 
     // Initialize configuration from settings
@@ -445,6 +453,13 @@ void c64_update(void *data, obs_data_t *settings)
     struct c64_source *context = data;
     if (!context)
         return;
+
+    // Same rationale as in create(): avoid re-applying selected preset on Properties open.
+    const char *preset = obs_data_get_string(settings, "crt_preset");
+    const char *preset_last = obs_data_get_string(settings, "crt_preset_last_applied");
+    if (preset && preset[0] != '\0' && (!preset_last || preset_last[0] == '\0')) {
+        obs_data_set_string(settings, "crt_preset_last_applied", preset);
+    }
 
     // Update debug logging setting
     c64_debug_logging = obs_data_get_bool(settings, "debug_logging");
@@ -782,10 +797,15 @@ void c64_video_tick(void *data, float seconds)
         if (context->render_texture) {
             gs_texture_destroy(context->render_texture);
         }
-        context->render_texture =
-            gs_texture_create(context->width, context->height, GS_RGBA, 1, (const uint8_t **)&context->frame_buffer, 0);
+        // Must be dynamic: we update it every tick via gs_texture_set_image (which maps internally).
+        context->render_texture = gs_texture_create(context->width, context->height, GS_RGBA, 1, NULL, GS_DYNAMIC);
         context->render_texture_width = context->width;
         context->render_texture_height = context->height;
+
+        // Upload initial pixels immediately to avoid a black/undefined frame and to keep update path consistent.
+        if (context->render_texture && context->frame_buffer) {
+            gs_texture_set_image(context->render_texture, (const uint8_t *)context->frame_buffer, context->width * 4, false);
+        }
 
         // Create afterglow accumulation textures (ping-pong buffers)
         // Use render dimensions (which include scaling effects) not base dimensions
@@ -832,14 +852,67 @@ void c64_video_tick(void *data, float seconds)
             const uint32_t pixel_count = context->width * context->height;
 
             if (context->afterglow_enable && context->afterglow_cpu_accum && context->afterglow_duration_ms > 0) {
-                // Simple exponential decay model: accum = curr + accum*decay
-                const float duration_ms = (float)((context->afterglow_duration_ms > 1) ? context->afterglow_duration_ms
-                                                                                       : 1);
-                float decay = expf(-context->afterglow_dt_ms / duration_ms);
-                if (decay < 0.0f)
-                    decay = 0.0f;
-                if (decay > 1.0f)
-                    decay = 1.0f;
+                // Phosphor persistence model:
+                //
+                // We want *current* excitation to appear at full brightness (e.g. a moving white ball stays white),
+                // while prior excitation leaves a trail that decays over time.
+                //
+                // Stable + physically plausible (prevents "charging up" static pixels):
+                //   out = max(curr, prev * decay)
+                //
+                // If curr is black, out becomes prev*decay (a fading trail).
+                // If curr is constant, out stays at curr (no unbounded brightening).
+                // If curr is brighter than the fading trail, out stays at curr (no dimming of current).
+                //
+                // Also apply per-channel decay to mimic RGB phosphors fading at different rates
+                // (blue fastest, green medium, red slowest).
+                const float base_duration_ms =
+                    (float)((context->afterglow_duration_ms > 1) ? context->afterglow_duration_ms : 1);
+
+                // Curve mapping: 0=linear-ish, 1=faster fade, 2=normal, 3=long tail
+                float duration_ms = base_duration_ms;
+                switch (context->afterglow_curve) {
+                case 0:
+                    // handled below via linear decay
+                    break;
+                case 1:
+                    duration_ms = base_duration_ms * 0.5f;
+                    break;
+                case 3:
+                    duration_ms = base_duration_ms * 2.0f;
+                    break;
+                case 2:
+                default:
+                    break;
+                }
+
+                // Per-channel time constants (P22-ish): blue fastest, green medium, red slowest.
+                const float tau_r = duration_ms * 1.35f;
+                const float tau_g = duration_ms * 1.00f;
+                const float tau_b = duration_ms * 0.75f;
+
+                float decay_r = 0.0f, decay_g = 0.0f, decay_b = 0.0f;
+                if (context->afterglow_curve == 0) {
+                    decay_r = 1.0f - (context->afterglow_dt_ms / tau_r);
+                    decay_g = 1.0f - (context->afterglow_dt_ms / tau_g);
+                    decay_b = 1.0f - (context->afterglow_dt_ms / tau_b);
+                } else {
+                    decay_r = expf(-context->afterglow_dt_ms / tau_r);
+                    decay_g = expf(-context->afterglow_dt_ms / tau_g);
+                    decay_b = expf(-context->afterglow_dt_ms / tau_b);
+                }
+                if (decay_r < 0.0f)
+                    decay_r = 0.0f;
+                if (decay_r > 1.0f)
+                    decay_r = 1.0f;
+                if (decay_g < 0.0f)
+                    decay_g = 0.0f;
+                if (decay_g > 1.0f)
+                    decay_g = 1.0f;
+                if (decay_b < 0.0f)
+                    decay_b = 0.0f;
+                if (decay_b > 1.0f)
+                    decay_b = 1.0f;
 
                 uint32_t *acc = context->afterglow_cpu_accum;
                 if (!context->afterglow_cpu_valid) {
@@ -858,9 +931,13 @@ void c64_video_tick(void *data, float seconds)
                         const float cg = (float)((curr >> 8) & 0xFF);
                         const float cb = (float)((curr >> 16) & 0xFF);
 
-                        float or_ = cr + pr * decay;
-                        float og_ = cg + pg * decay;
-                        float ob_ = cb + pb * decay;
+                        float tr = pr * decay_r;
+                        float tg = pg * decay_g;
+                        float tb = pb * decay_b;
+
+                        float or_ = (cr > tr) ? cr : tr;
+                        float og_ = (cg > tg) ? cg : tg;
+                        float ob_ = (cb > tb) ? cb : tb;
 
                         if (or_ > 255.0f)
                             or_ = 255.0f;

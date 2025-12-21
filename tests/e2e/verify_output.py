@@ -315,13 +315,78 @@ class OutputVerifier:
 
         return True, "Afterglow persistence detected (tail decays across frames)"
 
+    @staticmethod
+    def _find_content_bbox(luma_frames: np.ndarray, thresh: float = 8.0) -> tuple[int, int, int, int]:
+        """
+        Find the bounding box of the rendered C64 content inside the OBS canvas.
+        Returns (x0, y0, x1, y1) inclusive.
+        """
+        n = min(luma_frames.shape[0], 60)
+        avg = luma_frames[:n].mean(axis=0)
+        mask = avg > thresh
+        ys, xs = np.where(mask)
+        if xs.size == 0 or ys.size == 0:
+            raise RuntimeError("Could not locate content bounding box (no non-black pixels)")
+        return int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())
+
     def verify_av_pop_afterglow(self, max_frames=360, bright_thresh=140.0):
         """End-to-end afterglow check using the established 'A/V pop' ROI approach."""
         frames = self._read_frames_rgb24(max_frames=max_frames)
         luma = self._luma_u8(frames)
         roi = self._find_pop_roi(luma, bright_thresh=bright_thresh)
         ok, details = self._verify_afterglow_decay(luma, roi)
-        return ok, {"roi": {"x0": roi[0], "y0": roi[1], "x1": roi[2], "y1": roi[3]}, "details": details}
+        info = {"roi": {"x0": roi[0], "y0": roi[1], "x1": roi[2], "y1": roi[3]}, "details": details}
+
+        # Additional invariant: a stable 4x4 VIC palette tile in the top-right of the C64 frame
+        # must NOT drift over time with afterglow enabled.
+        cx0, cy0, cx1, cy1 = self._find_content_bbox(luma, thresh=8.0)
+        cw = max(1, cx1 - cx0 + 1)
+        ch = max(1, cy1 - cy0 + 1)
+
+        bw = max(1, int(round(cw * (40.0 / 384.0))))
+        bh = max(1, int(round(ch * (40.0 / 272.0))))
+
+        gx0 = max(cx0, cx1 - bw + 1)
+        gx1 = cx1
+        gy0 = cy0
+        gy1 = min(cy1, cy0 + bh - 1)
+
+        tile = frames[:, gy0 : gy1 + 1, gx0 : gx1 + 1, :].astype(np.float32)
+        # Split into 4x4 grid and track mean RGB per cell over time.
+        cells_x = 4
+        cells_y = 4
+        h = tile.shape[1]
+        w = tile.shape[2]
+        step_x = max(1, w // cells_x)
+        step_y = max(1, h // cells_y)
+
+        # Baseline: first ~0.6s (18 frames) to avoid including the first pop at ~1s.
+        base_n = min(tile.shape[0], 18)
+        base = np.zeros((cells_y, cells_x, 3), dtype=np.float32)
+        peak_delta = 0.0
+
+        for cy in range(cells_y):
+            for cx in range(cells_x):
+                x0 = cx * step_x
+                y0 = cy * step_y
+                x1 = w if cx == cells_x - 1 else (cx + 1) * step_x
+                y1 = h if cy == cells_y - 1 else (cy + 1) * step_y
+                cell = tile[:, y0:y1, x0:x1, :]
+                base_cell = cell[:base_n].mean(axis=(0, 1, 2))
+                base[cy, cx, :] = base_cell
+                # max channel deviation over all frames
+                deltas = np.max(np.abs(cell.mean(axis=(1, 2)) - base_cell[None, :]), axis=1)
+                peak_delta = max(float(np.max(deltas)), peak_delta)
+
+        # Tolerance: allow minor drift from scaling/compression, but reject systemic brightening/changes.
+        tol = 8.0
+        info["palette_roi"] = {"x0": int(gx0), "y0": int(gy0), "x1": int(gx1), "y1": int(gy1)}
+        info["palette_stats"] = {"peak_rgb_delta": peak_delta, "tol": tol}
+
+        if peak_delta > tol:
+            return False, {**info, "details": f"{details}; palette drift detected (peak_rgb_delta={peak_delta:.2f} > tol={tol:.2f})"}
+
+        return ok, info
 
     def run(self):
         """

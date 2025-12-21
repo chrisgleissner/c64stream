@@ -172,6 +172,25 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                 # This creates a solid block of color across the entire 40x40 area
                 marker_color = frame_num % 16
                 payload[line * (width // 2) + byte_idx] = (marker_color << 4) | marker_color
+            elif pixel_line < 40 and pixel_x >= (width - 40):
+                # Stable 4x4 VIC palette tile in top-right corner (40x40 pixels).
+                # Each cell is 10x10 pixels and uses a distinct VIC color 0..15.
+                #
+                # Used by E2E verifier to ensure:
+                # - Afterglow does NOT brighten static content over time
+                # - CRT effects reproduce the full palette consistently
+                x0 = width - 40
+                local_y = pixel_line  # 0..39
+                # Two pixels in this byte: pixel_x and pixel_x+1
+                def palette_color(px):
+                    local_x = px - x0  # 0..39
+                    cell_x = int(local_x // 10)  # 0..3
+                    cell_y = int(local_y // 10)  # 0..3
+                    return int(cell_y * 4 + cell_x)  # 0..15
+
+                c1 = palette_color(pixel_x)
+                c2 = palette_color(pixel_x + 1)
+                payload[line * (width // 2) + byte_idx] = (c2 << 4) | c1
             else:
                 # Rest of frame: diagonal, slowly moving lines
                 # Create thin diagonal slanted lines by combining x and y, with a slow motion term.

@@ -14,6 +14,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-logging.h" // For Windows snprintf compatibility
 #include "c64-file.h"
 #include "c64-presets.h"
+#include "c64-source.h"
 #include <obs-module.h>
 #include <util/dstr.h>
 #include <stdio.h>
@@ -22,6 +23,10 @@ See <https://www.gnu.org/licenses/> for details.
 
 // Forward declaration of callbacks
 static bool crt_preset_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings);
+
+// Internal settings key: used to prevent re-applying presets when reopening the Properties UI.
+// (OBS may rebuild the properties view and trigger "modified" callbacks without a real user change.)
+static const char *C64_PRESET_LAST_APPLIED_KEY = "crt_preset_last_applied";
 
 // Helpers: When enforce is true (CI), apply both default and direct values
 static inline void c64_set_string(obs_data_t *settings, const char *key, const char *value, bool enforce)
@@ -103,6 +108,11 @@ obs_properties_t *c64_create_properties(void *data)
     obs_property_t *audio_port_prop =
         obs_properties_add_int(network_props, "audio_port", obs_module_text("AudioPort"), 1024, 65535, 1);
     obs_property_set_long_description(audio_port_prop, obs_module_text("AudioPort.Description"));
+
+    // Control Port (TCP)
+    obs_property_t *control_port_prop =
+        obs_properties_add_int(network_props, "control_port", obs_module_text("ControlPort"), 64, 65535, 1);
+    obs_property_set_long_description(control_port_prop, obs_module_text("ControlPort.Description"));
 
     // Buffer Delay
     obs_property_t *delay_prop =
@@ -230,9 +240,16 @@ static bool crt_preset_changed(obs_properties_t *props, obs_property_t *property
     if (!preset_name || preset_name[0] == '\0')
         return false;
 
+    const char *last_applied = obs_data_get_string(settings, C64_PRESET_LAST_APPLIED_KEY);
+    if (last_applied && last_applied[0] != '\0' && strcmp(last_applied, preset_name) == 0) {
+        // Already applied; don't overwrite user tweaks when reopening the Properties panel.
+        return false;
+    }
+
     // Apply the preset
     if (c64_presets_apply(settings, preset_name)) {
         C64_LOG_INFO("Applied CRT preset: %s", preset_name);
+        obs_data_set_string(settings, C64_PRESET_LAST_APPLIED_KEY, preset_name);
         return true;
     }
 
@@ -244,10 +261,20 @@ void c64_set_property_defaults(obs_data_t *settings)
     // Defaults initialization
 
     obs_data_set_default_bool(settings, "debug_logging", true);
+    // Default: auto-detect OBS IP enabled (OBS "Defaults" button uses these defaults)
     obs_data_set_default_bool(settings, "auto_detect_ip", true);
     obs_data_set_default_string(settings, "dns_server_ip", "192.168.1.1");
     obs_data_set_default_string(settings, "c64_host", C64_DEFAULT_HOST);
-    obs_data_set_default_string(settings, "obs_ip_address", ""); // Empty by default, will be auto-detected
+    // Default OBS IP should be the dynamically detected local IP so OBS "Defaults" fills it in immediately.
+    // If detection fails, fall back to empty and the runtime code will use localhost.
+    {
+        char detected_ip[64];
+        if (c64_detect_local_ip(detected_ip, sizeof(detected_ip))) {
+            obs_data_set_default_string(settings, "obs_ip_address", detected_ip);
+        } else {
+            obs_data_set_default_string(settings, "obs_ip_address", "");
+        }
+    }
     obs_data_set_default_int(settings, "video_port", C64_DEFAULT_VIDEO_PORT);
     obs_data_set_default_int(settings, "audio_port", C64_DEFAULT_AUDIO_PORT);
     obs_data_set_default_int(settings, "control_port", C64_CONTROL_PORT);
@@ -430,9 +457,12 @@ bool c64_load_configuration(obs_data_t *settings)
                 C64_LOG_DEBUG("Config: auto_detect_ip = %s", enabled ? "true" : "false");
                 loaded_settings++;
             } else if (strcmp(key, "obs_ip_address") == 0) {
-                c64_set_string(settings, "obs_ip_address", value, ci_enforced);
-                C64_LOG_INFO("Config: obs_ip_address = %s", value);
-                loaded_settings++;
+                // Only apply non-empty value. Empty means "use auto-detect default".
+                if (value && value[0] != '\0') {
+                    c64_set_string(settings, "obs_ip_address", value, ci_enforced);
+                    C64_LOG_INFO("Config: obs_ip_address = %s", value);
+                    loaded_settings++;
+                }
             } else if (strcmp(key, "buffer_delay_ms") == 0) {
                 int delay = atoi(value);
                 if (delay >= 0 && delay <= 500) {
