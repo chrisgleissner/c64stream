@@ -11,6 +11,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include <string.h>
 #include <inttypes.h>
 #include <pthread.h>
+#include <math.h>
 #include "c64-network.h"
 #include "c64-network-buffer.h"
 
@@ -35,6 +36,123 @@ See <https://www.gnu.org/licenses/> for details.
 
 // Forward declarations
 static uint64_t c64_calculate_ideal_timestamp(struct c64_source *context, uint16_t frame_num);
+
+static const uint32_t *c64_get_afterglow_output_pixels(struct c64_source *context, const uint32_t *curr_pixels,
+                                                       size_t pixel_count)
+{
+    if (!context || !curr_pixels || pixel_count == 0)
+        return curr_pixels;
+
+    if (!(context->afterglow_enable && context->afterglow_duration_ms > 0))
+        return curr_pixels;
+
+    const size_t frame_bytes = pixel_count * 4;
+    if (context->afterglow_cpu_bytes != frame_bytes) {
+        if (context->afterglow_cpu_accum) {
+            bfree(context->afterglow_cpu_accum);
+        }
+        context->afterglow_cpu_accum = bmalloc(frame_bytes);
+        context->afterglow_cpu_bytes = frame_bytes;
+        context->afterglow_cpu_valid = false;
+    }
+
+    if (!context->afterglow_cpu_accum)
+        return curr_pixels;
+
+    // Use the detected frame interval (PAL/NTSC) for stable dt.
+    float dt_ms = 33.33f;
+    if (context->frame_interval_ns > 0) {
+        dt_ms = (float)context->frame_interval_ns / 1000000.0f;
+    } else if (context->expected_fps > 1.0) {
+        dt_ms = (float)(1000.0 / context->expected_fps);
+    }
+
+    const float base_duration_ms =
+        (float)((context->afterglow_duration_ms > 1) ? context->afterglow_duration_ms : 1);
+
+    // Curve mapping: 0=linear-ish, 1=faster fade, 2=normal, 3=long tail
+    float duration_ms = base_duration_ms;
+    switch (context->afterglow_curve) {
+    case 0:
+        break;
+    case 1:
+        duration_ms = base_duration_ms * 0.5f;
+        break;
+    case 3:
+        duration_ms = base_duration_ms * 2.0f;
+        break;
+    case 2:
+    default:
+        break;
+    }
+
+    // Per-channel time constants (blue fastest, green medium, red slowest).
+    const float tau_r = duration_ms * 1.35f;
+    const float tau_g = duration_ms * 1.00f;
+    const float tau_b = duration_ms * 0.75f;
+
+    float decay_r = 0.0f, decay_g = 0.0f, decay_b = 0.0f;
+    if (context->afterglow_curve == 0) {
+        decay_r = 1.0f - (dt_ms / tau_r);
+        decay_g = 1.0f - (dt_ms / tau_g);
+        decay_b = 1.0f - (dt_ms / tau_b);
+    } else {
+        decay_r = expf(-dt_ms / tau_r);
+        decay_g = expf(-dt_ms / tau_g);
+        decay_b = expf(-dt_ms / tau_b);
+    }
+    if (decay_r < 0.0f)
+        decay_r = 0.0f;
+    if (decay_r > 1.0f)
+        decay_r = 1.0f;
+    if (decay_g < 0.0f)
+        decay_g = 0.0f;
+    if (decay_g > 1.0f)
+        decay_g = 1.0f;
+    if (decay_b < 0.0f)
+        decay_b = 0.0f;
+    if (decay_b > 1.0f)
+        decay_b = 1.0f;
+
+    uint32_t *acc = context->afterglow_cpu_accum;
+    if (!context->afterglow_cpu_valid) {
+        memcpy(acc, curr_pixels, frame_bytes);
+        context->afterglow_cpu_valid = true;
+        return acc;
+    }
+
+    for (size_t i = 0; i < pixel_count; i++) {
+        const uint32_t curr = curr_pixels[i];
+        const uint32_t prev = acc[i];
+
+        const float pr = (float)((prev >> 0) & 0xFF);
+        const float pg = (float)((prev >> 8) & 0xFF);
+        const float pb = (float)((prev >> 16) & 0xFF);
+
+        const float cr = (float)((curr >> 0) & 0xFF);
+        const float cg = (float)((curr >> 8) & 0xFF);
+        const float cb = (float)((curr >> 16) & 0xFF);
+
+        const float tr = pr * decay_r;
+        const float tg = pg * decay_g;
+        const float tb = pb * decay_b;
+
+        float or_ = (cr > tr) ? cr : tr;
+        float og_ = (cg > tg) ? cg : tg;
+        float ob_ = (cb > tb) ? cb : tb;
+
+        if (or_ > 255.0f)
+            or_ = 255.0f;
+        if (og_ > 255.0f)
+            og_ = 255.0f;
+        if (ob_ > 255.0f)
+            ob_ = 255.0f;
+
+        acc[i] = ((uint32_t)255 << 24) | ((uint32_t)ob_ << 16) | ((uint32_t)og_ << 8) | ((uint32_t)or_ << 0);
+    }
+
+    return acc;
+}
 
 // Helper functions for frame assembly (updated to use lock-free implementation)
 void c64_init_frame_assembly(struct frame_assembly *frame, uint16_t frame_num)
@@ -103,16 +221,20 @@ void c64_render_frame_direct(struct c64_source *context, struct frame_assembly *
     // Generate monotonic timestamp based on frame sequence for butter-smooth playback
     uint64_t monotonic_timestamp = c64_calculate_ideal_timestamp(context, frame->frame_num);
 
+    // Apply afterglow in the video thread (prevents races/flicker with raw frame_buffer).
+    const size_t pixel_count = (size_t)context->width * (size_t)context->height;
+    const uint32_t *out_pixels = c64_get_afterglow_output_pixels(context, context->frame_buffer, pixel_count);
+
     // Save frame to disk if enabled
     if (context->save_frames) {
-        c64_save_frame_as_bmp(context, context->frame_buffer);
+        c64_save_frame_as_bmp(context, (uint32_t *)out_pixels);
 
         // Note: CSV logging for video events is now handled independently in the video processor thread
     }
 
     // Record frame to video file if recording is enabled
     if (context->record_video) {
-        c64_record_video_frame(context, context->frame_buffer);
+        c64_record_video_frame(context, (uint32_t *)out_pixels);
     }
 
     // Direct async video output - optimized for low latency
@@ -120,7 +242,7 @@ void c64_render_frame_direct(struct c64_source *context, struct frame_assembly *
     struct obs_source_frame obs_frame = {0};
 
     // Set up frame data - RGBA format optimized for immediate display
-    obs_frame.data[0] = (uint8_t *)context->frame_buffer;
+    obs_frame.data[0] = (uint8_t *)out_pixels;
     obs_frame.linesize[0] = context->width * 4; // 4 bytes per pixel (RGBA)
     obs_frame.width = context->width;
     obs_frame.height = context->height;

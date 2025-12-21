@@ -834,139 +834,19 @@ void c64_video_tick(void *data, float seconds)
         }
 
     } else {
-        // CPU afterglow accumulation: deterministic persistence in the produced frames.
-        // This ensures the effect is visible in recordings even when GPU render cadence is irregular.
-        const size_t frame_bytes = (size_t)context->width * (size_t)context->height * 4;
-        if (context->afterglow_cpu_bytes != frame_bytes) {
-            if (context->afterglow_cpu_accum) {
-                bfree(context->afterglow_cpu_accum);
-            }
-            context->afterglow_cpu_accum = bmalloc(frame_bytes);
-            context->afterglow_cpu_bytes = frame_bytes;
-            context->afterglow_cpu_valid = false;
-        }
-
-        // Update texture with latest frame data (either raw frame_buffer or afterglow-accumulated)
+        // Upload latest frame to the render texture.
+        // Note: afterglow is applied at frame delivery time (video thread) into `afterglow_cpu_accum`.
+        // We must NOT write afterglow back into `frame_buffer` here; that creates feedback and flicker when
+        // packets drop or when video thread is concurrently writing the raw buffer.
         if (context->frame_buffer && context->width > 0 && context->height > 0) {
             const uint32_t *src_pixels = context->frame_buffer;
-            const uint32_t pixel_count = context->width * context->height;
-
-            if (context->afterglow_enable && context->afterglow_cpu_accum && context->afterglow_duration_ms > 0) {
-                // Phosphor persistence model:
-                //
-                // We want *current* excitation to appear at full brightness (e.g. a moving white ball stays white),
-                // while prior excitation leaves a trail that decays over time.
-                //
-                // Stable + physically plausible (prevents "charging up" static pixels):
-                //   out = max(curr, prev * decay)
-                //
-                // If curr is black, out becomes prev*decay (a fading trail).
-                // If curr is constant, out stays at curr (no unbounded brightening).
-                // If curr is brighter than the fading trail, out stays at curr (no dimming of current).
-                //
-                // Also apply per-channel decay to mimic RGB phosphors fading at different rates
-                // (blue fastest, green medium, red slowest).
-                const float base_duration_ms =
-                    (float)((context->afterglow_duration_ms > 1) ? context->afterglow_duration_ms : 1);
-
-                // Curve mapping: 0=linear-ish, 1=faster fade, 2=normal, 3=long tail
-                float duration_ms = base_duration_ms;
-                switch (context->afterglow_curve) {
-                case 0:
-                    // handled below via linear decay
-                    break;
-                case 1:
-                    duration_ms = base_duration_ms * 0.5f;
-                    break;
-                case 3:
-                    duration_ms = base_duration_ms * 2.0f;
-                    break;
-                case 2:
-                default:
-                    break;
-                }
-
-                // Per-channel time constants (P22-ish): blue fastest, green medium, red slowest.
-                const float tau_r = duration_ms * 1.35f;
-                const float tau_g = duration_ms * 1.00f;
-                const float tau_b = duration_ms * 0.75f;
-
-                float decay_r = 0.0f, decay_g = 0.0f, decay_b = 0.0f;
-                if (context->afterglow_curve == 0) {
-                    decay_r = 1.0f - (context->afterglow_dt_ms / tau_r);
-                    decay_g = 1.0f - (context->afterglow_dt_ms / tau_g);
-                    decay_b = 1.0f - (context->afterglow_dt_ms / tau_b);
-                } else {
-                    decay_r = expf(-context->afterglow_dt_ms / tau_r);
-                    decay_g = expf(-context->afterglow_dt_ms / tau_g);
-                    decay_b = expf(-context->afterglow_dt_ms / tau_b);
-                }
-                if (decay_r < 0.0f)
-                    decay_r = 0.0f;
-                if (decay_r > 1.0f)
-                    decay_r = 1.0f;
-                if (decay_g < 0.0f)
-                    decay_g = 0.0f;
-                if (decay_g > 1.0f)
-                    decay_g = 1.0f;
-                if (decay_b < 0.0f)
-                    decay_b = 0.0f;
-                if (decay_b > 1.0f)
-                    decay_b = 1.0f;
-
-                uint32_t *acc = context->afterglow_cpu_accum;
-                if (!context->afterglow_cpu_valid) {
-                    memcpy(acc, src_pixels, frame_bytes);
-                    context->afterglow_cpu_valid = true;
-                } else {
-                    for (uint32_t i = 0; i < pixel_count; i++) {
-                        const uint32_t curr = src_pixels[i];
-                        const uint32_t prev = acc[i];
-
-                        const float pr = (float)((prev >> 0) & 0xFF);
-                        const float pg = (float)((prev >> 8) & 0xFF);
-                        const float pb = (float)((prev >> 16) & 0xFF);
-
-                        const float cr = (float)((curr >> 0) & 0xFF);
-                        const float cg = (float)((curr >> 8) & 0xFF);
-                        const float cb = (float)((curr >> 16) & 0xFF);
-
-                        float tr = pr * decay_r;
-                        float tg = pg * decay_g;
-                        float tb = pb * decay_b;
-
-                        float or_ = (cr > tr) ? cr : tr;
-                        float og_ = (cg > tg) ? cg : tg;
-                        float ob_ = (cb > tb) ? cb : tb;
-
-                        if (or_ > 255.0f)
-                            or_ = 255.0f;
-                        if (og_ > 255.0f)
-                            og_ = 255.0f;
-                        if (ob_ > 255.0f)
-                            ob_ = 255.0f;
-
-                        acc[i] = ((uint32_t)255 << 24) | ((uint32_t)ob_ << 16) | ((uint32_t)og_ << 8) |
-                                 ((uint32_t)or_ << 0);
-
-                        // Also write back into the live frame buffer so that any downstream path that uses
-                        // `frame_buffer` directly (e.g. async output) observes the same afterglow persistence.
-                        context->frame_buffer[i] = acc[i];
-                    }
-                }
-
-                // Upload the (now afterglow-accumulated) frame buffer.
-                src_pixels = context->frame_buffer;
-            } else {
-                // Afterglow disabled: reset CPU accumulator so it doesn't "ghost" when re-enabled.
-                context->afterglow_cpu_valid = false;
+            if (context->afterglow_enable && context->afterglow_cpu_accum && context->afterglow_cpu_valid &&
+                context->afterglow_duration_ms > 0) {
+                src_pixels = context->afterglow_cpu_accum;
             }
-
             obs_enter_graphics();
             gs_texture_set_image(context->render_texture, (const uint8_t *)src_pixels, context->width * 4, false);
             obs_leave_graphics();
-        } else {
-            C64_LOG_WARNING("Frame buffer validation failed in video_tick - skipping texture update");
         }
     }
 }
