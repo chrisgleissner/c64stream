@@ -1,0 +1,63 @@
+name: Feature request
+description: Propose a new feature or enhancement
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Feature requests are welcome.
+        If you are able to implement the feature yourself, a pull request is strongly preferred.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: Describe the problem or limitation you are experiencing.
+      placeholder: |
+        What is the problem you are trying to solve?
+        Why is this insufficient today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the feature or change you would like to see.
+      placeholder: |
+        What would you like to happen?
+        How would this work at a high level?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Describe any alternative solutions or workarounds you have considered.
+      placeholder: |
+        - Alternative approaches:
+        - Why they are insufficient:
+    validations:
+      required: false
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact and considerations
+      description: Consider performance, compatibility, maintenance, or user experience implications.
+      placeholder: |
+        Performance impact:
+        Compatibility concerns:
+        Maintenance considerations:
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: pr
+    attributes:
+      label: Contribution
+      options:
+        - label: I am willing and able to submit a pull request implementing this feature.
+          required: false
