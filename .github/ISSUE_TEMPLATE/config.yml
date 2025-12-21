@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and general discussion
+    url: https://github.com/chrisgleissner/c64stream/discussions
+    about: Please use Discussions for questions, support, and open-ended topics.
