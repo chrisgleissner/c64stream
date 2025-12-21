@@ -16,6 +16,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-presets.h"
 #include "c64-source.h"
 #include <obs-module.h>
+#include <util/platform.h>
 #include <util/dstr.h>
 #include <stdio.h>
 #include <string.h>
@@ -23,10 +24,15 @@ See <https://www.gnu.org/licenses/> for details.
 
 // Forward declaration of callbacks
 static bool crt_preset_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings);
+static bool export_config_clicked(obs_properties_t *props, obs_property_t *property, void *data);
+static bool import_config_clicked(obs_properties_t *props, obs_property_t *property, void *data);
+static void trim_config_string(char *str);
 
 // Internal settings key: used to prevent re-applying presets when reopening the Properties UI.
 // (OBS may rebuild the properties view and trigger "modified" callbacks without a real user change.)
 static const char *C64_PRESET_LAST_APPLIED_KEY = "crt_preset_last_applied";
+static const char *C64_CONFIG_EXPORT_PATH_KEY = "config_export_path";
+static const char *C64_CONFIG_IMPORT_PATH_KEY = "config_import_path";
 
 // Helpers: When enforce is true (CI), apply both default and direct values
 static inline void c64_set_string(obs_data_t *settings, const char *key, const char *value, bool enforce)
@@ -61,7 +67,7 @@ static inline void c64_set_bool(obs_data_t *settings, const char *key, bool valu
 
 obs_properties_t *c64_create_properties(void *data)
 {
-    UNUSED_PARAMETER(data);
+    struct c64_source *context = (struct c64_source *)data;
     obs_properties_t *props = obs_properties_create();
 
     // Plugin Information Group
@@ -74,6 +80,24 @@ obs_properties_t *c64_create_properties(void *data)
         obs_properties_add_text(info_props, "version_info", obs_module_text("Version"), OBS_TEXT_INFO);
     obs_property_set_long_description(version_prop, c64_get_build_info());
     obs_property_text_set_info_type(version_prop, OBS_TEXT_INFO_NORMAL);
+
+    // Export / Import configuration (INI) right below version info.
+    //
+    // OBS does not provide a generic "open file dialog" API for button callbacks in libobs,
+    // so we pair each action button with an OBS path selector which provides the native chooser.
+    obs_property_t *export_path_prop = obs_properties_add_path(info_props, C64_CONFIG_EXPORT_PATH_KEY,
+                                                               obs_module_text("ExportConfigPath"), OBS_PATH_FILE_SAVE,
+                                                               "INI Files (*.ini);;All Files (*.*)", NULL);
+    obs_property_set_long_description(export_path_prop, obs_module_text("ExportConfigPath.Description"));
+    obs_properties_add_button(info_props, "export_config", obs_module_text("ExportConfig"), export_config_clicked);
+
+    obs_property_t *import_path_prop = obs_properties_add_path(info_props, C64_CONFIG_IMPORT_PATH_KEY,
+                                                               obs_module_text("ImportConfigPath"), OBS_PATH_FILE,
+                                                               "INI Files (*.ini);;All Files (*.*)", NULL);
+    obs_property_set_long_description(import_path_prop, obs_module_text("ImportConfigPath.Description"));
+    obs_properties_add_button(info_props, "import_config", obs_module_text("ImportConfig"), import_config_clicked);
+
+    UNUSED_PARAMETER(context);
 
     // Network Configuration Group
     obs_property_t *network_group = obs_properties_add_group(
@@ -227,6 +251,257 @@ obs_properties_t *c64_create_properties(void *data)
     return props;
 }
 
+static void c64_default_export_ini_path(char *path, size_t path_size)
+{
+    if (!path || path_size < 32)
+        return;
+
+    char documents_path[256];
+    if (c64_get_user_documents_path(documents_path, sizeof(documents_path))) {
+#ifdef _WIN32
+        snprintf(path, path_size, "%s\\c64stream-properties.ini", documents_path);
+#else
+        snprintf(path, path_size, "%s/c64stream-properties.ini", documents_path);
+#endif
+        return;
+    }
+
+    // Fallback: current directory.
+    snprintf(path, path_size, "c64stream-properties.ini");
+}
+
+static bool c64_ensure_parent_dir_exists(const char *file_path)
+{
+    if (!file_path || file_path[0] == '\0')
+        return false;
+
+    char dir[1024];
+    strncpy(dir, file_path, sizeof(dir) - 1);
+    dir[sizeof(dir) - 1] = '\0';
+
+    char *slash = strrchr(dir, '/');
+    char *bslash = strrchr(dir, '\\');
+    char *sep = slash;
+    if (bslash && (!sep || bslash > sep))
+        sep = bslash;
+
+    if (!sep)
+        return true; // No directory component
+
+    *sep = '\0';
+    if (dir[0] == '\0')
+        return true;
+
+    return c64_create_directory_recursive(dir);
+}
+
+static bool c64_export_settings_to_ini(obs_data_t *settings, const char *path)
+{
+    if (!settings || !path || path[0] == '\0')
+        return false;
+
+    if (!c64_ensure_parent_dir_exists(path)) {
+        C64_LOG_WARNING("Export: failed to create parent directory for %s", path);
+        return false;
+    }
+
+    FILE *f = os_fopen(path, "w");
+    if (!f) {
+        C64_LOG_WARNING("Export: failed to open %s for writing", path);
+        return false;
+    }
+
+    const char *c64_host = obs_data_get_string(settings, "c64_host");
+    const char *dns_server_ip = obs_data_get_string(settings, "dns_server_ip");
+    const char *obs_ip_address = obs_data_get_string(settings, "obs_ip_address");
+    const bool auto_detect_ip = obs_data_get_bool(settings, "auto_detect_ip");
+    const int video_port = (int)obs_data_get_int(settings, "video_port");
+    const int audio_port = (int)obs_data_get_int(settings, "audio_port");
+    const int control_port = (int)obs_data_get_int(settings, "control_port");
+    const int buffer_delay_ms = (int)obs_data_get_int(settings, "buffer_delay_ms");
+
+    const char *save_folder = obs_data_get_string(settings, "save_folder");
+    const bool save_frames = obs_data_get_bool(settings, "save_frames");
+    const bool record_video = obs_data_get_bool(settings, "record_video");
+    const bool record_csv = obs_data_get_bool(settings, "record_csv");
+
+    const bool debug_logging = obs_data_get_bool(settings, "debug_logging");
+
+    const char *crt_preset = obs_data_get_string(settings, "crt_preset");
+    const double scan_line_distance = obs_data_get_double(settings, "scan_line_distance");
+    const double scan_line_strength = obs_data_get_double(settings, "scan_line_strength");
+    const double pixel_width = obs_data_get_double(settings, "pixel_width");
+    const double pixel_height = obs_data_get_double(settings, "pixel_height");
+    const double blur_strength = obs_data_get_double(settings, "blur_strength");
+    const double bloom_strength = obs_data_get_double(settings, "bloom_strength");
+    const int afterglow_duration_ms = (int)obs_data_get_int(settings, "afterglow_duration_ms");
+    const int afterglow_curve = (int)obs_data_get_int(settings, "afterglow_curve");
+    const int tint_mode = (int)obs_data_get_int(settings, "tint_mode");
+    const double tint_strength = obs_data_get_double(settings, "tint_strength");
+
+    fprintf(f, "# C64 Stream Properties Export\n");
+    fprintf(f, "#\n");
+    fprintf(f, "# This file can be imported via the C64 Stream source Properties window.\n");
+    fprintf(f, "#\n\n");
+
+    fprintf(f, "[network]\n");
+    fprintf(f, "c64_host=%s\n", c64_host ? c64_host : "");
+    fprintf(f, "dns_server_ip=%s\n", dns_server_ip ? dns_server_ip : "");
+    fprintf(f, "obs_ip_address=%s\n", obs_ip_address ? obs_ip_address : "");
+    fprintf(f, "auto_detect_ip=%s\n", auto_detect_ip ? "true" : "false");
+    fprintf(f, "video_port=%d\n", video_port);
+    fprintf(f, "audio_port=%d\n", audio_port);
+    fprintf(f, "control_port=%d\n", control_port);
+    fprintf(f, "buffer_delay_ms=%d\n", buffer_delay_ms);
+    fprintf(f, "\n");
+
+    fprintf(f, "[recording]\n");
+    fprintf(f, "save_folder=%s\n", save_folder ? save_folder : "");
+    fprintf(f, "save_frames=%s\n", save_frames ? "true" : "false");
+    fprintf(f, "record_video=%s\n", record_video ? "true" : "false");
+    fprintf(f, "record_csv=%s\n", record_csv ? "true" : "false");
+    fprintf(f, "\n");
+
+    fprintf(f, "[debug]\n");
+    fprintf(f, "debug_logging=%s\n", debug_logging ? "true" : "false");
+    fprintf(f, "\n");
+
+    fprintf(f, "[effects]\n");
+    fprintf(f, "crt_preset=%s\n", crt_preset ? crt_preset : "");
+    fprintf(f, "scan_line_distance=%.6f\n", scan_line_distance);
+    fprintf(f, "scan_line_strength=%.6f\n", scan_line_strength);
+    fprintf(f, "pixel_width=%.6f\n", pixel_width);
+    fprintf(f, "pixel_height=%.6f\n", pixel_height);
+    fprintf(f, "blur_strength=%.6f\n", blur_strength);
+    fprintf(f, "bloom_strength=%.6f\n", bloom_strength);
+    fprintf(f, "afterglow_duration_ms=%d\n", afterglow_duration_ms);
+    fprintf(f, "afterglow_curve=%d\n", afterglow_curve);
+    fprintf(f, "tint_mode=%d\n", tint_mode);
+    fprintf(f, "tint_strength=%.6f\n", tint_strength);
+    fprintf(f, "\n");
+
+    fclose(f);
+    return true;
+}
+
+static bool c64_parse_bool(const char *value, bool default_value)
+{
+    if (!value || value[0] == '\0')
+        return default_value;
+    if (strcmp(value, "true") == 0 || strcmp(value, "1") == 0)
+        return true;
+    if (strcmp(value, "false") == 0 || strcmp(value, "0") == 0)
+        return false;
+    return default_value;
+}
+
+static bool c64_apply_ini_to_settings(obs_data_t *settings, const char *path)
+{
+    if (!settings || !path || path[0] == '\0')
+        return false;
+
+    FILE *file = os_fopen(path, "r");
+    if (!file) {
+        C64_LOG_WARNING("Import: failed to open %s", path);
+        return false;
+    }
+
+    char line[512];
+    while (fgets(line, sizeof(line), file)) {
+        trim_config_string(line);
+
+        if (line[0] == '\0' || line[0] == ';' || line[0] == '#')
+            continue;
+
+        if (line[0] == '[')
+            continue; // section header
+
+        char *equals = strchr(line, '=');
+        if (!equals)
+            continue;
+
+        *equals = '\0';
+        char *key = line;
+        char *value = equals + 1;
+        trim_config_string(key);
+        trim_config_string(value);
+
+        if (strcmp(key, "dns_server_ip") == 0) {
+            obs_data_set_string(settings, "dns_server_ip", value);
+        } else if (strcmp(key, "c64_host") == 0) {
+            obs_data_set_string(settings, "c64_host", value);
+        } else if (strcmp(key, "obs_ip_address") == 0) {
+            // Allow empty string (means "leave as-is"/auto-detect default).
+            if (value && value[0] != '\0')
+                obs_data_set_string(settings, "obs_ip_address", value);
+        } else if (strcmp(key, "auto_detect_ip") == 0) {
+            obs_data_set_bool(settings, "auto_detect_ip", c64_parse_bool(value, true));
+        } else if (strcmp(key, "video_port") == 0) {
+            int port = atoi(value);
+            if (port >= 1024 && port <= 65535)
+                obs_data_set_int(settings, "video_port", port);
+        } else if (strcmp(key, "audio_port") == 0) {
+            int port = atoi(value);
+            if (port >= 1024 && port <= 65535)
+                obs_data_set_int(settings, "audio_port", port);
+        } else if (strcmp(key, "control_port") == 0) {
+            int port = atoi(value);
+            if (port >= 64 && port <= 65535)
+                obs_data_set_int(settings, "control_port", port);
+        } else if (strcmp(key, "buffer_delay_ms") == 0) {
+            int delay = atoi(value);
+            if (delay >= 0 && delay <= 500)
+                obs_data_set_int(settings, "buffer_delay_ms", delay);
+        } else if (strcmp(key, "save_folder") == 0) {
+            if (value && value[0] != '\0')
+                obs_data_set_string(settings, "save_folder", value);
+        } else if (strcmp(key, "save_frames") == 0) {
+            obs_data_set_bool(settings, "save_frames", c64_parse_bool(value, false));
+        } else if (strcmp(key, "record_video") == 0) {
+            obs_data_set_bool(settings, "record_video", c64_parse_bool(value, false));
+        } else if (strcmp(key, "record_csv") == 0) {
+            obs_data_set_bool(settings, "record_csv", c64_parse_bool(value, false));
+        } else if (strcmp(key, "debug_logging") == 0) {
+            obs_data_set_bool(settings, "debug_logging", c64_parse_bool(value, false));
+        } else if (strcmp(key, "crt_preset") == 0) {
+            if (value && value[0] != '\0') {
+                obs_data_set_string(settings, "crt_preset", value);
+                // Prevent preset re-apply from overwriting imported tweaks when Properties UI rebuilds.
+                obs_data_set_string(settings, C64_PRESET_LAST_APPLIED_KEY, value);
+            }
+        } else if (strcmp(key, "scan_line_distance") == 0) {
+            obs_data_set_double(settings, "scan_line_distance", os_strtod(value));
+        } else if (strcmp(key, "scan_line_strength") == 0) {
+            obs_data_set_double(settings, "scan_line_strength", os_strtod(value));
+        } else if (strcmp(key, "pixel_width") == 0) {
+            obs_data_set_double(settings, "pixel_width", os_strtod(value));
+        } else if (strcmp(key, "pixel_height") == 0) {
+            obs_data_set_double(settings, "pixel_height", os_strtod(value));
+        } else if (strcmp(key, "blur_strength") == 0) {
+            obs_data_set_double(settings, "blur_strength", os_strtod(value));
+        } else if (strcmp(key, "bloom_strength") == 0) {
+            obs_data_set_double(settings, "bloom_strength", os_strtod(value));
+        } else if (strcmp(key, "afterglow_duration_ms") == 0) {
+            int ms = atoi(value);
+            if (ms >= 0 && ms <= 3000)
+                obs_data_set_int(settings, "afterglow_duration_ms", ms);
+        } else if (strcmp(key, "afterglow_curve") == 0) {
+            int curve = atoi(value);
+            if (curve >= 0 && curve <= 3)
+                obs_data_set_int(settings, "afterglow_curve", curve);
+        } else if (strcmp(key, "tint_mode") == 0) {
+            int mode = atoi(value);
+            if (mode >= 0 && mode <= 3)
+                obs_data_set_int(settings, "tint_mode", mode);
+        } else if (strcmp(key, "tint_strength") == 0) {
+            obs_data_set_double(settings, "tint_strength", os_strtod(value));
+        }
+    }
+
+    fclose(file);
+    return true;
+}
+
 // Callback for preset selection
 static bool crt_preset_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings)
 {
@@ -307,6 +582,14 @@ void c64_set_property_defaults(obs_data_t *settings)
 
     obs_data_set_default_string(settings, "save_folder", platform_path);
 
+    // Default export/import path for sharing settings.
+    {
+        char ini_path[512];
+        c64_default_export_ini_path(ini_path, sizeof(ini_path));
+        obs_data_set_default_string(settings, C64_CONFIG_EXPORT_PATH_KEY, ini_path);
+        obs_data_set_default_string(settings, C64_CONFIG_IMPORT_PATH_KEY, ini_path);
+    }
+
     // Video recording defaults
     obs_data_set_default_bool(settings, "record_video", false); // Disabled by default
 
@@ -327,6 +610,76 @@ void c64_set_property_defaults(obs_data_t *settings)
 
     // Load configuration overrides from properties.ini if available
     c64_load_configuration(settings);
+}
+
+static bool export_config_clicked(obs_properties_t *props, obs_property_t *property, void *data)
+{
+    UNUSED_PARAMETER(props);
+    UNUSED_PARAMETER(property);
+
+    struct c64_source *context = (struct c64_source *)data;
+    if (!context || !context->source)
+        return false;
+
+    obs_data_t *settings = obs_source_get_settings(context->source);
+    if (!settings)
+        return false;
+
+    const char *path = obs_data_get_string(settings, C64_CONFIG_EXPORT_PATH_KEY);
+    char fallback_path[512];
+    if (!path || path[0] == '\0') {
+        c64_default_export_ini_path(fallback_path, sizeof(fallback_path));
+        obs_data_set_string(settings, C64_CONFIG_EXPORT_PATH_KEY, fallback_path);
+        path = fallback_path;
+    }
+
+    const bool ok = c64_export_settings_to_ini(settings, path);
+    if (ok) {
+        C64_LOG_INFO("Exported C64 Stream settings to %s", path);
+    } else {
+        C64_LOG_WARNING("Failed to export C64 Stream settings to %s", path ? path : "(null)");
+    }
+
+    obs_data_release(settings);
+    return ok; // Refresh so the path field updates if we filled the fallback path.
+}
+
+static bool import_config_clicked(obs_properties_t *props, obs_property_t *property, void *data)
+{
+    UNUSED_PARAMETER(props);
+    UNUSED_PARAMETER(property);
+
+    struct c64_source *context = (struct c64_source *)data;
+    if (!context || !context->source)
+        return false;
+
+    obs_data_t *settings = obs_source_get_settings(context->source);
+    if (!settings)
+        return false;
+
+    const char *path = obs_data_get_string(settings, C64_CONFIG_IMPORT_PATH_KEY);
+    if (!path || path[0] == '\0') {
+        C64_LOG_WARNING("Import: no configuration file selected");
+        obs_data_release(settings);
+        return false;
+    }
+
+    if (!os_file_exists(path)) {
+        C64_LOG_WARNING("Import: file does not exist: %s", path);
+        obs_data_release(settings);
+        return false;
+    }
+
+    const bool ok = c64_apply_ini_to_settings(settings, path);
+    if (ok) {
+        obs_source_update(context->source, settings);
+        C64_LOG_INFO("Imported C64 Stream settings from %s", path);
+    } else {
+        C64_LOG_WARNING("Failed to import C64 Stream settings from %s", path);
+    }
+
+    obs_data_release(settings);
+    return true; // Always refresh so the UI reflects whatever happened.
 }
 
 // Helper function to trim whitespace from both ends of a string
