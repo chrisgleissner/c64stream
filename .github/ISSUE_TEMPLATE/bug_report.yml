@@ -23,7 +23,7 @@ body:
       label: Hardware and network configuration
       description: Include CPU, network setup, and whether the device is directly connected or via a switch.
       placeholder: |
-        C64 device (e.g. Ultimate 64 Elite I/II, C64 Ultimate):
+        C64 device (e.g. Ultimate 64 Elite I/II, Commodore 64 Ultimate):
         C64 firmware version:
         OBS host CPU:
         OBS host RAM:
