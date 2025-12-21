@@ -878,17 +878,16 @@ void *c64_video_processor_thread_func(void *data)
 
             // Retry TCP connection and recreate UDP sockets if no VIDEO packets for 1+ seconds
             if (time_since_last_video > retry_interval_ns && time_since_last_retry >= retry_interval_ns &&
-                !context->retry_in_progress) {
+                !os_atomic_load_long(&context->retry_in_progress)) {
                 uint64_t time_since_last_audio = current_time - context->last_audio_packet_time;
                 C64_LOG_INFO(
                     "No video packets for %.1fs (audio: %.1fs), retrying TCP commands and recreating UDP sockets",
                     time_since_last_video / 1000000000.0, time_since_last_audio / 1000000000.0);
 
-                context->retry_in_progress = true;
                 last_retry_attempt = current_time;
 
-                // Queue async retry task to avoid blocking this thread
-                obs_queue_task(OBS_TASK_UI, c64_async_retry_task, context, false);
+                // Schedule retry in a background thread (never on OBS UI thread).
+                c64_schedule_retry_task(context, "no video packets");
             }
 
             os_sleep_ms(1);

@@ -29,6 +29,8 @@ See <https://www.gnu.org/licenses/> for details.
 
 // Forward declarations
 static void close_and_reset_sockets(struct c64_source *context);
+static void c64_schedule_retry(struct c64_source *context, const char *reason);
+static void c64_refresh_resolved_ip(struct c64_source *context);
 
 // Async retry task - runs in OBS thread pool (NOT render thread)
 void c64_async_retry_task(void *data)
@@ -42,6 +44,9 @@ void c64_async_retry_task(void *data)
 
     C64_LOG_INFO("Async retry attempt %u - %s", context->retry_count,
                  context->streaming ? "sending start commands" : "starting streaming");
+
+    // Resolve hostname -> IP in the background (never do DNS on the OBS UI thread).
+    c64_refresh_resolved_ip(context);
 
     bool tcp_success = false;
 
@@ -71,7 +76,75 @@ void c64_async_retry_task(void *data)
 
     // Always clear retry state to allow future retries
     // The video thread will enforce timing between retry attempts
-    context->retry_in_progress = false;
+    os_atomic_set_long(&context->retry_in_progress, 0);
+}
+
+static void *c64_retry_thread_main(void *arg)
+{
+    struct c64_source *context = (struct c64_source *)arg;
+    c64_async_retry_task(context);
+    os_atomic_set_long(&context->retry_thread_active, 0);
+    return NULL;
+}
+
+static void c64_schedule_retry(struct c64_source *context, const char *reason)
+{
+    if (!context)
+        return;
+
+    if (os_atomic_load_long(&context->retry_in_progress) || os_atomic_load_long(&context->retry_thread_active)) {
+        C64_LOG_DEBUG("Retry already in progress, skipping (%s)", reason ? reason : "no reason");
+        return;
+    }
+
+    // Reserve the retry slot atomically to prevent concurrent thread creation.
+    if (!os_atomic_compare_swap_long(&context->retry_thread_active, 0, 1)) {
+        return;
+    }
+    if (!os_atomic_compare_swap_long(&context->retry_in_progress, 0, 1)) {
+        os_atomic_set_long(&context->retry_thread_active, 0);
+        return;
+    }
+
+    int err = pthread_create(&context->retry_thread, NULL, c64_retry_thread_main, context);
+    if (err != 0) {
+        os_atomic_set_long(&context->retry_in_progress, 0);
+        os_atomic_set_long(&context->retry_thread_active, 0);
+        C64_LOG_WARNING("Failed to start retry thread (%s)", reason ? reason : "no reason");
+    } else {
+        C64_LOG_DEBUG("Scheduled background retry (%s)", reason ? reason : "no reason");
+    }
+}
+
+void c64_schedule_retry_task(struct c64_source *context, const char *reason)
+{
+    c64_schedule_retry(context, reason);
+}
+
+static void c64_refresh_resolved_ip(struct c64_source *context)
+{
+    if (!context)
+        return;
+
+    // If hostname is empty, nothing to do.
+    if (context->hostname[0] == '\0')
+        return;
+
+    // Always try to resolve; c64_resolve_hostname_with_dns is fast for numeric IPs.
+    char resolved[64];
+    resolved[0] = '\0';
+
+    const char *dns = (context->dns_server_ip[0] != '\0') ? context->dns_server_ip : NULL;
+    if (c64_resolve_hostname_with_dns(context->hostname, dns, resolved, sizeof(resolved))) {
+        if (strcmp(context->ip_address, resolved) != 0) {
+            strncpy(context->ip_address, resolved, sizeof(context->ip_address) - 1);
+            context->ip_address[sizeof(context->ip_address) - 1] = '\0';
+            C64_LOG_INFO("Resolved C64 host '%s' -> %s", context->hostname, context->ip_address);
+        }
+    } else {
+        // Keep ip_address as-is (may be hostname) and let connectivity checks fail fast.
+        C64_LOG_DEBUG("Hostname resolution failed for '%s' (dns=%s)", context->hostname, dns ? dns : "system");
+    }
 }
 
 // Helper function to safely close and reset sockets
@@ -141,18 +214,19 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     strncpy(context->hostname, hostname, sizeof(context->hostname) - 1);
     context->hostname[sizeof(context->hostname) - 1] = '\0';
 
-    // Get configured DNS server IP
+    // Store DNS server IP (resolution happens asynchronously in background thread).
     const char *dns_server_ip = obs_data_get_string(settings, "dns_server_ip");
-
-    // Resolve hostname to IP address for actual connections
-    if (!c64_resolve_hostname_with_dns(hostname, dns_server_ip, context->ip_address, sizeof(context->ip_address))) {
-        // If hostname resolution fails, store the hostname as-is (might be invalid IP like 0.0.0.0)
-        strncpy(context->ip_address, hostname, sizeof(context->ip_address) - 1);
-        context->ip_address[sizeof(context->ip_address) - 1] = '\0';
-        C64_LOG_WARNING("Could not resolve hostname '%s', using as-is: %s", hostname, context->ip_address);
+    if (dns_server_ip && dns_server_ip[0] != '\0') {
+        strncpy(context->dns_server_ip, dns_server_ip, sizeof(context->dns_server_ip) - 1);
+        context->dns_server_ip[sizeof(context->dns_server_ip) - 1] = '\0';
     } else {
-        C64_LOG_INFO("Resolved C64 Ultimate host '%s' to IP: %s", hostname, context->ip_address);
+        context->dns_server_ip[0] = '\0';
     }
+
+    // IMPORTANT: do not do DNS resolution in c64_create (OBS UI thread).
+    // Initialize ip_address to the user-provided hostname; it will be resolved in the background.
+    strncpy(context->ip_address, hostname, sizeof(context->ip_address) - 1);
+    context->ip_address[sizeof(context->ip_address) - 1] = '\0';
 
     context->auto_detect_ip = obs_data_get_bool(settings, "auto_detect_ip");
     context->video_port = (uint32_t)obs_data_get_int(settings, "video_port");
@@ -301,9 +375,10 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->last_udp_packet_time = now; // DEPRECATED - kept for compatibility
     context->last_video_packet_time = now;
     context->last_audio_packet_time = now;
-    context->retry_in_progress = false;
+    os_atomic_set_long(&context->retry_in_progress, 0);
     context->retry_count = 0;
     context->consecutive_failures = 0;
+    os_atomic_set_long(&context->retry_thread_active, 0);
 
     // Initialize ideal timestamp generation
     context->stream_start_time_ns = 0;
@@ -355,10 +430,9 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->afterglow_cpu_bytes = 0;
     context->afterglow_cpu_valid = false;
 
-    // Start initial connection asynchronously to avoid blocking OBS startup
-    C64_LOG_INFO("C64 Stream source created successfully - queuing async initial connection");
-    context->retry_in_progress = true; // Prevent render thread from also starting retry
-    obs_queue_task(OBS_TASK_UI, c64_async_retry_task, context, false);
+    // Start initial connection asynchronously to avoid blocking OBS UI thread.
+    C64_LOG_INFO("C64 Stream source created successfully - scheduling background initial connection");
+    c64_schedule_retry(context, "initial connection");
 
     return context;
 }
@@ -371,7 +445,15 @@ void c64_destroy(void *data)
 
     C64_LOG_INFO("Destroying C64 Stream source");
 
-    // No retry thread to shutdown - using async delegation approach
+    // Stop any background retry thread.
+    if (os_atomic_load_long(&context->retry_thread_active)) {
+        int join_result = pthread_join(context->retry_thread, NULL);
+        if (join_result != 0) {
+            C64_LOG_WARNING("Failed to join retry thread during destroy (err=%d)", join_result);
+        }
+        os_atomic_set_long(&context->retry_thread_active, 0);
+        os_atomic_set_long(&context->retry_in_progress, 0);
+    }
 
     // Stop streaming if active
     if (context->streaming) {
@@ -516,19 +598,19 @@ void c64_update(void *data, obs_data_t *settings)
     strncpy(context->hostname, new_host, sizeof(context->hostname) - 1);
     context->hostname[sizeof(context->hostname) - 1] = '\0';
 
-    // Get configured DNS server IP
+    // Update DNS server IP (resolution happens in background).
     const char *dns_server_ip = obs_data_get_string(settings, "dns_server_ip");
-
-    // Resolve hostname to IP address for connections
-    if (!c64_resolve_hostname_with_dns(new_host, dns_server_ip, context->ip_address, sizeof(context->ip_address))) {
-        // If hostname resolution fails, store the hostname as-is (might be invalid IP like 0.0.0.0)
-        strncpy(context->ip_address, new_host, sizeof(context->ip_address) - 1);
-        context->ip_address[sizeof(context->ip_address) - 1] = '\0';
-        C64_LOG_WARNING("Could not resolve hostname '%s' during update, using as-is: %s", new_host,
-                        context->ip_address);
+    if (dns_server_ip && dns_server_ip[0] != '\0') {
+        strncpy(context->dns_server_ip, dns_server_ip, sizeof(context->dns_server_ip) - 1);
+        context->dns_server_ip[sizeof(context->dns_server_ip) - 1] = '\0';
     } else {
-        C64_LOG_DEBUG("Resolved C64 Ultimate host '%s' to IP: %s", new_host, context->ip_address);
+        context->dns_server_ip[0] = '\0';
     }
+
+    // IMPORTANT: do not do DNS resolution in c64_update (OBS UI thread).
+    // Store hostname as-is; resolution will happen in the background before connecting.
+    strncpy(context->ip_address, new_host, sizeof(context->ip_address) - 1);
+    context->ip_address[sizeof(context->ip_address) - 1] = '\0';
     if (new_obs_ip) {
         strncpy(context->obs_ip_address, new_obs_ip, sizeof(context->obs_ip_address) - 1);
         context->obs_ip_address[sizeof(context->obs_ip_address) - 1] = '\0';
@@ -612,9 +694,9 @@ void c64_update(void *data, obs_data_t *settings)
         C64_LOG_INFO("🔄 Dimension-affecting effects activated - timing base reset to maintain A/V sync");
     }
 
-    // Start streaming with current configuration (will create new sockets if needed)
-    C64_LOG_INFO("Applying configuration and starting streaming");
-    c64_start_streaming(context);
+    // Start/restart streaming with current configuration asynchronously (avoid blocking UI thread).
+    C64_LOG_INFO("Applying configuration and scheduling streaming start");
+    c64_schedule_retry(context, "update");
 }
 
 void c64_start_streaming(struct c64_source *context)

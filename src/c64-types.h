@@ -43,6 +43,7 @@ struct c64_source {
     // Configuration
     char hostname[64];       // C64 Ultimate hostname or IP as entered by user
     char ip_address[64];     // C64 Ultimate IP Address (resolved from hostname)
+    char dns_server_ip[64];  // DNS server IP for resolving hostnames (optional)
     char obs_ip_address[64]; // OBS IP Address (this machine)
     bool auto_detect_ip;
     bool initial_ip_detected; // Flag to track if initial IP detection was done
@@ -127,12 +128,14 @@ struct c64_source {
     uint32_t logo_height;  // PNG image height
 
     // Render callback based timeout detection
-    uint64_t last_udp_packet_time;   // Timestamp of last UDP packet (DEPRECATED - use separate fields)
-    uint64_t last_video_packet_time; // Timestamp of last video UDP packet
-    uint64_t last_audio_packet_time; // Timestamp of last audio UDP packet
-    bool retry_in_progress;          // Flag to prevent redundant retry attempts
-    uint32_t retry_count;            // Number of retry attempts
-    uint32_t consecutive_failures;   // Consecutive TCP failures for backoff
+    uint64_t last_udp_packet_time;     // Timestamp of last UDP packet (DEPRECATED - use separate fields)
+    uint64_t last_video_packet_time;   // Timestamp of last video UDP packet
+    uint64_t last_audio_packet_time;   // Timestamp of last audio UDP packet
+    volatile long retry_in_progress;   // Flag to prevent redundant retry attempts (atomic: 0/1)
+    pthread_t retry_thread;            // Background retry/connect thread (never run on OBS UI thread)
+    volatile long retry_thread_active; // atomic: 0/1
+    uint32_t retry_count;              // Number of retry attempts
+    uint32_t consecutive_failures;     // Consecutive TCP failures for backoff
 
     // Network buffer for packet jitter correction
     struct c64_network_buffer *network_buffer; // Unified network buffer for video and audio packets

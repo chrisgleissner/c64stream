@@ -44,13 +44,14 @@ These settings work out-of-the-box with most C64 Ultimate setups. You can overri
 - [OBS Studio 32.0.1](https://obsproject.com/download) or above
 - [C64 Ultimate](https://www.commodore.net/) or [Ultimate 64](https://ultimate64.com/)
 - Ethernet connection between your OBS computer and Ultimate device. Wifi is [not supported](https://1541u-documentation.readthedocs.io/en/latest/howto/wifi.html#functionality-available-on-wifi).
+- For complete and up-to-date hardware and software requirements, please refer to the [OBS Studio System Requirements](https://obsproject.com/kb/system-requirements).
+
+> [!NOTE]
+> The plugin has been **verified to work** on the systems listed below. Other environments have not been verified and are not supported explicitly, but community contributions are always welcome. 
 
 ### Easy Installation 📦
 
 In the following instructions, replace `$VERSION` with the latest released version as shown on the [Releases](../../releases) page.
-
-The plugin has been **verified to work** on the systems listed below.  
-For complete and up-to-date hardware and software requirements, please refer to the [OBS Studio System Requirements](https://obsproject.com/kb/system-requirements).
 
 #### Windows
 
@@ -71,7 +72,7 @@ New-NetFirewallRule -DisplayName "C64 Stream" -Direction Inbound -Protocol UDP -
 
 #### macOS
 
-Verified on macOS Sequoia 15.6.1 with Apple Silicon (Intel systems are also supported):
+Verified on macOS Sequoia 15.7 with Apple Silicon M4 (Intel systems should also work):
 
 1. Close OBS Studio
 2. [Download](../../releases) the plugin package with name `c64stream-$VERSION-macos-universal.pkg`. It should now be in your `~/Downloads` directory.
@@ -510,7 +511,6 @@ If the plugin can't resolve your C64 Ultimate hostname (e.g., `c64u`), try these
 - **Performance drops with BMP saving:** Frame saving impacts performance significantly; disable if not needed
 - **Large disk usage:** AVI recording creates uncompressed files (~50MB/minute); monitor disk space
 - **Recording stops unexpectedly:** Check disk space and folder permissions
-
 
 ## For Developers 🔧
 
