@@ -7,28 +7,41 @@ body:
       value: |
         Thank you for taking the time to report a bug.
         Please provide complete and accurate information so the issue can be reproduced and resolved efficiently.
+        Incomplete reports may be closed as insufficient for diagnosis.
 
-  - type: input
-    id: os
+  - type: markdown
     attributes:
-      label: Operating system and version
-      placeholder: "e.g. Windows 11 23H2, Ubuntu 24.04, macOS 15.x"
+      value: |
+        ## 1. C64 hardware
+
+  - type: textarea
+    id: c64_hardware
+    attributes:
+      label: C64 device and firmware
+      description: Provide details about the Commodore 64 hardware used.
+      placeholder: |
+        Device model (e.g. Ultimate 64 Elite I/II, Commodore 64 Ultimate):
+        Firmware version (e.g. 3.14):
+        Additional hardware (if any):
     validations:
       required: true
 
-  - type: textarea
-    id: hardware
+  - type: markdown
     attributes:
-      label: Hardware and network configuration
-      description: Include CPU, network setup, and whether the device is directly connected or via a switch.
+      value: |
+        ## 2. OBS host system
+
+  - type: textarea
+    id: obs_host
+    attributes:
+      label: OBS host system details
+      description: Provide details about the system running OBS.
       placeholder: |
-        C64 device (e.g. Ultimate 64 Elite I/II, Commodore 64 Ultimate):
-        C64 firmware version:
-        OBS host CPU:
-        OBS host RAM:
-        Network configuration (e.g. bandwidth/topology/etc):
-        Direct connection or via switch/router/etc (including model):
-        Other relevant hardware:
+        Operating system and version (e.g. Windows 11 23H2, Ubuntu 24.04.3, macOS 15.x):
+        CPU (e.g. Intel i5 14600K, AMD Ryzen 9 9950X3D, Apple M2):
+        GPU (e.g. built-in iGPU, NVIDIA GeForce RTX 5060):
+        GPU driver version (if applicable):
+        System RAM (e.g. 32 GB):
     validations:
       required: true
 
@@ -49,6 +62,55 @@ body:
     validations:
       required: true
 
+  - type: markdown
+    attributes:
+      value: |
+        ## 3. Network configuration
+
+  - type: textarea
+    id: network
+    attributes:
+      label: Network setup
+      description: Describe the network topology between the C64 and the OBS host.
+      placeholder: |
+        Connection type (direct, via switch, via router):
+        Network speed / bandwidth:
+        Router or switch model:
+        Wired or wireless:
+        Other relevant network details:
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ## 4. Plugin configuration
+
+        Configuration export is not yet available.
+        Complete screenshots of the plugin configuration are required.
+        Issues missing complete configuration screenshots may be closed as incomplete.
+
+  - type: textarea
+    id: plugin_properties_screenshots
+    attributes:
+      label: Plugin properties screenshots
+      description: |
+        Attach screenshots of the plugin properties configuration.
+
+        Required screenshots:
+        1. The full plugin properties dialog (entire window visible, no cropping)
+        2. Use several screenshots if necessary
+
+      placeholder: |
+        Drag and drop screenshots here.
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ## 5. Logs and reproduction
+
   - type: textarea
     id: logs
     attributes:
@@ -68,10 +130,16 @@ body:
         1.
         2.
         3.
+
         Expected result:
         Actual result:
     validations:
       required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ## 6. Diagnostics
 
   - type: textarea
     id: diagnosis
