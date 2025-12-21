@@ -76,16 +76,14 @@ void c64_async_retry_task(void *data)
 
     // Always clear retry state to allow future retries
     // The video thread will enforce timing between retry attempts
-    context->retry_in_progress = false;
+    os_atomic_set_long(&context->retry_in_progress, 0);
 }
 
 static void *c64_retry_thread_main(void *arg)
 {
     struct c64_source *context = (struct c64_source *)arg;
     c64_async_retry_task(context);
-    if (context) {
-        context->retry_thread_active = false;
-    }
+    os_atomic_set_long(&context->retry_thread_active, 0);
     return NULL;
 }
 
@@ -94,18 +92,24 @@ static void c64_schedule_retry(struct c64_source *context, const char *reason)
     if (!context)
         return;
 
-    if (context->retry_in_progress || context->retry_thread_active) {
+    if (os_atomic_load_long(&context->retry_in_progress) || os_atomic_load_long(&context->retry_thread_active)) {
         C64_LOG_DEBUG("Retry already in progress, skipping (%s)", reason ? reason : "no reason");
         return;
     }
 
-    context->retry_in_progress = true;
-    context->retry_thread_active = true;
+    // Reserve the retry slot atomically to prevent concurrent thread creation.
+    if (!os_atomic_compare_swap_long(&context->retry_thread_active, 0, 1)) {
+        return;
+    }
+    if (!os_atomic_compare_swap_long(&context->retry_in_progress, 0, 1)) {
+        os_atomic_set_long(&context->retry_thread_active, 0);
+        return;
+    }
 
     int err = pthread_create(&context->retry_thread, NULL, c64_retry_thread_main, context);
     if (err != 0) {
-        context->retry_in_progress = false;
-        context->retry_thread_active = false;
+        os_atomic_set_long(&context->retry_in_progress, 0);
+        os_atomic_set_long(&context->retry_thread_active, 0);
         C64_LOG_WARNING("Failed to start retry thread (%s)", reason ? reason : "no reason");
     } else {
         C64_LOG_DEBUG("Scheduled background retry (%s)", reason ? reason : "no reason");
@@ -204,7 +208,7 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
 
     // Store DNS server IP (resolution happens asynchronously in background thread).
     const char *dns_server_ip = obs_data_get_string(settings, "dns_server_ip");
-    if (dns_server_ip) {
+    if (dns_server_ip && dns_server_ip[0] != '\0') {
         strncpy(context->dns_server_ip, dns_server_ip, sizeof(context->dns_server_ip) - 1);
         context->dns_server_ip[sizeof(context->dns_server_ip) - 1] = '\0';
     } else {
@@ -363,10 +367,10 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->last_udp_packet_time = now; // DEPRECATED - kept for compatibility
     context->last_video_packet_time = now;
     context->last_audio_packet_time = now;
-    context->retry_in_progress = false;
+    os_atomic_set_long(&context->retry_in_progress, 0);
     context->retry_count = 0;
     context->consecutive_failures = 0;
-    context->retry_thread_active = false;
+    os_atomic_set_long(&context->retry_thread_active, 0);
 
     // Initialize ideal timestamp generation
     context->stream_start_time_ns = 0;
@@ -426,10 +430,13 @@ void c64_destroy(void *data)
     C64_LOG_INFO("Destroying C64 Stream source");
 
     // Stop any background retry thread.
-    if (context->retry_thread_active) {
-        pthread_join(context->retry_thread, NULL);
-        context->retry_thread_active = false;
-        context->retry_in_progress = false;
+    if (os_atomic_load_long(&context->retry_thread_active)) {
+        int join_result = pthread_join(context->retry_thread, NULL);
+        if (join_result != 0) {
+            C64_LOG_WARNING("Failed to join retry thread during destroy (err=%d)", join_result);
+        }
+        os_atomic_set_long(&context->retry_thread_active, 0);
+        os_atomic_set_long(&context->retry_in_progress, 0);
     }
 
     // Stop streaming if active
@@ -561,7 +568,7 @@ void c64_update(void *data, obs_data_t *settings)
 
     // Update DNS server IP (resolution happens in background).
     const char *dns_server_ip = obs_data_get_string(settings, "dns_server_ip");
-    if (dns_server_ip) {
+    if (dns_server_ip && dns_server_ip[0] != '\0') {
         strncpy(context->dns_server_ip, dns_server_ip, sizeof(context->dns_server_ip) - 1);
         context->dns_server_ip[sizeof(context->dns_server_ip) - 1] = '\0';
     } else {
