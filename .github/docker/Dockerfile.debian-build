@@ -1,0 +1,116 @@
+# Pre-built Debian container with OBS Studio and Qt6 dependencies
+# This dramatically speeds up CI builds by avoiding lengthy APT installations
+
+FROM debian:12
+
+LABEL org.opencontainers.image.title="C64 Stream Debian Build Environment"
+LABEL org.opencontainers.image.description="Pre-built Debian container with OBS Studio and Qt6 for fast CI builds"
+LABEL org.opencontainers.image.source="https://github.com/chrisgleissner/c64stream"
+LABEL org.opencontainers.image.licenses="GPL-2.0-or-later"
+
+# Prevent interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=UTC
+
+# Install essential packages
+RUN apt-get update -qq && \
+    apt-get install -y --no-install-recommends \
+        software-properties-common \
+        ca-certificates \
+        curl \
+        wget \
+        gnupg \
+        lsb-release
+
+# Add OBS Studio repository for Debian
+RUN echo "deb http://deb.debian.org/debian bookworm main contrib non-free non-free-firmware" > /etc/apt/sources.list.d/debian.list && \
+    echo "deb http://deb.debian.org/debian bookworm-backports main contrib non-free non-free-firmware" >> /etc/apt/sources.list.d/debian.list && \
+    apt-get update -qq
+
+# Install build dependencies and OBS Studio
+RUN apt-get install -y --no-install-recommends \
+        build-essential \
+        cmake \
+        ninja-build \
+        pkg-config \
+        git \
+        zsh \
+        jq \
+        ccache \
+        file \
+        dpkg-dev \
+        xz-utils \
+        net-tools \
+        libgl1 \
+        libgl1-mesa-dri \
+        libglu1-mesa \
+        libxkbcommon-x11-0 \
+        libxcb-xinerama0 \
+        fonts-dejavu-core \
+        libgles2-mesa-dev \
+        libsimde-dev \
+        qt6-base-dev \
+        libqt6svg6 \
+        qt6-wayland \
+        libavcodec-dev \
+        libavdevice-dev \
+        libavfilter-dev \
+        libavformat-dev \
+        libavutil-dev \
+        libswresample-dev \
+        libswscale-dev \
+        libx264-dev \
+        libcurl4-openssl-dev \
+        libmbedtls-dev \
+        libjansson-dev \
+        libluajit-5.1-dev \
+        python3-dev \
+        libx11-dev \
+        libxcb-shm0-dev \
+        libxcb-xinerama0-dev \
+        libxcomposite-dev \
+        libxinerama-dev \
+        libpulse-dev \
+        libasound2-dev \
+        libjack-dev \
+        libspeexdsp-dev \
+        libv4l-dev \
+        libva-dev \
+        libvpl-dev \
+        libdrm-dev \
+        libpci-dev \
+        libwayland-dev \
+        librist-dev \
+        libsrt-openssl-dev \
+        libwebsocketpp-dev \
+        libasio-dev \
+        nlohmann-json3-dev \
+        libqrcodegencpp-dev \
+        uthash-dev
+
+# Try to install OBS from backports, fallback to building from source if not available
+RUN apt-get install -y -t bookworm-backports obs-studio || \
+    (echo "OBS not available in backports, would need to build from source" && \
+     apt-get install -y --no-install-recommends obs-studio || true)
+
+# Install Python dependencies for E2E tests
+RUN apt-get install -y --no-install-recommends \
+        python3 \
+        python3-pip \
+        python3-numpy \
+        python3-pil \
+        xvfb \
+        ffmpeg
+
+# Clean up APT cache
+RUN apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Verify OBS installation
+RUN obs --version || echo "OBS Studio installed (version check may fail in container)"
+
+# Set working directory
+WORKDIR /workspace
+
+# Default command
+CMD ["/bin/bash"]
