@@ -162,10 +162,11 @@ validate_github_actions_syntax() {
             # Check if external action doesn't have @version tag
             if [[ ! $line =~ @v[0-9] ]] && [[ ! $line =~ @main ]] && [[ ! $line =~ @master ]] && [[ ! $line =~ @[0-9a-f]{40} ]]; then
                 log_warning "External action should specify version (e.g., @v4) in $filename: $line"
-            # Check for very old versions (v1, v2, v3) on external actions
-            elif [[ $line =~ @v[123]([^0-9]|$) ]]; then
+            # Check for very old versions (v1, v2) on external actions.
+            # Note: Some maintained actions are still on v3 as their latest major.
+            elif [[ $line =~ @v[12]([^0-9]|$) ]]; then
                 log_warning "Found potentially outdated action version in $filename: $line"
-                log_warning "Consider updating to v4+ for security and features"
+                log_warning "Consider updating to the latest stable major version"
             fi
         fi
     done < "$file"

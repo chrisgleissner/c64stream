@@ -47,7 +47,7 @@ These settings work out-of-the-box with most C64 Ultimate setups. You can overri
 - For complete and up-to-date hardware and software requirements, please refer to the [OBS Studio System Requirements](https://obsproject.com/kb/system-requirements).
 
 > [!NOTE]
-> The plugin has been **verified to work** on the systems listed below. Other environments have not been verified and are not supported explicitly, but community contributions are always welcome. 
+> The plugin has been **verified to work** on the systems listed below. Other environments have not been verified and are not supported explicitly, but community contributions are always welcome.
 
 ### Easy Installation 📦
 
