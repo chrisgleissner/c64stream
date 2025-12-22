@@ -709,6 +709,8 @@ jobs:
           USER_PLUGIN_DIR="$HOME/.config/obs-studio/plugins/c64stream/bin/64bit"
           mkdir -p "${USER_PLUGIN_DIR}"
 
+          DEST_SO="${USER_PLUGIN_DIR}/c64stream.so"
+
           # Prefer system-installed .so from package, else fall back to our just-built .so
           SYS_SO=""
           for path in \
@@ -724,8 +726,12 @@ jobs:
 
           if [[ -n "${SYS_SO}" ]]; then
             echo "📦 Mirroring plugin to user dir from: ${SYS_SO}"
-            cp "${SYS_SO}" "${USER_PLUGIN_DIR}/c64stream.so"
-            ls -la "${USER_PLUGIN_DIR}/c64stream.so"
+            if [[ -f "${DEST_SO}" ]] && [[ "$(readlink -f "${SYS_SO}")" == "$(readlink -f "${DEST_SO}")" ]]; then
+              echo "ℹ️ Plugin already present in user dir; skipping copy"
+            else
+              cp -f "${SYS_SO}" "${DEST_SO}"
+            fi
+            ls -la "${DEST_SO}"
           else
             echo "❌ Could not locate c64stream.so to mirror"
             exit 1
