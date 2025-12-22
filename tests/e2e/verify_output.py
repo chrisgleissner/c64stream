@@ -352,6 +352,26 @@ class OutputVerifier:
         gy1 = min(cy1, cy0 + bh - 1)
 
         tile = frames[:, gy0 : gy1 + 1, gx0 : gx1 + 1, :].astype(np.float32)
+
+        # Detect signal loss: when palette region dramatically changes color (logo replaces stream),
+        # stop analysis there to avoid false positives.
+        # Baseline: first 18 frames to avoid including the first pop at ~1s.
+        base_n = min(tile.shape[0], 18)
+        baseline_mean = tile[:base_n].mean(axis=(0, 1, 2))  # shape: (3,)
+        signal_loss_thresh = 50.0  # RGB delta threshold indicating content changed completely
+
+        signal_end_frame = tile.shape[0]
+        for i in range(base_n, tile.shape[0]):
+            frame_mean = tile[i].mean(axis=(0, 1))
+            delta = np.max(np.abs(frame_mean - baseline_mean))
+            if delta > signal_loss_thresh:
+                signal_end_frame = i
+                break
+
+        # Limit analysis to frames before signal loss
+        tile = tile[:signal_end_frame]
+        info["signal_frames_analyzed"] = signal_end_frame
+
         # Split into 4x4 grid and track mean RGB per cell over time.
         cells_x = 4
         cells_y = 4
@@ -360,8 +380,6 @@ class OutputVerifier:
         step_x = max(1, w // cells_x)
         step_y = max(1, h // cells_y)
 
-        # Baseline: first ~0.6s (18 frames) to avoid including the first pop at ~1s.
-        base_n = min(tile.shape[0], 18)
         base = np.zeros((cells_y, cells_x, 3), dtype=np.float32)
         peak_delta = 0.0
 
