@@ -88,10 +88,10 @@ RUN apt-get install -y --no-install-recommends \
         libqrcodegencpp-dev \
         uthash-dev
 
-# Try to install OBS from backports, fallback to building from source if not available
-RUN apt-get install -y -t bookworm-backports obs-studio || \
-    (echo "OBS not available in backports, would need to build from source" && \
-     apt-get install -y --no-install-recommends obs-studio || true)
+# Install OBS Studio runtime + development files (LibObsConfig.cmake)
+RUN if ! apt-get install -y -t bookworm-backports --no-install-recommends obs-studio libobs-dev; then \
+        apt-get install -y --no-install-recommends obs-studio libobs-dev; \
+    fi
 
 # Install Python dependencies for E2E tests
 RUN apt-get install -y --no-install-recommends \
