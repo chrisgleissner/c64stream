@@ -92,54 +92,60 @@ chmod -R 755 "$HOME/Library/Application Support/obs-studio/plugins/c64stream.plu
 
 #### Linux
 
-Verified on Ubuntu 24.04, Debian 12, Fedora 40, and Arch Linux.
+Verified on Ubuntu 24.04 and Debian 12. Other distributions may work but are not officially supported.
 
-All Linux variants install the same way:
+##### Ubuntu / Debian (Recommended)
 
 1. Close OBS Studio
-2. Install OBS Studio (32.0.1+) using your distro instructions below
-3. [Download](../../releases) the matching Linux artifact for your distro
-4. Install the plugin to `~/.config/obs-studio/plugins`:
-```bash
-mkdir -p ~/.config/obs-studio/plugins
-tar -C ~/.config/obs-studio/plugins -xf ~/Downloads/c64stream-*-x86_64.tar.xz
-```
+2. Install OBS Studio (32.0.1+):
+   - **Ubuntu 24.04:**
+     ```bash
+     sudo add-apt-repository --yes ppa:obsproject/obs-studio
+     sudo apt update
+     sudo apt install -y obs-studio
+     ```
+   - **Debian 12:**
+     ```bash
+     sudo apt update
+     sudo apt install -y -t bookworm-backports obs-studio
+     ```
+3. [Download](../../releases) the plugin: `c64stream-$VERSION-x86_64-linux-gnu.deb`
+4. Install the plugin:
+   ```bash
+   sudo dpkg -i ~/Downloads/c64stream-*-x86_64-linux-gnu.deb
+   ```
 5. Start OBS Studio
 
-##### Ubuntu 24.04
+##### Other Distributions (Fedora, Arch, etc.)
 
-Download: `c64stream-$VERSION-ubuntu-24.04-x86_64.tar.xz`
+For non-Debian-based distributions, you can extract the `.deb` package manually:
 
-```bash
-sudo add-apt-repository --yes ppa:obsproject/obs-studio
-sudo apt update
-sudo apt install -y obs-studio
-```
+1. Close OBS Studio
+2. Install OBS Studio using your distro's package manager
+3. [Download](../../releases) the plugin: `c64stream-$VERSION-x86_64-linux-gnu.deb`
+4. Extract and install manually:
+   ```bash
+   cd /tmp && ar x ~/Downloads/c64stream-*-x86_64-linux-gnu.deb && tar -xf data.tar.* && \
+   sudo cp -r usr/share/obs/obs-plugins/c64stream /usr/share/obs/obs-plugins/ && \
+   sudo cp -r usr/lib/obs-plugins/c64stream.so /usr/lib/obs-plugins/ && rm -rf data.tar.* control.tar.* debian-binary usr
+   ```
+5. Start OBS Studio
 
-##### Debian 12
+> [!NOTE]
+> The plugin is built on Ubuntu and links against glibc. It should work on most modern Linux distributions with compatible library versions.
 
-Download: `c64stream-$VERSION-debian-12-x86_64.tar.xz`
+##### Continuous Integration
 
-```bash
-sudo apt update
-sudo apt install -y -t bookworm-backports obs-studio
-```
+The plugin is automatically built and tested on every commit across multiple Linux distributions:
 
-##### Fedora 40
+| Distribution | Build | E2E Test |
+|-------------|-------|----------|
+| Ubuntu 24.04 | ✅ | ✅ |
+| Debian 12 | ✅ | ✅ |
+| Fedora 40 | ✅ | ✅ |
+| Arch Linux | ✅ | ✅ |
 
-Download: `c64stream-$VERSION-fedora-40-x86_64.tar.xz`
-
-```bash
-sudo dnf install -y obs-studio
-```
-
-##### Arch Linux
-
-Download: `c64stream-$VERSION-arch-linux-x86_64.tar.xz`
-
-```bash
-sudo pacman -S --noconfirm obs-studio
-```
+E2E tests run OBS Studio in a headless environment, replay simulated C64 Ultimate network packets, and verify the recorded video output matches expected patterns.
 
 **Further Details:**
 See the [OBS Plugins Guide](https://obsproject.com/kb/plugins-guide).
