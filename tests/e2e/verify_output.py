@@ -29,11 +29,11 @@ class OutputVerifier:
         self.expected_frames = expected_frames
         self.verbose = verbose
 
-        # Expected OBS output canvas (E2E profile sets 1280x720 @ 30fps).
+        # Expected OBS output canvas (E2E profile sets 1920x1080 @ 30fps).
         # The C64 frame is rendered inside this canvas, so verifiers should operate in output space.
         self.specs = {
-            'PAL': {'width': 1280, 'height': 720, 'fps': 30.0},
-            'NTSC': {'width': 1280, 'height': 720, 'fps': 30.0},
+            'PAL': {'width': 1920, 'height': 1080, 'fps': 30.0},
+            'NTSC': {'width': 1920, 'height': 1080, 'fps': 30.0},
         }
 
     def log(self, message):
@@ -241,7 +241,7 @@ class OutputVerifier:
         """
         Auto-locate the A/V pop ROI by selecting the cluster around the brightest pixel.
 
-        Important: the C64 frame is typically rendered unscaled in the top-left of the 1280x720
+        Important: the C64 frame is typically rendered unscaled in the top-left of the 1920x1080
         canvas, so the pop is NOT at the bottom-right of the full output.
         """
         p = np.percentile(luma_frames.reshape((luma_frames.shape[0], -1)), 99.95, axis=1)
