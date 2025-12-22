@@ -132,20 +132,7 @@ For non-Debian-based distributions, you can extract the `.deb` package manually:
 5. Start OBS Studio
 
 > [!NOTE]
-> The plugin is built on Ubuntu and links against glibc. It should work on most modern Linux distributions with compatible library versions.
-
-##### Continuous Integration
-
-The plugin is automatically built and tested on every commit across multiple Linux distributions:
-
-| Distribution | Build | E2E Test |
-|-------------|-------|----------|
-| Ubuntu 24.04 | ✅ | ✅ |
-| Debian 12 | ✅ | ✅ |
-| Fedora 40 | ✅ | ✅ |
-| Arch Linux | ✅ | ✅ |
-
-E2E tests run OBS Studio in a headless environment, replay simulated C64 Ultimate network packets, and verify the recorded video output matches expected patterns.
+> The plugin is built and [E2E tested](#end-to-end-tests-) on Ubuntu 24.04, Debian 12, Fedora 40, and Arch Linux.
 
 **Further Details:**
 See the [OBS Plugins Guide](https://obsproject.com/kb/plugins-guide).
@@ -216,10 +203,10 @@ Recreate the authentic look and feel of classic CRT monitors and TVs with config
 **Customizable Effects:**
 
 - **Scan Lines:** Adjustable spacing and intensity to simulate CRT raster lines
-- **Bloom:** Configurable glow effect that makes bright pixels bleed into darker areas
+- **Bloom:** Glow effect that makes bright pixels bleed into darker areas
 - **Pixel Geometry:** Independent width/height scaling for authentic pixel aspect ratios
 - **Blur Control:** Fine-tune between crisp pixels and soft scaling
-- **Afterglow:** Physically accurate CRT phosphor persistence with CPU-based frame accumulation. Features per-channel exponential decay modeling red/green/blue phosphor characteristics, dual-phase decay (rapid initial falloff + long dim tail) for realistic curves, and flash detection for enhanced visibility of fast-moving objects. Configure duration (0-3000ms) and decay curve (InstantFade, RapidFade, GradualFade with dual-phase, LongTail with dual-phase) to create authentic trailing effects
+- **Afterglow:** CRT phosphor persistence effect (0-250ms) with configurable decay curves
 - **Screen Tint:** Amber, green, or monochrome overlays for period-accurate monitor simulation
 
 **Usage:** Access via the **Effects** group in plugin properties. Select a preset for instant results, or customize individual settings to create your perfect retro display aesthetic.

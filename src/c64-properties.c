@@ -208,7 +208,7 @@ obs_properties_t *c64_create_properties(void *data)
 
     // CRT Afterglow
     obs_property_t *afterglow_duration_prop = obs_properties_add_int_slider(
-        effects_props, "afterglow_duration_ms", obs_module_text("AfterglowDuration"), 0, 3000, 10);
+        effects_props, "afterglow_duration_ms", obs_module_text("AfterglowDuration"), 0, 250, 10);
     obs_property_set_long_description(afterglow_duration_prop, obs_module_text("AfterglowDuration.Description"));
 
     obs_property_t *afterglow_curve_prop = obs_properties_add_list(
