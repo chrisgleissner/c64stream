@@ -62,7 +62,9 @@ if(NOT IS_CI_BUILD)
   add_test(NAME VICColors COMMAND test_vic_colors)
 
   add_executable(test_properties_ini_defaults test_properties_ini_defaults.c)
-  add_test(NAME PropertiesIniDefaults COMMAND test_properties_ini_defaults
+  add_test(
+    NAME PropertiesIniDefaults
+    COMMAND test_properties_ini_defaults
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
   )
 endif()
