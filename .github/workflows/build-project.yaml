@@ -334,6 +334,112 @@ jobs:
             echo "✅ Using existing image"
           fi
 
+  # Step 1b: Ensure Docker Images for other Linux distributions (Debian/Fedora/Arch)
+  ensure-docker-images-matrix:
+    name: Ensure Docker Images (Multi-Distro) 🐳
+    runs-on: ubuntu-24.04
+    needs: [check-event]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: debian
+            dockerfile: Dockerfile.debian-build
+            image_name: debian-build
+            display_name: Debian 12
+          - distro: fedora
+            dockerfile: Dockerfile.fedora-build
+            image_name: fedora-build
+            display_name: Fedora 40
+          - distro: arch
+            dockerfile: Dockerfile.arch-build
+            image_name: arch-build
+            display_name: Arch Linux
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout Repository 📥
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check Image Age 🔍
+        id: check
+        run: |
+          : Check Image Age for ${{ matrix.display_name }} 🔍
+
+          dockerfile_path=".github/docker/${{ matrix.dockerfile }}"
+          image_tag="ghcr.io/${{ github.repository }}/${{ matrix.image_name }}:latest"
+
+          if docker manifest inspect "${image_tag}" >/dev/null 2>&1; then
+            docker pull "${image_tag}" >/dev/null 2>&1 || true
+
+            created_timestamp=$(docker inspect "${image_tag}" --format='{{.Created}}' 2>/dev/null || echo "")
+            if [[ -n "${created_timestamp}" ]]; then
+              echo "🔍 Checking for Dockerfile changes since image creation: ${created_timestamp}"
+              dockerfile_commits=$(git log --since="${created_timestamp}" --oneline --pretty=format:"%H %ci %s" -- "${dockerfile_path}" 2>/dev/null)
+              commits_since_image=$(echo "${dockerfile_commits}" | grep -c . 2>/dev/null || echo "0")
+
+              if [[ "${commits_since_image}" -gt 0 ]]; then
+                echo "🔧 Found ${commits_since_image} Dockerfile commits since image creation:"
+                echo "${dockerfile_commits}"
+                echo "needs_build=true" >> $GITHUB_OUTPUT
+                echo "🔧 Dockerfile modified since image creation - rebuilding"
+                exit 0
+              fi
+
+              image_created_epoch=$(date -d "${created_timestamp}" +%s 2>/dev/null || echo "0")
+              current_epoch=$(date +%s)
+              age_seconds=$(( current_epoch - image_created_epoch ))
+              age_days=$(( age_seconds / 86400 ))
+              age_seconds=$((10#${age_seconds} + 0))
+              age_days=$((10#${age_days} + 0))
+
+              # 7 days = 1209600 seconds
+              max_age_seconds=1209600
+              echo "📅 Image created: ${created_timestamp}"
+              echo "📅 Image age: ${age_days}d (${age_seconds}s), Dockerfile unchanged"
+
+              if [[ "${age_seconds}" -le "${max_age_seconds}" ]]; then
+                echo "needs_build=false" >> $GITHUB_OUTPUT
+                echo "✅ Using existing image (${age_days}d old, Dockerfile unchanged)"
+                exit 0
+              else
+                echo "needs_build=true" >> $GITHUB_OUTPUT
+                echo "🔄 Image is ${age_days}d old - rebuilding for freshness"
+                exit 0
+              fi
+            fi
+          fi
+
+          echo "needs_build=true" >> $GITHUB_OUTPUT
+          echo "🔨 Image not found - will build new image"
+
+      - name: Set up Docker Buildx 🔧
+        if: steps.check.outputs.needs_build == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry 🔑
+        if: steps.check.outputs.needs_build == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and Push Docker Image 🚀
+        if: steps.check.outputs.needs_build == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: .github/docker/${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          push: true
+          tags: ghcr.io/${{ github.repository }}/${{ matrix.image_name }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
   # Step 2: Ubuntu Build (uses Docker image)
   ubuntu-build:
     name: Ubuntu Build 🐧
@@ -509,18 +615,33 @@ jobs:
 
 
 
-  # Step 3: E2E Test
+  # Step 3: E2E Test (Multi-Distro)
   e2e-test:
-    name: E2E Test 🧪
-    if: ${{ inputs.run_e2e && needs.ubuntu-build.result == 'success' }}
+    name: E2E Test (${{ matrix.display_name }}) 🧪
+    if: ${{ inputs.run_e2e }}
     runs-on: ubuntu-24.04
-    continue-on-error: true  # Allow E2E failures without breaking the build
-    needs: [check-event, ubuntu-build, ensure-docker-image]
+    needs: [check-event, ensure-docker-image, ensure-docker-images-matrix]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: ubuntu
+            image_tag: ${{ needs.ensure-docker-image.outputs.image-tag }}
+            display_name: Ubuntu 24.04
+          - distro: debian
+            image_tag: ghcr.io/${{ github.repository }}/debian-build:latest
+            display_name: Debian 12
+          - distro: fedora
+            image_tag: ghcr.io/${{ github.repository }}/fedora-build:latest
+            display_name: Fedora 40
+          - distro: arch
+            image_tag: ghcr.io/${{ github.repository }}/arch-build:latest
+            display_name: Arch Linux
     defaults:
       run:
         shell: bash
     container:
-      image: ${{ needs.ensure-docker-image.outputs.image-tag }}
+      image: ${{ matrix.image_tag }}
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -533,89 +654,34 @@ jobs:
       - name: Checkout Repository 📥
         uses: actions/checkout@v4
         with:
+          submodules: recursive
           fetch-depth: 0
 
-      - name: Download Plugin Artifact 📥
-        uses: actions/download-artifact@v4
-        with:
-          name: ${{ needs.ubuntu-build.outputs.artifactName }}
-          path: ./artifacts
+      - name: Build Plugin 🧱
+        run: |
+          : Build Plugin 🧱
+          export PATH="/usr/local/bin:$PATH"
+
+          cmake --preset ubuntu-x86_64 -DCMAKE_INSTALL_PREFIX=/usr
+          cmake --build build_x86_64 --config RelWithDebInfo --parallel
+
+          if [[ ! -f "build_x86_64/c64stream.so" ]]; then
+            echo "❌ build_x86_64/c64stream.so not found"
+            ls -la build_x86_64 || true
+            exit 1
+          fi
 
       - name: Install Plugin 📦
         run: |
           : Install Plugin 📦
 
-          echo "📋 Examining downloaded artifacts..."
-          ls -la artifacts/ || echo "No artifacts directory"
-          find artifacts/ -type f -exec file {} \; 2>/dev/null || true
+          mkdir -p "$HOME/.config/obs-studio/plugins/c64stream/bin/64bit"
+          cp "build_x86_64/c64stream.so" "$HOME/.config/obs-studio/plugins/c64stream/bin/64bit/c64stream.so"
 
-          # Extract any ZIP files in artifacts directory
-          for zip_file in artifacts/*.zip; do
-            if [[ -f "$zip_file" ]]; then
-              echo "📦 Extracting $zip_file..."
-              cd artifacts && unzip -o "$(basename "$zip_file")" && cd ..
-            fi
-          done
+          mkdir -p "$HOME/.config/obs-studio/plugins/c64stream/data"
+          cp -r data/* "$HOME/.config/obs-studio/plugins/c64stream/data/"
 
-          # List contents after extraction
-          echo "📋 Artifacts after extraction:"
-          find artifacts/ -type f -exec ls -la {} \; 2>/dev/null || true
-
-          # Try DEB package installation first (preferred method)
-          deb_file=$(find artifacts/ -name "*.deb" -type f | head -1)
-          if [[ -n "$deb_file" ]]; then
-            echo "📦 Installing DEB package: $deb_file"
-            dpkg -i "$deb_file" || apt-get install -f -y
-            echo "✅ Plugin installed via DEB package"
-            exit 0
-          fi
-
-          # Try TAR.XZ extraction and manual installation
-          tarxz_file=$(find artifacts/ -name "*.tar.xz" -type f | head -1)
-          if [[ -n "$tarxz_file" ]]; then
-            echo "📦 Extracting TAR.XZ package: $tarxz_file"
-            mkdir -p /tmp/plugin_extract
-            tar -xf "$tarxz_file" -C /tmp/plugin_extract
-
-            # Find the .so file and data directory
-            so_file=$(find /tmp/plugin_extract -name "*.so" -type f | head -1)
-            data_dir=$(find /tmp/plugin_extract -path "*/obs-plugins/c64stream" -type d | head -1)
-
-            if [[ -n "$so_file" ]]; then
-              echo "📦 Installing from TAR.XZ: $so_file"
-              mkdir -p ~/.config/obs-studio/plugins/c64stream/bin/64bit
-              cp "$so_file" ~/.config/obs-studio/plugins/c64stream/bin/64bit/
-
-            if [[ -n "$data_dir" ]]; then
-              mkdir -p ~/.config/obs-studio/plugins/c64stream/data
-              cp -r "$data_dir"/* ~/.config/obs-studio/plugins/c64stream/data/
-            fi
-              echo "✅ Plugin installed via TAR.XZ extraction"
-              exit 0
-            fi
-          fi
-
-          # Fallback: Direct .so file installation (handles artifacts/build_x86_64/c64stream.so)
-          so_file=$(find artifacts/ -name "*.so" -type f | head -1)
-          if [[ -n "$so_file" ]]; then
-            echo "📦 Installing SO file directly: $so_file"
-            mkdir -p ~/.config/obs-studio/plugins/c64stream/bin/64bit
-            cp "$so_file" ~/.config/obs-studio/plugins/c64stream/bin/64bit/
-
-            # Copy data directory if available
-            if [[ -d data ]]; then
-              mkdir -p ~/.config/obs-studio/plugins/c64stream/data
-              cp -r data/* ~/.config/obs-studio/plugins/c64stream/data/
-            fi
-            echo "✅ Plugin installed via direct SO file"
-            exit 0
-          fi
-
-          # If we get here, nothing worked
-          echo "❌ No installable plugin artifacts found"
-          echo "Available files:"
-          find artifacts/ -type f 2>/dev/null || echo "No files found"
-          exit 1
+          ls -la "$HOME/.config/obs-studio/plugins/c64stream/bin/64bit/c64stream.so"
 
       - name: Apply E2E Properties to System Plugin Data 🔧
         run: |
@@ -643,12 +709,13 @@ jobs:
           USER_PLUGIN_DIR="$HOME/.config/obs-studio/plugins/c64stream/bin/64bit"
           mkdir -p "${USER_PLUGIN_DIR}"
 
-          # Prefer system-installed .so from .deb
+          # Prefer system-installed .so from package, else fall back to our just-built .so
           SYS_SO=""
           for path in \
             "/usr/lib/obs-plugins/c64stream.so" \
             "/usr/lib/x86_64-linux-gnu/obs-plugins/c64stream.so" \
-            "artifacts/build_x86_64/c64stream.so"; do
+            "$HOME/.config/obs-studio/plugins/c64stream/bin/64bit/c64stream.so" \
+            "build_x86_64/c64stream.so"; do
             if [[ -f "${path}" ]]; then
               SYS_SO="${path}"
               break
