@@ -102,6 +102,10 @@ RUN apt-get install -y --no-install-recommends \
         xvfb \
         ffmpeg
 
+# CMake 3.28+ is required by CMakePresets.json (version 8)
+RUN python3 -m pip install --no-cache-dir "cmake==3.28.3" && \
+    cmake --version
+
 # Clean up APT cache
 RUN apt-get clean && \
     rm -rf /var/lib/apt/lists/*

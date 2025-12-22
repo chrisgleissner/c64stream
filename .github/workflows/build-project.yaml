@@ -802,16 +802,30 @@ jobs:
           # Wait for Xvfb to initialize with progressive checks
           echo "⏳ Waiting for Xvfb to initialize..."
           for i in {1..15}; do
-            if xdpyinfo -display :99 >/dev/null 2>&1; then
-              echo "✅ Xvfb initialized successfully (attempt $i)"
-              break
+            # Basic liveness checks that work even when xdpyinfo isn't installed
+            if kill -0 "$XVFB_PID" 2>/dev/null && [[ -S /tmp/.X11-unix/X99 ]]; then
+              if command -v xdpyinfo >/dev/null 2>&1; then
+                if xdpyinfo -display :99 >/dev/null 2>&1; then
+                  echo "✅ Xvfb initialized successfully (attempt $i)"
+                  break
+                fi
+              else
+                echo "✅ Xvfb appears up (socket present); xdpyinfo not available"
+                break
+              fi
             fi
+
             if [[ $i -eq 15 ]]; then
               echo "❌ Xvfb failed to start after 15 attempts"
+              echo "📋 Diagnostics:"
+              echo "- Xvfb binary: $(command -v Xvfb || echo missing)"
+              echo "- Socket dir:" && ls -la /tmp/.X11-unix 2>/dev/null || true
+              echo "- Xvfb PID: ${XVFB_PID}" && ps -p "$XVFB_PID" -o pid,comm,args 2>/dev/null || true
               echo "📋 Xvfb log:"
               cat "$XVFB_LOG_FILE" 2>/dev/null || echo "No log available"
               exit 1
             fi
+
             echo "   Attempt $i/15 - waiting..."
             sleep 1
           done
@@ -819,7 +833,7 @@ jobs:
           echo "✅ X11 display ready with advanced configuration"
 
       - name: Run E2E Tests 🧪
-        continue-on-error: true
+        id: run_e2e
         run: |
           : "Run E2E Tests 🧪"
 
@@ -874,7 +888,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-test-results-${{ needs.check-event.outputs.commitHash }}
+          name: e2e-test-results-${{ matrix.distro }}-${{ needs.check-event.outputs.commitHash }}
           path: e2e-artifacts/
           if-no-files-found: warn
 
@@ -884,16 +898,10 @@ jobs:
           : E2E Test Status Summary 📊
 
           # Check if the E2E test step passed or failed
-          if [[ "${{ job.status }}" == "success" ]]; then
+          if [[ "${{ steps.run_e2e.outcome }}" == "success" ]]; then
             echo "✅ **E2E Tests PASSED** - All validations successful!" >> $GITHUB_STEP_SUMMARY
             echo "📊 E2E test results are available in the artifacts." >> $GITHUB_STEP_SUMMARY
           else
-            echo "⚠️ **E2E Tests FAILED** - This does not fail the build!" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "🔧 **Next Steps:**" >> $GITHUB_STEP_SUMMARY
-            echo "- Check E2E test artifacts for debugging information" >> $GITHUB_STEP_SUMMARY
-            echo "- Review OBS logs in the artifacts" >> $GITHUB_STEP_SUMMARY
-            echo "- E2E tests can be fixed in a follow-up PR" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "🏗️ **Note:** The main build remains successful and can be merged." >> $GITHUB_STEP_SUMMARY
+            echo "❌ **E2E Tests FAILED**" >> $GITHUB_STEP_SUMMARY
+            echo "📦 Check E2E artifacts for debugging info." >> $GITHUB_STEP_SUMMARY
           fi
