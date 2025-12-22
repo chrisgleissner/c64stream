@@ -90,17 +90,56 @@ chmod -R 755 "$HOME/Library/Application Support/obs-studio/plugins/c64stream.plu
 ```
 4. Start OBS Studio
 
-#### Linux (Ubuntu/Debian)
+#### Linux
 
-Verified on Kubuntu 24.04.3:
+Verified on Ubuntu 24.04, Debian 12, Fedora 40, and Arch Linux.
+
+All Linux variants install the same way:
 
 1. Close OBS Studio
-2. [Download](../../releases) the plugin package with name `c64stream-$VERSION-x86_64-linux-gnu.deb`. It should now be in your `~/Downloads` directory.
-3. Install the plugin to `~/.config/obs-studio/plugins` by running the following on the command line:
+2. Install OBS Studio (32.0.1+) using your distro instructions below
+3. [Download](../../releases) the matching Linux artifact for your distro
+4. Install the plugin to `~/.config/obs-studio/plugins`:
 ```bash
-sudo dpkg -i ~/Downloads/c64stream-*-x86_64-linux-gnu.deb
+mkdir -p ~/.config/obs-studio/plugins
+tar -C ~/.config/obs-studio/plugins -xf ~/Downloads/c64stream-*-x86_64.tar.xz
 ```
-4. Start OBS Studio
+5. Start OBS Studio
+
+##### Ubuntu 24.04
+
+Download: `c64stream-$VERSION-ubuntu-24.04-x86_64.tar.xz`
+
+```bash
+sudo add-apt-repository --yes ppa:obsproject/obs-studio
+sudo apt update
+sudo apt install -y obs-studio
+```
+
+##### Debian 12
+
+Download: `c64stream-$VERSION-debian-12-x86_64.tar.xz`
+
+```bash
+sudo apt update
+sudo apt install -y -t bookworm-backports obs-studio
+```
+
+##### Fedora 40
+
+Download: `c64stream-$VERSION-fedora-40-x86_64.tar.xz`
+
+```bash
+sudo dnf install -y obs-studio
+```
+
+##### Arch Linux
+
+Download: `c64stream-$VERSION-arch-linux-x86_64.tar.xz`
+
+```bash
+sudo pacman -S --noconfirm obs-studio
+```
 
 **Further Details:**
 See the [OBS Plugins Guide](https://obsproject.com/kb/plugins-guide).

@@ -70,7 +70,7 @@ RUN dnf install -y \
         websocketpp-devel \
         asio-devel \
         json-devel \
-        qrcodegen-devel \
+        libqrcodegencpp-devel \
         uthash-devel
 
 # Install Python dependencies for E2E tests

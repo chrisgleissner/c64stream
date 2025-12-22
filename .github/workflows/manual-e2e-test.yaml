@@ -37,6 +37,34 @@ on:
         default: '250'
         type: string
 
+  workflow_call:
+    inputs:
+      source_type:
+        description: 'Source type for plugin'
+        required: false
+        default: 'latest_build'
+        type: string
+      release_tag:
+        description: 'Release tag (only used when source_type is specific_release, e.g., v1.0.0)'
+        required: false
+        default: ''
+        type: string
+      branch:
+        description: 'Branch name (only used when source_type is branch_build)'
+        required: false
+        default: ''
+        type: string
+      format:
+        description: 'Video format (PAL or NTSC)'
+        required: false
+        default: 'PAL'
+        type: string
+      frames:
+        description: 'Number of frames to test'
+        required: false
+        default: '250'
+        type: string
+
 
 jobs:
   manual-e2e-test:
