@@ -378,7 +378,7 @@ This plugin implements the [C64 Ultimate Data Streams specification](https://154
 
 - Windows 10/11 (x64) - verified on Windows 11
 - Linux with X window system or Wayland - verified on Kubuntu 24.04
-- macOS 11+ (Intel/Apple Silicon) - yet to be verified
+- macOS 11+ (Intel/Apple Silicon) - verified on macOS Sequoia 15.7 and Tahoe 26.0
 
 **Software Requirements:**
 
@@ -388,9 +388,9 @@ This plugin implements the [C64 Ultimate Data Streams specification](https://154
 
 One of:
 
-- [Ultimate 64 Elite](https://ultimate64.com/Ultimate-64-Elite) - verified
-- [Ultimate 64 Elite MK2](https://ultimate64.com/Ultimate-64-Elite-MK2) - yet to be verified
-- [C64 Ultimate](https://www.commodore.net/) - yet to be verified since not released yet
+- [Commodore 64 Ultimate](https://www.commodore.net/)
+- [Ultimate 64 Elite](https://ultimate64.com/Ultimate-64-Elite)
+- [Ultimate 64 Elite MK2](https://ultimate64.com/Ultimate-64-Elite-MK2)
 
 **Video Formats:**
 
