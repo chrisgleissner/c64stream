@@ -21,6 +21,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <time.h>
 
 // Forward declaration of callbacks
 static bool crt_preset_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings);
@@ -346,9 +347,42 @@ static bool c64_export_settings_to_ini(obs_data_t *settings, const char *path)
     const int tint_mode = (int)obs_data_get_int(settings, "tint_mode");
     const double tint_strength = obs_data_get_double(settings, "tint_strength");
 
+    // Get current timestamp for export
+    time_t now = time(NULL);
+    struct tm *utc_time = gmtime(&now);
+    char timestamp[64];
+    strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S UTC", utc_time);
+
+    // Determine platform string
+#if defined(_WIN32) || defined(_WIN64)
+#if defined(_WIN64)
+    const char *platform = "windows-x64";
+#else
+    const char *platform = "windows-x86";
+#endif
+#elif defined(__APPLE__)
+    const char *platform = "macos";
+#elif defined(__linux__)
+#if defined(__x86_64__)
+    const char *platform = "linux-x86_64";
+#elif defined(__aarch64__)
+    const char *platform = "linux-arm64";
+#else
+    const char *platform = "linux";
+#endif
+#else
+    const char *platform = "unknown";
+#endif
+
     fprintf(f, "# C64 Stream Properties Export\n");
     fprintf(f, "#\n");
     fprintf(f, "# This file can be imported via the C64 Stream source Properties window.\n");
+    fprintf(f, "#\n");
+    fprintf(f, "# --- System Information (for bug reports) ---\n");
+    fprintf(f, "# Plugin:   %s\n", c64_get_build_info());
+    fprintf(f, "# OBS:      %s\n", obs_get_version_string());
+    fprintf(f, "# Platform: %s\n", platform);
+    fprintf(f, "# Exported: %s\n", timestamp);
     fprintf(f, "#\n\n");
 
     fprintf(f, "[network]\n");
