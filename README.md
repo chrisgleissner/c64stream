@@ -129,8 +129,15 @@ A new window opens. Keep the default settings and click "OK":
 
 ### General
 
-- **Version:**: Information about release version, Git ID, and build time.
-- **Debug Logging**: Check this to see debug logs
+- **Version:** Information about release version, Git ID, and build time
+- **Debug Logging:** Check this to see debug logs
+
+### Import/Export Configuration
+
+Save and restore your complete plugin settings:
+
+- **Export:** Click to save all current settings to a `.ini` file. Use this to backup configurations, share setups, or attach to bug reports
+- **Import:** Click to load settings from a previously exported `.ini` file. All current settings will be replaced
 
 ### Network
 
@@ -167,7 +174,7 @@ Recreate the authentic look and feel of classic CRT monitors and TVs with config
 - **Bloom:** Configurable glow effect that makes bright pixels bleed into darker areas
 - **Pixel Geometry:** Independent width/height scaling for authentic pixel aspect ratios
 - **Blur Control:** Fine-tune between crisp pixels and soft scaling
-- **Afterglow:** Physically accurate phosphor persistence with per-channel decay. Configure duration (0-3000ms) and decay curve (InstantFade, RapidFade, GradualFade, LongTail) to create realistic trailing effects as pixels change brightness
+- **Afterglow:** Physically accurate CRT phosphor persistence with CPU-based frame accumulation. Features per-channel exponential decay modeling red/green/blue phosphor characteristics, dual-phase decay (rapid initial falloff + long dim tail) for realistic curves, and flash detection for enhanced visibility of fast-moving objects. Configure duration (0-3000ms) and decay curve (InstantFade, RapidFade, GradualFade with dual-phase, LongTail with dual-phase) to create authentic trailing effects
 - **Screen Tint:** Amber, green, or monochrome overlays for period-accurate monitor simulation
 
 **Usage:** Access via the **Effects** group in plugin properties. Select a preset for instant results, or customize individual settings to create your perfect retro display aesthetic.
