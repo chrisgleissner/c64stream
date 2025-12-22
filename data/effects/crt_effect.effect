@@ -114,12 +114,15 @@ float3 ApplyAfterglow(float2 uv, float3 current_rgb)
 
     // Add extra intensity for newly-lit pixels (the "flash" component)
     // This makes fast-moving bright objects much more visible
-    float3 flash_boost = current_rgb * flash_factor * 0.5; // 50% extra brightness for flash
+    // Medium #5 fix: Cap flash boost to available headroom to prevent clipping artifacts
+    float3 headroom = float3(1.0, 1.0, 1.0) - base_persisted; // How much room before clipping
+    float3 raw_flash = current_rgb * flash_factor * 0.5;       // 50% extra brightness for flash
+    float3 flash_boost = min(raw_flash, headroom);             // Don't exceed available headroom
 
     // Combine base persistence with flash boost
     float3 persisted = base_persisted + flash_boost;
 
-    // Clamp to valid range
+    // Clamp to valid range (should be redundant after headroom cap, but kept for safety)
     return saturate(persisted);
 }
 

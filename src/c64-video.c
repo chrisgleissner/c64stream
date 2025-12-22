@@ -53,7 +53,7 @@ static const uint32_t *c64_get_afterglow_output_pixels(struct c64_source *contex
         }
         context->afterglow_cpu_accum = bmalloc(frame_bytes);
         context->afterglow_cpu_bytes = frame_bytes;
-        context->afterglow_cpu_valid = false;
+        context->afterglow_cpu_valid = false; // Invalidate on resize (Medium #8)
     }
 
     if (!context->afterglow_cpu_accum)
@@ -66,6 +66,13 @@ static const uint32_t *c64_get_afterglow_output_pixels(struct c64_source *contex
     } else if (context->expected_fps > 1.0) {
         dt_ms = (float)(1000.0 / context->expected_fps);
     }
+
+    // Clamp dt_ms to reasonable range (1-100ms) to handle frame rate variation (Medium #6)
+    // Prevents afterglow from decaying too fast on irregular frames or stuttering on pauses.
+    if (dt_ms < 1.0f)
+        dt_ms = 1.0f;
+    if (dt_ms > 100.0f)
+        dt_ms = 100.0f;
 
     const float base_duration_ms = (float)((context->afterglow_duration_ms > 1) ? context->afterglow_duration_ms : 1);
 

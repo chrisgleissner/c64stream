@@ -477,17 +477,35 @@ static bool c64_apply_ini_to_settings(obs_data_t *settings, const char *path)
                 obs_data_set_string(settings, C64_PRESET_LAST_APPLIED_KEY, value);
             }
         } else if (strcmp(key, "scan_line_distance") == 0) {
-            obs_data_set_double(settings, "scan_line_distance", os_strtod(value));
+            // Validate range: 0.0 - 2.0 (Critical #3: import validation)
+            double v = os_strtod(value);
+            if (v >= 0.0 && v <= 2.0)
+                obs_data_set_double(settings, "scan_line_distance", v);
         } else if (strcmp(key, "scan_line_strength") == 0) {
-            obs_data_set_double(settings, "scan_line_strength", os_strtod(value));
+            // Validate range: 0.0 - 1.0
+            double v = os_strtod(value);
+            if (v >= 0.0 && v <= 1.0)
+                obs_data_set_double(settings, "scan_line_strength", v);
         } else if (strcmp(key, "pixel_width") == 0) {
-            obs_data_set_double(settings, "pixel_width", os_strtod(value));
+            // Validate range: 0.5 - 3.0
+            double v = os_strtod(value);
+            if (v >= 0.5 && v <= 3.0)
+                obs_data_set_double(settings, "pixel_width", v);
         } else if (strcmp(key, "pixel_height") == 0) {
-            obs_data_set_double(settings, "pixel_height", os_strtod(value));
+            // Validate range: 0.5 - 3.0
+            double v = os_strtod(value);
+            if (v >= 0.5 && v <= 3.0)
+                obs_data_set_double(settings, "pixel_height", v);
         } else if (strcmp(key, "blur_strength") == 0) {
-            obs_data_set_double(settings, "blur_strength", os_strtod(value));
+            // Validate range: 0.0 - 1.0
+            double v = os_strtod(value);
+            if (v >= 0.0 && v <= 1.0)
+                obs_data_set_double(settings, "blur_strength", v);
         } else if (strcmp(key, "bloom_strength") == 0) {
-            obs_data_set_double(settings, "bloom_strength", os_strtod(value));
+            // Validate range: 0.0 - 1.0
+            double v = os_strtod(value);
+            if (v >= 0.0 && v <= 1.0)
+                obs_data_set_double(settings, "bloom_strength", v);
         } else if (strcmp(key, "afterglow_duration_ms") == 0) {
             int ms = atoi(value);
             if (ms >= 0 && ms <= 3000)
@@ -501,7 +519,10 @@ static bool c64_apply_ini_to_settings(obs_data_t *settings, const char *path)
             if (mode >= 0 && mode <= 3)
                 obs_data_set_int(settings, "tint_mode", mode);
         } else if (strcmp(key, "tint_strength") == 0) {
-            obs_data_set_double(settings, "tint_strength", os_strtod(value));
+            // Validate range: 0.0 - 1.0
+            double v = os_strtod(value);
+            if (v >= 0.0 && v <= 1.0)
+                obs_data_set_double(settings, "tint_strength", v);
         }
     }
 

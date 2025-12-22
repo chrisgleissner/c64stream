@@ -126,24 +126,38 @@ static void c64_refresh_resolved_ip(struct c64_source *context)
     if (!context)
         return;
 
+    // Take a thread-safe snapshot of hostname and dns_server_ip to avoid data races
+    // (these fields may be written by c64_update on the OBS UI thread concurrently).
+    char hostname_copy[64];
+    char dns_copy[64];
+
+    pthread_mutex_lock(&context->config_mutex);
+    strncpy(hostname_copy, context->hostname, sizeof(hostname_copy) - 1);
+    hostname_copy[sizeof(hostname_copy) - 1] = '\0';
+    strncpy(dns_copy, context->dns_server_ip, sizeof(dns_copy) - 1);
+    dns_copy[sizeof(dns_copy) - 1] = '\0';
+    pthread_mutex_unlock(&context->config_mutex);
+
     // If hostname is empty, nothing to do.
-    if (context->hostname[0] == '\0')
+    if (hostname_copy[0] == '\0')
         return;
 
     // Always try to resolve; c64_resolve_hostname_with_dns is fast for numeric IPs.
     char resolved[64];
     resolved[0] = '\0';
 
-    const char *dns = (context->dns_server_ip[0] != '\0') ? context->dns_server_ip : NULL;
-    if (c64_resolve_hostname_with_dns(context->hostname, dns, resolved, sizeof(resolved))) {
+    const char *dns = (dns_copy[0] != '\0') ? dns_copy : NULL;
+    if (c64_resolve_hostname_with_dns(hostname_copy, dns, resolved, sizeof(resolved))) {
+        pthread_mutex_lock(&context->config_mutex);
         if (strcmp(context->ip_address, resolved) != 0) {
             strncpy(context->ip_address, resolved, sizeof(context->ip_address) - 1);
             context->ip_address[sizeof(context->ip_address) - 1] = '\0';
-            C64_LOG_INFO("Resolved C64 host '%s' -> %s", context->hostname, context->ip_address);
+            C64_LOG_INFO("Resolved C64 host '%s' -> %s", hostname_copy, context->ip_address);
         }
+        pthread_mutex_unlock(&context->config_mutex);
     } else {
         // Keep ip_address as-is (may be hostname) and let connectivity checks fail fast.
-        C64_LOG_DEBUG("Hostname resolution failed for '%s' (dns=%s)", context->hostname, dns ? dns : "system");
+        C64_LOG_DEBUG("Hostname resolution failed for '%s' (dns=%s)", hostname_copy, dns ? dns : "system");
     }
 }
 
@@ -317,6 +331,17 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
         return NULL;
     }
 
+    // Initialize config mutex for thread-safe access to hostname/dns_server_ip/ip_address
+    if (pthread_mutex_init(&context->config_mutex, NULL) != 0) {
+        C64_LOG_ERROR("Failed to initialize config mutex");
+        pthread_mutex_destroy(&context->assembly_mutex);
+        bfree(context->frame_buffer);
+        bfree(context->bmp_row_buffer);
+        bfree(context->bgr_frame_buffer);
+        bfree(context);
+        return NULL;
+    }
+
     // Initialize buffer delay from settings - optimized for low latency
     context->buffer_delay_ms = (uint32_t)obs_data_get_int(settings, "buffer_delay_ms");
     if (context->buffer_delay_ms == 0) {
@@ -430,6 +455,17 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->afterglow_cpu_bytes = 0;
     context->afterglow_cpu_valid = false;
 
+    // Pre-allocate afterglow CPU accumulator to avoid allocation in video hot path
+    // Use PAL size (larger) to cover both PAL and NTSC; will be resized if needed.
+    {
+        const size_t initial_accum_bytes = C64_PAL_WIDTH * C64_PAL_HEIGHT * sizeof(uint32_t);
+        context->afterglow_cpu_accum = bmalloc(initial_accum_bytes);
+        if (context->afterglow_cpu_accum) {
+            memset(context->afterglow_cpu_accum, 0, initial_accum_bytes);
+            context->afterglow_cpu_bytes = initial_accum_bytes;
+        }
+    }
+
     // Start initial connection asynchronously to avoid blocking OBS UI thread.
     C64_LOG_INFO("C64 Stream source created successfully - scheduling background initial connection");
     c64_schedule_retry(context, "initial connection");
@@ -505,6 +541,7 @@ void c64_destroy(void *data)
 
     // Cleanup resources
     pthread_mutex_destroy(&context->assembly_mutex);
+    pthread_mutex_destroy(&context->config_mutex);
     if (context->frame_buffer) {
         bfree(context->frame_buffer);
     }
@@ -594,7 +631,8 @@ void c64_update(void *data, obs_data_t *settings)
         os_sleep_ms(100);
     }
 
-    // Update configuration - hostname and IP resolution
+    // Update configuration - hostname and IP resolution (thread-safe)
+    pthread_mutex_lock(&context->config_mutex);
     strncpy(context->hostname, new_host, sizeof(context->hostname) - 1);
     context->hostname[sizeof(context->hostname) - 1] = '\0';
 
@@ -611,6 +649,8 @@ void c64_update(void *data, obs_data_t *settings)
     // Store hostname as-is; resolution will happen in the background before connecting.
     strncpy(context->ip_address, new_host, sizeof(context->ip_address) - 1);
     context->ip_address[sizeof(context->ip_address) - 1] = '\0';
+    pthread_mutex_unlock(&context->config_mutex);
+
     if (new_obs_ip) {
         strncpy(context->obs_ip_address, new_obs_ip, sizeof(context->obs_ip_address) - 1);
         context->obs_ip_address[sizeof(context->obs_ip_address) - 1] = '\0';
@@ -915,6 +955,9 @@ void c64_video_tick(void *data, float seconds)
         if (!context->afterglow_accum_prev || !context->afterglow_accum_next) {
             C64_LOG_ERROR("Failed to create afterglow accumulation textures");
         }
+
+        // Invalidate CPU afterglow accumulator on texture recreation (Medium #8: prevent visual glitch)
+        context->afterglow_cpu_valid = false;
 
     } else {
         // Upload latest frame to the render texture.

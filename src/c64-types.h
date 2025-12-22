@@ -41,10 +41,11 @@ struct c64_source {
     obs_source_t *source;
 
     // Configuration
-    char hostname[64];       // C64 Ultimate hostname or IP as entered by user
-    char ip_address[64];     // C64 Ultimate IP Address (resolved from hostname)
-    char dns_server_ip[64];  // DNS server IP for resolving hostnames (optional)
-    char obs_ip_address[64]; // OBS IP Address (this machine)
+    char hostname[64];            // C64 Ultimate hostname or IP as entered by user
+    char ip_address[64];          // C64 Ultimate IP Address (resolved from hostname)
+    char dns_server_ip[64];       // DNS server IP for resolving hostnames (optional)
+    char obs_ip_address[64];      // OBS IP Address (this machine)
+    pthread_mutex_t config_mutex; // Protects dns_server_ip/hostname/ip_address from concurrent access
     bool auto_detect_ip;
     bool initial_ip_detected; // Flag to track if initial IP detection was done
     uint32_t video_port;
