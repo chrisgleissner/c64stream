@@ -72,7 +72,7 @@ New-NetFirewallRule -DisplayName "C64 Stream" -Direction Inbound -Protocol UDP -
 
 #### macOS
 
-Verified on macOS Sequoia 15.7 with Apple Silicon M4 (Intel systems should also work):
+Verified on macOS Sequoia 15.7 and Tahoe 26.0 with Apple Silicon M4 (Intel systems should also work):
 
 1. Close OBS Studio
 2. [Download](../../releases) the plugin package with name `c64stream-$VERSION-macos-universal.pkg`. It should now be in your `~/Downloads` directory.
@@ -437,7 +437,7 @@ This plugin implements the [C64 Ultimate Data Streams specification](https://154
 
 - Windows 10/11 (x64) - verified on Windows 11
 - Linux with X window system or Wayland - verified on Kubuntu 24.04
-- macOS 11+ (Intel/Apple Silicon) - verified on macOS Sequoia 15.7
+- macOS 11+ (Intel/Apple Silicon) - verified on macOS Sequoia 15.7 and Tahoe 26.0
 
 **Software Requirements:**
 
