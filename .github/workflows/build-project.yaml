@@ -577,6 +577,42 @@ jobs:
             echo "❌ E2E CI properties file not found: tests/e2e/properties_e2e_ci.ini"
           fi
 
+      - name: Setup PulseAudio 🔊
+        run: |
+          : Setup PulseAudio 🔊
+          # Start PulseAudio in system mode for CI environment
+          # This provides proper audio timing for A/V sync validation
+
+          # Create runtime directory
+          export XDG_RUNTIME_DIR="/tmp/runtime-root"
+          mkdir -p "$XDG_RUNTIME_DIR"
+          chmod 700 "$XDG_RUNTIME_DIR"
+
+          # Start PulseAudio with null sink for testing
+          echo "🔊 Starting PulseAudio..."
+          pulseaudio --start --exit-idle-time=-1 \
+            --load="module-null-sink sink_name=dummy" \
+            --log-target=file:/tmp/pulseaudio.log 2>&1 || true
+
+          # Wait for PulseAudio to start
+          for i in {1..10}; do
+            if pulseaudio --check 2>/dev/null; then
+              echo "✅ PulseAudio started successfully"
+              break
+            fi
+            if [[ $i -eq 10 ]]; then
+              echo "⚠️ PulseAudio may not have started correctly (continuing anyway)"
+              cat /tmp/pulseaudio.log 2>/dev/null || true
+            fi
+            sleep 0.5
+          done
+
+          # Set default sink
+          pactl set-default-sink dummy 2>/dev/null || true
+
+          # Show audio setup
+          pactl info 2>/dev/null || echo "pactl info unavailable"
+
       - name: Setup X11 Display 🖥️
         run: |
           : Setup X11 Display 🖥️
@@ -586,6 +622,7 @@ jobs:
           export QT_QPA_PLATFORM=xcb
           export QT_X11_NO_MITSHM=1
           export LIBGL_ALWAYS_SOFTWARE=1
+          export XDG_RUNTIME_DIR="/tmp/runtime-root"
           export PULSE_SERVER="unix:${XDG_RUNTIME_DIR}/pulse/native"
 
           # Clean up any stale processes and lock files
