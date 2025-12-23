@@ -86,7 +86,7 @@ def is_sync_marker_active(frame_num, format_name):
     time_in_current_period = time_since_offset % sync_period_ms
     return time_in_current_period < sync_duration_ms
 
-def generate_video_packet(frame_num, packet_num, width, height, packets_per_frame, format_name, total_test_duration_ms):
+def generate_video_packet(frame_num, packet_num, width, height, packets_per_frame, format_name, total_test_duration_ms, pattern='diagonal'):
     """
     Generate a single video packet following C64 Ultimate spec.
 
@@ -98,6 +98,10 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
     5. Lines per packet (8-bit) = 4
     6. Bits per pixel (8-bit) = 4
     7. Encoding type (16-bit) = 0 (uncompressed)
+
+    Pattern options:
+    - 'diagonal': Moving diagonal lines (default, good for motion testing)
+    - 'solid': Solid color fill (good for scanline analysis)
     """
     line_num = packet_num * LINES_PER_PACKET
     is_last_packet = (packet_num == packets_per_frame - 1)
@@ -192,26 +196,33 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                 c2 = palette_color(pixel_x + 1)
                 payload[line * (width // 2) + byte_idx] = (c2 << 4) | c1
             else:
-                # Rest of frame: diagonal, slowly moving lines
-                # Create thin diagonal slanted lines by combining x and y, with a slow motion term.
-                # Lines are 2 pixels wide every 32 diagonal steps; color cycles across 16 VIC colors.
-                # Motion: shift by +1 pixel per frame along the diagonal direction.
-                def diag_color(px):
-                    # Thin diagonal stripes (in_stripe controlled by motion S),
-                    # color tied to invariant diagonal index so color remains constant as it moves.
-                    S = px + pixel_line + frame_num
-                    stripe_period = 8
-                    stripe_width = 2
-                    in_stripe = (S % stripe_period) < stripe_width
-                    if not in_stripe:
-                        return 0
-                    # Diagonal index invariant under motion along S: use (px - pixel_line)
-                    diag_index = ( (px - pixel_line) // stripe_period ) % 16
-                    return int(diag_index)
+                # Rest of frame: pattern depends on mode
+                if pattern == 'solid':
+                    # Solid color fill - use VIC color 14 (light blue) for good visibility
+                    # This creates a uniform field ideal for scanline analysis
+                    solid_color = 14  # VIC light blue
+                    payload[line * (width // 2) + byte_idx] = (solid_color << 4) | solid_color
+                else:
+                    # Default: diagonal, slowly moving lines
+                    # Create thin diagonal slanted lines by combining x and y, with a slow motion term.
+                    # Lines are 2 pixels wide every 32 diagonal steps; color cycles across 16 VIC colors.
+                    # Motion: shift by +1 pixel per frame along the diagonal direction.
+                    def diag_color(px):
+                        # Thin diagonal stripes (in_stripe controlled by motion S),
+                        # color tied to invariant diagonal index so color remains constant as it moves.
+                        S = px + pixel_line + frame_num
+                        stripe_period = 8
+                        stripe_width = 2
+                        in_stripe = (S % stripe_period) < stripe_width
+                        if not in_stripe:
+                            return 0
+                        # Diagonal index invariant under motion along S: use (px - pixel_line)
+                        diag_index = ( (px - pixel_line) // stripe_period ) % 16
+                        return int(diag_index)
 
-                c1 = diag_color(pixel_x)
-                c2 = diag_color(pixel_x + 1)
-                payload[line * (width // 2) + byte_idx] = (c2 << 4) | c1
+                    c1 = diag_color(pixel_x)
+                    c2 = diag_color(pixel_x + 1)
+                    payload[line * (width // 2) + byte_idx] = (c2 << 4) | c1
 
     return header + bytes(payload)
 
@@ -323,9 +334,15 @@ def generate_audio_packet(audio_packet_num, sample_rate, total_test_duration_ms)
     return header + payload.tobytes()
 
 
-def generate_packets(output_dir, num_frames=30, formats=None):
+def generate_packets(output_dir, num_frames=30, formats=None, pattern='diagonal'):
     """
     Generate test packets for specified formats with A/V sync pops.
+
+    Args:
+        output_dir: Directory to write packet files
+        num_frames: Number of video frames to generate
+        formats: List of formats ('PAL', 'NTSC') or None for both
+        pattern: Video pattern - 'diagonal' (moving lines) or 'solid' (uniform color)
     """
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
@@ -351,7 +368,7 @@ def generate_packets(output_dir, num_frames=30, formats=None):
         for frame_num in range(num_frames):
             for packet_num in range(ppf):
                 packet_data = generate_video_packet(
-                    frame_num, packet_num, width, height, ppf, format_name, total_test_duration_ms
+                    frame_num, packet_num, width, height, ppf, format_name, total_test_duration_ms, pattern
                 )
                 packet_file = video_dir / f"video_{frame_num:04d}_{packet_num:04d}.bin"
                 packet_file.write_bytes(packet_data)
@@ -398,10 +415,12 @@ Examples:
     parser.add_argument('--format', choices=['PAL', 'NTSC'], action='append',
                         dest='formats',
                         help='Format(s) to generate (can specify multiple times, default: both)')
+    parser.add_argument('--pattern', '-p', choices=['diagonal', 'solid'], default='diagonal',
+                        help='Video pattern: diagonal (moving lines) or solid (uniform color for scanline tests)')
 
     args = parser.parse_args()
 
-    generate_packets(args.output, args.frames, args.formats)
+    generate_packets(args.output, args.frames, args.formats, args.pattern)
 
 
 if __name__ == '__main__':

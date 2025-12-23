@@ -202,7 +202,7 @@ Recreate the authentic look and feel of classic CRT monitors and TVs with config
 
 **Customizable Effects:**
 
-- **Scan Lines:** Adjustable spacing and intensity to simulate CRT raster lines
+- **Scan Lines:** CRT raster line simulation with precise control (see table below)
 - **Bloom:** Glow effect that makes bright pixels bleed into darker areas
 - **Pixel Geometry:** Independent width/height scaling for authentic pixel aspect ratios
 - **Blur Control:** Fine-tune between crisp pixels and soft scaling
@@ -211,7 +211,23 @@ Recreate the authentic look and feel of classic CRT monitors and TVs with config
 
 **Usage:** Access via the **Effects** group in plugin properties. Select a preset for instant results, or customize individual settings to create your perfect retro display aesthetic.
 
-**Pixel-Perfect Scaling:** For crisp, sharp pixels without blurring (especially with the "Sharp Pixels" preset), right-click on the C64 Stream source in your OBS scene and select **Scale Filtering → Point**. This tells OBS to use nearest-neighbor scaling instead of bilinear filtering when fitting the source to your canvas.
+**Pixel-Perfect Display:** For crisp pixels and perfectly even scanlines, right-click on the C64 Stream source → **Scale Filtering → Point**. This is a one-time setting that tells OBS to use nearest-neighbor scaling. The plugin automatically sizes the source to the correct integer multiple based on your scanline settings.
+
+#### Scan Line Settings
+
+The **Scan Line Distance** setting controls the gap between each pair of adjacent C64 pixel rows, simulating the dark lines between phosphor rows on a CRT monitor. Each mode uses a specific integer scaling factor to ensure perfectly uniform scanlines with zero variance:
+
+| Mode | Distance | Scale | Pattern | Output Height | Canvas Fit |
+|------|----------|-------|---------|---------------|------------|
+| None | 0% | 4× | No gaps | 1088px | Full (8px crop) |
+| Tight | 25% | 5× | 4 bright + 1 dark | 1360px | Overflow |
+| Normal | 50% | 3× | 2 bright + 1 dark | 816px | Letterboxed |
+| Wide | 100% | 4× | 2 bright + 2 dark | 1088px | Full (8px crop) |
+| Extra Wide | 200% | 3× | 1 bright + 2 dark | 816px | Letterboxed |
+
+**Recommended:** Use **Wide (100%)** for full 1080p canvas coverage with minimal border cropping, or **Normal (50%)** for a classic CRT look with black bars.
+
+The **Scan Line Strength** slider (0.0–1.0) controls how dark the gaps appear. At 0.0, gaps are invisible; at 1.0, they are completely black.
 
 **Reset:** To reset to default values, simply select the "Default" preset. If you have changed individual effects whilst the "Default" preset was active, select any other preset first and then re-select the "Default" preset.
 

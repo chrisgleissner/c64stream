@@ -26,7 +26,8 @@ uniform int tint_mode;
 uniform float tint_strength;
 uniform float dt_ms;
 uniform texture2d texture_accum_prev;
-uniform float output_height; // Output resolution height for scanline calculation
+uniform float output_height;  // Source render height (plugin output)
+uniform float canvas_height;  // OBS canvas height (final output) for canvas-space scanlines
 
 sampler_state textureSampler {
     Filter   = Point;  // Use nearest neighbor for pixel-perfect scaling
@@ -45,6 +46,13 @@ sampler_state linear_clamp {
 struct VertData {
     float4 pos : POSITION;
     float2 uv  : TEXCOORD0;
+};
+
+struct VertDataOut {
+    float4 pos : POSITION;
+    float2 uv  : TEXCOORD0;
+    // Note: screen_pos removed - we'll use v_in.pos directly in pixel shader
+    // which gives us the actual rasterized fragment position
 };
 
 // CRT phosphor afterglow: exponential smoothing persistence model
@@ -126,15 +134,15 @@ float3 ApplyAfterglow(float2 uv, float3 current_rgb)
     return saturate(persisted);
 }
 
-VertData VSDefault(VertData v_in)
+VertDataOut VSDefault(VertData v_in)
 {
-    VertData vert_out;
+    VertDataOut vert_out;
     vert_out.pos = mul(float4(v_in.pos.xyz, 1.0), ViewProj);
     vert_out.uv  = v_in.uv;
     return vert_out;
 }
 
-float4 PSDefault(VertData v_in) : TARGET
+float4 PSDefault(VertDataOut v_in) : TARGET
 {
     // Clamp UV coordinates to valid range to prevent out-of-bounds sampling
     float2 uv = clamp(v_in.uv, 0.0, 1.0);
@@ -175,45 +183,45 @@ float4 PSDefault(VertData v_in) : TARGET
         color = image.Sample(textureSampler, uv);
     }
 
-    // === SCANLINES EFFECT (CRT-ACCURATE ALTERNATING PATTERN) ===
-    // scan_line_distance: height ratio of gap to scanline (0.0 = no gap, 0.5 = gap half as tall as scanline, 1.0 = gap same height as scanline)
-    // scan_line_strength: darkness of the gap (0.0 = no darkness, 1.0 = completely black)
+    // === SCANLINES EFFECT (SOURCE-SPACE FOR PERFECT UNIFORMITY) ===
+    // Renders scanlines based on the source pixel row being rendered.
+    // Since the plugin scales the source to integer multiples (e.g., 4× for Wide),
+    // we compute which output row we're in and apply the pattern directly.
+    // scan_line_distance: controls gap size (0.0-2.0)
+    // scan_line_strength: darkness of gaps (0.0=no effect, 1.0=completely black)
     if (scan_line_distance > 0.0f && scan_line_strength > 0.0f) {
-        // Calculate which row we're in within the scaled output
-        // Use precise float arithmetic for DirectX 11 compatibility
-        float pixel_row = uv.y * max(output_height, 1.0f);
+        // Use UV Y coordinate multiplied by OUTPUT height (not canvas height)
+        // output_height is the plugin's scaled render height (e.g., 272*4=1088 for Wide)
+        // This gives us the exact rendered pixel row
+        int output_row = int(uv.y * max(output_height, 1.0f));
 
-        // Match C code integer-based scaling for pixel-perfect scanlines
-        // Map scanline distance to distinct scaling ratios with correct spacing patterns
-        // This ensures crisp scanlines and gaps with no fractional scaling
-
-        float total_pixels_per_unit;
-        float scanline_pixels_per_unit;
-        if (scan_line_distance <= 0.25f) {       // Tight: S1S1S1S1G1
-            total_pixels_per_unit = 5.0f;
-            scanline_pixels_per_unit = 4.0f;
-        } else if (scan_line_distance <= 0.5f) { // Normal: S1S1G1
-            total_pixels_per_unit = 3.0f;
-            scanline_pixels_per_unit = 2.0f;
-        } else if (scan_line_distance <= 1.0f) { // Wide: S1S1G1G1
-            total_pixels_per_unit = 4.0f;
-            scanline_pixels_per_unit = 2.0f;
-        } else {                                 // Extra Wide: S1G1G1
-            total_pixels_per_unit = 3.0f;
-            scanline_pixels_per_unit = 1.0f;
+        // Determine scanline pattern based on distance setting
+        // Pattern repeats every N pixels for consistent appearance
+        int total_pixels_per_unit;
+        int scanline_pixels_per_unit;
+        if (scan_line_distance <= 0.25f) {       // Tight: 4 bright + 1 dark
+            total_pixels_per_unit = 5;
+            scanline_pixels_per_unit = 4;
+        } else if (scan_line_distance <= 0.5f) { // Normal: 2 bright + 1 dark
+            total_pixels_per_unit = 3;
+            scanline_pixels_per_unit = 2;
+        } else if (scan_line_distance <= 1.0f) { // Wide: 2 bright + 2 dark
+            total_pixels_per_unit = 4;
+            scanline_pixels_per_unit = 2;
+        } else {                                 // Extra Wide: 1 bright + 2 dark
+            total_pixels_per_unit = 3;
+            scanline_pixels_per_unit = 1;
         }
 
-        // Use precise floor operation for DirectX 11
-        float scanline_index = floor(pixel_row / total_pixels_per_unit);
-        float position_in_scanline_unit = pixel_row - (scanline_index * total_pixels_per_unit);
+        // Calculate position within the scanline pattern using integer modulo
+        // This eliminates floating-point precision issues entirely
+        int position_in_pattern = output_row % total_pixels_per_unit;
 
-        // Check if this pixel is in the scanline portion or gap portion
-        // Add small epsilon for floating point precision on DirectX 11
-        if (position_in_scanline_unit >= (scanline_pixels_per_unit - 0.001f)) {
+        // Determine if this pixel is in a gap (dark) or scanline (bright)
+        if (position_in_pattern >= scanline_pixels_per_unit) {
             // This pixel is in the gap portion - darken it
             color.rgb = color.rgb * (1.0f - scan_line_strength);
         }
-        // position_in_scanline_unit < scanline_pixels_per_unit: This pixel is the scanline itself (remains bright)
     }
 
     // === REALISTIC CRT BLOOM EFFECT ===

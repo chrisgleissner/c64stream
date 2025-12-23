@@ -1,17 +1,15 @@
 # C64 Stream E2E Test Artifacts
 # These are generated during testing and should not be committed
 
+# Python bytecode cache
+__pycache__/
+*.pyc
+
 # Test packets
 test_packets/
 
 # Test output
 test_output/
 
-# Python cache
-__pycache__/
-*.pyc
-*.pyo
-
-# Temporary files
-*.tmp
-*.log
+# Scanline test output (screenshots, packets, analysis)
+scanline_output/

@@ -1090,6 +1090,15 @@ void c64_video_render(void *data, gs_effect_t *effect)
     // Set output resolution for scanline calculation
     gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "output_height"), (float)render_height);
 
+    // Get canvas height for canvas-space scanline rendering
+    // This ensures scanlines appear evenly spaced regardless of how OBS scales the source
+    struct obs_video_info ovi;
+    float canvas_height = (float)render_height; // Fallback to render height
+    if (obs_get_video_info(&ovi)) {
+        canvas_height = (float)ovi.base_height;
+    }
+    gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "canvas_height"), canvas_height);
+
     // Render (all non-afterglow CRT effects) directly to the screen.
     while (gs_effect_loop(context->crt_effect, "Draw")) {
         gs_draw_sprite(input_tex, 0, render_width, render_height);
