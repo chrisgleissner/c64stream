@@ -565,9 +565,13 @@ jobs:
         run: |
           : Install Plugin 📦
 
-          # Install from downloaded Ubuntu artifact
+          # Show what was downloaded
+          echo "📁 Downloaded artifact contents:"
+          find artifact -type f -ls
+
+          # Install from downloaded Ubuntu artifact (preserves directory structure)
           mkdir -p "$HOME/.config/obs-studio/plugins/c64stream/bin/64bit"
-          cp "artifact/c64stream.so" "$HOME/.config/obs-studio/plugins/c64stream/bin/64bit/c64stream.so"
+          cp "artifact/build_x86_64/c64stream.so" "$HOME/.config/obs-studio/plugins/c64stream/bin/64bit/c64stream.so"
 
           mkdir -p "$HOME/.config/obs-studio/plugins/c64stream/data"
           cp -r data/* "$HOME/.config/obs-studio/plugins/c64stream/data/"
@@ -845,9 +849,13 @@ jobs:
         run: |
           : Install Plugin 📦
 
-          # Install from downloaded Ubuntu artifact
+          # Show what was downloaded
+          echo "📁 Downloaded artifact contents:"
+          find artifact -type f -ls
+
+          # Install from downloaded Ubuntu artifact (preserves directory structure)
           mkdir -p "$HOME/.config/obs-studio/plugins/c64stream/bin/64bit"
-          cp "artifact/c64stream.so" "$HOME/.config/obs-studio/plugins/c64stream/bin/64bit/c64stream.so"
+          cp "artifact/build_x86_64/c64stream.so" "$HOME/.config/obs-studio/plugins/c64stream/bin/64bit/c64stream.so"
 
           mkdir -p "$HOME/.config/obs-studio/plugins/c64stream/data"
           cp -r data/* "$HOME/.config/obs-studio/plugins/c64stream/data/"
