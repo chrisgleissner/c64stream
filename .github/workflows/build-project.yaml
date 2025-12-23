@@ -794,12 +794,27 @@ jobs:
           fi
 
 
-  # E2E Full Test (Ubuntu only) - runs all other E2E scenarios after basic passes
+  # E2E Full Test (Ubuntu, Matrix) - runs all scenarios in parallel after basic passes
   e2e-full:
-    name: E2E Full (Ubuntu) 🧪
+    name: E2E Full (${{ matrix.scenario }}) 🧪
     if: ${{ inputs.run_e2e }}
     runs-on: ubuntu-24.04
     needs: [check-event, ubuntu-build, e2e-basic]
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario:
+          - ntsc_amber_monitor
+          - ntsc_arcade_cabinet
+          - ntsc_classic_crt
+          - ntsc_default
+          - ntsc_delay_500ms
+          - ntsc_green_monitor
+          - ntsc_phosphor_glow
+          - ntsc_sharp_pixels
+          - ntsc_vintage_tv
+          - pal_sharp_pixels
+          - scanlines
     defaults:
       run:
         shell: bash
@@ -984,25 +999,22 @@ jobs:
 
           echo "✅ X11 display ready with advanced configuration"
 
-      - name: Run Full E2E Tests 🧪
+      - name: Run E2E Scenario 🧪
         id: run_e2e
         run: |
-          : "Run Full E2E Tests 🧪"
+          : "Run E2E Scenario: ${{ matrix.scenario }} 🧪"
 
           cd tests/e2e
 
-          # Run all scenarios (the basic scenario was already validated in e2e-basic)
-          # Use --scenario flag if specific scenario requested, otherwise run all
-          CMD="./e2e.sh --format \"${{ inputs.e2e_format }}\" --frames \"${{ inputs.e2e_frames }}\""
-          CMD="$CMD --output-dir \"../../e2e-results\" --skip-build --verbose --display \":99\""
-
-          # Add scenario if specified in workflow inputs
-          if [[ -n "${{ inputs.e2e_scenario }}" ]]; then
-            CMD="$CMD --scenario \"${{ inputs.e2e_scenario }}\""
-          fi
-
-          # Run the E2E tests
-          eval $CMD
+          # Run the specific scenario from the matrix
+          ./e2e.sh \
+            --scenario "${{ matrix.scenario }}" \
+            --format "${{ inputs.e2e_format }}" \
+            --frames "${{ inputs.e2e_frames }}" \
+            --output-dir "../../e2e-results" \
+            --skip-build \
+            --verbose \
+            --display ":99"
 
       - name: Collect Test Artifacts 📋
         if: always()
@@ -1035,7 +1047,8 @@ jobs:
           fi
 
           # Create summary
-          echo "E2E Full Test Summary" > e2e-artifacts/summary.txt
+          echo "E2E Scenario Test Summary" > e2e-artifacts/summary.txt
+          echo "Scenario: ${{ matrix.scenario }}" >> e2e-artifacts/summary.txt
           echo "Format: ${{ inputs.e2e_format }}" >> e2e-artifacts/summary.txt
           echo "Frames: ${{ inputs.e2e_frames }}" >> e2e-artifacts/summary.txt
           echo "Date: $(date)" >> e2e-artifacts/summary.txt
@@ -1044,7 +1057,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-full-results-ubuntu-${{ needs.check-event.outputs.commitHash }}
+          name: e2e-full-${{ matrix.scenario }}-${{ needs.check-event.outputs.commitHash }}
           path: e2e-artifacts/
           if-no-files-found: warn
 
@@ -1055,9 +1068,8 @@ jobs:
 
           # Check if the E2E test step passed or failed
           if [[ "${{ steps.run_e2e.outcome }}" == "success" ]]; then
-            echo "✅ **E2E Full Tests PASSED on Ubuntu** - All scenarios validated!" >> $GITHUB_STEP_SUMMARY
-            echo "📊 E2E test results are available in the artifacts." >> $GITHUB_STEP_SUMMARY
+            echo "✅ **E2E Scenario '${{ matrix.scenario }}' PASSED**" >> $GITHUB_STEP_SUMMARY
           else
-            echo "❌ **E2E Full Tests FAILED on Ubuntu**" >> $GITHUB_STEP_SUMMARY
+            echo "❌ **E2E Scenario '${{ matrix.scenario }}' FAILED**" >> $GITHUB_STEP_SUMMARY
             echo "📦 Check E2E artifacts for debugging info." >> $GITHUB_STEP_SUMMARY
           fi

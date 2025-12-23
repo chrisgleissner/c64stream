@@ -35,7 +35,11 @@ flowchart TD
             E2E_FEDORA[Fedora 40]
             E2E_ARCH[Arch Linux]
         end
-        E2E_UBUNTU_FULL[Full E2E<br/>Ubuntu Only<br/>All Other Scenarios]
+        subgraph FullE2E["Full E2E (Matrix - Ubuntu, All Scenarios)"]
+            E2E_S1[Scenario 1]
+            E2E_S2[Scenario 2]
+            E2E_SN[Scenario N...]
+        end
     end
 
     subgraph Release["📦 Release Stage"]
@@ -68,14 +72,24 @@ flowchart TD
     LINUX --> E2E_FEDORA
     LINUX --> E2E_ARCH
 
-    %% Full E2E runs after Basic E2E completes
-    E2E_UBUNTU_BASIC --> E2E_UBUNTU_FULL
-    E2E_DEBIAN --> E2E_UBUNTU_FULL
-    E2E_FEDORA --> E2E_UBUNTU_FULL
-    E2E_ARCH --> E2E_UBUNTU_FULL
+    %% Full E2E runs after Basic E2E completes (all scenarios in parallel)
+    E2E_UBUNTU_BASIC --> E2E_S1
+    E2E_DEBIAN --> E2E_S1
+    E2E_FEDORA --> E2E_S1
+    E2E_ARCH --> E2E_S1
+    E2E_UBUNTU_BASIC --> E2E_S2
+    E2E_DEBIAN --> E2E_S2
+    E2E_FEDORA --> E2E_S2
+    E2E_ARCH --> E2E_S2
+    E2E_UBUNTU_BASIC --> E2E_SN
+    E2E_DEBIAN --> E2E_SN
+    E2E_FEDORA --> E2E_SN
+    E2E_ARCH --> E2E_SN
 
     %% Release flow
-    E2E_UBUNTU_FULL --> ARTIFACTS
+    E2E_S1 --> ARTIFACTS
+    E2E_S2 --> ARTIFACTS
+    E2E_SN --> ARTIFACTS
     MAC --> ARTIFACTS
     WINDOWS --> ARTIFACTS
     ARTIFACTS --> RELEASE
@@ -102,8 +116,11 @@ flowchart LR
         A[Arch]
     end
 
-    subgraph Stage4["4️⃣ Full E2E (Ubuntu)"]
-        FULL[All Other Scenarios]
+    subgraph Stage4["4️⃣ Full E2E (Matrix - Ubuntu)"]
+        direction TB
+        S1[Scenario 1]
+        S2[Scenario 2]
+        SN[Scenario N...]
     end
 
     DOCKER --> BUILD
@@ -127,7 +144,8 @@ flowchart LR
 
 ### 4. E2E Test Stage (Linux Only)
 - **Basic E2E (Matrix)**: Runs on all 4 distros in parallel - validates OBS compatibility
-- **Full E2E (Ubuntu)**: Runs all remaining scenarios after basic E2E passes
+- **Full E2E (Matrix)**: Runs all scenarios in parallel on Ubuntu after basic E2E passes
+- Each scenario gets its own dedicated runner VM (no CPU contention)
 - Tests include A/V sync validation with PulseAudio
 
 ### 5. Release Stage
