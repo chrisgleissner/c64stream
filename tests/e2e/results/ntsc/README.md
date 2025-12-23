@@ -1,6 +1,6 @@
 # C64 Stream E2E Test Report
 
-Generated: 2025-10-18 23:52:01 UTC
+Generated: 2025-12-23 20:09:28 UTC
 
 ## Test configuration
 
@@ -14,7 +14,15 @@ Generated: 2025-10-18 23:52:01 UTC
 ## Build information
 
 - Project: c64stream
-- Version: 0.8.1
+- Version: 0.8.3
+
+## System information
+
+- OS: Ubuntu 24.04.3 LTS (kernel 6.14.0-37-generic)
+- OBS: - 32.0.2
+- CPU: Intel(R) Core(TM) i7-6700K CPU @ 4.00GHz (8 cores)
+- RAM: 31Gi total, 24Gi available
+- Disk (/): 1.8T total, 1.2T available
 
 ## Test results
 
@@ -24,14 +32,14 @@ Generated: 2025-10-18 23:52:01 UTC
 
 ### A/V Sync
 
-- ✅ Good synchronization (100.0%): avg offset 8.3ms, max 10.0ms
+- ✅ Acceptable synchronization (75.0%): avg offset 17.5ms, max 30.0ms
 
 #### Sync Details
 
-- 🟢 Pop #1 [L]: audio=2390.0ms, video=2383.3ms (frame 143), diff=6.7ms
-- 🟢 Pop #2 [R]: audio=3390.0ms, video=3383.3ms (frame 203), diff=6.7ms
-- 🟢 Pop #3 [L]: audio=4390.0ms, video=4400.0ms (frame 264), diff=10.0ms
-- 🟢 Pop #4 [R]: audio=5390.0ms, video=5400.0ms (frame 324), diff=10.0ms
+- 🟡 Pop #1 [L]: audio=7580.0ms, video=7550.0ms (frame 453), diff=30.0ms
+- 🟢 Pop #2 [R]: audio=8580.0ms, video=8566.7ms (frame 514), diff=13.3ms
+- 🟢 Pop #3 [L]: audio=9580.0ms, video=9566.7ms (frame 574), diff=13.3ms
+- 🟢 Pop #4 [R]: audio=10580.0ms, video=10566.7ms (frame 634), diff=13.3ms
 
 - Channels: LRLR
 - 🔁 Channel alternation: OK (alternating, starts with L)
@@ -39,11 +47,11 @@ Generated: 2025-10-18 23:52:01 UTC
 ### Video
 
 - Download: [c64_recording.mp4](c64_recording.mp4)
-- Duration: 13.6 s
+- Duration: 18.8 s
 
 
 ### Sample Frame
 
 ![Sample Frame](./c64_recording_still.png)
-- Top-left cycles through all C64 colours to check frame progression. Center shows scrolling colour bars. Bottom-right flashes with a pop sound for A/V sync checks.
-- Taken from frame 143 at 00:02.4 of the 13.6 s video above.
+- Top-left shows the frame index (color = frame_num % 16). Top-right shows a stable 4×4 tile of all 16 VIC colours (drift check). Center shows scrolling colour bars. Bottom-right flashes with a pop sound for A/V sync checks / afterglow tail.
+- Taken from 00:07.6 of the 18.8 s video above.

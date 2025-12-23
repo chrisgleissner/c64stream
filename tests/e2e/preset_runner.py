@@ -228,12 +228,10 @@ def run_assertions(
     properties_file: Path,
     verbose: bool = False,
 ) -> dict:
-    """Run the assertion framework against a recording."""
-    assertion_script = SCRIPT_DIR / "assertion_framework.py"
-
+    """Run the assertions against a recording."""
     cmd = [
         sys.executable,
-        str(assertion_script),
+        "-m", "assertions",
         "--mp4", str(recording),
         "--preset", preset_name.lower().replace(" ", "_"),
         "--properties", str(properties_file),

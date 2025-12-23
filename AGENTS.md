@@ -71,7 +71,7 @@ cd tests/e2e
 
 ```bash
 # Verify recording against scenario's OBS scene config
-python3 assertion_framework.py \
+python3 -m assertions \
     --mp4 results/ntsc_amber_monitor/c64_recording.mp4 \
     --scene-json scenarios/ntsc_amber_monitor/overrides/basic/scenes/C64StreamTest.json \
     --verbose

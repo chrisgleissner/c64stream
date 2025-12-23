@@ -1068,7 +1068,8 @@ class E2ETest:
 
             for recording in recording_files:
                 file_size = recording.stat().st_size
-                self.log(f"✅ Found recording: {recording} ({file_size} bytes)")
+                abs_path = recording.resolve()
+                self.log(f"✅ Found recording: {abs_path} ({file_size} bytes)")
 
                 # Basic validation - file should be larger than 10KB
                 if file_size > 10240:
@@ -1077,11 +1078,12 @@ class E2ETest:
                     try:
                         import shutil
                         shutil.move(str(recording), str(dest_file))
-                        self.log(f"✅ Moved recording to: {dest_file}")
-                        return str(dest_file)
+                        dest_abs = dest_file.resolve()
+                        self.log(f"✅ Moved recording to: {dest_abs}")
+                        return str(dest_abs)
                     except Exception as e:
                         self.log(f"Warning: Could not move recording: {e}")
-                        return str(recording)
+                        return str(abs_path)
 
         self.log("❌ No valid recording files found")
         return None

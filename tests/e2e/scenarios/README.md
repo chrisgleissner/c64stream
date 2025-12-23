@@ -12,7 +12,7 @@ E2E test scenarios for validating C64 Stream plugin effects and configurations.
 ./e2e.sh --scenario ntsc_amber_monitor --verbose
 
 # Run assertion verification against recording
-python3 assertion_framework.py \
+python3 -m assertions \
     --mp4 test_output/c64_recording.mp4 \
     --scenario ntsc_amber_monitor \
     --verbose
@@ -102,7 +102,7 @@ assertions:
 
 ## Base Template
 
-The `base_template.json` contains the common OBS scene structure. 
+The `base_template.json` contains the common OBS scene structure.
 The `scenario_loader.py` merges preset settings and overrides into this template at runtime.
 
 ## Test Pattern Notes

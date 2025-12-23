@@ -1,17 +1,17 @@
 {
-    "current_scene": "C64 Test Scene",
-    "current_program_scene": "C64 Test Scene",
+    "current_scene": "Scene",
+    "current_program_scene": "Scene",
     "scene_order": [
         {
-            "name": "C64 Test Scene"
+            "name": "Scene"
         }
     ],
     "name": "C64StreamTest",
     "sources": [
         {
             "prev_ver": 536870914,
-            "name": "C64 Test Scene",
-            "uuid": "e9c5b768-5a72-4068-b605-642a6d5aa70c",
+            "name": "Scene",
+            "uuid": "056e6d9e-701e-4014-9914-6ca3d3d1947f",
             "id": "scene",
             "versioned_id": "scene",
             "settings": {
@@ -20,14 +20,10 @@
                 "items": [
                     {
                         "name": "C64 Stream",
-                        "source_uuid": "af3c8fd6-5935-480e-9031-371a55ce857f",
+                        "source_uuid": "e4232553-c3cc-4d08-bbf9-9fce742c85c1",
                         "visible": true,
                         "locked": false,
                         "rot": 0.0,
-                        "scale_ref": {
-                            "x": 1920.0,
-                            "y": 1080.0
-                        },
                         "align": 5,
                         "bounds_type": 0,
                         "bounds_align": 0,
@@ -39,26 +35,14 @@
                         "id": 1,
                         "group_item_backup": false,
                         "pos": {
-                            "x": 0.0,
+                            "x": 198.0,
                             "y": 0.0
-                        },
-                        "pos_rel": {
-                            "x": -1.7777777910232544,
-                            "y": -1.0
                         },
                         "scale": {
-                            "x": 1.0,
-                            "y": 1.0
-                        },
-                        "scale_rel": {
-                            "x": 1.0,
-                            "y": 1.0
+                            "x": 3.9661457538604736,
+                            "y": 3.966911792755127
                         },
                         "bounds": {
-                            "x": 0.0,
-                            "y": 0.0
-                        },
-                        "bounds_rel": {
                             "x": 0.0,
                             "y": 0.0
                         },
@@ -100,23 +84,12 @@
         {
             "prev_ver": 536870914,
             "name": "C64 Stream",
-            "uuid": "af3c8fd6-5935-480e-9031-371a55ce857f",
-            "id": "c64_source_dev",
-            "versioned_id": "c64_source_dev",
+            "uuid": "e4232553-c3cc-4d08-bbf9-9fce742c85c1",
+            "id": "c64_source",
+            "versioned_id": "c64_source",
             "settings": {
-                "auto_detect_ip": false,
-                "dns_server_ip": "127.0.0.1",
-                "obs_ip_address": "127.0.0.1",
-                "video_port": 11000,
-                "audio_port": 11001,
-                "control_port": 6400,
                 "record_video": false,
-                "record_csv": true,
-                "afterglow_duration_ms": 0,
-                "afterglow_curve": 2,
-                "tint_mode": 0,
-                "tint_strength": 0.0,
-                "c64_host": "localhost"
+                "record_csv": true
             },
             "mixers": 255,
             "sync": 0,
@@ -172,7 +145,7 @@
     "transition_duration": 300,
     "preview_locked": false,
     "scaling_enabled": false,
-    "scaling_level": -10,
+    "scaling_level": -17,
     "scaling_off_x": 0.0,
     "scaling_off_y": 0.0,
     "virtual-camera": {
@@ -203,5 +176,5 @@
         "x": 1920,
         "y": 1080
     },
-    "version": 2
+    "version": 1
 }

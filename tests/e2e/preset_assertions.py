@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from assertion_framework import (
+from assertions import (
     AfterglowAssertion,
     AssertionRunner,
     AudioAssertion,

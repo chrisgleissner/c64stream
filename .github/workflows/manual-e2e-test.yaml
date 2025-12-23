@@ -165,7 +165,7 @@ jobs:
           fi
 
           echo "format=${{ inputs.format || 'PAL' }}" >> $GITHUB_OUTPUT
-          echo "frames=${{ inputs.frames || '250' }}" >> $GITHUB_OUTPUT
+          echo "frames=${{ inputs.frames || '300' }}" >> $GITHUB_OUTPUT
 
       - name: Install System Dependencies 🛍️
         run: |

@@ -23,5 +23,5 @@ jobs:
     with:
       run_e2e: true
       e2e_format: 'PAL'
-      e2e_frames: '250'
+      e2e_frames: '300'
     secrets: inherit
