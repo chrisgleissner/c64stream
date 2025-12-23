@@ -93,6 +93,106 @@ Notes on timing and FPS:
 - Header: sequence number
 - Payload: 192 stereo samples, 440Hz carrier with heartbeat markers
 
+## Scenarios
+
+E2E tests can be run with named scenarios that configure specific effect presets and test configurations.
+
+### Listing Scenarios
+
+```bash
+./e2e.sh --list-scenarios
+```
+
+Available scenarios include:
+
+| Scenario             | Format | Description                          |
+| -------------------- | ------ | ------------------------------------ |
+| ntsc_default         | NTSC   | Default preset (no effects)          |
+| ntsc_classic_crt     | NTSC   | Classic CRT with scanlines and blur  |
+| ntsc_amber_monitor   | NTSC   | Amber monochrome tint                |
+| ntsc_green_monitor   | NTSC   | Green monochrome tint                |
+| ntsc_sharp_pixels    | NTSC   | Sharp pixel scaling                  |
+| ntsc_phosphor_glow   | NTSC   | Afterglow and bloom effects          |
+| ntsc_vintage_tv      | NTSC   | Vintage TV simulation                |
+| ntsc_arcade_cabinet  | NTSC   | Strong scanlines for arcade look     |
+| pal_sharp_pixels     | PAL    | PAL format with sharp pixels         |
+| scanlines            | PAL    | Scanline uniformity test             |
+
+### Running a Scenario
+
+```bash
+# Run specific scenario
+./e2e.sh --scenario ntsc_amber_monitor --verbose
+
+# Scenario auto-sets format; override if needed
+./e2e.sh --scenario pal_sharp_pixels --frames 300
+```
+
+### Scenario Structure
+
+Each scenario is defined in `tests/e2e/scenarios/{name}/`:
+
+```
+scenarios/ntsc_amber_monitor/
+├── scenario.yaml                    # Scenario metadata
+└── overrides/
+    └── basic/
+        └── scenes/
+            └── C64StreamTest.json   # OBS scene with effect settings
+```
+
+The `scenario.yaml` file:
+
+```yaml
+name: NTSC Amber Monitor
+format: NTSC
+overrides_dir: overrides
+```
+
+Effect settings are embedded directly in the OBS scene JSON under `sources[].settings`, ensuring exact reproducibility.
+
+## Assertion Framework
+
+The assertion framework (`assertion_framework.py`) validates E2E recordings against expected effect behaviors.
+
+### Usage
+
+```bash
+# Verify recording against OBS scene configuration
+python3 assertion_framework.py \
+    --mp4 results/ntsc_amber_monitor/c64_recording.mp4 \
+    --scene-json scenarios/ntsc_amber_monitor/overrides/basic/scenes/C64StreamTest.json \
+    --verbose
+
+# Verify against a named preset
+python3 assertion_framework.py \
+    --mp4 recording.mp4 \
+    --preset "Arcade Cabinet" \
+    --verbose
+
+# List available presets
+python3 assertion_framework.py --list-presets
+```
+
+### Assertion Types
+
+| Assertion      | Description                                               |
+| -------------- | --------------------------------------------------------- |
+| VideoQuality   | Resolution, duration, non-black frame ratio               |
+| Audio          | Sample rate, channel count                                |
+| Tint           | Amber/Green color verification via dominant channel ratio |
+| Afterglow      | Persistence decay detection in pop ROI                    |
+| Scanlines      | Line uniformity analysis                                  |
+
+### Per-Preset Assertions
+
+The framework automatically selects assertions based on the effect preset:
+
+- **Default/Sharp Pixels**: VideoQuality, Audio (no effects to verify)
+- **Amber/Green Monitor**: VideoQuality, Audio, Tint
+- **Phosphor Glow**: VideoQuality, Audio, Afterglow
+- **Classic CRT/Vintage TV/Arcade Cabinet**: VideoQuality, Audio, Scanlines
+
 ## Validation
 
 - **Network CSV**: Packet reception timestamps and metadata
@@ -116,7 +216,33 @@ The harness detects audio and video “pop” markers and pairs them to measure 
 
 ## CI usage
 
-E2E tests run in CI on Ubuntu runners. The harness adapts to headless environments using Xvfb and enforces CFR in compression. Artifacts and the Markdown report are uploaded for inspection.
+E2E tests run in CI on Ubuntu runners (and optionally Debian, Fedora, Arch). The harness adapts to headless environments using Xvfb and enforces CFR in compression. Artifacts and the Markdown report are uploaded for inspection.
+
+### Running Scenarios in CI
+
+The CI workflow supports running specific scenarios via the `e2e_scenario` input:
+
+```yaml
+# Single scenario
+inputs:
+  run_e2e: true
+  e2e_scenario: "ntsc_amber_monitor"
+
+# Default (baseline test without scenario)
+inputs:
+  run_e2e: true
+```
+
+### Multi-Distro Matrix
+
+By default, E2E tests run on 4 Linux distributions:
+
+- Ubuntu 24.04
+- Debian 12
+- Fedora 40
+- Arch Linux
+
+This ensures the plugin builds and functions correctly across different package ecosystems.
 
 ## Troubleshooting
 
