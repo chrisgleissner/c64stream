@@ -41,6 +41,10 @@ DEFAULT_X11_DISPLAY=":99"
 DEFAULT_MONITOR_RESOURCES=false  # Resource monitoring for CI
 DEFAULT_SCENARIO_OVERRIDES=""
 DEFAULT_SCENARIO_NAME=""
+DEFAULT_SCENARIO=""
+
+# Scenario directory
+SCENARIOS_DIR="${TEST_DIR}/scenarios"
 
 # Color output
 RED='\033[0;31m'
@@ -210,12 +214,18 @@ EXAMPLES:
     # Full integration test with OBS (when available)
     $0 --obs --duration 10
 
+    # Run a specific scenario (auto-discovers format and settings)
+    $0 --scenario ntsc_amber_monitor --verbose
+
+    # List available scenarios
+    $0 --list-scenarios
+
 PACKET GENERATION:
     PAL:  50 FPS, 384x272 resolution, ~3400 packets/sec
     NTSC: 60 FPS, 384x240 resolution, ~4080 packets/sec
 
     Video packets: 780 bytes, ~300μs intervals
-    Audio packets: 770 bytes, ~4ms intervals
+    Audio packets: ~4ms intervals
 
 OUTPUT:
     Test artifacts are saved to: \${OUTPUT_DIR}
@@ -224,6 +234,68 @@ OUTPUT:
     - Recordings (if OBS enabled): recording_*.mkv
 
 EOF
+}
+
+# List available scenarios
+list_scenarios() {
+    echo "Available E2E scenarios:"
+    echo ""
+    if [[ -d "${SCENARIOS_DIR}" ]]; then
+        for scenario_dir in "${SCENARIOS_DIR}"/*/; do
+            if [[ -f "${scenario_dir}scenario.yaml" ]]; then
+                local name
+                name=$(basename "${scenario_dir}")
+                local display_name format
+                display_name=$(grep "^name:" "${scenario_dir}scenario.yaml" | sed 's/^name: *//')
+                format=$(grep "^format:" "${scenario_dir}scenario.yaml" | sed 's/^format: *//')
+                printf "  %-25s %s (%s)\n" "${name}" "${display_name}" "${format}"
+            fi
+        done
+    else
+        echo "  No scenarios found in ${SCENARIOS_DIR}"
+    fi
+    echo ""
+}
+
+# Load scenario configuration from scenario.yaml
+load_scenario() {
+    local scenario_name="$1"
+    local scenario_dir="${SCENARIOS_DIR}/${scenario_name}"
+    local scenario_yaml="${scenario_dir}/scenario.yaml"
+
+    if [[ ! -f "${scenario_yaml}" ]]; then
+        log_error "Scenario not found: ${scenario_name}"
+        log_error "Expected: ${scenario_yaml}"
+        log_info "Use --list-scenarios to see available scenarios"
+        exit 1
+    fi
+
+    log_info "Loading scenario: ${scenario_name}"
+
+    # Parse scenario.yaml
+    local name format overrides_dir
+    name=$(grep "^name:" "${scenario_yaml}" | sed 's/^name: *//')
+    format=$(grep "^format:" "${scenario_yaml}" | sed 's/^format: *//')
+    overrides_dir=$(grep "^overrides_dir:" "${scenario_yaml}" | sed 's/^overrides_dir: *//')
+
+    # Set FORMAT from scenario if not explicitly set via CLI
+    if [[ "${FORMAT}" == "${DEFAULT_FORMAT}" ]]; then
+        FORMAT="${format}"
+        log_info "  Format: ${FORMAT} (from scenario)"
+    else
+        log_info "  Format: ${FORMAT} (from CLI, overrides scenario: ${format})"
+    fi
+
+    # Set SCENARIO_NAME if not already set
+    if [[ -z "${SCENARIO_NAME}" ]]; then
+        SCENARIO_NAME="${name}"
+    fi
+
+    # Set SCENARIO_OVERRIDES if not already set
+    if [[ -z "${SCENARIO_OVERRIDES}" ]]; then
+        SCENARIO_OVERRIDES="${scenario_dir}/${overrides_dir}"
+        log_info "  Overrides: ${SCENARIO_OVERRIDES}"
+    fi
 }
 
 # Parse command line arguments
@@ -241,6 +313,7 @@ parse_args() {
     MONITOR_RESOURCES="${DEFAULT_MONITOR_RESOURCES}"
     SCENARIO_OVERRIDES="${DEFAULT_SCENARIO_OVERRIDES}"
     SCENARIO_NAME="${DEFAULT_SCENARIO_NAME}"
+    SCENARIO="${DEFAULT_SCENARIO}"
 
     while [[ $# -gt 0 ]]; do
         case $1 in
@@ -320,6 +393,10 @@ parse_args() {
                 DEFAULT_X11_DISPLAY="$2"
                 shift 2
                 ;;
+            --scenario)
+                SCENARIO="$2"
+                shift 2
+                ;;
             --scenario-overrides)
                 SCENARIO_OVERRIDES="$2"
                 shift 2
@@ -327,6 +404,10 @@ parse_args() {
             --scenario-name)
                 SCENARIO_NAME="$2"
                 shift 2
+                ;;
+            --list-scenarios)
+                list_scenarios
+                exit 0
                 ;;
             -h|--help)
                 show_help
@@ -339,6 +420,11 @@ parse_args() {
                 ;;
         esac
     done
+
+    # Load scenario configuration if specified
+    if [[ -n "${SCENARIO}" ]]; then
+        load_scenario "${SCENARIO}"
+    fi
 
     # Calculate frames from duration if specified
     if [[ -n "${DURATION}" ]]; then
