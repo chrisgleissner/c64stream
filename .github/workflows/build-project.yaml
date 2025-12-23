@@ -24,11 +24,6 @@ on:
         required: false
         default: ''
         type: string
-      build_linux_variants:
-        description: 'Build per-distro Linux tarball artifacts (ubuntu/debian/fedora/arch)'
-        required: false
-        default: false
-        type: boolean
     outputs:
       pluginName:
         description: Project name detected by parsing build spec file
@@ -463,91 +458,6 @@ jobs:
           name: ${{ steps.setup.outputs.artifactName }}-dbgsym
           path: release/*dbgsym.ddeb
 
-  linux-build-variants:
-    name: Linux Artifact (${{ matrix.display_name }}) 📦
-    if: ${{ inputs.build_linux_variants }}
-    runs-on: ubuntu-24.04
-    needs: [check-event, ensure-docker-images]
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - distro: ubuntu
-            image_tag: ghcr.io/${{ github.repository }}/ubuntu-build:latest
-            display_name: Ubuntu 24.04
-            variant: ubuntu-24.04-x86_64
-          - distro: debian
-            image_tag: ghcr.io/${{ github.repository }}/debian-build:latest
-            display_name: Debian 12
-            variant: debian-12-x86_64
-          - distro: fedora
-            image_tag: ghcr.io/${{ github.repository }}/fedora-build:latest
-            display_name: Fedora 40
-            variant: fedora-40-x86_64
-          - distro: arch
-            image_tag: ghcr.io/${{ github.repository }}/arch-build:latest
-            display_name: Arch Linux
-            variant: arch-linux-x86_64
-    defaults:
-      run:
-        shell: bash
-    container:
-      image: ${{ matrix.image_tag }}
-      credentials:
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-      options: >-
-        --user root
-        --privileged
-    steps:
-      - name: Checkout Repository 📥
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          fetch-depth: 0
-
-      - name: Build Plugin 🧱
-        run: |
-          : Build Plugin 🧱
-          export PATH="/usr/local/bin:$PATH"
-
-          cmake --preset ubuntu-x86_64 -DCMAKE_INSTALL_PREFIX=/usr
-          cmake --build build_x86_64 --config ${{ needs.check-event.outputs.config }} --parallel
-
-          if [[ ! -f "build_x86_64/c64stream.so" ]]; then
-            echo "❌ build_x86_64/c64stream.so not found"
-            ls -la build_x86_64 || true
-            exit 1
-          fi
-
-      - name: Package Linux Tarball 📦
-        id: pkg
-        run: |
-          : Package Linux Tarball 📦
-          plugin_name="${{ needs.check-event.outputs.pluginName }}"
-          version="${{ needs.check-event.outputs.pluginVersion }}"
-          variant="${{ matrix.variant }}"
-
-          rm -rf package release
-          mkdir -p "package/c64stream/bin/64bit" "package/c64stream/data" release
-
-          cp "build_x86_64/c64stream.so" "package/c64stream/bin/64bit/c64stream.so"
-          cp -r data/* "package/c64stream/data/"
-
-          out="release/${plugin_name}-${version}-${variant}.tar.xz"
-          tar -C package -cJf "${out}" c64stream
-
-          echo "artifact_name=${plugin_name}-${version}-${variant}-${{ needs.check-event.outputs.commitHash }}" >> "$GITHUB_OUTPUT"
-          echo "output_tar=${out}" >> "$GITHUB_OUTPUT"
-          ls -la release
-
-      - name: Upload Linux Artifact 📤
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ steps.pkg.outputs.artifact_name }}
-          path: ${{ steps.pkg.outputs.output_tar }}
-          if-no-files-found: error
-
   windows-build:
     name: Build for Windows 🪟
     runs-on: windows-2022
@@ -603,33 +513,17 @@ jobs:
 
 
 
-  # Step 3: E2E Test (Multi-Distro)
+  # E2E Test (uses Ubuntu build artifact)
   e2e-test:
-    name: E2E Test (${{ matrix.display_name }}) 🧪
+    name: E2E Test 🧪
     if: ${{ inputs.run_e2e }}
     runs-on: ubuntu-24.04
-    needs: [check-event, ensure-docker-images]
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - distro: ubuntu
-            image_tag: ghcr.io/${{ github.repository }}/ubuntu-build:latest
-            display_name: Ubuntu 24.04
-          - distro: debian
-            image_tag: ghcr.io/${{ github.repository }}/debian-build:latest
-            display_name: Debian 12
-          - distro: fedora
-            image_tag: ghcr.io/${{ github.repository }}/fedora-build:latest
-            display_name: Fedora 40
-          - distro: arch
-            image_tag: ghcr.io/${{ github.repository }}/arch-build:latest
-            display_name: Arch Linux
+    needs: [check-event, ubuntu-build]
     defaults:
       run:
         shell: bash
     container:
-      image: ${{ matrix.image_tag }}
+      image: ghcr.io/${{ github.repository }}/ubuntu-build:latest
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -645,26 +539,19 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      - name: Build Plugin 🧱
-        run: |
-          : Build Plugin 🧱
-          export PATH="/usr/local/bin:$PATH"
-
-          cmake --preset ubuntu-x86_64 -DCMAKE_INSTALL_PREFIX=/usr
-          cmake --build build_x86_64 --config RelWithDebInfo --parallel
-
-          if [[ ! -f "build_x86_64/c64stream.so" ]]; then
-            echo "❌ build_x86_64/c64stream.so not found"
-            ls -la build_x86_64 || true
-            exit 1
-          fi
+      - name: Download Plugin Artifact 📥
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.ubuntu-build.outputs.artifactName }}
+          path: artifact
 
       - name: Install Plugin 📦
         run: |
           : Install Plugin 📦
 
+          # Install from downloaded artifact
           mkdir -p "$HOME/.config/obs-studio/plugins/c64stream/bin/64bit"
-          cp "build_x86_64/c64stream.so" "$HOME/.config/obs-studio/plugins/c64stream/bin/64bit/c64stream.so"
+          cp "artifact/c64stream.so" "$HOME/.config/obs-studio/plugins/c64stream/bin/64bit/c64stream.so"
 
           mkdir -p "$HOME/.config/obs-studio/plugins/c64stream/data"
           cp -r data/* "$HOME/.config/obs-studio/plugins/c64stream/data/"
@@ -688,47 +575,6 @@ jobs:
             cat "${SYS_DATA_DIR}/properties.ini"
           else
             echo "❌ E2E CI properties file not found: tests/e2e/properties_e2e_ci.ini"
-          fi
-
-      - name: Ensure User Plugin Mirror 🔁
-        run: |
-          : Ensure User Plugin Mirror 🔁
-          set -e
-          USER_PLUGIN_DIR="$HOME/.config/obs-studio/plugins/c64stream/bin/64bit"
-          mkdir -p "${USER_PLUGIN_DIR}"
-
-          DEST_SO="${USER_PLUGIN_DIR}/c64stream.so"
-
-          # Prefer system-installed .so from package, else fall back to our just-built .so
-          SYS_SO=""
-          for path in \
-            "/usr/lib/obs-plugins/c64stream.so" \
-            "/usr/lib/x86_64-linux-gnu/obs-plugins/c64stream.so" \
-            "$HOME/.config/obs-studio/plugins/c64stream/bin/64bit/c64stream.so" \
-            "build_x86_64/c64stream.so"; do
-            if [[ -f "${path}" ]]; then
-              SYS_SO="${path}"
-              break
-            fi
-          done
-
-          if [[ -n "${SYS_SO}" ]]; then
-            echo "📦 Mirroring plugin to user dir from: ${SYS_SO}"
-            if [[ -f "${DEST_SO}" ]] && [[ "$(readlink -f "${SYS_SO}")" == "$(readlink -f "${DEST_SO}")" ]]; then
-              echo "ℹ️ Plugin already present in user dir; skipping copy"
-            else
-              cp -f "${SYS_SO}" "${DEST_SO}"
-            fi
-            ls -la "${DEST_SO}"
-          else
-            echo "❌ Could not locate c64stream.so to mirror"
-            exit 1
-          fi
-
-          # Ensure user data dir exists and seeded from system data
-          if [[ -d "/usr/share/obs/obs-plugins/c64stream" ]]; then
-            mkdir -p "$HOME/.config/obs-studio/plugins/c64stream/data"
-            cp -r /usr/share/obs/obs-plugins/c64stream/* "$HOME/.config/obs-studio/plugins/c64stream/data/" || true
           fi
 
       - name: Setup X11 Display 🖥️
@@ -879,7 +725,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-test-results-${{ matrix.distro }}-${{ needs.check-event.outputs.commitHash }}
+          name: e2e-test-results-${{ needs.check-event.outputs.commitHash }}
           path: e2e-artifacts/
           if-no-files-found: warn
 

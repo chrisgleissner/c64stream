@@ -23,7 +23,6 @@ jobs:
       run_e2e: true
       e2e_format: 'PAL'
       e2e_frames: '300'
-      build_linux_variants: true
     secrets: inherit
 
   manual-e2e:
