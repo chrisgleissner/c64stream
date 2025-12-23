@@ -513,17 +513,33 @@ jobs:
 
 
 
-  # E2E Test (uses Ubuntu build artifact)
+  # E2E Test (Multi-Distro) - runs basic E2E on all Linux distributions
   e2e-test:
-    name: E2E Test 🧪
+    name: E2E Test (${{ matrix.display_name }}) 🧪
     if: ${{ inputs.run_e2e }}
     runs-on: ubuntu-24.04
-    needs: [check-event, ubuntu-build]
+    needs: [check-event, ensure-docker-images]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: ubuntu
+            image_tag: ghcr.io/${{ github.repository }}/ubuntu-build:latest
+            display_name: Ubuntu 24.04
+          - distro: debian
+            image_tag: ghcr.io/${{ github.repository }}/debian-build:latest
+            display_name: Debian 12
+          - distro: fedora
+            image_tag: ghcr.io/${{ github.repository }}/fedora-build:latest
+            display_name: Fedora 40
+          - distro: arch
+            image_tag: ghcr.io/${{ github.repository }}/arch-build:latest
+            display_name: Arch Linux
     defaults:
       run:
         shell: bash
     container:
-      image: ghcr.io/${{ github.repository }}/ubuntu-build:latest
+      image: ${{ matrix.image_tag }}
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -539,19 +555,26 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      - name: Download Plugin Artifact 📥
-        uses: actions/download-artifact@v4
-        with:
-          name: ${{ needs.ubuntu-build.outputs.artifactName }}
-          path: artifact
+      - name: Build Plugin 🧱
+        run: |
+          : Build Plugin 🧱
+          export PATH="/usr/local/bin:$PATH"
+
+          cmake --preset ubuntu-x86_64 -DCMAKE_INSTALL_PREFIX=/usr
+          cmake --build build_x86_64 --config RelWithDebInfo --parallel
+
+          if [[ ! -f "build_x86_64/c64stream.so" ]]; then
+            echo "❌ build_x86_64/c64stream.so not found"
+            ls -la build_x86_64 || true
+            exit 1
+          fi
 
       - name: Install Plugin 📦
         run: |
           : Install Plugin 📦
 
-          # Install from downloaded artifact
           mkdir -p "$HOME/.config/obs-studio/plugins/c64stream/bin/64bit"
-          cp "artifact/c64stream.so" "$HOME/.config/obs-studio/plugins/c64stream/bin/64bit/c64stream.so"
+          cp "build_x86_64/c64stream.so" "$HOME/.config/obs-studio/plugins/c64stream/bin/64bit/c64stream.so"
 
           mkdir -p "$HOME/.config/obs-studio/plugins/c64stream/data"
           cp -r data/* "$HOME/.config/obs-studio/plugins/c64stream/data/"
@@ -762,7 +785,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-test-results-${{ needs.check-event.outputs.commitHash }}
+          name: e2e-test-results-${{ matrix.distro }}-${{ needs.check-event.outputs.commitHash }}
           path: e2e-artifacts/
           if-no-files-found: warn
 
@@ -773,9 +796,9 @@ jobs:
 
           # Check if the E2E test step passed or failed
           if [[ "${{ steps.run_e2e.outcome }}" == "success" ]]; then
-            echo "✅ **E2E Tests PASSED** - All validations successful!" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **E2E Tests PASSED on ${{ matrix.display_name }}** - All validations successful!" >> $GITHUB_STEP_SUMMARY
             echo "📊 E2E test results are available in the artifacts." >> $GITHUB_STEP_SUMMARY
           else
-            echo "❌ **E2E Tests FAILED**" >> $GITHUB_STEP_SUMMARY
+            echo "❌ **E2E Tests FAILED on ${{ matrix.display_name }}**" >> $GITHUB_STEP_SUMMARY
             echo "📦 Check E2E artifacts for debugging info." >> $GITHUB_STEP_SUMMARY
           fi

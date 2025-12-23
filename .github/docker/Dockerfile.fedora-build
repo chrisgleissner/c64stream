@@ -81,7 +81,9 @@ RUN dnf install -y \
         python3-opencv \
         python3-pillow \
         xorg-x11-server-Xvfb \
-        ffmpeg-free
+        ffmpeg-free \
+        pulseaudio \
+        pulseaudio-utils
 
 # Clean up DNF cache
 RUN dnf clean all

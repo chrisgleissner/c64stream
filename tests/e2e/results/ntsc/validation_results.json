@@ -9,7 +9,7 @@
   },
   "video_recording": {
     "status": "pass",
-    "details": "13.7 MB"
+    "details": "13.6 MB"
   },
   "packet_integrity": {
     "status": "pass",
@@ -19,26 +19,26 @@
     "total_audio_pops": 4,
     "total_analyzed": 4,
     "total_video_pops": 4,
-    "perfect_sync_count": 3,
-    "sync_accuracy_percent": 75.0,
+    "perfect_sync_count": 4,
+    "sync_accuracy_percent": 100.0,
     "tolerance_ms": 25,
     "sync_details": [
       {
-        "audio_pop_time_ms": 7580,
+        "audio_pop_time_ms": 7560,
         "closest_video_pop_ms": 7550.0,
         "closest_video_pop_frame": 453,
-        "difference_ms": 30.0,
-        "is_synced": false,
+        "difference_ms": 10.0,
+        "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
         "channel": "L",
-        "traffic": "yellow"
+        "traffic": "green"
       },
       {
-        "audio_pop_time_ms": 8580,
+        "audio_pop_time_ms": 8560,
         "closest_video_pop_ms": 8566.666666666666,
         "closest_video_pop_frame": 514,
-        "difference_ms": 13.33333333333394,
+        "difference_ms": 6.66666666666606,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -46,10 +46,10 @@
         "traffic": "green"
       },
       {
-        "audio_pop_time_ms": 9580,
+        "audio_pop_time_ms": 9570,
         "closest_video_pop_ms": 9566.666666666666,
         "closest_video_pop_frame": 574,
-        "difference_ms": 13.33333333333394,
+        "difference_ms": 3.3333333333339397,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -68,7 +68,7 @@
         "traffic": "green"
       }
     ],
-    "is_perfectly_synced": false,
+    "is_perfectly_synced": true,
     "last_event_within_limit": true,
     "duration_ms": 18752.0,
     "video_pop_times_ms": [
@@ -84,7 +84,7 @@
       634
     ],
     "traffic": [
-      "yellow",
+      "green",
       "green",
       "green",
       "green"
@@ -92,6 +92,6 @@
   },
   "av_sync": {
     "status": "pass",
-    "details": "3/4 analyzed pops synced"
+    "details": "4/4 analyzed pops synced"
   }
 }

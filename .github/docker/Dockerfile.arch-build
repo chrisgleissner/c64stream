@@ -69,7 +69,8 @@ RUN pacman -S --noconfirm \
         python-numpy \
         python-opencv \
         python-pillow \
-        xorg-server-xvfb
+        xorg-server-xvfb \
+        pulseaudio
 
 # Clean up pacman cache
 RUN pacman -Scc --noconfirm
