@@ -274,8 +274,12 @@ jobs:
             created_timestamp=$(docker inspect "${image_tag}" --format='{{.Created}}' 2>/dev/null || echo "")
             if [[ -n "${created_timestamp}" ]]; then
               echo "🔍 Checking for Dockerfile changes since image creation: ${created_timestamp}"
-              dockerfile_commits=$(git log --since="${created_timestamp}" --oneline --pretty=format:"%H %ci %s" -- "${dockerfile_path}" 2>/dev/null)
-              commits_since_image=$(echo "${dockerfile_commits}" | grep -c . 2>/dev/null || echo "0")
+              dockerfile_commits=$(git log --since="${created_timestamp}" --oneline --pretty=format:"%H %ci %s" -- "${dockerfile_path}" 2>/dev/null || true)
+              if [[ -n "${dockerfile_commits}" ]]; then
+                commits_since_image=$(echo "${dockerfile_commits}" | wc -l | tr -d '[:space:]')
+              else
+                commits_since_image=0
+              fi
 
               if [[ "${commits_since_image}" -gt 0 ]]; then
                 echo "🔧 Found ${commits_since_image} Dockerfile commits since image creation:"
@@ -290,12 +294,9 @@ jobs:
               age_seconds=$(( current_epoch - image_created_epoch ))
               age_hours=$(( age_seconds / 3600 ))
               age_days=$(( age_seconds / 86400 ))
-              age_seconds=$((10#${age_seconds} + 0))
-              age_hours=$((10#${age_hours} + 0))
-              age_days=$((10#${age_days} + 0))
 
-              # 7 days = 1209600 seconds
-              max_age_seconds=1209600
+              # 7 days = 604800 seconds
+              max_age_seconds=604800
               echo "📅 Image created: ${created_timestamp}"
               echo "📅 Image age: ${age_days}d ${age_hours}h (${age_seconds}s), Dockerfile unchanged"
 
