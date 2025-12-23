@@ -231,128 +231,19 @@ jobs:
           name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-macos-universal-${{ needs.check-event.outputs.commitHash }}-dSYMs
           path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-macos-universal-dSYMs.*
 
-  # Step 1: Ensure Docker Image (uses existing or builds if needed)
-  ensure-docker-image:
-    name: Ensure Docker Image 🐳
-    runs-on: ubuntu-24.04
-    needs: [check-event]
-    defaults:
-      run:
-        shell: bash
-    outputs:
-      image-tag: ${{ steps.image.outputs.tag }}
-    steps:
-      - name: Checkout Repository 📥
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Check Image Age 🔍
-        id: check
-        run: |
-          : Check Image Age 🔍
-
-          dockerfile_path=".github/docker/Dockerfile.ubuntu-build"
-
-          # Check if Docker image exists and get its creation timestamp
-          if docker manifest inspect ghcr.io/${{ github.repository }}/ubuntu-build:latest >/dev/null 2>&1; then
-            # Pull image to inspect it locally
-            docker pull ghcr.io/${{ github.repository }}/ubuntu-build:latest >/dev/null 2>&1
-
-            created_timestamp=$(docker inspect ghcr.io/${{ github.repository }}/ubuntu-build:latest --format='{{.Created}}' 2>/dev/null || echo "")
-
-            if [[ -n "$created_timestamp" ]]; then
-              # Check if Dockerfile has been modified since the image was created
-              image_created_epoch=$(date -d "$created_timestamp" +%s 2>/dev/null || echo "0")
-
-              # Find commits since the image was created that modified the Dockerfile
-              echo "🔍 Checking for Dockerfile changes since image creation: $created_timestamp"
-              dockerfile_commits=$(git log --since="$created_timestamp" --oneline --pretty=format:"%H %ci %s" -- "$dockerfile_path" 2>/dev/null)
-              commits_since_image=$(echo "$dockerfile_commits" | grep -c . 2>/dev/null || echo "0")
-
-              if [[ "$commits_since_image" -gt 0 ]]; then
-                echo "🔧 Found $commits_since_image Dockerfile commits since image creation:"
-                echo "$dockerfile_commits"
-                echo "needs_build=true" >> $GITHUB_OUTPUT
-                echo "🔧 Dockerfile modified since image creation - rebuilding"
-                exit 0
-              fi
-
-              # No Dockerfile changes - check precise image age
-              current_epoch=$(date +%s)
-              age_seconds=$(( current_epoch - image_created_epoch ))
-              age_hours=$(( age_seconds / 3600 ))
-              age_days=$(( age_seconds / 86400 ))
-
-              # Ensure variables are proper integers (remove leading zeros)
-              age_seconds=$((10#$age_seconds + 0))
-              age_hours=$((10#$age_hours + 0))
-              age_days=$((10#$age_days + 0))
-
-              # 7 days = 1209600 seconds
-              max_age_seconds=1209600
-
-              echo "📅 Image created: $created_timestamp"
-              echo "📅 Image age: ${age_days}d ${age_hours}h (${age_seconds}s), no Dockerfile changes since creation"
-
-              if [ "$age_seconds" -le "$max_age_seconds" ]; then
-                echo "needs_build=false" >> $GITHUB_OUTPUT
-                echo "✅ Using existing image (${age_days}d ${age_hours}h old, Dockerfile unchanged)"
-                exit 0
-              else
-                echo "needs_build=true" >> $GITHUB_OUTPUT
-                echo "🔄 Image is ${age_days}d ${age_hours}h old - rebuilding for freshness"
-                exit 0
-              fi
-            fi
-          fi
-
-          echo "needs_build=true" >> $GITHUB_OUTPUT
-          echo "🔨 Image not found - will build new image"
-
-      - name: Set up Docker Buildx 🔧
-        if: steps.check.outputs.needs_build == 'true'
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to Container Registry 🔑
-        if: steps.check.outputs.needs_build == 'true'
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and Push Docker Image 🚀
-        if: steps.check.outputs.needs_build == 'true'
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: .github/docker/Dockerfile.ubuntu-build
-          platforms: linux/amd64
-          push: true
-          tags: ghcr.io/${{ github.repository }}/ubuntu-build:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Set Image Tag Output 📝
-        id: image
-        run: |
-          echo "tag=ghcr.io/${{ github.repository }}/ubuntu-build:latest" >> $GITHUB_OUTPUT
-          if [[ "${{ steps.check.outputs.needs_build }}" == "true" ]]; then
-            echo "✅ Built and pushed new image"
-          else
-            echo "✅ Using existing image"
-          fi
-
-  # Step 1b: Ensure Docker Images for other Linux distributions (Debian/Fedora/Arch)
-  ensure-docker-images-matrix:
-    name: Ensure Docker Images (Multi-Distro) 🐳
+  # Step 1: Ensure Docker Images (all Linux distributions)
+  ensure-docker-images:
+    name: Ensure Docker Image 🐳 (${{ matrix.display_name }})
     runs-on: ubuntu-24.04
     needs: [check-event]
     strategy:
       fail-fast: false
       matrix:
         include:
+          - distro: ubuntu
+            dockerfile: Dockerfile.ubuntu-build
+            image_name: ubuntu-build
+            display_name: Ubuntu 24.04
           - distro: debian
             dockerfile: Dockerfile.debian-build
             image_name: debian-build
@@ -402,22 +293,24 @@ jobs:
               image_created_epoch=$(date -d "${created_timestamp}" +%s 2>/dev/null || echo "0")
               current_epoch=$(date +%s)
               age_seconds=$(( current_epoch - image_created_epoch ))
+              age_hours=$(( age_seconds / 3600 ))
               age_days=$(( age_seconds / 86400 ))
               age_seconds=$((10#${age_seconds} + 0))
+              age_hours=$((10#${age_hours} + 0))
               age_days=$((10#${age_days} + 0))
 
               # 7 days = 1209600 seconds
               max_age_seconds=1209600
               echo "📅 Image created: ${created_timestamp}"
-              echo "📅 Image age: ${age_days}d (${age_seconds}s), Dockerfile unchanged"
+              echo "📅 Image age: ${age_days}d ${age_hours}h (${age_seconds}s), Dockerfile unchanged"
 
               if [[ "${age_seconds}" -le "${max_age_seconds}" ]]; then
                 echo "needs_build=false" >> $GITHUB_OUTPUT
-                echo "✅ Using existing image (${age_days}d old, Dockerfile unchanged)"
+                echo "✅ Using existing image (${age_days}d ${age_hours}h old, Dockerfile unchanged)"
                 exit 0
               else
                 echo "needs_build=true" >> $GITHUB_OUTPUT
-                echo "🔄 Image is ${age_days}d old - rebuilding for freshness"
+                echo "🔄 Image is ${age_days}d ${age_hours}h old - rebuilding for freshness"
                 exit 0
               fi
             fi
@@ -454,12 +347,12 @@ jobs:
   ubuntu-build:
     name: Ubuntu Build 🐧
     runs-on: ubuntu-24.04
-    needs: [check-event, ensure-docker-image]
+    needs: [check-event, ensure-docker-images]
     defaults:
       run:
         shell: bash
     container:
-      image: ${{ needs.ensure-docker-image.outputs.image-tag }}
+      image: ghcr.io/${{ github.repository }}/ubuntu-build:latest
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -574,13 +467,13 @@ jobs:
     name: Linux Artifact (${{ matrix.display_name }}) 📦
     if: ${{ inputs.build_linux_variants }}
     runs-on: ubuntu-24.04
-    needs: [check-event, ensure-docker-image, ensure-docker-images-matrix]
+    needs: [check-event, ensure-docker-images]
     strategy:
       fail-fast: false
       matrix:
         include:
           - distro: ubuntu
-            image_tag: ${{ needs.ensure-docker-image.outputs.image-tag }}
+            image_tag: ghcr.io/${{ github.repository }}/ubuntu-build:latest
             display_name: Ubuntu 24.04
             variant: ubuntu-24.04-x86_64
           - distro: debian
@@ -715,13 +608,13 @@ jobs:
     name: E2E Test (${{ matrix.display_name }}) 🧪
     if: ${{ inputs.run_e2e }}
     runs-on: ubuntu-24.04
-    needs: [check-event, ensure-docker-image, ensure-docker-images-matrix]
+    needs: [check-event, ensure-docker-images]
     strategy:
       fail-fast: false
       matrix:
         include:
           - distro: ubuntu
-            image_tag: ${{ needs.ensure-docker-image.outputs.image-tag }}
+            image_tag: ghcr.io/${{ github.repository }}/ubuntu-build:latest
             display_name: Ubuntu 24.04
           - distro: debian
             image_tag: ghcr.io/${{ github.repository }}/debian-build:latest
