@@ -601,24 +601,33 @@ jobs:
       - name: Setup PulseAudio 🔊
         run: |
           : Setup PulseAudio 🔊
-          # Start PulseAudio in system mode for CI environment
+          # Start PulseAudio for CI environment (handles root user in containers)
           # This provides proper audio timing for A/V sync validation
 
-          # Create runtime directory
+          # Create runtime directory and home for PulseAudio
           export XDG_RUNTIME_DIR="/tmp/runtime-root"
           mkdir -p "$XDG_RUNTIME_DIR"
           chmod 700 "$XDG_RUNTIME_DIR"
+          export HOME="/tmp/pulse-home"
+          mkdir -p "$HOME"
 
-          # Start PulseAudio with null sink for testing
-          echo "🔊 Starting PulseAudio..."
-          pulseaudio --start --exit-idle-time=-1 \
-            --load="module-null-sink sink_name=dummy" \
-            --log-target=file:/tmp/pulseaudio.log 2>&1 || true
+          # Configure PulseAudio for system-wide mode (required when running as root)
+          mkdir -p /etc/pulse
+          cat > /etc/pulse/system.pa << 'EOF'
+          load-module module-null-sink sink_name=dummy sink_properties=device.description="Dummy_Output"
+          set-default-sink dummy
+          EOF
+
+          # Start PulseAudio in system mode (required for root)
+          echo "🔊 Starting PulseAudio in system mode..."
+          pulseaudio --system --disallow-exit --disallow-module-loading=0 \
+            --log-target=file:/tmp/pulseaudio.log 2>&1 &
+          PULSE_PID=$!
 
           # Wait for PulseAudio to start
           for i in {1..10}; do
             if pulseaudio --check 2>/dev/null; then
-              echo "✅ PulseAudio started successfully"
+              echo "✅ PulseAudio started successfully (PID: $PULSE_PID)"
               break
             fi
             if [[ $i -eq 10 ]]; then
@@ -627,9 +636,6 @@ jobs:
             fi
             sleep 0.5
           done
-
-          # Set default sink
-          pactl set-default-sink dummy 2>/dev/null || true
 
           # Show audio setup
           pactl info 2>/dev/null || echo "pactl info unavailable"
@@ -885,24 +891,33 @@ jobs:
       - name: Setup PulseAudio 🔊
         run: |
           : Setup PulseAudio 🔊
-          # Start PulseAudio in system mode for CI environment
+          # Start PulseAudio for CI environment (handles root user in containers)
           # This provides proper audio timing for A/V sync validation
 
-          # Create runtime directory
+          # Create runtime directory and home for PulseAudio
           export XDG_RUNTIME_DIR="/tmp/runtime-root"
           mkdir -p "$XDG_RUNTIME_DIR"
           chmod 700 "$XDG_RUNTIME_DIR"
+          export HOME="/tmp/pulse-home"
+          mkdir -p "$HOME"
 
-          # Start PulseAudio with null sink for testing
-          echo "🔊 Starting PulseAudio..."
-          pulseaudio --start --exit-idle-time=-1 \
-            --load="module-null-sink sink_name=dummy" \
-            --log-target=file:/tmp/pulseaudio.log 2>&1 || true
+          # Configure PulseAudio for system-wide mode (required when running as root)
+          mkdir -p /etc/pulse
+          cat > /etc/pulse/system.pa << 'EOF'
+          load-module module-null-sink sink_name=dummy sink_properties=device.description="Dummy_Output"
+          set-default-sink dummy
+          EOF
+
+          # Start PulseAudio in system mode (required for root)
+          echo "🔊 Starting PulseAudio in system mode..."
+          pulseaudio --system --disallow-exit --disallow-module-loading=0 \
+            --log-target=file:/tmp/pulseaudio.log 2>&1 &
+          PULSE_PID=$!
 
           # Wait for PulseAudio to start
           for i in {1..10}; do
             if pulseaudio --check 2>/dev/null; then
-              echo "✅ PulseAudio started successfully"
+              echo "✅ PulseAudio started successfully (PID: $PULSE_PID)"
               break
             fi
             if [[ $i -eq 10 ]]; then
@@ -911,9 +926,6 @@ jobs:
             fi
             sleep 0.5
           done
-
-          # Set default sink
-          pactl set-default-sink dummy 2>/dev/null || true
 
           # Show audio setup
           pactl info 2>/dev/null || echo "pactl info unavailable"
