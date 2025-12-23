@@ -513,12 +513,12 @@ jobs:
 
 
 
-  # E2E Test (Multi-Distro) - runs basic E2E on all Linux distributions
-  e2e-test:
-    name: E2E Test (${{ matrix.display_name }}) 🧪
+  # E2E Basic Test (Multi-Distro) - runs basic E2E scenario on all Linux distributions
+  e2e-basic:
+    name: E2E Basic (${{ matrix.display_name }}) 🧪
     if: ${{ inputs.run_e2e }}
     runs-on: ubuntu-24.04
-    needs: [check-event, ensure-docker-images]
+    needs: [check-event, ubuntu-build]
     strategy:
       fail-fast: false
       matrix:
@@ -555,26 +555,19 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      - name: Build Plugin 🧱
-        run: |
-          : Build Plugin 🧱
-          export PATH="/usr/local/bin:$PATH"
-
-          cmake --preset ubuntu-x86_64 -DCMAKE_INSTALL_PREFIX=/usr
-          cmake --build build_x86_64 --config RelWithDebInfo --parallel
-
-          if [[ ! -f "build_x86_64/c64stream.so" ]]; then
-            echo "❌ build_x86_64/c64stream.so not found"
-            ls -la build_x86_64 || true
-            exit 1
-          fi
+      - name: Download Plugin Artifact 📥
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.ubuntu-build.outputs.artifactName }}
+          path: artifact
 
       - name: Install Plugin 📦
         run: |
           : Install Plugin 📦
 
+          # Install from downloaded Ubuntu artifact
           mkdir -p "$HOME/.config/obs-studio/plugins/c64stream/bin/64bit"
-          cp "build_x86_64/c64stream.so" "$HOME/.config/obs-studio/plugins/c64stream/bin/64bit/c64stream.so"
+          cp "artifact/c64stream.so" "$HOME/.config/obs-studio/plugins/c64stream/bin/64bit/c64stream.so"
 
           mkdir -p "$HOME/.config/obs-studio/plugins/c64stream/data"
           cp -r data/* "$HOME/.config/obs-studio/plugins/c64stream/data/"
@@ -726,23 +719,289 @@ jobs:
 
           echo "✅ X11 display ready with advanced configuration"
 
-      - name: Run E2E Tests 🧪
+      - name: Run Basic E2E Test 🧪
         id: run_e2e
         run: |
-          : "Run E2E Tests 🧪"
+          : "Run Basic E2E Test 🧪"
 
           cd tests/e2e
 
-          # Build command based on inputs
+          # Run the default/basic scenario only
+          ./e2e.sh \
+            --format "${{ inputs.e2e_format }}" \
+            --frames "${{ inputs.e2e_frames }}" \
+            --output-dir "../../e2e-results" \
+            --skip-build \
+            --verbose \
+            --display ":99"
+
+      - name: Collect Test Artifacts 📋
+        if: always()
+        run: |
+          : Collect Test Artifacts 📋
+
+          mkdir -p e2e-artifacts
+
+          # Collect test results
+          if [[ -d e2e-results ]]; then
+            cp -r e2e-results/* e2e-artifacts/
+          fi
+
+          # Collect MP4/AVI/WAV/CSV from test_output if present
+          if [[ -d tests/e2e/test_output ]]; then
+            mkdir -p e2e-artifacts/output
+            cp -r tests/e2e/test_output/* e2e-artifacts/output/ 2>/dev/null || true
+          fi
+
+          # Collect plugin recording session folder if present
+          if [[ -d "$HOME/Documents/obs-studio/c64stream/recordings" ]]; then
+            mkdir -p e2e-artifacts/recordings
+            cp -r "$HOME/Documents/obs-studio/c64stream/recordings"/* e2e-artifacts/recordings/ 2>/dev/null || true
+          fi
+
+          # Collect OBS logs
+          if [[ -d ~/.config/obs-studio/logs ]]; then
+            mkdir -p e2e-artifacts/obs-logs
+            cp ~/.config/obs-studio/logs/* e2e-artifacts/obs-logs/ 2>/dev/null || true
+          fi
+
+          # Create summary
+          echo "E2E Basic Test Summary" > e2e-artifacts/summary.txt
+          echo "Distro: ${{ matrix.display_name }}" >> e2e-artifacts/summary.txt
+          echo "Format: ${{ inputs.e2e_format }}" >> e2e-artifacts/summary.txt
+          echo "Frames: ${{ inputs.e2e_frames }}" >> e2e-artifacts/summary.txt
+          echo "Date: $(date)" >> e2e-artifacts/summary.txt
+
+      - name: Upload E2E Artifacts 📤
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-basic-results-${{ matrix.distro }}-${{ needs.check-event.outputs.commitHash }}
+          path: e2e-artifacts/
+          if-no-files-found: warn
+
+      - name: E2E Test Status Summary 📊
+        if: always()
+        run: |
+          : E2E Test Status Summary 📊
+
+          # Check if the E2E test step passed or failed
+          if [[ "${{ steps.run_e2e.outcome }}" == "success" ]]; then
+            echo "✅ **E2E Basic Test PASSED on ${{ matrix.display_name }}**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **E2E Basic Test FAILED on ${{ matrix.display_name }}**" >> $GITHUB_STEP_SUMMARY
+            echo "📦 Check E2E artifacts for debugging info." >> $GITHUB_STEP_SUMMARY
+          fi
+
+
+  # E2E Full Test (Ubuntu only) - runs all other E2E scenarios after basic passes
+  e2e-full:
+    name: E2E Full (Ubuntu) 🧪
+    if: ${{ inputs.run_e2e }}
+    runs-on: ubuntu-24.04
+    needs: [check-event, ubuntu-build, e2e-basic]
+    defaults:
+      run:
+        shell: bash
+    container:
+      image: ghcr.io/${{ github.repository }}/ubuntu-build:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+      options: >-
+        --user root
+        --privileged
+    env:
+      DISPLAY: ":99"
+    steps:
+      - name: Checkout Repository 📥
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Download Plugin Artifact 📥
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.ubuntu-build.outputs.artifactName }}
+          path: artifact
+
+      - name: Install Plugin 📦
+        run: |
+          : Install Plugin 📦
+
+          # Install from downloaded Ubuntu artifact
+          mkdir -p "$HOME/.config/obs-studio/plugins/c64stream/bin/64bit"
+          cp "artifact/c64stream.so" "$HOME/.config/obs-studio/plugins/c64stream/bin/64bit/c64stream.so"
+
+          mkdir -p "$HOME/.config/obs-studio/plugins/c64stream/data"
+          cp -r data/* "$HOME/.config/obs-studio/plugins/c64stream/data/"
+
+          ls -la "$HOME/.config/obs-studio/plugins/c64stream/bin/64bit/c64stream.so"
+
+      - name: Apply E2E Properties to System Plugin Data 🔧
+        run: |
+          : Apply E2E Properties to System Plugin Data 🔧
+          # Ensure the system-wide plugin uses E2E test properties inside the container
+
+          SYS_DATA_DIR="/usr/share/obs/obs-plugins/c64stream"
+          echo "📁 Ensuring system plugin data dir: ${SYS_DATA_DIR}"
+          mkdir -p "${SYS_DATA_DIR}"
+
+          if [[ -f "tests/e2e/properties_e2e_ci.ini" ]]; then
+            cp "tests/e2e/properties_e2e_ci.ini" "${SYS_DATA_DIR}/properties.ini"
+            echo "✅ Copied E2E CI properties file for testing"
+            ls -la "${SYS_DATA_DIR}/properties.ini"
+            echo "Properties content:"
+            cat "${SYS_DATA_DIR}/properties.ini"
+          else
+            echo "❌ E2E CI properties file not found: tests/e2e/properties_e2e_ci.ini"
+          fi
+
+      - name: Setup PulseAudio 🔊
+        run: |
+          : Setup PulseAudio 🔊
+          # Start PulseAudio in system mode for CI environment
+          # This provides proper audio timing for A/V sync validation
+
+          # Create runtime directory
+          export XDG_RUNTIME_DIR="/tmp/runtime-root"
+          mkdir -p "$XDG_RUNTIME_DIR"
+          chmod 700 "$XDG_RUNTIME_DIR"
+
+          # Start PulseAudio with null sink for testing
+          echo "🔊 Starting PulseAudio..."
+          pulseaudio --start --exit-idle-time=-1 \
+            --load="module-null-sink sink_name=dummy" \
+            --log-target=file:/tmp/pulseaudio.log 2>&1 || true
+
+          # Wait for PulseAudio to start
+          for i in {1..10}; do
+            if pulseaudio --check 2>/dev/null; then
+              echo "✅ PulseAudio started successfully"
+              break
+            fi
+            if [[ $i -eq 10 ]]; then
+              echo "⚠️ PulseAudio may not have started correctly (continuing anyway)"
+              cat /tmp/pulseaudio.log 2>/dev/null || true
+            fi
+            sleep 0.5
+          done
+
+          # Set default sink
+          pactl set-default-sink dummy 2>/dev/null || true
+
+          # Show audio setup
+          pactl info 2>/dev/null || echo "pactl info unavailable"
+
+      - name: Setup X11 Display 🖥️
+        run: |
+          : Setup X11 Display 🖥️
+
+          # Set up environment for headless operation
+          export DISPLAY=:99
+          export QT_QPA_PLATFORM=xcb
+          export QT_X11_NO_MITSHM=1
+          export LIBGL_ALWAYS_SOFTWARE=1
+          export XDG_RUNTIME_DIR="/tmp/runtime-root"
+          export PULSE_SERVER="unix:${XDG_RUNTIME_DIR}/pulse/native"
+
+          # Clean up any stale processes and lock files
+          echo "🧹 Cleaning up previous X11 sessions..."
+          pkill -f "Xvfb.*:99" 2>/dev/null || true
+          rm -f /tmp/.X99-lock /tmp/.X*-lock 2>/dev/null || true
+          sleep 2
+
+          # Ensure X11 directories exist with proper permissions
+          mkdir -p /tmp/.X11-unix
+          chmod 1777 /tmp/.X11-unix 2>/dev/null || true
+
+          # Create Xauthority file
+          export XAUTHORITY="/tmp/.Xauth$$"
+          touch "$XAUTHORITY"
+          chmod 600 "$XAUTHORITY"
+
+          echo "🚀 Starting Xvfb with comprehensive configuration..."
+
+          # Start Xvfb with advanced parameters from E2E branch
+          XVFB_LOG_FILE="/tmp/xvfb.log"
+          Xvfb :99 \
+            -screen 0 1280x720x24 \
+            -ac \
+            +extension GLX \
+            +extension RANDR \
+            +render \
+            -noreset \
+            -nolisten tcp \
+            -dpi 96 \
+            > "$XVFB_LOG_FILE" 2>&1 &
+          XVFB_PID=$!
+
+          # Setup comprehensive cleanup on exit
+          cleanup_xvfb() {
+            if [[ -n "$XVFB_PID" ]] && kill -0 "$XVFB_PID" 2>/dev/null; then
+              echo "🧹 Cleaning up Xvfb process..."
+              kill "$XVFB_PID" 2>/dev/null || true
+              sleep 2
+              # Force kill if still running
+              kill -9 "$XVFB_PID" 2>/dev/null || true
+              wait "$XVFB_PID" 2>/dev/null || true
+            fi
+            rm -f /tmp/.X99-lock "$XAUTHORITY" 2>/dev/null || true
+          }
+          trap cleanup_xvfb EXIT INT TERM
+
+          # Wait for Xvfb to initialize with progressive checks
+          echo "⏳ Waiting for Xvfb to initialize..."
+          for i in {1..15}; do
+            # Basic liveness checks that work even when xdpyinfo isn't installed
+            if kill -0 "$XVFB_PID" 2>/dev/null && [[ -S /tmp/.X11-unix/X99 ]]; then
+              if command -v xdpyinfo >/dev/null 2>&1; then
+                if xdpyinfo -display :99 >/dev/null 2>&1; then
+                  echo "✅ Xvfb initialized successfully (attempt $i)"
+                  break
+                fi
+              else
+                echo "✅ Xvfb appears up (socket present); xdpyinfo not available"
+                break
+              fi
+            fi
+
+            if [[ $i -eq 15 ]]; then
+              echo "❌ Xvfb failed to start after 15 attempts"
+              echo "📋 Diagnostics:"
+              echo "- Xvfb binary: $(command -v Xvfb || echo missing)"
+              echo "- Socket dir:" && ls -la /tmp/.X11-unix 2>/dev/null || true
+              echo "- Xvfb PID: ${XVFB_PID}" && ps -p "$XVFB_PID" -o pid,comm,args 2>/dev/null || true
+              echo "📋 Xvfb log:"
+              cat "$XVFB_LOG_FILE" 2>/dev/null || echo "No log available"
+              exit 1
+            fi
+
+            echo "   Attempt $i/15 - waiting..."
+            sleep 1
+          done
+
+          echo "✅ X11 display ready with advanced configuration"
+
+      - name: Run Full E2E Tests 🧪
+        id: run_e2e
+        run: |
+          : "Run Full E2E Tests 🧪"
+
+          cd tests/e2e
+
+          # Run all scenarios (the basic scenario was already validated in e2e-basic)
+          # Use --scenario flag if specific scenario requested, otherwise run all
           CMD="./e2e.sh --format \"${{ inputs.e2e_format }}\" --frames \"${{ inputs.e2e_frames }}\""
           CMD="$CMD --output-dir \"../../e2e-results\" --skip-build --verbose --display \":99\""
 
-          # Add scenario if specified
+          # Add scenario if specified in workflow inputs
           if [[ -n "${{ inputs.e2e_scenario }}" ]]; then
             CMD="$CMD --scenario \"${{ inputs.e2e_scenario }}\""
           fi
 
-          # Run the E2E test
+          # Run the E2E tests
           eval $CMD
 
       - name: Collect Test Artifacts 📋
@@ -776,7 +1035,7 @@ jobs:
           fi
 
           # Create summary
-          echo "E2E Test Summary" > e2e-artifacts/summary.txt
+          echo "E2E Full Test Summary" > e2e-artifacts/summary.txt
           echo "Format: ${{ inputs.e2e_format }}" >> e2e-artifacts/summary.txt
           echo "Frames: ${{ inputs.e2e_frames }}" >> e2e-artifacts/summary.txt
           echo "Date: $(date)" >> e2e-artifacts/summary.txt
@@ -785,7 +1044,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-test-results-${{ matrix.distro }}-${{ needs.check-event.outputs.commitHash }}
+          name: e2e-full-results-ubuntu-${{ needs.check-event.outputs.commitHash }}
           path: e2e-artifacts/
           if-no-files-found: warn
 
@@ -796,9 +1055,9 @@ jobs:
 
           # Check if the E2E test step passed or failed
           if [[ "${{ steps.run_e2e.outcome }}" == "success" ]]; then
-            echo "✅ **E2E Tests PASSED on ${{ matrix.display_name }}** - All validations successful!" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **E2E Full Tests PASSED on Ubuntu** - All scenarios validated!" >> $GITHUB_STEP_SUMMARY
             echo "📊 E2E test results are available in the artifacts." >> $GITHUB_STEP_SUMMARY
           else
-            echo "❌ **E2E Tests FAILED on ${{ matrix.display_name }}**" >> $GITHUB_STEP_SUMMARY
+            echo "❌ **E2E Full Tests FAILED on Ubuntu**" >> $GITHUB_STEP_SUMMARY
             echo "📦 Check E2E artifacts for debugging info." >> $GITHUB_STEP_SUMMARY
           fi
