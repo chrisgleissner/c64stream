@@ -24,6 +24,7 @@
 !README.md
 !AGENTS.md
 !build-docker.sh
+!AGENTS.md
 
 # Include development helper files
 !local-build.sh
@@ -71,9 +72,6 @@ tests/CMakeCache.txt
 tests/CTestTestfile.cmake
 tests/Makefile
 tests/cmake_install.cmake
-tests/test_integration
-tests/c64_mock_server
-tests/test_vic_colors
 
 # Security - exclude secrets
 .secrets

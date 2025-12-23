@@ -26,11 +26,24 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-version.h"
 #include "c64-properties.h"
 #include "plugin-support.h"
+#include "c64-presets.h"
 
 // Forward declarations
 static void close_and_reset_sockets(struct c64_source *context);
 static void c64_schedule_retry(struct c64_source *context, const char *reason);
 static void c64_refresh_resolved_ip(struct c64_source *context);
+
+static bool settings_have_effect_overrides(obs_data_t *settings)
+{
+    if (!settings)
+        return false;
+
+    return obs_data_has_user_value(settings, "scan_line_distance") ||
+           obs_data_has_user_value(settings, "scan_line_strength") ||
+           obs_data_has_user_value(settings, "pixel_width") || obs_data_has_user_value(settings, "pixel_height") ||
+           obs_data_has_user_value(settings, "blur_strength") || obs_data_has_user_value(settings, "bloom_strength") ||
+           obs_data_has_user_value(settings, "tint_mode") || obs_data_has_user_value(settings, "tint_strength");
+}
 
 // Async retry task - runs in OBS thread pool (NOT render thread)
 void c64_async_retry_task(void *data)
@@ -210,12 +223,18 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     // Load configuration file before initializing settings-dependent values
     c64_load_configuration(settings);
 
-    // If a preset is selected, remember it as "last applied" so reopening Properties doesn't
-    // re-apply the preset and clobber user slider tweaks. Presets should only apply on user selection changes.
-    const char *preset = obs_data_get_string(settings, "crt_preset");
-    const char *preset_last = obs_data_get_string(settings, "crt_preset_last_applied");
-    if (preset && preset[0] != '\0' && (!preset_last || preset_last[0] == '\0')) {
-        obs_data_set_string(settings, "crt_preset_last_applied", preset);
+    // Apply CRT preset from settings (if present) so effects activate on load
+    // This is essential for E2E scenarios that embed effect settings in OBS scene JSON
+    bool has_effect_overrides = settings_have_effect_overrides(settings);
+    const char *initial_preset = obs_data_get_string(settings, "crt_preset");
+    if (!has_effect_overrides && initial_preset && initial_preset[0] != '\0') {
+        if (c64_presets_apply(settings, initial_preset)) {
+            C64_LOG_INFO("Applied CRT preset from settings: %s", initial_preset);
+        } else {
+            C64_LOG_WARNING("CRT preset not found: %s", initial_preset);
+        }
+    } else if (has_effect_overrides) {
+        C64_LOG_INFO("Skipping preset auto-apply; custom effect overrides detected");
     }
 
     context->source = source;
@@ -573,11 +592,18 @@ void c64_update(void *data, obs_data_t *settings)
     if (!context)
         return;
 
-    // Same rationale as in create(): avoid re-applying selected preset on Properties open.
-    const char *preset = obs_data_get_string(settings, "crt_preset");
-    const char *preset_last = obs_data_get_string(settings, "crt_preset_last_applied");
-    if (preset && preset[0] != '\0' && (!preset_last || preset_last[0] == '\0')) {
-        obs_data_set_string(settings, "crt_preset_last_applied", preset);
+    // If a preset is specified and no manual overrides exist, apply it before reading effect values
+    // This supports E2E scenarios that set effects via OBS scene JSON source settings
+    bool has_effect_overrides = settings_have_effect_overrides(settings);
+    const char *preset_name = obs_data_get_string(settings, "crt_preset");
+    if (!has_effect_overrides && preset_name && preset_name[0] != '\0') {
+        if (c64_presets_apply(settings, preset_name)) {
+            C64_LOG_INFO("Applied CRT preset on update: %s", preset_name);
+        } else {
+            C64_LOG_WARNING("CRT preset in update not found: %s", preset_name);
+        }
+    } else if (has_effect_overrides) {
+        C64_LOG_DEBUG("Preset update skipped; manual effect overrides present");
     }
 
     // Update debug logging setting

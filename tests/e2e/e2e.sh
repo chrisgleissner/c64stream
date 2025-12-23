@@ -40,6 +40,7 @@ DEFAULT_OBS_ENABLED=true   # OBS integration now implemented
 DEFAULT_X11_DISPLAY=":99"
 DEFAULT_MONITOR_RESOURCES=false  # Resource monitoring for CI
 DEFAULT_SCENARIO_OVERRIDES=""
+DEFAULT_SCENARIO_NAME=""
 
 # Color output
 RED='\033[0;31m'
@@ -239,6 +240,7 @@ parse_args() {
     OBS_ENABLED="${DEFAULT_OBS_ENABLED}"
     MONITOR_RESOURCES="${DEFAULT_MONITOR_RESOURCES}"
     SCENARIO_OVERRIDES="${DEFAULT_SCENARIO_OVERRIDES}"
+    SCENARIO_NAME="${DEFAULT_SCENARIO_NAME}"
 
     while [[ $# -gt 0 ]]; do
         case $1 in
@@ -320,6 +322,10 @@ parse_args() {
                 ;;
             --scenario-overrides)
                 SCENARIO_OVERRIDES="$2"
+                shift 2
+                ;;
+            --scenario-name)
+                SCENARIO_NAME="$2"
                 shift 2
                 ;;
             -h|--help)
@@ -588,7 +594,11 @@ generate_packets() {
 
 # Run E2E test
 run_e2e_test() {
-    log_info "Running E2E test..."
+    if [[ -n "${SCENARIO_NAME}" ]]; then
+        log_info "Running E2E test for scenario: ${SCENARIO_NAME}"
+    else
+        log_info "Running E2E test..."
+    fi
 
     cd "${TEST_DIR}"
 
@@ -613,6 +623,10 @@ run_e2e_test() {
         "--audio-port" "${AUDIO_PORT}"
         "--udp-replay" "${udp_replay_path}"
     )
+
+    if [[ -n "${SCENARIO_NAME}" ]]; then
+        cmd+=("--scenario-name" "${SCENARIO_NAME}")
+    fi
 
     # Pass scenario overrides if provided
     if [[ -n "${SCENARIO_OVERRIDES}" ]]; then
@@ -660,6 +674,46 @@ generate_report() {
     local sample_frame_seconds=""
     local sample_frame_timestamp=""
 
+    # Gather system snapshot for debugging context
+    local obs_version os_name kernel_version cpu_model cpu_cores ram_total ram_available
+    local disk_total disk_available disk_mount
+
+    if command -v obs >/dev/null 2>&1; then
+        obs_version=$(obs --version 2>/dev/null | head -n1 | sed 's/^OBS Studio //')
+        [[ -z "${obs_version}" ]] && obs_version="Detected (version unknown)"
+    else
+        obs_version="Not installed"
+    fi
+
+    kernel_version=$(uname -r 2>/dev/null || echo "Unknown kernel")
+    if command -v lsb_release >/dev/null 2>&1; then
+        os_name=$(lsb_release -ds 2>/dev/null | tr -d '"')
+    elif [[ -f /etc/os-release ]]; then
+        os_name=$(grep -E '^PRETTY_NAME=' /etc/os-release | cut -d= -f2- | tr -d '"')
+    fi
+    [[ -z "${os_name}" ]] && os_name=$(uname -s 2>/dev/null || echo "Unknown OS")
+
+    cpu_model=$(grep -m1 'model name' /proc/cpuinfo 2>/dev/null | cut -d: -f2- | sed 's/^ *//')
+    [[ -z "${cpu_model}" ]] && cpu_model=$(uname -p 2>/dev/null || echo "Unknown CPU")
+    cpu_cores=$(nproc 2>/dev/null || echo "?")
+
+    if command -v free >/dev/null 2>&1; then
+        ram_total=$(free -h | awk '/^Mem:/ {print $2}')
+        ram_available=$(free -h | awk '/^Mem:/ {print $7}')
+    else
+        ram_total=$(grep -m1 'MemTotal' /proc/meminfo 2>/dev/null | awk '{printf "%.1f MiB", $2/1024}')
+        ram_available=$(grep -m1 'MemAvailable' /proc/meminfo 2>/dev/null | awk '{printf "%.1f MiB", $2/1024}')
+    fi
+    [[ -z "${ram_total}" ]] && ram_total="Unknown"
+    [[ -z "${ram_available}" ]] && ram_available="Unknown"
+
+    if command -v df >/dev/null 2>&1; then
+        read -r disk_total disk_available disk_mount <<<"$(df -h "${PROJECT_ROOT}" 2>/dev/null | awk 'NR==2 {print $2, $4, $6}')"
+    fi
+    [[ -z "${disk_total}" ]] && disk_total="Unknown"
+    [[ -z "${disk_available}" ]] && disk_available="Unknown"
+    [[ -z "${disk_mount}" ]] && disk_mount=$(pwd)
+
         # Resolve plugin version via shared helper (mirrors CI logic)
         local resolved_version
         if [[ -x "${PROJECT_ROOT}/build-aux/resolve-plugin-version.sh" ]]; then
@@ -686,6 +740,14 @@ Generated: ${timestamp}
 
 - Project: $(jq -r '.name // "unknown"' "${PROJECT_ROOT}/buildspec.json" 2>/dev/null)
 - Version: ${resolved_version}
+
+## System information
+
+- OS: ${os_name} (kernel ${kernel_version})
+- OBS: ${obs_version}
+- CPU: ${cpu_model} (${cpu_cores} cores)
+- RAM: ${ram_total} total, ${ram_available} available
+- Disk (${disk_mount}): ${disk_total} total, ${disk_available} available
 
 ## Test results
 EOF

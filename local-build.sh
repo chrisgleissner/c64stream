@@ -16,6 +16,7 @@ RUN_TESTS=false
 INSTALL_DEPS=false
 INSTALL_PLUGIN=false
 RUN_E2E=false
+E2E_SCENARIO=""
 GENERATE_E2E_SCENARIOS=false
 VERBOSE=false
 
@@ -60,7 +61,7 @@ OPTIONS:
     --install-deps      Install build dependencies
     --install-e2e-deps  Also install E2E testing dependencies (OBS, xvfb, etc.)
     --install           Install plugin to OBS after building
-    --e2e               Run E2E tests after building and installing
+    --e2e[=SCENARIO]    Run E2E tests after building and installing (default scenario: ntsc)
     --e2e-scenarios     Run all scenarios in tests/e2e/scenarios/* and write results to tests/e2e/results/<scenario>
     --verbose           Enable verbose output
     --help              Show this help message
@@ -823,6 +824,10 @@ install_plugin_for_e2e() {
 
 run_e2e_tests() {
     local platform=$1
+    local scenario_name=${2:-ntsc}
+    local scenario_key
+    scenario_key="$(echo "$scenario_name" | tr '[:upper:]' '[:lower:]')"
+    local scenario_dir="$PROJECT_ROOT/tests/e2e/scenarios/$scenario_key"
 
     # Only support Linux for E2E tests currently
     if [[ "$platform" != "linux" ]]; then
@@ -830,7 +835,41 @@ run_e2e_tests() {
         return 0
     fi
 
-    log_info "Running E2E tests..."
+    if [[ ! -d "$scenario_dir" ]]; then
+        log_error "E2E scenario not found: $scenario_name (expected directory $scenario_dir)"
+        return 1
+    fi
+
+    local scenario_yaml="$scenario_dir/scenario.yaml"
+    local scenario_label=""
+    local scenario_format=""
+    local overrides_dir="overrides"
+
+    if [[ -f "$scenario_yaml" ]]; then
+        scenario_label="$(parse_scenario_yaml "$scenario_yaml" "name")"
+        scenario_format="$(parse_scenario_yaml "$scenario_yaml" "format")"
+        local overrides_from_yaml
+        overrides_from_yaml="$(parse_scenario_yaml "$scenario_yaml" "overrides_dir")"
+        if [[ -n "$overrides_from_yaml" ]]; then
+            overrides_dir="$overrides_from_yaml"
+        fi
+    fi
+
+    [[ -z "$scenario_label" ]] && scenario_label="$scenario_key"
+    [[ -z "$scenario_format" ]] && scenario_format="NTSC"
+    scenario_format="$(echo "$scenario_format" | tr '[:lower:]' '[:upper:]')"
+
+    local scenario_overrides_path="$scenario_dir/$overrides_dir"
+    local overrides_realpath=""
+    local -a scenario_override_args=()
+    if [[ -d "$scenario_overrides_path" ]]; then
+        overrides_realpath=$(realpath "$scenario_overrides_path" 2>/dev/null || echo "$scenario_overrides_path")
+        scenario_override_args=("--scenario-overrides" "$overrides_realpath")
+    else
+        log_warning "Scenario overrides directory not found for $scenario_label: $scenario_overrides_path"
+    fi
+
+    log_info "Running E2E tests for scenario '$scenario_label' (format=${scenario_format})"
 
     # Kill any existing OBS processes to avoid port conflicts
     # Skip UDP port cleanup during E2E tests since the plugin needs those ports
@@ -901,18 +940,26 @@ run_e2e_tests() {
     fi
 
     # Change to E2E directory (with error handling)
-    if ! cd tests/e2e; then
+    if ! pushd tests/e2e >/dev/null; then
         log_error "Failed to change to E2E test directory"
         return 1
     fi
 
     # Set E2E test parameters (default to NTSC 60Hz for consistent 1-frame pop visibility)
     local e2e_args=(
-        "--format" "NTSC"
+        "--format" "$scenario_format"
         "--duration" "5"   # ~5 seconds at 60 FPS => ~300 frames
         "--skip-build"      # We already built and installed
         "--verbose"
     )
+
+    if [[ -n "$scenario_label" ]]; then
+        e2e_args+=("--scenario-name" "$scenario_label")
+    fi
+
+    if [[ ${#scenario_override_args[@]} -gt 0 ]]; then
+        e2e_args+=("${scenario_override_args[@]}")
+    fi
 
     if [[ "$VERBOSE" == "true" ]]; then
         e2e_args+=("--verbose")
@@ -921,7 +968,7 @@ run_e2e_tests() {
     # Check if E2E script exists and is executable
     if [[ ! -f "./e2e.sh" ]]; then
         log_error "E2E test script not found: tests/e2e/e2e.sh"
-        cd "$PROJECT_ROOT"
+        popd >/dev/null
         return 1
     fi
 
@@ -942,11 +989,50 @@ run_e2e_tests() {
         fi
     else
         log_error "E2E tests failed!"
+        popd >/dev/null
         return 1
     fi
 
     # Return to project root
-    cd "$PROJECT_ROOT"
+    popd >/dev/null
+
+    # Archive results into scenario-specific directory
+    local test_output_dir="$PROJECT_ROOT/tests/e2e/test_output"
+    local results_root_dir="$PROJECT_ROOT/tests/e2e/results/$scenario_key"
+    rm -rf "$results_root_dir"
+    mkdir -p "$results_root_dir"
+
+    # Remove stop recording marker before copying
+    local marker_file="$test_output_dir/stop_recording.marker"
+    if [[ -f "$marker_file" ]]; then
+        rm -f "$marker_file" || true
+    fi
+
+    if [[ -d "$test_output_dir" ]]; then
+        cp -a "$test_output_dir/." "$results_root_dir/"
+    fi
+
+    # Compress MP4 into destination to match scenario suite behavior
+    local src_mp4="$test_output_dir/c64_recording.mp4"
+    local out_mp4="$results_root_dir/c64_recording.mp4"
+    if [[ -f "$src_mp4" ]]; then
+        bash "$PROJECT_ROOT/tests/e2e/compress_e2e_mp4.sh" "$src_mp4" "$out_mp4" || true
+    else
+        log_warning "No source MP4 found at $src_mp4 to compress for scenario $scenario_label"
+    fi
+
+    # Copy OBS config used for this run
+    local config_used_dir="$results_root_dir/config_used"
+    mkdir -p "$config_used_dir"
+    local obs_cfg_root="$HOME/.config/obs-studio"
+    if [[ -d "$obs_cfg_root/basic/profiles/C64StreamTest" ]]; then
+        mkdir -p "$config_used_dir/basic/profiles"
+        cp -a "$obs_cfg_root/basic/profiles/C64StreamTest" "$config_used_dir/basic/profiles/"
+    fi
+    if [[ -f "$obs_cfg_root/basic/scenes/C64StreamTest.json" ]]; then
+        mkdir -p "$config_used_dir/basic/scenes"
+        cp -a "$obs_cfg_root/basic/scenes/C64StreamTest.json" "$config_used_dir/basic/scenes/"
+    fi
 }
 
 # Parse minimal scenario.yaml (key: value per line); supports keys: name, format, overrides_dir
@@ -1169,9 +1255,19 @@ main() {
                 INSTALL_PLUGIN=true
                 shift
                 ;;
+            --e2e=*)
+                RUN_E2E=true
+                E2E_SCENARIO="${1#--e2e=}"
+                shift
+                ;;
             --e2e)
                 RUN_E2E=true
-                shift
+                if [[ $# -gt 1 && "$2" != --* ]]; then
+                    E2E_SCENARIO="$2"
+                    shift 2
+                else
+                    shift
+                fi
                 ;;
             --e2e-scenarios)
                 GENERATE_E2E_SCENARIOS=true
@@ -1203,6 +1299,13 @@ main() {
         RUN_E2E=true
     fi
 
+    if [[ "$RUN_E2E" == "true" ]]; then
+        if [[ -z "$E2E_SCENARIO" ]]; then
+            E2E_SCENARIO="ntsc"
+        fi
+        E2E_SCENARIO="$(echo "$E2E_SCENARIO" | tr '[:upper:]' '[:lower:]')"
+    fi
+
     # Validate build config
     case "$BUILD_CONFIG" in
         Debug|RelWithDebInfo|Release|MinSizeRel) ;;
@@ -1216,6 +1319,9 @@ main() {
     log_info "C64 Stream - Local Build"
     log_info "Platform: $PLATFORM"
     log_info "Config: $BUILD_CONFIG"
+    if [[ "$RUN_E2E" == "true" && "$GENERATE_E2E_SCENARIOS" != "true" ]]; then
+        log_info "E2E scenario: $E2E_SCENARIO"
+    fi
 
     # Execute workflow
     check_prerequisites "$PLATFORM"
@@ -1274,7 +1380,7 @@ main() {
         if [[ "$GENERATE_E2E_SCENARIOS" == "true" ]]; then
             run_e2e_scenarios "$PLATFORM"
         else
-            run_e2e_tests "$PLATFORM"
+            run_e2e_tests "$PLATFORM" "$E2E_SCENARIO"
         fi
     fi
 
