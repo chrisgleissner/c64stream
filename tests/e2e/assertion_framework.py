@@ -1015,6 +1015,36 @@ def create_preset_assertions(preset: PresetConfig) -> list[EffectAssertion]:
     return assertions
 
 
+def create_assertions_from_list(assertion_names: list[str], thresholds: Optional[dict[str, dict[str, float]]] = None) -> list[EffectAssertion]:
+    """Create assertions from a list of assertion names.
+
+    Args:
+        assertion_names: List of assertion names (e.g., ['video_quality', 'audio', 'tint'])
+        thresholds: Optional dict mapping assertion names to threshold overrides
+
+    Returns:
+        List of EffectAssertion instances
+    """
+    assertion_map = {
+        "video_quality": VideoQualityAssertion,
+        "audio": AudioAssertion,
+        "tint": TintAssertion,
+        "afterglow": AfterglowAssertion,
+        "scanlines": ScanlineAssertion,
+    }
+
+    thresholds = thresholds or {}
+    assertions: list[EffectAssertion] = []
+
+    for name in assertion_names:
+        assertion_cls = assertion_map.get(name.lower())
+        if assertion_cls:
+            assertion_thresholds = thresholds.get(name.lower())
+            assertions.append(assertion_cls(assertion_thresholds))
+
+    return assertions
+
+
 def main() -> int:
     import argparse
 
@@ -1023,20 +1053,21 @@ def main() -> int:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Verify recording against a preset
-  %(prog)s --mp4 recording.mp4 --preset arcade_cabinet
+  # Verify recording against a scenario (preferred)
+  %(prog)s --mp4 recording.mp4 --scenario ntsc_amber_monitor
 
-  # Verify with OBS scene JSON (preferred for scenarios)
+  # Verify with OBS scene JSON
   %(prog)s --mp4 recording.mp4 --scene-json C64StreamTest.json
 
-  # Verify with custom properties file (legacy)
-  %(prog)s --mp4 recording.mp4 --properties custom.ini --preset green_monitor
+  # Verify with preset name
+  %(prog)s --mp4 recording.mp4 --preset arcade_cabinet
 
   # List available presets
   %(prog)s --list-presets
 """,
     )
     ap.add_argument("--mp4", type=Path, help="Path to OBS recording (MP4/MKV)")
+    ap.add_argument("--scenario", help="Scenario name (e.g., ntsc_amber_monitor)")
     ap.add_argument("--properties", type=Path, help="Path to properties.ini used for recording")
     ap.add_argument(
         "--scene-json", type=Path, help="Path to OBS scene JSON file (e.g., C64StreamTest.json)"
@@ -1069,18 +1100,49 @@ Examples:
     # Verification mode
     if not args.mp4:
         ap.error("--mp4 is required for verification")
-    if not args.scene_json and not args.preset:
-        ap.error("Either --scene-json or --preset is required for verification")
+    if not args.scenario and not args.scene_json and not args.preset:
+        ap.error("One of --scenario, --scene-json, or --preset is required for verification")
 
     if not args.mp4.exists():
         print(f"Recording not found: {args.mp4}")
         return 1
 
-    # Load preset - either from scene JSON or from preset name
+    # Load preset and assertions - either from scenario, scene JSON, or preset name
     preset = None
     properties = {}
+    scenario_assertions = None
 
-    if args.scene_json:
+    if args.scenario:
+        # Load from scenario (preferred)
+        from scenario_loader import generate_scene_json, load_scenario
+
+        scenarios_dir = Path(__file__).parent / "scenarios"
+        scenario_yaml = scenarios_dir / args.scenario / "scenario.yaml"
+        if not scenario_yaml.exists():
+            print(f"Scenario not found: {args.scenario}")
+            print(f"Expected: {scenario_yaml}")
+            return 1
+
+        scenario_cfg = load_scenario(scenario_yaml)
+        scene = generate_scene_json(scenario_cfg, args.presets_ini)
+
+        # Extract settings from generated scene
+        settings = {}
+        for source in scene.get("sources", []):
+            if source.get("id") == "c64_source":
+                settings = source.get("settings", {})
+                break
+
+        preset = PresetConfig.from_obs_settings(settings)
+        properties = settings
+        scenario_assertions = scenario_cfg.assertions
+
+        if args.verbose:
+            print(f"Loaded scenario: {scenario_cfg.name}")
+            print(f"  Preset: {scenario_cfg.preset}")
+            print(f"  Overrides: {scenario_cfg.overrides}")
+            print(f"  Assertions: {scenario_cfg.assertions}")
+    elif args.scene_json:
         if not args.scene_json.exists():
             print(f"Scene JSON not found: {args.scene_json}")
             return 1
@@ -1108,8 +1170,11 @@ Examples:
         if args.properties and args.properties.exists():
             properties = load_properties(args.properties)
 
-    # Create assertions for this preset
-    assertions = create_preset_assertions(preset)
+    # Create assertions - from scenario list or auto-detect from preset
+    if scenario_assertions:
+        assertions = create_assertions_from_list(scenario_assertions)
+    else:
+        assertions = create_preset_assertions(preset)
 
     # Run assertions
     runner = AssertionRunner(verbose=args.verbose)

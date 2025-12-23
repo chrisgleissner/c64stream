@@ -1,4 +1,4 @@
-# Scenarios
+# E2E Test Scenarios
 
 E2E test scenarios for validating C64 Stream plugin effects and configurations.
 
@@ -11,72 +11,104 @@ E2E test scenarios for validating C64 Stream plugin effects and configurations.
 # Run a specific scenario
 ./e2e.sh --scenario ntsc_amber_monitor --verbose
 
-# Run with assertion verification
-./e2e.sh --scenario ntsc_amber_monitor --verbose
+# Run assertion verification against recording
 python3 assertion_framework.py \
     --mp4 test_output/c64_recording.mp4 \
-    --scene-json scenarios/ntsc_amber_monitor/overrides/basic/scenes/C64StreamTest.json
+    --scenario ntsc_amber_monitor \
+    --verbose
 ```
 
-## Scenario Structure
+## Scenario Structure (New Format)
 
-Each scenario is a subdirectory with:
+Each scenario is a **concise YAML file** that references a preset from `effect_presets.ini`:
 
 ```
 scenarios/{scenario_name}/
-├── scenario.yaml                    # Scenario metadata
-└── overrides/                       # OBS config overlay
-    └── basic/
-        └── scenes/
-            └── C64StreamTest.json   # Scene with effect settings
+├── scenario.yaml          # Scenario definition (10-15 lines)
+└── generated/             # Auto-generated at runtime
+    └── basic/scenes/C64StreamTest.json
 ```
 
 ### scenario.yaml Format
 
 ```yaml
-name: Human-readable name
+name: Human-readable scenario name
 format: PAL or NTSC
-overrides_dir: overrides
+preset: Preset name from effect_presets.ini
+
+# Optional: Override specific effect settings
+overrides:
+  afterglow_duration_ms: 150  # Boost for E2E detection
+
+# Assertions to run against recorded output
+assertions:
+  - video_quality
+  - audio
+  - tint
+  - afterglow
+  - scanlines
 ```
 
-### Effect Settings
+### Available Assertions
 
-Effect settings are embedded directly in the OBS scene JSON under `sources[].settings`:
-
-```json
-{
-  "sources": [{
-    "id": "c64_source",
-    "settings": {
-      "crt_preset": "Amber Monitor",
-      "scan_line_distance": 0.5,
-      "tint_mode": 1,
-      "tint_strength": 1.0
-    }
-  }]
-}
-```
+| Assertion       | Description                                              |
+| --------------- | -------------------------------------------------------- |
+| `video_quality` | Basic video quality: duration, resolution, black frames  |
+| `audio`         | Audio presence and quality validation                    |
+| `tint`          | Color tint detection (amber/green monitor)               |
+| `afterglow`     | Phosphor persistence/decay verification                  |
+| `scanlines`     | Scanline pattern uniformity (<1% variance)               |
 
 ## Available Scenarios
 
-| Scenario             | Format | Preset           | Key Effect            |
-| -------------------- | ------ | ---------------- | --------------------- |
-| ntsc_default         | NTSC   | Default          | No effects            |
-| ntsc_classic_crt     | NTSC   | Classic CRT      | Scanlines + blur      |
-| ntsc_amber_monitor   | NTSC   | Amber Monitor    | Amber tint            |
-| ntsc_green_monitor   | NTSC   | Green Monitor    | Green tint            |
-| ntsc_sharp_pixels    | NTSC   | Sharp Pixels     | No scaling artifacts  |
-| ntsc_phosphor_glow   | NTSC   | Phosphor Glow    | Afterglow + bloom     |
-| ntsc_vintage_tv      | NTSC   | Vintage TV       | Scanlines + blur      |
-| ntsc_arcade_cabinet  | NTSC   | Arcade Cabinet   | Strong scanlines      |
-| pal_sharp_pixels     | PAL    | Sharp Pixels     | PAL timing            |
-| ntsc_delay_500ms     | NTSC   | Default          | High buffer delay     |
-| scanlines            | PAL    | Custom           | Scanline uniformity   |
+| Scenario            | Format | Preset         | Key Assertions                    |
+| ------------------- | ------ | -------------- | --------------------------------- |
+| ntsc_default        | NTSC   | Default        | video_quality, audio              |
+| ntsc_classic_crt    | NTSC   | Classic CRT    | video_quality, audio, afterglow, scanlines |
+| ntsc_amber_monitor  | NTSC   | Amber Monitor  | video_quality, audio, tint, afterglow, scanlines |
+| ntsc_green_monitor  | NTSC   | Green Monitor  | video_quality, audio, tint, afterglow, scanlines |
+| ntsc_sharp_pixels   | NTSC   | Sharp Pixels   | video_quality, audio              |
+| ntsc_phosphor_glow  | NTSC   | Phosphor Glow  | video_quality, audio, afterglow, scanlines |
+| ntsc_vintage_tv     | NTSC   | Vintage TV     | video_quality, audio, afterglow, scanlines |
+| ntsc_arcade_cabinet | NTSC   | Arcade Cabinet | video_quality, audio, scanlines   |
+| pal_sharp_pixels    | PAL    | Sharp Pixels   | video_quality, audio              |
+| ntsc_delay_500ms    | NTSC   | Default        | video_quality, audio (buffer test)|
+| scanlines           | PAL    | Classic CRT    | video_quality, audio, scanlines   |
+
+## Adding New Scenarios
+
+1. Create directory: `scenarios/{format}_{preset_name}/`
+2. Create `scenario.yaml` with:
+   - `name`: Human-readable name
+   - `format`: PAL or NTSC
+   - `preset`: Preset from `data/effect_presets.ini`
+   - `overrides`: Optional effect tweaks (for E2E detectability)
+   - `assertions`: List of assertions to run
+
+Example for a new "Cinema Mode" scenario:
+
+```yaml
+name: NTSC Cinema Mode
+format: NTSC
+preset: Vintage TV
+overrides:
+  blur_strength: 0.5
+  bloom_strength: 0.6
+assertions:
+  - video_quality
+  - audio
+  - scanlines
+```
+
+## Base Template
+
+The `base_template.json` contains the common OBS scene structure. 
+The `scenario_loader.py` merges preset settings and overrides into this template at runtime.
 
 ## Test Pattern Notes
 
 The generated video pattern is designed to be both visually obvious and programmatically verifiable:
 
-- **Top-left marker**: a solid block whose color is `frame_num % 16` (quick frame progression sanity check).
-- **Top-right palette tile**: a stable **4×4 tile of all 16 VIC colors** (used to verify color stability and detect drift).
-- **Bottom-right A/V pop**: a blinking white-in-black square synchronized with an audio "pop" (used for A/V sync and afterglow tail verification).
+- **Top-left marker**: solid block with color `frame_num % 16` (frame progression check)
+- **Top-right palette tile**: 4×4 grid of all 16 VIC colors (color stability verification)
+- **Bottom-right A/V pop**: blinking white square with audio pop (A/V sync and afterglow tail)

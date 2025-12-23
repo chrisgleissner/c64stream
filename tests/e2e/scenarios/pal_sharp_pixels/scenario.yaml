@@ -1,3 +1,6 @@
 name: PAL Sharp Pixels
 format: PAL
-overrides_dir: overrides
+preset: Sharp Pixels
+assertions:
+  - video_quality
+  - audio

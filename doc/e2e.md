@@ -130,15 +130,13 @@ Available scenarios include:
 
 ### Scenario Structure
 
-Each scenario is defined in `tests/e2e/scenarios/{name}/`:
+Each scenario is a **concise YAML file** referencing a preset from `data/effect_presets.ini`:
 
 ```
 scenarios/ntsc_amber_monitor/
-├── scenario.yaml                    # Scenario metadata
-└── overrides/
-    └── basic/
-        └── scenes/
-            └── C64StreamTest.json   # OBS scene with effect settings
+├── scenario.yaml              # ~10 lines - name, format, preset, assertions
+└── generated/                 # Auto-generated at runtime
+    └── basic/scenes/C64StreamTest.json
 ```
 
 The `scenario.yaml` file:
@@ -146,10 +144,18 @@ The `scenario.yaml` file:
 ```yaml
 name: NTSC Amber Monitor
 format: NTSC
-overrides_dir: overrides
+preset: Amber Monitor
+overrides:
+  afterglow_duration_ms: 100  # Optional effect tweaks for E2E
+assertions:
+  - video_quality
+  - audio
+  - tint
+  - afterglow
+  - scanlines
 ```
 
-Effect settings are embedded directly in the OBS scene JSON under `sources[].settings`, ensuring exact reproducibility.
+Effect settings are loaded from `data/effect_presets.ini`, with optional per-scenario overrides. The OBS scene JSON is generated dynamically from a base template at test time.
 
 ## Assertion Framework
 
@@ -158,10 +164,10 @@ The assertion framework (`assertion_framework.py`) validates E2E recordings agai
 ### Usage
 
 ```bash
-# Verify recording against OBS scene configuration
+# Verify recording against scenario (preferred)
 python3 assertion_framework.py \
-    --mp4 results/ntsc_amber_monitor/c64_recording.mp4 \
-    --scene-json scenarios/ntsc_amber_monitor/overrides/basic/scenes/C64StreamTest.json \
+    --mp4 test_output/c64_recording.mp4 \
+    --scenario ntsc_amber_monitor \
     --verbose
 
 # Verify against a named preset

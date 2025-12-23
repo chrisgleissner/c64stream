@@ -1,3 +1,6 @@
 name: NTSC Baseline
 format: NTSC
-overrides_dir: overrides
+preset: Default
+assertions:
+  - video_quality
+  - audio

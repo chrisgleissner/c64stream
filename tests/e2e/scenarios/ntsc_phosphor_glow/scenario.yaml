@@ -1,3 +1,8 @@
 name: NTSC Phosphor Glow
 format: NTSC
-overrides_dir: overrides
+preset: Phosphor Glow
+assertions:
+  - video_quality
+  - audio
+  - afterglow
+  - scanlines

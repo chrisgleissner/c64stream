@@ -1,3 +1,10 @@
 name: Scanlines Test
 format: PAL
-overrides_dir: overrides
+preset: Classic CRT
+overrides:
+  scan_line_distance: 0.5
+  scan_line_strength: 0.6
+assertions:
+  - video_quality
+  - audio
+  - scanlines

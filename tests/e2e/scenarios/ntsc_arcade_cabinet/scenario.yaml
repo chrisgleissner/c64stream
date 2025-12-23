@@ -1,3 +1,7 @@
 name: NTSC Arcade Cabinet
 format: NTSC
-overrides_dir: overrides
+preset: Arcade Cabinet
+assertions:
+  - video_quality
+  - audio
+  - scanlines

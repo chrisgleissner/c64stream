@@ -84,3 +84,6 @@ tests/cmake_install.cmake
 # C64 build artifacts (generated from .asm source files)
 *.prg
 *.lst
+
+# E2E scenario generated files
+tests/e2e/scenarios/*/generated/

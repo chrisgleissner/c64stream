@@ -240,20 +240,23 @@ EOF
 list_scenarios() {
     echo "Available E2E scenarios:"
     echo ""
-    if [[ -d "${SCENARIOS_DIR}" ]]; then
-        for scenario_dir in "${SCENARIOS_DIR}"/*/; do
-            if [[ -f "${scenario_dir}scenario.yaml" ]]; then
-                local name
-                name=$(basename "${scenario_dir}")
-                local display_name format
-                display_name=$(grep "^name:" "${scenario_dir}scenario.yaml" | sed 's/^name: *//')
-                format=$(grep "^format:" "${scenario_dir}scenario.yaml" | sed 's/^format: *//')
-                printf "  %-25s %s (%s)\n" "${name}" "${display_name}" "${format}"
-            fi
-        done
-    else
-        echo "  No scenarios found in ${SCENARIOS_DIR}"
-    fi
+    python3 "${TEST_DIR}/scenario_loader.py" --list 2>/dev/null || {
+        if [[ -d "${SCENARIOS_DIR}" ]]; then
+            for scenario_dir in "${SCENARIOS_DIR}"/*/; do
+                if [[ -f "${scenario_dir}scenario.yaml" ]]; then
+                    local name
+                    name=$(basename "${scenario_dir}")
+                    local display_name format preset
+                    display_name=$(grep "^name:" "${scenario_dir}scenario.yaml" | sed 's/^name: *//')
+                    format=$(grep "^format:" "${scenario_dir}scenario.yaml" | sed 's/^format: *//')
+                    preset=$(grep "^preset:" "${scenario_dir}scenario.yaml" | sed 's/^preset: *//')
+                    printf "  %-25s %s (%s, preset: %s)\n" "${name}" "${display_name}" "${format}" "${preset:-Default}"
+                fi
+            done
+        else
+            echo "  No scenarios found in ${SCENARIOS_DIR}"
+        fi
+    }
     echo ""
 }
 
@@ -272,11 +275,11 @@ load_scenario() {
 
     log_info "Loading scenario: ${scenario_name}"
 
-    # Parse scenario.yaml
-    local name format overrides_dir
+    # Parse scenario.yaml (new concise format)
+    local name format preset
     name=$(grep "^name:" "${scenario_yaml}" | sed 's/^name: *//')
     format=$(grep "^format:" "${scenario_yaml}" | sed 's/^format: *//')
-    overrides_dir=$(grep "^overrides_dir:" "${scenario_yaml}" | sed 's/^overrides_dir: *//')
+    preset=$(grep "^preset:" "${scenario_yaml}" | sed 's/^preset: *//')
 
     # Set FORMAT from scenario if not explicitly set via CLI
     if [[ "${FORMAT}" == "${DEFAULT_FORMAT}" ]]; then
@@ -291,10 +294,19 @@ load_scenario() {
         SCENARIO_NAME="${name}"
     fi
 
-    # Set SCENARIO_OVERRIDES if not already set
-    if [[ -z "${SCENARIO_OVERRIDES}" ]]; then
-        SCENARIO_OVERRIDES="${scenario_dir}/${overrides_dir}"
-        log_info "  Overrides: ${SCENARIO_OVERRIDES}"
+    # Generate OBS scene JSON from scenario
+    local generated_dir="${scenario_dir}/generated"
+    mkdir -p "${generated_dir}/basic/scenes"
+    python3 "${TEST_DIR}/scenario_loader.py" --scenario "${scenario_name}" \
+        --output "${generated_dir}/basic/scenes/C64StreamTest.json" 2>/dev/null
+
+    if [[ $? -eq 0 ]]; then
+        SCENARIO_OVERRIDES="${generated_dir}"
+        log_info "  Preset: ${preset}"
+        log_info "  Generated scene: ${generated_dir}/basic/scenes/C64StreamTest.json"
+    else
+        log_error "Failed to generate scene JSON from scenario"
+        exit 1
     fi
 }
 

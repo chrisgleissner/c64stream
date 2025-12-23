@@ -1,3 +1,10 @@
 name: NTSC Classic CRT
 format: NTSC
-overrides_dir: overrides
+preset: Classic CRT
+overrides:
+  afterglow_duration_ms: 50
+assertions:
+  - video_quality
+  - audio
+  - afterglow
+  - scanlines
