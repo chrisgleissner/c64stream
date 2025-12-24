@@ -61,19 +61,19 @@ assertions:
 
 ## Available Scenarios
 
-| Scenario            | Format | Preset         | Key Assertions                    |
-| ------------------- | ------ | -------------- | --------------------------------- |
-| ntsc_default        | NTSC   | Default        | video_quality, audio              |
-| ntsc_classic_crt    | NTSC   | Classic CRT    | video_quality, audio, afterglow, scanlines |
-| ntsc_amber_monitor  | NTSC   | Amber Monitor  | video_quality, audio, tint, afterglow, scanlines |
-| ntsc_green_monitor  | NTSC   | Green Monitor  | video_quality, audio, tint, afterglow, scanlines |
-| ntsc_sharp_pixels   | NTSC   | Sharp Pixels   | video_quality, audio              |
-| ntsc_phosphor_glow  | NTSC   | Phosphor Glow  | video_quality, audio, afterglow, scanlines |
-| ntsc_vintage_tv     | NTSC   | Vintage TV     | video_quality, audio, afterglow, scanlines |
-| ntsc_arcade_cabinet | NTSC   | Arcade Cabinet | video_quality, audio, scanlines   |
-| pal_sharp_pixels    | PAL    | Sharp Pixels   | video_quality, audio              |
-| ntsc_delay_500ms    | NTSC   | Default        | video_quality, audio (buffer test)|
-| scanlines           | PAL    | Classic CRT    | video_quality, audio, scanlines   |
+| Scenario              | Format | Preset         | Key Assertions                    |
+| --------------------- | ------ | -------------- | --------------------------------- |
+| ntsc_default          | NTSC   | Default        | video_quality, audio              |
+| ntsc_classic_crt      | NTSC   | Classic CRT    | video_quality, audio, afterglow, scanlines |
+| ntsc_amber_monitor    | NTSC   | Amber Monitor  | video_quality, audio, tint, afterglow, scanlines |
+| ntsc_green_monitor    | NTSC   | Green Monitor  | video_quality, audio, tint, afterglow, scanlines |
+| ntsc_sharp_pixels     | NTSC   | Sharp Pixels   | video_quality, audio              |
+| ntsc_sharp_scan_lines | NTSC   | Default        | video_quality, audio, scanlines   |
+| ntsc_phosphor_glow    | NTSC   | Phosphor Glow  | video_quality, audio, afterglow, scanlines |
+| ntsc_vintage_tv       | NTSC   | Vintage TV     | video_quality, audio, afterglow, scanlines |
+| ntsc_arcade_cabinet   | NTSC   | Arcade Cabinet | video_quality, audio, scanlines   |
+| ntsc_delay_500ms      | NTSC   | Default        | video_quality, audio (buffer test)|
+| pal_default           | PAL    | Default        | video_quality, audio              |
 
 ## Adding New Scenarios
 

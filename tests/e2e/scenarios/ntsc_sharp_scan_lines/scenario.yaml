@@ -1,10 +1,10 @@
-# C64 Stream - E2E Scenario: Crisp Scan Lines
+# C64 Stream - E2E Scenario: NTSC Sharp Scan Lines
 #
 # Purpose: validate pixel-perfect scanline rendering without any intentional blur/bloom/afterglow.
 # This scenario is intended to catch OBS scaling/interpolation issues.
 
-name: Crisp Scan Lines
-format: PAL
+name: NTSC Sharp Scan Lines
+format: NTSC
 preset: Default
 pattern: solid
 
