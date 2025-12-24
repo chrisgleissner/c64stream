@@ -207,7 +207,10 @@ def detect_video_pop_events(video_path, frame_rate=30.0):
         threshold = float(np.nanpercentile(metrics_arr, 99.0))
     else:
         threshold = float(chosen_med + 8.0 * chosen_mad)
-    threshold = max(threshold, 10.0)
+    # Lower the minimum threshold to 5.0 to detect pops when CRT effects (bloom/afterglow)
+    # reduce contrast. The 50x50 white pop square on black background should still exceed
+    # this when measured as percentile(inner, 98) - percentile(outer, 50).
+    threshold = max(threshold, 5.0)
 
 
     # Convert threshold hits into stable, de-bounced pop start events.

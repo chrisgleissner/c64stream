@@ -1148,9 +1148,9 @@ jobs:
           trap "kill $MONITOR_PID 2>/dev/null || true" EXIT
 
           # Run the specific scenario from the matrix
+          # NOTE: Do NOT pass --format here - scenarios define their own format in scenario.yaml
           ./e2e.sh \
             --scenario "${{ matrix.scenario }}" \
-            --format "${{ inputs.e2e_format }}" \
             --frames "${{ inputs.e2e_frames }}" \
             --output-dir "../../e2e-results" \
             --skip-build \
