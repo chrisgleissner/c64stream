@@ -1450,6 +1450,7 @@ class E2ETest:
                     continue
 
             elapsed_ms = (time.time() - replay_start_time) * 1000
+            print(f"📡 Mock sender: sent {packets_sent} packets in {elapsed_ms:.1f}ms")
             self.log(f"✅ Packet replay complete: {packets_sent} packets sent, {failed_packets} failed in {elapsed_ms:.1f}ms")
 
             # Give plugin time to process the packets (increased slightly for CI)
@@ -2073,7 +2074,7 @@ class E2ETest:
                         'details': 'Skipped (disabled)'
                     }
                 }
-                enable_frame_box_seq = (self.scenario_id in ('ntsc_default', 'pal_default'))
+                enable_frame_box_seq = (self.scenario_id in ('ntsc_default', 'pal_default', 'ntsc_delay_500ms'))
                 if enable_frame_box_seq and recording_file:
                     try:
                         from assertions.frame_box_seq import FrameBoxSequenceAssertion
@@ -2110,6 +2111,64 @@ class E2ETest:
                         }
                 else:
                     print("⚪ Frame Sequence Box: Skipped (disabled)")
+
+                # Scanline uniformity check (runs when scanlines are enabled in the active scene)
+                scanlines_results = {
+                    'status': 'skipped',
+                    'details': 'Skipped (not enabled)'
+                }
+                if recording_file:
+                    try:
+                        import json
+
+                        from assertions.config import PresetConfig, load_settings_from_obs_scene
+                        from assertions.scanlines import ScanlineAssertion
+
+                        scene_path = Path.home() / '.config' / 'obs-studio' / 'basic' / 'scenes' / 'C64StreamTest.json'
+                        if scene_path.exists():
+                            settings = load_settings_from_obs_scene(scene_path)
+                            preset = PresetConfig.from_obs_settings(settings)
+                            if preset.has_scanlines():
+                                # Tighten variance when there is no intentional blur.
+                                thresholds = {
+                                    'min_scanline_count': 35,
+                                }
+                                if preset.blur_strength >= 0.5:
+                                    thresholds['max_variance_percent'] = 1.5
+                                elif preset.blur_strength >= 0.3:
+                                    thresholds['max_variance_percent'] = 1.0
+                                else:
+                                    thresholds['max_variance_percent'] = 0.3
+                                    if preset.scan_line_strength >= 0.6:
+                                        thresholds['min_contrast_ratio'] = 0.20
+
+                                a = ScanlineAssertion(thresholds)
+                                res = a.verify(Path(recording_file), properties={}, preset=preset, verbose=self.verbose)
+                                scanlines_results = {
+                                    'status': res.status.value,
+                                    'details': res.message,
+                                    'metrics': res.metrics,
+                                }
+                                if res.status.value == 'pass':
+                                    print(f"✅ Scanlines: {res.message}")
+                                elif res.status.value == 'skip':
+                                    print(f"⚪ Scanlines: {res.message}")
+                                else:
+                                    print(f"❌ Scanlines: {res.message}")
+                                    validation_errors.append(f"Scanlines: {res.message}")
+                            else:
+                                print("⚪ Scanlines: Skipped (not enabled)")
+                        else:
+                            print(f"⚪ Scanlines: Skipped (missing scene file: {scene_path})")
+                    except Exception as e:
+                        print(f"❌ Scanlines: Analysis failed - {e}")
+                        validation_errors.append(f"Scanlines analysis error: {e}")
+                        scanlines_results = {
+                            'status': 'fail',
+                            'details': f'Analysis failed - {e}',
+                        }
+
+                validation_results['scanlines'] = scanlines_results
 
             except Exception as e:
                 print(f"❌ A/V Sync: Analysis failed - {e}")
@@ -2161,6 +2220,9 @@ class E2ETest:
             print(f"  Duration Check  {icon(pi_line.get('status'))}  {pi_line.get('details','')}")
             if av_line:
                 print(f"  A/V Sync        {icon(av_line.get('status'))}  {av_line.get('details','')}")
+            sl_line = validation_results.get('scanlines', {})
+            if sl_line:
+                print(f"  Scanlines       {icon(sl_line.get('status'))}  {sl_line.get('details','')}")
             # Include visual checks summary if present
             # Visual checks disabled: ensure placeholder is printed without analysis
             if visuals_results is None:

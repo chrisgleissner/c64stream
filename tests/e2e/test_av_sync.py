@@ -74,7 +74,7 @@ def extract_audio_envelope(video_path, sample_rate=48000, window_ms=10):
 
 def detect_video_pops(video_path, frame_rate=30.0):
     """
-    Detect timing (frame numbers) when the 30x30 white video pop is visible.
+    Detect timing (frame numbers) when the 50x50 white video pop is visible.
 
     Coordinate system assumptions:
     - Source C64 frame: 384x272
@@ -82,9 +82,11 @@ def detect_video_pops(video_path, frame_rate=30.0):
                 * area spans X:[304..384), Y:[192..272)
             - Event square: 50x50 centered within that area, instant on/off
 
-    Recording layout assumptions:
-    - Output video is 1920x1080 where the C64 content fills the vertical dimension and is
-      horizontally centered with side black bars. We compute the scaled positions accordingly.
+        Recording layout assumptions:
+        - Output video is 1920x1080 where the C64 content is horizontally centered with side black bars.
+        - The content may be scaled using integer scaling with additional cropping to fit the canvas.
+            We therefore derive the content bounds from the recording itself and compute the ROI from
+            those bounds.
     """
     # Reduce OpenCV/FFmpeg verbosity
     try:
@@ -97,57 +99,34 @@ def detect_video_pops(video_path, frame_rate=30.0):
     # Minimal warmup skip to avoid early startup artifacts but still capture the first event at ~1s
     skip_frames = int(0.5 * frame_rate)
 
-    # Robust approach:
-    # - Compute a per-frame "pop metric" in the expected lower-right event ROI.
-    # - Detect pops as spikes (median + k*MAD), which stays stable under tint/scanlines.
-    # - Auto-select whether the content height is 240 (NTSC) or 272 (PAL) by choosing the
-    #   geometry that produces the strongest spike score.
-
-    metrics: dict[int, list[float]] = {240: [], 272: []}
+    # Robust approach (pixel-perfect + black bars friendly):
+    # - Detect C64 *content bounds* in a representative frame.
+    # - Compute the pop ROI relative to those bounds (lower-right of the *content*), not the
+    #   recording frame.
+    #
+    # This avoids relying on the global bottom-right corner which may be pure black bars.
+    metrics: list[float] = []
     frame_nums: list[int] = []
 
-    def _roi_rect_for_assumed_height(frame_width: int, frame_height: int, assumed_c64_height: int):
-        # OBS bounds type "scale to fit" preserves aspect ratio; the content is centered.
-        scale = min(frame_width / 384.0, frame_height / float(assumed_c64_height))
-        scaled_w = int(round(384 * scale))
-        scaled_h = int(round(assumed_c64_height * scale))
-        left = int(round((frame_width - scaled_w) / 2.0))
-        top = int(round((frame_height - scaled_h) / 2.0))
+    def _pick_stable_content_bounds() -> tuple[int, int, int, int] | None:
+        # Recordings include startup/shutdown padding; sample later to avoid early black frames.
+        candidates_s = [10.0, 8.0, 12.0, 6.0, 4.0]
+        best = None
+        best_area = -1
+        for t in candidates_s:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, int(round(t * frame_rate)))
+            ok, frame = cap.read()
+            if not ok or frame is None:
+                continue
+            left, right, top, bottom = _detect_content_bounds(frame)
+            area = (right - left) * (bottom - top)
+            if area > best_area and (right - left) > 100 and (bottom - top) > 100:
+                best_area = area
+                best = (left, right, top, bottom)
+        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+        return best
 
-        roi_size = max(1, int(round(80 * scale)))
-        x0 = left + (scaled_w - roi_size)
-        x1 = left + scaled_w
-        y0 = top + (scaled_h - roi_size)
-        y1 = top + scaled_h
-        x0 = max(0, min(frame_width, x0))
-        x1 = max(0, min(frame_width, x1))
-        y0 = max(0, min(frame_height, y0))
-        y1 = max(0, min(frame_height, y1))
-        return x0, x1, y0, y1, scale
-
-    def _pop_metric(area_gray: np.ndarray, scale: float) -> float:
-        # Event square is 50x50 centered within the 80x80 ROI.
-        roi_h, roi_w = area_gray.shape[:2]
-        scaled_event = max(4, int(round(50 * scale)))
-        scaled_event = min(scaled_event, roi_h - 2, roi_w - 2)
-        if scaled_event < 4:
-            return float('nan')
-
-        cx = roi_w // 2
-        cy = roi_h // 2
-        half = scaled_event // 2
-        y0 = max(0, cy - half)
-        y1 = min(roi_h, cy + half)
-        x0 = max(0, cx - half)
-        x1 = min(roi_w, cx + half)
-        inner = area_gray[y0:y1, x0:x1]
-        if inner.size == 0:
-            return float('nan')
-
-        # Use median of ROI as the baseline; inner mean should spike during a pop.
-        roi_med = float(np.median(area_gray))
-        inner_mean = float(inner.mean())
-        return inner_mean - roi_med
+    bounds = _pick_stable_content_bounds()
 
     while True:
         ret, frame = cap.read()
@@ -160,16 +139,40 @@ def detect_video_pops(video_path, frame_rate=30.0):
             continue
 
         height, width = frame.shape[:2]
-
-        # Compute metric for both assumed heights; choose best after the scan.
         gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        for assumed in (240, 272):
-            rx0, rx1, ry0, ry1, scale_factor = _roi_rect_for_assumed_height(width, height, assumed)
+
+        if bounds is None:
+            metrics.append(float('nan'))
+        else:
+            left, right, top, bottom = bounds
+            left = max(0, min(width, int(left)))
+            right = max(0, min(width, int(right)))
+            top = max(0, min(height, int(top)))
+            bottom = max(0, min(height, int(bottom)))
+            if right <= left + 10 or bottom <= top + 10:
+                metrics.append(float('nan'))
+                frame_nums.append(frame_num)
+                frame_num += 1
+                continue
+
+            scale = (right - left) / 384.0
+            area_px = int(max(10, round(80.0 * scale)))
+            rx0 = max(left, right - area_px)
+            rx1 = right
+            ry0 = max(top, bottom - area_px)
+            ry1 = bottom
             roi = gray_frame[ry0:ry1, rx0:rx1]
             if roi.size == 0:
-                metrics[assumed].append(float('nan'))
+                metrics.append(float('nan'))
             else:
-                metrics[assumed].append(_pop_metric(roi, scale_factor))
+                rh, rw = roi.shape[:2]
+                # Pop square is 50x50 centered in an 80x80 area => 0.625 of the area.
+                event = max(8, int(round(0.625 * min(rh, rw))))
+                cy = rh // 2
+                cx = rw // 2
+                half = event // 2
+                inner = roi[max(0, cy - half):min(rh, cy + half), max(0, cx - half):min(rw, cx + half)]
+                metrics.append(float(np.percentile(inner, 98.0) - np.percentile(roi, 50.0)))
 
         frame_nums.append(frame_num)
 
@@ -187,26 +190,22 @@ def detect_video_pops(video_path, frame_rate=30.0):
         peak = float(np.percentile(arr, 99.5))
         return (peak - med) / mad, med, mad
 
-    # Build arrays and pick geometry (240 vs 272) by spike score.
-    metrics = {240: np.array(metrics[240], dtype=float), 272: np.array(metrics[272], dtype=float)}
-    score240, med240, mad240 = _score(metrics[240])
-    score272, med272, mad272 = _score(metrics[272])
-    chosen = 240 if score240 >= score272 else 272
-    chosen_metrics = metrics[chosen]
-    chosen_med = med240 if chosen == 240 else med272
-    chosen_mad = mad240 if chosen == 240 else mad272
+    metrics_arr = np.array(metrics, dtype=float)
+    _, chosen_med, chosen_mad = _score(metrics_arr)
 
     # Threshold for spikes. Use a conservative multiplier; this is a sparse, high-contrast event.
-    # Also clamp to a small positive floor: the metric is (inner_mean - roi_median), and during
-    # non-pop frames it can be <= 0.0; if the median becomes negative (e.g. due to ROI brightness
-    # distribution), an unconstrained MAD threshold can become negative and match almost all frames.
-    threshold = max(chosen_med + 8.0 * chosen_mad, 20.0)
+    # If MAD collapses (bimodal/stable metric), fall back to percentile-based separation.
+    if chosen_mad <= 1.0:
+        threshold = float(np.nanpercentile(metrics_arr, 99.0))
+    else:
+        threshold = float(chosen_med + 8.0 * chosen_mad)
+    threshold = max(threshold, 10.0)
 
     # Convert threshold hits into stable, de-bounced pop frames.
     # Some effects (e.g. afterglow) can smear the event so that the first threshold crossing
     # occurs slightly before the best-aligned peak. We therefore group adjacent hits into a
     # cluster and then pick the local maximum with a small look-ahead.
-    hot = np.where(np.isfinite(chosen_metrics) & (chosen_metrics > threshold))[0]
+    hot = np.where(np.isfinite(metrics_arr) & (metrics_arr > threshold))[0]
     if hot.size == 0:
         return []
 
@@ -223,8 +222,8 @@ def detect_video_pops(video_path, frame_rate=30.0):
             cluster_end = idx
             continue
 
-        search_end = min(len(chosen_metrics) - 1, cluster_end + search_ahead)
-        window = chosen_metrics[cluster_start : search_end + 1]
+        search_end = min(len(metrics_arr) - 1, cluster_end + search_ahead)
+        window = metrics_arr[cluster_start : search_end + 1]
         max_val = float(np.nanmax(window))
         best_rel = int(np.where(window == max_val)[0][-1])
         best_indices.append(cluster_start + best_rel)
@@ -232,8 +231,8 @@ def detect_video_pops(video_path, frame_rate=30.0):
         cluster_start = idx
         cluster_end = idx
 
-    search_end = min(len(chosen_metrics) - 1, cluster_end + search_ahead)
-    window = chosen_metrics[cluster_start : search_end + 1]
+    search_end = min(len(metrics_arr) - 1, cluster_end + search_ahead)
+    window = metrics_arr[cluster_start : search_end + 1]
     max_val = float(np.nanmax(window))
     best_rel = int(np.where(window == max_val)[0][-1])
     best_indices.append(cluster_start + best_rel)
@@ -300,15 +299,22 @@ def detect_audio_pops(envelope, window_ms=10, threshold_factor=3.0, min_duration
 
 
 def _detect_content_bounds(frame):
-    """Detect content bounds (left, right, top, bottom) using black bars around C64 content."""
+    """Detect content bounds (left, right, top, bottom) using bars around C64 content.
+
+    Important: In some OBS/render pipelines, "black" bars may not be pure 0 (e.g. limited-range
+    quantization or subtle non-zero background), so a fixed "non_black > 10" test can fail and
+    mistakenly treat the bars as content.
+
+    We instead use a robust, distribution-based threshold on per-column/per-row medians.
+    """
     height, width = frame.shape[:2]
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    _, non_black = cv2.threshold(gray, 10, 255, cv2.THRESH_BINARY)
 
-    # Horizontal bounds
-    col_counts = np.sum(non_black > 0, axis=0)
-    col_thresh = max(1, int(0.10 * height))
-    content_cols = np.where(col_counts >= col_thresh)[0]
+    # Horizontal bounds: use a high percentile per column to remain robust when scanlines
+    # create many dark pixels/rows (medians can collapse to 0).
+    col_hi = np.percentile(gray, 99.0, axis=0)
+    thr = max(10.0, float(np.percentile(col_hi, 90.0) * 0.20))
+    content_cols = np.where(col_hi > thr)[0]
     if content_cols.size >= 2:
         left_bound = int(content_cols[0])
         right_bound = int(content_cols[-1]) + 1
@@ -316,20 +322,25 @@ def _detect_content_bounds(frame):
         # Fallback: assume centered horizontally
         scale_factor = height / 272.0
         scaled_c64_width = int(384 * scale_factor)
-        left_bound = (width - scaled_c64_width) // 2
-        right_bound = (width + scaled_c64_width) // 2
+        left_bound = int((width - scaled_c64_width) // 2)
+        right_bound = int((width + scaled_c64_width) // 2)
 
-    # Vertical bounds
-    row_counts = np.sum(non_black > 0, axis=1)
-    row_thresh = max(1, int(0.10 * width))
-    content_rows = np.where(row_counts >= row_thresh)[0]
+    # Vertical bounds: same idea for rows.
+    row_hi = np.percentile(gray, 99.0, axis=1)
+    thr_r = max(10.0, float(np.percentile(row_hi, 90.0) * 0.20))
+    content_rows = np.where(row_hi > thr_r)[0]
     if content_rows.size >= 2:
         top_bound = int(content_rows[0])
         bottom_bound = int(content_rows[-1]) + 1
     else:
-        # Fallback: fill vertically
         top_bound = 0
         bottom_bound = height
+
+    # Clamp bounds to valid image coordinates
+    left_bound = max(0, min(width, left_bound))
+    right_bound = max(0, min(width, right_bound))
+    top_bound = max(0, min(height, top_bound))
+    bottom_bound = max(0, min(height, bottom_bound))
 
     return left_bound, right_bound, top_bound, bottom_bound
 

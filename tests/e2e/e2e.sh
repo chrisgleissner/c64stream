@@ -41,6 +41,7 @@ DEFAULT_X11_DISPLAY=":99"
 DEFAULT_MONITOR_RESOURCES=false  # Resource monitoring for CI
 DEFAULT_SCENARIO_OVERRIDES=""
 DEFAULT_SCENARIO_NAME=""
+DEFAULT_PACKET_PATTERN=""
 DEFAULT_SCENARIO=""
 
 # Scenario directory
@@ -276,10 +277,11 @@ load_scenario() {
     log_info "Loading scenario: ${scenario_name}"
 
     # Parse scenario.yaml (new concise format)
-    local name format preset
+    local name format preset pattern
     name=$(grep "^name:" "${scenario_yaml}" | sed 's/^name: *//')
     format=$(grep "^format:" "${scenario_yaml}" | sed 's/^format: *//')
     preset=$(grep "^preset:" "${scenario_yaml}" | sed 's/^preset: *//')
+    pattern=$(grep "^pattern:" "${scenario_yaml}" | sed 's/^pattern: *//')
 
     # Set FORMAT from scenario if not explicitly set via CLI
     if [[ "${FORMAT}" == "${DEFAULT_FORMAT}" ]]; then
@@ -292,6 +294,12 @@ load_scenario() {
     # Set SCENARIO_NAME if not already set
     if [[ -z "${SCENARIO_NAME}" ]]; then
         SCENARIO_NAME="${name}"
+    fi
+
+    # Optional packet pattern (solid/diagonal) for scanline-specific scenarios
+    if [[ -n "${pattern}" ]]; then
+        PACKET_PATTERN="${pattern}"
+        log_info "  Packet pattern: ${PACKET_PATTERN}"
     fi
 
     # Generate OBS scene JSON from scenario
@@ -326,6 +334,7 @@ parse_args() {
     SCENARIO_OVERRIDES="${DEFAULT_SCENARIO_OVERRIDES}"
     SCENARIO_NAME="${DEFAULT_SCENARIO_NAME}"
     SCENARIO="${DEFAULT_SCENARIO}"
+    PACKET_PATTERN="${DEFAULT_PACKET_PATTERN}"
 
     while [[ $# -gt 0 ]]; do
         case $1 in
@@ -672,9 +681,15 @@ generate_packets() {
         "--output" "test_packets"
     )
 
-    # Optional pattern selection (e.g., afterglow pulse pattern).
-    # Note: upstream packet generator no longer supports --pattern; it always emits the A/V pop sync marker.
-    # Keep C64_E2E_PATTERN as an env toggle for other parts of the harness, but do not pass it to generate_packets.py.
+    # Optional pattern selection (useful for scanline assertions).
+    # Supported by our packet generator: diagonal (default) or solid (uniform field).
+    if [[ -n "${PACKET_PATTERN}" ]]; then
+        if [[ "${PACKET_PATTERN}" != "diagonal" && "${PACKET_PATTERN}" != "solid" ]]; then
+            log_error "Invalid packet pattern: ${PACKET_PATTERN} (expected: diagonal|solid)"
+            exit 1
+        fi
+        cmd+=("--pattern" "${PACKET_PATTERN}")
+    fi
 
     if [[ "${VERBOSE}" == true ]]; then
         log_info "Running: ${cmd[*]}"

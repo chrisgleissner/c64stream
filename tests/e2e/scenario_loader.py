@@ -20,6 +20,7 @@ import json
 import os
 from configparser import ConfigParser
 from dataclasses import dataclass, field
+from math import floor
 from pathlib import Path
 from typing import Any, Optional
 
@@ -197,11 +198,116 @@ def generate_scene_json(
     # Build source settings
     source_settings = build_source_settings(scenario, presets_path, is_ci)
 
+    def _scanline_scale_for_distance(scan_line_distance: float) -> int:
+        """Map scan line distance to the integer scale described in README.md."""
+        mapping = {
+            0.0: 4,   # None
+            0.25: 5,  # Tight
+            0.5: 3,   # Normal
+            1.0: 4,   # Wide
+            2.0: 3,   # Extra Wide
+        }
+        # Snap to nearest known mode within tolerance.
+        try:
+            d = float(scan_line_distance)
+        except Exception:
+            return 4
+        nearest = min(mapping.keys(), key=lambda k: abs(d - k))
+        if abs(d - nearest) <= 0.02:
+            return mapping[nearest]
+        # Fallback: keep integer scale (avoid non-integer scaling in OBS).
+        return 4
+
+    def _apply_pixel_perfect_scene_item(scene_json: dict, *, fmt: str, settings: dict[str, Any]) -> None:
+        """Update the scene item transform so OBS doesn't introduce interpolation blur."""
+        canvas_w = 1920.0
+        canvas_h = 1080.0
+        # The plugin itself can change its reported base dimensions via effect settings:
+        # - pixel_width / pixel_height
+        # - scan_line_distance (adds integer upscaling to create scanline/gap structure)
+        #
+        # Model the source base size the same way as the plugin (`c64_get_width/height`) so we can
+        # pick an integer OBS scale and crop without introducing interpolation.
+        base_w = 384.0
+        base_h = 272.0 if str(fmt).upper() == 'PAL' else 240.0
+
+        pixel_w = float(settings.get('pixel_width', 1.0) or 1.0)
+        pixel_h = float(settings.get('pixel_height', 1.0) or 1.0)
+        scan_line_distance = float(settings.get('scan_line_distance', 0.0) or 0.0)
+
+        scanline_unit = 1.0
+        if scan_line_distance > 0.0:
+            # Must match `get_scanline_scaling_info()` in src/c64-source.c
+            if scan_line_distance <= 0.25:
+                scanline_unit = 5.0
+            elif scan_line_distance <= 0.5:
+                scanline_unit = 3.0
+            elif scan_line_distance <= 1.0:
+                scanline_unit = 4.0
+            else:
+                scanline_unit = 3.0
+
+        source_w = base_w * pixel_w * scanline_unit
+        source_h = base_h * pixel_h * scanline_unit
+
+        # Choose the largest integer scale that fits without requiring crop.
+        # (Crop is still supported for small overflows caused by rounding.)
+        fit_scale = min(canvas_w / source_w, canvas_h / source_h)
+        scale = float(max(1, int(floor(fit_scale))))
+
+        scaled_w = source_w * scale
+        scaled_h = source_h * scale
+
+        # Crop in *source pixels* so that scaled result fits the canvas without resampling.
+        overflow_x = max(0.0, scaled_w - canvas_w)
+        overflow_y = max(0.0, scaled_h - canvas_h)
+
+        crop_left = int(floor((overflow_x / 2.0) / scale))
+        crop_right = int(floor((overflow_x - (crop_left * scale)) / scale))
+        crop_top = int(floor((overflow_y / 2.0) / scale))
+        crop_bottom = int(floor((overflow_y - (crop_top * scale)) / scale))
+
+        # Clamp crops to valid ranges.
+        crop_left = max(0, min(crop_left, int(source_w)))
+        crop_right = max(0, min(crop_right, int(source_w) - crop_left))
+        crop_top = max(0, min(crop_top, int(source_h)))
+        crop_bottom = max(0, min(crop_bottom, int(source_h) - crop_top))
+
+        displayed_w = (source_w - crop_left - crop_right) * scale
+        displayed_h = (source_h - crop_top - crop_bottom) * scale
+        pos_x = (canvas_w - displayed_w) / 2.0
+        pos_y = (canvas_h - displayed_h) / 2.0
+
+        # Locate scene item named "C64 Stream".
+        for src in scene_json.get('sources', []):
+            if src.get('id') != 'scene':
+                continue
+            items = (((src.get('settings') or {}).get('items')) or [])
+            for item in items:
+                if item.get('name') != 'C64 Stream':
+                    continue
+                item['align'] = 5
+                item['pos'] = {'x': float(pos_x), 'y': float(pos_y)}
+                item['scale'] = {'x': float(scale), 'y': float(scale)}
+                # Disable bounds scaling: we want exact integer scaling via `scale` only.
+                # Bounds-based scaling can introduce non-integer resampling depending on the source's base size.
+                item['bounds_type'] = 0
+                item['bounds'] = {'x': 0.0, 'y': 0.0}
+                item['scale_filter'] = 'point'
+                item['crop_left'] = int(crop_left)
+                item['crop_right'] = int(crop_right)
+                item['crop_top'] = int(crop_top)
+                item['crop_bottom'] = int(crop_bottom)
+                return
+
     # Find c64_source in the template and set its settings
     for source in scene.get("sources", []):
         if source.get("id") == "c64_source":
             source["settings"] = source_settings
             break
+
+    # Ensure the scene item transform uses integer scaling and point filtering
+    _apply_pixel_perfect_scene_item(scene, fmt=scenario.format, settings=source_settings)
 
     return scene
 

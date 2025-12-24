@@ -7,6 +7,7 @@
    - If it fails, run `./build-aux/run-clang-format <files...>` and re-run the check.
 2. **E2E is LOCAL ONLY**: do **not** run E2E tests in cloud/CI environments (known instability). Only run E2E locally with a working GUI.
 3. **Agent entrypoint**: also see `AGENTS.md` (references this file and standard workflows).
+4. **Before declaring work “complete”**: do a documentation review (docs match code/behavior) and run a full local E2E scenario suite (all scenarios).
 
 ## Project Overview
 OBS Studio plugin for streaming C64 Ultimate device video/audio over network. See `doc/c64-stream-spec.md` for protocol details.
@@ -128,6 +129,13 @@ fi
 # E2E (MANDATORY for plugin behavior changes, but LOCAL ONLY. Do NOT run in cloud/CI environments.)
 # Requires a working graphical environment (X11/Wayland) and OBS installed.
 ./local-build linux --install --e2e
+
+# Full E2E scenario suite (LOCAL ONLY) - run all scenarios
+cd tests/e2e
+scenarios=$(./e2e.sh --list-scenarios | awk -F: '/^  [a-z0-9_]+:/{print $1}' | tr -d ' ')
+for s in $scenarios; do
+    ./e2e.sh --scenario "$s" --duration 5 || exit 1
+done
 ```
 
 **Checklist:**
@@ -135,6 +143,8 @@ fi
 - [ ] Code formatting passes
 - [ ] CMake formatting passes
 - [ ] Workflow validation passes (if .github/workflows/ modified)
+- [ ] Documentation reviewed (docs reflect current behavior)
+- [ ] Full local E2E scenario suite passes (LOCAL ONLY)
 - [ ] Cross-platform compatibility maintained
 - [ ] Code committed with clear commit message
 
