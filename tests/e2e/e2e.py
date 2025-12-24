@@ -2035,6 +2035,40 @@ class E2ETest:
                     except Exception:
                         validation_results['packet_integrity'] = {'status': 'unknown', 'details': 'Duration check failed'}
 
+                    # Video brightness check - detect all-black or nearly-black videos
+                    try:
+                        import subprocess
+                        import numpy as np
+                        # Sample a frame from the middle of the video
+                        frame_bytes = 1920 * 1080 * 3
+                        brightness_cmd = [
+                            'ffmpeg', '-v', 'error',
+                            '-i', str(recording_file),
+                            '-vf', 'select=eq(n\\,60)',  # Frame 60 (~1s into video)
+                            '-vframes', '1',
+                            '-f', 'rawvideo',
+                            '-pix_fmt', 'rgb24',
+                            '-'
+                        ]
+                        brightness_result = subprocess.run(brightness_cmd, capture_output=True, timeout=10)
+                        if brightness_result.returncode == 0 and len(brightness_result.stdout) == frame_bytes:
+                            frame_data = np.frombuffer(brightness_result.stdout, dtype=np.uint8)
+                            mean_brightness = np.mean(frame_data)
+                            if mean_brightness < 5.0:  # Nearly black
+                                print(f"❌ Video Brightness: Frame is nearly black (mean={mean_brightness:.2f})")
+                                validation_errors.append(f"Video content appears black (mean brightness {mean_brightness:.1f}/255)")
+                                validation_results['video_brightness'] = {'status': 'fail', 'details': f'Nearly black (mean={mean_brightness:.1f})'}
+                            elif mean_brightness < 15.0:  # Very dark
+                                print(f"⚠️  Video Brightness: Frame is very dark (mean={mean_brightness:.2f})")
+                                validation_warnings.append(f"Video content is very dark (mean brightness {mean_brightness:.1f}/255)")
+                                validation_results['video_brightness'] = {'status': 'warning', 'details': f'Very dark (mean={mean_brightness:.1f})'}
+                            else:
+                                print(f"✅ Video Brightness: Normal (mean={mean_brightness:.2f})")
+                                validation_results['video_brightness'] = {'status': 'pass', 'details': f'Normal (mean={mean_brightness:.1f})'}
+                    except Exception as e:
+                        # Non-critical - just log and continue
+                        validation_results['video_brightness'] = {'status': 'unknown', 'details': f'Check failed: {e}'}
+
                 else:
                     print(f"❌ Video Recording: {file_size:,} bytes (<{min_expected_size:,} bytes)")
                     validation_errors.append(f"Video file too small: {file_size} < {min_expected_size} bytes")
@@ -2278,6 +2312,9 @@ class E2ETest:
             print(f"  OBS Frames      {icon(fr_line.get('status'))}  {fr_line.get('details','')}")
             print(f"  Recording File  {icon(vr_line.get('status'))}  {vr_line.get('details','')}")
             print(f"  Duration Check  {icon(pi_line.get('status'))}  {pi_line.get('details','')}")
+            vb_line = validation_results.get('video_brightness', {})
+            if vb_line:
+                print(f"  Video Bright.   {icon(vb_line.get('status'))}  {vb_line.get('details','')}")
             if av_line:
                 print(f"  A/V Sync        {icon(av_line.get('status'))}  {av_line.get('details','')}")
             sl_line = validation_results.get('scanlines', {})
