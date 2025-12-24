@@ -1,0 +1,6 @@
+name: PAL Default
+format: PAL
+preset: Default
+assertions:
+  - video_quality
+  - audio

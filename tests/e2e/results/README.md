@@ -2,32 +2,31 @@
 
 This directory contains reference recordings and test results for E2E testing.
 
+Important: Most subfolders here are generated locally and are intentionally not committed.
+Only a small curated subset is tracked in git to avoid bloating the repository.
+
 ## Directory Structure
 
 ```
-results/
-├── README.md           # This file
-├── pal/                # PAL format results (50Hz)
-│   ├── default/        # Default preset (no effects)
-│   ├── classic_crt/    # Classic CRT preset
-│   ├── amber_monitor/  # Amber tint preset
-│   ├── green_monitor/  # Green phosphor preset
-│   ├── sharp_pixels/   # Sharp pixels preset
-│   ├── phosphor_glow/  # Phosphor afterglow preset
-│   ├── vintage_tv/     # Vintage TV preset
-│   └── arcade_cabinet/ # Arcade cabinet preset
-└── ntsc/               # NTSC format results (60Hz)
-    └── (same structure as pal/)
+tests/e2e/results/
+├── README.md
+├── ntsc_default/        # committed (NTSC, Default preset)
+├── ntsc_green_monitor/  # committed (NTSC, Green Monitor preset)
+└── pal_default/         # committed (PAL, Default preset)
 ```
+
+Any other folders under `tests/e2e/results/` are expected to be local-only outputs
+from running scenarios (e.g. `ntsc_classic_crt/`, `scanlines/`, etc.).
 
 ## Results
 
-- [ntsc](./ntsc/README.md)
-- [pal](./pal/README.md)
+- [NTSC Default](./ntsc_default/README.md)
+- [NTSC Green Monitor](./ntsc_green_monitor/README.md)
+- [PAL Default](./pal_default/README.md)
 
 ## Per-Preset Contents
 
-Each preset folder contains:
+Each scenario folder contains:
 
 - `c64_recording.mp4` - OBS recording of the test run
 - `c64_recording_still.png` - Sample frame showing A/V pop
@@ -39,46 +38,22 @@ Each preset folder contains:
 
 ## Running Tests
 
-### Single Preset
+### Single Scenario
 
 ```bash
 cd tests/e2e
-python preset_runner.py --preset arcade_cabinet --format PAL --verbose
+./e2e.sh --scenario ntsc_default --verbose
 ```
 
-### All Presets
+### All Scenarios
 
 ```bash
-python preset_runner.py --all-presets --format PAL
+./run_all_scenarios.sh
 ```
-
-### With Assertions
-
-The preset runner automatically runs the assertion framework after each test.
-To skip assertions:
-
-```bash
-python preset_runner.py --preset green_monitor --skip-assertions
-```
-
-## Assertion Framework
-
-Each preset has specific assertions based on its enabled effects:
-
-| Preset         | Video | Audio | Tint | Afterglow | Scanlines |
-|----------------|-------|-------|------|-----------|-----------|
-| Default        | ✅    | ✅    | -    | -         | -         |
-| Classic CRT    | ✅    | ✅    | -    | ✅        | ✅        |
-| Amber Monitor  | ✅    | ✅    | ✅   | ✅        | ✅        |
-| Green Monitor  | ✅    | ✅    | ✅   | ✅        | ✅        |
-| Sharp Pixels   | ✅    | ✅    | -    | -         | -         |
-| Phosphor Glow  | ✅    | ✅    | -    | ✅        | ✅        |
-| Vintage TV     | ✅    | ✅    | -    | ✅        | ✅        |
-| Arcade Cabinet | ✅    | ✅    | -    | ✅        | ✅        |
 
 ## CI Integration
 
 In CI, tests run via the GitHub Actions workflow with matrix builds:
-- Each preset × format combination runs in parallel
+- Each scenario runs in parallel
 - Results are uploaded as artifacts
 - Failures are reported in the job summary

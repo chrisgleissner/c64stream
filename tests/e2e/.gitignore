@@ -11,5 +11,19 @@ test_packets/
 # Test output
 test_output/
 
+# Test results
+# We keep only a small curated set of scenarios in git to avoid repo bloat.
+results/*
+!results/README.md
+!results/ntsc_default/
+!results/ntsc_default/**
+!results/ntsc_green_monitor/
+!results/ntsc_green_monitor/**
+!results/pal_default/
+!results/pal_default/**
+
+# Always ignore ephemeral marker files
+results/**/stop_recording.marker
+
 # Scanline test output (screenshots, packets, analysis)
 scanline_output/

@@ -1,0 +1,97 @@
+{
+  "udp_reception": {
+    "status": "pass",
+    "details": "19252/19252 packets (18000 video, 1252 audio)"
+  },
+  "frame_processing": {
+    "status": "pass",
+    "details": "1550 frames processed"
+  },
+  "video_recording": {
+    "status": "pass",
+    "details": "13.7 MB"
+  },
+  "packet_integrity": {
+    "status": "pass",
+    "details": "18.7s duration"
+  },
+  "av_sync_details": {
+    "total_audio_pops": 4,
+    "total_analyzed": 4,
+    "total_video_pops": 4,
+    "perfect_sync_count": 3,
+    "sync_accuracy_percent": 75.0,
+    "tolerance_ms": 40,
+    "sync_details": [
+      {
+        "audio_pop_time_ms": 7590,
+        "closest_video_pop_ms": 7550.0,
+        "closest_video_pop_frame": 453,
+        "difference_ms": 40.0,
+        "is_synced": true,
+        "included_in_analysis": true,
+        "ignore_reason": null,
+        "channel": "L",
+        "traffic": "yellow"
+      },
+      {
+        "audio_pop_time_ms": 8590,
+        "closest_video_pop_ms": 8533.333333333334,
+        "closest_video_pop_frame": 512,
+        "difference_ms": 56.66666666666606,
+        "is_synced": false,
+        "included_in_analysis": true,
+        "ignore_reason": null,
+        "channel": "R",
+        "traffic": "red"
+      },
+      {
+        "audio_pop_time_ms": 9590,
+        "closest_video_pop_ms": 9550.0,
+        "closest_video_pop_frame": 573,
+        "difference_ms": 40.0,
+        "is_synced": true,
+        "included_in_analysis": true,
+        "ignore_reason": null,
+        "channel": "L",
+        "traffic": "yellow"
+      },
+      {
+        "audio_pop_time_ms": 10588,
+        "closest_video_pop_ms": 10550.0,
+        "closest_video_pop_frame": 633,
+        "difference_ms": 38.0,
+        "is_synced": true,
+        "included_in_analysis": true,
+        "ignore_reason": null,
+        "channel": "R",
+        "traffic": "yellow"
+      }
+    ],
+    "is_perfectly_synced": false,
+    "last_event_within_limit": true,
+    "duration_ms": 18733.333,
+    "video_pop_times_ms": [
+      7550.0,
+      8533.333333333334,
+      9550.0,
+      10550.0
+    ],
+    "video_pop_frame_indices": [
+      453,
+      512,
+      573,
+      633
+    ],
+    "traffic": [
+      "yellow",
+      "red",
+      "yellow",
+      "yellow"
+    ]
+  },
+  "av_sync": {
+    "status": "pass",
+    "details": "3/4 analyzed pops synced"
+  }
+}
