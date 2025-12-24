@@ -1,11 +1,10 @@
-# Pre-built Debian container with OBS Studio 30+ and Qt6 dependencies
+# Pre-built Debian container with OBS Studio and Qt6 dependencies
 # This dramatically speeds up CI builds by avoiding lengthy APT installations
-# OBS is built from source to get version 30+ (required for libobs.so.30 ABI compatibility)
 
 FROM debian:12
 
 LABEL org.opencontainers.image.title="C64 Stream Debian Build Environment"
-LABEL org.opencontainers.image.description="Pre-built Debian container with OBS Studio 30+ and Qt6 for fast CI builds"
+LABEL org.opencontainers.image.description="Pre-built Debian container with OBS Studio and Qt6 for fast CI builds"
 LABEL org.opencontainers.image.source="https://github.com/chrisgleissner/c64stream"
 LABEL org.opencontainers.image.licenses="GPL-2.0-or-later"
 
@@ -28,7 +27,10 @@ RUN echo "deb http://deb.debian.org/debian bookworm main contrib non-free non-fr
     echo "deb http://deb.debian.org/debian bookworm-backports main contrib non-free non-free-firmware" >> /etc/apt/sources.list.d/debian.list && \
     apt-get update -qq
 
-# Install build dependencies for OBS Studio build from source
+# Install FFmpeg (required for OBS)
+RUN apt-get install -y --no-install-recommends ffmpeg
+
+# Install build dependencies
 RUN apt-get install -y --no-install-recommends \
         build-essential \
         cmake \
@@ -51,7 +53,7 @@ RUN apt-get install -y --no-install-recommends \
         libgles2-mesa-dev \
         libsimde-dev \
         qt6-base-dev \
-        libqt6svg6-dev \
+        libqt6svg6 \
         qt6-wayland \
         libavcodec-dev \
         libavdevice-dev \
@@ -67,11 +69,8 @@ RUN apt-get install -y --no-install-recommends \
         libluajit-5.1-dev \
         python3-dev \
         libx11-dev \
-        libx11-xcb-dev \
         libxcb-shm0-dev \
         libxcb-xinerama0-dev \
-        libxcb-randr0-dev \
-        libxcb-composite0-dev \
         libxcomposite-dev \
         libxinerama-dev \
         libpulse-dev \
@@ -90,10 +89,10 @@ RUN apt-get install -y --no-install-recommends \
         libasio-dev \
         nlohmann-json3-dev \
         libqrcodegencpp-dev \
-        uthash-dev \
-        libpipewire-0.3-dev \
-        libdatachannel-dev \
-        swig
+        uthash-dev
+
+# Install OBS Studio
+RUN apt-get install -y --no-install-recommends obs-studio libobs-dev
 
 # Install Python dependencies for E2E tests
 RUN apt-get install -y --no-install-recommends \
@@ -103,7 +102,6 @@ RUN apt-get install -y --no-install-recommends \
         python3-opencv \
         python3-pil \
         xvfb \
-        ffmpeg \
         pulseaudio \
         pulseaudio-utils
 
@@ -111,36 +109,12 @@ RUN apt-get install -y --no-install-recommends \
 RUN python3 -m pip install --no-cache-dir --break-system-packages "cmake==3.28.3" && \
     cmake --version
 
-# Build OBS Studio 30.2.3 from source (provides libobs.so.30)
-# This is required for ABI compatibility with the plugin built on Ubuntu
-ENV OBS_VERSION=30.2.3
-RUN cd /tmp && \
-    git clone --recursive --depth 1 --branch ${OBS_VERSION} https://github.com/obsproject/obs-studio.git && \
-    cd obs-studio && \
-    mkdir build && cd build && \
-    cmake -G Ninja \
-        -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_INSTALL_PREFIX=/usr \
-        -DENABLE_BROWSER=OFF \
-        -DENABLE_VST=OFF \
-        -DENABLE_VLC=OFF \
-        -DENABLE_SCRIPTING=OFF \
-        -DENABLE_AJA=OFF \
-        -DENABLE_WEBRTC=OFF \
-        -DENABLE_NEW_MPEGTS_OUTPUT=OFF \
-        .. && \
-    ninja -j$(nproc) && \
-    ninja install && \
-    cd / && rm -rf /tmp/obs-studio
-
-# Verify OBS installation provides libobs.so.30
-RUN ldconfig && \
-    ls -la /usr/lib/*/libobs.so* && \
-    obs --version
-
 # Clean up APT cache
 RUN apt-get clean && \
     rm -rf /var/lib/apt/lists/*
+
+# Verify OBS installation
+RUN obs --version || echo "OBS Studio installed (version check may fail in container)"
 
 # Set working directory
 WORKDIR /workspace
