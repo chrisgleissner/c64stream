@@ -74,6 +74,12 @@ class E2ETest:
         self.tcp_server_running = False
         self.udp_replay_triggered = threading.Event()
 
+        # Ensure we don't start packet replay until we've received START for *both* streams.
+        # The plugin can request audio/video at different times in CI; starting replay early
+        # can create an artificial A/V offset in the recording.
+        self._stream_start_mask = 0  # bit0=video, bit1=audio
+        self._stream_start_lock = threading.Lock()
+
         # UDP destination addresses (updated from TCP commands)
         self.video_dest_ip = '127.0.0.1'
         self.video_dest_port = self.video_port
@@ -118,8 +124,10 @@ class E2ETest:
             self.obs_startup_delay = 0.5
             self.async_task_delay = 0.3
             self.websocket_settings_delay = 0.2
-            self.udp_socket_delay = 0.05
-            self.buffer_setup_delay = 0.05
+            # Even locally, OBS/plugin may need a moment to bind UDP ports reliably.
+            # Too-small delays can cause occasional packet loss and flaky assertions.
+            self.udp_socket_delay = 0.2
+            self.buffer_setup_delay = 0.2
             self.log("🚀 Local environment detected - using short timeouts")
 
     def log(self, message):
@@ -1632,8 +1640,15 @@ class E2ETest:
                                     except ValueError:
                                         self.log(f"Invalid port in destination: {dest_str}")
 
-                        # Signal that we should start UDP packet replay
-                        self.udp_replay_triggered.set()
+                        # Signal that we should start UDP packet replay.
+                        # Wait until we've received START for both streams (video+audio).
+                        with self._stream_start_lock:
+                            if stream_id == 0:
+                                self._stream_start_mask |= 0x1
+                            elif stream_id == 1:
+                                self._stream_start_mask |= 0x2
+                            if self._stream_start_mask == 0x3:
+                                self.udp_replay_triggered.set()
 
                     else:
                         self.log(f"Received STOP command for stream {stream_id}")

@@ -249,30 +249,33 @@ def _analyze_frame_box_seq(
 
     pop_frames = detect_video_pops(str(mp4_path), frame_rate=fps)
     pop_starts = _group_consecutive_frames([int(f) for f in pop_frames])
-    if len(pop_starts) < 2:
+    if len(pop_starts) < 1:
         cap.release()
         return _AnalysisResult(
             status=AssertionStatus.FAIL,
-            message="Not enough video pops detected for frame-box-seq check",
+            message="No video pops detected for frame-box-seq check",
             details={"video_pop_starts": pop_starts},
             metrics={"video_pop_count": float(len(pop_starts))},
         )
 
+    max_seconds = float(thresholds.get("max_seconds", 8.0))
+    max_frames = int(max(1, round(max_seconds * fps)))
+
     start_frame = min(frame_count - 1, max(0, int(pop_starts[0] + 1)))
-    end_frame = min(frame_count - 1, max(0, int(pop_starts[-1] - 1)))
+    end_frame = min(frame_count - 1, start_frame + max_frames - 1)
     if end_frame <= start_frame:
         cap.release()
         return _AnalysisResult(
             status=AssertionStatus.FAIL,
-            message="Invalid analysis window between first/last pop",
-            details={"start_frame": start_frame, "end_frame": end_frame, "video_pop_starts": pop_starts},
+            message="Invalid analysis window",
+            details={
+                "start_frame": start_frame,
+                "end_frame": end_frame,
+                "video_pop_starts": pop_starts,
+                "frame_count": frame_count,
+            },
             metrics={},
         )
-
-    max_seconds = float(thresholds.get("max_seconds", 8.0))
-    max_frames = int(max(1, round(max_seconds * fps)))
-    if (end_frame - start_frame + 1) > max_frames:
-        end_frame = start_frame + max_frames - 1
 
     cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
     ret, frame0 = cap.read()

@@ -1,33 +1,33 @@
 {
   "udp_reception": {
     "status": "pass",
-    "details": "21895/21895 packets (20400 video, 1495 audio)"
+    "details": "18246/18246 packets (17000 video, 1246 audio)"
   },
   "frame_processing": {
     "status": "pass",
-    "details": "1793 frames processed"
+    "details": "1494 frames processed"
   },
   "video_recording": {
     "status": "pass",
-    "details": "15.0 MB"
+    "details": "14.5 MB"
   },
   "packet_integrity": {
     "status": "pass",
-    "details": "20.5s duration"
+    "details": "19.9s duration"
   },
   "av_sync_details": {
-    "total_audio_pops": 4,
-    "total_analyzed": 4,
-    "total_video_pops": 4,
-    "perfect_sync_count": 4,
+    "total_audio_pops": 3,
+    "total_analyzed": 3,
+    "total_video_pops": 3,
+    "perfect_sync_count": 3,
     "sync_accuracy_percent": 100.0,
-    "tolerance_ms": 40,
+    "tolerance_ms": 50,
     "sync_details": [
       {
-        "audio_pop_time_ms": 7550,
-        "closest_video_pop_ms": 7540.0,
-        "closest_video_pop_frame": 377,
-        "difference_ms": 10.0,
+        "audio_pop_time_ms": 7892,
+        "closest_video_pop_ms": 7900.0,
+        "closest_video_pop_frame": 395,
+        "difference_ms": 8.0,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -35,63 +35,53 @@
         "traffic": "green"
       },
       {
-        "audio_pop_time_ms": 8550,
-        "closest_video_pop_ms": 8520.0,
-        "closest_video_pop_frame": 426,
-        "difference_ms": 30.0,
+        "audio_pop_time_ms": 8892,
+        "closest_video_pop_ms": 8900.0,
+        "closest_video_pop_frame": 445,
+        "difference_ms": 8.0,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
         "channel": "R",
-        "traffic": "yellow"
+        "traffic": "green"
       },
       {
-        "audio_pop_time_ms": 9550,
-        "closest_video_pop_ms": 9520.0,
-        "closest_video_pop_frame": 476,
-        "difference_ms": 30.0,
+        "audio_pop_time_ms": 9892,
+        "closest_video_pop_ms": 9880.0,
+        "closest_video_pop_frame": 494,
+        "difference_ms": 12.0,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
         "channel": "L",
-        "traffic": "yellow"
-      },
-      {
-        "audio_pop_time_ms": 10550,
-        "closest_video_pop_ms": 10520.0,
-        "closest_video_pop_frame": 526,
-        "difference_ms": 30.0,
-        "is_synced": true,
-        "included_in_analysis": true,
-        "ignore_reason": null,
-        "channel": "R",
-        "traffic": "yellow"
+        "traffic": "green"
       }
     ],
     "is_perfectly_synced": true,
     "last_event_within_limit": true,
-    "duration_ms": 20501.333,
+    "duration_ms": 19880.0,
     "video_pop_times_ms": [
-      7540.0,
-      8520.0,
-      9520.0,
-      10520.0
+      7900.0,
+      8900.0,
+      9880.0
     ],
     "video_pop_frame_indices": [
-      377,
-      426,
-      476,
-      526
+      395,
+      445,
+      494
     ],
     "traffic": [
       "green",
-      "yellow",
-      "yellow",
-      "yellow"
+      "green",
+      "green"
     ]
   },
   "av_sync": {
     "status": "pass",
-    "details": "4/4 analyzed pops synced"
+    "details": "3/3 analyzed pops synced"
+  },
+  "scanlines": {
+    "status": "skipped",
+    "details": "Skipped (not enabled)"
   }
 }

@@ -72,7 +72,7 @@ def extract_audio_envelope(video_path, sample_rate=48000, window_ms=10):
     return np.array(envelope)
 
 
-def detect_video_pops(video_path, frame_rate=30.0):
+def detect_video_pop_events(video_path, frame_rate=30.0):
     """
     Detect timing (frame numbers) when the 50x50 white video pop is visible.
 
@@ -107,6 +107,7 @@ def detect_video_pops(video_path, frame_rate=30.0):
     # This avoids relying on the global bottom-right corner which may be pure black bars.
     metrics: list[float] = []
     frame_nums: list[int] = []
+    frame_times_ms: list[float | None] = []
 
     def _pick_stable_content_bounds() -> tuple[int, int, int, int] | None:
         # Recordings include startup/shutdown padding; sample later to avoid early black frames.
@@ -141,6 +142,11 @@ def detect_video_pops(video_path, frame_rate=30.0):
         height, width = frame.shape[:2]
         gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
+        try:
+            ts_ms = float(cap.get(cv2.CAP_PROP_POS_MSEC))
+        except Exception:
+            ts_ms = float('nan')
+
         if bounds is None:
             metrics.append(float('nan'))
         else:
@@ -152,6 +158,7 @@ def detect_video_pops(video_path, frame_rate=30.0):
             if right <= left + 10 or bottom <= top + 10:
                 metrics.append(float('nan'))
                 frame_nums.append(frame_num)
+                frame_times_ms.append(ts_ms)
                 frame_num += 1
                 continue
 
@@ -175,6 +182,7 @@ def detect_video_pops(video_path, frame_rate=30.0):
                 metrics.append(float(np.percentile(inner, 98.0) - np.percentile(roi, 50.0)))
 
         frame_nums.append(frame_num)
+        frame_times_ms.append(ts_ms)
 
         frame_num += 1
 
@@ -201,15 +209,12 @@ def detect_video_pops(video_path, frame_rate=30.0):
         threshold = float(chosen_med + 8.0 * chosen_mad)
     threshold = max(threshold, 10.0)
 
-    # Convert threshold hits into stable, de-bounced pop frames.
-    # Some effects (e.g. afterglow) can smear the event so that the first threshold crossing
-    # occurs slightly before the best-aligned peak. We therefore group adjacent hits into a
-    # cluster and then pick the local maximum with a small look-ahead.
+
+    # Convert threshold hits into stable, de-bounced pop start events.
     hot = np.where(np.isfinite(metrics_arr) & (metrics_arr > threshold))[0]
     if hot.size == 0:
         return []
 
-    search_ahead = max(1, int(round(0.05 * frame_rate)))  # ~50ms
     max_gap = 1
     min_spacing = max(1, int(round(0.5 * frame_rate)))  # pops are ~1s apart
 
@@ -222,32 +227,35 @@ def detect_video_pops(video_path, frame_rate=30.0):
             cluster_end = idx
             continue
 
-        search_end = min(len(metrics_arr) - 1, cluster_end + search_ahead)
-        window = metrics_arr[cluster_start : search_end + 1]
-        max_val = float(np.nanmax(window))
-        best_rel = int(np.where(window == max_val)[0][-1])
-        best_indices.append(cluster_start + best_rel)
+        # Pick the first frame where the pop is confidently visible.
+        best_indices.append(cluster_start)
 
         cluster_start = idx
         cluster_end = idx
 
-    search_end = min(len(metrics_arr) - 1, cluster_end + search_ahead)
-    window = metrics_arr[cluster_start : search_end + 1]
-    max_val = float(np.nanmax(window))
-    best_rel = int(np.where(window == max_val)[0][-1])
-    best_indices.append(cluster_start + best_rel)
+    best_indices.append(cluster_start)
 
     # Enforce minimum spacing to prevent any double-triggering.
     best_indices = sorted(set(best_indices))
-    pop_frames: list[int] = []
+    events: list[dict] = []
     last_frame = None
     for idx in best_indices:
-        fn = frame_nums[idx]
-        if last_frame is None or (fn - last_frame) >= min_spacing:
-            pop_frames.append(fn)
-            last_frame = fn
+        fn = int(frame_nums[idx])
+        if last_frame is not None and (fn - last_frame) < min_spacing:
+            continue
 
-    return pop_frames
+        t = frame_times_ms[idx]
+        if t is None or (isinstance(t, float) and not np.isfinite(t)):
+            t = None
+        events.append({'frame': fn, 'time_ms': t})
+        last_frame = fn
+
+    return events
+
+
+def detect_video_pops(video_path, frame_rate=30.0):
+    """Backward-compatible helper returning frame indices for detected video pops."""
+    return [int(ev['frame']) for ev in detect_video_pop_events(video_path, frame_rate=frame_rate)]
 
 
 def detect_audio_pops(envelope, window_ms=10, threshold_factor=3.0, min_duration_ms=10):
@@ -626,13 +634,34 @@ def verify_av_sync(video_path, tolerance_ms=30):
     # Get video properties (prefer ffprobe, fallback to OpenCV if unavailable)
     frame_rate = None
     sample_rate = 48000
+
+    def _parse_ffmpeg_ratio(value: str) -> float | None:
+        # Examples: "30000/1001", "30/1", "30"
+        try:
+            value = (value or "").strip()
+            if not value:
+                return None
+            if "/" in value:
+                num_s, den_s = value.split("/", 1)
+                num = float(num_s)
+                den = float(den_s)
+                if den == 0.0:
+                    return None
+                return num / den
+            return float(value)
+        except Exception:
+            return None
     try:
         cmd = ['ffprobe', '-v', 'quiet', '-show_format', '-show_streams',
                '-of', 'json', str(video_path)]
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         video_info = json.loads(result.stdout)
         video_stream = next(s for s in video_info['streams'] if s['codec_type'] == 'video')
-        frame_rate = eval(video_stream['r_frame_rate'])  # e.g., "30/1" -> 30.0
+        frame_rate = (
+            _parse_ffmpeg_ratio(video_stream.get('avg_frame_rate'))
+            or _parse_ffmpeg_ratio(video_stream.get('r_frame_rate'))
+            or 30.0
+        )
         try:
             audio_stream = next(s for s in video_info['streams'] if s['codec_type'] == 'audio')
             sample_rate = int(audio_stream.get('sample_rate', sample_rate))
@@ -661,26 +690,19 @@ def verify_av_sync(video_path, tolerance_ms=30):
 
     # Detect video pops (white square in lower-right area)
     print("⬜ Detecting video pop(s) (white square, lower-right)...")
-    pop_frames = detect_video_pops(video_path, frame_rate)
+    pop_events = detect_video_pop_events(video_path, frame_rate)
 
-    # Group consecutive frames into individual video pops by frame index (robust to FPS rounding)
-    grouped_video_pop_frame_starts = []
-    if pop_frames:
-        current_start = int(pop_frames[0])
-        last_idx = int(pop_frames[0])
-        for f in pop_frames[1:]:
-            f = int(f)
-            if (f - last_idx) <= 1:
-                # same pop (consecutive frame)
-                pass
-            else:
-                grouped_video_pop_frame_starts.append(current_start)
-                current_start = f
-            last_idx = f
-        grouped_video_pop_frame_starts.append(current_start)
+    # These are already pop *starts*; keep them as-is.
+    grouped_video_pop_frame_starts = [int(ev['frame']) for ev in pop_events]
 
-    # Convert frame numbers to timestamps (ms) for human-readable reporting
-    grouped_video_pop_starts = [frame / frame_rate * 1000.0 for frame in grouped_video_pop_frame_starts]
+    # Convert to timestamps (ms) for human-readable reporting.
+    # Prefer decoder-provided per-frame timestamps (robust to VFR / rounding).
+    grouped_video_pop_starts = []
+    for ev in pop_events:
+        t = ev.get('time_ms')
+        if t is None:
+            t = float(ev['frame']) / float(frame_rate) * 1000.0
+        grouped_video_pop_starts.append(float(t))
 
     formatted_pops = [f"{t:.1f}" for t in grouped_video_pop_starts]
     print(f"⬜ Detected {len(grouped_video_pop_starts)} video pop(s) at: {formatted_pops} ms")
@@ -690,19 +712,32 @@ def verify_av_sync(video_path, tolerance_ms=30):
     perfect_sync_count = 0
     total_analyzed = 0  # Count only beeps included in analysis
 
+    # Some CRT presets can make the first of the 2 pop-frames slightly harder to detect.
+    # To avoid false negatives, allow a one-frame earlier candidate when matching.
+    frame_ms = (1000.0 / frame_rate) if frame_rate else (1000.0 / 30.0)
+    video_candidates = []  # (frame_idx, time_ms)
+    for fr, tm in zip(grouped_video_pop_frame_starts, grouped_video_pop_starts):
+        fr_i = int(fr)
+        tm_f = float(tm)
+        video_candidates.append((fr_i, tm_f))
+        if fr_i > 0:
+            video_candidates.append((fr_i - 1, tm_f - frame_ms))
+
     traffic_light = []  # per-pop status: 'green' | 'yellow' | 'red'
     for i, ap in enumerate(audio_pops):
         audio_pop_time = ap['time_ms']
         closest_event = None
         closest_event_idx = None
+        closest_event_frame = None
         min_diff = float('inf')
 
-        for idx, ev_time in enumerate(grouped_video_pop_starts):
+        for idx, (ev_frame, ev_time) in enumerate(video_candidates):
             diff = abs(audio_pop_time - ev_time)
             if diff < min_diff:
                 min_diff = diff
                 closest_event = ev_time
                 closest_event_idx = idx
+                closest_event_frame = ev_frame
 
         is_synced = min_diff <= tolerance_ms
         # Traffic light based on absolute offset
@@ -722,9 +757,7 @@ def verify_av_sync(video_path, tolerance_ms=30):
         sync_results.append({
             'audio_pop_time_ms': audio_pop_time,
             'closest_video_pop_ms': closest_event,
-            'closest_video_pop_frame': (grouped_video_pop_frame_starts[closest_event_idx]
-                                        if closest_event_idx is not None and 0 <= closest_event_idx < len(grouped_video_pop_frame_starts)
-                                        else None),
+            'closest_video_pop_frame': closest_event_frame,
             'difference_ms': min_diff,
             'is_synced': is_synced,
             'included_in_analysis': True,

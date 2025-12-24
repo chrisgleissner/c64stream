@@ -610,8 +610,8 @@ jobs:
           mkdir -p "$XDG_RUNTIME_DIR"
           chmod 700 "$XDG_RUNTIME_DIR"
 
-          export HOME="/tmp/pulse-home"
-          mkdir -p "$HOME"
+          mkdir -p "$XDG_RUNTIME_DIR/pulse"
+          chmod 700 "$XDG_RUNTIME_DIR/pulse"
 
           echo "🔊 Ensuring audio server is running..."
 
@@ -622,6 +622,7 @@ jobs:
               if [[ "$(id -u)" -eq 0 ]]; then
                 mkdir -p /etc/pulse
                 printf '%s\n' \
+                  "load-module module-native-protocol-unix socket=${XDG_RUNTIME_DIR}/pulse/native auth-anonymous=1" \
                   'load-module module-null-sink sink_name=dummy sink_properties=device.description="Dummy_Output"' \
                   'set-default-sink dummy' \
                   > /etc/pulse/system.pa
@@ -640,8 +641,13 @@ jobs:
 
               for i in {1..10}; do
                 if pulseaudio --check 2>/dev/null; then
-                  echo "✅ PulseAudio running${PULSE_PID:+ (PID: $PULSE_PID)}"
-                  break
+                  if [[ -S "${XDG_RUNTIME_DIR}/pulse/native" ]]; then
+                    export PULSE_SERVER="unix:${XDG_RUNTIME_DIR}/pulse/native"
+                  fi
+                  if command -v pactl >/dev/null 2>&1 && pactl info >/dev/null 2>&1; then
+                    echo "✅ PulseAudio running${PULSE_PID:+ (PID: $PULSE_PID)}"
+                    break
+                  fi
                 fi
                 if [[ $i -eq 10 ]]; then
                   echo "⚠️ PulseAudio may not have started correctly (continuing anyway)"
@@ -656,6 +662,9 @@ jobs:
 
               for i in {1..10}; do
                 if command -v pactl >/dev/null 2>&1 && pactl info >/dev/null 2>&1; then
+                  if [[ -S "${XDG_RUNTIME_DIR}/pulse/native" ]]; then
+                    export PULSE_SERVER="unix:${XDG_RUNTIME_DIR}/pulse/native"
+                  fi
                   echo "✅ pipewire-pulse running (PID: $PIPEWIRE_PULSE_PID)"
                   break
                 fi
@@ -682,7 +691,12 @@ jobs:
           export QT_X11_NO_MITSHM=1
           export LIBGL_ALWAYS_SOFTWARE=1
           export XDG_RUNTIME_DIR="/tmp/runtime-root"
-          export PULSE_SERVER="unix:${XDG_RUNTIME_DIR}/pulse/native"
+
+          if [[ -S "${XDG_RUNTIME_DIR}/pulse/native" ]]; then
+            export PULSE_SERVER="unix:${XDG_RUNTIME_DIR}/pulse/native"
+          else
+            unset PULSE_SERVER
+          fi
 
           # Clean up any stale processes and lock files
           echo "🧹 Cleaning up previous X11 sessions..."
@@ -932,8 +946,8 @@ jobs:
           mkdir -p "$XDG_RUNTIME_DIR"
           chmod 700 "$XDG_RUNTIME_DIR"
 
-          export HOME="/tmp/pulse-home"
-          mkdir -p "$HOME"
+          mkdir -p "$XDG_RUNTIME_DIR/pulse"
+          chmod 700 "$XDG_RUNTIME_DIR/pulse"
 
           echo "🔊 Ensuring audio server is running..."
 
@@ -944,6 +958,7 @@ jobs:
               if [[ "$(id -u)" -eq 0 ]]; then
                 mkdir -p /etc/pulse
                 printf '%s\n' \
+                  "load-module module-native-protocol-unix socket=${XDG_RUNTIME_DIR}/pulse/native auth-anonymous=1" \
                   'load-module module-null-sink sink_name=dummy sink_properties=device.description="Dummy_Output"' \
                   'set-default-sink dummy' \
                   > /etc/pulse/system.pa
@@ -962,8 +977,13 @@ jobs:
 
               for i in {1..10}; do
                 if pulseaudio --check 2>/dev/null; then
-                  echo "✅ PulseAudio running${PULSE_PID:+ (PID: $PULSE_PID)}"
-                  break
+                  if [[ -S "${XDG_RUNTIME_DIR}/pulse/native" ]]; then
+                    export PULSE_SERVER="unix:${XDG_RUNTIME_DIR}/pulse/native"
+                  fi
+                  if command -v pactl >/dev/null 2>&1 && pactl info >/dev/null 2>&1; then
+                    echo "✅ PulseAudio running${PULSE_PID:+ (PID: $PULSE_PID)}"
+                    break
+                  fi
                 fi
                 if [[ $i -eq 10 ]]; then
                   echo "⚠️ PulseAudio may not have started correctly (continuing anyway)"
@@ -978,6 +998,9 @@ jobs:
 
               for i in {1..10}; do
                 if command -v pactl >/dev/null 2>&1 && pactl info >/dev/null 2>&1; then
+                  if [[ -S "${XDG_RUNTIME_DIR}/pulse/native" ]]; then
+                    export PULSE_SERVER="unix:${XDG_RUNTIME_DIR}/pulse/native"
+                  fi
                   echo "✅ pipewire-pulse running (PID: $PIPEWIRE_PULSE_PID)"
                   break
                 fi
@@ -1004,7 +1027,12 @@ jobs:
           export QT_X11_NO_MITSHM=1
           export LIBGL_ALWAYS_SOFTWARE=1
           export XDG_RUNTIME_DIR="/tmp/runtime-root"
-          export PULSE_SERVER="unix:${XDG_RUNTIME_DIR}/pulse/native"
+
+          if [[ -S "${XDG_RUNTIME_DIR}/pulse/native" ]]; then
+            export PULSE_SERVER="unix:${XDG_RUNTIME_DIR}/pulse/native"
+          else
+            unset PULSE_SERVER
+          fi
 
           # Clean up any stale processes and lock files
           echo "🧹 Cleaning up previous X11 sessions..."
