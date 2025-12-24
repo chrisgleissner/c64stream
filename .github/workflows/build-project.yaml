@@ -519,6 +519,8 @@ jobs:
 
 
   # E2E Basic Test (Multi-Distro) - runs basic E2E scenario on all Linux distributions
+  # Note: Debian 12 excluded - repos only have OBS 29.x (libobs.so.29), but plugin
+  # requires libobs.so.30. Would need per-distro plugin builds to support.
   e2e-basic:
     name: E2E Basic (${{ matrix.display_name }}) 🧪
     if: ${{ inputs.run_e2e }}
@@ -531,9 +533,6 @@ jobs:
           - distro: ubuntu
             image_tag: ghcr.io/${{ github.repository }}/ubuntu-build:latest
             display_name: Ubuntu 24.04
-          - distro: debian
-            image_tag: ghcr.io/${{ github.repository }}/debian-build:latest
-            display_name: Debian 12
           - distro: fedora
             image_tag: ghcr.io/${{ github.repository }}/fedora-build:latest
             display_name: Fedora 40

@@ -17,6 +17,8 @@ This test validates that the plugin correctly receives, processes, and renders
 C64 Ultimate streams according to the specification.
 """
 
+from __future__ import annotations  # Enable PEP 604 union types on Python 3.9+
+
 import os
 import sys
 import subprocess
