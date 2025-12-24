@@ -694,11 +694,11 @@ generate_packets() {
         "--output" "test_packets"
     )
 
-    # Optional pattern selection (useful for scanline assertions).
-    # Supported by our packet generator: diagonal (default) or solid (uniform field).
+    # Optional pattern selection (useful for scanline and sharp pixel assertions).
+    # Supported by our packet generator: diagonal (default), solid (uniform field), or dots (sparse white dots).
     if [[ -n "${PACKET_PATTERN}" ]]; then
-        if [[ "${PACKET_PATTERN}" != "diagonal" && "${PACKET_PATTERN}" != "solid" ]]; then
-            log_error "Invalid packet pattern: ${PACKET_PATTERN} (expected: diagonal|solid)"
+        if [[ "${PACKET_PATTERN}" != "diagonal" && "${PACKET_PATTERN}" != "solid" && "${PACKET_PATTERN}" != "dots" ]]; then
+            log_error "Invalid packet pattern: ${PACKET_PATTERN} (expected: diagonal|solid|dots)"
             exit 1
         fi
         cmd+=("--pattern" "${PACKET_PATTERN}")

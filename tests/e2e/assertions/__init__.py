@@ -25,6 +25,7 @@ from .runner import (
     create_preset_assertions,
 )
 from .scanlines import ScanlineAssertion
+from .sharp_pixels import SharpPixelsAssertion
 from .tint import TintAssertion
 from .video_quality import VideoQualityAssertion
 
@@ -44,6 +45,7 @@ __all__ = [
     "TintAssertion",
     "AfterglowAssertion",
     "ScanlineAssertion",
+    "SharpPixelsAssertion",
     "FrameBoxSequenceAssertion",
     # Runner
     "AssertionRunner",

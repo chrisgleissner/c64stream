@@ -203,6 +203,18 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                     # This creates a uniform field ideal for scanline analysis
                     solid_color = 14  # VIC light blue
                     payload[line * (width // 2) + byte_idx] = (solid_color << 4) | solid_color
+                elif pattern == 'dots':
+                    # Single-pixel white dots on black background, spaced every 16 pixels.
+                    # Used to verify sharp pixel scaling: 1px dots should become NxN rectangles.
+                    def dot_color(px):
+                        # White dot (VIC color 1) at positions where both x and y are multiples of 16
+                        if (px % 16 == 0) and (pixel_line % 16 == 0):
+                            return 1  # White
+                        return 0  # Black
+
+                    c1 = dot_color(pixel_x)
+                    c2 = dot_color(pixel_x + 1)
+                    payload[line * (width // 2) + byte_idx] = (c2 << 4) | c1
                 else:
                     # Default: diagonal, slowly moving lines
                     # Create thin diagonal slanted lines by combining x and y, with a slow motion term.
@@ -416,8 +428,8 @@ Examples:
     parser.add_argument('--format', choices=['PAL', 'NTSC'], action='append',
                         dest='formats',
                         help='Format(s) to generate (can specify multiple times, default: both)')
-    parser.add_argument('--pattern', '-p', choices=['diagonal', 'solid'], default='diagonal',
-                        help='Video pattern: diagonal (moving lines) or solid (uniform color for scanline tests)')
+    parser.add_argument('--pattern', '-p', choices=['diagonal', 'solid', 'dots'], default='diagonal',
+                        help='Video pattern: diagonal (moving lines), solid (uniform color for scanline tests), or dots (single-pixel dots for sharp pixel tests)')
 
     args = parser.parse_args()
 

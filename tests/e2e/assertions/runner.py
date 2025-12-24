@@ -16,6 +16,7 @@ from .base import AssertionResult, AssertionStatus, EffectAssertion
 from .config import PresetConfig
 from .frame_box_seq import FrameBoxSequenceAssertion
 from .scanlines import ScanlineAssertion
+from .sharp_pixels import SharpPixelsAssertion
 from .tint import TintAssertion
 from .video_quality import VideoQualityAssertion
 
@@ -118,6 +119,7 @@ def create_assertions_from_list(
         "tint": TintAssertion,
         "afterglow": AfterglowAssertion,
         "scanlines": ScanlineAssertion,
+        "sharp_pixels": SharpPixelsAssertion,
         "frame_box_seq": FrameBoxSequenceAssertion,
     }
 

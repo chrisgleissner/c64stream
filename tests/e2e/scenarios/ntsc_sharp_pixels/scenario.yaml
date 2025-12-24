@@ -1,6 +1,8 @@
 name: NTSC Sharp Pixels
 format: NTSC
 preset: Sharp Pixels
+pattern: dots
 assertions:
   - video_quality
   - audio
+  - sharp_pixels
