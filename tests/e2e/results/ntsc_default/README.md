@@ -1,6 +1,6 @@
 # C64 Stream E2E Test Report
 
-Generated: 2025-12-24 11:25:31 UTC
+Generated: 2025-12-24 18:50:05 UTC
 
 ## Test configuration
 
@@ -21,8 +21,8 @@ Generated: 2025-12-24 11:25:31 UTC
 - OS: Ubuntu 24.04.3 LTS (kernel 6.14.0-37-generic)
 - OBS: - 32.0.2
 - CPU: Intel(R) Core(TM) i7-6700K CPU @ 4.00GHz (8 cores)
-- RAM: 31Gi total, 25Gi available
-- Disk (/): 1.8T total, 1.2T available
+- RAM: 31Gi total, 23Gi available
+- Disk (/): 1.8T total, 1.1T available
 
 ## Test results
 
@@ -32,26 +32,25 @@ Generated: 2025-12-24 11:25:31 UTC
 
 ### A/V Sync
 
-- ✅ Good synchronization (100.0%): avg offset 23.3ms, max 37.7ms
+- ✅ Good synchronization (100.0%): avg offset 13.4ms, max 17.3ms
 
 #### Sync Details
 
-- 🟢 Pop #1 [L]: audio=7500.0ms, video=7483.3ms (frame 449), diff=16.7ms
-- 🟡 Pop #2 [R]: audio=8521.0ms, video=8483.3ms (frame 509), diff=37.7ms
-- 🟢 Pop #3 [L]: audio=9521.0ms, video=9500.0ms (frame 570), diff=21.0ms
-- 🟢 Pop #4 [R]: audio=10518.0ms, video=10500.0ms (frame 630), diff=18.0ms
+- 🟢 Pop #1 [L]: audio=7910.0ms, video=7900.0ms (frame 474), diff=10.0ms
+- 🟢 Pop #2 [R]: audio=8913.0ms, video=8900.0ms (frame 534), diff=13.0ms
+- 🟢 Pop #3 [L]: audio=9934.0ms, video=9916.7ms (frame 595), diff=17.3ms
 
-- Channels: LRLR
+- Channels: LRL
 - 🔁 Channel alternation: OK (alternating, starts with L)
 
 ### Video
 
 - Download: [c64_recording.mp4](c64_recording.mp4)
-- Duration: 18.7 s
+- Duration: 19.1 s
 
 
 ### Sample Frame
 
 ![Sample Frame](./c64_recording_still.png)
 - Top-left shows the frame index (color = frame_num % 16). Top-right shows a stable 4×4 tile of all 16 VIC colours (drift check). Center shows scrolling colour bars. Bottom-right flashes with a pop sound for A/V sync checks / afterglow tail.
-- Taken from the 18.7 s video above.
+- Taken from the 19.1 s video above.

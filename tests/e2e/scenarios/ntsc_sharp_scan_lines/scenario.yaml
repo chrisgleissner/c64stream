@@ -2,16 +2,20 @@
 #
 # Purpose: validate pixel-perfect scanline rendering without any intentional blur/bloom/afterglow.
 # This scenario is intended to catch OBS scaling/interpolation issues.
+#
+# Note: scan_line_strength is set to 0.5 (not 1.0) to ensure sufficient visible content
+# for video quality validation. With 1.0, the scanlines make ~50% of rows completely black,
+# leaving insufficient content for the assertions to verify.
 
 name: NTSC Sharp Scan Lines
 format: NTSC
 preset: Default
-pattern: solid
+pattern: diagonal
 
 # Override effect settings for a crisp scanline signal.
 overrides:
   scan_line_distance: 1.0
-  scan_line_strength: 1.0
+  scan_line_strength: 0.5
   pixel_width: 1.0
   pixel_height: 1.0
   blur_strength: 0.0

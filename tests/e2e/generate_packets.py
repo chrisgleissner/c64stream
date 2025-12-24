@@ -218,13 +218,14 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                 else:
                     # Default: diagonal, slowly moving lines
                     # Create thin diagonal slanted lines by combining x and y, with a slow motion term.
-                    # Lines are 2 pixels wide every 32 diagonal steps; color cycles across 16 VIC colors.
+                    # Lines are 2 pixels wide with 18 pixels of black space between them (stripe_period=20).
                     # Motion: shift by +1 pixel per frame along the diagonal direction.
+                    # The wider spacing makes afterglow effects more visible between lines.
                     def diag_color(px):
                         # Thin diagonal stripes (in_stripe controlled by motion S),
                         # color tied to invariant diagonal index so color remains constant as it moves.
                         S = px + pixel_line + frame_num
-                        stripe_period = 8
+                        stripe_period = 20  # Total period: 2 colored + 18 black (increased from 8 for better afterglow visibility)
                         stripe_width = 2
                         in_stripe = (S % stripe_period) < stripe_width
                         if not in_stripe:

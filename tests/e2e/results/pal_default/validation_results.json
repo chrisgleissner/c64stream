@@ -13,7 +13,7 @@
   },
   "packet_integrity": {
     "status": "pass",
-    "details": "19.9s duration"
+    "details": "19.8s duration"
   },
   "av_sync_details": {
     "total_audio_pops": 3,
@@ -24,21 +24,21 @@
     "tolerance_ms": 50,
     "sync_details": [
       {
-        "audio_pop_time_ms": 7892,
-        "closest_video_pop_ms": 7900.0,
-        "closest_video_pop_frame": 395,
-        "difference_ms": 8.0,
+        "audio_pop_time_ms": 7870,
+        "closest_video_pop_ms": 7840.0,
+        "closest_video_pop_frame": 392,
+        "difference_ms": 30.0,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
         "channel": "L",
-        "traffic": "green"
+        "traffic": "yellow"
       },
       {
-        "audio_pop_time_ms": 8892,
-        "closest_video_pop_ms": 8900.0,
-        "closest_video_pop_frame": 445,
-        "difference_ms": 8.0,
+        "audio_pop_time_ms": 8870,
+        "closest_video_pop_ms": 8860.0,
+        "closest_video_pop_frame": 443,
+        "difference_ms": 10.0,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -46,34 +46,34 @@
         "traffic": "green"
       },
       {
-        "audio_pop_time_ms": 9892,
-        "closest_video_pop_ms": 9880.0,
-        "closest_video_pop_frame": 494,
-        "difference_ms": 12.0,
+        "audio_pop_time_ms": 9870,
+        "closest_video_pop_ms": 9840.0,
+        "closest_video_pop_frame": 492,
+        "difference_ms": 30.0,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
         "channel": "L",
-        "traffic": "green"
+        "traffic": "yellow"
       }
     ],
     "is_perfectly_synced": true,
     "last_event_within_limit": true,
-    "duration_ms": 19880.0,
+    "duration_ms": 19840.0,
     "video_pop_times_ms": [
-      7900.0,
-      8900.0,
-      9880.0
+      7840.0,
+      8860.0,
+      9840.0
     ],
     "video_pop_frame_indices": [
-      395,
-      445,
-      494
+      392,
+      443,
+      492
     ],
     "traffic": [
+      "yellow",
       "green",
-      "green",
-      "green"
+      "yellow"
     ]
   },
   "av_sync": {

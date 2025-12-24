@@ -99,6 +99,9 @@ class E2ETest:
             self.output_dir = self.test_dir / 'test_output'
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
+        # Track backed up properties.ini files for restoration on cleanup
+        self._backed_up_properties: list[tuple[Path, Path]] = []  # (backup_path, original_path)
+
     def _detect_ci_environment(self):
         """Detect if running in CI environment."""
         ci_indicators = [
@@ -260,6 +263,13 @@ class E2ETest:
 
         if e2e_properties.exists():
             try:
+                # Backup existing properties.ini if it exists (for restoration after E2E)
+                if target_properties.exists() and not self.is_ci:
+                    backup_path = target_properties.with_suffix('.ini.e2e_backup')
+                    shutil.copy2(target_properties, backup_path)
+                    self._backed_up_properties.append((backup_path, target_properties))
+                    self.log(f"📦 Backed up production properties: {target_properties} -> {backup_path}")
+
                 shutil.copy2(e2e_properties, target_properties)
                 self.log(f"✅ Copied E2E properties: {e2e_properties} -> {target_properties}")
 
@@ -1807,6 +1817,30 @@ class E2ETest:
         except Exception as e:
             self.log(f"Warning: Could not clean up OBS locks: {e}")
 
+    def _restore_properties_ini(self):
+        """Restore production properties.ini files that were backed up before E2E testing.
+
+        This ensures that when the user starts OBS manually after an E2E run,
+        it uses their production settings (e.g., connecting to a real C64 Ultimate)
+        instead of the E2E test settings (localhost).
+        """
+        if not self._backed_up_properties:
+            return
+
+        self.log("📦 Restoring production properties.ini files...")
+        for backup_path, original_path in self._backed_up_properties:
+            try:
+                if backup_path.exists():
+                    shutil.copy2(backup_path, original_path)
+                    backup_path.unlink()
+                    self.log(f"✅ Restored: {original_path}")
+                else:
+                    self.log(f"⚠️ Backup not found: {backup_path}")
+            except Exception as e:
+                self.log(f"❌ Failed to restore {original_path}: {e}")
+
+        self._backed_up_properties.clear()
+
     def _analyze_obs_logs(self):
         """Analyze OBS logs for debugging purposes (called only when needed)."""
         obs_config_dir = Path.home() / '.config' / 'obs-studio'
@@ -2267,12 +2301,13 @@ class E2ETest:
         return overall_success, validation_results
 
     def cleanup(self):
-        """Cleanup all test processes."""
+        """Cleanup all test processes and restore production properties.ini."""
         self.log("Cleaning up test environment")
         self.stop_mock_c64_server()
         self.stop_obs()
         self.stop_xvfb()
         self.cleanup_obs_locks()
+        self._restore_properties_ini()
 
     def run(self, udp_replay_path):
         """
