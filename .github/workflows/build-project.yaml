@@ -621,10 +621,10 @@ jobs:
             if command -v pulseaudio >/dev/null 2>&1; then
               if [[ "$(id -u)" -eq 0 ]]; then
                 mkdir -p /etc/pulse
-                cat > /etc/pulse/system.pa << 'EOF'
-                load-module module-null-sink sink_name=dummy sink_properties=device.description="Dummy_Output"
-                set-default-sink dummy
-                EOF
+                printf '%s\n' \
+                  'load-module module-null-sink sink_name=dummy sink_properties=device.description="Dummy_Output"' \
+                  'set-default-sink dummy' \
+                  > /etc/pulse/system.pa
 
                 echo "🔊 Starting PulseAudio in system mode (root)..."
                 pulseaudio --system --disallow-exit --disallow-module-loading=0 \
@@ -943,10 +943,10 @@ jobs:
             if command -v pulseaudio >/dev/null 2>&1; then
               if [[ "$(id -u)" -eq 0 ]]; then
                 mkdir -p /etc/pulse
-                cat > /etc/pulse/system.pa << 'EOF'
-                load-module module-null-sink sink_name=dummy sink_properties=device.description="Dummy_Output"
-                set-default-sink dummy
-                EOF
+                printf '%s\n' \
+                  'load-module module-null-sink sink_name=dummy sink_properties=device.description="Dummy_Output"' \
+                  'set-default-sink dummy' \
+                  > /etc/pulse/system.pa
 
                 echo "🔊 Starting PulseAudio in system mode (root)..."
                 pulseaudio --system --disallow-exit --disallow-module-loading=0 \

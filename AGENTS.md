@@ -43,6 +43,10 @@ The wrapper auto-detects common Homebrew installs; you can also override via `CL
 ctest --test-dir build_x86_64 --output-on-failure
 ```
 
+### Documentation review (MANDATORY before declaring completion)
+
+Verify relevant docs match the code/behavior you changed (especially anything in `doc/` and test docs).
+
 ## E2E tests (LOCAL ONLY)
 
 E2E tests drive a real OBS instance and validate the recorded output.
@@ -65,6 +69,16 @@ cd tests/e2e
 
 # Run a specific scenario (auto-sets format from scenario.yaml)
 ./e2e.sh --scenario ntsc_amber_monitor --verbose
+```
+
+### Running the full E2E scenario suite (MANDATORY before declaring completion)
+
+```bash
+cd tests/e2e
+scenarios=$(./e2e.sh --list-scenarios | awk -F: '/^  [a-z0-9_]+:/{print $1}' | tr -d ' ')
+for s in $scenarios; do
+    ./e2e.sh --scenario "$s" --duration 5 || exit 1
+done
 ```
 
 ### Assertion framework (for verifying recordings):

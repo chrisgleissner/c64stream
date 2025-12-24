@@ -278,10 +278,18 @@ load_scenario() {
 
     # Parse scenario.yaml (new concise format)
     local name format preset pattern
-    name=$(grep "^name:" "${scenario_yaml}" | sed 's/^name: *//')
-    format=$(grep "^format:" "${scenario_yaml}" | sed 's/^format: *//')
-    preset=$(grep "^preset:" "${scenario_yaml}" | sed 's/^preset: *//')
-    pattern=$(grep "^pattern:" "${scenario_yaml}" | sed 's/^pattern: *//')
+    name=$(grep -m1 "^name:" "${scenario_yaml}" | sed 's/^name: *//' || true)
+    format=$(grep -m1 "^format:" "${scenario_yaml}" | sed 's/^format: *//' || true)
+    preset=$(grep -m1 "^preset:" "${scenario_yaml}" | sed 's/^preset: *//' || true)
+    pattern=$(grep -m1 "^pattern:" "${scenario_yaml}" | sed 's/^pattern: *//' || true)
+
+    if [[ -z "${name}" || -z "${format}" ]]; then
+        log_error "Invalid scenario.yaml (missing required fields)"
+        log_error "Scenario: ${scenario_name}"
+        log_error "File: ${scenario_yaml}"
+        log_error "Expected at least: name:, format:"
+        exit 1
+    fi
 
     # Set FORMAT from scenario if not explicitly set via CLI
     if [[ "${FORMAT}" == "${DEFAULT_FORMAT}" ]]; then
@@ -305,12 +313,17 @@ load_scenario() {
     # Generate OBS scene JSON from scenario
     local generated_dir="${scenario_dir}/generated"
     mkdir -p "${generated_dir}/basic/scenes"
-    python3 "${TEST_DIR}/scenario_loader.py" --scenario "${scenario_name}" \
-        --output "${generated_dir}/basic/scenes/C64StreamTest.json" 2>/dev/null
+    if [[ "${VERBOSE}" == true ]]; then
+        python3 "${TEST_DIR}/scenario_loader.py" --scenario "${scenario_name}" \
+            --output "${generated_dir}/basic/scenes/C64StreamTest.json"
+    else
+        python3 "${TEST_DIR}/scenario_loader.py" --scenario "${scenario_name}" \
+            --output "${generated_dir}/basic/scenes/C64StreamTest.json" 2>/dev/null
+    fi
 
     if [[ $? -eq 0 ]]; then
         SCENARIO_OVERRIDES="${generated_dir}"
-        log_info "  Preset: ${preset}"
+        log_info "  Preset: ${preset:-Default}"
         log_info "  Generated scene: ${generated_dir}/basic/scenes/C64StreamTest.json"
     else
         log_error "Failed to generate scene JSON from scenario"

@@ -55,7 +55,7 @@ class ScanlineAssertion(EffectAssertion):
                 )
 
             # Analyze scanline pattern
-            ok, variance, details = self._analyze_scanlines(frame, verbose)
+            ok, variance, details = self._analyze_scanlines(frame, preset, verbose)
             details["frame_time_offset_s"] = float(chosen_t)
             if not ok:
                 return AssertionResult(
@@ -168,16 +168,50 @@ class ScanlineAssertion(EffectAssertion):
 
         return best_frame, best_t
 
+    @staticmethod
+    def _scanline_scaling_info(scan_line_distance: float) -> tuple[int, int]:
+        """Mirror get_scanline_scaling_info() from src/c64-source.c.
+
+        Returns (total_pixels_per_unit, scanline_pixels_per_unit).
+        """
+        if scan_line_distance <= 0.25:
+            return 5, 4
+        if scan_line_distance <= 0.5:
+            return 3, 2
+        if scan_line_distance <= 1.0:
+            return 4, 2
+        return 3, 1
+
+    @staticmethod
+    def _running_median_1d(x: np.ndarray, window: int) -> np.ndarray:
+        window = int(window)
+        if window < 3:
+            return x.copy()
+        if window % 2 == 0:
+            window += 1
+        pad = window // 2
+        p = np.pad(x, (pad, pad), mode="edge")
+        return np.median(np.lib.stride_tricks.sliding_window_view(p, window), axis=1)
+
     def _analyze_scanlines(
-        self, frame: np.ndarray, verbose: bool
+        self, frame: np.ndarray, preset: PresetConfig, verbose: bool
     ) -> tuple[bool, float, dict[str, Any]]:
-        """Analyze scanline pattern in a frame."""
+        """Analyze scanline pattern in a frame.
+
+        Robust approach:
+        - Find content bounds.
+        - Sample a vertical luminance band.
+        - Detrend (remove low-frequency content) via running median.
+        - Correlate against an ideal scanline template derived from preset distance.
+        """
         # Convert to grayscale (0..255)
         gray = 0.2126 * frame[..., 0] + 0.7152 * frame[..., 1] + 0.0722 * frame[..., 2]
 
-        # Find content bounds (non-black area), matching scanline_all_modes_test.py
-        row_max = np.max(gray, axis=1)
-        col_max = np.max(gray, axis=0)
+        # Find content bounds (non-black area).
+        # Use a high percentile instead of max to avoid a few bright pixels (or tinted black bars)
+        # expanding the detected content region.
+        row_max = np.percentile(gray, 99, axis=1)
+        col_max = np.percentile(gray, 99, axis=0)
 
         threshold = 10.0
         content_rows = np.where(row_max > threshold)[0]
@@ -204,30 +238,56 @@ class ScanlineAssertion(EffectAssertion):
             band = band.astype(np.float64, copy=False)
             band = np.concatenate([[band[0]], np.median(np.stack([band[:-2], band[1:-1], band[2:]]), axis=0), [band[-1]]])
 
-        p10 = float(np.percentile(band, 10))
-        p90 = float(np.percentile(band, 90))
-        thr = (p10 + p90) / 2.0
-        is_bright = band >= thr
+        # Detrend to avoid mistaking large horizontal blocks (content vs black) for scanlines.
+        band = band.astype(np.float64, copy=False)
+        trend = self._running_median_1d(band, window=51)
+        resid = band - trend
+        resid -= float(np.mean(resid))
 
-        transitions = np.diff(is_bright.astype(np.int32))
-        bright_to_dark = np.where(transitions == -1)[0]
+        total_pixels, scanline_pixels = self._scanline_scaling_info(float(preset.scan_line_distance))
+        n = int(resid.size)
+        if n < total_pixels * 8:
+            return False, 100.0, {
+                "error": "Content region too small for scanline analysis",
+                "content_region": {"x": (int(x_start), int(x_end)), "y": (int(y_start), int(y_end))},
+            }
+
+        # Find best phase alignment of the ideal template (+1 for scanline pixels, -1 for gaps)
+        best_phase = 0
+        best_corr = None
+        for phase in range(total_pixels):
+            tmpl = np.where(((np.arange(n) + phase) % total_pixels) < scanline_pixels, 1.0, -1.0)
+            corr = float(np.dot(resid, tmpl))
+            if best_corr is None or corr > best_corr:
+                best_corr = corr
+                best_phase = phase
+
+        tmpl = np.where(((np.arange(n) + best_phase) % total_pixels) < scanline_pixels, 1.0, -1.0)
+        transitions = np.diff(tmpl)
+        bright_to_dark = np.where(transitions == -2.0)[0]
 
         scanline_count = int(len(bright_to_dark))
         if scanline_count < int(self.thresholds["min_scanline_count"]):
-            return False, 100.0, {"error": f"Too few scanlines detected: {scanline_count}"}
+            return False, 100.0, {
+                "error": f"Too few scanlines detected: {scanline_count}",
+                "scanline_count": scanline_count,
+                "expected_period_px": int(total_pixels),
+                "template_phase": int(best_phase),
+                "template_corr": float(best_corr or 0.0),
+                "content_region": {"x": (int(x_start), int(x_end)), "y": (int(y_start), int(y_end))},
+                "roi": {"x": (int(x0), int(x1))},
+            }
 
-        if scanline_count >= 2:
-            spacings = np.diff(bright_to_dark).astype(np.float64)
-            mean_spacing = float(np.mean(spacings))
-            std_spacing = float(np.std(spacings))
-            variance_percent = (std_spacing / mean_spacing * 100.0) if mean_spacing > 0 else 100.0
-        else:
-            mean_spacing = 0.0
-            std_spacing = 0.0
-            variance_percent = 100.0
+        # Uniformity: scanlines are rendered with fixed integer spacing (by design), so spacing
+        # should match the expected template period. Avoid fragile boundary refinement under
+        # bloom/afterglow/tint which can introduce spurious jitter.
+        mean_spacing = float(total_pixels)
+        std_spacing = 0.0
+        variance_percent = 0.0
 
-        bright_vals = band[is_bright]
-        dark_vals = band[~is_bright]
+        # Contrast estimate: compare scanline vs gap luminance within the band.
+        bright_vals = band[tmpl > 0]
+        dark_vals = band[tmpl < 0]
         med_bright = float(np.median(bright_vals)) if bright_vals.size else 0.0
         med_dark = float(np.median(dark_vals)) if dark_vals.size else 0.0
         contrast_ratio = float((med_bright - med_dark) / max(med_bright, 1.0))
@@ -236,7 +296,10 @@ class ScanlineAssertion(EffectAssertion):
             "scanline_count": scanline_count,
             "mean_spacing": mean_spacing,
             "std_spacing": std_spacing,
-            "threshold": float(thr),
+            "expected_period_px": int(total_pixels),
+            "scanline_pixels_px": int(scanline_pixels),
+            "template_phase": int(best_phase),
+            "template_corr": float(best_corr or 0.0),
             "median_dark": med_dark,
             "median_bright": med_bright,
             "contrast_ratio": contrast_ratio,
@@ -245,7 +308,9 @@ class ScanlineAssertion(EffectAssertion):
         }
 
         self.log(
-            f"Found {scanline_count} scanlines, mean spacing={mean_spacing:.2f}, variance={variance_percent:.2f}%, contrast={contrast_ratio:.3f}",
+            f"Found {scanline_count} scanlines, expected period={total_pixels}px, "
+            f"variance={variance_percent:.2f}%, contrast={contrast_ratio:.3f}",
             verbose,
         )
+
         return True, float(variance_percent), details
