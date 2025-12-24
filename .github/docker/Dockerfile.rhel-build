@@ -42,6 +42,8 @@ RUN dnf install -y \
         dejavu-sans-fonts \
         mesa-libGLES-devel \
         obs-studio \
+        obs-studio-devel \
+        obs-studio-libs \
         qt6-qtbase-devel \
         qt6-qtsvg \
         ffmpeg-free-devel \

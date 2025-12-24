@@ -52,6 +52,7 @@ RUN apt-get install -y --no-install-recommends \
         libgles2-mesa-dev \
         libsimde-dev \
         qt6-base-dev \
+        qt6-base-private-dev \
         libqt6svg6-dev \
         qt6-wayland \
         libavcodec-dev \
@@ -94,7 +95,16 @@ RUN apt-get install -y --no-install-recommends \
         uthash-dev \
         libpipewire-0.3-dev \
         libxkbcommon-dev \
+        libfreetype-dev \
+        libfontconfig-dev \
         swig
+
+# Install nv-codec-headers for FFnvcodec (NVIDIA hardware encoding support)
+RUN cd /tmp && \
+    git clone --depth 1 --branch n12.1.14.0 https://github.com/FFmpeg/nv-codec-headers.git && \
+    cd nv-codec-headers && \
+    make install && \
+    cd / && rm -rf /tmp/nv-codec-headers
 
 # Build OBS Studio 30.2.3 from source (provides libobs.so.30)
 # Disabled optional features to minimize build time and dependencies
