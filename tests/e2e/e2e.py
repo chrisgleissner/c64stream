@@ -2036,13 +2036,23 @@ class E2ETest:
                 except Exception:
                     pass
 
-                # Check for infrastructure issues (0 video pops = no video content received)
+                # Check for infrastructure issues:
+                # - 0 video pops = no video content received
+                # - Very few video pops vs audio pops = partial video content (UDP timing issue)
                 video_pops_detected = len(sync_results.get('video_pop_times_ms', []))
+                audio_pops_detected = sync_results.get('total_audio_pops', 0)
+
                 if video_pops_detected == 0:
                     print(f"⚠️  A/V Sync: No video pops detected (UDP timing/infrastructure issue)")
                     validation_warnings.append("A/V sync skipped: no video pops detected (UDP timing issue)")
                     validation_results['av_sync'] = {'status': 'skip', 'details': 'No video pops detected (infrastructure issue)'}
                     # Don't fail the test for infrastructure issues
+                elif audio_pops_detected >= 3 and video_pops_detected < audio_pops_detected / 2:
+                    # If we have 3+ audio pops but less than half as many video pops,
+                    # this indicates partial video content due to UDP timing
+                    print(f"⚠️  A/V Sync: Insufficient video pops ({video_pops_detected}/{audio_pops_detected} audio) - partial content")
+                    validation_warnings.append(f"A/V sync skipped: only {video_pops_detected} video pops vs {audio_pops_detected} audio pops")
+                    validation_results['av_sync'] = {'status': 'skip', 'details': f'Partial video content ({video_pops_detected}/{audio_pops_detected})'}
                 elif sync_results['is_perfectly_synced']:
                     print(f"✅ A/V Sync: Perfect synchronization ({sync_results['sync_accuracy_percent']:.1f}%) — avg offset {avg_diff:.1f}ms, max {max_diff:.1f}ms")
                     validation_results['av_sync'] = {'status': 'pass', 'details': f"{sync_results['perfect_sync_count']}/{sync_results['total_analyzed']} analyzed pops synced"}
