@@ -44,9 +44,11 @@ RUN dnf install -y \
         obs-studio \
         obs-studio-devel \
         obs-studio-libs \
+        obs-studio-plugin-x264 \
         qt6-qtbase-devel \
         qt6-qtsvg \
-        ffmpeg-free-devel \
+        ffmpeg \
+        ffmpeg-devel \
         x264-devel \
         libcurl-devel \
         mbedtls-devel \
@@ -78,7 +80,6 @@ RUN dnf install -y \
         python3-opencv \
         python3-pillow \
         xorg-x11-server-Xvfb \
-        ffmpeg-free \
         pipewire-pulseaudio \
         pulseaudio-utils
 
