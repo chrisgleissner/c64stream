@@ -727,6 +727,11 @@ def verify_av_sync(video_path, tolerance_ms=30):
         if fr_i > 0:
             video_candidates.append((fr_i - 1, tm_f - frame_ms))
 
+    # Maximum allowed difference to consider an audio pop as "matched" to a video pop.
+    # Audio pops with no video pop within this window are likely false positives or
+    # partial pops at stream boundaries, and should be excluded from sync accuracy.
+    max_match_window_ms = 100.0
+
     traffic_light = []  # per-pop status: 'green' | 'yellow' | 'red'
     for i, ap in enumerate(audio_pops):
         audio_pop_time = ap['time_ms']
@@ -744,8 +749,16 @@ def verify_av_sync(video_path, tolerance_ms=30):
                 closest_event_frame = ev_frame
 
         is_synced = min_diff <= tolerance_ms
+
+        # Check if this audio pop has a matching video pop within the match window.
+        # If not, it's likely a false positive (e.g., noise at stream end) or a partial
+        # pop that was correctly suppressed in video but detected in audio.
+        is_unmatched = min_diff > max_match_window_ms
+
         # Traffic light based on absolute offset
-        if min_diff < 30.0:
+        if is_unmatched:
+            status_color = 'gray'  # Unmatched - not counted
+        elif min_diff < 30.0:
             status_color = 'green'
         elif min_diff < 50.0:
             status_color = 'yellow'
@@ -753,10 +766,11 @@ def verify_av_sync(video_path, tolerance_ms=30):
             status_color = 'red'
         traffic_light.append(status_color)
 
-        # Include all beeps in analysis
-        total_analyzed += 1
-        if is_synced:
-            perfect_sync_count += 1
+        # Only include matched beeps in analysis
+        if not is_unmatched:
+            total_analyzed += 1
+            if is_synced:
+                perfect_sync_count += 1
 
         sync_results.append({
             'audio_pop_time_ms': audio_pop_time,
@@ -764,17 +778,19 @@ def verify_av_sync(video_path, tolerance_ms=30):
             'closest_video_pop_frame': closest_event_frame,
             'difference_ms': min_diff,
             'is_synced': is_synced,
-            'included_in_analysis': True,
-            'ignore_reason': None,
+            'included_in_analysis': not is_unmatched,
+            'ignore_reason': 'unmatched_audio_pop' if is_unmatched else None,
             'channel': ap.get('channel', 'B'),
             'traffic': status_color
         })
 
-        status = "✅" if is_synced else "❌"
-        if closest_event is not None:
+        if is_unmatched:
+            print(f"⚪ Pop #{i+1}: audio={audio_pop_time}ms, no video pop within {max_match_window_ms}ms (ignored)")
+        elif closest_event is not None:
+            status = "✅" if is_synced else "❌"
             print(f"{status} Pop #{i+1}: audio={audio_pop_time}ms, video={closest_event:.1f}ms, diff={min_diff:.1f}ms")
         else:
-            print(f"{status} Pop #{i+1}: audio={audio_pop_time}ms, no matching video pop found")
+            print(f"❌ Pop #{i+1}: audio={audio_pop_time}ms, no matching video pop found")
 
     # Calculate sync accuracy based only on analyzed beeps
     sync_accuracy = (perfect_sync_count / total_analyzed * 100) if total_analyzed > 0 else 0

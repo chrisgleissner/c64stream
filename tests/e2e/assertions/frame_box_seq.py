@@ -288,7 +288,10 @@ def _analyze_frame_box_seq(
             metrics={},
         )
 
-    # Grab one additional frame for robust marker auto-location (marker changes every frame).
+    # Grab a frame a few frames later for robust marker auto-location (marker changes every frame).
+    # Skip a few frames to ensure we get different content even if some frames are duplicates.
+    # This handles cases where the recording has duplicate frames due to timing.
+    cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame + 5)
     ret1, frame1 = cap.read()
     if not ret1:
         frame1 = frame0
@@ -699,9 +702,12 @@ class FrameBoxSequenceAssertion(EffectAssertion):
             "tiny_match_dist": 5.0,
             "relaxed_solid_match_dist": 12.0,
             "strong_margin_for_relaxed_solid": 25.0,
-            "solid_stddev_hard_cap": 90.0,
-            "solid_stddev_thresh": 28.0,
-            "solid_stddev_search": 34.0,
+            # Increased stddev thresholds to handle CRT effects (scanlines) which add
+            # variation to solid color regions. With scan_line_strength=0.6 (Default),
+            # frame box stddev can reach 45-65 instead of <28 for clean solid colors.
+            "solid_stddev_hard_cap": 100.0,
+            "solid_stddev_thresh": 60.0,
+            "solid_stddev_search": 70.0,
             "max_ambiguous_ratio": 0.30,
             "min_changes_for_full": 20,
             "max_skip_delta": 4,

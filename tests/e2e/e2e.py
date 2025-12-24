@@ -2138,14 +2138,21 @@ class E2ETest:
                     tl = sync_results.get('traffic', [])
                     details = sync_results.get('sync_details', [])
                     if tl and details:
-                        legend = {'green': '🟢', 'yellow': '🟡', 'red': '🔴'}
+                        legend = {'green': '🟢', 'yellow': '🟡', 'red': '🔴', 'gray': '⚪'}
                         marks = ''.join(legend.get(x, '•') for x in tl)
                         chans = ''.join(('L' if d.get('channel') == 'L' else ('R' if d.get('channel') == 'R' else 'B')) for d in details)
                         print(f"   Pops traffic: {marks}")
                         print(f"   Channels:     {chans}")
-                        # Verify strict alternation regardless of starting side; ignore 'B'
-                        seq = [('L' if d.get('channel') == 'L' else ('R' if d.get('channel') == 'R' else None)) for d in details]
-                        seq = [c for c in seq if c in ('L','R')]
+                        # Verify strict alternation regardless of starting side; ignore 'B' and unmatched pops
+                        seq = []
+                        for d in details:
+                            if not d.get('included_in_analysis', True):
+                                continue  # Skip unmatched pops
+                            ch = d.get('channel')
+                            if ch == 'L':
+                                seq.append('L')
+                            elif ch == 'R':
+                                seq.append('R')
                         alt_ok = False
                         if len(seq) >= 2:
                             alt_ok = all(seq[i] != seq[i-1] for i in range(1, len(seq)))

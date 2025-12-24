@@ -72,10 +72,13 @@ def get_sync_timing_info(format_name):
     return frame_rate, frame_duration_ms, sync_period_ms, sync_duration_ms, sync_offset_ms
 
 
-def is_sync_marker_active(frame_num, format_name):
+def is_sync_marker_active(frame_num, format_name, total_test_duration_ms=None):
     """
     Determine if the A/V sync marker (black rectangle + audio beep) should be active.
     Returns True if this frame should show the black rectangle.
+
+    If total_test_duration_ms is provided, pops that would be cut off by the
+    last-1000ms boundary are not started (ensures complete pops only).
     """
     _, frame_duration_ms, sync_period_ms, sync_duration_ms, sync_offset_ms = get_sync_timing_info(format_name)
 
@@ -85,7 +88,24 @@ def is_sync_marker_active(frame_num, format_name):
     if time_since_offset < 0:
         return False
     time_in_current_period = time_since_offset % sync_period_ms
-    return time_in_current_period < sync_duration_ms
+    is_in_pop_window = time_in_current_period < sync_duration_ms
+
+    if not is_in_pop_window:
+        return False
+
+    # If total_test_duration_ms is provided, check that the ENTIRE pop would fit
+    # before the last-1000ms boundary. This prevents partial pops that are hard to detect.
+    if total_test_duration_ms is not None:
+        cutoff_ms = total_test_duration_ms - 1000.0
+        # Calculate when this pop started (align to pop boundary)
+        pop_index = int(time_since_offset // sync_period_ms)
+        pop_start_ms = sync_offset_ms + pop_index * sync_period_ms
+        pop_end_ms = pop_start_ms + sync_duration_ms
+        # If the pop would extend past the cutoff, skip it entirely
+        if pop_end_ms > cutoff_ms:
+            return False
+
+    return True
 
 def generate_video_packet(frame_num, packet_num, width, height, packets_per_frame, format_name, total_test_duration_ms, pattern='diagonal'):
     """
@@ -130,12 +150,9 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
     payload = bytearray(768)
 
     # Check if A/V sync pop should be active
-    sync_active = is_sync_marker_active(frame_num, format_name)
-    # Enforce schedule constraint: no pop in the last 1000ms of recording
-    frame_rate, frame_duration_ms, *_ = get_sync_timing_info(format_name)
-    frame_start_ms = frame_num * frame_duration_ms
-    if frame_start_ms >= (total_test_duration_ms - 1000.0):
-        sync_active = False
+    # Pass total_test_duration_ms to ensure we only generate complete pops
+    # (partial pops that get cut off at the last-1000ms boundary are skipped)
+    sync_active = is_sync_marker_active(frame_num, format_name, total_test_duration_ms)
 
     # Define permanent black pop area: 80x80 at lower-right corner of C64 frame
     area_size = 80
@@ -218,20 +235,19 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                 else:
                     # Default: diagonal, slowly moving lines
                     # Create thin diagonal slanted lines by combining x and y, with a slow motion term.
-                    # Lines are 2 pixels wide with 18 pixels of black space between them (stripe_period=20).
-                    # Motion: shift by +1 pixel per frame along the diagonal direction.
-                    # The wider spacing makes afterglow effects more visible between lines.
+                    # Lines are 2 pixels wide. Motion: shift by +1 pixel per frame along diagonal.
                     def diag_color(px):
                         # Thin diagonal stripes (in_stripe controlled by motion S),
                         # color tied to invariant diagonal index so color remains constant as it moves.
                         S = px + pixel_line + frame_num
-                        stripe_period = 20  # Total period: 2 colored + 18 black (increased from 8 for better afterglow visibility)
+                        stripe_period = 32  # Total period: 2 colored + 30 black
                         stripe_width = 2
                         in_stripe = (S % stripe_period) < stripe_width
                         if not in_stripe:
                             return 0
                         # Diagonal index invariant under motion along S: use (px - pixel_line)
-                        diag_index = ( (px - pixel_line) // stripe_period ) % 16
+                        color_period = 16  # Color changes along diagonal
+                        diag_index = ((px - pixel_line) // color_period) % 16
                         return int(diag_index)
 
                     c1 = diag_color(pixel_x)
@@ -298,12 +314,22 @@ def generate_audio_packet(audio_packet_num, sample_rate, total_test_duration_ms)
     format_name = 'PAL' if sample_rate > 47960 else 'NTSC'
     _, frame_duration_ms, sync_period_ms, sync_duration_ms, sync_offset_ms = get_sync_timing_info(format_name)
 
-    # Check if we're in a sync pop period using same calculation as video
+    # Check if we're in a sync pop period
+    # Use the unified check that ensures complete pops only (no partial pops at the end)
+    # For audio, we need to determine which frame this audio packet corresponds to
+    # and use the same logic as video to ensure A/V alignment.
     time_since_offset = time_in_test_ms - sync_offset_ms
-    is_sync_pop = time_since_offset >= 0 and (time_since_offset % sync_period_ms) < sync_duration_ms
-    # Enforce schedule constraint: no pop in the last 1000ms of recording
-    if time_in_test_ms >= (total_test_duration_ms - 1000.0):
+    if time_since_offset < 0:
         is_sync_pop = False
+    else:
+        # Check if the ENTIRE pop would fit before the last-1000ms boundary
+        cutoff_ms = total_test_duration_ms - 1000.0
+        pop_index = int(time_since_offset // sync_period_ms)
+        pop_start_ms = sync_offset_ms + pop_index * sync_period_ms
+        pop_end_ms = pop_start_ms + sync_duration_ms
+        # Only generate pop if the entire pop fits before cutoff
+        time_in_current_period = time_since_offset % sync_period_ms
+        is_sync_pop = time_in_current_period < sync_duration_ms and pop_end_ms <= cutoff_ms
     # Determine which pop index (0-based) we're in to alternate speakers L/R starting with LEFT
     pop_index = int(time_since_offset // sync_period_ms) if time_since_offset >= 0 else -1
 
