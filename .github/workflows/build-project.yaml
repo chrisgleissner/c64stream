@@ -867,6 +867,7 @@ jobs:
       fail-fast: false
       matrix:
         scenario:
+          - crisp_scan_lines
           - ntsc_amber_monitor
           - ntsc_arcade_cabinet
           - ntsc_classic_crt
@@ -876,8 +877,7 @@ jobs:
           - ntsc_phosphor_glow
           - ntsc_sharp_pixels
           - ntsc_vintage_tv
-          - pal_sharp_pixels
-          - scanlines
+          - pal_default
     defaults:
       run:
         shell: bash
