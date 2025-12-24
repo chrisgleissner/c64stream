@@ -201,16 +201,17 @@ def detect_video_pop_events(video_path, frame_rate=30.0):
     metrics_arr = np.array(metrics, dtype=float)
     _, chosen_med, chosen_mad = _score(metrics_arr)
 
-    # Threshold for spikes. Use a conservative multiplier; this is a sparse, high-contrast event.
+    # Threshold for spikes. Use a moderate multiplier to balance false positives vs detection
+    # of CRT effect scenarios where bloom/afterglow reduce contrast.
     # If MAD collapses (bimodal/stable metric), fall back to percentile-based separation.
     if chosen_mad <= 1.0:
-        threshold = float(np.nanpercentile(metrics_arr, 99.0))
+        threshold = float(np.nanpercentile(metrics_arr, 98.0))  # Lower from 99 to 98 for CRT effects
     else:
-        threshold = float(chosen_med + 8.0 * chosen_mad)
-    # Lower the minimum threshold to 5.0 to detect pops when CRT effects (bloom/afterglow)
-    # reduce contrast. The 50x50 white pop square on black background should still exceed
-    # this when measured as percentile(inner, 98) - percentile(outer, 50).
-    threshold = max(threshold, 5.0)
+        threshold = float(chosen_med + 5.0 * chosen_mad)  # Lower from 8.0 to 5.0 for CRT effects
+    # Lower the minimum threshold to 3.0 to detect pops when CRT effects (bloom/afterglow)
+    # significantly reduce contrast. The 50x50 white pop square on black background should
+    # still exceed this when measured as percentile(inner, 98) - percentile(outer, 50).
+    threshold = max(threshold, 3.0)
 
 
     # Convert threshold hits into stable, de-bounced pop start events.
