@@ -1,6 +1,0 @@
-name: PAL Sharp Pixels
-format: PAL
-preset: Sharp Pixels
-assertions:
-  - video_quality
-  - audio

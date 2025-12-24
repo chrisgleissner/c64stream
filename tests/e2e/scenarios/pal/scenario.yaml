@@ -1,6 +1,0 @@
-name: PAL Baseline
-format: PAL
-preset: Default
-assertions:
-  - video_quality
-  - audio

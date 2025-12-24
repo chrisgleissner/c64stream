@@ -14,6 +14,7 @@ from .afterglow import AfterglowAssertion
 from .audio import AudioAssertion
 from .base import AssertionResult, AssertionStatus, EffectAssertion
 from .config import PresetConfig
+from .frame_box_seq import FrameBoxSequenceAssertion
 from .scanlines import ScanlineAssertion
 from .tint import TintAssertion
 from .video_quality import VideoQualityAssertion
@@ -117,6 +118,7 @@ def create_assertions_from_list(
         "tint": TintAssertion,
         "afterglow": AfterglowAssertion,
         "scanlines": ScanlineAssertion,
+        "frame_box_seq": FrameBoxSequenceAssertion,
     }
 
     thresholds = thresholds or {}

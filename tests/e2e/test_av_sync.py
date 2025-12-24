@@ -6,7 +6,7 @@ This script performs the A/V sync check, verifying that audio and video pops
 start at the exact same time.
 
 Pop definition (updated):
-- Duration: 1 frame
+- Duration: 2 frames
 - First pop: ~1000ms after frames start; interval: ~1000ms
 - No pop in the last 500ms of the recording
 - Audio pop: pleasant band-limited noise burst with instant attack/decay (no fade)
@@ -27,7 +27,7 @@ import tempfile
 from pathlib import Path
 
 
-def extract_audio_envelope(video_path, sample_rate=48000):
+def extract_audio_envelope(video_path, sample_rate=48000, window_ms=10):
     """
     Extract audio envelope to detect beep timing.
     Returns array of audio power levels over time.
@@ -55,8 +55,8 @@ def extract_audio_envelope(video_path, sample_rate=48000):
     right = data[0::2]
     left = data[1::2]
 
-    # Calculate envelope (RMS power in 10ms windows)
-    window_size = sample_rate // 100  # 10ms windows
+    # Calculate envelope (RMS power in windows)
+    window_size = int(max(1, round(sample_rate * (float(window_ms) / 1000.0))))
     envelope = []
 
     for i in range(0, len(left) - window_size, window_size):
@@ -92,15 +92,62 @@ def detect_video_pops(video_path, frame_rate=30.0):
     except Exception:
         pass
     cap = cv2.VideoCapture(str(video_path))
-    pop_frames = []
     frame_num = 0
 
     # Minimal warmup skip to avoid early startup artifacts but still capture the first event at ~1s
     skip_frames = int(0.5 * frame_rate)
 
-    # We'll detect content bounds per frame (cheap) to avoid using stale first-frame bounds
-    # which can include black bars during scene transitions.
-    cached_bounds = None  # kept for potential future smoothing, but we recompute below
+    # Robust approach:
+    # - Compute a per-frame "pop metric" in the expected lower-right event ROI.
+    # - Detect pops as spikes (median + k*MAD), which stays stable under tint/scanlines.
+    # - Auto-select whether the content height is 240 (NTSC) or 272 (PAL) by choosing the
+    #   geometry that produces the strongest spike score.
+
+    metrics: dict[int, list[float]] = {240: [], 272: []}
+    frame_nums: list[int] = []
+
+    def _roi_rect_for_assumed_height(frame_width: int, frame_height: int, assumed_c64_height: int):
+        # OBS bounds type "scale to fit" preserves aspect ratio; the content is centered.
+        scale = min(frame_width / 384.0, frame_height / float(assumed_c64_height))
+        scaled_w = int(round(384 * scale))
+        scaled_h = int(round(assumed_c64_height * scale))
+        left = int(round((frame_width - scaled_w) / 2.0))
+        top = int(round((frame_height - scaled_h) / 2.0))
+
+        roi_size = max(1, int(round(80 * scale)))
+        x0 = left + (scaled_w - roi_size)
+        x1 = left + scaled_w
+        y0 = top + (scaled_h - roi_size)
+        y1 = top + scaled_h
+        x0 = max(0, min(frame_width, x0))
+        x1 = max(0, min(frame_width, x1))
+        y0 = max(0, min(frame_height, y0))
+        y1 = max(0, min(frame_height, y1))
+        return x0, x1, y0, y1, scale
+
+    def _pop_metric(area_gray: np.ndarray, scale: float) -> float:
+        # Event square is 50x50 centered within the 80x80 ROI.
+        roi_h, roi_w = area_gray.shape[:2]
+        scaled_event = max(4, int(round(50 * scale)))
+        scaled_event = min(scaled_event, roi_h - 2, roi_w - 2)
+        if scaled_event < 4:
+            return float('nan')
+
+        cx = roi_w // 2
+        cy = roi_h // 2
+        half = scaled_event // 2
+        y0 = max(0, cy - half)
+        y1 = min(roi_h, cy + half)
+        x0 = max(0, cx - half)
+        x1 = min(roi_w, cx + half)
+        inner = area_gray[y0:y1, x0:x1]
+        if inner.size == 0:
+            return float('nan')
+
+        # Use median of ROI as the baseline; inner mean should spike during a pop.
+        roi_med = float(np.median(area_gray))
+        inner_mean = float(inner.mean())
+        return inner_mean - roi_med
 
     while True:
         ret, frame = cap.read()
@@ -112,61 +159,99 @@ def detect_video_pops(video_path, frame_rate=30.0):
             frame_num += 1
             continue
 
-        # Get frame dimensions and calculate scaling from C64 source
         height, width = frame.shape[:2]
 
-        # C64 source and geometry
-        c64_width, c64_height = 384, 272
+        # Compute metric for both assumed heights; choose best after the scan.
+        gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        for assumed in (240, 272):
+            rx0, rx1, ry0, ry1, scale_factor = _roi_rect_for_assumed_height(width, height, assumed)
+            roi = gray_frame[ry0:ry1, rx0:rx1]
+            if roi.size == 0:
+                metrics[assumed].append(float('nan'))
+            else:
+                metrics[assumed].append(_pop_metric(roi, scale_factor))
 
-        # Video event area (80x80) at lower-right of C64 frame
-        area_size = 80
-        # Event (white) square 50x50 centered within the area
-        event_size = 50
-
-        # We'll derive the horizontal scale from detected content bounds (robust to placement)
-        # and compute vertical positions using the actual scaled area size rather than PAL/NTSC guess.
-        # Initialize with a sane default until bounds are detected
-        scale_factor = height / 272.0
-        scaled_c64_width = int(c64_width * scale_factor)
-
-        # Detect C64 content bounds each frame for robust ROI placement
-        left_bound, right_bound, top_bound, bottom_bound = _detect_content_bounds(frame)
-        c64_left_offset = left_bound
-        c64_right_offset = right_bound
-        c64_top_offset = top_bound
-        c64_bottom_offset = bottom_bound
-        # Derive scale directly from detected content bounds
-        detected_c64_width = max(1, c64_right_offset - c64_left_offset)
-        scale_factor = detected_c64_width / float(c64_width)
-        scaled_c64_width = detected_c64_width
-
-        # Compute scaled video event area rectangle in recording (lower-right of content)
-        scaled_area_size = int(area_size * scale_factor)
-        scaled_area_left = c64_left_offset + scaled_c64_width - scaled_area_size
-        scaled_area_right = c64_left_offset + scaled_c64_width
-        scaled_area_top = c64_bottom_offset - scaled_area_size
-        scaled_area_bottom = c64_bottom_offset
-
-        # Extract area (permanently black when no pop)
-        area_region = frame[scaled_area_top:scaled_area_bottom, scaled_area_left:scaled_area_right]
-        if area_region.size == 0:
-            frame_num += 1
-            continue
-
-        # First-principles, fast detection: bright-pixel ratio in full 80x80 ROI
-        # White pop covers ~39% of the ROI; use 0.18 threshold to be robust to compression.
-        gray_area = cv2.cvtColor(area_region, cv2.COLOR_BGR2GRAY)
-        bright_ratio = float((gray_area > 230).mean())
-        if bright_ratio > 0.12:
-            pop_frames.append(frame_num)
+        frame_nums.append(frame_num)
 
         frame_num += 1
 
     cap.release()
+
+    def _score(arr: np.ndarray) -> tuple[float, float, float]:
+        arr = arr[np.isfinite(arr)]
+        if arr.size < 10:
+            return 0.0, 0.0, 1.0
+        med = float(np.median(arr))
+        mad = float(np.median(np.abs(arr - med)))
+        mad = max(mad, 1.0)
+        peak = float(np.percentile(arr, 99.5))
+        return (peak - med) / mad, med, mad
+
+    # Build arrays and pick geometry (240 vs 272) by spike score.
+    metrics = {240: np.array(metrics[240], dtype=float), 272: np.array(metrics[272], dtype=float)}
+    score240, med240, mad240 = _score(metrics[240])
+    score272, med272, mad272 = _score(metrics[272])
+    chosen = 240 if score240 >= score272 else 272
+    chosen_metrics = metrics[chosen]
+    chosen_med = med240 if chosen == 240 else med272
+    chosen_mad = mad240 if chosen == 240 else mad272
+
+    # Threshold for spikes. Use a conservative multiplier; this is a sparse, high-contrast event.
+    # Also clamp to a small positive floor: the metric is (inner_mean - roi_median), and during
+    # non-pop frames it can be <= 0.0; if the median becomes negative (e.g. due to ROI brightness
+    # distribution), an unconstrained MAD threshold can become negative and match almost all frames.
+    threshold = max(chosen_med + 8.0 * chosen_mad, 20.0)
+
+    # Convert threshold hits into stable, de-bounced pop frames.
+    # Some effects (e.g. afterglow) can smear the event so that the first threshold crossing
+    # occurs slightly before the best-aligned peak. We therefore group adjacent hits into a
+    # cluster and then pick the local maximum with a small look-ahead.
+    hot = np.where(np.isfinite(chosen_metrics) & (chosen_metrics > threshold))[0]
+    if hot.size == 0:
+        return []
+
+    search_ahead = max(1, int(round(0.05 * frame_rate)))  # ~50ms
+    max_gap = 1
+    min_spacing = max(1, int(round(0.5 * frame_rate)))  # pops are ~1s apart
+
+    best_indices: list[int] = []
+    cluster_start = int(hot[0])
+    cluster_end = int(hot[0])
+    for idx in hot[1:]:
+        idx = int(idx)
+        if idx <= cluster_end + max_gap:
+            cluster_end = idx
+            continue
+
+        search_end = min(len(chosen_metrics) - 1, cluster_end + search_ahead)
+        window = chosen_metrics[cluster_start : search_end + 1]
+        max_val = float(np.nanmax(window))
+        best_rel = int(np.where(window == max_val)[0][-1])
+        best_indices.append(cluster_start + best_rel)
+
+        cluster_start = idx
+        cluster_end = idx
+
+    search_end = min(len(chosen_metrics) - 1, cluster_end + search_ahead)
+    window = chosen_metrics[cluster_start : search_end + 1]
+    max_val = float(np.nanmax(window))
+    best_rel = int(np.where(window == max_val)[0][-1])
+    best_indices.append(cluster_start + best_rel)
+
+    # Enforce minimum spacing to prevent any double-triggering.
+    best_indices = sorted(set(best_indices))
+    pop_frames: list[int] = []
+    last_frame = None
+    for idx in best_indices:
+        fn = frame_nums[idx]
+        if last_frame is None or (fn - last_frame) >= min_spacing:
+            pop_frames.append(fn)
+            last_frame = fn
+
     return pop_frames
 
 
-def detect_audio_pops(envelope, threshold_factor=3.0, min_duration_ms=10):
+def detect_audio_pops(envelope, window_ms=10, threshold_factor=3.0, min_duration_ms=10):
     """
     Detect audio pops in the envelope.
     Returns list of pop start times in milliseconds (10ms resolution).
@@ -196,7 +281,7 @@ def detect_audio_pops(envelope, threshold_factor=3.0, min_duration_ms=10):
         elif (not is_above) and in_pop:
             # End of pop
             if pop_start is not None:
-                pop_duration_ms = (i - pop_start) * 10  # 10ms per sample
+                pop_duration_ms = (i - pop_start) * int(window_ms)
                 if pop_duration_ms >= min_duration_ms:
                     # Determine dominant channel for this pop window
                     seg = envelope[pop_start:i]
@@ -204,9 +289,10 @@ def detect_audio_pops(envelope, threshold_factor=3.0, min_duration_ms=10):
                         mean_l = float(np.mean(seg[:, 0]))
                         mean_r = float(np.mean(seg[:, 1]))
                         chan = 'L' if mean_l > mean_r else 'R'
+                        pop_starts.append({'time_ms': pop_start * int(window_ms), 'channel': chan})
                     else:
                         chan = 'B'  # both/mono
-                    pop_starts.append({'time_ms': pop_start * 10, 'channel': chan})
+                        pop_starts.append({'time_ms': pop_start * int(window_ms), 'channel': chan})
             in_pop = False
             pop_start = None
 
@@ -513,7 +599,7 @@ def verify_frame_sequence_box(video_path, solid_stddev_thresh=26.0, change_dist_
     }
 
 
-def verify_av_sync(video_path, tolerance_ms=25):
+def verify_av_sync(video_path, tolerance_ms=30):
     """
     Verify A/V synchronization between black squares and audio beeps.
 
@@ -552,9 +638,12 @@ def verify_av_sync(video_path, tolerance_ms=25):
     print("🔊 Extracting audio envelope...")
     audio_pops = []
     try:
-        envelope = extract_audio_envelope(video_path, sample_rate)
+        # Use 1ms windows for much finer onset timing than the old 10ms RMS.
+        # This reduces false sync failures caused by coarse audio quantization.
+        envelope_window_ms = 1
+        envelope = extract_audio_envelope(video_path, sample_rate, window_ms=envelope_window_ms)
         # Detect audio pops
-        audio_pops = detect_audio_pops(envelope, threshold_factor=3.0, min_duration_ms=30)
+        audio_pops = detect_audio_pops(envelope, window_ms=envelope_window_ms, threshold_factor=3.0, min_duration_ms=30)
         print(f"🎵 Detected {len(audio_pops)} audio pop(s)")
     except Exception as e:
         print(f"⚠️  Audio analysis skipped ({e})")

@@ -1,9 +1,6 @@
 name: NTSC Amber Monitor
 format: NTSC
 preset: Amber Monitor
-overrides:
-  afterglow_duration_ms: 100
-  afterglow_curve: 2
 assertions:
   - video_quality
   - audio

@@ -1,6 +1,0 @@
-name: NTSC Baseline
-format: NTSC
-preset: Default
-assertions:
-  - video_quality
-  - audio

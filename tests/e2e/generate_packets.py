@@ -14,7 +14,7 @@ Creates deterministic PAL and NTSC video/audio packets with verification pops
     - Audio pop: pleasant, band-limited noise burst ("rushing water"-like), instant on/off,
         alternating speakers per pop (L, R, L, R, ...), starting with LEFT
     - Pop cadence: first pop at ~1000ms after start, then every 1000ms
-    - Pop duration: 1 video frame
+    - Pop duration: 2 video frames (improves robustness against 1-frame capture/encode drops)
 """
 
 import os
@@ -65,7 +65,8 @@ def get_sync_timing_info(format_name):
 
     frame_duration_ms = 1000.0 / frame_rate
     sync_period_ms = 1000.0  # Pop every 1000ms
-    sync_duration_ms = 1 * frame_duration_ms  # 1 frame duration (video pop)
+    # Use 2 frames to make the marker robust against rare single-frame capture/encode drops.
+    sync_duration_ms = 2 * frame_duration_ms
     sync_offset_ms = 1000.0  # First pop at ~1000ms
 
     return frame_rate, frame_duration_ms, sync_period_ms, sync_duration_ms, sync_offset_ms

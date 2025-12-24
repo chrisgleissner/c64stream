@@ -1,8 +1,6 @@
 name: NTSC Classic CRT
 format: NTSC
 preset: Classic CRT
-overrides:
-  afterglow_duration_ms: 50
 assertions:
   - video_quality
   - audio

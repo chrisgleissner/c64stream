@@ -601,43 +601,75 @@ jobs:
       - name: Setup PulseAudio 🔊
         run: |
           : Setup PulseAudio 🔊
-          # Start PulseAudio for CI environment (handles root user in containers)
-          # This provides proper audio timing for A/V sync validation
+          # Ensure an audio server is available for OBS (PulseAudio or PipeWire Pulse)
+          # Notes:
+          # - Many CI container jobs run as root; PulseAudio user mode refuses root.
+          # - Fedora uses PipeWire with PulseAudio compatibility.
 
-          # Create runtime directory and home for PulseAudio
           export XDG_RUNTIME_DIR="/tmp/runtime-root"
           mkdir -p "$XDG_RUNTIME_DIR"
           chmod 700 "$XDG_RUNTIME_DIR"
+
           export HOME="/tmp/pulse-home"
           mkdir -p "$HOME"
 
-          # Configure PulseAudio for system-wide mode (required when running as root)
-          mkdir -p /etc/pulse
-          cat > /etc/pulse/system.pa << 'EOF'
-          load-module module-null-sink sink_name=dummy sink_properties=device.description="Dummy_Output"
-          set-default-sink dummy
-          EOF
+          echo "🔊 Ensuring audio server is running..."
 
-          # Start PulseAudio in system mode (required for root)
-          echo "🔊 Starting PulseAudio in system mode..."
-          pulseaudio --system --disallow-exit --disallow-module-loading=0 \
-            --log-target=file:/tmp/pulseaudio.log 2>&1 &
-          PULSE_PID=$!
+          if command -v pactl >/dev/null 2>&1 && pactl info >/dev/null 2>&1; then
+            echo "✅ Audio server already available"
+          else
+            if command -v pulseaudio >/dev/null 2>&1; then
+              if [[ "$(id -u)" -eq 0 ]]; then
+                mkdir -p /etc/pulse
+                cat > /etc/pulse/system.pa << 'EOF'
+                load-module module-null-sink sink_name=dummy sink_properties=device.description="Dummy_Output"
+                set-default-sink dummy
+                EOF
 
-          # Wait for PulseAudio to start
-          for i in {1..10}; do
-            if pulseaudio --check 2>/dev/null; then
-              echo "✅ PulseAudio started successfully (PID: $PULSE_PID)"
-              break
+                echo "🔊 Starting PulseAudio in system mode (root)..."
+                pulseaudio --system --disallow-exit --disallow-module-loading=0 \
+                  --log-target=file:/tmp/pulseaudio.log 2>&1 &
+                PULSE_PID=$!
+              else
+                echo "🔊 Starting PulseAudio in user mode..."
+                pulseaudio --start --exit-idle-time=-1 \
+                  --load="module-null-sink sink_name=dummy" \
+                  --log-target=file:/tmp/pulseaudio.log 2>&1 || true
+                PULSE_PID=""
+              fi
+
+              for i in {1..10}; do
+                if pulseaudio --check 2>/dev/null; then
+                  echo "✅ PulseAudio running${PULSE_PID:+ (PID: $PULSE_PID)}"
+                  break
+                fi
+                if [[ $i -eq 10 ]]; then
+                  echo "⚠️ PulseAudio may not have started correctly (continuing anyway)"
+                  cat /tmp/pulseaudio.log 2>/dev/null || true
+                fi
+                sleep 0.5
+              done
+            elif command -v pipewire-pulse >/dev/null 2>&1; then
+              echo "🔊 Starting pipewire-pulse..."
+              pipewire-pulse --log-level=2 > /tmp/pipewire-pulse.log 2>&1 &
+              PIPEWIRE_PULSE_PID=$!
+
+              for i in {1..10}; do
+                if command -v pactl >/dev/null 2>&1 && pactl info >/dev/null 2>&1; then
+                  echo "✅ pipewire-pulse running (PID: $PIPEWIRE_PULSE_PID)"
+                  break
+                fi
+                if [[ $i -eq 10 ]]; then
+                  echo "⚠️ pipewire-pulse may not have started correctly (continuing anyway)"
+                  cat /tmp/pipewire-pulse.log 2>/dev/null || true
+                fi
+                sleep 0.5
+              done
+            else
+              echo "⚠️ No PulseAudio/PipeWire Pulse daemon found in image"
             fi
-            if [[ $i -eq 10 ]]; then
-              echo "⚠️ PulseAudio may not have started correctly (continuing anyway)"
-              cat /tmp/pulseaudio.log 2>/dev/null || true
-            fi
-            sleep 0.5
-          done
+          fi
 
-          # Show audio setup
           pactl info 2>/dev/null || echo "pactl info unavailable"
 
       - name: Setup X11 Display 🖥️
@@ -891,43 +923,75 @@ jobs:
       - name: Setup PulseAudio 🔊
         run: |
           : Setup PulseAudio 🔊
-          # Start PulseAudio for CI environment (handles root user in containers)
-          # This provides proper audio timing for A/V sync validation
+          # Ensure an audio server is available for OBS (PulseAudio or PipeWire Pulse)
+          # Notes:
+          # - Many CI container jobs run as root; PulseAudio user mode refuses root.
+          # - Fedora uses PipeWire with PulseAudio compatibility.
 
-          # Create runtime directory and home for PulseAudio
           export XDG_RUNTIME_DIR="/tmp/runtime-root"
           mkdir -p "$XDG_RUNTIME_DIR"
           chmod 700 "$XDG_RUNTIME_DIR"
+
           export HOME="/tmp/pulse-home"
           mkdir -p "$HOME"
 
-          # Configure PulseAudio for system-wide mode (required when running as root)
-          mkdir -p /etc/pulse
-          cat > /etc/pulse/system.pa << 'EOF'
-          load-module module-null-sink sink_name=dummy sink_properties=device.description="Dummy_Output"
-          set-default-sink dummy
-          EOF
+          echo "🔊 Ensuring audio server is running..."
 
-          # Start PulseAudio in system mode (required for root)
-          echo "🔊 Starting PulseAudio in system mode..."
-          pulseaudio --system --disallow-exit --disallow-module-loading=0 \
-            --log-target=file:/tmp/pulseaudio.log 2>&1 &
-          PULSE_PID=$!
+          if command -v pactl >/dev/null 2>&1 && pactl info >/dev/null 2>&1; then
+            echo "✅ Audio server already available"
+          else
+            if command -v pulseaudio >/dev/null 2>&1; then
+              if [[ "$(id -u)" -eq 0 ]]; then
+                mkdir -p /etc/pulse
+                cat > /etc/pulse/system.pa << 'EOF'
+                load-module module-null-sink sink_name=dummy sink_properties=device.description="Dummy_Output"
+                set-default-sink dummy
+                EOF
 
-          # Wait for PulseAudio to start
-          for i in {1..10}; do
-            if pulseaudio --check 2>/dev/null; then
-              echo "✅ PulseAudio started successfully (PID: $PULSE_PID)"
-              break
+                echo "🔊 Starting PulseAudio in system mode (root)..."
+                pulseaudio --system --disallow-exit --disallow-module-loading=0 \
+                  --log-target=file:/tmp/pulseaudio.log 2>&1 &
+                PULSE_PID=$!
+              else
+                echo "🔊 Starting PulseAudio in user mode..."
+                pulseaudio --start --exit-idle-time=-1 \
+                  --load="module-null-sink sink_name=dummy" \
+                  --log-target=file:/tmp/pulseaudio.log 2>&1 || true
+                PULSE_PID=""
+              fi
+
+              for i in {1..10}; do
+                if pulseaudio --check 2>/dev/null; then
+                  echo "✅ PulseAudio running${PULSE_PID:+ (PID: $PULSE_PID)}"
+                  break
+                fi
+                if [[ $i -eq 10 ]]; then
+                  echo "⚠️ PulseAudio may not have started correctly (continuing anyway)"
+                  cat /tmp/pulseaudio.log 2>/dev/null || true
+                fi
+                sleep 0.5
+              done
+            elif command -v pipewire-pulse >/dev/null 2>&1; then
+              echo "🔊 Starting pipewire-pulse..."
+              pipewire-pulse --log-level=2 > /tmp/pipewire-pulse.log 2>&1 &
+              PIPEWIRE_PULSE_PID=$!
+
+              for i in {1..10}; do
+                if command -v pactl >/dev/null 2>&1 && pactl info >/dev/null 2>&1; then
+                  echo "✅ pipewire-pulse running (PID: $PIPEWIRE_PULSE_PID)"
+                  break
+                fi
+                if [[ $i -eq 10 ]]; then
+                  echo "⚠️ pipewire-pulse may not have started correctly (continuing anyway)"
+                  cat /tmp/pipewire-pulse.log 2>/dev/null || true
+                fi
+                sleep 0.5
+              done
+            else
+              echo "⚠️ No PulseAudio/PipeWire Pulse daemon found in image"
             fi
-            if [[ $i -eq 10 ]]; then
-              echo "⚠️ PulseAudio may not have started correctly (continuing anyway)"
-              cat /tmp/pulseaudio.log 2>/dev/null || true
-            fi
-            sleep 0.5
-          done
+          fi
 
-          # Show audio setup
           pactl info 2>/dev/null || echo "pactl info unavailable"
 
       - name: Setup X11 Display 🖥️

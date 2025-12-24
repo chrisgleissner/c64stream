@@ -18,6 +18,7 @@ from .config import (
     load_properties,
     load_settings_from_obs_scene,
 )
+from .frame_box_seq import FrameBoxSequenceAssertion
 from .runner import (
     AssertionRunner,
     create_assertions_from_list,
@@ -43,6 +44,7 @@ __all__ = [
     "TintAssertion",
     "AfterglowAssertion",
     "ScanlineAssertion",
+    "FrameBoxSequenceAssertion",
     # Runner
     "AssertionRunner",
     "create_preset_assertions",

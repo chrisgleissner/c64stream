@@ -1,9 +1,6 @@
 name: NTSC Vintage TV
 format: NTSC
 preset: Vintage TV
-overrides:
-  afterglow_duration_ms: 100
-  afterglow_curve: 2
 assertions:
   - video_quality
   - audio

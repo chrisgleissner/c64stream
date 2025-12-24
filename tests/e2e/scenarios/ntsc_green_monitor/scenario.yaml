@@ -1,8 +1,6 @@
 name: NTSC Green Monitor
 format: NTSC
 preset: Green Monitor
-overrides:
-  afterglow_duration_ms: 150
 assertions:
   - video_quality
   - audio

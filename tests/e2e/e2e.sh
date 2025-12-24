@@ -25,7 +25,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 BUILD_DIR="${PROJECT_ROOT}/build_x86_64"
 TEST_DIR="${PROJECT_ROOT}/tests/e2e"
-DEFAULT_OUTPUT_DIR="${TEST_DIR}/test_output"
+DEFAULT_OUTPUT_DIR="${TEST_DIR}/results"
 
 # Default test parameters
 DEFAULT_FORMAT="NTSC"
@@ -230,7 +230,7 @@ PACKET GENERATION:
 OUTPUT:
     Test artifacts are saved to: \${OUTPUT_DIR}
     - Generated packets: test_packets/
-    - Test logs: test_output/
+    - Test logs: \${OUTPUT_DIR}/
     - Recordings (if OBS enabled): recording_*.mkv
 
 EOF
@@ -436,6 +436,12 @@ parse_args() {
     # Load scenario configuration if specified
     if [[ -n "${SCENARIO}" ]]; then
         load_scenario "${SCENARIO}"
+    fi
+
+    # Default output layout: keep all artifacts under tests/e2e/results/.
+    # If a scenario is specified and --output-dir wasn't overridden, write into results/<scenario>/.
+    if [[ -n "${SCENARIO}" ]] && [[ "${OUTPUT_DIR}" == "${DEFAULT_OUTPUT_DIR}" ]]; then
+        OUTPUT_DIR="${DEFAULT_OUTPUT_DIR}/${SCENARIO}"
     fi
 
     # Calculate frames from duration if specified
@@ -715,6 +721,7 @@ run_e2e_test() {
     local cmd=(
         "python3" "./e2e.py"
         "--test-dir" "."
+        "--output-dir" "${OUTPUT_DIR}"
         "--format" "${FORMAT}"
         "--frames" "${FRAMES}"
         "--video-port" "${VIDEO_PORT}"
@@ -724,6 +731,11 @@ run_e2e_test() {
 
     if [[ -n "${SCENARIO_NAME}" ]]; then
         cmd+=("--scenario-name" "${SCENARIO_NAME}")
+    fi
+
+    # Provide stable scenario id (folder name) for gating scenario-specific checks.
+    if [[ -n "${SCENARIO}" ]]; then
+        cmd+=("--scenario-id" "${SCENARIO}")
     fi
 
     # Pass scenario overrides if provided
@@ -1013,54 +1025,218 @@ EOF
 
     # Sample frame: extract a frame showing the A/V pop white square.
     #
-    # Use the closest_video_pop_ms from validation results to find a frame with the A/V pop visible.
-    # This ensures the sample frame shows the test pattern with the white sync square.
+    # IMPORTANT: extract by exact frame index (n) rather than by timestamp (t).
+    # Timestamp-based extraction can miss a 1–2 frame marker due to PTS rounding/offsets.
     if [[ -n "${recording_mp4}" && -f "${recording_mp4}" && -x "${TEST_DIR}/extract.frame" ]]; then
-        local pop_time_ms pop_frame_num frame_rate
+        local pop_time_ms pop_frame_num first_pop_frame frame_rate
+        pop_time_ms=""
+        pop_frame_num=""
+        first_pop_frame=""
+        sample_frame_seconds=""
+        local sample_frame_extracted=false
 
-        # Try to get the first video pop timestamp from validation results
+        # Try to get the first detected video pop frame index from validation results
         if [[ -f "${validation_file}" ]] && command -v jq >/dev/null 2>&1; then
-            pop_time_ms=$(jq -r '.av_sync_details.sync_details[0].closest_video_pop_ms // empty' "${validation_file}" 2>/dev/null || true)
-            if [[ -n "${pop_time_ms}" && "${pop_time_ms}" != "null" ]]; then
-                sample_frame_seconds=$(awk -v ms="${pop_time_ms}" 'BEGIN{printf "%.3f", ms/1000.0}')
+            first_pop_frame=$(jq -r '.av_sync_details.video_pop_frame_indices[0] // empty' "${validation_file}" 2>/dev/null || true)
+            if [[ -z "${first_pop_frame}" || "${first_pop_frame}" == "null" ]]; then
+                first_pop_frame=$(jq -r '.av_sync_details.sync_details[0].closest_video_pop_frame // empty' "${validation_file}" 2>/dev/null || true)
             fi
         fi
 
         # Fallback: directly detect a video pop frame using test_av_sync.py
-        if [[ -z "${sample_frame_seconds}" ]] && command -v python3 >/dev/null 2>&1; then
-            if [[ "${FORMAT}" == "PAL" ]]; then
-                frame_rate="50.0"
-            else
-                frame_rate="60.0"
+        if [[ -z "${first_pop_frame}" ]] && command -v python3 >/dev/null 2>&1; then
+            # Prefer accurate FPS from ffprobe; fall back to format defaults
+            frame_rate=""
+            if command -v ffprobe >/dev/null 2>&1; then
+                frame_rate=$(ffprobe -v error -select_streams v:0 -show_entries stream=r_frame_rate -of default=noprint_wrappers=1:nokey=1 "${recording_mp4}" 2>/dev/null | head -1 || true)
             fi
+            if [[ -z "${frame_rate}" ]]; then
+                if [[ "${FORMAT}" == "PAL" ]]; then
+                    frame_rate="50.0"
+                else
+                    frame_rate="60.0"
+                fi
+            else
+                # Convert e.g. 30000/1001 into float with python
+                frame_rate=$(python3 - <<PY 2>/dev/null || true
+import sys
+try:
+    s = "${frame_rate}".strip()
+    if "/" in s:
+        a,b = s.split("/",1)
+        print(float(a)/float(b))
+    else:
+        print(float(s))
+except Exception:
+    pass
+PY
+)
+                if [[ -z "${frame_rate}" ]]; then
+                    if [[ "${FORMAT}" == "PAL" ]]; then
+                        frame_rate="50.0"
+                    else
+                        frame_rate="60.0"
+                    fi
+                fi
+            fi
+
             pop_frame_num=$(python3 -c "
 import sys
 sys.path.insert(0, '${TEST_DIR}')
 from test_av_sync import detect_video_pops
-pops = detect_video_pops('${recording_mp4}', frame_rate=${frame_rate})
+pops = detect_video_pops('${recording_mp4}', frame_rate=float('${frame_rate}'))
 if pops:
-    print(pops[0])  # first detected pop frame
+    print(int(pops[0]))
 " 2>/dev/null || true)
             if [[ -n "${pop_frame_num}" && "${pop_frame_num}" =~ ^[0-9]+$ ]]; then
-                # Convert frame number to seconds
-                sample_frame_seconds=$(awk -v f="${pop_frame_num}" -v fps="${frame_rate}" 'BEGIN{printf "%.3f", f/fps}')
+                first_pop_frame="${pop_frame_num}"
             fi
         fi
 
-        # Final fallback to mid-point if no pop found
-        if [[ -z "${sample_frame_seconds}" ]]; then
-            local dur_sec
-            if command -v ffprobe >/dev/null 2>&1; then
-                dur_sec=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${recording_mp4}" 2>/dev/null | head -1 || true)
+        # If we have a frame index, extract that exact frame.
+        if [[ -n "${first_pop_frame}" && "${first_pop_frame}" =~ ^[0-9]+$ ]]; then
+            # Extract a still that actually contains the marker.
+            # Even with frame-index extraction, some pipelines can be off by 1 frame (PTS rounding,
+            # encoder delays, etc.). We therefore try a tiny window around the detected frame and
+            # pick the earliest candidate that contains the marker (or the best-scoring one).
+            local best_tmp best_score best_frame
+            best_tmp=""
+            best_score="-1"
+            best_frame="${first_pop_frame}"
+
+            local tmp_dir
+            tmp_dir=$(mktemp -d 2>/dev/null || true)
+
+            # Candidates: detected frame, +1 (marker can last 2 frames), -1 safety, +2 safety
+            local candidates=("${first_pop_frame}" "$((first_pop_frame + 1))" "$((first_pop_frame - 1))" "$((first_pop_frame + 2))")
+            local found_good=false
+
+            if [[ -n "${tmp_dir}" && -d "${tmp_dir}" ]] && command -v python3 >/dev/null 2>&1; then
+                for cand in "${candidates[@]}"; do
+                    [[ "${cand}" =~ ^-?[0-9]+$ ]] || continue
+                    if (( cand < 0 )); then
+                        continue
+                    fi
+                    local out_tmp
+                    out_tmp="${tmp_dir}/frame_${cand}.png"
+                    "${TEST_DIR}/extract.frame" --input "${recording_mp4}" --output "${out_tmp}" --frame "${cand}" >/dev/null 2>&1 || continue
+                    if [[ ! -s "${out_tmp}" ]]; then
+                        continue
+                    fi
+
+                    # Score marker presence in the expected pop area (lower-right of the content).
+                    local score
+                    score=$(python3 - <<'PY' "${out_tmp}" 2>/dev/null || true
+import sys
+try:
+    import cv2  # type: ignore
+    import numpy as np  # type: ignore
+except Exception:
+    sys.exit(0)
+
+p = sys.argv[1]
+img = cv2.imread(p)
+if img is None:
+    print(0)
+    sys.exit(0)
+
+# Use the same content-bound heuristic as the verifier (black bars around content).
+g = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+h, w = g.shape[:2]
+
+# Detect content bounds roughly by scanning for non-black pixels.
+row_counts = np.sum(g > 10, axis=1)
+col_counts = np.sum(g > 10, axis=0)
+col_thresh = max(1, int(0.10 * h))
+row_thresh = max(1, int(0.10 * w))
+content_cols = np.where(col_counts >= col_thresh)[0]
+content_rows = np.where(row_counts >= row_thresh)[0]
+if content_cols.size >= 2:
+    left = int(content_cols[0])
+    right = int(content_cols[-1]) + 1
+else:
+    left, right = 0, w
+if content_rows.size >= 2:
+    top = int(content_rows[0])
+    bottom = int(content_rows[-1]) + 1
+else:
+    top, bottom = 0, h
+
+content_w = max(1, right - left)
+scale = content_w / 384.0
+area_px = max(10, int(round(80 * scale)))
+
+area_left = max(0, right - area_px)
+area_right = right
+area_bottom = bottom
+area_top = max(0, bottom - area_px)
+roi = g[area_top:area_bottom, area_left:area_right]
+if roi.size == 0:
+    print(0)
+    sys.exit(0)
+
+# Marker score: count of "much brighter than background" pixels + contrast vs ROI median.
+# Avoid absolute thresholds (e.g. >200) because some presets tint/soften the marker.
+med = float(np.median(roi))
+thr = max(50.0, med + 60.0)
+bright = int((roi > thr).sum())
+contrast = float(roi.mean() - med)
+score = bright + max(0.0, contrast) * 10.0
+print(int(score))
+PY
+)
+                    [[ -n "${score}" ]] || score=0
+
+                    # Consider it “good” if there are enough bright pixels.
+                    if (( score >= 5000 )); then
+                        # Pick earliest good candidate.
+                        best_tmp="${out_tmp}"
+                        best_frame="${cand}"
+                        found_good=true
+                        break
+                    fi
+
+                    # Otherwise, keep best score.
+                    if (( score > best_score )); then
+                        best_score="${score}"
+                        best_tmp="${out_tmp}"
+                        best_frame="${cand}"
+                    fi
+                done
+
+                if [[ -n "${best_tmp}" && -s "${best_tmp}" ]]; then
+                    cp -f "${best_tmp}" "${sample_frame_path}" || true
+                    sample_frame_extracted=true
+                fi
             fi
-            if [[ -n "${dur_sec}" ]]; then
-                sample_frame_seconds=$(awk -v d="${dur_sec}" 'BEGIN{printf "%.3f", d*0.50}')
-            else
-                sample_frame_seconds="4.500"
+
+            # Fallback if python scoring not available
+            if [[ "${sample_frame_extracted}" != true ]]; then
+                "${TEST_DIR}/extract.frame" --input "${recording_mp4}" --output "${sample_frame_path}" --frame "${first_pop_frame}" || true
+                sample_frame_extracted=true
+            fi
+
+            if [[ -n "${tmp_dir}" && -d "${tmp_dir}" ]]; then
+                rm -rf "${tmp_dir}" || true
             fi
         fi
 
-        "${TEST_DIR}/extract.frame" --input "${recording_mp4}" --output "${sample_frame_path}" --time "${sample_frame_seconds}" || true
+        if [[ "${sample_frame_extracted}" != true ]]; then
+            # Final fallback to mid-point if no pop found
+            if [[ -z "${sample_frame_seconds}" ]]; then
+                local dur_sec
+                if command -v ffprobe >/dev/null 2>&1; then
+                    dur_sec=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${recording_mp4}" 2>/dev/null | head -1 || true)
+                fi
+                if [[ -n "${dur_sec}" ]]; then
+                    sample_frame_seconds=$(awk -v d="${dur_sec}" 'BEGIN{printf "%.3f", d*0.50}')
+                else
+                    sample_frame_seconds="4.500"
+                fi
+            fi
+
+            "${TEST_DIR}/extract.frame" --input "${recording_mp4}" --output "${sample_frame_path}" --time "${sample_frame_seconds}" || true
+        fi
     fi
 
     # Emit a Video block with download link before the Sample Frame
