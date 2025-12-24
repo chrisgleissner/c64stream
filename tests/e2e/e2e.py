@@ -1421,15 +1421,6 @@ class E2ETest:
                         continue
 
                     bytes_sent = event['sock'].sendto(packet_data, event['dest'])
-
-                    # CI-only redundancy: also send to loopback to avoid any docker routing quirks
-                    if self.is_ci:
-                        try:
-                            primary_ip, primary_port = event['dest']
-                            if primary_ip != '127.0.0.1':
-                                event['sock'].sendto(packet_data, ('127.0.0.1', primary_port))
-                        except Exception:
-                            pass
                     packets_sent += 1
 
                     # Log first few packets for debugging
