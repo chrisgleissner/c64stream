@@ -82,6 +82,7 @@ RUN dnf install -y \
         python3-numpy \
         python3-opencv \
         python3-pillow \
+        python3-pyyaml \
         xorg-x11-server-Xvfb \
         ffmpeg-free \
         pipewire-pulseaudio \

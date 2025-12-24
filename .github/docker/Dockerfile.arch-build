@@ -69,6 +69,7 @@ RUN pacman -S --noconfirm \
         python-numpy \
         python-opencv \
         python-pillow \
+        python-yaml \
         xorg-server-xvfb \
         pulseaudio
 

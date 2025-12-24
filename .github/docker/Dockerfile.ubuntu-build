@@ -55,6 +55,7 @@ RUN apt-get install -y --no-install-recommends \
         python3-numpy \
         python3-opencv \
         python3-pil \
+        python3-yaml \
         python3-requests \
         python3-websocket \
         ffmpeg \
