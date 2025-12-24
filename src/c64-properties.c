@@ -191,11 +191,11 @@ obs_properties_t *c64_create_properties(void *data)
 
     // Pixel Geometry
     obs_property_t *pixel_width_prop =
-        obs_properties_add_float_slider(effects_props, "pixel_width", obs_module_text("PixelWidth"), 0.5, 3.0, 0.1);
+        obs_properties_add_float_slider(effects_props, "pixel_width", obs_module_text("PixelWidth"), 0.5, 4.0, 0.1);
     obs_property_set_long_description(pixel_width_prop, obs_module_text("PixelWidth.Description"));
 
     obs_property_t *pixel_height_prop =
-        obs_properties_add_float_slider(effects_props, "pixel_height", obs_module_text("PixelHeight"), 0.5, 3.0, 0.1);
+        obs_properties_add_float_slider(effects_props, "pixel_height", obs_module_text("PixelHeight"), 0.5, 4.0, 0.1);
     obs_property_set_long_description(pixel_height_prop, obs_module_text("PixelHeight.Description"));
 
     obs_property_t *blur_strength_prop = obs_properties_add_float_slider(

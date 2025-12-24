@@ -28,6 +28,8 @@ uniform float dt_ms;
 uniform texture2d texture_accum_prev;
 uniform float output_height;  // Source render height (plugin output)
 uniform float canvas_height;  // OBS canvas height (final output) for canvas-space scanlines
+uniform float source_width;   // Original C64 source width (e.g., 384)
+uniform float source_height;  // Original C64 source height (e.g., 270/272)
 
 sampler_state textureSampler {
     Filter   = Point;  // Use nearest neighbor for pixel-perfect scaling
@@ -146,6 +148,22 @@ float4 PSDefault(VertDataOut v_in) : TARGET
 {
     // Clamp UV coordinates to valid range to prevent out-of-bounds sampling
     float2 uv = clamp(v_in.uv, 0.0, 1.0);
+
+    // === SHARP PIXEL EXPANSION (UV SNAPPING) ===
+    // When pixel_width/height > 1, we need to snap UV coordinates to exact texel centers
+    // to achieve crisp integer-multiple pixel expansion without any blur.
+    // This maps each output pixel to the center of the corresponding source texel.
+    if (blur_strength == 0.0f && source_width > 0.0f && source_height > 0.0f) {
+        // Convert UV to source texel coordinate
+        float src_x = uv.x * source_width;
+        float src_y = uv.y * source_height;
+        // Snap to texel center: floor to get texel index, add 0.5 for center
+        src_x = floor(src_x) + 0.5f;
+        src_y = floor(src_y) + 0.5f;
+        // Convert back to UV space
+        uv.x = src_x / source_width;
+        uv.y = src_y / source_height;
+    }
 
     // === PIXEL GEOMETRY WITH BLUR CONTROL ===
     // Pixel geometry scaling is handled by matrix transforms

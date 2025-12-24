@@ -953,6 +953,11 @@ run_e2e_tests() {
         "--verbose"
     )
 
+    # Pass the scenario key to e2e.sh so it can load scenario.yaml and get pattern, assertions, etc.
+    if [[ -n "$scenario_key" ]]; then
+        e2e_args+=("--scenario" "$scenario_key")
+    fi
+
     if [[ -n "$scenario_label" ]]; then
         e2e_args+=("--scenario-name" "$scenario_label")
     fi

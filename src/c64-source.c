@@ -556,6 +556,10 @@ void c64_destroy(void *data)
         gs_effect_destroy(context->crt_effect);
         context->crt_effect = NULL;
     }
+    if (context->point_sampler) {
+        gs_samplerstate_destroy(context->point_sampler);
+        context->point_sampler = NULL;
+    }
     obs_leave_graphics();
 
     // Cleanup resources
@@ -1088,8 +1092,27 @@ void c64_video_render(void *data, gs_effect_t *effect)
         }
     }
 
+    // Create point sampler for sharp pixel rendering (nearest-neighbor filtering)
+    // This is needed when blur_strength is 0 to avoid bilinear interpolation blur
+    if (!context->point_sampler) {
+        struct gs_sampler_info sampler_info = {
+            .filter = GS_FILTER_POINT,
+            .address_u = GS_ADDRESS_CLAMP,
+            .address_v = GS_ADDRESS_CLAMP,
+        };
+        context->point_sampler = gs_samplerstate_create(&sampler_info);
+    }
+
     // Set CRT shader parameters
-    gs_effect_set_texture(gs_effect_get_param_by_name(context->crt_effect, "image"), input_tex);
+    gs_eparam_t *image_param = gs_effect_get_param_by_name(context->crt_effect, "image");
+    gs_effect_set_texture(image_param, input_tex);
+
+    // Use point (nearest-neighbor) sampler when blur_strength is 0 for sharp pixel rendering
+    // Otherwise OBS uses bilinear filtering which causes blur when upscaling
+    if (context->blur_strength == 0.0f && context->point_sampler) {
+        gs_effect_set_next_sampler(image_param, context->point_sampler);
+    }
+
     gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "scan_line_distance"),
                         context->scan_line_distance);
     gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "scan_line_strength"),
@@ -1115,6 +1138,11 @@ void c64_video_render(void *data, gs_effect_t *effect)
 
     // Set output resolution for scanline calculation
     gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "output_height"), (float)render_height);
+
+    // Set source dimensions for UV snapping (sharp pixel expansion)
+    // These are the original C64 dimensions before pixel_width/height scaling
+    gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "source_width"), (float)context->width);
+    gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "source_height"), (float)context->height);
 
     // Get canvas height for canvas-space scanline rendering
     // This ensures scanlines appear evenly spaced regardless of how OBS scales the source
