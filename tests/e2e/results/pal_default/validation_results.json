@@ -28,10 +28,10 @@
     "tolerance_ms": 50,
     "sync_details": [
       {
-        "audio_pop_time_ms": 7870,
+        "audio_pop_time_ms": 7873,
         "closest_video_pop_ms": 7860.0,
         "closest_video_pop_frame": 393,
-        "difference_ms": 10.0,
+        "difference_ms": 13.0,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -39,21 +39,21 @@
         "traffic": "green"
       },
       {
-        "audio_pop_time_ms": 8870,
-        "closest_video_pop_ms": 8840.0,
-        "closest_video_pop_frame": 442,
-        "difference_ms": 30.0,
+        "audio_pop_time_ms": 8873,
+        "closest_video_pop_ms": 8860.0,
+        "closest_video_pop_frame": 443,
+        "difference_ms": 13.0,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
         "channel": "R",
-        "traffic": "yellow"
+        "traffic": "green"
       },
       {
-        "audio_pop_time_ms": 9870,
+        "audio_pop_time_ms": 9873,
         "closest_video_pop_ms": 9840.0,
         "closest_video_pop_frame": 492,
-        "difference_ms": 30.0,
+        "difference_ms": 33.0,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -66,17 +66,17 @@
     "duration_ms": 19840.0,
     "video_pop_times_ms": [
       7860.0,
-      8840.0,
+      8860.0,
       9840.0
     ],
     "video_pop_frame_indices": [
       393,
-      442,
+      443,
       492
     ],
     "traffic": [
       "green",
-      "yellow",
+      "green",
       "yellow"
     ]
   },

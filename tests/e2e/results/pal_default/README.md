@@ -1,6 +1,6 @@
 # C64 Stream E2E Test Report
 
-Generated: 2025-12-25 17:01:36 UTC
+Generated: 2025-12-25 18:50:42 UTC
 
 ## Test configuration
 
@@ -32,13 +32,13 @@ Generated: 2025-12-25 17:01:36 UTC
 
 ### A/V Sync
 
-- ✅ Good synchronization (100.0%): avg offset 23.3ms, max 30.0ms
+- ✅ Good synchronization (100.0%): avg offset 19.7ms, max 33.0ms
 
 #### Sync Details
 
-- 🟢 Pop #1 [L]: audio=7870.0ms, video=7860.0ms (frame 393), diff=10.0ms
-- 🟡 Pop #2 [R]: audio=8870.0ms, video=8840.0ms (frame 442), diff=30.0ms
-- 🟡 Pop #3 [L]: audio=9870.0ms, video=9840.0ms (frame 492), diff=30.0ms
+- 🟢 Pop #1 [L]: audio=7873.0ms, video=7860.0ms (frame 393), diff=13.0ms
+- 🟢 Pop #2 [R]: audio=8873.0ms, video=8860.0ms (frame 443), diff=13.0ms
+- 🟡 Pop #3 [L]: audio=9873.0ms, video=9840.0ms (frame 492), diff=33.0ms
 
 - Channels: LRL
 - 🔁 Channel alternation: OK (alternating, starts with L)
