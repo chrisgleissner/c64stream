@@ -1,11 +1,11 @@
 {
   "udp_reception": {
     "status": "fail",
-    "details": "3819/19252 packets (3569 video, 250 audio, major loss)"
+    "details": "3824/19252 packets (3575 video, 249 audio, major loss)"
   },
   "frame_processing": {
     "status": "pass",
-    "details": "307 frames processed"
+    "details": "309 frames processed"
   },
   "video_recording": {
     "status": "pass",
@@ -28,10 +28,10 @@
     "tolerance_ms": 50,
     "sync_details": [
       {
-        "audio_pop_time_ms": 7814,
-        "closest_video_pop_ms": 7783.333333333333,
-        "closest_video_pop_frame": 467,
-        "difference_ms": 30.66666666666697,
+        "audio_pop_time_ms": 7830,
+        "closest_video_pop_ms": 7800.0,
+        "closest_video_pop_frame": 468,
+        "difference_ms": 30.0,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -39,10 +39,10 @@
         "traffic": "yellow"
       },
       {
-        "audio_pop_time_ms": 8814,
-        "closest_video_pop_ms": 8783.333333333334,
-        "closest_video_pop_frame": 527,
-        "difference_ms": 30.66666666666606,
+        "audio_pop_time_ms": 8830,
+        "closest_video_pop_ms": 8800.0,
+        "closest_video_pop_frame": 528,
+        "difference_ms": 30.0,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -50,10 +50,10 @@
         "traffic": "yellow"
       },
       {
-        "audio_pop_time_ms": 9814,
-        "closest_video_pop_ms": 9800.0,
-        "closest_video_pop_frame": 588,
-        "difference_ms": 14.0,
+        "audio_pop_time_ms": 9833,
+        "closest_video_pop_ms": 9816.666666666666,
+        "closest_video_pop_frame": 589,
+        "difference_ms": 16.33333333333394,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -63,16 +63,16 @@
     ],
     "is_perfectly_synced": true,
     "last_event_within_limit": true,
-    "duration_ms": 18986.667,
+    "duration_ms": 19008.0,
     "video_pop_times_ms": [
-      7783.333333333333,
-      8783.333333333334,
-      9800.0
+      7800.0,
+      8800.0,
+      9816.666666666666
     ],
     "video_pop_frame_indices": [
-      467,
-      527,
-      588
+      468,
+      528,
+      589
     ],
     "traffic": [
       "yellow",
