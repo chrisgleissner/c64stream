@@ -188,9 +188,15 @@ static void c64_afterglow_sse2(uint32_t *acc, const uint32_t *curr_pixels, size_
 // ─────────────────────────────────────────────────────────────────────────────
 #if defined(__AVX2__) || defined(_MSC_VER)
 // Note: MSVC always has AVX2 intrinsics available, runtime check selects them
+// GCC/Clang need target attribute, MSVC doesn't support it
+#ifdef _MSC_VER
+static void c64_afterglow_avx2(uint32_t *acc, const uint32_t *curr_pixels, size_t pixel_count, float decay_r,
+                               float decay_g, float decay_b)
+#else
 __attribute__((target("avx2"))) static void c64_afterglow_avx2(uint32_t *acc, const uint32_t *curr_pixels,
                                                                size_t pixel_count, float decay_r, float decay_g,
                                                                float decay_b)
+#endif
 {
     // Broadcast decay factors to all 8 lanes
     const __m256 vdecay_r = _mm256_set1_ps(decay_r);

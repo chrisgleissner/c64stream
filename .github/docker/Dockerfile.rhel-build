@@ -1,25 +1,26 @@
-# Pre-built RHEL/CentOS Stream container with OBS Studio and Qt6 dependencies
+# Pre-built RHEL/CentOS Stream container with OBS Studio 30+ and Qt6 dependencies
 # Uses CentOS Stream 9 as a freely available RHEL-compatible base
+# OBS is built from source to get version 30+ (RPM Fusion only has 30.0.0 with recording issues)
 # This dramatically speeds up CI builds by avoiding lengthy DNF installations
 
 FROM quay.io/centos/centos:stream9
 
 LABEL org.opencontainers.image.title="C64 Stream RHEL Build Environment"
-LABEL org.opencontainers.image.description="Pre-built CentOS Stream 9 container with OBS Studio and Qt6 for fast CI builds"
+LABEL org.opencontainers.image.description="Pre-built CentOS Stream 9 container with OBS Studio 30+ and Qt6 for fast CI builds"
 LABEL org.opencontainers.image.source="https://github.com/chrisgleissner/c64stream"
 LABEL org.opencontainers.image.licenses="GPL-2.0-or-later"
 
 # Set timezone
 ENV TZ=UTC
 
-# Enable EPEL and RPM Fusion repositories for OBS and additional packages
+# Enable EPEL and RPM Fusion repositories for additional packages
 RUN dnf install -y epel-release && \
     dnf install -y --nogpgcheck \
         https://mirrors.rpmfusion.org/free/el/rpmfusion-free-release-9.noarch.rpm \
         https://mirrors.rpmfusion.org/nonfree/el/rpmfusion-nonfree-release-9.noarch.rpm && \
     dnf config-manager --enable crb
 
-# Install build dependencies and OBS Studio
+# Install build dependencies (OBS will be built from source)
 RUN dnf install -y \
         gcc \
         gcc-c++ \
@@ -35,18 +36,19 @@ RUN dnf install -y \
         xz \
         net-tools \
         mesa-libGL \
+        mesa-libGL-devel \
         mesa-dri-drivers \
         mesa-libGLU \
+        mesa-libGLU-devel \
         libxkbcommon-x11 \
+        libxkbcommon-devel \
         xcb-util-wm \
         dejavu-sans-fonts \
         mesa-libGLES-devel \
-        obs-studio \
-        obs-studio-devel \
-        obs-studio-libs \
-        obs-studio-plugin-x264 \
         qt6-qtbase-devel \
-        qt6-qtsvg \
+        qt6-qtbase-private-devel \
+        qt6-qtsvg-devel \
+        qt6-qtwayland \
         ffmpeg \
         ffmpeg-devel \
         x264-devel \
@@ -70,7 +72,36 @@ RUN dnf install -y \
         wayland-devel \
         srt-devel \
         json-devel \
-        uthash-devel
+        uthash-devel \
+        pipewire-devel \
+        freetype-devel \
+        fontconfig-devel \
+        swig
+
+# Build OBS Studio 32.0.4 from source (fixes recording issues in 30.0.0)
+# Disabled optional features to minimize build time and dependencies
+ENV OBS_VERSION=32.0.4
+RUN cd /tmp && \
+    git clone --recursive --depth 1 --branch ${OBS_VERSION} https://github.com/obsproject/obs-studio.git && \
+    cd obs-studio && \
+    mkdir build && cd build && \
+    cmake -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/usr \
+        -DENABLE_BROWSER=OFF \
+        -DENABLE_VST=OFF \
+        -DENABLE_VLC=OFF \
+        -DENABLE_SCRIPTING=OFF \
+        -DENABLE_AJA=OFF \
+        -DENABLE_WEBRTC=OFF \
+        -DENABLE_NEW_MPEGTS_OUTPUT=OFF \
+        -DENABLE_PLUGINS=ON \
+        -DENABLE_UI=ON \
+        .. && \
+    ninja -j$(nproc) && \
+    ninja install && \
+    ldconfig && \
+    cd / && rm -rf /tmp/obs-studio
 
 # Install Python dependencies for E2E tests
 RUN dnf install -y \

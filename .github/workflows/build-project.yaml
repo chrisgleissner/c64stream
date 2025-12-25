@@ -540,8 +540,9 @@ jobs:
           - distro: arch
             image_tag: ghcr.io/${{ github.repository }}/arch-build:latest
             display_name: Arch Linux
-          # RHEL/CentOS excluded from E2E: OBS 30.0.0 has recording issues unrelated to plugin
-          # Plugin builds and loads correctly; OBS native recording fails in container
+          - distro: rhel
+            image_tag: ghcr.io/${{ github.repository }}/rhel-build:latest
+            display_name: RHEL/CentOS Stream 9
     defaults:
       run:
         shell: bash
@@ -866,7 +867,7 @@ jobs:
     needs: [check-event, ubuntu-build, e2e-basic]
     strategy:
       fail-fast: false
-      max-parallel: 3
+      max-parallel: 20
       matrix:
         scenario:
           - ntsc_amber_monitor
