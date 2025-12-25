@@ -196,7 +196,7 @@ Recreate the authentic look and feel of classic CRT monitors and TVs with config
 - **[Amber Monitor](./docs/images/effects/amber-monitor.png)** - Warm amber tint reminiscent of early computer monitors
 - **[Green Monitor](./docs/images/effects/green-monitor.png)** - Classic green phosphor terminal look
 - **[Sharp Pixels](./docs/images/effects/sharp-pixels.png)** - Crisp pixel doubling for arcade-style clarity
-- **[Phosphor Glow](./docs/images/effects/phosphor-glow.png)** - Dramatic phosphor persistence trails with extended afterglow
+- **[Phosphor Glow](./tests/e2e/results/ntsc_phosphor_glow/c64_recording_still.png)** - Dramatic phosphor persistence trails with extended afterglow
 - **[Vintage TV](./docs/images/effects/vintage-tv.png)** - Softer look with prominent scan lines for old television feel
 - **[Arcade Cabinet](./docs/images/effects/arcade-cabinet.png)** - High-contrast effects for authentic arcade experience
 
@@ -454,7 +454,7 @@ For comprehensive configuration details, refer to the [official C64 Ultimate doc
 
 ## Technical Details 🔧
 
-This plugin implements the [C64 Ultimate Data Streams specification](https://1541u-documentation.readthedocs.io/en/latest/data_streams.html#data_streams) to receive video and audio streams from Ultimate devices via UDP/TCP network protocols.
+This plugin implements the [C64 Ultimate Data Streams specification](./doc/c64-stream-spec.md) to receive video and audio streams from Ultimate devices via UDP/TCP network protocols.
 
 **Supported Platforms:**
 
