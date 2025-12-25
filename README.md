@@ -250,10 +250,6 @@ Each CRT effect has a different impact on system performance. The CPU-based effe
 - **For authentic phosphor glow:** Enable afterglow only when needed (Green/Amber Monitor, Phosphor Glow, Vintage TV)
 - **Afterglow disabled = zero CPU overhead:** When `Afterglow Duration (ms) = 0`, the CPU loop is bypassed entirely
 
-**Why Afterglow Uses CPU:**
-
-OBS recordings capture async video frames *before* GPU shaders run. To ensure afterglow appears correctly in recordings (not just the preview), the effect must be computed on the CPU before the frame is submitted to OBS. GPU-only afterglow would be invisible in recordings.
-
 ### Recording Features 📹
 
 The plugin includes built-in recording capabilities that work independently of OBS Studio's recording system, letting you save raw C64 Ultimate data streams directly to disk.
