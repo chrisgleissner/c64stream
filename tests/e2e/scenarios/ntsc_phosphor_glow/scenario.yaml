@@ -1,0 +1,8 @@
+name: NTSC Phosphor Glow
+format: NTSC
+preset: Phosphor Glow
+assertions:
+  - video_quality
+  - audio
+  - afterglow
+  - scanlines

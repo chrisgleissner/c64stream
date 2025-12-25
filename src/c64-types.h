@@ -41,10 +41,11 @@ struct c64_source {
     obs_source_t *source;
 
     // Configuration
-    char hostname[64];       // C64 Ultimate hostname or IP as entered by user
-    char ip_address[64];     // C64 Ultimate IP Address (resolved from hostname)
-    char dns_server_ip[64];  // DNS server IP for resolving hostnames (optional)
-    char obs_ip_address[64]; // OBS IP Address (this machine)
+    char hostname[64];            // C64 Ultimate hostname or IP as entered by user
+    char ip_address[64];          // C64 Ultimate IP Address (resolved from hostname)
+    char dns_server_ip[64];       // DNS server IP for resolving hostnames (optional)
+    char obs_ip_address[64];      // OBS IP Address (this machine)
+    pthread_mutex_t config_mutex; // Protects dns_server_ip/hostname/ip_address from concurrent access
     bool auto_detect_ip;
     bool initial_ip_detected; // Flag to track if initial IP detection was done
     uint32_t video_port;
@@ -178,24 +179,36 @@ struct c64_source {
     size_t recording_buffer_size; // Size of allocated recording buffers
 
     // CRT visual effects
-    float scan_line_distance;           // Scan line distance (0.0-2.0, percentage of scan line width)
-    float scan_line_strength;           // Scan line strength (0.0-1.0, darkness of gaps)
-    float pixel_width;                  // Pixel geometry width (0.5-3.0)
-    float pixel_height;                 // Pixel geometry height (0.5-3.0)
-    float blur_strength;                // Blur strength for pixel geometry (0.0-1.0)
-    bool bloom_enable;                  // Bloom effect enable
-    float bloom_strength;               // Bloom strength (0.0-1.0, internally scaled 7.5x)
-    bool afterglow_enable;              // Afterglow effect enable
-    int afterglow_duration_ms;          // Afterglow duration in milliseconds
-    int afterglow_curve;                // Afterglow decay curve (0=linear, 1=exponential)
-    bool tint_enable;                   // Screen tint effect enable
-    int tint_mode;                      // Tint mode (0=none, 1=amber, 2=green, 3=monochrome)
-    float tint_strength;                // Tint strength (0.0-1.0)
-    gs_texture_t *render_texture;       // GPU texture for rendering with effects
-    gs_effect_t *crt_effect;            // CRT shader effect
+    float scan_line_distance;         // Scan line distance (0.0-2.0, percentage of scan line width)
+    float scan_line_strength;         // Scan line strength (0.0-1.0, darkness of gaps)
+    float pixel_width;                // Pixel geometry width (0.5-3.0)
+    float pixel_height;               // Pixel geometry height (0.5-3.0)
+    float blur_strength;              // Blur strength for pixel geometry (0.0-1.0)
+    bool bloom_enable;                // Bloom effect enable
+    float bloom_strength;             // Bloom strength (0.0-1.0, internally scaled 7.5x)
+    bool afterglow_enable;            // Afterglow effect enable
+    int afterglow_duration_ms;        // Afterglow duration in milliseconds
+    int afterglow_curve;              // Afterglow decay curve (0=linear, 1=exponential)
+    bool tint_enable;                 // Screen tint effect enable
+    int tint_mode;                    // Tint mode (0=none, 1=amber, 2=green, 3=monochrome)
+    float tint_strength;              // Tint strength (0.0-1.0)
+    gs_texture_t *render_texture;     // GPU texture for rendering with effects
+    uint32_t render_texture_width;    // Cached render_texture width (avoid gs_texture_get_width outside graphics)
+    uint32_t render_texture_height;   // Cached render_texture height
+    gs_effect_t *crt_effect;          // CRT shader effect
+    gs_samplerstate_t *point_sampler; // Point (nearest-neighbor) sampler for sharp pixel rendering
+
+    // Afterglow (shader ping-pong targets; also used by CPU/headless paths for deterministic persistence)
     gs_texture_t *afterglow_accum_prev; // Ping-pong texture for afterglow accumulation
     gs_texture_t *afterglow_accum_next; // Ping-pong texture for afterglow accumulation
     uint64_t last_frame_time_ns;        // Last frame timestamp for afterglow delta calculation
+    float afterglow_dt_ms;              // Stable per-tick delta time (ms) used by afterglow shader
+    uint64_t afterglow_last_tick_ns;    // Timestamp of last video_tick (ns) for dt calculation
+
+    // CPU afterglow accumulation (fallback / deterministic path for E2E + headless)
+    uint32_t *afterglow_cpu_accum; // RGBA accumulator (same size as frame_buffer)
+    size_t afterglow_cpu_bytes;    // Allocated size in bytes for afterglow_cpu_accum
+    bool afterglow_cpu_valid;      // Whether accumulator contains valid prior state
 };
 
 #endif // C64_TYPES_H

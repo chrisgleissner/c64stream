@@ -1,0 +1,9 @@
+name: NTSC Sharp Pixels
+format: NTSC
+preset: Sharp Pixels
+pattern: dots
+overrides_dir: generated
+assertions:
+  - video_quality
+  - audio
+  - sharp_pixels

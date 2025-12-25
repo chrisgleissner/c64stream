@@ -16,6 +16,7 @@ RUN_TESTS=false
 INSTALL_DEPS=false
 INSTALL_PLUGIN=false
 RUN_E2E=false
+E2E_SCENARIO=""
 GENERATE_E2E_SCENARIOS=false
 VERBOSE=false
 
@@ -60,7 +61,7 @@ OPTIONS:
     --install-deps      Install build dependencies
     --install-e2e-deps  Also install E2E testing dependencies (OBS, xvfb, etc.)
     --install           Install plugin to OBS after building
-    --e2e               Run E2E tests after building and installing
+    --e2e[=SCENARIO]    Run E2E tests after building and installing (default scenario: ntsc_default)
     --e2e-scenarios     Run all scenarios in tests/e2e/scenarios/* and write results to tests/e2e/results/<scenario>
     --verbose           Enable verbose output
     --help              Show this help message
@@ -823,6 +824,10 @@ install_plugin_for_e2e() {
 
 run_e2e_tests() {
     local platform=$1
+    local scenario_name=${2:-ntsc}
+    local scenario_key
+    scenario_key="$(echo "$scenario_name" | tr '[:upper:]' '[:lower:]')"
+    local scenario_dir="$PROJECT_ROOT/tests/e2e/scenarios/$scenario_key"
 
     # Only support Linux for E2E tests currently
     if [[ "$platform" != "linux" ]]; then
@@ -830,7 +835,41 @@ run_e2e_tests() {
         return 0
     fi
 
-    log_info "Running E2E tests..."
+    if [[ ! -d "$scenario_dir" ]]; then
+        log_error "E2E scenario not found: $scenario_name (expected directory $scenario_dir)"
+        return 1
+    fi
+
+    local scenario_yaml="$scenario_dir/scenario.yaml"
+    local scenario_label=""
+    local scenario_format=""
+    local overrides_dir="overrides"
+
+    if [[ -f "$scenario_yaml" ]]; then
+        scenario_label="$(parse_scenario_yaml "$scenario_yaml" "name")"
+        scenario_format="$(parse_scenario_yaml "$scenario_yaml" "format")"
+        local overrides_from_yaml
+        overrides_from_yaml="$(parse_scenario_yaml "$scenario_yaml" "overrides_dir")"
+        if [[ -n "$overrides_from_yaml" ]]; then
+            overrides_dir="$overrides_from_yaml"
+        fi
+    fi
+
+    [[ -z "$scenario_label" ]] && scenario_label="$scenario_key"
+    [[ -z "$scenario_format" ]] && scenario_format="NTSC"
+    scenario_format="$(echo "$scenario_format" | tr '[:lower:]' '[:upper:]')"
+
+    local scenario_overrides_path="$scenario_dir/$overrides_dir"
+    local overrides_realpath=""
+    local -a scenario_override_args=()
+    if [[ -d "$scenario_overrides_path" ]]; then
+        overrides_realpath=$(realpath "$scenario_overrides_path" 2>/dev/null || echo "$scenario_overrides_path")
+        scenario_override_args=("--scenario-overrides" "$overrides_realpath")
+    else
+        log_warning "Scenario overrides directory not found for $scenario_label: $scenario_overrides_path"
+    fi
+
+    log_info "Running E2E tests for scenario '$scenario_label' (format=${scenario_format})"
 
     # Kill any existing OBS processes to avoid port conflicts
     # Skip UDP port cleanup during E2E tests since the plugin needs those ports
@@ -901,18 +940,31 @@ run_e2e_tests() {
     fi
 
     # Change to E2E directory (with error handling)
-    if ! cd tests/e2e; then
+    if ! pushd tests/e2e >/dev/null; then
         log_error "Failed to change to E2E test directory"
         return 1
     fi
 
     # Set E2E test parameters (default to NTSC 60Hz for consistent 1-frame pop visibility)
     local e2e_args=(
-        "--format" "NTSC"
+        "--format" "$scenario_format"
         "--duration" "5"   # ~5 seconds at 60 FPS => ~300 frames
         "--skip-build"      # We already built and installed
         "--verbose"
     )
+
+    # Pass the scenario key to e2e.sh so it can load scenario.yaml and get pattern, assertions, etc.
+    if [[ -n "$scenario_key" ]]; then
+        e2e_args+=("--scenario" "$scenario_key")
+    fi
+
+    if [[ -n "$scenario_label" ]]; then
+        e2e_args+=("--scenario-name" "$scenario_label")
+    fi
+
+    if [[ ${#scenario_override_args[@]} -gt 0 ]]; then
+        e2e_args+=("${scenario_override_args[@]}")
+    fi
 
     if [[ "$VERBOSE" == "true" ]]; then
         e2e_args+=("--verbose")
@@ -921,7 +973,7 @@ run_e2e_tests() {
     # Check if E2E script exists and is executable
     if [[ ! -f "./e2e.sh" ]]; then
         log_error "E2E test script not found: tests/e2e/e2e.sh"
-        cd "$PROJECT_ROOT"
+        popd >/dev/null
         return 1
     fi
 
@@ -942,11 +994,50 @@ run_e2e_tests() {
         fi
     else
         log_error "E2E tests failed!"
+        popd >/dev/null
         return 1
     fi
 
     # Return to project root
-    cd "$PROJECT_ROOT"
+    popd >/dev/null
+
+    # Archive results into scenario-specific directory
+    local test_output_dir="$PROJECT_ROOT/tests/e2e/test_output"
+    local results_root_dir="$PROJECT_ROOT/tests/e2e/results/$scenario_key"
+    rm -rf "$results_root_dir"
+    mkdir -p "$results_root_dir"
+
+    # Remove stop recording marker before copying
+    local marker_file="$test_output_dir/stop_recording.marker"
+    if [[ -f "$marker_file" ]]; then
+        rm -f "$marker_file" || true
+    fi
+
+    if [[ -d "$test_output_dir" ]]; then
+        cp -a "$test_output_dir/." "$results_root_dir/"
+    fi
+
+    # Compress MP4 into destination to match scenario suite behavior
+    local src_mp4="$test_output_dir/c64_recording.mp4"
+    local out_mp4="$results_root_dir/c64_recording.mp4"
+    if [[ -f "$src_mp4" ]]; then
+        bash "$PROJECT_ROOT/tests/e2e/compress_e2e_mp4.sh" "$src_mp4" "$out_mp4" || true
+    else
+        log_warning "No source MP4 found at $src_mp4 to compress for scenario $scenario_label"
+    fi
+
+    # Copy OBS config used for this run
+    local config_used_dir="$results_root_dir/config_used"
+    mkdir -p "$config_used_dir"
+    local obs_cfg_root="$HOME/.config/obs-studio"
+    if [[ -d "$obs_cfg_root/basic/profiles/C64StreamTest" ]]; then
+        mkdir -p "$config_used_dir/basic/profiles"
+        cp -a "$obs_cfg_root/basic/profiles/C64StreamTest" "$config_used_dir/basic/profiles/"
+    fi
+    if [[ -f "$obs_cfg_root/basic/scenes/C64StreamTest.json" ]]; then
+        mkdir -p "$config_used_dir/basic/scenes"
+        cp -a "$obs_cfg_root/basic/scenes/C64StreamTest.json" "$config_used_dir/basic/scenes/"
+    fi
 }
 
 # Parse minimal scenario.yaml (key: value per line); supports keys: name, format, overrides_dir
@@ -970,147 +1061,34 @@ run_e2e_scenarios() {
 
     local scenarios_root="tests/e2e/scenarios"
     local results_root="tests/e2e/results"
-    local suite_start_ts=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
-    local scenario_list=()
 
     if [[ ! -d "$scenarios_root" ]]; then
-        log_warning "No scenarios directory found at $scenarios_root; creating starters..."
-        mkdir -p "$scenarios_root/pal/overrides" "$scenarios_root/ntsc/overrides"
-        cat > "$scenarios_root/pal/scenario.yaml" <<EOS
-name: PAL Baseline
-format: PAL
-overrides_dir: overrides
-EOS
-        cat > "$scenarios_root/ntsc/scenario.yaml" <<EOS
-name: NTSC Baseline
-format: NTSC
-overrides_dir: overrides
-EOS
-        # Provide example override of properties (optional)
-        mkdir -p "$scenarios_root/pal/overrides/plugins/c64stream/data" "$scenarios_root/ntsc/overrides/plugins/c64stream/data"
-        # Leave overrides empty by default; users can add files mirroring ~/.config/obs-studio
-        log_info "Created starter PAL/NTSC scenarios"
+        log_error "No scenarios directory found at $scenarios_root"
+        return 1
     fi
 
-    mkdir -p "$results_root"
+    # Ensure plugin is installed for E2E
+    install_plugin_for_e2e "$platform"
 
-    # Discover scenarios: direct subdirectories with scenario.yaml
-    while IFS= read -r -d '' scen; do
-        scenario_list+=("$scen")
-    done < <(find "$scenarios_root" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
+    log_info "Running all E2E scenarios via e2e.sh --all"
 
-    if [[ ${#scenario_list[@]} -eq 0 ]]; then
-        log_warning "No scenarios found under $scenarios_root"
-        return 0
-    fi
-
-    log_info "Running ${#scenario_list[@]} scenario(s) from $scenarios_root"
-
-    # Top-level README builder
-    local suite_readme="$results_root/README.md"
-    echo "# C64 Stream E2E Scenarios" > "$suite_readme"
-    echo >> "$suite_readme"
-    echo "Generated: $suite_start_ts" >> "$suite_readme"
-    echo >> "$suite_readme"
-    echo "## Results" >> "$suite_readme"
-    echo >> "$suite_readme"
-
-    for scen_dir in "${scenario_list[@]}"; do
-        local scen_name
-        scen_name=$(basename "$scen_dir")
-        local yaml="$scen_dir/scenario.yaml"
-        if [[ ! -f "$yaml" ]]; then
-            log_warning "Skipping $scen_name - no scenario.yaml"
-            continue
-        fi
-
-        local name format overrides_dir
-        name=$(parse_scenario_yaml "$yaml" "name")
-        format=$(parse_scenario_yaml "$yaml" "format")
-        overrides_dir=$(parse_scenario_yaml "$yaml" "overrides_dir")
-        [[ -z "$format" ]] && format="NTSC"
-        [[ -z "$overrides_dir" ]] && overrides_dir="overrides"
-    local overrides_path="$scen_dir/$overrides_dir"
-    overrides_path=$(realpath "$overrides_path" 2>/dev/null || echo "$overrides_path")
-
-        log_info "=== Scenario: ${name:-$scen_name} (format=$format) ==="
-
-        # Ensure plugin is installed for E2E each time (safe no-op if already)
-        install_plugin_for_e2e "$platform"
-
-        # Run E2E for this scenario
+    # Run all scenarios using the --all flag
     pushd tests/e2e >/dev/null
-        local e2e_args=(
-            "--format" "$format"
-            "--duration" "5"
-            "--skip-build"
-            "--verbose"
-            "--scenario-overrides" "$overrides_path"
-        )
-        if bash ./e2e.sh "${e2e_args[@]}"; then
-            log_success "Scenario $scen_name completed"
-        else
-            log_warning "Scenario $scen_name had issues"
-        fi
-
-        # Remove stop recording marker before archiving
-        local marker_file="$PROJECT_ROOT/tests/e2e/test_output/stop_recording.marker"
-        if [[ -f "$marker_file" ]]; then
-            rm -f "$marker_file" || true
-        fi
-
-        # Move outputs to results/<scenario> (absolute path to avoid cwd issues)
-        local dest_dir_abs="$PROJECT_ROOT/$results_root/$scen_name"
-        mkdir -p "$dest_dir_abs"
-        if [[ -d "test_output" ]]; then
-            cp -a test_output/. "$dest_dir_abs/"
-        fi
-
-        # Copy the OBS config actually used for this run
-        local config_used_dir="$dest_dir_abs/config_used"
-        mkdir -p "$config_used_dir"
-        local obs_cfg_root="$HOME/.config/obs-studio"
-        # Profile config
-        if [[ -d "$obs_cfg_root/basic/profiles/C64StreamTest" ]]; then
-            mkdir -p "$config_used_dir/basic/profiles"
-            cp -a "$obs_cfg_root/basic/profiles/C64StreamTest" "$config_used_dir/basic/profiles/"
-        fi
-        # Scene collection JSON
-        if [[ -f "$obs_cfg_root/basic/scenes/C64StreamTest.json" ]]; then
-            mkdir -p "$config_used_dir/basic/scenes"
-            cp -a "$obs_cfg_root/basic/scenes/C64StreamTest.json" "$config_used_dir/basic/scenes/"
-        else
-            # Fallback: copy latest scene collection
-            if compgen -G "$obs_cfg_root/basic/scenes/*.json" > /dev/null; then
-                mkdir -p "$config_used_dir/basic/scenes"
-                local latest_scene
-                latest_scene=$(ls -t "$obs_cfg_root/basic/scenes"/*.json | head -1)
-                cp -a "$latest_scene" "$config_used_dir/basic/scenes/"
-            fi
-        fi
-
-        # Compress from standard source to scenario result target per spec
-        local src_mp4="$PROJECT_ROOT/tests/e2e/test_output/c64_recording.mp4"
-        local out_mp4="$dest_dir_abs/c64_recording.mp4"
-        if [[ -f "$src_mp4" ]]; then
-            # Overwrite the copied file with compressed file at destination
-            bash "$PROJECT_ROOT/tests/e2e/compress_e2e_mp4.sh" "$src_mp4" "$out_mp4" || true
-        else
-            log_warning "No source MP4 found at $src_mp4 to compress for scenario $scen_name"
-        fi
-
+    local e2e_args=(
+        "--all"
+        "--duration" "5"
+        "--skip-build"
+        "--verbose"
+    )
+    if bash ./e2e.sh "${e2e_args[@]}"; then
+        log_success "All E2E scenarios completed successfully"
         popd >/dev/null
-
-        # Link in suite README
-        if [[ -f "$dest_dir_abs/README.md" ]]; then
-            echo "- [$scen_name](./$scen_name/README.md)" >> "$suite_readme"
-        else
-            echo "- $scen_name (no README.md)" >> "$suite_readme"
-        fi
-    done
-
-    # Do not add an end time per request
-    log_success "Scenario suite complete. See $suite_readme"
+        return 0
+    else
+        log_error "Some E2E scenarios failed"
+        popd >/dev/null
+        return 1
+    fi
 }
 
 main() {
@@ -1172,9 +1150,19 @@ main() {
                 INSTALL_PLUGIN=true
                 shift
                 ;;
+            --e2e=*)
+                RUN_E2E=true
+                E2E_SCENARIO="${1#--e2e=}"
+                shift
+                ;;
             --e2e)
                 RUN_E2E=true
-                shift
+                if [[ $# -gt 1 && "$2" != --* ]]; then
+                    E2E_SCENARIO="$2"
+                    shift 2
+                else
+                    shift
+                fi
                 ;;
             --e2e-scenarios)
                 GENERATE_E2E_SCENARIOS=true
@@ -1206,6 +1194,13 @@ main() {
         RUN_E2E=true
     fi
 
+    if [[ "$RUN_E2E" == "true" ]]; then
+        if [[ -z "$E2E_SCENARIO" ]]; then
+            E2E_SCENARIO="ntsc_default"
+        fi
+        E2E_SCENARIO="$(echo "$E2E_SCENARIO" | tr '[:upper:]' '[:lower:]')"
+    fi
+
     # Validate build config
     case "$BUILD_CONFIG" in
         Debug|RelWithDebInfo|Release|MinSizeRel) ;;
@@ -1219,6 +1214,9 @@ main() {
     log_info "C64 Stream - Local Build"
     log_info "Platform: $PLATFORM"
     log_info "Config: $BUILD_CONFIG"
+    if [[ "$RUN_E2E" == "true" && "$GENERATE_E2E_SCENARIOS" != "true" ]]; then
+        log_info "E2E scenario: $E2E_SCENARIO"
+    fi
 
     # Execute workflow
     check_prerequisites "$PLATFORM"
@@ -1277,7 +1275,7 @@ main() {
         if [[ "$GENERATE_E2E_SCENARIOS" == "true" ]]; then
             run_e2e_scenarios "$PLATFORM"
         else
-            run_e2e_tests "$PLATFORM"
+            run_e2e_tests "$PLATFORM" "$E2E_SCENARIO"
         fi
     fi
 

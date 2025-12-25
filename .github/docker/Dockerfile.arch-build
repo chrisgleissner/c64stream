@@ -1,0 +1,86 @@
+# Pre-built Arch Linux container with OBS Studio and Qt6 dependencies
+# This dramatically speeds up CI builds by avoiding lengthy pacman installations
+
+FROM archlinux:latest
+
+LABEL org.opencontainers.image.title="C64 Stream Arch Linux Build Environment"
+LABEL org.opencontainers.image.description="Pre-built Arch Linux container with OBS Studio and Qt6 for fast CI builds"
+LABEL org.opencontainers.image.source="https://github.com/chrisgleissner/c64stream"
+LABEL org.opencontainers.image.licenses="GPL-2.0-or-later"
+
+# Set timezone
+ENV TZ=UTC
+
+# Update system and install base packages
+RUN pacman -Syu --noconfirm && \
+    pacman -S --noconfirm \
+        base-devel \
+        cmake \
+        ninja \
+        pkg-config \
+        git \
+        zsh \
+        jq \
+        ccache \
+        file \
+        xz \
+        net-tools
+
+# Install OBS Studio and dependencies
+RUN pacman -S --noconfirm \
+        obs-studio \
+        qt6-base \
+        qt6-svg \
+        qt6-wayland \
+        ffmpeg \
+        x264 \
+        curl \
+        mbedtls \
+        jansson \
+        luajit \
+        python \
+        libx11 \
+        libxcb \
+        libxcomposite \
+        libxinerama \
+        libpulse \
+        alsa-lib \
+        jack2 \
+        speexdsp \
+        v4l-utils \
+        libva \
+        intel-media-driver \
+        libdrm \
+        libpciaccess \
+        wayland \
+        librist \
+        srt \
+        websocketpp \
+        asio \
+        nlohmann-json \
+        qrencode \
+        uthash \
+        mesa \
+        mesa-utils
+
+# Install Python dependencies for E2E tests
+RUN pacman -S --noconfirm \
+        python-pip \
+        python-numpy \
+        python-opencv \
+        python-pillow \
+        python-yaml \
+        xorg-server-xvfb \
+        pulseaudio
+
+# Clean up pacman cache
+RUN pacman -Scc --noconfirm
+
+# Verify OBS installation
+RUN obs --version || echo "OBS Studio installed (version check may fail in container)"
+
+# Set working directory
+WORKDIR /workspace
+
+# Default command
+CMD ["/bin/bash"]

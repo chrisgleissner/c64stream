@@ -5,12 +5,32 @@ Copyright (C) 2025 Christian Gleissner
 Licensed under the GNU General Public License v2.0 or later.
 See <https://www.gnu.org/licenses/> for details.
 */
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SIMD INTRINSICS MUST BE INCLUDED BEFORE OBS HEADERS
+// ═══════════════════════════════════════════════════════════════════════════════
+// OBS uses SIMDE (SIMD Everywhere) for portability, which conflicts with native
+// intrinsics if included afterward. We include native intrinsics first and define
+// SIMDE_ENABLE_NATIVE_ALIASES=0 to prevent SIMDE from redefining them.
+#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
+#define C64_HAS_X86_SIMD 1
+// Prevent SIMDE from overriding native intrinsics
+#define SIMDE_ENABLE_NATIVE_ALIASES 0
+#include <immintrin.h>
+#ifdef _MSC_VER
+#include <intrin.h>
+#else
+#include <cpuid.h>
+#endif
+#endif
+
 #include <obs-module.h>
 #include <util/platform.h>
 #include <util/threading.h> // For atomic operations
 #include <string.h>
 #include <inttypes.h>
 #include <pthread.h>
+#include <math.h>
 #include "c64-network.h"
 #include "c64-network-buffer.h"
 
@@ -33,8 +53,432 @@ See <https://www.gnu.org/licenses/> for details.
 
 #include "c64-protocol.h"
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// SIMD-OPTIMIZED AFTERGLOW IMPLEMENTATION
+// ═══════════════════════════════════════════════════════════════════════════════
+// Processes 4/8 pixels at a time using SSE2/AVX2 intrinsics for ~3-4x speedup.
+// Runtime CPU detection selects the best available implementation.
+
+#ifdef C64_HAS_X86_SIMD
+
+// CPU feature detection (cached after first call)
+static int c64_cpu_has_avx2 = -1; // -1 = not checked, 0 = no, 1 = yes
+
+static void c64_detect_simd_support(void)
+{
+    if (c64_cpu_has_avx2 >= 0)
+        return; // Already detected
+
+#ifdef _MSC_VER
+    int cpu_info[4];
+    __cpuidex(cpu_info, 7, 0);
+    c64_cpu_has_avx2 = (cpu_info[1] & (1 << 5)) ? 1 : 0; // EBX bit 5 = AVX2
+#else
+    unsigned int eax, ebx, ecx, edx;
+    if (__get_cpuid_count(7, 0, &eax, &ebx, &ecx, &edx)) {
+        c64_cpu_has_avx2 = (ebx & (1 << 5)) ? 1 : 0; // EBX bit 5 = AVX2
+    } else {
+        c64_cpu_has_avx2 = 0;
+    }
+#endif
+
+    C64_LOG_DEBUG("SIMD detection: AVX2 %s", c64_cpu_has_avx2 ? "available" : "not available (using SSE2)");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SSE2 Implementation (4 pixels at a time) - baseline for all x86-64
+// ─────────────────────────────────────────────────────────────────────────────
+static void c64_afterglow_sse2(uint32_t *acc, const uint32_t *curr_pixels, size_t pixel_count, float decay_r,
+                               float decay_g, float decay_b)
+{
+    // Broadcast decay factors to all 4 lanes
+    const __m128 vdecay_r = _mm_set1_ps(decay_r);
+    const __m128 vdecay_g = _mm_set1_ps(decay_g);
+    const __m128 vdecay_b = _mm_set1_ps(decay_b);
+    const __m128 v255 = _mm_set1_ps(255.0f);
+    const __m128i vmask_channel = _mm_set1_epi32(0xFF);
+    const __m128i valpha = _mm_set1_epi32(0xFF000000);
+
+    size_t i = 0;
+
+    // Process 4 pixels at a time
+    for (; i + 4 <= pixel_count; i += 4) {
+        // Load 4 current and 4 previous pixels
+        const __m128i curr = _mm_loadu_si128((const __m128i *)&curr_pixels[i]);
+        const __m128i prev = _mm_loadu_si128((const __m128i *)&acc[i]);
+
+        // Extract R channel (bits 0-7) from 4 pixels
+        const __m128i prev_r_i = _mm_and_si128(prev, vmask_channel);
+        const __m128i curr_r_i = _mm_and_si128(curr, vmask_channel);
+
+        // Extract G channel (bits 8-15)
+        const __m128i prev_g_i = _mm_and_si128(_mm_srli_epi32(prev, 8), vmask_channel);
+        const __m128i curr_g_i = _mm_and_si128(_mm_srli_epi32(curr, 8), vmask_channel);
+
+        // Extract B channel (bits 16-23)
+        const __m128i prev_b_i = _mm_and_si128(_mm_srli_epi32(prev, 16), vmask_channel);
+        const __m128i curr_b_i = _mm_and_si128(_mm_srli_epi32(curr, 16), vmask_channel);
+
+        // Convert to float
+        const __m128 prev_r = _mm_cvtepi32_ps(prev_r_i);
+        const __m128 prev_g = _mm_cvtepi32_ps(prev_g_i);
+        const __m128 prev_b = _mm_cvtepi32_ps(prev_b_i);
+        const __m128 curr_r = _mm_cvtepi32_ps(curr_r_i);
+        const __m128 curr_g = _mm_cvtepi32_ps(curr_g_i);
+        const __m128 curr_b = _mm_cvtepi32_ps(curr_b_i);
+
+        // Apply decay: trail = prev * decay
+        const __m128 trail_r = _mm_mul_ps(prev_r, vdecay_r);
+        const __m128 trail_g = _mm_mul_ps(prev_g, vdecay_g);
+        const __m128 trail_b = _mm_mul_ps(prev_b, vdecay_b);
+
+        // Take max of current and trail
+        __m128 out_r = _mm_max_ps(curr_r, trail_r);
+        __m128 out_g = _mm_max_ps(curr_g, trail_g);
+        __m128 out_b = _mm_max_ps(curr_b, trail_b);
+
+        // Clamp to 255
+        out_r = _mm_min_ps(out_r, v255);
+        out_g = _mm_min_ps(out_g, v255);
+        out_b = _mm_min_ps(out_b, v255);
+
+        // Convert back to int
+        const __m128i out_r_i = _mm_cvttps_epi32(out_r);
+        const __m128i out_g_i = _mm_cvttps_epi32(out_g);
+        const __m128i out_b_i = _mm_cvttps_epi32(out_b);
+
+        // Pack: (A << 24) | (B << 16) | (G << 8) | R
+        const __m128i rgb =
+            _mm_or_si128(out_r_i, _mm_or_si128(_mm_slli_epi32(out_g_i, 8), _mm_slli_epi32(out_b_i, 16)));
+        const __m128i result = _mm_or_si128(rgb, valpha);
+
+        _mm_storeu_si128((__m128i *)&acc[i], result);
+    }
+
+    // Scalar tail for remaining pixels
+    for (; i < pixel_count; i++) {
+        const uint32_t curr = curr_pixels[i];
+        const uint32_t prev = acc[i];
+
+        const float pr = (float)((prev >> 0) & 0xFF);
+        const float pg = (float)((prev >> 8) & 0xFF);
+        const float pb = (float)((prev >> 16) & 0xFF);
+
+        const float cr = (float)((curr >> 0) & 0xFF);
+        const float cg = (float)((curr >> 8) & 0xFF);
+        const float cb = (float)((curr >> 16) & 0xFF);
+
+        float or_ = (cr > pr * decay_r) ? cr : pr * decay_r;
+        float og_ = (cg > pg * decay_g) ? cg : pg * decay_g;
+        float ob_ = (cb > pb * decay_b) ? cb : pb * decay_b;
+
+        if (or_ > 255.0f)
+            or_ = 255.0f;
+        if (og_ > 255.0f)
+            og_ = 255.0f;
+        if (ob_ > 255.0f)
+            ob_ = 255.0f;
+
+        acc[i] = 0xFF000000 | ((uint32_t)ob_ << 16) | ((uint32_t)og_ << 8) | ((uint32_t)or_);
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AVX2 Implementation (8 pixels at a time) - for Haswell+ CPUs (2013+)
+// ─────────────────────────────────────────────────────────────────────────────
+#if defined(__AVX2__) || defined(_MSC_VER)
+// Note: MSVC always has AVX2 intrinsics available, runtime check selects them
+// GCC/Clang need target attribute, MSVC doesn't support it
+#ifdef _MSC_VER
+static void c64_afterglow_avx2(uint32_t *acc, const uint32_t *curr_pixels, size_t pixel_count, float decay_r,
+                               float decay_g, float decay_b)
+#else
+__attribute__((target("avx2"))) static void c64_afterglow_avx2(uint32_t *acc, const uint32_t *curr_pixels,
+                                                               size_t pixel_count, float decay_r, float decay_g,
+                                                               float decay_b)
+#endif
+{
+    // Broadcast decay factors to all 8 lanes
+    const __m256 vdecay_r = _mm256_set1_ps(decay_r);
+    const __m256 vdecay_g = _mm256_set1_ps(decay_g);
+    const __m256 vdecay_b = _mm256_set1_ps(decay_b);
+    const __m256 v255 = _mm256_set1_ps(255.0f);
+    const __m256i vmask_channel = _mm256_set1_epi32(0xFF);
+    const __m256i valpha = _mm256_set1_epi32(0xFF000000);
+
+    size_t i = 0;
+
+    // Process 8 pixels at a time
+    for (; i + 8 <= pixel_count; i += 8) {
+        // Load 8 current and 8 previous pixels
+        const __m256i curr = _mm256_loadu_si256((const __m256i *)&curr_pixels[i]);
+        const __m256i prev = _mm256_loadu_si256((const __m256i *)&acc[i]);
+
+        // Extract R channel (bits 0-7) from 8 pixels
+        const __m256i prev_r_i = _mm256_and_si256(prev, vmask_channel);
+        const __m256i curr_r_i = _mm256_and_si256(curr, vmask_channel);
+
+        // Extract G channel (bits 8-15)
+        const __m256i prev_g_i = _mm256_and_si256(_mm256_srli_epi32(prev, 8), vmask_channel);
+        const __m256i curr_g_i = _mm256_and_si256(_mm256_srli_epi32(curr, 8), vmask_channel);
+
+        // Extract B channel (bits 16-23)
+        const __m256i prev_b_i = _mm256_and_si256(_mm256_srli_epi32(prev, 16), vmask_channel);
+        const __m256i curr_b_i = _mm256_and_si256(_mm256_srli_epi32(curr, 16), vmask_channel);
+
+        // Convert to float
+        const __m256 prev_r = _mm256_cvtepi32_ps(prev_r_i);
+        const __m256 prev_g = _mm256_cvtepi32_ps(prev_g_i);
+        const __m256 prev_b = _mm256_cvtepi32_ps(prev_b_i);
+        const __m256 curr_r = _mm256_cvtepi32_ps(curr_r_i);
+        const __m256 curr_g = _mm256_cvtepi32_ps(curr_g_i);
+        const __m256 curr_b = _mm256_cvtepi32_ps(curr_b_i);
+
+        // Apply decay: trail = prev * decay
+        const __m256 trail_r = _mm256_mul_ps(prev_r, vdecay_r);
+        const __m256 trail_g = _mm256_mul_ps(prev_g, vdecay_g);
+        const __m256 trail_b = _mm256_mul_ps(prev_b, vdecay_b);
+
+        // Take max of current and trail
+        __m256 out_r = _mm256_max_ps(curr_r, trail_r);
+        __m256 out_g = _mm256_max_ps(curr_g, trail_g);
+        __m256 out_b = _mm256_max_ps(curr_b, trail_b);
+
+        // Clamp to 255
+        out_r = _mm256_min_ps(out_r, v255);
+        out_g = _mm256_min_ps(out_g, v255);
+        out_b = _mm256_min_ps(out_b, v255);
+
+        // Convert back to int
+        const __m256i out_r_i = _mm256_cvttps_epi32(out_r);
+        const __m256i out_g_i = _mm256_cvttps_epi32(out_g);
+        const __m256i out_b_i = _mm256_cvttps_epi32(out_b);
+
+        // Pack: (A << 24) | (B << 16) | (G << 8) | R
+        const __m256i rgb =
+            _mm256_or_si256(out_r_i, _mm256_or_si256(_mm256_slli_epi32(out_g_i, 8), _mm256_slli_epi32(out_b_i, 16)));
+        const __m256i result = _mm256_or_si256(rgb, valpha);
+
+        _mm256_storeu_si256((__m256i *)&acc[i], result);
+    }
+
+    // SSE2 for remaining 4-7 pixels
+    if (i + 4 <= pixel_count) {
+        const __m128 vdecay_r_128 = _mm_set1_ps(decay_r);
+        const __m128 vdecay_g_128 = _mm_set1_ps(decay_g);
+        const __m128 vdecay_b_128 = _mm_set1_ps(decay_b);
+        const __m128 v255_128 = _mm_set1_ps(255.0f);
+        const __m128i vmask_128 = _mm_set1_epi32(0xFF);
+        const __m128i valpha_128 = _mm_set1_epi32(0xFF000000);
+
+        const __m128i curr = _mm_loadu_si128((const __m128i *)&curr_pixels[i]);
+        const __m128i prev = _mm_loadu_si128((const __m128i *)&acc[i]);
+
+        const __m128i prev_r_i = _mm_and_si128(prev, vmask_128);
+        const __m128i curr_r_i = _mm_and_si128(curr, vmask_128);
+        const __m128i prev_g_i = _mm_and_si128(_mm_srli_epi32(prev, 8), vmask_128);
+        const __m128i curr_g_i = _mm_and_si128(_mm_srli_epi32(curr, 8), vmask_128);
+        const __m128i prev_b_i = _mm_and_si128(_mm_srli_epi32(prev, 16), vmask_128);
+        const __m128i curr_b_i = _mm_and_si128(_mm_srli_epi32(curr, 16), vmask_128);
+
+        const __m128 prev_r = _mm_cvtepi32_ps(prev_r_i);
+        const __m128 prev_g = _mm_cvtepi32_ps(prev_g_i);
+        const __m128 prev_b = _mm_cvtepi32_ps(prev_b_i);
+        const __m128 curr_r = _mm_cvtepi32_ps(curr_r_i);
+        const __m128 curr_g = _mm_cvtepi32_ps(curr_g_i);
+        const __m128 curr_b = _mm_cvtepi32_ps(curr_b_i);
+
+        __m128 out_r = _mm_min_ps(_mm_max_ps(curr_r, _mm_mul_ps(prev_r, vdecay_r_128)), v255_128);
+        __m128 out_g = _mm_min_ps(_mm_max_ps(curr_g, _mm_mul_ps(prev_g, vdecay_g_128)), v255_128);
+        __m128 out_b = _mm_min_ps(_mm_max_ps(curr_b, _mm_mul_ps(prev_b, vdecay_b_128)), v255_128);
+
+        const __m128i out_r_i = _mm_cvttps_epi32(out_r);
+        const __m128i out_g_i = _mm_cvttps_epi32(out_g);
+        const __m128i out_b_i = _mm_cvttps_epi32(out_b);
+
+        const __m128i rgb =
+            _mm_or_si128(out_r_i, _mm_or_si128(_mm_slli_epi32(out_g_i, 8), _mm_slli_epi32(out_b_i, 16)));
+        _mm_storeu_si128((__m128i *)&acc[i], _mm_or_si128(rgb, valpha_128));
+        i += 4;
+    }
+
+    // Scalar tail for remaining 0-3 pixels
+    for (; i < pixel_count; i++) {
+        const uint32_t curr = curr_pixels[i];
+        const uint32_t prev = acc[i];
+
+        const float pr = (float)((prev >> 0) & 0xFF);
+        const float pg = (float)((prev >> 8) & 0xFF);
+        const float pb = (float)((prev >> 16) & 0xFF);
+
+        const float cr = (float)((curr >> 0) & 0xFF);
+        const float cg = (float)((curr >> 8) & 0xFF);
+        const float cb = (float)((curr >> 16) & 0xFF);
+
+        float or_ = (cr > pr * decay_r) ? cr : pr * decay_r;
+        float og_ = (cg > pg * decay_g) ? cg : pg * decay_g;
+        float ob_ = (cb > pb * decay_b) ? cb : pb * decay_b;
+
+        if (or_ > 255.0f)
+            or_ = 255.0f;
+        if (og_ > 255.0f)
+            og_ = 255.0f;
+        if (ob_ > 255.0f)
+            ob_ = 255.0f;
+
+        acc[i] = 0xFF000000 | ((uint32_t)ob_ << 16) | ((uint32_t)og_ << 8) | ((uint32_t)or_);
+    }
+
+    // AVX-VEX transition: zero upper YMM to avoid performance penalty
+    _mm256_zeroupper();
+}
+#endif // __AVX2__ || _MSC_VER
+
+#endif // C64_HAS_X86_SIMD
+
 // Forward declarations
 static uint64_t c64_calculate_ideal_timestamp(struct c64_source *context, uint16_t frame_num);
+
+static const uint32_t *c64_get_afterglow_output_pixels(struct c64_source *context, const uint32_t *curr_pixels,
+                                                       size_t pixel_count)
+{
+    if (!context || !curr_pixels || pixel_count == 0)
+        return curr_pixels;
+
+    if (!(context->afterglow_enable && context->afterglow_duration_ms > 0))
+        return curr_pixels;
+
+    const size_t frame_bytes = pixel_count * 4;
+    if (context->afterglow_cpu_bytes != frame_bytes) {
+        if (context->afterglow_cpu_accum) {
+            bfree(context->afterglow_cpu_accum);
+        }
+        context->afterglow_cpu_accum = bmalloc(frame_bytes);
+        context->afterglow_cpu_bytes = frame_bytes;
+        context->afterglow_cpu_valid = false; // Invalidate on resize (Medium #8)
+    }
+
+    if (!context->afterglow_cpu_accum)
+        return curr_pixels;
+
+    // Use the detected frame interval (PAL/NTSC) for stable dt.
+    float dt_ms = 33.33f;
+    if (context->frame_interval_ns > 0) {
+        dt_ms = (float)context->frame_interval_ns / 1000000.0f;
+    } else if (context->expected_fps > 1.0) {
+        dt_ms = (float)(1000.0 / context->expected_fps);
+    }
+
+    // Clamp dt_ms to reasonable range (1-100ms) to handle frame rate variation (Medium #6)
+    // Prevents afterglow from decaying too fast on irregular frames or stuttering on pauses.
+    if (dt_ms < 1.0f)
+        dt_ms = 1.0f;
+    if (dt_ms > 100.0f)
+        dt_ms = 100.0f;
+
+    const float base_duration_ms = (float)((context->afterglow_duration_ms > 1) ? context->afterglow_duration_ms : 1);
+
+    // Curve mapping: 0=linear-ish, 1=faster fade, 2=normal, 3=long tail
+    float duration_ms = base_duration_ms;
+    switch (context->afterglow_curve) {
+    case 0:
+        break;
+    case 1:
+        duration_ms = base_duration_ms * 0.5f;
+        break;
+    case 3:
+        duration_ms = base_duration_ms * 2.0f;
+        break;
+    case 2:
+    default:
+        break;
+    }
+
+    // Per-channel time constants (blue fastest, green medium, red slowest).
+    const float tau_r = duration_ms * 1.35f;
+    const float tau_g = duration_ms * 1.00f;
+    const float tau_b = duration_ms * 0.75f;
+
+    float decay_r = 0.0f, decay_g = 0.0f, decay_b = 0.0f;
+    if (context->afterglow_curve == 0) {
+        decay_r = 1.0f - (dt_ms / tau_r);
+        decay_g = 1.0f - (dt_ms / tau_g);
+        decay_b = 1.0f - (dt_ms / tau_b);
+    } else {
+        decay_r = expf(-dt_ms / tau_r);
+        decay_g = expf(-dt_ms / tau_g);
+        decay_b = expf(-dt_ms / tau_b);
+    }
+    if (decay_r < 0.0f)
+        decay_r = 0.0f;
+    if (decay_r > 1.0f)
+        decay_r = 1.0f;
+    if (decay_g < 0.0f)
+        decay_g = 0.0f;
+    if (decay_g > 1.0f)
+        decay_g = 1.0f;
+    if (decay_b < 0.0f)
+        decay_b = 0.0f;
+    if (decay_b > 1.0f)
+        decay_b = 1.0f;
+
+    uint32_t *acc = context->afterglow_cpu_accum;
+    if (!context->afterglow_cpu_valid) {
+        memcpy(acc, curr_pixels, frame_bytes);
+        context->afterglow_cpu_valid = true;
+        return acc;
+    }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SIMD-accelerated afterglow loop (3-4x faster than scalar)
+// Dispatch: AVX2 (8 pixels) > SSE2 (4 pixels) > Scalar fallback
+// ─────────────────────────────────────────────────────────────────────────────
+#ifdef C64_HAS_X86_SIMD
+    c64_detect_simd_support();
+
+#if defined(__AVX2__) || defined(_MSC_VER)
+    if (c64_cpu_has_avx2) {
+        c64_afterglow_avx2(acc, curr_pixels, pixel_count, decay_r, decay_g, decay_b);
+        return acc;
+    }
+#endif
+    // SSE2 fallback (guaranteed on x86-64)
+    c64_afterglow_sse2(acc, curr_pixels, pixel_count, decay_r, decay_g, decay_b);
+#else
+    // Scalar fallback for non-x86 platforms (ARM, etc.)
+    for (size_t i = 0; i < pixel_count; i++) {
+        const uint32_t curr = curr_pixels[i];
+        const uint32_t prev = acc[i];
+
+        const float pr = (float)((prev >> 0) & 0xFF);
+        const float pg = (float)((prev >> 8) & 0xFF);
+        const float pb = (float)((prev >> 16) & 0xFF);
+
+        const float cr = (float)((curr >> 0) & 0xFF);
+        const float cg = (float)((curr >> 8) & 0xFF);
+        const float cb = (float)((curr >> 16) & 0xFF);
+
+        const float tr = pr * decay_r;
+        const float tg = pg * decay_g;
+        const float tb = pb * decay_b;
+
+        float or_ = (cr > tr) ? cr : tr;
+        float og_ = (cg > tg) ? cg : tg;
+        float ob_ = (cb > tb) ? cb : tb;
+
+        if (or_ > 255.0f)
+            or_ = 255.0f;
+        if (og_ > 255.0f)
+            og_ = 255.0f;
+        if (ob_ > 255.0f)
+            ob_ = 255.0f;
+
+        acc[i] = 0xFF000000 | ((uint32_t)ob_ << 16) | ((uint32_t)og_ << 8) | ((uint32_t)or_);
+    }
+#endif // C64_HAS_X86_SIMD
+
+    return acc;
+}
 
 // Helper functions for frame assembly (updated to use lock-free implementation)
 void c64_init_frame_assembly(struct frame_assembly *frame, uint16_t frame_num)
@@ -103,16 +547,20 @@ void c64_render_frame_direct(struct c64_source *context, struct frame_assembly *
     // Generate monotonic timestamp based on frame sequence for butter-smooth playback
     uint64_t monotonic_timestamp = c64_calculate_ideal_timestamp(context, frame->frame_num);
 
+    // Apply afterglow in the video thread (prevents races/flicker with raw frame_buffer).
+    const size_t pixel_count = (size_t)context->width * (size_t)context->height;
+    const uint32_t *out_pixels = c64_get_afterglow_output_pixels(context, context->frame_buffer, pixel_count);
+
     // Save frame to disk if enabled
     if (context->save_frames) {
-        c64_save_frame_as_bmp(context, context->frame_buffer);
+        c64_save_frame_as_bmp(context, (uint32_t *)out_pixels);
 
         // Note: CSV logging for video events is now handled independently in the video processor thread
     }
 
     // Record frame to video file if recording is enabled
     if (context->record_video) {
-        c64_record_video_frame(context, context->frame_buffer);
+        c64_record_video_frame(context, (uint32_t *)out_pixels);
     }
 
     // Direct async video output - optimized for low latency
@@ -120,7 +568,7 @@ void c64_render_frame_direct(struct c64_source *context, struct frame_assembly *
     struct obs_source_frame obs_frame = {0};
 
     // Set up frame data - RGBA format optimized for immediate display
-    obs_frame.data[0] = (uint8_t *)context->frame_buffer;
+    obs_frame.data[0] = (uint8_t *)out_pixels;
     obs_frame.linesize[0] = context->width * 4; // 4 bytes per pixel (RGBA)
     obs_frame.width = context->width;
     obs_frame.height = context->height;
@@ -160,6 +608,7 @@ void c64_render_frame_direct(struct c64_source *context, struct frame_assembly *
 }
 
 // Simplified frame assembly with row interpolation for missing packets
+// Optimized: uses stack-allocated line tracking to avoid malloc/free per frame
 void c64_assemble_frame_with_interpolation(struct c64_source *context, struct frame_assembly *frame)
 {
     // Periodic frame assembly monitoring (every 5 minutes)
@@ -173,10 +622,13 @@ void c64_assemble_frame_with_interpolation(struct c64_source *context, struct fr
         last_assembly_log_time = now;
     }
 
-    // Track which lines have been written
-    bool *line_written = calloc(context->height, sizeof(bool));
-    if (!line_written) {
-        C64_LOG_ERROR("Failed to allocate line tracking array");
+    // Stack-allocated line tracking (max 272 lines for PAL, fits easily on stack)
+    // Using uint8_t instead of bool for guaranteed 1-byte size
+    uint8_t line_written[272] = {0}; // Zero-initialized on stack
+    const uint32_t height = context->height;
+
+    if (height > 272) {
+        C64_LOG_ERROR("Frame height %u exceeds maximum 272", height);
         return;
     }
 
@@ -189,9 +641,9 @@ void c64_assemble_frame_with_interpolation(struct c64_source *context, struct fr
         uint16_t line_num = packet->line_num;
         uint8_t lines_per_packet = packet->lines_per_packet;
 
-        for (int line = 0; line < (int)lines_per_packet && (int)(line_num + line) < (int)context->height; line++) {
+        for (int line = 0; line < (int)lines_per_packet && (int)(line_num + line) < (int)height; line++) {
             uint32_t current_line = line_num + line;
-            if (current_line >= context->height)
+            if (current_line >= height)
                 break;
 
             uint32_t dst_line_offset = current_line * C64_PIXELS_PER_LINE;
@@ -199,12 +651,12 @@ void c64_assemble_frame_with_interpolation(struct c64_source *context, struct fr
             uint8_t *src_line = packet->packet_data + (line * C64_BYTES_PER_LINE);
 
             c64_convert_pixels_optimized(src_line, dst_line, C64_BYTES_PER_LINE);
-            line_written[current_line] = true;
+            line_written[current_line] = 1;
         }
     }
 
     // Second pass: interpolate missing lines by duplicating the nearest valid line above
-    for (uint32_t line = 0; line < context->height; line++) {
+    for (uint32_t line = 0; line < height; line++) {
         if (!line_written[line]) {
             // Find nearest valid line above this one
             uint32_t source_line = 0;
@@ -221,8 +673,6 @@ void c64_assemble_frame_with_interpolation(struct c64_source *context, struct fr
             memcpy(dst, src, C64_PIXELS_PER_LINE * sizeof(uint32_t));
         }
     }
-
-    free(line_written);
 }
 
 void c64_process_video_statistics_batch(struct c64_source *context, uint64_t current_time)

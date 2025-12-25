@@ -1,5 +1,19 @@
 # Copilot Instructions for c64stream
 
+## Non-negotiables (READ FIRST)
+
+1. **Formatting is required**: before **any push**, run:
+   - `./build-aux/run-clang-format --check`
+   - If it fails, run `./build-aux/run-clang-format <files...>` and re-run the check.
+2. **E2E is LOCAL ONLY**: do **not** run E2E tests in cloud/CI environments (known instability). Only run E2E locally with a working GUI.
+3. **Agent entrypoint**: also see `AGENTS.md` (references this file and standard workflows).
+4. **Before declaring work “complete”**: do a documentation review (docs match code/behavior) and run a full local E2E scenario suite (all scenarios).5. **NEVER skip tests or ignore problems**: When facing test failures, performance issues, or other problems:
+   - **Do NOT** add `skip`, `ci_skip`, `@pytest.mark.skip`, or similar markers to bypass tests
+   - **Do NOT** comment out failing code or tests
+   - **Do NOT** reduce test coverage or assertions to make tests pass
+   - **ALWAYS** fix the root cause of the problem
+   - If a fix requires significant work, document the issue and create a plan, but never ship with skipped tests
+   - This applies to all tests, including unit tests, integration tests, and E2E tests, as well as any environment, both local and cloud/CI
 ## Project Overview
 OBS Studio plugin for streaming C64 Ultimate device video/audio over network. See `doc/c64-stream-spec.md` for protocol details.
 
@@ -33,6 +47,23 @@ OBS Studio plugin for streaming C64 Ultimate device video/audio over network. Se
 - 4 spaces indentation, 120 char limit, files end with newline
 - **Never commit code that fails clang-format**
 
+#### Installing clang-format 21 on Linux (recommended)
+
+CI uses clang-format 21.x. Many Linux distros ship older versions; if `./build-aux/run-clang-format --check` reports an old/missing formatter, install clang-format 21 via Homebrew LLVM and add it to `PATH`:
+
+```bash
+# one-time Homebrew install to ~/.linuxbrew (no sudo)
+git clone --depth=1 https://github.com/Homebrew/brew ~/.linuxbrew/Homebrew
+mkdir -p ~/.linuxbrew/bin
+ln -sf ../Homebrew/bin/brew ~/.linuxbrew/bin/brew
+eval "$(~/.linuxbrew/bin/brew shellenv)"
+
+# clang-format 21.x
+brew install llvm
+export PATH="$(brew --prefix llvm)/bin:$PATH"
+clang-format --version
+```
+
 ### License Header (Required)
 ```c
 /*
@@ -47,7 +78,7 @@ See <https://www.gnu.org/licenses/> for details.
 ### Documentation
 - All markdown files go in `doc/` folder (except `README.md`)
 - Use kebab-case naming
-- No markdown files in project root during development
+- Avoid ad-hoc markdown files in the project root during development (exceptions: `README.md`, `AGENTS.md`)
 
 ## Linux Build (MANDATORY)
 
@@ -100,8 +131,16 @@ fi
 # Workflow validation (MANDATORY for any .github/workflows/ changes)
 ./build-aux/validate-workflows
 
-# E2E (MANDATORY for any changes to the plugin itself. This is only applicable for local builds, not for builds on the GitHub CI environment.)
+# E2E (MANDATORY for plugin behavior changes, but LOCAL ONLY. Do NOT run in cloud/CI environments.)
+# Requires a working graphical environment (X11/Wayland) and OBS installed.
 ./local-build linux --install --e2e
+
+# Full E2E scenario suite (LOCAL ONLY) - run all scenarios
+cd tests/e2e
+scenarios=$(./e2e.sh --list-scenarios | awk -F: '/^  [a-z0-9_]+:/{print $1}' | tr -d ' ')
+for s in $scenarios; do
+    ./e2e.sh --scenario "$s" --duration 5 || exit 1
+done
 ```
 
 **Checklist:**
@@ -109,6 +148,8 @@ fi
 - [ ] Code formatting passes
 - [ ] CMake formatting passes
 - [ ] Workflow validation passes (if .github/workflows/ modified)
+- [ ] Documentation reviewed (docs reflect current behavior)
+- [ ] Full local E2E scenario suite passes (LOCAL ONLY)
 - [ ] Cross-platform compatibility maintained
 - [ ] Code committed with clear commit message
 

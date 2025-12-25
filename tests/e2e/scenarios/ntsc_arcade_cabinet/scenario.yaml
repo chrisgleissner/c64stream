@@ -1,0 +1,7 @@
+name: NTSC Arcade Cabinet
+format: NTSC
+preset: Arcade Cabinet
+assertions:
+  - video_quality
+  - audio
+  - scanlines

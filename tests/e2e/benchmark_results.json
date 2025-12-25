@@ -1,0 +1,29 @@
+{
+  "timestamp": "2025-12-25T16:45:48.502893",
+  "system_info": {
+    "cpu": "Intel(R) Core(TM) i7-6700K CPU @ 4.00GHz",
+    "gpu": "Intel Corporation HD Graphics 530 [8086:1912] (rev 06)",
+    "os": "Ubuntu 24.04.3 LTS",
+    "obs_version": "32.0.2",
+    "kernel": "6.14.0-37-generic"
+  },
+  "duration_per_test": 8,
+  "filter_results": [],
+  "preset_results": [
+    {
+      "name": "Green Monitor",
+      "preset_name": "Green Monitor",
+      "cpu_mean": 60.46,
+      "cpu_max": 100.0,
+      "cpu_min": 0.0,
+      "gpu_mean": 0.0,
+      "gpu_max": 0.0,
+      "gpu_min": 0.0,
+      "gpu_freq_mean": 788.7,
+      "gpu_freq_max": 1150,
+      "wall_time_seconds": 53.14,
+      "user_cpu_seconds": 0.0,
+      "system_cpu_seconds": 0.0
+    }
+  ]
+}

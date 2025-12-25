@@ -86,23 +86,30 @@ body:
       value: |
         ## 4. Plugin configuration
 
-        Configuration export is not yet available.
-        Complete screenshots of the plugin configuration are required.
-        Issues missing complete configuration screenshots may be closed as incomplete.
+        **Export your configuration:**
+        1. Open the plugin properties dialog
+        2. Scroll to the bottom to find the "Import/Export" section
+        3. Click the **Export** button and save the configuration file
+        4. Attach the exported `.ini` file below
+
+        Configuration exports contain all plugin settings in a text format that helps with diagnosis.
+        Issues missing configuration exports may be closed as incomplete.
 
   - type: textarea
-    id: plugin_properties_screenshots
+    id: plugin_configuration_file
     attributes:
-      label: Plugin properties screenshots
+      label: Plugin configuration export
       description: |
-        Attach screenshots of the plugin properties configuration.
+        Attach the exported configuration file (.ini) from the plugin properties.
 
-        Required screenshots:
-        1. The full plugin properties dialog (entire window visible, no cropping)
-        2. Use several screenshots if necessary
+        To export:
+        1. Open C64 Stream properties
+        2. Find "Import/Export" at the bottom
+        3. Click "Export" button
+        4. Save and attach the file here
 
       placeholder: |
-        Drag and drop screenshots here.
+        Drag and drop the exported .ini file here.
     validations:
       required: true
 

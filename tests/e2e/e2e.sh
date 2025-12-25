@@ -25,7 +25,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 BUILD_DIR="${PROJECT_ROOT}/build_x86_64"
 TEST_DIR="${PROJECT_ROOT}/tests/e2e"
-DEFAULT_OUTPUT_DIR="${TEST_DIR}/test_output"
+DEFAULT_OUTPUT_DIR="${TEST_DIR}/results"
 
 # Default test parameters
 DEFAULT_FORMAT="NTSC"
@@ -40,6 +40,15 @@ DEFAULT_OBS_ENABLED=true   # OBS integration now implemented
 DEFAULT_X11_DISPLAY=":99"
 DEFAULT_MONITOR_RESOURCES=false  # Resource monitoring for CI
 DEFAULT_SCENARIO_OVERRIDES=""
+DEFAULT_SCENARIO_NAME=""
+DEFAULT_PACKET_PATTERN=""
+DEFAULT_SCENARIO=""
+DEFAULT_CSV_MAX_ROWS=1000  # Truncate CSV files to first 1000 rows
+SCENARIO_CI_SKIPPED=false  # Set by load_scenario if ci_skip=true on CI
+DEFAULT_RUN_ALL_SCENARIOS=false  # Run all scenarios in sequence
+
+# Scenario directory
+SCENARIOS_DIR="${TEST_DIR}/scenarios"
 
 # Color output
 RED='\033[0;31m'
@@ -185,12 +194,14 @@ OPTIONS:
     -F, --frames FRAMES     Number of frames to test [default: ${DEFAULT_FRAMES}]
     -d, --duration SECONDS  Test duration in seconds (overrides --frames)
     --output-dir DIR        Output directory for test artifacts [default: ${DEFAULT_OUTPUT_DIR}]
+    --csv-max-rows ROWS     Truncate CSV files to first ROWS rows (0=disable) [default: ${DEFAULT_CSV_MAX_ROWS}]
     -v, --verbose           Enable verbose logging
     -s, --skip-build        Skip building plugin and tools
     -o, --obs               Enable OBS integration (default)
     --no-obs                Disable OBS integration
     --no-cleanup            Skip cleanup of temporary files
     --monitor-resources     Enable periodic system resource monitoring
+    --all                   Run ALL scenarios in sequence
     -h, --help             Show this help message
 
 EXAMPLES:
@@ -209,20 +220,143 @@ EXAMPLES:
     # Full integration test with OBS (when available)
     $0 --obs --duration 10
 
+    # Run a specific scenario (auto-discovers format and settings)
+    $0 --scenario ntsc_amber_monitor --verbose
+
+    # Run ALL scenarios (results saved to results/<scenario>/)
+    $0 --all --verbose
+
+    # List available scenarios
+    $0 --list-scenarios
+
 PACKET GENERATION:
     PAL:  50 FPS, 384x272 resolution, ~3400 packets/sec
     NTSC: 60 FPS, 384x240 resolution, ~4080 packets/sec
 
     Video packets: 780 bytes, ~300μs intervals
-    Audio packets: 770 bytes, ~4ms intervals
+    Audio packets: ~4ms intervals
 
 OUTPUT:
     Test artifacts are saved to: \${OUTPUT_DIR}
     - Generated packets: test_packets/
-    - Test logs: test_output/
+    - Test logs: \${OUTPUT_DIR}/
     - Recordings (if OBS enabled): recording_*.mkv
 
 EOF
+}
+
+# List available scenarios
+list_scenarios() {
+    echo "Available E2E scenarios:"
+    echo ""
+    python3 "${TEST_DIR}/scenario_loader.py" --list 2>/dev/null || {
+        if [[ -d "${SCENARIOS_DIR}" ]]; then
+            for scenario_dir in "${SCENARIOS_DIR}"/*/; do
+                if [[ -f "${scenario_dir}scenario.yaml" ]]; then
+                    local name
+                    name=$(basename "${scenario_dir}")
+                    local display_name format preset ci_skip
+                    display_name=$(grep "^name:" "${scenario_dir}scenario.yaml" | sed 's/^name: *//')
+                    format=$(grep "^format:" "${scenario_dir}scenario.yaml" | sed 's/^format: *//')
+                    preset=$(grep "^preset:" "${scenario_dir}scenario.yaml" | sed 's/^preset: *//')
+                    ci_skip=$(grep "^ci_skip:" "${scenario_dir}scenario.yaml" | sed 's/^ci_skip: *//')
+                    local ci_marker=""
+                    if [[ "${ci_skip}" == "true" ]]; then
+                        ci_marker=" [CI-SKIP]"
+                    fi
+                    printf "  %-25s %s (%s, preset: %s)%s\n" "${name}:" "${display_name}" "${format}" "${preset:-Default}" "${ci_marker}"
+                fi
+            done
+        else
+            echo "  No scenarios found in ${SCENARIOS_DIR}"
+        fi
+    }
+    echo ""
+}
+
+# Load scenario configuration from scenario.yaml
+load_scenario() {
+    local scenario_name="$1"
+    local scenario_dir="${SCENARIOS_DIR}/${scenario_name}"
+    local scenario_yaml="${scenario_dir}/scenario.yaml"
+
+    if [[ ! -f "${scenario_yaml}" ]]; then
+        log_error "Scenario not found: ${scenario_name}"
+        log_error "Expected: ${scenario_yaml}"
+        log_info "Use --list-scenarios to see available scenarios"
+        exit 1
+    fi
+
+    log_info "Loading scenario: ${scenario_name}"
+
+    # Parse scenario.yaml (new concise format)
+    local name format preset pattern
+    name=$(grep -m1 "^name:" "${scenario_yaml}" | sed 's/^name: *//' || true)
+    format=$(grep -m1 "^format:" "${scenario_yaml}" | sed 's/^format: *//' || true)
+    preset=$(grep -m1 "^preset:" "${scenario_yaml}" | sed 's/^preset: *//' || true)
+    pattern=$(grep -m1 "^pattern:" "${scenario_yaml}" | sed 's/^pattern: *//' || true)
+
+    if [[ -z "${name}" || -z "${format}" ]]; then
+        log_error "Invalid scenario.yaml (missing required fields)"
+        log_error "Scenario: ${scenario_name}"
+        log_error "File: ${scenario_yaml}"
+        log_error "Expected at least: name:, format:"
+        exit 1
+    fi
+
+    # Check for CI-skip flag
+    local ci_skip ci_skip_reason
+    ci_skip=$(grep -m1 "^ci_skip:" "${scenario_yaml}" | sed 's/^ci_skip: *//' || true)
+    ci_skip_reason=$(grep -m1 "^ci_skip_reason:" "${scenario_yaml}" | sed 's/^ci_skip_reason: *//' | tr -d '"' || true)
+
+    if [[ "${ci_skip}" == "true" ]] && [[ "${CI:-false}" == "true" || "${GITHUB_ACTIONS:-false}" == "true" ]]; then
+        log_warning "⏭️  Skipping scenario '${name}' on CI"
+        if [[ -n "${ci_skip_reason}" ]]; then
+            log_info "  Reason: ${ci_skip_reason}"
+        fi
+        log_info "  This scenario requires hardware rendering (run locally)"
+        SCENARIO_CI_SKIPPED=true
+        return 0
+    fi
+
+    # Set FORMAT from scenario if not explicitly set via CLI
+    if [[ "${FORMAT}" == "${DEFAULT_FORMAT}" ]]; then
+        FORMAT="${format}"
+        log_info "  Format: ${FORMAT} (from scenario)"
+    else
+        log_info "  Format: ${FORMAT} (from CLI, overrides scenario: ${format})"
+    fi
+
+    # Set SCENARIO_NAME if not already set
+    if [[ -z "${SCENARIO_NAME}" ]]; then
+        SCENARIO_NAME="${name}"
+    fi
+
+    # Optional packet pattern (solid/diagonal) for scanline-specific scenarios
+    if [[ -n "${pattern}" ]]; then
+        PACKET_PATTERN="${pattern}"
+        log_info "  Packet pattern: ${PACKET_PATTERN}"
+    fi
+
+    # Generate OBS scene JSON from scenario
+    local generated_dir="${scenario_dir}/generated"
+    mkdir -p "${generated_dir}/basic/scenes"
+    if [[ "${VERBOSE}" == true ]]; then
+        python3 "${TEST_DIR}/scenario_loader.py" --scenario "${scenario_name}" \
+            --output "${generated_dir}/basic/scenes/C64StreamTest.json"
+    else
+        python3 "${TEST_DIR}/scenario_loader.py" --scenario "${scenario_name}" \
+            --output "${generated_dir}/basic/scenes/C64StreamTest.json" 2>/dev/null
+    fi
+
+    if [[ $? -eq 0 ]]; then
+        SCENARIO_OVERRIDES="${generated_dir}"
+        log_info "  Preset: ${preset:-Default}"
+        log_info "  Generated scene: ${generated_dir}/basic/scenes/C64StreamTest.json"
+    else
+        log_error "Failed to generate scene JSON from scenario"
+        exit 1
+    fi
 }
 
 # Parse command line arguments
@@ -231,6 +365,7 @@ parse_args() {
     FRAMES="${DEFAULT_FRAMES}"
     DURATION=""
     OUTPUT_DIR="${DEFAULT_OUTPUT_DIR}"
+    CSV_MAX_ROWS="${DEFAULT_CSV_MAX_ROWS}"
     VIDEO_PORT="${DEFAULT_VIDEO_PORT}"
     AUDIO_PORT="${DEFAULT_AUDIO_PORT}"
     VERBOSE="${DEFAULT_VERBOSE}"
@@ -239,6 +374,10 @@ parse_args() {
     OBS_ENABLED="${DEFAULT_OBS_ENABLED}"
     MONITOR_RESOURCES="${DEFAULT_MONITOR_RESOURCES}"
     SCENARIO_OVERRIDES="${DEFAULT_SCENARIO_OVERRIDES}"
+    SCENARIO_NAME="${DEFAULT_SCENARIO_NAME}"
+    SCENARIO="${DEFAULT_SCENARIO}"
+    PACKET_PATTERN="${DEFAULT_PACKET_PATTERN}"
+    RUN_ALL_SCENARIOS="${DEFAULT_RUN_ALL_SCENARIOS}"
 
     while [[ $# -gt 0 ]]; do
         case $1 in
@@ -270,6 +409,14 @@ parse_args() {
                 OUTPUT_DIR="$2"
                 if [[ -z "${OUTPUT_DIR}" ]]; then
                     log_error "Output directory cannot be empty."
+                    exit 1
+                fi
+                shift 2
+                ;;
+            --csv-max-rows)
+                CSV_MAX_ROWS="$2"
+                if ! [[ "${CSV_MAX_ROWS}" =~ ^[0-9]+$ ]]; then
+                    log_error "Invalid CSV max rows: ${CSV_MAX_ROWS}. Must be a non-negative integer."
                     exit 1
                 fi
                 shift 2
@@ -318,9 +465,25 @@ parse_args() {
                 DEFAULT_X11_DISPLAY="$2"
                 shift 2
                 ;;
+            --scenario)
+                SCENARIO="$2"
+                shift 2
+                ;;
             --scenario-overrides)
                 SCENARIO_OVERRIDES="$2"
                 shift 2
+                ;;
+            --scenario-name)
+                SCENARIO_NAME="$2"
+                shift 2
+                ;;
+            --list-scenarios)
+                list_scenarios
+                exit 0
+                ;;
+            --all)
+                RUN_ALL_SCENARIOS=true
+                shift
                 ;;
             -h|--help)
                 show_help
@@ -333,6 +496,23 @@ parse_args() {
                 ;;
         esac
     done
+
+    # Load scenario configuration if specified
+    if [[ -n "${SCENARIO}" ]]; then
+        load_scenario "${SCENARIO}"
+    fi
+
+    # Check if scenario was skipped for CI
+    if [[ "${SCENARIO_CI_SKIPPED}" == "true" ]]; then
+        log_success "Scenario skipped on CI (success)"
+        exit 0
+    fi
+
+    # Default output layout: keep all artifacts under tests/e2e/results/.
+    # If a scenario is specified and --output-dir wasn't overridden, write into results/<scenario>/.
+    if [[ -n "${SCENARIO}" ]] && [[ "${OUTPUT_DIR}" == "${DEFAULT_OUTPUT_DIR}" ]]; then
+        OUTPUT_DIR="${DEFAULT_OUTPUT_DIR}/${SCENARIO}"
+    fi
 
     # Calculate frames from duration if specified
     if [[ -n "${DURATION}" ]]; then
@@ -562,6 +742,16 @@ generate_packets() {
         "--output" "test_packets"
     )
 
+    # Optional pattern selection (useful for scanline and sharp pixel assertions).
+    # Supported by our packet generator: diagonal (default), solid (uniform field), or dots (sparse white dots).
+    if [[ -n "${PACKET_PATTERN}" ]]; then
+        if [[ "${PACKET_PATTERN}" != "diagonal" && "${PACKET_PATTERN}" != "solid" && "${PACKET_PATTERN}" != "dots" ]]; then
+            log_error "Invalid packet pattern: ${PACKET_PATTERN} (expected: diagonal|solid|dots)"
+            exit 1
+        fi
+        cmd+=("--pattern" "${PACKET_PATTERN}")
+    fi
+
     if [[ "${VERBOSE}" == true ]]; then
         log_info "Running: ${cmd[*]}"
         "${cmd[@]}"
@@ -584,7 +774,11 @@ generate_packets() {
 
 # Run E2E test
 run_e2e_test() {
-    log_info "Running E2E test..."
+    if [[ -n "${SCENARIO_NAME}" ]]; then
+        log_info "Running E2E test for scenario: ${SCENARIO_NAME}"
+    else
+        log_info "Running E2E test..."
+    fi
 
     cd "${TEST_DIR}"
 
@@ -603,6 +797,7 @@ run_e2e_test() {
     local cmd=(
         "python3" "./e2e.py"
         "--test-dir" "."
+        "--output-dir" "${OUTPUT_DIR}"
         "--format" "${FORMAT}"
         "--frames" "${FRAMES}"
         "--video-port" "${VIDEO_PORT}"
@@ -610,10 +805,22 @@ run_e2e_test() {
         "--udp-replay" "${udp_replay_path}"
     )
 
+    if [[ -n "${SCENARIO_NAME}" ]]; then
+        cmd+=("--scenario-name" "${SCENARIO_NAME}")
+    fi
+
+    # Provide stable scenario id (folder name) for gating scenario-specific checks.
+    if [[ -n "${SCENARIO}" ]]; then
+        cmd+=("--scenario-id" "${SCENARIO}")
+    fi
+
     # Pass scenario overrides if provided
     if [[ -n "${SCENARIO_OVERRIDES}" ]]; then
         cmd+=("--scenario-overrides" "${SCENARIO_OVERRIDES}")
     fi
+
+    # Pass CSV max rows
+    cmd+=("--csv-max-rows" "${CSV_MAX_ROWS}")
 
     # Ensure X environment variables are set
     export DISPLAY="${DEFAULT_X11_DISPLAY}"
@@ -656,6 +863,46 @@ generate_report() {
     local sample_frame_seconds=""
     local sample_frame_timestamp=""
 
+    # Gather system snapshot for debugging context
+    local obs_version os_name kernel_version cpu_model cpu_cores ram_total ram_available
+    local disk_total disk_available disk_mount
+
+    if command -v obs >/dev/null 2>&1; then
+        obs_version=$(obs --version 2>/dev/null | head -n1 | sed 's/^OBS Studio //')
+        [[ -z "${obs_version}" ]] && obs_version="Detected (version unknown)"
+    else
+        obs_version="Not installed"
+    fi
+
+    kernel_version=$(uname -r 2>/dev/null || echo "Unknown kernel")
+    if command -v lsb_release >/dev/null 2>&1; then
+        os_name=$(lsb_release -ds 2>/dev/null | tr -d '"')
+    elif [[ -f /etc/os-release ]]; then
+        os_name=$(grep -E '^PRETTY_NAME=' /etc/os-release | cut -d= -f2- | tr -d '"')
+    fi
+    [[ -z "${os_name}" ]] && os_name=$(uname -s 2>/dev/null || echo "Unknown OS")
+
+    cpu_model=$(grep -m1 'model name' /proc/cpuinfo 2>/dev/null | cut -d: -f2- | sed 's/^ *//')
+    [[ -z "${cpu_model}" ]] && cpu_model=$(uname -p 2>/dev/null || echo "Unknown CPU")
+    cpu_cores=$(nproc 2>/dev/null || echo "?")
+
+    if command -v free >/dev/null 2>&1; then
+        ram_total=$(free -h | awk '/^Mem:/ {print $2}')
+        ram_available=$(free -h | awk '/^Mem:/ {print $7}')
+    else
+        ram_total=$(grep -m1 'MemTotal' /proc/meminfo 2>/dev/null | awk '{printf "%.1f MiB", $2/1024}')
+        ram_available=$(grep -m1 'MemAvailable' /proc/meminfo 2>/dev/null | awk '{printf "%.1f MiB", $2/1024}')
+    fi
+    [[ -z "${ram_total}" ]] && ram_total="Unknown"
+    [[ -z "${ram_available}" ]] && ram_available="Unknown"
+
+    if command -v df >/dev/null 2>&1; then
+        read -r disk_total disk_available disk_mount <<<"$(df -h "${PROJECT_ROOT}" 2>/dev/null | awk 'NR==2 {print $2, $4, $6}')"
+    fi
+    [[ -z "${disk_total}" ]] && disk_total="Unknown"
+    [[ -z "${disk_available}" ]] && disk_available="Unknown"
+    [[ -z "${disk_mount}" ]] && disk_mount=$(pwd)
+
         # Resolve plugin version via shared helper (mirrors CI logic)
         local resolved_version
         if [[ -x "${PROJECT_ROOT}/build-aux/resolve-plugin-version.sh" ]]; then
@@ -682,6 +929,14 @@ Generated: ${timestamp}
 
 - Project: $(jq -r '.name // "unknown"' "${PROJECT_ROOT}/buildspec.json" 2>/dev/null)
 - Version: ${resolved_version}
+
+## System information
+
+- OS: ${os_name} (kernel ${kernel_version})
+- OBS: ${obs_version}
+- CPU: ${cpu_model} (${cpu_cores} cores)
+- RAM: ${ram_total} total, ${ram_available} available
+- Disk (${disk_mount}): ${disk_total} total, ${disk_available} available
 
 ## Test results
 EOF
@@ -847,24 +1102,238 @@ EOF
         fi
     fi
 
-    local first_pop_frame=""
-    local first_pop_ms=""
-    if [[ -n "${recording_mp4}" && -f "${recording_mp4}" && -f "${validation_file}" ]] && command -v jq >/dev/null 2>&1; then
-        first_pop_frame=$(jq -r '.av_sync_details.video_pop_frame_indices[0] // empty' "${validation_file}" 2>/dev/null || true)
-        first_pop_ms=$(jq -r '.av_sync_details.video_pop_times_ms[0] // empty' "${validation_file}" 2>/dev/null || true)
+    # Sample frame: extract a frame showing the A/V pop white square.
+    #
+    # IMPORTANT: extract by exact frame index (n) rather than by timestamp (t).
+    # Timestamp-based extraction can miss a 1–2 frame marker due to PTS rounding/offsets.
+    if [[ -n "${recording_mp4}" && -f "${recording_mp4}" && -x "${TEST_DIR}/extract.frame" ]]; then
+        local pop_time_ms pop_frame_num first_pop_frame frame_rate
+        pop_time_ms=""
+        pop_frame_num=""
+        first_pop_frame=""
+        sample_frame_seconds=""
+        local sample_frame_extracted=false
 
-        if [[ -n "${first_pop_frame}" && "${first_pop_frame}" != "null" ]]; then
-            sample_frame_index="${first_pop_frame}"
-            if [[ -x "${TEST_DIR}/extract.frame" ]]; then
-                "${TEST_DIR}/extract.frame" --input "${recording_mp4}" --output "${sample_frame_path}" --frame "${first_pop_frame}" || true
+        # Try to get the first detected video pop frame index from validation results
+        if [[ -f "${validation_file}" ]] && command -v jq >/dev/null 2>&1; then
+            first_pop_frame=$(jq -r '.av_sync_details.video_pop_frame_indices[0] // empty' "${validation_file}" 2>/dev/null || true)
+            if [[ -z "${first_pop_frame}" || "${first_pop_frame}" == "null" ]]; then
+                first_pop_frame=$(jq -r '.av_sync_details.sync_details[0].closest_video_pop_frame // empty' "${validation_file}" 2>/dev/null || true)
             fi
         fi
 
-        if [[ -n "${first_pop_ms}" && "${first_pop_ms}" != "null" ]]; then
-            sample_frame_seconds=$(awk -v ms="${first_pop_ms}" 'BEGIN{printf "%.3f", ms/1000.0}')
+        # Fallback: directly detect a video pop frame using test_av_sync.py
+        if [[ -z "${first_pop_frame}" ]] && command -v python3 >/dev/null 2>&1; then
+            # Prefer accurate FPS from ffprobe; fall back to format defaults
+            frame_rate=""
+            if command -v ffprobe >/dev/null 2>&1; then
+                frame_rate=$(ffprobe -v error -select_streams v:0 -show_entries stream=r_frame_rate -of default=noprint_wrappers=1:nokey=1 "${recording_mp4}" 2>/dev/null | head -1 || true)
+            fi
+            if [[ -z "${frame_rate}" ]]; then
+                if [[ "${FORMAT}" == "PAL" ]]; then
+                    frame_rate="50.0"
+                else
+                    frame_rate="60.0"
+                fi
+            else
+                # Convert e.g. 30000/1001 into float with python
+                frame_rate=$(python3 - <<PY 2>/dev/null || true
+import sys
+try:
+    s = "${frame_rate}".strip()
+    if "/" in s:
+        a,b = s.split("/",1)
+        print(float(a)/float(b))
+    else:
+        print(float(s))
+except Exception:
+    pass
+PY
+)
+                if [[ -z "${frame_rate}" ]]; then
+                    if [[ "${FORMAT}" == "PAL" ]]; then
+                        frame_rate="50.0"
+                    else
+                        frame_rate="60.0"
+                    fi
+                fi
+            fi
+
+            pop_frame_num=$(python3 -c "
+import sys
+sys.path.insert(0, '${TEST_DIR}')
+from test_av_sync import detect_video_pops
+pops = detect_video_pops('${recording_mp4}', frame_rate=float('${frame_rate}'))
+if pops:
+    print(int(pops[0]))
+" 2>/dev/null || true)
+            if [[ -n "${pop_frame_num}" && "${pop_frame_num}" =~ ^[0-9]+$ ]]; then
+                first_pop_frame="${pop_frame_num}"
+            fi
         fi
 
-        if [[ ! -f "${sample_frame_path}" && -n "${sample_frame_seconds}" && -x "${TEST_DIR}/extract.frame" ]]; then
+        # If we have a frame index, extract that exact frame.
+        if [[ -n "${first_pop_frame}" && "${first_pop_frame}" =~ ^[0-9]+$ ]]; then
+            # Extract a still that actually contains the marker.
+            # Even with frame-index extraction, some pipelines can be off by 1 frame (PTS rounding,
+            # encoder delays, etc.). We therefore try a window around the detected frame and
+            # pick the earliest candidate that contains the marker (or the best-scoring one).
+            #
+            # For filter-rich scenarios (bloom, afterglow), the marker:
+            #   1. Appears gradually (soft fade-in from afterglow persistence)
+            #   2. Persists longer (afterglow can spread marker over 3-5+ frames)
+            #   3. Has lower contrast (bloom spreads brightness)
+            # So we need a wider search window biased forward (where marker is strongest).
+            local best_tmp best_score best_frame
+            best_tmp=""
+            best_score="-1"
+            best_frame="${first_pop_frame}"
+
+            local tmp_dir
+            tmp_dir=$(mktemp -d 2>/dev/null || true)
+
+            # Candidates: detected frame first, then forward frames (where afterglow shows marker
+            # more clearly), then backward frames as safety. Extended window for filter-rich scenarios.
+            local candidates=("${first_pop_frame}" "$((first_pop_frame + 1))" "$((first_pop_frame + 2))" "$((first_pop_frame + 3))" "$((first_pop_frame - 1))" "$((first_pop_frame + 4))" "$((first_pop_frame - 2))")
+            local found_good=false
+
+            if [[ -n "${tmp_dir}" && -d "${tmp_dir}" ]] && command -v python3 >/dev/null 2>&1; then
+                for cand in "${candidates[@]}"; do
+                    [[ "${cand}" =~ ^-?[0-9]+$ ]] || continue
+                    if (( cand < 0 )); then
+                        continue
+                    fi
+                    local out_tmp
+                    out_tmp="${tmp_dir}/frame_${cand}.png"
+                    "${TEST_DIR}/extract.frame" --input "${recording_mp4}" --output "${out_tmp}" --frame "${cand}" >/dev/null 2>&1 || continue
+                    if [[ ! -s "${out_tmp}" ]]; then
+                        continue
+                    fi
+
+                    # Score marker presence in the expected pop area (lower-right of the content).
+                    local score
+                    score=$(python3 - <<'PY' "${out_tmp}" 2>/dev/null || true
+import sys
+try:
+    import cv2  # type: ignore
+    import numpy as np  # type: ignore
+except Exception:
+    sys.exit(0)
+
+p = sys.argv[1]
+img = cv2.imread(p)
+if img is None:
+    print(0)
+    sys.exit(0)
+
+# Use robust content-bound detection matching test_av_sync.py
+# (handles limited-range video, filters, CRT effects with glow/bloom)
+g = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+h, w = g.shape[:2]
+
+# Horizontal bounds: use 99th percentile per column (robust when scanlines create dark rows)
+col_hi = np.percentile(g, 99.0, axis=0)
+thr_col = max(10.0, float(np.percentile(col_hi, 90.0) * 0.20))
+content_cols = np.where(col_hi > thr_col)[0]
+if content_cols.size >= 2:
+    left = int(content_cols[0])
+    right = int(content_cols[-1]) + 1
+else:
+    # Fallback: assume centered horizontally
+    scale_factor = h / 272.0
+    scaled_c64_width = int(384 * scale_factor)
+    left = int((w - scaled_c64_width) // 2)
+    right = int((w + scaled_c64_width) // 2)
+
+# Vertical bounds: same approach for rows
+row_hi = np.percentile(g, 99.0, axis=1)
+thr_row = max(10.0, float(np.percentile(row_hi, 90.0) * 0.20))
+content_rows = np.where(row_hi > thr_row)[0]
+if content_rows.size >= 2:
+    top = int(content_rows[0])
+    bottom = int(content_rows[-1]) + 1
+else:
+    top, bottom = 0, h
+
+# Clamp bounds to valid image coordinates
+left = max(0, min(w, left))
+right = max(0, min(w, right))
+top = max(0, min(h, top))
+bottom = max(0, min(h, bottom))
+
+content_w = max(1, right - left)
+scale = content_w / 384.0
+area_px = max(10, int(round(80 * scale)))
+
+area_left = max(0, right - area_px)
+area_right = right
+area_bottom = bottom
+area_top = max(0, bottom - area_px)
+roi = g[area_top:area_bottom, area_left:area_right]
+if roi.size == 0:
+    print(0)
+    sys.exit(0)
+
+# Marker score: count of "much brighter than background" pixels + contrast vs ROI median.
+# Avoid absolute thresholds (e.g. >200) because some presets tint/soften the marker.
+med = float(np.median(roi))
+thr = max(50.0, med + 60.0)
+bright = int((roi > thr).sum())
+contrast = float(roi.mean() - med)
+score = bright + max(0.0, contrast) * 10.0
+print(int(score))
+PY
+)
+                    [[ -n "${score}" ]] || score=0
+
+                    # Consider it “good” if there are enough bright pixels.
+                    if (( score >= 5000 )); then
+                        # Pick earliest good candidate.
+                        best_tmp="${out_tmp}"
+                        best_frame="${cand}"
+                        found_good=true
+                        break
+                    fi
+
+                    # Otherwise, keep best score.
+                    if (( score > best_score )); then
+                        best_score="${score}"
+                        best_tmp="${out_tmp}"
+                        best_frame="${cand}"
+                    fi
+                done
+
+                if [[ -n "${best_tmp}" && -s "${best_tmp}" ]]; then
+                    cp -f "${best_tmp}" "${sample_frame_path}" || true
+                    sample_frame_extracted=true
+                fi
+            fi
+
+            # Fallback if python scoring not available
+            if [[ "${sample_frame_extracted}" != true ]]; then
+                "${TEST_DIR}/extract.frame" --input "${recording_mp4}" --output "${sample_frame_path}" --frame "${first_pop_frame}" || true
+                sample_frame_extracted=true
+            fi
+
+            if [[ -n "${tmp_dir}" && -d "${tmp_dir}" ]]; then
+                rm -rf "${tmp_dir}" || true
+            fi
+        fi
+
+        if [[ "${sample_frame_extracted}" != true ]]; then
+            # Final fallback to mid-point if no pop found
+            if [[ -z "${sample_frame_seconds}" ]]; then
+                local dur_sec
+                if command -v ffprobe >/dev/null 2>&1; then
+                    dur_sec=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${recording_mp4}" 2>/dev/null | head -1 || true)
+                fi
+                if [[ -n "${dur_sec}" ]]; then
+                    sample_frame_seconds=$(awk -v d="${dur_sec}" 'BEGIN{printf "%.3f", d*0.50}')
+                else
+                    sample_frame_seconds="4.500"
+                fi
+            fi
+
             "${TEST_DIR}/extract.frame" --input "${recording_mp4}" --output "${sample_frame_path}" --time "${sample_frame_seconds}" || true
         fi
     fi
@@ -929,7 +1398,7 @@ EOF
         echo "### Sample Frame" >> "${report_file}"
         echo >> "${report_file}"
         echo "![Sample Frame](./$(basename "${sample_frame_path}"))" >> "${report_file}"
-        echo "- Top-left cycles through all C64 colours to check frame progression. Center shows scrolling colour bars. Bottom-right flashes with a pop sound for A/V sync checks." >> "${report_file}"
+        echo "- Top-left shows the frame index (color = frame_num % 16). Top-right shows a stable 4×4 tile of all 16 VIC colours (drift check). Center shows scrolling colour bars. Bottom-right flashes with a pop sound for A/V sync checks / afterglow tail." >> "${report_file}"
 
         local origin_parts=()
         if [[ -n "${sample_frame_index}" ]]; then
@@ -982,6 +1451,87 @@ cleanup() {
     fi
 }
 
+# Run all scenarios in sequence
+run_all_scenarios() {
+    local scenarios_dir="${TEST_DIR}/scenarios"
+    local passed=0
+    local failed=0
+    local skipped=0
+    local failed_scenarios=()
+
+    echo "=========================================="
+    echo "   Running ALL E2E Scenarios"
+    echo "=========================================="
+    echo
+
+    # Get list of scenarios
+    local scenarios=()
+    for scenario_dir in "${scenarios_dir}"/*/; do
+        if [[ -f "${scenario_dir}/scenario.yaml" ]]; then
+            scenarios+=("$(basename "${scenario_dir}")")
+        fi
+    done
+
+    log_info "Found ${#scenarios[@]} scenarios to run"
+    echo
+
+    # Run each scenario
+    for scenario in "${scenarios[@]}"; do
+        echo
+        echo "----------------------------------------"
+        echo "  Scenario: ${scenario}"
+        echo "----------------------------------------"
+
+        # Build command with preserved options
+        local cmd=("${SCRIPT_DIR}/e2e.sh" "--scenario" "${scenario}")
+
+        # Pass through common options
+        [[ "${VERBOSE}" == true ]] && cmd+=("--verbose")
+        [[ "${SKIP_BUILD}" == true ]] && cmd+=("--skip-build")
+        [[ "${OBS_ENABLED}" == false ]] && cmd+=("--no-obs")
+        [[ -n "${DURATION}" ]] && cmd+=("--duration" "${DURATION}")
+        [[ "${CLEANUP}" == false ]] && cmd+=("--no-cleanup")
+
+        if "${cmd[@]}"; then
+            passed=$((passed + 1))
+            log_success "Scenario ${scenario}: PASSED"
+        else
+            local exit_code=$?
+            if [[ ${exit_code} -eq 0 ]]; then
+                skipped=$((skipped + 1))
+                log_info "Scenario ${scenario}: SKIPPED"
+            else
+                failed=$((failed + 1))
+                failed_scenarios+=("${scenario}")
+                log_error "Scenario ${scenario}: FAILED"
+            fi
+        fi
+    done
+
+    # Summary
+    echo
+    echo "=========================================="
+    echo "         All Scenarios Summary"
+    echo "=========================================="
+    echo "  Total:   ${#scenarios[@]}"
+    echo "  Passed:  ${passed}"
+    echo "  Failed:  ${failed}"
+    echo "  Skipped: ${skipped}"
+    echo
+
+    if [[ ${#failed_scenarios[@]} -gt 0 ]]; then
+        log_error "Failed scenarios:"
+        for s in "${failed_scenarios[@]}"; do
+            echo "    - ${s}"
+        done
+        echo
+        return 1
+    fi
+
+    log_success "All scenarios passed!"
+    return 0
+}
+
 # Main execution
 main() {
     echo "=========================================="
@@ -991,6 +1541,12 @@ main() {
 
     # Parse arguments
     parse_args "$@"
+
+    # If --all specified, run all scenarios and exit
+    if [[ "${RUN_ALL_SCENARIOS}" == true ]]; then
+        run_all_scenarios
+        exit $?
+    fi
 
     # Show configuration
     log_info "Test Configuration:"

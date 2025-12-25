@@ -1,0 +1,162 @@
+# Pre-built Debian container with OBS Studio 30+ and Qt6 dependencies
+# OBS is built from source to get version 30+ (Debian repos only have 29.x)
+# This provides libobs.so.30 for ABI compatibility with the Ubuntu-built plugin
+
+FROM debian:12
+
+LABEL org.opencontainers.image.title="C64 Stream Debian Build Environment"
+LABEL org.opencontainers.image.description="Pre-built Debian container with OBS Studio 30+ and Qt6 for fast CI builds"
+LABEL org.opencontainers.image.source="https://github.com/chrisgleissner/c64stream"
+LABEL org.opencontainers.image.licenses="GPL-2.0-or-later"
+
+# Prevent interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=UTC
+
+# Install essential packages
+RUN apt-get update -qq && \
+    apt-get install -y --no-install-recommends \
+        software-properties-common \
+        ca-certificates \
+        curl \
+        wget \
+        gnupg \
+        lsb-release
+
+# Add Debian repositories including backports
+RUN echo "deb http://deb.debian.org/debian bookworm main contrib non-free non-free-firmware" > /etc/apt/sources.list.d/debian.list && \
+    echo "deb http://deb.debian.org/debian bookworm-backports main contrib non-free non-free-firmware" >> /etc/apt/sources.list.d/debian.list && \
+    apt-get update -qq
+
+# Install FFmpeg and build dependencies for OBS Studio
+RUN apt-get install -y --no-install-recommends \
+        ffmpeg \
+        build-essential \
+        cmake \
+        ninja-build \
+        pkg-config \
+        git \
+        zsh \
+        jq \
+        ccache \
+        file \
+        dpkg-dev \
+        xz-utils \
+        net-tools \
+        libgl1 \
+        libgl1-mesa-dri \
+        libglu1-mesa \
+        libxkbcommon-x11-0 \
+        libxcb-xinerama0 \
+        fonts-dejavu-core \
+        libgles2-mesa-dev \
+        libsimde-dev \
+        qt6-base-dev \
+        qt6-base-private-dev \
+        libqt6svg6-dev \
+        qt6-wayland \
+        libavcodec-dev \
+        libavdevice-dev \
+        libavfilter-dev \
+        libavformat-dev \
+        libavutil-dev \
+        libswresample-dev \
+        libswscale-dev \
+        libx264-dev \
+        libcurl4-openssl-dev \
+        libmbedtls-dev \
+        libjansson-dev \
+        libluajit-5.1-dev \
+        python3-dev \
+        libx11-dev \
+        libx11-xcb-dev \
+        libxcb-shm0-dev \
+        libxcb-xinerama0-dev \
+        libxcb-randr0-dev \
+        libxcb-composite0-dev \
+        libxcomposite-dev \
+        libxinerama-dev \
+        libpulse-dev \
+        libasound2-dev \
+        libjack-dev \
+        libspeexdsp-dev \
+        libv4l-dev \
+        libva-dev \
+        libvpl-dev \
+        libdrm-dev \
+        libpci-dev \
+        libwayland-dev \
+        librist-dev \
+        libsrt-openssl-dev \
+        libwebsocketpp-dev \
+        libasio-dev \
+        nlohmann-json3-dev \
+        libqrcodegencpp-dev \
+        uthash-dev \
+        libpipewire-0.3-dev \
+        libxkbcommon-dev \
+        libfreetype-dev \
+        libfontconfig-dev \
+        swig
+
+# Install nv-codec-headers for FFnvcodec (NVIDIA hardware encoding support)
+RUN cd /tmp && \
+    git clone --depth 1 --branch n12.1.14.0 https://github.com/FFmpeg/nv-codec-headers.git && \
+    cd nv-codec-headers && \
+    make install && \
+    cd / && rm -rf /tmp/nv-codec-headers
+
+# Build OBS Studio 30.2.3 from source (provides libobs.so.30)
+# Disabled optional features to minimize build time and dependencies
+ENV OBS_VERSION=30.2.3
+RUN cd /tmp && \
+    git clone --recursive --depth 1 --branch ${OBS_VERSION} https://github.com/obsproject/obs-studio.git && \
+    cd obs-studio && \
+    mkdir build && cd build && \
+    cmake -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/usr \
+        -DENABLE_BROWSER=OFF \
+        -DENABLE_VST=OFF \
+        -DENABLE_VLC=OFF \
+        -DENABLE_SCRIPTING=OFF \
+        -DENABLE_AJA=OFF \
+        -DENABLE_WEBRTC=OFF \
+        -DENABLE_NEW_MPEGTS_OUTPUT=OFF \
+        -DENABLE_PLUGINS=ON \
+        -DENABLE_UI=ON \
+        .. && \
+    ninja -j$(nproc) && \
+    ninja install && \
+    ldconfig && \
+    cd / && rm -rf /tmp/obs-studio
+
+# Install Python dependencies for E2E tests
+RUN apt-get install -y --no-install-recommends \
+        python3 \
+        python3-pip \
+        python3-numpy \
+        python3-opencv \
+        python3-pil \
+        python3-yaml \
+        xvfb \
+        pulseaudio \
+        pulseaudio-utils
+
+# CMake 3.28+ is required by CMakePresets.json (version 8)
+RUN python3 -m pip install --no-cache-dir --break-system-packages "cmake==3.28.3" && \
+    cmake --version
+
+# Clean up APT cache
+RUN apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Verify OBS installation provides libobs.so.30
+RUN ls -la /usr/lib/*/libobs.so* || ls -la /usr/lib/libobs.so* || true
+RUN obs --version || echo "OBS Studio installed"
+
+# Set working directory
+WORKDIR /workspace
+
+# Default command
+CMD ["/bin/bash"]

@@ -1,0 +1,9 @@
+name: NTSC Amber Monitor
+format: NTSC
+preset: Amber Monitor
+assertions:
+  - video_quality
+  - audio
+  - tint
+  - afterglow
+  - scanlines

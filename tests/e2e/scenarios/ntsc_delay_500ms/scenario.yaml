@@ -1,0 +1,8 @@
+name: NTSC Long Buffer Delay (500ms)
+format: NTSC
+preset: Default
+overrides:
+  buffer_delay_ms: 500
+assertions:
+  - video_quality
+  - audio

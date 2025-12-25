@@ -1,0 +1,101 @@
+# Pre-built Fedora container with OBS Studio and Qt6 dependencies
+# This dramatically speeds up CI builds by avoiding lengthy DNF installations
+
+FROM fedora:40
+
+LABEL org.opencontainers.image.title="C64 Stream Fedora Build Environment"
+LABEL org.opencontainers.image.description="Pre-built Fedora container with OBS Studio and Qt6 for fast CI builds"
+LABEL org.opencontainers.image.source="https://github.com/chrisgleissner/c64stream"
+LABEL org.opencontainers.image.licenses="GPL-2.0-or-later"
+
+# Set timezone
+ENV TZ=UTC
+
+# Enable RPM Fusion repositories for additional packages
+RUN dnf install -y \
+        https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm \
+        https://download1.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm
+
+# Install build dependencies and OBS Studio
+RUN dnf install -y \
+        gcc \
+        gcc-c++ \
+        cmake \
+        ninja-build \
+        pkg-config \
+        git \
+        zsh \
+        jq \
+        ccache \
+        file \
+        rpm-build \
+        xz \
+        net-tools \
+        mesa-libGL \
+        mesa-dri-drivers \
+        mesa-libGLU \
+        libxkbcommon-x11 \
+        xcb-util-wm \
+        dejavu-sans-fonts \
+        mesa-libGLES-devel \
+        simde-devel \
+        obs-studio \
+        obs-studio-devel \
+        qt6-qtbase-devel \
+        qt6-qtsvg \
+        qt6-qtwayland \
+        ffmpeg-free-devel \
+        x264-devel \
+        libcurl-devel \
+        mbedtls-devel \
+        jansson-devel \
+        luajit-devel \
+        python3-devel \
+        libX11-devel \
+        libxcb-devel \
+        libXcomposite-devel \
+        libXinerama-devel \
+        pulseaudio-libs-devel \
+        alsa-lib-devel \
+        jack-audio-connection-kit-devel \
+        speexdsp-devel \
+        libv4l-devel \
+        libva-devel \
+        libvpl-devel \
+        libdrm-devel \
+        libpciaccess-devel \
+        wayland-devel \
+        librist-devel \
+        srt-devel \
+        websocketpp-devel \
+        asio-devel \
+        json-devel \
+        libqrcodegencpp-devel \
+        uthash-devel
+
+# Install Python dependencies for E2E tests
+# Note: Fedora uses PipeWire with PulseAudio compatibility layer (pipewire-pulseaudio)
+# We just need pulseaudio-utils for pactl command
+RUN dnf install -y \
+        python3 \
+        python3-pip \
+        python3-numpy \
+        python3-opencv \
+        python3-pillow \
+        python3-pyyaml \
+        xorg-x11-server-Xvfb \
+        ffmpeg-free \
+        pipewire-pulseaudio \
+        pulseaudio-utils
+
+# Clean up DNF cache
+RUN dnf clean all
+
+# Verify OBS installation
+RUN obs --version || echo "OBS Studio installed (version check may fail in container)"
+
+# Set working directory
+WORKDIR /workspace
+
+# Default command
+CMD ["/bin/bash"]

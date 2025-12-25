@@ -102,6 +102,8 @@ build() {
   if (( debug )) cmake_args+=(--debug-output)
 
   cmake_args+=(--preset 'macos-ci')
+  # Ensure command-line tools are preferred on CI runners to avoid SDK path issues
+  typeset -gx SDKROOT=""
   cmake_args+=(-DENABLE_TESTS=ON)
 
   typeset -gx NSUnbufferedIO=YES
@@ -133,6 +135,8 @@ build() {
     -arch x86_64
     -project ${product_name}.xcodeproj
     -target ${product_name}
+    # Also build E2E helper needed by CMake install (tests/e2e/udp_replay)
+    -target udp_replay
     -destination "generic/platform=macOS,name=Any Mac"
     -configuration ${config}
     -parallelizeTargets

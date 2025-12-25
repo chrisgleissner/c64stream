@@ -1,0 +1,268 @@
+# Add this section to .github/workflows/build-project.yaml after the ubuntu-build job
+# This implements multi-distribution testing using matrix builds
+
+  # Multi-Distribution Docker Image Management
+  ensure-docker-images-matrix:
+    name: Ensure Docker Image (${{ matrix.display_name }}) 🐳
+    runs-on: ubuntu-24.04
+    needs: [check-event]
+    strategy:
+      fail-fast: false
+      matrix:
+        distro: [debian, fedora, arch]
+        include:
+          - distro: debian
+            dockerfile: Dockerfile.debian-build
+            image_name: debian-build
+            display_name: Debian 12
+          - distro: fedora
+            dockerfile: Dockerfile.fedora-build
+            image_name: fedora-build
+            display_name: Fedora 40
+          - distro: arch
+            dockerfile: Dockerfile.arch-build
+            image_name: arch-build
+            display_name: Arch Linux
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout Repository 📥
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check Image Age 🔍
+        id: check
+        run: |
+          : Check Image Age for ${{ matrix.display_name }} 🔍
+
+          dockerfile_path=".github/docker/${{ matrix.dockerfile }}"
+          image_tag="ghcr.io/${{ github.repository }}/${{ matrix.image_name }}:latest"
+
+          # Check if Docker image exists
+          if docker manifest inspect "${image_tag}" >/dev/null 2>&1; then
+            docker pull "${image_tag}" >/dev/null 2>&1
+
+            created_timestamp=$(docker inspect "${image_tag}" --format='{{.Created}}' 2>/dev/null || echo "")
+
+            if [[ -n "$created_timestamp" ]]; then
+              image_created_epoch=$(date -d "$created_timestamp" +%s 2>/dev/null || echo "0")
+
+              # Check for Dockerfile changes
+              echo "🔍 Checking for Dockerfile changes since: $created_timestamp"
+              dockerfile_commits=$(git log --since="$created_timestamp" --oneline -- "$dockerfile_path" 2>/dev/null)
+              commits_since_image=$(echo "$dockerfile_commits" | grep -c . 2>/dev/null || echo "0")
+
+              if [[ "$commits_since_image" -gt 0 ]]; then
+                echo "🔧 Dockerfile modified - rebuilding"
+                echo "needs_build=true" >> $GITHUB_OUTPUT
+                exit 0
+              fi
+
+              # Check image age (7 days)
+              current_epoch=$(date +%s)
+              age_seconds=$(( current_epoch - image_created_epoch ))
+              age_days=$(( age_seconds / 86400 ))
+
+              if [ "$age_seconds" -le "604800" ]; then
+                echo "✅ Using existing image (${age_days}d old)"
+                echo "needs_build=false" >> $GITHUB_OUTPUT
+                exit 0
+              else
+                echo "🔄 Image is ${age_days}d old - rebuilding"
+                echo "needs_build=true" >> $GITHUB_OUTPUT
+                exit 0
+              fi
+            fi
+          fi
+
+          echo "🔨 Image not found - will build"
+          echo "needs_build=true" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx 🔧
+        if: steps.check.outputs.needs_build == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry 🔑
+        if: steps.check.outputs.needs_build == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and Push Docker Image 🚀
+        if: steps.check.outputs.needs_build == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: .github/docker/${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          push: true
+          tags: ghcr.io/${{ github.repository }}/${{ matrix.image_name }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Multi-Distribution Build Job
+  linux-distro-build:
+    name: Build on ${{ matrix.display_name }} 🐧
+    runs-on: ubuntu-24.04
+    needs: [check-event, ensure-docker-images-matrix]
+    strategy:
+      fail-fast: false
+      matrix:
+        distro: [debian, fedora, arch]
+        include:
+          - distro: debian
+            image_name: debian-build
+            display_name: Debian 12
+            os_label: debian-12
+          - distro: fedora
+            image_name: fedora-build
+            display_name: Fedora 40
+            os_label: fedora-40
+          - distro: arch
+            image_name: arch-build
+            display_name: Arch Linux
+            os_label: arch-latest
+    defaults:
+      run:
+        shell: bash
+    container:
+      image: ghcr.io/${{ github.repository }}/${{ matrix.image_name }}:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    outputs:
+      artifactName: ${{ steps.setup.outputs.artifactName }}
+    steps:
+      - name: Checkout Repository 📥
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Fetch Git Tags 🏷️
+        run: |
+          : Fetch Git Tags
+          git config --global --add safe.directory "$(pwd)"
+          git fetch --force --tags
+
+      - name: Set Up Environment 🔧
+        id: setup
+        run: |
+          : Set Up Environment for ${{ matrix.display_name }}
+
+          product_name=$(jq -r '.name' buildspec.json)
+          artifact_name="${product_name}-${{ needs.check-event.outputs.pluginVersion }}-${{ matrix.os_label }}-x86_64-${{ needs.check-event.outputs.commitHash }}"
+
+          echo "artifactName=${artifact_name}" >> $GITHUB_OUTPUT
+          echo "🔧 Building ${product_name} v${{ needs.check-event.outputs.pluginVersion }} on ${{ matrix.display_name }}"
+
+      - name: Configure ccache 🗂️
+        run: |
+          : Configure ccache
+          ccache --set-config cache_dir=/workspace/.ccache
+          ccache --set-config max_size=2G
+          ccache --zero-stats
+
+      - name: Build Plugin 🧱
+        run: |
+          : Build Plugin on ${{ matrix.display_name }}
+          export PATH="/usr/local/bin:$PATH"
+
+          # Configure CMake (use ubuntu preset as generic Linux preset)
+          cmake --preset ubuntu-x86_64 -DCMAKE_INSTALL_PREFIX=/usr
+
+          # Build
+          cmake --build build_x86_64 --config RelWithDebInfo --parallel
+
+          # Show ccache stats
+          ccache --show-stats
+
+      - name: Package Plugin 📦
+        run: |
+          : Package Plugin
+          cd build_x86_64
+          cpack -G TGZ
+          cd ..
+
+          # Create release directory
+          mkdir -p release
+          cp build_x86_64/*.tar.gz release/ || echo "No tar.gz found"
+
+      - name: Upload Build Artifact 📤
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.setup.outputs.artifactName }}
+          path: release/*
+
+  # Multi-Distribution E2E Testing
+  e2e-test-matrix:
+    name: E2E Test on ${{ matrix.display_name }} 🧪
+    runs-on: ubuntu-24.04
+    needs: [check-event, ubuntu-build, linux-distro-build, ensure-docker-image, ensure-docker-images-matrix]
+    if: ${{ inputs.run_e2e && needs.ubuntu-build.result == 'success' }}
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        distro: [ubuntu, debian, fedora, arch]
+        include:
+          - distro: ubuntu
+            image_name: ubuntu-build
+            display_name: Ubuntu 24.04
+            build_job: ubuntu-build
+          - distro: debian
+            image_name: debian-build
+            display_name: Debian 12
+            build_job: linux-distro-build
+          - distro: fedora
+            image_name: fedora-build
+            display_name: Fedora 40
+            build_job: linux-distro-build
+          - distro: arch
+            image_name: arch-build
+            display_name: Arch Linux
+            build_job: linux-distro-build
+    defaults:
+      run:
+        shell: bash
+    container:
+      image: ghcr.io/${{ github.repository }}/${{ matrix.image_name }}:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout Repository 📥
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Download Plugin Artifact 📥
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.distro == 'ubuntu' && needs.ubuntu-build.outputs.artifactName || needs.linux-distro-build.outputs.artifactName }}
+          path: release
+
+      - name: Run E2E Tests 🧪
+        run: |
+          : Run E2E Tests on ${{ matrix.display_name }}
+          cd tests/e2e
+
+          # Install plugin
+          tar -xzf ../../release/*.tar.gz -C /tmp
+
+          # Run E2E test suite
+          ./e2e.sh ${{ inputs.e2e_format }} ${{ inputs.e2e_frames }}
+
+          echo "✅ E2E tests passed on ${{ matrix.display_name }}"
+
+      - name: Upload E2E Test Results 📤
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-results-${{ matrix.distro }}-${{ needs.check-event.outputs.commitHash }}
+          path: tests/e2e/results/

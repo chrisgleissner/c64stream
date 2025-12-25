@@ -55,6 +55,7 @@ RUN apt-get install -y --no-install-recommends \
         python3-numpy \
         python3-opencv \
         python3-pil \
+        python3-yaml \
         python3-requests \
         python3-websocket \
         ffmpeg \
@@ -64,7 +65,11 @@ RUN apt-get install -y --no-install-recommends \
         xauth \
         dbus-x11 \
         procps \
-        unzip && \
+        unzip \
+        pulseaudio \
+        pulseaudio-utils \
+        libasound2-dev \
+        libpulse-dev && \
     apt-get update -qq && apt-get install -y file && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*

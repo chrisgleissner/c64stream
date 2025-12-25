@@ -4,30 +4,61 @@ Automated validation of C64 Stream plugin functionality using mock C64 Ultimate 
 
 ## Purpose
 
-Validates complete UDP packet reception, video processing, audio synchronization, and OBS integration. Tests the full pipeline from network packets to recorded output.
+Validates complete UDP packet reception, video processing, audio synchronization, and OBS integration. Tests the full pipeline from network packets to recorded output, including CRT effect verification.
 
 ## Quick Start
 
 ```bash
 cd tests/e2e
-./e2e.sh              # 5-second NTSC test
+./e2e.sh              # 5-second NTSC test (default scenario)
+./e2e.sh --all        # Run ALL scenarios in sequence
 ./e2e.sh --format PAL --duration 5 --verbose  # 5-second PAL test
+./e2e.sh --scenario ntsc_amber_monitor --verbose  # Named scenario with assertions
 ```
 
 Or via convenience script (Linux):
 
 ```bash
-./local-build.sh linux --e2e --install
+./local-build.sh linux --e2e --install           # Single scenario (ntsc_default)
+./local-build.sh linux --e2e-scenarios --install  # ALL scenarios
+```
+
+## CLI Options
+
+Key options for `e2e.sh`:
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--all` | off | Run ALL scenarios in sequence |
+| `--format FORMAT` | NTSC | Video format (PAL or NTSC) |
+| `--duration SECONDS` | 5 | Test duration in seconds |
+| `--frames FRAMES` | 300 | Number of frames (overridden by --duration) |
+| `--scenario NAME` | - | Named scenario from scenarios/ directory |
+| `--list-scenarios` | - | List all available scenarios |
+| `--verbose` | off | Enable detailed logging |
+| `--csv-max-duration MS` | 1000 | Truncate CSV files to first N ms (0=disable) |
+| `--output-dir DIR` | results | Output directory for test artifacts |
+| `--skip-build` | off | Skip building plugin and tools |
+| `--no-cleanup` | off | Keep temporary files after test |
+
+### CSV Truncation
+
+By default, CSV diagnostic files (`network.csv`, `obs.csv`) are truncated to the first 1000ms of events. This keeps file sizes manageable while preserving the critical startup data for debugging.
+
+To disable truncation and keep full CSV files:
+```bash
+./e2e.sh --scenario ntsc_default --csv-max-duration 0
 ```
 
 ## What It Does
 
 1. **Builds** plugin and test tools
 2. **Generates** deterministic test packets (PAL/NTSC formats)
-3. **Starts** OBS with C64 Stream source
-4. **Replays** packets via UDP at precise timing
-5. **Records** video and CSV data
-6. **Validates** packet reception and synchronization
+3. **Loads scenario** configuration and generates OBS scene JSON
+4. **Starts** OBS with C64 Stream source
+5. **Replays** packets via UDP at precise timing
+6. **Records** video and CSV data
+7. **Validates** packet reception and effect assertions
 
 Artifacts are written to `tests/e2e/test_output/`:
 
@@ -45,30 +76,37 @@ graph LR
     A[Test Packets] --> B[UDP Replay]
     B --> C[C64 Plugin]
     C --> D[OBS Recording]
-    D --> E[Validation]
+    D --> E[Assertion Framework]
 ```
 
 ### Test Flow
 
 ```mermaid
 sequenceDiagram
-    participant T as Test Runner
+    participant T as Test Runner (e2e.sh)
+    participant L as Scenario Loader
     participant O as OBS + Plugin
     participant M as Mock C64
-    participant V as Validator
+    participant A as Assertion Framework
 
+    T->>L: Load scenario.yaml
+    L->>L: Merge preset + overrides
+    L->>T: Generated scene JSON
     T->>T: Build & Generate Packets
-    T->>O: Start OBS Recording
+    T->>O: Start OBS with scene
     T->>M: Start Mock Server
     T->>O: Replay UDP Packets
     O->>O: Process A/V Stream
-    T->>V: Validate Results
-    V-->>T: Pass/Fail
+    O->>T: Recording file
+    T->>A: Verify assertions
+    A-->>T: Pass/Fail results
 ```
 
 ### Key Components
 
 - **`e2e.sh`** - Main orchestrator, handles dependencies and build process
+- **`scenario_loader.py`** - Loads scenarios and generates OBS scene JSON
+- **`assertions/`** - Assertion package for validating recordings
 - **`e2e.py`** - Python test runner with OBS integration and validation
 - **`generate_packets.py`** - Creates deterministic test packets with visual markers
 - **`udp_replay`** - High-performance C utility for precise UDP packet transmission
@@ -93,6 +131,247 @@ Notes on timing and FPS:
 - Header: sequence number
 - Payload: 192 stereo samples, 440Hz carrier with heartbeat markers
 
+## Scenarios
+
+E2E tests can be run with named scenarios that configure specific effect presets and test configurations.
+
+### Scenario Architecture
+
+```mermaid
+flowchart TB
+    subgraph inputs["Input Files"]
+        A[scenario.yaml]
+        B[effect_presets.ini]
+        C[base_template.json]
+    end
+
+    subgraph loader["scenario_loader.py"]
+        D[Load Scenario]
+        E[Load Preset]
+        F[Merge Settings]
+        G[Generate JSON]
+    end
+
+    subgraph output["Runtime Output"]
+        H[C64StreamTest.json]
+        I[OBS Scene]
+    end
+
+    A --> D
+    D --> F
+    B --> E
+    E --> F
+    F --> G
+    C --> G
+    G --> H
+    H --> I
+```
+
+### Listing Scenarios
+
+```bash
+./e2e.sh --list-scenarios
+```
+
+Available scenarios include:
+
+| Scenario             | Format | Description                          |
+| -------------------- | ------ | ------------------------------------ |
+| ntsc_default         | NTSC   | Default preset (no effects)          |
+| ntsc_classic_crt     | NTSC   | Classic CRT with scanlines and blur  |
+| ntsc_amber_monitor   | NTSC   | Amber monochrome tint                |
+| ntsc_green_monitor   | NTSC   | Green monochrome tint                |
+| ntsc_sharp_pixels    | NTSC   | Sharp pixel scaling                  |
+| ntsc_phosphor_glow   | NTSC   | Afterglow and bloom effects          |
+| ntsc_vintage_tv      | NTSC   | Vintage TV simulation                |
+| ntsc_arcade_cabinet  | NTSC   | Strong scanlines for arcade look     |
+| pal_sharp_pixels     | PAL    | PAL format with sharp pixels         |
+| scanlines            | PAL    | Scanline uniformity test             |
+| ntsc_delay_500ms     | NTSC   | Buffer delay test                    |
+
+### Running a Scenario
+
+```bash
+# Run specific scenario
+./e2e.sh --scenario ntsc_amber_monitor --verbose
+
+# Scenario auto-sets format; override if needed
+./e2e.sh --scenario pal_sharp_pixels --frames 300
+```
+
+### Scenario Structure
+
+Each scenario is a **concise YAML file** referencing a preset from `data/effect_presets.ini`:
+
+```
+scenarios/ntsc_amber_monitor/
+├── scenario.yaml              # ~10 lines - name, format, preset, assertions
+└── generated/                 # Auto-generated at runtime
+    └── basic/scenes/C64StreamTest.json
+```
+
+The `scenario.yaml` file:
+
+```yaml
+name: NTSC Amber Monitor
+format: NTSC
+preset: Amber Monitor
+overrides:
+  afterglow_duration_ms: 100  # Optional effect tweaks for E2E
+assertions:
+  - video_quality
+  - audio
+  - tint
+  - afterglow
+  - scanlines
+```
+
+Effect settings are loaded from `data/effect_presets.ini`, with optional per-scenario overrides. The OBS scene JSON is generated dynamically from `base_template.json` at test time.
+
+## Assertion Framework
+
+The `assertions/` package validates E2E recordings against expected effect behaviors.
+
+### How Assertions Are Configured
+
+Assertions can be configured in two ways:
+
+1. **Scenario-driven (preferred)**: Listed explicitly in `scenario.yaml`
+2. **Auto-detected**: Inferred from preset effect settings
+
+```mermaid
+flowchart TB
+    subgraph input["Input"]
+        A[Recording MP4]
+        B[scenario.yaml]
+        C[effect_presets.ini]
+    end
+
+    subgraph decision["Assertion Selection"]
+        D{Scenario has<br/>assertions?}
+        E[Use scenario list]
+        F[Auto-detect from preset]
+    end
+
+    subgraph assertions["Available Assertions"]
+        G[video_quality]
+        H[audio]
+        I[tint]
+        J[afterglow]
+        K[scanlines]
+    end
+
+    subgraph runner["Assertion Runner"]
+        L[Run selected assertions]
+        M[Generate results]
+    end
+
+    A --> L
+    B --> D
+    C --> D
+    D -->|Yes| E
+    D -->|No| F
+    E --> assertions
+    F --> assertions
+    assertions --> L
+    L --> M
+```
+
+#### Scenario-Driven Assertions
+
+When using `--scenario`, assertions are read from the `assertions` array in `scenario.yaml`:
+
+```yaml
+# scenarios/ntsc_amber_monitor/scenario.yaml
+assertions:
+  - video_quality    # Always recommended
+  - audio            # Always recommended
+  - tint             # Verifies amber/green color dominance
+  - afterglow        # Verifies phosphor persistence decay
+  - scanlines        # Verifies scanline uniformity
+```
+
+If `assertions` is omitted, defaults to `["video_quality", "audio"]`.
+
+#### Auto-Detection from Preset
+
+When using `--preset` or `--scene-json` (without `--scenario`), assertions are auto-detected based on effect settings:
+
+| Preset Setting                  | Assertion Added |
+| ------------------------------- | --------------- |
+| Always                          | `video_quality`, `audio` |
+| `tint_mode > 0` and `tint_strength > 0` | `tint` |
+| `afterglow_duration_ms > 0`     | `afterglow` |
+| `scan_line_distance > 0` and `scan_line_strength > 0` | `scanlines` |
+
+### Usage
+
+```bash
+# Verify recording against scenario (preferred)
+python3 -m assertions \
+    --mp4 test_output/c64_recording.mp4 \
+    --scenario ntsc_amber_monitor \
+    --verbose
+
+# Verify against a named preset (auto-detect assertions)
+python3 -m assertions \
+    --mp4 recording.mp4 \
+    --preset "Arcade Cabinet" \
+    --verbose
+
+# Verify against OBS scene JSON
+python3 -m assertions \
+    --mp4 recording.mp4 \
+    --scene-json C64StreamTest.json \
+    --verbose
+
+# List available presets
+python3 -m assertions --list-presets
+```
+
+### Assertion Types
+
+| Assertion      | Description                                               |
+| -------------- | --------------------------------------------------------- |
+| `video_quality` | Resolution (1920×1080), duration, non-black frame ratio (≥50%) |
+| `audio`        | Sample rate (48kHz), channel count                        |
+| `tint`         | Amber/Green color verification via dominant channel ratio (≥1.2×) |
+| `afterglow`    | Persistence decay detection using A/V pop ROI analysis    |
+| `scanlines`    | Line uniformity analysis (variance <0.5%)                 |
+
+### Assertion Flow
+
+```mermaid
+sequenceDiagram
+    participant CLI as Command Line
+    participant AF as Assertion Framework
+    participant SL as Scenario Loader
+    participant V as Video Decoder (ffmpeg)
+
+    CLI->>AF: --mp4 recording.mp4 --scenario xyz
+    AF->>SL: load_scenario(xyz)
+    SL-->>AF: ScenarioConfig with assertions list
+    AF->>AF: create_assertions_from_list()
+
+    loop For each assertion
+        AF->>V: Extract frames/audio
+        V-->>AF: Frame data
+        AF->>AF: Run assertion.verify()
+    end
+
+    AF-->>CLI: AssertionResults (pass/fail/skip)
+```
+
+### Per-Preset Assertion Examples
+
+The framework's auto-detection selects assertions based on the effect preset:
+
+- **Default/Sharp Pixels**: `video_quality`, `audio` (no effects to verify)
+- **Amber/Green Monitor**: `video_quality`, `audio`, `tint`
+- **Phosphor Glow**: `video_quality`, `audio`, `afterglow`, `scanlines`
+- **Classic CRT/Vintage TV**: `video_quality`, `audio`, `afterglow`, `scanlines`
+- **Arcade Cabinet**: `video_quality`, `audio`, `scanlines`
+
 ## Validation
 
 - **Network CSV**: Packet reception timestamps and metadata
@@ -114,15 +393,77 @@ The harness detects audio and video “pop” markers and pairs them to measure 
 - **Test Duration**: ~30 seconds including setup
 - **Output**: 8MB+ video recording, CSV logs
 
-## CI usage
+## CI Usage
 
-E2E tests run in CI on Ubuntu runners. The harness adapts to headless environments using Xvfb and enforces CFR in compression. Artifacts and the Markdown report are uploaded for inspection.
+E2E tests run in CI on Ubuntu runners (and optionally Debian, Fedora, Arch). The harness adapts to headless environments using Xvfb and enforces CFR in compression. Artifacts and the Markdown report are uploaded for inspection.
+
+### Running Scenarios in CI
+
+The CI workflow supports running specific scenarios via the `e2e_scenario` input:
+
+```yaml
+# Single scenario
+inputs:
+  run_e2e: true
+  e2e_scenario: "ntsc_amber_monitor"
+
+# Default (baseline test without scenario)
+inputs:
+  run_e2e: true
+```
+
+### Multi-Distro Matrix
+
+By default, E2E tests run on 4 Linux distributions:
+
+- Ubuntu 24.04
+- Debian 12
+- Fedora 40
+- Arch Linux
+
+This ensures the plugin builds and functions correctly across different package ecosystems.
+
+## Adding New Scenarios
+
+1. Create directory: `tests/e2e/scenarios/{format}_{effect_name}/`
+2. Create `scenario.yaml` with the following fields:
+
+```yaml
+name: Human-readable scenario name
+format: PAL or NTSC
+preset: Preset name from data/effect_presets.ini
+overrides:                    # Optional: tweak effect values
+  afterglow_duration_ms: 150  # Boost for E2E detection
+assertions:                   # What to verify
+  - video_quality
+  - audio
+  - scanlines
+```
+
+3. Test locally:
+
+```bash
+./e2e.sh --scenario {scenario_name} --verbose
+```
 
 ## Troubleshooting
 
 - If OBS is not available, the harness runs in validation-only mode and skips recording steps
 - Ensure `jq` is installed to render the Pop synchronization section in the report
 - If output video reports 30 fps, verify CFR post-processing is enabled; the harness script enforces 50/60 fps
+- If assertions fail, run with `--verbose` to see detailed analysis output
+- Check that `effect_presets.ini` contains the preset referenced in your scenario
+
+## File Reference
+
+| File | Purpose |
+| ---- | ------- |
+| `e2e.sh` | Main test orchestrator |
+| `scenario_loader.py` | Loads scenarios, generates OBS scene JSON |
+| `assertions/` | Assertion package for validating recordings |
+| `scenarios/base_template.json` | Common OBS scene structure |
+| `scenarios/*/scenario.yaml` | Per-scenario configuration |
+| `data/effect_presets.ini` | Effect preset definitions |
 
 ## Future Enhancements
 

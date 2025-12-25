@@ -47,7 +47,7 @@ These settings work out-of-the-box with most C64 Ultimate setups. You can overri
 - For complete and up-to-date hardware and software requirements, please refer to the [OBS Studio System Requirements](https://obsproject.com/kb/system-requirements).
 
 > [!NOTE]
-> The plugin has been **verified to work** on the systems listed below. Other environments have not been verified and are not supported explicitly, but community contributions are always welcome. 
+> The plugin has been **verified to work** on the systems listed below. Other environments have not been verified and are not supported explicitly, but community contributions are always welcome.
 
 ### Easy Installation 📦
 
@@ -90,17 +90,49 @@ chmod -R 755 "$HOME/Library/Application Support/obs-studio/plugins/c64stream.plu
 ```
 4. Start OBS Studio
 
-#### Linux (Ubuntu/Debian)
+#### Linux
 
-Verified on Kubuntu 24.04.3:
+Verified on Ubuntu 24.04 and Debian 12. Other distributions may work but are not officially supported.
+
+##### Ubuntu / Debian (Recommended)
 
 1. Close OBS Studio
-2. [Download](../../releases) the plugin package with name `c64stream-$VERSION-x86_64-linux-gnu.deb`. It should now be in your `~/Downloads` directory.
-3. Install the plugin to `~/.config/obs-studio/plugins` by running the following on the command line:
-```bash
-sudo dpkg -i ~/Downloads/c64stream-*-x86_64-linux-gnu.deb
-```
-4. Start OBS Studio
+2. Install OBS Studio (32.0.1+):
+   - **Ubuntu 24.04:**
+     ```bash
+     sudo add-apt-repository --yes ppa:obsproject/obs-studio
+     sudo apt update
+     sudo apt install -y obs-studio
+     ```
+   - **Debian 12:**
+     ```bash
+     sudo apt update
+     sudo apt install -y -t bookworm-backports obs-studio
+     ```
+3. [Download](../../releases) the plugin: `c64stream-$VERSION-x86_64-linux-gnu.deb`
+4. Install the plugin:
+   ```bash
+   sudo dpkg -i ~/Downloads/c64stream-*-x86_64-linux-gnu.deb
+   ```
+5. Start OBS Studio
+
+##### Other Distributions (Fedora, Arch, etc.)
+
+For non-Debian-based distributions, you can extract the `.deb` package manually:
+
+1. Close OBS Studio
+2. Install OBS Studio using your distro's package manager
+3. [Download](../../releases) the plugin: `c64stream-$VERSION-x86_64-linux-gnu.deb`
+4. Extract and install manually:
+   ```bash
+   cd /tmp && ar x ~/Downloads/c64stream-*-x86_64-linux-gnu.deb && tar -xf data.tar.* && \
+   sudo cp -r usr/share/obs/obs-plugins/c64stream /usr/share/obs/obs-plugins/ && \
+   sudo cp -r usr/lib/obs-plugins/c64stream.so /usr/lib/obs-plugins/ && rm -rf data.tar.* control.tar.* debian-binary usr
+   ```
+5. Start OBS Studio
+
+> [!NOTE]
+> The plugin is built and [E2E tested](#end-to-end-tests-) on Ubuntu 24.04, Debian 12, Fedora 40, and Arch Linux.
 
 **Further Details:**
 See the [OBS Plugins Guide](https://obsproject.com/kb/plugins-guide).
@@ -129,8 +161,15 @@ A new window opens. Keep the default settings and click "OK":
 
 ### General
 
-- **Version:**: Information about release version, Git ID, and build time.
-- **Debug Logging**: Check this to see debug logs
+- **Version:** Information about release version, Git ID, and build time
+- **Debug Logging:** Check this to see debug logs
+
+### Import/Export Configuration
+
+Save and restore your complete plugin settings:
+
+- **Export:** Click to save all current settings to a `.ini` file. Use this to backup configurations, share setups, or attach to bug reports
+- **Import:** Click to load settings from a previously exported `.ini` file. All current settings will be replaced
 
 ### Network
 
@@ -157,20 +196,63 @@ Recreate the authentic look and feel of classic CRT monitors and TVs with config
 - **[Amber Monitor](./docs/images/effects/amber-monitor.png)** - Warm amber tint reminiscent of early computer monitors
 - **[Green Monitor](./docs/images/effects/green-monitor.png)** - Classic green phosphor terminal look
 - **[Sharp Pixels](./docs/images/effects/sharp-pixels.png)** - Crisp pixel doubling for arcade-style clarity
+- **[Phosphor Glow](./docs/images/effects/phosphor-glow.png)** - Dramatic phosphor persistence trails with extended afterglow
 - **[Vintage TV](./docs/images/effects/vintage-tv.png)** - Softer look with prominent scan lines for old television feel
 - **[Arcade Cabinet](./docs/images/effects/arcade-cabinet.png)** - High-contrast effects for authentic arcade experience
 
 **Customizable Effects:**
 
-- **Scan Lines:** Adjustable spacing and intensity to simulate CRT raster lines
-- **Bloom:** Configurable glow effect that makes bright pixels bleed into darker areas
+- **Scan Lines:** CRT raster line simulation with precise control (see table below)
+- **Bloom:** Glow effect that makes bright pixels bleed into darker areas
 - **Pixel Geometry:** Independent width/height scaling for authentic pixel aspect ratios
 - **Blur Control:** Fine-tune between crisp pixels and soft scaling
+- **Afterglow:** CRT phosphor persistence effect (0-250ms) with configurable decay curves
 - **Screen Tint:** Amber, green, or monochrome overlays for period-accurate monitor simulation
 
 **Usage:** Access via the **Effects** group in plugin properties. Select a preset for instant results, or customize individual settings to create your perfect retro display aesthetic.
 
+**Pixel-Perfect Display:** For crisp pixels and perfectly even scanlines, right-click on the C64 Stream source → **Scale Filtering → Point**. This is a one-time setting that tells OBS to use nearest-neighbor scaling. The plugin automatically sizes the source to the correct integer multiple based on your scanline settings.
+
+#### Scan Line Settings
+
+The **Scan Line Distance** setting controls the gap between each pair of adjacent C64 pixel rows, simulating the dark lines between phosphor rows on a CRT monitor. Each mode uses a specific integer scaling factor to ensure perfectly uniform scanlines with zero variance:
+
+| Mode | Distance | Scale | Pattern | Output Height | Canvas Fit |
+|------|----------|-------|---------|---------------|------------|
+| None | 0% | 4× | No gaps | 1088px | Full (8px crop) |
+| Tight | 25% | 5× | 4 bright + 1 dark | 1360px | Overflow |
+| Normal | 50% | 3× | 2 bright + 1 dark | 816px | Letterboxed |
+| Wide | 100% | 4× | 2 bright + 2 dark | 1088px | Full (8px crop) |
+| Extra Wide | 200% | 3× | 1 bright + 2 dark | 816px | Letterboxed |
+
+**Recommended:** Use **Wide (100%)** for full 1080p canvas coverage with minimal border cropping, or **Normal (50%)** for a classic CRT look with black bars.
+
+The **Scan Line Strength** slider (0.0–1.0) controls how dark the gaps appear. At 0.0, gaps are invisible; at 1.0, they are completely black.
+
 **Reset:** To reset to default values, simply select the "Default" preset. If you have changed individual effects whilst the "Default" preset was active, select any other preset first and then re-select the "Default" preset.
+
+#### Effect Performance Impact
+
+Each CRT effect has a different impact on system performance. The CPU-based effects process every pixel every frame, while GPU-based effects leverage shader hardware for minimal CPU overhead.
+
+| Effect | Processing | Impact | Notes |
+|--------|------------|--------|-------|
+| **Scan Lines** | GPU Shader | Low | Per-pixel shader calculation |
+| **Bloom** | GPU Shader | Medium | Multi-pass blur + blend |
+| **Blur** | GPU Shader | Medium | Gaussian sampling |
+| **Pixel Geometry** | GPU Shader | Low | Simple UV transform |
+| **Screen Tint** | GPU Shader | Low | Color matrix multiply |
+| **Afterglow** | CPU | **High** | Per-pixel persistence (~92k pixels/frame) |
+
+**Performance Recommendations:**
+
+- **For best CPU performance:** Use presets without afterglow (Sharp Pixels, Classic CRT, Arcade Cabinet)
+- **For authentic phosphor glow:** Enable afterglow only when needed (Green/Amber Monitor, Phosphor Glow, Vintage TV)
+- **Afterglow disabled = zero CPU overhead:** When `Afterglow Duration (ms) = 0`, the CPU loop is bypassed entirely
+
+**Why Afterglow Uses CPU:**
+
+OBS recordings capture async video frames *before* GPU shaders run. To ensure afterglow appears correctly in recordings (not just the preview), the effect must be computed on the CPU before the frame is submitted to OBS. GPU-only afterglow would be invisible in recordings.
 
 ### Recording Features 📹
 

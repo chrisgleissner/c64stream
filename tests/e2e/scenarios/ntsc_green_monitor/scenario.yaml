@@ -1,0 +1,9 @@
+name: NTSC Green Monitor
+format: NTSC
+preset: Green Monitor
+assertions:
+  - video_quality
+  - audio
+  - tint
+  - afterglow
+  - scanlines

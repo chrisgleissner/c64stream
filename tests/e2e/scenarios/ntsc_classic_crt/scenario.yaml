@@ -1,0 +1,8 @@
+name: NTSC Classic CRT
+format: NTSC
+preset: Classic CRT
+assertions:
+  - video_quality
+  - audio
+  - afterglow
+  - scanlines

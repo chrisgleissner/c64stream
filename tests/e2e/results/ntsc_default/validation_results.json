@@ -1,0 +1,91 @@
+{
+  "udp_reception": {
+    "status": "pass",
+    "details": "19252/19252 packets (18000 video, 1252 audio)"
+  },
+  "frame_processing": {
+    "status": "pass",
+    "details": "1550 frames processed"
+  },
+  "video_recording": {
+    "status": "pass",
+    "details": "13.8 MB"
+  },
+  "packet_integrity": {
+    "status": "pass",
+    "details": "19.0s duration"
+  },
+  "video_brightness": {
+    "status": "pass",
+    "details": "Normal (mean=28.2)"
+  },
+  "av_sync_details": {
+    "total_audio_pops": 3,
+    "total_analyzed": 3,
+    "total_video_pops": 3,
+    "perfect_sync_count": 3,
+    "sync_accuracy_percent": 100.0,
+    "tolerance_ms": 50,
+    "sync_details": [
+      {
+        "audio_pop_time_ms": 7804,
+        "closest_video_pop_ms": 7766.666666666667,
+        "closest_video_pop_frame": 466,
+        "difference_ms": 37.33333333333303,
+        "is_synced": true,
+        "included_in_analysis": true,
+        "ignore_reason": null,
+        "channel": "L",
+        "traffic": "yellow"
+      },
+      {
+        "audio_pop_time_ms": 8825,
+        "closest_video_pop_ms": 8783.333333333334,
+        "closest_video_pop_frame": 527,
+        "difference_ms": 41.66666666666606,
+        "is_synced": true,
+        "included_in_analysis": true,
+        "ignore_reason": null,
+        "channel": "R",
+        "traffic": "yellow"
+      },
+      {
+        "audio_pop_time_ms": 9825,
+        "closest_video_pop_ms": 9783.333333333334,
+        "closest_video_pop_frame": 587,
+        "difference_ms": 41.66666666666606,
+        "is_synced": true,
+        "included_in_analysis": true,
+        "ignore_reason": null,
+        "channel": "L",
+        "traffic": "yellow"
+      }
+    ],
+    "is_perfectly_synced": true,
+    "last_event_within_limit": true,
+    "duration_ms": 18966.666,
+    "video_pop_times_ms": [
+      7766.666666666667,
+      8783.333333333334,
+      9783.333333333334
+    ],
+    "video_pop_frame_indices": [
+      466,
+      527,
+      587
+    ],
+    "traffic": [
+      "yellow",
+      "yellow",
+      "yellow"
+    ]
+  },
+  "av_sync": {
+    "status": "pass",
+    "details": "3/3 analyzed pops synced"
+  },
+  "scanlines": {
+    "status": "skipped",
+    "details": "Skipped (not enabled)"
+  }
+}
