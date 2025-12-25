@@ -61,7 +61,7 @@ OPTIONS:
     --install-deps      Install build dependencies
     --install-e2e-deps  Also install E2E testing dependencies (OBS, xvfb, etc.)
     --install           Install plugin to OBS after building
-    --e2e[=SCENARIO]    Run E2E tests after building and installing (default scenario: ntsc)
+    --e2e[=SCENARIO]    Run E2E tests after building and installing (default scenario: ntsc_default)
     --e2e-scenarios     Run all scenarios in tests/e2e/scenarios/* and write results to tests/e2e/results/<scenario>
     --verbose           Enable verbose output
     --help              Show this help message
@@ -1066,21 +1066,21 @@ run_e2e_scenarios() {
 
     if [[ ! -d "$scenarios_root" ]]; then
         log_warning "No scenarios directory found at $scenarios_root; creating starters..."
-        mkdir -p "$scenarios_root/pal/overrides" "$scenarios_root/ntsc/overrides"
-        cat > "$scenarios_root/pal/scenario.yaml" <<EOS
-name: PAL Baseline
+        mkdir -p "$scenarios_root/pal_default/overrides" "$scenarios_root/ntsc_default/overrides"
+        cat > "$scenarios_root/pal_default/scenario.yaml" <<EOS
+name: PAL Default
 format: PAL
 overrides_dir: overrides
 EOS
-        cat > "$scenarios_root/ntsc/scenario.yaml" <<EOS
-name: NTSC Baseline
+        cat > "$scenarios_root/ntsc_default/scenario.yaml" <<EOS
+name: NTSC Default
 format: NTSC
 overrides_dir: overrides
 EOS
         # Provide example override of properties (optional)
-        mkdir -p "$scenarios_root/pal/overrides/plugins/c64stream/data" "$scenarios_root/ntsc/overrides/plugins/c64stream/data"
+        mkdir -p "$scenarios_root/pal_default/overrides/plugins/c64stream/data" "$scenarios_root/ntsc_default/overrides/plugins/c64stream/data"
         # Leave overrides empty by default; users can add files mirroring ~/.config/obs-studio
-        log_info "Created starter PAL/NTSC scenarios"
+        log_info "Created starter PAL/NTSC default scenarios"
     fi
 
     mkdir -p "$results_root"
@@ -1306,7 +1306,7 @@ main() {
 
     if [[ "$RUN_E2E" == "true" ]]; then
         if [[ -z "$E2E_SCENARIO" ]]; then
-            E2E_SCENARIO="ntsc"
+            E2E_SCENARIO="ntsc_default"
         fi
         E2E_SCENARIO="$(echo "$E2E_SCENARIO" | tr '[:upper:]' '[:lower:]')"
     fi
