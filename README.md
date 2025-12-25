@@ -2,9 +2,9 @@
 # C64 Stream
 
 [![Build](https://github.com/chrisgleissner/c64stream/actions/workflows/push.yaml/badge.svg?branch=main)](https://github.com/chrisgleissner/c64stream/actions/workflows/push.yaml)
-[![E2E Tests](https://img.shields.io/badge/E2E%20Tests-Results-blue)](https://github.com/chrisgleissner/c64u-obs/blob/main/tests/e2e/results/README.md)
+[![E2E Tests](https://img.shields.io/badge/E2E%20Tests-Results-blue)](https://github.com/chrisgleissner/c64stream/blob/main/tests/e2e/results/README.md)
 [![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](https://github.com/chrisgleissner/c64u-obs/releases)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](https://github.com/chrisgleissner/c64stream/releases)
 
 Bridge your Commodore 64 Ultimate directly to [OBS Studio](https://obsproject.com/) for seamless streaming and recording over your network connection.
 
@@ -330,8 +330,8 @@ When **"Network and Streaming Events (CSV)"** recording is enabled, the plugin g
 - `network.csv` - UDP packet reception log with network timing analysis
 
 Examples from recent automated E2E runs against a 'mocked' (i.e. simulated) Ultimate 64:
-- PAL: [`obs.csv`](tests/e2e/results/pal/obs.csv), [`network.csv`](tests/e2e/results/pal/network.csv)
-- NTSC: [`obs.csv`](tests/e2e/results/ntsc/obs.csv), [`network.csv`](tests/e2e/results/ntsc/network.csv)
+- PAL: [`obs.csv`](tests/e2e/results/pal_default/obs.csv), [`network.csv`](tests/e2e/results/pal_default/network.csv)
+- NTSC: [`obs.csv`](tests/e2e/results/ntsc_default/obs.csv), [`network.csv`](tests/e2e/results/ntsc_default/network.csv)
 
 **Sample OBS Timeline (obs.csv):**
 
@@ -367,8 +367,8 @@ This project is continuously validated with automated end-to-end (E2E) tests tha
 - What you get: a short, self-contained report with packet stats, recording links, and an A/V “Pop synchronization” summary (timing precision 0.1 ms)
 - Where to see it: the latest reports are published to the repository under
   - [Main E2E results](tests/e2e/results/README.md)
-  - [PAL results](tests/e2e/results/pal/README.md)
-  - [NTSC results](tests/e2e/results/ntsc/README.md)
+  - [PAL results](tests/e2e/results/pal_default/README.md)
+  - [NTSC results](tests/e2e/results/ntsc_default/README.md)
 - How to run locally (Linux): `./local-build.sh linux --e2e-scenarios --install` (produces the report above)
 - Learn more: see the in-depth guide in [`doc/e2e.md`](doc/e2e.md)
 
@@ -378,15 +378,15 @@ The following recordings were produced by the latest E2E test runs for PAL and N
 
 #### PAL
 
-- [Video](tests/e2e/results/pal/c64_recording.mp4)
-- [Sample frame](tests/e2e/results/pal/c64_recording_still.png)
+- [Video](tests/e2e/results/pal_default/c64_recording.mp4)
+- [Sample frame](tests/e2e/results/pal_default/c64_recording_still.png)
 
 ---
 
 #### NTSC
 
-- [Video](tests/e2e/results/ntsc/c64_recording.mp4)
-- [Sample frame](tests/e2e/results/ntsc/c64_recording_still.png)
+- [Video](tests/e2e/results/ntsc_default/c64_recording.mp4)
+- [Sample frame](tests/e2e/results/ntsc_default/c64_recording_still.png)
 
 
 ## Network Details
