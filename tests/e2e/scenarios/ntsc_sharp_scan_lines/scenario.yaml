@@ -6,11 +6,14 @@
 # Note: scan_line_strength is set to 0.5 (not 1.0) to ensure sufficient visible content
 # for video quality validation. With 1.0, the scanlines make ~50% of rows completely black,
 # leaving insufficient content for the assertions to verify.
+#
+# Uses 'solid' pattern (light blue fill) for clearer scanline visibility compared to
+# 'diagonal' which has mostly black areas between thin colored stripes.
 
 name: NTSC Sharp Scan Lines
 format: NTSC
 preset: Default
-pattern: diagonal
+pattern: solid
 
 # Override effect settings for a crisp scanline signal.
 overrides:
