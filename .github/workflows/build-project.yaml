@@ -519,6 +519,11 @@ jobs:
 
 
   # E2E Basic Test (Multi-Distro) - runs basic E2E scenario on all Linux distributions
+  # NOTE: RHEL/CentOS excluded from E2E tests due to OBS version constraints:
+  #   - RPM Fusion provides OBS 30.0.0 which has known recording issues
+  #   - Flatpak OBS 32.x works but cannot load host plugins (sandboxing)
+  #   - Building OBS from source requires FFmpeg 6.1+ (RHEL only has 5.x)
+  # RHEL build and load tests still run; only E2E (recording) is excluded.
   e2e-basic:
     name: E2E Basic (${{ matrix.display_name }}) 🧪
     if: ${{ inputs.run_e2e }}
@@ -540,9 +545,6 @@ jobs:
           - distro: arch
             image_tag: ghcr.io/${{ github.repository }}/arch-build:latest
             display_name: Arch Linux
-          - distro: rhel
-            image_tag: ghcr.io/${{ github.repository }}/rhel-build:latest
-            display_name: RHEL/CentOS Stream 9
     defaults:
       run:
         shell: bash

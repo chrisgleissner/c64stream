@@ -1,6 +1,12 @@
 # Pre-built RHEL/CentOS Stream container with OBS Studio and Qt6 dependencies
 # Uses CentOS Stream 9 as a freely available RHEL-compatible base
 # This dramatically speeds up CI builds by avoiding lengthy DNF installations
+#
+# NOTE: E2E tests are NOT supported on RHEL due to OBS version constraints:
+# - RPM Fusion provides OBS 30.0.0 which has known recording issues
+# - Flatpak OBS 32.x works but cannot load host plugins due to sandboxing
+# - Building OBS from source requires FFmpeg 6.1+ (RHEL only has 5.x)
+# Build and load tests work fine; only E2E (recording) is excluded.
 
 FROM quay.io/centos/centos:stream9
 
