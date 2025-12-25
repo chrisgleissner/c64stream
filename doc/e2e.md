@@ -21,6 +21,31 @@ Or via convenience script (Linux):
 ./local-build.sh linux --e2e --install
 ```
 
+## CLI Options
+
+Key options for `e2e.sh`:
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--format FORMAT` | NTSC | Video format (PAL or NTSC) |
+| `--duration SECONDS` | 5 | Test duration in seconds |
+| `--frames FRAMES` | 300 | Number of frames (overridden by --duration) |
+| `--scenario NAME` | - | Named scenario from scenarios/ directory |
+| `--verbose` | off | Enable detailed logging |
+| `--csv-max-duration MS` | 1000 | Truncate CSV files to first N ms (0=disable) |
+| `--output-dir DIR` | results | Output directory for test artifacts |
+| `--skip-build` | off | Skip building plugin and tools |
+| `--no-cleanup` | off | Keep temporary files after test |
+
+### CSV Truncation
+
+By default, CSV diagnostic files (`network.csv`, `obs.csv`) are truncated to the first 1000ms of events. This keeps file sizes manageable while preserving the critical startup data for debugging.
+
+To disable truncation and keep full CSV files:
+```bash
+./e2e.sh --scenario ntsc_default --csv-max-duration 0
+```
+
 ## What It Does
 
 1. **Builds** plugin and test tools

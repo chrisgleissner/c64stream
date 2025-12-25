@@ -49,7 +49,8 @@ class E2ETest:
     def __init__(self, test_dir, video_port=21000, audio_port=21001, control_port=6400,
                  format='NTSC', frames=30, verbose=False, enable_websocket=False,
                  scenario_overrides_dir: str | None = None, scenario_name: str | None = None,
-                 scenario_id: str | None = None, output_dir: str | None = None):
+                 scenario_id: str | None = None, output_dir: str | None = None,
+                 csv_max_duration_ms: int | None = None):
         self.test_dir = Path(test_dir)
         self.video_port = video_port
         self.audio_port = audio_port
@@ -102,6 +103,9 @@ class E2ETest:
         # Track backed up properties.ini files for restoration on cleanup
         self._backed_up_properties: list[tuple[Path, Path]] = []  # (backup_path, original_path)
 
+        # CSV truncation: only keep events up to this duration from first event (ms)
+        self.csv_max_duration_ms = csv_max_duration_ms
+
     def _detect_ci_environment(self):
         """Detect if running in CI environment."""
         ci_indicators = [
@@ -110,6 +114,71 @@ class E2ETest:
             'BUILDKITE', 'DRONE', 'TEAMCITY_VERSION'
         ]
         return any(os.environ.get(indicator) for indicator in ci_indicators)
+
+    def _copy_csv_truncated(self, src: Path, dest: Path):
+        """Copy a CSV file, optionally truncating to first N ms of events.
+
+        If csv_max_duration_ms is set, keeps only the header and rows where
+        the elapsed_us (second column) is within csv_max_duration_ms of the
+        first event's timestamp. CSV timestamps are in microseconds.
+        """
+        if self.csv_max_duration_ms is None:
+            # No truncation requested - simple copy
+            shutil.copy2(src, dest)
+            return
+
+        with open(src, 'r') as f:
+            lines = f.readlines()
+
+        if len(lines) <= 1:
+            # Only header or empty - just copy
+            shutil.copy2(src, dest)
+            return
+
+        # Parse header to find elapsed_us column (usually column 1)
+        header = lines[0]
+        header_cols = header.strip().split(',')
+        try:
+            ts_col = header_cols.index('elapsed_us')
+        except ValueError:
+            # No elapsed_us column - try first numeric column
+            ts_col = 1 if len(header_cols) > 1 else 0
+            self.log(f"⚠️ No 'elapsed_us' column in {src.name}, using column {ts_col}")
+
+        # Parse first event timestamp
+        first_data = lines[1].strip().split(',')
+        try:
+            first_timestamp_us = float(first_data[ts_col])
+        except (ValueError, IndexError):
+            # Can't parse timestamp - just copy unmodified
+            self.log(f"⚠️ Could not parse timestamp in {src.name}, copying full file")
+            shutil.copy2(src, dest)
+            return
+
+        # Convert ms to us for comparison
+        max_timestamp_us = first_timestamp_us + (self.csv_max_duration_ms * 1000)
+
+        # Filter lines
+        output_lines = [header]
+        truncated_count = 0
+        for line in lines[1:]:
+            parts = line.strip().split(',')
+            try:
+                ts = float(parts[ts_col])
+                if ts <= max_timestamp_us:
+                    output_lines.append(line)
+                else:
+                    truncated_count += 1
+            except (ValueError, IndexError):
+                # Keep lines we can't parse
+                output_lines.append(line)
+
+        with open(dest, 'w') as f:
+            f.writelines(output_lines)
+
+        if truncated_count > 0:
+            self.log(f"📉 Truncated {truncated_count} rows from {src.name} "
+                     f"(keeping first {self.csv_max_duration_ms}ms)")
 
     def _configure_timeouts(self):
         """Configure timeouts based on environment."""
@@ -383,16 +452,16 @@ class E2ETest:
             else:
                 shutil.copy2(item, obs_config_dir / item.name)
 
-        # Replace variables in the copied configuration
-        self._replace_config_variables(obs_config_dir)
-
-        # Apply scenario overrides if provided
+        # Apply scenario overrides if provided (BEFORE variable replacement)
         if self.scenario_overrides_dir and self.scenario_overrides_dir.exists():
             try:
                 self._apply_scenario_overrides(obs_config_dir, self.scenario_overrides_dir)
                 self.log(f"✅ Applied scenario overrides from {self.scenario_overrides_dir}")
             except Exception as e:
                 self.log(f"⚠️ Failed to apply scenario overrides from {self.scenario_overrides_dir}: {e}")
+
+        # Replace variables in the configuration (after overrides so variables in overrides are replaced too)
+        self._replace_config_variables(obs_config_dir)
 
         # Clean up state files that could trigger dialogs
         self._cleanup_obs_state_files(obs_config_dir)
@@ -1185,18 +1254,16 @@ class E2ETest:
         else:
             self.log(f"❌ obs.csv not found: {obs_csv}")
 
-        # Copy CSV files to test output for analysis
+        # Copy CSV files to test output for analysis (with optional truncation)
         try:
             if network_csv.exists():
-                import shutil
                 dest_network = self.output_dir / 'network.csv'
-                shutil.copy2(network_csv, dest_network)
+                self._copy_csv_truncated(network_csv, dest_network)
                 self.log(f"✅ Copied network.csv to: {dest_network}")
 
             if obs_csv.exists():
-                import shutil
                 dest_obs = self.output_dir / 'obs.csv'
-                shutil.copy2(obs_csv, dest_obs)
+                self._copy_csv_truncated(obs_csv, dest_obs)
                 self.log(f"✅ Copied obs.csv to: {dest_obs}")
 
         except Exception as e:
@@ -2556,6 +2623,8 @@ def main():
                         help='Scenario id (folder name) for gating checks (e.g., ntsc_default)')
     parser.add_argument('--output-dir', default=None,
                         help='Directory where test artifacts are written (default: test_output under --test-dir)')
+    parser.add_argument('--csv-max-duration', type=int, default=1000,
+                        help='Truncate CSV files to first N milliseconds of events (default: 1000, use 0 to disable)')
 
     args = parser.parse_args()
 
@@ -2588,6 +2657,9 @@ def main():
             return 1
 
     # Create and run test
+    # Parse csv_max_duration: 0 means disable truncation (None)
+    csv_max_duration_ms = args.csv_max_duration if args.csv_max_duration > 0 else None
+
     test = E2ETest(
         args.test_dir,
         video_port=args.video_port,
@@ -2600,7 +2672,8 @@ def main():
         scenario_overrides_dir=args.scenario_overrides,
         scenario_name=args.scenario_name,
         scenario_id=args.scenario_id,
-        output_dir=args.output_dir
+        output_dir=args.output_dir,
+        csv_max_duration_ms=csv_max_duration_ms
     )
 
     # Store reference for signal handler

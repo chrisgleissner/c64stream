@@ -7,8 +7,13 @@
    - If it fails, run `./build-aux/run-clang-format <files...>` and re-run the check.
 2. **E2E is LOCAL ONLY**: do **not** run E2E tests in cloud/CI environments (known instability). Only run E2E locally with a working GUI.
 3. **Agent entrypoint**: also see `AGENTS.md` (references this file and standard workflows).
-4. **Before declaring work “complete”**: do a documentation review (docs match code/behavior) and run a full local E2E scenario suite (all scenarios).
-
+4. **Before declaring work “complete”**: do a documentation review (docs match code/behavior) and run a full local E2E scenario suite (all scenarios).5. **NEVER skip tests or ignore problems**: When facing test failures, performance issues, or other problems:
+   - **Do NOT** add `skip`, `ci_skip`, `@pytest.mark.skip`, or similar markers to bypass tests
+   - **Do NOT** comment out failing code or tests
+   - **Do NOT** reduce test coverage or assertions to make tests pass
+   - **ALWAYS** fix the root cause of the problem
+   - If a fix requires significant work, document the issue and create a plan, but never ship with skipped tests
+   - This applies to all tests, including unit tests, integration tests, and E2E tests, as well as any environment, both local and cloud/CI
 ## Project Overview
 OBS Studio plugin for streaming C64 Ultimate device video/audio over network. See `doc/c64-stream-spec.md` for protocol details.
 

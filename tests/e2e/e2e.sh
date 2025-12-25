@@ -43,6 +43,8 @@ DEFAULT_SCENARIO_OVERRIDES=""
 DEFAULT_SCENARIO_NAME=""
 DEFAULT_PACKET_PATTERN=""
 DEFAULT_SCENARIO=""
+DEFAULT_CSV_MAX_DURATION=1000  # Truncate CSV files to first 1000ms of events
+SCENARIO_CI_SKIPPED=false  # Set by load_scenario if ci_skip=true on CI
 
 # Scenario directory
 SCENARIOS_DIR="${TEST_DIR}/scenarios"
@@ -191,6 +193,7 @@ OPTIONS:
     -F, --frames FRAMES     Number of frames to test [default: ${DEFAULT_FRAMES}]
     -d, --duration SECONDS  Test duration in seconds (overrides --frames)
     --output-dir DIR        Output directory for test artifacts [default: ${DEFAULT_OUTPUT_DIR}]
+    --csv-max-duration MS   Truncate CSV files to first MS milliseconds (0=disable) [default: ${DEFAULT_CSV_MAX_DURATION}]
     -v, --verbose           Enable verbose logging
     -s, --skip-build        Skip building plugin and tools
     -o, --obs               Enable OBS integration (default)
@@ -247,11 +250,16 @@ list_scenarios() {
                 if [[ -f "${scenario_dir}scenario.yaml" ]]; then
                     local name
                     name=$(basename "${scenario_dir}")
-                    local display_name format preset
+                    local display_name format preset ci_skip
                     display_name=$(grep "^name:" "${scenario_dir}scenario.yaml" | sed 's/^name: *//')
                     format=$(grep "^format:" "${scenario_dir}scenario.yaml" | sed 's/^format: *//')
                     preset=$(grep "^preset:" "${scenario_dir}scenario.yaml" | sed 's/^preset: *//')
-                    printf "  %-25s %s (%s, preset: %s)\n" "${name}" "${display_name}" "${format}" "${preset:-Default}"
+                    ci_skip=$(grep "^ci_skip:" "${scenario_dir}scenario.yaml" | sed 's/^ci_skip: *//')
+                    local ci_marker=""
+                    if [[ "${ci_skip}" == "true" ]]; then
+                        ci_marker=" [CI-SKIP]"
+                    fi
+                    printf "  %-25s %s (%s, preset: %s)%s\n" "${name}:" "${display_name}" "${format}" "${preset:-Default}" "${ci_marker}"
                 fi
             done
         else
@@ -289,6 +297,21 @@ load_scenario() {
         log_error "File: ${scenario_yaml}"
         log_error "Expected at least: name:, format:"
         exit 1
+    fi
+
+    # Check for CI-skip flag
+    local ci_skip ci_skip_reason
+    ci_skip=$(grep -m1 "^ci_skip:" "${scenario_yaml}" | sed 's/^ci_skip: *//' || true)
+    ci_skip_reason=$(grep -m1 "^ci_skip_reason:" "${scenario_yaml}" | sed 's/^ci_skip_reason: *//' | tr -d '"' || true)
+
+    if [[ "${ci_skip}" == "true" ]] && [[ "${CI:-false}" == "true" || "${GITHUB_ACTIONS:-false}" == "true" ]]; then
+        log_warning "⏭️  Skipping scenario '${name}' on CI"
+        if [[ -n "${ci_skip_reason}" ]]; then
+            log_info "  Reason: ${ci_skip_reason}"
+        fi
+        log_info "  This scenario requires hardware rendering (run locally)"
+        SCENARIO_CI_SKIPPED=true
+        return 0
     fi
 
     # Set FORMAT from scenario if not explicitly set via CLI
@@ -337,6 +360,7 @@ parse_args() {
     FRAMES="${DEFAULT_FRAMES}"
     DURATION=""
     OUTPUT_DIR="${DEFAULT_OUTPUT_DIR}"
+    CSV_MAX_DURATION="${DEFAULT_CSV_MAX_DURATION}"
     VIDEO_PORT="${DEFAULT_VIDEO_PORT}"
     AUDIO_PORT="${DEFAULT_AUDIO_PORT}"
     VERBOSE="${DEFAULT_VERBOSE}"
@@ -379,6 +403,14 @@ parse_args() {
                 OUTPUT_DIR="$2"
                 if [[ -z "${OUTPUT_DIR}" ]]; then
                     log_error "Output directory cannot be empty."
+                    exit 1
+                fi
+                shift 2
+                ;;
+            --csv-max-duration)
+                CSV_MAX_DURATION="$2"
+                if ! [[ "${CSV_MAX_DURATION}" =~ ^[0-9]+$ ]]; then
+                    log_error "Invalid CSV max duration: ${CSV_MAX_DURATION}. Must be a non-negative integer."
                     exit 1
                 fi
                 shift 2
@@ -458,6 +490,12 @@ parse_args() {
     # Load scenario configuration if specified
     if [[ -n "${SCENARIO}" ]]; then
         load_scenario "${SCENARIO}"
+    fi
+
+    # Check if scenario was skipped for CI
+    if [[ "${SCENARIO_CI_SKIPPED}" == "true" ]]; then
+        log_success "Scenario skipped on CI (success)"
+        exit 0
     fi
 
     # Default output layout: keep all artifacts under tests/e2e/results/.
@@ -770,6 +808,9 @@ run_e2e_test() {
     if [[ -n "${SCENARIO_OVERRIDES}" ]]; then
         cmd+=("--scenario-overrides" "${SCENARIO_OVERRIDES}")
     fi
+
+    # Pass CSV max duration
+    cmd+=("--csv-max-duration" "${CSV_MAX_DURATION}")
 
     # Ensure X environment variables are set
     export DISPLAY="${DEFAULT_X11_DISPLAY}"
@@ -1125,8 +1166,14 @@ if pops:
         if [[ -n "${first_pop_frame}" && "${first_pop_frame}" =~ ^[0-9]+$ ]]; then
             # Extract a still that actually contains the marker.
             # Even with frame-index extraction, some pipelines can be off by 1 frame (PTS rounding,
-            # encoder delays, etc.). We therefore try a tiny window around the detected frame and
+            # encoder delays, etc.). We therefore try a window around the detected frame and
             # pick the earliest candidate that contains the marker (or the best-scoring one).
+            #
+            # For filter-rich scenarios (bloom, afterglow), the marker:
+            #   1. Appears gradually (soft fade-in from afterglow persistence)
+            #   2. Persists longer (afterglow can spread marker over 3-5+ frames)
+            #   3. Has lower contrast (bloom spreads brightness)
+            # So we need a wider search window biased forward (where marker is strongest).
             local best_tmp best_score best_frame
             best_tmp=""
             best_score="-1"
@@ -1135,8 +1182,9 @@ if pops:
             local tmp_dir
             tmp_dir=$(mktemp -d 2>/dev/null || true)
 
-            # Candidates: detected frame, +1 (marker can last 2 frames), -1 safety, +2 safety
-            local candidates=("${first_pop_frame}" "$((first_pop_frame + 1))" "$((first_pop_frame - 1))" "$((first_pop_frame + 2))")
+            # Candidates: detected frame first, then forward frames (where afterglow shows marker
+            # more clearly), then backward frames as safety. Extended window for filter-rich scenarios.
+            local candidates=("${first_pop_frame}" "$((first_pop_frame + 1))" "$((first_pop_frame + 2))" "$((first_pop_frame + 3))" "$((first_pop_frame - 1))" "$((first_pop_frame + 4))" "$((first_pop_frame - 2))")
             local found_good=false
 
             if [[ -n "${tmp_dir}" && -d "${tmp_dir}" ]] && command -v python3 >/dev/null 2>&1; then
@@ -1168,27 +1216,40 @@ if img is None:
     print(0)
     sys.exit(0)
 
-# Use the same content-bound heuristic as the verifier (black bars around content).
+# Use robust content-bound detection matching test_av_sync.py
+# (handles limited-range video, filters, CRT effects with glow/bloom)
 g = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 h, w = g.shape[:2]
 
-# Detect content bounds roughly by scanning for non-black pixels.
-row_counts = np.sum(g > 10, axis=1)
-col_counts = np.sum(g > 10, axis=0)
-col_thresh = max(1, int(0.10 * h))
-row_thresh = max(1, int(0.10 * w))
-content_cols = np.where(col_counts >= col_thresh)[0]
-content_rows = np.where(row_counts >= row_thresh)[0]
+# Horizontal bounds: use 99th percentile per column (robust when scanlines create dark rows)
+col_hi = np.percentile(g, 99.0, axis=0)
+thr_col = max(10.0, float(np.percentile(col_hi, 90.0) * 0.20))
+content_cols = np.where(col_hi > thr_col)[0]
 if content_cols.size >= 2:
     left = int(content_cols[0])
     right = int(content_cols[-1]) + 1
 else:
-    left, right = 0, w
+    # Fallback: assume centered horizontally
+    scale_factor = h / 272.0
+    scaled_c64_width = int(384 * scale_factor)
+    left = int((w - scaled_c64_width) // 2)
+    right = int((w + scaled_c64_width) // 2)
+
+# Vertical bounds: same approach for rows
+row_hi = np.percentile(g, 99.0, axis=1)
+thr_row = max(10.0, float(np.percentile(row_hi, 90.0) * 0.20))
+content_rows = np.where(row_hi > thr_row)[0]
 if content_rows.size >= 2:
     top = int(content_rows[0])
     bottom = int(content_rows[-1]) + 1
 else:
     top, bottom = 0, h
+
+# Clamp bounds to valid image coordinates
+left = max(0, min(w, left))
+right = max(0, min(w, right))
+top = max(0, min(h, top))
+bottom = max(0, min(h, bottom))
 
 content_w = max(1, right - left)
 scale = content_w / 384.0

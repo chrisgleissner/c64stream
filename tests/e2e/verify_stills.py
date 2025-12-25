@@ -12,29 +12,42 @@ def _compute_marker_score(img: Image.Image, area_base_px: int) -> dict:
     # Match the ROI heuristic used by tests/e2e/e2e.sh when selecting the still:
     # 1) find approximate content bounds (avoid black bars)
     # 2) use a square ROI in the content's lower-right
-    # 3) score = bright_pixels(>200) + max(0, mean-median)*10
+    # 3) score = bright_pixels(>threshold) + max(0, mean-median)*10
     g = np.asarray(img.convert("L"))
     height, width = g.shape
 
-    row_counts = np.sum(g > 10, axis=1)
-    col_counts = np.sum(g > 10, axis=0)
-    col_thresh = max(1, int(0.10 * height))
-    row_thresh = max(1, int(0.10 * width))
+    # Use robust content-bound detection matching test_av_sync.py
+    # (handles limited-range video, filters, CRT effects with glow/bloom)
 
-    content_cols = np.where(col_counts >= col_thresh)[0]
-    content_rows = np.where(row_counts >= row_thresh)[0]
-
+    # Horizontal bounds: use 99th percentile per column (robust when scanlines create dark rows)
+    col_hi = np.percentile(g, 99.0, axis=0)
+    thr_col = max(10.0, float(np.percentile(col_hi, 90.0) * 0.20))
+    content_cols = np.where(col_hi > thr_col)[0]
     if content_cols.size >= 2:
         left = int(content_cols[0])
         right = int(content_cols[-1]) + 1
     else:
-        left, right = 0, width
+        # Fallback: assume centered horizontally
+        scale_factor = height / 272.0
+        scaled_c64_width = int(384 * scale_factor)
+        left = int((width - scaled_c64_width) // 2)
+        right = int((width + scaled_c64_width) // 2)
 
+    # Vertical bounds: same approach for rows
+    row_hi = np.percentile(g, 99.0, axis=1)
+    thr_row = max(10.0, float(np.percentile(row_hi, 90.0) * 0.20))
+    content_rows = np.where(row_hi > thr_row)[0]
     if content_rows.size >= 2:
         top = int(content_rows[0])
         bottom = int(content_rows[-1]) + 1
     else:
         top, bottom = 0, height
+
+    # Clamp bounds to valid image coordinates
+    left = max(0, min(width, left))
+    right = max(0, min(width, right))
+    top = max(0, min(height, top))
+    bottom = max(0, min(height, bottom))
 
     content_w = max(1, right - left)
     scale = float(content_w) / 384.0
