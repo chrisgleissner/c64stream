@@ -1,12 +1,12 @@
 # C64 Stream E2E Test Report
 
-Generated: 2025-12-25 12:18:07 UTC
+Generated: 2025-12-25 12:22:03 UTC
 
 ## Test configuration
 
 - Format: NTSC
-- Frames: 180
-- Duration: 3.0 seconds
+- Frames: 300
+- Duration: 5.0 seconds
 - Video Port: 11000
 - Audio Port: 11001
 - OBS Enabled: true
@@ -26,29 +26,31 @@ Generated: 2025-12-25 12:18:07 UTC
 
 ## Test results
 
-- ✅ Packet Generation: 10800 video, 751 audio packets
+- ✅ Packet Generation: 18000 video, 1252 audio packets
 - ✅ UDP Replay: Completed successfully
 - Events: [network.csv](network.csv), [obs.csv](obs.csv)
 
 ### A/V Sync
 
-- ✅ Good synchronization (100.0%): avg offset 20.7ms, max 20.7ms
+- ✅ Good synchronization (100.0%): avg offset 25.1ms, max 30.7ms
 
 #### Sync Details
 
-- 🟢 Pop #1 [L]: audio=7804.0ms, video=7783.3ms (frame 467), diff=20.7ms
+- 🟡 Pop #1 [L]: audio=7814.0ms, video=7783.3ms (frame 467), diff=30.7ms
+- 🟡 Pop #2 [R]: audio=8814.0ms, video=8783.3ms (frame 527), diff=30.7ms
+- 🟢 Pop #3 [L]: audio=9814.0ms, video=9800.0ms (frame 588), diff=14.0ms
 
-- Channels: L
+- Channels: LRL
 - 🔁 Channel alternation: OK (alternating, starts with L)
 
 ### Video
 
 - Download: [c64_recording.mp4](c64_recording.mp4)
-- Duration: 17.0 s
+- Duration: 19.0 s
 
 
 ### Sample Frame
 
 ![Sample Frame](./c64_recording_still.png)
 - Top-left shows the frame index (color = frame_num % 16). Top-right shows a stable 4×4 tile of all 16 VIC colours (drift check). Center shows scrolling colour bars. Bottom-right flashes with a pop sound for A/V sync checks / afterglow tail.
-- Taken from the 17.0 s video above.
+- Taken from the 19.0 s video above.
