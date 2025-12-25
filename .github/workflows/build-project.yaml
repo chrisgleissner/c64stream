@@ -858,13 +858,13 @@ jobs:
           fi
 
 
-  # E2E Full Test (Ubuntu, Matrix) - runs all scenarios in parallel after basic passes
-  # Limited to 3 concurrent jobs to prevent runner overload causing rendering issues
+  # E2E Full Test (Ubuntu, Matrix) - runs all scenarios in parallel
+  # Runs concurrently with e2e-basic for faster CI
   e2e-full:
     name: E2E Full (${{ matrix.scenario }}) 🧪
     if: ${{ inputs.run_e2e }}
     runs-on: ubuntu-24.04
-    needs: [check-event, ubuntu-build, e2e-basic]
+    needs: [check-event, ubuntu-build]
     strategy:
       fail-fast: false
       max-parallel: 20
