@@ -1018,7 +1018,14 @@ void c64_video_render(void *data, gs_effect_t *effect)
         if (dt_ms < 1.0f)
             dt_ms = 1.0f;
     } else {
-        dt_ms = 16.67f; // ~60fps default
+        // Fallback to configured frame timing for the first frame or non-monotonic timestamps
+        if (context->frame_interval_ns > 0) {
+            dt_ms = (float)context->frame_interval_ns / 1000000.0f;
+        } else if (context->expected_fps > 0.0f) {
+            dt_ms = 1000.0f / (float)context->expected_fps;
+        } else {
+            dt_ms = 16.67f; // Generic ~60fps default if no timing info available
+        }
     }
     context->last_frame_time_ns = now_ns;
 
