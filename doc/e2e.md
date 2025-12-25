@@ -10,7 +10,8 @@ Validates complete UDP packet reception, video processing, audio synchronization
 
 ```bash
 cd tests/e2e
-./e2e.sh              # 5-second NTSC test
+./e2e.sh              # 5-second NTSC test (default scenario)
+./e2e.sh --all        # Run ALL scenarios in sequence
 ./e2e.sh --format PAL --duration 5 --verbose  # 5-second PAL test
 ./e2e.sh --scenario ntsc_amber_monitor --verbose  # Named scenario with assertions
 ```
@@ -18,7 +19,8 @@ cd tests/e2e
 Or via convenience script (Linux):
 
 ```bash
-./local-build.sh linux --e2e --install
+./local-build.sh linux --e2e --install           # Single scenario (ntsc_default)
+./local-build.sh linux --e2e-scenarios --install  # ALL scenarios
 ```
 
 ## CLI Options
@@ -27,10 +29,12 @@ Key options for `e2e.sh`:
 
 | Option | Default | Description |
 |--------|---------|-------------|
+| `--all` | off | Run ALL scenarios in sequence |
 | `--format FORMAT` | NTSC | Video format (PAL or NTSC) |
 | `--duration SECONDS` | 5 | Test duration in seconds |
 | `--frames FRAMES` | 300 | Number of frames (overridden by --duration) |
 | `--scenario NAME` | - | Named scenario from scenarios/ directory |
+| `--list-scenarios` | - | List all available scenarios |
 | `--verbose` | off | Enable detailed logging |
 | `--csv-max-duration MS` | 1000 | Truncate CSV files to first N ms (0=disable) |
 | `--output-dir DIR` | results | Output directory for test artifacts |

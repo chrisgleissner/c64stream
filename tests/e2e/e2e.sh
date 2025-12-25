@@ -45,6 +45,7 @@ DEFAULT_PACKET_PATTERN=""
 DEFAULT_SCENARIO=""
 DEFAULT_CSV_MAX_ROWS=1000  # Truncate CSV files to first 1000 rows
 SCENARIO_CI_SKIPPED=false  # Set by load_scenario if ci_skip=true on CI
+DEFAULT_RUN_ALL_SCENARIOS=false  # Run all scenarios in sequence
 
 # Scenario directory
 SCENARIOS_DIR="${TEST_DIR}/scenarios"
@@ -200,6 +201,7 @@ OPTIONS:
     --no-obs                Disable OBS integration
     --no-cleanup            Skip cleanup of temporary files
     --monitor-resources     Enable periodic system resource monitoring
+    --all                   Run ALL scenarios in sequence
     -h, --help             Show this help message
 
 EXAMPLES:
@@ -220,6 +222,9 @@ EXAMPLES:
 
     # Run a specific scenario (auto-discovers format and settings)
     $0 --scenario ntsc_amber_monitor --verbose
+
+    # Run ALL scenarios (results saved to results/<scenario>/)
+    $0 --all --verbose
 
     # List available scenarios
     $0 --list-scenarios
@@ -372,6 +377,7 @@ parse_args() {
     SCENARIO_NAME="${DEFAULT_SCENARIO_NAME}"
     SCENARIO="${DEFAULT_SCENARIO}"
     PACKET_PATTERN="${DEFAULT_PACKET_PATTERN}"
+    RUN_ALL_SCENARIOS="${DEFAULT_RUN_ALL_SCENARIOS}"
 
     while [[ $# -gt 0 ]]; do
         case $1 in
@@ -474,6 +480,10 @@ parse_args() {
             --list-scenarios)
                 list_scenarios
                 exit 0
+                ;;
+            --all)
+                RUN_ALL_SCENARIOS=true
+                shift
                 ;;
             -h|--help)
                 show_help
@@ -1441,6 +1451,87 @@ cleanup() {
     fi
 }
 
+# Run all scenarios in sequence
+run_all_scenarios() {
+    local scenarios_dir="${TEST_DIR}/scenarios"
+    local passed=0
+    local failed=0
+    local skipped=0
+    local failed_scenarios=()
+
+    echo "=========================================="
+    echo "   Running ALL E2E Scenarios"
+    echo "=========================================="
+    echo
+
+    # Get list of scenarios
+    local scenarios=()
+    for scenario_dir in "${scenarios_dir}"/*/; do
+        if [[ -f "${scenario_dir}/scenario.yaml" ]]; then
+            scenarios+=("$(basename "${scenario_dir}")")
+        fi
+    done
+
+    log_info "Found ${#scenarios[@]} scenarios to run"
+    echo
+
+    # Run each scenario
+    for scenario in "${scenarios[@]}"; do
+        echo
+        echo "----------------------------------------"
+        echo "  Scenario: ${scenario}"
+        echo "----------------------------------------"
+
+        # Build command with preserved options
+        local cmd=("${SCRIPT_DIR}/e2e.sh" "--scenario" "${scenario}")
+
+        # Pass through common options
+        [[ "${VERBOSE}" == true ]] && cmd+=("--verbose")
+        [[ "${SKIP_BUILD}" == true ]] && cmd+=("--skip-build")
+        [[ "${OBS_ENABLED}" == false ]] && cmd+=("--no-obs")
+        [[ -n "${DURATION}" ]] && cmd+=("--duration" "${DURATION}")
+        [[ "${CLEANUP}" == false ]] && cmd+=("--no-cleanup")
+
+        if "${cmd[@]}"; then
+            passed=$((passed + 1))
+            log_success "Scenario ${scenario}: PASSED"
+        else
+            local exit_code=$?
+            if [[ ${exit_code} -eq 0 ]]; then
+                skipped=$((skipped + 1))
+                log_info "Scenario ${scenario}: SKIPPED"
+            else
+                failed=$((failed + 1))
+                failed_scenarios+=("${scenario}")
+                log_error "Scenario ${scenario}: FAILED"
+            fi
+        fi
+    done
+
+    # Summary
+    echo
+    echo "=========================================="
+    echo "         All Scenarios Summary"
+    echo "=========================================="
+    echo "  Total:   ${#scenarios[@]}"
+    echo "  Passed:  ${passed}"
+    echo "  Failed:  ${failed}"
+    echo "  Skipped: ${skipped}"
+    echo
+
+    if [[ ${#failed_scenarios[@]} -gt 0 ]]; then
+        log_error "Failed scenarios:"
+        for s in "${failed_scenarios[@]}"; do
+            echo "    - ${s}"
+        done
+        echo
+        return 1
+    fi
+
+    log_success "All scenarios passed!"
+    return 0
+}
+
 # Main execution
 main() {
     echo "=========================================="
@@ -1450,6 +1541,12 @@ main() {
 
     # Parse arguments
     parse_args "$@"
+
+    # If --all specified, run all scenarios and exit
+    if [[ "${RUN_ALL_SCENARIOS}" == true ]]; then
+        run_all_scenarios
+        exit $?
+    fi
 
     # Show configuration
     log_info "Test Configuration:"
