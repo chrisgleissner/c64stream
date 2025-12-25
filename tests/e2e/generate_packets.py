@@ -15,6 +15,8 @@ Creates deterministic PAL and NTSC video/audio packets with verification pops
         alternating speakers per pop (L, R, L, R, ...), starting with LEFT
     - Pop cadence: first pop at ~1000ms after start, then every 1000ms
     - Pop duration: 2 video frames (improves robustness against 1-frame capture/encode drops)
+
+Performance: Uses multiprocessing to parallelize packet generation across all CPU cores.
 """
 
 import os
@@ -23,6 +25,8 @@ import numpy as np
 import argparse
 from pathlib import Path
 import math
+from concurrent.futures import ProcessPoolExecutor, as_completed
+import multiprocessing
 
 
 # Video format specifications (from doc/c64-stream-spec.md)
@@ -374,7 +378,60 @@ def generate_audio_packet(audio_packet_num, sample_rate, total_test_duration_ms)
     return header + payload.tobytes()
 
 
-def generate_packets(output_dir, num_frames=30, formats=None, pattern='diagonal'):
+# ═══════════════════════════════════════════════════════════════════════════════
+# PARALLEL PACKET GENERATION HELPERS
+# ═══════════════════════════════════════════════════════════════════════════════
+# These functions are designed to be called from worker processes.
+
+
+def _generate_video_packet_task(args):
+    """Worker task for generating a single video packet."""
+    frame_num, packet_num, width, height, ppf, format_name, total_test_duration_ms, pattern, output_path = args
+    packet_data = generate_video_packet(
+        frame_num, packet_num, width, height, ppf, format_name, total_test_duration_ms, pattern
+    )
+    packet_file = output_path / f"video_{frame_num:04d}_{packet_num:04d}.bin"
+    packet_file.write_bytes(packet_data)
+    return 1
+
+
+def _generate_audio_packet_task(args):
+    """Worker task for generating a single audio packet."""
+    audio_packet_num, sample_rate, total_test_duration_ms, output_path = args
+    packet_data = generate_audio_packet(audio_packet_num, sample_rate, total_test_duration_ms)
+    packet_file = output_path / f"audio_{audio_packet_num:04d}.bin"
+    packet_file.write_bytes(packet_data)
+    return 1
+
+
+def _generate_frame_batch_task(args):
+    """Worker task for generating all packets for a batch of frames (more efficient than per-packet)."""
+    frame_start, frame_end, width, height, ppf, format_name, total_test_duration_ms, pattern, output_path = args
+    count = 0
+    for frame_num in range(frame_start, frame_end):
+        for packet_num in range(ppf):
+            packet_data = generate_video_packet(
+                frame_num, packet_num, width, height, ppf, format_name, total_test_duration_ms, pattern
+            )
+            packet_file = output_path / f"video_{frame_num:04d}_{packet_num:04d}.bin"
+            packet_file.write_bytes(packet_data)
+            count += 1
+    return count
+
+
+def _generate_audio_batch_task(args):
+    """Worker task for generating a batch of audio packets."""
+    start_idx, end_idx, sample_rate, total_test_duration_ms, output_path = args
+    count = 0
+    for audio_packet_num in range(start_idx, end_idx):
+        packet_data = generate_audio_packet(audio_packet_num, sample_rate, total_test_duration_ms)
+        packet_file = output_path / f"audio_{audio_packet_num:04d}.bin"
+        packet_file.write_bytes(packet_data)
+        count += 1
+    return count
+
+
+def generate_packets(output_dir, num_frames=30, formats=None, pattern='diagonal', parallel=True):
     """
     Generate test packets for specified formats with A/V sync pops.
 
@@ -383,11 +440,15 @@ def generate_packets(output_dir, num_frames=30, formats=None, pattern='diagonal'
         num_frames: Number of video frames to generate
         formats: List of formats ('PAL', 'NTSC') or None for both
         pattern: Video pattern - 'diagonal' (moving lines) or 'solid' (uniform color)
+        parallel: Use multiprocessing for faster generation (default: True)
     """
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 
     target_formats = formats if formats else ['PAL', 'NTSC']
+
+    # Determine number of worker processes
+    num_workers = multiprocessing.cpu_count() if parallel else 1
 
     for format_name in target_formats:
         fmt = VIDEO_FORMATS[format_name]
@@ -404,25 +465,69 @@ def generate_packets(output_dir, num_frames=30, formats=None, pattern='diagonal'
         frame_duration_ms = 1000.0 / fmt['frame_rate']
         total_test_duration_ms = num_frames * frame_duration_ms
 
-        # Generate video packets
-        for frame_num in range(num_frames):
-            for packet_num in range(ppf):
-                packet_data = generate_video_packet(
-                    frame_num, packet_num, width, height, ppf, format_name, total_test_duration_ms, pattern
-                )
-                packet_file = video_dir / f"video_{frame_num:04d}_{packet_num:04d}.bin"
-                packet_file.write_bytes(packet_data)
-
-        # Generate audio packets for total test duration
+        # Calculate audio packet count
         audio_packet_duration_ms = (AUDIO_SAMPLES_PER_PACKET / fmt['audio_sample_rate']) * 1000.0
         total_audio_packets = int(total_test_duration_ms / audio_packet_duration_ms)
 
-        for audio_packet_num in range(total_audio_packets):
-            packet_data = generate_audio_packet(audio_packet_num, fmt['audio_sample_rate'], total_test_duration_ms)
-            packet_file = audio_dir / f"audio_{audio_packet_num:04d}.bin"
-            packet_file.write_bytes(packet_data)
+        if parallel and num_workers > 1 and num_frames >= num_workers:
+            # ═══════════════════════════════════════════════════════════════════
+            # PARALLEL GENERATION: Batch frames across workers for efficiency
+            # ═══════════════════════════════════════════════════════════════════
+            # Divide frames into batches for each worker
+            frames_per_worker = max(1, num_frames // num_workers)
+            video_tasks = []
+            for i in range(num_workers):
+                start = i * frames_per_worker
+                end = min(start + frames_per_worker, num_frames) if i < num_workers - 1 else num_frames
+                if start < end:
+                    video_tasks.append((start, end, width, height, ppf, format_name,
+                                        total_test_duration_ms, pattern, video_dir))
 
-        print(f"  ✅ {format_name}: Generated {num_frames*ppf} video packets and {total_audio_packets} audio packets")
+            # Divide audio packets into batches
+            audio_per_worker = max(1, total_audio_packets // num_workers)
+            audio_tasks = []
+            for i in range(num_workers):
+                start = i * audio_per_worker
+                end = min(start + audio_per_worker, total_audio_packets) if i < num_workers - 1 else total_audio_packets
+                if start < end:
+                    audio_tasks.append((start, end, fmt['audio_sample_rate'],
+                                        total_test_duration_ms, audio_dir))
+
+            # Execute in parallel using ProcessPoolExecutor
+            video_count = 0
+            audio_count = 0
+            with ProcessPoolExecutor(max_workers=num_workers) as executor:
+                # Submit all video tasks
+                video_futures = [executor.submit(_generate_frame_batch_task, task) for task in video_tasks]
+                # Submit all audio tasks
+                audio_futures = [executor.submit(_generate_audio_batch_task, task) for task in audio_tasks]
+
+                # Collect results
+                for future in as_completed(video_futures):
+                    video_count += future.result()
+                for future in as_completed(audio_futures):
+                    audio_count += future.result()
+
+            print(f"  ✅ {format_name}: Generated {video_count} video packets and {audio_count} audio packets (parallel, {num_workers} workers)")
+
+        else:
+            # ═══════════════════════════════════════════════════════════════════
+            # SEQUENTIAL GENERATION: Original single-threaded approach
+            # ═══════════════════════════════════════════════════════════════════
+            for frame_num in range(num_frames):
+                for packet_num in range(ppf):
+                    packet_data = generate_video_packet(
+                        frame_num, packet_num, width, height, ppf, format_name, total_test_duration_ms, pattern
+                    )
+                    packet_file = video_dir / f"video_{frame_num:04d}_{packet_num:04d}.bin"
+                    packet_file.write_bytes(packet_data)
+
+            for audio_packet_num in range(total_audio_packets):
+                packet_data = generate_audio_packet(audio_packet_num, fmt['audio_sample_rate'], total_test_duration_ms)
+                packet_file = audio_dir / f"audio_{audio_packet_num:04d}.bin"
+                packet_file.write_bytes(packet_data)
+
+            print(f"  ✅ {format_name}: Generated {num_frames*ppf} video packets and {total_audio_packets} audio packets")
 
     # Report disk usage
     total_size = 0
@@ -446,6 +551,9 @@ Examples:
 
   # Generate to custom directory
   %(prog)s --output /tmp/test_packets
+
+  # Disable parallel generation (for debugging)
+  %(prog)s --no-parallel
         """
     )
     parser.add_argument('--output', '-o', default='test_packets',
@@ -457,10 +565,12 @@ Examples:
                         help='Format(s) to generate (can specify multiple times, default: both)')
     parser.add_argument('--pattern', '-p', choices=['diagonal', 'solid', 'dots'], default='diagonal',
                         help='Video pattern: diagonal (moving lines), solid (uniform color for scanline tests), or dots (single-pixel dots for sharp pixel tests)')
+    parser.add_argument('--no-parallel', action='store_true',
+                        help='Disable parallel generation (use single thread)')
 
     args = parser.parse_args()
 
-    generate_packets(args.output, args.frames, args.formats, args.pattern)
+    generate_packets(args.output, args.frames, args.formats, args.pattern, parallel=not args.no_parallel)
 
 
 if __name__ == '__main__':

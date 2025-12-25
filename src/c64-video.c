@@ -602,6 +602,7 @@ void c64_render_frame_direct(struct c64_source *context, struct frame_assembly *
 }
 
 // Simplified frame assembly with row interpolation for missing packets
+// Optimized: uses stack-allocated line tracking to avoid malloc/free per frame
 void c64_assemble_frame_with_interpolation(struct c64_source *context, struct frame_assembly *frame)
 {
     // Periodic frame assembly monitoring (every 5 minutes)
@@ -615,10 +616,13 @@ void c64_assemble_frame_with_interpolation(struct c64_source *context, struct fr
         last_assembly_log_time = now;
     }
 
-    // Track which lines have been written
-    bool *line_written = calloc(context->height, sizeof(bool));
-    if (!line_written) {
-        C64_LOG_ERROR("Failed to allocate line tracking array");
+    // Stack-allocated line tracking (max 272 lines for PAL, fits easily on stack)
+    // Using uint8_t instead of bool for guaranteed 1-byte size
+    uint8_t line_written[272] = {0}; // Zero-initialized on stack
+    const uint32_t height = context->height;
+
+    if (height > 272) {
+        C64_LOG_ERROR("Frame height %u exceeds maximum 272", height);
         return;
     }
 
@@ -631,9 +635,9 @@ void c64_assemble_frame_with_interpolation(struct c64_source *context, struct fr
         uint16_t line_num = packet->line_num;
         uint8_t lines_per_packet = packet->lines_per_packet;
 
-        for (int line = 0; line < (int)lines_per_packet && (int)(line_num + line) < (int)context->height; line++) {
+        for (int line = 0; line < (int)lines_per_packet && (int)(line_num + line) < (int)height; line++) {
             uint32_t current_line = line_num + line;
-            if (current_line >= context->height)
+            if (current_line >= height)
                 break;
 
             uint32_t dst_line_offset = current_line * C64_PIXELS_PER_LINE;
@@ -641,12 +645,12 @@ void c64_assemble_frame_with_interpolation(struct c64_source *context, struct fr
             uint8_t *src_line = packet->packet_data + (line * C64_BYTES_PER_LINE);
 
             c64_convert_pixels_optimized(src_line, dst_line, C64_BYTES_PER_LINE);
-            line_written[current_line] = true;
+            line_written[current_line] = 1;
         }
     }
 
     // Second pass: interpolate missing lines by duplicating the nearest valid line above
-    for (uint32_t line = 0; line < context->height; line++) {
+    for (uint32_t line = 0; line < height; line++) {
         if (!line_written[line]) {
             // Find nearest valid line above this one
             uint32_t source_line = 0;
@@ -663,8 +667,6 @@ void c64_assemble_frame_with_interpolation(struct c64_source *context, struct fr
             memcpy(dst, src, C64_PIXELS_PER_LINE * sizeof(uint32_t));
         }
     }
-
-    free(line_written);
 }
 
 void c64_process_video_statistics_batch(struct c64_source *context, uint64_t current_time)
