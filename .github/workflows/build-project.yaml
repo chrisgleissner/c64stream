@@ -24,6 +24,11 @@ on:
         required: false
         default: ''
         type: string
+      build_linux_variants:
+        description: 'Build for multiple Linux distributions (Ubuntu 22.04 and 24.04)'
+        required: false
+        default: false
+        type: boolean
     outputs:
       pluginName:
         description: Project name detected by parsing build spec file
