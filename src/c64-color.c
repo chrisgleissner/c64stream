@@ -66,12 +66,29 @@ void c64_convert_pixels_optimized(const uint8_t *src, uint32_t *dst, int pixel_p
     // Process pixel pairs using optimized lookup table
     // Each src byte contains 2 pixels (4 bits each)
     // Each dst position gets 2 consecutive 32-bit RGBA values
-    for (int i = 0; i < pixel_pairs; i++) {
-        uint8_t pixel_pair = src[i];
-        uint64_t colors = color_pair_lut[pixel_pair];
 
-        // Write both pixels with a single 64-bit operation (where supported)
-        // This is more cache-efficient than two separate 32-bit writes
-        *(uint64_t *)(dst + i * 2) = colors;
+    int i = 0;
+
+    // Unrolled loop: process 4 pixel pairs (8 pixels) per iteration
+    // This improves instruction-level parallelism and reduces loop overhead
+    for (; i + 4 <= pixel_pairs; i += 4) {
+        // Pre-fetch LUT entries (helps CPU pipelining)
+        uint8_t pp0 = src[i];
+        uint8_t pp1 = src[i + 1];
+        uint8_t pp2 = src[i + 2];
+        uint8_t pp3 = src[i + 3];
+
+        // Lookup and store in batches
+        uint64_t *dst64 = (uint64_t *)(dst + i * 2);
+        dst64[0] = color_pair_lut[pp0];
+        dst64[1] = color_pair_lut[pp1];
+        dst64[2] = color_pair_lut[pp2];
+        dst64[3] = color_pair_lut[pp3];
+    }
+
+    // Handle remaining pixel pairs
+    for (; i < pixel_pairs; i++) {
+        uint8_t pixel_pair = src[i];
+        *(uint64_t *)(dst + i * 2) = color_pair_lut[pixel_pair];
     }
 }

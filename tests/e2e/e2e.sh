@@ -43,7 +43,7 @@ DEFAULT_SCENARIO_OVERRIDES=""
 DEFAULT_SCENARIO_NAME=""
 DEFAULT_PACKET_PATTERN=""
 DEFAULT_SCENARIO=""
-DEFAULT_CSV_MAX_DURATION=1000  # Truncate CSV files to first 1000ms of events
+DEFAULT_CSV_MAX_ROWS=1000  # Truncate CSV files to first 1000 rows
 SCENARIO_CI_SKIPPED=false  # Set by load_scenario if ci_skip=true on CI
 
 # Scenario directory
@@ -193,7 +193,7 @@ OPTIONS:
     -F, --frames FRAMES     Number of frames to test [default: ${DEFAULT_FRAMES}]
     -d, --duration SECONDS  Test duration in seconds (overrides --frames)
     --output-dir DIR        Output directory for test artifacts [default: ${DEFAULT_OUTPUT_DIR}]
-    --csv-max-duration MS   Truncate CSV files to first MS milliseconds (0=disable) [default: ${DEFAULT_CSV_MAX_DURATION}]
+    --csv-max-rows ROWS     Truncate CSV files to first ROWS rows (0=disable) [default: ${DEFAULT_CSV_MAX_ROWS}]
     -v, --verbose           Enable verbose logging
     -s, --skip-build        Skip building plugin and tools
     -o, --obs               Enable OBS integration (default)
@@ -360,7 +360,7 @@ parse_args() {
     FRAMES="${DEFAULT_FRAMES}"
     DURATION=""
     OUTPUT_DIR="${DEFAULT_OUTPUT_DIR}"
-    CSV_MAX_DURATION="${DEFAULT_CSV_MAX_DURATION}"
+    CSV_MAX_ROWS="${DEFAULT_CSV_MAX_ROWS}"
     VIDEO_PORT="${DEFAULT_VIDEO_PORT}"
     AUDIO_PORT="${DEFAULT_AUDIO_PORT}"
     VERBOSE="${DEFAULT_VERBOSE}"
@@ -407,10 +407,10 @@ parse_args() {
                 fi
                 shift 2
                 ;;
-            --csv-max-duration)
-                CSV_MAX_DURATION="$2"
-                if ! [[ "${CSV_MAX_DURATION}" =~ ^[0-9]+$ ]]; then
-                    log_error "Invalid CSV max duration: ${CSV_MAX_DURATION}. Must be a non-negative integer."
+            --csv-max-rows)
+                CSV_MAX_ROWS="$2"
+                if ! [[ "${CSV_MAX_ROWS}" =~ ^[0-9]+$ ]]; then
+                    log_error "Invalid CSV max rows: ${CSV_MAX_ROWS}. Must be a non-negative integer."
                     exit 1
                 fi
                 shift 2
@@ -809,8 +809,8 @@ run_e2e_test() {
         cmd+=("--scenario-overrides" "${SCENARIO_OVERRIDES}")
     fi
 
-    # Pass CSV max duration
-    cmd+=("--csv-max-duration" "${CSV_MAX_DURATION}")
+    # Pass CSV max rows
+    cmd+=("--csv-max-rows" "${CSV_MAX_ROWS}")
 
     # Ensure X environment variables are set
     export DISPLAY="${DEFAULT_X11_DISPLAY}"

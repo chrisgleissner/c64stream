@@ -106,4 +106,4 @@ During local testing with hardware rendering, we observed:
 
 This suggests the rendering pipeline is CPU-bound, not GPU-bound. The afterglow effect is suspected because it was implemented with CPU-side frame accumulation in `video_tick` to work around OBS minimized/headless rendering issues.
 
-**See:** [PLANS.md](../PLANS.md) → "Task: Reduce CPU load for CRT effects - move work to GPU"
+**See:** [PLANS.md](../../PLANS.md) → "Task: Reduce CPU load for CRT effects - move work to GPU"

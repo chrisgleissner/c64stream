@@ -1,6 +1,6 @@
 # C64 Stream E2E Test Report
 
-Generated: 2025-12-25 13:11:47 UTC
+Generated: 2025-12-25 17:01:36 UTC
 
 ## Test configuration
 
@@ -21,7 +21,7 @@ Generated: 2025-12-25 13:11:47 UTC
 - OS: Ubuntu 24.04.3 LTS (kernel 6.14.0-37-generic)
 - OBS: - 32.0.2
 - CPU: Intel(R) Core(TM) i7-6700K CPU @ 4.00GHz (8 cores)
-- RAM: 31Gi total, 25Gi available
+- RAM: 31Gi total, 24Gi available
 - Disk (/): 1.8T total, 1.1T available
 
 ## Test results
@@ -32,13 +32,13 @@ Generated: 2025-12-25 13:11:47 UTC
 
 ### A/V Sync
 
-- ✅ Good synchronization (100.0%): avg offset 6.0ms, max 6.0ms
+- ✅ Good synchronization (100.0%): avg offset 23.3ms, max 30.0ms
 
 #### Sync Details
 
-- 🟢 Pop #1 [L]: audio=7806.0ms, video=7800.0ms (frame 390), diff=6.0ms
-- 🟢 Pop #2 [R]: audio=8806.0ms, video=8800.0ms (frame 440), diff=6.0ms
-- 🟢 Pop #3 [L]: audio=9806.0ms, video=9800.0ms (frame 490), diff=6.0ms
+- 🟢 Pop #1 [L]: audio=7870.0ms, video=7860.0ms (frame 393), diff=10.0ms
+- 🟡 Pop #2 [R]: audio=8870.0ms, video=8840.0ms (frame 442), diff=30.0ms
+- 🟡 Pop #3 [L]: audio=9870.0ms, video=9840.0ms (frame 492), diff=30.0ms
 
 - Channels: LRL
 - 🔁 Channel alternation: OK (alternating, starts with L)
