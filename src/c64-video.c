@@ -547,9 +547,9 @@ void c64_render_frame_direct(struct c64_source *context, struct frame_assembly *
     // Generate monotonic timestamp based on frame sequence for butter-smooth playback
     uint64_t monotonic_timestamp = c64_calculate_ideal_timestamp(context, frame->frame_num);
 
-    // Apply afterglow in the video thread (prevents races/flicker with raw frame_buffer).
-    const size_t pixel_count = (size_t)context->width * (size_t)context->height;
-    const uint32_t *out_pixels = c64_get_afterglow_output_pixels(context, context->frame_buffer, pixel_count);
+    // GPU-based afterglow: submit raw frames, afterglow is applied in video_render shader.
+    // This ensures afterglow is visible in recordings which capture the rendered scene.
+    const uint32_t *out_pixels = context->frame_buffer;
 
     // Save frame to disk if enabled
     if (context->save_frames) {
