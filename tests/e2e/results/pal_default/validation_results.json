@@ -9,11 +9,15 @@
   },
   "video_recording": {
     "status": "pass",
-    "details": "14.5 MB"
+    "details": "14.4 MB"
   },
   "packet_integrity": {
     "status": "pass",
     "details": "19.8s duration"
+  },
+  "video_brightness": {
+    "status": "pass",
+    "details": "Normal (mean=17.3)"
   },
   "av_sync_details": {
     "total_audio_pops": 3,
@@ -24,21 +28,21 @@
     "tolerance_ms": 50,
     "sync_details": [
       {
-        "audio_pop_time_ms": 7870,
-        "closest_video_pop_ms": 7840.0,
-        "closest_video_pop_frame": 392,
-        "difference_ms": 30.0,
+        "audio_pop_time_ms": 7796,
+        "closest_video_pop_ms": 7800.0,
+        "closest_video_pop_frame": 390,
+        "difference_ms": 4.0,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
         "channel": "L",
-        "traffic": "yellow"
+        "traffic": "green"
       },
       {
-        "audio_pop_time_ms": 8870,
-        "closest_video_pop_ms": 8860.0,
-        "closest_video_pop_frame": 443,
-        "difference_ms": 10.0,
+        "audio_pop_time_ms": 8796,
+        "closest_video_pop_ms": 8800.0,
+        "closest_video_pop_frame": 440,
+        "difference_ms": 4.0,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -46,34 +50,34 @@
         "traffic": "green"
       },
       {
-        "audio_pop_time_ms": 9870,
-        "closest_video_pop_ms": 9840.0,
-        "closest_video_pop_frame": 492,
-        "difference_ms": 30.0,
+        "audio_pop_time_ms": 9796,
+        "closest_video_pop_ms": 9800.0,
+        "closest_video_pop_frame": 490,
+        "difference_ms": 4.0,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
         "channel": "L",
-        "traffic": "yellow"
+        "traffic": "green"
       }
     ],
     "is_perfectly_synced": true,
     "last_event_within_limit": true,
-    "duration_ms": 19840.0,
+    "duration_ms": 19780.0,
     "video_pop_times_ms": [
-      7840.0,
-      8860.0,
-      9840.0
+      7800.0,
+      8800.0,
+      9800.0
     ],
     "video_pop_frame_indices": [
-      392,
-      443,
-      492
+      390,
+      440,
+      490
     ],
     "traffic": [
-      "yellow",
       "green",
-      "yellow"
+      "green",
+      "green"
     ]
   },
   "av_sync": {
