@@ -38,7 +38,7 @@ DEFAULT_SKIP_BUILD=false
 DEFAULT_CLEANUP=true
 DEFAULT_OBS_ENABLED=true   # OBS integration now implemented
 DEFAULT_X11_DISPLAY=":99"
-DEFAULT_MONITOR_RESOURCES=false  # Resource monitoring for CI
+DEFAULT_MONITOR_RESOURCES=true  # Resource monitoring for CI (enabled by default)
 DEFAULT_SCENARIO_OVERRIDES=""
 DEFAULT_SCENARIO_NAME=""
 DEFAULT_PACKET_PATTERN=""
@@ -46,7 +46,7 @@ DEFAULT_SCENARIO=""
 DEFAULT_CSV_MAX_ROWS=1000  # Truncate CSV files to first 1000 rows
 SCENARIO_CI_SKIPPED=false  # Set by load_scenario if ci_skip=true on CI
 DEFAULT_RUN_ALL_SCENARIOS=false  # Run all scenarios in sequence
-DEFAULT_ENABLE_RESOURCE_MONITORING=false  # CPU/GPU/RAM monitoring during packet replay
+DEFAULT_ENABLE_RESOURCE_MONITORING=true  # CPU/GPU/RAM monitoring during packet replay (enabled by default)
 DEFAULT_RESOURCE_INTERVAL_MS=1000  # Resource monitoring sample interval in ms
 
 # Scenario directory
