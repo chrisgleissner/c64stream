@@ -244,13 +244,13 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                         # Thin diagonal stripes (in_stripe controlled by motion S),
                         # color tied to invariant diagonal index so color remains constant as it moves.
                         S = px + pixel_line + frame_num
-                        stripe_period = 38  # Total period: 2 colored + 36 black (20% more spacing for afterglow)
+                        stripe_period = 38  # Total period: 2 colored + 36 black
                         stripe_width = 2
                         in_stripe = (S % stripe_period) < stripe_width
                         if not in_stripe:
                             return 0
                         # Diagonal index invariant under motion along S: use (px - pixel_line)
-                        color_period = 48  # Color changes along diagonal (3x wider for afterglow analysis)
+                        color_period = 48  # Color changes along diagonal
                         diag_index = ((px - pixel_line) // color_period) % 16
                         return int(diag_index)
 
