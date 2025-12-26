@@ -65,7 +65,7 @@ Artifacts are written to `tests/e2e/test_output/`:
 - `README.md` — human-readable report with packet stats, recording link, and Pop synchronization summary
 - `validation_results.json` — machine-readable results including `av_sync_details`
 - Recording file — `.mkv` or `.mp4` (normalized to constant frame rate)
-- Optional: `network.csv`, `obs.csv`
+- Optional: `network.csv`, `obs.csv`, `resource.csv`, `resource.json`
 
 ## Architecture
 

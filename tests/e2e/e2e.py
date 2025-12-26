@@ -120,6 +120,7 @@ class E2ETest:
         self.resource_interval_ms = resource_interval_ms
         self._resource_monitor = None
         self._resource_summary = None
+        self._filtered_resource_summary = None  # Summary from filtered samples only
 
         if enable_resource_monitoring and not RESOURCE_MONITOR_AVAILABLE:
             self.log("⚠️ Resource monitoring requested but resource_monitor module not available")
@@ -173,23 +174,106 @@ class E2ETest:
             self.log(f"📉 Truncated {truncated_count} rows from {src.name} "
                      f"(keeping first {self.csv_max_rows} rows)")
 
+    def _get_obs_processing_duration_ms(self) -> Optional[float]:
+        """
+        Get the total OBS processing duration from obs.csv.
+
+        Reads the last row's elapsed_us field to determine how long OBS
+        was processing frames after receiving the first packet.
+
+        Returns:
+            Duration in milliseconds, or None if obs.csv not found/readable
+        """
+        obs_csv = self.output_dir / 'obs.csv'
+        if not obs_csv.exists():
+            return None
+
+        try:
+            import csv
+            with open(obs_csv, 'r') as f:
+                reader = csv.DictReader(f)
+                last_row = None
+                for row in reader:
+                    last_row = row
+                if last_row and 'elapsed_us' in last_row:
+                    elapsed_us = float(last_row['elapsed_us'])
+                    return elapsed_us / 1000.0  # Convert μs to ms
+        except Exception as e:
+            self.log(f"⚠️ Failed to read obs.csv duration: {e}")
+        return None
+
     def _save_resource_data(self):
-        """Save resource monitoring data to CSV and JSON files."""
+        """Save resource monitoring data to CSV and JSON files.
+
+        Creates resource.csv (filtered samples) and resource.json (summary)
+        in the same directory as network.csv and obs.csv.
+
+        The samples are filtered to only include the actual processing window:
+        from first UDP packet received (timestamp 0) to last OBS frame processed.
+        """
         if not self._resource_monitor or not self._resource_summary:
             return
 
         try:
-            # Save CSV with all samples
-            csv_path = self.output_dir / 'resource_use.csv'
-            self._resource_monitor.save_csv(csv_path)
+            # Get processing duration from obs.csv to filter samples
+            processing_duration_ms = self._get_obs_processing_duration_ms()
 
-            # Save JSON summary
-            json_path = self.output_dir / 'resource_use.json'
-            self._resource_monitor.save_json(json_path, self._resource_summary)
+            if processing_duration_ms is not None:
+                # Filter samples to the actual processing window
+                # Start at 0 (when monitoring started = when packets started)
+                # End at the last OBS frame processed
+                filtered_samples = self._resource_monitor.filter_samples_by_window(
+                    start_ms=0,
+                    end_ms=processing_duration_ms
+                )
+                # Compute summary from filtered samples only
+                filtered_summary = self._resource_monitor.compute_summary_from_samples(filtered_samples)
+                self.log(f"📊 Filtered {len(filtered_samples)} samples within processing window ({processing_duration_ms:.1f}ms)")
+            else:
+                # Fallback: use all samples if obs.csv not available
+                filtered_samples = self._resource_monitor.samples
+                filtered_summary = self._resource_summary
+                self.log("⚠️ Using all samples (obs.csv not available for filtering)")
+
+            # Save filtered samples to resource.csv (alongside network.csv and obs.csv)
+            csv_path = self.output_dir / 'resource.csv'
+            self._resource_monitor.save_csv_from_samples(csv_path, filtered_samples)
+
+            # Save summary from filtered samples to resource.json
+            json_path = self.output_dir / 'resource.json'
+            self._resource_monitor.save_json(json_path, filtered_summary)
+
+            # Store filtered summary for later use (stdout logging, README)
+            self._filtered_resource_summary = filtered_summary
 
             self.log(f"📊 Resource data saved to {csv_path.name} and {json_path.name}")
+
+            # Print high-level resource summary to stdout
+            self._print_resource_summary(filtered_summary)
+
         except Exception as e:
             self.log(f"⚠️ Failed to save resource data: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def _print_resource_summary(self, summary):
+        """Print high-level resource usage summary to stdout."""
+        if summary.cpu.sample_count == 0:
+            return
+
+        print("\n📊 Resource Usage Summary:")
+        print(f"   Duration: {summary.duration_ms/1000:.1f}s ({summary.cpu.sample_count} samples)")
+        print(f"   CPU: {summary.cpu.median_val:.1f}% median (max: {summary.cpu.max_val:.1f}%)")
+
+        if summary.obs_cpu is not None:
+            print(f"   OBS CPU: {summary.obs_cpu.median_val:.1f}% median (max: {summary.obs_cpu.max_val:.1f}%)")
+
+        print(f"   RAM: {summary.ram_mb.median_val:.0f} MB median")
+
+        if summary.gpu is not None:
+            print(f"   GPU: {summary.gpu.median_val:.1f}% median (max: {summary.gpu.max_val:.1f}%)")
+        elif not summary.gpu_available:
+            print("   GPU: not available")
 
     def _configure_timeouts(self):
         """Configure timeouts based on environment."""

@@ -626,6 +626,128 @@ class ResourceMonitor:
 
         return self._compute_summary()
 
+    def filter_samples_by_window(self, start_ms: float, end_ms: float) -> list[ResourceSample]:
+        """
+        Filter samples to those within a time window.
+
+        This is used to extract only samples that fall within the actual
+        processing window (from first UDP packet to last OBS frame).
+
+        Args:
+            start_ms: Start of window in milliseconds (relative to monitor start)
+            end_ms: End of window in milliseconds (relative to monitor start)
+
+        Returns:
+            List of ResourceSample objects within the window
+        """
+        return [s for s in self.samples if start_ms <= s.timestamp_ms <= end_ms]
+
+    def compute_summary_from_samples(self, samples: list[ResourceSample]) -> ResourceSummary:
+        """
+        Compute summary statistics from a specific list of samples.
+
+        This allows computing stats from filtered samples rather than all samples.
+
+        Args:
+            samples: List of ResourceSample objects to compute stats from
+
+        Returns:
+            ResourceSummary computed from the provided samples
+        """
+        if not samples:
+            return ResourceSummary(
+                cpu=self._compute_stats([]),
+                ram_percent=self._compute_stats([]),
+                ram_mb=self._compute_stats([]),
+                duration_ms=0,
+                sample_interval_ms=self.interval_ms,
+                gpu_available=self._gpu_available,
+                gpu_type=self._gpu_type,
+            )
+
+        cpu_values = [s.cpu_percent for s in samples]
+        ram_percent_values = [s.ram_percent for s in samples]
+        ram_mb_values = [s.ram_mb for s in samples]
+
+        # Duration is from first to last sample in this subset
+        duration_ms = samples[-1].timestamp_ms - samples[0].timestamp_ms if len(samples) > 1 else 0
+
+        summary = ResourceSummary(
+            cpu=self._compute_stats(cpu_values),
+            ram_percent=self._compute_stats(ram_percent_values),
+            ram_mb=self._compute_stats(ram_mb_values),
+            duration_ms=duration_ms,
+            sample_interval_ms=self.interval_ms,
+            gpu_available=self._gpu_available,
+            gpu_type=self._gpu_type,
+        )
+
+        # GPU stats if available
+        gpu_values = [s.gpu_percent for s in samples if s.gpu_percent is not None]
+        if gpu_values:
+            summary.gpu = self._compute_stats(gpu_values)
+
+        gpu_mem_percent_values = [s.gpu_mem_percent for s in samples if s.gpu_mem_percent is not None]
+        if gpu_mem_percent_values:
+            summary.gpu_mem_percent = self._compute_stats(gpu_mem_percent_values)
+
+        gpu_mem_mb_values = [s.gpu_mem_mb for s in samples if s.gpu_mem_mb is not None]
+        if gpu_mem_mb_values:
+            summary.gpu_mem_mb = self._compute_stats(gpu_mem_mb_values)
+
+        # Per-process OBS CPU stats
+        obs_cpu_values = [s.obs_cpu_percent for s in samples if s.obs_cpu_percent is not None]
+        if obs_cpu_values:
+            summary.obs_cpu = self._compute_stats(obs_cpu_values)
+            summary.obs_process_found = True
+
+        return summary
+
+    def save_csv_from_samples(self, output_path: Path, samples: list[ResourceSample]):
+        """
+        Save specific samples to CSV file.
+
+        This allows saving filtered samples (e.g., only those within processing window).
+
+        Args:
+            output_path: Path to output CSV file
+            samples: List of ResourceSample objects to save
+        """
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Check if any sample has OBS CPU data
+        has_obs_cpu = any(s.obs_cpu_percent is not None for s in samples)
+
+        with open(output_path, "w") as f:
+            # Header
+            header = ["timestamp_ms", "cpu_percent", "ram_percent", "ram_mb"]
+            if has_obs_cpu:
+                header.append("obs_cpu_percent")
+            if self._gpu_available:
+                header.extend(["gpu_percent", "gpu_mem_percent", "gpu_mem_mb"])
+            f.write(",".join(header) + "\n")
+
+            # Data rows
+            for sample in samples:
+                row = [
+                    f"{sample.timestamp_ms:.0f}",
+                    f"{sample.cpu_percent:.2f}",
+                    f"{sample.ram_percent:.2f}",
+                    f"{sample.ram_mb:.2f}",
+                ]
+                if has_obs_cpu:
+                    obs_cpu = f"{sample.obs_cpu_percent:.2f}" if sample.obs_cpu_percent is not None else ""
+                    row.append(obs_cpu)
+                if self._gpu_available:
+                    gpu_pct = f"{sample.gpu_percent:.2f}" if sample.gpu_percent is not None else ""
+                    gpu_mem_pct = f"{sample.gpu_mem_percent:.2f}" if sample.gpu_mem_percent is not None else ""
+                    gpu_mem_mb = f"{sample.gpu_mem_mb:.2f}" if sample.gpu_mem_mb is not None else ""
+                    row.extend([gpu_pct, gpu_mem_pct, gpu_mem_mb])
+                f.write(",".join(row) + "\n")
+
+        if self.verbose:
+            print(f"[ResourceMonitor] Saved {len(samples)} samples to {output_path}")
+
     def _compute_stats(self, values: list[float]) -> ResourceStats:
         """Compute min/median/max statistics for a list of values."""
         if not values:
