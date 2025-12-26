@@ -411,7 +411,6 @@ The plugin offers hostname resolution that works reliably on Linux and macOS whe
 3. **Direct DNS Queries:** On Linux/macOS, bypasses systemd-resolved by querying DNS servers directly:
    - Uses configured **DNS Server IP** (default: `192.168.1.1`)
    - Falls back to common router IPs: `192.168.0.1`, `10.0.0.1`, `172.16.0.1`
-4. **Cross-Platform:** Windows uses system DNS (which works reliably), Linux/macOS use enhanced resolution
 
 ### C64 Ultimate Setup 🎛️
 
