@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import Any, Optional
 
 from .afterglow import AfterglowAssertion
+from .afterglow_decay import AfterglowDecayAssertion
+from .afterglow_width import AfterglowWidthAssertion
 from .audio import AudioAssertion
 from .base import AssertionResult, AssertionStatus, EffectAssertion
 from .config import PresetConfig
@@ -118,6 +120,8 @@ def create_assertions_from_list(
         "audio": AudioAssertion,
         "tint": TintAssertion,
         "afterglow": AfterglowAssertion,
+        "afterglow_decay": AfterglowDecayAssertion,
+        "afterglow_width": AfterglowWidthAssertion,
         "scanlines": ScanlineAssertion,
         "sharp_pixels": SharpPixelsAssertion,
         "frame_box_seq": FrameBoxSequenceAssertion,

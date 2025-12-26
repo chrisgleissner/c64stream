@@ -46,6 +46,8 @@ DEFAULT_SCENARIO=""
 DEFAULT_CSV_MAX_ROWS=1000  # Truncate CSV files to first 1000 rows
 SCENARIO_CI_SKIPPED=false  # Set by load_scenario if ci_skip=true on CI
 DEFAULT_RUN_ALL_SCENARIOS=false  # Run all scenarios in sequence
+DEFAULT_ENABLE_RESOURCE_MONITORING=false  # CPU/GPU/RAM monitoring during packet replay
+DEFAULT_RESOURCE_INTERVAL_MS=1000  # Resource monitoring sample interval in ms
 
 # Scenario directory
 SCENARIOS_DIR="${TEST_DIR}/scenarios"
@@ -201,6 +203,8 @@ OPTIONS:
     --no-obs                Disable OBS integration
     --no-cleanup            Skip cleanup of temporary files
     --monitor-resources     Enable periodic system resource monitoring
+    --enable-resource-monitoring  Enable CPU/GPU/RAM monitoring during packet replay (saves to resource_use.csv/json)
+    --resource-interval-ms MS     Resource monitoring interval in milliseconds [default: ${DEFAULT_RESOURCE_INTERVAL_MS}]
     --all                   Run ALL scenarios in sequence
     -h, --help             Show this help message
 
@@ -378,6 +382,8 @@ parse_args() {
     SCENARIO="${DEFAULT_SCENARIO}"
     PACKET_PATTERN="${DEFAULT_PACKET_PATTERN}"
     RUN_ALL_SCENARIOS="${DEFAULT_RUN_ALL_SCENARIOS}"
+    ENABLE_RESOURCE_MONITORING="${DEFAULT_ENABLE_RESOURCE_MONITORING}"
+    RESOURCE_INTERVAL_MS="${DEFAULT_RESOURCE_INTERVAL_MS}"
 
     while [[ $# -gt 0 ]]; do
         case $1 in
@@ -460,6 +466,18 @@ parse_args() {
             --monitor-resources)
                 MONITOR_RESOURCES=true
                 shift
+                ;;
+            --enable-resource-monitoring)
+                ENABLE_RESOURCE_MONITORING=true
+                shift
+                ;;
+            --resource-interval-ms)
+                RESOURCE_INTERVAL_MS="$2"
+                if ! [[ "${RESOURCE_INTERVAL_MS}" =~ ^[0-9]+$ ]] || [[ "${RESOURCE_INTERVAL_MS}" -lt 100 ]]; then
+                    log_error "Invalid resource interval: ${RESOURCE_INTERVAL_MS}. Must be >= 100ms."
+                    exit 1
+                fi
+                shift 2
                 ;;
             --display)
                 DEFAULT_X11_DISPLAY="$2"
@@ -839,6 +857,12 @@ run_e2e_test() {
         cmd+=("--verbose")
     fi
 
+    # Pass resource monitoring options
+    if [[ "${ENABLE_RESOURCE_MONITORING}" == true ]]; then
+        cmd+=("--enable-resource-monitoring")
+        cmd+=("--resource-interval-ms" "${RESOURCE_INTERVAL_MS}")
+    fi
+
     # Run test
     local test_result=0
     if ! "${cmd[@]}"; then
@@ -849,6 +873,47 @@ run_e2e_test() {
     fi
 
     return ${test_result}
+}
+
+# Run scenario-specific assertions against the recording
+run_scenario_assertions() {
+    log_info "Running scenario assertions for: ${SCENARIO}"
+
+    cd "${TEST_DIR}"
+
+    # Find the recording file
+    local recording_file=""
+    if [[ -f "${OUTPUT_DIR}/c64_recording.mp4" ]]; then
+        recording_file="${OUTPUT_DIR}/c64_recording.mp4"
+    elif [[ -f "${OUTPUT_DIR}/c64_recording.mkv" ]]; then
+        recording_file="${OUTPUT_DIR}/c64_recording.mkv"
+    else
+        log_warning "No recording found for assertions"
+        return 0  # Not a fatal error
+    fi
+
+    # Run assertions using the assertions module
+    local cmd=(
+        "python3" "-m" "assertions"
+        "--mp4" "${recording_file}"
+        "--scenario" "${SCENARIO}"
+    )
+
+    if [[ "${VERBOSE}" == true ]]; then
+        cmd+=("--verbose")
+    fi
+
+    log_info "Running: ${cmd[*]}"
+
+    local assertion_result=0
+    if ! "${cmd[@]}"; then
+        assertion_result=1
+        log_error "Scenario assertions failed"
+    else
+        log_success "Scenario assertions passed"
+    fi
+
+    return ${assertion_result}
 }
 
 # Generate test report
@@ -1581,6 +1646,14 @@ main() {
 
     if ! run_e2e_test; then
         test_result=1
+    fi
+
+    # Run scenario-specific assertions if a scenario was specified
+    if [[ -n "${SCENARIO}" && ${test_result} -eq 0 ]]; then
+        run_scenario_assertions
+        if [[ $? -ne 0 ]]; then
+            test_result=1
+        fi
     fi
 
     generate_report

@@ -44,13 +44,22 @@ try:
 except ImportError:
     WEBSOCKET_AVAILABLE = False
 
+# Import resource monitoring
+try:
+    from resource_monitor import ResourceMonitor
+    RESOURCE_MONITOR_AVAILABLE = True
+except ImportError:
+    ResourceMonitor = None
+    RESOURCE_MONITOR_AVAILABLE = False
+
 
 class E2ETest:
     def __init__(self, test_dir, video_port=21000, audio_port=21001, control_port=6400,
                  format='NTSC', frames=30, verbose=False, enable_websocket=False,
                  scenario_overrides_dir: str | None = None, scenario_name: str | None = None,
                  scenario_id: str | None = None, output_dir: str | None = None,
-                 csv_max_rows: int | None = None):
+                 csv_max_rows: int | None = None, enable_resource_monitoring: bool = False,
+                 resource_interval_ms: int = 1000):
         self.test_dir = Path(test_dir)
         self.video_port = video_port
         self.audio_port = audio_port
@@ -106,6 +115,15 @@ class E2ETest:
         # CSV truncation: only keep first N rows (excluding header)
         self.csv_max_rows = csv_max_rows
 
+        # Resource monitoring
+        self.enable_resource_monitoring = enable_resource_monitoring and RESOURCE_MONITOR_AVAILABLE
+        self.resource_interval_ms = resource_interval_ms
+        self._resource_monitor = None
+        self._resource_summary = None
+
+        if enable_resource_monitoring and not RESOURCE_MONITOR_AVAILABLE:
+            self.log("⚠️ Resource monitoring requested but resource_monitor module not available")
+
     def _detect_ci_environment(self):
         """Detect if running in CI environment."""
         ci_indicators = [
@@ -154,6 +172,24 @@ class E2ETest:
         if truncated_count > 0:
             self.log(f"📉 Truncated {truncated_count} rows from {src.name} "
                      f"(keeping first {self.csv_max_rows} rows)")
+
+    def _save_resource_data(self):
+        """Save resource monitoring data to CSV and JSON files."""
+        if not self._resource_monitor or not self._resource_summary:
+            return
+
+        try:
+            # Save CSV with all samples
+            csv_path = self.output_dir / 'resource_use.csv'
+            self._resource_monitor.save_csv(csv_path)
+
+            # Save JSON summary
+            json_path = self.output_dir / 'resource_use.json'
+            self._resource_monitor.save_json(json_path, self._resource_summary)
+
+            self.log(f"📊 Resource data saved to {csv_path.name} and {json_path.name}")
+        except Exception as e:
+            self.log(f"⚠️ Failed to save resource data: {e}")
 
     def _configure_timeouts(self):
         """Configure timeouts based on environment."""
@@ -1458,10 +1494,25 @@ class E2ETest:
 
             self.log(f"🎯 Generated {len(timeline)} interleaved packets over {timeline[-1]['time_us']/1000:.1f}ms")
 
+            # Prepare resource monitoring if enabled - warmup BEFORE data processing starts
+            # This ensures CPU measurement is primed and won't show 0% on first sample
+            if self.enable_resource_monitoring:
+                self._resource_monitor = ResourceMonitor(
+                    interval_ms=self.resource_interval_ms,
+                    verbose=self.verbose
+                )
+                self._resource_monitor.warmup()  # Prime CPU measurement before data flows
+
             # Send packets with precise timing and better error handling
             replay_start_time = time.time()
             packets_sent = 0
             failed_packets = 0
+
+            # Start resource monitoring RIGHT when packets begin flowing
+            # This ensures we only measure actual data processing time
+            if self.enable_resource_monitoring and self._resource_monitor:
+                self._resource_monitor.start()
+                self.log(f"📊 Resource monitoring started (interval: {self.resource_interval_ms}ms)")
 
             for event in timeline:
                 # Calculate when this packet should be sent
@@ -1513,6 +1564,12 @@ class E2ETest:
             elapsed_ms = (time.time() - replay_start_time) * 1000
             print(f"📡 Mock sender: sent {packets_sent} packets in {elapsed_ms:.1f}ms")
             self.log(f"✅ Packet replay complete: {packets_sent} packets sent, {failed_packets} failed in {elapsed_ms:.1f}ms")
+
+            # Stop resource monitoring and save data
+            if self.enable_resource_monitoring and self._resource_monitor:
+                self._resource_summary = self._resource_monitor.stop()
+                self._save_resource_data()
+                self.log(f"📊 Resource monitoring stopped ({self._resource_summary.cpu.sample_count} samples)")
 
             # Give plugin time to process the packets (increased slightly for CI)
             time.sleep(2.0)
@@ -2648,6 +2705,10 @@ def main():
                         help='Directory where test artifacts are written (default: test_output under --test-dir)')
     parser.add_argument('--csv-max-rows', type=int, default=1000,
                         help='Truncate CSV files to first N rows (default: 1000, use 0 to disable)')
+    parser.add_argument('--enable-resource-monitoring', action='store_true',
+                        help='Enable CPU/GPU/RAM monitoring during packet replay')
+    parser.add_argument('--resource-interval-ms', type=int, default=1000,
+                        help='Resource monitoring sample interval in milliseconds (default: 1000)')
 
     args = parser.parse_args()
 
@@ -2696,7 +2757,9 @@ def main():
         scenario_name=args.scenario_name,
         scenario_id=args.scenario_id,
         output_dir=args.output_dir,
-        csv_max_rows=csv_max_rows
+        csv_max_rows=csv_max_rows,
+        enable_resource_monitoring=args.enable_resource_monitoring,
+        resource_interval_ms=args.resource_interval_ms
     )
 
     # Store reference for signal handler
