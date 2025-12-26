@@ -413,26 +413,6 @@ The plugin offers hostname resolution that works reliably on Linux and macOS whe
    - Falls back to common router IPs: `192.168.0.1`, `10.0.0.1`, `172.16.0.1`
 4. **Cross-Platform:** Windows uses system DNS (which works reliably), Linux/macOS use enhanced resolution
 
-**DNS Server Configuration:**
-
-- **Default:** `192.168.1.1` (most common home router DNS server)
-- **Custom:** Set to your router's IP or a specific DNS server (e.g., `192.168.0.1`, `10.0.0.1`)
-- **Automatic Fallback:** If the configured DNS server fails, tries other common router IPs
-- **Why This Helps:** Solves Linux/macOS issues where `c64u` hostname doesn't resolve through system DNS but works via direct router queries
-
-**Examples:**
-
-- `c64u` → resolves to `192.168.1.64` via enhanced DNS resolution
-- `192.168.1.64` → used directly as IP address
-- `retro-basement.local` → resolves via mDNS/Bonjour or direct DNS
-- `ultimate64` → tries system DNS first, then direct router DNS queries
-
-**Platform-Specific Behavior:**
-
-- **Windows:** Uses system DNS (typically works without issues)
-- **Linux/macOS:** Uses enhanced DNS resolution to bypass systemd-resolved limitations
-- **All Platforms:** Support both hostname and IP address formats seamlessly
-
 ### C64 Ultimate Setup 🎛️
 
 **Automatic Configuration (Recommended):** The OBS plugin automatically controls streaming on the Ultimate device. When you configure the Ultimate's hostname or IP address in the OBS plugin settings, the plugin tells the Ultimate device where to send streams and sends start commands automatically. Thus, no manual streaming adjustments are needed on the Ultimate device.
@@ -488,14 +468,6 @@ One of:
 - UDP/TCP connectivity to Ultimate device
 - Bandwidth: ~22 Mbps total (21.7 Mbps video + 1.4 Mbps audio, uncompressed streams)
 - Built-in UDP jitter compensation via configurable frame buffering
-
-**DNS Resolution:**
-
-- **Cross-platform hostname support:** Works reliably on Windows, Linux, and macOS
-- **Enhanced Linux/macOS resolution:** Bypasses systemd-resolved limitations using direct DNS queries
-- **Configurable DNS server:** Set custom DNS server IP for hostname resolution (default: 192.168.1.1)
-- **Automatic fallbacks:** Falls back to common router IPs (192.168.0.1, 10.0.0.1, etc.) if configured DNS fails
-- **FQDN support:** Tries both standard hostname and FQDN (with trailing dot) resolution
 
 **Recording Formats:**
 
