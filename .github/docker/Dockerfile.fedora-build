@@ -87,7 +87,8 @@ RUN dnf install -y \
         xorg-x11-server-Xvfb \
         ffmpeg-free \
         pipewire-pulseaudio \
-        pulseaudio-utils
+        pulseaudio-utils \
+        perf
 
 # Clean up DNF cache
 RUN dnf clean all

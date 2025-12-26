@@ -97,6 +97,7 @@ RUN apt-get install -y --no-install-recommends \
         libxkbcommon-dev \
         libfreetype-dev \
         libfontconfig-dev \
+        linux-perf \
         swig
 
 # Install nv-codec-headers for FFnvcodec (NVIDIA hardware encoding support)

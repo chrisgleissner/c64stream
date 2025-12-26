@@ -72,7 +72,8 @@ RUN pacman -S --noconfirm \
         python-pillow \
         python-yaml \
         xorg-server-xvfb \
-        pulseaudio
+        pulseaudio \
+        perf
 
 # Clean up pacman cache
 RUN pacman -Scc --noconfirm

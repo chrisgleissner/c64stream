@@ -47,7 +47,7 @@ DEFAULT_CSV_MAX_ROWS=1000  # Truncate CSV files to first 1000 rows
 SCENARIO_CI_SKIPPED=false  # Set by load_scenario if ci_skip=true on CI
 DEFAULT_RUN_ALL_SCENARIOS=false  # Run all scenarios in sequence
 DEFAULT_ENABLE_RESOURCE_MONITORING=true  # CPU/GPU/RAM monitoring during packet replay (enabled by default)
-DEFAULT_RESOURCE_INTERVAL_MS=1000  # Resource monitoring sample interval in ms
+DEFAULT_RESOURCE_INTERVAL_MS=500  # Resource monitoring sample interval in ms
 
 # Scenario directory
 SCENARIOS_DIR="${TEST_DIR}/scenarios"
@@ -933,7 +933,7 @@ generate_report() {
     local disk_total disk_available disk_mount
 
     if command -v obs >/dev/null 2>&1; then
-        obs_version=$(obs --version 2>/dev/null | head -n1 | sed 's/^OBS Studio //')
+        obs_version=$(obs --version 2>/dev/null | head -n1 | sed 's/^OBS Studio - //' | sed 's/^OBS Studio //')
         [[ -z "${obs_version}" ]] && obs_version="Detected (version unknown)"
     else
         obs_version="Not installed"

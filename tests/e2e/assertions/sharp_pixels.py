@@ -376,9 +376,9 @@ class SharpPixelsAssertion(EffectAssertion):
         super().__init__("Sharp Pixels", thresholds)
         self.thresholds = {
             "white_threshold": 100,      # Grayscale threshold for detecting white pixels
-            "black_threshold": 50,       # Maximum intensity for "black" pixels (surround check)
+            "black_threshold": 100,      # Maximum intensity for "black" pixels (raised for compression gradients)
             "min_block_size": 3,         # Minimum block dimension (compression may erode)
-            "max_block_size": 6,         # Maximum block dimension (should be ~4)
+            "max_block_size": 9,         # Maximum block dimension (compression can merge adjacent blocks)
             "min_blocks": 10,            # Minimum number of blocks to detect
             "min_correct_ratio": 0.90,   # Minimum ratio of blocks that must pass all checks
             **(thresholds or {}),

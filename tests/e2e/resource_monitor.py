@@ -61,7 +61,7 @@ class ResourceSummary:
     gpu_mem_mb: Optional[ResourceStats] = None
     obs_cpu: Optional[ResourceStats] = None  # Per-process OBS CPU
     duration_ms: float = 0
-    sample_interval_ms: int = 1000
+    sample_interval_ms: int = 500
     gpu_available: bool = False
     gpu_type: str = "none"  # "nvidia", "intel", "amd", or "none"
     obs_process_found: bool = False  # Whether OBS process was found for per-process monitoring
@@ -70,12 +70,12 @@ class ResourceSummary:
 class ResourceMonitor:
     """Monitors system resource usage during E2E tests."""
 
-    def __init__(self, interval_ms: int = 1000, verbose: bool = False):
+    def __init__(self, interval_ms: int = 500, verbose: bool = False):
         """
         Initialize the resource monitor.
 
         Args:
-            interval_ms: Sampling interval in milliseconds (default 1000ms)
+            interval_ms: Sampling interval in milliseconds (default 500ms)
             verbose: Enable verbose logging
         """
         self.interval_ms = interval_ms
@@ -872,7 +872,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Test resource monitoring")
-    parser.add_argument("--interval", type=int, default=1000, help="Sample interval in ms")
+    parser.add_argument("--interval", type=int, default=500, help="Sample interval in ms")
     parser.add_argument("--duration", type=int, default=5, help="Duration in seconds")
     parser.add_argument("--output", type=str, default=None, help="Output directory for CSV/JSON")
     parser.add_argument("--verbose", action="store_true", help="Verbose output")
