@@ -57,7 +57,7 @@ The C64 Ultimate device provides two primary data streams over its Ethernet port
 
 ### Authentic C64 Display Border Dimensions
 
-Color transition analysis of authentic C64 bootscreen data reveals exact VIC-II border dimensions:
+Color transition analysis of C64 bootscreen data reveals exact VIC-II border dimensions:
 
 **Border Colors**
 - Outer Border: Light Blue (`#6D6AEF` / VIC color 14)
