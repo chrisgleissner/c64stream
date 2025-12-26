@@ -43,7 +43,7 @@ DEFAULT_SCENARIO_OVERRIDES=""
 DEFAULT_SCENARIO_NAME=""
 DEFAULT_PACKET_PATTERN=""
 DEFAULT_SCENARIO=""
-DEFAULT_CSV_MAX_ROWS=1000  # Truncate CSV files to first 1000 rows
+DEFAULT_CSV_MAX_ROWS=0  # 0 = unlimited CSV rows (preserve all data)
 SCENARIO_CI_SKIPPED=false  # Set by load_scenario if ci_skip=true on CI
 DEFAULT_RUN_ALL_SCENARIOS=false  # Run all scenarios in sequence
 DEFAULT_ENABLE_RESOURCE_MONITORING=true  # CPU/GPU/RAM monitoring during packet replay (enabled by default)
@@ -1299,6 +1299,38 @@ EOF
                     skip_max_int=$(printf '%.0f' "${skip_max}" 2>/dev/null || echo "${skip_max}")
                     echo "| Skipped frames | ${skip_count_int} skips | ${skip_min_int} | ${skip_median_int} | ${skip_max_int} |" >> "${report_file}"
                 fi
+
+                # Show detailed event times
+                echo >> "${report_file}"
+                echo "<details>" >> "${report_file}"
+                echo "<summary>Event details (click to expand)</summary>" >> "${report_file}"
+                echo >> "${report_file}"
+
+                # Show repeated frame events
+                local repeated_events
+                repeated_events=$(jq -r '.frame_sequence_box.details.repeated_events // []' "${validation_file}" 2>/dev/null)
+                if [[ "${repeated_events}" != "[]" && "${repeated_events}" != "null" ]]; then
+                    echo "**Repeated frames:**" >> "${report_file}"
+                    echo >> "${report_file}"
+                    echo "| Frame | Time | Count |" >> "${report_file}"
+                    echo "|-------|------|-------|" >> "${report_file}"
+                    echo "${repeated_events}" | jq -r '.[] | "| \(.frame) | \(.time_sec)s | \(.count)x |"' >> "${report_file}" 2>/dev/null
+                    echo >> "${report_file}"
+                fi
+
+                # Show skip events
+                local skip_events
+                skip_events=$(jq -r '.frame_sequence_box.details.skip_events // []' "${validation_file}" 2>/dev/null)
+                if [[ "${skip_events}" != "[]" && "${skip_events}" != "null" ]]; then
+                    echo "**Skipped frames:**" >> "${report_file}"
+                    echo >> "${report_file}"
+                    echo "| Frame | Time | Skipped |" >> "${report_file}"
+                    echo "|-------|------|---------|" >> "${report_file}"
+                    echo "${skip_events}" | jq -r '.[] | "| \(.frame) | \(.time_sec)s | \(.skipped) |"' >> "${report_file}" 2>/dev/null
+                    echo >> "${report_file}"
+                fi
+
+                echo "</details>" >> "${report_file}"
             fi
 
             # Additional notes for back steps or severe issues

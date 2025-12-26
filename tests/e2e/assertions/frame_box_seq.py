@@ -584,18 +584,26 @@ def _analyze_frame_box_seq(
     # A "stuck run" is when the same color index repeats many times, indicating
     # the video stream has frozen (no frame progression).
     compressed: list[int] = []
+    compressed_frame_nums: list[int] = []  # Frame number where each compressed entry starts
     stuck_runs: list[int] = []  # Length of each consecutive duplicate run
+    stuck_run_frames: list[int] = []  # Frame number where each stuck run starts
     current_run = 1
+    current_run_start = start_frame
     for i, idx in enumerate(indices):
+        frame_num = start_frame + i
         if not compressed or idx != compressed[-1]:
             if compressed:
                 stuck_runs.append(current_run)
+                stuck_run_frames.append(current_run_start)
             compressed.append(idx)
+            compressed_frame_nums.append(frame_num)
             current_run = 1
+            current_run_start = frame_num
         else:
             current_run += 1
     if indices:
         stuck_runs.append(current_run)
+        stuck_run_frames.append(current_run_start)
 
     # Filter out "startup freeze" - if the first stuck run is very long (>1 second),
     # it's likely the logo/startup screen before actual content begins, not a freeze.
@@ -604,6 +612,7 @@ def _analyze_frame_box_seq(
     end_frames_excluded = 0
     startup_run_threshold = int(fps * 1.0)  # 1 second threshold
     filtered_stuck_runs = stuck_runs.copy()
+    filtered_stuck_run_frames = stuck_run_frames.copy()
 
     # Filter startup: first run is long and subsequent content shows progression
     if len(filtered_stuck_runs) >= 2 and filtered_stuck_runs[0] > startup_run_threshold:
@@ -613,6 +622,7 @@ def _analyze_frame_box_seq(
         if remaining_distinct >= 4:  # At least 4 different colors after startup = real content
             startup_frames_excluded = filtered_stuck_runs[0]
             filtered_stuck_runs = filtered_stuck_runs[1:]
+            filtered_stuck_run_frames = filtered_stuck_run_frames[1:]
 
     # Filter end-of-stream: last run is long (packets stopped, frame frozen until logo)
     # This happens when the UDP replay ends but recording continues briefly
@@ -622,12 +632,24 @@ def _analyze_frame_box_seq(
         if preceding_distinct >= 4:  # At least 4 different colors before end = real content existed
             end_frames_excluded = filtered_stuck_runs[-1]
             filtered_stuck_runs = filtered_stuck_runs[:-1]
+            filtered_stuck_run_frames = filtered_stuck_run_frames[:-1]
 
     # Calculate stuck frame statistics (using filtered runs that exclude startup/end)
     max_stuck_run = max(filtered_stuck_runs) if filtered_stuck_runs else 0
     total_stuck_frames = sum(r - 1 for r in filtered_stuck_runs)  # Frames beyond the first in each run
     effective_valid = max(1, valid - startup_frames_excluded - end_frames_excluded)
     stuck_ratio = float(total_stuck_frames) / float(effective_valid)
+
+    # Build detailed list of repeated frame events (runs > 1)
+    repeated_events: list[dict] = []
+    for run_len, run_frame in zip(filtered_stuck_runs, filtered_stuck_run_frames):
+        if run_len > 1:
+            time_sec = float(run_frame) / fps
+            repeated_events.append({
+                "frame": run_frame,
+                "time_sec": round(time_sec, 3),
+                "count": run_len,
+            })
 
     # Calculate min/median/max for stuck runs (excluding runs of 1 = no repetition)
     repeated_runs = [r for r in filtered_stuck_runs if r > 1]
@@ -645,13 +667,17 @@ def _analyze_frame_box_seq(
     distinct = len(set(indices))
     skips = 0
     skip_sizes: list[int] = []  # Track individual skip sizes for statistics
+    skip_events: list[dict] = []  # Track skip events with frame numbers
     back_steps = 0
     severe_steps = 0
     delta_hist: dict[int, int] = {}
     max_skip_delta = int(thresholds.get("max_skip_delta", 4))
-    for prev, cur in zip(compressed, compressed[1:]):
+    for i, (prev, cur) in enumerate(zip(compressed, compressed[1:])):
         delta = int((cur - prev) % 16)
         delta_hist[delta] = delta_hist.get(delta, 0) + 1
+        # The skip happens at the transition from compressed[i] to compressed[i+1]
+        # which corresponds to frame compressed_frame_nums[i+1]
+        skip_frame = compressed_frame_nums[i + 1] if i + 1 < len(compressed_frame_nums) else 0
         if delta == 1:
             continue
         if 2 <= delta <= max_skip_delta:
@@ -659,6 +685,12 @@ def _analyze_frame_box_seq(
             skip_amount = delta - 1
             skips += skip_amount
             skip_sizes.append(skip_amount)
+            time_sec = float(skip_frame) / fps
+            skip_events.append({
+                "frame": skip_frame,
+                "time_sec": round(time_sec, 3),
+                "skipped": skip_amount,
+            })
             continue
         if delta == 15:
             back_steps += 1
@@ -699,6 +731,7 @@ def _analyze_frame_box_seq(
         "distinct_colors": distinct,
         "skips": skips,
         "skip_stats": {"count": skip_count, "min": min_skip, "median": median_skip, "max": max_skip},
+        "skip_events": skip_events,  # Detailed list of skip events with frame numbers
         "back_steps": back_steps,
         "severe_steps": severe_steps,
         "delta_hist": delta_hist,
@@ -715,6 +748,7 @@ def _analyze_frame_box_seq(
             "median": median_stuck_run,
             "max": max_stuck_run_stat,
         },
+        "repeated_events": repeated_events,  # Detailed list of repeat events with frame numbers
         "rejections": {
             "not_solid": reject_not_solid,
             "match_dist": reject_match_dist,
