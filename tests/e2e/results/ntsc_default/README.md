@@ -1,6 +1,6 @@
 # C64 Stream E2E Test Report
 
-Generated: 2025-12-26 15:49:25 UTC
+Generated: 2025-12-26 18:17:17 UTC
 
 ## Test configuration
 
@@ -28,13 +28,13 @@ Generated: 2025-12-26 15:49:25 UTC
 
 ### Resource Usage
 
-During the test's processing window (4.1s, 5 of 15 samples) (8 cores):
+During the test's processing window (4.6s, 10 of 30 samples) (8 cores):
 
 | Metric | Min | Median | Mean | Max |
 |--------|-----|--------|------|-----|
-| CPU | 62.0% | 77.6% | 74.66% | 79.3% |
-| RAM | 4838.16 MB | 4863.45 MB | 4859.85 MB | 4871.33 MB |
-| GPU | 30.43% | 31.91% | 56.82% | 95.65% |
+| CPU | 46.8% | 49.05% | 49.18% | 52.0% |
+| RAM | 4631.51 MB | 4649.5 MB | 4645.25 MB | 4655.26 MB |
+| GPU | 0.0% | 1.6% | 4.18% | 16.74% |
 
 Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
@@ -46,13 +46,13 @@ Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
 ### A/V Sync
 
-- ✅ Good synchronization (100.0%): avg offset 24.0ms, max 32.0ms
+- ✅ Good synchronization (100.0%): avg offset 9.9ms, max 21.0ms
 
 #### Sync Details
 
-- 🟢 Pop #1 [L]: audio=8108.0ms, video=8100.0ms (frame 486), diff=8.0ms
-- 🟡 Pop #2 [R]: audio=9132.0ms, video=9100.0ms (frame 546), diff=32.0ms
-- 🟡 Pop #3 [L]: audio=10132.0ms, video=10100.0ms (frame 606), diff=32.0ms
+- 🟢 Pop #1 [L]: audio=8721.0ms, video=8700.0ms (frame 522), diff=21.0ms
+- 🟢 Pop #2 [R]: audio=9721.0ms, video=9716.7ms (frame 583), diff=4.3ms
+- 🟢 Pop #3 [L]: audio=10721.0ms, video=10716.7ms (frame 643), diff=4.3ms
 
 - Channels: LRL
 - 🔁 Channel alternation: OK (alternating, starts with L)
@@ -60,7 +60,7 @@ Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 ### Video
 
 - Download: [c64_recording.mp4](c64_recording.mp4)
-- Duration: 19.3 s
+- Duration: 20.9 s
 
 
 ### Sample Frame
@@ -68,4 +68,4 @@ Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 ![Sample Frame](./c64_recording_still.png)
 
 - Top-left shows the frame index (color = frame_num % 16). Top-right shows a stable 4×4 tile of all 16 VIC colours (drift check). Center shows scrolling colour bars. Bottom-right flashes with a pop sound for A/V sync checks / afterglow tail.
-- Taken from frame 486 at 00:08.1 of the 19.3 s video above.
+- Taken from frame 522 at 00:08.7 of the 20.9 s video above.

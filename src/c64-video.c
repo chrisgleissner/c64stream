@@ -900,11 +900,19 @@ void *c64_video_thread_func(void *data)
 // Calculate ideal timestamp for a frame based on sequence number and video standard
 static uint64_t c64_calculate_ideal_timestamp(struct c64_source *context, uint16_t frame_num)
 {
-    // Initialize timing base if not already set (could be set by audio)
+    // Initialize timing base if not already set - prefer audio's base if already set for A/V sync
     if (!context->timestamp_base_set) {
-        context->stream_start_time_ns = os_gettime_ns();
+        // Use audio's timing base if already established (ensures A/V sync)
+        // Otherwise use current real time
+        if (context->audio_base_time > 0) {
+            context->stream_start_time_ns = context->audio_base_time;
+            C64_LOG_INFO("📐 Video using audio timing base for A/V sync: %" PRIu64 " ns",
+                         context->stream_start_time_ns);
+        } else {
+            context->stream_start_time_ns = os_gettime_ns();
+            C64_LOG_INFO("📐 Video timing base established: %" PRIu64 " ns", context->stream_start_time_ns);
+        }
         context->timestamp_base_set = true;
-        C64_LOG_INFO("📐 Video timing base established: %" PRIu64 " ns", context->stream_start_time_ns);
     }
 
     // Set first frame reference for video calculations

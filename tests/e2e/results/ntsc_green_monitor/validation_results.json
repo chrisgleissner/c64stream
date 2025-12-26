@@ -1,7 +1,7 @@
 {
   "udp_reception": {
     "status": "pass",
-    "details": "19252/19252 packets (18000 video, 1252 audio)"
+    "details": "19252/19252 packets (17981 video, 1271 audio)"
   },
   "frame_processing": {
     "status": "pass",
@@ -9,11 +9,11 @@
   },
   "video_recording": {
     "status": "pass",
-    "details": "14.4 MB"
+    "details": "20.2 MB"
   },
   "packet_integrity": {
     "status": "pass",
-    "details": "19.7s duration"
+    "details": "20.9s duration"
   },
   "video_brightness": {
     "status": "warning",
@@ -22,16 +22,16 @@
   "av_sync_details": {
     "total_audio_pops": 3,
     "total_analyzed": 3,
-    "total_video_pops": 3,
+    "total_video_pops": 4,
     "perfect_sync_count": 3,
     "sync_accuracy_percent": 100.0,
-    "tolerance_ms": 50,
+    "tolerance_ms": 60,
     "sync_details": [
       {
-        "audio_pop_time_ms": 8190,
-        "closest_video_pop_ms": 8166.666666666666,
-        "closest_video_pop_frame": 490,
-        "difference_ms": 23.33333333333394,
+        "audio_pop_time_ms": 8718,
+        "closest_video_pop_ms": 8700.0,
+        "closest_video_pop_frame": 522,
+        "difference_ms": 18.0,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -39,21 +39,21 @@
         "traffic": "green"
       },
       {
-        "audio_pop_time_ms": 9191,
-        "closest_video_pop_ms": 9183.333333333334,
-        "closest_video_pop_frame": 551,
-        "difference_ms": 7.66666666666606,
+        "audio_pop_time_ms": 9740,
+        "closest_video_pop_ms": 9700.0,
+        "closest_video_pop_frame": 582,
+        "difference_ms": 40.0,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
         "channel": "R",
-        "traffic": "green"
+        "traffic": "yellow"
       },
       {
-        "audio_pop_time_ms": 10193,
-        "closest_video_pop_ms": 10166.666666666666,
-        "closest_video_pop_frame": 610,
-        "difference_ms": 26.33333333333394,
+        "audio_pop_time_ms": 10740,
+        "closest_video_pop_ms": 10716.666666666666,
+        "closest_video_pop_frame": 643,
+        "difference_ms": 23.33333333333394,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -63,20 +63,22 @@
     ],
     "is_perfectly_synced": true,
     "last_event_within_limit": true,
-    "duration_ms": 19700.0,
+    "duration_ms": 20864.0,
     "video_pop_times_ms": [
-      8166.666666666666,
-      9183.333333333334,
-      10166.666666666666
+      500.0,
+      8700.0,
+      9700.0,
+      10716.666666666666
     ],
     "video_pop_frame_indices": [
-      490,
-      551,
-      610
+      30,
+      522,
+      582,
+      643
     ],
     "traffic": [
       "green",
-      "green",
+      "yellow",
       "green"
     ]
   },

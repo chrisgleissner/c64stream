@@ -8,7 +8,9 @@ Exports results to CSV and JSON for analysis.
 
 import json
 import os
+import shutil
 import subprocess
+import sys
 import threading
 import time
 from dataclasses import dataclass, field
@@ -86,6 +88,14 @@ class ResourceMonitor:
         self._start_time_ms: float = 0
         self._gpu_type, self._gpu_info = self._detect_gpu()
         self._gpu_available = self._gpu_type != "none"
+
+        # Intel GPU top streaming support
+        self._intel_gpu_top_available = False
+        self._intel_gpu_top_process: Optional[subprocess.Popen] = None
+        self._intel_gpu_top_thread: Optional[threading.Thread] = None
+        self._intel_gpu_top_lock = threading.Lock()
+        self._intel_gpu_top_data: dict = {}  # Latest parsed data from intel_gpu_top
+        self._intel_gpu_top_checked = False  # Whether we've checked availability
 
         # Detect effective CPU count (respects cgroup limits in containers/CI)
         self._effective_cpu_count = self._get_effective_cpu_count()
@@ -168,6 +178,268 @@ class ResourceMonitor:
         if HAVE_PSUTIL:
             return psutil.cpu_count() or 1
         return os.cpu_count() or 1
+
+    def _check_intel_gpu_top_sudo(self) -> bool:
+        """
+        Check if intel_gpu_top can run with passwordless sudo.
+
+        Returns:
+            True if sudo intel_gpu_top works without password prompt
+        """
+        intel_gpu_top_path = shutil.which("intel_gpu_top")
+        if not intel_gpu_top_path:
+            return False
+
+        try:
+            # Try running with sudo -n (non-interactive, fails if password needed)
+            # intel_gpu_top streams continuously, so we start it, read briefly, then kill it
+            proc = subprocess.Popen(
+                ["sudo", "-n", intel_gpu_top_path, "-J", "-s", "200"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            try:
+                # Wait briefly for output (the tool outputs JSON array with streaming objects)
+                time.sleep(0.5)
+                # Check if process is still running (good sign - means sudo worked)
+                if proc.poll() is None:
+                    # Still running, means sudo didn't prompt for password
+                    proc.terminate()
+                    proc.wait(timeout=1)
+                    return True
+                else:
+                    # Process exited - check if it was a sudo password error
+                    _, stderr = proc.communicate(timeout=1)
+                    if "password" in stderr.lower() or proc.returncode != 0:
+                        return False
+                    return True
+            finally:
+                if proc.poll() is None:
+                    proc.terminate()
+                    try:
+                        proc.wait(timeout=1)
+                    except subprocess.TimeoutExpired:
+                        proc.kill()
+        except (subprocess.TimeoutExpired, FileNotFoundError, PermissionError, OSError):
+            pass
+        return False
+
+    def _setup_intel_gpu_top_sudo(self) -> bool:
+        """
+        Interactively set up passwordless sudo for intel_gpu_top.
+
+        Returns:
+            True if setup was successful or skipped, False if user declined
+        """
+        intel_gpu_top_path = shutil.which("intel_gpu_top")
+        if not intel_gpu_top_path:
+            print("[ResourceMonitor] intel_gpu_top not found. Install intel-gpu-tools package.")
+            return False
+
+        # Check if we're in an interactive terminal
+        if not sys.stdin.isatty():
+            if self.verbose:
+                print("[ResourceMonitor] Non-interactive mode, skipping intel_gpu_top setup")
+            return False
+
+        print()
+        print("=" * 70)
+        print("Intel GPU Monitoring Setup")
+        print("=" * 70)
+        print()
+        print("Accurate Intel GPU monitoring requires passwordless sudo access to")
+        print("intel_gpu_top. Without this, GPU usage will be estimated from frequency")
+        print("scaling (less accurate).")
+        print()
+        print("This is a one-time setup that adds a sudoers rule for intel_gpu_top only.")
+        print()
+
+        try:
+            response = input("Set up passwordless sudo for intel_gpu_top? [Y/n] ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            print("\nSkipped.")
+            return False
+
+        if response in ("n", "no"):
+            print("Skipped. Using frequency-based GPU monitoring (less accurate).")
+            return False
+
+        # Create the sudoers rule
+        sudoers_line = f"%sudo ALL=(root) NOPASSWD: {intel_gpu_top_path}\n"
+        sudoers_file = "/etc/sudoers.d/intel_gpu_top"
+
+        print()
+        print(f"Adding sudoers rule to {sudoers_file}:")
+        print(f"  {sudoers_line.strip()}")
+        print()
+
+        try:
+            # Use sudo tee to write the file
+            result = subprocess.run(
+                ["sudo", "tee", sudoers_file],
+                input=sudoers_line,
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            if result.returncode != 0:
+                print(f"Failed to create sudoers file: {result.stderr}")
+                return False
+
+            # Set correct permissions (must be 0440)
+            subprocess.run(
+                ["sudo", "chmod", "0440", sudoers_file],
+                capture_output=True,
+                timeout=10,
+            )
+
+            # Verify it works
+            if self._check_intel_gpu_top_sudo():
+                print("✓ Setup complete! Intel GPU monitoring is now available.")
+                return True
+            else:
+                print("Setup completed but verification failed. Please check manually.")
+                return False
+
+        except subprocess.TimeoutExpired:
+            print("Timeout waiting for sudo. Please run manually:")
+            print(f'  echo "{sudoers_line.strip()}" | sudo tee {sudoers_file}')
+            print(f"  sudo chmod 0440 {sudoers_file}")
+            return False
+        except Exception as e:
+            print(f"Setup failed: {e}")
+            return False
+
+    def _ensure_intel_gpu_top(self) -> bool:
+        """
+        Ensure intel_gpu_top is available with passwordless sudo.
+
+        Checks availability and prompts for setup if needed (interactive only).
+
+        Returns:
+            True if intel_gpu_top is available with passwordless sudo
+        """
+        if self._intel_gpu_top_checked:
+            return self._intel_gpu_top_available
+
+        self._intel_gpu_top_checked = True
+
+        # First check if it already works
+        if self._check_intel_gpu_top_sudo():
+            self._intel_gpu_top_available = True
+            if self.verbose:
+                print("[ResourceMonitor] intel_gpu_top available with passwordless sudo")
+            return True
+
+        # Try to set it up interactively
+        if self._setup_intel_gpu_top_sudo():
+            self._intel_gpu_top_available = True
+            return True
+
+        self._intel_gpu_top_available = False
+        if self.verbose:
+            print("[ResourceMonitor] Using frequency-based GPU monitoring (less accurate)")
+        return False
+
+    def _start_intel_gpu_top(self) -> bool:
+        """
+        Start intel_gpu_top as a background process streaming JSON.
+
+        Returns:
+            True if successfully started
+        """
+        if not self._intel_gpu_top_available:
+            return False
+
+        intel_gpu_top_path = shutil.which("intel_gpu_top")
+        if not intel_gpu_top_path:
+            return False
+
+        try:
+            # Start intel_gpu_top with JSON output and our sampling interval
+            self._intel_gpu_top_process = subprocess.Popen(
+                ["sudo", "-n", intel_gpu_top_path, "-J", "-s", str(self.interval_ms)],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                bufsize=1,  # Line buffered
+            )
+
+            # Start a thread to read the output
+            self._intel_gpu_top_thread = threading.Thread(
+                target=self._intel_gpu_top_reader,
+                daemon=True,
+            )
+            self._intel_gpu_top_thread.start()
+
+            if self.verbose:
+                print(f"[ResourceMonitor] Started intel_gpu_top with {self.interval_ms}ms interval")
+            return True
+
+        except Exception as e:
+            if self.verbose:
+                print(f"[ResourceMonitor] Failed to start intel_gpu_top: {e}")
+            return False
+
+    def _intel_gpu_top_reader(self):
+        """Background thread that reads intel_gpu_top JSON output."""
+        if not self._intel_gpu_top_process or not self._intel_gpu_top_process.stdout:
+            return
+
+        json_buffer = ""
+        brace_count = 0
+        in_object = False
+
+        try:
+            for line in self._intel_gpu_top_process.stdout:
+                line = line.strip()
+                if not line:
+                    continue
+
+                # Skip the opening/closing brackets of the JSON array
+                if line == "[" or line == "]":
+                    continue
+
+                # Handle comma between objects
+                if line == ",":
+                    continue
+
+                # Track braces to know when we have a complete object
+                json_buffer += line
+                brace_count += line.count("{") - line.count("}")
+
+                if line.startswith("{"):
+                    in_object = True
+
+                if in_object and brace_count == 0:
+                    # We have a complete JSON object
+                    try:
+                        # Remove trailing comma if present
+                        clean_json = json_buffer.rstrip(",")
+                        data = json.loads(clean_json)
+                        with self._intel_gpu_top_lock:
+                            self._intel_gpu_top_data = data
+                    except json.JSONDecodeError:
+                        pass
+                    json_buffer = ""
+                    in_object = False
+
+        except Exception:
+            pass
+
+    def _stop_intel_gpu_top(self):
+        """Stop the intel_gpu_top background process."""
+        if self._intel_gpu_top_process:
+            try:
+                self._intel_gpu_top_process.terminate()
+                self._intel_gpu_top_process.wait(timeout=2)
+            except Exception:
+                try:
+                    self._intel_gpu_top_process.kill()
+                except Exception:
+                    pass
+            self._intel_gpu_top_process = None
 
     def _detect_gpu(self) -> tuple[str, dict]:
         """
@@ -275,11 +547,18 @@ class ResourceMonitor:
                         except Exception:
                             pass
 
-                        # Try to read GPU frequency info
-                        gt_freq_path = device_path / "drm" / card.name / "gt_cur_freq_mhz"
-                        gt_max_freq_path = device_path / "drm" / card.name / "gt_max_freq_mhz"
+                        # Try to read GPU frequency info from sysfs
+                        # The primary location is directly under /sys/class/drm/cardN/
+                        gt_freq_path = card / "gt_cur_freq_mhz"
+                        gt_max_freq_path = card / "gt_max_freq_mhz"
 
-                        # Alternative paths
+                        # Alternative: under device/drm/cardN/
+                        if not gt_freq_path.exists():
+                            gt_freq_path = device_path / "drm" / card.name / "gt_cur_freq_mhz"
+                        if not gt_max_freq_path.exists():
+                            gt_max_freq_path = device_path / "drm" / card.name / "gt_max_freq_mhz"
+
+                        # Final fallback: directly under device/
                         if not gt_freq_path.exists():
                             gt_freq_path = device_path / "gt_cur_freq_mhz"
                         if not gt_max_freq_path.exists():
@@ -455,71 +734,50 @@ class ResourceMonitor:
 
     def _get_intel_gpu_usage(self) -> tuple[Optional[float], Optional[float], Optional[float]]:
         """
-        Get Intel GPU usage via sysfs.
+        Get Intel GPU usage.
 
-        Intel GPUs don't have a direct "utilization" metric like NVIDIA.
-        We estimate usage based on frequency scaling (cur_freq / max_freq).
+        Uses intel_gpu_top if available (accurate), otherwise falls back to
+        frequency-based estimation (less accurate but works without root).
         """
         try:
             gpu_percent = None
             mem_percent = None
             mem_mb = None
 
-            # Method 1: Try to read from i915 performance counters via intel_gpu_top output
-            # This requires intel-gpu-tools package but gives accurate usage
-            try:
-                result = subprocess.run(
-                    ["intel_gpu_top", "-l", "-s", "100"],
-                    capture_output=True,
-                    text=True,
-                    timeout=0.5,
-                )
-                if result.returncode == 0:
-                    # Parse intel_gpu_top output for render/3D usage
-                    for line in result.stdout.split("\n"):
-                        if "Render/3D" in line or "render" in line.lower():
-                            parts = line.split()
-                            for part in parts:
-                                if "%" in part:
-                                    try:
-                                        gpu_percent = float(part.rstrip("%"))
-                                        break
-                                    except ValueError:
-                                        continue
-                            if gpu_percent is not None:
-                                break
-            except (FileNotFoundError, subprocess.TimeoutExpired):
-                pass
+            # Try to get data from intel_gpu_top background process
+            if self._intel_gpu_top_available and self._intel_gpu_top_process:
+                with self._intel_gpu_top_lock:
+                    data = self._intel_gpu_top_data.copy()
 
-            # Method 2: Frequency-based estimation (fallback)
-            if gpu_percent is None:
-                freq_path = self._gpu_info.get("freq_path")
-                max_freq_path = self._gpu_info.get("max_freq_path")
+                if data:
+                    # Extract GPU busy percentage from engines
+                    # The "Render/3D" engine is the primary GPU workload indicator
+                    engines = data.get("engines", {})
+                    render_engine = engines.get("Render/3D", {})
+                    gpu_percent = render_engine.get("busy", 0.0)
 
-                if freq_path and max_freq_path:
-                    cur_freq = float(Path(freq_path).read_text().strip())
-                    max_freq = float(Path(max_freq_path).read_text().strip())
-                    if max_freq > 0:
-                        # Frequency ratio as proxy for utilization
-                        # This is imperfect but gives some indication of GPU activity
-                        gpu_percent = (cur_freq / max_freq) * 100.0
+                    # Also add video engine usage for video workloads
+                    video_engine = engines.get("Video", {})
+                    video_busy = video_engine.get("busy", 0.0)
 
-            # Method 3: Try reading from /sys/kernel/debug/dri/0/i915_gem_objects for memory
-            # (requires root, so may fail)
-            try:
-                gem_path = Path("/sys/kernel/debug/dri/0/i915_gem_objects")
-                if gem_path.exists():
-                    content = gem_path.read_text()
-                    # Parse memory usage from gem objects
-                    for line in content.split("\n"):
-                        if "total" in line.lower() and "bytes" in line.lower():
-                            parts = line.split()
-                            for i, part in enumerate(parts):
-                                if part.isdigit():
-                                    mem_mb = float(part) / (1024 * 1024)
-                                    break
-            except (PermissionError, FileNotFoundError):
-                pass
+                    # Use max of render and video as the GPU utilization
+                    if video_busy > gpu_percent:
+                        gpu_percent = video_busy
+
+                    # Note: intel_gpu_top doesn't provide memory usage
+                    return gpu_percent, mem_percent, mem_mb
+
+            # Fallback: frequency-based estimation (fast sysfs read)
+            freq_path = self._gpu_info.get("freq_path")
+            max_freq_path = self._gpu_info.get("max_freq_path")
+
+            if freq_path and max_freq_path:
+                cur_freq = float(Path(freq_path).read_text().strip())
+                max_freq = float(Path(max_freq_path).read_text().strip())
+                if max_freq > 0:
+                    # Frequency ratio as proxy for utilization
+                    # This is imperfect but gives some indication of GPU activity
+                    gpu_percent = (cur_freq / max_freq) * 100.0
 
             return gpu_percent, mem_percent, mem_mb
 
@@ -597,11 +855,15 @@ class ResourceMonitor:
 
     def warmup(self):
         """
-        Prime CPU measurement before actual monitoring begins.
+        Prime CPU measurement and initialize GPU monitoring before actual monitoring begins.
 
         Call this BEFORE the data processing starts to ensure the first
         sample after start() has valid CPU data. This separates warmup
         time from actual measurement time.
+
+        For Intel GPUs, this also checks and sets up intel_gpu_top with
+        passwordless sudo, and starts the background streaming process.
+        This avoids any subprocess spawning or delays during start().
         """
         if HAVE_PSUTIL:
             # First call establishes baseline (returns 0)
@@ -615,6 +877,15 @@ class ResourceMonitor:
             # Final brief pause to ensure next measurement has fresh baseline
             time.sleep(0.05)
 
+        # For Intel GPUs, check/setup intel_gpu_top and start background process
+        # This is done during warmup (not start) to avoid timing-sensitive delays
+        if self._gpu_type == "intel" and not self._intel_gpu_top_checked:
+            self._ensure_intel_gpu_top()
+            if self._intel_gpu_top_available:
+                self._start_intel_gpu_top()
+                # Give intel_gpu_top time to produce first sample
+                time.sleep(0.1)
+
         if self.verbose:
             print("[ResourceMonitor] Warmup complete - CPU measurement primed")
 
@@ -623,7 +894,8 @@ class ResourceMonitor:
         Start resource monitoring.
 
         Note: Call warmup() before start() if you want accurate CPU readings
-        from the first sample. The warmup primes the CPU measurement system.
+        from the first sample and for Intel GPU monitoring to be initialized.
+        The warmup primes the CPU measurement system and starts intel_gpu_top.
         """
         if self._running:
             return
@@ -648,6 +920,9 @@ class ResourceMonitor:
         self._running = False
         if self._thread:
             self._thread.join(timeout=2.0)
+
+        # Stop intel_gpu_top background process if running
+        self._stop_intel_gpu_top()
 
         if self.verbose:
             print(f"[ResourceMonitor] Stopped, collected {len(self.samples)} samples")
