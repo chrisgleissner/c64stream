@@ -1565,11 +1565,9 @@ class E2ETest:
             print(f"📡 Mock sender: sent {packets_sent} packets in {elapsed_ms:.1f}ms")
             self.log(f"✅ Packet replay complete: {packets_sent} packets sent, {failed_packets} failed in {elapsed_ms:.1f}ms")
 
-            # Stop resource monitoring and save data
-            if self.enable_resource_monitoring and self._resource_monitor:
-                self._resource_summary = self._resource_monitor.stop()
-                self._save_resource_data()
-                self.log(f"📊 Resource monitoring stopped ({self._resource_summary.cpu.sample_count} samples)")
+            # NOTE: Resource monitoring continues running! It will be stopped after
+            # the grace period in run() to capture full OBS processing time.
+            # This ensures we measure the entire test duration, not just packet sending.
 
             # Give plugin time to process the packets (increased slightly for CI)
             time.sleep(2.0)
@@ -2612,6 +2610,14 @@ class E2ETest:
             self.stop_recording()
             # Minimal extra wait to ensure the output file is finalized
             time.sleep(1)
+
+            # Stop resource monitoring NOW - after full OBS processing is complete
+            # This captures the entire test duration including packet sending + grace period
+            if self.enable_resource_monitoring and self._resource_monitor:
+                self._resource_summary = self._resource_monitor.stop()
+                self._save_resource_data()
+                self.log(f"📊 Resource monitoring stopped ({self._resource_summary.cpu.sample_count} samples)")
+
             # Proactively stop OBS now to avoid lingering recordings while analysis runs
             self.stop_obs()
 
