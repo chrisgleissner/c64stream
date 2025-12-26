@@ -1,6 +1,6 @@
 # C64 Stream E2E Test Report
 
-Generated: 2025-12-25 20:05:05 UTC
+Generated: 2025-12-26 10:49:43 UTC
 
 ## Test configuration
 
@@ -14,7 +14,7 @@ Generated: 2025-12-25 20:05:05 UTC
 ## Build information
 
 - Project: c64stream
-- Version: 0.8.3
+- Version: 1.0.0
 
 ## System information
 
@@ -32,13 +32,13 @@ Generated: 2025-12-25 20:05:05 UTC
 
 ### A/V Sync
 
-- ✅ Good synchronization (100.0%): avg offset 40.2ms, max 41.7ms
+- ✅ Good synchronization (100.0%): avg offset 18.0ms, max 26.7ms
 
 #### Sync Details
 
-- 🟡 Pop #1 [L]: audio=7804.0ms, video=7766.7ms (frame 466), diff=37.3ms
-- 🟡 Pop #2 [R]: audio=8825.0ms, video=8783.3ms (frame 527), diff=41.7ms
-- 🟡 Pop #3 [L]: audio=9825.0ms, video=9783.3ms (frame 587), diff=41.7ms
+- 🟢 Pop #1 [L]: audio=7886.0ms, video=7883.3ms (frame 473), diff=2.7ms
+- 🟢 Pop #2 [R]: audio=8908.0ms, video=8883.3ms (frame 533), diff=24.7ms
+- 🟢 Pop #3 [L]: audio=9910.0ms, video=9883.3ms (frame 593), diff=26.7ms
 
 - Channels: LRL
 - 🔁 Channel alternation: OK (alternating, starts with L)
@@ -46,11 +46,11 @@ Generated: 2025-12-25 20:05:05 UTC
 ### Video
 
 - Download: [c64_recording.mp4](c64_recording.mp4)
-- Duration: 19.0 s
+- Duration: 19.1 s
 
 
 ### Sample Frame
 
 ![Sample Frame](./c64_recording_still.png)
 - Top-left shows the frame index (color = frame_num % 16). Top-right shows a stable 4×4 tile of all 16 VIC colours (drift check). Center shows scrolling colour bars. Bottom-right flashes with a pop sound for A/V sync checks / afterglow tail.
-- Taken from the 19.0 s video above.
+- Taken from the 19.1 s video above.

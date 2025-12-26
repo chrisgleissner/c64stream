@@ -470,6 +470,8 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->last_frame_time_ns = 0;
     context->afterglow_dt_ms = 33.33f;
     context->afterglow_last_tick_ns = 0;
+    context->afterglow_frame_counter = 0;
+    context->afterglow_last_render_frame = 0;
     context->afterglow_cpu_accum = NULL;
     context->afterglow_cpu_bytes = 0;
     context->afterglow_cpu_valid = false;
@@ -930,6 +932,11 @@ void c64_video_tick(void *data, float seconds)
     if (!context)
         return;
 
+    // Increment afterglow frame counter - this is called once per OBS output frame
+    // Used to prevent multiple afterglow accumulation updates when video_render is called
+    // multiple times per frame (e.g., preview + program + recording + streaming)
+    context->afterglow_frame_counter++;
+
     // Always update texture from frame buffer for consistent rendering.
     // Important: do NOT call gs_texture_get_width/height outside graphics context; cache dimensions instead.
     if (!context->render_texture || context->render_texture_width != context->width ||
@@ -960,10 +967,14 @@ void c64_video_tick(void *data, float seconds)
         if (context->afterglow_accum_next) {
             gs_texture_destroy(context->afterglow_accum_next);
         }
+        // Use GS_RGBA16F (16-bit float per channel) for high-precision accumulation.
+        // This prevents quantization banding artifacts in the afterglow decay trail
+        // that would occur with 8-bit GS_RGBA format. The exponential decay calculation
+        // requires higher precision to avoid non-uniform brightness steps.
         context->afterglow_accum_prev =
-            gs_texture_create(render_width, render_height, GS_RGBA, 1, NULL, GS_RENDER_TARGET);
+            gs_texture_create(render_width, render_height, GS_RGBA16F, 1, NULL, GS_RENDER_TARGET);
         context->afterglow_accum_next =
-            gs_texture_create(render_width, render_height, GS_RGBA, 1, NULL, GS_RENDER_TARGET);
+            gs_texture_create(render_width, render_height, GS_RGBA16F, 1, NULL, GS_RENDER_TARGET);
 
         // Reset afterglow timing on dimension change
         context->last_frame_time_ns = 0;
@@ -1006,28 +1017,40 @@ void c64_video_render(void *data, gs_effect_t *effect)
     // Input texture for rendering (raw frame without afterglow - afterglow is now GPU-based)
     gs_texture_t *input_tex = context->render_texture;
 
+    // Detect if this is a new frame vs a repeated render of the same frame
+    // OBS may call video_render multiple times per frame (preview, program, recording, streaming)
+    // We only want to update afterglow timing once per actual frame to ensure smooth decay
+    bool is_new_frame = (context->afterglow_frame_counter != context->afterglow_last_render_frame);
+
     // Compute render-time delta for GPU-based afterglow.
-    // This advances on every render call, ensuring afterglow works correctly in recordings.
-    uint64_t now_ns = os_gettime_ns();
+    // Only compute actual dt on new frames; reuse cached value for multi-renders of same frame
     float dt_ms;
-    if (context->last_frame_time_ns != 0 && now_ns > context->last_frame_time_ns) {
-        dt_ms = (float)(now_ns - context->last_frame_time_ns) / 1000000.0f;
-        // Clamp to reasonable range to prevent decay issues on pauses/stutters
-        if (dt_ms > 100.0f)
-            dt_ms = 100.0f;
-        if (dt_ms < 1.0f)
-            dt_ms = 1.0f;
-    } else {
-        // Fallback to configured frame timing for the first frame or non-monotonic timestamps
-        if (context->frame_interval_ns > 0) {
-            dt_ms = (float)context->frame_interval_ns / 1000000.0f;
-        } else if (context->expected_fps > 0.0f) {
-            dt_ms = 1000.0f / (float)context->expected_fps;
+    if (is_new_frame) {
+        uint64_t now_ns = os_gettime_ns();
+        if (context->last_frame_time_ns != 0 && now_ns > context->last_frame_time_ns) {
+            dt_ms = (float)(now_ns - context->last_frame_time_ns) / 1000000.0f;
+            // Clamp to reasonable range to prevent decay issues on pauses/stutters
+            if (dt_ms > 100.0f)
+                dt_ms = 100.0f;
+            if (dt_ms < 1.0f)
+                dt_ms = 1.0f;
         } else {
-            dt_ms = 16.67f; // Generic ~60fps default if no timing info available
+            // Fallback to configured frame timing for the first frame or non-monotonic timestamps
+            if (context->frame_interval_ns > 0) {
+                dt_ms = (float)context->frame_interval_ns / 1000000.0f;
+            } else if (context->expected_fps > 0.0f) {
+                dt_ms = 1000.0f / (float)context->expected_fps;
+            } else {
+                dt_ms = 16.67f; // Generic ~60fps default if no timing info available
+            }
         }
+        context->last_frame_time_ns = now_ns;
+        context->afterglow_dt_ms = dt_ms; // Cache for repeated renders
+    } else {
+        // Reuse cached dt for repeated renders of the same frame
+        // Use dt=0 to indicate no decay should be applied on repeated renders
+        dt_ms = 0.0f;
     }
-    context->last_frame_time_ns = now_ns;
 
     // Check if any CRT effects are enabled
     bool any_effects_enabled =
@@ -1152,9 +1175,9 @@ void c64_video_render(void *data, gs_effect_t *effect)
     gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "canvas_height"), canvas_height);
 
     // GPU-based afterglow with ping-pong render targets:
-    // 1. Render all effects (including afterglow) to accumulation texture
-    // 2. Swap ping-pong textures for next frame
-    // 3. Copy accumulated result to screen
+    // - On NEW frames: render all effects to accumulation texture, swap, blit to screen
+    // - On REPEATED renders (same frame): just blit the already-accumulated texture
+    // This ensures smooth, consistent afterglow decay without blotchiness from multi-render jitter
     bool use_gpu_afterglow = (context->afterglow_duration_ms > 0) && context->afterglow_accum_next &&
                              context->afterglow_accum_prev;
 
@@ -1170,35 +1193,41 @@ void c64_video_render(void *data, gs_effect_t *effect)
     }
 
     if (use_gpu_afterglow) {
-        // Step 1: Render to afterglow_accum_next (off-screen render target)
-        // Save original render state (render target, z-stencil, and viewport)
-        gs_texture_t *prev_target = gs_get_render_target();
-        gs_zstencil_t *prev_zstencil = gs_get_zstencil_target();
-        struct gs_rect prev_viewport;
-        gs_get_viewport(&prev_viewport);
+        // Only update accumulation on new frames (not repeated renders of the same frame)
+        if (is_new_frame) {
+            // Step 1: Render to afterglow_accum_next (off-screen render target)
+            // Save original render state (render target, z-stencil, and viewport)
+            gs_texture_t *prev_target = gs_get_render_target();
+            gs_zstencil_t *prev_zstencil = gs_get_zstencil_target();
+            struct gs_rect prev_viewport;
+            gs_get_viewport(&prev_viewport);
 
-        gs_set_render_target(context->afterglow_accum_next, NULL);
-        gs_set_viewport(0, 0, render_width, render_height);
+            gs_set_render_target(context->afterglow_accum_next, NULL);
+            gs_set_viewport(0, 0, render_width, render_height);
 
-        // Clear target before rendering (prevents garbage on first frame)
-        struct vec4 clear_color = {0.0f, 0.0f, 0.0f, 1.0f};
-        gs_clear(GS_CLEAR_COLOR, &clear_color, 0.0f, 0);
+            // Clear target before rendering (prevents garbage on first frame)
+            struct vec4 clear_color = {0.0f, 0.0f, 0.0f, 1.0f};
+            gs_clear(GS_CLEAR_COLOR, &clear_color, 0.0f, 0);
 
-        // Render with CRT effects + afterglow accumulation
-        while (gs_effect_loop(context->crt_effect, "Draw")) {
-            gs_draw_sprite(input_tex, 0, render_width, render_height);
+            // Render with CRT effects + afterglow accumulation
+            while (gs_effect_loop(context->crt_effect, "Draw")) {
+                gs_draw_sprite(input_tex, 0, render_width, render_height);
+            }
+
+            // Step 2: Swap ping-pong textures for next frame
+            gs_texture_t *tmp = context->afterglow_accum_prev;
+            context->afterglow_accum_prev = context->afterglow_accum_next;
+            context->afterglow_accum_next = tmp;
+
+            // Mark this frame as processed to prevent re-accumulation on repeated renders
+            context->afterglow_last_render_frame = context->afterglow_frame_counter;
+
+            // Step 3: Restore original render state
+            gs_set_render_target(prev_target, prev_zstencil);
+            gs_set_viewport(prev_viewport.x, prev_viewport.y, prev_viewport.cx, prev_viewport.cy);
         }
 
-        // Step 2: Swap ping-pong textures for next frame
-        gs_texture_t *tmp = context->afterglow_accum_prev;
-        context->afterglow_accum_prev = context->afterglow_accum_next;
-        context->afterglow_accum_next = tmp;
-
-        // Step 3: Restore original render state
-        gs_set_render_target(prev_target, prev_zstencil);
-        gs_set_viewport(prev_viewport.x, prev_viewport.y, prev_viewport.cx, prev_viewport.cy);
-
-        // Render accumulated texture to screen using default shader (just blit)
+        // Blit the accumulated texture to screen (done for both new and repeated renders)
         gs_effect_t *default_effect = obs_get_base_effect(OBS_EFFECT_DEFAULT);
         if (default_effect) {
             gs_effect_set_texture(gs_effect_get_param_by_name(default_effect, "image"), context->afterglow_accum_prev);

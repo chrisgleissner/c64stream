@@ -199,11 +199,13 @@ struct c64_source {
     gs_samplerstate_t *point_sampler; // Point (nearest-neighbor) sampler for sharp pixel rendering
 
     // Afterglow (shader ping-pong targets; also used by CPU/headless paths for deterministic persistence)
-    gs_texture_t *afterglow_accum_prev; // Ping-pong texture for afterglow accumulation
-    gs_texture_t *afterglow_accum_next; // Ping-pong texture for afterglow accumulation
-    uint64_t last_frame_time_ns;        // Last frame timestamp for afterglow delta calculation
-    float afterglow_dt_ms;              // Stable per-tick delta time (ms) used by afterglow shader
-    uint64_t afterglow_last_tick_ns;    // Timestamp of last video_tick (ns) for dt calculation
+    gs_texture_t *afterglow_accum_prev;   // Ping-pong texture for afterglow accumulation
+    gs_texture_t *afterglow_accum_next;   // Ping-pong texture for afterglow accumulation
+    uint64_t last_frame_time_ns;          // Last frame timestamp for afterglow delta calculation
+    float afterglow_dt_ms;                // Stable per-tick delta time (ms) used by afterglow shader
+    uint64_t afterglow_last_tick_ns;      // Timestamp of last video_tick (ns) for dt calculation
+    uint64_t afterglow_frame_counter;     // Incremented in video_tick, used to detect multi-render per frame
+    uint64_t afterglow_last_render_frame; // Last frame counter when afterglow was updated (prevents multi-update)
 
     // CPU afterglow accumulation (fallback / deterministic path for E2E + headless)
     uint32_t *afterglow_cpu_accum; // RGBA accumulator (same size as frame_buffer)

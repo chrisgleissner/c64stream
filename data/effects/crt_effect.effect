@@ -39,6 +39,16 @@ sampler_state textureSampler {
     MaxLOD   = 0.0;
 };
 
+// Point sampler for accumulation texture - prevents interpolation artifacts
+// that cause jagged/blotchy afterglow decay
+sampler_state point_clamp {
+    Filter   = Point;
+    AddressU = Clamp;
+    AddressV = Clamp;
+    MinLOD   = 0.0;
+    MaxLOD   = 0.0;
+};
+
 sampler_state linear_clamp {
     Filter   = Linear;
     AddressU = Clamp;
@@ -65,8 +75,9 @@ struct VertDataOut {
 //   This accounts for timing differences between frame arrival and render cycles.
 float3 ApplyAfterglow(float2 uv, float3 current_rgb)
 {
-    // Use exact UV coordinates for precise alignment
-    float4 prev = texture_accum_prev.Sample(linear_clamp, uv);
+    // Use point sampling to avoid interpolation artifacts at pixel boundaries
+    // Linear filtering causes color bleeding that manifests as jagged/blotchy decay
+    float4 prev = texture_accum_prev.Sample(point_clamp, uv);
 
     // Duration in seconds (clamp to at least 0.001s to prevent div-by-zero)
     float duration_s = max(float(afterglow_duration_ms), 1.0) / 1000.0;

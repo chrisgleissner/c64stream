@@ -5,4 +5,5 @@ assertions:
   - video_quality
   - audio
   - afterglow
+  - afterglow_width
   - scanlines
