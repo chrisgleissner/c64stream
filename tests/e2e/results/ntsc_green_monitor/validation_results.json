@@ -23,15 +23,15 @@
     "total_audio_pops": 3,
     "total_analyzed": 3,
     "total_video_pops": 3,
-    "perfect_sync_count": 0,
-    "sync_accuracy_percent": 0.0,
+    "perfect_sync_count": 2,
+    "sync_accuracy_percent": 66.66666666666666,
     "tolerance_ms": 50,
     "sync_details": [
       {
-        "audio_pop_time_ms": 8134,
-        "closest_video_pop_ms": 8066.666666666666,
-        "closest_video_pop_frame": 484,
-        "difference_ms": 67.33333333333394,
+        "audio_pop_time_ms": 8089,
+        "closest_video_pop_ms": 8033.333333333333,
+        "closest_video_pop_frame": 482,
+        "difference_ms": 55.66666666666697,
         "is_synced": false,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -39,53 +39,56 @@
         "traffic": "red"
       },
       {
-        "audio_pop_time_ms": 9134,
-        "closest_video_pop_ms": 9083.333333333334,
-        "closest_video_pop_frame": 545,
-        "difference_ms": 50.66666666666606,
-        "is_synced": false,
+        "audio_pop_time_ms": 9089,
+        "closest_video_pop_ms": 9066.666666666666,
+        "closest_video_pop_frame": 544,
+        "difference_ms": 22.33333333333394,
+        "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
         "channel": "R",
-        "traffic": "red"
+        "traffic": "green"
       },
       {
-        "audio_pop_time_ms": 10134,
-        "closest_video_pop_ms": 10066.666666666666,
-        "closest_video_pop_frame": 604,
-        "difference_ms": 67.33333333333394,
-        "is_synced": false,
+        "audio_pop_time_ms": 10089,
+        "closest_video_pop_ms": 10050.0,
+        "closest_video_pop_frame": 603,
+        "difference_ms": 39.0,
+        "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
         "channel": "L",
-        "traffic": "red"
+        "traffic": "yellow"
       }
     ],
     "is_perfectly_synced": false,
     "last_event_within_limit": true,
-    "duration_ms": 19633.333,
+    "duration_ms": 19605.333000000002,
     "video_pop_times_ms": [
-      8066.666666666666,
-      9083.333333333334,
-      10066.666666666666
+      8033.333333333333,
+      9066.666666666666,
+      10050.0
     ],
     "video_pop_frame_indices": [
-      484,
-      545,
-      604
+      482,
+      544,
+      603
     ],
     "traffic": [
       "red",
-      "red",
-      "red"
+      "green",
+      "yellow"
     ]
   },
   "av_sync": {
-    "status": "fail",
-    "details": "Only 0/3 pops synced"
+    "status": "pass",
+    "details": "2/3 analyzed pops synced"
   },
   "scanlines": {
-    "status": "fail",
-    "details": "Analysis failed - No module named 'assertions.afterglow_width'"
+    "status": "pass",
+    "details": "Scanlines uniform: 0.00% variance",
+    "metrics": {
+      "variance_percent": 0.0
+    }
   }
 }

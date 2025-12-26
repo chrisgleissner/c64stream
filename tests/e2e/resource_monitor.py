@@ -36,7 +36,6 @@ class ResourceSample:
     gpu_percent: Optional[float] = None
     gpu_mem_percent: Optional[float] = None
     gpu_mem_mb: Optional[float] = None
-    obs_cpu_percent: Optional[float] = None  # Per-process OBS CPU percentage
 
 
 @dataclass
@@ -59,12 +58,10 @@ class ResourceSummary:
     gpu: Optional[ResourceStats] = None
     gpu_mem_percent: Optional[ResourceStats] = None
     gpu_mem_mb: Optional[ResourceStats] = None
-    obs_cpu: Optional[ResourceStats] = None  # Per-process OBS CPU (normalized)
     duration_ms: float = 0
     sample_interval_ms: int = 500
     gpu_available: bool = False
     gpu_type: str = "none"  # "nvidia", "intel", "amd", or "none"
-    obs_process_found: bool = False  # Whether OBS process was found for per-process monitoring
     effective_cpu_count: float = 1.0  # CPUs available (respects cgroup limits)
     physical_cpu_count: int = 1  # Physical/logical CPU count
 
@@ -88,7 +85,6 @@ class ResourceMonitor:
         self._start_time_ms: float = 0
         self._gpu_type, self._gpu_info = self._detect_gpu()
         self._gpu_available = self._gpu_type != "none"
-        self._obs_process: Optional[object] = None
 
         # Detect effective CPU count (respects cgroup limits in containers/CI)
         self._effective_cpu_count = self._get_effective_cpu_count()
@@ -344,91 +340,6 @@ class ResourceMonitor:
             pass
         return None
 
-    def _find_obs_process(self) -> Optional[object]:
-        """Find the OBS process for focused CPU monitoring.
-
-        Tries multiple detection methods to work across different platforms
-        and environments (local, CI containers, etc.).
-        """
-        if not HAVE_PSUTIL:
-            return None
-
-        # Try to find OBS by various name patterns
-        obs_patterns = ["obs", "obs-studio", "obs64", "obs32"]
-
-        for proc in psutil.process_iter(["name", "cmdline", "exe"]):
-            try:
-                name = proc.info.get("name", "").lower()
-                cmdline = proc.info.get("cmdline") or []
-                exe = proc.info.get("exe") or ""
-
-                # Check process name
-                for pattern in obs_patterns:
-                    if pattern in name:
-                        if self.verbose:
-                            print(f"[ResourceMonitor] Found OBS by name: {name} (PID {proc.pid})")
-                        return proc
-
-                # Check executable path
-                exe_lower = exe.lower()
-                for pattern in obs_patterns:
-                    if pattern in exe_lower:
-                        if self.verbose:
-                            print(f"[ResourceMonitor] Found OBS by exe: {exe} (PID {proc.pid})")
-                        return proc
-
-                # Check command line for OBS-related commands
-                cmdline_str = " ".join(cmdline).lower()
-                if "obs" in cmdline_str and ("studio" in cmdline_str or "bin" in cmdline_str):
-                    if self.verbose:
-                        print(f"[ResourceMonitor] Found OBS by cmdline: {cmdline_str[:80]} (PID {proc.pid})")
-                    return proc
-
-            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                continue
-        return None
-
-    def _get_obs_cpu_percent(self) -> Optional[float]:
-        """
-        Get CPU usage percentage for the OBS process specifically.
-
-        This provides per-process CPU measurement, which is essential for
-        accurately measuring the CPU impact of GPU offloading. System-wide
-        CPU can mask improvements when other processes are running.
-
-        Returns:
-            CPU percentage for OBS process (0-100 * num_cores), or None if unavailable
-        """
-        if not self._obs_process:
-            return None
-
-        try:
-            if HAVE_PSUTIL:
-                # psutil.Process.cpu_percent() returns percentage across all cores
-                # e.g., 200% means using 2 cores fully
-                raw_percent = self._obs_process.cpu_percent(interval=None)
-
-                # Normalize to effective CPU count (important for CI with cgroup limits)
-                # If we have 2 effective cores and process uses 100% of one, that's 50% effective
-                if self._effective_cpu_count > 0:
-                    normalized = (raw_percent / self._effective_cpu_count)
-                    return normalized
-                return raw_percent
-            else:
-                # Fallback: parse /proc/<pid>/stat for process CPU time
-                # This requires tracking deltas between calls
-                pid = self._obs_process.pid
-                with open(f"/proc/{pid}/stat", "r") as f:
-                    fields = f.read().split()
-                    # utime (field 14) + stime (field 15) in jiffies
-                    utime = int(fields[13])
-                    stime = int(fields[14])
-                    return float(utime + stime)  # Raw jiffies, needs delta calculation
-        except (psutil.NoSuchProcess, psutil.AccessDenied, FileNotFoundError, IndexError):
-            # Process may have exited
-            self._obs_process = None
-            return None
-
     def _get_cpu_percent(self) -> float:
         """
         Get current CPU usage percentage, normalized to effective CPUs.
@@ -657,18 +568,9 @@ class ResourceMonitor:
             # This adds a small delay but ensures no 0% readings
             if first_sample and HAVE_PSUTIL:
                 cpu_percent = psutil.cpu_percent(interval=0.1)  # 100ms blocking measurement
-                # Also prime OBS process CPU measurement
-                if self._obs_process:
-                    try:
-                        self._obs_process.cpu_percent(interval=None)
-                    except (psutil.NoSuchProcess, psutil.AccessDenied):
-                        self._obs_process = None
                 first_sample = False
             else:
                 cpu_percent = self._get_cpu_percent()
-
-            # Get per-process OBS CPU (the key metric for GPU offload comparison)
-            obs_cpu_percent = self._get_obs_cpu_percent()
 
             ram_percent, ram_mb = self._get_ram_usage()
             gpu_percent, gpu_mem_percent, gpu_mem_mb = self._get_gpu_usage()
@@ -681,15 +583,13 @@ class ResourceMonitor:
                 gpu_percent=gpu_percent,
                 gpu_mem_percent=gpu_mem_percent,
                 gpu_mem_mb=gpu_mem_mb,
-                obs_cpu_percent=obs_cpu_percent,
             )
             self.samples.append(sample)
 
             if self.verbose:
                 gpu_str = f", GPU: {gpu_percent:.1f}%" if gpu_percent is not None else ""
-                obs_cpu_str = f", OBS CPU: {obs_cpu_percent:.1f}%" if obs_cpu_percent is not None else ""
                 print(
-                    f"[ResourceMonitor] {timestamp_ms:.0f}ms - CPU: {cpu_percent:.1f}%{obs_cpu_str}, RAM: {ram_percent:.1f}%{gpu_str}"
+                    f"[ResourceMonitor] {timestamp_ms:.0f}ms - CPU: {cpu_percent:.1f}%, RAM: {ram_percent:.1f}%{gpu_str}"
                 )
 
             time.sleep(interval_sec)
@@ -730,11 +630,6 @@ class ResourceMonitor:
         self._running = True
         self._start_time_ms = time.time() * 1000
         self.samples = []
-
-        # Try to find OBS process for focused monitoring
-        self._obs_process = self._find_obs_process()
-        if self._obs_process and self.verbose:
-            print(f"[ResourceMonitor] Found OBS process: {self._obs_process.pid}")
 
         self._thread = threading.Thread(target=self._sample_worker, daemon=True)
         self._thread.start()
@@ -831,12 +726,6 @@ class ResourceMonitor:
         if gpu_mem_mb_values:
             summary.gpu_mem_mb = self._compute_stats(gpu_mem_mb_values)
 
-        # Per-process OBS CPU stats
-        obs_cpu_values = [s.obs_cpu_percent for s in samples if s.obs_cpu_percent is not None]
-        if obs_cpu_values:
-            summary.obs_cpu = self._compute_stats(obs_cpu_values)
-            summary.obs_process_found = True
-
         return summary
 
     def save_csv_from_samples(self, output_path: Path, samples: list[ResourceSample]):
@@ -851,14 +740,9 @@ class ResourceMonitor:
         """
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Check if any sample has OBS CPU data
-        has_obs_cpu = any(s.obs_cpu_percent is not None for s in samples)
-
         with open(output_path, "w") as f:
             # Header
             header = ["timestamp_ms", "cpu_percent", "ram_percent", "ram_mb"]
-            if has_obs_cpu:
-                header.append("obs_cpu_percent")
             if self._gpu_available:
                 header.extend(["gpu_percent", "gpu_mem_percent", "gpu_mem_mb"])
             f.write(",".join(header) + "\n")
@@ -871,9 +755,6 @@ class ResourceMonitor:
                     f"{sample.ram_percent:.2f}",
                     f"{sample.ram_mb:.2f}",
                 ]
-                if has_obs_cpu:
-                    obs_cpu = f"{sample.obs_cpu_percent:.2f}" if sample.obs_cpu_percent is not None else ""
-                    row.append(obs_cpu)
                 if self._gpu_available:
                     gpu_pct = f"{sample.gpu_percent:.2f}" if sample.gpu_percent is not None else ""
                     gpu_mem_pct = f"{sample.gpu_mem_percent:.2f}" if sample.gpu_mem_percent is not None else ""
@@ -942,12 +823,6 @@ class ResourceMonitor:
         if gpu_mem_mb_values:
             summary.gpu_mem_mb = self._compute_stats(gpu_mem_mb_values)
 
-        # Per-process OBS CPU stats (the key metric for GPU offload comparison)
-        obs_cpu_values = [s.obs_cpu_percent for s in self.samples if s.obs_cpu_percent is not None]
-        if obs_cpu_values:
-            summary.obs_cpu = self._compute_stats(obs_cpu_values)
-            summary.obs_process_found = True
-
         return summary
 
     def save_csv(self, output_path: Path):
@@ -959,14 +834,9 @@ class ResourceMonitor:
         """
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Check if any sample has OBS CPU data
-        has_obs_cpu = any(s.obs_cpu_percent is not None for s in self.samples)
-
         with open(output_path, "w") as f:
-            # Header - include obs_cpu_percent column when OBS process was found
+            # Header
             header = ["timestamp_ms", "cpu_percent", "ram_percent", "ram_mb"]
-            if has_obs_cpu:
-                header.append("obs_cpu_percent")
             if self._gpu_available:
                 header.extend(["gpu_percent", "gpu_mem_percent", "gpu_mem_mb"])
             f.write(",".join(header) + "\n")
@@ -979,9 +849,6 @@ class ResourceMonitor:
                     f"{sample.ram_percent:.2f}",
                     f"{sample.ram_mb:.2f}",
                 ]
-                if has_obs_cpu:
-                    obs_cpu = f"{sample.obs_cpu_percent:.2f}" if sample.obs_cpu_percent is not None else ""
-                    row.append(obs_cpu)
                 if self._gpu_available:
                     gpu_pct = f"{sample.gpu_percent:.2f}" if sample.gpu_percent is not None else ""
                     gpu_mem_pct = f"{sample.gpu_mem_percent:.2f}" if sample.gpu_mem_percent is not None else ""
@@ -1024,12 +891,7 @@ class ResourceMonitor:
             "ram_mb": stats_to_dict(summary.ram_mb),
             "gpu_available": summary.gpu_available,
             "gpu_type": summary.gpu_type,
-            "obs_process_found": summary.obs_process_found,
         }
-
-        # Per-process OBS CPU (key metric for GPU offload comparison)
-        if summary.obs_cpu is not None:
-            data["obs_cpu_percent"] = stats_to_dict(summary.obs_cpu)
 
         if summary.gpu is not None:
             data["gpu_percent"] = stats_to_dict(summary.gpu)
@@ -1079,19 +941,6 @@ class ResourceMonitor:
             f"- Median: {summary.cpu.median_val:.1f}%",
             f"- Max: {summary.cpu.max_val:.1f}%",
         ]
-
-        # Per-process OBS CPU (key metric for GPU offload comparison)
-        if summary.obs_cpu is not None:
-            lines.extend(
-                [
-                    "",
-                    "### OBS Process CPU (per-process)",
-                    f"- Min: {summary.obs_cpu.min_val:.1f}%",
-                    f"- Median: {summary.obs_cpu.median_val:.1f}%",
-                    f"- Max: {summary.obs_cpu.max_val:.1f}%",
-                    f"- _(across all cores, 100% = 1 core fully utilized)_",
-                ]
-            )
 
         lines.extend(
             [

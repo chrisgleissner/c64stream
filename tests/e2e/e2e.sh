@@ -1009,20 +1009,23 @@ EOF
     # Add Resource Usage section first if resource.json exists
     local resource_json="${OUTPUT_DIR}/resource.json"
     if [[ -f "${resource_json}" ]] && command -v jq >/dev/null 2>&1; then
-        local duration_ms sample_count cpu_median cpu_max ram_mb_median gpu_median gpu_max obs_cpu_median obs_cpu_max
-        local effective_cpus physical_cpus obs_found
+        local duration_ms sample_count
+        local cpu_min cpu_median cpu_max ram_mb_min ram_mb_median ram_mb_max
+        local gpu_min gpu_median gpu_max
+        local effective_cpus physical_cpus
         duration_ms=$(jq -r '.duration_ms // 0' "${resource_json}")
         sample_count=$(jq -r '.sample_count // 0' "${resource_json}")
+        cpu_min=$(jq -r '.cpu_percent.min // 0' "${resource_json}")
         cpu_median=$(jq -r '.cpu_percent.median // 0' "${resource_json}")
         cpu_max=$(jq -r '.cpu_percent.max // 0' "${resource_json}")
+        ram_mb_min=$(jq -r '.ram_mb.min // 0' "${resource_json}")
         ram_mb_median=$(jq -r '.ram_mb.median // 0' "${resource_json}")
-        obs_cpu_median=$(jq -r '.obs_cpu_percent.median // null' "${resource_json}")
-        obs_cpu_max=$(jq -r '.obs_cpu_percent.max // null' "${resource_json}")
+        ram_mb_max=$(jq -r '.ram_mb.max // 0' "${resource_json}")
+        gpu_min=$(jq -r '.gpu_percent.min // null' "${resource_json}")
         gpu_median=$(jq -r '.gpu_percent.median // null' "${resource_json}")
         gpu_max=$(jq -r '.gpu_percent.max // null' "${resource_json}")
         effective_cpus=$(jq -r '.effective_cpu_count // 0' "${resource_json}")
         physical_cpus=$(jq -r '.physical_cpu_count // 0' "${resource_json}")
-        obs_found=$(jq -r '.obs_process_found // false' "${resource_json}")
 
         if [[ "${sample_count}" -gt 0 ]]; then
             local duration_sec cpu_context
@@ -1042,20 +1045,21 @@ EOF
             echo >> "${report_file}"
             echo "During the test's processing window (${duration_sec}s, ${sample_count} samples)${cpu_context}:" >> "${report_file}"
             echo >> "${report_file}"
-            echo "- CPU: ${cpu_median}% median (max: ${cpu_max}%)" >> "${report_file}"
-            if [[ "${obs_cpu_median}" != "null" && -n "${obs_cpu_median}" ]]; then
-                echo "- OBS CPU: ${obs_cpu_median}% median (max: ${obs_cpu_max}%)" >> "${report_file}"
-            elif [[ "${obs_found}" != "true" ]]; then
-                echo "- OBS CPU: _process not found_" >> "${report_file}"
-            fi
-            echo "- RAM: ${ram_mb_median} MB median" >> "${report_file}"
+            echo "| Metric | Min | Median | Max |" >> "${report_file}"
+            echo "|--------|-----|--------|-----|" >> "${report_file}"
+            echo "| CPU | ${cpu_min}% | ${cpu_median}% | ${cpu_max}% |" >> "${report_file}"
+            echo "| RAM | ${ram_mb_min} MB | ${ram_mb_median} MB | ${ram_mb_max} MB |" >> "${report_file}"
             if [[ "${gpu_median}" != "null" && -n "${gpu_median}" ]]; then
-                echo "- GPU: ${gpu_median}% median (max: ${gpu_max}%)" >> "${report_file}"
+                echo "| GPU | ${gpu_min}% | ${gpu_median}% | ${gpu_max}% |" >> "${report_file}"
             fi
+            echo >> "${report_file}"
             echo "- [resource.csv](resource.csv) | [resource.json](resource.json)" >> "${report_file}"
         fi
     fi
 
+    # Packet & Network Data section
+    echo >> "${report_file}"
+    echo "### Packet & Network Data" >> "${report_file}"
     echo >> "${report_file}"
 
     local video_count=0
@@ -1421,6 +1425,7 @@ PY
                 if [[ -n "${best_tmp}" && -s "${best_tmp}" ]]; then
                     cp -f "${best_tmp}" "${sample_frame_path}" || true
                     sample_frame_extracted=true
+                    sample_frame_index="${best_frame}"
                 fi
             fi
 
@@ -1428,6 +1433,7 @@ PY
             if [[ "${sample_frame_extracted}" != true ]]; then
                 "${TEST_DIR}/extract.frame" --input "${recording_mp4}" --output "${sample_frame_path}" --frame "${first_pop_frame}" || true
                 sample_frame_extracted=true
+                sample_frame_index="${first_pop_frame}"
             fi
 
             if [[ -n "${tmp_dir}" && -d "${tmp_dir}" ]]; then

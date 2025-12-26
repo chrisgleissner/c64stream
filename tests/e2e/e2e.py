@@ -264,10 +264,6 @@ class E2ETest:
         print("\n📊 Resource Usage Summary:")
         print(f"   Duration: {summary.duration_ms/1000:.1f}s ({summary.cpu.sample_count} samples)")
         print(f"   CPU: {summary.cpu.median_val:.1f}% median (max: {summary.cpu.max_val:.1f}%)")
-
-        if summary.obs_cpu is not None:
-            print(f"   OBS CPU: {summary.obs_cpu.median_val:.1f}% median (max: {summary.obs_cpu.max_val:.1f}%)")
-
         print(f"   RAM: {summary.ram_mb.median_val:.0f} MB median")
 
         if summary.gpu is not None:
@@ -1578,22 +1574,13 @@ class E2ETest:
 
             self.log(f"🎯 Generated {len(timeline)} interleaved packets over {timeline[-1]['time_us']/1000:.1f}ms")
 
-            # Prepare resource monitoring if enabled - warmup BEFORE data processing starts
-            # This ensures CPU measurement is primed and won't show 0% on first sample
-            if self.enable_resource_monitoring:
-                self._resource_monitor = ResourceMonitor(
-                    interval_ms=self.resource_interval_ms,
-                    verbose=self.verbose
-                )
-                self._resource_monitor.warmup()  # Prime CPU measurement before data flows
-
             # Send packets with precise timing and better error handling
             replay_start_time = time.time()
             packets_sent = 0
             failed_packets = 0
 
             # Start resource monitoring RIGHT when packets begin flowing
-            # This ensures we only measure actual data processing time
+            # (warmup was already done in run() before OBS started)
             if self.enable_resource_monitoring and self._resource_monitor:
                 self._resource_monitor.start()
                 self.log(f"📊 Resource monitoring started (interval: {self.resource_interval_ms}ms)")
@@ -2615,10 +2602,22 @@ class E2ETest:
                 self.log("❌ Failed to start mock C64 server")
                 return False
 
+            # Prepare resource monitoring - initialize but DON'T warmup yet (OBS not running)
+            if self.enable_resource_monitoring:
+                self._resource_monitor = ResourceMonitor(
+                    interval_ms=self.resource_interval_ms,
+                    verbose=self.verbose
+                )
+
             # Start OBS - plugin will auto-connect to TCP server on initialization
             if not self.start_obs_recording():
                 self.log("❌ Failed to start OBS")
                 return False
+
+            # Now that OBS is running, do resource monitor warmup
+            # This happens during the async_task_delay so it doesn't add extra time
+            if self.enable_resource_monitoring and self._resource_monitor:
+                self._resource_monitor.warmup()  # Prime CPU measurement
 
             # Wait for plugin to connect to TCP server via async task
             self.log(f"⏳ Allowing plugin to connect to mock server via async task ({self.async_task_delay}s)...")

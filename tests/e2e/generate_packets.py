@@ -250,7 +250,7 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                         if not in_stripe:
                             return 0
                         # Diagonal index invariant under motion along S: use (px - pixel_line)
-                        color_period = 48  # Color changes along diagonal
+                        color_period = 16  # Color changes along diagonal (faster = more colorful)
                         diag_index = ((px - pixel_line) // color_period) % 16
                         return int(diag_index)
 
