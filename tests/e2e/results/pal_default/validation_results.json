@@ -1,7 +1,7 @@
 {
   "udp_reception": {
-    "status": "pass",
-    "details": "18246/18246 packets (16987 video, 1259 audio)"
+    "status": "warning",
+    "details": "18245/18246 packets (16986 video, 1259 audio, minor loss)"
   },
   "frame_processing": {
     "status": "pass",
@@ -28,10 +28,10 @@
     "tolerance_ms": 60,
     "sync_details": [
       {
-        "audio_pop_time_ms": 8702,
+        "audio_pop_time_ms": 8700,
         "closest_video_pop_ms": 8700.000000000002,
         "closest_video_pop_frame": 435,
-        "difference_ms": 1.999999999998181,
+        "difference_ms": 1.8189894035458565e-12,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -39,10 +39,10 @@
         "traffic": "green"
       },
       {
-        "audio_pop_time_ms": 9702,
+        "audio_pop_time_ms": 9721,
         "closest_video_pop_ms": 9700.000000000002,
         "closest_video_pop_frame": 485,
-        "difference_ms": 1.999999999998181,
+        "difference_ms": 20.99999999999818,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -50,15 +50,15 @@
         "traffic": "green"
       },
       {
-        "audio_pop_time_ms": 10745,
+        "audio_pop_time_ms": 10724,
         "closest_video_pop_ms": 10700.000000000002,
         "closest_video_pop_frame": 535,
-        "difference_ms": 44.99999999999818,
+        "difference_ms": 23.99999999999818,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
         "channel": "L",
-        "traffic": "yellow"
+        "traffic": "green"
       }
     ],
     "is_perfectly_synced": true,
@@ -77,7 +77,7 @@
     "traffic": [
       "green",
       "green",
-      "yellow"
+      "green"
     ]
   },
   "av_sync": {
@@ -87,5 +87,118 @@
   "scanlines": {
     "status": "skipped",
     "details": "Skipped (not enabled)"
+  },
+  "frame_sequence_box": {
+    "status": "warning",
+    "message": "Video stream froze for 151 frames (3.0s)",
+    "details": {
+      "window": {
+        "start_frame": 436,
+        "end_frame": 835,
+        "fps": 50.0
+      },
+      "video_pop_starts": [
+        435,
+        485,
+        535
+      ],
+      "palette_tile": {
+        "x": 1424,
+        "y": 140,
+        "wh": 104,
+        "score": 178.66088029448545
+      },
+      "derived_content": {
+        "left": 384,
+        "top": 132,
+        "right": 1536
+      },
+      "analyzed_frames": 400,
+      "valid_frames": 347,
+      "compressed_len": 189,
+      "distinct_colors": 16,
+      "skips": 9,
+      "skip_stats": {
+        "count": 7,
+        "min": 1,
+        "median": 1.0,
+        "max": 2
+      },
+      "back_steps": 0,
+      "severe_steps": 0,
+      "delta_hist": {
+        "3": 2,
+        "1": 181,
+        "2": 5
+      },
+      "ambiguous_frames": 53,
+      "ambiguous_ratio": 0.1325,
+      "stuck_frames": 158,
+      "stuck_ratio": 0.4553314121037464,
+      "max_stuck_run": 151,
+      "stuck_stats": {
+        "count": 8,
+        "min": 2,
+        "median": 2.0,
+        "max": 151
+      },
+      "rejections": {
+        "not_solid": 0,
+        "match_dist": 53,
+        "margin": 0
+      },
+      "avg_palette_match_dist": 0.3438910422987645,
+      "avg_palette_second_margin": 65.29682191008752,
+      "bounds": {
+        "left": 384,
+        "right": 1536,
+        "top": 132,
+        "bottom": 903
+      },
+      "scale": {
+        "x": 3.0,
+        "y": 2.8345588235294117
+      }
+    },
+    "metrics": {
+      "valid_frames": 347.0,
+      "distinct_colors": 16.0,
+      "skips": 9.0,
+      "skip_count": 7.0,
+      "skip_min": 1.0,
+      "skip_median": 1.0,
+      "skip_max": 2.0,
+      "back_steps": 0.0,
+      "severe_steps": 0.0,
+      "ambiguous_ratio": 0.1325,
+      "stuck_frames": 158.0,
+      "stuck_ratio": 0.4553314121037464,
+      "stuck_run_count": 8.0,
+      "stuck_run_min": 2.0,
+      "stuck_run_median": 2.0,
+      "max_stuck_run": 151.0
+    }
+  },
+  "recording": {
+    "record_audio": {
+      "status": "skipped",
+      "message": "Skipped (not enabled)"
+    },
+    "record_video": {
+      "status": "skipped",
+      "message": "Skipped (not enabled)"
+    },
+    "record_obs": {
+      "status": "skipped",
+      "message": "Skipped (not enabled)"
+    },
+    "record_network": {
+      "status": "skipped",
+      "message": "Skipped (not enabled)"
+    },
+    "record_frames": {
+      "status": "skipped",
+      "message": "Skipped (not enabled)"
+    }
   }
 }

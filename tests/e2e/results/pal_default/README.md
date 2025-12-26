@@ -1,6 +1,6 @@
 # C64 Stream E2E Test Report
 
-Generated: 2025-12-26 18:23:10 UTC
+Generated: 2025-12-26 20:23:28 UTC
 
 ## Test configuration
 
@@ -21,7 +21,7 @@ Generated: 2025-12-26 18:23:10 UTC
 - OS: Ubuntu 24.04.3 LTS (kernel 6.14.0-37-generic)
 - OBS: 32.0.2
 - CPU: Intel(R) Core(TM) i7-6700K CPU @ 4.00GHz (8 cores)
-- RAM: 31Gi total, 25Gi available
+- RAM: 31Gi total, 24Gi available
 - Disk (/): 1.8T total, 1.1T available
 
 ## Test results
@@ -32,9 +32,9 @@ During the test's processing window (4.6s, 10 of 30 samples) (8 cores):
 
 | Metric | Min | Median | Mean | Max |
 |--------|-----|--------|------|-----|
-| CPU | 35.4% | 46.65% | 45.68% | 47.7% |
-| RAM | 4634.11 MB | 4649.07 MB | 4647.76 MB | 4665.71 MB |
-| GPU | 0.0% | 0.0% | 0.63% | 2.85% |
+| CPU | 45.2% | 49.8% | 50.81% | 59.2% |
+| RAM | 5486.57 MB | 5497.57 MB | 5497.23 MB | 5503.43 MB |
+| GPU | 37.91% | 47.62% | 46.87% | 52.99% |
 
 Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
@@ -46,16 +46,29 @@ Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
 ### A/V Sync
 
-- ✅ Good synchronization (100.0%): avg offset 16.3ms, max 45.0ms
+- ✅ Good synchronization (100.0%): avg offset 15.0ms, max 24.0ms
 
 #### Sync Details
 
-- 🟢 Pop #1 [L]: audio=8702.0ms, video=8700.0ms (frame 435), diff=2.0ms
-- 🟢 Pop #2 [R]: audio=9702.0ms, video=9700.0ms (frame 485), diff=2.0ms
-- 🟡 Pop #3 [L]: audio=10745.0ms, video=10700.0ms (frame 535), diff=45.0ms
+- 🟢 Pop #1 [L]: audio=8700.0ms, video=8700.0ms (frame 435), diff=0.0ms
+- 🟢 Pop #2 [R]: audio=9721.0ms, video=9700.0ms (frame 485), diff=21.0ms
+- 🟢 Pop #3 [L]: audio=10724.0ms, video=10700.0ms (frame 535), diff=24.0ms
 
 - Channels: LRL
 - 🔁 Channel alternation: OK (alternating, starts with L)
+
+### Frame Progression
+
+- 🟡 Video stream froze for 151 frames (3.0s)
+
+| Metric | Count | Min | Median | Max |
+|--------|-------|-----|--------|-----|
+| Repeated frames | 8 runs | 2 | 2.0 | 151 |
+| Skipped frames | 7 skips | 1 | 1.0 | 2 |
+
+- ↩️ Back steps: 0 (frame counter went backwards)
+
+- ⚡ Severe jumps: 0 (large sequence discontinuity)
 
 ### Video
 

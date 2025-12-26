@@ -42,7 +42,7 @@ int main(void)
 
     must_contain(buf, "[recording]");
     must_contain(buf, "save_folder=");
-    must_contain(buf, "save_frames=false");
+    must_contain(buf, "record_frames=false");
     must_contain(buf, "record_video=false");
     must_contain(buf, "record_csv=false");
 

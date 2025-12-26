@@ -354,6 +354,13 @@ load_scenario() {
     fi
 
     if [[ $? -eq 0 ]]; then
+        # Copy static overrides from scenario's overrides directory if present
+        local static_overrides="${scenario_dir}/overrides"
+        if [[ -d "${static_overrides}" ]]; then
+            cp -r "${static_overrides}"/* "${generated_dir}/" 2>/dev/null || true
+            log_info "  Static overrides: ${static_overrides}"
+        fi
+
         SCENARIO_OVERRIDES="${generated_dir}"
         log_info "  Preset: ${preset:-Default}"
         log_info "  Generated scene: ${generated_dir}/basic/scenes/C64StreamTest.json"
@@ -1209,6 +1216,102 @@ EOF
                 echo "- 🔁 Channel alternation: OK (alternating, starts with ${seq[0]})" >> "${report_file}"
             else
                 echo "- 🔁 Channel alternation: MISMATCH" >> "${report_file}"
+            fi
+        fi
+
+        # Frame Progression section (Frame Box Sequence check)
+        local fsb_status fsb_message
+        fsb_status=$(jq -r '.frame_sequence_box.status // "skipped"' "${validation_file}" 2>/dev/null || echo "skipped")
+        fsb_message=$(jq -r '.frame_sequence_box.message // ""' "${validation_file}" 2>/dev/null || echo "")
+
+        if [[ "${fsb_status}" != "skipped" ]]; then
+            echo >> "${report_file}"
+            echo "### Frame Progression" >> "${report_file}"
+            echo >> "${report_file}"
+
+            # Get frame metrics
+            local analyzed valid distinct
+            analyzed=$(jq -r '.frame_sequence_box.details.analyzed_frames // 0' "${validation_file}" 2>/dev/null || echo "0")
+            valid=$(jq -r '.frame_sequence_box.metrics.valid_frames // 0' "${validation_file}" 2>/dev/null || echo "0")
+            distinct=$(jq -r '.frame_sequence_box.metrics.distinct_colors // 0' "${validation_file}" 2>/dev/null || echo "0")
+
+            # Status line with traffic light
+            case "${fsb_status}" in
+                pass)
+                    echo "- 🟢 Frame sequence verified (${valid%.*} frames analyzed, ${distinct%.*} colors)" >> "${report_file}"
+                    ;;
+                warning)
+                    echo "- 🟡 ${fsb_message}" >> "${report_file}"
+                    ;;
+                fail)
+                    echo "- 🔴 ${fsb_message}" >> "${report_file}"
+                    ;;
+            esac
+
+            # Get stuck/skip statistics
+            local stuck_count stuck_min stuck_median stuck_max
+            local skip_count skip_min skip_median skip_max
+            local back_steps severe_steps fps_val
+
+            stuck_count=$(jq -r '.frame_sequence_box.metrics.stuck_run_count // 0' "${validation_file}" 2>/dev/null || echo "0")
+            stuck_min=$(jq -r '.frame_sequence_box.metrics.stuck_run_min // 0' "${validation_file}" 2>/dev/null || echo "0")
+            stuck_median=$(jq -r '.frame_sequence_box.metrics.stuck_run_median // 0' "${validation_file}" 2>/dev/null || echo "0")
+            stuck_max=$(jq -r '.frame_sequence_box.metrics.max_stuck_run // 0' "${validation_file}" 2>/dev/null || echo "0")
+
+            skip_count=$(jq -r '.frame_sequence_box.metrics.skip_count // 0' "${validation_file}" 2>/dev/null || echo "0")
+            skip_min=$(jq -r '.frame_sequence_box.metrics.skip_min // 0' "${validation_file}" 2>/dev/null || echo "0")
+            skip_median=$(jq -r '.frame_sequence_box.metrics.skip_median // 0' "${validation_file}" 2>/dev/null || echo "0")
+            skip_max=$(jq -r '.frame_sequence_box.metrics.skip_max // 0' "${validation_file}" 2>/dev/null || echo "0")
+
+            back_steps=$(jq -r '.frame_sequence_box.metrics.back_steps // 0' "${validation_file}" 2>/dev/null || echo "0")
+            severe_steps=$(jq -r '.frame_sequence_box.metrics.severe_steps // 0' "${validation_file}" 2>/dev/null || echo "0")
+            fps_val=$(jq -r '.frame_sequence_box.details.window.fps // 60' "${validation_file}" 2>/dev/null || echo "60")
+
+            # Show table if there are any stuck or skipped frames
+            local has_issues=false
+            if [[ "${stuck_count}" != "0" && "${stuck_count}" != "null" ]] || \
+               [[ "${skip_count}" != "0" && "${skip_count}" != "null" ]]; then
+                has_issues=true
+            fi
+
+            if [[ "${has_issues}" == "true" ]]; then
+                echo >> "${report_file}"
+                echo "| Metric | Count | Min | Median | Max |" >> "${report_file}"
+                echo "|--------|-------|-----|--------|-----|" >> "${report_file}"
+
+                # Stuck frames (repeated frames = no progression)
+                if [[ "${stuck_count}" != "0" && "${stuck_count}" != "null" ]]; then
+                    # Convert to integer for display
+                    local stuck_count_int stuck_min_int stuck_max_int
+                    stuck_count_int=$(printf '%.0f' "${stuck_count}" 2>/dev/null || echo "${stuck_count}")
+                    stuck_min_int=$(printf '%.0f' "${stuck_min}" 2>/dev/null || echo "${stuck_min}")
+                    stuck_median_fmt=$(printf '%.1f' "${stuck_median}" 2>/dev/null || echo "${stuck_median}")
+                    stuck_max_int=$(printf '%.0f' "${stuck_max}" 2>/dev/null || echo "${stuck_max}")
+                    echo "| Repeated frames | ${stuck_count_int} runs | ${stuck_min_int} | ${stuck_median_fmt} | ${stuck_max_int} |" >> "${report_file}"
+                fi
+
+                # Skipped frames (frame counter jumped forward)
+                if [[ "${skip_count}" != "0" && "${skip_count}" != "null" ]]; then
+                    local skip_count_int skip_min_int skip_max_int
+                    skip_count_int=$(printf '%.0f' "${skip_count}" 2>/dev/null || echo "${skip_count}")
+                    skip_min_int=$(printf '%.0f' "${skip_min}" 2>/dev/null || echo "${skip_min}")
+                    skip_median_fmt=$(printf '%.1f' "${skip_median}" 2>/dev/null || echo "${skip_median}")
+                    skip_max_int=$(printf '%.0f' "${skip_max}" 2>/dev/null || echo "${skip_max}")
+                    echo "| Skipped frames | ${skip_count_int} skips | ${skip_min_int} | ${skip_median_fmt} | ${skip_max_int} |" >> "${report_file}"
+                fi
+            fi
+
+            # Additional notes for back steps or severe issues
+            if [[ "${back_steps}" != "0" && "${back_steps}" != "null" ]]; then
+                local back_steps_int=$(printf '%.0f' "${back_steps}" 2>/dev/null || echo "${back_steps}")
+                echo >> "${report_file}"
+                echo "- ↩️ Back steps: ${back_steps_int} (frame counter went backwards)" >> "${report_file}"
+            fi
+
+            if [[ "${severe_steps}" != "0" && "${severe_steps}" != "null" ]]; then
+                local severe_steps_int=$(printf '%.0f' "${severe_steps}" 2>/dev/null || echo "${severe_steps}")
+                echo >> "${report_file}"
+                echo "- ⚡ Severe jumps: ${severe_steps_int} (large sequence discontinuity)" >> "${report_file}"
             fi
         fi
     fi

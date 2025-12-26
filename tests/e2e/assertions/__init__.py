@@ -21,6 +21,11 @@ from .config import (
     load_settings_from_obs_scene,
 )
 from .frame_box_seq import FrameBoxSequenceAssertion
+from .record_audio import RecordAudioAssertion
+from .record_frames import RecordFramesAssertion
+from .record_network import RecordNetworkAssertion
+from .record_obs import RecordObsAssertion
+from .record_video import RecordVideoAssertion
 from .runner import (
     AssertionRunner,
     create_assertions_from_list,
@@ -51,6 +56,11 @@ __all__ = [
     "ScanlineAssertion",
     "SharpPixelsAssertion",
     "FrameBoxSequenceAssertion",
+    "RecordAudioAssertion",
+    "RecordVideoAssertion",
+    "RecordObsAssertion",
+    "RecordNetworkAssertion",
+    "RecordFramesAssertion",
     # Runner
     "AssertionRunner",
     "create_preset_assertions",

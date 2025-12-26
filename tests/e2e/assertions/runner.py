@@ -17,6 +17,11 @@ from .audio import AudioAssertion
 from .base import AssertionResult, AssertionStatus, EffectAssertion
 from .config import PresetConfig
 from .frame_box_seq import FrameBoxSequenceAssertion
+from .record_audio import RecordAudioAssertion
+from .record_frames import RecordFramesAssertion
+from .record_network import RecordNetworkAssertion
+from .record_obs import RecordObsAssertion
+from .record_video import RecordVideoAssertion
 from .scanlines import ScanlineAssertion
 from .sharp_pixels import SharpPixelsAssertion
 from .tint import TintAssertion
@@ -125,6 +130,11 @@ def create_assertions_from_list(
         "scanlines": ScanlineAssertion,
         "sharp_pixels": SharpPixelsAssertion,
         "frame_box_seq": FrameBoxSequenceAssertion,
+        "record_audio": RecordAudioAssertion,
+        "record_video": RecordVideoAssertion,
+        "record_obs": RecordObsAssertion,
+        "record_network": RecordNetworkAssertion,
+        "record_frames": RecordFramesAssertion,
     }
 
     thresholds = thresholds or {}

@@ -159,7 +159,7 @@ def build_source_settings(
     e2e_defaults = {
         "record_video": False,
         "record_csv": True,
-        "save_frames": False,
+        "record_frames": False,
         "debug_logging": True,
         "dns_server_ip": "127.0.0.1",
         "c64_host": "localhost",

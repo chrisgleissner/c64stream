@@ -28,21 +28,21 @@
     "tolerance_ms": 60,
     "sync_details": [
       {
-        "audio_pop_time_ms": 8721,
-        "closest_video_pop_ms": 8700.0,
-        "closest_video_pop_frame": 522,
-        "difference_ms": 21.0,
+        "audio_pop_time_ms": 8660,
+        "closest_video_pop_ms": 8616.666666666668,
+        "closest_video_pop_frame": 517,
+        "difference_ms": 43.33333333333212,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
         "channel": "L",
-        "traffic": "green"
+        "traffic": "yellow"
       },
       {
-        "audio_pop_time_ms": 9721,
-        "closest_video_pop_ms": 9716.666666666666,
-        "closest_video_pop_frame": 583,
-        "difference_ms": 4.33333333333394,
+        "audio_pop_time_ms": 9660,
+        "closest_video_pop_ms": 9633.333333333332,
+        "closest_video_pop_frame": 578,
+        "difference_ms": 26.66666666666788,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -50,10 +50,10 @@
         "traffic": "green"
       },
       {
-        "audio_pop_time_ms": 10721,
-        "closest_video_pop_ms": 10716.666666666666,
-        "closest_video_pop_frame": 643,
-        "difference_ms": 4.33333333333394,
+        "audio_pop_time_ms": 10660,
+        "closest_video_pop_ms": 10633.333333333332,
+        "closest_video_pop_frame": 638,
+        "difference_ms": 26.66666666666788,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -65,17 +65,17 @@
     "last_event_within_limit": true,
     "duration_ms": 20864.0,
     "video_pop_times_ms": [
-      8700.0,
-      9716.666666666666,
-      10716.666666666666
+      8616.666666666668,
+      9633.333333333332,
+      10633.333333333332
     ],
     "video_pop_frame_indices": [
-      522,
-      583,
-      643
+      517,
+      578,
+      638
     ],
     "traffic": [
-      "green",
+      "yellow",
       "green",
       "green"
     ]
@@ -87,5 +87,117 @@
   "scanlines": {
     "status": "skipped",
     "details": "Skipped (not enabled)"
+  },
+  "frame_sequence_box": {
+    "status": "warning",
+    "message": "Video stream froze for 181 frames (3.0s)",
+    "details": {
+      "window": {
+        "start_frame": 518,
+        "end_frame": 997,
+        "fps": 60.0
+      },
+      "video_pop_starts": [
+        517,
+        578,
+        638
+      ],
+      "palette_tile": {
+        "x": 1578,
+        "y": 71,
+        "wh": 143,
+        "score": 178.32761864804652
+      },
+      "derived_content": {
+        "left": 192,
+        "top": 60,
+        "right": 1728
+      },
+      "analyzed_frames": 480,
+      "valid_frames": 420,
+      "compressed_len": 230,
+      "distinct_colors": 16,
+      "skips": 9,
+      "skip_stats": {
+        "count": 9,
+        "min": 1,
+        "median": 1.0,
+        "max": 1
+      },
+      "back_steps": 0,
+      "severe_steps": 0,
+      "delta_hist": {
+        "1": 220,
+        "2": 9
+      },
+      "ambiguous_frames": 60,
+      "ambiguous_ratio": 0.125,
+      "stuck_frames": 190,
+      "stuck_ratio": 0.4523809523809524,
+      "max_stuck_run": 181,
+      "stuck_stats": {
+        "count": 11,
+        "min": 2,
+        "median": 2.0,
+        "max": 181
+      },
+      "rejections": {
+        "not_solid": 1,
+        "match_dist": 59,
+        "margin": 0
+      },
+      "avg_palette_match_dist": 0.11120497776989262,
+      "avg_palette_second_margin": 82.9539649399769,
+      "bounds": {
+        "left": 192,
+        "right": 1728,
+        "top": 60,
+        "bottom": 960
+      },
+      "scale": {
+        "x": 4.0,
+        "y": 3.3088235294117645
+      }
+    },
+    "metrics": {
+      "valid_frames": 420.0,
+      "distinct_colors": 16.0,
+      "skips": 9.0,
+      "skip_count": 9.0,
+      "skip_min": 1.0,
+      "skip_median": 1.0,
+      "skip_max": 1.0,
+      "back_steps": 0.0,
+      "severe_steps": 0.0,
+      "ambiguous_ratio": 0.125,
+      "stuck_frames": 190.0,
+      "stuck_ratio": 0.4523809523809524,
+      "stuck_run_count": 11.0,
+      "stuck_run_min": 2.0,
+      "stuck_run_median": 2.0,
+      "max_stuck_run": 181.0
+    }
+  },
+  "recording": {
+    "record_audio": {
+      "status": "skipped",
+      "message": "Skipped (not enabled)"
+    },
+    "record_video": {
+      "status": "skipped",
+      "message": "Skipped (not enabled)"
+    },
+    "record_obs": {
+      "status": "skipped",
+      "message": "Skipped (not enabled)"
+    },
+    "record_network": {
+      "status": "skipped",
+      "message": "Skipped (not enabled)"
+    },
+    "record_frames": {
+      "status": "skipped",
+      "message": "Skipped (not enabled)"
+    }
   }
 }

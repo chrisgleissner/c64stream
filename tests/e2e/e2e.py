@@ -2419,10 +2419,12 @@ class E2ETest:
                 visuals_results = {
                     'frame_sequence_box': {
                         'status': 'skipped',
-                        'details': 'Skipped (disabled)'
+                        'message': 'Skipped (disabled)',
+                        'details': {},
+                        'metrics': {},
                     }
                 }
-                enable_frame_box_seq = (self.scenario_id in ('ntsc_default', 'pal_default', 'ntsc_delay_500ms'))
+                enable_frame_box_seq = (self.scenario_id in ('ntsc_default', 'pal_default', 'ntsc_delay_500ms', 'ntsc_default_record'))
                 if enable_frame_box_seq and recording_file:
                     try:
                         from assertions.frame_box_seq import FrameBoxSequenceAssertion
@@ -2437,7 +2439,8 @@ class E2ETest:
                         }
                         visuals_results['frame_sequence_box'] = {
                             'status': status_map.get(res.status.value, res.status.value),
-                            'details': res.message,
+                            'message': res.message,
+                            'details': res.details,
                             'metrics': res.metrics,
                         }
                         if res.status.value == 'pass':
@@ -2455,7 +2458,9 @@ class E2ETest:
                         validation_errors.append(f"Frame Sequence Box analysis error: {e}")
                         visuals_results['frame_sequence_box'] = {
                             'status': 'fail',
-                            'details': f'Analysis failed - {e}',
+                            'message': f'Analysis failed - {e}',
+                            'details': {},
+                            'metrics': {},
                         }
                 else:
                     print("⚪ Frame Sequence Box: Skipped (disabled)")
@@ -2517,6 +2522,66 @@ class E2ETest:
                         }
 
                 validation_results['scanlines'] = scanlines_results
+
+                # Add frame sequence box results to validation_results for README generation
+                validation_results['frame_sequence_box'] = visuals_results['frame_sequence_box']
+
+                # Recording assertions: verify record_audio, record_video, record_obs, record_network
+                # These run only for scenarios that enable recording (e.g., ntsc_default_record)
+                recording_results = {
+                    'record_audio': {'status': 'skipped', 'message': 'Skipped (not enabled)'},
+                    'record_video': {'status': 'skipped', 'message': 'Skipped (not enabled)'},
+                    'record_obs': {'status': 'skipped', 'message': 'Skipped (not enabled)'},
+                    'record_network': {'status': 'skipped', 'message': 'Skipped (not enabled)'},
+                    'record_frames': {'status': 'skipped', 'message': 'Skipped (not enabled)'},
+                }
+                enable_recording_assertions = (self.scenario_id == 'ntsc_default_record')
+                if enable_recording_assertions and recording_file:
+                    try:
+                        from assertions.record_audio import RecordAudioAssertion
+                        from assertions.record_frames import RecordFramesAssertion
+                        from assertions.record_network import RecordNetworkAssertion
+                        from assertions.record_obs import RecordObsAssertion
+                        from assertions.record_video import RecordVideoAssertion
+
+                        # Run each recording assertion
+                        for assertion_name, assertion_cls in [
+                            ('record_audio', RecordAudioAssertion),
+                            ('record_video', RecordVideoAssertion),
+                            ('record_obs', RecordObsAssertion),
+                            ('record_network', RecordNetworkAssertion),
+                            ('record_frames', RecordFramesAssertion),
+                        ]:
+                            try:
+                                a = assertion_cls()
+                                res = a.verify(Path(recording_file), properties={}, preset=None, verbose=self.verbose)
+                                recording_results[assertion_name] = {
+                                    'status': res.status.value,
+                                    'message': res.message,
+                                    'details': res.details,
+                                    'metrics': res.metrics,
+                                }
+                                if res.status.value == 'pass':
+                                    print(f"✅ {a.name}: {res.message}")
+                                elif res.status.value == 'warning':
+                                    print(f"⚠️  {a.name}: {res.message}")
+                                    validation_warnings.append(f"{a.name}: {res.message}")
+                                elif res.status.value == 'skip':
+                                    print(f"⚪ {a.name}: {res.message}")
+                                else:
+                                    print(f"❌ {a.name}: {res.message}")
+                                    validation_errors.append(f"{a.name}: {res.message}")
+                            except Exception as e:
+                                print(f"❌ {assertion_name}: Analysis failed - {e}")
+                                validation_errors.append(f"{assertion_name} error: {e}")
+                                recording_results[assertion_name] = {
+                                    'status': 'fail',
+                                    'message': f'Analysis failed - {e}',
+                                }
+                    except ImportError as e:
+                        print(f"⚪ Recording assertions: Skipped (import error: {e})")
+
+                validation_results['recording'] = recording_results
 
             except Exception as e:
                 print(f"❌ A/V Sync: Analysis failed - {e}")
@@ -2580,11 +2645,13 @@ class E2ETest:
                 visuals_results = {
                     'frame_sequence_box': {
                         'status': 'skipped',
-                        'details': 'Skipped (disabled)'
+                        'message': 'Skipped (disabled)',
+                        'details': {},
+                        'metrics': {},
                     }
                 }
             fsb = visuals_results['frame_sequence_box']
-            print(f"  Frame Box Seq   {icon(fsb.get('status'))}  {fsb.get('details','')}")
+            print(f"  Frame Box Seq   {icon(fsb.get('status'))}  {fsb.get('message','')}")
         except Exception:
             pass
 

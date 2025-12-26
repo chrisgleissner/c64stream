@@ -552,7 +552,7 @@ void c64_render_frame_direct(struct c64_source *context, struct frame_assembly *
     const uint32_t *out_pixels = c64_get_afterglow_output_pixels(context, context->frame_buffer, pixel_count);
 
     // Save frame to disk if enabled
-    if (context->save_frames) {
+    if (context->record_frames) {
         c64_save_frame_as_bmp(context, (uint32_t *)out_pixels);
 
         // Note: CSV logging for video events is now handled independently in the video processor thread

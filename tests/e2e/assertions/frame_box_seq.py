@@ -580,14 +580,44 @@ def _analyze_frame_box_seq(
             metrics={"valid_frames": float(valid), "ambiguous_ratio": ambiguous_ratio},
         )
 
-    # Compress consecutive duplicates (handles frame repeats gracefully)
+    # Compress consecutive duplicates and track stuck runs
+    # A "stuck run" is when the same color index repeats many times, indicating
+    # the video stream has frozen (no frame progression).
     compressed: list[int] = []
-    for idx in indices:
+    stuck_runs: list[int] = []  # Length of each consecutive duplicate run
+    current_run = 1
+    for i, idx in enumerate(indices):
         if not compressed or idx != compressed[-1]:
+            if compressed:
+                stuck_runs.append(current_run)
             compressed.append(idx)
+            current_run = 1
+        else:
+            current_run += 1
+    if indices:
+        stuck_runs.append(current_run)
+
+    # Calculate stuck frame statistics
+    max_stuck_run = max(stuck_runs) if stuck_runs else 0
+    total_stuck_frames = sum(r - 1 for r in stuck_runs)  # Frames beyond the first in each run
+    stuck_ratio = float(total_stuck_frames) / float(max(1, valid))
+
+    # Calculate min/median/max for stuck runs (excluding runs of 1 = no repetition)
+    repeated_runs = [r for r in stuck_runs if r > 1]
+    if repeated_runs:
+        min_stuck_run = min(repeated_runs)
+        median_stuck_run = float(np.median(repeated_runs))
+        max_stuck_run_stat = max(repeated_runs)
+        repeated_run_count = len(repeated_runs)
+    else:
+        min_stuck_run = 0
+        median_stuck_run = 0.0
+        max_stuck_run_stat = 0
+        repeated_run_count = 0
 
     distinct = len(set(indices))
     skips = 0
+    skip_sizes: list[int] = []  # Track individual skip sizes for statistics
     back_steps = 0
     severe_steps = 0
     delta_hist: dict[int, int] = {}
@@ -599,12 +629,26 @@ def _analyze_frame_box_seq(
             continue
         if 2 <= delta <= max_skip_delta:
             # Treat as dropped frames; count how many intermediate colors were skipped.
-            skips += (delta - 1)
+            skip_amount = delta - 1
+            skips += skip_amount
+            skip_sizes.append(skip_amount)
             continue
         if delta == 15:
             back_steps += 1
             continue
         severe_steps += 1
+
+    # Calculate skip statistics
+    if skip_sizes:
+        min_skip = min(skip_sizes)
+        median_skip = float(np.median(skip_sizes))
+        max_skip = max(skip_sizes)
+        skip_count = len(skip_sizes)
+    else:
+        min_skip = 0
+        median_skip = 0.0
+        max_skip = 0
+        skip_count = 0
 
     # Require full coverage when we have enough changes
     min_changes_for_full = int(thresholds.get("min_changes_for_full", 20))
@@ -627,11 +671,21 @@ def _analyze_frame_box_seq(
         "compressed_len": len(compressed),
         "distinct_colors": distinct,
         "skips": skips,
+        "skip_stats": {"count": skip_count, "min": min_skip, "median": median_skip, "max": max_skip},
         "back_steps": back_steps,
         "severe_steps": severe_steps,
         "delta_hist": delta_hist,
         "ambiguous_frames": ambiguous,
         "ambiguous_ratio": ambiguous_ratio,
+        "stuck_frames": total_stuck_frames,
+        "stuck_ratio": stuck_ratio,
+        "max_stuck_run": max_stuck_run,
+        "stuck_stats": {
+            "count": repeated_run_count,
+            "min": min_stuck_run,
+            "median": median_stuck_run,
+            "max": max_stuck_run_stat,
+        },
         "rejections": {
             "not_solid": reject_not_solid,
             "match_dist": reject_match_dist,
@@ -647,10 +701,40 @@ def _analyze_frame_box_seq(
         "valid_frames": float(valid),
         "distinct_colors": float(distinct),
         "skips": float(skips),
+        "skip_count": float(skip_count),
+        "skip_min": float(min_skip),
+        "skip_median": float(median_skip),
+        "skip_max": float(max_skip),
         "back_steps": float(back_steps),
         "severe_steps": float(severe_steps),
         "ambiguous_ratio": float(ambiguous_ratio),
+        "stuck_frames": float(total_stuck_frames),
+        "stuck_ratio": float(stuck_ratio),
+        "stuck_run_count": float(repeated_run_count),
+        "stuck_run_min": float(min_stuck_run),
+        "stuck_run_median": float(median_stuck_run),
+        "max_stuck_run": float(max_stuck_run),
     }
+
+    # Check for excessive stuck frames (video stream freeze)
+    max_stuck_ratio = float(thresholds.get("max_stuck_ratio", 0.50))
+    max_stuck_run_frames = int(thresholds.get("max_stuck_run_frames", int(fps * 2)))  # 2 seconds default
+
+    if max_stuck_run > max_stuck_run_frames:
+        return _AnalysisResult(
+            status=AssertionStatus.WARNING,
+            message=f"Video stream froze for {max_stuck_run} frames ({max_stuck_run/fps:.1f}s)",
+            details=details,
+            metrics=metrics,
+        )
+
+    if stuck_ratio > max_stuck_ratio:
+        return _AnalysisResult(
+            status=AssertionStatus.WARNING,
+            message=f"High frame repetition ({stuck_ratio*100:.0f}% stuck)",
+            details=details,
+            metrics=metrics,
+        )
 
     if ambiguous_ratio > max_ambiguous_ratio:
         return _AnalysisResult(
