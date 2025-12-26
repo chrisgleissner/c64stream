@@ -1009,23 +1009,27 @@ EOF
     # Add Resource Usage section first if resource.json exists
     local resource_json="${OUTPUT_DIR}/resource.json"
     if [[ -f "${resource_json}" ]] && command -v jq >/dev/null 2>&1; then
-        local duration_ms sample_count
-        local cpu_min cpu_median cpu_max ram_mb_min ram_mb_median ram_mb_max
-        local gpu_min gpu_median gpu_max
+        local duration_ms sample_count total_sample_count
+        local cpu_min cpu_median cpu_mean cpu_max ram_mb_min ram_mb_median ram_mb_mean ram_mb_max
+        local gpu_min gpu_median gpu_mean gpu_max
         local effective_cpus physical_cpus
         duration_ms=$(jq -r '.duration_ms // 0' "${resource_json}")
         sample_count=$(jq -r '.sample_count // 0' "${resource_json}")
+        total_sample_count=$(jq -r '.total_sample_count // 0' "${resource_json}")
         cpu_min=$(jq -r '.cpu_percent.min // 0' "${resource_json}")
         cpu_median=$(jq -r '.cpu_percent.median // 0' "${resource_json}")
+        cpu_mean=$(jq -r '.cpu_percent.mean // 0' "${resource_json}")
         cpu_max=$(jq -r '.cpu_percent.max // 0' "${resource_json}")
         ram_mb_min=$(jq -r '.ram_mb.min // 0' "${resource_json}")
         ram_mb_median=$(jq -r '.ram_mb.median // 0' "${resource_json}")
+        ram_mb_mean=$(jq -r '.ram_mb.mean // 0' "${resource_json}")
         ram_mb_max=$(jq -r '.ram_mb.max // 0' "${resource_json}")
         gpu_min=$(jq -r '.gpu_percent.min // null' "${resource_json}")
         gpu_median=$(jq -r '.gpu_percent.median // null' "${resource_json}")
+        gpu_mean=$(jq -r '.gpu_percent.mean // null' "${resource_json}")
         gpu_max=$(jq -r '.gpu_percent.max // null' "${resource_json}")
-        effective_cpus=$(jq -r '.effective_cpu_count // 0' "${resource_json}")
-        physical_cpus=$(jq -r '.physical_cpu_count // 0' "${resource_json}")
+        effective_cpus=$(jq -r '.allocated_cpu_cores // 0' "${resource_json}")
+        physical_cpus=$(jq -r '.total_cpu_cores // 0' "${resource_json}")
 
         if [[ "${sample_count}" -gt 0 ]]; then
             local duration_sec cpu_context
@@ -1043,17 +1047,23 @@ EOF
             echo >> "${report_file}"
             echo "### Resource Usage" >> "${report_file}"
             echo >> "${report_file}"
-            echo "During the test's processing window (${duration_sec}s, ${sample_count} samples)${cpu_context}:" >> "${report_file}"
+            local samples_text
+            if [[ "${total_sample_count}" -gt 0 && "${total_sample_count}" -ne "${sample_count}" ]]; then
+                samples_text="${sample_count} of ${total_sample_count} samples"
+            else
+                samples_text="${sample_count} samples"
+            fi
+            echo "During the test's processing window (${duration_sec}s, ${samples_text})${cpu_context}:" >> "${report_file}"
             echo >> "${report_file}"
-            echo "| Metric | Min | Median | Max |" >> "${report_file}"
-            echo "|--------|-----|--------|-----|" >> "${report_file}"
-            echo "| CPU | ${cpu_min}% | ${cpu_median}% | ${cpu_max}% |" >> "${report_file}"
-            echo "| RAM | ${ram_mb_min} MB | ${ram_mb_median} MB | ${ram_mb_max} MB |" >> "${report_file}"
+            echo "| Metric | Min | Median | Mean | Max |" >> "${report_file}"
+            echo "|--------|-----|--------|------|-----|" >> "${report_file}"
+            echo "| CPU | ${cpu_min}% | ${cpu_median}% | ${cpu_mean}% | ${cpu_max}% |" >> "${report_file}"
+            echo "| RAM | ${ram_mb_min} MB | ${ram_mb_median} MB | ${ram_mb_mean} MB | ${ram_mb_max} MB |" >> "${report_file}"
             if [[ "${gpu_median}" != "null" && -n "${gpu_median}" ]]; then
-                echo "| GPU | ${gpu_min}% | ${gpu_median}% | ${gpu_max}% |" >> "${report_file}"
+                echo "| GPU | ${gpu_min}% | ${gpu_median}% | ${gpu_mean}% | ${gpu_max}% |" >> "${report_file}"
             fi
             echo >> "${report_file}"
-            echo "- [resource.csv](resource.csv) | [resource.json](resource.json)" >> "${report_file}"
+            echo "Details: [resource.csv](resource.csv) | [resource.json](resource.json)" >> "${report_file}"
         fi
     fi
 
@@ -1519,6 +1529,7 @@ PY
         echo "### Sample Frame" >> "${report_file}"
         echo >> "${report_file}"
         echo "![Sample Frame](./$(basename "${sample_frame_path}"))" >> "${report_file}"
+        echo >> "${report_file}"
         echo "- Top-left shows the frame index (color = frame_num % 16). Top-right shows a stable 4×4 tile of all 16 VIC colours (drift check). Center shows scrolling colour bars. Bottom-right flashes with a pop sound for A/V sync checks / afterglow tail." >> "${report_file}"
 
         local origin_parts=()

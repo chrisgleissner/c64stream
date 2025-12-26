@@ -44,6 +44,7 @@ class ResourceStats:
 
     min_val: float
     median_val: float
+    mean_val: float
     max_val: float
     sample_count: int
 
@@ -766,13 +767,14 @@ class ResourceMonitor:
             print(f"[ResourceMonitor] Saved {len(samples)} samples to {output_path}")
 
     def _compute_stats(self, values: list[float]) -> ResourceStats:
-        """Compute min/median/max statistics for a list of values."""
+        """Compute min/median/mean/max statistics for a list of values."""
         if not values:
-            return ResourceStats(min_val=0, median_val=0, max_val=0, sample_count=0)
+            return ResourceStats(min_val=0, median_val=0, mean_val=0, max_val=0, sample_count=0)
 
         return ResourceStats(
             min_val=min(values),
             median_val=median(values),
+            mean_val=sum(values) / len(values),
             max_val=max(values),
             sample_count=len(values),
         )
@@ -859,13 +861,15 @@ class ResourceMonitor:
         if self.verbose:
             print(f"[ResourceMonitor] Saved {len(self.samples)} samples to {output_path}")
 
-    def save_json(self, output_path: Path, summary: Optional[ResourceSummary] = None):
+    def save_json(self, output_path: Path, summary: Optional[ResourceSummary] = None,
+                  total_sample_count: Optional[int] = None):
         """
         Save summary statistics to JSON file.
 
         Args:
             output_path: Path to output JSON file
             summary: Pre-computed summary, or None to compute from samples
+            total_sample_count: Total samples collected (before filtering), for README display
         """
         if summary is None:
             summary = self._compute_summary()
@@ -876,6 +880,7 @@ class ResourceMonitor:
             return {
                 "min": round(stats.min_val, 2),
                 "median": round(stats.median_val, 2),
+                "mean": round(stats.mean_val, 2),
                 "max": round(stats.max_val, 2),
                 "sample_count": stats.sample_count,
             }
@@ -884,6 +889,7 @@ class ResourceMonitor:
             "duration_ms": round(summary.duration_ms, 0),
             "sample_interval_ms": summary.sample_interval_ms,
             "sample_count": summary.cpu.sample_count,
+            "total_sample_count": total_sample_count if total_sample_count is not None else summary.cpu.sample_count,
             "allocated_cpu_cores": round(summary.effective_cpu_count, 2),
             "total_cpu_cores": summary.physical_cpu_count,
             "cpu_percent": stats_to_dict(summary.cpu),

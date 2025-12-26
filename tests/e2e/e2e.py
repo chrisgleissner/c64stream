@@ -59,7 +59,7 @@ class E2ETest:
                  scenario_overrides_dir: str | None = None, scenario_name: str | None = None,
                  scenario_id: str | None = None, output_dir: str | None = None,
                  csv_max_rows: int | None = None, enable_resource_monitoring: bool = False,
-                 resource_interval_ms: int = 1000):
+                 resource_interval_ms: int = 500):
         self.test_dir = Path(test_dir)
         self.video_port = video_port
         self.audio_port = audio_port
@@ -174,6 +174,35 @@ class E2ETest:
             self.log(f"📉 Truncated {truncated_count} rows from {src.name} "
                      f"(keeping first {self.csv_max_rows} rows)")
 
+    def _find_obs_csv(self) -> Optional[Path]:
+        """
+        Find the obs.csv file from the most recent recording session.
+
+        Looks in OBS's recording directory since obs.csv may not be copied
+        to output_dir yet when this is called.
+
+        Returns:
+            Path to obs.csv, or None if not found
+        """
+        # First try output_dir (if already copied)
+        local_csv = self.output_dir / 'obs.csv'
+        if local_csv.exists():
+            return local_csv
+
+        # Otherwise look in OBS's recording directory
+        recordings_base = Path.home() / 'Documents' / 'obs-studio' / 'c64stream' / 'recordings'
+        if not recordings_base.exists():
+            return None
+
+        # Find the most recent session folder
+        session_folders = [f for f in recordings_base.glob('session_*') if f.is_dir()]
+        if not session_folders:
+            return None
+
+        session_folders.sort(key=lambda f: f.stat().st_mtime, reverse=True)
+        obs_csv = session_folders[0] / 'obs.csv'
+        return obs_csv if obs_csv.exists() else None
+
     def _get_obs_processing_duration_ms(self) -> Optional[float]:
         """
         Get the total OBS processing duration from obs.csv.
@@ -184,8 +213,8 @@ class E2ETest:
         Returns:
             Duration in milliseconds, or None if obs.csv not found/readable
         """
-        obs_csv = self.output_dir / 'obs.csv'
-        if not obs_csv.exists():
+        obs_csv = self._find_obs_csv()
+        if obs_csv is None:
             return None
 
         try:
@@ -228,20 +257,22 @@ class E2ETest:
                 )
                 # Compute summary from filtered samples only
                 filtered_summary = self._resource_monitor.compute_summary_from_samples(filtered_samples)
-                self.log(f"📊 Filtered {len(filtered_samples)} samples within processing window ({processing_duration_ms:.1f}ms)")
+                total_samples = len(self._resource_monitor.samples)
+                self.log(f"📊 Filtered {len(filtered_samples)}/{total_samples} samples within processing window ({processing_duration_ms:.1f}ms)")
             else:
                 # Fallback: use all samples if obs.csv not available
                 filtered_samples = self._resource_monitor.samples
                 filtered_summary = self._resource_summary
+                total_samples = len(filtered_samples)
                 self.log("⚠️ Using all samples (obs.csv not available for filtering)")
 
             # Save filtered samples to resource.csv (alongside network.csv and obs.csv)
             csv_path = self.output_dir / 'resource.csv'
             self._resource_monitor.save_csv_from_samples(csv_path, filtered_samples)
 
-            # Save summary from filtered samples to resource.json
+            # Save summary from filtered samples to resource.json (include total for README)
             json_path = self.output_dir / 'resource.json'
-            self._resource_monitor.save_json(json_path, filtered_summary)
+            self._resource_monitor.save_json(json_path, filtered_summary, total_sample_count=total_samples)
 
             # Store filtered summary for later use (stdout logging, README)
             self._filtered_resource_summary = filtered_summary

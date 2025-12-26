@@ -1,6 +1,6 @@
 # C64 Stream E2E Test Report
 
-Generated: 2025-12-26 15:18:45 UTC
+Generated: 2025-12-26 15:49:25 UTC
 
 ## Test configuration
 
@@ -28,15 +28,15 @@ Generated: 2025-12-26 15:18:45 UTC
 
 ### Resource Usage
 
-During the test's processing window (14.2s, 15 samples):
+During the test's processing window (4.1s, 5 of 15 samples) (8 cores):
 
-| Metric | Min | Median | Max |
-|--------|-----|--------|-----|
-| CPU | 59.7% | 64.2% | 79.5% |
-| RAM | 4844.24 MB | 4878.35 MB | 4912.61 MB |
-| GPU | 30.43% | 95.65% | 98.52% |
+| Metric | Min | Median | Mean | Max |
+|--------|-----|--------|------|-----|
+| CPU | 62.0% | 77.6% | 74.66% | 79.3% |
+| RAM | 4838.16 MB | 4863.45 MB | 4859.85 MB | 4871.33 MB |
+| GPU | 30.43% | 31.91% | 56.82% | 95.65% |
 
-- [resource.csv](resource.csv) | [resource.json](resource.json)
+Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
 ### Packet & Network Data
 
@@ -46,13 +46,13 @@ During the test's processing window (14.2s, 15 samples):
 
 ### A/V Sync
 
-- ✅ Good synchronization (100.0%): avg offset 27.7ms, max 29.7ms
+- ✅ Good synchronization (100.0%): avg offset 24.0ms, max 32.0ms
 
 #### Sync Details
 
-- 🟢 Pop #1 [L]: audio=8110.0ms, video=8083.3ms (frame 485), diff=26.7ms
-- 🟢 Pop #2 [R]: audio=9110.0ms, video=9083.3ms (frame 545), diff=26.7ms
-- 🟢 Pop #3 [L]: audio=10113.0ms, video=10083.3ms (frame 605), diff=29.7ms
+- 🟢 Pop #1 [L]: audio=8108.0ms, video=8100.0ms (frame 486), diff=8.0ms
+- 🟡 Pop #2 [R]: audio=9132.0ms, video=9100.0ms (frame 546), diff=32.0ms
+- 🟡 Pop #3 [L]: audio=10132.0ms, video=10100.0ms (frame 606), diff=32.0ms
 
 - Channels: LRL
 - 🔁 Channel alternation: OK (alternating, starts with L)
@@ -66,5 +66,6 @@ During the test's processing window (14.2s, 15 samples):
 ### Sample Frame
 
 ![Sample Frame](./c64_recording_still.png)
+
 - Top-left shows the frame index (color = frame_num % 16). Top-right shows a stable 4×4 tile of all 16 VIC colours (drift check). Center shows scrolling colour bars. Bottom-right flashes with a pop sound for A/V sync checks / afterglow tail.
-- Taken from frame 485 at 00:08.1 of the 19.3 s video above.
+- Taken from frame 486 at 00:08.1 of the 19.3 s video above.

@@ -28,10 +28,10 @@
     "tolerance_ms": 50,
     "sync_details": [
       {
-        "audio_pop_time_ms": 8121,
+        "audio_pop_time_ms": 8097,
         "closest_video_pop_ms": 8100.0,
         "closest_video_pop_frame": 405,
-        "difference_ms": 21.0,
+        "difference_ms": 3.0,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -39,10 +39,10 @@
         "traffic": "green"
       },
       {
-        "audio_pop_time_ms": 9121,
+        "audio_pop_time_ms": 9118,
         "closest_video_pop_ms": 9100.0,
         "closest_video_pop_frame": 455,
-        "difference_ms": 21.0,
+        "difference_ms": 18.0,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
