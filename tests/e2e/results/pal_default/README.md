@@ -1,6 +1,6 @@
 # C64 Stream E2E Test Report
 
-Generated: 2025-12-26 20:23:28 UTC
+Generated: 2025-12-26 20:34:04 UTC
 
 ## Test configuration
 
@@ -32,9 +32,9 @@ During the test's processing window (4.6s, 10 of 30 samples) (8 cores):
 
 | Metric | Min | Median | Mean | Max |
 |--------|-----|--------|------|-----|
-| CPU | 45.2% | 49.8% | 50.81% | 59.2% |
-| RAM | 5486.57 MB | 5497.57 MB | 5497.23 MB | 5503.43 MB |
-| GPU | 37.91% | 47.62% | 46.87% | 52.99% |
+| CPU | 46.1% | 47.8% | 51.3% | 81.8% |
+| RAM | 5383.73 MB | 5409.32 MB | 5406.3 MB | 5437.69 MB |
+| GPU | 42.43% | 49.7% | 48.97% | 52.56% |
 
 Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
@@ -46,25 +46,25 @@ Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
 ### A/V Sync
 
-- ✅ Good synchronization (100.0%): avg offset 15.0ms, max 24.0ms
+- ✅ Good synchronization (100.0%): avg offset 22.0ms, max 30.0ms
 
 #### Sync Details
 
-- 🟢 Pop #1 [L]: audio=8700.0ms, video=8700.0ms (frame 435), diff=0.0ms
-- 🟢 Pop #2 [R]: audio=9721.0ms, video=9700.0ms (frame 485), diff=21.0ms
-- 🟢 Pop #3 [L]: audio=10724.0ms, video=10700.0ms (frame 535), diff=24.0ms
+- 🟢 Pop #1 [L]: audio=8708.0ms, video=8700.0ms (frame 435), diff=8.0ms
+- 🟢 Pop #2 [R]: audio=9708.0ms, video=9680.0ms (frame 484), diff=28.0ms
+- 🟢 Pop #3 [L]: audio=10710.0ms, video=10680.0ms (frame 534), diff=30.0ms
 
 - Channels: LRL
 - 🔁 Channel alternation: OK (alternating, starts with L)
 
 ### Frame Progression
 
-- 🟡 Video stream froze for 151 frames (3.0s)
+- 🟢 Frame sequence verified (347 frames analyzed, 16 colors)
 
 | Metric | Count | Min | Median | Max |
 |--------|-------|-----|--------|-----|
-| Repeated frames | 8 runs | 2 | 2.0 | 151 |
-| Skipped frames | 7 skips | 1 | 1.0 | 2 |
+| Repeated frames | 5 runs | 2 | 2 | 3 |
+| Skipped frames | 5 skips | 1 | 1 | 2 |
 
 - ↩️ Back steps: 0 (frame counter went backwards)
 

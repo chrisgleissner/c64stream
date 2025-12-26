@@ -1282,22 +1282,22 @@ EOF
                 # Stuck frames (repeated frames = no progression)
                 if [[ "${stuck_count}" != "0" && "${stuck_count}" != "null" ]]; then
                     # Convert to integer for display
-                    local stuck_count_int stuck_min_int stuck_max_int
+                    local stuck_count_int stuck_min_int stuck_max_int stuck_median_int
                     stuck_count_int=$(printf '%.0f' "${stuck_count}" 2>/dev/null || echo "${stuck_count}")
                     stuck_min_int=$(printf '%.0f' "${stuck_min}" 2>/dev/null || echo "${stuck_min}")
-                    stuck_median_fmt=$(printf '%.1f' "${stuck_median}" 2>/dev/null || echo "${stuck_median}")
+                    stuck_median_int=$(printf '%.0f' "${stuck_median}" 2>/dev/null || echo "${stuck_median}")
                     stuck_max_int=$(printf '%.0f' "${stuck_max}" 2>/dev/null || echo "${stuck_max}")
-                    echo "| Repeated frames | ${stuck_count_int} runs | ${stuck_min_int} | ${stuck_median_fmt} | ${stuck_max_int} |" >> "${report_file}"
+                    echo "| Repeated frames | ${stuck_count_int} runs | ${stuck_min_int} | ${stuck_median_int} | ${stuck_max_int} |" >> "${report_file}"
                 fi
 
                 # Skipped frames (frame counter jumped forward)
                 if [[ "${skip_count}" != "0" && "${skip_count}" != "null" ]]; then
-                    local skip_count_int skip_min_int skip_max_int
+                    local skip_count_int skip_min_int skip_max_int skip_median_int
                     skip_count_int=$(printf '%.0f' "${skip_count}" 2>/dev/null || echo "${skip_count}")
                     skip_min_int=$(printf '%.0f' "${skip_min}" 2>/dev/null || echo "${skip_min}")
-                    skip_median_fmt=$(printf '%.1f' "${skip_median}" 2>/dev/null || echo "${skip_median}")
+                    skip_median_int=$(printf '%.0f' "${skip_median}" 2>/dev/null || echo "${skip_median}")
                     skip_max_int=$(printf '%.0f' "${skip_max}" 2>/dev/null || echo "${skip_max}")
-                    echo "| Skipped frames | ${skip_count_int} skips | ${skip_min_int} | ${skip_median_fmt} | ${skip_max_int} |" >> "${report_file}"
+                    echo "| Skipped frames | ${skip_count_int} skips | ${skip_min_int} | ${skip_median_int} | ${skip_max_int} |" >> "${report_file}"
                 fi
             fi
 

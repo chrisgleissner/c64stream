@@ -28,10 +28,10 @@
     "tolerance_ms": 60,
     "sync_details": [
       {
-        "audio_pop_time_ms": 8660,
-        "closest_video_pop_ms": 8616.666666666668,
-        "closest_video_pop_frame": 517,
-        "difference_ms": 43.33333333333212,
+        "audio_pop_time_ms": 8737,
+        "closest_video_pop_ms": 8700.0,
+        "closest_video_pop_frame": 522,
+        "difference_ms": 37.0,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -39,21 +39,21 @@
         "traffic": "yellow"
       },
       {
-        "audio_pop_time_ms": 9660,
-        "closest_video_pop_ms": 9633.333333333332,
-        "closest_video_pop_frame": 578,
-        "difference_ms": 26.66666666666788,
+        "audio_pop_time_ms": 9737,
+        "closest_video_pop_ms": 9700.0,
+        "closest_video_pop_frame": 582,
+        "difference_ms": 37.0,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
         "channel": "R",
-        "traffic": "green"
+        "traffic": "yellow"
       },
       {
-        "audio_pop_time_ms": 10660,
-        "closest_video_pop_ms": 10633.333333333332,
-        "closest_video_pop_frame": 638,
-        "difference_ms": 26.66666666666788,
+        "audio_pop_time_ms": 10737,
+        "closest_video_pop_ms": 10716.666666666666,
+        "closest_video_pop_frame": 643,
+        "difference_ms": 20.33333333333394,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -65,18 +65,18 @@
     "last_event_within_limit": true,
     "duration_ms": 20864.0,
     "video_pop_times_ms": [
-      8616.666666666668,
-      9633.333333333332,
-      10633.333333333332
+      8700.0,
+      9700.0,
+      10716.666666666666
     ],
     "video_pop_frame_indices": [
-      517,
-      578,
-      638
+      522,
+      582,
+      643
     ],
     "traffic": [
       "yellow",
-      "green",
+      "yellow",
       "green"
     ]
   },
@@ -89,24 +89,24 @@
     "details": "Skipped (not enabled)"
   },
   "frame_sequence_box": {
-    "status": "warning",
-    "message": "Video stream froze for 181 frames (3.0s)",
+    "status": "pass",
+    "message": "Frame box sequence verified",
     "details": {
       "window": {
-        "start_frame": 518,
-        "end_frame": 997,
+        "start_frame": 523,
+        "end_frame": 1002,
         "fps": 60.0
       },
       "video_pop_starts": [
-        517,
-        578,
-        638
+        522,
+        582,
+        643
       ],
       "palette_tile": {
-        "x": 1578,
-        "y": 71,
-        "wh": 143,
-        "score": 178.32761864804652
+        "x": 1572,
+        "y": 60,
+        "wh": 153,
+        "score": 178.33012454484265
       },
       "derived_content": {
         "left": 192,
@@ -115,39 +115,42 @@
       },
       "analyzed_frames": 480,
       "valid_frames": 420,
-      "compressed_len": 230,
+      "compressed_len": 228,
       "distinct_colors": 16,
-      "skips": 9,
+      "skips": 10,
       "skip_stats": {
         "count": 9,
         "min": 1,
-        "median": 1.0,
-        "max": 1
+        "median": 1,
+        "max": 2
       },
       "back_steps": 0,
       "severe_steps": 0,
       "delta_hist": {
-        "1": 220,
-        "2": 9
+        "1": 218,
+        "3": 1,
+        "2": 8
       },
       "ambiguous_frames": 60,
       "ambiguous_ratio": 0.125,
-      "stuck_frames": 190,
-      "stuck_ratio": 0.4523809523809524,
-      "max_stuck_run": 181,
+      "stuck_frames": 12,
+      "stuck_ratio": 0.0502092050209205,
+      "max_stuck_run": 3,
+      "startup_frames_excluded": 0,
+      "end_frames_excluded": 181,
       "stuck_stats": {
         "count": 11,
         "min": 2,
-        "median": 2.0,
-        "max": 181
+        "median": 2,
+        "max": 3
       },
       "rejections": {
-        "not_solid": 1,
-        "match_dist": 59,
+        "not_solid": 0,
+        "match_dist": 60,
         "margin": 0
       },
-      "avg_palette_match_dist": 0.11120497776989262,
-      "avg_palette_second_margin": 82.9539649399769,
+      "avg_palette_match_dist": 0.0007476835058970007,
+      "avg_palette_second_margin": 82.96857136412879,
       "bounds": {
         "left": 192,
         "right": 1728,
@@ -162,20 +165,20 @@
     "metrics": {
       "valid_frames": 420.0,
       "distinct_colors": 16.0,
-      "skips": 9.0,
+      "skips": 10.0,
       "skip_count": 9.0,
       "skip_min": 1.0,
       "skip_median": 1.0,
-      "skip_max": 1.0,
+      "skip_max": 2.0,
       "back_steps": 0.0,
       "severe_steps": 0.0,
       "ambiguous_ratio": 0.125,
-      "stuck_frames": 190.0,
-      "stuck_ratio": 0.4523809523809524,
+      "stuck_frames": 12.0,
+      "stuck_ratio": 0.0502092050209205,
       "stuck_run_count": 11.0,
       "stuck_run_min": 2.0,
       "stuck_run_median": 2.0,
-      "max_stuck_run": 181.0
+      "max_stuck_run": 3.0
     }
   },
   "recording": {

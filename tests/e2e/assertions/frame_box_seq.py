@@ -597,21 +597,48 @@ def _analyze_frame_box_seq(
     if indices:
         stuck_runs.append(current_run)
 
-    # Calculate stuck frame statistics
-    max_stuck_run = max(stuck_runs) if stuck_runs else 0
-    total_stuck_frames = sum(r - 1 for r in stuck_runs)  # Frames beyond the first in each run
-    stuck_ratio = float(total_stuck_frames) / float(max(1, valid))
+    # Filter out "startup freeze" - if the first stuck run is very long (>1 second),
+    # it's likely the logo/startup screen before actual content begins, not a freeze.
+    # We exclude it from statistics since it's expected behavior, not a problem.
+    startup_frames_excluded = 0
+    end_frames_excluded = 0
+    startup_run_threshold = int(fps * 1.0)  # 1 second threshold
+    filtered_stuck_runs = stuck_runs.copy()
+
+    # Filter startup: first run is long and subsequent content shows progression
+    if len(filtered_stuck_runs) >= 2 and filtered_stuck_runs[0] > startup_run_threshold:
+        # The first run is long - check if subsequent runs show actual progression
+        # (i.e., the sequence eventually starts cycling through colors)
+        remaining_distinct = len(set(compressed[1:]))  # Colors after the first one
+        if remaining_distinct >= 4:  # At least 4 different colors after startup = real content
+            startup_frames_excluded = filtered_stuck_runs[0]
+            filtered_stuck_runs = filtered_stuck_runs[1:]
+
+    # Filter end-of-stream: last run is long (packets stopped, frame frozen until logo)
+    # This happens when the UDP replay ends but recording continues briefly
+    if len(filtered_stuck_runs) >= 2 and filtered_stuck_runs[-1] > startup_run_threshold:
+        # The last run is long - check if preceding content shows progression
+        preceding_distinct = len(set(compressed[:-1]))  # Colors before the last one
+        if preceding_distinct >= 4:  # At least 4 different colors before end = real content existed
+            end_frames_excluded = filtered_stuck_runs[-1]
+            filtered_stuck_runs = filtered_stuck_runs[:-1]
+
+    # Calculate stuck frame statistics (using filtered runs that exclude startup/end)
+    max_stuck_run = max(filtered_stuck_runs) if filtered_stuck_runs else 0
+    total_stuck_frames = sum(r - 1 for r in filtered_stuck_runs)  # Frames beyond the first in each run
+    effective_valid = max(1, valid - startup_frames_excluded - end_frames_excluded)
+    stuck_ratio = float(total_stuck_frames) / float(effective_valid)
 
     # Calculate min/median/max for stuck runs (excluding runs of 1 = no repetition)
-    repeated_runs = [r for r in stuck_runs if r > 1]
+    repeated_runs = [r for r in filtered_stuck_runs if r > 1]
     if repeated_runs:
         min_stuck_run = min(repeated_runs)
-        median_stuck_run = float(np.median(repeated_runs))
+        median_stuck_run = int(np.median(repeated_runs))  # Use int for cleaner display
         max_stuck_run_stat = max(repeated_runs)
         repeated_run_count = len(repeated_runs)
     else:
         min_stuck_run = 0
-        median_stuck_run = 0.0
+        median_stuck_run = 0
         max_stuck_run_stat = 0
         repeated_run_count = 0
 
@@ -641,12 +668,12 @@ def _analyze_frame_box_seq(
     # Calculate skip statistics
     if skip_sizes:
         min_skip = min(skip_sizes)
-        median_skip = float(np.median(skip_sizes))
+        median_skip = int(np.median(skip_sizes))  # Use int for cleaner display
         max_skip = max(skip_sizes)
         skip_count = len(skip_sizes)
     else:
         min_skip = 0
-        median_skip = 0.0
+        median_skip = 0
         max_skip = 0
         skip_count = 0
 
@@ -680,6 +707,8 @@ def _analyze_frame_box_seq(
         "stuck_frames": total_stuck_frames,
         "stuck_ratio": stuck_ratio,
         "max_stuck_run": max_stuck_run,
+        "startup_frames_excluded": startup_frames_excluded,
+        "end_frames_excluded": end_frames_excluded,
         "stuck_stats": {
             "count": repeated_run_count,
             "min": min_stuck_run,

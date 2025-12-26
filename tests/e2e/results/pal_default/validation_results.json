@@ -1,7 +1,7 @@
 {
   "udp_reception": {
-    "status": "warning",
-    "details": "18245/18246 packets (16986 video, 1259 audio, minor loss)"
+    "status": "pass",
+    "details": "18246/18246 packets (16987 video, 1259 audio)"
   },
   "frame_processing": {
     "status": "pass",
@@ -28,10 +28,10 @@
     "tolerance_ms": 60,
     "sync_details": [
       {
-        "audio_pop_time_ms": 8700,
+        "audio_pop_time_ms": 8708,
         "closest_video_pop_ms": 8700.000000000002,
         "closest_video_pop_frame": 435,
-        "difference_ms": 1.8189894035458565e-12,
+        "difference_ms": 7.999999999998181,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -39,10 +39,10 @@
         "traffic": "green"
       },
       {
-        "audio_pop_time_ms": 9721,
-        "closest_video_pop_ms": 9700.000000000002,
-        "closest_video_pop_frame": 485,
-        "difference_ms": 20.99999999999818,
+        "audio_pop_time_ms": 9708,
+        "closest_video_pop_ms": 9680.0,
+        "closest_video_pop_frame": 484,
+        "difference_ms": 28.0,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -50,10 +50,10 @@
         "traffic": "green"
       },
       {
-        "audio_pop_time_ms": 10724,
-        "closest_video_pop_ms": 10700.000000000002,
-        "closest_video_pop_frame": 535,
-        "difference_ms": 23.99999999999818,
+        "audio_pop_time_ms": 10710,
+        "closest_video_pop_ms": 10680.0,
+        "closest_video_pop_frame": 534,
+        "difference_ms": 30.0,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -66,13 +66,13 @@
     "duration_ms": 20032.0,
     "video_pop_times_ms": [
       8700.000000000002,
-      9700.000000000002,
-      10700.000000000002
+      9680.0,
+      10680.0
     ],
     "video_pop_frame_indices": [
       435,
-      485,
-      535
+      484,
+      534
     ],
     "traffic": [
       "green",
@@ -89,8 +89,8 @@
     "details": "Skipped (not enabled)"
   },
   "frame_sequence_box": {
-    "status": "warning",
-    "message": "Video stream froze for 151 frames (3.0s)",
+    "status": "pass",
+    "message": "Frame box sequence verified",
     "details": {
       "window": {
         "start_frame": 436,
@@ -99,8 +99,8 @@
       },
       "video_pop_starts": [
         435,
-        485,
-        535
+        484,
+        534
       ],
       "palette_tile": {
         "x": 1424,
@@ -115,40 +115,42 @@
       },
       "analyzed_frames": 400,
       "valid_frames": 347,
-      "compressed_len": 189,
+      "compressed_len": 191,
       "distinct_colors": 16,
-      "skips": 9,
+      "skips": 6,
       "skip_stats": {
-        "count": 7,
+        "count": 5,
         "min": 1,
-        "median": 1.0,
+        "median": 1,
         "max": 2
       },
       "back_steps": 0,
       "severe_steps": 0,
       "delta_hist": {
-        "3": 2,
-        "1": 181,
-        "2": 5
+        "1": 185,
+        "2": 4,
+        "3": 1
       },
       "ambiguous_frames": 53,
       "ambiguous_ratio": 0.1325,
-      "stuck_frames": 158,
-      "stuck_ratio": 0.4553314121037464,
-      "max_stuck_run": 151,
+      "stuck_frames": 6,
+      "stuck_ratio": 0.030612244897959183,
+      "max_stuck_run": 3,
+      "startup_frames_excluded": 0,
+      "end_frames_excluded": 151,
       "stuck_stats": {
-        "count": 8,
+        "count": 5,
         "min": 2,
-        "median": 2.0,
-        "max": 151
+        "median": 2,
+        "max": 3
       },
       "rejections": {
         "not_solid": 0,
         "match_dist": 53,
         "margin": 0
       },
-      "avg_palette_match_dist": 0.3438910422987645,
-      "avg_palette_second_margin": 65.29682191008752,
+      "avg_palette_match_dist": 0.3578851167364495,
+      "avg_palette_second_margin": 65.30732292289157,
       "bounds": {
         "left": 384,
         "right": 1536,
@@ -163,20 +165,20 @@
     "metrics": {
       "valid_frames": 347.0,
       "distinct_colors": 16.0,
-      "skips": 9.0,
-      "skip_count": 7.0,
+      "skips": 6.0,
+      "skip_count": 5.0,
       "skip_min": 1.0,
       "skip_median": 1.0,
       "skip_max": 2.0,
       "back_steps": 0.0,
       "severe_steps": 0.0,
       "ambiguous_ratio": 0.1325,
-      "stuck_frames": 158.0,
-      "stuck_ratio": 0.4553314121037464,
-      "stuck_run_count": 8.0,
+      "stuck_frames": 6.0,
+      "stuck_ratio": 0.030612244897959183,
+      "stuck_run_count": 5.0,
       "stuck_run_min": 2.0,
       "stuck_run_median": 2.0,
-      "max_stuck_run": 151.0
+      "max_stuck_run": 3.0
     }
   },
   "recording": {
