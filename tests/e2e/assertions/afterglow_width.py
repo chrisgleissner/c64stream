@@ -100,9 +100,18 @@ class AfterglowWidthAssertion(EffectAssertion):
                 # Get relative path from git root
                 rel_path = reference_png.resolve().relative_to(git_root)
 
-                # Extract reference from main branch
+                # Detect default branch (main, master, etc.)
+                default_branch = subprocess.check_output(
+                    ["git", "rev-parse", "--abbrev-ref", "origin/HEAD"],
+                    cwd=git_root,
+                    text=True,
+                ).strip().replace("origin/", "")
+                if not default_branch or default_branch == "HEAD":
+                    default_branch = "main"  # Fallback
+
+                # Extract reference from default branch
                 result = subprocess.run(
-                    ["git", "show", f"main:{rel_path}"],
+                    ["git", "show", f"{default_branch}:{rel_path}"],
                     cwd=git_root,
                     capture_output=True,
                 )
@@ -110,14 +119,14 @@ class AfterglowWidthAssertion(EffectAssertion):
                     return AssertionResult(
                         status=AssertionStatus.SKIP,
                         name=self.name,
-                        message=f"Reference PNG modified and not available from main branch",
+                        message=f"Reference PNG modified and not available from {default_branch} branch",
                     )
 
                 # Load reference from git
                 import io
                 from PIL import Image
                 reference_frame = np.array(Image.open(io.BytesIO(result.stdout)))
-                self.log(f"Using reference PNG from main branch", verbose)
+                self.log(f"Using reference PNG from {default_branch} branch", verbose)
             except Exception as e:
                 return AssertionResult(
                     status=AssertionStatus.SKIP,

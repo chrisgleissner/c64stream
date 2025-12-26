@@ -1,7 +1,7 @@
 {
   "udp_reception": {
     "status": "pass",
-    "details": "19252/19252 packets (17981 video, 1271 audio)"
+    "details": "19252/19252 packets (18000 video, 1252 audio)"
   },
   "frame_processing": {
     "status": "pass",
@@ -13,7 +13,7 @@
   },
   "packet_integrity": {
     "status": "pass",
-    "details": "19.2s duration"
+    "details": "19.3s duration"
   },
   "video_brightness": {
     "status": "pass",
@@ -28,10 +28,10 @@
     "tolerance_ms": 50,
     "sync_details": [
       {
-        "audio_pop_time_ms": 8057,
-        "closest_video_pop_ms": 8050.000000000001,
-        "closest_video_pop_frame": 483,
-        "difference_ms": 6.9999999999990905,
+        "audio_pop_time_ms": 8110,
+        "closest_video_pop_ms": 8083.333333333334,
+        "closest_video_pop_frame": 485,
+        "difference_ms": 26.66666666666606,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -39,10 +39,10 @@
         "traffic": "green"
       },
       {
-        "audio_pop_time_ms": 9057,
-        "closest_video_pop_ms": 9050.0,
-        "closest_video_pop_frame": 543,
-        "difference_ms": 7.0,
+        "audio_pop_time_ms": 9110,
+        "closest_video_pop_ms": 9083.333333333334,
+        "closest_video_pop_frame": 545,
+        "difference_ms": 26.66666666666606,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -50,10 +50,10 @@
         "traffic": "green"
       },
       {
-        "audio_pop_time_ms": 10078,
-        "closest_video_pop_ms": 10050.0,
-        "closest_video_pop_frame": 603,
-        "difference_ms": 28.0,
+        "audio_pop_time_ms": 10113,
+        "closest_video_pop_ms": 10083.333333333334,
+        "closest_video_pop_frame": 605,
+        "difference_ms": 29.66666666666606,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -63,16 +63,16 @@
     ],
     "is_perfectly_synced": true,
     "last_event_within_limit": true,
-    "duration_ms": 19250.0,
+    "duration_ms": 19285.333000000002,
     "video_pop_times_ms": [
-      8050.000000000001,
-      9050.0,
-      10050.0
+      8083.333333333334,
+      9083.333333333334,
+      10083.333333333334
     ],
     "video_pop_frame_indices": [
-      483,
-      543,
-      603
+      485,
+      545,
+      605
     ],
     "traffic": [
       "green",

@@ -1,6 +1,6 @@
 # C64 Stream E2E Test Report
 
-Generated: 2025-12-26 14:59:30 UTC
+Generated: 2025-12-26 15:18:45 UTC
 
 ## Test configuration
 
@@ -28,13 +28,13 @@ Generated: 2025-12-26 14:59:30 UTC
 
 ### Resource Usage
 
-During the test's processing window (14.1s, 15 samples) (8 cores):
+During the test's processing window (14.2s, 15 samples):
 
 | Metric | Min | Median | Max |
 |--------|-----|--------|-----|
-| CPU | 56.5% | 60.5% | 78.3% |
-| RAM | 4952.32 MB | 5093.06 MB | 5131.24 MB |
-| GPU | 30.43% | 91.3% | 100.0% |
+| CPU | 59.7% | 64.2% | 79.5% |
+| RAM | 4844.24 MB | 4878.35 MB | 4912.61 MB |
+| GPU | 30.43% | 95.65% | 98.52% |
 
 - [resource.csv](resource.csv) | [resource.json](resource.json)
 
@@ -46,13 +46,13 @@ During the test's processing window (14.1s, 15 samples) (8 cores):
 
 ### A/V Sync
 
-- ✅ Good synchronization (100.0%): avg offset 14.0ms, max 28.0ms
+- ✅ Good synchronization (100.0%): avg offset 27.7ms, max 29.7ms
 
 #### Sync Details
 
-- 🟢 Pop #1 [L]: audio=8057.0ms, video=8050.0ms (frame 483), diff=7.0ms
-- 🟢 Pop #2 [R]: audio=9057.0ms, video=9050.0ms (frame 543), diff=7.0ms
-- 🟢 Pop #3 [L]: audio=10078.0ms, video=10050.0ms (frame 603), diff=28.0ms
+- 🟢 Pop #1 [L]: audio=8110.0ms, video=8083.3ms (frame 485), diff=26.7ms
+- 🟢 Pop #2 [R]: audio=9110.0ms, video=9083.3ms (frame 545), diff=26.7ms
+- 🟢 Pop #3 [L]: audio=10113.0ms, video=10083.3ms (frame 605), diff=29.7ms
 
 - Channels: LRL
 - 🔁 Channel alternation: OK (alternating, starts with L)
@@ -60,11 +60,11 @@ During the test's processing window (14.1s, 15 samples) (8 cores):
 ### Video
 
 - Download: [c64_recording.mp4](c64_recording.mp4)
-- Duration: 19.2 s
+- Duration: 19.3 s
 
 
 ### Sample Frame
 
 ![Sample Frame](./c64_recording_still.png)
 - Top-left shows the frame index (color = frame_num % 16). Top-right shows a stable 4×4 tile of all 16 VIC colours (drift check). Center shows scrolling colour bars. Bottom-right flashes with a pop sound for A/V sync checks / afterglow tail.
-- Taken from frame 483 at 00:08.0 of the 19.2 s video above.
+- Taken from frame 485 at 00:08.1 of the 19.3 s video above.

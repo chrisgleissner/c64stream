@@ -1,6 +1,6 @@
 # C64 Stream E2E Test Report
 
-Generated: 2025-12-26 15:05:56 UTC
+Generated: 2025-12-26 15:25:12 UTC
 
 ## Test configuration
 
@@ -21,20 +21,20 @@ Generated: 2025-12-26 15:05:56 UTC
 - OS: Ubuntu 24.04.3 LTS (kernel 6.14.0-37-generic)
 - OBS: 32.0.2
 - CPU: Intel(R) Core(TM) i7-6700K CPU @ 4.00GHz (8 cores)
-- RAM: 31Gi total, 25Gi available
+- RAM: 31Gi total, 26Gi available
 - Disk (/): 1.8T total, 1.1T available
 
 ## Test results
 
 ### Resource Usage
 
-During the test's processing window (14.1s, 15 samples) (8 cores):
+During the test's processing window (14.1s, 15 samples):
 
 | Metric | Min | Median | Max |
 |--------|-----|--------|-----|
-| CPU | 46.2% | 49.4% | 84.9% |
-| RAM | 4843.21 MB | 5256.06 MB | 5355.46 MB |
-| GPU | 30.43% | 89.83% | 98.52% |
+| CPU | 47.3% | 54.2% | 66.2% |
+| RAM | 4915.55 MB | 4986.87 MB | 5104.77 MB |
+| GPU | 30.43% | 31.91% | 100.0% |
 
 - [resource.csv](resource.csv) | [resource.json](resource.json)
 
@@ -46,13 +46,13 @@ During the test's processing window (14.1s, 15 samples) (8 cores):
 
 ### A/V Sync
 
-- ✅ Good synchronization (100.0%): avg offset 28.3ms, max 42.0ms
+- ✅ Good synchronization (100.0%): avg offset 21.0ms, max 21.0ms
 
 #### Sync Details
 
-- 🟢 Pop #1 [L]: audio=8097.0ms, video=8100.0ms (frame 405), diff=3.0ms
-- 🟡 Pop #2 [R]: audio=9140.0ms, video=9100.0ms (frame 455), diff=40.0ms
-- 🟡 Pop #3 [L]: audio=10142.0ms, video=10100.0ms (frame 505), diff=42.0ms
+- 🟢 Pop #1 [L]: audio=8121.0ms, video=8100.0ms (frame 405), diff=21.0ms
+- 🟢 Pop #2 [R]: audio=9121.0ms, video=9100.0ms (frame 455), diff=21.0ms
+- 🟢 Pop #3 [L]: audio=10121.0ms, video=10100.0ms (frame 505), diff=21.0ms
 
 - Channels: LRL
 - 🔁 Channel alternation: OK (alternating, starts with L)

@@ -1,6 +1,6 @@
 # C64 Stream E2E Test Report
 
-Generated: 2025-12-26 15:01:30 UTC
+Generated: 2025-12-26 15:20:46 UTC
 
 ## Test configuration
 
@@ -28,13 +28,13 @@ Generated: 2025-12-26 15:01:30 UTC
 
 ### Resource Usage
 
-During the test's processing window (14.2s, 15 samples) (8 cores):
+During the test's processing window (14.2s, 15 samples):
 
 | Metric | Min | Median | Max |
 |--------|-----|--------|-----|
-| CPU | 88.5% | 92.1% | 94.7% |
-| RAM | 4912.64 MB | 4936.61 MB | 4974.16 MB |
-| GPU | 30.43% | 79.74% | 100.0% |
+| CPU | 88.6% | 93.0% | 95.6% |
+| RAM | 4891.57 MB | 5078.86 MB | 5383.57 MB |
+| GPU | 30.43% | 78.26% | 100.0% |
 
 - [resource.csv](resource.csv) | [resource.json](resource.json)
 
@@ -46,13 +46,13 @@ During the test's processing window (14.2s, 15 samples) (8 cores):
 
 ### A/V Sync
 
-- ✅ Acceptable synchronization (66.7%): avg offset 39.0ms, max 55.7ms
+- ✅ Good synchronization (100.0%): avg offset 24.0ms, max 31.0ms
 
 #### Sync Details
 
-- 🔴 Pop #1 [L]: audio=8089.0ms, video=8033.3ms (frame 482), diff=55.7ms
-- 🟢 Pop #2 [R]: audio=9089.0ms, video=9066.7ms (frame 544), diff=22.3ms
-- 🟡 Pop #3 [L]: audio=10089.0ms, video=10050.0ms (frame 603), diff=39.0ms
+- 🟢 Pop #1 [L]: audio=8060.0ms, video=8033.3ms (frame 482), diff=26.7ms
+- 🟡 Pop #2 [R]: audio=9081.0ms, video=9050.0ms (frame 543), diff=31.0ms
+- 🟢 Pop #3 [L]: audio=10081.0ms, video=10066.7ms (frame 604), diff=14.3ms
 
 - Channels: LRL
 - 🔁 Channel alternation: OK (alternating, starts with L)
