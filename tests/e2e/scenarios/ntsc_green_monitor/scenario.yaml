@@ -6,4 +6,5 @@ assertions:
   - audio
   - tint
   - afterglow
+  - afterglow_width
   - scanlines

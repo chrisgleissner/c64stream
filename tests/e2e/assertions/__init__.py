@@ -10,6 +10,7 @@ This package provides assertions for E2E testing of the C64 Stream plugin.
 """
 
 from .afterglow import AfterglowAssertion
+from .afterglow_width import AfterglowWidthAssertion
 from .audio import AudioAssertion
 from .base import AssertionResult, AssertionStatus, EffectAssertion
 from .config import (
@@ -44,6 +45,7 @@ __all__ = [
     "AudioAssertion",
     "TintAssertion",
     "AfterglowAssertion",
+    "AfterglowWidthAssertion",
     "ScanlineAssertion",
     "SharpPixelsAssertion",
     "FrameBoxSequenceAssertion",

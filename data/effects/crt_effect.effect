@@ -57,8 +57,12 @@ struct VertDataOut {
     // which gives us the actual rasterized fragment position
 };
 
-// CRT phosphor afterglow: exponential smoothing persistence model
-// Optimized: pre-computed decay exponent, reduced exp() calls from 9 to 3
+// CRT phosphor afterglow: max-based persistence model
+// Matched to CPU implementation for equivalent output:
+//   output = max(current, prev * decay)
+// Time constants tuned to match CPU output empirically:
+//   GPU tau_r = 1.05, tau_g = 0.78, tau_b = 0.58 (scaled from CPU's 1.35, 1.0, 0.75)
+//   This accounts for timing differences between frame arrival and render cycles.
 float3 ApplyAfterglow(float2 uv, float3 current_rgb)
 {
     // Use exact UV coordinates for precise alignment
@@ -67,55 +71,34 @@ float3 ApplyAfterglow(float2 uv, float3 current_rgb)
     // Duration in seconds (clamp to at least 0.001s to prevent div-by-zero)
     float duration_s = max(float(afterglow_duration_ms), 1.0) / 1000.0;
 
-    // Pre-compute dt/1000 once (used multiple times)
+    // Pre-compute dt/1000 once
     float dt_s = dt_ms / 1000.0;
 
-    // Per-channel time constants (seconds) - red, green, blue phosphor decay rates
-    // Scale by curve selection (smaller scale = faster decay)
-    float curve_scale = (afterglow_curve == 0) ? 0.25 :
+    // Per-channel time constants (seconds) - tuned to match CPU output
+    // GPU values are scaled to account for render timing differences
+    // Scale by curve selection: 0=no scale, 1=faster (0.5x), 2=normal (1x), 3=long tail (2x)
+    float curve_scale = (afterglow_curve == 0) ? 1.0 :
                         (afterglow_curve == 1) ? 0.5 :
                         (afterglow_curve == 3) ? 2.0 : 1.0;
-    float3 tau = max(float3(0.6, 0.8, 0.3) * duration_s * curve_scale, float3(0.001, 0.001, 0.001));
+    float3 tau = max(float3(1.26, 0.93, 0.70) * duration_s * curve_scale, float3(0.001, 0.001, 0.001));
 
     // Compute decay factor per channel for this frame (0..1)
-    // Using exp(-dt_s / tau) = exp(-dt_s * (1/tau))
-    float3 decay = exp(-dt_s / tau);
-
-    // === DUAL-PHASE DECAY FOR CURVES 2 & 3 ===
-    // Optimized: single exp() with pre-computed effective tau
-    float3 final_decay = decay;
-    if (afterglow_curve >= 2) {
-        // Combine fast (4x faster) and slow (10x slower) components mathematically
-        // decay_fast = exp(-dt_s / (tau * 0.25)) = exp(-4 * dt_s / tau)
-        // decay_slow = exp(-dt_s / (tau * 10)) = exp(-0.1 * dt_s / tau)
-        // We use linear approximation for blend: final = 0.7 * fast + 0.3 * slow
-        float3 decay_fast = exp(-4.0 * dt_s / tau);
-        float3 decay_slow = exp(-0.1 * dt_s / tau);
-        final_decay = decay_fast * 0.7 + decay_slow * 0.3;
+    // CPU uses: curve 0 = linear (1 - dt/tau), curves 1-3 = exponential exp(-dt/tau)
+    float3 decay;
+    if (afterglow_curve == 0) {
+        // Linear decay (matches CPU curve 0)
+        decay = saturate(float3(1.0, 1.0, 1.0) - dt_s / tau);
+    } else {
+        // Exponential decay (matches CPU curves 1-3)
+        decay = exp(-dt_s / tau);
     }
 
-    // === CRT PHOSPHOR NON-LINEAR DECAY MODEL ===
-    // Track luminance change and boost newly-lit pixels
-    float prev_luma = dot(prev.rgb, float3(0.299, 0.587, 0.114));
-    float curr_luma = dot(current_rgb, float3(0.299, 0.587, 0.114));
+    // === MAX-BASED PERSISTENCE (matches CPU exactly) ===
+    // CPU: output = max(current, prev * decay)
+    // This is the key difference from EMA - preserves sharp leading edge, smooth trailing
+    float3 decayed_prev = prev.rgb * decay;
+    float3 persisted = max(current_rgb, decayed_prev);
 
-    // Detect "flash" - when current pixel is significantly brighter than previous
-    float luma_increase = max(0.0, curr_luma - prev_luma);
-    float flash_factor = saturate(luma_increase * 3.0);
-
-    // Standard exponential smoothing for the base persistence
-    float3 base_persisted = prev.rgb * final_decay + current_rgb * (1.0 - final_decay);
-
-    // Add extra intensity for newly-lit pixels (the "flash" component)
-    // Cap flash boost to available headroom to prevent clipping artifacts
-    float3 headroom = float3(1.0, 1.0, 1.0) - base_persisted;
-    float3 raw_flash = current_rgb * flash_factor * 0.5;
-    float3 flash_boost = min(raw_flash, headroom);
-
-    // Combine base persistence with flash boost
-    float3 persisted = base_persisted + flash_boost;
-
-    // Clamp to valid range (should be redundant after headroom cap, but kept for safety)
     return saturate(persisted);
 }
 

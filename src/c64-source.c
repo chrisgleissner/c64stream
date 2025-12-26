@@ -1171,8 +1171,11 @@ void c64_video_render(void *data, gs_effect_t *effect)
 
     if (use_gpu_afterglow) {
         // Step 1: Render to afterglow_accum_next (off-screen render target)
+        // Save original render state (render target, z-stencil, and viewport)
         gs_texture_t *prev_target = gs_get_render_target();
         gs_zstencil_t *prev_zstencil = gs_get_zstencil_target();
+        struct gs_rect prev_viewport;
+        gs_get_viewport(&prev_viewport);
 
         gs_set_render_target(context->afterglow_accum_next, NULL);
         gs_set_viewport(0, 0, render_width, render_height);
@@ -1191,9 +1194,9 @@ void c64_video_render(void *data, gs_effect_t *effect)
         context->afterglow_accum_prev = context->afterglow_accum_next;
         context->afterglow_accum_next = tmp;
 
-        // Step 3: Restore render target and copy accumulated result to screen
+        // Step 3: Restore original render state
         gs_set_render_target(prev_target, prev_zstencil);
-        gs_set_viewport(0, 0, render_width, render_height);
+        gs_set_viewport(prev_viewport.x, prev_viewport.y, prev_viewport.cx, prev_viewport.cy);
 
         // Render accumulated texture to screen using default shader (just blit)
         gs_effect_t *default_effect = obs_get_base_effect(OBS_EFFECT_DEFAULT);
