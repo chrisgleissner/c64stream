@@ -1006,6 +1006,40 @@ Generated: ${timestamp}
 ## Test results
 EOF
 
+    # Add Resource Usage section first if resource.json exists
+    local resource_json="${OUTPUT_DIR}/resource.json"
+    if [[ -f "${resource_json}" ]] && command -v jq >/dev/null 2>&1; then
+        local duration_ms sample_count cpu_median cpu_max ram_mb_median gpu_median gpu_max obs_cpu_median obs_cpu_max
+        duration_ms=$(jq -r '.duration_ms // 0' "${resource_json}")
+        sample_count=$(jq -r '.sample_count // 0' "${resource_json}")
+        cpu_median=$(jq -r '.cpu_percent.median // 0' "${resource_json}")
+        cpu_max=$(jq -r '.cpu_percent.max // 0' "${resource_json}")
+        ram_mb_median=$(jq -r '.ram_mb.median // 0' "${resource_json}")
+        obs_cpu_median=$(jq -r '.obs_cpu_percent.median // null' "${resource_json}")
+        obs_cpu_max=$(jq -r '.obs_cpu_percent.max // null' "${resource_json}")
+        gpu_median=$(jq -r '.gpu_percent.median // null' "${resource_json}")
+        gpu_max=$(jq -r '.gpu_percent.max // null' "${resource_json}")
+
+        if [[ "${sample_count}" -gt 0 ]]; then
+            local duration_sec
+            duration_sec=$(awk -v ms="${duration_ms}" 'BEGIN{printf "%.1f", ms/1000}')
+            echo >> "${report_file}"
+            echo "### Resource Usage" >> "${report_file}"
+            echo >> "${report_file}"
+            echo "During the test's processing window (${duration_sec}s, ${sample_count} samples):" >> "${report_file}"
+            echo >> "${report_file}"
+            echo "- CPU: ${cpu_median}% median (max: ${cpu_max}%)" >> "${report_file}"
+            if [[ "${obs_cpu_median}" != "null" && -n "${obs_cpu_median}" ]]; then
+                echo "- OBS CPU: ${obs_cpu_median}% median (max: ${obs_cpu_max}%)" >> "${report_file}"
+            fi
+            echo "- RAM: ${ram_mb_median} MB median" >> "${report_file}"
+            if [[ "${gpu_median}" != "null" && -n "${gpu_median}" ]]; then
+                echo "- GPU: ${gpu_median}% median (max: ${gpu_max}%)" >> "${report_file}"
+            fi
+            echo "- [resource.csv](resource.csv) | [resource.json](resource.json)" >> "${report_file}"
+        fi
+    fi
+
     echo >> "${report_file}"
 
     local video_count=0
@@ -1496,40 +1530,6 @@ PY
     fi
 
     log_success "Markdown report saved to ${report_file}"
-
-    # Append Resource Usage section if resource.json exists
-    local resource_json="${OUTPUT_DIR}/resource.json"
-    if [[ -f "${resource_json}" ]] && command -v jq >/dev/null 2>&1; then
-        local duration_ms sample_count cpu_median cpu_max ram_mb_median gpu_median gpu_max obs_cpu_median obs_cpu_max
-        duration_ms=$(jq -r '.duration_ms // 0' "${resource_json}")
-        sample_count=$(jq -r '.sample_count // 0' "${resource_json}")
-        cpu_median=$(jq -r '.cpu_percent.median // 0' "${resource_json}")
-        cpu_max=$(jq -r '.cpu_percent.max // 0' "${resource_json}")
-        ram_mb_median=$(jq -r '.ram_mb.median // 0' "${resource_json}")
-        obs_cpu_median=$(jq -r '.obs_cpu_percent.median // null' "${resource_json}")
-        obs_cpu_max=$(jq -r '.obs_cpu_percent.max // null' "${resource_json}")
-        gpu_median=$(jq -r '.gpu_percent.median // null' "${resource_json}")
-        gpu_max=$(jq -r '.gpu_percent.max // null' "${resource_json}")
-
-        if [[ "${sample_count}" -gt 0 ]]; then
-            local duration_sec
-            duration_sec=$(awk -v ms="${duration_ms}" 'BEGIN{printf "%.1f", ms/1000}')
-            echo >> "${report_file}"
-            echo "### Resource Usage" >> "${report_file}"
-            echo >> "${report_file}"
-            echo "During the test's processing window (${duration_sec}s, ${sample_count} samples):" >> "${report_file}"
-            echo >> "${report_file}"
-            echo "- CPU: ${cpu_median}% median (max: ${cpu_max}%)" >> "${report_file}"
-            if [[ "${obs_cpu_median}" != "null" && -n "${obs_cpu_median}" ]]; then
-                echo "- OBS CPU: ${obs_cpu_median}% median (max: ${obs_cpu_max}%)" >> "${report_file}"
-            fi
-            echo "- RAM: ${ram_mb_median} MB median" >> "${report_file}"
-            if [[ "${gpu_median}" != "null" && -n "${gpu_median}" ]]; then
-                echo "- GPU: ${gpu_median}% median (max: ${gpu_max}%)" >> "${report_file}"
-            fi
-            echo "- [resource.csv](resource.csv) | [resource.json](resource.json)" >> "${report_file}"
-        fi
-    fi
 }
 
 # Cleanup temporary files
