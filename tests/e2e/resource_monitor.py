@@ -53,18 +53,20 @@ class ResourceStats:
 class ResourceSummary:
     """Summary of all resource usage statistics."""
 
-    cpu: ResourceStats  # System-wide CPU
+    cpu: ResourceStats  # System-wide CPU (normalized to effective CPUs)
     ram_percent: ResourceStats
     ram_mb: ResourceStats
     gpu: Optional[ResourceStats] = None
     gpu_mem_percent: Optional[ResourceStats] = None
     gpu_mem_mb: Optional[ResourceStats] = None
-    obs_cpu: Optional[ResourceStats] = None  # Per-process OBS CPU
+    obs_cpu: Optional[ResourceStats] = None  # Per-process OBS CPU (normalized)
     duration_ms: float = 0
     sample_interval_ms: int = 500
     gpu_available: bool = False
     gpu_type: str = "none"  # "nvidia", "intel", "amd", or "none"
     obs_process_found: bool = False  # Whether OBS process was found for per-process monitoring
+    effective_cpu_count: float = 1.0  # CPUs available (respects cgroup limits)
+    physical_cpu_count: int = 1  # Physical/logical CPU count
 
 
 class ResourceMonitor:
@@ -88,13 +90,87 @@ class ResourceMonitor:
         self._gpu_available = self._gpu_type != "none"
         self._obs_process: Optional[object] = None
 
+        # Detect effective CPU count (respects cgroup limits in containers/CI)
+        self._effective_cpu_count = self._get_effective_cpu_count()
+        self._physical_cpu_count = os.cpu_count() or 1
+
         if self.verbose:
             print(f"[ResourceMonitor] Initialized with {interval_ms}ms interval")
             print(f"[ResourceMonitor] psutil available: {HAVE_PSUTIL}")
+            print(f"[ResourceMonitor] CPUs: {self._effective_cpu_count} effective / {self._physical_cpu_count} physical")
             if self._gpu_available:
                 print(f"[ResourceMonitor] GPU monitoring: {self._gpu_type} - {self._gpu_info.get('name', 'unknown')}")
             else:
                 print("[ResourceMonitor] GPU monitoring: not available")
+
+    def _get_effective_cpu_count(self) -> float:
+        """
+        Get the effective number of CPUs available to this process.
+
+        In containers/CI environments, the process may be limited by cgroup
+        CPU quotas. This method detects those limits to provide accurate
+        CPU utilization relative to available resources.
+
+        Returns:
+            Effective CPU count (can be fractional, e.g., 2.5 cores)
+        """
+        # Try cgroup v2 first (modern Linux, GitHub Actions uses this)
+        try:
+            cpu_max_path = Path("/sys/fs/cgroup/cpu.max")
+            if cpu_max_path.exists():
+                content = cpu_max_path.read_text().strip()
+                parts = content.split()
+                if len(parts) >= 2 and parts[0] != "max":
+                    quota = int(parts[0])
+                    period = int(parts[1])
+                    if period > 0:
+                        effective = quota / period
+                        if self.verbose:
+                            print(f"[ResourceMonitor] cgroup v2 CPU limit: {effective:.2f} cores")
+                        return effective
+        except Exception:
+            pass
+
+        # Try cgroup v1 (older Linux)
+        try:
+            quota_path = Path("/sys/fs/cgroup/cpu/cpu.cfs_quota_us")
+            period_path = Path("/sys/fs/cgroup/cpu/cpu.cfs_period_us")
+            if quota_path.exists() and period_path.exists():
+                quota = int(quota_path.read_text().strip())
+                period = int(period_path.read_text().strip())
+                if quota > 0 and period > 0:
+                    effective = quota / period
+                    if self.verbose:
+                        print(f"[ResourceMonitor] cgroup v1 CPU limit: {effective:.2f} cores")
+                    return effective
+        except Exception:
+            pass
+
+        # Try reading from /proc/self/cgroup for container detection
+        try:
+            cgroup_path = Path("/proc/self/cgroup")
+            if cgroup_path.exists():
+                content = cgroup_path.read_text()
+                # Parse cgroup path and check for CPU controller limits
+                for line in content.split("\n"):
+                    if "cpu" in line.lower():
+                        parts = line.split(":")
+                        if len(parts) >= 3:
+                            cgroup_cpu_path = Path("/sys/fs/cgroup" + parts[2] + "/cpu.max")
+                            if cgroup_cpu_path.exists():
+                                max_content = cgroup_cpu_path.read_text().strip().split()
+                                if len(max_content) >= 2 and max_content[0] != "max":
+                                    quota = int(max_content[0])
+                                    period = int(max_content[1])
+                                    if period > 0:
+                                        return quota / period
+        except Exception:
+            pass
+
+        # Fallback to psutil or os.cpu_count
+        if HAVE_PSUTIL:
+            return psutil.cpu_count() or 1
+        return os.cpu_count() or 1
 
     def _detect_gpu(self) -> tuple[str, dict]:
         """
@@ -269,16 +345,46 @@ class ResourceMonitor:
         return None
 
     def _find_obs_process(self) -> Optional[object]:
-        """Find the OBS process for focused CPU monitoring."""
+        """Find the OBS process for focused CPU monitoring.
+
+        Tries multiple detection methods to work across different platforms
+        and environments (local, CI containers, etc.).
+        """
         if not HAVE_PSUTIL:
             return None
 
-        for proc in psutil.process_iter(["name", "cmdline"]):
+        # Try to find OBS by various name patterns
+        obs_patterns = ["obs", "obs-studio", "obs64", "obs32"]
+
+        for proc in psutil.process_iter(["name", "cmdline", "exe"]):
             try:
                 name = proc.info.get("name", "").lower()
-                if "obs" in name or "obs-studio" in name:
+                cmdline = proc.info.get("cmdline") or []
+                exe = proc.info.get("exe") or ""
+
+                # Check process name
+                for pattern in obs_patterns:
+                    if pattern in name:
+                        if self.verbose:
+                            print(f"[ResourceMonitor] Found OBS by name: {name} (PID {proc.pid})")
+                        return proc
+
+                # Check executable path
+                exe_lower = exe.lower()
+                for pattern in obs_patterns:
+                    if pattern in exe_lower:
+                        if self.verbose:
+                            print(f"[ResourceMonitor] Found OBS by exe: {exe} (PID {proc.pid})")
+                        return proc
+
+                # Check command line for OBS-related commands
+                cmdline_str = " ".join(cmdline).lower()
+                if "obs" in cmdline_str and ("studio" in cmdline_str or "bin" in cmdline_str):
+                    if self.verbose:
+                        print(f"[ResourceMonitor] Found OBS by cmdline: {cmdline_str[:80]} (PID {proc.pid})")
                     return proc
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
+
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                 continue
         return None
 
@@ -300,7 +406,14 @@ class ResourceMonitor:
             if HAVE_PSUTIL:
                 # psutil.Process.cpu_percent() returns percentage across all cores
                 # e.g., 200% means using 2 cores fully
-                return self._obs_process.cpu_percent(interval=None)
+                raw_percent = self._obs_process.cpu_percent(interval=None)
+
+                # Normalize to effective CPU count (important for CI with cgroup limits)
+                # If we have 2 effective cores and process uses 100% of one, that's 50% effective
+                if self._effective_cpu_count > 0:
+                    normalized = (raw_percent / self._effective_cpu_count)
+                    return normalized
+                return raw_percent
             else:
                 # Fallback: parse /proc/<pid>/stat for process CPU time
                 # This requires tracking deltas between calls
@@ -317,9 +430,28 @@ class ResourceMonitor:
             return None
 
     def _get_cpu_percent(self) -> float:
-        """Get current system-wide CPU usage percentage."""
+        """
+        Get current CPU usage percentage, normalized to effective CPUs.
+
+        In CI environments with cgroup limits, this reflects actual utilization
+        of the allocated CPU resources rather than system-wide metrics that
+        include other jobs running on the same host.
+        """
         if HAVE_PSUTIL:
-            return psutil.cpu_percent(interval=None)
+            # psutil.cpu_percent gives system-wide percentage
+            raw_percent = psutil.cpu_percent(interval=None)
+
+            # In cgroup-limited environments, we want to report usage relative
+            # to our allocation. If we're allocated 2 cores on a 16-core machine,
+            # and system shows 12.5% (2/16), we should report closer to 100%.
+            if self._effective_cpu_count < self._physical_cpu_count:
+                # Scale the percentage based on our allocation ratio
+                # This assumes our job is the primary consumer of allocated cores
+                scale_factor = self._physical_cpu_count / self._effective_cpu_count
+                scaled = raw_percent * scale_factor
+                # Cap at 100% - we can't use more than 100% of our allocation
+                return min(100.0, scaled)
+            return raw_percent
         else:
             # Fallback: parse /proc/stat
             try:
@@ -663,6 +795,8 @@ class ResourceMonitor:
                 sample_interval_ms=self.interval_ms,
                 gpu_available=self._gpu_available,
                 gpu_type=self._gpu_type,
+                effective_cpu_count=self._effective_cpu_count,
+                physical_cpu_count=self._physical_cpu_count,
             )
 
         cpu_values = [s.cpu_percent for s in samples]
@@ -680,6 +814,8 @@ class ResourceMonitor:
             sample_interval_ms=self.interval_ms,
             gpu_available=self._gpu_available,
             gpu_type=self._gpu_type,
+            effective_cpu_count=self._effective_cpu_count,
+            physical_cpu_count=self._physical_cpu_count,
         )
 
         # GPU stats if available
@@ -771,6 +907,8 @@ class ResourceMonitor:
                 sample_interval_ms=self.interval_ms,
                 gpu_available=self._gpu_available,
                 gpu_type=self._gpu_type,
+                effective_cpu_count=self._effective_cpu_count,
+                physical_cpu_count=self._physical_cpu_count,
             )
 
         cpu_values = [s.cpu_percent for s in self.samples]
@@ -787,6 +925,8 @@ class ResourceMonitor:
             sample_interval_ms=self.interval_ms,
             gpu_available=self._gpu_available,
             gpu_type=self._gpu_type,
+            effective_cpu_count=self._effective_cpu_count,
+            physical_cpu_count=self._physical_cpu_count,
         )
 
         # GPU stats if available
@@ -877,6 +1017,8 @@ class ResourceMonitor:
             "duration_ms": round(summary.duration_ms, 0),
             "sample_interval_ms": summary.sample_interval_ms,
             "sample_count": summary.cpu.sample_count,
+            "effective_cpu_count": round(summary.effective_cpu_count, 2),
+            "physical_cpu_count": summary.physical_cpu_count,
             "cpu_percent": stats_to_dict(summary.cpu),
             "ram_percent": stats_to_dict(summary.ram_percent),
             "ram_mb": stats_to_dict(summary.ram_mb),
@@ -918,11 +1060,19 @@ class ResourceMonitor:
         if summary.cpu.sample_count == 0:
             return "No resource data collected.\n"
 
+        # Add CPU context (helps understand measurements on shared CI runners)
+        cpu_context = ""
+        if summary.effective_cpu_count < summary.physical_cpu_count:
+            cpu_context = f" (cgroup-limited to {summary.effective_cpu_count:.1f} of {summary.physical_cpu_count} cores)"
+        else:
+            cpu_context = f" ({summary.physical_cpu_count} cores)"
+
         lines = [
             "## Resource Usage\n",
             f"- **Duration**: {summary.duration_ms/1000:.1f}s",
             f"- **Sample Interval**: {summary.sample_interval_ms}ms",
             f"- **Samples Collected**: {summary.cpu.sample_count}",
+            f"- **CPU Environment**: {cpu_context.strip()}",
             "",
             "### System-Wide CPU",
             f"- Min: {summary.cpu.min_val:.1f}%",

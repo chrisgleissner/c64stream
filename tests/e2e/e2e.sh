@@ -1010,6 +1010,7 @@ EOF
     local resource_json="${OUTPUT_DIR}/resource.json"
     if [[ -f "${resource_json}" ]] && command -v jq >/dev/null 2>&1; then
         local duration_ms sample_count cpu_median cpu_max ram_mb_median gpu_median gpu_max obs_cpu_median obs_cpu_max
+        local effective_cpus physical_cpus obs_found
         duration_ms=$(jq -r '.duration_ms // 0' "${resource_json}")
         sample_count=$(jq -r '.sample_count // 0' "${resource_json}")
         cpu_median=$(jq -r '.cpu_percent.median // 0' "${resource_json}")
@@ -1019,18 +1020,33 @@ EOF
         obs_cpu_max=$(jq -r '.obs_cpu_percent.max // null' "${resource_json}")
         gpu_median=$(jq -r '.gpu_percent.median // null' "${resource_json}")
         gpu_max=$(jq -r '.gpu_percent.max // null' "${resource_json}")
+        effective_cpus=$(jq -r '.effective_cpu_count // 0' "${resource_json}")
+        physical_cpus=$(jq -r '.physical_cpu_count // 0' "${resource_json}")
+        obs_found=$(jq -r '.obs_process_found // false' "${resource_json}")
 
         if [[ "${sample_count}" -gt 0 ]]; then
-            local duration_sec
+            local duration_sec cpu_context
             duration_sec=$(awk -v ms="${duration_ms}" 'BEGIN{printf "%.1f", ms/1000}')
+
+            # Build CPU context string
+            if awk -v eff="${effective_cpus}" -v phys="${physical_cpus}" 'BEGIN{exit !(eff < phys && eff > 0)}'; then
+                cpu_context=" (cgroup-limited: ${effective_cpus} of ${physical_cpus} cores)"
+            elif [[ "${physical_cpus}" -gt 0 ]]; then
+                cpu_context=" (${physical_cpus} cores)"
+            else
+                cpu_context=""
+            fi
+
             echo >> "${report_file}"
             echo "### Resource Usage" >> "${report_file}"
             echo >> "${report_file}"
-            echo "During the test's processing window (${duration_sec}s, ${sample_count} samples):" >> "${report_file}"
+            echo "During the test's processing window (${duration_sec}s, ${sample_count} samples)${cpu_context}:" >> "${report_file}"
             echo >> "${report_file}"
             echo "- CPU: ${cpu_median}% median (max: ${cpu_max}%)" >> "${report_file}"
             if [[ "${obs_cpu_median}" != "null" && -n "${obs_cpu_median}" ]]; then
                 echo "- OBS CPU: ${obs_cpu_median}% median (max: ${obs_cpu_max}%)" >> "${report_file}"
+            elif [[ "${obs_found}" != "true" ]]; then
+                echo "- OBS CPU: _process not found_" >> "${report_file}"
             fi
             echo "- RAM: ${ram_mb_median} MB median" >> "${report_file}"
             if [[ "${gpu_median}" != "null" && -n "${gpu_median}" ]]; then
