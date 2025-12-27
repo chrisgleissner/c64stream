@@ -1,6 +1,6 @@
 # C64 Stream E2E Test Report
 
-Generated: 2025-12-27 11:52:57 UTC
+Generated: 2025-12-27 12:47:28 UTC
 
 ## Test configuration
 
@@ -21,7 +21,7 @@ Generated: 2025-12-27 11:52:57 UTC
 - OS: Ubuntu 24.04.3 LTS (kernel 6.14.0-37-generic)
 - OBS: 32.0.2
 - CPU: Intel(R) Core(TM) i7-6700K CPU @ 4.00GHz (8 cores)
-- RAM: 31Gi total, 23Gi available
+- RAM: 31Gi total, 21Gi available
 - Disk (/): 1.8T total, 1.1T available
 
 ## Test results
@@ -32,9 +32,9 @@ During the test's processing window (4.6s, 10 of 30 samples) (8 cores):
 
 | Metric | Min | Median | Mean | Max |
 |--------|-----|--------|------|-----|
-| CPU | 45.3% | 52.05% | 57.67% | 82.4% |
-| RAM | 6106.01 MB | 6172.03 MB | 6360.72 MB | 6827.6 MB |
-| GPU | 34.44% | 36.36% | 37.32% | 48.4% |
+| CPU | 45.3% | 47.95% | 48.75% | 58.7% |
+| RAM | 7235.52 MB | 7265.38 MB | 7265.96 MB | 7282.89 MB |
+| GPU | 40.74% | 44.8% | 45.79% | 53.38% |
 
 Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
@@ -46,13 +46,13 @@ Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
 ### A/V Sync
 
-- ✅ Good synchronization (100.0%): avg offset 25.0ms, max 25.0ms
+- ✅ Good synchronization (100.0%): avg offset 9.0ms, max 9.0ms
 
 #### Sync Details
 
-- 🟢 Pop #1 [L]: audio=8745.0ms, video=8720.0ms (frame 436), diff=25.0ms
-- 🟢 Pop #2 [R]: audio=9745.0ms, video=9720.0ms (frame 486), diff=25.0ms
-- 🟢 Pop #3 [L]: audio=10745.0ms, video=10720.0ms (frame 536), diff=25.0ms
+- 🟢 Pop #1 [L]: audio=8689.0ms, video=8680.0ms (frame 434), diff=9.0ms
+- 🟢 Pop #2 [R]: audio=9689.0ms, video=9680.0ms (frame 484), diff=9.0ms
+- 🟢 Pop #3 [L]: audio=10689.0ms, video=10680.0ms (frame 534), diff=9.0ms
 
 - Channels: LRL
 - 🔁 Channel alternation: OK (alternating, starts with L)
@@ -63,8 +63,8 @@ Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
 | Metric | Count | Min | Median | Max |
 |--------|-------|-----|--------|-----|
-| Repeated frames | 16 runs | 2 | 2 | 3 |
-| Skipped frames | 17 skips | 1 | 1 | 2 |
+| Repeated frames | 5 runs | 2 | 2 | 2 |
+| Skipped frames | 5 skips | 1 | 1 | 1 |
 
 See [playback.csv](playback.csv) for frame-by-frame playback timeline with anomaly markers.
 
@@ -83,4 +83,4 @@ See [playback.csv](playback.csv) for frame-by-frame playback timeline with anoma
 ![Sample Frame](./c64_recording_still.png)
 
 - Top-left shows the frame index (color = frame_num % 16). Top-right shows a stable 4×4 tile of all 16 VIC colours (drift check). Center shows scrolling colour bars. Bottom-right flashes with a pop sound for A/V sync checks / afterglow tail.
-- Taken from frame 436 at 00:08.7 of the 20.0 s video above.
+- Taken from frame 435 at 00:08.7 of the 20.0 s video above.

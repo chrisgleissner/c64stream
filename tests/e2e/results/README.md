@@ -69,10 +69,15 @@ playback.csv  → what was observed during playback (decoded frames + anomalies)
 |--------|-------------|
 | `playback_frame_index` | Absolute frame index in the recording (0-based) |
 | `frame_num` | C64U stream frame number from obs.csv (empty for logo frames) |
-| `video_time_s` | Timestamp in seconds since recording start |
+| `video_s` | Position in video file (seconds since recording start) |
+| `video_ssff` | Position in SS:FF format (seconds:frames) for tools like Shotcut |
+| `content_s` | Time since C64U content started streaming (empty for logo/post-stream) |
+| `marker_color` | Detected color (0-15) from top-left marker box (empty if not detected) |
 | `repeated` | If start of repeated run: total times shown; empty otherwise |
 | `skipped` | Frames permanently lost before this one; empty if none |
 | `event` | Human-readable summary (see below) |
+| `video_pop` | "video_pop" if video pop (frame sync marker) detected at this frame |
+| `audio_pop` | "audio_pop" if audio pop detected within this frame's time window |
 
 **Frame Number Mapping:**
 
@@ -94,6 +99,12 @@ skipped and playback.csv falls back to frame sequencing without frame_num mappin
 | `repeated+skipped` | Both anomalies on same frame (rare) |
 | _(empty)_ | Normal frame, no anomaly |
 
+**Time Columns:**
+
+- **`video_s`**: Absolute position in the recording file. Starts at 0.0 when recording begins.
+- **`video_ssff`**: Same as `video_s` but in SS:FF format (e.g., `08:39` = second 8, frame 39). Matches Shotcut's timeline display.
+- **`content_s`**: Relative time since C64U content started. Empty during logo display and post-stream frames. Useful for comparing runs with different logo durations.
+
 **Semantics:**
 
 - **`repeated`**: Source didn't deliver a new frame in time, so the previous content was displayed again. The `repeated` column shows the count only on the FIRST frame of the run (e.g., `3` means shown 3 times total). Continuation frames have empty `repeated` column.
@@ -105,24 +116,23 @@ skipped and playback.csv falls back to frame sequencing without frame_num mappin
 **Example:**
 
 ```csv
-playback_frame_index,frame_num,video_time_s,repeated,skipped,event
-523,523,8.717,,,
-524,524,8.733,,,
-525,525,8.75,3,,repeated
-526,526,8.767,,,
-527,527,8.783,,,
-528,528,8.8,,1,skipped
-529,529,8.817,,,
-540,540,9.0,2,3,repeated+skipped
-541,541,9.017,,,
+playback_frame_index,frame_num,video_s,video_ssff,content_s,marker_color,repeated,skipped,event,video_pop,audio_pop
+462,,7.7,07:42,,,,,,,
+463,,7.717,07:43,,,,,,,
+464,1,7.733,07:44,0.0,1,,,,,
+524,60,8.733,08:44,1.0,12,,,,,
+525,60,8.75,08:45,1.017,12,3,,repeated,,
+528,63,8.8,08:48,1.067,15,,1,skipped,,
+540,75,9.0,09:00,1.267,11,2,3,repeated+skipped,video_pop,audio_pop
 ```
 
 Reading this example:
-- Frames 523-524: Normal playback
+- Frames 462-463: Logo/pre-content (empty frame_num and content_s)
+- Frame 464: First content frame (content_s=0.0)
+- Frame 524: Normal content frame (content_s=1.0)
 - Frame 525: Content shown 3 times (at indices 525, 526, 527)
-- Frames 526-527: Continuation of repeated run (no markers needed)
 - Frame 528: 1 source frame was permanently lost before this arrived
-- Frame 540: 3 frames lost, then this frame was shown twice (rare combined case)
+- Frame 540: 3 frames lost, then this frame was shown twice; also has video/audio pop
 
 ## Running Tests
 

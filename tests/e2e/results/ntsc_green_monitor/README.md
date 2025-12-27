@@ -1,6 +1,6 @@
 # C64 Stream E2E Test Report
 
-Generated: 2025-12-27 11:49:20 UTC
+Generated: 2025-12-27 12:46:10 UTC
 
 ## Test configuration
 
@@ -21,7 +21,7 @@ Generated: 2025-12-27 11:49:20 UTC
 - OS: Ubuntu 24.04.3 LTS (kernel 6.14.0-37-generic)
 - OBS: 32.0.2
 - CPU: Intel(R) Core(TM) i7-6700K CPU @ 4.00GHz (8 cores)
-- RAM: 31Gi total, 23Gi available
+- RAM: 31Gi total, 22Gi available
 - Disk (/): 1.8T total, 1.1T available
 
 ## Test results
@@ -32,9 +32,9 @@ During the test's processing window (4.6s, 10 of 30 samples) (8 cores):
 
 | Metric | Min | Median | Mean | Max |
 |--------|-----|--------|------|-----|
-| CPU | 87.0% | 91.1% | 91.59% | 96.7% |
-| RAM | 6043.4 MB | 6072.1 MB | 6110.69 MB | 6229.05 MB |
-| GPU | 40.73% | 41.9% | 41.85% | 43.32% |
+| CPU | 91.4% | 93.8% | 94.52% | 100.0% |
+| RAM | 7289.92 MB | 7359.11 MB | 7355.12 MB | 7458.79 MB |
+| GPU | 44.81% | 47.1% | 47.42% | 50.79% |
 
 Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
@@ -46,13 +46,13 @@ Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
 ### A/V Sync
 
-- ✅ Good synchronization (100.0%): avg offset 22.9ms, max 32.0ms
+- ✅ Good synchronization (100.0%): avg offset 23.4ms, max 29.0ms
 
 #### Sync Details
 
-- 🟢 Pop #1 [L]: audio=8710.0ms, video=8683.3ms (frame 521), diff=26.7ms
-- 🟢 Pop #2 [R]: audio=9710.0ms, video=9700.0ms (frame 582), diff=10.0ms
-- 🟢 Pop #3 [L]: audio=10732.0ms, video=10700.0ms (frame 642), diff=32.0ms
+- 🟢 Pop #1 [L]: audio=8729.0ms, video=8716.7ms (frame 523), diff=12.3ms
+- 🟢 Pop #2 [R]: audio=9729.0ms, video=9700.0ms (frame 582), diff=29.0ms
+- 🟢 Pop #3 [L]: audio=10729.0ms, video=10700.0ms (frame 642), diff=29.0ms
 
 - Channels: LRL
 - 🔁 Channel alternation: OK (alternating, starts with L)
@@ -68,4 +68,4 @@ Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 ![Sample Frame](./c64_recording_still.png)
 
 - Top-left shows the frame index (color = frame_num % 16). Top-right shows a stable 4×4 tile of all 16 VIC colours (drift check). Center shows scrolling colour bars. Bottom-right flashes with a pop sound for A/V sync checks / afterglow tail.
-- Taken from frame 30 at 00:00.5 of the 20.9 s video above.
+- Taken from frame 523 at 00:08.7 of the 20.9 s video above.

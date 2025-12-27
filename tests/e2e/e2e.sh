@@ -992,10 +992,18 @@ content_bounds = details.get("content_bounds", {})
 first_content_frame = content_bounds.get("first_content_frame", start_frame) if content_bounds else start_frame
 last_content_frame = content_bounds.get("last_content_frame", end_frame) if content_bounds else end_frame
 
-# Fallback to video_pop_starts if content_bounds not available
+# Fallback to video_pop_starts if content_bounds not available (from frame_sequence_box)
 video_pop_starts = details.get("video_pop_starts", [])
 if first_content_frame == 0 and video_pop_starts:
     first_content_frame = video_pop_starts[0]
+
+# Secondary fallback: use av_sync_details.video_pop_frame_indices
+av_sync_for_bounds = data.get("av_sync_details", {})
+if first_content_frame == 0:
+    av_pop_frames = av_sync_for_bounds.get("video_pop_frame_indices", [])
+    if av_pop_frames:
+        # Use first pop frame as estimate of content start (may be ~1s after actual start)
+        first_content_frame = max(0, av_pop_frames[0] - int(fps))  # ~1 second before first pop
 
 # Get event lists from validation results
 # skip_events: list of {frame, time_sec, skipped} - frame is where skip was detected
@@ -1046,6 +1054,10 @@ if recording_mp4 and Path(recording_mp4).exists():
 
 if total_frames == 0:
     total_frames = max(end_frame + 1, 100)
+
+# Fix last_content_frame when frame_sequence_box was skipped
+if last_content_frame == 0 and total_frames > 0:
+    last_content_frame = total_frames - 1
 
 # Build a mapping from video frame index to the C64 stream frame being displayed.
 # The frame_box_seq assertion detects colors from the top-left marker (frame_num % 16).
@@ -1128,30 +1140,64 @@ for video_idx in sorted(video_to_frame_num.keys()):
 # - playback_frame_index: 0-based index in the recording (video frame number)
 # - frame_num: C64 stream frame number (the actual frame counter from the C64U device)
 #              Empty for pre-roll/post-roll frames
-# - video_time_s: timestamp in seconds since recording start
+# - video_s: timestamp in seconds since recording start (position in video file)
+# - video_ssff: timestamp in SS:FF format (seconds:frames) for tools like Shotcut
+# - content_s: time since C64U content started streaming (empty for logo/post-stream frames)
+# - marker_color: detected color (0-15) from top-left marker box (empty if not detected)
 # - repeated: if this is the START of a repeated run, the total times shown (e.g., 2 = shown twice);
 #             empty for normal frames or continuation frames within a run
 # - skipped: number of source frames permanently lost BEFORE this frame arrived;
 #            empty if no frames were skipped
 # - event: human-readable summary: "repeated", "skipped", "repeated+skipped", or empty
+# - video_pop: "video_pop" if a video pop (frame sync marker) was detected at this frame
+# - audio_pop: "audio_pop" if an audio pop was detected within this frame's time window
+
+# Get pop data from av_sync_details
+av_sync_details = data.get("av_sync_details", {})
+video_pop_frame_indices = set(av_sync_details.get("video_pop_frame_indices", []))
+
+# Build audio pop frame mapping (audio pop time -> closest video frame)
+audio_pop_frames = set()
+sync_details = av_sync_details.get("sync_details", [])
+for detail in sync_details:
+    closest_frame = detail.get("closest_video_pop_frame")
+    if closest_frame is not None:
+        audio_pop_frames.add(closest_frame)
+
+# Calculate first content time for content_s column
+first_content_time_s = first_content_frame / fps if first_content_frame > 0 else 0.0
+
+def format_ssff(seconds, fps_val):
+    """Format seconds as SS:FF (seconds:frames) for Shotcut-style display."""
+    total_frames = int(round(seconds * fps_val))
+    secs = total_frames // int(fps_val)
+    frames = total_frames % int(fps_val)
+    return f"{secs:02d}:{frames:02d}"
 
 with open(playback_csv, 'w', newline='') as f:
     writer = csv.writer(f)
-    writer.writerow(['playback_frame_index', 'frame_num', 'video_time_s', 'repeated', 'skipped', 'event'])
+    writer.writerow(['playback_frame_index', 'frame_num', 'video_s', 'video_ssff', 'content_s', 'marker_color', 'repeated', 'skipped', 'event', 'video_pop', 'audio_pop'])
 
     for playback_idx in range(total_frames):
-        video_time_s = round(playback_idx / fps, 3)
+        video_s = round(playback_idx / fps, 3)
+        video_ssff = format_ssff(video_s, fps)
 
         # Determine if this is a pre-roll, content, or post-roll frame
         if playback_idx < first_content_frame:
             # Pre-roll frame (logo, startup)
-            writer.writerow([playback_idx, "", video_time_s, "", "", ""])
+            writer.writerow([playback_idx, "", video_s, video_ssff, "", "", "", "", "", "", ""])
         elif playback_idx > last_content_frame:
             # Post-roll frame (after content ends)
-            writer.writerow([playback_idx, "", video_time_s, "", "", ""])
+            writer.writerow([playback_idx, "", video_s, video_ssff, "", "", "", "", "", "", ""])
         else:
             # Content frame - get frame_num from our mapping
             frame_num = video_to_frame_num.get(playback_idx, playback_idx)
+
+            # Calculate content_s (time since first content frame)
+            content_s = round(video_s - first_content_time_s, 3)
+
+            # Get marker color from frame_colors dict
+            marker_color = frame_colors.get(str(playback_idx), "")
 
             # Check for events at this video frame
             repeated_count = repeated_intervals.get(playback_idx, "")
@@ -1165,7 +1211,11 @@ with open(playback_csv, 'w', newline='') as f:
                 events.append("skipped")
             event_str = "+".join(events)
 
-            writer.writerow([playback_idx, frame_num, video_time_s, repeated_count, skipped_count, event_str])
+            # Check for pops - use full string values for easy grepping
+            video_pop = "video_pop" if playback_idx in video_pop_frame_indices else ""
+            audio_pop = "audio_pop" if playback_idx in audio_pop_frames else ""
+
+            writer.writerow([playback_idx, frame_num, video_s, video_ssff, content_s, marker_color, repeated_count, skipped_count, event_str, video_pop, audio_pop])
 
 # Validate frame_num against detected colors from video
 # The top-left marker shows frame_num % 16 as a color (0-15)
