@@ -445,6 +445,7 @@ def _analyze_frame_box_seq(
     refine = max(1, int(round(2 * min(scale_x, scale_y))))
 
     indices: list[int] = []
+    index_frame_nums: list[int] = []  # Track actual frame number for each valid index
     dists: list[float] = []
     margins: list[float] = []
     ambiguous = 0
@@ -525,6 +526,7 @@ def _analyze_frame_box_seq(
                 solid_ok = (best_local_std <= solid_stddev_thresh) or (best_local_best_dist <= tiny_match_dist) or confident_match
                 if solid_ok and best_local_best_dist <= max_match_dist and margin >= min_second_margin:
                     indices.append(int(best_local_idx))
+                    index_frame_nums.append(current_frame)  # Track actual frame number
                     dists.append(float(best_local_best_dist))
                     margins.append(margin)
                 else:
@@ -587,23 +589,28 @@ def _analyze_frame_box_seq(
     compressed_frame_nums: list[int] = []  # Frame number where each compressed entry starts
     stuck_runs: list[int] = []  # Length of each consecutive duplicate run
     stuck_run_frames: list[int] = []  # Frame number where each stuck run starts
+    stuck_run_indices: list[int] = []  # Index position in indices[] where each run starts
     current_run = 1
-    current_run_start = start_frame
+    current_run_start = index_frame_nums[0] if index_frame_nums else start_frame
+    current_run_idx = 0
     for i, idx in enumerate(indices):
-        frame_num = start_frame + i
+        frame_num = index_frame_nums[i]  # Use actual frame number, not start_frame + i
         if not compressed or idx != compressed[-1]:
             if compressed:
                 stuck_runs.append(current_run)
                 stuck_run_frames.append(current_run_start)
+                stuck_run_indices.append(current_run_idx)
             compressed.append(idx)
             compressed_frame_nums.append(frame_num)
             current_run = 1
             current_run_start = frame_num
+            current_run_idx = i
         else:
             current_run += 1
     if indices:
         stuck_runs.append(current_run)
         stuck_run_frames.append(current_run_start)
+        stuck_run_indices.append(current_run_idx)
 
     # Filter out "startup freeze" - if the first stuck run is very long (>1 second),
     # it's likely the logo/startup screen before actual content begins, not a freeze.
@@ -613,6 +620,7 @@ def _analyze_frame_box_seq(
     startup_run_threshold = int(fps * 1.0)  # 1 second threshold
     filtered_stuck_runs = stuck_runs.copy()
     filtered_stuck_run_frames = stuck_run_frames.copy()
+    filtered_stuck_run_indices = stuck_run_indices.copy()
 
     # Filter startup: first run is long and subsequent content shows progression
     if len(filtered_stuck_runs) >= 2 and filtered_stuck_runs[0] > startup_run_threshold:
@@ -623,6 +631,7 @@ def _analyze_frame_box_seq(
             startup_frames_excluded = filtered_stuck_runs[0]
             filtered_stuck_runs = filtered_stuck_runs[1:]
             filtered_stuck_run_frames = filtered_stuck_run_frames[1:]
+            filtered_stuck_run_indices = filtered_stuck_run_indices[1:]
 
     # Filter end-of-stream: last run is long (packets stopped, frame frozen until logo)
     # This happens when the UDP replay ends but recording continues briefly
@@ -633,6 +642,7 @@ def _analyze_frame_box_seq(
             end_frames_excluded = filtered_stuck_runs[-1]
             filtered_stuck_runs = filtered_stuck_runs[:-1]
             filtered_stuck_run_frames = filtered_stuck_run_frames[:-1]
+            filtered_stuck_run_indices = filtered_stuck_run_indices[:-1]
 
     # Calculate stuck frame statistics (using filtered runs that exclude startup/end)
     max_stuck_run = max(filtered_stuck_runs) if filtered_stuck_runs else 0
@@ -641,15 +651,23 @@ def _analyze_frame_box_seq(
     stuck_ratio = float(total_stuck_frames) / float(effective_valid)
 
     # Build detailed list of repeated frame events (runs > 1)
+    # Report the SECOND frame of each run (where the repeat actually occurred),
+    # not the first frame (which is the initial appearance, not a repeat).
+    # This ensures repeat events don't overlap with skip events that point to
+    # the first appearance of a new color.
     repeated_events: list[dict] = []
-    for run_len, run_frame in zip(filtered_stuck_runs, filtered_stuck_run_frames):
+    for run_len, run_idx in zip(filtered_stuck_runs, filtered_stuck_run_indices):
         if run_len > 1:
-            time_sec = float(run_frame) / fps
-            repeated_events.append({
-                "frame": run_frame,
-                "time_sec": round(time_sec, 3),
-                "count": run_len,
-            })
+            # Get the second frame of the run (index position run_idx + 1)
+            second_frame_idx = run_idx + 1
+            if second_frame_idx < len(index_frame_nums):
+                repeat_frame = index_frame_nums[second_frame_idx]
+                time_sec = float(repeat_frame) / fps
+                repeated_events.append({
+                    "frame": repeat_frame,
+                    "time_sec": round(time_sec, 3),
+                    "count": run_len,
+                })
 
     # Calculate min/median/max for stuck runs (excluding runs of 1 = no repetition)
     repeated_runs = [r for r in filtered_stuck_runs if r > 1]
