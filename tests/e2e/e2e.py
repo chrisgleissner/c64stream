@@ -2890,8 +2890,8 @@ def main():
                         help='Scenario id (folder name) for gating checks (e.g., ntsc_default)')
     parser.add_argument('--output-dir', default=None,
                         help='Directory where test artifacts are written (default: test_output under --test-dir)')
-    parser.add_argument('--csv-max-rows', type=int, default=1000,
-                        help='Truncate CSV files to first N rows (default: 1000, use 0 to disable)')
+    parser.add_argument('--csv-max-rows', type=int, default=3000,
+                        help='Truncate CSV files to first N rows (default: 3000, use 0 to disable)')
     parser.add_argument('--enable-resource-monitoring', action='store_true',
                         help='Enable CPU/GPU/RAM monitoring during packet replay')
     parser.add_argument('--resource-interval-ms', type=int, default=500,

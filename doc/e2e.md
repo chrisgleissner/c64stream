@@ -374,10 +374,72 @@ The framework's auto-detection selects assertions based on the effect preset:
 
 ## Validation
 
-- **Network CSV**: Packet reception timestamps and metadata
-- **OBS CSV**: Frame processing statistics
-- **Video Recording**: Visual verification of raster bar animation
-- **Audio Sync**: Heartbeat alignment with visual cues
+The E2E framework generates several CSV files for detailed analysis:
+
+### CSV Files
+
+| File | Description |
+|------|-------------|
+| `network.csv` | UDP packet reception timestamps and metadata |
+| `obs.csv` | Frame/audio events submitted to OBS |
+| `playback.csv` | Decoded frame analysis with anomaly markers |
+
+### obs.csv Format
+
+Records every video frame and audio chunk submitted to OBS:
+
+| Column | Description |
+|--------|-------------|
+| `event_type` | "video" or "audio" |
+| `frame_num` | Frame counter from the stream |
+| `elapsed_us` | Microseconds since recording started |
+| `data_size_bytes` | Size of the frame/audio data |
+| `fps` | Current measured FPS |
+| `audio_samples_total` | Cumulative audio samples processed |
+| `video_packets_received` | Cumulative video packets |
+| `audio_packets_received` | Cumulative audio packets |
+| `sequence_errors` | Cumulative sequence errors |
+
+### playback.csv Format
+
+Authoritative source for skipped/repeated frame analysis. Each row = one displayed frame (1:1 with recording).
+
+| Column | Description |
+|--------|-------------|
+| `playback_frame_index` | Absolute frame index in recording (0-based) |
+| `frame_num` | C64U stream frame number from obs.csv (empty for logo frames) |
+| `video_time_s` | Timestamp in seconds |
+| `repeated` | If start of run: times shown; empty otherwise |
+| `skipped` | Frames lost before this; empty if none |
+| `event` | Human-readable: "repeated", "skipped", "repeated+skipped", or empty |
+
+**Frame Number Mapping:**
+
+The `frame_num` column uses detected video colors as ground truth:
+1. Content bounds detection identifies first/last content frames via frame-difference analysis
+2. For each content frame, the top-left corner color (0-15) is detected
+3. Colors are matched to obs.csv entries where `frame_num % 16` equals the color
+4. Validation ensures playback reflects actual displayed content
+
+**Semantics:**
+
+- **`repeated`**: Source didn't deliver a new frame in time. Count only on first frame of run.
+- **`skipped`**: Frames permanently missing (frame counter jumped). Count = frames lost before this one.
+- Both can occur on same frame (rare).
+
+**Example:**
+
+```csv
+playback_frame_index,frame_num,video_time_s,repeated,skipped,event
+524,524,8.733,,,
+525,525,8.75,3,,repeated
+526,526,8.767,,,
+527,527,8.783,,,
+528,528,8.8,,1,skipped
+540,540,9.0,2,3,repeated+skipped
+```
+
+### Other Validation
 
 ### Pop synchronization
 

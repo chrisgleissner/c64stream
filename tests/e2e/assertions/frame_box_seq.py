@@ -226,7 +226,23 @@ def _analyze_frame_box_seq(
     fps = float(cap.get(cv2.CAP_PROP_FPS) or 30.0)
     frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
 
-    # Detect video pops to anchor analysis window.
+    # Primary method: detect content boundaries using frame difference analysis.
+    # This is resilient to visual effects and doesn't depend on video pops.
+    try:
+        from .content_bounds import detect_content_bounds_precise
+    except ImportError:
+        try:
+            from content_bounds import detect_content_bounds_precise
+        except ImportError:
+            detect_content_bounds_precise = None
+
+    content_bounds = None
+    if detect_content_bounds_precise is not None:
+        content_bounds = detect_content_bounds_precise(mp4_path, verbose=verbose)
+        if verbose and content_bounds:
+            print(f"[frame_box_seq] Content bounds detected: frames {content_bounds.first_content_frame}-{content_bounds.last_content_frame}")
+
+    # Fallback method: detect video pops (requires test pattern with pops).
     # Import lazily to avoid coupling assertion import order.
     try:
         # Normal path: e2e harness runs from tests/e2e
@@ -238,31 +254,43 @@ def _analyze_frame_box_seq(
         except Exception:
             detect_video_pops = None
 
-    if detect_video_pops is None:
-        cap.release()
-        return _AnalysisResult(
-            status=AssertionStatus.FAIL,
-            message="Could not import video pop detector",
-            details={},
-            metrics={},
-        )
+    pop_starts: list[int] = []
+    if detect_video_pops is not None:
+        pop_frames = detect_video_pops(str(mp4_path), frame_rate=fps)
+        pop_starts = _group_consecutive_frames([int(f) for f in pop_frames])
 
-    pop_frames = detect_video_pops(str(mp4_path), frame_rate=fps)
-    pop_starts = _group_consecutive_frames([int(f) for f in pop_frames])
-    if len(pop_starts) < 1:
-        cap.release()
-        return _AnalysisResult(
-            status=AssertionStatus.FAIL,
-            message="No video pops detected for frame-box-seq check",
-            details={"video_pop_starts": pop_starts},
-            metrics={"video_pop_count": float(len(pop_starts))},
-        )
-
+    # Determine analysis window using the best available method
     max_seconds = float(thresholds.get("max_seconds", 8.0))
     max_frames = int(max(1, round(max_seconds * fps)))
 
-    start_frame = min(frame_count - 1, max(0, int(pop_starts[0] + 1)))
-    end_frame = min(frame_count - 1, start_frame + max_frames - 1)
+    if content_bounds is not None and content_bounds.detection_confidence > 0.3:
+        # Use content bounds as the primary source
+        start_frame = content_bounds.first_content_frame
+        # Use detected last content frame, but cap at max_seconds
+        end_frame = min(content_bounds.last_content_frame, start_frame + max_frames - 1)
+        if verbose:
+            print(f"[frame_box_seq] Using content bounds: {start_frame}-{end_frame}")
+    elif len(pop_starts) >= 1:
+        # Fall back to video pops
+        start_frame = min(frame_count - 1, max(0, int(pop_starts[0] + 1)))
+        end_frame = min(frame_count - 1, start_frame + max_frames - 1)
+        if verbose:
+            print(f"[frame_box_seq] Using video pops: {start_frame}-{end_frame}")
+    else:
+        cap.release()
+        return _AnalysisResult(
+            status=AssertionStatus.FAIL,
+            message="Could not detect content boundaries or video pops",
+            details={
+                "content_bounds": content_bounds.__dict__ if content_bounds else None,
+                "video_pop_starts": pop_starts,
+            },
+            metrics={"video_pop_count": float(len(pop_starts))},
+        )
+
+    start_frame = min(frame_count - 1, max(0, start_frame))
+    end_frame = min(frame_count - 1, end_frame)
+
     if end_frame <= start_frame:
         cap.release()
         return _AnalysisResult(
@@ -271,6 +299,7 @@ def _analyze_frame_box_seq(
             details={
                 "start_frame": start_frame,
                 "end_frame": end_frame,
+                "content_bounds": content_bounds.__dict__ if content_bounds else None,
                 "video_pop_starts": pop_starts,
                 "frame_count": frame_count,
             },
@@ -740,6 +769,12 @@ def _analyze_frame_box_seq(
 
     details = {
         "window": {"start_frame": start_frame, "end_frame": end_frame, "fps": fps},
+        "content_bounds": {
+            "first_content_frame": content_bounds.first_content_frame,
+            "last_content_frame": content_bounds.last_content_frame,
+            "logo_end_frame": content_bounds.logo_end_frame,
+            "detection_confidence": content_bounds.detection_confidence,
+        } if content_bounds else None,
         "video_pop_starts": pop_starts,
         "palette_tile": {"x": tile_x0, "y": tile_y0, "wh": tile_wh, "score": tile_score},
         "derived_content": {"left": content_left, "top": content_top, "right": content_right},
@@ -747,6 +782,9 @@ def _analyze_frame_box_seq(
         "valid_frames": valid,
         "compressed_len": len(compressed),
         "distinct_colors": distinct,
+        # Map from video frame number to detected color index (0-15).
+        # This allows validation that frame_num % 16 matches the detected color.
+        "frame_colors": {int(fn): int(idx) for fn, idx in zip(index_frame_nums, indices)},
         "skips": skips,
         "skip_stats": {"count": skip_count, "min": min_skip, "median": median_skip, "max": max_skip},
         "skip_events": skip_events,  # Detailed list of skip events with frame numbers

@@ -210,12 +210,6 @@ void c64_video_record_frame(struct c64_source *context, uint32_t *frame_buffer)
         return;
     }
 
-    // Calculate consistent frame timestamp based on detected FPS
-    // Each frame gets the exact timestamp it should have for perfectly regular timing
-    double frame_interval_ms = 1000.0 / context->expected_fps;
-    uint64_t calculated_timestamp_ms =
-        context->recording_start_time + (uint64_t)(os_atomic_load_long(&context->recorded_frames) * frame_interval_ms);
-
     // Write AVI frame chunk with proper header
     size_t frame_size = context->width * context->height * 3; // BGR24
     // Use pre-allocated buffer to eliminate malloc/free in hot path
@@ -284,8 +278,7 @@ void c64_video_record_frame(struct c64_source *context, uint32_t *frame_buffer)
             c64_video_update_avi_header(context->video_file, (uint32_t)new_frame_count, 0);
 
             // Log video recording timing information to CSV (frame_num = 0 for recording events)
-            uint64_t actual_timestamp_ms = os_gettime_ns() / 1000000;
-            c64_obs_log_video_event(context, 0, calculated_timestamp_ms, actual_timestamp_ms, frame_size);
+            c64_obs_log_video_event(context, 0, frame_size);
         } else {
             C64_LOG_WARNING("Failed to write video frame to recording");
         }

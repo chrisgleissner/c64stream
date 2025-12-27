@@ -1,6 +1,6 @@
 # C64 Stream E2E Test Report
 
-Generated: 2025-12-26 18:19:07 UTC
+Generated: 2025-12-27 11:49:20 UTC
 
 ## Test configuration
 
@@ -21,7 +21,7 @@ Generated: 2025-12-26 18:19:07 UTC
 - OS: Ubuntu 24.04.3 LTS (kernel 6.14.0-37-generic)
 - OBS: 32.0.2
 - CPU: Intel(R) Core(TM) i7-6700K CPU @ 4.00GHz (8 cores)
-- RAM: 31Gi total, 24Gi available
+- RAM: 31Gi total, 23Gi available
 - Disk (/): 1.8T total, 1.1T available
 
 ## Test results
@@ -32,9 +32,9 @@ During the test's processing window (4.6s, 10 of 30 samples) (8 cores):
 
 | Metric | Min | Median | Mean | Max |
 |--------|-----|--------|------|-----|
-| CPU | 85.0% | 88.55% | 88.84% | 91.6% |
-| RAM | 4659.21 MB | 4664.38 MB | 4666.73 MB | 4677.47 MB |
-| GPU | 0.0% | 0.0% | 0.37% | 1.51% |
+| CPU | 87.0% | 91.1% | 91.59% | 96.7% |
+| RAM | 6043.4 MB | 6072.1 MB | 6110.69 MB | 6229.05 MB |
+| GPU | 40.73% | 41.9% | 41.85% | 43.32% |
 
 Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
@@ -42,17 +42,17 @@ Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
 - ✅ Packet Generation: 18000 video, 1252 audio packets
 - ✅ UDP Replay: Completed successfully
-- Events: [network.csv](network.csv), [obs.csv](obs.csv)
+- Events: [network.csv](network.csv), [obs.csv](obs.csv), [playback.csv](playback.csv)
 
 ### A/V Sync
 
-- ✅ Good synchronization (100.0%): avg offset 27.1ms, max 40.0ms
+- ✅ Good synchronization (100.0%): avg offset 22.9ms, max 32.0ms
 
 #### Sync Details
 
-- 🟢 Pop #1 [L]: audio=8718.0ms, video=8700.0ms (frame 522), diff=18.0ms
-- 🟡 Pop #2 [R]: audio=9740.0ms, video=9700.0ms (frame 582), diff=40.0ms
-- 🟢 Pop #3 [L]: audio=10740.0ms, video=10716.7ms (frame 643), diff=23.3ms
+- 🟢 Pop #1 [L]: audio=8710.0ms, video=8683.3ms (frame 521), diff=26.7ms
+- 🟢 Pop #2 [R]: audio=9710.0ms, video=9700.0ms (frame 582), diff=10.0ms
+- 🟢 Pop #3 [L]: audio=10732.0ms, video=10700.0ms (frame 642), diff=32.0ms
 
 - Channels: LRL
 - 🔁 Channel alternation: OK (alternating, starts with L)

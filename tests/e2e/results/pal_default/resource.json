@@ -6,33 +6,33 @@
   "allocated_cpu_cores": 8,
   "total_cpu_cores": 8,
   "cpu_percent": {
-    "min": 46.1,
-    "median": 47.8,
-    "mean": 51.3,
-    "max": 81.8,
+    "min": 45.3,
+    "median": 52.05,
+    "mean": 57.67,
+    "max": 82.4,
     "sample_count": 10
   },
   "ram_percent": {
-    "min": 22.0,
-    "median": 22.1,
-    "mean": 22.08,
-    "max": 22.2,
+    "min": 24.2,
+    "median": 24.5,
+    "mean": 25.09,
+    "max": 26.7,
     "sample_count": 10
   },
   "ram_mb": {
-    "min": 5383.73,
-    "median": 5409.32,
-    "mean": 5406.3,
-    "max": 5437.69,
+    "min": 6106.01,
+    "median": 6172.03,
+    "mean": 6360.72,
+    "max": 6827.6,
     "sample_count": 10
   },
   "gpu_available": true,
   "gpu_type": "intel",
   "gpu_percent": {
-    "min": 42.43,
-    "median": 49.7,
-    "mean": 48.97,
-    "max": 52.56,
+    "min": 34.44,
+    "median": 36.36,
+    "mean": 37.32,
+    "max": 48.4,
     "sample_count": 10
   }
 }

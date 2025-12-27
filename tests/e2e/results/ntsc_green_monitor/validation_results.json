@@ -1,7 +1,7 @@
 {
   "udp_reception": {
     "status": "pass",
-    "details": "19252/19252 packets (17981 video, 1271 audio)"
+    "details": "19252/19252 packets (18000 video, 1252 audio)"
   },
   "frame_processing": {
     "status": "pass",
@@ -28,10 +28,10 @@
     "tolerance_ms": 60,
     "sync_details": [
       {
-        "audio_pop_time_ms": 8718,
-        "closest_video_pop_ms": 8700.0,
-        "closest_video_pop_frame": 522,
-        "difference_ms": 18.0,
+        "audio_pop_time_ms": 8710,
+        "closest_video_pop_ms": 8683.333333333334,
+        "closest_video_pop_frame": 521,
+        "difference_ms": 26.66666666666606,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -39,21 +39,21 @@
         "traffic": "green"
       },
       {
-        "audio_pop_time_ms": 9740,
+        "audio_pop_time_ms": 9710,
         "closest_video_pop_ms": 9700.0,
         "closest_video_pop_frame": 582,
-        "difference_ms": 40.0,
+        "difference_ms": 10.0,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
         "channel": "R",
-        "traffic": "yellow"
+        "traffic": "green"
       },
       {
-        "audio_pop_time_ms": 10740,
-        "closest_video_pop_ms": 10716.666666666666,
-        "closest_video_pop_frame": 643,
-        "difference_ms": 23.33333333333394,
+        "audio_pop_time_ms": 10732,
+        "closest_video_pop_ms": 10700.0,
+        "closest_video_pop_frame": 642,
+        "difference_ms": 32.0,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -66,19 +66,19 @@
     "duration_ms": 20864.0,
     "video_pop_times_ms": [
       500.0,
-      8700.0,
+      8683.333333333334,
       9700.0,
-      10716.666666666666
+      10700.0
     ],
     "video_pop_frame_indices": [
       30,
-      522,
+      521,
       582,
-      643
+      642
     ],
     "traffic": [
       "green",
-      "yellow",
+      "green",
       "green"
     ]
   },
@@ -91,6 +91,34 @@
     "details": "Scanlines uniform: 0.00% variance",
     "metrics": {
       "variance_percent": 0.0
+    }
+  },
+  "frame_sequence_box": {
+    "status": "skipped",
+    "message": "Skipped (disabled)",
+    "details": {},
+    "metrics": {}
+  },
+  "recording": {
+    "record_audio": {
+      "status": "skipped",
+      "message": "Skipped (not enabled)"
+    },
+    "record_video": {
+      "status": "skipped",
+      "message": "Skipped (not enabled)"
+    },
+    "record_obs": {
+      "status": "skipped",
+      "message": "Skipped (not enabled)"
+    },
+    "record_network": {
+      "status": "skipped",
+      "message": "Skipped (not enabled)"
+    },
+    "record_frames": {
+      "status": "skipped",
+      "message": "Skipped (not enabled)"
     }
   }
 }

@@ -923,6 +923,296 @@ run_scenario_assertions() {
     return ${assertion_result}
 }
 
+# Generate playback.csv from validation_results.json
+# This creates a dense, frame-complete timeline showing playback anomalies (skips/repeats)
+generate_playback_csv() {
+    local validation_file="${OUTPUT_DIR}/validation_results.json"
+    local playback_csv="${OUTPUT_DIR}/playback.csv"
+    local obs_csv=""
+
+    if [[ ! -f "${validation_file}" ]] || ! command -v jq >/dev/null 2>&1; then
+        log_info "Skipping playback.csv generation (validation_results.json not found or jq not available)"
+        return 0
+    fi
+
+    # Check if frame_sequence_box results are available
+    local has_frame_seq
+    has_frame_seq=$(jq -r 'has("frame_sequence_box")' "${validation_file}" 2>/dev/null || echo "false")
+    if [[ "${has_frame_seq}" != "true" ]]; then
+        log_info "Skipping playback.csv generation (no frame sequence data)"
+        return 0
+    fi
+
+    # Find obs.csv - check session folders
+    local session_folder
+    session_folder=$(find "${OUTPUT_DIR}" -maxdepth 2 -name "obs.csv" -type f 2>/dev/null | head -1)
+    if [[ -n "${session_folder}" ]]; then
+        obs_csv="${session_folder}"
+    fi
+
+    log_info "Generating playback.csv..."
+
+    # Get the recording file to determine total frame count and frame rate
+    local recording_mp4=""
+    if compgen -G "${OUTPUT_DIR}/c64_recording.*" > /dev/null; then
+        recording_mp4=$(ls -t ${OUTPUT_DIR}/c64_recording.* 2>/dev/null | head -1)
+    elif compgen -G "${OUTPUT_DIR}/*.mp4" > /dev/null; then
+        recording_mp4=$(ls -t ${OUTPUT_DIR}/*.mp4 2>/dev/null | head -1)
+    elif [[ -f "${OUTPUT_DIR}/recording_${FORMAT}.mkv" ]]; then
+        recording_mp4="${OUTPUT_DIR}/recording_${FORMAT}.mkv"
+    fi
+
+    # Use Python to generate the CSV (complex logic with frame mapping)
+    python3 - "${validation_file}" "${playback_csv}" "${recording_mp4}" "${FORMAT}" "${obs_csv}" <<'PYTHON'
+import sys
+import json
+import csv
+from pathlib import Path
+
+validation_file = Path(sys.argv[1])
+playback_csv = Path(sys.argv[2])
+recording_mp4 = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] else None
+video_format = sys.argv[4] if len(sys.argv) > 4 else "NTSC"
+obs_csv_path = sys.argv[5] if len(sys.argv) > 5 and sys.argv[5] else None
+
+# Load validation results
+with open(validation_file, 'r') as f:
+    data = json.load(f)
+
+frame_seq = data.get("frame_sequence_box", {})
+details = frame_seq.get("details", {})
+
+# Get frame rate and window info
+fps = details.get("window", {}).get("fps", 60.0 if video_format == "NTSC" else 50.0)
+start_frame = details.get("window", {}).get("start_frame", 0)
+end_frame = details.get("window", {}).get("end_frame", 0)
+
+# Get content bounds (new detection)
+content_bounds = details.get("content_bounds", {})
+first_content_frame = content_bounds.get("first_content_frame", start_frame) if content_bounds else start_frame
+last_content_frame = content_bounds.get("last_content_frame", end_frame) if content_bounds else end_frame
+
+# Fallback to video_pop_starts if content_bounds not available
+video_pop_starts = details.get("video_pop_starts", [])
+if first_content_frame == 0 and video_pop_starts:
+    first_content_frame = video_pop_starts[0]
+
+# Get event lists from validation results
+# skip_events: list of {frame, time_sec, skipped} - frame is where skip was detected
+# repeated_events: list of {frame, time_sec, count} - frame is where repetition starts
+skip_events = details.get("skip_events", [])
+repeated_events = details.get("repeated_events", [])
+
+# Build maps for events (keyed by video frame number)
+repeated_intervals = {}
+for evt in repeated_events:
+    frame = evt.get("frame", 0)
+    count = evt.get("count", 0)
+    repeated_intervals[frame] = count
+
+skip_map = {}
+for evt in skip_events:
+    frame = evt.get("frame", 0)
+    skipped = evt.get("skipped", 0)
+    skip_map[frame] = skipped
+
+# Load obs.csv to get actual C64 stream frame_num values
+# obs.csv records one entry per frame that ARRIVED from the network
+# The video may show the same content for multiple frames (repeated)
+obs_frame_nums = []  # List of frame_num values from obs.csv video events
+if obs_csv_path and Path(obs_csv_path).exists():
+    try:
+        with open(obs_csv_path, 'r') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if row.get('event_type') == 'video':
+                    frame_num = int(row.get('frame_num', 0))
+                    obs_frame_nums.append(frame_num)
+    except Exception as e:
+        print(f"Warning: Could not read obs.csv: {e}", file=sys.stderr)
+
+# Get total frames from video if available
+total_frames = end_frame + 1 if end_frame > 0 else 0
+if recording_mp4 and Path(recording_mp4).exists():
+    try:
+        import cv2
+        cap = cv2.VideoCapture(recording_mp4)
+        if cap.isOpened():
+            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            fps = cap.get(cv2.CAP_PROP_FPS) or fps
+        cap.release()
+    except Exception:
+        pass
+
+if total_frames == 0:
+    total_frames = max(end_frame + 1, 100)
+
+# Build a mapping from video frame index to the C64 stream frame being displayed.
+# The frame_box_seq assertion detects colors from the top-left marker (frame_num % 16).
+#
+# The detected color IS the ground truth for what content is being displayed.
+# We use the detected colors to determine the actual frame_num being shown.
+#
+# frame_colors: dict mapping video_frame_index -> detected_color_index (0-15)
+# We need to map this back to actual frame_num values.
+#
+# The challenge: we only know frame_num % 16 from the color.
+# But obs.csv tells us the actual frame_num sequence that arrived.
+# We need to find the obs.csv frame_num that matches the detected color.
+
+frame_colors = details.get("frame_colors", {})
+
+# Build a lookup from color (0-15) to list of obs frame_nums with that color
+color_to_obs_frames = {i: [] for i in range(16)}
+for fn in obs_frame_nums:
+    color = fn % 16
+    color_to_obs_frames[color].append(fn)
+
+# For each video frame, determine the frame_num being displayed
+# Use detected color and find the corresponding obs frame_num
+video_to_frame_num = {}
+last_frame_num = 0  # Track the last assigned frame_num for monotonicity
+
+for video_idx in range(first_content_frame, min(last_content_frame + 1, total_frames)):
+    video_idx_str = str(video_idx)
+
+    if video_idx_str in frame_colors:
+        detected_color = frame_colors[video_idx_str]
+
+        # Find the obs frame_num that matches this color
+        # It should be >= last_frame_num to maintain monotonicity (or same for repeats)
+        candidates = color_to_obs_frames.get(detected_color, [])
+
+        best_match = None
+        for fn in candidates:
+            if fn >= last_frame_num:
+                best_match = fn
+                break  # Take the first one >= last
+
+        if best_match is None and candidates:
+            # Allow same frame_num for repeats
+            for fn in candidates:
+                if fn == last_frame_num or fn == last_frame_num - 1:
+                    best_match = fn
+                    break
+
+        if best_match is not None:
+            video_to_frame_num[video_idx] = best_match
+            last_frame_num = best_match
+        else:
+            # Fallback: derive from color + offset based on last known
+            base = (last_frame_num // 16) * 16
+            derived = base + detected_color
+            if derived < last_frame_num:
+                derived += 16  # Wrap to next cycle
+            video_to_frame_num[video_idx] = derived
+            last_frame_num = derived
+    else:
+        # No color detection for this frame - use interpolation
+        video_to_frame_num[video_idx] = last_frame_num
+
+# Re-build repeat continuation frames based on the new mapping
+# A repeat is when consecutive video frames have the same frame_num
+repeat_continuation_frames_new = set()
+prev_fn = None
+for video_idx in sorted(video_to_frame_num.keys()):
+    fn = video_to_frame_num[video_idx]
+    if prev_fn is not None and fn == prev_fn:
+        repeat_continuation_frames_new.add(video_idx)
+    prev_fn = fn
+
+# Generate playback CSV
+# Each row represents one displayed frame in the recording (1:1 mapping).
+#
+# Columns:
+# - playback_frame_index: 0-based index in the recording (video frame number)
+# - frame_num: C64 stream frame number (the actual frame counter from the C64U device)
+#              Empty for pre-roll/post-roll frames
+# - video_time_s: timestamp in seconds since recording start
+# - repeated: if this is the START of a repeated run, the total times shown (e.g., 2 = shown twice);
+#             empty for normal frames or continuation frames within a run
+# - skipped: number of source frames permanently lost BEFORE this frame arrived;
+#            empty if no frames were skipped
+# - event: human-readable summary: "repeated", "skipped", "repeated+skipped", or empty
+
+with open(playback_csv, 'w', newline='') as f:
+    writer = csv.writer(f)
+    writer.writerow(['playback_frame_index', 'frame_num', 'video_time_s', 'repeated', 'skipped', 'event'])
+
+    for playback_idx in range(total_frames):
+        video_time_s = round(playback_idx / fps, 3)
+
+        # Determine if this is a pre-roll, content, or post-roll frame
+        if playback_idx < first_content_frame:
+            # Pre-roll frame (logo, startup)
+            writer.writerow([playback_idx, "", video_time_s, "", "", ""])
+        elif playback_idx > last_content_frame:
+            # Post-roll frame (after content ends)
+            writer.writerow([playback_idx, "", video_time_s, "", "", ""])
+        else:
+            # Content frame - get frame_num from our mapping
+            frame_num = video_to_frame_num.get(playback_idx, playback_idx)
+
+            # Check for events at this video frame
+            repeated_count = repeated_intervals.get(playback_idx, "")
+            skipped_count = skip_map.get(playback_idx, "")
+
+            # Build event string
+            events = []
+            if repeated_count:
+                events.append("repeated")
+            if skipped_count:
+                events.append("skipped")
+            event_str = "+".join(events)
+
+            writer.writerow([playback_idx, frame_num, video_time_s, repeated_count, skipped_count, event_str])
+
+# Validate frame_num against detected colors from video
+# The top-left marker shows frame_num % 16 as a color (0-15)
+# frame_colors is a dict: video_frame_num -> detected_color_index
+frame_colors = details.get("frame_colors", {})
+
+mismatch_count = 0
+mismatch_examples = []
+validated_count = 0
+
+for video_idx, expected_frame_num in video_to_frame_num.items():
+    video_idx_str = str(video_idx)
+    if video_idx_str in frame_colors:
+        detected_color = frame_colors[video_idx_str]
+        expected_color = expected_frame_num % 16
+        validated_count += 1
+        if detected_color != expected_color:
+            mismatch_count += 1
+            if len(mismatch_examples) < 5:
+                mismatch_examples.append({
+                    "video_frame": video_idx,
+                    "frame_num": expected_frame_num,
+                    "expected_color": expected_color,
+                    "detected_color": detected_color,
+                })
+
+if validated_count > 0:
+    mismatch_pct = 100.0 * mismatch_count / validated_count
+    if mismatch_count > 0:
+        print(f"⚠️  Frame validation: {mismatch_count}/{validated_count} mismatches ({mismatch_pct:.1f}%)", file=sys.stderr)
+        for ex in mismatch_examples:
+            print(f"   - Video frame {ex['video_frame']}: frame_num={ex['frame_num']}, expected color {ex['expected_color']}, detected {ex['detected_color']}", file=sys.stderr)
+    else:
+        print(f"✅ Frame validation: all {validated_count} frames match expected colors", file=sys.stderr)
+else:
+    print("⚠️  Frame validation: no color data available for validation", file=sys.stderr)
+
+print(f"Generated playback.csv with {total_frames} frames ({len(obs_frame_nums)} obs events, {len(video_to_frame_num)} content frames)", file=sys.stderr)
+PYTHON
+
+    if [[ -f "${playback_csv}" ]]; then
+        log_success "Generated playback.csv"
+    else
+        log_warning "Failed to generate playback.csv"
+    fi
+}
+
 # Generate test report
 generate_report() {
     log_info "Generating test report..."
@@ -1096,6 +1386,9 @@ EOF
     fi
     if [[ -f "${OUTPUT_DIR}/obs.csv" ]]; then
         event_links+=("[obs.csv](obs.csv)")
+    fi
+    if [[ -f "${OUTPUT_DIR}/playback.csv" ]]; then
+        event_links+=("[playback.csv](playback.csv)")
     fi
     if (( ${#event_links[@]} > 0 )); then
         echo "- Events: $(join_by ', ' "${event_links[@]}")" >> "${report_file}"
@@ -1300,37 +1593,11 @@ EOF
                     echo "| Skipped frames | ${skip_count_int} skips | ${skip_min_int} | ${skip_median_int} | ${skip_max_int} |" >> "${report_file}"
                 fi
 
-                # Show detailed event times
-                echo >> "${report_file}"
-                echo "<details>" >> "${report_file}"
-                echo "<summary>Event details (click to expand)</summary>" >> "${report_file}"
-                echo >> "${report_file}"
-
-                # Show repeated frame events
-                local repeated_events
-                repeated_events=$(jq -r '.frame_sequence_box.details.repeated_events // []' "${validation_file}" 2>/dev/null)
-                if [[ "${repeated_events}" != "[]" && "${repeated_events}" != "null" ]]; then
-                    echo "**Repeated frames:**" >> "${report_file}"
+                # Reference playback.csv for detailed frame-by-frame analysis
+                if [[ -f "${OUTPUT_DIR}/playback.csv" ]]; then
                     echo >> "${report_file}"
-                    echo "| Frame | Time | Count |" >> "${report_file}"
-                    echo "|-------|------|-------|" >> "${report_file}"
-                    echo "${repeated_events}" | jq -r '.[] | "| \(.frame) | \(.time_sec)s | \(.count)x |"' >> "${report_file}" 2>/dev/null
-                    echo >> "${report_file}"
+                    echo "See [playback.csv](playback.csv) for frame-by-frame playback timeline with anomaly markers." >> "${report_file}"
                 fi
-
-                # Show skip events
-                local skip_events
-                skip_events=$(jq -r '.frame_sequence_box.details.skip_events // []' "${validation_file}" 2>/dev/null)
-                if [[ "${skip_events}" != "[]" && "${skip_events}" != "null" ]]; then
-                    echo "**Skipped frames:**" >> "${report_file}"
-                    echo >> "${report_file}"
-                    echo "| Frame | Time | Skipped |" >> "${report_file}"
-                    echo "|-------|------|---------|" >> "${report_file}"
-                    echo "${skip_events}" | jq -r '.[] | "| \(.frame) | \(.time_sec)s | \(.skipped) |"' >> "${report_file}" 2>/dev/null
-                    echo >> "${report_file}"
-                fi
-
-                echo "</details>" >> "${report_file}"
             fi
 
             # Additional notes for back steps or severe issues
@@ -1858,6 +2125,8 @@ main() {
         fi
     fi
 
+    # Generate playback.csv before report (report references it)
+    generate_playback_csv
     generate_report
     cleanup
 

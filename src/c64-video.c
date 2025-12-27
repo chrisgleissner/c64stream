@@ -581,10 +581,8 @@ void c64_render_frame_direct(struct c64_source *context, struct frame_assembly *
 
     // Log video frame delivery to CSV if enabled (high-level event: complete frame delivered to OBS)
     if (context->timing_file) {
-        uint64_t calculated_timestamp_ms = monotonic_timestamp / 1000000; // Convert ns to ms
-        uint64_t actual_timestamp_ms = os_gettime_ns() / 1000000;
         size_t frame_size = context->width * context->height * 4; // RGBA bytes
-        c64_obs_log_video_event(context, frame->frame_num, calculated_timestamp_ms, actual_timestamp_ms, frame_size);
+        c64_obs_log_video_event(context, frame->frame_num, frame_size);
     }
 
     // Update timing and status
