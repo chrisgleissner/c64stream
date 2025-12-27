@@ -669,14 +669,26 @@ class E2ETest:
     def _replace_config_variables(self, obs_config_dir):
         """Replace variables in OBS configuration files with actual values."""
         # Define variable replacements
-        fps = '50' if self.format == 'PAL' else '60'
+        # C64 Ultimate exact frame rates (from c64-stream-spec.md):
+        # - PAL:  50.125 Hz = 401/8  (FPSNum=401, FPSDen=8)
+        # - NTSC: 59.826 Hz = 29913/500 (FPSNum=29913, FPSDen=500)
+        if self.format == 'PAL':
+            fps_num = '401'
+            fps_den = '8'
+            fps_float = '50.125'
+        else:  # NTSC
+            fps_num = '29913'
+            fps_den = '500'
+            fps_float = '59.826'
+
         # OBS profile values:
-        # - FPSType=0 (common) uses FPSCommon
-        # - FPSInt/FPSNum/FPSDen are still present in profiles; keep them consistent with FPSCommon
-        #   to avoid surprising overrides on different OBS builds.
+        # - FPSType=2 (fractional) uses FPSNum/FPSDen for exact frame rates
+        # - This matches the C64 Ultimate's actual output frequency
         variables = {
             '$OUTPUT_DIR': str(self.output_dir),
-            '$FPS': fps,
+            '$FPS': fps_float,
+            '$FPS_NUM': fps_num,
+            '$FPS_DEN': fps_den,
             '$FPS_COMMON': ('50 PAL' if self.format == 'PAL' else '60'),
         }
 
@@ -2470,7 +2482,8 @@ class E2ETest:
                     if tl and details:
                         legend = {'green': '🟢', 'yellow': '🟡', 'red': '🔴', 'gray': '⚪'}
                         marks = ''.join(legend.get(x, '•') for x in tl)
-                        chans = ''.join(('L' if d.get('channel') == 'L' else ('R' if d.get('channel') == 'R' else 'B')) for d in details)
+                        # Use audio_channel for display (L/R), fall back to 'channel' for backward compat
+                        chans = ''.join(('L' if d.get('audio_channel', d.get('channel')) == 'L' else ('R' if d.get('audio_channel', d.get('channel')) == 'R' else 'B')) for d in details)
                         print(f"   Pops traffic: {marks}")
                         print(f"   Channels:     {chans}")
                         # Verify strict alternation regardless of starting side; ignore 'B' and unmatched pops
@@ -2478,7 +2491,7 @@ class E2ETest:
                         for d in details:
                             if not d.get('included_in_analysis', True):
                                 continue  # Skip unmatched pops
-                            ch = d.get('channel')
+                            ch = d.get('audio_channel', d.get('channel'))
                             if ch == 'L':
                                 seq.append('L')
                             elif ch == 'R':
@@ -2507,7 +2520,9 @@ class E2ETest:
                         'metrics': {},
                     }
                 }
-                enable_frame_box_seq = (self.scenario_id in ('ntsc_default', 'pal_default', 'ntsc_delay_500ms', 'ntsc_default_record'))
+                # Frame sequence assertion - now uses position marker that works for ALL presets
+                # (including monochrome presets like Green Monitor, Amber Monitor)
+                enable_frame_box_seq = True
                 if enable_frame_box_seq and recording_file:
                     try:
                         from assertions.frame_box_seq import FrameBoxSequenceAssertion
@@ -2894,7 +2909,7 @@ class E2ETest:
                 self.log("⚠️ No CSV recordings found - may indicate packet reception issues")
                 csv_success = False
 
-            # Check if recording file was created
+            # Check if recording file was created (hybrid_mp4 outputs MP4 directly)
             recording_file = self.check_recording_output()
             if recording_file:
                 self.log(f"✅ Recording created successfully: {recording_file}")

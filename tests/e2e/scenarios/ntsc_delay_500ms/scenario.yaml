@@ -4,5 +4,6 @@ preset: Default
 overrides:
   buffer_delay_ms: 500
 assertions:
+  - frame_box_seq
   - video_quality
   - audio

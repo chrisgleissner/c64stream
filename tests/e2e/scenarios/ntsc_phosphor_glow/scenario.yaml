@@ -2,6 +2,7 @@ name: NTSC Phosphor Glow
 format: NTSC
 preset: Phosphor Glow
 assertions:
+  - frame_box_seq
   - video_quality
   - audio
   - afterglow

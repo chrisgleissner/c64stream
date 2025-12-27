@@ -331,10 +331,11 @@ load_scenario() {
         log_info "  Format: ${FORMAT} (from CLI, overrides scenario: ${format})"
     fi
 
-    # Set SCENARIO_NAME if not already set
+    # Set SCENARIO_NAME (display name) and SCENARIO_ID (directory name) if not already set
     if [[ -z "${SCENARIO_NAME}" ]]; then
         SCENARIO_NAME="${name}"
     fi
+    SCENARIO_ID="${scenario_name}"  # Always use the directory name as ID
 
     # Optional packet pattern (solid/diagonal) for scanline-specific scenarios
     if [[ -n "${pattern}" ]]; then
@@ -862,6 +863,7 @@ generate_packets() {
         "--frames" "${FRAMES}"
         "--format" "${FORMAT}"
         "--output" "test_packets"
+        "--scenario" "${SCENARIO_ID:-DEFAULT}"
     )
 
     # Optional pattern selection (useful for scanline and sharp pixel assertions).
@@ -1157,40 +1159,40 @@ if last_content_frame == 0 and total_frames > 0:
     last_content_frame = total_frames - 1
 
 # Build a mapping from video frame index to the C64 stream frame being displayed.
-# The frame_box_seq assertion detects colors from the top-left marker (frame_num % 16).
+# The frame_box_seq assertion detects slot positions from the bottom-left progress bar (frame_num % 8).
 #
-# The detected color IS the ground truth for what content is being displayed.
-# We use the detected colors to determine the actual frame_num being shown.
+# The detected slot IS the ground truth for what content is being displayed.
+# We use the detected slots to determine the actual frame_num being shown.
 #
-# frame_colors: dict mapping video_frame_index -> detected_color_index (0-15)
+# frame_slots: dict mapping video_frame_index -> detected_slot_index (0-7)
 # We need to map this back to actual frame_num values.
 #
-# The challenge: we only know frame_num % 16 from the color.
+# The challenge: we only know frame_num % 8 from the slot.
 # But obs.csv tells us the actual frame_num sequence that arrived.
-# We need to find the obs.csv frame_num that matches the detected color.
+# We need to find the obs.csv frame_num that matches the detected slot.
 
-frame_colors = details.get("frame_colors", {})
+frame_slots = details.get("frame_slots", {})
 
-# Build a lookup from color (0-15) to list of obs frame_nums with that color
-color_to_obs_frames = {i: [] for i in range(16)}
+# Build a lookup from slot (0-7) to list of obs frame_nums with that slot
+slot_to_obs_frames = {i: [] for i in range(8)}
 for fn in obs_frame_nums:
-    color = fn % 16
-    color_to_obs_frames[color].append(fn)
+    slot = fn % 8
+    slot_to_obs_frames[slot].append(fn)
 
 # For each video frame, determine the frame_num being displayed
-# Use detected color and find the corresponding obs frame_num
+# Use detected slot and find the corresponding obs frame_num
 video_to_frame_num = {}
 last_frame_num = 0  # Track the last assigned frame_num for monotonicity
 
 for video_idx in range(first_content_frame, min(last_content_frame + 1, total_frames)):
     video_idx_str = str(video_idx)
 
-    if video_idx_str in frame_colors:
-        detected_color = frame_colors[video_idx_str]
+    if video_idx_str in frame_slots:
+        detected_slot = frame_slots[video_idx_str]
 
-        # Find the obs frame_num that matches this color
+        # Find the obs frame_num that matches this slot
         # It should be >= last_frame_num to maintain monotonicity (or same for repeats)
-        candidates = color_to_obs_frames.get(detected_color, [])
+        candidates = slot_to_obs_frames.get(detected_slot, [])
 
         best_match = None
         for fn in candidates:
@@ -1209,15 +1211,15 @@ for video_idx in range(first_content_frame, min(last_content_frame + 1, total_fr
             video_to_frame_num[video_idx] = best_match
             last_frame_num = best_match
         else:
-            # Fallback: derive from color + offset based on last known
-            base = (last_frame_num // 16) * 16
-            derived = base + detected_color
+            # Fallback: derive from slot + offset based on last known
+            base = (last_frame_num // 8) * 8
+            derived = base + detected_slot
             if derived < last_frame_num:
-                derived += 16  # Wrap to next cycle
+                derived += 8  # Wrap to next cycle
             video_to_frame_num[video_idx] = derived
             last_frame_num = derived
     else:
-        # No color detection for this frame - use interpolation
+        # No slot detection for this frame - use interpolation
         video_to_frame_num[video_idx] = last_frame_num
 
 # Re-build repeat continuation frames based on the new mapping
@@ -1240,7 +1242,7 @@ for video_idx in sorted(video_to_frame_num.keys()):
 # - video_s: timestamp in seconds since recording start (position in video file)
 # - video_ssff: timestamp in SS:FF format (seconds:frames) for tools like Shotcut
 # - content_s: time since C64U content started streaming (empty for logo/post-stream frames)
-# - marker_color: detected color (0-15) from top-left marker box (empty if not detected)
+# - frame_slot: detected slot (0-7) from bottom-left progress bar (empty if not detected)
 # - repeated: if this is the START of a repeated run, the total times shown (e.g., 2 = shown twice);
 #             empty for normal frames or continuation frames within a run
 # - skipped: number of source frames permanently lost BEFORE this frame arrived;
@@ -1273,7 +1275,7 @@ def format_ssff(seconds, fps_val):
 
 with open(playback_csv, 'w', newline='') as f:
     writer = csv.writer(f)
-    writer.writerow(['playback_frame_index', 'frame_num', 'marker_color', 'video_s', 'video_ssff', 'content_s', 'repeated', 'skipped', 'event', 'video_pop', 'audio_pop'])
+    writer.writerow(['playback_frame_index', 'frame_num', 'frame_slot', 'video_s', 'video_ssff', 'content_s', 'repeated', 'skipped', 'event', 'video_pop', 'audio_pop'])
 
     for playback_idx in range(total_frames):
         video_s = round(playback_idx / fps, 3)
@@ -1288,13 +1290,13 @@ with open(playback_csv, 'w', newline='') as f:
             writer.writerow([playback_idx, "", "", video_s, video_ssff, "", "", "", "", "", ""])
         else:
             # Content frame - get frame_num from our mapping
-            frame_num = video_to_frame_num.get(playback_idx, playback_idx)
+            frame_num = video_to_frame_num.get(playback_idx, "")
 
-            # Calculate content_s (time since first content frame)
-            content_s = round(video_s - first_content_time_s, 3)
+            # Calculate content_s (time since first content frame), never negative
+            content_s = round(max(0.0, video_s - first_content_time_s), 3)
 
-            # Get marker color from frame_colors dict
-            marker_color = frame_colors.get(str(playback_idx), "")
+            # Get frame slot from frame_slots dict
+            frame_slot = frame_slots.get(str(playback_idx), "")
 
             # Check for events at this video frame
             repeated_count = repeated_intervals.get(playback_idx, "")
@@ -1312,12 +1314,11 @@ with open(playback_csv, 'w', newline='') as f:
             video_pop = "video_pop" if playback_idx in video_pop_frame_indices else ""
             audio_pop = "audio_pop" if playback_idx in audio_pop_frames else ""
 
-            writer.writerow([playback_idx, frame_num, marker_color, video_s, video_ssff, content_s, repeated_count, skipped_count, event_str, video_pop, audio_pop])
+            writer.writerow([playback_idx, frame_num, frame_slot, video_s, video_ssff, content_s, repeated_count, skipped_count, event_str, video_pop, audio_pop])
 
-# Validate frame_num against detected colors from video
-# The top-left marker shows frame_num % 16 as a color (0-15)
-# frame_colors is a dict: video_frame_num -> detected_color_index
-frame_colors = details.get("frame_colors", {})
+# Validate frame_num against detected slots from video
+# The bottom-left progress bar shows frame_num % 8 as a slot position (0-7)
+# frame_slots is a dict: video_frame_num -> detected_slot_index
 
 mismatch_count = 0
 mismatch_examples = []
@@ -1325,18 +1326,18 @@ validated_count = 0
 
 for video_idx, expected_frame_num in video_to_frame_num.items():
     video_idx_str = str(video_idx)
-    if video_idx_str in frame_colors:
-        detected_color = frame_colors[video_idx_str]
-        expected_color = expected_frame_num % 16
+    if video_idx_str in frame_slots and expected_frame_num:
+        detected_slot = frame_slots[video_idx_str]
+        expected_slot = expected_frame_num % 8
         validated_count += 1
-        if detected_color != expected_color:
+        if detected_slot != expected_slot:
             mismatch_count += 1
             if len(mismatch_examples) < 5:
                 mismatch_examples.append({
                     "video_frame": video_idx,
                     "frame_num": expected_frame_num,
-                    "expected_color": expected_color,
-                    "detected_color": detected_color,
+                    "expected_slot": expected_slot,
+                    "detected_slot": detected_slot,
                 })
 
 if validated_count > 0:
@@ -1344,11 +1345,11 @@ if validated_count > 0:
     if mismatch_count > 0:
         print(f"⚠️  Frame validation: {mismatch_count}/{validated_count} mismatches ({mismatch_pct:.1f}%)", file=sys.stderr)
         for ex in mismatch_examples:
-            print(f"   - Video frame {ex['video_frame']}: frame_num={ex['frame_num']}, expected color {ex['expected_color']}, detected {ex['detected_color']}", file=sys.stderr)
+            print(f"   - Video frame {ex['video_frame']}: frame_num={ex['frame_num']}, expected slot {ex['expected_slot']}, detected {ex['detected_slot']}", file=sys.stderr)
     else:
-        print(f"✅ Frame validation: all {validated_count} frames match expected colors", file=sys.stderr)
+        print(f"✅ Frame validation: all {validated_count} frames match expected slots", file=sys.stderr)
 else:
-    print("⚠️  Frame validation: no color data available for validation", file=sys.stderr)
+    print("⚠️  Frame validation: no slot data available for validation", file=sys.stderr)
 
 print(f"Generated playback.csv with {total_frames} frames ({len(obs_frame_nums)} obs events, {len(video_to_frame_num)} content frames)", file=sys.stderr)
 PYTHON
@@ -1610,7 +1611,7 @@ EOF
                         red) emoji="🔴" ;;
                         *) emoji="•" ;;
                     esac
-                    chan=$(jq -r ".av_sync_details.sync_details[$i].channel // \"?\"" "${validation_file}")
+                    chan=$(jq -r ".av_sync_details.sync_details[$i].audio_channel // .av_sync_details.sync_details[$i].channel // \"?\"" "${validation_file}")
                     a_ms=$(jq -r ".av_sync_details.sync_details[$i].audio_pop_time_ms // \"\"" "${validation_file}")
                     v_ms=$(jq -r ".av_sync_details.sync_details[$i].closest_video_pop_ms // empty" "${validation_file}")
                     v_fr=$(jq -r ".av_sync_details.sync_details[$i].closest_video_pop_frame // empty" "${validation_file}")
@@ -1634,13 +1635,13 @@ EOF
             traffic=$(jq -r '.av_sync_details.traffic // [] | map(.)' "${validation_file}")
             # Compose marks string via jq
             marks=$(jq -r '[.av_sync_details.traffic[]? | if .=="green" then "🟢" elif .=="yellow" then "🟡" elif .=="red" then "🔴" else "•" end] | join("")' "${validation_file}")
-            channels=$(jq -r '[.av_sync_details.sync_details[]? | if .channel=="L" then "L" elif .channel=="R" then "R" else "B" end] | join("")' "${validation_file}")
+            channels=$(jq -r '[.av_sync_details.sync_details[]? | .audio_channel // .channel | if .=="L" then "L" elif .=="R" then "R" else "B" end] | join("")' "${validation_file}")
             echo >> "${report_file}"
             echo "- Channels: ${channels}" >> "${report_file}"
 
             # Alternation check (ignore B), report verdict
             local seq_str alternates
-            seq_str=$(jq -r '[.av_sync_details.sync_details[]? | select(.channel=="L" or .channel=="R") | .channel] | join(" ")' "${validation_file}")
+            seq_str=$(jq -r '[.av_sync_details.sync_details[]? | select((.audio_channel // .channel)=="L" or (.audio_channel // .channel)=="R") | (.audio_channel // .channel)] | join(" ")' "${validation_file}")
             # Convert space-separated string to bash array
             IFS=' ' read -r -a seq <<< "${seq_str}"
             alternates=true

@@ -408,7 +408,7 @@ Authoritative source for skipped/repeated frame analysis. Each row = one display
 |--------|-------------|
 | `playback_frame_index` | Absolute frame index in recording (0-based) |
 | `frame_num` | C64U stream frame number from obs.csv (empty for logo frames) |
-| `marker_color` | Detected color (0-15) from top-left marker box (empty if not detected) |
+| `frame_slot` | Detected slot (0-7) from bottom-left progress bar (empty if not detected) |
 | `video_s` | Position in video file (seconds since recording start) |
 | `video_ssff` | Position in SS:FF format (seconds:frames) for tools like Shotcut |
 | `content_s` | Time since C64U content started streaming (empty for logo/post-stream) |
@@ -420,10 +420,10 @@ Authoritative source for skipped/repeated frame analysis. Each row = one display
 
 **Frame Number Mapping:**
 
-The `frame_num` column uses detected video colors as ground truth:
+The `frame_num` column uses detected video slots as ground truth:
 1. Content bounds detection identifies first/last content frames via frame-difference analysis
-2. For each content frame, the top-left corner color (0-15) is detected
-3. Colors are matched to obs.csv entries where `frame_num % 16` equals the color
+2. For each content frame, the bottom-left progress bar slot (0-7) is detected
+3. Slots are matched to obs.csv entries where `frame_num % 8` equals the slot
 4. Validation ensures playback reflects actual displayed content
 
 **Semantics:**
@@ -438,17 +438,17 @@ The `frame_num` column uses detected video colors as ground truth:
 **Example:**
 
 ```csv
-playback_frame_index,frame_num,marker_color,video_s,video_ssff,content_s,repeated,skipped,event,video_pop,audio_pop
+playback_frame_index,frame_num,frame_slot,video_s,video_ssff,content_s,repeated,skipped,event,video_pop,audio_pop
 462,,,7.7,07:42,,,,,,
 463,,,7.717,07:43,,,,,,
 464,1,1,7.733,07:44,0.0,,,,,
 465,2,2,7.75,07:45,0.017,,,,,
-524,60,12,8.733,08:44,1.0,,,,,
-525,60,12,8.75,08:45,1.017,3,,repeated,,
-526,60,12,8.767,08:46,1.033,,,,,
-527,61,13,8.783,08:47,1.05,,,,,
-528,63,15,8.8,08:48,1.067,,1,skipped,,
-540,75,11,9.0,09:00,1.267,2,3,repeated+skipped,video_pop,audio_pop
+524,60,4,8.733,08:44,1.0,,,,,
+525,60,4,8.75,08:45,1.017,3,,repeated,,
+526,60,4,8.767,08:46,1.033,,,,,
+527,61,5,8.783,08:47,1.05,,,,,
+528,63,7,8.8,08:48,1.067,,1,skipped,,
+540,75,3,9.0,09:00,1.267,2,3,repeated+skipped,video_pop,audio_pop
 ```
 
 ### Other Validation

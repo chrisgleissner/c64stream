@@ -1,12 +1,12 @@
 # C64 Stream E2E Test Report
 
-Generated: 2025-12-27 12:47:28 UTC
+Generated: 2025-12-27 23:42:08 UTC
 
 ## Test configuration
 
 - Format: PAL
-- Frames: 250
-- Duration: 5.0 seconds
+- Frames: 30
+- Duration: 0.6 seconds
 - Video Port: 11000
 - Audio Port: 11001
 - OBS Enabled: true
@@ -21,50 +21,47 @@ Generated: 2025-12-27 12:47:28 UTC
 - OS: Ubuntu 24.04.3 LTS (kernel 6.14.0-37-generic)
 - OBS: 32.0.2
 - CPU: Intel(R) Core(TM) i7-6700K CPU @ 4.00GHz (8 cores)
-- RAM: 31Gi total, 21Gi available
+- RAM: 31Gi total, 25Gi available
 - Disk (/): 1.8T total, 1.1T available
 
 ## Test results
 
 ### Resource Usage
 
-During the test's processing window (4.6s, 10 of 30 samples) (8 cores):
+During the test's processing window (0.6s, 2 of 21 samples) (8 cores):
 
 | Metric | Min | Median | Mean | Max |
 |--------|-----|--------|------|-----|
-| CPU | 45.3% | 47.95% | 48.75% | 58.7% |
-| RAM | 7235.52 MB | 7265.38 MB | 7265.96 MB | 7282.89 MB |
-| GPU | 40.74% | 44.8% | 45.79% | 53.38% |
+| CPU | 55.4% | 64.25% | 64.25% | 73.1% |
+| RAM | 5890.33 MB | 5938.51 MB | 5938.51 MB | 5986.68 MB |
+| GPU | 27.91% | 32.62% | 32.62% | 37.34% |
 
 Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
 ### Packet & Network Data
 
-- ✅ Packet Generation: 17000 video, 1246 audio packets
+- ✅ Packet Generation: 2040 video, 149 audio packets
 - ✅ UDP Replay: Completed successfully
 - Events: [network.csv](network.csv), [obs.csv](obs.csv), [playback.csv](playback.csv)
 
 ### A/V Sync
 
-- ✅ Good synchronization (100.0%): avg offset 9.0ms, max 9.0ms
+- ❌ Poor synchronization (0.0%): avg offset 0.0ms, max 0.0ms
 
 #### Sync Details
 
-- 🟢 Pop #1 [L]: audio=8689.0ms, video=8680.0ms (frame 434), diff=9.0ms
-- 🟢 Pop #2 [R]: audio=9689.0ms, video=9680.0ms (frame 484), diff=9.0ms
-- 🟢 Pop #3 [L]: audio=10689.0ms, video=10680.0ms (frame 534), diff=9.0ms
 
-- Channels: LRL
-- 🔁 Channel alternation: OK (alternating, starts with L)
+- Channels: 
+- 🔁 Channel alternation: MISMATCH
 
 ### Frame Progression
 
-- 🟢 Frame sequence verified (398 frames analyzed, 16 colors)
+- 🟢 Frame sequence verified (178 frames analyzed, 0 colors)
 
 | Metric | Count | Min | Median | Max |
 |--------|-------|-----|--------|-----|
-| Repeated frames | 5 runs | 2 | 2 | 2 |
-| Skipped frames | 5 skips | 1 | 1 | 1 |
+| Repeated frames | 0 runs | 0 | 0 | 1 |
+| Skipped frames | 0 skips | 0 | 0 | 0 |
 
 See [playback.csv](playback.csv) for frame-by-frame playback timeline with anomaly markers.
 
@@ -75,7 +72,7 @@ See [playback.csv](playback.csv) for frame-by-frame playback timeline with anoma
 ### Video
 
 - Download: [c64_recording.mp4](c64_recording.mp4)
-- Duration: 20.0 s
+- Duration: 16.2 s
 
 
 ### Sample Frame
@@ -83,4 +80,4 @@ See [playback.csv](playback.csv) for frame-by-frame playback timeline with anoma
 ![Sample Frame](./c64_recording_still.png)
 
 - Top-left shows the frame index (color = frame_num % 16). Top-right shows a stable 4×4 tile of all 16 VIC colours (drift check). Center shows scrolling colour bars. Bottom-right flashes with a pop sound for A/V sync checks / afterglow tail.
-- Taken from frame 435 at 00:08.7 of the 20.0 s video above.
+- Taken from frame 403 at 00:08.1 of the 16.2 s video above.

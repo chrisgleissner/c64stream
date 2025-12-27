@@ -6,5 +6,6 @@ preset: Vintage TV
 # Performance optimization is tracked in doc/crt-effect-performance.md
 
 assertions:
+  - frame_box_seq
   - video_quality
   - audio

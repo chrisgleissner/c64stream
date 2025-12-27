@@ -216,9 +216,10 @@ class AfterglowAssertion(EffectAssertion):
         cx0, cy0, cx1, cy1 = int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())
         cw, ch = max(1, cx1 - cx0 + 1), max(1, cy1 - cy0 + 1)
 
-        # Top-right 40x40 pixels (scaled to content size)
-        bw = max(1, int(round(cw * (40.0 / 384.0))))
-        bh = max(1, int(round(ch * (40.0 / 272.0))))
+        # Top-right corner element: 88x56 outer, 72x40 inner in C64 coordinates
+        # Sample the inner area where solid color patterns appear
+        bw = max(1, int(round(cw * (88.0 / 384.0))))
+        bh = max(1, int(round(ch * (56.0 / 272.0))))
         gx0, gx1 = max(cx0, cx1 - bw + 1), cx1
         gy0, gy1 = cy0, min(cy1, cy0 + bh - 1)
 

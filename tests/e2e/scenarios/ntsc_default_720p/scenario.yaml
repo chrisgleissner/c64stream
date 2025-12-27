@@ -1,0 +1,8 @@
+name: NTSC Default 720p
+description: NTSC at 720p resolution with exact 59.826 Hz - standard HD
+format: NTSC
+preset: Default
+assertions:
+  - video_quality
+  - audio
+  - frame_box_seq

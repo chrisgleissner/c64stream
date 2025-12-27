@@ -69,7 +69,7 @@ playback.csv  → what was observed during playback (decoded frames + anomalies)
 |--------|-------------|
 | `playback_frame_index` | Absolute frame index in the recording (0-based) |
 | `frame_num` | C64U stream frame number from obs.csv (empty for logo frames) |
-| `marker_color` | Detected color (0-15) from top-left marker box (empty if not detected) |
+| `frame_slot` | Detected slot (0-7) from bottom-left progress bar (empty if not detected) |
 | `video_s` | Position in video file (seconds since recording start) |
 | `video_ssff` | Position in SS:FF format (seconds:frames) for tools like Shotcut |
 | `content_s` | Time since C64U content started streaming (empty for logo/post-stream) |
@@ -81,13 +81,13 @@ playback.csv  → what was observed during playback (decoded frames + anomalies)
 
 **Frame Number Mapping:**
 
-The `frame_num` column uses detected video colors as ground truth:
+The `frame_num` column uses detected video slots as ground truth:
 1. Content bounds detection identifies first/last content frames
-2. For each video frame, the top-left corner color is detected (0-15)
-3. Colors are matched to obs.csv entries where `frame_num % 16` equals the color
+2. For each video frame, the bottom-left progress bar slot is detected (0-7)
+3. Slots are matched to obs.csv entries where `frame_num % 8` equals the slot
 4. This ensures playback.csv reflects actual displayed content, not assumptions
 
-For scenarios with visual effects (CRT filters, phosphor glow), color detection may be
+For scenarios with visual effects (CRT filters, phosphor glow), slot detection may be
 skipped and playback.csv falls back to frame sequencing without frame_num mapping.
 
 **Event Values:**

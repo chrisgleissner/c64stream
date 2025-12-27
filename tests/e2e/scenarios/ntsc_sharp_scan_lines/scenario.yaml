@@ -29,6 +29,7 @@ overrides:
   tint_strength: 1.0
 
 assertions:
+  - frame_box_seq
   - video_quality
   - audio
   - scanlines

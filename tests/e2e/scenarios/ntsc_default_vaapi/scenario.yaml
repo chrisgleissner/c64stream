@@ -1,0 +1,8 @@
+name: NTSC Default VAAPI
+format: NTSC
+preset: Default
+description: Intel VAAPI hardware encoding test to diagnose CPU contention
+assertions:
+  - video_quality
+  - audio
+  - frame_box_seq
