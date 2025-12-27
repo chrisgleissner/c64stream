@@ -326,6 +326,58 @@ class E2ETest:
             self.buffer_setup_delay = 0.2
             self.log("🚀 Local environment detected - using short timeouts")
 
+    def _boost_process_priority(self, pid: int):
+        """Boost process priority using renice and ionice for smoother frame delivery.
+
+        This helps reduce skipped/repeated frames by giving OBS higher scheduling priority.
+        Requires either root privileges or CAP_SYS_NICE capability on the e2e.py process.
+
+        Args:
+            pid: Process ID to boost priority for
+        """
+        # Try to set high CPU priority (nice -10)
+        try:
+            result = subprocess.run(
+                ['renice', '-n', '-10', '-p', str(pid)],
+                capture_output=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                self.log(f"✅ Boosted CPU priority for OBS (PID {pid}) to nice -10")
+            else:
+                # Check if it's a permission issue
+                stderr = result.stderr.decode().lower()
+                if 'permission' in stderr or 'operation not permitted' in stderr:
+                    self.log(f"⚠️ Cannot boost CPU priority (no root/CAP_SYS_NICE): {result.stderr.decode().strip()}")
+                else:
+                    self.log(f"⚠️ renice failed: {result.stderr.decode().strip()}")
+        except FileNotFoundError:
+            self.log("⚠️ renice not available on this system")
+        except subprocess.TimeoutExpired:
+            self.log("⚠️ renice timed out")
+        except Exception as e:
+            self.log(f"⚠️ renice error: {e}")
+
+        # Try to set high I/O priority (best-effort class, priority 0)
+        try:
+            result = subprocess.run(
+                ['ionice', '-c', '2', '-n', '0', '-p', str(pid)],
+                capture_output=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                self.log(f"✅ Boosted I/O priority for OBS (PID {pid}) to best-effort class 0")
+            else:
+                stderr = result.stderr.decode().strip()
+                if stderr:
+                    self.log(f"⚠️ ionice failed: {stderr}")
+        except FileNotFoundError:
+            self.log("⚠️ ionice not available on this system")
+        except subprocess.TimeoutExpired:
+            self.log("⚠️ ionice timed out")
+        except Exception as e:
+            self.log(f"⚠️ ionice error: {e}")
+
     def log(self, message):
         """Print log message if verbose mode is enabled."""
         if self.verbose:
@@ -952,17 +1004,44 @@ class E2ETest:
 
         def _launch_obs(collection_flag: str):
             # Build the OBS command with the provided collection flag name
-            obs_cmd = [
-                'obs',
-                '--profile', 'C64StreamTest',
-                collection_flag, 'C64StreamTest',
-                '--scene', 'C64 Test Scene',
-                '--startrecording',
-                '--minimize-to-tray',
-                '--disable-updater',
-                '--disable-missing-files-check',
-                '--multi'
-            ]
+            # Check if we can use nice with negative priority (requires root or CAP_SYS_NICE)
+            can_nice = False
+            try:
+                # Test if nice -n -10 works
+                test_result = subprocess.run(['nice', '-n', '-10', 'true'], capture_output=True, timeout=2)
+                # Check if stderr contains "Permission denied" - nice still returns 0 even when it fails
+                if b'Permission denied' not in test_result.stderr:
+                    can_nice = True
+                    self.log("✅ High priority scheduling available (nice -n -10)")
+            except Exception:
+                pass
+
+            if can_nice:
+                obs_cmd = [
+                    'nice', '-n', '-10',
+                    'obs',
+                    '--profile', 'C64StreamTest',
+                    collection_flag, 'C64StreamTest',
+                    '--scene', 'C64 Test Scene',
+                    '--startrecording',
+                    '--minimize-to-tray',
+                    '--disable-updater',
+                    '--disable-missing-files-check',
+                    '--multi'
+                ]
+            else:
+                self.log("⚠️ High priority scheduling not available (nice -n -10 failed)")
+                obs_cmd = [
+                    'obs',
+                    '--profile', 'C64StreamTest',
+                    collection_flag, 'C64StreamTest',
+                    '--scene', 'C64 Test Scene',
+                    '--startrecording',
+                    '--minimize-to-tray',
+                    '--disable-updater',
+                    '--disable-missing-files-check',
+                    '--multi'
+                ]
 
             # Add verbose logging on CI
             if self.is_ci:
@@ -995,6 +1074,10 @@ class E2ETest:
                 raise RuntimeError(f"OBS failed to start with {collection_flag}:\nSTDOUT: {stdout.decode()}\nSTDERR: {stderr.decode()}")
 
             self.log(f"✅ OBS started successfully with {collection_flag}")
+
+            # Boost OBS process priority for smoother frame delivery
+            self._boost_process_priority(self.obs_process.pid)
+
             return True
 
         try:

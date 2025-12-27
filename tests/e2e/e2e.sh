@@ -668,6 +668,103 @@ check_dependencies() {
     fi
 }
 
+# Setup process priority capabilities for smoother frame delivery
+# This allows e2e.py to boost OBS process priority without root
+setup_process_priority() {
+    # Skip in CI - typically runs as root or in containers
+    if [[ "${CI:-false}" == "true" ]] || [[ "${GITHUB_ACTIONS:-false}" == "true" ]]; then
+        log_info "CI environment detected - skipping priority setup (not needed)"
+        return 0
+    fi
+
+    # Check if we can already use renice with negative values
+    local test_result
+    test_result=$(renice -n -1 -p $$ 2>&1) || true
+    if [[ ! "${test_result}" =~ "permission denied" ]] && [[ ! "${test_result}" =~ "Operation not permitted" ]]; then
+        log_success "Process priority boost already available"
+        return 0
+    fi
+
+    log_info "Setting up process priority capabilities for smoother frame delivery..."
+    log_info "This helps reduce skipped/repeated frames by giving OBS higher scheduling priority."
+
+    # Check if setcap is available
+    if ! command -v setcap &> /dev/null; then
+        log_warning "setcap not available - install libcap2-bin for priority boost support"
+        log_info "Run: sudo apt-get install libcap2-bin"
+        return 0
+    fi
+
+    # Get the path to the Python interpreter
+    local python_path
+    python_path=$(which python3)
+    if [[ -z "${python_path}" ]]; then
+        log_warning "Python3 not found - cannot set priority capabilities"
+        return 0
+    fi
+
+    # Resolve symlinks to get the actual binary
+    local real_python_path
+    real_python_path=$(readlink -f "${python_path}")
+
+    # Check if capability is already set
+    local current_caps
+    current_caps=$(getcap "${real_python_path}" 2>/dev/null || true)
+    if [[ "${current_caps}" =~ "cap_sys_nice" ]]; then
+        log_success "Python already has CAP_SYS_NICE capability"
+        return 0
+    fi
+
+    log_info "Python interpreter: ${real_python_path}"
+    log_info "Adding CAP_SYS_NICE capability requires root privileges."
+    log_info "This is a one-time setup that enables OBS priority boosting."
+
+    # Determine privilege escalation
+    local SUDO="sudo"
+    if [[ $(id -u) -eq 0 ]]; then
+        SUDO=""
+    elif ! command -v sudo >/dev/null 2>&1; then
+        log_warning "sudo not available and not running as root - cannot set capabilities"
+        log_info "Run as root or install sudo, then re-run e2e.sh"
+        return 0
+    fi
+
+    # Prompt user for confirmation
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "  PROCESS PRIORITY SETUP"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "  To reduce skipped/repeated frames, we need to give OBS higher CPU priority."
+    echo "  This requires adding the CAP_SYS_NICE capability to Python."
+    echo ""
+    echo "  Command to run:"
+    echo "    ${SUDO} setcap 'cap_sys_nice=eip' ${real_python_path}"
+    echo ""
+    echo "  This is safe and only affects process scheduling priority."
+    echo ""
+    echo -n "  Proceed? [Y/n] "
+
+    local response
+    read -r response
+    response=${response:-Y}
+
+    if [[ ! "${response}" =~ ^[Yy] ]]; then
+        log_info "Skipping priority setup - E2E tests will still run but may have more frame anomalies"
+        return 0
+    fi
+
+    # Set the capability
+    if ${SUDO} setcap 'cap_sys_nice=eip' "${real_python_path}"; then
+        log_success "CAP_SYS_NICE capability added to Python"
+        log_info "OBS will now run with boosted CPU priority for smoother frame delivery"
+    else
+        log_warning "Failed to set capability - E2E tests will still run but may have more frame anomalies"
+    fi
+
+    echo ""
+}
+
 # Build plugin and tools
 build_project() {
     if [[ "${SKIP_BUILD}" == true ]]; then
@@ -1176,7 +1273,7 @@ def format_ssff(seconds, fps_val):
 
 with open(playback_csv, 'w', newline='') as f:
     writer = csv.writer(f)
-    writer.writerow(['playback_frame_index', 'frame_num', 'video_s', 'video_ssff', 'content_s', 'marker_color', 'repeated', 'skipped', 'event', 'video_pop', 'audio_pop'])
+    writer.writerow(['playback_frame_index', 'frame_num', 'marker_color', 'video_s', 'video_ssff', 'content_s', 'repeated', 'skipped', 'event', 'video_pop', 'audio_pop'])
 
     for playback_idx in range(total_frames):
         video_s = round(playback_idx / fps, 3)
@@ -1185,10 +1282,10 @@ with open(playback_csv, 'w', newline='') as f:
         # Determine if this is a pre-roll, content, or post-roll frame
         if playback_idx < first_content_frame:
             # Pre-roll frame (logo, startup)
-            writer.writerow([playback_idx, "", video_s, video_ssff, "", "", "", "", "", "", ""])
+            writer.writerow([playback_idx, "", "", video_s, video_ssff, "", "", "", "", "", ""])
         elif playback_idx > last_content_frame:
             # Post-roll frame (after content ends)
-            writer.writerow([playback_idx, "", video_s, video_ssff, "", "", "", "", "", "", ""])
+            writer.writerow([playback_idx, "", "", video_s, video_ssff, "", "", "", "", "", ""])
         else:
             # Content frame - get frame_num from our mapping
             frame_num = video_to_frame_num.get(playback_idx, playback_idx)
@@ -1215,7 +1312,7 @@ with open(playback_csv, 'w', newline='') as f:
             video_pop = "video_pop" if playback_idx in video_pop_frame_indices else ""
             audio_pop = "audio_pop" if playback_idx in audio_pop_frames else ""
 
-            writer.writerow([playback_idx, frame_num, video_s, video_ssff, content_s, marker_color, repeated_count, skipped_count, event_str, video_pop, audio_pop])
+            writer.writerow([playback_idx, frame_num, marker_color, video_s, video_ssff, content_s, repeated_count, skipped_count, event_str, video_pop, audio_pop])
 
 # Validate frame_num against detected colors from video
 # The top-left marker shows frame_num % 16 as a color (0-15)
@@ -2159,6 +2256,7 @@ main() {
     start_resource_monitoring
 
     check_dependencies
+    setup_process_priority
     build_project
     install_plugin
     generate_packets

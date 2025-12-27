@@ -408,10 +408,10 @@ Authoritative source for skipped/repeated frame analysis. Each row = one display
 |--------|-------------|
 | `playback_frame_index` | Absolute frame index in recording (0-based) |
 | `frame_num` | C64U stream frame number from obs.csv (empty for logo frames) |
+| `marker_color` | Detected color (0-15) from top-left marker box (empty if not detected) |
 | `video_s` | Position in video file (seconds since recording start) |
 | `video_ssff` | Position in SS:FF format (seconds:frames) for tools like Shotcut |
 | `content_s` | Time since C64U content started streaming (empty for logo/post-stream) |
-| `marker_color` | Detected color (0-15) from top-left marker box (empty if not detected) |
 | `repeated` | If start of run: times shown; empty otherwise |
 | `skipped` | Frames lost before this; empty if none |
 | `event` | Human-readable: "repeated", "skipped", "repeated+skipped", or empty |
@@ -438,17 +438,17 @@ The `frame_num` column uses detected video colors as ground truth:
 **Example:**
 
 ```csv
-playback_frame_index,frame_num,video_s,video_ssff,content_s,marker_color,repeated,skipped,event,video_pop,audio_pop
-462,,7.7,07:42,,,,,,,
-463,,7.717,07:43,,,,,,,
-464,1,7.733,07:44,0.0,1,,,,,
-465,2,7.75,07:45,0.017,2,,,,,
-524,60,8.733,08:44,1.0,12,,,,,
-525,60,8.75,08:45,1.017,12,3,,repeated,,
-526,60,8.767,08:46,1.033,12,,,,,
-527,61,8.783,08:47,1.05,13,,,,,
-528,63,8.8,08:48,1.067,15,,1,skipped,,
-540,75,9.0,09:00,1.267,11,2,3,repeated+skipped,video_pop,audio_pop
+playback_frame_index,frame_num,marker_color,video_s,video_ssff,content_s,repeated,skipped,event,video_pop,audio_pop
+462,,,7.7,07:42,,,,,,
+463,,,7.717,07:43,,,,,,
+464,1,1,7.733,07:44,0.0,,,,,
+465,2,2,7.75,07:45,0.017,,,,,
+524,60,12,8.733,08:44,1.0,,,,,
+525,60,12,8.75,08:45,1.017,3,,repeated,,
+526,60,12,8.767,08:46,1.033,,,,,
+527,61,13,8.783,08:47,1.05,,,,,
+528,63,15,8.8,08:48,1.067,,1,skipped,,
+540,75,11,9.0,09:00,1.267,2,3,repeated+skipped,video_pop,audio_pop
 ```
 
 ### Other Validation
