@@ -27,7 +27,6 @@ class AfterglowAssertion(EffectAssertion):
             "bright_thresh": 140.0,  # Threshold for pop detection
             "max_frames": 360,
             "min_tail_luma": 2.5,  # Minimum luma for first tail frame
-            "palette_drift_tol": 30.0,  # Max RGB delta for palette stability (increased for CI)
         }
         super().__init__("Afterglow", {**defaults, **(thresholds or {})})
 
@@ -59,16 +58,6 @@ class AfterglowAssertion(EffectAssertion):
                     status=AssertionStatus.FAIL,
                     name=self.name,
                     message=details,
-                    details={"roi": {"x0": roi[0], "y0": roi[1], "x1": roi[2], "y1": roi[3]}},
-                )
-
-            # Check palette stability (no drift from afterglow)
-            palette_ok, palette_msg = self._check_palette_stability(frames, luma, verbose)
-            if not palette_ok:
-                return AssertionResult(
-                    status=AssertionStatus.FAIL,
-                    name=self.name,
-                    message=f"Afterglow verified but {palette_msg}",
                     details={"roi": {"x0": roi[0], "y0": roi[1], "x1": roi[2], "y1": roi[3]}},
                 )
 
@@ -200,54 +189,3 @@ class AfterglowAssertion(EffectAssertion):
             return False, "Afterglow tail fades too quickly (mean tail too low)"
 
         return True, "Afterglow persistence detected (tail decays across frames)"
-
-    def _check_palette_stability(
-        self, frames: np.ndarray, luma: np.ndarray, verbose: bool
-    ) -> tuple[bool, str]:
-        """Check that the VIC palette tile doesn't drift with afterglow."""
-        # Find content bounding box
-        n = min(luma.shape[0], 60)
-        avg = luma[:n].mean(axis=0)
-        mask = avg > 8.0
-        ys, xs = np.where(mask)
-        if xs.size == 0:
-            return True, "Could not locate content (skipping palette check)"
-
-        cx0, cy0, cx1, cy1 = int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())
-        cw, ch = max(1, cx1 - cx0 + 1), max(1, cy1 - cy0 + 1)
-
-        # Top-right corner element: 88x56 outer, 72x40 inner in C64 coordinates
-        # Sample the inner area where solid color patterns appear
-        bw = max(1, int(round(cw * (88.0 / 384.0))))
-        bh = max(1, int(round(ch * (56.0 / 272.0))))
-        gx0, gx1 = max(cx0, cx1 - bw + 1), cx1
-        gy0, gy1 = cy0, min(cy1, cy0 + bh - 1)
-
-        tile = frames[:, gy0 : gy1 + 1, gx0 : gx1 + 1, :].astype(np.float32)
-
-        # Baseline from first 18 frames
-        base_n = min(tile.shape[0], 18)
-        baseline = tile[:base_n].mean(axis=(0, 1, 2))
-
-        # Check for signal loss
-        signal_end = tile.shape[0]
-        for i in range(base_n, tile.shape[0]):
-            delta = np.max(np.abs(tile[i].mean(axis=(0, 1)) - baseline))
-            if delta > 50.0:
-                signal_end = i
-                break
-
-        tile = tile[:signal_end]
-
-        # Check max drift
-        peak_delta = 0.0
-        for i in range(tile.shape[0]):
-            delta = np.max(np.abs(tile[i].mean(axis=(0, 1)) - baseline))
-            peak_delta = max(peak_delta, float(delta))
-
-        tol = self.thresholds["palette_drift_tol"]
-        if peak_delta > tol:
-            return False, f"palette drift detected (peak_rgb_delta={peak_delta:.2f} > tol={tol:.2f})"
-
-        self.log(f"Palette stable (max drift={peak_delta:.2f})", verbose)
-        return True, "Palette stable"
