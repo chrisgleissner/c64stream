@@ -10,7 +10,7 @@ Validates complete UDP packet reception, video processing, audio synchronization
 
 ```bash
 cd tests/e2e
-./e2e.sh              # 5-second NTSC test (default scenario)
+./e2e.sh              # 12-second NTSC test (default scenario)
 ./e2e.sh --all        # Run ALL scenarios in sequence
 ./e2e.sh --format PAL --duration 5 --verbose  # 5-second PAL test
 ./e2e.sh --scenario ntsc_amber_monitor --verbose  # Named scenario with assertions
@@ -23,6 +23,27 @@ Or via convenience script (Linux):
 ./local-build.sh linux --e2e-scenarios --install  # ALL scenarios
 ```
 
+## Settling Period (Frame Progression)
+
+Frame progression checks may show transient anomalies immediately after OBS starts (e.g., shader compilation / pipeline stabilization). The E2E framework supports a settling period that is **ignored for pass/fail** in the frame progression assertion.
+
+- Settling affects only pass/fail gating and the Frame Progression report section.
+- Raw artifacts (recording and CSV files) are unchanged.
+
+Use `--settling-seconds` to adjust the ignored window (default: 0 seconds).
+
+## Interpreting playback.csv (Important)
+
+The E2E harness generates `playback.csv` by aligning detected **content frames** in the recording with the expected slot progression.
+
+- `content_s` is only populated while the assertion framework can confidently detect content and match it to expected slots ("content bounds").
+- The `repeated=1` / `skipped=1` markers are derived from this content alignment.
+
+Implication:
+
+- The **end of the recording may appear jitter-free** even if the system was jittery earlier, because after content ends there are no content-derived slot markers to emit repeated/skipped rows.
+- Always interpret jitter clusters and repeated/skipped windows **relative to the detected content bounds**, not relative to total recording duration.
+
 ## CLI Options
 
 Key options for `e2e.sh`:
@@ -31,11 +52,21 @@ Key options for `e2e.sh`:
 |--------|---------|-------------|
 | `--all` | off | Run ALL scenarios in sequence |
 | `--format FORMAT` | NTSC | Video format (PAL or NTSC) |
-| `--duration SECONDS` | 5 | Test duration in seconds |
+| `--duration SECONDS` | 12 | Test duration in seconds |
 | `--frames FRAMES` | 300 | Number of frames (overridden by --duration) |
 | `--scenario NAME` | - | Named scenario from scenarios/ directory |
 | `--list-scenarios` | - | List all available scenarios |
 | `--verbose` | off | Enable detailed logging |
+| `--settling-seconds SEC` | 0 | Ignore frame progression errors during first SEC seconds |
+
+## Default Duration
+
+The default E2E run duration is **8 seconds** (override with `--duration`).
+
+## CSV Trimming (Committed Artifacts)
+
+By default, the harness truncates large CSV artifacts (e.g. `network.csv`, `obs.csv`) to **at most 3000 total lines** (including the header) via `--csv-max-rows`.
+Use `--csv-max-rows 0` to disable truncation.
 | `--csv-max-duration MS` | 1000 | Truncate CSV files to first N ms (0=disable) |
 | `--output-dir DIR` | results | Output directory for test artifacts |
 | `--skip-build` | off | Skip building plugin and tools |

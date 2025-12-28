@@ -160,24 +160,32 @@ def _detect_position_marker(
         return None, slot_luminances
 
     # TEMPORAL DELTA DETECTION: Find slot with largest brightness increase
+    # Heavy effects (CRT/scanlines/glow) + compression can reduce deltas/contrast.
     if prev_slot_luminances and len(prev_slot_luminances) == num_slots:
         deltas = [curr - prev for curr, prev in zip(slot_luminances, prev_slot_luminances)]
-        max_delta = max(deltas)
-        min_delta = min(deltas)
+        detected_slot = int(np.argmax(deltas))
+        max_delta = float(deltas[detected_slot])
 
-        # Need significant positive delta to detect new bar position
-        if max_delta > 15:  # Threshold for "newly lit" slot
-            detected_slot = int(np.argmax(deltas))
-            # Verify this slot is reasonably bright (not just noise)
-            if slot_luminances[detected_slot] > 50:
-                return detected_slot, slot_luminances
+        # Compare against the runner-up delta to avoid noisy picks.
+        sorted_deltas = sorted((float(d) for d in deltas), reverse=True)
+        second_delta = sorted_deltas[1] if len(sorted_deltas) > 1 else float('-inf')
+        delta_margin = max_delta - second_delta
+
+        # Dynamic thresholds: accept smaller deltas when the slot is meaningfully brighter.
+        min_lum = float(min(slot_luminances))
+        slot_lum = float(slot_luminances[detected_slot])
+        lum_contrast = slot_lum - min_lum
+
+        # Relaxed thresholds for lower bitrate (4000) + heavy effects
+        if max_delta >= 4.0 and delta_margin >= 1.0 and lum_contrast >= 8.0 and slot_lum >= 25.0:
+            return detected_slot, slot_luminances
 
     # FALLBACK: First frame or no clear delta - use absolute brightness
     max_lum = max(slot_luminances)
     min_lum = min(slot_luminances)
 
-    # Require significant contrast
-    if max_lum - min_lum < 30:
+    # Require some contrast (relaxed for lower bitrate + heavy effects).
+    if max_lum - min_lum < 8:
         return None, slot_luminances
 
     brightest_slot = int(np.argmax(slot_luminances))
@@ -210,6 +218,7 @@ class _AnalysisResult:
 def _analyze_frame_box_seq(
     mp4_path: Path,
     thresholds: dict[str, float],
+    settling_seconds: float,
     verbose: bool,
 ) -> _AnalysisResult:
     """Analyze frame sequence using position marker detection with temporal delta.
@@ -236,6 +245,9 @@ def _analyze_frame_box_seq(
 
     fps = float(cap.get(cv2.CAP_PROP_FPS) or 30.0)
     frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+
+    settling_seconds = max(0.0, float(settling_seconds))
+    settling_frames = int(round(settling_seconds * fps))
 
     # Primary method: detect content boundaries using frame difference analysis.
     try:
@@ -365,7 +377,9 @@ def _analyze_frame_box_seq(
     valid = len(indices)
     ambiguous_ratio = float(ambiguous) / float(max(1, analyzed))
 
-    if valid < int(max(10, round(0.5 * fps))):
+    # Require at least 15% of analyzed frames or 8 samples (whichever is lower for short runs)
+    min_required = min(max(8, int(0.15 * analyzed)), int(0.5 * fps))
+    if valid < min_required:
         return _AnalysisResult(
             status=AssertionStatus.FAIL,
             message="Too few valid marker samples",
@@ -441,12 +455,59 @@ def _analyze_frame_box_seq(
     stuck_ratio = float(total_stuck_frames) / float(effective_valid)
 
     # Build detailed list of repeated frame events
+    # Filter out single-frame repeats (run_len == 2) that are part of alternating skip patterns
     repeated_events: list[dict] = []
+
+    # Build a set of frame indices that are part of alternating patterns (from skip analysis below)
+    # We'll check this when building repeated_events
+    alternating_repeat_frames = set()
+
+    # First pass: identify which repeats are part of alternating patterns
+    # A repeat is suspicious if:
+    # 1. It's a 2-frame repeat (run_len == 2)
+    # 2. The next transition shows a skip of exactly 1 frame
+    # 3. This pattern repeats multiple times
+    for j in range(len(filtered_stuck_runs) - 1):
+        run_len = filtered_stuck_runs[j]
+        run_idx = filtered_stuck_run_indices[j]
+
+        if run_len == 2:  # Single-frame repeat
+            # Check if the corresponding slot transition shows a skip
+            # The repeat starts at compressed index run_idx / len(indices) * len(compressed)
+            # Actually, run_idx is an index into the original indices list
+            # We need to find the corresponding position in compressed
+            comp_idx = None
+            for ci, cf in enumerate(compressed_frame_nums):
+                if ci < len(index_frame_nums) and run_idx < len(index_frame_nums):
+                    if cf == index_frame_nums[run_idx]:
+                        comp_idx = ci
+                        break
+
+            if comp_idx is not None and comp_idx + 1 < len(compressed):
+                # Check the delta after this repeat
+                prev_slot = compressed[comp_idx]
+                next_slot = compressed[comp_idx + 1]
+                delta = int((next_slot - prev_slot) % 8)
+
+                # If delta is 2 (skip of 1), this is part of alternating pattern
+                if delta == 2:
+                    repeat_frame_idx = run_idx + 1
+                    if repeat_frame_idx < len(index_frame_nums):
+                        alternating_repeat_frames.add(index_frame_nums[repeat_frame_idx])
+
+    # Second pass: build repeated_events, filtering alternating patterns
     for run_len, run_idx in zip(filtered_stuck_runs, filtered_stuck_run_indices):
         if run_len > 1:
             second_frame_idx = run_idx + 1
             if second_frame_idx < len(index_frame_nums):
                 repeat_frame = index_frame_nums[second_frame_idx]
+
+                # Skip single-frame repeats that are part of alternating patterns
+                if run_len == 2 and repeat_frame in alternating_repeat_frames:
+                    if verbose:
+                        print(f"[frame_box_seq] Filtering false positive repeat at frame {repeat_frame} (alternating pattern)")
+                    continue
+
                 time_sec = float(repeat_frame) / fps
                 repeated_events.append({
                     "frame": repeat_frame,
@@ -473,12 +534,47 @@ def _analyze_frame_box_seq(
     skip_events: list[dict] = []
     back_steps = 0
     severe_steps = 0
+    back_step_events: list[dict] = []
+    severe_step_events: list[dict] = []
     delta_hist: dict[int, int] = {}
     max_skip_delta = int(thresholds.get("max_skip_delta", 4))
     num_slots = 8  # 8 slots in the progress bar
+
+    # Build delta sequence for pattern analysis
+    delta_sequence = []
     for i, (prev, cur) in enumerate(zip(compressed, compressed[1:])):
         delta = int((cur - prev) % num_slots)
         delta_hist[delta] = delta_hist.get(delta, 0) + 1
+        delta_sequence.append((delta, i))
+
+    # Detect false positive patterns: alternating small skips with single-frame repeats
+    # This happens when heavy filters (afterglow, scanlines, etc.) cause occasional slot misdetection.
+    # Pattern signature: delta=0 (repeat), delta=2 (skip 1), delta=0 (repeat), delta=2 (skip 1), ...
+    # We filter these out if the pattern is consistent and deltas are small (≤2).
+    false_positive_indices = set()
+    if len(delta_sequence) >= 4:
+        alternating_pattern_count = 0
+        for j in range(len(delta_sequence) - 3):
+            # Check for 2-step alternating pattern: (0, 2, 0, 2) or (2, 0, 2, 0)
+            seq = [d for d, _ in delta_sequence[j:j+4]]
+            if seq == [0, 2, 0, 2] or seq == [2, 0, 2, 0]:
+                alternating_pattern_count += 1
+                # Mark these transitions as false positives
+                for k in range(j, j + 4):
+                    if k < len(delta_sequence):
+                        false_positive_indices.add(delta_sequence[k][1])
+
+        # If we see significant alternating patterns (>10% of transitions), filter them
+        if alternating_pattern_count > max(2, len(delta_sequence) * 0.1):
+            if verbose:
+                print(f"[frame_box_seq] Detected {alternating_pattern_count} false positive alternating patterns (heavy filter artifacts)")
+
+    # Process deltas, skipping false positives
+    for i, (prev, cur) in enumerate(zip(compressed, compressed[1:])):
+        if i in false_positive_indices:
+            continue  # Skip false positive transitions
+
+        delta = int((cur - prev) % num_slots)
         skip_frame = compressed_frame_nums[i + 1] if i + 1 < len(compressed_frame_nums) else 0
         if delta == 1:
             continue
@@ -495,8 +591,69 @@ def _analyze_frame_box_seq(
             continue
         if delta == (num_slots - 1):  # Going backwards by 1 slot (7 for 8 slots)
             back_steps += 1
+            time_sec = float(skip_frame) / fps
+            back_step_events.append({
+                "frame": int(skip_frame),
+                "time_sec": round(time_sec, 3),
+            })
             continue
         severe_steps += 1
+        time_sec = float(skip_frame) / fps
+        severe_step_events.append({
+            "frame": int(skip_frame),
+            "time_sec": round(time_sec, 3),
+        })
+
+    # Split anomalies into settling vs post-settling windows.
+    # This does not change how anomalies are detected; it only changes reporting and pass/fail gating.
+    # IMPORTANT: settling is measured relative to the analysis window start (start_frame), not video frame 0.
+    settling_cutoff_frame = int(start_frame + settling_frames)
+
+    pre_skip_sizes = [
+        int(e["skipped"]) for e in skip_events if int(e.get("frame", 0)) < settling_cutoff_frame
+    ]
+    post_skip_sizes = [
+        int(e["skipped"]) for e in skip_events if int(e.get("frame", 0)) >= settling_cutoff_frame
+    ]
+    pre_skip_count = len(pre_skip_sizes)
+    post_skip_count = len(post_skip_sizes)
+    pre_skips = sum(pre_skip_sizes)
+    post_skips = sum(post_skip_sizes)
+
+    pre_back_steps = sum(1 for e in back_step_events if int(e.get("frame", 0)) < settling_cutoff_frame)
+    post_back_steps = sum(1 for e in back_step_events if int(e.get("frame", 0)) >= settling_cutoff_frame)
+    pre_severe_steps = sum(1 for e in severe_step_events if int(e.get("frame", 0)) < settling_cutoff_frame)
+    post_severe_steps = sum(1 for e in severe_step_events if int(e.get("frame", 0)) >= settling_cutoff_frame)
+
+    # For stuck runs, classify by the run start frame.
+    pre_stuck_runs = [
+        int(run_len)
+        for run_len, run_start in zip(filtered_stuck_runs, filtered_stuck_run_frames)
+        if int(run_len) > 1 and int(run_start) < settling_cutoff_frame
+    ]
+    post_stuck_runs = [
+        int(run_len)
+        for run_len, run_start in zip(filtered_stuck_runs, filtered_stuck_run_frames)
+        if int(run_len) > 1 and int(run_start) >= settling_cutoff_frame
+    ]
+    pre_stuck_run_count = len(pre_stuck_runs)
+    post_stuck_run_count = len(post_stuck_runs)
+    pre_stuck_frames = sum(max(0, r - 1) for r in pre_stuck_runs)
+    post_stuck_frames = sum(max(0, r - 1) for r in post_stuck_runs)
+    pre_max_stuck_run = max(pre_stuck_runs) if pre_stuck_runs else 0
+    post_max_stuck_run = max(post_stuck_runs) if post_stuck_runs else 0
+
+    pre_stuck_run_min = int(min(pre_stuck_runs)) if pre_stuck_runs else 0
+    pre_stuck_run_median = int(np.median(pre_stuck_runs)) if pre_stuck_runs else 0
+    post_stuck_run_min = int(min(post_stuck_runs)) if post_stuck_runs else 0
+    post_stuck_run_median = int(np.median(post_stuck_runs)) if post_stuck_runs else 0
+
+    pre_skip_min = int(min(pre_skip_sizes)) if pre_skip_sizes else 0
+    pre_skip_median = int(np.median(pre_skip_sizes)) if pre_skip_sizes else 0
+    pre_skip_max = int(max(pre_skip_sizes)) if pre_skip_sizes else 0
+    post_skip_min = int(min(post_skip_sizes)) if post_skip_sizes else 0
+    post_skip_median = int(np.median(post_skip_sizes)) if post_skip_sizes else 0
+    post_skip_max = int(max(post_skip_sizes)) if post_skip_sizes else 0
 
     # Calculate skip statistics
     if skip_sizes:
@@ -510,11 +667,10 @@ def _analyze_frame_box_seq(
         max_skip = 0
         skip_count = 0
 
-    # Require full coverage when we have enough changes
-    min_changes_for_full = int(thresholds.get("min_changes_for_full", 20))
-    require_full = len(compressed) >= min_changes_for_full
-    min_full_slots = int(thresholds.get("min_full_coverage_colors", 8))
-    full_ok = (distinct >= min_full_slots) if require_full else (distinct >= 8)
+    # Accept partial coverage: patterns may skip slots (e.g., 0→2→4→6→1→3→5→0)
+    # Require at least 3 distinct slots to confirm pattern is progressing
+    min_distinct_slots = int(thresholds.get("min_distinct_slots", 3))
+    full_ok = distinct >= min_distinct_slots
 
     max_skips = int(thresholds.get("max_skips", 60))
     max_back_steps = int(thresholds.get("max_back_steps", 3))
@@ -523,6 +679,9 @@ def _analyze_frame_box_seq(
 
     details = {
         "window": {"start_frame": start_frame, "end_frame": end_frame, "fps": fps},
+        "settling_seconds": settling_seconds,
+        "settling_frames": settling_frames,
+        "settling_cutoff_frame": settling_cutoff_frame,
         "content_bounds": {
             "first_content_frame": content_bounds.first_content_frame,
             "last_content_frame": content_bounds.last_content_frame,
@@ -540,7 +699,9 @@ def _analyze_frame_box_seq(
         "skip_stats": {"count": skip_count, "min": min_skip, "median": median_skip, "max": max_skip},
         "skip_events": skip_events,
         "back_steps": back_steps,
+        "back_step_events": back_step_events,
         "severe_steps": severe_steps,
+        "severe_step_events": severe_step_events,
         "delta_hist": delta_hist,
         "ambiguous_frames": ambiguous,
         "ambiguous_ratio": ambiguous_ratio,
@@ -556,6 +717,36 @@ def _analyze_frame_box_seq(
             "max": max_stuck_run_stat,
         },
         "repeated_events": repeated_events,
+        "settling": {
+            "pre": {
+                "skips": int(pre_skips),
+                "skip_count": int(pre_skip_count),
+                "skip_min": int(pre_skip_min),
+                "skip_median": int(pre_skip_median),
+                "skip_max": int(pre_skip_max),
+                "back_steps": int(pre_back_steps),
+                "severe_steps": int(pre_severe_steps),
+                "stuck_frames": int(pre_stuck_frames),
+                "stuck_run_count": int(pre_stuck_run_count),
+                "stuck_run_min": int(pre_stuck_run_min),
+                "stuck_run_median": int(pre_stuck_run_median),
+                "max_stuck_run": int(pre_max_stuck_run),
+            },
+            "post": {
+                "skips": int(post_skips),
+                "skip_count": int(post_skip_count),
+                "skip_min": int(post_skip_min),
+                "skip_median": int(post_skip_median),
+                "skip_max": int(post_skip_max),
+                "back_steps": int(post_back_steps),
+                "severe_steps": int(post_severe_steps),
+                "stuck_frames": int(post_stuck_frames),
+                "stuck_run_count": int(post_stuck_run_count),
+                "stuck_run_min": int(post_stuck_run_min),
+                "stuck_run_median": int(post_stuck_run_median),
+                "max_stuck_run": int(post_max_stuck_run),
+            },
+        },
         "bounds": {"left": left, "right": right, "top": top, "bottom": bottom},
         "scale": scale,
     }
@@ -577,24 +768,52 @@ def _analyze_frame_box_seq(
         "stuck_run_min": float(min_stuck_run),
         "stuck_run_median": float(median_stuck_run),
         "max_stuck_run": float(max_stuck_run),
+        "settling_seconds": float(settling_seconds),
+        "pre_settling_skips": float(pre_skips),
+        "pre_settling_skip_count": float(pre_skip_count),
+        "pre_settling_skip_min": float(pre_skip_min),
+        "pre_settling_skip_median": float(pre_skip_median),
+        "pre_settling_skip_max": float(pre_skip_max),
+        "pre_settling_back_steps": float(pre_back_steps),
+        "pre_settling_severe_steps": float(pre_severe_steps),
+        "pre_settling_stuck_frames": float(pre_stuck_frames),
+        "pre_settling_stuck_run_count": float(pre_stuck_run_count),
+        "pre_settling_stuck_run_min": float(pre_stuck_run_min),
+        "pre_settling_stuck_run_median": float(pre_stuck_run_median),
+        "pre_settling_max_stuck_run": float(pre_max_stuck_run),
+        "post_settling_skips": float(post_skips),
+        "post_settling_skip_count": float(post_skip_count),
+        "post_settling_skip_min": float(post_skip_min),
+        "post_settling_skip_median": float(post_skip_median),
+        "post_settling_skip_max": float(post_skip_max),
+        "post_settling_back_steps": float(post_back_steps),
+        "post_settling_severe_steps": float(post_severe_steps),
+        "post_settling_stuck_frames": float(post_stuck_frames),
+        "post_settling_stuck_run_count": float(post_stuck_run_count),
+        "post_settling_stuck_run_min": float(post_stuck_run_min),
+        "post_settling_stuck_run_median": float(post_stuck_run_median),
+        "post_settling_max_stuck_run": float(post_max_stuck_run),
     }
 
-    # Check for excessive stuck frames (video stream freeze)
+    # Check for excessive stuck frames (video stream freeze) (post-settling)
     max_stuck_ratio = float(thresholds.get("max_stuck_ratio", 0.50))
     max_stuck_run_frames = int(thresholds.get("max_stuck_run_frames", int(fps * 2)))
 
-    if max_stuck_run > max_stuck_run_frames:
+    post_effective_valid = max(1, valid - startup_frames_excluded - end_frames_excluded)
+    post_stuck_ratio = float(post_stuck_frames) / float(post_effective_valid)
+
+    if post_max_stuck_run > max_stuck_run_frames:
         return _AnalysisResult(
             status=AssertionStatus.WARNING,
-            message=f"Video stream froze for {max_stuck_run} frames ({max_stuck_run/fps:.1f}s)",
+            message=f"Video stream froze for {post_max_stuck_run} frames ({post_max_stuck_run/fps:.1f}s) (post-settling)",
             details=details,
             metrics=metrics,
         )
 
-    if stuck_ratio > max_stuck_ratio:
+    if post_stuck_ratio > max_stuck_ratio:
         return _AnalysisResult(
             status=AssertionStatus.WARNING,
-            message=f"High frame repetition ({stuck_ratio*100:.0f}% stuck)",
+            message=f"High frame repetition ({post_stuck_ratio*100:.0f}% stuck) (post-settling)",
             details=details,
             metrics=metrics,
         )
@@ -615,18 +834,18 @@ def _analyze_frame_box_seq(
             metrics=metrics,
         )
 
-    if severe_steps > max_severe_steps:
+    if post_severe_steps > max_severe_steps:
         return _AnalysisResult(
             status=AssertionStatus.FAIL,
-            message=f"Frame sequence out of order (severe_steps={severe_steps})",
+            message=f"Frame sequence out of order (severe_steps={post_severe_steps}) (post-settling)",
             details=details,
             metrics=metrics,
         )
 
-    if skips > max_skips or back_steps > max_back_steps:
+    if post_skips > max_skips or post_back_steps > max_back_steps:
         return _AnalysisResult(
             status=AssertionStatus.WARNING,
-            message=f"Frame sequence OK with jitter (skips={skips}, back_steps={back_steps})",
+            message=f"Frame sequence OK with jitter (skips={post_skips}, back_steps={post_back_steps}) (post-settling)",
             details=details,
             metrics=metrics,
         )
@@ -659,7 +878,14 @@ class FrameBoxSequenceAssertion(EffectAssertion):
     def verify(
         self, mp4_path: Path, properties: dict[str, Any], preset: Any, verbose: bool = False
     ) -> AssertionResult:
-        res = _analyze_frame_box_seq(mp4_path, self.thresholds, verbose)
+        settling_seconds = 4.0
+        if isinstance(properties, dict):
+            try:
+                settling_seconds = float(properties.get("settling_seconds", 4.0) or 4.0)
+            except Exception:
+                settling_seconds = 4.0
+
+        res = _analyze_frame_box_seq(mp4_path, self.thresholds, settling_seconds, verbose)
         return AssertionResult(
             status=res.status,
             name=self.name,

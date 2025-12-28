@@ -177,6 +177,40 @@ def build_source_settings(
     return settings
 
 
+def _get_canvas_size_from_scenario(scenario: ScenarioConfig) -> tuple[float, float]:
+    """
+    Get the OBS canvas size from scenario overrides.
+
+    Reads BaseCX/BaseCY from overrides/basic/profiles/C64StreamTest/basic.ini if it exists.
+    Falls back to 1920x1080 if not specified.
+
+    Args:
+        scenario: Parsed scenario configuration
+
+    Returns:
+        Tuple of (canvas_width, canvas_height)
+    """
+    # Default to 1080p
+    canvas_w = 1920.0
+    canvas_h = 1080.0
+
+    # Check for basic.ini override
+    basic_ini_path = scenario.scenario_dir / "overrides" / "basic" / "profiles" / "C64StreamTest" / "basic.ini"
+    if basic_ini_path.exists():
+        config = ConfigParser()
+        config.read(basic_ini_path)
+        if "Video" in config:
+            video_section = config["Video"]
+            if "BaseCX" in video_section and "BaseCY" in video_section:
+                try:
+                    canvas_w = float(video_section["BaseCX"])
+                    canvas_h = float(video_section["BaseCY"])
+                except (ValueError, TypeError):
+                    pass  # Keep defaults
+
+    return canvas_w, canvas_h
+
+
 def generate_scene_json(
     scenario: ScenarioConfig, presets_path: Optional[Path] = None, template_path: Optional[Path] = None, is_ci: bool = False
 ) -> dict:
@@ -198,6 +232,9 @@ def generate_scene_json(
     # Build source settings
     source_settings = build_source_settings(scenario, presets_path, is_ci)
 
+    # Get canvas size from scenario overrides (if specified in basic.ini)
+    canvas_w, canvas_h = _get_canvas_size_from_scenario(scenario)
+
     def _scanline_scale_for_distance(scan_line_distance: float) -> int:
         """Map scan line distance to the integer scale described in README.md."""
         mapping = {
@@ -218,10 +255,8 @@ def generate_scene_json(
         # Fallback: keep integer scale (avoid non-integer scaling in OBS).
         return 4
 
-    def _apply_pixel_perfect_scene_item(scene_json: dict, *, fmt: str, settings: dict[str, Any]) -> None:
+    def _apply_pixel_perfect_scene_item(scene_json: dict, *, fmt: str, settings: dict[str, Any], canvas_w: float, canvas_h: float) -> None:
         """Update the scene item transform so OBS doesn't introduce interpolation blur."""
-        canvas_w = 1920.0
-        canvas_h = 1080.0
         # The plugin itself can change its reported base dimensions via effect settings:
         # - pixel_width / pixel_height
         # - scan_line_distance (adds integer upscaling to create scanline/gap structure)
@@ -307,7 +342,7 @@ def generate_scene_json(
             break
 
     # Ensure the scene item transform uses integer scaling and point filtering
-    _apply_pixel_perfect_scene_item(scene, fmt=scenario.format, settings=source_settings)
+    _apply_pixel_perfect_scene_item(scene, fmt=scenario.format, settings=source_settings, canvas_w=canvas_w, canvas_h=canvas_h)
 
     return scene
 

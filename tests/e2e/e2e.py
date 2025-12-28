@@ -59,7 +59,13 @@ class E2ETest:
                  scenario_overrides_dir: str | None = None, scenario_name: str | None = None,
                  scenario_id: str | None = None, output_dir: str | None = None,
                  csv_max_rows: int | None = None, enable_resource_monitoring: bool = False,
-                 resource_interval_ms: int = 500):
+                 resource_interval_ms: int = 500,
+                 settling_seconds: float = 0.0,
+                 enable_perf_profile: bool = False,
+                 perf_frequency_hz: int = 99,
+                 perf_callgraph: str = 'fp',
+                 perf_duration_s: float | None = None,
+                 enable_flamegraph: bool = False):
         self.test_dir = Path(test_dir)
         self.video_port = video_port
         self.audio_port = audio_port
@@ -71,6 +77,18 @@ class E2ETest:
         self.scenario_overrides_dir = Path(scenario_overrides_dir).resolve() if scenario_overrides_dir else None
         self.scenario_name = scenario_name
         self.scenario_id = scenario_id
+
+        self.settling_seconds = float(settling_seconds) if settling_seconds is not None else 0.0
+        self._obs_start_time_s: float | None = None
+
+        # Optional perf profiling (Linux): best-effort, skipped if unsupported.
+        self.enable_perf_profile = bool(enable_perf_profile)
+        self.perf_frequency_hz = int(perf_frequency_hz)
+        self.perf_callgraph = str(perf_callgraph)
+        self.perf_duration_s = float(perf_duration_s) if perf_duration_s is not None else None
+        self.enable_flamegraph = bool(enable_flamegraph)
+        self._perf_process: subprocess.Popen | None = None
+        self._perf_data_path: Path | None = None
 
         # Detect CI environment and set appropriate timeouts
         self.is_ci = self._detect_ci_environment()
@@ -112,7 +130,7 @@ class E2ETest:
         # Track backed up properties.ini files for restoration on cleanup
         self._backed_up_properties: list[tuple[Path, Path]] = []  # (backup_path, original_path)
 
-        # CSV truncation: only keep first N rows (excluding header)
+        # CSV truncation: cap CSV file to N total lines (including header)
         self.csv_max_rows = csv_max_rows
 
         # Resource monitoring
@@ -135,10 +153,10 @@ class E2ETest:
         return any(os.environ.get(indicator) for indicator in ci_indicators)
 
     def _copy_csv_truncated(self, src: Path, dest: Path):
-        """Copy a CSV file, optionally truncating to first N rows.
+        """Copy a CSV file, optionally truncating to first N lines.
 
-        If csv_max_rows is set, keeps only the header and the first N data rows.
-        This is simpler and more predictable than time-based truncation.
+        If csv_max_rows is set, keeps at most N total lines, including the header.
+        This makes committed artifacts deterministic and keeps repository diffs small.
         """
         if self.csv_max_rows is None:
             # No truncation requested - simple copy
@@ -153,26 +171,30 @@ class E2ETest:
             shutil.copy2(src, dest)
             return
 
-        # Keep header + first N data rows
+        # Keep at most N total lines, including header.
         header = lines[0]
         data_lines = lines[1:]
         total_data_rows = len(data_lines)
 
-        if total_data_rows <= self.csv_max_rows:
+        # csv_max_rows is total lines including header; derive max data rows.
+        max_total_lines = max(1, int(self.csv_max_rows))
+        max_data_rows = max(0, max_total_lines - 1)
+
+        if total_data_rows <= max_data_rows:
             # Not enough rows to truncate - just copy
             shutil.copy2(src, dest)
             return
 
-        # Truncate to first N rows
-        output_lines = [header] + data_lines[:self.csv_max_rows]
-        truncated_count = total_data_rows - self.csv_max_rows
+        # Truncate to first N total lines
+        output_lines = [header] + data_lines[:max_data_rows]
+        truncated_count = total_data_rows - max_data_rows
 
         with open(dest, 'w') as f:
             f.writelines(output_lines)
 
         if truncated_count > 0:
             self.log(f"📉 Truncated {truncated_count} rows from {src.name} "
-                     f"(keeping first {self.csv_max_rows} rows)")
+                     f"(keeping first {max_total_lines} lines)")
 
     def _find_obs_csv(self) -> Optional[Path]:
         """
@@ -382,6 +404,166 @@ class E2ETest:
         """Print log message if verbose mode is enabled."""
         if self.verbose:
             print(f"[TEST] {message}")
+
+    def _start_perf_profile(self, target_pid: int, duration_s: float) -> None:
+        """Start best-effort perf recording for a given PID (Linux only)."""
+        if not self.enable_perf_profile:
+            return
+
+        perf_path = shutil.which('perf')
+        if not perf_path:
+            self.log("⚠️ perf not found; skipping perf profiling")
+            return
+
+        if target_pid <= 0:
+            self.log("⚠️ Invalid PID for perf profiling; skipping")
+            return
+
+        duration_s = max(0.5, min(float(duration_s), 120.0))
+
+        self._perf_data_path = self.output_dir / 'perf.data'
+        perf_stdout_path = self.output_dir / 'perf_record_stdout.txt'
+        perf_stderr_path = self.output_dir / 'perf_record_stderr.txt'
+        cmd = [
+            perf_path,
+            'record',
+            '-F',
+            str(self.perf_frequency_hz),
+            '--call-graph',
+            self.perf_callgraph,
+            '-p',
+            str(target_pid),
+            '-o',
+            str(self._perf_data_path),
+            '--',
+            'sleep',
+            f'{duration_s:.3f}',
+        ]
+
+        try:
+            self.log(f"🔥 perf record (pid={target_pid}, {duration_s:.1f}s)")
+            # Write stdout/stderr to files so failures aren't silent.
+            # (perf emits many important errors on stderr and may still create an empty perf.data)
+            perf_stdout_f = open(perf_stdout_path, 'w', encoding='utf-8', errors='ignore')
+            perf_stderr_f = open(perf_stderr_path, 'w', encoding='utf-8', errors='ignore')
+            self._perf_process = subprocess.Popen(cmd, stdout=perf_stdout_f, stderr=perf_stderr_f, text=True)
+        except Exception as e:
+            self.log(f"⚠️ Failed to start perf profiling: {e}")
+            self._perf_process = None
+            self._perf_data_path = None
+
+    def _finalize_perf_profile(self) -> None:
+        """Finalize perf capture and export perf_report.txt (+ optional flamegraph.svg)."""
+        if not self.enable_perf_profile or not self._perf_data_path:
+            return
+
+        perf_path = shutil.which('perf')
+        if not perf_path:
+            return
+
+        if self._perf_process:
+            # We already streamed perf record stdout/stderr into perf_record_*.txt.
+            try:
+                self._perf_process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                try:
+                    self._perf_process.terminate()
+                except Exception:
+                    pass
+                try:
+                    self._perf_process.wait(timeout=3)
+                except Exception:
+                    pass
+
+        if not self._perf_data_path.exists():
+            self.log("⚠️ perf.data not found; perf likely failed (check perf_record_stderr.txt for permissions)")
+            return
+
+        try:
+            if self._perf_data_path.stat().st_size == 0:
+                self.log("⚠️ perf.data is empty; perf profiling failed (check perf_record_stderr.txt)")
+                # Keep a small hint file for quick triage from CI artifacts.
+                (self.output_dir / 'perf_error.txt').write_text(
+                    "perf.data is empty. On Linux this commonly means perf is blocked by kernel settings\n"
+                    "(see /proc/sys/kernel/perf_event_paranoid) or missing permissions.\n"
+                    "Check perf_record_stderr.txt for the exact error.\n",
+                    encoding='utf-8',
+                    errors='ignore',
+                )
+                return
+        except Exception:
+            # If we can't stat it, continue and let perf report fail with a message.
+            pass
+
+        # Export a simple text report for quick inspection.
+        try:
+            report_path = self.output_dir / 'perf_report.txt'
+            cmd = [
+                perf_path,
+                'report',
+                '--stdio',
+                '-i',
+                str(self._perf_data_path),
+                '--no-children',
+                '--sort',
+                'comm,dso,symbol',
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=45)
+            report_path.write_text(
+                (result.stdout or '') + ("\n\n" + result.stderr if result.stderr else ''),
+                encoding='utf-8',
+                errors='ignore',
+            )
+            self.log("📄 Wrote perf_report.txt")
+        except Exception as e:
+            self.log(f"⚠️ Failed to export perf report: {e}")
+
+        if not self.enable_flamegraph:
+            return
+
+        # Flamegraph generation is optional and depends on FlameGraph scripts.
+        try:
+            stackcollapse = shutil.which('stackcollapse-perf.pl')
+            flamegraph = shutil.which('flamegraph.pl')
+
+            repo_root = Path(__file__).resolve().parents[2]
+            vendored_stackcollapse = repo_root / 'tools' / 'FlameGraph' / 'stackcollapse-perf.pl'
+            vendored_flamegraph = repo_root / 'tools' / 'FlameGraph' / 'flamegraph.pl'
+
+            if not stackcollapse:
+                p = Path('/usr/share/flamegraph/stackcollapse-perf.pl')
+                if p.exists():
+                    stackcollapse = str(p)
+                elif vendored_stackcollapse.exists():
+                    stackcollapse = str(vendored_stackcollapse)
+            if not flamegraph:
+                p = Path('/usr/share/flamegraph/flamegraph.pl')
+                if p.exists():
+                    flamegraph = str(p)
+                elif vendored_flamegraph.exists():
+                    flamegraph = str(vendored_flamegraph)
+
+            if not stackcollapse or not flamegraph:
+                self.log(
+                    "⚠️ FlameGraph scripts not found; install them via /usr/share/flamegraph or clone "
+                    "https://github.com/brendangregg/FlameGraph into tools/FlameGraph (helper: build-aux/install-flamegraph.sh)"
+                )
+                return
+
+            folded_path = self.output_dir / 'perf.folded'
+            svg_path = self.output_dir / 'flamegraph.svg'
+
+            perf_script = subprocess.Popen([perf_path, 'script', '-i', str(self._perf_data_path)], stdout=subprocess.PIPE)
+            collapse = subprocess.Popen([stackcollapse], stdin=perf_script.stdout, stdout=subprocess.PIPE, text=True)
+            perf_script.stdout.close()
+            folded, _ = collapse.communicate(timeout=90)
+            folded_path.write_text(folded, encoding='utf-8', errors='ignore')
+
+            fg = subprocess.run([flamegraph], input=folded, capture_output=True, text=True, timeout=90)
+            svg_path.write_text(fg.stdout, encoding='utf-8', errors='ignore')
+            self.log("🔥 Wrote flamegraph.svg")
+        except Exception as e:
+            self.log(f"⚠️ Failed to generate flamegraph: {e}")
 
     def clean_test_output(self):
         """Clean the test output directory before starting E2E test."""
@@ -999,6 +1181,15 @@ class E2ETest:
         """
         Start OBS with recording enabled using our test profile.
         """
+        return self.start_obs(start_recording=True)
+
+    def start_obs(self, start_recording: bool = True):
+        """Start OBS using our test profile.
+
+        Args:
+            start_recording: if True, OBS is started with --startrecording. If False, OBS starts
+                without recording and recording can be started later via WebSocket.
+        """
         self.log("Starting OBS with C64 Stream test profile")
 
         # Create the OBS profile first
@@ -1035,7 +1226,6 @@ class E2ETest:
                     '--profile', 'C64StreamTest',
                     collection_flag, 'C64StreamTest',
                     '--scene', 'C64 Test Scene',
-                    '--startrecording',
                     '--minimize-to-tray',
                     '--disable-updater',
                     '--disable-missing-files-check',
@@ -1048,12 +1238,14 @@ class E2ETest:
                     '--profile', 'C64StreamTest',
                     collection_flag, 'C64StreamTest',
                     '--scene', 'C64 Test Scene',
-                    '--startrecording',
                     '--minimize-to-tray',
                     '--disable-updater',
                     '--disable-missing-files-check',
                     '--multi'
                 ]
+
+            if start_recording:
+                obs_cmd.append('--startrecording')
 
             # Add verbose logging on CI
             if self.is_ci:
@@ -1077,6 +1269,8 @@ class E2ETest:
                 stderr=subprocess.PIPE,
                 env=env_vars
             )
+
+            self._obs_start_time_s = time.time()
 
             # Give OBS time to initialize
             time.sleep(self.obs_startup_delay)
@@ -1332,6 +1526,73 @@ class E2ETest:
 
         time.sleep(4)  # Increased from 3s for consistency
         return True
+
+    def _collect_obs_log(self):
+        """Copy the most relevant OBS log to output_dir for forensic analysis."""
+        try:
+            obs_config_dir = Path.home() / '.config' / 'obs-studio'
+            logs_dir = obs_config_dir / 'logs'
+            if not logs_dir.exists():
+                return None
+
+            log_files = [p for p in logs_dir.glob('*.txt') if p.is_file()]
+            if not log_files:
+                return None
+
+            # Prefer logs written after we started OBS (with a little slack).
+            if self._obs_start_time_s is not None:
+                cutoff = self._obs_start_time_s - 5.0
+                candidates = [p for p in log_files if p.stat().st_mtime >= cutoff]
+                if candidates:
+                    log_files = candidates
+
+            log_files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+            latest = log_files[0]
+            dest = self.output_dir / 'obs_log.txt'
+            shutil.copy2(latest, dest)
+            return dest
+        except Exception:
+            return None
+
+    def _summarize_obs_log(self, log_path: Path):
+        """Extract basic render/encode lag signals from an OBS log."""
+        try:
+            import re
+
+            text = log_path.read_text(errors='replace')
+            patterns = {
+                'render_lagged_frames': re.compile(r"Number of lagged frames due to rendering lag:\s*(\d+)", re.I),
+                'encode_lagged_frames': re.compile(r"Number of lagged frames due to encoding lag:\s*(\d+)", re.I),
+                'dropped_frames': re.compile(r"Dropped frames:\s*(\d+)", re.I),
+                'skipped_frames': re.compile(r"Skipped frames:\s*(\d+)", re.I),
+            }
+
+            summary: dict[str, int | str | None] = {
+                'log_file': str(log_path),
+            }
+
+            for key, pat in patterns.items():
+                m = pat.search(text)
+                if m:
+                    try:
+                        summary[key] = int(m.group(1))
+                    except Exception:
+                        summary[key] = None
+
+            # Capture common warnings/errors (truncated to keep output small)
+            warn_lines = []
+            for line in text.splitlines():
+                l = line.lower()
+                if 'warning:' in l or 'error:' in l or 'failed' in l:
+                    warn_lines.append(line.strip())
+            if warn_lines:
+                summary['notable_lines'] = warn_lines[:200]
+
+            out = self.output_dir / 'obs_log_summary.json'
+            out.write_text(json.dumps(summary, indent=2))
+            return summary
+        except Exception:
+            return None
 
     def check_recording_output(self):
         """Check if recording file was created successfully."""
@@ -1706,7 +1967,7 @@ class E2ETest:
             failed_packets = 0
 
             # Start resource monitoring RIGHT when packets begin flowing
-            # (warmup was already done in run() before OBS started)
+            # (resource monitor warmup is handled in run() after OBS start)
             if self.enable_resource_monitoring and self._resource_monitor:
                 self._resource_monitor.start()
                 self.log(f"📊 Resource monitoring started (interval: {self.resource_interval_ms}ms)")
@@ -2377,36 +2638,89 @@ class E2ETest:
                     except Exception:
                         validation_results['packet_integrity'] = {'status': 'unknown', 'details': 'Duration check failed'}
 
-                    # Video brightness check - detect all-black or nearly-black videos
+                    # Video brightness check - detect all-black or nearly-black videos.
+                    # Be robust against OBS startup/shutdown padding and heavy tinting effects:
+                    # - sample multiple timestamps
+                    # - analyze center crop (avoid letterboxing)
+                    # - use luma instead of raw RGB byte mean
                     try:
                         import subprocess
                         import numpy as np
-                        # Sample a frame from the middle of the video
-                        frame_bytes = 1920 * 1080 * 3
-                        brightness_cmd = [
-                            'ffmpeg', '-v', 'error',
-                            '-i', str(recording_file),
-                            '-vf', 'select=eq(n\\,60)',  # Frame 60 (~1s into video)
-                            '-vframes', '1',
-                            '-f', 'rawvideo',
-                            '-pix_fmt', 'rgb24',
-                            '-'
-                        ]
-                        brightness_result = subprocess.run(brightness_cmd, capture_output=True, timeout=10)
-                        if brightness_result.returncode == 0 and len(brightness_result.stdout) == frame_bytes:
-                            frame_data = np.frombuffer(brightness_result.stdout, dtype=np.uint8)
-                            mean_brightness = np.mean(frame_data)
-                            if mean_brightness < 5.0:  # Nearly black
-                                print(f"❌ Video Brightness: Frame is nearly black (mean={mean_brightness:.2f})")
-                                validation_errors.append(f"Video content appears black (mean brightness {mean_brightness:.1f}/255)")
-                                validation_results['video_brightness'] = {'status': 'fail', 'details': f'Nearly black (mean={mean_brightness:.1f})'}
-                            elif mean_brightness < 15.0:  # Very dark
-                                print(f"⚠️  Video Brightness: Frame is very dark (mean={mean_brightness:.2f})")
-                                validation_warnings.append(f"Video content is very dark (mean brightness {mean_brightness:.1f}/255)")
-                                validation_results['video_brightness'] = {'status': 'warning', 'details': f'Very dark (mean={mean_brightness:.1f})'}
+
+                        w, h = 1920, 1080
+                        crop_w, crop_h = w // 2, h // 2
+                        frame_bytes = crop_w * crop_h * 3
+
+                        # Choose a few offsets that are likely to land inside stable content.
+                        # Use duration if available; otherwise fall back to fixed timestamps.
+                        offsets = []
+                        try:
+                            d = float(duration) if duration else 0.0
+                        except Exception:
+                            d = 0.0
+
+                        if d > 2.0:
+                            offsets = [max(0.5, d * 0.25), max(0.5, d * 0.5), max(0.5, min(d * 0.75, d - 0.5))]
+                        else:
+                            offsets = [0.5, 1.0, 1.5]
+
+                        # Ensure offsets are unique and within bounds.
+                        cleaned_offsets = []
+                        for t in offsets:
+                            t = float(t)
+                            if d > 0.0:
+                                t = max(0.0, min(t, max(0.0, d - 0.1)))
+                            if t not in cleaned_offsets:
+                                cleaned_offsets.append(t)
+
+                        best_mean_luma = None
+                        best_offset = None
+                        sampled = []
+
+                        for t in cleaned_offsets:
+                            brightness_cmd = [
+                                'ffmpeg', '-v', 'error',
+                                '-ss', f'{t:.3f}',
+                                '-i', str(recording_file),
+                                '-vframes', '1',
+                                '-vf', 'crop=iw*0.5:ih*0.5:iw*0.25:ih*0.25',
+                                '-f', 'rawvideo',
+                                '-pix_fmt', 'rgb24',
+                                '-'
+                            ]
+                            brightness_result = subprocess.run(brightness_cmd, capture_output=True, timeout=10)
+                            if brightness_result.returncode != 0 or len(brightness_result.stdout) != frame_bytes:
+                                continue
+
+                            frame = np.frombuffer(brightness_result.stdout, dtype=np.uint8).reshape((crop_h, crop_w, 3))
+                            # Luma in 0..255
+                            f = frame.astype(np.float32)
+                            luma = 0.2126 * f[..., 0] + 0.7152 * f[..., 1] + 0.0722 * f[..., 2]
+                            mean_luma = float(np.mean(luma))
+                            sampled.append({"t": float(t), "mean_luma": mean_luma})
+                            if best_mean_luma is None or mean_luma > best_mean_luma:
+                                best_mean_luma = mean_luma
+                                best_offset = float(t)
+
+                        if best_mean_luma is not None:
+                            details = {"best_offset_s": best_offset, "best_mean_luma": float(best_mean_luma), "samples": sampled}
+                            if best_mean_luma < 5.0:  # Nearly black
+                                print(f"❌ Video Brightness: Content appears nearly black (best_mean_luma={best_mean_luma:.2f} @ {best_offset:.1f}s)")
+                                validation_errors.append(
+                                    f"Video content appears black (best mean luma {best_mean_luma:.1f}/255 @ {best_offset:.1f}s)"
+                                )
+                                validation_results['video_brightness'] = {'status': 'fail', 'details': f'Nearly black (best_mean_luma={best_mean_luma:.1f})', 'metrics': details}
+                            elif best_mean_luma < 15.0:  # Very dark
+                                print(f"⚠️  Video Brightness: Content appears very dark (best_mean_luma={best_mean_luma:.2f} @ {best_offset:.1f}s)")
+                                validation_warnings.append(
+                                    f"Video content is very dark (best mean luma {best_mean_luma:.1f}/255 @ {best_offset:.1f}s)"
+                                )
+                                validation_results['video_brightness'] = {'status': 'warning', 'details': f'Very dark (best_mean_luma={best_mean_luma:.1f})', 'metrics': details}
                             else:
-                                print(f"✅ Video Brightness: Normal (mean={mean_brightness:.2f})")
-                                validation_results['video_brightness'] = {'status': 'pass', 'details': f'Normal (mean={mean_brightness:.1f})'}
+                                print(f"✅ Video Brightness: Normal (best_mean_luma={best_mean_luma:.2f} @ {best_offset:.1f}s)")
+                                validation_results['video_brightness'] = {'status': 'pass', 'details': f'Normal (best_mean_luma={best_mean_luma:.1f})', 'metrics': details}
+                        else:
+                            validation_results['video_brightness'] = {'status': 'unknown', 'details': 'Could not sample frames for brightness check'}
                     except Exception as e:
                         # Non-critical - just log and continue
                         validation_results['video_brightness'] = {'status': 'unknown', 'details': f'Check failed: {e}'}
@@ -2528,7 +2842,12 @@ class E2ETest:
                         from assertions.frame_box_seq import FrameBoxSequenceAssertion
 
                         a = FrameBoxSequenceAssertion()
-                        res = a.verify(Path(recording_file), properties={}, preset=None, verbose=self.verbose)
+                        res = a.verify(
+                            Path(recording_file),
+                            properties={"settling_seconds": self.settling_seconds},
+                            preset=None,
+                            verbose=self.verbose,
+                        )
                         status_map = {
                             'pass': 'pass',
                             'warning': 'warning',
@@ -2798,19 +3117,24 @@ class E2ETest:
                 self.log("❌ Failed to start mock C64 server")
                 return False
 
-            # Prepare resource monitoring - initialize but DON'T warmup yet (OBS not running)
-            if self.enable_resource_monitoring:
-                self._resource_monitor = ResourceMonitor(
-                    interval_ms=self.resource_interval_ms,
-                    verbose=self.verbose
-                )
-
             # Start OBS - plugin will auto-connect to TCP server on initialization
-            if not self.start_obs_recording():
+            if not self.start_obs(start_recording=True):
                 self.log("❌ Failed to start OBS")
                 return False
 
-            # Now that OBS is running, do resource monitor warmup
+            # Prepare resource monitoring now that OBS is running (enables per-process attribution)
+            if self.enable_resource_monitoring:
+                tracked = {
+                    "obs": int(self.obs_process.pid) if self.obs_process else -1,
+                    "harness": int(os.getpid()),
+                }
+                self._resource_monitor = ResourceMonitor(
+                    interval_ms=self.resource_interval_ms,
+                    verbose=self.verbose,
+                    tracked_pids=tracked,
+                )
+
+            # Now that OBS is running, do resource monitor warmup (CPU measurement priming)
             # This happens during the async_task_delay so it doesn't add extra time
             if self.enable_resource_monitoring and self._resource_monitor:
                 self._resource_monitor.warmup()  # Prime CPU measurement
@@ -2869,11 +3193,19 @@ class E2ETest:
             else:
                 self.log("⚡ Skipping WebSocket checks for optimal performance")
 
-            # OBS is already recording (started with --startrecording flag)
             self.log("✅ OBS recording already active")
 
             # Run packet replay while recording
             self.log("Running packet replay while OBS is recording...")
+
+            # Optional: record a perf profile of OBS during replay + grace period.
+            if self.enable_perf_profile and self.obs_process:
+                fps = 60.0 if self.format == 'NTSC' else 50.0
+                grace = 5.0 if self.is_ci else 3.0
+                expected_s = (float(self.frames) / fps) + grace + 2.0
+                duration_s = self.perf_duration_s if self.perf_duration_s is not None else expected_s
+                self._start_perf_profile(self.obs_process.pid, duration_s)
+
             replay_success = self.replay_packets(udp_replay_path)
 
             if replay_success:
@@ -2897,8 +3229,16 @@ class E2ETest:
                 self._save_resource_data()
                 self.log(f"📊 Resource monitoring stopped ({self._resource_summary.cpu.sample_count} samples)")
 
+            if self.enable_perf_profile:
+                self._finalize_perf_profile()
+
             # Proactively stop OBS now to avoid lingering recordings while analysis runs
             self.stop_obs()
+
+            # Capture OBS log and summarize render/encode lag
+            log_path = self._collect_obs_log()
+            if log_path:
+                self._summarize_obs_log(log_path)
 
             # Check CSV recordings first (crucial for debugging packet reception)
             csv_found = self.check_csv_recordings()
@@ -2989,13 +3329,34 @@ def main():
     parser.add_argument('--output-dir', default=None,
                         help='Directory where test artifacts are written (default: test_output under --test-dir)')
     parser.add_argument('--csv-max-rows', type=int, default=3000,
-                        help='Truncate CSV files to first N rows (default: 3000, use 0 to disable)')
+                        help='Truncate CSV files to first N lines (incl header) (default: 3000, use 0 to disable)')
     parser.add_argument('--enable-resource-monitoring', action='store_true',
                         help='Enable CPU/GPU/RAM monitoring during packet replay')
+    parser.add_argument('--monitor-resource-duration', type=float, default=None,
+                        help='Resource monitoring sample interval in seconds (supports fractions, e.g. 0.5)')
     parser.add_argument('--resource-interval-ms', type=int, default=500,
                         help='Resource monitoring sample interval in milliseconds (default: 500)')
 
+    parser.add_argument('--perf-profile', action='store_true',
+                        help='Record a perf profile of OBS during packet replay (Linux, best-effort)')
+    parser.add_argument('--perf-flamegraph', action='store_true',
+                        help='Generate flamegraph.svg if FlameGraph scripts are installed')
+    parser.add_argument('--perf-frequency-hz', type=int, default=199,
+                        help='perf sampling frequency in Hz (default: 199)')
+    parser.add_argument('--perf-callgraph', choices=['dwarf', 'fp'], default='dwarf',
+                        help='perf callgraph mode (default: dwarf)')
+    parser.add_argument('--perf-duration', type=float, default=None,
+                        help='Override perf capture duration in seconds (default: auto from frames+grace)')
+
+    parser.add_argument('--settling-duration', '--settling-seconds', dest='settling_seconds', type=float, default=0.0,
+                        help='Ignore frame progression errors during first N seconds (pass/fail gating only)')
+
     args = parser.parse_args()
+
+    if args.monitor_resource_duration is not None:
+        if args.monitor_resource_duration < 0.1:
+            raise SystemExit('--monitor-resource-duration must be >= 0.1 seconds')
+        args.resource_interval_ms = int(args.monitor_resource_duration * 1000.0 + 0.5)
 
     # Verify UDP replay tool exists, build if needed
     udp_replay_path = Path(args.udp_replay)
@@ -3044,7 +3405,13 @@ def main():
         output_dir=args.output_dir,
         csv_max_rows=csv_max_rows,
         enable_resource_monitoring=args.enable_resource_monitoring,
-        resource_interval_ms=args.resource_interval_ms
+        resource_interval_ms=args.resource_interval_ms,
+        settling_seconds=args.settling_seconds,
+        enable_perf_profile=args.perf_profile,
+        perf_frequency_hz=args.perf_frequency_hz,
+        perf_callgraph=args.perf_callgraph,
+        perf_duration_s=args.perf_duration,
+        enable_flamegraph=args.perf_flamegraph,
     )
 
     # Store reference for signal handler

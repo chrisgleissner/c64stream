@@ -624,6 +624,7 @@ void c64_assemble_frame_with_interpolation(struct c64_source *context, struct fr
     // Using uint8_t instead of bool for guaranteed 1-byte size
     uint8_t line_written[272] = {0}; // Zero-initialized on stack
     const uint32_t height = context->height;
+    uint32_t lines_written_count = 0;
 
     if (height > 272) {
         C64_LOG_ERROR("Frame height %u exceeds maximum 272", height);
@@ -649,27 +650,32 @@ void c64_assemble_frame_with_interpolation(struct c64_source *context, struct fr
             uint8_t *src_line = packet->packet_data + (line * C64_BYTES_PER_LINE);
 
             c64_convert_pixels_optimized(src_line, dst_line, C64_BYTES_PER_LINE);
-            line_written[current_line] = 1;
+            if (!line_written[current_line]) {
+                line_written[current_line] = 1;
+                lines_written_count++;
+            }
         }
     }
 
-    // Second pass: interpolate missing lines by duplicating the nearest valid line above
-    for (uint32_t line = 0; line < height; line++) {
-        if (!line_written[line]) {
-            // Find nearest valid line above this one
-            uint32_t source_line = 0;
-            for (uint32_t search = line; search > 0; search--) {
-                if (line_written[search - 1]) {
-                    source_line = search - 1;
-                    break;
-                }
-            }
+    if (lines_written_count == height) {
+        return;
+    }
 
-            // Copy the source line to fill the gap
-            uint32_t *dst = context->frame_buffer + (line * C64_PIXELS_PER_LINE);
-            uint32_t *src = context->frame_buffer + (source_line * C64_PIXELS_PER_LINE);
-            memcpy(dst, src, C64_PIXELS_PER_LINE * sizeof(uint32_t));
+    // Second pass: interpolate missing lines by duplicating the nearest valid line above.
+    // O(height) by tracking the last valid line as we scan top-to-bottom.
+    bool have_last_valid = false;
+    uint32_t last_valid_line = 0;
+    for (uint32_t line = 0; line < height; line++) {
+        if (line_written[line]) {
+            last_valid_line = line;
+            have_last_valid = true;
+            continue;
         }
+
+        const uint32_t source_line = have_last_valid ? last_valid_line : 0;
+        uint32_t *dst = context->frame_buffer + (line * C64_PIXELS_PER_LINE);
+        uint32_t *src = context->frame_buffer + (source_line * C64_PIXELS_PER_LINE);
+        memcpy(dst, src, C64_PIXELS_PER_LINE * sizeof(uint32_t));
     }
 }
 

@@ -166,7 +166,7 @@ def get_sync_timing_info(format_name):
     return frame_rate, frame_duration_ms, POP_FRAME_INTERVAL, POP_FRAME_DURATION, POP_FRAME_OFFSET
 
 
-def is_sync_marker_active(frame_num, format_name, total_frames=None):
+def is_sync_marker_active(frame_num, format_name, total_frames=None, disable_pops=False):
     """
     Determine if the A/V sync marker (noise flash + audio beep) should be active.
     Returns True if this frame should show the pop.
@@ -178,7 +178,11 @@ def is_sync_marker_active(frame_num, format_name, total_frames=None):
 
     If total_frames is provided, pops that would be cut off by the
     last ~1000ms boundary are skipped (ensures complete pops only).
+
+    If disable_pops is True, always returns False (pops disabled).
     """
+    if disable_pops:
+        return False
     frame_rate, frame_duration_ms, pop_interval, pop_duration, pop_offset = get_sync_timing_info(format_name)
 
     # Before first pop offset
@@ -285,7 +289,7 @@ def _is_in_corner_frame(x: int, y: int, corner_x: int, corner_y: int) -> tuple[b
     return False, False
 
 
-def generate_video_packet(frame_num, packet_num, width, height, packets_per_frame, format_name, total_frames, pattern='diagonal'):
+def generate_video_packet(frame_num, packet_num, width, height, packets_per_frame, format_name, total_frames, pattern='diagonal', disable_pops=False):
     """
     Generate a single video packet with professional E2E test pattern.
 
@@ -532,7 +536,7 @@ def _one_pole_highpass(x: np.ndarray, cutoff_hz: float, sample_rate: float) -> n
     return y
 
 
-def generate_audio_packet(audio_packet_num, sample_rate, total_frames, format_name):
+def generate_audio_packet(audio_packet_num, sample_rate, total_frames, format_name, disable_pops=False):
     """
     Generate a single audio packet following C64 Ultimate spec.
 
@@ -642,12 +646,12 @@ def _generate_audio_packet_task(args):
 
 def _generate_frame_batch_task(args):
     """Worker task for generating all packets for a batch of frames (more efficient than per-packet)."""
-    frame_start, frame_end, width, height, ppf, format_name, total_frames, pattern, output_path = args
+    frame_start, frame_end, width, height, ppf, format_name, total_frames, pattern, output_path, disable_pops = args
     count = 0
     for frame_num in range(frame_start, frame_end):
         for packet_num in range(ppf):
             packet_data = generate_video_packet(
-                frame_num, packet_num, width, height, ppf, format_name, total_frames, pattern
+                frame_num, packet_num, width, height, ppf, format_name, total_frames, pattern, disable_pops
             )
             packet_file = output_path / f"video_{frame_num:04d}_{packet_num:04d}.bin"
             packet_file.write_bytes(packet_data)
@@ -657,17 +661,17 @@ def _generate_frame_batch_task(args):
 
 def _generate_audio_batch_task(args):
     """Worker task for generating a batch of audio packets."""
-    start_idx, end_idx, sample_rate, total_frames, format_name, output_path = args
+    start_idx, end_idx, sample_rate, total_frames, format_name, output_path, disable_pops = args
     count = 0
     for audio_packet_num in range(start_idx, end_idx):
-        packet_data = generate_audio_packet(audio_packet_num, sample_rate, total_frames, format_name)
+        packet_data = generate_audio_packet(audio_packet_num, sample_rate, total_frames, format_name, disable_pops)
         packet_file = output_path / f"audio_{audio_packet_num:04d}.bin"
         packet_file.write_bytes(packet_data)
         count += 1
     return count
 
 
-def generate_packets(output_dir, num_frames=30, formats=None, pattern='diagonal', parallel=True):
+def generate_packets(output_dir, num_frames=30, formats=None, pattern='diagonal', parallel=True, disable_pops=False):
     """
     Generate test packets for specified formats with A/V sync pops.
 
@@ -717,7 +721,7 @@ def generate_packets(output_dir, num_frames=30, formats=None, pattern='diagonal'
                 end = min(start + frames_per_worker, num_frames) if i < num_workers - 1 else num_frames
                 if start < end:
                     video_tasks.append((start, end, width, height, ppf, format_name,
-                                        num_frames, pattern, video_dir))
+                                        num_frames, pattern, video_dir, disable_pops))
 
             # Divide audio packets into batches
             audio_per_worker = max(1, total_audio_packets // num_workers)
@@ -727,7 +731,7 @@ def generate_packets(output_dir, num_frames=30, formats=None, pattern='diagonal'
                 end = min(start + audio_per_worker, total_audio_packets) if i < num_workers - 1 else total_audio_packets
                 if start < end:
                     audio_tasks.append((start, end, fmt['audio_sample_rate'],
-                                        num_frames, format_name, audio_dir))
+                                        num_frames, format_name, audio_dir, disable_pops))
 
             # Execute in parallel using ProcessPoolExecutor
             video_count = 0
@@ -753,13 +757,13 @@ def generate_packets(output_dir, num_frames=30, formats=None, pattern='diagonal'
             for frame_num in range(num_frames):
                 for packet_num in range(ppf):
                     packet_data = generate_video_packet(
-                        frame_num, packet_num, width, height, ppf, format_name, num_frames, pattern
+                        frame_num, packet_num, width, height, ppf, format_name, num_frames, pattern, disable_pops
                     )
                     packet_file = video_dir / f"video_{frame_num:04d}_{packet_num:04d}.bin"
                     packet_file.write_bytes(packet_data)
 
             for audio_packet_num in range(total_audio_packets):
-                packet_data = generate_audio_packet(audio_packet_num, fmt['audio_sample_rate'], num_frames, format_name)
+                packet_data = generate_audio_packet(audio_packet_num, fmt['audio_sample_rate'], num_frames, format_name, disable_pops)
                 packet_file = audio_dir / f"audio_{audio_packet_num:04d}.bin"
                 packet_file.write_bytes(packet_data)
 
@@ -803,13 +807,15 @@ Examples:
                         help='Video pattern: diagonal (moving lines), solid (uniform color for scanline tests), or dots (single-pixel dots for sharp pixel tests)')
     parser.add_argument('--scenario', '-s', default='DEFAULT',
                         help='Scenario name to display in top-left text box (underscores become newlines)')
+    parser.add_argument('--disable-pops', action='store_true',
+                        help='Disable A/V sync pops (for testing frame progression without pop interference)')
     parser.add_argument('--no-parallel', action='store_true',
                         help='Disable parallel generation (use single thread)')
 
     args = parser.parse_args()
 
     set_scenario_name(args.scenario)
-    generate_packets(args.output, args.frames, args.formats, args.pattern, parallel=not args.no_parallel)
+    generate_packets(args.output, args.frames, args.formats, args.pattern, parallel=not args.no_parallel, disable_pops=args.disable_pops)
 
 
 if __name__ == '__main__':

@@ -38,6 +38,8 @@ class ResourceSample:
     gpu_percent: Optional[float] = None
     gpu_mem_percent: Optional[float] = None
     gpu_mem_mb: Optional[float] = None
+    # Optional per-process CPU usage (normalized to 0..100 like cpu_percent)
+    process_cpu_percent: dict[str, float] = field(default_factory=dict)
 
 
 @dataclass
@@ -67,12 +69,13 @@ class ResourceSummary:
     gpu_type: str = "none"  # "nvidia", "intel", "amd", or "none"
     effective_cpu_count: float = 1.0  # CPUs available (respects cgroup limits)
     physical_cpu_count: int = 1  # Physical/logical CPU count
+    process_cpu_percent: dict[str, ResourceStats] = field(default_factory=dict)
 
 
 class ResourceMonitor:
     """Monitors system resource usage during E2E tests."""
 
-    def __init__(self, interval_ms: int = 500, verbose: bool = False):
+    def __init__(self, interval_ms: int = 500, verbose: bool = False, tracked_pids: Optional[dict[str, int]] = None):
         """
         Initialize the resource monitor.
 
@@ -101,14 +104,69 @@ class ResourceMonitor:
         self._effective_cpu_count = self._get_effective_cpu_count()
         self._physical_cpu_count = os.cpu_count() or 1
 
+        # Optional per-process CPU tracking (e.g., obs vs harness)
+        self._tracked_pids: dict[str, int] = {
+            str(name): int(pid) for (name, pid) in (tracked_pids or {}).items() if pid is not None
+        }
+        self._tracked_names: list[str] = sorted(self._tracked_pids.keys())
+        self._tracked_prev_proc_ticks: dict[str, int] = {}
+        self._tracked_prev_total_ticks: Optional[int] = None
+
         if self.verbose:
             print(f"[ResourceMonitor] Initialized with {interval_ms}ms interval")
             print(f"[ResourceMonitor] psutil available: {HAVE_PSUTIL}")
             print(f"[ResourceMonitor] CPUs: {self._effective_cpu_count} effective / {self._physical_cpu_count} physical")
+            if self._tracked_names:
+                tracked = ", ".join([f"{n}={self._tracked_pids[n]}" for n in self._tracked_names])
+                print(f"[ResourceMonitor] Tracking PIDs: {tracked}")
             if self._gpu_available:
                 print(f"[ResourceMonitor] GPU monitoring: {self._gpu_type} - {self._gpu_info.get('name', 'unknown')}")
             else:
                 print("[ResourceMonitor] GPU monitoring: not available")
+
+    def _normalize_cpu_percent(self, raw_percent: float) -> float:
+        """Normalize CPU percent to effective CPU allocation (0..100)."""
+        if raw_percent < 0:
+            raw_percent = 0.0
+        if self._effective_cpu_count < self._physical_cpu_count:
+            scale_factor = self._physical_cpu_count / self._effective_cpu_count
+            return min(100.0, raw_percent * scale_factor)
+        return min(100.0, raw_percent)
+
+    def _get_total_cpu_ticks(self) -> Optional[int]:
+        """Return total CPU ticks across all CPUs from /proc/stat."""
+        try:
+            with open("/proc/stat", "r") as f:
+                line = f.readline()
+            parts = line.split()
+            if not parts or parts[0] != "cpu":
+                return None
+            total = 0
+            for val in parts[1:]:
+                try:
+                    total += int(val)
+                except ValueError:
+                    continue
+            return total
+        except Exception:
+            return None
+
+    def _get_process_cpu_ticks(self, pid: int) -> Optional[int]:
+        """Return process CPU ticks (utime+stime) from /proc/<pid>/stat."""
+        try:
+            stat_path = Path(f"/proc/{pid}/stat")
+            if not stat_path.exists():
+                return None
+            text = stat_path.read_text().strip()
+            rparen = text.rfind(')')
+            if rparen == -1:
+                return None
+            after = text[rparen + 2 :].split()
+            utime = int(after[11])
+            stime = int(after[12])
+            return utime + stime
+        except Exception:
+            return None
 
     def _get_effective_cpu_count(self) -> float:
         """
@@ -631,18 +689,7 @@ class ResourceMonitor:
         if HAVE_PSUTIL:
             # psutil.cpu_percent gives system-wide percentage
             raw_percent = psutil.cpu_percent(interval=None)
-
-            # In cgroup-limited environments, we want to report usage relative
-            # to our allocation. If we're allocated 2 cores on a 16-core machine,
-            # and system shows 12.5% (2/16), we should report closer to 100%.
-            if self._effective_cpu_count < self._physical_cpu_count:
-                # Scale the percentage based on our allocation ratio
-                # This assumes our job is the primary consumer of allocated cores
-                scale_factor = self._physical_cpu_count / self._effective_cpu_count
-                scaled = raw_percent * scale_factor
-                # Cap at 100% - we can't use more than 100% of our allocation
-                return min(100.0, scaled)
-            return raw_percent
+            return self._normalize_cpu_percent(raw_percent)
         else:
             # Fallback: parse /proc/stat
             try:
@@ -656,10 +703,47 @@ class ResourceMonitor:
                         idle = int(parts[4])
                         total = user + nice + system + idle
                         busy = user + nice + system
-                        return (busy / total) * 100.0 if total > 0 else 0.0
+                        return self._normalize_cpu_percent((busy / total) * 100.0 if total > 0 else 0.0)
             except Exception:
                 return 0.0
         return 0.0
+
+    def _get_tracked_process_cpu_percent(self, first_sample: bool) -> dict[str, float]:
+        """Compute per-process CPU percent (0..100) for tracked PIDs."""
+        if not self._tracked_names:
+            return {}
+
+        total_ticks = self._get_total_cpu_ticks()
+        if total_ticks is None:
+            return {}
+
+        if first_sample or self._tracked_prev_total_ticks is None:
+            self._tracked_prev_total_ticks = total_ticks
+            for name in self._tracked_names:
+                pid = self._tracked_pids[name]
+                proc_ticks = self._get_process_cpu_ticks(pid)
+                if proc_ticks is not None:
+                    self._tracked_prev_proc_ticks[name] = proc_ticks
+            return {name: 0.0 for name in self._tracked_names}
+
+        prev_total = self._tracked_prev_total_ticks
+        delta_total = total_ticks - prev_total
+        self._tracked_prev_total_ticks = total_ticks
+        if delta_total <= 0:
+            return {name: 0.0 for name in self._tracked_names}
+
+        out: dict[str, float] = {}
+        for name in self._tracked_names:
+            pid = self._tracked_pids[name]
+            cur_ticks = self._get_process_cpu_ticks(pid)
+            prev_ticks = self._tracked_prev_proc_ticks.get(name)
+            if cur_ticks is None or prev_ticks is None:
+                out[name] = 0.0
+                continue
+            delta_proc = cur_ticks - prev_ticks
+            self._tracked_prev_proc_ticks[name] = cur_ticks
+            out[name] = self._normalize_cpu_percent((delta_proc / delta_total) * 100.0)
+        return out
 
     def _get_ram_usage(self) -> tuple[float, float]:
         """Get RAM usage percentage and MB used."""
@@ -833,6 +917,7 @@ class ResourceMonitor:
 
             ram_percent, ram_mb = self._get_ram_usage()
             gpu_percent, gpu_mem_percent, gpu_mem_mb = self._get_gpu_usage()
+            proc_cpu = self._get_tracked_process_cpu_percent(first_sample=first_sample)
 
             sample = ResourceSample(
                 timestamp_ms=timestamp_ms,
@@ -842,6 +927,7 @@ class ResourceMonitor:
                 gpu_percent=gpu_percent,
                 gpu_mem_percent=gpu_mem_percent,
                 gpu_mem_mb=gpu_mem_mb,
+                process_cpu_percent=proc_cpu,
             )
             self.samples.append(sample)
 
@@ -877,6 +963,12 @@ class ResourceMonitor:
             # Final brief pause to ensure next measurement has fresh baseline
             time.sleep(0.05)
 
+        # Prime per-process CPU tick baselines (works without psutil)
+        if self._tracked_names:
+            self._tracked_prev_total_ticks = None
+            self._tracked_prev_proc_ticks = {}
+            _ = self._get_tracked_process_cpu_percent(first_sample=True)
+
         # For Intel GPUs, check/setup intel_gpu_top and start background process
         # This is done during warmup (not start) to avoid timing-sensitive delays
         if self._gpu_type == "intel" and not self._intel_gpu_top_checked:
@@ -903,6 +995,10 @@ class ResourceMonitor:
         self._running = True
         self._start_time_ms = time.time() * 1000
         self.samples = []
+
+        if self._tracked_names:
+            self._tracked_prev_total_ticks = None
+            self._tracked_prev_proc_ticks = {}
 
         self._thread = threading.Thread(target=self._sample_worker, daemon=True)
         self._thread.start()
@@ -989,6 +1085,12 @@ class ResourceMonitor:
             physical_cpu_count=self._physical_cpu_count,
         )
 
+        if self._tracked_names:
+            summary.process_cpu_percent = {
+                name: self._compute_stats([s.process_cpu_percent.get(name, 0.0) for s in samples])
+                for name in self._tracked_names
+            }
+
         # GPU stats if available
         gpu_values = [s.gpu_percent for s in samples if s.gpu_percent is not None]
         if gpu_values:
@@ -1019,6 +1121,8 @@ class ResourceMonitor:
         with open(output_path, "w") as f:
             # Header
             header = ["timestamp_ms", "cpu_percent", "ram_percent", "ram_mb"]
+            for name in self._tracked_names:
+                header.append(f"proc_cpu_{name}")
             if self._gpu_available:
                 header.extend(["gpu_percent", "gpu_mem_percent", "gpu_mem_mb"])
             f.write(",".join(header) + "\n")
@@ -1031,6 +1135,9 @@ class ResourceMonitor:
                     f"{sample.ram_percent:.2f}",
                     f"{sample.ram_mb:.2f}",
                 ]
+                for name in self._tracked_names:
+                    val = sample.process_cpu_percent.get(name)
+                    row.append(f"{val:.2f}" if isinstance(val, (int, float)) else "")
                 if self._gpu_available:
                     gpu_pct = f"{sample.gpu_percent:.2f}" if sample.gpu_percent is not None else ""
                     gpu_mem_pct = f"{sample.gpu_mem_percent:.2f}" if sample.gpu_mem_percent is not None else ""
@@ -1087,6 +1194,12 @@ class ResourceMonitor:
             physical_cpu_count=self._physical_cpu_count,
         )
 
+        if self._tracked_names:
+            summary.process_cpu_percent = {
+                name: self._compute_stats([s.process_cpu_percent.get(name, 0.0) for s in self.samples])
+                for name in self._tracked_names
+            }
+
         # GPU stats if available
         gpu_values = [s.gpu_percent for s in self.samples if s.gpu_percent is not None]
         if gpu_values:
@@ -1114,6 +1227,8 @@ class ResourceMonitor:
         with open(output_path, "w") as f:
             # Header
             header = ["timestamp_ms", "cpu_percent", "ram_percent", "ram_mb"]
+            for name in self._tracked_names:
+                header.append(f"proc_cpu_{name}")
             if self._gpu_available:
                 header.extend(["gpu_percent", "gpu_mem_percent", "gpu_mem_mb"])
             f.write(",".join(header) + "\n")
@@ -1126,6 +1241,9 @@ class ResourceMonitor:
                     f"{sample.ram_percent:.2f}",
                     f"{sample.ram_mb:.2f}",
                 ]
+                for name in self._tracked_names:
+                    val = sample.process_cpu_percent.get(name)
+                    row.append(f"{val:.2f}" if isinstance(val, (int, float)) else "")
                 if self._gpu_available:
                     gpu_pct = f"{sample.gpu_percent:.2f}" if sample.gpu_percent is not None else ""
                     gpu_mem_pct = f"{sample.gpu_mem_percent:.2f}" if sample.gpu_mem_percent is not None else ""
@@ -1173,6 +1291,11 @@ class ResourceMonitor:
             "gpu_available": summary.gpu_available,
             "gpu_type": summary.gpu_type,
         }
+
+        if summary.process_cpu_percent:
+            data["process_cpu_percent"] = {
+                name: stats_to_dict(stats) for (name, stats) in summary.process_cpu_percent.items()
+            }
 
         if summary.gpu is not None:
             data["gpu_percent"] = stats_to_dict(summary.gpu)

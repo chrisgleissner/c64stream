@@ -10,7 +10,7 @@
 4. **Before declaring work "complete"**: do a documentation review (docs match code/behavior) and run a full local E2E scenario suite (all scenarios).
 5. **Run BOTH local AND CI builds**: before any change is considered done, run:
    - Local build: `./local-build.sh linux --install --e2e-scenarios` (runs full build with all E2E scenarios)
-   - CI build: trigger via push or use `act` if available
+    - CI build: trigger via push (do not use `act`)
    - Both must pass with zero errors before declaring completion
 6. **NEVER skip tests or ignore problems**: When facing test failures, performance issues, or other problems:
    - **Do NOT** add `skip`, `ci_skip`, `@pytest.mark.skip`, or similar markers to bypass tests
@@ -89,7 +89,7 @@ See <https://www.gnu.org/licenses/> for details.
 
 ### For CI/GitHub Actions Builds
 
-**See [.github/build-instructions.md](.github/build-instructions.md) for complete CI build instructions.**
+**See [./build-instructions.md](./build-instructions.md) for complete CI build instructions.**
 
 When working in a Copilot session with GitHub Actions runner:
 1. Follow the build instructions in `.github/build-instructions.md`

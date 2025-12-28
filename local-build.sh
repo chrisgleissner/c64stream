@@ -948,7 +948,8 @@ run_e2e_tests() {
     # Set E2E test parameters (default to NTSC 60Hz for consistent 1-frame pop visibility)
     local e2e_args=(
         "--format" "$scenario_format"
-        "--duration" "5"   # ~5 seconds at 60 FPS => ~300 frames
+        "--duration" "8"   # ~8 seconds at 60 FPS => ~480 frames
+        "--csv-max-rows" "3000"  # Cap committed CSV artifacts (incl header)
         "--skip-build"      # We already built and installed
         "--verbose"
     )
@@ -1076,7 +1077,8 @@ run_e2e_scenarios() {
     pushd tests/e2e >/dev/null
     local e2e_args=(
         "--all"
-        "--duration" "5"
+        "--duration" "8"
+        "--csv-max-rows" "3000"  # Cap committed CSV artifacts (incl header)
         "--skip-build"
         "--verbose"
     )

@@ -29,8 +29,8 @@ DEFAULT_OUTPUT_DIR="${TEST_DIR}/results"
 
 # Default test parameters
 DEFAULT_FORMAT="NTSC"
-DEFAULT_FRAMES=300  # ~5 seconds at NTSC timing
-DEFAULT_DURATION=5  # seconds - alternative to frames
+DEFAULT_FRAMES=300  # Frame-count fallback when --duration is unset
+DEFAULT_DURATION=8  # seconds (default); translated to frames per format
 DEFAULT_VIDEO_PORT=11000
 DEFAULT_AUDIO_PORT=11001
 DEFAULT_VERBOSE=false
@@ -43,11 +43,32 @@ DEFAULT_SCENARIO_OVERRIDES=""
 DEFAULT_SCENARIO_NAME=""
 DEFAULT_PACKET_PATTERN=""
 DEFAULT_SCENARIO=""
-DEFAULT_CSV_MAX_ROWS=0  # 0 = unlimited CSV rows (preserve all data)
+DEFAULT_CSV_MAX_ROWS=3000  # 0 = unlimited CSV lines (preserve all data)
 SCENARIO_CI_SKIPPED=false  # Set by load_scenario if ci_skip=true on CI
 DEFAULT_RUN_ALL_SCENARIOS=false  # Run all scenarios in sequence
 DEFAULT_ENABLE_RESOURCE_MONITORING=true  # CPU/GPU/RAM monitoring during packet replay (enabled by default)
-DEFAULT_RESOURCE_INTERVAL_MS=500  # Resource monitoring sample interval in ms
+DEFAULT_RESOURCE_INTERVAL_MS=500  # Resource monitoring sample interval in ms (internal)
+DEFAULT_DISABLE_POPS=false  # Disable A/V sync pops in generated packets
+DEFAULT_SETTLING_SECONDS=0  # Ignore early frame progression errors for pass/fail
+
+# Optional CPU profiling (Linux perf). Disabled by default.
+DEFAULT_PERF_PROFILE=false
+DEFAULT_PERF_FLAMEGRAPH=false
+DEFAULT_PERF_FREQUENCY_HZ=99
+DEFAULT_PERF_CALLGRAPH="fp"
+DEFAULT_PERF_DURATION=""
+
+# Float validation helper (non-negative).
+is_non_negative_number() {
+    local value="$1"
+    [[ "${value}" =~ ^[0-9]+([.][0-9]+)?$ ]]
+}
+
+# Round float to nearest int (0.5 rounds up).
+round_to_int() {
+    local value="$1"
+    awk -v x="${value}" 'BEGIN{printf "%d", (x<0?int(x-0.5):int(x+0.5))}'
+}
 
 # Scenario directory
 SCENARIOS_DIR="${TEST_DIR}/scenarios"
@@ -168,6 +189,7 @@ stop_resource_monitoring() {
     log_info "Stopping resource monitoring..."
     kill "${MONITOR_PID}" 2>/dev/null || true
     wait "${MONITOR_PID}" 2>/dev/null || true
+    MONITOR_PID=""
 
     # Show final state
     echo "=== Final System State ==="
@@ -179,6 +201,63 @@ stop_resource_monitoring() {
         "$(df /tmp | awk 'NR==2 {print $5}' | cut -d'%' -f1)" \
         "$(uptime | awk -F'load average:' '{print $2}' | awk '{print $1}' | cut -d',' -f1)" \
         "$(ps aux | wc -l)"
+}
+
+# Ensure perf can run (local dev best-effort).
+ensure_perf_permissions() {
+    if [[ "${PERF_PROFILE}" != true ]]; then
+        return 0
+    fi
+
+    # Only relevant on Linux.
+    if [[ "$(uname -s 2>/dev/null || echo '')" != "Linux" ]]; then
+        return 0
+    fi
+
+    local paranoid=""
+    if [[ -r /proc/sys/kernel/perf_event_paranoid ]]; then
+        paranoid=$(cat /proc/sys/kernel/perf_event_paranoid 2>/dev/null || echo "")
+    fi
+
+    # If perf is heavily restricted, offer a one-time sudo setup.
+    if [[ -n "${paranoid}" ]] && [[ "${paranoid}" =~ ^[0-9]+$ ]] && [[ "${paranoid}" -ge 3 ]]; then
+        log_warning "perf profiling appears blocked (kernel.perf_event_paranoid=${paranoid})."
+        log_info "Perf capture needs: kernel.perf_event_paranoid=1 and kernel.kptr_restrict=0"
+        log_info "One-time setup script: ${PROJECT_ROOT}/build-aux/install-perf-sudoers.sh"
+
+        # Never block in non-interactive runs.
+        if [[ ! -t 0 ]]; then
+            log_warning "Non-interactive stdin detected; skipping sudo perf setup."
+            return 0
+        fi
+
+        if ! command -v sudo >/dev/null 2>&1; then
+            log_warning "sudo not available; cannot adjust perf sysctls automatically."
+            return 0
+        fi
+
+        echo ""
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "  PERF PROFILING SETUP"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo ""
+        echo "  This run requested --perf-profile, but perf is currently blocked."
+        echo "  I can apply the needed sysctls and install a sudoers rule so future runs"
+        echo "  won't prompt again."
+        echo ""
+        echo "  Will run (via sudo):"
+        echo "    ${PROJECT_ROOT}/build-aux/install-perf-sudoers.sh"
+        echo ""
+        echo -n "  Proceed? [Y/n] "
+        local response
+        read -r response
+        response=${response:-Y}
+        if [[ "${response}" =~ ^[Yy]$ ]]; then
+            sudo "${PROJECT_ROOT}/build-aux/install-perf-sudoers.sh" || true
+        else
+            log_info "Skipping perf setup; perf artifacts may be empty."
+        fi
+    fi
 }
 
 # Help message
@@ -193,23 +272,32 @@ It builds the plugin, generates test packets, and validates the complete pipelin
 
 OPTIONS:
     -f, --format FORMAT     Video format (PAL, NTSC) [default: ${DEFAULT_FORMAT}]
-    -F, --frames FRAMES     Number of frames to test [default: ${DEFAULT_FRAMES}]
-    -d, --duration SECONDS  Test duration in seconds (overrides --frames)
+    -F, --frames FRAMES     Number of frames to test (overridden by --duration) [default: ${DEFAULT_FRAMES}]
+    -d, --duration SECONDS  Test duration in seconds (overrides --frames); supports fractions (e.g. 12.5) [default: ${DEFAULT_DURATION}]
     --output-dir DIR        Output directory for test artifacts [default: ${DEFAULT_OUTPUT_DIR}]
-    --csv-max-rows ROWS     Truncate CSV files to first ROWS rows (0=disable) [default: ${DEFAULT_CSV_MAX_ROWS}]
+    --csv-max-rows LINES    Truncate CSV files to first LINES lines incl header (0=disable) [default: ${DEFAULT_CSV_MAX_ROWS}]
     -v, --verbose           Enable verbose logging
     -s, --skip-build        Skip building plugin and tools
     -o, --obs               Enable OBS integration (default)
     --no-obs                Disable OBS integration
     --no-cleanup            Skip cleanup of temporary files
+    --disable-pops          Disable A/V sync pops in generated packets (for testing)
+    --settling-duration SEC Ignore frame progression errors during first SEC seconds; supports fractions (e.g. 4.0) [default: ${DEFAULT_SETTLING_SECONDS}]
+                           (alias: --settling-seconds)
     --monitor-resources     Enable periodic system resource monitoring
     --enable-resource-monitoring  Enable CPU/GPU/RAM monitoring during packet replay (saves to resource.csv/json)
-    --resource-interval-ms MS     Resource monitoring interval in milliseconds [default: ${DEFAULT_RESOURCE_INTERVAL_MS}]
+    --monitor-resource-duration SEC  Resource monitoring sample interval in seconds; supports fractions (e.g. 0.5) [default: $(awk 'BEGIN{printf "%.3f", '${DEFAULT_RESOURCE_INTERVAL_MS}'/1000.0}')]
+                                   (alias: --resource-interval-ms)
+    --perf-profile          Record a perf CPU profile of OBS during packet replay (best-effort; may require perf permissions)
+    --perf-flamegraph       Generate flamegraph.svg if FlameGraph scripts are installed (tools/FlameGraph or /usr/share/flamegraph)
+    --perf-frequency-hz HZ  perf sampling frequency [default: ${DEFAULT_PERF_FREQUENCY_HZ}]
+    --perf-callgraph MODE   perf callgraph mode (dwarf|fp) [default: ${DEFAULT_PERF_CALLGRAPH}]
+    --perf-duration SEC     Override perf capture duration in seconds (default: auto from frames+grace)
     --all                   Run ALL scenarios in sequence
     -h, --help             Show this help message
 
 EXAMPLES:
-    # Quick 5-second test (default)
+    # Quick test (default is ~12s on PAL/NTSC)
     $0
 
     # Extended 30-second stress test
@@ -375,7 +463,7 @@ load_scenario() {
 parse_args() {
     FORMAT="${DEFAULT_FORMAT}"
     FRAMES="${DEFAULT_FRAMES}"
-    DURATION=""
+    DURATION="${DEFAULT_DURATION}"
     OUTPUT_DIR="${DEFAULT_OUTPUT_DIR}"
     CSV_MAX_ROWS="${DEFAULT_CSV_MAX_ROWS}"
     VIDEO_PORT="${DEFAULT_VIDEO_PORT}"
@@ -392,6 +480,18 @@ parse_args() {
     RUN_ALL_SCENARIOS="${DEFAULT_RUN_ALL_SCENARIOS}"
     ENABLE_RESOURCE_MONITORING="${DEFAULT_ENABLE_RESOURCE_MONITORING}"
     RESOURCE_INTERVAL_MS="${DEFAULT_RESOURCE_INTERVAL_MS}"
+    DISABLE_POPS="${DEFAULT_DISABLE_POPS}"
+    SETTLING_SECONDS="${DEFAULT_SETTLING_SECONDS}"
+
+    PERF_PROFILE="${DEFAULT_PERF_PROFILE}"
+    PERF_FLAMEGRAPH="${DEFAULT_PERF_FLAMEGRAPH}"
+    PERF_FREQUENCY_HZ="${DEFAULT_PERF_FREQUENCY_HZ}"
+    PERF_CALLGRAPH="${DEFAULT_PERF_CALLGRAPH}"
+    PERF_DURATION="${DEFAULT_PERF_DURATION}"
+
+    # New user-facing option naming: durations in seconds (float). Kept for consistent parsing.
+    # When unset, we derive defaults from *_MS / *_SECONDS.
+    MONITOR_RESOURCE_DURATION=""
 
     while [[ $# -gt 0 ]]; do
         case $1 in
@@ -409,12 +509,21 @@ parse_args() {
                     log_error "Invalid frame count: ${FRAMES}. Must be a positive integer."
                     exit 1
                 fi
+                # Explicit --frames overrides duration-based default.
+                DURATION=""
                 shift 2
                 ;;
             -d|--duration)
                 DURATION="$2"
-                if ! [[ "${DURATION}" =~ ^[0-9]+$ ]] || [[ "${DURATION}" -lt 1 ]]; then
-                    log_error "Invalid duration: ${DURATION}. Must be a positive integer."
+                if ! is_non_negative_number "${DURATION}"; then
+                    log_error "Invalid duration: ${DURATION}. Must be a non-negative number (supports fractions)."
+                    exit 1
+                fi
+                # Disallow zero duration (keeps previous behavior of requiring >=1s).
+                if awk -v x="${DURATION}" 'BEGIN{exit !(x>0.0)}'; then
+                    :
+                else
+                    log_error "Invalid duration: ${DURATION}. Must be > 0."
                     exit 1
                 fi
                 shift 2
@@ -471,6 +580,18 @@ parse_args() {
                 CLEANUP=false
                 shift
                 ;;
+            --disable-pops)
+                DISABLE_POPS=true
+                shift
+                ;;
+            --settling-duration|--settling-seconds)
+                SETTLING_SECONDS="$2"
+                if ! is_non_negative_number "${SETTLING_SECONDS}"; then
+                    log_error "Invalid settling duration: ${SETTLING_SECONDS}. Must be a non-negative number (supports fractions)."
+                    exit 1
+                fi
+                shift 2
+                ;;
             --monitor-resources)
                 MONITOR_RESOURCES=true
                 shift
@@ -478,6 +599,60 @@ parse_args() {
             --enable-resource-monitoring)
                 ENABLE_RESOURCE_MONITORING=true
                 shift
+                ;;
+            --monitor-resource-duration)
+                MONITOR_RESOURCE_DURATION="$2"
+                if ! is_non_negative_number "${MONITOR_RESOURCE_DURATION}"; then
+                    log_error "Invalid monitor resource duration: ${MONITOR_RESOURCE_DURATION}. Must be a non-negative number (supports fractions)."
+                    exit 1
+                fi
+                # Enforce >= 0.1s (matches prior >=100ms).
+                if awk -v x="${MONITOR_RESOURCE_DURATION}" 'BEGIN{exit !(x>=0.1)}'; then
+                    :
+                else
+                    log_error "Invalid monitor resource duration: ${MONITOR_RESOURCE_DURATION}. Must be >= 0.1s."
+                    exit 1
+                fi
+                shift 2
+                ;;
+            --perf-profile)
+                PERF_PROFILE=true
+                shift
+                ;;
+            --perf-flamegraph)
+                PERF_FLAMEGRAPH=true
+                shift
+                ;;
+            --perf-frequency-hz)
+                PERF_FREQUENCY_HZ="$2"
+                if ! [[ "${PERF_FREQUENCY_HZ}" =~ ^[0-9]+$ ]] || [[ "${PERF_FREQUENCY_HZ}" -lt 1 ]]; then
+                    log_error "Invalid perf frequency: ${PERF_FREQUENCY_HZ}. Must be a positive integer."
+                    exit 1
+                fi
+                shift 2
+                ;;
+            --perf-callgraph)
+                PERF_CALLGRAPH="$2"
+                if [[ "${PERF_CALLGRAPH}" != "dwarf" && "${PERF_CALLGRAPH}" != "fp" ]]; then
+                    log_error "Invalid perf callgraph mode: ${PERF_CALLGRAPH}. Must be dwarf or fp."
+                    exit 1
+                fi
+                shift 2
+                ;;
+            --perf-duration)
+                PERF_DURATION="$2"
+                if ! is_non_negative_number "${PERF_DURATION}"; then
+                    log_error "Invalid perf duration: ${PERF_DURATION}. Must be a non-negative number (supports fractions)."
+                    exit 1
+                fi
+                # Require >0 when explicitly set
+                if awk -v x="${PERF_DURATION}" 'BEGIN{exit !(x>0.0)}'; then
+                    :
+                else
+                    log_error "Invalid perf duration: ${PERF_DURATION}. Must be > 0."
+                    exit 1
+                fi
+                shift 2
                 ;;
             --resource-interval-ms)
                 RESOURCE_INTERVAL_MS="$2"
@@ -542,12 +717,24 @@ parse_args() {
 
     # Calculate frames from duration if specified
     if [[ -n "${DURATION}" ]]; then
+        local fps
         if [[ "${FORMAT}" == "PAL" ]]; then
-            FRAMES=$((DURATION * 50))  # 50 FPS for PAL
+            fps=50
         else
-            FRAMES=$((DURATION * 60))  # 60 FPS for NTSC
+            fps=60
         fi
-        log_info "Duration ${DURATION}s = ${FRAMES} frames for ${FORMAT}"
+        # Round to nearest frame to keep total duration close to user intent.
+        FRAMES=$(awk -v d="${DURATION}" -v f="${fps}" 'BEGIN{printf "%d", int(d*f + 0.5)}')
+        if [[ "${FRAMES}" -lt 1 ]]; then
+            log_error "Duration ${DURATION}s is too short (yields <1 frame)."
+            exit 1
+        fi
+        log_info "Duration ${DURATION}s ≈ ${FRAMES} frames for ${FORMAT}"
+    fi
+
+    # Convert monitor resource duration (seconds) to internal ms if provided.
+    if [[ -n "${MONITOR_RESOURCE_DURATION}" ]]; then
+        RESOURCE_INTERVAL_MS=$(awk -v d="${MONITOR_RESOURCE_DURATION}" 'BEGIN{printf "%d", int(d*1000.0 + 0.5)}')
     fi
 }
 
@@ -720,6 +907,12 @@ setup_process_priority() {
     log_info "Adding CAP_SYS_NICE capability requires root privileges."
     log_info "This is a one-time setup that enables OBS priority boosting."
 
+    # Never block in non-interactive runs.
+    if [[ ! -t 0 ]]; then
+        log_info "Non-interactive stdin detected - skipping priority capability prompt"
+        return 0
+    fi
+
     # Determine privilege escalation
     local SUDO="sudo"
     if [[ $(id -u) -eq 0 ]]; then
@@ -876,6 +1069,11 @@ generate_packets() {
         cmd+=("--pattern" "${PACKET_PATTERN}")
     fi
 
+    # Optional pop disabling (useful for testing network strain hypothesis)
+    if [[ "${DISABLE_POPS}" == true ]]; then
+        cmd+=("--disable-pops")
+    fi
+
     if [[ "${VERBOSE}" == true ]]; then
         log_info "Running: ${cmd[*]}"
         "${cmd[@]}"
@@ -909,6 +1107,9 @@ run_e2e_test() {
     # Prepare output directory
     mkdir -p "${OUTPUT_DIR}"
 
+    # Best-effort perf permissions setup (local dev only).
+    ensure_perf_permissions
+
     # Determine udp_replay path
     local udp_replay_path="${BUILD_DIR}/tests/e2e/udp_replay"
     if [[ ! -f "${udp_replay_path}" ]]; then
@@ -924,6 +1125,7 @@ run_e2e_test() {
         "--output-dir" "${OUTPUT_DIR}"
         "--format" "${FORMAT}"
         "--frames" "${FRAMES}"
+        "--settling-duration" "${SETTLING_SECONDS}"
         "--video-port" "${VIDEO_PORT}"
         "--audio-port" "${AUDIO_PORT}"
         "--udp-replay" "${udp_replay_path}"
@@ -966,7 +1168,22 @@ run_e2e_test() {
     # Pass resource monitoring options
     if [[ "${ENABLE_RESOURCE_MONITORING}" == true ]]; then
         cmd+=("--enable-resource-monitoring")
-        cmd+=("--resource-interval-ms" "${RESOURCE_INTERVAL_MS}")
+        local resource_interval_sec
+        resource_interval_sec=$(awk -v ms="${RESOURCE_INTERVAL_MS}" 'BEGIN{printf "%.3f", ms/1000.0}')
+        cmd+=("--monitor-resource-duration" "${resource_interval_sec}")
+    fi
+
+    # Optional perf profiling (best-effort)
+    if [[ "${PERF_PROFILE}" == true ]]; then
+        cmd+=("--perf-profile")
+        cmd+=("--perf-frequency-hz" "${PERF_FREQUENCY_HZ}")
+        cmd+=("--perf-callgraph" "${PERF_CALLGRAPH}")
+        if [[ -n "${PERF_DURATION}" ]]; then
+            cmd+=("--perf-duration" "${PERF_DURATION}")
+        fi
+        if [[ "${PERF_FLAMEGRAPH}" == true ]]; then
+            cmd+=("--perf-flamegraph")
+        fi
     fi
 
     # Run test
@@ -1003,6 +1220,7 @@ run_scenario_assertions() {
         "python3" "-m" "assertions"
         "--mp4" "${recording_file}"
         "--scenario" "${SCENARIO}"
+        "--settling-duration" "${SETTLING_SECONDS}"
     )
 
     if [[ "${VERBOSE}" == true ]]; then
@@ -1266,20 +1484,19 @@ for detail in sync_details:
 # Calculate first content time for content_s column
 first_content_time_s = first_content_frame / fps if first_content_frame > 0 else 0.0
 
-def format_ssff(seconds, fps_val):
-    """Format seconds as SS:FF (seconds:frames) for Shotcut-style display."""
-    total_frames = int(round(seconds * fps_val))
-    secs = total_frames // int(fps_val)
-    frames = total_frames % int(fps_val)
-    return f"{secs:02d}:{frames:02d}"
-
 with open(playback_csv, 'w', newline='') as f:
     writer = csv.writer(f)
     writer.writerow(['playback_frame_index', 'frame_num', 'frame_slot', 'video_s', 'video_ssff', 'content_s', 'repeated', 'skipped', 'event', 'video_pop', 'audio_pop'])
 
     for playback_idx in range(total_frames):
         video_s = round(playback_idx / fps, 3)
-        video_ssff = format_ssff(video_s, fps)
+        # Calculate SS:FF format directly from frame index
+        # For fractional fps (e.g., 59.94), use the actual fps value
+        total_seconds = playback_idx / fps
+        secs = int(total_seconds)
+        fractional_seconds = total_seconds - secs
+        frames = int(fractional_seconds * fps)
+        video_ssff = f"{secs:02d}:{frames:02d}"
 
         # Determine if this is a pre-roll, content, or post-roll frame
         if playback_idx < first_content_frame:
@@ -1542,6 +1759,77 @@ EOF
         echo "- Events: $(join_by ', ' "${event_links[@]}")" >> "${report_file}"
     fi
 
+    # Perf profiling summary (if available)
+    if [[ -f "${OUTPUT_DIR}/perf_report.txt" || -f "${OUTPUT_DIR}/perf_error.txt" || -f "${OUTPUT_DIR}/flamegraph.svg" ]]; then
+        echo >> "${report_file}"
+        echo "### Perf Hotspots" >> "${report_file}"
+        echo >> "${report_file}"
+
+        local perf_links=()
+        if [[ -f "${OUTPUT_DIR}/perf_report.txt" ]]; then
+            perf_links+=("[perf_report.txt](perf_report.txt)")
+        fi
+        if [[ -f "${OUTPUT_DIR}/flamegraph.svg" ]]; then
+            perf_links+=("[flamegraph.svg](flamegraph.svg)")
+        fi
+        if [[ -f "${OUTPUT_DIR}/perf_error.txt" ]]; then
+            perf_links+=("[perf_error.txt](perf_error.txt)")
+        fi
+        if (( ${#perf_links[@]} > 0 )); then
+            echo "- Artifacts: $(join_by ' | ' "${perf_links[@]}")" >> "${report_file}"
+        fi
+
+        if [[ -f "${OUTPUT_DIR}/perf_report.txt" ]]; then
+            echo >> "${report_file}"
+            echo "Top functions/symbols by sampled CPU (perf report):" >> "${report_file}"
+            echo >> "${report_file}"
+            echo "| Overhead | Shared Object | Symbol |" >> "${report_file}"
+            echo "|----------|---------------|--------|" >> "${report_file}"
+            if command -v python3 >/dev/null 2>&1; then
+                python3 - "${OUTPUT_DIR}/perf_report.txt" >> "${report_file}" 2>/dev/null <<'PY' || true
+import re
+import sys
+
+path = sys.argv[1]
+count = 0
+
+with open(path, 'r', encoding='utf-8', errors='replace') as f:
+    for line in f:
+        if count >= 10:
+            break
+        if not re.match(r'^\s*\d+(?:\.\d+)?%\s', line):
+            continue
+        # perf report is column-aligned; columns are separated by 2+ spaces.
+        parts = re.split(r'\s{2,}', line.strip())
+        if len(parts) < 4:
+            continue
+        overhead, _command, dso, symbol = parts[:4]
+        # Escape markdown pipes.
+        dso = dso.replace('|', '\\|')
+        symbol = symbol.replace('|', '\\|')
+        print(f'| {overhead} | {dso} | {symbol} |')
+        count += 1
+PY
+            else
+                # Fallback: best-effort awk parse (may be less accurate with spaced commands)
+                awk '
+                    BEGIN{count=0}
+                    /^[[:space:]]*[0-9]+(\.[0-9]+)?%/ {
+                        overhead=$1
+                        dso=$3
+                        sym=$4" "$5
+                        if (sym == "") next
+                        gsub(/\|/, "\\|", dso)
+                        gsub(/\|/, "\\|", sym)
+                        print "| " overhead " | " dso " | " sym " |"
+                        count++
+                        if (count>=10) exit
+                    }
+                ' "${OUTPUT_DIR}/perf_report.txt" >> "${report_file}" || true
+            fi
+        fi
+    fi
+
     local recording_found=""
 
     # Add OBS results if enabled
@@ -1671,10 +1959,11 @@ EOF
             echo >> "${report_file}"
 
             # Get frame metrics
-            local analyzed valid distinct
+            local analyzed valid distinct settling_seconds
             analyzed=$(jq -r '.frame_sequence_box.details.analyzed_frames // 0' "${validation_file}" 2>/dev/null || echo "0")
             valid=$(jq -r '.frame_sequence_box.metrics.valid_frames // 0' "${validation_file}" 2>/dev/null || echo "0")
             distinct=$(jq -r '.frame_sequence_box.metrics.distinct_colors // 0' "${validation_file}" 2>/dev/null || echo "0")
+            settling_seconds=$(jq -r '.frame_sequence_box.metrics.settling_seconds // .frame_sequence_box.details.settling_seconds // 0' "${validation_file}" 2>/dev/null || echo "0")
 
             # Status line with traffic light
             case "${fsb_status}" in
@@ -1689,76 +1978,200 @@ EOF
                     ;;
             esac
 
-            # Get stuck/skip statistics
-            local stuck_count stuck_min stuck_median stuck_max
-            local skip_count skip_min skip_median skip_max
-            local back_steps severe_steps fps_val
+            # Settling split (pre/post)
+            local pre_stuck_count pre_stuck_min pre_stuck_median pre_stuck_max
+            local pre_skip_count pre_skip_min pre_skip_median pre_skip_max
+            local pre_back_steps pre_severe_steps
+            local post_stuck_count post_stuck_min post_stuck_median post_stuck_max
+            local post_skip_count post_skip_min post_skip_median post_skip_max
+            local post_back_steps post_severe_steps
 
-            stuck_count=$(jq -r '.frame_sequence_box.metrics.stuck_run_count // 0' "${validation_file}" 2>/dev/null || echo "0")
-            stuck_min=$(jq -r '.frame_sequence_box.metrics.stuck_run_min // 0' "${validation_file}" 2>/dev/null || echo "0")
-            stuck_median=$(jq -r '.frame_sequence_box.metrics.stuck_run_median // 0' "${validation_file}" 2>/dev/null || echo "0")
-            stuck_max=$(jq -r '.frame_sequence_box.metrics.max_stuck_run // 0' "${validation_file}" 2>/dev/null || echo "0")
+            pre_stuck_count=$(jq -r '.frame_sequence_box.metrics.pre_settling_stuck_run_count // 0' "${validation_file}" 2>/dev/null || echo "0")
+            pre_stuck_min=$(jq -r '.frame_sequence_box.metrics.pre_settling_stuck_run_min // 0' "${validation_file}" 2>/dev/null || echo "0")
+            pre_stuck_median=$(jq -r '.frame_sequence_box.metrics.pre_settling_stuck_run_median // 0' "${validation_file}" 2>/dev/null || echo "0")
+            pre_stuck_max=$(jq -r '.frame_sequence_box.metrics.pre_settling_max_stuck_run // 0' "${validation_file}" 2>/dev/null || echo "0")
+            pre_skip_count=$(jq -r '.frame_sequence_box.metrics.pre_settling_skip_count // 0' "${validation_file}" 2>/dev/null || echo "0")
+            pre_skip_min=$(jq -r '.frame_sequence_box.metrics.pre_settling_skip_min // 0' "${validation_file}" 2>/dev/null || echo "0")
+            pre_skip_median=$(jq -r '.frame_sequence_box.metrics.pre_settling_skip_median // 0' "${validation_file}" 2>/dev/null || echo "0")
+            pre_skip_max=$(jq -r '.frame_sequence_box.metrics.pre_settling_skip_max // 0' "${validation_file}" 2>/dev/null || echo "0")
+            pre_back_steps=$(jq -r '.frame_sequence_box.metrics.pre_settling_back_steps // 0' "${validation_file}" 2>/dev/null || echo "0")
+            pre_severe_steps=$(jq -r '.frame_sequence_box.metrics.pre_settling_severe_steps // 0' "${validation_file}" 2>/dev/null || echo "0")
 
-            skip_count=$(jq -r '.frame_sequence_box.metrics.skip_count // 0' "${validation_file}" 2>/dev/null || echo "0")
-            skip_min=$(jq -r '.frame_sequence_box.metrics.skip_min // 0' "${validation_file}" 2>/dev/null || echo "0")
-            skip_median=$(jq -r '.frame_sequence_box.metrics.skip_median // 0' "${validation_file}" 2>/dev/null || echo "0")
-            skip_max=$(jq -r '.frame_sequence_box.metrics.skip_max // 0' "${validation_file}" 2>/dev/null || echo "0")
+            post_stuck_count=$(jq -r '.frame_sequence_box.metrics.post_settling_stuck_run_count // 0' "${validation_file}" 2>/dev/null || echo "0")
+            post_stuck_min=$(jq -r '.frame_sequence_box.metrics.post_settling_stuck_run_min // 0' "${validation_file}" 2>/dev/null || echo "0")
+            post_stuck_median=$(jq -r '.frame_sequence_box.metrics.post_settling_stuck_run_median // 0' "${validation_file}" 2>/dev/null || echo "0")
+            post_stuck_max=$(jq -r '.frame_sequence_box.metrics.post_settling_max_stuck_run // 0' "${validation_file}" 2>/dev/null || echo "0")
+            post_skip_count=$(jq -r '.frame_sequence_box.metrics.post_settling_skip_count // 0' "${validation_file}" 2>/dev/null || echo "0")
+            post_skip_min=$(jq -r '.frame_sequence_box.metrics.post_settling_skip_min // 0' "${validation_file}" 2>/dev/null || echo "0")
+            post_skip_median=$(jq -r '.frame_sequence_box.metrics.post_settling_skip_median // 0' "${validation_file}" 2>/dev/null || echo "0")
+            post_skip_max=$(jq -r '.frame_sequence_box.metrics.post_settling_skip_max // 0' "${validation_file}" 2>/dev/null || echo "0")
+            post_back_steps=$(jq -r '.frame_sequence_box.metrics.post_settling_back_steps // 0' "${validation_file}" 2>/dev/null || echo "0")
+            post_severe_steps=$(jq -r '.frame_sequence_box.metrics.post_settling_severe_steps // 0' "${validation_file}" 2>/dev/null || echo "0")
 
-            back_steps=$(jq -r '.frame_sequence_box.metrics.back_steps // 0' "${validation_file}" 2>/dev/null || echo "0")
-            severe_steps=$(jq -r '.frame_sequence_box.metrics.severe_steps // 0' "${validation_file}" 2>/dev/null || echo "0")
-            fps_val=$(jq -r '.frame_sequence_box.details.window.fps // 60' "${validation_file}" 2>/dev/null || echo "60")
+            echo >> "${report_file}"
+            echo "- Settling: ${settling_seconds}s (pass/fail uses post-settling only)" >> "${report_file}"
 
-            # Show table if there are any stuck or skipped frames
-            local has_issues=false
-            if [[ "${stuck_count}" != "0" && "${stuck_count}" != "null" ]] || \
-               [[ "${skip_count}" != "0" && "${skip_count}" != "null" ]]; then
-                has_issues=true
+            # Show table if there are any issues in either window
+            local has_pre=false has_post=false
+            if [[ "${pre_stuck_count}" != "0" && "${pre_stuck_count}" != "null" ]] || \
+               [[ "${pre_skip_count}" != "0" && "${pre_skip_count}" != "null" ]] || \
+               [[ "${pre_back_steps}" != "0" && "${pre_back_steps}" != "null" ]] || \
+               [[ "${pre_severe_steps}" != "0" && "${pre_severe_steps}" != "null" ]]; then
+                has_pre=true
+            fi
+            if [[ "${post_stuck_count}" != "0" && "${post_stuck_count}" != "null" ]] || \
+               [[ "${post_skip_count}" != "0" && "${post_skip_count}" != "null" ]] || \
+               [[ "${post_back_steps}" != "0" && "${post_back_steps}" != "null" ]] || \
+               [[ "${post_severe_steps}" != "0" && "${post_severe_steps}" != "null" ]]; then
+                has_post=true
             fi
 
-            if [[ "${has_issues}" == "true" ]]; then
+            if [[ "${has_pre}" == "true" || "${has_post}" == "true" ]]; then
                 echo >> "${report_file}"
-                echo "| Metric | Count | Min | Median | Max |" >> "${report_file}"
-                echo "|--------|-------|-----|--------|-----|" >> "${report_file}"
+                echo "| Window | Stuck runs (count/min/med/max) | Skips (count/min/med/max) | Back steps | Severe steps |" >> "${report_file}"
+                echo "|--------|------------------------------:|--------------------------:|-----------:|-------------:|" >> "${report_file}"
 
-                # Stuck frames (repeated frames = no progression)
-                if [[ "${stuck_count}" != "0" && "${stuck_count}" != "null" ]]; then
-                    # Convert to integer for display
-                    local stuck_count_int stuck_min_int stuck_max_int stuck_median_int
-                    stuck_count_int=$(printf '%.0f' "${stuck_count}" 2>/dev/null || echo "${stuck_count}")
-                    stuck_min_int=$(printf '%.0f' "${stuck_min}" 2>/dev/null || echo "${stuck_min}")
-                    stuck_median_int=$(printf '%.0f' "${stuck_median}" 2>/dev/null || echo "${stuck_median}")
-                    stuck_max_int=$(printf '%.0f' "${stuck_max}" 2>/dev/null || echo "${stuck_max}")
-                    echo "| Repeated frames | ${stuck_count_int} runs | ${stuck_min_int} | ${stuck_median_int} | ${stuck_max_int} |" >> "${report_file}"
-                fi
+                local pre_stuck_count_i pre_stuck_min_i pre_stuck_median_i pre_stuck_max_i
+                local pre_skip_count_i pre_skip_min_i pre_skip_median_i pre_skip_max_i
+                local pre_back_steps_i pre_severe_steps_i
+                pre_stuck_count_i=$(printf '%.0f' "${pre_stuck_count}" 2>/dev/null || echo "${pre_stuck_count}")
+                pre_stuck_min_i=$(printf '%.0f' "${pre_stuck_min}" 2>/dev/null || echo "${pre_stuck_min}")
+                pre_stuck_median_i=$(printf '%.0f' "${pre_stuck_median}" 2>/dev/null || echo "${pre_stuck_median}")
+                pre_stuck_max_i=$(printf '%.0f' "${pre_stuck_max}" 2>/dev/null || echo "${pre_stuck_max}")
+                pre_skip_count_i=$(printf '%.0f' "${pre_skip_count}" 2>/dev/null || echo "${pre_skip_count}")
+                pre_skip_min_i=$(printf '%.0f' "${pre_skip_min}" 2>/dev/null || echo "${pre_skip_min}")
+                pre_skip_median_i=$(printf '%.0f' "${pre_skip_median}" 2>/dev/null || echo "${pre_skip_median}")
+                pre_skip_max_i=$(printf '%.0f' "${pre_skip_max}" 2>/dev/null || echo "${pre_skip_max}")
+                pre_back_steps_i=$(printf '%.0f' "${pre_back_steps}" 2>/dev/null || echo "${pre_back_steps}")
+                pre_severe_steps_i=$(printf '%.0f' "${pre_severe_steps}" 2>/dev/null || echo "${pre_severe_steps}")
 
-                # Skipped frames (frame counter jumped forward)
-                if [[ "${skip_count}" != "0" && "${skip_count}" != "null" ]]; then
-                    local skip_count_int skip_min_int skip_max_int skip_median_int
-                    skip_count_int=$(printf '%.0f' "${skip_count}" 2>/dev/null || echo "${skip_count}")
-                    skip_min_int=$(printf '%.0f' "${skip_min}" 2>/dev/null || echo "${skip_min}")
-                    skip_median_int=$(printf '%.0f' "${skip_median}" 2>/dev/null || echo "${skip_median}")
-                    skip_max_int=$(printf '%.0f' "${skip_max}" 2>/dev/null || echo "${skip_max}")
-                    echo "| Skipped frames | ${skip_count_int} skips | ${skip_min_int} | ${skip_median_int} | ${skip_max_int} |" >> "${report_file}"
-                fi
+                local post_stuck_count_i post_stuck_min_i post_stuck_median_i post_stuck_max_i
+                local post_skip_count_i post_skip_min_i post_skip_median_i post_skip_max_i
+                local post_back_steps_i post_severe_steps_i
+                post_stuck_count_i=$(printf '%.0f' "${post_stuck_count}" 2>/dev/null || echo "${post_stuck_count}")
+                post_stuck_min_i=$(printf '%.0f' "${post_stuck_min}" 2>/dev/null || echo "${post_stuck_min}")
+                post_stuck_median_i=$(printf '%.0f' "${post_stuck_median}" 2>/dev/null || echo "${post_stuck_median}")
+                post_stuck_max_i=$(printf '%.0f' "${post_stuck_max}" 2>/dev/null || echo "${post_stuck_max}")
+                post_skip_count_i=$(printf '%.0f' "${post_skip_count}" 2>/dev/null || echo "${post_skip_count}")
+                post_skip_min_i=$(printf '%.0f' "${post_skip_min}" 2>/dev/null || echo "${post_skip_min}")
+                post_skip_median_i=$(printf '%.0f' "${post_skip_median}" 2>/dev/null || echo "${post_skip_median}")
+                post_skip_max_i=$(printf '%.0f' "${post_skip_max}" 2>/dev/null || echo "${post_skip_max}")
+                post_back_steps_i=$(printf '%.0f' "${post_back_steps}" 2>/dev/null || echo "${post_back_steps}")
+                post_severe_steps_i=$(printf '%.0f' "${post_severe_steps}" 2>/dev/null || echo "${post_severe_steps}")
 
-                # Reference playback.csv for detailed frame-by-frame analysis
-                if [[ -f "${OUTPUT_DIR}/playback.csv" ]]; then
-                    echo >> "${report_file}"
-                    echo "See [playback.csv](playback.csv) for frame-by-frame playback timeline with anomaly markers." >> "${report_file}"
-                fi
+                echo "| During settling | ${pre_stuck_count_i}/${pre_stuck_min_i}/${pre_stuck_median_i}/${pre_stuck_max_i} | ${pre_skip_count_i}/${pre_skip_min_i}/${pre_skip_median_i}/${pre_skip_max_i} | ${pre_back_steps_i} | ${pre_severe_steps_i} |" >> "${report_file}"
+                echo "| After settling | ${post_stuck_count_i}/${post_stuck_min_i}/${post_stuck_median_i}/${post_stuck_max_i} | ${post_skip_count_i}/${post_skip_min_i}/${post_skip_median_i}/${post_skip_max_i} | ${post_back_steps_i} | ${post_severe_steps_i} |" >> "${report_file}"
             fi
 
-            # Additional notes for back steps or severe issues
-            if [[ "${back_steps}" != "0" && "${back_steps}" != "null" ]]; then
-                local back_steps_int=$(printf '%.0f' "${back_steps}" 2>/dev/null || echo "${back_steps}")
+            # Reference playback.csv for detailed frame-by-frame analysis
+            if [[ -f "${OUTPUT_DIR}/playback.csv" ]]; then
                 echo >> "${report_file}"
-                echo "- ↩️ Back steps: ${back_steps_int} (frame counter went backwards)" >> "${report_file}"
-            fi
+                echo "See [playback.csv](playback.csv) for frame-by-frame playback timeline with anomaly markers." >> "${report_file}"
 
-            if [[ "${severe_steps}" != "0" && "${severe_steps}" != "null" ]]; then
-                local severe_steps_int=$(printf '%.0f' "${severe_steps}" 2>/dev/null || echo "${severe_steps}")
-                echo >> "${report_file}"
-                echo "- ⚡ Severe jumps: ${severe_steps_int} (large sequence discontinuity)" >> "${report_file}"
+                # Jitter cluster analysis (post-settling)
+                if command -v python3 >/dev/null 2>&1; then
+                    local jitter_cluster_md
+                    jitter_cluster_md=$(python3 - "${OUTPUT_DIR}/playback.csv" "${settling_seconds}" 2>/dev/null <<'PY'
+import csv
+import math
+import sys
+
+path = sys.argv[1]
+try:
+    settling = float(sys.argv[2])
+except Exception:
+    settling = 0.0
+
+# Treat any repeated/skipped frame marker as "jitter".
+events = []
+content_video_s = []
+with open(path, newline='') as f:
+    reader = csv.DictReader(f)
+    for row in reader:
+        try:
+            video_s_raw = row.get('video_s')
+            content_s_raw = row.get('content_s')
+            video_s = float(video_s_raw) if video_s_raw not in (None, '') else None
+            content_s = float(content_s_raw) if content_s_raw not in (None, '') else None
+
+            # Prefer video timeline when available; fall back to content timeline.
+            t = video_s if video_s is not None else (content_s if content_s is not None else 0.0)
+
+            repeated = int(float(row.get('repeated') or 0))
+            skipped = int(float(row.get('skipped') or 0))
+        except Exception:
+            continue
+
+        if content_s is not None and video_s is not None:
+            content_video_s.append(video_s)
+
+        if t < settling:
+            continue
+        if repeated or skipped:
+            events.append(t)
+
+events.sort()
+content_video_s.sort()
+
+content_span = None
+if content_video_s:
+    content_span = (content_video_s[0], content_video_s[-1])
+
+if not events:
+    print('')
+    print('#### Playback Jitter Clusters (post-settling)')
+    print('')
+    print('- No post-settling repeated/skipped markers detected in playback timeline.')
+    sys.exit(0)
+
+max_gap_s = 0.5
+
+clusters = []
+bucket = [events[0]]
+prev = events[0]
+for t in events[1:]:
+    if (t - prev) <= max_gap_s:
+        bucket.append(t)
+    else:
+        clusters.append(bucket)
+        bucket = [t]
+    prev = t
+clusters.append(bucket)
+
+def stats(xs):
+    n = len(xs)
+    mean = sum(xs) / n
+    var = sum((x - mean) ** 2 for x in xs) / n
+    return mean, math.sqrt(var), xs[-1] - xs[0]
+
+summaries = []
+for c in clusters:
+    center, std, span = stats(c)
+    summaries.append((len(c), span, center, std, c[0], c[-1]))
+
+# Sort by size, then by time span.
+summaries.sort(key=lambda x: (x[0], x[1]), reverse=True)
+
+print('')
+print('#### Playback Jitter Clusters (post-settling)')
+print('')
+print(f'- Definition: rows with repeated=1 or skipped=1 in playback.csv; clustering uses max gap {max_gap_s:.1f}s')
+print('- Note: this is independent from the Frame Progression (frame-box) check above')
+if content_span is not None:
+    print(f'- Note: repeated/skipped markers only exist while content is detected (video_s {content_span[0]:.3f}–{content_span[1]:.3f}).')
+    print('  The jitter-free tail after content ends is expected and does not indicate steady-state performance.')
+print('')
+print('| # | Events | Center (s) | Std dev (s) | Span (s) | Window (s) |')
+print('|---|--------|------------|-------------|----------|------------|')
+for i, (count, span, center, std, start, end) in enumerate(summaries[:3], start=1):
+    print(f'| {i} | {count} | {center:.3f} | {std:.3f} | {span:.3f} | {start:.3f}–{end:.3f} |')
+PY
+)
+
+                    if [[ -n "${jitter_cluster_md}" ]]; then
+                        echo "${jitter_cluster_md}" >> "${report_file}"
+                    fi
+                fi
             fi
         fi
     fi
@@ -2242,13 +2655,26 @@ main() {
     echo "  Monitor Resources: ${MONITOR_RESOURCES}"
     echo
 
-    # Cleanup function to handle interruptions
-    cleanup_on_exit() {
-        stop_resource_monitoring
+    # Ensure background resource logging never outlives the script.
+    # stop_resource_monitoring is idempotent, so it is safe to call multiple times.
+    CLEANUP_DONE=false
+    cleanup_once() {
+        if [[ "${CLEANUP_DONE}" == true ]]; then
+            return 0
+        fi
+        CLEANUP_DONE=true
         cleanup
+    }
+
+    cleanup_on_signal() {
+        stop_resource_monitoring
+        cleanup_once
         exit 1
     }
-    trap cleanup_on_exit INT TERM
+
+    # Always stop periodic resource logging on exit.
+    trap stop_resource_monitoring EXIT
+    trap cleanup_on_signal INT TERM
 
     # Execute test pipeline
     local start_time=$(date +%s)
@@ -2277,7 +2703,8 @@ main() {
     # Generate playback.csv before report (report references it)
     generate_playback_csv
     generate_report
-    cleanup
+    stop_resource_monitoring
+    cleanup_once
 
     # Show detailed test summary
     local end_time=$(date +%s)
