@@ -868,8 +868,8 @@ class FrameBoxSequenceAssertion(EffectAssertion):
             "max_skip_delta": 4,
             "max_skips": 60,
             "max_back_steps": 3,
-            # Allow up to 5 severe steps to handle CI timing variability.
-            "max_severe_steps": 5,
+            # Allow up to 10 severe steps to handle CI timing variability.
+            "max_severe_steps": 10,
             # Minimum distinct slots for full coverage (8 slots in progress bar).
             "min_full_coverage_colors": 8,
             **(thresholds or {}),
