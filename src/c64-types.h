@@ -195,6 +195,9 @@ struct c64_source {
     gs_texture_t *render_texture;     // GPU texture for rendering with effects
     uint32_t render_texture_width;    // Cached render_texture width (avoid gs_texture_get_width outside graphics)
     uint32_t render_texture_height;   // Cached render_texture height
+    gs_texture_t *final_texture;      // Final rendered frame (with all effects applied) - rendered once in video_tick
+    uint32_t final_texture_width;     // Cached final_texture width
+    uint32_t final_texture_height;    // Cached final_texture height
     gs_effect_t *crt_effect;          // CRT shader effect
     gs_samplerstate_t *point_sampler; // Point (nearest-neighbor) sampler for sharp pixel rendering
 
@@ -206,6 +209,7 @@ struct c64_source {
     uint64_t afterglow_last_tick_ns;      // Timestamp of last video_tick (ns) for dt calculation
     uint64_t afterglow_frame_counter;     // Incremented in video_tick, used to detect multi-render per frame
     uint64_t afterglow_last_render_frame; // Last frame counter when afterglow was updated (prevents multi-update)
+    bool afterglow_initialized;           // Whether afterglow has been rendered at least once
 
     // CPU afterglow accumulation (fallback / deterministic path for E2E + headless)
     uint32_t *afterglow_cpu_accum; // RGBA accumulator (same size as frame_buffer)

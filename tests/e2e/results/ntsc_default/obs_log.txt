@@ -1,0 +1,352 @@
+20:58:00.133: Command Line Arguments: --profile C64StreamTest --scene-collection C64StreamTest --scene C64 Test Scene --minimize-to-tray --disable-updater --disable-missing-files-check --multi --startrecording
+20:58:00.134: Using EGL/X11
+20:58:00.134: CPU Name: Intel(R) Core(TM) i7-6700K CPU @ 4.00GHz
+20:58:00.134: CPU Speed: 4200.598MHz
+20:58:00.134: Physical Cores: 4, Logical Cores: 8
+20:58:00.134: Physical Memory: 31963MB Total, 16161MB Free
+20:58:00.134: Kernel Version: Linux 6.14.0-37-generic
+20:58:00.134: Distribution: "Ubuntu" "24.04"
+20:58:00.134: Desktop Environment: KDE (KDE)
+20:58:00.134: Session Type: x11
+20:58:00.134: Window System: X11.0, Vendor: The X.Org Foundation, Version: 1.21.1
+20:58:00.134: Current Date/Time: 2025-12-28, 20:58:00
+20:58:00.134: Browser Hardware Acceleration: true
+20:58:00.134: Qt Version: 6.4.2 (runtime), 6.4.2 (compiled)
+20:58:00.134: Portable mode: false
+20:58:00.181: OBS 32.0.2 (linux)
+20:58:00.181: ---------------------------------
+20:58:00.182: ---------------------------------
+20:58:00.182: audio settings reset:
+20:58:00.182: 	samples per sec: 48000
+20:58:00.182: 	speakers:        2
+20:58:00.182: 	max buffering:   960 milliseconds
+20:58:00.182: 	buffering type:  dynamically increasing
+20:58:00.183: ---------------------------------
+20:58:00.183: Initializing OpenGL...
+20:58:00.267: Unable to open DRM render node.
+20:58:00.267: Loading up OpenGL on adapter Mesa llvmpipe (LLVM 20.1.2, 256 bits)
+20:58:00.267: OpenGL loaded successfully, version 4.5 (Core Profile) Mesa 25.0.7-0ubuntu0.24.04.2, shading language 4.50
+20:58:00.303: ---------------------------------
+20:58:00.303: video settings reset:
+20:58:00.303: 	base resolution:   1920x1080
+20:58:00.303: 	output resolution: 1920x1080
+20:58:00.303: 	downscale filter:  Bilinear
+20:58:00.303: 	fps:               29913/500
+20:58:00.303: 	format:            NV12
+20:58:00.303: 	YUV mode:          Rec. 709/Partial
+20:58:00.303: NV12 texture support enabled
+20:58:00.303: P010 texture support not available
+20:58:00.316: Audio monitoring device:
+20:58:00.316: 	name: Default
+20:58:00.316: 	id: default
+20:58:00.317: ---------------------------------
+20:58:00.320: No AJA devices found, skipping loading AJA UI plugin
+20:58:00.320: Failed to initialize module 'aja-output-ui.so'
+20:58:00.323: No AJA devices found, skipping loading AJA plugin
+20:58:00.323: Failed to initialize module 'aja.so'
+20:58:00.324: Failed to load 'en-US' text for module: 'decklink-captions.so'
+20:58:00.325: Failed to load 'en-US' text for module: 'decklink-output-ui.so'
+20:58:00.326: A DeckLink iterator could not be created.  The DeckLink drivers may not be installed
+20:58:00.326: Failed to initialize module 'decklink.so'
+20:58:00.454: window manager does not support Extended Window Manager Hints (EWMH).
+20:58:00.454: XComposite capture disabled.
+20:58:00.471: [pipewire] Available capture sources:
+20:58:00.471: [pipewire]     - Monitor source
+20:58:00.471: [pipewire]     - Window source
+20:58:00.479: [obs-browser]: Version 2.26.3
+20:58:00.479: [obs-browser]: CEF Version 127.0.6533.120 (runtime), 127.0.0-6533-fix-stutter-and-osr-extra-info.3042+g176b09c+chromium-127.0.6533.120 (compiled)
+20:58:00.511: VAAPI: API version 1.20
+20:58:00.511: FFmpeg VAAPI H264 encoding supported
+20:58:00.512: FFmpeg VAAPI AV1 encoding not supported
+20:58:00.513: FFmpeg VAAPI HEVC encoding supported
+20:58:00.516: os_dlopen(libnvidia-encode.so.1->libnvidia-encode.so.1): libnvidia-encode.so.1: cannot open shared object file: No such file or directory
+20:58:00.516: 
+20:58:00.516: NVENC not supported
+20:58:00.516: Failed to initialize module 'obs-nvenc.so'
+20:58:00.525: [obs-websocket] [obs_module_load] you can haz websockets (Version: 5.6.3 | RPC Version: 1)
+20:58:00.525: [obs-websocket] [obs_module_load] Qt version (compile-time): 6.4.2 | Qt version (run-time): 6.4.2
+20:58:00.525: [obs-websocket] [obs_module_load] Linked ASIO Version: 102801
+20:58:00.530: [obs-websocket] [obs_module_load] Module loaded.
+20:58:00.536: [vlc-video]: VLC 3.0.20 Vetinari found, VLC video source enabled
+20:58:00.537: Failed to load 'en-GB' text for module: 'c64stream.so'
+20:58:00.537: [1766955480537] Loading C64 Stream Plugin 1.0.0-rc1-38-g440516e-dirty (440516e)
+20:58:00.537: [1766955480537] Build info: 1.0.0-rc1-38-g440516e-dirty (Git ID: 440516e, Built: 2025-12-28 20:54:25 UTC)
+20:58:00.537: [1766955480537] Loaded preset: Default
+20:58:00.537: [1766955480537] Loaded preset: Classic CRT
+20:58:00.537: [1766955480537] Loaded preset: Amber Monitor
+20:58:00.537: [1766955480537] Loaded preset: Green Monitor
+20:58:00.537: [1766955480537] Loaded preset: Sharp Pixels
+20:58:00.537: [1766955480537] Loaded preset: Phosphor Glow
+20:58:00.537: [1766955480537] Loaded preset: Vintage TV
+20:58:00.537: [1766955480537] Loaded preset: Arcade Cabinet
+20:58:00.537: [1766955480537] Loaded 8 presets from /home/chris/.config/obs-studio/plugins/c64stream/data/effect_presets.ini
+20:58:00.537: [1766955480537] C64 Stream plugin loaded successfully
+20:58:00.537: ---------------------------------
+20:58:00.537:   Loaded Modules:
+20:58:00.537:     c64stream.so
+20:58:00.537:     vlc-video.so
+20:58:00.537:     text-freetype2.so
+20:58:00.537:     rtmp-services.so
+20:58:00.537:     obs-x264.so
+20:58:00.537:     obs-websocket.so
+20:58:00.537:     obs-vst.so
+20:58:00.537:     obs-transitions.so
+20:58:00.537:     obs-qsv11.so
+20:58:00.537:     obs-outputs.so
+20:58:00.537:     obs-libfdk.so
+20:58:00.537:     obs-filters.so
+20:58:00.537:     obs-ffmpeg.so
+20:58:00.537:     obs-browser.so
+20:58:00.537:     linux-v4l2.so
+20:58:00.537:     linux-pulseaudio.so
+20:58:00.537:     linux-pipewire.so
+20:58:00.537:     linux-jack.so
+20:58:00.537:     linux-capture.so
+20:58:00.537:     linux-alsa.so
+20:58:00.537:     image-source.so
+20:58:00.537:     frontend-tools.so
+20:58:00.537:     decklink-output-ui.so
+20:58:00.537:     decklink-captions.so
+20:58:00.537: ---------------------------------
+20:58:00.537: [obs-websocket] [obs_module_post_load] WebSocket server is enabled, starting...
+20:58:00.537: [obs-websocket] [WebSocketServer::Start] Not locked to IPv4 bindings
+20:58:00.537: [obs-websocket] [WebSocketServer::ServerRunner] IO thread started.
+20:58:00.537: [obs-websocket] [WebSocketServer::Start] Server started successfully on port 4455. Possible connect address: 192.168.1.185
+20:58:00.538: ---------------------------------
+20:58:00.538: Available Encoders:
+20:58:00.538:   Video Encoders:
+20:58:00.538: 	- ffmpeg_svt_av1 (SVT-AV1)
+20:58:00.538: 	- ffmpeg_aom_av1 (AOM AV1)
+20:58:00.538: 	- ffmpeg_vaapi_tex (FFmpeg VAAPI H.264)
+20:58:00.538: 	- hevc_ffmpeg_vaapi_tex (FFmpeg VAAPI HEVC)
+20:58:00.538: 	- obs_qsv11_v2 (QuickSync H.264)
+20:58:00.538: 	- obs_qsv11_hevc (QuickSync HEVC)
+20:58:00.538: 	- obs_x264 (x264)
+20:58:00.538:   Audio Encoders:
+20:58:00.538: 	- ffmpeg_aac (FFmpeg AAC)
+20:58:00.538: 	- ffmpeg_opus (FFmpeg Opus)
+20:58:00.538: 	- ffmpeg_pcm_s16le (FFmpeg PCM (16-bit))
+20:58:00.538: 	- ffmpeg_pcm_s24le (FFmpeg PCM (24-bit))
+20:58:00.538: 	- ffmpeg_pcm_f32le (FFmpeg PCM (32-bit float))
+20:58:00.538: 	- ffmpeg_alac (FFmpeg ALAC (24-bit))
+20:58:00.538: 	- ffmpeg_flac (FFmpeg FLAC (16-bit))
+20:58:00.538: 	- libfdk_aac (libfdk AAC)
+20:58:00.538: ==== Startup complete ===============================================
+20:58:00.588: All scene data cleared
+20:58:00.588: ------------------------------------------------
+20:58:00.589: [c64stream] [C64] Detected Linux IP address: 192.168.1.185 (interface: enp0s31f6)
+20:58:00.589: [1766955480589] Loading configuration from properties.ini
+20:58:00.589: [1766955480589] Properties: Processing key='c64_host' value='localhost'
+20:58:00.589: [1766955480589] Config: c64_host = localhost
+20:58:00.589: [1766955480589] Properties: Processing key='control_port' value='6400'
+20:58:00.589: [1766955480589] Properties: Processing key='dns_server_ip' value='127.0.0.1'
+20:58:00.589: [1766955480589] Properties: Processing key='video_port' value='21000'
+20:58:00.589: [1766955480589] Properties: Processing key='audio_port' value='21001'
+20:58:00.589: [1766955480589] Properties: Processing key='auto_detect_ip' value='false'
+20:58:00.589: [1766955480589] Properties: Processing key='obs_ip_address' value='127.0.0.1'
+20:58:00.589: [1766955480589] Config: obs_ip_address = 127.0.0.1
+20:58:00.589: [1766955480589] Properties: Processing key='buffer_delay_ms' value='10'
+20:58:00.589: [1766955480589] Properties: Processing key='save_folder' value=''
+20:58:00.589: [1766955480589] Properties: Processing key='record_frames' value='false'
+20:58:00.589: [1766955480589] Properties: Processing key='record_video' value='false'
+20:58:00.589: [1766955480589] Properties: Processing key='record_csv' value='true'
+20:58:00.589: [1766955480589] Config: record_csv = true (direct) (value='true')
+20:58:00.589: [1766955480589] Properties: Processing key='is_ci' value='false'
+20:58:00.589: [1766955480589] Properties: Processing key='debug_logging' value='true'
+20:58:00.589: [1766955480589] Properties: Processing key='scan_line_distance' value='0.0'
+20:58:00.589: [1766955480589] Properties: Processing key='scan_line_strength' value='0.0'
+20:58:00.589: [1766955480589] Properties: Processing key='afterglow_duration_ms' value='0'
+20:58:00.589: [1766955480589] Properties: Processing key='afterglow_curve' value='0'
+20:58:00.589: [1766955480589] Configuration loaded successfully: 12 settings applied
+20:58:00.589: [1766955480589] Creating C64 Stream source
+20:58:00.589: [1766955480589] 🎨 Color conversion lookup table initialized (256 entries)
+20:58:00.589: [1766955480589] Loading configuration from properties.ini
+20:58:00.589: [1766955480589] Properties: Processing key='c64_host' value='localhost'
+20:58:00.589: [1766955480589] Config: c64_host = localhost
+20:58:00.589: [1766955480589] Properties: Processing key='control_port' value='6400'
+20:58:00.589: [1766955480589] Properties: Processing key='dns_server_ip' value='127.0.0.1'
+20:58:00.589: [1766955480589] Properties: Processing key='video_port' value='21000'
+20:58:00.589: [1766955480589] Properties: Processing key='audio_port' value='21001'
+20:58:00.589: [1766955480589] Properties: Processing key='auto_detect_ip' value='false'
+20:58:00.589: [1766955480589] Properties: Processing key='obs_ip_address' value='127.0.0.1'
+20:58:00.589: [1766955480589] Config: obs_ip_address = 127.0.0.1
+20:58:00.589: [1766955480589] Properties: Processing key='buffer_delay_ms' value='10'
+20:58:00.589: [1766955480589] Properties: Processing key='save_folder' value=''
+20:58:00.589: [1766955480589] Properties: Processing key='record_frames' value='false'
+20:58:00.589: [1766955480589] Properties: Processing key='record_video' value='false'
+20:58:00.589: [1766955480589] Properties: Processing key='record_csv' value='true'
+20:58:00.589: [1766955480589] Config: record_csv = true (direct) (value='true')
+20:58:00.589: [1766955480589] Properties: Processing key='is_ci' value='false'
+20:58:00.589: [1766955480589] Properties: Processing key='debug_logging' value='true'
+20:58:00.589: [1766955480589] Properties: Processing key='scan_line_distance' value='0.0'
+20:58:00.589: [1766955480589] Properties: Processing key='scan_line_strength' value='0.0'
+20:58:00.589: [1766955480589] Properties: Processing key='afterglow_duration_ms' value='0'
+20:58:00.589: [1766955480589] Properties: Processing key='afterglow_curve' value='0'
+20:58:00.589: [1766955480589] Configuration loaded successfully: 12 settings applied
+20:58:00.589: [1766955480589] Skipping preset auto-apply; custom effect overrides detected
+20:58:00.589: [1766955480589] Using configured OBS IP address: 127.0.0.1
+20:58:00.589: [1766955480589] Network buffer created - Video: 2154 slots, Audio: 150 slots
+20:58:00.589: [1766955480589] Buffer delay values set: video=10000 us (10 ms), audio=10000 us (10 ms)
+20:58:00.589: [1766955480589] Network buffer delay set - Video: 10 ms (36 slots), Audio: 10 ms (3 slots)
+20:58:00.589: [1766955480589] Network buffer initialized: 10 ms delay
+20:58:00.589: [1766955480589] Low-latency mode: buffer_delay=10ms, audio_rate=47976Hz
+20:58:00.592: [1766955480592] Failed to load logo texture from: /home/chris/.config/obs-studio/plugins/c64stream/data/images/c64stream-logo.png
+20:58:00.592: [1766955480592] 🔷 Pre-rendered C64 display with PNG logo: 224x149 (70% of screen) at (80,61) in 384x272 PAL frame
+20:58:00.592: [1766955480592] 🔷 Pre-rendered C64 display with PNG logo: 224x149 (70% of screen) at (80,45) in 384x240 NTSC frame
+20:58:00.592: [1766955480592] ✅ Logo system initialized successfully (PAL: 417792 bytes, NTSC: 368640 bytes, PNG pixels: loaded, texture: fallback)
+20:58:00.592: [1766955480592] c64_record_update_settings() called - checking CSV settings...
+20:58:00.592: [1766955480592] Frame save folder updated: /home/chris/Documents/obs-studio/c64stream/recordings
+20:58:00.592: [1766955480592] CSV recording setting: current=false, new=true
+20:58:00.592: [1766955480592] Starting CSV recording...
+20:58:00.592: [1766955480592] Creating CSV recording session...
+20:58:00.592: [1766955480592] Attempting to create session directory: /home/chris/Documents/obs-studio/c64stream/recordings/session_19700101_230451
+20:58:00.592: [1766955480592] Successfully created recording session: /home/chris/Documents/obs-studio/c64stream/recordings/session_19700101_230451
+20:58:00.592: [1766955480592] Session folder created: /home/chris/Documents/obs-studio/c64stream/recordings/session_19700101_230451
+20:58:00.592: [1766955480592] OBS timing CSV header written successfully
+20:58:00.592: [1766955480592] Started CSV timing recording: /home/chris/Documents/obs-studio/c64stream/recordings/session_19700101_230451/obs.csv
+20:58:00.592: [1766955480592] Network packet CSV header written successfully
+20:58:00.592: [1766955480592] Started network packet recording: /home/chris/Documents/obs-studio/c64stream/recordings/session_19700101_230451/network.csv
+20:58:00.592: [1766955480592] CSV recording started
+20:58:00.592: [1766955480592] C64 Stream source created successfully - scheduling background initial connection
+20:58:00.592: [1766955480592] Async retry attempt 0 - starting streaming
+20:58:00.592: [c64stream] [C64] Detected Linux IP address: 192.168.1.185 (interface: enp0s31f6)
+20:58:00.592: [1766955480592] Loading configuration from properties.ini
+20:58:00.592: [1766955480592] Properties: Processing key='c64_host' value='localhost'
+20:58:00.592: [1766955480592] Config: c64_host = localhost
+20:58:00.593: [1766955480593] Properties: Processing key='control_port' value='6400'
+20:58:00.593: [1766955480593] Properties: Processing key='dns_server_ip' value='127.0.0.1'
+20:58:00.593: [c64stream] [C64] System DNS resolved 'localhost' to IP: 127.0.0.1
+20:58:00.593: [1766955480593] Properties: Processing key='video_port' value='21000'
+20:58:00.593: [1766955480593] Resolved C64 host 'localhost' -> 127.0.0.1
+20:58:00.593: [1766955480593] Properties: Processing key='audio_port' value='21001'
+20:58:00.593: [1766955480593] Starting C64 Stream streaming to C64 127.0.0.1 (OBS IP: 127.0.0.1, video:21000, audio:21001)...
+20:58:00.593: [1766955480593] Properties: Processing key='auto_detect_ip' value='false'
+20:58:00.593: [1766955480593] Properties: Processing key='obs_ip_address' value='127.0.0.1'
+20:58:00.593: [c64stream] [C64] Created optimized UDP socket on port 21000
+20:58:00.593: [1766955480593] Config: obs_ip_address = 127.0.0.1
+20:58:00.593: [1766955480593] Properties: Processing key='buffer_delay_ms' value='10'
+20:58:00.593: [c64stream] [C64] Created optimized UDP socket on port 21001
+20:58:00.593: [1766955480593] Properties: Processing key='save_folder' value=''
+20:58:00.593: [1766955480593] Properties: Processing key='record_frames' value='false'
+20:58:00.593: [1766955480593] Properties: Processing key='record_video' value='false'
+20:58:00.593: [1766955480593] Properties: Processing key='record_csv' value='true'
+20:58:00.593: [1766955480593] Config: record_csv = true (direct) (value='true')
+20:58:00.593: [1766955480593] Properties: Processing key='is_ci' value='false'
+20:58:00.593: [1766955480593] Properties: Processing key='debug_logging' value='true'
+20:58:00.593: [1766955480593] Properties: Processing key='scan_line_distance' value='0.0'
+20:58:00.593: [1766955480593] Sending start command for stream 0 to 127.0.0.1 with client destination: 127.0.0.1:21000
+20:58:00.593: [1766955480593] Properties: Processing key='scan_line_strength' value='0.0'
+20:58:00.593: [1766955480593] Properties: Processing key='afterglow_duration_ms' value='0'
+20:58:00.593: [1766955480593] Properties: Processing key='afterglow_curve' value='0'
+20:58:00.593: [1766955480593] Configuration loaded successfully: 12 settings applied
+20:58:00.593: [1766955480593] Sending start command for stream 1 to 127.0.0.1 with client destination: 127.0.0.1:21001
+20:58:00.593: [1766955480593] C64 Stream streaming started successfully
+20:58:00.594: Switched to scene 'Scene'
+20:58:00.594: Starting recording due to command line parameter
+20:58:00.594: ------------------------------------------------
+20:58:00.594: Loaded scenes:
+20:58:00.594: - scene 'Scene':
+20:58:00.594:     - source: 'C64 Stream' (c64_source)
+20:58:00.594: ------------------------------------------------
+20:58:00.642: ---------------------------------
+20:58:00.642: [x264 encoder: 'simple_video_stream'] preset: superfast
+20:58:00.642: [x264 encoder: 'simple_video_stream'] settings:
+20:58:00.642: 	rate_control: CBR
+20:58:00.642: 	bitrate:      4000
+20:58:00.642: 	buffer size:  4000
+20:58:00.642: 	crf:          23
+20:58:00.642: 	fps_num:      29913
+20:58:00.642: 	fps_den:      500
+20:58:00.642: 	width:        1920
+20:58:00.642: 	height:       1080
+20:58:00.642: 	keyint:       250
+20:58:00.642: 
+20:58:00.645: libfdk_aac encoder created
+20:58:00.645: libfdk_aac bitrate: 160, channels: 2
+20:58:00.646: ==== Recording Start ===============================================
+20:58:00.646: [mp4 output: 'simple_file_output'] Writing Hybrid MP4/MOV file '/home/chris/dev/c64/c64stream/tests/e2e/results/ntsc_default/2025-12-28 20-58-00.mp4'...
+20:58:01.589: [1766955481589] No video packets for 1.0s (audio: 1.0s), retrying TCP commands and recreating UDP sockets
+20:58:01.590: [1766955481590] Async retry attempt 1 - sending start commands
+20:58:01.590: [c64stream] [C64] System DNS resolved 'localhost' to IP: 127.0.0.1
+20:58:01.590: [1766955481590] Sending start command for stream 0 to 127.0.0.1 with client destination: 127.0.0.1:21000
+20:58:01.590: [1766955481590] Sending start command for stream 1 to 127.0.0.1 with client destination: 127.0.0.1:21001
+20:58:02.593: [1766955482593] No video packets for 2.0s (audio: 2.0s), retrying TCP commands and recreating UDP sockets
+20:58:02.593: [1766955482593] Async retry attempt 2 - sending start commands
+20:58:02.593: [c64stream] [C64] System DNS resolved 'localhost' to IP: 127.0.0.1
+20:58:02.593: [1766955482593] Sending start command for stream 0 to 127.0.0.1 with client destination: 127.0.0.1:21000
+20:58:02.593: [1766955482593] Sending start command for stream 1 to 127.0.0.1 with client destination: 127.0.0.1:21001
+20:58:03.593: [1766955483593] No video packets for 3.0s (audio: 3.0s), retrying TCP commands and recreating UDP sockets
+20:58:03.593: [1766955483593] Async retry attempt 3 - sending start commands
+20:58:03.593: [c64stream] [C64] System DNS resolved 'localhost' to IP: 127.0.0.1
+20:58:03.593: [1766955483593] Sending start command for stream 0 to 127.0.0.1 with client destination: 127.0.0.1:21000
+20:58:03.593: [1766955483593] Sending start command for stream 1 to 127.0.0.1 with client destination: 127.0.0.1:21001
+20:58:04.593: [1766955484593] No video packets for 4.0s (audio: 4.0s), retrying TCP commands and recreating UDP sockets
+20:58:04.593: [1766955484593] Async retry attempt 4 - sending start commands
+20:58:04.593: [c64stream] [C64] System DNS resolved 'localhost' to IP: 127.0.0.1
+20:58:04.594: [1766955484594] Sending start command for stream 0 to 127.0.0.1 with client destination: 127.0.0.1:21000
+20:58:04.594: [1766955484594] Sending start command for stream 1 to 127.0.0.1 with client destination: 127.0.0.1:21001
+20:58:05.594: [1766955485594] No video packets for 5.0s (audio: 5.0s), retrying TCP commands and recreating UDP sockets
+20:58:05.594: [1766955485594] Async retry attempt 5 - sending start commands
+20:58:05.595: [c64stream] [C64] System DNS resolved 'localhost' to IP: 127.0.0.1
+20:58:05.595: [1766955485595] Sending start command for stream 0 to 127.0.0.1 with client destination: 127.0.0.1:21000
+20:58:05.595: [1766955485595] Sending start command for stream 1 to 127.0.0.1 with client destination: 127.0.0.1:21001
+20:58:06.594: [1766955486594] No video packets for 6.0s (audio: 6.0s), retrying TCP commands and recreating UDP sockets
+20:58:06.594: [1766955486594] Async retry attempt 6 - sending start commands
+20:58:06.595: [c64stream] [C64] System DNS resolved 'localhost' to IP: 127.0.0.1
+20:58:06.595: [1766955486595] Sending start command for stream 0 to 127.0.0.1 with client destination: 127.0.0.1:21000
+20:58:06.595: [1766955486595] Sending start command for stream 1 to 127.0.0.1 with client destination: 127.0.0.1:21001
+20:58:07.595: [1766955487595] No video packets for 7.0s (audio: 7.0s), retrying TCP commands and recreating UDP sockets
+20:58:07.595: [1766955487595] Async retry attempt 7 - sending start commands
+20:58:07.595: [c64stream] [C64] System DNS resolved 'localhost' to IP: 127.0.0.1
+20:58:07.595: [1766955487595] Sending start command for stream 0 to 127.0.0.1 with client destination: 127.0.0.1:21000
+20:58:07.595: [1766955487595] Sending start command for stream 1 to 127.0.0.1 with client destination: 127.0.0.1:21001
+20:58:08.357: [1766955488357] 📺 VIDEO: 0.0 fps | 0.00 Mbps | 0 pps | Frames: 0
+20:58:08.358: [1766955488358] 🎯 DELIVERY: Expected 50 fps | Captured 0.0 fps | Delivered 0.0 fps | Completed 0.0 fps
+20:58:08.358: [1766955488358] 📊 PIPELINE: Capture drops 0.0% | Delivery drops 0.0% | Avg latency 0.0 ms
+20:58:08.368: [1766955488368] Video stream restored, resetting retry count (was 8)
+20:58:08.385: [1766955488385] 🎥 Detected NTSC format: 384x240 @ 59.826 Hz
+20:58:08.404: [1766955488404] 📐 Video using audio timing base for A/V sync: 79499350109771 ns
+20:58:08.404: [1766955488404] 📐 Video first frame reference: 1
+20:58:13.358: [1766955493358] 📺 VIDEO: 59.4 fps | 22.36 Mbps | 3583 pps | Frames: 297
+20:58:13.358: [1766955493358] 🎯 DELIVERY: Expected 60 fps | Captured 59.6 fps | Delivered 59.4 fps | Completed 59.4 fps
+20:58:13.358: [1766955493358] 📊 PIPELINE: Capture drops 1446116934.3% | Delivery drops 0.0% | Avg latency 10.8 ms
+20:58:17.393: [1766955497393] No video packets for 1.0s (audio: 1.0s), retrying TCP commands and recreating UDP sockets
+20:58:17.393: [1766955497393] Async retry attempt 0 - sending start commands
+20:58:17.393: [c64stream] [C64] System DNS resolved 'localhost' to IP: 127.0.0.1
+20:58:17.393: [1766955497393] Sending start command for stream 0 to 127.0.0.1 with client destination: 127.0.0.1:21000
+20:58:17.393: [1766955497393] Sending start command for stream 1 to 127.0.0.1 with client destination: 127.0.0.1:21001
+20:58:18.393: [1766955498393] No video packets for 2.0s (audio: 2.0s), retrying TCP commands and recreating UDP sockets
+20:58:18.394: [1766955498394] Async retry attempt 1 - sending start commands
+20:58:18.394: [c64stream] [C64] System DNS resolved 'localhost' to IP: 127.0.0.1
+20:58:18.394: [1766955498394] Sending start command for stream 0 to 127.0.0.1 with client destination: 127.0.0.1:21000
+20:58:18.394: [1766955498394] Sending start command for stream 1 to 127.0.0.1 with client destination: 127.0.0.1:21001
+20:58:19.396: [1766955499396] No video packets for 3.0s (audio: 3.0s), retrying TCP commands and recreating UDP sockets
+20:58:19.396: [1766955499396] Async retry attempt 2 - sending start commands
+20:58:19.397: [c64stream] [C64] System DNS resolved 'localhost' to IP: 127.0.0.1
+20:58:19.397: [1766955499397] Sending start command for stream 0 to 127.0.0.1 with client destination: 127.0.0.1:21000
+20:58:19.397: [1766955499397] Sending start command for stream 1 to 127.0.0.1 with client destination: 127.0.0.1:21001
+20:58:20.398: [1766955500398] No video packets for 4.0s (audio: 4.0s), retrying TCP commands and recreating UDP sockets
+20:58:20.398: [1766955500398] Async retry attempt 3 - sending start commands
+20:58:20.398: [c64stream] [C64] System DNS resolved 'localhost' to IP: 127.0.0.1
+20:58:20.398: [1766955500398] Sending start command for stream 0 to 127.0.0.1 with client destination: 127.0.0.1:21000
+20:58:20.398: [1766955500398] Sending start command for stream 1 to 127.0.0.1 with client destination: 127.0.0.1:21001
+20:58:21.399: [1766955501399] No video packets for 5.0s (audio: 5.0s), retrying TCP commands and recreating UDP sockets
+20:58:21.399: [1766955501399] Async retry attempt 4 - sending start commands
+20:58:21.399: [c64stream] [C64] System DNS resolved 'localhost' to IP: 127.0.0.1
+20:58:21.399: [1766955501399] Sending start command for stream 0 to 127.0.0.1 with client destination: 127.0.0.1:21000
+20:58:21.399: [1766955501399] Sending start command for stream 1 to 127.0.0.1 with client destination: 127.0.0.1:21001
+20:58:22.399: [1766955502399] No video packets for 6.0s (audio: 6.0s), retrying TCP commands and recreating UDP sockets
+20:58:22.400: [1766955502400] Async retry attempt 5 - sending start commands
+20:58:22.400: [c64stream] [C64] System DNS resolved 'localhost' to IP: 127.0.0.1
+20:58:22.400: [1766955502400] Sending start command for stream 0 to 127.0.0.1 with client destination: 127.0.0.1:21000
+20:58:22.400: [1766955502400] Sending start command for stream 1 to 127.0.0.1 with client destination: 127.0.0.1:21001
+20:58:23.400: [1766955503400] No video packets for 7.0s (audio: 7.0s), retrying TCP commands and recreating UDP sockets
+20:58:23.400: [1766955503400] Async retry attempt 6 - sending start commands
+20:58:23.400: [c64stream] [C64] System DNS resolved 'localhost' to IP: 127.0.0.1
+20:58:23.401: [1766955503401] Sending start command for stream 0 to 127.0.0.1 with client destination: 127.0.0.1:21000
+20:58:23.401: [1766955503401] Sending start command for stream 1 to 127.0.0.1 with client destination: 127.0.0.1:21001
+20:58:24.400: [1766955504400] No video packets for 8.0s (audio: 8.0s), retrying TCP commands and recreating UDP sockets
+20:58:24.400: [1766955504400] Async retry attempt 7 - sending start commands
+20:58:24.401: [c64stream] [C64] System DNS resolved 'localhost' to IP: 127.0.0.1
+20:58:24.401: [1766955504401] Sending start command for stream 0 to 127.0.0.1 with client destination: 127.0.0.1:21000
+20:58:24.401: [1766955504401] Sending start command for stream 1 to 127.0.0.1 with client destination: 127.0.0.1:21001
