@@ -10,18 +10,22 @@ Only a small curated subset is tracked in git to avoid bloating the repository.
 ```
 tests/e2e/results/
 ├── README.md
-├── ntsc_default/        # committed (NTSC, Default preset)
+├── ntsc_default/        # committed (NTSC, Default preset, 480p)
+├── ntsc_default_720p/   # committed (NTSC, Default preset, 720p)
 ├── ntsc_green_monitor/  # committed (NTSC, Green Monitor preset)
+├── ntsc_vintage_tv/     # committed (NTSC, Vintage TV preset)
 └── pal_default/         # committed (PAL, Default preset)
 ```
 
 Any other folders under `tests/e2e/results/` are expected to be local-only outputs
-from running scenarios (e.g. `ntsc_classic_crt/`, `scanlines/`, etc.).
+from running scenarios (e.g. `ntsc_classic_crt/`, `ntsc_amber_monitor/`, etc.).
 
 ## Results
 
 - [NTSC Default](./ntsc_default/README.md)
+- [NTSC Default 720p](./ntsc_default_720p/README.md)
 - [NTSC Green Monitor](./ntsc_green_monitor/README.md)
+- [NTSC Vintage TV](./ntsc_vintage_tv/README.md)
 - [PAL Default](./pal_default/README.md)
 
 ## Per-Preset Contents
