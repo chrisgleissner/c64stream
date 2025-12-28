@@ -9,3 +9,4 @@ assertions:
   - afterglow_decay
   - afterglow_width
   - scanlines
+  - frame_progression

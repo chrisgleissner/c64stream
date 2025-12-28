@@ -155,7 +155,7 @@ struct c64_source {
     uint64_t last_stats_log_time;         // Last time statistics were logged (non-atomic)
 
     // Frame saving for analysis (logo handled by async video - no manual logo needed)
-    bool save_frames;
+    bool record_frames;
     char save_folder[512];
     uint32_t saved_frame_count;
 

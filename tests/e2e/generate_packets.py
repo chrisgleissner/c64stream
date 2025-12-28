@@ -9,12 +9,29 @@ See <https://www.gnu.org/licenses/> for details.
 Generates test packets following the C64 Ultimate stream specification.
 Creates deterministic PAL and NTSC video/audio packets with verification pops
 (A/V sync generator):
-    - Video pop: pure white 50x50 square centered inside a permanently black
-        80x80 area located at the lower-right corner of the C64 frame; instant on/off
+    - Video pop: random noise burst inside A/V pop indicator (bottom-right corner)
     - Audio pop: pleasant, band-limited noise burst ("rushing water"-like), instant on/off,
         alternating speakers per pop (L, R, L, R, ...), starting with LEFT
     - Pop cadence: first pop at ~1000ms after start, then every 1000ms
     - Pop duration: 2 video frames (improves robustness against 1-frame capture/encode drops)
+
+Test Pattern Layout:
+    +------------------------------------------+
+    |  [TEXT BOX]               [COLOR PALETTE] |
+    |  top-left                      top-right  |
+    |                                           |
+    |       [CENTRAL DIAGONAL PATTERN]          |
+    |       (full frame, behind corners)        |
+    |                                           |
+    |  [FRAME PROGRESS]          [A/V POP]      |
+    |  bottom-left              bottom-right    |
+    +------------------------------------------+
+
+All corner elements: 88x56 outer (1px white + 7px black frame), 72x40 inner content
+C64 aspect ratio: 88/56 ≈ 1.57, similar to 320/200 = 1.6
+
+Frame progress bar: 8 slots × 7px wide + 7 gaps × 1px = 63px, centered in 72px inner.
+Temporal delta detection: afterglow-resistant - detect which slot increased brightness.
 
 Performance: Uses multiprocessing to parallelize packet generation across all CPU cores.
 """
@@ -27,6 +44,53 @@ from pathlib import Path
 import math
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import multiprocessing
+
+
+C64_FONT = {
+    ' ': [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00],
+    '@': [0x3C, 0x66, 0x6E, 0x6E, 0x60, 0x62, 0x3C, 0x00],
+    'A': [0x18, 0x3C, 0x66, 0x7E, 0x66, 0x66, 0x66, 0x00],
+    'B': [0x7C, 0x66, 0x66, 0x7C, 0x66, 0x66, 0x7C, 0x00],
+    'C': [0x3C, 0x66, 0x60, 0x60, 0x60, 0x66, 0x3C, 0x00],
+    'D': [0x78, 0x6C, 0x66, 0x66, 0x66, 0x6C, 0x78, 0x00],
+    'E': [0x7E, 0x60, 0x60, 0x78, 0x60, 0x60, 0x7E, 0x00],
+    'F': [0x7E, 0x60, 0x60, 0x78, 0x60, 0x60, 0x60, 0x00],
+    'G': [0x3C, 0x66, 0x60, 0x6E, 0x66, 0x66, 0x3C, 0x00],
+    'H': [0x66, 0x66, 0x66, 0x7E, 0x66, 0x66, 0x66, 0x00],
+    'I': [0x3C, 0x18, 0x18, 0x18, 0x18, 0x18, 0x3C, 0x00],
+    'J': [0x1E, 0x0C, 0x0C, 0x0C, 0x0C, 0x6C, 0x38, 0x00],
+    'K': [0x66, 0x6C, 0x78, 0x70, 0x78, 0x6C, 0x66, 0x00],
+    'L': [0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x7E, 0x00],
+    'M': [0x63, 0x77, 0x7F, 0x6B, 0x63, 0x63, 0x63, 0x00],
+    'N': [0x66, 0x76, 0x7E, 0x7E, 0x6E, 0x66, 0x66, 0x00],
+    'O': [0x3C, 0x66, 0x66, 0x66, 0x66, 0x66, 0x3C, 0x00],
+    'P': [0x7C, 0x66, 0x66, 0x7C, 0x60, 0x60, 0x60, 0x00],
+    'Q': [0x3C, 0x66, 0x66, 0x66, 0x66, 0x3C, 0x0E, 0x00],
+    'R': [0x7C, 0x66, 0x66, 0x7C, 0x78, 0x6C, 0x66, 0x00],
+    'S': [0x3C, 0x66, 0x60, 0x3C, 0x06, 0x66, 0x3C, 0x00],
+    'T': [0x7E, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x00],
+    'U': [0x66, 0x66, 0x66, 0x66, 0x66, 0x66, 0x3C, 0x00],
+    'V': [0x66, 0x66, 0x66, 0x66, 0x66, 0x3C, 0x18, 0x00],
+    'W': [0x63, 0x63, 0x63, 0x6B, 0x7F, 0x77, 0x63, 0x00],
+    'X': [0x66, 0x66, 0x3C, 0x18, 0x3C, 0x66, 0x66, 0x00],
+    'Y': [0x66, 0x66, 0x66, 0x3C, 0x18, 0x18, 0x18, 0x00],
+    'Z': [0x7E, 0x06, 0x0C, 0x18, 0x30, 0x60, 0x7E, 0x00],
+    '0': [0x3C, 0x66, 0x6E, 0x76, 0x66, 0x66, 0x3C, 0x00],
+    '1': [0x18, 0x18, 0x38, 0x18, 0x18, 0x18, 0x7E, 0x00],
+    '2': [0x3C, 0x66, 0x06, 0x0C, 0x30, 0x60, 0x7E, 0x00],
+    '3': [0x3C, 0x66, 0x06, 0x1C, 0x06, 0x66, 0x3C, 0x00],
+    '4': [0x06, 0x0E, 0x1E, 0x66, 0x7F, 0x06, 0x06, 0x00],
+    '5': [0x7E, 0x60, 0x7C, 0x06, 0x06, 0x66, 0x3C, 0x00],
+    '6': [0x3C, 0x66, 0x60, 0x7C, 0x66, 0x66, 0x3C, 0x00],
+    '7': [0x7E, 0x66, 0x0C, 0x18, 0x18, 0x18, 0x18, 0x00],
+    '8': [0x3C, 0x66, 0x66, 0x3C, 0x66, 0x66, 0x3C, 0x00],
+    '9': [0x3C, 0x66, 0x66, 0x3E, 0x06, 0x66, 0x3C, 0x00],
+    '_': [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7F, 0x00],
+    '-': [0x00, 0x00, 0x00, 0x7E, 0x00, 0x00, 0x00, 0x00],
+    '.': [0x00, 0x00, 0x00, 0x00, 0x00, 0x18, 0x18, 0x00],
+    ':': [0x00, 0x18, 0x18, 0x00, 0x18, 0x18, 0x00, 0x00],
+    '/': [0x02, 0x06, 0x0C, 0x18, 0x30, 0x60, 0x40, 0x00],
+}
 
 
 # Video format specifications (from doc/c64-stream-spec.md)
@@ -56,11 +120,41 @@ LINES_PER_PACKET = 4
 BITS_PER_PIXEL = 4
 AUDIO_SAMPLES_PER_PACKET = 192  # Stereo samples
 
+# Corner element dimensions (all elements share these dimensions)
+# Designed to match C64 inner screen aspect ratio: 320x200 = 1.6
+# 88/56 ≈ 1.57, inner 72x40 is divisible by 8 for font alignment (9x5 chars)
+CORNER_OUTER_WIDTH = 88   # Outer width including frame
+CORNER_OUTER_HEIGHT = 56  # Outer height including frame
+CORNER_INNER_WIDTH = 72   # Inner content width (88 - 8*2 = 72)
+CORNER_INNER_HEIGHT = 40  # Inner content height (56 - 8*2 = 40)
+CORNER_FRAME_WHITE = 1    # White outer border
+CORNER_FRAME_BLACK = 7    # Black inner border
+CORNER_FRAME_TOTAL = 8    # Total frame width on each side
+
+# Current scenario name (set externally before packet generation)
+_scenario_name = "DEFAULT"
+
+
+def set_scenario_name(name: str):
+    """Set the scenario name for the text box."""
+    global _scenario_name
+    _scenario_name = name.upper() if name else "DEFAULT"
+
+
+# A/V sync timing constants
+POP_FRAME_INTERVAL = 48  # Pop every 48 frames (6 cycles of 8-slot progress bar)
+POP_FRAME_DURATION = 1   # Pop lasts 1 frame only
+POP_FRAME_OFFSET = 24    # First pop at frame 24 (earlier start for 30-frame tests)
+
 
 def get_sync_timing_info(format_name):
     """
     Get unified sync timing information for both audio and video.
-    Returns (frame_rate, frame_duration_ms, sync_period_ms, sync_duration_ms, sync_offset_ms)
+    Returns (frame_rate, frame_duration_ms, pop_interval_frames, pop_duration_frames, pop_offset_frames)
+
+    A/V pops are synchronized with the frame progress bar:
+    - Pop occurs every 48 frames (when progress bar slot 0 lights up for the 6th time)
+    - This equals ~960ms at PAL (50fps) or ~800ms at NTSC (60fps)
     """
     if format_name == 'PAL':
         frame_rate = 50.125
@@ -68,195 +162,341 @@ def get_sync_timing_info(format_name):
         frame_rate = 59.826
 
     frame_duration_ms = 1000.0 / frame_rate
-    sync_period_ms = 1000.0  # Pop every 1000ms
-    # Use 2 frames to make the marker robust against rare single-frame capture/encode drops.
-    sync_duration_ms = 2 * frame_duration_ms
-    sync_offset_ms = 1000.0  # First pop at ~1000ms
 
-    return frame_rate, frame_duration_ms, sync_period_ms, sync_duration_ms, sync_offset_ms
+    return frame_rate, frame_duration_ms, POP_FRAME_INTERVAL, POP_FRAME_DURATION, POP_FRAME_OFFSET
 
 
-def is_sync_marker_active(frame_num, format_name, total_test_duration_ms=None):
+def is_sync_marker_active(frame_num, format_name, total_frames=None, disable_pops=False):
     """
-    Determine if the A/V sync marker (black rectangle + audio beep) should be active.
-    Returns True if this frame should show the black rectangle.
+    Determine if the A/V sync marker (noise flash + audio beep) should be active.
+    Returns True if this frame should show the pop.
 
-    If total_test_duration_ms is provided, pops that would be cut off by the
-    last-1000ms boundary are not started (ensures complete pops only).
+    A/V pops are synchronized with the frame progress bar:
+    - Pop when (frame_num % 48) is 0 or 1 (2-frame duration)
+    - First pop at frame 48
+    - This ensures pops always occur when progress bar slot 0 is lit
+
+    If total_frames is provided, pops that would be cut off by the
+    last ~1000ms boundary are skipped (ensures complete pops only).
+
+    If disable_pops is True, always returns False (pops disabled).
     """
-    _, frame_duration_ms, sync_period_ms, sync_duration_ms, sync_offset_ms = get_sync_timing_info(format_name)
-
-    # Calculate frame timing - use precise timing aligned to sync boundaries
-    time_in_test_ms = frame_num * frame_duration_ms
-    time_since_offset = time_in_test_ms - sync_offset_ms
-    if time_since_offset < 0:
+    if disable_pops:
         return False
-    time_in_current_period = time_since_offset % sync_period_ms
-    is_in_pop_window = time_in_current_period < sync_duration_ms
+    frame_rate, frame_duration_ms, pop_interval, pop_duration, pop_offset = get_sync_timing_info(format_name)
+
+    # Before first pop offset
+    if frame_num < pop_offset:
+        return False
+
+    # Calculate position within pop cycle
+    frames_since_offset = frame_num - pop_offset
+    position_in_cycle = frames_since_offset % pop_interval
+
+    # Pop is active for first pop_duration frames of each cycle
+    is_in_pop_window = position_in_cycle < pop_duration
 
     if not is_in_pop_window:
         return False
 
-    # If total_test_duration_ms is provided, check that the ENTIRE pop would fit
-    # before the last-1000ms boundary. This prevents partial pops that are hard to detect.
-    if total_test_duration_ms is not None:
-        cutoff_ms = total_test_duration_ms - 1000.0
-        # Calculate when this pop started (align to pop boundary)
-        pop_index = int(time_since_offset // sync_period_ms)
-        pop_start_ms = sync_offset_ms + pop_index * sync_period_ms
-        pop_end_ms = pop_start_ms + sync_duration_ms
-        # If the pop would extend past the cutoff, skip it entirely
-        if pop_end_ms > cutoff_ms:
-            return False
+    # If total_frames is provided, skip pops near the end
+    if total_frames is not None:
+        # Calculate cutoff: skip pops in the last ~1000ms worth of frames
+        # BUT: for short tests (<2s), allow pops everywhere
+        test_duration_ms = total_frames * frame_duration_ms
+        if test_duration_ms >= 2000.0:  # Only apply cutoff for tests >= 2 seconds
+            cutoff_frames = int(1000.0 / frame_duration_ms)
+            if frame_num > (total_frames - cutoff_frames):
+                return False
 
     return True
 
-def generate_video_packet(frame_num, packet_num, width, height, packets_per_frame, format_name, total_test_duration_ms, pattern='diagonal'):
+
+def _get_font_pixel(char: str, row: int, col: int) -> bool:
+    """Get whether a pixel is set in the C64 font for a character."""
+    if char not in C64_FONT:
+        char = ' '
+    if row < 0 or row >= 8 or col < 0 or col >= 8:
+        return False
+    byte = C64_FONT[char][row]
+    # MSB is leftmost pixel
+    return bool(byte & (0x80 >> col))
+
+
+def _render_text_to_bitmap(text_lines: list[str], width: int, height: int,
+                          color_map: dict[tuple[int, int], int] = None) -> list[list[int]]:
+    """Render text lines to a bitmap using C64 font.
+
+    Returns a 2D array of VIC colors.
+    Text is rendered with no horizontal padding to maximize character count.
+    72px width / 8px per char = 9 chars per line.
+
+    Args:
+        text_lines: List of text strings to render
+        width: Bitmap width in pixels
+        height: Bitmap height in pixels
+        color_map: Optional dict mapping (line_idx, char_idx) to VIC color index.
+                   If not provided, defaults to white (1) for text, black (0) for background.
     """
-    Generate a single video packet following C64 Ultimate spec.
+    bitmap = [[0] * width for _ in range(height)]
 
-    Packet Header (12 bytes):
-    1. Sequence number (16-bit LE)
-    2. Frame number (16-bit LE)
-    3. Line number (16-bit LE, bit 15 = last packet of frame)
-    4. Pixels per line (16-bit LE) = 384
-    5. Lines per packet (8-bit) = 4
-    6. Bits per pixel (8-bit) = 4
-    7. Encoding type (16-bit) = 0 (uncompressed)
+    y_offset = 0  # No top padding - start from first row
+    for line_idx, text in enumerate(text_lines):
+        y_base = y_offset + line_idx * 8  # 8px char, no extra spacing
+        if y_base + 8 > height:
+            break
 
-    Pattern options:
-    - 'diagonal': Moving diagonal lines (default, good for motion testing)
-    - 'solid': Solid color fill (good for scanline analysis)
+        x_offset = 0  # No left padding - use full width
+        for char_idx, char in enumerate(text.upper()):
+            x_base = x_offset + char_idx * 8
+            if x_base + 8 > width:
+                break
+
+            # Determine color for this character
+            color = 1  # Default: white
+            if color_map and (line_idx, char_idx) in color_map:
+                color = color_map[(line_idx, char_idx)]
+
+            for row in range(8):
+                for col in range(8):
+                    if _get_font_pixel(char, row, col):
+                        bitmap[y_base + row][x_base + col] = color
+
+    return bitmap
+
+
+def _is_in_corner_frame(x: int, y: int, corner_x: int, corner_y: int) -> tuple[bool, bool]:
+    """Check if pixel is in corner element frame (white outer or black inner).
+
+    Returns (is_in_frame, is_white_border).
+    """
+    # Local coordinates within the corner element
+    local_x = x - corner_x
+    local_y = y - corner_y
+
+    if local_x < 0 or local_x >= CORNER_OUTER_WIDTH or local_y < 0 or local_y >= CORNER_OUTER_HEIGHT:
+        return False, False
+
+    # Check if in white outer border (1px)
+    if local_x == 0 or local_x == CORNER_OUTER_WIDTH - 1 or local_y == 0 or local_y == CORNER_OUTER_HEIGHT - 1:
+        return True, True
+
+    # Check if in black inner border (7px after the white border)
+    if (local_x < CORNER_FRAME_TOTAL or local_x >= CORNER_OUTER_WIDTH - CORNER_FRAME_TOTAL or
+        local_y < CORNER_FRAME_TOTAL or local_y >= CORNER_OUTER_HEIGHT - CORNER_FRAME_TOTAL):
+        return True, False
+
+    return False, False
+
+
+def generate_video_packet(frame_num, packet_num, width, height, packets_per_frame, format_name, total_frames, pattern='diagonal', disable_pops=False):
+    """
+    Generate a single video packet with professional E2E test pattern.
+
+    Layout (88x56 corner elements, C64 aspect ratio 1.6):
+    - Top-left: Text box with scenario name (72x40 inner, 9x5 chars)
+    - Top-right: 16-color VIC-II palette reference
+    - Bottom-left: Frame progression indicator (8-slot moving bar, cycles every 8 frames)
+    - Bottom-right: A/V pop indicator (pops every 48 frames, synchronized with slot 0)
+      * Split into left/right halves with 2px black divider
+      * Left half lights for left channel audio, right half for right channel
+    - Central field: Diagonal pattern cycling through all 16 C64 colors
+
+    All corner elements: 1px white outer border + 7px black inner border
     """
     line_num = packet_num * LINES_PER_PACKET
     is_last_packet = (packet_num == packets_per_frame - 1)
-
-    # Set bit 15 if this is the last packet of the frame
     line_num_with_flag = line_num | (0x8000 if is_last_packet else 0)
-
-    # Sequence number should be a monotonically increasing 16-bit value across the whole stream,
-    # not reset per frame. This helps consumers correctly detect ordering and frame boundaries.
     seq_num = (frame_num * packets_per_frame + packet_num) & 0xFFFF
 
-    # Build header (12 bytes)
     header = struct.pack('<HHHHBBH',
-                         seq_num,              # Sequence number (monotonic across frames)
-                         frame_num,            # Frame number
-                         line_num_with_flag,   # Line number with last packet flag
-                         width,                # Pixels per line
-                         LINES_PER_PACKET,     # Lines per packet
-                         BITS_PER_PIXEL,       # Bits per pixel
-                         0)                    # Encoding type (0 = uncompressed)
+                         seq_num, frame_num, line_num_with_flag,
+                         width, LINES_PER_PACKET, BITS_PER_PIXEL, 0)
 
-    # Generate deterministic test pattern payload (768 bytes)
-    # Use frame number as the marker pattern in the top-left block
-    # This allows verification that frames are in correct order
     payload = bytearray(768)
+    sync_active = is_sync_marker_active(frame_num, format_name, total_frames)
 
-    # Check if A/V sync pop should be active
-    # Pass total_test_duration_ms to ensure we only generate complete pops
-    # (partial pops that get cut off at the last-1000ms boundary are skipped)
-    sync_active = is_sync_marker_active(frame_num, format_name, total_test_duration_ms)
+    # Calculate pop_index for L/R channel indicator (same logic as audio)
+    pop_index = -1
+    if sync_active and frame_num >= POP_FRAME_OFFSET:
+        frames_since_offset = frame_num - POP_FRAME_OFFSET
+        pop_index = frames_since_offset // POP_FRAME_INTERVAL
 
-    # Define permanent black pop area: 80x80 at lower-right corner of C64 frame
-    area_size = 80
-    area_left = width - area_size
-    area_right = width
-    area_top = height - area_size
-    area_bottom = height
+    # Corner element positions (88x56 each)
+    tl_x, tl_y = 0, 0  # Top-left text box
+    tr_x, tr_y = width - CORNER_OUTER_WIDTH, 0  # Top-right palette
+    bl_x, bl_y = 0, height - CORNER_OUTER_HEIGHT  # Bottom-left frame progress
+    br_x, br_y = width - CORNER_OUTER_WIDTH, height - CORNER_OUTER_HEIGHT  # Bottom-right A/V pop
 
-    # Define white pop subregion: 50x50 centered within the black area
-    pop_size = 50
-    pop_left = area_left + (area_size - pop_size) // 2
-    pop_right = pop_left + pop_size
-    pop_top = area_top + (area_size - pop_size) // 2
-    pop_bottom = pop_top + pop_size
+    # Pre-render text box content (9 chars × 5 lines for 72×40 inner area)
+    # Line 1: Plugin name with rainbow effect on "STREAM", Lines 2-5: Scenario name (light gray)
+    text_lines = ["C64STREAM"]
+    # Split scenario name by underscores, each part becomes a line (max 9 chars, truncated if needed)
+    scenario_parts = []
+    if _scenario_name:
+        parts = _scenario_name.split("_")
+        for part in parts[:4]:  # Max 4 parts (lines 2-5)
+            scenario_parts.append(part[:9].upper())  # Truncate to 9 chars, uppercase
+    # Bottom-align: add empty lines first, then scenario parts
+    empty_lines_needed = 4 - len(scenario_parts)
+    for _ in range(empty_lines_needed):
+        text_lines.append("")
+    text_lines.extend(scenario_parts)
+
+    # Create color map: all text white (default), light gray scenario name
+    color_map = {}
+
+    # "C64STREAM" remains white (default color 1, no color_map entries needed)
+    # Scenario name lines (1-4) in light gray (VIC color 15)
+    for line_idx in range(1, 5):
+        if line_idx < len(text_lines) and text_lines[line_idx]:
+            for char_idx in range(len(text_lines[line_idx])):
+                color_map[(line_idx, char_idx)] = 15  # Light gray
+
+    text_bitmap = _render_text_to_bitmap(text_lines, CORNER_INNER_WIDTH, CORNER_INNER_HEIGHT, color_map)
 
     for line in range(LINES_PER_PACKET):
-        for byte_idx in range(width // 2):  # 2 pixels per byte (4-bit color)
-            pixel_line = line_num + line
-            pixel_x = byte_idx * 2  # Each byte contains 2 pixels
+        for byte_idx in range(width // 2):
+            pixel_y = line_num + line
+            pixel_x = byte_idx * 2
 
-            # Determine if current location is within the permanent black area
-            in_black_area = (area_top <= pixel_line < area_bottom and
-                             area_left <= pixel_x < area_right)
+            def get_pixel_color(px: int, py: int) -> int:
+                """Determine color for a single pixel."""
+                # ═══════════════════════════════════════════════════════════════
+                # TOP-LEFT: Text Box (88x56 outer, 72x40 inner)
+                # ═══════════════════════════════════════════════════════════════
+                if tl_x <= px < tl_x + CORNER_OUTER_WIDTH and tl_y <= py < tl_y + CORNER_OUTER_HEIGHT:
+                    in_frame, is_white = _is_in_corner_frame(px, py, tl_x, tl_y)
+                    if in_frame:
+                        return 1 if is_white else 0  # White or black border
+                    # Inner content area
+                    inner_x = px - tl_x - CORNER_FRAME_TOTAL
+                    inner_y = py - tl_y - CORNER_FRAME_TOTAL
+                    if 0 <= inner_x < CORNER_INNER_WIDTH and 0 <= inner_y < CORNER_INNER_HEIGHT:
+                        return text_bitmap[inner_y][inner_x]
+                    return 0
 
-            # Determine if current location is within the white pop region
-            in_white_pop = (sync_active and
-                            pop_top <= pixel_line < pop_bottom and
-                            pop_left <= pixel_x < pop_right)
+                # ═══════════════════════════════════════════════════════════════
+                # TOP-RIGHT: 16-Color Palette Reference (88x56 outer, 72x40 inner)
+                # ═══════════════════════════════════════════════════════════════
+                if tr_x <= px < tr_x + CORNER_OUTER_WIDTH and tr_y <= py < tr_y + CORNER_OUTER_HEIGHT:
+                    in_frame, is_white = _is_in_corner_frame(px, py, tr_x, tr_y)
+                    if in_frame:
+                        return 1 if is_white else 0
+                    # Inner content: 4x4 grid of color swatches
+                    # 72x40 inner: 4 cols × 17px = 68px (+4px padding), 4 rows × 9px = 36px (+4px padding)
+                    inner_x = px - tr_x - CORNER_FRAME_TOTAL
+                    inner_y = py - tr_y - CORNER_FRAME_TOTAL
+                    if 0 <= inner_x < CORNER_INNER_WIDTH and 0 <= inner_y < CORNER_INNER_HEIGHT:
+                        # Add 2px padding on each side
+                        padded_x = inner_x - 2
+                        padded_y = inner_y - 2
+                        if padded_x < 0 or padded_y < 0:
+                            return 0  # Padding
+                        # Swatch sizes for 4x4 grid in 68x36 area
+                        swatch_w = 17  # 17*4 = 68
+                        swatch_h = 9   # 9*4 = 36
+                        cell_x = padded_x // swatch_w
+                        cell_y = padded_y // swatch_h
+                        local_x = padded_x % swatch_w
+                        local_y = padded_y % swatch_h
+                        # 1px black border around each swatch
+                        if local_x == 0 or local_y == 0:
+                            return 0  # Black border
+                        if cell_x < 4 and cell_y < 4:
+                            return cell_y * 4 + cell_x  # VIC color 0-15
+                    return 0
 
-            if in_white_pop:
-                # White pop: set both pixels to VIC color 1 (white)
-                payload[line * (width // 2) + byte_idx] = 0x11
-            elif in_black_area:
-                # Permanent black background for the pop area (VIC color 0)
-                payload[line * (width // 2) + byte_idx] = 0x00
-            elif pixel_line < 40 and byte_idx < 20:
-                # Frame number marker pattern in top-left corner (first 40x40 pixels)
-                # Show frame number modulo 16 as solid VIC color
-                # This creates a solid block of color across the entire 40x40 area
-                marker_color = frame_num % 16
-                payload[line * (width // 2) + byte_idx] = (marker_color << 4) | marker_color
-            elif pixel_line < 40 and pixel_x >= (width - 40):
-                # Stable 4x4 VIC palette tile in top-right corner (40x40 pixels).
-                # Each cell is 10x10 pixels and uses a distinct VIC color 0..15.
-                #
-                # Used by E2E verifier to ensure:
-                # - Afterglow does NOT brighten static content over time
-                # - CRT effects reproduce the full palette consistently
-                x0 = width - 40
-                local_y = pixel_line  # 0..39
-                # Two pixels in this byte: pixel_x and pixel_x+1
-                def palette_color(px):
-                    local_x = px - x0  # 0..39
-                    cell_x = int(local_x // 10)  # 0..3
-                    cell_y = int(local_y // 10)  # 0..3
-                    return int(cell_y * 4 + cell_x)  # 0..15
+                # ═══════════════════════════════════════════════════════════════
+                # BOTTOM-LEFT: Frame Progression Indicator (88x56 outer, 72x40 inner)
+                # ═══════════════════════════════════════════════════════════════
+                if bl_x <= px < bl_x + CORNER_OUTER_WIDTH and bl_y <= py < bl_y + CORNER_OUTER_HEIGHT:
+                    in_frame, is_white = _is_in_corner_frame(px, py, bl_x, bl_y)
+                    if in_frame:
+                        return 1 if is_white else 0
+                    # Inner content: black background with moving white bar
+                    # Bar: 7px wide slot, 1px black gap between slots
+                    # 8 slots × 7px + 7 gaps × 1px = 56 + 7 = 63px, centered in 72px (4px left padding)
+                    inner_x = px - bl_x - CORNER_FRAME_TOTAL
+                    inner_y = py - bl_y - CORNER_FRAME_TOTAL
+                    if 0 <= inner_x < CORNER_INNER_WIDTH and 0 <= inner_y < CORNER_INNER_HEIGHT:
+                        # Center the 63px bar area in 72px width (4px left padding, 5px right)
+                        bar_area_x = inner_x - 4
+                        if 0 <= bar_area_x < 63:
+                            slot_width = 7
+                            gap_width = 1
+                            slot_pitch = slot_width + gap_width  # 8px per slot position
+                            slot_index = bar_area_x // slot_pitch
+                            pos_in_slot = bar_area_x % slot_pitch
+                            # Gap between slots is black (1px)
+                            if pos_in_slot >= slot_width:
+                                return 0  # Black gap
+                            # Active slot is white, inactive slots are dark gray
+                            if slot_index == (frame_num % 8):
+                                return 1  # White (active)
+                            return 11  # Dark gray (inactive)
+                        return 0  # Black background (outside bar area)
+                    return 0
 
-                c1 = palette_color(pixel_x)
-                c2 = palette_color(pixel_x + 1)
-                payload[line * (width // 2) + byte_idx] = (c2 << 4) | c1
-            else:
-                # Rest of frame: pattern depends on mode
+                # ═══════════════════════════════════════════════════════════════
+                # BOTTOM-RIGHT: A/V Pop Indicator (88x56 outer, 72x40 inner)
+                # Split into L/R halves with 2px black divider in center
+                # ═══════════════════════════════════════════════════════════════
+                if br_x <= px < br_x + CORNER_OUTER_WIDTH and br_y <= py < br_y + CORNER_OUTER_HEIGHT:
+                    in_frame, is_white = _is_in_corner_frame(px, py, br_x, br_y)
+                    if in_frame:
+                        return 1 if is_white else 0
+                    # Inner content: split into left/right halves with 2px black divider
+                    # Layout: [left_half 35px] [divider 2px] [right_half 35px] = 72px
+                    inner_x = px - br_x - CORNER_FRAME_TOTAL
+                    inner_y = py - br_y - CORNER_FRAME_TOTAL
+                    if 0 <= inner_x < CORNER_INNER_WIDTH and 0 <= inner_y < CORNER_INNER_HEIGHT:
+                        # Divider in center (positions 35 and 36 are black)
+                        half_width = 35  # (72 - 2) / 2 = 35
+                        is_left_half = inner_x < half_width
+                        is_divider = half_width <= inner_x < half_width + 2
+                        is_right_half = inner_x >= half_width + 2
+
+                        if is_divider:
+                            return 0  # Black divider always
+
+                        if sync_active and pop_index >= 0:
+                            # Determine which half should light up based on audio channel
+                            # Alternation: L, R, L, R... (pop_index 0=LEFT, 1=RIGHT, 2=LEFT...)
+                            is_left_pop = (pop_index % 2) == 0
+                            should_light = (is_left_half and is_left_pop) or (is_right_half and not is_left_pop)
+                            if should_light:
+                                # Solid white (VIC color 1) during pop for maximum detectability
+                                return 1
+                            return 11  # Inactive half shows dark gray (VIC color 11)
+                        return 11  # Both halves show dark gray when not popping (neutral state)
+                    return 0
+
+                # ═══════════════════════════════════════════════════════════════
+                # CENTRAL FIELD: Diagonal Pattern (behind corner elements)
+                # ═══════════════════════════════════════════════════════════════
                 if pattern == 'solid':
-                    # Solid color fill - use VIC color 14 (light blue) for good visibility
-                    # This creates a uniform field ideal for scanline analysis
-                    solid_color = 14  # VIC light blue
-                    payload[line * (width // 2) + byte_idx] = (solid_color << 4) | solid_color
-                elif pattern == 'dots':
-                    # Single-pixel white dots on black background, spaced every 16 pixels.
-                    # Used to verify sharp pixel scaling: 1px dots should become NxN rectangles.
-                    def dot_color(px):
-                        # White dot (VIC color 1) at positions where both x and y are multiples of 16
-                        if (px % 16 == 0) and (pixel_line % 16 == 0):
-                            return 1  # White
-                        return 0  # Black
+                    return 14  # VIC light blue
 
-                    c1 = dot_color(pixel_x)
-                    c2 = dot_color(pixel_x + 1)
-                    payload[line * (width // 2) + byte_idx] = (c2 << 4) | c1
-                else:
-                    # Default: diagonal, slowly moving lines
-                    # Create thin diagonal slanted lines by combining x and y, with a slow motion term.
-                    # Lines are 2 pixels wide. Motion: shift by +1 pixel per frame along diagonal.
-                    def diag_color(px):
-                        # Thin diagonal stripes (in_stripe controlled by motion S),
-                        # color tied to invariant diagonal index so color remains constant as it moves.
-                        S = px + pixel_line + frame_num
-                        stripe_period = 38  # Total period: 2 colored + 36 black (20% more spacing for afterglow)
-                        stripe_width = 2
-                        in_stripe = (S % stripe_period) < stripe_width
-                        if not in_stripe:
-                            return 0
-                        # Diagonal index invariant under motion along S: use (px - pixel_line)
-                        color_period = 48  # Color changes along diagonal (3x wider for afterglow analysis)
-                        diag_index = ((px - pixel_line) // color_period) % 16
-                        return int(diag_index)
+                if pattern == 'dots':
+                    if (px % 16 == 0) and (py % 16 == 0):
+                        return 1  # White
+                    return 0  # Black
 
-                    c1 = diag_color(pixel_x)
-                    c2 = diag_color(pixel_x + 1)
-                    payload[line * (width // 2) + byte_idx] = (c2 << 4) | c1
+                # Default: diagonal stripes cycling through all 16 colors
+                S = px + py + frame_num
+                stripe_period = 38  # 2 colored + 36 black
+                stripe_width = 2
+                in_stripe = (S % stripe_period) < stripe_width
+                if not in_stripe:
+                    return 0
+                # Color based on diagonal position (invariant under motion)
+                diag_index = ((px - py) // 16) % 16
+                return diag_index
+
+            c1 = get_pixel_color(pixel_x, pixel_y)
+            c2 = get_pixel_color(pixel_x + 1, pixel_y)
+            payload[line * (width // 2) + byte_idx] = (c2 << 4) | c1
 
     return header + bytes(payload)
 
@@ -296,7 +536,7 @@ def _one_pole_highpass(x: np.ndarray, cutoff_hz: float, sample_rate: float) -> n
     return y
 
 
-def generate_audio_packet(audio_packet_num, sample_rate, total_test_duration_ms):
+def generate_audio_packet(audio_packet_num, sample_rate, total_frames, format_name, disable_pops=False):
     """
     Generate a single audio packet following C64 Ultimate spec.
 
@@ -304,8 +544,8 @@ def generate_audio_packet(audio_packet_num, sample_rate, total_test_duration_ms)
     1. Header: Sequence number (16-bit LE)
     2. Payload: 192 stereo samples (16-bit signed LE, interleaved L/R)
 
-    Audio Pattern: Continuous stream with 200Hz audio pop for 2 video frames every 1 second
-    for A/V sync (A/V sync generator), with instant on/off (no ramp)
+    Audio Pattern: Continuous stream with band-limited noise pop for 2 video frames
+    every 48 frames (synchronized with frame progress bar slot 0), with instant on/off.
     """
     # Build header (2 bytes)
     header = struct.pack('<H', audio_packet_num)
@@ -315,27 +555,27 @@ def generate_audio_packet(audio_packet_num, sample_rate, total_test_duration_ms)
     time_in_test_ms = audio_packet_num * packet_duration_ms
 
     # Use unified sync timing to ensure perfect A/V alignment
-    format_name = 'PAL' if sample_rate > 47960 else 'NTSC'
-    _, frame_duration_ms, sync_period_ms, sync_duration_ms, sync_offset_ms = get_sync_timing_info(format_name)
+    frame_rate, frame_duration_ms, pop_interval, pop_duration, pop_offset = get_sync_timing_info(format_name)
 
-    # Check if we're in a sync pop period
-    # Use the unified check that ensures complete pops only (no partial pops at the end)
-    # For audio, we need to determine which frame this audio packet corresponds to
-    # and use the same logic as video to ensure A/V alignment.
-    time_since_offset = time_in_test_ms - sync_offset_ms
-    if time_since_offset < 0:
+    # Convert audio time to frame number to align with video pop timing
+    current_frame = time_in_test_ms / frame_duration_ms
+
+    # Check if we're in a sync pop period using the same frame-based logic as video
+    if current_frame < pop_offset:
         is_sync_pop = False
+        pop_index = -1
     else:
-        # Check if the ENTIRE pop would fit before the last-1000ms boundary
-        cutoff_ms = total_test_duration_ms - 1000.0
-        pop_index = int(time_since_offset // sync_period_ms)
-        pop_start_ms = sync_offset_ms + pop_index * sync_period_ms
-        pop_end_ms = pop_start_ms + sync_duration_ms
-        # Only generate pop if the entire pop fits before cutoff
-        time_in_current_period = time_since_offset % sync_period_ms
-        is_sync_pop = time_in_current_period < sync_duration_ms and pop_end_ms <= cutoff_ms
-    # Determine which pop index (0-based) we're in to alternate speakers L/R starting with LEFT
-    pop_index = int(time_since_offset // sync_period_ms) if time_since_offset >= 0 else -1
+        frames_since_offset = current_frame - pop_offset
+        position_in_cycle = frames_since_offset % pop_interval
+        is_sync_pop = position_in_cycle < pop_duration
+
+        # Calculate pop index for L/R alternation
+        pop_index = int(frames_since_offset // pop_interval)
+
+        # Skip pops near the end (last ~1000ms worth of frames)
+        cutoff_frames = int(1000.0 / frame_duration_ms)
+        if current_frame > (total_frames - cutoff_frames):
+            is_sync_pop = False
 
     # Generate time array for this packet's 192 samples
     t = np.linspace(time_in_test_ms / 1000.0,
@@ -363,11 +603,11 @@ def generate_audio_packet(audio_packet_num, sample_rate, total_test_duration_ms)
     payload = np.empty(AUDIO_SAMPLES_PER_PACKET * 2, dtype=np.int16)
     if is_sync_pop and pop_index >= 0:
         if (pop_index % 2) == 0:
-            # LEFT pop
+            # LEFT pop (pop_index 0, 2, 4...)
             payload[0::2] = audio_signal   # Left
             payload[1::2] = 0              # Right
         else:
-            # RIGHT pop
+            # RIGHT pop (pop_index 1, 3, 5...)
             payload[0::2] = 0              # Left
             payload[1::2] = audio_signal   # Right
     else:
@@ -386,9 +626,9 @@ def generate_audio_packet(audio_packet_num, sample_rate, total_test_duration_ms)
 
 def _generate_video_packet_task(args):
     """Worker task for generating a single video packet."""
-    frame_num, packet_num, width, height, ppf, format_name, total_test_duration_ms, pattern, output_path = args
+    frame_num, packet_num, width, height, ppf, format_name, total_frames, pattern, output_path = args
     packet_data = generate_video_packet(
-        frame_num, packet_num, width, height, ppf, format_name, total_test_duration_ms, pattern
+        frame_num, packet_num, width, height, ppf, format_name, total_frames, pattern
     )
     packet_file = output_path / f"video_{frame_num:04d}_{packet_num:04d}.bin"
     packet_file.write_bytes(packet_data)
@@ -397,8 +637,8 @@ def _generate_video_packet_task(args):
 
 def _generate_audio_packet_task(args):
     """Worker task for generating a single audio packet."""
-    audio_packet_num, sample_rate, total_test_duration_ms, output_path = args
-    packet_data = generate_audio_packet(audio_packet_num, sample_rate, total_test_duration_ms)
+    audio_packet_num, sample_rate, total_frames, format_name, output_path = args
+    packet_data = generate_audio_packet(audio_packet_num, sample_rate, total_frames, format_name)
     packet_file = output_path / f"audio_{audio_packet_num:04d}.bin"
     packet_file.write_bytes(packet_data)
     return 1
@@ -406,12 +646,12 @@ def _generate_audio_packet_task(args):
 
 def _generate_frame_batch_task(args):
     """Worker task for generating all packets for a batch of frames (more efficient than per-packet)."""
-    frame_start, frame_end, width, height, ppf, format_name, total_test_duration_ms, pattern, output_path = args
+    frame_start, frame_end, width, height, ppf, format_name, total_frames, pattern, output_path, disable_pops = args
     count = 0
     for frame_num in range(frame_start, frame_end):
         for packet_num in range(ppf):
             packet_data = generate_video_packet(
-                frame_num, packet_num, width, height, ppf, format_name, total_test_duration_ms, pattern
+                frame_num, packet_num, width, height, ppf, format_name, total_frames, pattern, disable_pops
             )
             packet_file = output_path / f"video_{frame_num:04d}_{packet_num:04d}.bin"
             packet_file.write_bytes(packet_data)
@@ -421,17 +661,17 @@ def _generate_frame_batch_task(args):
 
 def _generate_audio_batch_task(args):
     """Worker task for generating a batch of audio packets."""
-    start_idx, end_idx, sample_rate, total_test_duration_ms, output_path = args
+    start_idx, end_idx, sample_rate, total_frames, format_name, output_path, disable_pops = args
     count = 0
     for audio_packet_num in range(start_idx, end_idx):
-        packet_data = generate_audio_packet(audio_packet_num, sample_rate, total_test_duration_ms)
+        packet_data = generate_audio_packet(audio_packet_num, sample_rate, total_frames, format_name, disable_pops)
         packet_file = output_path / f"audio_{audio_packet_num:04d}.bin"
         packet_file.write_bytes(packet_data)
         count += 1
     return count
 
 
-def generate_packets(output_dir, num_frames=30, formats=None, pattern='diagonal', parallel=True):
+def generate_packets(output_dir, num_frames=30, formats=None, pattern='diagonal', parallel=True, disable_pops=False):
     """
     Generate test packets for specified formats with A/V sync pops.
 
@@ -461,7 +701,7 @@ def generate_packets(output_dir, num_frames=30, formats=None, pattern='diagonal'
         height = fmt['height']
         ppf = fmt['packets_per_frame']
 
-        # Compute total test duration upfront (needed to suppress last-second pops)
+        # Compute total test duration upfront (needed to calculate audio packets and suppress last-second pops)
         frame_duration_ms = 1000.0 / fmt['frame_rate']
         total_test_duration_ms = num_frames * frame_duration_ms
 
@@ -481,7 +721,7 @@ def generate_packets(output_dir, num_frames=30, formats=None, pattern='diagonal'
                 end = min(start + frames_per_worker, num_frames) if i < num_workers - 1 else num_frames
                 if start < end:
                     video_tasks.append((start, end, width, height, ppf, format_name,
-                                        total_test_duration_ms, pattern, video_dir))
+                                        num_frames, pattern, video_dir, disable_pops))
 
             # Divide audio packets into batches
             audio_per_worker = max(1, total_audio_packets // num_workers)
@@ -491,7 +731,7 @@ def generate_packets(output_dir, num_frames=30, formats=None, pattern='diagonal'
                 end = min(start + audio_per_worker, total_audio_packets) if i < num_workers - 1 else total_audio_packets
                 if start < end:
                     audio_tasks.append((start, end, fmt['audio_sample_rate'],
-                                        total_test_duration_ms, audio_dir))
+                                        num_frames, format_name, audio_dir, disable_pops))
 
             # Execute in parallel using ProcessPoolExecutor
             video_count = 0
@@ -517,13 +757,13 @@ def generate_packets(output_dir, num_frames=30, formats=None, pattern='diagonal'
             for frame_num in range(num_frames):
                 for packet_num in range(ppf):
                     packet_data = generate_video_packet(
-                        frame_num, packet_num, width, height, ppf, format_name, total_test_duration_ms, pattern
+                        frame_num, packet_num, width, height, ppf, format_name, num_frames, pattern, disable_pops
                     )
                     packet_file = video_dir / f"video_{frame_num:04d}_{packet_num:04d}.bin"
                     packet_file.write_bytes(packet_data)
 
             for audio_packet_num in range(total_audio_packets):
-                packet_data = generate_audio_packet(audio_packet_num, fmt['audio_sample_rate'], total_test_duration_ms)
+                packet_data = generate_audio_packet(audio_packet_num, fmt['audio_sample_rate'], num_frames, format_name, disable_pops)
                 packet_file = audio_dir / f"audio_{audio_packet_num:04d}.bin"
                 packet_file.write_bytes(packet_data)
 
@@ -565,12 +805,17 @@ Examples:
                         help='Format(s) to generate (can specify multiple times, default: both)')
     parser.add_argument('--pattern', '-p', choices=['diagonal', 'solid', 'dots'], default='diagonal',
                         help='Video pattern: diagonal (moving lines), solid (uniform color for scanline tests), or dots (single-pixel dots for sharp pixel tests)')
+    parser.add_argument('--scenario', '-s', default='DEFAULT',
+                        help='Scenario name to display in top-left text box (underscores become newlines)')
+    parser.add_argument('--disable-pops', action='store_true',
+                        help='Disable A/V sync pops (for testing frame progression without pop interference)')
     parser.add_argument('--no-parallel', action='store_true',
                         help='Disable parallel generation (use single thread)')
 
     args = parser.parse_args()
 
-    generate_packets(args.output, args.frames, args.formats, args.pattern, parallel=not args.no_parallel)
+    set_scenario_name(args.scenario)
+    generate_packets(args.output, args.frames, args.formats, args.pattern, parallel=not args.no_parallel, disable_pops=args.disable_pops)
 
 
 if __name__ == '__main__':

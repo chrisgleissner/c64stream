@@ -432,12 +432,9 @@ The project uses GitHub Actions for:
 - Package generation
 - Code signing (macOS)
 
-**Local CI simulation:**
+**CI runs:**
 
-```bash
-# Requires 'act' tool: https://github.com/nektos/act
-act -j ubuntu-build
-```
+- CI is triggered by **committing and pushing** to GitHub.
 
 ## Contributing
 

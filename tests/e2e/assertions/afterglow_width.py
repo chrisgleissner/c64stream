@@ -26,13 +26,17 @@ from .config import PresetConfig
 
 class AfterglowWidthAssertion(EffectAssertion):
     """
-    Verify afterglow trail width matches reference PNG.
+    Verify afterglow trail width and smoothness.
 
     This assertion:
     1. Extracts a frame from the recorded MP4
     2. Measures the afterglow trail width behind moving diagonal lines
-    3. Compares against the reference PNG from the E2E results folder
-    4. Fails if the widths differ by more than the tolerance
+    3. Measures smoothness of the falloff (2nd derivative variance)
+    4. Compares width against the reference PNG from the E2E results folder
+    5. Fails if widths differ or if smoothness exceeds threshold (jagged falloff)
+
+    The smoothness metric detects GPU rendering issues where the afterglow
+    falloff becomes jagged instead of smooth, even if the average width matches.
     """
 
     def __init__(self, thresholds: Optional[dict[str, float]] = None):
@@ -42,6 +46,8 @@ class AfterglowWidthAssertion(EffectAssertion):
             "peak_threshold": 80.0,  # Minimum brightness for peak detection
             "trail_end_threshold_pct": 5.0,  # Percentage of peak where trail ends
             "max_trail_width_px": 80.0,  # Cap unreasonable trail widths (> ~2 frames at 60fps)
+            "max_jaggedness": 50.0,  # Max 2nd derivative variance (lower = smoother)
+            "smoothness_window_px": 60,  # Pixels to analyze for smoothness
         }
         super().__init__("AfterglowWidth", {**defaults, **(thresholds or {})})
 
@@ -94,9 +100,18 @@ class AfterglowWidthAssertion(EffectAssertion):
                 # Get relative path from git root
                 rel_path = reference_png.resolve().relative_to(git_root)
 
-                # Extract reference from main branch
+                # Detect default branch (main, master, etc.)
+                default_branch = subprocess.check_output(
+                    ["git", "rev-parse", "--abbrev-ref", "origin/HEAD"],
+                    cwd=git_root,
+                    text=True,
+                ).strip().replace("origin/", "")
+                if not default_branch or default_branch == "HEAD":
+                    default_branch = "main"  # Fallback
+
+                # Extract reference from default branch
                 result = subprocess.run(
-                    ["git", "show", f"main:{rel_path}"],
+                    ["git", "show", f"{default_branch}:{rel_path}"],
                     cwd=git_root,
                     capture_output=True,
                 )
@@ -104,14 +119,14 @@ class AfterglowWidthAssertion(EffectAssertion):
                     return AssertionResult(
                         status=AssertionStatus.SKIP,
                         name=self.name,
-                        message=f"Reference PNG modified and not available from main branch",
+                        message=f"Reference PNG modified and not available from {default_branch} branch",
                     )
 
                 # Load reference from git
                 import io
                 from PIL import Image
                 reference_frame = np.array(Image.open(io.BytesIO(result.stdout)))
-                self.log(f"Using reference PNG from main branch", verbose)
+                self.log(f"Using reference PNG from {default_branch} branch", verbose)
             except Exception as e:
                 return AssertionResult(
                     status=AssertionStatus.SKIP,
@@ -184,14 +199,37 @@ class AfterglowWidthAssertion(EffectAssertion):
                     },
                 )
 
+            # Measure smoothness of the afterglow falloff
+            # Lower values = smoother falloff, higher values = jagged (GPU artifact)
+            current_jaggedness = self._measure_smoothness(current_frame, verbose)
+            max_jaggedness = self.thresholds["max_jaggedness"]
+
+            self.log(f"Current jaggedness (2nd deriv variance): {current_jaggedness:.1f}", verbose)
+            self.log(f"Max allowed jaggedness: {max_jaggedness:.1f}", verbose)
+
+            if current_jaggedness > max_jaggedness:
+                return AssertionResult(
+                    status=AssertionStatus.FAIL,
+                    name=self.name,
+                    message=f"Afterglow falloff too jagged: {current_jaggedness:.1f} > {max_jaggedness:.1f} (possible GPU rendering issue)",
+                    details={
+                        "current_avg_width": current_avg,
+                        "reference_avg_width": reference_avg,
+                        "width_difference": diff,
+                        "jaggedness": current_jaggedness,
+                        "max_jaggedness": max_jaggedness,
+                    },
+                )
+
             return AssertionResult(
                 status=AssertionStatus.PASS,
                 name=self.name,
-                message=f"Afterglow trail width matches reference: {current_avg:.1f}px ≈ {reference_avg:.1f}px (diff={diff:.1f}px)",
+                message=f"Afterglow trail width matches reference: {current_avg:.1f}px ≈ {reference_avg:.1f}px (diff={diff:.1f}px, jaggedness={current_jaggedness:.1f})",
                 details={
                     "current_avg_width": current_avg,
                     "reference_avg_width": reference_avg,
                     "difference": diff,
+                    "jaggedness": current_jaggedness,
                 },
             )
 
@@ -263,6 +301,91 @@ class AfterglowWidthAssertion(EffectAssertion):
             all_widths.extend(widths)
 
         return all_widths
+
+    def _measure_smoothness(self, frame: np.ndarray, verbose: bool = False) -> float:
+        """
+        Measure the smoothness of afterglow falloff by computing 2nd derivative variance.
+
+        Lower values indicate smoother falloff (good), higher values indicate
+        jagged/stepped falloff (bad - typically caused by GPU rendering issues).
+
+        Returns the average 2nd derivative variance across all detected peaks.
+        """
+        gray = frame[..., 1].astype(float)  # Green channel
+        h, w = gray.shape
+        sample_lines = [h // 3, h // 2, 2 * h // 3]
+        window = int(self.thresholds.get("smoothness_window_px", 60))
+
+        all_jaggedness = []
+
+        for y in sample_lines:
+            profile = gray[y, :]
+            smooth = uniform_filter1d(profile.astype(float), size=3)
+
+            # Find peaks
+            min_peak_val = self.thresholds["peak_threshold"]
+            peaks = []
+            for x in range(10, len(smooth) - 10):
+                if smooth[x] > min_peak_val:
+                    is_peak = True
+                    for dx in range(-8, 9):
+                        if dx != 0 and smooth[x] < smooth[x + dx]:
+                            is_peak = False
+                            break
+                    if is_peak and (not peaks or x - peaks[-1] > 30):
+                        peaks.append(x)
+
+            # Measure jaggedness at each peak
+            for peak_x in peaks:
+                start = max(0, peak_x - window)
+                end = peak_x
+
+                falloff = profile[start:end].astype(float)
+                if len(falloff) < 10:
+                    continue
+
+                grad1 = np.diff(falloff)
+
+                # Skip peaks that have a plateau (constant brightness) in their falloff
+                # These are at the edge where diagonals have stopped moving
+                if np.std(grad1) < 2.0:  # Very flat gradient = plateau
+                    if verbose:
+                        self.log(f"  y={y}, peak={peak_x}: SKIPPED (plateau, std={np.std(grad1):.1f})", True)
+                    continue
+
+                # Skip peaks where falloff doesn't start from near-zero (not a true afterglow trail)
+                # True afterglow trails fade from peak brightness towards zero on the left side
+                if falloff[0] > 30.0:  # Falloff should start from near-zero
+                    if verbose:
+                        self.log(
+                            f"  y={y}, peak={peak_x}: SKIPPED (not afterglow, starts at {falloff[0]:.0f})",
+                            True,
+                        )
+                    continue
+
+                # Skip peaks on a plateau (peak surrounded by similar values)
+                # These are not afterglow trails, just constant bright regions
+                peak_region = profile[max(0, peak_x - 5) : peak_x + 6].astype(float)
+                if len(peak_region) > 3 and np.std(peak_region) < 5.0:
+                    if verbose:
+                        self.log(
+                            f"  y={y}, peak={peak_x}: SKIPPED (on plateau, peak_std={np.std(peak_region):.1f})",
+                            True,
+                        )
+                    continue
+
+                # Compute 2nd derivative variance (measure of jaggedness)
+                grad2 = np.diff(grad1)
+                if len(grad2) > 0:
+                    jaggedness = float(np.var(grad2))
+                    all_jaggedness.append(jaggedness)
+                    if verbose:
+                        self.log(f"  y={y}, peak={peak_x}: jaggedness={jaggedness:.1f}", True)
+
+        if not all_jaggedness:
+            return 0.0
+
+        return float(np.mean(all_jaggedness))
 
     def _measure_line_trail_widths(self, profile: np.ndarray, verbose: bool = False) -> list[float]:
         """Measure trail widths along a single horizontal line."""

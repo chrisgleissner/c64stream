@@ -12,6 +12,8 @@ from contextlib import suppress
 from pathlib import Path
 from typing import Any, Optional
 
+import numpy as np
+
 from .base import AssertionResult, AssertionStatus, EffectAssertion
 from .config import PresetConfig
 
@@ -96,9 +98,10 @@ class TintAssertion(EffectAssertion):
                 buf = proc.stdout.read(frame_bytes)
                 if len(buf) != frame_bytes:
                     break
-                r_sum = sum(buf[0::3])
-                g_sum = sum(buf[1::3])
-                b_sum = sum(buf[2::3])
+                arr = np.frombuffer(buf, dtype=np.uint8)
+                # Reshape to N x 3 and sum channels (uint64 to avoid overflow)
+                rgb = arr.reshape((-1, 3)).astype(np.uint64)
+                r_sum, g_sum, b_sum = (int(x) for x in rgb.sum(axis=0))
                 frames.append((r_sum, g_sum, b_sum))
         finally:
             with suppress(Exception):

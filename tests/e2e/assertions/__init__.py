@@ -20,7 +20,13 @@ from .config import (
     load_properties,
     load_settings_from_obs_scene,
 )
-from .frame_box_seq import FrameBoxSequenceAssertion
+from .frame_progression import FrameProgressionAssertion
+from .palette_stability import PaletteStabilityAssertion
+from .record_audio import RecordAudioAssertion
+from .record_frames import RecordFramesAssertion
+from .record_network import RecordNetworkAssertion
+from .record_obs import RecordObsAssertion
+from .record_video import RecordVideoAssertion
 from .runner import (
     AssertionRunner,
     create_assertions_from_list,
@@ -45,12 +51,18 @@ __all__ = [
     "VideoQualityAssertion",
     "AudioAssertion",
     "TintAssertion",
+    "PaletteStabilityAssertion",
     "AfterglowAssertion",
     "AfterglowDecayAssertion",
     "AfterglowWidthAssertion",
     "ScanlineAssertion",
     "SharpPixelsAssertion",
-    "FrameBoxSequenceAssertion",
+    "FrameProgressionAssertion",
+    "RecordAudioAssertion",
+    "RecordVideoAssertion",
+    "RecordObsAssertion",
+    "RecordNetworkAssertion",
+    "RecordFramesAssertion",
     # Runner
     "AssertionRunner",
     "create_preset_assertions",

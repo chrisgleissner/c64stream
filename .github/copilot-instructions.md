@@ -6,13 +6,12 @@
    - `./build-aux/run-clang-format --check`
    - If it fails, run `./build-aux/run-clang-format <files...>` and re-run the check.
 2. **E2E is LOCAL ONLY**: do **not** run E2E tests in cloud/CI environments (known instability). Only run E2E locally with a working GUI.
-3. **E2E must use official entrypoints**: NEVER run assertions manually or bypass the test harness:
-   - Use `./tests/e2e/e2e.sh --scenario <name>` for individual scenarios
-   - Use `./local-build.sh linux --install --e2e` for full E2E suite
-   - NEVER call `python3 -m assertions` directly - this bypasses the full test pipeline
-   - Assertions are automatically run by e2e.sh when a scenario is specified
-4. **Agent entrypoint**: also see `AGENTS.md` (references this file and standard workflows).
-5. **Before declaring work "complete"**: do a documentation review (docs match code/behavior) and run a full local E2E scenario suite (all scenarios).
+3. **Agent entrypoint**: also see `AGENTS.md` (references this file and standard workflows).
+4. **Before declaring work "complete"**: do a documentation review (docs match code/behavior) and run a full local E2E scenario suite (all scenarios).
+5. **Run BOTH local AND CI builds**: before any change is considered done, run:
+   - Local build: `./local-build.sh linux --install --e2e-scenarios` (runs full build with all E2E scenarios)
+    - CI build: trigger via push (do not use `act`)
+   - Both must pass with zero errors before declaring completion
 6. **NEVER skip tests or ignore problems**: When facing test failures, performance issues, or other problems:
    - **Do NOT** add `skip`, `ci_skip`, `@pytest.mark.skip`, or similar markers to bypass tests
    - **Do NOT** comment out failing code or tests
@@ -90,7 +89,7 @@ See <https://www.gnu.org/licenses/> for details.
 
 ### For CI/GitHub Actions Builds
 
-**See [.github/build-instructions.md](.github/build-instructions.md) for complete CI build instructions.**
+**See [./build-instructions.md](./build-instructions.md) for complete CI build instructions.**
 
 When working in a Copilot session with GitHub Actions runner:
 1. Follow the build instructions in `.github/build-instructions.md`

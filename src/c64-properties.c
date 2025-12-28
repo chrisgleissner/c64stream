@@ -144,9 +144,9 @@ obs_properties_t *c64_create_properties(void *data)
     obs_property_set_long_description(record_video_prop, obs_module_text("RecordRawVideo.Description"));
 
     // Record Raw Frames (BMP)
-    obs_property_t *save_frames_prop =
-        obs_properties_add_bool(recording_props, "save_frames", obs_module_text("RecordRawFrames"));
-    obs_property_set_long_description(save_frames_prop, obs_module_text("RecordRawFrames.Description"));
+    obs_property_t *record_frames_prop =
+        obs_properties_add_bool(recording_props, "record_frames", obs_module_text("RecordRawFrames"));
+    obs_property_set_long_description(record_frames_prop, obs_module_text("RecordRawFrames.Description"));
 
     // Record Network and Streaming Events (CSV)
     obs_property_t *record_csv_prop =
@@ -329,7 +329,7 @@ static bool c64_export_settings_to_ini(obs_data_t *settings, const char *path)
     const int buffer_delay_ms = (int)obs_data_get_int(settings, "buffer_delay_ms");
 
     const char *save_folder = obs_data_get_string(settings, "save_folder");
-    const bool save_frames = obs_data_get_bool(settings, "save_frames");
+    const bool record_frames = obs_data_get_bool(settings, "record_frames");
     const bool record_video = obs_data_get_bool(settings, "record_video");
     const bool record_csv = obs_data_get_bool(settings, "record_csv");
 
@@ -398,7 +398,7 @@ static bool c64_export_settings_to_ini(obs_data_t *settings, const char *path)
 
     fprintf(f, "[recording]\n");
     fprintf(f, "save_folder=%s\n", save_folder ? save_folder : "");
-    fprintf(f, "save_frames=%s\n", save_frames ? "true" : "false");
+    fprintf(f, "record_frames=%s\n", record_frames ? "true" : "false");
     fprintf(f, "record_video=%s\n", record_video ? "true" : "false");
     fprintf(f, "record_csv=%s\n", record_csv ? "true" : "false");
     fprintf(f, "\n");
@@ -496,8 +496,8 @@ static bool c64_apply_ini_to_settings(obs_data_t *settings, const char *path)
         } else if (strcmp(key, "save_folder") == 0) {
             if (value && value[0] != '\0')
                 obs_data_set_string(settings, "save_folder", value);
-        } else if (strcmp(key, "save_frames") == 0) {
-            obs_data_set_bool(settings, "save_frames", c64_parse_bool(value, false));
+        } else if (strcmp(key, "record_frames") == 0) {
+            obs_data_set_bool(settings, "record_frames", c64_parse_bool(value, false));
         } else if (strcmp(key, "record_video") == 0) {
             obs_data_set_bool(settings, "record_video", c64_parse_bool(value, false));
         } else if (strcmp(key, "record_csv") == 0) {
@@ -618,7 +618,7 @@ void c64_set_property_defaults(obs_data_t *settings)
     obs_data_set_default_int(settings, "buffer_delay_ms", 10); // Default 10ms buffer delay
 
     // Frame saving defaults
-    obs_data_set_default_bool(settings, "save_frames", false); // Disabled by default
+    obs_data_set_default_bool(settings, "record_frames", false); // Disabled by default
 
     // Platform-specific default recording folder (absolute paths to avoid tilde expansion issues)
     char platform_path[512];
@@ -890,10 +890,10 @@ bool c64_load_configuration(obs_data_t *settings)
                 c64_set_bool(settings, "debug_logging", enabled, ci_enforced);
                 C64_LOG_DEBUG("Config: debug_logging = %s", enabled ? "true" : "false");
                 loaded_settings++;
-            } else if (strcmp(key, "save_frames") == 0) {
+            } else if (strcmp(key, "record_frames") == 0) {
                 bool enabled = (strcmp(value, "true") == 0) || (strcmp(value, "1") == 0);
-                c64_set_bool(settings, "save_frames", enabled, ci_enforced);
-                C64_LOG_DEBUG("Config: save_frames = %s", enabled ? "true" : "false");
+                c64_set_bool(settings, "record_frames", enabled, ci_enforced);
+                C64_LOG_DEBUG("Config: record_frames = %s", enabled ? "true" : "false");
                 loaded_settings++;
             } else if (strcmp(key, "record_video") == 0) {
                 bool enabled = (strcmp(value, "true") == 0) || (strcmp(value, "1") == 0);

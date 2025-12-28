@@ -62,6 +62,14 @@ Examples:
     ap.add_argument("--list-presets", action="store_true", help="List available presets and exit")
     ap.add_argument("--verbose", "-v", action="store_true", help="Enable verbose output")
     ap.add_argument("--json", action="store_true", help="Output results as JSON")
+    ap.add_argument(
+        "--settling-duration",
+        "--settling-seconds",
+        dest="settling_seconds",
+        type=float,
+        default=0.0,
+        help="Ignore frame-progression anomalies during the initial settling period (seconds)",
+    )
 
     args = ap.parse_args()
 
@@ -149,6 +157,9 @@ Examples:
         # Load properties (optional)
         if args.properties and args.properties.exists():
             properties = load_properties(args.properties)
+
+    if isinstance(properties, dict):
+        properties["settling_seconds"] = float(args.settling_seconds)
 
     # Create assertions - from scenario list or auto-detect from preset
     if scenario_assertions:

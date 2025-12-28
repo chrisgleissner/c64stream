@@ -2,6 +2,7 @@ name: NTSC Amber Monitor
 format: NTSC
 preset: Amber Monitor
 assertions:
+  - frame_progression
   - video_quality
   - audio
   - tint

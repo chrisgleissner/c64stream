@@ -1,0 +1,8 @@
+name: PAL Default 720p
+description: PAL at 720p resolution with exact 50.125 Hz - standard HD
+format: PAL
+preset: Default
+assertions:
+  - video_quality
+  - audio
+  - frame_progression
