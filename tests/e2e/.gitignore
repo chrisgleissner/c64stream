@@ -17,8 +17,12 @@ results/*
 !results/README.md
 !results/ntsc_default/
 !results/ntsc_default/**
+!results/ntsc_default_720p/
+!results/ntsc_default_720p/**
 !results/ntsc_green_monitor/
 !results/ntsc_green_monitor/**
+!results/ntsc_vintage_tv/
+!results/ntsc_vintage_tv/**
 !results/pal_default/
 !results/pal_default/**
 

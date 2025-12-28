@@ -1,6 +1,6 @@
 # C64 Stream E2E Test Report
 
-Generated: 2025-12-28 18:32:37 UTC
+Generated: 2025-12-28 20:09:57 UTC
 
 ## Test configuration
 
@@ -28,13 +28,13 @@ Generated: 2025-12-28 18:32:37 UTC
 
 ### Resource Usage
 
-During the test's processing window (7.6s, 16 of 36 samples) (8 cores):
+During the test's processing window (7.6s, 16 of 33 samples) (8 cores):
 
 | Metric | Min | Median | Mean | Max |
 |--------|-----|--------|------|-----|
-| CPU | 91.9% | 92.65% | 92.99% | 94.8% |
-| RAM | 6369.75 MB | 6421.75 MB | 6419.89 MB | 6442.36 MB |
-| GPU | 27.19% | 40.44% | 38.45% | 45.63% |
+| CPU | 91.5% | 92.2% | 93.31% | 96.5% |
+| RAM | 6891.52 MB | 6953.46 MB | 7035.51 MB | 7374.9 MB |
+| GPU | 26.98% | 29.34% | 30.74% | 41.27% |
 
 Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
@@ -46,19 +46,19 @@ Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
 ### A/V Sync
 
-- ✅ Good synchronization (100.0%): avg offset 33.1ms, max 38.2ms
+- ✅ Good synchronization (100.0%): avg offset 47.4ms, max 57.3ms
 
 #### Sync Details
 
-- 🟡 Pop #1 [L]: audio=8262.0ms, video=8223.8ms (frame 492), diff=38.2ms
-- 🟡 Pop #2 [R]: audio=9062.0ms, video=9026.2ms (frame 540), diff=35.8ms
-- 🟢 Pop #3 [L]: audio=9862.0ms, video=9828.5ms (frame 588), diff=33.5ms
-- 🟡 Pop #4 [R]: audio=10668.0ms, video=10630.8ms (frame 636), diff=37.2ms
-- 🟢 Pop #5 [L]: audio=11468.0ms, video=11433.2ms (frame 684), diff=34.8ms
-- 🟢 Pop #6 [R]: audio=12268.0ms, video=12252.2ms (frame 733), diff=15.8ms
-- 🟡 Pop #7 [L]: audio=13073.0ms, video=13037.8ms (frame 780), diff=35.2ms
-- 🟢 Pop #8 [R]: audio=13873.0ms, video=13840.1ms (frame 828), diff=32.9ms
-- 🟢 Pop #9 [L]: audio=14694.0ms, video=14659.2ms (frame 877), diff=34.8ms
+- 🟡 Pop #1 [L]: audio=8212.0ms, video=8173.7ms (frame 489), diff=38.3ms
+- 🟡 Pop #2 [R]: audio=9033.0ms, video=8992.7ms (frame 538), diff=40.3ms
+- 🟢 Pop #3 [L]: audio=9833.0ms, video=9811.8ms (frame 587), diff=21.2ms
+- 🟡 Pop #4 [R]: audio=10638.0ms, video=10580.7ms (frame 633), diff=57.3ms
+- 🟡 Pop #5 [L]: audio=11438.0ms, video=11383.0ms (frame 681), diff=55.0ms
+- 🟡 Pop #6 [R]: audio=12238.0ms, video=12185.3ms (frame 729), diff=52.7ms
+- 🟡 Pop #7 [L]: audio=13044.0ms, video=12987.7ms (frame 777), diff=56.3ms
+- 🟡 Pop #8 [R]: audio=13844.0ms, video=13790.0ms (frame 825), diff=54.0ms
+- 🟡 Pop #9 [L]: audio=14644.0ms, video=14592.3ms (frame 873), diff=51.7ms
 
 - Channels: LRLRLRLRL
 - 🔁 Channel alternation: OK (alternating, starts with L)
@@ -71,8 +71,8 @@ Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
 | Window | Stuck runs (count/min/med/max) | Skips (count/min/med/max) | Back steps | Severe steps |
 |--------|------------------------------:|--------------------------:|-----------:|-------------:|
-| During settling | 49/2/2/3 | 50/1/1/1 | 0 | 0 |
-| After settling | 51/2/2/2 | 49/1/1/2 | 0 | 0 |
+| During settling | 50/2/2/4 | 51/1/1/3 | 0 | 2 |
+| After settling | 41/2/2/3 | 41/1/1/1 | 0 | 0 |
 
 See [playback.csv](playback.csv) for frame-by-frame playback timeline with anomaly markers.
 
@@ -80,22 +80,26 @@ See [playback.csv](playback.csv) for frame-by-frame playback timeline with anoma
 
 - Definition: rows with repeated=1 or skipped=1 in playback.csv; clustering uses max gap 0.5s
 - Note: this is independent from the Frame Progression (frame-box) check above
-- Note: repeated/skipped markers only exist while content is detected (video_s 7.839–16.197).
+- Note: repeated/skipped markers only exist while content is detected (video_s 7.789–16.147).
   The jitter-free tail after content ends is expected and does not indicate steady-state performance.
 
 | # | Events | Center (s) | Std dev (s) | Span (s) | Window (s) |
 |---|--------|------------|-------------|----------|------------|
-| 1 | 164 | 11.823 | 2.412 | 7.906 | 7.856–15.762 |
+| 1 | 161 | 11.527 | 2.422 | 7.956 | 7.823–15.779 |
 
 ### Video
 
 - Download: [c64_recording.mp4](c64_recording.mp4)
-- Duration: 24.6 s
+- Duration: 20.4 s
 
 
 ### Sample Frame
 
 ![Sample Frame](./c64_recording_still.png)
 
-- Top-left shows the frame index (color = frame_num % 16). Top-right shows a stable 4×4 tile of all 16 VIC colours (drift check). Center shows scrolling colour bars. Bottom-right flashes with a pop sound for A/V sync checks / afterglow tail.
-- Taken from frame 492 at 00:08.2 of the 24.6 s video above.
+- **Top-left**: Text box with scenario name
+- **Top-right**: VIC-II palette reference grid of all C64 colors
+- **Center**: Diagonal pattern cycling through all C64 colors
+- **Bottom-left**: Frame progression indicator (8-slot moving bar, cycles every 8 frames)
+- **Bottom-right**: A/V pop indicator (pops every 48 frames, split left/right for audio channels)
+- Taken from frame 489 at 00:08.2 of the 20.4 s video above.

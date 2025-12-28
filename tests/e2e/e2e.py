@@ -330,7 +330,8 @@ class E2ETest:
             # CI environment: Extended timeouts
             self.plugin_init_timeout = 45  # Increased from 30s for more robust CI
             self.obs_startup_delay = 4     # Increased from 3s
-            self.async_task_delay = 6      # Increased from 5s
+            # Reduced from 6s - plugin connects quickly, we just need UDP binding
+            self.async_task_delay = 2.0    # Reduced to minimize logo display at start
             self.websocket_settings_delay = 3  # Increased from 2s
             # Give OBS/plugin more time to bind UDP ports on CI
             self.udp_socket_delay = 2.0    # Increased from 1.0s
@@ -340,7 +341,8 @@ class E2ETest:
             # Local environment: Short timeouts
             self.plugin_init_timeout = 6
             self.obs_startup_delay = 0.5
-            self.async_task_delay = 0.3
+            # Reduced from 0.3s - plugin connects almost instantly locally
+            self.async_task_delay = 0.1    # Minimal delay to allow UDP binding
             self.websocket_settings_delay = 0.2
             # Even locally, OBS/plugin may need a moment to bind UDP ports reliably.
             # Too-small delays can cause occasional packet loss and flaky assertions.
@@ -3117,7 +3119,7 @@ class E2ETest:
                 self.log("❌ Failed to start mock C64 server")
                 return False
 
-            # Start OBS - plugin will auto-connect to TCP server on initialization
+            # Start OBS with recording enabled
             if not self.start_obs(start_recording=True):
                 self.log("❌ Failed to start OBS")
                 return False
@@ -3135,65 +3137,24 @@ class E2ETest:
                 )
 
             # Now that OBS is running, do resource monitor warmup (CPU measurement priming)
-            # This happens during the async_task_delay so it doesn't add extra time
             if self.enable_resource_monitoring and self._resource_monitor:
                 self._resource_monitor.warmup()  # Prime CPU measurement
 
-            # Wait for plugin to connect to TCP server via async task
-            self.log(f"⏳ Allowing plugin to connect to mock server via async task ({self.async_task_delay}s)...")
-            self.log("  - Plugin should auto-connect when source is created")
-            self.log("  - Async retry task should call c64_start_streaming()")
-            time.sleep(self.async_task_delay)  # Environment-optimized async task delay
-
-            # If plugin didn't trigger replay yet, nudge OBS by reopening scene collection
-            if not self.udp_replay_triggered.is_set():
-                try:
-                    self.log("🔧 Nudge: reopen collection to force source initialization on CI")
-                    env_vars = dict(os.environ)
-                    # Only set CI-specific Qt/GL environment variables in CI environment
-                    if self.is_ci:
-                        env_vars.setdefault('QT_QPA_PLATFORM', 'xcb')
-                        env_vars.setdefault('QT_X11_NO_MITSHM', '1')
-                        env_vars.setdefault('LIBGL_ALWAYS_SOFTWARE', '1')
-                    subprocess.run([
-                        'obs', '--profile', 'C64StreamTest', '--collection', 'C64StreamTest', '--minimize-to-tray', '--disable-updater', '--disable-missing-files-check', '--multi', '--startrecording'
-                    ], env=env_vars, timeout=3)
-                except Exception:
-                    pass
-
-            # Optional WebSocket connection attempt (disabled by default for performance)
-            if self.enable_websocket:
-                self.log("🔧 Attempting to manually trigger plugin connection via WebSocket...")
-                try:
-                    # Wait for OBS WebSocket to be ready
-                    if self.wait_for_obs_websocket(timeout=5):  # Reduced timeout
-                        # Update the C64 Stream source settings to trigger connection
-                        source_settings = {
-                            "c64_host": "localhost",
-                            "video_port": self.video_port,
-                            "audio_port": self.audio_port,
-                            "control_port": self.control_port,
-                            "record_csv": True
-                        }
-
-                        response = self.send_obs_request("SetSourceSettings", {
-                            "sourceName": "C64 Stream",
-                            "sourceSettings": source_settings
-                        })
-
-                        if response:
-                            self.log("  - ✅ Updated source settings via WebSocket")
-                            time.sleep(self.websocket_settings_delay)
-                        else:
-                            self.log("  - ❌ Failed to update source settings")
-                    else:
-                        self.log("  - ❌ OBS WebSocket not available")
-                except Exception as e:
-                    self.log(f"  - ❌ WebSocket error: {e}")
+            # Wait for plugin to be ready by watching logs - this is precise timing!
+            # No need for arbitrary delays - we start streaming as soon as plugin signals readiness
+            self.log("⏳ Waiting for C64 plugin to be ready (watching logs)...")
+            plugin_ready_timeout = 10 if self.is_ci else 5
+            if not self.wait_for_plugin_initialization(timeout=plugin_ready_timeout):
+                self.log("⚠️ Plugin may not be fully initialized, proceeding anyway")
             else:
-                self.log("⚡ Skipping WebSocket checks for optimal performance")
+                self.log("✅ Plugin is ready, starting packet replay immediately")
 
-            self.log("✅ OBS recording already active")
+            # Brief delay to ensure UDP sockets are bound
+            udp_ready_delay = 0.5 if self.is_ci else 0.2
+            self.log(f"⏳ Allowing {udp_ready_delay}s for UDP socket binding...")
+            time.sleep(udp_ready_delay)
+
+            self.log("✅ OBS recording active, plugin ready")
 
             # Run packet replay while recording
             self.log("Running packet replay while OBS is recording...")
@@ -3215,7 +3176,8 @@ class E2ETest:
 
             # Stop recording promptly after last frame received
             # Keep recording a short grace period to allow OBS to flush frames
-            grace = 5 if self.is_ci else 3
+            # Reduced grace period to minimize logo display at end (was 5s/3s, now 2s/1.5s)
+            grace = 2.0 if self.is_ci else 1.5
             self.log(f"⏳ Waiting {grace}s after last frame, then stopping recording...")
             time.sleep(grace)
             self.stop_recording()

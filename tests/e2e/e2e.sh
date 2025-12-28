@@ -2493,7 +2493,11 @@ PY
         echo >> "${report_file}"
         echo "![Sample Frame](./$(basename "${sample_frame_path}"))" >> "${report_file}"
         echo >> "${report_file}"
-        echo "- Top-left shows the frame index (color = frame_num % 16). Top-right shows a stable 4×4 tile of all 16 VIC colours (drift check). Center shows scrolling colour bars. Bottom-right flashes with a pop sound for A/V sync checks / afterglow tail." >> "${report_file}"
+        echo "- **Top-left**: Text box with scenario name" >> "${report_file}"
+        echo "- **Top-right**: VIC-II palette reference grid of all C64 colors" >> "${report_file}"
+        echo "- **Center**: Diagonal pattern cycling through all C64 colors" >> "${report_file}"
+        echo "- **Bottom-left**: Frame progression indicator (8-slot moving bar, cycles every 8 frames)" >> "${report_file}"
+        echo "- **Bottom-right**: A/V pop indicator (pops every 48 frames, split left/right for audio channels)" >> "${report_file}"
 
         local origin_parts=()
         if [[ -n "${sample_frame_index}" ]]; then

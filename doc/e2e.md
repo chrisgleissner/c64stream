@@ -10,7 +10,7 @@ Validates complete UDP packet reception, video processing, audio synchronization
 
 ```bash
 cd tests/e2e
-./e2e.sh              # 12-second NTSC test (default scenario)
+./e2e.sh              # 8-second NTSC test (default scenario)
 ./e2e.sh --all        # Run ALL scenarios in sequence
 ./e2e.sh --format PAL --duration 5 --verbose  # 5-second PAL test
 ./e2e.sh --scenario ntsc_amber_monitor --verbose  # Named scenario with assertions
@@ -52,7 +52,7 @@ Key options for `e2e.sh`:
 |--------|---------|-------------|
 | `--all` | off | Run ALL scenarios in sequence |
 | `--format FORMAT` | NTSC | Video format (PAL or NTSC) |
-| `--duration SECONDS` | 12 | Test duration in seconds |
+| `--duration SECONDS` | 8 | Test duration in seconds |
 | `--frames FRAMES` | 300 | Number of frames (overridden by --duration) |
 | `--scenario NAME` | - | Named scenario from scenarios/ directory |
 | `--list-scenarios` | - | List all available scenarios |
