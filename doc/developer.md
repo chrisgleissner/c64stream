@@ -451,7 +451,6 @@ act -j ubuntu-build
 
 ## Resources
 
-- **Specification:** [`doc/c64-stream-spec.md`](c64-stream-spec.md)
+- **C64U Streaming Specification:** [`doc/c64-stream-spec.md`](c64-stream-spec.md)
 - **E2E Testing:** [`doc/e2e.md`](e2e.md)
-- **C64 Ultimate Docs:** [Data Streams](https://1541u-documentation.readthedocs.io/en/latest/data_streams.html)
 - **OBS Plugin Guide:** [OBS Studio Documentation](https://obsproject.com/wiki/Plugin-Development)
