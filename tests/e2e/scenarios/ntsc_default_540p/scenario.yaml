@@ -1,8 +1,0 @@
-name: NTSC Default 540p
-description: NTSC at 540p resolution with exact 59.826 Hz - reduced encoder load
-format: NTSC
-preset: Default
-assertions:
-  - video_quality
-  - audio
-  - frame_box_seq

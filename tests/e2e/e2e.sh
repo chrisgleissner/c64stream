@@ -1377,7 +1377,7 @@ if last_content_frame == 0 and total_frames > 0:
     last_content_frame = total_frames - 1
 
 # Build a mapping from video frame index to the C64 stream frame being displayed.
-# The frame_box_seq assertion detects slot positions from the bottom-left progress bar (frame_num % 8).
+# The frame_progression assertion detects slot positions from the bottom-left progress bar (frame_num % 8).
 #
 # The detected slot IS the ground truth for what content is being displayed.
 # We use the detected slots to determine the actual frame_num being shown.

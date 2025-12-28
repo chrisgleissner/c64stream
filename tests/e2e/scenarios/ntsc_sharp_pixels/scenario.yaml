@@ -4,7 +4,7 @@ preset: Sharp Pixels
 pattern: dots
 overrides_dir: generated
 assertions:
-  - frame_box_seq
+  - frame_progression
   - video_quality
   - audio
   - sharp_pixels

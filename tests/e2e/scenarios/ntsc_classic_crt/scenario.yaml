@@ -2,7 +2,7 @@ name: NTSC Classic CRT
 format: NTSC
 preset: Classic CRT
 assertions:
-  - frame_box_seq
+  - frame_progression
   - video_quality
   - audio
   - afterglow

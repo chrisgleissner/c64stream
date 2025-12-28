@@ -5,4 +5,4 @@ preset: Default
 assertions:
   - video_quality
   - audio
-  - frame_box_seq
+  - frame_progression

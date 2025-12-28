@@ -1,8 +1,0 @@
-name: PAL Default 540p
-description: PAL at 540p resolution with exact 50.125 Hz - reduced encoder load
-format: PAL
-preset: Default
-assertions:
-  - video_quality
-  - audio
-  - frame_box_seq

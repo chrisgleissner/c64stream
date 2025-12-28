@@ -10,7 +10,7 @@ overrides:
 assertions:
   - video_quality
   - audio
-  - frame_box_seq
+  - frame_progression
   - record_audio
   - record_video
   - record_frames

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-C64 Stream - Frame Box Sequence Assertion
+C64 Stream - Frame Progression Assertion
 Copyright (C) 2025 Christian Gleissner
 
 Licensed under the GNU General Public License v2.0 or later.
@@ -215,7 +215,7 @@ class _AnalysisResult:
     metrics: dict[str, float]
 
 
-def _analyze_frame_box_seq(
+def _analyze_frame_progression(
     mp4_path: Path,
     thresholds: dict[str, float],
     settling_seconds: float,
@@ -262,7 +262,7 @@ def _analyze_frame_box_seq(
     if detect_content_bounds_precise is not None:
         content_bounds = detect_content_bounds_precise(mp4_path, verbose=verbose)
         if verbose and content_bounds:
-            print(f"[frame_box_seq] Content bounds detected: frames {content_bounds.first_content_frame}-{content_bounds.last_content_frame}")
+            print(f"[frame_progression] Content bounds detected: frames {content_bounds.first_content_frame}-{content_bounds.last_content_frame}")
 
     # Fallback method: detect video pops (requires test pattern with pops).
     try:
@@ -286,12 +286,12 @@ def _analyze_frame_box_seq(
         start_frame = content_bounds.first_content_frame
         end_frame = min(content_bounds.last_content_frame, start_frame + max_frames - 1)
         if verbose:
-            print(f"[frame_box_seq] Using content bounds: {start_frame}-{end_frame}")
+            print(f"[frame_progression] Using content bounds: {start_frame}-{end_frame}")
     elif len(pop_starts) >= 1:
         start_frame = min(frame_count - 1, max(0, int(pop_starts[0] + 1)))
         end_frame = min(frame_count - 1, start_frame + max_frames - 1)
         if verbose:
-            print(f"[frame_box_seq] Using video pops: {start_frame}-{end_frame}")
+            print(f"[frame_progression] Using video pops: {start_frame}-{end_frame}")
     else:
         cap.release()
         return _AnalysisResult(
@@ -341,7 +341,7 @@ def _analyze_frame_box_seq(
     scale = float(content_w) / 384.0
 
     if verbose:
-        print(f"[frame_box_seq] Content: left={left}, right={right}, top={top}, bottom={bottom}, scale={scale:.3f}")
+        print(f"[frame_progression] Content: left={left}, right={right}, top={top}, bottom={bottom}, scale={scale:.3f}")
 
     # Reset to start for analysis loop
     cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
@@ -505,7 +505,7 @@ def _analyze_frame_box_seq(
                 # Skip single-frame repeats that are part of alternating patterns
                 if run_len == 2 and repeat_frame in alternating_repeat_frames:
                     if verbose:
-                        print(f"[frame_box_seq] Filtering false positive repeat at frame {repeat_frame} (alternating pattern)")
+                        print(f"[frame_progression] Filtering false positive repeat at frame {repeat_frame} (alternating pattern)")
                     continue
 
                 time_sec = float(repeat_frame) / fps
@@ -567,7 +567,7 @@ def _analyze_frame_box_seq(
         # If we see significant alternating patterns (>10% of transitions), filter them
         if alternating_pattern_count > max(2, len(delta_sequence) * 0.1):
             if verbose:
-                print(f"[frame_box_seq] Detected {alternating_pattern_count} false positive alternating patterns (heavy filter artifacts)")
+                print(f"[frame_progression] Detected {alternating_pattern_count} false positive alternating patterns (heavy filter artifacts)")
 
     # Process deltas, skipping false positives
     for i, (prev, cur) in enumerate(zip(compressed, compressed[1:])):
@@ -858,9 +858,9 @@ def _analyze_frame_box_seq(
     )
 
 
-class FrameBoxSequenceAssertion(EffectAssertion):
+class FrameProgressionAssertion(EffectAssertion):
     def __init__(self, thresholds: Optional[dict[str, float]] = None):
-        super().__init__("Frame Box Seq", thresholds)
+        super().__init__("Frame Progression", thresholds)
         self.thresholds = {
             "max_seconds": 8.0,
             "max_ambiguous_ratio": 0.30,
@@ -885,7 +885,7 @@ class FrameBoxSequenceAssertion(EffectAssertion):
             except Exception:
                 settling_seconds = 4.0
 
-        res = _analyze_frame_box_seq(mp4_path, self.thresholds, settling_seconds, verbose)
+        res = _analyze_frame_progression(mp4_path, self.thresholds, settling_seconds, verbose)
         return AssertionResult(
             status=res.status,
             name=self.name,

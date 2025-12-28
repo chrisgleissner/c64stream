@@ -20,7 +20,8 @@ from .config import (
     load_properties,
     load_settings_from_obs_scene,
 )
-from .frame_box_seq import FrameBoxSequenceAssertion
+from .frame_progression import FrameProgressionAssertion
+from .palette_stability import PaletteStabilityAssertion
 from .record_audio import RecordAudioAssertion
 from .record_frames import RecordFramesAssertion
 from .record_network import RecordNetworkAssertion
@@ -50,12 +51,13 @@ __all__ = [
     "VideoQualityAssertion",
     "AudioAssertion",
     "TintAssertion",
+    "PaletteStabilityAssertion",
     "AfterglowAssertion",
     "AfterglowDecayAssertion",
     "AfterglowWidthAssertion",
     "ScanlineAssertion",
     "SharpPixelsAssertion",
-    "FrameBoxSequenceAssertion",
+    "FrameProgressionAssertion",
     "RecordAudioAssertion",
     "RecordVideoAssertion",
     "RecordObsAssertion",

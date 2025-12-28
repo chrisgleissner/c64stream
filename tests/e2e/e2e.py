@@ -2836,14 +2836,14 @@ class E2ETest:
                         'metrics': {},
                     }
                 }
-                # Frame sequence assertion - now uses position marker that works for ALL presets
+                # Frame progression assertion - uses position marker that works for ALL presets
                 # (including monochrome presets like Green Monitor, Amber Monitor)
-                enable_frame_box_seq = True
-                if enable_frame_box_seq and recording_file:
+                enable_frame_progression = True
+                if enable_frame_progression and recording_file:
                     try:
-                        from assertions.frame_box_seq import FrameBoxSequenceAssertion
+                        from assertions.frame_progression import FrameProgressionAssertion
 
-                        a = FrameBoxSequenceAssertion()
+                        a = FrameProgressionAssertion()
                         res = a.verify(
                             Path(recording_file),
                             properties={"settling_seconds": self.settling_seconds},
