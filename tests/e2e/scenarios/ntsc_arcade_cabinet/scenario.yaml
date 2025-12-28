@@ -2,6 +2,7 @@ name: NTSC Arcade Cabinet
 format: NTSC
 preset: Arcade Cabinet
 assertions:
+  - frame_progression
   - video_quality
   - audio
   - scanlines

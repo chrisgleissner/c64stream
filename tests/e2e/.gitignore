@@ -17,10 +17,24 @@ results/*
 !results/README.md
 !results/ntsc_default/
 !results/ntsc_default/**
+!results/ntsc_default_720p/
+!results/ntsc_default_720p/**
 !results/ntsc_green_monitor/
 !results/ntsc_green_monitor/**
+!results/ntsc_vintage_tv/
+!results/ntsc_vintage_tv/**
 !results/pal_default/
 !results/pal_default/**
+
+# Ignore profiling artifacts even in curated scenarios
+results/**/flamegraph.svg
+results/**/perf.data
+results/**/perf.folded
+results/**/perf_report.txt
+results/**/perf_record_stdout.txt
+results/**/perf_record_stderr.txt
+results/**/obs_log.txt
+results/**/obs_log_summary.json
 
 # Always ignore ephemeral marker files
 results/**/stop_recording.marker

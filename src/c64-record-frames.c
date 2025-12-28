@@ -18,7 +18,7 @@ See <https://www.gnu.org/licenses/> for details.
 
 void c64_frames_save_as_bmp(struct c64_source *context, uint32_t *frame_buffer)
 {
-    if (!context->save_frames || !frame_buffer) {
+    if (!context->record_frames || !frame_buffer) {
         return;
     }
 

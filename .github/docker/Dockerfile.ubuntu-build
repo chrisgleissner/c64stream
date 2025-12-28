@@ -53,6 +53,7 @@ RUN apt-get install -y --no-install-recommends \
         python3 \
         python3-pip \
         python3-numpy \
+        python3-scipy \
         python3-opencv \
         python3-pil \
         python3-yaml \
@@ -69,7 +70,8 @@ RUN apt-get install -y --no-install-recommends \
         pulseaudio \
         pulseaudio-utils \
         libasound2-dev \
-        libpulse-dev && \
+        libpulse-dev \
+        linux-tools-generic && \
     apt-get update -qq && apt-get install -y file && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*

@@ -138,12 +138,19 @@ static uint64_t generate_monotonic_audio_timestamp(struct c64_source *context)
 
     uint64_t current_real_time = os_gettime_ns();
 
-    // Initialize on first call using system time
+    // Initialize on first call - prefer video's timing base if already set for A/V sync
     if (context->audio_base_time == 0) {
-        context->audio_base_time = current_real_time;
+        // Use video's stream_start_time_ns if already established (ensures A/V sync)
+        // Otherwise use current real time
+        if (context->timestamp_base_set && context->stream_start_time_ns > 0) {
+            context->audio_base_time = context->stream_start_time_ns;
+            C64_LOG_INFO("🎵 Audio using video timing base for A/V sync: %" PRIu64 " ns", context->audio_base_time);
+        } else {
+            context->audio_base_time = current_real_time;
+            C64_LOG_DEBUG("Audio synthetic timestamps initialized for source '%s': base=%" PRIu64,
+                          obs_source_get_name(context->source), context->audio_base_time);
+        }
         context->audio_packet_count = 0;
-        C64_LOG_DEBUG("Audio synthetic timestamps initialized for source '%s': base=%" PRIu64,
-                      obs_source_get_name(context->source), context->audio_base_time);
     }
 
     // Calculate current timestamp: base + (packet_count * 4ms)
@@ -220,9 +227,7 @@ void c64_process_audio_packet(struct c64_source *context, const uint8_t *audio_d
 
     // Log audio delivery to CSV if enabled (high-level event: audio samples delivered to OBS)
     if (context->timing_file) {
-        uint64_t calculated_timestamp_ms = audio_timestamp / 1000000; // Convert ns to ms
-        uint64_t actual_timestamp_ms = os_gettime_ns() / 1000000;
-        c64_obs_log_audio_event(context, calculated_timestamp_ms, actual_timestamp_ms, samples_size);
+        c64_obs_log_audio_event(context, samples_size);
     }
 
     // Very rare spot checks for audio timestamp debugging (every 10 minutes)

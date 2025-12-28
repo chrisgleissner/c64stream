@@ -33,8 +33,12 @@ See <https://www.gnu.org/licenses/> for details.
 // Frame assembly constants
 #define C64_MAX_PACKETS_PER_FRAME 68           // PAL: 272 lines ÷ 4 lines/packet = 68 packets
 #define C64_FRAME_TIMEOUT_MS 100               // Timeout for incomplete frames
-#define C64_PAL_FRAME_INTERVAL_NS 19950124ULL  // 19.95ms for 50.125Hz PAL (actual C64 timing)
-#define C64_NTSC_FRAME_INTERVAL_NS 16710875ULL // 16.71ms for 59.826Hz NTSC (actual C64 timing)
+// Frame timing constants (ns precision for butter-smooth playback)
+// These MUST match OBS canvas FPS to avoid frame duplication/skipping:
+// - PAL: 401/8 fps = 50.125 Hz → 1000000000 / (401/8) = 19950124.844... ns
+// - NTSC: 29913/500 fps = 59.826 Hz → 1000000000 / (29913/500) = 16715140.562... ns
+#define C64_PAL_FRAME_INTERVAL_NS 19950125ULL  // 19.950125ms for 50.125Hz PAL (matches OBS canvas 401/8)
+#define C64_NTSC_FRAME_INTERVAL_NS 16715141ULL // 16.715141ms for 59.826Hz NTSC (matches OBS canvas 29913/500)
 
 // Forward declaration
 struct c64_source;

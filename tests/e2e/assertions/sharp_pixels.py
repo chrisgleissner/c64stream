@@ -213,31 +213,34 @@ def _analyze_sharp_pixels(
     content_h = bottom - top
 
     # Calculate scaling for exclusion zones
-    # The special regions in C64 coordinates:
-    # - Top-left 40x40 (frame marker)
-    # - Top-right 40x40 (palette tile)
-    # - Bottom-right 80x80 (A/V sync pop area)
+    # The special regions in C64 coordinates (88x56 corner elements):
+    # - Top-left 88x56 (text box with scenario name)
+    # - Top-right 88x56 (palette tile)
+    # - Bottom-left 88x56 (frame progression indicator)
+    # - Bottom-right 88x56 (A/V sync pop area)
     c64_width = 384
     c64_height = 272 if content_h > 260 else 240  # PAL vs NTSC
     scale_x = content_w / c64_width
     scale_y = content_h / c64_height
 
     # Define exclusion zones in scaled coordinates (with margin for safety)
-    marker_size = int(45 * scale_x)  # 40 + margin
-    pop_size = int(85 * max(scale_x, scale_y))  # 80 + margin
+    corner_w = int(92 * scale_x)  # 88 + margin
+    corner_h = int(60 * scale_y)  # 56 + margin
 
     # Extract content ROI
     content = frame[top:bottom, left:right]
     gray = cv2.cvtColor(content, cv2.COLOR_BGR2GRAY)
 
-    # Create mask to exclude special regions
+    # Create mask to exclude special regions (all 4 corners)
     mask = np.ones(gray.shape, dtype=np.uint8) * 255
-    # Top-left marker
-    mask[0:marker_size, 0:marker_size] = 0
+    # Top-left text box
+    mask[0:corner_h, 0:corner_w] = 0
     # Top-right palette tile
-    mask[0:marker_size, content_w - marker_size : content_w] = 0
+    mask[0:corner_h, content_w - corner_w : content_w] = 0
+    # Bottom-left frame indicator
+    mask[content_h - corner_h : content_h, 0:corner_w] = 0
     # Bottom-right pop area
-    mask[content_h - pop_size : content_h, content_w - pop_size : content_w] = 0
+    mask[content_h - corner_h : content_h, content_w - corner_w : content_w] = 0
 
     # Apply mask to grayscale
     gray_masked = cv2.bitwise_and(gray, gray, mask=mask)
@@ -376,9 +379,9 @@ class SharpPixelsAssertion(EffectAssertion):
         super().__init__("Sharp Pixels", thresholds)
         self.thresholds = {
             "white_threshold": 100,      # Grayscale threshold for detecting white pixels
-            "black_threshold": 50,       # Maximum intensity for "black" pixels (surround check)
+            "black_threshold": 100,      # Maximum intensity for "black" pixels (raised for compression gradients)
             "min_block_size": 3,         # Minimum block dimension (compression may erode)
-            "max_block_size": 6,         # Maximum block dimension (should be ~4)
+            "max_block_size": 9,         # Maximum block dimension (compression can merge adjacent blocks)
             "min_blocks": 10,            # Minimum number of blocks to detect
             "min_correct_ratio": 0.90,   # Minimum ratio of blocks that must pass all checks
             **(thresholds or {}),

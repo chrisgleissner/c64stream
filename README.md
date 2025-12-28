@@ -332,9 +332,9 @@ Examples from recent automated E2E runs against a 'mocked' (i.e. simulated) Ulti
 **Sample OBS Timeline (obs.csv):**
 
 ```csv
-event_type,frame_num,elapsed_us,calculated_timestamp_ms,actual_timestamp_ms,data_size_bytes,fps
-video,0,1443,6385631,6385625,368640,59.826
-audio,0,15234,6385646,6385640,1536,48000
+event_type,frame_num,elapsed_us,data_size_bytes,fps,audio_samples_total,video_packets_received,audio_packets_received,sequence_errors
+video,1,43874,368640,59.826,0,160,12,0
+audio,0,48250,768,59.826,0,175,13,0
 ```
 
 **Sample Network Analysis (network.csv):**

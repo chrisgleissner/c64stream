@@ -69,7 +69,7 @@ void c64_session_ensure_exists(struct c64_source *context)
  */
 bool c64_session_any_recording_active(struct c64_source *context)
 {
-    return context->save_frames || context->record_video || context->record_csv;
+    return context->record_frames || context->record_video || context->record_csv;
 }
 
 /**
@@ -322,7 +322,7 @@ void c64_stop_video_recording(struct c64_source *context)
 void c64_record_init(struct c64_source *context)
 {
     // Initialize recording fields
-    context->save_frames = false;
+    context->record_frames = false;
     context->saved_frame_count = 0;
     memset(context->save_folder, 0, sizeof(context->save_folder));
     strncpy(context->save_folder, "./recordings", sizeof(context->save_folder) - 1);
@@ -394,9 +394,9 @@ void c64_record_update_settings(struct c64_source *context, void *settings_ptr)
     }
 
     // Update frame saving (check if we need session cleanup)
-    bool old_save_frames = context->save_frames;
-    context->save_frames = obs_data_get_bool(settings, "save_frames");
-    if (old_save_frames && !context->save_frames) {
+    bool old_record_frames = context->record_frames;
+    context->record_frames = obs_data_get_bool(settings, "record_frames");
+    if (old_record_frames && !context->record_frames) {
         // Frame saving stopped, cleanup session if no other recording active
         c64_session_cleanup_if_needed(context);
     }

@@ -7,3 +7,4 @@ assertions:
   - tint
   - afterglow
   - scanlines
+  - frame_progression

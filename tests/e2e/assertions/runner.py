@@ -11,10 +11,18 @@ from pathlib import Path
 from typing import Any, Optional
 
 from .afterglow import AfterglowAssertion
+from .afterglow_decay import AfterglowDecayAssertion
+from .afterglow_width import AfterglowWidthAssertion
 from .audio import AudioAssertion
 from .base import AssertionResult, AssertionStatus, EffectAssertion
 from .config import PresetConfig
-from .frame_box_seq import FrameBoxSequenceAssertion
+from .frame_progression import FrameProgressionAssertion
+from .palette_stability import PaletteStabilityAssertion
+from .record_audio import RecordAudioAssertion
+from .record_frames import RecordFramesAssertion
+from .record_network import RecordNetworkAssertion
+from .record_obs import RecordObsAssertion
+from .record_video import RecordVideoAssertion
 from .scanlines import ScanlineAssertion
 from .sharp_pixels import SharpPixelsAssertion
 from .tint import TintAssertion
@@ -117,10 +125,18 @@ def create_assertions_from_list(
         "video_quality": VideoQualityAssertion,
         "audio": AudioAssertion,
         "tint": TintAssertion,
+        "palette_stability": PaletteStabilityAssertion,
         "afterglow": AfterglowAssertion,
+        "afterglow_decay": AfterglowDecayAssertion,
+        "afterglow_width": AfterglowWidthAssertion,
         "scanlines": ScanlineAssertion,
         "sharp_pixels": SharpPixelsAssertion,
-        "frame_box_seq": FrameBoxSequenceAssertion,
+        "frame_progression": FrameProgressionAssertion,
+        "record_audio": RecordAudioAssertion,
+        "record_video": RecordVideoAssertion,
+        "record_obs": RecordObsAssertion,
+        "record_network": RecordNetworkAssertion,
+        "record_frames": RecordFramesAssertion,
     }
 
     thresholds = thresholds or {}
