@@ -3149,9 +3149,9 @@ class E2ETest:
             else:
                 self.log("✅ Plugin is ready, starting packet replay immediately")
 
-            # Brief delay to ensure UDP sockets are bound
-            udp_ready_delay = 0.5 if self.is_ci else 0.2
-            self.log(f"⏳ Allowing {udp_ready_delay}s for UDP socket binding...")
+            # Brief delay to ensure UDP sockets are bound and plugin is fully ready
+            udp_ready_delay = 2.0 if self.is_ci else 0.3
+            self.log(f"⏳ Allowing {udp_ready_delay}s for UDP socket binding and plugin readiness...")
             time.sleep(udp_ready_delay)
 
             self.log("✅ OBS recording active, plugin ready")
