@@ -1057,6 +1057,7 @@ void c64_video_render(void *data, gs_effect_t *effect)
     // shader setup and just blit the cached afterglow result. This eliminates 60-80% of CPU overhead.
     bool can_use_cached_afterglow = (context->afterglow_duration_ms > 0) && context->afterglow_accum_prev &&
                                     context->afterglow_initialized;
+
     if (!is_new_frame && can_use_cached_afterglow) {
         // Just blit the cached afterglow texture - no shader execution needed!
         gs_effect_t *default_effect = obs_get_base_effect(OBS_EFFECT_DEFAULT);
@@ -1075,16 +1076,17 @@ void c64_video_render(void *data, gs_effect_t *effect)
     // Only compute actual dt on new frames; reuse cached value for multi-renders of same frame
     float dt_ms;
     if (is_new_frame) {
-        // Use OBS frame timing as baseline for more accurate dt calculation
-        struct obs_video_info ovi;
-        float expected_frame_ms = 16.67f; // Default ~60fps fallback
-        if (obs_get_video_info(&ovi)) {
-            // Calculate expected frame time from OBS canvas FPS
-            expected_frame_ms = 1000.0f * (float)ovi.fps_den / (float)ovi.fps_num;
-        } else if (context->frame_interval_ns > 0) {
-            expected_frame_ms = (float)context->frame_interval_ns / 1000000.0f;
-        } else if (context->expected_fps > 0.0f) {
-            expected_frame_ms = 1000.0f / (float)context->expected_fps;
+        // Use cached expected frame time (no expensive obs_get_video_info call on every frame)
+        float expected_frame_ms = context->cached_expected_frame_ms;
+        if (expected_frame_ms == 0.0f) {
+            // Fallback if not yet cached
+            if (context->frame_interval_ns > 0) {
+                expected_frame_ms = (float)context->frame_interval_ns / 1000000.0f;
+            } else if (context->expected_fps > 0.0f) {
+                expected_frame_ms = 1000.0f / (float)context->expected_fps;
+            } else {
+                expected_frame_ms = 16.67f; // Default ~60fps fallback
+            }
         }
 
         // Measure actual time delta and use expected as fallback/clamp
@@ -1137,6 +1139,39 @@ void c64_video_render(void *data, gs_effect_t *effect)
             if (!context->crt_effect) {
                 C64_LOG_ERROR("Failed to load CRT effect shader - falling back to default rendering");
             } else {
+                // Cache shader parameter handles to avoid string lookups on every render
+                context->param_image = gs_effect_get_param_by_name(context->crt_effect, "image");
+                context->param_scan_line_distance =
+                    gs_effect_get_param_by_name(context->crt_effect, "scan_line_distance");
+                context->param_scan_line_strength =
+                    gs_effect_get_param_by_name(context->crt_effect, "scan_line_strength");
+                context->param_pixel_width = gs_effect_get_param_by_name(context->crt_effect, "pixel_width");
+                context->param_pixel_height = gs_effect_get_param_by_name(context->crt_effect, "pixel_height");
+                context->param_blur_strength = gs_effect_get_param_by_name(context->crt_effect, "blur_strength");
+                context->param_bloom_strength = gs_effect_get_param_by_name(context->crt_effect, "bloom_strength");
+                context->param_afterglow_duration_ms =
+                    gs_effect_get_param_by_name(context->crt_effect, "afterglow_duration_ms");
+                context->param_afterglow_curve = gs_effect_get_param_by_name(context->crt_effect, "afterglow_curve");
+                context->param_tint_mode = gs_effect_get_param_by_name(context->crt_effect, "tint_mode");
+                context->param_tint_strength = gs_effect_get_param_by_name(context->crt_effect, "tint_strength");
+                context->param_dt_ms = gs_effect_get_param_by_name(context->crt_effect, "dt_ms");
+                context->param_texture_accum_prev =
+                    gs_effect_get_param_by_name(context->crt_effect, "texture_accum_prev");
+                context->param_output_height = gs_effect_get_param_by_name(context->crt_effect, "output_height");
+                context->param_source_width = gs_effect_get_param_by_name(context->crt_effect, "source_width");
+                context->param_source_height = gs_effect_get_param_by_name(context->crt_effect, "source_height");
+                context->param_canvas_height = gs_effect_get_param_by_name(context->crt_effect, "canvas_height");
+
+                // Cache canvas height and expected frame time (obs_get_video_info is expensive)
+                struct obs_video_info ovi;
+                if (obs_get_video_info(&ovi)) {
+                    context->cached_canvas_height = ovi.base_height;
+                    context->cached_expected_frame_ms = 1000.0f * (float)ovi.fps_den / (float)ovi.fps_num;
+                } else {
+                    context->cached_canvas_height = c64_get_height(context);
+                    context->cached_expected_frame_ms = 16.67f; // Default ~60fps
+                }
+
                 // Reset timing base to prevent sync drift caused by shader compilation delay
                 // Only reset if we're actually streaming (have established timing)
                 if (context->timestamp_base_set) {
@@ -1180,57 +1215,47 @@ void c64_video_render(void *data, gs_effect_t *effect)
         context->point_sampler = gs_samplerstate_create(&sampler_info);
     }
 
-    // Set CRT shader parameters
-    gs_eparam_t *image_param = gs_effect_get_param_by_name(context->crt_effect, "image");
-    gs_effect_set_texture(image_param, input_tex);
+    // Set CRT shader parameters (using cached handles - no string lookups!)
+    gs_effect_set_texture(context->param_image, input_tex);
 
     // Use point (nearest-neighbor) sampler when blur_strength is 0 for sharp pixel rendering
     // Otherwise OBS uses bilinear filtering which causes blur when upscaling
     if (context->blur_strength == 0.0f && context->point_sampler) {
-        gs_effect_set_next_sampler(image_param, context->point_sampler);
+        gs_effect_set_next_sampler(context->param_image, context->point_sampler);
     }
 
-    gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "scan_line_distance"),
-                        context->scan_line_distance);
-    gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "scan_line_strength"),
-                        context->scan_line_strength);
-    gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "pixel_width"), context->pixel_width);
-    gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "pixel_height"), context->pixel_height);
-    gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "blur_strength"), context->blur_strength);
-    gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "bloom_strength"), context->bloom_strength);
+    gs_effect_set_float(context->param_scan_line_distance, context->scan_line_distance);
+    gs_effect_set_float(context->param_scan_line_strength, context->scan_line_strength);
+    gs_effect_set_float(context->param_pixel_width, context->pixel_width);
+    gs_effect_set_float(context->param_pixel_height, context->pixel_height);
+    gs_effect_set_float(context->param_blur_strength, context->blur_strength);
+    gs_effect_set_float(context->param_bloom_strength, context->bloom_strength);
     // GPU-based afterglow: pass actual duration to enable shader accumulation
-    gs_effect_set_int(gs_effect_get_param_by_name(context->crt_effect, "afterglow_duration_ms"),
-                      context->afterglow_duration_ms);
-    gs_effect_set_int(gs_effect_get_param_by_name(context->crt_effect, "afterglow_curve"), context->afterglow_curve);
-    gs_effect_set_int(gs_effect_get_param_by_name(context->crt_effect, "tint_mode"), context->tint_mode);
-    gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "tint_strength"), context->tint_strength);
+    gs_effect_set_int(context->param_afterglow_duration_ms, context->afterglow_duration_ms);
+    gs_effect_set_int(context->param_afterglow_curve, context->afterglow_curve);
+    gs_effect_set_int(context->param_tint_mode, context->tint_mode);
+    gs_effect_set_float(context->param_tint_strength, context->tint_strength);
 
     // Set afterglow timing and previous accumulation texture
-    gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "dt_ms"), dt_ms);
+    gs_effect_set_float(context->param_dt_ms, dt_ms);
     // Bind previous accumulation texture for GPU afterglow; use input_tex as fallback if not available
     gs_texture_t *accum_prev = context->afterglow_accum_prev ? context->afterglow_accum_prev : input_tex;
-    gs_effect_set_texture(gs_effect_get_param_by_name(context->crt_effect, "texture_accum_prev"), accum_prev);
+    gs_effect_set_texture(context->param_texture_accum_prev, accum_prev);
 
     // Render the texture with the CRT effect using scaled dimensions
     uint32_t render_width = c64_get_width(context);
     uint32_t render_height = c64_get_height(context);
 
     // Set output resolution for scanline calculation
-    gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "output_height"), (float)render_height);
+    gs_effect_set_float(context->param_output_height, (float)render_height);
 
     // Set source dimensions for UV snapping (sharp pixel expansion)
     // These are the original C64 dimensions before pixel_width/height scaling
-    gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "source_width"), (float)context->width);
-    gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "source_height"), (float)context->height);
+    gs_effect_set_float(context->param_source_width, (float)context->width);
+    gs_effect_set_float(context->param_source_height, (float)context->height);
 
-    // Get canvas height for canvas-space scanline rendering
-    // This ensures scanlines appear evenly spaced regardless of how OBS scales the source
-    struct obs_video_info ovi;
-    float canvas_height = (float)render_height; // Fallback to render height
-    if (obs_get_video_info(&ovi)) {
-        canvas_height = (float)ovi.base_height;
-    }
-    gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "canvas_height"), canvas_height);
+    // Use cached canvas height (no expensive obs_get_video_info call on every frame)
+    gs_effect_set_float(context->param_canvas_height, (float)context->cached_canvas_height);
 
     // GPU-based afterglow with ping-pong render targets:
     // - On NEW frames: render all effects to accumulation texture, swap, blit to screen

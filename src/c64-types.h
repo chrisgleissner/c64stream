@@ -201,6 +201,27 @@ struct c64_source {
     gs_effect_t *crt_effect;          // CRT shader effect
     gs_samplerstate_t *point_sampler; // Point (nearest-neighbor) sampler for sharp pixel rendering
 
+    // Cached shader parameter handles (avoid string lookups on every render)
+    gs_eparam_t *param_image;
+    gs_eparam_t *param_scan_line_distance;
+    gs_eparam_t *param_scan_line_strength;
+    gs_eparam_t *param_pixel_width;
+    gs_eparam_t *param_pixel_height;
+    gs_eparam_t *param_blur_strength;
+    gs_eparam_t *param_bloom_strength;
+    gs_eparam_t *param_afterglow_duration_ms;
+    gs_eparam_t *param_afterglow_curve;
+    gs_eparam_t *param_tint_mode;
+    gs_eparam_t *param_tint_strength;
+    gs_eparam_t *param_dt_ms;
+    gs_eparam_t *param_texture_accum_prev;
+    gs_eparam_t *param_output_height;
+    gs_eparam_t *param_source_width;
+    gs_eparam_t *param_source_height;
+    gs_eparam_t *param_canvas_height;
+    uint32_t cached_canvas_height;  // Cached canvas height (obs_get_video_info is expensive)
+    float cached_expected_frame_ms; // Cached expected frame time from OBS FPS
+
     // Afterglow (shader ping-pong targets; also used by CPU/headless paths for deterministic persistence)
     gs_texture_t *afterglow_accum_prev;   // Ping-pong texture for afterglow accumulation
     gs_texture_t *afterglow_accum_next;   // Ping-pong texture for afterglow accumulation
