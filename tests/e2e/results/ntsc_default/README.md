@@ -1,6 +1,6 @@
 # C64 Stream E2E Test Report
 
-Generated: 2025-12-29 16:55:35 UTC
+Generated: 2025-12-29 17:19:48 UTC
 
 ## Test configuration
 
@@ -22,7 +22,7 @@ Generated: 2025-12-29 16:55:35 UTC
 - OBS: 30.0.2.1-3build1
 - CPU: Intel(R) Core(TM) i5-14600K (20 cores)
 - RAM: 62Gi total, 53Gi available
-- Disk (/): 916G total, 497G available
+- Disk (/): 916G total, 496G available
 
 ## Test results
 
@@ -32,9 +32,9 @@ During the test's processing window (7.6s, 16 of 33 samples) (20 cores):
 
 | Metric | Min | Median | Mean | Max |
 |--------|-----|--------|------|-----|
-| CPU | 32.8% | 41.25% | 40.31% | 45.5% |
-| RAM | 5988.44 MB | 6036.4 MB | 6034.93 MB | 6095.39 MB |
-| GPU | 77.42% | 80.1% | 82.99% | 100.0% |
+| CPU | 37.3% | 41.85% | 41.93% | 45.9% |
+| RAM | 5979.54 MB | 6038.4 MB | 6050.24 MB | 6151.39 MB |
+| GPU | 78.52% | 84.97% | 83.41% | 88.19% |
 
 Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
@@ -46,19 +46,19 @@ Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
 ### A/V Sync
 
-- ✅ Good synchronization (100.0%): avg offset 7.1ms, max 11.4ms
+- ✅ Good synchronization (100.0%): avg offset 5.6ms, max 15.4ms
 
 #### Sync Details
 
-- 🟢 Pop #1 [L]: audio=7945.0ms, video=7956.4ms (frame 476), diff=11.4ms
-- 🟢 Pop #2 [R]: audio=8769.0ms, video=8775.4ms (frame 525), diff=6.4ms
-- 🟢 Pop #3 [L]: audio=9569.0ms, video=9561.1ms (frame 572), diff=7.9ms
-- 🟢 Pop #4 [R]: audio=10372.0ms, video=10380.1ms (frame 621), diff=8.1ms
-- 🟢 Pop #5 [L]: audio=11174.0ms, video=11165.7ms (frame 668), diff=8.3ms
-- 🟢 Pop #6 [R]: audio=11974.0ms, video=11968.0ms (frame 716), diff=6.0ms
-- 🟢 Pop #7 [L]: audio=12777.0ms, video=12770.4ms (frame 764), diff=6.6ms
-- 🟢 Pop #8 [R]: audio=13577.0ms, video=13572.7ms (frame 812), diff=4.3ms
-- 🟢 Pop #9 [L]: audio=14380.0ms, video=14375.0ms (frame 860), diff=5.0ms
+- 🟢 Pop #1 [L]: audio=7941.0ms, video=7956.4ms (frame 476), diff=15.4ms
+- 🟢 Pop #2 [R]: audio=8766.0ms, video=8758.7ms (frame 524), diff=7.3ms
+- 🟢 Pop #3 [L]: audio=9566.0ms, video=9561.1ms (frame 572), diff=4.9ms
+- 🟢 Pop #4 [R]: audio=10369.0ms, video=10363.4ms (frame 620), diff=5.6ms
+- 🟢 Pop #5 [L]: audio=11172.0ms, video=11165.7ms (frame 668), diff=6.3ms
+- 🟢 Pop #6 [R]: audio=11972.0ms, video=11968.0ms (frame 716), diff=4.0ms
+- 🟢 Pop #7 [L]: audio=12774.0ms, video=12770.4ms (frame 764), diff=3.6ms
+- 🟢 Pop #8 [R]: audio=13574.0ms, video=13572.7ms (frame 812), diff=1.3ms
+- 🟢 Pop #9 [L]: audio=14377.0ms, video=14375.0ms (frame 860), diff=2.0ms
 
 - Channels: LRLRLRLRL
 - 🔁 Channel alternation: OK (alternating, starts with L)
@@ -72,7 +72,7 @@ Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 | Window | Stuck runs (count/min/med/max) | Skips (count/min/med/max) | Back steps | Severe steps |
 |--------|------------------------------:|--------------------------:|-----------:|-------------:|
 | During settling | 0/0/0/0 | 0/0/0/0 | 0 | 0 |
-| After settling | 23/2/2/2 | 22/1/1/1 | 0 | 0 |
+| After settling | 3/2/2/2 | 2/1/1/1 | 0 | 0 |
 
 See [playback.csv](playback.csv) for frame-by-frame playback timeline with anomaly markers.
 
@@ -85,7 +85,7 @@ See [playback.csv](playback.csv) for frame-by-frame playback timeline with anoma
 
 | # | Events | Center (s) | Std dev (s) | Span (s) | Window (s) |
 |---|--------|------------|-------------|----------|------------|
-| 1 | 34 | 14.962 | 0.405 | 1.672 | 13.907–15.579 |
+| 1 | 3 | 15.512 | 0.063 | 0.151 | 15.428–15.579 |
 
 ### Video
 

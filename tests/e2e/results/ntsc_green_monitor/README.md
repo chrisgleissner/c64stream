@@ -1,6 +1,6 @@
 # C64 Stream E2E Test Report
 
-Generated: 2025-12-29 16:58:42 UTC
+Generated: 2025-12-29 17:22:55 UTC
 
 ## Test configuration
 
@@ -32,9 +32,9 @@ During the test's processing window (7.6s, 16 of 33 samples) (20 cores):
 
 | Metric | Min | Median | Mean | Max |
 |--------|-----|--------|------|-----|
-| CPU | 48.6% | 63.35% | 61.48% | 67.9% |
-| RAM | 6125.39 MB | 6164.74 MB | 6164.69 MB | 6199.3 MB |
-| GPU | 87.1% | 94.1% | 93.15% | 100.0% |
+| CPU | 51.0% | 60.0% | 60.64% | 66.9% |
+| RAM | 6147.56 MB | 6171.95 MB | 6173.8 MB | 6209.3 MB |
+| GPU | 83.87% | 91.94% | 92.8% | 98.9% |
 
 Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
@@ -46,19 +46,19 @@ Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
 ### A/V Sync
 
-- ✅ Good synchronization (100.0%): avg offset 16.3ms, max 32.6ms
+- ✅ Good synchronization (100.0%): avg offset 6.5ms, max 8.3ms
 
 #### Sync Details
 
-- 🟢 Pop #1 [L]: audio=7921.0ms, video=7923.0ms (frame 474), diff=2.0ms
-- 🟢 Pop #2 [R]: audio=8721.0ms, video=8725.3ms (frame 522), diff=4.3ms
-- 🟢 Pop #3 [L]: audio=9495.0ms, video=9527.6ms (frame 570), diff=32.6ms
-- 🟢 Pop #4 [R]: audio=10326.0ms, video=10330.0ms (frame 618), diff=4.0ms
-- 🟢 Pop #5 [L]: audio=11126.0ms, video=11132.3ms (frame 666), diff=6.3ms
-- 🟢 Pop #6 [R]: audio=11926.0ms, video=11951.3ms (frame 715), diff=25.3ms
-- 🟢 Pop #7 [L]: audio=12732.0ms, video=12753.7ms (frame 763), diff=21.7ms
-- 🟢 Pop #8 [R]: audio=13532.0ms, video=13556.0ms (frame 811), diff=24.0ms
-- 🟢 Pop #9 [L]: audio=14332.0ms, video=14358.3ms (frame 859), diff=26.3ms
+- 🟢 Pop #1 [L]: audio=7969.0ms, video=7973.1ms (frame 477), diff=4.1ms
+- 🟢 Pop #2 [R]: audio=8769.0ms, video=8775.4ms (frame 525), diff=6.4ms
+- 🟢 Pop #3 [L]: audio=9569.0ms, video=9561.1ms (frame 572), diff=7.9ms
+- 🟢 Pop #4 [R]: audio=10374.0ms, video=10380.1ms (frame 621), diff=6.1ms
+- 🟢 Pop #5 [L]: audio=11174.0ms, video=11165.7ms (frame 668), diff=8.3ms
+- 🟢 Pop #6 [R]: audio=11974.0ms, video=11968.0ms (frame 716), diff=6.0ms
+- 🟢 Pop #7 [L]: audio=12780.0ms, video=12787.1ms (frame 765), diff=7.1ms
+- 🟢 Pop #8 [R]: audio=13580.0ms, video=13572.7ms (frame 812), diff=7.3ms
+- 🟢 Pop #9 [L]: audio=14380.0ms, video=14375.0ms (frame 860), diff=5.0ms
 
 - Channels: LRLRLRLRL
 - 🔁 Channel alternation: OK (alternating, starts with L)
@@ -71,8 +71,8 @@ Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
 | Window | Stuck runs (count/min/med/max) | Skips (count/min/med/max) | Back steps | Severe steps |
 |--------|------------------------------:|--------------------------:|-----------:|-------------:|
-| During settling | 7/2/2/2 | 7/1/1/1 | 0 | 0 |
-| After settling | 9/2/2/2 | 8/1/1/1 | 0 | 0 |
+| During settling | 0/0/0/0 | 0/0/0/0 | 0 | 0 |
+| After settling | 20/2/2/2 | 19/1/1/1 | 0 | 0 |
 
 See [playback.csv](playback.csv) for frame-by-frame playback timeline with anomaly markers.
 
@@ -80,13 +80,13 @@ See [playback.csv](playback.csv) for frame-by-frame playback timeline with anoma
 
 - Definition: rows with repeated=1 or skipped=1 in playback.csv; clustering uses max gap 0.5s
 - Note: this is independent from the Frame Progression (frame-box) check above
-- Note: repeated/skipped markers only exist while content is detected (video_s 7.555–15.913).
+- Note: repeated/skipped markers only exist while content is detected (video_s 7.589–15.946).
   The jitter-free tail after content ends is expected and does not indicate steady-state performance.
 
 | # | Events | Center (s) | Std dev (s) | Span (s) | Window (s) |
 |---|--------|------------|-------------|----------|------------|
-| 1 | 26 | 11.755 | 0.617 | 2.073 | 10.631–12.704 |
-| 2 | 4 | 9.770 | 0.049 | 0.134 | 9.695–9.829 |
+| 1 | 21 | 14.504 | 0.251 | 0.969 | 14.158–15.127 |
+| 2 | 14 | 12.773 | 0.630 | 1.973 | 11.600–13.573 |
 
 ### Video
 
@@ -103,4 +103,4 @@ See [playback.csv](playback.csv) for frame-by-frame playback timeline with anoma
 - **Center**: Diagonal pattern cycling through all C64 colors
 - **Bottom-left**: Frame progression indicator (8-slot moving bar, cycles every 8 frames)
 - **Bottom-right**: A/V pop indicator (pops every 48 frames, split left/right for audio channels)
-- Taken from frame 475 at 00:07.9 of the 19.1 s video above.
+- Taken from frame 477 at 00:08.0 of the 19.1 s video above.
