@@ -43,6 +43,128 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+has_no_new_privileges() {
+    if [[ ! -r /proc/self/status ]]; then
+        return 1
+    fi
+
+    local nnp_value
+    nnp_value=$(grep -i '^NoNewPrivs:' /proc/self/status 2>/dev/null | awk '{print $2}')
+    [[ "$nnp_value" == "1" ]]
+}
+
+can_auto_install_packages() {
+    local platform=$1
+
+    if [[ "$platform" != "linux" ]]; then
+        return 0
+    fi
+
+    if [[ "$EUID" -eq 0 ]]; then
+        return 0
+    fi
+
+    if ! command -v sudo >/dev/null 2>&1; then
+        return 1
+    fi
+
+    if has_no_new_privileges; then
+        return 1
+    fi
+
+    return 0
+}
+
+abort_auto_install() {
+    local message="$1"
+    shift || true
+    local -a packages=("$@")
+
+    log_error "$message"
+
+    if has_no_new_privileges; then
+        log_error "Detected Linux sandbox with the \"no new privileges\" flag enabled; sudo cannot elevate in this environment."
+    fi
+
+    if [[ ${#packages[@]} -gt 0 ]]; then
+        log_info "Packages to install manually: ${packages[*]}"
+    fi
+
+    log_info "Install the required packages manually on a machine where you have sudo/root access and rerun the build."
+}
+
+install_gersemi() {
+    if command -v gersemi >/dev/null 2>&1; then
+        return 0
+    fi
+
+    if ! command -v python3 >/dev/null 2>&1; then
+        log_warning "Python3 not found; cannot auto-install gersemi."
+        return 1
+    fi
+
+    if ! python3 -m pip --version >/dev/null 2>&1; then
+        log_warning "python3 -m pip is unavailable; install pip or gersemi manually."
+        return 1
+    fi
+
+    log_info "Installing gersemi for CMake formatting..."
+    local -a pip_cmd=(python3 -m pip)
+
+    if "${pip_cmd[@]}" install --user --break-system-packages gersemi; then
+        log_success "Installed gersemi via pip (PEP 668 override)."
+        return 0
+    fi
+
+    if "${pip_cmd[@]}" install --user gersemi; then
+        log_success "Installed gersemi via pip."
+        return 0
+    fi
+
+    log_warning "Unable to install gersemi automatically. Run 'python3 -m pip install --user --break-system-packages gersemi' or use a virtual environment."
+    return 1
+}
+
+ensure_linux_build_prereqs() {
+    local platform=$1
+
+    if [[ "$platform" != "linux" ]]; then
+        return 0
+    fi
+
+    if [[ "$INSTALL_DEPS" == "true" ]]; then
+        return 0
+    fi
+
+    local -a missing=()
+
+    if ! command -v pkg-config >/dev/null 2>&1; then
+        missing+=("pkg-config")
+    fi
+
+    if command -v pkg-config >/dev/null 2>&1; then
+        if ! pkg-config --exists libobs >/dev/null 2>&1; then
+            missing+=("libobs-dev")
+        fi
+    else
+        missing+=("libobs-dev")
+    fi
+
+    if [[ ${#missing[@]} -eq 0 ]]; then
+        return 0
+    fi
+
+    log_info "Build dependencies missing: ${missing[*]}"
+
+    if can_auto_install_packages "$platform"; then
+        INSTALL_DEPS=true
+        return 0
+    fi
+
+    abort_auto_install "Automatic installation of build dependencies is not possible in this environment." "${missing[@]}"
+    exit 1
+}
+
 usage() {
     cat << EOF
 C64 Stream - Local Multi-Platform Build Script
@@ -150,26 +272,93 @@ install_dependencies() {
         linux)
             # Install build essentials and required tools
             if command -v apt-get >/dev/null 2>&1; then
+                # For E2E, align OBS and runtime deps with CI (PPA + headless requirements).
+                if [[ "${INSTALL_E2E_DEPS:-false}" == "true" ]]; then
+                    local -a obs_ppa_bootstrap=(
+                        software-properties-common
+                        ca-certificates
+                        curl
+                        wget
+                        gnupg
+                        lsb-release
+                    )
+                    log_info "Preparing OBS Studio PPA (obsproject/obs-studio)..."
+                    sudo apt-get update -qq
+                    sudo apt-get install -y --no-install-recommends "${obs_ppa_bootstrap[@]}"
+                    if ! grep -R "obsproject/obs-studio" /etc/apt/sources.list /etc/apt/sources.list.d/* >/dev/null 2>&1; then
+                        sudo add-apt-repository --yes ppa:obsproject/obs-studio
+                    fi
+                    sudo apt-get update -qq
+                fi
+
+                local -a core_packages=(
+                    build-essential
+                    cmake
+                    ninja-build
+                    pkg-config
+                    git
+                    clang-format
+                    ccache
+                    python3
+                    python3-pip
+                    libobs-dev
+                )
+
+                local -a e2e_packages=(
+                    obs-studio
+                    python3-numpy
+                    python3-requests
+                    python3-websocket
+                    python3-scipy
+                    python3-opencv
+                    python3-pil
+                    python3-yaml
+                    ffmpeg
+                    xvfb
+                    x11-utils
+                    x11-xserver-utils
+                    xauth
+                    dbus-x11
+                    procps
+                    pulseaudio
+                    pulseaudio-utils
+                    libasound2-dev
+                    libpulse-dev
+                    libgl1
+                    libgl1-mesa-dri
+                    libglu1-mesa
+                    libxkbcommon-x11-0
+                    libxcb-xinerama0
+                    fonts-dejavu-core
+                    libgles2-mesa-dev
+                    linux-tools-generic
+                    jq
+                    zsh
+                )
+
+                local -a requested_packages=("${core_packages[@]}")
+                if [[ "${INSTALL_E2E_DEPS:-false}" == "true" ]]; then
+                    requested_packages+=("${e2e_packages[@]}")
+                fi
+
+                if ! can_auto_install_packages "$platform"; then
+                    abort_auto_install "Automatic dependency installation is not possible in this environment." "${requested_packages[@]}"
+                    if [[ "${INSTALL_E2E_DEPS:-false}" == "true" ]]; then
+                        log_info "Per repository policy, run E2E scenarios locally with OBS Studio and a GUI-capable desktop."
+                    fi
+                    exit 1
+                fi
+
                 log_info "Updating package lists..."
                 sudo apt-get update -qq
 
                 log_info "Installing core build dependencies..."
-                sudo apt-get install -y \
-                    build-essential \
-                    cmake \
-                    ninja-build \
-                    pkg-config \
-                    git \
-                    clang-format \
-                    ccache \
-                    python3 \
-                    python3-pip
+                sudo apt-get install -y "${core_packages[@]}"
                 log_info "✅ Core build dependencies installed"
 
                 # Install gersemi for CMake formatting
-                if ! command -v gersemi >/dev/null 2>&1; then
-                    log_info "Installing gersemi for CMake formatting..."
-                    pip3 install --user gersemi
+                if ! install_gersemi; then
+                    log_warning "gersemi is required for CMake formatting checks (./build-aux/run-gersemi). Install it manually before running formatting validation."
                 fi
 
                 # Install SIMDe if available, otherwise continue without system libobs
@@ -181,13 +370,7 @@ install_dependencies() {
                 # Install E2E testing dependencies if requested
                 if [[ "${INSTALL_E2E_DEPS:-false}" == "true" ]]; then
                     log_info "Installing E2E testing dependencies..."
-                    sudo apt-get install -y \
-                        obs-studio \
-                        python3-numpy \
-                        python3-requests \
-                        python3-websocket \
-                        xvfb \
-                        x11-utils
+                    sudo apt-get install -y "${e2e_packages[@]}"
                     log_info "✅ E2E testing dependencies installed successfully"
                     log_info "   - OBS Studio (video streaming software)"
                     log_info "   - Python libraries (numpy; requests/websocket optional)"
@@ -227,8 +410,10 @@ format_code() {
     local clang_format_cmd=""
     local clang_format_version=""
 
-    # Try to find clang-format-21 first (preferred), then clang-format
-    if command -v clang-format-21 >/dev/null 2>&1; then
+    # Try to honor CLANG_FORMAT first, then clang-format-21, then clang-format
+    if [[ -n "${CLANG_FORMAT:-}" && -x "${CLANG_FORMAT}" ]]; then
+        clang_format_cmd="${CLANG_FORMAT}"
+    elif command -v clang-format-21 >/dev/null 2>&1; then
         clang_format_cmd="clang-format-21"
     elif command -v clang-format >/dev/null 2>&1; then
         clang_format_cmd="clang-format"
@@ -1005,26 +1190,40 @@ run_e2e_tests() {
     # Archive results into scenario-specific directory
     local test_output_dir="$PROJECT_ROOT/tests/e2e/test_output"
     local results_root_dir="$PROJECT_ROOT/tests/e2e/results/$scenario_key"
-    rm -rf "$results_root_dir"
-    mkdir -p "$results_root_dir"
-
-    # Remove stop recording marker before copying
-    local marker_file="$test_output_dir/stop_recording.marker"
-    if [[ -f "$marker_file" ]]; then
-        rm -f "$marker_file" || true
+    local has_test_output=false
+    if [[ -d "$test_output_dir" ]] && [[ -n "$(ls -A "$test_output_dir")" ]]; then
+        has_test_output=true
     fi
 
-    if [[ -d "$test_output_dir" ]]; then
+    if [[ "$has_test_output" == "true" ]]; then
+        rm -rf "$results_root_dir"
+        mkdir -p "$results_root_dir"
+
+        # Remove stop recording marker before copying
+        local marker_file="$test_output_dir/stop_recording.marker"
+        if [[ -f "$marker_file" ]]; then
+            rm -f "$marker_file" || true
+        fi
+
         cp -a "$test_output_dir/." "$results_root_dir/"
+    else
+        mkdir -p "$results_root_dir"
     fi
 
     # Compress MP4 into destination to match scenario suite behavior
     local src_mp4="$test_output_dir/c64_recording.mp4"
+    local src_mkv="$test_output_dir/c64_recording.mkv"
     local out_mp4="$results_root_dir/c64_recording.mp4"
-    if [[ -f "$src_mp4" ]]; then
+    if [[ -f "$src_mp4" && "$src_mp4" != "$out_mp4" ]]; then
         bash "$PROJECT_ROOT/tests/e2e/compress_e2e_mp4.sh" "$src_mp4" "$out_mp4" || true
+    elif [[ -f "$src_mkv" ]]; then
+        bash "$PROJECT_ROOT/tests/e2e/compress_e2e_mp4.sh" "$src_mkv" "$out_mp4" || true
     else
-        log_warning "No source MP4 found at $src_mp4 to compress for scenario $scenario_label"
+        if [[ -f "$out_mp4" ]]; then
+            log_info "Recording already present at $out_mp4; skipping compression"
+        else
+            log_warning "No source recording found to compress for scenario $scenario_label"
+        fi
     fi
 
     # Copy OBS config used for this run
@@ -1223,8 +1422,10 @@ main() {
     # Execute workflow
     check_prerequisites "$PLATFORM"
 
+    ensure_linux_build_prereqs "$PLATFORM"
+
     # Auto-install E2E dependencies if E2E is requested and dependencies are missing
-    if [[ "$RUN_E2E" == "true" && "$INSTALL_DEPS" == "false" ]]; then
+    if [[ "$RUN_E2E" == "true" ]]; then
         # Check if essential E2E dependencies are missing
         local missing_e2e_deps=()
 
@@ -1241,9 +1442,15 @@ main() {
 
         if [[ ${#missing_e2e_deps[@]} -gt 0 ]]; then
             log_info "E2E testing requested but missing dependencies: ${missing_e2e_deps[*]}"
-            log_info "Auto-installing missing E2E dependencies..."
-            INSTALL_DEPS=true
-            INSTALL_E2E_DEPS=true
+            if can_auto_install_packages "$PLATFORM"; then
+                log_info "Auto-installing missing E2E dependencies..."
+                INSTALL_DEPS=true
+                INSTALL_E2E_DEPS=true
+            else
+                abort_auto_install "Automatic installation of E2E dependencies is not possible in this environment." "${missing_e2e_deps[@]}"
+                log_info "Per repository policy, execute E2E scenarios on a local workstation with OBS Studio and a GUI-capable display server."
+                exit 1
+            fi
         else
             log_info "E2E testing requested - all dependencies already installed"
         fi

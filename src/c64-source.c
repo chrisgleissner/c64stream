@@ -33,6 +33,45 @@ static void close_and_reset_sockets(struct c64_source *context);
 static void c64_schedule_retry(struct c64_source *context, const char *reason);
 static void c64_refresh_resolved_ip(struct c64_source *context);
 
+static bool c64_try_get_prefer_pal_from_obs_fps(bool *prefer_pal)
+{
+    struct obs_video_info ovi;
+    if (!prefer_pal) {
+        return false;
+    }
+    if (!obs_get_video_info(&ovi) || ovi.fps_den == 0) {
+        return false;
+    }
+    double fps = (double)ovi.fps_num / (double)ovi.fps_den;
+    *prefer_pal = (fps < 55.0);
+    return true;
+}
+
+static void c64_apply_format_hint(struct c64_source *context, bool prefer_pal)
+{
+    if (!context) {
+        return;
+    }
+    context->width = C64_PAL_WIDTH;
+    context->height = prefer_pal ? C64_PAL_HEIGHT : C64_NTSC_HEIGHT;
+    context->expected_fps = prefer_pal ? 50.125 : 59.826;
+    context->frame_interval_ns = prefer_pal ? C64_PAL_FRAME_INTERVAL_NS : C64_NTSC_FRAME_INTERVAL_NS;
+    c64_logo_set_format_preference(context, prefer_pal);
+}
+
+static void c64_update_format_hint_if_needed(struct c64_source *context)
+{
+    if (!context || context->format_detected || context->format_hint_set) {
+        return;
+    }
+    bool prefer_pal = false;
+    if (!c64_try_get_prefer_pal_from_obs_fps(&prefer_pal)) {
+        return;
+    }
+    c64_apply_format_hint(context, prefer_pal);
+    context->format_hint_set = true;
+}
+
 static bool settings_have_effect_overrides(obs_data_t *settings)
 {
     if (!settings)
@@ -305,12 +344,16 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     if (context->audio_port == 0)
         context->audio_port = C64_DEFAULT_AUDIO_PORT;
 
-    // Initialize video format (start with PAL, will be detected from stream)
+    bool prefer_pal = false;
+    bool have_obs_hint = c64_try_get_prefer_pal_from_obs_fps(&prefer_pal);
+
+    // Initialize video format (match OBS FPS when possible, then refine on stream detection)
     context->width = C64_PAL_WIDTH;
-    context->height = C64_PAL_HEIGHT;
+    context->height = prefer_pal ? C64_PAL_HEIGHT : C64_NTSC_HEIGHT;
+    context->format_hint_set = have_obs_hint;
 
     // Allocate single frame buffer for direct async video output (RGBA, 4 bytes per pixel)
-    size_t frame_size = context->width * context->height * sizeof(uint32_t);
+    size_t frame_size = C64_PAL_WIDTH * C64_PAL_HEIGHT * sizeof(uint32_t);
     context->frame_buffer = bmalloc(frame_size);
     if (!context->frame_buffer) {
         C64_LOG_ERROR("Failed to allocate frame buffer");
@@ -319,9 +362,9 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     memset(context->frame_buffer, 0, frame_size);
 
     // Allocate pre-allocated recording buffers to eliminate malloc/free in hot paths
-    context->recording_buffer_size = frame_size;                               // Same as RGBA frame size
-    context->bmp_row_buffer = bmalloc(context->width * 4 + 4);                 // Row + padding for BMP
-    context->bgr_frame_buffer = bmalloc(context->width * context->height * 3); // BGR24 frame
+    context->recording_buffer_size = frame_size;                             // Same as RGBA frame size
+    context->bmp_row_buffer = bmalloc(C64_PAL_WIDTH * 4 + 4);                // Row + padding for BMP
+    context->bgr_frame_buffer = bmalloc(C64_PAL_WIDTH * C64_PAL_HEIGHT * 3); // BGR24 frame (max size)
     if (!context->bmp_row_buffer || !context->bgr_frame_buffer) {
         C64_LOG_ERROR("Failed to allocate recording buffers");
         if (context->frame_buffer)
@@ -338,7 +381,7 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     // Initialize video format detection
     context->detected_frame_height = 0;
     context->format_detected = false;
-    context->expected_fps = 50.125; // Default to PAL timing until detected
+    context->expected_fps = prefer_pal ? 50.125 : 59.826; // Default to OBS FPS; updated on detection
 
     // Initialize mutexes (frame_mutex no longer needed for async video output)
     if (pthread_mutex_init(&context->assembly_mutex, NULL) != 0) {
@@ -428,7 +471,8 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->stream_start_time_ns = 0;
     context->first_frame_num = 0;
     context->timestamp_base_set = false;
-    context->frame_interval_ns = C64_PAL_FRAME_INTERVAL_NS; // Default to PAL, will be updated on detection
+    context->frame_interval_ns = prefer_pal ? C64_PAL_FRAME_INTERVAL_NS
+                                            : C64_NTSC_FRAME_INTERVAL_NS; // Default to OBS FPS
 
     // Initialize debug logging from settings (must be done before any debug logs)
     c64_debug_logging = obs_data_get_bool(settings, "debug_logging");
@@ -438,6 +482,8 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     if (!c64_logo_init(context)) {
         C64_LOG_WARNING("Logo system initialization failed - continuing without logo");
     }
+
+    c64_apply_format_hint(context, prefer_pal);
 
     // Initialize recording for this source
     c64_record_init(context);
@@ -1183,6 +1229,8 @@ uint32_t c64_get_width(void *data)
     if (!context)
         return 0;
 
+    c64_update_format_hint_if_needed(context);
+
     // Check if any effects that change dimensions are enabled
     bool dimension_effects_enabled = (context->scan_line_distance > 0.0f) || context->pixel_width != 1.0f;
 
@@ -1211,6 +1259,8 @@ uint32_t c64_get_height(void *data)
     struct c64_source *context = data;
     if (!context)
         return 0;
+
+    c64_update_format_hint_if_needed(context);
 
     // Check if any effects that change dimensions are enabled
     bool dimension_effects_enabled = (context->scan_line_distance > 0.0f) || context->pixel_height != 1.0f;

@@ -84,6 +84,7 @@ struct c64_source {
     // Dynamic video format detection
     uint32_t detected_frame_height;
     bool format_detected;
+    bool format_hint_set;
     double expected_fps;
 
     // Audio data

@@ -596,12 +596,11 @@ class E2ETest:
                     self.log(f"✅ Xvfb already running on {display} (started by workflow)")
                     # Set DISPLAY environment variable
                     os.environ['DISPLAY'] = display
-                    # Only set CI-specific Qt/GL environment variables in CI environment
-                    if self.is_ci:
-                        os.environ.setdefault('QT_QPA_PLATFORM', 'xcb')
-                        os.environ.setdefault('QT_X11_NO_MITSHM', '1')
-                        os.environ.setdefault('LIBGL_ALWAYS_SOFTWARE', '1')
-                        self.log("🏗️ Applied CI-specific Qt/GL environment variables")
+                    # Apply conservative Qt/GL settings when using Xvfb.
+                    os.environ.setdefault('QT_QPA_PLATFORM', 'xcb')
+                    os.environ.setdefault('QT_X11_NO_MITSHM', '1')
+                    os.environ.setdefault('LIBGL_ALWAYS_SOFTWARE', '1')
+                    self.log("🧪 Applied headless Qt/GL environment variables")
                     self.xvfb_process = None  # Not managed by us
                     return True
             except Exception:
@@ -634,12 +633,11 @@ class E2ETest:
 
             # Set DISPLAY environment variable
             os.environ['DISPLAY'] = display
-            # Only set CI-specific Qt/GL environment variables in CI environment
-            if self.is_ci:
-                os.environ.setdefault('QT_QPA_PLATFORM', 'xcb')
-                os.environ.setdefault('QT_X11_NO_MITSHM', '1')
-                os.environ.setdefault('LIBGL_ALWAYS_SOFTWARE', '1')
-                self.log("🏗️ Applied CI-specific Qt/GL environment variables")
+            # Apply conservative Qt/GL settings when using Xvfb.
+            os.environ.setdefault('QT_QPA_PLATFORM', 'xcb')
+            os.environ.setdefault('QT_X11_NO_MITSHM', '1')
+            os.environ.setdefault('LIBGL_ALWAYS_SOFTWARE', '1')
+            self.log("🧪 Applied headless Qt/GL environment variables")
 
             # Give Xvfb time to start
             time.sleep(2)
@@ -1123,28 +1121,22 @@ class E2ETest:
             # Create WebSocket connection
             ws = websocket.create_connection(ws_url, timeout=5)
 
-            # Receive Hello message with authentication challenge
+            # Receive Hello message with authentication challenge (if enabled)
             hello_msg = json.loads(ws.recv())
             if hello_msg.get("op") != 0:  # Hello opcode
                 raise Exception(f"Expected Hello message, got: {hello_msg}")
 
-            # Authenticate using the challenge
-            auth_data = hello_msg["d"]["authentication"]
-            challenge = auth_data["challenge"]
-            salt = auth_data["salt"]
+            identify_payload = {"rpcVersion": 1}
+            auth_data = hello_msg.get("d", {}).get("authentication")
+            if auth_data:
+                challenge = auth_data["challenge"]
+                salt = auth_data["salt"]
+                secret = base64.b64encode(hashlib.sha256((password + salt).encode()).digest()).decode()
+                auth_response = base64.b64encode(hashlib.sha256((secret + challenge).encode()).digest()).decode()
+                identify_payload["authentication"] = auth_response
 
-            # Generate authentication response
-            secret = base64.b64encode(hashlib.sha256((password + salt).encode()).digest()).decode()
-            auth_response = base64.b64encode(hashlib.sha256((secret + challenge).encode()).digest()).decode()
-
-            # Send Identify message with authentication
-            identify_msg = {
-                "op": 1,  # Identify
-                "d": {
-                    "rpcVersion": 1,
-                    "authentication": auth_response
-                }
-            }
+            # Send Identify message (with or without auth)
+            identify_msg = {"op": 1, "d": identify_payload}
             ws.send(json.dumps(identify_msg))
 
             # Receive Identified message
@@ -1257,12 +1249,12 @@ class E2ETest:
             self.log(f"Running: {' '.join(obs_cmd)}")
 
             env_vars = dict(os.environ, DISPLAY=os.environ.get('DISPLAY', ':99'))
-            # Only set CI-specific Qt/GL environment variables in CI environment
-            if self.is_ci:
+            # Apply conservative Qt/GL settings when using headless/Xvfb.
+            if self.is_ci or env_vars.get('DISPLAY') == ':99':
                 env_vars.setdefault('QT_QPA_PLATFORM', 'xcb')
                 env_vars.setdefault('QT_X11_NO_MITSHM', '1')
                 env_vars.setdefault('LIBGL_ALWAYS_SOFTWARE', '1')
-                self.log("🏗️ Applied CI-specific Qt/GL environment variables to OBS subprocess")
+                self.log("🧪 Applied headless Qt/GL environment variables to OBS subprocess")
 
             # Start OBS process
             self.obs_process = subprocess.Popen(
@@ -1289,15 +1281,10 @@ class E2ETest:
             return True
 
         try:
-            # Try preferred flag first, then fallback
-            # For CI: prefer '--collection' (OBS 32+), fallback to '--scene-collection' (older OBS)
-            # For local: prefer '--scene-collection' for wider compatibility, fallback to '--collection'
-            if self.is_ci:
-                collection_flags = ['--collection', '--scene-collection']
-                self.log("🏗️ CI environment: trying --collection first (OBS 32+)")
-            else:
-                collection_flags = ['--scene-collection', '--collection']
-                self.log("🚀 Local environment: trying --scene-collection first (wider compatibility)")
+            # Try preferred flag first, then fallback.
+            # OBS 28+ uses --collection; keep --scene-collection as a fallback for older builds.
+            collection_flags = ['--collection', '--scene-collection']
+            self.log("🚀 Trying --collection first; fallback to --scene-collection if needed")
 
             launched = False
             init_ok = False
@@ -1601,7 +1588,7 @@ class E2ETest:
         self.log("Checking for recording output...")
 
         # Look for video files in multiple directories
-        video_extensions = ['.mkv', '.mp4', '.mov', '.avi', '.flv']
+        video_extensions = ['.mkv', '.mp4', '.mov', '.avi', '.flv', '.hybrid_mp4']
         search_dirs = [
             self.output_dir,  # Our test output directory
             Path.home() / 'Videos',  # Default OBS recording directory
@@ -1647,7 +1634,8 @@ class E2ETest:
                 # Basic validation - file should be larger than 10KB
                 if file_size > 10240:
                     # Move to our output directory for easier access (avoid duplicates)
-                    dest_file = self.output_dir / f"c64_recording{recording.suffix}"
+                    suffix = '.mp4' if recording.suffix == '.hybrid_mp4' else recording.suffix
+                    dest_file = self.output_dir / f"c64_recording{suffix}"
                     try:
                         import shutil
                         shutil.move(str(recording), str(dest_file))

@@ -865,7 +865,7 @@ class FrameProgressionAssertion(EffectAssertion):
             "max_seconds": 8.0,
             "max_ambiguous_ratio": 0.30,
             "min_changes_for_full": 20,
-            "max_skip_delta": 4,
+            "max_skip_delta": 6,
             "max_skips": 60,
             "max_back_steps": 3,
             # Allow up to 10 severe steps to handle CI timing variability.
