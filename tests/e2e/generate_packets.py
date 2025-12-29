@@ -498,6 +498,20 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                         if _is_in_corner_chamfer(px, py, bl_x, bl_y, "tr"):
                             pass
                         else:
+                            # Frame-progression tick marks (in the frame, not the inner content):
+                            # - 1px wide dark-blue vertical ticks centered on each of 8 slots
+                            # - Drawn in the black frame area adjacent to the 1px outline
+                            # - Extend down from top and up from bottom, stopping 1px short of inner content.
+                            if not is_white:
+                                local_x = px - bl_x
+                                local_y = py - bl_y
+                                # Slot centers in widget-local coordinates:
+                                # inner_x = 4 + slot*8 + 3; local_x = inner_x + 8 = 15 + slot*8
+                                if local_x in (15, 23, 31, 39, 47, 55, 63, 71):
+                                    # Top frame tick: rows 1..6 (leave row 7 black before inner content at row 8)
+                                    # Bottom frame tick: rows 49..54 (leave row 48 black after inner content ends at row 47)
+                                    if (1 <= local_y <= 6) or (49 <= local_y <= 54):
+                                        return VIC_DARK_BLUE
                             return VIC_DARK_BLUE if is_white else VIC_BLACK
                     # Inner content: black background with moving white bar
                     # Bar: 7px wide slot, 1px black gap between slots
@@ -516,22 +530,9 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                             # Gap between slots is black (1px)
                             if pos_in_slot >= slot_width:
                                 return 0  # Black gap
-                            # Ruler-style guide marks:
-                            # - 1px dark-blue tick centered in each slot
-                            # - From top inner edge: extend down 3px
-                            # - From bottom inner edge: extend up 3px
-                            # - Keep 1px separation from the white slot rectangles
-                            slot_center_x = slot_index * slot_pitch + (slot_width // 2)  # 7px -> center at +3
-                            if bar_area_x == slot_center_x:
-                                if inner_y in (0, 1, 2) or inner_y in (CORNER_INNER_HEIGHT - 3, CORNER_INNER_HEIGHT - 2, CORNER_INNER_HEIGHT - 1):
-                                    return VIC_DARK_BLUE
                             # Active slot is white, inactive slots are black (max contrast for heavy effects)
                             if slot_index == (frame_num % 8):
-                                # Keep a 1px gap from the ticks: top ticks occupy y=0..2, leave y=3 black;
-                                # bottom ticks occupy y=H-3..H-1, leave y=H-4 black.
-                                if 4 <= inner_y < (CORNER_INNER_HEIGHT - 4):
-                                    return VIC_WHITE
-                                return VIC_BLACK
+                                return VIC_WHITE
                             return VIC_BLACK
                         return 0  # Black background (outside bar area)
                     return 0
@@ -561,35 +562,13 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                         if is_divider:
                             return 0  # Black divider always
 
-                        # Ruler-style guide marks (mirror frame progression ticks):
-                        # - Center of each A/V half rectangle
-                        # - 1px dark-blue tick from top inner edge down 3px
-                        # - 1px dark-blue tick from bottom inner edge up 3px
-                        left_center_x = half_width // 2  # 35px -> center at 17
-                        right_start_x = half_width + 2
-                        right_center_x = right_start_x + (half_width // 2)  # 37 + 17 = 54
-                        if inner_x in (left_center_x, right_center_x):
-                            if inner_y in (0, 1, 2) or inner_y in (
-                                CORNER_INNER_HEIGHT - 3,
-                                CORNER_INNER_HEIGHT - 2,
-                                CORNER_INNER_HEIGHT - 1,
-                            ):
-                                return VIC_DARK_BLUE
-
                         # A/V pop background is black for maximum contrast.
                         if sync_active and pop_index >= 0:
                             # Determine which half should light up based on audio channel
                             # Alternation: L, R, L, R... (pop_index 0=LEFT, 1=RIGHT, 2=LEFT...)
                             is_left_pop = (pop_index % 2) == 0
                             should_light = (is_left_half and is_left_pop) or (is_right_half and not is_left_pop)
-                            if should_light:
-                                # Keep a 1px separation from the ticks (same rule as frame progression):
-                                # top ticks occupy y=0..2, leave y=3 black;
-                                # bottom ticks occupy y=H-3..H-1, leave y=H-4 black.
-                                if 4 <= inner_y < (CORNER_INNER_HEIGHT - 4):
-                                    return VIC_WHITE
-                                return VIC_BLACK
-                            return VIC_BLACK
+                            return VIC_WHITE if should_light else VIC_BLACK
                         return VIC_BLACK
                     return 0
 
