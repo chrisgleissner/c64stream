@@ -501,16 +501,20 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                             # Frame-progression tick marks (in the frame, not the inner content):
                             # - 1px wide dark-blue vertical ticks centered on each of 8 slots
                             # - Drawn in the black frame area adjacent to the 1px outline
-                            # - Extend down from top and up from bottom, stopping 1px short of inner content.
+                            # - Uniform size: 3px tall (top) and 3px tall (bottom)
                             if not is_white:
                                 local_x = px - bl_x
                                 local_y = py - bl_y
                                 # Slot centers in widget-local coordinates:
                                 # inner_x = 4 + slot*8 + 3; local_x = inner_x + 8 = 15 + slot*8
                                 if local_x in (15, 23, 31, 39, 47, 55, 63, 71):
-                                    # Top frame tick: rows 1..6 (leave row 7 black before inner content at row 8)
-                                    # Bottom frame tick: rows 49..54 (leave row 48 black after inner content ends at row 47)
-                                    if (1 <= local_y <= 6) or (49 <= local_y <= 54):
+                                    # Top frame tick: rows 1..3
+                                    # Bottom frame tick: rows 52..54 (just above the outer border at row 55)
+                                    if local_y in (1, 2, 3) or local_y in (
+                                        CORNER_OUTER_HEIGHT - 4,
+                                        CORNER_OUTER_HEIGHT - 3,
+                                        CORNER_OUTER_HEIGHT - 2,
+                                    ):
                                         return VIC_DARK_BLUE
                             return VIC_DARK_BLUE if is_white else VIC_BLACK
                     # Inner content: black background with moving white bar
@@ -547,6 +551,21 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                         if _is_in_corner_chamfer(px, py, br_x, br_y, "tl"):
                             pass
                         else:
+                            # A/V pop tick marks (in the frame, not the inner content):
+                            # - 1px wide dark-blue vertical ticks centered on each half-rectangle (L/R)
+                            # - Uniform size: 3px tall (top) and 3px tall (bottom)
+                            if not is_white:
+                                local_x = px - br_x
+                                local_y = py - br_y
+                                # Centers of the two 35px halves in widget-local coordinates:
+                                # inner starts at +8; left_center = 8+17=25, right_center = 8+54=62
+                                if local_x in (25, 62):
+                                    if local_y in (1, 2, 3) or local_y in (
+                                        CORNER_OUTER_HEIGHT - 4,
+                                        CORNER_OUTER_HEIGHT - 3,
+                                        CORNER_OUTER_HEIGHT - 2,
+                                    ):
+                                        return VIC_DARK_BLUE
                             return VIC_DARK_BLUE if is_white else VIC_BLACK
                     # Inner content: split into left/right halves with 2px black divider
                     # Layout: [left_half 35px] [divider 2px] [right_half 35px] = 72px

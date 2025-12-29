@@ -1,0 +1,10 @@
+{
+  "log_file": "/workspace/tests/e2e/test_output_ntsc_default2/obs_log.txt",
+  "notable_lines": [
+    "19:29:54.337: Failed to load 'en-US' text for module: 'c64stream.so'",
+    "19:29:54.346: Failed to load 'en-US' text for module: 'decklink-captions.so'",
+    "19:29:54.354: Failed to load 'en-US' text for module: 'decklink-output-ui.so'",
+    "19:29:54.360: Failed to initialize module 'decklink.so'",
+    "19:29:54.770: [1767036594770] Failed to load logo texture from: /usr/share/obs/obs-plugins/c64stream/images/c64stream-logo.png"
+  ]
+}
