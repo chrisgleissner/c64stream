@@ -1277,50 +1277,59 @@ void c64_video_render(void *data, gs_effect_t *effect)
 
     if (has_afterglow_textures) {
         // Only update accumulation on new frames (not repeated renders of the same frame)
-        if (is_new_frame) {
-            // Step 1: Render to afterglow_accum_next (off-screen render target)
-            // Save original render state (render target, z-stencil, and viewport)
-            gs_texture_t *prev_target = gs_get_render_target();
-            gs_zstencil_t *prev_zstencil = gs_get_zstencil_target();
-            struct gs_rect prev_viewport;
-            gs_get_viewport(&prev_viewport);
+        // CRITICAL FIX: Apply afterglow accumulation on EVERY render, not just new frames!
+        // When frames are skipped (source goes N→N+2), frame N+1's slot must still be updated
+        // with decay/persistence. Previously, we only ran accumulation when is_new_frame=true,
+        // causing skipped frame slots to stay dark with stale data, breaking the smooth decay pattern.
+        //
+        // Now we ALWAYS run the accumulation pass. The shader handles both cases:
+        // - New frame: Renders new content + applies persistence from previous accumulation
+        // - Repeated frame: Applies persistence/decay only (since input_tex is same as last frame)
+        //
+        // This ensures frame progression slots show continuous afterglow decay even when frames skip.
 
-            gs_set_render_target(context->afterglow_accum_next, NULL);
-            gs_set_viewport(0, 0, render_width, render_height);
+        // Step 1: Render to afterglow_accum_next (off-screen render target)
+        // Save original render state (render target, z-stencil, and viewport)
+        gs_texture_t *prev_target = gs_get_render_target();
+        gs_zstencil_t *prev_zstencil = gs_get_zstencil_target();
+        struct gs_rect prev_viewport;
+        gs_get_viewport(&prev_viewport);
 
-            // Disable blending to ensure shader output completely replaces the render target
-            // Default blending might cause additive accumulation which breaks the max-based persistence model
-            gs_blend_state_push();
-            gs_blend_function(GS_BLEND_ONE, GS_BLEND_ZERO); // dest = src * 1 + dest * 0 = src (replace)
-            gs_enable_blending(true);
+        gs_set_render_target(context->afterglow_accum_next, NULL);
+        gs_set_viewport(0, 0, render_width, render_height);
 
-            // CRITICAL: Clear the render target before rendering!
-            // Without this, stale data from 2 frames ago contaminates the output.
-            // The shader output should completely replace the target, but explicit clearing
-            // ensures we don't have any undefined behavior or blending issues.
-            struct vec4 clear_color = {0.0f, 0.0f, 0.0f, 1.0f};
-            gs_clear(GS_CLEAR_COLOR, &clear_color, 0.0f, 0);
+        // Disable blending to ensure shader output completely replaces the render target
+        // Default blending might cause additive accumulation which breaks the max-based persistence model
+        gs_blend_state_push();
+        gs_blend_function(GS_BLEND_ONE, GS_BLEND_ZERO); // dest = src * 1 + dest * 0 = src (replace)
+        gs_enable_blending(true);
 
-            // Render with CRT effects + afterglow accumulation
-            while (gs_effect_loop(context->crt_effect, "Draw")) {
-                gs_draw_sprite(input_tex, 0, render_width, render_height);
-            }
+        // CRITICAL: Clear the render target before rendering!
+        // Without this, stale data from 2 frames ago contaminates the output.
+        // The shader output should completely replace the target, but explicit clearing
+        // ensures we don't have any undefined behavior or blending issues.
+        struct vec4 clear_color = {0.0f, 0.0f, 0.0f, 1.0f};
+        gs_clear(GS_CLEAR_COLOR, &clear_color, 0.0f, 0);
 
-            // Restore blend state
-            gs_blend_state_pop();
-
-            // Step 2: Swap ping-pong textures for next frame
-            gs_texture_t *tmp = context->afterglow_accum_prev;
-            context->afterglow_accum_prev = context->afterglow_accum_next;
-            context->afterglow_accum_next = tmp;
-
-            // Mark afterglow as initialized after first render+swap
-            context->afterglow_initialized = true;
-
-            // Step 3: Restore original render state
-            gs_set_render_target(prev_target, prev_zstencil);
-            gs_set_viewport(prev_viewport.x, prev_viewport.y, prev_viewport.cx, prev_viewport.cy);
+        // Render with CRT effects + afterglow accumulation
+        while (gs_effect_loop(context->crt_effect, "Draw")) {
+            gs_draw_sprite(input_tex, 0, render_width, render_height);
         }
+
+        // Restore blend state
+        gs_blend_state_pop();
+
+        // Step 2: Swap ping-pong textures for next frame
+        gs_texture_t *tmp = context->afterglow_accum_prev;
+        context->afterglow_accum_prev = context->afterglow_accum_next;
+        context->afterglow_accum_next = tmp;
+
+        // Mark afterglow as initialized after first render+swap
+        context->afterglow_initialized = true;
+
+        // Step 3: Restore original render state
+        gs_set_render_target(prev_target, prev_zstencil);
+        gs_set_viewport(prev_viewport.x, prev_viewport.y, prev_viewport.cx, prev_viewport.cy);
 
         // Blit the accumulated texture to screen (done for both new and repeated renders)
         // On first frame, afterglow_accum_prev might be black (before first swap) so render direct

@@ -298,41 +298,54 @@ class AfterglowAssertion(EffectAssertion):
         slot_array = np.array(all_slot_lumas)  # Shape: [N, 8]
 
         # Check for discontinuities: frames where inactive slots suddenly go dark (missing afterglow)
+        # CRITICAL: When a source frame is skipped, the corresponding slot should STILL be updated
+        # in the GPU afterglow accumulation buffer. If not, that slot stays dark, breaking the
+        # expected smooth decay pattern from brightest (most recent) to dimmest (oldest).
         discontinuities = []
 
         for frame_idx in range(20, len(slot_array)):
             lumas = slot_array[frame_idx]
-            prev_lumas = slot_array[frame_idx - 1]
 
-            # Current active slot (cycles every 8 frames)
-            current_slot = frame_idx % 8
+            # Find brightest slot (most recently updated)
+            brightest_slot = int(np.argmax(lumas))
+            max_luma = lumas[brightest_slot]
 
-            # Check each slot (except current active slot)
-            for slot_idx in range(8):
-                if slot_idx == current_slot:
-                    continue  # Skip currently active slot
+            if max_luma < 20:  # Skip frames with no bright content
+                continue
 
-                curr = lumas[slot_idx]
-                prev = prev_lumas[slot_idx]
+            # Check for smooth decay pattern from brightest slot leftward (older slots)
+            # Wrap around: if brightest is 3, check order: 3, 2, 1, 0, 7, 6, 5, 4
+            for offset in range(1, 8):
+                slot_idx = (brightest_slot - offset) % 8
+                prev_slot_idx = (brightest_slot - offset + 1) % 8
 
-                # Detect sudden drop (>20%) indicating missing afterglow
-                if prev > 15 and curr < prev * 0.8:  # 20% drop threshold
-                    discontinuities.append(
-                        f"Frame {frame_idx}: Slot {slot_idx} dropped from {prev:.1f} to {curr:.1f} "
-                        f"({(1 - curr/prev)*100:.0f}% drop) - possible missing afterglow"
-                    )
+                curr_luma = lumas[slot_idx]
+                prev_luma = lumas[prev_slot_idx]
+
+                # Expected: current slot should be dimmer (decay) or similar to previous slot
+                # If current slot is WAY darker (>50% drop when previous was bright), it's stuck
+                if prev_luma > 20:  # Only check if previous slot was bright enough
+                    expected_min = prev_luma * 0.4  # Allow up to 60% decay
+                    if curr_luma < expected_min:
+                        discontinuities.append(
+                            f"Frame {frame_idx}: Slot {slot_idx} abnormally dark ({curr_luma:.1f}) compared to "
+                            f"slot {prev_slot_idx} ({prev_luma:.1f}) - {((prev_luma-curr_luma)/prev_luma*100):.0f}% drop. "
+                            f"Likely missing render during frame skip."
+                        )
+                        break  # One discontinuity per frame is enough
 
         # Calculate discontinuity rate
-        discontinuity_rate = len(discontinuities) / max(1, len(slot_array) - 20)
+        frames_checked = max(1, len(slot_array) - 20)
+        discontinuity_rate = len(discontinuities) / frames_checked
 
-        if discontinuity_rate > 0.05:  # Fail if >5% of frames have discontinuities
+        if discontinuity_rate > 0.01:  # Fail if >1% of frames have discontinuities (was 5%, now stricter)
             if verbose:
                 for d in discontinuities[:10]:  # Log first 10 discontinuities
                     self.log(f"  {d}", True)
             return (
                 False,
-                f"Slot discontinuities detected: {len(discontinuities)}/{len(slot_array)-20} frames "
-                f"({discontinuity_rate*100:.1f}%) exceed 5.0% threshold - afterglow not consistently applied",
+                f"Slot discontinuities detected: {len(discontinuities)}/{frames_checked} frames "
+                f"({discontinuity_rate*100:.1f}%) exceed 1.0% threshold - slots not updated during frame skips",
             )
 
         # Also check that inactive slots show brightness (indicating afterglow exists)
