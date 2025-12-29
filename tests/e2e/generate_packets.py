@@ -316,6 +316,17 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
     payload = bytearray(768)
     sync_active = is_sync_marker_active(frame_num, format_name, total_frames)
 
+    border_color = 14  # VIC light blue (matches spec border)
+    screen_color = 6   # VIC blue (matches spec inner screen)
+    if format_name == 'PAL':
+        border_left, border_right, border_top, border_bottom = 32, 32, 35, 37
+    else:
+        border_left, border_right, border_top, border_bottom = 32, 32, 20, 20
+    screen_x0 = border_left
+    screen_x1 = width - border_right
+    screen_y0 = border_top
+    screen_y1 = height - border_bottom
+
     # Calculate pop_index for L/R channel indicator (same logic as audio)
     pop_index = -1
     if sync_active and frame_num >= POP_FRAME_OFFSET:
@@ -473,6 +484,12 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                     return 0
 
                 # ═══════════════════════════════════════════════════════════════
+                # BORDER AREA: solid border color outside the 320x200 screen
+                # ═══════════════════════════════════════════════════════════════
+                if px < screen_x0 or px >= screen_x1 or py < screen_y0 or py >= screen_y1:
+                    return border_color
+
+                # ═══════════════════════════════════════════════════════════════
                 # CENTRAL FIELD: Diagonal Pattern (behind corner elements)
                 # ═══════════════════════════════════════════════════════════════
                 if pattern == 'solid':
@@ -481,7 +498,7 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                 if pattern == 'dots':
                     if (px % 16 == 0) and (py % 16 == 0):
                         return 1  # White
-                    return 0  # Black
+                    return screen_color  # Screen background
 
                 # Default: diagonal stripes cycling through all 16 colors
                 S = px + py + frame_num
@@ -489,7 +506,7 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                 stripe_width = 2
                 in_stripe = (S % stripe_period) < stripe_width
                 if not in_stripe:
-                    return 0
+                    return screen_color
                 # Color based on diagonal position (invariant under motion)
                 diag_index = ((px - py) // 16) % 16
                 return diag_index

@@ -295,7 +295,7 @@ Mode=Simple
 
 [SimpleOutput]
 FilePath={self.output_dir}
-RecFormat2=hybrid_mp4
+RecFormat2=mp4
 VBitrate=6000
 ABitrate=160
 UseAdvanced=false

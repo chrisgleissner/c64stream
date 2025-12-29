@@ -758,21 +758,27 @@ check_dependencies() {
         fi
     done
 
-    # Python packages (only numpy required by generate_packets.py)
-    for package in numpy; do
-        if ! python3 -c "import ${package}" >/dev/null 2>&1; then
-            # Prefer distro package when not using a virtual environment
-            missing_deps+=("python3-${package,,}")
-        fi
-    done
-
-    # Check for optional Python runtime deps (requests, websocket) - used for OBS WebSocket API
-    # These are optional - E2E tests work without them by gracefully degrading functionality
+    # Python packages required by packet generation + assertions
+    if ! python3 -c "import numpy" >/dev/null 2>&1; then
+        missing_deps+=("python3-numpy")
+    fi
+    if ! python3 -c "import cv2" >/dev/null 2>&1; then
+        missing_deps+=("python3-opencv")
+    fi
+    if ! python3 -c "from PIL import Image" >/dev/null 2>&1; then
+        missing_deps+=("python3-pil")
+    fi
+    if ! python3 -c "import yaml" >/dev/null 2>&1; then
+        missing_deps+=("python3-yaml")
+    fi
+    if ! python3 -c "import scipy" >/dev/null 2>&1; then
+        missing_deps+=("python3-scipy")
+    fi
     if ! python3 -c "import requests" >/dev/null 2>&1; then
-        log_info "Optional: python3-requests not found (OBS WebSocket API will be disabled)"
+        missing_deps+=("python3-requests")
     fi
     if ! python3 -c "import websocket" >/dev/null 2>&1; then
-        log_info "Optional: python3-websocket not found (OBS WebSocket API will be disabled)"
+        missing_deps+=("python3-websocket")
     fi
 
     # Virtual display tools (always needed for headless testing)
@@ -838,11 +844,27 @@ check_dependencies() {
             fi
         done
 
-        for package in numpy; do
-            if ! python3 -c "import ${package}" 2>/dev/null; then
-                still_missing+=("python3-${package,,}")
-            fi
-        done
+        if ! python3 -c "import numpy" 2>/dev/null; then
+            still_missing+=("python3-numpy")
+        fi
+        if ! python3 -c "import cv2" 2>/dev/null; then
+            still_missing+=("python3-opencv")
+        fi
+        if ! python3 -c "from PIL import Image" 2>/dev/null; then
+            still_missing+=("python3-pil")
+        fi
+        if ! python3 -c "import yaml" 2>/dev/null; then
+            still_missing+=("python3-yaml")
+        fi
+        if ! python3 -c "import scipy" 2>/dev/null; then
+            still_missing+=("python3-scipy")
+        fi
+        if ! python3 -c "import requests" 2>/dev/null; then
+            still_missing+=("python3-requests")
+        fi
+        if ! python3 -c "import websocket" 2>/dev/null; then
+            still_missing+=("python3-websocket")
+        fi
 
         if [[ ${#still_missing[@]} -gt 0 ]]; then
             log_error "Failed to install dependencies: ${still_missing[*]}"
@@ -1130,6 +1152,10 @@ run_e2e_test() {
         "--audio-port" "${AUDIO_PORT}"
         "--udp-replay" "${udp_replay_path}"
     )
+
+    if [[ "${OBS_ENABLED}" == true ]]; then
+        cmd+=("--enable-websocket")
+    fi
 
     if [[ -n "${SCENARIO_NAME}" ]]; then
         cmd+=("--scenario-name" "${SCENARIO_NAME}")

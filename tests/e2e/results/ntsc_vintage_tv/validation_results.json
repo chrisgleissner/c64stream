@@ -1,7 +1,7 @@
 {
   "udp_reception": {
     "status": "pass",
-    "details": "30803/30803 packets (28779 video, 2024 audio)"
+    "details": "30803/30803 packets (28810 video, 1993 audio)"
   },
   "frame_processing": {
     "status": "pass",
@@ -9,30 +9,30 @@
   },
   "video_recording": {
     "status": "pass",
-    "details": "10.0 MB"
+    "details": "9.1 MB"
   },
   "packet_integrity": {
     "status": "pass",
-    "details": "20.3s duration"
+    "details": "19.0s duration"
   },
   "video_brightness": {
     "status": "pass",
     "details": "Normal (best_mean_luma=52.6)",
     "metrics": {
-      "best_offset_s": 5.06666675,
-      "best_mean_luma": 52.577430725097656,
+      "best_offset_s": 4.7471,
+      "best_mean_luma": 52.60153579711914,
       "samples": [
         {
-          "t": 5.06666675,
-          "mean_luma": 52.577430725097656
+          "t": 4.7471,
+          "mean_luma": 52.60153579711914
         },
         {
-          "t": 10.1333335,
-          "mean_luma": 10.5223388671875
+          "t": 9.4942,
+          "mean_luma": 44.6379508972168
         },
         {
-          "t": 15.200000250000002,
-          "mean_luma": 10.51793098449707
+          "t": 14.241299999999999,
+          "mean_luma": 44.64671325683594
         }
       ]
     }
@@ -46,10 +46,10 @@
     "tolerance_ms": 60,
     "sync_details": [
       {
-        "audio_pop_time_ms": 8105,
-        "closest_video_pop_ms": 8073.412897402466,
-        "closest_video_pop_frame": 483,
-        "difference_ms": 31.587102597533885,
+        "audio_pop_time_ms": 7852,
+        "closest_video_pop_ms": 7856.116069936147,
+        "closest_video_pop_frame": 470,
+        "difference_ms": 4.116069936147142,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -59,10 +59,10 @@
         "traffic": "green"
       },
       {
-        "audio_pop_time_ms": 8926,
-        "closest_video_pop_ms": 8892.454785544747,
-        "closest_video_pop_frame": 532,
-        "difference_ms": 33.54521445525279,
+        "audio_pop_time_ms": 8654,
+        "closest_video_pop_ms": 8658.442817504096,
+        "closest_video_pop_frame": 518,
+        "difference_ms": 4.4428175040957285,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -72,10 +72,10 @@
         "traffic": "green"
       },
       {
-        "audio_pop_time_ms": 9726,
-        "closest_video_pop_ms": 9711.496673687025,
-        "closest_video_pop_frame": 581,
-        "difference_ms": 14.503326312975332,
+        "audio_pop_time_ms": 9454,
+        "closest_video_pop_ms": 9460.769565072042,
+        "closest_video_pop_frame": 566,
+        "difference_ms": 6.769565072041587,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -85,10 +85,10 @@
         "traffic": "green"
       },
       {
-        "audio_pop_time_ms": 10529,
-        "closest_video_pop_ms": 10497.10828068064,
-        "closest_video_pop_frame": 628,
-        "difference_ms": 31.891719319359254,
+        "audio_pop_time_ms": 10257,
+        "closest_video_pop_ms": 10263.09631263999,
+        "closest_video_pop_frame": 614,
+        "difference_ms": 6.096312639989264,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -98,10 +98,10 @@
         "traffic": "green"
       },
       {
-        "audio_pop_time_ms": 11332,
-        "closest_video_pop_ms": 11316.150168822918,
-        "closest_video_pop_frame": 677,
-        "difference_ms": 15.849831177081796,
+        "audio_pop_time_ms": 11059,
+        "closest_video_pop_ms": 11065.423060207937,
+        "closest_video_pop_frame": 662,
+        "difference_ms": 6.423060207936942,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -111,10 +111,10 @@
         "traffic": "green"
       },
       {
-        "audio_pop_time_ms": 12132,
-        "closest_video_pop_ms": 12101.761775816534,
-        "closest_video_pop_frame": 724,
-        "difference_ms": 30.238224183465718,
+        "audio_pop_time_ms": 11860,
+        "closest_video_pop_ms": 11867.749807775885,
+        "closest_video_pop_frame": 710,
+        "difference_ms": 7.749807775884619,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -124,10 +124,10 @@
         "traffic": "green"
       },
       {
-        "audio_pop_time_ms": 12934,
-        "closest_video_pop_ms": 12904.08852338448,
-        "closest_video_pop_frame": 772,
-        "difference_ms": 29.91147661551986,
+        "audio_pop_time_ms": 12662,
+        "closest_video_pop_ms": 12670.07655534383,
+        "closest_video_pop_frame": 758,
+        "difference_ms": 8.076555343830478,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -137,10 +137,10 @@
         "traffic": "green"
       },
       {
-        "audio_pop_time_ms": 13737,
-        "closest_video_pop_ms": 13723.130411526761,
-        "closest_video_pop_frame": 821,
-        "difference_ms": 13.869588473238764,
+        "audio_pop_time_ms": 13462,
+        "closest_video_pop_ms": 13472.403302911778,
+        "closest_video_pop_frame": 806,
+        "difference_ms": 10.403302911778155,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -150,10 +150,10 @@
         "traffic": "green"
       },
       {
-        "audio_pop_time_ms": 14537,
-        "closest_video_pop_ms": 14508.742018520374,
-        "closest_video_pop_frame": 868,
-        "difference_ms": 28.257981479626324,
+        "audio_pop_time_ms": 14265,
+        "closest_video_pop_ms": 14274.730050479724,
+        "closest_video_pop_frame": 854,
+        "difference_ms": 9.730050479724014,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -165,28 +165,28 @@
     ],
     "is_perfectly_synced": true,
     "last_event_within_limit": true,
-    "duration_ms": 20266.667,
+    "duration_ms": 18988.399999999998,
     "video_pop_times_ms": [
-      8073.412897402466,
-      8892.454785544747,
-      9711.496673687025,
-      10497.10828068064,
-      11316.150168822918,
-      12101.761775816534,
-      12904.08852338448,
-      13723.130411526761,
-      14508.742018520374
+      7872.83121051048,
+      8675.157958078427,
+      9477.484705646373,
+      10279.81145321432,
+      11082.138200782269,
+      11884.464948350216,
+      12686.791695918162,
+      13489.11844348611,
+      14291.445191054056
     ],
     "video_pop_frame_indices": [
-      483,
-      532,
-      581,
-      628,
-      677,
-      724,
-      772,
-      821,
-      868
+      471,
+      519,
+      567,
+      615,
+      663,
+      711,
+      759,
+      807,
+      855
     ],
     "traffic": [
       "green",
@@ -219,67 +219,60 @@
     "message": "Frame sequence verified",
     "details": {
       "window": {
-        "start_frame": 8,
-        "end_frame": 486,
+        "start_frame": 15,
+        "end_frame": 493,
         "fps": 59.826
       },
       "settling_seconds": 4.0,
       "settling_frames": 239,
-      "settling_cutoff_frame": 247,
+      "settling_cutoff_frame": 254,
       "content_bounds": {
-        "first_content_frame": 8,
-        "last_content_frame": 960,
-        "logo_end_frame": 7,
+        "first_content_frame": 15,
+        "last_content_frame": 948,
+        "logo_end_frame": 14,
         "detection_confidence": 1.0
       },
       "video_pop_starts": [
-        483,
-        532,
-        581,
-        628,
-        677,
-        724,
-        772,
-        821,
-        868
+        471,
+        519,
+        567,
+        615,
+        663,
+        711,
+        759,
+        807,
+        855
       ],
       "analyzed_frames": 479,
       "valid_frames": 479,
-      "compressed_len": 17,
+      "compressed_len": 56,
       "distinct_slots": 8,
       "frame_slots": {
-        "8": 0,
-        "9": 0,
-        "10": 0,
-        "11": 0,
-        "12": 0,
-        "13": 0,
-        "14": 0,
-        "15": 0,
+        "15": 1,
         "16": 0,
         "17": 0,
         "18": 0,
         "19": 0,
         "20": 0,
         "21": 0,
-        "22": 1,
-        "23": 1,
+        "22": 0,
+        "23": 0,
         "24": 0,
         "25": 0,
         "26": 0,
         "27": 0,
         "28": 0,
-        "29": 0,
-        "30": 0,
-        "31": 0,
+        "29": 1,
+        "30": 1,
+        "31": 1,
         "32": 0,
         "33": 0,
         "34": 0,
         "35": 0,
         "36": 0,
-        "37": 1,
-        "38": 1,
-        "39": 0,
+        "37": 0,
+        "38": 0,
+        "39": 1,
         "40": 0,
         "41": 0,
         "42": 0,
@@ -313,19 +306,19 @@
         "70": 0,
         "71": 0,
         "72": 0,
-        "73": 0,
-        "74": 0,
-        "75": 0,
-        "76": 0,
-        "77": 0,
-        "78": 0,
-        "79": 0,
+        "73": 1,
+        "74": 1,
+        "75": 1,
+        "76": 1,
+        "77": 1,
+        "78": 1,
+        "79": 1,
         "80": 0,
         "81": 0,
         "82": 0,
         "83": 0,
         "84": 0,
-        "85": 0,
+        "85": 1,
         "86": 0,
         "87": 0,
         "88": 0,
@@ -688,202 +681,138 @@
         "445": 0,
         "446": 0,
         "447": 0,
-        "448": 0,
-        "449": 0,
-        "450": 0,
-        "451": 0,
-        "452": 0,
-        "453": 0,
-        "454": 0,
+        "448": 1,
+        "449": 2,
+        "450": 3,
+        "451": 4,
+        "452": 5,
+        "453": 6,
+        "454": 7,
         "455": 0,
-        "456": 0,
-        "457": 0,
-        "458": 0,
-        "459": 0,
-        "460": 1,
-        "461": 1,
-        "462": 1,
-        "463": 3,
-        "464": 3,
-        "465": 6,
-        "466": 6,
-        "467": 6,
-        "468": 1,
-        "469": 1,
-        "470": 3,
-        "471": 3,
-        "472": 5,
-        "473": 5,
-        "474": 7,
-        "475": 7,
-        "476": 7,
-        "477": 1,
-        "478": 1,
-        "479": 4,
-        "480": 4,
-        "481": 5,
-        "482": 5,
-        "483": 0,
-        "484": 0,
-        "485": 2,
-        "486": 2
+        "456": 1,
+        "457": 2,
+        "458": 3,
+        "459": 4,
+        "460": 5,
+        "461": 6,
+        "462": 7,
+        "463": 0,
+        "464": 1,
+        "465": 2,
+        "466": 3,
+        "467": 4,
+        "468": 5,
+        "469": 6,
+        "470": 7,
+        "471": 0,
+        "472": 1,
+        "473": 2,
+        "474": 3,
+        "475": 4,
+        "476": 5,
+        "477": 6,
+        "478": 7,
+        "479": 0,
+        "480": 1,
+        "481": 2,
+        "482": 3,
+        "483": 4,
+        "484": 5,
+        "485": 6,
+        "486": 7,
+        "487": 0,
+        "488": 1,
+        "489": 2,
+        "490": 3,
+        "491": 4,
+        "492": 5,
+        "493": 6
       },
-      "skips": 14,
+      "skips": 0,
       "skip_stats": {
-        "count": 10,
-        "min": 1,
-        "median": 1,
-        "max": 2
+        "count": 0,
+        "min": 0,
+        "median": 0,
+        "max": 0
       },
-      "skip_events": [
-        {
-          "frame": 463,
-          "time_sec": 7.739,
-          "skipped": 1
-        },
-        {
-          "frame": 465,
-          "time_sec": 7.773,
-          "skipped": 2
-        },
-        {
-          "frame": 468,
-          "time_sec": 7.823,
-          "skipped": 2
-        },
-        {
-          "frame": 470,
-          "time_sec": 7.856,
-          "skipped": 1
-        },
-        {
-          "frame": 472,
-          "time_sec": 7.89,
-          "skipped": 1
-        },
-        {
-          "frame": 474,
-          "time_sec": 7.923,
-          "skipped": 1
-        },
-        {
-          "frame": 477,
-          "time_sec": 7.973,
-          "skipped": 1
-        },
-        {
-          "frame": 479,
-          "time_sec": 8.007,
-          "skipped": 2
-        },
-        {
-          "frame": 483,
-          "time_sec": 8.073,
-          "skipped": 2
-        },
-        {
-          "frame": 485,
-          "time_sec": 8.107,
-          "skipped": 1
-        }
-      ],
-      "back_steps": 2,
+      "skip_events": [],
+      "back_steps": 5,
       "back_step_events": [
         {
-          "frame": 24,
-          "time_sec": 0.401
+          "frame": 16,
+          "time_sec": 0.267
         },
         {
-          "frame": 39,
-          "time_sec": 0.652
+          "frame": 32,
+          "time_sec": 0.535
+        },
+        {
+          "frame": 40,
+          "time_sec": 0.669
+        },
+        {
+          "frame": 80,
+          "time_sec": 1.337
+        },
+        {
+          "frame": 86,
+          "time_sec": 1.438
         }
       ],
       "severe_steps": 0,
       "severe_step_events": [],
       "delta_hist": {
-        "1": 4,
-        "7": 2,
-        "2": 6,
-        "3": 4
+        "7": 5,
+        "1": 50
       },
       "ambiguous_frames": 0,
       "ambiguous_ratio": 0.0,
-      "stuck_frames": 462,
-      "stuck_ratio": 0.964509394572025,
-      "max_stuck_run": 421,
+      "stuck_frames": 423,
+      "stuck_ratio": 0.8830897703549061,
+      "max_stuck_run": 362,
       "startup_frames_excluded": 0,
       "end_frames_excluded": 0,
       "stuck_stats": {
-        "count": 17,
-        "min": 2,
-        "median": 2,
-        "max": 421
+        "count": 7,
+        "min": 3,
+        "median": 7,
+        "max": 362
       },
       "repeated_events": [
         {
-          "frame": 9,
-          "time_sec": 0.15,
-          "count": 14
-        },
-        {
-          "frame": 23,
-          "time_sec": 0.384,
-          "count": 2
-        },
-        {
-          "frame": 25,
-          "time_sec": 0.418,
+          "frame": 17,
+          "time_sec": 0.284,
           "count": 13
         },
         {
-          "frame": 38,
-          "time_sec": 0.635,
-          "count": 2
-        },
-        {
-          "frame": 40,
-          "time_sec": 0.669,
-          "count": 421
-        },
-        {
-          "frame": 461,
-          "time_sec": 7.706,
+          "frame": 30,
+          "time_sec": 0.501,
           "count": 3
         },
         {
-          "frame": 464,
-          "time_sec": 7.756,
-          "count": 2
+          "frame": 33,
+          "time_sec": 0.552,
+          "count": 7
         },
         {
-          "frame": 466,
-          "time_sec": 7.789,
-          "count": 3
+          "frame": 41,
+          "time_sec": 0.685,
+          "count": 33
         },
         {
-          "frame": 475,
-          "time_sec": 7.94,
-          "count": 3
+          "frame": 74,
+          "time_sec": 1.237,
+          "count": 7
         },
         {
-          "frame": 478,
-          "time_sec": 7.99,
-          "count": 2
+          "frame": 81,
+          "time_sec": 1.354,
+          "count": 5
         },
         {
-          "frame": 480,
-          "time_sec": 8.023,
-          "count": 2
-        },
-        {
-          "frame": 482,
-          "time_sec": 8.057,
-          "count": 2
-        },
-        {
-          "frame": 486,
-          "time_sec": 8.124,
-          "count": 2
+          "frame": 87,
+          "time_sec": 1.454,
+          "count": 362
         }
       ],
       "settling": {
@@ -893,79 +822,79 @@
           "skip_min": 0,
           "skip_median": 0,
           "skip_max": 0,
-          "back_steps": 2,
+          "back_steps": 5,
           "severe_steps": 0,
-          "stuck_frames": 447,
-          "stuck_run_count": 5,
-          "stuck_run_min": 2,
-          "stuck_run_median": 13,
-          "max_stuck_run": 421
+          "stuck_frames": 423,
+          "stuck_run_count": 7,
+          "stuck_run_min": 3,
+          "stuck_run_median": 7,
+          "max_stuck_run": 362
         },
         "post": {
-          "skips": 14,
-          "skip_count": 10,
-          "skip_min": 1,
-          "skip_median": 1,
-          "skip_max": 2,
+          "skips": 0,
+          "skip_count": 0,
+          "skip_min": 0,
+          "skip_median": 0,
+          "skip_max": 0,
           "back_steps": 0,
           "severe_steps": 0,
-          "stuck_frames": 15,
-          "stuck_run_count": 12,
-          "stuck_run_min": 2,
-          "stuck_run_median": 2,
-          "max_stuck_run": 3
+          "stuck_frames": 0,
+          "stuck_run_count": 0,
+          "stuck_run_min": 0,
+          "stuck_run_median": 0,
+          "max_stuck_run": 0
         }
       },
       "bounds": {
         "left": 38,
         "right": 1881,
         "top": 12,
-        "bottom": 1080
+        "bottom": 1068
       },
       "scale": 4.799479166666667
     },
     "metrics": {
       "valid_frames": 479.0,
       "distinct_slots": 8.0,
-      "skips": 14.0,
-      "skip_count": 10.0,
-      "skip_min": 1.0,
-      "skip_median": 1.0,
-      "skip_max": 2.0,
-      "back_steps": 2.0,
+      "skips": 0.0,
+      "skip_count": 0.0,
+      "skip_min": 0.0,
+      "skip_median": 0.0,
+      "skip_max": 0.0,
+      "back_steps": 5.0,
       "severe_steps": 0.0,
       "ambiguous_ratio": 0.0,
-      "stuck_frames": 462.0,
-      "stuck_ratio": 0.964509394572025,
-      "stuck_run_count": 17.0,
-      "stuck_run_min": 2.0,
-      "stuck_run_median": 2.0,
-      "max_stuck_run": 421.0,
+      "stuck_frames": 423.0,
+      "stuck_ratio": 0.8830897703549061,
+      "stuck_run_count": 7.0,
+      "stuck_run_min": 3.0,
+      "stuck_run_median": 7.0,
+      "max_stuck_run": 362.0,
       "settling_seconds": 4.0,
       "pre_settling_skips": 0.0,
       "pre_settling_skip_count": 0.0,
       "pre_settling_skip_min": 0.0,
       "pre_settling_skip_median": 0.0,
       "pre_settling_skip_max": 0.0,
-      "pre_settling_back_steps": 2.0,
+      "pre_settling_back_steps": 5.0,
       "pre_settling_severe_steps": 0.0,
-      "pre_settling_stuck_frames": 447.0,
-      "pre_settling_stuck_run_count": 5.0,
-      "pre_settling_stuck_run_min": 2.0,
-      "pre_settling_stuck_run_median": 13.0,
-      "pre_settling_max_stuck_run": 421.0,
-      "post_settling_skips": 14.0,
-      "post_settling_skip_count": 10.0,
-      "post_settling_skip_min": 1.0,
-      "post_settling_skip_median": 1.0,
-      "post_settling_skip_max": 2.0,
+      "pre_settling_stuck_frames": 423.0,
+      "pre_settling_stuck_run_count": 7.0,
+      "pre_settling_stuck_run_min": 3.0,
+      "pre_settling_stuck_run_median": 7.0,
+      "pre_settling_max_stuck_run": 362.0,
+      "post_settling_skips": 0.0,
+      "post_settling_skip_count": 0.0,
+      "post_settling_skip_min": 0.0,
+      "post_settling_skip_median": 0.0,
+      "post_settling_skip_max": 0.0,
       "post_settling_back_steps": 0.0,
       "post_settling_severe_steps": 0.0,
-      "post_settling_stuck_frames": 15.0,
-      "post_settling_stuck_run_count": 12.0,
-      "post_settling_stuck_run_min": 2.0,
-      "post_settling_stuck_run_median": 2.0,
-      "post_settling_max_stuck_run": 3.0
+      "post_settling_stuck_frames": 0.0,
+      "post_settling_stuck_run_count": 0.0,
+      "post_settling_stuck_run_min": 0.0,
+      "post_settling_stuck_run_median": 0.0,
+      "post_settling_max_stuck_run": 0.0
     }
   },
   "recording": {
