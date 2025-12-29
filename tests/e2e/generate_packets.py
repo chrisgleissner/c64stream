@@ -41,6 +41,7 @@ import struct
 import numpy as np
 import argparse
 from pathlib import Path
+from typing import Optional
 import math
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import multiprocessing
@@ -130,32 +131,36 @@ CORNER_INNER_HEIGHT = 40  # Inner content height (56 - 8*2 = 40)
 CORNER_FRAME_WHITE = 1    # 1px outer border (color set in renderer)
 CORNER_FRAME_BLACK = 7    # Black inner border
 CORNER_FRAME_TOTAL = 8    # Total frame width on each side
+MARKER_EXTRA_HEIGHT = 4   # Increase marker height by 4px
+MARKER_SHIFT_Y = 2        # Shift marker down by 2px
+TICK_BOTTOM_SHIFT = 2     # Shift bottom ticks down by 2px
 
 # VIC-II palette indices (C64 16-color palette)
 VIC_BLACK = 0
 VIC_WHITE = 1
 VIC_DARK_BLUE = 6
+VIC_LIGHT_BLUE = 14
 
 # Ordered progression from darkest → brightest using all 16 VIC colors.
 # Used with a triangle-wave index to produce:
 #   black → dark → mid → bright → white → ... → reverse back to black
 VIC_DIAGONAL_RAMP = [
-    0,   # black
-    6,   # blue (dark)
-    9,   # brown
-    11,  # dark gray
-    2,   # red
-    4,   # purple
-    5,   # green
-    8,   # orange
-    12,  # gray
-    14,  # light blue
-    10,  # light red
-    13,  # light green
-    3,   # cyan
-    7,   # yellow
-    15,  # light gray
-    1,   # white
+    0,              # black
+    VIC_DARK_BLUE,  # blue (dark)
+    9,              # brown
+    11,             # dark gray
+    2,              # red
+    4,              # purple
+    5,              # green
+    8,              # orange
+    12,             # gray
+    VIC_LIGHT_BLUE,  # light blue
+    10,             # light red
+    13,             # light green
+    3,              # cyan
+    7,              # yellow
+    15,             # light gray
+    1,              # white
 ]
 
 # Current scenario name (set externally before packet generation)
@@ -316,19 +321,18 @@ def _is_in_corner_frame(x: int, y: int, corner_x: int, corner_y: int) -> tuple[b
     return False, False
 
 
-def _is_in_corner_chamfer(x: int, y: int, corner_x: int, corner_y: int, inward_corner: str) -> bool:
-    """True if (x,y) is inside the 3x3 inward chamfer cutout.
+def _get_corner_chamfer_color(
+    x: int, y: int, corner_x: int, corner_y: int, inward_corner: str, outer_color: int, inner_color: int
+) -> Optional[int]:
+    """Return a closed chamfer color for the 3x3 inward corner, or None if not in chamfer area.
 
-    Chamfer rule:
-    - Applies ONLY at the inward-facing corner of a corner widget (toward the inner frame).
-    - Cutout footprint: 3x3 pixels
-    - Shape: 45° diagonal cut (remove the 6 pixels closest to the corner tip)
-    - Mirrored for each corner widget so the diagonal always faces inward.
+    The chamfer keeps the border continuous by drawing a diagonal outer line and
+    filling the remaining pixels with the inner border color.
     """
     local_x = x - corner_x
     local_y = y - corner_y
     if local_x < 0 or local_x >= CORNER_OUTER_WIDTH or local_y < 0 or local_y >= CORNER_OUTER_HEIGHT:
-        return False
+        return None
 
     tip_x, tip_y = 0, 0
     if inward_corner == "tl":
@@ -340,15 +344,18 @@ def _is_in_corner_chamfer(x: int, y: int, corner_x: int, corner_y: int, inward_c
     elif inward_corner == "br":
         tip_x, tip_y = CORNER_OUTER_WIDTH - 1, CORNER_OUTER_HEIGHT - 1
     else:
-        return False
+        return None
 
     u = abs(local_x - tip_x)
     v = abs(local_y - tip_y)
     if u > 2 or v > 2:
-        return False
+        return None
 
-    # Remove the 6 pixels nearest the corner tip: u+v <= 2.
-    return (u + v) <= 2
+    if (u + v) > 2:
+        return None
+
+    # Diagonal line (u+v==2) uses outer border color; inside uses inner border color.
+    return outer_color if (u + v) == 2 else inner_color
 
 
 def generate_video_packet(frame_num, packet_num, width, height, packets_per_frame, format_name, total_frames, pattern='diagonal', disable_pops=False):
@@ -379,9 +386,9 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
     sync_active = is_sync_marker_active(frame_num, format_name, total_frames)
 
     # Image refinements:
-    # - Outer border: dark blue
+    # - Outer border: light blue
     # - Central playfield background: pure black
-    border_color = VIC_DARK_BLUE
+    border_color = VIC_LIGHT_BLUE
     screen_color = VIC_BLACK
     if format_name == 'PAL':
         border_left, border_right, border_top, border_bottom = 32, 32, 35, 37
@@ -403,6 +410,13 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
     tr_x, tr_y = width - CORNER_OUTER_WIDTH, 0  # Top-right palette
     bl_x, bl_y = 0, height - CORNER_OUTER_HEIGHT  # Bottom-left frame progress
     br_x, br_y = width - CORNER_OUTER_WIDTH, height - CORNER_OUTER_HEIGHT  # Bottom-right A/V pop
+
+    marker_height = CORNER_INNER_HEIGHT + MARKER_EXTRA_HEIGHT
+    marker_y0 = CORNER_FRAME_TOTAL + MARKER_SHIFT_Y
+    marker_y1 = marker_y0 + marker_height
+
+    tick_bottom_y0 = CORNER_OUTER_HEIGHT - 4 + TICK_BOTTOM_SHIFT
+    tick_bottom_y1 = min(CORNER_OUTER_HEIGHT, tick_bottom_y0 + 3)
 
     # Pre-render text box content (9 chars × 5 lines for 72×40 inner area)
     # Line 1: Plugin name with rainbow effect on "STREAM", Lines 2-5: Scenario name (light gray)
@@ -444,10 +458,12 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                 if tl_x <= px < tl_x + CORNER_OUTER_WIDTH and tl_y <= py < tl_y + CORNER_OUTER_HEIGHT:
                     in_frame, is_white = _is_in_corner_frame(px, py, tl_x, tl_y)
                     if in_frame:
-                        if _is_in_corner_chamfer(px, py, tl_x, tl_y, "br"):
-                            pass  # chamfer: reveal underlying playfield
-                        else:
-                            return VIC_DARK_BLUE if is_white else VIC_BLACK
+                        chamfer_color = _get_corner_chamfer_color(
+                            px, py, tl_x, tl_y, "br", VIC_LIGHT_BLUE, VIC_BLACK
+                        )
+                        if chamfer_color is not None:
+                            return chamfer_color
+                        return VIC_LIGHT_BLUE if is_white else VIC_BLACK
                     # Inner content area
                     inner_x = px - tl_x - CORNER_FRAME_TOTAL
                     inner_y = py - tl_y - CORNER_FRAME_TOTAL
@@ -461,10 +477,12 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                 if tr_x <= px < tr_x + CORNER_OUTER_WIDTH and tr_y <= py < tr_y + CORNER_OUTER_HEIGHT:
                     in_frame, is_white = _is_in_corner_frame(px, py, tr_x, tr_y)
                     if in_frame:
-                        if _is_in_corner_chamfer(px, py, tr_x, tr_y, "bl"):
-                            pass
-                        else:
-                            return VIC_DARK_BLUE if is_white else VIC_BLACK
+                        chamfer_color = _get_corner_chamfer_color(
+                            px, py, tr_x, tr_y, "bl", VIC_LIGHT_BLUE, VIC_BLACK
+                        )
+                        if chamfer_color is not None:
+                            return chamfer_color
+                        return VIC_LIGHT_BLUE if is_white else VIC_BLACK
                     # Inner content: 4x4 grid of color swatches
                     # 72x40 inner: 4 cols × 17px = 68px (+4px padding), 4 rows × 9px = 36px (+4px padding)
                     inner_x = px - tr_x - CORNER_FRAME_TOTAL
@@ -493,51 +511,59 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                 # BOTTOM-LEFT: Frame Progression Indicator (88x56 outer, 72x40 inner)
                 # ═══════════════════════════════════════════════════════════════
                 if bl_x <= px < bl_x + CORNER_OUTER_WIDTH and bl_y <= py < bl_y + CORNER_OUTER_HEIGHT:
+                    local_x = px - bl_x
+                    local_y = py - bl_y
                     in_frame, is_white = _is_in_corner_frame(px, py, bl_x, bl_y)
                     if in_frame:
-                        if _is_in_corner_chamfer(px, py, bl_x, bl_y, "tr"):
-                            pass
-                        else:
-                            # Frame-progression tick marks (in the frame, not the inner content):
-                            # - 1px wide dark-blue vertical ticks centered on each of 8 slots
-                            # - Drawn in the black frame area adjacent to the 1px outline
-                            # - Uniform size: 3px tall (top) and 3px tall (bottom)
-                            if not is_white:
-                                local_x = px - bl_x
-                                local_y = py - bl_y
-                                # Slot centers in widget-local coordinates:
-                                # inner_x = 4 + slot*8 + 3; local_x = inner_x + 8 = 15 + slot*8
-                                if local_x in (15, 23, 31, 39, 47, 55, 63, 71):
-                                    # Top frame tick: rows 1..3
-                                    # Bottom frame tick: rows 52..54 (just above the outer border at row 55)
-                                    if local_y in (1, 2, 3) or local_y in (
-                                        CORNER_OUTER_HEIGHT - 4,
-                                        CORNER_OUTER_HEIGHT - 3,
-                                        CORNER_OUTER_HEIGHT - 2,
-                                    ):
-                                        return VIC_DARK_BLUE
-                            return VIC_DARK_BLUE if is_white else VIC_BLACK
+                        chamfer_color = _get_corner_chamfer_color(
+                            px, py, bl_x, bl_y, "tr", VIC_LIGHT_BLUE, VIC_BLACK
+                        )
+                        if chamfer_color is not None:
+                            return chamfer_color
+                        # Frame-progression tick marks (bottom only, shifted down):
+                        # - 1px wide light-blue vertical ticks centered on each of 8 slots
+                        # - Drawn in the black frame area adjacent to the 1px outline
+                        if local_x in (15, 23, 31, 39, 47, 55, 63, 71):
+                            if tick_bottom_y0 <= local_y < tick_bottom_y1:
+                                return VIC_LIGHT_BLUE
+                        if is_white:
+                            return VIC_LIGHT_BLUE
+                        # Allow the active marker to extend into the black frame.
+                        if marker_y0 <= local_y < marker_y1:
+                            inner_x = local_x - CORNER_FRAME_TOTAL
+                            if 0 <= inner_x < CORNER_INNER_WIDTH:
+                                bar_area_x = inner_x - 4
+                                if 0 <= bar_area_x < 63:
+                                    slot_width = 7
+                                    gap_width = 1
+                                    slot_pitch = slot_width + gap_width  # 8px per slot position
+                                    slot_index = bar_area_x // slot_pitch
+                                    pos_in_slot = bar_area_x % slot_pitch
+                                    if pos_in_slot < slot_width and slot_index == (frame_num % 8):
+                                        return VIC_WHITE
+                        return VIC_BLACK
                     # Inner content: black background with moving white bar
                     # Bar: 7px wide slot, 1px black gap between slots
                     # 8 slots × 7px + 7 gaps × 1px = 56 + 7 = 63px, centered in 72px (4px left padding)
-                    inner_x = px - bl_x - CORNER_FRAME_TOTAL
-                    inner_y = py - bl_y - CORNER_FRAME_TOTAL
+                    inner_x = local_x - CORNER_FRAME_TOTAL
+                    inner_y = local_y - CORNER_FRAME_TOTAL
                     if 0 <= inner_x < CORNER_INNER_WIDTH and 0 <= inner_y < CORNER_INNER_HEIGHT:
-                        # Center the 63px bar area in 72px width (4px left padding, 5px right)
-                        bar_area_x = inner_x - 4
-                        if 0 <= bar_area_x < 63:
-                            slot_width = 7
-                            gap_width = 1
-                            slot_pitch = slot_width + gap_width  # 8px per slot position
-                            slot_index = bar_area_x // slot_pitch
-                            pos_in_slot = bar_area_x % slot_pitch
-                            # Gap between slots is black (1px)
-                            if pos_in_slot >= slot_width:
-                                return 0  # Black gap
-                            # Active slot is white, inactive slots are black (max contrast for heavy effects)
-                            if slot_index == (frame_num % 8):
-                                return VIC_WHITE
-                            return VIC_BLACK
+                        if marker_y0 <= local_y < marker_y1:
+                            # Center the 63px bar area in 72px width (4px left padding, 5px right)
+                            bar_area_x = inner_x - 4
+                            if 0 <= bar_area_x < 63:
+                                slot_width = 7
+                                gap_width = 1
+                                slot_pitch = slot_width + gap_width  # 8px per slot position
+                                slot_index = bar_area_x // slot_pitch
+                                pos_in_slot = bar_area_x % slot_pitch
+                                # Gap between slots is black (1px)
+                                if pos_in_slot >= slot_width:
+                                    return 0  # Black gap
+                                # Active slot is white, inactive slots are black (max contrast for heavy effects)
+                                if slot_index == (frame_num % 8):
+                                    return VIC_WHITE
+                                return VIC_BLACK
                         return 0  # Black background (outside bar area)
                     return 0
 
@@ -546,31 +572,46 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                 # Split into L/R halves with 2px black divider in center
                 # ═══════════════════════════════════════════════════════════════
                 if br_x <= px < br_x + CORNER_OUTER_WIDTH and br_y <= py < br_y + CORNER_OUTER_HEIGHT:
+                    local_x = px - br_x
+                    local_y = py - br_y
                     in_frame, is_white = _is_in_corner_frame(px, py, br_x, br_y)
                     if in_frame:
-                        if _is_in_corner_chamfer(px, py, br_x, br_y, "tl"):
-                            pass
-                        else:
-                            # A/V pop tick marks (in the frame, not the inner content):
-                            # - 1px wide dark-blue vertical ticks centered on each half-rectangle (L/R)
-                            # - Uniform size: 3px tall (top) and 3px tall (bottom)
-                            if not is_white:
-                                local_x = px - br_x
-                                local_y = py - br_y
-                                # Centers of the two 35px halves in widget-local coordinates:
-                                # inner starts at +8; left_center = 8+17=25, right_center = 8+54=62
-                                if local_x in (25, 62):
-                                    if local_y in (1, 2, 3) or local_y in (
-                                        CORNER_OUTER_HEIGHT - 4,
-                                        CORNER_OUTER_HEIGHT - 3,
-                                        CORNER_OUTER_HEIGHT - 2,
-                                    ):
-                                        return VIC_DARK_BLUE
-                            return VIC_DARK_BLUE if is_white else VIC_BLACK
+                        chamfer_color = _get_corner_chamfer_color(
+                            px, py, br_x, br_y, "tl", VIC_LIGHT_BLUE, VIC_BLACK
+                        )
+                        if chamfer_color is not None:
+                            return chamfer_color
+                        # A/V pop tick marks (bottom only, shifted down):
+                        # - 1px wide light-blue vertical ticks centered on each half-rectangle (L/R)
+                        if local_x in (25, 62):
+                            if tick_bottom_y0 <= local_y < tick_bottom_y1:
+                                return VIC_LIGHT_BLUE
+                        if is_white:
+                            return VIC_LIGHT_BLUE
+                        # Allow the active marker to extend into the black frame.
+                        if marker_y0 <= local_y < marker_y1:
+                            inner_x = local_x - CORNER_FRAME_TOTAL
+                            if 0 <= inner_x < CORNER_INNER_WIDTH:
+                                # Divider in center (positions 35 and 36 are black)
+                                half_width = 35  # (72 - 2) / 2 = 35
+                                is_left_half = inner_x < half_width
+                                is_divider = half_width <= inner_x < half_width + 2
+                                is_right_half = inner_x >= half_width + 2
+
+                                if is_divider:
+                                    return VIC_BLACK
+
+                                if sync_active and pop_index >= 0:
+                                    is_left_pop = (pop_index % 2) == 0
+                                    should_light = (is_left_half and is_left_pop) or (
+                                        is_right_half and not is_left_pop
+                                    )
+                                    return VIC_WHITE if should_light else VIC_BLACK
+                        return VIC_BLACK
                     # Inner content: split into left/right halves with 2px black divider
                     # Layout: [left_half 35px] [divider 2px] [right_half 35px] = 72px
-                    inner_x = px - br_x - CORNER_FRAME_TOTAL
-                    inner_y = py - br_y - CORNER_FRAME_TOTAL
+                    inner_x = local_x - CORNER_FRAME_TOTAL
+                    inner_y = local_y - CORNER_FRAME_TOTAL
                     if 0 <= inner_x < CORNER_INNER_WIDTH and 0 <= inner_y < CORNER_INNER_HEIGHT:
                         # Divider in center (positions 35 and 36 are black)
                         half_width = 35  # (72 - 2) / 2 = 35
@@ -601,7 +642,7 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                 # CENTRAL FIELD: Diagonal Pattern (behind corner elements)
                 # ═══════════════════════════════════════════════════════════════
                 if pattern == 'solid':
-                    return 14  # VIC light blue
+                    return VIC_LIGHT_BLUE
 
                 if pattern == 'dots':
                     if (px % 16 == 0) and (py % 16 == 0):
@@ -612,7 +653,7 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                 #
                 # - Diagonal stripes are selected via S = (x+y+frame) (same as before).
                 # - Within each stripe, color fields progress deterministically along the diagonal.
-                # - Insert a 1px black gap between neighboring color fields (no anti-aliasing).
+                # - Insert a 2px black gap between neighboring color fields (no anti-aliasing).
                 S = px + py + frame_num
                 stripe_period = 38  # Keep existing spacing
                 stripe_width = 2    # Keep existing thickness
@@ -622,8 +663,8 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                 # Field index along the diagonal (stable, C64-ish blockiness).
                 D = (px - py)
                 field_pitch = 16  # Preserve existing block cadence along diagonals
-                # 1px separation between neighboring fields along each diagonal.
-                if (D % field_pitch) == 0:
+                # 2px separation between neighboring fields along each diagonal.
+                if (D % field_pitch) < 2:
                     return VIC_BLACK
 
                 field_index = D // field_pitch
