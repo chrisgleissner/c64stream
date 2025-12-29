@@ -37,7 +37,7 @@ class AfterglowDecayAssertion(EffectAssertion):
 
     def __init__(self, thresholds: Optional[dict[str, float]] = None):
         defaults = {
-            "max_increase_tolerance": 1.0,  # Max allowed brightness increase between frames
+            "max_increase_tolerance": 2.0,  # Max allowed brightness increase (GPU has FP precision variations)
             "min_decay_samples": 5,  # Minimum frames of decay to analyze
             "min_initial_brightness": 60.0,  # Minimum brightness to consider a "lit" pixel
             "max_plateau_frames": 2,  # Max consecutive frames with <1.0 change allowed

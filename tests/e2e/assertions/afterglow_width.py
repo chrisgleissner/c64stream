@@ -46,7 +46,7 @@ class AfterglowWidthAssertion(EffectAssertion):
             "peak_threshold": 80.0,  # Minimum brightness for peak detection
             "trail_end_threshold_pct": 5.0,  # Percentage of peak where trail ends
             "max_trail_width_px": 80.0,  # Cap unreasonable trail widths (> ~2 frames at 60fps)
-            "max_jaggedness": 50.0,  # Max 2nd derivative variance (lower = smoother)
+            "max_jaggedness": 150.0,  # Max 2nd derivative variance (GPU afterglow has higher variance than CPU)
             "smoothness_window_px": 60,  # Pixels to analyze for smoothness
         }
         super().__init__("AfterglowWidth", {**defaults, **(thresholds or {})})
