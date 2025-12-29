@@ -582,7 +582,14 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                             # Alternation: L, R, L, R... (pop_index 0=LEFT, 1=RIGHT, 2=LEFT...)
                             is_left_pop = (pop_index % 2) == 0
                             should_light = (is_left_half and is_left_pop) or (is_right_half and not is_left_pop)
-                            return VIC_WHITE if should_light else VIC_BLACK
+                            if should_light:
+                                # Keep a 1px separation from the ticks (same rule as frame progression):
+                                # top ticks occupy y=0..2, leave y=3 black;
+                                # bottom ticks occupy y=H-3..H-1, leave y=H-4 black.
+                                if 4 <= inner_y < (CORNER_INNER_HEIGHT - 4):
+                                    return VIC_WHITE
+                                return VIC_BLACK
+                            return VIC_BLACK
                         return VIC_BLACK
                     return 0
 
