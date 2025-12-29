@@ -442,10 +442,10 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                             # Gap between slots is black (1px)
                             if pos_in_slot >= slot_width:
                                 return 0  # Black gap
-                            # Active slot is white, inactive slots are dark gray
+                            # Active slot is white, inactive slots are black (max contrast for heavy effects)
                             if slot_index == (frame_num % 8):
                                 return 1  # White (active)
-                            return 11  # Dark gray (inactive)
+                            return 0  # Black (inactive)
                         return 0  # Black background (outside bar area)
                     return 0
 

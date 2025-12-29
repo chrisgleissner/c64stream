@@ -1,6 +1,6 @@
 # C64 Stream E2E Test Report
 
-Generated: 2025-12-29 16:27:58 UTC
+Generated: 2025-12-29 16:55:35 UTC
 
 ## Test configuration
 
@@ -32,9 +32,9 @@ During the test's processing window (7.6s, 16 of 33 samples) (20 cores):
 
 | Metric | Min | Median | Mean | Max |
 |--------|-----|--------|------|-----|
-| CPU | 37.8% | 42.25% | 42.31% | 45.7% |
-| RAM | 5860.65 MB | 5945.18 MB | 5940.41 MB | 5968.0 MB |
-| GPU | 83.87% | 86.58% | 88.38% | 100.0% |
+| CPU | 32.8% | 41.25% | 40.31% | 45.5% |
+| RAM | 5988.44 MB | 6036.4 MB | 6034.93 MB | 6095.39 MB |
+| GPU | 77.42% | 80.1% | 82.99% | 100.0% |
 
 Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
@@ -46,19 +46,19 @@ Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
 ### A/V Sync
 
-- ✅ Good synchronization (100.0%): avg offset 3.2ms, max 6.0ms
+- ✅ Good synchronization (100.0%): avg offset 7.1ms, max 11.4ms
 
 #### Sync Details
 
-- 🟢 Pop #1 [L]: audio=7945.0ms, video=7939.7ms (frame 475), diff=5.3ms
-- 🟢 Pop #2 [R]: audio=8748.0ms, video=8742.0ms (frame 523), diff=6.0ms
-- 🟢 Pop #3 [L]: audio=9548.0ms, video=9544.3ms (frame 571), diff=3.7ms
-- 🟢 Pop #4 [R]: audio=10350.0ms, video=10346.7ms (frame 619), diff=3.3ms
-- 🟢 Pop #5 [L]: audio=11153.0ms, video=11149.0ms (frame 667), diff=4.0ms
-- 🟢 Pop #6 [R]: audio=11953.0ms, video=11951.3ms (frame 715), diff=1.7ms
-- 🟢 Pop #7 [L]: audio=12756.0ms, video=12753.7ms (frame 763), diff=2.3ms
-- 🟢 Pop #8 [R]: audio=13558.0ms, video=13556.0ms (frame 811), diff=2.0ms
-- 🟢 Pop #9 [L]: audio=14358.0ms, video=14358.3ms (frame 859), diff=0.3ms
+- 🟢 Pop #1 [L]: audio=7945.0ms, video=7956.4ms (frame 476), diff=11.4ms
+- 🟢 Pop #2 [R]: audio=8769.0ms, video=8775.4ms (frame 525), diff=6.4ms
+- 🟢 Pop #3 [L]: audio=9569.0ms, video=9561.1ms (frame 572), diff=7.9ms
+- 🟢 Pop #4 [R]: audio=10372.0ms, video=10380.1ms (frame 621), diff=8.1ms
+- 🟢 Pop #5 [L]: audio=11174.0ms, video=11165.7ms (frame 668), diff=8.3ms
+- 🟢 Pop #6 [R]: audio=11974.0ms, video=11968.0ms (frame 716), diff=6.0ms
+- 🟢 Pop #7 [L]: audio=12777.0ms, video=12770.4ms (frame 764), diff=6.6ms
+- 🟢 Pop #8 [R]: audio=13577.0ms, video=13572.7ms (frame 812), diff=4.3ms
+- 🟢 Pop #9 [L]: audio=14380.0ms, video=14375.0ms (frame 860), diff=5.0ms
 
 - Channels: LRLRLRLRL
 - 🔁 Channel alternation: OK (alternating, starts with L)
@@ -72,7 +72,7 @@ Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 | Window | Stuck runs (count/min/med/max) | Skips (count/min/med/max) | Back steps | Severe steps |
 |--------|------------------------------:|--------------------------:|-----------:|-------------:|
 | During settling | 0/0/0/0 | 0/0/0/0 | 0 | 0 |
-| After settling | 1/2/2/2 | 0/0/0/0 | 0 | 0 |
+| After settling | 23/2/2/2 | 22/1/1/1 | 0 | 0 |
 
 See [playback.csv](playback.csv) for frame-by-frame playback timeline with anomaly markers.
 
@@ -80,12 +80,12 @@ See [playback.csv](playback.csv) for frame-by-frame playback timeline with anoma
 
 - Definition: rows with repeated=1 or skipped=1 in playback.csv; clustering uses max gap 0.5s
 - Note: this is independent from the Frame Progression (frame-box) check above
-- Note: repeated/skipped markers only exist while content is detected (video_s 7.572–18.571).
+- Note: repeated/skipped markers only exist while content is detected (video_s 7.589–18.587).
   The jitter-free tail after content ends is expected and does not indicate steady-state performance.
 
 | # | Events | Center (s) | Std dev (s) | Span (s) | Window (s) |
 |---|--------|------------|-------------|----------|------------|
-| 1 | 1 | 15.562 | 0.000 | 0.000 | 15.562–15.562 |
+| 1 | 34 | 14.962 | 0.405 | 1.672 | 13.907–15.579 |
 
 ### Video
 
@@ -102,4 +102,4 @@ See [playback.csv](playback.csv) for frame-by-frame playback timeline with anoma
 - **Center**: Diagonal pattern cycling through all C64 colors
 - **Bottom-left**: Frame progression indicator (8-slot moving bar, cycles every 8 frames)
 - **Bottom-right**: A/V pop indicator (pops every 48 frames, split left/right for audio channels)
-- Taken from frame 476 at 00:07.9 of the 19.1 s video above.
+- Taken from frame 477 at 00:08.0 of the 19.1 s video above.

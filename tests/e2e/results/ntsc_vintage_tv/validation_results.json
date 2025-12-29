@@ -1,7 +1,7 @@
 {
   "udp_reception": {
     "status": "pass",
-    "details": "30803/30803 packets (28810 video, 1993 audio)"
+    "details": "30803/30803 packets (28789 video, 2014 audio)"
   },
   "frame_processing": {
     "status": "pass",
@@ -13,26 +13,26 @@
   },
   "packet_integrity": {
     "status": "pass",
-    "details": "19.0s duration"
+    "details": "19.1s duration"
   },
   "video_brightness": {
     "status": "pass",
     "details": "Normal (best_mean_luma=52.6)",
     "metrics": {
-      "best_offset_s": 4.7471,
-      "best_mean_luma": 52.60153579711914,
+      "best_offset_s": 4.78053025,
+      "best_mean_luma": 52.60223388671875,
       "samples": [
         {
-          "t": 4.7471,
-          "mean_luma": 52.60153579711914
+          "t": 4.78053025,
+          "mean_luma": 52.60223388671875
         },
         {
-          "t": 9.4942,
-          "mean_luma": 44.6379508972168
+          "t": 9.5610605,
+          "mean_luma": 44.66156005859375
         },
         {
-          "t": 14.241299999999999,
-          "mean_luma": 44.64671325683594
+          "t": 14.34159075,
+          "mean_luma": 44.781883239746094
         }
       ]
     }
@@ -46,10 +46,10 @@
     "tolerance_ms": 60,
     "sync_details": [
       {
-        "audio_pop_time_ms": 7852,
-        "closest_video_pop_ms": 7856.116069936147,
-        "closest_video_pop_frame": 470,
-        "difference_ms": 4.116069936147142,
+        "audio_pop_time_ms": 8001,
+        "closest_video_pop_ms": 8006.552335105138,
+        "closest_video_pop_frame": 479,
+        "difference_ms": 5.5523351051378995,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -59,10 +59,10 @@
         "traffic": "green"
       },
       {
-        "audio_pop_time_ms": 8654,
-        "closest_video_pop_ms": 8658.442817504096,
-        "closest_video_pop_frame": 518,
-        "difference_ms": 4.4428175040957285,
+        "audio_pop_time_ms": 8801,
+        "closest_video_pop_ms": 8808.879082673086,
+        "closest_video_pop_frame": 527,
+        "difference_ms": 7.879082673085577,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -72,10 +72,10 @@
         "traffic": "green"
       },
       {
-        "audio_pop_time_ms": 9454,
-        "closest_video_pop_ms": 9460.769565072042,
-        "closest_video_pop_frame": 566,
-        "difference_ms": 6.769565072041587,
+        "audio_pop_time_ms": 9601,
+        "closest_video_pop_ms": 9594.4906896667,
+        "closest_video_pop_frame": 574,
+        "difference_ms": 6.509310333300164,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -85,10 +85,10 @@
         "traffic": "green"
       },
       {
-        "audio_pop_time_ms": 10257,
-        "closest_video_pop_ms": 10263.09631263999,
-        "closest_video_pop_frame": 614,
-        "difference_ms": 6.096312639989264,
+        "audio_pop_time_ms": 10406,
+        "closest_video_pop_ms": 10413.53257780898,
+        "closest_video_pop_frame": 623,
+        "difference_ms": 7.532577808979113,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -98,10 +98,10 @@
         "traffic": "green"
       },
       {
-        "audio_pop_time_ms": 11059,
-        "closest_video_pop_ms": 11065.423060207937,
-        "closest_video_pop_frame": 662,
-        "difference_ms": 6.423060207936942,
+        "audio_pop_time_ms": 11181,
+        "closest_video_pop_ms": 11199.144184802593,
+        "closest_video_pop_frame": 670,
+        "difference_ms": 18.144184802593372,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -111,10 +111,10 @@
         "traffic": "green"
       },
       {
-        "audio_pop_time_ms": 11860,
-        "closest_video_pop_ms": 11867.749807775885,
-        "closest_video_pop_frame": 710,
-        "difference_ms": 7.749807775884619,
+        "audio_pop_time_ms": 12006,
+        "closest_video_pop_ms": 12001.470932370541,
+        "closest_video_pop_frame": 718,
+        "difference_ms": 4.52906762945895,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -124,10 +124,10 @@
         "traffic": "green"
       },
       {
-        "audio_pop_time_ms": 12662,
-        "closest_video_pop_ms": 12670.07655534383,
-        "closest_video_pop_frame": 758,
-        "difference_ms": 8.076555343830478,
+        "audio_pop_time_ms": 12812,
+        "closest_video_pop_ms": 12803.797679938487,
+        "closest_video_pop_frame": 766,
+        "difference_ms": 8.202320061513092,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -137,10 +137,10 @@
         "traffic": "green"
       },
       {
-        "audio_pop_time_ms": 13462,
-        "closest_video_pop_ms": 13472.403302911778,
-        "closest_video_pop_frame": 806,
-        "difference_ms": 10.403302911778155,
+        "audio_pop_time_ms": 13612,
+        "closest_video_pop_ms": 13606.124427506436,
+        "closest_video_pop_frame": 814,
+        "difference_ms": 5.875572493563595,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -150,10 +150,10 @@
         "traffic": "green"
       },
       {
-        "audio_pop_time_ms": 14265,
-        "closest_video_pop_ms": 14274.730050479724,
-        "closest_video_pop_frame": 854,
-        "difference_ms": 9.730050479724014,
+        "audio_pop_time_ms": 14412,
+        "closest_video_pop_ms": 14408.451175074382,
+        "closest_video_pop_frame": 862,
+        "difference_ms": 3.548824925617737,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -165,28 +165,28 @@
     ],
     "is_perfectly_synced": true,
     "last_event_within_limit": true,
-    "duration_ms": 18988.399999999998,
+    "duration_ms": 19122.121,
     "video_pop_times_ms": [
-      7872.83121051048,
-      8675.157958078427,
-      9477.484705646373,
-      10279.81145321432,
-      11082.138200782269,
-      11884.464948350216,
-      12686.791695918162,
-      13489.11844348611,
-      14291.445191054056
+      8006.552335105138,
+      8808.879082673086,
+      9611.205830241031,
+      10413.53257780898,
+      11215.859325376925,
+      12018.186072944873,
+      12820.512820512819,
+      13622.839568080768,
+      14425.166315648714
     ],
     "video_pop_frame_indices": [
-      471,
-      519,
-      567,
-      615,
-      663,
-      711,
-      759,
-      807,
-      855
+      479,
+      527,
+      575,
+      623,
+      671,
+      719,
+      767,
+      815,
+      863
     ],
     "traffic": [
       "green",
@@ -228,24 +228,24 @@
       "settling_cutoff_frame": 254,
       "content_bounds": {
         "first_content_frame": 15,
-        "last_content_frame": 948,
+        "last_content_frame": 956,
         "logo_end_frame": 14,
         "detection_confidence": 1.0
       },
       "video_pop_starts": [
-        471,
-        519,
-        567,
-        615,
-        663,
-        711,
-        759,
-        807,
-        855
+        479,
+        527,
+        575,
+        623,
+        671,
+        719,
+        767,
+        815,
+        863
       ],
       "analyzed_frames": 479,
       "valid_frames": 479,
-      "compressed_len": 56,
+      "compressed_len": 48,
       "distinct_slots": 8,
       "frame_slots": {
         "15": 1,
@@ -681,13 +681,13 @@
         "445": 0,
         "446": 0,
         "447": 0,
-        "448": 1,
-        "449": 2,
-        "450": 3,
-        "451": 4,
-        "452": 5,
-        "453": 6,
-        "454": 7,
+        "448": 0,
+        "449": 0,
+        "450": 0,
+        "451": 0,
+        "452": 0,
+        "453": 0,
+        "454": 0,
         "455": 0,
         "456": 1,
         "457": 2,
@@ -763,20 +763,20 @@
       "severe_step_events": [],
       "delta_hist": {
         "7": 5,
-        "1": 50
+        "1": 42
       },
       "ambiguous_frames": 0,
       "ambiguous_ratio": 0.0,
-      "stuck_frames": 423,
-      "stuck_ratio": 0.8830897703549061,
-      "max_stuck_run": 362,
+      "stuck_frames": 431,
+      "stuck_ratio": 0.8997912317327766,
+      "max_stuck_run": 370,
       "startup_frames_excluded": 0,
       "end_frames_excluded": 0,
       "stuck_stats": {
         "count": 7,
         "min": 3,
         "median": 7,
-        "max": 362
+        "max": 370
       },
       "repeated_events": [
         {
@@ -812,7 +812,7 @@
         {
           "frame": 87,
           "time_sec": 1.454,
-          "count": 362
+          "count": 370
         }
       ],
       "settling": {
@@ -824,11 +824,11 @@
           "skip_max": 0,
           "back_steps": 5,
           "severe_steps": 0,
-          "stuck_frames": 423,
+          "stuck_frames": 431,
           "stuck_run_count": 7,
           "stuck_run_min": 3,
           "stuck_run_median": 7,
-          "max_stuck_run": 362
+          "max_stuck_run": 370
         },
         "post": {
           "skips": 0,
@@ -864,12 +864,12 @@
       "back_steps": 5.0,
       "severe_steps": 0.0,
       "ambiguous_ratio": 0.0,
-      "stuck_frames": 423.0,
-      "stuck_ratio": 0.8830897703549061,
+      "stuck_frames": 431.0,
+      "stuck_ratio": 0.8997912317327766,
       "stuck_run_count": 7.0,
       "stuck_run_min": 3.0,
       "stuck_run_median": 7.0,
-      "max_stuck_run": 362.0,
+      "max_stuck_run": 370.0,
       "settling_seconds": 4.0,
       "pre_settling_skips": 0.0,
       "pre_settling_skip_count": 0.0,
@@ -878,11 +878,11 @@
       "pre_settling_skip_max": 0.0,
       "pre_settling_back_steps": 5.0,
       "pre_settling_severe_steps": 0.0,
-      "pre_settling_stuck_frames": 423.0,
+      "pre_settling_stuck_frames": 431.0,
       "pre_settling_stuck_run_count": 7.0,
       "pre_settling_stuck_run_min": 3.0,
       "pre_settling_stuck_run_median": 7.0,
-      "pre_settling_max_stuck_run": 362.0,
+      "pre_settling_max_stuck_run": 370.0,
       "post_settling_skips": 0.0,
       "post_settling_skip_count": 0.0,
       "post_settling_skip_min": 0.0,

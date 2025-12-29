@@ -810,24 +810,114 @@ check_dependencies() {
         log_warning "Missing dependencies: ${missing_deps[*]}"
         log_info "Installing missing dependencies..."
 
+        local pkg_manager=""
+        local update_cmd=()
+        local install_cmd=()
+        local manual_hint=""
+
+        if command -v apt-get >/dev/null 2>&1; then
+            pkg_manager="apt"
+            update_cmd=(apt-get update)
+            install_cmd=(apt-get install -y)
+            manual_hint="apt-get install"
+        elif command -v dnf >/dev/null 2>&1; then
+            pkg_manager="dnf"
+            update_cmd=(dnf makecache)
+            install_cmd=(dnf install -y)
+            manual_hint="dnf install"
+        elif command -v yum >/dev/null 2>&1; then
+            pkg_manager="yum"
+            update_cmd=(yum makecache)
+            install_cmd=(yum install -y)
+            manual_hint="yum install"
+        elif command -v pacman >/dev/null 2>&1; then
+            pkg_manager="pacman"
+            update_cmd=(pacman -Sy --noconfirm)
+            install_cmd=(pacman -S --noconfirm)
+            manual_hint="pacman -S --noconfirm"
+        elif command -v zypper >/dev/null 2>&1; then
+            pkg_manager="zypper"
+            update_cmd=(zypper refresh)
+            install_cmd=(zypper --non-interactive install)
+            manual_hint="zypper install"
+        elif command -v apk >/dev/null 2>&1; then
+            pkg_manager="apk"
+            update_cmd=(apk update)
+            install_cmd=(apk add)
+            manual_hint="apk add"
+        fi
+
+        if [[ -z "${pkg_manager}" ]]; then
+            log_error "No supported package manager found for auto-install."
+            log_info "Please install missing dependencies manually: ${missing_deps[*]}"
+            exit 1
+        fi
+
         # Determine privilege escalation (use sudo if available, else run directly if root)
         local SUDO="sudo"
         if [[ $(id -u) -eq 0 ]] || ! command -v sudo >/dev/null 2>&1; then
             SUDO=""
         fi
 
-        # Update package list
-        if [[ "${VERBOSE}" == true ]]; then
-            ${SUDO} apt-get update
-        else
-            ${SUDO} apt-get update -qq
+        local mapped_deps=()
+        for dep in "${missing_deps[@]}"; do
+            case "${pkg_manager}:${dep}" in
+                apt:*) mapped_deps+=("${dep}") ;;
+                dnf:python3-pil) mapped_deps+=("python3-pillow") ;;
+                dnf:python3-yaml) mapped_deps+=("python3-pyyaml") ;;
+                dnf:python3-websocket) mapped_deps+=("python3-websocket-client") ;;
+                dnf:xvfb) mapped_deps+=("xorg-x11-server-Xvfb") ;;
+                dnf:ffmpeg) mapped_deps+=("ffmpeg-free") ;;
+                dnf:*) mapped_deps+=("${dep}") ;;
+                yum:python3-pil) mapped_deps+=("python3-pillow") ;;
+                yum:python3-yaml) mapped_deps+=("python3-pyyaml") ;;
+                yum:python3-websocket) mapped_deps+=("python3-websocket-client") ;;
+                yum:xvfb) mapped_deps+=("xorg-x11-server-Xvfb") ;;
+                yum:ffmpeg) mapped_deps+=("ffmpeg-free") ;;
+                yum:*) mapped_deps+=("${dep}") ;;
+                pacman:ninja-build) mapped_deps+=("ninja") ;;
+                pacman:python3) mapped_deps+=("python") ;;
+                pacman:python3-numpy) mapped_deps+=("python-numpy") ;;
+                pacman:python3-opencv) mapped_deps+=("python-opencv") ;;
+                pacman:python3-pil) mapped_deps+=("python-pillow") ;;
+                pacman:python3-yaml) mapped_deps+=("python-yaml") ;;
+                pacman:python3-scipy) mapped_deps+=("python-scipy") ;;
+                pacman:python3-requests) mapped_deps+=("python-requests") ;;
+                pacman:python3-websocket) mapped_deps+=("python-websocket-client") ;;
+                pacman:xvfb) mapped_deps+=("xorg-server-xvfb") ;;
+                pacman:*) mapped_deps+=("${dep}") ;;
+                zypper:python3-pil) mapped_deps+=("python3-Pillow") ;;
+                zypper:python3-yaml) mapped_deps+=("python3-PyYAML") ;;
+                zypper:python3-websocket) mapped_deps+=("python3-websocket-client") ;;
+                zypper:xvfb) mapped_deps+=("xorg-x11-server") ;;
+                zypper:*) mapped_deps+=("${dep}") ;;
+                apk:python3-pil) mapped_deps+=("py3-pillow") ;;
+                apk:python3-yaml) mapped_deps+=("py3-yaml") ;;
+                apk:python3-websocket) mapped_deps+=("py3-websocket-client") ;;
+                apk:python3-requests) mapped_deps+=("py3-requests") ;;
+                apk:python3-numpy) mapped_deps+=("py3-numpy") ;;
+                apk:python3-scipy) mapped_deps+=("py3-scipy") ;;
+                apk:python3-opencv) mapped_deps+=("py3-opencv") ;;
+                apk:xvfb) mapped_deps+=("xvfb") ;;
+                apk:python3) mapped_deps+=("python3") ;;
+                apk:*) mapped_deps+=("${dep}") ;;
+            esac
+        done
+
+        # Update package list / cache
+        if [[ ${#update_cmd[@]} -gt 0 ]]; then
+            if [[ "${VERBOSE}" == true ]]; then
+                ${SUDO} "${update_cmd[@]}"
+            else
+                ${SUDO} "${update_cmd[@]}" > /dev/null 2>&1
+            fi
         fi
 
         # Install missing packages
         if [[ "${VERBOSE}" == true ]]; then
-            ${SUDO} apt-get install -y "${missing_deps[@]}"
+            ${SUDO} "${install_cmd[@]}" "${mapped_deps[@]}"
         else
-            ${SUDO} apt-get install -y "${missing_deps[@]}" > /dev/null 2>&1
+            ${SUDO} "${install_cmd[@]}" "${mapped_deps[@]}" > /dev/null 2>&1
         fi
 
         # Verify installation succeeded
@@ -868,7 +958,7 @@ check_dependencies() {
 
         if [[ ${#still_missing[@]} -gt 0 ]]; then
             log_error "Failed to install dependencies: ${still_missing[*]}"
-            log_info "Please install manually: sudo apt-get install ${still_missing[*]}"
+            log_info "Please install manually: sudo ${manual_hint} ${still_missing[*]}"
             exit 1
         fi
 
