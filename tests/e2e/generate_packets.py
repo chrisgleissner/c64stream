@@ -127,9 +127,36 @@ CORNER_OUTER_WIDTH = 88   # Outer width including frame
 CORNER_OUTER_HEIGHT = 56  # Outer height including frame
 CORNER_INNER_WIDTH = 72   # Inner content width (88 - 8*2 = 72)
 CORNER_INNER_HEIGHT = 40  # Inner content height (56 - 8*2 = 40)
-CORNER_FRAME_WHITE = 1    # White outer border
+CORNER_FRAME_WHITE = 1    # 1px outer border (color set in renderer)
 CORNER_FRAME_BLACK = 7    # Black inner border
 CORNER_FRAME_TOTAL = 8    # Total frame width on each side
+
+# VIC-II palette indices (C64 16-color palette)
+VIC_BLACK = 0
+VIC_WHITE = 1
+VIC_DARK_BLUE = 6
+
+# Ordered progression from darkest → brightest using all 16 VIC colors.
+# Used with a triangle-wave index to produce:
+#   black → dark → mid → bright → white → ... → reverse back to black
+VIC_DIAGONAL_RAMP = [
+    0,   # black
+    6,   # blue (dark)
+    9,   # brown
+    11,  # dark gray
+    2,   # red
+    4,   # purple
+    5,   # green
+    8,   # orange
+    12,  # gray
+    14,  # light blue
+    10,  # light red
+    13,  # light green
+    3,   # cyan
+    7,   # yellow
+    15,  # light gray
+    1,   # white
+]
 
 # Current scenario name (set externally before packet generation)
 _scenario_name = "DEFAULT"
@@ -289,6 +316,41 @@ def _is_in_corner_frame(x: int, y: int, corner_x: int, corner_y: int) -> tuple[b
     return False, False
 
 
+def _is_in_corner_chamfer(x: int, y: int, corner_x: int, corner_y: int, inward_corner: str) -> bool:
+    """True if (x,y) is inside the 3x3 inward chamfer cutout.
+
+    Chamfer rule:
+    - Applies ONLY at the inward-facing corner of a corner widget (toward the inner frame).
+    - Cutout footprint: 3x3 pixels
+    - Shape: 45° diagonal cut (remove the 6 pixels closest to the corner tip)
+    - Mirrored for each corner widget so the diagonal always faces inward.
+    """
+    local_x = x - corner_x
+    local_y = y - corner_y
+    if local_x < 0 or local_x >= CORNER_OUTER_WIDTH or local_y < 0 or local_y >= CORNER_OUTER_HEIGHT:
+        return False
+
+    tip_x, tip_y = 0, 0
+    if inward_corner == "tl":
+        tip_x, tip_y = 0, 0
+    elif inward_corner == "tr":
+        tip_x, tip_y = CORNER_OUTER_WIDTH - 1, 0
+    elif inward_corner == "bl":
+        tip_x, tip_y = 0, CORNER_OUTER_HEIGHT - 1
+    elif inward_corner == "br":
+        tip_x, tip_y = CORNER_OUTER_WIDTH - 1, CORNER_OUTER_HEIGHT - 1
+    else:
+        return False
+
+    u = abs(local_x - tip_x)
+    v = abs(local_y - tip_y)
+    if u > 2 or v > 2:
+        return False
+
+    # Remove the 6 pixels nearest the corner tip: u+v <= 2.
+    return (u + v) <= 2
+
+
 def generate_video_packet(frame_num, packet_num, width, height, packets_per_frame, format_name, total_frames, pattern='diagonal', disable_pops=False):
     """
     Generate a single video packet with professional E2E test pattern.
@@ -316,8 +378,11 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
     payload = bytearray(768)
     sync_active = is_sync_marker_active(frame_num, format_name, total_frames)
 
-    border_color = 14  # VIC light blue (matches spec border)
-    screen_color = 6   # VIC blue (matches spec inner screen)
+    # Image refinements:
+    # - Outer border: dark blue
+    # - Central playfield background: pure black
+    border_color = VIC_DARK_BLUE
+    screen_color = VIC_BLACK
     if format_name == 'PAL':
         border_left, border_right, border_top, border_bottom = 32, 32, 35, 37
     else:
@@ -379,7 +444,10 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                 if tl_x <= px < tl_x + CORNER_OUTER_WIDTH and tl_y <= py < tl_y + CORNER_OUTER_HEIGHT:
                     in_frame, is_white = _is_in_corner_frame(px, py, tl_x, tl_y)
                     if in_frame:
-                        return 1 if is_white else 0  # White or black border
+                        if _is_in_corner_chamfer(px, py, tl_x, tl_y, "br"):
+                            pass  # chamfer: reveal underlying playfield
+                        else:
+                            return VIC_DARK_BLUE if is_white else VIC_BLACK
                     # Inner content area
                     inner_x = px - tl_x - CORNER_FRAME_TOTAL
                     inner_y = py - tl_y - CORNER_FRAME_TOTAL
@@ -393,7 +461,10 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                 if tr_x <= px < tr_x + CORNER_OUTER_WIDTH and tr_y <= py < tr_y + CORNER_OUTER_HEIGHT:
                     in_frame, is_white = _is_in_corner_frame(px, py, tr_x, tr_y)
                     if in_frame:
-                        return 1 if is_white else 0
+                        if _is_in_corner_chamfer(px, py, tr_x, tr_y, "bl"):
+                            pass
+                        else:
+                            return VIC_DARK_BLUE if is_white else VIC_BLACK
                     # Inner content: 4x4 grid of color swatches
                     # 72x40 inner: 4 cols × 17px = 68px (+4px padding), 4 rows × 9px = 36px (+4px padding)
                     inner_x = px - tr_x - CORNER_FRAME_TOTAL
@@ -424,7 +495,10 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                 if bl_x <= px < bl_x + CORNER_OUTER_WIDTH and bl_y <= py < bl_y + CORNER_OUTER_HEIGHT:
                     in_frame, is_white = _is_in_corner_frame(px, py, bl_x, bl_y)
                     if in_frame:
-                        return 1 if is_white else 0
+                        if _is_in_corner_chamfer(px, py, bl_x, bl_y, "tr"):
+                            pass
+                        else:
+                            return VIC_DARK_BLUE if is_white else VIC_BLACK
                     # Inner content: black background with moving white bar
                     # Bar: 7px wide slot, 1px black gap between slots
                     # 8 slots × 7px + 7 gaps × 1px = 56 + 7 = 63px, centered in 72px (4px left padding)
@@ -442,10 +516,23 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                             # Gap between slots is black (1px)
                             if pos_in_slot >= slot_width:
                                 return 0  # Black gap
+                            # Ruler-style guide marks:
+                            # - 1px dark-blue tick centered in each slot
+                            # - From top inner edge: extend down 3px
+                            # - From bottom inner edge: extend up 3px
+                            # - Keep 1px separation from the white slot rectangles
+                            slot_center_x = slot_index * slot_pitch + (slot_width // 2)  # 7px -> center at +3
+                            if bar_area_x == slot_center_x:
+                                if inner_y in (0, 1, 2) or inner_y in (CORNER_INNER_HEIGHT - 3, CORNER_INNER_HEIGHT - 2, CORNER_INNER_HEIGHT - 1):
+                                    return VIC_DARK_BLUE
                             # Active slot is white, inactive slots are black (max contrast for heavy effects)
                             if slot_index == (frame_num % 8):
-                                return 1  # White (active)
-                            return 0  # Black (inactive)
+                                # Keep a 1px gap from the ticks: top ticks occupy y=0..2, leave y=3 black;
+                                # bottom ticks occupy y=H-3..H-1, leave y=H-4 black.
+                                if 4 <= inner_y < (CORNER_INNER_HEIGHT - 4):
+                                    return VIC_WHITE
+                                return VIC_BLACK
+                            return VIC_BLACK
                         return 0  # Black background (outside bar area)
                     return 0
 
@@ -456,7 +543,10 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                 if br_x <= px < br_x + CORNER_OUTER_WIDTH and br_y <= py < br_y + CORNER_OUTER_HEIGHT:
                     in_frame, is_white = _is_in_corner_frame(px, py, br_x, br_y)
                     if in_frame:
-                        return 1 if is_white else 0
+                        if _is_in_corner_chamfer(px, py, br_x, br_y, "tl"):
+                            pass
+                        else:
+                            return VIC_DARK_BLUE if is_white else VIC_BLACK
                     # Inner content: split into left/right halves with 2px black divider
                     # Layout: [left_half 35px] [divider 2px] [right_half 35px] = 72px
                     inner_x = px - br_x - CORNER_FRAME_TOTAL
@@ -500,16 +590,30 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                         return 1  # White
                     return screen_color  # Screen background
 
-                # Default: diagonal stripes cycling through all 16 colors
+                # Default: diagonal fields (C64 diagnostic-style), preserving orientation.
+                #
+                # - Diagonal stripes are selected via S = (x+y+frame) (same as before).
+                # - Within each stripe, color fields progress deterministically along the diagonal.
+                # - Insert a 1px black gap between neighboring color fields (no anti-aliasing).
                 S = px + py + frame_num
-                stripe_period = 38  # 2 colored + 36 black
-                stripe_width = 2
-                in_stripe = (S % stripe_period) < stripe_width
-                if not in_stripe:
+                stripe_period = 38  # Keep existing spacing
+                stripe_width = 2    # Keep existing thickness
+                if (S % stripe_period) >= stripe_width:
                     return screen_color
-                # Color based on diagonal position (invariant under motion)
-                diag_index = ((px - py) // 16) % 16
-                return diag_index
+
+                # Field index along the diagonal (stable, C64-ish blockiness).
+                D = (px - py)
+                field_pitch = 16  # Preserve existing block cadence along diagonals
+                # 1px separation between neighboring fields along each diagonal.
+                if (D % field_pitch) == 0:
+                    return VIC_BLACK
+
+                field_index = D // field_pitch
+                # Phase offsets allowed: offset fields per stripe and animate smoothly per frame.
+                stripe_index = S // stripe_period
+                phase = (field_index + stripe_index) % (2 * (len(VIC_DIAGONAL_RAMP) - 1))
+                ramp_idx = phase if phase < len(VIC_DIAGONAL_RAMP) else (2 * (len(VIC_DIAGONAL_RAMP) - 1) - phase)
+                return VIC_DIAGONAL_RAMP[ramp_idx]
 
             c1 = get_pixel_color(pixel_x, pixel_y)
             c2 = get_pixel_color(pixel_x + 1, pixel_y)

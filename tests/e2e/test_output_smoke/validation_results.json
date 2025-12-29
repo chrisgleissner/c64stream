@@ -1,0 +1,44 @@
+{
+  "udp_reception": {
+    "status": "pass",
+    "details": "7700/7700 packets (7200 video, 500 audio)"
+  },
+  "frame_processing": {
+    "status": "pass",
+    "details": "618 frames processed"
+  },
+  "video_recording": {
+    "status": "pass",
+    "details": "5.3 MB"
+  },
+  "packet_integrity": {
+    "status": "pass",
+    "details": "11.2s duration"
+  },
+  "video_brightness": {
+    "status": "pass",
+    "details": "Normal (best_mean_luma=47.7)",
+    "metrics": {
+      "best_offset_s": 8.399358,
+      "best_mean_luma": 47.71852111816406,
+      "samples": [
+        {
+          "t": 2.799786,
+          "mean_luma": 7.614246368408203
+        },
+        {
+          "t": 5.599572,
+          "mean_luma": 7.603682518005371
+        },
+        {
+          "t": 8.399358,
+          "mean_luma": 47.71852111816406
+        }
+      ]
+    }
+  },
+  "av_sync": {
+    "status": "fail",
+    "details": "Analysis unavailable"
+  }
+}
