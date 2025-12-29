@@ -61,13 +61,25 @@ class AfterglowAssertion(EffectAssertion):
                     details={"roi": {"x0": roi[0], "y0": roi[1], "x1": roi[2], "y1": roi[3]}},
                 )
 
+            # Verify frame progression slots show consistent afterglow
+            frames_bgr = frames[..., ::-1]  # Convert RGB to BGR for OpenCV
+            slot_ok, slot_details = self._verify_frame_progression_slots(frames_bgr, properties, verbose)
+
+            if not slot_ok:
+                return AssertionResult(
+                    status=AssertionStatus.FAIL,
+                    name=self.name,
+                    message=f"Frame progression slot discontinuity: {slot_details}",
+                )
+
             return AssertionResult(
                 status=AssertionStatus.PASS,
                 name=self.name,
-                message="Afterglow persistence verified (tail decays across frames)",
+                message="Afterglow persistence verified (tail decays, slots consistent)",
                 details={
                     "roi": {"x0": roi[0], "y0": roi[1], "x1": roi[2], "y1": roi[3]},
                     "decay_details": details,
+                    "slot_details": slot_details,
                 },
             )
 
@@ -189,3 +201,158 @@ class AfterglowAssertion(EffectAssertion):
             return False, "Afterglow tail fades too quickly (mean tail too low)"
 
         return True, "Afterglow persistence detected (tail decays across frames)"
+    def _verify_frame_progression_slots(
+        self, frames_bgr: np.ndarray, properties: dict[str, Any], verbose: bool
+    ) -> tuple[bool, str]:
+        """Verify frame progression slots show consistent afterglow without discontinuities.
+
+        Checks that inactive slots in the frame progression marker show brightness indicating
+        afterglow persistence. Discontinuities (slots suddenly going dark) indicate frames
+        where afterglow was not applied.
+
+        Args:
+            frames_bgr: Video frames in BGR format [N,H,W,3] uint8
+            properties: Source properties (may contain canvas size)
+            verbose: Enable verbose logging
+
+        Returns:
+            (ok, details) tuple where ok=True if slots are consistent, details=message
+        """
+        import cv2
+
+        # Detect content bounds from first frame
+        from .frame_progression import _detect_content_bounds
+
+        first_frame = frames_bgr[0]
+        content_left, content_right, content_top, content_bottom = _detect_content_bounds(first_frame)
+
+        h, w = frames_bgr.shape[1:3]
+        c64_height = 272  # PAL/NTSC both scale from this
+        scale = h / c64_height
+
+        # Calculate slot region (from frame_progression.py logic)
+        corner_outer_height_c64 = 56
+        corner_frame_total_c64 = 8
+        corner_inner_height_c64 = 40
+        bar_left_padding_c64 = 4
+        bar_area_width_c64 = 63  # 8 slots × 7px + 7 gaps × 1px
+        slot_width_c64 = 7
+        gap_width_c64 = 1
+        slot_pitch_c64 = slot_width_c64 + gap_width_c64
+
+        outer_height = int(round(corner_outer_height_c64 * scale))
+        frame_offset = int(round(corner_frame_total_c64 * scale))
+        inner_height = int(round(corner_inner_height_c64 * scale))
+        bar_padding = int(round(bar_left_padding_c64 * scale))
+        bar_area_width = int(round(bar_area_width_c64 * scale))
+
+        element_bottom = content_bottom
+        element_left = content_left
+        element_top = element_bottom - outer_height
+        inner_x0 = element_left + frame_offset
+        inner_y0 = element_top + frame_offset
+        bar_x0 = inner_x0 + bar_padding
+        bar_x1 = bar_x0 + bar_area_width
+        sample_y0 = inner_y0
+        sample_y1 = inner_y0 + inner_height
+
+        # Bounds check
+        if bar_x0 < 0 or bar_x1 > w or sample_y0 < 0 or sample_y1 > h or bar_area_width < 8:
+            return True, "Frame progression slots not visible (skipping slot check)"
+
+        # Extract slot luminances across all frames
+        num_slots = 8
+        all_slot_lumas = []  # Shape: [N, 8] where N=num_frames
+
+        for frame_idx in range(len(frames_bgr)):
+            frame = frames_bgr[frame_idx]
+            bar_region = frame[sample_y0:sample_y1, bar_x0:bar_x1]
+            if bar_region.size == 0:
+                continue
+            gray = cv2.cvtColor(bar_region, cv2.COLOR_BGR2GRAY)
+
+            slot_lumas = []
+            for slot_idx in range(num_slots):
+                slot_start = int(round(slot_idx * slot_pitch_c64 * scale))
+                slot_end = int(round((slot_idx * slot_pitch_c64 + slot_width_c64) * scale))
+                slot_end = min(slot_end, bar_area_width)
+
+                if slot_end <= slot_start:
+                    slot_lumas.append(0.0)
+                    continue
+
+                slot_region = gray[:, slot_start:slot_end]
+                if slot_region.size == 0:
+                    slot_lumas.append(0.0)
+                    continue
+
+                slot_lumas.append(float(np.mean(slot_region)))
+
+            if len(slot_lumas) == num_slots:
+                all_slot_lumas.append(slot_lumas)
+
+        if len(all_slot_lumas) < 20:
+            return True, "Not enough frames to verify slot consistency"
+
+        # Convert to numpy array for analysis
+        slot_array = np.array(all_slot_lumas)  # Shape: [N, 8]
+
+        # Check for discontinuities: frames where inactive slots suddenly go dark (missing afterglow)
+        discontinuities = []
+
+        for frame_idx in range(20, len(slot_array)):
+            lumas = slot_array[frame_idx]
+            prev_lumas = slot_array[frame_idx - 1]
+
+            # Current active slot (cycles every 8 frames)
+            current_slot = frame_idx % 8
+
+            # Check each slot (except current active slot)
+            for slot_idx in range(8):
+                if slot_idx == current_slot:
+                    continue  # Skip currently active slot
+
+                curr = lumas[slot_idx]
+                prev = prev_lumas[slot_idx]
+
+                # Detect sudden drop (>20%) indicating missing afterglow
+                if prev > 15 and curr < prev * 0.8:  # 20% drop threshold
+                    discontinuities.append(
+                        f"Frame {frame_idx}: Slot {slot_idx} dropped from {prev:.1f} to {curr:.1f} "
+                        f"({(1 - curr/prev)*100:.0f}% drop) - possible missing afterglow"
+                    )
+
+        # Calculate discontinuity rate
+        discontinuity_rate = len(discontinuities) / max(1, len(slot_array) - 20)
+
+        if discontinuity_rate > 0.05:  # Fail if >5% of frames have discontinuities
+            if verbose:
+                for d in discontinuities[:10]:  # Log first 10 discontinuities
+                    self.log(f"  {d}", True)
+            return (
+                False,
+                f"Slot discontinuities detected: {len(discontinuities)}/{len(slot_array)-20} frames "
+                f"({discontinuity_rate*100:.1f}%) exceed 5.0% threshold - afterglow not consistently applied",
+            )
+
+        # Also check that inactive slots show brightness (indicating afterglow exists)
+        afterglow_detected = False
+        for frame_idx in range(20, len(slot_array)):
+            lumas = slot_array[frame_idx]
+            current_slot = frame_idx % 8
+            # Check if any non-current slot is significantly lit
+            for slot_idx in range(8):
+                if slot_idx != current_slot and lumas[slot_idx] > 15:  # Afterglow threshold
+                    afterglow_detected = True
+                    break
+            if afterglow_detected:
+                break
+
+        if not afterglow_detected:
+            return (
+                False,
+                "NO AFTERGLOW DETECTED: No inactive slots show brightness above threshold. "
+                "Afterglow appears to be completely disabled or non-functional.",
+            )
+
+        return True, f"Frame progression slots consistent ({len(discontinuities)} discontinuities, {discontinuity_rate*100:.1f}%)"

@@ -1288,12 +1288,26 @@ void c64_video_render(void *data, gs_effect_t *effect)
             gs_set_render_target(context->afterglow_accum_next, NULL);
             gs_set_viewport(0, 0, render_width, render_height);
 
+            // Disable blending to ensure shader output completely replaces the render target
+            // Default blending might cause additive accumulation which breaks the max-based persistence model
+            gs_blend_state_push();
+            gs_blend_function(GS_BLEND_ONE, GS_BLEND_ZERO); // dest = src * 1 + dest * 0 = src (replace)
+            gs_enable_blending(true);
+
+            // CRITICAL: Clear the render target before rendering!
+            // Without this, stale data from 2 frames ago contaminates the output.
+            // The shader output should completely replace the target, but explicit clearing
+            // ensures we don't have any undefined behavior or blending issues.
+            struct vec4 clear_color = {0.0f, 0.0f, 0.0f, 1.0f};
+            gs_clear(GS_CLEAR_COLOR, &clear_color, 0.0f, 0);
+
             // Render with CRT effects + afterglow accumulation
-            // Note: Don't clear the target - let afterglow decay handle it naturally
-            // Clearing breaks persistence and causes visible flashing
             while (gs_effect_loop(context->crt_effect, "Draw")) {
                 gs_draw_sprite(input_tex, 0, render_width, render_height);
             }
+
+            // Restore blend state
+            gs_blend_state_pop();
 
             // Step 2: Swap ping-pong textures for next frame
             gs_texture_t *tmp = context->afterglow_accum_prev;
