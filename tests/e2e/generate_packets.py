@@ -561,16 +561,29 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                         if is_divider:
                             return 0  # Black divider always
 
+                        # Ruler-style guide marks (mirror frame progression ticks):
+                        # - Center of each A/V half rectangle
+                        # - 1px dark-blue tick from top inner edge down 3px
+                        # - 1px dark-blue tick from bottom inner edge up 3px
+                        left_center_x = half_width // 2  # 35px -> center at 17
+                        right_start_x = half_width + 2
+                        right_center_x = right_start_x + (half_width // 2)  # 37 + 17 = 54
+                        if inner_x in (left_center_x, right_center_x):
+                            if inner_y in (0, 1, 2) or inner_y in (
+                                CORNER_INNER_HEIGHT - 3,
+                                CORNER_INNER_HEIGHT - 2,
+                                CORNER_INNER_HEIGHT - 1,
+                            ):
+                                return VIC_DARK_BLUE
+
+                        # A/V pop background is black for maximum contrast.
                         if sync_active and pop_index >= 0:
                             # Determine which half should light up based on audio channel
                             # Alternation: L, R, L, R... (pop_index 0=LEFT, 1=RIGHT, 2=LEFT...)
                             is_left_pop = (pop_index % 2) == 0
                             should_light = (is_left_half and is_left_pop) or (is_right_half and not is_left_pop)
-                            if should_light:
-                                # Solid white (VIC color 1) during pop for maximum detectability
-                                return 1
-                            return 11  # Inactive half shows dark gray (VIC color 11)
-                        return 11  # Both halves show dark gray when not popping (neutral state)
+                            return VIC_WHITE if should_light else VIC_BLACK
+                        return VIC_BLACK
                     return 0
 
                 # ═══════════════════════════════════════════════════════════════
