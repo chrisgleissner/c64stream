@@ -1201,19 +1201,21 @@ void c64_video_render(void *data, gs_effect_t *effect)
         canvas_height = (float)ovi.base_height;
     }
 
-    // Calculate the scaling factor OBS will apply
-    float scale_factor = canvas_height / (float)render_height;
+    // CRITICAL: output_height must match the RENDER resolution, not the final canvas
+    // The shader calculates scanline position as: output_row = int(uv.y * output_height)
+    // Since we render at native 272px, uv.y ranges 0-1 across 272px, so output_height = 272
+    // OBS will then scale the rendered result (with scanlines) to the final canvas size
+    gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "output_height"), (float)render_height);
 
-    // Set output resolution for scanline calculation - use the SCALED resolution
-    // so scanlines are calculated correctly for the final output
-    float effective_output_height = (float)render_height * scale_factor;
-    gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "output_height"), effective_output_height);
-
-    // Adjust blur/bloom strength for native resolution rendering
-    // These effects use pixel-based calculations that need scaling
-    float adjusted_blur_strength = context->blur_strength * scale_factor;
-    float adjusted_bloom_strength = context->bloom_strength * scale_factor;
-
+    // Blur/bloom use UV-space coordinates, but we need to maintain the same PIXEL radius
+    // Shader formula: radius_uv = strength * 0.003
+    // At 1920x1080: 0.3 * 0.003 * 1920 = 1.73px horizontal blur
+    // At 384x272:   0.3 * 0.003 * 384  = 0.35px (sub-pixel!)
+    // Solution: Scale strengths by (canvas_width / render_width) to maintain pixel radius
+    // For 1920→384: scale by 1920/384 = 5.0x
+    float blur_scale = canvas_height / (float)render_height;
+    float adjusted_blur_strength = context->blur_strength * blur_scale;
+    float adjusted_bloom_strength = context->bloom_strength * blur_scale;
     gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "blur_strength"), adjusted_blur_strength);
     gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "bloom_strength"), adjusted_bloom_strength);
 

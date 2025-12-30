@@ -1,0 +1,18 @@
+name: NTSC Tint + Scanlines
+format: NTSC
+assertions:
+  - video_quality
+  - audio
+  - tint
+  - scanlines
+  - frame_progression
+
+effect_overrides:
+  scan_line_distance: 0.5
+  scan_line_strength: 0.5
+  blur_strength: 0.0
+  bloom_strength: 0.0
+  tint_mode: 2
+  tint_strength: 1.0
+  afterglow_duration_ms: 40
+  afterglow_curve: 3
