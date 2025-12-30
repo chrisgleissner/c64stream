@@ -12,6 +12,10 @@ See <https://www.gnu.org/licenses/> for details.
 #include <stdbool.h>
 #include "c64-color.h"
 
+// Aligned memory allocation helpers for SIMD optimization
+void *c64_alloc_aligned(size_t size, size_t alignment);
+void c64_free_aligned(void *ptr);
+
 // Rendering defaults
 // Legacy defines kept for compatibility during transition
 #define C64_DEFAULT_RENDER_DELAY_FRAMES 3  // DEPRECATED - use network buffer instead

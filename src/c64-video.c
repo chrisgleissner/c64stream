@@ -31,6 +31,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include <inttypes.h>
 #include <pthread.h>
 #include <math.h>
+#include <stdlib.h> // For aligned_alloc and free
 #include "c64-network.h"
 #include "c64-network-buffer.h"
 
@@ -52,6 +53,31 @@ See <https://www.gnu.org/licenses/> for details.
 #endif
 
 #include "c64-protocol.h"
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ALIGNED MEMORY ALLOCATION HELPERS
+// ═══════════════════════════════════════════════════════════════════════════════
+// Cache-line aligned allocation improves SIMD performance (AVX2 benefits from 32/64-byte alignment)
+
+void *c64_alloc_aligned(size_t size, size_t alignment)
+{
+#ifdef _WIN32
+    return _aligned_malloc(size, alignment);
+#else
+    // aligned_alloc requires size to be multiple of alignment (C11)
+    const size_t aligned_size = ((size + alignment - 1) / alignment) * alignment;
+    return aligned_alloc(alignment, aligned_size);
+#endif
+}
+
+void c64_free_aligned(void *ptr)
+{
+#ifdef _WIN32
+    _aligned_free(ptr);
+#else
+    free(ptr);
+#endif
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SIMD-OPTIMIZED AFTERGLOW IMPLEMENTATION
@@ -351,9 +377,10 @@ static const uint32_t *c64_get_afterglow_output_pixels(struct c64_source *contex
     const size_t frame_bytes = pixel_count * 4;
     if (context->afterglow_cpu_bytes != frame_bytes) {
         if (context->afterglow_cpu_accum) {
-            bfree(context->afterglow_cpu_accum);
+            c64_free_aligned(context->afterglow_cpu_accum);
         }
-        context->afterglow_cpu_accum = bmalloc(frame_bytes);
+        // Align to 64-byte cache line for optimal SIMD performance
+        context->afterglow_cpu_accum = (uint32_t *)c64_alloc_aligned(frame_bytes, 64);
         context->afterglow_cpu_bytes = frame_bytes;
         context->afterglow_cpu_valid = false; // Invalidate on resize (Medium #8)
     }
@@ -435,6 +462,14 @@ static const uint32_t *c64_get_afterglow_output_pixels(struct c64_source *contex
 // ─────────────────────────────────────────────────────────────────────────────
 #ifdef C64_HAS_X86_SIMD
     c64_detect_simd_support();
+
+    // Prefetch next cache lines to reduce memory stall cycles (typical L1 miss: ~4-7 cycles)
+    // Prefetch 64 pixels (256 bytes) ahead for both read and write arrays
+    const size_t prefetch_distance = 64;
+    for (size_t p = 0; p + prefetch_distance <= pixel_count; p += prefetch_distance) {
+        __builtin_prefetch(&curr_pixels[p + prefetch_distance], 0, 3); // Read, high temporal locality
+        __builtin_prefetch(&acc[p + prefetch_distance], 1, 3);         // Write, high temporal locality
+    }
 
 #if defined(__AVX2__) || defined(_MSC_VER)
     if (c64_cpu_has_avx2) {

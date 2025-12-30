@@ -524,7 +524,8 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     // Use PAL size (larger) to cover both PAL and NTSC; will be resized if needed.
     {
         const size_t initial_accum_bytes = C64_PAL_WIDTH * C64_PAL_HEIGHT * sizeof(uint32_t);
-        context->afterglow_cpu_accum = bmalloc(initial_accum_bytes);
+        // Use aligned allocation for optimal SIMD performance (declared in c64-video.h)
+        context->afterglow_cpu_accum = (uint32_t *)c64_alloc_aligned(initial_accum_bytes, 64);
         if (context->afterglow_cpu_accum) {
             memset(context->afterglow_cpu_accum, 0, initial_accum_bytes);
             context->afterglow_cpu_bytes = initial_accum_bytes;
@@ -626,7 +627,7 @@ void c64_destroy(void *data)
     }
 
     if (context->afterglow_cpu_accum) {
-        bfree(context->afterglow_cpu_accum);
+        c64_free_aligned(context->afterglow_cpu_accum);
         context->afterglow_cpu_accum = NULL;
         context->afterglow_cpu_bytes = 0;
         context->afterglow_cpu_valid = false;
