@@ -2908,8 +2908,7 @@ main() {
 
     # Run scenario-specific assertions if a scenario was specified
     if [[ -n "${SCENARIO}" && ${test_result} -eq 0 ]]; then
-        run_scenario_assertions
-        if [[ $? -ne 0 ]]; then
+        if ! run_scenario_assertions; then
             test_result=1
         fi
     fi
