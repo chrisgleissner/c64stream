@@ -26,6 +26,11 @@ results/*
 !results/pal_default/
 !results/pal_default/**
 
+# Ignore recorded video outputs even in curated scenarios
+results/**/*.mp4
+results/**/*.mk4
+results/**/*.mkv
+
 # Ignore profiling artifacts even in curated scenarios
 results/**/flamegraph.svg
 results/**/perf.data

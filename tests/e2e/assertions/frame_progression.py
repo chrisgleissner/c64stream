@@ -60,6 +60,11 @@ def _detect_position_marker(
 ) -> tuple[Optional[int], list[float]]:
     """Detect frame sequence from position marker strip in bottom-left corner element.
 
+    Uses a CENTRAL HORIZONTAL SCANLINE approach: samples a single horizontal line
+    through the vertical middle of the progress bar. This line travels across all
+    8 slots from left to right. The illumination falloff across this line must be
+    smooth and provides a robust signal even with effects and scaling.
+
     Uses temporal delta detection: finds which slot had the largest brightness INCREASE
     compared to the previous frame. This is robust against afterglow effects where
     previous positions remain lit.
@@ -119,7 +124,7 @@ def _detect_position_marker(
     bar_x0 = inner_x0 + bar_padding
     bar_x1 = bar_x0 + bar_area_width
 
-    # Sample only the active marker band (centered within the inner area).
+    # Calculate the vertical center of the marker band
     marker_shift_c64 = 2
     marker_height_c64 = corner_inner_height_c64 - (marker_shift_c64 * 2)
     marker_shift = int(round(marker_shift_c64 * scale))
@@ -127,23 +132,29 @@ def _detect_position_marker(
     sample_y0 = inner_y0 + marker_shift
     sample_y1 = min(inner_y0 + inner_height, sample_y0 + marker_height)
 
+    # CENTRAL HORIZONTAL SCANLINE: sample at the vertical middle of the marker band
+    scanline_y = (sample_y0 + sample_y1) // 2
+
     # Bounds check
     h, w = frame.shape[:2]
-    if bar_x0 < 0 or bar_x1 > w or sample_y0 < 0 or sample_y1 > h:
+    if bar_x0 < 0 or bar_x1 > w or scanline_y < 0 or scanline_y >= h:
         return None, []
     if bar_area_width < 8:
         return None, []
 
-    # Extract bar region and convert to grayscale
-    bar_region = frame[sample_y0:sample_y1, bar_x0:bar_x1]
-    if bar_region.size == 0:
+    # Extract the horizontal scanline and convert to grayscale
+    scanline = frame[scanline_y:scanline_y+1, bar_x0:bar_x1]
+    if scanline.size == 0:
         return None, []
-    gray = cv2.cvtColor(bar_region, cv2.COLOR_BGR2GRAY)
+    gray_line = cv2.cvtColor(scanline, cv2.COLOR_BGR2GRAY)
 
-    # Measure mean luminance for each slot (sample center of slot, avoiding gaps)
+    # Flatten to 1D array for easier processing
+    luminance_profile = gray_line.flatten()
+
+    # Measure mean luminance for each slot by sampling the center portion of each slot
     slot_luminances = []
     for slot_idx in range(num_slots):
-        # Calculate slot center position
+        # Calculate slot position in the scanline
         slot_start = int(round(slot_idx * slot_pitch_c64 * scale))
         slot_end = int(round((slot_idx * slot_pitch_c64 + slot_width_c64) * scale))
         slot_end = min(slot_end, bar_area_width)
@@ -152,12 +163,20 @@ def _detect_position_marker(
             slot_luminances.append(0.0)
             continue
 
-        slot_region = gray[:, slot_start:slot_end]
-        if slot_region.size == 0:
+        # Sample the center portion of the slot to avoid gap pixels
+        slot_center_start = slot_start + max(0, (slot_end - slot_start) // 4)
+        slot_center_end = slot_end - max(0, (slot_end - slot_start) // 4)
+
+        if slot_center_end <= slot_center_start:
+            slot_center_start = slot_start
+            slot_center_end = slot_end
+
+        slot_pixels = luminance_profile[slot_center_start:slot_center_end]
+        if slot_pixels.size == 0:
             slot_luminances.append(0.0)
             continue
 
-        mean_lum = float(np.mean(slot_region))
+        mean_lum = float(np.mean(slot_pixels))
         slot_luminances.append(mean_lum)
 
     if not slot_luminances or len(slot_luminances) != num_slots:
@@ -426,41 +445,62 @@ def _analyze_frame_progression(
         stuck_run_frames.append(current_run_start)
         stuck_run_indices.append(current_run_idx)
 
-    # Filter out startup/end freeze periods
+    # Filter out startup/end freeze periods intelligently using content_bounds
+    # Recording stages: no data (logo) → data (video moving) → no data (video frozen) → logo
     startup_frames_excluded = 0
     end_frames_excluded = 0
-    startup_run_threshold = int(fps * 1.0)
     filtered_stuck_runs = stuck_runs.copy()
     filtered_stuck_run_frames = stuck_run_frames.copy()
     filtered_stuck_run_indices = stuck_run_indices.copy()
 
-    # Filter startup: first run is long and subsequent content shows progression
-    if len(filtered_stuck_runs) >= 2 and filtered_stuck_runs[0] > startup_run_threshold:
-        remaining_distinct = len(set(compressed[1:]))
-        if remaining_distinct >= 4:
-            startup_frames_excluded = filtered_stuck_runs[0]
+    # Use content_bounds to filter out logo/freeze periods if available
+    if content_bounds is not None and content_bounds.detection_confidence > 0.3:
+        # Filter startup: exclude stuck runs that occur before content actually starts
+        # These are logo frames, not real freezes
+        while filtered_stuck_runs and filtered_stuck_run_frames[0] < content_bounds.first_content_frame:
+            startup_frames_excluded += filtered_stuck_runs[0]
             filtered_stuck_runs = filtered_stuck_runs[1:]
             filtered_stuck_run_frames = filtered_stuck_run_frames[1:]
             filtered_stuck_run_indices = filtered_stuck_run_indices[1:]
 
-    # Filter end-of-stream: last run is long, or a long run followed by a short blip.
-    if len(filtered_stuck_runs) >= 3:
-        tail_run = filtered_stuck_runs[-1]
-        penultimate_run = filtered_stuck_runs[-2]
-        preceding_distinct = len(set(compressed[:-2]))
-        if tail_run <= 2 and penultimate_run > startup_run_threshold and preceding_distinct >= 4:
-            end_frames_excluded = penultimate_run + tail_run
-            filtered_stuck_runs = filtered_stuck_runs[:-2]
-            filtered_stuck_run_frames = filtered_stuck_run_frames[:-2]
-            filtered_stuck_run_indices = filtered_stuck_run_indices[:-2]
-
-    if end_frames_excluded == 0 and len(filtered_stuck_runs) >= 2 and filtered_stuck_runs[-1] > startup_run_threshold:
-        preceding_distinct = len(set(compressed[:-1]))
-        if preceding_distinct >= 4:
-            end_frames_excluded = filtered_stuck_runs[-1]
+        # Filter end: exclude stuck runs that occur after content has stopped
+        # These are frozen frames at end of stream or logo frames, not real problems
+        while filtered_stuck_runs and filtered_stuck_run_frames[-1] > content_bounds.last_content_frame:
+            end_frames_excluded += filtered_stuck_runs[-1]
             filtered_stuck_runs = filtered_stuck_runs[:-1]
             filtered_stuck_run_frames = filtered_stuck_run_frames[:-1]
             filtered_stuck_run_indices = filtered_stuck_run_indices[:-1]
+    else:
+        # Fallback: heuristic-based filtering when content_bounds not available
+        startup_run_threshold = int(fps * 1.0)
+
+        # Filter startup: first run is long and subsequent content shows progression
+        if len(filtered_stuck_runs) >= 2 and filtered_stuck_runs[0] > startup_run_threshold:
+            remaining_distinct = len(set(compressed[1:]))
+            if remaining_distinct >= 4:
+                startup_frames_excluded = filtered_stuck_runs[0]
+                filtered_stuck_runs = filtered_stuck_runs[1:]
+                filtered_stuck_run_frames = filtered_stuck_run_frames[1:]
+                filtered_stuck_run_indices = filtered_stuck_run_indices[1:]
+
+        # Filter end-of-stream: last run is long, or a long run followed by a short blip.
+        if len(filtered_stuck_runs) >= 3:
+            tail_run = filtered_stuck_runs[-1]
+            penultimate_run = filtered_stuck_runs[-2]
+            preceding_distinct = len(set(compressed[:-2]))
+            if tail_run <= 2 and penultimate_run > startup_run_threshold and preceding_distinct >= 4:
+                end_frames_excluded = penultimate_run + tail_run
+                filtered_stuck_runs = filtered_stuck_runs[:-2]
+                filtered_stuck_run_frames = filtered_stuck_run_frames[:-2]
+                filtered_stuck_run_indices = filtered_stuck_run_indices[:-2]
+
+        if end_frames_excluded == 0 and len(filtered_stuck_runs) >= 2 and filtered_stuck_runs[-1] > startup_run_threshold:
+            preceding_distinct = len(set(compressed[:-1]))
+            if preceding_distinct >= 4:
+                end_frames_excluded = filtered_stuck_runs[-1]
+                filtered_stuck_runs = filtered_stuck_runs[:-1]
+                filtered_stuck_run_frames = filtered_stuck_run_frames[:-1]
+                filtered_stuck_run_indices = filtered_stuck_run_indices[:-1]
 
     # Calculate stuck frame statistics
     max_stuck_run = max(filtered_stuck_runs) if filtered_stuck_runs else 0

@@ -204,6 +204,45 @@ stop_resource_monitoring() {
 }
 
 # Ensure perf can run (local dev best-effort).
+ensure_udp_buffers() {
+    # Ensure adequate UDP buffer sizes for high-throughput E2E tests
+    # Only relevant on Linux.
+    if [[ "$(uname -s 2>/dev/null || echo '')" != "Linux" ]]; then
+        return 0
+    fi
+
+    local current_rmem_max=""
+    if [[ -r /proc/sys/net/core/rmem_max ]]; then
+        current_rmem_max=$(cat /proc/sys/net/core/rmem_max 2>/dev/null || echo "")
+    fi
+
+    # Target: 8MB buffers for E2E tests (8388608 bytes)
+    local target_buffer=8388608
+
+    if [[ -n "${current_rmem_max}" ]] && [[ "${current_rmem_max}" =~ ^[0-9]+$ ]] && [[ "${current_rmem_max}" -ge "${target_buffer}" ]]; then
+        # Buffers already adequate
+        return 0
+    fi
+
+    if ! command -v sudo >/dev/null 2>&1; then
+        log_warning "sudo not available; cannot adjust UDP buffer sizes (current: ${current_rmem_max} bytes, need: ${target_buffer} bytes)."
+        log_warning "E2E tests may experience UDP packet loss. To fix: sudo sysctl -w net.core.rmem_max=${target_buffer} net.core.wmem_max=${target_buffer}"
+        return 0
+    fi
+
+    log_info "Increasing UDP buffer sizes for E2E test reliability (${current_rmem_max} -> ${target_buffer} bytes)..."
+    sudo sysctl -w net.core.rmem_max=${target_buffer} >/dev/null 2>&1 || log_warning "Failed to set net.core.rmem_max"
+    sudo sysctl -w net.core.wmem_max=${target_buffer} >/dev/null 2>&1 || log_warning "Failed to set net.core.wmem_max"
+
+    # Verify
+    local new_rmem_max=$(cat /proc/sys/net/core/rmem_max 2>/dev/null || echo "0")
+    if [[ "${new_rmem_max}" -ge "${target_buffer}" ]]; then
+        log_success "UDP buffers increased to ${new_rmem_max} bytes"
+    else
+        log_warning "UDP buffer adjustment may have failed (current: ${new_rmem_max})"
+    fi
+}
+
 ensure_perf_permissions() {
     if [[ "${PERF_PROFILE}" != true ]]; then
         return 0
@@ -719,9 +758,9 @@ parse_args() {
     if [[ -n "${DURATION}" ]]; then
         local fps
         if [[ "${FORMAT}" == "PAL" ]]; then
-            fps=50
+            fps=50  # Simplified PAL frame rate for frame count calculation
         else
-            fps=60
+            fps=60  # Simplified NTSC frame rate for frame count calculation
         fi
         # Round to nearest frame to keep total duration close to user intent.
         FRAMES=$(awk -v d="${DURATION}" -v f="${fps}" 'BEGIN{printf "%d", int(d*f + 0.5)}')
@@ -1218,6 +1257,9 @@ run_e2e_test() {
 
     # Prepare output directory
     mkdir -p "${OUTPUT_DIR}"
+
+    # Best-effort UDP buffer size increase (prevents packet loss in E2E tests).
+    ensure_udp_buffers
 
     # Best-effort perf permissions setup (local dev only).
     ensure_perf_permissions

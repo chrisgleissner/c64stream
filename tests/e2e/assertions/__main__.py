@@ -102,7 +102,7 @@ Examples:
 
     if args.scenario:
         # Load from scenario (preferred)
-        from scenario_loader import generate_scene_json, load_scenario
+        from scenario_loader import generate_scene_json, load_scenario, _get_canvas_size_from_scenario
 
         scenarios_dir = Path(__file__).parent.parent / "scenarios"
         scenario_yaml = scenarios_dir / args.scenario / "scenario.yaml"
@@ -124,6 +124,11 @@ Examples:
         preset = PresetConfig.from_obs_settings(settings)
         properties = settings
         scenario_assertions = scenario_cfg.assertions
+
+        # Add expected resolution from scenario
+        canvas_w, canvas_h = _get_canvas_size_from_scenario(scenario_cfg)
+        properties["expected_width"] = int(canvas_w)
+        properties["expected_height"] = int(canvas_h)
 
         if args.verbose:
             print(f"Loaded scenario: {scenario_cfg.name}")

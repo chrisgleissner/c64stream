@@ -1687,7 +1687,7 @@ class E2ETest:
         self.log("🔍 Checking for CSV recordings...")
 
         # Initialize original counts storage
-        self._original_csv_counts = {'network_packets': 0, 'obs_frames': 0}
+        self._original_csv_counts = {'network_packets': 0, 'obs_frames': 0, 'video_packets': 0, 'audio_packets': 0}
 
         # Look for CSV files in the plugin's recording directory
         recordings_base = Path.home() / 'Documents' / 'obs-studio' / 'c64stream' / 'recordings'
@@ -1726,7 +1726,14 @@ class E2ETest:
                     lines = f.readlines()
                     csv_results['network_packets'] = len(lines) - 1  # Subtract header
                     self._original_csv_counts['network_packets'] = csv_results['network_packets']
-                    self.log(f"📊 Network CSV contains {csv_results['network_packets']} packet entries")
+
+                    # Count actual video/audio packets in full CSV and store for validation
+                    actual_video_count = sum(1 for line in lines[1:] if line.startswith('video,'))
+                    actual_audio_count = sum(1 for line in lines[1:] if line.startswith('audio,'))
+                    self._original_csv_counts['video_packets'] = actual_video_count
+                    self._original_csv_counts['audio_packets'] = actual_audio_count
+                    print(f"🔍 DEBUG: Full network.csv has {csv_results['network_packets']} total packets ({actual_video_count} video, {actual_audio_count} audio)")
+                    self.log(f"📊 Network CSV contains {csv_results['network_packets']} packet entries ({actual_video_count} video, {actual_audio_count} audio)")
 
                     # Show first few entries
                     if len(lines) > 1:
@@ -1858,31 +1865,27 @@ class E2ETest:
         self.log(f"📦 Loaded {len(video_files)} video packets, {len(audio_files)} audio packets")
 
         # Precise timing based on C64 Stream specification
+        # Use exact calculated intervals to avoid cumulative timing errors over thousands of packets
         if self.format == 'PAL':
-            video_interval_us = 293  # PAL: 0.293 ms = 293 μs between video packets
-            audio_interval_us = 4000  # PAL: 4.000 ms = 4000 μs between audio packets
+            # PAL: 50.125 fps, 68 packets/frame → 293.384 µs per video packet
+            video_interval_us = 293.384
+            # PAL audio: 192 samples / 47983 Hz → 4001.417 µs per audio packet
+            audio_interval_us = 4001.417
         else:  # NTSC
-            video_interval_us = 279  # NTSC: 0.279 ms = 279 μs between video packets
-            audio_interval_us = 4004  # NTSC: 4.004 ms = 4004 μs between audio packets
+            # NTSC: 59.826 fps, 60 packets/frame → 278.586 µs per video packet
+            video_interval_us = 278.586
+            # NTSC audio: 192 samples / 47940 Hz → 4005.006 µs per audio packet
+            audio_interval_us = 4005.006
 
         # Create UDP sockets
         video_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         audio_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-        # Skip test packets to avoid interference with real packet reception
-        # The plugin might be processing test packets when real packets arrive
+        # Do NOT send test packets - they interfere with packet counting
+        # The plugin logs all received packets to network.csv, including test packets
         self.log(f"🔍 UDP sockets ready for {self.video_dest_ip}:{self.video_dest_port} and {self.audio_dest_ip}:{self.audio_dest_port}")
         self.log(f"  - Video socket: {video_sock}")
         self.log(f"  - Audio socket: {audio_sock}")
-
-        # Test UDP connectivity and snapshot listeners before replay (diag only)
-        try:
-            test_data = b"test"
-            video_sock.sendto(test_data, (self.video_dest_ip, self.video_dest_port))
-            audio_sock.sendto(test_data, (self.audio_dest_ip, self.audio_dest_port))
-            self.log(f"  - Test packets sent successfully")
-        except Exception as e:
-            self.log(f"  - Failed to send test packets: {e}")
 
         # Diagnostic: show current UDP listeners if available (no extra tools installed)
         if self.verbose:
@@ -2025,9 +2028,11 @@ class E2ETest:
                     # Debug first few packets to verify sending
                     if packets_sent <= 5:
                         self.log(f"🔍 DEBUG: Sent {event['type']} packet #{packets_sent}: {len(packet_data)} bytes to {event['dest']}, socket returned {bytes_sent}")
-                        # Add small delay after first few packets to ensure plugin processes them
-                        if packets_sent <= 3:
-                            time.sleep(0.001)  # 1ms delay
+
+                    # Debug last few packets to verify completion
+                    if packets_sent >= len(timeline) - 3:
+                        elapsed_ms = (time.time() - replay_start_time) * 1000
+                        self.log(f"🔍 DEBUG: Sent {event['type']} packet #{packets_sent}/{len(timeline)} at {elapsed_ms:.1f}ms (file: {Path(event['file']).name})")
 
                     # Show progress every 500 packets (always visible)
                     if packets_sent % 500 == 0:
@@ -2532,53 +2537,30 @@ class E2ETest:
 
         # 1. UDP Packet Reception Validation
         # Use original counts from before CSV truncation for accurate validation
-        original_counts = getattr(self, '_original_csv_counts', {'network_packets': 0, 'obs_frames': 0})
+        original_counts = getattr(self, '_original_csv_counts', {'network_packets': 0, 'obs_frames': 0, 'video_packets': 0, 'audio_packets': 0})
         received_packets = original_counts.get('network_packets', 0)
+        video_packets = original_counts.get('video_packets', 0)
+        audio_packets = original_counts.get('audio_packets', 0)
 
-        network_csv = self.output_dir / 'network.csv'
-        if network_csv.exists() and received_packets > 0:
-            try:
-                # Read truncated file just for video/audio breakdown
-                with open(network_csv, 'r') as f:
-                    lines = f.readlines()
-                truncated_rows = len(lines) - 1
-
-                # For display, use proportion from truncated sample to estimate breakdown
-                video_in_sample = sum(1 for line in lines[1:] if line.startswith('video,'))
-                audio_in_sample = truncated_rows - video_in_sample
-
-                # Estimate actual breakdown based on sample ratio
-                if truncated_rows > 0:
-                    video_ratio = video_in_sample / truncated_rows
-                    video_packets = int(received_packets * video_ratio)
-                    audio_packets = received_packets - video_packets
-                else:
-                    video_packets = 0
-                    audio_packets = 0
-
-                if received_packets == expected_total_packets:
-                    print(f"✅ UDP Reception: {received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio)")
-                    validation_results['udp_reception'] = {'status': 'pass', 'details': f"{received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio)"}
-                elif received_packets >= expected_total_packets * 0.95:  # 95% threshold
-                    print(f"⚠️  UDP Reception: {received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio)")
-                    validation_warnings.append(f"Packet loss: {expected_total_packets - received_packets} packets missing")
-                    validation_results['udp_reception'] = {'status': 'warning', 'details': f"{received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio, minor loss)"}
-                else:
-                    # Major packet loss - but defer error decision until we check frame processing
-                    # If frames are processed successfully, packet logging loss is a warning (CI timing issue)
-                    # If frames also fail, then it's a true error
-                    print(f"⚠️  UDP Reception: {received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio)")
-                    # Store info for deferred decision after frame processing check
-                    validation_results['udp_reception'] = {
-                        'status': 'deferred',  # Will be resolved after frame check
-                        'details': f"{received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio, major loss)",
-                        'packets_missing': expected_total_packets - received_packets
-                    }
-
-            except Exception as e:
-                print(f"❌ UDP Reception: Failed to validate network.csv - {e}")
-                validation_errors.append(f"Network CSV validation failed: {e}")
-                validation_results['udp_reception'] = {'status': 'fail', 'details': 'CSV validation error'}
+        if received_packets > 0:
+            if received_packets == expected_total_packets:
+                print(f"✅ UDP Reception: {received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio)")
+                validation_results['udp_reception'] = {'status': 'pass', 'details': f"{received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio)"}
+            elif received_packets >= expected_total_packets * 0.95:  # 95% threshold
+                print(f"⚠️  UDP Reception: {received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio)")
+                validation_warnings.append(f"Packet loss: {expected_total_packets - received_packets} packets missing")
+                validation_results['udp_reception'] = {'status': 'warning', 'details': f"{received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio, minor loss)"}
+            else:
+                # Major packet loss - but defer error decision until we check frame processing
+                # If frames are processed successfully, packet logging loss is a warning (CI timing issue)
+                # If frames also fail, then it's a true error
+                print(f"⚠️  UDP Reception: {received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio)")
+                # Store info for deferred decision after frame processing check
+                validation_results['udp_reception'] = {
+                    'status': 'deferred',  # Will be resolved after frame check
+                    'details': f"{received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio, major loss)",
+                    'packets_missing': expected_total_packets - received_packets
+                }
         else:
             print("❌ UDP Reception: No network.csv found")
             validation_errors.append("Missing network.csv - plugin may not be receiving UDP packets")

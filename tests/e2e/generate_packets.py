@@ -888,6 +888,17 @@ def generate_packets(output_dir, num_frames=30, formats=None, pattern='diagonal'
         audio_packet_duration_ms = (AUDIO_SAMPLES_PER_PACKET / fmt['audio_sample_rate']) * 1000.0
         total_audio_packets = int(total_test_duration_ms / audio_packet_duration_ms)
 
+        # Ensure last audio packet doesn't arrive after last video packet to avoid edge-case packet loss
+        # Calculate when last packets arrive (packets are 0-indexed)
+        video_packet_interval_ms = frame_duration_ms / ppf
+        last_video_arrival_ms = (num_frames * ppf - 1) * video_packet_interval_ms
+        last_audio_arrival_ms = (total_audio_packets - 1) * audio_packet_duration_ms
+
+        if last_audio_arrival_ms > last_video_arrival_ms:
+            # Audio extends past video - reduce audio packet count to stay within video duration
+            total_audio_packets = int(last_video_arrival_ms / audio_packet_duration_ms) + 1
+            print(f"  ℹ️  Adjusted audio packets to {total_audio_packets} to complete before last video packet")
+
         if parallel and num_workers > 1 and num_frames >= num_workers:
             # ═══════════════════════════════════════════════════════════════════
             # PARALLEL GENERATION: Batch frames across workers for efficiency

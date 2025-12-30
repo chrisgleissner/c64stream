@@ -360,30 +360,14 @@ audio,2341,847,0,0,192,125
 
 This project is continuously validated with automated end-to-end (E2E) tests that simulate a C64 Ultimate, drive OBS, and verify the full pipeline from UDP packets to recorded video/audio.
 
-- What you get: a short, self-contained report with packet stats, recording links, and an A/V “Pop synchronization” summary (timing precision 0.1 ms)
-- Where to see it: the latest reports are published to the repository under
+Each test scenario produces a short, self-contained report with packet stats frame progression, A/V synch details, as well as the recorded video and a sample frame:
+- Recent reports (without videos) can be found in in this GitHub repository:
   - [Main E2E results](tests/e2e/results/README.md)
   - [PAL results](tests/e2e/results/pal_default/README.md)
   - [NTSC results](tests/e2e/results/ntsc_default/README.md)
-- How to run locally (Linux): `./local-build.sh linux --e2e-scenarios --install` (produces the report above)
-- Learn more: see the in-depth guide in [`doc/e2e.md`](doc/e2e.md)
+- The [Latest E2E results](https://github.com/chrisgleissner/c64stream/actions/workflows/build-project.yaml?query=branch%3Amain+is%3Asuccess) (with videos) are available as GitHub CI build artifact.
 
-### Latest recordings
-
-The following recordings were produced by the latest E2E test runs for PAL and NTSC formats.
-
-#### PAL
-
-- [Video](tests/e2e/results/pal_default/c64_recording.mp4)
-- [Sample frame](tests/e2e/results/pal_default/c64_recording_still.png)
-
----
-
-#### NTSC
-
-- [Video](tests/e2e/results/ntsc_default/c64_recording.mp4)
-- [Sample frame](tests/e2e/results/ntsc_default/c64_recording_still.png)
-
+For more information, see [`doc/e2e.md`](doc/e2e.md)
 
 ## Network Details
 

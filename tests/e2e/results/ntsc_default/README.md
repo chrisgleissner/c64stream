@@ -1,6 +1,8 @@
 # C64 Stream E2E Test Report
 
-Generated: 2025-12-29 23:55:34 UTC
+## Scenario: NTSC Default
+
+Generated: 2025-12-30 11:29:55 UTC
 
 ## Test configuration
 
@@ -19,22 +21,22 @@ Generated: 2025-12-29 23:55:34 UTC
 ## System information
 
 - OS: Ubuntu 24.04.3 LTS (kernel 6.14.0-37-generic)
-- OBS: 30.0.2.1-3build1
-- CPU: Intel(R) Core(TM) i5-14600K (20 cores)
-- RAM: 62Gi total, 53Gi available
-- Disk (/): 916G total, 495G available
+- OBS: 32.0.2
+- CPU: Intel(R) Core(TM) i7-6700K CPU @ 4.00GHz (8 cores)
+- RAM: 31Gi total, 24Gi available
+- Disk (/): 1.8T total, 1.1T available
 
 ## Test results
 
 ### Resource Usage
 
-During the test's processing window (4.6s, 10 of 27 samples) (20 cores):
+During the test's processing window (4.6s, 10 of 27 samples) (8 cores):
 
 | Metric | Min | Median | Mean | Max |
 |--------|-----|--------|------|-----|
-| CPU | 38.9% | 42.1% | 41.83% | 45.7% |
-| RAM | 6308.79 MB | 6327.9 MB | 6332.35 MB | 6357.35 MB |
-| GPU | 100.0% | 100.0% | 100.0% | 100.0% |
+| CPU | 56.9% | 61.8% | 62.97% | 72.5% |
+| RAM | 6212.57 MB | 6222.69 MB | 6246.76 MB | 6309.2 MB |
+| GPU | 25.02% | 38.14% | 35.34% | 39.78% |
 
 Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
@@ -46,18 +48,19 @@ Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
 ### A/V Sync
 
-- ✅ Good synchronization (100.0%): avg offset 7.8ms, max 9.3ms
+- ✅ Good synchronization (100.0%): avg offset 268.3ms, max 783.9ms
 
 #### Sync Details
 
-- 🟢 Pop #1 [L]: audio=7897.0ms, video=7906.3ms (frame 473), diff=9.3ms
-- 🟢 Pop #2 [R]: audio=8718.0ms, video=8725.3ms (frame 522), diff=7.3ms
-- 🟢 Pop #3 [L]: audio=9519.0ms, video=9510.9ms (frame 569), diff=8.1ms
-- 🟢 Pop #4 [R]: audio=10324.0ms, video=10330.0ms (frame 618), diff=6.0ms
-- 🟢 Pop #5 [L]: audio=11124.0ms, video=11132.3ms (frame 666), diff=8.3ms
+- • Pop #1 [L]: audio=8025.0ms, video=8808.9ms (frame 527), diff=783.9ms
+- • Pop #2 [L]: audio=8046.0ms, video=8808.9ms (frame 527), diff=762.9ms
+- 🟢 Pop #3 [R]: audio=8846.0ms, video=8825.6ms (frame 528), diff=20.4ms
+- 🟢 Pop #4 [L]: audio=9646.0ms, video=9627.9ms (frame 576), diff=18.1ms
+- 🟢 Pop #5 [R]: audio=10452.0ms, video=10430.2ms (frame 624), diff=21.8ms
+- 🟢 Pop #6 [L]: audio=11252.0ms, video=11249.3ms (frame 673), diff=2.7ms
 
-- Channels: LRLRL
-- 🔁 Channel alternation: OK (alternating, starts with L)
+- Channels: LLRLRL
+- 🔁 Channel alternation: MISMATCH
 
 ### Frame Progression
 
@@ -67,8 +70,8 @@ Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
 | Window | Stuck runs (count/min/med/max) | Skips (count/min/med/max) | Back steps | Severe steps |
 |--------|------------------------------:|--------------------------:|-----------:|-------------:|
-| During settling | 0/0/0/0 | 0/0/0/0 | 0 | 0 |
-| After settling | 3/2/2/181 | 3/1/1/5 | 0 | 0 |
+| During settling | 5/2/2/3 | 5/1/1/2 | 0 | 0 |
+| After settling | 1/181/181/181 | 1/5/5/5 | 0 | 0 |
 
 See [playback.csv](playback.csv) for frame-by-frame playback timeline with anomaly markers.
 
@@ -76,18 +79,19 @@ See [playback.csv](playback.csv) for frame-by-frame playback timeline with anoma
 
 - Definition: rows with repeated=1 or skipped=1 in playback.csv; clustering uses max gap 0.5s
 - Note: this is independent from the Frame Progression (frame-box) check above
-- Note: repeated/skipped markers only exist while content is detected (video_s 7.539–15.528).
+- Note: repeated/skipped markers only exist while content is detected (video_s 7.639–15.629).
   The jitter-free tail after content ends is expected and does not indicate steady-state performance.
 
 | # | Events | Center (s) | Std dev (s) | Span (s) | Window (s) |
 |---|--------|------------|-------------|----------|------------|
-| 1 | 3 | 12.258 | 0.261 | 0.619 | 11.901–12.520 |
-| 2 | 1 | 15.528 | 0.000 | 0.000 | 15.528–15.528 |
+| 1 | 5 | 11.233 | 0.047 | 0.133 | 11.166–11.299 |
+| 2 | 2 | 8.040 | 0.017 | 0.034 | 8.023–8.057 |
+| 3 | 1 | 12.620 | 0.000 | 0.000 | 12.620–12.620 |
 
 ### Video
 
-- Download: [c64_recording.mp4](c64_recording.mp4)
-- Duration: 16.0 s
+- Download: [c64_recording.mp4](c64_recording.mp4) (Available from local runs or CI build artifacts.)
+- Duration: 16.1 s
 
 
 ### Sample Frame
@@ -99,4 +103,4 @@ See [playback.csv](playback.csv) for frame-by-frame playback timeline with anoma
 - **Center**: Diagonal pattern cycling through all C64 colors
 - **Bottom-left**: Frame progression indicator (8-slot moving bar, cycles every 8 frames)
 - **Bottom-right**: A/V pop indicator (pops every 48 frames, split left/right for audio channels)
-- Taken from frame 474 at 00:07.9 of the 16.0 s video above.
+- Taken from frame 528 at 00:08.8 of the 16.1 s video above.
