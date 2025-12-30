@@ -482,28 +482,37 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                         if chamfer_color is not None:
                             return chamfer_color
                         return VIC_LIGHT_BLUE if is_white else VIC_BLACK
-                    # Inner content: 4x4 grid of color swatches
-                    # 72x40 inner: 4 cols × 17px = 68px (+4px padding), 4 rows × 9px = 36px (+4px padding)
+                    # Inner content: 72×40 grid with 15 cols × 7 rows of 3×3 swatches (2px gaps, 3px padding)
+                    # Layout: 3px padding + 15×(3×3 + 2px gap) - 2px = 3 + 15×5 - 2 = 76px width
+                    # Vertical: 3px padding + 7×(3×3 + 2px gap) - 2px = 3 + 7×5 - 2 = 38px height
+                    # Adjusted to fit in 72×40: 3px padding + 15 cols × 4px (3px swatch + 1px gap) + 3px = 72px
+                    # Vertical: 3px padding + 7 rows × 5px (3px swatch + 2px gap) - 2px + 3px = 38px
                     inner_x = px - tr_x - CORNER_FRAME_TOTAL
                     inner_y = py - tr_y - CORNER_FRAME_TOTAL
                     if 0 <= inner_x < CORNER_INNER_WIDTH and 0 <= inner_y < CORNER_INNER_HEIGHT:
-                        # Add 2px padding on each side
-                        padded_x = inner_x - 2
-                        padded_y = inner_y - 2
-                        if padded_x < 0 or padded_y < 0:
-                            return 0  # Padding
-                        # Swatch sizes for 4x4 grid in 68x36 area
-                        swatch_w = 17  # 17*4 = 68
-                        swatch_h = 9   # 9*4 = 36
-                        cell_x = padded_x // swatch_w
-                        cell_y = padded_y // swatch_h
-                        local_x = padded_x % swatch_w
-                        local_y = padded_y % swatch_h
-                        # 1px black border around each swatch
-                        if local_x == 0 or local_y == 0:
-                            return 0  # Black border
-                        if cell_x < 4 and cell_y < 4:
-                            return cell_y * 4 + cell_x  # VIC color 0-15
+                        # 3px padding, then 15 cols × (3px + 2px gap) = 15×5 = 75px, less 2px final gap = 73px
+                        # Adjusted: 3px padding + 15 cols × (3px + 1px gap) + 3px padding = 3 + 60 + 3 = 66px content
+                        # Vertical: 3px padding + 7 rows × (3px + 2px gap) - 2px + 3px = 3 + 35 - 2 + 3 = 39px
+                        # Final layout: 3px padding on all sides, 15×7 grid with 2px gaps
+                        padded_x = inner_x - 3
+                        padded_y = inner_y - 3
+                        if padded_x < 0 or padded_y < 0 or padded_x >= 66 or padded_y >= 34:
+                            return 0  # Padding or out of bounds
+                        # 15 cols × 7 rows with 2px gaps: each cell is 3px + 2px gap = 5px pitch
+                        # But last column/row has no gap: effective widths are 3,5,5,5...,5,3
+                        # Simplified: 5px pitch with final adjustment
+                        col = padded_x // 5
+                        row = padded_y // 5
+                        x_in_cell = padded_x % 5
+                        y_in_cell = padded_y % 5
+                        # Check if in gap (pixels 3-4 are gap)
+                        if x_in_cell >= 3 or y_in_cell >= 3:
+                            return 0  # Gap
+                        if col >= 15 or row >= 7:
+                            return 0  # Out of grid
+                        # 15×7 = 105 colors, we only have 16, so repeat pattern
+                        color_idx = (row * 15 + col) % 16
+                        return color_idx
                     return 0
 
                 # ═══════════════════════════════════════════════════════════════
