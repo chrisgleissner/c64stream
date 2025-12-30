@@ -12,9 +12,8 @@
 
 | Date | Git Commit | Change Description | CPU Mean (%) | CPU Max (%) | GPU Mean (%) | RAM (MB) | Δ CPU vs Baseline | Notes |
 |------|------------|-------------------|--------------|-------------|--------------|----------|-------------------|-------|
-| 2025-12-30 | TBD | **BASELINE** (before optimizations) | TBD | TBD | TBD | TBD | 0% | Establish baseline metrics first |
-| 2025-12-30 | TBD | Cache-line alignment (64-byte) | TBD | TBD | TBD | TBD | TBD | Aligned allocation for afterglow buffer |
-| 2025-12-30 | TBD | Prefetch hints (64-pixel lookahead) | TBD | TBD | TBD | TBD | TBD | Memory prefetch before SIMD loop |
+| 2025-12-30 | main (HEAD) | **BASELINE** (before optimizations) | 91.76% | 92.4% | 31.55% | 4687 | 0% | Measured with ntsc_green_monitor E2E test |
+| 2025-12-30 | 16979e3 | Phases 1-3 combined: All optimizations | 91.63% | 93.2% | 17.38% | 4636 | **-0.14%** | ⚠️ CPU target not met; cache-line alignment + prefetch + expf caching + non-temporal stores + 2x loop unrolling |
 
 ---
 
