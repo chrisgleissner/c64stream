@@ -234,25 +234,95 @@ __attribute__((target("avx2"))) static void c64_afterglow_avx2(uint32_t *acc, co
 
     size_t i = 0;
 
-    // Process 8 pixels at a time
-    for (; i + 8 <= pixel_count; i += 8) {
-        // Load 8 current and 8 previous pixels
+    // Process 16 pixels at a time (2x unroll for better ILP and reduced loop overhead)
+    for (; i + 16 <= pixel_count; i += 16) {
+        // ===== First 8 pixels =====
+        const __m256i curr0 = _mm256_loadu_si256((const __m256i *)&curr_pixels[i]);
+        const __m256i prev0 = _mm256_loadu_si256((const __m256i *)&acc[i]);
+
+        // Extract channels
+        const __m256i prev_r_i0 = _mm256_and_si256(prev0, vmask_channel);
+        const __m256i curr_r_i0 = _mm256_and_si256(curr0, vmask_channel);
+        const __m256i prev_g_i0 = _mm256_and_si256(_mm256_srli_epi32(prev0, 8), vmask_channel);
+        const __m256i curr_g_i0 = _mm256_and_si256(_mm256_srli_epi32(curr0, 8), vmask_channel);
+        const __m256i prev_b_i0 = _mm256_and_si256(_mm256_srli_epi32(prev0, 16), vmask_channel);
+        const __m256i curr_b_i0 = _mm256_and_si256(_mm256_srli_epi32(curr0, 16), vmask_channel);
+
+        // Convert to float
+        const __m256 prev_r0 = _mm256_cvtepi32_ps(prev_r_i0);
+        const __m256 prev_g0 = _mm256_cvtepi32_ps(prev_g_i0);
+        const __m256 prev_b0 = _mm256_cvtepi32_ps(prev_b_i0);
+        const __m256 curr_r0 = _mm256_cvtepi32_ps(curr_r_i0);
+        const __m256 curr_g0 = _mm256_cvtepi32_ps(curr_g_i0);
+        const __m256 curr_b0 = _mm256_cvtepi32_ps(curr_b_i0);
+
+        // ===== Second 8 pixels (overlapped with first for ILP) =====
+        const __m256i curr1 = _mm256_loadu_si256((const __m256i *)&curr_pixels[i + 8]);
+        const __m256i prev1 = _mm256_loadu_si256((const __m256i *)&acc[i + 8]);
+
+        // Extract channels
+        const __m256i prev_r_i1 = _mm256_and_si256(prev1, vmask_channel);
+        const __m256i curr_r_i1 = _mm256_and_si256(curr1, vmask_channel);
+        const __m256i prev_g_i1 = _mm256_and_si256(_mm256_srli_epi32(prev1, 8), vmask_channel);
+        const __m256i curr_g_i1 = _mm256_and_si256(_mm256_srli_epi32(curr1, 8), vmask_channel);
+        const __m256i prev_b_i1 = _mm256_and_si256(_mm256_srli_epi32(prev1, 16), vmask_channel);
+        const __m256i curr_b_i1 = _mm256_and_si256(_mm256_srli_epi32(curr1, 16), vmask_channel);
+
+        // Convert to float
+        const __m256 prev_r1 = _mm256_cvtepi32_ps(prev_r_i1);
+        const __m256 prev_g1 = _mm256_cvtepi32_ps(prev_g_i1);
+        const __m256 prev_b1 = _mm256_cvtepi32_ps(prev_b_i1);
+        const __m256 curr_r1 = _mm256_cvtepi32_ps(curr_r_i1);
+        const __m256 curr_g1 = _mm256_cvtepi32_ps(curr_g_i1);
+        const __m256 curr_b1 = _mm256_cvtepi32_ps(curr_b_i1);
+
+        // ===== Apply decay for first 8 pixels =====
+        const __m256 trail_r0 = _mm256_mul_ps(prev_r0, vdecay_r);
+        const __m256 trail_g0 = _mm256_mul_ps(prev_g0, vdecay_g);
+        const __m256 trail_b0 = _mm256_mul_ps(prev_b0, vdecay_b);
+        __m256 out_r0 = _mm256_min_ps(_mm256_max_ps(curr_r0, trail_r0), v255);
+        __m256 out_g0 = _mm256_min_ps(_mm256_max_ps(curr_g0, trail_g0), v255);
+        __m256 out_b0 = _mm256_min_ps(_mm256_max_ps(curr_b0, trail_b0), v255);
+
+        // ===== Apply decay for second 8 pixels =====
+        const __m256 trail_r1 = _mm256_mul_ps(prev_r1, vdecay_r);
+        const __m256 trail_g1 = _mm256_mul_ps(prev_g1, vdecay_g);
+        const __m256 trail_b1 = _mm256_mul_ps(prev_b1, vdecay_b);
+        __m256 out_r1 = _mm256_min_ps(_mm256_max_ps(curr_r1, trail_r1), v255);
+        __m256 out_g1 = _mm256_min_ps(_mm256_max_ps(curr_g1, trail_g1), v255);
+        __m256 out_b1 = _mm256_min_ps(_mm256_max_ps(curr_b1, trail_b1), v255);
+
+        // ===== Pack and store first 8 pixels =====
+        const __m256i out_r_i0 = _mm256_cvttps_epi32(out_r0);
+        const __m256i out_g_i0 = _mm256_cvttps_epi32(out_g0);
+        const __m256i out_b_i0 = _mm256_cvttps_epi32(out_b0);
+        const __m256i rgb0 =
+            _mm256_or_si256(out_r_i0, _mm256_or_si256(_mm256_slli_epi32(out_g_i0, 8), _mm256_slli_epi32(out_b_i0, 16)));
+        const __m256i result0 = _mm256_or_si256(rgb0, valpha);
+        _mm256_stream_si256((__m256i *)&acc[i], result0);
+
+        // ===== Pack and store second 8 pixels =====
+        const __m256i out_r_i1 = _mm256_cvttps_epi32(out_r1);
+        const __m256i out_g_i1 = _mm256_cvttps_epi32(out_g1);
+        const __m256i out_b_i1 = _mm256_cvttps_epi32(out_b1);
+        const __m256i rgb1 =
+            _mm256_or_si256(out_r_i1, _mm256_or_si256(_mm256_slli_epi32(out_g_i1, 8), _mm256_slli_epi32(out_b_i1, 16)));
+        const __m256i result1 = _mm256_or_si256(rgb1, valpha);
+        _mm256_stream_si256((__m256i *)&acc[i + 8], result1);
+    }
+
+    // Process remaining 8 pixels
+    if (i + 8 <= pixel_count) {
         const __m256i curr = _mm256_loadu_si256((const __m256i *)&curr_pixels[i]);
         const __m256i prev = _mm256_loadu_si256((const __m256i *)&acc[i]);
 
-        // Extract R channel (bits 0-7) from 8 pixels
         const __m256i prev_r_i = _mm256_and_si256(prev, vmask_channel);
         const __m256i curr_r_i = _mm256_and_si256(curr, vmask_channel);
-
-        // Extract G channel (bits 8-15)
         const __m256i prev_g_i = _mm256_and_si256(_mm256_srli_epi32(prev, 8), vmask_channel);
         const __m256i curr_g_i = _mm256_and_si256(_mm256_srli_epi32(curr, 8), vmask_channel);
-
-        // Extract B channel (bits 16-23)
         const __m256i prev_b_i = _mm256_and_si256(_mm256_srli_epi32(prev, 16), vmask_channel);
         const __m256i curr_b_i = _mm256_and_si256(_mm256_srli_epi32(curr, 16), vmask_channel);
 
-        // Convert to float
         const __m256 prev_r = _mm256_cvtepi32_ps(prev_r_i);
         const __m256 prev_g = _mm256_cvtepi32_ps(prev_g_i);
         const __m256 prev_b = _mm256_cvtepi32_ps(prev_b_i);
@@ -260,35 +330,21 @@ __attribute__((target("avx2"))) static void c64_afterglow_avx2(uint32_t *acc, co
         const __m256 curr_g = _mm256_cvtepi32_ps(curr_g_i);
         const __m256 curr_b = _mm256_cvtepi32_ps(curr_b_i);
 
-        // Apply decay: trail = prev * decay
         const __m256 trail_r = _mm256_mul_ps(prev_r, vdecay_r);
         const __m256 trail_g = _mm256_mul_ps(prev_g, vdecay_g);
         const __m256 trail_b = _mm256_mul_ps(prev_b, vdecay_b);
+        __m256 out_r = _mm256_min_ps(_mm256_max_ps(curr_r, trail_r), v255);
+        __m256 out_g = _mm256_min_ps(_mm256_max_ps(curr_g, trail_g), v255);
+        __m256 out_b = _mm256_min_ps(_mm256_max_ps(curr_b, trail_b), v255);
 
-        // Take max of current and trail
-        __m256 out_r = _mm256_max_ps(curr_r, trail_r);
-        __m256 out_g = _mm256_max_ps(curr_g, trail_g);
-        __m256 out_b = _mm256_max_ps(curr_b, trail_b);
-
-        // Clamp to 255
-        out_r = _mm256_min_ps(out_r, v255);
-        out_g = _mm256_min_ps(out_g, v255);
-        out_b = _mm256_min_ps(out_b, v255);
-
-        // Convert back to int
         const __m256i out_r_i = _mm256_cvttps_epi32(out_r);
         const __m256i out_g_i = _mm256_cvttps_epi32(out_g);
         const __m256i out_b_i = _mm256_cvttps_epi32(out_b);
-
-        // Pack: (A << 24) | (B << 16) | (G << 8) | R
         const __m256i rgb =
             _mm256_or_si256(out_r_i, _mm256_or_si256(_mm256_slli_epi32(out_g_i, 8), _mm256_slli_epi32(out_b_i, 16)));
         const __m256i result = _mm256_or_si256(rgb, valpha);
-
-        // Use non-temporal store (streaming store) to bypass cache
-        // Reduces cache pollution and improves performance on large buffers
-        // Requires 32-byte alignment (guaranteed by our 64-byte aligned allocation)
         _mm256_stream_si256((__m256i *)&acc[i], result);
+        i += 8;
     }
 
     // SSE2 for remaining 4-7 pixels
