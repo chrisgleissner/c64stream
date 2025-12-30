@@ -624,23 +624,27 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                     inner_x = local_x - CORNER_FRAME_TOTAL
                     inner_y = local_y - CORNER_FRAME_TOTAL
                     if 0 <= inner_x < CORNER_INNER_WIDTH and 0 <= inner_y < CORNER_INNER_HEIGHT:
-                        # Divider in center (positions 35 and 36 are black)
-                        half_width = 35  # (72 - 2) / 2 = 35
-                        is_left_half = inner_x < half_width
-                        is_divider = half_width <= inner_x < half_width + 2
-                        is_right_half = inner_x >= half_width + 2
+                        # Only render rectangles within marker height range to match bottom-left widget
+                        inner_local_y = inner_y + CORNER_FRAME_TOTAL  # Convert back to local_y for comparison
+                        if marker_y0 <= inner_local_y < marker_y1:
+                            # Divider in center (positions 35 and 36 are black)
+                            half_width = 35  # (72 - 2) / 2 = 35
+                            is_left_half = inner_x < half_width
+                            is_divider = half_width <= inner_x < half_width + 2
+                            is_right_half = inner_x >= half_width + 2
 
-                        if is_divider:
-                            return 0  # Black divider always
+                            if is_divider:
+                                return 0  # Black divider always
 
-                        # A/V pop background is black for maximum contrast.
-                        if sync_active and pop_index >= 0:
-                            # Determine which half should light up based on audio channel
-                            # Alternation: L, R, L, R... (pop_index 0=LEFT, 1=RIGHT, 2=LEFT...)
-                            is_left_pop = (pop_index % 2) == 0
-                            should_light = (is_left_half and is_left_pop) or (is_right_half and not is_left_pop)
-                            return VIC_WHITE if should_light else VIC_BLACK
-                        return VIC_BLACK
+                            # A/V pop background is black for maximum contrast.
+                            if sync_active and pop_index >= 0:
+                                # Determine which half should light up based on audio channel
+                                # Alternation: L, R, L, R... (pop_index 0=LEFT, 1=RIGHT, 2=LEFT...)
+                                is_left_pop = (pop_index % 2) == 0
+                                should_light = (is_left_half and is_left_pop) or (is_right_half and not is_left_pop)
+                                return VIC_WHITE if should_light else VIC_BLACK
+                            return VIC_BLACK
+                        return 0  # Black background (outside rectangle area)
                     return 0
 
                 # ═══════════════════════════════════════════════════════════════

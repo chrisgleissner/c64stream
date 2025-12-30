@@ -2,7 +2,7 @@
 
 ## Scenario: NTSC Default
 
-Generated: 2025-12-30 13:26:10 UTC
+Generated: 2025-12-30 13:32:25 UTC
 
 ## Test configuration
 
@@ -34,9 +34,9 @@ During the test's processing window (4.6s, 10 of 27 samples) (8 cores):
 
 | Metric | Min | Median | Mean | Max |
 |--------|-----|--------|------|-----|
-| CPU | 59.0% | 63.0% | 62.61% | 64.1% |
-| RAM | 7408.53 MB | 7445.88 MB | 7445.55 MB | 7466.08 MB |
-| GPU | 30.49% | 45.73% | 43.63% | 46.44% |
+| CPU | 61.3% | 64.2% | 64.0% | 67.8% |
+| RAM | 6505.61 MB | 6539.94 MB | 6537.52 MB | 6548.14 MB |
+| GPU | 32.11% | 42.2% | 44.33% | 75.39% |
 
 Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
@@ -48,29 +48,29 @@ Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
 ### A/V Sync
 
-- ✅ Good synchronization (100.0%): avg offset 1.2ms, max 2.3ms
+- ✅ Good synchronization (100.0%): avg offset 16.6ms, max 18.9ms
 
 #### Sync Details
 
-- 🟢 Pop #1 [L]: audio=2660.0ms, video=2657.7ms (frame 159), diff=2.3ms
-- 🟢 Pop #2 [R]: audio=3462.0ms, video=3460.0ms (frame 207), diff=2.0ms
-- 🟢 Pop #3 [L]: audio=4262.0ms, video=4262.4ms (frame 255), diff=0.4ms
-- 🟢 Pop #4 [R]: audio=5065.0ms, video=5064.7ms (frame 303), diff=0.3ms
-- 🟢 Pop #5 [L]: audio=5868.0ms, video=5867.0ms (frame 351), diff=1.0ms
+- 🟢 Pop #1 [L]: audio=2710.0ms, video=2691.1ms (frame 161), diff=18.9ms
+- 🟢 Pop #2 [R]: audio=3510.0ms, video=3493.5ms (frame 209), diff=16.5ms
+- 🟢 Pop #3 [L]: audio=4310.0ms, video=4295.8ms (frame 257), diff=14.2ms
+- 🟢 Pop #4 [R]: audio=5116.0ms, video=5098.1ms (frame 305), diff=17.9ms
+- 🟢 Pop #5 [L]: audio=5916.0ms, video=5900.4ms (frame 353), diff=15.6ms
 
 - Channels: LRLRL
 - 🔁 Channel alternation: OK (alternating, starts with L)
 
 ### Frame Progression
 
-- 🟡 Video stream froze for 180 frames (3.0s) (post-settling)
+- 🟡 Video stream froze for 181 frames (3.0s) (post-settling)
 
 - Settling: 4.0s (pass/fail uses post-settling only)
 
 | Window | Stuck runs (count/min/med/max) | Skips (count/min/med/max) | Back steps | Severe steps |
 |--------|------------------------------:|--------------------------:|-----------:|-------------:|
 | During settling | 0/0/0/0 | 0/0/0/0 | 0 | 0 |
-| After settling | 1/180/180/180 | 1/5/5/5 | 0 | 0 |
+| After settling | 1/181/181/181 | 1/5/5/5 | 0 | 0 |
 
 See [playback.csv](playback.csv) for frame-by-frame playback timeline with anomaly markers.
 
@@ -78,18 +78,18 @@ See [playback.csv](playback.csv) for frame-by-frame playback timeline with anoma
 
 - Definition: rows with repeated=1 or skipped=1 in playback.csv; clustering uses max gap 0.5s
 - Note: this is independent from the Frame Progression (frame-box) check above
-- Note: repeated/skipped markers only exist while content is detected (video_s 2.273–10.246).
+- Note: repeated/skipped markers only exist while content is detected (video_s 2.307–10.297).
   The jitter-free tail after content ends is expected and does not indicate steady-state performance.
 
 | # | Events | Center (s) | Std dev (s) | Span (s) | Window (s) |
 |---|--------|------------|-------------|----------|------------|
-| 1 | 1 | 7.254 | 0.000 | 0.000 | 7.254–7.254 |
-| 2 | 1 | 10.246 | 0.000 | 0.000 | 10.246–10.246 |
+| 1 | 1 | 7.288 | 0.000 | 0.000 | 7.288–7.288 |
+| 2 | 1 | 10.297 | 0.000 | 0.000 | 10.297–10.297 |
 
 ### Video
 
 - Download: [c64_recording.mp4](c64_recording.mp4) (Available from local runs or CI build artifacts.)
-- Duration: 10.7 s
+- Duration: 10.8 s
 
 
 ### Sample Frame
@@ -101,4 +101,4 @@ See [playback.csv](playback.csv) for frame-by-frame playback timeline with anoma
 - **Center**: Diagonal pattern cycling through all C64 colors
 - **Bottom-left**: Frame progression indicator (8-slot moving bar, cycles every 8 frames)
 - **Bottom-right**: A/V pop indicator (pops every 48 frames, split left/right for audio channels)
-- Taken from frame 159 at 00:02.6 of the 10.7 s video above.
+- Taken from frame 161 at 00:02.7 of the 10.8 s video above.

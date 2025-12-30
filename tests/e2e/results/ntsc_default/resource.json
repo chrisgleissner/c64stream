@@ -1,29 +1,29 @@
 {
-  "duration_ms": 4609.0,
+  "duration_ms": 4606.0,
   "sample_interval_ms": 500,
   "sample_count": 10,
   "total_sample_count": 27,
   "allocated_cpu_cores": 8,
   "total_cpu_cores": 8,
   "cpu_percent": {
-    "min": 59.0,
-    "median": 63.0,
-    "mean": 62.61,
-    "max": 64.1,
+    "min": 61.3,
+    "median": 64.2,
+    "mean": 64.0,
+    "max": 67.8,
     "sample_count": 10
   },
   "ram_percent": {
-    "min": 28.1,
-    "median": 28.2,
-    "mean": 28.19,
-    "max": 28.2,
+    "min": 25.2,
+    "median": 25.3,
+    "mean": 25.29,
+    "max": 25.3,
     "sample_count": 10
   },
   "ram_mb": {
-    "min": 7408.53,
-    "median": 7445.88,
-    "mean": 7445.55,
-    "max": 7466.08,
+    "min": 6505.61,
+    "median": 6539.94,
+    "mean": 6537.52,
+    "max": 6548.14,
     "sample_count": 10
   },
   "gpu_available": true,
@@ -32,23 +32,23 @@
     "harness": {
       "min": 0.0,
       "median": 2.3,
-      "mean": 2.13,
-      "max": 2.53,
+      "mean": 2.14,
+      "max": 2.56,
       "sample_count": 10
     },
     "obs": {
       "min": 0.0,
-      "median": 51.63,
-      "mean": 46.52,
-      "max": 53.06,
+      "median": 51.78,
+      "mean": 46.59,
+      "max": 53.87,
       "sample_count": 10
     }
   },
   "gpu_percent": {
-    "min": 30.49,
-    "median": 45.73,
-    "mean": 43.63,
-    "max": 46.44,
+    "min": 32.11,
+    "median": 42.2,
+    "mean": 44.33,
+    "max": 75.39,
     "sample_count": 10
   }
 }
