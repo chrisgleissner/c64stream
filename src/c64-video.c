@@ -285,7 +285,10 @@ __attribute__((target("avx2"))) static void c64_afterglow_avx2(uint32_t *acc, co
             _mm256_or_si256(out_r_i, _mm256_or_si256(_mm256_slli_epi32(out_g_i, 8), _mm256_slli_epi32(out_b_i, 16)));
         const __m256i result = _mm256_or_si256(rgb, valpha);
 
-        _mm256_storeu_si256((__m256i *)&acc[i], result);
+        // Use non-temporal store (streaming store) to bypass cache
+        // Reduces cache pollution and improves performance on large buffers
+        // Requires 32-byte alignment (guaranteed by our 64-byte aligned allocation)
+        _mm256_stream_si256((__m256i *)&acc[i], result);
     }
 
     // SSE2 for remaining 4-7 pixels
@@ -357,6 +360,9 @@ __attribute__((target("avx2"))) static void c64_afterglow_avx2(uint32_t *acc, co
 
     // AVX-VEX transition: zero upper YMM to avoid performance penalty
     _mm256_zeroupper();
+
+    // Memory fence to ensure all non-temporal stores complete
+    _mm_sfence();
 }
 #endif // __AVX2__ || _MSC_VER
 
@@ -426,28 +432,51 @@ static const uint32_t *c64_get_afterglow_output_pixels(struct c64_source *contex
     const float tau_g = duration_ms * 1.00f;
     const float tau_b = duration_ms * 0.75f;
 
-    float decay_r = 0.0f, decay_g = 0.0f, decay_b = 0.0f;
-    if (context->afterglow_curve == 0) {
-        decay_r = 1.0f - (dt_ms / tau_r);
-        decay_g = 1.0f - (dt_ms / tau_g);
-        decay_b = 1.0f - (dt_ms / tau_b);
+    // Optimize expf() calls by caching decay factors when parameters haven't changed
+    // This saves ~60-120 CPU cycles per frame (3 expf calls @ 20-40 cycles each)
+    float decay_r, decay_g, decay_b;
+    if (context->decay_cache_valid && context->cached_dt_ms == dt_ms &&
+        context->cached_duration_ms == context->afterglow_duration_ms &&
+        context->cached_curve == context->afterglow_curve) {
+        // Use cached values
+        decay_r = context->cached_decay_r;
+        decay_g = context->cached_decay_g;
+        decay_b = context->cached_decay_b;
     } else {
-        decay_r = expf(-dt_ms / tau_r);
-        decay_g = expf(-dt_ms / tau_g);
-        decay_b = expf(-dt_ms / tau_b);
+        // Recompute and cache
+        if (context->afterglow_curve == 0) {
+            decay_r = 1.0f - (dt_ms / tau_r);
+            decay_g = 1.0f - (dt_ms / tau_g);
+            decay_b = 1.0f - (dt_ms / tau_b);
+        } else {
+            decay_r = expf(-dt_ms / tau_r);
+            decay_g = expf(-dt_ms / tau_g);
+            decay_b = expf(-dt_ms / tau_b);
+        }
+
+        // Clamp to [0, 1]
+        if (decay_r < 0.0f)
+            decay_r = 0.0f;
+        if (decay_r > 1.0f)
+            decay_r = 1.0f;
+        if (decay_g < 0.0f)
+            decay_g = 0.0f;
+        if (decay_g > 1.0f)
+            decay_g = 1.0f;
+        if (decay_b < 0.0f)
+            decay_b = 0.0f;
+        if (decay_b > 1.0f)
+            decay_b = 1.0f;
+
+        // Update cache
+        context->cached_decay_r = decay_r;
+        context->cached_decay_g = decay_g;
+        context->cached_decay_b = decay_b;
+        context->cached_dt_ms = dt_ms;
+        context->cached_duration_ms = context->afterglow_duration_ms;
+        context->cached_curve = context->afterglow_curve;
+        context->decay_cache_valid = true;
     }
-    if (decay_r < 0.0f)
-        decay_r = 0.0f;
-    if (decay_r > 1.0f)
-        decay_r = 1.0f;
-    if (decay_g < 0.0f)
-        decay_g = 0.0f;
-    if (decay_g > 1.0f)
-        decay_g = 1.0f;
-    if (decay_b < 0.0f)
-        decay_b = 0.0f;
-    if (decay_b > 1.0f)
-        decay_b = 1.0f;
 
     uint32_t *acc = context->afterglow_cpu_accum;
     if (!context->afterglow_cpu_valid) {

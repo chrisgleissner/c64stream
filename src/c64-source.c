@@ -520,6 +520,15 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->afterglow_cpu_bytes = 0;
     context->afterglow_cpu_valid = false;
 
+    // Initialize decay factor cache for expf() optimization
+    context->cached_decay_r = 0.0f;
+    context->cached_decay_g = 0.0f;
+    context->cached_decay_b = 0.0f;
+    context->cached_dt_ms = 0.0f;
+    context->cached_duration_ms = 0;
+    context->cached_curve = 0;
+    context->decay_cache_valid = false;
+
     // Pre-allocate afterglow CPU accumulator to avoid allocation in video hot path
     // Use PAL size (larger) to cover both PAL and NTSC; will be resized if needed.
     {

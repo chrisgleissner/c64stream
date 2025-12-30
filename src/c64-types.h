@@ -210,6 +210,15 @@ struct c64_source {
     uint32_t *afterglow_cpu_accum; // RGBA accumulator (same size as frame_buffer)
     size_t afterglow_cpu_bytes;    // Allocated size in bytes for afterglow_cpu_accum
     bool afterglow_cpu_valid;      // Whether accumulator contains valid prior state
+
+    // Cached decay factors for expf() optimization (avoid recomputation)
+    float cached_decay_r;
+    float cached_decay_g;
+    float cached_decay_b;
+    float cached_dt_ms;     // Delta time used for cached decay factors
+    int cached_duration_ms; // Duration used for cached decay factors
+    int cached_curve;       // Curve used for cached decay factors
+    bool decay_cache_valid; // Whether decay cache is valid
 };
 
 #endif // C64_TYPES_H
