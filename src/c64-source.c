@@ -1175,8 +1175,7 @@ void c64_video_render(void *data, gs_effect_t *effect)
                         context->scan_line_strength);
     gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "pixel_width"), context->pixel_width);
     gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "pixel_height"), context->pixel_height);
-    gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "blur_strength"), context->blur_strength);
-    gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "bloom_strength"), context->bloom_strength);
+    // Note: blur/bloom strengths are set below with scale adjustment
     // Afterglow accumulation is done in `video_tick`; disable it in this render pass to avoid double persistence.
     gs_effect_set_int(gs_effect_get_param_by_name(context->crt_effect, "afterglow_duration_ms"), 0);
     gs_effect_set_int(gs_effect_get_param_by_name(context->crt_effect, "afterglow_curve"), context->afterglow_curve);
@@ -1188,25 +1187,42 @@ void c64_video_render(void *data, gs_effect_t *effect)
     // Still bind something valid for safety, even though afterglow is disabled in this pass.
     gs_effect_set_texture(gs_effect_get_param_by_name(context->crt_effect, "texture_accum_prev"), input_tex);
 
-    // Render the texture with the CRT effect using scaled dimensions
-    uint32_t render_width = c64_get_width(context);
-    uint32_t render_height = c64_get_height(context);
+    // PERFORMANCE OPTIMIZATION: Render at native resolution (384x272) instead of scaled resolution
+    // This reduces GPU workload by ~20x compared to rendering at 1920x1080
+    // OBS will handle final scaling to canvas resolution using its fast scaler
+    uint32_t render_width = context->width; // Native resolution (384x272)
+    uint32_t render_height = context->height;
 
-    // Set output resolution for scanline calculation
-    gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "output_height"), (float)render_height);
+    // Get canvas dimensions for proper scanline calculation
+    // Scanlines need to be calculated based on the FINAL output resolution (after OBS scaling)
+    struct obs_video_info ovi;
+    float canvas_height = 1080.0f; // Default fallback
+    if (obs_get_video_info(&ovi)) {
+        canvas_height = (float)ovi.base_height;
+    }
+
+    // Calculate the scaling factor OBS will apply
+    float scale_factor = canvas_height / (float)render_height;
+
+    // Set output resolution for scanline calculation - use the SCALED resolution
+    // so scanlines are calculated correctly for the final output
+    float effective_output_height = (float)render_height * scale_factor;
+    gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "output_height"), effective_output_height);
+
+    // Adjust blur/bloom strength for native resolution rendering
+    // These effects use pixel-based calculations that need scaling
+    float adjusted_blur_strength = context->blur_strength * scale_factor;
+    float adjusted_bloom_strength = context->bloom_strength * scale_factor;
+
+    gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "blur_strength"), adjusted_blur_strength);
+    gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "bloom_strength"), adjusted_bloom_strength);
 
     // Set source dimensions for UV snapping (sharp pixel expansion)
     // These are the original C64 dimensions before pixel_width/height scaling
     gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "source_width"), (float)context->width);
     gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "source_height"), (float)context->height);
 
-    // Get canvas height for canvas-space scanline rendering
-    // This ensures scanlines appear evenly spaced regardless of how OBS scales the source
-    struct obs_video_info ovi;
-    float canvas_height = (float)render_height; // Fallback to render height
-    if (obs_get_video_info(&ovi)) {
-        canvas_height = (float)ovi.base_height;
-    }
+    // Set canvas height for reference
     gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "canvas_height"), canvas_height);
 
     // Render (all non-afterglow CRT effects) directly to the screen.
@@ -1241,27 +1257,11 @@ uint32_t c64_get_width(void *data)
 
     c64_update_format_hint_if_needed(context);
 
-    // Check if any effects that change dimensions are enabled
-    bool dimension_effects_enabled = (context->scan_line_distance > 0.0f) || context->pixel_width != 1.0f;
-
-    if (!dimension_effects_enabled) {
-        return context->width;
-    }
-
-    // Apply pixel geometry scaling for CRT effects
-    float width_scale = context->pixel_width;
-
-    // Scanlines require upscaling to accommodate gaps with integer pixel alignment
-    // Each C64 pixel column needs an integer number of output pixels for crisp rendering
-    if (context->scan_line_distance > 0.0f) {
-        uint32_t total_pixels_per_unit, scanline_pixels_per_unit;
-        get_scanline_scaling_info(context->scan_line_distance, &total_pixels_per_unit, &scanline_pixels_per_unit);
-
-        // Total width = original_pixels * total_pixels_per_unit
-        width_scale *= (float)total_pixels_per_unit;
-    }
-
-    return (uint32_t)((float)context->width * width_scale);
+    // PERFORMANCE OPTIMIZATION: Always return native resolution (384x272)
+    // Let OBS handle final scaling to canvas resolution (e.g., 1920x1080)
+    // This reduces GPU shader workload by ~20x (rendering at 384x272 instead of 1920x1080)
+    // Scanline/pixel geometry scaling is handled inside the shader at native resolution
+    return context->width;
 }
 
 uint32_t c64_get_height(void *data)
@@ -1272,27 +1272,11 @@ uint32_t c64_get_height(void *data)
 
     c64_update_format_hint_if_needed(context);
 
-    // Check if any effects that change dimensions are enabled
-    bool dimension_effects_enabled = (context->scan_line_distance > 0.0f) || context->pixel_height != 1.0f;
-
-    if (!dimension_effects_enabled) {
-        return context->height;
-    }
-
-    // Apply pixel geometry scaling for CRT effects
-    float height_scale = context->pixel_height;
-
-    // Scanlines require upscaling to accommodate gaps with integer pixel alignment
-    // Each C64 scanline needs an integer number of output pixels for crisp rendering
-    if (context->scan_line_distance > 0.0f) {
-        uint32_t total_pixels_per_unit, scanline_pixels_per_unit;
-        get_scanline_scaling_info(context->scan_line_distance, &total_pixels_per_unit, &scanline_pixels_per_unit);
-
-        // Total height = original_scanlines * total_pixels_per_unit
-        height_scale *= (float)total_pixels_per_unit;
-    }
-
-    return (uint32_t)((float)context->height * height_scale);
+    // PERFORMANCE OPTIMIZATION: Always return native resolution (384x272)
+    // Let OBS handle final scaling to canvas resolution (e.g., 1920x1080)
+    // This reduces GPU shader workload by ~20x (rendering at 384x272 instead of 1920x1080)
+    // Scanline/pixel geometry scaling is handled inside the shader at native resolution
+    return context->height;
 }
 
 // Synchronous render callback removed - now using async video output via obs_source_output_video()
