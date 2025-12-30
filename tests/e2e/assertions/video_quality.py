@@ -50,17 +50,21 @@ class VideoQualityAssertion(EffectAssertion):
 
             self.log(f"Video: {width}x{height}, {duration:.2f}s", verbose)
 
-            # Check resolution (expected: 1920x1080 for E2E)
-            if width != 1920 or height != 1080:
+            # Get expected resolution from scenario properties, default to 1920x1080
+            expected_width = int(properties.get("expected_width", 1920))
+            expected_height = int(properties.get("expected_height", 1080))
+
+            # Check resolution matches expected
+            if width != expected_width or height != expected_height:
                 return AssertionResult(
                     status=AssertionStatus.WARNING,
                     name=self.name,
-                    message=f"Unexpected resolution: {width}x{height} (expected 1920x1080)",
-                    details={"width": width, "height": height},
+                    message=f"Unexpected resolution: {width}x{height} (expected {expected_width}x{expected_height})",
+                    details={"width": width, "height": height, "expected_width": expected_width, "expected_height": expected_height},
                 )
 
             # Check for non-black frames
-            nonblack_ratio = self._check_nonblack_frames(mp4_path, verbose)
+            nonblack_ratio = self._check_nonblack_frames(mp4_path, width, height, verbose)
             min_ratio = self.thresholds["min_nonblack_ratio"]
 
             if nonblack_ratio < min_ratio:
@@ -111,10 +115,9 @@ class VideoQualityAssertion(EffectAssertion):
             "duration": float(fmt.get("duration", 0)),
         }
 
-    def _check_nonblack_frames(self, mp4_path: Path, verbose: bool) -> float:
+    def _check_nonblack_frames(self, mp4_path: Path, width: int, height: int, verbose: bool) -> float:
         """Sample frames and count non-black ones."""
-        w, h = 1920, 1080
-        frame_bytes = w * h * 3
+        frame_bytes = width * height * 3
         black_thresh = self.thresholds["black_threshold"]
 
         cmd = [
@@ -142,7 +145,7 @@ class VideoQualityAssertion(EffectAssertion):
                 if len(buf) != frame_bytes:
                     break
                 total += 1
-                arr = np.frombuffer(buf, dtype=np.uint8).reshape((h, w, 3))
+                arr = np.frombuffer(buf, dtype=np.uint8).reshape((height, width, 3))
                 luma = 0.2126 * arr[..., 0] + 0.7152 * arr[..., 1] + 0.0722 * arr[..., 2]
                 if np.mean(luma) > black_thresh:
                     nonblack += 1

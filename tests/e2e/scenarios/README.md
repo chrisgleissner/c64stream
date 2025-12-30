@@ -38,7 +38,7 @@ preset: Preset name from effect_presets.ini
 
 # Optional: Override specific effect settings
 overrides:
-  afterglow_duration_ms: 150  # Boost for E2E detection
+  afterglow_duration_ms: 75  # Boost for E2E detection
 
 # Assertions to run against recorded output
 assertions:

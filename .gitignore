@@ -88,6 +88,10 @@ tests/cmake_install.cmake
 # E2E scenario generated files
 tests/e2e/scenarios/*/generated/
 
+# E2E packet generator outputs
+tests/e2e/test_output_*/
+tests/e2e/test_packets_*/
+
 # E2E profiling artifacts (generated)
 tests/e2e/results/**/flamegraph.svg
 tests/e2e/results/**/perf.data
@@ -97,6 +101,9 @@ tests/e2e/results/**/perf_record_stdout.txt
 tests/e2e/results/**/perf_record_stderr.txt
 tests/e2e/results/**/obs_log.txt
 tests/e2e/results/**/obs_log_summary.json
+tests/e2e/results/**/*.mp4
+tests/e2e/results/**/*.mk4
+tests/e2e/results/**/*.mkv
 
 # FlameGraph scripts (cloned via build-aux/install-flamegraph.sh)
 tools/FlameGraph/

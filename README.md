@@ -360,30 +360,22 @@ audio,2341,847,0,0,192,125
 
 This project is continuously validated with automated end-to-end (E2E) tests that simulate a C64 Ultimate, drive OBS, and verify the full pipeline from UDP packets to recorded video/audio.
 
-- What you get: a short, self-contained report with packet stats, recording links, and an A/V “Pop synchronization” summary (timing precision 0.1 ms)
-- Where to see it: the latest reports are published to the repository under
-  - [Main E2E results](tests/e2e/results/README.md)
-  - [PAL results](tests/e2e/results/pal_default/README.md)
-  - [NTSC results](tests/e2e/results/ntsc_default/README.md)
-- How to run locally (Linux): `./local-build.sh linux --e2e-scenarios --install` (produces the report above)
-- Learn more: see the in-depth guide in [`doc/e2e.md`](doc/e2e.md)
+Each test scenario produces a short, self-contained report with packet stats, frame progression information, A/V synch details, as well as the recorded video and a sample frame from that video. Here's an example from the `ntsc_default` scenario with no effects applied:
 
-### Latest recordings
+![E2E screenshot for ntsc_default](./tests/e2e/results/ntsc_default/c64_recording_still.png)
 
-The following recordings were produced by the latest E2E test runs for PAL and NTSC formats.
+Here's another one from the `ntsc_green_monitor` scenario. You see how the frame progress counter on the bottom left and the central diagonal moving lines both left behind afterglow trails:
 
-#### PAL
+![E2E screenshot for ntsc_green_monitor](./tests/e2e/results/ntsc_green_monitor/c64_recording_still.png)
 
-- [Video](tests/e2e/results/pal_default/c64_recording.mp4)
-- [Sample frame](tests/e2e/results/pal_default/c64_recording_still.png)
+Many recent reports (without videos) are checked into this GitHub repository:
+- [Main E2E results](tests/e2e/results/README.md)
+- [PAL results](tests/e2e/results/pal_default/README.md)
+- [NTSC results](tests/e2e/results/ntsc_default/README.md)
 
----
+You can download all [Latest E2E results](https://github.com/chrisgleissner/c64stream/actions/workflows/build-project.yaml?query=branch%3Amain+is%3Asuccess) (with videos) as GitHub CI build artifact ZIP.
 
-#### NTSC
-
-- [Video](tests/e2e/results/ntsc_default/c64_recording.mp4)
-- [Sample frame](tests/e2e/results/ntsc_default/c64_recording_still.png)
-
+For more information, see [`doc/e2e.md`](doc/e2e.md).
 
 ## Network Details
 
@@ -477,24 +469,37 @@ One of:
 
 ## Troubleshooting 🔍
 
-### No video stream? 📺**
+### Plugin missing from OBS?
+
+- Confirm OBS Studio version 32.0.1+
+- Verify plugin installed to correct directory
+- Check OBS logs for plugin loading errors
+- Restart OBS completely after installation
+
+### No video stream? 📺
 
 - Verify that both IP addresses are correct
 - Check Ultimate device has data streaming enabled
 - Confirm firewall allows UDP traffic on configured ports
+
+### Lost / Repeated Frames? 📺
+
+- May occur when OBS cannot keep up, typically during high CPU or GPU load.
+- Reduce or disable filters. The afterglow effect is particularly CPU-intensive. Test the **Default** preset with all filters disabled.
+- Lower the output resolution to 1280×720.
+- Disable OBS recording and any plugin-side recording.
+
+### Effects not working? 📺
+
+- **No visual change:** Ensure source is active and receiving video data
+- **Performance drops:** Complex effects (high bloom/blur) may impact frame rate on older hardware
+- **Preset not applying:** Try manually adjusting individual effect settings
 
 ### Audio sync issues? 🔊
 
 - Check audio port configuration (default 11001)
 - Verify OBS audio monitoring settings
 - **Buffer delay changes:** If you first increase the network buffer delay (e.g., to 500ms) and then decrease it (e.g., to 200ms), audio may become delayed relative to video. **Workaround:** Remove and re-add the C64 Stream source, or restart OBS Studio to reset the audio timing reference. For best results, set your desired buffer delay when initially configuring the source.
-
-### Plugin missing from OBS? 🤔
-
-- Confirm OBS Studio version 32.0.1+
-- Verify plugin installed to correct directory
-- Check OBS logs for plugin loading errors
-- Restart OBS completely after installation
 
 ### Connection acting up? 📡
 
@@ -545,12 +550,6 @@ If the plugin can't resolve your C64 Ultimate hostname (e.g., `c64u`), try these
 - **Static DNS Entry:** Add `192.168.1.64 c64u` to your system's hosts file
 - **mDNS/Bonjour:** Use `.local` suffix (e.g., `c64u.local`) if your network supports it
 - **Router Configuration:** Ensure your router's DNS server has the device hostname registered
-
-### Effects not working? 📺
-
-- **No visual change:** Ensure source is active and receiving video data
-- **Performance drops:** Complex effects (high bloom/blur) may impact frame rate on older hardware
-- **Preset not applying:** Try manually adjusting individual effect settings
 
 ### Recording troubles? 💾
 

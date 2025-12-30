@@ -872,6 +872,7 @@ jobs:
           - ntsc_arcade_cabinet
           - ntsc_classic_crt
           - ntsc_default
+          - ntsc_default_720p
           - ntsc_delay_500ms
           - ntsc_green_monitor
           - ntsc_phosphor_glow
@@ -879,6 +880,7 @@ jobs:
           - ntsc_sharp_scan_lines
           - ntsc_vintage_tv
           - pal_default
+          - pal_default_720p
     defaults:
       run:
         shell: bash
