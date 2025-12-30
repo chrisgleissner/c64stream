@@ -101,6 +101,9 @@ tests/e2e/results/**/perf_record_stdout.txt
 tests/e2e/results/**/perf_record_stderr.txt
 tests/e2e/results/**/obs_log.txt
 tests/e2e/results/**/obs_log_summary.json
+tests/e2e/results/**/*.mp4
+tests/e2e/results/**/*.mk4
+tests/e2e/results/**/*.mkv
 
 # FlameGraph scripts (cloned via build-aux/install-flamegraph.sh)
 tools/FlameGraph/

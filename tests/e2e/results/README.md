@@ -32,7 +32,6 @@ from running scenarios (e.g. `ntsc_classic_crt/`, `ntsc_amber_monitor/`, etc.).
 
 Each scenario folder contains:
 
-- `c64_recording.mp4` - OBS recording of the test run
 - `c64_recording_still.png` - Sample frame showing A/V pop
 - `README.md` - Test report with validation results
 - `validation_results.json` - Machine-readable validation data

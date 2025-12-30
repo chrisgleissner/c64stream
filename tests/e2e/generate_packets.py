@@ -131,9 +131,9 @@ CORNER_INNER_HEIGHT = 40  # Inner content height (56 - 8*2 = 40)
 CORNER_FRAME_WHITE = 1    # 1px outer border (color set in renderer)
 CORNER_FRAME_BLACK = 7    # Black inner border
 CORNER_FRAME_TOTAL = 8    # Total frame width on each side
-MARKER_EXTRA_HEIGHT = 4   # Increase marker height by 4px
-MARKER_SHIFT_Y = 2        # Shift marker down by 2px
-TICK_BOTTOM_SHIFT = 2     # Shift bottom ticks down by 2px
+MARKER_SHIFT_Y = 2        # Vertical margin for marker (keeps equal black space above/below)
+TICK_BOTTOM_SHIFT = 1     # Shift bottom ticks down by 1px
+TICK_HEIGHT = 3           # Bottom tick height in pixels
 
 # VIC-II palette indices (C64 16-color palette)
 VIC_BLACK = 0
@@ -142,24 +142,23 @@ VIC_DARK_BLUE = 6
 VIC_LIGHT_BLUE = 14
 
 # Ordered progression from darkest → brightest using all 16 VIC colors.
-# Used with a triangle-wave index to produce:
-#   black → dark → mid → bright → white → ... → reverse back to black
+# Sorted by approximate luminance to keep the diagonal gradient smooth.
 VIC_DIAGONAL_RAMP = [
     0,              # black
     VIC_DARK_BLUE,  # blue (dark)
     9,              # brown
-    11,             # dark gray
     2,              # red
+    11,             # dark gray
     4,              # purple
-    5,              # green
     8,              # orange
-    12,             # gray
     VIC_LIGHT_BLUE,  # light blue
+    12,             # gray
     10,             # light red
-    13,             # light green
-    3,              # cyan
-    7,              # yellow
+    5,              # green
     15,             # light gray
+    3,              # cyan
+    13,             # light green
+    7,              # yellow
     1,              # white
 ]
 
@@ -411,12 +410,12 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
     bl_x, bl_y = 0, height - CORNER_OUTER_HEIGHT  # Bottom-left frame progress
     br_x, br_y = width - CORNER_OUTER_WIDTH, height - CORNER_OUTER_HEIGHT  # Bottom-right A/V pop
 
-    marker_height = CORNER_INNER_HEIGHT + MARKER_EXTRA_HEIGHT
+    marker_height = CORNER_INNER_HEIGHT - (MARKER_SHIFT_Y * 2)
     marker_y0 = CORNER_FRAME_TOTAL + MARKER_SHIFT_Y
     marker_y1 = marker_y0 + marker_height
 
     tick_bottom_y0 = CORNER_OUTER_HEIGHT - 4 + TICK_BOTTOM_SHIFT
-    tick_bottom_y1 = min(CORNER_OUTER_HEIGHT, tick_bottom_y0 + 3)
+    tick_bottom_y1 = min(CORNER_OUTER_HEIGHT, tick_bottom_y0 + TICK_HEIGHT)
 
     # Pre-render text box content (9 chars × 5 lines for 72×40 inner area)
     # Line 1: Plugin name with rainbow effect on "STREAM", Lines 2-5: Scenario name (light gray)
@@ -528,7 +527,7 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                                 return VIC_LIGHT_BLUE
                         if is_white:
                             return VIC_LIGHT_BLUE
-                        # Allow the active marker to extend into the black frame.
+                        # Keep the active marker centered within the inner area.
                         if marker_y0 <= local_y < marker_y1:
                             inner_x = local_x - CORNER_FRAME_TOTAL
                             if 0 <= inner_x < CORNER_INNER_WIDTH:
@@ -588,7 +587,7 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                                 return VIC_LIGHT_BLUE
                         if is_white:
                             return VIC_LIGHT_BLUE
-                        # Allow the active marker to extend into the black frame.
+                        # Keep the active marker centered within the inner area.
                         if marker_y0 <= local_y < marker_y1:
                             inner_x = local_x - CORNER_FRAME_TOTAL
                             if 0 <= inner_x < CORNER_INNER_WIDTH:

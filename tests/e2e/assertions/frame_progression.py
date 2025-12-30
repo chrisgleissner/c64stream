@@ -119,9 +119,13 @@ def _detect_position_marker(
     bar_x0 = inner_x0 + bar_padding
     bar_x1 = bar_x0 + bar_area_width
 
-    # Sample the entire inner height
-    sample_y0 = inner_y0
-    sample_y1 = inner_y0 + inner_height
+    # Sample only the active marker band (centered within the inner area).
+    marker_shift_c64 = 2
+    marker_height_c64 = corner_inner_height_c64 - (marker_shift_c64 * 2)
+    marker_shift = int(round(marker_shift_c64 * scale))
+    marker_height = max(1, int(round(marker_height_c64 * scale)))
+    sample_y0 = inner_y0 + marker_shift
+    sample_y1 = min(inner_y0 + inner_height, sample_y0 + marker_height)
 
     # Bounds check
     h, w = frame.shape[:2]
@@ -439,8 +443,18 @@ def _analyze_frame_progression(
             filtered_stuck_run_frames = filtered_stuck_run_frames[1:]
             filtered_stuck_run_indices = filtered_stuck_run_indices[1:]
 
-    # Filter end-of-stream: last run is long
-    if len(filtered_stuck_runs) >= 2 and filtered_stuck_runs[-1] > startup_run_threshold:
+    # Filter end-of-stream: last run is long, or a long run followed by a short blip.
+    if len(filtered_stuck_runs) >= 3:
+        tail_run = filtered_stuck_runs[-1]
+        penultimate_run = filtered_stuck_runs[-2]
+        preceding_distinct = len(set(compressed[:-2]))
+        if tail_run <= 2 and penultimate_run > startup_run_threshold and preceding_distinct >= 4:
+            end_frames_excluded = penultimate_run + tail_run
+            filtered_stuck_runs = filtered_stuck_runs[:-2]
+            filtered_stuck_run_frames = filtered_stuck_run_frames[:-2]
+            filtered_stuck_run_indices = filtered_stuck_run_indices[:-2]
+
+    if end_frames_excluded == 0 and len(filtered_stuck_runs) >= 2 and filtered_stuck_runs[-1] > startup_run_threshold:
         preceding_distinct = len(set(compressed[:-1]))
         if preceding_distinct >= 4:
             end_frames_excluded = filtered_stuck_runs[-1]

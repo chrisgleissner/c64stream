@@ -43,7 +43,7 @@ DEFAULT_SCENARIO_OVERRIDES=""
 DEFAULT_SCENARIO_NAME=""
 DEFAULT_PACKET_PATTERN=""
 DEFAULT_SCENARIO=""
-DEFAULT_CSV_MAX_ROWS=3000  # 0 = unlimited CSV lines (preserve all data)
+DEFAULT_CSV_MAX_ROWS=2000  # 0 = unlimited CSV lines (preserve all data)
 SCENARIO_CI_SKIPPED=false  # Set by load_scenario if ci_skip=true on CI
 DEFAULT_RUN_ALL_SCENARIOS=false  # Run all scenarios in sequence
 DEFAULT_ENABLE_RESOURCE_MONITORING=true  # CPU/GPU/RAM monitoring during packet replay (enabled by default)
@@ -332,7 +332,7 @@ OUTPUT:
     Test artifacts are saved to: \${OUTPUT_DIR}
     - Generated packets: test_packets/
     - Test logs: \${OUTPUT_DIR}/
-    - Recordings (if OBS enabled): recording_*.mkv
+    - Recordings (if OBS enabled): recording_*.mp4
 
 EOF
 }
@@ -1324,8 +1324,6 @@ run_scenario_assertions() {
     local recording_file=""
     if [[ -f "${OUTPUT_DIR}/c64_recording.mp4" ]]; then
         recording_file="${OUTPUT_DIR}/c64_recording.mp4"
-    elif [[ -f "${OUTPUT_DIR}/c64_recording.mkv" ]]; then
-        recording_file="${OUTPUT_DIR}/c64_recording.mkv"
     else
         log_warning "No recording found for assertions"
         return 0  # Not a fatal error
@@ -1387,12 +1385,10 @@ generate_playback_csv() {
 
     # Get the recording file to determine total frame count and frame rate
     local recording_mp4=""
-    if compgen -G "${OUTPUT_DIR}/c64_recording.*" > /dev/null; then
-        recording_mp4=$(ls -t ${OUTPUT_DIR}/c64_recording.* 2>/dev/null | head -1)
+    if [[ -f "${OUTPUT_DIR}/c64_recording.mp4" ]]; then
+        recording_mp4="${OUTPUT_DIR}/c64_recording.mp4"
     elif compgen -G "${OUTPUT_DIR}/*.mp4" > /dev/null; then
         recording_mp4=$(ls -t ${OUTPUT_DIR}/*.mp4 2>/dev/null | head -1)
-    elif [[ -f "${OUTPUT_DIR}/recording_${FORMAT}.mkv" ]]; then
-        recording_mp4="${OUTPUT_DIR}/recording_${FORMAT}.mkv"
     fi
 
     # Use Python to generate the CSV (complex logic with frame mapping)
@@ -1757,6 +1753,8 @@ generate_report() {
         cat > "${report_file}" << EOF
 # C64 Stream E2E Test Report
 
+## Scenario: ${SCENARIO_NAME:-${SCENARIO:-Unknown}}
+
 Generated: ${timestamp}
 
 ## Test configuration
@@ -1950,12 +1948,8 @@ PY
 
     # Add OBS results if enabled
     if [[ "${OBS_ENABLED}" == true ]]; then
-        if [[ -f "${OUTPUT_DIR}/recording_${FORMAT}.mkv" ]]; then
-            recording_found="${OUTPUT_DIR}/recording_${FORMAT}.mkv"
-        elif compgen -G "${OUTPUT_DIR}/c64_recording.*" > /dev/null; then
-            recording_found=$(ls -t ${OUTPUT_DIR}/c64_recording.* 2>/dev/null | head -1)
-        elif compgen -G "${OUTPUT_DIR}/*.mkv" > /dev/null; then
-            recording_found=$(ls -t ${OUTPUT_DIR}/*.mkv 2>/dev/null | head -1)
+        if [[ -f "${OUTPUT_DIR}/c64_recording.mp4" ]]; then
+            recording_found="${OUTPUT_DIR}/c64_recording.mp4"
         elif compgen -G "${OUTPUT_DIR}/*.mp4" > /dev/null; then
             recording_found=$(ls -t ${OUTPUT_DIR}/*.mp4 2>/dev/null | head -1)
         fi
@@ -2301,13 +2295,49 @@ PY
     local sample_frame_path="${OUTPUT_DIR}/c64_recording_still.png"
     local recording_mp4="${recording_found:-}"
     if [[ -z "${recording_mp4}" || ! -f "${recording_mp4}" ]]; then
-        if compgen -G "${OUTPUT_DIR}/c64_recording.*" > /dev/null; then
-            recording_mp4=$(ls -t ${OUTPUT_DIR}/c64_recording.* 2>/dev/null | head -1)
+        if [[ -f "${OUTPUT_DIR}/c64_recording.mp4" ]]; then
+            recording_mp4="${OUTPUT_DIR}/c64_recording.mp4"
         elif compgen -G "${OUTPUT_DIR}/*.mp4" > /dev/null; then
             recording_mp4=$(ls -t ${OUTPUT_DIR}/*.mp4 2>/dev/null | head -1)
-        elif [[ -f "${OUTPUT_DIR}/recording_${FORMAT}.mkv" ]]; then
-            recording_mp4="${OUTPUT_DIR}/recording_${FORMAT}.mkv"
         fi
+    fi
+
+    # Use playback.csv to bound content frames (avoid logo-only stills).
+    local content_start_frame=""
+    local content_end_frame=""
+    if [[ -f "${OUTPUT_DIR}/playback.csv" ]] && command -v python3 >/dev/null 2>&1; then
+        read -r content_start_frame content_end_frame < <(python3 - <<'PY' "${OUTPUT_DIR}/playback.csv" 2>/dev/null || true
+import csv
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+start = None
+end = None
+try:
+    with path.open() as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            frame_num = (row.get("frame_num") or "").strip()
+            if frame_num == "":
+                continue
+            idx = row.get("playback_frame_index")
+            if idx is None or str(idx).strip() == "":
+                continue
+            try:
+                idx_int = int(float(idx))
+            except ValueError:
+                continue
+            if start is None:
+                start = idx_int
+            end = idx_int
+except Exception:
+    pass
+
+if start is not None and end is not None:
+    print(f"{start} {end}")
+PY
+)
     fi
 
     # Sample frame: extract a frame showing the A/V pop white square.
@@ -2382,6 +2412,15 @@ if pops:
 
         # If we have a frame index, extract that exact frame.
         if [[ -n "${first_pop_frame}" && "${first_pop_frame}" =~ ^[0-9]+$ ]]; then
+            if [[ -n "${content_start_frame}" && -n "${content_end_frame}" ]]; then
+                if (( first_pop_frame < content_start_frame || first_pop_frame > content_end_frame )); then
+                    first_pop_frame=""
+                fi
+            fi
+        fi
+
+        # If we have a frame index, extract that exact frame.
+        if [[ -n "${first_pop_frame}" && "${first_pop_frame}" =~ ^[0-9]+$ ]]; then
             # Extract a still that actually contains the marker.
             # Even with frame-index extraction, some pipelines can be off by 1 frame (PTS rounding,
             # encoder delays, etc.). We therefore try a window around the detected frame and
@@ -2410,6 +2449,11 @@ if pops:
                     [[ "${cand}" =~ ^-?[0-9]+$ ]] || continue
                     if (( cand < 0 )); then
                         continue
+                    fi
+                    if [[ -n "${content_start_frame}" && -n "${content_end_frame}" ]]; then
+                        if (( cand < content_start_frame || cand > content_end_frame )); then
+                            continue
+                        fi
                     fi
                     local out_tmp
                     out_tmp="${tmp_dir}/frame_${cand}.png"
@@ -2531,20 +2575,26 @@ PY
         fi
 
         if [[ "${sample_frame_extracted}" != true ]]; then
-            # Final fallback to mid-point if no pop found
-            if [[ -z "${sample_frame_seconds}" ]]; then
-                local dur_sec
-                if command -v ffprobe >/dev/null 2>&1; then
-                    dur_sec=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${recording_mp4}" 2>/dev/null | head -1 || true)
+            # Final fallback: use mid-content frame if bounds exist, else mid-duration.
+            if [[ -n "${content_start_frame}" && -n "${content_end_frame}" ]]; then
+                local mid_frame
+                mid_frame=$(( (content_start_frame + content_end_frame) / 2 ))
+                "${TEST_DIR}/extract.frame" --input "${recording_mp4}" --output "${sample_frame_path}" --frame "${mid_frame}" || true
+            else
+                if [[ -z "${sample_frame_seconds}" ]]; then
+                    local dur_sec
+                    if command -v ffprobe >/dev/null 2>&1; then
+                        dur_sec=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${recording_mp4}" 2>/dev/null | head -1 || true)
+                    fi
+                    if [[ -n "${dur_sec}" ]]; then
+                        sample_frame_seconds=$(awk -v d="${dur_sec}" 'BEGIN{printf "%.3f", d*0.50}')
+                    else
+                        sample_frame_seconds="4.500"
+                    fi
                 fi
-                if [[ -n "${dur_sec}" ]]; then
-                    sample_frame_seconds=$(awk -v d="${dur_sec}" 'BEGIN{printf "%.3f", d*0.50}')
-                else
-                    sample_frame_seconds="4.500"
-                fi
-            fi
 
-            "${TEST_DIR}/extract.frame" --input "${recording_mp4}" --output "${sample_frame_path}" --time "${sample_frame_seconds}" || true
+                "${TEST_DIR}/extract.frame" --input "${recording_mp4}" --output "${sample_frame_path}" --time "${sample_frame_seconds}" || true
+            fi
         fi
     fi
 
@@ -2554,10 +2604,12 @@ PY
         echo "### Video" >> "${report_file}"
         echo >> "${report_file}"
         rel_name=$(basename "${recording_mp4}")
+        local download_note
+        download_note="(Available from local runs or CI build artifacts.)"
         if [[ -f "${OUTPUT_DIR}/${rel_name}" ]]; then
-            echo "- Download: [${rel_name}](${rel_name})" >> "${report_file}"
+            echo "- Download: [${rel_name}](${rel_name}) ${download_note}" >> "${report_file}"
         else
-            echo "- Download: [${rel_name}](${recording_mp4})" >> "${report_file}"
+            echo "- Download: [${rel_name}](${recording_mp4}) ${download_note}" >> "${report_file}"
         fi
 
         if command -v ffprobe >/dev/null 2>&1; then

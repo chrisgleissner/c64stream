@@ -30,6 +30,7 @@ import json
 import socket
 import tempfile
 import shutil
+import configparser
 from pathlib import Path
 
 # Import A/V sync testing
@@ -70,6 +71,7 @@ class E2ETest:
         self.video_port = video_port
         self.audio_port = audio_port
         self.control_port = control_port
+        self.control_bind_ip = os.environ.get('C64_E2E_CONTROL_BIND_IP', '0.0.0.0')
         self.format = format
         self.frames = frames
         self.verbose = verbose
@@ -843,10 +845,38 @@ class E2ETest:
                 src = Path(root) / fname
                 dst = dest_root / fname
                 try:
-                    shutil.copy2(src, dst)
-                    self.log(f"  ↳ Override: {src.relative_to(overrides_dir)} -> {dst}")
+                    if src.suffix.lower() == ".ini" and dst.exists():
+                        if self._merge_ini_override(dst, src):
+                            self.log(f"  ↳ Override (merged): {src.relative_to(overrides_dir)} -> {dst}")
+                        else:
+                            shutil.copy2(src, dst)
+                            self.log(f"  ↳ Override: {src.relative_to(overrides_dir)} -> {dst}")
+                    else:
+                        shutil.copy2(src, dst)
+                        self.log(f"  ↳ Override: {src.relative_to(overrides_dir)} -> {dst}")
                 except Exception as e:
                     self.log(f"  ⚠️ Could not copy override {src}: {e}")
+
+    def _merge_ini_override(self, dst: Path, src: Path) -> bool:
+        """Merge INI override entries into an existing destination file."""
+        parser = configparser.ConfigParser(interpolation=None)
+        parser.optionxform = str
+        override = configparser.ConfigParser(interpolation=None)
+        override.optionxform = str
+        try:
+            parser.read(dst, encoding="utf-8")
+            override.read(src, encoding="utf-8")
+            for section in override.sections():
+                if not parser.has_section(section):
+                    parser.add_section(section)
+                for key, value in override.items(section):
+                    parser.set(section, key, value)
+            with open(dst, "w", encoding="utf-8") as f:
+                parser.write(f, space_around_delimiters=False)
+            return True
+        except (configparser.Error, OSError) as e:
+            self.log(f"  ⚠️ Could not merge INI override {src}: {e}")
+            return False
 
     def _replace_config_variables(self, obs_config_dir):
         """Replace variables in OBS configuration files with actual values."""
@@ -1588,7 +1618,7 @@ class E2ETest:
         self.log("Checking for recording output...")
 
         # Look for video files in multiple directories
-        video_extensions = ['.mkv', '.mp4', '.mov', '.avi', '.flv', '.hybrid_mp4']
+        video_extensions = ['.mp4', '.hybrid_mp4']
         search_dirs = [
             self.output_dir,  # Our test output directory
             Path.home() / 'Videos',  # Default OBS recording directory
@@ -1755,7 +1785,7 @@ class E2ETest:
         if not self.udp_replay_triggered.wait(timeout=30):
             self.log("❌ Timeout waiting for plugin to request streaming")
             self.log("🔍 Network diagnostics:")
-            self.log(f"  - Expected TCP connection to: 127.0.0.1:{self.control_port}")
+            self.log(f"  - TCP listener: {self.control_bind_ip}:{self.control_port} (0.0.0.0 = all interfaces)")
             self.log(f"  - Video destination: {self.video_dest_ip}:{self.video_dest_port}")
             self.log(f"  - Audio destination: {self.audio_dest_ip}:{self.audio_dest_port}")
 
@@ -2051,7 +2081,7 @@ class E2ETest:
 
             # Add network diagnostics
             self.log(f"🔍 Network diagnostics:")
-            self.log(f"  - Binding to 127.0.0.1:{self.control_port}")
+            self.log(f"  - Binding to {self.control_bind_ip}:{self.control_port}")
             self.log(f"  - Socket family: AF_INET")
             self.log(f"  - Socket type: SOCK_STREAM")
 
@@ -2067,7 +2097,7 @@ class E2ETest:
             except Exception as e:
                 self.log(f"  - Could not check netstat: {e}")
 
-            self.tcp_server_socket.bind(('127.0.0.1', self.control_port))
+            self.tcp_server_socket.bind((self.control_bind_ip, self.control_port))
             self.tcp_server_socket.listen(5)
             self.tcp_server_running = True
 
@@ -2085,7 +2115,7 @@ class E2ETest:
                 try:
                     self.tcp_server_socket_alt = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                     self.tcp_server_socket_alt.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                    self.tcp_server_socket_alt.bind(('127.0.0.1', 64))
+                    self.tcp_server_socket_alt.bind((self.control_bind_ip, 64))
                     self.tcp_server_socket_alt.listen(3)
                     self.tcp_server_thread_alt = threading.Thread(
                         target=self._tcp_server_worker_socket, args=(self.tcp_server_socket_alt, "alt-64")
@@ -3122,6 +3152,7 @@ class E2ETest:
                     interval_ms=self.resource_interval_ms,
                     verbose=self.verbose,
                     tracked_pids=tracked,
+                    allow_interactive=False,
                 )
 
             # Now that OBS is running, do resource monitor warmup (CPU measurement priming)
@@ -3278,8 +3309,8 @@ def main():
                         help='Scenario id (folder name) for gating checks (e.g., ntsc_default)')
     parser.add_argument('--output-dir', default=None,
                         help='Directory where test artifacts are written (default: test_output under --test-dir)')
-    parser.add_argument('--csv-max-rows', type=int, default=3000,
-                        help='Truncate CSV files to first N lines (incl header) (default: 3000, use 0 to disable)')
+    parser.add_argument('--csv-max-rows', type=int, default=2000,
+                        help='Truncate CSV files to first N lines (incl header) (default: 2000, use 0 to disable)')
     parser.add_argument('--enable-resource-monitoring', action='store_true',
                         help='Enable CPU/GPU/RAM monitoring during packet replay')
     parser.add_argument('--monitor-resource-duration', type=float, default=None,

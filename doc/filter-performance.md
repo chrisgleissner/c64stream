@@ -62,10 +62,10 @@ These are **actual measured values** from benchmark runs on the test hardware.
 
 | Preset | CPU Mean | CPU Max | Afterglow | GPU Effects | Notes |
 |--------|----------|---------|-----------|-------------|-------|
-| **Default** | 46.6% | 100% | ❌ Off | None | Baseline, no effects |
-| **Sharp Pixels** | 57.6% | 100% | ❌ Off | Pixel scaling | GPU pixel geometry |
-| **Phosphor Glow** | 62.6% | 100% | ✅ 40ms | Bloom + Blur | Short afterglow |
-| **Green Monitor** | 64.0% | 100% | ✅ 100ms | Tint + Scanlines | Long afterglow |
+| **Default** | 32.0% | 100% | ❌ Off | None | Baseline, no effects |
+| **Sharp Pixels** | 39.0% | 100% | ❌ Off | Pixel scaling | GPU pixel geometry |
+| **Phosphor Glow** | 40.8% | 99.3% | ✅ 20ms | Bloom + Blur | Short afterglow |
+| **Green Monitor** | 42.8% | 99.8% | ✅ 50ms | Tint + Scanlines | Medium afterglow |
 
 ### Observed CPU Impact by Afterglow Duration
 
@@ -78,6 +78,7 @@ These are **actual measured values** from benchmark runs on the test hardware.
 | 120 | +22-28% |
 
 *Note: CPU max hits 100% during E2E test startup/teardown phases. Mean values reflect steady-state rendering.*
+*Afterglow durations reflect current presets; re-benchmark if exact CPU deltas are required.*
 
 ---
 

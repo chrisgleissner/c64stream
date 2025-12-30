@@ -1,55 +1,55 @@
 {
   "udp_reception": {
     "status": "pass",
-    "details": "30803/30803 packets (28789 video, 2014 audio)"
+    "details": "19252/19252 packets (17990 video, 1262 audio)"
   },
   "frame_processing": {
     "status": "pass",
-    "details": "2481 frames processed"
+    "details": "1550 frames processed"
   },
   "video_recording": {
     "status": "pass",
-    "details": "9.1 MB"
+    "details": "7.7 MB"
   },
   "packet_integrity": {
     "status": "pass",
-    "details": "19.0s duration"
+    "details": "16.0s duration"
   },
   "video_brightness": {
     "status": "pass",
     "details": "Normal (best_mean_luma=52.6)",
     "metrics": {
-      "best_offset_s": 4.75963625,
-      "best_mean_luma": 52.602333068847656,
+      "best_offset_s": 3.9990975,
+      "best_mean_luma": 52.60308837890625,
       "samples": [
         {
-          "t": 4.75963625,
-          "mean_luma": 52.602333068847656
+          "t": 3.9990975,
+          "mean_luma": 52.60308837890625
         },
         {
-          "t": 9.5192725,
-          "mean_luma": 44.71746826171875
+          "t": 7.998195,
+          "mean_luma": 7.868564128875732
         },
         {
-          "t": 14.27890875,
-          "mean_luma": 44.75046920776367
+          "t": 11.9972925,
+          "mean_luma": 7.3430399894714355
         }
       ]
     }
   },
   "av_sync_details": {
-    "total_audio_pops": 9,
-    "total_analyzed": 9,
-    "total_video_pops": 9,
-    "perfect_sync_count": 9,
+    "total_audio_pops": 5,
+    "total_analyzed": 5,
+    "total_video_pops": 5,
+    "perfect_sync_count": 5,
     "sync_accuracy_percent": 100.0,
     "tolerance_ms": 60,
     "sync_details": [
       {
-        "audio_pop_time_ms": 7897,
-        "closest_video_pop_ms": 7906.261491659144,
-        "closest_video_pop_frame": 473,
-        "difference_ms": 9.261491659143758,
+        "audio_pop_time_ms": 7886,
+        "closest_video_pop_ms": 7889.546351084812,
+        "closest_video_pop_frame": 472,
+        "difference_ms": 3.5463510848121587,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -59,10 +59,10 @@
         "traffic": "green"
       },
       {
-        "audio_pop_time_ms": 8718,
-        "closest_video_pop_ms": 8725.303379801424,
-        "closest_video_pop_frame": 522,
-        "difference_ms": 7.303379801423944,
+        "audio_pop_time_ms": 8686,
+        "closest_video_pop_ms": 8691.87309865276,
+        "closest_video_pop_frame": 520,
+        "difference_ms": 5.873098652760746,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -72,10 +72,10 @@
         "traffic": "green"
       },
       {
-        "audio_pop_time_ms": 9518,
-        "closest_video_pop_ms": 9510.914986795038,
-        "closest_video_pop_frame": 569,
-        "difference_ms": 7.085013204961797,
+        "audio_pop_time_ms": 9486,
+        "closest_video_pop_ms": 9494.199846220707,
+        "closest_video_pop_frame": 568,
+        "difference_ms": 8.199846220706604,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -85,10 +85,10 @@
         "traffic": "green"
       },
       {
-        "audio_pop_time_ms": 10321,
-        "closest_video_pop_ms": 10313.241734362986,
-        "closest_video_pop_frame": 617,
-        "difference_ms": 7.758265637014119,
+        "audio_pop_time_ms": 10292,
+        "closest_video_pop_ms": 10296.526593788654,
+        "closest_video_pop_frame": 616,
+        "difference_ms": 4.5265937886542815,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -98,62 +98,10 @@
         "traffic": "green"
       },
       {
-        "audio_pop_time_ms": 11124,
-        "closest_video_pop_ms": 11132.283622505265,
-        "closest_video_pop_frame": 666,
-        "difference_ms": 8.283622505265157,
-        "is_synced": true,
-        "included_in_analysis": true,
-        "ignore_reason": null,
-        "audio_channel": "L",
-        "video_channel": "L",
-        "channels_match": true,
-        "traffic": "green"
-      },
-      {
-        "audio_pop_time_ms": 11924,
-        "closest_video_pop_ms": 11917.895229498881,
-        "closest_video_pop_frame": 713,
-        "difference_ms": 6.1047705011187645,
-        "is_synced": true,
-        "included_in_analysis": true,
-        "ignore_reason": null,
-        "audio_channel": "R",
-        "video_channel": "R",
-        "channels_match": true,
-        "traffic": "green"
-      },
-      {
-        "audio_pop_time_ms": 12726,
-        "closest_video_pop_ms": 12720.221977066827,
-        "closest_video_pop_frame": 761,
-        "difference_ms": 5.778022933172906,
-        "is_synced": true,
-        "included_in_analysis": true,
-        "ignore_reason": null,
-        "audio_channel": "L",
-        "video_channel": "L",
-        "channels_match": true,
-        "traffic": "green"
-      },
-      {
-        "audio_pop_time_ms": 13529,
-        "closest_video_pop_ms": 13522.548724634775,
-        "closest_video_pop_frame": 809,
-        "difference_ms": 6.451275365225229,
-        "is_synced": true,
-        "included_in_analysis": true,
-        "ignore_reason": null,
-        "audio_channel": "R",
-        "video_channel": "R",
-        "channels_match": true,
-        "traffic": "green"
-      },
-      {
-        "audio_pop_time_ms": 14329,
-        "closest_video_pop_ms": 14324.87547220272,
-        "closest_video_pop_frame": 857,
-        "difference_ms": 4.12452779727937,
+        "audio_pop_time_ms": 11113,
+        "closest_video_pop_ms": 11115.568481930932,
+        "closest_video_pop_frame": 665,
+        "difference_ms": 2.568481930931739,
         "is_synced": true,
         "included_in_analysis": true,
         "ignore_reason": null,
@@ -165,47 +113,35 @@
     ],
     "is_perfectly_synced": true,
     "last_event_within_limit": true,
-    "duration_ms": 19038.545,
+    "duration_ms": 15996.39,
     "video_pop_times_ms": [
-      7922.976632233476,
-      8725.303379801424,
-      9527.63012736937,
-      10329.956874937317,
-      11132.283622505265,
-      11934.610370073213,
-      12736.937117641159,
-      13539.263865209106,
-      14341.590612777052
+      7906.261491659145,
+      8708.588239227092,
+      9510.914986795038,
+      10313.241734362986,
+      11115.568481930932
     ],
     "video_pop_frame_indices": [
-      474,
-      522,
-      570,
-      618,
-      666,
-      714,
-      762,
-      810,
-      858
+      473,
+      521,
+      569,
+      617,
+      665
     ],
     "traffic": [
       "green",
       "green",
       "green",
       "green",
-      "green",
-      "green",
-      "green",
-      "green",
       "green"
     ],
-    "channel_match_count": 9,
+    "channel_match_count": 5,
     "channel_mismatch_count": 0,
     "channels_all_match": true
   },
   "av_sync": {
     "status": "pass",
-    "details": "9/9 analyzed pops synced"
+    "details": "5/5 analyzed pops synced"
   },
   "scanlines": {
     "status": "pass",
@@ -228,24 +164,20 @@
       "settling_cutoff_frame": 254,
       "content_bounds": {
         "first_content_frame": 15,
-        "last_content_frame": 951,
+        "last_content_frame": 747,
         "logo_end_frame": 14,
         "detection_confidence": 1.0
       },
       "video_pop_starts": [
-        474,
-        522,
-        570,
-        618,
-        666,
-        714,
-        762,
-        810,
-        858
+        473,
+        521,
+        569,
+        617,
+        665
       ],
       "analyzed_frames": 479,
       "valid_frames": 479,
-      "compressed_len": 53,
+      "compressed_len": 54,
       "distinct_slots": 8,
       "frame_slots": {
         "15": 1,
@@ -683,50 +615,50 @@
         "447": 0,
         "448": 0,
         "449": 0,
-        "450": 0,
-        "451": 1,
-        "452": 2,
-        "453": 3,
-        "454": 4,
-        "455": 5,
-        "456": 6,
-        "457": 7,
-        "458": 0,
-        "459": 1,
-        "460": 2,
-        "461": 3,
-        "462": 4,
-        "463": 5,
-        "464": 6,
-        "465": 7,
-        "466": 0,
-        "467": 1,
-        "468": 2,
-        "469": 3,
-        "470": 4,
-        "471": 5,
-        "472": 6,
-        "473": 7,
-        "474": 0,
-        "475": 1,
-        "476": 2,
-        "477": 3,
-        "478": 4,
-        "479": 5,
-        "480": 6,
-        "481": 7,
-        "482": 0,
-        "483": 1,
-        "484": 2,
-        "485": 3,
-        "486": 4,
-        "487": 5,
-        "488": 6,
-        "489": 7,
-        "490": 0,
-        "491": 1,
-        "492": 2,
-        "493": 3
+        "450": 1,
+        "451": 2,
+        "452": 3,
+        "453": 4,
+        "454": 5,
+        "455": 6,
+        "456": 7,
+        "457": 0,
+        "458": 1,
+        "459": 2,
+        "460": 3,
+        "461": 4,
+        "462": 5,
+        "463": 6,
+        "464": 7,
+        "465": 0,
+        "466": 1,
+        "467": 2,
+        "468": 3,
+        "469": 4,
+        "470": 5,
+        "471": 6,
+        "472": 7,
+        "473": 0,
+        "474": 1,
+        "475": 2,
+        "476": 3,
+        "477": 4,
+        "478": 5,
+        "479": 6,
+        "480": 7,
+        "481": 0,
+        "482": 1,
+        "483": 2,
+        "484": 3,
+        "485": 4,
+        "486": 5,
+        "487": 6,
+        "488": 7,
+        "489": 0,
+        "490": 1,
+        "491": 2,
+        "492": 3,
+        "493": 4
       },
       "skips": 0,
       "skip_stats": {
@@ -763,20 +695,20 @@
       "severe_step_events": [],
       "delta_hist": {
         "7": 5,
-        "1": 47
+        "1": 48
       },
       "ambiguous_frames": 0,
       "ambiguous_ratio": 0.0,
-      "stuck_frames": 426,
-      "stuck_ratio": 0.8893528183716075,
-      "max_stuck_run": 365,
+      "stuck_frames": 425,
+      "stuck_ratio": 0.8872651356993737,
+      "max_stuck_run": 364,
       "startup_frames_excluded": 0,
       "end_frames_excluded": 0,
       "stuck_stats": {
         "count": 7,
         "min": 3,
         "median": 7,
-        "max": 365
+        "max": 364
       },
       "repeated_events": [
         {
@@ -812,7 +744,7 @@
         {
           "frame": 87,
           "time_sec": 1.454,
-          "count": 365
+          "count": 364
         }
       ],
       "settling": {
@@ -824,11 +756,11 @@
           "skip_max": 0,
           "back_steps": 5,
           "severe_steps": 0,
-          "stuck_frames": 426,
+          "stuck_frames": 425,
           "stuck_run_count": 7,
           "stuck_run_min": 3,
           "stuck_run_median": 7,
-          "max_stuck_run": 365
+          "max_stuck_run": 364
         },
         "post": {
           "skips": 0,
@@ -864,12 +796,12 @@
       "back_steps": 5.0,
       "severe_steps": 0.0,
       "ambiguous_ratio": 0.0,
-      "stuck_frames": 426.0,
-      "stuck_ratio": 0.8893528183716075,
+      "stuck_frames": 425.0,
+      "stuck_ratio": 0.8872651356993737,
       "stuck_run_count": 7.0,
       "stuck_run_min": 3.0,
       "stuck_run_median": 7.0,
-      "max_stuck_run": 365.0,
+      "max_stuck_run": 364.0,
       "settling_seconds": 4.0,
       "pre_settling_skips": 0.0,
       "pre_settling_skip_count": 0.0,
@@ -878,11 +810,11 @@
       "pre_settling_skip_max": 0.0,
       "pre_settling_back_steps": 5.0,
       "pre_settling_severe_steps": 0.0,
-      "pre_settling_stuck_frames": 426.0,
+      "pre_settling_stuck_frames": 425.0,
       "pre_settling_stuck_run_count": 7.0,
       "pre_settling_stuck_run_min": 3.0,
       "pre_settling_stuck_run_median": 7.0,
-      "pre_settling_max_stuck_run": 365.0,
+      "pre_settling_max_stuck_run": 364.0,
       "post_settling_skips": 0.0,
       "post_settling_skip_count": 0.0,
       "post_settling_skip_min": 0.0,

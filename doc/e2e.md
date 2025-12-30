@@ -248,7 +248,7 @@ name: NTSC Amber Monitor
 format: NTSC
 preset: Amber Monitor
 overrides:
-  afterglow_duration_ms: 100  # Optional effect tweaks for E2E
+  afterglow_duration_ms: 50  # Optional effect tweaks for E2E
 assertions:
   - video_quality
   - audio
@@ -538,7 +538,7 @@ name: Human-readable scenario name
 format: PAL or NTSC
 preset: Preset name from data/effect_presets.ini
 overrides:                    # Optional: tweak effect values
-  afterglow_duration_ms: 150  # Boost for E2E detection
+  afterglow_duration_ms: 75  # Boost for E2E detection
 assertions:                   # What to verify
   - video_quality
   - audio

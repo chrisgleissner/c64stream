@@ -75,16 +75,24 @@ class ResourceSummary:
 class ResourceMonitor:
     """Monitors system resource usage during E2E tests."""
 
-    def __init__(self, interval_ms: int = 500, verbose: bool = False, tracked_pids: Optional[dict[str, int]] = None):
+    def __init__(
+        self,
+        interval_ms: int = 500,
+        verbose: bool = False,
+        tracked_pids: Optional[dict[str, int]] = None,
+        allow_interactive: bool = True,
+    ):
         """
         Initialize the resource monitor.
 
         Args:
             interval_ms: Sampling interval in milliseconds (default 500ms)
             verbose: Enable verbose logging
+            allow_interactive: Allow interactive prompts (e.g., sudo setup)
         """
         self.interval_ms = interval_ms
         self.verbose = verbose
+        self._allow_interactive = allow_interactive
         self.samples: list[ResourceSample] = []
         self._running = False
         self._thread: Optional[threading.Thread] = None
@@ -290,6 +298,11 @@ class ResourceMonitor:
         Returns:
             True if setup was successful or skipped, False if user declined
         """
+        if not self._allow_interactive:
+            if self.verbose:
+                print("[ResourceMonitor] Interactive intel_gpu_top setup disabled")
+            return False
+
         intel_gpu_top_path = shutil.which("intel_gpu_top")
         if not intel_gpu_top_path:
             print("[ResourceMonitor] intel_gpu_top not found. Install intel-gpu-tools package.")
