@@ -2,15 +2,15 @@
 
 ## Scenario: NTSC Default
 
-Generated: 2025-12-30 11:29:55 UTC
+Generated: 2025-12-30 13:16:42 UTC
 
 ## Test configuration
 
 - Format: NTSC
-- Frames: 300
-- Duration: 5.0 seconds
-- Video Port: 11000
-- Audio Port: 11001
+- Frames: 480
+- Duration: 8.0 seconds
+- Video Port: 21000
+- Audio Port: 21001
 - OBS Enabled: true
 
 ## Build information
@@ -23,55 +23,58 @@ Generated: 2025-12-30 11:29:55 UTC
 - OS: Ubuntu 24.04.3 LTS (kernel 6.14.0-37-generic)
 - OBS: 32.0.2
 - CPU: Intel(R) Core(TM) i7-6700K CPU @ 4.00GHz (8 cores)
-- RAM: 31Gi total, 24Gi available
+- RAM: 31Gi total, 23Gi available
 - Disk (/): 1.8T total, 1.1T available
 
 ## Test results
 
 ### Resource Usage
 
-During the test's processing window (4.6s, 10 of 27 samples) (8 cores):
+During the test's processing window (7.6s, 16 of 33 samples) (8 cores):
 
 | Metric | Min | Median | Mean | Max |
 |--------|-----|--------|------|-----|
-| CPU | 56.9% | 61.8% | 62.97% | 72.5% |
-| RAM | 6212.57 MB | 6222.69 MB | 6246.76 MB | 6309.2 MB |
-| GPU | 25.02% | 38.14% | 35.34% | 39.78% |
+| CPU | 60.6% | 63.9% | 64.12% | 70.5% |
+| RAM | 7067.75 MB | 7217.33 MB | 7199.74 MB | 7262.29 MB |
+| GPU | 26.13% | 29.18% | 28.77% | 31.02% |
 
 Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
 ### Packet & Network Data
 
-- ✅ Packet Generation: 18000 video, 1252 audio packets
+- ✅ Packet Generation: 28800 video, 2003 audio packets
 - ✅ UDP Replay: Completed successfully
 - Events: [network.csv](network.csv), [obs.csv](obs.csv), [playback.csv](playback.csv)
 
 ### A/V Sync
 
-- ✅ Good synchronization (100.0%): avg offset 268.3ms, max 783.9ms
+- ✅ Good synchronization (100.0%): avg offset 5.0ms, max 8.3ms
 
 #### Sync Details
 
-- • Pop #1 [L]: audio=8025.0ms, video=8808.9ms (frame 527), diff=783.9ms
-- • Pop #2 [L]: audio=8046.0ms, video=8808.9ms (frame 527), diff=762.9ms
-- 🟢 Pop #3 [R]: audio=8846.0ms, video=8825.6ms (frame 528), diff=20.4ms
-- 🟢 Pop #4 [L]: audio=9646.0ms, video=9627.9ms (frame 576), diff=18.1ms
-- 🟢 Pop #5 [R]: audio=10452.0ms, video=10430.2ms (frame 624), diff=21.8ms
-- 🟢 Pop #6 [L]: audio=11252.0ms, video=11249.3ms (frame 673), diff=2.7ms
+- 🟢 Pop #1 [L]: audio=2774.0ms, video=2774.7ms (frame 166), diff=0.7ms
+- 🟢 Pop #2 [R]: audio=3574.0ms, video=3577.0ms (frame 214), diff=3.0ms
+- 🟢 Pop #3 [L]: audio=4374.0ms, video=4379.4ms (frame 262), diff=5.4ms
+- 🟢 Pop #4 [R]: audio=5177.0ms, video=5181.7ms (frame 310), diff=4.7ms
+- 🟢 Pop #5 [L]: audio=5980.0ms, video=5984.0ms (frame 358), diff=4.0ms
+- 🟢 Pop #6 [R]: audio=6780.0ms, video=6786.3ms (frame 406), diff=6.3ms
+- 🟢 Pop #7 [L]: audio=7582.0ms, video=7588.7ms (frame 454), diff=6.7ms
+- 🟢 Pop #8 [R]: audio=8385.0ms, video=8391.0ms (frame 502), diff=6.0ms
+- 🟢 Pop #9 [L]: audio=9185.0ms, video=9193.3ms (frame 550), diff=8.3ms
 
-- Channels: LLRLRL
-- 🔁 Channel alternation: MISMATCH
+- Channels: LRLRLRLRL
+- 🔁 Channel alternation: OK (alternating, starts with L)
 
 ### Frame Progression
 
-- 🟡 Video stream froze for 181 frames (3.0s) (post-settling)
+- 🟢 Frame sequence verified (479 frames analyzed, 0 colors)
 
 - Settling: 4.0s (pass/fail uses post-settling only)
 
 | Window | Stuck runs (count/min/med/max) | Skips (count/min/med/max) | Back steps | Severe steps |
 |--------|------------------------------:|--------------------------:|-----------:|-------------:|
-| During settling | 5/2/2/3 | 5/1/1/2 | 0 | 0 |
-| After settling | 1/181/181/181 | 1/5/5/5 | 0 | 0 |
+| During settling | 0/0/0/0 | 0/0/0/0 | 0 | 0 |
+| After settling | 2/2/2/3 | 1/2/2/2 | 0 | 0 |
 
 See [playback.csv](playback.csv) for frame-by-frame playback timeline with anomaly markers.
 
@@ -79,19 +82,18 @@ See [playback.csv](playback.csv) for frame-by-frame playback timeline with anoma
 
 - Definition: rows with repeated=1 or skipped=1 in playback.csv; clustering uses max gap 0.5s
 - Note: this is independent from the Frame Progression (frame-box) check above
-- Note: repeated/skipped markers only exist while content is detected (video_s 7.639–15.629).
+- Note: repeated/skipped markers only exist while content is detected (video_s 2.390–13.389).
   The jitter-free tail after content ends is expected and does not indicate steady-state performance.
 
 | # | Events | Center (s) | Std dev (s) | Span (s) | Window (s) |
 |---|--------|------------|-------------|----------|------------|
-| 1 | 5 | 11.233 | 0.047 | 0.133 | 11.166–11.299 |
-| 2 | 2 | 8.040 | 0.017 | 0.034 | 8.023–8.057 |
-| 3 | 1 | 12.620 | 0.000 | 0.000 | 12.620–12.620 |
+| 1 | 2 | 7.330 | 0.025 | 0.050 | 7.305–7.355 |
+| 2 | 1 | 10.380 | 0.000 | 0.000 | 10.380–10.380 |
 
 ### Video
 
 - Download: [c64_recording.mp4](c64_recording.mp4) (Available from local runs or CI build artifacts.)
-- Duration: 16.1 s
+- Duration: 13.9 s
 
 
 ### Sample Frame
@@ -103,4 +105,4 @@ See [playback.csv](playback.csv) for frame-by-frame playback timeline with anoma
 - **Center**: Diagonal pattern cycling through all C64 colors
 - **Bottom-left**: Frame progression indicator (8-slot moving bar, cycles every 8 frames)
 - **Bottom-right**: A/V pop indicator (pops every 48 frames, split left/right for audio channels)
-- Taken from frame 528 at 00:08.8 of the 16.1 s video above.
+- Taken from frame 166 at 00:02.8 of the 13.9 s video above.

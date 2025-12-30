@@ -482,36 +482,32 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                         if chamfer_color is not None:
                             return chamfer_color
                         return VIC_LIGHT_BLUE if is_white else VIC_BLACK
-                    # Inner content: 72×40 grid with 15 cols × 7 rows of 3×3 swatches (2px gaps, 3px padding)
-                    # Layout: 3px padding + 15×(3×3 + 2px gap) - 2px = 3 + 15×5 - 2 = 76px width
-                    # Vertical: 3px padding + 7×(3×3 + 2px gap) - 2px = 3 + 7×5 - 2 = 38px height
-                    # Adjusted to fit in 72×40: 3px padding + 15 cols × 4px (3px swatch + 1px gap) + 3px = 72px
-                    # Vertical: 3px padding + 7 rows × 5px (3px swatch + 2px gap) - 2px + 3px = 38px
+                    # Inner content: 4×4 grid of all 16 VIC colors (0-15) with 2px black gaps
+                    # 72×40 inner: 4 cols × 17px = 68px (+4px padding), 4 rows × 9px = 36px (+4px padding)
+                    # Each swatch: 15×7 pixels with 2px black gaps (17×9 total per cell)
                     inner_x = px - tr_x - CORNER_FRAME_TOTAL
                     inner_y = py - tr_y - CORNER_FRAME_TOTAL
                     if 0 <= inner_x < CORNER_INNER_WIDTH and 0 <= inner_y < CORNER_INNER_HEIGHT:
-                        # 3px padding, then 15 cols × (3px + 2px gap) = 15×5 = 75px, less 2px final gap = 73px
-                        # Adjusted: 3px padding + 15 cols × (3px + 1px gap) + 3px padding = 3 + 60 + 3 = 66px content
-                        # Vertical: 3px padding + 7 rows × (3px + 2px gap) - 2px + 3px = 3 + 35 - 2 + 3 = 39px
-                        # Final layout: 3px padding on all sides, 15×7 grid with 2px gaps
-                        padded_x = inner_x - 3
-                        padded_y = inner_y - 3
-                        if padded_x < 0 or padded_y < 0 or padded_x >= 66 or padded_y >= 34:
-                            return 0  # Padding or out of bounds
-                        # 15 cols × 7 rows with 2px gaps: each cell is 3px + 2px gap = 5px pitch
-                        # But last column/row has no gap: effective widths are 3,5,5,5...,5,3
-                        # Simplified: 5px pitch with final adjustment
-                        col = padded_x // 5
-                        row = padded_y // 5
-                        x_in_cell = padded_x % 5
-                        y_in_cell = padded_y % 5
-                        # Check if in gap (pixels 3-4 are gap)
-                        if x_in_cell >= 3 or y_in_cell >= 3:
+                        # 2px padding on all sides
+                        padded_x = inner_x - 2
+                        padded_y = inner_y - 2
+                        if padded_x < 0 or padded_y < 0:
+                            return 0  # Padding
+                        # 4×4 grid in 68×36 area: each cell is 17×9 pixels
+                        swatch_w = 17  # 17*4 = 68
+                        swatch_h = 9   # 9*4 = 36
+                        col = padded_x // swatch_w
+                        row = padded_y // swatch_h
+                        if col >= 4 or row >= 4:
+                            return 0
+                        # Position within the swatch cell
+                        x_in_cell = padded_x % swatch_w
+                        y_in_cell = padded_y % swatch_h
+                        # 2px black gap on right and bottom of each swatch
+                        if x_in_cell >= 15 or y_in_cell >= 7:
                             return 0  # Gap
-                        if col >= 15 or row >= 7:
-                            return 0  # Out of grid
-                        # 15×7 = 105 colors, we only have 16, so repeat pattern
-                        color_idx = (row * 15 + col) % 16
+                        # VIC colors 0-15: row 0 = colors 0-3, row 1 = 4-7, etc.
+                        color_idx = row * 4 + col
                         return color_idx
                     return 0
 
@@ -529,11 +525,11 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                         if chamfer_color is not None:
                             return chamfer_color
                         # Frame-progression tick marks (bottom only, shifted down):
-                        # - 1px wide light-blue vertical ticks centered on each of 8 slots
-                        # - Drawn in the black frame area adjacent to the 1px outline
+                        # - 1px wide WHITE vertical ticks centered on each of 8 slots
+                        # - Drawn in the black frame area between outer frame and white rectangles
                         if local_x in (15, 23, 31, 39, 47, 55, 63, 71):
                             if tick_bottom_y0 <= local_y < tick_bottom_y1:
-                                return VIC_LIGHT_BLUE
+                                return VIC_WHITE
                         if is_white:
                             return VIC_LIGHT_BLUE
                         # Keep the active marker centered within the inner area.
@@ -590,10 +586,11 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                         if chamfer_color is not None:
                             return chamfer_color
                         # A/V pop tick marks (bottom only, shifted down):
-                        # - 1px wide light-blue vertical ticks centered on each half-rectangle (L/R)
+                        # - 1px wide WHITE vertical ticks centered on each half-rectangle (L/R)
+                        # - Drawn in the black frame area between outer frame and white rectangles
                         if local_x in (25, 62):
                             if tick_bottom_y0 <= local_y < tick_bottom_y1:
-                                return VIC_LIGHT_BLUE
+                                return VIC_WHITE
                         if is_white:
                             return VIC_LIGHT_BLUE
                         # Keep the active marker centered within the inner area.
