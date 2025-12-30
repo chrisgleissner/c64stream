@@ -60,7 +60,6 @@ PRESET_CONFIGS: dict[str, PresetAssertionConfig] = {
         },
         video_thresholds={
             "min_nonblack_ratio": 0.5,
-            "black_threshold": 2.5,  # CRT effects darken output
         },
     ),
     # Amber Monitor - Amber tint
@@ -71,9 +70,6 @@ PRESET_CONFIGS: dict[str, PresetAssertionConfig] = {
             "min_tint_ratio": 1.15,  # Amber is subtler than green
             "min_nonblack_sum": 400_000,
         },
-        video_thresholds={
-            "black_threshold": 1.0,  # Amber tint makes output very dark with CRT effects
-        },
     ),
     # Green Monitor - Green phosphor tint
     "green_monitor": PresetAssertionConfig(
@@ -82,9 +78,6 @@ PRESET_CONFIGS: dict[str, PresetAssertionConfig] = {
         tint_thresholds={
             "min_tint_ratio": 1.20,  # Strong green
             "min_nonblack_sum": 400_000,
-        },
-        video_thresholds={
-            "black_threshold": 2.0,  # CRT effects (blur+bloom+scanlines+tint) darken output significantly
         },
     ),
     # Sharp Pixels - No effects, similar to Default
@@ -106,7 +99,6 @@ PRESET_CONFIGS: dict[str, PresetAssertionConfig] = {
         },
         video_thresholds={
             "min_nonblack_ratio": 0.5,
-            "black_threshold": 2.0,  # CRT effects (blur+bloom+afterglow) darken output significantly
         },
     ),
     # Vintage TV - Scanlines + blur
@@ -119,7 +111,6 @@ PRESET_CONFIGS: dict[str, PresetAssertionConfig] = {
         },
         video_thresholds={
             "min_nonblack_ratio": 0.5,
-            "black_threshold": 2.5,  # CRT effects darken output
         },
     ),
     # Arcade Cabinet - Strong scanlines
@@ -132,7 +123,6 @@ PRESET_CONFIGS: dict[str, PresetAssertionConfig] = {
         },
         video_thresholds={
             "min_nonblack_ratio": 0.4,  # Scanlines reduce brightness significantly
-            "black_threshold": 2.0,  # CRT effects darken output
         },
     ),
 }

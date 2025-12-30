@@ -168,29 +168,7 @@ Examples:
 
     # Create assertions - from scenario list or auto-detect from preset
     if scenario_assertions:
-        # Load preset-specific thresholds if available
-        try:
-            import sys
-            sys.path.insert(0, str(Path(__file__).parent.parent))
-            from preset_assertions import get_preset_config
-
-            preset_config = get_preset_config(preset.name)
-            thresholds = {}
-            if preset_config:
-                if preset_config.video_thresholds:
-                    thresholds["video_quality"] = preset_config.video_thresholds
-                if preset_config.audio_thresholds:
-                    thresholds["audio"] = preset_config.audio_thresholds
-                if preset_config.tint_thresholds:
-                    thresholds["tint"] = preset_config.tint_thresholds
-                if preset_config.afterglow_thresholds:
-                    thresholds["afterglow"] = preset_config.afterglow_thresholds
-                if preset_config.scanline_thresholds:
-                    thresholds["scanlines"] = preset_config.scanline_thresholds
-            assertions = create_assertions_from_list(scenario_assertions, thresholds)
-        except ImportError:
-            # Fall back to default thresholds if preset_assertions not available
-            assertions = create_assertions_from_list(scenario_assertions)
+        assertions = create_assertions_from_list(scenario_assertions)
     else:
         assertions = create_preset_assertions(preset)
 
