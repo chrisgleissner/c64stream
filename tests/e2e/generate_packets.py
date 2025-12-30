@@ -140,6 +140,7 @@ VIC_BLACK = 0
 VIC_WHITE = 1
 VIC_DARK_BLUE = 6
 VIC_LIGHT_BLUE = 14
+VIC_LIGHT_GRAY = 15  # Used for tick marks
 
 # Ordered progression from darkest → brightest using all 16 VIC colors.
 # Sorted by approximate luminance to keep the diagonal gradient smooth.
@@ -414,8 +415,11 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
     marker_y0 = CORNER_FRAME_TOTAL + MARKER_SHIFT_Y
     marker_y1 = marker_y0 + marker_height
 
-    tick_bottom_y0 = CORNER_OUTER_HEIGHT - 4 + TICK_BOTTOM_SHIFT
-    tick_bottom_y1 = min(CORNER_OUTER_HEIGHT, tick_bottom_y0 + TICK_HEIGHT)
+    # Position ticks in the middle of the space between white rectangles and outer border
+    # White rectangles end at marker_y1 (46), outer border at 55, space is 47-54 (8 pixels)
+    # Center 3-pixel tick: start at 47 + (8-3)/2 = 49
+    tick_bottom_y0 = 49
+    tick_bottom_y1 = tick_bottom_y0 + TICK_HEIGHT
 
     # Pre-render text box content (9 chars × 5 lines for 72×40 inner area)
     # Line 1: Plugin name with rainbow effect on "STREAM", Lines 2-5: Scenario name (light gray)
@@ -525,11 +529,11 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                         if chamfer_color is not None:
                             return chamfer_color
                         # Frame-progression tick marks (bottom only, shifted down):
-                        # - 1px wide WHITE vertical ticks centered on each of 8 slots
+                        # - 1px wide LIGHT GRAY vertical ticks centered on each of 8 slots
                         # - Drawn in the black frame area between outer frame and white rectangles
                         if local_x in (15, 23, 31, 39, 47, 55, 63, 71):
                             if tick_bottom_y0 <= local_y < tick_bottom_y1:
-                                return VIC_WHITE
+                                return VIC_LIGHT_GRAY
                         if is_white:
                             return VIC_LIGHT_BLUE
                         # Keep the active marker centered within the inner area.
@@ -552,7 +556,9 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                     inner_x = local_x - CORNER_FRAME_TOTAL
                     inner_y = local_y - CORNER_FRAME_TOTAL
                     if 0 <= inner_x < CORNER_INNER_WIDTH and 0 <= inner_y < CORNER_INNER_HEIGHT:
-                        if marker_y0 <= local_y < marker_y1:
+                        # Only render bar within marker height range to match bottom-right widget
+                        inner_local_y = inner_y + CORNER_FRAME_TOTAL  # Convert back to local_y for comparison
+                        if marker_y0 <= inner_local_y < marker_y1:
                             # Center the 63px bar area in 72px width (4px left padding, 5px right)
                             bar_area_x = inner_x - 4
                             if 0 <= bar_area_x < 63:
@@ -586,11 +592,11 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                         if chamfer_color is not None:
                             return chamfer_color
                         # A/V pop tick marks (bottom only, shifted down):
-                        # - 1px wide WHITE vertical ticks centered on each half-rectangle (L/R)
+                        # - 1px wide LIGHT GRAY vertical ticks centered on each half-rectangle (L/R)
                         # - Drawn in the black frame area between outer frame and white rectangles
                         if local_x in (25, 62):
                             if tick_bottom_y0 <= local_y < tick_bottom_y1:
-                                return VIC_WHITE
+                                return VIC_LIGHT_GRAY
                         if is_white:
                             return VIC_LIGHT_BLUE
                         # Keep the active marker centered within the inner area.
