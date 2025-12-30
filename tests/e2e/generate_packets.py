@@ -599,25 +599,6 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                                 return VIC_LIGHT_GRAY
                         if is_white:
                             return VIC_LIGHT_BLUE
-                        # Keep the active marker centered within the inner area.
-                        if marker_y0 <= local_y < marker_y1:
-                            inner_x = local_x - CORNER_FRAME_TOTAL
-                            if 0 <= inner_x < CORNER_INNER_WIDTH:
-                                # Divider in center (positions 35 and 36 are black)
-                                half_width = 35  # (72 - 2) / 2 = 35
-                                is_left_half = inner_x < half_width
-                                is_divider = half_width <= inner_x < half_width + 2
-                                is_right_half = inner_x >= half_width + 2
-
-                                if is_divider:
-                                    return VIC_BLACK
-
-                                if sync_active and pop_index >= 0:
-                                    is_left_pop = (pop_index % 2) == 0
-                                    should_light = (is_left_half and is_left_pop) or (
-                                        is_right_half and not is_left_pop
-                                    )
-                                    return VIC_WHITE if should_light else VIC_BLACK
                         return VIC_BLACK
                     # Inner content: split into left/right halves with 2px black divider
                     # Layout: [left_half 35px] [divider 2px] [right_half 35px] = 72px
