@@ -14,8 +14,8 @@ uniform float4x4 ViewProj;
 uniform texture2d image;
 
 // CRT effect parameters
-uniform float scan_line_distance;      // Gap between scan lines as percentage of line height (0.0-2.0)
-uniform float scan_line_strength;      // Darkness of gaps (0.0=no effect, 1.0=completely black)
+uniform float scan_line_distance; // Gap between scan lines as percentage of line height (0.0-2.0)
+uniform float scan_line_strength; // Darkness of gaps (0.0=no effect, 1.0=completely black)
 uniform float pixel_width;
 uniform float pixel_height;
 uniform float blur_strength;
@@ -26,33 +26,35 @@ uniform int tint_mode;
 uniform float tint_strength;
 uniform float dt_ms;
 uniform texture2d texture_accum_prev;
-uniform float output_height;  // Source render height (plugin output)
-uniform float canvas_height;  // OBS canvas height (final output) for canvas-space scanlines
-uniform float source_width;   // Original C64 source width (e.g., 384)
-uniform float source_height;  // Original C64 source height (e.g., 270/272)
+uniform float output_height; // Source render height (plugin output)
+uniform float canvas_height; // OBS canvas height (final output) for canvas-space scanlines
+uniform float source_width;  // Original C64 source width (e.g., 384)
+uniform float source_height; // Original C64 source height (e.g., 270/272)
 
-sampler_state textureSampler {
-    Filter   = Point;  // Use nearest neighbor for pixel-perfect scaling
+sampler_state textureSampler
+{
+    Filter = Point; // Use nearest neighbor for pixel-perfect scaling
     AddressU = Clamp;
     AddressV = Clamp;
-    MinLOD   = 0.0;
-    MaxLOD   = 0.0;
+    MinLOD = 0.0;
+    MaxLOD = 0.0;
 };
 
-sampler_state linear_clamp {
-    Filter   = Linear;
+sampler_state linear_clamp
+{
+    Filter = Linear;
     AddressU = Clamp;
     AddressV = Clamp;
 };
 
 struct VertData {
     float4 pos : POSITION;
-    float2 uv  : TEXCOORD0;
+    float2 uv : TEXCOORD0;
 };
 
 struct VertDataOut {
     float4 pos : POSITION;
-    float2 uv  : TEXCOORD0;
+    float2 uv : TEXCOORD0;
     // Note: screen_pos removed - we'll use v_in.pos directly in pixel shader
     // which gives us the actual rasterized fragment position
 };
@@ -72,9 +74,10 @@ float3 ApplyAfterglow(float2 uv, float3 current_rgb)
 
     // Per-channel time constants (seconds) - red, green, blue phosphor decay rates
     // Scale by curve selection (smaller scale = faster decay)
-    float curve_scale = (afterglow_curve == 0) ? 0.25 :
-                        (afterglow_curve == 1) ? 0.5 :
-                        (afterglow_curve == 3) ? 2.0 : 1.0;
+    float curve_scale = (afterglow_curve == 0)   ? 0.25
+                        : (afterglow_curve == 1) ? 0.5
+                        : (afterglow_curve == 3) ? 2.0
+                                                 : 1.0;
     float3 tau = max(float3(0.6, 0.8, 0.3) * duration_s * curve_scale, float3(0.001, 0.001, 0.001));
 
     // Compute decay factor per channel for this frame (0..1)
@@ -123,7 +126,7 @@ VertDataOut VSDefault(VertData v_in)
 {
     VertDataOut vert_out;
     vert_out.pos = mul(float4(v_in.pos.xyz, 1.0), ViewProj);
-    vert_out.uv  = v_in.uv;
+    vert_out.uv = v_in.uv;
     return vert_out;
 }
 
@@ -170,7 +173,7 @@ float4 PSDefault(VertDataOut v_in) : TARGET
         float2 uv_br = saturate(uv + float2(blur_radius, -blur_radius));
 
         // 9-tap gaussian-style sampling (weights sum to 1.0)
-        color  = image.Sample(textureSampler, uv_c) * 0.25f;
+        color = image.Sample(textureSampler, uv_c) * 0.25f;
         color += image.Sample(textureSampler, uv_r) * 0.125f;
         color += image.Sample(textureSampler, uv_l) * 0.125f;
         color += image.Sample(textureSampler, uv_u) * 0.125f;
@@ -203,7 +206,7 @@ float4 PSDefault(VertDataOut v_in) : TARGET
         // Pattern repeats every N pixels for consistent appearance
         int total_pixels_per_unit;
         int scanline_pixels_per_unit;
-        if (scan_line_distance <= 0.25f) {       // Tight: 4 bright + 1 dark
+        if (scan_line_distance <= 0.25f) { // Tight: 4 bright + 1 dark
             total_pixels_per_unit = 5;
             scanline_pixels_per_unit = 4;
         } else if (scan_line_distance <= 0.5f) { // Normal: 2 bright + 1 dark
@@ -212,7 +215,7 @@ float4 PSDefault(VertDataOut v_in) : TARGET
         } else if (scan_line_distance <= 1.0f) { // Wide: 2 bright + 2 dark
             total_pixels_per_unit = 4;
             scanline_pixels_per_unit = 2;
-        } else {                                 // Extra Wide: 1 bright + 2 dark
+        } else { // Extra Wide: 1 bright + 2 dark
             total_pixels_per_unit = 3;
             scanline_pixels_per_unit = 1;
         }
@@ -311,6 +314,6 @@ technique Draw
     pass
     {
         vertex_shader = VSDefault(v_in);
-        pixel_shader  = PSDefault(v_in);
+        pixel_shader = PSDefault(v_in);
     }
 }

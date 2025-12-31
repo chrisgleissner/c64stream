@@ -551,10 +551,12 @@ static const uint32_t *c64_get_afterglow_output_pixels(struct c64_source *contex
     // Prefetch next cache lines to reduce memory stall cycles (typical L1 miss: ~4-7 cycles)
     // Prefetch 64 pixels (256 bytes) ahead for both read and write arrays
     const size_t prefetch_distance = 64;
+#if defined(__GNUC__) || defined(__clang__)
     for (size_t p = 0; p + prefetch_distance <= pixel_count; p += prefetch_distance) {
         __builtin_prefetch(&curr_pixels[p + prefetch_distance], 0, 3); // Read, high temporal locality
         __builtin_prefetch(&acc[p + prefetch_distance], 1, 3);         // Write, high temporal locality
     }
+#endif
 
 #if defined(__AVX2__) || defined(_MSC_VER)
     if (c64_cpu_has_avx2) {
