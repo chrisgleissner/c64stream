@@ -1850,8 +1850,8 @@ class E2ETest:
         import glob
         import os
 
-        video_dir = self.packet_dir / 'video' / self.format
-        audio_dir = self.packet_dir / 'audio' / self.format
+        video_dir = (self.packet_dir / 'video' / self.format).resolve()
+        audio_dir = (self.packet_dir / 'audio' / self.format).resolve()
 
         if not video_dir.exists() or not audio_dir.exists():
             raise FileNotFoundError(f"Packet directories not found: {video_dir}, {audio_dir}")

@@ -1,0 +1,12 @@
+name: NTSC 500ms Buffer + 500ms Jitter
+format: NTSC
+preset: Default
+overrides:
+  buffer_delay_ms: 500
+network_simulation:
+  max_jitter_ms: 500
+av_sync_tolerance_ms: 150
+assertions:
+  - frame_progression
+  - video_quality
+  - audio
