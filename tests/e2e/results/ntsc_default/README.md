@@ -1,8 +1,8 @@
 # C64 Stream E2E Test Report
 
-## Scenario: NTSC Default 720p
+## Scenario: NTSC Default
 
-Generated: 2025-12-31 14:01:15 UTC
+Generated: 2025-12-31 14:00:28 UTC
 
 ## Test configuration
 
@@ -34,9 +34,9 @@ During the test's processing window (7.6s, 16 of 33 samples) (8 cores):
 
 | Metric | Min | Median | Mean | Max |
 |--------|-----|--------|------|-----|
-| CPU | 33.8% | 46.65% | 47.56% | 53.1% |
-| RAM | 4192.42 MB | 4222.73 MB | 4222.5 MB | 4230.89 MB |
-| GPU | 2.12% | 2.82% | 4.14% | 23.39% |
+| CPU | 50.9% | 51.7% | 52.46% | 55.1% |
+| RAM | 4421.27 MB | 4463.83 MB | 4459.91 MB | 4473.31 MB |
+| GPU | 0.0% | 0.68% | 0.66% | 1.48% |
 
 Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
@@ -48,19 +48,19 @@ Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
 ### A/V Sync
 
-- ✅ Good synchronization (100.0%): avg offset 22.8ms, max 32.4ms
+- ✅ Good synchronization (100.0%): avg offset 18.6ms, max 22.6ms
 
 #### Sync Details
 
-- 🟢 Pop #1 [L]: audio=2854.0ms, video=2841.6ms (frame 170), diff=12.4ms
-- 🟢 Pop #2 [R]: audio=3654.0ms, video=3643.9ms (frame 218), diff=10.1ms
-- 🟢 Pop #3 [L]: audio=4454.0ms, video=4446.2ms (frame 266), diff=7.8ms
-- 🟢 Pop #4 [R]: audio=5281.0ms, video=5248.6ms (frame 314), diff=32.4ms
-- 🟢 Pop #5 [L]: audio=6081.0ms, video=6050.9ms (frame 362), diff=30.1ms
-- 🟢 Pop #6 [R]: audio=6881.0ms, video=6853.2ms (frame 410), diff=27.8ms
-- 🟢 Pop #7 [L]: audio=7686.0ms, video=7655.5ms (frame 458), diff=30.5ms
-- 🟢 Pop #8 [R]: audio=8486.0ms, video=8457.9ms (frame 506), diff=28.1ms
-- 🟢 Pop #9 [L]: audio=9286.0ms, video=9260.2ms (frame 554), diff=25.8ms
+- 🟢 Pop #1 [L]: audio=2697.0ms, video=2674.4ms (frame 160), diff=22.6ms
+- 🟢 Pop #2 [R]: audio=3497.0ms, video=3476.7ms (frame 208), diff=20.3ms
+- 🟢 Pop #3 [L]: audio=4297.0ms, video=4279.1ms (frame 256), diff=17.9ms
+- 🟢 Pop #4 [R]: audio=5102.0ms, video=5081.4ms (frame 304), diff=20.6ms
+- 🟢 Pop #5 [L]: audio=5902.0ms, video=5883.7ms (frame 352), diff=18.3ms
+- 🟢 Pop #6 [R]: audio=6702.0ms, video=6686.1ms (frame 400), diff=15.9ms
+- 🟢 Pop #7 [L]: audio=7508.0ms, video=7488.4ms (frame 448), diff=19.6ms
+- 🟢 Pop #8 [R]: audio=8308.0ms, video=8290.7ms (frame 496), diff=17.3ms
+- 🟢 Pop #9 [L]: audio=9108.0ms, video=9093.0ms (frame 544), diff=15.0ms
 
 - Channels: LRLRLRLRL
 - 🔁 Channel alternation: OK (alternating, starts with L)
@@ -73,8 +73,8 @@ Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
 | Window | Stuck runs (count/min/med/max) | Skips (count/min/med/max) | Back steps | Severe steps |
 |--------|------------------------------:|--------------------------:|-----------:|-------------:|
-| During settling | 1/3/3/3 | 1/2/2/2 | 0 | 0 |
-| After settling | 0/0/0/0 | 1/1/1/1 | 0 | 0 |
+| During settling | 1/2/2/2 | 1/1/1/1 | 0 | 0 |
+| After settling | 0/0/0/0 | 0/0/0/0 | 0 | 0 |
 
 See [playback.csv](playback.csv) for frame-by-frame playback timeline with anomaly markers.
 
@@ -82,18 +82,17 @@ See [playback.csv](playback.csv) for frame-by-frame playback timeline with anoma
 
 - Definition: rows with repeated=1 or skipped=1 in playback.csv; clustering uses max gap 0.5s
 - Note: this is independent from the Frame Progression (frame-box) check above
-- Note: repeated/skipped markers only exist while content is detected (video_s 2.457–13.439).
+- Note: repeated/skipped markers only exist while content is detected (video_s 2.290–13.289).
   The jitter-free tail after content ends is expected and does not indicate steady-state performance.
 
 | # | Events | Center (s) | Std dev (s) | Span (s) | Window (s) |
 |---|--------|------------|-------------|----------|------------|
-| 1 | 2 | 4.614 | 0.016 | 0.033 | 4.597–4.630 |
-| 2 | 1 | 9.628 | 0.000 | 0.000 | 9.628–9.628 |
+| 1 | 1 | 4.413 | 0.000 | 0.000 | 4.413–4.413 |
 
 ### Video
 
 - Download: [c64_recording.mp4](c64_recording.mp4) (Available from local runs or CI build artifacts.)
-- Duration: 14.0 s
+- Duration: 13.8 s
 
 
 ### Sample Frame
@@ -105,4 +104,4 @@ See [playback.csv](playback.csv) for frame-by-frame playback timeline with anoma
 - **Center**: Diagonal pattern cycling through all C64 colors
 - **Bottom-left**: Frame progression indicator (8-slot moving bar, cycles every 8 frames)
 - **Bottom-right**: A/V pop indicator (pops every 48 frames, split left/right for audio channels)
-- Taken from frame 170 at 00:02.8 of the 14.0 s video above.
+- Taken from frame 160 at 00:02.7 of the 13.8 s video above.
