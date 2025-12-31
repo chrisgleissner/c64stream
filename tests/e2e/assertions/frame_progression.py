@@ -203,18 +203,18 @@ def _detect_position_marker(
         # 1. Calculate the overall luminance range and delta range for this frame
         lum_range = max(slot_luminances) - min_lum
         delta_range = max_delta - min(deltas)
-        
+
         # 2. Compute adaptive thresholds as percentages of the observed ranges
         #    This makes detection robust across different encoding environments
         adaptive_min_delta = max(2.0, 0.15 * lum_range)  # 15% of luminance range, min 2.0
         adaptive_min_margin = max(0.3, 0.10 * delta_range)  # 10% of delta range, min 0.3
         adaptive_min_contrast = max(4.0, 0.20 * lum_range)  # 20% of luminance range, min 4.0
         adaptive_min_brightness = max(15.0, 0.25 * max(slot_luminances))  # 25% of max brightness, min 15.0
-        
+
         # 3. Apply adaptive thresholds
-        if (max_delta >= adaptive_min_delta and 
-            delta_margin >= adaptive_min_margin and 
-            lum_contrast >= adaptive_min_contrast and 
+        if (max_delta >= adaptive_min_delta and
+            delta_margin >= adaptive_min_margin and
+            lum_contrast >= adaptive_min_contrast and
             slot_lum >= adaptive_min_brightness):
             return detected_slot, slot_luminances
 

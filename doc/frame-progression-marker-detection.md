@@ -52,9 +52,9 @@ adaptive_min_contrast = max(4.0, 0.20 * lum_range)   # 20% of range, min 4.0
 adaptive_min_brightness = max(15.0, 0.25 * max_lum)  # 25% of max, min 15.0
 
 # 3. Apply adaptive thresholds
-if (max_delta >= adaptive_min_delta and 
-    delta_margin >= adaptive_min_margin and 
-    lum_contrast >= adaptive_min_contrast and 
+if (max_delta >= adaptive_min_delta and
+    delta_margin >= adaptive_min_margin and
+    lum_contrast >= adaptive_min_contrast and
     slot_lum >= adaptive_min_brightness):
     return detected_slot
 ```
@@ -77,7 +77,7 @@ Frames where detection fails are marked as "ambiguous" and excluded from analysi
 ambiguous_ratio = ambiguous_frames / analyzed_frames > 0.40
 ```
 
-**Before adaptive thresholds**: Fedora 40 CI hit >40% ambiguous ratio (sporadic failures)  
+**Before adaptive thresholds**: Fedora 40 CI hit >40% ambiguous ratio (sporadic failures)
 **After adaptive thresholds**: Ambiguous ratio dropped to 0% (robust detection)
 
 ## Threshold Rationale

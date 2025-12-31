@@ -35,6 +35,7 @@ class ScenarioConfig:
     format: str  # PAL or NTSC
     preset: str
     overrides: dict[str, Any] = field(default_factory=dict)
+    network_simulation: dict[str, Any] = field(default_factory=dict)
     assertions: list[str] = field(default_factory=list)
     scenario_dir: Path = field(default_factory=Path)
 
@@ -106,6 +107,7 @@ def load_scenario(scenario_path: Path) -> ScenarioConfig:
         format=data.get("format", "NTSC"),
         preset=data.get("preset", "Default"),
         overrides=data.get("overrides", {}),
+        network_simulation=data.get("network_simulation", {}),
         assertions=data.get("assertions", ["video_quality", "audio"]),
         scenario_dir=scenario_path.parent,
     )

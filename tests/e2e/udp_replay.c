@@ -5,41 +5,31 @@ Copyright (C) 2025 Christian Gleissner
 Licensed under the GNU General Public License v2.0 or later.
 See <https://www.gnu.org/licenses/> for details.
 
-High-performance UDP packet sender for replaying pre-generated C64 Ultimate
-stream packets. Designed for maximum throughput to handle the high bandwidth
-requirements of the C64 Ultimate protocol.
+Ultra-simple packet sender: reads a CSV manifest file and blindly sends packets
+with precalculated delays. No logic, no randomization - just read, send, sleep.
+
+Manifest format (CSV):
+  filename,delay_us
+  video_0000_0000.bin,333
+  video_0000_0001.bin,280
+  ...
+
+All simulation logic (jitter, reordering) is precalculated by Python.
 */
+
+#define _POSIX_C_SOURCE 199309L
 
 #ifdef _WIN32
 #ifndef _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_WARNINGS
 #endif
-#else
-// Define POSIX version for nanosleep before any includes
-#define _POSIX_C_SOURCE 199309L
-#endif
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <errno.h>
-#include <time.h>
-
-#ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #pragma comment(lib, "ws2_32.lib")
-
 typedef int ssize_t;
 
-// Windows directory handling
-#include <io.h>
-#include <direct.h>
-typedef struct _finddata_t finddata_t;
-
-// Windows timing
 static inline double get_time_ms(void)
 {
     LARGE_INTEGER freq, counter;
@@ -53,14 +43,12 @@ static void sleep_us(long microseconds)
     Sleep((DWORD)(microseconds / 1000));
 }
 #else
-// POSIX includes
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <sys/time.h>
-#include <dirent.h>
+#include <time.h>
 
-// POSIX timing
 static inline double get_time_ms(void)
 {
     struct timeval tv;
@@ -77,239 +65,150 @@ static void sleep_us(long microseconds)
 }
 #endif
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <errno.h>
+
 #define MAX_PACKET_SIZE 1024
 #define MAX_PATH_LEN 512
+#define MAX_MANIFEST_ENTRIES 50000
 
-int compare_filenames(const void *a, const void *b)
+struct packet_entry {
+    char filename[256];
+    long delay_us;
+};
+
+static int load_manifest(const char *path, struct packet_entry **entries, int *count)
 {
-    return strcmp(*(const char **)a, *(const char **)b);
-}
-
-// Cross-platform directory scanning
-#ifdef _WIN32
-static int scan_directory(const char *dir_path, char ***filenames, int *file_count)
-{
-    char search_path[MAX_PATH_LEN];
-    snprintf(search_path, sizeof(search_path), "%s\\*.bin", dir_path);
-
-    intptr_t handle;
-    finddata_t fileinfo;
-    int file_capacity = 1000;
-
-    *filenames = malloc(file_capacity * sizeof(char *));
-    if (!*filenames)
+    FILE *f = fopen(path, "r");
+    if (!f)
         return -1;
 
-    *file_count = 0;
-    handle = _findfirst(search_path, &fileinfo);
-
-    if (handle == -1) {
-        free(*filenames);
+    *entries = malloc(MAX_MANIFEST_ENTRIES * sizeof(struct packet_entry));
+    if (!*entries) {
+        fclose(f);
         return -1;
     }
 
-    do {
-        if (*file_count >= file_capacity) {
-            file_capacity *= 2;
-            char **new_filenames = realloc(*filenames, file_capacity * sizeof(char *));
-            if (!new_filenames) {
-                for (int i = 0; i < *file_count; i++)
-                    free((*filenames)[i]);
-                free(*filenames);
-                _findclose(handle);
-                return -1;
-            }
-            *filenames = new_filenames;
+    *count = 0;
+    char line[512];
+
+    // Skip header if present
+    if (fgets(line, sizeof(line), f) && !(strstr(line, "filename") && strstr(line, "delay")))
+        rewind(f);
+
+    while (fgets(line, sizeof(line), f) && *count < MAX_MANIFEST_ENTRIES) {
+        char *comma = strchr(line, ',');
+        if (!comma)
+            continue;
+
+        *comma = '\0';
+        char *fname = line;
+        long delay = atol(comma + 1);
+
+        // Trim whitespace and newlines
+        size_t len = strlen(fname);
+        while (len > 0 &&
+               (fname[len - 1] == ' ' || fname[len - 1] == '\t' || fname[len - 1] == '\r' || fname[len - 1] == '\n')) {
+            fname[--len] = '\0';
         }
 
-        (*filenames)[*file_count] = malloc(strlen(fileinfo.name) + 1);
-        if ((*filenames)[*file_count]) {
-            strcpy((*filenames)[*file_count], fileinfo.name);
-            (*file_count)++;
-        }
-    } while (_findnext(handle, &fileinfo) == 0);
+        // Use snprintf for safe copying
+        snprintf((*entries)[*count].filename, sizeof((*entries)[0].filename), "%s", fname);
+        (*entries)[*count].delay_us = delay;
+        (*count)++;
+    }
 
-    _findclose(handle);
+    fclose(f);
     return 0;
 }
-#else
-static int scan_directory(const char *dir_path, char ***filenames, int *file_count)
+
+int main(int argc, char **argv)
 {
-    DIR *dir;
-    struct dirent *entry;
-    int file_capacity = 1000;
-
-    *filenames = malloc(file_capacity * sizeof(char *));
-    if (!*filenames)
-        return -1;
-
-    dir = opendir(dir_path);
-    if (!dir) {
-        free(*filenames);
-        return -1;
+    if (argc < 6) {
+        printf("Usage: %s <manifest> <dir> <host> <port> <packet_size> [--verbose]\n", argv[0]);
+        return 1;
     }
 
-    *file_count = 0;
-    while ((entry = readdir(dir)) != NULL) {
-        if (strstr(entry->d_name, ".bin")) {
-            if (*file_count >= file_capacity) {
-                file_capacity *= 2;
-                char **new_filenames = realloc(*filenames, file_capacity * sizeof(char *));
-                if (!new_filenames) {
-                    for (int i = 0; i < *file_count; i++)
-                        free((*filenames)[i]);
-                    free(*filenames);
-                    closedir(dir);
-                    return -1;
-                }
-                *filenames = new_filenames;
-            }
+    const char *manifest_path = argv[1];
+    const char *dir_path = argv[2];
+    const char *host = argv[3];
+    int port = atoi(argv[4]);
+    int packet_size = atoi(argv[5]);
+    int verbose = (argc > 6 && strcmp(argv[6], "--verbose") == 0);
 
-            (*filenames)[*file_count] = malloc(strlen(entry->d_name) + 1);
-            if ((*filenames)[*file_count]) {
-                strcpy((*filenames)[*file_count], entry->d_name);
-                (*file_count)++;
-            }
-        }
+    if (port <= 0 || port > 65535 || packet_size <= 0 || packet_size > MAX_PACKET_SIZE) {
+        fprintf(stderr, "Invalid port or packet_size\n");
+        return 1;
     }
-    closedir(dir);
-    return 0;
-}
-#endif
-
-int send_packets_from_directory(const char *dir_path, const char *host, int port, int packet_size, long delay_us,
-                                int verbose)
-{
-    struct sockaddr_in addr;
-#ifdef _WIN32
-    SOCKET sock;
-#else
-    int sock;
-#endif
-    int packets_sent = 0;
-    char **filenames = NULL;
-    int file_count = 0;
 
 #ifdef _WIN32
-    // Initialize Winsock
     WSADATA wsaData;
-    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-        fprintf(stderr, "WSAStartup failed\n");
-        return -1;
-    }
-#endif
-
-    // Create UDP socket
-    sock = socket(AF_INET, SOCK_DGRAM, 0);
-#ifdef _WIN32
-    if (sock == INVALID_SOCKET) {
-        fprintf(stderr, "Failed to create socket: %d\n", WSAGetLastError());
-        WSACleanup();
-        return -1;
-    }
+    WSAStartup(MAKEWORD(2, 2), &wsaData);
+    SOCKET sock = socket(AF_INET, SOCK_DGRAM, 0);
 #else
-    if (sock < 0) {
-        fprintf(stderr, "Failed to create socket: %s\n", strerror(errno));
-        return -1;
-    }
+    int sock = socket(AF_INET, SOCK_DGRAM, 0);
 #endif
+    if (sock < 0) {
+        fprintf(stderr, "Failed to create socket\n");
+        return 1;
+    }
 
-    // Configure destination address
+    struct sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
     addr.sin_port = htons((unsigned short)port);
-    if (inet_pton(AF_INET, host, &addr.sin_addr) <= 0) {
-        fprintf(stderr, "Invalid address: %s\n", host);
-#ifdef _WIN32
-        closesocket(sock);
-        WSACleanup();
-#else
-        close(sock);
-#endif
-        return -1;
+    inet_pton(AF_INET, host, &addr.sin_addr);
+
+    struct packet_entry *entries = NULL;
+    int count = 0;
+
+    if (load_manifest(manifest_path, &entries, &count) != 0) {
+        fprintf(stderr, "Failed to load manifest\n");
+        return 1;
     }
 
-    // Scan directory for .bin files
-    if (scan_directory(dir_path, &filenames, &file_count) != 0) {
-        fprintf(stderr, "Failed to scan directory: %s\n", dir_path);
+    if (verbose)
+        printf("Loaded %d entries from manifest\n", count);
+
+    double start = get_time_ms();
+    int sent = 0;
+
+    for (int i = 0; i < count; i++) {
+        char path[MAX_PATH_LEN];
 #ifdef _WIN32
-        closesocket(sock);
-        WSACleanup();
+        snprintf(path, sizeof(path), "%s\\%s", dir_path, entries[i].filename);
 #else
-        close(sock);
-#endif
-        return -1;
-    }
-
-    // Sort filenames alphabetically to ensure correct order
-    qsort(filenames, file_count, sizeof(char *), compare_filenames);
-
-    if (verbose) {
-        printf("Found %d packet files in %s\n", file_count, dir_path);
-        printf("Sending to %s:%d with %ld us delay between packets\n", host, port, delay_us);
-    }
-
-    double start_time = get_time_ms();
-
-    // Send each packet file
-    for (int i = 0; i < file_count; i++) {
-        char filepath[MAX_PATH_LEN];
-#ifdef _WIN32
-        snprintf(filepath, sizeof(filepath), "%s\\%s", dir_path, filenames[i]);
-#else
-        snprintf(filepath, sizeof(filepath), "%s/%s", dir_path, filenames[i]);
+        snprintf(path, sizeof(path), "%s/%s", dir_path, entries[i].filename);
 #endif
 
-        FILE *f = fopen(filepath, "rb");
-        if (!f) {
-            if (verbose)
-                fprintf(stderr, "Warning: Failed to open %s: %s\n", filepath, strerror(errno));
+        FILE *f = fopen(path, "rb");
+        if (!f)
             continue;
-        }
 
-        // Read packet data
-        unsigned char buffer[MAX_PACKET_SIZE];
-        size_t bytes_read = fread(buffer, 1, packet_size, f);
+        unsigned char buf[MAX_PACKET_SIZE];
+        size_t n = fread(buf, 1, packet_size, f);
         fclose(f);
 
-        if (bytes_read != (size_t)packet_size) {
-            if (verbose)
-                fprintf(stderr, "Warning: Expected %d bytes, got %zu in %s\n", packet_size, bytes_read, filepath);
+        if (n != (size_t)packet_size)
             continue;
-        }
 
-        // Send packet
-        ssize_t sent = sendto(sock, (const char *)buffer, packet_size, 0, (struct sockaddr *)&addr, sizeof(addr));
-        if (sent < 0) {
-            fprintf(stderr, "Send failed: %s\n", strerror(errno));
-            break;
-        }
+        sendto(sock, (char *)buf, packet_size, 0, (struct sockaddr *)&addr, sizeof(addr));
+        sent++;
 
-        packets_sent++;
+        if (entries[i].delay_us > 0)
+            sleep_us(entries[i].delay_us);
 
-        // Apply inter-packet delay if specified
-        if (delay_us > 0) {
-            sleep_us(delay_us);
-        }
-
-        // Progress indicator every 100 packets
-        if (verbose && packets_sent % 100 == 0) {
-            printf("  Sent %d/%d packets\n", packets_sent, file_count);
-        }
+        if (verbose && sent % 500 == 0)
+            printf("  Sent %d/%d\n", sent, count);
     }
 
-    double elapsed_ms = get_time_ms() - start_time;
-    double packets_per_sec = (packets_sent * 1000.0) / elapsed_ms;
+    double elapsed = get_time_ms() - start;
+    if (verbose)
+        printf("✅ Sent %d packets in %.1fms\n", sent, elapsed);
 
-    if (verbose) {
-        printf("✅ Sent %d packets in %.2f ms (%.1f packets/sec)\n", packets_sent, elapsed_ms, packets_per_sec);
-    }
-
-    // Cleanup
-    for (int i = 0; i < file_count; i++) {
-        free(filenames[i]);
-    }
-    free(filenames);
+    free(entries);
 #ifdef _WIN32
     closesocket(sock);
     WSACleanup();
@@ -317,67 +216,5 @@ int send_packets_from_directory(const char *dir_path, const char *host, int port
     close(sock);
 #endif
 
-    return packets_sent;
-}
-
-void print_usage(const char *prog_name)
-{
-    printf("UDP Packet Replay Tool for C64 Stream Testing\n\n");
-    printf("Usage: %s <directory> <host> <port> <packet_size> [options]\n\n", prog_name);
-    printf("Arguments:\n");
-    printf("  directory     Directory containing .bin packet files\n");
-    printf("  host          Destination IP address\n");
-    printf("  port          Destination UDP port\n");
-    printf("  packet_size   Size of each packet in bytes\n\n");
-    printf("Options:\n");
-    printf("  --delay <us>  Microsecond delay between packets (default: 0)\n");
-    printf("  --verbose     Print detailed progress information\n");
-    printf("  --help        Show this help message\n\n");
-    printf("Examples:\n");
-    printf("  # Send video packets with 300us delay\n");
-    printf("  %s test_packets/video/PAL 127.0.0.1 11000 780 --delay 300\n\n", prog_name);
-    printf("  # Send audio packets\n");
-    printf("  %s test_packets/audio/PAL 127.0.0.1 11001 770\n\n", prog_name);
-}
-
-int main(int argc, char **argv)
-{
-    if (argc < 5) {
-        print_usage(argv[0]);
-        return 1;
-    }
-
-    const char *dir_path = argv[1];
-    const char *host = argv[2];
-    int port = atoi(argv[3]);
-    int packet_size = atoi(argv[4]);
-    long delay_us = 0;
-    int verbose = 0;
-
-    // Parse optional arguments
-    for (int i = 5; i < argc; i++) {
-        if (strcmp(argv[i], "--delay") == 0 && i + 1 < argc) {
-            delay_us = atol(argv[++i]);
-        } else if (strcmp(argv[i], "--verbose") == 0) {
-            verbose = 1;
-        } else if (strcmp(argv[i], "--help") == 0) {
-            print_usage(argv[0]);
-            return 0;
-        }
-    }
-
-    // Validate parameters
-    if (port <= 0 || port > 65535) {
-        fprintf(stderr, "Error: Invalid port number: %d\n", port);
-        return 1;
-    }
-
-    if (packet_size <= 0 || packet_size > MAX_PACKET_SIZE) {
-        fprintf(stderr, "Error: Invalid packet size: %d (max %d)\n", packet_size, MAX_PACKET_SIZE);
-        return 1;
-    }
-
-    int result = send_packets_from_directory(dir_path, host, port, packet_size, delay_us, verbose);
-
-    return (result > 0) ? 0 : 1;
+    return (sent > 0) ? 0 : 1;
 }

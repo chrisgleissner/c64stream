@@ -66,7 +66,8 @@ class E2ETest:
                  perf_frequency_hz: int = 99,
                  perf_callgraph: str = 'fp',
                  perf_duration_s: float | None = None,
-                 enable_flamegraph: bool = False):
+                 enable_flamegraph: bool = False,
+                 network_simulation: dict | None = None):
         self.test_dir = Path(test_dir)
         self.video_port = video_port
         self.audio_port = audio_port
@@ -79,6 +80,7 @@ class E2ETest:
         self.scenario_overrides_dir = Path(scenario_overrides_dir).resolve() if scenario_overrides_dir else None
         self.scenario_name = scenario_name
         self.scenario_id = scenario_id
+        self.network_simulation = network_simulation or {}  # Store network simulation config
 
         self.settling_seconds = float(settling_seconds) if settling_seconds is not None else 0.0
         self._obs_start_time_s: float | None = None
@@ -1982,71 +1984,215 @@ class E2ETest:
             # Sort by timestamp for proper interleaving
             timeline.sort(key=lambda x: x['time_us'])
 
+            # Apply network simulation if configured
+            import random
+            random.seed()  # Use current time as seed
+
+            self.log(f"🔍 Network simulation config: {self.network_simulation}")
+
+            # 1. Apply jitter (positive-only delay variability)
+            # Jitter simulates network delay variation - packets can only be delayed, never early
+            jitter_percent = self.network_simulation.get('jitter_percent', 0)
+            self.log(f"🔍 Jitter percent: {jitter_percent}")
+            if jitter_percent > 0:
+                jitter_count = 0
+                for i in range(1, len(timeline)):
+                    prev_time = timeline[i-1]['time_us']
+                    current_time = timeline[i]['time_us']
+                    base_interval = current_time - prev_time
+
+                    # Apply +jitter_percent positive delay (0 to +jitter_percent)
+                    jitter_range = base_interval * jitter_percent / 100.0
+                    jitter = random.uniform(0, jitter_range)  # POSITIVE ONLY
+                    timeline[i]['time_us'] += jitter
+                    timeline[i]['jittered'] = True
+                    jitter_count += 1
+
+                self.log(f"📊 Jitter enabled: 0-{jitter_percent}% positive delay applied to {jitter_count} packet intervals")
+
+            # 2. Apply packet reordering (positive-only delay for out-of-order delivery)
+            # Reordering simulates packets taking longer routes - they arrive later, not earlier
+            reorder_percent = self.network_simulation.get('reorder_percent', 0)
+            reorder_max_delay_ms = self.network_simulation.get('reorder_max_delay_ms', 0)
+
+            if reorder_percent > 0 and reorder_max_delay_ms > 0:
+                reorder_count = 0
+
+                for event in timeline:
+                    # Decide if this packet should be reordered based on probability
+                    if random.randint(0, 99) < reorder_percent:
+                        # Apply random POSITIVE delay between 0 and max_delay_ms
+                        delay_us = random.randint(0, reorder_max_delay_ms * 1000)
+                        event['time_us'] += delay_us  # POSITIVE ONLY
+                        event['reordered'] = True
+                        reorder_count += 1
+                    else:
+                        event['reordered'] = False
+
+                self.log(f"🔀 Packet reordering enabled: {reorder_percent}% probability, 0-{reorder_max_delay_ms}ms positive delay")
+                self.log(f"🔀 Applied reordering to {reorder_count}/{len(timeline)} packets")
+
+            # RE-SORT timeline by time_us after simulation!
+            # This is CORRECT: packets should be sent in TIME ORDER (when they're scheduled to arrive)
+            # Reordering creates out-of-order SEQUENCE NUMBERS, which is the intended effect
+            timeline.sort(key=lambda x: x['time_us'])
+
+            if jitter_percent > 0 or reorder_percent > 0:
+                self.log(f"✅ Network simulation applied, timeline sorted by scheduled arrival time")
+
             self.log(f"🎯 Generated {len(timeline)} interleaved packets over {timeline[-1]['time_us']/1000:.1f}ms")
 
-            # Send packets with precise timing and better error handling
-            replay_start_time = time.time()
-            packets_sent = 0
-            failed_packets = 0
+            # Generate manifests for C binary sender
+            # Packets are in TIME ORDER - they will be sent when scheduled
+            # This naturally creates out-of-order sequence numbers (reordering effect)
+            video_manifest = []
+            audio_manifest = []
+
+            for event in timeline:
+                if event['type'] == 'video':
+                    video_manifest.append(event)
+                else:
+                    audio_manifest.append(event)
+
+            # DO NOT sort by filename! Keep them in time order
+            # The C binary will send them in the order they appear in the manifest
+
+            # Debug: Check timing of first few packets
+            self.log(f"🔍 First 5 video packets timing:")
+            for i in range(min(5, len(video_manifest))):
+                self.log(f"   [{i}] {Path(video_manifest[i]['file']).name}: time_us={video_manifest[i]['time_us']:.1f}")
+            self.log(f"🔍 First 5 audio packets timing:")
+            for i in range(min(5, len(audio_manifest))):
+                self.log(f"   [{i}] {Path(audio_manifest[i]['file']).name}: time_us={audio_manifest[i]['time_us']:.1f}")
+
+            # Write manifests as CSV files (filename,delay_us)
+            # CRITICAL: Use absolute time from global timeline start for each packet
+            # This preserves jitter/reordering while keeping sequence order
+            video_manifest_path = self.output_dir / 'video_manifest.csv'
+            audio_manifest_path = self.output_dir / 'audio_manifest.csv'
+
+            with open(video_manifest_path, 'w') as f:
+                f.write("filename,delay_us\n")
+                cumulative_time = 0
+                for i, event in enumerate(video_manifest):
+                    # Calculate delay from last sent time to this packet's scheduled time
+                    delay_us = max(0, int(event['time_us'] - cumulative_time))
+                    filename = Path(event['file']).name
+                    f.write(f"{filename},{delay_us}\n")
+                    # Update cumulative time to when this packet is scheduled
+                    cumulative_time = event['time_us']
+
+            with open(audio_manifest_path, 'w') as f:
+                f.write("filename,delay_us\n")
+                cumulative_time = 0
+                for i, event in enumerate(audio_manifest):
+                    # Calculate delay from last sent time to this packet's scheduled time
+                    delay_us = max(0, int(event['time_us'] - cumulative_time))
+                    filename = Path(event['file']).name
+                    f.write(f"{filename},{delay_us}\n")
+                    # Update cumulative time to when this packet is scheduled
+                    cumulative_time = event['time_us']
+
+            self.log(f"📝 Generated manifests: {len(video_manifest)} video, {len(audio_manifest)} audio packets")
+            self.log(f"   Video starts at: {video_manifest[0]['time_us']/1000:.1f}ms")
+            self.log(f"   Audio starts at: {audio_manifest[0]['time_us']/1000:.1f}ms")
+
+            # Compile C binary if needed
+            import subprocess
+            udp_replay_bin = Path(__file__).parent / 'udp_replay'
+            udp_replay_src = Path(__file__).parent / 'udp_replay.c'
+
+            if not udp_replay_bin.exists() or udp_replay_src.stat().st_mtime > udp_replay_bin.stat().st_mtime:
+                self.log("🔨 Compiling udp_replay binary...")
+                compile_cmd = [
+                    'gcc', '-D_POSIX_C_SOURCE=199309L', '-O2', '-Wall', '-Wextra',
+                    '-o', str(udp_replay_bin), str(udp_replay_src)
+                ]
+                result = subprocess.run(compile_cmd, capture_output=True, text=True)
+                if result.returncode != 0:
+                    self.log(f"❌ Failed to compile udp_replay: {result.stderr}")
+                    raise RuntimeError("udp_replay compilation failed")
+                self.log("✅ Compiled udp_replay binary")
 
             # Start resource monitoring RIGHT when packets begin flowing
-            # (resource monitor warmup is handled in run() after OBS start)
             if self.enable_resource_monitoring and self._resource_monitor:
                 self._resource_monitor.start()
                 self.log(f"📊 Resource monitoring started (interval: {self.resource_interval_ms}ms)")
 
-            for event in timeline:
-                # Calculate when this packet should be sent
-                target_time = replay_start_time + event['time_us'] / 1_000_000.0
+            # Spawn C binary processes for video and audio in parallel
+            replay_start_time = time.time()
 
-                # Wait until the precise moment
-                current_time = time.time()
-                if current_time < target_time:
-                    time.sleep(target_time - current_time)
+            video_cmd = [
+                str(udp_replay_bin),
+                str(video_manifest_path),
+                str(video_dir),
+                self.video_dest_ip,
+                str(self.video_dest_port),
+                '780',  # video packet size
+                '--verbose'
+            ]
 
-                # Read and send packet
-                try:
-                    with open(event['file'], 'rb') as f:
-                        packet_data = f.read()
+            audio_cmd = [
+                str(udp_replay_bin),
+                str(audio_manifest_path),
+                str(audio_dir),
+                self.audio_dest_ip,
+                str(self.audio_dest_port),
+                '770',  # audio packet size
+                '--verbose'
+            ]
 
-                    if len(packet_data) == 0:
-                        self.log(f"❌ Empty packet file: {event['file']}")
-                        failed_packets += 1
-                        continue
+            self.log(f"🚀 Starting C binary packet senders...")
+            self.log(f"   Video: {' '.join(video_cmd)}")
+            self.log(f"   Audio: {' '.join(audio_cmd)}")
 
-                    bytes_sent = event['sock'].sendto(packet_data, event['dest'])
-                    packets_sent += 1
+            # Run both processes in parallel
+            import threading
 
-                    # Log first few packets for debugging
-                    if packets_sent <= 3:
-                        self.log(f"📤 Sent {event['type']} packet #{packets_sent}: {len(packet_data)} bytes to {event['dest']}")
+            video_result = {'returncode': None, 'stdout': '', 'stderr': ''}
+            audio_result = {'returncode': None, 'stdout': '', 'stderr': ''}
 
-                    # Verify socket operation was successful
-                    if bytes_sent != len(packet_data):
-                        self.log(f"⚠️ Partial send: {bytes_sent}/{len(packet_data)} bytes for {event['type']} packet #{packets_sent}")
+            def run_video():
+                proc = subprocess.run(video_cmd, capture_output=True, text=True)
+                video_result['returncode'] = proc.returncode
+                video_result['stdout'] = proc.stdout
+                video_result['stderr'] = proc.stderr
 
-                    # Debug first few packets to verify sending
-                    if packets_sent <= 5:
-                        self.log(f"🔍 DEBUG: Sent {event['type']} packet #{packets_sent}: {len(packet_data)} bytes to {event['dest']}, socket returned {bytes_sent}")
+            def run_audio():
+                proc = subprocess.run(audio_cmd, capture_output=True, text=True)
+                audio_result['returncode'] = proc.returncode
+                audio_result['stdout'] = proc.stdout
+                audio_result['stderr'] = proc.stderr
 
-                    # Debug last few packets to verify completion
-                    if packets_sent >= len(timeline) - 3:
-                        elapsed_ms = (time.time() - replay_start_time) * 1000
-                        self.log(f"🔍 DEBUG: Sent {event['type']} packet #{packets_sent}/{len(timeline)} at {elapsed_ms:.1f}ms (file: {Path(event['file']).name})")
+            video_thread = threading.Thread(target=run_video)
+            audio_thread = threading.Thread(target=run_audio)
 
-                    # Show progress every 500 packets (always visible)
-                    if packets_sent % 500 == 0:
-                        elapsed_ms = (time.time() - replay_start_time) * 1000
-                        print(f"📡 Sent {packets_sent}/{len(timeline)} packets ({elapsed_ms:.1f}ms elapsed)")
+            video_thread.start()
+            audio_thread.start()
 
-                except Exception as e:
-                    self.log(f"❌ Failed to send {event['type']} packet {event['file']}: {e}")
-                    failed_packets += 1
-                    continue
+            video_thread.join()
+            audio_thread.join()
 
             elapsed_ms = (time.time() - replay_start_time) * 1000
-            print(f"📡 Mock sender: sent {packets_sent} packets in {elapsed_ms:.1f}ms")
-            self.log(f"✅ Packet replay complete: {packets_sent} packets sent, {failed_packets} failed in {elapsed_ms:.1f}ms")
+
+            # Check results
+            if video_result['returncode'] != 0:
+                self.log(f"❌ Video sender failed: {video_result['stderr']}")
+                return False
+
+            if audio_result['returncode'] != 0:
+                self.log(f"❌ Audio sender failed: {audio_result['stderr']}")
+                return False
+
+            # Parse output to get packet counts
+            packets_sent = len(video_manifest) + len(audio_manifest)
+
+            if self.verbose:
+                self.log(f"📤 Video output:\n{video_result['stdout']}")
+                self.log(f"📤 Audio output:\n{audio_result['stdout']}")
+
+            print(f"📡 C binary sender: sent {packets_sent} packets in {elapsed_ms:.1f}ms")
+            self.log(f"✅ Packet replay complete: {packets_sent} packets sent in {elapsed_ms:.1f}ms")
 
             # NOTE: Resource monitoring continues running! It will be stopped after
             # the grace period in run() to capture full OBS processing time.
@@ -3319,12 +3465,28 @@ def main():
     parser.add_argument('--settling-duration', '--settling-seconds', dest='settling_seconds', type=float, default=0.0,
                         help='Ignore frame progression errors during first N seconds (pass/fail gating only)')
 
+    parser.add_argument('--scenario-yaml', type=str, default=None,
+                        help='Path to scenario YAML file (for loading network_simulation config)')
+
     args = parser.parse_args()
 
     if args.monitor_resource_duration is not None:
         if args.monitor_resource_duration < 0.1:
             raise SystemExit('--monitor-resource-duration must be >= 0.1 seconds')
         args.resource_interval_ms = int(args.monitor_resource_duration * 1000.0 + 0.5)
+
+    # Load network_simulation from scenario YAML if provided
+    network_simulation = {}
+    if args.scenario_yaml:
+        import yaml
+        try:
+            with open(args.scenario_yaml, 'r') as f:
+                scenario_data = yaml.safe_load(f)
+                network_simulation = scenario_data.get('network_simulation', {})
+                if network_simulation:
+                    print(f"📡 Loaded network simulation config: jitter={network_simulation.get('jitter_percent', 0)}%, reorder={network_simulation.get('reorder_percent', 0)}%")
+        except Exception as e:
+            print(f"⚠️  Failed to load scenario YAML: {e}")
 
     # Verify UDP replay tool exists, build if needed
     udp_replay_path = Path(args.udp_replay)
@@ -3380,6 +3542,7 @@ def main():
         perf_callgraph=args.perf_callgraph,
         perf_duration_s=args.perf_duration,
         enable_flamegraph=args.perf_flamegraph,
+        network_simulation=network_simulation,
     )
 
     # Store reference for signal handler

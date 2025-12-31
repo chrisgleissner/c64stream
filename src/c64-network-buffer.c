@@ -176,33 +176,76 @@ static void rb_push(struct packet_ring_buffer *rb, const uint8_t *data, size_t l
     debug_verify_buffer_ordering(rb, type_name);
 }
 
-// Pop the oldest packet (FIFO order) - essential for proper frame assembly (LOCK-FREE)
-static int rb_pop_oldest(struct packet_ring_buffer *rb, struct packet_slot **out)
+// Pop packet with next expected sequence number (sequence-ordered, handles reordering)
+// This is the KEY change to support packet reordering: instead of FIFO (arrival order),
+// we find and pop the packet with the lowest sequence number currently in the buffer.
+static int rb_pop_next_sequence(struct packet_ring_buffer *rb, struct packet_slot **out)
 {
     if (!rb || !out) {
         return 0;
     }
 
-    // Lock-free single consumer approach - only one thread should pop from each buffer
     long head = os_atomic_load_long(&rb->head);
     long tail = os_atomic_load_long(&rb->tail);
 
     if (head == tail) {
-        // No packets available
+        // Buffer is empty
         return 0;
     }
 
-    *out = &rb->slots[tail];
+    // Find the packet with the lowest sequence number in the buffer
+    // This handles packets arriving out of order
+    size_t best_pos = (size_t)-1;
+    uint16_t best_seq = 0xFFFF;
+    bool found = false;
 
-    // Update expected sequence to track what we've consumed
-    if (rb->slots[tail].valid && os_atomic_load_bool(&rb->seq_initialized)) {
-        uint16_t popped_seq = rb->slots[tail].sequence_num;
-        rb->next_expected_seq = popped_seq + 1;
+    size_t current = tail;
+    while (current != (size_t)head) {
+        if (rb->slots[current].valid) {
+            uint16_t seq = rb->slots[current].sequence_num;
+
+            // Initialize on first valid packet
+            if (!found) {
+                best_seq = seq;
+                best_pos = current;
+                found = true;
+            } else {
+                // Compare with wraparound handling
+                // If seq < best_seq (considering wraparound), update best
+                int16_t diff = (int16_t)(seq - best_seq);
+                if (diff < 0) {
+                    best_seq = seq;
+                    best_pos = current;
+                }
+            }
+        }
+        current = (current + 1) % rb->max_capacity;
     }
 
-    // Atomically advance tail (single consumer, so this is safe)
-    long new_tail = (tail + 1) % rb->max_capacity;
-    os_atomic_set_long(&rb->tail, new_tail);
+    if (!found) {
+        // No valid packets
+        return 0;
+    }
+
+    // Return the packet with lowest sequence number
+    *out = &rb->slots[best_pos];
+
+    // Update expected sequence for next pop
+    if (os_atomic_load_bool(&rb->seq_initialized)) {
+        rb->next_expected_seq = best_seq + 1;
+    }
+
+    // Mark slot as invalid (consumed)
+    rb->slots[best_pos].valid = false;
+
+    // If we popped from tail position, advance tail to skip consumed slots
+    if (best_pos == (size_t)tail) {
+        size_t new_tail = tail;
+        while (new_tail != (size_t)head && !rb->slots[new_tail].valid) {
+            new_tail = (new_tail + 1) % rb->max_capacity;
+        }
+        os_atomic_set_long(&rb->tail, (long)new_tail);
+    }
 
     return 1;
 }
@@ -580,9 +623,9 @@ int c64_network_buffer_pop(struct c64_network_buffer *buf, const uint8_t **video
         return 0;
     }
 
-    // Pop the ready video packet (oldest first for proper FIFO)
+    // Pop the ready video packet (in sequence order to handle reordering)
     struct packet_slot *v;
-    if (!rb_pop_oldest(&buf->video, &v)) {
+    if (!rb_pop_next_sequence(&buf->video, &v)) {
         C64_LOG_WARNING("Failed to pop ready video packet");
         return 0;
     }
@@ -597,7 +640,7 @@ int c64_network_buffer_pop(struct c64_network_buffer *buf, const uint8_t **video
     if (audio_head != audio_tail) {
         struct packet_slot *oldest_audio = &buf->audio.slots[audio_tail];
         if (is_packet_ready_for_pop(oldest_audio, buf->audio.delay_us)) {
-            has_audio = rb_pop_oldest(&buf->audio, &a);
+            has_audio = rb_pop_next_sequence(&buf->audio, &a);
         }
     }
 

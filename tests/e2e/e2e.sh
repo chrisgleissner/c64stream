@@ -411,6 +411,9 @@ load_scenario() {
     local scenario_dir="${SCENARIOS_DIR}/${scenario_name}"
     local scenario_yaml="${scenario_dir}/scenario.yaml"
 
+    # Make scenario_yaml path available globally
+    SCENARIO_YAML_PATH="${scenario_yaml}"
+
     if [[ ! -f "${scenario_yaml}" ]]; then
         log_error "Scenario not found: ${scenario_name}"
         log_error "Expected: ${scenario_yaml}"
@@ -1301,6 +1304,11 @@ run_e2e_test() {
     # Pass scenario overrides if provided
     if [[ -n "${SCENARIO_OVERRIDES}" ]]; then
         cmd+=("--scenario-overrides" "${SCENARIO_OVERRIDES}")
+    fi
+
+    # Pass scenario YAML path if available (for network_simulation config)
+    if [[ -n "${SCENARIO_YAML_PATH}" ]]; then
+        cmd+=("--scenario-yaml" "${SCENARIO_YAML_PATH}")
     fi
 
     # Pass CSV max rows
