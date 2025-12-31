@@ -199,17 +199,33 @@ def _detect_position_marker(
         slot_lum = float(slot_luminances[detected_slot])
         lum_contrast = slot_lum - min_lum
 
-        # Relaxed thresholds for lower bitrate (4000) + heavy effects
-        # Further relaxed for robustness across different encoding environments
-        if max_delta >= 3.0 and delta_margin >= 0.5 and lum_contrast >= 6.0 and slot_lum >= 20.0:
+        # Adaptive thresholds based on signal characteristics:
+        # 1. Calculate the overall luminance range and delta range for this frame
+        lum_range = max(slot_luminances) - min_lum
+        delta_range = max_delta - min(deltas)
+        
+        # 2. Compute adaptive thresholds as percentages of the observed ranges
+        #    This makes detection robust across different encoding environments
+        adaptive_min_delta = max(2.0, 0.15 * lum_range)  # 15% of luminance range, min 2.0
+        adaptive_min_margin = max(0.3, 0.10 * delta_range)  # 10% of delta range, min 0.3
+        adaptive_min_contrast = max(4.0, 0.20 * lum_range)  # 20% of luminance range, min 4.0
+        adaptive_min_brightness = max(15.0, 0.25 * max(slot_luminances))  # 25% of max brightness, min 15.0
+        
+        # 3. Apply adaptive thresholds
+        if (max_delta >= adaptive_min_delta and 
+            delta_margin >= adaptive_min_margin and 
+            lum_contrast >= adaptive_min_contrast and 
+            slot_lum >= adaptive_min_brightness):
             return detected_slot, slot_luminances
 
     # FALLBACK: First frame or no clear delta - use absolute brightness
     max_lum = max(slot_luminances)
     min_lum = min(slot_luminances)
 
-    # Require some contrast (further relaxed for robustness).
-    if max_lum - min_lum < 6:
+    # Adaptive contrast threshold: require at least 15% of the maximum luminance as contrast
+    # This is more robust than a fixed threshold across different encoding settings
+    adaptive_min_contrast = max(4.0, 0.15 * max_lum)
+    if max_lum - min_lum < adaptive_min_contrast:
         return None, slot_luminances
 
     brightest_slot = int(np.argmax(slot_luminances))
