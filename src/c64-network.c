@@ -397,8 +397,7 @@ socket_t c64_create_udp_socket(uint32_t port)
         obs_log(LOG_WARNING, "Failed to set UDP receive buffer size to %d bytes: %s", recv_buffer_size,
                 c64_get_socket_error_string(error));
     } else {
-        obs_log(LOG_DEBUG, "Set UDP receive buffer to %d bytes for high-frequency packet handling",
-                recv_buffer_size);
+        obs_log(LOG_DEBUG, "Set UDP receive buffer to %d bytes for high-frequency packet handling", recv_buffer_size);
     }
 
     // Windows: Disable UDP checksum validation for performance (optional optimization)
@@ -656,8 +655,7 @@ socket_t c64_create_tcp_socket(const char *ip, uint32_t port)
 
         if (select_result == 0) {
             // Both timeouts failed
-            obs_log(LOG_WARNING, "Connection to C64 Ultimate at %s:%u timed out after 1.6 seconds total", ip,
-                    port);
+            obs_log(LOG_WARNING, "Connection to C64 Ultimate at %s:%u timed out after 1.6 seconds total", ip, port);
             close(sock);
             return INVALID_SOCKET_VALUE;
         }
