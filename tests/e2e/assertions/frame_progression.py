@@ -466,7 +466,11 @@ def _analyze_frame_progression(
 
         # Filter end: exclude stuck runs that occur after content has stopped
         # These are frozen frames at end of stream or logo frames, not real problems
-        while filtered_stuck_runs and filtered_stuck_run_frames[-1] > content_bounds.last_content_frame:
+        # Also filter stuck runs in the final 4 seconds of content - this is the expected
+        # "last frame held" period when C64 stops sending but OBS keeps recording.
+        content_end_margin_frames = int(fps * 4.0)
+        content_end_threshold = max(content_bounds.first_content_frame, content_bounds.last_content_frame - content_end_margin_frames)
+        while filtered_stuck_runs and filtered_stuck_run_frames[-1] > content_end_threshold:
             end_frames_excluded += filtered_stuck_runs[-1]
             filtered_stuck_runs = filtered_stuck_runs[:-1]
             filtered_stuck_run_frames = filtered_stuck_run_frames[:-1]
