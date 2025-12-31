@@ -143,7 +143,7 @@ Simulates CRT phosphor decay. **CPU-intensive per-pixel processing.**
 
 **Measured CPU impact** (from benchmark on i7-6700K, Dec 31 2025):
 - 0ms → 30ms: +13.8% CPU (Vintage TV)
-- 0ms → 50ms: +4.7% CPU (Amber Monitor)  
+- 0ms → 50ms: +4.7% CPU (Amber Monitor)
 - 0ms → 60ms: +3.9% CPU (Green Monitor)
 - 0ms → 80ms: +3.7% CPU (Phosphor Glow)
 - **Note**: Vintage TV shows higher CPU impact due to additional GPU effects (scanlines); pure afterglow impact is lower
