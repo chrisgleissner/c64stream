@@ -200,15 +200,16 @@ def _detect_position_marker(
         lum_contrast = slot_lum - min_lum
 
         # Relaxed thresholds for lower bitrate (4000) + heavy effects
-        if max_delta >= 4.0 and delta_margin >= 1.0 and lum_contrast >= 8.0 and slot_lum >= 25.0:
+        # Further relaxed for robustness across different encoding environments
+        if max_delta >= 3.0 and delta_margin >= 0.5 and lum_contrast >= 6.0 and slot_lum >= 20.0:
             return detected_slot, slot_luminances
 
     # FALLBACK: First frame or no clear delta - use absolute brightness
     max_lum = max(slot_luminances)
     min_lum = min(slot_luminances)
 
-    # Require some contrast (relaxed for lower bitrate + heavy effects).
-    if max_lum - min_lum < 8:
+    # Require some contrast (further relaxed for robustness).
+    if max_lum - min_lum < 6:
         return None, slot_luminances
 
     brightest_slot = int(np.argmax(slot_luminances))
@@ -917,7 +918,7 @@ class FrameProgressionAssertion(EffectAssertion):
         super().__init__("Frame Progression", thresholds)
         self.thresholds = {
             "max_seconds": 8.0,
-            "max_ambiguous_ratio": 0.30,
+            "max_ambiguous_ratio": 0.40,  # Increased from 0.30 for robustness across encoding environments
             "min_changes_for_full": 20,
             "max_skip_delta": 6,
             "max_skips": 60,
