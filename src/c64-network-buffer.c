@@ -142,110 +142,192 @@ static void rb_push(struct packet_ring_buffer *rb, const uint8_t *data, size_t l
         C64_LOG_DEBUG("%s buffer: initialized with sequence %u", type_name, seq_num);
     }
 
+    // The ring buffer insertion sort will handle duplicates and ordering automatically
+
+    // Find insertion point to maintain sequence order (lock-free)
     size_t head = (size_t)os_atomic_load_long(&rb->head);
     size_t tail = (size_t)os_atomic_load_long(&rb->tail);
-    size_t next_head = (head + 1) % rb->max_capacity;
 
-    // Drop oldest when full (single-producer/single-consumer)
+    // Calculate buffer utilization for monitoring
+    size_t current_packets = (head >= tail) ? (head - tail) : (rb->max_capacity - tail + head);
+    size_t utilization_percent = (current_packets * 100) / rb->max_capacity;
+
+    // Check if buffer is full or at high utilization
+    size_t next_head = (head + 1) % rb->max_capacity;
     if (next_head == tail) {
-        tail = (tail + 1) % rb->max_capacity;
-        os_atomic_set_long(&rb->tail, (long)tail);
+        // Buffer full: use dropping strategy to prevent continuous packet loss
+        // Drop 10% of packets (minimum 2) to create breathing room
+        size_t packets_to_drop = (current_packets / 10) + 2; // At least 2, typically 10%
+        if (packets_to_drop > current_packets / 2) {
+            packets_to_drop = current_packets / 2; // Never drop more than half
+        }
+
+        for (size_t i = 0; i < packets_to_drop && tail != head; i++) {
+            tail = (tail + 1) % rb->max_capacity;
+            os_atomic_set_long(&rb->tail, (long)tail);
+        }
+
+        // Log buffer utilization once per second
         static uint64_t last_full_log_time = 0;
         uint64_t now = os_gettime_ns();
         if (now - last_full_log_time >= 1000000000ULL) {
-            C64_LOG_WARNING("%s buffer full: dropping oldest packet", type_name);
+            C64_LOG_WARNING("%s buffer full: dropped %zu packets, utilization was=%zu%% (%zu/%zu packets)", type_name,
+                            packets_to_drop, utilization_percent, current_packets, rb->max_capacity);
             last_full_log_time = now;
+        }
+    } else if (utilization_percent >= 90) {
+        // Warn when approaching capacity (but don't spam logs)
+        static uint64_t last_warn_log_time = 0;
+        uint64_t now = os_gettime_ns();
+        if (now - last_warn_log_time >= 5000000000ULL) { // Every 5 seconds for warnings
+            C64_LOG_DEBUG("%s buffer high utilization: %zu%% (%zu/%zu packets)", type_name, utilization_percent,
+                          current_packets, rb->max_capacity);
+            last_warn_log_time = now;
         }
     }
 
-    size_t copy_len = len < rb->packet_size ? len : rb->packet_size;
-    memcpy(rb->slots[head].data, data, copy_len);
-    if (copy_len < rb->packet_size) {
-        memset(rb->slots[head].data + copy_len, 0, rb->packet_size - copy_len);
+    // Limit insertion sort complexity to prevent blocking
+    size_t insert_pos = head;
+
+    // For real-time performance, only do limited insertion sorting
+    // Audio packets arrive more frequently, so use smaller search depth
+    const size_t MAX_SEARCH_DEPTH = (rb->type == BUFFER_TYPE_VIDEO) ? 8 : 6;
+    size_t search_depth = 0;
+    bool found_insert_pos = false;
+
+    // Always do insertion sort to maintain sequence order
+    {
+        // Limited backward search for insertion point
+        size_t current = head;
+        while (current != tail && search_depth < MAX_SEARCH_DEPTH) {
+            size_t prev = (current == 0) ? rb->max_capacity - 1 : current - 1;
+            if (prev == tail)
+                break;
+
+            if (!rb->slots[prev].valid) {
+                current = prev;
+                search_depth++;
+                continue;
+            }
+
+            // Compare packets based on buffer type
+            bool should_insert_here = false;
+            if (rb->type == BUFFER_TYPE_VIDEO) {
+                // Video packets: sort by frame number first, then line number
+                int16_t frame_diff = (int16_t)(frame_num - rb->slots[prev].frame_num);
+                if (frame_diff > 0) {
+                    should_insert_here = true;
+                } else if (frame_diff == 0) {
+                    // Same frame: sort by line number
+                    int16_t line_diff = (int16_t)(line_num - rb->slots[prev].line_num);
+                    if (line_diff >= 0) {
+                        should_insert_here = true;
+                    }
+                }
+            } else {
+                // Audio packets: use sequence number with wraparound handling
+                int16_t seq_diff = (int16_t)(seq_num - rb->slots[prev].sequence_num);
+                if (seq_diff >= 0) {
+                    should_insert_here = true;
+                }
+            }
+
+            if (should_insert_here) {
+                // Found correct insertion point
+                insert_pos = current;
+                found_insert_pos = true;
+                break;
+            }
+
+            current = prev;
+            insert_pos = current;
+            search_depth++;
+        }
     }
 
-    rb->slots[head].size = rb->packet_size;
-    rb->slots[head].timestamp_us = ts;
-    rb->slots[head].sequence_num = seq_num;
-    rb->slots[head].frame_num = frame_num;
-    rb->slots[head].line_num = line_num;
-    rb->slots[head].valid = true;
+    // Only do expensive shift operation if we found insertion point within search limit
+    if (found_insert_pos && insert_pos != head) {
+        // Limited shift operation to prevent blocking
+        size_t shift_pos = head;
+        size_t shift_count = 0;
+        const size_t MAX_SHIFT_COUNT = (rb->type == BUFFER_TYPE_VIDEO) ? 8 : 6; // Audio has smaller limit
 
+        while (shift_pos != insert_pos && shift_count < MAX_SHIFT_COUNT) {
+            size_t prev = (shift_pos == 0) ? rb->max_capacity - 1 : shift_pos - 1;
+            rb->slots[shift_pos] = rb->slots[prev];
+            shift_pos = prev;
+            shift_count++;
+        }
+
+        if (shift_count >= MAX_SHIFT_COUNT) {
+            // Shift limit exceeded - insert at head to avoid blocking (packet may be slightly out of order)
+            insert_pos = head;
+            C64_LOG_DEBUG("%s: Shift limit exceeded for seq %u, inserting at head", type_name, seq_num);
+        }
+    }
+
+    // Insert the new packet
+    size_t copy_len = len < rb->packet_size ? len : rb->packet_size;
+    memcpy(rb->slots[insert_pos].data, data, copy_len);
+
+    // Zero-pad if packet is smaller than expected size
+    if (copy_len < rb->packet_size) {
+        memset(rb->slots[insert_pos].data + copy_len, 0, rb->packet_size - copy_len);
+    }
+
+    rb->slots[insert_pos].size = rb->packet_size;
+    rb->slots[insert_pos].timestamp_us = ts;
+    rb->slots[insert_pos].sequence_num = seq_num;
+    rb->slots[insert_pos].frame_num = frame_num;
+    rb->slots[insert_pos].line_num = line_num;
+    rb->slots[insert_pos].valid = true;
+
+    // No complex sequence tracking needed - let the pop function handle this
+
+    // Log packet insertion details for debugging
+    if (insert_pos != head) {
+        if (rb->type == BUFFER_TYPE_VIDEO) {
+            C64_LOG_DEBUG("%s: Inserted frame %u line %u (seq %u) at pos %zu (head was %zu)", type_name, frame_num,
+                          line_num, seq_num, insert_pos, head);
+        } else {
+            C64_LOG_DEBUG("%s: Inserted seq %u at pos %zu (head was %zu)", type_name, seq_num, insert_pos, head);
+        }
+    }
+
+    // Atomically update head pointer (single producer per buffer, so this is safe)
     os_atomic_set_long(&rb->head, (long)next_head);
 
+    // Verify buffer ordering in debug builds
     debug_verify_buffer_ordering(rb, type_name);
 }
 
-// Pop packet with next expected sequence number (sequence-ordered, handles reordering)
-// This is the KEY change to support packet reordering: instead of FIFO (arrival order),
-// we find and pop the packet with the lowest sequence number currently in the buffer.
-static int rb_pop_next_sequence(struct packet_ring_buffer *rb, struct packet_slot **out)
+// Pop the oldest packet (FIFO order) - essential for proper frame assembly (LOCK-FREE)
+static int rb_pop_oldest(struct packet_ring_buffer *rb, struct packet_slot **out)
 {
     if (!rb || !out) {
         return 0;
     }
 
+    // Lock-free single consumer approach - only one thread should pop from each buffer
     long head = os_atomic_load_long(&rb->head);
     long tail = os_atomic_load_long(&rb->tail);
 
     if (head == tail) {
-        // Buffer is empty
+        // No packets available
         return 0;
     }
 
-    // Find the packet with the lowest sequence number in the buffer
-    // This handles packets arriving out of order
-    size_t best_pos = (size_t)-1;
-    uint16_t best_seq = 0xFFFF;
-    bool found = false;
+    *out = &rb->slots[tail];
 
-    size_t current = tail;
-    while (current != (size_t)head) {
-        if (rb->slots[current].valid) {
-            uint16_t seq = rb->slots[current].sequence_num;
-
-            // Initialize on first valid packet
-            if (!found) {
-                best_seq = seq;
-                best_pos = current;
-                found = true;
-            } else {
-                // Compare with wraparound handling
-                // If seq < best_seq (considering wraparound), update best
-                int16_t diff = (int16_t)(seq - best_seq);
-                if (diff < 0) {
-                    best_seq = seq;
-                    best_pos = current;
-                }
-            }
-        }
-        current = (current + 1) % rb->max_capacity;
+    // Update expected sequence to track what we've consumed
+    if (rb->slots[tail].valid && os_atomic_load_bool(&rb->seq_initialized)) {
+        uint16_t popped_seq = rb->slots[tail].sequence_num;
+        rb->next_expected_seq = popped_seq + 1;
     }
 
-    if (!found) {
-        // No valid packets
-        return 0;
-    }
-
-    // Return the packet with lowest sequence number
-    *out = &rb->slots[best_pos];
-
-    // Update expected sequence for next pop
-    if (os_atomic_load_bool(&rb->seq_initialized)) {
-        rb->next_expected_seq = best_seq + 1;
-    }
-
-    // Mark slot as invalid (consumed)
-    rb->slots[best_pos].valid = false;
-
-    // If we popped from tail position, advance tail to skip consumed slots
-    if (best_pos == (size_t)tail) {
-        size_t new_tail = tail;
-        while (new_tail != (size_t)head && !rb->slots[new_tail].valid) {
-            new_tail = (new_tail + 1) % rb->max_capacity;
-        }
-        os_atomic_set_long(&rb->tail, (long)new_tail);
-    }
+    // Atomically advance tail (single consumer, so this is safe)
+    long new_tail = (tail + 1) % rb->max_capacity;
+    os_atomic_set_long(&rb->tail, new_tail);
 
     return 1;
 }
@@ -623,9 +705,9 @@ int c64_network_buffer_pop(struct c64_network_buffer *buf, const uint8_t **video
         return 0;
     }
 
-    // Pop the ready video packet (in sequence order to handle reordering)
+    // Pop the ready video packet (oldest first for proper FIFO)
     struct packet_slot *v;
-    if (!rb_pop_next_sequence(&buf->video, &v)) {
+    if (!rb_pop_oldest(&buf->video, &v)) {
         C64_LOG_WARNING("Failed to pop ready video packet");
         return 0;
     }
@@ -640,7 +722,7 @@ int c64_network_buffer_pop(struct c64_network_buffer *buf, const uint8_t **video
     if (audio_head != audio_tail) {
         struct packet_slot *oldest_audio = &buf->audio.slots[audio_tail];
         if (is_packet_ready_for_pop(oldest_audio, buf->audio.delay_us)) {
-            has_audio = rb_pop_next_sequence(&buf->audio, &a);
+            has_audio = rb_pop_oldest(&buf->audio, &a);
         }
     }
 
