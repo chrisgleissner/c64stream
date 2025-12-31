@@ -510,6 +510,7 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->render_texture = NULL;
     context->render_texture_width = 0;
     context->render_texture_height = 0;
+    context->intermediate_texture = NULL;
     context->crt_effect = NULL;
     context->afterglow_accum_prev = NULL;
     context->afterglow_accum_next = NULL;
@@ -599,6 +600,10 @@ void c64_destroy(void *data)
         context->render_texture = NULL;
         context->render_texture_width = 0;
         context->render_texture_height = 0;
+    }
+    if (context->intermediate_texture) {
+        gs_texture_destroy(context->intermediate_texture);
+        context->intermediate_texture = NULL;
     }
     if (context->afterglow_accum_prev) {
         gs_texture_destroy(context->afterglow_accum_prev);
@@ -1204,7 +1209,7 @@ void c64_video_render(void *data, gs_effect_t *effect)
     gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "source_width"), (float)context->width);
     gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "source_height"), (float)context->height);
 
-    // Render (all non-afterglow CRT effects) directly to the screen.
+    // Single-pass optimized rendering with lightweight shader operations
     while (gs_effect_loop(context->crt_effect, "Draw")) {
         gs_draw_sprite(input_tex, 0, render_width, render_height);
     }
