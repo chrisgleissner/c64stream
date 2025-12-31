@@ -460,7 +460,6 @@ static const uint32_t *c64_get_afterglow_output_pixels(struct c64_source *contex
         return curr_pixels;
 
     const size_t frame_bytes = pixel_count * 4;
-    const bool use_streaming_stores = frame_bytes >= 262144; // Enable streaming/prefetch on larger frames only
     if (context->afterglow_cpu_bytes != frame_bytes) {
         if (context->afterglow_cpu_accum) {
             c64_free_aligned(context->afterglow_cpu_accum);
@@ -573,20 +572,11 @@ static const uint32_t *c64_get_afterglow_output_pixels(struct c64_source *contex
     c64_detect_simd_support();
 
     // Prefetch next cache lines to reduce memory stall cycles (typical L1 miss: ~4-7 cycles)
-    // Prefetch 64 pixels (256 bytes) ahead for both read and write arrays
-    const size_t prefetch_distance = 64;
-#if defined(__GNUC__) || defined(__clang__)
-    if (use_streaming_stores) {
-        for (size_t p = 0; p + prefetch_distance <= pixel_count; p += prefetch_distance) {
-            __builtin_prefetch(&curr_pixels[p + prefetch_distance], 0, 3); // Read, high temporal locality
-            __builtin_prefetch(&acc[p + prefetch_distance], 1, 3);         // Write, high temporal locality
-        }
-    }
-#endif
+    // Prefetch removed - was causing performance issues
 
 #if defined(__AVX2__) || defined(_MSC_VER)
     if (c64_cpu_has_avx2) {
-        c64_afterglow_avx2(acc, curr_pixels, pixel_count, decay_r, decay_g, decay_b, use_streaming_stores);
+        c64_afterglow_avx2(acc, curr_pixels, pixel_count, decay_r, decay_g, decay_b, false);
         return acc;
     }
 #endif
