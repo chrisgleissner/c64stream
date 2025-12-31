@@ -2,7 +2,7 @@
 
 ## Scenario: NTSC Default 720p
 
-Generated: 2025-12-31 11:22:11 UTC
+Generated: 2025-12-31 11:38:47 UTC
 
 ## Test configuration
 
@@ -23,7 +23,7 @@ Generated: 2025-12-31 11:22:11 UTC
 - OS: Ubuntu 24.04.3 LTS (kernel 6.14.0-37-generic)
 - OBS: 32.0.2
 - CPU: Intel(R) Core(TM) i7-6700K CPU @ 4.00GHz (8 cores)
-- RAM: 31Gi total, 21Gi available
+- RAM: 31Gi total, 22Gi available
 - Disk (/): 1.8T total, 1.1T available
 
 ## Test results
@@ -34,9 +34,9 @@ During the test's processing window (4.6s, 10 of 27 samples) (8 cores):
 
 | Metric | Min | Median | Mean | Max |
 |--------|-----|--------|------|-----|
-| CPU | 41.0% | 48.15% | 47.1% | 50.5% |
-| RAM | 5701.75 MB | 5718.69 MB | 5718.15 MB | 5729.67 MB |
-| GPU | 27.73% | 44.1% | 43.07% | 51.1% |
+| CPU | 30.0% | 53.1% | 50.08% | 60.3% |
+| RAM | 4735.56 MB | 4773.99 MB | 4767.66 MB | 4778.0 MB |
+| GPU | 0.52% | 2.87% | 9.29% | 30.43% |
 
 Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
@@ -48,29 +48,29 @@ Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
 ### A/V Sync
 
-- ✅ Good synchronization (100.0%): avg offset 8.6ms, max 10.9ms
+- ✅ Good synchronization (100.0%): avg offset 23.7ms, max 36.6ms
 
 #### Sync Details
 
-- 🟢 Pop #1 [L]: audio=2702.0ms, video=2691.1ms (frame 161), diff=10.9ms
-- 🟢 Pop #2 [R]: audio=3502.0ms, video=3493.5ms (frame 209), diff=8.5ms
-- 🟢 Pop #3 [L]: audio=4302.0ms, video=4295.8ms (frame 257), diff=6.2ms
-- 🟢 Pop #4 [R]: audio=5108.0ms, video=5098.1ms (frame 305), diff=9.9ms
-- 🟢 Pop #5 [L]: audio=5908.0ms, video=5900.4ms (frame 353), diff=7.6ms
+- 🟢 Pop #1 [L]: audio=2692.0ms, video=2674.4ms (frame 160), diff=17.6ms
+- 🟢 Pop #2 [R]: audio=3492.0ms, video=3476.7ms (frame 208), diff=15.3ms
+- 🟢 Pop #3 [L]: audio=4294.0ms, video=4279.1ms (frame 256), diff=14.9ms
+- 🟡 Pop #4 [R]: audio=5118.0ms, video=5081.4ms (frame 304), diff=36.6ms
+- 🟢 Pop #5 [L]: audio=5918.0ms, video=5883.7ms (frame 352), diff=34.3ms
 
 - Channels: LRLRL
 - 🔁 Channel alternation: OK (alternating, starts with L)
 
 ### Frame Progression
 
-- 🟡 Video stream froze for 180 frames (3.0s) (post-settling)
+- 🟡 Video stream froze for 181 frames (3.0s) (post-settling)
 
 - Settling: 4.0s (pass/fail uses post-settling only)
 
 | Window | Stuck runs (count/min/med/max) | Skips (count/min/med/max) | Back steps | Severe steps |
 |--------|------------------------------:|--------------------------:|-----------:|-------------:|
-| During settling | 1/2/2/2 | 1/1/1/1 | 0 | 0 |
-| After settling | 1/180/180/180 | 1/5/5/5 | 0 | 0 |
+| During settling | 1/3/3/3 | 1/2/2/2 | 0 | 0 |
+| After settling | 1/181/181/181 | 1/5/5/5 | 0 | 0 |
 
 See [playback.csv](playback.csv) for frame-by-frame playback timeline with anomaly markers.
 
@@ -78,13 +78,13 @@ See [playback.csv](playback.csv) for frame-by-frame playback timeline with anoma
 
 - Definition: rows with repeated=1 or skipped=1 in playback.csv; clustering uses max gap 0.5s
 - Note: this is independent from the Frame Progression (frame-box) check above
-- Note: repeated/skipped markers only exist while content is detected (video_s 2.307–10.280).
+- Note: repeated/skipped markers only exist while content is detected (video_s 2.290–10.280).
   The jitter-free tail after content ends is expected and does not indicate steady-state performance.
 
 | # | Events | Center (s) | Std dev (s) | Span (s) | Window (s) |
 |---|--------|------------|-------------|----------|------------|
-| 1 | 2 | 4.447 | 0.017 | 0.033 | 4.430–4.463 |
-| 2 | 1 | 7.288 | 0.000 | 0.000 | 7.288–7.288 |
+| 1 | 2 | 4.822 | 0.025 | 0.050 | 4.797–4.847 |
+| 2 | 1 | 7.271 | 0.000 | 0.000 | 7.271–7.271 |
 | 3 | 1 | 10.280 | 0.000 | 0.000 | 10.280–10.280 |
 
 ### Video
@@ -102,4 +102,4 @@ See [playback.csv](playback.csv) for frame-by-frame playback timeline with anoma
 - **Center**: Diagonal pattern cycling through all C64 colors
 - **Bottom-left**: Frame progression indicator (8-slot moving bar, cycles every 8 frames)
 - **Bottom-right**: A/V pop indicator (pops every 48 frames, split left/right for audio channels)
-- Taken from frame 161 at 00:02.7 of the 10.8 s video above.
+- Taken from frame 160 at 00:02.7 of the 10.8 s video above.

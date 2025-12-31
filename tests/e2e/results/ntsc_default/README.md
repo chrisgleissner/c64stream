@@ -2,7 +2,7 @@
 
 ## Scenario: NTSC Default
 
-Generated: 2025-12-31 11:21:27 UTC
+Generated: 2025-12-31 12:28:20 UTC
 
 ## Test configuration
 
@@ -23,7 +23,7 @@ Generated: 2025-12-31 11:21:27 UTC
 - OS: Ubuntu 24.04.3 LTS (kernel 6.14.0-37-generic)
 - OBS: 32.0.2
 - CPU: Intel(R) Core(TM) i7-6700K CPU @ 4.00GHz (8 cores)
-- RAM: 31Gi total, 21Gi available
+- RAM: 31Gi total, 23Gi available
 - Disk (/): 1.8T total, 1.1T available
 
 ## Test results
@@ -34,9 +34,9 @@ During the test's processing window (4.6s, 10 of 27 samples) (8 cores):
 
 | Metric | Min | Median | Mean | Max |
 |--------|-----|--------|------|-----|
-| CPU | 56.6% | 61.8% | 63.72% | 80.2% |
-| RAM | 5941.67 MB | 6004.39 MB | 6006.55 MB | 6089.58 MB |
-| GPU | 30.43% | 44.07% | 44.56% | 56.12% |
+| CPU | 59.6% | 61.8% | 61.7% | 63.9% |
+| RAM | 4020.32 MB | 4053.67 MB | 4051.52 MB | 4066.79 MB |
+| GPU | 26.73% | 44.39% | 38.87% | 45.94% |
 
 Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
@@ -48,29 +48,29 @@ Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
 ### A/V Sync
 
-- ✅ Good synchronization (100.0%): avg offset 500.6ms, max 1626.6ms
+- ✅ Good synchronization (100.0%): avg offset 24.0ms, max 37.3ms
 
 #### Sync Details
 
-- 🟢 Pop #1 [L]: audio=2662.0ms, video=2657.7ms (frame 159), diff=4.3ms
-- 🟢 Pop #2 [R]: audio=3484.0ms, video=3460.0ms (frame 207), diff=24.0ms
-- 🟢 Pop #3 [L]: audio=4284.0ms, video=4262.4ms (frame 255), diff=21.6ms
-- • Pop #4 [R]: audio=5089.0ms, video=4262.4ms (frame 255), diff=826.6ms
-- • Pop #5 [L]: audio=5889.0ms, video=4262.4ms (frame 255), diff=1626.6ms
+- 🟢 Pop #1 [L]: audio=2676.0ms, video=2657.7ms (frame 159), diff=18.3ms
+- 🟢 Pop #2 [R]: audio=3476.0ms, video=3460.0ms (frame 207), diff=16.0ms
+- 🟢 Pop #3 [L]: audio=4276.0ms, video=4262.4ms (frame 255), diff=13.6ms
+- 🟡 Pop #4 [R]: audio=5102.0ms, video=5064.7ms (frame 303), diff=37.3ms
+- 🟢 Pop #5 [L]: audio=5902.0ms, video=5867.0ms (frame 351), diff=35.0ms
 
 - Channels: LRLRL
 - 🔁 Channel alternation: OK (alternating, starts with L)
 
 ### Frame Progression
 
-- 🟡 Video stream froze for 181 frames (3.0s) (post-settling)
+- 🟢 Frame sequence verified (479 frames analyzed, 0 colors)
 
 - Settling: 4.0s (pass/fail uses post-settling only)
 
 | Window | Stuck runs (count/min/med/max) | Skips (count/min/med/max) | Back steps | Severe steps |
 |--------|------------------------------:|--------------------------:|-----------:|-------------:|
-| During settling | 47/2/2/3 | 45/1/1/3 | 0 | 0 |
-| After settling | 12/2/2/181 | 10/1/1/5 | 0 | 0 |
+| During settling | 1/3/3/3 | 2/1/1/1 | 0 | 0 |
+| After settling | 0/0/0/0 | 1/5/5/5 | 0 | 0 |
 
 See [playback.csv](playback.csv) for frame-by-frame playback timeline with anomaly markers.
 
@@ -83,7 +83,7 @@ See [playback.csv](playback.csv) for frame-by-frame playback timeline with anoma
 
 | # | Events | Center (s) | Std dev (s) | Span (s) | Window (s) |
 |---|--------|------------|-------------|----------|------------|
-| 1 | 50 | 5.681 | 0.978 | 3.092 | 4.162–7.254 |
+| 1 | 3 | 4.575 | 0.021 | 0.050 | 4.547–4.597 |
 | 2 | 1 | 10.263 | 0.000 | 0.000 | 10.263–10.263 |
 
 ### Video
