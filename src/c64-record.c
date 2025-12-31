@@ -44,8 +44,7 @@ void c64_session_ensure_exists(struct c64_source *context)
     }
 
     // Create new session folder with timestamp
-    uint64_t timestamp_ms = os_gettime_ns() / 1000000;
-    time_t rawtime = timestamp_ms / 1000;
+    time_t rawtime = time(NULL);
     struct tm *timeinfo = localtime(&rawtime);
 
     snprintf(context->session_folder, sizeof(context->session_folder), "%s/session_%04d%02d%02d_%02d%02d%02d",
