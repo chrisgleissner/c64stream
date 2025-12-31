@@ -217,11 +217,11 @@ static void c64_afterglow_sse2(uint32_t *acc, const uint32_t *curr_pixels, size_
 // GCC/Clang need target attribute, MSVC doesn't support it
 #ifdef _MSC_VER
 static void c64_afterglow_avx2(uint32_t *acc, const uint32_t *curr_pixels, size_t pixel_count, float decay_r,
-                               float decay_g, float decay_b)
+                               float decay_g, float decay_b, bool use_streaming)
 #else
 __attribute__((target("avx2"))) static void c64_afterglow_avx2(uint32_t *acc, const uint32_t *curr_pixels,
                                                                size_t pixel_count, float decay_r, float decay_g,
-                                                               float decay_b)
+                                                               float decay_b, bool use_streaming)
 #endif
 {
     // Broadcast decay factors to all 8 lanes
@@ -299,7 +299,11 @@ __attribute__((target("avx2"))) static void c64_afterglow_avx2(uint32_t *acc, co
         const __m256i rgb0 =
             _mm256_or_si256(out_r_i0, _mm256_or_si256(_mm256_slli_epi32(out_g_i0, 8), _mm256_slli_epi32(out_b_i0, 16)));
         const __m256i result0 = _mm256_or_si256(rgb0, valpha);
-        _mm256_stream_si256((__m256i *)&acc[i], result0);
+        if (use_streaming) {
+            _mm256_stream_si256((__m256i *)&acc[i], result0);
+        } else {
+            _mm256_storeu_si256((__m256i *)&acc[i], result0);
+        }
 
         // ===== Pack and store second 8 pixels =====
         const __m256i out_r_i1 = _mm256_cvttps_epi32(out_r1);
@@ -308,7 +312,11 @@ __attribute__((target("avx2"))) static void c64_afterglow_avx2(uint32_t *acc, co
         const __m256i rgb1 =
             _mm256_or_si256(out_r_i1, _mm256_or_si256(_mm256_slli_epi32(out_g_i1, 8), _mm256_slli_epi32(out_b_i1, 16)));
         const __m256i result1 = _mm256_or_si256(rgb1, valpha);
-        _mm256_stream_si256((__m256i *)&acc[i + 8], result1);
+        if (use_streaming) {
+            _mm256_stream_si256((__m256i *)&acc[i + 8], result1);
+        } else {
+            _mm256_storeu_si256((__m256i *)&acc[i + 8], result1);
+        }
     }
 
     // Process remaining 8 pixels
@@ -343,7 +351,11 @@ __attribute__((target("avx2"))) static void c64_afterglow_avx2(uint32_t *acc, co
         const __m256i rgb =
             _mm256_or_si256(out_r_i, _mm256_or_si256(_mm256_slli_epi32(out_g_i, 8), _mm256_slli_epi32(out_b_i, 16)));
         const __m256i result = _mm256_or_si256(rgb, valpha);
-        _mm256_stream_si256((__m256i *)&acc[i], result);
+        if (use_streaming) {
+            _mm256_stream_si256((__m256i *)&acc[i], result);
+        } else {
+            _mm256_storeu_si256((__m256i *)&acc[i], result);
+        }
         i += 8;
     }
 
@@ -418,7 +430,9 @@ __attribute__((target("avx2"))) static void c64_afterglow_avx2(uint32_t *acc, co
     _mm256_zeroupper();
 
     // Memory fence to ensure all non-temporal stores complete
-    _mm_sfence();
+    if (use_streaming) {
+        _mm_sfence();
+    }
 }
 #endif // __AVX2__ || _MSC_VER
 
@@ -437,6 +451,7 @@ static const uint32_t *c64_get_afterglow_output_pixels(struct c64_source *contex
         return curr_pixels;
 
     const size_t frame_bytes = pixel_count * 4;
+    const bool use_streaming_stores = frame_bytes >= 262144; // Enable streaming/prefetch on larger frames only
     if (context->afterglow_cpu_bytes != frame_bytes) {
         if (context->afterglow_cpu_accum) {
             c64_free_aligned(context->afterglow_cpu_accum);
@@ -552,15 +567,17 @@ static const uint32_t *c64_get_afterglow_output_pixels(struct c64_source *contex
     // Prefetch 64 pixels (256 bytes) ahead for both read and write arrays
     const size_t prefetch_distance = 64;
 #if defined(__GNUC__) || defined(__clang__)
-    for (size_t p = 0; p + prefetch_distance <= pixel_count; p += prefetch_distance) {
-        __builtin_prefetch(&curr_pixels[p + prefetch_distance], 0, 3); // Read, high temporal locality
-        __builtin_prefetch(&acc[p + prefetch_distance], 1, 3);         // Write, high temporal locality
+    if (use_streaming_stores) {
+        for (size_t p = 0; p + prefetch_distance <= pixel_count; p += prefetch_distance) {
+            __builtin_prefetch(&curr_pixels[p + prefetch_distance], 0, 3); // Read, high temporal locality
+            __builtin_prefetch(&acc[p + prefetch_distance], 1, 3);         // Write, high temporal locality
+        }
     }
 #endif
 
 #if defined(__AVX2__) || defined(_MSC_VER)
     if (c64_cpu_has_avx2) {
-        c64_afterglow_avx2(acc, curr_pixels, pixel_count, decay_r, decay_g, decay_b);
+        c64_afterglow_avx2(acc, curr_pixels, pixel_count, decay_r, decay_g, decay_b, use_streaming_stores);
         return acc;
     }
 #endif
@@ -700,6 +717,9 @@ void c64_render_frame_direct(struct c64_source *context, struct frame_assembly *
 
     // Output frame directly to OBS
     obs_source_output_video(context->source, &obs_frame);
+
+    // Mark frame_dirty so the render thread can skip redundant texture uploads when unchanged.
+    context->frame_dirty = true;
 
     // Log video frame delivery to CSV if enabled (high-level event: complete frame delivered to OBS)
     if (context->timing_file) {
@@ -999,7 +1019,10 @@ void *c64_video_thread_func(void *data)
 
         // Simple approach: just count packets received, no complex sequence tracking
         uint64_t now = os_gettime_ns();
-        c64_process_video_statistics_batch(context, now);
+        if (now - context->last_stats_tick_ns >= 50000000ULL) { // ~50ms cadence
+            context->last_stats_tick_ns = now;
+            c64_process_video_statistics_batch(context, now);
+        }
 
         if (lines_per_packet != C64_LINES_PER_PACKET || pixels_per_line != C64_PIXELS_PER_LINE || bits_per_pixel != 4) {
             C64_LOG_WARNING("Invalid packet format: lines=%u, pixels=%u, bits=%u", lines_per_packet, pixels_per_line,
@@ -1086,6 +1109,7 @@ static void c64_render_black_screen(struct c64_source *context, uint64_t timesta
 
     // Black screen: 0x00000000 (fully transparent black in RGBA)
     memset(buffer, 0, width * height * sizeof(uint32_t));
+    context->frame_dirty = true;
 
     // Output black frame via async video - ALWAYS output to maintain video stream
     struct obs_source_frame obs_frame = {0};
@@ -1128,8 +1152,10 @@ void c64_process_video_packet_direct(struct c64_source *context, const uint8_t *
     bool last_packet = (line_num & 0x8000) != 0;
     line_num &= 0x7FFF;
 
-    // Process packet with frame assembly and double buffering
-    if (pthread_mutex_lock(&context->assembly_mutex) == 0) {
+    const bool need_lock = (context->network_buffer == NULL);
+    bool locked = false;
+    if (!need_lock || (pthread_mutex_lock(&context->assembly_mutex) == 0)) {
+        locked = need_lock;
         // Track frame capture timing for diagnostics (per-frame, not per-packet)
         uint64_t capture_time = timestamp_ns;
 
@@ -1248,7 +1274,9 @@ void c64_process_video_packet_direct(struct c64_source *context, const uint8_t *
         // Note: Frame completion is handled by the "complete previous frame" logic
         // when transitioning to a new frame. This avoids duplicate frame deliveries.
 
-        pthread_mutex_unlock(&context->assembly_mutex);
+        if (locked) {
+            pthread_mutex_unlock(&context->assembly_mutex);
+        }
     }
 }
 

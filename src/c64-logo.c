@@ -334,6 +334,7 @@ void c64_logo_render_to_frame(struct c64_source *context, uint64_t timestamp_ns)
     // Copy pre-rendered logo to main frame buffer (very fast)
     size_t frame_size = context->width * context->height * sizeof(uint32_t);
     memcpy(context->frame_buffer, logo_buffer, frame_size);
+    context->frame_dirty = true;
 
     // Output logo frame via async video
     struct obs_source_frame obs_frame = {0};

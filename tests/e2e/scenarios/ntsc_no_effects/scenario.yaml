@@ -1,7 +1,0 @@
-name: NTSC No Effects
-format: NTSC
-preset: Default
-assertions:
-  - video_quality
-  - audio
-  - frame_progression

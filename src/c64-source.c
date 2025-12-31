@@ -456,6 +456,7 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     os_atomic_set_long(&context->audio_packets_received, 0);
     os_atomic_set_long(&context->audio_bytes_received, 0);
     context->last_stats_log_time = os_gettime_ns();
+    context->last_stats_tick_ns = context->last_stats_log_time;
 
     // Initialize render callback timeout system
     uint64_t now = os_gettime_ns();
@@ -505,6 +506,7 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->tint_mode = (int)obs_data_get_int(settings, "tint_mode");
     context->tint_strength = (float)obs_data_get_double(settings, "tint_strength");
     context->tint_enable = (context->tint_mode > 0 && context->tint_strength > 0.0f);
+    context->frame_dirty = false;
 
     // Note: avoid noisy logging here; E2E expects deterministic behavior without requiring log parsing.
     context->render_texture = NULL;
@@ -990,6 +992,11 @@ void c64_video_tick(void *data, float seconds)
     if (!context)
         return;
 
+    const bool effects_enabled =
+        (context->scan_line_distance > 0.0f) || (context->bloom_strength > 0.0f) ||
+        (context->afterglow_duration_ms > 0) || (context->tint_mode > 0 && context->tint_strength > 0.0f) ||
+        (context->pixel_width != 1.0f || context->pixel_height != 1.0f) || (context->blur_strength > 0.0f);
+
     // Stable per-tick dt for afterglow.
     // Do NOT derive dt from `video_render` timestamps: render calls can be irregular (minimize-to-tray/headless),
     // causing huge dt spikes and making afterglow decay instantly to black.
@@ -1021,21 +1028,31 @@ void c64_video_tick(void *data, float seconds)
                                  false);
         }
 
-        // Create afterglow accumulation textures (ping-pong buffers)
-        // Use render dimensions (which include scaling effects) not base dimensions
-        uint32_t render_width = c64_get_width(context);
-        uint32_t render_height = c64_get_height(context);
+        // Create afterglow accumulation textures only when effects are enabled
+        if (effects_enabled) {
+            uint32_t render_width = c64_get_width(context);
+            uint32_t render_height = c64_get_height(context);
 
-        if (context->afterglow_accum_prev) {
-            gs_texture_destroy(context->afterglow_accum_prev);
+            if (context->afterglow_accum_prev) {
+                gs_texture_destroy(context->afterglow_accum_prev);
+            }
+            if (context->afterglow_accum_next) {
+                gs_texture_destroy(context->afterglow_accum_next);
+            }
+            context->afterglow_accum_prev =
+                gs_texture_create(render_width, render_height, GS_RGBA, 1, NULL, GS_RENDER_TARGET);
+            context->afterglow_accum_next =
+                gs_texture_create(render_width, render_height, GS_RGBA, 1, NULL, GS_RENDER_TARGET);
+        } else {
+            if (context->afterglow_accum_prev) {
+                gs_texture_destroy(context->afterglow_accum_prev);
+                context->afterglow_accum_prev = NULL;
+            }
+            if (context->afterglow_accum_next) {
+                gs_texture_destroy(context->afterglow_accum_next);
+                context->afterglow_accum_next = NULL;
+            }
         }
-        if (context->afterglow_accum_next) {
-            gs_texture_destroy(context->afterglow_accum_next);
-        }
-        context->afterglow_accum_prev =
-            gs_texture_create(render_width, render_height, GS_RGBA, 1, NULL, GS_RENDER_TARGET);
-        context->afterglow_accum_next =
-            gs_texture_create(render_width, render_height, GS_RGBA, 1, NULL, GS_RENDER_TARGET);
 
         obs_leave_graphics();
         if (!context->render_texture) {
@@ -1043,19 +1060,20 @@ void c64_video_tick(void *data, float seconds)
             context->render_texture_width = 0;
             context->render_texture_height = 0;
         }
-        if (!context->afterglow_accum_prev || !context->afterglow_accum_next) {
+        if (effects_enabled && (!context->afterglow_accum_prev || !context->afterglow_accum_next)) {
             C64_LOG_ERROR("Failed to create afterglow accumulation textures");
         }
 
         // Invalidate CPU afterglow accumulator on texture recreation (Medium #8: prevent visual glitch)
         context->afterglow_cpu_valid = false;
+        context->frame_dirty = false;
 
     } else {
         // Upload latest frame to the render texture.
         // Note: afterglow is applied at frame delivery time (video thread) into `afterglow_cpu_accum`.
         // We must NOT write afterglow back into `frame_buffer` here; that creates feedback and flicker when
         // packets drop or when video thread is concurrently writing the raw buffer.
-        if (context->frame_buffer && context->width > 0 && context->height > 0) {
+        if (context->frame_dirty && context->frame_buffer && context->width > 0 && context->height > 0) {
             const uint32_t *src_pixels = context->frame_buffer;
             if (context->afterglow_enable && context->afterglow_cpu_accum && context->afterglow_cpu_valid &&
                 context->afterglow_duration_ms > 0) {
@@ -1064,6 +1082,7 @@ void c64_video_tick(void *data, float seconds)
             obs_enter_graphics();
             gs_texture_set_image(context->render_texture, (const uint8_t *)src_pixels, context->width * 4, false);
             obs_leave_graphics();
+            context->frame_dirty = false;
         }
     }
 }

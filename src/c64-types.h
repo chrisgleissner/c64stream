@@ -154,11 +154,15 @@ struct c64_source {
     volatile long audio_packets_received; // Total audio packets received (atomic)
     volatile long audio_bytes_received;   // Total audio bytes received (atomic)
     uint64_t last_stats_log_time;         // Last time statistics were logged (non-atomic)
+    uint64_t last_stats_tick_ns;          // Last time stats batching was checked (limits per-packet timing calls)
 
     // Frame saving for analysis (logo handled by async video - no manual logo needed)
     bool record_frames;
     char save_folder[512];
     uint32_t saved_frame_count;
+
+    // Frame state flags
+    bool frame_dirty; // Set when a new frame arrives; cleared after texture upload to avoid redundant copies
 
     // Video recording for analysis
     bool record_video;
