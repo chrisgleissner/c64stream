@@ -992,8 +992,6 @@ void c64_video_tick(void *data, float seconds)
     if (!context)
         return;
 
-    uint64_t tick_start = os_gettime_ns();
-
     const bool effects_enabled =
         (context->scan_line_distance > 0.0f) || (context->bloom_strength > 0.0f) ||
         (context->afterglow_duration_ms > 0) || (context->tint_mode > 0 && context->tint_strength > 0.0f) ||
@@ -1087,11 +1085,6 @@ void c64_video_tick(void *data, float seconds)
             context->frame_dirty = false;
         }
     }
-
-    // Accumulate timing for this tick
-    uint64_t tick_end = os_gettime_ns();
-    context->timing_tick_total_ns += (tick_end - tick_start);
-    context->timing_tick_count++;
 }
 
 // Video render callback for CRT effects (GPU rendering)

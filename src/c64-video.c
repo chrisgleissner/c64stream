@@ -951,12 +951,6 @@ void *c64_video_thread_func(void *data)
 
     C64_LOG_DEBUG("Video thread function started with optimized scheduling");
 
-#ifdef C64_ENABLE_TIMING_INSTRUMENTATION
-    // Initialize timing profiling
-    context->timing_recv_total_ns = 0;
-    context->timing_recv_count = 0;
-#endif
-
 #ifdef __linux__
 // Batch read optimization for Linux: receive up to 8 packets per syscall
 #define BATCH_SIZE 8
@@ -978,9 +972,6 @@ void *c64_video_thread_func(void *data)
 #endif
 
     while (os_atomic_load_bool(&context->thread_active)) {
-#ifdef C64_ENABLE_TIMING_INSTRUMENTATION
-        uint64_t iter_start = os_gettime_ns();
-#endif
         // Check socket validity before each recv call (prevents Windows WSAENOTSOCK errors)
         if (context->video_socket == INVALID_SOCKET_VALUE) {
             os_sleep_ms(10); // Wait a bit before checking again
@@ -1118,41 +1109,6 @@ void *c64_video_thread_func(void *data)
 #else
         } // End scope block
 #endif
-
-#ifdef C64_ENABLE_TIMING_INSTRUMENTATION
-        // Accumulate timing for this iteration
-        uint64_t iter_end = os_gettime_ns();
-        context->timing_recv_total_ns += (iter_end - iter_start);
-        context->timing_recv_count++;
-
-        // Log timing stats at 1Hz
-        if (iter_end - context->timing_last_log_ns >= 1000000000ULL) {
-            uint64_t recv_avg_us = context->timing_recv_count > 0
-                                       ? (context->timing_recv_total_ns / context->timing_recv_count / 1000)
-                                       : 0;
-            uint64_t processor_avg_us =
-                context->timing_processor_count > 0
-                    ? (context->timing_processor_total_ns / context->timing_processor_count / 1000)
-                    : 0;
-            uint64_t tick_avg_us = context->timing_tick_count > 0
-                                       ? (context->timing_tick_total_ns / context->timing_tick_count / 1000)
-                                       : 0;
-
-            C64_LOG_INFO("⏱️ Hot-path timing: recv=%" PRIu64 "us/%u iters, processor=%" PRIu64
-                         "us/%u iters, tick=%" PRIu64 "us/%u iters",
-                         recv_avg_us, context->timing_recv_count, processor_avg_us, context->timing_processor_count,
-                         tick_avg_us, context->timing_tick_count);
-
-            // Reset counters for next interval
-            context->timing_last_log_ns = iter_end;
-            context->timing_recv_total_ns = 0;
-            context->timing_recv_count = 0;
-            context->timing_processor_total_ns = 0;
-            context->timing_processor_count = 0;
-            context->timing_tick_total_ns = 0;
-            context->timing_tick_count = 0;
-        }
-#endif // C64_ENABLE_TIMING_INSTRUMENTATION
     }
 
     C64_LOG_DEBUG("Video receiver thread stopped");
