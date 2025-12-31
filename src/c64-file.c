@@ -100,18 +100,18 @@ bool c64_get_user_documents_path(char *path_buffer, size_t buffer_size)
         if (result > 0) {
             strncpy(path_buffer, documents_path, buffer_size - 1);
             path_buffer[buffer_size - 1] = '\0';
-            blog(LOG_DEBUG, "[c64stream] Retrieved Windows Documents path: %s", path_buffer);
+            blog(LOG_DEBUG, "Retrieved Windows Documents path: %s", path_buffer);
             return true;
         } else {
-            blog(LOG_WARNING, "[c64stream] Failed to convert Windows Documents path to UTF-8");
+            blog(LOG_WARNING, "Failed to convert Windows Documents path to UTF-8");
         }
     } else {
-        blog(LOG_WARNING, "[c64stream] Failed to get Windows Documents folder path (HRESULT: 0x%08X)", hr);
+        blog(LOG_WARNING, "Failed to get Windows Documents folder path (HRESULT: 0x%08X)", hr);
     }
 
     // Fallback to Public Documents if personal Documents fails
     strcpy(path_buffer, "C:\\Users\\Public\\Documents");
-    blog(LOG_INFO, "[c64stream] Using fallback Windows Documents path: %s", path_buffer);
+    blog(LOG_INFO, "Using fallback Windows Documents path: %s", path_buffer);
     return true;
 
 #elif defined(__APPLE__)
@@ -119,12 +119,12 @@ bool c64_get_user_documents_path(char *path_buffer, size_t buffer_size)
     const char *home = getenv("HOME");
     if (home) {
         snprintf(path_buffer, buffer_size, "%s/Documents", home);
-        blog(LOG_DEBUG, "[c64stream] Retrieved macOS Documents path: %s", path_buffer);
+        blog(LOG_DEBUG, "Retrieved macOS Documents path: %s", path_buffer);
         return true;
     } else {
-        blog(LOG_WARNING, "[c64stream] Failed to get macOS home directory");
+        blog(LOG_WARNING, "Failed to get macOS home directory");
         strcpy(path_buffer, "/Users/Shared/Documents");
-        blog(LOG_INFO, "[c64stream] Using fallback macOS Documents path: %s", path_buffer);
+        blog(LOG_INFO, "Using fallback macOS Documents path: %s", path_buffer);
         return true;
     }
 
@@ -134,19 +134,19 @@ bool c64_get_user_documents_path(char *path_buffer, size_t buffer_size)
     if (xdg_documents) {
         strncpy(path_buffer, xdg_documents, buffer_size - 1);
         path_buffer[buffer_size - 1] = '\0';
-        blog(LOG_DEBUG, "[c64stream] Retrieved Linux XDG Documents path: %s", path_buffer);
+        blog(LOG_DEBUG, "Retrieved Linux XDG Documents path: %s", path_buffer);
         return true;
     }
 
     const char *home = getenv("HOME");
     if (home) {
         snprintf(path_buffer, buffer_size, "%s/Documents", home);
-        blog(LOG_DEBUG, "[c64stream] Retrieved Linux Documents path: %s", path_buffer);
+        blog(LOG_DEBUG, "Retrieved Linux Documents path: %s", path_buffer);
         return true;
     } else {
-        blog(LOG_WARNING, "[c64stream] Failed to get Linux home directory");
+        blog(LOG_WARNING, "Failed to get Linux home directory");
         strcpy(path_buffer, "/tmp");
-        blog(LOG_INFO, "[c64stream] Using fallback Linux Documents path: %s", path_buffer);
+        blog(LOG_INFO, "Using fallback Linux Documents path: %s", path_buffer);
         return true;
     }
 #endif
