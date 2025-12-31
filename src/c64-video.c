@@ -961,9 +961,11 @@ void *c64_video_thread_func(void *data)
 
     C64_LOG_DEBUG("Video thread function started with optimized scheduling");
 
+#ifdef C64_ENABLE_TIMING_INSTRUMENTATION
     // Initialize timing profiling
     context->timing_recv_total_ns = 0;
     context->timing_recv_count = 0;
+#endif
 
 #ifdef __linux__
 // Batch read optimization for Linux: receive up to 8 packets per syscall
@@ -986,7 +988,9 @@ void *c64_video_thread_func(void *data)
 #endif
 
     while (os_atomic_load_bool(&context->thread_active)) {
+#ifdef C64_ENABLE_TIMING_INSTRUMENTATION
         uint64_t iter_start = os_gettime_ns();
+#endif
         // Check socket validity before each recv call (prevents Windows WSAENOTSOCK errors)
         if (context->video_socket == INVALID_SOCKET_VALUE) {
             os_sleep_ms(10); // Wait a bit before checking again
@@ -1125,6 +1129,7 @@ void *c64_video_thread_func(void *data)
         } // End scope block
 #endif
 
+#ifdef C64_ENABLE_TIMING_INSTRUMENTATION
         // Accumulate timing for this iteration
         uint64_t iter_end = os_gettime_ns();
         context->timing_recv_total_ns += (iter_end - iter_start);
@@ -1157,6 +1162,7 @@ void *c64_video_thread_func(void *data)
             context->timing_tick_total_ns = 0;
             context->timing_tick_count = 0;
         }
+#endif // C64_ENABLE_TIMING_INSTRUMENTATION
     }
 
     C64_LOG_DEBUG("Video receiver thread stopped");
@@ -1426,8 +1432,12 @@ void *c64_video_processor_thread_func(void *data)
     int idle_spins = 0;
 
     while (os_atomic_load_bool(&context->thread_active)) {
+#ifdef C64_ENABLE_TIMING_INSTRUMENTATION
         uint64_t iter_start = os_gettime_ns();
+        uint64_t current_time = iter_start;
+#else
         uint64_t current_time = os_gettime_ns();
+#endif
         bool packet_processed = false;
 
         if (context->network_buffer) {
@@ -1526,10 +1536,12 @@ void *c64_video_processor_thread_func(void *data)
             idle_spins = 0;
         }
 
+#ifdef C64_ENABLE_TIMING_INSTRUMENTATION
         // Accumulate timing for this iteration
         uint64_t iter_end = os_gettime_ns();
         context->timing_processor_total_ns += (iter_end - iter_start);
         context->timing_processor_count++;
+#endif
     }
 
     C64_LOG_DEBUG("Video processor thread stopped");
