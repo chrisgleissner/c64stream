@@ -19,6 +19,8 @@ All simulation logic (jitter, reordering) is precalculated by Python.
 
 #define _POSIX_C_SOURCE 199309L
 
+#include <stdint.h>
+
 #ifdef _WIN32
 #ifndef _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_WARNINGS
@@ -30,59 +32,61 @@ All simulation logic (jitter, reordering) is precalculated by Python.
 #pragma comment(lib, "ws2_32.lib")
 typedef int ssize_t;
 
-static inline double get_time_ms(void)
+static uint64_t qpc_freq_hz = 0;
+
+static inline uint64_t get_time_us(void)
 {
-    LARGE_INTEGER freq, counter;
-    QueryPerformanceFrequency(&freq);
+    LARGE_INTEGER counter;
+    if (qpc_freq_hz == 0) {
+        LARGE_INTEGER freq;
+        QueryPerformanceFrequency(&freq);
+        qpc_freq_hz = (uint64_t)freq.QuadPart;
+    }
     QueryPerformanceCounter(&counter);
-    return (double)counter.QuadPart * 1000.0 / (double)freq.QuadPart;
+    return (uint64_t)((double)counter.QuadPart * 1000000.0 / (double)qpc_freq_hz);
 }
 
-static void sleep_until_us(double target_time_us)
+static void sleep_until_us(uint64_t target_time_us)
 {
-    // Sleep-only approach (no busy-wait to save CPU)
-    // The plugin's network buffer handles any timing jitter
-    double now = get_time_ms() * 1000.0;
-    double remaining_us = target_time_us - now;
-
-    if (remaining_us <= 0)
+    uint64_t now_us = get_time_us();
+    if (target_time_us <= now_us)
         return;
 
-    // Use Sleep for the entire duration (1ms granularity on Windows)
-    long sleep_ms = (long)(remaining_us / 1000);
-    if (sleep_ms > 0)
+    uint64_t remaining_us = target_time_us - now_us;
+
+    // Use Sleep for the bulk duration (1ms granularity on Windows)
+    DWORD sleep_ms = (DWORD)(remaining_us / 1000ULL);
+    if (sleep_ms > 0) {
         Sleep((DWORD)sleep_ms);
+    }
 }
 #else
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
-#include <sys/time.h>
 #include <time.h>
 
-static inline double get_time_ms(void)
+static inline uint64_t get_time_us(void)
 {
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    return tv.tv_sec * 1000.0 + tv.tv_usec / 1000.0;
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint64_t)ts.tv_sec * 1000000ULL + (uint64_t)ts.tv_nsec / 1000ULL;
 }
 
-static void sleep_until_us(double target_time_us)
+static void sleep_until_us(uint64_t target_time_us)
 {
-    // Sleep-only approach (no busy-wait to save CPU)
-    // The plugin's network buffer handles any timing jitter
-    double now = get_time_ms() * 1000.0;
-    double remaining_us = target_time_us - now;
+    for (;;) {
+        uint64_t now_us = get_time_us();
+        if (target_time_us <= now_us) {
+            return;
+        }
 
-    if (remaining_us <= 0)
-        return;
-
-    // Use nanosleep for the entire duration
-    long sleep_us = (long)remaining_us;
-    struct timespec ts;
-    ts.tv_sec = sleep_us / 1000000;
-    ts.tv_nsec = (sleep_us % 1000000) * 1000;
-    nanosleep(&ts, NULL);
+        uint64_t remaining_us = target_time_us - now_us;
+        struct timespec ts;
+        ts.tv_sec = (time_t)(remaining_us / 1000000ULL);
+        ts.tv_nsec = (long)((remaining_us % 1000000ULL) * 1000ULL);
+        nanosleep(&ts, NULL);
+    }
 }
 #endif
 
@@ -176,11 +180,25 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    // Best-effort: increase UDP send buffer to reduce sender-side drops under load.
+    // Some CI environments clamp this to a low value; failure is non-fatal.
+    {
+        int send_buffer_size = 4 * 1024 * 1024; // 4MB
+#ifdef _WIN32
+        setsockopt(sock, SOL_SOCKET, SO_SNDBUF, (char *)&send_buffer_size, sizeof(send_buffer_size));
+#else
+        setsockopt(sock, SOL_SOCKET, SO_SNDBUF, &send_buffer_size, sizeof(send_buffer_size));
+#endif
+    }
+
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
     addr.sin_port = htons((unsigned short)port);
-    inet_pton(AF_INET, host, &addr.sin_addr);
+    if (inet_pton(AF_INET, host, &addr.sin_addr) != 1) {
+        fprintf(stderr, "Invalid host IP: %s\n", host);
+        return 1;
+    }
 
     struct packet_entry *entries = NULL;
     int count = 0;
@@ -193,9 +211,10 @@ int main(int argc, char **argv)
     if (verbose)
         printf("Loaded %d entries from manifest\n", count);
 
-    double start_us = get_time_ms() * 1000.0;
-    double cumulative_us = 0; // Target time relative to start
+    uint64_t start_us = get_time_us();
+    uint64_t last_send_us = start_us;
     int sent = 0;
+    int send_errors = 0;
 
     for (int i = 0; i < count; i++) {
         char path[MAX_PATH_LEN];
@@ -216,21 +235,55 @@ int main(int argc, char **argv)
         if (n != (size_t)packet_size)
             continue;
 
-        // Wait until target time (absolute timing - compensates for I/O overhead)
-        cumulative_us += entries[i].delay_us;
-        double target_us = start_us + cumulative_us;
+        // Wait until target time relative to the LAST successful send.
+        // This prevents "catch-up bursts" when the sender is preempted or I/O is slow,
+        // which can overflow small UDP receive buffers in CI and cause massive packet loss.
+        uint64_t target_us = last_send_us + (uint64_t)entries[i].delay_us;
         sleep_until_us(target_us);
 
-        sendto(sock, (char *)buf, packet_size, 0, (struct sockaddr *)&addr, sizeof(addr));
+        ssize_t rc = -1;
+        for (int attempt = 0; attempt < 10; attempt++) {
+            rc = sendto(sock, (char *)buf, packet_size, 0, (struct sockaddr *)&addr, sizeof(addr));
+            if (rc == packet_size) {
+                break;
+            }
+
+#ifdef _WIN32
+            int err = WSAGetLastError();
+            // Retry on transient buffer exhaustion.
+            if (err == WSAENOBUFS && attempt < 9) {
+                Sleep(1);
+                continue;
+            }
+            fprintf(stderr, "sendto failed (attempt %d/%d): WSA error=%d\n", attempt + 1, 10, err);
+#else
+            int err = errno;
+            // Retry on transient buffer exhaustion.
+            if ((err == ENOBUFS || err == EAGAIN) && attempt < 9) {
+                struct timespec ts = {.tv_sec = 0, .tv_nsec = 1000000};
+                nanosleep(&ts, NULL);
+                continue;
+            }
+            fprintf(stderr, "sendto failed (attempt %d/%d): %s\n", attempt + 1, 10, strerror(err));
+#endif
+            break;
+        }
+
+        if (rc != packet_size) {
+            send_errors++;
+            break;
+        }
+
+        last_send_us = get_time_us();
         sent++;
 
         if (verbose && sent % 500 == 0)
             printf("  Sent %d/%d\n", sent, count);
     }
 
-    double elapsed = (get_time_ms() * 1000.0 - start_us) / 1000.0; // Convert to ms
+    double elapsed = (double)(get_time_us() - start_us) / 1000.0; // Convert to ms
     if (verbose)
-        printf("✅ Sent %d packets in %.1fms\n", sent, elapsed);
+        printf("✅ Sent %d packets in %.1fms (send errors: %d)\n", sent, elapsed, send_errors);
 
     free(entries);
 #ifdef _WIN32
@@ -240,5 +293,7 @@ int main(int argc, char **argv)
     close(sock);
 #endif
 
-    return (sent > 0) ? 0 : 1;
+    if (sent <= 0)
+        return 1;
+    return (send_errors == 0) ? 0 : 1;
 }

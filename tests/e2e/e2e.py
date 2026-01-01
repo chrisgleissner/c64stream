@@ -2027,9 +2027,9 @@ class E2ETest:
             time.sleep(self.buffer_setup_delay)
             self.log("⏱️ Fallback buffer setup delay complete")
 
-        return self._replay_interleaved_packets()
+        return self._replay_interleaved_packets(udp_replay_path)
 
-    def _replay_interleaved_packets(self):
+    def _replay_interleaved_packets(self, udp_replay_path: Path):
         """Replay packets with proper interleaving and precise timing."""
         import socket
         import time
@@ -2313,22 +2313,9 @@ class E2ETest:
             self.log(f"   Video starts at: {video_manifest[0]['time_us']/1000:.1f}ms")
             self.log(f"   Audio starts at: {audio_manifest[0]['time_us']/1000:.1f}ms")
 
-            # Compile C binary if needed
-            import subprocess
-            udp_replay_bin = Path(__file__).parent / 'udp_replay'
-            udp_replay_src = Path(__file__).parent / 'udp_replay.c'
-
-            if not udp_replay_bin.exists() or udp_replay_src.stat().st_mtime > udp_replay_bin.stat().st_mtime:
-                self.log("🔨 Compiling udp_replay binary...")
-                compile_cmd = [
-                    'gcc', '-D_POSIX_C_SOURCE=199309L', '-O2', '-Wall', '-Wextra',
-                    '-o', str(udp_replay_bin), str(udp_replay_src)
-                ]
-                result = subprocess.run(compile_cmd, capture_output=True, text=True)
-                if result.returncode != 0:
-                    self.log(f"❌ Failed to compile udp_replay: {result.stderr}")
-                    raise RuntimeError("udp_replay compilation failed")
-                self.log("✅ Compiled udp_replay binary")
+            udp_replay_bin = Path(udp_replay_path).resolve()
+            if not udp_replay_bin.exists():
+                raise FileNotFoundError(f"udp_replay not found: {udp_replay_bin}")
 
             # Start resource monitoring RIGHT when packets begin flowing
             if self.enable_resource_monitoring and self._resource_monitor:
