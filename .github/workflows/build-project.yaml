@@ -919,8 +919,8 @@ jobs:
           - ntsc_default_720p
           - ntsc_default_record
           - ntsc_delay_buffer500_jitter0
-          - ntsc_delay_buffer500_jitter50
-          - ntsc_delay_buffer500_jitter100
+          - ntsc_delay_buffer500_jitter10
+          - ntsc_delay_buffer500_jitter30
           - ntsc_green_monitor
           - ntsc_phosphor_glow
           - ntsc_sharp_pixels
