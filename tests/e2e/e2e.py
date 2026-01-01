@@ -3987,27 +3987,48 @@ def main():
         except Exception as e:
             print(f"⚠️  Failed to load scenario YAML: {e}")
 
-    # Verify UDP replay tool exists, build if needed
-    udp_replay_path = Path(args.udp_replay)
-    if not udp_replay_path.exists():
-        print(f"⚠️  UDP replay tool not found: {udp_replay_path}")
-        print("🔨 Building UDP replay tool...")
+    # Verify UDP replay tool exists; (re)build if needed.
+    #
+    # IMPORTANT:
+    # The repository currently includes a prebuilt `udp_replay` binary. In CI we still
+    # rebuild from source to ensure fixes to `udp_replay.c` take effect (and to avoid
+    # stale-binary regressions).
+    script_dir = Path(__file__).parent
+    udp_replay_src = script_dir / "udp_replay.c"
 
-        # Find the udp_replay.c source file
-        script_dir = Path(__file__).parent
-        udp_replay_src = script_dir / "udp_replay.c"
+    udp_replay_requested = Path(args.udp_replay)
+    udp_replay_path = udp_replay_requested
 
+    is_ci = os.environ.get('CI', '').lower() in ('1', 'true', 'yes')
+    is_windows = sys.platform.startswith('win')
+
+    rebuild_reason = None
+    if not udp_replay_requested.exists():
+        rebuild_reason = "tool missing"
+    elif udp_replay_src.exists() and udp_replay_requested.stat().st_mtime < udp_replay_src.stat().st_mtime:
+        rebuild_reason = "source newer than tool"
+    elif is_ci and not is_windows:
+        rebuild_reason = "CI rebuild"
+
+    if rebuild_reason is not None:
         if not udp_replay_src.exists():
             print(f"❌ UDP replay source not found: {udp_replay_src}")
             return 1
 
-        # Build the tool
+        # Build into the output directory to avoid modifying tracked binaries in the repo.
+        build_dir = Path(args.output_dir) if args.output_dir else Path(args.test_dir)
+        build_dir.mkdir(parents=True, exist_ok=True)
+        udp_replay_path = build_dir / "udp_replay"
+
+        print(f"⚠️  (Re)building UDP replay tool ({rebuild_reason})...")
+        print(f"🔨 Building UDP replay tool: {udp_replay_path}")
+
         build_cmd = ["gcc", "-O2", "-o", str(udp_replay_path), str(udp_replay_src)]
         try:
-            result = subprocess.run(build_cmd, check=True, capture_output=True, text=True)
+            subprocess.run(build_cmd, check=True, capture_output=True, text=True)
             print(f"✅ Successfully built UDP replay tool: {udp_replay_path}")
         except subprocess.CalledProcessError as e:
-            print(f"❌ Failed to build UDP replay tool:")
+            print("❌ Failed to build UDP replay tool:")
             print(f"   Command: {' '.join(build_cmd)}")
             print(f"   Error: {e.stderr}")
             return 1

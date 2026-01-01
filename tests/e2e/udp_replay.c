@@ -104,6 +104,15 @@ struct packet_entry {
     long delay_us;
 };
 
+static const struct packet_entry *g_entries_for_sort = NULL;
+
+static int compare_indices_by_filename(const void *a, const void *b)
+{
+    int ia = *(const int *)a;
+    int ib = *(const int *)b;
+    return strcmp(g_entries_for_sort[ia].filename, g_entries_for_sort[ib].filename);
+}
+
 static int load_manifest(const char *path, struct packet_entry **entries, int *count)
 {
     FILE *f = fopen(path, "r");
@@ -264,7 +273,33 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    // Preload packets in filename order to maximize filesystem locality.
+    // IMPORTANT:
+    // - The manifest order may be heavily shuffled (e.g., jitter/reordering scenarios).
+    // - We still SEND in manifest order, but we can safely preload in any order as
+    //   long as we store packet bytes at the correct manifest index.
+    // - This avoids missing start_at_us on cold CI filesystems, which would otherwise
+    //   trigger a "catch up" burst and massive receiver-side drops.
+    uint64_t preload_begin_us = get_time_us();
+
+    int *preload_indices = malloc((size_t)count * sizeof(int));
+    if (!preload_indices) {
+        fprintf(stderr, "Failed to allocate preload indices\n");
+        free(packet_data);
+        free(entries);
+        return 1;
+    }
+
     for (int i = 0; i < count; i++) {
+        preload_indices[i] = i;
+    }
+
+    g_entries_for_sort = entries;
+    qsort(preload_indices, (size_t)count, sizeof(int), compare_indices_by_filename);
+    g_entries_for_sort = NULL;
+
+    for (int k = 0; k < count; k++) {
+        int i = preload_indices[k];
         char path[MAX_PATH_LEN];
 #ifdef _WIN32
         snprintf(path, sizeof(path), "%s\\%s", dir_path, entries[i].filename);
@@ -275,6 +310,7 @@ int main(int argc, char **argv)
         FILE *f = fopen(path, "rb");
         if (!f) {
             fprintf(stderr, "Failed to open packet file: %s\n", path);
+            free(preload_indices);
             free(packet_data);
             free(entries);
             return 1;
@@ -285,22 +321,30 @@ int main(int argc, char **argv)
         fclose(f);
         if (n != (size_t)packet_size) {
             fprintf(stderr, "Short read for packet file: %s (%zu/%d)\n", path, n, packet_size);
+            free(preload_indices);
             free(packet_data);
             free(entries);
             return 1;
         }
     }
 
+    free(preload_indices);
+
+    uint64_t preload_end_us = get_time_us();
     if (verbose) {
-        static const uint64_t NS_PER_US = 1000ULL;
-        (void)NS_PER_US;
-        // get_time_us() is monotonic on both platforms.
-        // We don't track start separately here; the useful signal is simply "preload done".
-        printf("Preload complete (%d packets, %llu bytes)\n", count, (unsigned long long)total_bytes);
+        printf("Preload complete (%d packets, %llu bytes) in %.1fms\n", count, (unsigned long long)total_bytes,
+               (double)(preload_end_us - preload_begin_us) / 1000.0);
     }
 
     // Align start across processes (audio+video) using an absolute monotonic timestamp.
     uint64_t start_us = start_at_us ? start_at_us : get_time_us();
+    if (verbose) {
+        uint64_t now_us = get_time_us();
+        if (now_us > start_us) {
+            printf("⚠️  Missed start_at_us by %.1fms (will catch up by sending immediately)\n",
+                   (double)(now_us - start_us) / 1000.0);
+        }
+    }
     sleep_until_us(start_us);
 
     uint64_t cumulative_us = 0; // Target time relative to start
