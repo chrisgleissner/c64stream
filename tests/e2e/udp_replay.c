@@ -408,7 +408,8 @@ int main(int argc, char **argv)
 
     double elapsed = (double)(get_time_us() - start_us) / 1000.0; // Convert to ms
     if (verbose)
-        printf("✅ Sent %d packets in %.1fms (send errors: %d)\n", sent, elapsed, send_errors);
+        printf("✅ Sent %d packets in %.1fms (schedule: %.1fms, send errors: %d)\n", sent, elapsed,
+               (double)cumulative_us / 1000.0, send_errors);
 
     free(packet_data);
     free(entries);

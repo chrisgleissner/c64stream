@@ -19,6 +19,62 @@ import numpy as np
 from .base import AssertionResult, AssertionStatus, EffectAssertion
 
 
+def _read_frame_with_seek_backoff(
+    cap: "cv2.VideoCapture",
+    target_frame: int,
+    *,
+    max_backoff_frames: int = 120,
+) -> tuple[bool, "np.ndarray | None", dict]:
+    """Best-effort read of a specific frame index.
+
+    Some OpenCV/FFmpeg builds can fail to decode immediately after
+    CAP_PROP_POS_FRAMES seeks (often when seeking to a non-keyframe).
+    Work around this by seeking slightly earlier and reading forward.
+    """
+
+    details: dict = {"target_frame": int(target_frame)}
+
+    # First try the direct seek/read.
+    try:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, int(target_frame))
+        ret, frame = cap.read()
+        if ret:
+            details["method"] = "direct"
+            return True, frame, details
+    except Exception as e:
+        details["direct_exception"] = repr(e)
+
+    # Fallback: seek backwards then decode forward.
+    backoffs = [1, 2, 5, 10, 20, 40, 80, 120]
+    backoffs = [b for b in backoffs if b <= max_backoff_frames]
+
+    for backoff in backoffs:
+        start = max(0, int(target_frame) - int(backoff))
+        try:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, start)
+        except Exception as e:
+            details.setdefault("seek_exceptions", []).append({"start": start, "exception": repr(e)})
+            continue
+
+        frame = None
+        ok = True
+        for _ in range(int(backoff) + 1):
+            ret, frame = cap.read()
+            if not ret:
+                ok = False
+                break
+
+        if ok and frame is not None:
+            details["method"] = "backoff"
+            details["backoff_frames"] = int(backoff)
+            details["seek_start_frame"] = int(start)
+            return True, frame, details
+
+    details["method"] = "failed"
+    details["max_backoff_frames"] = int(max_backoff_frames)
+    return False, None, details
+
+
 def _detect_content_bounds(frame: np.ndarray, c64_visible_height: int) -> tuple[int, int, int, int]:
     """Detect content bounds (left, right, top, bottom) using black bars around C64 content.
 
@@ -440,14 +496,13 @@ def _analyze_frame_progression(
         )
 
     # Read first frame to detect content bounds
-    cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
-    ret, frame0 = cap.read()
-    if not ret:
+    ret, frame0, seek_details = _read_frame_with_seek_backoff(cap, start_frame)
+    if not ret or frame0 is None:
         cap.release()
         return _AnalysisResult(
             status=AssertionStatus.FAIL,
             message="Could not seek to analysis start",
-            details={"start_frame": start_frame},
+            details={"start_frame": start_frame, "seek": seek_details},
             metrics={},
         )
 

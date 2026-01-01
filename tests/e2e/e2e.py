@@ -1461,8 +1461,11 @@ class E2ETest:
         primary_audio = b"Audio receiver thread started on port"
 
         # Fallback socket creation patterns (info level)
-        fallback_video = f"Created optimized UDP socket on port {self.video_port}".encode()
-        fallback_audio = f"Created optimized UDP socket on port {self.audio_port}".encode()
+        # Use the *actual* destination ports (can be updated from TCP START commands).
+        video_port = int(getattr(self, 'video_dest_port', self.video_port))
+        audio_port = int(getattr(self, 'audio_dest_port', self.audio_port))
+        fallback_video = f"Created optimized UDP socket on port {video_port}".encode()
+        fallback_audio = f"Created optimized UDP socket on port {audio_port}".encode()
 
         saw_video = False
         saw_audio = False
@@ -2502,10 +2505,12 @@ class E2ETest:
             # - For CI, use a more conservative minimum to reduce receiver buffer overflows.
             MIN_PACKET_DELAY_US = 50 if self.is_ci else 1
 
-            def write_manifest(path: Path, events: list[dict]):
+            def write_manifest(path: Path, events: list[dict]) -> dict:
                 with open(path, 'w') as f:
                     f.write("filename,delay_us\n")
                     last_sent_time_us = 0
+                    min_delta_us = None
+                    max_delta_us = 0
                     for event in events:
                         event_time_us = int(round(float(event['time_us'])))
                         delta_us = event_time_us - last_sent_time_us
@@ -2514,9 +2519,27 @@ class E2ETest:
                         filename = Path(event['file']).name
                         f.write(f"{filename},{int(delta_us)}\n")
                         last_sent_time_us += int(delta_us)
+                        if min_delta_us is None or delta_us < min_delta_us:
+                            min_delta_us = int(delta_us)
+                        if delta_us > max_delta_us:
+                            max_delta_us = int(delta_us)
 
-            write_manifest(video_manifest_path, video_manifest)
-            write_manifest(audio_manifest_path, audio_manifest)
+                return {
+                    'total_us': int(last_sent_time_us),
+                    'min_delta_us': int(min_delta_us or 0),
+                    'max_delta_us': int(max_delta_us),
+                }
+
+            video_manifest_stats = write_manifest(video_manifest_path, video_manifest)
+            audio_manifest_stats = write_manifest(audio_manifest_path, audio_manifest)
+
+            self.log(
+                "🕒 Manifest timing summary: "
+                f"video={video_manifest_stats['total_us'] / 1000.0:.1f}ms "
+                f"(minΔ={video_manifest_stats['min_delta_us']}us, maxΔ={video_manifest_stats['max_delta_us']}us), "
+                f"audio={audio_manifest_stats['total_us'] / 1000.0:.1f}ms "
+                f"(minΔ={audio_manifest_stats['min_delta_us']}us, maxΔ={audio_manifest_stats['max_delta_us']}us)"
+            )
 
             self.log(f"📝 Generated manifests: {len(video_manifest)} video, {len(audio_manifest)} audio packets")
             self.log(f"   Video starts at: {video_manifest[0]['time_us']/1000:.1f}ms")
