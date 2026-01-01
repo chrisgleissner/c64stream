@@ -2279,8 +2279,10 @@ class E2ETest:
             # Minimum inter-packet delay in microseconds
             # This prevents packet bursts when jitter causes packets to cluster
             # in the global timeline. Without this, CI environments with small
-            # UDP buffers (1MB) overflow and drop 97%+ of packets.
-            # 50us allows ~20K packets/sec which is still well above natural rate.
+            # UDP buffers (1MB) can overflow.
+            #
+            # With realistic jitter values (50-100ms), a 50µs minimum delay
+            # limits burst rate to ~20K packets/sec which is sustainable.
             MIN_PACKET_DELAY_US = 50
 
             with open(video_manifest_path, 'w') as f:

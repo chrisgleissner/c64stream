@@ -2,28 +2,32 @@
   "video": {
     "count": 17999,
     "interval_median_us": 3.0,
-    "interval_max_us": 11921.0,
+    "interval_max_us": 11050.0,
     "interval_min_us": 1.0,
-    "interval_mean_us": 277.93,
+    "interval_mean_us": 278.08,
     "jitter_median_us": 1.0,
-    "jitter_max_us": 11918.0,
+    "jitter_max_us": 11047.0,
     "jitter_median_ms": 0.001,
-    "jitter_max_ms": 11.918
+    "jitter_max_ms": 11.047,
+    "out_of_order_count": 0,
+    "out_of_order_rate_pct": 0.0
   },
   "audio": {
-    "count": 1249,
-    "interval_median_us": 4227.0,
-    "interval_max_us": 13870.0,
+    "count": 1250,
+    "interval_median_us": 4222.0,
+    "interval_max_us": 13872.0,
     "interval_min_us": 2.0,
-    "interval_mean_us": 4005.54,
-    "jitter_median_us": 972.0,
-    "jitter_max_us": 9643.0,
-    "jitter_median_ms": 0.972,
-    "jitter_max_ms": 9.643
+    "interval_mean_us": 4004.8,
+    "jitter_median_us": 980.0,
+    "jitter_max_us": 9650.0,
+    "jitter_median_ms": 0.98,
+    "jitter_max_ms": 9.65,
+    "out_of_order_count": 0,
+    "out_of_order_rate_pct": 0.0
   },
   "summary": {
     "total_video_packets": 17999,
-    "total_audio_packets": 1249,
+    "total_audio_packets": 1250,
     "analysis_complete": true
   }
 }
