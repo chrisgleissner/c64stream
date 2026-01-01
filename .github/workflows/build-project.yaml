@@ -873,7 +873,10 @@ jobs:
           - ntsc_classic_crt
           - ntsc_default
           - ntsc_default_720p
+          - ntsc_default_record
           - ntsc_delay_buffer500_jitter0
+          - ntsc_delay_buffer500_jitter100
+          - ntsc_delay_buffer500_jitter500
           - ntsc_green_monitor
           - ntsc_phosphor_glow
           - ntsc_sharp_pixels
