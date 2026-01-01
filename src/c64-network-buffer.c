@@ -247,7 +247,6 @@ static void rb_push(struct packet_ring_buffer *rb, const uint8_t *data, size_t l
             }
 
             current = prev;
-            insert_pos = current;
             search_depth++;
         }
     }
@@ -256,21 +255,32 @@ static void rb_push(struct packet_ring_buffer *rb, const uint8_t *data, size_t l
     if (found_insert_pos && insert_pos != head) {
         // Shift operation to maintain sequence order
         // Match MAX_SEARCH_DEPTH to ensure we can actually place packets where they belong
-        size_t shift_pos = head;
-        size_t shift_count = 0;
         const size_t MAX_SHIFT_COUNT = (rb->type == BUFFER_TYPE_VIDEO) ? 2048 : 150;
 
-        while (shift_pos != insert_pos && shift_count < MAX_SHIFT_COUNT) {
-            size_t prev = (shift_pos == 0) ? rb->max_capacity - 1 : shift_pos - 1;
-            rb->slots[shift_pos] = rb->slots[prev];
-            shift_pos = prev;
-            shift_count++;
-        }
+        size_t shift_distance = (head >= insert_pos) ? (head - insert_pos) : (head + rb->max_capacity - insert_pos);
 
-        if (shift_count >= MAX_SHIFT_COUNT) {
+        if (shift_distance > MAX_SHIFT_COUNT) {
             // Shift limit exceeded - insert at head to avoid blocking (packet may be slightly out of order)
             insert_pos = head;
             C64_LOG_DEBUG("%s: Shift limit exceeded for seq %u, inserting at head", type_name, seq_num);
+        } else {
+            // Treat the current head slot as an empty hole, then swap-shift packets into it.
+            // This avoids copying packet payload bytes and keeps per-slot payload buffers unique under heavy reordering.
+            rb->slots[head].valid = false;
+            rb->slots[head].size = 0;
+            rb->slots[head].timestamp_us = 0;
+            rb->slots[head].sequence_num = 0;
+            rb->slots[head].frame_num = 0;
+            rb->slots[head].line_num = 0;
+
+            size_t shift_pos = head;
+            for (size_t i = 0; i < shift_distance; i++) {
+                size_t prev = (shift_pos == 0) ? rb->max_capacity - 1 : shift_pos - 1;
+                struct packet_slot tmp = rb->slots[shift_pos];
+                rb->slots[shift_pos] = rb->slots[prev];
+                rb->slots[prev] = tmp;
+                shift_pos = prev;
+            }
         }
     }
 
@@ -495,7 +505,7 @@ void c64_network_buffer_set_delay(struct c64_network_buffer *buf, size_t video_d
                     if (slot->valid) {
                         // Physically clear the slot data to ensure no stale data remains
                         slot->valid = false;
-                        memset(slot->data, 0, sizeof(slot->data));
+                        memset(slot->data, 0, buf->video.packet_size);
                         slot->size = 0;
                         slot->timestamp_us = 0;
                         slot->sequence_num = 0;
@@ -580,7 +590,7 @@ void c64_network_buffer_set_delay(struct c64_network_buffer *buf, size_t video_d
                     if (slot->valid) {
                         // Physically clear the slot data to ensure no stale data remains
                         slot->valid = false;
-                        memset(slot->data, 0, sizeof(slot->data));
+                        memset(slot->data, 0, buf->audio.packet_size);
                         slot->size = 0;
                         slot->timestamp_us = 0;
                         slot->sequence_num = 0;
