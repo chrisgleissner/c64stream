@@ -1923,6 +1923,45 @@ EOF
         echo "- Events: $(join_by ', ' "${event_links[@]}")" >> "${report_file}"
     fi
 
+    # Network Quality section (from network.json analysis)
+    if [[ -f "${OUTPUT_DIR}/network.json" ]]; then
+        echo >> "${report_file}"
+        echo "#### Network Quality" >> "${report_file}"
+        echo >> "${report_file}"
+
+        # Extract jitter statistics from network.json using Python
+        if command -v python3 >/dev/null 2>&1; then
+            python3 - "${OUTPUT_DIR}/network.json" >> "${report_file}" 2>/dev/null <<'PY' || true
+import json
+import sys
+
+with open(sys.argv[1], 'r') as f:
+    data = json.load(f)
+
+video = data.get('video', {})
+audio = data.get('audio', {})
+
+# Build table
+print("| Stream | Packets | Jitter (median) | Jitter (max) |")
+print("|--------|---------|-----------------|--------------|")
+
+if video:
+    v_count = video.get('count', 0)
+    v_jitter_median = video.get('jitter_median_ms', 0)
+    v_jitter_max = video.get('jitter_max_ms', 0)
+    print(f"| Video | {v_count} | {v_jitter_median:.3f} ms | {v_jitter_max:.3f} ms |")
+
+if audio:
+    a_count = audio.get('count', 0)
+    a_jitter_median = audio.get('jitter_median_ms', 0)
+    a_jitter_max = audio.get('jitter_max_ms', 0)
+    print(f"| Audio | {a_count} | {a_jitter_median:.3f} ms | {a_jitter_max:.3f} ms |")
+PY
+        fi
+        echo >> "${report_file}"
+        echo "Details: [network.json](network.json)" >> "${report_file}"
+    fi
+
     # Perf profiling summary (if available)
     if [[ -f "${OUTPUT_DIR}/perf_report.txt" || -f "${OUTPUT_DIR}/perf_error.txt" || -f "${OUTPUT_DIR}/flamegraph.svg" ]]; then
         echo >> "${report_file}"

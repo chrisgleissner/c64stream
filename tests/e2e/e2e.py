@@ -200,6 +200,155 @@ class E2ETest:
             self.log(f"📉 Truncated {truncated_count} rows from {src.name} "
                      f"(keeping first {max_total_lines} lines)")
 
+    def _analyze_network_jitter(self, network_csv: Path) -> Optional[dict]:
+        """
+        Analyze network packet timing to calculate jitter statistics.
+
+        This must be called BEFORE CSV truncation to analyze the full dataset.
+
+        Jitter is calculated as the deviation from expected packet interval.
+        For video: expected is ~63.5μs per line (15734 lines/sec for NTSC)
+        For audio: expected varies by format
+
+        Args:
+            network_csv: Path to the full network.csv file
+
+        Returns:
+            Dictionary with jitter statistics, or None if analysis fails
+        """
+        import csv
+        import statistics
+
+        if not network_csv.exists():
+            self.log("⚠️ network.csv not found for jitter analysis")
+            return None
+
+        try:
+            video_intervals = []
+            audio_intervals = []
+
+            with open(network_csv, 'r') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    packet_type = row.get('packet_type', '')
+                    interval_str = row.get('packet_interval_us', '')
+
+                    if not interval_str:
+                        continue
+
+                    try:
+                        interval_us = float(interval_str)
+                        # Skip unrealistic values (negative or extremely large)
+                        if interval_us <= 0 or interval_us > 1_000_000:
+                            continue
+
+                        if packet_type == 'video':
+                            video_intervals.append(interval_us)
+                        elif packet_type == 'audio':
+                            audio_intervals.append(interval_us)
+                    except ValueError:
+                        continue
+
+            results = {
+                'video': {},
+                'audio': {},
+                'summary': {}
+            }
+
+            # Analyze video packet intervals
+            if len(video_intervals) >= 2:
+                video_median = statistics.median(video_intervals)
+                video_max = max(video_intervals)
+                video_min = min(video_intervals)
+                video_mean = statistics.mean(video_intervals)
+
+                # Calculate jitter as deviation from median (more robust than mean)
+                video_jitter = [abs(v - video_median) for v in video_intervals]
+                video_jitter_median = statistics.median(video_jitter)
+                video_jitter_max = max(video_jitter)
+
+                results['video'] = {
+                    'count': len(video_intervals),
+                    'interval_median_us': round(video_median, 2),
+                    'interval_max_us': round(video_max, 2),
+                    'interval_min_us': round(video_min, 2),
+                    'interval_mean_us': round(video_mean, 2),
+                    'jitter_median_us': round(video_jitter_median, 2),
+                    'jitter_max_us': round(video_jitter_max, 2),
+                    'jitter_median_ms': round(video_jitter_median / 1000, 3),
+                    'jitter_max_ms': round(video_jitter_max / 1000, 3),
+                }
+                self.log(f"📊 Video packets: {len(video_intervals)}, "
+                         f"jitter median={video_jitter_median:.1f}μs max={video_jitter_max:.1f}μs")
+
+            # Analyze audio packet intervals
+            if len(audio_intervals) >= 2:
+                audio_median = statistics.median(audio_intervals)
+                audio_max = max(audio_intervals)
+                audio_min = min(audio_intervals)
+                audio_mean = statistics.mean(audio_intervals)
+
+                # Calculate jitter as deviation from median
+                audio_jitter = [abs(a - audio_median) for a in audio_intervals]
+                audio_jitter_median = statistics.median(audio_jitter)
+                audio_jitter_max = max(audio_jitter)
+
+                results['audio'] = {
+                    'count': len(audio_intervals),
+                    'interval_median_us': round(audio_median, 2),
+                    'interval_max_us': round(audio_max, 2),
+                    'interval_min_us': round(audio_min, 2),
+                    'interval_mean_us': round(audio_mean, 2),
+                    'jitter_median_us': round(audio_jitter_median, 2),
+                    'jitter_max_us': round(audio_jitter_max, 2),
+                    'jitter_median_ms': round(audio_jitter_median / 1000, 3),
+                    'jitter_max_ms': round(audio_jitter_max / 1000, 3),
+                }
+                self.log(f"📊 Audio packets: {len(audio_intervals)}, "
+                         f"jitter median={audio_jitter_median:.1f}μs max={audio_jitter_max:.1f}μs")
+
+            # Overall summary
+            results['summary'] = {
+                'total_video_packets': results['video'].get('count', 0),
+                'total_audio_packets': results['audio'].get('count', 0),
+                'analysis_complete': True
+            }
+
+            return results
+
+        except Exception as e:
+            self.log(f"❌ Failed to analyze network jitter: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+
+    def _save_network_analysis(self, network_csv: Path) -> Optional[Path]:
+        """
+        Analyze network.csv and save results to network.json.
+
+        Must be called BEFORE CSV truncation.
+
+        Args:
+            network_csv: Path to the full network.csv
+
+        Returns:
+            Path to network.json if successful, None otherwise
+        """
+        results = self._analyze_network_jitter(network_csv)
+        if results is None:
+            return None
+
+        network_json = self.output_dir / 'network.json'
+        try:
+            import json
+            with open(network_json, 'w') as f:
+                json.dump(results, f, indent=2)
+            self.log(f"✅ Saved network analysis to: {network_json}")
+            return network_json
+        except Exception as e:
+            self.log(f"❌ Failed to save network.json: {e}")
+            return None
+
     def _find_obs_csv(self) -> Optional[Path]:
         """
         Find the obs.csv file from the most recent recording session.
@@ -1768,6 +1917,10 @@ class E2ETest:
                 self.log(f"❌ Failed to read obs.csv: {e}")
         else:
             self.log(f"❌ obs.csv not found: {obs_csv}")
+
+        # Analyze network jitter BEFORE truncation (need full data)
+        if network_csv.exists():
+            self._save_network_analysis(network_csv)
 
         # Copy CSV files to test output for analysis (with optional truncation)
         try:

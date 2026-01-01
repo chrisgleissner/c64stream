@@ -1,0 +1,29 @@
+{
+  "video": {
+    "count": 16999,
+    "interval_median_us": 4.0,
+    "interval_max_us": 15641.0,
+    "interval_min_us": 1.0,
+    "interval_mean_us": 293.05,
+    "jitter_median_us": 2.0,
+    "jitter_max_us": 15637.0,
+    "jitter_median_ms": 0.002,
+    "jitter_max_ms": 15.637
+  },
+  "audio": {
+    "count": 1244,
+    "interval_median_us": 4253.0,
+    "interval_max_us": 13811.0,
+    "interval_min_us": 2.0,
+    "interval_mean_us": 3999.89,
+    "jitter_median_us": 530.0,
+    "jitter_max_us": 9558.0,
+    "jitter_median_ms": 0.53,
+    "jitter_max_ms": 9.558
+  },
+  "summary": {
+    "total_video_packets": 16999,
+    "total_audio_packets": 1244,
+    "analysis_complete": true
+  }
+}

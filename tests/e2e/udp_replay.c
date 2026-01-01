@@ -38,9 +38,20 @@ static inline double get_time_ms(void)
     return (double)counter.QuadPart * 1000.0 / (double)freq.QuadPart;
 }
 
-static void sleep_us(long microseconds)
+static void sleep_until_us(double target_time_us)
 {
-    Sleep((DWORD)(microseconds / 1000));
+    // Sleep-only approach (no busy-wait to save CPU)
+    // The plugin's network buffer handles any timing jitter
+    double now = get_time_ms() * 1000.0;
+    double remaining_us = target_time_us - now;
+
+    if (remaining_us <= 0)
+        return;
+
+    // Use Sleep for the entire duration (1ms granularity on Windows)
+    long sleep_ms = (long)(remaining_us / 1000);
+    if (sleep_ms > 0)
+        Sleep((DWORD)sleep_ms);
 }
 #else
 #include <unistd.h>
@@ -56,11 +67,21 @@ static inline double get_time_ms(void)
     return tv.tv_sec * 1000.0 + tv.tv_usec / 1000.0;
 }
 
-static void sleep_us(long microseconds)
+static void sleep_until_us(double target_time_us)
 {
+    // Sleep-only approach (no busy-wait to save CPU)
+    // The plugin's network buffer handles any timing jitter
+    double now = get_time_ms() * 1000.0;
+    double remaining_us = target_time_us - now;
+
+    if (remaining_us <= 0)
+        return;
+
+    // Use nanosleep for the entire duration
+    long sleep_us = (long)remaining_us;
     struct timespec ts;
-    ts.tv_sec = microseconds / 1000000;
-    ts.tv_nsec = (microseconds % 1000000) * 1000;
+    ts.tv_sec = sleep_us / 1000000;
+    ts.tv_nsec = (sleep_us % 1000000) * 1000;
     nanosleep(&ts, NULL);
 }
 #endif
@@ -172,7 +193,8 @@ int main(int argc, char **argv)
     if (verbose)
         printf("Loaded %d entries from manifest\n", count);
 
-    double start = get_time_ms();
+    double start_us = get_time_ms() * 1000.0;
+    double cumulative_us = 0; // Target time relative to start
     int sent = 0;
 
     for (int i = 0; i < count; i++) {
@@ -194,17 +216,19 @@ int main(int argc, char **argv)
         if (n != (size_t)packet_size)
             continue;
 
+        // Wait until target time (absolute timing - compensates for I/O overhead)
+        cumulative_us += entries[i].delay_us;
+        double target_us = start_us + cumulative_us;
+        sleep_until_us(target_us);
+
         sendto(sock, (char *)buf, packet_size, 0, (struct sockaddr *)&addr, sizeof(addr));
         sent++;
-
-        if (entries[i].delay_us > 0)
-            sleep_us(entries[i].delay_us);
 
         if (verbose && sent % 500 == 0)
             printf("  Sent %d/%d\n", sent, count);
     }
 
-    double elapsed = get_time_ms() - start;
+    double elapsed = (get_time_ms() * 1000.0 - start_us) / 1000.0; // Convert to ms
     if (verbose)
         printf("✅ Sent %d packets in %.1fms\n", sent, elapsed);
 
