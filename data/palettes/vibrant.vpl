@@ -1,0 +1,25 @@
+# VICE Palette file
+#
+# Syntax:
+# Red Green Blue
+#
+# TYPE:VICII
+# NAME:Vibrant
+# DESC:Enhanced saturation for vivid, eye-catching colors
+
+00 00 00
+FF FF FF
+A0 30 38
+50 E8 E0
+B0 38 C0
+38 D0 38
+28 28 D0
+F8 F8 48
+B8 58 18
+70 40 00
+F0 70 78
+40 40 40
+78 78 78
+90 FF 90
+68 68 F8
+B8 B8 B8

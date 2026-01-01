@@ -1,0 +1,25 @@
+# VICE Palette file
+#
+# Syntax:
+# Red Green Blue
+#
+# TYPE:VICII
+# NAME:Cool
+# DESC:Cool-toned palette with blue and cyan emphasis
+
+00 02 08
+F0 F4 FF
+80 30 40
+70 E0 E8
+90 38 B0
+40 B8 50
+28 30 C0
+E8 F0 60
+90 50 28
+50 38 08
+C8 68 78
+44 48 50
+78 7C 84
+90 F0 A0
+68 70 F8
+AC B0 BC

@@ -1,0 +1,25 @@
+# VICE Palette file
+#
+# Syntax:
+# Red Green Blue
+#
+# TYPE:VICII
+# NAME:Default
+# DESC:C64 Ultimate Default Palette
+
+00 00 00
+F7 F7 F7
+8D 2F 34
+6A D4 CD
+98 35 A4
+4C B4 42
+2C 29 B1
+EF EF 5D
+98 4E 20
+5B 38 00
+D1 67 6D
+4A 4A 4A
+7B 7B 7B
+9F EF 93
+6D 6A EF
+B2 B2 B2

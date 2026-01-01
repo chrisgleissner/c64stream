@@ -165,11 +165,17 @@ bool c64_palette_select(const char *palette_id)
     struct c64_palette_entry *entry = &palette_system.palettes[index];
     if (!entry->colors_loaded && entry->path[0]) {
         char name_buf[C64_PALETTE_NAME_MAX];
-        if (c64_palette_parse_vpl(entry->path, entry->colors, name_buf, sizeof(name_buf))) {
+        char desc_buf[256];
+        if (c64_palette_parse_vpl(entry->path, entry->colors, name_buf, sizeof(name_buf), desc_buf, sizeof(desc_buf))) {
             entry->colors_loaded = true;
             // Update display name if we got one from the file
             if (name_buf[0]) {
                 strncpy(entry->name, name_buf, sizeof(entry->name) - 1);
+            }
+            // Store description
+            if (desc_buf[0]) {
+                strncpy(entry->desc, desc_buf, sizeof(entry->desc) - 1);
+                entry->desc[sizeof(entry->desc) - 1] = '\0';
             }
         } else {
             C64_LOG_WARNING("Failed to load palette: %s", entry->path);
@@ -217,6 +223,21 @@ bool c64_palette_set_working_color(int index, uint32_t bgra_color)
     c64_palette_rebuild_lut(palette_system.working_colors);
 
     return true;
+}
+
+const char *c64_palette_get_description(const char *palette_id)
+{
+    if (!palette_id) {
+        return NULL;
+    }
+
+    for (int i = 0; i < palette_system.palette_count; i++) {
+        if (strcmp(palette_system.palettes[i].id, palette_id) == 0) {
+            return palette_system.palettes[i].desc[0] ? palette_system.palettes[i].desc : NULL;
+        }
+    }
+
+    return NULL;
 }
 
 bool c64_palette_has_modifications(void)
@@ -347,7 +368,8 @@ bool c64_palette_load_from_file(const char *path)
     // Parse the VPL file
     uint32_t colors[C64_PALETTE_COLORS];
     char name[C64_PALETTE_NAME_MAX];
-    if (!c64_palette_parse_vpl(path, colors, name, sizeof(name))) {
+    char desc[256];
+    if (!c64_palette_parse_vpl(path, colors, name, sizeof(name), desc, sizeof(desc))) {
         C64_LOG_WARNING("Failed to parse VPL file: %s", path);
         return false;
     }
@@ -376,7 +398,7 @@ bool c64_palette_load_from_file(const char *path)
     int dest_len = snprintf(dest_path, sizeof(dest_path), "%s%c%s", user_dir, PATH_SEP, src_filename);
     if (dest_len < 0 || (size_t)dest_len >= sizeof(dest_path)) {
         C64_LOG_WARNING("Destination path too long for palette import");
-        return NULL;
+        return false;
     }
 
     // Extract ID
@@ -434,7 +456,8 @@ bool c64_palette_load_from_file(const char *path)
     return true;
 }
 
-bool c64_palette_parse_vpl(const char *path, uint32_t *colors, char *name, size_t name_size)
+bool c64_palette_parse_vpl(const char *path, uint32_t *colors, char *name, size_t name_size, char *desc,
+                           size_t desc_size)
 {
     if (!path || !colors) {
         return false;
@@ -449,10 +472,14 @@ bool c64_palette_parse_vpl(const char *path, uint32_t *colors, char *name, size_
     if (name && name_size > 0) {
         name[0] = '\0';
     }
+    if (desc && desc_size > 0) {
+        desc[0] = '\0';
+    }
 
     char line[256];
     int color_count = 0;
     bool got_name = false;
+    bool got_desc = false;
 
     while (fgets(line, sizeof(line), file) && color_count < C64_PALETTE_COLORS) {
         // Remove trailing newline
@@ -464,10 +491,34 @@ bool c64_palette_parse_vpl(const char *path, uint32_t *colors, char *name, size_
         // Find and remove inline comments (anything after #)
         char *comment = strchr(line, '#');
         if (comment) {
-            // If this is the first comment and we haven't got a name yet, extract it
-            if (!got_name && name && name_size > 0) {
-                char *name_start = comment + 1;
-                // Trim leading whitespace
+            char *content_start = comment + 1;
+            // Trim leading whitespace
+            while (*content_start && isspace((unsigned char)*content_start)) {
+                content_start++;
+            }
+
+            // Check for DESC: prefix
+            if (!got_desc && desc && desc_size > 0 && strncmp(content_start, "DESC:", 5) == 0) {
+                char *desc_start = content_start + 5;
+                // Trim leading whitespace after DESC:
+                while (*desc_start && isspace((unsigned char)*desc_start)) {
+                    desc_start++;
+                }
+                if (*desc_start) {
+                    strncpy(desc, desc_start, desc_size - 1);
+                    desc[desc_size - 1] = '\0';
+                    // Trim trailing whitespace
+                    size_t desc_len = strlen(desc);
+                    while (desc_len > 0 && isspace((unsigned char)desc[desc_len - 1])) {
+                        desc[--desc_len] = '\0';
+                    }
+                    got_desc = true;
+                }
+            }
+            // Check for NAME: prefix
+            else if (!got_name && name && name_size > 0 && strncmp(content_start, "NAME:", 5) == 0) {
+                char *name_start = content_start + 5;
+                // Trim leading whitespace after NAME:
                 while (*name_start && isspace((unsigned char)*name_start)) {
                     name_start++;
                 }
@@ -481,6 +532,17 @@ bool c64_palette_parse_vpl(const char *path, uint32_t *colors, char *name, size_
                     }
                     got_name = true;
                 }
+            }
+            // If this is the first comment and we haven't got a name yet, extract it as fallback
+            else if (!got_name && name && name_size > 0 && *content_start) {
+                strncpy(name, content_start, name_size - 1);
+                name[name_size - 1] = '\0';
+                // Trim trailing whitespace
+                size_t name_len = strlen(name);
+                while (name_len > 0 && isspace((unsigned char)name[name_len - 1])) {
+                    name[--name_len] = '\0';
+                }
+                got_name = true;
             }
             *comment = '\0';
         }
@@ -704,12 +766,19 @@ static void discover_shipped_palettes(void)
 
                 // Try to get display name from file
                 char name[C64_PALETTE_NAME_MAX];
+                char desc[256];
                 uint32_t temp_colors[C64_PALETTE_COLORS];
-                if (c64_palette_parse_vpl(full_path, temp_colors, name, sizeof(name))) {
+                if (c64_palette_parse_vpl(full_path, temp_colors, name, sizeof(name), desc, sizeof(desc))) {
                     if (!name[0]) {
                         strncpy(name, id, sizeof(name) - 1);
                     }
                     add_palette_entry(id, name, full_path, true);
+                    // Store description if we got one
+                    if (desc[0] && palette_system.palette_count > 0) {
+                        int idx = palette_system.palette_count - 1;
+                        strncpy(palette_system.palettes[idx].desc, desc, sizeof(palette_system.palettes[idx].desc) - 1);
+                        palette_system.palettes[idx].desc[sizeof(palette_system.palettes[idx].desc) - 1] = '\0';
+                    }
                 }
             }
         } while (FindNextFileA(find_handle, &find_data));
@@ -744,12 +813,19 @@ static void discover_shipped_palettes(void)
 
             // Try to get display name from file
             char name[C64_PALETTE_NAME_MAX];
+            char desc[256];
             uint32_t temp_colors[C64_PALETTE_COLORS];
-            if (c64_palette_parse_vpl(full_path, temp_colors, name, sizeof(name))) {
+            if (c64_palette_parse_vpl(full_path, temp_colors, name, sizeof(name), desc, sizeof(desc))) {
                 if (!name[0]) {
                     strncpy(name, id, sizeof(name) - 1);
                 }
                 add_palette_entry(id, name, full_path, true);
+                // Store description if we got one
+                if (desc[0] && palette_system.palette_count > 0) {
+                    int idx = palette_system.palette_count - 1;
+                    strncpy(palette_system.palettes[idx].desc, desc, sizeof(palette_system.palettes[idx].desc) - 1);
+                    palette_system.palettes[idx].desc[sizeof(palette_system.palettes[idx].desc) - 1] = '\0';
+                }
             }
         }
         closedir(dir);
@@ -814,12 +890,19 @@ static void load_palette_ini(void)
         if (!found) {
             // Try to get display name from file
             char name[C64_PALETTE_NAME_MAX];
+            char desc[256];
             uint32_t temp_colors[C64_PALETTE_COLORS];
-            if (c64_palette_parse_vpl(path, temp_colors, name, sizeof(name))) {
+            if (c64_palette_parse_vpl(path, temp_colors, name, sizeof(name), desc, sizeof(desc))) {
                 if (!name[0]) {
                     strncpy(name, id, sizeof(name) - 1);
                 }
                 add_palette_entry(id, name, path, false);
+                // Store description if we got one
+                if (desc[0] && palette_system.palette_count > 0) {
+                    int idx = palette_system.palette_count - 1;
+                    strncpy(palette_system.palettes[idx].desc, desc, sizeof(palette_system.palettes[idx].desc) - 1);
+                    palette_system.palettes[idx].desc[sizeof(palette_system.palettes[idx].desc) - 1] = '\0';
+                }
             }
         }
     }

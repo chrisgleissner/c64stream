@@ -931,6 +931,8 @@ jobs:
           # - ntsc_delay_buffer500_jitter10
           # - ntsc_delay_buffer500_jitter100
           - ntsc_green_monitor
+          - ntsc_palette_muted
+          - ntsc_palette_vibrant
           - ntsc_phosphor_glow
           - ntsc_sharp_pixels
           - ntsc_sharp_scan_lines

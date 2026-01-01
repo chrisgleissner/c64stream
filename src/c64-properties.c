@@ -18,6 +18,11 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-palette.h"
 #include <obs-module.h>
 #include <util/platform.h>
+
+// Cross-platform strcasecmp
+#ifdef _WIN32
+#define strcasecmp _stricmp
+#endif
 #include <util/dstr.h>
 #include <stdio.h>
 #include <string.h>
@@ -182,7 +187,16 @@ obs_properties_t *c64_create_properties(void *data)
     obs_property_t *palette_prop = obs_properties_add_list(palette_props, C64_PALETTE_KEY,
                                                            obs_module_text("PaletteSelection"), OBS_COMBO_TYPE_LIST,
                                                            OBS_COMBO_FORMAT_STRING);
-    obs_property_set_long_description(palette_prop, obs_module_text("PaletteSelection.Description"));
+
+    // Set description based on currently active palette
+    const char *active_id = c64_palette_get_active_id();
+    const char *palette_desc = active_id ? c64_palette_get_description(active_id) : NULL;
+    if (palette_desc) {
+        obs_property_set_long_description(palette_prop, palette_desc);
+    } else {
+        obs_property_set_long_description(palette_prop, obs_module_text("PaletteSelection.Description"));
+    }
+
     c64_palette_populate_list(palette_prop);
     obs_property_set_modified_callback(palette_prop, palette_changed);
 
@@ -861,7 +875,6 @@ static void update_palette_color_properties(obs_data_t *settings)
 static bool palette_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings)
 {
     UNUSED_PARAMETER(props);
-    UNUSED_PARAMETER(property);
 
     if (!settings) {
         return false;
@@ -872,10 +885,18 @@ static bool palette_changed(obs_properties_t *props, obs_property_t *property, o
         return false;
     }
 
+    // Update tooltip with palette description
+    const char *desc = c64_palette_get_description(palette_id);
+    if (desc && property) {
+        obs_property_set_long_description(property, desc);
+    } else if (property) {
+        obs_property_set_long_description(property, obs_module_text("PaletteSelection.Description"));
+    }
+
     // Don't re-select if already active
     const char *current = c64_palette_get_active_id();
     if (current && strcmp(current, palette_id) == 0) {
-        return false;
+        return true; // Refresh UI to show updated description
     }
 
     if (c64_palette_select(palette_id)) {

@@ -27,6 +27,7 @@ extern "C" {
 struct c64_palette_entry {
     char id[C64_PALETTE_NAME_MAX];       // Unique identifier (filename without extension)
     char name[C64_PALETTE_NAME_MAX];     // Display name (from VPL comment or filename)
+    char desc[256];                      // Description (from VPL DESC: line, for tooltip)
     char path[C64_PALETTE_PATH_MAX];     // Full path to VPL file
     bool is_shipped;                     // True if shipped with plugin, false if user palette
     uint32_t colors[C64_PALETTE_COLORS]; // BGRA colors (loaded on demand)
@@ -107,6 +108,14 @@ uint32_t *c64_palette_get_working_colors(void);
 bool c64_palette_set_working_color(int index, uint32_t bgra_color);
 
 /**
+ * @brief Get palette description by ID
+ *
+ * @param palette_id Palette identifier
+ * @return Description string, or NULL if palette not found or has no description
+ */
+const char *c64_palette_get_description(const char *palette_id);
+
+/**
  * @brief Check if the working palette has unsaved modifications
  *
  * @return true if modifications exist, false otherwise
@@ -154,11 +163,14 @@ bool c64_palette_load_from_file(const char *path);
  *
  * @param path Path to the VPL file
  * @param colors Output array of 16 BGRA colors
- * @param name Output buffer for display name (from first comment line)
+ * @param name Output buffer for display name (from NAME: line or first comment)
  * @param name_size Size of name buffer
+ * @param desc Output buffer for description (from DESC: line), can be NULL
+ * @param desc_size Size of desc buffer
  * @return true if parsing succeeded, false otherwise
  */
-bool c64_palette_parse_vpl(const char *path, uint32_t *colors, char *name, size_t name_size);
+bool c64_palette_parse_vpl(const char *path, uint32_t *colors, char *name, size_t name_size, char *desc,
+                           size_t desc_size);
 
 /**
  * @brief Write colors to a VPL file
