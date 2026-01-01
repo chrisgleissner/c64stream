@@ -184,6 +184,51 @@ Save and restore your complete plugin settings:
 - **Configure Ports** Use the default ports (video: 11000, audio: 11001) unless network conflicts require different values
 - **Buffer Delay:** Sets the network buffer for incoming UDP packets arriving from the C64 Ultimate (0–500 ms, default 10 ms). The buffer size is expressed in milliseconds to represent the time-based delay it introduces, compensating for packet loss, reordering, and variable network latency. Larger buffers improve stability under high-latency or congested conditions but increase end-to-end delay.
 
+### Palette Configuration 🎨
+
+Customize the VIC-II color palette to match different C64 hardware variants, personal preferences, or artistic styles. The palette system supports both shipped palettes and custom user-defined palettes.
+
+**Shipped Palettes:** The plugin includes five carefully curated palettes:
+
+- **Default** - The standard VIC-II palette matching original C64 hardware
+- **Vibrant** - Enhanced saturation for a more vivid retro look
+- **Muted** - Softer, pastel-like colors for a subdued aesthetic
+- **Warm** - Slightly orange-shifted tones reminiscent of aged monitors
+- **Cool** - Blue-shifted palette for a modern retro feel
+
+**Palette Controls:**
+
+- **Palette Dropdown:** Select from shipped palettes or any user palettes you've added
+- **Color Pickers (0-15):** Edit individual VIC-II colors in real-time. Changes apply immediately to the video output
+- **Load from file…:** Import a palette from a `.vpl` file (VICE/Ultimate-64 format)
+- **Save:** Overwrite the current user palette with your edits (disabled for shipped palettes)
+- **Save as…:** Save your current colors to a new user palette file
+- **Revert:** Discard unsaved edits and reload the palette from file
+
+**VPL Palette Format:**
+
+Palettes use the standard VPL format compatible with VICE and Ultimate-64:
+
+```
+# Optional comment (display name)
+000000
+FFFFFF
+8D342F
+...
+```
+
+- First 16 non-comment lines are RGB hex values (RRGGBB format)
+- Comments starting with `#` are allowed; the first comment line becomes the display name
+- Files must have exactly 16 color entries
+
+**User Palette Location:**
+
+- **Windows:** `%APPDATA%\c64stream\palettes\`
+- **macOS:** `~/Library/Application Support/c64stream/palettes/`
+- **Linux:** `~/.config/c64stream/palettes/`
+
+Shipped palettes are located in the plugin's `data/palettes/` directory and cannot be modified.
+
 ### CRT Effects 📺
 
 Recreate the authentic look and feel of classic CRT monitors and TVs with configurable visual effects that simulate the characteristics of vintage displays.

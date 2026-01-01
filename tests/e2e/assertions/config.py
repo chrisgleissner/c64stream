@@ -29,6 +29,7 @@ class PresetConfig:
     afterglow_curve: int = 0
     tint_mode: int = 0  # 0=None, 1=Amber, 2=Green
     tint_strength: float = 0.0
+    palette: str = "Default"  # Palette name
 
     @classmethod
     def from_ini_section(cls, name: str, section: dict[str, str]) -> "PresetConfig":
@@ -45,6 +46,7 @@ class PresetConfig:
             afterglow_curve=int(section.get("afterglow_curve", "0")),
             tint_mode=int(section.get("tint_mode", "0")),
             tint_strength=float(section.get("tint_strength", "0.0")),
+            palette=section.get("palette", "Default"),
         )
 
     @classmethod
@@ -62,6 +64,7 @@ class PresetConfig:
             afterglow_curve=int(settings.get("afterglow_curve", 0)),
             tint_mode=int(settings.get("tint_mode", 0)),
             tint_strength=float(settings.get("tint_strength", 0.0)),
+            palette=settings.get("palette", "Default"),
         )
 
     def has_scanlines(self) -> bool:

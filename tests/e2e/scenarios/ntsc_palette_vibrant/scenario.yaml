@@ -1,0 +1,10 @@
+name: NTSC Vibrant Palette
+format: NTSC
+preset: Default
+overrides:
+  palette: Vibrant
+assertions:
+  - video_quality
+  - audio
+  - frame_progression
+  - palette_mapping

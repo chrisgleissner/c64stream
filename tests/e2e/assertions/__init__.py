@@ -21,6 +21,7 @@ from .config import (
     load_settings_from_obs_scene,
 )
 from .frame_progression import FrameProgressionAssertion
+from .palette_mapping import PaletteMappingAssertion
 from .palette_stability import PaletteStabilityAssertion
 from .record_audio import RecordAudioAssertion
 from .record_frames import RecordFramesAssertion
@@ -51,6 +52,7 @@ __all__ = [
     "VideoQualityAssertion",
     "AudioAssertion",
     "TintAssertion",
+    "PaletteMappingAssertion",
     "PaletteStabilityAssertion",
     "AfterglowAssertion",
     "AfterglowDecayAssertion",

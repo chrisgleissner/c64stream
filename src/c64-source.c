@@ -25,6 +25,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-record.h"
 #include "c64-version.h"
 #include "c64-properties.h"
+#include "c64-palette.h"
 #include "plugin-support.h"
 #include "c64-presets.h"
 
@@ -508,6 +509,12 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->tint_enable = (context->tint_mode > 0 && context->tint_strength > 0.0f);
     context->frame_dirty = false;
 
+    // Initialize palette from settings (must be done after palette system init)
+    const char *palette_id = obs_data_get_string(settings, "palette");
+    if (palette_id && palette_id[0]) {
+        c64_palette_select(palette_id);
+    }
+
     // Note: avoid noisy logging here; E2E expects deterministic behavior without requiring log parsing.
     context->render_texture = NULL;
     context->render_texture_width = 0;
@@ -797,6 +804,15 @@ void c64_update(void *data, obs_data_t *settings)
 
     // Update recording settings
     c64_record_update_settings(context, settings);
+
+    // Update palette selection if changed
+    const char *palette_id = obs_data_get_string(settings, "palette");
+    if (palette_id && palette_id[0]) {
+        const char *current_palette = c64_palette_get_active_id();
+        if (!current_palette || strcmp(current_palette, palette_id) != 0) {
+            c64_palette_select(palette_id);
+        }
+    }
 
     // Check if dimension-affecting effects were previously disabled
     bool prev_dimension_effects = (context->scan_line_distance > 0.0f) || (context->pixel_width != 1.0f) ||

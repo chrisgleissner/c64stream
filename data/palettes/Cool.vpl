@@ -1,0 +1,18 @@
+# Cool
+# Subtle cool white-point shift - calibration-style variation
+00 02 08  # 0: Black (slight cool tint)
+F0 F4 FF  # 1: White (cool)
+80 30 40  # 2: Red (slightly cooler)
+70 E0 E8  # 3: Cyan (enhanced)
+90 38 B0  # 4: Purple (cooler)
+40 B8 50  # 5: Green
+28 30 C0  # 6: Blue (enhanced)
+E8 F0 60  # 7: Yellow
+90 50 28  # 8: Orange
+50 38 08  # 9: Brown
+C8 68 78  # 10: Pink (cooler)
+44 48 50  # 11: Dark Grey (cool)
+78 7C 84  # 12: Medium Grey (cool)
+90 F0 A0  # 13: Light Green
+68 70 F8  # 14: Light Blue (enhanced)
+AC B0 BC  # 15: Light Grey (cool)

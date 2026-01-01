@@ -1,0 +1,18 @@
+# Default
+# C64 Ultimate Default Palette - Matches the original hardcoded VIC-II colors
+00 00 00  # 0: Black
+F7 F7 F7  # 1: White
+8D 2F 34  # 2: Red
+6A D4 CD  # 3: Cyan
+98 35 A4  # 4: Purple
+4C B4 42  # 5: Green
+2C 29 B1  # 6: Blue
+EF EF 5D  # 7: Yellow
+98 4E 20  # 8: Orange
+5B 38 00  # 9: Brown
+D1 67 6D  # 10: Pink
+4A 4A 4A  # 11: Dark Grey
+7B 7B 7B  # 12: Medium Grey
+9F EF 93  # 13: Light Green
+6D 6A EF  # 14: Light Blue
+B2 B2 B2  # 15: Light Grey

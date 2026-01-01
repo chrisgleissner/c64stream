@@ -1,0 +1,10 @@
+name: NTSC Muted Palette
+format: NTSC
+preset: Default
+overrides:
+  palette: Muted
+assertions:
+  - video_quality
+  - audio
+  - frame_progression
+  - palette_mapping
