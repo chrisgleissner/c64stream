@@ -218,7 +218,11 @@ def _detect_position_marker(
             slot_lum >= adaptive_min_brightness):
             return detected_slot, slot_luminances
 
-    # FALLBACK: First frame or no clear delta - use absolute brightness
+        # No confident delta signal: don't guess via absolute brightness.
+        # Absolute brightness is biased by illumination falloff and can get stuck.
+        return None, slot_luminances
+
+    # FALLBACK (first frame only): no previous luminances, use absolute brightness
     max_lum = max(slot_luminances)
     min_lum = min(slot_luminances)
 

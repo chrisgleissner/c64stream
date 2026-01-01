@@ -354,10 +354,54 @@ def detect_video_pop_events(video_path, frame_rate=30.0):
         if t is None or (isinstance(t, float) and not np.isfinite(t)):
             t = None
 
-        # Determine which channel (L/R) the pop is on based on which half has higher delta.
-        channel = 'L' if float(delta_l[true_idx]) > float(delta_r[true_idx]) else 'R'
+        # Determine which channel (L/R) the pop is on.
+        #
+        # Under heavy CRT effects (notably afterglow), absolute brightness can remain elevated
+        # on the *previous* side for several frames, and even rolling-baseline deltas can be
+        # ambiguous around the onset frame. To avoid false channel mismatches, classify the
+        # side by the strongest dark→bright transition using a small pre/post window.
+        #
+        # If the transition is ambiguous (both sides rise similarly), report channel as unknown.
+        pre_n = 2
+        post_n = 2
+        pre_s = max(0, true_idx - pre_n)
+        pre_e = max(pre_s, true_idx)
+        post_s = true_idx
+        post_e = min(len(left_b), true_idx + post_n)
 
-        events.append({'frame': fn, 'time_ms': t, 'channel': channel})
+        pre_l = float(np.nanmedian(left_b[pre_s:pre_e])) if pre_e > pre_s else float(left_b[true_idx])
+        pre_r = float(np.nanmedian(right_b[pre_s:pre_e])) if pre_e > pre_s else float(right_b[true_idx])
+
+        # Use a peak over a couple of frames to cope with bloom/afterglow ramping.
+        post_l = float(np.nanmax(left_b[post_s:post_e])) if post_e > post_s else float(left_b[true_idx])
+        post_r = float(np.nanmax(right_b[post_s:post_e])) if post_e > post_s else float(right_b[true_idx])
+
+        rise_l = post_l - pre_l
+        rise_r = post_r - pre_r
+
+        # Deterministic side selection: choose the half with the stronger *dark→bright edge*.
+        #
+        # Afterglow can bias absolute brightness, but the pop itself is an instantaneous
+        # (1–2 frame) large increase. So we base side selection on the maximum frame-to-frame
+        # brightness increase within a small window around the detected onset.
+        # There is always exactly one chosen side.
+        edge_window = 3
+        edge_s = max(1, true_idx - edge_window)
+        edge_e = min(len(left_b) - 1, true_idx + edge_window)
+
+        if edge_e >= edge_s:
+            inc_l = left_b[edge_s:edge_e + 1] - left_b[edge_s - 1:edge_e]
+            inc_r = right_b[edge_s:edge_e + 1] - right_b[edge_s - 1:edge_e]
+            max_inc_l = float(np.nanmax(inc_l))
+            max_inc_r = float(np.nanmax(inc_r))
+        else:
+            max_inc_l = float(left_b[true_idx] - left_b[max(0, true_idx - 1)])
+            max_inc_r = float(right_b[true_idx] - right_b[max(0, true_idx - 1)])
+
+        channel_guess = 'L' if max_inc_l >= max_inc_r else 'R'
+
+        ev = {'frame': fn, 'time_ms': t, 'channel': channel_guess}
+        events.append(ev)
         last_frame = fn
 
     return events
@@ -878,6 +922,7 @@ def verify_av_sync(video_path, tolerance_ms=30):
         is_unmatched = min_diff > max_match_window_ms
 
         # Check if audio and video channels match (L/R consistency)
+        # Hard logic channel match: both signals alternate L/R, and the pop box side is either L or R.
         channels_match = (audio_channel == closest_event_channel) if closest_event_channel else True
         if not is_unmatched:
             if channels_match:
@@ -925,7 +970,8 @@ def verify_av_sync(video_path, tolerance_ms=30):
         elif closest_event is not None:
             status = "✅" if is_synced else "❌"
             ch_status = "✓" if channels_match else "✗"
-            print(f"{status} Pop #{i+1}: audio={audio_pop_time}ms ({audio_channel}), video={closest_event:.1f}ms ({closest_event_channel}), diff={min_diff:.1f}ms, ch={ch_status}")
+            vch = closest_event_channel if closest_event_channel in ('L', 'R') else "B"
+            print(f"{status} Pop #{i+1}: audio={audio_pop_time}ms ({audio_channel}), video={closest_event:.1f}ms ({vch}), diff={min_diff:.1f}ms, ch={ch_status}")
         else:
             print(f"❌ Pop #{i+1}: audio={audio_pop_time}ms, no matching video pop found")
 
