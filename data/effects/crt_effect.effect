@@ -14,8 +14,8 @@ uniform float4x4 ViewProj;
 uniform texture2d image;
 
 // CRT effect parameters
-uniform float scan_line_distance;      // Gap between scan lines as percentage of line height (0.0-2.0)
-uniform float scan_line_strength;      // Darkness of gaps (0.0=no effect, 1.0=completely black)
+uniform float scan_line_distance; // Gap between scan lines as percentage of line height (0.0-2.0)
+uniform float scan_line_strength; // Darkness of gaps (0.0=no effect, 1.0=completely black)
 uniform float pixel_width;
 uniform float pixel_height;
 uniform float blur_strength;
@@ -26,33 +26,35 @@ uniform int tint_mode;
 uniform float tint_strength;
 uniform float dt_ms;
 uniform texture2d texture_accum_prev;
-uniform float output_height;  // Source render height (plugin output)
-uniform float canvas_height;  // OBS canvas height (final output) for canvas-space scanlines
-uniform float source_width;   // Original C64 source width (e.g., 384)
-uniform float source_height;  // Original C64 source height (e.g., 270/272)
+uniform float output_height; // Source render height (plugin output)
+uniform float canvas_height; // OBS canvas height (final output) for canvas-space scanlines
+uniform float source_width;  // Original C64 source width (e.g., 384)
+uniform float source_height; // Original C64 source height (e.g., 270/272)
 
-sampler_state textureSampler {
-    Filter   = Point;  // Use nearest neighbor for pixel-perfect scaling
+sampler_state textureSampler
+{
+    Filter = Point; // Use nearest neighbor for pixel-perfect scaling
     AddressU = Clamp;
     AddressV = Clamp;
-    MinLOD   = 0.0;
-    MaxLOD   = 0.0;
+    MinLOD = 0.0;
+    MaxLOD = 0.0;
 };
 
-sampler_state linear_clamp {
-    Filter   = Linear;
+sampler_state linear_clamp
+{
+    Filter = Linear;
     AddressU = Clamp;
     AddressV = Clamp;
 };
 
 struct VertData {
     float4 pos : POSITION;
-    float2 uv  : TEXCOORD0;
+    float2 uv : TEXCOORD0;
 };
 
 struct VertDataOut {
     float4 pos : POSITION;
-    float2 uv  : TEXCOORD0;
+    float2 uv : TEXCOORD0;
     // Note: screen_pos removed - we'll use v_in.pos directly in pixel shader
     // which gives us the actual rasterized fragment position
 };
@@ -72,9 +74,10 @@ float3 ApplyAfterglow(float2 uv, float3 current_rgb)
 
     // Per-channel time constants (seconds) - red, green, blue phosphor decay rates
     // Scale by curve selection (smaller scale = faster decay)
-    float curve_scale = (afterglow_curve == 0) ? 0.25 :
-                        (afterglow_curve == 1) ? 0.5 :
-                        (afterglow_curve == 3) ? 2.0 : 1.0;
+    float curve_scale = (afterglow_curve == 0)   ? 0.25
+                        : (afterglow_curve == 1) ? 0.5
+                        : (afterglow_curve == 3) ? 2.0
+                                                 : 1.0;
     float3 tau = max(float3(0.6, 0.8, 0.3) * duration_s * curve_scale, float3(0.001, 0.001, 0.001));
 
     // Compute decay factor per channel for this frame (0..1)
@@ -123,7 +126,7 @@ VertDataOut VSDefault(VertData v_in)
 {
     VertDataOut vert_out;
     vert_out.pos = mul(float4(v_in.pos.xyz, 1.0), ViewProj);
-    vert_out.uv  = v_in.uv;
+    vert_out.uv = v_in.uv;
     return vert_out;
 }
 
@@ -155,32 +158,30 @@ float4 PSDefault(VertDataOut v_in) : TARGET
     // Here we apply blur control for crisp vs soft scaling
     float4 color;
     if (blur_strength > 0.0f) {
-        // Gaussian-style blur with multiple taps for soft scaling
-        // Use precise float for DirectX 11 compatibility
+        // Optimized 9-tap blur - pre-compute radius once
         float blur_radius = blur_strength * 0.003f;
 
-        // Clamp UV coordinates to prevent sampling outside texture bounds
-        // This fixes garbled output on Windows DirectX 11
-        float2 uv_center = uv;
-        float2 uv_right = saturate(uv + float2(blur_radius, 0.0f));
-        float2 uv_left = saturate(uv - float2(blur_radius, 0.0f));
-        float2 uv_up = saturate(uv + float2(0.0f, blur_radius));
-        float2 uv_down = saturate(uv - float2(0.0f, blur_radius));
+        // Pre-compute all 9 sample UVs (clamped to prevent out-of-bounds sampling)
+        float2 uv_c = uv;
+        float2 uv_r = saturate(uv + float2(blur_radius, 0.0f));
+        float2 uv_l = saturate(uv - float2(blur_radius, 0.0f));
+        float2 uv_u = saturate(uv + float2(0.0f, blur_radius));
+        float2 uv_d = saturate(uv - float2(0.0f, blur_radius));
         float2 uv_tr = saturate(uv + float2(blur_radius, blur_radius));
         float2 uv_bl = saturate(uv - float2(blur_radius, blur_radius));
         float2 uv_tl = saturate(uv + float2(-blur_radius, blur_radius));
         float2 uv_br = saturate(uv + float2(blur_radius, -blur_radius));
 
-        // 9-tap gaussian-style sampling with clamped coordinates
-        color  = image.Sample(textureSampler, uv_center) * 0.25f;  // Center (main weight)
-        color += image.Sample(textureSampler, uv_right) * 0.125f;  // Right
-        color += image.Sample(textureSampler, uv_left) * 0.125f;   // Left
-        color += image.Sample(textureSampler, uv_up) * 0.125f;     // Up
-        color += image.Sample(textureSampler, uv_down) * 0.125f;   // Down
-        color += image.Sample(textureSampler, uv_tr) * 0.0625f;    // Top-right
-        color += image.Sample(textureSampler, uv_bl) * 0.0625f;    // Bottom-left
-        color += image.Sample(textureSampler, uv_tl) * 0.0625f;    // Top-left
-        color += image.Sample(textureSampler, uv_br) * 0.0625f;    // Bottom-right
+        // 9-tap gaussian-style sampling (weights sum to 1.0)
+        color = image.Sample(textureSampler, uv_c) * 0.25f;
+        color += image.Sample(textureSampler, uv_r) * 0.125f;
+        color += image.Sample(textureSampler, uv_l) * 0.125f;
+        color += image.Sample(textureSampler, uv_u) * 0.125f;
+        color += image.Sample(textureSampler, uv_d) * 0.125f;
+        color += image.Sample(textureSampler, uv_tr) * 0.0625f;
+        color += image.Sample(textureSampler, uv_bl) * 0.0625f;
+        color += image.Sample(textureSampler, uv_tl) * 0.0625f;
+        color += image.Sample(textureSampler, uv_br) * 0.0625f;
     } else {
         // Precise sampling for crisp scaling (no blur)
         color = image.Sample(textureSampler, uv);
@@ -205,7 +206,7 @@ float4 PSDefault(VertDataOut v_in) : TARGET
         // Pattern repeats every N pixels for consistent appearance
         int total_pixels_per_unit;
         int scanline_pixels_per_unit;
-        if (scan_line_distance <= 0.25f) {       // Tight: 4 bright + 1 dark
+        if (scan_line_distance <= 0.25f) { // Tight: 4 bright + 1 dark
             total_pixels_per_unit = 5;
             scanline_pixels_per_unit = 4;
         } else if (scan_line_distance <= 0.5f) { // Normal: 2 bright + 1 dark
@@ -214,7 +215,7 @@ float4 PSDefault(VertDataOut v_in) : TARGET
         } else if (scan_line_distance <= 1.0f) { // Wide: 2 bright + 2 dark
             total_pixels_per_unit = 4;
             scanline_pixels_per_unit = 2;
-        } else {                                 // Extra Wide: 1 bright + 2 dark
+        } else { // Extra Wide: 1 bright + 2 dark
             total_pixels_per_unit = 3;
             scanline_pixels_per_unit = 1;
         }
@@ -231,18 +232,13 @@ float4 PSDefault(VertDataOut v_in) : TARGET
     }
 
     // === OPTIMIZED CRT BLOOM EFFECT ===
-    // Reduced from 16+ texture samples to 9 samples using efficient 3x3 pattern
-    // Provides visually equivalent bloom with ~45% fewer texture fetches
+    // Efficient 9-tap bloom with realistic phosphor response
     if (bloom_strength > 0.0f) {
-        float4 center = color;
-        float3 bloom_result = center.rgb;
+        // Pre-compute radius and diagonal offset once
+        float radius = bloom_strength * 0.003f;
+        float diag = radius * 0.707f;
 
-        // Single-pass 9-tap bloom kernel with weighted falloff
-        // Combines inner/medium/outer rings into one efficient sampling pass
-        float radius = bloom_strength * 0.003f;  // Unified radius (tuned for visual match)
-        float diag = radius * 0.707f;            // Diagonal offset (1/sqrt(2))
-
-        // Pre-compute clamped sample coordinates
+        // Pre-compute all 9 sample UVs
         float2 uv_r = saturate(uv + float2(radius, 0.0f));
         float2 uv_l = saturate(uv - float2(radius, 0.0f));
         float2 uv_u = saturate(uv + float2(0.0f, radius));
@@ -252,77 +248,54 @@ float4 PSDefault(VertDataOut v_in) : TARGET
         float2 uv_br = saturate(uv + float2(diag, -diag));
         float2 uv_bl = saturate(uv - float2(diag, diag));
 
-        // 9-tap weighted sampling: center (0.20) + cardinal (0.12 each) + diagonal (0.07 each)
-        // Weights sum to 1.0 for proper normalization
-        float4 bloom_sum = center * 0.20f;
-        bloom_sum += image.Sample(textureSampler, uv_r) * 0.12f;
-        bloom_sum += image.Sample(textureSampler, uv_l) * 0.12f;
-        bloom_sum += image.Sample(textureSampler, uv_u) * 0.12f;
-        bloom_sum += image.Sample(textureSampler, uv_d) * 0.12f;
-        bloom_sum += image.Sample(textureSampler, uv_tr) * 0.07f;
-        bloom_sum += image.Sample(textureSampler, uv_tl) * 0.07f;
-        bloom_sum += image.Sample(textureSampler, uv_br) * 0.07f;
-        bloom_sum += image.Sample(textureSampler, uv_bl) * 0.07f;
+        // 9-tap weighted sampling (weights sum to 1.0)
+        float4 bloom = color * 0.20f;
+        bloom += image.Sample(textureSampler, uv_r) * 0.12f;
+        bloom += image.Sample(textureSampler, uv_l) * 0.12f;
+        bloom += image.Sample(textureSampler, uv_u) * 0.12f;
+        bloom += image.Sample(textureSampler, uv_d) * 0.12f;
+        bloom += image.Sample(textureSampler, uv_tr) * 0.07f;
+        bloom += image.Sample(textureSampler, uv_tl) * 0.07f;
+        bloom += image.Sample(textureSampler, uv_br) * 0.07f;
+        bloom += image.Sample(textureSampler, uv_bl) * 0.07f;
 
         // CRT phosphor response (red persists longer, blue decays faster)
-        float3 phosphor_response = float3(1.2f, 1.0f, 0.8f);
+        bloom.rgb *= float3(1.2f, 1.0f, 0.8f);
 
-        // Smooth bloom intensity based on luminance (no hard threshold)
-        float center_luma = dot(center.rgb, float3(0.299f, 0.587f, 0.114f));
-        float bloom_factor = smoothstep(0.0f, 1.0f, center_luma);
+        // Luminance-based bloom intensity
+        float luma = dot(color.rgb, float3(0.299f, 0.587f, 0.114f));
+        float intensity = smoothstep(0.0f, 1.0f, luma) * bloom_strength * 2.0f;
 
-        // Apply phosphor response to bloom samples
-        float3 combined_bloom = bloom_sum.rgb * phosphor_response;
+        // Add bloom with tone mapping to prevent clipping
+        color.rgb = color.rgb + bloom.rgb * intensity;
+        color.rgb = color.rgb / (1.0f + color.rgb * 0.3f);
 
-        // Smooth bloom intensity scaling
-        float bloom_intensity = bloom_factor * bloom_strength * 2.0f;
-
-        // Add bloom as additive glow (key to realistic CRT bloom)
-        bloom_result = center.rgb + (combined_bloom * bloom_intensity);
-
-        // Simulate phosphor saturation (tone mapping to prevent clipping)
-        bloom_result = bloom_result / (1.0f + bloom_result * 0.3f);
-
-        // Subtle bloom bleeding for all pixels (characteristic of CRT)
-        float subtle_bloom = bloom_strength * 0.15f;
-        bloom_result = lerp(bloom_result, bloom_result + bloom_sum.rgb * subtle_bloom, bloom_strength * 0.2f);
-
-        color.rgb = bloom_result;
+        // Subtle bloom bleeding
+        color.rgb = lerp(color.rgb, color.rgb + bloom.rgb * bloom_strength * 0.15f, bloom_strength * 0.2f);
     }
 
     // === SCREEN TINT EFFECT ===
-    // Emulate 1980s monochrome CRTs: first convert to monochrome, then apply tint
-    // Apply BEFORE afterglow to prevent brightness feedback loops
+    // Emulate 1980s monochrome CRTs - convert to grayscale then apply tint
+    // Brightness compensation prevents tint from darkening the image
     if (tint_mode > 0) {
-        // Step 1: ALWAYS convert to monochrome first (grayscale) using proper luminance calculation
-        float luminance = dot(color.rgb, float3(0.299f, 0.587f, 0.114f));
-        float3 monochrome = float3(luminance, luminance, luminance);
+        // Convert to monochrome using standard luminance weights
+        float luma = dot(color.rgb, float3(0.299f, 0.587f, 0.114f));
 
-        // Step 2: Apply tint based on mode and strength
-        float3 tinted_color;
-
-        if (tint_mode == 1) { // Amber CRT
-            float3 amber_tint = float3(1.0f, 0.75f, 0.3f);
-            // Blend between pure monochrome and tinted monochrome based on tint_strength
-            float3 tinted_mono = monochrome * amber_tint;
-            tinted_color = lerp(monochrome, tinted_mono, saturate(tint_strength));
+        // Apply tint based on mode with brightness compensation
+        if (tint_mode == 1) {
+            // Amber CRT: float3(1.0, 0.75, 0.3)
+            // Effective brightness loss: ~23% → compensate by 1.29x
+            float3 tinted = float3(luma, luma * 0.75f, luma * 0.3f);
+            color.rgb = lerp(float3(luma, luma, luma), tinted * lerp(1.0f, 1.29f, tint_strength), tint_strength);
+        } else if (tint_mode == 2) {
+            // Green CRT: float3(0.5, 0.95, 0.35)
+            // Effective brightness loss: ~25% → compensate by 1.34x
+            float3 tinted = float3(luma * 0.5f, luma * 0.95f, luma * 0.35f);
+            color.rgb = lerp(float3(luma, luma, luma), tinted * lerp(1.0f, 1.34f, tint_strength), tint_strength);
+        } else {
+            // Pure Monochrome (tint_mode == 3) - no compensation needed
+            color.rgb = float3(luma, luma, luma);
         }
-        else if (tint_mode == 2) { // Green CRT
-            float3 green_tint = float3(0.5f, 0.95f, 0.35f);
-            // Blend between pure monochrome and tinted monochrome based on tint_strength
-            float3 tinted_mono = monochrome * green_tint;
-            tinted_color = lerp(monochrome, tinted_mono, saturate(tint_strength));
-        }
-        else if (tint_mode == 3) { // Pure Monochrome
-            // Always pure monochrome (tint_strength has no effect)
-            tinted_color = monochrome;
-        }
-        else {
-            // tint_mode == 0 (None) - should not reach here, but fallback to original
-            tinted_color = color.rgb;
-        }
-
-        color.rgb = tinted_color;
     }
 
     // === AFTERGLOW EFFECT ===
@@ -341,6 +314,6 @@ technique Draw
     pass
     {
         vertex_shader = VSDefault(v_in);
-        pixel_shader  = PSDefault(v_in);
+        pixel_shader = PSDefault(v_in);
     }
 }

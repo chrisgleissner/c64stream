@@ -44,5 +44,12 @@ results/**/obs_log_summary.json
 # Always ignore ephemeral marker files
 results/**/stop_recording.marker
 
+# Always ignore sender manifests (should never be committed, even in curated scenarios)
+results/**/video_manifest.csv
+results/**/audio_manifest.csv
+
+# Tool binaries built by the Python harness (CI-safe location)
+.e2e-tools/
+
 # Scanline test output (screenshots, packets, analysis)
 scanline_output/

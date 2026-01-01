@@ -33,6 +33,142 @@ import shutil
 import configparser
 from pathlib import Path
 
+
+def validate_network_timing(
+    network_json_path: Path,
+    video_format: str,
+    frames: int,
+    network_simulation: dict | None,
+) -> tuple[str, str, list[str], list[str]]:
+    """Validate sender pacing using derived metrics in network.json.
+
+    Returns: (status, details, errors, warnings)
+    - status: pass|warning|fail|unknown
+    - details: short single-line summary
+    """
+    if network_simulation is None:
+        network_simulation = {}
+
+    if not network_json_path.exists():
+        return 'unknown', 'network.json not found', [], []
+
+    # Mirror validate_test_results timing constants.
+    if video_format == 'PAL':
+        frame_rate = 50.125
+        expected_video_interval_us = 293.384
+        expected_audio_interval_us = 4001.417
+    else:
+        frame_rate = 59.826
+        expected_video_interval_us = 278.586
+        expected_audio_interval_us = 4005.006
+
+    expected_duration_ms = frames * (1000.0 / frame_rate)
+
+    max_jitter_ms = float(network_simulation.get('max_jitter_ms', 0) or 0)
+    reorder_max_delay_ms = float(network_simulation.get('reorder_max_delay_ms', 0) or 0)
+    extra_delay_ms = max(max_jitter_ms, reorder_max_delay_ms)
+
+    errors: list[str] = []
+    warnings: list[str] = []
+
+    try:
+        with open(network_json_path, 'r') as f:
+            net = json.load(f)
+    except Exception as e:
+        return 'unknown', f'validation error: {e}', [], [f'Network timing validation failed: {e}']
+
+    summary = net.get('summary', {})
+    video_stats = net.get('video', {})
+    audio_stats = net.get('audio', {})
+
+    duration_ms = summary.get('duration_ms', None)
+    if duration_ms is None:
+        warnings.append('network.json missing duration_ms')
+    else:
+        min_ok_ms = expected_duration_ms * 0.70
+        # Allow extra network simulation delay on top of baseline.
+        max_ok_ms = expected_duration_ms + extra_delay_ms + 2000.0
+        if duration_ms < min_ok_ms:
+            errors.append(
+                f"Network timing span too short: {duration_ms:.1f}ms < {min_ok_ms:.1f}ms (expected ~{expected_duration_ms:.1f}ms)"
+            )
+        elif duration_ms > max_ok_ms:
+            warnings.append(
+                f"Network timing span unusually long: {duration_ms:.1f}ms > {max_ok_ms:.1f}ms"
+            )
+
+    def check_spacing(stream_name: str, stats: dict, expected_interval_us: float):
+        mean_us = stats.get('spacing_mean_us', None)
+        if mean_us is None:
+            return
+        # Wide tolerance: still catches bursty/instant sender.
+        min_mean = expected_interval_us * 0.40
+        max_mean = expected_interval_us * 2.50
+        if mean_us < min_mean:
+            errors.append(
+                f"{stream_name} spacing mean too small: {mean_us:.1f}us < {min_mean:.1f}us (burst/instant send?)"
+            )
+        elif mean_us > max_mean:
+            warnings.append(
+                f"{stream_name} spacing mean unusually large: {mean_us:.1f}us > {max_mean:.1f}us"
+            )
+
+    check_spacing('Video', video_stats, expected_video_interval_us)
+    check_spacing('Audio', audio_stats, expected_audio_interval_us)
+
+    # Jitter sanity (no network simulation should be relatively steady).
+    # NOTE: max jitter is extremely sensitive to host scheduling stalls (CI noise).
+    # Prefer distribution metrics (p99 spacing) over single-sample maxima.
+    if max_jitter_ms <= 0 and float(network_simulation.get('reorder_percent', 0) or 0) <= 0:
+        v_p99_us = video_stats.get('spacing_p99_us', None)
+        a_p99_us = audio_stats.get('spacing_p99_us', None)
+
+        # Very wide thresholds: flags true "burst/gap" regressions but avoids
+        # failing normal runs due to rare scheduler stalls.
+        if v_p99_us is not None:
+            v_p99_us_f = float(v_p99_us)
+            if v_p99_us_f > (expected_video_interval_us * 20.0):
+                warnings.append(f"Video p99 spacing high for no-sim run: {v_p99_us_f:.1f}us")
+        if a_p99_us is not None:
+            a_p99_us_f = float(a_p99_us)
+            if a_p99_us_f > (expected_audio_interval_us * 8.0):
+                warnings.append(f"Audio p99 spacing high for no-sim run: {a_p99_us_f:.1f}us")
+
+        v_ooo = float(video_stats.get('out_of_order_rate_pct', 0) or 0)
+        a_ooo = float(audio_stats.get('out_of_order_rate_pct', 0) or 0)
+        if v_ooo > 0.5 or a_ooo > 0.5:
+            warnings.append(f"Out-of-order without simulation (video={v_ooo:.2f}%, audio={a_ooo:.2f}%)")
+
+    details_parts = []
+    if duration_ms is not None:
+        details_parts.append(f"span={duration_ms:.1f}ms")
+    v_mean = video_stats.get('spacing_mean_us', None)
+    a_mean = audio_stats.get('spacing_mean_us', None)
+    if v_mean is not None:
+        details_parts.append(f"video_mean={v_mean:.1f}us")
+    if a_mean is not None:
+        details_parts.append(f"audio_mean={a_mean:.1f}us")
+    details = ', '.join(details_parts) if details_parts else 'ok'
+
+    if errors:
+        return 'fail', details, errors, warnings
+    if warnings:
+        return 'warning', details, errors, warnings
+    return 'pass', details, errors, warnings
+
+
+def _is_benign_network_timing_warning(warning: str) -> bool:
+    # In CI (and other loaded environments), some warnings can be caused by host scheduling
+    # and are not necessarily a sender regression. Keep them visible, but don't escalate.
+    return (
+        warning.startswith('Video jitter max high for no-sim run:')
+        or warning.startswith('Audio jitter max high for no-sim run:')
+        or warning.startswith('Video p99 spacing high for no-sim run:')
+        or warning.startswith('Audio p99 spacing high for no-sim run:')
+        or warning.startswith('Out-of-order without simulation (')
+        or warning.startswith('Network timing span unusually long:')
+    )
+
 # Import A/V sync testing
 try:
     from test_av_sync import verify_av_sync
@@ -66,7 +202,9 @@ class E2ETest:
                  perf_frequency_hz: int = 99,
                  perf_callgraph: str = 'fp',
                  perf_duration_s: float | None = None,
-                 enable_flamegraph: bool = False):
+                 enable_flamegraph: bool = False,
+                 network_simulation: dict | None = None,
+                 av_sync_tolerance_ms: int = 60):
         self.test_dir = Path(test_dir)
         self.video_port = video_port
         self.audio_port = audio_port
@@ -79,6 +217,8 @@ class E2ETest:
         self.scenario_overrides_dir = Path(scenario_overrides_dir).resolve() if scenario_overrides_dir else None
         self.scenario_name = scenario_name
         self.scenario_id = scenario_id
+        self.network_simulation = network_simulation or {}  # Store network simulation config
+        self.av_sync_tolerance_ms = av_sync_tolerance_ms  # Per-scenario A/V sync tolerance
 
         self.settling_seconds = float(settling_seconds) if settling_seconds is not None else 0.0
         self._obs_start_time_s: float | None = None
@@ -197,6 +337,267 @@ class E2ETest:
         if truncated_count > 0:
             self.log(f"📉 Truncated {truncated_count} rows from {src.name} "
                      f"(keeping first {max_total_lines} lines)")
+
+    def _analyze_network_jitter(self, network_csv: Path) -> Optional[dict]:
+        """Analyze network.csv packet timing.
+
+        This must be called BEFORE CSV truncation to analyze the full dataset.
+
+        Current metrics:
+        - Spacing between consecutive packets (min/mean/max per stream + overall)
+        - Evenness / burstiness indicators derived from spacing distribution
+        - Duration from first to last packet
+        - Jitter (deviation from median spacing) and out-of-order rate
+        """
+        import csv
+        import statistics
+
+        if not network_csv.exists():
+            self.log("⚠️ network.csv not found for jitter analysis")
+            return None
+
+        try:
+            all_intervals = []
+            video_intervals = []
+            audio_intervals = []
+            video_sequence = []
+            audio_sequence = []
+            elapsed_us_values = []
+
+            with open(network_csv, 'r') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    packet_type = row.get('packet_type', '')
+                    interval_str = row.get('packet_interval_us', '')
+                    seq_str = row.get('sequence_num', '')
+                    elapsed_str = row.get('elapsed_us', '')
+
+                    if elapsed_str:
+                        try:
+                            elapsed_us = float(elapsed_str)
+                            if 0 <= elapsed_us <= 86_400_000_000:  # up to 24h
+                                elapsed_us_values.append(elapsed_us)
+                        except ValueError:
+                            pass
+
+                    if not interval_str:
+                        continue
+
+                    try:
+                        interval_us = float(interval_str)
+                        # Skip unrealistic values (negative or extremely large)
+                        if interval_us <= 0 or interval_us > 1_000_000:
+                            continue
+
+                        all_intervals.append(interval_us)
+
+                        seq_num = int(seq_str) if seq_str else 0
+
+                        if packet_type == 'video':
+                            video_intervals.append(interval_us)
+                            video_sequence.append(seq_num)
+                        elif packet_type == 'audio':
+                            audio_intervals.append(interval_us)
+                            audio_sequence.append(seq_num)
+                    except ValueError:
+                        continue
+
+            results = {
+                'all': {},
+                'video': {},
+                'audio': {},
+                'summary': {}
+            }
+
+            def quantile(sorted_values, q):
+                """Nearest-rank quantile (q in [0,1])."""
+                if not sorted_values:
+                    return None
+                if q <= 0:
+                    return sorted_values[0]
+                if q >= 1:
+                    return sorted_values[-1]
+                import math
+                k = int(math.ceil(q * len(sorted_values))) - 1
+                k = max(0, min(k, len(sorted_values) - 1))
+                return sorted_values[k]
+
+            def spacing_stats(intervals):
+                if len(intervals) < 2:
+                    return {
+                        'count': len(intervals),
+                    }
+
+                intervals_sorted = sorted(intervals)
+                median_us = statistics.median(intervals_sorted)
+                mean_us = statistics.mean(intervals_sorted)
+                min_us = intervals_sorted[0]
+                max_us = intervals_sorted[-1]
+                std_us = statistics.pstdev(intervals_sorted) if len(intervals_sorted) >= 2 else 0.0
+                cv_pct = (std_us / mean_us * 100.0) if mean_us > 0 else 0.0
+
+                p95_us = quantile(intervals_sorted, 0.95)
+                p99_us = quantile(intervals_sorted, 0.99)
+
+                # Burstiness heuristics relative to median spacing
+                short_thresh = 0.5 * median_us
+                long_thresh = 2.0 * median_us
+                short_count = sum(1 for v in intervals_sorted if v < short_thresh)
+                long_count = sum(1 for v in intervals_sorted if v > long_thresh)
+
+                burst_short_pct = (short_count / len(intervals_sorted) * 100.0) if intervals_sorted else 0.0
+                burst_long_pct = (long_count / len(intervals_sorted) * 100.0) if intervals_sorted else 0.0
+                p99_p50 = (p99_us / median_us) if (p99_us is not None and median_us > 0) else None
+
+                return {
+                    'count': len(intervals_sorted),
+                    'spacing_min_us': round(min_us, 2),
+                    'spacing_mean_us': round(mean_us, 2),
+                    'spacing_max_us': round(max_us, 2),
+                    'spacing_median_us': round(median_us, 2),
+                    'spacing_std_us': round(std_us, 2),
+                    'spacing_cv_pct': round(cv_pct, 2),
+                    'spacing_p95_us': round(p95_us, 2) if p95_us is not None else None,
+                    'spacing_p99_us': round(p99_us, 2) if p99_us is not None else None,
+                    'burst_short_pct': round(burst_short_pct, 2),
+                    'burst_long_pct': round(burst_long_pct, 2),
+                    'burst_p99_p50': round(p99_p50, 3) if p99_p50 is not None else None,
+                }
+
+            def count_out_of_order(seq_list):
+                """Count how many packets arrived out of sequence order."""
+                if len(seq_list) < 2:
+                    return 0, 0.0
+                out_of_order = 0
+                for i in range(1, len(seq_list)):
+                    # Count as out-of-order if current seq is less than previous
+                    if seq_list[i] < seq_list[i-1]:
+                        out_of_order += 1
+                rate = (out_of_order / len(seq_list)) * 100 if seq_list else 0
+                return out_of_order, rate
+
+            # Analyze video packet intervals
+            if len(video_intervals) >= 2:
+                video_stats = spacing_stats(video_intervals)
+                video_median = video_stats.get('spacing_median_us', 0)
+
+                # Calculate jitter as deviation from median (more robust than mean)
+                video_jitter = [abs(v - video_median) for v in video_intervals]
+                video_jitter_median = statistics.median(video_jitter)
+                video_jitter_max = max(video_jitter)
+
+                # Calculate out-of-order rate
+                video_ooo_count, video_ooo_rate = count_out_of_order(video_sequence)
+
+                results['video'] = {
+                    **video_stats,
+                    # Backwards-compatible aliases
+                    'interval_median_us': round(video_stats.get('spacing_median_us', 0.0), 2),
+                    'interval_mean_us': round(video_stats.get('spacing_mean_us', 0.0), 2),
+                    'interval_min_us': round(video_stats.get('spacing_min_us', 0.0), 2),
+                    'interval_max_us': round(video_stats.get('spacing_max_us', 0.0), 2),
+                    'jitter_median_us': round(video_jitter_median, 2),
+                    'jitter_max_us': round(video_jitter_max, 2),
+                    'jitter_median_ms': round(video_jitter_median / 1000, 3),
+                    'jitter_max_ms': round(video_jitter_max / 1000, 3),
+                    'out_of_order_count': video_ooo_count,
+                    'out_of_order_rate_pct': round(video_ooo_rate, 2),
+                }
+                self.log(f"📊 Video packets: {len(video_intervals)}, "
+                         f"jitter median={video_jitter_median:.1f}μs max={video_jitter_max:.1f}μs, "
+                         f"out-of-order={video_ooo_count} ({video_ooo_rate:.1f}%)")
+
+            # Analyze audio packet intervals
+            if len(audio_intervals) >= 2:
+                audio_stats = spacing_stats(audio_intervals)
+                audio_median = audio_stats.get('spacing_median_us', 0)
+
+                # Calculate jitter as deviation from median
+                audio_jitter = [abs(a - audio_median) for a in audio_intervals]
+                audio_jitter_median = statistics.median(audio_jitter)
+                audio_jitter_max = max(audio_jitter)
+
+                # Calculate out-of-order rate
+                audio_ooo_count, audio_ooo_rate = count_out_of_order(audio_sequence)
+
+                results['audio'] = {
+                    **audio_stats,
+                    # Backwards-compatible aliases
+                    'interval_median_us': round(audio_stats.get('spacing_median_us', 0.0), 2),
+                    'interval_mean_us': round(audio_stats.get('spacing_mean_us', 0.0), 2),
+                    'interval_min_us': round(audio_stats.get('spacing_min_us', 0.0), 2),
+                    'interval_max_us': round(audio_stats.get('spacing_max_us', 0.0), 2),
+                    'jitter_median_us': round(audio_jitter_median, 2),
+                    'jitter_max_us': round(audio_jitter_max, 2),
+                    'jitter_median_ms': round(audio_jitter_median / 1000, 3),
+                    'jitter_max_ms': round(audio_jitter_max / 1000, 3),
+                    'out_of_order_count': audio_ooo_count,
+                    'out_of_order_rate_pct': round(audio_ooo_rate, 2),
+                }
+                self.log(f"📊 Audio packets: {len(audio_intervals)}, "
+                         f"jitter median={audio_jitter_median:.1f}μs max={audio_jitter_max:.1f}μs, "
+                         f"out-of-order={audio_ooo_count} ({audio_ooo_rate:.1f}%)")
+
+            if len(all_intervals) >= 2:
+                results['all'] = spacing_stats(all_intervals)
+
+            # Overall summary
+            duration_us = None
+            duration_ms = None
+            first_elapsed_us = None
+            last_elapsed_us = None
+
+            if elapsed_us_values:
+                first_elapsed_us = min(elapsed_us_values)
+                last_elapsed_us = max(elapsed_us_values)
+                duration_us = max(0.0, last_elapsed_us - first_elapsed_us)
+                duration_ms = duration_us / 1000.0
+
+            results['summary'] = {
+                'first_elapsed_us': round(first_elapsed_us, 2) if first_elapsed_us is not None else None,
+                'last_elapsed_us': round(last_elapsed_us, 2) if last_elapsed_us is not None else None,
+                'duration_us': round(duration_us, 2) if duration_us is not None else None,
+                'duration_ms': round(duration_ms, 3) if duration_ms is not None else None,
+                'total_video_packets': results['video'].get('count', 0),
+                'total_audio_packets': results['audio'].get('count', 0),
+                'total_packets': results.get('all', {}).get('count', 0),
+                'analysis_complete': True
+            }
+
+            return results
+
+        except Exception as e:
+            self.log(f"❌ Failed to analyze network jitter: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+
+    def _save_network_analysis(self, network_csv: Path) -> Optional[Path]:
+        """
+        Analyze network.csv and save results to network.json.
+
+        Must be called BEFORE CSV truncation.
+
+        Args:
+            network_csv: Path to the full network.csv
+
+        Returns:
+            Path to network.json if successful, None otherwise
+        """
+        results = self._analyze_network_jitter(network_csv)
+        if results is None:
+            return None
+
+        network_json = self.output_dir / 'network.json'
+        try:
+            import json
+            with open(network_json, 'w') as f:
+                json.dump(results, f, indent=2)
+            self.log(f"✅ Saved network analysis to: {network_json}")
+            return network_json
+        except Exception as e:
+            self.log(f"❌ Failed to save network.json: {e}")
+            return None
 
     def _find_obs_csv(self) -> Optional[Path]:
         """
@@ -1060,8 +1461,11 @@ class E2ETest:
         primary_audio = b"Audio receiver thread started on port"
 
         # Fallback socket creation patterns (info level)
-        fallback_video = f"Created optimized UDP socket on port {self.video_port}".encode()
-        fallback_audio = f"Created optimized UDP socket on port {self.audio_port}".encode()
+        # Use the *actual* destination ports (can be updated from TCP START commands).
+        video_port = int(getattr(self, 'video_dest_port', self.video_port))
+        audio_port = int(getattr(self, 'audio_dest_port', self.audio_port))
+        fallback_video = f"Created optimized UDP socket on port {video_port}".encode()
+        fallback_audio = f"Created optimized UDP socket on port {audio_port}".encode()
 
         saw_video = False
         saw_audio = False
@@ -1767,6 +2171,10 @@ class E2ETest:
         else:
             self.log(f"❌ obs.csv not found: {obs_csv}")
 
+        # Analyze network jitter BEFORE truncation (need full data)
+        if network_csv.exists():
+            self._save_network_analysis(network_csv)
+
         # Copy CSV files to test output for analysis (with optional truncation)
         try:
             if network_csv.exists():
@@ -1839,17 +2247,17 @@ class E2ETest:
             time.sleep(self.buffer_setup_delay)
             self.log("⏱️ Fallback buffer setup delay complete")
 
-        return self._replay_interleaved_packets()
+        return self._replay_interleaved_packets(udp_replay_path)
 
-    def _replay_interleaved_packets(self):
+    def _replay_interleaved_packets(self, udp_replay_path: Path):
         """Replay packets with proper interleaving and precise timing."""
         import socket
         import time
         import glob
         import os
 
-        video_dir = self.packet_dir / 'video' / self.format
-        audio_dir = self.packet_dir / 'audio' / self.format
+        video_dir = (self.packet_dir / 'video' / self.format).resolve()
+        audio_dir = (self.packet_dir / 'audio' / self.format).resolve()
 
         if not video_dir.exists() or not audio_dir.exists():
             raise FileNotFoundError(f"Packet directories not found: {video_dir}, {audio_dir}")
@@ -1982,71 +2390,285 @@ class E2ETest:
             # Sort by timestamp for proper interleaving
             timeline.sort(key=lambda x: x['time_us'])
 
+            # Apply network simulation if configured
+            import random
+            random.seed()  # Use current time as seed
+
+            self.log(f"🔍 Network simulation config: {self.network_simulation}")
+
+            # 1. Apply jitter (positive-only delay variability)
+            # Jitter simulates network delay variation - packets can only be delayed, never early
+            # Supports both jitter_percent (legacy) and max_jitter_ms (preferred)
+            jitter_percent = self.network_simulation.get('jitter_percent', 0)
+            max_jitter_ms = self.network_simulation.get('max_jitter_ms', 0)
+            self.log(f"🔍 Jitter config: percent={jitter_percent}, max_ms={max_jitter_ms}")
+
+            if max_jitter_ms > 0:
+                # Apply absolute jitter in milliseconds (preferred method)
+                jitter_count = 0
+                max_jitter_us = max_jitter_ms * 1000
+                for i in range(1, len(timeline)):
+                    # Apply random positive jitter from 0 to max_jitter_us
+                    jitter = random.uniform(0, max_jitter_us)
+                    timeline[i]['time_us'] += jitter
+                    timeline[i]['jittered'] = True
+                    timeline[i]['jitter_us'] = jitter
+                    jitter_count += 1
+                self.log(f"📊 Jitter enabled: 0-{max_jitter_ms}ms positive delay applied to {jitter_count} packets")
+
+            elif jitter_percent > 0:
+                jitter_count = 0
+                for i in range(1, len(timeline)):
+                    prev_time = timeline[i-1]['time_us']
+                    current_time = timeline[i]['time_us']
+                    base_interval = current_time - prev_time
+
+                    # Apply +jitter_percent positive delay (0 to +jitter_percent)
+                    jitter_range = base_interval * jitter_percent / 100.0
+                    jitter = random.uniform(0, jitter_range)  # POSITIVE ONLY
+                    timeline[i]['time_us'] += jitter
+                    timeline[i]['jittered'] = True
+                    jitter_count += 1
+
+                self.log(f"📊 Jitter enabled: 0-{jitter_percent}% positive delay applied to {jitter_count} packet intervals")
+
+            # 2. Apply packet reordering (positive-only delay for out-of-order delivery)
+            # Reordering simulates packets taking longer routes - they arrive later, not earlier
+            reorder_percent = self.network_simulation.get('reorder_percent', 0)
+            reorder_max_delay_ms = self.network_simulation.get('reorder_max_delay_ms', 0)
+
+            if reorder_percent > 0 and reorder_max_delay_ms > 0:
+                reorder_count = 0
+
+                for event in timeline:
+                    # Decide if this packet should be reordered based on probability
+                    if random.randint(0, 99) < reorder_percent:
+                        # Apply random POSITIVE delay between 0 and max_delay_ms
+                        delay_us = random.randint(0, reorder_max_delay_ms * 1000)
+                        event['time_us'] += delay_us  # POSITIVE ONLY
+                        event['reordered'] = True
+                        reorder_count += 1
+                    else:
+                        event['reordered'] = False
+
+                self.log(f"🔀 Packet reordering enabled: {reorder_percent}% probability, 0-{reorder_max_delay_ms}ms positive delay")
+                self.log(f"🔀 Applied reordering to {reorder_count}/{len(timeline)} packets")
+
+            # RE-SORT timeline by time_us after jitter simulation
+            # This is CORRECT for simulating real network jitter:
+            # - Each packet gets a random delay added to its original time
+            # - Packets are then sent in the order they "arrive" (sorted by jittered time)
+            # - This creates BOTH out-of-order sequence numbers AND variable inter-packet timing
+            # - The plugin's buffer must handle both aspects
+            timeline.sort(key=lambda x: x['time_us'])
+
+            if jitter_percent > 0 or max_jitter_ms > 0 or reorder_percent > 0:
+                self.log(f"✅ Network simulation applied, timeline sorted by simulated arrival time")
+
             self.log(f"🎯 Generated {len(timeline)} interleaved packets over {timeline[-1]['time_us']/1000:.1f}ms")
 
-            # Send packets with precise timing and better error handling
-            replay_start_time = time.time()
-            packets_sent = 0
-            failed_packets = 0
+            # Generate manifests for C binary sender
+            # Packets are in TIME ORDER - they will be sent when scheduled
+            # This naturally creates out-of-order sequence numbers (reordering effect)
+            video_manifest = []
+            audio_manifest = []
+
+            for event in timeline:
+                if event['type'] == 'video':
+                    video_manifest.append(event)
+                else:
+                    audio_manifest.append(event)
+
+            # DO NOT sort by filename! Keep them in time order
+            # The C binary will send them in the order they appear in the manifest
+
+            # Debug: Check timing of first few packets
+            self.log(f"🔍 First 5 video packets timing:")
+            for i in range(min(5, len(video_manifest))):
+                self.log(f"   [{i}] {Path(video_manifest[i]['file']).name}: time_us={video_manifest[i]['time_us']:.1f}")
+            self.log(f"🔍 First 5 audio packets timing:")
+            for i in range(min(5, len(audio_manifest))):
+                self.log(f"   [{i}] {Path(audio_manifest[i]['file']).name}: time_us={audio_manifest[i]['time_us']:.1f}")
+
+            # Write manifests as CSV files (filename,delay_us)
+            # CRITICAL: Use absolute time from global timeline start for each packet
+            # This preserves jitter/reordering while keeping sequence order
+            video_manifest_path = self.output_dir / 'video_manifest.csv'
+            audio_manifest_path = self.output_dir / 'audio_manifest.csv'
+
+            # Minimum inter-packet delay in microseconds.
+            #
+            # IMPORTANT:
+            # - Manifests carry integer microsecond deltas; avoid float->int drift which can
+            #   otherwise collapse pacing (and cause "send everything instantly" regressions).
+            # - For local runs, keep this tiny to preserve spec timing.
+            # - For CI, use a more conservative minimum to reduce receiver buffer overflows.
+            MIN_PACKET_DELAY_US = 50 if self.is_ci else 1
+
+            def write_manifest(path: Path, events: list[dict]) -> dict:
+                with open(path, 'w') as f:
+                    f.write("filename,delay_us\n")
+                    last_sent_time_us = 0
+                    min_delta_us = None
+                    max_delta_us = 0
+                    for event in events:
+                        event_time_us = int(round(float(event['time_us'])))
+                        delta_us = event_time_us - last_sent_time_us
+                        if delta_us < MIN_PACKET_DELAY_US:
+                            delta_us = MIN_PACKET_DELAY_US
+                        filename = Path(event['file']).name
+                        f.write(f"{filename},{int(delta_us)}\n")
+                        last_sent_time_us += int(delta_us)
+                        if min_delta_us is None or delta_us < min_delta_us:
+                            min_delta_us = int(delta_us)
+                        if delta_us > max_delta_us:
+                            max_delta_us = int(delta_us)
+
+                return {
+                    'total_us': int(last_sent_time_us),
+                    'min_delta_us': int(min_delta_us or 0),
+                    'max_delta_us': int(max_delta_us),
+                }
+
+            video_manifest_stats = write_manifest(video_manifest_path, video_manifest)
+            audio_manifest_stats = write_manifest(audio_manifest_path, audio_manifest)
+
+            self.log(
+                "🕒 Manifest timing summary: "
+                f"video={video_manifest_stats['total_us'] / 1000.0:.1f}ms "
+                f"(minΔ={video_manifest_stats['min_delta_us']}us, maxΔ={video_manifest_stats['max_delta_us']}us), "
+                f"audio={audio_manifest_stats['total_us'] / 1000.0:.1f}ms "
+                f"(minΔ={audio_manifest_stats['min_delta_us']}us, maxΔ={audio_manifest_stats['max_delta_us']}us)"
+            )
+
+            self.log(f"📝 Generated manifests: {len(video_manifest)} video, {len(audio_manifest)} audio packets")
+            self.log(f"   Video starts at: {video_manifest[0]['time_us']/1000:.1f}ms")
+            self.log(f"   Audio starts at: {audio_manifest[0]['time_us']/1000:.1f}ms")
+
+            udp_replay_bin = Path(udp_replay_path).resolve()
+            if not udp_replay_bin.exists():
+                raise FileNotFoundError(f"udp_replay not found: {udp_replay_bin}")
 
             # Start resource monitoring RIGHT when packets begin flowing
-            # (resource monitor warmup is handled in run() after OBS start)
             if self.enable_resource_monitoring and self._resource_monitor:
                 self._resource_monitor.start()
                 self.log(f"📊 Resource monitoring started (interval: {self.resource_interval_ms}ms)")
 
-            for event in timeline:
-                # Calculate when this packet should be sent
-                target_time = replay_start_time + event['time_us'] / 1_000_000.0
+            # Spawn C binary processes for video and audio in parallel
+            replay_start_time = time.time()
 
-                # Wait until the precise moment
-                current_time = time.time()
-                if current_time < target_time:
-                    time.sleep(target_time - current_time)
+            # Align sender start across processes (audio+video) using an absolute monotonic timestamp.
+            # Each sender preloads packets from disk, so we schedule a common start time a bit
+            # into the future to avoid initial A/V offset due to differing preload times.
+            # IMPORTANT:
+            # udp_replay preloads tens of thousands of small packet files. On a cold filesystem
+            # cache, video preload can take multiple seconds. If the sender misses start_at_us,
+            # it will begin sending late, causing a real A/V offset in the recording.
+            # Use a generous lead time to ensure both senders are ready before the shared start.
+            lead_s = 10.0 if self.is_ci else 8.0
+            start_at_us = (time.monotonic_ns() // 1000) + int(lead_s * 1_000_000)
 
-                # Read and send packet
-                try:
-                    with open(event['file'], 'rb') as f:
-                        packet_data = f.read()
+            video_cmd = [
+                str(udp_replay_bin),
+                str(video_manifest_path),
+                str(video_dir),
+                self.video_dest_ip,
+                str(self.video_dest_port),
+                '780',  # video packet size
+                '--start-at-us',
+                str(start_at_us),
+                '--verbose'
+            ]
 
-                    if len(packet_data) == 0:
-                        self.log(f"❌ Empty packet file: {event['file']}")
-                        failed_packets += 1
-                        continue
+            audio_cmd = [
+                str(udp_replay_bin),
+                str(audio_manifest_path),
+                str(audio_dir),
+                self.audio_dest_ip,
+                str(self.audio_dest_port),
+                '770',  # audio packet size
+                '--start-at-us',
+                str(start_at_us),
+                '--verbose'
+            ]
 
-                    bytes_sent = event['sock'].sendto(packet_data, event['dest'])
-                    packets_sent += 1
+            self.log(f"🚀 Starting C binary packet senders...")
+            self.log(f"   Video: {' '.join(video_cmd)}")
+            self.log(f"   Audio: {' '.join(audio_cmd)}")
 
-                    # Log first few packets for debugging
-                    if packets_sent <= 3:
-                        self.log(f"📤 Sent {event['type']} packet #{packets_sent}: {len(packet_data)} bytes to {event['dest']}")
+            # Run both processes in parallel and stream their logs live.
+            #
+            # IMPORTANT: Do not use capture_output=True here.
+            # We want UDP sender progress logs to appear on stdout at the moment
+            # packets are actually sent (interleaved with resource monitoring).
+            import threading
+            import subprocess as sp
 
-                    # Verify socket operation was successful
-                    if bytes_sent != len(packet_data):
-                        self.log(f"⚠️ Partial send: {bytes_sent}/{len(packet_data)} bytes for {event['type']} packet #{packets_sent}")
+            def run_sender(cmd: list[str], label: str) -> tuple[int, list[str]]:
+                lines: list[str] = []
+                proc = sp.Popen(
+                    cmd,
+                    stdout=sp.PIPE,
+                    stderr=sp.STDOUT,
+                    text=True,
+                    bufsize=1,
+                )
 
-                    # Debug first few packets to verify sending
-                    if packets_sent <= 5:
-                        self.log(f"🔍 DEBUG: Sent {event['type']} packet #{packets_sent}: {len(packet_data)} bytes to {event['dest']}, socket returned {bytes_sent}")
+                assert proc.stdout is not None
 
-                    # Debug last few packets to verify completion
-                    if packets_sent >= len(timeline) - 3:
-                        elapsed_ms = (time.time() - replay_start_time) * 1000
-                        self.log(f"🔍 DEBUG: Sent {event['type']} packet #{packets_sent}/{len(timeline)} at {elapsed_ms:.1f}ms (file: {Path(event['file']).name})")
+                for line in proc.stdout:
+                    line = line.rstrip('\n')
+                    if line:
+                        # Keep a small buffer for error reporting.
+                        if len(lines) < 200:
+                            lines.append(line)
+                        self.log(f"[{label}] {line}")
 
-                    # Show progress every 500 packets (always visible)
-                    if packets_sent % 500 == 0:
-                        elapsed_ms = (time.time() - replay_start_time) * 1000
-                        print(f"📡 Sent {packets_sent}/{len(timeline)} packets ({elapsed_ms:.1f}ms elapsed)")
+                rc = proc.wait()
+                return rc, lines
 
-                except Exception as e:
-                    self.log(f"❌ Failed to send {event['type']} packet {event['file']}: {e}")
-                    failed_packets += 1
-                    continue
+            video_result: dict[str, object] = {'returncode': None, 'lines': []}
+            audio_result: dict[str, object] = {'returncode': None, 'lines': []}
+
+            def run_video():
+                rc, lines = run_sender(video_cmd, 'UDP-VIDEO')
+                video_result['returncode'] = rc
+                video_result['lines'] = lines
+
+            def run_audio():
+                rc, lines = run_sender(audio_cmd, 'UDP-AUDIO')
+                audio_result['returncode'] = rc
+                audio_result['lines'] = lines
+
+            video_thread = threading.Thread(target=run_video, name='udp-replay-video')
+            audio_thread = threading.Thread(target=run_audio, name='udp-replay-audio')
+
+            video_thread.start()
+            audio_thread.start()
+
+            video_thread.join()
+            audio_thread.join()
 
             elapsed_ms = (time.time() - replay_start_time) * 1000
-            print(f"📡 Mock sender: sent {packets_sent} packets in {elapsed_ms:.1f}ms")
-            self.log(f"✅ Packet replay complete: {packets_sent} packets sent, {failed_packets} failed in {elapsed_ms:.1f}ms")
+
+            # Check results
+            if video_result['returncode'] != 0:
+                self.log("❌ Video sender failed")
+                for line in (video_result.get('lines') or [])[-30:]:
+                    self.log(f"[UDP-VIDEO] {line}")
+                return False
+
+            if audio_result['returncode'] != 0:
+                self.log("❌ Audio sender failed")
+                for line in (audio_result.get('lines') or [])[-30:]:
+                    self.log(f"[UDP-AUDIO] {line}")
+                return False
+
+            # Parse output to get packet counts
+            packets_sent = len(video_manifest) + len(audio_manifest)
+
+            print(f"📡 C binary sender: sent {packets_sent} packets in {elapsed_ms:.1f}ms")
+            self.log(f"✅ Packet replay complete: {packets_sent} packets sent in {elapsed_ms:.1f}ms")
 
             # NOTE: Resource monitoring continues running! It will be stopped after
             # the grace period in run() to capture full OBS processing time.
@@ -2200,34 +2822,18 @@ class E2ETest:
                                 self.log(f"Stream destination: {dest_str}")
 
                                 # Parse and store the destination for UDP replay
-                                # For CI, prefer container's primary IPv4 over loopback to avoid edge cases
                                 if ':' in dest_str:
                                     dest_ip, dest_port_str = dest_str.split(':', 1)
                                     try:
                                         dest_port = int(dest_port_str)
-                                        # Select destination IP
-                                        force_dest_ip = "127.0.0.1"
-                                        if self.is_ci:
-                                            try:
-                                                import socket as pysock
-                                                tmp = pysock.socket(pysock.AF_INET, pysock.SOCK_DGRAM)
-                                                # This doesn't send traffic but yields the chosen source IP
-                                                tmp.connect(("8.8.8.8", 80))
-                                                primary_ip = tmp.getsockname()[0]
-                                                tmp.close()
-                                                if primary_ip and not primary_ip.startswith("127."):
-                                                    force_dest_ip = primary_ip
-                                                    self.log(f"🌐 CI: Using primary container IP for UDP replay: {force_dest_ip}")
-                                            except Exception as _:
-                                                pass
                                         if stream_id == 0:  # Video
-                                            self.video_dest_ip = force_dest_ip
+                                            self.video_dest_ip = dest_ip
                                             self.video_dest_port = dest_port
-                                            self.log(f"Updated video destination: {force_dest_ip}:{dest_port}")
+                                            self.log(f"Updated video destination: {dest_ip}:{dest_port}")
                                         elif stream_id == 1:  # Audio
-                                            self.audio_dest_ip = force_dest_ip
+                                            self.audio_dest_ip = dest_ip
                                             self.audio_dest_port = dest_port
-                                            self.log(f"Updated audio destination: {force_dest_ip}:{dest_port}")
+                                            self.log(f"Updated audio destination: {dest_ip}:{dest_port}")
                                     except ValueError:
                                         self.log(f"Invalid port in destination: {dest_str}")
 
@@ -2508,7 +3114,8 @@ class E2ETest:
             'udp_reception': {'status': 'unknown', 'details': ''},
             'frame_processing': {'status': 'unknown', 'details': ''},
             'video_recording': {'status': 'unknown', 'details': ''},
-            'packet_integrity': {'status': 'unknown', 'details': ''}
+            'packet_integrity': {'status': 'unknown', 'details': ''},
+            'network_timing': {'status': 'unknown', 'details': ''},
         }
 
         # Calculate expected packet counts using actual generation logic
@@ -2565,6 +3172,41 @@ class E2ETest:
             print("❌ UDP Reception: No network.csv found")
             validation_errors.append("Missing network.csv - plugin may not be receiving UDP packets")
             validation_results['udp_reception'] = {'status': 'fail', 'details': 'No CSV file found'}
+
+        # 1b. Network Timing / Pacing Validation (from network.json)
+        # This catches severe sender regressions (e.g. "all packets sent instantly").
+        network_json = self.output_dir / 'network.json'
+        net_status, net_details, net_errors, net_warnings = validate_network_timing(
+            network_json_path=network_json,
+            video_format=self.format,
+            frames=self.frames,
+            network_simulation=self.network_simulation,
+        )
+
+        strict_network_timing = self.is_ci or (os.environ.get('C64_E2E_STRICT_NETWORK_TIMING', '') == '1')
+        if strict_network_timing and net_status == 'warning':
+            # Escalate only *non-benign* warnings to failures in CI.
+            # Some warnings (e.g. max jitter spikes) can be caused by CI host scheduling
+            # and are not necessarily a sender regression.
+            critical_warnings = [w for w in net_warnings if not _is_benign_network_timing_warning(w)]
+            if critical_warnings:
+                net_status = 'fail'
+                net_errors = net_errors + [
+                    f"Network timing warning treated as error: {w}" for w in critical_warnings
+                ]
+
+        validation_errors.extend(net_errors)
+        validation_warnings.extend(net_warnings)
+        validation_results['network_timing'] = {'status': net_status, 'details': net_details}
+
+        if net_status == 'fail':
+            print(f"❌ Network Timing: {net_details}")
+        elif net_status == 'warning':
+            print(f"⚠️  Network Timing: {net_details}")
+        elif net_status == 'pass':
+            print(f"✅ Network Timing: {net_details}")
+        else:
+            print(f"❓ Network Timing: {net_details}")
 
         # 2. Frame Processing Validation
         # Use original frame count from before CSV truncation
@@ -2752,10 +3394,10 @@ class E2ETest:
         visuals_results = None  # cache visual checks to avoid running twice
         if recording_file and Path(recording_file).exists() and verify_av_sync:
             try:
-                print("🎵 A/V Sync: Running A/V sync check (pops)...")
-                # Tolerance: allow minor capture jitter under heavy GPU filter presets.
-                # Kept intentionally tight; 50ms is ~3 frames at 60fps.
-                sync_results = verify_av_sync(recording_file, tolerance_ms=60)
+                print(f"🎵 A/V Sync: Running A/V sync check (pops, tolerance={self.av_sync_tolerance_ms}ms)...")
+                # Tolerance: configurable per-scenario, default 60ms (~3 frames at 60fps)
+                # Jitter scenarios may need higher tolerance (e.g., 150ms)
+                sync_results = verify_av_sync(recording_file, tolerance_ms=self.av_sync_tolerance_ms)
 
                 # Report detailed offsets summary even in success case
                 diffs = [d['difference_ms'] for d in sync_results['sync_details'] if d.get('closest_video_pop_ms') is not None]
@@ -3044,6 +3686,7 @@ class E2ETest:
         try:
             # UDP counts
             udp_line = validation_results.get('udp_reception', {})
+            nt_line = validation_results.get('network_timing', {})
             fr_line = validation_results.get('frame_processing', {})
             vr_line = validation_results.get('video_recording', {})
             pi_line = validation_results.get('packet_integrity', {})
@@ -3052,6 +3695,7 @@ class E2ETest:
                 return {'pass': '🟢', 'warning': '🟡', 'fail': '🔴', 'skipped': '⚪', 'unknown': '⚪'}.get(status, '⚪')
             print("Summary (checks):")
             print(f"  UDP Packets     {icon(udp_line.get('status'))}  {udp_line.get('details','')}")
+            print(f"  Network Timing  {icon(nt_line.get('status'))}  {nt_line.get('details','')}")
             print(f"  OBS Frames      {icon(fr_line.get('status'))}  {fr_line.get('details','')}")
             print(f"  Recording File  {icon(vr_line.get('status'))}  {vr_line.get('details','')}")
             print(f"  Duration Check  {icon(pi_line.get('status'))}  {pi_line.get('details','')}")
@@ -3319,6 +3963,9 @@ def main():
     parser.add_argument('--settling-duration', '--settling-seconds', dest='settling_seconds', type=float, default=0.0,
                         help='Ignore frame progression errors during first N seconds (pass/fail gating only)')
 
+    parser.add_argument('--scenario-yaml', type=str, default=None,
+                        help='Path to scenario YAML file (for loading network_simulation config)')
+
     args = parser.parse_args()
 
     if args.monitor_resource_duration is not None:
@@ -3326,27 +3973,69 @@ def main():
             raise SystemExit('--monitor-resource-duration must be >= 0.1 seconds')
         args.resource_interval_ms = int(args.monitor_resource_duration * 1000.0 + 0.5)
 
-    # Verify UDP replay tool exists, build if needed
-    udp_replay_path = Path(args.udp_replay)
-    if not udp_replay_path.exists():
-        print(f"⚠️  UDP replay tool not found: {udp_replay_path}")
-        print("🔨 Building UDP replay tool...")
+    # Load network_simulation from scenario YAML if provided
+    network_simulation = {}
+    av_sync_tolerance_ms = 60  # Default tolerance
+    if args.scenario_yaml:
+        import yaml
+        try:
+            with open(args.scenario_yaml, 'r') as f:
+                scenario_data = yaml.safe_load(f)
+                network_simulation = scenario_data.get('network_simulation', {})
+                # Load A/V sync tolerance from scenario (default 60ms)
+                av_sync_tolerance_ms = scenario_data.get('av_sync_tolerance_ms', 60)
+                if network_simulation:
+                    jitter_pct = network_simulation.get('jitter_percent', 0)
+                    jitter_ms = network_simulation.get('max_jitter_ms', 0)
+                    reorder_pct = network_simulation.get('reorder_percent', 0)
+                    print(f"📡 Loaded network simulation config: jitter={jitter_pct}% (or {jitter_ms}ms), reorder={reorder_pct}%")
+                if av_sync_tolerance_ms != 60:
+                    print(f"📡 A/V sync tolerance: {av_sync_tolerance_ms}ms")
+        except Exception as e:
+            print(f"⚠️  Failed to load scenario YAML: {e}")
 
-        # Find the udp_replay.c source file
-        script_dir = Path(__file__).parent
-        udp_replay_src = script_dir / "udp_replay.c"
+    # Verify UDP replay tool exists; (re)build if needed.
+    #
+    # IMPORTANT:
+    # - The repo includes a prebuilt `udp_replay` binary, but in CI we rebuild from source
+    #   so changes to `udp_replay.c` actually take effect.
+    # - Do NOT build into args.output_dir: the test harness wipes output_dir at runtime
+    #   (see E2ETest.clean_test_output), which would delete the freshly built binary.
+    script_dir = Path(__file__).parent
+    udp_replay_src = script_dir / "udp_replay.c"
 
+    udp_replay_requested = Path(args.udp_replay)
+    udp_replay_path = udp_replay_requested
+
+    is_ci = os.environ.get('CI', '').lower() in ('1', 'true', 'yes')
+    is_windows = sys.platform.startswith('win')
+
+    rebuild_reason = None
+    if not udp_replay_requested.exists():
+        rebuild_reason = "tool missing"
+    elif udp_replay_src.exists() and udp_replay_requested.stat().st_mtime < udp_replay_src.stat().st_mtime:
+        rebuild_reason = "source newer than tool"
+    elif is_ci and not is_windows:
+        rebuild_reason = "CI rebuild"
+
+    if rebuild_reason is not None:
         if not udp_replay_src.exists():
             print(f"❌ UDP replay source not found: {udp_replay_src}")
             return 1
 
-        # Build the tool
+        tool_dir = (Path(args.test_dir).resolve() / ".e2e-tools")
+        tool_dir.mkdir(parents=True, exist_ok=True)
+        udp_replay_path = tool_dir / "udp_replay"
+
+        print(f"⚠️  (Re)building UDP replay tool ({rebuild_reason})...")
+        print(f"🔨 Building UDP replay tool: {udp_replay_path}")
+
         build_cmd = ["gcc", "-O2", "-o", str(udp_replay_path), str(udp_replay_src)]
         try:
-            result = subprocess.run(build_cmd, check=True, capture_output=True, text=True)
+            subprocess.run(build_cmd, check=True, capture_output=True, text=True)
             print(f"✅ Successfully built UDP replay tool: {udp_replay_path}")
         except subprocess.CalledProcessError as e:
-            print(f"❌ Failed to build UDP replay tool:")
+            print("❌ Failed to build UDP replay tool:")
             print(f"   Command: {' '.join(build_cmd)}")
             print(f"   Error: {e.stderr}")
             return 1
@@ -3380,6 +4069,8 @@ def main():
         perf_callgraph=args.perf_callgraph,
         perf_duration_s=args.perf_duration,
         enable_flamegraph=args.perf_flamegraph,
+        network_simulation=network_simulation,
+        av_sync_tolerance_ms=av_sync_tolerance_ms,
     )
 
     # Store reference for signal handler

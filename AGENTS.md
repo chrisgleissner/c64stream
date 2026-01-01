@@ -5,10 +5,23 @@ This repository is an OBS Studio source plugin (`c64stream`) for streaming C64 U
 ## Source of truth
 
 - **Primary rules & conventions**: see `.github/copilot-instructions.md`
+- **Multi-hour planning**: see `PLANS.md` (read at start of substantial tasks)
 - **Protocol documentation**: `doc/c64-stream-spec.md`
 - **Build details (CI)**: `.github/build-instructions.md`
 
 If anything in this file conflicts with `.github/copilot-instructions.md`, follow `.github/copilot-instructions.md`.
+
+## MANDATORY: Error Investigation Rule (CRITICAL)
+
+**NEVER IGNORE ERRORS, WARNINGS, OR ASSERTION FAILURES**
+
+- Every error, warning, or assertion failure is caused by OUR code changes
+- Never dismiss problems as "known issues" or "test content issues"
+- Every problem must be investigated to root cause and fixed
+- If a test shows warnings after your changes, you broke it - fix it
+- Do not declare completion while any test warnings or failures exist
+
+**Important**: For complex or multi-hour tasks, read [`PLANS.md`](PLANS.md) first and follow its structure for planning and tracking work.
 
 ## Fast path (what to do before you open a PR)
 
@@ -40,8 +53,16 @@ The wrapper auto-detects common Homebrew installs; you can also override via `CL
 ### Unit tests
 
 ```bash
+# C/C++ tests (CMake/CTest)
 ctest --test-dir build_x86_64 --output-on-failure
+
+# Python unit tests (E2E harness)
+python3 -m unittest \
+    tests/e2e/test_network_simulation.py \
+    tests/e2e/test_network_timing_validation.py
 ```
+
+Note: `./local-build.sh linux` runs unit tests by default (use `--no-tests` to skip).
 
 ### Documentation review (MANDATORY before declaring completion)
 

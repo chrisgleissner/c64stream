@@ -154,11 +154,15 @@ struct c64_source {
     volatile long audio_packets_received; // Total audio packets received (atomic)
     volatile long audio_bytes_received;   // Total audio bytes received (atomic)
     uint64_t last_stats_log_time;         // Last time statistics were logged (non-atomic)
+    uint64_t last_stats_tick_ns;          // Last time stats batching was checked (limits per-packet timing calls)
 
     // Frame saving for analysis (logo handled by async video - no manual logo needed)
     bool record_frames;
     char save_folder[512];
     uint32_t saved_frame_count;
+
+    // Frame state flags
+    bool frame_dirty; // Set when a new frame arrives; cleared after texture upload to avoid redundant copies
 
     // Video recording for analysis
     bool record_video;
@@ -180,24 +184,25 @@ struct c64_source {
     size_t recording_buffer_size; // Size of allocated recording buffers
 
     // CRT visual effects
-    float scan_line_distance;         // Scan line distance (0.0-2.0, percentage of scan line width)
-    float scan_line_strength;         // Scan line strength (0.0-1.0, darkness of gaps)
-    float pixel_width;                // Pixel geometry width (0.5-3.0)
-    float pixel_height;               // Pixel geometry height (0.5-3.0)
-    float blur_strength;              // Blur strength for pixel geometry (0.0-1.0)
-    bool bloom_enable;                // Bloom effect enable
-    float bloom_strength;             // Bloom strength (0.0-1.0, internally scaled 7.5x)
-    bool afterglow_enable;            // Afterglow effect enable
-    int afterglow_duration_ms;        // Afterglow duration in milliseconds
-    int afterglow_curve;              // Afterglow decay curve (0=linear, 1=exponential)
-    bool tint_enable;                 // Screen tint effect enable
-    int tint_mode;                    // Tint mode (0=none, 1=amber, 2=green, 3=monochrome)
-    float tint_strength;              // Tint strength (0.0-1.0)
-    gs_texture_t *render_texture;     // GPU texture for rendering with effects
-    uint32_t render_texture_width;    // Cached render_texture width (avoid gs_texture_get_width outside graphics)
-    uint32_t render_texture_height;   // Cached render_texture height
-    gs_effect_t *crt_effect;          // CRT shader effect
-    gs_samplerstate_t *point_sampler; // Point (nearest-neighbor) sampler for sharp pixel rendering
+    float scan_line_distance;           // Scan line distance (0.0-2.0, percentage of scan line width)
+    float scan_line_strength;           // Scan line strength (0.0-1.0, darkness of gaps)
+    float pixel_width;                  // Pixel geometry width (0.5-3.0)
+    float pixel_height;                 // Pixel geometry height (0.5-3.0)
+    float blur_strength;                // Blur strength for pixel geometry (0.0-1.0)
+    bool bloom_enable;                  // Bloom effect enable
+    float bloom_strength;               // Bloom strength (0.0-1.0, internally scaled 7.5x)
+    bool afterglow_enable;              // Afterglow effect enable
+    int afterglow_duration_ms;          // Afterglow duration in milliseconds
+    int afterglow_curve;                // Afterglow decay curve (0=linear, 1=exponential)
+    bool tint_enable;                   // Screen tint effect enable
+    int tint_mode;                      // Tint mode (0=none, 1=amber, 2=green, 3=monochrome)
+    float tint_strength;                // Tint strength (0.0-1.0)
+    gs_texture_t *render_texture;       // GPU texture for rendering with effects
+    uint32_t render_texture_width;      // Cached render_texture width (avoid gs_texture_get_width outside graphics)
+    uint32_t render_texture_height;     // Cached render_texture height
+    gs_texture_t *intermediate_texture; // Intermediate texture for blur/bloom/tint at native resolution
+    gs_effect_t *crt_effect;            // CRT shader effect
+    gs_samplerstate_t *point_sampler;   // Point (nearest-neighbor) sampler for sharp pixel rendering
 
     // Afterglow (shader ping-pong targets; also used by CPU/headless paths for deterministic persistence)
     gs_texture_t *afterglow_accum_prev; // Ping-pong texture for afterglow accumulation
@@ -210,6 +215,15 @@ struct c64_source {
     uint32_t *afterglow_cpu_accum; // RGBA accumulator (same size as frame_buffer)
     size_t afterglow_cpu_bytes;    // Allocated size in bytes for afterglow_cpu_accum
     bool afterglow_cpu_valid;      // Whether accumulator contains valid prior state
+
+    // Cached decay factors for expf() optimization (avoid recomputation)
+    float cached_decay_r;
+    float cached_decay_g;
+    float cached_decay_b;
+    float cached_dt_ms;     // Delta time used for cached decay factors
+    int cached_duration_ms; // Duration used for cached decay factors
+    int cached_curve;       // Curve used for cached decay factors
+    bool decay_cache_valid; // Whether decay cache is valid
 };
 
 #endif // C64_TYPES_H

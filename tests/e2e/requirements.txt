@@ -1,0 +1,6 @@
+# E2E Test Dependencies
+# Required for running Python unit tests and E2E validation
+
+numpy>=1.24.0
+opencv-python>=4.8.0
+scipy>=1.11.0

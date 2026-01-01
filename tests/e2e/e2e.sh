@@ -45,6 +45,7 @@ DEFAULT_PACKET_PATTERN=""
 DEFAULT_SCENARIO=""
 DEFAULT_CSV_MAX_ROWS=2000  # 0 = unlimited CSV lines (preserve all data)
 SCENARIO_CI_SKIPPED=false  # Set by load_scenario if ci_skip=true on CI
+SCENARIO_YAML_PATH=""  # Path to scenario.yaml if scenario is loaded
 DEFAULT_RUN_ALL_SCENARIOS=false  # Run all scenarios in sequence
 DEFAULT_ENABLE_RESOURCE_MONITORING=true  # CPU/GPU/RAM monitoring during packet replay (enabled by default)
 DEFAULT_RESOURCE_INTERVAL_MS=500  # Resource monitoring sample interval in ms (internal)
@@ -205,8 +206,11 @@ stop_resource_monitoring() {
 
 # Ensure perf can run (local dev best-effort).
 ensure_udp_buffers() {
-    # Ensure adequate UDP buffer sizes for high-throughput E2E tests
-    # Only relevant on Linux.
+    # Ensure adequate UDP buffer sizes for high-throughput E2E tests.
+    # NOTE: GitHub Actions containers have a 1MB UDP buffer limit that CANNOT be changed.
+    # The E2E test accommodates this via MIN_PACKET_DELAY in manifest generation.
+    # This function only helps on local dev machines.
+
     if [[ "$(uname -s 2>/dev/null || echo '')" != "Linux" ]]; then
         return 0
     fi
@@ -216,30 +220,26 @@ ensure_udp_buffers() {
         current_rmem_max=$(cat /proc/sys/net/core/rmem_max 2>/dev/null || echo "")
     fi
 
-    # Target: 8MB buffers for E2E tests (8388608 bytes)
-    local target_buffer=8388608
+    local target_buffer=8388608  # 8MB
 
     if [[ -n "${current_rmem_max}" ]] && [[ "${current_rmem_max}" =~ ^[0-9]+$ ]] && [[ "${current_rmem_max}" -ge "${target_buffer}" ]]; then
-        # Buffers already adequate
-        return 0
+        return 0  # Already adequate
     fi
 
-    if ! command -v sudo >/dev/null 2>&1; then
-        log_warning "sudo not available; cannot adjust UDP buffer sizes (current: ${current_rmem_max} bytes, need: ${target_buffer} bytes)."
-        log_warning "E2E tests may experience UDP packet loss. To fix: sudo sysctl -w net.core.rmem_max=${target_buffer} net.core.wmem_max=${target_buffer}"
-        return 0
+    # Try to increase (best-effort, will fail in CI containers)
+    if [[ "$(id -u)" == "0" ]]; then
+        sysctl -w net.core.rmem_max=${target_buffer} >/dev/null 2>&1
+        sysctl -w net.core.wmem_max=${target_buffer} >/dev/null 2>&1
+    elif command -v sudo >/dev/null 2>&1; then
+        sudo sysctl -w net.core.rmem_max=${target_buffer} >/dev/null 2>&1
+        sudo sysctl -w net.core.wmem_max=${target_buffer} >/dev/null 2>&1
     fi
 
-    log_info "Increasing UDP buffer sizes for E2E test reliability (${current_rmem_max} -> ${target_buffer} bytes)..."
-    sudo sysctl -w net.core.rmem_max=${target_buffer} >/dev/null 2>&1 || log_warning "Failed to set net.core.rmem_max"
-    sudo sysctl -w net.core.wmem_max=${target_buffer} >/dev/null 2>&1 || log_warning "Failed to set net.core.wmem_max"
-
-    # Verify
     local new_rmem_max=$(cat /proc/sys/net/core/rmem_max 2>/dev/null || echo "0")
     if [[ "${new_rmem_max}" -ge "${target_buffer}" ]]; then
-        log_success "UDP buffers increased to ${new_rmem_max} bytes"
+        log_success "UDP buffers: ${new_rmem_max} bytes"
     else
-        log_warning "UDP buffer adjustment may have failed (current: ${new_rmem_max})"
+        log_info "UDP buffers: ${new_rmem_max} bytes (CI limit; test uses MIN_PACKET_DELAY)"
     fi
 }
 
@@ -410,6 +410,9 @@ load_scenario() {
     local scenario_name="$1"
     local scenario_dir="${SCENARIOS_DIR}/${scenario_name}"
     local scenario_yaml="${scenario_dir}/scenario.yaml"
+
+    # Make scenario_yaml path available globally
+    SCENARIO_YAML_PATH="${scenario_yaml}"
 
     if [[ ! -f "${scenario_yaml}" ]]; then
         log_error "Scenario not found: ${scenario_name}"
@@ -1303,6 +1306,11 @@ run_e2e_test() {
         cmd+=("--scenario-overrides" "${SCENARIO_OVERRIDES}")
     fi
 
+    # Pass scenario YAML path if available (for network_simulation config)
+    if [[ -n "${SCENARIO_YAML_PATH}" ]]; then
+        cmd+=("--scenario-yaml" "${SCENARIO_YAML_PATH}")
+    fi
+
     # Pass CSV max rows
     cmd+=("--csv-max-rows" "${CSV_MAX_ROWS}")
 
@@ -1824,6 +1832,43 @@ Generated: ${timestamp}
 ## Test results
 EOF
 
+    # Validation summary (from validation_results.json)
+    local validation_summary_file="${OUTPUT_DIR}/validation_results.json"
+    if [[ -f "${validation_summary_file}" ]] && command -v jq >/dev/null 2>&1; then
+        echo >> "${report_file}"
+        echo "### Validation Summary" >> "${report_file}"
+        echo >> "${report_file}"
+
+        _render_validation_line() {
+            local key="$1"
+            local label="$2"
+            local status details emoji
+            status=$(jq -r ".${key}.status // \"unknown\"" "${validation_summary_file}" 2>/dev/null || echo "unknown")
+            details=$(jq -r ".${key}.details // \"\"" "${validation_summary_file}" 2>/dev/null || echo "")
+
+            case "${status}" in
+                pass) emoji="✅" ;;
+                warning) emoji="⚠️" ;;
+                fail) emoji="❌" ;;
+                deferred) emoji="⚠️" ;;
+                skipped) emoji="⏭️" ;;
+                *) emoji="❓" ;;
+            esac
+
+            if [[ -n "${details}" && "${details}" != "null" ]]; then
+                echo "- ${emoji} ${label}: ${details}" >> "${report_file}"
+            else
+                echo "- ${emoji} ${label}: Status ${status}" >> "${report_file}"
+            fi
+        }
+
+        _render_validation_line "udp_reception" "UDP Packet Reception"
+        _render_validation_line "network_timing" "Network Timing"
+        _render_validation_line "frame_processing" "Frame Processing"
+        _render_validation_line "video_recording" "Video Recording"
+        _render_validation_line "packet_integrity" "Content Integrity"
+    fi
+
     # Add Resource Usage section first if resource.json exists
     local resource_json="${OUTPUT_DIR}/resource.json"
     if [[ -f "${resource_json}" ]] && command -v jq >/dev/null 2>&1; then
@@ -1913,6 +1958,125 @@ EOF
     fi
     if (( ${#event_links[@]} > 0 )); then
         echo "- Events: $(join_by ', ' "${event_links[@]}")" >> "${report_file}"
+    fi
+
+    # Network Simulation section (if configured)
+    if [[ -n "${SCENARIO_YAML_PATH:-}" && -f "${SCENARIO_YAML_PATH}" ]]; then
+        local max_jitter_ms reorder_percent buffer_delay_ms
+        max_jitter_ms=$(grep -m1 "max_jitter_ms:" "${SCENARIO_YAML_PATH}" 2>/dev/null | sed 's/.*: *//' || echo "0")
+        reorder_percent=$(grep -m1 "reorder_percent:" "${SCENARIO_YAML_PATH}" 2>/dev/null | sed 's/.*: *//' || echo "0")
+        buffer_delay_ms=$(grep -m1 "buffer_delay_ms:" "${SCENARIO_YAML_PATH}" 2>/dev/null | sed 's/.*: *//' || echo "0")
+
+        if [[ "${max_jitter_ms:-0}" != "0" || "${reorder_percent:-0}" != "0" || "${buffer_delay_ms:-0}" != "0" ]]; then
+            echo >> "${report_file}"
+            echo "#### Network Simulation (Configured)" >> "${report_file}"
+            echo >> "${report_file}"
+            echo "| Parameter | Value |" >> "${report_file}"
+            echo "|-----------|-------|" >> "${report_file}"
+            [[ "${max_jitter_ms:-0}" != "0" ]] && echo "| Max Jitter | ${max_jitter_ms}ms |" >> "${report_file}"
+            [[ "${reorder_percent:-0}" != "0" ]] && echo "| Reorder Rate | ${reorder_percent}% |" >> "${report_file}"
+            [[ "${buffer_delay_ms:-0}" != "0" ]] && echo "| Buffer Delay | ${buffer_delay_ms}ms |" >> "${report_file}"
+            echo >> "${report_file}"
+            echo "_Note: Jitter is applied as random positive delay (0-max_jitter_ms) to each packet, causing sequence reordering. The 'Measured Jitter' below shows inter-packet interval variance at reception, which is typically low since packets are sent in time order after delay application._" >> "${report_file}"
+        fi
+    fi
+
+    # Network Quality section (from network.json analysis)
+    if [[ -f "${OUTPUT_DIR}/network.json" ]]; then
+        echo >> "${report_file}"
+        echo "#### Network Quality (Measured)" >> "${report_file}"
+        echo >> "${report_file}"
+
+        # Extract jitter statistics from network.json using Python
+        if command -v python3 >/dev/null 2>&1; then
+            python3 - "${OUTPUT_DIR}/network.json" >> "${report_file}" 2>/dev/null <<'PY' || true
+import json
+import sys
+
+with open(sys.argv[1], 'r') as f:
+    data = json.load(f)
+
+summary = data.get('summary', {})
+all_stats = data.get('all', {})
+video = data.get('video', {})
+audio = data.get('audio', {})
+
+duration_ms = summary.get('duration_ms', None)
+total_packets = summary.get('total_packets', all_stats.get('count', 0))
+
+if duration_ms is not None:
+    print(f"- Packet span (first→last): {duration_ms:.3f} ms")
+if total_packets:
+    print(f"- Total packets analyzed: {total_packets}")
+
+def fmt_ms(us):
+    if us is None:
+        return "-"
+    return f"{(us / 1000.0):.3f} ms"
+
+def fmt_pct(v):
+    if v is None:
+        return "-"
+    return f"{v:.2f}%"
+
+def spacing_row(name, stats):
+    if not stats:
+        return None
+    return (
+        name,
+        stats.get('count', 0),
+        fmt_ms(stats.get('spacing_min_us')),
+        fmt_ms(stats.get('spacing_mean_us')),
+        fmt_ms(stats.get('spacing_max_us')),
+        fmt_pct(stats.get('spacing_cv_pct')),
+        fmt_pct(stats.get('burst_short_pct')),
+        fmt_pct(stats.get('burst_long_pct')),
+        stats.get('burst_p99_p50', None),
+    )
+
+print()
+print("| Stream | Packets | Spacing (min) | Spacing (mean) | Spacing (max) | CV | Burst <0.5×P50 | Gaps >2×P50 | P99/P50 |")
+print("|--------|---------|---------------|----------------|---------------|----|--------------|------------|--------|")
+
+rows = [
+    spacing_row('All', all_stats),
+    spacing_row('Video', video),
+    spacing_row('Audio', audio),
+]
+
+for r in rows:
+    if not r:
+        continue
+    name, count, min_ms, mean_ms, max_ms, cv, burst_short, burst_long, p99_p50 = r
+    p99_p50_str = f"{p99_p50:.3f}" if isinstance(p99_p50, (int, float)) else "-"
+    print(f"| {name} | {count} | {min_ms} | {mean_ms} | {max_ms} | {cv} | {burst_short} | {burst_long} | {p99_p50_str} |")
+
+# Build table
+print()
+print("| Stream | Packets | Jitter (median) | Jitter (max) | Out-of-Order |")
+print("|--------|---------|-----------------|--------------|--------------|")
+
+if video:
+    v_count = video.get('count', 0)
+    v_jitter_median = video.get('jitter_median_ms', 0)
+    v_jitter_max = video.get('jitter_max_ms', 0)
+    v_ooo_count = video.get('out_of_order_count', 0)
+    v_ooo_rate = video.get('out_of_order_rate_pct', 0)
+    ooo_str = f"{v_ooo_count} ({v_ooo_rate:.1f}%)" if v_ooo_count > 0 else "0"
+    print(f"| Video | {v_count} | {v_jitter_median:.3f} ms | {v_jitter_max:.3f} ms | {ooo_str} |")
+
+if audio:
+    a_count = audio.get('count', 0)
+    a_jitter_median = audio.get('jitter_median_ms', 0)
+    a_jitter_max = audio.get('jitter_max_ms', 0)
+    a_ooo_count = audio.get('out_of_order_count', 0)
+    a_ooo_rate = audio.get('out_of_order_rate_pct', 0)
+    ooo_str = f"{a_ooo_count} ({a_ooo_rate:.1f}%)" if a_ooo_count > 0 else "0"
+    print(f"| Audio | {a_count} | {a_jitter_median:.3f} ms | {a_jitter_max:.3f} ms | {ooo_str} |")
+PY
+        fi
+        echo >> "${report_file}"
+        echo "Details: [network.json](network.json)" >> "${report_file}"
     fi
 
     # Perf profiling summary (if available)
@@ -2943,6 +3107,16 @@ main() {
             "warning") echo "  ⚠️  UDP Packet Reception: ${udp_details}" ;;
             "fail") echo "  ❌ UDP Packet Reception: ${udp_details}" ;;
             *) echo "  ❓ UDP Packet Reception: Status unknown" ;;
+        esac
+
+        # Network Timing
+        local net_status=$(jq -r '.network_timing.status' "${validation_file}" 2>/dev/null || echo "unknown")
+        local net_details=$(jq -r '.network_timing.details' "${validation_file}" 2>/dev/null || echo "")
+        case "${net_status}" in
+            "pass") echo "  ✅ Network Timing: ${net_details}" ;;
+            "warning") echo "  ⚠️  Network Timing: ${net_details}" ;;
+            "fail") echo "  ❌ Network Timing: ${net_details}" ;;
+            *) echo "  ❓ Network Timing: Status unknown" ;;
         esac
 
         # Frame Processing

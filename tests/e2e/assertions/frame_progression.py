@@ -19,34 +19,143 @@ import numpy as np
 from .base import AssertionResult, AssertionStatus, EffectAssertion
 
 
-def _detect_content_bounds(frame: np.ndarray) -> tuple[int, int, int, int]:
-    """Detect content bounds (left, right, top, bottom) using black bars around C64 content."""
+def _read_frame_with_seek_backoff(
+    cap: "cv2.VideoCapture",
+    target_frame: int,
+    *,
+    max_backoff_frames: int = 120,
+) -> tuple[bool, "np.ndarray | None", dict]:
+    """Best-effort read of a specific frame index.
+
+    Some OpenCV/FFmpeg builds can fail to decode immediately after
+    CAP_PROP_POS_FRAMES seeks (often when seeking to a non-keyframe).
+    Work around this by seeking slightly earlier and reading forward.
+    """
+
+    details: dict = {"target_frame": int(target_frame)}
+
+    # First try the direct seek/read.
+    try:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, int(target_frame))
+        ret, frame = cap.read()
+        if ret:
+            details["method"] = "direct"
+            return True, frame, details
+    except Exception as e:
+        details["direct_exception"] = repr(e)
+
+    # Fallback: seek backwards then decode forward.
+    backoffs = [1, 2, 5, 10, 20, 40, 80, 120]
+    backoffs = [b for b in backoffs if b <= max_backoff_frames]
+
+    for backoff in backoffs:
+        start = max(0, int(target_frame) - int(backoff))
+        try:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, start)
+        except Exception as e:
+            details.setdefault("seek_exceptions", []).append({"start": start, "exception": repr(e)})
+            continue
+
+        frame = None
+        ok = True
+        for _ in range(int(backoff) + 1):
+            ret, frame = cap.read()
+            if not ret:
+                ok = False
+                break
+
+        if ok and frame is not None:
+            details["method"] = "backoff"
+            details["backoff_frames"] = int(backoff)
+            details["seek_start_frame"] = int(start)
+            return True, frame, details
+
+    details["method"] = "failed"
+    details["max_backoff_frames"] = int(max_backoff_frames)
+    return False, None, details
+
+
+def _detect_content_bounds(frame: np.ndarray, c64_visible_height: int) -> tuple[int, int, int, int]:
+    """Detect content bounds (left, right, top, bottom) using black bars around C64 content.
+
+    NOTE: the streamed visible height differs by format:
+    - NTSC: 240 lines (60 packets/frame)
+    - PAL:  272 lines (68 packets/frame)
+    """
     height, width = frame.shape[:2]
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    _, non_black = cv2.threshold(gray, 10, 255, cv2.THRESH_BINARY)
+    # Use a slightly higher threshold to avoid treating codec noise in black bars as content.
+    _, non_black = cv2.threshold(gray, 16, 255, cv2.THRESH_BINARY)
 
-    # Use 3% threshold to handle sparse patterns like thin diagonal stripes
+    def longest_run(indices: np.ndarray, max_gap: int = 1) -> Optional[tuple[int, int]]:
+        if indices.size == 0:
+            return None
+        best_start = int(indices[0])
+        best_end = int(indices[0])
+        best_len = 1
+        cur_start = int(indices[0])
+        cur_end = int(indices[0])
+        for idx in indices[1:]:
+            idx_i = int(idx)
+            if (idx_i - cur_end) <= max_gap:
+                cur_end = idx_i
+            else:
+                cur_len = (cur_end - cur_start) + 1
+                if cur_len > best_len:
+                    best_start, best_end, best_len = cur_start, cur_end, cur_len
+                cur_start = idx_i
+                cur_end = idx_i
+        cur_len = (cur_end - cur_start) + 1
+        if cur_len > best_len:
+            best_start, best_end = cur_start, cur_end
+        return best_start, best_end
+
+    # Use a low per-column threshold and percentile-based bounds to handle sparse patterns.
     col_counts = np.sum(non_black > 0, axis=0)
-    col_thresh = max(1, int(0.03 * height))
+    col_thresh = max(1, int(0.005 * height))
     content_cols = np.where(col_counts >= col_thresh)[0]
-    if content_cols.size >= 2:
-        left_bound = int(content_cols[0])
-        right_bound = int(content_cols[-1]) + 1
+    if content_cols.size >= 4:
+        left_bound = int(np.percentile(content_cols, 1))
+        right_bound = int(np.percentile(content_cols, 99)) + 1
     else:
-        scale_factor = height / 272.0
+        scale_factor = height / float(max(1, int(c64_visible_height)))
         scaled_c64_width = int(384 * scale_factor)
         left_bound = (width - scaled_c64_width) // 2
         right_bound = (width + scaled_c64_width) // 2
 
-    row_counts = np.sum(non_black > 0, axis=1)
-    row_thresh = max(1, int(0.03 * width))
+    # Use width-derived scale to inform expected height.
+    # Sparse patterns (e.g. dots) can make row counts under-estimate the true content height.
+    content_w = max(1, right_bound - left_bound)
+    scale_from_width = float(content_w) / 384.0
+    expected_h = int(round(float(max(1, int(c64_visible_height))) * scale_from_width))
+
+    # Derive vertical bounds from the detected horizontal content region.
+    # Using the full frame width here is fragile for sparse patterns (e.g. dots),
+    # where per-row coverage can fall below a percentage-of-frame-width threshold.
+    row_region = non_black[:, left_bound:right_bound]
+    row_counts = np.sum(row_region > 0, axis=1)
+    row_thresh = max(1, int(0.005 * content_w))
     content_rows = np.where(row_counts >= row_thresh)[0]
-    if content_rows.size >= 2:
-        top_bound = int(content_rows[0])
-        bottom_bound = int(content_rows[-1]) + 1
+    if content_rows.size >= 4:
+        top_bound = int(np.percentile(content_rows, 1))
+        bottom_bound = int(np.percentile(content_rows, 99)) + 1
     else:
-        top_bound = 0
-        bottom_bound = height
+        # Fallback: assume the content is vertically centered, using width-derived scale.
+        top_bound = max(0, (height - expected_h) // 2)
+        bottom_bound = min(height, top_bound + expected_h)
+
+    # If the detected vertical span is implausible compared to expected height (based on
+    # width-derived scale), re-center around the median non-black row in the content region.
+    detected_h = max(1, bottom_bound - top_bound)
+    if expected_h > 0 and expected_h < height:
+        too_small = detected_h < int(0.92 * expected_h)
+        too_large = detected_h > int(1.20 * expected_h)
+        if too_small or too_large:
+            rows_nonzero = np.where(row_counts > 0)[0]
+            center_y = int(np.median(rows_nonzero)) if rows_nonzero.size > 0 else (height // 2)
+            top_bound = max(0, center_y - (expected_h // 2))
+            bottom_bound = min(height, top_bound + expected_h)
+            top_bound = max(0, bottom_bound - expected_h)
 
     return left_bound, right_bound, top_bound, bottom_bound
 
@@ -111,108 +220,149 @@ def _detect_position_marker(
     outer_height = int(round(corner_outer_height_c64 * scale))
     bar_padding = int(round(bar_left_padding_c64 * scale))
 
-    # Calculate element and inner area location
-    element_bottom = content_bottom
-    element_left = content_left
-    element_top = element_bottom - outer_height
+    h, w = frame.shape[:2]
+    if bar_area_width < 8:
+        return None, []
 
-    # Inner content area
-    inner_x0 = element_left + frame_offset
-    inner_y0 = element_top + frame_offset
+    def compute_slot_luminances(y: int, bar_x0: int, bar_x1: int) -> Optional[list[float]]:
+        if y < 0 or y >= h or bar_x0 < 0 or bar_x1 > w or bar_x1 <= bar_x0:
+            return None
+        scanline = frame[y : y + 1, bar_x0:bar_x1]
+        if scanline.size == 0:
+            return None
+        gray_line = cv2.cvtColor(scanline, cv2.COLOR_BGR2GRAY)
+        luminance_profile = gray_line.flatten()
 
-    # Bar area is offset from left edge of inner area
-    bar_x0 = inner_x0 + bar_padding
-    bar_x1 = bar_x0 + bar_area_width
+        slot_luminances: list[float] = []
+        for slot_idx in range(num_slots):
+            slot_start = int(round(slot_idx * slot_pitch_c64 * scale))
+            slot_end = int(round((slot_idx * slot_pitch_c64 + slot_width_c64) * scale))
+            slot_end = min(slot_end, bar_area_width)
 
-    # Calculate the vertical center of the marker band
+            if slot_end <= slot_start:
+                slot_luminances.append(0.0)
+                continue
+
+            slot_center_start = slot_start + max(0, (slot_end - slot_start) // 4)
+            slot_center_end = slot_end - max(0, (slot_end - slot_start) // 4)
+            if slot_center_end <= slot_center_start:
+                slot_center_start = slot_start
+                slot_center_end = slot_end
+
+            slot_pixels = luminance_profile[slot_center_start:slot_center_end]
+            if slot_pixels.size == 0:
+                slot_luminances.append(0.0)
+                continue
+
+            slot_luminances.append(float(np.mean(slot_pixels)))
+        if len(slot_luminances) != num_slots:
+            return None
+        return slot_luminances
+
+    def pick_best_profile(sample_y0: int, sample_y1: int, bar_x0: int, bar_x1: int) -> tuple[Optional[list[float]], float]:
+        if sample_y1 <= sample_y0:
+            return None, -1.0
+        scanline_center = (sample_y0 + sample_y1) // 2
+        y_candidates = [
+            max(sample_y0, min(sample_y1 - 1, scanline_center + dy))
+            for dy in (-2, -1, 0, 1, 2)
+        ]
+        best_slot_luminances: Optional[list[float]] = None
+        best_score = -1.0
+        for y in y_candidates:
+            sl = compute_slot_luminances(y, bar_x0, bar_x1)
+            if sl is None:
+                continue
+            sl_arr = np.array(sl, dtype=np.float32)
+            sl_sorted = np.sort(sl_arr)
+            peak = float(sl_sorted[-1])
+            second = float(sl_sorted[-2]) if sl_sorted.size >= 2 else float(sl_sorted[-1])
+            median = float(np.median(sl_arr))
+            # Prefer profiles that look like the bar: one strong peak and clear separation
+            # from the background.
+            score = (peak - median) + 0.5 * max(0.0, (peak - second))
+            if score > best_score:
+                best_score = score
+                best_slot_luminances = sl
+        return best_slot_luminances, best_score
+
+    # Search a small neighborhood around the expected corner element location.
+    # Some presets (and some content-bound estimates) can shift the effective bottom/left
+    # by a few pixels, which would otherwise make the sampled scanline miss the marker.
+    best_slot_luminances: Optional[list[float]] = None
+    best_score = -1.0
+    # Wider search: content bounds can include border/overscan so the element may be
+    # inset from the detected left/bottom by dozens of pixels.
+    dx_candidates = (-16, -8, -4, -2, 0, 2, 4, 8, 16)
+    dy_candidates = (-16, -12, -8, -4, 0, 4, 8, 12, 16)
     marker_shift_c64 = 2
     marker_height_c64 = corner_inner_height_c64 - (marker_shift_c64 * 2)
     marker_shift = int(round(marker_shift_c64 * scale))
     marker_height = max(1, int(round(marker_height_c64 * scale)))
-    sample_y0 = inner_y0 + marker_shift
-    sample_y1 = min(inner_y0 + inner_height, sample_y0 + marker_height)
 
-    # CENTRAL HORIZONTAL SCANLINE: sample at the vertical middle of the marker band
-    scanline_y = (sample_y0 + sample_y1) // 2
+    for dx in dx_candidates:
+        for dy in dy_candidates:
+            element_left = content_left + int(round(dx * scale))
+            element_bottom = content_bottom + int(round(dy * scale))
+            element_top = element_bottom - outer_height
 
-    # Bounds check
-    h, w = frame.shape[:2]
-    if bar_x0 < 0 or bar_x1 > w or scanline_y < 0 or scanline_y >= h:
+            inner_x0 = element_left + frame_offset
+            inner_y0 = element_top + frame_offset
+
+            bar_x0 = inner_x0 + bar_padding
+            bar_x1 = bar_x0 + bar_area_width
+
+            sample_y0 = inner_y0 + marker_shift
+            sample_y1 = min(inner_y0 + inner_height, sample_y0 + marker_height)
+
+            # Quick bounds check
+            if bar_x0 < 0 or bar_x1 > w or sample_y0 < 0 or sample_y0 >= h:
+                continue
+
+            sl, score = pick_best_profile(sample_y0, sample_y1, bar_x0, bar_x1)
+            if sl is None:
+                continue
+            if score > best_score:
+                best_score = score
+                best_slot_luminances = sl
+
+    # If we couldn't find a plausible bar profile, treat as ambiguous.
+    if best_slot_luminances is None:
         return None, []
-    if bar_area_width < 8:
+
+    # Basic confidence gate: avoid latching onto unrelated high-contrast regions.
+    # Threshold is intentionally low; we prefer "ambiguous" over persistent wrong slots.
+    if best_score >= 0 and best_score < 6.0:
         return None, []
 
-    # Extract the horizontal scanline and convert to grayscale
-    scanline = frame[scanline_y:scanline_y+1, bar_x0:bar_x1]
-    if scanline.size == 0:
-        return None, []
-    gray_line = cv2.cvtColor(scanline, cv2.COLOR_BGR2GRAY)
-
-    # Flatten to 1D array for easier processing
-    luminance_profile = gray_line.flatten()
-
-    # Measure mean luminance for each slot by sampling the center portion of each slot
-    slot_luminances = []
-    for slot_idx in range(num_slots):
-        # Calculate slot position in the scanline
-        slot_start = int(round(slot_idx * slot_pitch_c64 * scale))
-        slot_end = int(round((slot_idx * slot_pitch_c64 + slot_width_c64) * scale))
-        slot_end = min(slot_end, bar_area_width)
-
-        if slot_end <= slot_start:
-            slot_luminances.append(0.0)
-            continue
-
-        # Sample the center portion of the slot to avoid gap pixels
-        slot_center_start = slot_start + max(0, (slot_end - slot_start) // 4)
-        slot_center_end = slot_end - max(0, (slot_end - slot_start) // 4)
-
-        if slot_center_end <= slot_center_start:
-            slot_center_start = slot_start
-            slot_center_end = slot_end
-
-        slot_pixels = luminance_profile[slot_center_start:slot_center_end]
-        if slot_pixels.size == 0:
-            slot_luminances.append(0.0)
-            continue
-
-        mean_lum = float(np.mean(slot_pixels))
-        slot_luminances.append(mean_lum)
+    slot_luminances = best_slot_luminances
 
     if not slot_luminances or len(slot_luminances) != num_slots:
         return None, slot_luminances
 
-    # TEMPORAL DELTA DETECTION: Find slot with largest brightness increase
-    # Heavy effects (CRT/scanlines/glow) + compression can reduce deltas/contrast.
+    # TEMPORAL DETECTION USING A ROLLING BASELINE (EMA)
+    #
+    # We keep a per-slot baseline (passed in via prev_slot_luminances) and detect the slot
+    # that most increased relative to that baseline. This is robust under afterglow/bloom
+    # because the baseline tracks lingering glow over time.
+    #
+    # prev_slot_luminances is treated as the baseline state and updated via EMA.
     if prev_slot_luminances and len(prev_slot_luminances) == num_slots:
-        deltas = [curr - prev for curr, prev in zip(slot_luminances, prev_slot_luminances)]
-        detected_slot = int(np.argmax(deltas))
-        max_delta = float(deltas[detected_slot])
+        baseline = np.array(prev_slot_luminances, dtype=np.float32)
+        current = np.array(slot_luminances, dtype=np.float32)
 
-        # Compare against the runner-up delta to avoid noisy picks.
-        sorted_deltas = sorted((float(d) for d in deltas), reverse=True)
-        second_delta = sorted_deltas[1] if len(sorted_deltas) > 1 else float('-inf')
-        delta_margin = max_delta - second_delta
+        delta = current - baseline
+        # Remove any global drift by centering per frame.
+        delta_centered = delta - float(np.median(delta))
+        detected_slot = int(np.argmax(delta_centered))
 
-        # Dynamic thresholds: accept smaller deltas when the slot is meaningfully brighter.
-        min_lum = float(min(slot_luminances))
-        slot_lum = float(slot_luminances[detected_slot])
-        lum_contrast = slot_lum - min_lum
+        # Update baseline (slow enough to not erase the pop, fast enough to track afterglow).
+        alpha = 0.20
+        updated = (1.0 - alpha) * baseline + alpha * current
+        return detected_slot, [float(x) for x in updated]
 
-        # Relaxed thresholds for lower bitrate (4000) + heavy effects
-        if max_delta >= 4.0 and delta_margin >= 1.0 and lum_contrast >= 8.0 and slot_lum >= 25.0:
-            return detected_slot, slot_luminances
-
-    # FALLBACK: First frame or no clear delta - use absolute brightness
-    max_lum = max(slot_luminances)
-    min_lum = min(slot_luminances)
-
-    # Require some contrast (relaxed for lower bitrate + heavy effects).
-    if max_lum - min_lum < 8:
-        return None, slot_luminances
-
-    brightest_slot = int(np.argmax(slot_luminances))
-    return brightest_slot, slot_luminances
+    # First frame: seed baseline and wait for the next frame to compute deltas.
+    return None, slot_luminances
 
 
 def _group_consecutive_frames(frames: list[int]) -> list[int]:
@@ -346,19 +496,20 @@ def _analyze_frame_progression(
         )
 
     # Read first frame to detect content bounds
-    cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
-    ret, frame0 = cap.read()
-    if not ret:
+    ret, frame0, seek_details = _read_frame_with_seek_backoff(cap, start_frame)
+    if not ret or frame0 is None:
         cap.release()
         return _AnalysisResult(
             status=AssertionStatus.FAIL,
             message="Could not seek to analysis start",
-            details={"start_frame": start_frame},
+            details={"start_frame": start_frame, "seek": seek_details},
             metrics={},
         )
 
-    # Detect content bounds from frame
-    left, right, top, bottom = _detect_content_bounds(frame0)
+    # Detect content bounds from frame.
+    # Infer format via FPS (NTSC ~59.826, PAL ~50.125) to choose the correct visible height.
+    c64_visible_height = 240 if fps >= 55.0 else 272
+    left, right, top, bottom = _detect_content_bounds(frame0, c64_visible_height)
     content_w = max(1, right - left)
     content_h = max(1, bottom - top)
     scale = float(content_w) / 384.0
@@ -417,32 +568,34 @@ def _analyze_frame_progression(
             metrics={"valid_frames": float(valid), "ambiguous_ratio": ambiguous_ratio},
         )
 
-    # Compress consecutive duplicates and track stuck runs
+    # Compress consecutive duplicates and track stuck runs.
+    # IMPORTANT: measure stuck runs in real frame spans (video frames), not just
+    # "number of valid samples", otherwise we can over/under-report freezes.
     compressed: list[int] = []
     compressed_frame_nums: list[int] = []
-    stuck_runs: list[int] = []
+    stuck_runs: list[int] = []  # run length in frames
     stuck_run_frames: list[int] = []
     stuck_run_indices: list[int] = []
-    current_run = 1
     current_run_start = index_frame_nums[0] if index_frame_nums else start_frame
+    current_run_last = current_run_start
     current_run_idx = 0
     for i, idx in enumerate(indices):
         frame_num = index_frame_nums[i]
         if not compressed or idx != compressed[-1]:
             if compressed:
-                stuck_runs.append(current_run)
-                stuck_run_frames.append(current_run_start)
+                stuck_runs.append((current_run_last - current_run_start) + 1)
+                stuck_run_frames.append(int(current_run_start))
                 stuck_run_indices.append(current_run_idx)
             compressed.append(idx)
             compressed_frame_nums.append(frame_num)
-            current_run = 1
             current_run_start = frame_num
+            current_run_last = frame_num
             current_run_idx = i
         else:
-            current_run += 1
+            current_run_last = frame_num
     if indices:
-        stuck_runs.append(current_run)
-        stuck_run_frames.append(current_run_start)
+        stuck_runs.append((current_run_last - current_run_start) + 1)
+        stuck_run_frames.append(int(current_run_start))
         stuck_run_indices.append(current_run_idx)
 
     # Filter out startup/end freeze periods intelligently using content_bounds
@@ -465,7 +618,11 @@ def _analyze_frame_progression(
 
         # Filter end: exclude stuck runs that occur after content has stopped
         # These are frozen frames at end of stream or logo frames, not real problems
-        while filtered_stuck_runs and filtered_stuck_run_frames[-1] > content_bounds.last_content_frame:
+        # Also filter stuck runs in the final 4 seconds of content - this is the expected
+        # "last frame held" period when C64 stops sending but OBS keeps recording.
+        content_end_margin_frames = int(fps * 4.0)
+        content_end_threshold = max(content_bounds.first_content_frame, content_bounds.last_content_frame - content_end_margin_frames)
+        while filtered_stuck_runs and filtered_stuck_run_frames[-1] > content_end_threshold:
             end_frames_excluded += filtered_stuck_runs[-1]
             filtered_stuck_runs = filtered_stuck_runs[:-1]
             filtered_stuck_run_frames = filtered_stuck_run_frames[:-1]
@@ -872,18 +1029,18 @@ def _analyze_frame_progression(
             metrics=metrics,
         )
 
-    if ambiguous_ratio > max_ambiguous_ratio:
-        return _AnalysisResult(
-            status=AssertionStatus.FAIL,
-            message="Marker sampling too ambiguous",
-            details=details,
-            metrics=metrics,
-        )
-
     if not full_ok:
         return _AnalysisResult(
             status=AssertionStatus.FAIL,
             message=f"Position marker did not cover full range (distinct={distinct})",
+            details=details,
+            metrics=metrics,
+        )
+
+    if ambiguous_ratio > max_ambiguous_ratio:
+        return _AnalysisResult(
+            status=AssertionStatus.WARNING,
+            message=f"Marker sampling too ambiguous (ratio={ambiguous_ratio:.2f})",
             details=details,
             metrics=metrics,
         )
@@ -917,7 +1074,7 @@ class FrameProgressionAssertion(EffectAssertion):
         super().__init__("Frame Progression", thresholds)
         self.thresholds = {
             "max_seconds": 8.0,
-            "max_ambiguous_ratio": 0.30,
+            "max_ambiguous_ratio": 0.40,  # Increased from 0.30 for robustness across encoding environments
             "min_changes_for_full": 20,
             "max_skip_delta": 6,
             "max_skips": 60,

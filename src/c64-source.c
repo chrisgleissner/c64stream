@@ -456,6 +456,7 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     os_atomic_set_long(&context->audio_packets_received, 0);
     os_atomic_set_long(&context->audio_bytes_received, 0);
     context->last_stats_log_time = os_gettime_ns();
+    context->last_stats_tick_ns = context->last_stats_log_time;
 
     // Initialize render callback timeout system
     uint64_t now = os_gettime_ns();
@@ -505,11 +506,13 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->tint_mode = (int)obs_data_get_int(settings, "tint_mode");
     context->tint_strength = (float)obs_data_get_double(settings, "tint_strength");
     context->tint_enable = (context->tint_mode > 0 && context->tint_strength > 0.0f);
+    context->frame_dirty = false;
 
     // Note: avoid noisy logging here; E2E expects deterministic behavior without requiring log parsing.
     context->render_texture = NULL;
     context->render_texture_width = 0;
     context->render_texture_height = 0;
+    context->intermediate_texture = NULL;
     context->crt_effect = NULL;
     context->afterglow_accum_prev = NULL;
     context->afterglow_accum_next = NULL;
@@ -520,11 +523,21 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->afterglow_cpu_bytes = 0;
     context->afterglow_cpu_valid = false;
 
+    // Initialize decay factor cache for expf() optimization
+    context->cached_decay_r = 0.0f;
+    context->cached_decay_g = 0.0f;
+    context->cached_decay_b = 0.0f;
+    context->cached_dt_ms = 0.0f;
+    context->cached_duration_ms = 0;
+    context->cached_curve = 0;
+    context->decay_cache_valid = false;
+
     // Pre-allocate afterglow CPU accumulator to avoid allocation in video hot path
     // Use PAL size (larger) to cover both PAL and NTSC; will be resized if needed.
     {
         const size_t initial_accum_bytes = C64_PAL_WIDTH * C64_PAL_HEIGHT * sizeof(uint32_t);
-        context->afterglow_cpu_accum = bmalloc(initial_accum_bytes);
+        // Use aligned allocation for optimal SIMD performance (declared in c64-video.h)
+        context->afterglow_cpu_accum = (uint32_t *)c64_alloc_aligned(initial_accum_bytes, 64);
         if (context->afterglow_cpu_accum) {
             memset(context->afterglow_cpu_accum, 0, initial_accum_bytes);
             context->afterglow_cpu_bytes = initial_accum_bytes;
@@ -590,6 +603,10 @@ void c64_destroy(void *data)
         context->render_texture_width = 0;
         context->render_texture_height = 0;
     }
+    if (context->intermediate_texture) {
+        gs_texture_destroy(context->intermediate_texture);
+        context->intermediate_texture = NULL;
+    }
     if (context->afterglow_accum_prev) {
         gs_texture_destroy(context->afterglow_accum_prev);
         context->afterglow_accum_prev = NULL;
@@ -626,7 +643,7 @@ void c64_destroy(void *data)
     }
 
     if (context->afterglow_cpu_accum) {
-        bfree(context->afterglow_cpu_accum);
+        c64_free_aligned(context->afterglow_cpu_accum);
         context->afterglow_cpu_accum = NULL;
         context->afterglow_cpu_bytes = 0;
         context->afterglow_cpu_valid = false;
@@ -975,6 +992,11 @@ void c64_video_tick(void *data, float seconds)
     if (!context)
         return;
 
+    const bool effects_enabled =
+        (context->scan_line_distance > 0.0f) || (context->bloom_strength > 0.0f) ||
+        (context->afterglow_duration_ms > 0) || (context->tint_mode > 0 && context->tint_strength > 0.0f) ||
+        (context->pixel_width != 1.0f || context->pixel_height != 1.0f) || (context->blur_strength > 0.0f);
+
     // Stable per-tick dt for afterglow.
     // Do NOT derive dt from `video_render` timestamps: render calls can be irregular (minimize-to-tray/headless),
     // causing huge dt spikes and making afterglow decay instantly to black.
@@ -1006,21 +1028,31 @@ void c64_video_tick(void *data, float seconds)
                                  false);
         }
 
-        // Create afterglow accumulation textures (ping-pong buffers)
-        // Use render dimensions (which include scaling effects) not base dimensions
-        uint32_t render_width = c64_get_width(context);
-        uint32_t render_height = c64_get_height(context);
+        // Create afterglow accumulation textures only when effects are enabled
+        if (effects_enabled) {
+            uint32_t render_width = c64_get_width(context);
+            uint32_t render_height = c64_get_height(context);
 
-        if (context->afterglow_accum_prev) {
-            gs_texture_destroy(context->afterglow_accum_prev);
+            if (context->afterglow_accum_prev) {
+                gs_texture_destroy(context->afterglow_accum_prev);
+            }
+            if (context->afterglow_accum_next) {
+                gs_texture_destroy(context->afterglow_accum_next);
+            }
+            context->afterglow_accum_prev =
+                gs_texture_create(render_width, render_height, GS_RGBA, 1, NULL, GS_RENDER_TARGET);
+            context->afterglow_accum_next =
+                gs_texture_create(render_width, render_height, GS_RGBA, 1, NULL, GS_RENDER_TARGET);
+        } else {
+            if (context->afterglow_accum_prev) {
+                gs_texture_destroy(context->afterglow_accum_prev);
+                context->afterglow_accum_prev = NULL;
+            }
+            if (context->afterglow_accum_next) {
+                gs_texture_destroy(context->afterglow_accum_next);
+                context->afterglow_accum_next = NULL;
+            }
         }
-        if (context->afterglow_accum_next) {
-            gs_texture_destroy(context->afterglow_accum_next);
-        }
-        context->afterglow_accum_prev =
-            gs_texture_create(render_width, render_height, GS_RGBA, 1, NULL, GS_RENDER_TARGET);
-        context->afterglow_accum_next =
-            gs_texture_create(render_width, render_height, GS_RGBA, 1, NULL, GS_RENDER_TARGET);
 
         obs_leave_graphics();
         if (!context->render_texture) {
@@ -1028,12 +1060,13 @@ void c64_video_tick(void *data, float seconds)
             context->render_texture_width = 0;
             context->render_texture_height = 0;
         }
-        if (!context->afterglow_accum_prev || !context->afterglow_accum_next) {
+        if (effects_enabled && (!context->afterglow_accum_prev || !context->afterglow_accum_next)) {
             C64_LOG_ERROR("Failed to create afterglow accumulation textures");
         }
 
         // Invalidate CPU afterglow accumulator on texture recreation (Medium #8: prevent visual glitch)
         context->afterglow_cpu_valid = false;
+        context->frame_dirty = false;
 
     } else {
         // Upload latest frame to the render texture.
@@ -1165,8 +1198,7 @@ void c64_video_render(void *data, gs_effect_t *effect)
                         context->scan_line_strength);
     gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "pixel_width"), context->pixel_width);
     gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "pixel_height"), context->pixel_height);
-    gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "blur_strength"), context->blur_strength);
-    gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "bloom_strength"), context->bloom_strength);
+    // Note: blur/bloom strengths are set below with scale adjustment
     // Afterglow accumulation is done in `video_tick`; disable it in this render pass to avoid double persistence.
     gs_effect_set_int(gs_effect_get_param_by_name(context->crt_effect, "afterglow_duration_ms"), 0);
     gs_effect_set_int(gs_effect_get_param_by_name(context->crt_effect, "afterglow_curve"), context->afterglow_curve);
@@ -1178,28 +1210,24 @@ void c64_video_render(void *data, gs_effect_t *effect)
     // Still bind something valid for safety, even though afterglow is disabled in this pass.
     gs_effect_set_texture(gs_effect_get_param_by_name(context->crt_effect, "texture_accum_prev"), input_tex);
 
-    // Render the texture with the CRT effect using scaled dimensions
+    // Calculate render dimensions (may be scaled by pixel_width/height and scanlines)
     uint32_t render_width = c64_get_width(context);
     uint32_t render_height = c64_get_height(context);
 
-    // Set output resolution for scanline calculation
+    // Set output_height for scanline calculation
+    // The shader uses this to determine scanline row: output_row = int(uv.y * output_height)
     gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "output_height"), (float)render_height);
+
+    // Set blur/bloom strengths directly - no scaling needed since we render at correct size
+    gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "blur_strength"), context->blur_strength);
+    gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "bloom_strength"), context->bloom_strength);
 
     // Set source dimensions for UV snapping (sharp pixel expansion)
     // These are the original C64 dimensions before pixel_width/height scaling
     gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "source_width"), (float)context->width);
     gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "source_height"), (float)context->height);
 
-    // Get canvas height for canvas-space scanline rendering
-    // This ensures scanlines appear evenly spaced regardless of how OBS scales the source
-    struct obs_video_info ovi;
-    float canvas_height = (float)render_height; // Fallback to render height
-    if (obs_get_video_info(&ovi)) {
-        canvas_height = (float)ovi.base_height;
-    }
-    gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "canvas_height"), canvas_height);
-
-    // Render (all non-afterglow CRT effects) directly to the screen.
+    // Single-pass optimized rendering with lightweight shader operations
     while (gs_effect_loop(context->crt_effect, "Draw")) {
         gs_draw_sprite(input_tex, 0, render_width, render_height);
     }
@@ -1246,7 +1274,6 @@ uint32_t c64_get_width(void *data)
     if (context->scan_line_distance > 0.0f) {
         uint32_t total_pixels_per_unit, scanline_pixels_per_unit;
         get_scanline_scaling_info(context->scan_line_distance, &total_pixels_per_unit, &scanline_pixels_per_unit);
-
         // Total width = original_pixels * total_pixels_per_unit
         width_scale *= (float)total_pixels_per_unit;
     }
@@ -1273,12 +1300,9 @@ uint32_t c64_get_height(void *data)
     float height_scale = context->pixel_height;
 
     // Scanlines require upscaling to accommodate gaps with integer pixel alignment
-    // Each C64 scanline needs an integer number of output pixels for crisp rendering
     if (context->scan_line_distance > 0.0f) {
         uint32_t total_pixels_per_unit, scanline_pixels_per_unit;
         get_scanline_scaling_info(context->scan_line_distance, &total_pixels_per_unit, &scanline_pixels_per_unit);
-
-        // Total height = original_scanlines * total_pixels_per_unit
         height_scale *= (float)total_pixels_per_unit;
     }
 

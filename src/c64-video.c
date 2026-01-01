@@ -6,6 +6,11 @@ Licensed under the GNU General Public License v2.0 or later.
 See <https://www.gnu.org/licenses/> for details.
 */
 
+// Linux-specific feature macros must be defined before any includes
+#ifdef __linux__
+#define _GNU_SOURCE
+#endif
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // SIMD INTRINSICS MUST BE INCLUDED BEFORE OBS HEADERS
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -31,6 +36,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include <inttypes.h>
 #include <pthread.h>
 #include <math.h>
+#include <stdlib.h> // For aligned_alloc and free
 #include "c64-network.h"
 #include "c64-network-buffer.h"
 
@@ -51,7 +57,36 @@ See <https://www.gnu.org/licenses/> for details.
 #pragma comment(lib, "winmm.lib") // For timeBeginPeriod/timeEndPeriod
 #endif
 
+#ifdef __linux__
+#include <sys/socket.h>
+#endif
+
 #include "c64-protocol.h"
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ALIGNED MEMORY ALLOCATION HELPERS
+// ═══════════════════════════════════════════════════════════════════════════════
+// Cache-line aligned allocation improves SIMD performance (AVX2 benefits from 32/64-byte alignment)
+
+void *c64_alloc_aligned(size_t size, size_t alignment)
+{
+#ifdef _WIN32
+    return _aligned_malloc(size, alignment);
+#else
+    // aligned_alloc requires size to be multiple of alignment (C11)
+    const size_t aligned_size = ((size + alignment - 1) / alignment) * alignment;
+    return aligned_alloc(alignment, aligned_size);
+#endif
+}
+
+void c64_free_aligned(void *ptr)
+{
+#ifdef _WIN32
+    _aligned_free(ptr);
+#else
+    free(ptr);
+#endif
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SIMD-OPTIMIZED AFTERGLOW IMPLEMENTATION
@@ -191,11 +226,11 @@ static void c64_afterglow_sse2(uint32_t *acc, const uint32_t *curr_pixels, size_
 // GCC/Clang need target attribute, MSVC doesn't support it
 #ifdef _MSC_VER
 static void c64_afterglow_avx2(uint32_t *acc, const uint32_t *curr_pixels, size_t pixel_count, float decay_r,
-                               float decay_g, float decay_b)
+                               float decay_g, float decay_b, bool use_streaming)
 #else
 __attribute__((target("avx2"))) static void c64_afterglow_avx2(uint32_t *acc, const uint32_t *curr_pixels,
                                                                size_t pixel_count, float decay_r, float decay_g,
-                                                               float decay_b)
+                                                               float decay_b, bool use_streaming)
 #endif
 {
     // Broadcast decay factors to all 8 lanes
@@ -208,25 +243,103 @@ __attribute__((target("avx2"))) static void c64_afterglow_avx2(uint32_t *acc, co
 
     size_t i = 0;
 
-    // Process 8 pixels at a time
-    for (; i + 8 <= pixel_count; i += 8) {
-        // Load 8 current and 8 previous pixels
+    // Process 16 pixels at a time (2x unroll for better ILP and reduced loop overhead)
+    for (; i + 16 <= pixel_count; i += 16) {
+        // ===== First 8 pixels =====
+        const __m256i curr0 = _mm256_loadu_si256((const __m256i *)&curr_pixels[i]);
+        const __m256i prev0 = _mm256_loadu_si256((const __m256i *)&acc[i]);
+
+        // Extract channels
+        const __m256i prev_r_i0 = _mm256_and_si256(prev0, vmask_channel);
+        const __m256i curr_r_i0 = _mm256_and_si256(curr0, vmask_channel);
+        const __m256i prev_g_i0 = _mm256_and_si256(_mm256_srli_epi32(prev0, 8), vmask_channel);
+        const __m256i curr_g_i0 = _mm256_and_si256(_mm256_srli_epi32(curr0, 8), vmask_channel);
+        const __m256i prev_b_i0 = _mm256_and_si256(_mm256_srli_epi32(prev0, 16), vmask_channel);
+        const __m256i curr_b_i0 = _mm256_and_si256(_mm256_srli_epi32(curr0, 16), vmask_channel);
+
+        // Convert to float
+        const __m256 prev_r0 = _mm256_cvtepi32_ps(prev_r_i0);
+        const __m256 prev_g0 = _mm256_cvtepi32_ps(prev_g_i0);
+        const __m256 prev_b0 = _mm256_cvtepi32_ps(prev_b_i0);
+        const __m256 curr_r0 = _mm256_cvtepi32_ps(curr_r_i0);
+        const __m256 curr_g0 = _mm256_cvtepi32_ps(curr_g_i0);
+        const __m256 curr_b0 = _mm256_cvtepi32_ps(curr_b_i0);
+
+        // ===== Second 8 pixels (overlapped with first for ILP) =====
+        const __m256i curr1 = _mm256_loadu_si256((const __m256i *)&curr_pixels[i + 8]);
+        const __m256i prev1 = _mm256_loadu_si256((const __m256i *)&acc[i + 8]);
+
+        // Extract channels
+        const __m256i prev_r_i1 = _mm256_and_si256(prev1, vmask_channel);
+        const __m256i curr_r_i1 = _mm256_and_si256(curr1, vmask_channel);
+        const __m256i prev_g_i1 = _mm256_and_si256(_mm256_srli_epi32(prev1, 8), vmask_channel);
+        const __m256i curr_g_i1 = _mm256_and_si256(_mm256_srli_epi32(curr1, 8), vmask_channel);
+        const __m256i prev_b_i1 = _mm256_and_si256(_mm256_srli_epi32(prev1, 16), vmask_channel);
+        const __m256i curr_b_i1 = _mm256_and_si256(_mm256_srli_epi32(curr1, 16), vmask_channel);
+
+        // Convert to float
+        const __m256 prev_r1 = _mm256_cvtepi32_ps(prev_r_i1);
+        const __m256 prev_g1 = _mm256_cvtepi32_ps(prev_g_i1);
+        const __m256 prev_b1 = _mm256_cvtepi32_ps(prev_b_i1);
+        const __m256 curr_r1 = _mm256_cvtepi32_ps(curr_r_i1);
+        const __m256 curr_g1 = _mm256_cvtepi32_ps(curr_g_i1);
+        const __m256 curr_b1 = _mm256_cvtepi32_ps(curr_b_i1);
+
+        // ===== Apply decay for first 8 pixels =====
+        const __m256 trail_r0 = _mm256_mul_ps(prev_r0, vdecay_r);
+        const __m256 trail_g0 = _mm256_mul_ps(prev_g0, vdecay_g);
+        const __m256 trail_b0 = _mm256_mul_ps(prev_b0, vdecay_b);
+        __m256 out_r0 = _mm256_min_ps(_mm256_max_ps(curr_r0, trail_r0), v255);
+        __m256 out_g0 = _mm256_min_ps(_mm256_max_ps(curr_g0, trail_g0), v255);
+        __m256 out_b0 = _mm256_min_ps(_mm256_max_ps(curr_b0, trail_b0), v255);
+
+        // ===== Apply decay for second 8 pixels =====
+        const __m256 trail_r1 = _mm256_mul_ps(prev_r1, vdecay_r);
+        const __m256 trail_g1 = _mm256_mul_ps(prev_g1, vdecay_g);
+        const __m256 trail_b1 = _mm256_mul_ps(prev_b1, vdecay_b);
+        __m256 out_r1 = _mm256_min_ps(_mm256_max_ps(curr_r1, trail_r1), v255);
+        __m256 out_g1 = _mm256_min_ps(_mm256_max_ps(curr_g1, trail_g1), v255);
+        __m256 out_b1 = _mm256_min_ps(_mm256_max_ps(curr_b1, trail_b1), v255);
+
+        // ===== Pack and store first 8 pixels =====
+        const __m256i out_r_i0 = _mm256_cvttps_epi32(out_r0);
+        const __m256i out_g_i0 = _mm256_cvttps_epi32(out_g0);
+        const __m256i out_b_i0 = _mm256_cvttps_epi32(out_b0);
+        const __m256i rgb0 =
+            _mm256_or_si256(out_r_i0, _mm256_or_si256(_mm256_slli_epi32(out_g_i0, 8), _mm256_slli_epi32(out_b_i0, 16)));
+        const __m256i result0 = _mm256_or_si256(rgb0, valpha);
+        if (use_streaming) {
+            _mm256_stream_si256((__m256i *)&acc[i], result0);
+        } else {
+            _mm256_storeu_si256((__m256i *)&acc[i], result0);
+        }
+
+        // ===== Pack and store second 8 pixels =====
+        const __m256i out_r_i1 = _mm256_cvttps_epi32(out_r1);
+        const __m256i out_g_i1 = _mm256_cvttps_epi32(out_g1);
+        const __m256i out_b_i1 = _mm256_cvttps_epi32(out_b1);
+        const __m256i rgb1 =
+            _mm256_or_si256(out_r_i1, _mm256_or_si256(_mm256_slli_epi32(out_g_i1, 8), _mm256_slli_epi32(out_b_i1, 16)));
+        const __m256i result1 = _mm256_or_si256(rgb1, valpha);
+        if (use_streaming) {
+            _mm256_stream_si256((__m256i *)&acc[i + 8], result1);
+        } else {
+            _mm256_storeu_si256((__m256i *)&acc[i + 8], result1);
+        }
+    }
+
+    // Process remaining 8 pixels
+    if (i + 8 <= pixel_count) {
         const __m256i curr = _mm256_loadu_si256((const __m256i *)&curr_pixels[i]);
         const __m256i prev = _mm256_loadu_si256((const __m256i *)&acc[i]);
 
-        // Extract R channel (bits 0-7) from 8 pixels
         const __m256i prev_r_i = _mm256_and_si256(prev, vmask_channel);
         const __m256i curr_r_i = _mm256_and_si256(curr, vmask_channel);
-
-        // Extract G channel (bits 8-15)
         const __m256i prev_g_i = _mm256_and_si256(_mm256_srli_epi32(prev, 8), vmask_channel);
         const __m256i curr_g_i = _mm256_and_si256(_mm256_srli_epi32(curr, 8), vmask_channel);
-
-        // Extract B channel (bits 16-23)
         const __m256i prev_b_i = _mm256_and_si256(_mm256_srli_epi32(prev, 16), vmask_channel);
         const __m256i curr_b_i = _mm256_and_si256(_mm256_srli_epi32(curr, 16), vmask_channel);
 
-        // Convert to float
         const __m256 prev_r = _mm256_cvtepi32_ps(prev_r_i);
         const __m256 prev_g = _mm256_cvtepi32_ps(prev_g_i);
         const __m256 prev_b = _mm256_cvtepi32_ps(prev_b_i);
@@ -234,32 +347,25 @@ __attribute__((target("avx2"))) static void c64_afterglow_avx2(uint32_t *acc, co
         const __m256 curr_g = _mm256_cvtepi32_ps(curr_g_i);
         const __m256 curr_b = _mm256_cvtepi32_ps(curr_b_i);
 
-        // Apply decay: trail = prev * decay
         const __m256 trail_r = _mm256_mul_ps(prev_r, vdecay_r);
         const __m256 trail_g = _mm256_mul_ps(prev_g, vdecay_g);
         const __m256 trail_b = _mm256_mul_ps(prev_b, vdecay_b);
+        __m256 out_r = _mm256_min_ps(_mm256_max_ps(curr_r, trail_r), v255);
+        __m256 out_g = _mm256_min_ps(_mm256_max_ps(curr_g, trail_g), v255);
+        __m256 out_b = _mm256_min_ps(_mm256_max_ps(curr_b, trail_b), v255);
 
-        // Take max of current and trail
-        __m256 out_r = _mm256_max_ps(curr_r, trail_r);
-        __m256 out_g = _mm256_max_ps(curr_g, trail_g);
-        __m256 out_b = _mm256_max_ps(curr_b, trail_b);
-
-        // Clamp to 255
-        out_r = _mm256_min_ps(out_r, v255);
-        out_g = _mm256_min_ps(out_g, v255);
-        out_b = _mm256_min_ps(out_b, v255);
-
-        // Convert back to int
         const __m256i out_r_i = _mm256_cvttps_epi32(out_r);
         const __m256i out_g_i = _mm256_cvttps_epi32(out_g);
         const __m256i out_b_i = _mm256_cvttps_epi32(out_b);
-
-        // Pack: (A << 24) | (B << 16) | (G << 8) | R
         const __m256i rgb =
             _mm256_or_si256(out_r_i, _mm256_or_si256(_mm256_slli_epi32(out_g_i, 8), _mm256_slli_epi32(out_b_i, 16)));
         const __m256i result = _mm256_or_si256(rgb, valpha);
-
-        _mm256_storeu_si256((__m256i *)&acc[i], result);
+        if (use_streaming) {
+            _mm256_stream_si256((__m256i *)&acc[i], result);
+        } else {
+            _mm256_storeu_si256((__m256i *)&acc[i], result);
+        }
+        i += 8;
     }
 
     // SSE2 for remaining 4-7 pixels
@@ -331,6 +437,11 @@ __attribute__((target("avx2"))) static void c64_afterglow_avx2(uint32_t *acc, co
 
     // AVX-VEX transition: zero upper YMM to avoid performance penalty
     _mm256_zeroupper();
+
+    // Memory fence to ensure all non-temporal stores complete
+    if (use_streaming) {
+        _mm_sfence();
+    }
 }
 #endif // __AVX2__ || _MSC_VER
 
@@ -351,9 +462,10 @@ static const uint32_t *c64_get_afterglow_output_pixels(struct c64_source *contex
     const size_t frame_bytes = pixel_count * 4;
     if (context->afterglow_cpu_bytes != frame_bytes) {
         if (context->afterglow_cpu_accum) {
-            bfree(context->afterglow_cpu_accum);
+            c64_free_aligned(context->afterglow_cpu_accum);
         }
-        context->afterglow_cpu_accum = bmalloc(frame_bytes);
+        // Align to 64-byte cache line for optimal SIMD performance
+        context->afterglow_cpu_accum = (uint32_t *)c64_alloc_aligned(frame_bytes, 64);
         context->afterglow_cpu_bytes = frame_bytes;
         context->afterglow_cpu_valid = false; // Invalidate on resize (Medium #8)
     }
@@ -399,28 +511,51 @@ static const uint32_t *c64_get_afterglow_output_pixels(struct c64_source *contex
     const float tau_g = duration_ms * 1.00f;
     const float tau_b = duration_ms * 0.75f;
 
-    float decay_r = 0.0f, decay_g = 0.0f, decay_b = 0.0f;
-    if (context->afterglow_curve == 0) {
-        decay_r = 1.0f - (dt_ms / tau_r);
-        decay_g = 1.0f - (dt_ms / tau_g);
-        decay_b = 1.0f - (dt_ms / tau_b);
+    // Optimize expf() calls by caching decay factors when parameters haven't changed
+    // This saves ~60-120 CPU cycles per frame (3 expf calls @ 20-40 cycles each)
+    float decay_r, decay_g, decay_b;
+    if (context->decay_cache_valid && context->cached_dt_ms == dt_ms &&
+        context->cached_duration_ms == context->afterglow_duration_ms &&
+        context->cached_curve == context->afterglow_curve) {
+        // Use cached values
+        decay_r = context->cached_decay_r;
+        decay_g = context->cached_decay_g;
+        decay_b = context->cached_decay_b;
     } else {
-        decay_r = expf(-dt_ms / tau_r);
-        decay_g = expf(-dt_ms / tau_g);
-        decay_b = expf(-dt_ms / tau_b);
+        // Recompute and cache
+        if (context->afterglow_curve == 0) {
+            decay_r = 1.0f - (dt_ms / tau_r);
+            decay_g = 1.0f - (dt_ms / tau_g);
+            decay_b = 1.0f - (dt_ms / tau_b);
+        } else {
+            decay_r = expf(-dt_ms / tau_r);
+            decay_g = expf(-dt_ms / tau_g);
+            decay_b = expf(-dt_ms / tau_b);
+        }
+
+        // Clamp to [0, 1]
+        if (decay_r < 0.0f)
+            decay_r = 0.0f;
+        if (decay_r > 1.0f)
+            decay_r = 1.0f;
+        if (decay_g < 0.0f)
+            decay_g = 0.0f;
+        if (decay_g > 1.0f)
+            decay_g = 1.0f;
+        if (decay_b < 0.0f)
+            decay_b = 0.0f;
+        if (decay_b > 1.0f)
+            decay_b = 1.0f;
+
+        // Update cache
+        context->cached_decay_r = decay_r;
+        context->cached_decay_g = decay_g;
+        context->cached_decay_b = decay_b;
+        context->cached_dt_ms = dt_ms;
+        context->cached_duration_ms = context->afterglow_duration_ms;
+        context->cached_curve = context->afterglow_curve;
+        context->decay_cache_valid = true;
     }
-    if (decay_r < 0.0f)
-        decay_r = 0.0f;
-    if (decay_r > 1.0f)
-        decay_r = 1.0f;
-    if (decay_g < 0.0f)
-        decay_g = 0.0f;
-    if (decay_g > 1.0f)
-        decay_g = 1.0f;
-    if (decay_b < 0.0f)
-        decay_b = 0.0f;
-    if (decay_b > 1.0f)
-        decay_b = 1.0f;
 
     uint32_t *acc = context->afterglow_cpu_accum;
     if (!context->afterglow_cpu_valid) {
@@ -436,9 +571,12 @@ static const uint32_t *c64_get_afterglow_output_pixels(struct c64_source *contex
 #ifdef C64_HAS_X86_SIMD
     c64_detect_simd_support();
 
+    // Prefetch next cache lines to reduce memory stall cycles (typical L1 miss: ~4-7 cycles)
+    // Prefetch removed - was causing performance issues
+
 #if defined(__AVX2__) || defined(_MSC_VER)
     if (c64_cpu_has_avx2) {
-        c64_afterglow_avx2(acc, curr_pixels, pixel_count, decay_r, decay_g, decay_b);
+        c64_afterglow_avx2(acc, curr_pixels, pixel_count, decay_r, decay_g, decay_b, false);
         return acc;
     }
 #endif
@@ -778,7 +916,6 @@ bool c64_try_add_packet_lockfree(struct frame_assembly *frame, uint16_t packet_i
 void *c64_video_thread_func(void *data)
 {
     struct c64_source *context = data;
-    uint8_t packet[C64_VIDEO_PACKET_SIZE];
 
     C64_LOG_DEBUG("Video receiver thread started on port %u", context->video_port);
 
@@ -791,9 +928,41 @@ void *c64_video_thread_func(void *data)
     }
 
     timeBeginPeriod(1);
+#else
+    // Best-effort priority boost on POSIX (no noise on failure)
+    struct sched_param param;
+    param.sched_priority = sched_get_priority_max(SCHED_OTHER);
+    pthread_setschedparam(pthread_self(), SCHED_OTHER, &param);
+#endif
+
+#ifdef _WIN32
+    // Set socket receive timeout to reduce blocking jitter (Windows only)
+    DWORD timeout_ms = 10;
+    setsockopt(context->video_socket, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout_ms, sizeof(timeout_ms));
 #endif
 
     C64_LOG_DEBUG("Video thread function started with optimized scheduling");
+
+#ifdef __linux__DISABLED_FOR_E2E_STABILITY
+// Batch read optimization for Linux: receive up to 8 packets per syscall
+// DISABLED: Causes frame repetition issues in E2E tests - needs further investigation
+#define BATCH_SIZE 8
+    uint8_t packet_batch[BATCH_SIZE][C64_VIDEO_PACKET_SIZE];
+    struct mmsghdr msgs[BATCH_SIZE];
+    struct iovec iovs[BATCH_SIZE];
+    struct sockaddr_in addrs[BATCH_SIZE];
+
+    memset(msgs, 0, sizeof(msgs));
+    for (int i = 0; i < BATCH_SIZE; i++) {
+        iovs[i].iov_base = packet_batch[i];
+        iovs[i].iov_len = C64_VIDEO_PACKET_SIZE;
+        msgs[i].msg_hdr.msg_iov = &iovs[i];
+        msgs[i].msg_hdr.msg_iovlen = 1;
+        msgs[i].msg_hdr.msg_name = &addrs[i];
+        msgs[i].msg_hdr.msg_namelen = sizeof(struct sockaddr_in);
+    }
+    C64_LOG_DEBUG("Linux batch recv enabled (recvmmsg with up to %d packets per syscall)", BATCH_SIZE);
+#endif
 
     while (os_atomic_load_bool(&context->thread_active)) {
         // Check socket validity before each recv call (prevents Windows WSAENOTSOCK errors)
@@ -802,6 +971,32 @@ void *c64_video_thread_func(void *data)
             continue;
         }
 
+#ifdef __linux__DISABLED_FOR_E2E_STABILITY
+        // Linux: batch read with recvmmsg (reduces syscall overhead)
+        // DISABLED: Causes frame repetition issues in E2E tests
+        int num_msgs = recvmmsg(context->video_socket, msgs, BATCH_SIZE, MSG_DONTWAIT, NULL);
+
+        if (num_msgs < 0) {
+            int error = c64_get_socket_error();
+            if (error == EAGAIN || error == EWOULDBLOCK) {
+                os_sleep_ms(1);
+                continue;
+            }
+            if (error == EBADF && context->video_socket == INVALID_SOCKET_VALUE) {
+                C64_LOG_DEBUG("Video socket closed (EBADF) - exiting receiver thread gracefully");
+                break;
+            }
+            C64_LOG_ERROR("Video socket error: %s (error code: %d)", c64_get_socket_error_string(error), error);
+            break;
+        }
+
+        // Process each received packet
+        for (int i = 0; i < num_msgs; i++) {
+            ssize_t received = msgs[i].msg_len;
+            uint8_t *packet = packet_batch[i];
+#else
+        // Non-Linux: fallback to single recvfrom
+        uint8_t packet[C64_VIDEO_PACKET_SIZE];
         struct sockaddr_in sender_addr;
         socklen_t sender_len = sizeof(sender_addr);
         ssize_t received = recvfrom(context->video_socket, (char *)packet, (int)sizeof(packet), 0,
@@ -839,57 +1034,75 @@ void *c64_video_thread_func(void *data)
             C64_LOG_ERROR("Video socket error: %s (error code: %d)", c64_get_socket_error_string(error), error);
             break;
         }
+        { // Scope block for shared packet processing code
+#endif
 
-        if (received != C64_VIDEO_PACKET_SIZE) {
-            // Small packets (2-4 bytes) are normal during stream startup/buffer changes
-            // Log as debug to avoid confusing users with normal control/startup packets
-            static uint64_t last_incomplete_log_time = 0;
-            uint64_t now = os_gettime_ns();
-            if (now - last_incomplete_log_time >= 2000000000ULL) { // Throttle to every 2 seconds
-                if (received <= 4) {
-                    C64_LOG_DEBUG("Video startup/control packets: " SSIZE_T_FORMAT
-                                  " bytes (normal during initialization)",
-                                  SSIZE_T_CAST(received));
-                } else {
-                    C64_LOG_WARNING("Received incomplete video packet: " SSIZE_T_FORMAT " bytes (expected %d)",
-                                    SSIZE_T_CAST(received), C64_VIDEO_PACKET_SIZE);
+            if (received != C64_VIDEO_PACKET_SIZE) {
+                // Small packets (2-4 bytes) are normal during stream startup/buffer changes
+                // Log as debug to avoid confusing users with normal control/startup packets
+                static uint64_t last_incomplete_log_time = 0;
+                uint64_t now = os_gettime_ns();
+                if (now - last_incomplete_log_time >= 2000000000ULL) { // Throttle to every 2 seconds
+                    if (received <= 4) {
+                        C64_LOG_DEBUG("Video startup/control packets: " SSIZE_T_FORMAT
+                                      " bytes (normal during initialization)",
+                                      SSIZE_T_CAST(received));
+                    } else {
+                        C64_LOG_WARNING("Received incomplete video packet: " SSIZE_T_FORMAT " bytes (expected %d)",
+                                        SSIZE_T_CAST(received), C64_VIDEO_PACKET_SIZE);
+                    }
+                    last_incomplete_log_time = now;
                 }
-                last_incomplete_log_time = now;
+                continue;
             }
-            continue;
-        }
 
-        uint64_t packet_time = os_gettime_ns();
-        context->last_udp_packet_time = packet_time; // DEPRECATED - kept for compatibility
-        context->last_video_packet_time = packet_time;
+            uint64_t packet_time = os_gettime_ns();
+            context->last_udp_packet_time = packet_time; // DEPRECATED - kept for compatibility
+            context->last_video_packet_time = packet_time;
 
-        os_atomic_set_long(&context->video_packets_received, os_atomic_load_long(&context->video_packets_received) + 1);
-        os_atomic_set_long(&context->video_bytes_received,
-                           os_atomic_load_long(&context->video_bytes_received) + (long)received);
+            os_atomic_set_long(&context->video_packets_received,
+                               os_atomic_load_long(&context->video_packets_received) + 1);
+            os_atomic_set_long(&context->video_bytes_received,
+                               os_atomic_load_long(&context->video_bytes_received) + (long)received);
 
-        // Log network packet at UDP reception (conditional - no parsing overhead if disabled)
-        c64_log_video_packet_if_enabled(context, packet, received, packet_time);
+            // Log network packet at UDP reception (conditional - no parsing overhead if disabled)
+            c64_log_video_packet_if_enabled(context, packet, received, packet_time);
 
-        // Parse packet header for validation (always needed for packet validation)
-        uint16_t pixels_per_line = *(uint16_t *)(packet + 6);
-        uint8_t lines_per_packet = packet[8];
-        uint8_t bits_per_pixel = packet[9];
+            // Parse packet header for validation (always needed for packet validation)
+            uint16_t pixels_per_line = *(uint16_t *)(packet + 6);
+            uint8_t lines_per_packet = packet[8];
+            uint8_t bits_per_pixel = packet[9];
 
-        // Simple approach: just count packets received, no complex sequence tracking
-        uint64_t now = os_gettime_ns();
-        c64_process_video_statistics_batch(context, now);
+            // Simple approach: just count packets received, no complex sequence tracking
+            uint64_t now = os_gettime_ns();
+            if (now - context->last_stats_tick_ns >= 50000000ULL) { // ~50ms cadence
+                context->last_stats_tick_ns = now;
+                c64_process_video_statistics_batch(context, now);
+            }
 
-        if (lines_per_packet != C64_LINES_PER_PACKET || pixels_per_line != C64_PIXELS_PER_LINE || bits_per_pixel != 4) {
-            C64_LOG_WARNING("Invalid packet format: lines=%u, pixels=%u, bits=%u", lines_per_packet, pixels_per_line,
-                            bits_per_pixel);
-            continue;
-        }
+            if (lines_per_packet != C64_LINES_PER_PACKET || pixels_per_line != C64_PIXELS_PER_LINE ||
+                bits_per_pixel != 4) {
+                static uint64_t last_invalid_log = 0;
+                uint64_t now_invalid = os_gettime_ns();
+                if (now_invalid - last_invalid_log >= 5000000000ULL) { // 5 sec throttle
+                    C64_LOG_WARNING("Invalid packet format: lines=%u, pixels=%u, bits=%u", lines_per_packet,
+                                    pixels_per_line, bits_per_pixel);
+                    last_invalid_log = now_invalid;
+                }
+                continue;
+            }
 
-        if (context->network_buffer) {
-            c64_network_buffer_push_video(context->network_buffer, packet, received, now);
-        } else {
-            c64_process_video_packet_direct(context, packet, received, now);
-        }
+            if (context->network_buffer) {
+                c64_network_buffer_push_video(context->network_buffer, packet, received, now);
+            } else {
+                c64_process_video_packet_direct(context, packet, received, now);
+            }
+
+#ifdef __linux__DISABLED_FOR_E2E_STABILITY
+        } // End batch packet processing loop
+#else
+        } // End scope block
+#endif
     }
 
     C64_LOG_DEBUG("Video receiver thread stopped");
@@ -997,33 +1210,42 @@ void c64_process_video_packet_direct(struct c64_source *context, const uint8_t *
         return;
     }
 
-    // Parse packet header (streamlined - only what we need for processing)
-    uint16_t seq_num = *(uint16_t *)(packet + 0);
-    uint16_t frame_num = *(uint16_t *)(packet + 2);
-    uint16_t line_num = *(uint16_t *)(packet + 4);
-    uint8_t lines_per_packet = packet[8];
+    // Parse packet header with stack locals (streamlined - only what we need for processing)
+    const uint16_t seq_num = *(const uint16_t *)(packet + 0);
+    const uint16_t frame_num = *(const uint16_t *)(packet + 2);
+    const uint16_t line_num_raw = *(const uint16_t *)(packet + 4);
+    const uint8_t lines_per_packet = packet[8];
+    const uint8_t *payload_ptr = packet + C64_VIDEO_HEADER_SIZE;
 
-    bool last_packet = (line_num & 0x8000) != 0;
-    line_num &= 0x7FFF;
+    // Branchless last-packet detection
+    const uint16_t line_num = line_num_raw & 0x7FFF;
+    const bool last_packet = (line_num_raw & 0x8000) != 0;
 
-    // Process packet with frame assembly and double buffering
-    if (pthread_mutex_lock(&context->assembly_mutex) == 0) {
+    const bool need_lock = (context->network_buffer == NULL);
+    bool locked = false;
+    if (!need_lock || (pthread_mutex_lock(&context->assembly_mutex) == 0)) {
+        locked = need_lock;
         // Track frame capture timing for diagnostics (per-frame, not per-packet)
         uint64_t capture_time = timestamp_ns;
 
         // Check if this is a new frame
         if (context->current_frame.frame_num != frame_num) {
-            // Log frame transitions to detect skips and duplicates
+            // Log frame transitions to detect skips and duplicates (throttled)
             if (context->current_frame.frame_num != 0) {
                 uint16_t expected_next = context->current_frame.frame_num + 1;
                 int16_t frame_diff = (int16_t)(frame_num - expected_next);
 
-                if (frame_diff > 0) {
-                    C64_LOG_WARNING("📽️ FRAME SKIP: Expected frame %u, got %u (skipped %d frames)", expected_next,
-                                    frame_num, frame_diff);
-                } else if (frame_diff < 0) {
-                    C64_LOG_WARNING("Frame sequence regression: Expected frame %u, got %u (offset %d frames)",
-                                    expected_next, frame_num, -frame_diff);
+                static uint64_t last_skip_log = 0;
+                uint64_t now_skip = os_gettime_ns();
+                if ((frame_diff != 0) && (now_skip - last_skip_log >= 5000000000ULL)) { // 5 sec throttle
+                    if (frame_diff > 0) {
+                        C64_LOG_WARNING("📽️ FRAME SKIP: Expected frame %u, got %u (skipped %d frames)", expected_next,
+                                        frame_num, frame_diff);
+                    } else if (frame_diff < 0) {
+                        C64_LOG_WARNING("Frame sequence regression: Expected frame %u, got %u (offset %d frames)",
+                                        expected_next, frame_num, -frame_diff);
+                    }
+                    last_skip_log = now_skip;
                 }
             }
 
@@ -1075,7 +1297,7 @@ void c64_process_video_packet_direct(struct c64_source *context, const uint8_t *
                 fp->line_num = line_num;
                 fp->lines_per_packet = lines_per_packet;
                 fp->received = true;
-                memcpy(fp->packet_data, packet + C64_VIDEO_HEADER_SIZE, C64_VIDEO_PACKET_SIZE - C64_VIDEO_HEADER_SIZE);
+                memcpy(fp->packet_data, payload_ptr, C64_VIDEO_PACKET_SIZE - C64_VIDEO_HEADER_SIZE);
                 context->current_frame.received_packets++;
             }
         } else {
@@ -1126,7 +1348,9 @@ void c64_process_video_packet_direct(struct c64_source *context, const uint8_t *
         // Note: Frame completion is handled by the "complete previous frame" logic
         // when transitioning to a new frame. This avoids duplicate frame deliveries.
 
-        pthread_mutex_unlock(&context->assembly_mutex);
+        if (locked) {
+            pthread_mutex_unlock(&context->assembly_mutex);
+        }
     }
 }
 
@@ -1143,8 +1367,17 @@ void *c64_video_processor_thread_func(void *data)
     // Initialize last_frame_time to 0 so logo shows immediately on startup
     context->last_frame_time = 0;
 
+    // Adaptive idle spin counter (persists across iterations)
+    // Adaptive idle spin counter (persists across iterations)
+    int idle_spins = 0;
+
     while (os_atomic_load_bool(&context->thread_active)) {
+#ifdef C64_ENABLE_TIMING_INSTRUMENTATION
+        uint64_t iter_start = os_gettime_ns();
+        uint64_t current_time = iter_start;
+#else
         uint64_t current_time = os_gettime_ns();
+#endif
         bool packet_processed = false;
 
         if (context->network_buffer) {
@@ -1231,8 +1464,24 @@ void *c64_video_processor_thread_func(void *data)
                 c64_schedule_retry_task(context, "no video packets");
             }
 
-            os_sleep_ms(1);
+            // Adaptive idle: spin a few iterations then short sleep
+            if (idle_spins < 10) {
+                idle_spins++;
+                // Spin without sleep for a few iterations
+            } else {
+                os_sleep_ms(1);
+            }
+        } else {
+            // Reset spin counter when work is processed
+            idle_spins = 0;
         }
+
+#ifdef C64_ENABLE_TIMING_INSTRUMENTATION
+        // Accumulate timing for this iteration
+        uint64_t iter_end = os_gettime_ns();
+        context->timing_processor_total_ns += (iter_end - iter_start);
+        context->timing_processor_count++;
+#endif
     }
 
     C64_LOG_DEBUG("Video processor thread stopped");

@@ -209,16 +209,21 @@ Available scenarios include:
 | Scenario             | Format | Description                          |
 | -------------------- | ------ | ------------------------------------ |
 | ntsc_default         | NTSC   | Default preset (no effects)          |
+| ntsc_default_720p    | NTSC   | 720p, 59.826 Hz (standard HD)        |
+| ntsc_default_record  | NTSC   | Default preset + recording enabled   |
 | ntsc_classic_crt     | NTSC   | Classic CRT with scanlines and blur  |
 | ntsc_amber_monitor   | NTSC   | Amber monochrome tint                |
 | ntsc_green_monitor   | NTSC   | Green monochrome tint                |
 | ntsc_sharp_pixels    | NTSC   | Sharp pixel scaling                  |
+| ntsc_sharp_scan_lines| NTSC   | Pixel-perfect scanline rendering     |
 | ntsc_phosphor_glow   | NTSC   | Afterglow and bloom effects          |
 | ntsc_vintage_tv      | NTSC   | Vintage TV simulation                |
 | ntsc_arcade_cabinet  | NTSC   | Strong scanlines for arcade look     |
-| pal_sharp_pixels     | PAL    | PAL format with sharp pixels         |
-| scanlines            | PAL    | Scanline uniformity test             |
-| ntsc_delay_500ms     | NTSC   | Buffer delay test                    |
+| ntsc_delay_buffer500 | NTSC   | 500ms buffer delay test              |
+| ntsc_delay_buffer500_jitter10  | NTSC   | 500ms buffer + jitter simulation (10ms) |
+| ntsc_delay_buffer500_jitter100 | NTSC   | 500ms buffer + jitter simulation (see scenario) |
+| pal_default          | PAL    | Default preset (no effects)          |
+| pal_default_720p     | PAL    | 720p, 50.125 Hz (standard HD)        |
 
 ### Running a Scenario
 
@@ -227,7 +232,7 @@ Available scenarios include:
 ./e2e.sh --scenario ntsc_amber_monitor --verbose
 
 # Scenario auto-sets format; override if needed
-./e2e.sh --scenario pal_sharp_pixels --frames 300
+./e2e.sh --scenario pal_default --frames 300
 ```
 
 ### Scenario Structure

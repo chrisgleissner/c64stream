@@ -62,20 +62,26 @@ These are **actual measured values** from benchmark runs on the test hardware.
 
 | Preset | CPU Mean | CPU Max | Afterglow | GPU Effects | Notes |
 |--------|----------|---------|-----------|-------------|-------|
-| **Default** | 32.0% | 100% | ❌ Off | None | Baseline, no effects |
-| **Sharp Pixels** | 39.0% | 100% | ❌ Off | Pixel scaling | GPU pixel geometry |
-| **Phosphor Glow** | 40.8% | 99.3% | ✅ 20ms | Bloom + Blur | Short afterglow |
-| **Green Monitor** | 42.8% | 99.8% | ✅ 50ms | Tint + Scanlines | Medium afterglow |
+| **Default** | 47.7% | 100% | ❌ Off | None | Baseline, no effects |
+| **Sharp Pixels** | 48.6% | 100% | ❌ Off | Pixel scaling | GPU pixel geometry |
+| **Classic CRT** | 56.4% | 100% | ❌ Off | Scanlines + blur + bloom | GPU effects only |
+| **Arcade Cabinet** | 52.8% | 100% | ❌ Off | Scanlines + bloom | GPU effects |
+| **Vintage TV** | 61.5% | 100% | ✅ 30ms | Scanlines + afterglow | Short afterglow (historically accurate) |
+| **Amber Monitor** | 52.4% | 100% | ✅ 50ms | Tint + scanlines + afterglow | Medium afterglow (text monitors) |
+| **Green Monitor** | 51.6% | 100% | ✅ 60ms | Tint + scanlines + afterglow | Medium afterglow (text monitors) |
+| **Phosphor Glow** | 51.4% | 100% | ✅ 80ms | Bloom + blur + afterglow | Long afterglow (dramatic effect) |
 
 ### Observed CPU Impact by Afterglow Duration
 
-| Afterglow (ms) | Approximate CPU Increase |
-|----------------|-------------------------|
-| 0 (Off) | Baseline |
-| 40 | +15-20% |
-| 80 | +18-22% |
-| 100 | +20-25% |
-| 120 | +22-28% |
+Based on measured preset performance:
+
+| Afterglow (ms) | Approximate CPU Mean | Notes |
+|----------------|----------------------|-------|
+| 0 (Off) | 47-49% | Baseline (Default/Sharp Pixels) |
+| 30 | 61.5% | +13.8% from baseline (Vintage TV) |
+| 50 | 52.4% | +4.7% from baseline (Amber Monitor) |
+| 60 | 51.6% | +3.9% from baseline (Green Monitor) |
+| 80 | 51.4% | +3.7% from baseline (Phosphor Glow) |
 
 *Note: CPU max hits 100% during E2E test startup/teardown phases. Mean values reflect steady-state rendering.*
 *Afterglow durations reflect current presets; re-benchmark if exact CPU deltas are required.*
@@ -132,13 +138,15 @@ Simulates CRT phosphor decay. **CPU-intensive per-pixel processing.**
 | Setting | Processing | Impact | Notes |
 |---------|------------|--------|-------|
 | `afterglow_duration_ms = 0` | **Bypassed** | ○ None | Early return, no loop |
-| `afterglow_duration_ms = 40` | CPU loop | ● Medium | ~92k pixels × 3 channels |
-| `afterglow_duration_ms = 80-120` | CPU loop | ●● High | Same loop, longer visual persistence |
+| `afterglow_duration_ms = 30` | CPU loop | ● Medium | ~92k pixels × 3 channels (+13.8% CPU) |
+| `afterglow_duration_ms = 50-80` | CPU loop | ◐ Low-Medium | Same loop, longer persistence (+4-5% CPU) |
 
-**Measured CPU increase** (from benchmark on i7-6700K):
-- 0ms → 40ms: +15-20% CPU
-- 40ms → 100ms: +5-10% additional CPU
-- Duration affects visual persistence, not computational cost per frame
+**Measured CPU impact** (from benchmark on i7-6700K, Dec 31 2025):
+- 0ms → 30ms: +13.8% CPU (Vintage TV)
+- 0ms → 50ms: +4.7% CPU (Amber Monitor)
+- 0ms → 60ms: +3.9% CPU (Green Monitor)
+- 0ms → 80ms: +3.7% CPU (Phosphor Glow)
+- **Note**: Vintage TV shows higher CPU impact due to additional GPU effects (scanlines); pure afterglow impact is lower
 
 **Impact**: **HIGH CPU overhead** (~92,160 pixels × 3 color channels × float operations per frame at 60fps).
 
@@ -279,7 +287,5 @@ python3 benchmark_filters.py --help
 | Date | Version | Changes |
 |------|---------|---------|
 | 2025-12-25 | 1.0 | Initial benchmarks on Intel i7-6700K |
-
----
-
+| 2025-12-31 | 1.1 | Updated afterglow durations for historical accuracy; CPU estimates recalculated |
 *Re-run `tests/e2e/benchmark_filters.py` to update measurements for your hardware.*
