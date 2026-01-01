@@ -225,15 +225,22 @@ ensure_udp_buffers() {
         return 0
     fi
 
-    if ! command -v sudo >/dev/null 2>&1; then
-        log_warning "sudo not available; cannot adjust UDP buffer sizes (current: ${current_rmem_max} bytes, need: ${target_buffer} bytes)."
+    # Determine how to run sysctl: directly if root, otherwise via sudo
+    local sysctl_cmd=""
+    if [[ "$(id -u)" == "0" ]]; then
+        # Running as root (common in CI containers) - no sudo needed
+        sysctl_cmd="sysctl"
+    elif command -v sudo >/dev/null 2>&1; then
+        sysctl_cmd="sudo sysctl"
+    else
+        log_warning "Cannot adjust UDP buffer sizes - not root and sudo unavailable (current: ${current_rmem_max} bytes, need: ${target_buffer} bytes)."
         log_warning "E2E tests may experience UDP packet loss. To fix: sudo sysctl -w net.core.rmem_max=${target_buffer} net.core.wmem_max=${target_buffer}"
         return 0
     fi
 
     log_info "Increasing UDP buffer sizes for E2E test reliability (${current_rmem_max} -> ${target_buffer} bytes)..."
-    sudo sysctl -w net.core.rmem_max=${target_buffer} >/dev/null 2>&1 || log_warning "Failed to set net.core.rmem_max"
-    sudo sysctl -w net.core.wmem_max=${target_buffer} >/dev/null 2>&1 || log_warning "Failed to set net.core.wmem_max"
+    ${sysctl_cmd} -w net.core.rmem_max=${target_buffer} >/dev/null 2>&1 || log_warning "Failed to set net.core.rmem_max"
+    ${sysctl_cmd} -w net.core.wmem_max=${target_buffer} >/dev/null 2>&1 || log_warning "Failed to set net.core.wmem_max"
 
     # Verify
     local new_rmem_max=$(cat /proc/sys/net/core/rmem_max 2>/dev/null || echo "0")

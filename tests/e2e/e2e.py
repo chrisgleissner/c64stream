@@ -2276,27 +2276,36 @@ class E2ETest:
             video_manifest_path = self.output_dir / 'video_manifest.csv'
             audio_manifest_path = self.output_dir / 'audio_manifest.csv'
 
+            # Minimum inter-packet delay in microseconds
+            # This prevents packet bursts when jitter causes packets to cluster
+            # in the global timeline. Without this, CI environments with small
+            # UDP buffers (1MB) overflow and drop 97%+ of packets.
+            # 50us allows ~20K packets/sec which is still well above natural rate.
+            MIN_PACKET_DELAY_US = 50
+
             with open(video_manifest_path, 'w') as f:
                 f.write("filename,delay_us\n")
                 cumulative_time = 0
                 for i, event in enumerate(video_manifest):
                     # Calculate delay from last sent time to this packet's scheduled time
-                    delay_us = max(0, int(event['time_us'] - cumulative_time))
+                    # Enforce minimum delay to prevent packet bursts
+                    delay_us = max(MIN_PACKET_DELAY_US, int(event['time_us'] - cumulative_time))
                     filename = Path(event['file']).name
                     f.write(f"{filename},{delay_us}\n")
-                    # Update cumulative time to when this packet is scheduled
-                    cumulative_time = event['time_us']
+                    # Update cumulative time to actual send time (accounts for min delay)
+                    cumulative_time += delay_us
 
             with open(audio_manifest_path, 'w') as f:
                 f.write("filename,delay_us\n")
                 cumulative_time = 0
                 for i, event in enumerate(audio_manifest):
                     # Calculate delay from last sent time to this packet's scheduled time
-                    delay_us = max(0, int(event['time_us'] - cumulative_time))
+                    # Enforce minimum delay to prevent packet bursts
+                    delay_us = max(MIN_PACKET_DELAY_US, int(event['time_us'] - cumulative_time))
                     filename = Path(event['file']).name
                     f.write(f"{filename},{delay_us}\n")
-                    # Update cumulative time to when this packet is scheduled
-                    cumulative_time = event['time_us']
+                    # Update cumulative time to actual send time (accounts for min delay)
+                    cumulative_time += delay_us
 
             self.log(f"📝 Generated manifests: {len(video_manifest)} video, {len(audio_manifest)} audio packets")
             self.log(f"   Video starts at: {video_manifest[0]['time_us']/1000:.1f}ms")
