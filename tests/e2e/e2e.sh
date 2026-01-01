@@ -45,6 +45,7 @@ DEFAULT_PACKET_PATTERN=""
 DEFAULT_SCENARIO=""
 DEFAULT_CSV_MAX_ROWS=2000  # 0 = unlimited CSV lines (preserve all data)
 SCENARIO_CI_SKIPPED=false  # Set by load_scenario if ci_skip=true on CI
+SCENARIO_YAML_PATH=""  # Path to scenario.yaml if scenario is loaded
 DEFAULT_RUN_ALL_SCENARIOS=false  # Run all scenarios in sequence
 DEFAULT_ENABLE_RESOURCE_MONITORING=true  # CPU/GPU/RAM monitoring during packet replay (enabled by default)
 DEFAULT_RESOURCE_INTERVAL_MS=500  # Resource monitoring sample interval in ms (internal)
