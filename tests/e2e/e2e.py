@@ -226,12 +226,15 @@ class E2ETest:
         try:
             video_intervals = []
             audio_intervals = []
+            video_sequence = []
+            audio_sequence = []
 
             with open(network_csv, 'r') as f:
                 reader = csv.DictReader(f)
                 for row in reader:
                     packet_type = row.get('packet_type', '')
                     interval_str = row.get('packet_interval_us', '')
+                    seq_str = row.get('sequence_num', '')
 
                     if not interval_str:
                         continue
@@ -242,10 +245,14 @@ class E2ETest:
                         if interval_us <= 0 or interval_us > 1_000_000:
                             continue
 
+                        seq_num = int(seq_str) if seq_str else 0
+
                         if packet_type == 'video':
                             video_intervals.append(interval_us)
+                            video_sequence.append(seq_num)
                         elif packet_type == 'audio':
                             audio_intervals.append(interval_us)
+                            audio_sequence.append(seq_num)
                     except ValueError:
                         continue
 
@@ -254,6 +261,18 @@ class E2ETest:
                 'audio': {},
                 'summary': {}
             }
+
+            def count_out_of_order(seq_list):
+                """Count how many packets arrived out of sequence order."""
+                if len(seq_list) < 2:
+                    return 0, 0.0
+                out_of_order = 0
+                for i in range(1, len(seq_list)):
+                    # Count as out-of-order if current seq is less than previous
+                    if seq_list[i] < seq_list[i-1]:
+                        out_of_order += 1
+                rate = (out_of_order / len(seq_list)) * 100 if seq_list else 0
+                return out_of_order, rate
 
             # Analyze video packet intervals
             if len(video_intervals) >= 2:
@@ -267,6 +286,9 @@ class E2ETest:
                 video_jitter_median = statistics.median(video_jitter)
                 video_jitter_max = max(video_jitter)
 
+                # Calculate out-of-order rate
+                video_ooo_count, video_ooo_rate = count_out_of_order(video_sequence)
+
                 results['video'] = {
                     'count': len(video_intervals),
                     'interval_median_us': round(video_median, 2),
@@ -277,9 +299,12 @@ class E2ETest:
                     'jitter_max_us': round(video_jitter_max, 2),
                     'jitter_median_ms': round(video_jitter_median / 1000, 3),
                     'jitter_max_ms': round(video_jitter_max / 1000, 3),
+                    'out_of_order_count': video_ooo_count,
+                    'out_of_order_rate_pct': round(video_ooo_rate, 2),
                 }
                 self.log(f"📊 Video packets: {len(video_intervals)}, "
-                         f"jitter median={video_jitter_median:.1f}μs max={video_jitter_max:.1f}μs")
+                         f"jitter median={video_jitter_median:.1f}μs max={video_jitter_max:.1f}μs, "
+                         f"out-of-order={video_ooo_count} ({video_ooo_rate:.1f}%)")
 
             # Analyze audio packet intervals
             if len(audio_intervals) >= 2:
@@ -293,6 +318,9 @@ class E2ETest:
                 audio_jitter_median = statistics.median(audio_jitter)
                 audio_jitter_max = max(audio_jitter)
 
+                # Calculate out-of-order rate
+                audio_ooo_count, audio_ooo_rate = count_out_of_order(audio_sequence)
+
                 results['audio'] = {
                     'count': len(audio_intervals),
                     'interval_median_us': round(audio_median, 2),
@@ -303,9 +331,12 @@ class E2ETest:
                     'jitter_max_us': round(audio_jitter_max, 2),
                     'jitter_median_ms': round(audio_jitter_median / 1000, 3),
                     'jitter_max_ms': round(audio_jitter_max / 1000, 3),
+                    'out_of_order_count': audio_ooo_count,
+                    'out_of_order_rate_pct': round(audio_ooo_rate, 2),
                 }
                 self.log(f"📊 Audio packets: {len(audio_intervals)}, "
-                         f"jitter median={audio_jitter_median:.1f}μs max={audio_jitter_max:.1f}μs")
+                         f"jitter median={audio_jitter_median:.1f}μs max={audio_jitter_max:.1f}μs, "
+                         f"out-of-order={audio_ooo_count} ({audio_ooo_rate:.1f}%)")
 
             # Overall summary
             results['summary'] = {
@@ -2145,9 +2176,25 @@ class E2ETest:
 
             # 1. Apply jitter (positive-only delay variability)
             # Jitter simulates network delay variation - packets can only be delayed, never early
+            # Supports both jitter_percent (legacy) and max_jitter_ms (preferred)
             jitter_percent = self.network_simulation.get('jitter_percent', 0)
-            self.log(f"🔍 Jitter percent: {jitter_percent}")
-            if jitter_percent > 0:
+            max_jitter_ms = self.network_simulation.get('max_jitter_ms', 0)
+            self.log(f"🔍 Jitter config: percent={jitter_percent}, max_ms={max_jitter_ms}")
+
+            if max_jitter_ms > 0:
+                # Apply absolute jitter in milliseconds (preferred method)
+                jitter_count = 0
+                max_jitter_us = max_jitter_ms * 1000
+                for i in range(1, len(timeline)):
+                    # Apply random positive jitter from 0 to max_jitter_us
+                    jitter = random.uniform(0, max_jitter_us)
+                    timeline[i]['time_us'] += jitter
+                    timeline[i]['jittered'] = True
+                    timeline[i]['jitter_us'] = jitter
+                    jitter_count += 1
+                self.log(f"📊 Jitter enabled: 0-{max_jitter_ms}ms positive delay applied to {jitter_count} packets")
+
+            elif jitter_percent > 0:
                 jitter_count = 0
                 for i in range(1, len(timeline)):
                     prev_time = timeline[i-1]['time_us']
@@ -2185,13 +2232,16 @@ class E2ETest:
                 self.log(f"🔀 Packet reordering enabled: {reorder_percent}% probability, 0-{reorder_max_delay_ms}ms positive delay")
                 self.log(f"🔀 Applied reordering to {reorder_count}/{len(timeline)} packets")
 
-            # RE-SORT timeline by time_us after simulation!
-            # This is CORRECT: packets should be sent in TIME ORDER (when they're scheduled to arrive)
-            # Reordering creates out-of-order SEQUENCE NUMBERS, which is the intended effect
+            # RE-SORT timeline by time_us after jitter simulation
+            # This is CORRECT for simulating real network jitter:
+            # - Each packet gets a random delay added to its original time
+            # - Packets are then sent in the order they "arrive" (sorted by jittered time)
+            # - This creates BOTH out-of-order sequence numbers AND variable inter-packet timing
+            # - The plugin's buffer must handle both aspects
             timeline.sort(key=lambda x: x['time_us'])
 
-            if jitter_percent > 0 or reorder_percent > 0:
-                self.log(f"✅ Network simulation applied, timeline sorted by scheduled arrival time")
+            if jitter_percent > 0 or max_jitter_ms > 0 or reorder_percent > 0:
+                self.log(f"✅ Network simulation applied, timeline sorted by simulated arrival time")
 
             self.log(f"🎯 Generated {len(timeline)} interleaved packets over {timeline[-1]['time_us']/1000:.1f}ms")
 
@@ -3637,7 +3687,10 @@ def main():
                 scenario_data = yaml.safe_load(f)
                 network_simulation = scenario_data.get('network_simulation', {})
                 if network_simulation:
-                    print(f"📡 Loaded network simulation config: jitter={network_simulation.get('jitter_percent', 0)}%, reorder={network_simulation.get('reorder_percent', 0)}%")
+                    jitter_pct = network_simulation.get('jitter_percent', 0)
+                    jitter_ms = network_simulation.get('max_jitter_ms', 0)
+                    reorder_pct = network_simulation.get('reorder_percent', 0)
+                    print(f"📡 Loaded network simulation config: jitter={jitter_pct}% (or {jitter_ms}ms), reorder={reorder_pct}%")
         except Exception as e:
             print(f"⚠️  Failed to load scenario YAML: {e}")
 

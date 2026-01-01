@@ -189,9 +189,13 @@ static void rb_push(struct packet_ring_buffer *rb, const uint8_t *data, size_t l
     // Limit insertion sort complexity to prevent blocking
     size_t insert_pos = head;
 
-    // For real-time performance, only do limited insertion sorting
-    // Audio packets arrive more frequently, so use smaller search depth
-    const size_t MAX_SEARCH_DEPTH = (rb->type == BUFFER_TYPE_VIDEO) ? 8 : 6;
+    // For real-time performance, do limited insertion sorting
+    // With 500ms buffer and 500ms max jitter, packets can be up to ~1800 positions out of order
+    // at NTSC rate (3590 pkt/s). Search depth must cover the worst-case jitter scenario.
+    // Video: 3590 pkt/s * 0.5s buffer = 1795 max packets (also max jitter distance)
+    // Audio: 250 pkt/s * 0.5s buffer = 125 max packets (also max jitter distance)
+    // Use slightly larger values to ensure we can handle edge cases
+    const size_t MAX_SEARCH_DEPTH = (rb->type == BUFFER_TYPE_VIDEO) ? 2048 : 150;
     size_t search_depth = 0;
     bool found_insert_pos = false;
 
@@ -247,10 +251,11 @@ static void rb_push(struct packet_ring_buffer *rb, const uint8_t *data, size_t l
 
     // Only do expensive shift operation if we found insertion point within search limit
     if (found_insert_pos && insert_pos != head) {
-        // Limited shift operation to prevent blocking
+        // Shift operation to maintain sequence order
+        // Match MAX_SEARCH_DEPTH to ensure we can actually place packets where they belong
         size_t shift_pos = head;
         size_t shift_count = 0;
-        const size_t MAX_SHIFT_COUNT = (rb->type == BUFFER_TYPE_VIDEO) ? 8 : 6; // Audio has smaller limit
+        const size_t MAX_SHIFT_COUNT = (rb->type == BUFFER_TYPE_VIDEO) ? 2048 : 150;
 
         while (shift_pos != insert_pos && shift_count < MAX_SHIFT_COUNT) {
             size_t prev = (shift_pos == 0) ? rb->max_capacity - 1 : shift_pos - 1;

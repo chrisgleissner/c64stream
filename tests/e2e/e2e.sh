@@ -1924,10 +1924,31 @@ EOF
         echo "- Events: $(join_by ', ' "${event_links[@]}")" >> "${report_file}"
     fi
 
+    # Network Simulation section (if configured)
+    if [[ -n "${SCENARIO_YAML_PATH:-}" && -f "${SCENARIO_YAML_PATH}" ]]; then
+        local max_jitter_ms reorder_percent buffer_delay_ms
+        max_jitter_ms=$(grep -m1 "max_jitter_ms:" "${SCENARIO_YAML_PATH}" 2>/dev/null | sed 's/.*: *//' || echo "0")
+        reorder_percent=$(grep -m1 "reorder_percent:" "${SCENARIO_YAML_PATH}" 2>/dev/null | sed 's/.*: *//' || echo "0")
+        buffer_delay_ms=$(grep -m1 "buffer_delay_ms:" "${SCENARIO_YAML_PATH}" 2>/dev/null | sed 's/.*: *//' || echo "0")
+
+        if [[ "${max_jitter_ms:-0}" != "0" || "${reorder_percent:-0}" != "0" || "${buffer_delay_ms:-0}" != "0" ]]; then
+            echo >> "${report_file}"
+            echo "#### Network Simulation (Configured)" >> "${report_file}"
+            echo >> "${report_file}"
+            echo "| Parameter | Value |" >> "${report_file}"
+            echo "|-----------|-------|" >> "${report_file}"
+            [[ "${max_jitter_ms:-0}" != "0" ]] && echo "| Max Jitter | ${max_jitter_ms}ms |" >> "${report_file}"
+            [[ "${reorder_percent:-0}" != "0" ]] && echo "| Reorder Rate | ${reorder_percent}% |" >> "${report_file}"
+            [[ "${buffer_delay_ms:-0}" != "0" ]] && echo "| Buffer Delay | ${buffer_delay_ms}ms |" >> "${report_file}"
+            echo >> "${report_file}"
+            echo "_Note: Jitter is applied as random positive delay (0-max_jitter_ms) to each packet, causing sequence reordering. The 'Measured Jitter' below shows inter-packet interval variance at reception, which is typically low since packets are sent in time order after delay application._" >> "${report_file}"
+        fi
+    fi
+
     # Network Quality section (from network.json analysis)
     if [[ -f "${OUTPUT_DIR}/network.json" ]]; then
         echo >> "${report_file}"
-        echo "#### Network Quality" >> "${report_file}"
+        echo "#### Network Quality (Measured)" >> "${report_file}"
         echo >> "${report_file}"
 
         # Extract jitter statistics from network.json using Python
@@ -1943,20 +1964,26 @@ video = data.get('video', {})
 audio = data.get('audio', {})
 
 # Build table
-print("| Stream | Packets | Jitter (median) | Jitter (max) |")
-print("|--------|---------|-----------------|--------------|")
+print("| Stream | Packets | Jitter (median) | Jitter (max) | Out-of-Order |")
+print("|--------|---------|-----------------|--------------|--------------|")
 
 if video:
     v_count = video.get('count', 0)
     v_jitter_median = video.get('jitter_median_ms', 0)
     v_jitter_max = video.get('jitter_max_ms', 0)
-    print(f"| Video | {v_count} | {v_jitter_median:.3f} ms | {v_jitter_max:.3f} ms |")
+    v_ooo_count = video.get('out_of_order_count', 0)
+    v_ooo_rate = video.get('out_of_order_rate_pct', 0)
+    ooo_str = f"{v_ooo_count} ({v_ooo_rate:.1f}%)" if v_ooo_count > 0 else "0"
+    print(f"| Video | {v_count} | {v_jitter_median:.3f} ms | {v_jitter_max:.3f} ms | {ooo_str} |")
 
 if audio:
     a_count = audio.get('count', 0)
     a_jitter_median = audio.get('jitter_median_ms', 0)
     a_jitter_max = audio.get('jitter_max_ms', 0)
-    print(f"| Audio | {a_count} | {a_jitter_median:.3f} ms | {a_jitter_max:.3f} ms |")
+    a_ooo_count = audio.get('out_of_order_count', 0)
+    a_ooo_rate = audio.get('out_of_order_rate_pct', 0)
+    ooo_str = f"{a_ooo_count} ({a_ooo_rate:.1f}%)" if a_ooo_count > 0 else "0"
+    print(f"| Audio | {a_count} | {a_jitter_median:.3f} ms | {a_jitter_max:.3f} ms | {ooo_str} |")
 PY
         fi
         echo >> "${report_file}"
