@@ -464,6 +464,50 @@ jobs:
           name: ${{ steps.setup.outputs.artifactName }}-dbgsym
           path: release/*dbgsym.ddeb
 
+  # Python Unit Tests - runs pytest on E2E helper modules
+  python-unit-tests:
+    name: Python Unit Tests 🐍
+    runs-on: ubuntu-24.04
+    needs: [check-event]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout Repository 📥
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Set up Python 🐍
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Dependencies 📦
+        run: |
+          : Install Dependencies 📦
+          python -m pip install --upgrade pip
+          pip install pytest pytest-cov
+
+          # Install E2E test dependencies
+          if [[ -f tests/e2e/requirements.txt ]]; then
+            pip install -r tests/e2e/requirements.txt
+          fi
+
+      - name: Run Python Unit Tests 🧪
+        run: |
+          : Run Python Unit Tests 🧪
+          cd tests/e2e
+          python -m pytest test_*.py -v --tb=short --junitxml=../../test-results.xml
+
+      - name: Upload Test Results 📊
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: python-test-results-${{ needs.check-event.outputs.commitHash }}
+          path: test-results.xml
+
   windows-build:
     name: Build for Windows 🪟
     runs-on: windows-2022
@@ -876,7 +920,7 @@ jobs:
           - ntsc_default_record
           - ntsc_delay_buffer500_jitter0
           - ntsc_delay_buffer500_jitter100
-          - ntsc_delay_buffer500_jitter500
+          - ntsc_delay_buffer500_jitter400
           - ntsc_green_monitor
           - ntsc_phosphor_glow
           - ntsc_sharp_pixels

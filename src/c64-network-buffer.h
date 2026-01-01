@@ -31,10 +31,14 @@ extern "C" {
 
 #define C64_MAX_DELAY_MS 500
 
-// Buffer sizing: Use worst-case NTSC video rate for allocation with 20% safety margin
-// Safety margin prevents buffer exhaustion at maximum delay due to timing variations
-#define C64_MAX_VIDEO_PACKETS ((C64_MAX_VIDEO_RATE * C64_MAX_DELAY_MS * 12) / 10000) // 20% margin
-#define C64_MAX_AUDIO_PACKETS ((C64_MAX_AUDIO_RATE * C64_MAX_DELAY_MS * 12) / 10000) // 20% margin
+// Maximum supported network jitter (ms). Buffer must hold packets for delay + jitter.
+#define C64_MAX_JITTER_MS 400
+
+// Buffer sizing: Use worst-case NTSC video rate for allocation
+// Buffer must hold: delay_ms + jitter_ms worth of packets with 10% safety margin
+// Example: 500ms delay + 400ms jitter = 900ms * 3590 pkt/s * 1.1 = 3554 packets
+#define C64_MAX_VIDEO_PACKETS (((C64_MAX_VIDEO_RATE * (C64_MAX_DELAY_MS + C64_MAX_JITTER_MS)) * 11) / 10000) // 10% margin
+#define C64_MAX_AUDIO_PACKETS (((C64_MAX_AUDIO_RATE * (C64_MAX_DELAY_MS + C64_MAX_JITTER_MS)) * 11) / 10000) // 10% margin
 
 struct c64_network_buffer;
 

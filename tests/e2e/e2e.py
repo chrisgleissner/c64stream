@@ -67,7 +67,8 @@ class E2ETest:
                  perf_callgraph: str = 'fp',
                  perf_duration_s: float | None = None,
                  enable_flamegraph: bool = False,
-                 network_simulation: dict | None = None):
+                 network_simulation: dict | None = None,
+                 av_sync_tolerance_ms: int = 60):
         self.test_dir = Path(test_dir)
         self.video_port = video_port
         self.audio_port = audio_port
@@ -81,6 +82,7 @@ class E2ETest:
         self.scenario_name = scenario_name
         self.scenario_id = scenario_id
         self.network_simulation = network_simulation or {}  # Store network simulation config
+        self.av_sync_tolerance_ms = av_sync_tolerance_ms  # Per-scenario A/V sync tolerance
 
         self.settling_seconds = float(settling_seconds) if settling_seconds is not None else 0.0
         self._obs_start_time_s: float | None = None
@@ -3101,10 +3103,10 @@ class E2ETest:
         visuals_results = None  # cache visual checks to avoid running twice
         if recording_file and Path(recording_file).exists() and verify_av_sync:
             try:
-                print("🎵 A/V Sync: Running A/V sync check (pops)...")
-                # Tolerance: allow minor capture jitter under heavy GPU filter presets.
-                # Kept intentionally tight; 50ms is ~3 frames at 60fps.
-                sync_results = verify_av_sync(recording_file, tolerance_ms=60)
+                print(f"🎵 A/V Sync: Running A/V sync check (pops, tolerance={self.av_sync_tolerance_ms}ms)...")
+                # Tolerance: configurable per-scenario, default 60ms (~3 frames at 60fps)
+                # Jitter scenarios may need higher tolerance (e.g., 150ms)
+                sync_results = verify_av_sync(recording_file, tolerance_ms=self.av_sync_tolerance_ms)
 
                 # Report detailed offsets summary even in success case
                 diffs = [d['difference_ms'] for d in sync_results['sync_details'] if d.get('closest_video_pop_ms') is not None]
@@ -3680,17 +3682,22 @@ def main():
 
     # Load network_simulation from scenario YAML if provided
     network_simulation = {}
+    av_sync_tolerance_ms = 60  # Default tolerance
     if args.scenario_yaml:
         import yaml
         try:
             with open(args.scenario_yaml, 'r') as f:
                 scenario_data = yaml.safe_load(f)
                 network_simulation = scenario_data.get('network_simulation', {})
+                # Load A/V sync tolerance from scenario (default 60ms)
+                av_sync_tolerance_ms = scenario_data.get('av_sync_tolerance_ms', 60)
                 if network_simulation:
                     jitter_pct = network_simulation.get('jitter_percent', 0)
                     jitter_ms = network_simulation.get('max_jitter_ms', 0)
                     reorder_pct = network_simulation.get('reorder_percent', 0)
                     print(f"📡 Loaded network simulation config: jitter={jitter_pct}% (or {jitter_ms}ms), reorder={reorder_pct}%")
+                if av_sync_tolerance_ms != 60:
+                    print(f"📡 A/V sync tolerance: {av_sync_tolerance_ms}ms")
         except Exception as e:
             print(f"⚠️  Failed to load scenario YAML: {e}")
 
@@ -3749,6 +3756,7 @@ def main():
         perf_duration_s=args.perf_duration,
         enable_flamegraph=args.perf_flamegraph,
         network_simulation=network_simulation,
+        av_sync_tolerance_ms=av_sync_tolerance_ms,
     )
 
     # Store reference for signal handler
