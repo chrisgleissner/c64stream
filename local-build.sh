@@ -12,7 +12,7 @@ PROJECT_ROOT="$SCRIPT_DIR"
 PLATFORM=""
 BUILD_CONFIG="RelWithDebInfo"
 CLEAN_BUILD=false
-RUN_TESTS=false
+RUN_TESTS=true
 INSTALL_DEPS=false
 INSTALL_PLUGIN=false
 RUN_E2E=false
@@ -179,7 +179,8 @@ PLATFORMS:
 OPTIONS:
     --config CONFIG     Build configuration: Debug, Release, RelWithDebInfo, MinSizeRel
     --clean             Clean build directory before building
-    --tests             Run tests after building
+    --tests             Run tests after building (default: on)
+    --no-tests          Skip tests after building
     --install-deps      Install build dependencies
     --install-e2e-deps  Also install E2E testing dependencies (OBS, xvfb, etc.)
     --install           Install plugin to OBS after building
@@ -560,6 +561,16 @@ run_tests() {
         cd "$PROJECT_ROOT"
     else
         log_warning "No tests found in build directory"
+    fi
+
+    # Python unit tests (E2E harness): keep this fast and dependency-light.
+    if command -v python3 >/dev/null 2>&1; then
+        log_info "Running Python unit tests..."
+        python3 -m unittest \
+            tests/e2e/test_network_simulation.py \
+            tests/e2e/test_network_timing_validation.py
+    else
+        log_warning "python3 not found; skipping Python unit tests"
     fi
 }
 
@@ -1336,6 +1347,10 @@ main() {
                 ;;
             --tests)
                 RUN_TESTS=true
+                shift
+                ;;
+            --no-tests)
+                RUN_TESTS=false
                 shift
                 ;;
             --install-deps)

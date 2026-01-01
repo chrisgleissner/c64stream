@@ -33,6 +33,120 @@ import shutil
 import configparser
 from pathlib import Path
 
+
+def validate_network_timing(
+    network_json_path: Path,
+    video_format: str,
+    frames: int,
+    network_simulation: dict | None,
+) -> tuple[str, str, list[str], list[str]]:
+    """Validate sender pacing using derived metrics in network.json.
+
+    Returns: (status, details, errors, warnings)
+    - status: pass|warning|fail|unknown
+    - details: short single-line summary
+    """
+    if network_simulation is None:
+        network_simulation = {}
+
+    if not network_json_path.exists():
+        return 'unknown', 'network.json not found', [], []
+
+    # Mirror validate_test_results timing constants.
+    if video_format == 'PAL':
+        frame_rate = 50.125
+        expected_video_interval_us = 293.384
+        expected_audio_interval_us = 4001.417
+    else:
+        frame_rate = 59.826
+        expected_video_interval_us = 278.586
+        expected_audio_interval_us = 4005.006
+
+    expected_duration_ms = frames * (1000.0 / frame_rate)
+
+    max_jitter_ms = float(network_simulation.get('max_jitter_ms', 0) or 0)
+    reorder_max_delay_ms = float(network_simulation.get('reorder_max_delay_ms', 0) or 0)
+    extra_delay_ms = max(max_jitter_ms, reorder_max_delay_ms)
+
+    errors: list[str] = []
+    warnings: list[str] = []
+
+    try:
+        with open(network_json_path, 'r') as f:
+            net = json.load(f)
+    except Exception as e:
+        return 'unknown', f'validation error: {e}', [], [f'Network timing validation failed: {e}']
+
+    summary = net.get('summary', {})
+    video_stats = net.get('video', {})
+    audio_stats = net.get('audio', {})
+
+    duration_ms = summary.get('duration_ms', None)
+    if duration_ms is None:
+        warnings.append('network.json missing duration_ms')
+    else:
+        min_ok_ms = expected_duration_ms * 0.70
+        # Allow extra network simulation delay on top of baseline.
+        max_ok_ms = expected_duration_ms + extra_delay_ms + 2000.0
+        if duration_ms < min_ok_ms:
+            errors.append(
+                f"Network timing span too short: {duration_ms:.1f}ms < {min_ok_ms:.1f}ms (expected ~{expected_duration_ms:.1f}ms)"
+            )
+        elif duration_ms > max_ok_ms:
+            warnings.append(
+                f"Network timing span unusually long: {duration_ms:.1f}ms > {max_ok_ms:.1f}ms"
+            )
+
+    def check_spacing(stream_name: str, stats: dict, expected_interval_us: float):
+        mean_us = stats.get('spacing_mean_us', None)
+        if mean_us is None:
+            return
+        # Wide tolerance: still catches bursty/instant sender.
+        min_mean = expected_interval_us * 0.40
+        max_mean = expected_interval_us * 2.50
+        if mean_us < min_mean:
+            errors.append(
+                f"{stream_name} spacing mean too small: {mean_us:.1f}us < {min_mean:.1f}us (burst/instant send?)"
+            )
+        elif mean_us > max_mean:
+            warnings.append(
+                f"{stream_name} spacing mean unusually large: {mean_us:.1f}us > {max_mean:.1f}us"
+            )
+
+    check_spacing('Video', video_stats, expected_video_interval_us)
+    check_spacing('Audio', audio_stats, expected_audio_interval_us)
+
+    # Jitter sanity (no network simulation should be relatively steady).
+    if max_jitter_ms <= 0 and float(network_simulation.get('reorder_percent', 0) or 0) <= 0:
+        v_jitter_max_ms = float(video_stats.get('jitter_max_ms', 0) or 0)
+        a_jitter_max_ms = float(audio_stats.get('jitter_max_ms', 0) or 0)
+        if v_jitter_max_ms > 5.0:
+            warnings.append(f"Video jitter max high for no-sim run: {v_jitter_max_ms:.3f}ms")
+        if a_jitter_max_ms > 10.0:
+            warnings.append(f"Audio jitter max high for no-sim run: {a_jitter_max_ms:.3f}ms")
+
+        v_ooo = float(video_stats.get('out_of_order_rate_pct', 0) or 0)
+        a_ooo = float(audio_stats.get('out_of_order_rate_pct', 0) or 0)
+        if v_ooo > 0.5 or a_ooo > 0.5:
+            warnings.append(f"Out-of-order without simulation (video={v_ooo:.2f}%, audio={a_ooo:.2f}%)")
+
+    details_parts = []
+    if duration_ms is not None:
+        details_parts.append(f"span={duration_ms:.1f}ms")
+    v_mean = video_stats.get('spacing_mean_us', None)
+    a_mean = audio_stats.get('spacing_mean_us', None)
+    if v_mean is not None:
+        details_parts.append(f"video_mean={v_mean:.1f}us")
+    if a_mean is not None:
+        details_parts.append(f"audio_mean={a_mean:.1f}us")
+    details = ', '.join(details_parts) if details_parts else 'ok'
+
+    if errors:
+        return 'fail', details, errors, warnings
+    if warnings:
+        return 'warning', details, errors, warnings
+    return 'pass', details, errors, warnings
+
 # Import A/V sync testing
 try:
     from test_av_sync import verify_av_sync
@@ -203,20 +317,15 @@ class E2ETest:
                      f"(keeping first {max_total_lines} lines)")
 
     def _analyze_network_jitter(self, network_csv: Path) -> Optional[dict]:
-        """
-        Analyze network packet timing to calculate jitter statistics.
+        """Analyze network.csv packet timing.
 
         This must be called BEFORE CSV truncation to analyze the full dataset.
 
-        Jitter is calculated as the deviation from expected packet interval.
-        For video: expected is ~63.5μs per line (15734 lines/sec for NTSC)
-        For audio: expected varies by format
-
-        Args:
-            network_csv: Path to the full network.csv file
-
-        Returns:
-            Dictionary with jitter statistics, or None if analysis fails
+        Current metrics:
+        - Spacing between consecutive packets (min/mean/max per stream + overall)
+        - Evenness / burstiness indicators derived from spacing distribution
+        - Duration from first to last packet
+        - Jitter (deviation from median spacing) and out-of-order rate
         """
         import csv
         import statistics
@@ -226,10 +335,12 @@ class E2ETest:
             return None
 
         try:
+            all_intervals = []
             video_intervals = []
             audio_intervals = []
             video_sequence = []
             audio_sequence = []
+            elapsed_us_values = []
 
             with open(network_csv, 'r') as f:
                 reader = csv.DictReader(f)
@@ -237,6 +348,15 @@ class E2ETest:
                     packet_type = row.get('packet_type', '')
                     interval_str = row.get('packet_interval_us', '')
                     seq_str = row.get('sequence_num', '')
+                    elapsed_str = row.get('elapsed_us', '')
+
+                    if elapsed_str:
+                        try:
+                            elapsed_us = float(elapsed_str)
+                            if 0 <= elapsed_us <= 86_400_000_000:  # up to 24h
+                                elapsed_us_values.append(elapsed_us)
+                        except ValueError:
+                            pass
 
                     if not interval_str:
                         continue
@@ -246,6 +366,8 @@ class E2ETest:
                         # Skip unrealistic values (negative or extremely large)
                         if interval_us <= 0 or interval_us > 1_000_000:
                             continue
+
+                        all_intervals.append(interval_us)
 
                         seq_num = int(seq_str) if seq_str else 0
 
@@ -259,10 +381,66 @@ class E2ETest:
                         continue
 
             results = {
+                'all': {},
                 'video': {},
                 'audio': {},
                 'summary': {}
             }
+
+            def quantile(sorted_values, q):
+                """Nearest-rank quantile (q in [0,1])."""
+                if not sorted_values:
+                    return None
+                if q <= 0:
+                    return sorted_values[0]
+                if q >= 1:
+                    return sorted_values[-1]
+                import math
+                k = int(math.ceil(q * len(sorted_values))) - 1
+                k = max(0, min(k, len(sorted_values) - 1))
+                return sorted_values[k]
+
+            def spacing_stats(intervals):
+                if len(intervals) < 2:
+                    return {
+                        'count': len(intervals),
+                    }
+
+                intervals_sorted = sorted(intervals)
+                median_us = statistics.median(intervals_sorted)
+                mean_us = statistics.mean(intervals_sorted)
+                min_us = intervals_sorted[0]
+                max_us = intervals_sorted[-1]
+                std_us = statistics.pstdev(intervals_sorted) if len(intervals_sorted) >= 2 else 0.0
+                cv_pct = (std_us / mean_us * 100.0) if mean_us > 0 else 0.0
+
+                p95_us = quantile(intervals_sorted, 0.95)
+                p99_us = quantile(intervals_sorted, 0.99)
+
+                # Burstiness heuristics relative to median spacing
+                short_thresh = 0.5 * median_us
+                long_thresh = 2.0 * median_us
+                short_count = sum(1 for v in intervals_sorted if v < short_thresh)
+                long_count = sum(1 for v in intervals_sorted if v > long_thresh)
+
+                burst_short_pct = (short_count / len(intervals_sorted) * 100.0) if intervals_sorted else 0.0
+                burst_long_pct = (long_count / len(intervals_sorted) * 100.0) if intervals_sorted else 0.0
+                p99_p50 = (p99_us / median_us) if (p99_us is not None and median_us > 0) else None
+
+                return {
+                    'count': len(intervals_sorted),
+                    'spacing_min_us': round(min_us, 2),
+                    'spacing_mean_us': round(mean_us, 2),
+                    'spacing_max_us': round(max_us, 2),
+                    'spacing_median_us': round(median_us, 2),
+                    'spacing_std_us': round(std_us, 2),
+                    'spacing_cv_pct': round(cv_pct, 2),
+                    'spacing_p95_us': round(p95_us, 2) if p95_us is not None else None,
+                    'spacing_p99_us': round(p99_us, 2) if p99_us is not None else None,
+                    'burst_short_pct': round(burst_short_pct, 2),
+                    'burst_long_pct': round(burst_long_pct, 2),
+                    'burst_p99_p50': round(p99_p50, 3) if p99_p50 is not None else None,
+                }
 
             def count_out_of_order(seq_list):
                 """Count how many packets arrived out of sequence order."""
@@ -278,10 +456,8 @@ class E2ETest:
 
             # Analyze video packet intervals
             if len(video_intervals) >= 2:
-                video_median = statistics.median(video_intervals)
-                video_max = max(video_intervals)
-                video_min = min(video_intervals)
-                video_mean = statistics.mean(video_intervals)
+                video_stats = spacing_stats(video_intervals)
+                video_median = video_stats.get('spacing_median_us', 0)
 
                 # Calculate jitter as deviation from median (more robust than mean)
                 video_jitter = [abs(v - video_median) for v in video_intervals]
@@ -292,11 +468,12 @@ class E2ETest:
                 video_ooo_count, video_ooo_rate = count_out_of_order(video_sequence)
 
                 results['video'] = {
-                    'count': len(video_intervals),
-                    'interval_median_us': round(video_median, 2),
-                    'interval_max_us': round(video_max, 2),
-                    'interval_min_us': round(video_min, 2),
-                    'interval_mean_us': round(video_mean, 2),
+                    **video_stats,
+                    # Backwards-compatible aliases
+                    'interval_median_us': round(video_stats.get('spacing_median_us', 0.0), 2),
+                    'interval_mean_us': round(video_stats.get('spacing_mean_us', 0.0), 2),
+                    'interval_min_us': round(video_stats.get('spacing_min_us', 0.0), 2),
+                    'interval_max_us': round(video_stats.get('spacing_max_us', 0.0), 2),
                     'jitter_median_us': round(video_jitter_median, 2),
                     'jitter_max_us': round(video_jitter_max, 2),
                     'jitter_median_ms': round(video_jitter_median / 1000, 3),
@@ -310,10 +487,8 @@ class E2ETest:
 
             # Analyze audio packet intervals
             if len(audio_intervals) >= 2:
-                audio_median = statistics.median(audio_intervals)
-                audio_max = max(audio_intervals)
-                audio_min = min(audio_intervals)
-                audio_mean = statistics.mean(audio_intervals)
+                audio_stats = spacing_stats(audio_intervals)
+                audio_median = audio_stats.get('spacing_median_us', 0)
 
                 # Calculate jitter as deviation from median
                 audio_jitter = [abs(a - audio_median) for a in audio_intervals]
@@ -324,11 +499,12 @@ class E2ETest:
                 audio_ooo_count, audio_ooo_rate = count_out_of_order(audio_sequence)
 
                 results['audio'] = {
-                    'count': len(audio_intervals),
-                    'interval_median_us': round(audio_median, 2),
-                    'interval_max_us': round(audio_max, 2),
-                    'interval_min_us': round(audio_min, 2),
-                    'interval_mean_us': round(audio_mean, 2),
+                    **audio_stats,
+                    # Backwards-compatible aliases
+                    'interval_median_us': round(audio_stats.get('spacing_median_us', 0.0), 2),
+                    'interval_mean_us': round(audio_stats.get('spacing_mean_us', 0.0), 2),
+                    'interval_min_us': round(audio_stats.get('spacing_min_us', 0.0), 2),
+                    'interval_max_us': round(audio_stats.get('spacing_max_us', 0.0), 2),
                     'jitter_median_us': round(audio_jitter_median, 2),
                     'jitter_max_us': round(audio_jitter_max, 2),
                     'jitter_median_ms': round(audio_jitter_median / 1000, 3),
@@ -340,10 +516,29 @@ class E2ETest:
                          f"jitter median={audio_jitter_median:.1f}μs max={audio_jitter_max:.1f}μs, "
                          f"out-of-order={audio_ooo_count} ({audio_ooo_rate:.1f}%)")
 
+            if len(all_intervals) >= 2:
+                results['all'] = spacing_stats(all_intervals)
+
             # Overall summary
+            duration_us = None
+            duration_ms = None
+            first_elapsed_us = None
+            last_elapsed_us = None
+
+            if elapsed_us_values:
+                first_elapsed_us = min(elapsed_us_values)
+                last_elapsed_us = max(elapsed_us_values)
+                duration_us = max(0.0, last_elapsed_us - first_elapsed_us)
+                duration_ms = duration_us / 1000.0
+
             results['summary'] = {
+                'first_elapsed_us': round(first_elapsed_us, 2) if first_elapsed_us is not None else None,
+                'last_elapsed_us': round(last_elapsed_us, 2) if last_elapsed_us is not None else None,
+                'duration_us': round(duration_us, 2) if duration_us is not None else None,
+                'duration_ms': round(duration_ms, 3) if duration_ms is not None else None,
                 'total_video_packets': results['video'].get('count', 0),
                 'total_audio_packets': results['audio'].get('count', 0),
+                'total_packets': results.get('all', {}).get('count', 0),
                 'analysis_complete': True
             }
 
@@ -2276,38 +2471,30 @@ class E2ETest:
             video_manifest_path = self.output_dir / 'video_manifest.csv'
             audio_manifest_path = self.output_dir / 'audio_manifest.csv'
 
-            # Minimum inter-packet delay in microseconds
-            # This prevents packet bursts when jitter causes packets to cluster
-            # in the global timeline. Without this, CI environments with small
-            # UDP buffers (1MB) can overflow.
+            # Minimum inter-packet delay in microseconds.
             #
-            # With realistic jitter values (50-100ms), a 50µs minimum delay
-            # limits burst rate to ~20K packets/sec which is sustainable.
-            MIN_PACKET_DELAY_US = 50
+            # IMPORTANT:
+            # - Manifests carry integer microsecond deltas; avoid float->int drift which can
+            #   otherwise collapse pacing (and cause "send everything instantly" regressions).
+            # - For local runs, keep this tiny to preserve spec timing.
+            # - For CI, use a more conservative minimum to reduce receiver buffer overflows.
+            MIN_PACKET_DELAY_US = 50 if self.is_ci else 1
 
-            with open(video_manifest_path, 'w') as f:
-                f.write("filename,delay_us\n")
-                cumulative_time = 0
-                for i, event in enumerate(video_manifest):
-                    # Calculate delay from last sent time to this packet's scheduled time
-                    # Enforce minimum delay to prevent packet bursts
-                    delay_us = max(MIN_PACKET_DELAY_US, int(event['time_us'] - cumulative_time))
-                    filename = Path(event['file']).name
-                    f.write(f"{filename},{delay_us}\n")
-                    # Update cumulative time to actual send time (accounts for min delay)
-                    cumulative_time += delay_us
+            def write_manifest(path: Path, events: list[dict]):
+                with open(path, 'w') as f:
+                    f.write("filename,delay_us\n")
+                    last_sent_time_us = 0
+                    for event in events:
+                        event_time_us = int(round(float(event['time_us'])))
+                        delta_us = event_time_us - last_sent_time_us
+                        if delta_us < MIN_PACKET_DELAY_US:
+                            delta_us = MIN_PACKET_DELAY_US
+                        filename = Path(event['file']).name
+                        f.write(f"{filename},{int(delta_us)}\n")
+                        last_sent_time_us += int(delta_us)
 
-            with open(audio_manifest_path, 'w') as f:
-                f.write("filename,delay_us\n")
-                cumulative_time = 0
-                for i, event in enumerate(audio_manifest):
-                    # Calculate delay from last sent time to this packet's scheduled time
-                    # Enforce minimum delay to prevent packet bursts
-                    delay_us = max(MIN_PACKET_DELAY_US, int(event['time_us'] - cumulative_time))
-                    filename = Path(event['file']).name
-                    f.write(f"{filename},{delay_us}\n")
-                    # Update cumulative time to actual send time (accounts for min delay)
-                    cumulative_time += delay_us
+            write_manifest(video_manifest_path, video_manifest)
+            write_manifest(audio_manifest_path, audio_manifest)
 
             self.log(f"📝 Generated manifests: {len(video_manifest)} video, {len(audio_manifest)} audio packets")
             self.log(f"   Video starts at: {video_manifest[0]['time_us']/1000:.1f}ms")
@@ -2869,7 +3056,8 @@ class E2ETest:
             'udp_reception': {'status': 'unknown', 'details': ''},
             'frame_processing': {'status': 'unknown', 'details': ''},
             'video_recording': {'status': 'unknown', 'details': ''},
-            'packet_integrity': {'status': 'unknown', 'details': ''}
+            'packet_integrity': {'status': 'unknown', 'details': ''},
+            'network_timing': {'status': 'unknown', 'details': ''},
         }
 
         # Calculate expected packet counts using actual generation logic
@@ -2926,6 +3114,36 @@ class E2ETest:
             print("❌ UDP Reception: No network.csv found")
             validation_errors.append("Missing network.csv - plugin may not be receiving UDP packets")
             validation_results['udp_reception'] = {'status': 'fail', 'details': 'No CSV file found'}
+
+        # 1b. Network Timing / Pacing Validation (from network.json)
+        # This catches severe sender regressions (e.g. "all packets sent instantly").
+        network_json = self.output_dir / 'network.json'
+        net_status, net_details, net_errors, net_warnings = validate_network_timing(
+            network_json_path=network_json,
+            video_format=self.format,
+            frames=self.frames,
+            network_simulation=self.network_simulation,
+        )
+
+        strict_network_timing = self.is_ci or (os.environ.get('C64_E2E_STRICT_NETWORK_TIMING', '') == '1')
+        if strict_network_timing and net_status == 'warning':
+            # Escalate warnings to failures in CI to prevent silent pacing regressions.
+            net_status = 'fail'
+            if net_warnings:
+                net_errors = net_errors + [f"Network timing warning treated as error: {w}" for w in net_warnings]
+
+        validation_errors.extend(net_errors)
+        validation_warnings.extend(net_warnings)
+        validation_results['network_timing'] = {'status': net_status, 'details': net_details}
+
+        if net_status == 'fail':
+            print(f"❌ Network Timing: {net_details}")
+        elif net_status == 'warning':
+            print(f"⚠️  Network Timing: {net_details}")
+        elif net_status == 'pass':
+            print(f"✅ Network Timing: {net_details}")
+        else:
+            print(f"❓ Network Timing: {net_details}")
 
         # 2. Frame Processing Validation
         # Use original frame count from before CSV truncation
@@ -3405,6 +3623,7 @@ class E2ETest:
         try:
             # UDP counts
             udp_line = validation_results.get('udp_reception', {})
+            nt_line = validation_results.get('network_timing', {})
             fr_line = validation_results.get('frame_processing', {})
             vr_line = validation_results.get('video_recording', {})
             pi_line = validation_results.get('packet_integrity', {})
@@ -3413,6 +3632,7 @@ class E2ETest:
                 return {'pass': '🟢', 'warning': '🟡', 'fail': '🔴', 'skipped': '⚪', 'unknown': '⚪'}.get(status, '⚪')
             print("Summary (checks):")
             print(f"  UDP Packets     {icon(udp_line.get('status'))}  {udp_line.get('details','')}")
+            print(f"  Network Timing  {icon(nt_line.get('status'))}  {nt_line.get('details','')}")
             print(f"  OBS Frames      {icon(fr_line.get('status'))}  {fr_line.get('details','')}")
             print(f"  Recording File  {icon(vr_line.get('status'))}  {vr_line.get('details','')}")
             print(f"  Duration Check  {icon(pi_line.get('status'))}  {pi_line.get('details','')}")

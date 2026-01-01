@@ -53,8 +53,16 @@ The wrapper auto-detects common Homebrew installs; you can also override via `CL
 ### Unit tests
 
 ```bash
+# C/C++ tests (CMake/CTest)
 ctest --test-dir build_x86_64 --output-on-failure
+
+# Python unit tests (E2E harness)
+python3 -m unittest \
+    tests/e2e/test_network_simulation.py \
+    tests/e2e/test_network_timing_validation.py
 ```
+
+Note: `./local-build.sh linux` runs unit tests by default (use `--no-tests` to skip).
 
 ### Documentation review (MANDATORY before declaring completion)
 

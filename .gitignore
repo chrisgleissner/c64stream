@@ -91,10 +91,8 @@ tests/e2e/scenarios/*/generated/
 # E2E packet generator outputs
 tests/e2e/test_output_*/
 tests/e2e/test_packets_*/
-tests/e2e/test_packets/video_manifest.csv
-tests/e2e/test_packets/audio_manifest.csv
 
-# E2E profiling artifacts (generated)
+# E2E artifacts (generated)
 tests/e2e/results/**/flamegraph.svg
 tests/e2e/results/**/perf.data
 tests/e2e/results/**/perf.folded
@@ -106,6 +104,8 @@ tests/e2e/results/**/obs_log_summary.json
 tests/e2e/results/**/*.mp4
 tests/e2e/results/**/*.mk4
 tests/e2e/results/**/*.mkv
+tests/e2e/results/**/video_manifest.csv
+tests/e2e/results/**/audio_manifest.csv
 
 # FlameGraph scripts (cloned via build-aux/install-flamegraph.sh)
 tools/FlameGraph/

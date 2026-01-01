@@ -1832,6 +1832,43 @@ Generated: ${timestamp}
 ## Test results
 EOF
 
+    # Validation summary (from validation_results.json)
+    local validation_summary_file="${OUTPUT_DIR}/validation_results.json"
+    if [[ -f "${validation_summary_file}" ]] && command -v jq >/dev/null 2>&1; then
+        echo >> "${report_file}"
+        echo "### Validation Summary" >> "${report_file}"
+        echo >> "${report_file}"
+
+        _render_validation_line() {
+            local key="$1"
+            local label="$2"
+            local status details emoji
+            status=$(jq -r ".${key}.status // \"unknown\"" "${validation_summary_file}" 2>/dev/null || echo "unknown")
+            details=$(jq -r ".${key}.details // \"\"" "${validation_summary_file}" 2>/dev/null || echo "")
+
+            case "${status}" in
+                pass) emoji="✅" ;;
+                warning) emoji="⚠️" ;;
+                fail) emoji="❌" ;;
+                deferred) emoji="⚠️" ;;
+                skipped) emoji="⏭️" ;;
+                *) emoji="❓" ;;
+            esac
+
+            if [[ -n "${details}" && "${details}" != "null" ]]; then
+                echo "- ${emoji} ${label}: ${details}" >> "${report_file}"
+            else
+                echo "- ${emoji} ${label}: Status ${status}" >> "${report_file}"
+            fi
+        }
+
+        _render_validation_line "udp_reception" "UDP Packet Reception"
+        _render_validation_line "network_timing" "Network Timing"
+        _render_validation_line "frame_processing" "Frame Processing"
+        _render_validation_line "video_recording" "Video Recording"
+        _render_validation_line "packet_integrity" "Content Integrity"
+    fi
+
     # Add Resource Usage section first if resource.json exists
     local resource_json="${OUTPUT_DIR}/resource.json"
     if [[ -f "${resource_json}" ]] && command -v jq >/dev/null 2>&1; then
@@ -1959,10 +1996,63 @@ import sys
 with open(sys.argv[1], 'r') as f:
     data = json.load(f)
 
+summary = data.get('summary', {})
+all_stats = data.get('all', {})
 video = data.get('video', {})
 audio = data.get('audio', {})
 
+duration_ms = summary.get('duration_ms', None)
+total_packets = summary.get('total_packets', all_stats.get('count', 0))
+
+if duration_ms is not None:
+    print(f"- Packet span (first→last): {duration_ms:.3f} ms")
+if total_packets:
+    print(f"- Total packets analyzed: {total_packets}")
+
+def fmt_ms(us):
+    if us is None:
+        return "-"
+    return f"{(us / 1000.0):.3f} ms"
+
+def fmt_pct(v):
+    if v is None:
+        return "-"
+    return f"{v:.2f}%"
+
+def spacing_row(name, stats):
+    if not stats:
+        return None
+    return (
+        name,
+        stats.get('count', 0),
+        fmt_ms(stats.get('spacing_min_us')),
+        fmt_ms(stats.get('spacing_mean_us')),
+        fmt_ms(stats.get('spacing_max_us')),
+        fmt_pct(stats.get('spacing_cv_pct')),
+        fmt_pct(stats.get('burst_short_pct')),
+        fmt_pct(stats.get('burst_long_pct')),
+        stats.get('burst_p99_p50', None),
+    )
+
+print()
+print("| Stream | Packets | Spacing (min) | Spacing (mean) | Spacing (max) | CV | Burst <0.5×P50 | Gaps >2×P50 | P99/P50 |")
+print("|--------|---------|---------------|----------------|---------------|----|--------------|------------|--------|")
+
+rows = [
+    spacing_row('All', all_stats),
+    spacing_row('Video', video),
+    spacing_row('Audio', audio),
+]
+
+for r in rows:
+    if not r:
+        continue
+    name, count, min_ms, mean_ms, max_ms, cv, burst_short, burst_long, p99_p50 = r
+    p99_p50_str = f"{p99_p50:.3f}" if isinstance(p99_p50, (int, float)) else "-"
+    print(f"| {name} | {count} | {min_ms} | {mean_ms} | {max_ms} | {cv} | {burst_short} | {burst_long} | {p99_p50_str} |")
+
 # Build table
+print()
 print("| Stream | Packets | Jitter (median) | Jitter (max) | Out-of-Order |")
 print("|--------|---------|-----------------|--------------|--------------|")
 
@@ -1987,6 +2077,18 @@ PY
         fi
         echo >> "${report_file}"
         echo "Details: [network.json](network.json)" >> "${report_file}"
+
+        # Surface all raw fields from network.json in the README for easy review.
+        if command -v python3 >/dev/null 2>&1; then
+            echo >> "${report_file}"
+            echo "<details>" >> "${report_file}"
+            echo "<summary>Raw network.json</summary>" >> "${report_file}"
+            echo >> "${report_file}"
+            echo "\`\`\`json" >> "${report_file}"
+            python3 -m json.tool "${OUTPUT_DIR}/network.json" >> "${report_file}" 2>/dev/null || cat "${OUTPUT_DIR}/network.json" >> "${report_file}"
+            echo "\`\`\`" >> "${report_file}"
+            echo "</details>" >> "${report_file}"
+        fi
     fi
 
     # Perf profiling summary (if available)
@@ -3017,6 +3119,16 @@ main() {
             "warning") echo "  ⚠️  UDP Packet Reception: ${udp_details}" ;;
             "fail") echo "  ❌ UDP Packet Reception: ${udp_details}" ;;
             *) echo "  ❓ UDP Packet Reception: Status unknown" ;;
+        esac
+
+        # Network Timing
+        local net_status=$(jq -r '.network_timing.status' "${validation_file}" 2>/dev/null || echo "unknown")
+        local net_details=$(jq -r '.network_timing.details' "${validation_file}" 2>/dev/null || echo "")
+        case "${net_status}" in
+            "pass") echo "  ✅ Network Timing: ${net_details}" ;;
+            "warning") echo "  ⚠️  Network Timing: ${net_details}" ;;
+            "fail") echo "  ❌ Network Timing: ${net_details}" ;;
+            *) echo "  ❓ Network Timing: Status unknown" ;;
         esac
 
         # Frame Processing

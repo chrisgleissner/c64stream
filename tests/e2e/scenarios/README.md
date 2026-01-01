@@ -72,7 +72,7 @@ assertions:
 | ntsc_phosphor_glow    | NTSC   | Phosphor Glow  | video_quality, audio, afterglow, scanlines |
 | ntsc_vintage_tv       | NTSC   | Vintage TV     | video_quality, audio, afterglow, scanlines |
 | ntsc_arcade_cabinet   | NTSC   | Arcade Cabinet | video_quality, audio, scanlines   |
-| ntsc_delay_500ms      | NTSC   | Default        | video_quality, audio (buffer test)|
+| ntsc_delay_buffer500ms      | NTSC   | Default        | video_quality, audio (buffer test)|
 | pal_default           | PAL    | Default        | video_quality, audio              |
 
 ## Adding New Scenarios

@@ -1,0 +1,33 @@
+{
+  "video": {
+    "count": 27199,
+    "interval_median_us": 4.0,
+    "interval_max_us": 14209.0,
+    "interval_min_us": 1.0,
+    "interval_mean_us": 293.39,
+    "jitter_median_us": 2.0,
+    "jitter_max_us": 14205.0,
+    "jitter_median_ms": 0.002,
+    "jitter_max_ms": 14.205,
+    "out_of_order_count": 0,
+    "out_of_order_rate_pct": 0.0
+  },
+  "audio": {
+    "count": 1992,
+    "interval_median_us": 4246.0,
+    "interval_max_us": 12324.0,
+    "interval_min_us": 4.0,
+    "interval_mean_us": 4000.98,
+    "jitter_median_us": 386.0,
+    "jitter_max_us": 8078.0,
+    "jitter_median_ms": 0.386,
+    "jitter_max_ms": 8.078,
+    "out_of_order_count": 0,
+    "out_of_order_rate_pct": 0.0
+  },
+  "summary": {
+    "total_video_packets": 27199,
+    "total_audio_packets": 1992,
+    "analysis_complete": true
+  }
+}

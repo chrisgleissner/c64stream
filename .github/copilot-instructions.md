@@ -9,7 +9,7 @@
 3. **Agent entrypoint**: also see `AGENTS.md` (references this file and standard workflows).
 4. **Before declaring work "complete"**: do a documentation review (docs match code/behavior) and run a full local E2E scenario suite (all scenarios).
 5. **Run BOTH local AND CI builds**: before any change is considered done, run:
-   - Local build: `./local-build.sh linux --install --e2e-scenarios` (runs full build with all E2E scenarios)
+    - Local build: `./local-build.sh linux --install --e2e-scenarios` (runs full build, unit tests, and all E2E scenarios)
     - CI build: trigger via push (do not use `act`)
    - Both must pass with zero errors before declaring completion
 6. **NEVER skip tests or ignore problems**: When facing test failures, performance issues, or other problems:
@@ -138,7 +138,10 @@ fi
 
 # E2E (MANDATORY for plugin behavior changes, but LOCAL ONLY. Do NOT run in cloud/CI environments.)
 # Requires a working graphical environment (X11/Wayland) and OBS installed.
-./local-build linux --install --e2e
+./local-build.sh linux --install --e2e
+
+# Unit tests (run by default in local-build.sh; use --no-tests to skip)
+./local-build.sh linux --tests
 
 # Full E2E scenario suite (LOCAL ONLY) - run all scenarios
 cd tests/e2e

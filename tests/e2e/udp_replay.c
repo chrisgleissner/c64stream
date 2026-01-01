@@ -130,7 +130,25 @@ static int load_manifest(const char *path, struct packet_entry **entries, int *c
 
         *comma = '\0';
         char *fname = line;
-        long delay = atol(comma + 1);
+        char *delay_str = comma + 1;
+
+        // Trim leading whitespace from delay
+        while (*delay_str == ' ' || *delay_str == '\t')
+            delay_str++;
+
+        errno = 0;
+        char *endp = NULL;
+        long delay = strtol(delay_str, &endp, 10);
+        if (errno != 0 || endp == delay_str) {
+            fclose(f);
+            free(*entries);
+            return -1;
+        }
+        if (delay < 0) {
+            fclose(f);
+            free(*entries);
+            return -1;
+        }
 
         // Trim whitespace and newlines
         size_t len = strlen(fname);
@@ -292,7 +310,11 @@ int main(int argc, char **argv)
         uint64_t target_us = start_us + cumulative_us;
         uint64_t now_us = get_time_us();
         if (target_us <= now_us) {
+            // We're behind schedule (e.g. startup/preload took longer than the lead time).
+            // Do NOT permanently collapse the schedule to MIN_CATCHUP_GAP_US; instead, resync
+            // the schedule origin so subsequent packets continue to follow the manifest spacing.
             target_us = now_us + MIN_CATCHUP_GAP_US;
+            start_us = target_us - cumulative_us;
         }
         sleep_until_us(target_us);
 

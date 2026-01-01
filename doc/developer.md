@@ -50,6 +50,19 @@ This ensures that after E2E tests, subsequent OBS launches load fresh settings f
 ./local-build.sh linux --e2e --install
 ```
 
+**Unit tests** (run by default in `local-build.sh`):
+
+```bash
+# Run only build + unit tests
+./local-build.sh linux
+
+# Explicitly run tests (same as default)
+./local-build.sh linux --tests
+
+# Skip tests (not recommended)
+./local-build.sh linux --no-tests
+```
+
 **Post-E2E Cleanup** (automatic during install):
 
 - Backs up any E2E properties files
