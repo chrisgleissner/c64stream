@@ -31,14 +31,19 @@ extern "C" {
 
 #define C64_MAX_DELAY_MS 500
 
-// Maximum supported network jitter (ms). Buffer must hold packets for delay + jitter.
+// Maximum supported network jitter (ms). Must be < C64_MAX_DELAY_MS.
+// Jitter = random per-packet delay variation (0 to max_jitter_ms).
+// With jitter < delay, all packets arrive before their playback time.
 #define C64_MAX_JITTER_MS 400
 
-// Buffer sizing: Use worst-case NTSC video rate for allocation
-// Buffer must hold: delay_ms + jitter_ms worth of packets with 10% safety margin
-// Example: 500ms delay + 400ms jitter = 900ms * 3590 pkt/s * 1.1 = 3554 packets
-#define C64_MAX_VIDEO_PACKETS (((C64_MAX_VIDEO_RATE * (C64_MAX_DELAY_MS + C64_MAX_JITTER_MS)) * 11) / 10000) // 10% margin
-#define C64_MAX_AUDIO_PACKETS (((C64_MAX_AUDIO_RATE * (C64_MAX_DELAY_MS + C64_MAX_JITTER_MS)) * 11) / 10000) // 10% margin
+// Buffer sizing rationale:
+// - At steady state, buffer holds ~delay_ms worth of packets awaiting playback.
+// - With jitter, packets arrive reordered: early arrivals wait longer, late arrivals less.
+// - Worst case: burst when many delayed packets arrive together with on-time packets.
+// - Conservative sizing: (delay + jitter) * rate handles transients and startup bursts.
+// - Formula: rate * (delay_ms + jitter_ms) / 1000 * 1.1 (10% margin)
+#define C64_MAX_VIDEO_PACKETS (((C64_MAX_VIDEO_RATE * (C64_MAX_DELAY_MS + C64_MAX_JITTER_MS)) * 11) / 10000)
+#define C64_MAX_AUDIO_PACKETS (((C64_MAX_AUDIO_RATE * (C64_MAX_DELAY_MS + C64_MAX_JITTER_MS)) * 11) / 10000)
 
 struct c64_network_buffer;
 
