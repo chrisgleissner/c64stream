@@ -1073,7 +1073,7 @@ void c64_video_tick(void *data, float seconds)
         // Note: afterglow is applied at frame delivery time (video thread) into `afterglow_cpu_accum`.
         // We must NOT write afterglow back into `frame_buffer` here; that creates feedback and flicker when
         // packets drop or when video thread is concurrently writing the raw buffer.
-        if (context->frame_dirty && context->frame_buffer && context->width > 0 && context->height > 0) {
+        if (context->frame_buffer && context->width > 0 && context->height > 0) {
             const uint32_t *src_pixels = context->frame_buffer;
             if (context->afterglow_enable && context->afterglow_cpu_accum && context->afterglow_cpu_valid &&
                 context->afterglow_duration_ms > 0) {
@@ -1082,7 +1082,6 @@ void c64_video_tick(void *data, float seconds)
             obs_enter_graphics();
             gs_texture_set_image(context->render_texture, (const uint8_t *)src_pixels, context->width * 4, false);
             obs_leave_graphics();
-            context->frame_dirty = false;
         }
     }
 }

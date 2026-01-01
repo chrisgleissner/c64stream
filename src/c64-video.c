@@ -717,9 +717,6 @@ void c64_render_frame_direct(struct c64_source *context, struct frame_assembly *
     // Output frame directly to OBS
     obs_source_output_video(context->source, &obs_frame);
 
-    // Mark frame_dirty so the render thread can skip redundant texture uploads when unchanged.
-    context->frame_dirty = true;
-
     // Log video frame delivery to CSV if enabled (high-level event: complete frame delivered to OBS)
     if (context->timing_file) {
         size_t frame_size = context->width * context->height * 4; // RGBA bytes
@@ -938,21 +935,17 @@ void *c64_video_thread_func(void *data)
     pthread_setschedparam(pthread_self(), SCHED_OTHER, &param);
 #endif
 
-    // Set socket receive timeout to reduce blocking jitter
 #ifdef _WIN32
+    // Set socket receive timeout to reduce blocking jitter (Windows only)
     DWORD timeout_ms = 10;
     setsockopt(context->video_socket, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout_ms, sizeof(timeout_ms));
-#else
-    struct timeval tv;
-    tv.tv_sec = 0;
-    tv.tv_usec = 10000; // 10ms
-    setsockopt(context->video_socket, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
 #endif
 
     C64_LOG_DEBUG("Video thread function started with optimized scheduling");
 
-#ifdef __linux__
+#ifdef __linux__DISABLED_FOR_E2E_STABILITY
 // Batch read optimization for Linux: receive up to 8 packets per syscall
+// DISABLED: Causes frame repetition issues in E2E tests - needs further investigation
 #define BATCH_SIZE 8
     uint8_t packet_batch[BATCH_SIZE][C64_VIDEO_PACKET_SIZE];
     struct mmsghdr msgs[BATCH_SIZE];
@@ -978,8 +971,9 @@ void *c64_video_thread_func(void *data)
             continue;
         }
 
-#ifdef __linux__
+#ifdef __linux__DISABLED_FOR_E2E_STABILITY
         // Linux: batch read with recvmmsg (reduces syscall overhead)
+        // DISABLED: Causes frame repetition issues in E2E tests
         int num_msgs = recvmmsg(context->video_socket, msgs, BATCH_SIZE, MSG_DONTWAIT, NULL);
 
         if (num_msgs < 0) {
@@ -1104,7 +1098,7 @@ void *c64_video_thread_func(void *data)
                 c64_process_video_packet_direct(context, packet, received, now);
             }
 
-#ifdef __linux__
+#ifdef __linux__DISABLED_FOR_E2E_STABILITY
         } // End batch packet processing loop
 #else
         } // End scope block
@@ -1183,7 +1177,6 @@ static void c64_render_black_screen(struct c64_source *context, uint64_t timesta
 
     // Black screen: 0x00000000 (fully transparent black in RGBA)
     memset(buffer, 0, width * height * sizeof(uint32_t));
-    context->frame_dirty = true;
 
     // Output black frame via async video - ALWAYS output to maintain video stream
     struct obs_source_frame obs_frame = {0};
@@ -1374,6 +1367,7 @@ void *c64_video_processor_thread_func(void *data)
     // Initialize last_frame_time to 0 so logo shows immediately on startup
     context->last_frame_time = 0;
 
+    // Adaptive idle spin counter (persists across iterations)
     // Adaptive idle spin counter (persists across iterations)
     int idle_spins = 0;
 
