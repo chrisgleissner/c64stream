@@ -115,7 +115,16 @@ def detect_video_pop_events(video_path, frame_rate=30.0):
         pass
     cap = cv2.VideoCapture(str(video_path))
 
-    skip_frames = int(0.5 * frame_rate)
+    # Skip the initial logo/settling period.
+    # Heavy CRT presets (afterglow/tint/scanlines) can cause early false positives
+    # in the pop ROI during startup, which then misaligns A/V sync matching.
+    # The E2E suite uses a 4s settling window elsewhere; align with that here.
+    desired_skip_s = 4.0
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+    skip_frames = int(desired_skip_s * frame_rate)
+    if total_frames and total_frames < int((desired_skip_s + 1.0) * frame_rate):
+        # Fallback for short clips: still skip a bit, but keep enough frames for detection.
+        skip_frames = int(0.5 * frame_rate)
     metrics: list[float] = []
     frame_nums: list[int] = []
     frame_times_ms: list[float | None] = []
@@ -239,26 +248,47 @@ def detect_video_pop_events(video_path, frame_rate=30.0):
         peak = float(np.percentile(arr, 99.5))
         return (peak - med) / mad, med, mad
 
-    # metrics is list of (left_brightness, right_brightness) tuples
-    # Create max_metrics array for threshold detection
-    max_metrics = np.array([max(m[0], m[1]) for m in metrics], dtype=float)
-    _, chosen_med, chosen_mad = _score(max_metrics)
+    # metrics is list of (left_brightness, right_brightness) tuples.
+    #
+    # IMPORTANT:
+    # For heavy CRT effects (afterglow/bloom/tint/scanlines), absolute brightness
+    # can drift and/or compress, which causes missed pops and wrong cadence.
+    # We instead detect pops using *delta above a rolling baseline* per half.
+    lr = np.array(metrics, dtype=float)
+    left_b = lr[:, 0]
+    right_b = lr[:, 1]
 
-    # Threshold for spikes. Use a moderate multiplier to balance false positives vs detection
-    # of CRT effect scenarios where bloom/afterglow reduce contrast.
-    # If MAD collapses (bimodal/stable metric), fall back to percentile-based separation.
+    window = max(8, int(round(0.50 * frame_rate)))  # ~0.5s rolling baseline
+
+    def _rolling_median(x: np.ndarray, w: int) -> np.ndarray:
+        out = np.empty_like(x)
+        for i in range(len(x)):
+            s = max(0, i - w)
+            # Use strictly previous samples to avoid pop contaminating its own baseline.
+            if i <= s:
+                out[i] = x[i]
+            else:
+                out[i] = float(np.nanmedian(x[s:i]))
+        return out
+
+    base_l = _rolling_median(left_b, window)
+    base_r = _rolling_median(right_b, window)
+    delta_l = left_b - base_l
+    delta_r = right_b - base_r
+
+    delta_max = np.maximum(delta_l, delta_r)
+    _, chosen_med, chosen_mad = _score(delta_max)
+
+    # Threshold for spikes in delta-space.
     if chosen_mad <= 1.0:
-        threshold = float(np.nanpercentile(max_metrics, 98.0))  # Lower from 99 to 98 for CRT effects
+        threshold = float(np.nanpercentile(delta_max, 98.0))
     else:
-        threshold = float(chosen_med + 5.0 * chosen_mad)  # Lower from 8.0 to 5.0 for CRT effects
-    # Lower the minimum threshold to 3.0 to detect pops when CRT effects (bloom/afterglow)
-    # significantly reduce contrast. The white pop flash on black background should
-    # still exceed this when measured as percentile(inner, 98) - percentile(outer, 50).
-    threshold = max(threshold, 3.0)
+        threshold = float(chosen_med + 6.0 * chosen_mad)
+    threshold = max(threshold, 2.0)
 
 
     # Convert threshold hits into stable, de-bounced pop start events.
-    hot = np.where(np.isfinite(max_metrics) & (max_metrics > threshold))[0]
+    hot = np.where(np.isfinite(delta_max) & (delta_max > threshold))[0]
     if hot.size == 0:
         return []
 
@@ -289,8 +319,8 @@ def detect_video_pop_events(video_path, frame_rate=30.0):
     # With bloom/blur effects, the first frame above threshold may be 1-2 frames after
     # the actual pop started, because the effect takes time to build up brightness.
     # We detect the onset by finding where brightness first rises significantly above baseline.
-    onset_threshold_factor = 0.3  # Pop onset is when metric exceeds 30% of peak-to-baseline
-    lookback_frames = 3  # Maximum frames to look back
+    onset_threshold_factor = 0.25  # Slightly earlier onset for CRT effects
+    lookback_frames = max(6, int(round(0.25 * frame_rate)))  # allow up to ~250ms lookback
 
     events: list[dict] = []
     last_frame = None
@@ -300,25 +330,18 @@ def detect_video_pop_events(video_path, frame_rate=30.0):
         if idx > 0:
             # Get the peak metric value for this pop cluster
             cluster_end_idx = idx
-            while cluster_end_idx + 1 < len(max_metrics) and max_metrics[cluster_end_idx + 1] > threshold:
+            while cluster_end_idx + 1 < len(delta_max) and delta_max[cluster_end_idx + 1] > threshold:
                 cluster_end_idx += 1
-            peak_metric = float(np.nanmax(max_metrics[idx:cluster_end_idx + 1]))
+            peak_metric = float(np.nanmax(delta_max[idx:cluster_end_idx + 1]))
 
-            # Calculate baseline from frames before the pop
-            baseline_start = max(0, idx - 10)
-            baseline_end = max(0, idx - 3)
-            if baseline_end > baseline_start:
-                baseline = float(np.nanmedian(max_metrics[baseline_start:baseline_end]))
-            else:
-                baseline = chosen_med
-
-            # Onset threshold: baseline + 30% of (peak - baseline)
-            onset_thresh = baseline + onset_threshold_factor * (peak_metric - baseline)
+            # In delta-space, baseline should be ~0. Use a small floor to avoid
+            # NaN/negative artifacts from rolling median.
+            onset_thresh = max(0.5, onset_threshold_factor * peak_metric)
 
             # Look backwards to find first frame above onset threshold
             for lookback in range(1, min(lookback_frames + 1, idx + 1)):
                 check_idx = idx - lookback
-                if np.isfinite(max_metrics[check_idx]) and max_metrics[check_idx] > onset_thresh:
+                if np.isfinite(delta_max[check_idx]) and delta_max[check_idx] > onset_thresh:
                     true_idx = check_idx
                 else:
                     break  # Stop looking back once we find a frame below threshold
@@ -331,9 +354,8 @@ def detect_video_pop_events(video_path, frame_rate=30.0):
         if t is None or (isinstance(t, float) and not np.isfinite(t)):
             t = None
 
-        # Determine which channel (L/R) the pop is on based on which half is brighter
-        left_b, right_b = metrics[true_idx]
-        channel = 'L' if left_b > right_b else 'R'
+        # Determine which channel (L/R) the pop is on based on which half has higher delta.
+        channel = 'L' if float(delta_l[true_idx]) > float(delta_r[true_idx]) else 'R'
 
         events.append({'frame': fn, 'time_ms': t, 'channel': channel})
         last_frame = fn

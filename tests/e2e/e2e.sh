@@ -2077,18 +2077,6 @@ PY
         fi
         echo >> "${report_file}"
         echo "Details: [network.json](network.json)" >> "${report_file}"
-
-        # Surface all raw fields from network.json in the README for easy review.
-        if command -v python3 >/dev/null 2>&1; then
-            echo >> "${report_file}"
-            echo "<details>" >> "${report_file}"
-            echo "<summary>Raw network.json</summary>" >> "${report_file}"
-            echo >> "${report_file}"
-            echo "\`\`\`json" >> "${report_file}"
-            python3 -m json.tool "${OUTPUT_DIR}/network.json" >> "${report_file}" 2>/dev/null || cat "${OUTPUT_DIR}/network.json" >> "${report_file}"
-            echo "\`\`\`" >> "${report_file}"
-            echo "</details>" >> "${report_file}"
-        fi
     fi
 
     # Perf profiling summary (if available)

@@ -169,6 +169,11 @@ static int load_manifest(const char *path, struct packet_entry **entries, int *c
 
 int main(int argc, char **argv)
 {
+    // Ensure logs are emitted in real time even when stdout is piped.
+    // Without this, stdio may use block buffering and delay output until exit.
+    setvbuf(stdout, NULL, _IOLBF, 0);
+    setvbuf(stderr, NULL, _IOLBF, 0);
+
     if (argc < 6) {
         printf("Usage: %s <manifest> <dir> <host> <port> <packet_size> [--verbose] [--start-at-us <t>]\n", argv[0]);
         return 1;
@@ -286,6 +291,14 @@ int main(int argc, char **argv)
         }
     }
 
+    if (verbose) {
+        static const uint64_t NS_PER_US = 1000ULL;
+        (void)NS_PER_US;
+        // get_time_us() is monotonic on both platforms.
+        // We don't track start separately here; the useful signal is simply "preload done".
+        printf("Preload complete (%d packets, %llu bytes)\n", count, (unsigned long long)total_bytes);
+    }
+
     // Align start across processes (audio+video) using an absolute monotonic timestamp.
     uint64_t start_us = start_at_us ? start_at_us : get_time_us();
     sleep_until_us(start_us);
@@ -299,24 +312,16 @@ int main(int argc, char **argv)
 
         // Wait until target time (absolute schedule).
         //
-        // IMPORTANT: In preempted/loaded environments we may get behind schedule.
-        // A pure absolute schedule would then "catch up" by sending back-to-back,
-        // which can overflow small UDP receive buffers (CI) and cause massive loss.
-        //
-        // To prevent that, rate-limit catch-up bursts by enforcing a minimum gap
-        // when we're already behind (target time is in the past).
-        const uint64_t MIN_CATCHUP_GAP_US = 50;
+        // IMPORTANT: In loaded environments we may get behind schedule.
+        // We must NOT permanently slow down the stream by shifting the schedule origin,
+        // and we must NOT add extra delays when we're behind (that stretches the stream).
+        // If we fall behind, we send immediately until we catch up.
         cumulative_us += (uint64_t)entries[i].delay_us;
         uint64_t target_us = start_us + cumulative_us;
         uint64_t now_us = get_time_us();
-        if (target_us <= now_us) {
-            // We're behind schedule (e.g. startup/preload took longer than the lead time).
-            // Do NOT permanently collapse the schedule to MIN_CATCHUP_GAP_US; instead, resync
-            // the schedule origin so subsequent packets continue to follow the manifest spacing.
-            target_us = now_us + MIN_CATCHUP_GAP_US;
-            start_us = target_us - cumulative_us;
+        if (target_us > now_us) {
+            sleep_until_us(target_us);
         }
-        sleep_until_us(target_us);
 
         ssize_t rc = -1;
         for (int attempt = 0; attempt < 10; attempt++) {

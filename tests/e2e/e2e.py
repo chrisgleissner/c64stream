@@ -2515,7 +2515,12 @@ class E2ETest:
             # Align sender start across processes (audio+video) using an absolute monotonic timestamp.
             # Each sender preloads packets from disk, so we schedule a common start time a bit
             # into the future to avoid initial A/V offset due to differing preload times.
-            lead_s = 4.0 if self.is_ci else 2.0
+            # IMPORTANT:
+            # udp_replay preloads tens of thousands of small packet files. On a cold filesystem
+            # cache, video preload can take multiple seconds. If the sender misses start_at_us,
+            # it will begin sending late, causing a real A/V offset in the recording.
+            # Use a generous lead time to ensure both senders are ready before the shared start.
+            lead_s = 10.0 if self.is_ci else 8.0
             start_at_us = (time.monotonic_ns() // 1000) + int(lead_s * 1_000_000)
 
             video_cmd = [
@@ -2546,28 +2551,52 @@ class E2ETest:
             self.log(f"   Video: {' '.join(video_cmd)}")
             self.log(f"   Audio: {' '.join(audio_cmd)}")
 
-            # Run both processes in parallel
+            # Run both processes in parallel and stream their logs live.
+            #
+            # IMPORTANT: Do not use capture_output=True here.
+            # We want UDP sender progress logs to appear on stdout at the moment
+            # packets are actually sent (interleaved with resource monitoring).
             import threading
+            import subprocess as sp
 
-            video_result = {'returncode': None, 'stdout': '', 'stderr': ''}
-            audio_result = {'returncode': None, 'stdout': '', 'stderr': ''}
+            def run_sender(cmd: list[str], label: str) -> tuple[int, list[str]]:
+                lines: list[str] = []
+                proc = sp.Popen(
+                    cmd,
+                    stdout=sp.PIPE,
+                    stderr=sp.STDOUT,
+                    text=True,
+                    bufsize=1,
+                )
+
+                assert proc.stdout is not None
+
+                for line in proc.stdout:
+                    line = line.rstrip('\n')
+                    if line:
+                        # Keep a small buffer for error reporting.
+                        if len(lines) < 200:
+                            lines.append(line)
+                        self.log(f"[{label}] {line}")
+
+                rc = proc.wait()
+                return rc, lines
+
+            video_result: dict[str, object] = {'returncode': None, 'lines': []}
+            audio_result: dict[str, object] = {'returncode': None, 'lines': []}
 
             def run_video():
-                import subprocess as sp
-                proc = sp.run(video_cmd, capture_output=True, text=True)
-                video_result['returncode'] = proc.returncode
-                video_result['stdout'] = proc.stdout
-                video_result['stderr'] = proc.stderr
+                rc, lines = run_sender(video_cmd, 'UDP-VIDEO')
+                video_result['returncode'] = rc
+                video_result['lines'] = lines
 
             def run_audio():
-                import subprocess as sp
-                proc = sp.run(audio_cmd, capture_output=True, text=True)
-                audio_result['returncode'] = proc.returncode
-                audio_result['stdout'] = proc.stdout
-                audio_result['stderr'] = proc.stderr
+                rc, lines = run_sender(audio_cmd, 'UDP-AUDIO')
+                audio_result['returncode'] = rc
+                audio_result['lines'] = lines
 
-            video_thread = threading.Thread(target=run_video)
-            audio_thread = threading.Thread(target=run_audio)
+            video_thread = threading.Thread(target=run_video, name='udp-replay-video')
+            audio_thread = threading.Thread(target=run_audio, name='udp-replay-audio')
 
             video_thread.start()
             audio_thread.start()
@@ -2579,19 +2608,19 @@ class E2ETest:
 
             # Check results
             if video_result['returncode'] != 0:
-                self.log(f"❌ Video sender failed: {video_result['stderr']}")
+                self.log("❌ Video sender failed")
+                for line in (video_result.get('lines') or [])[-30:]:
+                    self.log(f"[UDP-VIDEO] {line}")
                 return False
 
             if audio_result['returncode'] != 0:
-                self.log(f"❌ Audio sender failed: {audio_result['stderr']}")
+                self.log("❌ Audio sender failed")
+                for line in (audio_result.get('lines') or [])[-30:]:
+                    self.log(f"[UDP-AUDIO] {line}")
                 return False
 
             # Parse output to get packet counts
             packets_sent = len(video_manifest) + len(audio_manifest)
-
-            if self.verbose:
-                self.log(f"📤 Video output:\n{video_result['stdout']}")
-                self.log(f"📤 Audio output:\n{audio_result['stdout']}")
 
             print(f"📡 C binary sender: sent {packets_sent} packets in {elapsed_ms:.1f}ms")
             self.log(f"✅ Packet replay complete: {packets_sent} packets sent in {elapsed_ms:.1f}ms")
