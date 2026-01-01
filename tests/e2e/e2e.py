@@ -2325,6 +2325,12 @@ class E2ETest:
             # Spawn C binary processes for video and audio in parallel
             replay_start_time = time.time()
 
+            # Align sender start across processes (audio+video) using an absolute monotonic timestamp.
+            # Each sender preloads packets from disk, so we schedule a common start time a bit
+            # into the future to avoid initial A/V offset due to differing preload times.
+            lead_s = 4.0 if self.is_ci else 2.0
+            start_at_us = (time.monotonic_ns() // 1000) + int(lead_s * 1_000_000)
+
             video_cmd = [
                 str(udp_replay_bin),
                 str(video_manifest_path),
@@ -2332,6 +2338,8 @@ class E2ETest:
                 self.video_dest_ip,
                 str(self.video_dest_port),
                 '780',  # video packet size
+                '--start-at-us',
+                str(start_at_us),
                 '--verbose'
             ]
 
@@ -2342,6 +2350,8 @@ class E2ETest:
                 self.audio_dest_ip,
                 str(self.audio_dest_port),
                 '770',  # audio packet size
+                '--start-at-us',
+                str(start_at_us),
                 '--verbose'
             ]
 
@@ -2356,13 +2366,15 @@ class E2ETest:
             audio_result = {'returncode': None, 'stdout': '', 'stderr': ''}
 
             def run_video():
-                proc = subprocess.run(video_cmd, capture_output=True, text=True)
+                import subprocess as sp
+                proc = sp.run(video_cmd, capture_output=True, text=True)
                 video_result['returncode'] = proc.returncode
                 video_result['stdout'] = proc.stdout
                 video_result['stderr'] = proc.stderr
 
             def run_audio():
-                proc = subprocess.run(audio_cmd, capture_output=True, text=True)
+                import subprocess as sp
+                proc = sp.run(audio_cmd, capture_output=True, text=True)
                 audio_result['returncode'] = proc.returncode
                 audio_result['stdout'] = proc.stdout
                 audio_result['stderr'] = proc.stderr

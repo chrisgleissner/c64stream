@@ -152,7 +152,7 @@ static int load_manifest(const char *path, struct packet_entry **entries, int *c
 int main(int argc, char **argv)
 {
     if (argc < 6) {
-        printf("Usage: %s <manifest> <dir> <host> <port> <packet_size> [--verbose]\n", argv[0]);
+        printf("Usage: %s <manifest> <dir> <host> <port> <packet_size> [--verbose] [--start-at-us <t>]\n", argv[0]);
         return 1;
     }
 
@@ -161,7 +161,20 @@ int main(int argc, char **argv)
     const char *host = argv[3];
     int port = atoi(argv[4]);
     int packet_size = atoi(argv[5]);
-    int verbose = (argc > 6 && strcmp(argv[6], "--verbose") == 0);
+    int verbose = 0;
+    uint64_t start_at_us = 0;
+
+    for (int i = 6; i < argc; i++) {
+        if (strcmp(argv[i], "--verbose") == 0) {
+            verbose = 1;
+            continue;
+        }
+        if (strcmp(argv[i], "--start-at-us") == 0 && (i + 1) < argc) {
+            start_at_us = (uint64_t)strtoull(argv[i + 1], NULL, 10);
+            i++;
+            continue;
+        }
+    }
 
     if (port <= 0 || port > 65535 || packet_size <= 0 || packet_size > MAX_PACKET_SIZE) {
         fprintf(stderr, "Invalid port or packet_size\n");
@@ -211,10 +224,22 @@ int main(int argc, char **argv)
     if (verbose)
         printf("Loaded %d entries from manifest\n", count);
 
-    uint64_t start_us = get_time_us();
-    uint64_t last_send_us = start_us;
-    int sent = 0;
-    int send_errors = 0;
+    // Preload packets into memory so send timing is not dominated by per-packet file I/O.
+    // This is critical for keeping up with the ~3.8K packets/sec rate without relying on
+    // catch-up bursts (which can overflow small UDP receive buffers in CI).
+    uint64_t total_bytes = (uint64_t)count * (uint64_t)packet_size;
+    if (count <= 0 || total_bytes == 0) {
+        fprintf(stderr, "No packets to send\n");
+        free(entries);
+        return 1;
+    }
+
+    uint8_t *packet_data = malloc((size_t)total_bytes);
+    if (!packet_data) {
+        fprintf(stderr, "Failed to allocate %llu bytes for packet preload\n", (unsigned long long)total_bytes);
+        free(entries);
+        return 1;
+    }
 
     for (int i = 0; i < count; i++) {
         char path[MAX_PATH_LEN];
@@ -225,20 +250,50 @@ int main(int argc, char **argv)
 #endif
 
         FILE *f = fopen(path, "rb");
-        if (!f)
-            continue;
+        if (!f) {
+            fprintf(stderr, "Failed to open packet file: %s\n", path);
+            free(packet_data);
+            free(entries);
+            return 1;
+        }
 
-        unsigned char buf[MAX_PACKET_SIZE];
-        size_t n = fread(buf, 1, packet_size, f);
+        uint8_t *dest = packet_data + ((uint64_t)i * (uint64_t)packet_size);
+        size_t n = fread(dest, 1, (size_t)packet_size, f);
         fclose(f);
+        if (n != (size_t)packet_size) {
+            fprintf(stderr, "Short read for packet file: %s (%zu/%d)\n", path, n, packet_size);
+            free(packet_data);
+            free(entries);
+            return 1;
+        }
+    }
 
-        if (n != (size_t)packet_size)
-            continue;
+    // Align start across processes (audio+video) using an absolute monotonic timestamp.
+    uint64_t start_us = start_at_us ? start_at_us : get_time_us();
+    sleep_until_us(start_us);
 
-        // Wait until target time relative to the LAST successful send.
-        // This prevents "catch-up bursts" when the sender is preempted or I/O is slow,
-        // which can overflow small UDP receive buffers in CI and cause massive packet loss.
-        uint64_t target_us = last_send_us + (uint64_t)entries[i].delay_us;
+    uint64_t cumulative_us = 0; // Target time relative to start
+    int sent = 0;
+    int send_errors = 0;
+
+    for (int i = 0; i < count; i++) {
+        uint8_t *buf = packet_data + ((uint64_t)i * (uint64_t)packet_size);
+
+        // Wait until target time (absolute schedule).
+        //
+        // IMPORTANT: In preempted/loaded environments we may get behind schedule.
+        // A pure absolute schedule would then "catch up" by sending back-to-back,
+        // which can overflow small UDP receive buffers (CI) and cause massive loss.
+        //
+        // To prevent that, rate-limit catch-up bursts by enforcing a minimum gap
+        // when we're already behind (target time is in the past).
+        const uint64_t MIN_CATCHUP_GAP_US = 50;
+        cumulative_us += (uint64_t)entries[i].delay_us;
+        uint64_t target_us = start_us + cumulative_us;
+        uint64_t now_us = get_time_us();
+        if (target_us <= now_us) {
+            target_us = now_us + MIN_CATCHUP_GAP_US;
+        }
         sleep_until_us(target_us);
 
         ssize_t rc = -1;
@@ -274,7 +329,6 @@ int main(int argc, char **argv)
             break;
         }
 
-        last_send_us = get_time_us();
         sent++;
 
         if (verbose && sent % 500 == 0)
@@ -285,6 +339,7 @@ int main(int argc, char **argv)
     if (verbose)
         printf("✅ Sent %d packets in %.1fms (send errors: %d)\n", sent, elapsed, send_errors);
 
+    free(packet_data);
     free(entries);
 #ifdef _WIN32
     closesocket(sock);
