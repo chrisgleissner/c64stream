@@ -48,5 +48,8 @@ results/**/stop_recording.marker
 results/**/video_manifest.csv
 results/**/audio_manifest.csv
 
+# Tool binaries built by the Python harness (CI-safe location)
+.e2e-tools/
+
 # Scanline test output (screenshots, packets, analysis)
 scanline_output/

@@ -3990,9 +3990,10 @@ def main():
     # Verify UDP replay tool exists; (re)build if needed.
     #
     # IMPORTANT:
-    # The repository currently includes a prebuilt `udp_replay` binary. In CI we still
-    # rebuild from source to ensure fixes to `udp_replay.c` take effect (and to avoid
-    # stale-binary regressions).
+    # - The repo includes a prebuilt `udp_replay` binary, but in CI we rebuild from source
+    #   so changes to `udp_replay.c` actually take effect.
+    # - Do NOT build into args.output_dir: the test harness wipes output_dir at runtime
+    #   (see E2ETest.clean_test_output), which would delete the freshly built binary.
     script_dir = Path(__file__).parent
     udp_replay_src = script_dir / "udp_replay.c"
 
@@ -4015,10 +4016,9 @@ def main():
             print(f"❌ UDP replay source not found: {udp_replay_src}")
             return 1
 
-        # Build into the output directory to avoid modifying tracked binaries in the repo.
-        build_dir = Path(args.output_dir) if args.output_dir else Path(args.test_dir)
-        build_dir.mkdir(parents=True, exist_ok=True)
-        udp_replay_path = build_dir / "udp_replay"
+        tool_dir = (Path(args.test_dir).resolve() / ".e2e-tools")
+        tool_dir.mkdir(parents=True, exist_ok=True)
+        udp_replay_path = tool_dir / "udp_replay"
 
         print(f"⚠️  (Re)building UDP replay tool ({rebuild_reason})...")
         print(f"🔨 Building UDP replay tool: {udp_replay_path}")
