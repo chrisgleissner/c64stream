@@ -16,7 +16,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include <math.h>
 
 struct packet_slot {
-    uint8_t data[C64_VIDEO_PACKET_SIZE > C64_AUDIO_PACKET_SIZE ? C64_VIDEO_PACKET_SIZE : C64_AUDIO_PACKET_SIZE];
+    uint8_t *data;
     size_t size;
     uint64_t timestamp_us;
     uint16_t sequence_num;
@@ -47,6 +47,9 @@ struct c64_network_buffer {
     // Storage for the actual slot arrays
     struct packet_slot video_slots[C64_MAX_VIDEO_PACKETS];
     struct packet_slot audio_slots[C64_MAX_AUDIO_PACKETS];
+    // Packet payload storage (kept separate so insertion sorting only moves small metadata structs).
+    uint8_t video_packet_data[C64_MAX_VIDEO_PACKETS][C64_VIDEO_PACKET_SIZE];
+    uint8_t audio_packet_data[C64_MAX_AUDIO_PACKETS][C64_AUDIO_PACKET_SIZE];
 };
 
 // ----------------------------------
@@ -375,6 +378,18 @@ struct c64_network_buffer *c64_network_buffer_create(void)
     if (!buf) {
         C64_LOG_ERROR("Failed to allocate network buffer");
         return NULL;
+    }
+
+    // Initialize per-slot data pointers (payload storage is in contiguous arrays).
+    for (size_t i = 0; i < C64_MAX_VIDEO_PACKETS; i++) {
+        buf->video_slots[i].data = buf->video_packet_data[i];
+        buf->video_slots[i].size = C64_VIDEO_PACKET_SIZE;
+        buf->video_slots[i].valid = false;
+    }
+    for (size_t i = 0; i < C64_MAX_AUDIO_PACKETS; i++) {
+        buf->audio_slots[i].data = buf->audio_packet_data[i];
+        buf->audio_slots[i].size = C64_AUDIO_PACKET_SIZE;
+        buf->audio_slots[i].valid = false;
     }
 
     // Initialize video buffer
