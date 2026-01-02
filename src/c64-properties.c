@@ -235,10 +235,10 @@ obs_properties_t *c64_create_properties(void *data)
     // Disable delete button initially (enabled only when custom palette is selected)
     obs_property_set_enabled(delete_btn, false);
 
-    // Collapsible Color Editor group (checkable - collapsed by default)
+    // Collapsible Color Editor group (with arrow to expand/collapse, not checkbox)
     obs_property_t *color_editor_group = obs_properties_add_group(palette_props, "color_editor_group",
                                                                   obs_module_text("PaletteColorEditor"),
-                                                                  OBS_GROUP_CHECKABLE, obs_properties_create());
+                                                                  OBS_GROUP_NORMAL, obs_properties_create());
     obs_properties_t *color_editor_props = obs_property_group_content(color_editor_group);
 
     // Visual color editor (4x4 grid as 4 rows)
