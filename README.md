@@ -198,7 +198,7 @@ The plugin offers three independent recording options that can be enabled separa
 - Saves individual video frames as uncompressed BMP files
 - Useful for debugging video issues or creating frame-by-frame analysis
 - **Performance Impact:** Enabling this feature will reduce streaming performance due to disk I/O
-- **Note:** CRT effects (scanlines, bloom, etc.) are NOT applied to recorded frames. Palette changes ARE applied.
+- **Note:** CRT effects (scanlines, bloom, afterglow, etc.) are NOT applied to recorded frames. Palette changes ARE applied.
 - Files saved as: `session_YYYYMMDD_HHMMSS/frames/frame_NNNNNN.bmp`
 
 **🎬 Raw Video and Audio (AVI + WAV):**
@@ -206,7 +206,7 @@ The plugin offers three independent recording options that can be enabled separa
 - Records uncompressed AVI video and separate WAV audio files
 - Captures the raw data stream without OBS processing
 - **High Disk Usage:** Uncompressed video files are very large (~50MB per minute)
-- **Note:** CRT effects (scanlines, bloom, etc.) are NOT applied to recorded video. Palette changes ARE applied.
+- **Note:** CRT effects (scanlines, bloom, afterglow, etc.) are NOT applied to recorded video. Palette changes ARE applied.
 - Video file: `session_YYYYMMDD_HHMMSS/video.avi` (24-bit BGR format)
 - Audio file: `session_YYYYMMDD_HHMMSS/audio.wav` (16-bit stereo PCM)
 
