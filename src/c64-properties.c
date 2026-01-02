@@ -1273,15 +1273,15 @@ static bool palette_color_changed(void *data, obs_properties_t *props, obs_prope
     uint8_t g = (obs_color >> 8) & 0xFF;
     uint8_t r = obs_color & 0xFF;
 
-    // Convert to BGRA format used by the palette system
-    uint32_t bgra = 0xFF000000 | (b << 16) | (g << 8) | r;
+    // Maintain ABGR format (0xFFBBGGRR) used by the palette system
+    uint32_t color = 0xFF000000 | (b << 16) | (g << 8) | r;
 
     // CRITICAL: Never auto-save during initialization
     // This prevents spurious "Default (Custom)" palette creation on Windows
     // where OBS may trigger color callbacks before working colors are properly initialized
     if (obs_data_get_bool(settings, C64_PALETTE_INITIALIZING_KEY)) {
         // Still in initialization phase - update working color but don't save
-        c64_palette_set_working_color(index, bgra);
+        c64_palette_set_working_color(index, color);
         return false;
     }
 
@@ -1289,13 +1289,13 @@ static bool palette_color_changed(void *data, obs_properties_t *props, obs_prope
     // This prevents spurious auto-saves when properties dialog is opened and OBS triggers
     // callbacks during initialization with stale color values from settings
     uint32_t *working_colors = c64_palette_get_working_colors();
-    if (working_colors && working_colors[index] == bgra) {
+    if (working_colors && working_colors[index] == color) {
         // Color is the same - no change needed, don't trigger auto-save
         return false;
     }
 
     // Update working color
-    c64_palette_set_working_color(index, bgra);
+    c64_palette_set_working_color(index, color);
 
     // Immediately save the palette:
     // - For presets: Creates $preset-custom.vpl with name "$Preset (Custom)"
