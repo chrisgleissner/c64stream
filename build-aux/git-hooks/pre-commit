@@ -1,0 +1,29 @@
+#!/bin/bash
+# Pre-commit hook to enforce clang-format on staged files
+
+echo "🔍 Running clang-format check on staged files..."
+
+# Get list of staged C/C++ files
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(c|cpp|h|hpp)$')
+
+if [ -z "$STAGED_FILES" ]; then
+    echo "✅ No C/C++ files staged"
+    exit 0
+fi
+
+# Run clang-format check
+./build-aux/run-clang-format --check
+
+if [ $? -ne 0 ]; then
+    echo ""
+    echo "❌ Commit blocked: Code formatting check failed"
+    echo ""
+    echo "To fix, run:"
+    echo "  ./build-aux/run-clang-format $STAGED_FILES"
+    echo ""
+    echo "Then stage the changes and commit again"
+    exit 1
+fi
+
+echo "✅ Code formatting check passed"
+exit 0
