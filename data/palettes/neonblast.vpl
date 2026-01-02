@@ -1,0 +1,25 @@
+# VICE Palette file
+#
+# Syntax:
+# Red Green Blue
+#
+# TYPE:VICII
+# NAME:Neon Blast
+# DESC:Extremely bright and saturated colors with electric intensity
+
+00 00 00  # Black -> Pure black for contrast
+FF FF FF  # White -> Maximum white
+FF 00 3F  # Red -> Electric red
+00 FF FF  # Cyan -> Neon cyan
+FF 00 FF  # Purple -> Electric magenta
+00 FF 00  # Green -> Neon green
+00 3F FF  # Blue -> Electric blue
+FF FF 00  # Yellow -> Maximum yellow
+FF 8F 00  # Orange -> Electric orange
+FF 5F 00  # Brown -> Bright orange-red
+FF 7F FF  # Pink -> Electric pink
+6F 6F 6F  # DarkGrey -> Bright gray
+AF AF AF  # MedGrey -> Very light gray
+7F FF 7F  # LightGreen -> Neon mint
+5F 9F FF  # LightBlue -> Electric sky
+EF EF EF  # LightGrey -> Almost white

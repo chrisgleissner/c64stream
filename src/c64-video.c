@@ -861,8 +861,7 @@ void c64_process_video_statistics_batch(struct c64_source *context, uint64_t cur
                      " Expected %.0f fps | Captured %.1f fps | Delivered %.1f fps | Completed %.1f fps",
                      expected_fps, context->frames_captured / duration_seconds, frame_delivery_rate,
                      frame_completion_rate);
-        C64_LOG_INFO("" VIDEO_LOG_PREFIX
-                     " Capture drops %.1f%% | Delivery drops %.1f%% | Avg latency %.1f ms",
+        C64_LOG_INFO("" VIDEO_LOG_PREFIX " Capture drops %.1f%% | Delivery drops %.1f%% | Avg latency %.1f ms",
                      capture_drop_pct, delivery_drop_pct, avg_pipeline_latency);
     }
 
@@ -893,8 +892,8 @@ void c64_process_audio_statistics_batch(struct c64_source *context, uint64_t cur
         double packets_per_second = packets_received / duration_seconds;
         double bandwidth_mbps = (bytes_received * 8.0) / (duration_seconds * 1000000.0);
 
-        C64_LOG_INFO("" AUDIO_LOG_PREFIX " %.2f Mbps | %.0f pps | Packets: %llu", bandwidth_mbps,
-                     packets_per_second, (unsigned long long)packets_received);
+        C64_LOG_INFO("" AUDIO_LOG_PREFIX " %.2f Mbps | %.0f pps | Packets: %llu", bandwidth_mbps, packets_per_second,
+                     (unsigned long long)packets_received);
     }
 }
 

@@ -687,21 +687,21 @@ void c64_update(void *data, obs_data_t *settings)
 
     // Update debug logging setting
     c64_debug_logging = obs_data_get_bool(settings, "debug_logging");
-    C64_LOG_DEBUG("Debug logging %s", c64_debug_logging ? "enabled" : "disabled"); // Update IP detection setting
+    C64_LOG_DEBUG("Debug logging %s", c64_debug_logging ? "enabled" : "disabled");
+
+    // Update IP detection setting - only auto-detect when checkbox state changes from off to on
     bool new_auto_detect = obs_data_get_bool(settings, "auto_detect_ip");
-    if (new_auto_detect != context->auto_detect_ip || new_auto_detect) {
-        context->auto_detect_ip = new_auto_detect;
-        if (new_auto_detect) {
-            // Re-detect IP address
-            if (c64_detect_local_ip(context->obs_ip_address, sizeof(context->obs_ip_address))) {
-                C64_LOG_INFO("" NETWORK_LOG_PREFIX " Updated OBS IP address: %s", context->obs_ip_address);
-                // Save the updated IP to settings
-                obs_data_set_string(settings, "obs_ip_address", context->obs_ip_address);
-            } else {
-                C64_LOG_WARNING("Failed to update OBS IP address");
-            }
+    if (new_auto_detect && !context->auto_detect_ip) {
+        // Checkbox was just enabled - perform auto-detection
+        if (c64_detect_local_ip(context->obs_ip_address, sizeof(context->obs_ip_address))) {
+            C64_LOG_INFO("" NETWORK_LOG_PREFIX " Auto-detected OBS IP address: %s", context->obs_ip_address);
+            // Save the updated IP to settings
+            obs_data_set_string(settings, "obs_ip_address", context->obs_ip_address);
+        } else {
+            C64_LOG_WARNING("" NETWORK_LOG_PREFIX " Failed to auto-detect OBS IP address");
         }
     }
+    context->auto_detect_ip = new_auto_detect;
 
     // Update configuration
     const char *new_host = obs_data_get_string(settings, "c64_host");

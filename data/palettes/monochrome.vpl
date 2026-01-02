@@ -1,0 +1,25 @@
+# VICE Palette file
+#
+# Syntax:
+# Red Green Blue
+#
+# TYPE:VICII
+# NAME:Monochrome
+# DESC:Classic monochrome display with grayscale values
+
+00 00 00  # Black -> Pure black
+FF FF FF  # White -> Pure white
+90 90 90  # Red -> Medium gray
+B8 B8 B8  # Cyan -> Light gray
+78 78 78  # Purple -> Medium-dark gray
+88 88 88  # Green -> Medium gray
+60 60 60  # Blue -> Dark gray
+E0 E0 E0  # Yellow -> Very light gray
+70 70 70  # Orange -> Medium-dark gray
+50 50 50  # Brown -> Dark gray
+A8 A8 A8  # Pink -> Light-medium gray
+40 40 40  # DarkGrey -> Very dark gray
+70 70 70  # MedGrey -> Medium-dark gray
+C8 C8 C8  # LightGreen -> Light gray
+A0 A0 A0  # LightBlue -> Medium-light gray
+D0 D0 D0  # LightGrey -> Very light gray
