@@ -203,7 +203,6 @@ Customize the VIC-II color palette to match different C64 hardware variants, per
 - **Custom Palette File:** Path field for importing/exporting custom `.vpl` palette files
 - **Load:** Import a palette from the specified file path (VICE/Ultimate-64 format). Adds the palette to the dropdown and makes it active
 - **Save:** Export the current palette colors to the specified file path
-- **Revert:** Discard unsaved edits and reload the palette from file
 
 **VPL Palette Format:**
 

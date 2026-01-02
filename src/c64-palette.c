@@ -401,13 +401,21 @@ bool c64_palette_load_from_file(const char *path)
         return false;
     }
 
-    // Extract ID
+    // Extract ID from filename
     char id[C64_PALETTE_NAME_MAX];
     strncpy(id, src_filename, sizeof(id) - 1);
     id[sizeof(id) - 1] = '\0';
     char *ext = strrchr(id, '.');
     if (ext && strcasecmp(ext, ".vpl") == 0) {
         *ext = '\0';
+    }
+
+    // Check if this is a shipped palette - reject loading them
+    for (int i = 0; i < palette_system.palette_count; i++) {
+        if (palette_system.palettes[i].is_shipped && strcmp(palette_system.palettes[i].id, id) == 0) {
+            C64_LOG_WARNING("Cannot load shipped palette '%s' - it's already available in the dropdown", id);
+            return false;
+        }
     }
 
     // If name is empty, use ID
@@ -638,23 +646,66 @@ bool c64_palette_write_vpl(const char *path, const uint32_t *colors, const char 
         c64_create_directory_recursive(dir);
     }
 
+    // Extract filename and convert to camel case for NAME field
+    char camel_name[C64_PALETTE_NAME_MAX];
+    const char *filename = strrchr(path, PATH_SEP);
+#ifdef _WIN32
+    if (!filename) {
+        filename = strrchr(path, '/');
+    }
+#endif
+    if (!filename) {
+        filename = path;
+    } else {
+        filename++;
+    }
+
+    // Convert filename to camel case (remove extension, capitalize first letter and after underscores/spaces)
+    strncpy(camel_name, filename, sizeof(camel_name) - 1);
+    camel_name[sizeof(camel_name) - 1] = '\0';
+
+    // Remove .vpl extension
+    char *ext = strrchr(camel_name, '.');
+    if (ext && strcasecmp(ext, ".vpl") == 0) {
+        *ext = '\0';
+    }
+
+    // Convert to camel case: capitalize first letter and after underscores/hyphens
+    bool capitalize_next = true;
+    for (char *p = camel_name; *p; p++) {
+        if (*p == '_' || *p == '-') {
+            *p = ' '; // Replace with space
+            capitalize_next = true;
+        } else if (capitalize_next && *p >= 'a' && *p <= 'z') {
+            *p = *p - 'a' + 'A';
+            capitalize_next = false;
+        } else if (*p >= 'A' && *p <= 'Z') {
+            capitalize_next = false;
+        } else if (*p >= 'a' && *p <= 'z') {
+            capitalize_next = false;
+        }
+    }
+
     FILE *file = fopen(path, "w");
     if (!file) {
         C64_LOG_WARNING("Failed to create VPL file: %s", path);
         return false;
     }
 
-    // Write name as comment
-    if (name && name[0]) {
-        fprintf(file, "# %s\n", name);
+    // Write VICE VPL format header
+    fprintf(file, "# VICE Palette file\n");
+    fprintf(file, "#\n");
+    fprintf(file, "# Syntax:\n");
+    fprintf(file, "# Red Green Blue\n");
+    fprintf(file, "#\n");
+    fprintf(file, "# TYPE:VICII\n");
+    fprintf(file, "# NAME:%s\n", camel_name);
+    if (name && name[0] && strcmp(name, camel_name) != 0) {
+        fprintf(file, "# DESC:%s\n", name);
     }
+    fprintf(file, "\n");
 
     // Write colors in VPL format (RR GG BB)
-    static const char *color_names[C64_PALETTE_COLORS] = {"Black",    "White",       "Red",        "Cyan",
-                                                          "Purple",   "Green",       "Blue",       "Yellow",
-                                                          "Orange",   "Brown",       "Pink",       "Dark Grey",
-                                                          "Med Grey", "Light Green", "Light Blue", "Light Grey"};
-
     for (int i = 0; i < C64_PALETTE_COLORS; i++) {
         uint32_t bgra = colors[i];
         // Extract BGR from BGRA (little-endian format)
@@ -662,7 +713,7 @@ bool c64_palette_write_vpl(const char *path, const uint32_t *colors, const char 
         uint8_t g = (bgra >> 8) & 0xFF;
         uint8_t r = bgra & 0xFF;
 
-        fprintf(file, "%02X %02X %02X  # %d: %s\n", r, g, b, i, color_names[i]);
+        fprintf(file, "%02X %02X %02X\n", r, g, b);
     }
 
     fclose(file);

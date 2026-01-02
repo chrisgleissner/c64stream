@@ -37,9 +37,9 @@ static void trim_config_string(char *str);
 
 // Palette callbacks
 static bool palette_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings);
+static bool palette_path_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings);
 static bool palette_load_clicked(obs_properties_t *props, obs_property_t *property, void *data);
 static bool palette_save_clicked(obs_properties_t *props, obs_property_t *property, void *data);
-static bool palette_revert_clicked(obs_properties_t *props, obs_property_t *property, void *data);
 static bool palette_color_changed(void *data, obs_properties_t *props, obs_property_t *property, obs_data_t *settings);
 static void update_palette_color_properties(obs_data_t *settings);
 
@@ -200,17 +200,16 @@ obs_properties_t *c64_create_properties(void *data)
 
     // Custom palette file path
     obs_property_t *path_prop = obs_properties_add_path(palette_props, C64_PALETTE_PATH_KEY,
-                                                        obs_module_text("PalettePath"), OBS_PATH_FILE,
+                                                        obs_module_text("PalettePath"), OBS_PATH_FILE_SAVE,
                                                         "VPL Palette Files (*.vpl);;All Files (*.*)", NULL);
     obs_property_set_long_description(path_prop, obs_module_text("PalettePath.Description"));
+    obs_property_set_modified_callback(path_prop, palette_path_changed);
 
-    // Load, Save, and Revert buttons
+    // Load and Save buttons
     obs_properties_add_button2(palette_props, "palette_load", obs_module_text("PaletteLoad"), palette_load_clicked,
                                data);
     obs_properties_add_button2(palette_props, "palette_save", obs_module_text("PaletteSave"), palette_save_clicked,
                                data);
-    obs_properties_add_button2(palette_props, "palette_revert", obs_module_text("PaletteRevert"),
-                               palette_revert_clicked, data);
 
     // Visual color editor (4x4 grid as 4 rows)
     // Row 0: Colors 0-3
@@ -896,6 +895,51 @@ static bool palette_changed(obs_properties_t *props, obs_property_t *property, o
     return false;
 }
 
+static bool palette_path_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings)
+{
+    UNUSED_PARAMETER(property);
+
+    if (!settings) {
+        return false;
+    }
+
+    const char *path = obs_data_get_string(settings, C64_PALETTE_PATH_KEY);
+    if (!path || !*path) {
+        return false;
+    }
+
+    // Check if this looks like a save operation (path ends with .vpl and contains a filename)
+    const char *ext = strrchr(path, '.');
+    const char *filename = strrchr(path, '/');
+    if (!filename) {
+        filename = strrchr(path, '\\'); // Windows path separator
+    }
+    filename = filename ? filename + 1 : path; // Skip the separator or use whole path
+
+    // If it has a .vpl extension and a filename, assume this is a save operation
+    if (ext && strcasecmp(ext, ".vpl") == 0 && strlen(filename) > 4) {
+        // Save the working palette to the specified path
+        if (c64_palette_save_as("Custom Palette", path)) {
+            blog(LOG_INFO, "Palette saved to: %s", path);
+
+            // Update the palette dropdown to include the new palette
+            obs_property_t *palette_prop = obs_properties_get(props, C64_PALETTE_KEY);
+            if (palette_prop) {
+                c64_palette_populate_list(palette_prop);
+            }
+
+            // Update the active palette selection in settings
+            obs_data_set_string(settings, C64_PALETTE_KEY, c64_palette_get_active_id());
+
+            return true; // Refresh UI
+        } else {
+            blog(LOG_WARNING, "Failed to save palette to: %s", path);
+        }
+    }
+
+    return false; // No need to refresh UI
+}
+
 static bool palette_load_clicked(obs_properties_t *props, obs_property_t *property, void *data)
 {
     UNUSED_PARAMETER(property);
@@ -1000,27 +1044,6 @@ static bool palette_save_clicked(obs_properties_t *props, obs_property_t *proper
     }
 
     obs_data_release(settings);
-    return true; // Refresh UI
-}
-
-static bool palette_revert_clicked(obs_properties_t *props, obs_property_t *property, void *data)
-{
-    UNUSED_PARAMETER(props);
-    UNUSED_PARAMETER(property);
-
-    struct c64_source *context = (struct c64_source *)data;
-    if (!context || !context->source) {
-        return false;
-    }
-
-    c64_palette_revert();
-
-    obs_data_t *settings = obs_source_get_settings(context->source);
-    if (settings) {
-        update_palette_color_properties(settings);
-        obs_data_release(settings);
-    }
-
     return true; // Refresh UI
 }
 
