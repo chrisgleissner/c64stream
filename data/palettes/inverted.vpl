@@ -1,0 +1,25 @@
+# VICE Palette file
+#
+# Syntax:
+# Red Green Blue
+#
+# TYPE:VICII
+# NAME:Inverted
+# DESC:All colors inverted to their precise RGB opposites
+
+FF FF FF  # Black -> White (inverted)
+08 08 08  # White -> Black (inverted)
+72 D0 CB  # Red -> Cyan (inverted)
+95 2B 32  # Cyan -> Red (inverted)
+67 CA 5B  # Purple -> Green-yellow (inverted)
+B3 4B BD  # Green -> Magenta (inverted)
+D3 D6 4E  # Blue -> Yellow (inverted)
+10 10 A2  # Yellow -> Blue (inverted)
+67 B1 DF  # Orange -> Blue (inverted)
+A4 C7 FF  # Brown -> Light blue (inverted)
+2E 98 92  # Pink -> Dark cyan (inverted)
+B5 B5 B5  # DarkGrey -> Light gray (inverted)
+84 84 84  # MedGrey -> Gray (inverted)
+60 10 6C  # LightGreen -> Purple (inverted)
+92 95 10  # LightBlue -> Yellow-green (inverted)
+4D 4D 4D  # LightGrey -> Dark gray (inverted)

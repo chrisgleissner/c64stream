@@ -8,6 +8,8 @@ See <https://www.gnu.org/licenses/> for details.
 #ifndef C64_VIDEO_H
 #define C64_VIDEO_H
 
+#define VIDEO_LOG_PREFIX "📺 VIDEO:"
+
 #include <stdint.h>
 #include <stdbool.h>
 #include "c64-color.h"

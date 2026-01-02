@@ -7,19 +7,19 @@
 # NAME:Muted
 # DESC:Subdued colors for a softer, retro appearance
 
-00 00 00
-E8 E8 E8
-78 38 40
-60 B8 B0
-80 40 88
-48 98 48
-38 38 90
-C8 C8 58
-80 50 28
-50 38 10
-B0 68 70
-48 48 48
-70 70 70
-88 C8 88
-60 60 B8
-A0 A0 A0
+00 00 00  # Black
+E8 E8 E8  # White
+78 38 40  # Red
+60 B8 B0  # Cyan
+80 40 88  # Purple
+48 98 48  # Green
+38 38 90  # Blue
+C8 C8 58  # Yellow
+80 50 28  # Orange
+50 38 10  # Brown
+B0 68 70  # Pink
+48 48 48  # DarkGrey
+70 70 70  # MedGrey
+88 C8 88  # LightGreen
+60 60 B8  # LightBlue
+A0 A0 A0  # LightGrey

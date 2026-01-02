@@ -25,7 +25,7 @@ void c64_frames_save_as_bmp(struct c64_source *context, uint32_t *frame_buffer)
     // Ensure we have a recording session and CSV logging
     c64_session_ensure_exists(context);
     if (context->session_folder[0] == '\0') {
-        C64_LOG_WARNING("Failed to create recording session for frame saving");
+        C64_LOG_WARNING("" RECORD_LOG_PREFIX " Failed to create recording session for frame saving");
         return;
     }
 
@@ -40,7 +40,7 @@ void c64_frames_save_as_bmp(struct c64_source *context, uint32_t *frame_buffer)
     snprintf(frames_folder, sizeof(frames_folder), "%s/frames", context->session_folder);
 
     if (!c64_create_directory_recursive(frames_folder)) {
-        C64_LOG_WARNING("Failed to create frames subfolder: %s", frames_folder);
+        C64_LOG_WARNING("" RECORD_LOG_PREFIX " Failed to create frames subfolder: %s", frames_folder);
         return;
     }
 
@@ -52,7 +52,7 @@ void c64_frames_save_as_bmp(struct c64_source *context, uint32_t *frame_buffer)
 
     FILE *file = fopen(filename, "wb");
     if (!file) {
-        C64_LOG_WARNING("Failed to create frame file: %s", filename);
+        C64_LOG_WARNING("" RECORD_LOG_PREFIX " Failed to create frame file: %s", filename);
         return;
     }
 

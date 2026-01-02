@@ -8,6 +8,8 @@ See <https://www.gnu.org/licenses/> for details.
 #ifndef C64_AUDIO_H
 #define C64_AUDIO_H
 
+#define AUDIO_LOG_PREFIX "🔊 AUDIO:"
+
 #include <stdint.h>
 #include <stddef.h>
 

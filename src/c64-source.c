@@ -27,7 +27,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-properties.h"
 #include "c64-palette.h"
 #include "plugin-support.h"
-#include "c64-presets.h"
+#include "c64-effect.h"
 
 // Forward declarations
 static void close_and_reset_sockets(struct c64_source *context);
@@ -95,7 +95,7 @@ void c64_async_retry_task(void *data)
         return;
     }
 
-    C64_LOG_INFO("Async retry attempt %u - %s", context->retry_count,
+    C64_LOG_INFO("" NETWORK_LOG_PREFIX " Async retry attempt %u - %s", context->retry_count,
                  context->streaming ? "sending start commands" : "starting streaming");
 
     // Resolve hostname -> IP in the background (never do DNS on the OBS UI thread).
@@ -205,12 +205,13 @@ static void c64_refresh_resolved_ip(struct c64_source *context)
         if (strcmp(context->ip_address, resolved) != 0) {
             strncpy(context->ip_address, resolved, sizeof(context->ip_address) - 1);
             context->ip_address[sizeof(context->ip_address) - 1] = '\0';
-            C64_LOG_INFO("Resolved C64 host '%s' -> %s", hostname_copy, context->ip_address);
+            C64_LOG_INFO("" NETWORK_LOG_PREFIX " Resolved C64 host '%s' -> %s", hostname_copy, context->ip_address);
         }
         pthread_mutex_unlock(&context->config_mutex);
     } else {
         // Keep ip_address as-is (may be hostname) and let connectivity checks fail fast.
-        C64_LOG_DEBUG("Hostname resolution failed for '%s' (dns=%s)", hostname_copy, dns ? dns : "system");
+        C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Hostname resolution failed for '%s' (dns=%s)", hostname_copy,
+                      dns ? dns : "system");
     }
 }
 
@@ -268,13 +269,13 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     bool has_effect_overrides = settings_have_effect_overrides(settings);
     const char *initial_preset = obs_data_get_string(settings, "crt_preset");
     if (!has_effect_overrides && initial_preset && initial_preset[0] != '\0') {
-        if (c64_presets_apply(settings, initial_preset)) {
+        if (c64_effect_apply(settings, initial_preset)) {
             C64_LOG_INFO("Applied CRT preset from settings: %s", initial_preset);
         } else {
-            C64_LOG_WARNING("CRT preset not found: %s", initial_preset);
+            C64_LOG_WARNING("" EFFECT_LOG_PREFIX " CRT preset not found: %s", initial_preset);
         }
     } else if (has_effect_overrides) {
-        C64_LOG_INFO("Skipping preset auto-apply; custom effect overrides detected");
+        C64_LOG_INFO("" EFFECT_LOG_PREFIX " Skipping preset auto-apply; custom effect overrides detected");
     }
 
     context->source = source;
@@ -315,26 +316,26 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
         // Use previously saved/configured OBS IP address
         strncpy(context->obs_ip_address, saved_obs_ip, sizeof(context->obs_ip_address) - 1);
         context->initial_ip_detected = true;
-        C64_LOG_INFO("Using configured OBS IP address: %s", context->obs_ip_address);
+        C64_LOG_INFO("" NETWORK_LOG_PREFIX " Using configured OBS IP address: %s", context->obs_ip_address);
     } else if (context->auto_detect_ip) {
         // Auto-detect local IP address only if auto-detection is enabled
         if (c64_detect_local_ip(context->obs_ip_address, sizeof(context->obs_ip_address))) {
-            C64_LOG_INFO("Auto-detected OBS IP address: %s", context->obs_ip_address);
+            C64_LOG_INFO("" NETWORK_LOG_PREFIX " Auto-detected OBS IP address: %s", context->obs_ip_address);
             context->initial_ip_detected = true;
             // Save the detected IP to settings for future use
             obs_data_set_string(settings, "obs_ip_address", context->obs_ip_address);
         } else {
-            C64_LOG_WARNING("Failed to auto-detect OBS IP address, will use localhost fallback");
+            C64_LOG_WARNING("" NETWORK_LOG_PREFIX " Failed to auto-detect OBS IP address, will use localhost fallback");
             context->initial_ip_detected = false;
         }
     } else {
-        C64_LOG_INFO("Auto-detection disabled, will use localhost fallback");
+        C64_LOG_INFO("" NETWORK_LOG_PREFIX " Auto-detection disabled, will use localhost fallback");
         context->initial_ip_detected = false;
     }
 
     // Ensure we have a valid OBS IP address - use localhost as last resort
     if (strlen(context->obs_ip_address) == 0) {
-        C64_LOG_INFO("No OBS IP configured, using localhost as fallback");
+        C64_LOG_INFO("" NETWORK_LOG_PREFIX " No OBS IP configured, using localhost as fallback");
         strncpy(context->obs_ip_address, "127.0.0.1", sizeof(context->obs_ip_address) - 1);
         obs_data_set_string(settings, "obs_ip_address", context->obs_ip_address);
     }
@@ -457,6 +458,7 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     os_atomic_set_long(&context->audio_packets_received, 0);
     os_atomic_set_long(&context->audio_bytes_received, 0);
     context->last_stats_log_time = os_gettime_ns();
+    context->last_audio_stats_log_time = context->last_stats_log_time;
     context->last_stats_tick_ns = context->last_stats_log_time;
 
     // Initialize render callback timeout system
@@ -510,9 +512,13 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->frame_dirty = false;
 
     // Initialize palette from settings (must be done after palette system init)
+    // If the palette doesn't exist (was deleted), fall back to Default
     const char *palette_id = obs_data_get_string(settings, "palette");
     if (palette_id && palette_id[0]) {
-        c64_palette_select(palette_id);
+        if (!c64_palette_select(palette_id)) {
+            // Palette not found - fall back to Default
+            c64_palette_select("Default");
+        }
     }
 
     // Note: avoid noisy logging here; E2E expects deterministic behavior without requiring log parsing.
@@ -671,32 +677,32 @@ void c64_update(void *data, obs_data_t *settings)
     bool has_effect_overrides = settings_have_effect_overrides(settings);
     const char *preset_name = obs_data_get_string(settings, "crt_preset");
     if (!has_effect_overrides && preset_name && preset_name[0] != '\0') {
-        if (c64_presets_apply(settings, preset_name)) {
+        if (c64_effect_apply(settings, preset_name)) {
             C64_LOG_INFO("Applied CRT preset on update: %s", preset_name);
         } else {
-            C64_LOG_WARNING("CRT preset in update not found: %s", preset_name);
+            C64_LOG_WARNING("" EFFECT_LOG_PREFIX " CRT preset in update not found: %s", preset_name);
         }
     } else if (has_effect_overrides) {
-        C64_LOG_DEBUG("Preset update skipped; manual effect overrides present");
+        C64_LOG_DEBUG("" EFFECT_LOG_PREFIX " Preset update skipped; manual effect overrides present");
     }
 
     // Update debug logging setting
     c64_debug_logging = obs_data_get_bool(settings, "debug_logging");
-    C64_LOG_DEBUG("Debug logging %s", c64_debug_logging ? "enabled" : "disabled"); // Update IP detection setting
+    C64_LOG_DEBUG("Debug logging %s", c64_debug_logging ? "enabled" : "disabled");
+
+    // Update IP detection setting - only auto-detect when checkbox state changes from off to on
     bool new_auto_detect = obs_data_get_bool(settings, "auto_detect_ip");
-    if (new_auto_detect != context->auto_detect_ip || new_auto_detect) {
-        context->auto_detect_ip = new_auto_detect;
-        if (new_auto_detect) {
-            // Re-detect IP address
-            if (c64_detect_local_ip(context->obs_ip_address, sizeof(context->obs_ip_address))) {
-                C64_LOG_INFO("Updated OBS IP address: %s", context->obs_ip_address);
-                // Save the updated IP to settings
-                obs_data_set_string(settings, "obs_ip_address", context->obs_ip_address);
-            } else {
-                C64_LOG_WARNING("Failed to update OBS IP address");
-            }
+    if (new_auto_detect && !context->auto_detect_ip) {
+        // Checkbox was just enabled - perform auto-detection
+        if (c64_detect_local_ip(context->obs_ip_address, sizeof(context->obs_ip_address))) {
+            C64_LOG_INFO("" NETWORK_LOG_PREFIX " Auto-detected OBS IP address: %s", context->obs_ip_address);
+            // Save the updated IP to settings
+            obs_data_set_string(settings, "obs_ip_address", context->obs_ip_address);
+        } else {
+            C64_LOG_WARNING("" NETWORK_LOG_PREFIX " Failed to auto-detect OBS IP address");
         }
     }
+    context->auto_detect_ip = new_auto_detect;
 
     // Update configuration
     const char *new_host = obs_data_get_string(settings, "c64_host");
@@ -840,11 +846,12 @@ void c64_update(void *data, obs_data_t *settings)
     // Reset timing base if dimension-affecting effects were just enabled during streaming
     if (!prev_dimension_effects && new_dimension_effects && context->timestamp_base_set && context->streaming) {
         context->timestamp_base_set = false;
-        C64_LOG_INFO("🔄 Dimension-affecting effects activated - timing base reset to maintain A/V sync");
+        C64_LOG_INFO("" EFFECT_LOG_PREFIX
+                     " Dimension-affecting effects activated - timing base reset to maintain A/V sync");
     }
 
     // Start/restart streaming with current configuration asynchronously (avoid blocking UI thread).
-    C64_LOG_INFO("Applying configuration and scheduling streaming start");
+    C64_LOG_INFO("" NETWORK_LOG_PREFIX " Applying configuration and scheduling streaming start");
     c64_schedule_retry(context, "update");
 }
 
@@ -1077,7 +1084,7 @@ void c64_video_tick(void *data, float seconds)
             context->render_texture_height = 0;
         }
         if (effects_enabled && (!context->afterglow_accum_prev || !context->afterglow_accum_next)) {
-            C64_LOG_ERROR("Failed to create afterglow accumulation textures");
+            C64_LOG_ERROR("" EFFECT_LOG_PREFIX " Failed to create afterglow accumulation textures");
         }
 
         // Invalidate CPU afterglow accumulator on texture recreation (Medium #8: prevent visual glitch)
@@ -1153,13 +1160,15 @@ void c64_video_render(void *data, gs_effect_t *effect)
             context->crt_effect = gs_effect_create_from_file(effect_path, NULL);
             bfree(effect_path);
             if (!context->crt_effect) {
-                C64_LOG_ERROR("Failed to load CRT effect shader - falling back to default rendering");
+                C64_LOG_ERROR("" EFFECT_LOG_PREFIX
+                              " Failed to load CRT effect shader - falling back to default rendering");
             } else {
                 // Reset timing base to prevent sync drift caused by shader compilation delay
                 // Only reset if we're actually streaming (have established timing)
                 if (context->timestamp_base_set) {
                     context->timestamp_base_set = false;
-                    C64_LOG_INFO("🔄 CRT effect loaded during stream - timing base reset to maintain A/V sync");
+                    C64_LOG_INFO("" EFFECT_LOG_PREFIX
+                                 " CRT effect loaded during stream - timing base reset to maintain A/V sync");
                 }
             }
             if (!context->crt_effect) {
@@ -1175,7 +1184,8 @@ void c64_video_render(void *data, gs_effect_t *effect)
                 return;
             }
         } else {
-            C64_LOG_ERROR("Failed to find CRT effect shader file - falling back to default rendering");
+            C64_LOG_ERROR("" EFFECT_LOG_PREFIX
+                          " Failed to find CRT effect shader file - falling back to default rendering");
             gs_effect_t *default_effect = obs_get_base_effect(OBS_EFFECT_DEFAULT);
             if (default_effect) {
                 gs_effect_set_texture(gs_effect_get_param_by_name(default_effect, "image"), context->render_texture);

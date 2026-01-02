@@ -164,7 +164,7 @@ A new window opens. Keep the default settings and click "OK":
 - **Version:** Information about release version, Git ID, and build time
 - **Debug Logging:** Check this to see debug logs
 
-### Network
+### Network 📡
 
 - **DNS Resolution Details:**
 
@@ -177,129 +177,7 @@ A new window opens. Keep the default settings and click "OK":
 - **Configure Ports** Use the default ports (video: 11000, audio: 11001) unless network conflicts require different values
 - **Buffer Delay:** Sets the network buffer for incoming UDP packets arriving from the C64 Ultimate (0–500 ms, default 10 ms). The buffer size is expressed in milliseconds to represent the time-based delay it introduces, compensating for packet loss, reordering, and variable network latency. Larger buffers improve stability under high-latency or congested conditions but increase end-to-end delay.
 
-### Color Palettes 🎨
-
-(since version 1.0.0)
-
-Customize the VIC-II color palette to match different C64 hardware variants, personal preferences, or artistic styles. 
-
-Both shipped (preset) and user-defined (custom) VICE color palette files (`.vpl`) are supported. 
-
-By importing the same custom profile to both your C64U (via its menu system) and to C64 Stream, you can ensure a perfect color match.
-
-![C64 Stream Palettes](./docs/images/properties-palettes.png "C64 Stream Palettes")
-
-**Shipped Palettes:** The plugin includes the following palettes:
-
-- **Default (Preset)** - The standard VIC-II palette matching original C64 hardware
-- **Vibrant (Preset)** - Enhanced saturation for a more vivid retro look
-- **Muted (Preset)** - Softer, pastel-like colors for a subdued aesthetic
-- **Warm (Preset)** - Slightly orange-shifted tones reminiscent of aged monitors
-- **Cool (Preset)** - Blue-shifted palette for a modern retro feel
-
-**Palette Controls:**
-
-- **Palette Dropdown:** Select from shipped palettes (marked with "(Preset)" suffix) or any custom palettes you've added
-- **Import:** Imports a `.vpl` file
-- **Export:** Exports the currently active palette (with any color adjustments) to a `.vpl` file
-- **Color Editor:** Access 16 color pickers (0-15) for editing individual VIC-II colors. Changes apply immediately to the video output.
-
-Custom palettes are automatically saved when you close the properties dialog. 
-
-**VPL Palette Format:**
-
-Palettes use the standard [VICE VPL](https://1541u-documentation.readthedocs.io/en/latest/howto/palette.html) format:
-
-```
-# VICE Palette file
-#
-# Syntax:
-# Red Green Blue
-#
-# TYPE:VICII
-# NAME:My Palette
-# DESC:Optional description shown as tooltip
-
-00 00 00
-FF FF FF
-8D 2F 34
-...
-```
-
-- **NAME:** (optional) Display name shown in the dropdown
-- **DESC:** (optional) Description shown as tooltip when hovering over the palette
-- First 16 non-comment lines are RGB hex values in `RR GG BB` format (space-separated)
-- Files must have exactly 16 color entries
-
-**Storage:** Custom palettes are saved to the [palettes directory](#file-system-structure-). Shipped palettes are bundled with the plugin as read-only defaults.
-
-### CRT Effects 📺
-
-Recreate the authentic look and feel of classic CRT monitors and TVs with configurable visual effects that simulate the characteristics of vintage displays.
-
-![C64 Stream Effects](./docs/images/properties-effects.png "C64 Stream Effects")
-
-**Presets:** One-click configurations for different display types
-
-- **[Classic CRT](./docs/images/effects/classic-crt.png)** - Balanced scan lines and bloom for general retro appeal
-- **[Amber Monitor](./docs/images/effects/amber-monitor.png)** - Warm amber tint reminiscent of early computer monitors
-- **[Green Monitor](./docs/images/effects/green-monitor.png)** - Classic green phosphor terminal look
-- **[Sharp Pixels](./docs/images/effects/sharp-pixels.png)** - Crisp pixel doubling for arcade-style clarity
-- **[Phosphor Glow](./docs/images/effects/phosphor-glow.png)** (since version 1.0.0) - Dramatic phosphor persistence trails with extended afterglow. The sample image here was taken from the automated E2E test which shows an afterglow for each moving diagonal line.
-- **[Vintage TV](./docs/images/effects/vintage-tv.png)** - Softer look with prominent scan lines for old television feel
-- **[Arcade Cabinet](./docs/images/effects/arcade-cabinet.png)** - High-contrast effects for authentic arcade experience
-
-**Customizable Effects:**
-
-- **Scan Lines:** CRT raster line simulation with precise control (see table below)
-- **Bloom:** Glow effect that makes bright pixels bleed into darker areas
-- **Pixel Geometry:** Independent width/height scaling for authentic pixel aspect ratios
-- **Blur Control:** Fine-tune between crisp pixels and soft scaling
-- **Afterglow** (since release 1.0.0): CRT phosphor persistence effect (0-250ms) with configurable decay curves
-- **Screen Tint:** Amber, green, or monochrome overlays for period-accurate monitor simulation
-
-**Usage:** Access via the **Effects** group in plugin properties. Select a preset for instant results, or customize individual settings to create your perfect retro display aesthetic.
-
-**Pixel-Perfect Display:** For crisp pixels and perfectly even scanlines, right-click on the C64 Stream source → **Scale Filtering → Point**. This is a one-time setting that tells OBS to use nearest-neighbor scaling. The plugin automatically sizes the source to the correct integer multiple based on your scanline settings.
-
-#### Scan Line Settings
-
-The **Scan Line Distance** setting controls the gap between each pair of adjacent C64 pixel rows, simulating the dark lines between phosphor rows on a CRT monitor. Each mode uses a specific integer scaling factor to ensure perfectly uniform scanlines with zero variance:
-
-| Mode | Distance | Scale | Pattern | Output Height | Canvas Fit |
-|------|----------|-------|---------|---------------|------------|
-| None | 0% | 4× | No gaps | 1088px | Full (8px crop) |
-| Tight | 25% | 5× | 4 bright + 1 dark | 1360px | Overflow |
-| Normal | 50% | 3× | 2 bright + 1 dark | 816px | Letterboxed |
-| Wide | 100% | 4× | 2 bright + 2 dark | 1088px | Full (8px crop) |
-| Extra Wide | 200% | 3× | 1 bright + 2 dark | 816px | Letterboxed |
-
-**Recommended:** Use **Wide (100%)** for full 1080p canvas coverage with minimal border cropping, or **Normal (50%)** for a classic CRT look with black bars.
-
-The **Scan Line Strength** slider (0.0–1.0) controls how dark the gaps appear. At 0.0, gaps are invisible; at 1.0, they are completely black.
-
-**Reset:** To reset to default values, simply select the "Default" preset. If you have changed individual effects whilst the "Default" preset was active, select any other preset first and then re-select the "Default" preset.
-
-#### Effect Performance Impact
-
-Each CRT effect has a different impact on system performance. The CPU-based effects process every pixel every frame, while GPU-based effects leverage shader hardware for minimal CPU overhead.
-
-| Effect | Processing | Impact | Notes |
-|--------|------------|--------|-------|
-| **Scan Lines** | GPU Shader | Low | Per-pixel shader calculation |
-| **Bloom** | GPU Shader | Medium | Multi-pass blur + blend |
-| **Blur** | GPU Shader | Medium | Gaussian sampling |
-| **Pixel Geometry** | GPU Shader | Low | Simple UV transform |
-| **Screen Tint** | GPU Shader | Low | Color matrix multiply |
-| **Afterglow** | CPU | **High** | Per-pixel persistence (~92k pixels/frame) |
-
-**Performance Recommendations:**
-
-- **For best CPU performance:** Use presets without afterglow (Sharp Pixels, Classic CRT, Arcade Cabinet)
-- **For authentic phosphor glow:** Enable afterglow only when needed (Green/Amber Monitor, Phosphor Glow, Vintage TV)
-- **Afterglow disabled = zero CPU overhead:** When `Afterglow Duration (ms) = 0`, the CPU loop is bypassed entirely
-
-### Recording Features 📹
+### Recording 💾
 
 The plugin includes built-in recording capabilities that work independently of OBS Studio's recording system, letting you save raw C64 Ultimate data streams directly to disk.
 
@@ -320,6 +198,7 @@ The plugin offers three independent recording options that can be enabled separa
 - Saves individual video frames as uncompressed BMP files
 - Useful for debugging video issues or creating frame-by-frame analysis
 - **Performance Impact:** Enabling this feature will reduce streaming performance due to disk I/O
+- **Note:** CRT effects (scanlines, bloom, etc.) are NOT applied to recorded frames. Palette changes ARE applied.
 - Files saved as: `session_YYYYMMDD_HHMMSS/frames/frame_NNNNNN.bmp`
 
 **🎬 Raw Video and Audio (AVI + WAV):**
@@ -327,6 +206,7 @@ The plugin offers three independent recording options that can be enabled separa
 - Records uncompressed AVI video and separate WAV audio files
 - Captures the raw data stream without OBS processing
 - **High Disk Usage:** Uncompressed video files are very large (~50MB per minute)
+- **Note:** CRT effects (scanlines, bloom, etc.) are NOT applied to recorded video. Palette changes ARE applied.
 - Video file: `session_YYYYMMDD_HHMMSS/video.avi` (24-bit BGR format)
 - Audio file: `session_YYYYMMDD_HHMMSS/audio.wav` (16-bit stereo PCM)
 
@@ -399,6 +279,133 @@ audio,2341,847,0,0,192,125
 **Activation:** Enable the **"Network and Streaming Events (CSV)"** checkbox in the Recording properties. CSV files are generated only when this option is explicitly enabled.
 
 
+### Effects ✨
+
+Recreate the authentic look and feel of classic CRT monitors and TVs with configurable visual effects that simulate the characteristics of vintage displays.
+
+![C64 Stream Effects](./docs/images/properties-effects.png "C64 Stream Effects")
+
+**Presets:** One-click configurations for different display types
+
+- **[Classic CRT](./docs/images/effects/classic-crt.png)** - Balanced scan lines and bloom for general retro appeal
+- **[Amber Monitor](./docs/images/effects/amber-monitor.png)** - Warm amber tint reminiscent of early computer monitors
+- **[Green Monitor](./docs/images/effects/green-monitor.png)** - Classic green phosphor terminal look
+- **[Sharp Pixels](./docs/images/effects/sharp-pixels.png)** - Crisp pixel doubling for arcade-style clarity
+- **[Phosphor Glow](./docs/images/effects/phosphor-glow.png)** (since version 1.0.0) - Dramatic phosphor persistence trails with extended afterglow. The sample image here was taken from the automated E2E test which shows an afterglow for each moving diagonal line.
+- **[Vintage TV](./docs/images/effects/vintage-tv.png)** - Softer look with prominent scan lines for old television feel
+- **[Arcade Cabinet](./docs/images/effects/arcade-cabinet.png)** - High-contrast effects for authentic arcade experience
+
+**Customizable Effects:**
+
+- **Scan Lines:** CRT raster line simulation with precise control (see table below)
+- **Bloom:** Glow effect that makes bright pixels bleed into darker areas
+- **Pixel Geometry:** Independent width/height scaling for authentic pixel aspect ratios
+- **Blur Control:** Fine-tune between crisp pixels and soft scaling
+- **Afterglow** (since release 1.0.0): CRT phosphor persistence effect (0-250ms) with configurable decay curves
+- **Screen Tint:** Amber, green, or monochrome overlays for period-accurate monitor simulation
+
+**Usage:** Access via the **Effects** group in plugin properties. Select a preset for instant results, or customize individual settings to create your perfect retro display aesthetic.
+
+**Pixel-Perfect Display:** For crisp pixels and perfectly even scanlines, right-click on the C64 Stream source → **Scale Filtering → Point**. This is a one-time setting that tells OBS to use nearest-neighbor scaling. The plugin automatically sizes the source to the correct integer multiple based on your scanline settings.
+
+#### Scan Line Settings
+
+The **Scan Line Distance** setting controls the gap between each pair of adjacent C64 pixel rows, simulating the dark lines between phosphor rows on a CRT monitor. Each mode uses a specific integer scaling factor to ensure perfectly uniform scanlines with zero variance:
+
+| Mode | Distance | Scale | Pattern | Output Height | Canvas Fit |
+|------|----------|-------|---------|---------------|------------|
+| None | 0% | 4× | No gaps | 1088px | Full (8px crop) |
+| Tight | 25% | 5× | 4 bright + 1 dark | 1360px | Overflow |
+| Normal | 50% | 3× | 2 bright + 1 dark | 816px | Letterboxed |
+| Wide | 100% | 4× | 2 bright + 2 dark | 1088px | Full (8px crop) |
+| Extra Wide | 200% | 3× | 1 bright + 2 dark | 816px | Letterboxed |
+
+**Recommended:** Use **Wide (100%)** for full 1080p canvas coverage with minimal border cropping, or **Normal (50%)** for a classic CRT look with black bars.
+
+The **Scan Line Strength** slider (0.0–1.0) controls how dark the gaps appear. At 0.0, gaps are invisible; at 1.0, they are completely black.
+
+**Reset:** To reset to default values, simply select the "Default" preset. If you have changed individual effects whilst the "Default" preset was active, select any other preset first and then re-select the "Default" preset.
+
+#### Effect Performance Impact
+
+Each CRT effect has a different impact on system performance. The CPU-based effects process every pixel every frame, while GPU-based effects leverage shader hardware for minimal CPU overhead.
+
+| Effect | Processing | Impact | Notes |
+|--------|------------|--------|-------|
+| **Scan Lines** | GPU Shader | Low | Per-pixel shader calculation |
+| **Bloom** | GPU Shader | Medium | Multi-pass blur + blend |
+| **Blur** | GPU Shader | Medium | Gaussian sampling |
+| **Pixel Geometry** | GPU Shader | Low | Simple UV transform |
+| **Screen Tint** | GPU Shader | Low | Color matrix multiply |
+| **Afterglow** | CPU | **High** | Per-pixel persistence (~92k pixels/frame) |
+
+**Performance Recommendations:**
+
+- **For best CPU performance:** Use presets without afterglow (Sharp Pixels, Classic CRT, Arcade Cabinet)
+- **For authentic phosphor glow:** Enable afterglow only when needed (Green/Amber Monitor, Phosphor Glow, Vintage TV)
+- **Afterglow disabled = zero CPU overhead:** When `Afterglow Duration (ms) = 0`, the CPU loop is bypassed entirely
+
+### Color Palettes 🎨
+
+(since version 1.0.0)
+
+Customize the VIC-II color palette to match different C64 hardware variants, personal preferences, or artistic styles. The palette system supports both shipped (preset) and user-defined (custom) palettes.
+
+![C64 Stream Palettes](./docs/images/properties-palettes.png "C64 Stream Palettes")
+
+**Shipped Palettes:** The plugin includes the following preset palettes:
+
+- **Default** - Standard VIC-II colors matching original C64 hardware
+- **Cool** - Blue/cyan color temperature shift
+- **Inverted** - RGB color inversion (negative image)
+- **Monochrome** - Grayscale conversion
+- **Muted** - Reduced saturation with pastel-like tones
+- **Neon Blast** - Maximum saturation for high-intensity colors
+- **Night** - Red-shifted colors for comfortable late night viewing
+- **Vibrant** - Increased color saturation for enhanced visual impact
+- **Warm** - Amber/orange color temperature shift
+
+**Palette Controls:**
+
+- **Palette Dropdown:** Select from shipped palettes or any custom palettes you've added
+- **Import:** Imports a `.vpl` file
+- **Export:** Exports the currently active palette (with any color adjustments) to a `.vpl` file
+- **Color Editor:** Expand to access 16 color pickers (0-15) for editing individual VIC-II colors. Changes apply immediately to the video output
+
+**Auto-Save Behavior:**
+
+- Custom palettes are automatically saved when you edit them in the color editor
+- **Preset modifications:** If you edit a shipped preset palette, a custom copy is automatically created with the same name (the original preset remains unchanged)
+- The settings automatically update to use the custom copy, so your changes persist across OBS restarts
+- No manual save action is required for palette edits
+
+**VPL Palette Format:**
+
+Palettes use the standard [VICE VPL](https://1541u-documentation.readthedocs.io/en/latest/howto/palette.html) format:
+
+```
+# VICE Palette file
+#
+# Syntax:
+# Red Green Blue
+#
+# TYPE:VICII
+# NAME:My Palette
+# DESC:Optional description shown as tooltip
+
+00 00 00
+FF FF FF
+8D 2F 34
+...
+```
+
+- **NAME:** (optional) Display name shown in the dropdown
+- **DESC:** (optional) Description shown as tooltip when hovering over the palette
+- First 16 non-comment lines are RGB hex values in `RR GG BB` format (space-separated)
+- Files must have exactly 16 color entries
+
+**Storage:** Custom palettes are saved to the [palettes directory](#file-system-structure-). Shipped palettes are bundled with the plugin as read-only defaults.
+
 ### Import/Export Configuration
 
 Save and restore your complete plugin settings:
@@ -435,7 +442,7 @@ OBS searches in this order:
 The data directory contains:
 - Effect presets (`effect_presets.ini`)
 - Palette presets (`palettes/*.vpl`)
-- Default network configuration (`properties.ini`)
+- Default network settings (`properties.ini`)
 - Localization files (`locale/*.ini`)
 
 | Platform | Package Install (System-Wide) | User Install (Local Development) |

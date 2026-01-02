@@ -25,6 +25,13 @@ If anything in this file conflicts with `.github/copilot-instructions.md`, follo
 
 ## Fast path (what to do before you open a PR)
 
+### One-time setup: Install git hooks
+
+```bash
+# Install pre-commit hook (enforces clang-format automatically)
+ln -sf ../../build-aux/git-hooks/pre-commit .git/hooks/pre-commit
+```
+
 ### Build (Linux)
 
 ```bash

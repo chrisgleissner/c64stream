@@ -35,11 +35,11 @@ static bool resolve_hostname_direct_dns(const char *hostname, const char *dns_se
     ns_msg msg;
     ns_rr rr;
 
-    obs_log(LOG_DEBUG, "Direct DNS query to %s for hostname: %s", dns_server, hostname);
+    C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Direct DNS query to %s for hostname: %s", dns_server, hostname);
 
     // Initialize resolver
     if (res_ninit(&res) != 0) {
-        obs_log(LOG_DEBUG, "res_ninit failed for DNS server %s", dns_server);
+        C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " res_ninit failed for DNS server %s", dns_server);
         return false;
     }
 
@@ -59,7 +59,7 @@ static bool resolve_hostname_direct_dns(const char *hostname, const char *dns_se
     dns_addr.sin_port = htons(53);
 
     if (inet_aton(dns_server, &dns_addr.sin_addr) == 0) {
-        obs_log(LOG_DEBUG, "Invalid DNS server IP: %s", dns_server);
+        C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Invalid DNS server IP: %s", dns_server);
         res_nclose(&res);
         return false;
     }
@@ -71,21 +71,22 @@ static bool resolve_hostname_direct_dns(const char *hostname, const char *dns_se
     // Perform DNS query for A record
     int len = res_nquery(&res, hostname, ns_c_in, ns_t_a, answer, sizeof(answer));
     if (len < 0) {
-        obs_log(LOG_DEBUG, "Direct DNS query failed for %s via %s (h_errno: %d)", hostname, dns_server, h_errno);
+        C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Direct DNS query failed for %s via %s (h_errno: %d)", hostname,
+                      dns_server, h_errno);
         res_nclose(&res);
         return false;
     }
 
     // Parse DNS response
     if (ns_initparse(answer, len, &msg) < 0) {
-        obs_log(LOG_DEBUG, "DNS response parsing failed for %s", hostname);
+        C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " DNS response parsing failed for %s", hostname);
         res_nclose(&res);
         return false;
     }
 
     int ancount = ns_msg_count(msg, ns_s_an);
     if (ancount == 0) {
-        obs_log(LOG_DEBUG, "No A record found for %s via %s", hostname, dns_server);
+        C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " No A record found for %s via %s", hostname, dns_server);
         res_nclose(&res);
         return false;
     }
@@ -102,7 +103,8 @@ static bool resolve_hostname_direct_dns(const char *hostname, const char *dns_se
 
             if (strlen(ip_str) < buffer_size) {
                 strcpy(ip_buffer, ip_str);
-                obs_log(LOG_INFO, "Direct DNS resolved %s -> %s (via %s)", hostname, ip_str, dns_server);
+                C64_LOG_INFO("" NETWORK_LOG_PREFIX " Direct DNS resolved %s -> %s (via %s)", hostname, ip_str,
+                             dns_server);
                 res_nclose(&res);
                 return true;
             }
@@ -130,7 +132,7 @@ static bool resolve_hostname_with_fallback_dns(const char *hostname, const char 
     // Add configured DNS server first if provided and not empty
     if (custom_dns && strlen(custom_dns) > 0) {
         dns_servers[dns_count++] = custom_dns;
-        obs_log(LOG_DEBUG, "Using configured DNS server: %s", custom_dns);
+        C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Using configured DNS server: %s", custom_dns);
     }
 
     // Add common router DNS servers as fallback
@@ -156,10 +158,10 @@ bool c64_init_networking(void)
     WSADATA wsaData;
     int result = WSAStartup(MAKEWORD(2, 2), &wsaData);
     if (result != 0) {
-        obs_log(LOG_ERROR, "WSAStartup failed: %d", result);
+        C64_LOG_ERROR("" NETWORK_LOG_PREFIX " WSAStartup failed: %d", result);
         return false;
     }
-    obs_log(LOG_DEBUG, "Windows networking initialized");
+    C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Windows networking initialized");
 #endif
     return true;
 }
@@ -195,8 +197,8 @@ bool c64_detect_local_ip(char *ip_buffer, size_t buffer_size)
                         strcmp(adapter->IpAddressList.IpAddress.String, "0.0.0.0") != 0) {
                         strncpy(ip_buffer, adapter->IpAddressList.IpAddress.String, buffer_size - 1);
                         ip_buffer[buffer_size - 1] = '\0';
-                        obs_log(LOG_INFO, "Detected Windows IP address: %s (adapter: %s)", ip_buffer,
-                                adapter->AdapterName);
+                        C64_LOG_INFO("" NETWORK_LOG_PREFIX " Detected Windows IP address: %s (adapter: %s)", ip_buffer,
+                                     adapter->AdapterName);
                         free(adapter_info);
                         return true;
                     }
@@ -206,7 +208,7 @@ bool c64_detect_local_ip(char *ip_buffer, size_t buffer_size)
             free(adapter_info);
         }
     }
-    obs_log(LOG_WARNING, "Failed to detect Windows IP address, using fallback");
+    C64_LOG_WARNING("" NETWORK_LOG_PREFIX " Failed to detect Windows IP address, using fallback");
     return false;
 
 #elif defined(__APPLE__) || defined(__linux__)
@@ -215,7 +217,7 @@ bool c64_detect_local_ip(char *ip_buffer, size_t buffer_size)
     char host[NI_MAXHOST];
 
     if (getifaddrs(&ifaddrs_ptr) == -1) {
-        obs_log(LOG_WARNING, "getifaddrs failed: %s", strerror(errno));
+        C64_LOG_WARNING("" NETWORK_LOG_PREFIX " getifaddrs failed: %s", strerror(errno));
         return false;
     }
 
@@ -242,24 +244,24 @@ bool c64_detect_local_ip(char *ip_buffer, size_t buffer_size)
         // We found a valid IP address
         strncpy(ip_buffer, host, buffer_size - 1);
         ip_buffer[buffer_size - 1] = '\0';
-        obs_log(LOG_INFO, "Detected %s IP address: %s (interface: %s)",
+        C64_LOG_INFO("" NETWORK_LOG_PREFIX " Detected %s IP address: %s (interface: %s)",
 #ifdef __APPLE__
-                "macOS",
+                     "macOS",
 #else
-                "Linux",
+                     "Linux",
 #endif
-                ip_buffer, ifa->ifa_name);
+                     ip_buffer, ifa->ifa_name);
         freeifaddrs(ifaddrs_ptr);
         return true;
     }
 
     freeifaddrs(ifaddrs_ptr);
-    obs_log(LOG_WARNING, "No suitable network interface found, using fallback");
+    C64_LOG_WARNING("" NETWORK_LOG_PREFIX " No suitable network interface found, using fallback");
     return false;
 
 #else
     // Fallback for other platforms
-    obs_log(LOG_WARNING, "IP detection not implemented for this platform, using fallback");
+    C64_LOG_WARNING("" NETWORK_LOG_PREFIX " IP detection not implemented for this platform, using fallback");
     return false;
 #endif
 }
@@ -268,7 +270,7 @@ void c64_cleanup_networking(void)
 {
 #ifdef _WIN32
     WSACleanup();
-    obs_log(LOG_DEBUG, "Windows networking cleaned up");
+    C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Windows networking cleaned up");
 #endif
 }
 
@@ -312,11 +314,11 @@ bool c64_resolve_hostname_with_dns(const char *hostname, const char *custom_dns_
     if (inet_pton(AF_INET, hostname, &sa.sin_addr) == 1) {
         strncpy(ip_buffer, hostname, buffer_size - 1);
         ip_buffer[buffer_size - 1] = '\0';
-        obs_log(LOG_DEBUG, "Input '%s' is already an IP address", hostname);
+        C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Input '%s' is already an IP address", hostname);
         return true;
     }
 
-    obs_log(LOG_DEBUG, "Attempting to resolve hostname: %s", hostname);
+    C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Attempting to resolve hostname: %s", hostname);
 
     // Try system DNS resolution first (works for public hostnames and properly configured local DNS)
     struct addrinfo hints, *result = NULL;
@@ -328,7 +330,7 @@ bool c64_resolve_hostname_with_dns(const char *hostname, const char *custom_dns_
     if (status == 0 && result != NULL) {
         struct sockaddr_in *addr_in = (struct sockaddr_in *)result->ai_addr;
         if (inet_ntop(AF_INET, &addr_in->sin_addr, ip_buffer, buffer_size) != NULL) {
-            obs_log(LOG_INFO, "System DNS resolved '%s' to IP: %s", hostname, ip_buffer);
+            C64_LOG_INFO("" NETWORK_LOG_PREFIX " System DNS resolved '%s' to IP: %s", hostname, ip_buffer);
             freeaddrinfo(result);
             return true;
         }
@@ -342,13 +344,13 @@ bool c64_resolve_hostname_with_dns(const char *hostname, const char *custom_dns_
     char hostname_with_dot[256];
     snprintf(hostname_with_dot, sizeof(hostname_with_dot), "%s.", hostname);
 
-    obs_log(LOG_DEBUG, "Trying FQDN resolution: %s", hostname_with_dot);
+    C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Trying FQDN resolution: %s", hostname_with_dot);
 
     status = getaddrinfo(hostname_with_dot, NULL, &hints, &result);
     if (status == 0 && result != NULL) {
         struct sockaddr_in *addr_in = (struct sockaddr_in *)result->ai_addr;
         if (inet_ntop(AF_INET, &addr_in->sin_addr, ip_buffer, buffer_size) != NULL) {
-            obs_log(LOG_INFO, "FQDN resolved '%s' to IP: %s", hostname_with_dot, ip_buffer);
+            C64_LOG_INFO("" NETWORK_LOG_PREFIX " FQDN resolved '%s' to IP: %s", hostname_with_dot, ip_buffer);
             freeaddrinfo(result);
             return true;
         }
@@ -360,7 +362,7 @@ bool c64_resolve_hostname_with_dns(const char *hostname, const char *custom_dns_
 
 #if !defined(_WIN32)
     // On Linux/macOS: Try direct DNS server queries (bypasses systemd-resolved issues)
-    obs_log(LOG_DEBUG, "System DNS failed, trying direct DNS server queries");
+    C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " System DNS failed, trying direct DNS server queries");
 
     if (resolve_hostname_with_fallback_dns(hostname, custom_dns_server, ip_buffer, buffer_size)) {
         return true;
@@ -372,7 +374,7 @@ bool c64_resolve_hostname_with_dns(const char *hostname, const char *custom_dns_
     }
 #endif
 
-    obs_log(LOG_WARNING, "Failed to resolve hostname '%s' using all available methods", hostname);
+    C64_LOG_WARNING("" NETWORK_LOG_PREFIX " Failed to resolve hostname '%s' using all available methods", hostname);
     return false;
 }
 
@@ -381,7 +383,7 @@ socket_t c64_create_udp_socket(uint32_t port)
     socket_t sock = socket(AF_INET, SOCK_DGRAM, 0);
     if (sock == INVALID_SOCKET_VALUE) {
         int error = c64_get_socket_error();
-        obs_log(LOG_ERROR, "Failed to create UDP socket: %s", c64_get_socket_error_string(error));
+        C64_LOG_ERROR("" NETWORK_LOG_PREFIX " Failed to create UDP socket: %s", c64_get_socket_error_string(error));
         return INVALID_SOCKET_VALUE;
     }
 
@@ -394,10 +396,11 @@ socket_t c64_create_udp_socket(uint32_t port)
     int recv_buffer_size = 2 * 1024 * 1024; // 2MB receive buffer
     if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF, (char *)&recv_buffer_size, sizeof(recv_buffer_size)) < 0) {
         int error = c64_get_socket_error();
-        obs_log(LOG_WARNING, "Failed to set UDP receive buffer size to %d bytes: %s", recv_buffer_size,
-                c64_get_socket_error_string(error));
+        C64_LOG_WARNING("" NETWORK_LOG_PREFIX " Failed to set UDP receive buffer size to %d bytes: %s",
+                        recv_buffer_size, c64_get_socket_error_string(error));
     } else {
-        obs_log(LOG_DEBUG, "Set UDP receive buffer to %d bytes for high-frequency packet handling", recv_buffer_size);
+        C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Set UDP receive buffer to %d bytes for high-frequency packet handling",
+                      recv_buffer_size);
     }
 
     // Windows: Disable UDP checksum validation for performance (optional optimization)
@@ -405,17 +408,17 @@ socket_t c64_create_udp_socket(uint32_t port)
     BOOL udp_nochecksum = FALSE; // Keep checksums enabled for reliability
     if (setsockopt(sock, IPPROTO_UDP, UDP_NOCHECKSUM, (char *)&udp_nochecksum, sizeof(udp_nochecksum)) < 0) {
         // This option may not be available on all Windows versions, so don't log an error
-        obs_log(LOG_DEBUG, "UDP_NOCHECKSUM option not supported on this system");
+        C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " UDP_NOCHECKSUM option not supported on this system");
     }
 #else
     // Linux/macOS: Also increase receive buffer, but usually less critical than Windows
     int recv_buffer_size = 1 * 1024 * 1024; // 1MB receive buffer (Linux default is often larger)
     if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF, &recv_buffer_size, sizeof(recv_buffer_size)) < 0) {
         int error = c64_get_socket_error();
-        obs_log(LOG_WARNING, "Failed to set UDP receive buffer size to %d bytes: %s", recv_buffer_size,
-                c64_get_socket_error_string(error));
+        C64_LOG_WARNING("" NETWORK_LOG_PREFIX " Failed to set UDP receive buffer size to %d bytes: %s",
+                        recv_buffer_size, c64_get_socket_error_string(error));
     } else {
-        obs_log(LOG_DEBUG, "Set UDP receive buffer to %d bytes", recv_buffer_size);
+        C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Set UDP receive buffer to %d bytes", recv_buffer_size);
     }
 #endif
 
@@ -427,7 +430,8 @@ socket_t c64_create_udp_socket(uint32_t port)
 
     if (bind(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
         int error = c64_get_socket_error();
-        obs_log(LOG_ERROR, "Failed to bind UDP socket to port %u: %s", port, c64_get_socket_error_string(error));
+        C64_LOG_ERROR("" NETWORK_LOG_PREFIX " Failed to bind UDP socket to port %u: %s", port,
+                      c64_get_socket_error_string(error));
         close(sock);
         return INVALID_SOCKET_VALUE;
     }
@@ -437,7 +441,8 @@ socket_t c64_create_udp_socket(uint32_t port)
     u_long mode = 1;
     if (ioctlsocket(sock, FIONBIO, &mode) != 0) {
         int error = c64_get_socket_error();
-        obs_log(LOG_WARNING, "Failed to set socket non-blocking: %s", c64_get_socket_error_string(error));
+        C64_LOG_WARNING("" NETWORK_LOG_PREFIX " Failed to set socket non-blocking: %s",
+                        c64_get_socket_error_string(error));
     }
 #else
     int flags = fcntl(sock, F_GETFL, 0);
@@ -446,7 +451,7 @@ socket_t c64_create_udp_socket(uint32_t port)
     }
 #endif
 
-    obs_log(LOG_INFO, "Created optimized UDP socket on port %u", port);
+    C64_LOG_INFO("" NETWORK_LOG_PREFIX " Created optimized UDP socket on port %u", port);
 
 #ifdef _WIN32
     // Windows: Small delay to ensure socket is fully ready for receiving
@@ -552,14 +557,14 @@ bool c64_test_connectivity(const char *ip, uint32_t port)
 socket_t c64_create_tcp_socket(const char *ip, uint32_t port)
 {
     if (!ip || strlen(ip) == 0) {
-        obs_log(LOG_ERROR, "Invalid IP address provided");
+        C64_LOG_ERROR("" NETWORK_LOG_PREFIX " Invalid IP address provided");
         return INVALID_SOCKET_VALUE;
     }
 
     socket_t sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock == INVALID_SOCKET_VALUE) {
         int error = c64_get_socket_error();
-        obs_log(LOG_ERROR, "Failed to create TCP socket: %s", c64_get_socket_error_string(error));
+        C64_LOG_ERROR("" NETWORK_LOG_PREFIX " Failed to create TCP socket: %s", c64_get_socket_error_string(error));
         return INVALID_SOCKET_VALUE;
     }
 
@@ -569,7 +574,7 @@ socket_t c64_create_tcp_socket(const char *ip, uint32_t port)
     addr.sin_port = htons(port);
 
     if (inet_pton(AF_INET, ip, &addr.sin_addr) <= 0) {
-        obs_log(LOG_ERROR, "Invalid IP address format: %s", ip);
+        C64_LOG_ERROR("" NETWORK_LOG_PREFIX " Invalid IP address format: %s", ip);
         close(sock);
         return INVALID_SOCKET_VALUE;
     }
@@ -578,14 +583,14 @@ socket_t c64_create_tcp_socket(const char *ip, uint32_t port)
 #ifdef _WIN32
     u_long non_blocking = 1;
     if (ioctlsocket(sock, FIONBIO, &non_blocking) != 0) {
-        obs_log(LOG_ERROR, "Failed to set socket non-blocking");
+        C64_LOG_ERROR("" NETWORK_LOG_PREFIX " Failed to set socket non-blocking");
         close(sock);
         return INVALID_SOCKET_VALUE;
     }
 #else
     int flags = fcntl(sock, F_GETFL, 0);
     if (flags == -1 || fcntl(sock, F_SETFL, flags | O_NONBLOCK) == -1) {
-        obs_log(LOG_ERROR, "Failed to set socket non-blocking");
+        C64_LOG_ERROR("" NETWORK_LOG_PREFIX " Failed to set socket non-blocking");
         close(sock);
         return INVALID_SOCKET_VALUE;
     }
@@ -602,7 +607,7 @@ socket_t c64_create_tcp_socket(const char *ip, uint32_t port)
 #else
         fcntl(sock, F_SETFL, flags);
 #endif
-        obs_log(LOG_DEBUG, "Connected to C64 Ultimate at %s:%u", ip, port);
+        C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Connected to C64 Ultimate at %s:%u", ip, port);
         return sock;
     }
 
@@ -612,8 +617,8 @@ socket_t c64_create_tcp_socket(const char *ip, uint32_t port)
 #else
     if (error != EINPROGRESS) {
 #endif
-        obs_log(LOG_WARNING, "Failed to connect to C64 Ultimate at %s:%u: %s", ip, port,
-                c64_get_socket_error_string(error));
+        C64_LOG_WARNING("" NETWORK_LOG_PREFIX " Failed to connect to C64 Ultimate at %s:%u: %s", ip, port,
+                        c64_get_socket_error_string(error));
         close(sock);
         return INVALID_SOCKET_VALUE;
     }
@@ -636,7 +641,8 @@ socket_t c64_create_tcp_socket(const char *ip, uint32_t port)
 
     if (select_result == 0) {
         // Fast timeout - try longer timeout for internet connections
-        obs_log(LOG_DEBUG, "Fast connection attempt to %s:%u timed out, trying slower timeout...", ip, port);
+        C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Fast connection attempt to %s:%u timed out, trying slower timeout...", ip,
+                      port);
 
         // Reset the fd_set for second attempt
         FD_ZERO(&write_fds);
@@ -655,7 +661,9 @@ socket_t c64_create_tcp_socket(const char *ip, uint32_t port)
 
         if (select_result == 0) {
             // Both timeouts failed
-            obs_log(LOG_WARNING, "Connection to C64 Ultimate at %s:%u timed out after 1.6 seconds total", ip, port);
+            C64_LOG_WARNING("" NETWORK_LOG_PREFIX
+                            " Connection to C64 Ultimate at %s:%u timed out after 1.6 seconds total",
+                            ip, port);
             close(sock);
             return INVALID_SOCKET_VALUE;
         }
@@ -663,8 +671,8 @@ socket_t c64_create_tcp_socket(const char *ip, uint32_t port)
 
     if (select_result < 0) {
         int select_error = c64_get_socket_error();
-        obs_log(LOG_ERROR, "Select failed during connection to %s:%u: %s", ip, port,
-                c64_get_socket_error_string(select_error));
+        C64_LOG_ERROR("" NETWORK_LOG_PREFIX " Select failed during connection to %s:%u: %s", ip, port,
+                      c64_get_socket_error_string(select_error));
         close(sock);
         return INVALID_SOCKET_VALUE;
     }
@@ -677,14 +685,14 @@ socket_t c64_create_tcp_socket(const char *ip, uint32_t port)
 #else
     if (getsockopt(sock, SOL_SOCKET, SO_ERROR, &sock_error, &len) < 0) {
 #endif
-        obs_log(LOG_ERROR, "Failed to get socket error for %s:%u", ip, port);
+        C64_LOG_ERROR("" NETWORK_LOG_PREFIX " Failed to get socket error for %s:%u", ip, port);
         close(sock);
         return INVALID_SOCKET_VALUE;
     }
 
     if (sock_error != 0) {
-        obs_log(LOG_WARNING, "Failed to connect to C64 Ultimate at %s:%u: %s", ip, port,
-                c64_get_socket_error_string(sock_error));
+        C64_LOG_WARNING("" NETWORK_LOG_PREFIX " Failed to connect to C64 Ultimate at %s:%u: %s", ip, port,
+                        c64_get_socket_error_string(sock_error));
         close(sock);
         return INVALID_SOCKET_VALUE;
     }
@@ -697,6 +705,6 @@ socket_t c64_create_tcp_socket(const char *ip, uint32_t port)
     fcntl(sock, F_SETFL, flags);
 #endif
 
-    obs_log(LOG_DEBUG, "Connected to C64 Ultimate at %s:%u", ip, port);
+    C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Connected to C64 Ultimate at %s:%u", ip, port);
     return sock;
 }

@@ -22,7 +22,7 @@ See <https://www.gnu.org/licenses/> for details.
 void c64_send_control_command(struct c64_source *context, bool enable, uint8_t stream_id)
 {
     if (strcmp(context->ip_address, "0.0.0.0") == 0) {
-        C64_LOG_DEBUG("Skipping control command - no IP configured (0.0.0.0)");
+        C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Skipping control command - no IP configured (0.0.0.0)");
         return;
     }
 
@@ -37,7 +37,7 @@ void c64_send_control_command(struct c64_source *context, bool enable, uint8_t s
 
         // Ensure we have a valid OBS IP address
         if (!client_ip || strlen(client_ip) == 0) {
-            C64_LOG_WARNING("No OBS IP address configured, cannot send stream start command");
+            C64_LOG_WARNING("" NETWORK_LOG_PREFIX " No OBS IP address configured, cannot send stream start command");
             close(sock);
             return;
         }
@@ -61,15 +61,16 @@ void c64_send_control_command(struct c64_source *context, bool enable, uint8_t s
         memcpy(&cmd[6], ip_port_str, ip_port_len);
 
         int cmd_len = 6 + (int)ip_port_len;
-        C64_LOG_INFO("Sending start command for stream %u to %s with client destination: %s", stream_id,
-                     context->ip_address, ip_port_str);
+        C64_LOG_INFO("" NETWORK_LOG_PREFIX " Sending start command for stream %u to %s with client destination: %s",
+                     stream_id, context->ip_address, ip_port_str);
 
         ssize_t sent = send(sock, (const char *)cmd, cmd_len, 0);
         if (sent != (ssize_t)cmd_len) {
             int error = c64_get_socket_error();
-            C64_LOG_ERROR("Failed to send start control command: %s", c64_get_socket_error_string(error));
+            C64_LOG_ERROR("" NETWORK_LOG_PREFIX " Failed to send start control command: %s",
+                          c64_get_socket_error_string(error));
         } else {
-            C64_LOG_DEBUG("Start control command sent successfully");
+            C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Start control command sent successfully");
         }
     } else {
         // Disable stream command: FF3n where n is stream ID
@@ -79,14 +80,16 @@ void c64_send_control_command(struct c64_source *context, bool enable, uint8_t s
         cmd[2] = 0x00; // No parameters
         cmd[3] = 0x00;
         int cmd_len = 4;
-        C64_LOG_INFO("Sending stop command for stream %u to C64 %s", stream_id, context->ip_address);
+        C64_LOG_INFO("" NETWORK_LOG_PREFIX " Sending stop command for stream %u to C64 %s", stream_id,
+                     context->ip_address);
 
         ssize_t sent = send(sock, (const char *)cmd, cmd_len, 0);
         if (sent != (ssize_t)cmd_len) {
             int error = c64_get_socket_error();
-            C64_LOG_ERROR("Failed to send stop control command: %s", c64_get_socket_error_string(error));
+            C64_LOG_ERROR("" NETWORK_LOG_PREFIX " Failed to send stop control command: %s",
+                          c64_get_socket_error_string(error));
         } else {
-            C64_LOG_DEBUG("Stop control command sent successfully");
+            C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Stop control command sent successfully");
         }
     }
 

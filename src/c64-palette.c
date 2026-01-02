@@ -56,8 +56,7 @@ static const uint32_t default_palette_colors[C64_PALETTE_COLORS] = {
 
 // Forward declarations
 static void discover_shipped_palettes(void);
-static void load_palette_ini(void);
-static void save_palette_ini(void);
+static void discover_custom_palettes(void);
 static bool add_palette_entry(const char *id, const char *name, const char *path, bool is_shipped);
 static void sort_palettes(void);
 static char *trim_whitespace(char *str);
@@ -73,14 +72,7 @@ bool c64_palette_init(void)
 
     // Set up user palette directory
     if (!c64_palette_get_user_dir(palette_system.user_palette_dir, sizeof(palette_system.user_palette_dir))) {
-        C64_LOG_WARNING("Failed to set up user palette directory");
-    }
-
-    // Set up palette INI path
-    int ini_len = snprintf(palette_system.palette_ini_path, sizeof(palette_system.palette_ini_path), "%s%cpalettes.ini",
-                           palette_system.user_palette_dir, PATH_SEP);
-    if (ini_len < 0 || (size_t)ini_len >= sizeof(palette_system.palette_ini_path)) {
-        C64_LOG_WARNING("Palette INI path too long, truncated");
+        C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Failed to set up user palette directory");
     }
 
     // Add Default palette first (always present, uses hardcoded colors)
@@ -92,11 +84,11 @@ bool c64_palette_init(void)
     palette_system.palettes[0].colors_loaded = true;
     palette_system.palette_count = 1;
 
-    // Discover shipped palettes
+    // Discover shipped palettes from data/palettes/
     discover_shipped_palettes();
 
-    // Load user palette references from INI
-    load_palette_ini();
+    // Discover custom palettes from user directory
+    discover_custom_palettes();
 
     // Sort palettes (Default first, then alphabetically)
     sort_palettes();
@@ -105,7 +97,7 @@ bool c64_palette_init(void)
     c64_palette_select("Default");
 
     palette_initialized = true;
-    C64_LOG_INFO("🎨 Palette system initialized with %d palettes", palette_system.palette_count);
+    C64_LOG_INFO("" PALETTE_LOG_PREFIX " Palette system initialized with %d palettes", palette_system.palette_count);
 
     return true;
 }
@@ -118,7 +110,7 @@ void c64_palette_cleanup(void)
 
     palette_initialized = false;
     memset(&palette_system, 0, sizeof(palette_system));
-    C64_LOG_INFO("🎨 Palette system cleaned up");
+    C64_LOG_INFO("" PALETTE_LOG_PREFIX " Palette system cleaned up");
 }
 
 struct c64_palette_system *c64_palette_get_system(void)
@@ -127,6 +119,133 @@ struct c64_palette_system *c64_palette_get_system(void)
         return NULL;
     }
     return &palette_system;
+}
+
+void c64_palette_validate_filesystem(obs_data_t *settings)
+{
+    C64_LOG_INFO("" PALETTE_LOG_PREFIX " Validating palette filesystem (checking for deleted files)...");
+
+    // Check all custom (non-shipped) palettes and verify their files exist
+    int i = 0;
+    int removed_count = 0;
+    bool active_palette_missing = false;
+    const char *active_palette_id = c64_palette_get_active_id();
+
+    C64_LOG_INFO("" PALETTE_LOG_PREFIX "   Current active palette: %s (total palettes: %d)", active_palette_id,
+                 palette_system.palette_count);
+
+    while (i < palette_system.palette_count) {
+        struct c64_palette_entry *entry = &palette_system.palettes[i];
+
+        // Skip shipped palettes (they're always valid)
+        if (entry->is_shipped) {
+            i++;
+            continue;
+        }
+
+        // Check if the file exists
+        bool file_exists = false;
+        if (entry->path[0]) {
+            FILE *file = fopen(entry->path, "r");
+            if (file) {
+                file_exists = true;
+                fclose(file);
+            }
+        }
+
+        if (!file_exists) {
+            C64_LOG_WARNING("" PALETTE_LOG_PREFIX
+                            " Palette file no longer exists (likely deleted by user), removing from dropdown: '%s' "
+                            "(path: %s)",
+                            entry->id, entry->path);
+
+            // Check if this was the active palette (defensive: ensure active_palette_id is non-NULL)
+            if (active_palette_id && strcmp(entry->id, active_palette_id) == 0) {
+                active_palette_missing = true;
+            }
+
+            // Remove this entry by shifting remaining entries down
+            for (int j = i; j < palette_system.palette_count - 1; j++) {
+                memcpy(&palette_system.palettes[j], &palette_system.palettes[j + 1], sizeof(struct c64_palette_entry));
+            }
+            palette_system.palette_count--;
+            removed_count++;
+
+            // Update active index if it was after the deleted entry
+            if (palette_system.active_palette_index > i) {
+                palette_system.active_palette_index--;
+            }
+
+            // Don't increment i, check the same position again (which now has the next entry)
+        } else {
+            i++;
+        }
+    }
+
+    // Rediscover custom palettes if we removed any entries to resync with filesystem
+    if (removed_count > 0) {
+        C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Removed %d stale palette reference%s from palette list", removed_count,
+                        removed_count == 1 ? "" : "s");
+        discover_custom_palettes();
+        sort_palettes();
+    }
+
+    // If the active palette is missing, fall back to Default
+    if (active_palette_missing) {
+        C64_LOG_WARNING("" PALETTE_LOG_PREFIX
+                        " Active palette '%s' file was deleted by user, falling back to 'Default (Preset)'",
+                        active_palette_id);
+        c64_palette_select("Default");
+    }
+
+    // Also check if settings contains a stale palette ID that doesn't exist in our list
+    // This handles the case where the palette was deleted in a previous OBS session
+    // and the settings file still references it
+    bool settings_palette_stale = false;
+    if (settings) {
+        const char *settings_palette_id = obs_data_get_string(settings, "palette");
+        if (settings_palette_id && settings_palette_id[0]) {
+            // Check if this palette exists in our system
+            bool found = false;
+            for (int k = 0; k < palette_system.palette_count; k++) {
+                if (strcmp(palette_system.palettes[k].id, settings_palette_id) == 0) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                C64_LOG_WARNING("" PALETTE_LOG_PREFIX
+                                " Settings reference stale palette '%s' that no longer exists, resetting to 'Default'",
+                                settings_palette_id);
+                settings_palette_stale = true;
+            }
+        }
+    }
+
+    // Update settings if we need to fallback to Default
+    if (settings && (active_palette_missing || settings_palette_stale)) {
+        obs_data_set_string(settings, "palette", "Default");
+
+        // Clear any stale export path
+        obs_data_erase(settings, "palette_export_path");
+
+        // Set color values to Default palette colors (not just erase)
+        // This prevents OBS from having stale color values that would trigger
+        // palette recreation when color picker callbacks fire
+        uint32_t *default_colors = c64_palette_get_working_colors();
+        if (default_colors) {
+            for (int j = 0; j < 16; j++) {
+                char key[32];
+                snprintf(key, sizeof(key), "palette_color_%d", j);
+
+                // Convert BGRA to OBS color format (ABGR stored as int)
+                uint32_t obs_color = c64_bgra_to_obs_color(default_colors[j]);
+
+                // Set actual value to overwrite any stale cached values
+                obs_data_set_int(settings, key, (long long)obs_color);
+            }
+        }
+    }
 }
 
 void c64_palette_populate_list(obs_property_t *palette_prop)
@@ -161,7 +280,7 @@ bool c64_palette_select(const char *palette_id)
     }
 
     if (index < 0) {
-        C64_LOG_WARNING("Palette not found: %s", palette_id);
+        C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Palette not found: %s", palette_id);
         return false;
     }
 
@@ -182,7 +301,7 @@ bool c64_palette_select(const char *palette_id)
                 entry->desc[sizeof(entry->desc) - 1] = '\0';
             }
         } else {
-            C64_LOG_WARNING("Failed to load palette: %s", entry->path);
+            C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Failed to load palette: %s", entry->path);
             return false;
         }
     }
@@ -196,7 +315,7 @@ bool c64_palette_select(const char *palette_id)
     // Rebuild LUT with new palette
     c64_palette_rebuild_lut(palette_system.working_colors);
 
-    C64_LOG_INFO("🎨 Selected palette: %s", entry->name);
+    C64_LOG_INFO("" PALETTE_LOG_PREFIX " Selected palette: %s", entry->name);
     return true;
 }
 
@@ -262,7 +381,7 @@ void c64_palette_revert(void)
     // Rebuild LUT with reverted colors
     c64_palette_rebuild_lut(palette_system.working_colors);
 
-    C64_LOG_INFO("🎨 Reverted to saved palette: %s", entry->name);
+    C64_LOG_INFO("" PALETTE_LOG_PREFIX " Reverted to saved palette: %s", entry->name);
 }
 
 bool c64_palette_save(void)
@@ -275,13 +394,13 @@ bool c64_palette_save(void)
 
     // Cannot overwrite shipped palettes
     if (entry->is_shipped) {
-        C64_LOG_INFO("Cannot overwrite shipped palette: %s (use Save As)", entry->name);
+        C64_LOG_INFO("" PALETTE_LOG_PREFIX " Cannot overwrite shipped palette: %s (use Save As)", entry->name);
         return false;
     }
 
     // Write to VPL file
     if (!c64_palette_write_vpl(entry->path, palette_system.working_colors, entry->name)) {
-        C64_LOG_WARNING("Failed to save palette: %s", entry->path);
+        C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Failed to save palette: %s", entry->path);
         return false;
     }
 
@@ -289,7 +408,7 @@ bool c64_palette_save(void)
     memcpy(entry->colors, palette_system.working_colors, sizeof(entry->colors));
     palette_system.working_modified = false;
 
-    C64_LOG_INFO("🎨 Saved palette: %s", entry->name);
+    C64_LOG_INFO("" PALETTE_LOG_PREFIX " Saved palette: %s", entry->name);
     return true;
 }
 
@@ -307,7 +426,7 @@ bool c64_palette_save_as(const char *name, const char *path)
 
     // Write to VPL file
     if (!c64_palette_write_vpl(path, palette_system.working_colors, name)) {
-        C64_LOG_WARNING("Failed to save palette as: %s", path);
+        C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Failed to save palette as: %s", path);
         return false;
     }
 
@@ -342,7 +461,7 @@ bool c64_palette_save_as(const char *name, const char *path)
 
     if (!found) {
         if (!add_palette_entry(id, name, path, false)) {
-            C64_LOG_WARNING("Failed to add palette entry: %s", id);
+            C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Failed to add palette entry: %s", id);
             return false;
         }
         // Load colors for the new entry
@@ -352,14 +471,11 @@ bool c64_palette_save_as(const char *name, const char *path)
         palette_system.palettes[new_index].colors_loaded = true;
     }
 
-    // Save palette INI
-    save_palette_ini();
-
     // Sort and select the new palette
     sort_palettes();
     c64_palette_select(id);
 
-    C64_LOG_INFO("🎨 Saved palette as: %s", name);
+    C64_LOG_INFO("" PALETTE_LOG_PREFIX " Saved palette as: %s", name);
     return true;
 }
 
@@ -374,7 +490,7 @@ bool c64_palette_load_from_file(const char *path)
     char name[C64_PALETTE_NAME_MAX];
     char desc[256];
     if (!c64_palette_parse_vpl(path, colors, name, sizeof(name), desc, sizeof(desc))) {
-        C64_LOG_WARNING("Failed to parse VPL file: %s", path);
+        C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Failed to parse VPL file: %s", path);
         return false;
     }
 
@@ -401,7 +517,7 @@ bool c64_palette_load_from_file(const char *path)
     char dest_path[C64_PALETTE_PATH_MAX];
     int dest_len = snprintf(dest_path, sizeof(dest_path), "%s%c%s", user_dir, PATH_SEP, src_filename);
     if (dest_len < 0 || (size_t)dest_len >= sizeof(dest_path)) {
-        C64_LOG_WARNING("Destination path too long for palette import");
+        C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Destination path too long for palette import");
         return false;
     }
 
@@ -417,7 +533,8 @@ bool c64_palette_load_from_file(const char *path)
     // Check if this is a shipped palette - reject loading them
     for (int i = 0; i < palette_system.palette_count; i++) {
         if (palette_system.palettes[i].is_shipped && strcmp(palette_system.palettes[i].id, id) == 0) {
-            C64_LOG_WARNING("Cannot load shipped palette '%s' - it's already available in the dropdown", id);
+            C64_LOG_WARNING(
+                "" PALETTE_LOG_PREFIX " Cannot load shipped palette '%s' - it's already available in the dropdown", id);
             return false;
         }
     }
@@ -429,7 +546,7 @@ bool c64_palette_load_from_file(const char *path)
 
     // Write the file to user directory
     if (!c64_palette_write_vpl(dest_path, colors, name)) {
-        C64_LOG_WARNING("Failed to copy palette to user directory: %s", dest_path);
+        C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Failed to copy palette to user directory: %s", dest_path);
         return false;
     }
 
@@ -457,14 +574,13 @@ bool c64_palette_load_from_file(const char *path)
         palette_system.palettes[new_index].colors_loaded = true;
     }
 
-    // Save palette INI and sort
-    save_palette_ini();
+    // Sort palettes
     sort_palettes();
 
     // Select the loaded palette
     c64_palette_select(id);
 
-    C64_LOG_INFO("🎨 Loaded palette from file: %s", name);
+    C64_LOG_INFO("" PALETTE_LOG_PREFIX " Loaded palette from file: %s", name);
     return true;
 }
 
@@ -477,7 +593,7 @@ bool c64_palette_parse_vpl(const char *path, uint32_t *colors, char *name, size_
 
     FILE *file = fopen(path, "r");
     if (!file) {
-        C64_LOG_WARNING("Failed to open VPL file: %s", path);
+        C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Failed to open VPL file: %s", path);
         return false;
     }
 
@@ -593,7 +709,8 @@ bool c64_palette_parse_vpl(const char *path, uint32_t *colors, char *name, size_
     fclose(file);
 
     if (color_count != C64_PALETTE_COLORS) {
-        C64_LOG_WARNING("VPL file has %d colors, expected %d: %s", color_count, C64_PALETTE_COLORS, path);
+        C64_LOG_WARNING("" PALETTE_LOG_PREFIX " VPL file has %d colors, expected %d: %s", color_count,
+                        C64_PALETTE_COLORS, path);
         return false;
     }
 
@@ -631,7 +748,11 @@ bool c64_palette_parse_vpl(const char *path, uint32_t *colors, char *name, size_
 
 bool c64_palette_write_vpl(const char *path, const uint32_t *colors, const char *name)
 {
+    C64_LOG_INFO("" PALETTE_LOG_PREFIX " Writing VPL file: %s (name: %s)", path ? path : "(null)",
+                 name ? name : "(null)");
+
     if (!path || !colors) {
+        C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Write VPL failed: invalid parameters");
         return false;
     }
 
@@ -692,9 +813,11 @@ bool c64_palette_write_vpl(const char *path, const uint32_t *colors, const char 
 
     FILE *file = fopen(path, "w");
     if (!file) {
-        C64_LOG_WARNING("Failed to create VPL file: %s", path);
+        C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Failed to create VPL file: %s (check permissions/path)", path);
         return false;
     }
+
+    C64_LOG_INFO("" PALETTE_LOG_PREFIX " VPL file opened for writing: %s", path);
 
     // Write VICE VPL format header
     fprintf(file, "# VICE Palette file\n");
@@ -703,13 +826,20 @@ bool c64_palette_write_vpl(const char *path, const uint32_t *colors, const char 
     fprintf(file, "# Red Green Blue\n");
     fprintf(file, "#\n");
     fprintf(file, "# TYPE:VICII\n");
-    fprintf(file, "# NAME:%s\n", camel_name);
-    if (name && name[0] && strcmp(name, camel_name) != 0) {
-        fprintf(file, "# DESC:%s\n", name);
-    }
+    // KEY LESSON: Always use the provided name parameter for both NAME and DESC to preserve special
+    // characters (parentheses, etc). Only fall back to filename-derived camel_name when no explicit
+    // name is provided. This ensures "Muted (Custom)" stays intact rather than becoming "Muted Custom".
+    const char *display_name = (name && name[0]) ? name : camel_name;
+    fprintf(file, "# NAME:%s\n", display_name);
+    fprintf(file, "# DESC:%s\n", display_name);
     fprintf(file, "\n");
 
-    // Write colors in VPL format (RR GG BB)
+    // Standard C64 color names (in order 0-15)
+    static const char *color_names[16] = {"Black",   "White",      "Red",       "Cyan",     "Purple", "Green",
+                                          "Blue",    "Yellow",     "Orange",    "Brown",    "Pink",   "DarkGrey",
+                                          "MedGrey", "LightGreen", "LightBlue", "LightGrey"};
+
+    // Write colors in VPL format (RR GG BB) with color name comments
     for (int i = 0; i < C64_PALETTE_COLORS; i++) {
         uint32_t bgra = colors[i];
         // Extract BGR from BGRA (little-endian format)
@@ -717,10 +847,11 @@ bool c64_palette_write_vpl(const char *path, const uint32_t *colors, const char 
         uint8_t g = (bgra >> 8) & 0xFF;
         uint8_t r = bgra & 0xFF;
 
-        fprintf(file, "%02X %02X %02X\n", r, g, b);
+        fprintf(file, "%02X %02X %02X  # %s\n", r, g, b, color_names[i]);
     }
 
     fclose(file);
+    C64_LOG_INFO("" PALETTE_LOG_PREFIX " VPL file written successfully: %s", path);
     return true;
 }
 
@@ -753,7 +884,7 @@ void c64_palette_rebuild_lut(const uint32_t *colors)
     }
 
     c64_color_lut_initialized = true;
-    C64_LOG_DEBUG("🎨 Color LUT rebuilt with custom palette");
+    C64_LOG_DEBUG("" PALETTE_LOG_PREFIX " Color LUT rebuilt with custom palette");
 }
 
 const uint32_t *c64_palette_get_active_colors(void)
@@ -793,11 +924,11 @@ static void discover_shipped_palettes(void)
 {
     char *palettes_path = obs_module_file("palettes");
     if (!palettes_path) {
-        C64_LOG_WARNING("Shipped palettes directory not found");
+        C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Shipped palettes directory not found");
         return;
     }
 
-    C64_LOG_INFO("Discovering shipped palettes from: %s", palettes_path);
+    C64_LOG_INFO("" PALETTE_LOG_PREFIX " Discovering shipped palettes from: %s", palettes_path);
 
 #ifdef _WIN32
     char search_path[C64_PALETTE_PATH_MAX];
@@ -894,114 +1025,150 @@ static void discover_shipped_palettes(void)
     bfree(palettes_path);
 }
 
-static void load_palette_ini(void)
+static void discover_custom_palettes(void)
 {
-    FILE *file = fopen(palette_system.palette_ini_path, "r");
-    if (!file) {
-        // No INI file yet, that's fine
+    if (!palette_system.user_palette_dir[0]) {
         return;
     }
 
-    C64_LOG_INFO("Loading user palettes from: %s", palette_system.palette_ini_path);
+    C64_LOG_INFO("" PALETTE_LOG_PREFIX " Discovering custom palettes from: %s", palette_system.user_palette_dir);
+    int discovered_count = 0;
 
-    char line[1024];
-    while (fgets(line, sizeof(line), file)) {
-        // Remove trailing newline
-        size_t len = strlen(line);
-        while (len > 0 && (line[len - 1] == '\n' || line[len - 1] == '\r')) {
-            line[--len] = '\0';
-        }
+#ifdef _WIN32
+    char search_path[C64_PALETTE_PATH_MAX];
+    snprintf(search_path, sizeof(search_path), "%s\\*.vpl", palette_system.user_palette_dir);
 
-        // Skip comments and empty lines
-        char *trimmed = trim_whitespace(line);
-        if (!trimmed || !*trimmed || *trimmed == '#' || *trimmed == ';') {
-            continue;
-        }
+    WIN32_FIND_DATAA find_data;
+    HANDLE find_handle = FindFirstFileA(search_path, &find_data);
+    if (find_handle != INVALID_HANDLE_VALUE) {
+        do {
+            if (!(find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
+                char full_path[C64_PALETTE_PATH_MAX];
+                snprintf(full_path, sizeof(full_path), "%s\\%s", palette_system.user_palette_dir, find_data.cFileName);
 
-        // Skip section headers
-        if (*trimmed == '[') {
-            continue;
-        }
+                char id[C64_PALETTE_NAME_MAX];
+                strncpy(id, find_data.cFileName, sizeof(id) - 1);
+                id[sizeof(id) - 1] = '\0';
+                char *ext = strrchr(id, '.');
+                if (ext)
+                    *ext = '\0';
 
-        // Parse id=path format
-        char *equals = strchr(trimmed, '=');
-        if (!equals) {
-            continue;
-        }
-
-        *equals = '\0';
-        char *id = trim_whitespace(trimmed);
-        char *path = trim_whitespace(equals + 1);
-
-        if (!id || !*id || !path || !*path) {
-            continue;
-        }
-
-        // Check if palette already exists
-        bool found = false;
-        for (int i = 0; i < palette_system.palette_count; i++) {
-            if (strcmp(palette_system.palettes[i].id, id) == 0) {
-                found = true;
-                break;
-            }
-        }
-
-        if (!found) {
-            // Try to get display name from file
-            char name[C64_PALETTE_NAME_MAX];
-            char desc[256];
-            uint32_t temp_colors[C64_PALETTE_COLORS];
-            if (c64_palette_parse_vpl(path, temp_colors, name, sizeof(name), desc, sizeof(desc))) {
-                if (!name[0]) {
-                    strncpy(name, id, sizeof(name) - 1);
+                // Check if already exists (avoid duplicates)
+                bool found = false;
+                for (int i = 0; i < palette_system.palette_count; i++) {
+                    if (strcmp(palette_system.palettes[i].id, id) == 0) {
+                        found = true;
+                        break;
+                    }
                 }
-                add_palette_entry(id, name, path, false);
-                // Store description if we got one
-                if (desc[0] && palette_system.palette_count > 0) {
-                    int idx = palette_system.palette_count - 1;
-                    strncpy(palette_system.palettes[idx].desc, desc, sizeof(palette_system.palettes[idx].desc) - 1);
-                    palette_system.palettes[idx].desc[sizeof(palette_system.palettes[idx].desc) - 1] = '\0';
+
+                if (!found) {
+                    char name[C64_PALETTE_NAME_MAX];
+                    char desc[256];
+                    uint32_t temp_colors[C64_PALETTE_COLORS];
+                    if (c64_palette_parse_vpl(full_path, temp_colors, name, sizeof(name), desc, sizeof(desc))) {
+                        if (!name[0]) {
+                            strncpy(name, id, sizeof(name) - 1);
+                        }
+                        C64_LOG_INFO("" PALETTE_LOG_PREFIX "   Discovered: %s (%s)", id, name);
+                        add_palette_entry(id, name, full_path, false);
+                        discovered_count++;
+                        if (desc[0] && palette_system.palette_count > 0) {
+                            int idx = palette_system.palette_count - 1;
+                            strncpy(palette_system.palettes[idx].desc, desc,
+                                    sizeof(palette_system.palettes[idx].desc) - 1);
+                            palette_system.palettes[idx].desc[sizeof(palette_system.palettes[idx].desc) - 1] = '\0';
+                        }
+                    }
+                } else {
+                    C64_LOG_INFO("" PALETTE_LOG_PREFIX "   Skipped (already exists): %s", id);
                 }
             }
-        }
+        } while (FindNextFileA(find_handle, &find_data));
+        FindClose(find_handle);
     }
-
-    fclose(file);
-}
-
-static void save_palette_ini(void)
-{
-    FILE *file = fopen(palette_system.palette_ini_path, "w");
-    if (!file) {
-        C64_LOG_WARNING("Failed to save palette INI: %s", palette_system.palette_ini_path);
+#else
+    DIR *dir = opendir(palette_system.user_palette_dir);
+    if (!dir) {
+        C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Failed to open palette directory: %s", palette_system.user_palette_dir);
         return;
     }
 
-    fprintf(file, "# C64 Stream User Palettes\n");
-    fprintf(file, "# Format: palette_id=path_to_vpl_file\n\n");
-    fprintf(file, "[palettes]\n");
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != NULL) {
+        if (entry->d_type == DT_REG || entry->d_type == DT_UNKNOWN) {
+            const char *ext = strrchr(entry->d_name, '.');
+            if (ext && strcasecmp(ext, ".vpl") == 0) {
+                char full_path[C64_PALETTE_PATH_MAX];
+                int path_len =
+                    snprintf(full_path, sizeof(full_path), "%s/%s", palette_system.user_palette_dir, entry->d_name);
+                if (path_len < 0 || (size_t)path_len >= sizeof(full_path)) {
+                    C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Palette path too long, skipping: %s", entry->d_name);
+                    continue;
+                }
 
-    for (int i = 0; i < palette_system.palette_count; i++) {
-        // Only save user palettes (not shipped)
-        if (!palette_system.palettes[i].is_shipped && palette_system.palettes[i].path[0]) {
-            fprintf(file, "%s=%s\n", palette_system.palettes[i].id, palette_system.palettes[i].path);
+                char id[C64_PALETTE_NAME_MAX];
+                strncpy(id, entry->d_name, sizeof(id) - 1);
+                id[sizeof(id) - 1] = '\0';
+                char *dot = strrchr(id, '.');
+                if (dot)
+                    *dot = '\0';
+
+                // Check if already exists (avoid duplicates)
+                bool found = false;
+                for (int i = 0; i < palette_system.palette_count; i++) {
+                    if (strcmp(palette_system.palettes[i].id, id) == 0) {
+                        found = true;
+                        break;
+                    }
+                }
+
+                if (!found) {
+                    char name[C64_PALETTE_NAME_MAX];
+                    char desc[256];
+                    uint32_t temp_colors[C64_PALETTE_COLORS];
+                    if (c64_palette_parse_vpl(full_path, temp_colors, name, sizeof(name), desc, sizeof(desc))) {
+                        if (!name[0]) {
+                            strncpy(name, id, sizeof(name) - 1);
+                        }
+                        C64_LOG_INFO("" PALETTE_LOG_PREFIX "   Discovered: %s (%s)", id, name);
+                        add_palette_entry(id, name, full_path, false);
+                        discovered_count++;
+                        if (desc[0] && palette_system.palette_count > 0) {
+                            int idx = palette_system.palette_count - 1;
+                            strncpy(palette_system.palettes[idx].desc, desc,
+                                    sizeof(palette_system.palettes[idx].desc) - 1);
+                            palette_system.palettes[idx].desc[sizeof(palette_system.palettes[idx].desc) - 1] = '\0';
+                        }
+                    }
+                } else {
+                    C64_LOG_INFO("" PALETTE_LOG_PREFIX "   Skipped (already exists): %s", id);
+                }
+            }
         }
     }
 
-    fclose(file);
+    closedir(dir);
+#endif
+
+    C64_LOG_INFO("" PALETTE_LOG_PREFIX " Discovery complete: added %d new custom palette%s", discovered_count,
+                 discovered_count == 1 ? "" : "s");
 }
 
 static bool add_palette_entry(const char *id, const char *name, const char *path, bool is_shipped)
 {
+    C64_LOG_INFO("" PALETTE_LOG_PREFIX " Adding palette entry to dropdown: id='%s', name='%s', path='%s', shipped=%d",
+                 id ? id : "(null)", name ? name : "(null)", path ? path : "(null)", is_shipped);
+
     if (palette_system.palette_count >= C64_MAX_PALETTES) {
-        C64_LOG_WARNING("Maximum palette count reached");
+        C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Maximum palette count reached (%d)", C64_MAX_PALETTES);
         return false;
     }
 
     // Check for duplicate IDs (case-insensitive)
     for (int i = 0; i < palette_system.palette_count; i++) {
         if (strcasecmp(palette_system.palettes[i].id, id) == 0) {
-            C64_LOG_DEBUG("Palette with ID '%s' already exists, skipping", id);
+            C64_LOG_INFO("" PALETTE_LOG_PREFIX "   Palette with ID '%s' already exists in dropdown, skipping", id);
             return false;
         }
     }
@@ -1017,6 +1184,8 @@ static bool add_palette_entry(const char *id, const char *name, const char *path
     entry->colors_loaded = false;
 
     palette_system.palette_count++;
+    C64_LOG_INFO("" PALETTE_LOG_PREFIX " Palette entry added to dropdown: '%s' (total count: %d)", id,
+                 palette_system.palette_count);
     return true;
 }
 
@@ -1056,48 +1225,67 @@ bool c64_palette_get_display_name(const char *palette_id, char *display_name, si
     return false;
 }
 
-bool c64_palette_auto_save(void)
+bool c64_palette_auto_save(obs_data_t *settings)
 {
     // No modifications, nothing to do
     if (!palette_system.working_modified) {
-        return true;
+        return false; // No change, no UI refresh needed
     }
 
     if (palette_system.active_palette_index < 0) {
-        return true; // No active palette, nothing to save
+        return false; // No active palette, nothing to save
     }
 
     struct c64_palette_entry *entry = &palette_system.palettes[palette_system.active_palette_index];
 
     // If editing a preset, create a custom copy
     if (entry->is_shipped) {
-        // Generate a custom name (remove " (Preset)" if present, just use base name)
+        // Generate a custom name with "(Custom)" suffix for display
         char custom_name[C64_PALETTE_NAME_MAX];
-        strncpy(custom_name, entry->name, sizeof(custom_name) - 1);
-        custom_name[sizeof(custom_name) - 1] = '\0';
+        int name_len = snprintf(custom_name, sizeof(custom_name), "%s (Custom)", entry->name);
+        if (name_len < 0 || (size_t)name_len >= sizeof(custom_name)) {
+            C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Custom palette name too long");
+            return false;
+        }
 
-        // Build path for custom palette
+        // Convert preset ID to lowercase for filename (e.g., "Default" -> "default")
+        char lowercase_id[C64_PALETTE_NAME_MAX];
+        strncpy(lowercase_id, entry->id, sizeof(lowercase_id) - 1);
+        lowercase_id[sizeof(lowercase_id) - 1] = '\0';
+        for (char *p = lowercase_id; *p; p++) {
+            *p = tolower((unsigned char)*p);
+        }
+
+        // Build path with lowercase ID and "-custom" suffix (e.g., "default-custom.vpl")
         char custom_path[C64_PALETTE_PATH_MAX];
-        int path_len = snprintf(custom_path, sizeof(custom_path), "%s%c%s.vpl", palette_system.user_palette_dir,
-                                PATH_SEP, entry->id);
+        int path_len = snprintf(custom_path, sizeof(custom_path), "%s%c%s-custom.vpl", palette_system.user_palette_dir,
+                                PATH_SEP, lowercase_id);
         if (path_len < 0 || (size_t)path_len >= sizeof(custom_path)) {
-            C64_LOG_WARNING("Custom palette path too long");
+            C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Custom palette path too long");
             return false;
         }
 
-        // Save as new custom palette
+        // Save as new custom palette (overwrites if exists)
         if (!c64_palette_save_as(custom_name, custom_path)) {
-            C64_LOG_WARNING("Failed to auto-save preset as custom palette: %s", custom_name);
+            C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Failed to auto-save preset as custom palette: %s", custom_name);
             return false;
         }
 
-        C64_LOG_INFO("🎨 Auto-saved preset '%s' as custom palette", custom_name);
-        return true;
+        // Update OBS settings to point to the new custom palette ID
+        // This ensures the custom palette is reloaded when properties dialog reopens
+        if (settings) {
+            const char *new_id = c64_palette_get_active_id();
+            obs_data_set_string(settings, "palette", new_id);
+            C64_LOG_INFO("�� PALETTE: Updated settings to use custom palette: %s (was: %s)", new_id, entry->id);
+        }
+
+        C64_LOG_INFO("" PALETTE_LOG_PREFIX " Auto-saved preset '%s' as custom palette", custom_name);
+        return true; // Palette converted, UI refresh needed
     }
 
-    // For custom palettes, save in place
+    // For custom palettes, save in place (overwrites existing file)
     if (!c64_palette_write_vpl(entry->path, palette_system.working_colors, entry->name)) {
-        C64_LOG_WARNING("Failed to auto-save custom palette: %s", entry->path);
+        C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Failed to auto-save custom palette: %s", entry->path);
         return false;
     }
 
@@ -1105,8 +1293,8 @@ bool c64_palette_auto_save(void)
     memcpy(entry->colors, palette_system.working_colors, sizeof(entry->colors));
     palette_system.working_modified = false;
 
-    C64_LOG_INFO("🎨 Auto-saved custom palette: %s", entry->name);
-    return true;
+    C64_LOG_INFO("" PALETTE_LOG_PREFIX " Auto-saved custom palette: %s", entry->name);
+    return false; // Custom palette saved, no UI refresh needed
 }
 
 bool c64_palette_delete(const char *palette_id)
@@ -1114,6 +1302,8 @@ bool c64_palette_delete(const char *palette_id)
     if (!palette_id || !palette_id[0]) {
         return false;
     }
+
+    C64_LOG_INFO("" PALETTE_LOG_PREFIX " Delete requested for palette: %s", palette_id);
 
     // Find the palette
     int index = -1;
@@ -1125,7 +1315,7 @@ bool c64_palette_delete(const char *palette_id)
     }
 
     if (index < 0) {
-        C64_LOG_WARNING("Cannot delete palette: not found: %s", palette_id);
+        C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Cannot delete palette: not found: %s", palette_id);
         return false;
     }
 
@@ -1133,36 +1323,50 @@ bool c64_palette_delete(const char *palette_id)
 
     // Cannot delete shipped palettes
     if (entry->is_shipped) {
-        C64_LOG_WARNING("Cannot delete shipped palette: %s", palette_id);
+        C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Cannot delete shipped palette: %s", palette_id);
         return false;
     }
 
+    C64_LOG_INFO("" PALETTE_LOG_PREFIX " Deleting file: %s", entry->path);
+
     // Delete the file
+    C64_LOG_INFO("" PALETTE_LOG_PREFIX "   Checking if file exists: %s", entry->path);
     if (os_file_exists(entry->path)) {
+        C64_LOG_INFO("" PALETTE_LOG_PREFIX "   File exists, attempting deletion: %s", entry->path);
         if (os_unlink(entry->path) != 0) {
-            C64_LOG_WARNING("Failed to delete palette file: %s", entry->path);
+            C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Failed to delete palette file: %s (check permissions)",
+                            entry->path);
             return false;
         }
+        C64_LOG_INFO("" PALETTE_LOG_PREFIX " VPL file deleted successfully: %s", entry->path);
+    } else {
+        C64_LOG_WARNING("" PALETTE_LOG_PREFIX "   File already gone (already deleted?): %s", entry->path);
     }
 
     // If this was the active palette, switch to Default
     bool was_active = (palette_system.active_palette_index == index);
     if (was_active) {
+        C64_LOG_INFO("" PALETTE_LOG_PREFIX " Switching active palette to Default");
         c64_palette_select("Default");
     }
 
     // Remove from array by shifting remaining entries
+    C64_LOG_INFO("" PALETTE_LOG_PREFIX "   Removing palette entry from dropdown: '%s' (index %d of %d)", palette_id,
+                 index, palette_system.palette_count);
     for (int i = index; i < palette_system.palette_count - 1; i++) {
         palette_system.palettes[i] = palette_system.palettes[i + 1];
     }
     palette_system.palette_count--;
+
+    C64_LOG_INFO("" PALETTE_LOG_PREFIX " Palette entry removed from dropdown, count now: %d",
+                 palette_system.palette_count);
 
     // Update active index if needed
     if (palette_system.active_palette_index > index) {
         palette_system.active_palette_index--;
     }
 
-    C64_LOG_INFO("🗑️ Deleted custom palette: %s", palette_id);
+    C64_LOG_INFO("" PALETTE_LOG_PREFIX " Deleted custom palette: %s", palette_id);
     return true;
 }
 

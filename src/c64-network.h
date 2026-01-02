@@ -8,6 +8,8 @@ See <https://www.gnu.org/licenses/> for details.
 #ifndef C64_NETWORK_H
 #define C64_NETWORK_H
 
+#define NETWORK_LOG_PREFIX "📡 NETWORK:"
+
 #include <stdbool.h>
 #include <stdint.h>
 

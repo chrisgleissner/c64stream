@@ -49,4 +49,21 @@ void c64_init_color_conversion_lut(void);
  */
 void c64_convert_pixels_optimized(const uint8_t *src, uint32_t *dst, int pixel_pairs);
 
+/**
+ * @brief Convert BGRA color to OBS color format
+ *
+ * Converts a 32-bit BGRA color value to OBS Studio's expected color format
+ * (ABGR with alpha always set to 0xFF).
+ *
+ * @param bgra BGRA color value (blue in low byte, alpha in high byte)
+ * @return OBS color format (0xFFBBGGRR)
+ */
+static inline uint32_t c64_bgra_to_obs_color(uint32_t bgra)
+{
+    uint8_t b = bgra & 0xFF;
+    uint8_t g = (bgra >> 8) & 0xFF;
+    uint8_t r = (bgra >> 16) & 0xFF;
+    return 0xFF000000 | (b << 16) | (g << 8) | r;
+}
+
 #endif // C64_COLOR_H

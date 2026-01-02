@@ -86,24 +86,24 @@ static inline uint64_t c64_get_millis(void)
 
 #define C64_LOG_INFO(format, ...)                                                                        \
     do {                                                                                                   \
-        blog(LOG_INFO, format, ##__VA_ARGS__);                                                            \
+        blog(LOG_INFO, "[c64stream] " format, ##__VA_ARGS__);                                             \
     } while (0)
 
 #define C64_LOG_DEBUG(format, ...)                                                                       \
     do {                                                                                                   \
         if (c64_debug_logging) {                                                                          \
-            blog(LOG_DEBUG, format, ##__VA_ARGS__);                                                       \
+            blog(LOG_DEBUG, "[c64stream] " format, ##__VA_ARGS__);                                        \
         }                                                                                                  \
     } while (0)
 
 #define C64_LOG_WARNING(format, ...)                                                                     \
     do {                                                                                                   \
-        blog(LOG_WARNING, format, ##__VA_ARGS__);                                                         \
+        blog(LOG_WARNING, "[c64stream] " format, ##__VA_ARGS__);                                          \
     } while (0)
 
 #define C64_LOG_ERROR(format, ...)                                                                       \
     do {                                                                                                   \
-        blog(LOG_ERROR, format, ##__VA_ARGS__);                                                           \
+        blog(LOG_ERROR, "[c64stream] " format, ##__VA_ARGS__);                                            \
     } while (0)
 
 #endif // C64_LOGGING_H

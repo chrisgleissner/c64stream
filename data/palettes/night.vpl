@@ -1,0 +1,34 @@
+# VICE Palette file
+#
+# Syntax:
+# Red Green Blue
+#
+# TYPE:VICII
+# NAME:Night
+# DESC:Red-shifted colors for comfortable late night viewing
+
+# VICE Palette file
+#
+# Syntax:
+# Red Green Blue
+#
+# TYPE:VICII
+# NAME:Night
+# DESC:Red-shifted colors for comfortable late night viewing
+
+00 00 00  # Black
+E8 C0 70  # White
+80 40 10  # Red
+B0 80 40  # Cyan
+90 50 20  # Purple
+A0 70 30  # Green
+50 28 00  # Blue
+D0 B0 60  # Yellow
+A0 60 28  # Orange
+60 38 08  # Brown
+B0 80 40  # Pink
+50 30 08  # DarkGrey
+98 68 28  # MedGrey
+C8 A0 50  # LightGreen
+A0 70 30  # LightBlue
+B0 80 40  # LightGrey

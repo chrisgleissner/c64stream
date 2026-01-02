@@ -8,6 +8,9 @@ See <https://www.gnu.org/licenses/> for details.
 #ifndef C64_RECORD_NETWORK_H
 #define C64_RECORD_NETWORK_H
 
+// Logging prefix for recording operations
+#define RECORD_LOG_PREFIX "💾 RECORD:"
+
 #include <stdint.h>
 #include <stdbool.h>
 

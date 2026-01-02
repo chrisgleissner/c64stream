@@ -100,18 +100,18 @@ bool c64_get_user_documents_path(char *path_buffer, size_t buffer_size)
         if (result > 0) {
             strncpy(path_buffer, documents_path, buffer_size - 1);
             path_buffer[buffer_size - 1] = '\0';
-            blog(LOG_DEBUG, "Retrieved Windows Documents path: %s", path_buffer);
+            C64_LOG_DEBUG("" FILE_LOG_PREFIX " Retrieved Windows Documents path: %s", path_buffer);
             return true;
         } else {
-            blog(LOG_WARNING, "Failed to convert Windows Documents path to UTF-8");
+            C64_LOG_WARNING("" FILE_LOG_PREFIX " Failed to convert Windows Documents path to UTF-8");
         }
     } else {
-        blog(LOG_WARNING, "Failed to get Windows Documents folder path (HRESULT: 0x%08X)", hr);
+        C64_LOG_WARNING("" FILE_LOG_PREFIX " Failed to get Windows Documents folder path (HRESULT: 0x%08X)", hr);
     }
 
     // Fallback to Public Documents if personal Documents fails
     strcpy(path_buffer, "C:\\Users\\Public\\Documents");
-    blog(LOG_INFO, "Using fallback Windows Documents path: %s", path_buffer);
+    C64_LOG_INFO("" FILE_LOG_PREFIX " Using fallback Windows Documents path: %s", path_buffer);
     return true;
 
 #elif defined(__APPLE__)
@@ -119,12 +119,12 @@ bool c64_get_user_documents_path(char *path_buffer, size_t buffer_size)
     const char *home = getenv("HOME");
     if (home) {
         snprintf(path_buffer, buffer_size, "%s/Documents", home);
-        blog(LOG_DEBUG, "Retrieved macOS Documents path: %s", path_buffer);
+        C64_LOG_DEBUG("" FILE_LOG_PREFIX " Retrieved macOS Documents path: %s", path_buffer);
         return true;
     } else {
-        blog(LOG_WARNING, "Failed to get macOS home directory");
+        C64_LOG_WARNING("" FILE_LOG_PREFIX " Failed to get macOS home directory");
         strcpy(path_buffer, "/Users/Shared/Documents");
-        blog(LOG_INFO, "Using fallback macOS Documents path: %s", path_buffer);
+        C64_LOG_INFO("" FILE_LOG_PREFIX " Using fallback macOS Documents path: %s", path_buffer);
         return true;
     }
 
@@ -134,19 +134,19 @@ bool c64_get_user_documents_path(char *path_buffer, size_t buffer_size)
     if (xdg_documents) {
         strncpy(path_buffer, xdg_documents, buffer_size - 1);
         path_buffer[buffer_size - 1] = '\0';
-        blog(LOG_DEBUG, "Retrieved Linux XDG Documents path: %s", path_buffer);
+        C64_LOG_DEBUG("" FILE_LOG_PREFIX " Retrieved Linux XDG Documents path: %s", path_buffer);
         return true;
     }
 
     const char *home = getenv("HOME");
     if (home) {
         snprintf(path_buffer, buffer_size, "%s/Documents", home);
-        blog(LOG_DEBUG, "Retrieved Linux Documents path: %s", path_buffer);
+        C64_LOG_DEBUG("" FILE_LOG_PREFIX " Retrieved Linux Documents path: %s", path_buffer);
         return true;
     } else {
-        blog(LOG_WARNING, "Failed to get Linux home directory");
+        C64_LOG_WARNING("" FILE_LOG_PREFIX " Failed to get Linux home directory");
         strcpy(path_buffer, "/tmp");
-        blog(LOG_INFO, "Using fallback Linux Documents path: %s", path_buffer);
+        C64_LOG_INFO("" FILE_LOG_PREFIX " Using fallback Linux Documents path: %s", path_buffer);
         return true;
     }
 #endif
@@ -161,7 +161,7 @@ bool c64_get_user_dir(c64_user_dir_type type, char *path_buffer, size_t buffer_s
     // Get base Documents folder
     char documents[256];
     if (!c64_get_user_documents_path(documents, sizeof(documents))) {
-        blog(LOG_WARNING, "Failed to get user documents path");
+        C64_LOG_WARNING("" FILE_LOG_PREFIX " Failed to get user documents path");
         return false;
     }
 
@@ -184,7 +184,7 @@ bool c64_get_user_dir(c64_user_dir_type type, char *path_buffer, size_t buffer_s
         subdir = "presets";
         break;
     default:
-        blog(LOG_WARNING, "Invalid user directory type: %d", type);
+        C64_LOG_WARNING("" FILE_LOG_PREFIX " Invalid user directory type: %d", type);
         return false;
     }
 
@@ -205,7 +205,7 @@ bool c64_get_user_dir(c64_user_dir_type type, char *path_buffer, size_t buffer_s
 
     // Create directory if it doesn't exist
     if (!c64_create_directory_recursive(path_buffer)) {
-        blog(LOG_WARNING, "Failed to create user directory: %s", path_buffer);
+        C64_LOG_WARNING("" FILE_LOG_PREFIX " Failed to create user directory: %s", path_buffer);
         return false;
     }
 

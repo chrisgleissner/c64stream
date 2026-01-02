@@ -153,7 +153,8 @@ struct c64_source {
     volatile long video_frames_processed; // Total video frames processed (atomic)
     volatile long audio_packets_received; // Total audio packets received (atomic)
     volatile long audio_bytes_received;   // Total audio bytes received (atomic)
-    uint64_t last_stats_log_time;         // Last time statistics were logged (non-atomic)
+    uint64_t last_stats_log_time;         // Last time video statistics were logged (non-atomic)
+    uint64_t last_audio_stats_log_time;   // Last time audio statistics were logged (non-atomic)
     uint64_t last_stats_tick_ns;          // Last time stats batching was checked (limits per-packet timing calls)
 
     // Frame saving for analysis (logo handled by async video - no manual logo needed)
