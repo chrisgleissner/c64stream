@@ -27,6 +27,8 @@
             "name": "Linux",
             "includePath": [
                 "${workspaceFolder}/**",
+                "${workspaceFolder}/build_x86_64",
+                "${workspaceFolder}/src",
                 "/usr/include/obs",
                 "/usr/include/obs/graphics",
                 "/usr/include/obs/media-io",
@@ -41,8 +43,7 @@
             "compilerPath": "/usr/bin/gcc",
             "cStandard": "c17",
             "cppStandard": "c++17",
-            "intelliSenseMode": "linux-gcc-x64",
-            "configurationProvider": "ms-vscode.cmake-tools"
+            "intelliSenseMode": "linux-gcc-x64"
         }
     ],
     "version": 4

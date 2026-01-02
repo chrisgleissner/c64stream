@@ -110,6 +110,7 @@ target_compile_definitions(
   PRIVATE C64_VERSION_TAG="${DISPLAY_VERSION}" C64_GIT_HASH="${GIT_HASH}" C64_BUILD_TIME="${BUILD_TIME}"
 )
 
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
 find_package(libobs REQUIRED)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE OBS::libobs)
 
