@@ -129,6 +129,125 @@ struct c64_palette_system *c64_palette_get_system(void)
     return &palette_system;
 }
 
+void c64_palette_validate_filesystem(obs_data_t *settings)
+{
+    // Check all custom (non-shipped) palettes and verify their files exist
+    int i = 0;
+    int removed_count = 0;
+    bool active_palette_missing = false;
+    const char *active_palette_id = c64_palette_get_active_id();
+
+    while (i < palette_system.palette_count) {
+        struct c64_palette_entry *entry = &palette_system.palettes[i];
+
+        // Skip shipped palettes (they're always valid)
+        if (entry->is_shipped) {
+            i++;
+            continue;
+        }
+
+        // Check if the file exists
+        bool file_exists = false;
+        if (entry->path[0]) {
+            FILE *file = fopen(entry->path, "r");
+            if (file) {
+                file_exists = true;
+                fclose(file);
+            }
+        }
+
+        if (!file_exists) {
+            C64_LOG_WARNING("Palette file no longer exists (likely deleted by user), removing from palette list: '%s' "
+                            "(path: %s)",
+                            entry->id, entry->path);
+
+            // Check if this was the active palette
+            if (strcmp(entry->id, active_palette_id) == 0) {
+                active_palette_missing = true;
+            }
+
+            // Remove this entry by shifting remaining entries down
+            for (int j = i; j < palette_system.palette_count - 1; j++) {
+                memcpy(&palette_system.palettes[j], &palette_system.palettes[j + 1], sizeof(struct c64_palette_entry));
+            }
+            palette_system.palette_count--;
+            removed_count++;
+
+            // Update active index if it was after the deleted entry
+            if (palette_system.active_palette_index > i) {
+                palette_system.active_palette_index--;
+            }
+
+            // Don't increment i, check the same position again (which now has the next entry)
+        } else {
+            i++;
+        }
+    }
+
+    // Save updated INI if we removed any entries
+    if (removed_count > 0) {
+        C64_LOG_WARNING("Removed %d stale palette reference%s from palette list, updating palettes.ini", removed_count,
+                        removed_count == 1 ? "" : "s");
+        save_palette_ini();
+    }
+
+    // If the active palette is missing, fall back to Default
+    if (active_palette_missing) {
+        C64_LOG_WARNING("Active palette '%s' file was deleted by user, falling back to 'Default (Preset)'",
+                        active_palette_id);
+        c64_palette_select("Default");
+    }
+
+    // Also check if settings contains a stale palette ID that doesn't exist in our list
+    // This handles the case where the palette was deleted in a previous OBS session
+    // and the settings file still references it
+    bool settings_palette_stale = false;
+    if (settings) {
+        const char *settings_palette_id = obs_data_get_string(settings, "palette");
+        if (settings_palette_id && settings_palette_id[0]) {
+            // Check if this palette exists in our system
+            bool found = false;
+            for (int k = 0; k < palette_system.palette_count; k++) {
+                if (strcmp(palette_system.palettes[k].id, settings_palette_id) == 0) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                C64_LOG_WARNING("Settings reference stale palette '%s' that no longer exists, resetting to 'Default'",
+                                settings_palette_id);
+                settings_palette_stale = true;
+            }
+        }
+    }
+
+    // Update settings if we need to fallback to Default
+    if (settings && (active_palette_missing || settings_palette_stale)) {
+        obs_data_set_string(settings, "palette", "Default");
+
+        // Set color values to Default palette colors (not just erase)
+        // This prevents OBS from having stale color values that would trigger
+        // palette recreation when color picker callbacks fire
+        uint32_t *default_colors = c64_palette_get_working_colors();
+        if (default_colors) {
+            for (int j = 0; j < 16; j++) {
+                char key[32];
+                snprintf(key, sizeof(key), "palette_color_%d", j);
+
+                // Convert BGRA to OBS color format (ABGR stored as int)
+                uint32_t bgra = default_colors[j];
+                uint8_t b = (bgra >> 16) & 0xFF;
+                uint8_t g = (bgra >> 8) & 0xFF;
+                uint8_t r = bgra & 0xFF;
+                uint32_t obs_color = 0xFF000000 | (b << 16) | (g << 8) | r;
+
+                // Set actual value to overwrite any stale cached values
+                obs_data_set_int(settings, key, (long long)obs_color);
+            }
+        }
+    }
+}
+
 void c64_palette_populate_list(obs_property_t *palette_prop)
 {
     if (!palette_prop) {
@@ -709,7 +828,12 @@ bool c64_palette_write_vpl(const char *path, const uint32_t *colors, const char 
     }
     fprintf(file, "\n");
 
-    // Write colors in VPL format (RR GG BB)
+    // Standard C64 color names (in order 0-15)
+    static const char *color_names[16] = {"Black",   "White",      "Red",       "Cyan",     "Purple", "Green",
+                                          "Blue",    "Yellow",     "Orange",    "Brown",    "Pink",   "DarkGrey",
+                                          "MedGrey", "LightGreen", "LightBlue", "LightGrey"};
+
+    // Write colors in VPL format (RR GG BB) with color name comments
     for (int i = 0; i < C64_PALETTE_COLORS; i++) {
         uint32_t bgra = colors[i];
         // Extract BGR from BGRA (little-endian format)
@@ -717,7 +841,7 @@ bool c64_palette_write_vpl(const char *path, const uint32_t *colors, const char 
         uint8_t g = (bgra >> 8) & 0xFF;
         uint8_t r = bgra & 0xFF;
 
-        fprintf(file, "%02X %02X %02X\n", r, g, b);
+        fprintf(file, "%02X %02X %02X  # %s\n", r, g, b, color_names[i]);
     }
 
     fclose(file);
@@ -1056,46 +1180,65 @@ bool c64_palette_get_display_name(const char *palette_id, char *display_name, si
     return false;
 }
 
-bool c64_palette_auto_save(void)
+bool c64_palette_auto_save(obs_data_t *settings)
 {
     // No modifications, nothing to do
     if (!palette_system.working_modified) {
-        return true;
+        return false; // No change, no UI refresh needed
     }
 
     if (palette_system.active_palette_index < 0) {
-        return true; // No active palette, nothing to save
+        return false; // No active palette, nothing to save
     }
 
     struct c64_palette_entry *entry = &palette_system.palettes[palette_system.active_palette_index];
 
     // If editing a preset, create a custom copy
     if (entry->is_shipped) {
-        // Generate a custom name (remove " (Preset)" if present, just use base name)
+        // Generate a custom name with "(Custom)" suffix for display
         char custom_name[C64_PALETTE_NAME_MAX];
-        strncpy(custom_name, entry->name, sizeof(custom_name) - 1);
-        custom_name[sizeof(custom_name) - 1] = '\0';
+        int name_len = snprintf(custom_name, sizeof(custom_name), "%s (Custom)", entry->name);
+        if (name_len < 0 || (size_t)name_len >= sizeof(custom_name)) {
+            C64_LOG_WARNING("Custom palette name too long");
+            return false;
+        }
 
-        // Build path for custom palette
+        // Convert preset ID to lowercase for filename (e.g., "Default" -> "default")
+        char lowercase_id[C64_PALETTE_NAME_MAX];
+        strncpy(lowercase_id, entry->id, sizeof(lowercase_id) - 1);
+        lowercase_id[sizeof(lowercase_id) - 1] = '\0';
+        for (char *p = lowercase_id; *p; p++) {
+            *p = tolower((unsigned char)*p);
+        }
+
+        // Build path with lowercase ID and "-custom" suffix (e.g., "default-custom.vpl")
         char custom_path[C64_PALETTE_PATH_MAX];
-        int path_len = snprintf(custom_path, sizeof(custom_path), "%s%c%s.vpl", palette_system.user_palette_dir,
-                                PATH_SEP, entry->id);
+        int path_len = snprintf(custom_path, sizeof(custom_path), "%s%c%s-custom.vpl", palette_system.user_palette_dir,
+                                PATH_SEP, lowercase_id);
         if (path_len < 0 || (size_t)path_len >= sizeof(custom_path)) {
             C64_LOG_WARNING("Custom palette path too long");
             return false;
         }
 
-        // Save as new custom palette
+        // Save as new custom palette (overwrites if exists)
         if (!c64_palette_save_as(custom_name, custom_path)) {
             C64_LOG_WARNING("Failed to auto-save preset as custom palette: %s", custom_name);
             return false;
         }
 
+        // Update OBS settings to point to the new custom palette ID
+        // This ensures the custom palette is reloaded when properties dialog reopens
+        if (settings) {
+            const char *new_id = c64_palette_get_active_id();
+            obs_data_set_string(settings, "palette", new_id);
+            C64_LOG_INFO("🎨 Updated settings to use custom palette: %s (was: %s)", new_id, entry->id);
+        }
+
         C64_LOG_INFO("🎨 Auto-saved preset '%s' as custom palette", custom_name);
-        return true;
+        return true; // Palette converted, UI refresh needed
     }
 
-    // For custom palettes, save in place
+    // For custom palettes, save in place (overwrites existing file)
     if (!c64_palette_write_vpl(entry->path, palette_system.working_colors, entry->name)) {
         C64_LOG_WARNING("Failed to auto-save custom palette: %s", entry->path);
         return false;
@@ -1106,7 +1249,7 @@ bool c64_palette_auto_save(void)
     palette_system.working_modified = false;
 
     C64_LOG_INFO("🎨 Auto-saved custom palette: %s", entry->name);
-    return true;
+    return false; // Custom palette saved, no UI refresh needed
 }
 
 bool c64_palette_delete(const char *palette_id)
@@ -1161,6 +1304,9 @@ bool c64_palette_delete(const char *palette_id)
     if (palette_system.active_palette_index > index) {
         palette_system.active_palette_index--;
     }
+
+    // Update palettes.ini to remove the deleted palette reference
+    save_palette_ini();
 
     C64_LOG_INFO("🗑️ Deleted custom palette: %s", palette_id);
     return true;

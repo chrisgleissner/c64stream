@@ -75,6 +75,16 @@ struct c64_palette_system *c64_palette_get_system(void);
 void c64_palette_populate_list(obs_property_t *palette_prop);
 
 /**
+ * @brief Validate that custom palette files still exist on the filesystem
+ *
+ * Scans all custom (non-shipped) palettes and removes entries for files that no longer exist.
+ * If the currently active palette is missing, falls back to "Default".
+ *
+ * @param settings OBS settings to update the palette ID if fallback to Default is needed
+ */
+void c64_palette_validate_filesystem(obs_data_t *settings);
+
+/**
  * @brief Select a palette by ID
  *
  * Loads the palette if not already loaded and updates the working copy.
@@ -233,9 +243,10 @@ bool c64_palette_get_display_name(const char *palette_id, char *display_name, si
  *
  * Creates a copy if currently editing a preset palette.
  *
+ * @param settings OBS settings object to update with new palette ID (if preset converted to custom), can be NULL
  * @return true if save succeeded or no save needed, false on error
  */
-bool c64_palette_auto_save(void);
+bool c64_palette_auto_save(obs_data_t *settings);
 
 /**
  * @brief Delete a custom palette
