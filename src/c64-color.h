@@ -11,9 +11,8 @@ See <https://www.gnu.org/licenses/> for details.
 #include <stdint.h>
 #include <stdbool.h>
 
-// Default VIC-II color palette (16 colors) in BGRA format for OBS Studio
-// Source: data/palettes/default.vpl
-// If updating default.vpl, manually update these values (happens ~once/year)
+// Default VIC-II color palette (16 colors) in BGRA format for OBS Studio in case default.vpl is not found
+// If updating default.vpl, manually update these values
 static const uint32_t c64_default_palette[16] = {
     0xFF000000, // 0: Black
     0xFFF7F7F7, // 1: White
