@@ -159,8 +159,8 @@ void c64_palette_validate_filesystem(obs_data_t *settings)
                             "(path: %s)",
                             entry->id, entry->path);
 
-            // Check if this was the active palette
-            if (strcmp(entry->id, active_palette_id) == 0) {
+            // Check if this was the active palette (defensive: ensure active_palette_id is non-NULL)
+            if (active_palette_id && strcmp(entry->id, active_palette_id) == 0) {
                 active_palette_missing = true;
             }
 
@@ -239,11 +239,7 @@ void c64_palette_validate_filesystem(obs_data_t *settings)
                 snprintf(key, sizeof(key), "palette_color_%d", j);
 
                 // Convert BGRA to OBS color format (ABGR stored as int)
-                uint32_t bgra = default_colors[j];
-                uint8_t b = (bgra >> 16) & 0xFF;
-                uint8_t g = (bgra >> 8) & 0xFF;
-                uint8_t r = bgra & 0xFF;
-                uint32_t obs_color = 0xFF000000 | (b << 16) | (g << 8) | r;
+                uint32_t obs_color = c64_bgra_to_obs_color(default_colors[j]);
 
                 // Set actual value to overwrite any stale cached values
                 obs_data_set_int(settings, key, (long long)obs_color);

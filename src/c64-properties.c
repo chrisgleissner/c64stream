@@ -16,6 +16,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-effect.h"
 #include "c64-source.h"
 #include "c64-palette.h"
+#include "c64-color.h"
 #include <obs-module.h>
 #include <util/platform.h>
 #include <time.h>
@@ -293,11 +294,7 @@ obs_properties_t *c64_create_properties(void *data)
                 snprintf(key, sizeof(key), "palette_color_%d", i);
 
                 // Convert BGRA to OBS color format
-                uint32_t bgra = default_colors[i];
-                uint8_t b = (bgra >> 16) & 0xFF;
-                uint8_t g = (bgra >> 8) & 0xFF;
-                uint8_t r = bgra & 0xFF;
-                uint32_t obs_color = 0xFF000000 | (b << 16) | (g << 8) | r;
+                uint32_t obs_color = c64_bgra_to_obs_color(default_colors[i]);
 
                 // Use set_int to overwrite stale actual values
                 obs_data_set_int(palette_settings, key, (long long)obs_color);
@@ -961,12 +958,8 @@ static void update_palette_color_properties(obs_data_t *settings)
 
         // Convert BGRA to OBS color format (ABGR stored as int)
         uint32_t bgra = colors[i];
-        // Extract components
-        uint8_t b = (bgra >> 16) & 0xFF;
-        uint8_t g = (bgra >> 8) & 0xFF;
-        uint8_t r = bgra & 0xFF;
-        // OBS color format is 0xAABBGGRR (same as ABGR)
-        uint32_t obs_color = 0xFF000000 | (b << 16) | (g << 8) | r;
+        // Convert BGRA to OBS color format (0xAABBGGRR)
+        uint32_t obs_color = c64_bgra_to_obs_color(bgra);
 
         // CRITICAL: Check if actual value exists and matches working color
         // If not, set it to prevent stale values from triggering callbacks
@@ -1203,11 +1196,7 @@ static bool palette_delete_clicked(obs_properties_t *props, obs_property_t *prop
                 snprintf(key, sizeof(key), "palette_color_%d", i);
 
                 // Convert BGRA to OBS color format (ABGR stored as int)
-                uint32_t bgra = default_colors[i];
-                uint8_t b = (bgra >> 16) & 0xFF;
-                uint8_t g = (bgra >> 8) & 0xFF;
-                uint8_t r = bgra & 0xFF;
-                uint32_t obs_color = 0xFF000000 | (b << 16) | (g << 8) | r;
+                uint32_t obs_color = c64_bgra_to_obs_color(default_colors[i]);
 
                 // Set actual value after erasing to ensure clean slate
                 obs_data_set_int(settings, key, (long long)obs_color);
