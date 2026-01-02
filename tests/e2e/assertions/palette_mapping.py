@@ -20,8 +20,6 @@ It will SKIP when tint is enabled (tint intentionally destroys per-color identit
 
 from __future__ import annotations
 
-import os
-import re
 from pathlib import Path
 from typing import Any, Optional
 
@@ -92,6 +90,7 @@ def load_vpl_palette(vpl_path: Path) -> Optional[list[tuple[int, int, int]]]:
                             break
                         continue
                     except ValueError:
+                        # Ignore invalid hex values and try next format
                         pass
 
                 # Fallback to concatenated format (e.g., "FFFFFF")
@@ -367,7 +366,6 @@ class PaletteMappingAssertion(EffectAssertion):
             else:
                 # Get content region from first content frame
                 first_frame_idx = bounds.first_content_frame
-                last_frame_idx = bounds.last_content_frame
 
                 # Read a frame to determine content bounds
                 cap.set(cv2.CAP_PROP_POS_FRAMES, first_frame_idx + 5)
