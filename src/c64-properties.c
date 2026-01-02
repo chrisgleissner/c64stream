@@ -19,6 +19,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include <obs-module.h>
 #include <util/platform.h>
 #include <time.h>
+#include <time.h>
 
 // Cross-platform strcasecmp
 #ifdef _WIN32
@@ -186,7 +187,7 @@ obs_properties_t *c64_create_properties(void *data)
 
     // Prefill import/export paths with palette directory if not already set
     char palette_dir[512];
-    if (c64_palette_get_user_dir(palette_dir, sizeof(palette_dir))) {
+    if (c64_get_user_dir(C64_USER_DIR_PALETTES, palette_dir, sizeof(palette_dir))) {
         const char *current_import = obs_data_get_string(settings, "palette_import_path");
         const char *current_export = obs_data_get_string(settings, "palette_export_path");
 
@@ -358,21 +359,38 @@ obs_properties_t *c64_create_properties(void *data)
 
 static void c64_default_export_ini_path(char *path, size_t path_size)
 {
-    if (!path || path_size < 32)
+    if (!path || path_size < 64)
         return;
 
-    char documents_path[256];
-    if (c64_get_user_documents_path(documents_path, sizeof(documents_path))) {
+    // Generate timestamp filename
+    time_t now = time(NULL);
+    struct tm *tm_info = localtime(&now);
+    char timestamp[32];
+    strftime(timestamp, sizeof(timestamp), "%Y%m%d_%H%M%S", tm_info);
+
+    // Get exports directory
+    char exports_dir[512];
+    if (c64_get_user_dir(C64_USER_DIR_EXPORTS, exports_dir, sizeof(exports_dir))) {
+        // Validate combined path length
+        size_t dir_len = strlen(exports_dir);
+        size_t ts_len = strlen(timestamp);
+        // Need: dir + "/" + "c64stream_" + timestamp + ".ini" + null = dir + 26 + ts_len
+        if (dir_len + 27 + ts_len < path_size) {
+            // Suppress truncation warning - we've manually validated the length above
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-truncation"
 #ifdef _WIN32
-        snprintf(path, path_size, "%s\\c64stream-properties.ini", documents_path);
+            snprintf(path, path_size, "%s\\c64stream_%s.ini", exports_dir, timestamp);
 #else
-        snprintf(path, path_size, "%s/c64stream-properties.ini", documents_path);
+            snprintf(path, path_size, "%s/c64stream_%s.ini", exports_dir, timestamp);
 #endif
-        return;
+#pragma GCC diagnostic pop
+            return;
+        }
     }
 
-    // Fallback: current directory.
-    snprintf(path, path_size, "c64stream-properties.ini");
+    // Fallback: current directory with timestamp
+    snprintf(path, path_size, "c64stream_%s.ini", timestamp);
 }
 
 static bool c64_ensure_parent_dir_exists(const char *file_path)
@@ -717,19 +735,12 @@ void c64_set_property_defaults(obs_data_t *settings)
     // Frame saving defaults
     obs_data_set_default_bool(settings, "record_frames", false); // Disabled by default
 
-    // Platform-specific default recording folder (absolute paths to avoid tilde expansion issues)
+    // Platform-specific default recording folder
     char platform_path[512];
-    char documents_path[256];
-
-    if (c64_get_user_documents_path(documents_path, sizeof(documents_path))) {
-        // Use user's Documents folder
-#ifdef _WIN32
-        snprintf(platform_path, sizeof(platform_path), "%s\\obs-studio\\c64stream\\recordings", documents_path);
-#else
-        snprintf(platform_path, sizeof(platform_path), "%s/obs-studio/c64stream/recordings", documents_path);
-#endif
+    if (c64_get_user_dir(C64_USER_DIR_RECORDINGS, platform_path, sizeof(platform_path))) {
+        obs_data_set_default_string(settings, "save_folder", platform_path);
     } else {
-        // Fallback to platform-specific defaults
+        // Fallback to platform-specific defaults if helper fails
 #ifdef _WIN32
         strcpy(platform_path, "C:\\Users\\Public\\Documents\\obs-studio\\c64stream\\recordings");
 #elif defined(__APPLE__)
@@ -737,9 +748,8 @@ void c64_set_property_defaults(obs_data_t *settings)
 #else // Linux and other Unix-like systems
         strcpy(platform_path, "/home/user/Documents/obs-studio/c64stream/recordings");
 #endif
+        obs_data_set_default_string(settings, "save_folder", platform_path);
     }
-
-    obs_data_set_default_string(settings, "save_folder", platform_path);
 
     // Default export/import path for sharing settings.
     {
@@ -772,7 +782,7 @@ void c64_set_property_defaults(obs_data_t *settings)
     // Set default import/export paths to user palette directory
     {
         char palette_dir[512];
-        if (c64_palette_get_user_dir(palette_dir, sizeof(palette_dir))) {
+        if (c64_get_user_dir(C64_USER_DIR_PALETTES, palette_dir, sizeof(palette_dir))) {
             obs_data_set_default_string(settings, "palette_import_path", palette_dir);
             obs_data_set_default_string(settings, "palette_export_path", palette_dir);
         }

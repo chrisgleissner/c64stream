@@ -171,6 +171,8 @@ Save and restore your complete plugin settings:
 - **Export:** Click to save all current settings to a `.ini` file. Use this to backup configurations, share setups, or attach to bug reports
 - **Import:** Click to load settings from a previously exported `.ini` file. All current settings will be replaced
 
+Exported configurations are saved to the [exports directory](#user-data-locations-).
+
 ### Network
 
 - **DNS Resolution Details:**
@@ -234,15 +236,7 @@ FF FF FF
 - First 16 non-comment lines are RGB hex values in `RR GG BB` format (space-separated)
 - Files must have exactly 16 color entries
 
-**User Palette Location:**
-
-Custom palettes are stored in the OBS plugin configuration directory:
-
-- **Windows:** `%APPDATA%\obs-studio\plugin_config\c64stream\palettes\`
-- **macOS:** `~/Library/Application Support/obs-studio/plugin_config/c64stream/palettes/`
-- **Linux:** `~/.config/obs-studio/plugin_config/c64stream/palettes/`
-
-Shipped palettes are located in the plugin's `data/palettes/` directory and cannot be modified.
+**Storage:** Custom palettes are saved to the [palettes directory](#user-data-locations-). Shipped palettes remain in the plugin's read-only data directory.
 
 ### CRT Effects 📺
 
@@ -343,10 +337,10 @@ The plugin offers three independent recording options that can be enabled separa
 
 #### File Organization
 
-All recording files are organized into session folders with timestamps:
+All recording files are organized into timestamped session folders in the [recordings directory](#user-data-locations-):
 
 ```text
-~/Documents/obs-studio/c64stream/recordings/
+recordings/
 ├── session_20240929_143052/
 │   ├── frames/           # BMP frame files (if "Raw Frames" enabled)
 │   ├── network.csv       # Network timings (if "CSV Events" enabled)
@@ -357,14 +351,7 @@ All recording files are organized into session folders with timestamps:
     └── ...
 ```
 
-#### Recording Configuration
-
-- **Output Folder Defaults:**
-  - **Windows:** `%USERPROFILE%\Documents\obs-studio\c64stream\recordings`
-  - **macOS:** `~/Documents/obs-studio/c64stream/recordings`
-  - **Linux:** `~/Documents/obs-studio/c64stream/recordings`
-- **Automatic Session Management:** New session folder created each time recording is enabled
-- **Cross-Platform Compatibility:** Works on Windows, macOS, and Linux
+**Session Management:** A new session folder is automatically created each time recording is enabled. The output folder can be changed in the plugin properties.
 
 #### Usage Notes
 

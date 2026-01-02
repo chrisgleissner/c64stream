@@ -151,3 +151,63 @@ bool c64_get_user_documents_path(char *path_buffer, size_t buffer_size)
     }
 #endif
 }
+
+bool c64_get_user_dir(c64_user_dir_type type, char *path_buffer, size_t buffer_size)
+{
+    if (!path_buffer || buffer_size < 64) {
+        return false;
+    }
+
+    // Get base Documents folder
+    char documents[256];
+    if (!c64_get_user_documents_path(documents, sizeof(documents))) {
+        blog(LOG_WARNING, "Failed to get user documents path");
+        return false;
+    }
+
+    // Construct path based on type
+    const char *subdir = NULL;
+    switch (type) {
+    case C64_USER_DIR_ROOT:
+        subdir = NULL; // Just obs-studio/c64stream
+        break;
+    case C64_USER_DIR_RECORDINGS:
+        subdir = "recordings";
+        break;
+    case C64_USER_DIR_PALETTES:
+        subdir = "palettes";
+        break;
+    case C64_USER_DIR_EXPORTS:
+        subdir = "exports";
+        break;
+    case C64_USER_DIR_PRESETS:
+        subdir = "presets";
+        break;
+    default:
+        blog(LOG_WARNING, "Invalid user directory type: %d", type);
+        return false;
+    }
+
+    // Build path with platform-appropriate separators
+#ifdef _WIN32
+    if (subdir) {
+        snprintf(path_buffer, buffer_size, "%s\\obs-studio\\c64stream\\%s", documents, subdir);
+    } else {
+        snprintf(path_buffer, buffer_size, "%s\\obs-studio\\c64stream", documents);
+    }
+#else
+    if (subdir) {
+        snprintf(path_buffer, buffer_size, "%s/obs-studio/c64stream/%s", documents, subdir);
+    } else {
+        snprintf(path_buffer, buffer_size, "%s/obs-studio/c64stream", documents);
+    }
+#endif
+
+    // Create directory if it doesn't exist
+    if (!c64_create_directory_recursive(path_buffer)) {
+        blog(LOG_WARNING, "Failed to create user directory: %s", path_buffer);
+        return false;
+    }
+
+    return true;
+}

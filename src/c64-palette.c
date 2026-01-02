@@ -726,30 +726,7 @@ bool c64_palette_write_vpl(const char *path, const uint32_t *colors, const char 
 
 bool c64_palette_get_user_dir(char *path, size_t path_size)
 {
-    if (!path || path_size < 64) {
-        return false;
-    }
-
-    // Use Documents folder structure (consistent with recordings path)
-    char documents[256];
-    if (!c64_get_user_documents_path(documents, sizeof(documents))) {
-        C64_LOG_WARNING("Failed to get user documents path");
-        return false;
-    }
-
-#ifdef _WIN32
-    snprintf(path, path_size, "%s\\obs-studio\\c64stream\\palettes", documents);
-#else
-    snprintf(path, path_size, "%s/obs-studio/c64stream/palettes", documents);
-#endif
-
-    // Create directory if it doesn't exist
-    if (!c64_create_directory_recursive(path)) {
-        C64_LOG_WARNING("Failed to create user palette directory: %s", path);
-        return false;
-    }
-
-    return true;
+    return c64_get_user_dir(C64_USER_DIR_PALETTES, path, path_size);
 }
 
 void c64_palette_rebuild_lut(const uint32_t *colors)
