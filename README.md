@@ -326,25 +326,6 @@ The **Scan Line Strength** slider (0.0–1.0) controls how dark the gaps appear.
 
 **Reset:** To reset to default values, simply select the "Default" preset. If you have changed individual effects whilst the "Default" preset was active, select any other preset first and then re-select the "Default" preset.
 
-#### Effect Performance Impact
-
-Each CRT effect has a different impact on system performance. The CPU-based effects process every pixel every frame, while GPU-based effects leverage shader hardware for minimal CPU overhead.
-
-| Effect | Processing | Impact | Notes |
-|--------|------------|--------|-------|
-| **Scan Lines** | GPU Shader | Low | Per-pixel shader calculation |
-| **Bloom** | GPU Shader | Medium | Multi-pass blur + blend |
-| **Blur** | GPU Shader | Medium | Gaussian sampling |
-| **Pixel Geometry** | GPU Shader | Low | Simple UV transform |
-| **Screen Tint** | GPU Shader | Low | Color matrix multiply |
-| **Afterglow** | CPU | **High** | Per-pixel persistence (~92k pixels/frame) |
-
-**Performance Recommendations:**
-
-- **For best CPU performance:** Use presets without afterglow (Sharp Pixels, Classic CRT, Arcade Cabinet)
-- **For authentic phosphor glow:** Enable afterglow only when needed (Green/Amber Monitor, Phosphor Glow, Vintage TV)
-- **Afterglow disabled = zero CPU overhead:** When `Afterglow Duration (ms) = 0`, the CPU loop is bypassed entirely
-
 ### Color Palettes 🎨
 
 (since version 1.0.0)
