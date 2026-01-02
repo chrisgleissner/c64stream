@@ -473,10 +473,18 @@ static void c64_default_palette_export_path(char *path, size_t path_size)
 
     // Generate timestamp filename
     time_t now = time(NULL);
-    struct tm *tm_info = localtime(&now);
     char timestamp[32];
-    strftime(timestamp, sizeof(timestamp), "%Y%m%d_%H%M%S", tm_info);
+    timestamp[0] = '\0';
 
+    if (now != (time_t)-1) {
+        struct tm *tm_info = localtime(&now);
+        if (tm_info) {
+            if (strftime(timestamp, sizeof(timestamp), "%Y%m%d_%H%M%S", tm_info) == 0) {
+                // On failure, keep timestamp as empty string
+                timestamp[0] = '\0';
+            }
+        }
+    }
     // Get palettes directory
     char palettes_dir[512];
     if (c64_get_user_dir(C64_USER_DIR_PALETTES, palettes_dir, sizeof(palettes_dir))) {
