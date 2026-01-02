@@ -491,8 +491,8 @@ static void c64_default_palette_export_path(char *path, size_t path_size)
         // Validate combined path length
         size_t dir_len = strlen(palettes_dir);
         size_t ts_len = strlen(timestamp);
-        // Need: dir + "/" + "palette_" + timestamp + ".vpl" + null = dir + 20 + ts_len
-        if (dir_len + 21 + ts_len < path_size) {
+        // Need: dir + "/" + "palette_" + timestamp + ".vpl" + null = dir + 14 + ts_len
+        if (dir_len + 14 + ts_len <= path_size) {
             // Suppress truncation warning - we've manually validated the length above
 #if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic push
