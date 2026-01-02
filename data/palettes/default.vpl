@@ -7,19 +7,19 @@
 # NAME:Default
 # DESC:C64 Ultimate Default Palette
 
-00 00 00
-F7 F7 F7
-8D 2F 34
-6A D4 CD
-98 35 A4
-4C B4 42
-2C 29 B1
-EF EF 5D
-98 4E 20
-5B 38 00
-D1 67 6D
-4A 4A 4A
-7B 7B 7B
-9F EF 93
-6D 6A EF
-B2 B2 B2
+00 00 00  # Black
+F7 F7 F7  # White
+8D 2F 34  # Red
+6A D4 CD  # Cyan
+98 35 A4  # Purple
+4C B4 42  # Green
+2C 29 B1  # Blue
+EF EF 5D  # Yellow
+98 4E 20  # Orange
+5B 38 00  # Brown
+D1 67 6D  # Pink
+4A 4A 4A  # DarkGrey
+7B 7B 7B  # MedGrey
+9F EF 93  # LightGreen
+6D 6A EF  # LightBlue
+B2 B2 B2  # LightGrey

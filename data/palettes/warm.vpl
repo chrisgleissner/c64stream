@@ -7,19 +7,19 @@
 # NAME:Warm
 # DESC:Warm-toned palette with amber and orange hues
 
-08 04 00
-FF F4 E8
-98 38 38
-60 D0 C0
-A0 3C A0
-50 B8 48
-30 30 A8
-F8 F0 50
-A8 58 20
-68 40 08
-E0 70 70
-50 4C 48
-84 80 78
-A0 F0 90
-70 70 E8
-BC B8 B0
+08 04 00  # Black
+FF F4 E8  # White
+98 38 38  # Red
+60 D0 C0  # Cyan
+A0 3C A0  # Purple
+50 B8 48  # Green
+30 30 A8  # Blue
+F8 F0 50  # Yellow
+A8 58 20  # Orange
+68 40 08  # Brown
+E0 70 70  # Pink
+50 4C 48  # DarkGrey
+84 80 78  # MedGrey
+A0 F0 90  # LightGreen
+70 70 E8  # LightBlue
+BC B8 B0  # LightGrey

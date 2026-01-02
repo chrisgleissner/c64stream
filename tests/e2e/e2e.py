@@ -2491,7 +2491,7 @@ class E2ETest:
                 self.log(f"   [{i}] {Path(audio_manifest[i]['file']).name}: time_us={audio_manifest[i]['time_us']:.1f}")
 
             # Write manifests as CSV files (filename,delay_us)
-            # CRITICAL: Use absolute time from global timeline start for each packet
+            # Use absolute time from global timeline start for each packet
             # This preserves jitter/reordering while keeping sequence order
             video_manifest_path = self.output_dir / 'video_manifest.csv'
             audio_manifest_path = self.output_dir / 'audio_manifest.csv'

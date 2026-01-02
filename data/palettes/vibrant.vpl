@@ -7,19 +7,19 @@
 # NAME:Vibrant
 # DESC:Enhanced saturation for vivid, eye-catching colors
 
-00 00 00
-FF FF FF
-A0 30 38
-50 E8 E0
-B0 38 C0
-38 D0 38
-28 28 D0
-F8 F8 48
-B8 58 18
-70 40 00
-F0 70 78
-40 40 40
-78 78 78
-90 FF 90
-68 68 F8
-B8 B8 B8
+00 00 00  # Black
+FF FF FF  # White
+A0 30 38  # Red
+50 E8 E0  # Cyan
+B0 38 C0  # Purple
+38 D0 38  # Green
+28 28 D0  # Blue
+F8 F8 48  # Yellow
+B8 58 18  # Orange
+70 40 00  # Brown
+F0 70 78  # Pink
+40 40 40  # DarkGrey
+78 78 78  # MedGrey
+90 FF 90  # LightGreen
+68 68 F8  # LightBlue
+B8 B8 B8  # LightGrey

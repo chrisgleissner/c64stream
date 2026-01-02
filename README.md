@@ -202,8 +202,9 @@ Customize the VIC-II color palette to match different C64 hardware variants, per
 
 **Auto-Save Behavior:**
 
-- Custom palettes are automatically saved when you close the properties dialog
-- If you edit a preset palette, a custom copy is automatically created (preserving the original preset)
+- Custom palettes are automatically saved when you edit them in the color editor
+- **Preset modifications:** If you edit a shipped preset palette, a custom copy is automatically created with the same name (the original preset remains unchanged)
+- The settings automatically update to use the custom copy, so your changes persist across OBS restarts
 - No manual save action is required for palette edits
 
 **VPL Palette Format:**
