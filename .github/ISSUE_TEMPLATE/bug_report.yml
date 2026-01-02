@@ -65,7 +65,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        ## 3. Network configuration
+        ## 3. Network settings
 
   - type: textarea
     id: network

@@ -95,7 +95,7 @@ void c64_async_retry_task(void *data)
         return;
     }
 
-    C64_LOG_INFO("Async retry attempt %u - %s", context->retry_count,
+    C64_LOG_INFO("" NETWORK_LOG_PREFIX " Async retry attempt %u - %s", context->retry_count,
                  context->streaming ? "sending start commands" : "starting streaming");
 
     // Resolve hostname -> IP in the background (never do DNS on the OBS UI thread).
@@ -205,12 +205,13 @@ static void c64_refresh_resolved_ip(struct c64_source *context)
         if (strcmp(context->ip_address, resolved) != 0) {
             strncpy(context->ip_address, resolved, sizeof(context->ip_address) - 1);
             context->ip_address[sizeof(context->ip_address) - 1] = '\0';
-            C64_LOG_INFO("Resolved C64 host '%s' -> %s", hostname_copy, context->ip_address);
+            C64_LOG_INFO("" NETWORK_LOG_PREFIX " Resolved C64 host '%s' -> %s", hostname_copy, context->ip_address);
         }
         pthread_mutex_unlock(&context->config_mutex);
     } else {
         // Keep ip_address as-is (may be hostname) and let connectivity checks fail fast.
-        C64_LOG_DEBUG("Hostname resolution failed for '%s' (dns=%s)", hostname_copy, dns ? dns : "system");
+        C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Hostname resolution failed for '%s' (dns=%s)", hostname_copy,
+                      dns ? dns : "system");
     }
 }
 
@@ -315,26 +316,26 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
         // Use previously saved/configured OBS IP address
         strncpy(context->obs_ip_address, saved_obs_ip, sizeof(context->obs_ip_address) - 1);
         context->initial_ip_detected = true;
-        C64_LOG_INFO("Using configured OBS IP address: %s", context->obs_ip_address);
+        C64_LOG_INFO("" NETWORK_LOG_PREFIX " Using configured OBS IP address: %s", context->obs_ip_address);
     } else if (context->auto_detect_ip) {
         // Auto-detect local IP address only if auto-detection is enabled
         if (c64_detect_local_ip(context->obs_ip_address, sizeof(context->obs_ip_address))) {
-            C64_LOG_INFO("Auto-detected OBS IP address: %s", context->obs_ip_address);
+            C64_LOG_INFO("" NETWORK_LOG_PREFIX " Auto-detected OBS IP address: %s", context->obs_ip_address);
             context->initial_ip_detected = true;
             // Save the detected IP to settings for future use
             obs_data_set_string(settings, "obs_ip_address", context->obs_ip_address);
         } else {
-            C64_LOG_WARNING("Failed to auto-detect OBS IP address, will use localhost fallback");
+            C64_LOG_WARNING("" NETWORK_LOG_PREFIX " Failed to auto-detect OBS IP address, will use localhost fallback");
             context->initial_ip_detected = false;
         }
     } else {
-        C64_LOG_INFO("Auto-detection disabled, will use localhost fallback");
+        C64_LOG_INFO("" NETWORK_LOG_PREFIX " Auto-detection disabled, will use localhost fallback");
         context->initial_ip_detected = false;
     }
 
     // Ensure we have a valid OBS IP address - use localhost as last resort
     if (strlen(context->obs_ip_address) == 0) {
-        C64_LOG_INFO("No OBS IP configured, using localhost as fallback");
+        C64_LOG_INFO("" NETWORK_LOG_PREFIX " No OBS IP configured, using localhost as fallback");
         strncpy(context->obs_ip_address, "127.0.0.1", sizeof(context->obs_ip_address) - 1);
         obs_data_set_string(settings, "obs_ip_address", context->obs_ip_address);
     }
@@ -693,7 +694,7 @@ void c64_update(void *data, obs_data_t *settings)
         if (new_auto_detect) {
             // Re-detect IP address
             if (c64_detect_local_ip(context->obs_ip_address, sizeof(context->obs_ip_address))) {
-                C64_LOG_INFO("Updated OBS IP address: %s", context->obs_ip_address);
+                C64_LOG_INFO("" NETWORK_LOG_PREFIX " Updated OBS IP address: %s", context->obs_ip_address);
                 // Save the updated IP to settings
                 obs_data_set_string(settings, "obs_ip_address", context->obs_ip_address);
             } else {
@@ -849,7 +850,7 @@ void c64_update(void *data, obs_data_t *settings)
     }
 
     // Start/restart streaming with current configuration asynchronously (avoid blocking UI thread).
-    C64_LOG_INFO("Applying configuration and scheduling streaming start");
+    C64_LOG_INFO("" NETWORK_LOG_PREFIX " Applying configuration and scheduling streaming start");
     c64_schedule_retry(context, "update");
 }
 

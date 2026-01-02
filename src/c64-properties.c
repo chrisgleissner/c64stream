@@ -88,7 +88,7 @@ obs_properties_t *c64_create_properties(void *data)
     struct c64_source *context = (struct c64_source *)data;
     obs_properties_t *props = obs_properties_create();
 
-    // Plugin Information Group
+    // General Group
     obs_property_t *info_group = obs_properties_add_group(props, "info_group", obs_module_text("PluginInformation"),
                                                           OBS_GROUP_NORMAL, obs_properties_create());
     obs_properties_t *info_props = obs_property_group_content(info_group);
@@ -101,7 +101,7 @@ obs_properties_t *c64_create_properties(void *data)
 
     UNUSED_PARAMETER(context);
 
-    // Network Configuration Group
+    // Network Group
     obs_property_t *network_group = obs_properties_add_group(
         props, "network_group", obs_module_text("NetworkConfiguration"), OBS_GROUP_NORMAL, obs_properties_create());
     obs_properties_t *network_props = obs_property_group_content(network_group);

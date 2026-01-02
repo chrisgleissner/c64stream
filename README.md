@@ -438,7 +438,7 @@ OBS searches in this order:
 The data directory contains:
 - Effect presets (`effect_presets.ini`)
 - Palette presets (`palettes/*.vpl`)
-- Default network configuration (`properties.ini`)
+- Default network settings (`properties.ini`)
 - Localization files (`locale/*.ini`)
 
 | Platform | Package Install (System-Wide) | User Install (Local Development) |
