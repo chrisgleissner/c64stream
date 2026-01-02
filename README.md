@@ -164,72 +164,6 @@ A new window opens. Keep the default settings and click "OK":
 - **Version:** Information about release version, Git ID, and build time
 - **Debug Logging:** Check this to see debug logs
 
-### Import/Export Configuration
-
-Save and restore your complete plugin settings:
-
-- **Export:** Click to save all current settings to a `.ini` file. Use this to backup configurations, share setups, or attach to bug reports
-- **Import:** Click to load settings from a previously exported `.ini` file. All current settings will be replaced
-
-Exported configurations are saved to the [exports directory](#file-system-structure-).
-
-### File System Structure 📁
-
-The plugin uses three distinct filesystem locations:
-
-**1. Plugin Installation** - OBS plugin binary and loader files
-
-OBS Studio searches for plugins in multiple locations. The installation location depends on how you installed the plugin:
-
-| Platform | Package Install (System-Wide) | User Install (Local Development) |
-|----------|-------------------------------|----------------------------------|
-| **Windows** | `C:\ProgramData\obs-studio\plugins\c64stream\` | N/A (uses system path) |
-| **macOS** | `/Library/Application Support/obs-studio/plugins/c64stream.plugin/` | `~/Library/Application Support/obs-studio/plugins/c64stream.plugin/` |
-| **Linux** | `/usr/lib/obs-plugins/c64stream.so` | `~/.config/obs-studio/plugins/c64stream/bin/64bit/c64stream.so` |
-
-**2. Shipped Data** - Read-only defaults bundled with the plugin
-
-OBS uses `obs_module_file()` to locate data files, which searches in this order:
-1. User plugin directory (if it exists)
-2. System plugin directory
-
-The data directory contains:
-- Effect presets (`effect_presets.ini`)
-- Palette presets (`palettes/*.vpl`)
-- Default network configuration (`properties.ini`)
-- Localization files (`locale/*.ini`)
-
-| Platform | Package Install (System-Wide) | User Install (Local Development) |
-|----------|-------------------------------|----------------------------------|
-| **Windows** | `C:\ProgramData\obs-studio\plugins\c64stream\data\` | N/A (uses system path) |
-| **macOS** | `/Library/Application Support/obs-studio/plugins/c64stream.plugin/Contents/Resources/` | `~/Library/Application Support/obs-studio/plugins/c64stream.plugin/Contents/Resources/` |
-| **Linux** | `/usr/share/obs/obs-plugins/c64stream/` | `~/.config/obs-studio/plugins/c64stream/data/` |
-
-> [!NOTE]
-> **Package Install** is for end users who install via `.deb` packages, `.pkg` installers, or `.zip` extraction to system directories.
->
-> **User Install** is for local development using VSCode build tasks or `local-build.sh --install`. The E2E tests also use these user install paths.
-
-**3. User Data** - Your custom content (editable, portable, backup-friendly)
-
-User data is always stored in `<Documents>/obs-studio/c64stream/`, regardless of how you installed the plugin:
-
-```
-<Documents>/obs-studio/c64stream/
-├── exports/         # Exported configuration files (.ini)
-├── palettes/        # Custom palette files (.vpl)
-├── recordings/      # Recording session folders
-└── presets/         # Custom effect presets (future)
-```
-
-**Platform-Specific Paths:**
-
-- **Windows:** `%USERPROFILE%\Documents\obs-studio\c64stream\` (e.g., `C:\Users\YourName\Documents\obs-studio\c64stream\`)
-- **macOS:** `~/Documents/obs-studio/c64stream/` (e.g., `/Users/yourname/Documents/obs-studio/c64stream/`)
-- **Linux:** `~/Documents/obs-studio/c64stream/` (e.g., `/home/yourname/Documents/obs-studio/c64stream/`)
-
-**Why Documents folder?** User content lives in Documents for easy access, simple backups, and visibility - unlike hidden OBS config directories. This makes it straightforward to share palettes, preserve recordings, or migrate your setup to another system.
-
 ### Network
 
 - **DNS Resolution Details:**
@@ -243,9 +177,13 @@ User data is always stored in `<Documents>/obs-studio/c64stream/`, regardless of
 - **Configure Ports** Use the default ports (video: 11000, audio: 11001) unless network conflicts require different values
 - **Buffer Delay:** Sets the network buffer for incoming UDP packets arriving from the C64 Ultimate (0–500 ms, default 10 ms). The buffer size is expressed in milliseconds to represent the time-based delay it introduces, compensating for packet loss, reordering, and variable network latency. Larger buffers improve stability under high-latency or congested conditions but increase end-to-end delay.
 
-### Palette Configuration 🎨
+### Color Palettes 🎨
+
+(since version 1.0.0)
 
 Customize the VIC-II color palette to match different C64 hardware variants, personal preferences, or artistic styles. The palette system supports both shipped (preset) and user-defined (custom) palettes.
+
+![C64 Stream Palettes](./docs/images/properties-palettes.png "C64 Stream Palettes")
 
 **Shipped Palettes:** The plugin includes the following palettes:
 
@@ -307,7 +245,7 @@ Recreate the authentic look and feel of classic CRT monitors and TVs with config
 - **[Amber Monitor](./docs/images/effects/amber-monitor.png)** - Warm amber tint reminiscent of early computer monitors
 - **[Green Monitor](./docs/images/effects/green-monitor.png)** - Classic green phosphor terminal look
 - **[Sharp Pixels](./docs/images/effects/sharp-pixels.png)** - Crisp pixel doubling for arcade-style clarity
-- **[Phosphor Glow](./docs/images/effects/phosphor-glow.png)** (since release 1.0.0) - Dramatic phosphor persistence trails with extended afterglow. The sample image here was taken from the automated E2E test which shows an afterglow for each moving diagonal line.
+- **[Phosphor Glow](./docs/images/effects/phosphor-glow.png)** (since version 1.0.0) - Dramatic phosphor persistence trails with extended afterglow. The sample image here was taken from the automated E2E test which shows an afterglow for each moving diagonal line.
 - **[Vintage TV](./docs/images/effects/vintage-tv.png)** - Softer look with prominent scan lines for old television feel
 - **[Arcade Cabinet](./docs/images/effects/arcade-cabinet.png)** - High-contrast effects for authentic arcade experience
 
@@ -459,6 +397,77 @@ audio,2341,847,0,0,192,125
 **Sample Recording:** See [docs/recordings/session_19700101_024625](docs/recordings/session_19700101_024625) for complete examples with all file types.
 
 **Activation:** Enable the **"Network and Streaming Events (CSV)"** checkbox in the Recording properties. CSV files are generated only when this option is explicitly enabled.
+
+
+### Import/Export Configuration
+
+Save and restore your complete plugin settings:
+
+- **Export:** Click to save all current settings to a `.ini` file. Use this to backup configurations, share setups, or attach to bug reports
+- **Import:** Click to load settings from a previously exported `.ini` file. All current settings will be replaced
+
+Exported configurations are saved to the [exports directory](#file-system-structure-).
+
+### File System Structure 📁
+
+The plugin uses three distinct filesystem locations:
+
+### 1. Plugin
+
+This folder contains OBS plugin binary and loader files.
+
+OBS Studio searches for plugins in multiple locations. The installation location depends on how you installed the plugin:
+
+| Platform | Package Install (System-Wide) | User Install (Local Development) |
+|----------|-------------------------------|----------------------------------|
+| **Windows** | `C:\ProgramData\obs-studio\plugins\c64stream\` | N/A (uses system path) |
+| **macOS** | `/Library/Application Support/obs-studio/plugins/c64stream.plugin/` | `~/Library/Application Support/obs-studio/plugins/c64stream.plugin/` |
+| **Linux** | `/usr/lib/obs-plugins/c64stream.so` | `~/.config/obs-studio/plugins/c64stream/bin/64bit/c64stream.so` |
+
+### 2. Shipped Data
+
+This folder contains read-only defaults bundled with the plugin.
+
+OBS searches in this order:
+1. User plugin directory (if it exists)
+2. System plugin directory
+
+The data directory contains:
+- Effect presets (`effect_presets.ini`)
+- Palette presets (`palettes/*.vpl`)
+- Default network configuration (`properties.ini`)
+- Localization files (`locale/*.ini`)
+
+| Platform | Package Install (System-Wide) | User Install (Local Development) |
+|----------|-------------------------------|----------------------------------|
+| **Windows** | `C:\ProgramData\obs-studio\plugins\c64stream\data\` | N/A (uses system path) |
+| **macOS** | `/Library/Application Support/obs-studio/plugins/c64stream.plugin/Contents/Resources/` | `~/Library/Application Support/obs-studio/plugins/c64stream.plugin/Contents/Resources/` |
+| **Linux** | `/usr/share/obs/obs-plugins/c64stream/` | `~/.config/obs-studio/plugins/c64stream/data/` |
+
+> [!NOTE]
+> **Package Install** is for end users who install via `.deb` packages, `.pkg` installers, or `.zip` extraction to system directories.
+>
+> **User Install** is for local development using VSCode build tasks or `local-build.sh --install`. The E2E tests also use these user install paths.
+
+### 3. User Data
+
+This folder contains your custom content.
+
+For easy access, simple backups, and visibility, it is always stored in `<Documents>/obs-studio/c64stream/`, regardless of how you installed the plugin:
+
+```
+<Documents>/obs-studio/c64stream/
+├── exports/         # Exported configuration files (.ini)
+├── palettes/        # Custom palette files (.vpl)
+├── recordings/      # Recording session folders
+└── presets/         # Custom effect presets (future)
+```
+
+**Sample Locations:**
+
+- **Windows:** `%USERPROFILE%\Documents\obs-studio\c64stream\` (e.g., `C:\Users\YourName\Documents\obs-studio\c64stream\`)
+- **macOS:** `~/Documents/obs-studio/c64stream/` (e.g., `/Users/yourname/Documents/obs-studio/c64stream/`)
+- **Linux:** `~/Documents/obs-studio/c64stream/` (e.g., `/home/yourname/Documents/obs-studio/c64stream/`)
 
 ## End-to-end tests 🧪
 

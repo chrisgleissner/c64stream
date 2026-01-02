@@ -977,8 +977,8 @@ static bool palette_import_path_changed(obs_properties_t *props, obs_property_t 
         C64_LOG_WARNING("Failed to import palette from: %s", path);
     }
 
-    // Clear the path field after import
-    obs_data_set_string(settings, "palette_import_path", "");
+    // Keep the path visible so user can see what was imported
+    // (Path persists until next import operation)
 
     return true; // Refresh UI
 }
@@ -996,6 +996,21 @@ static bool palette_export_path_changed(obs_properties_t *props, obs_property_t 
     if (!path || !path[0]) {
         return false;
     }
+
+    // Ensure path ends with .vpl extension
+    char full_path[512];
+    const char *path_ext = strrchr(path, '.');
+    bool has_vpl = (path_ext && strcasecmp(path_ext, ".vpl") == 0);
+
+    if (has_vpl) {
+        strncpy(full_path, path, sizeof(full_path) - 1);
+    } else {
+        snprintf(full_path, sizeof(full_path), "%s.vpl", path);
+    }
+    full_path[sizeof(full_path) - 1] = '\0';
+
+    // Update settings with the corrected path
+    obs_data_set_string(settings, "palette_export_path", full_path);
 
     // Extract name from filename
     char name[64];
@@ -1021,10 +1036,10 @@ static bool palette_export_path_changed(obs_properties_t *props, obs_property_t 
     }
 
     // Save current working palette to the specified path
-    bool ok = c64_palette_save_as(name, path);
+    bool ok = c64_palette_save_as(name, full_path);
 
     if (ok) {
-        C64_LOG_INFO("Palette exported to: %s", path);
+        C64_LOG_INFO("Palette exported to: %s", full_path);
 
         // Repopulate the palette dropdown in case export created a new palette
         obs_property_t *palette_prop = obs_properties_get(props, C64_PALETTE_KEY);
@@ -1032,11 +1047,11 @@ static bool palette_export_path_changed(obs_properties_t *props, obs_property_t 
             c64_palette_populate_list(palette_prop);
         }
     } else {
-        C64_LOG_WARNING("Failed to export palette to: %s", path);
+        C64_LOG_WARNING("Failed to export palette to: %s", full_path);
     }
 
-    // Clear the path field after export
-    obs_data_set_string(settings, "palette_export_path", "");
+    // Keep the path visible so user can see what was exported
+    // (Path persists until next export operation)
 
     return true; // Refresh UI
 }
