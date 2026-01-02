@@ -164,7 +164,7 @@ A new window opens. Keep the default settings and click "OK":
 - **Version:** Information about release version, Git ID, and build time
 - **Debug Logging:** Check this to see debug logs
 
-### Network
+### Network 📡
 
 - **DNS Resolution Details:**
 
@@ -176,6 +176,108 @@ A new window opens. Keep the default settings and click "OK":
 - **Auto-detect OBS IP:** Automatically detect and use OBS server IP in streaming commands (recommended)
 - **Configure Ports** Use the default ports (video: 11000, audio: 11001) unless network conflicts require different values
 - **Buffer Delay:** Sets the network buffer for incoming UDP packets arriving from the C64 Ultimate (0–500 ms, default 10 ms). The buffer size is expressed in milliseconds to represent the time-based delay it introduces, compensating for packet loss, reordering, and variable network latency. Larger buffers improve stability under high-latency or congested conditions but increase end-to-end delay.
+
+### Recording 💾
+
+The plugin includes built-in recording capabilities that work independently of OBS Studio's recording system, letting you save raw C64 Ultimate data streams directly to disk.
+
+### Recording Options
+
+The plugin offers three independent recording options that can be enabled separately or together:
+
+**📊 Network and Streaming Events (CSV):**
+
+- Records detailed timing data for network packets and OBS processing events
+- Creates `obs.csv` (OBS processing timeline) and `network.csv` (UDP packet analysis)
+- **Minimal Performance Impact:** Lightweight logging with microsecond precision
+- **Use Cases:** Debug performance issues, analyze network jitter, validate frame timing
+- Files: `session_YYYYMMDD_HHMMSS/obs.csv` and `session_YYYYMMDD_HHMMSS/network.csv`
+
+**🖼️ Raw Frames (BMP):**
+
+- Saves individual video frames as uncompressed BMP files
+- Useful for debugging video issues or creating frame-by-frame analysis
+- **Performance Impact:** Enabling this feature will reduce streaming performance due to disk I/O
+- **Note:** CRT effects (scanlines, bloom, etc.) are NOT applied to recorded frames. Palette changes ARE applied.
+- Files saved as: `session_YYYYMMDD_HHMMSS/frames/frame_NNNNNN.bmp`
+
+**🎬 Raw Video and Audio (AVI + WAV):**
+
+- Records uncompressed AVI video and separate WAV audio files
+- Captures the raw data stream without OBS processing
+- **High Disk Usage:** Uncompressed video files are very large (~50MB per minute)
+- **Note:** CRT effects (scanlines, bloom, etc.) are NOT applied to recorded video. Palette changes ARE applied.
+- Video file: `session_YYYYMMDD_HHMMSS/video.avi` (24-bit BGR format)
+- Audio file: `session_YYYYMMDD_HHMMSS/audio.wav` (16-bit stereo PCM)
+
+#### File Organization
+
+All recording files are organized into timestamped session folders in the [recordings directory](#file-system-structure-):
+
+```text
+recordings/
+├── session_20240929_143052/
+│   ├── frames/           # BMP frame files (if "Raw Frames" enabled)
+│   ├── network.csv       # Network timings (if "CSV Events" enabled)
+│   ├── obs.csv           # OBS timings (if "CSV Events" enabled)
+│   ├── video.avi         # Uncompressed video (if "Raw Video" enabled)
+│   └── audio.wav         # Uncompressed audio (if "Raw Video" enabled)
+└── session_20240929_151234/
+    └── ...
+```
+
+**Session Management:** A new session folder is automatically created each time recording is enabled. The output folder can be changed in the plugin properties.
+
+#### Usage Notes
+
+- **Independent Operation:** All recording operates independently of OBS Studio's built-in recording
+- **Mix and Match:** All three recording options can be enabled simultaneously
+- **Instant Recording:** Recording starts immediately when a checkbox is checked and continues until unchecked
+- **⚠️ Persistent State:** Checkbox states persist across OBS restarts - uncheck to stop recording or risk filling disk space
+- **Real-Time Writing:** Files are written in real-time as data is received from the C64 Ultimate
+- **Auto-Organization:** Session folders are created automatically with proper directory structure
+- **Recommended:** Enable **CSV recording** for debugging and **disable** BMP/AVI recording for normal streaming
+
+#### Debug & Analysis CSV Logs 📊
+
+When **"Network and Streaming Events (CSV)"** recording is enabled, the plugin generates detailed CSV logs for debugging OBS performance and analyzing C64 Ultimate network streams. These logs enable bit-accurate recording analysis and precise frame timing measurements.
+
+**Generated CSV Files:**
+
+- `obs.csv` - OBS processing timeline with microsecond precision
+- `network.csv` - UDP packet reception log with network timing analysis
+
+Examples from recent automated E2E runs against a 'mocked' (i.e. simulated) Ultimate 64:
+- PAL: [`obs.csv`](tests/e2e/results/pal_default/obs.csv), [`network.csv`](tests/e2e/results/pal_default/network.csv)
+- NTSC: [`obs.csv`](tests/e2e/results/ntsc_default/obs.csv), [`network.csv`](tests/e2e/results/ntsc_default/network.csv)
+
+**Sample OBS Timeline (obs.csv):**
+
+```csv
+event_type,frame_num,elapsed_us,data_size_bytes,fps,audio_samples_total,video_packets_received,audio_packets_received,sequence_errors
+video,1,43874,368640,59.826,0,160,12,0
+audio,0,48250,768,59.826,0,175,13,0
+```
+
+**Sample Network Analysis (network.csv):**
+
+```csv
+packet_type,elapsed_us,sequence_num,frame_num,line_num,packet_size,jitter_us
+video,225,1510,7671,8,780,0
+audio,2341,847,0,0,192,125
+```
+
+**Use Cases:**
+
+- **Debug OBS Performance:** Analyze frame processing delays and audio sync issues
+- **Network Stream Analysis:** Monitor UDP packet timing, jitter, and sequence errors
+- **Bit-Accurate Recordings:** Capture every frame with precise timing for forensic analysis
+- **C64 Ultimate Diagnostics:** Validate device streaming performance and network stability
+
+**Sample Recording:** See [docs/recordings/session_19700101_024625](docs/recordings/session_19700101_024625) for complete examples with all file types.
+
+**Activation:** Enable the **"Network and Streaming Events (CSV)"** checkbox in the Recording properties. CSV files are generated only when this option is explicitly enabled.
+
 
 ### Effects ✨
 
@@ -299,108 +401,6 @@ FF FF FF
 - Files must have exactly 16 color entries
 
 **Storage:** Custom palettes are saved to the [palettes directory](#file-system-structure-). Shipped palettes are bundled with the plugin as read-only defaults.
-
-### Recording Features 📹
-
-The plugin includes built-in recording capabilities that work independently of OBS Studio's recording system, letting you save raw C64 Ultimate data streams directly to disk.
-
-### Recording Options
-
-The plugin offers three independent recording options that can be enabled separately or together:
-
-**📊 Network and Streaming Events (CSV):**
-
-- Records detailed timing data for network packets and OBS processing events
-- Creates `obs.csv` (OBS processing timeline) and `network.csv` (UDP packet analysis)
-- **Minimal Performance Impact:** Lightweight logging with microsecond precision
-- **Use Cases:** Debug performance issues, analyze network jitter, validate frame timing
-- Files: `session_YYYYMMDD_HHMMSS/obs.csv` and `session_YYYYMMDD_HHMMSS/network.csv`
-
-**🖼️ Raw Frames (BMP):**
-
-- Saves individual video frames as uncompressed BMP files
-- Useful for debugging video issues or creating frame-by-frame analysis
-- **Performance Impact:** Enabling this feature will reduce streaming performance due to disk I/O
-- **Note:** CRT effects (scanlines, bloom, etc.) are NOT applied to recorded frames. Palette changes ARE applied.
-- Files saved as: `session_YYYYMMDD_HHMMSS/frames/frame_NNNNNN.bmp`
-
-**🎬 Raw Video and Audio (AVI + WAV):**
-
-- Records uncompressed AVI video and separate WAV audio files
-- Captures the raw data stream without OBS processing
-- **High Disk Usage:** Uncompressed video files are very large (~50MB per minute)
-- **Note:** CRT effects (scanlines, bloom, etc.) are NOT applied to recorded video. Palette changes ARE applied.
-- Video file: `session_YYYYMMDD_HHMMSS/video.avi` (24-bit BGR format)
-- Audio file: `session_YYYYMMDD_HHMMSS/audio.wav` (16-bit stereo PCM)
-
-#### File Organization
-
-All recording files are organized into timestamped session folders in the [recordings directory](#file-system-structure-):
-
-```text
-recordings/
-├── session_20240929_143052/
-│   ├── frames/           # BMP frame files (if "Raw Frames" enabled)
-│   ├── network.csv       # Network timings (if "CSV Events" enabled)
-│   ├── obs.csv           # OBS timings (if "CSV Events" enabled)
-│   ├── video.avi         # Uncompressed video (if "Raw Video" enabled)
-│   └── audio.wav         # Uncompressed audio (if "Raw Video" enabled)
-└── session_20240929_151234/
-    └── ...
-```
-
-**Session Management:** A new session folder is automatically created each time recording is enabled. The output folder can be changed in the plugin properties.
-
-#### Usage Notes
-
-- **Independent Operation:** All recording operates independently of OBS Studio's built-in recording
-- **Mix and Match:** All three recording options can be enabled simultaneously
-- **Instant Recording:** Recording starts immediately when a checkbox is checked and continues until unchecked
-- **⚠️ Persistent State:** Checkbox states persist across OBS restarts - uncheck to stop recording or risk filling disk space
-- **Real-Time Writing:** Files are written in real-time as data is received from the C64 Ultimate
-- **Auto-Organization:** Session folders are created automatically with proper directory structure
-- **Recommended:** Enable **CSV recording** for debugging and **disable** BMP/AVI recording for normal streaming
-
-#### Debug & Analysis CSV Logs 📊
-
-When **"Network and Streaming Events (CSV)"** recording is enabled, the plugin generates detailed CSV logs for debugging OBS performance and analyzing C64 Ultimate network streams. These logs enable bit-accurate recording analysis and precise frame timing measurements.
-
-**Generated CSV Files:**
-
-- `obs.csv` - OBS processing timeline with microsecond precision
-- `network.csv` - UDP packet reception log with network timing analysis
-
-Examples from recent automated E2E runs against a 'mocked' (i.e. simulated) Ultimate 64:
-- PAL: [`obs.csv`](tests/e2e/results/pal_default/obs.csv), [`network.csv`](tests/e2e/results/pal_default/network.csv)
-- NTSC: [`obs.csv`](tests/e2e/results/ntsc_default/obs.csv), [`network.csv`](tests/e2e/results/ntsc_default/network.csv)
-
-**Sample OBS Timeline (obs.csv):**
-
-```csv
-event_type,frame_num,elapsed_us,data_size_bytes,fps,audio_samples_total,video_packets_received,audio_packets_received,sequence_errors
-video,1,43874,368640,59.826,0,160,12,0
-audio,0,48250,768,59.826,0,175,13,0
-```
-
-**Sample Network Analysis (network.csv):**
-
-```csv
-packet_type,elapsed_us,sequence_num,frame_num,line_num,packet_size,jitter_us
-video,225,1510,7671,8,780,0
-audio,2341,847,0,0,192,125
-```
-
-**Use Cases:**
-
-- **Debug OBS Performance:** Analyze frame processing delays and audio sync issues
-- **Network Stream Analysis:** Monitor UDP packet timing, jitter, and sequence errors
-- **Bit-Accurate Recordings:** Capture every frame with precise timing for forensic analysis
-- **C64 Ultimate Diagnostics:** Validate device streaming performance and network stability
-
-**Sample Recording:** See [docs/recordings/session_19700101_024625](docs/recordings/session_19700101_024625) for complete examples with all file types.
-
-**Activation:** Enable the **"Network and Streaming Events (CSV)"** checkbox in the Recording properties. CSV files are generated only when this option is explicitly enabled.
-
 
 ### Import/Export Configuration
 

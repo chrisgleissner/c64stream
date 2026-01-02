@@ -8,6 +8,8 @@ See <https://www.gnu.org/licenses/> for details.
 
 #pragma once
 
+#define FILE_LOG_PREFIX "💾 FILE:"
+
 #include <obs-module.h>
 #include <stdbool.h>
 #include <stddef.h>

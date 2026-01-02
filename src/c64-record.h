@@ -11,6 +11,9 @@ See <https://www.gnu.org/licenses/> for details.
 #include <stdint.h>
 #include <stdbool.h>
 
+// Logging prefix for recording operations
+#define RECORD_LOG_PREFIX "💾 RECORD:"
+
 // Forward declarations
 struct c64_source;
 

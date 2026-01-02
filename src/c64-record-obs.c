@@ -24,7 +24,7 @@ See <https://www.gnu.org/licenses/> for details.
 void c64_obs_write_header(struct c64_source *context)
 {
     if (!context || !context->timing_file) {
-        C64_LOG_ERROR("Cannot write CSV header: context or timing file is NULL");
+        C64_LOG_ERROR("" RECORD_LOG_PREFIX " Cannot write CSV header: context or timing file is NULL");
         return;
     }
 
@@ -37,7 +37,7 @@ void c64_obs_write_header(struct c64_source *context)
             "audio_packets_received,sequence_errors\n");
     fflush(context->timing_file);
 
-    C64_LOG_INFO("OBS timing CSV header written successfully");
+    C64_LOG_INFO("" RECORD_LOG_PREFIX " OBS timing CSV header written successfully");
 }
 
 /**

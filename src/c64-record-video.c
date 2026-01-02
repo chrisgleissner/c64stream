@@ -172,7 +172,7 @@ void c64_video_start_recording(struct c64_source *context)
     // Ensure we have a recording session (creates if needed, joins if exists)
     c64_session_ensure_exists(context);
     if (context->session_folder[0] == '\0') {
-        C64_LOG_ERROR("Failed to create recording session for video recording");
+        C64_LOG_ERROR("" RECORD_LOG_PREFIX " Failed to create recording session for video recording");
         pthread_mutex_unlock(&context->recording_mutex);
         return;
     }
@@ -185,7 +185,7 @@ void c64_video_start_recording(struct c64_source *context)
     context->video_file = fopen(video_filename, "wb");
 
     if (!context->video_file) {
-        C64_LOG_ERROR("Failed to create video recording file");
+        C64_LOG_ERROR("" RECORD_LOG_PREFIX " Failed to create video recording file");
     } else {
         uint64_t timestamp_ms = os_gettime_ns() / 1000000;
         context->recording_start_time = timestamp_ms;
@@ -194,7 +194,7 @@ void c64_video_start_recording(struct c64_source *context)
         // Write AVI header with detected frame rate
         c64_video_write_avi_header(context->video_file, context->width, context->height, context->expected_fps);
 
-        C64_LOG_INFO("Started video recording: %s", video_filename);
+        C64_LOG_INFO("" RECORD_LOG_PREFIX " Started video recording: %s", video_filename);
     }
 
     pthread_mutex_unlock(&context->recording_mutex);
@@ -229,7 +229,8 @@ void c64_video_record_frame(struct c64_source *context, uint32_t *frame_buffer)
         uint64_t now = os_gettime_ns();
         if ((++recording_debug_count % 10000) == 0 ||
             (now - last_recording_log_time >= 600000000000ULL)) { // Every 10k frames OR 10 minutes
-            C64_LOG_DEBUG("RECORDING SPOT CHECK: frame %ld, %ux%u, non_zero=%u/100, fps=%.3f (total count: %d)",
+            C64_LOG_DEBUG("" RECORD_LOG_PREFIX
+                          " RECORDING SPOT CHECK: frame %ld, %ux%u, non_zero=%u/100, fps=%.3f (total count: %d)",
                           os_atomic_load_long(&context->recorded_frames), context->width, context->height,
                           non_zero_pixels, context->expected_fps, recording_debug_count);
             last_recording_log_time = now;
@@ -249,7 +250,7 @@ void c64_video_record_frame(struct c64_source *context, uint32_t *frame_buffer)
                     sprintf(hexbuf + i * 3, "%02X ", bgr_buffer[i]);
                 }
                 hexbuf[48] = '\0';
-                C64_LOG_DEBUG("BGR SPOT CHECK: frame %ld [0..15]: %s (total count: %d)",
+                C64_LOG_DEBUG("" RECORD_LOG_PREFIX " BGR SPOT CHECK: frame %ld [0..15]: %s (total count: %d)",
                               os_atomic_load_long(&context->recorded_frames), hexbuf, bgr_debug_count);
                 last_bgr_log_time = now;
             }
@@ -280,10 +281,10 @@ void c64_video_record_frame(struct c64_source *context, uint32_t *frame_buffer)
             // Log video recording timing information to CSV (frame_num = 0 for recording events)
             c64_obs_log_video_event(context, 0, frame_size);
         } else {
-            C64_LOG_WARNING("Failed to write video frame to recording");
+            C64_LOG_WARNING("" RECORD_LOG_PREFIX " Failed to write video frame to recording");
         }
     } else {
-        C64_LOG_ERROR("Failed to allocate BGR conversion buffer");
+        C64_LOG_ERROR("" RECORD_LOG_PREFIX " Failed to allocate BGR conversion buffer");
     }
 
     pthread_mutex_unlock(&context->recording_mutex);

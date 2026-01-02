@@ -52,12 +52,12 @@ void c64_session_ensure_exists(struct c64_source *context)
              timeinfo->tm_min, timeinfo->tm_sec);
 
     // Create the session directory recursively (cross-platform)
-    C64_LOG_INFO("Attempting to create session directory: %s", context->session_folder);
+    C64_LOG_INFO("" RECORD_LOG_PREFIX " Attempting to create session directory: %s", context->session_folder);
     if (!c64_create_directory_recursive(context->session_folder)) {
-        C64_LOG_WARNING("Failed to create session directory: %s", context->session_folder);
+        C64_LOG_WARNING("" RECORD_LOG_PREFIX " Failed to create session directory: %s", context->session_folder);
         context->session_folder[0] = '\0'; // Clear on failure
     } else {
-        C64_LOG_INFO("Successfully created recording session: %s", context->session_folder);
+        C64_LOG_INFO("" RECORD_LOG_PREFIX " Successfully created recording session: %s", context->session_folder);
     }
 }
 
@@ -81,7 +81,7 @@ void c64_stop_csv_recording(struct c64_source *context)
         fclose(context->timing_file);
         context->timing_file = NULL;
         context->csv_timing_base_ns = 0; // Reset timing base for next recording session
-        C64_LOG_INFO("CSV timing recording stopped");
+        C64_LOG_INFO("" RECORD_LOG_PREFIX " CSV timing recording stopped");
     }
 }
 
@@ -94,7 +94,7 @@ void c64_stop_network_recording(struct c64_source *context)
     if (context->network_file) {
         fclose(context->network_file);
         context->network_file = NULL;
-        C64_LOG_INFO("Network packet recording stopped");
+        C64_LOG_INFO("" RECORD_LOG_PREFIX " Network packet recording stopped");
     }
 }
 
@@ -109,7 +109,7 @@ void c64_session_cleanup_if_needed(struct c64_source *context)
         c64_stop_csv_recording(context);
         c64_stop_network_recording(context);
         context->session_folder[0] = '\0';
-        C64_LOG_INFO("Recording session ended");
+        C64_LOG_INFO("" RECORD_LOG_PREFIX " Recording session ended");
     }
 }
 
@@ -157,13 +157,13 @@ void c64_start_csv_recording(struct c64_source *context)
     }
 
     // Ensure we have a recording session
-    C64_LOG_INFO("Creating CSV recording session...");
+    C64_LOG_INFO("" RECORD_LOG_PREFIX " Creating CSV recording session...");
     c64_session_ensure_exists(context);
     if (context->session_folder[0] == '\0') {
-        C64_LOG_WARNING("Failed to create recording session for CSV logging");
+        C64_LOG_WARNING("" RECORD_LOG_PREFIX " Failed to create recording session for CSV logging");
         return;
     }
-    C64_LOG_INFO("Session folder created: %s", context->session_folder);
+    C64_LOG_INFO("" RECORD_LOG_PREFIX " Session folder created: %s", context->session_folder);
 
     // Create CSV timing file
     char timing_filename[950];
@@ -171,13 +171,13 @@ void c64_start_csv_recording(struct c64_source *context)
 
     context->timing_file = fopen(timing_filename, "w");
     if (!context->timing_file) {
-        C64_LOG_ERROR("Failed to create CSV timing file: %s", timing_filename);
+        C64_LOG_ERROR("" RECORD_LOG_PREFIX " Failed to create CSV timing file: %s", timing_filename);
         return;
     }
 
     // Write CSV header
     c64_obs_write_header(context);
-    C64_LOG_INFO("Started CSV timing recording: %s", timing_filename);
+    C64_LOG_INFO("" RECORD_LOG_PREFIX " Started CSV timing recording: %s", timing_filename);
 }
 
 /**
@@ -191,13 +191,13 @@ void c64_start_network_recording(struct c64_source *context)
     }
 
     // Ensure we have a recording session
-    C64_LOG_DEBUG("Creating network recording session...");
+    C64_LOG_DEBUG("" RECORD_LOG_PREFIX " Creating network recording session...");
     c64_session_ensure_exists(context);
     if (context->session_folder[0] == '\0') {
-        C64_LOG_WARNING("Failed to create recording session for network logging");
+        C64_LOG_WARNING("" RECORD_LOG_PREFIX " Failed to create recording session for network logging");
         return;
     }
-    C64_LOG_DEBUG("Network session folder: %s", context->session_folder);
+    C64_LOG_DEBUG("" RECORD_LOG_PREFIX " Network session folder: %s", context->session_folder);
 
     // Create network packet file
     char network_filename[950];
@@ -205,13 +205,13 @@ void c64_start_network_recording(struct c64_source *context)
 
     context->network_file = fopen(network_filename, "w");
     if (!context->network_file) {
-        C64_LOG_ERROR("Failed to create network packet file: %s", network_filename);
+        C64_LOG_ERROR("" RECORD_LOG_PREFIX " Failed to create network packet file: %s", network_filename);
         return;
     }
 
     // Write network CSV header
     c64_network_write_header(context);
-    C64_LOG_INFO("Started network packet recording: %s", network_filename);
+    C64_LOG_INFO("" RECORD_LOG_PREFIX " Started network packet recording: %s", network_filename);
 }
 
 /**
@@ -231,7 +231,7 @@ void c64_start_video_recording(struct c64_source *context)
     // Ensure session exists for video recording
     c64_session_ensure_exists(context);
     if (context->session_folder[0] == '\0') {
-        C64_LOG_ERROR("Failed to create recording session for video recording");
+        C64_LOG_ERROR("" RECORD_LOG_PREFIX " Failed to create recording session for video recording");
         pthread_mutex_unlock(&context->recording_mutex);
         return;
     }
@@ -252,7 +252,7 @@ void c64_start_video_recording(struct c64_source *context)
     context->audio_file = fopen(audio_filename, "wb");
 
     if (!context->video_file || !context->audio_file) {
-        C64_LOG_ERROR("Failed to create recording files");
+        C64_LOG_ERROR("" RECORD_LOG_PREFIX " Failed to create recording files");
         if (context->video_file) {
             fclose(context->video_file);
             context->video_file = NULL;
@@ -276,7 +276,7 @@ void c64_start_video_recording(struct c64_source *context)
     // Write WAV header to audio file
     c64_audio_write_wav_header(context->audio_file, 48000, 2, 16); // 48kHz stereo 16-bit
 
-    C64_LOG_INFO("Started video recording: %s", video_filename);
+    C64_LOG_INFO("" RECORD_LOG_PREFIX " Started video recording: %s", video_filename);
 
     pthread_mutex_unlock(&context->recording_mutex);
 }
@@ -308,8 +308,8 @@ void c64_stop_video_recording(struct c64_source *context)
         context->audio_file = NULL;
     }
 
-    C64_LOG_INFO("Recording stopped. Frames: %ld, Audio samples: %ld", os_atomic_load_long(&context->recorded_frames),
-                 os_atomic_load_long(&context->recorded_audio_samples));
+    C64_LOG_INFO("" RECORD_LOG_PREFIX " Recording stopped. Frames: %ld, Audio samples: %ld",
+                 os_atomic_load_long(&context->recorded_frames), os_atomic_load_long(&context->recorded_audio_samples));
 
     pthread_mutex_unlock(&context->recording_mutex);
 }
@@ -340,7 +340,7 @@ void c64_record_init(struct c64_source *context)
 
     // Initialize recording mutex
     if (pthread_mutex_init(&context->recording_mutex, NULL) != 0) {
-        C64_LOG_ERROR("Failed to initialize recording mutex");
+        C64_LOG_ERROR("" RECORD_LOG_PREFIX " Failed to initialize recording mutex");
     }
 }
 
@@ -379,7 +379,7 @@ void c64_record_update_settings(struct c64_source *context, void *settings_ptr)
 {
     obs_data_t *settings = (obs_data_t *)settings_ptr;
 
-    C64_LOG_INFO("c64_record_update_settings() called - checking CSV settings...");
+    C64_LOG_INFO("" RECORD_LOG_PREFIX " c64_record_update_settings() called - checking CSV settings...");
 
     // Update frame saving settings
     const char *new_save_folder = obs_data_get_string(settings, "save_folder");
@@ -388,7 +388,7 @@ void c64_record_update_settings(struct c64_source *context, void *settings_ptr)
             strncpy(context->save_folder, new_save_folder, sizeof(context->save_folder) - 1);
             context->save_folder[sizeof(context->save_folder) - 1] = '\0';
             context->saved_frame_count = 0; // Reset counter for new folder
-            C64_LOG_INFO("Frame save folder updated: %s", context->save_folder);
+            C64_LOG_INFO("" RECORD_LOG_PREFIX " Frame save folder updated: %s", context->save_folder);
         }
     }
 
@@ -402,23 +402,23 @@ void c64_record_update_settings(struct c64_source *context, void *settings_ptr)
 
     // Update CSV recording setting
     bool new_record_csv = obs_data_get_bool(settings, "record_csv");
-    C64_LOG_INFO("CSV recording setting: current=%s, new=%s", context->record_csv ? "true" : "false",
-                 new_record_csv ? "true" : "false");
+    C64_LOG_INFO("" RECORD_LOG_PREFIX " CSV recording setting: current=%s, new=%s",
+                 context->record_csv ? "true" : "false", new_record_csv ? "true" : "false");
     if (new_record_csv != context->record_csv) {
         context->record_csv = new_record_csv;
 
         if (new_record_csv) {
             // Start CSV recording independently
-            C64_LOG_INFO("Starting CSV recording...");
+            C64_LOG_INFO("" RECORD_LOG_PREFIX " Starting CSV recording...");
             c64_start_csv_recording(context);
             c64_start_network_recording(context);
-            C64_LOG_INFO("CSV recording started");
+            C64_LOG_INFO("" RECORD_LOG_PREFIX " CSV recording started");
         } else {
             // Stop CSV recording
             c64_stop_csv_recording(context);
             c64_stop_network_recording(context);
             c64_session_cleanup_if_needed(context);
-            C64_LOG_INFO("CSV recording stopped");
+            C64_LOG_INFO("" RECORD_LOG_PREFIX " CSV recording stopped");
         }
     }
 
@@ -430,7 +430,7 @@ void c64_record_update_settings(struct c64_source *context, void *settings_ptr)
         if (new_record_video) {
             // Start recording (will join/create session)
             c64_start_video_recording(context);
-            C64_LOG_INFO("Video recording started");
+            C64_LOG_INFO("" RECORD_LOG_PREFIX " Video recording started");
         } else {
             // Stop recording
             c64_stop_video_recording(context);

@@ -24,7 +24,7 @@ void *audio_thread_func(void *data)
     struct c64_source *context = data;
     uint8_t packet[C64_AUDIO_PACKET_SIZE];
 
-    C64_LOG_DEBUG("Audio receiver thread started on port %u", context->audio_port);
+    C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " Audio receiver thread started on port %u", context->audio_port);
 
     while (os_atomic_load_bool(&context->thread_active)) {
         // Check socket validity before each recv call (prevents Windows WSAENOTSOCK errors)
@@ -47,12 +47,13 @@ void *audio_thread_func(void *data)
             }
             // On Windows, WSAENOTSOCK means socket was closed - this is normal during shutdown
             if (error == WSAENOTSOCK && context->audio_socket == INVALID_SOCKET_VALUE) {
-                C64_LOG_DEBUG("Audio socket closed (WSAENOTSOCK) - exiting receiver thread gracefully");
+                C64_LOG_DEBUG("" AUDIO_LOG_PREFIX
+                              " Audio socket closed (WSAENOTSOCK) - exiting receiver thread gracefully");
                 break; // Socket was closed, exit gracefully
             }
             // On Windows, WSAESHUTDOWN means socket was shutdown - this is normal during reconnection
             if (error == WSAESHUTDOWN) {
-                C64_LOG_DEBUG("Audio socket shutdown (WSAESHUTDOWN) - waiting for reconnection");
+                C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " Audio socket shutdown (WSAESHUTDOWN) - waiting for reconnection");
                 os_sleep_ms(100); // Wait for reconnection to complete
                 continue;         // Continue waiting instead of exiting thread
             }
@@ -63,11 +64,12 @@ void *audio_thread_func(void *data)
             }
             // On POSIX, EBADF means socket was closed - this is normal during shutdown
             if (error == EBADF && context->audio_socket == INVALID_SOCKET_VALUE) {
-                C64_LOG_DEBUG("Audio socket closed (EBADF) - exiting receiver thread gracefully");
+                C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " Audio socket closed (EBADF) - exiting receiver thread gracefully");
                 break; // Socket was closed, exit gracefully
             }
 #endif
-            C64_LOG_ERROR("Audio socket error: %s (error code: %d)", c64_get_socket_error_string(error), error);
+            C64_LOG_ERROR("" AUDIO_LOG_PREFIX " Audio socket error: %s (error code: %d)",
+                          c64_get_socket_error_string(error), error);
             break;
         }
 
@@ -77,11 +79,12 @@ void *audio_thread_func(void *data)
             uint64_t now = os_gettime_ns();
             if (now - last_incomplete_log_time >= 2000000000ULL) { // Throttle to every 2 seconds
                 if (received <= 4) {
-                    C64_LOG_DEBUG("Audio startup/control packets: " SSIZE_T_FORMAT
+                    C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " Audio startup/control packets: " SSIZE_T_FORMAT
                                   " bytes (normal during initialization)",
                                   SSIZE_T_CAST(received));
                 } else {
-                    C64_LOG_WARNING("Received incomplete audio packet: " SSIZE_T_FORMAT " bytes (expected %d)",
+                    C64_LOG_WARNING("" AUDIO_LOG_PREFIX " Received incomplete audio packet: " SSIZE_T_FORMAT
+                                    " bytes (expected %d)",
                                     SSIZE_T_CAST(received), C64_AUDIO_PACKET_SIZE);
                 }
                 last_incomplete_log_time = now;
@@ -112,7 +115,8 @@ void *audio_thread_func(void *data)
         }
     }
 
-    C64_LOG_DEBUG("Audio thread stopped for C64 Stream source '%s'", obs_source_get_name(context->source));
+    C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " Audio thread stopped for C64 Stream source '%s'",
+                  obs_source_get_name(context->source));
     return NULL;
 }
 
@@ -123,7 +127,8 @@ static void validate_audio_timestamp_progression(struct c64_source *context, uin
         int64_t timestamp_delta = (int64_t)(current_timestamp - context->last_audio_timestamp_validation);
         // Expected delta is ~4ms (4,000,000 ns), warn if significantly off
         if (timestamp_delta < 2000000 || timestamp_delta > 6000000) {
-            C64_LOG_DEBUG("Audio timestamp jump detected [%s]: delta=%" PRId64 "ns (expected ~4000000ns)",
+            C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " Audio timestamp jump detected [%s]: delta=%" PRId64
+                          "ns (expected ~4000000ns)",
                           obs_source_get_name(context->source), timestamp_delta);
         }
     }
@@ -144,10 +149,11 @@ static uint64_t generate_monotonic_audio_timestamp(struct c64_source *context)
         // Otherwise use current real time
         if (context->timestamp_base_set && context->stream_start_time_ns > 0) {
             context->audio_base_time = context->stream_start_time_ns;
-            C64_LOG_INFO("🎵 Audio using video timing base for A/V sync: %" PRIu64 " ns", context->audio_base_time);
+            C64_LOG_INFO("" AUDIO_LOG_PREFIX " 🎵 Audio using video timing base for A/V sync: %" PRIu64 " ns",
+                         context->audio_base_time);
         } else {
             context->audio_base_time = current_real_time;
-            C64_LOG_DEBUG("Audio synthetic timestamps initialized for source '%s': base=%" PRIu64,
+            C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " Audio synthetic timestamps initialized for source '%s': base=%" PRIu64,
                           obs_source_get_name(context->source), context->audio_base_time);
         }
         context->audio_packet_count = 0;
@@ -169,7 +175,8 @@ static uint64_t generate_monotonic_audio_timestamp(struct c64_source *context)
             context->audio_base_time -= adjustment;
             synthetic_timestamp -= adjustment;
 
-            C64_LOG_DEBUG("Audio drift correction [%s]: drift=%" PRId64 "ms, adjusted by %" PRId64 "ms",
+            C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " Audio drift correction [%s]: drift=%" PRId64 "ms, adjusted by %" PRId64
+                          "ms",
                           obs_source_get_name(context->source), drift_ns / 1000000, adjustment / 1000000);
         }
     }
@@ -177,7 +184,7 @@ static uint64_t generate_monotonic_audio_timestamp(struct c64_source *context)
     // Debug logging every 100 packets to verify progression
     if ((context->audio_packet_count % 1000) == 0) {
         int64_t drift_ms = (int64_t)(synthetic_timestamp - current_real_time) / 1000000;
-        C64_LOG_DEBUG("Audio synthetic TS [%s]: count=%" PRIu64 ", drift=%" PRId64 "ms",
+        C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " Audio synthetic TS [%s]: count=%" PRIu64 ", drift=%" PRId64 "ms",
                       obs_source_get_name(context->source), context->audio_packet_count - 1, drift_ms);
     }
 
@@ -203,7 +210,7 @@ void c64_process_audio_packet(struct c64_source *context, const uint8_t *audio_d
     // According to C64 Ultimate spec: 192 stereo samples per packet, 16-bit signed little-endian
     // Each stereo sample = 4 bytes (2 bytes left + 2 bytes right)
     if (samples_size < 768) { // 192 * 4 = 768 bytes
-        C64_LOG_WARNING("Audio packet too small: %zu bytes (expected 768)", samples_size);
+        C64_LOG_WARNING("" AUDIO_LOG_PREFIX " Audio packet too small: %zu bytes (expected 768)", samples_size);
         return;
     }
 
@@ -237,8 +244,8 @@ void c64_process_audio_packet(struct c64_source *context, const uint8_t *audio_d
     if ((++audio_timestamp_debug_count % 50000) == 0 ||
         (now - last_audio_log_time >= 600000000000ULL)) { // Every 50k packets OR 10 minutes
         uint64_t delivery_delay = now - audio_timestamp;
-        C64_LOG_DEBUG("🎵 AUDIO SPOT CHECK: audio_ts=%" PRIu64 ", packet_ts=%" PRIu64 ", delivery_delay=%" PRIu64
-                      "ms (processed: %d)",
+        C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " 🎵 AUDIO SPOT CHECK: audio_ts=%" PRIu64 ", packet_ts=%" PRIu64
+                      ", delivery_delay=%" PRIu64 "ms (processed: %d)",
                       audio_timestamp, timestamp_ns, delivery_delay / 1000000, audio_timestamp_debug_count);
         last_audio_log_time = now;
     }

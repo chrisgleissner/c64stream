@@ -83,7 +83,8 @@ static void debug_verify_buffer_ordering(struct packet_ring_buffer *rb, const ch
                     if (frame_diff < 0 || (frame_diff == 0 && (int16_t)(rb->slots[current].line_num - prev_line) < 0)) {
                         ordering_violation = true;
                         C64_LOG_ERROR(
-                            "%s: Video ordering violation - frame %u line %u after frame %u line %u at pos %zu",
+                            "" NETWORK_LOG_PREFIX
+                            " %s: Video ordering violation - frame %u line %u after frame %u line %u at pos %zu",
                             context, rb->slots[current].frame_num, rb->slots[current].line_num, prev_frame, prev_line,
                             current);
                     }
@@ -96,8 +97,9 @@ static void debug_verify_buffer_ordering(struct packet_ring_buffer *rb, const ch
                     int16_t diff = (int16_t)(seq - prev_seq_audio);
                     if (diff <= 0) {
                         ordering_violation = true;
-                        C64_LOG_ERROR("%s: Audio ordering violation - seq %u after %u at pos %zu", context, seq,
-                                      prev_seq_audio, current);
+                        C64_LOG_ERROR("" NETWORK_LOG_PREFIX
+                                      " %s: Audio ordering violation - seq %u after %u at pos %zu",
+                                      context, seq, prev_seq_audio, current);
                     }
                     prev_seq_audio = seq;
                 }
@@ -142,7 +144,7 @@ static void rb_push(struct packet_ring_buffer *rb, const uint8_t *data, size_t l
     if (!os_atomic_load_bool(&rb->seq_initialized)) {
         rb->next_expected_seq = seq_num;
         os_atomic_set_bool(&rb->seq_initialized, true);
-        C64_LOG_DEBUG("%s buffer: initialized with sequence %u", type_name, seq_num);
+        C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " %s buffer: initialized with sequence %u", type_name, seq_num);
     }
 
     // The ring buffer insertion sort will handle duplicates and ordering automatically
@@ -174,8 +176,9 @@ static void rb_push(struct packet_ring_buffer *rb, const uint8_t *data, size_t l
         static uint64_t last_full_log_time = 0;
         uint64_t now = os_gettime_ns();
         if (now - last_full_log_time >= 1000000000ULL) {
-            C64_LOG_WARNING("%s buffer full: dropped %zu packets, utilization was=%zu%% (%zu/%zu packets)", type_name,
-                            packets_to_drop, utilization_percent, current_packets, rb->max_capacity);
+            C64_LOG_WARNING("" NETWORK_LOG_PREFIX
+                            " %s buffer full: dropped %zu packets, utilization was=%zu%% (%zu/%zu packets)",
+                            type_name, packets_to_drop, utilization_percent, current_packets, rb->max_capacity);
             last_full_log_time = now;
         }
     } else if (utilization_percent >= 90) {
@@ -183,8 +186,8 @@ static void rb_push(struct packet_ring_buffer *rb, const uint8_t *data, size_t l
         static uint64_t last_warn_log_time = 0;
         uint64_t now = os_gettime_ns();
         if (now - last_warn_log_time >= 5000000000ULL) { // Every 5 seconds for warnings
-            C64_LOG_DEBUG("%s buffer high utilization: %zu%% (%zu/%zu packets)", type_name, utilization_percent,
-                          current_packets, rb->max_capacity);
+            C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " %s buffer high utilization: %zu%% (%zu/%zu packets)", type_name,
+                          utilization_percent, current_packets, rb->max_capacity);
             last_warn_log_time = now;
         }
     }
@@ -262,7 +265,8 @@ static void rb_push(struct packet_ring_buffer *rb, const uint8_t *data, size_t l
         if (shift_distance > MAX_SHIFT_COUNT) {
             // Shift limit exceeded - insert at head to avoid blocking (packet may be slightly out of order)
             insert_pos = head;
-            C64_LOG_DEBUG("%s: Shift limit exceeded for seq %u, inserting at head", type_name, seq_num);
+            C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " %s: Shift limit exceeded for seq %u, inserting at head", type_name,
+                          seq_num);
         } else {
             // Treat the current head slot as an empty hole, then swap-shift packets into it.
             // This avoids copying packet payload bytes and keeps per-slot payload buffers unique under heavy reordering.
@@ -305,10 +309,11 @@ static void rb_push(struct packet_ring_buffer *rb, const uint8_t *data, size_t l
     // Log packet insertion details for debugging
     if (insert_pos != head) {
         if (rb->type == BUFFER_TYPE_VIDEO) {
-            C64_LOG_DEBUG("%s: Inserted frame %u line %u (seq %u) at pos %zu (head was %zu)", type_name, frame_num,
-                          line_num, seq_num, insert_pos, head);
+            C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " %s: Inserted frame %u line %u (seq %u) at pos %zu (head was %zu)",
+                          type_name, frame_num, line_num, seq_num, insert_pos, head);
         } else {
-            C64_LOG_DEBUG("%s: Inserted seq %u at pos %zu (head was %zu)", type_name, seq_num, insert_pos, head);
+            C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " %s: Inserted seq %u at pos %zu (head was %zu)", type_name, seq_num,
+                          insert_pos, head);
         }
     }
 
@@ -386,7 +391,7 @@ struct c64_network_buffer *c64_network_buffer_create(void)
 {
     struct c64_network_buffer *buf = (struct c64_network_buffer *)malloc(sizeof(struct c64_network_buffer));
     if (!buf) {
-        C64_LOG_ERROR("Failed to allocate network buffer");
+        C64_LOG_ERROR("" NETWORK_LOG_PREFIX " Failed to allocate network buffer");
         return NULL;
     }
 
@@ -420,8 +425,8 @@ struct c64_network_buffer *c64_network_buffer_create(void)
     pthread_mutex_init(&buf->audio.mutex, NULL);
     rb_reset(&buf->audio, C64_MAX_AUDIO_PACKETS);
 
-    C64_LOG_INFO("Network buffer created - Video: %zu slots, Audio: %zu slots", (size_t)C64_MAX_VIDEO_PACKETS,
-                 (size_t)C64_MAX_AUDIO_PACKETS);
+    C64_LOG_INFO("" NETWORK_LOG_PREFIX " Network buffer created - Video: %zu slots, Audio: %zu slots",
+                 (size_t)C64_MAX_VIDEO_PACKETS, (size_t)C64_MAX_AUDIO_PACKETS);
 
     return buf;
 }
@@ -432,7 +437,7 @@ void c64_network_buffer_destroy(struct c64_network_buffer *buf)
         return;
     }
 
-    C64_LOG_INFO("Network buffer destroyed");
+    C64_LOG_INFO("" NETWORK_LOG_PREFIX " Network buffer destroyed");
     pthread_mutex_destroy(&buf->video.mutex);
     pthread_mutex_destroy(&buf->audio.mutex);
     free(buf);
@@ -469,7 +474,7 @@ void c64_network_buffer_set_delay(struct c64_network_buffer *buf, size_t video_d
     buf->video.delay_us = video_delay_ms * 1000;
     buf->audio.delay_us = audio_delay_ms * 1000;
 
-    C64_LOG_INFO("Buffer delay values set: video=%llu us (%zu ms), audio=%llu us (%zu ms)",
+    C64_LOG_INFO("" NETWORK_LOG_PREFIX " Buffer delay values set: video=%llu us (%zu ms), audio=%llu us (%zu ms)",
                  (unsigned long long)buf->video.delay_us, video_delay_ms, (unsigned long long)buf->audio.delay_us,
                  audio_delay_ms);
 
@@ -480,7 +485,8 @@ void c64_network_buffer_set_delay(struct c64_network_buffer *buf, size_t video_d
         // Only flush entire buffer for extreme delay reductions (to zero or very small delays)
         // This prevents black screens while still allowing cleanup when needed
         if (buf->video.delay_us == 0 && old_video_delay > 50000) { // Only flush when going to zero from >50ms
-            C64_LOG_INFO("Extreme video delay reduction to zero (%llu->0 us), flushing buffer for immediate playback",
+            C64_LOG_INFO("" NETWORK_LOG_PREFIX
+                         " Extreme video delay reduction to zero (%llu->0 us), flushing buffer for immediate playback",
                          (unsigned long long)old_video_delay);
             pthread_mutex_lock(&buf->video.mutex);
             rb_reset(&buf->video, video_slots);
@@ -518,7 +524,8 @@ void c64_network_buffer_set_delay(struct c64_network_buffer *buf, size_t video_d
                 }
 
                 if (discarded > 0) {
-                    C64_LOG_INFO("Video buffer: discarded %zu old packets due to delay reduction (sequence-ordered)",
+                    C64_LOG_INFO("" NETWORK_LOG_PREFIX
+                                 " Video buffer: discarded %zu old packets due to delay reduction (sequence-ordered)",
                                  discarded);
                 }
             }
@@ -545,16 +552,18 @@ void c64_network_buffer_set_delay(struct c64_network_buffer *buf, size_t video_d
 
                     // Log first few adjustments for debugging
                     if (adjusted <= 3) {
-                        C64_LOG_INFO("Video packet %zu: adjusted timestamp %llu -> %llu us (seq=%u)", adjusted,
-                                     (unsigned long long)old_timestamp, (unsigned long long)ready_timestamp,
+                        C64_LOG_INFO("" NETWORK_LOG_PREFIX
+                                     " Video packet %zu: adjusted timestamp %llu -> %llu us (seq=%u)",
+                                     adjusted, (unsigned long long)old_timestamp, (unsigned long long)ready_timestamp,
                                      slot->sequence_num);
                     }
                 }
             }
 
             if (adjusted > 0) {
-                C64_LOG_INFO("Video buffer: made %zu packets immediately ready for new delay (%llu us)", adjusted,
-                             (unsigned long long)buf->video.delay_us);
+                C64_LOG_INFO("" NETWORK_LOG_PREFIX
+                             " Video buffer: made %zu packets immediately ready for new delay (%llu us)",
+                             adjusted, (unsigned long long)buf->video.delay_us);
             }
 
             pthread_mutex_unlock(&buf->video.mutex);
@@ -565,7 +574,8 @@ void c64_network_buffer_set_delay(struct c64_network_buffer *buf, size_t video_d
         // Only flush entire buffer for extreme delay reductions (to zero or very small delays)
         // This prevents audio dropouts while still allowing cleanup when needed
         if (buf->audio.delay_us == 0 && old_audio_delay > 50000) { // Only flush when going to zero from >50ms
-            C64_LOG_INFO("Extreme audio delay reduction to zero (%llu->0 us), flushing buffer for immediate playback",
+            C64_LOG_INFO("" NETWORK_LOG_PREFIX
+                         " Extreme audio delay reduction to zero (%llu->0 us), flushing buffer for immediate playback",
                          (unsigned long long)old_audio_delay);
             pthread_mutex_lock(&buf->audio.mutex);
             rb_reset(&buf->audio, audio_slots);
@@ -603,7 +613,8 @@ void c64_network_buffer_set_delay(struct c64_network_buffer *buf, size_t video_d
                 }
 
                 if (discarded > 0) {
-                    C64_LOG_INFO("Audio buffer: discarded %zu old packets due to delay reduction (sequence-ordered)",
+                    C64_LOG_INFO("" NETWORK_LOG_PREFIX
+                                 " Audio buffer: discarded %zu old packets due to delay reduction (sequence-ordered)",
                                  discarded);
                 }
             }
@@ -630,23 +641,26 @@ void c64_network_buffer_set_delay(struct c64_network_buffer *buf, size_t video_d
 
                     // Log first few adjustments for debugging
                     if (adjusted <= 3) {
-                        C64_LOG_INFO("Audio packet %zu: adjusted timestamp %llu -> %llu us (seq=%u)", adjusted,
-                                     (unsigned long long)old_timestamp, (unsigned long long)ready_timestamp,
+                        C64_LOG_INFO("" NETWORK_LOG_PREFIX
+                                     " Audio packet %zu: adjusted timestamp %llu -> %llu us (seq=%u)",
+                                     adjusted, (unsigned long long)old_timestamp, (unsigned long long)ready_timestamp,
                                      slot->sequence_num);
                     }
                 }
             }
             if (adjusted > 0) {
-                C64_LOG_INFO("Audio buffer: made %zu packets immediately ready for new delay (%llu us)", adjusted,
-                             (unsigned long long)buf->audio.delay_us);
+                C64_LOG_INFO("" NETWORK_LOG_PREFIX
+                             " Audio buffer: made %zu packets immediately ready for new delay (%llu us)",
+                             adjusted, (unsigned long long)buf->audio.delay_us);
             }
 
             pthread_mutex_unlock(&buf->audio.mutex);
         }
     }
 
-    C64_LOG_INFO("Network buffer delay set - Video: %zu ms (%zu slots), Audio: %zu ms (%zu slots)", video_delay_ms,
-                 video_slots, audio_delay_ms, audio_slots);
+    C64_LOG_INFO("" NETWORK_LOG_PREFIX
+                 " Network buffer delay set - Video: %zu ms (%zu slots), Audio: %zu ms (%zu slots)",
+                 video_delay_ms, video_slots, audio_delay_ms, audio_slots);
 }
 
 void c64_network_buffer_push_video(struct c64_network_buffer *buf, const uint8_t *data, size_t len,
@@ -659,7 +673,7 @@ void c64_network_buffer_push_video(struct c64_network_buffer *buf, const uint8_t
     // Debug logging for network buffer push operations (respects global debug setting)
     static int push_count = 0;
     if ((push_count++ % 5000) == 0) {
-        C64_LOG_DEBUG("Network buffer push video: packet %d (len=%zu)", push_count, len);
+        C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Network buffer push video: packet %d (len=%zu)", push_count, len);
     }
 
     // Convert nanoseconds to microseconds for internal storage
@@ -712,7 +726,7 @@ int c64_network_buffer_pop(struct c64_network_buffer *buf, const uint8_t **video
         static uint64_t last_empty_log_time = 0;
         uint64_t now = os_gettime_ns();
         if (now - last_empty_log_time >= 60000000000ULL) { // 1 minute in nanoseconds
-            C64_LOG_DEBUG("📦 BUFFER EMPTY SPOT CHECK: No video packets available");
+            C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " 📦 BUFFER EMPTY SPOT CHECK: No video packets available");
             last_empty_log_time = now;
         }
         return 0;
@@ -728,7 +742,7 @@ int c64_network_buffer_pop(struct c64_network_buffer *buf, const uint8_t **video
         if (now - last_delay_log_time >= 60000000000ULL) { // 1 minute in nanoseconds
             uint64_t now_us = now / 1000;
             uint64_t age_us = oldest_video->valid ? (now_us - oldest_video->timestamp_us) : 0;
-            C64_LOG_DEBUG("⏰ DELAY WAIT SPOT CHECK: Oldest packet age=%llu us, need=%llu us",
+            C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " ⏰ DELAY WAIT SPOT CHECK: Oldest packet age=%llu us, need=%llu us",
                           (unsigned long long)age_us, (unsigned long long)buf->video.delay_us);
             last_delay_log_time = now;
         }
@@ -738,7 +752,7 @@ int c64_network_buffer_pop(struct c64_network_buffer *buf, const uint8_t **video
     // Pop the ready video packet (oldest first for proper FIFO)
     struct packet_slot *v;
     if (!rb_pop_oldest(&buf->video, &v)) {
-        C64_LOG_WARNING("Failed to pop ready video packet");
+        C64_LOG_WARNING("" NETWORK_LOG_PREFIX " Failed to pop ready video packet");
         return 0;
     }
 
@@ -761,8 +775,8 @@ int c64_network_buffer_pop(struct c64_network_buffer *buf, const uint8_t **video
     static uint64_t last_pop_log_time = 0;
     uint64_t now = os_gettime_ns();
     if ((++pop_count % 100000) == 0 || (now - last_pop_log_time >= 600000000000ULL)) { // Every 100k pops OR 10 minutes
-        C64_LOG_DEBUG("Network buffer pop SPOT CHECK: video=yes, audio=%s (total count: %d)", has_audio ? "yes" : "no",
-                      pop_count);
+        C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Network buffer pop SPOT CHECK: video=yes, audio=%s (total count: %d)",
+                      has_audio ? "yes" : "no", pop_count);
         last_pop_log_time = now;
     }
 
@@ -799,5 +813,5 @@ void c64_network_buffer_flush(struct c64_network_buffer *buf)
     rb_reset(&buf->video, video_active);
     rb_reset(&buf->audio, audio_active);
 
-    C64_LOG_INFO("Network buffers flushed");
+    C64_LOG_INFO("" NETWORK_LOG_PREFIX " Network buffers flushed");
 }

@@ -81,7 +81,7 @@ void c64_audio_record_data(struct c64_source *context, const uint8_t *audio_data
 
         // Note: CSV logging for audio events is now handled independently in the video processor thread
     } else {
-        C64_LOG_WARNING("Failed to write audio data to WAV recording");
+        C64_LOG_WARNING("" RECORD_LOG_PREFIX " Failed to write audio data to WAV recording");
     }
 
     pthread_mutex_unlock(&context->recording_mutex);

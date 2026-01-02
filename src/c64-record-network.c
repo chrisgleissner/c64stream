@@ -24,7 +24,7 @@ See <https://www.gnu.org/licenses/> for details.
 void c64_network_write_header(struct c64_source *context)
 {
     if (!context || !context->network_file) {
-        C64_LOG_ERROR("Cannot write network CSV header: context or network file is NULL");
+        C64_LOG_ERROR("" RECORD_LOG_PREFIX " Cannot write network CSV header: context or network file is NULL");
         return;
     }
 
@@ -37,7 +37,7 @@ void c64_network_write_header(struct c64_source *context)
             "packet_interval_us,total_video_packets,total_audio_packets,sequence_errors\n");
     fflush(context->network_file);
 
-    C64_LOG_INFO("Network packet CSV header written successfully");
+    C64_LOG_INFO("" RECORD_LOG_PREFIX " Network packet CSV header written successfully");
 }
 
 /**
