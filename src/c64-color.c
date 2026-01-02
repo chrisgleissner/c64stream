@@ -13,13 +13,8 @@ See <https://www.gnu.org/licenses/> for details.
 #include <string.h>
 
 // Export the default palette as vic_colors for backward compatibility
-// Explicitly initialize from c64_default_palette to match extern array declaration in header
-const uint32_t vic_colors[16] = {c64_default_palette[0],  c64_default_palette[1],  c64_default_palette[2],
-                                 c64_default_palette[3],  c64_default_palette[4],  c64_default_palette[5],
-                                 c64_default_palette[6],  c64_default_palette[7],  c64_default_palette[8],
-                                 c64_default_palette[9],  c64_default_palette[10], c64_default_palette[11],
-                                 c64_default_palette[12], c64_default_palette[13], c64_default_palette[14],
-                                 c64_default_palette[15]};
+// Use pointer instead of array copy for MSVC compatibility (C2099 error)
+const uint32_t *const vic_colors = c64_default_palette;
 
 // Current active palette (initialized to default, updated by palette system)
 uint32_t c64_current_palette[16];
