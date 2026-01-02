@@ -177,23 +177,40 @@ Exported configurations are saved to the [exports directory](#file-system-struct
 
 The plugin uses three distinct filesystem locations:
 
-**1. Plugin Installation** - OBS plugin binary and loader files:
-- **Windows:** `C:\ProgramData\obs-studio\plugins\c64stream\`
-- **macOS:** `~/Library/Application Support/obs-studio/plugins/c64stream.plugin/`
-- **Linux:** `/usr/share/obs/obs-plugins/c64stream/` and `/usr/lib/obs-plugins/`
+**1. Plugin Installation** - OBS plugin binary and loader files
 
-**2. Shipped Data** - Read-only defaults bundled with the plugin:
+OBS Studio searches for plugins in multiple locations. The installation location depends on how you installed the plugin:
+
+| Platform | Package Install (System-Wide) | User/Development Install |
+|----------|-------------------------------|-------------------------|
+| **Windows** | `C:\ProgramData\obs-studio\plugins\c64stream\` | N/A (uses system path) |
+| **macOS** | `/Library/Application Support/obs-studio/plugins/c64stream.plugin/` | `~/Library/Application Support/obs-studio/plugins/c64stream.plugin/` |
+| **Linux** | `/usr/lib/obs-plugins/c64stream.so` | `~/.config/obs-studio/plugins/c64stream/bin/64bit/c64stream.so` |
+
+**2. Shipped Data** - Read-only defaults bundled with the plugin
+
+OBS uses `obs_module_file()` to locate data files, which searches in this order:
+1. User plugin directory (if it exists)
+2. System plugin directory
+
+The data directory contains:
 - Effect presets (`effect_presets.ini`)
 - Palette presets (`palettes/*.vpl`)
 - Default network configuration (`properties.ini`)
 - Localization files (`locale/*.ini`)
 
-Locations:
-- **Windows:** `C:\ProgramData\obs-studio\plugins\c64stream\data\`
-- **macOS:** `~/Library/Application Support/obs-studio/plugins/c64stream.plugin/Contents/Resources/`
-- **Linux:** `/usr/share/obs/obs-plugins/c64stream/`
+| Platform | Package Install (System-Wide) | User/Development Install |
+|----------|-------------------------------|-------------------------|
+| **Windows** | `C:\ProgramData\obs-studio\plugins\c64stream\data\` | N/A (uses system path) |
+| **macOS** | `/Library/Application Support/obs-studio/plugins/c64stream.plugin/Contents/Resources/` | `~/Library/Application Support/obs-studio/plugins/c64stream.plugin/Contents/Resources/` |
+| **Linux** | `/usr/share/obs/obs-plugins/c64stream/` | `~/.config/obs-studio/plugins/c64stream/data/` |
 
-**3. User Data** - Your custom content (editable, portable, backup-friendly):
+> [!NOTE]
+> **For end users:** You'll use the package install paths shown above (left column).
+> 
+> **For developers:** When using the VSCode build tasks or `local-build.sh --install`, the plugin installs to the user paths (right column). The E2E tests also use these user paths.
+
+**3. User Data** - Your custom content (editable, portable, backup-friendly)
 
 ```
 <Documents>/obs-studio/c64stream/
