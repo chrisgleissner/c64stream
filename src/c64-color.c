@@ -7,7 +7,6 @@ See <https://www.gnu.org/licenses/> for details.
 */
 #include "c64-color.h"
 #include "c64-logging.h"
-#include "c64-default-palette.h"
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>

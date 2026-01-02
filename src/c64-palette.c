@@ -9,7 +9,6 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-color.h"
 #include "c64-file.h"
 #include "c64-logging.h"
-#include "c64-default-palette.h"
 
 #include <obs-module.h>
 #include <util/dstr.h>

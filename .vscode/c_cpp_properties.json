@@ -27,7 +27,6 @@
             "name": "Linux",
             "includePath": [
                 "${workspaceFolder}/**",
-                "${workspaceFolder}/build_x86_64/generated",
                 "${workspaceFolder}/build_x86_64",
                 "${workspaceFolder}/src",
                 "/usr/include/obs",

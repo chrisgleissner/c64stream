@@ -132,25 +132,6 @@ if(ENABLE_QT)
   )
 endif()
 
-# Generate c64-default-palette.h from default.vpl at build time
-set(GENERATED_PALETTE_HEADER "${CMAKE_BINARY_DIR}/generated/c64-default-palette.h")
-add_custom_command(
-  OUTPUT ${GENERATED_PALETTE_HEADER}
-  COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/generated"
-  COMMAND
-    ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/build-aux/generate-palette-header.py"
-    "${CMAKE_SOURCE_DIR}/data/palettes/default.vpl" ${GENERATED_PALETTE_HEADER}
-  DEPENDS "${CMAKE_SOURCE_DIR}/data/palettes/default.vpl" "${CMAKE_SOURCE_DIR}/build-aux/generate-palette-header.py"
-  COMMENT "Generating default palette header from default.vpl"
-)
-
-# Add custom target to ensure header is generated before compilation
-add_custom_target(generate_palette_header DEPENDS ${GENERATED_PALETTE_HEADER})
-add_dependencies(${CMAKE_PROJECT_NAME} generate_palette_header)
-
-# Add generated directory to include path
-target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE "${CMAKE_BINARY_DIR}/generated")
-
 target_sources(
   ${CMAKE_PROJECT_NAME}
   PRIVATE
