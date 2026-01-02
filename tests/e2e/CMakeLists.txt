@@ -29,16 +29,11 @@ foreach(script ${PYTHON_SCRIPTS})
   )
 endforeach()
 
-# Install E2E test files
-install(TARGETS udp_replay RUNTIME DESTINATION bin)
-install(
-  FILES generate_packets.py e2e.py verify_output.py
-  PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
-  DESTINATION bin
-)
+# E2E test files are not installed to the package - they are only used during local development and CI
+# The udp_replay tool and Python scripts remain in the build tree for testing purposes
 
 message(STATUS "E2E test components configured:")
-message(STATUS "  UDP replay tool: udp_replay")
-message(STATUS "  Packet generator: generate_packets.py")
-message(STATUS "  Test orchestrator: e2e.py")
-message(STATUS "  Output verifier: verify_output.py")
+message(STATUS "  UDP replay tool: udp_replay (build-tree only)")
+message(STATUS "  Packet generator: generate_packets.py (build-tree only)")
+message(STATUS "  Test orchestrator: e2e.py (build-tree only)")
+message(STATUS "  Output verifier: verify_output.py (build-tree only)")

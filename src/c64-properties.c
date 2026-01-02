@@ -46,6 +46,9 @@ static bool palette_delete_clicked(obs_properties_t *props, obs_property_t *prop
 static bool palette_color_changed(void *data, obs_properties_t *props, obs_property_t *property, obs_data_t *settings);
 static void update_palette_color_properties(obs_data_t *settings);
 
+// Internal key to track initialization state and prevent spurious auto-saves
+static const char *C64_PALETTE_INITIALIZING_KEY = "_c64_palette_initializing";
+
 // Internal settings key: used to prevent re-applying presets when reopening the Properties UI.
 // (OBS may rebuild the properties view and trigger "modified" callbacks without a real user change.)
 static const char *C64_PRESET_LAST_APPLIED_KEY = "crt_preset_last_applied";
@@ -307,6 +310,10 @@ obs_properties_t *c64_create_properties(void *data)
     obs_source_update(context->source, palette_settings);
     obs_source_save(context->source);
 
+    // Set initialization flag to prevent auto-save during properties UI setup
+    // This prevents spurious "Default (Custom)" palette creation when properties dialog opens
+    obs_data_set_bool(palette_settings, C64_PALETTE_INITIALIZING_KEY, true);
+
     // CRITICAL: Manually trigger palette_changed with validated settings BEFORE setting the callback
     // This ensures the correct palette is loaded before OBS can fire callbacks with stale data
     // Without this, OBS may call palette_changed with the old palette name from settings,
@@ -360,7 +367,11 @@ obs_properties_t *c64_create_properties(void *data)
     // This ensures colors are correct when properties dialog first opens
     // Get fresh settings reference since the previous one was released
     obs_data_t *color_settings = obs_source_get_settings(context->source);
+    // The initialization flag should still be set from line 315 (same underlying settings data)
+    // This protects the update_palette_color_properties call below from triggering spurious auto-saves
     update_palette_color_properties(color_settings);
+    // Clear initialization flag now that properties UI setup is complete
+    obs_data_erase(color_settings, C64_PALETTE_INITIALIZING_KEY);
     obs_data_release(color_settings);
 
     obs_property_set_long_description(tint_strength_prop, obs_module_text("TintStrength.Description"));
@@ -860,8 +871,15 @@ void c64_set_property_defaults(obs_data_t *settings)
     // which automatically creates unwanted VPL files (e.g., "palettes.vpl" from directory name "palettes").
     // Users should explicitly choose paths when they want to import/export.
 
+    // Set initialization flag to prevent auto-save during property setup
+    // This prevents spurious "Default (Custom)" palette creation on Windows
+    obs_data_set_bool(settings, C64_PALETTE_INITIALIZING_KEY, true);
+
     // Initialize palette color properties from the current working palette
     update_palette_color_properties(settings);
+
+    // Clear initialization flag - auto-save is now allowed
+    obs_data_erase(settings, C64_PALETTE_INITIALIZING_KEY);
 
     // Load configuration overrides from properties.ini if available
     c64_load_configuration(settings);
@@ -1251,6 +1269,15 @@ static bool palette_color_changed(void *data, obs_properties_t *props, obs_prope
 
     // Convert to BGRA format used by the palette system
     uint32_t bgra = 0xFF000000 | (b << 16) | (g << 8) | r;
+
+    // CRITICAL: Never auto-save during initialization
+    // This prevents spurious "Default (Custom)" palette creation on Windows
+    // where OBS may trigger color callbacks before working colors are properly initialized
+    if (obs_data_get_bool(settings, C64_PALETTE_INITIALIZING_KEY)) {
+        // Still in initialization phase - update working color but don't save
+        c64_palette_set_working_color(index, bgra);
+        return false;
+    }
 
     // IMPORTANT: Only update and save if the color actually CHANGED from current working color
     // This prevents spurious auto-saves when properties dialog is opened and OBS triggers
