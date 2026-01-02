@@ -23,6 +23,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include <shlobj.h>
 #include <direct.h>
 #define PATH_SEP '\\'
+#define strcasecmp _stricmp
 #else
 #include <sys/stat.h>
 #include <dirent.h>
@@ -844,8 +845,8 @@ static void discover_shipped_palettes(void)
                 if (ext)
                     *ext = '\0';
 
-                // Skip "Default" - we add it manually
-                if (strcmp(id, "Default") == 0) {
+                // Skip "default" and "Default" - we add it manually
+                if (strcasecmp(id, "Default") == 0) {
                     continue;
                 }
 
@@ -891,8 +892,8 @@ static void discover_shipped_palettes(void)
                 *ext = '\0';
             }
 
-            // Skip "Default" - we add it manually
-            if (strcmp(id, "Default") == 0) {
+            // Skip "default" and "Default" - we add it manually
+            if (strcasecmp(id, "Default") == 0) {
                 continue;
             }
 
@@ -1022,6 +1023,14 @@ static bool add_palette_entry(const char *id, const char *name, const char *path
     if (palette_system.palette_count >= C64_MAX_PALETTES) {
         C64_LOG_WARNING("Maximum palette count reached");
         return false;
+    }
+
+    // Check for duplicate IDs (case-insensitive)
+    for (int i = 0; i < palette_system.palette_count; i++) {
+        if (strcasecmp(palette_system.palettes[i].id, id) == 0) {
+            C64_LOG_DEBUG("Palette with ID '%s' already exists, skipping", id);
+            return false;
+        }
     }
 
     struct c64_palette_entry *entry = &palette_system.palettes[palette_system.palette_count];
