@@ -422,11 +422,28 @@ obs_properties_t *c64_create_properties(void *data)
     {
         obs_data_t *config_path_settings = obs_source_get_settings(context->source);
         char config_export_file[512];
-        char config_import_file[512];
+        char config_import_dir[512];
         c64_default_export_ini_path(config_export_file, sizeof(config_export_file));
-        c64_default_export_ini_path(config_import_file, sizeof(config_import_file));
+
+        // Derive import directory from export file path so the user can browse existing exports
+        strncpy(config_import_dir, config_export_file, sizeof(config_import_dir));
+        config_import_dir[sizeof(config_import_dir) - 1] = '\0';
+
+        char *last_sep = strrchr(config_import_dir, '/');
+#ifdef _WIN32
+        char *last_backslash = strrchr(config_import_dir, '\\');
+        if (!last_sep || (last_backslash && last_backslash > last_sep))
+            last_sep = last_backslash;
+#endif
+        if (last_sep) {
+            *last_sep = '\0';
+        } else {
+            // Fallback to empty string (current directory) if no separator found
+            config_import_dir[0] = '\0';
+        }
+
         obs_data_set_string(config_path_settings, C64_CONFIG_EXPORT_PATH_KEY, config_export_file);
-        obs_data_set_string(config_path_settings, C64_CONFIG_IMPORT_PATH_KEY, config_import_file);
+        obs_data_set_string(config_path_settings, C64_CONFIG_IMPORT_PATH_KEY, config_import_dir);
         obs_data_release(config_path_settings);
     }
 
