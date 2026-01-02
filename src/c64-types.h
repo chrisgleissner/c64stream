@@ -11,7 +11,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include <obs-module.h>
 #include <media-io/audio-io.h>
 #include <graphics/graphics.h>
-#include <pthread.h>
+#include <util/threading.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include "c64-network.h"

@@ -9,6 +9,7 @@ See <https://www.gnu.org/licenses/> for details.
 #define C64_PALETTE_H
 
 #include <obs-module.h>
+#include <util/threading.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
@@ -45,6 +46,7 @@ struct c64_palette_system {
     uint32_t working_colors[C64_PALETTE_COLORS]; // In-memory working copy for editing
     bool working_modified;                       // True if working_colors differs from active palette
     char user_palette_dir[C64_PALETTE_PATH_MAX]; // User palette directory
+    pthread_mutex_t mutex;                       // Protects all palette system state
 };
 
 /**

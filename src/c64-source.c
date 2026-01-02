@@ -512,11 +512,15 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->frame_dirty = false;
 
     // Initialize palette from settings (must be done after palette system init)
-    // If the palette doesn't exist (was deleted), fall back to Default
+    // CRITICAL: Always select Default if settings are empty (first startup guarantee)
     const char *palette_id = obs_data_get_string(settings, "palette");
-    if (palette_id && palette_id[0]) {
+    if (!palette_id || !palette_id[0]) {
+        // No palette specified - select Default (first startup)
+        c64_palette_select("Default");
+    } else {
+        // Palette specified - try to select it, fall back to Default if not found
         if (!c64_palette_select(palette_id)) {
-            // Palette not found - fall back to Default
+            // Palette not found (was deleted) - fall back to Default
             c64_palette_select("Default");
         }
     }

@@ -13,6 +13,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include <obs-module.h>
 #include <util/dstr.h>
 #include <util/platform.h>
+#include <util/threading.h>
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,6 +28,7 @@ See <https://www.gnu.org/licenses/> for details.
 #else
 #include <sys/stat.h>
 #include <dirent.h>
+#include <pthread.h>
 #define PATH_SEP '/'
 #endif
 
@@ -70,6 +72,9 @@ bool c64_palette_init(void)
     memset(&palette_system, 0, sizeof(palette_system));
     palette_system.active_palette_index = -1;
 
+    // Initialize mutex for thread safety
+    pthread_mutex_init(&palette_system.mutex, NULL);
+
     // Set up user palette directory
     if (!c64_palette_get_user_dir(palette_system.user_palette_dir, sizeof(palette_system.user_palette_dir))) {
         C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Failed to set up user palette directory");
@@ -108,6 +113,7 @@ void c64_palette_cleanup(void)
         return;
     }
 
+    pthread_mutex_destroy(&palette_system.mutex);
     palette_initialized = false;
     memset(&palette_system, 0, sizeof(palette_system));
     C64_LOG_INFO("" PALETTE_LOG_PREFIX " Palette system cleaned up");
@@ -254,6 +260,7 @@ void c64_palette_populate_list(obs_property_t *palette_prop)
         return;
     }
 
+    pthread_mutex_lock(&palette_system.mutex);
     obs_property_list_clear(palette_prop);
 
     for (int i = 0; i < palette_system.palette_count; i++) {
@@ -262,10 +269,13 @@ void c64_palette_populate_list(obs_property_t *palette_prop)
             obs_property_list_add_string(palette_prop, display_name, palette_system.palettes[i].id);
         }
     }
+    pthread_mutex_unlock(&palette_system.mutex);
 }
 
 bool c64_palette_select(const char *palette_id)
 {
+    pthread_mutex_lock(&palette_system.mutex);
+
     if (!palette_id || !palette_id[0]) {
         palette_id = "Default";
     }
@@ -281,6 +291,15 @@ bool c64_palette_select(const char *palette_id)
 
     if (index < 0) {
         C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Palette not found: %s", palette_id);
+        pthread_mutex_unlock(&palette_system.mutex);
+        return false;
+    }
+
+    // Defensive bounds check
+    if (index < 0 || index >= palette_system.palette_count) {
+        C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Invalid palette index: %d (count: %d)", index,
+                        palette_system.palette_count);
+        pthread_mutex_unlock(&palette_system.mutex);
         return false;
     }
 
@@ -302,6 +321,7 @@ bool c64_palette_select(const char *palette_id)
             }
         } else {
             C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Failed to load palette: %s", entry->path);
+            pthread_mutex_unlock(&palette_system.mutex);
             return false;
         }
     }
@@ -316,20 +336,30 @@ bool c64_palette_select(const char *palette_id)
     c64_palette_rebuild_lut(palette_system.working_colors);
 
     C64_LOG_INFO("" PALETTE_LOG_PREFIX " Selected palette: %s", entry->name);
+    pthread_mutex_unlock(&palette_system.mutex);
     return true;
 }
 
 const char *c64_palette_get_active_id(void)
 {
+    pthread_mutex_lock(&palette_system.mutex);
+
+    // Defensive bounds check
     if (palette_system.active_palette_index >= 0 &&
         palette_system.active_palette_index < palette_system.palette_count) {
-        return palette_system.palettes[palette_system.active_palette_index].id;
+        const char *id = palette_system.palettes[palette_system.active_palette_index].id;
+        pthread_mutex_unlock(&palette_system.mutex);
+        return id;
     }
+
+    pthread_mutex_unlock(&palette_system.mutex);
     return "Default";
 }
 
 uint32_t *c64_palette_get_working_colors(void)
 {
+    // Note: Returns pointer to working_colors which is protected by mutex at call sites
+    // Caller must not hold pointer across palette operations
     return palette_system.working_colors;
 }
 
@@ -339,11 +369,13 @@ bool c64_palette_set_working_color(int index, uint32_t bgra_color)
         return false;
     }
 
+    pthread_mutex_lock(&palette_system.mutex);
     palette_system.working_colors[index] = bgra_color;
     palette_system.working_modified = true;
 
     // Rebuild LUT immediately for live preview
     c64_palette_rebuild_lut(palette_system.working_colors);
+    pthread_mutex_unlock(&palette_system.mutex);
 
     return true;
 }
@@ -1227,13 +1259,21 @@ bool c64_palette_get_display_name(const char *palette_id, char *display_name, si
 
 bool c64_palette_auto_save(obs_data_t *settings)
 {
+    pthread_mutex_lock(&palette_system.mutex);
+
     // No modifications, nothing to do
     if (!palette_system.working_modified) {
+        pthread_mutex_unlock(&palette_system.mutex);
         return false; // No change, no UI refresh needed
     }
 
-    if (palette_system.active_palette_index < 0) {
-        return false; // No active palette, nothing to save
+    // Defensive bounds check for active palette index
+    if (palette_system.active_palette_index < 0 ||
+        palette_system.active_palette_index >= palette_system.palette_count) {
+        C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Invalid active palette index: %d (count: %d)",
+                        palette_system.active_palette_index, palette_system.palette_count);
+        pthread_mutex_unlock(&palette_system.mutex);
+        return false;
     }
 
     struct c64_palette_entry *entry = &palette_system.palettes[palette_system.active_palette_index];
@@ -1245,6 +1285,7 @@ bool c64_palette_auto_save(obs_data_t *settings)
         int name_len = snprintf(custom_name, sizeof(custom_name), "%s (Custom)", entry->name);
         if (name_len < 0 || (size_t)name_len >= sizeof(custom_name)) {
             C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Custom palette name too long");
+            pthread_mutex_unlock(&palette_system.mutex);
             return false;
         }
 
@@ -1261,12 +1302,14 @@ bool c64_palette_auto_save(obs_data_t *settings)
         int path_len = snprintf(custom_path, sizeof(custom_path), "%s%c%s-custom.vpl", palette_system.user_palette_dir,
                                 PATH_SEP, lowercase_id);
         if (path_len < 0 || (size_t)path_len >= sizeof(custom_path)) {
+            pthread_mutex_unlock(&palette_system.mutex);
             C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Custom palette path too long");
             return false;
         }
 
         // Save as new custom palette (overwrites if exists)
         if (!c64_palette_save_as(custom_name, custom_path)) {
+            pthread_mutex_unlock(&palette_system.mutex);
             C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Failed to auto-save preset as custom palette: %s", custom_name);
             return false;
         }
@@ -1278,14 +1321,14 @@ bool c64_palette_auto_save(obs_data_t *settings)
             obs_data_set_string(settings, "palette", new_id);
             C64_LOG_INFO("�� PALETTE: Updated settings to use custom palette: %s (was: %s)", new_id, entry->id);
         }
-
-        C64_LOG_INFO("" PALETTE_LOG_PREFIX " Auto-saved preset '%s' as custom palette", custom_name);
+        pthread_mutex_unlock(&palette_system.mutex);
         return true; // Palette converted, UI refresh needed
     }
 
     // For custom palettes, save in place (overwrites existing file)
     if (!c64_palette_write_vpl(entry->path, palette_system.working_colors, entry->name)) {
         C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Failed to auto-save custom palette: %s", entry->path);
+        pthread_mutex_unlock(&palette_system.mutex);
         return false;
     }
 
@@ -1294,6 +1337,7 @@ bool c64_palette_auto_save(obs_data_t *settings)
     palette_system.working_modified = false;
 
     C64_LOG_INFO("" PALETTE_LOG_PREFIX " Auto-saved custom palette: %s", entry->name);
+    pthread_mutex_unlock(&palette_system.mutex);
     return false; // Custom palette saved, no UI refresh needed
 }
 
@@ -1304,6 +1348,8 @@ bool c64_palette_delete(const char *palette_id)
     }
 
     C64_LOG_INFO("" PALETTE_LOG_PREFIX " Delete requested for palette: %s", palette_id);
+
+    pthread_mutex_lock(&palette_system.mutex);
 
     // Find the palette
     int index = -1;
@@ -1316,6 +1362,7 @@ bool c64_palette_delete(const char *palette_id)
 
     if (index < 0) {
         C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Cannot delete palette: not found: %s", palette_id);
+        pthread_mutex_unlock(&palette_system.mutex);
         return false;
     }
 
@@ -1324,6 +1371,7 @@ bool c64_palette_delete(const char *palette_id)
     // Cannot delete shipped palettes
     if (entry->is_shipped) {
         C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Cannot delete shipped palette: %s", palette_id);
+        pthread_mutex_unlock(&palette_system.mutex);
         return false;
     }
 
@@ -1336,6 +1384,7 @@ bool c64_palette_delete(const char *palette_id)
         if (os_unlink(entry->path) != 0) {
             C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Failed to delete palette file: %s (check permissions)",
                             entry->path);
+            pthread_mutex_unlock(&palette_system.mutex);
             return false;
         }
         C64_LOG_INFO("" PALETTE_LOG_PREFIX " VPL file deleted successfully: %s", entry->path);
@@ -1347,7 +1396,10 @@ bool c64_palette_delete(const char *palette_id)
     bool was_active = (palette_system.active_palette_index == index);
     if (was_active) {
         C64_LOG_INFO("" PALETTE_LOG_PREFIX " Switching active palette to Default");
+        // Note: c64_palette_select acquires mutex internally, so unlock first to avoid deadlock
+        pthread_mutex_unlock(&palette_system.mutex);
         c64_palette_select("Default");
+        pthread_mutex_lock(&palette_system.mutex);
     }
 
     // Remove from array by shifting remaining entries
@@ -1366,6 +1418,7 @@ bool c64_palette_delete(const char *palette_id)
         palette_system.active_palette_index--;
     }
 
+    pthread_mutex_unlock(&palette_system.mutex);
     C64_LOG_INFO("" PALETTE_LOG_PREFIX " Deleted custom palette: %s", palette_id);
     return true;
 }

@@ -687,21 +687,22 @@ void c64_render_frame_direct(struct c64_source *context, struct frame_assembly *
     // Generate monotonic timestamp based on frame sequence for butter-smooth playback
     uint64_t monotonic_timestamp = c64_calculate_ideal_timestamp(context, frame->frame_num);
 
-    // Apply afterglow in the video thread (prevents races/flicker with raw frame_buffer).
-    const size_t pixel_count = (size_t)context->width * (size_t)context->height;
-    const uint32_t *out_pixels = c64_get_afterglow_output_pixels(context, context->frame_buffer, pixel_count);
-
-    // Save frame to disk if enabled
+    // Save RAW frame to disk if enabled (NO effects applied)
     if (context->record_frames) {
-        c64_save_frame_as_bmp(context, (uint32_t *)out_pixels);
+        c64_save_frame_as_bmp(context, context->frame_buffer);
 
         // Note: CSV logging for video events is now handled independently in the video processor thread
     }
 
-    // Record frame to video file if recording is enabled
+    // Record RAW frame to video file if recording is enabled (NO effects applied)
     if (context->record_video) {
-        c64_record_video_frame(context, (uint32_t *)out_pixels);
+        c64_record_video_frame(context, context->frame_buffer);
     }
+
+    // Apply afterglow in the video thread (prevents races/flicker with raw frame_buffer).
+    // This is ONLY for OBS display/streaming, NOT for recording.
+    const size_t pixel_count = (size_t)context->width * (size_t)context->height;
+    const uint32_t *out_pixels = c64_get_afterglow_output_pixels(context, context->frame_buffer, pixel_count);
 
     // Direct async video output - optimized for low latency
     // This ensures the source always shows video regardless of CRT effects

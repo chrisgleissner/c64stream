@@ -3077,10 +3077,13 @@ main() {
         fi
     fi
 
+    # Stop resource monitoring before generating final outputs to prevent
+    # the script from appearing to hang with periodic resource logs
+    stop_resource_monitoring
+
     # Generate playback.csv before report (report references it)
     generate_playback_csv
     generate_report
-    stop_resource_monitoring
     cleanup_once
 
     # Show detailed test summary

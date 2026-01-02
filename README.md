@@ -198,7 +198,7 @@ The plugin offers three independent recording options that can be enabled separa
 - Saves individual video frames as uncompressed BMP files
 - Useful for debugging video issues or creating frame-by-frame analysis
 - **Performance Impact:** Enabling this feature will reduce streaming performance due to disk I/O
-- **Note:** CRT effects (scanlines, bloom, etc.) are NOT applied to recorded frames. Palette changes ARE applied.
+- **Note:** CRT effects (scanlines, bloom, afterglow, etc.) are NOT applied to recorded frames. Palette changes ARE applied.
 - Files saved as: `session_YYYYMMDD_HHMMSS/frames/frame_NNNNNN.bmp`
 
 **🎬 Raw Video and Audio (AVI + WAV):**
@@ -206,7 +206,7 @@ The plugin offers three independent recording options that can be enabled separa
 - Records uncompressed AVI video and separate WAV audio files
 - Captures the raw data stream without OBS processing
 - **High Disk Usage:** Uncompressed video files are very large (~50MB per minute)
-- **Note:** CRT effects (scanlines, bloom, etc.) are NOT applied to recorded video. Palette changes ARE applied.
+- **Note:** CRT effects (scanlines, bloom, afterglow, etc.) are NOT applied to recorded video. Palette changes ARE applied.
 - Video file: `session_YYYYMMDD_HHMMSS/video.avi` (24-bit BGR format)
 - Audio file: `session_YYYYMMDD_HHMMSS/audio.wav` (16-bit stereo PCM)
 
@@ -325,25 +325,6 @@ The **Scan Line Distance** setting controls the gap between each pair of adjacen
 The **Scan Line Strength** slider (0.0–1.0) controls how dark the gaps appear. At 0.0, gaps are invisible; at 1.0, they are completely black.
 
 **Reset:** To reset to default values, simply select the "Default" preset. If you have changed individual effects whilst the "Default" preset was active, select any other preset first and then re-select the "Default" preset.
-
-#### Effect Performance Impact
-
-Each CRT effect has a different impact on system performance. The CPU-based effects process every pixel every frame, while GPU-based effects leverage shader hardware for minimal CPU overhead.
-
-| Effect | Processing | Impact | Notes |
-|--------|------------|--------|-------|
-| **Scan Lines** | GPU Shader | Low | Per-pixel shader calculation |
-| **Bloom** | GPU Shader | Medium | Multi-pass blur + blend |
-| **Blur** | GPU Shader | Medium | Gaussian sampling |
-| **Pixel Geometry** | GPU Shader | Low | Simple UV transform |
-| **Screen Tint** | GPU Shader | Low | Color matrix multiply |
-| **Afterglow** | CPU | **High** | Per-pixel persistence (~92k pixels/frame) |
-
-**Performance Recommendations:**
-
-- **For best CPU performance:** Use presets without afterglow (Sharp Pixels, Classic CRT, Arcade Cabinet)
-- **For authentic phosphor glow:** Enable afterglow only when needed (Green/Amber Monitor, Phosphor Glow, Vintage TV)
-- **Afterglow disabled = zero CPU overhead:** When `Afterglow Duration (ms) = 0`, the CPU loop is bypassed entirely
 
 ### Color Palettes 🎨
 
