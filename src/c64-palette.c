@@ -730,25 +730,18 @@ bool c64_palette_get_user_dir(char *path, size_t path_size)
         return false;
     }
 
-    // Try OBS module config path first
-    char *config_path = obs_module_config_path("palettes");
-    if (config_path) {
-        strncpy(path, config_path, path_size - 1);
-        path[path_size - 1] = '\0';
-        bfree(config_path);
-    } else {
-        // Fall back to Documents folder
-        char documents[256];
-        if (!c64_get_user_documents_path(documents, sizeof(documents))) {
-            C64_LOG_WARNING("Failed to get user documents path");
-            return false;
-        }
-#ifdef _WIN32
-        snprintf(path, path_size, "%s\\obs-studio\\c64stream\\palettes", documents);
-#else
-        snprintf(path, path_size, "%s/obs-studio/c64stream/palettes", documents);
-#endif
+    // Use Documents folder structure (consistent with recordings path)
+    char documents[256];
+    if (!c64_get_user_documents_path(documents, sizeof(documents))) {
+        C64_LOG_WARNING("Failed to get user documents path");
+        return false;
     }
+
+#ifdef _WIN32
+    snprintf(path, path_size, "%s\\obs-studio\\c64stream\\palettes", documents);
+#else
+    snprintf(path, path_size, "%s/obs-studio/c64stream/palettes", documents);
+#endif
 
     // Create directory if it doesn't exist
     if (!c64_create_directory_recursive(path)) {

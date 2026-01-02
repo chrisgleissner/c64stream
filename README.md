@@ -199,9 +199,9 @@ Customize the VIC-II color palette to match different C64 hardware variants, per
 **Palette Controls:**
 
 - **Palette Dropdown:** Select from shipped palettes (marked with "(Preset)" suffix) or any custom palettes you've added
-- **Color Editor (Collapsible):** Expand to access 16 color pickers (0-15) for editing individual VIC-II colors. Changes apply immediately to the video output
-- **Refresh List:** Rescans the user palette directory and updates the dropdown (use after manually copying .vpl files)
-- **Export Current:** Saves the current working palette to a timestamped .vpl file in your user palette directory
+- **Import:** Imports a `.vpl` file
+- **Export:** Exports the currently active palette (with any color adjustments) to a `.vpl` file
+- **Color Editor:** Expand to access 16 color pickers (0-15) for editing individual VIC-II colors. Changes apply immediately to the video output
 
 **Auto-Save Behavior:**
 
