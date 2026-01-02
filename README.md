@@ -177,64 +177,7 @@ A new window opens. Keep the default settings and click "OK":
 - **Configure Ports** Use the default ports (video: 11000, audio: 11001) unless network conflicts require different values
 - **Buffer Delay:** Sets the network buffer for incoming UDP packets arriving from the C64 Ultimate (0–500 ms, default 10 ms). The buffer size is expressed in milliseconds to represent the time-based delay it introduces, compensating for packet loss, reordering, and variable network latency. Larger buffers improve stability under high-latency or congested conditions but increase end-to-end delay.
 
-### Color Palettes 🎨
-
-(since version 1.0.0)
-
-Customize the VIC-II color palette to match different C64 hardware variants, personal preferences, or artistic styles. The palette system supports both shipped (preset) and user-defined (custom) palettes.
-
-![C64 Stream Palettes](./docs/images/properties-palettes.png "C64 Stream Palettes")
-
-**Shipped Palettes:** The plugin includes the following palettes:
-
-- **Default (Preset)** - The standard VIC-II palette matching original C64 hardware
-- **Vibrant (Preset)** - Enhanced saturation for a more vivid retro look
-- **Muted (Preset)** - Softer, pastel-like colors for a subdued aesthetic
-- **Warm (Preset)** - Slightly orange-shifted tones reminiscent of aged monitors
-- **Cool (Preset)** - Blue-shifted palette for a modern retro feel
-
-**Palette Controls:**
-
-- **Palette Dropdown:** Select from shipped palettes (marked with "(Preset)" suffix) or any custom palettes you've added
-- **Import:** Imports a `.vpl` file
-- **Export:** Exports the currently active palette (with any color adjustments) to a `.vpl` file
-- **Color Editor:** Expand to access 16 color pickers (0-15) for editing individual VIC-II colors. Changes apply immediately to the video output
-
-**Auto-Save Behavior:**
-
-- Custom palettes are automatically saved when you edit them in the color editor
-- **Preset modifications:** If you edit a shipped preset palette, a custom copy is automatically created with the same name (the original preset remains unchanged)
-- The settings automatically update to use the custom copy, so your changes persist across OBS restarts
-- No manual save action is required for palette edits
-
-**VPL Palette Format:**
-
-Palettes use the standard [VICE VPL](https://1541u-documentation.readthedocs.io/en/latest/howto/palette.html) format:
-
-```
-# VICE Palette file
-#
-# Syntax:
-# Red Green Blue
-#
-# TYPE:VICII
-# NAME:My Palette
-# DESC:Optional description shown as tooltip
-
-00 00 00
-FF FF FF
-8D 2F 34
-...
-```
-
-- **NAME:** (optional) Display name shown in the dropdown
-- **DESC:** (optional) Description shown as tooltip when hovering over the palette
-- First 16 non-comment lines are RGB hex values in `RR GG BB` format (space-separated)
-- Files must have exactly 16 color entries
-
-**Storage:** Custom palettes are saved to the [palettes directory](#file-system-structure-). Shipped palettes are bundled with the plugin as read-only defaults.
-
-### CRT Effects 📺
+### Effects ✨
 
 Recreate the authentic look and feel of classic CRT monitors and TVs with configurable visual effects that simulate the characteristics of vintage displays.
 
@@ -299,6 +242,63 @@ Each CRT effect has a different impact on system performance. The CPU-based effe
 - **For best CPU performance:** Use presets without afterglow (Sharp Pixels, Classic CRT, Arcade Cabinet)
 - **For authentic phosphor glow:** Enable afterglow only when needed (Green/Amber Monitor, Phosphor Glow, Vintage TV)
 - **Afterglow disabled = zero CPU overhead:** When `Afterglow Duration (ms) = 0`, the CPU loop is bypassed entirely
+
+### Color Palettes 🎨
+
+(since version 1.0.0)
+
+Customize the VIC-II color palette to match different C64 hardware variants, personal preferences, or artistic styles. The palette system supports both shipped (preset) and user-defined (custom) palettes.
+
+![C64 Stream Palettes](./docs/images/properties-palettes.png "C64 Stream Palettes")
+
+**Shipped Palettes:** The plugin includes the following palettes:
+
+- **Default (Preset)** - The standard VIC-II palette matching original C64 hardware
+- **Vibrant (Preset)** - Enhanced saturation for a more vivid retro look
+- **Muted (Preset)** - Softer, pastel-like colors for a subdued aesthetic
+- **Warm (Preset)** - Slightly orange-shifted tones reminiscent of aged monitors
+- **Cool (Preset)** - Blue-shifted palette for a modern retro feel
+
+**Palette Controls:**
+
+- **Palette Dropdown:** Select from shipped palettes (marked with "(Preset)" suffix) or any custom palettes you've added
+- **Import:** Imports a `.vpl` file
+- **Export:** Exports the currently active palette (with any color adjustments) to a `.vpl` file
+- **Color Editor:** Expand to access 16 color pickers (0-15) for editing individual VIC-II colors. Changes apply immediately to the video output
+
+**Auto-Save Behavior:**
+
+- Custom palettes are automatically saved when you edit them in the color editor
+- **Preset modifications:** If you edit a shipped preset palette, a custom copy is automatically created with the same name (the original preset remains unchanged)
+- The settings automatically update to use the custom copy, so your changes persist across OBS restarts
+- No manual save action is required for palette edits
+
+**VPL Palette Format:**
+
+Palettes use the standard [VICE VPL](https://1541u-documentation.readthedocs.io/en/latest/howto/palette.html) format:
+
+```
+# VICE Palette file
+#
+# Syntax:
+# Red Green Blue
+#
+# TYPE:VICII
+# NAME:My Palette
+# DESC:Optional description shown as tooltip
+
+00 00 00
+FF FF FF
+8D 2F 34
+...
+```
+
+- **NAME:** (optional) Display name shown in the dropdown
+- **DESC:** (optional) Description shown as tooltip when hovering over the palette
+- First 16 non-comment lines are RGB hex values in `RR GG BB` format (space-separated)
+- Files must have exactly 16 color entries
+
+**Storage:** Custom palettes are saved to the [palettes directory](#file-system-structure-). Shipped palettes are bundled with the plugin as read-only defaults.
 
 ### Recording Features 📹
 

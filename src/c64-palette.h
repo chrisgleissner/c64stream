@@ -13,6 +13,9 @@ See <https://www.gnu.org/licenses/> for details.
 #include <stdint.h>
 #include <stddef.h>
 
+// Logging prefix for palette operations
+#define PALETTE_LOG_PREFIX "🎨 PALETTE:"
+
 #ifdef __cplusplus
 extern "C" {
 #endif

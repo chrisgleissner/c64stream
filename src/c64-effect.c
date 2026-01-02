@@ -5,7 +5,7 @@ Copyright (C) 2025 Christian Gleissner
 Licensed under the GNU General Public License v2.0 or later.
 See <https://www.gnu.org/licenses/> for details.
 */
-#include "c64-presets.h"
+#include "c64-effect.h"
 #include "c64-logging.h"
 #include <obs-module.h>
 #include <util/dstr.h>
@@ -63,7 +63,7 @@ static bool parse_presets_file(const char *filepath)
 {
     FILE *file = fopen(filepath, "r");
     if (!file) {
-        C64_LOG_WARNING("Failed to open presets file: %s", filepath);
+        C64_LOG_WARNING("" EFFECT_LOG_PREFIX " Failed to open presets file: %s", filepath);
         return false;
     }
 
@@ -86,7 +86,7 @@ static bool parse_presets_file(const char *filepath)
                 strncpy(presets[current_preset].name, line + 1, MAX_PRESET_NAME_LEN - 1);
                 presets[current_preset].name[MAX_PRESET_NAME_LEN - 1] = '\0';
                 presets[current_preset].setting_count = 0;
-                C64_LOG_INFO("Loaded preset: %s", presets[current_preset].name);
+                C64_LOG_INFO("" EFFECT_LOG_PREFIX " Loaded preset: %s", presets[current_preset].name);
             }
             continue;
         }
@@ -112,11 +112,11 @@ static bool parse_presets_file(const char *filepath)
     }
 
     fclose(file);
-    C64_LOG_INFO("Loaded %d presets from %s", preset_count, filepath);
+    C64_LOG_INFO("" EFFECT_LOG_PREFIX " Loaded %d presets from %s", preset_count, filepath);
     return preset_count > 0;
 }
 
-bool c64_presets_init(void)
+bool c64_effect_init(void)
 {
     // Reset preset storage
     preset_count = 0;
@@ -125,7 +125,7 @@ bool c64_presets_init(void)
     // Get the path to the presets.ini file
     char *filepath = obs_module_file("effect_presets.ini");
     if (!filepath) {
-        C64_LOG_WARNING("Failed to get effect_presets.ini path");
+        C64_LOG_WARNING("" EFFECT_LOG_PREFIX " Failed to get effect_presets.ini path");
         return false;
     }
 
@@ -133,19 +133,19 @@ bool c64_presets_init(void)
     bfree(filepath);
 
     if (!success) {
-        C64_LOG_WARNING("No presets loaded - using defaults only");
+        C64_LOG_WARNING("" EFFECT_LOG_PREFIX " No presets loaded - using defaults only");
     }
 
     return success;
 }
 
-void c64_presets_cleanup(void)
+void c64_effect_cleanup(void)
 {
     preset_count = 0;
     memset(presets, 0, sizeof(presets));
 }
 
-void c64_presets_populate_list(obs_property_t *preset_prop)
+void c64_effect_populate_list(obs_property_t *preset_prop)
 {
     if (!preset_prop)
         return;
@@ -156,7 +156,7 @@ void c64_presets_populate_list(obs_property_t *preset_prop)
     }
 }
 
-bool c64_presets_apply(obs_data_t *settings, const char *preset_name)
+bool c64_effect_apply(obs_data_t *settings, const char *preset_name)
 {
     if (!settings || !preset_name)
         return false;
@@ -171,7 +171,7 @@ bool c64_presets_apply(obs_data_t *settings, const char *preset_name)
     }
 
     if (preset_idx < 0) {
-        C64_LOG_WARNING("Preset '%s' not found", preset_name);
+        C64_LOG_WARNING("" EFFECT_LOG_PREFIX " Preset '%s' not found", preset_name);
         return false;
     }
 
@@ -198,11 +198,11 @@ bool c64_presets_apply(obs_data_t *settings, const char *preset_name)
         }
     }
 
-    C64_LOG_INFO("Applied preset: %s (%d settings)", preset_name, p->setting_count);
+    C64_LOG_INFO("" EFFECT_LOG_PREFIX " Applied preset: %s (%d settings)", preset_name, p->setting_count);
     return true;
 }
 
-int c64_presets_get_count(void)
+int c64_effect_get_count(void)
 {
     return preset_count;
 }

@@ -13,7 +13,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-video.h"
 #include "c64-logging.h" // For Windows snprintf compatibility
 #include "c64-file.h"
-#include "c64-presets.h"
+#include "c64-effect.h"
 #include "c64-source.h"
 #include "c64-palette.h"
 #include <obs-module.h>
@@ -175,31 +175,89 @@ obs_properties_t *c64_create_properties(void *data)
         obs_properties_add_bool(recording_props, "debug_logging", obs_module_text("ShowDebugMessages"));
     obs_property_set_long_description(debug_prop, obs_module_text("ShowDebugMessages.Description"));
 
+    // Effects Group
+    obs_property_t *effects_group = obs_properties_add_group(props, "effects_group", obs_module_text("Effects"),
+                                                             OBS_GROUP_NORMAL, obs_properties_create());
+    obs_properties_t *effects_props = obs_property_group_content(effects_group);
+
+    // Presets dropdown at the top
+    obs_property_t *preset_prop = obs_properties_add_list(effects_props, "crt_preset", obs_module_text("Presets"),
+                                                          OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+    obs_property_set_long_description(preset_prop, obs_module_text("Presets.Description"));
+
+    // Populate presets from the loaded presets file
+    c64_effect_populate_list(preset_prop);
+
+    // Add modified callback to apply preset when selected
+    obs_property_set_modified_callback(preset_prop, crt_preset_changed);
+
+    // Scanlines
+    obs_property_t *scanline_distance_prop = obs_properties_add_list(effects_props, "scan_line_distance",
+                                                                     obs_module_text("ScanLineDistance"),
+                                                                     OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_FLOAT);
+    obs_property_list_add_float(scanline_distance_prop, obs_module_text("ScanLineDistance.None"), 0.0);
+    obs_property_list_add_float(scanline_distance_prop, obs_module_text("ScanLineDistance.Tight"), 0.25);
+    obs_property_list_add_float(scanline_distance_prop, obs_module_text("ScanLineDistance.Normal"), 0.50);
+    obs_property_list_add_float(scanline_distance_prop, obs_module_text("ScanLineDistance.Wide"), 1.0);
+    obs_property_list_add_float(scanline_distance_prop, obs_module_text("ScanLineDistance.ExtraWide"), 2.0);
+    obs_property_set_long_description(scanline_distance_prop, obs_module_text("ScanLineDistance.Description"));
+
+    obs_property_t *scanline_strength_prop = obs_properties_add_float_slider(
+        effects_props, "scan_line_strength", obs_module_text("ScanLineStrength"), 0.0, 1.0, 0.05);
+    obs_property_set_long_description(scanline_strength_prop, obs_module_text("ScanLineStrength.Description"));
+
+    // Pixel Geometry
+    obs_property_t *pixel_width_prop =
+        obs_properties_add_float_slider(effects_props, "pixel_width", obs_module_text("PixelWidth"), 0.5, 4.0, 0.1);
+    obs_property_set_long_description(pixel_width_prop, obs_module_text("PixelWidth.Description"));
+
+    obs_property_t *pixel_height_prop =
+        obs_properties_add_float_slider(effects_props, "pixel_height", obs_module_text("PixelHeight"), 0.5, 4.0, 0.1);
+    obs_property_set_long_description(pixel_height_prop, obs_module_text("PixelHeight.Description"));
+
+    obs_property_t *blur_strength_prop = obs_properties_add_float_slider(
+        effects_props, "blur_strength", obs_module_text("BlurStrength"), 0.0, 1.0, 0.05);
+    obs_property_set_long_description(blur_strength_prop, obs_module_text("BlurStrength.Description"));
+
+    // CRT Bloom
+    obs_property_t *bloom_strength_prop = obs_properties_add_float_slider(
+        effects_props, "bloom_strength", obs_module_text("BloomStrength"), 0.0, 1.0, 0.05);
+    obs_property_set_long_description(bloom_strength_prop, obs_module_text("BloomStrength.Description"));
+
+    // CRT Afterglow
+    obs_property_t *afterglow_duration_prop = obs_properties_add_int_slider(
+        effects_props, "afterglow_duration_ms", obs_module_text("AfterglowDuration"), 0, 250, 10);
+    obs_property_set_long_description(afterglow_duration_prop, obs_module_text("AfterglowDuration.Description"));
+
+    obs_property_t *afterglow_curve_prop = obs_properties_add_list(
+        effects_props, "afterglow_curve", obs_module_text("AfterglowCurve"), OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+    obs_property_list_add_int(afterglow_curve_prop, obs_module_text("AfterglowCurve.InstantFade"), 0);
+    obs_property_list_add_int(afterglow_curve_prop, obs_module_text("AfterglowCurve.RapidFade"), 1);
+    obs_property_list_add_int(afterglow_curve_prop, obs_module_text("AfterglowCurve.GradualFade"), 2);
+    obs_property_list_add_int(afterglow_curve_prop, obs_module_text("AfterglowCurve.LongTail"), 3);
+    obs_property_set_long_description(afterglow_curve_prop, obs_module_text("AfterglowCurve.Description"));
+
+    // Screen Tint
+    obs_property_t *tint_mode_prop = obs_properties_add_list(effects_props, "tint_mode", obs_module_text("TintMode"),
+                                                             OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+    obs_property_list_add_int(tint_mode_prop, obs_module_text("TintMode.None"), 0);
+    obs_property_list_add_int(tint_mode_prop, obs_module_text("TintMode.Amber"), 1);
+    obs_property_list_add_int(tint_mode_prop, obs_module_text("TintMode.Green"), 2);
+    obs_property_list_add_int(tint_mode_prop, obs_module_text("TintMode.Monochrome"), 3);
+    obs_property_set_long_description(tint_mode_prop, obs_module_text("TintMode.Description"));
+
+    obs_property_t *tint_strength_prop = obs_properties_add_float_slider(
+        effects_props, "tint_strength", obs_module_text("TintStrength"), 0.0, 1.0, 0.05);
     // ═══════════════════════════════════════════════════════════════════════════
-    // Palette Group (placed BEFORE Effects, as per spec)
+    // Palette Group (placed AFTER Effects - effects are more commonly used)
     // ═══════════════════════════════════════════════════════════════════════════
     obs_property_t *palette_group = obs_properties_add_group(props, "palette_group", obs_module_text("Palette"),
                                                              OBS_GROUP_NORMAL, obs_properties_create());
     obs_properties_t *palette_props = obs_property_group_content(palette_group);
 
-    // Get settings to prefill path fields
-    obs_data_t *settings = obs_source_get_settings(context->source);
-
-    // Prefill import/export paths with palette directory if not already set
-    char palette_dir[512];
-    if (c64_get_user_dir(C64_USER_DIR_PALETTES, palette_dir, sizeof(palette_dir))) {
-        const char *current_import = obs_data_get_string(settings, "palette_import_path");
-        const char *current_export = obs_data_get_string(settings, "palette_export_path");
-
-        // Only set if empty (preserves user's last selection)
-        if (!current_import || !current_import[0]) {
-            obs_data_set_string(settings, "palette_import_path", palette_dir);
-        }
-        if (!current_export || !current_export[0]) {
-            obs_data_set_string(settings, "palette_export_path", palette_dir);
-        }
-    }
-    obs_data_release(settings);
+    // Note: We do NOT auto-populate export/import paths here because setting values
+    // triggers the modified callbacks, which would auto-export palettes on properties open.
+    // Instead, let the user specify paths when they want to import/export.
 
     // Palette dropdown
     obs_property_t *palette_prop = obs_properties_add_list(palette_props, C64_PALETTE_KEY,
@@ -308,79 +366,6 @@ obs_properties_t *c64_create_properties(void *data)
     update_palette_color_properties(color_settings);
     obs_data_release(color_settings);
 
-    // Effects Group
-    obs_property_t *effects_group = obs_properties_add_group(props, "effects_group", obs_module_text("Effects"),
-                                                             OBS_GROUP_NORMAL, obs_properties_create());
-    obs_properties_t *effects_props = obs_property_group_content(effects_group);
-
-    // Presets dropdown at the top
-    obs_property_t *preset_prop = obs_properties_add_list(effects_props, "crt_preset", obs_module_text("Presets"),
-                                                          OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
-    obs_property_set_long_description(preset_prop, obs_module_text("Presets.Description"));
-
-    // Populate presets from the loaded presets file
-    c64_presets_populate_list(preset_prop);
-
-    // Add modified callback to apply preset when selected
-    obs_property_set_modified_callback(preset_prop, crt_preset_changed);
-
-    // Scanlines
-    obs_property_t *scanline_distance_prop = obs_properties_add_list(effects_props, "scan_line_distance",
-                                                                     obs_module_text("ScanLineDistance"),
-                                                                     OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_FLOAT);
-    obs_property_list_add_float(scanline_distance_prop, obs_module_text("ScanLineDistance.None"), 0.0);
-    obs_property_list_add_float(scanline_distance_prop, obs_module_text("ScanLineDistance.Tight"), 0.25);
-    obs_property_list_add_float(scanline_distance_prop, obs_module_text("ScanLineDistance.Normal"), 0.50);
-    obs_property_list_add_float(scanline_distance_prop, obs_module_text("ScanLineDistance.Wide"), 1.0);
-    obs_property_list_add_float(scanline_distance_prop, obs_module_text("ScanLineDistance.ExtraWide"), 2.0);
-    obs_property_set_long_description(scanline_distance_prop, obs_module_text("ScanLineDistance.Description"));
-
-    obs_property_t *scanline_strength_prop = obs_properties_add_float_slider(
-        effects_props, "scan_line_strength", obs_module_text("ScanLineStrength"), 0.0, 1.0, 0.05);
-    obs_property_set_long_description(scanline_strength_prop, obs_module_text("ScanLineStrength.Description"));
-
-    // Pixel Geometry
-    obs_property_t *pixel_width_prop =
-        obs_properties_add_float_slider(effects_props, "pixel_width", obs_module_text("PixelWidth"), 0.5, 4.0, 0.1);
-    obs_property_set_long_description(pixel_width_prop, obs_module_text("PixelWidth.Description"));
-
-    obs_property_t *pixel_height_prop =
-        obs_properties_add_float_slider(effects_props, "pixel_height", obs_module_text("PixelHeight"), 0.5, 4.0, 0.1);
-    obs_property_set_long_description(pixel_height_prop, obs_module_text("PixelHeight.Description"));
-
-    obs_property_t *blur_strength_prop = obs_properties_add_float_slider(
-        effects_props, "blur_strength", obs_module_text("BlurStrength"), 0.0, 1.0, 0.05);
-    obs_property_set_long_description(blur_strength_prop, obs_module_text("BlurStrength.Description"));
-
-    // CRT Bloom
-    obs_property_t *bloom_strength_prop = obs_properties_add_float_slider(
-        effects_props, "bloom_strength", obs_module_text("BloomStrength"), 0.0, 1.0, 0.05);
-    obs_property_set_long_description(bloom_strength_prop, obs_module_text("BloomStrength.Description"));
-
-    // CRT Afterglow
-    obs_property_t *afterglow_duration_prop = obs_properties_add_int_slider(
-        effects_props, "afterglow_duration_ms", obs_module_text("AfterglowDuration"), 0, 250, 10);
-    obs_property_set_long_description(afterglow_duration_prop, obs_module_text("AfterglowDuration.Description"));
-
-    obs_property_t *afterglow_curve_prop = obs_properties_add_list(
-        effects_props, "afterglow_curve", obs_module_text("AfterglowCurve"), OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
-    obs_property_list_add_int(afterglow_curve_prop, obs_module_text("AfterglowCurve.InstantFade"), 0);
-    obs_property_list_add_int(afterglow_curve_prop, obs_module_text("AfterglowCurve.RapidFade"), 1);
-    obs_property_list_add_int(afterglow_curve_prop, obs_module_text("AfterglowCurve.GradualFade"), 2);
-    obs_property_list_add_int(afterglow_curve_prop, obs_module_text("AfterglowCurve.LongTail"), 3);
-    obs_property_set_long_description(afterglow_curve_prop, obs_module_text("AfterglowCurve.Description"));
-
-    // Screen Tint
-    obs_property_t *tint_mode_prop = obs_properties_add_list(effects_props, "tint_mode", obs_module_text("TintMode"),
-                                                             OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
-    obs_property_list_add_int(tint_mode_prop, obs_module_text("TintMode.None"), 0);
-    obs_property_list_add_int(tint_mode_prop, obs_module_text("TintMode.Amber"), 1);
-    obs_property_list_add_int(tint_mode_prop, obs_module_text("TintMode.Green"), 2);
-    obs_property_list_add_int(tint_mode_prop, obs_module_text("TintMode.Monochrome"), 3);
-    obs_property_set_long_description(tint_mode_prop, obs_module_text("TintMode.Description"));
-
-    obs_property_t *tint_strength_prop = obs_properties_add_float_slider(
-        effects_props, "tint_strength", obs_module_text("TintStrength"), 0.0, 1.0, 0.05);
     obs_property_set_long_description(tint_strength_prop, obs_module_text("TintStrength.Description"));
 
     // Import/Export Group
@@ -793,8 +778,8 @@ static bool crt_preset_changed(obs_properties_t *props, obs_property_t *property
     }
 
     // Apply the preset
-    if (c64_presets_apply(settings, preset_name)) {
-        C64_LOG_INFO("Applied CRT preset: %s", preset_name);
+    if (c64_effect_apply(settings, preset_name)) {
+        C64_LOG_INFO("" EFFECT_LOG_PREFIX " Applied CRT preset: %s", preset_name);
         obs_data_set_string(settings, C64_PRESET_LAST_APPLIED_KEY, preset_name);
         return true;
     }
@@ -989,8 +974,7 @@ static void update_palette_color_properties(obs_data_t *settings)
         // CRITICAL: Check if actual value exists and matches working color
         // If not, set it to prevent stale values from triggering callbacks
         // This prevents deleted palette colors from persisting and triggering recreation
-        if (!obs_data_has_user_value(settings, key) ||
-            obs_data_get_int(settings, key) != (long long)obs_color) {
+        if (!obs_data_has_user_value(settings, key) || obs_data_get_int(settings, key) != (long long)obs_color) {
             // Set actual value to match working color
             obs_data_set_int(settings, key, (long long)obs_color);
         }

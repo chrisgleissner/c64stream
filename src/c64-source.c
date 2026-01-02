@@ -27,7 +27,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-properties.h"
 #include "c64-palette.h"
 #include "plugin-support.h"
-#include "c64-presets.h"
+#include "c64-effect.h"
 
 // Forward declarations
 static void close_and_reset_sockets(struct c64_source *context);
@@ -268,13 +268,13 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     bool has_effect_overrides = settings_have_effect_overrides(settings);
     const char *initial_preset = obs_data_get_string(settings, "crt_preset");
     if (!has_effect_overrides && initial_preset && initial_preset[0] != '\0') {
-        if (c64_presets_apply(settings, initial_preset)) {
+        if (c64_effect_apply(settings, initial_preset)) {
             C64_LOG_INFO("Applied CRT preset from settings: %s", initial_preset);
         } else {
-            C64_LOG_WARNING("CRT preset not found: %s", initial_preset);
+            C64_LOG_WARNING("" EFFECT_LOG_PREFIX " CRT preset not found: %s", initial_preset);
         }
     } else if (has_effect_overrides) {
-        C64_LOG_INFO("Skipping preset auto-apply; custom effect overrides detected");
+        C64_LOG_INFO("" EFFECT_LOG_PREFIX " Skipping preset auto-apply; custom effect overrides detected");
     }
 
     context->source = source;
@@ -675,13 +675,13 @@ void c64_update(void *data, obs_data_t *settings)
     bool has_effect_overrides = settings_have_effect_overrides(settings);
     const char *preset_name = obs_data_get_string(settings, "crt_preset");
     if (!has_effect_overrides && preset_name && preset_name[0] != '\0') {
-        if (c64_presets_apply(settings, preset_name)) {
+        if (c64_effect_apply(settings, preset_name)) {
             C64_LOG_INFO("Applied CRT preset on update: %s", preset_name);
         } else {
-            C64_LOG_WARNING("CRT preset in update not found: %s", preset_name);
+            C64_LOG_WARNING("" EFFECT_LOG_PREFIX " CRT preset in update not found: %s", preset_name);
         }
     } else if (has_effect_overrides) {
-        C64_LOG_DEBUG("Preset update skipped; manual effect overrides present");
+        C64_LOG_DEBUG("" EFFECT_LOG_PREFIX " Preset update skipped; manual effect overrides present");
     }
 
     // Update debug logging setting
@@ -844,7 +844,8 @@ void c64_update(void *data, obs_data_t *settings)
     // Reset timing base if dimension-affecting effects were just enabled during streaming
     if (!prev_dimension_effects && new_dimension_effects && context->timestamp_base_set && context->streaming) {
         context->timestamp_base_set = false;
-        C64_LOG_INFO("🔄 Dimension-affecting effects activated - timing base reset to maintain A/V sync");
+        C64_LOG_INFO("" EFFECT_LOG_PREFIX
+                     " Dimension-affecting effects activated - timing base reset to maintain A/V sync");
     }
 
     // Start/restart streaming with current configuration asynchronously (avoid blocking UI thread).
@@ -1081,7 +1082,7 @@ void c64_video_tick(void *data, float seconds)
             context->render_texture_height = 0;
         }
         if (effects_enabled && (!context->afterglow_accum_prev || !context->afterglow_accum_next)) {
-            C64_LOG_ERROR("Failed to create afterglow accumulation textures");
+            C64_LOG_ERROR("" EFFECT_LOG_PREFIX " Failed to create afterglow accumulation textures");
         }
 
         // Invalidate CPU afterglow accumulator on texture recreation (Medium #8: prevent visual glitch)
@@ -1157,13 +1158,15 @@ void c64_video_render(void *data, gs_effect_t *effect)
             context->crt_effect = gs_effect_create_from_file(effect_path, NULL);
             bfree(effect_path);
             if (!context->crt_effect) {
-                C64_LOG_ERROR("Failed to load CRT effect shader - falling back to default rendering");
+                C64_LOG_ERROR("" EFFECT_LOG_PREFIX
+                              " Failed to load CRT effect shader - falling back to default rendering");
             } else {
                 // Reset timing base to prevent sync drift caused by shader compilation delay
                 // Only reset if we're actually streaming (have established timing)
                 if (context->timestamp_base_set) {
                     context->timestamp_base_set = false;
-                    C64_LOG_INFO("🔄 CRT effect loaded during stream - timing base reset to maintain A/V sync");
+                    C64_LOG_INFO("" EFFECT_LOG_PREFIX
+                                 " CRT effect loaded during stream - timing base reset to maintain A/V sync");
                 }
             }
             if (!context->crt_effect) {
@@ -1179,7 +1182,8 @@ void c64_video_render(void *data, gs_effect_t *effect)
                 return;
             }
         } else {
-            C64_LOG_ERROR("Failed to find CRT effect shader file - falling back to default rendering");
+            C64_LOG_ERROR("" EFFECT_LOG_PREFIX
+                          " Failed to find CRT effect shader file - falling back to default rendering");
             gs_effect_t *default_effect = obs_get_base_effect(OBS_EFFECT_DEFAULT);
             if (default_effect) {
                 gs_effect_set_texture(gs_effect_get_param_by_name(default_effect, "image"), context->render_texture);
