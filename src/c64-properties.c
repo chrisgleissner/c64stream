@@ -38,7 +38,7 @@ static void trim_config_string(char *str);
 
 // Palette callbacks
 static bool palette_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings);
-static bool palette_import_clicked(obs_properties_t *props, obs_property_t *property, void *data);
+static bool palette_import_path_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings);
 static bool palette_export_path_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings);
 static bool palette_delete_clicked(obs_properties_t *props, obs_property_t *property, void *data);
 static bool palette_color_changed(void *data, obs_properties_t *props, obs_property_t *property, obs_data_t *settings);
@@ -198,24 +198,28 @@ obs_properties_t *c64_create_properties(void *data)
     c64_palette_populate_list(palette_prop);
     obs_property_set_modified_callback(palette_prop, palette_changed);
 
-    // Palette action buttons and path
-    obs_properties_add_button2(palette_props, "palette_import", obs_module_text("PaletteImport"),
-                               palette_import_clicked, data);
+    // Import path field (opens file dialog)
+    obs_property_t *import_path = obs_properties_add_path(palette_props, "palette_import_path",
+                                                          obs_module_text("PaletteImport"), OBS_PATH_FILE,
+                                                          "VPL Palette Files (*.vpl);;All Files (*.*)", NULL);
+    obs_property_set_modified_callback(import_path, palette_import_path_changed);
 
+    // Export path field (opens save dialog)
     obs_property_t *export_path = obs_properties_add_path(palette_props, "palette_export_path",
                                                           obs_module_text("PaletteExport"), OBS_PATH_FILE_SAVE,
                                                           "VPL Palette Files (*.vpl);;All Files (*.*)", NULL);
     obs_property_set_modified_callback(export_path, palette_export_path_changed);
 
+    // Delete button
     obs_property_t *delete_btn = obs_properties_add_button2(
         palette_props, "palette_delete", obs_module_text("PaletteDelete"), palette_delete_clicked, data);
     // Disable delete button initially (enabled only when custom palette is selected)
     obs_property_set_enabled(delete_btn, false);
 
-    // Collapsible Color Editor group
+    // Collapsible Color Editor group (checkable - collapsed by default)
     obs_property_t *color_editor_group = obs_properties_add_group(palette_props, "color_editor_group",
                                                                   obs_module_text("PaletteColorEditor"),
-                                                                  OBS_GROUP_NORMAL, obs_properties_create());
+                                                                  OBS_GROUP_CHECKABLE, obs_properties_create());
     obs_properties_t *color_editor_props = obs_property_group_content(color_editor_group);
 
     // Visual color editor (4x4 grid as 4 rows)
@@ -746,6 +750,14 @@ void c64_set_property_defaults(obs_data_t *settings)
 
     // Palette defaults
     obs_data_set_default_string(settings, C64_PALETTE_KEY, "Default");
+    // Set default import/export paths to user palette directory
+    {
+        char palette_dir[512];
+        if (c64_palette_get_user_dir(palette_dir, sizeof(palette_dir))) {
+            obs_data_set_default_string(settings, "palette_import_path", palette_dir);
+            obs_data_set_default_string(settings, "palette_export_path", palette_dir);
+        }
+    }
     // Initialize palette color properties from the current working palette
     update_palette_color_properties(settings);
 
@@ -893,24 +905,47 @@ static bool palette_changed(obs_properties_t *props, obs_property_t *property, o
     return false;
 }
 
-static bool palette_import_clicked(obs_properties_t *props, obs_property_t *property, void *data)
+static bool palette_import_path_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings)
 {
     UNUSED_PARAMETER(property);
-    UNUSED_PARAMETER(data);
 
-    // Import button rescans the user palette directory and updates the dropdown
-    // Users should manually copy .vpl files to the palette directory first
-    char palette_dir[512];
-    if (c64_palette_get_user_dir(palette_dir, sizeof(palette_dir))) {
-        C64_LOG_INFO("Refreshing palette list from: %s", palette_dir);
-        C64_LOG_INFO("(Copy .vpl files to this directory to import them)");
+    if (!settings) {
+        return false;
     }
 
-    // Repopulate the palette dropdown to include newly added files
-    obs_property_t *palette_prop = obs_properties_get(props, C64_PALETTE_KEY);
-    if (palette_prop) {
-        c64_palette_populate_list(palette_prop);
+    const char *path = obs_data_get_string(settings, "palette_import_path");
+    if (!path || !path[0]) {
+        return false;
     }
+
+    // Check if this is a file (not just a directory)
+    if (!os_file_exists(path)) {
+        return false;
+    }
+
+    // Load the palette file
+    bool ok = c64_palette_load_from_file(path);
+
+    if (ok) {
+        C64_LOG_INFO("Palette imported from: %s", path);
+
+        // Update palette dropdown selection
+        obs_data_set_string(settings, C64_PALETTE_KEY, c64_palette_get_active_id());
+
+        // Repopulate the palette dropdown to include the imported palette
+        obs_property_t *palette_prop = obs_properties_get(props, C64_PALETTE_KEY);
+        if (palette_prop) {
+            c64_palette_populate_list(palette_prop);
+        }
+
+        // Update color pickers
+        update_palette_color_properties(settings);
+    } else {
+        C64_LOG_WARNING("Failed to import palette from: %s", path);
+    }
+
+    // Clear the path field after import
+    obs_data_set_string(settings, "palette_import_path", "");
 
     return true; // Refresh UI
 }
@@ -957,6 +992,12 @@ static bool palette_export_path_changed(obs_properties_t *props, obs_property_t 
 
     if (ok) {
         C64_LOG_INFO("Palette exported to: %s", path);
+
+        // Repopulate the palette dropdown in case export created a new palette
+        obs_property_t *palette_prop = obs_properties_get(props, C64_PALETTE_KEY);
+        if (palette_prop) {
+            c64_palette_populate_list(palette_prop);
+        }
     } else {
         C64_LOG_WARNING("Failed to export palette to: %s", path);
     }
@@ -964,7 +1005,7 @@ static bool palette_export_path_changed(obs_properties_t *props, obs_property_t 
     // Clear the path field after export
     obs_data_set_string(settings, "palette_export_path", "");
 
-    return false; // No UI refresh needed
+    return true; // Refresh UI
 }
 
 static bool palette_delete_clicked(obs_properties_t *props, obs_property_t *property, void *data)
