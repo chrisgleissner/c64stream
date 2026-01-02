@@ -533,16 +533,21 @@ bool c64_palette_parse_vpl(const char *path, uint32_t *colors, char *name, size_
                     got_name = true;
                 }
             }
-            // If this is the first comment and we haven't got a name yet, extract it as fallback
+            // If this is a non-metadata comment and we haven't got a name yet, use it as fallback
             else if (!got_name && name && name_size > 0 && *content_start) {
-                strncpy(name, content_start, name_size - 1);
-                name[name_size - 1] = '\0';
-                // Trim trailing whitespace
-                size_t name_len = strlen(name);
-                while (name_len > 0 && isspace((unsigned char)name[name_len - 1])) {
-                    name[--name_len] = '\0';
+                // Skip metadata lines (TYPE:, Syntax:, VICE Palette file, Red Green Blue, etc.)
+                if (strncmp(content_start, "TYPE:", 5) != 0 && strncmp(content_start, "Syntax:", 7) != 0 &&
+                    strncmp(content_start, "Red Green Blue", 14) != 0 &&
+                    strncmp(content_start, "VICE Palette", 12) != 0) {
+                    strncpy(name, content_start, name_size - 1);
+                    name[name_size - 1] = '\0';
+                    // Trim trailing whitespace
+                    size_t name_len = strlen(name);
+                    while (name_len > 0 && isspace((unsigned char)name[name_len - 1])) {
+                        name[--name_len] = '\0';
+                    }
+                    got_name = true;
                 }
-                got_name = true;
             }
             *comment = '\0';
         }
@@ -578,6 +583,35 @@ bool c64_palette_parse_vpl(const char *path, uint32_t *colors, char *name, size_
     if (color_count != C64_PALETTE_COLORS) {
         C64_LOG_WARNING("VPL file has %d colors, expected %d: %s", color_count, C64_PALETTE_COLORS, path);
         return false;
+    }
+
+    // If no name was found, use camel-cased filename as fallback
+    if (name && name_size > 0 && !name[0]) {
+        const char *filename = strrchr(path, PATH_SEP);
+#ifdef _WIN32
+        if (!filename) {
+            filename = strrchr(path, '/');
+        }
+#endif
+        if (filename) {
+            filename++; // Skip separator
+        } else {
+            filename = path;
+        }
+
+        // Copy filename without extension and capitalize first letter
+        size_t i = 0;
+        bool capitalize_next = true;
+        while (filename[i] && filename[i] != '.' && i < name_size - 1) {
+            if (filename[i] == '_' || filename[i] == '-') {
+                capitalize_next = true;
+            } else {
+                name[i] = capitalize_next ? toupper((unsigned char)filename[i]) : filename[i];
+                capitalize_next = false;
+                i++;
+            }
+        }
+        name[i] = '\0';
     }
 
     return true;

@@ -186,9 +186,9 @@ Save and restore your complete plugin settings:
 
 ### Palette Configuration 🎨
 
-Customize the VIC-II color palette to match different C64 hardware variants, personal preferences, or artistic styles. The palette system supports both shipped palettes and custom user-defined palettes.
+Customize the VIC-II color palette to match different C64 hardware variants, personal preferences, or artistic styles. The palette system supports both shipped and user-defined palettes.
 
-**Shipped Palettes:** The plugin includes five carefully curated palettes:
+**Shipped Palettes:** The plugin includes the following palettes:
 
 - **Default** - The standard VIC-II palette matching original C64 hardware
 - **Vibrant** - Enhanced saturation for a more vivid retro look
@@ -200,32 +200,43 @@ Customize the VIC-II color palette to match different C64 hardware variants, per
 
 - **Palette Dropdown:** Select from shipped palettes or any user palettes you've added
 - **Color Pickers (0-15):** Edit individual VIC-II colors in real-time. Changes apply immediately to the video output
-- **Load from file…:** Import a palette from a `.vpl` file (VICE/Ultimate-64 format)
-- **Save:** Overwrite the current user palette with your edits (disabled for shipped palettes)
-- **Save as…:** Save your current colors to a new user palette file
+- **Custom Palette File:** Path field for importing/exporting custom `.vpl` palette files
+- **Load:** Import a palette from the specified file path (VICE/Ultimate-64 format). Adds the palette to the dropdown and makes it active
+- **Save:** Export the current palette colors to the specified file path
 - **Revert:** Discard unsaved edits and reload the palette from file
 
 **VPL Palette Format:**
 
-Palettes use the standard VPL format compatible with VICE and Ultimate-64:
+Palettes use the standard [VICE VPL](https://1541u-documentation.readthedocs.io/en/latest/howto/palette.html) format:
 
 ```
-# Optional comment (display name)
-000000
-FFFFFF
-8D342F
+# VICE Palette file
+#
+# Syntax:
+# Red Green Blue
+#
+# TYPE:VICII
+# NAME:My Palette
+# DESC:Optional description shown as tooltip
+
+00 00 00
+FF FF FF
+8D 2F 34
 ...
 ```
 
-- First 16 non-comment lines are RGB hex values (RRGGBB format)
-- Comments starting with `#` are allowed; the first comment line becomes the display name
+- **NAME:** (optional) Display name shown in the dropdown
+- **DESC:** (optional) Description shown as tooltip when hovering over the palette
+- First 16 non-comment lines are RGB hex values in `RR GG BB` format (space-separated)
 - Files must have exactly 16 color entries
 
 **User Palette Location:**
 
-- **Windows:** `%APPDATA%\c64stream\palettes\`
-- **macOS:** `~/Library/Application Support/c64stream/palettes/`
-- **Linux:** `~/.config/c64stream/palettes/`
+Custom palettes are stored in the OBS plugin configuration directory:
+
+- **Windows:** `%APPDATA%\obs-studio\plugin_config\c64stream\palettes\`
+- **macOS:** `~/Library/Application Support/obs-studio/plugin_config/c64stream/palettes/`
+- **Linux:** `~/.config/obs-studio/plugin_config/c64stream/palettes/`
 
 Shipped palettes are located in the plugin's `data/palettes/` directory and cannot be modified.
 
