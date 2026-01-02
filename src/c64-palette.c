@@ -9,6 +9,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-color.h"
 #include "c64-file.h"
 #include "c64-logging.h"
+#include "c64-default-palette.h"
 
 #include <obs-module.h>
 #include <util/dstr.h>
@@ -36,26 +37,6 @@ See <https://www.gnu.org/licenses/> for details.
 static struct c64_palette_system palette_system;
 static bool palette_initialized = false;
 
-// Default palette (matches vic_colors in c64-color.c exactly)
-static const uint32_t default_palette_colors[C64_PALETTE_COLORS] = {
-    0xFF000000, // 0: Black
-    0xFFF7F7F7, // 1: White
-    0xFF342F8D, // 2: Red
-    0xFFCDD46A, // 3: Cyan
-    0xFFA43598, // 4: Purple
-    0xFF42B44C, // 5: Green
-    0xFFB1292C, // 6: Blue
-    0xFF5DEFEF, // 7: Yellow
-    0xFF204E98, // 8: Orange
-    0xFF00385B, // 9: Brown
-    0xFF6D67D1, // 10: Pink
-    0xFF4A4A4A, // 11: Dark Grey
-    0xFF7B7B7B, // 12: Medium Grey
-    0xFF93EF9F, // 13: Light Green
-    0xFFEF6A6D, // 14: Light Blue
-    0xFFB2B2B2  // 15: Light Grey
-};
-
 // Forward declarations
 static void discover_shipped_palettes(void);
 static void discover_custom_palettes(void);
@@ -81,13 +62,15 @@ bool c64_palette_init(void)
     }
 
     // Add Default palette first (always present, uses hardcoded colors)
-    memcpy(palette_system.palettes[0].colors, default_palette_colors, sizeof(default_palette_colors));
+    memcpy(palette_system.palettes[0].colors, c64_default_palette, sizeof(c64_default_palette));
     strncpy(palette_system.palettes[0].id, "Default", sizeof(palette_system.palettes[0].id) - 1);
     strncpy(palette_system.palettes[0].name, "Default", sizeof(palette_system.palettes[0].name) - 1);
     palette_system.palettes[0].path[0] = '\0'; // No file for default
     palette_system.palettes[0].is_shipped = true;
     palette_system.palettes[0].colors_loaded = true;
     palette_system.palette_count = 1;
+    C64_LOG_INFO("" PALETTE_LOG_PREFIX
+                 " Initialized Default palette from build-time generated array (source: data/palettes/default.vpl)");
 
     // Discover shipped palettes from data/palettes/
     discover_shipped_palettes();
@@ -306,10 +289,12 @@ bool c64_palette_select(const char *palette_id)
     // Load colors if not already loaded
     struct c64_palette_entry *entry = &palette_system.palettes[index];
     if (!entry->colors_loaded && entry->path[0]) {
+        C64_LOG_INFO("" PALETTE_LOG_PREFIX " Loading palette '%s' from file: %s", entry->id, entry->path);
         char name_buf[C64_PALETTE_NAME_MAX];
         char desc_buf[256];
         if (c64_palette_parse_vpl(entry->path, entry->colors, name_buf, sizeof(name_buf), desc_buf, sizeof(desc_buf))) {
             entry->colors_loaded = true;
+            C64_LOG_INFO("" PALETTE_LOG_PREFIX " Successfully loaded palette '%s' from VPL file", entry->id);
             // Update display name if we got one from the file
             if (name_buf[0]) {
                 strncpy(entry->name, name_buf, sizeof(entry->name) - 1);
@@ -326,6 +311,14 @@ bool c64_palette_select(const char *palette_id)
         }
     }
 
+    // Check if we're actually changing the palette
+    bool is_palette_change = (palette_system.active_palette_index != index);
+    const char *previous_palette = NULL;
+    if (is_palette_change && palette_system.active_palette_index >= 0 &&
+        palette_system.active_palette_index < palette_system.palette_count) {
+        previous_palette = palette_system.palettes[palette_system.active_palette_index].name;
+    }
+
     palette_system.active_palette_index = index;
 
     // Copy colors to working buffer
@@ -335,7 +328,29 @@ bool c64_palette_select(const char *palette_id)
     // Rebuild LUT with new palette
     c64_palette_rebuild_lut(palette_system.working_colors);
 
-    C64_LOG_INFO("" PALETTE_LOG_PREFIX " Selected palette: %s", entry->name);
+    // Log palette activation with appropriate detail
+    if (entry->path[0]) {
+        if (is_palette_change && previous_palette) {
+            C64_LOG_INFO("" PALETTE_LOG_PREFIX " ⚡ Palette changed: '%s' -> '%s' (source: VPL file %s)",
+                         previous_palette, entry->name, entry->path);
+        } else {
+            C64_LOG_INFO("" PALETTE_LOG_PREFIX " ✓ Activated palette: '%s' (source: VPL file %s)", entry->name,
+                         entry->path);
+        }
+    } else {
+        // Default palette has no file path
+        if (is_palette_change && previous_palette) {
+            C64_LOG_INFO(
+                "" PALETTE_LOG_PREFIX
+                " ⚡ Palette changed: '%s' -> '%s' (source: build-time generated from data/palettes/default.vpl)",
+                previous_palette, entry->name);
+        } else {
+            C64_LOG_INFO("" PALETTE_LOG_PREFIX
+                         " ✓ Activated palette: '%s' (source: build-time generated from data/palettes/default.vpl)",
+                         entry->name);
+        }
+    }
+
     pthread_mutex_unlock(&palette_system.mutex);
     return true;
 }
@@ -370,6 +385,18 @@ bool c64_palette_set_working_color(int index, uint32_t bgra_color)
     }
 
     pthread_mutex_lock(&palette_system.mutex);
+
+    // Log if this is the first modification
+    if (!palette_system.working_modified) {
+        const char *palette_name = "Unknown";
+        if (palette_system.active_palette_index >= 0 &&
+            palette_system.active_palette_index < palette_system.palette_count) {
+            palette_name = palette_system.palettes[palette_system.active_palette_index].name;
+        }
+        C64_LOG_INFO("" PALETTE_LOG_PREFIX " 🎨 User modified color %d in palette '%s' (0x%08X)", index, palette_name,
+                     bgra_color);
+    }
+
     palette_system.working_colors[index] = bgra_color;
     palette_system.working_modified = true;
 
@@ -916,7 +943,7 @@ void c64_palette_rebuild_lut(const uint32_t *colors)
     }
 
     c64_color_lut_initialized = true;
-    C64_LOG_DEBUG("" PALETTE_LOG_PREFIX " Color LUT rebuilt with custom palette");
+    C64_LOG_INFO("" PALETTE_LOG_PREFIX " 🔄 Color LUT rebuilt with palette colors (256 lookup entries updated)");
 }
 
 const uint32_t *c64_palette_get_active_colors(void)

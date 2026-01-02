@@ -7,49 +7,21 @@ See <https://www.gnu.org/licenses/> for details.
 */
 #include "c64-color.h"
 #include "c64-logging.h"
+#include "c64-default-palette.h"
 #include <stdint.h>
 #include <stdbool.h>
+#include <string.h>
 
-// VIC-II color palette (16 colors) in BGRA format for OBS Studio
-// Colors converted from C64 Ultimate grab.py RGB values to BGRA with full alpha
-const uint32_t vic_colors[16] = {
-    0xFF000000, // 0: Black
-    0xFFF7F7F7, // 1: White
-    0xFF342F8D, // 2: Red
-    0xFFCDD46A, // 3: Cyan
-    0xFFA43598, // 4: Purple
-    0xFF42B44C, // 5: Green
-    0xFFB1292C, // 6: Blue
-    0xFF5DEFEF, // 7: Yellow
-    0xFF204E98, // 8: Orange
-    0xFF00385B, // 9: Brown
-    0xFF6D67D1, // 10: Pink
-    0xFF4A4A4A, // 11: Dark Grey
-    0xFF7B7B7B, // 12: Medium Grey
-    0xFF93EF9F, // 13: Light Green
-    0xFFEF6A6D, // 14: Light Blue
-    0xFFB2B2B2  // 15: Light Grey
-};
+// Export the default palette as vic_colors for backward compatibility
+const uint32_t vic_colors[16] = {c64_default_palette[0],  c64_default_palette[1],  c64_default_palette[2],
+                                 c64_default_palette[3],  c64_default_palette[4],  c64_default_palette[5],
+                                 c64_default_palette[6],  c64_default_palette[7],  c64_default_palette[8],
+                                 c64_default_palette[9],  c64_default_palette[10], c64_default_palette[11],
+                                 c64_default_palette[12], c64_default_palette[13], c64_default_palette[14],
+                                 c64_default_palette[15]};
 
 // Current active palette (initialized to default, updated by palette system)
-uint32_t c64_current_palette[16] = {
-    0xFF000000, // 0: Black
-    0xFFF7F7F7, // 1: White
-    0xFF342F8D, // 2: Red
-    0xFFCDD46A, // 3: Cyan
-    0xFFA43598, // 4: Purple
-    0xFF42B44C, // 5: Green
-    0xFFB1292C, // 6: Blue
-    0xFF5DEFEF, // 7: Yellow
-    0xFF204E98, // 8: Orange
-    0xFF00385B, // 9: Brown
-    0xFF6D67D1, // 10: Pink
-    0xFF4A4A4A, // 11: Dark Grey
-    0xFF7B7B7B, // 12: Medium Grey
-    0xFF93EF9F, // 13: Light Green
-    0xFFEF6A6D, // 14: Light Blue
-    0xFFB2B2B2  // 15: Light Grey
-};
+uint32_t c64_current_palette[16];
 
 // Pre-computed lookup table for pixel pairs (exported for palette system)
 uint64_t c64_color_pair_lut[256];
@@ -60,6 +32,11 @@ void c64_init_color_conversion_lut(void)
     if (c64_color_lut_initialized) {
         return; // Already initialized
     }
+
+    // Initialize c64_current_palette to default on first call
+    memcpy(c64_current_palette, c64_default_palette, sizeof(c64_current_palette));
+    C64_LOG_INFO("🎨 COLOR: Initialized default palette from build-time generated header (source: "
+                 "data/palettes/default.vpl)");
 
     // Pre-compute all 256 possible 4-bit color pair combinations
     for (int i = 0; i < 256; i++) {
@@ -73,7 +50,7 @@ void c64_init_color_conversion_lut(void)
     }
 
     c64_color_lut_initialized = true;
-    C64_LOG_INFO("🎨 Color conversion lookup table initialized (256 entries)");
+    C64_LOG_INFO("🎨 COLOR: Color conversion lookup table initialized (256 entries)");
 }
 
 void c64_convert_pixels_optimized(const uint8_t *src, uint32_t *dst, int pixel_pairs)
