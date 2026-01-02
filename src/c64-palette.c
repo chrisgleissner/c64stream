@@ -224,6 +224,9 @@ void c64_palette_validate_filesystem(obs_data_t *settings)
     // Update settings if we need to fallback to Default
     if (settings && (active_palette_missing || settings_palette_stale)) {
         obs_data_set_string(settings, "palette", "Default");
+        
+        // Clear any stale export path
+        obs_data_erase(settings, "palette_export_path");
 
         // Set color values to Default palette colors (not just erase)
         // This prevents OBS from having stale color values that would trigger

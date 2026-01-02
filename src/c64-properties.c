@@ -980,9 +980,16 @@ static void update_palette_color_properties(obs_data_t *settings)
         // OBS color format is 0xAABBGGRR (same as ABGR)
         uint32_t obs_color = 0xFF000000 | (b << 16) | (g << 8) | r;
 
-        // Use set_default_int so color pickers show the palette colors
-        // without marking them as user-modified values (which would interfere
-        // with palette selection persistence)
+        // CRITICAL: Check if actual value exists and matches working color
+        // If not, set it to prevent stale values from triggering callbacks
+        // This prevents deleted palette colors from persisting and triggering recreation
+        if (!obs_data_has_user_value(settings, key) || 
+            obs_data_get_int(settings, key) != (long long)obs_color) {
+            // Set actual value to match working color
+            obs_data_set_int(settings, key, (long long)obs_color);
+        }
+
+        // Also set default value for proper UI initialization
         obs_data_set_default_int(settings, key, (long long)obs_color);
     }
 }
@@ -1183,10 +1190,20 @@ static bool palette_delete_clicked(obs_properties_t *props, obs_property_t *prop
     if (ok) {
         // Switch to Default palette
         obs_data_set_string(settings, C64_PALETTE_KEY, "Default");
+        
+        // Clear any stale export path
+        obs_data_erase(settings, "palette_export_path");
 
-        // Set color values to Default palette colors (not just erase)
-        // This prevents OBS from having stale color values that would trigger
-        // palette recreation when properties dialog reopens
+        // IMPORTANT: Erase all color keys first, then set to Default
+        // This ensures no stale values remain in OBS settings cache
+        for (int i = 0; i < 16; i++) {
+            char key[32];
+            snprintf(key, sizeof(key), "palette_color_%d", i);
+            obs_data_erase(settings, key);
+        }
+
+        // Now set Default palette colors
+        // Working colors are now Default because c64_palette_delete() selected it
         uint32_t *default_colors = c64_palette_get_working_colors();
         if (default_colors) {
             for (int i = 0; i < 16; i++) {
@@ -1200,7 +1217,7 @@ static bool palette_delete_clicked(obs_properties_t *props, obs_property_t *prop
                 uint8_t r = bgra & 0xFF;
                 uint32_t obs_color = 0xFF000000 | (b << 16) | (g << 8) | r;
 
-                // Set actual value (not default) to overwrite any stale cached values
+                // Set actual value after erasing to ensure clean slate
                 obs_data_set_int(settings, key, (long long)obs_color);
             }
         }

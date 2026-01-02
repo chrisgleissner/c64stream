@@ -328,7 +328,7 @@ bool c64_resolve_hostname_with_dns(const char *hostname, const char *custom_dns_
     if (status == 0 && result != NULL) {
         struct sockaddr_in *addr_in = (struct sockaddr_in *)result->ai_addr;
         if (inet_ntop(AF_INET, &addr_in->sin_addr, ip_buffer, buffer_size) != NULL) {
-            obs_log(LOG_INFO, "System DNS resolved '%s' to IP: %s", hostname, ip_buffer);
+            blog(LOG_INFO, "System DNS resolved '%s' to IP: %s", hostname, ip_buffer);
             freeaddrinfo(result);
             return true;
         }
