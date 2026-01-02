@@ -38,6 +38,11 @@ static bool export_config_clicked(obs_properties_t *props, obs_property_t *prope
 static bool import_config_clicked(obs_properties_t *props, obs_property_t *property, void *data);
 static void trim_config_string(char *str);
 
+// Forward declaration of path helper functions
+static void c64_default_palette_import_path(char *path, size_t path_size);
+static void c64_default_palette_export_path(char *path, size_t path_size);
+static void c64_default_export_ini_path(char *path, size_t path_size);
+
 // Palette callbacks
 static bool palette_changed(void *priv, obs_properties_t *props, obs_property_t *property, obs_data_t *settings);
 static bool palette_import_path_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings);
@@ -337,6 +342,19 @@ obs_properties_t *c64_create_properties(void *data)
                                                           "VPL Palette Files (*.vpl);;All Files (*.*)", NULL);
     obs_property_set_modified_callback(export_path, palette_export_path_changed);
 
+    // Reset palette import/export paths to user's palette folder each time properties are opened
+    // This ensures the paths always point to the correct location even if user changed them
+    {
+        obs_data_t *path_settings = obs_source_get_settings(context->source);
+        char palette_import_dir[512];
+        char palette_export_file[512];
+        c64_default_palette_import_path(palette_import_dir, sizeof(palette_import_dir));
+        c64_default_palette_export_path(palette_export_file, sizeof(palette_export_file));
+        obs_data_set_string(path_settings, "palette_import_path", palette_import_dir);
+        obs_data_set_string(path_settings, "palette_export_path", palette_export_file);
+        obs_data_release(path_settings);
+    }
+
     // Delete button
     obs_property_t *delete_btn = obs_properties_add_button2(
         palette_props, "palette_delete", obs_module_text("PaletteDelete"), palette_delete_clicked, data);
@@ -399,7 +417,101 @@ obs_properties_t *c64_create_properties(void *data)
     obs_properties_add_button(importexport_props, "export_config", obs_module_text("ExportConfig"),
                               export_config_clicked);
 
+    // Reset config import/export paths with fresh timestamps each time properties are opened
+    // This ensures the user can simply click "export" without having to navigate or rename
+    {
+        obs_data_t *config_path_settings = obs_source_get_settings(context->source);
+        char config_export_file[512];
+        char config_import_dir[512];
+        c64_default_export_ini_path(config_export_file, sizeof(config_export_file));
+
+        // Derive import directory from export file path so the user can browse existing exports
+        strncpy(config_import_dir, config_export_file, sizeof(config_import_dir));
+        config_import_dir[sizeof(config_import_dir) - 1] = '\0';
+
+        char *last_sep = strrchr(config_import_dir, '/');
+#ifdef _WIN32
+        char *last_backslash = strrchr(config_import_dir, '\\');
+        if (!last_sep || (last_backslash && last_backslash > last_sep))
+            last_sep = last_backslash;
+#endif
+        if (last_sep) {
+            *last_sep = '\0';
+        } else {
+            // Fallback to empty string (current directory) if no separator found
+            config_import_dir[0] = '\0';
+        }
+
+        obs_data_set_string(config_path_settings, C64_CONFIG_EXPORT_PATH_KEY, config_export_file);
+        obs_data_set_string(config_path_settings, C64_CONFIG_IMPORT_PATH_KEY, config_import_dir);
+        obs_data_release(config_path_settings);
+    }
+
     return props;
+}
+
+static void c64_default_palette_import_path(char *path, size_t path_size)
+{
+    if (!path || path_size < 64)
+        return;
+
+    // Get palettes directory
+    char palettes_dir[512];
+    if (c64_get_user_dir(C64_USER_DIR_PALETTES, palettes_dir, sizeof(palettes_dir))) {
+        strncpy(path, palettes_dir, path_size - 1);
+        path[path_size - 1] = '\0';
+    } else {
+        // Fallback to empty string (current directory)
+        path[0] = '\0';
+    }
+}
+
+static void c64_default_palette_export_path(char *path, size_t path_size)
+{
+    if (!path || path_size < 64)
+        return;
+
+    // Generate timestamp filename
+    time_t now = time(NULL);
+    char timestamp[32];
+    timestamp[0] = '\0';
+
+    if (now != (time_t)-1) {
+        struct tm *tm_info = localtime(&now);
+        if (tm_info) {
+            if (strftime(timestamp, sizeof(timestamp), "%Y%m%d_%H%M%S", tm_info) == 0) {
+                // On failure, keep timestamp as empty string
+                timestamp[0] = '\0';
+            }
+        }
+    }
+    // Get palettes directory
+    char palettes_dir[512];
+    if (c64_get_user_dir(C64_USER_DIR_PALETTES, palettes_dir, sizeof(palettes_dir))) {
+        // Validate combined path length
+        size_t dir_len = strlen(palettes_dir);
+        size_t ts_len = strlen(timestamp);
+        // Need: dir + "/" + "palette_" + timestamp + ".vpl" + null = dir + 14 + ts_len
+        if (dir_len + 14 + ts_len <= path_size) {
+            // Suppress truncation warning - we've manually validated the length above
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-truncation"
+#endif
+#ifdef _WIN32
+            snprintf(path, path_size, "%s\\palette_%s.vpl", palettes_dir, timestamp);
+#else
+            snprintf(path, path_size, "%s/palette_%s.vpl", palettes_dir, timestamp);
+#endif
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
+            return;
+        }
+    }
+
+    // Fallback: current directory with timestamp
+    snprintf(path, path_size, "palette_%s.vpl", timestamp);
 }
 
 static void c64_default_export_ini_path(char *path, size_t path_size)
