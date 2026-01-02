@@ -759,7 +759,7 @@ bool c64_palette_parse_vpl(const char *path, uint32_t *colors, char *name, size_
             colors[color_count] = 0xFF000000 | (r << 16) | (g << 8) | b;
             // Note: Above creates ARGB, but OBS uses BGRA
             // Actually OBS VIDEO_FORMAT_RGBA stores as BGRA in memory (little-endian)
-            // The vic_colors use BGRA format: 0xFFBBGGRR
+            // The c64_default_palette uses BGRA format: 0xFFBBGGRR
             colors[color_count] = 0xFF000000 | (b << 16) | (g << 8) | r;
             color_count++;
         }

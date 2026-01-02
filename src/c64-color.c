@@ -12,10 +12,6 @@ See <https://www.gnu.org/licenses/> for details.
 #include <stdbool.h>
 #include <string.h>
 
-// Export the default palette as vic_colors for backward compatibility
-// Use pointer instead of array copy for MSVC compatibility (C2099 error)
-const uint32_t *const vic_colors = c64_default_palette;
-
 // Current active palette (initialized to default, updated by palette system)
 uint32_t c64_current_palette[16];
 
