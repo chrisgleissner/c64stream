@@ -186,23 +186,28 @@ Save and restore your complete plugin settings:
 
 ### Palette Configuration 🎨
 
-Customize the VIC-II color palette to match different C64 hardware variants, personal preferences, or artistic styles. The palette system supports both shipped and user-defined palettes.
+Customize the VIC-II color palette to match different C64 hardware variants, personal preferences, or artistic styles. The palette system supports both shipped (preset) and user-defined (custom) palettes.
 
 **Shipped Palettes:** The plugin includes the following palettes:
 
-- **Default** - The standard VIC-II palette matching original C64 hardware
-- **Vibrant** - Enhanced saturation for a more vivid retro look
-- **Muted** - Softer, pastel-like colors for a subdued aesthetic
-- **Warm** - Slightly orange-shifted tones reminiscent of aged monitors
-- **Cool** - Blue-shifted palette for a modern retro feel
+- **Default (Preset)** - The standard VIC-II palette matching original C64 hardware
+- **Vibrant (Preset)** - Enhanced saturation for a more vivid retro look
+- **Muted (Preset)** - Softer, pastel-like colors for a subdued aesthetic
+- **Warm (Preset)** - Slightly orange-shifted tones reminiscent of aged monitors
+- **Cool (Preset)** - Blue-shifted palette for a modern retro feel
 
 **Palette Controls:**
 
-- **Palette Dropdown:** Select from shipped palettes or any user palettes you've added
-- **Color Pickers (0-15):** Edit individual VIC-II colors in real-time. Changes apply immediately to the video output
-- **Custom Palette File:** Path field for importing/exporting custom `.vpl` palette files
-- **Load:** Import a palette from the specified file path (VICE/Ultimate-64 format). Adds the palette to the dropdown and makes it active
-- **Save:** Export the current palette colors to the specified file path
+- **Palette Dropdown:** Select from shipped palettes (marked with "(Preset)" suffix) or any custom palettes you've added
+- **Color Editor (Collapsible):** Expand to access 16 color pickers (0-15) for editing individual VIC-II colors. Changes apply immediately to the video output
+- **Refresh List:** Rescans the user palette directory and updates the dropdown (use after manually copying .vpl files)
+- **Export Current:** Saves the current working palette to a timestamped .vpl file in your user palette directory
+
+**Auto-Save Behavior:**
+
+- Custom palettes are automatically saved when you close the properties dialog
+- If you edit a preset palette, a custom copy is automatically created (preserving the original preset)
+- No manual save action is required for palette edits
 
 **VPL Palette Format:**
 

@@ -138,7 +138,10 @@ void c64_palette_populate_list(obs_property_t *palette_prop)
     obs_property_list_clear(palette_prop);
 
     for (int i = 0; i < palette_system.palette_count; i++) {
-        obs_property_list_add_string(palette_prop, palette_system.palettes[i].name, palette_system.palettes[i].id);
+        char display_name[C64_PALETTE_NAME_MAX + 16]; // Extra space for " (Preset)" suffix
+        if (c64_palette_get_display_name(palette_system.palettes[i].id, display_name, sizeof(display_name))) {
+            obs_property_list_add_string(palette_prop, display_name, palette_system.palettes[i].id);
+        }
     }
 }
 
@@ -1044,6 +1047,95 @@ static bool add_palette_entry(const char *id, const char *name, const char *path
     entry->colors_loaded = false;
 
     palette_system.palette_count++;
+    return true;
+}
+
+bool c64_palette_is_preset(const char *palette_id)
+{
+    if (!palette_id) {
+        return false;
+    }
+
+    for (int i = 0; i < palette_system.palette_count; i++) {
+        if (strcmp(palette_system.palettes[i].id, palette_id) == 0) {
+            return palette_system.palettes[i].is_shipped;
+        }
+    }
+
+    return false;
+}
+
+bool c64_palette_get_display_name(const char *palette_id, char *display_name, size_t display_name_size)
+{
+    if (!palette_id || !display_name || display_name_size == 0) {
+        return false;
+    }
+
+    for (int i = 0; i < palette_system.palette_count; i++) {
+        if (strcmp(palette_system.palettes[i].id, palette_id) == 0) {
+            if (palette_system.palettes[i].is_shipped) {
+                snprintf(display_name, display_name_size, "%s (Preset)", palette_system.palettes[i].name);
+            } else {
+                strncpy(display_name, palette_system.palettes[i].name, display_name_size - 1);
+                display_name[display_name_size - 1] = '\0';
+            }
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool c64_palette_auto_save(void)
+{
+    // No modifications, nothing to do
+    if (!palette_system.working_modified) {
+        return true;
+    }
+
+    if (palette_system.active_palette_index < 0) {
+        return true; // No active palette, nothing to save
+    }
+
+    struct c64_palette_entry *entry = &palette_system.palettes[palette_system.active_palette_index];
+
+    // If editing a preset, create a custom copy
+    if (entry->is_shipped) {
+        // Generate a custom name (remove " (Preset)" if present, just use base name)
+        char custom_name[C64_PALETTE_NAME_MAX];
+        strncpy(custom_name, entry->name, sizeof(custom_name) - 1);
+        custom_name[sizeof(custom_name) - 1] = '\0';
+
+        // Build path for custom palette
+        char custom_path[C64_PALETTE_PATH_MAX];
+        int path_len = snprintf(custom_path, sizeof(custom_path), "%s%c%s.vpl", palette_system.user_palette_dir,
+                                PATH_SEP, entry->id);
+        if (path_len < 0 || (size_t)path_len >= sizeof(custom_path)) {
+            C64_LOG_WARNING("Custom palette path too long");
+            return false;
+        }
+
+        // Save as new custom palette
+        if (!c64_palette_save_as(custom_name, custom_path)) {
+            C64_LOG_WARNING("Failed to auto-save preset as custom palette: %s", custom_name);
+            return false;
+        }
+
+        C64_LOG_INFO("🎨 Auto-saved preset '%s' as custom palette", custom_name);
+        return true;
+    }
+
+    // For custom palettes, save in place
+    if (!c64_palette_write_vpl(entry->path, palette_system.working_colors, entry->name)) {
+        C64_LOG_WARNING("Failed to auto-save custom palette: %s", entry->path);
+        return false;
+    }
+
+    // Update stored colors
+    memcpy(entry->colors, palette_system.working_colors, sizeof(entry->colors));
+    palette_system.working_modified = false;
+
+    C64_LOG_INFO("🎨 Auto-saved custom palette: %s", entry->name);
     return true;
 }
 

@@ -210,6 +210,33 @@ void c64_palette_rebuild_lut(const uint32_t *colors);
  */
 const uint32_t *c64_palette_get_active_colors(void);
 
+/**
+ * @brief Check if a palette is a shipped preset
+ *
+ * @param palette_id Palette identifier
+ * @return true if palette is shipped with plugin, false if user palette
+ */
+bool c64_palette_is_preset(const char *palette_id);
+
+/**
+ * @brief Get the display name for a palette (adds " (Preset)" suffix for shipped palettes)
+ *
+ * @param palette_id Palette identifier
+ * @param display_name Output buffer for display name
+ * @param display_name_size Size of output buffer
+ * @return true if successful, false if palette not found
+ */
+bool c64_palette_get_display_name(const char *palette_id, char *display_name, size_t display_name_size);
+
+/**
+ * @brief Auto-save working colors if current palette is custom and has modifications
+ *
+ * Creates a copy if currently editing a preset palette.
+ *
+ * @return true if save succeeded or no save needed, false on error
+ */
+bool c64_palette_auto_save(void);
+
 #ifdef __cplusplus
 }
 #endif
