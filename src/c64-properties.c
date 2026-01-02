@@ -983,7 +983,7 @@ static void update_palette_color_properties(obs_data_t *settings)
         // CRITICAL: Check if actual value exists and matches working color
         // If not, set it to prevent stale values from triggering callbacks
         // This prevents deleted palette colors from persisting and triggering recreation
-        if (!obs_data_has_user_value(settings, key) || 
+        if (!obs_data_has_user_value(settings, key) ||
             obs_data_get_int(settings, key) != (long long)obs_color) {
             // Set actual value to match working color
             obs_data_set_int(settings, key, (long long)obs_color);
@@ -1190,7 +1190,7 @@ static bool palette_delete_clicked(obs_properties_t *props, obs_property_t *prop
     if (ok) {
         // Switch to Default palette
         obs_data_set_string(settings, C64_PALETTE_KEY, "Default");
-        
+
         // Clear any stale export path
         obs_data_erase(settings, "palette_export_path");
 
