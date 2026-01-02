@@ -171,7 +171,40 @@ Save and restore your complete plugin settings:
 - **Export:** Click to save all current settings to a `.ini` file. Use this to backup configurations, share setups, or attach to bug reports
 - **Import:** Click to load settings from a previously exported `.ini` file. All current settings will be replaced
 
-Exported configurations are saved to the [exports directory](#user-data-locations-).
+Exported configurations are saved to the [exports directory](#file-system-structure-).
+
+### File System Structure 📁
+
+The plugin uses three distinct filesystem locations:
+
+**1. Plugin Installation** - OBS plugin binary and loader files:
+- **Windows:** `C:\ProgramData\obs-studio\plugins\c64stream\`
+- **macOS:** `~/Library/Application Support/obs-studio/plugins/c64stream.plugin/`
+- **Linux:** `/usr/share/obs/obs-plugins/c64stream/` and `/usr/lib/obs-plugins/`
+
+**2. Shipped Data** - Read-only defaults bundled with the plugin:
+- Effect presets (`effect_presets.ini`)
+- Palette presets (`palettes/*.vpl`)
+- Default network configuration (`properties.ini`)
+- Localization files (`locale/*.ini`)
+
+**3. User Data** - Your custom content (editable, portable, backup-friendly):
+
+```
+<Documents>/obs-studio/c64stream/
+├── exports/         # Exported configuration files (.ini)
+├── palettes/        # Custom palette files (.vpl)
+├── recordings/      # Recording session folders
+└── presets/         # Custom effect presets (future)
+```
+
+| Platform | Documents Folder | Full Path Example |
+|----------|------------------|-------------------|
+| Windows  | `%USERPROFILE%\Documents` | `C:\Users\YourName\Documents\obs-studio\c64stream\` |
+| macOS    | `~/Documents` | `/Users/yourname/Documents/obs-studio/c64stream/` |
+| Linux    | `~/Documents` | `/home/yourname/Documents/obs-studio/c64stream/` |
+
+**Why Documents folder?** User content lives in Documents for easy access, simple backups, and visibility - unlike hidden OBS config directories. This makes it straightforward to share palettes, preserve recordings, or migrate your setup to another system.
 
 ### Network
 
@@ -236,7 +269,7 @@ FF FF FF
 - First 16 non-comment lines are RGB hex values in `RR GG BB` format (space-separated)
 - Files must have exactly 16 color entries
 
-**Storage:** Custom palettes are saved to the [palettes directory](#user-data-locations-). Shipped palettes remain in the plugin's read-only data directory.
+**Storage:** Custom palettes are saved to the [palettes directory](#file-system-structure-). Shipped palettes are bundled with the plugin as read-only defaults.
 
 ### CRT Effects 📺
 
@@ -337,7 +370,7 @@ The plugin offers three independent recording options that can be enabled separa
 
 #### File Organization
 
-All recording files are organized into timestamped session folders in the [recordings directory](#user-data-locations-):
+All recording files are organized into timestamped session folders in the [recordings directory](#file-system-structure-):
 
 ```text
 recordings/
