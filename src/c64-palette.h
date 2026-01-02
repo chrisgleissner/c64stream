@@ -9,6 +9,7 @@ See <https://www.gnu.org/licenses/> for details.
 #define C64_PALETTE_H
 
 #include <obs-module.h>
+#include <util/threading.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>

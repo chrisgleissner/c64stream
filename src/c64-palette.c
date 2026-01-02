@@ -13,6 +13,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include <obs-module.h>
 #include <util/dstr.h>
 #include <util/platform.h>
+#include <util/threading.h>
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
