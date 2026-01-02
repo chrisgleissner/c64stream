@@ -181,7 +181,11 @@ A new window opens. Keep the default settings and click "OK":
 
 (since version 1.0.0)
 
-Customize the VIC-II color palette to match different C64 hardware variants, personal preferences, or artistic styles. The palette system supports both shipped (preset) and user-defined (custom) palettes.
+Customize the VIC-II color palette to match different C64 hardware variants, personal preferences, or artistic styles. 
+
+Both shipped (preset) and user-defined (custom) VICE color palette files (`.vpl`) are supported. 
+
+By importing the same custom profile to both your C64U (via its menu system) and to C64 Stream, you can ensure a perfect color match.
 
 ![C64 Stream Palettes](./docs/images/properties-palettes.png "C64 Stream Palettes")
 
@@ -198,13 +202,9 @@ Customize the VIC-II color palette to match different C64 hardware variants, per
 - **Palette Dropdown:** Select from shipped palettes (marked with "(Preset)" suffix) or any custom palettes you've added
 - **Import:** Imports a `.vpl` file
 - **Export:** Exports the currently active palette (with any color adjustments) to a `.vpl` file
-- **Color Editor:** Expand to access 16 color pickers (0-15) for editing individual VIC-II colors. Changes apply immediately to the video output
+- **Color Editor:** Access 16 color pickers (0-15) for editing individual VIC-II colors. Changes apply immediately to the video output.
 
-**Auto-Save Behavior:**
-
-- Custom palettes are automatically saved when you close the properties dialog
-- If you edit a preset palette, a custom copy is automatically created (preserving the original preset)
-- No manual save action is required for palette edits
+Custom palettes are automatically saved when you close the properties dialog. 
 
 **VPL Palette Format:**
 
