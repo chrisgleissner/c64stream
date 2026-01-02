@@ -188,6 +188,11 @@ The plugin uses three distinct filesystem locations:
 - Default network configuration (`properties.ini`)
 - Localization files (`locale/*.ini`)
 
+Locations:
+- **Windows:** `C:\ProgramData\obs-studio\plugins\c64stream\data\`
+- **macOS:** `~/Library/Application Support/obs-studio/plugins/c64stream.plugin/Contents/Resources/`
+- **Linux:** `/usr/share/obs/obs-plugins/c64stream/`
+
 **3. User Data** - Your custom content (editable, portable, backup-friendly):
 
 ```
