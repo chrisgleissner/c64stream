@@ -13,6 +13,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include <string.h>
 
 // Export the default palette as vic_colors for backward compatibility
+// Explicitly initialize from c64_default_palette to match extern array declaration in header
 const uint32_t vic_colors[16] = {c64_default_palette[0],  c64_default_palette[1],  c64_default_palette[2],
                                  c64_default_palette[3],  c64_default_palette[4],  c64_default_palette[5],
                                  c64_default_palette[6],  c64_default_palette[7],  c64_default_palette[8],

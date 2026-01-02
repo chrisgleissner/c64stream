@@ -7,6 +7,9 @@ Parses the VPL file and creates a C header with the default color array.
 import sys
 import re
 
+# C64 palette size (VIC-II has 16 colors)
+C64_PALETTE_SIZE = 16
+
 
 def parse_vpl_file(vpl_path):
     """Parse VPL file and extract RGB colors."""
@@ -32,7 +35,8 @@ def parse_vpl_file(vpl_path):
                     g = min(255, max(0, g))
                     b = min(255, max(0, b))
                     
-                    # Convert RGB to BGRA format (0xFFBBGGRR)
+                    # Convert RGB to BGRA format: 0xAABBGGRR (little-endian)
+                    # Alpha=0xFF, Blue in bits 16-23, Green in bits 8-15, Red in bits 0-7
                     bgra = 0xFF000000 | (b << 16) | (g << 8) | r
                     colors.append(bgra)
                 except ValueError:
@@ -101,8 +105,8 @@ def main():
     try:
         colors = parse_vpl_file(vpl_path)
         
-        if len(colors) != 16:
-            print(f"Error: Expected 16 colors, found {len(colors)}")
+        if len(colors) != C64_PALETTE_SIZE:
+            print(f"Error: Expected {C64_PALETTE_SIZE} colors, found {len(colors)}")
             sys.exit(1)
         
         generate_header(colors, output_path)
