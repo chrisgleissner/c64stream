@@ -164,13 +164,6 @@ A new window opens. Keep the default settings and click "OK":
 - **Version:** Information about release version, Git ID, and build time
 - **Debug Logging:** Check this to see debug logs
 
-### Import/Export Configuration
-
-Save and restore your complete plugin settings:
-
-- **Export:** Click to save all current settings to a `.ini` file. Use this to backup configurations, share setups, or attach to bug reports
-- **Import:** Click to load settings from a previously exported `.ini` file. All current settings will be replaced
-
 ### Network
 
 - **DNS Resolution Details:**
@@ -184,6 +177,62 @@ Save and restore your complete plugin settings:
 - **Configure Ports** Use the default ports (video: 11000, audio: 11001) unless network conflicts require different values
 - **Buffer Delay:** Sets the network buffer for incoming UDP packets arriving from the C64 Ultimate (0–500 ms, default 10 ms). The buffer size is expressed in milliseconds to represent the time-based delay it introduces, compensating for packet loss, reordering, and variable network latency. Larger buffers improve stability under high-latency or congested conditions but increase end-to-end delay.
 
+### Color Palettes 🎨
+
+(since version 1.0.0)
+
+Customize the VIC-II color palette to match different C64 hardware variants, personal preferences, or artistic styles. The palette system supports both shipped (preset) and user-defined (custom) palettes.
+
+![C64 Stream Palettes](./docs/images/properties-palettes.png "C64 Stream Palettes")
+
+**Shipped Palettes:** The plugin includes the following palettes:
+
+- **Default (Preset)** - The standard VIC-II palette matching original C64 hardware
+- **Vibrant (Preset)** - Enhanced saturation for a more vivid retro look
+- **Muted (Preset)** - Softer, pastel-like colors for a subdued aesthetic
+- **Warm (Preset)** - Slightly orange-shifted tones reminiscent of aged monitors
+- **Cool (Preset)** - Blue-shifted palette for a modern retro feel
+
+**Palette Controls:**
+
+- **Palette Dropdown:** Select from shipped palettes (marked with "(Preset)" suffix) or any custom palettes you've added
+- **Import:** Imports a `.vpl` file
+- **Export:** Exports the currently active palette (with any color adjustments) to a `.vpl` file
+- **Color Editor:** Expand to access 16 color pickers (0-15) for editing individual VIC-II colors. Changes apply immediately to the video output
+
+**Auto-Save Behavior:**
+
+- Custom palettes are automatically saved when you close the properties dialog
+- If you edit a preset palette, a custom copy is automatically created (preserving the original preset)
+- No manual save action is required for palette edits
+
+**VPL Palette Format:**
+
+Palettes use the standard [VICE VPL](https://1541u-documentation.readthedocs.io/en/latest/howto/palette.html) format:
+
+```
+# VICE Palette file
+#
+# Syntax:
+# Red Green Blue
+#
+# TYPE:VICII
+# NAME:My Palette
+# DESC:Optional description shown as tooltip
+
+00 00 00
+FF FF FF
+8D 2F 34
+...
+```
+
+- **NAME:** (optional) Display name shown in the dropdown
+- **DESC:** (optional) Description shown as tooltip when hovering over the palette
+- First 16 non-comment lines are RGB hex values in `RR GG BB` format (space-separated)
+- Files must have exactly 16 color entries
+
+**Storage:** Custom palettes are saved to the [palettes directory](#file-system-structure-). Shipped palettes are bundled with the plugin as read-only defaults.
+
 ### CRT Effects 📺
 
 Recreate the authentic look and feel of classic CRT monitors and TVs with configurable visual effects that simulate the characteristics of vintage displays.
@@ -196,7 +245,7 @@ Recreate the authentic look and feel of classic CRT monitors and TVs with config
 - **[Amber Monitor](./docs/images/effects/amber-monitor.png)** - Warm amber tint reminiscent of early computer monitors
 - **[Green Monitor](./docs/images/effects/green-monitor.png)** - Classic green phosphor terminal look
 - **[Sharp Pixels](./docs/images/effects/sharp-pixels.png)** - Crisp pixel doubling for arcade-style clarity
-- **[Phosphor Glow](./docs/images/effects/phosphor-glow.png)** (since release 1.0.0) - Dramatic phosphor persistence trails with extended afterglow. The sample image here was taken from the automated E2E test which shows an afterglow for each moving diagonal line.
+- **[Phosphor Glow](./docs/images/effects/phosphor-glow.png)** (since version 1.0.0) - Dramatic phosphor persistence trails with extended afterglow. The sample image here was taken from the automated E2E test which shows an afterglow for each moving diagonal line.
 - **[Vintage TV](./docs/images/effects/vintage-tv.png)** - Softer look with prominent scan lines for old television feel
 - **[Arcade Cabinet](./docs/images/effects/arcade-cabinet.png)** - High-contrast effects for authentic arcade experience
 
@@ -283,10 +332,10 @@ The plugin offers three independent recording options that can be enabled separa
 
 #### File Organization
 
-All recording files are organized into session folders with timestamps:
+All recording files are organized into timestamped session folders in the [recordings directory](#file-system-structure-):
 
 ```text
-~/Documents/obs-studio/c64stream/recordings/
+recordings/
 ├── session_20240929_143052/
 │   ├── frames/           # BMP frame files (if "Raw Frames" enabled)
 │   ├── network.csv       # Network timings (if "CSV Events" enabled)
@@ -297,14 +346,7 @@ All recording files are organized into session folders with timestamps:
     └── ...
 ```
 
-#### Recording Configuration
-
-- **Output Folder Defaults:**
-  - **Windows:** `%USERPROFILE%\Documents\obs-studio\c64stream\recordings`
-  - **macOS:** `~/Documents/obs-studio/c64stream/recordings`
-  - **Linux:** `~/Documents/obs-studio/c64stream/recordings`
-- **Automatic Session Management:** New session folder created each time recording is enabled
-- **Cross-Platform Compatibility:** Works on Windows, macOS, and Linux
+**Session Management:** A new session folder is automatically created each time recording is enabled. The output folder can be changed in the plugin properties.
 
 #### Usage Notes
 
@@ -355,6 +397,77 @@ audio,2341,847,0,0,192,125
 **Sample Recording:** See [docs/recordings/session_19700101_024625](docs/recordings/session_19700101_024625) for complete examples with all file types.
 
 **Activation:** Enable the **"Network and Streaming Events (CSV)"** checkbox in the Recording properties. CSV files are generated only when this option is explicitly enabled.
+
+
+### Import/Export Configuration
+
+Save and restore your complete plugin settings:
+
+- **Export:** Click to save all current settings to a `.ini` file. Use this to backup configurations, share setups, or attach to bug reports
+- **Import:** Click to load settings from a previously exported `.ini` file. All current settings will be replaced
+
+Exported configurations are saved to the [exports directory](#file-system-structure-).
+
+### File System Structure 📁
+
+The plugin uses three distinct filesystem locations:
+
+### 1. Plugin
+
+This folder contains OBS plugin binary and loader files.
+
+OBS Studio searches for plugins in multiple locations. The installation location depends on how you installed the plugin:
+
+| Platform | Package Install (System-Wide) | User Install (Local Development) |
+|----------|-------------------------------|----------------------------------|
+| **Windows** | `C:\ProgramData\obs-studio\plugins\c64stream\` | N/A (uses system path) |
+| **macOS** | `/Library/Application Support/obs-studio/plugins/c64stream.plugin/` | `~/Library/Application Support/obs-studio/plugins/c64stream.plugin/` |
+| **Linux** | `/usr/lib/obs-plugins/c64stream.so` | `~/.config/obs-studio/plugins/c64stream/bin/64bit/c64stream.so` |
+
+### 2. Shipped Data
+
+This folder contains read-only defaults bundled with the plugin.
+
+OBS searches in this order:
+1. User plugin directory (if it exists)
+2. System plugin directory
+
+The data directory contains:
+- Effect presets (`effect_presets.ini`)
+- Palette presets (`palettes/*.vpl`)
+- Default network configuration (`properties.ini`)
+- Localization files (`locale/*.ini`)
+
+| Platform | Package Install (System-Wide) | User Install (Local Development) |
+|----------|-------------------------------|----------------------------------|
+| **Windows** | `C:\ProgramData\obs-studio\plugins\c64stream\data\` | N/A (uses system path) |
+| **macOS** | `/Library/Application Support/obs-studio/plugins/c64stream.plugin/Contents/Resources/` | `~/Library/Application Support/obs-studio/plugins/c64stream.plugin/Contents/Resources/` |
+| **Linux** | `/usr/share/obs/obs-plugins/c64stream/` | `~/.config/obs-studio/plugins/c64stream/data/` |
+
+> [!NOTE]
+> **Package Install** is for end users who install via `.deb` packages, `.pkg` installers, or `.zip` extraction to system directories.
+>
+> **User Install** is for local development using VSCode build tasks or `local-build.sh --install`. The E2E tests also use these user install paths.
+
+### 3. User Data
+
+This folder contains your custom content.
+
+For easy access, simple backups, and visibility, it is always stored in `<Documents>/obs-studio/c64stream/`, regardless of how you installed the plugin:
+
+```
+<Documents>/obs-studio/c64stream/
+├── exports/         # Exported configuration files (.ini)
+├── palettes/        # Custom palette files (.vpl)
+├── recordings/      # Recording session folders
+└── presets/         # Custom effect presets (future)
+```
+
+**Sample Locations:**
+
+- **Windows:** `%USERPROFILE%\Documents\obs-studio\c64stream\` (e.g., `C:\Users\YourName\Documents\obs-studio\c64stream\`)
+- **macOS:** `~/Documents/obs-studio/c64stream/` (e.g., `/Users/yourname/Documents/obs-studio/c64stream/`)
+- **Linux:** `~/Documents/obs-studio/c64stream/` (e.g., `/home/yourname/Documents/obs-studio/c64stream/`)
 
 ## End-to-end tests 🧪
 

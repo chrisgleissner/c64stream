@@ -17,6 +17,7 @@ from .audio import AudioAssertion
 from .base import AssertionResult, AssertionStatus, EffectAssertion
 from .config import PresetConfig
 from .frame_progression import FrameProgressionAssertion
+from .palette_mapping import PaletteMappingAssertion
 from .palette_stability import PaletteStabilityAssertion
 from .record_audio import RecordAudioAssertion
 from .record_frames import RecordFramesAssertion
@@ -126,6 +127,7 @@ def create_assertions_from_list(
         "audio": AudioAssertion,
         "tint": TintAssertion,
         "palette_stability": PaletteStabilityAssertion,
+        "palette_mapping": PaletteMappingAssertion,
         "afterglow": AfterglowAssertion,
         "afterglow_decay": AfterglowDecayAssertion,
         "afterglow_width": AfterglowWidthAssertion,

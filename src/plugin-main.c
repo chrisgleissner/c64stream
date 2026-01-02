@@ -24,6 +24,7 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #include "c64-source.h"
 #include "c64-version.h"
 #include "c64-presets.h"
+#include "c64-palette.h"
 
 // Logging control - define the global variable
 bool c64_debug_logging = true;
@@ -39,6 +40,11 @@ bool obs_module_load(void)
     // Initialize the presets system
     if (!c64_presets_init()) {
         C64_LOG_WARNING("Failed to load CRT effect presets - continuing without presets");
+    }
+
+    // Initialize the palette system
+    if (!c64_palette_init()) {
+        C64_LOG_WARNING("Failed to initialize palette system - using default palette");
     }
 
     struct obs_source_info c64_info = {.id = "c64_source",
@@ -65,6 +71,7 @@ bool obs_module_load(void)
 void obs_module_unload(void)
 {
     C64_LOG_INFO("Unloading C64 Stream plugin");
+    c64_palette_cleanup();
     c64_presets_cleanup();
     c64_cleanup_networking();
 }

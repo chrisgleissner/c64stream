@@ -11,8 +11,15 @@ See <https://www.gnu.org/licenses/> for details.
 #include <stdint.h>
 #include <stdbool.h>
 
-// VIC-II color palette (16 colors) in BGRA format for OBS
+// VIC-II color palette (16 colors) in BGRA format for OBS (default/reference)
 extern const uint32_t vic_colors[16];
+
+// Current active palette (used by LUT, modifiable by palette system)
+extern uint32_t c64_current_palette[16];
+
+// Color pair LUT (exported for palette system to rebuild)
+extern uint64_t c64_color_pair_lut[256];
+extern bool c64_color_lut_initialized;
 
 /**
  * @brief Initialize the color conversion lookup table
