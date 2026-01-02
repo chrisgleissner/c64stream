@@ -458,6 +458,7 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     os_atomic_set_long(&context->audio_packets_received, 0);
     os_atomic_set_long(&context->audio_bytes_received, 0);
     context->last_stats_log_time = os_gettime_ns();
+    context->last_audio_stats_log_time = context->last_stats_log_time;
     context->last_stats_tick_ns = context->last_stats_log_time;
 
     // Initialize render callback timeout system

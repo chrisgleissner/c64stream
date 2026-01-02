@@ -1017,6 +1017,11 @@ static bool palette_changed(obs_properties_t *props, obs_property_t *property, o
         if (!c64_palette_select(palette_id)) {
             return false;
         }
+
+        // CRITICAL: Save the palette selection to settings
+        // This ensures the selection persists when the properties dialog is reopened
+        // Without this, OBS reverts to the default value ("Default") because the user value was never set
+        obs_data_set_string(settings, C64_PALETTE_KEY, palette_id);
     }
 
     // Always update color picker values to reflect the palette

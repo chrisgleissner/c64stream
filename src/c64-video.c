@@ -878,7 +878,7 @@ void c64_process_audio_statistics_batch(struct c64_source *context, uint64_t cur
 {
     static const uint64_t STATS_INTERVAL_NS = 5000000000ULL;
 
-    uint64_t time_since_last_log = current_time - context->last_stats_log_time;
+    uint64_t time_since_last_log = current_time - context->last_audio_stats_log_time;
     if (time_since_last_log < STATS_INTERVAL_NS) {
         return;
     }
@@ -895,6 +895,9 @@ void c64_process_audio_statistics_batch(struct c64_source *context, uint64_t cur
         C64_LOG_INFO("" AUDIO_LOG_PREFIX " %.2f Mbps | %.0f pps | Packets: %llu", bandwidth_mbps, packets_per_second,
                      (unsigned long long)packets_received);
     }
+
+    // Update audio stats timestamp separately from video
+    context->last_audio_stats_log_time = current_time;
 }
 
 bool c64_try_add_packet_lockfree(struct frame_assembly *frame, uint16_t packet_index)

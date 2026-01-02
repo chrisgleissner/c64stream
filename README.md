@@ -353,17 +353,21 @@ Customize the VIC-II color palette to match different C64 hardware variants, per
 
 ![C64 Stream Palettes](./docs/images/properties-palettes.png "C64 Stream Palettes")
 
-**Shipped Palettes:** The plugin includes the following palettes:
+**Shipped Palettes:** The plugin includes the following preset palettes:
 
-- **Default (Preset)** - The standard VIC-II palette matching original C64 hardware
-- **Vibrant (Preset)** - Enhanced saturation for a more vivid retro look
-- **Muted (Preset)** - Softer, pastel-like colors for a subdued aesthetic
-- **Warm (Preset)** - Slightly orange-shifted tones reminiscent of aged monitors
-- **Cool (Preset)** - Blue-shifted palette for a modern retro feel
+- **Default** - Standard VIC-II colors matching original C64 hardware
+- **Cool** - Blue/cyan color temperature shift
+- **Inverted** - RGB color inversion (negative image)
+- **Monochrome** - Grayscale conversion
+- **Muted** - Reduced saturation with pastel-like tones
+- **Neon Blast** - Maximum saturation for high-intensity colors
+- **Night** - Red-shifted colors for comfortable late night viewing
+- **Vibrant** - Increased color saturation for enhanced visual impact
+- **Warm** - Amber/orange color temperature shift
 
 **Palette Controls:**
 
-- **Palette Dropdown:** Select from shipped palettes (marked with "(Preset)" suffix) or any custom palettes you've added
+- **Palette Dropdown:** Select from shipped palettes or any custom palettes you've added
 - **Import:** Imports a `.vpl` file
 - **Export:** Exports the currently active palette (with any color adjustments) to a `.vpl` file
 - **Color Editor:** Expand to access 16 color pickers (0-15) for editing individual VIC-II colors. Changes apply immediately to the video output
