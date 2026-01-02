@@ -1139,6 +1139,63 @@ bool c64_palette_auto_save(void)
     return true;
 }
 
+bool c64_palette_delete(const char *palette_id)
+{
+    if (!palette_id || !palette_id[0]) {
+        return false;
+    }
+
+    // Find the palette
+    int index = -1;
+    for (int i = 0; i < palette_system.palette_count; i++) {
+        if (strcmp(palette_system.palettes[i].id, palette_id) == 0) {
+            index = i;
+            break;
+        }
+    }
+
+    if (index < 0) {
+        C64_LOG_WARNING("Cannot delete palette: not found: %s", palette_id);
+        return false;
+    }
+
+    struct c64_palette_entry *entry = &palette_system.palettes[index];
+
+    // Cannot delete shipped palettes
+    if (entry->is_shipped) {
+        C64_LOG_WARNING("Cannot delete shipped palette: %s", palette_id);
+        return false;
+    }
+
+    // Delete the file
+    if (os_file_exists(entry->path)) {
+        if (os_unlink(entry->path) != 0) {
+            C64_LOG_WARNING("Failed to delete palette file: %s", entry->path);
+            return false;
+        }
+    }
+
+    // If this was the active palette, switch to Default
+    bool was_active = (palette_system.active_palette_index == index);
+    if (was_active) {
+        c64_palette_select("Default");
+    }
+
+    // Remove from array by shifting remaining entries
+    for (int i = index; i < palette_system.palette_count - 1; i++) {
+        palette_system.palettes[i] = palette_system.palettes[i + 1];
+    }
+    palette_system.palette_count--;
+
+    // Update active index if needed
+    if (palette_system.active_palette_index > index) {
+        palette_system.active_palette_index--;
+    }
+
+    C64_LOG_INFO("🗑️ Deleted custom palette: %s", palette_id);
+    return true;
+}
+
 static int palette_compare(const void *a, const void *b)
 {
     const struct c64_palette_entry *pa = (const struct c64_palette_entry *)a;

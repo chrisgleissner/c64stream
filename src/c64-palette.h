@@ -237,6 +237,17 @@ bool c64_palette_get_display_name(const char *palette_id, char *display_name, si
  */
 bool c64_palette_auto_save(void);
 
+/**
+ * @brief Delete a custom palette
+ *
+ * Removes the palette file and unregisters it from the system.
+ * Cannot delete shipped palettes.
+ *
+ * @param palette_id Palette identifier
+ * @return true if deletion succeeded, false if palette not found, is shipped, or delete failed
+ */
+bool c64_palette_delete(const char *palette_id);
+
 #ifdef __cplusplus
 }
 #endif

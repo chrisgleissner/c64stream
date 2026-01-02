@@ -39,7 +39,8 @@ static void trim_config_string(char *str);
 // Palette callbacks
 static bool palette_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings);
 static bool palette_import_clicked(obs_properties_t *props, obs_property_t *property, void *data);
-static bool palette_export_clicked(obs_properties_t *props, obs_property_t *property, void *data);
+static bool palette_export_path_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings);
+static bool palette_delete_clicked(obs_properties_t *props, obs_property_t *property, void *data);
 static bool palette_color_changed(void *data, obs_properties_t *props, obs_property_t *property, obs_data_t *settings);
 static void update_palette_color_properties(obs_data_t *settings);
 
@@ -197,11 +198,19 @@ obs_properties_t *c64_create_properties(void *data)
     c64_palette_populate_list(palette_prop);
     obs_property_set_modified_callback(palette_prop, palette_changed);
 
-    // Import and Export buttons
+    // Palette action buttons and path
     obs_properties_add_button2(palette_props, "palette_import", obs_module_text("PaletteImport"),
                                palette_import_clicked, data);
-    obs_properties_add_button2(palette_props, "palette_export", obs_module_text("PaletteExport"),
-                               palette_export_clicked, data);
+
+    obs_property_t *export_path = obs_properties_add_path(palette_props, "palette_export_path",
+                                                          obs_module_text("PaletteExport"), OBS_PATH_FILE_SAVE,
+                                                          "VPL Palette Files (*.vpl);;All Files (*.*)", NULL);
+    obs_property_set_modified_callback(export_path, palette_export_path_changed);
+
+    obs_property_t *delete_btn = obs_properties_add_button2(
+        palette_props, "palette_delete", obs_module_text("PaletteDelete"), palette_delete_clicked, data);
+    // Disable delete button initially (enabled only when custom palette is selected)
+    obs_property_set_enabled(delete_btn, false);
 
     // Collapsible Color Editor group
     obs_property_t *color_editor_group = obs_properties_add_group(palette_props, "color_editor_group",
@@ -862,10 +871,17 @@ static bool palette_changed(obs_properties_t *props, obs_property_t *property, o
         obs_property_set_long_description(property, obs_module_text("PaletteSelection.Description"));
     }
 
+    // Enable/disable delete button based on whether selected palette is custom
+    obs_property_t *delete_btn = obs_properties_get(props, "palette_delete");
+    if (delete_btn) {
+        bool is_custom = !c64_palette_is_preset(palette_id);
+        obs_property_set_enabled(delete_btn, is_custom);
+    }
+
     // Don't re-select if already active
     const char *current = c64_palette_get_active_id();
     if (current && strcmp(current, palette_id) == 0) {
-        return true; // Refresh UI to show updated description
+        return true; // Refresh UI to show updated description and button visibility
     }
 
     if (c64_palette_select(palette_id)) {
@@ -899,7 +915,59 @@ static bool palette_import_clicked(obs_properties_t *props, obs_property_t *prop
     return true; // Refresh UI
 }
 
-static bool palette_export_clicked(obs_properties_t *props, obs_property_t *property, void *data)
+static bool palette_export_path_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings)
+{
+    UNUSED_PARAMETER(props);
+    UNUSED_PARAMETER(property);
+
+    if (!settings) {
+        return false;
+    }
+
+    const char *path = obs_data_get_string(settings, "palette_export_path");
+    if (!path || !path[0]) {
+        return false;
+    }
+
+    // Extract name from filename
+    char name[64];
+    const char *filename = strrchr(path, '/');
+#ifdef _WIN32
+    const char *backslash = strrchr(path, '\\');
+    if (backslash && (!filename || backslash > filename)) {
+        filename = backslash;
+    }
+#endif
+    if (filename) {
+        filename++;
+    } else {
+        filename = path;
+    }
+    strncpy(name, filename, sizeof(name) - 1);
+    name[sizeof(name) - 1] = '\0';
+
+    // Remove .vpl extension if present
+    char *ext = strrchr(name, '.');
+    if (ext && strcasecmp(ext, ".vpl") == 0) {
+        *ext = '\0';
+    }
+
+    // Save current working palette to the specified path
+    bool ok = c64_palette_save_as(name, path);
+
+    if (ok) {
+        C64_LOG_INFO("Palette exported to: %s", path);
+    } else {
+        C64_LOG_WARNING("Failed to export palette to: %s", path);
+    }
+
+    // Clear the path field after export
+    obs_data_set_string(settings, "palette_export_path", "");
+
+    return false; // No UI refresh needed
+}
+
+static bool palette_delete_clicked(obs_properties_t *props, obs_property_t *property, void *data)
 {
     UNUSED_PARAMETER(property);
 
@@ -908,54 +976,43 @@ static bool palette_export_clicked(obs_properties_t *props, obs_property_t *prop
         return false;
     }
 
-    // Export saves the current working palette to the user palette directory
-    // with a timestamped filename
-    char palette_dir[512];
-    if (!c64_palette_get_user_dir(palette_dir, sizeof(palette_dir))) {
-        C64_LOG_WARNING("Palette export: cannot determine user palette directory");
+    obs_data_t *settings = obs_source_get_settings(context->source);
+    if (!settings) {
         return false;
     }
 
-    // Generate timestamped filename
-    time_t now = time(NULL);
-    struct tm *tm_info = localtime(&now);
-    char timestamp[32];
-    strftime(timestamp, sizeof(timestamp), "%Y%m%d_%H%M%S", tm_info);
+    const char *palette_id = obs_data_get_string(settings, C64_PALETTE_KEY);
+    if (!palette_id || !palette_id[0]) {
+        obs_data_release(settings);
+        return false;
+    }
 
-    char path[600];
-    snprintf(path, sizeof(path), "%s%c%s_%s.vpl", palette_dir,
-#ifdef _WIN32
-             '\\',
-#else
-             '/',
-#endif
-             "ExportedPalette", timestamp);
+    // Cannot delete presets
+    if (c64_palette_is_preset(palette_id)) {
+        C64_LOG_WARNING("Cannot delete preset palette: %s", palette_id);
+        obs_data_release(settings);
+        return false;
+    }
 
-    char name[64];
-    snprintf(name, sizeof(name), "ExportedPalette_%s", timestamp);
-
-    bool ok = c64_palette_save_as(name, path);
+    // Delete the palette
+    bool ok = c64_palette_delete(palette_id);
 
     if (ok) {
-        C64_LOG_INFO("Palette exported to: %s", path);
+        // Switch to Default palette
+        obs_data_set_string(settings, C64_PALETTE_KEY, "Default");
+        obs_source_update(context->source, settings);
 
-        obs_data_t *settings = obs_source_get_settings(context->source);
-        if (settings) {
-            // Update palette dropdown selection
-            obs_data_set_string(settings, C64_PALETTE_KEY, c64_palette_get_active_id());
-            obs_source_update(context->source, settings);
-            obs_data_release(settings);
-        }
-
-        // Repopulate the palette dropdown to include the exported palette
+        // Repopulate the palette dropdown
         obs_property_t *palette_prop = obs_properties_get(props, C64_PALETTE_KEY);
         if (palette_prop) {
             c64_palette_populate_list(palette_prop);
         }
-    } else {
-        C64_LOG_WARNING("Failed to export palette to: %s", path);
+
+        // Update color pickers
+        update_palette_color_properties(settings);
     }
 
+    obs_data_release(settings);
     return true; // Refresh UI
 }
 
