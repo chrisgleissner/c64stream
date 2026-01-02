@@ -212,7 +212,7 @@ The data directory contains:
 
 **3. User Data** - Your custom content (editable, portable, backup-friendly)
 
-User data is always stored in your Documents folder, regardless of how you installed the plugin:
+User data is always stored in `<Documents>/obs-studio/c64stream/`, regardless of how you installed the plugin:
 
 ```
 <Documents>/obs-studio/c64stream/
@@ -222,11 +222,11 @@ User data is always stored in your Documents folder, regardless of how you insta
 └── presets/         # Custom effect presets (future)
 ```
 
-| Platform | Documents Folder | Full Path Example |
-|----------|------------------|-------------------|
-| **Windows**  | `%USERPROFILE%\Documents` | `C:\Users\YourName\Documents\obs-studio\c64stream\` |
-| **macOS**    | `~/Documents` | `/Users/yourname/Documents/obs-studio\c64stream/` |
-| **Linux**    | `~/Documents` | `/home/yourname/Documents/obs-studio/c64stream/` |
+**Platform-Specific Paths:**
+
+- **Windows:** `%USERPROFILE%\Documents\obs-studio\c64stream\` (e.g., `C:\Users\YourName\Documents\obs-studio\c64stream\`)
+- **macOS:** `~/Documents/obs-studio/c64stream/` (e.g., `/Users/yourname/Documents/obs-studio/c64stream/`)
+- **Linux:** `~/Documents/obs-studio/c64stream/` (e.g., `/home/yourname/Documents/obs-studio/c64stream/`)
 
 **Why Documents folder?** User content lives in Documents for easy access, simple backups, and visibility - unlike hidden OBS config directories. This makes it straightforward to share palettes, preserve recordings, or migrate your setup to another system.
 
