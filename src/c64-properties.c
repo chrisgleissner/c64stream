@@ -377,14 +377,18 @@ static void c64_default_export_ini_path(char *path, size_t path_size)
         // Need: dir + "/" + "c64stream_" + timestamp + ".ini" + null = dir + 26 + ts_len
         if (dir_len + 27 + ts_len < path_size) {
             // Suppress truncation warning - we've manually validated the length above
+#if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-truncation"
+#endif
 #ifdef _WIN32
             snprintf(path, path_size, "%s\\c64stream_%s.ini", exports_dir, timestamp);
 #else
             snprintf(path, path_size, "%s/c64stream_%s.ini", exports_dir, timestamp);
 #endif
+#if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic pop
+#endif
             return;
         }
     }
