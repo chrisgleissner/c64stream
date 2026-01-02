@@ -39,7 +39,7 @@ static bool import_config_clicked(obs_properties_t *props, obs_property_t *prope
 static void trim_config_string(char *str);
 
 // Palette callbacks
-static bool palette_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings);
+static bool palette_changed(void *priv, obs_properties_t *props, obs_property_t *property, obs_data_t *settings);
 static bool palette_import_path_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings);
 static bool palette_export_path_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings);
 static bool palette_delete_clicked(obs_properties_t *props, obs_property_t *property, void *data);
@@ -318,12 +318,12 @@ obs_properties_t *c64_create_properties(void *data)
     // This ensures the correct palette is loaded before OBS can fire callbacks with stale data
     // Without this, OBS may call palette_changed with the old palette name from settings,
     // triggering auto-save and recreating deleted palettes
-    palette_changed(palette_props, palette_prop, palette_settings);
+    palette_changed(context, palette_props, palette_prop, palette_settings);
 
     obs_data_release(palette_settings);
 
     c64_palette_populate_list(palette_prop);
-    obs_property_set_modified_callback(palette_prop, palette_changed);
+    obs_property_set_modified_callback2(palette_prop, palette_changed, context); // Pass source context for persistence
 
     // Import path field (opens file dialog)
     obs_property_t *import_path = obs_properties_add_path(palette_props, "palette_import_path",
@@ -992,9 +992,10 @@ static void update_palette_color_properties(obs_data_t *settings)
     }
 }
 
-static bool palette_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings)
+static bool palette_changed(void *priv, obs_properties_t *props, obs_property_t *property, obs_data_t *settings)
 {
     UNUSED_PARAMETER(props);
+    struct c64_source *context = (struct c64_source *)priv;
 
     if (!settings) {
         return false;
@@ -1029,10 +1030,15 @@ static bool palette_changed(obs_properties_t *props, obs_property_t *property, o
             return false;
         }
 
-        // CRITICAL: Save the palette selection to settings
-        // This ensures the selection persists when the properties dialog is reopened
-        // Without this, OBS reverts to the default value ("Default") because the user value was never set
+        // CRITICAL: Save the palette selection to settings AND persist to disk
+        // This ensures the selection persists across OBS restarts
         obs_data_set_string(settings, C64_PALETTE_KEY, palette_id);
+
+        // Persist settings using passed-in source context
+        if (context && context->source) {
+            obs_source_update(context->source, settings);
+            obs_source_save(context->source);
+        }
     }
 
     // Always update color picker values to reflect the palette
