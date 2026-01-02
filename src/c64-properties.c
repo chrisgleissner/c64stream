@@ -1107,6 +1107,9 @@ static bool palette_color_changed(void *data, obs_properties_t *props, obs_prope
 
     c64_palette_set_working_color(index, bgra);
 
+    // Auto-save if this is a custom palette (creates copy if preset)
+    c64_palette_auto_save();
+
     UNUSED_PARAMETER(data);
     return false; // No UI refresh needed, LUT rebuild happens in set_working_color
 }
