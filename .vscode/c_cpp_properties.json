@@ -27,6 +27,7 @@
             "name": "Linux",
             "includePath": [
                 "${workspaceFolder}/**",
+                "${workspaceFolder}/build_x86_64/generated",
                 "/usr/include/obs",
                 "/usr/include/obs/graphics",
                 "/usr/include/obs/media-io",

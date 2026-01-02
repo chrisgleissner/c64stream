@@ -17,7 +17,10 @@ extern const uint32_t vic_colors[16];
 // Current active palette (used by LUT, modifiable by palette system)
 extern uint32_t c64_current_palette[16];
 
-// Color pair LUT (exported for palette system to rebuild)
+// Pre-computed lookup table for pixel pairs
+// Individual uint64_t writes are atomic on x86_64 (naturally 8-byte aligned)
+// Lock-free: palette updates write directly, rendering reads directly
+// Worst case: single frame sees partial old/new palette during update
 extern uint64_t c64_color_pair_lut[256];
 extern bool c64_color_lut_initialized;
 

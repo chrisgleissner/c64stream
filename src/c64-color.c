@@ -24,7 +24,9 @@ const uint32_t vic_colors[16] = {c64_default_palette[0],  c64_default_palette[1]
 // Current active palette (initialized to default, updated by palette system)
 uint32_t c64_current_palette[16];
 
-// Pre-computed lookup table for pixel pairs (exported for palette system)
+// Pre-computed lookup table for pixel pairs
+// 64-bit writes to individual entries are atomic on x86_64 (8-byte aligned)
+// No locks needed: palette writes directly, rendering reads directly
 uint64_t c64_color_pair_lut[256];
 bool c64_color_lut_initialized = false;
 
@@ -64,6 +66,7 @@ void c64_convert_pixels_optimized(const uint8_t *src, uint32_t *dst, int pixel_p
     // Process pixel pairs using optimized lookup table
     // Each src byte contains 2 pixels (4 bits each)
     // Each dst position gets 2 consecutive 32-bit RGBA values
+    // LUT reads are lock-free: 64-bit reads are atomic on x86_64
 
     int i = 0;
 
