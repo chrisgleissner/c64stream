@@ -252,6 +252,12 @@ obs_properties_t *c64_create_properties(void *data)
     obs_source_update(context->source, palette_settings);
     obs_source_save(context->source);
 
+    // CRITICAL: Manually trigger palette_changed with validated settings BEFORE setting the callback
+    // This ensures the correct palette is loaded before OBS can fire callbacks with stale data
+    // Without this, OBS may call palette_changed with the old palette name from settings,
+    // triggering auto-save and recreating deleted palettes
+    palette_changed(palette_props, palette_prop, palette_settings);
+
     obs_data_release(palette_settings);
 
     c64_palette_populate_list(palette_prop);
