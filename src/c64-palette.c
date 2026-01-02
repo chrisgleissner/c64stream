@@ -56,8 +56,7 @@ static const uint32_t default_palette_colors[C64_PALETTE_COLORS] = {
 
 // Forward declarations
 static void discover_shipped_palettes(void);
-static void load_palette_ini(void);
-static void save_palette_ini(void);
+static void discover_custom_palettes(void);
 static bool add_palette_entry(const char *id, const char *name, const char *path, bool is_shipped);
 static void sort_palettes(void);
 static char *trim_whitespace(char *str);
@@ -468,9 +467,6 @@ bool c64_palette_save_as(const char *name, const char *path)
         palette_system.palettes[new_index].colors_loaded = true;
     }
 
-    // Save palette INI
-    save_palette_ini();
-
     // Sort and select the new palette
     sort_palettes();
     c64_palette_select(id);
@@ -573,8 +569,7 @@ bool c64_palette_load_from_file(const char *path)
         palette_system.palettes[new_index].colors_loaded = true;
     }
 
-    // Save palette INI and sort
-    save_palette_ini();
+    // Sort palettes
     sort_palettes();
 
     // Select the loaded palette
@@ -1015,101 +1010,122 @@ static void discover_shipped_palettes(void)
     bfree(palettes_path);
 }
 
-static void load_palette_ini(void)
+static void discover_custom_palettes(void)
 {
-    FILE *file = fopen(palette_system.palette_ini_path, "r");
-    if (!file) {
-        // No INI file yet, that's fine
+    if (!palette_system.user_palette_dir[0]) {
         return;
     }
 
-    C64_LOG_INFO("Loading user palettes from: %s", palette_system.palette_ini_path);
+    C64_LOG_INFO("Discovering custom palettes from: %s", palette_system.user_palette_dir);
 
-    char line[1024];
-    while (fgets(line, sizeof(line), file)) {
-        // Remove trailing newline
-        size_t len = strlen(line);
-        while (len > 0 && (line[len - 1] == '\n' || line[len - 1] == '\r')) {
-            line[--len] = '\0';
-        }
+#ifdef _WIN32
+    char search_path[C64_PALETTE_PATH_MAX];
+    snprintf(search_path, sizeof(search_path), "%s\\*.vpl", palette_system.user_palette_dir);
 
-        // Skip comments and empty lines
-        char *trimmed = trim_whitespace(line);
-        if (!trimmed || !*trimmed || *trimmed == '#' || *trimmed == ';') {
-            continue;
-        }
+    WIN32_FIND_DATAA find_data;
+    HANDLE find_handle = FindFirstFileA(search_path, &find_data);
+    if (find_handle != INVALID_HANDLE_VALUE) {
+        do {
+            if (!(find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
+                char full_path[C64_PALETTE_PATH_MAX];
+                snprintf(full_path, sizeof(full_path), "%s\\%s", palette_system.user_palette_dir,
+                         find_data.cFileName);
 
-        // Skip section headers
-        if (*trimmed == '[') {
-            continue;
-        }
+                char id[C64_PALETTE_NAME_MAX];
+                strncpy(id, find_data.cFileName, sizeof(id) - 1);
+                id[sizeof(id) - 1] = '\0';
+                char *ext = strrchr(id, '.');
+                if (ext)
+                    *ext = '\0';
 
-        // Parse id=path format
-        char *equals = strchr(trimmed, '=');
-        if (!equals) {
-            continue;
-        }
-
-        *equals = '\0';
-        char *id = trim_whitespace(trimmed);
-        char *path = trim_whitespace(equals + 1);
-
-        if (!id || !*id || !path || !*path) {
-            continue;
-        }
-
-        // Check if palette already exists
-        bool found = false;
-        for (int i = 0; i < palette_system.palette_count; i++) {
-            if (strcmp(palette_system.palettes[i].id, id) == 0) {
-                found = true;
-                break;
-            }
-        }
-
-        if (!found) {
-            // Try to get display name from file
-            char name[C64_PALETTE_NAME_MAX];
-            char desc[256];
-            uint32_t temp_colors[C64_PALETTE_COLORS];
-            if (c64_palette_parse_vpl(path, temp_colors, name, sizeof(name), desc, sizeof(desc))) {
-                if (!name[0]) {
-                    strncpy(name, id, sizeof(name) - 1);
+                // Check if already exists (avoid duplicates)
+                bool found = false;
+                for (int i = 0; i < palette_system.palette_count; i++) {
+                    if (strcmp(palette_system.palettes[i].id, id) == 0) {
+                        found = true;
+                        break;
+                    }
                 }
-                add_palette_entry(id, name, path, false);
-                // Store description if we got one
-                if (desc[0] && palette_system.palette_count > 0) {
-                    int idx = palette_system.palette_count - 1;
-                    strncpy(palette_system.palettes[idx].desc, desc, sizeof(palette_system.palettes[idx].desc) - 1);
-                    palette_system.palettes[idx].desc[sizeof(palette_system.palettes[idx].desc) - 1] = '\0';
+
+                if (!found) {
+                    char name[C64_PALETTE_NAME_MAX];
+                    char desc[256];
+                    uint32_t temp_colors[C64_PALETTE_COLORS];
+                    if (c64_palette_parse_vpl(full_path, temp_colors, name, sizeof(name), desc, sizeof(desc))) {
+                        if (!name[0]) {
+                            strncpy(name, id, sizeof(name) - 1);
+                        }
+                        add_palette_entry(id, name, full_path, false);
+                        if (desc[0] && palette_system.palette_count > 0) {
+                            int idx = palette_system.palette_count - 1;
+                            strncpy(palette_system.palettes[idx].desc, desc,
+                                    sizeof(palette_system.palettes[idx].desc) - 1);
+                            palette_system.palettes[idx].desc[sizeof(palette_system.palettes[idx].desc) - 1] = '\0';
+                        }
+                    }
                 }
             }
-        }
+        } while (FindNextFileA(find_handle, &find_data));
+        FindClose(find_handle);
     }
-
-    fclose(file);
-}
-
-static void save_palette_ini(void)
-{
-    FILE *file = fopen(palette_system.palette_ini_path, "w");
-    if (!file) {
-        C64_LOG_WARNING("Failed to save palette INI: %s", palette_system.palette_ini_path);
+#else
+    DIR *dir = opendir(palette_system.user_palette_dir);
+    if (!dir) {
         return;
     }
 
-    fprintf(file, "# C64 Stream User Palettes\n");
-    fprintf(file, "# Format: palette_id=path_to_vpl_file\n\n");
-    fprintf(file, "[palettes]\n");
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != NULL) {
+        if (entry->d_type == DT_REG || entry->d_type == DT_UNKNOWN) {
+            const char *ext = strrchr(entry->d_name, '.');
+            if (ext && strcasecmp(ext, ".vpl") == 0) {
+                char full_path[C64_PALETTE_PATH_MAX];
+                int path_len =
+                    snprintf(full_path, sizeof(full_path), "%s/%s", palette_system.user_palette_dir, entry->d_name);
+                if (path_len < 0 || (size_t)path_len >= sizeof(full_path)) {
+                    C64_LOG_WARNING("Palette path too long, skipping: %s", entry->d_name);
+                    continue;
+                }
 
-    for (int i = 0; i < palette_system.palette_count; i++) {
-        // Only save user palettes (not shipped)
-        if (!palette_system.palettes[i].is_shipped && palette_system.palettes[i].path[0]) {
-            fprintf(file, "%s=%s\n", palette_system.palettes[i].id, palette_system.palettes[i].path);
+                char id[C64_PALETTE_NAME_MAX];
+                strncpy(id, entry->d_name, sizeof(id) - 1);
+                id[sizeof(id) - 1] = '\0';
+                char *dot = strrchr(id, '.');
+                if (dot)
+                    *dot = '\0';
+
+                // Check if already exists (avoid duplicates)
+                bool found = false;
+                for (int i = 0; i < palette_system.palette_count; i++) {
+                    if (strcmp(palette_system.palettes[i].id, id) == 0) {
+                        found = true;
+                        break;
+                    }
+                }
+
+                if (!found) {
+                    char name[C64_PALETTE_NAME_MAX];
+                    char desc[256];
+                    uint32_t temp_colors[C64_PALETTE_COLORS];
+                    if (c64_palette_parse_vpl(full_path, temp_colors, name, sizeof(name), desc, sizeof(desc))) {
+                        if (!name[0]) {
+                            strncpy(name, id, sizeof(name) - 1);
+                        }
+                        add_palette_entry(id, name, full_path, false);
+                        if (desc[0] && palette_system.palette_count > 0) {
+                            int idx = palette_system.palette_count - 1;
+                            strncpy(palette_system.palettes[idx].desc, desc,
+                                    sizeof(palette_system.palettes[idx].desc) - 1);
+                            palette_system.palettes[idx].desc[sizeof(palette_system.palettes[idx].desc) - 1] = '\0';
+                        }
+                    }
+                }
+            }
         }
     }
 
-    fclose(file);
+    closedir(dir);
+#endif
 }
 
 static bool add_palette_entry(const char *id, const char *name, const char *path, bool is_shipped)
@@ -1301,9 +1317,6 @@ bool c64_palette_delete(const char *palette_id)
     if (palette_system.active_palette_index > index) {
         palette_system.active_palette_index--;
     }
-
-    // Update palettes.ini to remove the deleted palette reference
-    save_palette_ini();
 
     C64_LOG_INFO("🗑️ Deleted custom palette: %s", palette_id);
     return true;
