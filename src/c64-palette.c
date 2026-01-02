@@ -76,13 +76,6 @@ bool c64_palette_init(void)
         C64_LOG_WARNING("Failed to set up user palette directory");
     }
 
-    // Set up palette INI path
-    int ini_len = snprintf(palette_system.palette_ini_path, sizeof(palette_system.palette_ini_path), "%s%cpalettes.ini",
-                           palette_system.user_palette_dir, PATH_SEP);
-    if (ini_len < 0 || (size_t)ini_len >= sizeof(palette_system.palette_ini_path)) {
-        C64_LOG_WARNING("Palette INI path too long, truncated");
-    }
-
     // Add Default palette first (always present, uses hardcoded colors)
     memcpy(palette_system.palettes[0].colors, default_palette_colors, sizeof(default_palette_colors));
     strncpy(palette_system.palettes[0].id, "Default", sizeof(palette_system.palettes[0].id) - 1);
@@ -92,11 +85,11 @@ bool c64_palette_init(void)
     palette_system.palettes[0].colors_loaded = true;
     palette_system.palette_count = 1;
 
-    // Discover shipped palettes
+    // Discover shipped palettes from data/palettes/
     discover_shipped_palettes();
 
-    // Load user palette references from INI
-    load_palette_ini();
+    // Discover custom palettes from user directory
+    discover_custom_palettes();
 
     // Sort palettes (Default first, then alphabetically)
     sort_palettes();
@@ -184,11 +177,12 @@ void c64_palette_validate_filesystem(obs_data_t *settings)
         }
     }
 
-    // Save updated INI if we removed any entries
+    // Rediscover custom palettes if we removed any entries to resync with filesystem
     if (removed_count > 0) {
-        C64_LOG_WARNING("Removed %d stale palette reference%s from palette list, updating palettes.ini", removed_count,
+        C64_LOG_WARNING("Removed %d stale palette reference%s from palette list", removed_count,
                         removed_count == 1 ? "" : "s");
-        save_palette_ini();
+        discover_custom_palettes();
+        sort_palettes();
     }
 
     // If the active palette is missing, fall back to Default
