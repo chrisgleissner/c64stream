@@ -181,8 +181,8 @@ The plugin uses three distinct filesystem locations:
 
 OBS Studio searches for plugins in multiple locations. The installation location depends on how you installed the plugin:
 
-| Platform | Package Install (System-Wide) | User/Development Install |
-|----------|-------------------------------|-------------------------|
+| Platform | Package Install (System-Wide) | User Install (Local Development) |
+|----------|-------------------------------|----------------------------------|
 | **Windows** | `C:\ProgramData\obs-studio\plugins\c64stream\` | N/A (uses system path) |
 | **macOS** | `/Library/Application Support/obs-studio/plugins/c64stream.plugin/` | `~/Library/Application Support/obs-studio/plugins/c64stream.plugin/` |
 | **Linux** | `/usr/lib/obs-plugins/c64stream.so` | `~/.config/obs-studio/plugins/c64stream/bin/64bit/c64stream.so` |
@@ -199,18 +199,20 @@ The data directory contains:
 - Default network configuration (`properties.ini`)
 - Localization files (`locale/*.ini`)
 
-| Platform | Package Install (System-Wide) | User/Development Install |
-|----------|-------------------------------|-------------------------|
+| Platform | Package Install (System-Wide) | User Install (Local Development) |
+|----------|-------------------------------|----------------------------------|
 | **Windows** | `C:\ProgramData\obs-studio\plugins\c64stream\data\` | N/A (uses system path) |
 | **macOS** | `/Library/Application Support/obs-studio/plugins/c64stream.plugin/Contents/Resources/` | `~/Library/Application Support/obs-studio/plugins/c64stream.plugin/Contents/Resources/` |
 | **Linux** | `/usr/share/obs/obs-plugins/c64stream/` | `~/.config/obs-studio/plugins/c64stream/data/` |
 
 > [!NOTE]
-> **For end users:** You'll use the package install paths shown above (left column).
-> 
-> **For developers:** When using the VSCode build tasks or `local-build.sh --install`, the plugin installs to the user paths (right column). The E2E tests also use these user paths.
+> **Package Install** is for end users who install via `.deb` packages, `.pkg` installers, or `.zip` extraction to system directories.
+>
+> **User Install** is for local development using VSCode build tasks or `local-build.sh --install`. The E2E tests also use these user install paths.
 
 **3. User Data** - Your custom content (editable, portable, backup-friendly)
+
+User data is always stored in your Documents folder, regardless of how you installed the plugin:
 
 ```
 <Documents>/obs-studio/c64stream/
@@ -222,9 +224,9 @@ The data directory contains:
 
 | Platform | Documents Folder | Full Path Example |
 |----------|------------------|-------------------|
-| Windows  | `%USERPROFILE%\Documents` | `C:\Users\YourName\Documents\obs-studio\c64stream\` |
-| macOS    | `~/Documents` | `/Users/yourname/Documents/obs-studio/c64stream/` |
-| Linux    | `~/Documents` | `/home/yourname/Documents/obs-studio/c64stream/` |
+| **Windows**  | `%USERPROFILE%\Documents` | `C:\Users\YourName\Documents\obs-studio\c64stream\` |
+| **macOS**    | `~/Documents` | `/Users/yourname/Documents/obs-studio\c64stream/` |
+| **Linux**    | `~/Documents` | `/home/yourname/Documents/obs-studio/c64stream/` |
 
 **Why Documents folder?** User content lives in Documents for easy access, simple backups, and visibility - unlike hidden OBS config directories. This makes it straightforward to share palettes, preserve recordings, or migrate your setup to another system.
 
