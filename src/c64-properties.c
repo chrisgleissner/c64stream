@@ -181,6 +181,25 @@ obs_properties_t *c64_create_properties(void *data)
                                                              OBS_GROUP_NORMAL, obs_properties_create());
     obs_properties_t *palette_props = obs_property_group_content(palette_group);
 
+    // Get settings to prefill path fields
+    obs_data_t *settings = obs_source_get_settings(context->source);
+
+    // Prefill import/export paths with palette directory if not already set
+    char palette_dir[512];
+    if (c64_palette_get_user_dir(palette_dir, sizeof(palette_dir))) {
+        const char *current_import = obs_data_get_string(settings, "palette_import_path");
+        const char *current_export = obs_data_get_string(settings, "palette_export_path");
+
+        // Only set if empty (preserves user's last selection)
+        if (!current_import || !current_import[0]) {
+            obs_data_set_string(settings, "palette_import_path", palette_dir);
+        }
+        if (!current_export || !current_export[0]) {
+            obs_data_set_string(settings, "palette_export_path", palette_dir);
+        }
+    }
+    obs_data_release(settings);
+
     // Palette dropdown
     obs_property_t *palette_prop = obs_properties_add_list(palette_props, C64_PALETTE_KEY,
                                                            obs_module_text("PaletteSelection"), OBS_COMBO_TYPE_LIST,
