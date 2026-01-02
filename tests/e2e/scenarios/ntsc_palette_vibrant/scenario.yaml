@@ -2,7 +2,7 @@ name: NTSC Vibrant Palette
 format: NTSC
 preset: Default
 overrides:
-  palette: Vibrant
+  palette: vibrant
 assertions:
   - video_quality
   - audio

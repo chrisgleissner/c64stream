@@ -2,7 +2,7 @@ name: NTSC Muted Palette
 format: NTSC
 preset: Default
 overrides:
-  palette: Muted
+  palette: muted
 assertions:
   - video_quality
   - audio
