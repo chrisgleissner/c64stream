@@ -830,10 +830,12 @@ bool c64_palette_write_vpl(const char *path, const uint32_t *colors, const char 
     fprintf(file, "# Red Green Blue\n");
     fprintf(file, "#\n");
     fprintf(file, "# TYPE:VICII\n");
-    fprintf(file, "# NAME:%s\n", camel_name);
-    if (name && name[0] && strcmp(name, camel_name) != 0) {
-        fprintf(file, "# DESC:%s\n", name);
-    }
+    // KEY LESSON: Always use the provided name parameter for both NAME and DESC to preserve special
+    // characters (parentheses, etc). Only fall back to filename-derived camel_name when no explicit
+    // name is provided. This ensures "Muted (Custom)" stays intact rather than becoming "Muted Custom".
+    const char *display_name = (name && name[0]) ? name : camel_name;
+    fprintf(file, "# NAME:%s\n", display_name);
+    fprintf(file, "# DESC:%s\n", display_name);
     fprintf(file, "\n");
 
     // Standard C64 color names (in order 0-15)

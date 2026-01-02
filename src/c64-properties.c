@@ -858,14 +858,11 @@ void c64_set_property_defaults(obs_data_t *settings)
 
     // Palette defaults
     obs_data_set_default_string(settings, C64_PALETTE_KEY, "Default");
-    // Set default import/export paths to user palette directory
-    {
-        char palette_dir[512];
-        if (c64_get_user_dir(C64_USER_DIR_PALETTES, palette_dir, sizeof(palette_dir))) {
-            obs_data_set_default_string(settings, "palette_import_path", palette_dir);
-            obs_data_set_default_string(settings, "palette_export_path", palette_dir);
-        }
-    }
+    // NOTE: Do NOT set default values for palette_import_path or palette_export_path.
+    // Setting defaults triggers the modified callbacks (palette_import_path_changed, palette_export_path_changed),
+    // which automatically creates unwanted VPL files (e.g., "palettes.vpl" from directory name "palettes").
+    // Users should explicitly choose paths when they want to import/export.
+
     // Initialize palette color properties from the current working palette
     update_palette_color_properties(settings);
 
