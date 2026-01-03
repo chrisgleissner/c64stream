@@ -568,7 +568,10 @@ run_tests() {
         log_info "Running Python unit tests..."
         python3 -m unittest \
             tests/e2e/test_network_simulation.py \
-            tests/e2e/test_network_timing_validation.py
+            tests/e2e/test_network_timing_validation.py \
+            tests/e2e/test_keymap.py \
+            tests/e2e/test_keystroke_injection.py \
+            tests/e2e/test_rest_control_e2e.py
     else
         log_warning "python3 not found; skipping Python unit tests"
     fi

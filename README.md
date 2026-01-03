@@ -401,6 +401,56 @@ Import and export your complete plugin settings:
 
 Exported configurations are saved to the [settings directory](#file-system-structure-).
 
+### Remote Control 🎮
+
+Control your Ultimate 64 remotely from within OBS Studio, enabling keyboard input capture, automated content playback, and programmatic control via REST API.
+
+![C64 Stream Remote Control](./docs/images/properties-remote-control.png "C64 Stream Remote Control")
+
+**Features:**
+
+- **Keyboard Capture:** Type directly into the C64 from OBS preview window with intelligent backpressure handling
+- **Automated Playback:** Unattended playback of SID music, PRG programs, and D64 disk images with shuffle support
+- **REST API Control:** Programmatic access to C64 Ultimate functions (reset, memory access, file mounting)
+
+**Configuration:**
+
+- **REST Base URL:** Ultimate 64 REST API endpoint (e.g., `http://c64u/v1`). Leave empty to disable remote control
+- **Password:** REST API password for X-Password header authentication. Leave empty if authentication is disabled
+- **Enable Keyboard Capture:** Captures keyboard input from OBS preview window and injects keystrokes into C64. Press ESC to disable capture
+- **Keymap:** Select keyboard mapping for converting PC keystrokes to C64 PETSCII codes
+  - **Symbolic keymaps:** Match key labels (e.g., PC Q → C64 Q)
+  - **Positional keymaps:** Match physical locations (e.g., PC Q → C64 Q on QWERTY, but C64 A on AZERTY)
+  - Supports built-in and custom user keymaps (`.c64keymap.ini` format)
+- **Automation Mode:** Automated playback of C64 content
+  - **Disabled:** No automation
+  - **Single File:** Play one `.sid`, `.prg`, or `.d64` file
+  - **Folder:** Enumerate and play all compatible files in a directory
+- **Automation Path:** File or folder path for automated playback
+- **Shuffle Files:** Randomize playback order using Fisher-Yates shuffle algorithm (Folder mode only)
+- **Duration per Item:** Playback duration in seconds before advancing to next file (1-3600s, default 120s)
+- **Reset Between Items:** Perform soft reset between files to ensure clean state
+
+**How Keyboard Capture Works:**
+
+1. Enable keyboard capture in properties
+2. Click on OBS preview window to focus it
+3. Type normally - keystrokes are converted to PETSCII and injected into C64 keyboard buffer
+4. Plugin polls C64 keyboard buffer (`$00C6`) every 50ms and only injects when buffer is empty (backpressure)
+5. Press ESC anytime to immediately disable capture and return control to OBS
+
+**Preview-Only Indicator:** When keyboard capture is enabled and OBS is not actively streaming/recording, a red overlay box appears in the preview window to indicate capture mode is active.
+
+**Technical Details:**
+
+- Injection uses DMA memory writes to C64 keyboard buffer at `$0277-$0280` (10 bytes max)
+- Worker thread handles asynchronous REST operations without blocking OBS UI/render threads
+- Supports modifier keys (Shift, Ctrl, Alt, Meta) with proper PETSCII conversion
+- Automation engine uses sequential or shuffled playback with configurable duration and reset options
+- D64 autostart injects `LOAD"*",8,1\rRUN\r` after mounting
+
+For detailed protocol documentation and advanced usage, see [`doc/rest-control.md`](doc/rest-control.md).
+
 ### File System Structure 📁
 
 The plugin uses three distinct filesystem locations:

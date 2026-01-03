@@ -12,15 +12,23 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-logging.h"
 #include "c64-rest-client.h"
 
+#ifdef _WIN32
+#include <windows.h>
+#include <direct.h>
+#define strcasecmp _stricmp
+#define sleep(x) Sleep((x) * 1000)
+#else
 #include <dirent.h>
+#include <strings.h>
+#include <unistd.h>
+#endif
+
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h>
 #include <sys/stat.h>
 #include <time.h>
-#include <unistd.h>
 
 #define AUTOMATION_LOG_PREFIX "[c64-automation] "
 #define MAX_FILES 1000
@@ -129,19 +137,67 @@ static uint8_t *load_file(const char *path, size_t *size)
 // Enumerate files in folder
 static int enumerate_files(const char *folder_path, file_entry_t **out_files)
 {
-    DIR *dir = opendir(folder_path);
-    if (!dir) {
-        C64_LOG_ERROR(AUTOMATION_LOG_PREFIX "Failed to open folder: %s", folder_path);
-        return 0;
-    }
-
     file_entry_t *files = calloc(MAX_FILES, sizeof(file_entry_t));
     if (!files) {
-        closedir(dir);
         return 0;
     }
 
     int count = 0;
+
+#ifdef _WIN32
+    // Windows implementation using FindFirstFile/FindNextFile
+    WIN32_FIND_DATAA find_data;
+    char search_path[MAX_PATH];
+    int written = snprintf(search_path, sizeof(search_path), "%s\\*", folder_path);
+    if (written < 0 || (size_t)written >= sizeof(search_path)) {
+        free(files);
+        return 0;
+    }
+
+    HANDLE h_find = FindFirstFileA(search_path, &find_data);
+    if (h_find == INVALID_HANDLE_VALUE) {
+        C64_LOG_ERROR(AUTOMATION_LOG_PREFIX "Failed to open folder: %s", folder_path);
+        free(files);
+        return 0;
+    }
+
+    do {
+        // Skip directories
+        if (find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+            continue;
+        }
+
+        c64_file_type_t type = get_file_type(find_data.cFileName);
+        if (type < 0) {
+            continue; // Not a supported file
+        }
+
+        // Check length to prevent overflow
+        size_t needed = strlen(folder_path) + 1 + strlen(find_data.cFileName) + 1;
+        if (needed > sizeof(files[count].path)) {
+            C64_LOG_WARNING(AUTOMATION_LOG_PREFIX "Path too long, skipping: %s\\%s", folder_path, find_data.cFileName);
+            continue;
+        }
+
+        written = snprintf(files[count].path, sizeof(files[count].path), "%s\\%s", folder_path, find_data.cFileName);
+        if (written < 0 || (size_t)written >= sizeof(files[count].path)) {
+            continue; // Truncated
+        }
+        files[count].type = type;
+        count++;
+    } while (FindNextFileA(h_find, &find_data) && count < MAX_FILES);
+
+    FindClose(h_find);
+
+#else
+    // Unix implementation using opendir/readdir
+    DIR *dir = opendir(folder_path);
+    if (!dir) {
+        C64_LOG_ERROR(AUTOMATION_LOG_PREFIX "Failed to open folder: %s", folder_path);
+        free(files);
+        return 0;
+    }
+
     struct dirent *entry;
     while ((entry = readdir(dir)) != NULL && count < MAX_FILES) {
         if (entry->d_type != DT_REG) {
@@ -169,6 +225,7 @@ static int enumerate_files(const char *folder_path, file_entry_t **out_files)
     }
 
     closedir(dir);
+#endif
 
     *out_files = files;
     return count;

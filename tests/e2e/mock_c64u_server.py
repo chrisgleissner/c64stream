@@ -23,7 +23,7 @@ class MockC64Server(BaseHTTPRequestHandler):
         """Verify X-Password header if password is set"""
         if self.password is None:
             return True
-        
+
         provided_password = self.headers.get('X-Password', '')
         if provided_password != self.password:
             self.send_json_response({"errors": ["Invalid or missing password"]}, 403)
@@ -34,7 +34,7 @@ class MockC64Server(BaseHTTPRequestHandler):
         """Handle GET requests"""
         if not self.check_password():
             return
-        
+
         path = urlparse(self.path)
 
         if path.path == "/v1/version":
@@ -50,7 +50,7 @@ class MockC64Server(BaseHTTPRequestHandler):
         """Handle PUT requests"""
         if not self.check_password():
             return
-        
+
         path = urlparse(self.path)
 
         if path.path == "/v1/machine:reset":
@@ -66,7 +66,7 @@ class MockC64Server(BaseHTTPRequestHandler):
         """Handle POST requests"""
         if not self.check_password():
             return
-        
+
         path = urlparse(self.path)
 
         if path.path == "/v1/runners:sidplay":
@@ -188,7 +188,7 @@ class MockC64Server(BaseHTTPRequestHandler):
 
 def run_server(port=8064, password=None):
     """Run the mock server
-    
+
     Args:
         port: Port to listen on
         password: Optional network password (enables authentication if set)

@@ -494,23 +494,30 @@ obs_properties_t *c64_create_properties(void *data)
         obs_data_release(init_settings);
     }
 
-    // REST Control group
-    obs_property_t *rest_group =
-        obs_properties_add_group(props, "rest_group", "REST Control", OBS_GROUP_NORMAL, obs_properties_create());
+    // Remote Control group
+    obs_property_t *rest_group = obs_properties_add_group(props, "rest_group", obs_module_text("RemoteControl"),
+                                                          OBS_GROUP_NORMAL, obs_properties_create());
     obs_properties_t *rest_props = obs_property_group_content(rest_group);
 
     // REST base URL
-    obs_properties_add_text(rest_props, "rest_base_url", "REST Base URL", OBS_TEXT_DEFAULT);
+    obs_property_t *rest_url_prop =
+        obs_properties_add_text(rest_props, "rest_base_url", obs_module_text("RESTBaseURL"), OBS_TEXT_DEFAULT);
+    obs_property_set_long_description(rest_url_prop, obs_module_text("RESTBaseURL.Description"));
 
     // REST password (hidden input)
-    obs_properties_add_text(rest_props, "rest_password", "Password", OBS_TEXT_PASSWORD);
+    obs_property_t *rest_pass_prop =
+        obs_properties_add_text(rest_props, "rest_password", obs_module_text("RESTPassword"), OBS_TEXT_PASSWORD);
+    obs_property_set_long_description(rest_pass_prop, obs_module_text("RESTPassword.Description"));
 
     // Keyboard capture enable
-    obs_properties_add_bool(rest_props, "keyboard_capture_enabled", "Enable Keyboard Capture");
+    obs_property_t *kb_enable_prop =
+        obs_properties_add_bool(rest_props, "keyboard_capture_enabled", obs_module_text("KeyboardCaptureEnabled"));
+    obs_property_set_long_description(kb_enable_prop, obs_module_text("KeyboardCaptureEnabled.Description"));
 
     // Keymap selection - dynamically populated
-    obs_property_t *keymap_prop =
-        obs_properties_add_list(rest_props, "keyboard_keymap", "Keymap", OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+    obs_property_t *keymap_prop = obs_properties_add_list(
+        rest_props, "keyboard_keymap", obs_module_text("KeyboardKeymap"), OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+    obs_property_set_long_description(keymap_prop, obs_module_text("KeyboardKeymap.Description"));
 
     // Discover and populate available keymaps
     char **keymap_paths = NULL;
@@ -539,23 +546,32 @@ obs_properties_t *c64_create_properties(void *data)
     }
 
     // Automation mode
-    obs_property_t *automation_mode_prop = obs_properties_add_list(rest_props, "automation_mode", "Automation Mode",
-                                                                   OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
-    obs_property_list_add_int(automation_mode_prop, "Disabled", 0);
-    obs_property_list_add_int(automation_mode_prop, "Single File", 1);
-    obs_property_list_add_int(automation_mode_prop, "Folder", 2);
+    obs_property_t *automation_mode_prop = obs_properties_add_list(
+        rest_props, "automation_mode", obs_module_text("AutomationMode"), OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+    obs_property_set_long_description(automation_mode_prop, obs_module_text("AutomationMode.Description"));
+    obs_property_list_add_int(automation_mode_prop, obs_module_text("AutomationMode.Disabled"), 0);
+    obs_property_list_add_int(automation_mode_prop, obs_module_text("AutomationMode.SingleFile"), 1);
+    obs_property_list_add_int(automation_mode_prop, obs_module_text("AutomationMode.Folder"), 2);
 
     // Automation file/folder path
-    obs_properties_add_path(rest_props, "automation_path", "Automation Path", OBS_PATH_FILE, "All Files (*.*)", NULL);
+    obs_property_t *auto_path_prop = obs_properties_add_path(
+        rest_props, "automation_path", obs_module_text("AutomationPath"), OBS_PATH_FILE, "All Files (*.*)", NULL);
+    obs_property_set_long_description(auto_path_prop, obs_module_text("AutomationPath.Description"));
 
     // Automation shuffle
-    obs_properties_add_bool(rest_props, "automation_shuffle", "Shuffle Files");
+    obs_property_t *auto_shuffle_prop =
+        obs_properties_add_bool(rest_props, "automation_shuffle", obs_module_text("AutomationShuffle"));
+    obs_property_set_long_description(auto_shuffle_prop, obs_module_text("AutomationShuffle.Description"));
 
     // Automation duration (seconds)
-    obs_properties_add_int(rest_props, "automation_duration", "Duration per Item (seconds)", 1, 3600, 1);
+    obs_property_t *auto_dur_prop =
+        obs_properties_add_int(rest_props, "automation_duration", obs_module_text("AutomationDuration"), 1, 3600, 1);
+    obs_property_set_long_description(auto_dur_prop, obs_module_text("AutomationDuration.Description"));
 
     // Automation reset between items
-    obs_properties_add_bool(rest_props, "automation_reset", "Reset Between Items");
+    obs_property_t *auto_reset_prop =
+        obs_properties_add_bool(rest_props, "automation_reset", obs_module_text("AutomationReset"));
+    obs_property_set_long_description(auto_reset_prop, obs_module_text("AutomationReset.Description"));
 
     return props;
 }

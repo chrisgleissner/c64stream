@@ -172,7 +172,7 @@ All mandatory outcomes delivered:
 ✅ Play SID (single/folder, shuffle, duration)
 ✅ Start program (PRG/D64, single/folder, shuffle, duration)
 ✅ Keystroke propagation with backpressure
-✅ Preview-only overlay indicator  
+✅ Preview-only overlay indicator
 ✅ Enable/disable via Properties UI
 ✅ Configurable keyboard mapping (symbolic + positional defaults, user import support)
 
