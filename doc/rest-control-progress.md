@@ -41,7 +41,7 @@ This document tracks the implementation status of all features described in `res
 - [ ] TODO-14: Current command display (requires executor integration)
 
 ### Script Localization (1 task covering 12 languages)
-- [ ] TODO-15: Add all script locale strings (en-US, de-DE, es-ES, fr-FR, it-IT, ja-JP, ko-KR, nl-NL, pl-PL, pt-BR, ru-RU, zh-CN)
+- [x] TODO-15: Add all script locale strings (en-US, de-DE, es-ES, fr-FR, it-IT, ja-JP, ko-KR, nl-NL, pl-PL, pt-BR, ru-RU, zh-CN)
 
 ### Script Testing (6 tasks)
 - [ ] TODO-16: Unit test: test_script_executor.py
@@ -249,14 +249,14 @@ This document tracks the implementation status of all features described in `res
 - [ ] Current command display (requires executor integration)
 
 ### Script Locale Strings
-- [ ] ScriptAutomation group title (12 languages)
-- [ ] ScriptEnabled checkbox (12 languages)
-- [ ] ScriptFile path picker (12 languages)
-- [ ] ScriptStatus status text (12 languages)
-- [ ] ScriptStart button (12 languages)
-- [ ] ScriptStop button (12 languages)
-- [ ] ScriptReload button (12 languages)
-- [ ] Error messages (12 languages)
+- [x] ScriptAutomation group title (12 languages)
+- [x] ScriptEnabled checkbox (12 languages)
+- [x] ScriptFile path picker (12 languages)
+- [x] ScriptStatus status text (12 languages)
+- [x] ScriptStart button (12 languages)
+- [x] ScriptStop button (12 languages)
+- [x] ScriptReload button (12 languages)
+- [x] Error messages (12 languages)
 
 **Languages:** en-US, de-DE, es-ES, fr-FR, it-IT, ja-JP, ko-KR, nl-NL, pl-PL, pt-BR, ru-RU, zh-CN
 
@@ -340,10 +340,10 @@ This document tracks the implementation status of all features described in `res
 
 ## Summary Statistics
 
-**Completed:** 144 tasks  
-**Incomplete:** 23 tasks  
+**Completed:** 152 tasks  
+**Incomplete:** 15 tasks  
 **Total:** 167 tasks  
-**Progress:** 86.2%
+**Progress:** 91.0%
 
 ## Critical Blockers
 
