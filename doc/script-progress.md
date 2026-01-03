@@ -1,4 +1,4 @@
-# C64Script v2 Implementation Progress
+# C64Script Implementation Progress
 
 This document tracks the implementation of the BASIC-inspired C64 Stream Script language as specified in `script-spec.md`.
 
@@ -45,14 +45,14 @@ Implement a fast, deterministic, extensible BASIC-inspired scripting language fo
 - [ ] Document all limits (nesting, stack sizes, script size)
 
 ### B. Module Architecture (10 tasks)
-- [ ] Create `c64-script-v2.h` (public API)
-- [ ] Create `c64-script-v2-token.h/.c` (tokenizer)
-- [ ] Create `c64-script-v2-ast.h/.c` (AST structures)
-- [ ] Create `c64-script-v2-parser.h/.c` (parser)
-- [ ] Create `c64-script-v2-bytecode.h/.c` (bytecode compiler)
-- [ ] Create `c64-script-v2-vm.h/.c` (virtual machine)
-- [ ] Create `c64-script-v2-runtime.h/.c` (execution context)
-- [ ] Create `c64-script-v2-builtins.h/.c` (built-in functions)
+- [ ] Create `c64-script.h` (public API)
+- [ ] Create `c64-script-token.h/.c` (tokenizer)
+- [ ] Create `c64-script-ast.h/.c` (AST structures)
+- [ ] Create `c64-script-parser.h/.c` (parser)
+- [ ] Create `c64-script-bytecode.h/.c` (bytecode compiler)
+- [ ] Create `c64-script-vm.h/.c` (virtual machine)
+- [ ] Create `c64-script-runtime.h/.c` (execution context)
+- [ ] Create `c64-script-builtins.h/.c` (built-in functions)
 - [ ] Plan OBS integration points (threading, cancellation)
 - [ ] Plan REST/keyboard integration points
 
@@ -270,7 +270,7 @@ Implement a fast, deterministic, extensible BASIC-inspired scripting language fo
 ## Phase 6: Plugin Integration (30 tasks)
 
 ### A. Threading & Lifecycle (10 tasks)
-- [ ] Create executor structure for v2 scripts
+- [ ] Create executor structure for scripts
 - [ ] Implement worker thread for script execution
 - [ ] Implement script start (compile + execute)
 - [ ] Implement script stop (set cancellation flag)
@@ -282,16 +282,16 @@ Implement a fast, deterministic, extensible BASIC-inspired scripting language fo
 - [ ] Handle executor cleanup
 
 ### B. Properties UI (10 tasks)
-- [ ] Add "Script Version" dropdown (v1/v2)
-- [ ] Update script file picker for v2
-- [ ] Add v2 script status display
-- [ ] Add v2 current line display
-- [ ] Add v2 error message display
-- [ ] Update Start/Stop/Reload buttons for v2
-- [ ] Add v2-specific help text
-- [ ] Handle v2 script parse errors in UI
-- [ ] Handle v2 runtime errors in UI
-- [ ] Test UI interaction with v2 scripts
+- [ ] Update script file picker (.c64script extension)
+- [ ] Add script status display
+- [ ] Add current line display
+- [ ] Add error message display
+- [ ] Update Start/Stop/Reload buttons
+- [ ] Add script-specific help text
+- [ ] Handle script parse errors in UI
+- [ ] Handle runtime errors in UI
+- [ ] Test UI interaction with scripts
+- [ ] Add script debugging aids (TRON display)
 
 ### C. REST & Keyboard Integration (10 tasks)
 - [ ] Connect PEEK to REST client
@@ -387,7 +387,7 @@ Implement a fast, deterministic, extensible BASIC-inspired scripting language fo
 
 ### Milestone 6: OBS Integration Complete ✓
 - [ ] Worker thread executes scripts
-- [ ] UI displays v2 status
+- [ ] UI displays script status
 - [ ] Start/Stop/Reload work
 - [ ] E2E tests pass
 

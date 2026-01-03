@@ -13,7 +13,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include <stdint.h>
 
 /**
- * C64Script v2 - BASIC-Inspired Scripting Language
+ * C64Script - BASIC-Inspired Scripting Language
  *
  * This is a complete rewrite of the C64Script language with:
  * - Case-insensitive keywords and identifiers
@@ -29,18 +29,18 @@ See <https://www.gnu.org/licenses/> for details.
 // LIMITS AND CONSTANTS
 // ============================================================================
 
-#define C64SCRIPT_V2_MAX_TOKEN_LENGTH 512
-#define C64SCRIPT_V2_MAX_STRING_LENGTH 4096
-#define C64SCRIPT_V2_MAX_LINE_LENGTH 1024
-#define C64SCRIPT_V2_MAX_SCRIPT_SIZE (1024 * 1024) // 1 MiB
-#define C64SCRIPT_V2_MAX_LABELS 256
-#define C64SCRIPT_V2_MAX_VARIABLES 512
-#define C64SCRIPT_V2_MAX_CONSTANTS 1024
-#define C64SCRIPT_V2_MAX_STACK_DEPTH 64
-#define C64SCRIPT_V2_MAX_FOR_NESTING 16
-#define C64SCRIPT_V2_MAX_WHILE_NESTING 16
-#define C64SCRIPT_V2_MAX_GOSUB_DEPTH 32
-#define C64SCRIPT_V2_MAX_BYTECODE_SIZE (256 * 1024) // 256 KiB
+#define C64SCRIPT_MAX_TOKEN_LENGTH 512
+#define C64SCRIPT_MAX_STRING_LENGTH 4096
+#define C64SCRIPT_MAX_LINE_LENGTH 1024
+#define C64SCRIPT_MAX_SCRIPT_SIZE (1024 * 1024) // 1 MiB
+#define C64SCRIPT_MAX_LABELS 256
+#define C64SCRIPT_MAX_VARIABLES 512
+#define C64SCRIPT_MAX_CONSTANTS 1024
+#define C64SCRIPT_MAX_STACK_DEPTH 64
+#define C64SCRIPT_MAX_FOR_NESTING 16
+#define C64SCRIPT_MAX_WHILE_NESTING 16
+#define C64SCRIPT_MAX_GOSUB_DEPTH 32
+#define C64SCRIPT_MAX_BYTECODE_SIZE (256 * 1024) // 256 KiB
 
 // ============================================================================
 // TOKEN TYPES
@@ -154,14 +154,14 @@ typedef enum {
     TOKEN_NEWLINE,
     TOKEN_ERROR,
 
-} c64script_v2_token_type_t;
+} c64script_token_type_t;
 
 // ============================================================================
 // TOKEN STRUCTURE
 // ============================================================================
 
 typedef struct {
-    c64script_v2_token_type_t type;
+    c64script_token_type_t type;
 
     // Position in source
     int line;
@@ -178,7 +178,7 @@ typedef struct {
         // String content is stored in string_pool during parsing
     } value;
 
-} c64script_v2_token_t;
+} c64script_token_t;
 
 // ============================================================================
 // AST NODE TYPES
@@ -227,11 +227,11 @@ typedef enum {
     AST_EXPR_BINARY,
     AST_EXPR_CALL,
 
-} c64script_v2_ast_type_t;
+} c64script_ast_type_t;
 
 // Forward declarations
-typedef struct c64script_v2_ast_node c64script_v2_ast_node_t;
-typedef struct c64script_v2_ast_expr c64script_v2_ast_expr_t;
+typedef struct c64script_ast_node c64script_ast_node_t;
+typedef struct c64script_ast_expr c64script_ast_expr_t;
 
 // Expression operators
 typedef enum {
@@ -256,11 +256,11 @@ typedef enum {
     OP_XOR,
     OP_OR,
 
-} c64script_v2_operator_t;
+} c64script_operator_t;
 
 // Expression node
-struct c64script_v2_ast_expr {
-    c64script_v2_ast_type_t type;
+struct c64script_ast_expr {
+    c64script_ast_type_t type;
     int line; // For error reporting
 
     union {
@@ -269,29 +269,29 @@ struct c64script_v2_ast_expr {
         const char *identifier; // Points into string pool
 
         struct {
-            c64script_v2_operator_t op;
-            c64script_v2_ast_expr_t *operand;
+            c64script_operator_t op;
+            c64script_ast_expr_t *operand;
         } unary;
 
         struct {
-            c64script_v2_operator_t op;
-            c64script_v2_ast_expr_t *left;
-            c64script_v2_ast_expr_t *right;
+            c64script_operator_t op;
+            c64script_ast_expr_t *left;
+            c64script_ast_expr_t *right;
         } binary;
 
         struct {
             const char *name; // Points into string pool
-            c64script_v2_ast_expr_t **args;
+            c64script_ast_expr_t **args;
             size_t arg_count;
         } call;
     } as;
 };
 
 // Statement node
-struct c64script_v2_ast_node {
-    c64script_v2_ast_type_t type;
-    int line;                      // For error reporting
-    c64script_v2_ast_node_t *next; // Linked list of statements
+struct c64script_ast_node {
+    c64script_ast_type_t type;
+    int line;                   // For error reporting
+    c64script_ast_node_t *next; // Linked list of statements
 
     union {
         // Empty and REM have no data
@@ -302,26 +302,26 @@ struct c64script_v2_ast_node {
 
         struct {
             const char *variable; // Points into string pool
-            c64script_v2_ast_expr_t *value;
+            c64script_ast_expr_t *value;
         } assignment;
 
         struct {
-            c64script_v2_ast_expr_t *condition;
-            c64script_v2_ast_node_t *then_branch;
-            c64script_v2_ast_node_t *else_branch;
+            c64script_ast_expr_t *condition;
+            c64script_ast_node_t *then_branch;
+            c64script_ast_node_t *else_branch;
         } if_stmt;
 
         struct {
             const char *variable; // Points into string pool
-            c64script_v2_ast_expr_t *start;
-            c64script_v2_ast_expr_t *end;
-            c64script_v2_ast_expr_t *step; // NULL means 1
-            c64script_v2_ast_node_t *body;
+            c64script_ast_expr_t *start;
+            c64script_ast_expr_t *end;
+            c64script_ast_expr_t *step; // NULL means 1
+            c64script_ast_node_t *body;
         } for_stmt;
 
         struct {
-            c64script_v2_ast_expr_t *condition;
-            c64script_v2_ast_node_t *body;
+            c64script_ast_expr_t *condition;
+            c64script_ast_node_t *body;
         } while_stmt;
 
         struct {
@@ -340,33 +340,33 @@ struct c64script_v2_ast_node {
         } wait_stmt;
 
         struct {
-            c64script_v2_ast_expr_t *time_expr;
+            c64script_ast_expr_t *time_expr;
         } wait_until_stmt;
 
         struct {
-            c64script_v2_ast_expr_t *preset_name;
+            c64script_ast_expr_t *preset_name;
         } effect_stmt;
 
         struct {
-            c64script_v2_ast_expr_t *param_name;
-            c64script_v2_ast_expr_t *param_value;
+            c64script_ast_expr_t *param_name;
+            c64script_ast_expr_t *param_value;
         } effectparam_stmt;
 
         struct {
-            c64script_v2_ast_expr_t *palette_name;
+            c64script_ast_expr_t *palette_name;
         } palette_stmt;
 
         struct {
-            c64script_v2_ast_expr_t *path;
-            c64script_v2_ast_expr_t *songnr; // NULL means 0
+            c64script_ast_expr_t *path;
+            c64script_ast_expr_t *songnr; // NULL means 0
         } playsid_stmt;
 
         struct {
-            c64script_v2_ast_expr_t *path;
+            c64script_ast_expr_t *path;
         } runprg_stmt;
 
         struct {
-            c64script_v2_ast_expr_t *path;
+            c64script_ast_expr_t *path;
         } mountdisk_stmt;
 
         // autostart_stmt has no data
@@ -376,31 +376,31 @@ struct c64script_v2_ast_node {
         // recordstop_stmt has no data
 
         struct {
-            c64script_v2_ast_expr_t *text;
+            c64script_ast_expr_t *text;
         } type_stmt;
 
         struct {
-            c64script_v2_ast_expr_t *key;
+            c64script_ast_expr_t *key;
         } key_stmt;
 
         struct {
-            c64script_v2_ast_expr_t *address;
-            c64script_v2_ast_expr_t **values;      // NULL means single value
-            size_t value_count;                    // 0 means single value in address
-            c64script_v2_ast_expr_t *single_value; // Used when value_count == 0
+            c64script_ast_expr_t *address;
+            c64script_ast_expr_t **values;      // NULL means single value
+            size_t value_count;                 // 0 means single value in address
+            c64script_ast_expr_t *single_value; // Used when value_count == 0
         } poke_stmt;
 
         struct {
-            c64script_v2_ast_expr_t *path;
+            c64script_ast_expr_t *path;
             bool truncate; // false means append
         } logfile_stmt;
 
         struct {
-            c64script_v2_ast_expr_t *message;
+            c64script_ast_expr_t *message;
         } log_stmt;
 
         struct {
-            c64script_v2_ast_expr_t *message;
+            c64script_ast_expr_t *message;
         } print_stmt;
 
         // tron_stmt has no data
@@ -484,14 +484,14 @@ typedef enum {
     OP_STOP, // Stop execution
     OP_HALT, // End of script
 
-} c64script_v2_opcode_t;
+} c64script_opcode_t;
 
 // Bytecode instruction (fixed size for simplicity)
 typedef struct {
-    c64script_v2_opcode_t opcode;
+    c64script_opcode_t opcode;
     uint32_t operand; // Constant pool index, jump address, or immediate value
     int source_line;  // For tracing and error reporting
-} c64script_v2_instruction_t;
+} c64script_instruction_t;
 
 // ============================================================================
 // RUNTIME VALUES
@@ -500,15 +500,15 @@ typedef struct {
 typedef enum {
     VALUE_NUMBER,
     VALUE_STRING,
-} c64script_v2_value_type_t;
+} c64script_value_type_t;
 
 typedef struct {
-    c64script_v2_value_type_t type;
+    c64script_value_type_t type;
     union {
         double number;
         char *string; // Owned by runtime, must be freed
     } as;
-} c64script_v2_value_t;
+} c64script_value_t;
 
 // ============================================================================
 // EXECUTION CONTEXT
@@ -520,54 +520,54 @@ typedef struct {
     double end_value;
     double step_value;
     size_t loop_start_ip; // Bytecode address of loop body
-} c64script_v2_for_state_t;
+} c64script_for_state_t;
 
 // WHILE loop state
 typedef struct {
     size_t condition_ip;  // Bytecode address of condition check
     size_t loop_start_ip; // Bytecode address of loop body
-} c64script_v2_while_state_t;
+} c64script_while_state_t;
 
 // GOSUB return state
 typedef struct {
     size_t return_ip; // Bytecode address to return to
-} c64script_v2_gosub_state_t;
+} c64script_gosub_state_t;
 
 // Variable storage (simple array for now, could be hash table)
 typedef struct {
     char name[64];
-    c64script_v2_value_t value;
-} c64script_v2_variable_t;
+    c64script_value_t value;
+} c64script_variable_t;
 
 // Execution context
 typedef struct {
     // Bytecode
-    c64script_v2_instruction_t *bytecode;
+    c64script_instruction_t *bytecode;
     size_t bytecode_size;
     size_t ip; // Instruction pointer
 
     // Constant pool
-    c64script_v2_value_t *constants;
+    c64script_value_t *constants;
     size_t constant_count;
 
     // Variable storage
-    c64script_v2_variable_t *variables;
+    c64script_variable_t *variables;
     size_t variable_count;
     size_t variable_capacity;
 
     // Value stack
-    c64script_v2_value_t *stack;
+    c64script_value_t *stack;
     size_t stack_size;
     size_t stack_capacity;
 
     // Loop and call stacks
-    c64script_v2_for_state_t for_stack[C64SCRIPT_V2_MAX_FOR_NESTING];
+    c64script_for_state_t for_stack[C64SCRIPT_MAX_FOR_NESTING];
     size_t for_stack_size;
 
-    c64script_v2_while_state_t while_stack[C64SCRIPT_V2_MAX_WHILE_NESTING];
+    c64script_while_state_t while_stack[C64SCRIPT_MAX_WHILE_NESTING];
     size_t while_stack_size;
 
-    c64script_v2_gosub_state_t gosub_stack[C64SCRIPT_V2_MAX_GOSUB_DEPTH];
+    c64script_gosub_state_t gosub_stack[C64SCRIPT_MAX_GOSUB_DEPTH];
     size_t gosub_stack_size;
 
     // Execution state
@@ -587,43 +587,41 @@ typedef struct {
     void *rest_client; // REST client for PEEK/POKE
     void *keyboard;    // Keyboard injection module
 
-} c64script_v2_runtime_t;
+} c64script_runtime_t;
 
 // ============================================================================
 // PUBLIC API
 // ============================================================================
 
 /**
- * Parse a C64Script v2 source file into an AST
+ * Parse a C64Script source file into an AST
  * Returns NULL on parse error (check error_msg)
  */
-c64script_v2_ast_node_t *c64script_v2_parse(const char *source, size_t source_size, char *error_msg,
-                                            size_t error_msg_size);
+c64script_ast_node_t *c64script_parse(const char *source, size_t source_size, char *error_msg, size_t error_msg_size);
 
 /**
  * Compile an AST into bytecode
  * Returns false on compilation error (check error_msg)
  */
-bool c64script_v2_compile(c64script_v2_ast_node_t *ast, c64script_v2_runtime_t *runtime, char *error_msg,
-                          size_t error_msg_size);
+bool c64script_compile(c64script_ast_node_t *ast, c64script_runtime_t *runtime, char *error_msg, size_t error_msg_size);
 
 /**
  * Execute bytecode in a runtime context
  * Returns false on runtime error (check runtime->error_msg)
  */
-bool c64script_v2_execute(c64script_v2_runtime_t *runtime);
+bool c64script_execute(c64script_runtime_t *runtime);
 
 /**
  * Create a new runtime context
  */
-c64script_v2_runtime_t *c64script_v2_runtime_create(void);
+c64script_runtime_t *c64script_runtime_create(void);
 
 /**
  * Destroy a runtime context
  */
-void c64script_v2_runtime_destroy(c64script_v2_runtime_t *runtime);
+void c64script_runtime_destroy(c64script_runtime_t *runtime);
 
 /**
  * Free an AST
  */
-void c64script_v2_ast_free(c64script_v2_ast_node_t *ast);
+void c64script_ast_free(c64script_ast_node_t *ast);

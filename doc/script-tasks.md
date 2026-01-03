@@ -7,9 +7,9 @@ Authoritative specification:
   - Language name: C64 Stream Script (short form: C64Script)
   - File extension: .c64script
   - Syntax, grammar, semantics, examples, limits, and execution model
-- Although the document mentions historical “v1” and proposed “v2” sections, treat the language as a SINGLE, UNIFIED LANGUAGE.
+- Although the specification document mentions historical sections for context, treat the language as a SINGLE, UNIFIED LANGUAGE.
 - There is no released legacy version and no compatibility burden.
-- The implementation must NOT contain references to “v1”, “v2”, or compatibility modes.
+- The implementation must NOT contain references to version numbers or compatibility modes.
 - Implement the full, modern, BASIC-inspired language as specified.
 
 Do not invent new language features.
