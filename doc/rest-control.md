@@ -129,72 +129,68 @@ Implementation requirement:
 
 ## File Source Selection (Local vs C64U Filesystem)
 
+**IMPORTANT:** The C64U REST API does not provide filesystem browsing/enumeration APIs. C64U mode requires manual path entry.
+
 Users can select between two file sources for automation:
 
 ### Local Filesystem Mode (default)
-Files are loaded from the OBS machine's local filesystem. Standard file path selection UI.
+Files are loaded from the OBS machine's local filesystem. Standard file path selection UI with file browser.
 
-### C64U Filesystem Mode
-Files are accessed directly from the Ultimate 64 device's filesystem via REST API. Benefits:
+### C64U Filesystem Mode (manual path entry)
+Files are accessed directly from the Ultimate 64 device's filesystem. User must know the exact file path.
+
+**Benefits:**
 - No file transfers needed
-- Browse C64U SD card/USB storage
+- Direct playback from C64U SD card/USB storage
 - Faster playback startup
-- Consistent with C64U native file management
+
+**Limitations:**
+- No browsing/directory listing - must type exact paths
+- No validation before playback attempt
+- Requires knowledge of C64U filesystem structure
 
 **Common Settings** (apply to both sources):
-- Shuffle mode
-- Traverse subfolders
+- Shuffle mode (N/A for single file mode)
 - Duration per item
 - Reset between items
 - D64 autostart template
 
-### REST API Extensions for Filesystem
+### REST API Reality Check
 
-#### List Files
-```
-GET /v1/files:list?path=<path>&recursive=<bool>
-```
+The C64U REST API (firmware 3.11+) provides:
 
-**Response:**
-```json
-{
-  "entries": [
-    {"name": "file.sid", "type": "file", "size": 8192},
-    {"name": "subdir", "type": "directory", "size": 0}
-  ]
-}
+#### Play File from C64U Filesystem
+```
+PUT /v1/runners:sidplay?file=/path/to/file.sid&songnr=0
+PUT /v1/runners:run_prg?file=/path/to/file.prg
+PUT /v1/drives/a:mount?file=/path/to/file.d64&type=d64&mode=readonly
 ```
 
-#### Check Path
-```
-HEAD /v1/files:stat?path=<path>
-```
+The `file` parameter references a path on the Ultimate 64's filesystem. No upload body is needed.
 
-Returns HTTP 200 if path exists, 404 if not. Optional `X-File-Type: file|directory` header.
-
-#### Path Parameter Support
-For remote playback, existing endpoints accept a `path` parameter:
-
+#### File Info (single file only)
 ```
-POST /v1/runners:sidplay?path=/Commodore/SID/example.sid&songnr=0
-POST /v1/runners:run_prg?path=/Commodore/PRG/demo.prg
-POST /v1/drives/a:mount?path=/Commodore/D64/game.d64
+GET /v1/files/{path}:info
 ```
 
-When `path` is provided, the file body is omitted.
+Returns metadata for a single file (size, extension). Does NOT list directory contents.
 
-### UI/UX Considerations
-- File source toggle: dropdown or radio buttons (Local Filesystem | C64U Filesystem)
-- When C64U selected: show path text field instead of file picker
-- Path validation: call `HEAD /v1/files:stat` on field blur
-- Directory browsing widget: tree view with expand/collapse for C64U mode
-- Error handling: graceful fallback if C64U unavailable
+**Key Limitation:** No API exists for directory listing, browsing, or recursive enumeration. Users must manually specify exact file paths.
 
-### Testing Requirements
-- Mock server must simulate C64U filesystem structure
-- E2E test: enumerate and play from C64U path
-- E2E test: path validation (valid/invalid paths)
-- E2E test: recursive enumeration
+### UI/UX Implementation
+
+**Local Filesystem:**
+- Standard OBS file picker
+- Folder mode: enumerate with opendir/readdir
+- Single file mode: direct path
+
+**C64U Filesystem:**
+- Text entry field for file/folder path
+- Placeholder: `/Commodore/SID` or `/Flash/C64/Programs/demo.prg`
+- Single file mode: path to one file (e.g., `/Commodore/SID/song.sid`)
+- Folder mode: NOT SUPPORTED (no directory listing API)
+- No validation before playback (path checked at runtime)
+- Clear documentation: "Enter exact path on C64U filesystem"
 
 ## Macro Automation Scripts
 
