@@ -10,12 +10,15 @@ import sys
 import requests
 import json
 import pytest
+import os
 
 @pytest.fixture(scope="module")
 def mock_server():
     """Start the mock C64U server as a pytest fixture"""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    server_script = os.path.join(script_dir, 'mock_c64u_server.py')
     proc = subprocess.Popen(
-        [sys.executable, 'mock_c64u_server.py', '--port', '8064'],
+        [sys.executable, server_script, '--port', '8064'],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True
