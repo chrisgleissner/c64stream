@@ -130,6 +130,17 @@ typedef enum {
     TOKEN_STATUS,
     TOKEN_OUTPUT,
 
+    // Keywords - HTTP
+    TOKEN_HTTP,
+    TOKEN_GET,
+    TOKEN_POST,
+    TOKEN_PUT,
+    TOKEN_DELETE,
+    TOKEN_PATCH,
+    TOKEN_HEADERS,
+    TOKEN_BODY,
+    TOKEN_RESPONSE,
+
     // Operators - arithmetic
     TOKEN_PLUS,     // +
     TOKEN_MINUS,    // -
@@ -232,6 +243,7 @@ typedef enum {
     AST_STMT_TROFF,
     AST_STMT_READFILE,
     AST_STMT_WRITEFILE,
+    AST_STMT_HTTP,
 
     // Expressions
     AST_EXPR_NUMBER,
@@ -455,6 +467,15 @@ struct c64script_ast_node {
             c64script_ast_expr_t *content; // Content to write
             bool truncate;                 // false means append, true means truncate
         } writefile_stmt;
+
+        struct {
+            int method;                         // HTTP method: 0=GET, 1=POST, 2=PUT, 3=DELETE, 4=PATCH
+            c64script_ast_expr_t *url;          // URL expression
+            c64script_ast_expr_t *headers;      // NULL means no custom headers (string expression)
+            c64script_ast_expr_t *body;         // NULL means no body (string expression)
+            c64script_ast_expr_t *status_var;   // NULL means don't store status (string expression - variable name)
+            c64script_ast_expr_t *response_var; // NULL means don't store response (string expression - variable name)
+        } http_stmt;
     } as;
 };
 
@@ -538,6 +559,7 @@ typedef enum {
     OP_READFILE,
     OP_WRITEFILE_APPEND,
     OP_WRITEFILE_TRUNCATE,
+    OP_HTTP,
 
     // Termination
     OP_STOP, // Stop execution

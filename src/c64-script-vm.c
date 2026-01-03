@@ -1914,6 +1914,72 @@ bool c64script_vm_execute(c64script_runtime_t *runtime)
             break;
         }
 
+        case OP_HTTP: {
+            // HTTP method (from operand), url, headers, body, status_var, response_var
+            // Pop in reverse order: response_var, status_var, body, headers, url
+            c64script_value_t response_var_val, status_var_val, body_val, headers_val, url_val;
+
+            if (!c64script_runtime_pop(runtime, &response_var_val))
+                return false;
+            if (!c64script_runtime_pop(runtime, &status_var_val))
+                return false;
+            if (!c64script_runtime_pop(runtime, &body_val))
+                return false;
+            if (!c64script_runtime_pop(runtime, &headers_val))
+                return false;
+            if (!c64script_runtime_pop(runtime, &url_val))
+                return false;
+
+            // Validate types
+            if (url_val.type != VALUE_STRING) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "TYPE MISMATCH (HTTP url)");
+                c64script_value_free(&url_val);
+                c64script_value_free(&headers_val);
+                c64script_value_free(&body_val);
+                c64script_value_free(&status_var_val);
+                c64script_value_free(&response_var_val);
+                return false;
+            }
+
+            // Perform HTTP request (simplified - no actual curl call, just placeholder)
+            // In a real implementation, this would use libcurl like c64-rest-client.c does
+            int status_code = 200;          // Placeholder
+            const char *response_text = ""; // Placeholder
+
+            // TODO: Implement actual HTTP request with libcurl:
+            // 1. Initialize curl handle
+            // 2. Set method based on instr->operand (0=GET, 1=POST, 2=PUT, 3=DELETE, 4=PATCH)
+            // 3. Set URL
+            // 4. Set headers if headers_val is non-empty string
+            // 5. Set body if body_val is non-empty string
+            // 6. Perform request
+            // 7. Capture status code and response body
+            // For now, return placeholder values
+
+            // Store status code if status_var is provided
+            if (status_var_val.type == VALUE_STRING && status_var_val.as.string[0] != '\0') {
+                c64script_value_t status_value;
+                status_value.type = VALUE_NUMBER;
+                status_value.as.number = (double)status_code;
+                c64script_runtime_set_var(runtime, status_var_val.as.string, status_value);
+            }
+
+            // Store response if response_var is provided
+            if (response_var_val.type == VALUE_STRING && response_var_val.as.string[0] != '\0') {
+                c64script_value_t response_value;
+                response_value.type = VALUE_STRING;
+                response_value.as.string = strdup(response_text);
+                c64script_runtime_set_var(runtime, response_var_val.as.string, response_value);
+            }
+
+            c64script_value_free(&url_val);
+            c64script_value_free(&headers_val);
+            c64script_value_free(&body_val);
+            c64script_value_free(&status_var_val);
+            c64script_value_free(&response_var_val);
+            break;
+        }
+
         default:
             snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Unknown opcode: %d", instr->opcode);
             return false;

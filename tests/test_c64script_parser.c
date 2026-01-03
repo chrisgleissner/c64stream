@@ -934,6 +934,22 @@ TEST(parse_writefile_truncate)
     c64script_ast_free(ast);
 }
 
+TEST(parse_http)
+{
+    const char *source = "HTTP GET \"http://example.com/api\" HEADERS HDR$ BODY BODY$ STATUS S RESPONSE R$\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse HTTP");
+    assert(ast->type == AST_STMT_HTTP);
+    assert(ast->as.http_stmt.method == 0); // GET
+    assert(ast->as.http_stmt.url != NULL);
+    assert(ast->as.http_stmt.headers != NULL);
+    assert(ast->as.http_stmt.body != NULL);
+    assert(ast->as.http_stmt.status_var != NULL);
+    assert(ast->as.http_stmt.response_var != NULL);
+    c64script_ast_free(ast);
+}
+
 TEST(parse_peek_function)
 {
     const char *source = "X = PEEK($D020)\n";
@@ -1119,6 +1135,7 @@ int main(void)
     RUN_TEST(parse_readfile);
     RUN_TEST(parse_writefile_append);
     RUN_TEST(parse_writefile_truncate);
+    RUN_TEST(parse_http);
 
     printf("\n--- Error Handling Tests ---\n");
     RUN_TEST(parse_error_unterminated_string);

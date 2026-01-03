@@ -768,19 +768,54 @@ static bool compile_statement(compiler_context_t *ctx, c64script_ast_node_t *stm
     }
 
     case AST_STMT_WRITEFILE: {
-        // WRITEFILE needs: path, content, then mode (TRUNCATE or APPEND)
-        if (!compile_expression(ctx, stmt->as.writefile_stmt.path))
-            return false;
-        if (!compile_expression(ctx, stmt->as.writefile_stmt.content))
-            return false;
-        if (stmt->as.writefile_stmt.truncate) {
-            emit(ctx, OP_WRITEFILE_TRUNCATE, 0, stmt->line);
-        } else {
-            emit(ctx, OP_WRITEFILE_APPEND, 0, stmt->line);
-        }
-        return true;
     }
 
+    case AST_STMT_HTTP: {
+        // HTTP needs: response_var, status_var, body, headers, url (strings, empty for NULL)
+        // Then method as operand
+        c64script_value_t empty_val = {.type = VALUE_STRING, .as.string = (char *)""};
+        uint32_t empty_idx = add_constant(ctx, empty_val);
+
+        // Push response_var name (or empty)
+        if (stmt->as.http_stmt.response_var) {
+            if (!compile_expression(ctx, stmt->as.http_stmt.response_var))
+                return false;
+        } else {
+            emit(ctx, OP_PUSH_CONST, empty_idx, stmt->line);
+        }
+
+        // Push status_var name (or empty)
+        if (stmt->as.http_stmt.status_var) {
+            if (!compile_expression(ctx, stmt->as.http_stmt.status_var))
+                return false;
+        } else {
+            emit(ctx, OP_PUSH_CONST, empty_idx, stmt->line);
+        }
+
+        // Push body (or empty)
+        if (stmt->as.http_stmt.body) {
+            if (!compile_expression(ctx, stmt->as.http_stmt.body))
+                return false;
+        } else {
+            emit(ctx, OP_PUSH_CONST, empty_idx, stmt->line);
+        }
+
+        // Push headers (or empty)
+        if (stmt->as.http_stmt.headers) {
+            if (!compile_expression(ctx, stmt->as.http_stmt.headers))
+                return false;
+        } else {
+            emit(ctx, OP_PUSH_CONST, empty_idx, stmt->line);
+        }
+
+        // Push URL
+        if (!compile_expression(ctx, stmt->as.http_stmt.url))
+            return false;
+
+        // Emit OP_HTTP with method as operand (0=GET, 1=POST, 2=PUT, 3=DELETE, 4=PATCH)
+        emit(ctx, OP_HTTP, (uint32_t)stmt->as.http_stmt.method, stmt->line);
+        return true;
+    }
     default:
         blog(LOG_ERROR, "Unknown statement type: %d", stmt->type);
         return false;

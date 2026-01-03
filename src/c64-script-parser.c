@@ -29,9 +29,10 @@ typedef struct {
 } parser_t;
 
 // Forward declarations
+static c64script_ast_node_t *statement(parser_t *p);
 static void error(parser_t *p, const char *message);
 static c64script_ast_expr_t *expression(parser_t *p);
-static c64script_ast_node_t *statement(parser_t *p);
+// HTTP <method> <url> [HEADERS <expr>] [BODY <expr>] [STATUS <var>] [RESPONSE <var>]
 static c64script_ast_node_t *declaration(parser_t *p);
 
 static c64script_token_t peek_token(parser_t *p)
@@ -1496,6 +1497,59 @@ static c64script_ast_node_t *writefile_statement(parser_t *p)
     return node;
 }
 
+// HTTP <method> <url> [HEADERS <expr>] [BODY <expr>] [STATUS <var>] [RESPONSE <var>]
+static c64script_ast_node_t *http_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_HTTP;
+    node->line = p->previous.line;
+
+    // Parse HTTP method
+    int method = -1;
+    if (match(p, TOKEN_GET)) {
+        method = 0;
+    } else if (match(p, TOKEN_POST)) {
+        method = 1;
+    } else if (match(p, TOKEN_PUT)) {
+        method = 2;
+    } else if (match(p, TOKEN_DELETE)) {
+        method = 3;
+    } else if (match(p, TOKEN_PATCH)) {
+        method = 4;
+    } else {
+        error(p, "Expected HTTP method (GET, POST, PUT, DELETE, PATCH)");
+        c64script_ast_free(node);
+        return NULL;
+    }
+    node->as.http_stmt.method = method;
+
+    // Parse URL expression
+    node->as.http_stmt.url = expression(p);
+    node->as.http_stmt.headers = NULL;
+    node->as.http_stmt.body = NULL;
+    node->as.http_stmt.status_var = NULL;
+    node->as.http_stmt.response_var = NULL;
+
+    // Parse optional parameters in any order
+    while (true) {
+        if (match(p, TOKEN_HEADERS)) {
+            node->as.http_stmt.headers = expression(p);
+        } else if (match(p, TOKEN_BODY)) {
+            node->as.http_stmt.body = expression(p);
+        } else if (match(p, TOKEN_STATUS)) {
+            node->as.http_stmt.status_var = expression(p);
+        } else if (match(p, TOKEN_RESPONSE)) {
+            node->as.http_stmt.response_var = expression(p);
+        } else {
+            break;
+        }
+    }
+
+    return node;
+}
+
 static c64script_ast_node_t *statement(parser_t *p)
 {
     bool skipped_newlines = false;
@@ -1654,6 +1708,8 @@ static c64script_ast_node_t *statement(parser_t *p)
         return readfile_statement(p);
     if (match(p, TOKEN_WRITEFILE))
         return writefile_statement(p);
+    if (match(p, TOKEN_HTTP))
+        return http_statement(p);
 
     error(p, "Unexpected statement");
     return NULL;

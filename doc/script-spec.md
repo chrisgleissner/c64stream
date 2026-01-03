@@ -1209,9 +1209,11 @@ If/when implementing C64Script in code:
 ## 4. Runtime support notes
 
 As of the current executor implementation:
-- `c64u:` paths are supported for `play_sid`, `run_prg`, and `mount_disk`.
-- Local file upload variants are placeholders (`TODO`) and currently fail.
-- `autostart` is implemented (injects the fixed `LOAD"*",8,1\rRUN\r` template via the keyboard module).
+- `c64u:` filesystem paths are supported for `PLAYSID`, `RUNPRG`, and `MOUNTDISK` (path-based REST API).
+- Local file upload variants are fully supported (uploads file data via REST API for all three commands).
+- `AUTOSTART` injects the default template `LOAD"*",8,1\rRUN\r` via keyboard buffer.
+- D64 autostart template is customizable via automation configuration (see `c64-automation.h`).
+- HTTP requests are parsed and compiled but require libcurl integration for full execution (VM currently returns placeholder values).
 
 ---
 
@@ -1220,9 +1222,9 @@ As of the current executor implementation:
 These limits are implementation-defined by the current parser/executor and may change:
 
 - Max script size: **1 MiB**
-- Max line length: **1023** bytes (parser line buffer; longer lines are truncated)
-- Max labels: **64** (`MAX_LABELS`)
-- Max loop nesting: **16** (`MAX_LOOP_STACK`)
-- Fixed-size argument buffers per command (long tokens may be truncated):
-  - `arg1`: 512 bytes
-  - `arg2`: 256 bytes
+- Max line length: **1024** bytes (parser line buffer)
+- Max labels: **256** (`C64SCRIPT_MAX_LABELS`)
+- Max loop nesting: **16** for FOR and WHILE loops each (`C64SCRIPT_MAX_FOR_NESTING`, `C64SCRIPT_MAX_WHILE_NESTING`)
+- Max GOSUB depth: **32** (`C64SCRIPT_MAX_GOSUB_DEPTH`)
+- Max variables: **512** (`C64SCRIPT_MAX_VARIABLES`)
+- Max bytecode size: **256 KiB** (`C64SCRIPT_MAX_BYTECODE_SIZE`)

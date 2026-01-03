@@ -102,6 +102,17 @@ static const keyword_entry_t keywords[] = {
     {"STATUS", TOKEN_STATUS},
     {"OUTPUT", TOKEN_OUTPUT},
 
+    // HTTP
+    {"HTTP", TOKEN_HTTP},
+    {"GET", TOKEN_GET},
+    {"POST", TOKEN_POST},
+    {"PUT", TOKEN_PUT},
+    {"DELETE", TOKEN_DELETE},
+    {"PATCH", TOKEN_PATCH},
+    {"HEADERS", TOKEN_HEADERS},
+    {"BODY", TOKEN_BODY},
+    {"RESPONSE", TOKEN_RESPONSE},
+
     // Boolean operators
     {"NOT", TOKEN_NOT},
     {"AND", TOKEN_AND},
