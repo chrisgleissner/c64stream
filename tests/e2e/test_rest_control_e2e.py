@@ -9,9 +9,11 @@ import time
 import sys
 import requests
 import json
+import pytest
 
-def start_mock_server():
-    """Start the mock C64U server"""
+@pytest.fixture(scope="module")
+def mock_server():
+    """Start the mock C64U server as a pytest fixture"""
     proc = subprocess.Popen(
         [sys.executable, 'mock_c64u_server.py', '--port', '8064'],
         stdout=subprocess.PIPE,
@@ -19,9 +21,11 @@ def start_mock_server():
         text=True
     )
     time.sleep(1)
-    return proc
+    yield proc
+    proc.terminate()
+    proc.wait()
 
-def test_rest_control_e2e():
+def test_rest_control_e2e(mock_server):
     """Test complete REST control workflow"""
     base_url = "http://localhost:8064"
 
@@ -124,28 +128,3 @@ def test_rest_control_e2e():
     print("  • Multipart file upload (SID, PRG)")
     print("  • Mock server validation")
     print("\nReady for integration with OBS!")
-
-if __name__ == '__main__':
-    server = None
-    try:
-        # Start mock server
-        server = start_mock_server()
-        print("Mock C64 Ultimate server started on port 8064\n")
-
-        # Run comprehensive test
-        test_rest_control_e2e()
-
-    except AssertionError as e:
-        print(f"\n❌ Test failed: {e}")
-        sys.exit(1)
-    except Exception as e:
-        print(f"\n❌ Error: {e}")
-        import traceback
-        traceback.print_exc()
-        sys.exit(1)
-    finally:
-        # Stop server
-        if server:
-            server.terminate()
-            server.wait()
-            print("\nMock server stopped")

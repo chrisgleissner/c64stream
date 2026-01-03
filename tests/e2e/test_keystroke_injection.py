@@ -7,9 +7,11 @@ import subprocess
 import time
 import sys
 import requests
+import pytest
 
-def start_mock_server():
-    """Start the mock C64U server"""
+@pytest.fixture(scope="module")
+def mock_server():
+    """Start the mock C64U server as a pytest fixture"""
     proc = subprocess.Popen(
         [sys.executable, 'mock_c64u_server.py', '--port', '8064'],
         stdout=subprocess.PIPE,
@@ -17,9 +19,11 @@ def start_mock_server():
         text=True
     )
     time.sleep(1)
-    return proc
+    yield proc
+    proc.terminate()
+    proc.wait()
 
-def test_keystroke_injection():
+def test_keystroke_injection(mock_server):
     """Test keystroke injection with backpressure"""
     base_url = "http://localhost:8064"
 
@@ -68,26 +72,3 @@ def test_keystroke_injection():
     print(f"✓ Buffer length verified: {buffer_len}")
 
     print("\n✅ All keystroke injection tests passed!")
-
-if __name__ == '__main__':
-    server = None
-    try:
-        # Start mock server
-        server = start_mock_server()
-        print("Mock server started on port 8064\n")
-
-        # Run tests
-        test_keystroke_injection()
-
-    except AssertionError as e:
-        print(f"\n❌ Test failed: {e}")
-        sys.exit(1)
-    except Exception as e:
-        print(f"\n❌ Error: {e}")
-        sys.exit(1)
-    finally:
-        # Stop server
-        if server:
-            server.terminate()
-            server.wait()
-            print("\nMock server stopped")
