@@ -1,0 +1,44 @@
+# Demo Effects Showcase
+# Cycles through different CRT effect presets to demonstrate visual capabilities
+
+# Start with clean slate
+effect None
+wait 2s
+
+# Scanline effects
+effect Light Scanlines
+wait 5s
+
+effect Heavy Scanlines
+wait 5s
+
+# Pixel effects
+effect Pixel Grid
+wait 5s
+
+effect Chunky Pixels
+wait 5s
+
+# Blur and bloom
+effect Soft Blur
+wait 5s
+
+effect Heavy Bloom
+wait 5s
+
+# Composite effects
+effect Composite Blur
+wait 5s
+
+effect RGB Separation
+wait 5s
+
+# Classic CRT
+effect Classic CRT
+wait 5s
+
+# Return to clean
+effect None
+wait 2s
+
+stop

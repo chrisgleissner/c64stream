@@ -575,6 +575,21 @@ obs_properties_t *c64_create_properties(void *data)
         obs_properties_add_bool(rest_props, "automation_reset", obs_module_text("AutomationReset"));
     obs_property_set_long_description(auto_reset_prop, obs_module_text("AutomationReset.Description"));
 
+    // Script Automation
+    obs_property_t *script_enabled_prop =
+        obs_properties_add_bool(rest_props, "script_enabled", obs_module_text("ScriptEnabled"));
+    obs_property_set_long_description(script_enabled_prop, obs_module_text("ScriptEnabled.Description"));
+
+    obs_property_t *script_file_prop = obs_properties_add_path(rest_props, "script_file", obs_module_text("ScriptFile"),
+                                                               OBS_PATH_FILE,
+                                                               "C64 Script (*.c64script);;All Files (*.*)", NULL);
+    obs_property_set_long_description(script_file_prop, obs_module_text("ScriptFile.Description"));
+
+    obs_property_t *script_status_prop =
+        obs_properties_add_text(rest_props, "script_status", obs_module_text("ScriptStatus"), OBS_TEXT_DEFAULT);
+    obs_property_set_long_description(script_status_prop, obs_module_text("ScriptStatus.Description"));
+    obs_property_set_enabled(script_status_prop, false); // Read-only status field
+
     return props;
 }
 

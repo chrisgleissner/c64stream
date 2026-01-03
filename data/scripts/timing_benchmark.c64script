@@ -1,0 +1,45 @@
+# Timing Benchmark
+# Tests timing accuracy with various duration formats
+
+# Millisecond timing
+wait 500ms
+wait 750ms
+wait 1000ms
+
+# Second timing
+wait 1s
+wait 1.5s
+wait 2s
+wait 2.5s
+
+# Minute timing
+wait 0.5m
+wait 1m
+
+# Mixed operations with timing
+effect Light Scanlines
+wait 100ms
+
+effect Heavy Scanlines
+wait 100ms
+
+effect None
+wait 100ms
+
+# Rapid palette changes
+palette colodore
+wait 50ms
+
+palette vice
+wait 50ms
+
+palette pepto_ntsc
+wait 50ms
+
+palette colodore
+wait 50ms
+
+# Final confirmation
+wait 1s
+
+stop

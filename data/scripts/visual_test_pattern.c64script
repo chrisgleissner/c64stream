@@ -1,0 +1,38 @@
+# Visual Test Pattern
+# Combines effects and palettes with precise timing for validation
+
+# Test 1: Effect + Palette combination
+effect Light Scanlines
+palette colodore
+wait 3s
+
+# Test 2: Change palette while keeping effect
+palette vice
+wait 3s
+
+# Test 3: Change effect while keeping palette
+effect Heavy Bloom
+wait 3s
+
+# Test 4: Reset to defaults
+effect None
+palette colodore
+wait 2s
+
+# Test 5: Loop through configurations
+loop 3
+    effect Pixel Grid
+    palette pepto_ntsc
+    wait 2s
+    
+    effect Classic CRT
+    palette vice_new
+    wait 2s
+# End loop
+
+# Final reset
+effect None
+palette colodore
+wait 1s
+
+stop
