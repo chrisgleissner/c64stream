@@ -484,7 +484,11 @@ int c64_script_executor_get_progress(c64_script_executor_t *executor)
 
 const char *c64_script_executor_get_current_command(c64_script_executor_t *executor)
 {
+#ifdef _MSC_VER
+    static __declspec(thread) char buf[64];
+#else
     static __thread char buf[64];
+#endif
 
     if (!executor || !executor->runtime || !executor->runtime->bytecode || executor->runtime->bytecode_size == 0) {
         return NULL;

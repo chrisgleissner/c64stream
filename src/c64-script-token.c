@@ -178,7 +178,7 @@ static char advance(tokenizer_t *t)
     if (c == '\n') {
         t->line++;
         t->column = 1;
-        t->line_start_pos = t->pos;
+        t->line_start_pos = (int)t->pos;
     }
     return c;
 }
