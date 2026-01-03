@@ -370,6 +370,70 @@ TEST(execute_stop)
     c64script_ast_free(ast);
 }
 
+TEST(execute_for_loop)
+{
+    const char *source = "TOTAL = 0\n"
+                         "FOR I = 1 TO 5\n"
+                         "  TOTAL = TOTAL + I\n"
+                         "NEXT\n";
+    char error[256];
+
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error, sizeof(error));
+    assert(ast != NULL);
+
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    bool success = c64script_compile(ast, runtime, error, sizeof(error));
+    assert(success);
+
+    success = c64script_execute(runtime);
+    assert(success);
+
+    // Verify TOTAL = 1 + 2 + 3 + 4 + 5 = 15
+    c64script_value_t value;
+    bool got_var = c64script_runtime_get_var(runtime, "TOTAL", &value);
+    (void)got_var;
+    assert(got_var);
+    assert(value.as.number == 15.0);
+
+    // Verify I = 6 (one past the end)
+    got_var = c64script_runtime_get_var(runtime, "I", &value);
+    (void)got_var;
+    assert(got_var);
+    assert(value.as.number == 6.0);
+
+    c64script_runtime_destroy(runtime);
+    c64script_ast_free(ast);
+}
+
+TEST(execute_while_loop)
+{
+    const char *source = "X = 1\n"
+                         "WHILE X < 10\n"
+                         "  X = X * 2\n"
+                         "WEND\n";
+    char error[256];
+
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error, sizeof(error));
+    assert(ast != NULL);
+
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    bool success = c64script_compile(ast, runtime, error, sizeof(error));
+    assert(success);
+
+    success = c64script_execute(runtime);
+    assert(success);
+
+    // X should be 16 (1 -> 2 -> 4 -> 8 -> 16, stops when >= 10)
+    c64script_value_t value;
+    bool got_var = c64script_runtime_get_var(runtime, "X", &value);
+    (void)got_var;
+    assert(got_var);
+    assert(value.as.number == 16.0);
+
+    c64script_runtime_destroy(runtime);
+    c64script_ast_free(ast);
+}
+
 // ============================================================================
 // MAIN
 // ============================================================================
@@ -393,6 +457,10 @@ int main(void)
     RUN_TEST(execute_goto);
     RUN_TEST(execute_gosub_return);
     RUN_TEST(execute_stop);
+
+    printf("\n--- Loop Execution Tests ---\n");
+    RUN_TEST(execute_for_loop);
+    RUN_TEST(execute_while_loop);
 
     printf("\n=== All Compiler & VM Tests Passed! ===\n");
     return 0;

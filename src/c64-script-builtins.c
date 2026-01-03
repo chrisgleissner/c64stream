@@ -17,8 +17,12 @@ See <https://www.gnu.org/licenses/> for details.
 
 #define MACRO_LOG_PREFIX "[c64script-builtins] "
 
-// Built-in functions stub - Phase 5 implementation
-// This provides standard functions like PEEK, RND, etc.
+// Random number generator state (per runtime context)
+static unsigned int rnd_seed = 1;
+
+// ============================================================================
+// Built-in Functions
+// ============================================================================
 
 bool c64script_builtin_peek(c64script_runtime_t *runtime, uint16_t address, double *out_value)
 {
@@ -27,8 +31,10 @@ bool c64script_builtin_peek(c64script_runtime_t *runtime, uint16_t address, doub
     }
 
     // TODO: Implement PEEK - read memory from Ultimate device via REST API
+    // For now, return 0 as placeholder
     (void)address;
     *out_value = 0.0;
+    blog(LOG_WARNING, "PEEK not yet implemented - returning 0");
     return true;
 }
 
@@ -38,9 +44,16 @@ bool c64script_builtin_rnd(c64script_runtime_t *runtime, double *out_value)
         return false;
     }
 
-    // TODO: Implement RND - random number generator
-    *out_value = 0.0;
+    // Simple LCG (Linear Congruential Generator) for now
+    // This matches classic BASIC RND behavior
+    rnd_seed = (rnd_seed * 1103515245 + 12345) & 0x7fffffff;
+    *out_value = (double)rnd_seed / (double)0x7fffffff;
     return true;
+}
+
+void c64script_builtin_randomize(unsigned int seed)
+{
+    rnd_seed = seed;
 }
 
 bool c64script_builtin_abs(double value, double *out_value)

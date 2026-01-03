@@ -371,13 +371,108 @@ bool c64script_vm_execute(c64script_runtime_t *runtime)
             runtime->should_stop = true;
             break;
 
-        // TODO: Implement loop opcodes (FOR, WHILE)
-        case OP_FOR_INIT:
-        case OP_FOR_CHECK:
-        case OP_FOR_INCR:
-        case OP_WHILE_CHECK:
-            blog(LOG_WARNING, "Loop opcodes not yet implemented");
+        // Loop opcodes
+        case OP_FOR_INIT: {
+            // Stack has: step, end, current
+            // operand: variable name constant pool index
+            c64script_value_t step, end, current;
+            if (!pop(runtime, &step) || !pop(runtime, &end) || !pop(runtime, &current))
+                return false;
+
+            if (runtime->for_stack_size >= C64SCRIPT_MAX_FOR_NESTING) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "FOR loop nesting too deep");
+                return false;
+            }
+
+            // Get variable name from constant pool
+            if (instr->operand >= runtime->constant_count) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Invalid constant index");
+                return false;
+            }
+            const char *var_name = runtime->constants[instr->operand].as.string;
+
+            // Push FOR state
+            c64script_for_state_t *state = &runtime->for_stack[runtime->for_stack_size++];
+            state->variable = var_name;
+            state->end_value = end.as.number;
+            state->step_value = step.as.number;
+            state->loop_start_ip = runtime->ip; // Next instruction after FOR_INIT
             break;
+        }
+
+        case OP_FOR_CHECK: {
+            // Check if FOR loop should continue
+            // operand: jump address if loop is done
+            if (runtime->for_stack_size == 0) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "FOR_CHECK without FOR_INIT");
+                return false;
+            }
+
+            c64script_for_state_t *state = &runtime->for_stack[runtime->for_stack_size - 1];
+
+            // Get current value of loop variable
+            c64script_value_t current;
+            if (!get_variable(runtime, state->variable, &current)) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Loop variable not found");
+                return false;
+            }
+
+            // Check if loop should continue
+            bool done;
+            if (state->step_value > 0) {
+                done = current.as.number > state->end_value;
+            } else {
+                done = current.as.number < state->end_value;
+            }
+
+            if (done) {
+                // Pop FOR state and jump to end
+                runtime->for_stack_size--;
+                runtime->ip = instr->operand;
+            }
+            break;
+        }
+
+        case OP_FOR_INCR: {
+            // Increment loop variable
+            // operand: variable name constant pool index
+            if (runtime->for_stack_size == 0) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "FOR_INCR without FOR_INIT");
+                return false;
+            }
+
+            c64script_for_state_t *state = &runtime->for_stack[runtime->for_stack_size - 1];
+
+            // Get current value
+            c64script_value_t current;
+            if (!get_variable(runtime, state->variable, &current)) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Loop variable not found");
+                return false;
+            }
+
+            // Increment by step
+            current.as.number += state->step_value;
+
+            // Store back
+            if (!set_variable(runtime, state->variable, current)) {
+                return false;
+            }
+            break;
+        }
+
+        case OP_WHILE_CHECK: {
+            // Check WHILE condition
+            // operand: jump address if condition is false
+            c64script_value_t condition;
+            if (!pop(runtime, &condition))
+                return false;
+
+            // If condition is false (0), jump to end
+            if (condition.as.number == 0.0) {
+                runtime->ip = instr->operand;
+            }
+            break;
+        }
 
         // TODO: Implement built-in function calls
         case OP_CALL_PEEK:

@@ -21,3 +21,29 @@ See <https://www.gnu.org/licenses/> for details.
  * Returns numeric value or -1 on error
  */
 bool c64script_builtin_peek(c64script_runtime_t *runtime, uint16_t address, double *out_value);
+
+/**
+ * RND() - Random number generator [0.0, 1.0)
+ * Returns random double value
+ */
+bool c64script_builtin_rnd(c64script_runtime_t *runtime, double *out_value);
+
+/**
+ * RANDOMIZE seed - Seed the random number generator
+ */
+void c64script_builtin_randomize(unsigned int seed);
+
+/**
+ * ABS(value) - Absolute value
+ */
+bool c64script_builtin_abs(double value, double *out_value);
+
+/**
+ * SQR(value) - Square root
+ */
+bool c64script_builtin_sqr(double value, double *out_value);
+
+/**
+ * INT(value) - Floor (integer part)
+ */
+bool c64script_builtin_int(double value, double *out_value);
