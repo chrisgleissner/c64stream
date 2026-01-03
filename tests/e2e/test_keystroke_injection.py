@@ -11,7 +11,7 @@ import requests
 def start_mock_server():
     """Start the mock C64U server"""
     proc = subprocess.Popen(
-        [sys.executable, 'mock_c64u_server.py', '8064'],
+        [sys.executable, 'mock_c64u_server.py', '--port', '8064'],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True
