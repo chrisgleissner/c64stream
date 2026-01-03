@@ -981,64 +981,51 @@ void c64_set_property_defaults(obs_data_t *settings)
     c64_load_configuration(settings);
 }
 
-// Helper function to ensure path ends with .ini extension
-static void c64_ensure_ini_extension(char *path, size_t path_size)
+// Generic helper to ensure path ends with specified extension
+static void c64_ensure_file_extension(char *path, size_t path_size, const char *extension)
 {
-    if (!path || path_size < 5 || path[0] == '\0')
+    if (!path || !extension || path_size < 5 || path[0] == '\0')
+        return;
+
+    size_t ext_len = strlen(extension);
+    if (ext_len == 0 || ext_len > 10) // Sanity check
         return;
 
     size_t len = strlen(path);
 
-    // Check if path ends with .ini (case-insensitive)
-    if (len >= 4) {
-        const char *ext = path + len - 4;
-        if (strcasecmp(ext, ".ini") == 0)
-            return; // Already has .ini
+    // Check if path already ends with the extension (case-insensitive)
+    if (len >= ext_len + 1) { // +1 for the dot
+        const char *existing_ext = path + len - ext_len - 1;
+        if (existing_ext[0] == '.' && strcasecmp(existing_ext + 1, extension) == 0)
+            return; // Already has the correct extension
     }
 
     // Check if path ends with a dot (e.g., "file.")
     if (len >= 1 && path[len - 1] == '.') {
-        // Append "ini" to existing dot
-        if (len + 3 < path_size) {
-            strcat(path, "ini");
+        // Append extension to existing dot
+        if (len + ext_len < path_size) {
+            strcat(path, extension);
         }
         return;
     }
 
-    // Append .ini
-    if (len + 4 < path_size) {
-        strcat(path, ".ini");
+    // Append .extension
+    if (len + ext_len + 1 < path_size) {
+        strcat(path, ".");
+        strcat(path, extension);
     }
+}
+
+// Helper function to ensure path ends with .ini extension
+static void c64_ensure_ini_extension(char *path, size_t path_size)
+{
+    c64_ensure_file_extension(path, path_size, "ini");
 }
 
 // Helper function to ensure path ends with .vpl extension
 static void c64_ensure_vpl_extension(char *path, size_t path_size)
 {
-    if (!path || path_size < 5 || path[0] == '\0')
-        return;
-
-    size_t len = strlen(path);
-
-    // Check if path ends with .vpl (case-insensitive)
-    if (len >= 4) {
-        const char *ext = path + len - 4;
-        if (strcasecmp(ext, ".vpl") == 0)
-            return; // Already has .vpl
-    }
-
-    // Check if path ends with a dot (e.g., "file.")
-    if (len >= 1 && path[len - 1] == '.') {
-        // Append "vpl" to existing dot
-        if (len + 3 < path_size) {
-            strcat(path, "vpl");
-        }
-        return;
-    }
-
-    // Append .vpl
-    if (len + 4 < path_size) {
-        strcat(path, ".vpl");
-    }
+    c64_ensure_file_extension(path, path_size, "vpl");
 }
 
 static bool config_export_path_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings)
