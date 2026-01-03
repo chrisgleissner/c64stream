@@ -16,7 +16,7 @@ def mock_server():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     server_script = os.path.join(script_dir, 'mock_c64u_server.py')
     proc = subprocess.Popen(
-        [sys.executable, server_script, '8064'],
+        [sys.executable, server_script, '--port', '8064'],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True
