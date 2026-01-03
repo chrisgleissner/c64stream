@@ -282,6 +282,7 @@ Recommended: make v2 a **superset** of v1.
   - alphanumeric (e.g., `START`, `PLAY2`, `DEMO2026`), or
   - numeric-only (e.g., `10`, `12345`) to resemble BASIC line numbers.
 - Labels may end with `:` (recommended), but the colon is optional.
+- Label names should not use reserved keywords (e.g., avoid naming a label `IF` or `GOTO`).
 - A label can appear on the same line as code, or on a line by itself to label the following line.
 - Disambiguation rule (keeps the language usable without becoming a hybrid monster):
   - At the start of a line, an alphanumeric token is treated as a label **only if** it is followed by `:` or end-of-line, or it is followed by whitespace that is **not** immediately followed by `=`.
@@ -490,6 +491,7 @@ The executor maintains explicit stacks:
 Labels and line numbers:
 - A label is either an alphanumeric name (e.g., `START`) or a numeric-only “line number” (e.g., `10`).
 - Labels are case-insensitive; numeric labels should be normalized by value (`0010` == `10`).
+- Numeric labels are labels only (no implicit ordering requirement), but authors may choose to keep them increasing to resemble BASIC listings.
 - A label can be defined:
   - as a line prefix: `START:` / `START` / `10:` / `10`, optionally followed by statements on the same line, or
   - via the compatibility statement `LABEL <label_ref>`.
@@ -581,6 +583,25 @@ Important injection constraint:
 - `PRINT <expr>` writes to the OBS log (not the script log file).
 
 ### 3.6 Examples (v2)
+
+**Example 0: Label and line-number forms**
+
+These are alternative forms; in a real script, label names must be unique.
+
+```basic
+REM Label on the same line
+START: I = 0
+
+REM Label on its own line (labels the next line)
+START:
+I = 0
+
+REM Numeric labels (BASIC-style line numbers)
+10 I = 0
+10: I = 0
+12345:
+I = 0
+```
 
 **Example A: BASIC-like sequence with quoted preset names**
 
@@ -674,14 +695,29 @@ LOG "Done"
 END
 ```
 
+**Example G: Wait until a wall-clock time**
+
+```basic
+LOGFILE "schedule.log" APPEND
+LOG "Waiting for 20:00..."
+
+WAIT UNTIL "20:00:00"
+LOG "Starting now"
+
+RECORDSTART
+WAIT 60s
+RECORDSTOP
+END
+```
+
 ---
 
 ## 4. Recommended Next Steps (Implementation Roadmap)
 
 If/when implementing v2 in code:
 
-1. Add a v2 parser (tokenizer + recursive descent) with quoted strings and `:` statement separators.
-2. Keep v1 compatibility mode (existing whitespace-command lines) as a fallback.
-3. Implement structured block execution (`FOR`/`WHILE`/block `IF`) with explicit stacks and clear diagnostics.
-4. Add `GOSUB`/`RETURN` (subroutines) before full user-defined functions; it matches C64 BASIC idioms and solves most reuse needs.
-5. Add `POKE`/`PEEK`, `TYPE`/`KEY`, and `LOG`/`TRON` to unlock classic C64 automation workflows.
+1. Implement parsing: case-insensitive keywords/labels/identifiers, label prefixes (optional `:`), optional line numbers, quoted strings, `:` separators, and `REM`.
+2. Implement expressions: parentheses, `NOT`/`AND`/`XOR`/`OR`, and relational operators (with `==`/`!=` aliases).
+3. Implement control flow: `IF`/`ENDIF`, `FOR`/`NEXT`, `WHILE`/`WEND` (+ `ENDWHILE`), `GOTO`, and `GOSUB`/`RETURN`.
+4. Implement waiting: duration waits and `WAIT UNTIL` (wall-clock) with time parsing.
+5. Implement plugin I/O: effects/palettes, runners/mount/reset, `POKE`/`PEEK`, `TYPE`/`KEY`, `LOGFILE`/`LOG`, `TRON`/`TROFF`.
