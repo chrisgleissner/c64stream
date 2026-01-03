@@ -23,14 +23,161 @@ typedef struct {
     c64script_token_t current;
     c64script_token_t previous;
     bool had_error;
+    bool had_any_error;
     bool panic_mode;
     char error_msg[1024];
 } parser_t;
 
 // Forward declarations
+static void error(parser_t *p, const char *message);
 static c64script_ast_expr_t *expression(parser_t *p);
 static c64script_ast_node_t *statement(parser_t *p);
 static c64script_ast_node_t *declaration(parser_t *p);
+
+static c64script_token_t peek_token(parser_t *p)
+{
+    return c64script_tokenizer_peek(p->tokenizer);
+}
+
+static char *dup_upper(const char *start, size_t length)
+{
+    char *out = malloc(length + 1);
+    if (!out) {
+        return NULL;
+    }
+    for (size_t i = 0; i < length; i++) {
+        out[i] = (char)toupper((unsigned char)start[i]);
+    }
+    out[length] = '\0';
+    return out;
+}
+
+static bool parse_uint32_decimal_token(const c64script_token_t *tok, uint32_t *out_value)
+{
+    if (!tok || !out_value) {
+        return false;
+    }
+
+    if (tok->length == 0) {
+        return false;
+    }
+
+    uint64_t value = 0;
+    for (size_t i = 0; i < tok->length; i++) {
+        char c = tok->start[i];
+        if (c < '0' || c > '9') {
+            return false;
+        }
+        value = value * 10u + (uint64_t)(c - '0');
+        if (value > UINT32_MAX) {
+            return false;
+        }
+    }
+
+    *out_value = (uint32_t)value;
+    return true;
+}
+
+static char *dup_normalized_label_from_number(const c64script_token_t *tok)
+{
+    uint32_t value = 0;
+    if (!parse_uint32_decimal_token(tok, &value)) {
+        return NULL;
+    }
+
+    char buf[32];
+    int written = snprintf(buf, sizeof(buf), "%u", value);
+    if (written < 0 || (size_t)written >= sizeof(buf)) {
+        return NULL;
+    }
+
+    return strdup(buf);
+}
+
+static char *decode_string_literal(parser_t *p, const c64script_token_t *tok)
+{
+    if (!tok || tok->type != TOKEN_STRING || tok->length < 2) {
+        error(p, "Invalid string literal");
+        return NULL;
+    }
+
+    const char *in = tok->start + 1;
+    size_t in_len = tok->length - 2;
+
+    char *out = malloc(in_len + 1);
+    if (!out) {
+        error(p, "Out of memory");
+        return NULL;
+    }
+
+    size_t out_len = 0;
+    for (size_t i = 0; i < in_len; i++) {
+        char c = in[i];
+
+        if (c == '"' && (i + 1) < in_len && in[i + 1] == '"') {
+            out[out_len++] = '"';
+            i++;
+            continue;
+        }
+
+        if (c != '\\') {
+            out[out_len++] = c;
+            continue;
+        }
+
+        if ((i + 1) >= in_len) {
+            free(out);
+            error(p, "Unterminated escape sequence");
+            return NULL;
+        }
+
+        char esc = in[++i];
+        switch (esc) {
+        case '\\':
+            out[out_len++] = '\\';
+            break;
+        case '"':
+            out[out_len++] = '"';
+            break;
+        case 'r':
+            out[out_len++] = '\r';
+            break;
+        case 'n':
+            out[out_len++] = '\n';
+            break;
+        case 't':
+            out[out_len++] = '\t';
+            break;
+        case 'x': {
+            if ((i + 2) >= in_len) {
+                free(out);
+                error(p, "Invalid hex escape (expected \\xNN)");
+                return NULL;
+            }
+            char h1 = in[++i];
+            char h2 = in[++i];
+            int v1 = isxdigit((unsigned char)h1) ? (isdigit((unsigned char)h1) ? (h1 - '0') : (tolower(h1) - 'a' + 10))
+                                                 : -1;
+            int v2 = isxdigit((unsigned char)h2) ? (isdigit((unsigned char)h2) ? (h2 - '0') : (tolower(h2) - 'a' + 10))
+                                                 : -1;
+            if (v1 < 0 || v2 < 0) {
+                free(out);
+                error(p, "Invalid hex escape (expected \\xNN)");
+                return NULL;
+            }
+            out[out_len++] = (char)((v1 << 4) | v2);
+            break;
+        }
+        default:
+            free(out);
+            error(p, "Unknown escape sequence");
+            return NULL;
+        }
+    }
+
+    out[out_len] = '\0';
+    return out;
+}
 
 // ============================================================================
 // ERROR HANDLING
@@ -42,6 +189,7 @@ static void error_at(parser_t *p, c64script_token_t *token, const char *message)
         return;
     p->panic_mode = true;
     p->had_error = true;
+    p->had_any_error = true;
 
     snprintf(p->error_msg, sizeof(p->error_msg), "[Line %d:%d] Error at '%.*s': %s", token->line, token->column,
              (int)token->length, token->start, message);
@@ -161,7 +309,11 @@ static c64script_ast_expr_t *number(parser_t *p, bool can_assign)
         return NULL;
     expr->type = AST_EXPR_NUMBER;
     expr->line = p->previous.line;
-    expr->as.number = p->previous.value.number;
+    if (p->previous.type == TOKEN_DURATION) {
+        expr->as.number = (double)p->previous.value.duration_ms;
+    } else {
+        expr->as.number = p->previous.value.number;
+    }
     return expr;
 }
 
@@ -174,18 +326,11 @@ static c64script_ast_expr_t *string(parser_t *p, bool can_assign)
         return NULL;
     expr->type = AST_EXPR_STRING;
     expr->line = p->previous.line;
-    // Store string from token (skip quotes)
-    size_t len = p->previous.length > 2 ? p->previous.length - 2 : 0;
-    char *str = malloc(len + 1);
-    if (str) {
-        memcpy(str, p->previous.start + 1, len);
-        str[len] = '\0';
-    }
-    expr->as.string = str;
+    expr->as.string = decode_string_literal(p, &p->previous);
     return expr;
 }
 
-// Identifier or function call
+// Identifier or function name
 static c64script_ast_expr_t *variable(parser_t *p, bool can_assign)
 {
     (void)can_assign;
@@ -194,12 +339,7 @@ static c64script_ast_expr_t *variable(parser_t *p, bool can_assign)
         return NULL;
     expr->type = AST_EXPR_IDENTIFIER;
     expr->line = p->previous.line;
-    char *name = malloc(p->previous.length + 1);
-    if (name) {
-        memcpy(name, p->previous.start, p->previous.length);
-        name[p->previous.length] = '\0';
-    }
-    expr->as.identifier = name;
+    expr->as.identifier = dup_upper(p->previous.start, p->previous.length);
     return expr;
 }
 
@@ -314,38 +454,13 @@ static c64script_ast_expr_t *binary(parser_t *p, bool can_assign)
     return expr;
 }
 
-// Function call
+// Marker function for Pratt call handling. Calls are handled explicitly in parse_precedence()
+// so this function should never be invoked directly.
 static c64script_ast_expr_t *call(parser_t *p, bool can_assign)
 {
+    (void)p;
     (void)can_assign;
-    // Previous expression was the function name
-    c64script_ast_expr_t *expr = calloc(1, sizeof(c64script_ast_expr_t));
-    if (!expr)
-        return NULL;
-    expr->type = AST_EXPR_CALL;
-    expr->line = p->previous.line;
-
-    // Build argument list
-    size_t arg_capacity = 4;
-    size_t arg_count = 0;
-    c64script_ast_expr_t **args = malloc(arg_capacity * sizeof(c64script_ast_expr_t *));
-
-    if (!check(p, TOKEN_RPAREN)) {
-        do {
-            if (arg_count >= arg_capacity) {
-                arg_capacity *= 2;
-                args = realloc(args, arg_capacity * sizeof(c64script_ast_expr_t *));
-            }
-            args[arg_count++] = expression(p);
-        } while (match(p, TOKEN_COMMA));
-    }
-
-    consume(p, TOKEN_RPAREN, "Expected ')' after arguments");
-
-    expr->as.call.args = args;
-    expr->as.call.arg_count = arg_count;
-
-    return expr;
+    return NULL;
 }
 
 // Parse rule table
@@ -373,6 +488,7 @@ static parse_rule_t rules[] = {
     [TOKEN_DURATION] = {number, NULL, PREC_NONE},
     [TOKEN_STRING] = {string, NULL, PREC_NONE},
     [TOKEN_IDENTIFIER] = {variable, NULL, PREC_NONE},
+    [TOKEN_PEEK] = {variable, NULL, PREC_NONE},
 };
 
 static parse_rule_t *get_rule(c64script_token_type_t type)
@@ -459,6 +575,43 @@ static c64script_ast_expr_t *parse_precedence(parser_t *p, precedence_t preceden
             }
 
             left = bin_expr;
+        } else if (infix_rule == call) {
+            // Function call - left expression must be an identifier
+            if (left->type != AST_EXPR_IDENTIFIER) {
+                error(p, "Can only call functions by name");
+                return NULL;
+            }
+
+            // Build call expression with function name
+            c64script_ast_expr_t *call_expr = calloc(1, sizeof(c64script_ast_expr_t));
+            call_expr->type = AST_EXPR_CALL;
+            call_expr->line = p->previous.line;
+            call_expr->as.call.name = left->as.identifier; // Transfer ownership
+
+            // Build argument list
+            size_t arg_capacity = 4;
+            size_t arg_count = 0;
+            c64script_ast_expr_t **args = malloc(arg_capacity * sizeof(c64script_ast_expr_t *));
+
+            if (!check(p, TOKEN_RPAREN)) {
+                do {
+                    if (arg_count >= arg_capacity) {
+                        arg_capacity *= 2;
+                        args = realloc(args, arg_capacity * sizeof(c64script_ast_expr_t *));
+                    }
+                    args[arg_count++] = expression(p);
+                } while (match(p, TOKEN_COMMA));
+            }
+
+            consume(p, TOKEN_RPAREN, "Expected ')' after arguments");
+
+            call_expr->as.call.args = args;
+            call_expr->as.call.arg_count = arg_count;
+
+            // Free the old identifier expression (we transferred the name)
+            free(left);
+
+            left = call_expr;
         } else if (infix_rule) {
             left = infix_rule(p, can_assign);
         }
@@ -476,15 +629,38 @@ static c64script_ast_expr_t *expression(parser_t *p)
 // STATEMENT PARSING
 // ============================================================================
 
+static char *parse_label_ref(parser_t *p)
+{
+    if (match(p, TOKEN_IDENTIFIER)) {
+        return dup_upper(p->previous.start, p->previous.length);
+    }
+
+    if (match(p, TOKEN_NUMBER)) {
+        if (memchr(p->previous.start, '.', p->previous.length) != NULL) {
+            error(p, "Line numbers must be integers");
+            return NULL;
+        }
+        char *normalized = dup_normalized_label_from_number(&p->previous);
+        if (!normalized) {
+            error(p, "Invalid line number");
+            return NULL;
+        }
+        return normalized;
+    }
+
+    error(p, "Expected label");
+    return NULL;
+}
+
 // Assignment: [LET] variable = expression
-static c64script_ast_node_t *assignment_statement(parser_t *p, const char *var_name)
+static c64script_ast_node_t *assignment_statement(parser_t *p, const char *var_name_upper)
 {
     c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
     if (!node)
         return NULL;
     node->type = AST_STMT_ASSIGNMENT;
     node->line = p->previous.line;
-    node->as.assignment.variable = strdup(var_name);
+    node->as.assignment.variable = strdup(var_name_upper);
 
     consume(p, TOKEN_EQ, "Expected '=' in assignment");
     node->as.assignment.value = expression(p);
@@ -501,17 +677,7 @@ static c64script_ast_node_t *label_statement(parser_t *p)
     node->type = AST_STMT_LABEL;
     node->line = p->previous.line;
 
-    if (match(p, TOKEN_IDENTIFIER)) {
-        char *name = malloc(p->previous.length + 1);
-        if (name) {
-            memcpy(name, p->previous.start, p->previous.length);
-            name[p->previous.length] = '\0';
-        }
-        node->as.label.name = name;
-        match(p, TOKEN_COLON); // Optional colon
-    } else {
-        error(p, "Expected label name");
-    }
+    node->as.label.name = parse_label_ref(p);
 
     return node;
 }
@@ -524,17 +690,7 @@ static c64script_ast_node_t *goto_statement(parser_t *p)
         return NULL;
     node->type = AST_STMT_GOTO;
     node->line = p->previous.line;
-
-    if (match(p, TOKEN_IDENTIFIER)) {
-        char *label = malloc(p->previous.length + 1);
-        if (label) {
-            memcpy(label, p->previous.start, p->previous.length);
-            label[p->previous.length] = '\0';
-        }
-        node->as.goto_stmt.label = label;
-    } else {
-        error(p, "Expected label after GOTO");
-    }
+    node->as.goto_stmt.label = parse_label_ref(p);
 
     return node;
 }
@@ -547,17 +703,7 @@ static c64script_ast_node_t *gosub_statement(parser_t *p)
         return NULL;
     node->type = AST_STMT_GOSUB;
     node->line = p->previous.line;
-
-    if (match(p, TOKEN_IDENTIFIER)) {
-        char *label = malloc(p->previous.length + 1);
-        if (label) {
-            memcpy(label, p->previous.start, p->previous.length);
-            label[p->previous.length] = '\0';
-        }
-        node->as.gosub_stmt.label = label;
-    } else {
-        error(p, "Expected label after GOSUB");
-    }
+    node->as.gosub_stmt.label = parse_label_ref(p);
 
     return node;
 }
@@ -581,6 +727,21 @@ static c64script_ast_node_t *stop_statement(parser_t *p)
         return NULL;
     node->type = AST_STMT_STOP;
     node->line = p->previous.line;
+    return node;
+}
+
+static c64script_ast_node_t *rem_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_REM;
+    node->line = p->previous.line;
+
+    while (!check(p, TOKEN_NEWLINE) && !check(p, TOKEN_EOF)) {
+        advance(p);
+    }
+
     return node;
 }
 
@@ -686,7 +847,7 @@ static c64script_ast_node_t *for_statement(parser_t *p)
         free(node);
         return NULL;
     }
-    node->as.for_stmt.variable = strndup(p->previous.start, p->previous.length);
+    node->as.for_stmt.variable = dup_upper(p->previous.start, p->previous.length);
 
     // Expect '='
     if (!match(p, TOKEN_EQ)) {
@@ -715,6 +876,7 @@ static c64script_ast_node_t *for_statement(parser_t *p)
         // Default step is 1
         c64script_ast_expr_t *step = calloc(1, sizeof(c64script_ast_expr_t));
         step->type = AST_EXPR_NUMBER;
+        step->line = node->line;
         step->as.number = 1.0;
         node->as.for_stmt.step = step;
     }
@@ -774,7 +936,8 @@ static c64script_ast_node_t *while_statement(parser_t *p)
     c64script_ast_node_t *body = NULL;
     c64script_ast_node_t *body_tail = NULL;
 
-    while (!check(p, TOKEN_WEND) && !check(p, TOKEN_ENDWHILE) && !check(p, TOKEN_EOF)) {
+    while (!check(p, TOKEN_WEND) && !check(p, TOKEN_ENDWHILE) && !check(p, TOKEN_EOF) &&
+           !(check(p, TOKEN_END) && peek_token(p).type == TOKEN_WHILE)) {
         c64script_ast_node_t *stmt = statement(p);
         if (stmt) {
             if (!body) {
@@ -791,13 +954,18 @@ static c64script_ast_node_t *while_statement(parser_t *p)
     node->as.while_stmt.body = body;
 
     // Require WEND or ENDWHILE
-    if (!match(p, TOKEN_WEND) && !match(p, TOKEN_ENDWHILE)) {
-        error(p, "Expected WEND or ENDWHILE");
-        free(node);
-        return NULL;
+    if (match(p, TOKEN_WEND) || match(p, TOKEN_ENDWHILE)) {
+        return node;
     }
 
-    return node;
+    if (match(p, TOKEN_END)) {
+        consume(p, TOKEN_WHILE, "Expected WHILE after END");
+        return node;
+    }
+
+    error(p, "Expected WEND or ENDWHILE");
+    free(node);
+    return NULL;
 }
 
 // WAIT duration or WAIT UNTIL condition
@@ -815,9 +983,35 @@ static c64script_ast_node_t *wait_statement(parser_t *p)
     } else {
         // WAIT duration
         node->type = AST_STMT_WAIT;
-        // Duration will be evaluated at runtime
-        // For now we just store 0; bytecode compiler will handle the expression
-        node->as.wait_stmt.duration_ms = 0;
+        node->as.wait_stmt.unit = C64SCRIPT_WAIT_UNIT_S;
+
+        if (check(p, TOKEN_DURATION)) {
+            advance(p);
+            c64script_ast_expr_t *duration = calloc(1, sizeof(c64script_ast_expr_t));
+            duration->type = AST_EXPR_NUMBER;
+            duration->line = node->line;
+            duration->as.number = (double)p->previous.value.duration_ms;
+            node->as.wait_stmt.duration = duration;
+            node->as.wait_stmt.unit = C64SCRIPT_WAIT_UNIT_MS;
+            return node;
+        }
+
+        node->as.wait_stmt.duration = expression(p);
+
+        if (check(p, TOKEN_IDENTIFIER)) {
+            c64script_token_t unit_tok = p->current;
+            if (unit_tok.length == 2 && (unit_tok.start[0] == 'm' || unit_tok.start[0] == 'M') &&
+                (unit_tok.start[1] == 's' || unit_tok.start[1] == 'S')) {
+                advance(p);
+                node->as.wait_stmt.unit = C64SCRIPT_WAIT_UNIT_MS;
+            } else if (unit_tok.length == 1 && (unit_tok.start[0] == 's' || unit_tok.start[0] == 'S')) {
+                advance(p);
+                node->as.wait_stmt.unit = C64SCRIPT_WAIT_UNIT_S;
+            } else if (unit_tok.length == 1 && (unit_tok.start[0] == 'm' || unit_tok.start[0] == 'M')) {
+                advance(p);
+                node->as.wait_stmt.unit = C64SCRIPT_WAIT_UNIT_M;
+            }
+        }
     }
 
     return node;
@@ -881,6 +1075,11 @@ static c64script_ast_node_t *playsid_statement(parser_t *p)
 
     node->as.playsid_stmt.path = expression(p);
     node->as.playsid_stmt.songnr = NULL;
+
+    if (match(p, TOKEN_SONGNR)) {
+        match(p, TOKEN_EQ);
+        node->as.playsid_stmt.songnr = expression(p);
+    }
 
     return node;
 }
@@ -1018,6 +1217,42 @@ static c64script_ast_node_t *poke_statement(parser_t *p)
         free(node);
         return NULL;
     }
+
+    if (match(p, TOKEN_LBRACKET)) {
+        size_t capacity = 8;
+        size_t count = 0;
+        c64script_ast_expr_t **values = calloc(capacity, sizeof(c64script_ast_expr_t *));
+        if (!values) {
+            error(p, "Out of memory");
+            free(node);
+            return NULL;
+        }
+
+        if (!check(p, TOKEN_RBRACKET)) {
+            do {
+                if (count >= capacity) {
+                    capacity *= 2;
+                    c64script_ast_expr_t **new_values = realloc(values, capacity * sizeof(c64script_ast_expr_t *));
+                    if (!new_values) {
+                        error(p, "Out of memory");
+                        free(values);
+                        free(node);
+                        return NULL;
+                    }
+                    values = new_values;
+                }
+
+                values[count++] = expression(p);
+            } while (match(p, TOKEN_COMMA));
+        }
+
+        consume(p, TOKEN_RBRACKET, "Expected ']'");
+        node->as.poke_stmt.values = values;
+        node->as.poke_stmt.value_count = count;
+        node->as.poke_stmt.single_value = NULL;
+        return node;
+    }
+
     node->as.poke_stmt.single_value = expression(p);
     node->as.poke_stmt.values = NULL;
     node->as.poke_stmt.value_count = 0;
@@ -1036,6 +1271,12 @@ static c64script_ast_node_t *logfile_statement(parser_t *p)
 
     node->as.logfile_stmt.path = expression(p);
     node->as.logfile_stmt.truncate = false; // Default to append
+
+    if (match(p, TOKEN_TRUNCATE)) {
+        node->as.logfile_stmt.truncate = true;
+    } else if (match(p, TOKEN_APPEND)) {
+        node->as.logfile_stmt.truncate = false;
+    }
 
     return node;
 }
@@ -1094,62 +1335,93 @@ static c64script_ast_node_t *troff_statement(parser_t *p)
 
 static c64script_ast_node_t *statement(parser_t *p)
 {
-    // Skip newlines
-    while (match(p, TOKEN_NEWLINE))
-        ;
+    bool skipped_newlines = false;
+    while (match(p, TOKEN_NEWLINE)) {
+        skipped_newlines = true;
+    }
 
     if (check(p, TOKEN_EOF))
         return NULL;
 
-    // Label (can be LABEL keyword or just identifier with optional colon)
-    if (match(p, TOKEN_LABEL_KW)) {
-        return label_statement(p);
+    bool allow_line_label = skipped_newlines || p->previous.type == TOKEN_EOF;
+
+    // Optional line prefix label/line-number, possibly followed by a statement on the same line.
+    if (allow_line_label && (check(p, TOKEN_IDENTIFIER) || check(p, TOKEN_NUMBER))) {
+        c64script_token_t first = p->current;
+        c64script_token_t second = peek_token(p);
+
+        bool is_label = false;
+        if (first.type == TOKEN_NUMBER) {
+            is_label = memchr(first.start, '.', first.length) == NULL;
+        } else if (first.type == TOKEN_IDENTIFIER) {
+            is_label = (second.type == TOKEN_COLON) || (second.type != TOKEN_EQ);
+        }
+
+        if (is_label) {
+            c64script_ast_node_t *label_node = calloc(1, sizeof(c64script_ast_node_t));
+            if (!label_node)
+                return NULL;
+            label_node->type = AST_STMT_LABEL;
+            label_node->line = first.line;
+
+            advance(p); // consume label token
+            if (first.type == TOKEN_NUMBER) {
+                label_node->as.label.name = dup_normalized_label_from_number(&first);
+                if (!label_node->as.label.name) {
+                    error(p, "Invalid line number");
+                    free(label_node);
+                    return NULL;
+                }
+            } else {
+                label_node->as.label.name = dup_upper(first.start, first.length);
+            }
+
+            match(p, TOKEN_COLON);
+
+            if (check(p, TOKEN_NEWLINE) || check(p, TOKEN_EOF)) {
+                return label_node;
+            }
+
+            c64script_ast_node_t *next_stmt = statement(p);
+            if (next_stmt) {
+                label_node->next = next_stmt;
+            }
+            return label_node;
+        }
     }
 
-    // Check for identifier (could be label or assignment)
-    if (check(p, TOKEN_IDENTIFIER)) {
-        // Peek ahead for colon or =
-        c64script_token_t saved = p->current;
-        advance(p);
-        if (check(p, TOKEN_COLON)) {
-            // It's a label
-            char *name = malloc(p->previous.length + 1);
-            if (name) {
-                memcpy(name, p->previous.start, p->previous.length);
-                name[p->previous.length] = '\0';
-            }
-            advance(p); // Skip colon
-            c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
-            node->type = AST_STMT_LABEL;
-            node->line = p->previous.line;
-            node->as.label.name = name;
-            return node;
-        } else if (check(p, TOKEN_EQ)) {
-            // It's an assignment
-            char *name = malloc(p->previous.length + 1);
-            if (name) {
-                memcpy(name, p->previous.start, p->previous.length);
-                name[p->previous.length] = '\0';
-            }
-            return assignment_statement(p, name);
-        } else {
-            // Restore and continue
-            p->current = saved;
-        }
+    // Label (compatibility statement)
+    if (match(p, TOKEN_LABEL_KW)) {
+        return label_statement(p);
     }
 
     // Keywords
     if (match(p, TOKEN_LET)) {
         if (match(p, TOKEN_IDENTIFIER)) {
-            char *name = malloc(p->previous.length + 1);
-            if (name) {
-                memcpy(name, p->previous.start, p->previous.length);
-                name[p->previous.length] = '\0';
-            }
-            return assignment_statement(p, name);
+            char *name = dup_upper(p->previous.start, p->previous.length);
+            c64script_ast_node_t *node = assignment_statement(p, name ? name : "");
+            free(name);
+            return node;
         } else {
             error(p, "Expected variable name after LET");
             return NULL;
+        }
+    }
+
+    if (match(p, TOKEN_REM)) {
+        return rem_statement(p);
+    }
+
+    // Assignment
+    if (check(p, TOKEN_IDENTIFIER)) {
+        c64script_token_t ident = p->current;
+        c64script_token_t next = peek_token(p);
+        if (next.type == TOKEN_EQ) {
+            advance(p);
+            char *name = dup_upper(ident.start, ident.length);
+            c64script_ast_node_t *node = assignment_statement(p, name ? name : "");
+            free(name);
+            return node;
         }
     }
 
@@ -1233,6 +1505,7 @@ c64script_ast_node_t *c64script_parse(const char *source, size_t source_size, ch
     parser_t parser = {0};
     parser.tokenizer = &tokenizer_obj;
     parser.had_error = false;
+    parser.had_any_error = false;
     parser.panic_mode = false;
 
     // Get first token
@@ -1252,6 +1525,10 @@ c64script_ast_node_t *c64script_parse(const char *source, size_t source_size, ch
                 tail->next = decl;
                 tail = decl;
             }
+
+            while (tail->next) {
+                tail = tail->next;
+            }
         }
 
         if (parser.had_error) {
@@ -1261,11 +1538,16 @@ c64script_ast_node_t *c64script_parse(const char *source, size_t source_size, ch
         }
     }
 
-    if (parser.had_error && error_msg) {
+    if (parser.had_any_error && error_msg) {
         snprintf(error_msg, error_msg_size, "%s", parser.error_msg);
     }
 
     // Tokenizer is stack-allocated, no cleanup needed
 
-    return parser.had_error ? NULL : root;
+    if (parser.had_any_error) {
+        c64script_ast_free(root);
+        return NULL;
+    }
+
+    return root;
 }

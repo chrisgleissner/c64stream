@@ -236,10 +236,22 @@ static c64script_token_t make_token(tokenizer_t *t, c64script_token_type_t type,
     return token;
 }
 
-static c64script_token_t error_token(tokenizer_t *t, const char *message)
+static c64script_token_t error_token_at(tokenizer_t *t, int column, const char *message)
 {
     snprintf(t->error_msg, sizeof(t->error_msg), "Line %d: %s", t->line, message);
-    return make_token(t, TOKEN_ERROR, message, strlen(message));
+    c64script_token_t token;
+    token.type = TOKEN_ERROR;
+    token.line = t->line;
+    token.column = column;
+    token.start = message;
+    token.length = strlen(message);
+    token.value.number = 0;
+    return token;
+}
+
+static c64script_token_t error_token(tokenizer_t *t, const char *message)
+{
+    return error_token_at(t, t->column, message);
 }
 
 // ============================================================================
@@ -464,6 +476,7 @@ c64script_token_t c64script_tokenize_next(tokenizer_t *t)
 
     // Operators and delimiters
     const char *start = &t->source[t->pos];
+    int start_column = t->column;
     advance(t);
 
     switch (c) {
@@ -518,10 +531,10 @@ c64script_token_t c64script_tokenize_next(tokenizer_t *t)
             advance(t);
             return make_token(t, TOKEN_NE_ALT, start, 2);
         }
-        return error_token(t, "Unexpected character '!'");
+        return error_token_at(t, start_column, "Unexpected character '!'");
 
     default:
-        return error_token(t, "Unexpected character");
+        return error_token_at(t, start_column, "Unexpected character");
     }
 }
 

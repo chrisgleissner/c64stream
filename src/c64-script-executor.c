@@ -7,12 +7,9 @@ See <https://www.gnu.org/licenses/> for details.
 */
 
 #include "c64-script-executor.h"
-#include "c64-effect.h"
-#include "c64-keyboard.h"
+#include "c64-script.h"
+#include "c64-script-runtime.h"
 #include "c64-logging.h"
-#include "c64-palette.h"
-#include "c64-record.h"
-#include "c64-rest-client.h"
 #include "c64-source.h"
 
 #include <obs-module.h>
@@ -20,401 +17,278 @@ See <https://www.gnu.org/licenses/> for details.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <util/threading.h>
-
-// Cross-platform sleep
-#ifdef _WIN32
-#include <windows.h>
-#define usleep(x) Sleep((x) / 1000)
-#else
-#include <unistd.h>
-#endif
 
 #define EXECUTOR_LOG_PREFIX "[c64-script-executor] "
-#define MAX_LABELS 64
-#define MAX_LOOP_STACK 16
-
-typedef struct {
-    char name[256];
-    size_t command_index;
-} label_entry_t;
-
-typedef struct {
-    size_t start_index;
-    int count;
-    int remaining;
-} loop_entry_t;
 
 struct c64_script_executor {
     obs_source_t *source;
+
     pthread_t thread;
     bool thread_running;
 
-    // Execution state
-    c64_script_t *script;
-    size_t current_index;
-    c64_script_status_t status;
-    char error_msg[512];
-    char current_command[64];
-
-    // Control
-    volatile bool should_stop;
     pthread_mutex_t mutex;
 
-    // Labels and loops
-    label_entry_t labels[MAX_LABELS];
-    size_t num_labels;
-    loop_entry_t loop_stack[MAX_LOOP_STACK];
-    size_t loop_stack_depth;
+    c64_script_status_t status;
+    char error_msg[512];
+
+    c64script_runtime_t *runtime;
 };
 
-static const char *command_names[] = {
-    "effect", "effect_param", "palette",      "play_sid",    "run_prg", "mount_disk", "autostart", "reset",
-    "reboot", "wait",         "record_start", "record_stop", "stop",    "loop",       "label",     "goto",
-};
-
-// Helper: find label by name
-static int find_label(c64_script_executor_t *executor, const char *name)
+static const char *opcode_name(c64script_opcode_t opcode)
 {
-    for (size_t i = 0; i < executor->num_labels; i++) {
-        if (strcmp(executor->labels[i].name, name) == 0) {
-            return (int)executor->labels[i].command_index;
-        }
+    switch (opcode) {
+    case OP_NOP:
+        return "NOP";
+    case OP_PUSH_CONST:
+        return "PUSH_CONST";
+    case OP_PUSH_VAR:
+        return "PUSH_VAR";
+    case OP_POP_VAR:
+        return "POP_VAR";
+    case OP_ADD:
+        return "ADD";
+    case OP_SUBTRACT:
+        return "SUBTRACT";
+    case OP_MULTIPLY:
+        return "MULTIPLY";
+    case OP_DIVIDE:
+        return "DIVIDE";
+    case OP_NEGATE:
+        return "NEGATE";
+    case OP_EQ:
+        return "EQ";
+    case OP_NE:
+        return "NE";
+    case OP_LT:
+        return "LT";
+    case OP_LE:
+        return "LE";
+    case OP_GT:
+        return "GT";
+    case OP_GE:
+        return "GE";
+    case OP_NOT:
+        return "NOT";
+    case OP_AND:
+        return "AND";
+    case OP_XOR:
+        return "XOR";
+    case OP_OR:
+        return "OR";
+    case OP_JUMP:
+        return "JUMP";
+    case OP_JUMP_IF_FALSE:
+        return "JUMP_IF_FALSE";
+    case OP_CALL:
+        return "CALL";
+    case OP_RETURN:
+        return "RETURN";
+    case OP_FOR_INIT:
+        return "FOR_INIT";
+    case OP_FOR_CHECK:
+        return "FOR_CHECK";
+    case OP_FOR_INCR:
+        return "FOR_INCR";
+    case OP_WHILE_CHECK:
+        return "WHILE_CHECK";
+    case OP_WAIT:
+        return "WAIT";
+    case OP_WAIT_UNTIL:
+        return "WAIT_UNTIL";
+    case OP_CALL_PEEK:
+        return "PEEK";
+    case OP_EFFECT:
+        return "EFFECT";
+    case OP_EFFECTPARAM:
+        return "EFFECTPARAM";
+    case OP_PALETTE:
+        return "PALETTE";
+    case OP_PLAYSID:
+        return "PLAYSID";
+    case OP_RUNPRG:
+        return "RUNPRG";
+    case OP_MOUNTDISK:
+        return "MOUNTDISK";
+    case OP_AUTOSTART:
+        return "AUTOSTART";
+    case OP_RESET:
+        return "RESET";
+    case OP_REBOOT:
+        return "REBOOT";
+    case OP_RECORDSTART:
+        return "RECORDSTART";
+    case OP_RECORDSTOP:
+        return "RECORDSTOP";
+    case OP_TYPE:
+        return "TYPE";
+    case OP_KEY:
+        return "KEY";
+    case OP_POKE_SINGLE:
+        return "POKE";
+    case OP_POKE_ARRAY:
+        return "POKE[]";
+    case OP_LOGFILE:
+        return "LOGFILE";
+    case OP_LOG:
+        return "LOG";
+    case OP_PRINT:
+        return "PRINT";
+    case OP_TRON:
+        return "TRON";
+    case OP_TROFF:
+        return "TROFF";
+    case OP_STOP:
+        return "STOP";
+    case OP_HALT:
+        return "HALT";
+    default:
+        return "UNKNOWN";
     }
-    return -1;
 }
 
-// Helper: build label map
-static bool build_label_map(c64_script_executor_t *executor)
+static bool load_text_file(const char *path, char **out_text, size_t *out_size, char *error_msg, size_t error_size)
 {
-    executor->num_labels = 0;
-
-    for (size_t i = 0; i < executor->script->num_commands; i++) {
-        c64_script_command_t *cmd = &executor->script->commands[i];
-        if (cmd->type == C64_SCRIPT_CMD_LABEL) {
-            if (executor->num_labels >= MAX_LABELS) {
-                snprintf(executor->error_msg, sizeof(executor->error_msg), "Too many labels (max %d)", MAX_LABELS);
-                return false;
-            }
-
-            // Check for duplicate
-            if (find_label(executor, cmd->arg1) != -1) {
-                snprintf(executor->error_msg, sizeof(executor->error_msg), "Duplicate label: %.100s", cmd->arg1);
-                return false;
-            }
-
-            label_entry_t *label = &executor->labels[executor->num_labels++];
-            strncpy(label->name, cmd->arg1, sizeof(label->name) - 1);
-            label->command_index = i;
+    if (!path || !out_text || !out_size) {
+        if (error_msg && error_size > 0) {
+            snprintf(error_msg, error_size, "Invalid arguments");
         }
-    }
-
-    return true;
-}
-
-// Helper: execute a single command
-static bool execute_command(c64_script_executor_t *executor, c64_script_command_t *cmd)
-{
-    pthread_mutex_lock(&executor->mutex);
-    strncpy(executor->current_command, command_names[cmd->type], sizeof(executor->current_command) - 1);
-    pthread_mutex_unlock(&executor->mutex);
-
-    obs_data_t *settings = obs_source_get_settings(executor->source);
-    if (!settings) {
-        snprintf(executor->error_msg, sizeof(executor->error_msg), "Failed to get source settings");
         return false;
     }
 
-    // Get source context for REST client access
-    void *source_data = obs_obj_get_data(executor->source);
-    void *rest_client = c64_source_get_rest_client(source_data);
-
-    bool success = true;
-
-    switch (cmd->type) {
-    case C64_SCRIPT_CMD_EFFECT: {
-        // Apply effect preset via settings
-        if (!c64_effect_apply(settings, cmd->arg1)) {
-            snprintf(executor->error_msg, sizeof(executor->error_msg), "Effect preset not found: %.100s", cmd->arg1);
-            success = false;
-        } else {
-            obs_source_update(executor->source, settings);
+    FILE *f = fopen(path, "rb");
+    if (!f) {
+        if (error_msg && error_size > 0) {
+            snprintf(error_msg, error_size, "Failed to open script file: %s", path);
         }
-        break;
+        return false;
     }
 
-    case C64_SCRIPT_CMD_EFFECT_PARAM: {
-        // Set effect parameter directly
-        double value = atof(cmd->arg2);
-        obs_data_set_double(settings, cmd->arg1, value);
-        obs_source_update(executor->source, settings);
-        break;
+    if (fseek(f, 0, SEEK_END) != 0) {
+        fclose(f);
+        if (error_msg && error_size > 0) {
+            snprintf(error_msg, error_size, "Failed to seek script file");
+        }
+        return false;
     }
 
-    case C64_SCRIPT_CMD_PALETTE: {
-        // Apply palette by name
-        obs_data_set_string(settings, "palette", cmd->arg1);
-        obs_source_update(executor->source, settings);
-        break;
+    long fsize = ftell(f);
+    if (fsize < 0 || fsize > (long)C64SCRIPT_MAX_SCRIPT_SIZE) {
+        fclose(f);
+        if (error_msg && error_size > 0) {
+            snprintf(error_msg, error_size, "Script file too large");
+        }
+        return false;
     }
 
-    case C64_SCRIPT_CMD_PLAY_SID: {
-        if (!rest_client) {
-            snprintf(executor->error_msg, sizeof(executor->error_msg), "REST client not available");
-            success = false;
-            break;
+    if (fseek(f, 0, SEEK_SET) != 0) {
+        fclose(f);
+        if (error_msg && error_size > 0) {
+            snprintf(error_msg, error_size, "Failed to seek script file");
         }
-
-        if (cmd->path_type == C64_SCRIPT_PATH_C64U) {
-            if (!c64_rest_play_sid_path(rest_client, cmd->arg1, cmd->song_number)) {
-                snprintf(executor->error_msg, sizeof(executor->error_msg), "Failed to play SID: %.100s", cmd->arg1);
-                success = false;
-            }
-        } else {
-            // TODO: Read local file and upload via c64_rest_play_sid
-            C64_LOG_WARNING(EXECUTOR_LOG_PREFIX "Local file upload not yet implemented");
-            snprintf(executor->error_msg, sizeof(executor->error_msg), "Local file upload not yet implemented");
-            success = false;
-        }
-        break;
+        return false;
     }
 
-    case C64_SCRIPT_CMD_RUN_PRG: {
-        if (!rest_client) {
-            snprintf(executor->error_msg, sizeof(executor->error_msg), "REST client not available");
-            success = false;
-            break;
+    char *buf = malloc((size_t)fsize + 1);
+    if (!buf) {
+        fclose(f);
+        if (error_msg && error_size > 0) {
+            snprintf(error_msg, error_size, "Out of memory");
         }
-
-        if (cmd->path_type == C64_SCRIPT_PATH_C64U) {
-            if (!c64_rest_run_prg_path(rest_client, cmd->arg1)) {
-                snprintf(executor->error_msg, sizeof(executor->error_msg), "Failed to run PRG: %.100s", cmd->arg1);
-                success = false;
-            }
-        } else {
-            // TODO: Read local file and upload via c64_rest_run_prg
-            C64_LOG_WARNING(EXECUTOR_LOG_PREFIX "Local file upload not yet implemented");
-            snprintf(executor->error_msg, sizeof(executor->error_msg), "Local file upload not yet implemented");
-            success = false;
-        }
-        break;
+        return false;
     }
 
-    case C64_SCRIPT_CMD_MOUNT_DISK: {
-        if (!rest_client) {
-            snprintf(executor->error_msg, sizeof(executor->error_msg), "REST client not available");
-            success = false;
-            break;
+    size_t read_count = fread(buf, 1, (size_t)fsize, f);
+    fclose(f);
+    if (read_count != (size_t)fsize) {
+        free(buf);
+        if (error_msg && error_size > 0) {
+            snprintf(error_msg, error_size, "Failed to read script file");
         }
-
-        if (cmd->path_type == C64_SCRIPT_PATH_C64U) {
-            // Default to drive 'a'
-            if (!c64_rest_mount_disk_path(rest_client, 'a', cmd->arg1)) {
-                snprintf(executor->error_msg, sizeof(executor->error_msg), "Failed to mount disk: %.100s", cmd->arg1);
-                success = false;
-            }
-        } else {
-            // TODO: Read local file and upload via c64_rest_mount_disk
-            C64_LOG_WARNING(EXECUTOR_LOG_PREFIX "Local file upload not yet implemented");
-            snprintf(executor->error_msg, sizeof(executor->error_msg), "Local file upload not yet implemented");
-            success = false;
-        }
-        break;
+        return false;
     }
 
-    case C64_SCRIPT_CMD_AUTOSTART: {
-        // Inject autostart sequence via keyboard (LOAD"*",8,1\rRUN\r)
-        void *keyboard = c64_source_get_keyboard(source_data);
-        if (!keyboard) {
-            snprintf(executor->error_msg, sizeof(executor->error_msg), "Keyboard not available for autostart");
-            success = false;
-            break;
-        }
-
-        // Inject default autostart template
-        const char *template = "LOAD\"*\",8,1\rRUN\r";
-        for (size_t i = 0; template[i]; i++) {
-            c64_output_t output = {0};
-            output.mode = C64_OUTPUT_PETSCII;
-            if (template[i] == '\r') {
-                output.data.petscii = 0x0D; // RETURN
-            } else {
-                output.data.petscii = (uint8_t)template[i];
-            }
-            c64_keyboard_queue_output(keyboard, &output);
-        }
-        break;
-    }
-
-    case C64_SCRIPT_CMD_RESET: {
-        if (!rest_client) {
-            snprintf(executor->error_msg, sizeof(executor->error_msg), "REST client not available");
-            success = false;
-            break;
-        }
-
-        if (!c64_rest_reset(rest_client)) {
-            snprintf(executor->error_msg, sizeof(executor->error_msg), "Failed to reset C64");
-            success = false;
-        }
-        break;
-    }
-
-    case C64_SCRIPT_CMD_REBOOT: {
-        if (!rest_client) {
-            snprintf(executor->error_msg, sizeof(executor->error_msg), "REST client not available");
-            success = false;
-            break;
-        }
-
-        if (!c64_rest_reboot(rest_client)) {
-            snprintf(executor->error_msg, sizeof(executor->error_msg), "Failed to reboot C64");
-            success = false;
-        }
-        break;
-    }
-
-    case C64_SCRIPT_CMD_WAIT: {
-        pthread_mutex_lock(&executor->mutex);
-        executor->status = C64_SCRIPT_STATUS_WAITING;
-        pthread_mutex_unlock(&executor->mutex);
-
-        // Wait with cancellation checking (100ms intervals)
-        uint32_t elapsed_ms = 0;
-        while (elapsed_ms < cmd->duration_ms && !executor->should_stop) {
-            usleep(100000); // 100ms
-            elapsed_ms += 100;
-        }
-
-        pthread_mutex_lock(&executor->mutex);
-        executor->status = C64_SCRIPT_STATUS_RUNNING;
-        pthread_mutex_unlock(&executor->mutex);
-        break;
-    }
-
-    case C64_SCRIPT_CMD_RECORD_START: {
-        // Start CSV/network recording via c64-record functions
-        if (source_data) {
-            c64_start_csv_recording(source_data);
-            c64_start_network_recording(source_data);
-        }
-        break;
-    }
-
-    case C64_SCRIPT_CMD_RECORD_STOP: {
-        // Stop CSV/network recording
-        if (source_data) {
-            c64_stop_csv_recording(source_data);
-            c64_stop_network_recording(source_data);
-        }
-        break;
-    }
-
-    case C64_SCRIPT_CMD_STOP: {
-        executor->should_stop = true;
-        break;
-    }
-
-    case C64_SCRIPT_CMD_LOOP: {
-        if (executor->loop_stack_depth >= MAX_LOOP_STACK) {
-            snprintf(executor->error_msg, sizeof(executor->error_msg), "Loop stack overflow");
-            success = false;
-            break;
-        }
-
-        loop_entry_t *loop = &executor->loop_stack[executor->loop_stack_depth];
-        loop->start_index = executor->current_index;
-        loop->count = cmd->loop_count;
-        loop->remaining = cmd->loop_count;
-        executor->loop_stack_depth++;
-        break;
-    }
-
-    case C64_SCRIPT_CMD_LABEL:
-        // Labels are passive, no action
-        break;
-
-    case C64_SCRIPT_CMD_GOTO: {
-        int target = find_label(executor, cmd->arg1);
-        if (target == -1) {
-            snprintf(executor->error_msg, sizeof(executor->error_msg), "Label not found: %.100s", cmd->arg1);
-            success = false;
-        } else {
-            executor->current_index = target - 1; // -1 because loop will increment
-        }
-        break;
-    }
-    }
-
-    obs_data_release(settings);
-    return success;
+    buf[fsize] = '\0';
+    *out_text = buf;
+    *out_size = (size_t)fsize;
+    return true;
 }
 
-// Worker thread function
-static void *executor_thread(void *data)
+static bool compile_script(c64_script_executor_t *executor, const char *script_file_path,
+                           c64script_runtime_t **out_runtime, char *error_msg, size_t error_size)
+{
+    char *source = NULL;
+    size_t source_size = 0;
+
+    if (!load_text_file(script_file_path, &source, &source_size, error_msg, error_size)) {
+        return false;
+    }
+
+    char parse_error[1024] = {0};
+    c64script_ast_node_t *ast = c64script_parse(source, source_size, parse_error, sizeof(parse_error));
+    if (!ast) {
+        free(source);
+        if (error_msg && error_size > 0) {
+            snprintf(error_msg, error_size, "%s", parse_error[0] ? parse_error : "Parse failed");
+        }
+        return false;
+    }
+
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    if (!runtime) {
+        c64script_ast_free(ast);
+        free(source);
+        if (error_msg && error_size > 0) {
+            snprintf(error_msg, error_size, "Failed to create runtime");
+        }
+        return false;
+    }
+
+    // Integration pointers
+    void *source_data = obs_obj_get_data(executor->source);
+    runtime->source_data = source_data;
+    runtime->obs_source = executor->source;
+    runtime->rest_client = c64_source_get_rest_client(source_data);
+    runtime->keyboard = c64_source_get_keyboard(source_data);
+
+    char compile_error[1024] = {0};
+    bool ok = c64script_compile(ast, runtime, compile_error, sizeof(compile_error));
+    c64script_ast_free(ast);
+    free(source);
+
+    if (!ok) {
+        if (error_msg && error_size > 0) {
+            snprintf(error_msg, error_size, "%s", compile_error[0] ? compile_error : "Compile failed");
+        }
+        c64script_runtime_destroy(runtime);
+        return false;
+    }
+
+    *out_runtime = runtime;
+    return true;
+}
+
+static void *script_thread_main(void *data)
 {
     c64_script_executor_t *executor = data;
 
-    C64_LOG_INFO(EXECUTOR_LOG_PREFIX "Starting execution with %zu commands", executor->script->num_commands);
-
-    // Build label map
-    if (!build_label_map(executor)) {
-        pthread_mutex_lock(&executor->mutex);
-        executor->status = C64_SCRIPT_STATUS_ERROR;
-        pthread_mutex_unlock(&executor->mutex);
-        C64_LOG_ERROR(EXECUTOR_LOG_PREFIX "Label map build failed: %s", executor->error_msg);
-        return NULL;
-    }
-
-    // Execute commands sequentially
-    pthread_mutex_lock(&executor->mutex);
-    executor->status = C64_SCRIPT_STATUS_RUNNING;
-    pthread_mutex_unlock(&executor->mutex);
-
-    while (executor->current_index < executor->script->num_commands && !executor->should_stop) {
-        c64_script_command_t *cmd = &executor->script->commands[executor->current_index];
-
-        C64_LOG_DEBUG(EXECUTOR_LOG_PREFIX "Executing line %d: %s", cmd->line_number, command_names[cmd->type]);
-
-        if (!execute_command(executor, cmd)) {
-            pthread_mutex_lock(&executor->mutex);
-            executor->status = C64_SCRIPT_STATUS_ERROR;
-            pthread_mutex_unlock(&executor->mutex);
-            C64_LOG_ERROR(EXECUTOR_LOG_PREFIX "Command failed: %s", executor->error_msg);
-            break;
-        }
-
-        // Handle loop end
-        if (executor->loop_stack_depth > 0) {
-            loop_entry_t *loop = &executor->loop_stack[executor->loop_stack_depth - 1];
-            if (executor->current_index + 1 >= executor->script->num_commands ||
-                executor->current_index + 1 < loop->start_index) {
-                // End of loop block
-                if (loop->count == 0 || loop->remaining > 0) {
-                    // Infinite loop or iterations remaining
-                    if (loop->remaining > 0) {
-                        loop->remaining--;
-                    }
-                    executor->current_index = loop->start_index;
-                    continue;
-                } else {
-                    // Loop finished
-                    executor->loop_stack_depth--;
-                }
-            }
-        }
-
-        executor->current_index++;
-    }
+    bool ok = c64script_execute(executor->runtime);
 
     pthread_mutex_lock(&executor->mutex);
-    if (executor->status == C64_SCRIPT_STATUS_RUNNING) {
-        executor->status = C64_SCRIPT_STATUS_COMPLETED;
-    }
     executor->thread_running = false;
+    if (executor->runtime && executor->runtime->should_stop) {
+        executor->status = C64_SCRIPT_STATUS_IDLE;
+        executor->error_msg[0] = '\0';
+    } else if (!ok) {
+        executor->status = C64_SCRIPT_STATUS_ERROR;
+        const char *runtime_error = executor->runtime ? executor->runtime->error_msg : "Runtime error";
+        snprintf(executor->error_msg, sizeof(executor->error_msg), "%.*s", (int)(sizeof(executor->error_msg) - 1),
+                 runtime_error ? runtime_error : "Runtime error");
+    } else {
+        executor->status = C64_SCRIPT_STATUS_COMPLETED;
+        executor->error_msg[0] = '\0';
+    }
     pthread_mutex_unlock(&executor->mutex);
 
-    C64_LOG_INFO(EXECUTOR_LOG_PREFIX "Execution completed with status %d", executor->status);
     return NULL;
 }
 
@@ -430,7 +304,10 @@ c64_script_executor_t *c64_script_executor_create(obs_source_t *source)
     }
 
     executor->source = source;
+    executor->thread_running = false;
     executor->status = C64_SCRIPT_STATUS_IDLE;
+    executor->error_msg[0] = '\0';
+    executor->runtime = NULL;
     pthread_mutex_init(&executor->mutex, NULL);
 
     return executor;
@@ -444,49 +321,88 @@ void c64_script_executor_destroy(c64_script_executor_t *executor)
 
     c64_script_executor_stop(executor);
 
-    // Wait for thread to finish
-    if (executor->thread_running) {
-        pthread_join(executor->thread, NULL);
+    if (executor->runtime) {
+        c64script_runtime_destroy(executor->runtime);
+        executor->runtime = NULL;
     }
 
     pthread_mutex_destroy(&executor->mutex);
     free(executor);
 }
 
-bool c64_script_executor_start(c64_script_executor_t *executor, c64_script_t *script)
+bool c64_script_executor_validate_file(c64_script_executor_t *executor, const char *script_file_path)
 {
-    if (!executor || !script) {
+    if (!executor || !script_file_path || script_file_path[0] == '\0') {
+        return false;
+    }
+
+    char error[512] = {0};
+    c64script_runtime_t *runtime = NULL;
+    bool ok = compile_script(executor, script_file_path, &runtime, error, sizeof(error));
+
+    pthread_mutex_lock(&executor->mutex);
+    if (!ok) {
+        executor->status = C64_SCRIPT_STATUS_ERROR;
+        snprintf(executor->error_msg, sizeof(executor->error_msg), "%s", error);
+    } else {
+        executor->error_msg[0] = '\0';
+        if (executor->status == C64_SCRIPT_STATUS_ERROR) {
+            executor->status = C64_SCRIPT_STATUS_IDLE;
+        }
+    }
+    pthread_mutex_unlock(&executor->mutex);
+
+    if (runtime) {
+        c64script_runtime_destroy(runtime);
+    }
+
+    return ok;
+}
+
+bool c64_script_executor_start(c64_script_executor_t *executor, const char *script_file_path)
+{
+    if (!executor || !script_file_path || script_file_path[0] == '\0') {
         return false;
     }
 
     pthread_mutex_lock(&executor->mutex);
-
     if (executor->thread_running) {
         pthread_mutex_unlock(&executor->mutex);
         return false;
     }
-
-    executor->script = script;
-    executor->current_index = 0;
-    executor->should_stop = false;
-    executor->error_msg[0] = '\0';
-    executor->current_command[0] = '\0';
-    executor->num_labels = 0;
-    executor->loop_stack_depth = 0;
-    executor->status = C64_SCRIPT_STATUS_RUNNING;
-    executor->thread_running = true;
-
     pthread_mutex_unlock(&executor->mutex);
 
-    if (pthread_create(&executor->thread, NULL, executor_thread, executor) != 0) {
+    if (executor->runtime) {
+        c64script_runtime_destroy(executor->runtime);
+        executor->runtime = NULL;
+    }
+
+    char error[512] = {0};
+    if (!compile_script(executor, script_file_path, &executor->runtime, error, sizeof(error))) {
         pthread_mutex_lock(&executor->mutex);
-        executor->thread_running = false;
         executor->status = C64_SCRIPT_STATUS_ERROR;
-        snprintf(executor->error_msg, sizeof(executor->error_msg), "Failed to create thread");
+        snprintf(executor->error_msg, sizeof(executor->error_msg), "%s", error);
         pthread_mutex_unlock(&executor->mutex);
         return false;
     }
 
+    pthread_mutex_lock(&executor->mutex);
+    executor->status = C64_SCRIPT_STATUS_RUNNING;
+    executor->error_msg[0] = '\0';
+    executor->thread_running = true;
+    pthread_mutex_unlock(&executor->mutex);
+
+    int rc = pthread_create(&executor->thread, NULL, script_thread_main, executor);
+    if (rc != 0) {
+        pthread_mutex_lock(&executor->mutex);
+        executor->thread_running = false;
+        executor->status = C64_SCRIPT_STATUS_ERROR;
+        snprintf(executor->error_msg, sizeof(executor->error_msg), "Failed to start script thread");
+        pthread_mutex_unlock(&executor->mutex);
+        return false;
+    }
+
+    C64_LOG_INFO(EXECUTOR_LOG_PREFIX "Started script: %s", script_file_path);
     return true;
 }
 
@@ -496,7 +412,25 @@ void c64_script_executor_stop(c64_script_executor_t *executor)
         return;
     }
 
-    executor->should_stop = true;
+    pthread_mutex_lock(&executor->mutex);
+    bool running = executor->thread_running;
+    pthread_mutex_unlock(&executor->mutex);
+
+    if (!running) {
+        return;
+    }
+
+    if (executor->runtime) {
+        executor->runtime->should_stop = true;
+    }
+
+    pthread_join(executor->thread, NULL);
+    pthread_mutex_lock(&executor->mutex);
+    executor->thread_running = false;
+    if (executor->status == C64_SCRIPT_STATUS_RUNNING) {
+        executor->status = C64_SCRIPT_STATUS_IDLE;
+    }
+    pthread_mutex_unlock(&executor->mutex);
 }
 
 bool c64_script_executor_is_running(c64_script_executor_t *executor)
@@ -508,63 +442,67 @@ bool c64_script_executor_is_running(c64_script_executor_t *executor)
     pthread_mutex_lock(&executor->mutex);
     bool running = executor->thread_running;
     pthread_mutex_unlock(&executor->mutex);
-
     return running;
 }
 
 c64_script_status_t c64_script_executor_get_status(c64_script_executor_t *executor)
 {
     if (!executor) {
-        return C64_SCRIPT_STATUS_IDLE;
+        return C64_SCRIPT_STATUS_ERROR;
     }
 
     pthread_mutex_lock(&executor->mutex);
     c64_script_status_t status = executor->status;
     pthread_mutex_unlock(&executor->mutex);
-
     return status;
 }
 
 int c64_script_executor_get_current_line(c64_script_executor_t *executor)
 {
-    if (!executor || !executor->script) {
+    if (!executor || !executor->runtime) {
         return 0;
     }
 
-    pthread_mutex_lock(&executor->mutex);
-    int line = 0;
-    if (executor->current_index < executor->script->num_commands) {
-        line = executor->script->commands[executor->current_index].line_number;
-    }
-    pthread_mutex_unlock(&executor->mutex);
-
-    return line;
+    int line = executor->runtime->error_line;
+    return line > 0 ? line : 0;
 }
 
 int c64_script_executor_get_progress(c64_script_executor_t *executor)
 {
-    if (!executor || !executor->script || executor->script->num_commands == 0) {
+    if (!executor || !executor->runtime || executor->runtime->bytecode_size == 0) {
         return -1;
     }
 
-    pthread_mutex_lock(&executor->mutex);
-    int progress = (int)((executor->current_index * 100) / executor->script->num_commands);
-    pthread_mutex_unlock(&executor->mutex);
+    size_t ip = executor->runtime->ip;
+    size_t size = executor->runtime->bytecode_size;
+    if (ip > size) {
+        ip = size;
+    }
 
-    return progress;
+    return (int)((double)ip * 100.0 / (double)size);
 }
 
 const char *c64_script_executor_get_current_command(c64_script_executor_t *executor)
 {
-    if (!executor) {
+    static __thread char buf[64];
+
+    if (!executor || !executor->runtime || !executor->runtime->bytecode || executor->runtime->bytecode_size == 0) {
         return NULL;
     }
 
-    pthread_mutex_lock(&executor->mutex);
-    const char *cmd = executor->current_command[0] ? executor->current_command : NULL;
-    pthread_mutex_unlock(&executor->mutex);
+    size_t ip = executor->runtime->ip;
+    if (ip == 0) {
+        ip = 0;
+    } else {
+        ip = ip - 1;
+    }
+    if (ip >= executor->runtime->bytecode_size) {
+        ip = executor->runtime->bytecode_size - 1;
+    }
 
-    return cmd;
+    c64script_instruction_t *instr = &executor->runtime->bytecode[ip];
+    snprintf(buf, sizeof(buf), "%s", opcode_name(instr->opcode));
+    return buf;
 }
 
 const char *c64_script_executor_get_error(c64_script_executor_t *executor)
@@ -574,8 +512,7 @@ const char *c64_script_executor_get_error(c64_script_executor_t *executor)
     }
 
     pthread_mutex_lock(&executor->mutex);
-    const char *err = executor->error_msg[0] ? executor->error_msg : NULL;
+    const char *err = (executor->status == C64_SCRIPT_STATUS_ERROR) ? executor->error_msg : NULL;
     pthread_mutex_unlock(&executor->mutex);
-
     return err;
 }

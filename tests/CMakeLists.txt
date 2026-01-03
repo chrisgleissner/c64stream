@@ -25,6 +25,7 @@ add_test(NAME c64script_parser COMMAND test_c64script_parser)
 add_executable(
   test_c64script_compiler
   test_c64script_compiler.c
+  c64script_test_stubs.c
   ${CMAKE_SOURCE_DIR}/src/c64-script-parser.c
   ${CMAKE_SOURCE_DIR}/src/c64-script-token.c
   ${CMAKE_SOURCE_DIR}/src/c64-script-ast.c

@@ -230,6 +230,12 @@ typedef enum {
 
 } c64script_ast_type_t;
 
+typedef enum {
+    C64SCRIPT_WAIT_UNIT_MS,
+    C64SCRIPT_WAIT_UNIT_S,
+    C64SCRIPT_WAIT_UNIT_M,
+} c64script_wait_unit_t;
+
 // Forward declarations
 typedef struct c64script_ast_node c64script_ast_node_t;
 typedef struct c64script_ast_expr c64script_ast_expr_t;
@@ -337,7 +343,8 @@ struct c64script_ast_node {
         // stop_stmt has no data
 
         struct {
-            uint32_t duration_ms;
+            c64script_ast_expr_t *duration;
+            c64script_wait_unit_t unit;
         } wait_stmt;
 
         struct {
@@ -454,6 +461,10 @@ typedef enum {
     OP_FOR_CHECK,   // Check FOR condition, jump if done
     OP_FOR_INCR,    // Increment loop variable
     OP_WHILE_CHECK, // Check WHILE condition, jump if false
+
+    // Waiting
+    OP_WAIT,       // Wait for duration (operand = c64script_wait_unit_t)
+    OP_WAIT_UNTIL, // Wait until wall-clock target
 
     // Built-in functions
     OP_CALL_PEEK,    // PEEK(address) - REST DMA read
@@ -585,6 +596,7 @@ typedef struct {
 
     // Integration points (set by executor)
     void *source_data; // OBS source data
+    void *obs_source;  // obs_source_t*
     void *rest_client; // REST client for PEEK/POKE
     void *keyboard;    // Keyboard injection module
 

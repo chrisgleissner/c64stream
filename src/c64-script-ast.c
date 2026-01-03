@@ -30,9 +30,14 @@ static void free_expr(c64script_ast_expr_t *expr)
 
     switch (expr->type) {
     case AST_EXPR_NUMBER:
+        break;
+
     case AST_EXPR_STRING:
+        free((char *)expr->as.string);
+        break;
+
     case AST_EXPR_IDENTIFIER:
-        // Strings are owned by string pool, not freed here
+        free((char *)expr->as.identifier);
         break;
 
     case AST_EXPR_UNARY:
@@ -45,6 +50,7 @@ static void free_expr(c64script_ast_expr_t *expr)
         break;
 
     case AST_EXPR_CALL:
+        free((char *)expr->as.call.name);
         for (size_t i = 0; i < expr->as.call.arg_count; i++) {
             free_expr(expr->as.call.args[i]);
         }
@@ -82,10 +88,11 @@ void c64script_ast_free(c64script_ast_node_t *node)
             break;
 
         case AST_STMT_LABEL:
-            // name is in string pool
+            free((char *)node->as.label.name);
             break;
 
         case AST_STMT_ASSIGNMENT:
+            free((char *)node->as.assignment.variable);
             free_expr(node->as.assignment.value);
             break;
 
@@ -96,6 +103,7 @@ void c64script_ast_free(c64script_ast_node_t *node)
             break;
 
         case AST_STMT_FOR:
+            free((char *)node->as.for_stmt.variable);
             free_expr(node->as.for_stmt.start);
             free_expr(node->as.for_stmt.end);
             free_expr(node->as.for_stmt.step);
@@ -108,12 +116,15 @@ void c64script_ast_free(c64script_ast_node_t *node)
             break;
 
         case AST_STMT_GOTO:
+            free((char *)node->as.goto_stmt.label);
+            break;
+
         case AST_STMT_GOSUB:
-            // label is in string pool
+            free((char *)node->as.gosub_stmt.label);
             break;
 
         case AST_STMT_WAIT:
-            // duration_ms is a plain value
+            free_expr(node->as.wait_stmt.duration);
             break;
 
         case AST_STMT_WAIT_UNTIL:
@@ -170,8 +181,11 @@ void c64script_ast_free(c64script_ast_node_t *node)
             break;
 
         case AST_STMT_LOG:
-        case AST_STMT_PRINT:
             free_expr(node->as.log_stmt.message);
+            break;
+
+        case AST_STMT_PRINT:
+            free_expr(node->as.print_stmt.message);
             break;
 
         default:

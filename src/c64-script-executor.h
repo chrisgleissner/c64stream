@@ -9,8 +9,6 @@ See <https://www.gnu.org/licenses/> for details.
 #ifndef C64_SCRIPT_EXECUTOR_H
 #define C64_SCRIPT_EXECUTOR_H
 
-#include "c64-script-parser.h"
-
 #include <obs.h>
 #include <stdbool.h>
 
@@ -38,7 +36,13 @@ void c64_script_executor_destroy(c64_script_executor_t *executor);
  * Start executing a script script
  * Returns true if started successfully, false if already running or error
  */
-bool c64_script_executor_start(c64_script_executor_t *executor, c64_script_t *script);
+bool c64_script_executor_start(c64_script_executor_t *executor, const char *script_file_path);
+
+/**
+ * Validate/compile a script file without executing it.
+ * Returns true if the script parses and compiles successfully.
+ */
+bool c64_script_executor_validate_file(c64_script_executor_t *executor, const char *script_file_path);
 
 /**
  * Stop the currently executing script

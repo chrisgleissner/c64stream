@@ -18,7 +18,6 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-palette.h"
 #include "c64-color.h"
 #include "c64-keyboard.h"
-#include "c64-script-parser.h"
 #include "c64-script-executor.h"
 #include <obs-module.h>
 #include <util/platform.h>
@@ -56,6 +55,62 @@ static void update_palette_color_properties(obs_data_t *settings);
 static bool script_start_clicked(obs_properties_t *props, obs_property_t *property, void *data);
 static bool script_stop_clicked(obs_properties_t *props, obs_property_t *property, void *data);
 static bool script_reload_clicked(obs_properties_t *props, obs_property_t *property, void *data);
+
+static const char *script_status_to_text(c64_script_status_t status)
+{
+    switch (status) {
+    case C64_SCRIPT_STATUS_IDLE:
+        return "IDLE";
+    case C64_SCRIPT_STATUS_RUNNING:
+        return "RUNNING";
+    case C64_SCRIPT_STATUS_WAITING:
+        return "WAITING";
+    case C64_SCRIPT_STATUS_ERROR:
+        return "ERROR";
+    case C64_SCRIPT_STATUS_COMPLETED:
+        return "COMPLETED";
+    default:
+        return "UNKNOWN";
+    }
+}
+
+static void update_script_status_property(obs_property_t *prop, struct c64_source *context)
+{
+    if (!prop) {
+        return;
+    }
+
+    char status[512] = {0};
+    if (!context || !context->script_executor) {
+        snprintf(status, sizeof(status), "IDLE");
+        obs_property_set_long_description(prop, status);
+        obs_property_text_set_info_type(prop, OBS_TEXT_INFO_NORMAL);
+        return;
+    }
+
+    c64_script_status_t st = c64_script_executor_get_status(context->script_executor);
+    const char *st_text = script_status_to_text(st);
+
+    int line = c64_script_executor_get_current_line(context->script_executor);
+    int progress = c64_script_executor_get_progress(context->script_executor);
+    const char *cmd = c64_script_executor_get_current_command(context->script_executor);
+    const char *err = c64_script_executor_get_error(context->script_executor);
+
+    if (st == C64_SCRIPT_STATUS_ERROR) {
+        snprintf(status, sizeof(status), "%s (line %d): %s", st_text, line, err ? err : "unknown error");
+    } else if (st == C64_SCRIPT_STATUS_RUNNING || st == C64_SCRIPT_STATUS_WAITING) {
+        if (progress >= 0) {
+            snprintf(status, sizeof(status), "%s (line %d, %s, %d%%)", st_text, line, cmd ? cmd : "?", progress);
+        } else {
+            snprintf(status, sizeof(status), "%s (line %d, %s)", st_text, line, cmd ? cmd : "?");
+        }
+    } else {
+        snprintf(status, sizeof(status), "%s", st_text);
+    }
+
+    obs_property_set_long_description(prop, status);
+    obs_property_text_set_info_type(prop, OBS_TEXT_INFO_NORMAL);
+}
 
 // Internal key to track initialization state and prevent spurious auto-saves
 static const char *C64_PALETTE_INITIALIZING_KEY = "_c64_palette_initializing";
@@ -118,6 +173,11 @@ static bool script_start_clicked(obs_properties_t *props, obs_property_t *proper
         return false;
     }
 
+    if (context->script_file_path[0] == '\0') {
+        C64_LOG_WARNING("No script file selected");
+        return false;
+    }
+
     // Check if executor already running
     if (context->script_executor && c64_script_executor_is_running(context->script_executor)) {
         C64_LOG_WARNING("Script already running");
@@ -133,25 +193,15 @@ static bool script_start_clicked(obs_properties_t *props, obs_property_t *proper
         }
     }
 
-    // Load script if needed
-    if (!context->current_script && context->script_file_path[0] != '\0') {
-        context->current_script = c64_script_parse_file(context->script_file_path);
-        if (!context->current_script) {
-            C64_LOG_ERROR("Failed to parse script: %s", context->script_file_path);
-            return false;
-        }
-    }
-
     // Start execution
-    if (context->current_script) {
-        if (c64_script_executor_start(context->script_executor, context->current_script)) {
-            C64_LOG_INFO("Script started: %s", context->script_file_path);
-        } else {
-            C64_LOG_ERROR("Failed to start script");
-        }
+    if (c64_script_executor_start(context->script_executor, context->script_file_path)) {
+        C64_LOG_INFO("Script started: %s", context->script_file_path);
+    } else {
+        const char *err = c64_script_executor_get_error(context->script_executor);
+        C64_LOG_ERROR("Failed to start script: %s", err ? err : "unknown error");
     }
 
-    return false; // Don't refresh properties
+    return true; // Refresh properties (status/progress field)
 }
 
 static bool script_stop_clicked(obs_properties_t *props, obs_property_t *property, void *data)
@@ -167,7 +217,7 @@ static bool script_stop_clicked(obs_properties_t *props, obs_property_t *propert
     c64_script_executor_stop(context->script_executor);
     C64_LOG_INFO("Script stopped");
 
-    return false; // Don't refresh properties
+    return true; // Refresh properties (status/progress field)
 }
 
 static bool script_reload_clicked(obs_properties_t *props, obs_property_t *property, void *data)
@@ -180,24 +230,28 @@ static bool script_reload_clicked(obs_properties_t *props, obs_property_t *prope
         return false;
     }
 
-    // Free old script
-    if (context->current_script) {
-        c64_script_free(context->current_script);
-        context->current_script = NULL;
+    if (context->script_file_path[0] == '\0') {
+        C64_LOG_WARNING("No script file selected");
+        return false;
     }
 
-    // Reload from file
-    if (context->script_file_path[0] != '\0') {
-        context->current_script = c64_script_parse_file(context->script_file_path);
-        if (context->current_script) {
-            C64_LOG_INFO("Script reloaded: %s (%zu commands)", context->script_file_path,
-                         c64_script_get_command_count(context->current_script));
-        } else {
-            C64_LOG_ERROR("Failed to reload script: %s", context->script_file_path);
+    if (!context->script_executor) {
+        context->script_executor = c64_script_executor_create(context->source);
+        if (!context->script_executor) {
+            C64_LOG_ERROR("Failed to create script executor");
+            return false;
         }
     }
 
-    return false; // Don't refresh properties
+    bool ok = c64_script_executor_validate_file(context->script_executor, context->script_file_path);
+    if (ok) {
+        C64_LOG_INFO("Script validated: %s", context->script_file_path);
+    } else {
+        const char *err = c64_script_executor_get_error(context->script_executor);
+        C64_LOG_ERROR("Script validation failed: %s", err ? err : "unknown error");
+    }
+
+    return true; // Refresh properties (status field)
 }
 
 obs_properties_t *c64_create_properties(void *data)
@@ -704,9 +758,8 @@ obs_properties_t *c64_create_properties(void *data)
     obs_property_set_long_description(script_file_prop, obs_module_text("ScriptFile.Description"));
 
     obs_property_t *script_status_prop =
-        obs_properties_add_text(rest_props, "script_status", obs_module_text("ScriptStatus"), OBS_TEXT_DEFAULT);
-    obs_property_set_long_description(script_status_prop, obs_module_text("ScriptStatus.Description"));
-    obs_property_set_enabled(script_status_prop, false); // Read-only status field
+        obs_properties_add_text(rest_props, "script_status", obs_module_text("ScriptStatus"), OBS_TEXT_INFO);
+    update_script_status_property(script_status_prop, context);
 
     // Script control buttons (using button property type)
     obs_property_t *script_start_prop =

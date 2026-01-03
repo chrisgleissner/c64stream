@@ -32,7 +32,6 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-keyboard.h"
 #include "c64-rest-client.h"
 #include "c64-script-executor.h"
-#include "c64-script-parser.h"
 #include "plugin-support.h"
 #include "c64-effect.h"
 
@@ -646,11 +645,10 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
 
     // Initialize script automation fields
     context->script_executor = NULL;
-    context->current_script = NULL;
     memset(context->script_file_path, 0, sizeof(context->script_file_path));
 
     // Load script file path if set
-    const char *script_path = obs_data_get_string(settings, "script_file_path");
+    const char *script_path = obs_data_get_string(settings, "script_file");
     if (script_path && script_path[0] != '\0') {
         strncpy(context->script_file_path, script_path, sizeof(context->script_file_path) - 1);
     }
@@ -703,10 +701,6 @@ void c64_destroy(void *data)
     if (context->script_executor) {
         c64_script_executor_destroy(context->script_executor);
         context->script_executor = NULL;
-    }
-    if (context->current_script) {
-        c64_script_free(context->current_script);
-        context->current_script = NULL;
     }
 
     // Cleanup logo system
@@ -789,6 +783,15 @@ void c64_update(void *data, obs_data_t *settings)
     struct c64_source *context = data;
     if (!context)
         return;
+
+    // Script file path (used by Properties UI controls)
+    const char *script_path = obs_data_get_string(settings, "script_file");
+    if (script_path && script_path[0] != '\0') {
+        strncpy(context->script_file_path, script_path, sizeof(context->script_file_path) - 1);
+        context->script_file_path[sizeof(context->script_file_path) - 1] = '\0';
+    } else {
+        context->script_file_path[0] = '\0';
+    }
 
     // If a preset is specified and no manual overrides exist, apply it before reading effect values
     // This supports E2E scenarios that set effects via OBS scene JSON source settings

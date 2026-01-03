@@ -9,6 +9,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-script.h"
 #include "c64-script-builtins.h"
 #include "c64-logging.h"
+#include "c64-rest-client.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,11 +31,20 @@ bool c64script_builtin_peek(c64script_runtime_t *runtime, uint16_t address, doub
         return false;
     }
 
-    // TODO: Implement PEEK - read memory from Ultimate device via REST API
-    // For now, return 0 as placeholder
-    (void)address;
-    *out_value = 0.0;
-    blog(LOG_WARNING, "PEEK not yet implemented - returning 0");
+    if (!runtime->rest_client) {
+        snprintf(runtime->error_msg, sizeof(runtime->error_msg), "REST client not available");
+        return false;
+    }
+
+    uint8_t buf[1] = {0};
+    int read_count = c64_rest_read_memory((c64_rest_client_t *)runtime->rest_client, address, 1, buf, sizeof(buf));
+    if (read_count != 1) {
+        snprintf(runtime->error_msg, sizeof(runtime->error_msg), "PEEK failed: %s",
+                 c64_rest_get_error((c64_rest_client_t *)runtime->rest_client));
+        return false;
+    }
+
+    *out_value = (double)buf[0];
     return true;
 }
 

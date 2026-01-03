@@ -51,6 +51,34 @@ typedef struct {
 
 } compiler_context_t;
 
+static void compiler_context_destroy(compiler_context_t *ctx)
+{
+    if (!ctx) {
+        return;
+    }
+
+    if (ctx->constants) {
+        for (size_t i = 0; i < ctx->constant_count; i++) {
+            if (ctx->constants[i].type == VALUE_STRING) {
+                free(ctx->constants[i].as.string);
+                ctx->constants[i].as.string = NULL;
+            }
+        }
+        free(ctx->constants);
+        ctx->constants = NULL;
+    }
+
+    free(ctx->instructions);
+    ctx->instructions = NULL;
+
+    ctx->instruction_count = 0;
+    ctx->instruction_capacity = 0;
+    ctx->constant_count = 0;
+    ctx->constant_capacity = 0;
+    ctx->label_count = 0;
+    ctx->patch_count = 0;
+}
+
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
@@ -97,7 +125,7 @@ static uint32_t add_constant(compiler_context_t *ctx, c64script_value_t value)
         c64script_value_t *new_constants = realloc(ctx->constants, new_cap * sizeof(c64script_value_t));
         if (!new_constants) {
             blog(LOG_ERROR, "Failed to grow constant pool");
-            return 0;
+            return UINT32_MAX;
         }
         ctx->constants = new_constants;
         ctx->constant_capacity = new_cap;
@@ -107,18 +135,23 @@ static uint32_t add_constant(compiler_context_t *ctx, c64script_value_t value)
     c64script_value_t new_const = value;
     if (value.type == VALUE_STRING) {
         new_const.as.string = strdup(value.as.string);
+        if (!new_const.as.string) {
+            return UINT32_MAX;
+        }
     }
     ctx->constants[ctx->constant_count] = new_const;
     return (uint32_t)(ctx->constant_count++);
 }
 
 // Define a label at current bytecode address
-static void define_label(compiler_context_t *ctx, const char *label_name)
+static bool define_label(compiler_context_t *ctx, const char *label_name, int source_line)
 {
     for (size_t i = 0; i < ctx->label_count; i++) {
         if (strcmp(ctx->labels[i].name, label_name) == 0) {
-            ctx->labels[i].address = ctx->instruction_count;
-            return;
+            if (ctx->error_msg) {
+                snprintf(ctx->error_msg, ctx->error_msg_size, "Duplicate label: %s (line %d)", label_name, source_line);
+            }
+            return false;
         }
     }
     // Add new label
@@ -127,7 +160,13 @@ static void define_label(compiler_context_t *ctx, const char *label_name)
         ctx->labels[ctx->label_count].name[63] = '\0';
         ctx->labels[ctx->label_count].address = ctx->instruction_count;
         ctx->label_count++;
+        return true;
     }
+
+    if (ctx->error_msg) {
+        snprintf(ctx->error_msg, ctx->error_msg_size, "Too many labels");
+    }
+    return false;
 }
 
 // Get label address (returns SIZE_MAX if not found/not yet defined)
@@ -196,6 +235,8 @@ static bool compile_expression(compiler_context_t *ctx, c64script_ast_expr_t *ex
     case AST_EXPR_NUMBER: {
         c64script_value_t value = {.type = VALUE_NUMBER, .as.number = expr->as.number};
         uint32_t idx = add_constant(ctx, value);
+        if (idx == UINT32_MAX)
+            return false;
         emit(ctx, OP_PUSH_CONST, idx, expr->line);
         return true;
     }
@@ -203,6 +244,8 @@ static bool compile_expression(compiler_context_t *ctx, c64script_ast_expr_t *ex
     case AST_EXPR_STRING: {
         c64script_value_t value = {.type = VALUE_STRING, .as.string = (char *)expr->as.string};
         uint32_t idx = add_constant(ctx, value);
+        if (idx == UINT32_MAX)
+            return false;
         emit(ctx, OP_PUSH_CONST, idx, expr->line);
         return true;
     }
@@ -211,6 +254,8 @@ static bool compile_expression(compiler_context_t *ctx, c64script_ast_expr_t *ex
         // Push variable name as constant, then PUSH_VAR will load its value
         c64script_value_t name = {.type = VALUE_STRING, .as.string = (char *)expr->as.identifier};
         uint32_t idx = add_constant(ctx, name);
+        if (idx == UINT32_MAX)
+            return false;
         emit(ctx, OP_PUSH_VAR, idx, expr->line);
         return true;
     }
@@ -283,10 +328,30 @@ static bool compile_expression(compiler_context_t *ctx, c64script_ast_expr_t *ex
     }
 
     case AST_EXPR_CALL: {
-        // TODO: Function calls not yet fully implemented in parser
-        // The parser creates AST_EXPR_CALL but doesn't set the .name field
-        // For now, skip compilation of function calls
-        blog(LOG_WARNING, "Function call compilation not yet implemented");
+        if (!expr->as.call.name) {
+            if (ctx->error_msg) {
+                snprintf(ctx->error_msg, ctx->error_msg_size, "Invalid function call");
+            }
+            return false;
+        }
+
+        if (strcmp(expr->as.call.name, "PEEK") == 0) {
+            if (expr->as.call.arg_count != 1) {
+                if (ctx->error_msg) {
+                    snprintf(ctx->error_msg, ctx->error_msg_size, "PEEK expects 1 argument");
+                }
+                return false;
+            }
+            if (!compile_expression(ctx, expr->as.call.args[0])) {
+                return false;
+            }
+            emit(ctx, OP_CALL_PEEK, 0, expr->line);
+            return true;
+        }
+
+        if (ctx->error_msg) {
+            snprintf(ctx->error_msg, ctx->error_msg_size, "Undefined function: %s", expr->as.call.name);
+        }
         return false;
     }
 
@@ -312,8 +377,7 @@ static bool compile_statement(compiler_context_t *ctx, c64script_ast_node_t *stm
 
     case AST_STMT_LABEL:
         // Define label at current bytecode address
-        define_label(ctx, stmt->as.label.name);
-        return true;
+        return define_label(ctx, stmt->as.label.name, stmt->line);
 
     case AST_STMT_ASSIGNMENT: {
         // Compile RHS expression
@@ -322,6 +386,8 @@ static bool compile_statement(compiler_context_t *ctx, c64script_ast_node_t *stm
         // Store result in variable
         c64script_value_t varname = {.type = VALUE_STRING, .as.string = (char *)stmt->as.assignment.variable};
         uint32_t idx = add_constant(ctx, varname);
+        if (idx == UINT32_MAX)
+            return false;
         emit(ctx, OP_POP_VAR, idx, stmt->line);
         return true;
     }
@@ -388,6 +454,8 @@ static bool compile_statement(compiler_context_t *ctx, c64script_ast_node_t *stm
             return false;
         c64script_value_t varname = {.type = VALUE_STRING, .as.string = (char *)stmt->as.for_stmt.variable};
         uint32_t var_idx = add_constant(ctx, varname);
+        if (var_idx == UINT32_MAX)
+            return false;
         emit(ctx, OP_POP_VAR, var_idx, stmt->line);
 
         // Push loop parameters (variable, end, step) onto FOR stack
@@ -401,6 +469,8 @@ static bool compile_statement(compiler_context_t *ctx, c64script_ast_node_t *stm
             // Default step = 1
             c64script_value_t step_one = {.type = VALUE_NUMBER, .as.number = 1.0};
             uint32_t idx = add_constant(ctx, step_one);
+            if (idx == UINT32_MAX)
+                return false;
             emit(ctx, OP_PUSH_CONST, idx, stmt->line);
         }
         emit(ctx, OP_FOR_INIT, var_idx, stmt->line); // Initialize FOR state
@@ -460,14 +530,16 @@ static bool compile_statement(compiler_context_t *ctx, c64script_ast_node_t *stm
     }
 
     case AST_STMT_WAIT: {
-        // TODO: Implement WAIT duration
-        emit(ctx, OP_NOP, 0, stmt->line);
+        if (!compile_expression(ctx, stmt->as.wait_stmt.duration))
+            return false;
+        emit(ctx, OP_WAIT, (uint32_t)stmt->as.wait_stmt.unit, stmt->line);
         return true;
     }
 
     case AST_STMT_WAIT_UNTIL: {
-        // TODO: Implement WAIT UNTIL
-        emit(ctx, OP_NOP, 0, stmt->line);
+        if (!compile_expression(ctx, stmt->as.wait_until_stmt.time_expr))
+            return false;
+        emit(ctx, OP_WAIT_UNTIL, 0, stmt->line);
         return true;
     }
 
@@ -505,6 +577,8 @@ static bool compile_statement(compiler_context_t *ctx, c64script_ast_node_t *stm
             // Default song = 0
             c64script_value_t song_zero = {.type = VALUE_NUMBER, .as.number = 0.0};
             uint32_t idx = add_constant(ctx, song_zero);
+            if (idx == UINT32_MAX)
+                return false;
             emit(ctx, OP_PUSH_CONST, idx, stmt->line);
         }
         emit(ctx, OP_PLAYSID, 0, stmt->line);
@@ -650,15 +724,13 @@ bool c64script_compile(c64script_ast_node_t *ast, c64script_runtime_t *runtime, 
 
     // Compile AST to bytecode
     if (!compile_program(&ctx, ast)) {
-        free(ctx.instructions);
-        free(ctx.constants);
+        compiler_context_destroy(&ctx);
         return false;
     }
 
     // Patch forward jumps
     if (!patch_jumps(&ctx)) {
-        free(ctx.instructions);
-        free(ctx.constants);
+        compiler_context_destroy(&ctx);
         return false;
     }
 

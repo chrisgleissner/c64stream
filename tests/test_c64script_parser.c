@@ -33,29 +33,41 @@ See <https://www.gnu.org/licenses/> for details.
 
 TEST(parse_number_literal)
 {
-    const char *source = "42";
+    const char *source = "X = 42\n";
     char error_msg[1024];
     c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
-
-    // For now, just test that parsing doesn't crash
-    // Full AST validation will come once statements are properly handled
-    (void)ast;
+    assert(ast != NULL && "Failed to parse number literal assignment");
+    assert(ast->type == AST_STMT_ASSIGNMENT);
+    assert(ast->as.assignment.value != NULL);
+    assert(ast->as.assignment.value->type == AST_EXPR_NUMBER);
+    assert(ast->as.assignment.value->as.number == 42.0);
+    c64script_ast_free(ast);
 }
 
 TEST(parse_string_literal)
 {
-    const char *source = "\"hello world\"";
+    const char *source = "X$ = \"hello world\"\n";
     char error_msg[1024];
     c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
-    (void)ast;
+    assert(ast != NULL && "Failed to parse string literal assignment");
+    assert(ast->type == AST_STMT_ASSIGNMENT);
+    assert(ast->as.assignment.value != NULL);
+    assert(ast->as.assignment.value->type == AST_EXPR_STRING);
+    assert(strcmp(ast->as.assignment.value->as.string, "hello world") == 0);
+    c64script_ast_free(ast);
 }
 
 TEST(parse_identifier)
 {
-    const char *source = "x";
+    const char *source = "X = Y\n";
     char error_msg[1024];
     c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
-    (void)ast;
+    assert(ast != NULL && "Failed to parse identifier assignment");
+    assert(ast->type == AST_STMT_ASSIGNMENT);
+    assert(ast->as.assignment.value != NULL);
+    assert(ast->as.assignment.value->type == AST_EXPR_IDENTIFIER);
+    assert(strcmp(ast->as.assignment.value->as.identifier, "Y") == 0);
+    c64script_ast_free(ast);
 }
 
 TEST(parse_addition)
@@ -196,7 +208,8 @@ TEST(parse_assignment)
     c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
     assert(ast != NULL && "Failed to parse assignment");
     assert(ast->type == AST_STMT_ASSIGNMENT);
-    assert(strcmp(ast->as.assignment.variable, "x") == 0);
+    assert(strcmp(ast->as.assignment.variable, "X") == 0);
+    c64script_ast_free(ast);
 }
 
 TEST(parse_assignment_with_let)
@@ -206,7 +219,8 @@ TEST(parse_assignment_with_let)
     c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
     assert(ast != NULL && "Failed to parse LET assignment");
     assert(ast->type == AST_STMT_ASSIGNMENT);
-    assert(strcmp(ast->as.assignment.variable, "x") == 0);
+    assert(strcmp(ast->as.assignment.variable, "X") == 0);
+    c64script_ast_free(ast);
 }
 
 TEST(parse_label_with_keyword)
@@ -216,7 +230,8 @@ TEST(parse_label_with_keyword)
     c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
     assert(ast != NULL && "Failed to parse LABEL statement");
     assert(ast->type == AST_STMT_LABEL);
-    assert(strcmp(ast->as.label.name, "start") == 0);
+    assert(strcmp(ast->as.label.name, "START") == 0);
+    c64script_ast_free(ast);
 }
 
 TEST(parse_label_with_colon)
@@ -226,7 +241,46 @@ TEST(parse_label_with_colon)
     c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
     assert(ast != NULL && "Failed to parse label with colon");
     assert(ast->type == AST_STMT_LABEL);
-    assert(strcmp(ast->as.label.name, "start") == 0);
+    assert(strcmp(ast->as.label.name, "START") == 0);
+    c64script_ast_free(ast);
+}
+
+TEST(parse_label_prefix_same_line_no_colon)
+{
+    const char *source = "START I = 0\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL);
+    assert(ast->type == AST_STMT_LABEL);
+    assert(strcmp(ast->as.label.name, "START") == 0);
+    assert(ast->next != NULL);
+    assert(ast->next->type == AST_STMT_ASSIGNMENT);
+    assert(strcmp(ast->next->as.assignment.variable, "I") == 0);
+    c64script_ast_free(ast);
+}
+
+TEST(parse_line_number_prefix_same_line)
+{
+    const char *source = "0010 I = 0\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL);
+    assert(ast->type == AST_STMT_LABEL);
+    assert(strcmp(ast->as.label.name, "10") == 0);
+    assert(ast->next != NULL);
+    assert(ast->next->type == AST_STMT_ASSIGNMENT);
+    c64script_ast_free(ast);
+}
+
+TEST(parse_line_number_goto)
+{
+    const char *source = "GOTO 10\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL);
+    assert(ast->type == AST_STMT_GOTO);
+    assert(strcmp(ast->as.goto_stmt.label, "10") == 0);
+    c64script_ast_free(ast);
 }
 
 TEST(parse_goto)
@@ -236,7 +290,8 @@ TEST(parse_goto)
     c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
     assert(ast != NULL && "Failed to parse GOTO");
     assert(ast->type == AST_STMT_GOTO);
-    assert(strcmp(ast->as.goto_stmt.label, "start") == 0);
+    assert(strcmp(ast->as.goto_stmt.label, "START") == 0);
+    c64script_ast_free(ast);
 }
 
 TEST(parse_gosub)
@@ -246,7 +301,8 @@ TEST(parse_gosub)
     c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
     assert(ast != NULL && "Failed to parse GOSUB");
     assert(ast->type == AST_STMT_GOSUB);
-    assert(strcmp(ast->as.gosub_stmt.label, "subroutine") == 0);
+    assert(strcmp(ast->as.gosub_stmt.label, "SUBROUTINE") == 0);
+    c64script_ast_free(ast);
 }
 
 TEST(parse_return)
@@ -256,6 +312,7 @@ TEST(parse_return)
     c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
     assert(ast != NULL && "Failed to parse RETURN");
     assert(ast->type == AST_STMT_RETURN);
+    c64script_ast_free(ast);
 }
 
 TEST(parse_stop)
@@ -265,6 +322,7 @@ TEST(parse_stop)
     c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
     assert(ast != NULL && "Failed to parse STOP");
     assert(ast->type == AST_STMT_STOP);
+    c64script_ast_free(ast);
 }
 
 TEST(parse_end)
@@ -274,6 +332,7 @@ TEST(parse_end)
     c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
     assert(ast != NULL && "Failed to parse END");
     assert(ast->type == AST_STMT_STOP);
+    c64script_ast_free(ast);
 }
 
 TEST(parse_multiple_statements)
@@ -291,6 +350,7 @@ TEST(parse_multiple_statements)
         node = node->next;
     }
     assert(count == 3 && "Expected 3 statements");
+    c64script_ast_free(ast);
 }
 
 TEST(parse_empty_lines_and_comments)
@@ -308,6 +368,7 @@ TEST(parse_empty_lines_and_comments)
         node = node->next;
     }
     assert(count == 2 && "Expected 2 statements (comments should be skipped)");
+    c64script_ast_free(ast);
 }
 
 // ============================================================================
@@ -319,8 +380,8 @@ TEST(parse_error_unterminated_string)
     const char *source = "x = \"unterminated";
     char error_msg[1024];
     c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
-    // Should fail to parse
-    (void)ast; // May be NULL or have partial tree
+    assert(ast == NULL);
+    assert(error_msg[0] != '\0');
 }
 
 TEST(parse_error_invalid_operator)
@@ -328,8 +389,8 @@ TEST(parse_error_invalid_operator)
     const char *source = "x = 1 @ 2"; // @ is not a valid operator
     char error_msg[1024];
     c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
-    // Should fail or skip the invalid operator
-    (void)ast;
+    assert(ast == NULL);
+    assert(error_msg[0] != '\0');
 }
 
 // ============================================================================
@@ -346,6 +407,7 @@ TEST(parse_if_then_single_line)
     assert(ast->as.if_stmt.condition != NULL);
     assert(ast->as.if_stmt.then_branch != NULL);
     assert(ast->as.if_stmt.else_branch == NULL);
+    c64script_ast_free(ast);
 }
 
 TEST(parse_if_then_else_single_line)
@@ -358,6 +420,7 @@ TEST(parse_if_then_else_single_line)
     assert(ast->as.if_stmt.condition != NULL);
     assert(ast->as.if_stmt.then_branch != NULL);
     assert(ast->as.if_stmt.else_branch != NULL);
+    c64script_ast_free(ast);
 }
 
 TEST(parse_if_block)
@@ -368,6 +431,7 @@ TEST(parse_if_block)
     assert(ast != NULL && "Failed to parse IF block");
     assert(ast->type == AST_STMT_IF);
     assert(ast->as.if_stmt.then_branch != NULL);
+    c64script_ast_free(ast);
 }
 
 TEST(parse_if_else_block)
@@ -379,6 +443,7 @@ TEST(parse_if_else_block)
     assert(ast->type == AST_STMT_IF);
     assert(ast->as.if_stmt.then_branch != NULL);
     assert(ast->as.if_stmt.else_branch != NULL);
+    c64script_ast_free(ast);
 }
 
 TEST(parse_for_loop)
@@ -392,6 +457,7 @@ TEST(parse_for_loop)
     assert(ast->as.for_stmt.start != NULL);
     assert(ast->as.for_stmt.end != NULL);
     assert(ast->as.for_stmt.step != NULL);
+    c64script_ast_free(ast);
 }
 
 TEST(parse_for_loop_with_step)
@@ -401,6 +467,7 @@ TEST(parse_for_loop_with_step)
     c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
     assert(ast != NULL && "Failed to parse FOR loop with STEP");
     assert(ast->type == AST_STMT_FOR);
+    c64script_ast_free(ast);
 }
 
 TEST(parse_while_loop)
@@ -412,6 +479,7 @@ TEST(parse_while_loop)
     assert(ast->type == AST_STMT_WHILE);
     assert(ast->as.while_stmt.condition != NULL);
     assert(ast->as.while_stmt.body != NULL);
+    c64script_ast_free(ast);
 }
 
 TEST(parse_while_endwhile)
@@ -421,6 +489,17 @@ TEST(parse_while_endwhile)
     c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
     assert(ast != NULL && "Failed to parse WHILE/ENDWHILE");
     assert(ast->type == AST_STMT_WHILE);
+    c64script_ast_free(ast);
+}
+
+TEST(parse_while_end_while)
+{
+    const char *source = "WHILE x < 10\nx = x + 1\nEND WHILE";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse WHILE/END WHILE");
+    assert(ast->type == AST_STMT_WHILE);
+    c64script_ast_free(ast);
 }
 
 TEST(parse_wait_duration)
@@ -430,6 +509,9 @@ TEST(parse_wait_duration)
     c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
     assert(ast != NULL && "Failed to parse WAIT");
     assert(ast->type == AST_STMT_WAIT);
+    assert(ast->as.wait_stmt.duration != NULL);
+    assert(ast->as.wait_stmt.unit == C64SCRIPT_WAIT_UNIT_S);
+    c64script_ast_free(ast);
 }
 
 TEST(parse_wait_until)
@@ -439,6 +521,7 @@ TEST(parse_wait_until)
     c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
     assert(ast != NULL && "Failed to parse WAIT UNTIL");
     assert(ast->type == AST_STMT_WAIT_UNTIL);
+    c64script_ast_free(ast);
 }
 
 // ============================================================================
@@ -452,6 +535,7 @@ TEST(parse_effect)
     c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
     assert(ast != NULL && "Failed to parse EFFECT");
     assert(ast->type == AST_STMT_EFFECT);
+    c64script_ast_free(ast);
 }
 
 TEST(parse_effectparam)
@@ -461,6 +545,7 @@ TEST(parse_effectparam)
     c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
     assert(ast != NULL && "Failed to parse EFFECTPARAM");
     assert(ast->type == AST_STMT_EFFECTPARAM);
+    c64script_ast_free(ast);
 }
 
 TEST(parse_palette)
@@ -470,6 +555,7 @@ TEST(parse_palette)
     c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
     assert(ast != NULL && "Failed to parse PALETTE");
     assert(ast->type == AST_STMT_PALETTE);
+    c64script_ast_free(ast);
 }
 
 TEST(parse_playsid)
@@ -479,6 +565,18 @@ TEST(parse_playsid)
     c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
     assert(ast != NULL && "Failed to parse PLAYSID");
     assert(ast->type == AST_STMT_PLAYSID);
+    c64script_ast_free(ast);
+}
+
+TEST(parse_playsid_songnr)
+{
+    const char *source = "PLAYSID \"music.sid\" SONGNR=2";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL);
+    assert(ast->type == AST_STMT_PLAYSID);
+    assert(ast->as.playsid_stmt.songnr != NULL);
+    c64script_ast_free(ast);
 }
 
 TEST(parse_runprg)
@@ -488,6 +586,7 @@ TEST(parse_runprg)
     c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
     assert(ast != NULL && "Failed to parse RUNPRG");
     assert(ast->type == AST_STMT_RUNPRG);
+    c64script_ast_free(ast);
 }
 
 TEST(parse_mountdisk)
@@ -497,15 +596,17 @@ TEST(parse_mountdisk)
     c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
     assert(ast != NULL && "Failed to parse MOUNTDISK");
     assert(ast->type == AST_STMT_MOUNTDISK);
+    c64script_ast_free(ast);
 }
 
 TEST(parse_autostart)
 {
-    const char *source = "AUTOSTART \"demo.prg\"";
+    const char *source = "AUTOSTART";
     char error_msg[1024];
     c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
     assert(ast != NULL && "Failed to parse AUTOSTART");
     assert(ast->type == AST_STMT_AUTOSTART);
+    c64script_ast_free(ast);
 }
 
 TEST(parse_reset)
@@ -515,6 +616,7 @@ TEST(parse_reset)
     c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
     assert(ast != NULL && "Failed to parse RESET");
     assert(ast->type == AST_STMT_RESET);
+    c64script_ast_free(ast);
 }
 
 TEST(parse_reboot)
@@ -640,6 +742,189 @@ TEST(parse_full_program)
 }
 
 // ============================================================================
+// ADDITIONAL EDGE CASE TESTS
+// ============================================================================
+
+TEST(parse_nested_for_loops)
+{
+    const char *source = "FOR I = 1 TO 10\n"
+                         "  FOR J = 1 TO 5\n"
+                         "    X = I * J\n"
+                         "  NEXT\n"
+                         "NEXT\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse nested FOR loops");
+    assert(ast->type == AST_STMT_FOR);
+    c64script_ast_free(ast);
+}
+
+TEST(parse_nested_if_blocks)
+{
+    const char *source = "IF X > 0 THEN\n"
+                         "  IF Y > 0 THEN\n"
+                         "    Z = 1\n"
+                         "  ENDIF\n"
+                         "ENDIF\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse nested IF blocks");
+    assert(ast->type == AST_STMT_IF);
+    c64script_ast_free(ast);
+}
+
+TEST(parse_complex_boolean_expression)
+{
+    const char *source = "X = (A > 5 AND B < 10) OR (C = 0 AND NOT D)\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse complex boolean expression");
+    assert(ast->type == AST_STMT_ASSIGNMENT);
+    c64script_ast_free(ast);
+}
+
+TEST(parse_hex_literal)
+{
+    const char *source = "X = $D020\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse hex literal");
+    assert(ast->type == AST_STMT_ASSIGNMENT);
+    assert(ast->as.assignment.value != NULL);
+    assert(ast->as.assignment.value->type == AST_EXPR_NUMBER);
+    assert(ast->as.assignment.value->as.number == 0xD020);
+    c64script_ast_free(ast);
+}
+
+TEST(parse_duration_milliseconds)
+{
+    const char *source = "WAIT 500ms\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse milliseconds duration");
+    assert(ast->type == AST_STMT_WAIT);
+    assert(ast->as.wait_stmt.unit == C64SCRIPT_WAIT_UNIT_MS);
+    c64script_ast_free(ast);
+}
+
+TEST(parse_duration_seconds)
+{
+    const char *source = "WAIT 2.5s\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse seconds duration");
+    assert(ast->type == AST_STMT_WAIT);
+    assert(ast->as.wait_stmt.unit == C64SCRIPT_WAIT_UNIT_S);
+    c64script_ast_free(ast);
+}
+
+TEST(parse_peek_function)
+{
+    const char *source = "X = PEEK($D020)\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse PEEK function");
+    assert(ast->type == AST_STMT_ASSIGNMENT);
+    assert(ast->as.assignment.value != NULL);
+    assert(ast->as.assignment.value->type == AST_EXPR_CALL);
+    c64script_ast_free(ast);
+}
+
+TEST(parse_string_with_escapes)
+{
+    const char *source = "X$ = \"Line 1\\nLine 2\\tTabbed\\rReturn\"\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse string with escapes");
+    assert(ast->type == AST_STMT_ASSIGNMENT);
+    c64script_ast_free(ast);
+}
+
+TEST(parse_string_with_hex_escape)
+{
+    const char *source = "X$ = \"Character \\x41 is A\"\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse string with hex escape");
+    assert(ast->type == AST_STMT_ASSIGNMENT);
+    c64script_ast_free(ast);
+}
+
+TEST(parse_for_loop_negative_step)
+{
+    const char *source = "FOR I = 10 TO 1 STEP -1\nNEXT\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse FOR loop with negative step");
+    assert(ast->type == AST_STMT_FOR);
+    c64script_ast_free(ast);
+}
+
+TEST(parse_xor_operator)
+{
+    const char *source = "X = A XOR B\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse XOR operator");
+    assert(ast->type == AST_STMT_ASSIGNMENT);
+    c64script_ast_free(ast);
+}
+
+TEST(parse_not_equal_both_forms)
+{
+    const char *source1 = "X = A <> B\n";
+    const char *source2 = "X = A != B\n";
+    char error_msg[1024];
+    
+    c64script_ast_node_t *ast1 = c64script_parse(source1, strlen(source1), error_msg, sizeof(error_msg));
+    assert(ast1 != NULL && "Failed to parse <> operator");
+    assert(ast1->type == AST_STMT_ASSIGNMENT);
+    c64script_ast_free(ast1);
+    
+    c64script_ast_node_t *ast2 = c64script_parse(source2, strlen(source2), error_msg, sizeof(error_msg));
+    assert(ast2 != NULL && "Failed to parse != operator");
+    assert(ast2->type == AST_STMT_ASSIGNMENT);
+    c64script_ast_free(ast2);
+}
+
+TEST(parse_equality_both_forms)
+{
+    const char *source1 = "X = A = B\n";
+    const char *source2 = "X = A == B\n";
+    char error_msg[1024];
+    
+    c64script_ast_node_t *ast1 = c64script_parse(source1, strlen(source1), error_msg, sizeof(error_msg));
+    assert(ast1 != NULL && "Failed to parse = operator");
+    assert(ast1->type == AST_STMT_ASSIGNMENT);
+    c64script_ast_free(ast1);
+    
+    c64script_ast_node_t *ast2 = c64script_parse(source2, strlen(source2), error_msg, sizeof(error_msg));
+    assert(ast2 != NULL && "Failed to parse == operator");
+    assert(ast2->type == AST_STMT_ASSIGNMENT);
+    c64script_ast_free(ast2);
+}
+
+TEST(parse_rem_comment)
+{
+    const char *source = "REM This is a comment\nX = 1\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse REM comment");
+    assert(ast->type == AST_STMT_ASSIGNMENT); // REM should be skipped
+    c64script_ast_free(ast);
+}
+
+TEST(parse_case_insensitive_keywords)
+{
+    const char *source = "for i = 1 to 10\nnext\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse lowercase keywords");
+    assert(ast->type == AST_STMT_FOR);
+    c64script_ast_free(ast);
+}
+
+// ============================================================================
 // MAIN TEST RUNNER
 // ============================================================================
 
@@ -717,6 +1002,28 @@ int main(void)
 
     printf("\n--- Integration Tests ---\n");
     RUN_TEST(parse_full_program);
+
+    printf("\n--- Edge Case Tests ---\n");
+    RUN_TEST(parse_nested_for_loops);
+    RUN_TEST(parse_nested_if_blocks);
+    RUN_TEST(parse_complex_boolean_expression);
+    RUN_TEST(parse_hex_literal);
+    RUN_TEST(parse_duration_milliseconds);
+    RUN_TEST(parse_duration_seconds);
+    RUN_TEST(parse_peek_function);
+    RUN_TEST(parse_string_with_escapes);
+    RUN_TEST(parse_string_with_hex_escape);
+    RUN_TEST(parse_for_loop_negative_step);
+    RUN_TEST(parse_xor_operator);
+    RUN_TEST(parse_not_equal_both_forms);
+    RUN_TEST(parse_equality_both_forms);
+    RUN_TEST(parse_rem_comment);
+    RUN_TEST(parse_case_insensitive_keywords);
+    RUN_TEST(parse_label_prefix_same_line_no_colon);
+    RUN_TEST(parse_line_number_prefix_same_line);
+    RUN_TEST(parse_line_number_goto);
+    RUN_TEST(parse_while_end_while);
+    RUN_TEST(parse_playsid_songnr);
 
     printf("\n=== All Parser Tests Passed! ===\n");
     return 0;

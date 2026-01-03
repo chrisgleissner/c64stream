@@ -13,11 +13,63 @@ See <https://www.gnu.org/licenses/> for details.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 #define MACRO_LOG_PREFIX "[c64script-runtime] "
 
-// Runtime context stub - Phase 5 implementation
-// This manages variable storage and execution state
+static void normalize_identifier(const char *name, char out_name[64])
+{
+    size_t out_len = 0;
+
+    if (!name) {
+        out_name[0] = '\0';
+        return;
+    }
+
+    for (size_t i = 0; name[i] != '\0' && out_len < 63; i++) {
+        out_name[out_len++] = (char)toupper((unsigned char)name[i]);
+    }
+    out_name[out_len] = '\0';
+}
+
+c64script_value_t c64script_value_number(double num)
+{
+    c64script_value_t value = {0};
+    value.type = VALUE_NUMBER;
+    value.as.number = num;
+    return value;
+}
+
+c64script_value_t c64script_value_string(const char *str)
+{
+    c64script_value_t value = {0};
+    value.type = VALUE_STRING;
+    value.as.string = str ? strdup(str) : strdup("");
+    return value;
+}
+
+void c64script_value_free(c64script_value_t *value)
+{
+    if (!value) {
+        return;
+    }
+
+    if (value->type == VALUE_STRING) {
+        free(value->as.string);
+        value->as.string = NULL;
+    }
+
+    value->type = VALUE_NUMBER;
+    value->as.number = 0.0;
+}
+
+c64script_value_t c64script_value_clone(c64script_value_t value)
+{
+    if (value.type == VALUE_STRING) {
+        return c64script_value_string(value.as.string ? value.as.string : "");
+    }
+    return c64script_value_number(value.as.number);
+}
 
 c64script_runtime_t *c64script_runtime_create(void)
 {
@@ -57,6 +109,7 @@ c64script_runtime_t *c64script_runtime_create(void)
     runtime->error_line = -1;
 
     runtime->source_data = NULL;
+    runtime->obs_source = NULL;
     runtime->rest_client = NULL;
     runtime->keyboard = NULL;
 
@@ -83,9 +136,7 @@ void c64script_runtime_destroy(c64script_runtime_t *runtime)
     // Free constants (strings need special handling)
     if (runtime->constants) {
         for (size_t i = 0; i < runtime->constant_count; i++) {
-            if (runtime->constants[i].type == VALUE_STRING && runtime->constants[i].as.string) {
-                free(runtime->constants[i].as.string);
-            }
+            c64script_value_free(&runtime->constants[i]);
         }
         free(runtime->constants);
         runtime->constants = NULL;
@@ -94,9 +145,7 @@ void c64script_runtime_destroy(c64script_runtime_t *runtime)
     // Free variables (strings need special handling)
     if (runtime->variables) {
         for (size_t i = 0; i < runtime->variable_count; i++) {
-            if (runtime->variables[i].value.type == VALUE_STRING && runtime->variables[i].value.as.string) {
-                free(runtime->variables[i].value.as.string);
-            }
+            c64script_value_free(&runtime->variables[i].value);
         }
         free(runtime->variables);
         runtime->variables = NULL;
@@ -105,9 +154,7 @@ void c64script_runtime_destroy(c64script_runtime_t *runtime)
     // Free stack (strings need special handling)
     if (runtime->stack) {
         for (size_t i = 0; i < runtime->stack_size; i++) {
-            if (runtime->stack[i].type == VALUE_STRING && runtime->stack[i].as.string) {
-                free(runtime->stack[i].as.string);
-            }
+            c64script_value_free(&runtime->stack[i]);
         }
         free(runtime->stack);
         runtime->stack = NULL;
@@ -122,8 +169,45 @@ bool c64script_runtime_set_var(c64script_runtime_t *runtime, const char *name, c
         return false;
     }
 
-    // TODO: Implement variable storage (Phase 5)
-    (void)value;
+    char key[64];
+    normalize_identifier(name, key);
+
+    c64script_value_t stored_value = c64script_value_clone(value);
+    if (stored_value.type == VALUE_STRING && !stored_value.as.string) {
+        snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Out of memory");
+        return false;
+    }
+
+    for (size_t i = 0; i < runtime->variable_count; i++) {
+        if (strcmp(runtime->variables[i].name, key) == 0) {
+            c64script_value_free(&runtime->variables[i].value);
+            runtime->variables[i].value = stored_value;
+            return true;
+        }
+    }
+
+    if (runtime->variable_count >= runtime->variable_capacity) {
+        size_t new_cap = runtime->variable_capacity == 0 ? 64 : runtime->variable_capacity * 2;
+        if (new_cap > C64SCRIPT_MAX_VARIABLES) {
+            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Too many variables");
+            c64script_value_free(&stored_value);
+            return false;
+        }
+
+        c64script_variable_t *new_vars = realloc(runtime->variables, new_cap * sizeof(c64script_variable_t));
+        if (!new_vars) {
+            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Out of memory");
+            c64script_value_free(&stored_value);
+            return false;
+        }
+        runtime->variables = new_vars;
+        runtime->variable_capacity = new_cap;
+    }
+
+    c64script_variable_t *slot = &runtime->variables[runtime->variable_count++];
+    memset(slot, 0, sizeof(*slot));
+    strncpy(slot->name, key, sizeof(slot->name) - 1);
+    slot->value = stored_value;
     return true;
 }
 
@@ -133,9 +217,21 @@ bool c64script_runtime_get_var(c64script_runtime_t *runtime, const char *name, c
         return false;
     }
 
-    // TODO: Implement variable retrieval (Phase 5)
-    out_value->type = VALUE_NUMBER;
-    out_value->as.number = 0.0;
+    char key[64];
+    normalize_identifier(name, key);
+
+    for (size_t i = 0; i < runtime->variable_count; i++) {
+        if (strcmp(runtime->variables[i].name, key) == 0) {
+            *out_value = c64script_value_clone(runtime->variables[i].value);
+            if (out_value->type == VALUE_STRING && !out_value->as.string) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Out of memory");
+                return false;
+            }
+            return true;
+        }
+    }
+
+    *out_value = c64script_value_number(0.0);
     return true;
 }
 
@@ -145,8 +241,26 @@ bool c64script_runtime_push(c64script_runtime_t *runtime, c64script_value_t valu
         return false;
     }
 
-    // TODO: Implement stack push (Phase 4C)
-    (void)value;
+    if (runtime->stack_size >= C64SCRIPT_MAX_STACK_DEPTH) {
+        snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Stack overflow");
+        return false;
+    }
+
+    if (runtime->stack_size >= runtime->stack_capacity) {
+        size_t new_cap = runtime->stack_capacity == 0 ? 64 : runtime->stack_capacity * 2;
+        if (new_cap > C64SCRIPT_MAX_STACK_DEPTH) {
+            new_cap = C64SCRIPT_MAX_STACK_DEPTH;
+        }
+        c64script_value_t *new_stack = realloc(runtime->stack, new_cap * sizeof(c64script_value_t));
+        if (!new_stack) {
+            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Out of memory");
+            return false;
+        }
+        runtime->stack = new_stack;
+        runtime->stack_capacity = new_cap;
+    }
+
+    runtime->stack[runtime->stack_size++] = value;
     return true;
 }
 
@@ -156,8 +270,11 @@ bool c64script_runtime_pop(c64script_runtime_t *runtime, c64script_value_t *out_
         return false;
     }
 
-    // TODO: Implement stack pop (Phase 4C)
-    out_value->type = VALUE_NUMBER;
-    out_value->as.number = 0.0;
+    if (runtime->stack_size == 0) {
+        snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Stack underflow");
+        return false;
+    }
+
+    *out_value = runtime->stack[--runtime->stack_size];
     return true;
 }

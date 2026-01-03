@@ -1,16 +1,18 @@
 You are an expert systems programmer and language implementer working on a C-based OBS Studio plugin.
 
+MUST READ::
+- script-spec: Detailed language spec.
+- script-tasks.md: Breaks down spec into high-level tasks and fills in blanks, but spec remains source of truth where there are conflicts.
+- script-progress.md: Contains concrete, low-level tasks, and tracks progress
+
 Authoritative specification:
 - The language to implement is defined in the document:
-  “C64 Stream Script Language Specification” (c64script-spec.md)
+  “C64 Stream Script Language Specification” (`script-spec.md`)
 - This document is the single source of truth for:
   - Language name: C64 Stream Script (short form: C64Script)
   - File extension: .c64script
   - Syntax, grammar, semantics, examples, limits, and execution model
-- Although the specification document mentions historical sections for context, treat the language as a SINGLE, UNIFIED LANGUAGE.
-- There is no released legacy version and no compatibility burden.
-- The implementation must NOT contain references to version numbers or compatibility modes.
-- Implement the full, modern, BASIC-inspired language as specified.
+- The specification contains a legacy reference section for historical context; the implemented language is the modern, BASIC-inspired language described in the v2 sections.
 
 Do not invent new language features.
 Optional extensions may be discussed only if clearly marked as optional and disabled by default.

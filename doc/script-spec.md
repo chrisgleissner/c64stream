@@ -1,10 +1,15 @@
 # C64 Stream Script Language Specification
 
-This document defines the **current** `.c64script` language (“v1”) as implemented by the plugin, and proposes a **BASIC-inspired** evolution (“v2”) aimed at Commodore 64 users (labels and optional BASIC-style line numbers; `GOTO`/`GOSUB`; structured loops).
+This document defines the `.c64script` language as implemented by the plugin (**v2**, BASIC-inspired: labels and optional BASIC-style line numbers; `GOTO`/`GOSUB`; structured loops). It also keeps a reference section for the legacy v1 syntax.
+
+MUST READ:
+- script-spec: Detailed language spec.
+- script-tasks.md: Breaks down spec into high-level tasks and fills in blanks, but spec remains source of truth where there are conflicts.
+- script-progress.md: Contains concrete, low-level tasks, and tracks progress
 
 Scope:
-- **v1 (implemented)**: `src/c64-script-parser.c/h`, `src/c64-script-executor.c/h`
-- **v2 (proposed)**: a compatible evolution with proper block structure, expressions, and reusable subroutines.
+- **v2 (implemented)**: `src/c64-script-parser.c`, `src/c64-script-bytecode.c`, `src/c64-script-vm.c`, `src/c64-script-executor.c`
+- **v1 (legacy reference)**: historic syntax notes for older scripts/documentation.
 
 Non-goals:
 - This document does not specify UI/OBS integration details (Properties UI, key capture UX, etc.).
@@ -22,7 +27,7 @@ Non-goals:
 
 ---
 
-## 2. C64Script v1 (Current Implementation)
+## 2. C64Script v1 (Legacy Reference)
 
 ### 2.1 Lexical Rules
 
@@ -212,7 +217,7 @@ These limits are implementation-defined by the current parser/executor and may c
 
 ---
 
-## 3. C64Script v2 (Proposed): BASIC-Inspired, Label-Oriented
+## 3. C64Script v2 (Implemented): BASIC-Inspired, Label-Oriented
 
 ### 3.1 Design Goals
 
