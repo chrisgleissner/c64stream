@@ -18,6 +18,11 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-network-buffer.h"
 #include "c64-protocol.h"
 
+// Forward declarations
+typedef struct c64_rest_client c64_rest_client_t;
+typedef struct c64_keyboard c64_keyboard_t;
+typedef struct c64_keymap c64_keymap_t;
+
 // Frame packet structure for reordering
 struct frame_packet {
     uint16_t line_num;
@@ -225,6 +230,16 @@ struct c64_source {
     int cached_duration_ms; // Duration used for cached decay factors
     int cached_curve;       // Curve used for cached decay factors
     bool decay_cache_valid; // Whether decay cache is valid
+
+    // REST control and keyboard capture
+    c64_rest_client_t *rest_client; // REST API client
+    c64_keyboard_t *keyboard;       // Keyboard capture and injection
+    c64_keymap_t *keymap;           // Current keymap
+    bool keyboard_capture_enabled;  // User setting: enable keyboard capture
+    bool keyboard_capture_active;   // Runtime state: capture is currently active
+    char rest_base_url[256];        // REST API base URL
+    char rest_password[256];        // REST API password
+    char keyboard_keymap_name[64];  // Keymap name (e.g., "symbolic_us")
 };
 
 #endif // C64_TYPES_H

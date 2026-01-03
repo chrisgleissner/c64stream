@@ -26,6 +26,8 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-version.h"
 #include "c64-properties.h"
 #include "c64-palette.h"
+#include "c64-keyboard.h"
+#include "c64-rest-client.h"
 #include "plugin-support.h"
 #include "c64-effect.h"
 
@@ -565,6 +567,46 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     C64_LOG_INFO("C64 Stream source created successfully - scheduling background initial connection");
     c64_schedule_retry(context, "initial connection");
 
+    // Initialize REST control and keyboard capture
+    context->rest_client = NULL;
+    context->keyboard = NULL;
+    context->keymap = NULL;
+    context->keyboard_capture_enabled = false;
+    context->keyboard_capture_active = false;
+    memset(context->rest_base_url, 0, sizeof(context->rest_base_url));
+    memset(context->rest_password, 0, sizeof(context->rest_password));
+    memset(context->keyboard_keymap_name, 0, sizeof(context->keyboard_keymap_name));
+
+    // Load REST settings
+    const char *rest_url = obs_data_get_string(settings, "rest_base_url");
+    if (rest_url && rest_url[0] != '\0') {
+        strncpy(context->rest_base_url, rest_url, sizeof(context->rest_base_url) - 1);
+        const char *rest_password = obs_data_get_string(settings, "rest_password");
+        if (rest_password) {
+            strncpy(context->rest_password, rest_password, sizeof(context->rest_password) - 1);
+        }
+        context->rest_client = c64_rest_client_create(context->rest_base_url, context->rest_password);
+    }
+
+    // Load keyboard settings and create keyboard module
+    context->keyboard_capture_enabled = obs_data_get_bool(settings, "keyboard_capture_enabled");
+    const char *keymap_name = obs_data_get_string(settings, "keyboard_keymap");
+    if (keymap_name && keymap_name[0] != '\0') {
+        strncpy(context->keyboard_keymap_name, keymap_name, sizeof(context->keyboard_keymap_name) - 1);
+        // Load keymap file
+        char keymap_path[512];
+        snprintf(keymap_path, sizeof(keymap_path), "data/keymaps/%s.c64keymap.ini", keymap_name);
+        context->keymap = c64_keymap_load(keymap_path);
+        if (!context->keymap) {
+            C64_LOG_WARNING("Failed to load keymap: %s", keymap_path);
+        }
+    }
+
+    // Create keyboard module if REST client is available
+    if (context->rest_client) {
+        context->keyboard = c64_keyboard_create(context->rest_client);
+    }
+
     return context;
 }
 
@@ -664,6 +706,20 @@ void c64_destroy(void *data)
         context->afterglow_cpu_accum = NULL;
         context->afterglow_cpu_bytes = 0;
         context->afterglow_cpu_valid = false;
+    }
+
+    // Cleanup REST control and keyboard capture
+    if (context->keyboard) {
+        c64_keyboard_destroy(context->keyboard);
+        context->keyboard = NULL;
+    }
+    if (context->keymap) {
+        c64_keymap_destroy(context->keymap);
+        context->keymap = NULL;
+    }
+    if (context->rest_client) {
+        c64_rest_client_destroy(context->rest_client);
+        context->rest_client = NULL;
     }
 
     bfree(context);
@@ -1355,4 +1411,120 @@ obs_properties_t *c64_properties(void *data)
 void c64_defaults(obs_data_t *settings)
 {
     c64_set_property_defaults(settings);
+}
+
+// Interaction callbacks for keyboard capture
+
+void c64_mouse_click(void *data, const struct obs_mouse_event *event, int32_t type, bool mouse_up, uint32_t click_count)
+{
+    UNUSED_PARAMETER(data);
+    UNUSED_PARAMETER(event);
+    UNUSED_PARAMETER(type);
+    UNUSED_PARAMETER(mouse_up);
+    UNUSED_PARAMETER(click_count);
+    // No mouse interaction needed for C64 keyboard capture
+}
+
+void c64_mouse_move(void *data, const struct obs_mouse_event *event, bool mouse_leave)
+{
+    UNUSED_PARAMETER(data);
+    UNUSED_PARAMETER(event);
+    UNUSED_PARAMETER(mouse_leave);
+    // No mouse interaction needed for C64 keyboard capture
+}
+
+void c64_mouse_wheel(void *data, const struct obs_mouse_event *event, int x_delta, int y_delta)
+{
+    UNUSED_PARAMETER(data);
+    UNUSED_PARAMETER(event);
+    UNUSED_PARAMETER(x_delta);
+    UNUSED_PARAMETER(y_delta);
+    // No mouse interaction needed for C64 keyboard capture
+}
+
+void c64_focus(void *data, bool focus)
+{
+    struct c64_source *context = (struct c64_source *)data;
+    if (!context) {
+        return;
+    }
+
+    if (focus && context->keyboard_capture_enabled) {
+        // Enable capture when focused
+        context->keyboard_capture_active = true;
+        C64_LOG_INFO("Keyboard capture activated (source focused)");
+        if (context->keyboard) {
+            c64_keyboard_set_capture(context->keyboard, true);
+        }
+    } else if (!focus && context->keyboard_capture_active) {
+        // Disable capture when focus lost
+        context->keyboard_capture_active = false;
+        C64_LOG_INFO("Keyboard capture deactivated (source lost focus)");
+        if (context->keyboard) {
+            c64_keyboard_set_capture(context->keyboard, false);
+        }
+    }
+}
+
+void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
+{
+    struct c64_source *context = (struct c64_source *)data;
+    if (!context || !event) {
+        return;
+    }
+
+    // Only process key press events (not key up)
+    if (key_up) {
+        return;
+    }
+
+    // Check if capture is enabled
+    if (!context->keyboard_capture_active) {
+        return;
+    }
+
+    // ESC key always disables capture
+    if (event->native_vkey == 0x1B) { // VK_ESCAPE
+        context->keyboard_capture_active = false;
+        context->keyboard_capture_enabled = false;
+        C64_LOG_INFO("Keyboard capture disabled (ESC pressed)");
+        if (context->keyboard) {
+            c64_keyboard_set_capture(context->keyboard, false);
+        }
+        return;
+    }
+
+    // Convert OBS key event to keymap format and queue for injection
+    if (context->keymap && context->keyboard) {
+        // Build key code from event
+        char key_code[64] = "";
+
+        // Map native virtual key to W3C key code (simplified - would need full mapping)
+        // For now, just use the text if available
+        if (event->text && event->text[0] != '\0') {
+            snprintf(key_code, sizeof(key_code), "%s", event->text);
+        }
+
+        // Build modifiers bitmask
+        int modifiers = 0;
+        if (event->modifiers & INTERACT_SHIFT_KEY) {
+            modifiers |= 0x01;
+        }
+        if (event->modifiers & INTERACT_CONTROL_KEY) {
+            modifiers |= 0x02;
+        }
+        if (event->modifiers & INTERACT_ALT_KEY) {
+            modifiers |= 0x04;
+        }
+        if (event->modifiers & INTERACT_COMMAND_KEY) {
+            modifiers |= 0x08;
+        }
+
+        // Convert key to C64 output
+        c64_output_t output;
+        if (c64_keymap_convert(context->keymap, key_code, modifiers, &output)) {
+            // Queue the keystroke for injection
+            c64_keyboard_queue_output(context->keyboard, &output);
+        }
+    }
 }
