@@ -1,221 +1,34 @@
-# C64 Stream Script Language Specification
+# C64Script Language Specification
 
-This document defines the `.c64script` language as implemented by the plugin (BASIC-inspired: labels and optional BASIC-style line numbers; `GOTO`/`GOSUB`; structured loops). It also keeps a reference section for the legacy v1 syntax.
+This document defines the `.c64script` language as implemented by the C64Stream OBS Studio plugin (BASIC-inspired: labels and optional BASIC-style line numbers; `GOTO`/`GOSUB`; structured loops).
 
 MUST READ:
 - script-spec: Detailed language spec.
-- script-tasks.md: Breaks down spec into high-level tasks and fills in blanks, but spec remains source of truth where there are conflicts.
-- script-progress.md: Contains concrete, low-level tasks, and tracks progress
+- `script-tasks.md`: Breaks down spec into high-level tasks and fills in blanks, but spec remains source of truth where there are conflicts.
+- `script-progress.md`: Contains concrete, low-level tasks, and tracks progress
 
 Non-goals:
 - This document does not specify UI/OBS integration details (Properties UI, key capture UX, etc.).
-- This document does not guarantee that every command is fully implemented at runtime (see v1 “Runtime support notes”).
+- This document does not guarantee that every command is fully implemented at runtime (see “Runtime support notes”).
 
 ---
 
-## 1. File Format
+## 1. File format
 
 - **File extension**: `.c64script`
 - **Encoding**: UTF-8 (ASCII subset is sufficient and recommended)
 - **Line endings**: `LF` (`\n`) or `CRLF` (`\r\n`)
-- **Size limit (v1 parser)**: ≤ 1 MiB
+- **Size limit (current parser)**: ≤ 1 MiB
 - **Primary mental model**: a script is a sequence of statements executed by a worker thread, sequentially, unless control flow changes the next statement.
 
----
-
-## 2. C64Script v1 (Legacy Reference)
-
-### 2.1 Lexical Rules
-
-v1 is a **line-oriented, whitespace-tokenized command language**.
-
-- **Whitespace**: spaces and tabs separate tokens.
-- **Empty lines**: ignored.
-- **Comments**: a line whose first non-whitespace character is `#` is ignored.
-- **Inline comments**: not a formal feature, but extra tokens are ignored by the parser for most commands; therefore `# ...` after the required arguments is effectively ignored.
-- **Case sensitivity**: **keywords are case-sensitive** (must match exactly, e.g. `wait`, not `WAIT`).
-- **No quoting / no escaping**:
-  - Arguments cannot contain whitespace.
-  - This particularly affects effect preset names and file paths containing spaces.
-
-### 2.2 v1 Grammar (EBNF)
-
-The grammar below is normative for what the v1 parser accepts.
-
-**Lexemes**
-
-```
-WS          = {" " | "\t"} ;
-EOL         = "\n" | "\r\n" ;
-DIGIT       = "0"…"9" ;
-INT         = ["-"], DIGIT, {DIGIT} ;
-REAL        = ["-"], DIGIT, {DIGIT}, [".", DIGIT, {DIGIT}] ;
-TOKEN       = ? any non-empty sequence of non-space and non-tab characters ? ;
-LABELNAME   = TOKEN ;
-PATH        = TOKEN ;
-```
-
-**Script**
-
-```
-script      = { line }, EOF ;
-line        = [WS], ( comment | statement | empty ), EOL ;
-empty       = "" ;
-comment     = "#", { ? any character except EOL ? } ;
-```
-
-**Statements**
-
-```
-statement =
-    effect
-  | effect_param
-  | palette
-  | play_sid
-  | run_prg
-  | mount_disk
-  | autostart
-  | reset
-  | reboot
-  | wait
-  | record_start
-  | record_stop
-  | stop
-  | loop
-  | label
-  | goto
-  ;
-
-effect          = "effect", WS, TOKEN, {WS, TOKEN} ;
-effect_param    = "effect_param", WS, TOKEN, WS, TOKEN, {WS, TOKEN} ;
-palette         = "palette", WS, TOKEN, {WS, TOKEN} ;
-
-play_sid        = "play_sid", WS, PATH, [WS, songnr], {WS, TOKEN} ;
-songnr          = "songnr=", INT ;
-
-run_prg         = "run_prg", WS, PATH, {WS, TOKEN} ;
-mount_disk      = "mount_disk", WS, PATH, {WS, TOKEN} ;
-
-autostart       = "autostart", {WS, TOKEN} ;
-reset           = "reset", {WS, TOKEN} ;
-reboot          = "reboot", {WS, TOKEN} ;
-
-wait            = "wait", WS, duration, {WS, TOKEN} ;
-duration        = REAL, ("ms" | "s" | "m") ;
-
-record_start    = "record_start", {WS, TOKEN} ;
-record_stop     = "record_stop", {WS, TOKEN} ;
-stop            = "stop", {WS, TOKEN} ;
-
-loop            = "loop", [WS, INT], {WS, TOKEN} ;
-label           = "label", WS, LABELNAME, {WS, TOKEN} ;
-goto            = "goto", WS, LABELNAME, {WS, TOKEN} ;
-```
-
-Notes:
-- The `{WS, TOKEN}` tails above reflect the fact that v1 does not reject extra tokens.
-- `PATH` is additionally classified at parse time as either:
-  - **Local**: `PATH` not starting with `c64u:`
-  - **C64U**: `PATH` starting with `c64u:`; the stored path becomes the substring after `c64u:`
-
-### 2.3 Execution Model (v1)
-
-1. Parse the file into a linear list of commands.
-2. Build a label map from `label <name>` statements (duplicates are an error).
-3. Execute commands sequentially on a worker thread.
-4. Some commands mutate the “next command” index (`goto`); `wait` blocks with cancellation checks.
-5. `stop` requests termination.
-
-#### 2.3.1 Timing Resolution
-
-`wait <duration>` is parsed in milliseconds, but the executor sleeps in **100 ms polling steps** and may overshoot:
-- Small waits like `wait 50ms` will effectively sleep ~100 ms.
-
-### 2.4 Command Reference (v1)
-
-This section defines the **intended meaning** of each statement; runtime support depends on the executor implementation and available subsystems (REST client, source settings, etc.).
-
-#### 2.4.1 Visual Control
-
-- `effect <preset_name>`
-  - Applies an effect preset to the source settings.
-  - **Limitation (v1 syntax)**: `<preset_name>` cannot include spaces.
-
-- `effect_param <name> <value>`
-  - Sets a numeric effect parameter (`<value>` is parsed as `double`).
-
-- `palette <palette_name>`
-  - Sets the active palette by ID/name (string).
-
-#### 2.4.2 C64U Playback & Machine Control
-
-- `play_sid <path> [songnr=N]`
-  - Plays a SID file.
-  - `songnr=` is optional; if absent, defaults to `0`.
-  - `<path>` may be prefixed with `c64u:` to reference the C64U filesystem.
-
-- `run_prg <path>`
-  - Runs a PRG.
-
-- `mount_disk <path>`
-  - Mounts a disk image (default drive A in the current executor).
-
-- `autostart`
-  - Injects the fixed autostart sequence `LOAD"*",8,1\rRUN\r` via the keyboard queue.
-
-- `reset`
-  - Soft reset of the machine.
-
-- `reboot`
-  - Hard reboot of the machine.
-
-#### 2.4.3 Recording Control
-
-- `record_start`
-  - Starts plugin-side capture (CSV/network recording) if available.
-
-- `record_stop`
-  - Stops plugin-side capture (CSV/network recording) if available.
-
-#### 2.4.4 Control Flow
-
-- `label <name>`
-  - Declares a jump target. Labels are “passive” at runtime.
-
-- `goto <name>`
-  - Transfers control to the labeled statement.
-
-- `loop [count]`
-  - v1 includes syntax for loops, but the current executor’s loop semantics are **not fully specified** by v1 and are not reliable as a structured block mechanism.
-  - v2 replaces this with proper `FOR`/`WHILE` blocks.
-
-- `stop`
-  - Stops script execution.
-
-### 2.5 Runtime Support Notes (v1)
-
-As of the current executor implementation:
-- `c64u:` paths are supported for `play_sid`, `run_prg`, and `mount_disk`.
-- Local file upload variants are placeholders (`TODO`) and currently fail.
-- `autostart` is implemented (injects the fixed `LOAD"*",8,1\rRUN\r` template via the keyboard module).
-
-### 2.6 Implementation Limits (v1)
-
-These limits are implementation-defined by the current parser/executor and may change:
-
-- Max script size: **1 MiB**
-- Max line length: **1023** bytes (parser line buffer; longer lines are truncated)
-- Max labels: **64** (`MAX_LABELS`)
-- Max loop nesting: **16** (`MAX_LOOP_STACK`)
-- Fixed-size argument buffers per command (long tokens may be truncated):
-  - `arg1`: 512 bytes
-  - `arg2`: 256 bytes
 
 ---
 
-## 3. C64Script v2 (Implemented): BASIC-Inspired, Label-Oriented
+## 2. C64Script Language
 
-### 3.1 Design Goals
+BASIC-Inspired, Label-Oriented
+
+### 2.1 Design Goals
 
 - **Familiar to Commodore 64 users**:
   - BASIC-like keywords (`IF`, `THEN`, `FOR`, `NEXT`, `GOSUB`, `RETURN`, `REM`, …)
@@ -250,18 +63,7 @@ These limits are implementation-defined by the current parser/executor and may c
   - Fine-grained effect parameter control (`EFFECTPARAM`)
   - Per-color palette customization (`PALETTECOLOR`)
 
-### 3.2 Compatibility Strategy
-
-Recommended: treat v2 as a **compatible evolution** of v1 at the command level, while keeping the v2 core syntax strict and predictable.
-
-- v2 keeps the same command vocabulary and duration literals where practical.
-- Some v1 scripts may require trivial edits (e.g., quoting multi-word names); v2 does not inherit v1’s “ignore extra tokens” behavior.
-- v1 `loop` is deprecated/removed in favor of structured `FOR`/`WHILE`.
-- v2 adds quoting, expressions, structured blocks, and BASIC-like spelling.
-- Keywords, labels, and identifiers are case-insensitive in v2 (`WAIT`, `wait`, `WaIt` are equivalent).
-- Where v1 uses underscores (e.g., `play_sid`, `run_prg`), v2 may additionally accept underscorless aliases (e.g., `PLAYSID`, `RUNPRG`).
-
-### 3.3 Lexical Rules (v2)
+### 2.2 Lexical Rules (C64Script)
 
 **Case sensitivity**
 - Keywords, labels, and identifiers are **case-insensitive** (`goto`, `GOTO`, and `GoTo` are the same).
@@ -271,7 +73,7 @@ Recommended: treat v2 as a **compatible evolution** of v1 at the command level, 
 - Spaces and tabs separate tokens, except inside quoted strings.
 
 **Comments**
-- `#` at the start of a (trimmed) line is a comment (v1 compatibility).
+- `#` at the start of a (trimmed) line is a comment (legacy format compatibility).
 - `REM` is a statement that comments out the rest of the line (BASIC style). After `REM`, the remainder of the line is ignored.
 
 **Strings**
@@ -321,9 +123,9 @@ Recommended: treat v2 as a **compatible evolution** of v1 at the command level, 
 - Additionally, allow `WAIT <expr> [unit]` with default unit `s`:
   - `WAIT 1.5` means `1.5s`
 
-### 3.4 v2 Grammar (EBNF)
+### 2.3 C64Script Grammar (EBNF)
 
-This grammar defines the proposed v2 language.
+This grammar defines the proposed C64Script language.
 
 **Lexemes**
 
@@ -520,9 +322,9 @@ string_or_word  = string_literal | identifier | word ;
 path_expr       = string_literal | identifier | word ;
 ```
 
-### 3.5 Semantics (v2)
+### 2.4 Semantics (C64Script)
 
-#### 3.5.1 Variables and Types
+#### 2.4.1 Variables and Types
 
 - Variables are global by default (BASIC-like simplicity).
 - **Supported types**:
@@ -598,7 +400,7 @@ The following operations raise "TYPE MISMATCH" errors:
 - String operator (`+` for concatenation) casts operands to string when at least one operand is string.
 - Relational operators (`=`, `<`, `>`, etc.) support both numeric and string comparisons (type of first operand determines comparison mode).
 
-#### 3.5.2 Control Flow and Stacks
+#### 2.4.2 Control Flow and Stacks
 
 The executor maintains explicit stacks:
 - `FOR` stack: loop variable, end value, step, loop start location.
@@ -660,7 +462,7 @@ Labels and line numbers:
 
 Limits should be explicit (e.g., max nesting depth) and produce clear runtime errors when exceeded.
 
-#### 3.5.3 Boolean Logic
+#### 2.4.3 Boolean Logic
 
 - Relational operators return numeric truth values (`0` false, `-1` true recommended; BASIC style).
 - Boolean operators follow BASIC-like precedence (`NOT` > `AND` > `XOR` > `OR`).
@@ -669,13 +471,15 @@ Limits should be explicit (e.g., max nesting depth) and produce clear runtime er
   - Aliases: `==` for `=`, `!=` for `<>`.
   - Parentheses always override precedence.
 
-#### 3.5.4 Waiting (Duration vs Wall Clock)
+#### 2.4.4 Waiting (Duration vs Wall Clock)
 
 `WAIT` supports two forms:
 
 - `WAIT <duration>`
   - If a unit is omitted, the default unit is seconds (e.g., `WAIT 1.5` means `1.5s`).
   - Implementations should sleep in short intervals (polling) to remain cancellable.
+
+  - Current executor timing resolution: waits are executed in 100 ms polling steps and may overshoot. Small waits like `WAIT 50ms` will effectively sleep ~100 ms.
 
 - `WAIT UNTIL <expr>`
   - Waits until a **host wall-clock** target time is reached (or exceeded).
@@ -688,7 +492,7 @@ Limits should be explicit (e.g., max nesting depth) and produce clear runtime er
   - If the computed target time is ≤ “now”, the wait completes immediately.
   - If the time cannot be parsed, raise a BASIC-style runtime error (recommended: “ILLEGAL QUANTITY”).
 
-#### 3.5.5 Plugin-Specific I/O
+#### 2.4.5 Plugin-Specific I/O
 
 These statements/functions exist to make C64 automation scripts practical in the context of this plugin (REST control, keyboard injection, and reproducible captures).
 
@@ -703,7 +507,7 @@ These statements/functions exist to make C64 automation scripts practical in the
   - `<address>` must be in `0..65535` (hex form: `$0000..$FFFF`).
   - `<value>` is truncated to 8-bit (`value & 255`), matching C64 expectations.
   - If `<address>`/`<value>` are not numeric at runtime, the executor should raise a BASIC-style “TYPE MISMATCH” error.
-- `POKE <address>, [v1, v2, ...]` writes a contiguous byte block starting at `<address>`.
+- `POKE <address>, [legacy format, C64Script, ...]` writes a contiguous byte block starting at `<address>`.
   - Each element is truncated to 8-bit.
   - Implementations should chunk writes to match REST constraints (e.g., ≤ 128 bytes per DMA write).
 - `PEEK(<address>)` returns a numeric value `0..255` read from C64 memory via DMA.
@@ -877,7 +681,7 @@ The language provides several built-in functions callable in expression context:
 - `TROFF` disables tracing.
 - `PRINT <expr>` writes to the OBS log (not the script log file).
 
-### 3.6 Effect Parameters Reference
+### 2.5 Effect Parameters Reference
 
 The `EFFECTPARAM` statement allows fine-grained control of visual effects beyond preset selection. Each effect type supports different parameters. Effect names and parameter names are **case-insensitive**.
 
@@ -993,7 +797,7 @@ To discover available parameters for a specific effect at runtime:
 - Invalid parameter values: runtime warning, clamped to valid range
 - Type mismatches: "TYPE MISMATCH" error (parameters must be numeric)
 
-### 3.7 Examples (v2)
+### 2.6 Examples (C64Script)
 
 **Example 0: Label and line-number forms**
 
@@ -1127,7 +931,7 @@ END
 
 **Example H: BASIC-style program with line numbers (optional)**
 
-Line numbers are optional in v2; they behave exactly like labels and exist mainly for that classic BASIC feel.
+Line numbers are optional in C64Script; they behave exactly like labels and exist mainly for that classic BASIC feel.
 
 ```basic
 10 REM Line numbers are optional; they act like labels for GOTO/GOSUB.
@@ -1222,7 +1026,7 @@ END
 
 ```basic
 REM Configure API endpoint
-API_URL$ = "http://192.168.1.64:8080/api/v1"
+API_URL$ = "http://192.168.1.64:8080/api/legacy format"
 
 REM Check C64 Ultimate status
 HTTP GET API_URL$ + "/status" STATUS STATUS_CODE RESPONSE RESP$
@@ -1381,9 +1185,9 @@ END
 
 ---
 
-## 4. Recommended Next Steps (Implementation Roadmap)
+## 3. Recommended next steps (implementation roadmap)
 
-If/when implementing v2 in code:
+If/when implementing C64Script in code:
 
 1. Implement parsing: case-insensitive keywords/labels/identifiers, label prefixes (optional `:`), optional line numbers, quoted strings, and `REM`.
 2. Implement expressions: parentheses, `NOT`/`AND`/`XOR`/`OR`, and relational operators (with `==`/`!=` aliases).
@@ -1399,3 +1203,26 @@ If/when implementing v2 in code:
 12. Implement palette color control: `PALETTECOLOR` for per-index RGB modification.
 13. Implement parameterized GOSUB: parameter passing via `PARAM1`, `PARAM2`, etc., return value via `RESULT`.
 14. Implement automatic type casting according to the rules in section 3.5.1.
+
+---
+
+## 4. Runtime support notes
+
+As of the current executor implementation:
+- `c64u:` paths are supported for `play_sid`, `run_prg`, and `mount_disk`.
+- Local file upload variants are placeholders (`TODO`) and currently fail.
+- `autostart` is implemented (injects the fixed `LOAD"*",8,1\rRUN\r` template via the keyboard module).
+
+---
+
+## 5. Implementation limits (current parser/executor)
+
+These limits are implementation-defined by the current parser/executor and may change:
+
+- Max script size: **1 MiB**
+- Max line length: **1023** bytes (parser line buffer; longer lines are truncated)
+- Max labels: **64** (`MAX_LABELS`)
+- Max loop nesting: **16** (`MAX_LOOP_STACK`)
+- Fixed-size argument buffers per command (long tokens may be truncated):
+  - `arg1`: 512 bytes
+  - `arg2`: 256 bytes
