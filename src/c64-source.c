@@ -187,6 +187,14 @@ void *c64_source_get_rest_client(struct c64_source *context)
     return context->rest_client;
 }
 
+void *c64_source_get_keyboard(struct c64_source *context)
+{
+    if (!context) {
+        return NULL;
+    }
+    return context->keyboard;
+}
+
 static void c64_refresh_resolved_ip(struct c64_source *context)
 {
     if (!context)
@@ -623,6 +631,16 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     if (context->rest_client) {
         context->keyboard = c64_keyboard_create(context->rest_client);
     }
+
+    // Load indicator customization settings
+    const char *indicator_text = obs_data_get_string(settings, "capture_indicator_text");
+    if (indicator_text && indicator_text[0] != '\0') {
+        strncpy(context->capture_indicator_text, indicator_text, sizeof(context->capture_indicator_text) - 1);
+    } else {
+        strncpy(context->capture_indicator_text, "CAPTURE", sizeof(context->capture_indicator_text) - 1);
+    }
+    context->capture_indicator_position = (int)obs_data_get_int(settings, "capture_indicator_position");
+    context->capture_indicator_opacity = (float)obs_data_get_double(settings, "capture_indicator_opacity");
 
     return context;
 }
@@ -1222,19 +1240,40 @@ static void render_capture_indicator(struct c64_source *context)
     if (is_output_active())
         return;
 
-    // Render indicator in the top-right border area
-    // Position: 8 pixels from right edge, 8 pixels from top
-    const uint32_t indicator_x = context->width - 80;
-    const uint32_t indicator_y = 8;
+    // Calculate indicator position based on user preference
     const uint32_t indicator_width = 72;
     const uint32_t indicator_height = 16;
+    const uint32_t margin = 8;
 
-    // Draw semi-transparent red background
+    uint32_t indicator_x, indicator_y;
+    switch (context->capture_indicator_position) {
+    case 0: // Top-right
+        indicator_x = context->width - indicator_width - margin;
+        indicator_y = margin;
+        break;
+    case 1: // Top-left
+        indicator_x = margin;
+        indicator_y = margin;
+        break;
+    case 2: // Bottom-right
+        indicator_x = context->width - indicator_width - margin;
+        indicator_y = context->height - indicator_height - margin;
+        break;
+    case 3: // Bottom-left
+        indicator_x = margin;
+        indicator_y = context->height - indicator_height - margin;
+        break;
+    default:
+        indicator_x = context->width - indicator_width - margin;
+        indicator_y = margin;
+        break;
+    }
+
+    // Draw semi-transparent red background with configurable opacity
     gs_effect_t *solid = obs_get_base_effect(OBS_EFFECT_SOLID);
     if (solid) {
-        // Set red color with 70% opacity (RGBA: 0xB3FF0000)
         struct vec4 color;
-        vec4_set(&color, 1.0f, 0.0f, 0.0f, 0.7f);
+        vec4_set(&color, 1.0f, 0.0f, 0.0f, context->capture_indicator_opacity);
         gs_effect_set_vec4(gs_effect_get_param_by_name(solid, "color"), &color);
 
         while (gs_effect_loop(solid, "Solid")) {
@@ -1247,7 +1286,7 @@ static void render_capture_indicator(struct c64_source *context)
         }
     }
 
-    // TODO: Add text "CAPTURE" using gs_font or fallback to simple icon
+    // TODO: Add configurable text rendering using context->capture_indicator_text
     // For now, the red box is sufficient to indicate capture state
 #else
     UNUSED_PARAMETER(context);

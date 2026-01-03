@@ -24,7 +24,7 @@ loop 3
     effect Pixel Grid
     palette pepto_ntsc
     wait 2s
-    
+
     effect Classic CRT
     palette vice_new
     wait 2s

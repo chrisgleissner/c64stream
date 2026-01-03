@@ -50,6 +50,11 @@ static bool palette_delete_clicked(obs_properties_t *props, obs_property_t *prop
 static bool palette_color_changed(void *data, obs_properties_t *props, obs_property_t *property, obs_data_t *settings);
 static void update_palette_color_properties(obs_data_t *settings);
 
+// Script automation callbacks
+static bool script_start_clicked(obs_properties_t *props, obs_property_t *property, void *data);
+static bool script_stop_clicked(obs_properties_t *props, obs_property_t *property, void *data);
+static bool script_reload_clicked(obs_properties_t *props, obs_property_t *property, void *data);
+
 // Internal key to track initialization state and prevent spurious auto-saves
 static const char *C64_PALETTE_INITIALIZING_KEY = "_c64_palette_initializing";
 
@@ -98,6 +103,40 @@ static inline void c64_set_bool(obs_data_t *settings, const char *key, bool valu
     } else {
         obs_data_set_default_bool(settings, key, value);
     }
+}
+
+// Script automation button callbacks
+static bool script_start_clicked(obs_properties_t *props, obs_property_t *property, void *data)
+{
+    UNUSED_PARAMETER(props);
+    UNUSED_PARAMETER(property);
+    UNUSED_PARAMETER(data);
+
+    // TODO: Implement script start - create executor and begin execution
+    C64_LOG_INFO("Script start button clicked");
+    return false; // Don't refresh properties
+}
+
+static bool script_stop_clicked(obs_properties_t *props, obs_property_t *property, void *data)
+{
+    UNUSED_PARAMETER(props);
+    UNUSED_PARAMETER(property);
+    UNUSED_PARAMETER(data);
+
+    // TODO: Implement script stop - signal executor to cancel
+    C64_LOG_INFO("Script stop button clicked");
+    return false; // Don't refresh properties
+}
+
+static bool script_reload_clicked(obs_properties_t *props, obs_property_t *property, void *data)
+{
+    UNUSED_PARAMETER(props);
+    UNUSED_PARAMETER(property);
+    UNUSED_PARAMETER(data);
+
+    // TODO: Implement script reload - reparse script file
+    C64_LOG_INFO("Script reload button clicked");
+    return false; // Don't refresh properties
 }
 
 obs_properties_t *c64_create_properties(void *data)
@@ -540,6 +579,24 @@ obs_properties_t *c64_create_properties(void *data)
         obs_property_list_add_string(keymap_prop, "Positional US", "positional_us");
     }
 
+    // Capture indicator customization
+    obs_property_t *indicator_text_prop = obs_properties_add_text(
+        rest_props, "capture_indicator_text", obs_module_text("CaptureIndicatorText"), OBS_TEXT_DEFAULT);
+    obs_property_set_long_description(indicator_text_prop, obs_module_text("CaptureIndicatorText.Description"));
+
+    obs_property_t *indicator_pos_prop = obs_properties_add_list(rest_props, "capture_indicator_position",
+                                                                 obs_module_text("CaptureIndicatorPosition"),
+                                                                 OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+    obs_property_set_long_description(indicator_pos_prop, obs_module_text("CaptureIndicatorPosition.Description"));
+    obs_property_list_add_int(indicator_pos_prop, obs_module_text("CaptureIndicatorPosition.TopRight"), 0);
+    obs_property_list_add_int(indicator_pos_prop, obs_module_text("CaptureIndicatorPosition.TopLeft"), 1);
+    obs_property_list_add_int(indicator_pos_prop, obs_module_text("CaptureIndicatorPosition.BottomRight"), 2);
+    obs_property_list_add_int(indicator_pos_prop, obs_module_text("CaptureIndicatorPosition.BottomLeft"), 3);
+
+    obs_property_t *indicator_opacity_prop = obs_properties_add_float_slider(
+        rest_props, "capture_indicator_opacity", obs_module_text("CaptureIndicatorOpacity"), 0.0, 1.0, 0.05);
+    obs_property_set_long_description(indicator_opacity_prop, obs_module_text("CaptureIndicatorOpacity.Description"));
+
     // Automation mode
     obs_property_t *automation_mode_prop = obs_properties_add_list(
         rest_props, "automation_mode", obs_module_text("AutomationMode"), OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
@@ -589,6 +646,19 @@ obs_properties_t *c64_create_properties(void *data)
         obs_properties_add_text(rest_props, "script_status", obs_module_text("ScriptStatus"), OBS_TEXT_DEFAULT);
     obs_property_set_long_description(script_status_prop, obs_module_text("ScriptStatus.Description"));
     obs_property_set_enabled(script_status_prop, false); // Read-only status field
+
+    // Script control buttons (using button property type)
+    obs_property_t *script_start_prop =
+        obs_properties_add_button(rest_props, "script_start", obs_module_text("ScriptStart"), script_start_clicked);
+    obs_property_set_long_description(script_start_prop, obs_module_text("ScriptStart.Description"));
+
+    obs_property_t *script_stop_prop =
+        obs_properties_add_button(rest_props, "script_stop", obs_module_text("ScriptStop"), script_stop_clicked);
+    obs_property_set_long_description(script_stop_prop, obs_module_text("ScriptStop.Description"));
+
+    obs_property_t *script_reload_prop =
+        obs_properties_add_button(rest_props, "script_reload", obs_module_text("ScriptReload"), script_reload_clicked);
+    obs_property_set_long_description(script_reload_prop, obs_module_text("ScriptReload.Description"));
 
     return props;
 }
@@ -1062,6 +1132,9 @@ void c64_set_property_defaults(obs_data_t *settings)
     obs_data_set_default_string(settings, "rest_password", "");
     obs_data_set_default_bool(settings, "keyboard_capture_enabled", false);
     obs_data_set_default_string(settings, "keyboard_keymap", "symbolic_us");
+    obs_data_set_default_string(settings, "capture_indicator_text", "CAPTURE");
+    obs_data_set_default_int(settings, "capture_indicator_position", 0); // Top-right
+    obs_data_set_default_double(settings, "capture_indicator_opacity", 0.7);
     obs_data_set_default_int(settings, "automation_mode", 0); // Disabled
     obs_data_set_default_int(settings, "file_source", 0);     // Local Filesystem
     obs_data_set_default_string(settings, "automation_path", "");

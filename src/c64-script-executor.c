@@ -8,6 +8,7 @@ See <https://www.gnu.org/licenses/> for details.
 
 #include "c64-script-executor.h"
 #include "c64-effect.h"
+#include "c64-keyboard.h"
 #include "c64-logging.h"
 #include "c64-palette.h"
 #include "c64-record.h"
@@ -215,10 +216,26 @@ static bool execute_command(c64_script_executor_t *executor, c64_script_command_
     }
 
     case C64_SCRIPT_CMD_AUTOSTART: {
-        // Autostart command not supported by C64U REST API yet
-        C64_LOG_WARNING(EXECUTOR_LOG_PREFIX "Autostart command not supported");
-        snprintf(executor->error_msg, sizeof(executor->error_msg), "Autostart command not supported");
-        success = false;
+        // Inject autostart sequence via keyboard (LOAD"*",8,1\rRUN\r)
+        void *keyboard = c64_source_get_keyboard(source_data);
+        if (!keyboard) {
+            snprintf(executor->error_msg, sizeof(executor->error_msg), "Keyboard not available for autostart");
+            success = false;
+            break;
+        }
+
+        // Inject default autostart template
+        const char *template = "LOAD\"*\",8,1\rRUN\r";
+        for (size_t i = 0; template[i]; i++) {
+            c64_output_t output = {0};
+            output.mode = C64_OUTPUT_PETSCII;
+            if (template[i] == '\r') {
+                output.data.petscii = 0x0D; // RETURN
+            } else {
+                output.data.petscii = (uint8_t)template[i];
+            }
+            c64_keyboard_queue_output(keyboard, &output);
+        }
         break;
     }
 

@@ -40,7 +40,7 @@ stop
 """
         path = self.write_script('test.c64script', script)
         self.assertTrue(os.path.exists(path))
-        
+
         # Validate syntax
         lines = script.strip().split('\n')
         commands = [l.strip() for l in lines if l.strip() and not l.strip().startswith('#')]
@@ -69,7 +69,7 @@ wait 5s
             ('wait 1m', 'minutes'),
             ('wait 0.5m', 'decimal minutes'),
         ]
-        
+
         for command, description in test_cases:
             with self.subTest(command=command, desc=description):
                 # Simple syntax validation
@@ -87,7 +87,7 @@ wait 5s
             ('run_prg c64u:/Programs/demo.prg', 'C64U PRG'),
             ('mount_disk c64u:/Disks/game.d64', 'C64U disk'),
         ]
-        
+
         for command, description in test_cases:
             with self.subTest(command=command, desc=description):
                 parts = command.split()
@@ -126,13 +126,13 @@ goto start
         path = self.write_script('test_goto.c64script', script)
         lines = script.strip().split('\n')
         commands = [l.strip() for l in lines if l.strip()]
-        
+
         label_cmd = [c for c in commands if c.startswith('label')]
         goto_cmd = [c for c in commands if c.startswith('goto')]
-        
+
         self.assertEqual(len(label_cmd), 1)
         self.assertEqual(len(goto_cmd), 1)
-        
+
         # Extract label name
         label_name = label_cmd[0].split()[1]
         goto_target = goto_cmd[0].split()[1]
@@ -177,7 +177,7 @@ stop
             for script_name in expected_scripts:
                 script_path = os.path.join(script_dir, script_name)
                 with self.subTest(script=script_name):
-                    self.assertTrue(os.path.exists(script_path), 
+                    self.assertTrue(os.path.exists(script_path),
                                   f"Example script not found: {script_name}")
 
     def test_example_script_syntax(self):
@@ -185,24 +185,24 @@ stop
         script_dir = os.path.join(os.path.dirname(__file__), '../../data/scripts')
         if not os.path.exists(script_dir):
             self.skipTest("Scripts directory not found")
-            
+
         for filename in os.listdir(script_dir):
             if filename.endswith('.c64script'):
                 path = os.path.join(script_dir, filename)
                 with open(path, 'r') as f:
                     content = f.read()
-                
+
                 lines = content.split('\n')
                 commands = [l.strip() for l in lines if l.strip() and not l.strip().startswith('#')]
-                
+
                 with self.subTest(script=filename):
                     # Should have at least one command
-                    self.assertGreater(len(commands), 0, 
+                    self.assertGreater(len(commands), 0,
                                      f"{filename} has no commands")
-                    
+
                     # Should end with stop (or have loop/goto)
                     last_cmd = commands[-1].split()[0] if commands else ''
-                    self.assertIn(last_cmd, ['stop', 'goto', 'loop'], 
+                    self.assertIn(last_cmd, ['stop', 'goto', 'loop'],
                                 f"{filename} doesn't end properly")
 
 

@@ -240,6 +240,11 @@ struct c64_source {
     char rest_base_url[256];        // REST API base URL
     char rest_password[256];        // REST API password
     char keyboard_keymap_name[64];  // Keymap name (e.g., "symbolic_us")
+
+    // Preview indicator customization
+    char capture_indicator_text[64]; // Custom text for capture indicator (default: "CAPTURE")
+    int capture_indicator_position;  // Position: 0=top-right, 1=top-left, 2=bottom-right, 3=bottom-left
+    float capture_indicator_opacity; // Opacity 0.0-1.0 (default: 0.7)
 };
 
 #endif // C64_TYPES_H
