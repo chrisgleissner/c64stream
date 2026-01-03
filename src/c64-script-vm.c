@@ -474,35 +474,223 @@ bool c64script_vm_execute(c64script_runtime_t *runtime)
             break;
         }
 
-        // TODO: Implement built-in function calls
-        case OP_CALL_PEEK:
+        // Built-in function calls (PEEK)
+        case OP_CALL_PEEK: {
+            // Pop address from stack
+            c64script_value_t addr_val;
+            if (!pop(runtime, &addr_val))
+                return false;
+
+            uint16_t address = (uint16_t)addr_val.as.number;
+
+            // Call PEEK built-in (currently returns 0 as placeholder)
+            double result;
+            if (!c64script_builtin_peek(runtime, address, &result)) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "PEEK failed");
+                return false;
+            }
+
+            // Push result onto stack
+            c64script_value_t result_val = {.type = VALUE_NUMBER, .as.number = result};
+            if (!push(runtime, result_val))
+                return false;
+            break;
+        }
+
         case OP_CALL_BUILTIN:
-            blog(LOG_WARNING, "Built-in function calls not yet implemented");
+            blog(LOG_WARNING, "Generic built-in function calls not yet implemented");
             break;
 
-        // TODO: Implement plugin actions
+        // Plugin actions - these will be connected to REST API in Phase 6
         case OP_PUSH_NUM:
-        case OP_EFFECT:
-        case OP_EFFECTPARAM:
-        case OP_PALETTE:
-        case OP_PLAYSID:
-        case OP_RUNPRG:
-        case OP_MOUNTDISK:
+            // Push immediate number onto stack (used by some plugin actions)
+            result.type = VALUE_NUMBER;
+            result.as.number = (double)instr->operand;
+            if (!push(runtime, result))
+                return false;
+            break;
+
+        case OP_EFFECT: {
+            // EFFECT preset_name - Apply effect preset
+            c64script_value_t preset;
+            if (!pop(runtime, &preset))
+                return false;
+            blog(LOG_INFO, "EFFECT: %s (stub - REST API integration pending)", preset.as.string);
+            break;
+        }
+
+        case OP_EFFECTPARAM: {
+            // EFFECTPARAM param_name value - Set effect parameter
+            c64script_value_t value, param;
+            if (!pop(runtime, &value) || !pop(runtime, &param))
+                return false;
+            blog(LOG_INFO, "EFFECTPARAM: %s = %.2f (stub - REST API integration pending)", param.as.string,
+                 value.as.number);
+            break;
+        }
+
+        case OP_PALETTE: {
+            // PALETTE palette_name - Load palette
+            c64script_value_t palette;
+            if (!pop(runtime, &palette))
+                return false;
+            blog(LOG_INFO, "PALETTE: %s (stub - REST API integration pending)", palette.as.string);
+            break;
+        }
+
+        case OP_PLAYSID: {
+            // PLAYSID sid_file [SONGNR song_number]
+            c64script_value_t song_nr, sid_file;
+            if (!pop(runtime, &song_nr) || !pop(runtime, &sid_file))
+                return false;
+            blog(LOG_INFO, "PLAYSID: %s SONGNR %.0f (stub - REST API integration pending)", sid_file.as.string,
+                 song_nr.as.number);
+            break;
+        }
+
+        case OP_RUNPRG: {
+            // RUNPRG prg_file - Run a PRG file
+            c64script_value_t prg_file;
+            if (!pop(runtime, &prg_file))
+                return false;
+            blog(LOG_INFO, "RUNPRG: %s (stub - REST API integration pending)", prg_file.as.string);
+            break;
+        }
+
+        case OP_MOUNTDISK: {
+            // MOUNTDISK disk_file - Mount a disk image
+            c64script_value_t disk_file;
+            if (!pop(runtime, &disk_file))
+                return false;
+            blog(LOG_INFO, "MOUNTDISK: %s (stub - REST API integration pending)", disk_file.as.string);
+            break;
+        }
+
         case OP_AUTOSTART:
+            blog(LOG_INFO, "AUTOSTART (stub - REST API integration pending)");
+            break;
+
         case OP_RESET:
+            blog(LOG_INFO, "RESET (stub - REST API integration pending)");
+            break;
+
         case OP_REBOOT:
+            blog(LOG_INFO, "REBOOT (stub - REST API integration pending)");
+            break;
+
         case OP_RECORDSTART:
+            blog(LOG_INFO, "RECORDSTART (stub - REST API integration pending)");
+            break;
+
         case OP_RECORDSTOP:
-        case OP_TYPE:
-        case OP_KEY:
-        case OP_POKE_SINGLE:
-        case OP_POKE_ARRAY:
+            blog(LOG_INFO, "RECORDSTOP (stub - REST API integration pending)");
+            break;
+
+        case OP_TYPE: {
+            // TYPE text - Type text via keyboard injection
+            c64script_value_t text;
+            if (!pop(runtime, &text))
+                return false;
+            blog(LOG_INFO, "TYPE: \"%s\" (stub - keyboard injection pending)", text.as.string);
+            break;
+        }
+
+        case OP_KEY: {
+            // KEY key_name - Press a key via keyboard injection
+            c64script_value_t key;
+            if (!pop(runtime, &key))
+                return false;
+            blog(LOG_INFO, "KEY: %s (stub - keyboard injection pending)", key.as.string);
+            break;
+        }
+
+        case OP_POKE_SINGLE: {
+            // POKE address value - Write single byte via REST DMA
+            c64script_value_t value, address;
+            if (!pop(runtime, &value) || !pop(runtime, &address))
+                return false;
+            blog(LOG_INFO, "POKE: $%04X, $%02X (stub - REST API integration pending)", (uint16_t)address.as.number,
+                 (uint8_t)value.as.number);
+            break;
+        }
+
+        case OP_POKE_ARRAY: {
+            // POKE address [value1, value2, ...] - Write multiple bytes via REST DMA
+            // operand: number of values
+            uint32_t count = instr->operand;
+            if (count > runtime->stack_size) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "POKE_ARRAY: not enough values on stack");
+                return false;
+            }
+
+            // Pop values (in reverse order)
+            c64script_value_t *values = malloc(count * sizeof(c64script_value_t));
+            for (int i = count - 1; i >= 0; i--) {
+                if (!pop(runtime, &values[i])) {
+                    free(values);
+                    return false;
+                }
+            }
+
+            c64script_value_t address;
+            if (!pop(runtime, &address)) {
+                free(values);
+                return false;
+            }
+
+            blog(LOG_INFO, "POKE: $%04X, [%d values] (stub - REST API integration pending)",
+                 (uint16_t)address.as.number, count);
+            free(values);
+            break;
+        }
+
         case OP_LOG:
-        case OP_PRINT:
-        case OP_LOGFILE:
+        case OP_PRINT: {
+            // LOG/PRINT message - Print to log or console
+            c64script_value_t message;
+            if (!pop(runtime, &message))
+                return false;
+
+            if (message.type == VALUE_STRING) {
+                blog(LOG_INFO, "[C64Script] %s", message.as.string);
+            } else {
+                blog(LOG_INFO, "[C64Script] %.2f", message.as.number);
+            }
+            break;
+        }
+
+        case OP_LOGFILE: {
+            // LOGFILE filename mode - Open log file
+            c64script_value_t mode, filename;
+            if (!pop(runtime, &mode) || !pop(runtime, &filename))
+                return false;
+
+            // Close existing log file if open
+            if (runtime->log_file) {
+                fclose(runtime->log_file);
+                runtime->log_file = NULL;
+            }
+
+            // Open new log file
+            const char *mode_str = (mode.as.number != 0.0) ? "w" : "a"; // truncate vs append
+            runtime->log_file = fopen(filename.as.string, mode_str);
+            if (!runtime->log_file) {
+                blog(LOG_WARNING, "Failed to open log file: %s", filename.as.string);
+            } else {
+                strncpy(runtime->log_filename, filename.as.string, sizeof(runtime->log_filename) - 1);
+                blog(LOG_INFO, "LOGFILE: %s (mode: %s)", filename.as.string, mode_str);
+            }
+            break;
+        }
+
         case OP_TRON:
+            runtime->trace_enabled = true;
+            blog(LOG_INFO, "TRON: Tracing enabled");
+            break;
+
         case OP_TROFF:
-            blog(LOG_WARNING, "Opcode %d not yet implemented", instr->opcode);
+            runtime->trace_enabled = false;
+            blog(LOG_INFO, "TROFF: Tracing disabled");
             break;
 
         default:

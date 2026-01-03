@@ -434,6 +434,33 @@ TEST(execute_while_loop)
     c64script_ast_free(ast);
 }
 
+TEST(execute_plugin_actions)
+{
+    const char *source = "LOG \"Starting demo\"\n"
+                         "PALETTE \"colodore\"\n"
+                         "EFFECT \"crt\"\n"
+                         "TRON\n"
+                         "PRINT \"Actions executed\"\n"
+                         "TROFF\n";
+    char error[256];
+
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error, sizeof(error));
+    assert(ast != NULL);
+
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    bool success = c64script_compile(ast, runtime, error, sizeof(error));
+    assert(success);
+
+    success = c64script_execute(runtime);
+    assert(success);
+
+    // Verify trace was enabled then disabled
+    assert(!runtime->trace_enabled);
+
+    c64script_runtime_destroy(runtime);
+    c64script_ast_free(ast);
+}
+
 // ============================================================================
 // MAIN
 // ============================================================================
@@ -461,6 +488,9 @@ int main(void)
     printf("\n--- Loop Execution Tests ---\n");
     RUN_TEST(execute_for_loop);
     RUN_TEST(execute_while_loop);
+
+    printf("\n--- Plugin Action Tests ---\n");
+    RUN_TEST(execute_plugin_actions);
 
     printf("\n=== All Compiler & VM Tests Passed! ===\n");
     return 0;
