@@ -265,9 +265,40 @@ bool c64_keymap_convert(c64_keymap_t *keymap, const char *key_code, int modifier
         return false;
     }
 
-    (void)modifiers; // Unused for now
+    // Build key string with modifiers (e.g., "Shift+KeyA")
+    char key_with_mods[128] = "";
+    if (modifiers & 0x01) { // Shift
+        strcat(key_with_mods, "Shift+");
+    }
+    if (modifiers & 0x02) { // Ctrl
+        strcat(key_with_mods, "Ctrl+");
+    }
+    if (modifiers & 0x04) { // Alt
+        strcat(key_with_mods, "Alt+");
+    }
+    if (modifiers & 0x08) { // Meta
+        strcat(key_with_mods, "Meta+");
+    }
+    strcat(key_with_mods, key_code);
 
-    // Search keymap for matching entry
+    // Try exact match first (with modifiers)
+    for (int i = 0; i < keymap->num_entries; i++) {
+        if (strcmp(keymap->entries[i].key, key_with_mods) == 0) {
+            if (keymap->entries[i].is_symbolic) {
+                // Symbolic output
+                output->mode = C64_OUTPUT_SYMBOLIC;
+                strncpy(output->data.symbol, keymap->entries[i].symbol, sizeof(output->data.symbol) - 1);
+                output->data.symbol[sizeof(output->data.symbol) - 1] = '\0';
+            } else {
+                // PETSCII output
+                output->mode = C64_OUTPUT_PETSCII;
+                output->data.petscii = keymap->entries[i].value;
+            }
+            return true;
+        }
+    }
+
+    // If no match with modifiers, try plain key (ignoring modifiers)
     for (int i = 0; i < keymap->num_entries; i++) {
         if (strcmp(keymap->entries[i].key, key_code) == 0) {
             if (keymap->entries[i].is_symbolic) {
@@ -286,7 +317,7 @@ bool c64_keymap_convert(c64_keymap_t *keymap, const char *key_code, int modifier
     }
 
     // No mapping found
-    C64_LOG_DEBUG(KEYBOARD_LOG_PREFIX "No mapping for key: %s", key_code);
+    C64_LOG_DEBUG(KEYBOARD_LOG_PREFIX "No mapping for key: %s (mods=0x%02X)", key_code, modifiers);
     return false;
 }
 
