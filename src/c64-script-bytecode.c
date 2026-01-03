@@ -774,7 +774,7 @@ static bool compile_statement(compiler_context_t *ctx, c64script_ast_node_t *stm
         // HTTP needs: response_var, status_var, body, headers, url (strings, empty for NULL)
         // Then method as operand
         c64script_value_t empty_val = {.type = VALUE_STRING, .as.string = (char *)""};
-        uint32_t empty_idx = add_constant(ctx, empty_val);
+        uint32_t empty_idx = (uint32_t)add_constant(ctx, empty_val);
 
         // Push response_var name (or empty)
         if (stmt->as.http_stmt.response_var) {

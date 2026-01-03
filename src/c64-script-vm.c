@@ -25,6 +25,8 @@ See <https://www.gnu.org/licenses/> for details.
 #ifdef _WIN32
 #define strcasecmp _stricmp
 #define strncasecmp _strnicmp
+#define popen _popen
+#define pclose _pclose
 #else
 #include <strings.h>
 #include <sys/wait.h>
