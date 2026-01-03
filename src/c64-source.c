@@ -1200,6 +1200,7 @@ static bool is_output_active(void)
 // Render keyboard capture indicator overlay (preview-only)
 static void render_capture_indicator(struct c64_source *context)
 {
+#ifdef ENABLE_FRONTEND_API
     if (!context || !context->keyboard_capture_active)
         return;
 
@@ -1234,11 +1235,15 @@ static void render_capture_indicator(struct c64_source *context)
 
     // TODO: Add text "CAPTURE" using gs_font or fallback to simple icon
     // For now, the red box is sufficient to indicate capture state
+#else
+    UNUSED_PARAMETER(context);
+#endif // ENABLE_FRONTEND_API
 }
 
 // Render recording indicator overlay (preview-only)
 static void render_recording_indicator(struct c64_source *context)
 {
+#ifdef ENABLE_FRONTEND_API
     if (!context)
         return;
 
@@ -1278,6 +1283,9 @@ static void render_recording_indicator(struct c64_source *context)
 
     // TODO: Add text "REC" using gs_font or recording dot icon
     // For now, the orange box is sufficient to indicate recording state
+#else
+    UNUSED_PARAMETER(context);
+#endif // ENABLE_FRONTEND_API
 }
 
 // Video render callback for CRT effects (GPU rendering)
