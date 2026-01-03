@@ -163,7 +163,7 @@ Implement a fast, deterministic, extensible BASIC-inspired scripting language fo
 ### A. Bytecode Design (15 tasks)
 - [ ] Define opcode enum (50+ opcodes)
 - [ ] Define instruction format (opcode + operands)
-- [ ] Design constant pool (strings, numbers)
+- [ ] Design constant pool (strindoc/script-progress.mdgs, numbers)
 - [ ] Design jump target patching strategy
 - [ ] Implement NOP (no operation)
 - [ ] Implement PUSH_CONST (push constant pool value)

@@ -7,6 +7,7 @@ See <https://www.gnu.org/licenses/> for details.
 */
 
 #include "c64-script.h"
+#include "c64-script-token.h"
 #include "c64-logging.h"
 
 #include <ctype.h>
@@ -551,4 +552,60 @@ void c64script_tokenizer_destroy(tokenizer_t *t)
 const char *c64script_tokenizer_error(tokenizer_t *t)
 {
     return t->error_msg[0] ? t->error_msg : NULL;
+}
+
+// ============================================================================
+// PUBLIC API WRAPPERS
+// ============================================================================
+
+void c64script_tokenizer_init(c64script_tokenizer_t *tokenizer, const char *source, size_t source_size)
+{
+    tokenizer->source = source;
+    tokenizer->source_size = source_size;
+    tokenizer->current = 0;
+    tokenizer->line = 1;
+    tokenizer->column = 1;
+    tokenizer->error[0] = '\0';
+}
+
+c64script_token_t c64script_tokenizer_next(c64script_tokenizer_t *tokenizer)
+{
+    // Create a temporary internal tokenizer from the public struct
+    tokenizer_t internal = {.source = tokenizer->source,
+                            .source_size = tokenizer->source_size,
+                            .pos = tokenizer->current,
+                            .line = tokenizer->line,
+                            .column = tokenizer->column,
+                            .line_start_pos = 0, // Will be recalculated
+                            .error_msg = {0}};
+
+    c64script_token_t token = c64script_tokenize_next(&internal);
+
+    // Update public tokenizer state
+    tokenizer->current = internal.pos;
+    tokenizer->line = internal.line;
+    tokenizer->column = internal.column;
+    if (internal.error_msg[0]) {
+        snprintf(tokenizer->error, sizeof(tokenizer->error), "%s", internal.error_msg);
+    }
+
+    return token;
+}
+
+c64script_token_t c64script_tokenizer_peek(c64script_tokenizer_t *tokenizer)
+{
+    // Save current state
+    size_t saved_current = tokenizer->current;
+    int saved_line = tokenizer->line;
+    int saved_column = tokenizer->column;
+
+    // Get next token
+    c64script_token_t token = c64script_tokenizer_next(tokenizer);
+
+    // Restore state
+    tokenizer->current = saved_current;
+    tokenizer->line = saved_line;
+    tokenizer->column = saved_column;
+
+    return token;
 }
