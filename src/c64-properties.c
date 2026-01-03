@@ -441,6 +441,24 @@ obs_properties_t *c64_create_properties(void *data)
                                                                obs_module_text("ImportSettings"), OBS_PATH_FILE,
                                                                "INI Files (*.ini);;All Files (*.*)", NULL);
     obs_property_set_long_description(import_path_prop, obs_module_text("ImportSettings.Description"));
+
+    // Set default directory path BEFORE registering callback to avoid triggering it
+    {
+        char exports_dir[512];
+        if (c64_get_user_dir(C64_USER_DIR_EXPORTS, exports_dir, sizeof(exports_dir))) {
+            // Ensure trailing slash to clearly indicate directory
+            size_t len = strlen(exports_dir);
+            if (len > 0 && len < sizeof(exports_dir) - 2 && exports_dir[len - 1] != '/' &&
+                exports_dir[len - 1] != '\\') {
+                exports_dir[len] = '/';
+                exports_dir[len + 1] = '\0';
+            }
+            obs_data_t *path_settings = obs_source_get_settings(context->source);
+            obs_data_set_default_string(path_settings, C64_CONFIG_IMPORT_PATH_KEY, exports_dir);
+            obs_data_release(path_settings);
+        }
+    }
+
     obs_property_set_modified_callback(import_path_prop, config_import_path_changed);
 
     // Export settings (INI) - action triggers immediately when destination is selected
@@ -448,12 +466,24 @@ obs_properties_t *c64_create_properties(void *data)
                                                                obs_module_text("ExportSettingsTo"), OBS_PATH_FILE_SAVE,
                                                                "INI Files (*.ini);;All Files (*.*)", NULL);
     obs_property_set_long_description(export_path_prop, obs_module_text("ExportSettingsTo.Description"));
+
+    // Set default timestamped filename BEFORE registering callback to avoid triggering it
+    {
+        char config_export_file[512];
+        c64_default_export_ini_path(config_export_file, sizeof(config_export_file));
+        obs_data_t *path_settings = obs_source_get_settings(context->source);
+        obs_data_set_default_string(path_settings, C64_CONFIG_EXPORT_PATH_KEY, config_export_file);
+        obs_data_release(path_settings);
+    }
+
     obs_property_set_modified_callback(export_path_prop, config_export_path_changed);
 
-    // NOTE: Do NOT set default paths for config import/export
-    // The file browser will start in the appropriate directory automatically
-    // Setting defaults triggers spurious exports when the dialog opens
-    // Let the user choose paths explicitly via the file browser
+    // Clear initialization flag now that properties UI setup is complete
+    {
+        obs_data_t *init_settings = obs_source_get_settings(context->source);
+        obs_data_erase(init_settings, C64_CONFIG_INITIALIZING_KEY);
+        obs_data_release(init_settings);
+    }
 
     return props;
 }
