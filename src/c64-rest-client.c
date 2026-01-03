@@ -265,10 +265,65 @@ bool c64_rest_play_sid(c64_rest_client_t *client, const uint8_t *sid_data, size_
         return false;
     }
 
-    // TODO: Implement multipart form-data upload
-    C64_LOG_INFO(REST_LOG_PREFIX "Play SID song=%d size=%zu (stub - multipart not implemented)", song_number, sid_size);
-    snprintf(client->error_msg, sizeof(client->error_msg), "Multipart upload not implemented");
-    return false;
+    // Build URL with song number query parameter
+    char path[128];
+    snprintf(path, sizeof(path), "/v1/runners:sidplay?songnr=%d", song_number);
+
+    // Build full URL
+    char url[512];
+    snprintf(url, sizeof(url), "%s%s", client->base_url, path);
+
+    // Reset CURL handle
+    curl_easy_reset(client->curl);
+
+    // Create MIME structure (modern API)
+    curl_mime *mime = curl_mime_init(client->curl);
+    curl_mimepart *part = curl_mime_addpart(mime);
+    curl_mime_name(part, "file");
+    curl_mime_filename(part, "music.sid");
+    curl_mime_data(part, (const char *)sid_data, sid_size);
+    curl_mime_type(part, "application/octet-stream");
+
+    // Set CURL options
+    curl_easy_setopt(client->curl, CURLOPT_URL, url);
+    curl_easy_setopt(client->curl, CURLOPT_MIMEPOST, mime);
+    curl_easy_setopt(client->curl, CURLOPT_TIMEOUT, 5L);
+
+    // Add password header if present
+    struct curl_slist *headers = NULL;
+    if (client->password && client->password[0]) {
+        char auth_header[256];
+        snprintf(auth_header, sizeof(auth_header), "X-Password: %s", client->password);
+        headers = curl_slist_append(headers, auth_header);
+        curl_easy_setopt(client->curl, CURLOPT_HTTPHEADER, headers);
+    }
+
+    // Perform request
+    CURLcode res = curl_easy_perform(client->curl);
+
+    // Cleanup
+    curl_mime_free(mime);
+    if (headers) {
+        curl_slist_free_all(headers);
+    }
+
+    if (res != CURLE_OK) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "CURL error: %s", curl_easy_strerror(res));
+        C64_LOG_ERROR(REST_LOG_PREFIX "%s", client->error_msg);
+        return false;
+    }
+
+    // Check HTTP status code
+    long http_code = 0;
+    curl_easy_getinfo(client->curl, CURLINFO_RESPONSE_CODE, &http_code);
+    if (http_code != 200) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "HTTP error %ld", http_code);
+        C64_LOG_ERROR(REST_LOG_PREFIX "%s", client->error_msg);
+        return false;
+    }
+
+    C64_LOG_INFO(REST_LOG_PREFIX "Playing SID song=%d size=%zu", song_number, sid_size);
+    return true;
 }
 
 bool c64_rest_run_prg(c64_rest_client_t *client, const uint8_t *prg_data, size_t prg_size)
@@ -277,10 +332,61 @@ bool c64_rest_run_prg(c64_rest_client_t *client, const uint8_t *prg_data, size_t
         return false;
     }
 
-    // TODO: Implement HTTP POST /v1/runners:run_prg
-    C64_LOG_INFO(REST_LOG_PREFIX "Run PRG size=%zu (stub)", prg_size);
-    snprintf(client->error_msg, sizeof(client->error_msg), "Not implemented");
-    return false;
+    // Build full URL
+    char url[512];
+    snprintf(url, sizeof(url), "%s/v1/runners:run_prg", client->base_url);
+
+    // Reset CURL handle
+    curl_easy_reset(client->curl);
+
+    // Create MIME structure (modern API)
+    curl_mime *mime = curl_mime_init(client->curl);
+    curl_mimepart *part = curl_mime_addpart(mime);
+    curl_mime_name(part, "file");
+    curl_mime_filename(part, "program.prg");
+    curl_mime_data(part, (const char *)prg_data, prg_size);
+    curl_mime_type(part, "application/octet-stream");
+
+    // Set CURL options
+    curl_easy_setopt(client->curl, CURLOPT_URL, url);
+    curl_easy_setopt(client->curl, CURLOPT_MIMEPOST, mime);
+    curl_easy_setopt(client->curl, CURLOPT_TIMEOUT, 5L);
+
+    // Add password header if present
+    struct curl_slist *headers = NULL;
+    if (client->password && client->password[0]) {
+        char auth_header[256];
+        snprintf(auth_header, sizeof(auth_header), "X-Password: %s", client->password);
+        headers = curl_slist_append(headers, auth_header);
+        curl_easy_setopt(client->curl, CURLOPT_HTTPHEADER, headers);
+    }
+
+    // Perform request
+    CURLcode res = curl_easy_perform(client->curl);
+
+    // Cleanup
+    curl_mime_free(mime);
+    if (headers) {
+        curl_slist_free_all(headers);
+    }
+
+    if (res != CURLE_OK) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "CURL error: %s", curl_easy_strerror(res));
+        C64_LOG_ERROR(REST_LOG_PREFIX "%s", client->error_msg);
+        return false;
+    }
+
+    // Check HTTP status code
+    long http_code = 0;
+    curl_easy_getinfo(client->curl, CURLINFO_RESPONSE_CODE, &http_code);
+    if (http_code != 200) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "HTTP error %ld", http_code);
+        C64_LOG_ERROR(REST_LOG_PREFIX "%s", client->error_msg);
+        return false;
+    }
+
+    C64_LOG_INFO(REST_LOG_PREFIX "Running PRG size=%zu", prg_size);
+    return true;
 }
 
 bool c64_rest_mount_disk(c64_rest_client_t *client, char drive, const char *type, const char *mode,
@@ -290,10 +396,68 @@ bool c64_rest_mount_disk(c64_rest_client_t *client, char drive, const char *type
         return false;
     }
 
-    // TODO: Implement HTTP POST /v1/drives/{drive}:mount
-    C64_LOG_INFO(REST_LOG_PREFIX "Mount disk drive=%c type=%s mode=%s size=%zu (stub)", drive, type, mode, disk_size);
-    snprintf(client->error_msg, sizeof(client->error_msg), "Not implemented");
-    return false;
+    // Build URL with query parameters
+    char path[256];
+    snprintf(path, sizeof(path), "/v1/drives/%c:mount?type=%s&mode=%s", drive, type, mode);
+
+    // Build full URL
+    char url[512];
+    snprintf(url, sizeof(url), "%s%s", client->base_url, path);
+
+    // Reset CURL handle
+    curl_easy_reset(client->curl);
+
+    // Create MIME structure (modern API)
+    curl_mime *mime = curl_mime_init(client->curl);
+    curl_mimepart *part = curl_mime_addpart(mime);
+    curl_mime_name(part, "file");
+
+    char filename[32];
+    snprintf(filename, sizeof(filename), "disk.%s", type);
+    curl_mime_filename(part, filename);
+    curl_mime_data(part, (const char *)disk_data, disk_size);
+    curl_mime_type(part, "application/octet-stream");
+
+    // Set CURL options
+    curl_easy_setopt(client->curl, CURLOPT_URL, url);
+    curl_easy_setopt(client->curl, CURLOPT_MIMEPOST, mime);
+    curl_easy_setopt(client->curl, CURLOPT_TIMEOUT, 5L);
+
+    // Add password header if present
+    struct curl_slist *headers = NULL;
+    if (client->password && client->password[0]) {
+        char auth_header[256];
+        snprintf(auth_header, sizeof(auth_header), "X-Password: %s", client->password);
+        headers = curl_slist_append(headers, auth_header);
+        curl_easy_setopt(client->curl, CURLOPT_HTTPHEADER, headers);
+    }
+
+    // Perform request
+    CURLcode res = curl_easy_perform(client->curl);
+
+    // Cleanup
+    curl_mime_free(mime);
+    if (headers) {
+        curl_slist_free_all(headers);
+    }
+
+    if (res != CURLE_OK) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "CURL error: %s", curl_easy_strerror(res));
+        C64_LOG_ERROR(REST_LOG_PREFIX "%s", client->error_msg);
+        return false;
+    }
+
+    // Check HTTP status code
+    long http_code = 0;
+    curl_easy_getinfo(client->curl, CURLINFO_RESPONSE_CODE, &http_code);
+    if (http_code != 200) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "HTTP error %ld", http_code);
+        C64_LOG_ERROR(REST_LOG_PREFIX "%s", client->error_msg);
+        return false;
+    }
+
+    C64_LOG_INFO(REST_LOG_PREFIX "Mounted disk drive=%c type=%s mode=%s size=%zu", drive, type, mode, disk_size);
+    return true;
 }
 
 const char *c64_rest_get_error(c64_rest_client_t *client)
