@@ -21,4 +21,20 @@ target_include_directories(test_c64script_parser PRIVATE ${CMAKE_SOURCE_DIR}/src
 target_link_libraries(test_c64script_parser PRIVATE OBS::libobs)
 add_test(NAME c64script_parser COMMAND test_c64script_parser)
 
+# Compiler and VM unit tests
+add_executable(
+  test_c64script_compiler
+  test_c64script_compiler.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-parser.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-token.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-ast.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-bytecode.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-runtime.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-builtins.c
+)
+target_include_directories(test_c64script_compiler PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(test_c64script_compiler PRIVATE OBS::libobs m)
+add_test(NAME c64script_compiler COMMAND test_c64script_compiler)
+
 add_subdirectory(e2e)
