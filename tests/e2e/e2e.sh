@@ -263,7 +263,9 @@ ensure_udp_buffers() {
     if [[ "${new_rmem_max}" -ge "${target_buffer}" ]]; then
         log_success "UDP buffers: ${new_rmem_max} bytes"
     else
+        # CI/non-interactive: Tests adapt to smaller buffers with MIN_PACKET_DELAY
         log_info "UDP buffers: ${new_rmem_max} bytes (tests will use MIN_PACKET_DELAY)"
+        log_info "This is expected in CI environments (kernel parameters are read-only)"
     fi
 }
 
