@@ -41,7 +41,6 @@ static void trim_config_string(char *str);
 // Forward declaration of path helper functions
 static void c64_default_palette_import_path(char *path, size_t path_size);
 static void c64_default_palette_export_path(char *path, size_t path_size);
-static void c64_default_export_ini_path(char *path, size_t path_size);
 
 // Palette callbacks
 static bool palette_changed(void *priv, obs_properties_t *props, obs_property_t *property, obs_data_t *settings);
@@ -526,46 +525,6 @@ static void c64_default_palette_export_path(char *path, size_t path_size)
 
     // Fallback: current directory
     path[0] = '\0';
-}
-
-static void c64_default_export_ini_path(char *path, size_t path_size)
-{
-    if (!path || path_size < 64)
-        return;
-
-    // Generate timestamp filename
-    time_t now = time(NULL);
-    struct tm *tm_info = localtime(&now);
-    char timestamp[32];
-    strftime(timestamp, sizeof(timestamp), "%Y%m%d_%H%M%S", tm_info);
-
-    // Get exports directory
-    char exports_dir[512];
-    if (c64_get_user_dir(C64_USER_DIR_EXPORTS, exports_dir, sizeof(exports_dir))) {
-        // Validate combined path length
-        size_t dir_len = strlen(exports_dir);
-        size_t ts_len = strlen(timestamp);
-        // Need: dir + "/" + "c64stream_" + timestamp + ".ini" + null = dir + 26 + ts_len
-        if (dir_len + 27 + ts_len < path_size) {
-            // Suppress truncation warning - we've manually validated the length above
-#if defined(__GNUC__) && !defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wformat-truncation"
-#endif
-#ifdef _WIN32
-            snprintf(path, path_size, "%s\\c64stream_%s.ini", exports_dir, timestamp);
-#else
-            snprintf(path, path_size, "%s/c64stream_%s.ini", exports_dir, timestamp);
-#endif
-#if defined(__GNUC__) && !defined(__clang__)
-#pragma GCC diagnostic pop
-#endif
-            return;
-        }
-    }
-
-    // Fallback: current directory with timestamp
-    snprintf(path, path_size, "c64stream_%s.ini", timestamp);
 }
 
 static bool c64_ensure_parent_dir_exists(const char *file_path)
