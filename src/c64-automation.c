@@ -309,14 +309,14 @@ static void *automation_worker(void *arg)
         int sleep_interval_ms = 100;
 
         while (elapsed_ms < duration_ms && !automation->should_stop) {
-            usleep(sleep_interval_ms * 1000);
+            os_sleep_ms(sleep_interval_ms);
             elapsed_ms += sleep_interval_ms;
         }
 
         // Reset between items if configured
         if (automation->config.reset_between_items && file->type != C64_FILE_TYPE_D64) {
             c64_rest_reset(automation->rest_client);
-            usleep(RESET_DELAY_MS * 1000);
+            os_sleep_ms(RESET_DELAY_MS);
         }
     }
 
@@ -564,7 +564,7 @@ bool c64_automation_start_d64(c64_automation_t *automation, const char *path)
         C64_LOG_ERROR(AUTOMATION_LOG_PREFIX "Failed to reset machine");
         return false;
     }
-    usleep(RESET_DELAY_MS * 1000);
+    os_sleep_ms(RESET_DELAY_MS);
 
     // Load and mount disk
     size_t file_size;

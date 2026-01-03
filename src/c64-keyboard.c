@@ -405,7 +405,7 @@ static void *injection_worker(void *arg)
 
         if (bytes_read < 0) {
             C64_LOG_ERROR(KEYBOARD_LOG_PREFIX "Failed to read keyboard buffer length");
-            usleep(POLL_INTERVAL_MS * 1000);
+            os_sleep_ms(POLL_INTERVAL_MS);
             continue;
         }
 
@@ -437,7 +437,7 @@ static void *injection_worker(void *arg)
             }
         }
 
-        usleep(POLL_INTERVAL_MS * 1000);
+        os_sleep_ms(POLL_INTERVAL_MS);
     }
 
     C64_LOG_INFO(KEYBOARD_LOG_PREFIX "Injection worker stopped");
