@@ -76,7 +76,7 @@ static const keyword_entry_t keywords[] = {
     {"RECORD_STOP", TOKEN_RECORDSTOP}, // Alias
 
     // I/O
-    {"TYPE", TOKEN_TYPE},
+    {"TYPE", TOKEN_TYPE_KEYWORD},
     {"KEY", TOKEN_KEY},
     {"POKE", TOKEN_POKE},
     {"PEEK", TOKEN_PEEK},

@@ -493,10 +493,11 @@ static parse_rule_t rules[] = {
 
 static parse_rule_t *get_rule(c64script_token_type_t type)
 {
+    static parse_rule_t default_rule = {NULL, NULL, PREC_NONE};
     if (type >= 0 && type < sizeof(rules) / sizeof(rules[0])) {
         return &rules[type];
     }
-    return &rules[TOKEN_ERROR];
+    return &default_rule;
 }
 
 static c64script_ast_expr_t *parse_precedence(parser_t *p, precedence_t precedence)
@@ -1467,7 +1468,7 @@ static c64script_ast_node_t *statement(parser_t *p)
         return recordstart_statement(p);
     if (match(p, TOKEN_RECORDSTOP))
         return recordstop_statement(p);
-    if (match(p, TOKEN_TYPE))
+    if (match(p, TOKEN_TYPE_KEYWORD))
         return type_statement(p);
     if (match(p, TOKEN_KEY))
         return key_statement(p);

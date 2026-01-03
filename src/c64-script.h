@@ -104,7 +104,7 @@ typedef enum {
     TOKEN_RECORDSTOP,
 
     // Keywords - I/O
-    TOKEN_TYPE,
+    TOKEN_TYPE_KEYWORD,
     TOKEN_KEY,
     TOKEN_POKE,
     TOKEN_PEEK, // Also a function name
