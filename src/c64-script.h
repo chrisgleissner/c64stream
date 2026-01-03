@@ -94,6 +94,7 @@ typedef enum {
     TOKEN_EFFECT,
     TOKEN_EFFECTPARAM,
     TOKEN_PALETTE,
+    TOKEN_PALETTECOLOR,
     TOKEN_PLAYSID,
     TOKEN_RUNPRG,
     TOKEN_MOUNTDISK,
@@ -203,6 +204,7 @@ typedef enum {
     AST_STMT_EFFECT,
     AST_STMT_EFFECTPARAM,
     AST_STMT_PALETTE,
+    AST_STMT_PALETTECOLOR,
     AST_STMT_PLAYSID,
     AST_STMT_RUNPRG,
     AST_STMT_MOUNTDISK,
@@ -365,6 +367,13 @@ struct c64script_ast_node {
         } palette_stmt;
 
         struct {
+            c64script_ast_expr_t *index;
+            c64script_ast_expr_t *r;
+            c64script_ast_expr_t *g;
+            c64script_ast_expr_t *b;
+        } palettecolor_stmt;
+
+        struct {
             c64script_ast_expr_t *path;
             c64script_ast_expr_t *songnr; // NULL means 0
         } playsid_stmt;
@@ -474,6 +483,7 @@ typedef enum {
     OP_EFFECT,
     OP_EFFECTPARAM,
     OP_PALETTE,
+    OP_PALETTECOLOR,
     OP_PLAYSID,
     OP_RUNPRG,
     OP_MOUNTDISK,

@@ -1038,6 +1038,79 @@ bool c64script_vm_execute(c64script_runtime_t *runtime)
             break;
         }
 
+        case OP_PALETTECOLOR: {
+            // PALETTECOLOR index, r, g, b - Set individual palette color
+            c64script_value_t b_val, g_val, r_val, index_val;
+            if (!c64script_runtime_pop(runtime, &b_val))
+                return false;
+            if (!c64script_runtime_pop(runtime, &g_val)) {
+                c64script_value_free(&b_val);
+                return false;
+            }
+            if (!c64script_runtime_pop(runtime, &r_val)) {
+                c64script_value_free(&b_val);
+                c64script_value_free(&g_val);
+                return false;
+            }
+            if (!c64script_runtime_pop(runtime, &index_val)) {
+                c64script_value_free(&b_val);
+                c64script_value_free(&g_val);
+                c64script_value_free(&r_val);
+                return false;
+            }
+
+            if (index_val.type != VALUE_NUMBER || r_val.type != VALUE_NUMBER || g_val.type != VALUE_NUMBER ||
+                b_val.type != VALUE_NUMBER) {
+                c64script_value_free(&index_val);
+                c64script_value_free(&r_val);
+                c64script_value_free(&g_val);
+                c64script_value_free(&b_val);
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "TYPE MISMATCH (PALETTECOLOR)");
+                return false;
+            }
+
+            int index = (int)index_val.as.number;
+            int r = (int)r_val.as.number;
+            int g = (int)g_val.as.number;
+            int b = (int)b_val.as.number;
+
+            c64script_value_free(&index_val);
+            c64script_value_free(&r_val);
+            c64script_value_free(&g_val);
+            c64script_value_free(&b_val);
+
+            if (index < 0 || index > 15) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "ILLEGAL QUANTITY (palette index)");
+                return false;
+            }
+            if (r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "ILLEGAL QUANTITY (RGB values)");
+                return false;
+            }
+
+            if (!runtime->obs_source) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "OBS source not available");
+                return false;
+            }
+
+            obs_source_t *source = (obs_source_t *)runtime->obs_source;
+            obs_data_t *settings = obs_source_get_settings(source);
+            if (!settings) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Failed to get source settings");
+                return false;
+            }
+
+            // Set the custom color in OBS settings
+            // Format: "custom_color_N" with RGB value as a 32-bit integer
+            char color_key[32];
+            snprintf(color_key, sizeof(color_key), "custom_color_%d", index);
+            uint32_t rgb = ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b;
+            obs_data_set_int(settings, color_key, (int64_t)rgb);
+            obs_source_update(source, settings);
+            obs_data_release(settings);
+            break;
+        }
+
         case OP_PLAYSID: {
             // PLAYSID sid_file [SONGNR song_number]
             c64script_value_t song_nr, sid_file;

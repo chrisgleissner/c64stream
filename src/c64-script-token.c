@@ -61,6 +61,8 @@ static const keyword_entry_t keywords[] = {
     {"EFFECT", TOKEN_EFFECT},
     {"EFFECTPARAM", TOKEN_EFFECTPARAM},
     {"PALETTE", TOKEN_PALETTE},
+    {"PALETTECOLOR", TOKEN_PALETTECOLOR},
+    {"PALETTE_COLOR", TOKEN_PALETTECOLOR}, // Alias
     {"PLAYSID", TOKEN_PLAYSID},
     {"PLAY_SID", TOKEN_PLAYSID}, // Alias
     {"RUNPRG", TOKEN_RUNPRG},
@@ -313,6 +315,26 @@ static c64script_token_t tokenize_number(tokenizer_t *t)
         num_str[length] = '\0';
         double value = atof(num_str);
         token.value.duration_ms = (uint32_t)(value * 60000.0);
+        return token;
+    } else if (c == 'h') {
+        // hours
+        advance(t);
+        c64script_token_t token = make_token(t, TOKEN_DURATION, start, length + 1);
+        char num_str[64];
+        memcpy(num_str, start, length);
+        num_str[length] = '\0';
+        double value = atof(num_str);
+        token.value.duration_ms = (uint32_t)(value * 3600000.0);
+        return token;
+    } else if (c == 'd') {
+        // days
+        advance(t);
+        c64script_token_t token = make_token(t, TOKEN_DURATION, start, length + 1);
+        char num_str[64];
+        memcpy(num_str, start, length);
+        num_str[length] = '\0';
+        double value = atof(num_str);
+        token.value.duration_ms = (uint32_t)(value * 86400000.0);
         return token;
     }
 

@@ -819,6 +819,44 @@ TEST(parse_duration_seconds)
     c64script_ast_free(ast);
 }
 
+TEST(parse_duration_hours)
+{
+    const char *source = "WAIT 2h\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse hours duration");
+    assert(ast->type == AST_STMT_WAIT);
+    // When tokenizer sees "2h", it converts to milliseconds
+    assert(ast->as.wait_stmt.unit == C64SCRIPT_WAIT_UNIT_MS);
+    c64script_ast_free(ast);
+}
+
+TEST(parse_duration_days)
+{
+    const char *source = "WAIT 0.5d\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse days duration");
+    assert(ast->type == AST_STMT_WAIT);
+    // When tokenizer sees "0.5d", it converts to milliseconds
+    assert(ast->as.wait_stmt.unit == C64SCRIPT_WAIT_UNIT_MS);
+    c64script_ast_free(ast);
+}
+
+TEST(parse_palettecolor)
+{
+    const char *source = "PALETTECOLOR 0, 255, 128, 64\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse PALETTECOLOR");
+    assert(ast->type == AST_STMT_PALETTECOLOR);
+    assert(ast->as.palettecolor_stmt.index != NULL);
+    assert(ast->as.palettecolor_stmt.r != NULL);
+    assert(ast->as.palettecolor_stmt.g != NULL);
+    assert(ast->as.palettecolor_stmt.b != NULL);
+    c64script_ast_free(ast);
+}
+
 TEST(parse_peek_function)
 {
     const char *source = "X = PEEK($D020)\n";
@@ -1013,6 +1051,9 @@ int main(void)
     RUN_TEST(parse_hex_literal);
     RUN_TEST(parse_duration_milliseconds);
     RUN_TEST(parse_duration_seconds);
+    RUN_TEST(parse_duration_hours);
+    RUN_TEST(parse_duration_days);
+    RUN_TEST(parse_palettecolor);
     RUN_TEST(parse_peek_function);
     RUN_TEST(parse_string_with_escapes);
     RUN_TEST(parse_string_with_hex_escape);

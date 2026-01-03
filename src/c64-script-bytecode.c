@@ -567,6 +567,19 @@ static bool compile_statement(compiler_context_t *ctx, c64script_ast_node_t *stm
         return true;
     }
 
+    case AST_STMT_PALETTECOLOR: {
+        if (!compile_expression(ctx, stmt->as.palettecolor_stmt.index))
+            return false;
+        if (!compile_expression(ctx, stmt->as.palettecolor_stmt.r))
+            return false;
+        if (!compile_expression(ctx, stmt->as.palettecolor_stmt.g))
+            return false;
+        if (!compile_expression(ctx, stmt->as.palettecolor_stmt.b))
+            return false;
+        emit(ctx, OP_PALETTECOLOR, 0, stmt->line);
+        return true;
+    }
+
     case AST_STMT_PLAYSID: {
         if (!compile_expression(ctx, stmt->as.playsid_stmt.path))
             return false;

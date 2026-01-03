@@ -30,8 +30,9 @@ Implement a fast, deterministic, extensible BASIC-inspired scripting language fo
 - [x] **Phase 5**: Execution Engine (45 tasks) ✓
 - [x] **Phase 6**: Plugin Integration (30 tasks) ✓
 - [x] **Phase 7**: Testing & Validation (40 tasks) ✓
+- [ ] **Phase 8**: Extended Features (60 tasks) 🚧
 
-**Total**: 250 tasks
+**Total**: 310 tasks
 
 ---
 
@@ -406,7 +407,7 @@ Implement a fast, deterministic, extensible BASIC-inspired scripting language fo
 
 ## Current Status
 
-**Status**: Implementation complete (Phases 1–7).
+**Status**: Implementation complete (Phases 1–7). Phase 8 (Extended Features) in progress.
 
 **Implemented**:
 - Parser, bytecode compiler, and VM (control flow, expressions, tracing/logging, PEEK/POKE, keyboard, REST actions).
@@ -418,3 +419,84 @@ Implement a fast, deterministic, extensible BASIC-inspired scripting language fo
 - E2E scenarios are **local-only** (requires a working GUI + OBS); see `doc/e2e.md`.
 
 Note: the detailed checkbox lists below were the original implementation breakdown and are not kept perfectly in sync; treat the code + unit tests as the source of truth.
+
+---
+
+## Phase 8: Extended Features (60 tasks) 🚧
+
+### A. Extended Variable Types (15 tasks)
+- [ ] Add array type suffix `()` to tokenizer
+- [ ] Add map type suffix `{}` to tokenizer
+- [ ] Implement `DIM` statement parsing
+- [ ] Implement array indexing `DATA(index)` in parser
+- [ ] Implement map access `CONFIG{"key"}` in parser
+- [ ] Add array value type to runtime
+- [ ] Add map value type to runtime
+- [ ] Implement `DIM` bytecode instruction
+- [ ] Implement array allocation in VM
+- [ ] Implement array read/write in VM
+- [ ] Implement map allocation in VM (dynamic)
+- [ ] Implement map read/write in VM
+- [ ] Add unit tests for arrays (creation, access, bounds)
+- [ ] Add unit tests for maps (creation, access, iteration)
+- [ ] Test array/map type safety and error handling
+
+### B. User-Defined Functions (12 tasks)
+- [ ] Parse `FUNCTION name([params])` ... `ENDFUNCTION`
+- [ ] Create function definition AST node
+- [ ] Implement function symbol table (name → address)
+- [ ] Implement local variable scope
+- [ ] Implement parameter passing to functions
+- [ ] Parse function calls in expressions
+- [ ] Implement `CALL_FUNCTION` bytecode instruction
+- [ ] Implement function return with value
+- [ ] Implement function stack frame management
+- [ ] Add unit tests for function definitions
+- [ ] Add unit tests for function calls and returns
+- [ ] Test nested function calls and recursion
+
+### C. Parameterized GOSUB (8 tasks)
+- [ ] Parse `GOSUB label([args])` syntax
+- [ ] Implement parameter passing via PARAM1, PARAM2, etc.
+- [ ] Create PARAM variables in local scope
+- [ ] Implement `RETURN expr` with result value
+- [ ] Store return value in RESULT variable
+- [ ] Add bytecode support for parameterized GOSUB
+- [ ] Add unit tests for GOSUB with parameters
+- [ ] Test RESULT variable handling
+
+### D. Extended Durations (3 tasks)
+- [ ] Add `h` (hours) to duration parsing
+- [ ] Add `d` (days) to duration parsing
+- [ ] Add unit tests for hour/day durations
+
+### E. HTTP REST Integration (8 tasks)
+- [ ] Parse `HTTP method url` statement
+- [ ] Parse optional `HEADERS`, `BODY`, `STATUS`, `RESPONSE` clauses
+- [ ] Implement HTTP bytecode instruction
+- [ ] Implement HTTP client in executor (libcurl)
+- [ ] Implement header map handling
+- [ ] Implement status code capture
+- [ ] Implement response body capture
+- [ ] Add unit tests for HTTP operations (with mock server)
+
+### F. Local Program Execution (5 tasks)
+- [ ] Parse `RUNLOCAL path` with ARGS, STATUS, OUTPUT
+- [ ] Implement RUNLOCAL bytecode instruction
+- [ ] Implement local process execution in executor
+- [ ] Capture exit code and output
+- [ ] Add unit tests with mock programs
+
+### G. File I/O Operations (6 tasks)
+- [ ] Parse `READFILE path, var` statement
+- [ ] Parse `WRITEFILE path, expr [mode]` statement
+- [ ] Implement READFILE bytecode instruction
+- [ ] Implement WRITEFILE bytecode instruction
+- [ ] Implement file operations in executor
+- [ ] Add unit tests for file read/write
+
+### H. Palette Color Control (3 tasks)
+- [ ] Parse `PALETTECOLOR index, r, g, b` statement
+- [ ] Implement PALETTECOLOR bytecode instruction
+- [ ] Add unit tests for palette color operations
+

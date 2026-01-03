@@ -1,15 +1,11 @@
 # C64 Stream Script Language Specification
 
-This document defines the `.c64script` language as implemented by the plugin (**v2**, BASIC-inspired: labels and optional BASIC-style line numbers; `GOTO`/`GOSUB`; structured loops). It also keeps a reference section for the legacy v1 syntax.
+This document defines the `.c64script` language as implemented by the plugin (BASIC-inspired: labels and optional BASIC-style line numbers; `GOTO`/`GOSUB`; structured loops). It also keeps a reference section for the legacy v1 syntax.
 
 MUST READ:
 - script-spec: Detailed language spec.
 - script-tasks.md: Breaks down spec into high-level tasks and fills in blanks, but spec remains source of truth where there are conflicts.
 - script-progress.md: Contains concrete, low-level tasks, and tracks progress
-
-Scope:
-- **v2 (implemented)**: `src/c64-script-parser.c`, `src/c64-script-bytecode.c`, `src/c64-script-vm.c`, `src/c64-script-executor.c`
-- **v1 (legacy reference)**: historic syntax notes for older scripts/documentation.
 
 Non-goals:
 - This document does not specify UI/OBS integration details (Properties UI, key capture UX, etc.).
@@ -17,7 +13,7 @@ Non-goals:
 
 ---
 
-## 1. File Format (All Versions)
+## 1. File Format
 
 - **File extension**: `.c64script`
 - **Encoding**: UTF-8 (ASCII subset is sufficient and recommended)
@@ -225,6 +221,7 @@ These limits are implementation-defined by the current parser/executor and may c
   - BASIC-like keywords (`IF`, `THEN`, `FOR`, `NEXT`, `GOSUB`, `RETURN`, `REM`, …)
   - Numeric truthiness (`0` = false, non-zero = true)
   - Optional `LET`
+  - Classic built-in functions (`LEFT$`, `RIGHT$`, `MID$`, `CHR$`, `ASC`, `RND`, etc.)
 - **Labels first; line numbers optional**:
   - Labels allow assembly-like structure (`START:`) without forcing line numbers.
   - BASIC-style line numbers (`10`, `20`, …) are optional and act like implicit labels for `GOTO`/`GOSUB`.
@@ -232,13 +229,26 @@ These limits are implementation-defined by the current parser/executor and may c
 - **Proper structured blocks**:
   - `FOR … NEXT`, `WHILE … WEND` (or `ENDWHILE`), block `IF … THEN … ENDIF`
   - Nested blocks are allowed.
+- **Modern programming features**:
+  - User-defined functions with `FUNCTION`/`ENDFUNCTION` and local scope
+  - Parameterized `GOSUB` for BASIC-style subroutines with arguments
+  - Arrays (`DIM DATA(10)`) and maps (`CONFIG{"key"}`) for structured data
+  - Extended variable types: numeric, string, integer, boolean, array, map
+  - Automatic type casting with clear rules
+  - Extended duration units: milliseconds, seconds, minutes, hours, days
 - **Script ergonomics**:
   - Quoted strings allow spaces in preset names and file paths.
+  - Rich built-in function library for string manipulation, math, random numbers
 - **Useful for this plugin**:
   - Variables for paths/durations, basic arithmetic, boolean logic.
   - Optional `POKE`/`PEEK` style access to REST DMA (natural to C64 users).
   - Optional `TYPE`/`KEY` for keystroke injection (autostart, menu navigation).
   - BASIC-like tracing and progress logs (`LOG`, `LOGFILE`, `TRON`, `TROFF`).
+  - HTTP REST calls for external API integration
+  - Local program execution for workflow automation
+  - File I/O for configuration and data processing
+  - Fine-grained effect parameter control (`EFFECTPARAM`)
+  - Per-color palette customization (`PALETTECOLOR`)
 
 ### 3.2 Compatibility Strategy
 
@@ -279,6 +289,9 @@ Recommended: treat v2 as a **compatible evolution** of v1 at the command level, 
 - Optional BASIC-like type suffix:
   - `$` string variable (e.g., `PATH$`)
   - `%` integer variable (optional; implementer may treat it as an integer constraint)
+  - `()` array variable (e.g., `DATA()` - subscripts specified at access time)
+  - `{}` map variable (e.g., `CONFIG{}` - keys specified at access time)
+- Variables without suffixes are numeric (double precision) by default.
 
 **Labels (including line numbers)**
 - A line may optionally start with a **label** that acts like an implicit jump target.
@@ -298,7 +311,13 @@ Recommended: treat v2 as a **compatible evolution** of v1 at the command level, 
   - `$C000` (hex), `$00C6` (hex)
 
 **Durations**
-- Duration literal: `number` + unit: `500ms`, `1.5s`, `0.5m`
+- Duration literal: `number` + unit: `500ms`, `1.5s`, `0.5m`, `2h`, `3d`
+- Supported units:
+  - `ms` (milliseconds)
+  - `s` (seconds)
+  - `m` (minutes)
+  - `h` (hours)
+  - `d` (days)
 - Additionally, allow `WAIT <expr> [unit]` with default unit `s`:
   - `WAIT 1.5` means `1.5s`
 
@@ -314,7 +333,9 @@ EOL             = "\n" | "\r\n" ;
 DIGIT           = "0"…"9" ;
 HEX             = DIGIT | "A"…"F" | "a"…"f" ;
 
-identifier      = ( "A"…"Z" | "a"…"z" ), { "A"…"Z" | "a"…"z" | DIGIT | "_" }, ["$" | "%"] ;
+identifier      = ( "A"…"Z" | "a"…"z" ), { "A"…"Z" | "a"…"z" | DIGIT | "_" }, ["$" | "%" | "()" | "{}"] ;
+array_access    = identifier, "(", [WS], expr, [WS], ")" ;
+map_access      = identifier, "{", [WS], expr, [WS], "}" ;
 label_name      = ( "A"…"Z" | "a"…"z" ), { "A"…"Z" | "a"…"z" | DIGIT } ;
 word            = ? any non-empty sequence of characters excluding whitespace, `"`, and EOL ? ;
 
@@ -329,7 +350,7 @@ string_literal  = "\"", { string_char }, "\"" ;
 string_char     = ? any character except `"`, `\`, and EOL ? | "\"\"" | escape_seq ;
 escape_seq      = "\\", ("\\" | "\"" | "r" | "n" | "t" | ("x", HEX, HEX)) ;
 
-duration_lit    = number, ("ms" | "s" | "m") ;
+duration_lit    = number, ("ms" | "s" | "m" | "h" | "d") ;
 ```
 
 **Top level**
@@ -350,9 +371,11 @@ comment_line    = "#", { ? any character except EOL ? } ;
 statement =
     rem_stmt
   | assignment
+  | dim_stmt
   | if_stmt
   | for_stmt
   | while_stmt
+  | function_def
   | label_stmt
   | goto_stmt
   | gosub_stmt
@@ -362,8 +385,10 @@ statement =
   | effect_stmt
   | effect_param_stmt
   | palette_stmt
+  | palette_color_stmt
   | play_sid_stmt
   | run_prg_stmt
+  | run_local_stmt
   | mount_disk_stmt
   | autostart_stmt
   | reset_stmt
@@ -372,6 +397,9 @@ statement =
   | record_stop_stmt
   | type_stmt
   | key_stmt
+  | http_stmt
+  | read_file_stmt
+  | write_file_stmt
   | logfile_stmt
   | log_stmt
   | tron_stmt
@@ -383,17 +411,25 @@ statement =
 rem_stmt         = "REM", { ? any character except EOL ? } ;
 
 assignment      = ["LET", WS], identifier, [WS], "=", [WS], expr ;
+                | ["LET", WS], array_access, [WS], "=", [WS], expr ;
+                | ["LET", WS], map_access, [WS], "=", [WS], expr ;
+
+dim_stmt        = "DIM", WS, identifier, "(", [WS], expr, [WS], ")" ;
 
 label_stmt      = "LABEL", WS, label_ref ;
 goto_stmt       = "GOTO", WS, label_ref ;
-gosub_stmt      = "GOSUB", WS, label_ref ;
-return_stmt     = "RETURN" ;
+gosub_stmt      = "GOSUB", WS, label_ref, [WS, "(", [WS], [expr, { [WS], ",", [WS], expr }], [WS], ")"] ;
+return_stmt     = "RETURN", [[WS], expr] ;
 stop_stmt       = "STOP" | "END" ;
 
 wait_stmt       = "WAIT", WS, (wait_until | wait_duration) ;
 wait_duration   = wait_arg ;
 wait_until      = "UNTIL", WS, expr ;
-wait_arg        = duration_lit | expr, [WS, ("ms" | "s" | "m")] ;
+wait_arg        = duration_lit | expr, [WS, ("ms" | "s" | "m" | "h" | "d")] ;
+
+function_def    = "FUNCTION", WS, identifier, [WS, "(", [WS], [identifier, { [WS], ",", [WS], identifier }], [WS], ")"], EOL,
+                      { line },
+                  ("ENDFUNCTION" | ("END", WS, "FUNCTION")) ;
 
 if_stmt         =
     "IF", WS, bool_expr, WS, "THEN", WS, statement, [WS, "ELSE", WS, statement]
@@ -419,10 +455,19 @@ while_stmt      = "WHILE", WS, bool_expr, EOL,
 effect_stmt         = "EFFECT", WS, string_or_word ;
 effect_param_stmt   = ("EFFECT_PARAM" | "EFFECTPARAM"), WS, identifier, WS, expr ;
 palette_stmt        = "PALETTE", WS, string_or_word ;
+palette_color_stmt  = ("PALETTE_COLOR" | "PALETTECOLOR"), WS, expr, [WS], ",", [WS], expr, [WS], ",", [WS], expr, [WS], ",", [WS], expr ;
 
 play_sid_stmt       = ("PLAY_SID" | "PLAYSID"), WS, path_expr, [WS, "SONGNR", [WS], "=", [WS], expr] ;
 run_prg_stmt        = ("RUN_PRG" | "RUNPRG"), WS, path_expr ;
+run_local_stmt      = ("RUN_LOCAL" | "RUNLOCAL"), WS, path_expr, [WS, "ARGS", WS, expr], [WS, "STATUS", WS, identifier], [WS, "OUTPUT", WS, identifier] ;
 mount_disk_stmt     = ("MOUNT_DISK" | "MOUNTDISK"), WS, path_expr ;
+
+http_stmt           = ("HTTP" | "CALL_HTTP" | "CALLHTTP"), WS, http_method, WS, expr,
+                      [WS, "HEADERS", WS, expr],
+                      [WS, "BODY", WS, expr],
+                      [WS, "STATUS", WS, identifier],
+                      [WS, "RESPONSE", WS, identifier] ;
+http_method         = "GET" | "POST" | "PUT" | "DELETE" | "PATCH" ;
 
 autostart_stmt      = "AUTOSTART" ;
 reset_stmt          = "RESET" ;
@@ -433,6 +478,9 @@ record_stop_stmt    = ("RECORD_STOP" | "RECORDSTOP") ;
 
 type_stmt           = "TYPE", WS, expr ;
 key_stmt            = "KEY", WS, (string_or_word | number | hex_number) ;
+
+read_file_stmt      = ("READ_FILE" | "READFILE"), WS, path_expr, WS, identifier ;
+write_file_stmt     = ("WRITE_FILE" | "WRITEFILE"), WS, path_expr, [WS], ",", [WS], expr, [WS, ("APPEND" | "TRUNCATE")] ;
 
 logfile_stmt        = "LOGFILE", WS, path_expr, [WS, ("APPEND" | "TRUNCATE")] ;
 log_stmt            = "LOG", WS, expr ;
@@ -464,7 +512,7 @@ add_expr        = mul_expr, { [WS], ("+" | "-"), [WS], mul_expr } ;
 mul_expr        = unary_expr, { [WS], ("*" | "/"), [WS], unary_expr } ;
 unary_expr      = [("+" | "-"), [WS]], primary ;
 
-primary         = number | hex_number | string_literal | function_call | identifier | "(", [WS], expr, [WS], ")" ;
+primary         = number | hex_number | string_literal | function_call | array_access | map_access | identifier | "(", [WS], expr, [WS], ")" ;
 
 function_call   = identifier, [WS], "(", [WS], [expr, { [WS], ",", [WS], expr }], [WS], ")" ;
 
@@ -477,19 +525,124 @@ path_expr       = string_literal | identifier | word ;
 #### 3.5.1 Variables and Types
 
 - Variables are global by default (BASIC-like simplicity).
-- Types:
-  - Numeric: IEEE-754 `double` (recommended)
-  - String: UTF-8
-  - Boolean: derived from numeric truthiness (`0` false, non-zero true)
-- Assignments:
+- **Supported types**:
+  - **Numeric**: IEEE-754 `double` (default for unsuffixed variables)
+  - **String**: UTF-8 (variables with `$` suffix)
+  - **Integer**: 32-bit signed integer (variables with `%` suffix; stored as numeric but constrained to integer range)
+  - **Boolean**: derived from numeric truthiness (`0` false, non-zero true)
+  - **Array**: one-dimensional indexed collection (variables with `()` suffix; zero-based indexing)
+    - Declaration: `DIM DATA(10)` creates an array with 11 elements (indices 0-10)
+    - Access: `DATA(5)` reads/writes element at index 5
+    - Arrays store numeric values by default; use `DATA$()` for string arrays
+  - **Map**: key-value collection (variables with `{}` suffix; string keys)
+    - Access: `CONFIG{"host"}` reads/writes value for key "host"
+    - Keys are always strings; values are numeric by default; use `CONFIG${}` for string-valued maps
+- **Type inference**:
+  - Variables are created on first assignment.
+  - Type is determined by suffix or value type at first assignment.
+- **Assignments**:
   - `LET` is optional: `X = 10` and `LET X = 10` are equivalent.
+  - Array/map elements: `DATA(3) = 42`, `CONFIG{"port"} = 8080`
+
+**Array Declaration with `DIM`**:
+- `DIM <array_var>(<size>)` allocates an array with `<size> + 1` elements (indices 0 to `<size>`).
+- Example: `DIM VALUES(10)` creates an array with 11 numeric elements (indices 0-10).
+- Example: `DIM NAMES$(5)` creates a string array with 6 elements (indices 0-5).
+- Arrays are initialized with default values: `0` for numeric, `""` for strings.
+- Re-declaring an array with `DIM` reallocates it, discarding previous contents.
+- Maps (`{}` suffix) do not require `DIM`; they are created on first access and grow dynamically.
+
+**Automatic Type Casting Rules**:
+
+The language performs automatic type conversion in specific contexts to maintain BASIC-like simplicity while preventing common errors:
+
+1. **Numeric to String** (automatic):
+   - When a numeric value is used in string context (concatenation, string assignment).
+   - Format: decimal representation with minimal precision (e.g., `123`, `3.14`).
+   - Example: `MSG$ = "Count: " + 42` results in `"Count: 42"`
+
+2. **String to Numeric** (automatic, with validation):
+   - When a string is used in arithmetic context.
+   - Valid string formats: decimal numbers, optional sign, optional decimal point.
+   - Invalid formats raise "ILLEGAL QUANTITY" error.
+   - Example: `X = "123" + 1` results in `124`
+
+3. **Numeric to Boolean** (automatic):
+   - `0` becomes false; any non-zero value becomes true.
+   - Used in `IF`, `WHILE`, and boolean operators.
+
+4. **Boolean to Numeric** (automatic):
+   - `false` becomes `0`; `true` becomes `-1` (BASIC convention).
+
+5. **Array/Map to Scalar** (NOT automatic):
+   - Arrays and maps cannot be automatically converted to scalar values.
+   - Use explicit indexing: `DATA(0)` not `DATA()`.
+   - Attempting to use array/map without index raises "TYPE MISMATCH" error.
+
+6. **Integer suffix `%`** (constraining cast):
+   - When assigning to integer variable, value is truncated toward zero.
+   - Range: -2147483648 to 2147483647
+   - Overflow wraps around (implementation-defined behavior).
+   - Example: `I% = 3.7` stores `3`
+
+**Type Mismatch Errors**:
+
+The following operations raise "TYPE MISMATCH" errors:
+- Using array/map without subscript in scalar context
+- Using scalar in array/map subscript context
+- Passing wrong type to built-in functions (e.g., `PEEK("hello")`)
+- Invalid string-to-numeric conversion
+
+**Type Compatibility in Expressions**:
+- Numeric operators (`+`, `-`, `*`, `/`) cast operands to numeric.
+- String operator (`+` for concatenation) casts operands to string when at least one operand is string.
+- Relational operators (`=`, `<`, `>`, etc.) support both numeric and string comparisons (type of first operand determines comparison mode).
 
 #### 3.5.2 Control Flow and Stacks
 
 The executor maintains explicit stacks:
 - `FOR` stack: loop variable, end value, step, loop start location.
 - `WHILE` stack: loop condition location, loop start location.
-- `GOSUB` stack: return address.
+- `GOSUB` stack: return address, saved parameter values (if any), saved local variables (for functions).
+- `FUNCTION` stack: function name, parameter names, local variable scope.
+
+**Functions and Parameterized Subroutines**:
+
+**User-defined functions** (modern approach):
+- Syntax: `FUNCTION <name>([param1, param2, ...])` ... `ENDFUNCTION`
+- Functions create a local scope; parameters and variables declared inside are local.
+- Call with `<name>([arg1, arg2, ...])` in expression context.
+- Return value with `RETURN <expr>`; returns 0 if no expression provided.
+- Example:
+  ```basic
+  FUNCTION ADD(A, B)
+      RETURN A + B
+  ENDFUNCTION
+
+  RESULT = ADD(3, 5)  REM RESULT = 8
+  ```
+
+**Parameterized GOSUB** (BASIC-inspired approach):
+- Syntax: `GOSUB <label>([expr1, expr2, ...])`
+- Parameters are passed by creating numbered local variables `PARAM1`, `PARAM2`, etc.
+- These variables are accessible within the subroutine until `RETURN`.
+- After `RETURN`, parameter variables are destroyed.
+- Optional return value: `RETURN <expr>` stores result in special variable `RESULT`.
+- Example:
+  ```basic
+  GOSUB MULTIPLY(5, 7)
+  PRINT RESULT  REM Prints 35
+  END
+
+  MULTIPLY:
+      RESULT = PARAM1 * PARAM2
+      RETURN
+  ```
+
+**Design note**: Both mechanisms are supported:
+- `FUNCTION`/`ENDFUNCTION` is recommended for new scripts (clearer scoping, modern style).
+- `GOSUB` with parameters maintains BASIC heritage and is convenient for simple parameterized subroutines.
+- `FUNCTION` calls can appear in expressions; `GOSUB` calls are statements only.
 
 Labels and line numbers:
 - A label is either an alphanumeric name (e.g., `START`) or a numeric-only “line number” (e.g., `10`).
@@ -576,6 +729,143 @@ Important REST constraint:
 Important injection constraint:
 - Keyboard injection is KERNAL keyboard-buffer based; it will not work for software that reads the CIA keyboard matrix directly.
 
+**Built-in Functions**:
+
+The language provides several built-in functions callable in expression context:
+
+- `PEEK(<address>)` - Read byte from C64 memory
+  - Returns: numeric value 0-255
+  - Example: `B = PEEK($D020)`
+
+- `TIME$()` - Current wall-clock time
+  - Returns: string in format "YYYY-MM-DD HH:MM:SS"
+  - Example: `LOG "Timestamp: " + TIME$()`
+
+- `LEN(<string>)` - String length
+  - Returns: numeric length in characters
+  - Example: `IF LEN(PATH$) > 0 THEN ...`
+
+- `LEFT$(<string>, <count>)` - Left substring
+  - Returns: leftmost `<count>` characters
+  - Example: `PREFIX$ = LEFT$("HELLO", 3)` → `"HEL"`
+
+- `RIGHT$(<string>, <count>)` - Right substring
+  - Returns: rightmost `<count>` characters
+  - Example: `SUFFIX$ = RIGHT$("HELLO", 2)` → `"LO"`
+
+- `MID$(<string>, <start>, <count>)` - Middle substring
+  - Returns: `<count>` characters starting at position `<start>` (1-based)
+  - Example: `MIDDLE$ = MID$("HELLO", 2, 3)` → `"ELL"`
+
+- `STR$(<number>)` - Convert number to string
+  - Returns: decimal string representation
+  - Example: `S$ = STR$(42)` → `"42"`
+
+- `VAL(<string>)` - Convert string to number
+  - Returns: numeric value, or 0 if invalid
+  - Example: `N = VAL("123.45")` → `123.45`
+
+- `CHR$(<code>)` - Character from code
+  - Returns: single-character string from ASCII/PETSCII code
+  - Example: `CR$ = CHR$(13)` → carriage return
+
+- `ASC(<string>)` - Code from character
+  - Returns: numeric code of first character (0-255)
+  - Example: `CODE = ASC("A")` → `65`
+
+- `ABS(<number>)` - Absolute value
+  - Example: `A = ABS(-5)` → `5`
+
+- `INT(<number>)` - Integer part (truncate toward zero)
+  - Example: `I = INT(3.7)` → `3`
+
+- `RND(<max>)` - Random number
+  - Returns: random value in range [0, `<max>`)
+  - Example: `DICE = INT(RND(6)) + 1` → 1-6
+
+- `SIN(<angle>)`, `COS(<angle>)`, `TAN(<angle>)` - Trigonometric functions
+  - `<angle>` in radians
+  - Example: `Y = SIN(3.14159 / 2)` → `1.0`
+
+- `SQRT(<number>)` - Square root
+  - Example: `R = SQRT(144)` → `12`
+
+- `LOG(<number>)` - Natural logarithm
+  - Example: `L = LOG(2.71828)` → `1.0`
+
+- `EXP(<power>)` - e raised to power
+  - Example: `E = EXP(1)` → `2.71828`
+
+**Error handling for built-in functions**:
+- Unknown function names raise "UNDEF'D FUNCTION" error
+- Type mismatches (wrong argument types) raise "TYPE MISMATCH" error
+- Invalid numeric operations (e.g., `SQRT(-1)`) raise "ILLEGAL QUANTITY" error
+- All function names are case-insensitive
+**Palette color control (`PALETTE_COLOR`)**
+- `PALETTECOLOR <index>, <r>, <g>, <b>` sets a specific palette color by index (0-15) to RGB values.
+  - `<index>` must be in range 0-15 (palette indices).
+  - `<r>`, `<g>`, `<b>` are color components in range 0-255.
+  - Example: `PALETTECOLOR 0, 0, 0, 0` sets color 0 (background) to black.
+  - Example: `PALETTECOLOR 6, 128, 64, 192` sets color 6 to custom RGB.
+  - This allows fine-tuned palette customization beyond preset selection.
+  - Invalid index or color values raise "ILLEGAL QUANTITY" error.
+
+**HTTP REST calls (`HTTP`)**
+- `HTTP <method> <url> [HEADERS <headers_map>] [BODY <body_expr>] [STATUS <status_var>] [RESPONSE <response_var>]`
+- Performs an HTTP request and optionally captures response.
+- `<method>`: `GET`, `POST`, `PUT`, `DELETE`, or `PATCH`
+- `<url>`: string expression with target URL
+- `HEADERS <headers_map>`: optional map variable with header key-value pairs (e.g., `HEADERS{"Content-Type"} = "application/json"`)
+- `BODY <body_expr>`: optional request body (string)
+- `STATUS <status_var>`: optional variable to receive HTTP status code (e.g., 200, 404, 500)
+- `RESPONSE <response_var>`: optional variable to receive response body (string)
+- Example:
+  ```basic
+  HTTP GET "http://example.com/api/status" STATUS S RESPONSE R$
+  IF S = 200 THEN
+      LOG "Success: " + R$
+  ELSE
+      LOG "Error: " + S
+  ENDIF
+  ```
+- Network errors raise runtime errors unless STATUS variable is provided (then error code is stored).
+- Timeout: implementation-defined (recommended: 30 seconds).
+
+**Local program execution (`RUN_LOCAL`)**
+- `RUNLOCAL <path> [ARGS <args_string>] [STATUS <status_var>] [OUTPUT <output_var>]`
+- Executes a local program/script and optionally captures result.
+- `<path>`: file path to executable (relative to script directory or absolute)
+- `ARGS <args_string>`: optional command-line arguments (string)
+- `STATUS <status_var>`: optional variable to receive exit code (0 = success)
+- `OUTPUT <output_var>`: optional variable to receive stdout+stderr (string)
+- Example:
+  ```basic
+  RUNLOCAL "convert_image.sh" ARGS "input.png output.d64" STATUS CODE OUTPUT OUT$
+  IF CODE <> 0 THEN
+      LOG "Conversion failed: " + OUT$
+  ENDIF
+  ```
+- Security note: Scripts should validate/sanitize paths to prevent arbitrary code execution.
+- Execution is blocking; script waits for program to complete.
+- Maximum output capture: implementation-defined (recommended: 1 MB; excess is truncated).
+
+**File I/O operations (`READFILE`, `WRITEFILE`)**
+- `READFILE <path>, <var>` reads entire file content into variable.
+  - `<path>`: file path (relative to script directory or absolute)
+  - `<var>`: destination variable (typically string variable with `$` suffix)
+  - Text files are read as UTF-8 strings.
+  - Binary files can be read into string variable (bytes as characters).
+  - File not found or read errors raise "FILE NOT FOUND" or "I/O ERROR".
+  - Example: `READFILE "config.txt", CONFIG$`
+
+- `WRITEFILE <path>, <expr> [APPEND|TRUNCATE]` writes content to file.
+  - `<path>`: file path (created if doesn't exist)
+  - `<expr>`: content to write (string or numeric; numeric values are converted to strings)
+  - `APPEND`: append to existing file (default if mode omitted)
+  - `TRUNCATE`: overwrite/create new file
+  - Write errors raise "I/O ERROR".
+  - Example: `WRITEFILE "output.txt", "Result: " + RESULT, TRUNCATE`
+  - Example: `WRITEFILE "log.txt", "Event at " + TIME$(), APPEND`
 **Logging / tracing (`LOG`, `LOGFILE`, `TRON`, `TROFF`)**
 - `LOGFILE <path> [APPEND|TRUNCATE]` selects a script log file destination.
   - Relative paths should resolve relative to the script file’s directory.
@@ -587,7 +877,123 @@ Important injection constraint:
 - `TROFF` disables tracing.
 - `PRINT <expr>` writes to the OBS log (not the script log file).
 
-### 3.6 Examples (v2)
+### 3.6 Effect Parameters Reference
+
+The `EFFECTPARAM` statement allows fine-grained control of visual effects beyond preset selection. Each effect type supports different parameters. Effect names and parameter names are **case-insensitive**.
+
+**General usage**:
+```basic
+EFFECT "Classic CRT"
+EFFECTPARAM "scanline_intensity" 0.7
+EFFECTPARAM "phosphor_persistence" 0.3
+```
+
+**Common effect types and their parameters**:
+
+#### CRT Effects
+Effect presets: `"Classic CRT"`, `"Vintage TV"`, `"Arcade Cabinet"`
+
+Parameters:
+- `scanline_intensity` (0.0 - 1.0): Strength of horizontal scanlines (default: 0.5)
+- `scanline_thickness` (0.1 - 2.0): Thickness of scanlines in pixels (default: 1.0)
+- `curvature` (0.0 - 0.2): Screen curvature amount (default: 0.05)
+- `corner_radius` (0.0 - 50.0): Rounded corner radius in pixels (default: 10.0)
+- `vignette` (0.0 - 1.0): Edge darkening amount (default: 0.3)
+- `phosphor_persistence` (0.0 - 0.9): Afterglow/motion blur (default: 0.2)
+- `bloom` (0.0 - 2.0): Glow around bright areas (default: 0.3)
+- `noise` (0.0 - 0.5): Random noise/grain (default: 0.1)
+
+Example:
+```basic
+EFFECT "Classic CRT"
+EFFECTPARAM "scanline_intensity" 0.8
+EFFECTPARAM "curvature" 0.1
+EFFECTPARAM "phosphor_persistence" 0.4
+EFFECTPARAM "bloom" 0.5
+```
+
+#### Sharp/Pixel Perfect
+Effect presets: `"Sharp Pixels"`, `"Pixel Perfect"`
+
+Parameters:
+- `grid_intensity` (0.0 - 1.0): Pixel grid visibility (default: 0.0)
+- `grid_color_r` (0 - 255): Grid color red component (default: 0)
+- `grid_color_g` (0 - 255): Grid color green component (default: 0)
+- `grid_color_b` (0 - 255): Grid color blue component (default: 0)
+
+Example:
+```basic
+EFFECT "Sharp Pixels"
+EFFECTPARAM "grid_intensity" 0.3
+EFFECTPARAM "grid_color_r" 20
+EFFECTPARAM "grid_color_g" 20
+EFFECTPARAM "grid_color_b" 20
+```
+
+#### Monitor Emulation
+Effect presets: `"Amber Monitor"`, `"Green Monitor"`
+
+Parameters:
+- `tint_r` (0.0 - 1.0): Red tint component (default: depends on monitor type)
+- `tint_g` (0.0 - 1.0): Green tint component (default: depends on monitor type)
+- `tint_b` (0.0 - 1.0): Blue tint component (default: depends on monitor type)
+- `tint_intensity` (0.0 - 1.0): Overall tint strength (default: 0.8)
+- `brightness` (0.5 - 2.0): Screen brightness (default: 1.0)
+- `contrast` (0.5 - 2.0): Screen contrast (default: 1.0)
+
+Example:
+```basic
+EFFECT "Amber Monitor"
+EFFECTPARAM "tint_intensity" 0.9
+EFFECTPARAM "brightness" 1.2
+EFFECTPARAM "contrast" 1.1
+```
+
+#### Blur/Smoothing
+Effect presets: `"Soft Blur"`, `"CRT Blur"`
+
+Parameters:
+- `blur_radius` (0.0 - 10.0): Blur amount in pixels (default: 1.5)
+- `blur_direction` (0 - 2): 0=horizontal, 1=vertical, 2=both (default: 2)
+
+Example:
+```basic
+EFFECT "Soft Blur"
+EFFECTPARAM "blur_radius" 2.5
+EFFECTPARAM "blur_direction" 2
+```
+
+#### Color Adjustments
+Available via `EFFECTPARAM` with any effect active:
+
+- `saturation` (0.0 - 2.0): Color saturation (1.0 = normal, default: 1.0)
+- `hue_shift` (-180.0 - 180.0): Hue rotation in degrees (default: 0.0)
+- `gamma` (0.5 - 2.5): Gamma correction (default: 1.0)
+- `brightness` (0.0 - 2.0): Brightness multiplier (default: 1.0)
+- `contrast` (0.0 - 2.0): Contrast multiplier (default: 1.0)
+
+Example:
+```basic
+EFFECT "Classic CRT"
+EFFECTPARAM "saturation" 1.2
+EFFECTPARAM "brightness" 1.1
+EFFECTPARAM "gamma" 0.9
+```
+
+**Parameter discovery**:
+To discover available parameters for a specific effect at runtime:
+1. Use the OBS Studio UI to inspect effect properties
+2. Consult `data/effect_presets.ini` for preset configurations
+3. Check effect shader source code in `data/effects/` directory
+4. Parameters not listed here are implementation-specific and may vary
+
+**Error handling**:
+- Unknown effect names: runtime warning, effect unchanged
+- Unknown parameter names: runtime warning, parameter unchanged
+- Invalid parameter values: runtime warning, clamped to valid range
+- Type mismatches: "TYPE MISMATCH" error (parameters must be numeric)
+
+### 3.7 Examples (v2)
 
 **Example 0: Label and line-number forms**
 
@@ -745,6 +1151,234 @@ Line numbers are optional in v2; they behave exactly like labels and exist mainl
 1050 RETURN
 ```
 
+**Example I: User-defined functions with parameters**
+
+```basic
+REM Define a function to apply effect and wait
+FUNCTION APPLY_EFFECT(EFFECT_NAME$, DURATION)
+    EFFECT EFFECT_NAME$
+    WAIT DURATION
+    RETURN 1
+ENDFUNCTION
+
+REM Define a function to calculate delay based on mode
+FUNCTION CALC_DELAY(MODE)
+    IF MODE = 1 THEN RETURN 0.5
+    IF MODE = 2 THEN RETURN 1.5
+    RETURN 1.0
+ENDFUNCTION
+
+REM Use the functions
+MODE = 2
+DELAY = CALC_DELAY(MODE)
+RESULT = APPLY_EFFECT("Classic CRT", DELAY)
+LOG "Effect applied with delay: " + DELAY
+END
+```
+
+**Example J: GOSUB with parameters (BASIC-inspired)**
+
+```basic
+REM Call subroutine with parameters
+GOSUB CONFIGURE("colodore", 2.5)
+GOSUB CONFIGURE("pepto_ntsc", 1.0)
+END
+
+CONFIGURE:
+    REM PARAM1 = palette name, PARAM2 = wait duration
+    PALETTE PARAM1
+    WAIT PARAM2
+    RETURN
+```
+
+**Example K: Arrays and maps**
+
+```basic
+REM Arrays for storing palette sequence
+DIM PALETTES$(5)
+PALETTES$(0) = "colodore"
+PALETTES$(1) = "pepto_ntsc"
+PALETTES$(2) = "vice_new"
+PALETTES$(3) = "deekay"
+PALETTES$(4) = "ptoing"
+
+REM Map for configuration
+CONFIG${"host"} = "192.168.1.64"
+CONFIG{"port"} = 8080
+CONFIG{"timeout"} = 5000
+
+REM Iterate through palettes
+FOR I = 0 TO 4
+    PALETTE PALETTES$(I)
+    WAIT 2s
+NEXT I
+
+REM Use configuration
+LOG "Connecting to " + CONFIG${"host"} + ":" + CONFIG{"port"}
+END
+```
+
+**Example L: HTTP REST API integration**
+
+```basic
+REM Configure API endpoint
+API_URL$ = "http://192.168.1.64:8080/api/v1"
+
+REM Check C64 Ultimate status
+HTTP GET API_URL$ + "/status" STATUS STATUS_CODE RESPONSE RESP$
+IF STATUS_CODE = 200 THEN
+    LOG "C64 Status: " + RESP$
+ELSE
+    LOG "API Error: " + STATUS_CODE
+    STOP
+ENDIF
+
+REM Send command via POST
+HEADERS${"Content-Type"} = "application/json"
+BODY$ = "{\"command\": \"reset\", \"delay\": 1000}"
+HTTP POST API_URL$ + "/command" HEADERS HEADERS$ BODY BODY$ STATUS CODE
+IF CODE = 200 THEN
+    LOG "Command sent successfully"
+ENDIF
+END
+```
+
+**Example M: Local file processing and program execution**
+
+```basic
+REM Read configuration file
+READFILE "config.txt", CONFIG$
+LOG "Configuration loaded: " + CONFIG$
+
+REM Process data with local script
+RUNLOCAL "process_data.py" ARGS "input.txt output.d64" STATUS EXIT_CODE OUTPUT OUT$
+IF EXIT_CODE <> 0 THEN
+    LOG "Processing failed: " + OUT$
+    WRITEFILE "errors.log", OUT$, APPEND
+    STOP
+ELSE
+    LOG "Processing completed successfully"
+    WRITEFILE "success.log", "Processed at " + TIME$(), APPEND
+ENDIF
+
+REM Use the processed file
+MOUNTDISK "output.d64"
+AUTOSTART
+WAIT 30s
+END
+```
+
+**Example N: Custom palette colors**
+
+```basic
+REM Start with a base palette
+PALETTE "colodore"
+
+REM Customize specific colors (index, R, G, B)
+PALETTECOLOR 0, 0, 0, 0          REM Black background
+PALETTECOLOR 1, 255, 255, 255    REM White
+PALETTECOLOR 6, 0, 0, 170        REM Dark blue
+PALETTECOLOR 14, 128, 192, 255   REM Light blue
+
+REM Apply effect and capture
+EFFECT "Classic CRT"
+WAIT 2s
+RECORDSTART
+WAIT 60s
+RECORDSTOP
+END
+```
+
+**Example O: Long-duration waits and scheduling**
+
+```basic
+REM Wait various durations
+WAIT 500ms          REM Half a second
+WAIT 30s            REM Half a minute
+WAIT 2.5m           REM Two and a half minutes
+WAIT 1h             REM One hour
+WAIT 0.5d           REM Half a day (12 hours)
+
+REM Schedule for specific time
+WAIT UNTIL "22:30:00"
+LOG "Starting nightly demo capture"
+RECORDSTART
+RUNPRG "c64u:/Demos/nightly_demo.prg"
+WAIT 2h
+RECORDSTOP
+LOG "Nightly capture completed"
+END
+```
+
+**Example P: Complex automation with all features**
+
+```basic
+REM Complete automation example combining all features
+LOGFILE "automation.log" TRUNCATE
+TRON
+
+REM Configuration
+DIM DEMOS$(3)
+DEMOS$(0) = "c64u:/Demos/fairlight.prg"
+DEMOS$(1) = "c64u:/Demos/booze.prg"
+DEMOS$(2) = "c64u:/Demos/eldorado.prg"
+
+CONFIG${"output_dir"} = "/recordings"
+CONFIG{"demo_duration"} = 180
+
+REM Function to capture demo
+FUNCTION CAPTURE_DEMO(DEMO_PATH$, DURATION)
+    LOG "Capturing: " + DEMO_PATH$
+
+    REM Reset machine
+    RESET
+    WAIT 2s
+
+    REM Load and run
+    RUNPRG DEMO_PATH$
+    WAIT 5s
+
+    REM Record
+    RECORDSTART
+    WAIT DURATION
+    RECORDSTOP
+
+    RETURN 1
+ENDFUNCTION
+
+REM Check system status via HTTP
+HTTP GET "http://192.168.1.64:8080/status" STATUS S
+IF S <> 200 THEN
+    LOG "C64 Ultimate not responding"
+    STOP
+ENDIF
+
+REM Process each demo
+FOR I = 0 TO 2
+    REM Custom palette for each demo
+    IF I = 0 THEN PALETTE "colodore"
+    IF I = 1 THEN PALETTE "pepto_ntsc"
+    IF I = 2 THEN PALETTE "vice_new"
+
+    REM Apply CRT effect
+    EFFECT "Classic CRT"
+    EFFECTPARAM "scanline_intensity" 0.7
+
+    REM Capture the demo
+    RESULT = CAPTURE_DEMO(DEMOS$(I), CONFIG{"demo_duration"})
+
+    REM Generate report
+    REPORT$ = "Demo " + I + " captured at " + TIME$()
+    WRITEFILE CONFIG${"output_dir"} + "/report.txt", REPORT$, APPEND
+
+    WAIT 10s
+NEXT I
+
+TROFF
+LOG "All captures completed"
+END
+```
+
 ---
 
 ## 4. Recommended Next Steps (Implementation Roadmap)
@@ -756,3 +1390,12 @@ If/when implementing v2 in code:
 3. Implement control flow: `IF`/`ENDIF`, `FOR`/`NEXT`, `WHILE`/`WEND` (+ `ENDWHILE`), `GOTO`, and `GOSUB`/`RETURN`.
 4. Implement waiting: duration waits and `WAIT UNTIL` (wall-clock) with time parsing.
 5. Implement plugin I/O: effects/palettes, runners/mount/reset, `POKE`/`PEEK`, `TYPE`/`KEY`, `LOGFILE`/`LOG`, `TRON`/`TROFF`.
+6. Implement user-defined functions: `FUNCTION`/`ENDFUNCTION` blocks with local scope and parameters.
+7. Implement arrays and maps: `DIM` statement, subscript access `()` and `{}`, type-suffixed collections.
+8. Implement extended durations: `h` (hours), `d` (days) in duration literals.
+9. Implement HTTP operations: `HTTP`/`CALLHTTP` with method, headers, body, status capture, response capture.
+10. Implement local execution: `RUNLOCAL` with arguments, status code, output capture.
+11. Implement file I/O: `READFILE`, `WRITEFILE` with APPEND/TRUNCATE modes.
+12. Implement palette color control: `PALETTECOLOR` for per-index RGB modification.
+13. Implement parameterized GOSUB: parameter passing via `PARAM1`, `PARAM2`, etc., return value via `RESULT`.
+14. Implement automatic type casting according to the rules in section 3.5.1.

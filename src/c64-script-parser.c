@@ -1065,6 +1065,44 @@ static c64script_ast_node_t *palette_statement(parser_t *p)
     return node;
 }
 
+// PALETTECOLOR index, r, g, b
+static c64script_ast_node_t *palettecolor_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_PALETTECOLOR;
+    node->line = p->previous.line;
+
+    node->as.palettecolor_stmt.index = expression(p);
+
+    if (!match(p, TOKEN_COMMA)) {
+        error(p, "Expected comma after palette color index");
+        c64script_ast_free(node);
+        return NULL;
+    }
+
+    node->as.palettecolor_stmt.r = expression(p);
+
+    if (!match(p, TOKEN_COMMA)) {
+        error(p, "Expected comma after red component");
+        c64script_ast_free(node);
+        return NULL;
+    }
+
+    node->as.palettecolor_stmt.g = expression(p);
+
+    if (!match(p, TOKEN_COMMA)) {
+        error(p, "Expected comma after green component");
+        c64script_ast_free(node);
+        return NULL;
+    }
+
+    node->as.palettecolor_stmt.b = expression(p);
+
+    return node;
+}
+
 // PLAYSID filename
 static c64script_ast_node_t *playsid_statement(parser_t *p)
 {
@@ -1452,6 +1490,8 @@ static c64script_ast_node_t *statement(parser_t *p)
         return effectparam_statement(p);
     if (match(p, TOKEN_PALETTE))
         return palette_statement(p);
+    if (match(p, TOKEN_PALETTECOLOR))
+        return palettecolor_statement(p);
     if (match(p, TOKEN_PLAYSID))
         return playsid_statement(p);
     if (match(p, TOKEN_RUNPRG))
