@@ -1028,6 +1028,34 @@ static void c64_ensure_vpl_extension(char *path, size_t path_size)
     c64_ensure_file_extension(path, path_size, "vpl");
 }
 
+// Helper function to detect if a path appears to be a directory (not a file)
+// Returns true if path is likely a directory, false if it appears to be a file path
+static bool c64_path_is_directory(const char *path)
+{
+    if (!path || !path[0])
+        return true; // Empty path treated as directory
+
+    const char *path_ext = strrchr(path, '.');
+    const char *last_sep = strrchr(path, '/');
+#ifdef _WIN32
+    const char *last_backslash = strrchr(path, '\\');
+    if (last_backslash && (!last_sep || last_backslash > last_sep))
+        last_sep = last_backslash;
+#endif
+
+    // If the extension comes before the last separator, it's not a file extension
+    if (path_ext && last_sep && path_ext < last_sep) {
+        path_ext = NULL;
+    }
+
+    // If no extension or no filename component, this is likely a directory
+    if (!path_ext && last_sep && last_sep[1] == '\0') {
+        return true;
+    }
+
+    return false;
+}
+
 static bool config_export_path_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings)
 {
     UNUSED_PARAMETER(props);
@@ -1054,22 +1082,7 @@ static bool config_export_path_changed(obs_properties_t *props, obs_property_t *
     }
 
     // CRITICAL: Don't export if the path is a directory (not an .ini file)
-    // Check if path has .ini extension or appears to be a file path
-    const char *path_ext = strrchr(path, '.');
-    const char *last_sep = strrchr(path, '/');
-#ifdef _WIN32
-    const char *last_backslash = strrchr(path, '\\');
-    if (last_backslash && (!last_sep || last_backslash > last_sep))
-        last_sep = last_backslash;
-#endif
-
-    // If the extension comes before the last separator, it's not a file extension
-    if (path_ext && last_sep && path_ext < last_sep) {
-        path_ext = NULL;
-    }
-
-    // If no extension or no filename component, this is likely a directory
-    if (!path_ext && last_sep && last_sep[1] == '\0') {
+    if (c64_path_is_directory(path)) {
         return false;
     }
 
@@ -1320,22 +1333,7 @@ static bool palette_export_path_changed(obs_properties_t *props, obs_property_t 
     }
 
     // CRITICAL: Don't export if the path is a directory (not a .vpl file)
-    // Check if path has .vpl extension or appears to be a file path
-    const char *path_ext = strrchr(path, '.');
-    const char *last_sep = strrchr(path, '/');
-#ifdef _WIN32
-    const char *last_backslash = strrchr(path, '\\');
-    if (last_backslash && (!last_sep || last_backslash > last_sep))
-        last_sep = last_backslash;
-#endif
-
-    // If the extension comes before the last separator, it's not a file extension
-    if (path_ext && last_sep && path_ext < last_sep) {
-        path_ext = NULL;
-    }
-
-    // If no extension or no filename component, this is likely a directory
-    if (!path_ext && last_sep && last_sep[1] == '\0') {
+    if (c64_path_is_directory(path)) {
         return false;
     }
 
