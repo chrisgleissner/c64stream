@@ -814,7 +814,8 @@ TEST(parse_duration_seconds)
     c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
     assert(ast != NULL && "Failed to parse seconds duration");
     assert(ast->type == AST_STMT_WAIT);
-    assert(ast->as.wait_stmt.unit == C64SCRIPT_WAIT_UNIT_S);
+    // When tokenizer sees "2.5s", it converts to milliseconds, so unit is MS
+    assert(ast->as.wait_stmt.unit == C64SCRIPT_WAIT_UNIT_MS);
     c64script_ast_free(ast);
 }
 
@@ -875,12 +876,12 @@ TEST(parse_not_equal_both_forms)
     const char *source1 = "X = A <> B\n";
     const char *source2 = "X = A != B\n";
     char error_msg[1024];
-    
+
     c64script_ast_node_t *ast1 = c64script_parse(source1, strlen(source1), error_msg, sizeof(error_msg));
     assert(ast1 != NULL && "Failed to parse <> operator");
     assert(ast1->type == AST_STMT_ASSIGNMENT);
     c64script_ast_free(ast1);
-    
+
     c64script_ast_node_t *ast2 = c64script_parse(source2, strlen(source2), error_msg, sizeof(error_msg));
     assert(ast2 != NULL && "Failed to parse != operator");
     assert(ast2->type == AST_STMT_ASSIGNMENT);
@@ -892,12 +893,12 @@ TEST(parse_equality_both_forms)
     const char *source1 = "X = A = B\n";
     const char *source2 = "X = A == B\n";
     char error_msg[1024];
-    
+
     c64script_ast_node_t *ast1 = c64script_parse(source1, strlen(source1), error_msg, sizeof(error_msg));
     assert(ast1 != NULL && "Failed to parse = operator");
     assert(ast1->type == AST_STMT_ASSIGNMENT);
     c64script_ast_free(ast1);
-    
+
     c64script_ast_node_t *ast2 = c64script_parse(source2, strlen(source2), error_msg, sizeof(error_msg));
     assert(ast2 != NULL && "Failed to parse == operator");
     assert(ast2->type == AST_STMT_ASSIGNMENT);
@@ -910,7 +911,9 @@ TEST(parse_rem_comment)
     char error_msg[1024];
     c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
     assert(ast != NULL && "Failed to parse REM comment");
-    assert(ast->type == AST_STMT_ASSIGNMENT); // REM should be skipped
+    assert(ast->type == AST_STMT_REM); // REM creates an AST node
+    assert(ast->next != NULL);
+    assert(ast->next->type == AST_STMT_ASSIGNMENT);
     c64script_ast_free(ast);
 }
 

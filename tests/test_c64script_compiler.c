@@ -657,6 +657,222 @@ TEST(compile_duplicate_label_fails)
 }
 
 // ============================================================================
+// INTEGRATION TESTS FROM SPEC EXAMPLES
+// ============================================================================
+
+TEST(integration_example_c_for_loop)
+{
+    const char *source = "FOR I = 1 TO 5\n"
+                         "  X = I * 2\n"
+                         "NEXT I\n";
+    char error[256];
+
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error, sizeof(error));
+    assert(ast != NULL);
+
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    bool success = c64script_compile(ast, runtime, error, sizeof(error));
+    assert(success);
+
+    success = c64script_execute(runtime);
+    assert(success);
+
+    // After loop, I should be 6 and X should be 10 (last iteration: 5 * 2)
+    c64script_value_t value;
+    bool got_var = c64script_runtime_get_var(runtime, "I", &value);
+    assert(got_var);
+    assert(value.as.number == 6.0);
+    c64script_value_free(&value);
+
+    got_var = c64script_runtime_get_var(runtime, "X", &value);
+    assert(got_var);
+    assert(value.as.number == 10.0);
+    c64script_value_free(&value);
+
+    c64script_runtime_destroy(runtime);
+    c64script_ast_free(ast);
+}
+
+TEST(integration_example_b_label_if_goto)
+{
+    const char *source = "START:\n"
+                         "I = 0\n"
+                         "LOOP:\n"
+                         "I = I + 1\n"
+                         "IF I < 3 THEN GOTO LOOP\n"
+                         "DONE:\n"
+                         "X = I\n";
+    char error[256];
+
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error, sizeof(error));
+    assert(ast != NULL);
+
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    bool success = c64script_compile(ast, runtime, error, sizeof(error));
+    assert(success);
+
+    success = c64script_execute(runtime);
+    assert(success);
+
+    c64script_value_t value;
+    bool got_var = c64script_runtime_get_var(runtime, "X", &value);
+    assert(got_var);
+    assert(value.as.number == 3.0);
+    c64script_value_free(&value);
+
+    c64script_runtime_destroy(runtime);
+    c64script_ast_free(ast);
+}
+
+TEST(integration_example_d_gosub_return)
+{
+    const char *source = "TRACK = 1\n"
+                         "GOSUB PLAYTRACK\n"
+                         "TRACK = 2\n"
+                         "GOSUB PLAYTRACK\n"
+                         "STOP\n"
+                         "PLAYTRACK:\n"
+                         "TOTAL = TOTAL + TRACK\n"
+                         "RETURN\n";
+    char error[256];
+
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error, sizeof(error));
+    assert(ast != NULL);
+
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    bool success = c64script_compile(ast, runtime, error, sizeof(error));
+    assert(success);
+
+    success = c64script_execute(runtime);
+    assert(success);
+
+    // TOTAL should be 1 + 2 = 3
+    c64script_value_t value;
+    bool got_var = c64script_runtime_get_var(runtime, "TOTAL", &value);
+    assert(got_var);
+    assert(value.as.number == 3.0);
+    c64script_value_free(&value);
+
+    c64script_runtime_destroy(runtime);
+    c64script_ast_free(ast);
+}
+
+TEST(integration_example_e_peek_poke_while)
+{
+    const char *source = "POKE $C000, 65\n"
+                         "X = PEEK($C000)\n"
+                         "COUNT = 0\n"
+                         "WHILE COUNT < 3\n"
+                         "  COUNT = COUNT + 1\n"
+                         "WEND\n";
+    char error[256];
+
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error, sizeof(error));
+    assert(ast != NULL);
+
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    runtime->rest_client = c64script_test_rest_create();
+    runtime->keyboard = c64script_test_keyboard_create();
+
+    bool success = c64script_compile(ast, runtime, error, sizeof(error));
+    assert(success);
+
+    success = c64script_execute(runtime);
+    assert(success);
+
+    c64script_value_t value;
+    bool got_var = c64script_runtime_get_var(runtime, "X", &value);
+    assert(got_var);
+    assert(value.as.number == 65.0);
+    c64script_value_free(&value);
+
+    got_var = c64script_runtime_get_var(runtime, "COUNT", &value);
+    assert(got_var);
+    assert(value.as.number == 3.0);
+    c64script_value_free(&value);
+
+    c64script_test_keyboard_destroy(runtime->keyboard);
+    c64script_test_rest_destroy(runtime->rest_client);
+    runtime->keyboard = NULL;
+    runtime->rest_client = NULL;
+
+    c64script_runtime_destroy(runtime);
+    c64script_ast_free(ast);
+}
+
+TEST(integration_example_h_line_numbers)
+{
+    const char *source = "10 I = 0\n"
+                         "20 GOSUB 100\n"
+                         "30 I = I + 1\n"
+                         "40 IF I < 2 THEN GOTO 20\n"
+                         "50 STOP\n"
+                         "100 RESULT = RESULT + 1\n"
+                         "110 RETURN\n";
+    char error[256];
+
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error, sizeof(error));
+    assert(ast != NULL);
+
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    bool success = c64script_compile(ast, runtime, error, sizeof(error));
+    assert(success);
+
+    success = c64script_execute(runtime);
+    assert(success);
+
+    // RESULT should be called twice (when I=0 and I=1)
+    c64script_value_t value;
+    bool got_var = c64script_runtime_get_var(runtime, "RESULT", &value);
+    assert(got_var);
+    assert(value.as.number == 2.0);
+    c64script_value_free(&value);
+
+    c64script_runtime_destroy(runtime);
+    c64script_ast_free(ast);
+}
+
+TEST(integration_nested_loops_and_conditions)
+{
+    const char *source = "TOTAL = 0\n"
+                         "FOR I = 1 TO 3\n"
+                         "  FOR J = 1 TO 2\n"
+                         "    IF I = J THEN\n"
+                         "      TOTAL = TOTAL + 1\n"
+                         "    ELSE\n"
+                         "      TOTAL = TOTAL + 2\n"
+                         "    ENDIF\n"
+                         "  NEXT\n"
+                         "NEXT\n";
+    char error[256];
+
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error, sizeof(error));
+    assert(ast != NULL);
+
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    bool success = c64script_compile(ast, runtime, error, sizeof(error));
+    assert(success);
+
+    success = c64script_execute(runtime);
+    assert(success);
+
+    // I=1, J=1: match, +1 (total=1)
+    // I=1, J=2: no match, +2 (total=3)
+    // I=2, J=1: no match, +2 (total=5)
+    // I=2, J=2: match, +1 (total=6)
+    // I=3, J=1: no match, +2 (total=8)
+    // I=3, J=2: no match, +2 (total=10)
+    c64script_value_t value;
+    bool got_var = c64script_runtime_get_var(runtime, "TOTAL", &value);
+    assert(got_var);
+    assert(value.as.number == 10.0);
+    c64script_value_free(&value);
+
+    c64script_runtime_destroy(runtime);
+    c64script_ast_free(ast);
+}
+
+// ============================================================================
 // MAIN
 // ============================================================================
 
@@ -690,6 +906,14 @@ int main(void)
     RUN_TEST(execute_boolean_operator_precedence);
     RUN_TEST(execute_logfile_and_log);
     RUN_TEST(compile_duplicate_label_fails);
+
+    printf("\n--- Integration Tests from Spec Examples ---\n");
+    RUN_TEST(integration_example_c_for_loop);
+    RUN_TEST(integration_example_b_label_if_goto);
+    RUN_TEST(integration_example_d_gosub_return);
+    RUN_TEST(integration_example_e_peek_poke_while);
+    RUN_TEST(integration_example_h_line_numbers);
+    RUN_TEST(integration_nested_loops_and_conditions);
 
     printf("\n=== All Compiler & VM Tests Passed! ===\n");
     return 0;
