@@ -155,6 +155,9 @@ target_sources(
     src/c64-file.c
     src/c64-effect.c
     src/c64-palette.c
+    src/c64-rest-client.c
+    src/c64-keyboard.c
+    src/c64-automation.c
 )
 
 # Link resolver library for DNS functionality on Unix platforms
