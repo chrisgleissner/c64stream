@@ -467,13 +467,23 @@ obs_properties_t *c64_create_properties(void *data)
                                                                "INI Files (*.ini);;All Files (*.*)", NULL);
     obs_property_set_long_description(export_path_prop, obs_module_text("ExportSettingsTo.Description"));
 
-    // Set default timestamped filename BEFORE registering callback to avoid triggering it
+    // Set default directory path BEFORE registering callback to avoid triggering it
+    // CRITICAL: Use DIRECTORY (with trailing slash), not filename, to prevent spurious export
+    // If we set a filename, the callback might trigger and create the file automatically
     {
-        char config_export_file[512];
-        c64_default_export_ini_path(config_export_file, sizeof(config_export_file));
-        obs_data_t *path_settings = obs_source_get_settings(context->source);
-        obs_data_set_default_string(path_settings, C64_CONFIG_EXPORT_PATH_KEY, config_export_file);
-        obs_data_release(path_settings);
+        char exports_dir[512];
+        if (c64_get_user_dir(C64_USER_DIR_EXPORTS, exports_dir, sizeof(exports_dir))) {
+            // Ensure trailing slash to clearly indicate directory
+            size_t len = strlen(exports_dir);
+            if (len > 0 && len < sizeof(exports_dir) - 2 && exports_dir[len - 1] != '/' &&
+                exports_dir[len - 1] != '\\') {
+                exports_dir[len] = '/';
+                exports_dir[len + 1] = '\0';
+            }
+            obs_data_t *path_settings = obs_source_get_settings(context->source);
+            obs_data_set_default_string(path_settings, C64_CONFIG_EXPORT_PATH_KEY, exports_dir);
+            obs_data_release(path_settings);
+        }
     }
 
     obs_property_set_modified_callback(export_path_prop, config_export_path_changed);
