@@ -227,19 +227,31 @@ ensure_udp_buffers() {
     fi
 
     # Try to increase (best-effort, will fail in CI containers)
+    # Only attempt if we're root or if we have sudo AND we're in an interactive session
+    local needs_increase=false
     if [[ "$(id -u)" == "0" ]]; then
         sysctl -w net.core.rmem_max=${target_buffer} >/dev/null 2>&1
         sysctl -w net.core.wmem_max=${target_buffer} >/dev/null 2>&1
-    elif command -v sudo >/dev/null 2>&1; then
-        sudo sysctl -w net.core.rmem_max=${target_buffer} >/dev/null 2>&1
-        sudo sysctl -w net.core.wmem_max=${target_buffer} >/dev/null 2>&1
+        needs_increase=false
+    elif command -v sudo >/dev/null 2>&1 && [[ -t 0 ]]; then
+        # Interactive terminal: offer to increase buffers (optional, improves performance)
+        log_info "Current UDP buffer: ${current_rmem_max} bytes (< ${target_buffer} recommended)"
+        log_info "Increasing buffers improves performance for high-jitter tests (optional)."
+        echo -n "Increase UDP buffers with sudo? [y/N] "
+        read -r response
+        if [[ "${response}" =~ ^[Yy] ]]; then
+            sudo sysctl -w net.core.rmem_max=${target_buffer} >/dev/null 2>&1
+            sudo sysctl -w net.core.wmem_max=${target_buffer} >/dev/null 2>&1
+        else
+            log_info "Skipping UDP buffer increase (tests will use MIN_PACKET_DELAY)"
+        fi
     fi
 
     local new_rmem_max=$(cat /proc/sys/net/core/rmem_max 2>/dev/null || echo "0")
     if [[ "${new_rmem_max}" -ge "${target_buffer}" ]]; then
         log_success "UDP buffers: ${new_rmem_max} bytes"
     else
-        log_info "UDP buffers: ${new_rmem_max} bytes (CI limit; test uses MIN_PACKET_DELAY)"
+        log_info "UDP buffers: ${new_rmem_max} bytes (tests will use MIN_PACKET_DELAY)"
     fi
 }
 
