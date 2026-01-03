@@ -1,4 +1,4 @@
-# C64 Stream  Script Language Specification
+# C64 Stream Script Language Specification
 
 This document defines the **current** `.c64script` language (“v1”) as implemented by the plugin, and proposes a **BASIC-inspired** evolution (“v2”) aimed at Commodore 64 users (labels and optional BASIC-style line numbers; `GOTO`/`GOSUB`; structured loops).
 
@@ -160,7 +160,7 @@ This section defines the **intended meaning** of each statement; runtime support
   - Mounts a disk image (default drive A in the current executor).
 
 - `autostart`
-  - Intended: inject a `LOAD"*",8,1` + `RUN` sequence.
+  - Injects the fixed autostart sequence `LOAD"*",8,1\rRUN\r` via the keyboard queue.
 
 - `reset`
   - Soft reset of the machine.
@@ -196,13 +196,14 @@ This section defines the **intended meaning** of each statement; runtime support
 As of the current executor implementation:
 - `c64u:` paths are supported for `play_sid`, `run_prg`, and `mount_disk`.
 - Local file upload variants are placeholders (`TODO`) and currently fail.
-- `autostart` currently fails (not implemented in the executor).
+- `autostart` is implemented (injects the fixed `LOAD"*",8,1\rRUN\r` template via the keyboard module).
 
 ### 2.6 Implementation Limits (v1)
 
 These limits are implementation-defined by the current parser/executor and may change:
 
 - Max script size: **1 MiB**
+- Max line length: **1023** bytes (parser line buffer; longer lines are truncated)
 - Max labels: **64** (`MAX_LABELS`)
 - Max loop nesting: **16** (`MAX_LOOP_STACK`)
 - Fixed-size argument buffers per command (long tokens may be truncated):
@@ -228,7 +229,6 @@ These limits are implementation-defined by the current parser/executor and may c
   - Nested blocks are allowed.
 - **Script ergonomics**:
   - Quoted strings allow spaces in preset names and file paths.
-  - `:` statement separator allows “BASIC-like” single-line sequences.
 - **Useful for this plugin**:
   - Variables for paths/durations, basic arithmetic, boolean logic.
   - Optional `POKE`/`PEEK` style access to REST DMA (natural to C64 users).
@@ -237,9 +237,11 @@ These limits are implementation-defined by the current parser/executor and may c
 
 ### 3.2 Compatibility Strategy
 
-Recommended: make v2 a **superset** of v1.
+Recommended: treat v2 as a **compatible evolution** of v1 at the command level, while keeping the v2 core syntax strict and predictable.
 
-- v1 scripts remain valid in v2 (same command vocabulary, same duration literals).
+- v2 keeps the same command vocabulary and duration literals where practical.
+- Some v1 scripts may require trivial edits (e.g., quoting multi-word names); v2 does not inherit v1’s “ignore extra tokens” behavior.
+- v1 `loop` is deprecated/removed in favor of structured `FOR`/`WHILE`.
 - v2 adds quoting, expressions, structured blocks, and BASIC-like spelling.
 - Keywords, labels, and identifiers are case-insensitive in v2 (`WAIT`, `wait`, `WaIt` are equivalent).
 - Where v1 uses underscores (e.g., `play_sid`, `run_prg`), v2 may additionally accept underscorless aliases (e.g., `PLAYSID`, `RUNPRG`).
@@ -255,10 +257,7 @@ Recommended: make v2 a **superset** of v1.
 
 **Comments**
 - `#` at the start of a (trimmed) line is a comment (v1 compatibility).
-- `REM` is a statement that comments out the rest of the line (BASIC style). After `REM`, the remainder of the line is ignored (including any `:`).
-
-**Statement separator**
-- `:` separates multiple statements on the same line (BASIC style).
+- `REM` is a statement that comments out the rest of the line (BASIC style). After `REM`, the remainder of the line is ignored.
 
 **Strings**
 - Double-quoted: `"..."`.
@@ -312,6 +311,7 @@ HEX             = DIGIT | "A"…"F" | "a"…"f" ;
 
 identifier      = ( "A"…"Z" | "a"…"z" ), { "A"…"Z" | "a"…"z" | DIGIT | "_" }, ["$" | "%"] ;
 label_name      = ( "A"…"Z" | "a"…"z" ), { "A"…"Z" | "a"…"z" | DIGIT } ;
+word            = ? any non-empty sequence of characters excluding whitespace, `"`, and EOL ? ;
 
 number          = DIGIT, {DIGIT}, [".", DIGIT, {DIGIT}] ;
 hex_number      = "$", HEX, {HEX} ;
@@ -331,12 +331,11 @@ duration_lit    = number, ("ms" | "s" | "m") ;
 
 ```
 script          = { line }, EOF ;
-line            = [WS], [label_def], [stmt_list], EOL
+line            = [WS], [label_def], [statement], EOL
                 | [WS], comment_line, EOL
                 | [WS], EOL ;
 
 label_def       = label, [":"], [WS] ;
-stmt_list       = statement, { [WS], ":", [WS], statement } ;
 comment_line    = "#", { ? any character except EOL ? } ;
 ```
 
@@ -412,15 +411,15 @@ while_stmt      = "WHILE", WS, bool_expr, EOL,
 **Plugin actions**
 
 ```
-effect_stmt         = "EFFECT", WS, string_or_ident ;
+effect_stmt         = "EFFECT", WS, string_or_word ;
 effect_param_stmt   = ("EFFECT_PARAM" | "EFFECTPARAM"), WS, identifier, WS, expr ;
-palette_stmt        = "PALETTE", WS, string_or_ident ;
+palette_stmt        = "PALETTE", WS, string_or_word ;
 
 play_sid_stmt       = ("PLAY_SID" | "PLAYSID"), WS, path_expr, [WS, "SONGNR", [WS], "=", [WS], expr] ;
 run_prg_stmt        = ("RUN_PRG" | "RUNPRG"), WS, path_expr ;
-mount_disk_stmt     = ("MOUNT_DISK" | "MOUNTDISK"), WS, path_expr, [WS, "DRIVE", [WS], "=", [WS], string_or_ident] ;
+mount_disk_stmt     = ("MOUNT_DISK" | "MOUNTDISK"), WS, path_expr ;
 
-autostart_stmt      = "AUTOSTART", [WS, string_literal] ;
+autostart_stmt      = "AUTOSTART" ;
 reset_stmt          = "RESET" ;
 reboot_stmt         = "REBOOT" ;
 
@@ -428,7 +427,7 @@ record_start_stmt   = ("RECORD_START" | "RECORDSTART") ;
 record_stop_stmt    = ("RECORD_STOP" | "RECORDSTOP") ;
 
 type_stmt           = "TYPE", WS, expr ;
-key_stmt            = "KEY", WS, (string_or_ident | number | hex_number) ;
+key_stmt            = "KEY", WS, (string_or_word | number | hex_number) ;
 
 logfile_stmt        = "LOGFILE", WS, path_expr, [WS, ("APPEND" | "TRUNCATE")] ;
 log_stmt            = "LOG", WS, expr ;
@@ -448,25 +447,24 @@ poke_stmt           = "POKE", WS, expr, [WS], ",", [WS], expr
 expr            = or_expr ;
 bool_expr       = or_expr ;
 
-or_expr         = xor_expr, { WS, ("OR" | "||"), WS, xor_expr } ;
-xor_expr        = and_expr, { WS, "XOR", WS, and_expr } ;
-and_expr        = not_expr, { WS, ("AND" | "&&"), WS, not_expr } ;
-not_expr        = ["NOT" | "!"], [WS], rel_expr ;
+or_expr         = xor_expr, { [WS], "OR", [WS], xor_expr } ;
+xor_expr        = and_expr, { [WS], "XOR", [WS], and_expr } ;
+and_expr        = not_expr, { [WS], "AND", [WS], not_expr } ;
+not_expr        = ["NOT", [WS]], rel_expr ;
 
-rel_expr        = add_expr, [WS, rel_op, WS, add_expr] ;
+rel_expr        = add_expr, [ [WS], rel_op, [WS], add_expr ] ;
 rel_op          = "=" | "==" | "<>" | "!=" | "<" | "<=" | ">" | ">=" ;
 
 add_expr        = mul_expr, { [WS], ("+" | "-"), [WS], mul_expr } ;
 mul_expr        = unary_expr, { [WS], ("*" | "/"), [WS], unary_expr } ;
-unary_expr      = ["+" | "-"], [WS], primary | primary ;
+unary_expr      = [("+" | "-"), [WS]], primary ;
 
 primary         = number | hex_number | string_literal | function_call | identifier | "(", [WS], expr, [WS], ")" ;
 
 function_call   = identifier, [WS], "(", [WS], [expr, { [WS], ",", [WS], expr }], [WS], ")" ;
 
-string_or_ident = string_literal | identifier ;
-path_expr       = string_literal | identifier ;
-label_ref       = label ;
+string_or_word  = string_literal | identifier | word ;
+path_expr       = string_literal | identifier | word ;
 ```
 
 ### 3.5 Semantics (v2)
@@ -493,7 +491,7 @@ Labels and line numbers:
 - Labels are case-insensitive; numeric labels should be normalized by value (`0010` == `10`).
 - Numeric labels are labels only (no implicit ordering requirement), but authors may choose to keep them increasing to resemble BASIC listings.
 - A label can be defined:
-  - as a line prefix: `START:` / `START` / `10:` / `10`, optionally followed by statements on the same line, or
+  - as a line prefix: `START:` / `START` / `10:` / `10`, optionally followed by a statement on the same line, or
   - via the compatibility statement `LABEL <label_ref>`.
 - A label-only line (label prefix with no statements) labels the **next executable statement line**, skipping empty lines and `#` comment lines.
 - `GOTO`/`GOSUB` jump to the labeled location; `RETURN` resumes after the `GOSUB` call site.
@@ -506,10 +504,11 @@ Limits should be explicit (e.g., max nesting depth) and produce clear runtime er
 
 #### 3.5.3 Boolean Logic
 
-- Relational operators return numeric truth values (`0` or `1` recommended).
+- Relational operators return numeric truth values (`0` false, `-1` true recommended; BASIC style).
 - Boolean operators follow BASIC-like precedence (`NOT` > `AND` > `XOR` > `OR`).
-  - Aliases: `!` for `NOT`, `&&` for `AND`, `||` for `OR`.
-  - Relational aliases: `==` for `=`, `!=` for `<>`.
+  - `NOT`/`AND`/`OR`/`XOR` operate as **bitwise operators** on integer-truncated operands (useful for common C64 patterns like `PEEK(addr) AND mask`).
+  - For bitwise operations, operands are truncated toward zero to signed 32-bit integers; results are returned as signed 32-bit integers.
+  - Aliases: `==` for `=`, `!=` for `<>`.
   - Parentheses always override precedence.
 
 #### 3.5.4 Waiting (Duration vs Wall Clock)
@@ -528,6 +527,7 @@ Limits should be explicit (e.g., max nesting depth) and produce clear runtime er
       - `"HH:MM"` or `"HH:MM:SS"` (local time; if already passed today, treat as “tomorrow”),
       - `"YYYY-MM-DD HH:MM:SS"` (local time),
       - ISO-8601 `"YYYY-MM-DDTHH:MM:SS[.fff][Z|±HH:MM]"`.
+  - If the computed target time is ≤ “now”, the wait completes immediately.
   - If the time cannot be parsed, raise a BASIC-style runtime error (recommended: “ILLEGAL QUANTITY”).
 
 #### 3.5.5 Plugin-Specific I/O
@@ -607,7 +607,8 @@ I = 0
 
 ```basic
 REM Fade in, then run a demo
-EFFECT "Classic CRT" : PALETTE "colodore"
+EFFECT "Classic CRT"
+PALETTE "colodore"
 WAIT 2
 RUNPRG "c64u:/Programs/demo.prg"
 WAIT 60s
@@ -650,8 +651,10 @@ END
 PATH$ = "c64u:/Temp/music/galway_collection.sid"
 
 GOSUB PLAYTRACK
-TRACK = 2 : GOSUB PLAYTRACK
-TRACK = 3 : GOSUB PLAYTRACK
+TRACK = 2
+GOSUB PLAYTRACK
+TRACK = 3
+GOSUB PLAYTRACK
 END
 
 PLAYTRACK:
@@ -686,7 +689,8 @@ END
 LOGFILE "trace.log" TRUNCATE
 TRON
 
-EFFECT "Classic CRT" : PALETTE "colodore"
+EFFECT "Classic CRT"
+PALETTE "colodore"
 WAIT 2
 EFFECT "Default"
 
@@ -710,13 +714,39 @@ RECORDSTOP
 END
 ```
 
+**Example H: BASIC-style program with line numbers (optional)**
+
+Line numbers are optional in v2; they behave exactly like labels and exist mainly for that classic BASIC feel.
+
+```basic
+10 REM Line numbers are optional; they act like labels for GOTO/GOSUB.
+20 LOGFILE "line-numbered.log" TRUNCATE
+30 TRON
+
+40 I = 0
+50 GOSUB 1000
+60 I = I + 1
+70 IF I < 3 THEN GOTO 50
+
+80 TROFF
+90 LOG "Done"
+100 END
+
+1000 REM A tiny “subroutine” (GOSUB/RETURN)
+1010 PALETTE "colodore"
+1020 WAIT 0.5
+1030 PALETTE "pepto_ntsc"
+1040 WAIT 0.5
+1050 RETURN
+```
+
 ---
 
 ## 4. Recommended Next Steps (Implementation Roadmap)
 
 If/when implementing v2 in code:
 
-1. Implement parsing: case-insensitive keywords/labels/identifiers, label prefixes (optional `:`), optional line numbers, quoted strings, `:` separators, and `REM`.
+1. Implement parsing: case-insensitive keywords/labels/identifiers, label prefixes (optional `:`), optional line numbers, quoted strings, and `REM`.
 2. Implement expressions: parentheses, `NOT`/`AND`/`XOR`/`OR`, and relational operators (with `==`/`!=` aliases).
 3. Implement control flow: `IF`/`ENDIF`, `FOR`/`NEXT`, `WHILE`/`WEND` (+ `ENDWHILE`), `GOTO`, and `GOSUB`/`RETURN`.
 4. Implement waiting: duration waits and `WAIT UNTIL` (wall-clock) with time parsing.

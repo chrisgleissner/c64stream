@@ -78,7 +78,7 @@ static int find_label(c64_script_executor_t *executor, const char *name)
 {
     for (size_t i = 0; i < executor->num_labels; i++) {
         if (strcmp(executor->labels[i].name, name) == 0) {
-            return executor->labels[i].command_index;
+            return (int)executor->labels[i].command_index;
         }
     }
     return -1;
