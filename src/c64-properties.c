@@ -34,14 +34,13 @@ See <https://www.gnu.org/licenses/> for details.
 
 // Forward declaration of callbacks
 static bool crt_preset_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings);
-static bool export_config_clicked(obs_properties_t *props, obs_property_t *property, void *data);
-static bool import_config_clicked(obs_properties_t *props, obs_property_t *property, void *data);
+static bool config_import_path_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings);
+static bool config_export_path_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings);
 static void trim_config_string(char *str);
 
 // Forward declaration of path helper functions
 static void c64_default_palette_import_path(char *path, size_t path_size);
 static void c64_default_palette_export_path(char *path, size_t path_size);
-static void c64_default_export_ini_path(char *path, size_t path_size);
 
 // Palette callbacks
 static bool palette_changed(void *priv, obs_properties_t *props, obs_property_t *property, obs_data_t *settings);
@@ -60,6 +59,15 @@ static const char *C64_PRESET_LAST_APPLIED_KEY = "crt_preset_last_applied";
 static const char *C64_CONFIG_EXPORT_PATH_KEY = "config_export_path";
 static const char *C64_CONFIG_IMPORT_PATH_KEY = "config_import_path";
 static const char *C64_PALETTE_KEY = "palette";
+
+// Internal key to prevent auto-import/export during properties UI initialization
+static const char *C64_CONFIG_INITIALIZING_KEY = "_c64_config_initializing";
+
+// Internal keys to track last processed paths (prevents duplicate processing)
+static const char *C64_CONFIG_EXPORT_LAST_KEY = "_c64_config_export_last";
+static const char *C64_CONFIG_IMPORT_LAST_KEY = "_c64_config_import_last";
+static const char *C64_PALETTE_EXPORT_LAST_KEY = "_c64_palette_export_last";
+static const char *C64_PALETTE_IMPORT_LAST_KEY = "_c64_palette_import_last";
 
 // Helpers: When enforce is true (CI), apply both default and direct values
 static inline void c64_set_string(obs_data_t *settings, const char *key, const char *value, bool enforce)
@@ -334,27 +342,47 @@ obs_properties_t *c64_create_properties(void *data)
     obs_property_t *import_path = obs_properties_add_path(palette_props, "palette_import_path",
                                                           obs_module_text("PaletteImport"), OBS_PATH_FILE,
                                                           "VPL Palette Files (*.vpl);;All Files (*.*)", NULL);
+    obs_property_set_long_description(import_path, obs_module_text("PaletteImport.Description"));
+
+    // Set default directory path BEFORE registering callback to avoid triggering it
+    {
+        char palette_dir[512];
+        c64_default_palette_import_path(palette_dir, sizeof(palette_dir));
+        // Ensure trailing slash to clearly indicate directory (prevents spurious export)
+        size_t len = strlen(palette_dir);
+        if (len > 0 && len < sizeof(palette_dir) - 2 && palette_dir[len - 1] != '/' && palette_dir[len - 1] != '\\') {
+            palette_dir[len] = '/';
+            palette_dir[len + 1] = '\0';
+        }
+        obs_data_t *path_settings = obs_source_get_settings(context->source);
+        obs_data_set_default_string(path_settings, "palette_import_path", palette_dir);
+        obs_data_release(path_settings);
+    }
+
     obs_property_set_modified_callback(import_path, palette_import_path_changed);
 
     // Export path field (opens save dialog)
     obs_property_t *export_path = obs_properties_add_path(palette_props, "palette_export_path",
                                                           obs_module_text("PaletteExport"), OBS_PATH_FILE_SAVE,
                                                           "VPL Palette Files (*.vpl);;All Files (*.*)", NULL);
-    obs_property_set_modified_callback(export_path, palette_export_path_changed);
+    obs_property_set_long_description(export_path, obs_module_text("PaletteExport.Description"));
 
-    // Set default paths for palette import/export (shown as placeholder)
-    // CRITICAL: Use set_default_string ONLY (not set_string) to avoid triggering modified callback
-    // which would auto-export palette when properties dialog opens
+    // Set default directory path BEFORE registering callback to avoid triggering it
     {
+        char palette_dir[512];
+        c64_default_palette_export_path(palette_dir, sizeof(palette_dir));
+        // Ensure trailing slash to clearly indicate directory (prevents spurious export)
+        size_t len = strlen(palette_dir);
+        if (len > 0 && len < sizeof(palette_dir) - 2 && palette_dir[len - 1] != '/' && palette_dir[len - 1] != '\\') {
+            palette_dir[len] = '/';
+            palette_dir[len + 1] = '\0';
+        }
         obs_data_t *path_settings = obs_source_get_settings(context->source);
-        char palette_import_dir[512];
-        char palette_export_file[512];
-        c64_default_palette_import_path(palette_import_dir, sizeof(palette_import_dir));
-        c64_default_palette_export_path(palette_export_file, sizeof(palette_export_file));
-        obs_data_set_default_string(path_settings, "palette_import_path", palette_import_dir);
-        obs_data_set_default_string(path_settings, "palette_export_path", palette_export_file);
+        obs_data_set_default_string(path_settings, "palette_export_path", palette_dir);
         obs_data_release(path_settings);
     }
+
+    obs_property_set_modified_callback(export_path, palette_export_path_changed);
 
     // Delete button
     obs_property_t *delete_btn = obs_properties_add_button2(
@@ -400,52 +428,70 @@ obs_properties_t *c64_create_properties(void *data)
         props, "importexport_group", obs_module_text("ImportExport"), OBS_GROUP_NORMAL, obs_properties_create());
     obs_properties_t *importexport_props = obs_property_group_content(importexport_group);
 
-    // Import configuration (INI)
-    // OBS does not provide a generic "open file dialog" API for button callbacks in libobs,
-    // so we pair each action button with an OBS path selector which provides the native chooser.
-    obs_property_t *import_path_prop = obs_properties_add_path(importexport_props, C64_CONFIG_IMPORT_PATH_KEY,
-                                                               obs_module_text("ImportConfigPath"), OBS_PATH_FILE,
-                                                               "INI Files (*.ini);;All Files (*.*)", NULL);
-    obs_property_set_long_description(import_path_prop, obs_module_text("ImportConfigPath.Description"));
-    obs_properties_add_button(importexport_props, "import_config", obs_module_text("ImportConfig"),
-                              import_config_clicked);
-
-    // Export configuration (INI)
-    obs_property_t *export_path_prop = obs_properties_add_path(importexport_props, C64_CONFIG_EXPORT_PATH_KEY,
-                                                               obs_module_text("ExportConfigPath"), OBS_PATH_FILE_SAVE,
-                                                               "INI Files (*.ini);;All Files (*.*)", NULL);
-    obs_property_set_long_description(export_path_prop, obs_module_text("ExportConfigPath.Description"));
-    obs_properties_add_button(importexport_props, "export_config", obs_module_text("ExportConfig"),
-                              export_config_clicked);
-
-    // Reset config import/export paths with fresh timestamps each time properties are opened
-    // This ensures the user can simply click "export" without having to navigate or rename
+    // Set initialization flag to prevent auto-import/export during properties UI setup
     {
-        obs_data_t *config_path_settings = obs_source_get_settings(context->source);
-        char config_export_file[512];
-        char config_import_dir[512];
-        c64_default_export_ini_path(config_export_file, sizeof(config_export_file));
+        obs_data_t *init_settings = obs_source_get_settings(context->source);
+        obs_data_set_bool(init_settings, C64_CONFIG_INITIALIZING_KEY, true);
+        obs_data_release(init_settings);
+    }
 
-        // Derive import directory from export file path so the user can browse existing exports
-        strncpy(config_import_dir, config_export_file, sizeof(config_import_dir));
-        config_import_dir[sizeof(config_import_dir) - 1] = '\0';
+    // Import settings (INI) - action triggers immediately when file is selected
+    obs_property_t *import_path_prop = obs_properties_add_path(importexport_props, C64_CONFIG_IMPORT_PATH_KEY,
+                                                               obs_module_text("ImportSettings"), OBS_PATH_FILE,
+                                                               "INI Files (*.ini);;All Files (*.*)", NULL);
+    obs_property_set_long_description(import_path_prop, obs_module_text("ImportSettings.Description"));
 
-        char *last_sep = strrchr(config_import_dir, '/');
-#ifdef _WIN32
-        char *last_backslash = strrchr(config_import_dir, '\\');
-        if (!last_sep || (last_backslash && last_backslash > last_sep))
-            last_sep = last_backslash;
-#endif
-        if (last_sep) {
-            *last_sep = '\0';
-        } else {
-            // Fallback to empty string (current directory) if no separator found
-            config_import_dir[0] = '\0';
+    // Set default directory path BEFORE registering callback to avoid triggering it
+    {
+        char settings_dir[512];
+        if (c64_get_user_dir(C64_USER_DIR_SETTINGS, settings_dir, sizeof(settings_dir))) {
+            // Ensure trailing slash to clearly indicate directory
+            size_t len = strlen(settings_dir);
+            if (len > 0 && len < sizeof(settings_dir) - 2 && settings_dir[len - 1] != '/' &&
+                settings_dir[len - 1] != '\\') {
+                settings_dir[len] = '/';
+                settings_dir[len + 1] = '\0';
+            }
+            obs_data_t *path_settings = obs_source_get_settings(context->source);
+            obs_data_set_default_string(path_settings, C64_CONFIG_IMPORT_PATH_KEY, settings_dir);
+            obs_data_release(path_settings);
         }
+    }
 
-        obs_data_set_string(config_path_settings, C64_CONFIG_EXPORT_PATH_KEY, config_export_file);
-        obs_data_set_string(config_path_settings, C64_CONFIG_IMPORT_PATH_KEY, config_import_dir);
-        obs_data_release(config_path_settings);
+    obs_property_set_modified_callback(import_path_prop, config_import_path_changed);
+
+    // Export settings (INI) - action triggers immediately when destination is selected
+    obs_property_t *export_path_prop = obs_properties_add_path(importexport_props, C64_CONFIG_EXPORT_PATH_KEY,
+                                                               obs_module_text("ExportSettings"), OBS_PATH_FILE_SAVE,
+                                                               "INI Files (*.ini);;All Files (*.*)", NULL);
+    obs_property_set_long_description(export_path_prop, obs_module_text("ExportSettings.Description"));
+
+    // Set default directory path BEFORE registering callback to avoid triggering it
+    // CRITICAL: Use DIRECTORY (with trailing slash), not filename, to prevent spurious export
+    // If we set a filename, the callback might trigger and create the file automatically
+    {
+        char settings_dir[512];
+        if (c64_get_user_dir(C64_USER_DIR_SETTINGS, settings_dir, sizeof(settings_dir))) {
+            // Ensure trailing slash to clearly indicate directory
+            size_t len = strlen(settings_dir);
+            if (len > 0 && len < sizeof(settings_dir) - 2 && settings_dir[len - 1] != '/' &&
+                settings_dir[len - 1] != '\\') {
+                settings_dir[len] = '/';
+                settings_dir[len + 1] = '\0';
+            }
+            obs_data_t *path_settings = obs_source_get_settings(context->source);
+            obs_data_set_default_string(path_settings, C64_CONFIG_EXPORT_PATH_KEY, settings_dir);
+            obs_data_release(path_settings);
+        }
+    }
+
+    obs_property_set_modified_callback(export_path_prop, config_export_path_changed);
+
+    // Clear initialization flag now that properties UI setup is complete
+    {
+        obs_data_t *init_settings = obs_source_get_settings(context->source);
+        obs_data_erase(init_settings, C64_CONFIG_INITIALIZING_KEY);
+        obs_data_release(init_settings);
     }
 
     return props;
@@ -479,46 +525,6 @@ static void c64_default_palette_export_path(char *path, size_t path_size)
 
     // Fallback: current directory
     path[0] = '\0';
-}
-
-static void c64_default_export_ini_path(char *path, size_t path_size)
-{
-    if (!path || path_size < 64)
-        return;
-
-    // Generate timestamp filename
-    time_t now = time(NULL);
-    struct tm *tm_info = localtime(&now);
-    char timestamp[32];
-    strftime(timestamp, sizeof(timestamp), "%Y%m%d_%H%M%S", tm_info);
-
-    // Get exports directory
-    char exports_dir[512];
-    if (c64_get_user_dir(C64_USER_DIR_EXPORTS, exports_dir, sizeof(exports_dir))) {
-        // Validate combined path length
-        size_t dir_len = strlen(exports_dir);
-        size_t ts_len = strlen(timestamp);
-        // Need: dir + "/" + "c64stream_" + timestamp + ".ini" + null = dir + 26 + ts_len
-        if (dir_len + 27 + ts_len < path_size) {
-            // Suppress truncation warning - we've manually validated the length above
-#if defined(__GNUC__) && !defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wformat-truncation"
-#endif
-#ifdef _WIN32
-            snprintf(path, path_size, "%s\\c64stream_%s.ini", exports_dir, timestamp);
-#else
-            snprintf(path, path_size, "%s/c64stream_%s.ini", exports_dir, timestamp);
-#endif
-#if defined(__GNUC__) && !defined(__clang__)
-#pragma GCC diagnostic pop
-#endif
-            return;
-        }
-    }
-
-    // Fallback: current directory with timestamp
-    snprintf(path, path_size, "c64stream_%s.ini", timestamp);
 }
 
 static bool c64_ensure_parent_dir_exists(const char *file_path)
@@ -917,13 +923,9 @@ void c64_set_property_defaults(obs_data_t *settings)
         obs_data_set_default_string(settings, "save_folder", platform_path);
     }
 
-    // Default export/import path for sharing settings.
-    {
-        char ini_path[512];
-        c64_default_export_ini_path(ini_path, sizeof(ini_path));
-        obs_data_set_default_string(settings, C64_CONFIG_EXPORT_PATH_KEY, ini_path);
-        obs_data_set_default_string(settings, C64_CONFIG_IMPORT_PATH_KEY, ini_path);
-    }
+    // NOTE: Do NOT set default export/import paths
+    // Setting defaults triggers modified callbacks which cause spurious exports
+    // The file browser will handle appropriate directory navigation
 
     // Video recording defaults
     obs_data_set_default_bool(settings, "record_video", false); // Disabled by default
@@ -964,78 +966,180 @@ void c64_set_property_defaults(obs_data_t *settings)
     c64_load_configuration(settings);
 }
 
-static bool export_config_clicked(obs_properties_t *props, obs_property_t *property, void *data)
+// Generic helper to ensure path ends with specified extension
+static void c64_ensure_file_extension(char *path, size_t path_size, const char *extension)
 {
-    UNUSED_PARAMETER(props);
-    UNUSED_PARAMETER(property);
+    if (!path || !extension || path_size < 5 || path[0] == '\0')
+        return;
 
-    struct c64_source *context = (struct c64_source *)data;
-    if (!context || !context->source)
-        return false;
+    size_t ext_len = strlen(extension);
+    if (ext_len == 0 || ext_len > 10) // Sanity check
+        return;
 
-    obs_data_t *settings = obs_source_get_settings(context->source);
-    if (!settings)
-        return false;
+    size_t len = strlen(path);
 
-    const char *path = obs_data_get_string(settings, C64_CONFIG_EXPORT_PATH_KEY);
-    char fallback_path[512];
-    if (!path || path[0] == '\0') {
-        c64_default_export_ini_path(fallback_path, sizeof(fallback_path));
-        obs_data_set_string(settings, C64_CONFIG_EXPORT_PATH_KEY, fallback_path);
-        path = fallback_path;
+    // Check if path already ends with the extension (case-insensitive)
+    if (len >= ext_len + 1) { // +1 for the dot
+        const char *existing_ext = path + len - ext_len - 1;
+        if (existing_ext[0] == '.' && strcasecmp(existing_ext + 1, extension) == 0)
+            return; // Already has the correct extension
     }
 
-    const bool ok = c64_export_settings_to_ini(settings, path);
-    if (ok) {
-        C64_LOG_INFO("Exported C64 Stream settings to %s", path);
-    } else {
-        C64_LOG_WARNING("Failed to export C64 Stream settings to %s", path ? path : "(null)");
+    // Check if path ends with a dot (e.g., "file.")
+    if (len >= 1 && path[len - 1] == '.') {
+        // Append extension to existing dot
+        if (len + ext_len < path_size) {
+            strcat(path, extension);
+        }
+        return;
     }
 
-    obs_data_release(settings);
-    return ok; // Refresh so the path field updates if we filled the fallback path.
+    // Append .extension
+    if (len + ext_len + 1 < path_size) {
+        strcat(path, ".");
+        strcat(path, extension);
+    }
 }
 
-static bool import_config_clicked(obs_properties_t *props, obs_property_t *property, void *data)
+// Helper function to ensure path ends with .ini extension
+static void c64_ensure_ini_extension(char *path, size_t path_size)
+{
+    c64_ensure_file_extension(path, path_size, "ini");
+}
+
+// Helper function to ensure path ends with .vpl extension
+static void c64_ensure_vpl_extension(char *path, size_t path_size)
+{
+    c64_ensure_file_extension(path, path_size, "vpl");
+}
+
+// Helper function to detect if a path appears to be a directory (not a file)
+// Returns true if path is likely a directory, false if it appears to be a file path
+static bool c64_path_is_directory(const char *path)
+{
+    if (!path || !path[0])
+        return true; // Empty path treated as directory
+
+    const char *path_ext = strrchr(path, '.');
+    const char *last_sep = strrchr(path, '/');
+#ifdef _WIN32
+    const char *last_backslash = strrchr(path, '\\');
+    if (last_backslash && (!last_sep || last_backslash > last_sep))
+        last_sep = last_backslash;
+#endif
+
+    // If the extension comes before the last separator, it's not a file extension
+    if (path_ext && last_sep && path_ext < last_sep) {
+        path_ext = NULL;
+    }
+
+    // If no extension or no filename component, this is likely a directory
+    if (!path_ext && last_sep && last_sep[1] == '\0') {
+        return true;
+    }
+
+    return false;
+}
+
+static bool config_export_path_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings)
 {
     UNUSED_PARAMETER(props);
     UNUSED_PARAMETER(property);
 
-    struct c64_source *context = (struct c64_source *)data;
-    if (!context || !context->source)
-        return false;
-
-    obs_data_t *settings = obs_source_get_settings(context->source);
     if (!settings)
         return false;
+
+    // CRITICAL: Never export during initialization
+    // This prevents spurious exports when properties dialog opens
+    if (obs_data_get_bool(settings, C64_CONFIG_INITIALIZING_KEY)) {
+        return false;
+    }
+
+    const char *path = obs_data_get_string(settings, C64_CONFIG_EXPORT_PATH_KEY);
+    if (!path || path[0] == '\0') {
+        return false;
+    }
+
+    // Check if we already processed this exact path
+    const char *last_path = obs_data_get_string(settings, C64_CONFIG_EXPORT_LAST_KEY);
+    if (last_path && strcmp(path, last_path) == 0) {
+        return false; // Already processed
+    }
+
+    // CRITICAL: Don't export if the path is a directory (not an .ini file)
+    if (c64_path_is_directory(path)) {
+        return false;
+    }
+
+    // Copy path and ensure .ini extension
+    char export_path[512];
+    strncpy(export_path, path, sizeof(export_path) - 1);
+    export_path[sizeof(export_path) - 1] = '\0';
+    c64_ensure_ini_extension(export_path, sizeof(export_path));
+
+    const bool ok = c64_export_settings_to_ini(settings, export_path);
+    if (ok) {
+        C64_LOG_INFO("Exported C64 Stream settings to %s", export_path);
+
+        // Update the path field to show the actual path with .ini extension
+        if (strcmp(path, export_path) != 0) {
+            obs_data_set_string(settings, C64_CONFIG_EXPORT_PATH_KEY, export_path);
+        }
+
+        // Remember this path so we don't re-export if callback fires again
+        obs_data_set_string(settings, C64_CONFIG_EXPORT_LAST_KEY, export_path);
+    } else {
+        C64_LOG_WARNING("Failed to export C64 Stream settings to %s", export_path);
+    }
+
+    return true; // Refresh UI
+}
+
+static bool config_import_path_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings)
+{
+    UNUSED_PARAMETER(props);
+    UNUSED_PARAMETER(property);
+
+    if (!settings)
+        return false;
+
+    // CRITICAL: Never import during initialization
+    // This prevents spurious imports when properties dialog opens
+    if (obs_data_get_bool(settings, C64_CONFIG_INITIALIZING_KEY)) {
+        return false;
+    }
 
     const char *path = obs_data_get_string(settings, C64_CONFIG_IMPORT_PATH_KEY);
     if (!path || path[0] == '\0') {
-        C64_LOG_WARNING("Import: no configuration file selected");
-        obs_data_release(settings);
         return false;
     }
 
+    // Check if we already processed this exact path
+    const char *last_path = obs_data_get_string(settings, C64_CONFIG_IMPORT_LAST_KEY);
+    if (last_path && strcmp(path, last_path) == 0) {
+        return false; // Already processed
+    }
+
+    // Check if this is a file (not just a directory)
     if (!os_file_exists(path)) {
         C64_LOG_WARNING("Import: file does not exist: %s", path);
-        obs_data_release(settings);
         return false;
     }
 
     const bool ok = c64_apply_ini_to_settings(settings, path);
     if (ok) {
-        obs_source_update(context->source, settings);
-
         // Refresh color editor to reflect imported palette colors
         update_palette_color_properties(settings);
 
         C64_LOG_INFO("Imported C64 Stream settings from %s", path);
+
+        // Remember this path so we don't re-import if callback fires again
+        obs_data_set_string(settings, C64_CONFIG_IMPORT_LAST_KEY, path);
     } else {
         C64_LOG_WARNING("Failed to import C64 Stream settings from %s", path);
     }
 
-    obs_data_release(settings);
-    return true; // Always refresh so the UI reflects whatever happened.
+    return true; // Refresh UI
 }
 
 // ============================================================================
@@ -1135,9 +1239,21 @@ static bool palette_import_path_changed(obs_properties_t *props, obs_property_t 
         return false;
     }
 
+    // CRITICAL: Never import during initialization
+    // This prevents spurious palette imports when properties dialog opens
+    if (obs_data_get_bool(settings, C64_PALETTE_INITIALIZING_KEY)) {
+        return false;
+    }
+
     const char *path = obs_data_get_string(settings, "palette_import_path");
     if (!path || !path[0]) {
         return false;
+    }
+
+    // Check if we already processed this exact path
+    const char *last_path = obs_data_get_string(settings, C64_PALETTE_IMPORT_LAST_KEY);
+    if (last_path && strcmp(path, last_path) == 0) {
+        return false; // Already processed
     }
 
     // Check if this is a file (not just a directory)
@@ -1162,6 +1278,9 @@ static bool palette_import_path_changed(obs_properties_t *props, obs_property_t 
 
         // Update color pickers
         update_palette_color_properties(settings);
+
+        // Remember this path so we don't re-import if callback fires again
+        obs_data_set_string(settings, C64_PALETTE_IMPORT_LAST_KEY, path);
     } else {
         C64_LOG_WARNING("Failed to import palette from: %s", path);
     }
@@ -1181,25 +1300,33 @@ static bool palette_export_path_changed(obs_properties_t *props, obs_property_t 
         return false;
     }
 
+    // CRITICAL: Never export during initialization
+    // This prevents spurious palette file creation when properties dialog opens
+    if (obs_data_get_bool(settings, C64_PALETTE_INITIALIZING_KEY)) {
+        return false;
+    }
+
     const char *path = obs_data_get_string(settings, "palette_export_path");
     if (!path || !path[0]) {
         return false;
     }
 
-    // Ensure path ends with .vpl extension
-    char full_path[512];
-    const char *path_ext = strrchr(path, '.');
-    bool has_vpl = (path_ext && strcasecmp(path_ext, ".vpl") == 0);
-
-    if (has_vpl) {
-        strncpy(full_path, path, sizeof(full_path) - 1);
-    } else {
-        snprintf(full_path, sizeof(full_path), "%s.vpl", path);
+    // Check if we already processed this exact path
+    const char *last_path = obs_data_get_string(settings, C64_PALETTE_EXPORT_LAST_KEY);
+    if (last_path && strcmp(path, last_path) == 0) {
+        return false; // Already processed
     }
-    full_path[sizeof(full_path) - 1] = '\0';
 
-    // Update settings with the corrected path
-    obs_data_set_string(settings, "palette_export_path", full_path);
+    // CRITICAL: Don't export if the path is a directory (not a .vpl file)
+    if (c64_path_is_directory(path)) {
+        return false;
+    }
+
+    // Copy path and ensure .vpl extension
+    char full_path[512];
+    strncpy(full_path, path, sizeof(full_path) - 1);
+    full_path[sizeof(full_path) - 1] = '\0';
+    c64_ensure_vpl_extension(full_path, sizeof(full_path));
 
     // Extract name from filename
     char name[64];
@@ -1230,11 +1357,19 @@ static bool palette_export_path_changed(obs_properties_t *props, obs_property_t 
     if (ok) {
         C64_LOG_INFO("Palette exported to: %s", full_path);
 
+        // Update the path field to show the actual path with .vpl extension
+        if (strcmp(path, full_path) != 0) {
+            obs_data_set_string(settings, "palette_export_path", full_path);
+        }
+
         // Repopulate the palette dropdown in case export created a new palette
         obs_property_t *palette_prop = obs_properties_get(props, C64_PALETTE_KEY);
         if (palette_prop) {
             c64_palette_populate_list(palette_prop);
         }
+
+        // Remember the corrected path so we don't re-export if callback fires again
+        obs_data_set_string(settings, C64_PALETTE_EXPORT_LAST_KEY, full_path);
     } else {
         C64_LOG_WARNING("Failed to export palette to: %s", full_path);
     }

@@ -291,7 +291,7 @@ Recreate the authentic look and feel of classic CRT monitors and TVs with config
 - **[Amber Monitor](./docs/images/effects/amber-monitor.png)** - Warm amber tint reminiscent of early computer monitors
 - **[Green Monitor](./docs/images/effects/green-monitor.png)** - Classic green phosphor terminal look
 - **[Sharp Pixels](./docs/images/effects/sharp-pixels.png)** - Crisp pixel doubling for arcade-style clarity
-- **[Phosphor Glow](./docs/images/effects/phosphor-glow.png)** (since version 1.0.0) - Dramatic phosphor persistence trails with extended afterglow. The sample image here was taken from the automated E2E test which shows an afterglow for each moving diagonal line.
+- **[Phosphor Glow](./docs/images/effects/phosphor-glow.png)** - Dramatic phosphor persistence trails with extended afterglow. The sample image here was taken from the automated E2E test which shows an afterglow for each moving diagonal line.
 - **[Vintage TV](./docs/images/effects/vintage-tv.png)** - Softer look with prominent scan lines for old television feel
 - **[Arcade Cabinet](./docs/images/effects/arcade-cabinet.png)** - High-contrast effects for authentic arcade experience
 
@@ -301,7 +301,7 @@ Recreate the authentic look and feel of classic CRT monitors and TVs with config
 - **Bloom:** Glow effect that makes bright pixels bleed into darker areas
 - **Pixel Geometry:** Independent width/height scaling for authentic pixel aspect ratios
 - **Blur Control:** Fine-tune between crisp pixels and soft scaling
-- **Afterglow** (since release 1.0.0): CRT phosphor persistence effect (0-250ms) with configurable decay curves
+- **Afterglow**: CRT phosphor persistence effect (0-250ms) with configurable decay curves
 - **Screen Tint:** Amber, green, or monochrome overlays for period-accurate monitor simulation
 
 **Usage:** Access via the **Effects** group in plugin properties. Select a preset for instant results, or customize individual settings to create your perfect retro display aesthetic.
@@ -328,8 +328,6 @@ The **Scan Line Strength** slider (0.0–1.0) controls how dark the gaps appear.
 
 ### Color Palettes 🎨
 
-(since version 1.0.0)
-
 Customize the VIC-II color palette to match different C64 hardware variants, personal preferences, or artistic styles. The palette system supports both shipped (preset) and user-defined (custom) palettes.
 
 ![C64 Stream Palettes](./docs/images/properties-palettes.png "C64 Stream Palettes")
@@ -349,8 +347,8 @@ Customize the VIC-II color palette to match different C64 hardware variants, per
 **Palette Controls:**
 
 - **Palette Dropdown:** Select from shipped palettes or any custom palettes you've added
-- **Import:** Imports a `.vpl` file
-- **Export:** Exports the currently active palette (with any color adjustments) to a `.vpl` file
+- **Import palette:** Imports a `.vpl` file
+- **Export palette:** Exports the currently active palette (with any color adjustments) to a `.vpl` file
 - **Color Editor:** Expand to access 16 color pickers (0-15) for editing individual VIC-II colors. Changes apply immediately to the video output
 
 **Auto-Save Behavior:**
@@ -389,12 +387,12 @@ FF FF FF
 
 ### Import/Export Configuration
 
-Save and restore your complete plugin settings:
+Import and export your complete plugin settings:
 
-- **Export:** Click to save all current settings to a `.ini` file. Use this to backup configurations, share setups, or attach to bug reports
-- **Import:** Click to load settings from a previously exported `.ini` file. All current settings will be replaced
+- **Import settings:** Click to load settings from a previously exported `.ini` file. All current settings will be replaced
+- **Export settings:** Click to save all current settings to a `.ini` file. Use this to backup configurations, share setups, or attach to bug reports
 
-Exported configurations are saved to the [exports directory](#file-system-structure-).
+Exported configurations are saved to the [settings directory](#file-system-structure-).
 
 ### File System Structure 📁
 
@@ -445,10 +443,9 @@ For easy access, simple backups, and visibility, it is always stored in `<Docume
 
 ```
 <Documents>/obs-studio/c64stream/
-├── exports/         # Exported configuration files (.ini)
+├── settings/        # Exported configuration files (.ini)
 ├── palettes/        # Custom palette files (.vpl)
-├── recordings/      # Recording session folders
-└── presets/         # Custom effect presets (future)
+└── recordings/      # Recording session folders
 ```
 
 **Sample Locations:**

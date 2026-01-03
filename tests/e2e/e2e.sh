@@ -226,20 +226,46 @@ ensure_udp_buffers() {
         return 0  # Already adequate
     fi
 
-    # Try to increase (best-effort, will fail in CI containers)
+    # Try to increase permanently (best-effort, will fail in CI containers)
+    # Only attempt if we have sudo AND we're in an interactive session
     if [[ "$(id -u)" == "0" ]]; then
+        # Running as root - apply directly and make persistent
         sysctl -w net.core.rmem_max=${target_buffer} >/dev/null 2>&1
         sysctl -w net.core.wmem_max=${target_buffer} >/dev/null 2>&1
-    elif command -v sudo >/dev/null 2>&1; then
-        sudo sysctl -w net.core.rmem_max=${target_buffer} >/dev/null 2>&1
-        sudo sysctl -w net.core.wmem_max=${target_buffer} >/dev/null 2>&1
+        # Make persistent
+        echo "net.core.rmem_max = ${target_buffer}" > /etc/sysctl.d/99-c64stream-udp.conf
+        echo "net.core.wmem_max = ${target_buffer}" >> /etc/sysctl.d/99-c64stream-udp.conf
+    elif command -v sudo >/dev/null 2>&1 && [[ -t 0 ]]; then
+        # Interactive terminal: offer to increase buffers permanently (one-time setup)
+        log_warning "UDP receive buffer too small: ${current_rmem_max} bytes (< ${target_buffer} recommended)"
+        log_info "High-jitter tests may drop packets without larger buffers."
+        echo ""
+        echo "This is a one-time setup that will:"
+        echo "  1. Increase UDP buffers to 8MB immediately"
+        echo "  2. Make the change persistent (survives reboots)"
+        echo "  3. Create: /etc/sysctl.d/99-c64stream-udp.conf"
+        echo ""
+        echo -n "Increase UDP buffers permanently (requires sudo)? [y/N] "
+        read -r response
+        if [[ "${response}" =~ ^[Yy] ]]; then
+            # Create persistent configuration
+            echo "net.core.rmem_max = ${target_buffer}" | sudo tee /etc/sysctl.d/99-c64stream-udp.conf >/dev/null
+            echo "net.core.wmem_max = ${target_buffer}" | sudo tee -a /etc/sysctl.d/99-c64stream-udp.conf >/dev/null
+            # Apply immediately
+            sudo sysctl -p /etc/sysctl.d/99-c64stream-udp.conf >/dev/null 2>&1
+            log_success "UDP buffers increased permanently"
+        else
+            log_info "Skipping UDP buffer increase (tests will use MIN_PACKET_DELAY)"
+        fi
     fi
 
     local new_rmem_max=$(cat /proc/sys/net/core/rmem_max 2>/dev/null || echo "0")
     if [[ "${new_rmem_max}" -ge "${target_buffer}" ]]; then
         log_success "UDP buffers: ${new_rmem_max} bytes"
     else
-        log_info "UDP buffers: ${new_rmem_max} bytes (CI limit; test uses MIN_PACKET_DELAY)"
+        # CI/non-interactive: Tests adapt to smaller buffers with MIN_PACKET_DELAY
+        log_info "UDP buffers: ${new_rmem_max} bytes (tests will use MIN_PACKET_DELAY)"
+        log_info "This is expected in CI environments (kernel parameters are read-only)"
     fi
 }
 

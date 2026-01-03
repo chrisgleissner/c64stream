@@ -177,8 +177,8 @@ bool c64_get_user_dir(c64_user_dir_type type, char *path_buffer, size_t buffer_s
     case C64_USER_DIR_PALETTES:
         subdir = "palettes";
         break;
-    case C64_USER_DIR_EXPORTS:
-        subdir = "exports";
+    case C64_USER_DIR_SETTINGS:
+        subdir = "settings";
         break;
     case C64_USER_DIR_PRESETS:
         subdir = "presets";

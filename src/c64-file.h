@@ -36,7 +36,7 @@ typedef enum {
     C64_USER_DIR_ROOT,       // ~/Documents/obs-studio/c64stream/
     C64_USER_DIR_RECORDINGS, // ~/Documents/obs-studio/c64stream/recordings/
     C64_USER_DIR_PALETTES,   // ~/Documents/obs-studio/c64stream/palettes/
-    C64_USER_DIR_EXPORTS,    // ~/Documents/obs-studio/c64stream/exports/
+    C64_USER_DIR_SETTINGS,   // ~/Documents/obs-studio/c64stream/settings/
     C64_USER_DIR_PRESETS     // ~/Documents/obs-studio/c64stream/presets/
 } c64_user_dir_type;
 
