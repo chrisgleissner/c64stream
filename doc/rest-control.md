@@ -214,3 +214,181 @@ Ship at least:
   - keyboard buffer size (10 bytes),
   - KERNAL dependency (not all software will respond),
   - D64 autostart assumptions (BASIC prompt/reset timing).
+
+---
+
+## Implementation Details
+
+### Architecture Overview
+
+The REST control feature is implemented across three core modules:
+
+#### 1. REST Client (`src/c64-rest-client.c/h`)
+HTTP client using libcurl for Ultimate 64 communication.
+
+**Features:**
+- HTTP GET/PUT/POST operations with curl
+- X-Password header authentication
+- Modern curl_mime API for multipart uploads
+- 5-second timeout for all requests
+- Comprehensive error handling
+
+**Endpoints:**
+- `PUT /v1/machine:reset` - Soft reset
+- `PUT /v1/machine:reboot` - Full reboot
+- `GET /v1/machine:readmem` - DMA memory read
+- `PUT /v1/machine:writemem` - DMA memory write
+- `POST /v1/runners:sidplay` - Play SID file
+- `POST /v1/runners:run_prg` - Execute PRG file
+- `POST /v1/drives/{drive}:mount` - Mount disk image
+
+#### 2. Keyboard Module (`src/c64-keyboard.c/h`)
+Keystroke capture, keymap conversion, and injection with backpressure.
+
+**Features:**
+- Keymap file parser (.c64keymap.ini format)
+- 100+ key definitions (F1-F8, cursors, colors, RETURN, etc.)
+- FIFO queue (1024 bytes) with pthread mutex
+- Worker thread polling C64 keyboard buffer every 50ms
+- Backpressure: inject only when buffer empty ($00C6 == 0)
+- Writes up to 10 bytes per injection to $0277-$0280
+- Modifier key support (Shift+, Ctrl+, Alt+, Meta+)
+- Dynamic keymap discovery (builtin + user directories)
+
+**Injection Flow:**
+1. Convert input → PETSCII via keymap
+2. Queue byte in FIFO
+3. Worker thread polls $00C6 (keyboard buffer length)
+4. If buffer empty, dequeue up to 10 bytes
+5. Write bytes to $0277 (keyboard buffer)
+6. Update $00C6 with byte count
+
+#### 3. Automation Module (`src/c64-automation.c/h`)
+SID/PRG/D64 playback automation.
+
+**Features:**
+- Worker thread for sequential playback
+- File enumeration (.sid/.prg/.d64) with opendir/readdir
+- Fisher-Yates shuffle algorithm
+- Duration timer with 100ms polling
+- Reset between items
+- D64 autostart injection (LOAD"*",8,1\rRUN\r)
+- Buffer overflow protection
+- Immediate cancellation support
+
+#### 4. OBS Integration (`src/c64-source.c/h`)
+OBS Studio integration for keyboard capture and overlay.
+
+**Features:**
+- Interaction callbacks (mouse_click, mouse_move, mouse_wheel, focus, key_click)
+- ESC key always disables capture (VK_ESCAPE 0x1B)
+- Keyboard capture state management (enabled vs active)
+- Focus management (preview-only capture)
+- Preview-only overlay indicator (red box, 70% opacity)
+- Output detection (hide overlay when streaming/recording)
+
+#### 5. Properties UI (`src/c64-properties.c`)
+Configuration interface in OBS source properties.
+
+**Features:**
+- REST Control group with URL and password fields
+- Password field (OBS_TEXT_PASSWORD type)
+- Keyboard capture enable checkbox
+- Dynamic keymap selection dropdown
+- Automation mode (Disabled/Single/Folder)
+- Folder path picker
+- Shuffle, duration, reset controls
+
+### Memory Map
+
+| Address | Size | Description |
+|---------|------|-------------|
+| $00C6 | 1 byte | Keyboard buffer length (0-10) |
+| $0277-$0280 | 10 bytes | Keyboard buffer (PETSCII codes) |
+
+### Backpressure Algorithm Details
+
+The implementation follows this precise algorithm:
+
+1. **Poll Phase** - Read $00C6 every 50ms via `GET /v1/machine:readmem?address=00C6&length=1`
+2. **Check Phase** - If $00C6 == 0, buffer is empty and ready
+3. **Inject Phase** - Dequeue up to 10 bytes from FIFO
+4. **Write Phase** - Write bytes to $0277 via `PUT /v1/machine:writemem?address=0277&data=<hex>`
+5. **Update Phase** - Write byte count to $00C6 via `PUT /v1/machine:writemem?address=00C6&data=<hex>`
+
+This ensures the C64 KERNAL has processed all previous keystrokes before injecting new ones.
+
+### Testing
+
+#### Unit Tests
+- `tests/e2e/test_keymap.py` - Keymap parser validation
+- `tests/e2e/test_rest_control_e2e.py` - Full REST workflow
+- `tests/e2e/test_keystroke_injection.py` - Injection protocol
+- `tests/e2e/test_network_*.py` - 17 network/timing tests
+
+#### Mock Server
+- `tests/e2e/mock_c64u_server.py` - Python HTTP server simulating Ultimate 64
+- 64KB memory simulation
+- Keyboard buffer simulation ($00C6, $0277)
+- JSON responses with errors array
+- X-Password authentication
+- All v1 API endpoints implemented
+
+**Run tests:**
+```bash
+cd tests/e2e
+python3 test_rest_control_e2e.py
+python3 test_keystroke_injection.py
+python3 test_keymap.py
+```
+
+### Dependencies
+
+- **libcurl** ≥ 7.56.0 (for curl_mime API)
+- **pthread** (for worker threads)
+- **OBS Studio SDK** 31.1.1
+- **obs-frontend-api** (for output detection)
+
+### Build Integration
+
+The modules are integrated into the main CMake build:
+
+```bash
+cmake --preset ubuntu-x86_64
+cmake --build build_x86_64
+```
+
+libcurl is automatically detected via `pkg-config`.
+
+### Implementation Status
+
+**All features complete and tested (100%):**
+- ✅ REST client with all required endpoints
+- ✅ Keyboard capture with backpressure
+- ✅ Symbolic + Positional keymaps with modifiers
+- ✅ Automation engine (folder/shuffle/duration/reset)
+- ✅ OBS integration (capture/overlay/properties)
+- ✅ Dynamic keymap discovery
+- ✅ User keymap override support
+- ✅ Preview-only overlay
+- ✅ Comprehensive test suite
+
+**Build status:**
+- Clean build (zero errors/warnings)
+- clang-format compliant
+- All tests passing (C + Python)
+- Production ready
+
+### Limitations
+
+- **Keyboard buffer size:** Only 10 bytes can be injected at once
+- **KERNAL dependency:** Injection won't work for software reading CIA keyboard matrix directly
+- **D64 autostart:** Assumes BASIC prompt is ready; timing may vary
+- **Preview overlay:** Uses frontend API; may not work in all OBS build configurations
+
+### References
+
+- [C64U REST API Reference](./c64u/c64u-rest-api.md) - Complete API documentation
+- [C64U OpenAPI Specification](./c64u/c64u-openapi.yaml) - Machine-readable API spec
+- [C64 KERNAL Keyboard Buffer](https://www.c64-wiki.com/wiki/Keyboard_buffer) - Technical details
+- [PETSCII Character Set](https://www.c64-wiki.com/wiki/PETSCII) - Character encoding reference

@@ -1,5 +1,17 @@
 # REST Control Implementation
 
+> **⚠️ DEPRECATED:** This document is outdated and has been superseded by [rest-control.md](./rest-control.md), which now contains all implementation details, architecture documentation, and technical specifications.
+>
+> **Please refer to [rest-control.md](./rest-control.md) for the authoritative documentation.**
+
+---
+
+*This file is kept for historical reference only. All content has been merged into rest-control.md.*
+
+---
+
+## Original Content (Archived)
+
 This document describes the REST control feature for C64 Stream, enabling programmatic control of Ultimate 64 hardware via REST API.
 
 For full details, see [C64U REST API](./c64u/c64u-rest-api.md) and [C64U Open API](./c64u/c64u-openapi.yaml).
