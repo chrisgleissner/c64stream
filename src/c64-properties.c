@@ -353,19 +353,10 @@ obs_properties_t *c64_create_properties(void *data)
     obs_property_set_long_description(export_path, obs_module_text("PaletteExportTo.Description"));
     obs_property_set_modified_callback(export_path, palette_export_path_changed);
 
-    // Set default paths for palette import/export (shown as placeholder)
-    // CRITICAL: Use set_default_string ONLY (not set_string) to avoid triggering modified callback
-    // which would auto-export palette when properties dialog opens
-    {
-        obs_data_t *path_settings = obs_source_get_settings(context->source);
-        char palette_import_dir[512];
-        char palette_export_file[512];
-        c64_default_palette_import_path(palette_import_dir, sizeof(palette_import_dir));
-        c64_default_palette_export_path(palette_export_file, sizeof(palette_export_file));
-        obs_data_set_default_string(path_settings, "palette_import_path", palette_import_dir);
-        obs_data_set_default_string(path_settings, "palette_export_path", palette_export_file);
-        obs_data_release(path_settings);
-    }
+    // NOTE: Do NOT set default paths for palette import/export
+    // The file browser will start in the appropriate directory automatically
+    // Setting defaults can trigger spurious exports when the dialog opens
+    // Let the user choose paths explicitly via the file browser
 
     // Delete button
     obs_property_t *delete_btn = obs_properties_add_button2(
@@ -432,38 +423,10 @@ obs_properties_t *c64_create_properties(void *data)
     obs_property_set_long_description(export_path_prop, obs_module_text("ExportSettingsTo.Description"));
     obs_property_set_modified_callback(export_path_prop, config_export_path_changed);
 
-    // Reset config import/export paths with fresh timestamps each time properties are opened
-    // This ensures the user can simply use the Browse button without having to navigate or rename
-    {
-        obs_data_t *config_path_settings = obs_source_get_settings(context->source);
-        char config_export_file[512];
-        char config_import_dir[512];
-        c64_default_export_ini_path(config_export_file, sizeof(config_export_file));
-
-        // Derive import directory from export file path so the user can browse existing exports
-        strncpy(config_import_dir, config_export_file, sizeof(config_import_dir));
-        config_import_dir[sizeof(config_import_dir) - 1] = '\0';
-
-        char *last_sep = strrchr(config_import_dir, '/');
-#ifdef _WIN32
-        char *last_backslash = strrchr(config_import_dir, '\\');
-        if (!last_sep || (last_backslash && last_backslash > last_sep))
-            last_sep = last_backslash;
-#endif
-        if (last_sep) {
-            *last_sep = '\0';
-        } else {
-            // Fallback to empty string (current directory) if no separator found
-            config_import_dir[0] = '\0';
-        }
-
-        obs_data_set_string(config_path_settings, C64_CONFIG_EXPORT_PATH_KEY, config_export_file);
-        obs_data_set_string(config_path_settings, C64_CONFIG_IMPORT_PATH_KEY, config_import_dir);
-
-        // Clear initialization flag now that properties UI setup is complete
-        obs_data_erase(config_path_settings, C64_CONFIG_INITIALIZING_KEY);
-        obs_data_release(config_path_settings);
-    }
+    // NOTE: Do NOT set default paths for config import/export
+    // The file browser will start in the appropriate directory automatically
+    // Setting defaults triggers spurious exports when the dialog opens
+    // Let the user choose paths explicitly via the file browser
 
     return props;
 }
@@ -934,13 +897,9 @@ void c64_set_property_defaults(obs_data_t *settings)
         obs_data_set_default_string(settings, "save_folder", platform_path);
     }
 
-    // Default export/import path for sharing settings.
-    {
-        char ini_path[512];
-        c64_default_export_ini_path(ini_path, sizeof(ini_path));
-        obs_data_set_default_string(settings, C64_CONFIG_EXPORT_PATH_KEY, ini_path);
-        obs_data_set_default_string(settings, C64_CONFIG_IMPORT_PATH_KEY, ini_path);
-    }
+    // NOTE: Do NOT set default export/import paths
+    // Setting defaults triggers modified callbacks which cause spurious exports
+    // The file browser will handle appropriate directory navigation
 
     // Video recording defaults
     obs_data_set_default_bool(settings, "record_video", false); // Disabled by default
