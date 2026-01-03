@@ -11,6 +11,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 
 /**
  * C64Script - BASIC-Inspired Scripting Language
@@ -236,25 +237,25 @@ typedef struct c64script_ast_expr c64script_ast_expr_t;
 // Expression operators
 typedef enum {
     // Arithmetic
-    OP_ADD,
-    OP_SUBTRACT,
-    OP_MULTIPLY,
-    OP_DIVIDE,
-    OP_NEGATE,
+    EXPR_OP_ADD,
+    EXPR_OP_SUBTRACT,
+    EXPR_OP_MULTIPLY,
+    EXPR_OP_DIVIDE,
+    EXPR_OP_NEGATE,
 
     // Relational
-    OP_EQ,
-    OP_NE,
-    OP_LT,
-    OP_LE,
-    OP_GT,
-    OP_GE,
+    EXPR_OP_EQ,
+    EXPR_OP_NE,
+    EXPR_OP_LT,
+    EXPR_OP_LE,
+    EXPR_OP_GT,
+    EXPR_OP_GE,
 
     // Boolean
-    OP_NOT,
-    OP_AND,
-    OP_XOR,
-    OP_OR,
+    EXPR_OP_NOT,
+    EXPR_OP_AND,
+    EXPR_OP_XOR,
+    EXPR_OP_OR,
 
 } c64script_operator_t;
 

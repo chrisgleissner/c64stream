@@ -160,6 +160,12 @@ target_sources(
     src/c64-automation.c
     src/c64-script-parser.c
     src/c64-script-executor.c
+    src/c64-script-token.c
+    src/c64-script-ast.c
+    src/c64-script-bytecode.c
+    src/c64-script-vm.c
+    src/c64-script-runtime.c
+    src/c64-script-builtins.c
 )
 
 # Find and link libcurl for REST API client

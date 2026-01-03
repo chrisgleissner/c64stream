@@ -18,8 +18,8 @@ Implement a fast, deterministic, extensible BASIC-inspired scripting language fo
 
 ## Progress Overview
 
-- [ ] **Phase 1**: Architecture & Design (20 tasks)
-- [ ] **Phase 2**: Tokenizer/Lexer (25 tasks)
+- [x] **Phase 1**: Architecture & Design (20 tasks) ✓
+- [x] **Phase 2**: Tokenizer/Lexer (25 tasks) ✓
 - [ ] **Phase 3**: Parser (50 tasks)
 - [ ] **Phase 4**: Bytecode & VM (40 tasks)
 - [ ] **Phase 5**: Execution Engine (45 tasks)
@@ -30,64 +30,64 @@ Implement a fast, deterministic, extensible BASIC-inspired scripting language fo
 
 ---
 
-## Phase 1: Architecture & Design (20 tasks)
+## Phase 1: Architecture & Design (20 tasks) ✓
 
-### A. Core Data Structures (10 tasks)
-- [ ] Define token structure (type, lexeme, position, cached values)
-- [ ] Define AST node types (statements, expressions, operators)
-- [ ] Define bytecode instruction set (opcodes, operands)
-- [ ] Define runtime value structure (numeric, string, boolean)
-- [ ] Define execution context (IP, variables, stacks, flags)
-- [ ] Define FOR/WHILE stack structures
-- [ ] Define GOSUB return stack structure
-- [ ] Define label map structure (name → bytecode address)
-- [ ] Define constant pool for bytecode
-- [ ] Document all limits (nesting, stack sizes, script size)
+### A. Core Data Structures (10 tasks) ✓
+- [x] Define token structure (type, lexeme, position, cached values)
+- [x] Define AST node types (statements, expressions, operators)
+- [x] Define bytecode instruction set (opcodes, operands)
+- [x] Define runtime value structure (numeric, string, boolean)
+- [x] Define execution context (IP, variables, stacks, flags)
+- [x] Define FOR/WHILE stack structures
+- [x] Define GOSUB return stack structure
+- [x] Define label map structure (name → bytecode address)
+- [x] Define constant pool for bytecode
+- [x] Document all limits (nesting, stack sizes, script size)
 
-### B. Module Architecture (10 tasks)
-- [ ] Create `c64-script.h` (public API)
-- [ ] Create `c64-script-token.h/.c` (tokenizer)
-- [ ] Create `c64-script-ast.h/.c` (AST structures)
-- [ ] Create `c64-script-parser.h/.c` (parser)
-- [ ] Create `c64-script-bytecode.h/.c` (bytecode compiler)
-- [ ] Create `c64-script-vm.h/.c` (virtual machine)
-- [ ] Create `c64-script-runtime.h/.c` (execution context)
-- [ ] Create `c64-script-builtins.h/.c` (built-in functions)
-- [ ] Plan OBS integration points (threading, cancellation)
-- [ ] Plan REST/keyboard integration points
+### B. Module Architecture (10 tasks) ✓
+- [x] Create `c64-script.h` (public API)
+- [x] Create `c64-script-token.h/.c` (tokenizer)
+- [x] Create `c64-script-ast.h/.c` (AST structures)
+- [x] Create `c64-script-parser.h/.c` (parser)
+- [x] Create `c64-script-bytecode.h/.c` (bytecode compiler)
+- [x] Create `c64-script-vm.h/.c` (virtual machine)
+- [x] Create `c64-script-runtime.h/.c` (execution context)
+- [x] Create `c64-script-builtins.h/.c` (built-in functions)
+- [x] Plan OBS integration points (threading, cancellation)
+- [x] Plan REST/keyboard integration points
 
 ---
 
-## Phase 2: Tokenizer/Lexer (25 tasks)
+## Phase 2: Tokenizer/Lexer (25 tasks) ✓
 
-### A. Basic Tokenization (10 tasks)
-- [ ] Implement whitespace handling
-- [ ] Implement comment detection (# and REM)
-- [ ] Implement identifier tokenization (case-insensitive)
-- [ ] Implement keyword recognition (case-insensitive)
-- [ ] Implement string literal parsing (double-quoted)
-- [ ] Implement escape sequences (\r, \n, \t, \xNN, \\, \")
-- [ ] Implement doubled quote handling (BASIC-style)
-- [ ] Implement decimal number parsing
-- [ ] Implement hex literal parsing ($C000)
-- [ ] Implement duration literal parsing (500ms, 1.5s)
+### A. Basic Tokenization (10 tasks) ✓
+- [x] Implement whitespace handling
+- [x] Implement comment detection (# and REM)
+- [x] Implement identifier tokenization (case-insensitive)
+- [x] Implement keyword recognition (case-insensitive)
+- [x] Implement string literal parsing (double-quoted)
+- [x] Implement escape sequences (\r, \n, \t, \xNN, \\, \")
+- [x] Implement doubled quote handling (BASIC-style)
+- [x] Implement decimal number parsing
+- [x] Implement hex literal parsing ($C000)
+- [x] Implement duration literal parsing (500ms, 1.5s)
 
-### B. Advanced Tokenization (15 tasks)
-- [ ] Implement label detection (alphanumeric and numeric)
-- [ ] Implement label colon handling (optional :)
-- [ ] Implement type suffix handling ($ and %)
-- [ ] Implement operator tokenization (arithmetic)
-- [ ] Implement operator tokenization (relational: =, ==, <>, !=, <, <=, >, >=)
-- [ ] Implement operator tokenization (boolean: NOT, AND, XOR, OR)
-- [ ] Implement parentheses and comma tokenization
-- [ ] Implement line tracking (line number, column)
-- [ ] Implement token position tracking for error messages
-- [ ] Handle line continuations (if needed)
-- [ ] Create unit tests for tokenizer
-- [ ] Test edge cases (empty lines, long lines, special chars)
-- [ ] Test string escaping edge cases
-- [ ] Test number parsing edge cases (hex, decimals)
-- [ ] Test comment handling edge cases
+### B. Advanced Tokenization (15 tasks) ✓
+- [x] Implement label detection (alphanumeric and numeric)
+- [x] Implement label colon handling (optional :)
+- [x] Implement type suffix handling ($ and %)
+- [x] Implement operator tokenization (arithmetic)
+- [x] Implement operator tokenization (relational: =, ==, <>, !=, <, <=, >, >=)
+- [x] Implement operator tokenization (boolean: NOT, AND, XOR, OR)
+- [x] Implement parentheses and comma tokenization
+- [x] Implement line tracking (line number, column)
+- [x] Implement token position tracking for error messages
+- [x] Handle line continuations (if needed)
+- [x] Create unit tests for tokenizer
+- [x] Test edge cases (empty lines, long lines, special chars)
+- [x] Test string escaping edge cases
+- [x] Test number parsing edge cases (hex, decimals)
+- [x] Test comment handling edge cases
 
 ---
 

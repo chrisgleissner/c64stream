@@ -6,7 +6,7 @@ Licensed under the GNU General Public License v2.0 or later.
 See <https://www.gnu.org/licenses/> for details.
 */
 
-#include "c64-script-v2.h"
+#include "c64-script.h"
 #include "c64-logging.h"
 
 #include <ctype.h>
@@ -14,7 +14,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include <stdlib.h>
 #include <string.h>
 
-#define MACRO_LOG_PREFIX "[c64script-v2-token] "
+#define MACRO_LOG_PREFIX "[c64script-token] "
 
 // ============================================================================
 // KEYWORD TABLE
