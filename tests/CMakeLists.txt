@@ -35,7 +35,12 @@ add_executable(
   ${CMAKE_SOURCE_DIR}/src/c64-script-builtins.c
 )
 target_include_directories(test_c64script_compiler PRIVATE ${CMAKE_SOURCE_DIR}/src)
-target_link_libraries(test_c64script_compiler PRIVATE OBS::libobs m)
+# Link math library on Unix systems (on Windows math is part of standard library)
+if(UNIX)
+  target_link_libraries(test_c64script_compiler PRIVATE OBS::libobs m)
+else()
+  target_link_libraries(test_c64script_compiler PRIVATE OBS::libobs)
+endif()
 add_test(NAME c64script_compiler COMMAND test_c64script_compiler)
 
 add_subdirectory(e2e)
