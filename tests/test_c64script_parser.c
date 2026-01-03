@@ -333,7 +333,291 @@ TEST(parse_error_invalid_operator)
 }
 
 // ============================================================================
-// INTEGRATION TESTS
+// CONTROL FLOW TESTS
+// ============================================================================
+
+TEST(parse_if_then_single_line)
+{
+    const char *source = "IF x > 0 THEN y = 1";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse IF/THEN");
+    assert(ast->type == AST_STMT_IF);
+    assert(ast->as.if_stmt.condition != NULL);
+    assert(ast->as.if_stmt.then_branch != NULL);
+    assert(ast->as.if_stmt.else_branch == NULL);
+}
+
+TEST(parse_if_then_else_single_line)
+{
+    const char *source = "IF x > 0 THEN y = 1 ELSE y = 0";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse IF/THEN/ELSE");
+    assert(ast->type == AST_STMT_IF);
+    assert(ast->as.if_stmt.condition != NULL);
+    assert(ast->as.if_stmt.then_branch != NULL);
+    assert(ast->as.if_stmt.else_branch != NULL);
+}
+
+TEST(parse_if_block)
+{
+    const char *source = "IF x > 0 THEN\ny = 1\nz = 2\nENDIF";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse IF block");
+    assert(ast->type == AST_STMT_IF);
+    assert(ast->as.if_stmt.then_branch != NULL);
+}
+
+TEST(parse_if_else_block)
+{
+    const char *source = "IF x > 0 THEN\ny = 1\nELSE\ny = 0\nENDIF";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse IF/ELSE block");
+    assert(ast->type == AST_STMT_IF);
+    assert(ast->as.if_stmt.then_branch != NULL);
+    assert(ast->as.if_stmt.else_branch != NULL);
+}
+
+TEST(parse_for_loop)
+{
+    const char *source = "FOR i = 1 TO 10\nPRINT i\nNEXT";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse FOR loop");
+    assert(ast->type == AST_STMT_FOR);
+    assert(ast->as.for_stmt.variable != NULL);
+    assert(ast->as.for_stmt.start != NULL);
+    assert(ast->as.for_stmt.end != NULL);
+    assert(ast->as.for_stmt.step != NULL);
+}
+
+TEST(parse_for_loop_with_step)
+{
+    const char *source = "FOR i = 10 TO 1 STEP -1\nPRINT i\nNEXT i";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse FOR loop with STEP");
+    assert(ast->type == AST_STMT_FOR);
+}
+
+TEST(parse_while_loop)
+{
+    const char *source = "WHILE x < 10\nx = x + 1\nWEND";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse WHILE loop");
+    assert(ast->type == AST_STMT_WHILE);
+    assert(ast->as.while_stmt.condition != NULL);
+    assert(ast->as.while_stmt.body != NULL);
+}
+
+TEST(parse_while_endwhile)
+{
+    const char *source = "WHILE x < 10\nx = x + 1\nENDWHILE";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse WHILE/ENDWHILE");
+    assert(ast->type == AST_STMT_WHILE);
+}
+
+TEST(parse_wait_duration)
+{
+    const char *source = "WAIT 500";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse WAIT");
+    assert(ast->type == AST_STMT_WAIT);
+}
+
+TEST(parse_wait_until)
+{
+    const char *source = "WAIT UNTIL x > 0";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse WAIT UNTIL");
+    assert(ast->type == AST_STMT_WAIT_UNTIL);
+}
+
+// ============================================================================
+// PLUGIN ACTION TESTS
+// ============================================================================
+
+TEST(parse_effect)
+{
+    const char *source = "EFFECT \"scanlines\"";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse EFFECT");
+    assert(ast->type == AST_STMT_EFFECT);
+}
+
+TEST(parse_effectparam)
+{
+    const char *source = "EFFECTPARAM \"intensity\" 0.5";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse EFFECTPARAM");
+    assert(ast->type == AST_STMT_EFFECTPARAM);
+}
+
+TEST(parse_palette)
+{
+    const char *source = "PALETTE \"pepto\"";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse PALETTE");
+    assert(ast->type == AST_STMT_PALETTE);
+}
+
+TEST(parse_playsid)
+{
+    const char *source = "PLAYSID \"music.sid\"";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse PLAYSID");
+    assert(ast->type == AST_STMT_PLAYSID);
+}
+
+TEST(parse_runprg)
+{
+    const char *source = "RUNPRG \"demo.prg\"";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse RUNPRG");
+    assert(ast->type == AST_STMT_RUNPRG);
+}
+
+TEST(parse_mountdisk)
+{
+    const char *source = "MOUNTDISK \"game.d64\"";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse MOUNTDISK");
+    assert(ast->type == AST_STMT_MOUNTDISK);
+}
+
+TEST(parse_autostart)
+{
+    const char *source = "AUTOSTART \"demo.prg\"";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse AUTOSTART");
+    assert(ast->type == AST_STMT_AUTOSTART);
+}
+
+TEST(parse_reset)
+{
+    const char *source = "RESET";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse RESET");
+    assert(ast->type == AST_STMT_RESET);
+}
+
+TEST(parse_reboot)
+{
+    const char *source = "REBOOT";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse REBOOT");
+    assert(ast->type == AST_STMT_REBOOT);
+}
+
+TEST(parse_recordstart)
+{
+    const char *source = "RECORDSTART";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse RECORDSTART");
+    assert(ast->type == AST_STMT_RECORDSTART);
+}
+
+TEST(parse_recordstop)
+{
+    const char *source = "RECORDSTOP";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse RECORDSTOP");
+    assert(ast->type == AST_STMT_RECORDSTOP);
+}
+
+TEST(parse_type)
+{
+    const char *source = "TYPE \"LOAD\\\"*\\\",8,1\\r\"";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse TYPE");
+    assert(ast->type == AST_STMT_TYPE);
+}
+
+TEST(parse_key)
+{
+    const char *source = "KEY 13";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse KEY");
+    assert(ast->type == AST_STMT_KEY);
+}
+
+TEST(parse_poke)
+{
+    const char *source = "POKE $D020, 0";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse POKE");
+    assert(ast->type == AST_STMT_POKE);
+}
+
+TEST(parse_logfile)
+{
+    const char *source = "LOGFILE \"script.log\"";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse LOGFILE");
+    assert(ast->type == AST_STMT_LOGFILE);
+}
+
+TEST(parse_log)
+{
+    const char *source = "LOG \"Starting script\"";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse LOG");
+    assert(ast->type == AST_STMT_LOG);
+}
+
+TEST(parse_print)
+{
+    const char *source = "PRINT x";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse PRINT");
+    assert(ast->type == AST_STMT_PRINT);
+}
+
+TEST(parse_tron)
+{
+    const char *source = "TRON";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse TRON");
+    assert(ast->type == AST_STMT_TRON);
+}
+
+TEST(parse_troff)
+{
+    const char *source = "TROFF";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse TROFF");
+    assert(ast->type == AST_STMT_TROFF);
+}
+
+// ============================================================================
+// ERROR HANDLING TESTS
 // ============================================================================
 
 TEST(parse_full_program)
@@ -393,6 +677,39 @@ int main(void)
     RUN_TEST(parse_end);
     RUN_TEST(parse_multiple_statements);
     RUN_TEST(parse_empty_lines_and_comments);
+
+    printf("\n--- Control Flow Tests ---\n");
+    RUN_TEST(parse_if_then_single_line);
+    RUN_TEST(parse_if_then_else_single_line);
+    RUN_TEST(parse_if_block);
+    RUN_TEST(parse_if_else_block);
+    RUN_TEST(parse_for_loop);
+    RUN_TEST(parse_for_loop_with_step);
+    RUN_TEST(parse_while_loop);
+    RUN_TEST(parse_while_endwhile);
+    RUN_TEST(parse_wait_duration);
+    RUN_TEST(parse_wait_until);
+
+    printf("\n--- Plugin Action Tests ---\n");
+    RUN_TEST(parse_effect);
+    RUN_TEST(parse_effectparam);
+    RUN_TEST(parse_palette);
+    RUN_TEST(parse_playsid);
+    RUN_TEST(parse_runprg);
+    RUN_TEST(parse_mountdisk);
+    RUN_TEST(parse_autostart);
+    RUN_TEST(parse_reset);
+    RUN_TEST(parse_reboot);
+    RUN_TEST(parse_recordstart);
+    RUN_TEST(parse_recordstop);
+    RUN_TEST(parse_type);
+    RUN_TEST(parse_key);
+    RUN_TEST(parse_poke);
+    RUN_TEST(parse_logfile);
+    RUN_TEST(parse_log);
+    RUN_TEST(parse_print);
+    RUN_TEST(parse_tron);
+    RUN_TEST(parse_troff);
 
     printf("\n--- Error Handling Tests ---\n");
     RUN_TEST(parse_error_unterminated_string);

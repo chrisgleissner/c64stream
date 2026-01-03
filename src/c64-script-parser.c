@@ -584,6 +584,514 @@ static c64script_ast_node_t *stop_statement(parser_t *p)
     return node;
 }
 
+// IF/THEN/ELSE/ENDIF
+static c64script_ast_node_t *if_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_IF;
+    node->line = p->previous.line;
+
+    // Parse condition
+    node->as.if_stmt.condition = expression(p);
+
+    // Require THEN
+    if (!match(p, TOKEN_THEN)) {
+        error(p, "Expected THEN after IF condition");
+        free(node);
+        return NULL;
+    }
+
+    // Check if this is single-line or block form
+    bool is_block = match(p, TOKEN_NEWLINE);
+
+    if (is_block) {
+        // Block form: IF cond THEN\n statements ENDIF or IF cond THEN\n statements ELSE\n statements ENDIF
+        c64script_ast_node_t *then_branch = NULL;
+        c64script_ast_node_t *then_tail = NULL;
+
+        // Parse THEN branch statements until ELSE or ENDIF
+        while (!check(p, TOKEN_ELSE) && !check(p, TOKEN_ENDIF) && !check(p, TOKEN_EOF)) {
+            c64script_ast_node_t *stmt = statement(p);
+            if (stmt) {
+                if (!then_branch) {
+                    then_branch = stmt;
+                    then_tail = stmt;
+                } else {
+                    then_tail->next = stmt;
+                    then_tail = stmt;
+                }
+            }
+            while (match(p, TOKEN_NEWLINE))
+                ;
+        }
+        node->as.if_stmt.then_branch = then_branch;
+
+        // Check for ELSE
+        if (match(p, TOKEN_ELSE)) {
+            match(p, TOKEN_NEWLINE);
+
+            c64script_ast_node_t *else_branch = NULL;
+            c64script_ast_node_t *else_tail = NULL;
+
+            // Parse ELSE branch statements until ENDIF
+            while (!check(p, TOKEN_ENDIF) && !check(p, TOKEN_EOF)) {
+                c64script_ast_node_t *stmt = statement(p);
+                if (stmt) {
+                    if (!else_branch) {
+                        else_branch = stmt;
+                        else_tail = stmt;
+                    } else {
+                        else_tail->next = stmt;
+                        else_tail = stmt;
+                    }
+                }
+                while (match(p, TOKEN_NEWLINE))
+                    ;
+            }
+            node->as.if_stmt.else_branch = else_branch;
+        }
+
+        // Require ENDIF
+        if (!match(p, TOKEN_ENDIF)) {
+            error(p, "Expected ENDIF");
+            free(node);
+            return NULL;
+        }
+    } else {
+        // Single-line form: IF cond THEN statement [ELSE statement]
+        node->as.if_stmt.then_branch = statement(p);
+
+        if (match(p, TOKEN_ELSE)) {
+            node->as.if_stmt.else_branch = statement(p);
+        }
+    }
+
+    return node;
+}
+
+// FOR variable = start TO end [STEP step]
+static c64script_ast_node_t *for_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_FOR;
+    node->line = p->previous.line;
+
+    // Parse variable name
+    if (!match(p, TOKEN_IDENTIFIER)) {
+        error(p, "Expected variable name after FOR");
+        free(node);
+        return NULL;
+    }
+    node->as.for_stmt.variable = strndup(p->previous.start, p->previous.length);
+
+    // Expect '='
+    if (!match(p, TOKEN_EQ)) {
+        error(p, "Expected '=' in FOR statement");
+        free(node);
+        return NULL;
+    }
+
+    // Parse start expression
+    node->as.for_stmt.start = expression(p);
+
+    // Expect TO
+    if (!match(p, TOKEN_TO)) {
+        error(p, "Expected TO in FOR statement");
+        free(node);
+        return NULL;
+    }
+
+    // Parse end expression
+    node->as.for_stmt.end = expression(p);
+
+    // Optional STEP
+    if (match(p, TOKEN_STEP)) {
+        node->as.for_stmt.step = expression(p);
+    } else {
+        // Default step is 1
+        c64script_ast_expr_t *step = calloc(1, sizeof(c64script_ast_expr_t));
+        step->type = AST_EXPR_NUMBER;
+        step->as.number = 1.0;
+        node->as.for_stmt.step = step;
+    }
+
+    // Expect newline
+    match(p, TOKEN_NEWLINE);
+
+    // Parse body until NEXT
+    c64script_ast_node_t *body = NULL;
+    c64script_ast_node_t *body_tail = NULL;
+
+    while (!check(p, TOKEN_NEXT) && !check(p, TOKEN_EOF)) {
+        c64script_ast_node_t *stmt = statement(p);
+        if (stmt) {
+            if (!body) {
+                body = stmt;
+                body_tail = stmt;
+            } else {
+                body_tail->next = stmt;
+                body_tail = stmt;
+            }
+        }
+        while (match(p, TOKEN_NEWLINE))
+            ;
+    }
+    node->as.for_stmt.body = body;
+
+    // Require NEXT
+    if (!match(p, TOKEN_NEXT)) {
+        error(p, "Expected NEXT");
+        free(node);
+        return NULL;
+    }
+
+    // Optional variable name after NEXT (for clarity, ignored)
+    match(p, TOKEN_IDENTIFIER);
+
+    return node;
+}
+
+// WHILE condition
+static c64script_ast_node_t *while_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_WHILE;
+    node->line = p->previous.line;
+
+    // Parse condition
+    node->as.while_stmt.condition = expression(p);
+
+    // Expect newline
+    match(p, TOKEN_NEWLINE);
+
+    // Parse body until WEND or ENDWHILE
+    c64script_ast_node_t *body = NULL;
+    c64script_ast_node_t *body_tail = NULL;
+
+    while (!check(p, TOKEN_WEND) && !check(p, TOKEN_ENDWHILE) && !check(p, TOKEN_EOF)) {
+        c64script_ast_node_t *stmt = statement(p);
+        if (stmt) {
+            if (!body) {
+                body = stmt;
+                body_tail = stmt;
+            } else {
+                body_tail->next = stmt;
+                body_tail = stmt;
+            }
+        }
+        while (match(p, TOKEN_NEWLINE))
+            ;
+    }
+    node->as.while_stmt.body = body;
+
+    // Require WEND or ENDWHILE
+    if (!match(p, TOKEN_WEND) && !match(p, TOKEN_ENDWHILE)) {
+        error(p, "Expected WEND or ENDWHILE");
+        free(node);
+        return NULL;
+    }
+
+    return node;
+}
+
+// WAIT duration or WAIT UNTIL condition
+static c64script_ast_node_t *wait_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->line = p->previous.line;
+
+    if (match(p, TOKEN_UNTIL)) {
+        // WAIT UNTIL condition
+        node->type = AST_STMT_WAIT_UNTIL;
+        node->as.wait_until_stmt.time_expr = expression(p);
+    } else {
+        // WAIT duration
+        node->type = AST_STMT_WAIT;
+        // Duration will be evaluated at runtime
+        // For now we just store 0; bytecode compiler will handle the expression
+        node->as.wait_stmt.duration_ms = 0;
+    }
+
+    return node;
+}
+
+// ============================================================================
+// PLUGIN ACTION STATEMENTS
+// ============================================================================
+
+// EFFECT name [preset]
+static c64script_ast_node_t *effect_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_EFFECT;
+    node->line = p->previous.line;
+
+    node->as.effect_stmt.preset_name = expression(p);
+
+    return node;
+}
+
+// EFFECTPARAM name value
+static c64script_ast_node_t *effectparam_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_EFFECTPARAM;
+    node->line = p->previous.line;
+
+    node->as.effectparam_stmt.param_name = expression(p);
+    node->as.effectparam_stmt.param_value = expression(p);
+
+    return node;
+}
+
+// PALETTE name
+static c64script_ast_node_t *palette_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_PALETTE;
+    node->line = p->previous.line;
+
+    node->as.palette_stmt.palette_name = expression(p);
+
+    return node;
+}
+
+// PLAYSID filename
+static c64script_ast_node_t *playsid_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_PLAYSID;
+    node->line = p->previous.line;
+
+    node->as.playsid_stmt.path = expression(p);
+    node->as.playsid_stmt.songnr = NULL;
+
+    return node;
+}
+
+// RUNPRG filename
+static c64script_ast_node_t *runprg_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_RUNPRG;
+    node->line = p->previous.line;
+
+    node->as.runprg_stmt.path = expression(p);
+
+    return node;
+}
+
+// MOUNTDISK filename
+static c64script_ast_node_t *mountdisk_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_MOUNTDISK;
+    node->line = p->previous.line;
+
+    node->as.mountdisk_stmt.path = expression(p);
+
+    return node;
+}
+
+// AUTOSTART filename
+static c64script_ast_node_t *autostart_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_AUTOSTART;
+    node->line = p->previous.line;
+
+    // AUTOSTART has no data in the AST structure
+
+    return node;
+}
+
+// RESET
+static c64script_ast_node_t *reset_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_RESET;
+    node->line = p->previous.line;
+
+    return node;
+}
+
+// REBOOT
+static c64script_ast_node_t *reboot_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_REBOOT;
+    node->line = p->previous.line;
+
+    return node;
+}
+
+// RECORDSTART
+static c64script_ast_node_t *recordstart_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_RECORDSTART;
+    node->line = p->previous.line;
+
+    return node;
+}
+
+// RECORDSTOP
+static c64script_ast_node_t *recordstop_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_RECORDSTOP;
+    node->line = p->previous.line;
+
+    return node;
+}
+
+// TYPE text
+static c64script_ast_node_t *type_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_TYPE;
+    node->line = p->previous.line;
+
+    node->as.type_stmt.text = expression(p);
+
+    return node;
+}
+
+// KEY keycode
+static c64script_ast_node_t *key_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_KEY;
+    node->line = p->previous.line;
+
+    node->as.key_stmt.key = expression(p);
+
+    return node;
+}
+
+// POKE address, value
+static c64script_ast_node_t *poke_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_POKE;
+    node->line = p->previous.line;
+
+    node->as.poke_stmt.address = expression(p);
+    if (!match(p, TOKEN_COMMA)) {
+        error(p, "Expected ',' in POKE statement");
+        free(node);
+        return NULL;
+    }
+    node->as.poke_stmt.single_value = expression(p);
+    node->as.poke_stmt.values = NULL;
+    node->as.poke_stmt.value_count = 0;
+
+    return node;
+}
+
+// LOGFILE filename
+static c64script_ast_node_t *logfile_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_LOGFILE;
+    node->line = p->previous.line;
+
+    node->as.logfile_stmt.path = expression(p);
+    node->as.logfile_stmt.truncate = false; // Default to append
+
+    return node;
+}
+
+// LOG message
+static c64script_ast_node_t *log_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_LOG;
+    node->line = p->previous.line;
+
+    node->as.log_stmt.message = expression(p);
+
+    return node;
+}
+
+// PRINT expression
+static c64script_ast_node_t *print_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_PRINT;
+    node->line = p->previous.line;
+
+    node->as.print_stmt.message = expression(p);
+
+    return node;
+}
+
+// TRON
+static c64script_ast_node_t *tron_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_TRON;
+    node->line = p->previous.line;
+
+    return node;
+}
+
+// TROFF
+static c64script_ast_node_t *troff_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_TROFF;
+    node->line = p->previous.line;
+
+    return node;
+}
+
 static c64script_ast_node_t *statement(parser_t *p)
 {
     // Skip newlines
@@ -654,7 +1162,55 @@ static c64script_ast_node_t *statement(parser_t *p)
     if (match(p, TOKEN_STOP) || match(p, TOKEN_END))
         return stop_statement(p);
 
-    // TODO: Implement remaining statements (IF, FOR, WHILE, plugin actions, etc.)
+    // Control flow
+    if (match(p, TOKEN_IF))
+        return if_statement(p);
+    if (match(p, TOKEN_FOR))
+        return for_statement(p);
+    if (match(p, TOKEN_WHILE))
+        return while_statement(p);
+    if (match(p, TOKEN_WAIT))
+        return wait_statement(p);
+
+    // Plugin actions
+    if (match(p, TOKEN_EFFECT))
+        return effect_statement(p);
+    if (match(p, TOKEN_EFFECTPARAM))
+        return effectparam_statement(p);
+    if (match(p, TOKEN_PALETTE))
+        return palette_statement(p);
+    if (match(p, TOKEN_PLAYSID))
+        return playsid_statement(p);
+    if (match(p, TOKEN_RUNPRG))
+        return runprg_statement(p);
+    if (match(p, TOKEN_MOUNTDISK))
+        return mountdisk_statement(p);
+    if (match(p, TOKEN_AUTOSTART))
+        return autostart_statement(p);
+    if (match(p, TOKEN_RESET))
+        return reset_statement(p);
+    if (match(p, TOKEN_REBOOT))
+        return reboot_statement(p);
+    if (match(p, TOKEN_RECORDSTART))
+        return recordstart_statement(p);
+    if (match(p, TOKEN_RECORDSTOP))
+        return recordstop_statement(p);
+    if (match(p, TOKEN_TYPE))
+        return type_statement(p);
+    if (match(p, TOKEN_KEY))
+        return key_statement(p);
+    if (match(p, TOKEN_POKE))
+        return poke_statement(p);
+    if (match(p, TOKEN_LOGFILE))
+        return logfile_statement(p);
+    if (match(p, TOKEN_LOG))
+        return log_statement(p);
+    if (match(p, TOKEN_PRINT))
+        return print_statement(p);
+    if (match(p, TOKEN_TRON))
+        return tron_statement(p);
+    if (match(p, TOKEN_TROFF))
+        return troff_statement(p);
 
     error(p, "Unexpected statement");
     return NULL;
