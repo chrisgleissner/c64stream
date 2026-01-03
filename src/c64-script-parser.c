@@ -696,7 +696,7 @@ static c64script_ast_node_t *goto_statement(parser_t *p)
     return node;
 }
 
-// GOSUB label
+// GOSUB label[(expr, ...)]
 static c64script_ast_node_t *gosub_statement(parser_t *p)
 {
     c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
@@ -705,11 +705,47 @@ static c64script_ast_node_t *gosub_statement(parser_t *p)
     node->type = AST_STMT_GOSUB;
     node->line = p->previous.line;
     node->as.gosub_stmt.label = parse_label_ref(p);
+    node->as.gosub_stmt.params = NULL;
+    node->as.gosub_stmt.param_count = 0;
+
+    // Check for optional parameters
+    if (match(p, TOKEN_LPAREN)) {
+        // Parse parameter list
+        size_t capacity = 4;
+        node->as.gosub_stmt.params = malloc(capacity * sizeof(c64script_ast_expr_t *));
+        if (!node->as.gosub_stmt.params) {
+            c64script_ast_free(node);
+            return NULL;
+        }
+
+        if (!check(p, TOKEN_RPAREN)) {
+            do {
+                if (node->as.gosub_stmt.param_count >= capacity) {
+                    capacity *= 2;
+                    c64script_ast_expr_t **new_params =
+                        realloc(node->as.gosub_stmt.params, capacity * sizeof(c64script_ast_expr_t *));
+                    if (!new_params) {
+                        c64script_ast_free(node);
+                        return NULL;
+                    }
+                    node->as.gosub_stmt.params = new_params;
+                }
+                node->as.gosub_stmt.params[node->as.gosub_stmt.param_count] = expression(p);
+                node->as.gosub_stmt.param_count++;
+            } while (match(p, TOKEN_COMMA));
+        }
+
+        if (!match(p, TOKEN_RPAREN)) {
+            error(p, "Expected ')' after GOSUB parameters");
+            c64script_ast_free(node);
+            return NULL;
+        }
+    }
 
     return node;
 }
 
-// RETURN
+// RETURN [expression]
 static c64script_ast_node_t *return_statement(parser_t *p)
 {
     c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
@@ -717,6 +753,13 @@ static c64script_ast_node_t *return_statement(parser_t *p)
         return NULL;
     node->type = AST_STMT_RETURN;
     node->line = p->previous.line;
+    node->as.return_stmt.return_value = NULL;
+
+    // Check if there's an optional return expression
+    if (!check(p, TOKEN_EOF) && !check(p, TOKEN_NEWLINE)) {
+        node->as.return_stmt.return_value = expression(p);
+    }
+
     return node;
 }
 

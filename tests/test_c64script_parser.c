@@ -302,6 +302,19 @@ TEST(parse_gosub)
     assert(ast != NULL && "Failed to parse GOSUB");
     assert(ast->type == AST_STMT_GOSUB);
     assert(strcmp(ast->as.gosub_stmt.label, "SUBROUTINE") == 0);
+    assert(ast->as.gosub_stmt.param_count == 0);
+    c64script_ast_free(ast);
+}
+
+TEST(parse_gosub_with_params)
+{
+    const char *source = "GOSUB MULTIPLY(5, 7)";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse GOSUB with params");
+    assert(ast->type == AST_STMT_GOSUB);
+    assert(strcmp(ast->as.gosub_stmt.label, "MULTIPLY") == 0);
+    assert(ast->as.gosub_stmt.param_count == 2);
     c64script_ast_free(ast);
 }
 
@@ -312,6 +325,18 @@ TEST(parse_return)
     c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
     assert(ast != NULL && "Failed to parse RETURN");
     assert(ast->type == AST_STMT_RETURN);
+    assert(ast->as.return_stmt.return_value == NULL);
+    c64script_ast_free(ast);
+}
+
+TEST(parse_return_with_value)
+{
+    const char *source = "RETURN X * 2";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse RETURN with value");
+    assert(ast->type == AST_STMT_RETURN);
+    assert(ast->as.return_stmt.return_value != NULL);
     c64script_ast_free(ast);
 }
 
@@ -1036,7 +1061,9 @@ int main(void)
     RUN_TEST(parse_label_with_colon);
     RUN_TEST(parse_goto);
     RUN_TEST(parse_gosub);
+    RUN_TEST(parse_gosub_with_params);
     RUN_TEST(parse_return);
+    RUN_TEST(parse_return_with_value);
     RUN_TEST(parse_stop);
     RUN_TEST(parse_end);
     RUN_TEST(parse_multiple_statements);

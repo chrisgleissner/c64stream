@@ -397,11 +397,29 @@ static bool compile_statement(compiler_context_t *ctx, c64script_ast_node_t *stm
         return true;
 
     case AST_STMT_GOSUB:
+        // Push parameter count first
+        emit(ctx, OP_PUSH_NUM, 0, stmt->line);
+        ctx->instructions[ctx->instruction_count - 1].operand = stmt->as.gosub_stmt.param_count;
+
+        // Push each parameter value
+        for (size_t i = 0; i < stmt->as.gosub_stmt.param_count; i++) {
+            if (!compile_expression(ctx, stmt->as.gosub_stmt.params[i]))
+                return false;
+        }
+
+        // Call the subroutine
         emit_jump(ctx, OP_CALL, stmt->as.gosub_stmt.label, stmt->line);
         return true;
 
     case AST_STMT_RETURN:
-        emit(ctx, OP_RETURN, 0, stmt->line);
+        // If there's a return value, evaluate and push it
+        if (stmt->as.return_stmt.return_value) {
+            if (!compile_expression(ctx, stmt->as.return_stmt.return_value))
+                return false;
+            emit(ctx, OP_RETURN, 1, stmt->line); // operand = 1 means has return value
+        } else {
+            emit(ctx, OP_RETURN, 0, stmt->line); // operand = 0 means no return value
+        }
         return true;
 
     case AST_STMT_STOP:

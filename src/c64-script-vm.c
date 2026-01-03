@@ -765,23 +765,76 @@ bool c64script_vm_execute(c64script_runtime_t *runtime)
             c64script_value_free(&a);
             break;
 
-        case OP_CALL:
-            // Push return address
+        case OP_CALL: {
+            // Stack should have: param_count, param1, param2, ..., paramN
+            // Pop param count first
+            c64script_value_t param_count_val;
+            if (!c64script_runtime_pop(runtime, &param_count_val))
+                return false;
+            if (param_count_val.type != VALUE_NUMBER) {
+                c64script_value_free(&param_count_val);
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "TYPE MISMATCH (GOSUB param count)");
+                return false;
+            }
+
+            size_t param_count = (size_t)param_count_val.as.number;
+            c64script_value_free(&param_count_val);
+
+            // Pop parameters and store as PARAM1, PARAM2, etc.
+            for (size_t i = param_count; i > 0; i--) {
+                c64script_value_t param_val;
+                if (!c64script_runtime_pop(runtime, &param_val))
+                    return false;
+
+                char param_name[32];
+                snprintf(param_name, sizeof(param_name), "PARAM%zu", i);
+                c64script_runtime_set_var(runtime, param_name, param_val);
+                c64script_value_free(&param_val);
+            }
+
+            // Push return address and param count
             if (runtime->gosub_stack_size >= C64SCRIPT_MAX_GOSUB_DEPTH) {
                 snprintf(runtime->error_msg, sizeof(runtime->error_msg), "GOSUB stack overflow");
                 return false;
             }
-            runtime->gosub_stack[runtime->gosub_stack_size++].return_ip = runtime->ip;
+            runtime->gosub_stack[runtime->gosub_stack_size].return_ip = runtime->ip;
+            runtime->gosub_stack[runtime->gosub_stack_size].param_count = param_count;
+            runtime->gosub_stack_size++;
+
             runtime->ip = instr->operand;
             break;
+        }
 
-        case OP_RETURN:
+        case OP_RETURN: {
             if (runtime->gosub_stack_size == 0) {
                 snprintf(runtime->error_msg, sizeof(runtime->error_msg), "RETURN without GOSUB");
                 return false;
             }
+
+            // Check if there's a return value (operand = 1 means yes, 0 means no)
+            bool has_return_value = (instr->operand != 0);
+            if (has_return_value) {
+                c64script_value_t return_val;
+                if (!c64script_runtime_pop(runtime, &return_val))
+                    return false;
+                c64script_runtime_set_var(runtime, "RESULT", return_val);
+                c64script_value_free(&return_val);
+            }
+
+            // Clean up parameters
+            size_t param_count = runtime->gosub_stack[runtime->gosub_stack_size - 1].param_count;
+            for (size_t i = 1; i <= param_count; i++) {
+                char param_name[32];
+                snprintf(param_name, sizeof(param_name), "PARAM%zu", i);
+                // Remove the variable by setting it to undefined (number 0)
+                c64script_value_t undef = {.type = VALUE_NUMBER, .as.number = 0.0};
+                c64script_runtime_set_var(runtime, param_name, undef);
+            }
+
+            // Return to caller
             runtime->ip = runtime->gosub_stack[--runtime->gosub_stack_size].return_ip;
             break;
+        }
 
         case OP_STOP:
         case OP_HALT:

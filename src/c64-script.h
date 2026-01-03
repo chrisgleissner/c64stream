@@ -342,10 +342,14 @@ struct c64script_ast_node {
         } goto_stmt;
 
         struct {
-            const char *label; // Points into string pool
+            const char *label;             // Points into string pool
+            c64script_ast_expr_t **params; // Array of parameter expressions
+            size_t param_count;            // Number of parameters
         } gosub_stmt;
 
-        // return_stmt has no data
+        struct {
+            c64script_ast_expr_t *return_value; // NULL means no return value
+        } return_stmt;
         // stop_stmt has no data
 
         struct {
@@ -570,7 +574,8 @@ typedef struct {
 
 // GOSUB return state
 typedef struct {
-    size_t return_ip; // Bytecode address to return to
+    size_t return_ip;   // Bytecode address to return to
+    size_t param_count; // Number of parameters passed
 } c64script_gosub_state_t;
 
 // Variable storage (simple array for now, could be hash table)

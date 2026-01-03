@@ -75,7 +75,6 @@ void c64script_ast_free(c64script_ast_node_t *node)
         switch (node->type) {
         case AST_STMT_EMPTY:
         case AST_STMT_REM:
-        case AST_STMT_RETURN:
         case AST_STMT_STOP:
         case AST_STMT_TRON:
         case AST_STMT_TROFF:
@@ -121,6 +120,16 @@ void c64script_ast_free(c64script_ast_node_t *node)
 
         case AST_STMT_GOSUB:
             free((char *)node->as.gosub_stmt.label);
+            for (size_t i = 0; i < node->as.gosub_stmt.param_count; i++) {
+                free_expr(node->as.gosub_stmt.params[i]);
+            }
+            if (node->as.gosub_stmt.params) {
+                free(node->as.gosub_stmt.params);
+            }
+            break;
+
+        case AST_STMT_RETURN:
+            free_expr(node->as.return_stmt.return_value);
             break;
 
         case AST_STMT_WAIT:
