@@ -448,7 +448,6 @@ For easy access, simple backups, and visibility, it is always stored in `<Docume
 ├── settings/        # Exported configuration files (.ini)
 ├── palettes/        # Custom palette files (.vpl)
 └── recordings/      # Recording session folders
-└── presets/         # Custom effect presets (future)
 ```
 
 **Sample Locations:**
