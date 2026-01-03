@@ -52,9 +52,9 @@ This document tracks the implementation status of all features described in `res
 - [ ] TODO-21: E2E test: Cancellation (start → stop → verify immediate halt)
 
 ### Documentation (3 tasks)
-- [ ] TODO-22: User guide/tutorial
-- [ ] TODO-23: Troubleshooting guide
-- [ ] TODO-24: FAQ section
+- [x] TODO-22: User guide/tutorial
+- [x] TODO-23: Troubleshooting guide
+- [x] TODO-24: FAQ section
 
 ---
 
@@ -319,9 +319,9 @@ This document tracks the implementation status of all features described in `res
 - [x] Limitations documentation
 - [x] References section
 - [x] Script automation specification
-- [ ] User guide/tutorial
-- [ ] Troubleshooting guide
-- [ ] FAQ section
+- [x] User guide/tutorial (rest-control-tutorial.md)
+- [x] Troubleshooting guide (rest-control-troubleshooting.md)
+- [x] FAQ section (rest-control-faq.md)
 
 ## Chapter 8: Build and CI Integration
 
@@ -340,10 +340,10 @@ This document tracks the implementation status of all features described in `res
 
 ## Summary Statistics
 
-**Completed:** 152 tasks  
-**Incomplete:** 15 tasks  
+**Completed:** 155 tasks  
+**Incomplete:** 12 tasks  
 **Total:** 167 tasks  
-**Progress:** 91.0%
+**Progress:** 92.8%
 
 ## Critical Blockers
 
