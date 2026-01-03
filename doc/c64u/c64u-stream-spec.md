@@ -1,4 +1,4 @@
-# C64 Ultimate Data Stream Specification
+# C64U Ultimate Data Stream Specification
 
 Source: https://1541u-documentation.readthedocs.io/en/latest/data_streams.html#data_streams
 

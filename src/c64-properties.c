@@ -17,9 +17,9 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-source.h"
 #include "c64-palette.h"
 #include "c64-color.h"
+#include "c64-keyboard.h"
 #include <obs-module.h>
 #include <util/platform.h>
-#include <time.h>
 #include <time.h>
 
 // Cross-platform strcasecmp
@@ -508,11 +508,35 @@ obs_properties_t *c64_create_properties(void *data)
     // Keyboard capture enable
     obs_properties_add_bool(rest_props, "keyboard_capture_enabled", "Enable Keyboard Capture");
 
-    // Keymap selection
+    // Keymap selection - dynamically populated
     obs_property_t *keymap_prop =
         obs_properties_add_list(rest_props, "keyboard_keymap", "Keymap", OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
-    obs_property_list_add_string(keymap_prop, "Symbolic US", "symbolic_us");
-    obs_property_list_add_string(keymap_prop, "Positional US", "positional_us");
+
+    // Discover and populate available keymaps
+    char **keymap_paths = NULL;
+    size_t keymap_count = 0;
+    if (c64_keyboard_discover_keymaps(&keymap_paths, &keymap_count)) {
+        for (size_t i = 0; i < keymap_count; i++) {
+            // Create display name from keymap filename
+            char display_name[128];
+            strncpy(display_name, keymap_paths[i], sizeof(display_name) - 1);
+            display_name[sizeof(display_name) - 1] = '\0';
+
+            // Convert underscores to spaces for display
+            for (char *p = display_name; *p; p++) {
+                if (*p == '_')
+                    *p = ' ';
+            }
+
+            obs_property_list_add_string(keymap_prop, display_name, keymap_paths[i]);
+            free(keymap_paths[i]);
+        }
+        free(keymap_paths);
+    } else {
+        // Fallback to hardcoded defaults if discovery fails
+        obs_property_list_add_string(keymap_prop, "Symbolic US", "symbolic_us");
+        obs_property_list_add_string(keymap_prop, "Positional US", "positional_us");
+    }
 
     // Automation mode
     obs_property_t *automation_mode_prop = obs_properties_add_list(rest_props, "automation_mode", "Automation Mode",

@@ -9,8 +9,11 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-keyboard.h"
 #include "c64-logging.h"
 #include "c64-rest-client.h"
+#include "c64-file.h"
 
+#include <obs-module.h>
 #include <ctype.h>
+#include <dirent.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -554,9 +557,96 @@ bool c64_keyboard_discover_keymaps(char ***paths, size_t *count)
         return false;
     }
 
-    // TODO: Scan builtin and user keymap directories
-    C64_LOG_INFO(KEYBOARD_LOG_PREFIX "Discover keymaps (stub)");
     *paths = NULL;
     *count = 0;
-    return false;
+
+    // Get the plugin's data directory from OBS
+    const char *data_path = obs_get_module_data_path(obs_current_module());
+    if (!data_path) {
+        C64_LOG_WARNING(KEYBOARD_LOG_PREFIX "Failed to get module data path");
+        return false;
+    }
+
+    // Build keymaps subdirectory path
+    char builtin_dir[512];
+    snprintf(builtin_dir, sizeof(builtin_dir), "%s/keymaps", data_path);
+
+    // Enumerate .c64keymap.ini files
+    DIR *dir = opendir(builtin_dir);
+    if (!dir) {
+        C64_LOG_WARNING(KEYBOARD_LOG_PREFIX "Failed to open keymap directory: %s", builtin_dir);
+        return false;
+    }
+
+    // Count files first
+    size_t capacity = 16;
+    char **keymap_paths = (char **)calloc(capacity, sizeof(char *));
+    if (!keymap_paths) {
+        closedir(dir);
+        return false;
+    }
+
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != NULL) {
+        if (entry->d_type != DT_REG) {
+            continue;
+        }
+
+        // Check for .c64keymap.ini extension
+        const char *ext = strrchr(entry->d_name, '.');
+        if (!ext || strcmp(ext, ".ini") != 0) {
+            continue;
+        }
+
+        // Check if it's a .c64keymap.ini file
+        if (strstr(entry->d_name, ".c64keymap.ini") == NULL) {
+            continue;
+        }
+
+        // Expand array if needed
+        if (*count >= capacity) {
+            capacity *= 2;
+            char **new_paths = (char **)realloc(keymap_paths, capacity * sizeof(char *));
+            if (!new_paths) {
+                // Free what we have and fail
+                for (size_t i = 0; i < *count; i++) {
+                    free(keymap_paths[i]);
+                }
+                free(keymap_paths);
+                closedir(dir);
+                return false;
+            }
+            keymap_paths = new_paths;
+        }
+
+        // Extract keymap name (strip .c64keymap.ini)
+        char name[256];
+        strncpy(name, entry->d_name, sizeof(name) - 1);
+        name[sizeof(name) - 1] = '\0';
+        char *suffix = strstr(name, ".c64keymap.ini");
+        if (suffix) {
+            *suffix = '\0';
+        }
+
+        // Store the keymap name
+        keymap_paths[*count] = strdup(name);
+        if (!keymap_paths[*count]) {
+            for (size_t i = 0; i < *count; i++) {
+                free(keymap_paths[i]);
+            }
+            free(keymap_paths);
+            closedir(dir);
+            return false;
+        }
+
+        (*count)++;
+    }
+
+    closedir(dir);
+
+    // TODO: Also scan user keymap directory
+
+    C64_LOG_INFO(KEYBOARD_LOG_PREFIX "Discovered %zu keymaps", *count);
+    *paths = keymap_paths;
+    return *count > 0;
 }

@@ -2,6 +2,8 @@
 
 This document describes the REST control feature for C64 Stream, enabling programmatic control of Ultimate 64 hardware via REST API.
 
+For full details, see [C64U REST API](./c64u/c64u-rest-api.md) and [C64U Open API](./c64u/c64u-openapi.yaml).
+
 ## Overview
 
 The REST control feature provides:

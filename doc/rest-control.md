@@ -4,6 +4,8 @@ Extend the OBS `c64stream` source with **explicit, opt-in** Ultimate 64 control 
 
 All user interaction must be through the source’s **Properties** (no global hotkeys and no implicit activation).
 
+For full details on the C64 REST API, see [C64U REST API](./c64u/c64u-rest-api.md) and [C64U Open API](./c64u/c64u-openapi.yaml).
+
 ## Outcomes to deliver
 
 - Play a SID (single file or folder batch; optional shuffle; configurable per-item delay).
