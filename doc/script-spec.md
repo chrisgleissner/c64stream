@@ -453,7 +453,7 @@ and_expr        = not_expr, { WS, ("AND" | "&&"), WS, not_expr } ;
 not_expr        = ["NOT" | "!"], [WS], rel_expr ;
 
 rel_expr        = add_expr, [WS, rel_op, WS, add_expr] ;
-rel_op          = "=" | "<>" | "<" | "<=" | ">" | ">=" ;
+rel_op          = "=" | "==" | "<>" | "!=" | "<" | "<=" | ">" | ">=" ;
 
 add_expr        = mul_expr, { [WS], ("+" | "-"), [WS], mul_expr } ;
 mul_expr        = unary_expr, { [WS], ("*" | "/"), [WS], unary_expr } ;
@@ -487,14 +487,48 @@ The executor maintains explicit stacks:
 - `WHILE` stack: loop condition location, loop start location.
 - `GOSUB` stack: return address.
 
+Labels and line numbers:
+- A label is either an alphanumeric name (e.g., `START`) or a numeric-only “line number” (e.g., `10`).
+- Labels are case-insensitive; numeric labels should be normalized by value (`0010` == `10`).
+- A label can be defined:
+  - as a line prefix: `START:` / `START` / `10:` / `10`, optionally followed by statements on the same line, or
+  - via the compatibility statement `LABEL <label_ref>`.
+- A label-only line (label prefix with no statements) labels the **next executable statement line**, skipping empty lines and `#` comment lines.
+- `GOTO`/`GOSUB` jump to the labeled location; `RETURN` resumes after the `GOSUB` call site.
+
+`WHILE` terminators:
+- `WHILE … WEND` has historic precedent in the Microsoft BASIC family (GW-BASIC/QBasic/QuickBASIC), so `WEND` is recognizable to many BASIC users.
+- `ENDWHILE` (and `END WHILE`) are allowed as clearer modern spellings.
+
 Limits should be explicit (e.g., max nesting depth) and produce clear runtime errors when exceeded.
 
 #### 3.5.3 Boolean Logic
 
 - Relational operators return numeric truth values (`0` or `1` recommended).
-- `NOT`, `AND`, `OR` follow typical BASIC precedence (`NOT` > `AND` > `OR`).
+- Boolean operators follow BASIC-like precedence (`NOT` > `AND` > `XOR` > `OR`).
+  - Aliases: `!` for `NOT`, `&&` for `AND`, `||` for `OR`.
+  - Relational aliases: `==` for `=`, `!=` for `<>`.
+  - Parentheses always override precedence.
 
-#### 3.5.4 Plugin-Specific I/O
+#### 3.5.4 Waiting (Duration vs Wall Clock)
+
+`WAIT` supports two forms:
+
+- `WAIT <duration>`
+  - If a unit is omitted, the default unit is seconds (e.g., `WAIT 1.5` means `1.5s`).
+  - Implementations should sleep in short intervals (polling) to remain cancellable.
+
+- `WAIT UNTIL <expr>`
+  - Waits until a **host wall-clock** target time is reached (or exceeded).
+  - `<expr>` may evaluate to:
+    - a number: interpreted as Unix epoch seconds (UTC) as a `double`, or
+    - a string: parsed as a wall-clock time in one of these recommended formats:
+      - `"HH:MM"` or `"HH:MM:SS"` (local time; if already passed today, treat as “tomorrow”),
+      - `"YYYY-MM-DD HH:MM:SS"` (local time),
+      - ISO-8601 `"YYYY-MM-DDTHH:MM:SS[.fff][Z|±HH:MM]"`.
+  - If the time cannot be parsed, raise a BASIC-style runtime error (recommended: “ILLEGAL QUANTITY”).
+
+#### 3.5.5 Plugin-Specific I/O
 
 These statements/functions exist to make C64 automation scripts practical in the context of this plugin (REST control, keyboard injection, and reproducible captures).
 

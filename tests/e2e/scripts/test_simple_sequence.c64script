@@ -1,0 +1,10 @@
+# Simple effect sequence test script
+# Tests basic command execution and timing
+
+effect Sharp Pixels
+wait 2s
+effect Soft CRT
+wait 2s
+effect CRT Monitor Warm
+wait 2s
+stop

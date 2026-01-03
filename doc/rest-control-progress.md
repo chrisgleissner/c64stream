@@ -44,12 +44,12 @@ This document tracks the implementation status of all features described in `res
 - [x] TODO-15: Add all script locale strings (en-US, de-DE, es-ES, fr-FR, it-IT, ja-JP, ko-KR, nl-NL, pl-PL, pt-BR, ru-RU, zh-CN)
 
 ### Script Testing (6 tasks)
-- [ ] TODO-16: Unit test: test_script_executor.py
-- [ ] TODO-17: E2E test: Simple sequence (effect → wait → palette)
-- [ ] TODO-18: E2E test: SID playback (play_sid → wait → verify)
-- [ ] TODO-19: E2E test: Loop test (label → goto → verify iteration)
-- [ ] TODO-20: E2E test: Error recovery (invalid command → error reporting)
-- [ ] TODO-21: E2E test: Cancellation (start → stop → verify immediate halt)
+- [x] TODO-16: Unit test: test_script_executor.py
+- [x] TODO-17: E2E test: Simple sequence (effect → wait → palette)
+- [x] TODO-18: E2E test: SID playback (play_sid → wait → verify)
+- [x] TODO-19: E2E test: Loop test (label → goto → verify iteration)
+- [x] TODO-20: E2E test: Error recovery (invalid command → error reporting)
+- [x] TODO-21: E2E test: Cancellation (start → stop → verify immediate halt)
 
 ### Documentation (3 tasks)
 - [x] TODO-22: User guide/tutorial
@@ -340,10 +340,10 @@ This document tracks the implementation status of all features described in `res
 
 ## Summary Statistics
 
-**Completed:** 157 tasks  
-**Incomplete:** 10 tasks  
+**Completed:** 163 tasks  
+**Incomplete:** 4 tasks  
 **Total:** 167 tasks  
-**Progress:** 94.0%
+**Progress:** 97.6%
 
 1. **C64U filesystem browsing** - REST API does not provide directory listing endpoints
    - Only single file metadata available via GET /v1/files/{path}:info

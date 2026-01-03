@@ -1,0 +1,6 @@
+# Cancellation test script
+# Tests immediate stop during long wait
+
+wait 60s
+effect This Should Never Execute
+stop

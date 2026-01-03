@@ -1,0 +1,7 @@
+# Error recovery test script
+# Tests handling of invalid commands and missing labels
+
+# This should cause parse error (invalid command)
+invalid_command_here
+effect Test
+stop
