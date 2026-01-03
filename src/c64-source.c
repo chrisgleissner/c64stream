@@ -1173,6 +1173,7 @@ void c64_video_tick(void *data, float seconds)
 // Helper to check if we're outputting to stream/recording
 static bool is_output_active(void)
 {
+#ifdef ENABLE_FRONTEND_API
     // Check if OBS is streaming or recording
     obs_output_t *streaming = obs_frontend_get_streaming_output();
     obs_output_t *recording = obs_frontend_get_recording_output();
@@ -1188,6 +1189,10 @@ static bool is_output_active(void)
     }
 
     return active;
+#else
+    // Frontend API disabled - always show indicators in preview
+    return false;
+#endif
 }
 
 // Render keyboard capture indicator overlay (preview-only)
