@@ -80,6 +80,11 @@ c64_script_t *c64_script_parse_string(const char *content);
 void c64_script_free(c64_script_t *script);
 
 /**
+ * Get number of commands in script
+ */
+size_t c64_script_get_command_count(c64_script_t *script);
+
+/**
  * Get error message from last parse operation
  * @return Error string (valid until next parse or NULL if no error)
  */

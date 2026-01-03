@@ -343,6 +343,14 @@ void c64_script_free(c64_script_t *script)
     free(script);
 }
 
+size_t c64_script_get_command_count(c64_script_t *script)
+{
+    if (!script) {
+        return 0;
+    }
+    return script->num_commands;
+}
+
 const char *c64_script_get_error(c64_script_t *script)
 {
     if (!script) {

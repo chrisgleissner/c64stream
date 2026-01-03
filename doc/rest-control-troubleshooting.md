@@ -185,7 +185,7 @@ Check OBS log:
    ```bash
    # Local file
    ls -la /home/user/sids/tune.sid
-   
+
    # C64U file
    curl http://192.168.1.100/v1/files:stat?path=/Commodore/SID/tune.sid
    ```
@@ -237,7 +237,7 @@ Check OBS log:
 
 1. **Verify multiple files:**
    - Need at least 2 files for shuffle to be meaningful
-   
+
 2. **Understand shuffle behavior:**
    - Fisher-Yates algorithm ensures each file played once per cycle
    - After all files played, shuffle re-runs for next cycle
@@ -318,7 +318,7 @@ Check OBS log:
    effect "CRT Monitor"    # No quotes
    wait 5                  # Missing unit
    play_sid /path/file     # No extension
-   
+
    # CORRECT:
    effect CRT Monitor Warm
    wait 5s
@@ -352,7 +352,7 @@ Check OBS log:
    # WRONG: goto target doesn't exist
    goto start
    label begin
-   
+
    # CORRECT:
    goto begin
    label begin
@@ -364,7 +364,7 @@ Check OBS log:
      effect Sharp Pixels
      wait 10s
    # This loop runs forever - intentional for live streaming
-   
+
    # To stop after N iterations:
    loop 10
      effect Sharp Pixels
@@ -412,7 +412,7 @@ Check OBS log:
    # Packet loss test
    ping -c 100 192.168.1.100
    # Look for: 0% packet loss
-   
+
    # Latency test
    ping -c 10 192.168.1.100
    # Look for: avg < 5ms on LAN
@@ -532,10 +532,10 @@ If issues persist:
    ```bash
    # OBS log
    Help → Log Files → Upload Current Log
-   
+
    # REST API test
    curl -v http://192.168.1.100/v1/machine:status > rest-test.txt 2>&1
-   
+
    # Network test
    ping -c 20 192.168.1.100 > network-test.txt
    ```

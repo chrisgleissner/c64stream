@@ -1,6 +1,6 @@
-# C64 Script Language Specification
+# C64 Stream  Script Language Specification
 
-This document defines the **current** `.c64script` language (“v1”) as implemented by the plugin, and proposes a **BASIC-inspired**, label-oriented evolution (“v2”) aimed at Commodore 64 users (no line numbers; labels + `GOTO` + structured loops).
+This document defines the **current** `.c64script` language (“v1”) as implemented by the plugin, and proposes a **BASIC-inspired** evolution (“v2”) aimed at Commodore 64 users (labels and optional BASIC-style line numbers; `GOTO`/`GOSUB`; structured loops).
 
 Scope:
 - **v1 (implemented)**: `src/c64-script-parser.c/h`, `src/c64-script-executor.c/h`
@@ -219,11 +219,12 @@ These limits are implementation-defined by the current parser/executor and may c
   - BASIC-like keywords (`IF`, `THEN`, `FOR`, `NEXT`, `GOSUB`, `RETURN`, `REM`, …)
   - Numeric truthiness (`0` = false, non-zero = true)
   - Optional `LET`
-- **No line numbers**:
-  - Use **labels** and `GOTO` / `GOSUB`.
-  - File line numbers remain only for diagnostics.
+- **Labels first; line numbers optional**:
+  - Labels allow assembly-like structure (`START:`) without forcing line numbers.
+  - BASIC-style line numbers (`10`, `20`, …) are optional and act like implicit labels for `GOTO`/`GOSUB`.
+  - Labels are case-insensitive and may be alphanumeric or numeric-only.
 - **Proper structured blocks**:
-  - `FOR … NEXT`, `WHILE … WEND`, block `IF … THEN … ENDIF`
+  - `FOR … NEXT`, `WHILE … WEND` (or `ENDWHILE`), block `IF … THEN … ENDIF`
   - Nested blocks are allowed.
 - **Script ergonomics**:
   - Quoted strings allow spaces in preset names and file paths.
@@ -240,17 +241,21 @@ Recommended: make v2 a **superset** of v1.
 
 - v1 scripts remain valid in v2 (same command vocabulary, same duration literals).
 - v2 adds quoting, expressions, structured blocks, and BASIC-like spelling.
-- Keywords are case-insensitive in v2 (`WAIT`, `wait`, `WaIt` are equivalent).
+- Keywords, labels, and identifiers are case-insensitive in v2 (`WAIT`, `wait`, `WaIt` are equivalent).
 - Where v1 uses underscores (e.g., `play_sid`, `run_prg`), v2 may additionally accept underscorless aliases (e.g., `PLAYSID`, `RUNPRG`).
 
 ### 3.3 Lexical Rules (v2)
+
+**Case sensitivity**
+- Keywords, labels, and identifiers are **case-insensitive** (`goto`, `GOTO`, and `GoTo` are the same).
+- A recommended canonical form for display/logging is uppercase keywords and labels (BASIC style).
 
 **Whitespace**
 - Spaces and tabs separate tokens, except inside quoted strings.
 
 **Comments**
-- `REM` begins a comment to end-of-line.
-- `#` at the start of a (trimmed) line is also a comment for v1 compatibility.
+- `#` at the start of a (trimmed) line is a comment (v1 compatibility).
+- `REM` is a statement that comments out the rest of the line (BASIC style). After `REM`, the remainder of the line is ignored (including any `:`).
 
 **Statement separator**
 - `:` separates multiple statements on the same line (BASIC style).
@@ -270,6 +275,17 @@ Recommended: make v2 a **superset** of v1.
 - Optional BASIC-like type suffix:
   - `$` string variable (e.g., `PATH$`)
   - `%` integer variable (optional; implementer may treat it as an integer constraint)
+
+**Labels (including line numbers)**
+- A line may optionally start with a **label** that acts like an implicit jump target.
+- Labels may be:
+  - alphanumeric (e.g., `START`, `PLAY2`, `DEMO2026`), or
+  - numeric-only (e.g., `10`, `12345`) to resemble BASIC line numbers.
+- Labels may end with `:` (recommended), but the colon is optional.
+- A label can appear on the same line as code, or on a line by itself to label the following line.
+- Disambiguation rule (keeps the language usable without becoming a hybrid monster):
+  - At the start of a line, an alphanumeric token is treated as a label **only if** it is followed by `:` or end-of-line, or it is followed by whitespace that is **not** immediately followed by `=`.
+  - This ensures `I = 0` is an assignment, while `START I=0` can be a label + statement.
 
 **Numbers**
 - Decimal integers and reals: `10`, `1.5`
@@ -294,10 +310,14 @@ DIGIT           = "0"…"9" ;
 HEX             = DIGIT | "A"…"F" | "a"…"f" ;
 
 identifier      = ( "A"…"Z" | "a"…"z" ), { "A"…"Z" | "a"…"z" | DIGIT | "_" }, ["$" | "%"] ;
-label_ref       = identifier ;
+label_name      = ( "A"…"Z" | "a"…"z" ), { "A"…"Z" | "a"…"z" | DIGIT } ;
 
 number          = DIGIT, {DIGIT}, [".", DIGIT, {DIGIT}] ;
 hex_number      = "$", HEX, {HEX} ;
+
+line_number     = DIGIT, {DIGIT} ;
+label           = label_name | line_number ;
+label_ref       = label ;
 
 string_literal  = "\"", { string_char }, "\"" ;
 string_char     = ? any character except `"`, `\`, and EOL ? | "\"\"" | escape_seq ;
@@ -311,19 +331,20 @@ duration_lit    = number, ("ms" | "s" | "m") ;
 ```
 script          = { line }, EOF ;
 line            = [WS], [label_def], [stmt_list], EOL
-                | [WS], comment, EOL
+                | [WS], comment_line, EOL
                 | [WS], EOL ;
 
-label_def       = identifier, ":" ;
+label_def       = label, [":"], [WS] ;
 stmt_list       = statement, { [WS], ":", [WS], statement } ;
-comment         = ("REM" | "#"), { ? any character except EOL ? } ;
+comment_line    = "#", { ? any character except EOL ? } ;
 ```
 
 **Statements**
 
 ```
 statement =
-    assignment
+    rem_stmt
+  | assignment
   | if_stmt
   | for_stmt
   | while_stmt
@@ -354,6 +375,8 @@ statement =
   | poke_stmt
   ;
 
+rem_stmt         = "REM", { ? any character except EOL ? } ;
+
 assignment      = ["LET", WS], identifier, [WS], "=", [WS], expr ;
 
 label_stmt      = "LABEL", WS, label_ref ;
@@ -362,7 +385,9 @@ gosub_stmt      = "GOSUB", WS, label_ref ;
 return_stmt     = "RETURN" ;
 stop_stmt       = "STOP" | "END" ;
 
-wait_stmt       = "WAIT", WS, wait_arg ;
+wait_stmt       = "WAIT", WS, (wait_until | wait_duration) ;
+wait_duration   = wait_arg ;
+wait_until      = "UNTIL", WS, expr ;
 wait_arg        = duration_lit | expr, [WS, ("ms" | "s" | "m")] ;
 
 if_stmt         =
@@ -380,7 +405,7 @@ for_stmt        = "FOR", WS, identifier, [WS], "=", [WS], expr, WS, "TO", WS, ex
 
 while_stmt      = "WHILE", WS, bool_expr, EOL,
                       { line },
-                  "WEND" ;
+                  ("WEND" | "ENDWHILE" | ("END", WS, "WHILE")) ;
 ```
 
 **Plugin actions**
@@ -422,7 +447,8 @@ poke_stmt           = "POKE", WS, expr, [WS], ",", [WS], expr
 expr            = or_expr ;
 bool_expr       = or_expr ;
 
-or_expr         = and_expr, { WS, ("OR" | "||"), WS, and_expr } ;
+or_expr         = xor_expr, { WS, ("OR" | "||"), WS, xor_expr } ;
+xor_expr        = and_expr, { WS, "XOR", WS, and_expr } ;
 and_expr        = not_expr, { WS, ("AND" | "&&"), WS, not_expr } ;
 not_expr        = ["NOT" | "!"], [WS], rel_expr ;
 
@@ -439,7 +465,7 @@ function_call   = identifier, [WS], "(", [WS], [expr, { [WS], ",", [WS], expr }]
 
 string_or_ident = string_literal | identifier ;
 path_expr       = string_literal | identifier ;
-label_ref       = identifier ;
+label_ref       = label ;
 ```
 
 ### 3.5 Semantics (v2)

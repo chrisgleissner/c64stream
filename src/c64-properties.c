@@ -18,6 +18,8 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-palette.h"
 #include "c64-color.h"
 #include "c64-keyboard.h"
+#include "c64-script-parser.h"
+#include "c64-script-executor.h"
 #include <obs-module.h>
 #include <util/platform.h>
 #include <time.h>
@@ -110,10 +112,45 @@ static bool script_start_clicked(obs_properties_t *props, obs_property_t *proper
 {
     UNUSED_PARAMETER(props);
     UNUSED_PARAMETER(property);
-    UNUSED_PARAMETER(data);
 
-    // TODO: Implement script start - create executor and begin execution
-    C64_LOG_INFO("Script start button clicked");
+    struct c64_source *context = (struct c64_source *)data;
+    if (!context) {
+        return false;
+    }
+
+    // Check if executor already running
+    if (context->script_executor && c64_script_executor_is_running(context->script_executor)) {
+        C64_LOG_WARNING("Script already running");
+        return false;
+    }
+
+    // Create executor if needed
+    if (!context->script_executor) {
+        context->script_executor = c64_script_executor_create(context->source);
+        if (!context->script_executor) {
+            C64_LOG_ERROR("Failed to create script executor");
+            return false;
+        }
+    }
+
+    // Load script if needed
+    if (!context->current_script && context->script_file_path[0] != '\0') {
+        context->current_script = c64_script_parse_file(context->script_file_path);
+        if (!context->current_script) {
+            C64_LOG_ERROR("Failed to parse script: %s", context->script_file_path);
+            return false;
+        }
+    }
+
+    // Start execution
+    if (context->current_script) {
+        if (c64_script_executor_start(context->script_executor, context->current_script)) {
+            C64_LOG_INFO("Script started: %s", context->script_file_path);
+        } else {
+            C64_LOG_ERROR("Failed to start script");
+        }
+    }
+
     return false; // Don't refresh properties
 }
 
@@ -121,10 +158,15 @@ static bool script_stop_clicked(obs_properties_t *props, obs_property_t *propert
 {
     UNUSED_PARAMETER(props);
     UNUSED_PARAMETER(property);
-    UNUSED_PARAMETER(data);
 
-    // TODO: Implement script stop - signal executor to cancel
-    C64_LOG_INFO("Script stop button clicked");
+    struct c64_source *context = (struct c64_source *)data;
+    if (!context || !context->script_executor) {
+        return false;
+    }
+
+    c64_script_executor_stop(context->script_executor);
+    C64_LOG_INFO("Script stopped");
+
     return false; // Don't refresh properties
 }
 
@@ -132,10 +174,29 @@ static bool script_reload_clicked(obs_properties_t *props, obs_property_t *prope
 {
     UNUSED_PARAMETER(props);
     UNUSED_PARAMETER(property);
-    UNUSED_PARAMETER(data);
 
-    // TODO: Implement script reload - reparse script file
-    C64_LOG_INFO("Script reload button clicked");
+    struct c64_source *context = (struct c64_source *)data;
+    if (!context) {
+        return false;
+    }
+
+    // Free old script
+    if (context->current_script) {
+        c64_script_free(context->current_script);
+        context->current_script = NULL;
+    }
+
+    // Reload from file
+    if (context->script_file_path[0] != '\0') {
+        context->current_script = c64_script_parse_file(context->script_file_path);
+        if (context->current_script) {
+            C64_LOG_INFO("Script reloaded: %s (%zu commands)", context->script_file_path,
+                         c64_script_get_command_count(context->current_script));
+        } else {
+            C64_LOG_ERROR("Failed to reload script: %s", context->script_file_path);
+        }
+    }
+
     return false; // Don't refresh properties
 }
 

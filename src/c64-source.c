@@ -31,6 +31,8 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-palette.h"
 #include "c64-keyboard.h"
 #include "c64-rest-client.h"
+#include "c64-script-executor.h"
+#include "c64-script-parser.h"
 #include "plugin-support.h"
 #include "c64-effect.h"
 
@@ -642,6 +644,17 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->capture_indicator_position = (int)obs_data_get_int(settings, "capture_indicator_position");
     context->capture_indicator_opacity = (float)obs_data_get_double(settings, "capture_indicator_opacity");
 
+    // Initialize script automation fields
+    context->script_executor = NULL;
+    context->current_script = NULL;
+    memset(context->script_file_path, 0, sizeof(context->script_file_path));
+
+    // Load script file path if set
+    const char *script_path = obs_data_get_string(settings, "script_file_path");
+    if (script_path && script_path[0] != '\0') {
+        strncpy(context->script_file_path, script_path, sizeof(context->script_file_path) - 1);
+    }
+
     return context;
 }
 
@@ -685,6 +698,16 @@ void c64_destroy(void *data)
     }
 
     c64_record_cleanup(context);
+
+    // Cleanup script automation
+    if (context->script_executor) {
+        c64_script_executor_destroy(context->script_executor);
+        context->script_executor = NULL;
+    }
+    if (context->current_script) {
+        c64_script_free(context->current_script);
+        context->current_script = NULL;
+    }
 
     // Cleanup logo system
     c64_logo_cleanup(context);

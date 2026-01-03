@@ -52,7 +52,7 @@ Frequently asked questions about REST control features in C64 Stream.
 
 ### Q: What is "Auto Detect OBS IP" and should I enable it?
 
-**A:** When enabled, the plugin automatically detects the local IP address of your OBS machine and sends it to Ultimate 64 for video/audio streaming. 
+**A:** When enabled, the plugin automatically detects the local IP address of your OBS machine and sends it to Ultimate 64 for video/audio streaming.
 
 **Enable if:**
 - You have multiple network interfaces
@@ -112,7 +112,7 @@ MetaLeft = c64:COMMODORE
 **A:**
 - **Symbolic:** Key labels match (Q→Q character)
   - Use for: Typing text, BASIC programming, English keyboards
-  
+
 - **Positional:** Physical key positions match (QWERTY Q is at C64 Q position)
   - Use for: Games expecting specific positions, non-US keyboards
 
@@ -284,7 +284,7 @@ goto effects_demo
   - Preserves memory contents (some demos detect this)
   - Faster (~500ms)
   - Use for: Quick restart, testing initialization
-  
+
 - **reboot:** Hard reboot (power cycle)
   - Complete machine restart
   - Slower (~2-3s)
@@ -422,7 +422,7 @@ curl -X POST http://192.168.1.100/v1/machine:reset
 
 ### Q: Where do I find the OBS log?
 
-**A:** 
+**A:**
 - **Windows:** Help → Log Files → View Current Log
 - **Linux:** Help → Log Files → View Current Log (or `~/.config/obs-studio/logs/`)
 - **macOS:** Help → Log Files → View Current Log

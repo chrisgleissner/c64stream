@@ -37,8 +37,8 @@ This document tracks the implementation status of all features described in `res
 - [x] TODO-10: Start button
 - [x] TODO-11: Stop button
 - [x] TODO-12: Reload button
-- [ ] TODO-13: Progress indicator (requires executor integration)
-- [ ] TODO-14: Current command display (requires executor integration)
+- [x] TODO-13: Progress indicator (executor state polling)
+- [x] TODO-14: Current command display (executor accessor)
 
 ### Script Localization (1 task covering 12 languages)
 - [x] TODO-15: Add all script locale strings (en-US, de-DE, es-ES, fr-FR, it-IT, ja-JP, ko-KR, nl-NL, pl-PL, pt-BR, ru-RU, zh-CN)
@@ -340,12 +340,10 @@ This document tracks the implementation status of all features described in `res
 
 ## Summary Statistics
 
-**Completed:** 155 tasks  
-**Incomplete:** 12 tasks  
+**Completed:** 157 tasks  
+**Incomplete:** 10 tasks  
 **Total:** 167 tasks  
-**Progress:** 92.8%
-
-## Critical Blockers
+**Progress:** 94.0%
 
 1. **C64U filesystem browsing** - REST API does not provide directory listing endpoints
    - Only single file metadata available via GET /v1/files/{path}:info
