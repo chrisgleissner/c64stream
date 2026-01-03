@@ -1135,6 +1135,12 @@ static bool palette_import_path_changed(obs_properties_t *props, obs_property_t 
         return false;
     }
 
+    // CRITICAL: Never import during initialization
+    // This prevents spurious palette imports when properties dialog opens
+    if (obs_data_get_bool(settings, C64_PALETTE_INITIALIZING_KEY)) {
+        return false;
+    }
+
     const char *path = obs_data_get_string(settings, "palette_import_path");
     if (!path || !path[0]) {
         return false;
@@ -1181,25 +1187,34 @@ static bool palette_export_path_changed(obs_properties_t *props, obs_property_t 
         return false;
     }
 
+    // CRITICAL: Never export during initialization
+    // This prevents spurious palette file creation when properties dialog opens
+    if (obs_data_get_bool(settings, C64_PALETTE_INITIALIZING_KEY)) {
+        return false;
+    }
+
     const char *path = obs_data_get_string(settings, "palette_export_path");
     if (!path || !path[0]) {
         return false;
     }
 
-    // Ensure path ends with .vpl extension
-    char full_path[512];
+    // CRITICAL: Don't export if the path is a directory (not a .vpl file)
+    // The default value is just the palettes folder, not a specific file.
+    // Only export when user explicitly picks a filename via the file dialog.
+    // Check if path ends with .vpl extension - if not, it's likely just a directory
     const char *path_ext = strrchr(path, '.');
     bool has_vpl = (path_ext && strcasecmp(path_ext, ".vpl") == 0);
 
-    if (has_vpl) {
-        strncpy(full_path, path, sizeof(full_path) - 1);
-    } else {
-        snprintf(full_path, sizeof(full_path), "%s.vpl", path);
+    if (!has_vpl) {
+        // Path is a directory or doesn't have .vpl extension - don't auto-export
+        // User needs to explicitly choose a filename via the file dialog
+        return false;
     }
-    full_path[sizeof(full_path) - 1] = '\0';
 
-    // Update settings with the corrected path
-    obs_data_set_string(settings, "palette_export_path", full_path);
+    // Path has .vpl extension - this is an explicit export request
+    char full_path[512];
+    strncpy(full_path, path, sizeof(full_path) - 1);
+    full_path[sizeof(full_path) - 1] = '\0';
 
     // Extract name from filename
     char name[64];
