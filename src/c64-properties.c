@@ -1011,6 +1011,36 @@ static void c64_ensure_ini_extension(char *path, size_t path_size)
     }
 }
 
+// Helper function to ensure path ends with .vpl extension
+static void c64_ensure_vpl_extension(char *path, size_t path_size)
+{
+    if (!path || path_size < 5 || path[0] == '\0')
+        return;
+
+    size_t len = strlen(path);
+
+    // Check if path ends with .vpl (case-insensitive)
+    if (len >= 4) {
+        const char *ext = path + len - 4;
+        if (strcasecmp(ext, ".vpl") == 0)
+            return; // Already has .vpl
+    }
+
+    // Check if path ends with a dot (e.g., "file.")
+    if (len >= 1 && path[len - 1] == '.') {
+        // Append "vpl" to existing dot
+        if (len + 3 < path_size) {
+            strcat(path, "vpl");
+        }
+        return;
+    }
+
+    // Append .vpl
+    if (len + 4 < path_size) {
+        strcat(path, ".vpl");
+    }
+}
+
 static bool config_export_path_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings)
 {
     UNUSED_PARAMETER(props);
@@ -1303,22 +1333,30 @@ static bool palette_export_path_changed(obs_properties_t *props, obs_property_t 
     }
 
     // CRITICAL: Don't export if the path is a directory (not a .vpl file)
-    // The default value is just the palettes folder, not a specific file.
-    // Only export when user explicitly picks a filename via the file dialog.
-    // Check if path ends with .vpl extension - if not, it's likely just a directory
+    // Check if path has .vpl extension or appears to be a file path
     const char *path_ext = strrchr(path, '.');
-    bool has_vpl = (path_ext && strcasecmp(path_ext, ".vpl") == 0);
+    const char *last_sep = strrchr(path, '/');
+#ifdef _WIN32
+    const char *last_backslash = strrchr(path, '\\');
+    if (last_backslash && (!last_sep || last_backslash > last_sep))
+        last_sep = last_backslash;
+#endif
 
-    if (!has_vpl) {
-        // Path is a directory or doesn't have .vpl extension - don't auto-export
-        // User needs to explicitly choose a filename via the file dialog
+    // If the extension comes before the last separator, it's not a file extension
+    if (path_ext && last_sep && path_ext < last_sep) {
+        path_ext = NULL;
+    }
+
+    // If no extension or no filename component, this is likely a directory
+    if (!path_ext && last_sep && last_sep[1] == '\0') {
         return false;
     }
 
-    // Path has .vpl extension - this is an explicit export request
+    // Copy path and ensure .vpl extension
     char full_path[512];
     strncpy(full_path, path, sizeof(full_path) - 1);
     full_path[sizeof(full_path) - 1] = '\0';
+    c64_ensure_vpl_extension(full_path, sizeof(full_path));
 
     // Extract name from filename
     char name[64];
@@ -1349,14 +1387,19 @@ static bool palette_export_path_changed(obs_properties_t *props, obs_property_t 
     if (ok) {
         C64_LOG_INFO("Palette exported to: %s", full_path);
 
+        // Update the path field to show the actual path with .vpl extension
+        if (strcmp(path, full_path) != 0) {
+            obs_data_set_string(settings, "palette_export_path", full_path);
+        }
+
         // Repopulate the palette dropdown in case export created a new palette
         obs_property_t *palette_prop = obs_properties_get(props, C64_PALETTE_KEY);
         if (palette_prop) {
             c64_palette_populate_list(palette_prop);
         }
 
-        // Remember this path so we don't re-export if callback fires again
-        obs_data_set_string(settings, C64_PALETTE_EXPORT_LAST_KEY, path);
+        // Remember the corrected path so we don't re-export if callback fires again
+        obs_data_set_string(settings, C64_PALETTE_EXPORT_LAST_KEY, full_path);
     } else {
         C64_LOG_WARNING("Failed to export palette to: %s", full_path);
     }
