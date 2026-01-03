@@ -64,6 +64,12 @@ static const char *C64_PALETTE_KEY = "palette";
 // Internal key to prevent auto-import/export during properties UI initialization
 static const char *C64_CONFIG_INITIALIZING_KEY = "_c64_config_initializing";
 
+// Internal keys to track last processed paths (prevents duplicate processing)
+static const char *C64_CONFIG_EXPORT_LAST_KEY = "_c64_config_export_last";
+static const char *C64_CONFIG_IMPORT_LAST_KEY = "_c64_config_import_last";
+static const char *C64_PALETTE_EXPORT_LAST_KEY = "_c64_palette_export_last";
+static const char *C64_PALETTE_IMPORT_LAST_KEY = "_c64_palette_import_last";
+
 // Helpers: When enforce is true (CI), apply both default and direct values
 static inline void c64_set_string(obs_data_t *settings, const char *key, const char *value, bool enforce)
 {
@@ -1024,6 +1030,12 @@ static bool config_export_path_changed(obs_properties_t *props, obs_property_t *
         return false;
     }
 
+    // Check if we already processed this exact path
+    const char *last_path = obs_data_get_string(settings, C64_CONFIG_EXPORT_LAST_KEY);
+    if (last_path && strcmp(path, last_path) == 0) {
+        return false; // Already processed
+    }
+
     // CRITICAL: Don't export if the path is a directory (not an .ini file)
     // Check if path has .ini extension or appears to be a file path
     const char *path_ext = strrchr(path, '.');
@@ -1058,6 +1070,9 @@ static bool config_export_path_changed(obs_properties_t *props, obs_property_t *
         if (strcmp(path, export_path) != 0) {
             obs_data_set_string(settings, C64_CONFIG_EXPORT_PATH_KEY, export_path);
         }
+
+        // Remember this path so we don't re-export if callback fires again
+        obs_data_set_string(settings, C64_CONFIG_EXPORT_LAST_KEY, export_path);
     } else {
         C64_LOG_WARNING("Failed to export C64 Stream settings to %s", export_path);
     }
@@ -1084,6 +1099,12 @@ static bool config_import_path_changed(obs_properties_t *props, obs_property_t *
         return false;
     }
 
+    // Check if we already processed this exact path
+    const char *last_path = obs_data_get_string(settings, C64_CONFIG_IMPORT_LAST_KEY);
+    if (last_path && strcmp(path, last_path) == 0) {
+        return false; // Already processed
+    }
+
     // Check if this is a file (not just a directory)
     if (!os_file_exists(path)) {
         C64_LOG_WARNING("Import: file does not exist: %s", path);
@@ -1096,6 +1117,9 @@ static bool config_import_path_changed(obs_properties_t *props, obs_property_t *
         update_palette_color_properties(settings);
 
         C64_LOG_INFO("Imported C64 Stream settings from %s", path);
+
+        // Remember this path so we don't re-import if callback fires again
+        obs_data_set_string(settings, C64_CONFIG_IMPORT_LAST_KEY, path);
     } else {
         C64_LOG_WARNING("Failed to import C64 Stream settings from %s", path);
     }
@@ -1211,6 +1235,12 @@ static bool palette_import_path_changed(obs_properties_t *props, obs_property_t 
         return false;
     }
 
+    // Check if we already processed this exact path
+    const char *last_path = obs_data_get_string(settings, C64_PALETTE_IMPORT_LAST_KEY);
+    if (last_path && strcmp(path, last_path) == 0) {
+        return false; // Already processed
+    }
+
     // Check if this is a file (not just a directory)
     if (!os_file_exists(path)) {
         return false;
@@ -1233,6 +1263,9 @@ static bool palette_import_path_changed(obs_properties_t *props, obs_property_t 
 
         // Update color pickers
         update_palette_color_properties(settings);
+
+        // Remember this path so we don't re-import if callback fires again
+        obs_data_set_string(settings, C64_PALETTE_IMPORT_LAST_KEY, path);
     } else {
         C64_LOG_WARNING("Failed to import palette from: %s", path);
     }
@@ -1261,6 +1294,12 @@ static bool palette_export_path_changed(obs_properties_t *props, obs_property_t 
     const char *path = obs_data_get_string(settings, "palette_export_path");
     if (!path || !path[0]) {
         return false;
+    }
+
+    // Check if we already processed this exact path
+    const char *last_path = obs_data_get_string(settings, C64_PALETTE_EXPORT_LAST_KEY);
+    if (last_path && strcmp(path, last_path) == 0) {
+        return false; // Already processed
     }
 
     // CRITICAL: Don't export if the path is a directory (not a .vpl file)
@@ -1315,6 +1354,9 @@ static bool palette_export_path_changed(obs_properties_t *props, obs_property_t 
         if (palette_prop) {
             c64_palette_populate_list(palette_prop);
         }
+
+        // Remember this path so we don't re-export if callback fires again
+        obs_data_set_string(settings, C64_PALETTE_EXPORT_LAST_KEY, path);
     } else {
         C64_LOG_WARNING("Failed to export palette to: %s", full_path);
     }
