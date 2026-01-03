@@ -4,7 +4,6 @@ Test the keymap parser
 """
 
 import os
-import subprocess
 import sys
 
 def test_keymap_parser():

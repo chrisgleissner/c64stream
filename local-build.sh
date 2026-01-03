@@ -566,12 +566,19 @@ run_tests() {
     # Python unit tests (E2E harness): keep this fast and dependency-light.
     if command -v python3 >/dev/null 2>&1; then
         log_info "Running Python unit tests..."
+        # Run unittest-based tests
         python3 -m unittest \
             tests/e2e/test_network_simulation.py \
-            tests/e2e/test_network_timing_validation.py \
-            tests/e2e/test_keymap.py \
-            tests/e2e/test_keystroke_injection.py \
-            tests/e2e/test_rest_control_e2e.py
+            tests/e2e/test_network_timing_validation.py
+        
+        # Run pytest-based tests (if pytest is available)
+        if command -v pytest >/dev/null 2>&1; then
+            pytest tests/e2e/test_keymap.py \
+                   tests/e2e/test_keystroke_injection.py \
+                   tests/e2e/test_rest_control_e2e.py -v
+        else
+            log_warning "pytest not found; skipping pytest-based tests"
+        fi
     else
         log_warning "python3 not found; skipping Python unit tests"
     fi

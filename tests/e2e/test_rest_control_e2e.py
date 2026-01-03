@@ -8,7 +8,6 @@ import subprocess
 import time
 import sys
 import requests
-import json
 import pytest
 import os
 

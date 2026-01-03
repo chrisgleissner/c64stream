@@ -576,7 +576,7 @@ static void process_keymap_directory(const char *dir_path, bool is_user_dir, key
     // Windows implementation
     WIN32_FIND_DATAA find_data;
     char search_path[MAX_PATH];
-    int written = snprintf(search_path, sizeof(search_path), "%s\\\\*.c64keymap.ini", dir_path);
+    int written = snprintf(search_path, sizeof(search_path), "%s\\*.c64keymap.ini", dir_path);
     if (written < 0 || (size_t)written >= sizeof(search_path)) {
         return;
     }

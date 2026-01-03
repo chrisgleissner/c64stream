@@ -129,6 +129,273 @@ Implementation requirement:
 
 ## File Source Selection (Local vs C64U Filesystem)
 
+Users can select between two file sources for automation:
+
+### Local Filesystem Mode (default)
+Files are loaded from the OBS machine's local filesystem. Standard file path selection UI.
+
+### C64U Filesystem Mode
+Files are accessed directly from the Ultimate 64 device's filesystem via REST API. Benefits:
+- No file transfers needed
+- Browse C64U SD card/USB storage
+- Faster playback startup
+- Consistent with C64U native file management
+
+**Common Settings** (apply to both sources):
+- Shuffle mode
+- Traverse subfolders
+- Duration per item
+- Reset between items
+- D64 autostart template
+
+### REST API Extensions for Filesystem
+
+#### List Files
+```
+GET /v1/files:list?path=<path>&recursive=<bool>
+```
+
+**Response:**
+```json
+{
+  "entries": [
+    {"name": "file.sid", "type": "file", "size": 8192},
+    {"name": "subdir", "type": "directory", "size": 0}
+  ]
+}
+```
+
+#### Check Path
+```
+HEAD /v1/files:stat?path=<path>
+```
+
+Returns HTTP 200 if path exists, 404 if not. Optional `X-File-Type: file|directory` header.
+
+#### Path Parameter Support
+For remote playback, existing endpoints accept a `path` parameter:
+
+```
+POST /v1/runners:sidplay?path=/Commodore/SID/example.sid&songnr=0
+POST /v1/runners:run_prg?path=/Commodore/PRG/demo.prg
+POST /v1/drives/a:mount?path=/Commodore/D64/game.d64
+```
+
+When `path` is provided, the file body is omitted.
+
+### UI/UX Considerations
+- File source toggle: dropdown or radio buttons (Local Filesystem | C64U Filesystem)
+- When C64U selected: show path text field instead of file picker
+- Path validation: call `HEAD /v1/files:stat` on field blur
+- Directory browsing widget: tree view with expand/collapse for C64U mode
+- Error handling: graceful fallback if C64U unavailable
+
+### Testing Requirements
+- Mock server must simulate C64U filesystem structure
+- E2E test: enumerate and play from C64U path
+- E2E test: path validation (valid/invalid paths)
+- E2E test: recursive enumeration
+
+## Macro Automation Scripts
+
+Enable complex, repeatable workflows through text-based macro scripts. Users can create `.c64macro` files to orchestrate effects, palettes, playback, and timing.
+
+### Use Cases
+- Demo recordings with synchronized effect changes
+- A/V sync testing scenarios
+- Automated regression testing
+- Tutorial/demo content creation
+- Performance benchmarking sequences
+
+### Macro File Format
+
+**Extension:** `.c64macro`
+
+**Syntax:** Line-based, whitespace-separated commands. Comments start with `#`.
+
+```
+# Demo recording sequence
+effect crt_classic
+wait 1s
+palette pepto_ntsc
+wait 500ms
+play_sid /Commodore/SID/Commando.sid songnr=1
+wait 60s
+effect phosphor_glow
+wait 2s
+run_prg /Commodore/PRG/Plasma.prg
+wait 30s
+reset
+wait 1s
+mount_disk /Commodore/D64/LastNinja.d64
+autostart
+wait 120s
+stop
+```
+
+### Command Reference
+
+#### Effect Control
+```
+effect <preset_name>              # Apply effect preset
+effect_param <name> <value>       # Set individual effect parameter
+```
+
+Examples:
+```
+effect crt_classic
+effect_param scan_line_strength 0.7
+effect_param bloom 0.3
+```
+
+#### Palette Control
+```
+palette <palette_name>            # Switch color palette
+```
+
+Examples:
+```
+palette pepto_ntsc
+palette colodore
+palette vibrant
+```
+
+#### Playback Control
+```
+play_sid <path> [songnr=N]        # Play SID file
+run_prg <path>                    # Run PRG file
+mount_disk <path>                 # Mount D64/D81 disk image
+autostart                         # Inject LOAD"*",8,1\rRUN\r sequence
+reset                             # Soft reset (C64 RESET)
+reboot                            # Hard reboot (power cycle)
+```
+
+Examples:
+```
+play_sid /local/path/music.sid songnr=3
+play_sid c64u:/Commodore/SID/song.sid
+run_prg c64u:/Commodore/PRG/demo.prg
+mount_disk /local/path/game.d64
+```
+
+**Path Prefixes:**
+- No prefix or `/` → local filesystem
+- `c64u:` → C64U filesystem (uses path-based REST API)
+
+#### Timing Control
+```
+wait <duration>                   # Pause execution
+```
+
+**Duration formats:**
+- `500ms` → milliseconds
+- `2s` → seconds
+- `1m` → minutes
+- `1.5s` → decimal seconds
+
+#### Recording Control
+```
+record_start                      # Start OBS recording
+record_stop                       # Stop OBS recording
+```
+
+#### Execution Control
+```
+stop                              # Stop macro execution
+loop [count]                      # Loop previous commands (omit count = infinite)
+label <name>                      # Define jump target
+goto <name>                       # Jump to label
+```
+
+Examples:
+```
+label main_loop
+effect crt_classic
+wait 5s
+effect phosphor_glow
+wait 5s
+goto main_loop
+```
+
+### Implementation Architecture
+
+#### Macro Parser (`src/c64-macro-parser.c/h`)
+- Line-by-line parser with tokenization
+- Command validation and parameter parsing
+- Duration parsing (ms/s/m units)
+- Path resolution (local vs c64u:)
+- Syntax error reporting (line numbers)
+
+#### Macro Executor (`src/c64-macro-executor.c/h`)
+- Worker thread for sequential execution
+- Command dispatch to appropriate subsystems
+- Timer-based wait implementation (100ms polling)
+- Cancellation support (immediate stop)
+- Status reporting (current line, command, progress)
+- Loop counter and label/goto implementation
+
+#### Subsystem Integration
+Commands invoke existing functionality:
+- Effects → `c64_properties_apply_preset()`, `obs_data_set_*()` + `obs_source_update()`
+- Palettes → `c64_palette_switch()`
+- Playback → `c64_rest_play_sid()`, `c64_rest_run_prg()`, etc.
+- Recording → `obs_frontend_recording_start()`, `obs_frontend_recording_stop()`
+- Reset → `c64_rest_reset()`, `c64_rest_reboot()`
+
+#### Properties UI Integration
+```
+Macro Automation
+  [x] Enable Macro Mode
+  Macro File: [Browse...] _________________
+  Status: [Idle | Running line 23/50 | Stopped | Error]
+  [▶ Start] [⏹ Stop] [⟳ Reload]
+```
+
+### Error Handling
+- Syntax errors: show line number and description, refuse to start
+- Runtime errors: log error, optionally stop or continue
+- Missing files: report specific path that failed
+- REST API errors: include HTTP status and response
+- Timeout handling: configurable max wait per command
+
+### Testing Strategy
+
+#### Unit Tests
+- `tests/e2e/test_macro_parser.py` - Syntax validation, tokenization
+- `tests/e2e/test_macro_executor.py` - Command dispatch, timing accuracy
+
+#### E2E Tests
+- Simple sequence: effect → wait → palette → wait → stop
+- SID playback: play_sid → wait → verify playing
+- Loop test: label → commands → goto → verify iteration
+- Error recovery: invalid command → verify error reporting
+- Cancellation: start macro → stop → verify immediate halt
+
+#### Example Macros
+Ship with `data/macros/` directory:
+- `demo_effects.c64macro` - Cycle through all effect presets
+- `palette_showcase.c64macro` - Display each palette for 5s
+- `benchmark.c64macro` - Performance test sequence
+- `regression_test.c64macro` - Full feature validation
+
+### File Format Design Rationale
+
+**Line-based:** Simple parsing, easy error reporting, no complex nesting
+**Whitespace-separated:** Intuitive command/parameter syntax
+**Comment support:** Self-documenting scripts
+**Duration units:** Explicit units avoid ambiguity (2s vs 2000ms)
+**Path prefixes:** Clear distinction between local and C64U files
+**Extensible:** New commands can be added without breaking existing scripts
+
+### Future Extensions (not in initial implementation)
+- Variables: `$var = value`, `play_sid $var`
+- Conditionals: `if <condition> ... endif`
+- Random selection: `random_effect`, `random_palette`
+- External triggers: wait for keypress, wait for network event
+- Macro includes: `include other.c64macro`
+
+## File Source Selection (Local vs C64U Filesystem)
+
 The automation system supports loading files from two sources:
 
 ### Local Filesystem (default)
