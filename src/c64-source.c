@@ -6,6 +6,7 @@ Licensed under the GNU General Public License v2.0 or later.
 See <https://www.gnu.org/licenses/> for details.
 */
 #include <obs-module.h>
+#include <obs-frontend-api.h>
 #include <graphics/graphics.h>
 #include <util/platform.h>
 #include <util/threading.h>
@@ -1169,6 +1170,65 @@ void c64_video_tick(void *data, float seconds)
     }
 }
 
+// Helper to check if we're outputting to stream/recording
+static bool is_output_active(void)
+{
+    // Check if OBS is streaming or recording
+    obs_output_t *streaming = obs_frontend_get_streaming_output();
+    obs_output_t *recording = obs_frontend_get_recording_output();
+
+    bool active = false;
+    if (streaming) {
+        active = active || obs_output_active(streaming);
+        obs_output_release(streaming);
+    }
+    if (recording) {
+        active = active || obs_output_active(recording);
+        obs_output_release(recording);
+    }
+
+    return active;
+}
+
+// Render keyboard capture indicator overlay (preview-only)
+static void render_capture_indicator(struct c64_source *context)
+{
+    if (!context || !context->keyboard_capture_active)
+        return;
+
+    // Only show in preview (not when streaming/recording)
+    if (is_output_active())
+        return;
+
+    // Render indicator in the top-right border area
+    // Position: 8 pixels from right edge, 8 pixels from top
+    const uint32_t indicator_x = context->width - 80;
+    const uint32_t indicator_y = 8;
+    const uint32_t indicator_width = 72;
+    const uint32_t indicator_height = 16;
+
+    // Draw semi-transparent red background
+    gs_effect_t *solid = obs_get_base_effect(OBS_EFFECT_SOLID);
+    if (solid) {
+        // Set red color with 70% opacity (RGBA: 0xB3FF0000)
+        struct vec4 color;
+        vec4_set(&color, 1.0f, 0.0f, 0.0f, 0.7f);
+        gs_effect_set_vec4(gs_effect_get_param_by_name(solid, "color"), &color);
+
+        while (gs_effect_loop(solid, "Solid")) {
+            gs_render_start(true);
+            gs_vertex2f((float)indicator_x, (float)indicator_y);
+            gs_vertex2f((float)(indicator_x + indicator_width), (float)indicator_y);
+            gs_vertex2f((float)(indicator_x + indicator_width), (float)(indicator_y + indicator_height));
+            gs_vertex2f((float)indicator_x, (float)(indicator_y + indicator_height));
+            gs_render_stop(GS_TRISTRIP);
+        }
+    }
+
+    // TODO: Add text "CAPTURE" using gs_font or fallback to simple icon
+    // For now, the red box is sufficient to indicate capture state
+}
+
 // Video render callback for CRT effects (GPU rendering)
 void c64_video_render(void *data, gs_effect_t *effect)
 {
@@ -1208,6 +1268,8 @@ void c64_video_render(void *data, gs_effect_t *effect)
                 gs_draw_sprite(input_tex, 0, context->width, context->height);
             }
         }
+        // Render keyboard capture indicator (preview-only, not in output)
+        render_capture_indicator(context);
         return;
     }
 
@@ -1317,6 +1379,9 @@ void c64_video_render(void *data, gs_effect_t *effect)
     while (gs_effect_loop(context->crt_effect, "Draw")) {
         gs_draw_sprite(input_tex, 0, render_width, render_height);
     }
+
+    // Render keyboard capture indicator (preview-only, not in output)
+    render_capture_indicator(context);
 }
 
 // Helper function to get scanline scaling parameters based on distance setting
