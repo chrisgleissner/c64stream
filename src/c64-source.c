@@ -1229,6 +1229,50 @@ static void render_capture_indicator(struct c64_source *context)
     // For now, the red box is sufficient to indicate capture state
 }
 
+// Render recording indicator overlay (preview-only)
+static void render_recording_indicator(struct c64_source *context)
+{
+    if (!context)
+        return;
+
+    // Check if any recording features are enabled
+    bool recording_active = c64_session_any_recording_active(context);
+
+    if (!recording_active)
+        return;
+
+    // Only show in preview (not when streaming/recording)
+    if (is_output_active())
+        return;
+
+    // Render indicator in bottom-left border area
+    const uint32_t indicator_x = 8;
+    const uint32_t indicator_y = context->height - 24;
+    const uint32_t indicator_width = 48;
+    const uint32_t indicator_height = 16;
+
+    // Draw semi-transparent orange background
+    gs_effect_t *solid = obs_get_base_effect(OBS_EFFECT_SOLID);
+    if (solid) {
+        // Set orange color with 70% opacity (RGBA: 0xB3FFA500)
+        struct vec4 color;
+        vec4_set(&color, 1.0f, 0.65f, 0.0f, 0.7f);
+        gs_effect_set_vec4(gs_effect_get_param_by_name(solid, "color"), &color);
+
+        while (gs_effect_loop(solid, "Solid")) {
+            gs_render_start(true);
+            gs_vertex2f((float)indicator_x, (float)indicator_y);
+            gs_vertex2f((float)(indicator_x + indicator_width), (float)indicator_y);
+            gs_vertex2f((float)(indicator_x + indicator_width), (float)(indicator_y + indicator_height));
+            gs_vertex2f((float)indicator_x, (float)(indicator_y + indicator_height));
+            gs_render_stop(GS_TRISTRIP);
+        }
+    }
+
+    // TODO: Add text "REC" using gs_font or recording dot icon
+    // For now, the orange box is sufficient to indicate recording state
+}
+
 // Video render callback for CRT effects (GPU rendering)
 void c64_video_render(void *data, gs_effect_t *effect)
 {
@@ -1270,6 +1314,7 @@ void c64_video_render(void *data, gs_effect_t *effect)
         }
         // Render keyboard capture indicator (preview-only, not in output)
         render_capture_indicator(context);
+        render_recording_indicator(context);
         return;
     }
 
@@ -1382,6 +1427,7 @@ void c64_video_render(void *data, gs_effect_t *effect)
 
     // Render keyboard capture indicator (preview-only, not in output)
     render_capture_indicator(context);
+    render_recording_indicator(context);
 }
 
 // Helper function to get scanline scaling parameters based on distance setting
@@ -1548,11 +1594,11 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
         return;
     }
 
-    // ESC key always disables capture
-    if (event->native_vkey == 0x1B) { // VK_ESCAPE
+    // Ctrl+ESC disables capture (ESC alone passes through for C64 RUN/STOP)
+    if (event->native_vkey == 0x1B && event->modifiers & INTERACT_CONTROL_KEY) { // VK_ESCAPE + Ctrl
         context->keyboard_capture_active = false;
         context->keyboard_capture_enabled = false;
-        C64_LOG_INFO("Keyboard capture disabled (ESC pressed)");
+        C64_LOG_INFO("Keyboard capture disabled (Ctrl+ESC pressed)");
         if (context->keyboard) {
             c64_keyboard_set_capture(context->keyboard, false);
         }

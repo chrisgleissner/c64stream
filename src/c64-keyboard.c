@@ -12,6 +12,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-file.h"
 
 #include <obs-module.h>
+#include <util/platform.h>
 #include <ctype.h>
 #ifdef _WIN32
 #include <windows.h>
@@ -393,7 +394,7 @@ static void *injection_worker(void *arg)
         // Check if there are bytes to inject
         int pending = queue_available(keyboard);
         if (pending == 0) {
-            usleep(POLL_INTERVAL_MS * 1000);
+            os_sleep_ms(POLL_INTERVAL_MS);
             continue;
         }
 
@@ -593,10 +594,10 @@ static void process_keymap_directory(const char *dir_path, bool is_user_dir, key
         // Extract keymap name (strip .c64keymap.ini)
         char name[256];
         strncpy(name, find_data.cFileName, sizeof(name) - 1);
-        name[sizeof(name) - 1] = '\\0';
+        name[sizeof(name) - 1] = '\0';
         char *suffix = strstr(name, ".c64keymap.ini");
         if (suffix) {
-            *suffix = '\\0';
+            *suffix = '\0';
         }
 
         // Check for duplicate (user keymap overrides builtin)

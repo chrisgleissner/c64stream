@@ -11,6 +11,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-keyboard.h"
 #include "c64-logging.h"
 #include "c64-rest-client.h"
+#include <util/platform.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -276,7 +277,7 @@ static void *automation_worker(void *arg)
             // Reset, mount, inject autostart
             if (automation->config.reset_between_items) {
                 c64_rest_reset(automation->rest_client);
-                usleep(RESET_DELAY_MS * 1000);
+                os_sleep_ms(RESET_DELAY_MS);
             }
             success = c64_rest_mount_disk(automation->rest_client, 'a', "d64", "readonly", file_data, file_size);
             if (success && automation->keyboard) {
