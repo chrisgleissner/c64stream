@@ -1372,6 +1372,57 @@ static c64script_ast_node_t *troff_statement(parser_t *p)
     return node;
 }
 
+// READFILE variable, path
+static c64script_ast_node_t *readfile_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_READFILE;
+    node->line = p->previous.line;
+
+    node->as.readfile_stmt.variable = expression(p);
+
+    if (!match(p, TOKEN_COMMA)) {
+        error(p, "Expected comma after variable in READFILE");
+        c64script_ast_free(node);
+        return NULL;
+    }
+
+    node->as.readfile_stmt.path = expression(p);
+
+    return node;
+}
+
+// WRITEFILE path, content [TRUNCATE|APPEND]
+static c64script_ast_node_t *writefile_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_WRITEFILE;
+    node->line = p->previous.line;
+
+    node->as.writefile_stmt.path = expression(p);
+
+    if (!match(p, TOKEN_COMMA)) {
+        error(p, "Expected comma after path in WRITEFILE");
+        c64script_ast_free(node);
+        return NULL;
+    }
+
+    node->as.writefile_stmt.content = expression(p);
+    node->as.writefile_stmt.truncate = false; // Default to append
+
+    if (match(p, TOKEN_TRUNCATE)) {
+        node->as.writefile_stmt.truncate = true;
+    } else if (match(p, TOKEN_APPEND)) {
+        node->as.writefile_stmt.truncate = false;
+    }
+
+    return node;
+}
+
 static c64script_ast_node_t *statement(parser_t *p)
 {
     bool skipped_newlines = false;
@@ -1524,6 +1575,10 @@ static c64script_ast_node_t *statement(parser_t *p)
         return tron_statement(p);
     if (match(p, TOKEN_TROFF))
         return troff_statement(p);
+    if (match(p, TOKEN_READFILE))
+        return readfile_statement(p);
+    if (match(p, TOKEN_WRITEFILE))
+        return writefile_statement(p);
 
     error(p, "Unexpected statement");
     return NULL;

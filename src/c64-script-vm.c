@@ -309,6 +309,93 @@ static bool load_binary_file(const char *path, uint8_t **out_data, size_t *out_s
     return true;
 }
 
+// Helper: Load text file as string
+static bool load_text_file(const char *path, char **out_content, char *error_msg, size_t error_size)
+{
+    if (!path || !out_content) {
+        return false;
+    }
+
+    FILE *f = fopen(path, "r");
+    if (!f) {
+        if (error_msg && error_size > 0) {
+            snprintf(error_msg, error_size, "Failed to open file: %s", path);
+        }
+        return false;
+    }
+
+    if (fseek(f, 0, SEEK_END) != 0) {
+        fclose(f);
+        if (error_msg && error_size > 0) {
+            snprintf(error_msg, error_size, "Failed to seek file");
+        }
+        return false;
+    }
+
+    long fsize = ftell(f);
+    if (fsize < 0 || fsize > (long)(16 * 1024 * 1024)) {
+        fclose(f);
+        if (error_msg && error_size > 0) {
+            snprintf(error_msg, error_size, fsize < 0 ? "Failed to get file size" : "File too large");
+        }
+        return false;
+    }
+
+    if (fseek(f, 0, SEEK_SET) != 0) {
+        fclose(f);
+        if (error_msg && error_size > 0) {
+            snprintf(error_msg, error_size, "Failed to seek file");
+        }
+        return false;
+    }
+
+    char *content = malloc((size_t)fsize + 1);
+    if (!content) {
+        fclose(f);
+        if (error_msg && error_size > 0) {
+            snprintf(error_msg, error_size, "Out of memory");
+        }
+        return false;
+    }
+
+    size_t read_count = fread(content, 1, (size_t)fsize, f);
+    fclose(f);
+    content[read_count] = '\0';
+
+    *out_content = content;
+    return true;
+}
+
+// Helper: Write file
+static bool write_file(const char *path, const char *content, bool truncate, char *error_msg, size_t error_size)
+{
+    if (!path || !content) {
+        return false;
+    }
+
+    const char *mode = truncate ? "w" : "a";
+    FILE *f = fopen(path, mode);
+    if (!f) {
+        if (error_msg && error_size > 0) {
+            snprintf(error_msg, error_size, "Failed to open file: %s", path);
+        }
+        return false;
+    }
+
+    size_t len = strlen(content);
+    size_t written = fwrite(content, 1, len, f);
+    fclose(f);
+
+    if (written != len) {
+        if (error_msg && error_size > 0) {
+            snprintf(error_msg, error_size, "Failed to write to file");
+        }
+        return false;
+    }
+
+    return true;
+}
+
 static const char *file_extension_lower(const char *path)
 {
     if (!path) {
@@ -1598,6 +1685,85 @@ bool c64script_vm_execute(c64script_runtime_t *runtime)
             runtime->trace_enabled = false;
             blog(LOG_INFO, "TROFF: Tracing disabled");
             break;
+
+        case OP_READFILE: {
+            // READFILE variable, path - Read file content into variable
+            c64script_value_t path_val;
+            c64script_value_t var_name_val;
+            if (!c64script_runtime_pop(runtime, &path_val))
+                return false;
+            if (!c64script_runtime_pop(runtime, &var_name_val))
+                return false;
+
+            if (var_name_val.type != VALUE_STRING) {
+                c64script_value_free(&var_name_val);
+                c64script_value_free(&path_val);
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "TYPE MISMATCH (READFILE variable name)");
+                return false;
+            }
+
+            if (path_val.type != VALUE_STRING) {
+                c64script_value_free(&var_name_val);
+                c64script_value_free(&path_val);
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "TYPE MISMATCH (READFILE path)");
+                return false;
+            }
+
+            char *content = NULL;
+            char err[256] = {0};
+            if (!load_text_file(path_val.as.string, &content, err, sizeof(err))) {
+                c64script_value_free(&var_name_val);
+                c64script_value_free(&path_val);
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "%s", err[0] ? err : "Failed to read file");
+                return false;
+            }
+
+            c64script_value_t content_val = {.type = VALUE_STRING, .as.string = content};
+            c64script_runtime_set_var(runtime, var_name_val.as.string, content_val);
+
+            c64script_value_free(&content_val);
+            c64script_value_free(&var_name_val);
+            c64script_value_free(&path_val);
+            break;
+        }
+
+        case OP_WRITEFILE_APPEND:
+        case OP_WRITEFILE_TRUNCATE: {
+            // WRITEFILE path, content [TRUNCATE|APPEND]
+            bool truncate = (instr->opcode == OP_WRITEFILE_TRUNCATE);
+            c64script_value_t content_val;
+            c64script_value_t path_val;
+            if (!c64script_runtime_pop(runtime, &content_val))
+                return false;
+            if (!c64script_runtime_pop(runtime, &path_val))
+                return false;
+
+            if (path_val.type != VALUE_STRING) {
+                c64script_value_free(&path_val);
+                c64script_value_free(&content_val);
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "TYPE MISMATCH (WRITEFILE path)");
+                return false;
+            }
+
+            if (content_val.type != VALUE_STRING) {
+                c64script_value_free(&path_val);
+                c64script_value_free(&content_val);
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "TYPE MISMATCH (WRITEFILE content)");
+                return false;
+            }
+
+            char err[256] = {0};
+            if (!write_file(path_val.as.string, content_val.as.string, truncate, err, sizeof(err))) {
+                c64script_value_free(&path_val);
+                c64script_value_free(&content_val);
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "%s", err[0] ? err : "Failed to write file");
+                return false;
+            }
+
+            c64script_value_free(&path_val);
+            c64script_value_free(&content_val);
+            break;
+        }
 
         default:
             snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Unknown opcode: %d", instr->opcode);

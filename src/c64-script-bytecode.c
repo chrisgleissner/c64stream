@@ -694,6 +694,30 @@ static bool compile_statement(compiler_context_t *ctx, c64script_ast_node_t *stm
         emit(ctx, OP_TROFF, 0, stmt->line);
         return true;
 
+    case AST_STMT_READFILE: {
+        // READFILE needs: variable name (as identifier), path
+        if (!compile_expression(ctx, stmt->as.readfile_stmt.variable))
+            return false;
+        if (!compile_expression(ctx, stmt->as.readfile_stmt.path))
+            return false;
+        emit(ctx, OP_READFILE, 0, stmt->line);
+        return true;
+    }
+
+    case AST_STMT_WRITEFILE: {
+        // WRITEFILE needs: path, content, then mode (TRUNCATE or APPEND)
+        if (!compile_expression(ctx, stmt->as.writefile_stmt.path))
+            return false;
+        if (!compile_expression(ctx, stmt->as.writefile_stmt.content))
+            return false;
+        if (stmt->as.writefile_stmt.truncate) {
+            emit(ctx, OP_WRITEFILE_TRUNCATE, 0, stmt->line);
+        } else {
+            emit(ctx, OP_WRITEFILE_APPEND, 0, stmt->line);
+        }
+        return true;
+    }
+
     default:
         blog(LOG_ERROR, "Unknown statement type: %d", stmt->type);
         return false;

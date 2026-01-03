@@ -114,6 +114,8 @@ typedef enum {
     TOKEN_LOGFILE,
     TOKEN_TRON,
     TOKEN_TROFF,
+    TOKEN_READFILE,
+    TOKEN_WRITEFILE,
 
     // Keywords - log file mode
     TOKEN_APPEND,
@@ -221,6 +223,8 @@ typedef enum {
     AST_STMT_PRINT,
     AST_STMT_TRON,
     AST_STMT_TROFF,
+    AST_STMT_READFILE,
+    AST_STMT_WRITEFILE,
 
     // Expressions
     AST_EXPR_NUMBER,
@@ -422,6 +426,17 @@ struct c64script_ast_node {
 
         // tron_stmt has no data
         // troff_stmt has no data
+
+        struct {
+            c64script_ast_expr_t *variable; // Variable name to store the content
+            c64script_ast_expr_t *path;     // File path to read
+        } readfile_stmt;
+
+        struct {
+            c64script_ast_expr_t *path;    // File path to write
+            c64script_ast_expr_t *content; // Content to write
+            bool truncate;                 // false means append, true means truncate
+        } writefile_stmt;
     } as;
 };
 
@@ -501,6 +516,9 @@ typedef enum {
     OP_LOGFILE,
     OP_TRON,
     OP_TROFF,
+    OP_READFILE,
+    OP_WRITEFILE_APPEND,
+    OP_WRITEFILE_TRUNCATE,
 
     // Termination
     OP_STOP, // Stop execution

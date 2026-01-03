@@ -87,6 +87,10 @@ static const keyword_entry_t keywords[] = {
     {"LOGFILE", TOKEN_LOGFILE},
     {"TRON", TOKEN_TRON},
     {"TROFF", TOKEN_TROFF},
+    {"READFILE", TOKEN_READFILE},
+    {"READ_FILE", TOKEN_READFILE}, // Alias
+    {"WRITEFILE", TOKEN_WRITEFILE},
+    {"WRITE_FILE", TOKEN_WRITEFILE}, // Alias
 
     // Parameters
     {"APPEND", TOKEN_APPEND},

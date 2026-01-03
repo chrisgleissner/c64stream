@@ -499,4 +499,3 @@ Note: the detailed checkbox lists below were the original implementation breakdo
 - [ ] Parse `PALETTECOLOR index, r, g, b` statement
 - [ ] Implement PALETTECOLOR bytecode instruction
 - [ ] Add unit tests for palette color operations
-

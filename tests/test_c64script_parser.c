@@ -857,6 +857,44 @@ TEST(parse_palettecolor)
     c64script_ast_free(ast);
 }
 
+TEST(parse_readfile)
+{
+    const char *source = "READFILE CONTENT$, \"test.txt\"\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse READFILE");
+    assert(ast->type == AST_STMT_READFILE);
+    assert(ast->as.readfile_stmt.variable != NULL);
+    assert(ast->as.readfile_stmt.path != NULL);
+    c64script_ast_free(ast);
+}
+
+TEST(parse_writefile_append)
+{
+    const char *source = "WRITEFILE \"log.txt\", \"Hello\\n\" APPEND\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse WRITEFILE APPEND");
+    assert(ast->type == AST_STMT_WRITEFILE);
+    assert(ast->as.writefile_stmt.path != NULL);
+    assert(ast->as.writefile_stmt.content != NULL);
+    assert(ast->as.writefile_stmt.truncate == false);
+    c64script_ast_free(ast);
+}
+
+TEST(parse_writefile_truncate)
+{
+    const char *source = "WRITEFILE \"output.txt\", DATA$ TRUNCATE\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse WRITEFILE TRUNCATE");
+    assert(ast->type == AST_STMT_WRITEFILE);
+    assert(ast->as.writefile_stmt.path != NULL);
+    assert(ast->as.writefile_stmt.content != NULL);
+    assert(ast->as.writefile_stmt.truncate == true);
+    c64script_ast_free(ast);
+}
+
 TEST(parse_peek_function)
 {
     const char *source = "X = PEEK($D020)\n";
@@ -1036,6 +1074,9 @@ int main(void)
     RUN_TEST(parse_print);
     RUN_TEST(parse_tron);
     RUN_TEST(parse_troff);
+    RUN_TEST(parse_readfile);
+    RUN_TEST(parse_writefile_append);
+    RUN_TEST(parse_writefile_truncate);
 
     printf("\n--- Error Handling Tests ---\n");
     RUN_TEST(parse_error_unterminated_string);

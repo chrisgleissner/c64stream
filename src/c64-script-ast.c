@@ -195,6 +195,16 @@ void c64script_ast_free(c64script_ast_node_t *node)
             free_expr(node->as.print_stmt.message);
             break;
 
+        case AST_STMT_READFILE:
+            free_expr(node->as.readfile_stmt.variable);
+            free_expr(node->as.readfile_stmt.path);
+            break;
+
+        case AST_STMT_WRITEFILE:
+            free_expr(node->as.writefile_stmt.path);
+            free_expr(node->as.writefile_stmt.content);
+            break;
+
         default:
             // Unknown node type - log warning but continue
             blog(LOG_WARNING, "c64script_ast_free: Unknown AST node type %d", node->type);
