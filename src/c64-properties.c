@@ -363,9 +363,9 @@ obs_properties_t *c64_create_properties(void *data)
 
     // Export path field (opens save dialog)
     obs_property_t *export_path = obs_properties_add_path(palette_props, "palette_export_path",
-                                                          obs_module_text("PaletteExportTo"), OBS_PATH_FILE_SAVE,
+                                                          obs_module_text("PaletteExport"), OBS_PATH_FILE_SAVE,
                                                           "VPL Palette Files (*.vpl);;All Files (*.*)", NULL);
-    obs_property_set_long_description(export_path, obs_module_text("PaletteExportTo.Description"));
+    obs_property_set_long_description(export_path, obs_module_text("PaletteExport.Description"));
 
     // Set default directory path BEFORE registering callback to avoid triggering it
     {
@@ -462,9 +462,9 @@ obs_properties_t *c64_create_properties(void *data)
 
     // Export settings (INI) - action triggers immediately when destination is selected
     obs_property_t *export_path_prop = obs_properties_add_path(importexport_props, C64_CONFIG_EXPORT_PATH_KEY,
-                                                               obs_module_text("ExportSettingsTo"), OBS_PATH_FILE_SAVE,
+                                                               obs_module_text("ExportSettings"), OBS_PATH_FILE_SAVE,
                                                                "INI Files (*.ini);;All Files (*.*)", NULL);
-    obs_property_set_long_description(export_path_prop, obs_module_text("ExportSettingsTo.Description"));
+    obs_property_set_long_description(export_path_prop, obs_module_text("ExportSettings.Description"));
 
     // Set default directory path BEFORE registering callback to avoid triggering it
     // CRITICAL: Use DIRECTORY (with trailing slash), not filename, to prevent spurious export
