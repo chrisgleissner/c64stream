@@ -9,17 +9,50 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-rest-client.h"
 #include "c64-logging.h"
 
+#include <curl/curl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #define REST_LOG_PREFIX "[c64-rest] "
+#define HTTP_TIMEOUT_SECONDS 5
 
 struct c64_rest_client {
     char *base_url;
     char *password;
     char error_msg[512];
+    CURL *curl;
 };
+
+// Callback for capturing HTTP response data
+typedef struct {
+    uint8_t *data;
+    size_t size;
+    size_t capacity;
+} response_buffer_t;
+
+static size_t write_callback(void *contents, size_t size, size_t nmemb, void *userp)
+{
+    size_t realsize = size * nmemb;
+    response_buffer_t *buf = (response_buffer_t *)userp;
+
+    if (buf->size + realsize > buf->capacity) {
+        size_t new_capacity = buf->capacity == 0 ? 4096 : buf->capacity * 2;
+        while (new_capacity < buf->size + realsize) {
+            new_capacity *= 2;
+        }
+        uint8_t *new_data = realloc(buf->data, new_capacity);
+        if (!new_data) {
+            return 0; // Out of memory
+        }
+        buf->data = new_data;
+        buf->capacity = new_capacity;
+    }
+
+    memcpy(buf->data + buf->size, contents, realsize);
+    buf->size += realsize;
+    return realsize;
+}
 
 c64_rest_client_t *c64_rest_client_create(const char *base_url, const char *password)
 {
@@ -37,6 +70,20 @@ c64_rest_client_t *c64_rest_client_create(const char *base_url, const char *pass
         client->password = strdup(password);
     }
 
+    // Initialize curl handle
+    client->curl = curl_easy_init();
+    if (!client->curl) {
+        free(client->base_url);
+        free(client->password);
+        free(client);
+        return NULL;
+    }
+
+    // Set common curl options
+    curl_easy_setopt(client->curl, CURLOPT_TIMEOUT, HTTP_TIMEOUT_SECONDS);
+    curl_easy_setopt(client->curl, CURLOPT_NOSIGNAL, 1L);
+    curl_easy_setopt(client->curl, CURLOPT_FOLLOWLOCATION, 1L);
+
     C64_LOG_INFO(REST_LOG_PREFIX "Created REST client for %s", base_url);
     return client;
 }
@@ -47,9 +94,94 @@ void c64_rest_client_destroy(c64_rest_client_t *client)
         return;
     }
 
+    if (client->curl) {
+        curl_easy_cleanup(client->curl);
+    }
     free(client->base_url);
     free(client->password);
     free(client);
+}
+
+// Perform HTTP request
+static bool http_request(c64_rest_client_t *client, const char *method, const char *endpoint, const char *query_params,
+                         const uint8_t *body_data, size_t body_size, response_buffer_t *response)
+{
+    if (!client || !client->curl || !method || !endpoint) {
+        return false;
+    }
+
+    char url[1024];
+    if (query_params) {
+        snprintf(url, sizeof(url), "%s%s?%s", client->base_url, endpoint, query_params);
+    } else {
+        snprintf(url, sizeof(url), "%s%s", client->base_url, endpoint);
+    }
+
+    // Reset curl for new request
+    curl_easy_reset(client->curl);
+    curl_easy_setopt(client->curl, CURLOPT_TIMEOUT, HTTP_TIMEOUT_SECONDS);
+    curl_easy_setopt(client->curl, CURLOPT_NOSIGNAL, 1L);
+    curl_easy_setopt(client->curl, CURLOPT_URL, url);
+
+    // Set custom headers
+    struct curl_slist *headers = NULL;
+    if (client->password) {
+        char password_header[256];
+        snprintf(password_header, sizeof(password_header), "X-Password: %s", client->password);
+        headers = curl_slist_append(headers, password_header);
+    }
+
+    // Set method and body
+    if (strcmp(method, "GET") == 0) {
+        curl_easy_setopt(client->curl, CURLOPT_HTTPGET, 1L);
+    } else if (strcmp(method, "PUT") == 0) {
+        curl_easy_setopt(client->curl, CURLOPT_CUSTOMREQUEST, "PUT");
+        if (body_data && body_size > 0) {
+            curl_easy_setopt(client->curl, CURLOPT_POSTFIELDS, body_data);
+            curl_easy_setopt(client->curl, CURLOPT_POSTFIELDSIZE, (long)body_size);
+        }
+    } else if (strcmp(method, "POST") == 0) {
+        curl_easy_setopt(client->curl, CURLOPT_POST, 1L);
+        if (body_data && body_size > 0) {
+            curl_easy_setopt(client->curl, CURLOPT_POSTFIELDS, body_data);
+            curl_easy_setopt(client->curl, CURLOPT_POSTFIELDSIZE, (long)body_size);
+        }
+    }
+
+    if (headers) {
+        curl_easy_setopt(client->curl, CURLOPT_HTTPHEADER, headers);
+    }
+
+    // Set response callback if needed
+    if (response) {
+        curl_easy_setopt(client->curl, CURLOPT_WRITEFUNCTION, write_callback);
+        curl_easy_setopt(client->curl, CURLOPT_WRITEDATA, response);
+    }
+
+    // Perform request
+    CURLcode res = curl_easy_perform(client->curl);
+
+    // Clean up headers
+    if (headers) {
+        curl_slist_free_all(headers);
+    }
+
+    if (res != CURLE_OK) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "HTTP request failed: %s", curl_easy_strerror(res));
+        C64_LOG_ERROR(REST_LOG_PREFIX "%s", client->error_msg);
+        return false;
+    }
+
+    // Check HTTP status code
+    long http_code = 0;
+    curl_easy_getinfo(client->curl, CURLINFO_RESPONSE_CODE, &http_code);
+    if (http_code < 200 || http_code >= 300) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "HTTP error %ld", http_code);
+        C64_LOG_ERROR(REST_LOG_PREFIX "%s", client->error_msg);
+        return false;
+    }
+
+    return true;
 }
 
 bool c64_rest_reset(c64_rest_client_t *client)
@@ -58,10 +190,8 @@ bool c64_rest_reset(c64_rest_client_t *client)
         return false;
     }
 
-    // TODO: Implement HTTP PUT /v1/machine:reset
-    C64_LOG_INFO(REST_LOG_PREFIX "Reset (stub)");
-    snprintf(client->error_msg, sizeof(client->error_msg), "Not implemented");
-    return false;
+    C64_LOG_INFO(REST_LOG_PREFIX "Reset machine");
+    return http_request(client, "PUT", "/v1/machine:reset", NULL, NULL, 0, NULL);
 }
 
 bool c64_rest_reboot(c64_rest_client_t *client)
@@ -70,10 +200,8 @@ bool c64_rest_reboot(c64_rest_client_t *client)
         return false;
     }
 
-    // TODO: Implement HTTP PUT /v1/machine:reboot
-    C64_LOG_INFO(REST_LOG_PREFIX "Reboot (stub)");
-    snprintf(client->error_msg, sizeof(client->error_msg), "Not implemented");
-    return false;
+    C64_LOG_INFO(REST_LOG_PREFIX "Reboot machine");
+    return http_request(client, "PUT", "/v1/machine:reboot", NULL, NULL, 0, NULL);
 }
 
 int c64_rest_read_memory(c64_rest_client_t *client, uint16_t address, size_t length, uint8_t *buffer,
@@ -83,10 +211,22 @@ int c64_rest_read_memory(c64_rest_client_t *client, uint16_t address, size_t len
         return -1;
     }
 
-    // TODO: Implement HTTP GET /v1/machine:readmem
-    C64_LOG_INFO(REST_LOG_PREFIX "Read memory $%04X len=%zu (stub)", address, length);
-    snprintf(client->error_msg, sizeof(client->error_msg), "Not implemented");
-    return -1;
+    char query[128];
+    snprintf(query, sizeof(query), "address=%04X&length=%zu", address, length);
+
+    response_buffer_t response = {0};
+    if (!http_request(client, "GET", "/v1/machine:readmem", query, NULL, 0, &response)) {
+        free(response.data);
+        return -1;
+    }
+
+    // Copy response data to output buffer
+    size_t copy_size = response.size < buffer_size ? response.size : buffer_size;
+    memcpy(buffer, response.data, copy_size);
+    free(response.data);
+
+    C64_LOG_DEBUG(REST_LOG_PREFIX "Read memory $%04X: %zu bytes", address, copy_size);
+    return (int)copy_size;
 }
 
 bool c64_rest_write_memory(c64_rest_client_t *client, uint16_t address, const uint8_t *data, size_t length)
@@ -95,10 +235,28 @@ bool c64_rest_write_memory(c64_rest_client_t *client, uint16_t address, const ui
         return false;
     }
 
-    // TODO: Implement HTTP PUT /v1/machine:writemem
-    C64_LOG_INFO(REST_LOG_PREFIX "Write memory $%04X len=%zu (stub)", address, length);
-    snprintf(client->error_msg, sizeof(client->error_msg), "Not implemented");
-    return false;
+    // Convert data to hex string
+    char *hex_data = malloc(length * 2 + 1);
+    if (!hex_data) {
+        return false;
+    }
+
+    for (size_t i = 0; i < length; i++) {
+        sprintf(hex_data + i * 2, "%02X", data[i]);
+    }
+    hex_data[length * 2] = '\0';
+
+    char query[512];
+    snprintf(query, sizeof(query), "address=%04X&data=%s", address, hex_data);
+    free(hex_data);
+
+    bool result = http_request(client, "PUT", "/v1/machine:writemem", query, NULL, 0, NULL);
+
+    if (result) {
+        C64_LOG_DEBUG(REST_LOG_PREFIX "Wrote memory $%04X: %zu bytes", address, length);
+    }
+
+    return result;
 }
 
 bool c64_rest_play_sid(c64_rest_client_t *client, const uint8_t *sid_data, size_t sid_size, int song_number)
@@ -107,9 +265,9 @@ bool c64_rest_play_sid(c64_rest_client_t *client, const uint8_t *sid_data, size_
         return false;
     }
 
-    // TODO: Implement HTTP POST /v1/runners:sidplay
-    C64_LOG_INFO(REST_LOG_PREFIX "Play SID song=%d size=%zu (stub)", song_number, sid_size);
-    snprintf(client->error_msg, sizeof(client->error_msg), "Not implemented");
+    // TODO: Implement multipart form-data upload
+    C64_LOG_INFO(REST_LOG_PREFIX "Play SID song=%d size=%zu (stub - multipart not implemented)", song_number, sid_size);
+    snprintf(client->error_msg, sizeof(client->error_msg), "Multipart upload not implemented");
     return false;
 }
 

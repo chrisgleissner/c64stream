@@ -160,6 +160,10 @@ target_sources(
     src/c64-automation.c
 )
 
+# Find and link libcurl for REST API client
+find_package(CURL REQUIRED)
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE CURL::libcurl)
+
 # Link resolver library for DNS functionality on Unix platforms
 if(UNIX)
   target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE resolv)
