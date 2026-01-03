@@ -192,9 +192,9 @@ Returns metadata for a single file (size, extension). Does NOT list directory co
 - No validation before playback (path checked at runtime)
 - Clear documentation: "Enter exact path on C64U filesystem"
 
-## Macro Automation Scripts
+## Script Automation Scripts
 
-Enable complex, repeatable workflows through text-based macro scripts. Users can create `.c64macro` files to orchestrate effects, palettes, playback, and timing.
+Enable complex, repeatable workflows through text-based scripts. Users can create `.c64script` files to orchestrate effects, palettes, playback, and timing.
 
 ### Use Cases
 - Demo recordings with synchronized effect changes
@@ -205,7 +205,7 @@ Enable complex, repeatable workflows through text-based macro scripts. Users can
 
 ### Macro File Format
 
-**Extension:** `.c64macro`
+**Extension:** `.c64script`
 
 **Syntax:** Line-based, whitespace-separated commands. Comments start with `#`.
 
@@ -340,7 +340,7 @@ Commands invoke existing functionality:
 
 #### Properties UI Integration
 ```
-Macro Automation
+Script Automation
   [x] Enable Macro Mode
   Macro File: [Browse...] _________________
   Status: [Idle | Running line 23/50 | Stopped | Error]
@@ -367,12 +367,12 @@ Macro Automation
 - Error recovery: invalid command → verify error reporting
 - Cancellation: start macro → stop → verify immediate halt
 
-#### Example Macros
-Ship with `data/macros/` directory:
-- `demo_effects.c64macro` - Cycle through all effect presets
-- `palette_showcase.c64macro` - Display each palette for 5s
-- `benchmark.c64macro` - Performance test sequence
-- `regression_test.c64macro` - Full feature validation
+#### Example Scripts
+Ship with `data/scripts/` directory:
+- `demo_effects.c64script` - Cycle through all effect presets
+- `palette_showcase.c64script` - Display each palette for 5s
+- `benchmark.c64script` - Performance test sequence
+- `regression_test.c64script` - Full feature validation
 
 ### File Format Design Rationale
 
@@ -388,7 +388,7 @@ Ship with `data/macros/` directory:
 - Conditionals: `if <condition> ... endif`
 - Random selection: `random_effect`, `random_palette`
 - External triggers: wait for keypress, wait for network event
-- Macro includes: `include other.c64macro`
+- Macro includes: `include other.c64script`
 
 ## File Source Selection (Local vs C64U Filesystem)
 

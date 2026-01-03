@@ -39,4 +39,7 @@ void c64_stop_streaming(struct c64_source *context);
 void c64_async_retry_task(void *data);
 void c64_schedule_retry_task(struct c64_source *context, const char *reason);
 
+// Access functions for internal state (used by macro executor)
+void *c64_source_get_rest_client(struct c64_source *context);
+
 #endif // C64_SOURCE_H

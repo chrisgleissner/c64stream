@@ -179,6 +179,14 @@ void c64_schedule_retry_task(struct c64_source *context, const char *reason)
     c64_schedule_retry(context, reason);
 }
 
+void *c64_source_get_rest_client(struct c64_source *context)
+{
+    if (!context) {
+        return NULL;
+    }
+    return context->rest_client;
+}
+
 static void c64_refresh_resolved_ip(struct c64_source *context)
 {
     if (!context)

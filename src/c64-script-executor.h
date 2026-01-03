@@ -1,0 +1,78 @@
+/*
+C64 Stream - An OBS Studio source plugin for Commodore 64 video and audio streaming
+Copyright (C) 2025 Christian Gleissner
+
+Licensed under the GNU General Public License v2.0 or later.
+See <https://www.gnu.org/licenses/> for details.
+*/
+
+#ifndef C64_SCRIPT_EXECUTOR_H
+#define C64_SCRIPT_EXECUTOR_H
+
+#include "c64-script-parser.h"
+
+#include <obs.h>
+#include <stdbool.h>
+
+typedef struct c64_script_executor c64_script_executor_t;
+
+typedef enum {
+    C64_SCRIPT_STATUS_IDLE,
+    C64_SCRIPT_STATUS_RUNNING,
+    C64_SCRIPT_STATUS_WAITING,
+    C64_SCRIPT_STATUS_ERROR,
+    C64_SCRIPT_STATUS_COMPLETED
+} c64_script_status_t;
+
+/**
+ * Create a new script executor for the given source
+ */
+c64_script_executor_t *c64_script_executor_create(obs_source_t *source);
+
+/**
+ * Destroy a script executor and free resources
+ */
+void c64_script_executor_destroy(c64_script_executor_t *executor);
+
+/**
+ * Start executing a script script
+ * Returns true if started successfully, false if already running or error
+ */
+bool c64_script_executor_start(c64_script_executor_t *executor, c64_script_t *script);
+
+/**
+ * Stop the currently executing script
+ */
+void c64_script_executor_stop(c64_script_executor_t *executor);
+
+/**
+ * Check if executor is currently running
+ */
+bool c64_script_executor_is_running(c64_script_executor_t *executor);
+
+/**
+ * Get current execution status
+ */
+c64_script_status_t c64_script_executor_get_status(c64_script_executor_t *executor);
+
+/**
+ * Get current line number being executed (0 if not running)
+ */
+int c64_script_executor_get_current_line(c64_script_executor_t *executor);
+
+/**
+ * Get execution progress (0-100, or -1 if unknown)
+ */
+int c64_script_executor_get_progress(c64_script_executor_t *executor);
+
+/**
+ * Get current command name being executed (NULL if not running)
+ */
+const char *c64_script_executor_get_current_command(c64_script_executor_t *executor);
+
+/**
+ * Get error message if status is ERROR (NULL otherwise)
+ */
+const char *c64_script_executor_get_error(c64_script_executor_t *executor);
+
+#endif // C64_SCRIPT_EXECUTOR_H

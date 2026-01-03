@@ -570,7 +570,7 @@ run_tests() {
         python3 -m unittest \
             tests/e2e/test_network_simulation.py \
             tests/e2e/test_network_timing_validation.py
-        
+
         # Run pytest-based tests (if pytest is available)
         if command -v pytest >/dev/null 2>&1; then
             pytest tests/e2e/test_keymap.py \
