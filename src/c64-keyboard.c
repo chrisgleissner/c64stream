@@ -644,7 +644,79 @@ bool c64_keyboard_discover_keymaps(char ***paths, size_t *count)
 
     closedir(dir);
 
-    // TODO: Also scan user keymap directory
+    // Also scan user keymap directory
+    char user_keymap_dir[512];
+    if (c64_get_user_dir(C64_USER_DIR_ROOT, user_keymap_dir, sizeof(user_keymap_dir))) {
+        // Append /keymaps to base user directory
+        strncat(user_keymap_dir, "/keymaps", sizeof(user_keymap_dir) - strlen(user_keymap_dir) - 1);
+
+        DIR *user_dir_handle = opendir(user_keymap_dir);
+        if (user_dir_handle) {
+            while ((entry = readdir(user_dir_handle)) != NULL) {
+                if (entry->d_type != DT_REG) {
+                    continue;
+                }
+
+                const char *ext = strrchr(entry->d_name, '.');
+                if (!ext || strcmp(ext, ".ini") != 0) {
+                    continue;
+                }
+
+                if (strstr(entry->d_name, ".c64keymap.ini") == NULL) {
+                    continue;
+                }
+
+                // Expand array if needed
+                if (*count >= capacity) {
+                    capacity *= 2;
+                    char **new_paths = (char **)realloc(keymap_paths, capacity * sizeof(char *));
+                    if (!new_paths) {
+                        for (size_t i = 0; i < *count; i++) {
+                            free(keymap_paths[i]);
+                        }
+                        free(keymap_paths);
+                        closedir(user_dir_handle);
+                        return false;
+                    }
+                    keymap_paths = new_paths;
+                }
+
+                // Extract keymap name (strip .c64keymap.ini)
+                char name[256];
+                strncpy(name, entry->d_name, sizeof(name) - 1);
+                name[sizeof(name) - 1] = '\0';
+                char *suffix = strstr(name, ".c64keymap.ini");
+                if (suffix) {
+                    *suffix = '\0';
+                }
+
+                // Check for duplicate (user keymap overrides builtin)
+                bool duplicate = false;
+                for (size_t i = 0; i < *count; i++) {
+                    if (strcmp(keymap_paths[i], name) == 0) {
+                        duplicate = true;
+                        C64_LOG_INFO(KEYBOARD_LOG_PREFIX "User keymap '%s' overrides builtin", name);
+                        break;
+                    }
+                }
+
+                if (!duplicate) {
+                    keymap_paths[*count] = strdup(name);
+                    if (!keymap_paths[*count]) {
+                        for (size_t i = 0; i < *count; i++) {
+                            free(keymap_paths[i]);
+                        }
+                        free(keymap_paths);
+                        closedir(user_dir_handle);
+                        return false;
+                    }
+                    (*count)++;
+                }
+            }
+
+            closedir(user_dir_handle);
+        }
+    }
 
     C64_LOG_INFO(KEYBOARD_LOG_PREFIX "Discovered %zu keymaps", *count);
     *paths = keymap_paths;
