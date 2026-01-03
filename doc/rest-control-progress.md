@@ -340,9 +340,9 @@ This document tracks the implementation status of all features described in `res
 
 ## Summary Statistics
 
-**Completed:** 163 tasks  
-**Incomplete:** 4 tasks  
-**Total:** 167 tasks  
+**Completed:** 163 tasks
+**Incomplete:** 4 tasks
+**Total:** 167 tasks
 **Progress:** 97.6%
 
 1. **C64U filesystem browsing** - REST API does not provide directory listing endpoints

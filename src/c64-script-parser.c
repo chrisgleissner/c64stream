@@ -14,6 +14,11 @@ See <https://www.gnu.org/licenses/> for details.
 #include <stdlib.h>
 #include <string.h>
 
+// Windows compatibility: strtok_r equivalent
+#ifdef _WIN32
+#define strtok_r strtok_s
+#endif
+
 #define MACRO_LOG_PREFIX "[c64-script] "
 #define INITIAL_CAPACITY 64
 

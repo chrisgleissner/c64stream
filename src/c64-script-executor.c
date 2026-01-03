@@ -20,8 +20,15 @@ See <https://www.gnu.org/licenses/> for details.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <util/threading.h>
+
+// Cross-platform sleep
+#ifdef _WIN32
+#include <windows.h>
+#define usleep(x) Sleep((x) / 1000)
+#else
+#include <unistd.h>
+#endif
 
 #define EXECUTOR_LOG_PREFIX "[c64-script-executor] "
 #define MAX_LABELS 64
