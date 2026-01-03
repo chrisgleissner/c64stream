@@ -6,7 +6,9 @@ Licensed under the GNU General Public License v2.0 or later.
 See <https://www.gnu.org/licenses/> for details.
 */
 #include <obs-module.h>
+#ifdef ENABLE_FRONTEND_API
 #include <obs-frontend-api.h>
+#endif
 #include <graphics/graphics.h>
 #include <util/platform.h>
 #include <util/threading.h>
