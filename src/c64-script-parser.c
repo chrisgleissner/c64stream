@@ -1180,6 +1180,36 @@ static c64script_ast_node_t *runprg_statement(parser_t *p)
     return node;
 }
 
+// RUNLOCAL path [ARGS args] [STATUS var] [OUTPUT var]
+static c64script_ast_node_t *runlocal_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_RUNLOCAL;
+    node->line = p->previous.line;
+
+    node->as.runlocal_stmt.path = expression(p);
+    node->as.runlocal_stmt.args = NULL;
+    node->as.runlocal_stmt.status_var = NULL;
+    node->as.runlocal_stmt.output_var = NULL;
+
+    // Parse optional parameters
+    while (true) {
+        if (match(p, TOKEN_ARGS)) {
+            node->as.runlocal_stmt.args = expression(p);
+        } else if (match(p, TOKEN_STATUS)) {
+            node->as.runlocal_stmt.status_var = expression(p);
+        } else if (match(p, TOKEN_OUTPUT)) {
+            node->as.runlocal_stmt.output_var = expression(p);
+        } else {
+            break;
+        }
+    }
+
+    return node;
+}
+
 // MOUNTDISK filename
 static c64script_ast_node_t *mountdisk_statement(parser_t *p)
 {
@@ -1590,6 +1620,8 @@ static c64script_ast_node_t *statement(parser_t *p)
         return playsid_statement(p);
     if (match(p, TOKEN_RUNPRG))
         return runprg_statement(p);
+    if (match(p, TOKEN_RUNLOCAL))
+        return runlocal_statement(p);
     if (match(p, TOKEN_MOUNTDISK))
         return mountdisk_statement(p);
     if (match(p, TOKEN_AUTOSTART))

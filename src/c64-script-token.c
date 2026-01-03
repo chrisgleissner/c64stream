@@ -67,6 +67,8 @@ static const keyword_entry_t keywords[] = {
     {"PLAY_SID", TOKEN_PLAYSID}, // Alias
     {"RUNPRG", TOKEN_RUNPRG},
     {"RUN_PRG", TOKEN_RUNPRG}, // Alias
+    {"RUNLOCAL", TOKEN_RUNLOCAL},
+    {"RUN_LOCAL", TOKEN_RUNLOCAL}, // Alias
     {"MOUNTDISK", TOKEN_MOUNTDISK},
     {"MOUNT_DISK", TOKEN_MOUNTDISK}, // Alias
     {"AUTOSTART", TOKEN_AUTOSTART},
@@ -96,6 +98,9 @@ static const keyword_entry_t keywords[] = {
     {"APPEND", TOKEN_APPEND},
     {"TRUNCATE", TOKEN_TRUNCATE},
     {"SONGNR", TOKEN_SONGNR},
+    {"ARGS", TOKEN_ARGS},
+    {"STATUS", TOKEN_STATUS},
+    {"OUTPUT", TOKEN_OUTPUT},
 
     // Boolean operators
     {"NOT", TOKEN_NOT},

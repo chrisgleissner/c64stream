@@ -623,6 +623,51 @@ static bool compile_statement(compiler_context_t *ctx, c64script_ast_node_t *stm
         return true;
     }
 
+    case AST_STMT_RUNLOCAL: {
+        // Stack order: path, args (or NULL string), status_var (or NULL string), output_var (or NULL string)
+        if (!compile_expression(ctx, stmt->as.runlocal_stmt.path))
+            return false;
+
+        if (stmt->as.runlocal_stmt.args) {
+            if (!compile_expression(ctx, stmt->as.runlocal_stmt.args))
+                return false;
+        } else {
+            // Push empty string for no args
+            c64script_value_t empty_str = {.type = VALUE_STRING, .as.string = ""};
+            uint32_t idx = add_constant(ctx, empty_str);
+            if (idx == UINT32_MAX)
+                return false;
+            emit(ctx, OP_PUSH_CONST, idx, stmt->line);
+        }
+
+        if (stmt->as.runlocal_stmt.status_var) {
+            if (!compile_expression(ctx, stmt->as.runlocal_stmt.status_var))
+                return false;
+        } else {
+            // Push empty string for no status var
+            c64script_value_t empty_str = {.type = VALUE_STRING, .as.string = ""};
+            uint32_t idx = add_constant(ctx, empty_str);
+            if (idx == UINT32_MAX)
+                return false;
+            emit(ctx, OP_PUSH_CONST, idx, stmt->line);
+        }
+
+        if (stmt->as.runlocal_stmt.output_var) {
+            if (!compile_expression(ctx, stmt->as.runlocal_stmt.output_var))
+                return false;
+        } else {
+            // Push empty string for no output var
+            c64script_value_t empty_str = {.type = VALUE_STRING, .as.string = ""};
+            uint32_t idx = add_constant(ctx, empty_str);
+            if (idx == UINT32_MAX)
+                return false;
+            emit(ctx, OP_PUSH_CONST, idx, stmt->line);
+        }
+
+        emit(ctx, OP_RUNLOCAL, 0, stmt->line);
+        return true;
+    }
+
     case AST_STMT_MOUNTDISK: {
         if (!compile_expression(ctx, stmt->as.mountdisk_stmt.path))
             return false;

@@ -614,6 +614,20 @@ TEST(parse_runprg)
     c64script_ast_free(ast);
 }
 
+TEST(parse_runlocal)
+{
+    const char *source = "RUNLOCAL \"script.sh\" ARGS \"input.txt\" STATUS CODE OUTPUT OUT$";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse RUNLOCAL");
+    assert(ast->type == AST_STMT_RUNLOCAL);
+    assert(ast->as.runlocal_stmt.path != NULL);
+    assert(ast->as.runlocal_stmt.args != NULL);
+    assert(ast->as.runlocal_stmt.status_var != NULL);
+    assert(ast->as.runlocal_stmt.output_var != NULL);
+    c64script_ast_free(ast);
+}
+
 TEST(parse_mountdisk)
 {
     const char *source = "MOUNTDISK \"game.d64\"";
@@ -1087,6 +1101,7 @@ int main(void)
     RUN_TEST(parse_palette);
     RUN_TEST(parse_playsid);
     RUN_TEST(parse_runprg);
+    RUN_TEST(parse_runlocal);
     RUN_TEST(parse_mountdisk);
     RUN_TEST(parse_autostart);
     RUN_TEST(parse_reset);

@@ -27,6 +27,7 @@ See <https://www.gnu.org/licenses/> for details.
 #define strncasecmp _strnicmp
 #else
 #include <strings.h>
+#include <sys/wait.h>
 #endif
 #include <math.h>
 #include <ctype.h>
@@ -1338,6 +1339,101 @@ bool c64script_vm_execute(c64script_runtime_t *runtime)
                 return false;
             }
             c64script_value_free(&prg_file);
+            break;
+        }
+
+        case OP_RUNLOCAL: {
+            // RUNLOCAL path args status_var output_var
+            // Pop in reverse order: output_var, status_var, args, path
+            c64script_value_t output_var_val, status_var_val, args_val, path_val;
+            if (!c64script_runtime_pop(runtime, &output_var_val))
+                return false;
+            if (!c64script_runtime_pop(runtime, &status_var_val))
+                return false;
+            if (!c64script_runtime_pop(runtime, &args_val))
+                return false;
+            if (!c64script_runtime_pop(runtime, &path_val))
+                return false;
+
+            // Validate types
+            if (path_val.type != VALUE_STRING || args_val.type != VALUE_STRING || status_var_val.type != VALUE_STRING ||
+                output_var_val.type != VALUE_STRING) {
+                c64script_value_free(&path_val);
+                c64script_value_free(&args_val);
+                c64script_value_free(&status_var_val);
+                c64script_value_free(&output_var_val);
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "TYPE MISMATCH (RUNLOCAL)");
+                return false;
+            }
+
+            // Build command
+            char cmd[2048];
+            if (args_val.as.string[0] == '\0') {
+                snprintf(cmd, sizeof(cmd), "%s 2>&1", path_val.as.string);
+            } else {
+                snprintf(cmd, sizeof(cmd), "%s %s 2>&1", path_val.as.string, args_val.as.string);
+            }
+
+            // Execute and capture output
+            FILE *pipe = popen(cmd, "r");
+            if (!pipe) {
+                c64script_value_free(&path_val);
+                c64script_value_free(&args_val);
+                c64script_value_free(&status_var_val);
+                c64script_value_free(&output_var_val);
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Failed to execute: %s", path_val.as.string);
+                return false;
+            }
+
+            // Capture output (up to 1 MB)
+            const size_t max_output = 1024 * 1024;
+            char *output = malloc(max_output);
+            if (!output) {
+                pclose(pipe);
+                c64script_value_free(&path_val);
+                c64script_value_free(&args_val);
+                c64script_value_free(&status_var_val);
+                c64script_value_free(&output_var_val);
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Out of memory");
+                return false;
+            }
+
+            size_t total_read = 0;
+            while (total_read < max_output - 1) {
+                size_t nread = fread(output + total_read, 1, max_output - 1 - total_read, pipe);
+                if (nread == 0)
+                    break;
+                total_read += nread;
+            }
+            output[total_read] = '\0';
+
+            int exit_code = pclose(pipe);
+#ifndef _WIN32
+            // On Unix, exit_code is the status from waitpid, need to extract actual exit code
+            if (WIFEXITED(exit_code)) {
+                exit_code = WEXITSTATUS(exit_code);
+            } else {
+                exit_code = -1; // Process didn't exit normally
+            }
+#endif
+
+            // Store status if requested
+            if (status_var_val.as.string[0] != '\0') {
+                c64script_value_t status = {.type = VALUE_NUMBER, .as.number = (double)exit_code};
+                c64script_runtime_set_var(runtime, status_var_val.as.string, status);
+            }
+
+            // Store output if requested
+            if (output_var_val.as.string[0] != '\0') {
+                c64script_value_t output_value = {.type = VALUE_STRING, .as.string = output};
+                c64script_runtime_set_var(runtime, output_var_val.as.string, output_value);
+            }
+
+            free(output);
+            c64script_value_free(&path_val);
+            c64script_value_free(&args_val);
+            c64script_value_free(&status_var_val);
+            c64script_value_free(&output_var_val);
             break;
         }
 

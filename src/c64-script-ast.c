@@ -169,6 +169,13 @@ void c64script_ast_free(c64script_ast_node_t *node)
             free_expr(node->as.runprg_stmt.path);
             break;
 
+        case AST_STMT_RUNLOCAL:
+            free_expr(node->as.runlocal_stmt.path);
+            free_expr(node->as.runlocal_stmt.args);
+            free_expr(node->as.runlocal_stmt.status_var);
+            free_expr(node->as.runlocal_stmt.output_var);
+            break;
+
         case AST_STMT_MOUNTDISK:
             free_expr(node->as.mountdisk_stmt.path);
             break;

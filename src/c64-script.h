@@ -97,6 +97,7 @@ typedef enum {
     TOKEN_PALETTECOLOR,
     TOKEN_PLAYSID,
     TOKEN_RUNPRG,
+    TOKEN_RUNLOCAL,
     TOKEN_MOUNTDISK,
     TOKEN_AUTOSTART,
     TOKEN_RESET,
@@ -123,6 +124,11 @@ typedef enum {
 
     // Keywords - PLAYSID parameter
     TOKEN_SONGNR,
+
+    // Keywords - RUNLOCAL parameters
+    TOKEN_ARGS,
+    TOKEN_STATUS,
+    TOKEN_OUTPUT,
 
     // Operators - arithmetic
     TOKEN_PLUS,     // +
@@ -209,6 +215,7 @@ typedef enum {
     AST_STMT_PALETTECOLOR,
     AST_STMT_PLAYSID,
     AST_STMT_RUNPRG,
+    AST_STMT_RUNLOCAL,
     AST_STMT_MOUNTDISK,
     AST_STMT_AUTOSTART,
     AST_STMT_RESET,
@@ -391,6 +398,13 @@ struct c64script_ast_node {
         } runprg_stmt;
 
         struct {
+            c64script_ast_expr_t *path;       // Executable path
+            c64script_ast_expr_t *args;       // NULL means no arguments
+            c64script_ast_expr_t *status_var; // NULL means don't store status
+            c64script_ast_expr_t *output_var; // NULL means don't capture output
+        } runlocal_stmt;
+
+        struct {
             c64script_ast_expr_t *path;
         } mountdisk_stmt;
 
@@ -505,6 +519,7 @@ typedef enum {
     OP_PALETTECOLOR,
     OP_PLAYSID,
     OP_RUNPRG,
+    OP_RUNLOCAL,
     OP_MOUNTDISK,
     OP_AUTOSTART,
     OP_RESET,
