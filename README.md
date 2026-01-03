@@ -297,34 +297,41 @@ Recreate the authentic look and feel of classic CRT monitors and TVs with config
 
 **Customizable Effects:**
 
-- **Scan Lines:** CRT raster line simulation with precise control (see table below)
+- **Scan Lines:** CRT raster line simulation with precise control (see table below). The "Scan Line Strength" slider (0.0–1.0) controls how dark the gaps appear. At 0.0, gaps are invisible; at 1.0, they are completely black.
+
 - **Bloom:** Glow effect that makes bright pixels bleed into darker areas
 - **Pixel Geometry:** Independent width/height scaling for authentic pixel aspect ratios
 - **Blur Control:** Fine-tune between crisp pixels and soft scaling
 - **Afterglow**: CRT phosphor persistence effect (0-250ms) with configurable decay curves
 - **Screen Tint:** Amber, green, or monochrome overlays for period-accurate monitor simulation
 
-**Usage:** Access via the **Effects** group in plugin properties. Select a preset for instant results, or customize individual settings to create your perfect retro display aesthetic.
-
-**Pixel-Perfect Display:** For crisp pixels and perfectly even scanlines, right-click on the C64 Stream source → **Scale Filtering → Point**. This is a one-time setting that tells OBS to use nearest-neighbor scaling. The plugin automatically sizes the source to the correct integer multiple based on your scanline settings.
-
-#### Scan Line Settings
-
-The **Scan Line Distance** setting controls the gap between each pair of adjacent C64 pixel rows, simulating the dark lines between phosphor rows on a CRT monitor. Each mode uses a specific integer scaling factor to ensure perfectly uniform scanlines with zero variance:
-
-| Mode | Distance | Scale | Pattern | Output Height | Canvas Fit |
-|------|----------|-------|---------|---------------|------------|
-| None | 0% | 4× | No gaps | 1088px | Full (8px crop) |
-| Tight | 25% | 5× | 4 bright + 1 dark | 1360px | Overflow |
-| Normal | 50% | 3× | 2 bright + 1 dark | 816px | Letterboxed |
-| Wide | 100% | 4× | 2 bright + 2 dark | 1088px | Full (8px crop) |
-| Extra Wide | 200% | 3× | 1 bright + 2 dark | 816px | Letterboxed |
-
-**Recommended:** Use **Wide (100%)** for full 1080p canvas coverage with minimal border cropping, or **Normal (50%)** for a classic CRT look with black bars.
-
-The **Scan Line Strength** slider (0.0–1.0) controls how dark the gaps appear. At 0.0, gaps are invisible; at 1.0, they are completely black.
-
 **Reset:** To reset to default values, simply select the "Default" preset. If you have changed individual effects whilst the "Default" preset was active, select any other preset first and then re-select the "Default" preset.
+
+#### Perfect Scan Lines
+
+> [!TIP]
+> This section is for users seeking perfect display quality. The techniques described here are mostly required when using effects that include scan lines and/or pixel scaling.
+
+The **Scan Line Distance** setting controls the gap between each pair of adjacent C64 pixel rows, simulating the dark lines between phosphor rows on a CRT monitor. Each mode uses a specific integer scaling factor to ensure perfectly uniform scanlines with zero variance.
+
+To achieve **pixel-perfect scanlines** without any scaling-induced artifacts such as slight blurriness, the source must be scaled to exact dimensions in OBS. Because OBS does not lock aspect ratio for numeric transforms, **both height and width must be set explicitly**.
+
+First, right-click on the C64 Stream source → **Scale Filtering → Point**. This is a one-time setting that tells OBS to use nearest-neighbor scaling.
+
+Then, right-click the C64 Stream source in OBS → **Transform** → **Edit Transform**, then enter the exact values from the table below, assuming you are using a 1920 x 1080 ("Full HD") screen. Adjust the width/height settings as needed if you use a different screen:
+
+| Mode | Distance | Scale | Pattern | Output Width | Output Height | Canvas Fit |
+|------|----------|-------|---------|--------------|---------------|------------|
+| None | 0% | 4× | No gaps | 1456 px | 1088 px | Full (8 px vertical crop) |
+| Tight | 25% | 5× | 4 bright + 1 dark | 1820 px | 1360 px | Vertical overflow |
+| Normal | 50% | 3× | 2 bright + 1 dark | 1092 px | 816 px | Letterboxed |
+| Wide | 100% | 4× | 2 bright + 2 dark | 1456 px | 1088 px | Full (8 px vertical crop) |
+| Extra Wide | 200% | 3× | 1 bright + 2 dark | 1092 px | 816 px | Letterboxed |
+
+The following screenshot assumes you select "Wide" scan line mode, again assuming you use a 1920 x 1080 screen:
+
+![Edit Source Transform](./docs/images/source-transform-edit.png "Edit Source Transform in OBS")
+
 
 ### Color Palettes 🎨
 
