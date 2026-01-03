@@ -499,11 +499,6 @@ obs_properties_t *c64_create_properties(void *data)
                                                           OBS_GROUP_NORMAL, obs_properties_create());
     obs_properties_t *rest_props = obs_property_group_content(rest_group);
 
-    // REST base URL
-    obs_property_t *rest_url_prop =
-        obs_properties_add_text(rest_props, "rest_base_url", obs_module_text("RESTBaseURL"), OBS_TEXT_DEFAULT);
-    obs_property_set_long_description(rest_url_prop, obs_module_text("RESTBaseURL.Description"));
-
     // REST password (hidden input)
     obs_property_t *rest_pass_prop =
         obs_properties_add_text(rest_props, "rest_password", obs_module_text("RESTPassword"), OBS_TEXT_PASSWORD);
@@ -1042,7 +1037,6 @@ void c64_set_property_defaults(obs_data_t *settings)
     obs_data_erase(settings, C64_PALETTE_INITIALIZING_KEY);
 
     // REST Control defaults
-    obs_data_set_default_string(settings, "rest_base_url", "");
     obs_data_set_default_string(settings, "rest_password", "");
     obs_data_set_default_bool(settings, "keyboard_capture_enabled", false);
     obs_data_set_default_string(settings, "keyboard_keymap", "symbolic_us");

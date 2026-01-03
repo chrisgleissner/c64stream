@@ -127,6 +127,119 @@ Implementation requirement:
   - mount D64
   - type autostart template
 
+## File Source Selection (Local vs C64U Filesystem)
+
+The automation system supports loading files from two sources:
+
+### Local Filesystem (default)
+- Files are stored on the OBS machine
+- File/folder selection via standard OBS file picker widget
+- Files are uploaded to C64U via REST API before playback
+
+### C64U Filesystem (alternative)
+- Files are stored directly on the Ultimate 64's storage (SD card/USB)
+- Requires C64U REST API filesystem exploration endpoints
+- No upload needed - direct playback via remote path
+
+### Implementation Requirements
+
+#### Filesystem Toggle
+Add a toggle in Properties UI:
+- `File Source`: `Local Filesystem` (default) | `C64U Filesystem`
+
+When set to "C64U Filesystem":
+- Replace OBS file picker with text entry field for remote path
+- Path format: `/path/to/folder` or `/path/to/file.sid`
+- Validation: check path exists via `GET /v1/files:list?path=<encoded_path>`
+
+#### Common Settings (Apply to Both Sources)
+These settings work identically regardless of file source:
+- `Shuffle` - randomize playback order
+- `Consider Subfolders` - recursive file enumeration
+- `Duration` - seconds per item
+- `Reset Between Items` - soft reset between files
+
+#### REST API Extensions Required
+
+##### List Directory Contents
+```
+GET /v1/files:list?path=<url-encoded-path>[&recursive=true]
+```
+
+Response:
+```json
+{
+  "path": "/Commodore/SID",
+  "entries": [
+    {"name": "tune1.sid", "type": "file", "size": 4096},
+    {"name": "Subfolder", "type": "directory"}
+  ]
+}
+```
+
+##### Check Path Exists
+```
+HEAD /v1/files:stat?path=<url-encoded-path>
+```
+
+Returns: 200 OK (exists) or 404 Not Found
+
+##### Play File from C64U Path (SID example)
+```
+POST /v1/runners:sidplay?path=<url-encoded-path>&songnr=0
+```
+
+Similar extensions for PRG and D64:
+- `POST /v1/runners:run_prg?path=<url-encoded-path>`
+- `POST /v1/drives/a:mount?path=<url-encoded-path>&type=d64&mode=readonly`
+
+#### Automation Logic Changes
+
+**Local Filesystem Mode:**
+1. Enumerate files locally (opendir/readdir)
+2. For each file: read binary → upload via POST body → play
+3. Reset if enabled
+
+**C64U Filesystem Mode:**
+1. Enumerate files via `GET /v1/files:list?path=<path>&recursive=<bool>`
+2. Filter for .sid/.prg/.d64 extensions
+3. For each file: play directly via path parameter (no upload)
+4. Reset if enabled
+
+#### Error Handling
+
+- If path validation fails (404), show error: "C64U path not found: /path/to/folder"
+- If filesystem API not available (older C64U firmware), show error: "C64U filesystem API not supported - use Local Filesystem mode"
+- If network error during enumeration, retry with exponential backoff (3 attempts)
+
+#### UI/UX Considerations
+
+**Local Filesystem:**
+- Standard OBS file/folder picker
+- Familiar workflow for OBS users
+
+**C64U Filesystem:**
+- Text entry field with validation indicator
+- Example placeholder: `/Commodore/SID`
+- "Browse" button (future enhancement): open modal dialog showing C64U directory tree
+- Real-time validation: green checkmark if path exists, red X if not found
+
+#### Testing Requirements
+
+Mock C64U server must implement:
+- `GET /v1/files:list` - return simulated directory listings
+- `HEAD /v1/files:stat` - validate paths
+- `POST /v1/runners:sidplay?path=...` - accept path parameter
+- `POST /v1/runners:run_prg?path=...` - accept path parameter
+- `POST /v1/drives/a:mount?path=...` - accept path parameter
+
+Test scenarios:
+1. Enumerate and play SID files from C64U path
+2. Recursive folder enumeration with shuffle
+3. Path validation (valid/invalid paths)
+4. Graceful fallback if API not available
+5. Consistent behavior between local and remote sources
+
 ## Automation mode (folder playback)
 
 Add a Properties-driven automation mode:

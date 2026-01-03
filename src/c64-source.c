@@ -580,10 +580,16 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     memset(context->rest_password, 0, sizeof(context->rest_password));
     memset(context->keyboard_keymap_name, 0, sizeof(context->keyboard_keymap_name));
 
-    // Load REST settings
-    const char *rest_url = obs_data_get_string(settings, "rest_base_url");
-    if (rest_url && rest_url[0] != '\0') {
-        strncpy(context->rest_base_url, rest_url, sizeof(context->rest_base_url) - 1);
+    // Build REST base URL from c64_host
+    const char *c64_host = obs_data_get_string(settings, "c64_host");
+    if (c64_host && c64_host[0] != '\0' && strcmp(c64_host, "0.0.0.0") != 0) {
+        // Build REST API URL from host (add http:// if not present, append /v1 path)
+        if (strncmp(c64_host, "http://", 7) == 0 || strncmp(c64_host, "https://", 8) == 0) {
+            snprintf(context->rest_base_url, sizeof(context->rest_base_url), "%s/v1", c64_host);
+        } else {
+            snprintf(context->rest_base_url, sizeof(context->rest_base_url), "http://%s/v1", c64_host);
+        }
+
         const char *rest_password = obs_data_get_string(settings, "rest_password");
         if (rest_password) {
             strncpy(context->rest_password, rest_password, sizeof(context->rest_password) - 1);
