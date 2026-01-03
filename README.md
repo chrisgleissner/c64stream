@@ -394,7 +394,7 @@ Save and restore your complete plugin settings:
 - **Export:** Click to save all current settings to a `.ini` file. Use this to backup configurations, share setups, or attach to bug reports
 - **Import:** Click to load settings from a previously exported `.ini` file. All current settings will be replaced
 
-Exported configurations are saved to the [exports directory](#file-system-structure-).
+Exported configurations are saved to the [settings directory](#file-system-structure-).
 
 ### File System Structure 📁
 
@@ -445,9 +445,9 @@ For easy access, simple backups, and visibility, it is always stored in `<Docume
 
 ```
 <Documents>/obs-studio/c64stream/
-├── exports/         # Exported configuration files (.ini)
+├── settings/        # Exported configuration files (.ini)
 ├── palettes/        # Custom palette files (.vpl)
-├── recordings/      # Recording session folders
+└── recordings/      # Recording session folders
 └── presets/         # Custom effect presets (future)
 ```
 

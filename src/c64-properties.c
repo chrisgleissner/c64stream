@@ -443,17 +443,17 @@ obs_properties_t *c64_create_properties(void *data)
 
     // Set default directory path BEFORE registering callback to avoid triggering it
     {
-        char exports_dir[512];
-        if (c64_get_user_dir(C64_USER_DIR_EXPORTS, exports_dir, sizeof(exports_dir))) {
+        char settings_dir[512];
+        if (c64_get_user_dir(C64_USER_DIR_SETTINGS, settings_dir, sizeof(settings_dir))) {
             // Ensure trailing slash to clearly indicate directory
-            size_t len = strlen(exports_dir);
-            if (len > 0 && len < sizeof(exports_dir) - 2 && exports_dir[len - 1] != '/' &&
-                exports_dir[len - 1] != '\\') {
-                exports_dir[len] = '/';
-                exports_dir[len + 1] = '\0';
+            size_t len = strlen(settings_dir);
+            if (len > 0 && len < sizeof(settings_dir) - 2 && settings_dir[len - 1] != '/' &&
+                settings_dir[len - 1] != '\\') {
+                settings_dir[len] = '/';
+                settings_dir[len + 1] = '\0';
             }
             obs_data_t *path_settings = obs_source_get_settings(context->source);
-            obs_data_set_default_string(path_settings, C64_CONFIG_IMPORT_PATH_KEY, exports_dir);
+            obs_data_set_default_string(path_settings, C64_CONFIG_IMPORT_PATH_KEY, settings_dir);
             obs_data_release(path_settings);
         }
     }
@@ -470,17 +470,17 @@ obs_properties_t *c64_create_properties(void *data)
     // CRITICAL: Use DIRECTORY (with trailing slash), not filename, to prevent spurious export
     // If we set a filename, the callback might trigger and create the file automatically
     {
-        char exports_dir[512];
-        if (c64_get_user_dir(C64_USER_DIR_EXPORTS, exports_dir, sizeof(exports_dir))) {
+        char settings_dir[512];
+        if (c64_get_user_dir(C64_USER_DIR_SETTINGS, settings_dir, sizeof(settings_dir))) {
             // Ensure trailing slash to clearly indicate directory
-            size_t len = strlen(exports_dir);
-            if (len > 0 && len < sizeof(exports_dir) - 2 && exports_dir[len - 1] != '/' &&
-                exports_dir[len - 1] != '\\') {
-                exports_dir[len] = '/';
-                exports_dir[len + 1] = '\0';
+            size_t len = strlen(settings_dir);
+            if (len > 0 && len < sizeof(settings_dir) - 2 && settings_dir[len - 1] != '/' &&
+                settings_dir[len - 1] != '\\') {
+                settings_dir[len] = '/';
+                settings_dir[len + 1] = '\0';
             }
             obs_data_t *path_settings = obs_source_get_settings(context->source);
-            obs_data_set_default_string(path_settings, C64_CONFIG_EXPORT_PATH_KEY, exports_dir);
+            obs_data_set_default_string(path_settings, C64_CONFIG_EXPORT_PATH_KEY, settings_dir);
             obs_data_release(path_settings);
         }
     }
