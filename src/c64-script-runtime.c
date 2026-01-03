@@ -27,12 +27,38 @@ c64script_runtime_t *c64script_runtime_create(void)
         return NULL;
     }
 
-    // TODO: Initialize runtime (variable storage, stacks, etc.)
+    // Initialize all fields to safe defaults
+    runtime->bytecode = NULL;
+    runtime->bytecode_size = 0;
     runtime->ip = 0;
+
+    runtime->constants = NULL;
+    runtime->constant_count = 0;
+
+    runtime->variables = NULL;
+    runtime->variable_count = 0;
+    runtime->variable_capacity = 0;
+
+    runtime->stack = NULL;
+    runtime->stack_size = 0;
+    runtime->stack_capacity = 0;
+
+    runtime->for_stack_size = 0;
+    runtime->while_stack_size = 0;
+    runtime->gosub_stack_size = 0;
+
     runtime->should_stop = false;
     runtime->trace_enabled = false;
+
     runtime->log_file = NULL;
+    runtime->log_filename[0] = '\0';
+
+    runtime->error_msg[0] = '\0';
     runtime->error_line = -1;
+
+    runtime->source_data = NULL;
+    runtime->rest_client = NULL;
+    runtime->keyboard = NULL;
 
     return runtime;
 }
@@ -48,7 +74,44 @@ void c64script_runtime_destroy(c64script_runtime_t *runtime)
         runtime->log_file = NULL;
     }
 
-    // TODO: Free bytecode, constants, variables, stacks
+    // Free bytecode
+    if (runtime->bytecode) {
+        free(runtime->bytecode);
+        runtime->bytecode = NULL;
+    }
+
+    // Free constants (strings need special handling)
+    if (runtime->constants) {
+        for (size_t i = 0; i < runtime->constant_count; i++) {
+            if (runtime->constants[i].type == VALUE_STRING && runtime->constants[i].as.string) {
+                free(runtime->constants[i].as.string);
+            }
+        }
+        free(runtime->constants);
+        runtime->constants = NULL;
+    }
+
+    // Free variables (strings need special handling)
+    if (runtime->variables) {
+        for (size_t i = 0; i < runtime->variable_count; i++) {
+            if (runtime->variables[i].value.type == VALUE_STRING && runtime->variables[i].value.as.string) {
+                free(runtime->variables[i].value.as.string);
+            }
+        }
+        free(runtime->variables);
+        runtime->variables = NULL;
+    }
+
+    // Free stack (strings need special handling)
+    if (runtime->stack) {
+        for (size_t i = 0; i < runtime->stack_size; i++) {
+            if (runtime->stack[i].type == VALUE_STRING && runtime->stack[i].as.string) {
+                free(runtime->stack[i].as.string);
+            }
+        }
+        free(runtime->stack);
+        runtime->stack = NULL;
+    }
 
     free(runtime);
 }
