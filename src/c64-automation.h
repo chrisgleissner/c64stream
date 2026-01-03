@@ -22,11 +22,14 @@ typedef enum { C64_AUTO_MODE_OFF, C64_AUTO_MODE_SINGLE, C64_AUTO_MODE_FOLDER } c
 
 typedef enum { C64_FILE_TYPE_SID, C64_FILE_TYPE_PRG, C64_FILE_TYPE_D64 } c64_file_type_t;
 
+typedef enum { C64_FILE_SOURCE_LOCAL, C64_FILE_SOURCE_C64U } c64_file_source_t;
+
 /**
  * Automation configuration
  */
 typedef struct {
     c64_automation_mode_t mode;
+    c64_file_source_t file_source;
     char folder_path[512];
     bool shuffle;
     int duration_seconds;

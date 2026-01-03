@@ -136,7 +136,8 @@ static uint8_t *load_file(const char *path, size_t *size)
 }
 
 // Enumerate files in folder
-static int enumerate_files(const char *folder_path, file_entry_t **out_files)
+static int enumerate_files(c64_rest_client_t *rest_client, const char *folder_path, c64_file_source_t file_source,
+                           file_entry_t **out_files)
 {
     file_entry_t *files = calloc(MAX_FILES, sizeof(file_entry_t));
     if (!files) {
@@ -145,6 +146,50 @@ static int enumerate_files(const char *folder_path, file_entry_t **out_files)
 
     int count = 0;
 
+    if (file_source == C64_FILE_SOURCE_C64U) {
+        // C64U filesystem: use REST API to enumerate files
+        if (!rest_client) {
+            C64_LOG_ERROR(AUTOMATION_LOG_PREFIX "C64U mode requires REST client");
+            free(files);
+            return 0;
+        }
+
+        c64_file_entry_t *c64u_entries = NULL;
+        size_t c64u_count = 0;
+        bool success = c64_rest_list_files(rest_client, folder_path, true, &c64u_entries, &c64u_count);
+        if (!success) {
+            C64_LOG_ERROR(AUTOMATION_LOG_PREFIX "Failed to list C64U files: %s", c64_rest_get_error(rest_client));
+            free(files);
+            return 0;
+        }
+
+        for (size_t i = 0; i < c64u_count && count < MAX_FILES; i++) {
+            if (c64u_entries[i].is_directory) {
+                continue; // Skip directories
+            }
+
+            c64_file_type_t type = get_file_type(c64u_entries[i].name);
+            if (type < 0) {
+                continue; // Not a supported file
+            }
+
+            // For C64U files, store the full path within the C64U filesystem
+            // The path should be: <folder_path>/<filename>
+            int written =
+                snprintf(files[count].path, sizeof(files[count].path), "%s/%s", folder_path, c64u_entries[i].name);
+            if (written < 0 || (size_t)written >= sizeof(files[count].path)) {
+                continue; // Truncated
+            }
+            files[count].type = type;
+            count++;
+        }
+
+        free(c64u_entries);
+        *out_files = files;
+        return count;
+    }
+
+    // Local filesystem enumeration
 #ifdef _WIN32
     // Windows implementation using FindFirstFile/FindNextFile
     WIN32_FIND_DATAA find_data;
@@ -256,48 +301,82 @@ static void *automation_worker(void *arg)
 
         C64_LOG_INFO(AUTOMATION_LOG_PREFIX "Processing: %s", file->path);
 
-        // Load file
-        size_t file_size;
-        uint8_t *file_data = load_file(file->path, &file_size);
-        if (!file_data) {
-            C64_LOG_ERROR(AUTOMATION_LOG_PREFIX "Failed to load file: %s", file->path);
-            continue;
-        }
-
-        // Execute based on type
+        // Execute based on file source
         bool success = false;
-        switch (file->type) {
-        case C64_FILE_TYPE_SID:
-            success = c64_rest_play_sid(automation->rest_client, file_data, file_size, 0);
-            break;
-        case C64_FILE_TYPE_PRG:
-            success = c64_rest_run_prg(automation->rest_client, file_data, file_size);
-            break;
-        case C64_FILE_TYPE_D64:
-            // Reset, mount, inject autostart
-            if (automation->config.reset_between_items) {
-                c64_rest_reset(automation->rest_client);
-                os_sleep_ms(RESET_DELAY_MS);
-            }
-            success = c64_rest_mount_disk(automation->rest_client, 'a', "d64", "readonly", file_data, file_size);
-            if (success && automation->keyboard) {
-                // Inject autostart command
-                const char *template = automation->config.d64_autostart_template;
-                for (size_t j = 0; template[j] && !automation->should_stop; j++) {
-                    c64_output_t output = {0};
-                    output.mode = C64_OUTPUT_PETSCII;
-                    if (template[j] == '\r') {
-                        output.data.petscii = 0x0D; // RETURN
-                    } else {
-                        output.data.petscii = (uint8_t)template[j];
-                    }
-                    c64_keyboard_queue_output(automation->keyboard, &output);
+        if (automation->config.file_source == C64_FILE_SOURCE_C64U) {
+            // C64U filesystem: use path-based REST API
+            switch (file->type) {
+            case C64_FILE_TYPE_SID:
+                success = c64_rest_play_sid_path(automation->rest_client, file->path, 0);
+                break;
+            case C64_FILE_TYPE_PRG:
+                success = c64_rest_run_prg_path(automation->rest_client, file->path);
+                break;
+            case C64_FILE_TYPE_D64:
+                // Reset before mounting
+                if (automation->config.reset_between_items) {
+                    c64_rest_reset(automation->rest_client);
+                    os_sleep_ms(RESET_DELAY_MS);
                 }
+                success = c64_rest_mount_disk_path(automation->rest_client, 'a', file->path);
+                if (success && automation->keyboard) {
+                    // Inject autostart command
+                    const char *template = automation->config.d64_autostart_template;
+                    for (size_t j = 0; template[j] && !automation->should_stop; j++) {
+                        c64_output_t output = {0};
+                        output.mode = C64_OUTPUT_PETSCII;
+                        if (template[j] == '\r') {
+                            output.data.petscii = 0x0D; // RETURN
+                        } else {
+                            output.data.petscii = (uint8_t)template[j];
+                        }
+                        c64_keyboard_queue_output(automation->keyboard, &output);
+                    }
+                }
+                break;
             }
-            break;
-        }
+        } else {
+            // Local filesystem: load file and upload via REST
+            size_t file_size;
+            uint8_t *file_data = load_file(file->path, &file_size);
+            if (!file_data) {
+                C64_LOG_ERROR(AUTOMATION_LOG_PREFIX "Failed to load file: %s", file->path);
+                continue;
+            }
 
-        free(file_data);
+            switch (file->type) {
+            case C64_FILE_TYPE_SID:
+                success = c64_rest_play_sid(automation->rest_client, file_data, file_size, 0);
+                break;
+            case C64_FILE_TYPE_PRG:
+                success = c64_rest_run_prg(automation->rest_client, file_data, file_size);
+                break;
+            case C64_FILE_TYPE_D64:
+                // Reset, mount, inject autostart
+                if (automation->config.reset_between_items) {
+                    c64_rest_reset(automation->rest_client);
+                    os_sleep_ms(RESET_DELAY_MS);
+                }
+                success = c64_rest_mount_disk(automation->rest_client, 'a', "d64", "readonly", file_data, file_size);
+                if (success && automation->keyboard) {
+                    // Inject autostart command
+                    const char *template = automation->config.d64_autostart_template;
+                    for (size_t j = 0; template[j] && !automation->should_stop; j++) {
+                        c64_output_t output = {0};
+                        output.mode = C64_OUTPUT_PETSCII;
+                        if (template[j] == '\r') {
+                            output.data.petscii = 0x0D; // RETURN
+                        } else {
+                            output.data.petscii = (uint8_t)template[j];
+                        }
+                        c64_keyboard_queue_output(automation->keyboard, &output);
+                    }
+                }
+                break;
+            }
+
+            free(file_data);
+        }
 
         if (!success) {
             C64_LOG_ERROR(AUTOMATION_LOG_PREFIX "Failed to execute: %s", file->path);
@@ -423,7 +502,8 @@ bool c64_automation_start(c64_automation_t *automation)
         automation->num_files = 1;
     } else if (automation->config.mode == C64_AUTO_MODE_FOLDER) {
         // Folder mode - enumerate files
-        automation->num_files = enumerate_files(automation->config.folder_path, &automation->files);
+        automation->num_files = enumerate_files(automation->rest_client, automation->config.folder_path,
+                                                automation->config.file_source, &automation->files);
         if (automation->num_files == 0) {
             C64_LOG_ERROR(AUTOMATION_LOG_PREFIX "No supported files found in: %s", automation->config.folder_path);
             return false;

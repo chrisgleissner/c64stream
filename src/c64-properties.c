@@ -548,6 +548,13 @@ obs_properties_t *c64_create_properties(void *data)
     obs_property_list_add_int(automation_mode_prop, obs_module_text("AutomationMode.SingleFile"), 1);
     obs_property_list_add_int(automation_mode_prop, obs_module_text("AutomationMode.Folder"), 2);
 
+    // File source (Local Filesystem vs C64U Filesystem)
+    obs_property_t *file_source_prop = obs_properties_add_list(rest_props, "file_source", obs_module_text("FileSource"),
+                                                               OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+    obs_property_set_long_description(file_source_prop, obs_module_text("FileSource.Description"));
+    obs_property_list_add_int(file_source_prop, obs_module_text("FileSource.Local"), 0);
+    obs_property_list_add_int(file_source_prop, obs_module_text("FileSource.C64U"), 1);
+
     // Automation file/folder path
     obs_property_t *auto_path_prop = obs_properties_add_path(
         rest_props, "automation_path", obs_module_text("AutomationPath"), OBS_PATH_FILE, "All Files (*.*)", NULL);
@@ -1041,6 +1048,7 @@ void c64_set_property_defaults(obs_data_t *settings)
     obs_data_set_default_bool(settings, "keyboard_capture_enabled", false);
     obs_data_set_default_string(settings, "keyboard_keymap", "symbolic_us");
     obs_data_set_default_int(settings, "automation_mode", 0); // Disabled
+    obs_data_set_default_int(settings, "file_source", 0);     // Local Filesystem
     obs_data_set_default_string(settings, "automation_path", "");
     obs_data_set_default_bool(settings, "automation_shuffle", false);
     obs_data_set_default_int(settings, "automation_duration", 120); // 2 minutes default

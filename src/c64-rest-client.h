@@ -75,12 +75,27 @@ bool c64_rest_write_memory(c64_rest_client_t *client, uint16_t address, const ui
 bool c64_rest_play_sid(c64_rest_client_t *client, const uint8_t *sid_data, size_t sid_size, int song_number);
 
 /**
+ * Play SID file from C64U filesystem
+ * POST /v1/runners:sidplay?path=<path>&songnr=<n>
+ * @param c64u_path Path to SID file on C64U filesystem
+ * @param song_number Song number (1-based, 0 for default)
+ */
+bool c64_rest_play_sid_path(c64_rest_client_t *client, const char *c64u_path, int song_number);
+
+/**
  * Run PRG file
  * POST /v1/runners:run_prg
  * @param prg_data PRG file content
  * @param prg_size Size of PRG data
  */
 bool c64_rest_run_prg(c64_rest_client_t *client, const uint8_t *prg_data, size_t prg_size);
+
+/**
+ * Run PRG file from C64U filesystem
+ * POST /v1/runners:run_prg?path=<path>
+ * @param c64u_path Path to PRG file on C64U filesystem
+ */
+bool c64_rest_run_prg_path(c64_rest_client_t *client, const char *c64u_path);
 
 /**
  * Mount disk image
@@ -95,7 +110,47 @@ bool c64_rest_mount_disk(c64_rest_client_t *client, char drive, const char *type
                          const uint8_t *disk_data, size_t disk_size);
 
 /**
+ * Mount disk image from C64U filesystem
+ * POST /v1/drives/{drive}:mount?path=<path>
+ * @param drive Drive letter ('a', 'b', etc.)
+ * @param c64u_path Path to disk image on C64U filesystem
+ */
+bool c64_rest_mount_disk_path(c64_rest_client_t *client, char drive, const char *c64u_path);
+
+/**
  * Get last error message
  * @return Error string (valid until next operation)
  */
 const char *c64_rest_get_error(c64_rest_client_t *client);
+
+/**
+ * File entry from C64U filesystem
+ */
+typedef struct {
+    char name[256];
+    bool is_directory;
+    uint32_t size; // File size in bytes (0 for directories)
+} c64_file_entry_t;
+
+/**
+ * List files in C64U filesystem directory
+ * GET /v1/files:list?path=<path>&recursive=<bool>
+ * @param client REST client instance
+ * @param path Directory path (e.g., "/Commodore/SID")
+ * @param recursive Whether to enumerate subdirectories
+ * @param entries Output array pointer (allocated by function, caller must free)
+ * @param entry_count Output count of entries
+ * @return true on success, false on error
+ */
+bool c64_rest_list_files(c64_rest_client_t *client, const char *path, bool recursive, c64_file_entry_t **entries,
+                         size_t *entry_count);
+
+/**
+ * Check if a path exists in C64U filesystem
+ * HEAD /v1/files:stat?path=<path>
+ * @param client REST client instance
+ * @param path Path to check
+ * @param is_directory Output: true if path is a directory, false if file
+ * @return true if path exists, false otherwise
+ */
+bool c64_rest_stat_file(c64_rest_client_t *client, const char *path, bool *is_directory);

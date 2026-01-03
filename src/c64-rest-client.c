@@ -460,10 +460,438 @@ bool c64_rest_mount_disk(c64_rest_client_t *client, char drive, const char *type
     return true;
 }
 
+bool c64_rest_play_sid_path(c64_rest_client_t *client, const char *c64u_path, int song_number)
+{
+    if (!client || !c64u_path) {
+        return false;
+    }
+
+    // URL encode the path
+    char *escaped_path = curl_easy_escape(client->curl, c64u_path, 0);
+    if (!escaped_path) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "Failed to escape path");
+        return false;
+    }
+
+    // Build URL
+    char url[512];
+    snprintf(url, sizeof(url), "%s/v1/runners:sidplay?path=%s&songnr=%d", client->base_url, escaped_path, song_number);
+    curl_free(escaped_path);
+
+    // Reset CURL handle
+    curl_easy_reset(client->curl);
+    curl_easy_setopt(client->curl, CURLOPT_URL, url);
+    curl_easy_setopt(client->curl, CURLOPT_POST, 1L);
+    curl_easy_setopt(client->curl, CURLOPT_POSTFIELDS, "");
+    curl_easy_setopt(client->curl, CURLOPT_TIMEOUT, HTTP_TIMEOUT_SECONDS);
+
+    // Add password header if present
+    struct curl_slist *headers = NULL;
+    if (client->password && client->password[0]) {
+        char auth_header[256];
+        snprintf(auth_header, sizeof(auth_header), "X-Password: %s", client->password);
+        headers = curl_slist_append(headers, auth_header);
+        curl_easy_setopt(client->curl, CURLOPT_HTTPHEADER, headers);
+    }
+
+    // Perform request
+    CURLcode res = curl_easy_perform(client->curl);
+
+    if (headers) {
+        curl_slist_free_all(headers);
+    }
+
+    if (res != CURLE_OK) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "CURL error: %s", curl_easy_strerror(res));
+        return false;
+    }
+
+    // Check HTTP status
+    long http_code = 0;
+    curl_easy_getinfo(client->curl, CURLINFO_RESPONSE_CODE, &http_code);
+    if (http_code != 200) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "HTTP error %ld", http_code);
+        return false;
+    }
+
+    C64_LOG_INFO(REST_LOG_PREFIX "Playing SID from C64U: %s song=%d", c64u_path, song_number);
+    return true;
+}
+
+bool c64_rest_run_prg_path(c64_rest_client_t *client, const char *c64u_path)
+{
+    if (!client || !c64u_path) {
+        return false;
+    }
+
+    // URL encode the path
+    char *escaped_path = curl_easy_escape(client->curl, c64u_path, 0);
+    if (!escaped_path) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "Failed to escape path");
+        return false;
+    }
+
+    // Build URL
+    char url[512];
+    snprintf(url, sizeof(url), "%s/v1/runners:run_prg?path=%s", client->base_url, escaped_path);
+    curl_free(escaped_path);
+
+    // Reset CURL handle
+    curl_easy_reset(client->curl);
+    curl_easy_setopt(client->curl, CURLOPT_URL, url);
+    curl_easy_setopt(client->curl, CURLOPT_POST, 1L);
+    curl_easy_setopt(client->curl, CURLOPT_POSTFIELDS, "");
+    curl_easy_setopt(client->curl, CURLOPT_TIMEOUT, HTTP_TIMEOUT_SECONDS);
+
+    // Add password header if present
+    struct curl_slist *headers = NULL;
+    if (client->password && client->password[0]) {
+        char auth_header[256];
+        snprintf(auth_header, sizeof(auth_header), "X-Password: %s", client->password);
+        headers = curl_slist_append(headers, auth_header);
+        curl_easy_setopt(client->curl, CURLOPT_HTTPHEADER, headers);
+    }
+
+    // Perform request
+    CURLcode res = curl_easy_perform(client->curl);
+
+    if (headers) {
+        curl_slist_free_all(headers);
+    }
+
+    if (res != CURLE_OK) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "CURL error: %s", curl_easy_strerror(res));
+        return false;
+    }
+
+    // Check HTTP status
+    long http_code = 0;
+    curl_easy_getinfo(client->curl, CURLINFO_RESPONSE_CODE, &http_code);
+    if (http_code != 200) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "HTTP error %ld", http_code);
+        return false;
+    }
+
+    C64_LOG_INFO(REST_LOG_PREFIX "Running PRG from C64U: %s", c64u_path);
+    return true;
+}
+
+bool c64_rest_mount_disk_path(c64_rest_client_t *client, char drive, const char *c64u_path)
+{
+    if (!client || !c64u_path) {
+        return false;
+    }
+
+    // URL encode the path
+    char *escaped_path = curl_easy_escape(client->curl, c64u_path, 0);
+    if (!escaped_path) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "Failed to escape path");
+        return false;
+    }
+
+    // Build URL
+    char url[512];
+    snprintf(url, sizeof(url), "%s/v1/drives/%c:mount?path=%s", client->base_url, drive, escaped_path);
+    curl_free(escaped_path);
+
+    // Reset CURL handle
+    curl_easy_reset(client->curl);
+    curl_easy_setopt(client->curl, CURLOPT_URL, url);
+    curl_easy_setopt(client->curl, CURLOPT_POST, 1L);
+    curl_easy_setopt(client->curl, CURLOPT_POSTFIELDS, "");
+    curl_easy_setopt(client->curl, CURLOPT_TIMEOUT, HTTP_TIMEOUT_SECONDS);
+
+    // Add password header if present
+    struct curl_slist *headers = NULL;
+    if (client->password && client->password[0]) {
+        char auth_header[256];
+        snprintf(auth_header, sizeof(auth_header), "X-Password: %s", client->password);
+        headers = curl_slist_append(headers, auth_header);
+        curl_easy_setopt(client->curl, CURLOPT_HTTPHEADER, headers);
+    }
+
+    // Perform request
+    CURLcode res = curl_easy_perform(client->curl);
+
+    if (headers) {
+        curl_slist_free_all(headers);
+    }
+
+    if (res != CURLE_OK) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "CURL error: %s", curl_easy_strerror(res));
+        return false;
+    }
+
+    // Check HTTP status
+    long http_code = 0;
+    curl_easy_getinfo(client->curl, CURLINFO_RESPONSE_CODE, &http_code);
+    if (http_code != 200) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "HTTP error %ld", http_code);
+        return false;
+    }
+
+    C64_LOG_INFO(REST_LOG_PREFIX "Mounted disk from C64U: drive=%c path=%s", drive, c64u_path);
+    return true;
+}
+
 const char *c64_rest_get_error(c64_rest_client_t *client)
 {
     if (!client) {
         return "Invalid client";
     }
     return client->error_msg;
+}
+
+// Simple JSON parser for file list response
+// Expected format: {"entries": [{"name": "...", "type": "file|directory", "size": 123}, ...]}
+static bool parse_file_list_json(const char *json, size_t json_len, c64_file_entry_t **entries, size_t *entry_count)
+{
+    if (!json || !entries || !entry_count) {
+        return false;
+    }
+
+    *entries = NULL;
+    *entry_count = 0;
+
+    // Find "entries" array
+    const char *entries_start = strstr(json, "\"entries\"");
+    if (!entries_start) {
+        return false; // No entries array
+    }
+
+    // Find the array opening bracket
+    const char *array_start = strchr(entries_start, '[');
+    if (!array_start) {
+        return false;
+    }
+
+    // Count entries by counting opening braces
+    size_t count = 0;
+    const char *p = array_start + 1;
+    const char *json_end = json + json_len;
+    while (p < json_end && *p != ']') {
+        if (*p == '{') {
+            count++;
+        }
+        p++;
+    }
+
+    if (count == 0) {
+        return true; // Empty directory
+    }
+
+    // Allocate array
+    *entries = calloc(count, sizeof(c64_file_entry_t));
+    if (!*entries) {
+        return false;
+    }
+
+    // Parse each entry
+    p = array_start + 1;
+    size_t idx = 0;
+    while (p < json_end && *p != ']' && idx < count) {
+        // Find next object
+        const char *obj_start = strchr(p, '{');
+        if (!obj_start || obj_start >= json_end) {
+            break;
+        }
+        const char *obj_end = strchr(obj_start, '}');
+        if (!obj_end || obj_end >= json_end) {
+            break;
+        }
+
+        c64_file_entry_t *entry = &(*entries)[idx];
+
+        // Extract name
+        const char *name_key = strstr(obj_start, "\"name\"");
+        if (name_key && name_key < obj_end) {
+            const char *name_val = strchr(name_key + 6, '"');
+            if (name_val && name_val < obj_end) {
+                const char *name_end = strchr(name_val + 1, '"');
+                if (name_end && name_end < obj_end) {
+                    size_t name_len = name_end - (name_val + 1);
+                    if (name_len >= sizeof(entry->name)) {
+                        name_len = sizeof(entry->name) - 1;
+                    }
+                    memcpy(entry->name, name_val + 1, name_len);
+                    entry->name[name_len] = '\0';
+                }
+            }
+        }
+
+        // Extract type
+        const char *type_key = strstr(obj_start, "\"type\"");
+        if (type_key && type_key < obj_end) {
+            const char *type_val = strchr(type_key + 6, '"');
+            if (type_val && type_val < obj_end) {
+                entry->is_directory = (strncmp(type_val + 1, "directory", 9) == 0);
+            }
+        }
+
+        // Extract size
+        const char *size_key = strstr(obj_start, "\"size\"");
+        if (size_key && size_key < obj_end) {
+            const char *size_val = strchr(size_key + 6, ':');
+            if (size_val && size_val < obj_end) {
+                entry->size = (uint32_t)strtoul(size_val + 1, NULL, 10);
+            }
+        }
+
+        idx++;
+        p = obj_end + 1;
+    }
+
+    *entry_count = idx;
+    return true;
+}
+
+bool c64_rest_list_files(c64_rest_client_t *client, const char *path, bool recursive, c64_file_entry_t **entries,
+                         size_t *entry_count)
+{
+    if (!client || !path || !entries || !entry_count) {
+        if (client) {
+            snprintf(client->error_msg, sizeof(client->error_msg), "Invalid parameters");
+        }
+        return false;
+    }
+
+    *entries = NULL;
+    *entry_count = 0;
+
+    // URL encode the path
+    char *escaped_path = curl_easy_escape(client->curl, path, 0);
+    if (!escaped_path) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "Failed to escape path");
+        return false;
+    }
+
+    // Build URL
+    char url[512];
+    snprintf(url, sizeof(url), "%s/v1/files:list?path=%s&recursive=%s", client->base_url, escaped_path,
+             recursive ? "true" : "false");
+    curl_free(escaped_path);
+
+    // Reset CURL handle
+    curl_easy_reset(client->curl);
+    curl_easy_setopt(client->curl, CURLOPT_URL, url);
+    curl_easy_setopt(client->curl, CURLOPT_HTTPGET, 1L);
+    curl_easy_setopt(client->curl, CURLOPT_TIMEOUT, HTTP_TIMEOUT_SECONDS);
+
+    // Setup response buffer
+    response_buffer_t resp = {0};
+    curl_easy_setopt(client->curl, CURLOPT_WRITEFUNCTION, write_callback);
+    curl_easy_setopt(client->curl, CURLOPT_WRITEDATA, &resp);
+
+    // Add password header if present
+    struct curl_slist *headers = NULL;
+    if (client->password && client->password[0]) {
+        char auth_header[256];
+        snprintf(auth_header, sizeof(auth_header), "X-Password: %s", client->password);
+        headers = curl_slist_append(headers, auth_header);
+        curl_easy_setopt(client->curl, CURLOPT_HTTPHEADER, headers);
+    }
+
+    // Perform request
+    CURLcode res = curl_easy_perform(client->curl);
+
+    if (headers) {
+        curl_slist_free_all(headers);
+    }
+
+    if (res != CURLE_OK) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "CURL error: %s", curl_easy_strerror(res));
+        free(resp.data);
+        return false;
+    }
+
+    // Check HTTP status
+    long http_code = 0;
+    curl_easy_getinfo(client->curl, CURLINFO_RESPONSE_CODE, &http_code);
+    if (http_code != 200) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "HTTP error %ld", http_code);
+        free(resp.data);
+        return false;
+    }
+
+    // Parse JSON response
+    bool success = false;
+    if (resp.data && resp.size > 0) {
+        success = parse_file_list_json((const char *)resp.data, resp.size, entries, entry_count);
+        if (!success && client) {
+            snprintf(client->error_msg, sizeof(client->error_msg), "Failed to parse JSON response");
+        }
+    }
+
+    free(resp.data);
+    return success;
+}
+
+bool c64_rest_stat_file(c64_rest_client_t *client, const char *path, bool *is_directory)
+{
+    if (!client || !path) {
+        if (client) {
+            snprintf(client->error_msg, sizeof(client->error_msg), "Invalid parameters");
+        }
+        return false;
+    }
+
+    // URL encode the path
+    char *escaped_path = curl_easy_escape(client->curl, path, 0);
+    if (!escaped_path) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "Failed to escape path");
+        return false;
+    }
+
+    // Build URL
+    char url[512];
+    snprintf(url, sizeof(url), "%s/v1/files:stat?path=%s", client->base_url, escaped_path);
+    curl_free(escaped_path);
+
+    // Reset CURL handle
+    curl_easy_reset(client->curl);
+    curl_easy_setopt(client->curl, CURLOPT_URL, url);
+    curl_easy_setopt(client->curl, CURLOPT_NOBODY, 1L); // HEAD request
+    curl_easy_setopt(client->curl, CURLOPT_TIMEOUT, HTTP_TIMEOUT_SECONDS);
+
+    // Add password header if present
+    struct curl_slist *headers = NULL;
+    if (client->password && client->password[0]) {
+        char auth_header[256];
+        snprintf(auth_header, sizeof(auth_header), "X-Password: %s", client->password);
+        headers = curl_slist_append(headers, auth_header);
+        curl_easy_setopt(client->curl, CURLOPT_HTTPHEADER, headers);
+    }
+
+    // Perform request
+    CURLcode res = curl_easy_perform(client->curl);
+
+    if (headers) {
+        curl_slist_free_all(headers);
+    }
+
+    if (res != CURLE_OK) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "CURL error: %s", curl_easy_strerror(res));
+        return false;
+    }
+
+    // Check HTTP status
+    long http_code = 0;
+    curl_easy_getinfo(client->curl, CURLINFO_RESPONSE_CODE, &http_code);
+    if (http_code == 404) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "Path not found");
+        return false;
+    }
+    if (http_code != 200) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "HTTP error %ld", http_code);
+        return false;
+    }
+
+    // Check X-File-Type header if is_directory requested
+    if (is_directory) {
+        *is_directory = false; // Default to file
+        // Note: We'd need to capture headers to read X-File-Type
+        // For now, assume file unless we enhance header capturing
+    }
+
+    return true;
 }
