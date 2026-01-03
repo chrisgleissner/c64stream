@@ -11,12 +11,16 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-rest-client.h"
 
 #include <ctype.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #define KEYBOARD_LOG_PREFIX "[c64-keyboard] "
 #define MAX_KEYMAP_ENTRIES 512
+#define QUEUE_SIZE 1024
+#define POLL_INTERVAL_MS 50
 
 // C64 memory locations
 #define C64_KEYBOARD_BUFFER 0x0277
@@ -92,8 +96,17 @@ struct c64_keyboard {
     c64_keymap_t *keymap;
     bool capturing;
     char status[64];
-    // TODO: Add FIFO queue
-    // TODO: Add worker thread
+
+    // FIFO queue for keystroke bytes
+    uint8_t queue[QUEUE_SIZE];
+    int queue_head;
+    int queue_tail;
+    int queue_count;
+    pthread_mutex_t queue_mutex;
+
+    // Worker thread
+    pthread_t worker_thread;
+    bool worker_running;
 };
 
 static uint8_t lookup_symbolic_key(const char *name)
@@ -277,6 +290,119 @@ bool c64_keymap_convert(c64_keymap_t *keymap, const char *key_code, int modifier
     return false;
 }
 
+// Queue helper functions
+static bool queue_push(c64_keyboard_t *keyboard, uint8_t byte)
+{
+    pthread_mutex_lock(&keyboard->queue_mutex);
+
+    if (keyboard->queue_count >= QUEUE_SIZE) {
+        pthread_mutex_unlock(&keyboard->queue_mutex);
+        return false; // Queue full
+    }
+
+    keyboard->queue[keyboard->queue_tail] = byte;
+    keyboard->queue_tail = (keyboard->queue_tail + 1) % QUEUE_SIZE;
+    keyboard->queue_count++;
+
+    pthread_mutex_unlock(&keyboard->queue_mutex);
+    return true;
+}
+
+static bool queue_pop(c64_keyboard_t *keyboard, uint8_t *byte)
+{
+    pthread_mutex_lock(&keyboard->queue_mutex);
+
+    if (keyboard->queue_count == 0) {
+        pthread_mutex_unlock(&keyboard->queue_mutex);
+        return false; // Queue empty
+    }
+
+    *byte = keyboard->queue[keyboard->queue_head];
+    keyboard->queue_head = (keyboard->queue_head + 1) % QUEUE_SIZE;
+    keyboard->queue_count--;
+
+    pthread_mutex_unlock(&keyboard->queue_mutex);
+    return true;
+}
+
+static int queue_available(c64_keyboard_t *keyboard)
+{
+    pthread_mutex_lock(&keyboard->queue_mutex);
+    int count = keyboard->queue_count;
+    pthread_mutex_unlock(&keyboard->queue_mutex);
+    return count;
+}
+
+static void queue_flush(c64_keyboard_t *keyboard)
+{
+    pthread_mutex_lock(&keyboard->queue_mutex);
+    keyboard->queue_head = 0;
+    keyboard->queue_tail = 0;
+    keyboard->queue_count = 0;
+    pthread_mutex_unlock(&keyboard->queue_mutex);
+}
+
+// Worker thread function
+static void *injection_worker(void *arg)
+{
+    c64_keyboard_t *keyboard = (c64_keyboard_t *)arg;
+
+    C64_LOG_INFO(KEYBOARD_LOG_PREFIX "Injection worker started");
+
+    while (keyboard->worker_running) {
+        // Check if there are bytes to inject
+        int pending = queue_available(keyboard);
+        if (pending == 0) {
+            usleep(POLL_INTERVAL_MS * 1000);
+            continue;
+        }
+
+        // Read C64 keyboard buffer length ($00C6)
+        uint8_t buffer_length = 0;
+        int bytes_read =
+            c64_rest_read_memory(keyboard->rest_client, C64_KEYBOARD_LENGTH, 1, &buffer_length, sizeof(buffer_length));
+
+        if (bytes_read < 0) {
+            C64_LOG_ERROR(KEYBOARD_LOG_PREFIX "Failed to read keyboard buffer length");
+            usleep(POLL_INTERVAL_MS * 1000);
+            continue;
+        }
+
+        // Inject bytes only if buffer is empty
+        if (buffer_length == 0) {
+            // Inject up to 10 bytes (C64 keyboard buffer size)
+            uint8_t inject_buffer[C64_KEYBOARD_BUFFER_SIZE];
+            int inject_count = 0;
+
+            while (inject_count < C64_KEYBOARD_BUFFER_SIZE && queue_pop(keyboard, &inject_buffer[inject_count])) {
+                inject_count++;
+            }
+
+            if (inject_count > 0) {
+                // Write bytes to keyboard buffer ($0277-$0280)
+                if (!c64_rest_write_memory(keyboard->rest_client, C64_KEYBOARD_BUFFER, inject_buffer, inject_count)) {
+                    C64_LOG_ERROR(KEYBOARD_LOG_PREFIX "Failed to write keyboard buffer");
+                    continue;
+                }
+
+                // Update buffer length ($00C6)
+                buffer_length = (uint8_t)inject_count;
+                if (!c64_rest_write_memory(keyboard->rest_client, C64_KEYBOARD_LENGTH, &buffer_length, 1)) {
+                    C64_LOG_ERROR(KEYBOARD_LOG_PREFIX "Failed to write buffer length");
+                    continue;
+                }
+
+                C64_LOG_DEBUG(KEYBOARD_LOG_PREFIX "Injected %d bytes", inject_count);
+            }
+        }
+
+        usleep(POLL_INTERVAL_MS * 1000);
+    }
+
+    C64_LOG_INFO(KEYBOARD_LOG_PREFIX "Injection worker stopped");
+    return NULL;
+}
+
 c64_keyboard_t *c64_keyboard_create(void *rest_client)
 {
     if (!rest_client) {
@@ -292,7 +418,21 @@ c64_keyboard_t *c64_keyboard_create(void *rest_client)
     keyboard->capturing = false;
     strncpy(keyboard->status, "idle", sizeof(keyboard->status) - 1);
 
-    // TODO: Create worker thread
+    // Initialize queue
+    keyboard->queue_head = 0;
+    keyboard->queue_tail = 0;
+    keyboard->queue_count = 0;
+    pthread_mutex_init(&keyboard->queue_mutex, NULL);
+
+    // Start worker thread
+    keyboard->worker_running = true;
+    if (pthread_create(&keyboard->worker_thread, NULL, injection_worker, keyboard) != 0) {
+        C64_LOG_ERROR(KEYBOARD_LOG_PREFIX "Failed to create worker thread");
+        pthread_mutex_destroy(&keyboard->queue_mutex);
+        free(keyboard);
+        return NULL;
+    }
+
     C64_LOG_INFO(KEYBOARD_LOG_PREFIX "Created keyboard controller");
     return keyboard;
 }
@@ -303,8 +443,12 @@ void c64_keyboard_destroy(c64_keyboard_t *keyboard)
         return;
     }
 
-    // TODO: Stop worker thread
-    // TODO: Free queue
+    // Stop worker thread
+    keyboard->worker_running = false;
+    pthread_join(keyboard->worker_thread, NULL);
+
+    // Cleanup
+    pthread_mutex_destroy(&keyboard->queue_mutex);
     free(keyboard);
 }
 
@@ -324,7 +468,8 @@ void c64_keyboard_set_capture(c64_keyboard_t *keyboard, bool enabled)
 
     keyboard->capturing = enabled;
     if (!enabled) {
-        // TODO: Flush queue, stop injection
+        // Flush queue when capture disabled
+        queue_flush(keyboard);
         C64_LOG_INFO(KEYBOARD_LOG_PREFIX "Capture disabled, flushing queue");
     } else {
         C64_LOG_INFO(KEYBOARD_LOG_PREFIX "Capture enabled");
@@ -345,8 +490,23 @@ void c64_keyboard_queue_output(c64_keyboard_t *keyboard, const c64_output_t *out
         return;
     }
 
-    // TODO: Add to FIFO queue
-    C64_LOG_DEBUG(KEYBOARD_LOG_PREFIX "Queue output mode=%d (stub)", output->mode);
+    // Convert output to PETSCII bytes and queue them
+    if (output->mode == C64_OUTPUT_PETSCII) {
+        queue_push(keyboard, output->data.petscii);
+    } else if (output->mode == C64_OUTPUT_SYMBOLIC) {
+        // Symbolic keys map to single PETSCII codes
+        uint8_t code = lookup_symbolic_key(output->data.symbol);
+        if (code != 0) {
+            queue_push(keyboard, code);
+        }
+    } else if (output->mode == C64_OUTPUT_TEXT) {
+        // Queue each character in the text
+        for (size_t i = 0; i < sizeof(output->data.text) && output->data.text[i] != '\0'; i++) {
+            queue_push(keyboard, (uint8_t)output->data.text[i]);
+        }
+    }
+
+    C64_LOG_DEBUG(KEYBOARD_LOG_PREFIX "Queued output mode=%d, queue size=%d", output->mode, queue_available(keyboard));
 }
 
 const char *c64_keyboard_get_status(c64_keyboard_t *keyboard)
