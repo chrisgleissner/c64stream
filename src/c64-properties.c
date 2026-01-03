@@ -344,6 +344,22 @@ obs_properties_t *c64_create_properties(void *data)
                                                           obs_module_text("PaletteImport"), OBS_PATH_FILE,
                                                           "VPL Palette Files (*.vpl);;All Files (*.*)", NULL);
     obs_property_set_long_description(import_path, obs_module_text("PaletteImport.Description"));
+
+    // Set default directory path BEFORE registering callback to avoid triggering it
+    {
+        char palette_dir[512];
+        c64_default_palette_import_path(palette_dir, sizeof(palette_dir));
+        // Ensure trailing slash to clearly indicate directory (prevents spurious export)
+        size_t len = strlen(palette_dir);
+        if (len > 0 && len < sizeof(palette_dir) - 2 && palette_dir[len - 1] != '/' && palette_dir[len - 1] != '\\') {
+            palette_dir[len] = '/';
+            palette_dir[len + 1] = '\0';
+        }
+        obs_data_t *path_settings = obs_source_get_settings(context->source);
+        obs_data_set_default_string(path_settings, "palette_import_path", palette_dir);
+        obs_data_release(path_settings);
+    }
+
     obs_property_set_modified_callback(import_path, palette_import_path_changed);
 
     // Export path field (opens save dialog)
@@ -351,12 +367,23 @@ obs_properties_t *c64_create_properties(void *data)
                                                           obs_module_text("PaletteExportTo"), OBS_PATH_FILE_SAVE,
                                                           "VPL Palette Files (*.vpl);;All Files (*.*)", NULL);
     obs_property_set_long_description(export_path, obs_module_text("PaletteExportTo.Description"));
-    obs_property_set_modified_callback(export_path, palette_export_path_changed);
 
-    // NOTE: Do NOT set default paths for palette import/export
-    // The file browser will start in the appropriate directory automatically
-    // Setting defaults can trigger spurious exports when the dialog opens
-    // Let the user choose paths explicitly via the file browser
+    // Set default directory path BEFORE registering callback to avoid triggering it
+    {
+        char palette_dir[512];
+        c64_default_palette_export_path(palette_dir, sizeof(palette_dir));
+        // Ensure trailing slash to clearly indicate directory (prevents spurious export)
+        size_t len = strlen(palette_dir);
+        if (len > 0 && len < sizeof(palette_dir) - 2 && palette_dir[len - 1] != '/' && palette_dir[len - 1] != '\\') {
+            palette_dir[len] = '/';
+            palette_dir[len + 1] = '\0';
+        }
+        obs_data_t *path_settings = obs_source_get_settings(context->source);
+        obs_data_set_default_string(path_settings, "palette_export_path", palette_dir);
+        obs_data_release(path_settings);
+    }
+
+    obs_property_set_modified_callback(export_path, palette_export_path_changed);
 
     // Delete button
     obs_property_t *delete_btn = obs_properties_add_button2(
