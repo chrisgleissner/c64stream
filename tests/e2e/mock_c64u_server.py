@@ -12,22 +12,45 @@ from urllib.parse import parse_qs, urlparse
 class MockC64Server(BaseHTTPRequestHandler):
     # Simulated C64 memory
     memory = bytearray(65536)
+    # Optional network password (set to None to disable authentication)
+    password = None
 
     def log_message(self, format, *args):
         """Override to provide cleaner logging"""
         sys.stderr.write(f"[MockC64] {format % args}\n")
 
+    def check_password(self):
+        """Verify X-Password header if password is set"""
+        if self.password is None:
+            return True
+        
+        provided_password = self.headers.get('X-Password', '')
+        if provided_password != self.password:
+            self.send_json_response({"errors": ["Invalid or missing password"]}, 403)
+            return False
+        return True
+
     def do_GET(self):
         """Handle GET requests"""
+        if not self.check_password():
+            return
+        
         path = urlparse(self.path)
 
-        if path.path == "/v1/machine:readmem":
+        if path.path == "/v1/version":
+            self.handle_version()
+        elif path.path == "/v1/info":
+            self.handle_info()
+        elif path.path == "/v1/machine:readmem":
             self.handle_read_memory(path.query)
         else:
             self.send_error(404, f"Not found: {path.path}")
 
     def do_PUT(self):
         """Handle PUT requests"""
+        if not self.check_password():
+            return
+        
         path = urlparse(self.path)
 
         if path.path == "/v1/machine:reset":
@@ -41,6 +64,9 @@ class MockC64Server(BaseHTTPRequestHandler):
 
     def do_POST(self):
         """Handle POST requests"""
+        if not self.check_password():
+            return
+        
         path = urlparse(self.path)
 
         if path.path == "/v1/runners:sidplay":
@@ -52,6 +78,31 @@ class MockC64Server(BaseHTTPRequestHandler):
         else:
             self.send_error(404, f"Not found: {path.path}")
 
+    def send_json_response(self, data, status=200):
+        """Send a JSON response with errors array"""
+        response = {"errors": [], **data}
+        body = json.dumps(response).encode('utf-8')
+        self.send_response(status)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def handle_version(self):
+        """Handle version request"""
+        self.send_json_response({"version": "0.1"})
+
+    def handle_info(self):
+        """Handle info request (firmware 3.12+)"""
+        self.send_json_response({
+            "product": "Ultimate 64",
+            "firmware_version": "3.12",
+            "fpga_version": "11F",
+            "core_version": "143",
+            "hostname": "MockC64",
+            "unique_id": "000000"
+        })
+
     def handle_reset(self):
         """Handle machine reset"""
         self.log_message("RESET machine")
@@ -59,16 +110,14 @@ class MockC64Server(BaseHTTPRequestHandler):
         self.memory[0x00C6] = 0
         for i in range(10):
             self.memory[0x0277 + i] = 0
-        self.send_response(200)
-        self.end_headers()
+        self.send_json_response({"status": "ok"})
 
     def handle_reboot(self):
         """Handle machine reboot"""
         self.log_message("REBOOT machine")
         # Clear all memory
         self.memory = bytearray(65536)
-        self.send_response(200)
-        self.end_headers()
+        self.send_json_response({"status": "ok"})
 
     def handle_read_memory(self, query):
         """Handle memory read"""
@@ -94,6 +143,11 @@ class MockC64Server(BaseHTTPRequestHandler):
         # Convert hex string to bytes
         data = bytes.fromhex(hex_data)
 
+        # Check 128 byte limit (as per spec)
+        if len(data) > 128:
+            self.send_json_response({"errors": ["Data exceeds 128 byte limit"]}, 400)
+            return
+
         # Write to memory
         for i, byte in enumerate(data):
             self.memory[address + i] = byte
@@ -106,24 +160,21 @@ class MockC64Server(BaseHTTPRequestHandler):
             # In real C64, KERNAL would process these keys
             pass
 
-        self.send_response(200)
-        self.end_headers()
+        self.send_json_response({"status": "ok"})
 
     def handle_sidplay(self, query):
         """Handle SID playback"""
         params = parse_qs(query)
         song_number = params.get('songnr', ['0'])[0]
         self.log_message(f"SIDPLAY song={song_number}")
-        self.send_response(200)
-        self.end_headers()
+        self.send_json_response({"status": "ok"})
 
     def handle_run_prg(self):
         """Handle PRG execution"""
         content_length = int(self.headers.get('Content-Length', 0))
         prg_data = self.rfile.read(content_length)
         self.log_message(f"RUN_PRG size={len(prg_data)}")
-        self.send_response(200)
-        self.end_headers()
+        self.send_json_response({"status": "ok"})
 
     def handle_mount_disk(self, query):
         """Handle disk mount"""
@@ -133,15 +184,24 @@ class MockC64Server(BaseHTTPRequestHandler):
         content_length = int(self.headers.get('Content-Length', 0))
         disk_data = self.rfile.read(content_length)
         self.log_message(f"MOUNT_DISK type={disk_type} mode={mode} size={len(disk_data)}")
-        self.send_response(200)
-        self.end_headers()
+        self.send_json_response({"status": "ok"})
 
-def run_server(port=8064):
-    """Run the mock server"""
+def run_server(port=8064, password=None):
+    """Run the mock server
+    
+    Args:
+        port: Port to listen on
+        password: Optional network password (enables authentication if set)
+    """
+    MockC64Server.password = password
     server_address = ('', port)
     httpd = HTTPServer(server_address, MockC64Server)
     print(f"Mock C64U server running on port {port}")
     print(f"Base URL: http://localhost:{port}")
+    if password:
+        print(f"Authentication: ENABLED (password: {password})")
+    else:
+        print("Authentication: DISABLED")
     print("Press Ctrl+C to stop")
     try:
         httpd.serve_forever()
@@ -150,5 +210,9 @@ def run_server(port=8064):
         httpd.shutdown()
 
 if __name__ == '__main__':
-    port = int(sys.argv[1]) if len(sys.argv) > 1 else 8064
-    run_server(port)
+    import argparse
+    parser = argparse.ArgumentParser(description='Mock Ultimate 64 REST API server')
+    parser.add_argument('--port', type=int, default=8064, help='Port to listen on (default: 8064)')
+    parser.add_argument('--password', type=str, default=None, help='Network password (enables authentication)')
+    args = parser.parse_args()
+    run_server(args.port, args.password)
