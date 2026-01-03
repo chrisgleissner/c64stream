@@ -494,6 +494,45 @@ obs_properties_t *c64_create_properties(void *data)
         obs_data_release(init_settings);
     }
 
+    // REST Control group
+    obs_property_t *rest_group =
+        obs_properties_add_group(props, "rest_group", "REST Control", OBS_GROUP_NORMAL, obs_properties_create());
+    obs_properties_t *rest_props = obs_property_group_content(rest_group);
+
+    // REST base URL
+    obs_properties_add_text(rest_props, "rest_base_url", "REST Base URL", OBS_TEXT_DEFAULT);
+
+    // REST password (hidden input)
+    obs_properties_add_text(rest_props, "rest_password", "Password", OBS_TEXT_PASSWORD);
+
+    // Keyboard capture enable
+    obs_properties_add_bool(rest_props, "keyboard_capture_enabled", "Enable Keyboard Capture");
+
+    // Keymap selection
+    obs_property_t *keymap_prop =
+        obs_properties_add_list(rest_props, "keyboard_keymap", "Keymap", OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+    obs_property_list_add_string(keymap_prop, "Symbolic US", "symbolic_us");
+    obs_property_list_add_string(keymap_prop, "Positional US", "positional_us");
+
+    // Automation mode
+    obs_property_t *automation_mode_prop = obs_properties_add_list(rest_props, "automation_mode", "Automation Mode",
+                                                                   OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+    obs_property_list_add_int(automation_mode_prop, "Disabled", 0);
+    obs_property_list_add_int(automation_mode_prop, "Single File", 1);
+    obs_property_list_add_int(automation_mode_prop, "Folder", 2);
+
+    // Automation file/folder path
+    obs_properties_add_path(rest_props, "automation_path", "Automation Path", OBS_PATH_FILE, "All Files (*.*)", NULL);
+
+    // Automation shuffle
+    obs_properties_add_bool(rest_props, "automation_shuffle", "Shuffle Files");
+
+    // Automation duration (seconds)
+    obs_properties_add_int(rest_props, "automation_duration", "Duration per Item (seconds)", 1, 3600, 1);
+
+    // Automation reset between items
+    obs_properties_add_bool(rest_props, "automation_reset", "Reset Between Items");
+
     return props;
 }
 
@@ -961,6 +1000,17 @@ void c64_set_property_defaults(obs_data_t *settings)
 
     // Clear initialization flag - auto-save is now allowed
     obs_data_erase(settings, C64_PALETTE_INITIALIZING_KEY);
+
+    // REST Control defaults
+    obs_data_set_default_string(settings, "rest_base_url", "");
+    obs_data_set_default_string(settings, "rest_password", "");
+    obs_data_set_default_bool(settings, "keyboard_capture_enabled", false);
+    obs_data_set_default_string(settings, "keyboard_keymap", "symbolic_us");
+    obs_data_set_default_int(settings, "automation_mode", 0); // Disabled
+    obs_data_set_default_string(settings, "automation_path", "");
+    obs_data_set_default_bool(settings, "automation_shuffle", false);
+    obs_data_set_default_int(settings, "automation_duration", 120); // 2 minutes default
+    obs_data_set_default_bool(settings, "automation_reset", true);
 
     // Load configuration overrides from properties.ini if available
     c64_load_configuration(settings);
