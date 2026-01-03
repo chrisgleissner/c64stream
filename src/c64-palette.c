@@ -312,7 +312,7 @@ bool c64_palette_select(const char *palette_id)
     memcpy(palette_system.working_colors, entry->colors, sizeof(entry->colors));
     palette_system.working_modified = false;
 
-    // Rebuild LUT with new palette (lock-free atomic operation)
+    // Rebuild LUT with new palette
     c64_palette_rebuild_lut(palette_system.working_colors);
 
     // Log palette activation with appropriate detail
@@ -380,7 +380,7 @@ bool c64_palette_set_working_color(int index, uint32_t bgra_color)
     palette_system.working_colors[index] = bgra_color;
     palette_system.working_modified = true;
 
-    // Rebuild LUT immediately for live preview (lock-free atomic operation)
+    // Rebuild LUT immediately for live preview
     c64_palette_rebuild_lut(palette_system.working_colors);
 
     return true;
@@ -416,7 +416,7 @@ void c64_palette_revert(void)
     memcpy(palette_system.working_colors, entry->colors, sizeof(entry->colors));
     palette_system.working_modified = false;
 
-    // Rebuild LUT with reverted colors (lock-free atomic operation)
+    // Rebuild LUT with reverted colors
     c64_palette_rebuild_lut(palette_system.working_colors);
 
     C64_LOG_INFO("" PALETTE_LOG_PREFIX " Reverted to saved palette: %s", entry->name);
