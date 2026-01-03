@@ -7,6 +7,7 @@ See <https://www.gnu.org/licenses/> for details.
 */
 
 #include "c64-script.h"
+#include "c64-script-bytecode.h"
 #include "c64-logging.h"
 
 #include <stdio.h>
@@ -15,4 +16,23 @@ See <https://www.gnu.org/licenses/> for details.
 
 #define MACRO_LOG_PREFIX "[c64script-bytecode] "
 
-// TODO: Implement bytecode compiler
+// Bytecode compiler stub - Phase 4B implementation
+// This compiles AST to bytecode and stores it in runtime
+
+bool c64script_compile(c64script_ast_node_t *ast, c64script_runtime_t *runtime, char *error_msg, size_t error_msg_size)
+{
+    if (!ast || !runtime) {
+        if (error_msg && error_msg_size > 0) {
+            snprintf(error_msg, error_msg_size, "NULL AST or runtime provided");
+        }
+        return false;
+    }
+
+    // TODO: Implement bytecode compilation (Phase 4B)
+    // - Walk AST and generate bytecode instructions
+    // - Build constant pool
+    // - Patch forward jumps
+    // - Store bytecode in runtime->bytecode
+
+    return true; // Success stub
+}
