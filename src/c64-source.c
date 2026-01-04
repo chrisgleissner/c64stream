@@ -1637,12 +1637,12 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
         return;
     }
 
-    // Ctrl+ESC disables capture (ESC alone passes through for C64 RUN/STOP)
+    // Ctrl+ESC performs C64 reset via REST API
+    // User holds Ctrl key and presses Escape to reset the machine
     if (event->native_vkey == 0x1B && event->modifiers & INTERACT_CONTROL_KEY) { // VK_ESCAPE + Ctrl
-        context->keyboard_capture_active = false;
-        C64_LOG_INFO("Keyboard capture disabled (Ctrl+ESC pressed)");
-        if (context->keyboard) {
-            c64_keyboard_set_capture(context->keyboard, false);
+        C64_LOG_INFO("Keyboard: Ctrl+ESC pressed - performing C64 reset");
+        if (context->rest_client) {
+            c64_rest_reset(context->rest_client);
         }
         return;
     }
@@ -1664,8 +1664,12 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
             snprintf(key_code, sizeof(key_code), "space");
         } else if (event->native_vkey == 0x09 || event->native_vkey == 0xFF09) { // Tab (Linux: 0xFF09)
             snprintf(key_code, sizeof(key_code), "tab");
-        } else if (event->native_vkey == 0x1B || event->native_vkey == 0xFF1B) { // Escape -> RUN/STOP (Linux: 0xFF1B)
-            snprintf(key_code, sizeof(key_code), "esc");
+        } else if (event->native_vkey == 0x1B || event->native_vkey == 0xFF1B) { // Escape (Linux: 0xFF1B)
+            // Escape performs BASIC warm start (abort running program)
+            if (context->keyboard) {
+                c64_keyboard_basic_warm_start(context->keyboard);
+            }
+            return;                                                              // Don't pass through to keymap
         } else if (event->native_vkey == 0x24 || event->native_vkey == 0xFF50) { // Home (Linux: 0xFF50)
             snprintf(key_code, sizeof(key_code), "home");
         } else if (event->native_vkey == 0xFF52) { // Arrow Up (Linux X11)

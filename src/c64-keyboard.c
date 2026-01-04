@@ -36,7 +36,11 @@ See <https://www.gnu.org/licenses/> for details.
 #define C64_KEYBOARD_BUFFER 0x0277
 #define C64_KEYBOARD_LENGTH 0x00C6
 #define C64_KEYBOARD_BUFFER_SIZE 10
-#define C64_STOP_FLAG 0x0091 // RUN/STOP flag (bit 7)
+#define C64_STOP_FLAG 0x0091        // RUN/STOP flag (bit 7)
+#define C64_IRQ_VECTOR_LOW 0x0314   // IRQ vector low byte
+#define C64_IRQ_VECTOR_HIGH 0x0315  // IRQ vector high byte
+#define C64_BASIC_WARM_START 0xA474 // BASIC warm start routine address
+#define C64_WARM_START_DELAY_MS 40  // Delay for warm start to take effect
 
 // Keymap entry
 typedef struct {
@@ -565,6 +569,56 @@ const char *c64_keyboard_get_status(c64_keyboard_t *keyboard)
         return "invalid";
     }
     return keyboard->status;
+}
+
+bool c64_keyboard_basic_warm_start(c64_keyboard_t *keyboard)
+{
+    if (!keyboard || !keyboard->rest_client) {
+        C64_LOG_ERROR(KEYBOARD_LOG_PREFIX "Invalid keyboard or REST client for warm start");
+        return false;
+    }
+
+    C64_LOG_INFO(KEYBOARD_LOG_PREFIX "Performing BASIC warm start via IRQ vector");
+
+    // Step 1: Read current IRQ vector from $0314/$0315
+    uint8_t original_vector[2];
+    int bytes_read =
+        c64_rest_read_memory(keyboard->rest_client, C64_IRQ_VECTOR_LOW, 2, original_vector, sizeof(original_vector));
+    if (bytes_read != 2) {
+        C64_LOG_ERROR(KEYBOARD_LOG_PREFIX "Failed to read IRQ vector: got %d bytes", bytes_read);
+        return false;
+    }
+
+    C64_LOG_DEBUG(KEYBOARD_LOG_PREFIX "Original IRQ vector: $%02X%02X", original_vector[1], original_vector[0]);
+
+    // Step 2: Write BASIC warm start address ($A474) to IRQ vector
+    // Low byte ($74) to $0314, high byte ($A4) to $0315
+    uint8_t warm_start_vector[2];
+    warm_start_vector[0] = 0x74; // Low byte of $A474
+    warm_start_vector[1] = 0xA4; // High byte of $A474
+
+    if (!c64_rest_write_memory(keyboard->rest_client, C64_IRQ_VECTOR_LOW, warm_start_vector, 2)) {
+        C64_LOG_ERROR(KEYBOARD_LOG_PREFIX "Failed to write warm start vector");
+        return false;
+    }
+
+    C64_LOG_DEBUG(KEYBOARD_LOG_PREFIX "Wrote BASIC warm start vector $A474 to IRQ");
+
+    // Step 3: Delay to allow warm start to take effect
+    // This delay happens in the keyboard worker thread, not the video/audio thread
+    os_sleep_ms(C64_WARM_START_DELAY_MS);
+
+    // Step 4: Restore original IRQ vector
+    if (!c64_rest_write_memory(keyboard->rest_client, C64_IRQ_VECTOR_LOW, original_vector, 2)) {
+        C64_LOG_ERROR(KEYBOARD_LOG_PREFIX "Failed to restore original IRQ vector");
+        // Continue anyway - the warm start should have taken effect
+    } else {
+        C64_LOG_DEBUG(KEYBOARD_LOG_PREFIX "Restored original IRQ vector: $%02X%02X", original_vector[1],
+                      original_vector[0]);
+    }
+
+    C64_LOG_INFO(KEYBOARD_LOG_PREFIX "BASIC warm start completed");
+    return true;
 }
 
 // Helper structure for keymap discovery
