@@ -234,7 +234,7 @@ static bool compile_expression(compiler_context_t *ctx, c64script_ast_expr_t *ex
     switch (expr->type) {
     case AST_EXPR_NUMBER: {
         c64script_value_t value = {.type = VALUE_NUMBER, .as.number = expr->as.number};
-        uint32_t idx = add_constant(ctx, value);
+        uint32_t idx = (uint32_t)add_constant(ctx, value);
         if (idx == UINT32_MAX)
             return false;
         emit(ctx, OP_PUSH_CONST, idx, expr->line);
@@ -243,7 +243,7 @@ static bool compile_expression(compiler_context_t *ctx, c64script_ast_expr_t *ex
 
     case AST_EXPR_STRING: {
         c64script_value_t value = {.type = VALUE_STRING, .as.string = (char *)expr->as.string};
-        uint32_t idx = add_constant(ctx, value);
+        uint32_t idx = (uint32_t)add_constant(ctx, value);
         if (idx == UINT32_MAX)
             return false;
         emit(ctx, OP_PUSH_CONST, idx, expr->line);
@@ -253,7 +253,7 @@ static bool compile_expression(compiler_context_t *ctx, c64script_ast_expr_t *ex
     case AST_EXPR_IDENTIFIER: {
         // Push variable name as constant, then PUSH_VAR will load its value
         c64script_value_t name = {.type = VALUE_STRING, .as.string = (char *)expr->as.identifier};
-        uint32_t idx = add_constant(ctx, name);
+        uint32_t idx = (uint32_t)add_constant(ctx, name);
         if (idx == UINT32_MAX)
             return false;
         emit(ctx, OP_PUSH_VAR, idx, expr->line);
@@ -385,7 +385,7 @@ static bool compile_statement(compiler_context_t *ctx, c64script_ast_node_t *stm
             return false;
         // Store result in variable
         c64script_value_t varname = {.type = VALUE_STRING, .as.string = (char *)stmt->as.assignment.variable};
-        uint32_t idx = add_constant(ctx, varname);
+        uint32_t idx = (uint32_t)add_constant(ctx, varname);
         if (idx == UINT32_MAX)
             return false;
         emit(ctx, OP_POP_VAR, idx, stmt->line);
@@ -471,7 +471,7 @@ static bool compile_statement(compiler_context_t *ctx, c64script_ast_node_t *stm
         if (!compile_expression(ctx, stmt->as.for_stmt.start))
             return false;
         c64script_value_t varname = {.type = VALUE_STRING, .as.string = (char *)stmt->as.for_stmt.variable};
-        uint32_t var_idx = add_constant(ctx, varname);
+        uint32_t var_idx = (uint32_t)add_constant(ctx, varname);
         if (var_idx == UINT32_MAX)
             return false;
         emit(ctx, OP_POP_VAR, var_idx, stmt->line);
@@ -486,7 +486,7 @@ static bool compile_statement(compiler_context_t *ctx, c64script_ast_node_t *stm
         } else {
             // Default step = 1
             c64script_value_t step_one = {.type = VALUE_NUMBER, .as.number = 1.0};
-            uint32_t idx = add_constant(ctx, step_one);
+            uint32_t idx = (uint32_t)add_constant(ctx, step_one);
             if (idx == UINT32_MAX)
                 return false;
             emit(ctx, OP_PUSH_CONST, idx, stmt->line);
@@ -607,7 +607,7 @@ static bool compile_statement(compiler_context_t *ctx, c64script_ast_node_t *stm
         } else {
             // Default song = 0
             c64script_value_t song_zero = {.type = VALUE_NUMBER, .as.number = 0.0};
-            uint32_t idx = add_constant(ctx, song_zero);
+            uint32_t idx = (uint32_t)add_constant(ctx, song_zero);
             if (idx == UINT32_MAX)
                 return false;
             emit(ctx, OP_PUSH_CONST, idx, stmt->line);
@@ -634,7 +634,7 @@ static bool compile_statement(compiler_context_t *ctx, c64script_ast_node_t *stm
         } else {
             // Push empty string for no args
             c64script_value_t empty_str = {.type = VALUE_STRING, .as.string = ""};
-            uint32_t idx = add_constant(ctx, empty_str);
+            uint32_t idx = (uint32_t)add_constant(ctx, empty_str);
             if (idx == UINT32_MAX)
                 return false;
             emit(ctx, OP_PUSH_CONST, idx, stmt->line);
@@ -646,7 +646,7 @@ static bool compile_statement(compiler_context_t *ctx, c64script_ast_node_t *stm
         } else {
             // Push empty string for no status var
             c64script_value_t empty_str = {.type = VALUE_STRING, .as.string = ""};
-            uint32_t idx = add_constant(ctx, empty_str);
+            uint32_t idx = (uint32_t)add_constant(ctx, empty_str);
             if (idx == UINT32_MAX)
                 return false;
             emit(ctx, OP_PUSH_CONST, idx, stmt->line);
@@ -658,7 +658,7 @@ static bool compile_statement(compiler_context_t *ctx, c64script_ast_node_t *stm
         } else {
             // Push empty string for no output var
             c64script_value_t empty_str = {.type = VALUE_STRING, .as.string = ""};
-            uint32_t idx = add_constant(ctx, empty_str);
+            uint32_t idx = (uint32_t)add_constant(ctx, empty_str);
             if (idx == UINT32_MAX)
                 return false;
             emit(ctx, OP_PUSH_CONST, idx, stmt->line);
