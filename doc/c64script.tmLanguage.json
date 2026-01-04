@@ -1,0 +1,173 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "C64Script",
+  "scopeName": "source.c64script",
+  "fileTypes": [".c64script"],
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#labels" },
+    { "include": "#numbers" },
+    { "include": "#keywords" },
+    { "include": "#builtins" },
+    { "include": "#commands" },
+    { "include": "#operators" },
+    { "include": "#identifiers" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.hash.c64script",
+          "match": "^\\s*#.*$"
+        },
+        {
+          "name": "comment.line.rem.c64script",
+          "match": "(?i)\\b(REM)\\b.*$",
+          "captures": {
+            "1": { "name": "keyword.control.c64script" }
+          }
+        }
+      ]
+    },
+    "strings": {
+      "name": "string.quoted.double.c64script",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.c64script",
+          "match": "(\"\"|\\\\[\\\\\"rntx]|\\\\x[0-9A-Fa-f]{2})"
+        }
+      ]
+    },
+    "labels": {
+      "patterns": [
+        {
+          "name": "entity.name.label.numeric.c64script",
+          "match": "^\\s*\\d+\\b:?"
+        },
+        {
+          "name": "entity.name.label.c64script",
+          "match": "^\\s*[A-Za-z_][A-Za-z0-9_]*:?"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.hex.c64script",
+          "match": "\\$[0-9A-Fa-f]+"
+        },
+        {
+          "name": "constant.numeric.duration.c64script",
+          "match": "\\b\\d+(\\.\\d+)?(ms|s|m|h|d)\\b"
+        },
+        {
+          "name": "constant.numeric.c64script",
+          "match": "\\b\\d+(\\.\\d+)?\\b"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.c64script",
+          "match": "(?i)\\b(IF|THEN|ELSE|ENDIF|FOR|TO|STEP|NEXT|WHILE|WEND|ENDWHILE|END\\s+WHILE|GOTO|GOSUB|RETURN|FUNCTION|ENDFUNCTION|END\\s+FUNCTION|STOP|END|LABEL|LET|DIM|UNTIL)\\b"
+        },
+        {
+          "name": "keyword.operator.logical.c64script",
+          "match": "(?i)\\b(NOT|AND|OR|XOR)\\b"
+        }
+      ]
+    },
+    "builtins": {
+      "patterns": [
+        {
+          "name": "entity.name.function.c64script",
+          "match": "(?i)\\b(PEEK|LEN|LEFT\\$|RIGHT\\$|MID\\$|CHR\\$|ASC|STR\\$|VAL|ABS|INT|RND|SIN|COS|TAN|SQRT|LOG|EXP|TIME\\$)\\s*(?=\\()"
+        }
+      ]
+    },
+    "commands": {
+      "patterns": [
+        {
+          "name": "support.function.effect.c64script",
+          "match": "(?i)\\b(EFFECT|EFFECT_PARAM|EFFECTPARAM|PALETTE|PALETTE_COLOR|PALETTECOLOR)\\b"
+        },
+        {
+          "name": "support.function.c64control.c64script",
+          "match": "(?i)\\b(PLAY_SID|PLAYSID|RUN_PRG|RUNPRG|RUN_LOCAL|RUNLOCAL|MOUNT_DISK|MOUNTDISK|AUTOSTART|RESET|REBOOT)\\b"
+        },
+        {
+          "name": "support.function.recording.c64script",
+          "match": "(?i)\\b(RECORD_START|RECORDSTART|RECORD_STOP|RECORDSTOP)\\b"
+        },
+        {
+          "name": "support.function.keyboard.c64script",
+          "match": "(?i)\\b(TYPE|KEY)\\b"
+        },
+        {
+          "name": "support.function.http.c64script",
+          "match": "(?i)\\b(HTTP|CALL_HTTP|CALLHTTP|GET|POST|PUT|DELETE|PATCH|HEADERS|BODY|STATUS|RESPONSE)\\b"
+        },
+        {
+          "name": "support.function.file.c64script",
+          "match": "(?i)\\b(READ_FILE|READFILE|WRITE_FILE|WRITEFILE|APPEND|TRUNCATE)\\b"
+        },
+        {
+          "name": "support.function.logging.c64script",
+          "match": "(?i)\\b(LOG|LOGFILE|PRINT|TRON|TROFF)\\b"
+        },
+        {
+          "name": "support.function.memory.c64script",
+          "match": "(?i)\\b(POKE)\\b"
+        },
+        {
+          "name": "support.function.timing.c64script",
+          "match": "(?i)\\b(WAIT)\\b"
+        },
+        {
+          "name": "support.function.params.c64script",
+          "match": "(?i)\\b(SONGNR|ARGS|OUTPUT)\\b"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.comparison.c64script",
+          "match": "(==|<>|!=|<=|>=|<|>|=)"
+        },
+        {
+          "name": "keyword.operator.arithmetic.c64script",
+          "match": "(\\+|-|\\*|/)"
+        }
+      ]
+    },
+    "identifiers": {
+      "patterns": [
+        {
+          "name": "variable.other.string.c64script",
+          "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\$"
+        },
+        {
+          "name": "variable.other.integer.c64script",
+          "match": "\\b[A-Za-z_][A-Za-z0-9_]*%"
+        },
+        {
+          "name": "variable.other.array.c64script",
+          "match": "\\b[A-Za-z_][A-Za-z0-9_]*(?=\\()"
+        },
+        {
+          "name": "variable.other.map.c64script",
+          "match": "\\b[A-Za-z_][A-Za-z0-9_]*(?=\\{)"
+        },
+        {
+          "name": "variable.other.c64script",
+          "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b"
+        }
+      ]
+    }
+  }
+}

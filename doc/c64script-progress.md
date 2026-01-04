@@ -1,11 +1,11 @@
 # C64Script Implementation Progress
 
-This document tracks the implementation of the BASIC-inspired C64 Stream Script language as specified in `script-spec.md`.
+This document tracks the implementation of the BASIC-inspired C64 Stream Script language as specified in `c64script-spec.md`.
 
 ## MUST READ
-- script-spec: Detailed language spec.
-- script-tasks.md: Breaks down spec into high-level tasks and fills in blanks, but spec remains source of truth where there are conflicts.
-- script-progress.md: Contains concrete, low-level tasks, and tracks progress
+- c64script-spec: Detailed language spec.
+- c64script-tasks.md: Breaks down spec into high-level tasks and fills in blanks, but spec remains source of truth where there are conflicts.
+- c64script-progress.md: Contains concrete, low-level tasks, and tracks progress
 
 ## Mission
 

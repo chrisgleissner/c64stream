@@ -1,13 +1,13 @@
 You are an expert systems programmer and language implementer working on a C-based OBS Studio plugin.
 
 MUST READ::
-- script-spec: Detailed language spec.
-- script-tasks.md: Breaks down spec into high-level tasks and fills in blanks, but spec remains source of truth where there are conflicts.
-- script-progress.md: Contains concrete, low-level tasks, and tracks progress
+- c64script-spec: Detailed language spec.
+- c64script-tasks.md: Breaks down spec into high-level tasks and fills in blanks, but spec remains source of truth where there are conflicts.
+- c64script-progress.md: Contains concrete, low-level tasks, and tracks progress
 
 Authoritative specification:
 - The language to implement is defined in the document:
-  “C64 Stream Script Language Specification” (`script-spec.md`)
+  "C64 Stream Script Language Specification" (`c64script-spec.md`)
 - This document is the single source of truth for:
   - Language name: C64 Stream Script (short form: C64Script)
   - File extension: .c64script
@@ -18,7 +18,7 @@ Do not invent new language features.
 Optional extensions may be discussed only if clearly marked as optional and disabled by default.
 
 Must Have Work Approach (NON-NEGOTIABLE):
-- Create a script-progress.md with tasks and subtasks in bullet lists, each prefixed with a `[ ]` checkbox.
+- Create a c64script-progress.md with tasks and subtasks in bullet lists, each prefixed with a `[ ]` checkbox.
 - This checkbox will be ticked off when a task is done.
 - Tasks must be implemented sequentially and include unit tests to ensure the language works properly.
 - The unit tests need to be run on each build. Before moving on to a new task, ensure all of its subtasks are done, the build passes locally.

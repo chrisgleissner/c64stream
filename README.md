@@ -508,8 +508,8 @@ The plugin includes minimal, easy-to-use debugging controls:
 
 **Learn More:**
 
-- **Full Language Reference:** [`doc/script-spec.md`](doc/script-spec.md) - Complete C64Script language documentation
-- **Debugging Guide:** [`doc/script-debugging.md`](doc/script-debugging.md) - Detailed debugging workflows and tips
+- **Full Language Reference:** [`doc/c64script-spec.md`](doc/c64script-spec.md) - Complete C64Script language documentation
+- **Debugging Guide:** [`doc/c64script-debugging.md`](doc/c64script-debugging.md) - Detailed debugging workflows and tips
 - **Example Scripts:** [`data/scripts/`](data/scripts/) - Demo scripts showing effects, palettes, and automation
 
 **Why C64Script?**

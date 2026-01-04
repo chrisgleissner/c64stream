@@ -662,8 +662,8 @@ TEST(pause_and_resume) {
 
 ### Language Reference
 
-- **Full Spec:** [`doc/script-spec.md`](script-spec.md) - Complete language reference
-- **Debugging:** [`doc/script-debugging.md`](script-debugging.md) - Debug workflows and tips
+- **Full Spec:** [`doc/c64script-spec.md`](c64script-spec.md) - Complete language reference
+- **Debugging:** [`doc/c64script-debugging.md`](c64script-debugging.md) - Debug workflows and tips
 - **Examples:** [`data/scripts/`](../data/scripts/) - Demo scripts and hello world
 
 ## Contributing
