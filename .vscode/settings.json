@@ -79,7 +79,16 @@
         "editor.tabSize": 4,
         "editor.insertSpaces": true,
         "editor.formatOnSave": false,
-        "editor.semanticHighlighting.enabled": false
+        "editor.semanticHighlighting.enabled": false,
+        "editor.quickSuggestions": {
+            "other": false,
+            "comments": false,
+            "strings": false
+        },
+        "editor.parameterHints.enabled": false,
+        "editor.suggest.enabled": false,
+        "editor.hover.enabled": false,
+        "editor.codeLens": false
     },
 
     // Disable Copilot diagnostics for C64Script
@@ -89,6 +98,11 @@
         "c64script": false
     },
     
+    // Completely disable validation and diagnostics for C64Script files
+    "problems.visibility": {
+        "c64script": false
+    },
+
     // Exclude c64script files from various language services
     "files.exclude": {},
 
