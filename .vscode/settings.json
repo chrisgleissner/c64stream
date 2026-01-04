@@ -82,9 +82,16 @@
         "editor.semanticHighlighting.enabled": false
     },
 
+    // Disable Copilot diagnostics for C64Script
+    "github.copilot.editor.enableCodeActions": false,
+    "github.copilot.enable": {
+        "*": true,
+        "c64script": false
+    },
+    
     // Exclude c64script files from various language services
     "files.exclude": {},
-    
+
     // GitHub Actions settings
     "github-actions.workflows.pinned.workflows": [
         ".github/workflows"
