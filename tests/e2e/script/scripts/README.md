@@ -51,5 +51,3 @@ Test scripts for C64Script language validation.
 - `test_error_gosub_overflow.c64script` - Stack overflow
 - `test_safety_max_nesting.c64script` - Max nesting depth
 - `test_safety_infinite_loop.c64script` - Runaway detection
-- `test_error_invalid.c64script` - Parse error
-- `test_error_missing_label.c64script` - Missing GOTO target

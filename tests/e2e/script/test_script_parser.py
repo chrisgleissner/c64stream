@@ -5,7 +5,6 @@ Tests the .c64script parser without requiring OBS
 """
 
 import os
-import sys
 import tempfile
 import unittest
 
@@ -47,7 +46,7 @@ stop
         self.assertEqual(len(commands), 3)
         self.assertTrue(commands[0].startswith('effect'))
         self.assertTrue(commands[1].startswith('wait'))
-        self.assertTrue(commands[2] == 'stop')
+        self.assertEqual(commands[2], 'stop')
 
     def test_valid_palette_command(self):
         """Test valid palette command syntax"""
@@ -55,7 +54,7 @@ stop
 palette colodore
 wait 5s
 """
-        path = self.write_script('test_palette.c64script', script)
+        self.write_script('test_palette.c64script', script)
         lines = script.strip().split('\n')
         commands = [l.strip() for l in lines if l.strip()]
         self.assertEqual(len(commands), 2)
@@ -75,7 +74,7 @@ wait 5s
                 # Simple syntax validation
                 parts = command.split()
                 self.assertEqual(parts[0], 'wait')
-                self.assertTrue(len(parts) == 2)
+                self.assertEqual(len(parts), 2)
                 duration = parts[1]
                 self.assertTrue(duration[-2:] in ['ms', 's', 'm'] or duration[-1] in ['s', 'm'])
 
@@ -91,11 +90,11 @@ wait 5s
         for command, description in test_cases:
             with self.subTest(command=command, desc=description):
                 parts = command.split()
-                path = parts[1] if len(parts) > 1 else ''
-                if path.startswith('c64u:'):
-                    self.assertTrue(path.startswith('c64u:'))
+                file_path = parts[1] if len(parts) > 1 else ''
+                if file_path.startswith('c64u:'):
+                    self.assertTrue(file_path.startswith('c64u:'))
                 else:
-                    self.assertTrue(path.startswith('/'))
+                    self.assertTrue(file_path.startswith('/'))
 
     def test_loop_syntax(self):
         """Test loop command syntax"""
@@ -108,12 +107,12 @@ loop 3
 # End loop
 stop
 """
-        path = self.write_script('test_loop.c64script', script)
+        self.write_script('test_loop.c64script', script)
         lines = script.strip().split('\n')
         # Check loop command exists
         loop_line = [l for l in lines if l.strip().startswith('loop')]
         self.assertEqual(len(loop_line), 1)
-        self.assertTrue('3' in loop_line[0])
+        self.assertIn('3', loop_line[0])
 
     def test_label_goto_syntax(self):
         """Test label and goto syntax"""
@@ -123,7 +122,7 @@ effect Light Scanlines
 wait 2s
 goto start
 """
-        path = self.write_script('test_goto.c64script', script)
+        self.write_script('test_goto.c64script', script)
         lines = script.strip().split('\n')
         commands = [l.strip() for l in lines if l.strip()]
 

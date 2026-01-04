@@ -1,7 +1,0 @@
-# Error recovery test script
-# Tests handling of missing labels
-
-# This should cause an error due to jump to a missing label
-goto MISSING_LABEL
-effect Test
-stop

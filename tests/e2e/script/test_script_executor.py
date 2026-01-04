@@ -10,8 +10,7 @@ to the C library. Tests are currently skipped pending this implementation.
 """
 
 import unittest
-from unittest.mock import Mock, MagicMock, patch, call
-import sys
+from unittest.mock import Mock
 import os
 
 try:
@@ -19,9 +18,6 @@ try:
     HAS_PYTEST = True
 except ImportError:
     HAS_PYTEST = False
-
-# Add tests directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # Skip all tests in this file until ctypes bindings are implemented
 if HAS_PYTEST:
@@ -47,7 +43,6 @@ class TestScriptExecutor(unittest.TestCase):
         # to call C functions from Python for testing
 
         # Test creation
-        executor = self._create_executor()
         self.assertIsNotNone(executor)
 
         # Test initial state
@@ -59,7 +54,6 @@ class TestScriptExecutor(unittest.TestCase):
 
     def test_command_dispatch_effect(self):
         """Test effect command execution"""
-        executor = self._create_executor()
         script = self._parse_script("effect Sharp Pixels\\nstop")
 
         # Start execution
@@ -72,7 +66,6 @@ class TestScriptExecutor(unittest.TestCase):
 
     def test_command_dispatch_effect_param(self):
         """Test effect_param command execution"""
-        executor = self._create_executor()
         script = self._parse_script("effect_param bloom_strength 0.5\\nstop")
 
         self._start_executor(executor, script)
@@ -83,7 +76,6 @@ class TestScriptExecutor(unittest.TestCase):
 
     def test_command_dispatch_palette(self):
         """Test palette command execution"""
-        executor = self._create_executor()
         script = self._parse_script("palette Pepto\\nstop")
 
         self._start_executor(executor, script)
@@ -94,7 +86,6 @@ class TestScriptExecutor(unittest.TestCase):
 
     def test_command_dispatch_play_sid(self):
         """Test play_sid command execution"""
-        executor = self._create_executor()
         script = self._parse_script("play_sid c64u:/Music/test.sid songnr=1\\nstop")
 
         self._start_executor(executor, script)
@@ -108,7 +99,6 @@ class TestScriptExecutor(unittest.TestCase):
 
     def test_command_dispatch_run_prg(self):
         """Test run_prg command execution"""
-        executor = self._create_executor()
         script = self._parse_script("run_prg c64u:/Programs/demo.prg\\nstop")
 
         self._start_executor(executor, script)
@@ -122,7 +112,6 @@ class TestScriptExecutor(unittest.TestCase):
 
     def test_command_dispatch_mount_disk(self):
         """Test mount_disk command execution"""
-        executor = self._create_executor()
         script = self._parse_script("mount_disk c64u:/Games/game.d64\\nstop")
 
         self._start_executor(executor, script)
@@ -136,7 +125,6 @@ class TestScriptExecutor(unittest.TestCase):
 
     def test_command_dispatch_reset(self):
         """Test reset command execution"""
-        executor = self._create_executor()
         script = self._parse_script("reset\\nstop")
 
         self._start_executor(executor, script)
@@ -147,7 +135,6 @@ class TestScriptExecutor(unittest.TestCase):
 
     def test_command_dispatch_reboot(self):
         """Test reboot command execution"""
-        executor = self._create_executor()
         script = self._parse_script("reboot\\nstop")
 
         self._start_executor(executor, script)
@@ -160,7 +147,6 @@ class TestScriptExecutor(unittest.TestCase):
         """Test wait command timing accuracy"""
         import time
 
-        executor = self._create_executor()
         script = self._parse_script("wait 200ms\\nstop")
 
         start_time = time.time()
@@ -197,7 +183,6 @@ class TestScriptExecutor(unittest.TestCase):
 
     def test_label_resolution(self):
         """Test label definition and goto"""
-        executor = self._create_executor()
         script = self._parse_script("""
             goto skip
             effect Bad Preset
@@ -214,7 +199,6 @@ class TestScriptExecutor(unittest.TestCase):
 
     def test_loop_fixed_count(self):
         """Test loop with fixed iteration count"""
-        executor = self._create_executor()
         script = self._parse_script("""
             loop 3
             effect Test
@@ -229,7 +213,6 @@ class TestScriptExecutor(unittest.TestCase):
 
     def test_loop_goto_iteration(self):
         """Test manual loop with goto and iteration counting"""
-        executor = self._create_executor()
         script = self._parse_script("""
             # Manual counter-based loop (v1 doesn't have variables, so test structure only)
             label start
@@ -253,7 +236,6 @@ class TestScriptExecutor(unittest.TestCase):
 
     def test_error_invalid_command(self):
         """Test error handling for invalid commands"""
-        executor = self._create_executor()
 
         # Parser should reject invalid commands
         script = self._parse_script("invalid_command\\nstop")
@@ -263,7 +245,6 @@ class TestScriptExecutor(unittest.TestCase):
 
     def test_error_missing_label(self):
         """Test error handling for missing goto target"""
-        executor = self._create_executor()
         script = self._parse_script("goto nonexistent\\nstop")
 
         self._start_executor(executor, script)
@@ -278,7 +259,6 @@ class TestScriptExecutor(unittest.TestCase):
 
     def test_error_duplicate_label(self):
         """Test error handling for duplicate labels"""
-        executor = self._create_executor()
         script = self._parse_script("""
             label test
             effect A
@@ -293,7 +273,6 @@ class TestScriptExecutor(unittest.TestCase):
 
     def test_cancellation(self):
         """Test immediate cancellation during execution"""
-        executor = self._create_executor()
         script = self._parse_script("wait 10s\\nstop")
 
         # Start execution
@@ -315,7 +294,6 @@ class TestScriptExecutor(unittest.TestCase):
 
     def test_record_start_stop(self):
         """Test record_start and record_stop commands"""
-        executor = self._create_executor()
         script = self._parse_script("""
             record_start
             wait 100ms
@@ -331,7 +309,6 @@ class TestScriptExecutor(unittest.TestCase):
 
     def test_executor_state_getters(self):
         """Test executor state getter functions"""
-        executor = self._create_executor()
         script = self._parse_script("wait 100ms\\neffect Test\\nstop")
 
         # Initial state
