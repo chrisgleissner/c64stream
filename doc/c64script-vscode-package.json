@@ -32,7 +32,8 @@
         "extensions": [
           ".c64script"
         ],
-        "configuration": "./c64script-language-configuration.json"
+        "configuration": "./c64script-language-configuration.json",
+        "mimetypes": ["text/x-c64script"]
       }
     ],
     "grammars": [
@@ -41,6 +42,16 @@
         "scopeName": "source.c64script",
         "path": "./c64script.tmLanguage.json"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "C64Script",
+      "properties": {
+        "c64script.validate.enable": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable/disable syntax validation for C64Script files"
+        }
+      }
+    }
   }
 }

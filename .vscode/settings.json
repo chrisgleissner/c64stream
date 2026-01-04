@@ -75,6 +75,11 @@
     "[markdown]": {
         "editor.defaultFormatter": "DavidAnson.vscode-markdownlint"
     },
+    "[c64script]": {
+        "editor.tabSize": 4,
+        "editor.insertSpaces": true,
+        "editor.formatOnSave": false
+    },
 
     // GitHub Actions settings
     "github-actions.workflows.pinned.workflows": [
