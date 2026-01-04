@@ -78,9 +78,13 @@
     "[c64script]": {
         "editor.tabSize": 4,
         "editor.insertSpaces": true,
-        "editor.formatOnSave": false
+        "editor.formatOnSave": false,
+        "editor.semanticHighlighting.enabled": false
     },
 
+    // Exclude c64script files from various language services
+    "files.exclude": {},
+    
     // GitHub Actions settings
     "github-actions.workflows.pinned.workflows": [
         ".github/workflows"
