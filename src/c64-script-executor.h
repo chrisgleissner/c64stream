@@ -17,6 +17,7 @@ typedef struct c64_script_executor c64_script_executor_t;
 typedef enum {
     C64_SCRIPT_STATUS_IDLE,
     C64_SCRIPT_STATUS_RUNNING,
+    C64_SCRIPT_STATUS_PAUSED,
     C64_SCRIPT_STATUS_WAITING,
     C64_SCRIPT_STATUS_ERROR,
     C64_SCRIPT_STATUS_COMPLETED
@@ -78,5 +79,42 @@ const char *c64_script_executor_get_current_command(c64_script_executor_t *execu
  * Get error message if status is ERROR (NULL otherwise)
  */
 const char *c64_script_executor_get_error(c64_script_executor_t *executor);
+
+/**
+ * Pause the currently executing script (at next source line boundary)
+ * Only works if status is RUNNING. Does nothing if already paused or not running.
+ */
+void c64_script_executor_pause(c64_script_executor_t *executor);
+
+/**
+ * Resume a paused script
+ * Only works if status is PAUSED. Does nothing if not paused.
+ */
+void c64_script_executor_resume(c64_script_executor_t *executor);
+
+/**
+ * Step to the next source line (only when paused)
+ * Returns true if step was successful, false if not paused or error
+ */
+bool c64_script_executor_step(c64_script_executor_t *executor);
+
+/**
+ * Get the last executed source line (line number and text)
+ * Returns line number (0 if not started), fills line_text buffer if provided
+ * line_text_size should include space for null terminator
+ */
+int c64_script_executor_get_last_executed_line(c64_script_executor_t *executor, char *line_text, size_t line_text_size);
+
+/**
+ * Get the next source line to execute (line number and text)
+ * Returns line number (0 if completed or not started), fills line_text buffer if provided
+ * line_text_size should include space for null terminator
+ */
+int c64_script_executor_get_next_line(c64_script_executor_t *executor, char *line_text, size_t line_text_size);
+
+/**
+ * Log all current variables to OBS log
+ */
+void c64_script_executor_log_variables(c64_script_executor_t *executor);
 
 #endif // C64_SCRIPT_EXECUTOR_H

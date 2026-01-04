@@ -654,7 +654,18 @@ typedef struct {
 
     // Execution state
     bool should_stop;   // Cancellation flag
+    bool should_pause;  // Pause flag (set by debugger)
+    bool is_paused;     // Current pause state
+    bool step_mode;     // Single-step mode
     bool trace_enabled; // TRON/TROFF state
+
+    // Line tracking for debugging
+    int last_executed_line;   // Last source line that completed execution
+    int next_line_to_execute; // Next source line to execute
+
+    // Original source text for line display
+    char *source_text;
+    size_t source_text_size;
 
     // Log file
     FILE *log_file;
