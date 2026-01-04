@@ -100,8 +100,8 @@ TEST(step_mode)
     c64script_value_t value;
     bool found = c64script_runtime_get_var(runtime, "X", &value);
     assert(found);
-    assert(value.type == C64SCRIPT_VALUE_NUMBER);
-    assert(value.number == 1.0);
+    assert(value.type == VALUE_NUMBER);
+    assert(value.as.number == 1.0);
 
     c64script_runtime_destroy(runtime);
 }
