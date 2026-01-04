@@ -470,23 +470,27 @@ bool c64_rest_play_sid_path(c64_rest_client_t *client, const char *c64u_path, in
         return false;
     }
 
+    C64_LOG_INFO(REST_LOG_PREFIX "Playing SID from C64U: %s song=%d", c64u_path, song_number);
+
     // URL encode the path
     char *escaped_path = curl_easy_escape(client->curl, c64u_path, 0);
     if (!escaped_path) {
         snprintf(client->error_msg, sizeof(client->error_msg), "Failed to escape path");
+        C64_LOG_ERROR(REST_LOG_PREFIX "Failed to escape path: %s", c64u_path);
         return false;
     }
 
-    // Build URL
+    // Build URL with file parameter (not path)
     char url[512];
-    snprintf(url, sizeof(url), "%s/v1/runners:sidplay?path=%s&songnr=%d", client->base_url, escaped_path, song_number);
+    snprintf(url, sizeof(url), "%s/v1/runners:sidplay?file=%s&songnr=%d", client->base_url, escaped_path, song_number);
     curl_free(escaped_path);
+
+    C64_LOG_DEBUG(REST_LOG_PREFIX "SID URL: %s", url);
 
     // Reset CURL handle
     curl_easy_reset(client->curl);
     curl_easy_setopt(client->curl, CURLOPT_URL, url);
-    curl_easy_setopt(client->curl, CURLOPT_POST, 1L);
-    curl_easy_setopt(client->curl, CURLOPT_POSTFIELDS, "");
+    curl_easy_setopt(client->curl, CURLOPT_CUSTOMREQUEST, "PUT"); // Use PUT not POST
     curl_easy_setopt(client->curl, CURLOPT_TIMEOUT, HTTP_TIMEOUT_SECONDS);
 
     // Add password header if present
@@ -507,6 +511,7 @@ bool c64_rest_play_sid_path(c64_rest_client_t *client, const char *c64u_path, in
 
     if (res != CURLE_OK) {
         snprintf(client->error_msg, sizeof(client->error_msg), "CURL error: %s", curl_easy_strerror(res));
+        C64_LOG_ERROR(REST_LOG_PREFIX "CURL error: %s", curl_easy_strerror(res));
         return false;
     }
 
@@ -515,10 +520,11 @@ bool c64_rest_play_sid_path(c64_rest_client_t *client, const char *c64u_path, in
     curl_easy_getinfo(client->curl, CURLINFO_RESPONSE_CODE, &http_code);
     if (http_code != 200) {
         snprintf(client->error_msg, sizeof(client->error_msg), "HTTP error %ld", http_code);
+        C64_LOG_ERROR(REST_LOG_PREFIX "HTTP error %ld for SID playback", http_code);
         return false;
     }
 
-    C64_LOG_INFO(REST_LOG_PREFIX "Playing SID from C64U: %s song=%d", c64u_path, song_number);
+    C64_LOG_INFO(REST_LOG_PREFIX "✅ SID playback started successfully");
     return true;
 }
 

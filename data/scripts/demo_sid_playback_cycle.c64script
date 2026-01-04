@@ -1,27 +1,10 @@
 # SID Playback Demo (C64U paths)
-# Requires C64 Ultimate with SID files in /Temp/music/
+# Requires C64 Ultimate with SID files
 
-# Play different SIDs with varied durations
-play_sid c64u:/Temp/music/commando.sid songnr=0
-wait 30s
+PLAY_SID "c64u:/Usb2/SID/HVSC/C64Music/DEMOS/0-9/10_Orbyte.sid" SONGNR=0
+WAIT 5s
 
-play_sid c64u:/Temp/music/last_ninja.sid songnr=0
-wait 30s
+PLAY_SID "c64u:/Usb2/SID/HVSC/C64Music/DEMOS/0-9/3_Days.sid" SONGNR=0
+WAIT 5s
 
-play_sid c64u:/Temp/music/monty_on_the_run.sid songnr=0
-wait 30s
-
-# Multi-song SID example
-play_sid c64u:/Temp/music/galway_collection.sid songnr=1
-wait 20s
-
-play_sid c64u:/Temp/music/galway_collection.sid songnr=2
-wait 20s
-
-play_sid c64u:/Temp/music/galway_collection.sid songnr=3
-wait 20s
-
-reset
-wait 2s
-
-stop
+RESET

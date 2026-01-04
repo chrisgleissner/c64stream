@@ -641,16 +641,6 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
         context->keyboard = c64_keyboard_create(context->rest_client);
     }
 
-    // Load indicator customization settings
-    const char *indicator_text = obs_data_get_string(settings, "capture_indicator_text");
-    if (indicator_text && indicator_text[0] != '\0') {
-        strncpy(context->capture_indicator_text, indicator_text, sizeof(context->capture_indicator_text) - 1);
-    } else {
-        strncpy(context->capture_indicator_text, "CAPTURE", sizeof(context->capture_indicator_text) - 1);
-    }
-    context->capture_indicator_position = (int)obs_data_get_int(settings, "capture_indicator_position");
-    context->capture_indicator_opacity = (float)obs_data_get_double(settings, "capture_indicator_opacity");
-
     // Initialize script automation fields
     context->script_executor = NULL;
     memset(context->script_file_path, 0, sizeof(context->script_file_path));

@@ -1,3 +1,6 @@
+REM PLEASE NOTE
+REM This script is work in progress. Effect cycling does not yet fully work.
+
 REM Effect Preset Cycle Demo
 REM Cycles through all available CRT effect presets,
 REM displaying each one for 3 seconds.

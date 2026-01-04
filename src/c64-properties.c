@@ -57,6 +57,7 @@ static void update_palette_color_properties(obs_data_t *settings);
 static bool script_start_clicked(obs_properties_t *props, obs_property_t *property, void *data);
 static bool script_stop_clicked(obs_properties_t *props, obs_property_t *property, void *data);
 static bool script_reload_clicked(obs_properties_t *props, obs_property_t *property, void *data);
+static bool reset_all_clicked(obs_properties_t *props, obs_property_t *property, void *data);
 
 static const char *script_status_to_text(c64_script_status_t status)
 {
@@ -78,40 +79,92 @@ static const char *script_status_to_text(c64_script_status_t status)
 
 static void update_script_status_property(obs_property_t *prop, struct c64_source *context)
 {
-    if (!prop) {
+    if (!prop || !context) {
         return;
     }
 
-    char status[512] = {0};
-    if (!context || !context->script_executor) {
-        snprintf(status, sizeof(status), "IDLE");
-        obs_property_set_long_description(prop, status);
-        obs_property_text_set_info_type(prop, OBS_TEXT_INFO_NORMAL);
-        return;
+    char status[2048] = {0};
+
+    // Convert nanosecond timestamps to local time strings
+    char start_time_str[32] = "Never";
+    char end_time_str[32] = "N/A";
+
+    if (context->script_start_time > 0) {
+        time_t start_sec = context->script_start_time / 1000000000;
+        struct tm *tm_info = localtime(&start_sec);
+        strftime(start_time_str, sizeof(start_time_str), "%H:%M:%S", tm_info);
     }
 
-    c64_script_status_t st = c64_script_executor_get_status(context->script_executor);
-    const char *st_text = script_status_to_text(st);
+    if (context->script_end_time > 0) {
+        time_t end_sec = context->script_end_time / 1000000000;
+        struct tm *tm_info = localtime(&end_sec);
+        strftime(end_time_str, sizeof(end_time_str), "%H:%M:%S", tm_info);
+    }
 
-    int line = c64_script_executor_get_current_line(context->script_executor);
-    int progress = c64_script_executor_get_progress(context->script_executor);
-    const char *cmd = c64_script_executor_get_current_command(context->script_executor);
-    const char *err = c64_script_executor_get_error(context->script_executor);
-
-    if (st == C64_SCRIPT_STATUS_ERROR) {
-        snprintf(status, sizeof(status), "%s (line %d): %s", st_text, line, err ? err : "unknown error");
-    } else if (st == C64_SCRIPT_STATUS_RUNNING || st == C64_SCRIPT_STATUS_WAITING) {
-        if (progress >= 0) {
-            snprintf(status, sizeof(status), "%s (line %d, %s, %d%%)", st_text, line, cmd ? cmd : "?", progress);
+    // Calculate elapsed time
+    uint64_t elapsed_ms = 0;
+    if (context->script_start_time > 0) {
+        if (context->script_end_time > 0) {
+            elapsed_ms = (context->script_end_time - context->script_start_time) / 1000000;
         } else {
-            snprintf(status, sizeof(status), "%s (line %d, %s)", st_text, line, cmd ? cmd : "?");
+            uint64_t now = os_gettime_ns();
+            elapsed_ms = (now - context->script_start_time) / 1000000;
         }
+    }
+
+    // Get current script status if executor exists
+    bool is_running = false;
+    const char *error_msg = NULL;
+
+    if (context->script_executor) {
+        c64_script_status_t st = c64_script_executor_get_status(context->script_executor);
+        is_running = (st == C64_SCRIPT_STATUS_RUNNING || st == C64_SCRIPT_STATUS_WAITING);
+        if (st == C64_SCRIPT_STATUS_ERROR) {
+            error_msg = c64_script_executor_get_error(context->script_executor);
+        }
+    }
+
+    // Format status based on current state
+    if (is_running) {
+        snprintf(status, sizeof(status), "▶️ Script is RUNNING\nStarted: %s (%.1fs ago)", start_time_str,
+                 elapsed_ms / 1000.0);
+        obs_property_text_set_info_type(prop, OBS_TEXT_INFO_NORMAL);
+    } else if (context->script_end_time > 0) {
+        // Script has ended
+        if (context->script_ended_successfully) {
+            snprintf(status, sizeof(status),
+                     "✅ Last script completed SUCCESSFULLY\nStarted: %s | Ended: %s\nDuration: %.1fs", start_time_str,
+                     end_time_str, elapsed_ms / 1000.0);
+            obs_property_text_set_info_type(prop, OBS_TEXT_INFO_NORMAL);
+        } else if (error_msg) {
+            // Truncate error if too long
+            char short_err[256] = {0};
+            const char *safe_err = error_msg;
+            if (strlen(error_msg) > sizeof(short_err) - 4) {
+                strncpy(short_err, error_msg, sizeof(short_err) - 4);
+                strcat(short_err, "...");
+                safe_err = short_err;
+            }
+            snprintf(status, sizeof(status),
+                     "❌ Last script ended with ERROR\nStarted: %s | Ended: %s\nDuration: %.1fs\nError: %s",
+                     start_time_str, end_time_str, elapsed_ms / 1000.0, safe_err);
+            obs_property_text_set_info_type(prop, OBS_TEXT_INFO_ERROR);
+        } else {
+            snprintf(status, sizeof(status), "⏹️ Last script was STOPPED\nStarted: %s | Ended: %s\nDuration: %.1fs",
+                     start_time_str, end_time_str, elapsed_ms / 1000.0);
+            obs_property_text_set_info_type(prop, OBS_TEXT_INFO_NORMAL);
+        }
+    } else if (context->script_start_time > 0) {
+        // Script started but no end time recorded (abnormal state)
+        snprintf(status, sizeof(status), "⚠️ Script state unclear\nStarted: %s\nNo end time recorded", start_time_str);
+        obs_property_text_set_info_type(prop, OBS_TEXT_INFO_WARNING);
     } else {
-        snprintf(status, sizeof(status), "%s", st_text);
+        // No script has been run yet
+        snprintf(status, sizeof(status), "No script has been run yet");
+        obs_property_text_set_info_type(prop, OBS_TEXT_INFO_NORMAL);
     }
 
     obs_property_set_long_description(prop, status);
-    obs_property_text_set_info_type(prop, OBS_TEXT_INFO_NORMAL);
 }
 
 // Internal key to track initialization state and prevent spurious auto-saves
@@ -176,6 +229,36 @@ static bool sanity_check_clicked(obs_properties_t *props, obs_property_t *proper
         return false;
     }
 
+    // Get current test color index from context (cycles through C64 colors)
+    static const uint8_t c64_colors[] = {
+        1,  // White
+        2,  // Red
+        3,  // Cyan
+        4,  // Purple
+        5,  // Green
+        6,  // Blue
+        7,  // Yellow
+        8,  // Orange
+        9,  // Brown
+        10, // Light Red
+        11, // Dark Gray
+        12, // Gray
+        13, // Light Green
+        14, // Light Blue
+        15, // Light Gray
+        0   // Black
+    };
+    const int num_colors = sizeof(c64_colors) / sizeof(c64_colors[0]);
+
+    // Increment and wrap color index
+    context->test_dma_color_index = (context->test_dma_color_index + 1) % num_colors;
+    uint8_t current_color = c64_colors[context->test_dma_color_index];
+
+    const char *color_names[] = {"White",     "Red",    "Cyan",        "Purple",     "Green",
+                                 "Blue",      "Yellow", "Orange",      "Brown",      "Light Red",
+                                 "Dark Gray", "Gray",   "Light Green", "Light Gray", "Black"};
+    const char *color_name = color_names[context->test_dma_color_index];
+
     C64_LOG_INFO("🔍 SANITY CHECK: Starting validation...");
 
     // Check REST client
@@ -207,19 +290,19 @@ static bool sanity_check_clicked(obs_properties_t *props, obs_property_t *proper
         }
     }
 
-    // White color for all characters (color value 1 = white)
+    // Use current color from color cycling
     uint8_t color_data[64];
-    memset(color_data, 1, msg_len);
+    memset(color_data, current_color, msg_len);
 
     // Write to video RAM
-    C64_LOG_INFO("🔍 SANITY CHECK: Writing '%s' to video RAM $%04X...", test_message, video_ram_addr);
+    C64_LOG_INFO("🔍 SANITY CHECK: Writing '%s' to video RAM $%04X in %s...", test_message, video_ram_addr, color_name);
     if (!c64_rest_write_memory(context->rest_client, video_ram_addr, petscii_data, msg_len)) {
         C64_LOG_ERROR("🔍 SANITY CHECK: Failed to write to video RAM - REST call failed");
         return true;
     }
 
     // Write to color RAM
-    C64_LOG_INFO("🔍 SANITY CHECK: Writing white color to color RAM $%04X...", color_ram_addr);
+    C64_LOG_INFO("🔍 SANITY CHECK: Writing %s color to color RAM $%04X...", color_name, color_ram_addr);
     if (!c64_rest_write_memory(context->rest_client, color_ram_addr, color_data, msg_len)) {
         C64_LOG_ERROR("🔍 SANITY CHECK: Failed to write to color RAM - REST call failed");
         return true;
@@ -312,11 +395,15 @@ static bool script_start_clicked(obs_properties_t *props, obs_property_t *proper
     }
 
     // Start execution
+    context->script_start_time = os_gettime_ns();
+    context->script_end_time = 0;
     if (c64_script_executor_start(context->script_executor, context->script_file_path)) {
         C64_LOG_INFO("Script started: %s", context->script_file_path);
     } else {
         const char *err = c64_script_executor_get_error(context->script_executor);
         C64_LOG_ERROR("Failed to start script: %s", err ? err : "unknown error");
+        context->script_end_time = os_gettime_ns();
+        context->script_ended_successfully = false;
     }
 
     return true; // Refresh properties (status/progress field)
@@ -333,7 +420,9 @@ static bool script_stop_clicked(obs_properties_t *props, obs_property_t *propert
     }
 
     c64_script_executor_stop(context->script_executor);
-    C64_LOG_INFO("Script stopped");
+    context->script_end_time = os_gettime_ns();
+    context->script_ended_successfully = false; // User stopped it
+    C64_LOG_INFO("Script stopped by user");
 
     return true; // Refresh properties (status/progress field)
 }
@@ -372,10 +461,60 @@ static bool script_reload_clicked(obs_properties_t *props, obs_property_t *prope
     return true; // Refresh properties (status field)
 }
 
+static bool reset_all_clicked(obs_properties_t *props, obs_property_t *property, void *data)
+{
+    UNUSED_PARAMETER(props);
+    UNUSED_PARAMETER(property);
+
+    struct c64_source *context = (struct c64_source *)data;
+    if (!context) {
+        return false;
+    }
+
+    C64_LOG_INFO("🔄 Resetting all properties to defaults and hard resetting C64U...");
+
+    // Get current settings object
+    obs_data_t *settings = obs_source_get_settings(context->source);
+    if (!settings) {
+        C64_LOG_ERROR("Failed to get settings object");
+        return false;
+    }
+
+    // Clear all current settings
+    obs_data_clear(settings);
+
+    // Reload defaults from properties.ini
+    c64_load_configuration(settings);
+
+    // Apply the reset settings to the source
+    obs_source_update(context->source, settings);
+    obs_data_release(settings);
+
+    C64_LOG_INFO("✅ Properties reset to defaults");
+
+    // Send hard reset (reboot) to C64U
+    if (context->rest_client) {
+        if (c64_rest_reboot(context->rest_client)) {
+            C64_LOG_INFO("✅ C64U hard reset completed");
+        } else {
+            C64_LOG_WARNING("⚠️ Failed to send hard reset to C64U");
+        }
+    } else {
+        C64_LOG_WARNING("⚠️ REST client not available, skipping C64U reset");
+    }
+
+    return true; // Refresh properties UI
+}
+
 obs_properties_t *c64_create_properties(void *data)
 {
     struct c64_source *context = (struct c64_source *)data;
     obs_properties_t *props = obs_properties_create();
+
+    // Reset Test DMA color index to white when properties are opened
+    if (context) {
+        context->test_dma_color_index = 0; // White
+    }
 
     // General Group
     obs_property_t *info_group = obs_properties_add_group(props, "info_group", obs_module_text("PluginInformation"),
@@ -812,24 +951,6 @@ obs_properties_t *c64_create_properties(void *data)
         obs_property_list_add_string(keymap_prop, "Positional US", "positional_us");
     }
 
-    // Capture indicator customization
-    obs_property_t *indicator_text_prop = obs_properties_add_text(
-        rest_props, "capture_indicator_text", obs_module_text("CaptureIndicatorText"), OBS_TEXT_DEFAULT);
-    obs_property_set_long_description(indicator_text_prop, obs_module_text("CaptureIndicatorText.Description"));
-
-    obs_property_t *indicator_pos_prop = obs_properties_add_list(rest_props, "capture_indicator_position",
-                                                                 obs_module_text("CaptureIndicatorPosition"),
-                                                                 OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
-    obs_property_set_long_description(indicator_pos_prop, obs_module_text("CaptureIndicatorPosition.Description"));
-    obs_property_list_add_int(indicator_pos_prop, obs_module_text("CaptureIndicatorPosition.TopRight"), 0);
-    obs_property_list_add_int(indicator_pos_prop, obs_module_text("CaptureIndicatorPosition.TopLeft"), 1);
-    obs_property_list_add_int(indicator_pos_prop, obs_module_text("CaptureIndicatorPosition.BottomRight"), 2);
-    obs_property_list_add_int(indicator_pos_prop, obs_module_text("CaptureIndicatorPosition.BottomLeft"), 3);
-
-    obs_property_t *indicator_opacity_prop = obs_properties_add_float_slider(
-        rest_props, "capture_indicator_opacity", obs_module_text("CaptureIndicatorOpacity"), 0.0, 1.0, 0.05);
-    obs_property_set_long_description(indicator_opacity_prop, obs_module_text("CaptureIndicatorOpacity.Description"));
-
     // Automation mode
     obs_property_t *automation_mode_prop = obs_properties_add_list(
         rest_props, "automation_mode", obs_module_text("AutomationMode"), OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
@@ -879,23 +1000,26 @@ obs_properties_t *c64_create_properties(void *data)
         obs_properties_add_text(rest_props, "script_status", obs_module_text("ScriptStatus"), OBS_TEXT_INFO);
     update_script_status_property(script_status_prop, context);
 
-    // Script control buttons (using button property type)
+    // Script control buttons
     obs_property_t *script_start_prop =
-        obs_properties_add_button(rest_props, "script_start", obs_module_text("ScriptStart"), script_start_clicked);
-    obs_property_set_long_description(script_start_prop, obs_module_text("ScriptStart.Description"));
+        obs_properties_add_button(rest_props, "script_start", "Start Script", script_start_clicked);
+    obs_property_set_long_description(script_start_prop, "Start executing the selected script");
 
     obs_property_t *script_stop_prop =
-        obs_properties_add_button(rest_props, "script_stop", obs_module_text("ScriptStop"), script_stop_clicked);
-    obs_property_set_long_description(script_stop_prop, obs_module_text("ScriptStop.Description"));
-
-    obs_property_t *script_reload_prop =
-        obs_properties_add_button(rest_props, "script_reload", obs_module_text("ScriptReload"), script_reload_clicked);
-    obs_property_set_long_description(script_reload_prop, obs_module_text("ScriptReload.Description"));
+        obs_properties_add_button(rest_props, "script_stop", "Stop Script", script_stop_clicked);
+    obs_property_set_long_description(script_stop_prop, "Stop the currently running script");
 
     // REST memory test button
     obs_property_t *rest_test_prop =
         obs_properties_add_button(rest_props, "rest_test", "Test DMA", sanity_check_clicked);
     obs_property_set_long_description(rest_test_prop, "Test C64U connectivity by writing/reading memory via DMA");
+
+    // Reset all button
+    obs_property_t *reset_all_prop =
+        obs_properties_add_button(rest_props, "reset_all", "Reset C64Stream and C64U", reset_all_clicked);
+    obs_property_set_long_description(
+        reset_all_prop,
+        "Reset all plugin properties to defaults (from properties.ini) and send hard reset to C64 Ultimate");
 
     return props;
 }
@@ -1369,9 +1493,7 @@ void c64_set_property_defaults(obs_data_t *settings)
     obs_data_set_default_string(settings, "rest_password", "");
     obs_data_set_default_bool(settings, "keyboard_capture_enabled", false);
     obs_data_set_default_string(settings, "keyboard_keymap", "symbolic_us");
-    obs_data_set_default_string(settings, "capture_indicator_text", "CAPTURE");
-    obs_data_set_default_int(settings, "capture_indicator_position", 0); // Top-right
-    obs_data_set_default_double(settings, "capture_indicator_opacity", 0.7);
+
     obs_data_set_default_int(settings, "automation_mode", 0); // Disabled
     obs_data_set_default_int(settings, "file_source", 0);     // Local Filesystem
     obs_data_set_default_string(settings, "automation_path", "");

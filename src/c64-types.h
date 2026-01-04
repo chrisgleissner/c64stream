@@ -242,14 +242,15 @@ struct c64_source {
     char keyboard_keymap_name[64];  // Keymap name (e.g., "symbolic_us")
 
     // Script automation
-    void *script_executor;      // c64_script_executor_t* (forward declaration to avoid circular dependency)
-    void *current_script;       // c64_script_t* currently loaded script
-    char script_file_path[512]; // Path to .c64script file
+    void *script_executor;          // c64_script_executor_t* (forward declaration to avoid circular dependency)
+    void *current_script;           // c64_script_t* currently loaded script
+    char script_file_path[512];     // Path to .c64script file
+    uint64_t script_start_time;     // os_gettime_ns() when script started
+    uint64_t script_end_time;       // os_gettime_ns() when script ended
+    bool script_ended_successfully; // true if completed successfully, false if error/stopped
 
-    // Preview indicator customization
-    char capture_indicator_text[64]; // Custom text for capture indicator (default: "CAPTURE")
-    int capture_indicator_position;  // Position: 0=top-right, 1=top-left, 2=bottom-right, 3=bottom-left
-    float capture_indicator_opacity; // Opacity 0.0-1.0 (default: 0.7)
+    // Test DMA button state
+    int test_dma_color_index; // Current color index for Test DMA button cycling (resets when properties opened)
 };
 
 #endif // C64_TYPES_H
