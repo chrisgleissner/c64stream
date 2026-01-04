@@ -41,6 +41,7 @@
         "*.hpp": "cpp",
         "*.yml": "yaml",
         "*.yaml": "yaml",
+        "*.c64script": "c64script",
         "fstream": "c"
     },
 

@@ -1,5 +1,5 @@
 (* C64Script Language Grammar (EBNF) *)
-(* 
+(*
    This grammar defines the C64Script language as implemented in the
    C64Stream OBS Studio plugin. For complete language documentation,
    see doc/c64script-spec.md
@@ -11,13 +11,16 @@
 
 WS              = {" " | "\t"} ;
 EOL             = "\n" | "\r\n" ;
-DIGIT           = "0"…"9" ;
-HEX             = DIGIT | "A"…"F" | "a"…"f" ;
+DIGIT           = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ;
+HEX             = DIGIT | "A" | "B" | "C" | "D" | "E" | "F" | "a" | "b" | "c" | "d" | "e" | "f" ;
+LETTER_UPPER    = "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J" | "K" | "L" | "M" | "N" | "O" | "P" | "Q" | "R" | "S" | "T" | "U" | "V" | "W" | "X" | "Y" | "Z" ;
+LETTER_LOWER    = "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" | "k" | "l" | "m" | "n" | "o" | "p" | "q" | "r" | "s" | "t" | "u" | "v" | "w" | "x" | "y" | "z" ;
+LETTER          = LETTER_UPPER | LETTER_LOWER ;
 
-identifier      = ( "A"…"Z" | "a"…"z" ), { "A"…"Z" | "a"…"z" | DIGIT | "_" }, ["$" | "%" | "()" | "{}"] ;
+identifier      = LETTER, { LETTER | DIGIT | "_" }, ["$" | "%" | "()" | "{}"] ;
 array_access    = identifier, "(", [WS], expr, [WS], ")" ;
 map_access      = identifier, "{", [WS], expr, [WS], "}" ;
-label_name      = ( "A"…"Z" | "a"…"z" ), { "A"…"Z" | "a"…"z" | DIGIT } ;
+label_name      = LETTER, { LETTER | DIGIT } ;
 word            = ? any non-empty sequence of characters excluding whitespace, `"`, and EOL ? ;
 
 number          = DIGIT, {DIGIT}, [".", DIGIT, {DIGIT}] ;
@@ -27,9 +30,9 @@ line_number     = DIGIT, {DIGIT} ;
 label           = label_name | line_number ;
 label_ref       = label ;
 
-string_literal  = "\"", { string_char }, "\"" ;
-string_char     = ? any character except `"`, `\`, and EOL ? | "\"\"" | escape_seq ;
-escape_seq      = "\\", ("\\" | "\"" | "r" | "n" | "t" | ("x", HEX, HEX)) ;
+string_literal  = '"', { string_char }, '"' ;
+string_char     = ? any character except '"', '\', and EOL ? | '""' | escape_seq ;
+escape_seq      = '\', ( '\' | '"' | "r" | "n" | "t" | ("x", HEX, HEX) ) ;
 
 duration_lit    = number, ("ms" | "s" | "m" | "h" | "d") ;
 
@@ -91,9 +94,7 @@ statement =
 
 rem_stmt         = "REM", { ? any character except EOL ? } ;
 
-assignment      = ["LET", WS], identifier, [WS], "=", [WS], expr ;
-                | ["LET", WS], array_access, [WS], "=", [WS], expr ;
-                | ["LET", WS], map_access, [WS], "=", [WS], expr ;
+assignment      = ["LET", WS], ( identifier | array_access | map_access ), [WS], "=", [WS], expr ;
 
 dim_stmt        = "DIM", WS, identifier, "(", [WS], expr, [WS], ")" ;
 
