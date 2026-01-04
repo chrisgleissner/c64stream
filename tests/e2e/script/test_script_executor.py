@@ -13,15 +13,22 @@ import unittest
 from unittest.mock import Mock, MagicMock, patch, call
 import sys
 import os
-import pytest
+
+try:
+    import pytest
+    HAS_PYTEST = True
+except ImportError:
+    HAS_PYTEST = False
 
 # Add tests directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # Skip all tests in this file until ctypes bindings are implemented
-pytestmark = pytest.mark.skip(reason="Requires ctypes bindings to C library (WIP)")
+if HAS_PYTEST:
+    pytestmark = pytest.mark.skip(reason="Requires ctypes bindings to C library (WIP)")
 
 
+@unittest.skip("Requires ctypes bindings to C library (WIP)")
 class TestScriptExecutor(unittest.TestCase):
     """Test cases for script executor functionality"""
 
