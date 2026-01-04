@@ -399,7 +399,7 @@ static bool compile_statement(compiler_context_t *ctx, c64script_ast_node_t *stm
     case AST_STMT_GOSUB:
         // Push parameter count first
         emit(ctx, OP_PUSH_NUM, 0, stmt->line);
-        ctx->instructions[ctx->instruction_count - 1].operand = stmt->as.gosub_stmt.param_count;
+        ctx->instructions[ctx->instruction_count - 1].operand = (uint32_t)stmt->as.gosub_stmt.param_count;
 
         // Push each parameter value
         for (size_t i = 0; i < stmt->as.gosub_stmt.param_count; i++) {
