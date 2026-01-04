@@ -390,6 +390,7 @@ static bool script_start_stop_clicked(obs_properties_t *props, obs_property_t *p
         context->script_end_time = os_gettime_ns();
         context->script_ended_successfully = false; // User stopped it
         C64_LOG_INFO("Script stopped by user");
+        context->force_ui_update = true; // Force immediate UI update
         return true;
     }
 
@@ -415,11 +416,13 @@ static bool script_start_stop_clicked(obs_properties_t *props, obs_property_t *p
     if (c64_script_executor_start(context->script_executor, context->script_file_path)) {
         C64_LOG_INFO("Script started: %s", context->script_file_path);
         context->last_script_status = C64_SCRIPT_STATUS_RUNNING;
+        context->force_ui_update = true; // Force immediate UI update
     } else {
         const char *err = c64_script_executor_get_error(context->script_executor);
         C64_LOG_ERROR("Failed to start script: %s", err ? err : "unknown error");
         context->script_end_time = os_gettime_ns();
         context->script_ended_successfully = false;
+        context->force_ui_update = true; // Force immediate UI update
     }
 
     return true; // Refresh properties
@@ -440,9 +443,11 @@ static bool script_pause_resume_clicked(obs_properties_t *props, obs_property_t 
     if (status == C64_SCRIPT_STATUS_RUNNING) {
         c64_script_executor_pause(context->script_executor);
         C64_LOG_INFO("Script paused");
+        context->force_ui_update = true; // Force immediate UI update
     } else if (status == C64_SCRIPT_STATUS_PAUSED) {
         c64_script_executor_resume(context->script_executor);
         C64_LOG_INFO("Script resumed");
+        context->force_ui_update = true; // Force immediate UI update
     }
 
     return true; // Refresh properties
@@ -460,6 +465,7 @@ static bool script_step_clicked(obs_properties_t *props, obs_property_t *propert
 
     if (c64_script_executor_step(context->script_executor)) {
         C64_LOG_INFO("Stepping to next line");
+        context->force_ui_update = true; // Force immediate UI update
     }
 
     return true; // Refresh properties
@@ -1056,6 +1062,34 @@ obs_properties_t *c64_create_properties(void *data)
     }
     bool is_running_or_paused =
         (current_status == C64_SCRIPT_STATUS_RUNNING || current_status == C64_SCRIPT_STATUS_PAUSED);
+    bool is_in_debug_mode = (current_status == C64_SCRIPT_STATUS_PAUSED);
+
+    // Determine if we should update line tracking UI based on throttling
+    bool should_update_lines = false;
+    uint64_t now = os_gettime_ns();
+    uint64_t time_since_last_update = (context->last_ui_update_time > 0) ? (now - context->last_ui_update_time)
+                                                                         : UINT64_MAX;
+
+    if (context->force_ui_update) {
+        // State transition occurred - force immediate update
+        should_update_lines = true;
+        context->force_ui_update = false;
+        context->last_ui_update_time = now;
+    } else if (is_in_debug_mode) {
+        // Debug mode (paused/stepping) - always update immediately
+        should_update_lines = true;
+        context->last_ui_update_time = now;
+    } else if (is_running_or_paused) {
+        // Normal execution - throttle to once per second
+        const uint64_t throttle_interval_ns = 1000000000ULL; // 1 second in nanoseconds
+        if (time_since_last_update >= throttle_interval_ns) {
+            should_update_lines = true;
+            context->last_ui_update_time = now;
+        }
+    } else {
+        // Script not running - always show current state
+        should_update_lines = true;
+    }
 
     // Start/Stop button - label changes based on state
     const char *start_stop_label = is_running_or_paused ? "Stop" : "Start";
@@ -1102,30 +1136,40 @@ obs_properties_t *c64_create_properties(void *data)
     obs_property_text_set_info_type(exec_state_prop, OBS_TEXT_INFO_NORMAL);
     obs_property_set_description(exec_state_prop, "Execution state");
 
-    // Last executed line
-    char last_line_text[512] = "(not started)";
-    if (context->script_executor) {
+    // Last executed line - always visible, throttled in normal mode
+    if (context->script_executor && should_update_lines) {
         char line_content[256] = {0};
         int line_num =
             c64_script_executor_get_last_executed_line(context->script_executor, line_content, sizeof(line_content));
         if (line_num > 0) {
-            snprintf(last_line_text, sizeof(last_line_text), "%d: %s", line_num, line_content);
+            snprintf(context->cached_last_line, sizeof(context->cached_last_line), "%d: %s", line_num, line_content);
+        } else {
+            snprintf(context->cached_last_line, sizeof(context->cached_last_line), "(not started)");
         }
+    }
+    // Use cached value (either just updated or from previous update)
+    if (context->cached_last_line[0] == '\0') {
+        snprintf(context->cached_last_line, sizeof(context->cached_last_line), "(not started)");
     }
     obs_property_t *last_line_prop =
         obs_properties_add_text(rest_props, "script_last_line", "Last executed", OBS_TEXT_INFO);
     obs_property_text_set_info_type(last_line_prop, OBS_TEXT_INFO_NORMAL);
 
-    // Next line to execute
-    char next_line_text[512] = "(not started)";
-    if (context->script_executor) {
+    // Next line to execute - always visible, throttled in normal mode
+    if (context->script_executor && should_update_lines) {
         char line_content[256] = {0};
         int line_num = c64_script_executor_get_next_line(context->script_executor, line_content, sizeof(line_content));
         if (line_num > 0) {
-            snprintf(next_line_text, sizeof(next_line_text), "%d: %s", line_num, line_content);
+            snprintf(context->cached_next_line, sizeof(context->cached_next_line), "%d: %s", line_num, line_content);
         } else if (is_running_or_paused) {
-            snprintf(next_line_text, sizeof(next_line_text), "(completed)");
+            snprintf(context->cached_next_line, sizeof(context->cached_next_line), "(completed)");
+        } else {
+            snprintf(context->cached_next_line, sizeof(context->cached_next_line), "(not started)");
         }
+    }
+    // Use cached value (either just updated or from previous update)
+    if (context->cached_next_line[0] == '\0') {
+        snprintf(context->cached_next_line, sizeof(context->cached_next_line), "(not started)");
     }
     obs_property_t *next_line_prop =
         obs_properties_add_text(rest_props, "script_next_line", "Next to execute", OBS_TEXT_INFO);
