@@ -615,39 +615,64 @@ static void get_source_line(const char *source_text, int line_number, char *out_
 
 int c64_script_executor_get_last_executed_line(c64_script_executor_t *executor, char *line_text, size_t line_text_size)
 {
-    if (!executor || !executor->runtime) {
+    if (!executor) {
         return 0;
     }
 
-    int line_num = executor->runtime->last_executed_line;
+    pthread_mutex_lock(&executor->mutex);
+
+    c64script_runtime_t *runtime = executor->runtime;
+    if (!runtime) {
+        if (line_text && line_text_size > 0) {
+            line_text[0] = '\0';
+        }
+        pthread_mutex_unlock(&executor->mutex);
+        return 0;
+    }
+
+    int line_num = runtime->last_executed_line;
 
     if (line_text && line_text_size > 0) {
-        if (line_num > 0 && executor->runtime->source_text) {
-            get_source_line(executor->runtime->source_text, line_num, line_text, line_text_size);
+        if (line_num > 0 && runtime->source_text) {
+            get_source_line(runtime->source_text, line_num, line_text, line_text_size);
         } else {
             line_text[0] = '\0';
         }
     }
+
+    pthread_mutex_unlock(&executor->mutex);
 
     return line_num;
 }
 
 int c64_script_executor_get_next_line(c64_script_executor_t *executor, char *line_text, size_t line_text_size)
 {
-    if (!executor || !executor->runtime) {
+    if (!executor) {
         return 0;
     }
 
-    int line_num = executor->runtime->next_line_to_execute;
+    pthread_mutex_lock(&executor->mutex);
+
+    c64script_runtime_t *runtime = executor->runtime;
+    if (!runtime) {
+        if (line_text && line_text_size > 0) {
+            line_text[0] = '\0';
+        }
+        pthread_mutex_unlock(&executor->mutex);
+        return 0;
+    }
+
+    int line_num = runtime->next_line_to_execute;
 
     if (line_text && line_text_size > 0) {
-        if (line_num > 0 && executor->runtime->source_text) {
-            get_source_line(executor->runtime->source_text, line_num, line_text, line_text_size);
+        if (line_num > 0 && runtime->source_text) {
+            get_source_line(runtime->source_text, line_num, line_text, line_text_size);
         } else {
             line_text[0] = '\0';
         }
     }
 
+    pthread_mutex_unlock(&executor->mutex);
     return line_num;
 }
 
