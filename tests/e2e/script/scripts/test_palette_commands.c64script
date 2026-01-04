@@ -1,0 +1,38 @@
+# Test PALETTE and PALETTECOLOR commands
+# Validates palette selection and individual color customization
+
+# Test 1: Basic palette selection
+PALETTE colodore
+WAIT 100ms
+
+# Test 2: Different palette
+PALETTE pepto_ntsc
+WAIT 100ms
+
+# Test 3: Another palette variant
+PALETTE vice_new
+WAIT 100ms
+
+# Test 4: Custom palette color - set background to black
+PALETTECOLOR 0, 0, 0, 0
+WAIT 100ms
+
+# Test 5: Custom palette color - set white
+PALETTECOLOR 1, 255, 255, 255
+WAIT 100ms
+
+# Test 6: Custom palette color - set blue
+PALETTECOLOR 6, 0, 0, 170
+WAIT 100ms
+
+# Test 7: Custom palette color - set light blue  
+PALETTECOLOR 14, 128, 192, 255
+WAIT 100ms
+
+# Test 8: Multiple color customizations in sequence
+PALETTECOLOR 2, 255, 0, 0
+PALETTECOLOR 5, 0, 255, 0
+PALETTECOLOR 7, 255, 255, 0
+WAIT 100ms
+
+STOP

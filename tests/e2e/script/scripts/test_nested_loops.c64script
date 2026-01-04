@@ -1,0 +1,37 @@
+# Test nested loops (FOR within WHILE, WHILE within FOR)
+# This script validates that nested loop constructs work correctly
+
+# Test 1: FOR loop within WHILE loop
+I = 0
+WHILE I < 3
+    # Inner FOR loop should execute 3 times
+    FOR J = 1 TO 3
+        EFFECT Sharp Pixels
+        WAIT 100ms
+    NEXT J
+    I = I + 1
+WEND
+
+# Test 2: WHILE loop within FOR loop  
+FOR OUTER = 1 TO 2
+    INNER = 0
+    WHILE INNER < 2
+        PALETTE colodore
+        WAIT 100ms
+        INNER = INNER + 1
+    WEND
+NEXT OUTER
+
+# Test 3: Triple nesting (FOR within WHILE within FOR)
+FOR A = 1 TO 2
+    B = 0
+    WHILE B < 2
+        FOR C = 1 TO 2
+            EFFECT Light Scanlines
+            WAIT 50ms
+        NEXT C
+        B = B + 1
+    WEND
+NEXT A
+
+STOP

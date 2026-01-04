@@ -1,0 +1,7 @@
+# Test FOR loop without matching NEXT
+
+FOR I = 1 TO 5
+    EFFECT Sharp Pixels
+    WAIT 100ms
+# Missing NEXT I - should cause parse error
+STOP

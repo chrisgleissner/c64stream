@@ -1,0 +1,50 @@
+# Test EFFECT and EFFECTPARAM commands
+# Validates effect selection and parameter customization
+
+# Test 1: Set effect and customize scanline intensity
+EFFECT Classic CRT
+EFFECTPARAM scanline_intensity 0.7
+WAIT 100ms
+
+# Test 2: Customize phosphor persistence
+EFFECTPARAM phosphor_persistence 0.3
+WAIT 100ms
+
+# Test 3: Customize curvature
+EFFECTPARAM curvature 0.1
+WAIT 100ms
+
+# Test 4: Customize bloom
+EFFECTPARAM bloom 0.5
+WAIT 100ms
+
+# Test 5: Switch effect and set parameters
+EFFECT Sharp Pixels
+EFFECTPARAM grid_intensity 0.3
+EFFECTPARAM grid_color_r 20
+EFFECTPARAM grid_color_g 20
+EFFECTPARAM grid_color_b 20
+WAIT 100ms
+
+# Test 6: Amber monitor with tint
+EFFECT Amber Monitor
+EFFECTPARAM tint_intensity 0.9
+EFFECTPARAM brightness 1.2
+EFFECTPARAM contrast 1.1
+WAIT 100ms
+
+# Test 7: Soft blur effect
+EFFECT Soft Blur
+EFFECTPARAM blur_radius 2.5
+EFFECTPARAM blur_direction 2
+WAIT 100ms
+
+# Test 8: Color adjustments
+EFFECT Classic CRT
+EFFECTPARAM saturation 1.2
+EFFECTPARAM brightness 1.1
+EFFECTPARAM gamma 0.9
+EFFECTPARAM hue_shift 10
+WAIT 100ms
+
+STOP
