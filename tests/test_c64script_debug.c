@@ -83,16 +83,25 @@ TEST(step_mode)
     assert(success);
     c64script_ast_free(ast);
 
-    // Verify step_mode flag can be set
-    runtime->step_mode = false;
-    assert(runtime->step_mode == false);
-
+    // Test step mode behavior: enable step mode and execute one line
     runtime->step_mode = true;
-    assert(runtime->step_mode == true);
+    runtime->should_pause = false;
+    runtime->is_paused = false;
 
-    // Step mode should be cleared after one step
-    runtime->step_mode = false;
-    assert(runtime->step_mode == false);
+    // Execute VM - should process first instruction then stop due to step mode
+    int result = c64script_vm_execute(runtime);
+
+    // VM should have executed at least one instruction
+    // In step mode during pause loop, step_mode is cleared after one iteration
+    assert(runtime->step_mode == false); // Step mode should be cleared
+    assert(result == 0);                 // Execution should succeed
+
+    // Verify first variable was set
+    c64script_value_t value;
+    bool found = c64script_runtime_get_var(runtime, "X", &value);
+    assert(found);
+    assert(value.type == C64SCRIPT_VALUE_NUMBER);
+    assert(value.number == 1.0);
 
     c64script_runtime_destroy(runtime);
 }

@@ -652,16 +652,16 @@ typedef struct {
     c64script_gosub_state_t gosub_stack[C64SCRIPT_MAX_GOSUB_DEPTH];
     size_t gosub_stack_size;
 
-    // Execution state
-    bool should_stop;   // Cancellation flag
-    bool should_pause;  // Pause flag (set by debugger)
-    bool is_paused;     // Current pause state
-    bool step_mode;     // Single-step mode
-    bool trace_enabled; // TRON/TROFF state
+    // Execution state (volatile for thread synchronization)
+    volatile bool should_stop;  // Cancellation flag
+    volatile bool should_pause; // Pause flag (set by debugger)
+    volatile bool is_paused;    // Current pause state
+    volatile bool step_mode;    // Single-step mode
+    bool trace_enabled;         // TRON/TROFF state
 
-    // Line tracking for debugging
-    int last_executed_line;   // Last source line that completed execution
-    int next_line_to_execute; // Next source line to execute
+    // Line tracking for debugging (volatile for thread synchronization)
+    volatile int last_executed_line;   // Last source line that completed execution
+    volatile int next_line_to_execute; // Next source line to execute
 
     // Original source text for line display
     char *source_text;
