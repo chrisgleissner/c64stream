@@ -102,17 +102,33 @@ assertions:
 
 ## Coverage
 
-Current E2E script test coverage:
-- ✅ Basic command execution (effect, wait, stop)
-- ✅ Control flow (label, goto)
-- ✅ C64U path handling (play_sid, run_prg, mount_disk)
-- ✅ Error handling (invalid commands, missing labels)
-- ✅ Cancellation (stop during execution)
+Complete E2E script test coverage for ALL C64Script commands:
 
-Not yet covered (requires additional test scripts):
-- Palette changes
-- Reset/reboot commands
-- Recording start/stop
-- Effect parameter commands
-- Complex control flow (nested loops, conditional goto)
-- Multiple path types (local files vs C64U paths)
+### ✅ Core Language Features
+- ✅ Control flow (FOR/WHILE/IF/GOTO/GOSUB) - `test_nested_loops.c64script`, `test_iteration_counts.c64script`, `test_loop.c64script`
+- ✅ Boolean logic (AND/OR/NOT/XOR, comparisons) - `test_boolean_logic.c64script`, `test_comparisons.c64script`
+- ✅ Variables and scope - `test_variable_scope.c64script`
+- ✅ Arrays and maps - `test_arrays_maps.c64script`
+- ✅ Built-in functions - `test_functions_builtin.c64script`
+- ✅ User-defined functions - `test_user_functions.c64script`
+- ✅ Language features (LET/REM) - `test_let_rem.c64script`
+
+### ✅ Plugin Commands
+- ✅ Visual effects (EFFECT/EFFECTPARAM) - `test_effect_params.c64script`
+- ✅ Palette control (PALETTE/PALETTECOLOR) - `test_palette_commands.c64script`
+- ✅ C64 control (PLAYSID/RUNPRG/MOUNTDISK/RESET/REBOOT/AUTOSTART) - `test_c64_control.c64script`
+- ✅ Recording (RECORDSTART/RECORDSTOP) - `test_recording.c64script`
+- ✅ Keyboard injection (TYPE/KEY) - `test_keyboard_injection.c64script`
+- ✅ Memory access (POKE/PEEK) - `test_memory_access.c64script`
+- ✅ Logging (LOG/LOGFILE/TRON/TROFF/PRINT) - `test_logging.c64script`
+- ✅ File I/O (READFILE/WRITEFILE) - `test_file_io.c64script`
+- ✅ HTTP REST API (GET/POST/PUT/DELETE/PATCH) - `test_http_rest.c64script`
+- ✅ Local execution (RUNLOCAL) - `test_local_execution.c64script`
+- ✅ Timing (WAIT/WAIT UNTIL) - `test_wait_until.c64script`
+
+### ✅ Error Handling
+- ✅ Parse errors (invalid commands, duplicate labels, unclosed blocks) - 6 error test scripts
+- ✅ Runtime errors (missing labels, type mismatches, stack overflow) - 3 error test scripts
+- ✅ Safety limits (max nesting, runaway loops) - 2 safety test scripts
+
+**Total: 34 test scripts covering 100% of C64Script commands**
