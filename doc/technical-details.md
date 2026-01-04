@@ -1,12 +1,14 @@
-# Escape Key Behavior
+# Technical Details
 
-## Overview
+This document contains technical implementation details for various features of the c64stream plugin.
+
+## Keyboard Control
+
+### Escape Key Behavior
 
 When keyboard capture is active (OBS interact mode), the Escape key provides special control functions for the C64.
 
-## Key Combinations
-
-### Escape (alone)
+#### Escape (alone)
 **Function:** BASIC Warm Start
 
 **Behavior:**
@@ -23,7 +25,7 @@ When keyboard capture is active (OBS interact mode), the Escape key provides spe
 
 **Use Case:** Break out of a running BASIC program without losing your work.
 
-### Ctrl+Escape
+#### Ctrl+Escape
 **Function:** C64 Reset
 
 **Behavior:**
@@ -37,15 +39,15 @@ When keyboard capture is active (OBS interact mode), the Escape key provides spe
 
 **Use Case:** Fully reset the C64 to start fresh.
 
-## Keyboard Capture
+### Keyboard Capture
 
 - Keyboard capture is automatically active when the source is in OBS interact mode
 - No manual toggle is required
 - Focus the C64 source in OBS to enable keyboard capture
 - Unfocus or switch sources to disable keyboard capture
 
-## Notes
+### Implementation Notes
 
 - The 40ms delay for BASIC warm start occurs in the keyboard worker thread and **does not** affect video/audio processing
-- Both operations are safe to perform repeatedly
+- Both Escape operations are safe to perform repeatedly
 - Original IRQ vector is always restored after warm start
