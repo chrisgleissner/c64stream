@@ -592,6 +592,80 @@ cd tests/e2e && python3 -m pytest test_*.py -v
 - **Local:** Full validation including GUI, rendering, and real-world scenarios
 - **Both required:** CI must pass before merge, local E2E required for behavior changes
 
+## C64Script Development
+
+### Language Architecture
+
+C64Script is a BASIC-inspired scripting language with modern control flow. The implementation follows a classic compiler pipeline:
+
+1. **Lexer** (`c64-script-token.c`) - Tokenizes source text into tokens
+2. **Parser** (`c64-script-parser.c`) - Builds Abstract Syntax Tree (AST) from tokens
+3. **Compiler** (`c64-script-bytecode.c`) - Generates bytecode from AST
+4. **Runtime** (`c64-script-runtime.c`) - Manages variables, stacks, and execution state
+5. **VM** (`c64-script-vm.c`) - Executes bytecode instructions
+6. **Executor** (`c64-script-executor.c`) - Manages script lifecycle in OBS context
+
+### Script Debugging Features
+
+The debugging system provides source-level debugging without exposing VM internals:
+
+**Controls** (in `c64-properties.c`):
+- Start/Stop - Unified button with state-aware labels
+- Pause/Resume - Pauses at source-line boundaries
+- Step - Executes one source line when paused
+- Log variables - Dumps all variables to OBS log
+
+**Line Tracking** (in `c64-script-vm.c`):
+- `last_executed_line` - Updated after each instruction completes
+- `next_line_to_execute` - Set before executing next instruction
+- `source_line` field in bytecode tracks original line numbers
+
+**Pause Implementation**:
+```c
+// VM checks for pause at source-line boundaries
+if (runtime->should_pause && current_line != runtime->last_executed_line) {
+    runtime->is_paused = true;
+    while (runtime->is_paused && !runtime->should_stop) {
+        os_sleep_ms(10);  // Don't busy-wait
+        if (runtime->step_mode) {
+            runtime->step_mode = false;
+            break;  // Execute one line
+        }
+    }
+}
+```
+
+**Wait Command Handling**:
+- `WAIT` and `WAIT UNTIL` commands check `step_mode` and `is_paused`
+- In debug mode, waits return immediately to avoid blocking
+- Normal wait behavior resumes when script continues running
+
+### Testing Scripts
+
+Unit tests in `tests/test_c64script_debug.c` validate:
+- Pause/resume state transitions
+- Step mode execution
+- Line tracking accuracy
+- Variable logging
+- Wait command behavior in debug mode
+
+Example test:
+```c
+TEST(pause_and_resume) {
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    runtime->should_pause = true;  // Request pause
+    // VM will set is_paused when it encounters a new line
+    runtime->is_paused = false;    // Resume
+    c64script_runtime_destroy(runtime);
+}
+```
+
+### Language Reference
+
+- **Full Spec:** [`doc/script-spec.md`](script-spec.md) - Complete language reference
+- **Debugging:** [`doc/script-debugging.md`](script-debugging.md) - Debug workflows and tips
+- **Examples:** [`data/scripts/`](../data/scripts/) - Demo scripts and hello world
+
 ## Contributing
 
 1. Fork repository

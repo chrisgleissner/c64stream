@@ -26,6 +26,8 @@ The plugin connects directly to the Ultimate's network interface, eliminating th
 - **Authentic CRT effects** with configurable presets (scan lines, bloom, tint, pixel geometry)
 - Built-in recording capabilities (BMP frames, AVI video, WAV audio)
 - **Keyboard capture** - click "Interact" button below preview to type directly into C64
+- **C64Script automation** - BASIC-like scripting language for controlling your stream
+- **Source-level debugging** - pause, step, and inspect scripts with minimal debug controls
 
 ## Configuration
 
@@ -446,6 +448,76 @@ Control your Ultimate 64 remotely from within OBS Studio, enabling keyboard inpu
 
 - Injection uses DMA memory writes to C64 keyboard buffer at `$0277-$0280` (10 bytes max)
 - Worker thread handles asynchronous REST operations without blocking OBS UI/render threads
+
+### C64Script Automation 🤖
+
+Automate your C64 stream with C64Script - a modernized BASIC-like language designed specifically for stream control.
+
+**What is C64Script?**
+
+C64Script is like a simplified, modernized version of Commodore BASIC. If you've ever typed `10 PRINT "HELLO"` on a C64, you'll feel right at home. The language lets you:
+
+- Control visual effects and palettes
+- Play SID music and run programs
+- Type text and press keys automatically
+- Wait for specific times or conditions
+- Use variables, loops, and conditional logic
+
+**Quick Start Example - Hello World:**
+
+```basic
+REM Your first C64Script!
+COUNTER = 0
+
+LABEL loop
+    COUNTER = COUNTER + 1
+    LOG "Count: " + STR(COUNTER)
+    WAIT 500ms
+    IF COUNTER < 5 THEN
+        GOTO loop
+    ENDIF
+
+LOG "Done!"
+```
+
+Save this as `hello_world.c64script`, load it in the Script File property, and click **Start** to run it. Check your OBS log to see the output!
+
+**Debugging Your Scripts:**
+
+The plugin includes minimal, easy-to-use debugging controls:
+
+- **Start/Stop** - Start your script from the beginning or stop it
+- **Pause/Resume** - Pause at any point to inspect what's happening
+- **Step** - Execute your script one line at a time
+- **Log variables** - See all variable values in the OBS log
+
+**Line Tracking:**
+- **Last executed** - Shows which line just ran
+- **Next to execute** - Shows which line will run next
+- **Execution state** - Shows if script is running, paused, or stopped
+
+**Try It Out:**
+
+1. In OBS, open your C64 Stream source properties
+2. Scroll to "REST Control & Automation"
+3. Set **Script File** to the included `hello_world.c64script`
+4. Click **Start** to run the script
+5. Click **Pause** and then **Step** to walk through line-by-line
+6. Click **Log variables** to see the COUNTER value
+7. Check your OBS log (View → Docks → Log Viewer) to see output
+
+**Learn More:**
+
+- **Full Language Reference:** [`doc/script-spec.md`](doc/script-spec.md) - Complete C64Script language documentation
+- **Debugging Guide:** [`doc/script-debugging.md`](doc/script-debugging.md) - Detailed debugging workflows and tips
+- **Example Scripts:** [`data/scripts/`](data/scripts/) - Demo scripts showing effects, palettes, and automation
+
+**Why C64Script?**
+
+- **Familiar:** If you know BASIC, you already know most of C64Script
+- **Powerful:** Control every aspect of your stream programmatically
+- **Debuggable:** Step through scripts line-by-line to understand and fix issues
+- **Safe:** Scripts can't harm your system - they only control the plugin
 - Supports modifier keys (Shift, Ctrl, Alt, Meta) with proper PETSCII conversion
 - Automation engine uses sequential or shuffled playback with configurable duration and reset options
 - D64 autostart injects `LOAD"*",8,1\rRUN\r` after mounting
