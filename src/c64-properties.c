@@ -20,6 +20,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-keyboard.h"
 #include "c64-rest-client.h"
 #include "c64-script-executor.h"
+#include "c64-automation.h"
 #include <obs-module.h>
 #include <util/platform.h>
 #include <time.h>
@@ -58,6 +59,12 @@ static bool script_start_stop_clicked(obs_properties_t *props, obs_property_t *p
 static bool script_pause_resume_clicked(obs_properties_t *props, obs_property_t *property, void *data);
 static bool script_step_clicked(obs_properties_t *props, obs_property_t *property, void *data);
 static bool script_log_variables_clicked(obs_properties_t *props, obs_property_t *property, void *data);
+static bool script_reload_clicked(obs_properties_t *props, obs_property_t *property, void *data);
+static bool reset_all_clicked(obs_properties_t *props, obs_property_t *property, void *data);
+
+// Content automation callbacks
+static bool automation_start_stop_clicked(obs_properties_t *props, obs_property_t *property, void *data);
+static void update_automation_status_property(obs_property_t *prop, struct c64_source *context);
 static bool script_reload_clicked(obs_properties_t *props, obs_property_t *property, void *data);
 static bool reset_all_clicked(obs_properties_t *props, obs_property_t *property, void *data);
 
@@ -221,152 +228,6 @@ static inline void c64_set_bool(obs_data_t *settings, const char *key, bool valu
     }
 }
 
-// Sanity check button callback
-static bool sanity_check_clicked(obs_properties_t *props, obs_property_t *property, void *data)
-{
-    UNUSED_PARAMETER(props);
-    UNUSED_PARAMETER(property);
-
-    struct c64_source *context = (struct c64_source *)data;
-    if (!context) {
-        C64_LOG_ERROR("🔍 SANITY CHECK: Invalid context");
-        return false;
-    }
-
-    // Get current test color index from context (cycles through C64 colors)
-    static const uint8_t c64_colors[] = {
-        1,  // White
-        2,  // Red
-        3,  // Cyan
-        4,  // Purple
-        5,  // Green
-        6,  // Blue
-        7,  // Yellow
-        8,  // Orange
-        9,  // Brown
-        10, // Light Red
-        11, // Dark Gray
-        12, // Gray
-        13, // Light Green
-        14, // Light Blue
-        15, // Light Gray
-        0   // Black
-    };
-    const int num_colors = sizeof(c64_colors) / sizeof(c64_colors[0]);
-
-    // Increment and wrap color index
-    context->test_dma_color_index = (context->test_dma_color_index + 1) % num_colors;
-    uint8_t current_color = c64_colors[context->test_dma_color_index];
-
-    const char *color_names[] = {"White",     "Red",    "Cyan",        "Purple",     "Green",
-                                 "Blue",      "Yellow", "Orange",      "Brown",      "Light Red",
-                                 "Dark Gray", "Gray",   "Light Green", "Light Gray", "Black"};
-    const char *color_name = color_names[context->test_dma_color_index];
-
-    C64_LOG_INFO("🔍 SANITY CHECK: Starting validation...");
-
-    // Check REST client
-    if (!context->rest_client) {
-        C64_LOG_ERROR("🔍 SANITY CHECK: REST client not initialized - cannot test C64U connectivity");
-        return true;
-    }
-
-    C64_LOG_INFO("🔍 SANITY CHECK: REST client OK (base URL: %s)", context->rest_base_url);
-
-    // Test actual C64U memory write/read
-    const char *test_message = "HELLO WORLD FROM C64STREAM";
-    size_t msg_len = strlen(test_message);
-    uint16_t video_ram_addr = 0x0400; // C64 video RAM start
-    uint16_t color_ram_addr = 0xD800; // C64 color RAM start
-
-    // PETSCII codes for the message (convert ASCII to PETSCII)
-    uint8_t petscii_data[64];
-    for (size_t i = 0; i < msg_len && i < sizeof(petscii_data); i++) {
-        char c = test_message[i];
-        if (c >= 'a' && c <= 'z') {
-            petscii_data[i] = (uint8_t)(c - 'a' + 1); // lowercase -> PETSCII uppercase
-        } else if (c >= 'A' && c <= 'Z') {
-            petscii_data[i] = (uint8_t)(c - 'A' + 1); // uppercase -> PETSCII uppercase
-        } else if (c == ' ') {
-            petscii_data[i] = 32;
-        } else {
-            petscii_data[i] = (uint8_t)c; // Other characters as-is
-        }
-    }
-
-    // Use current color from color cycling
-    uint8_t color_data[64];
-    memset(color_data, current_color, msg_len);
-
-    // Write to video RAM
-    C64_LOG_INFO("🔍 SANITY CHECK: Writing '%s' to video RAM $%04X in %s...", test_message, video_ram_addr, color_name);
-    if (!c64_rest_write_memory(context->rest_client, video_ram_addr, petscii_data, msg_len)) {
-        C64_LOG_ERROR("🔍 SANITY CHECK: Failed to write to video RAM - REST call failed");
-        return true;
-    }
-
-    // Write to color RAM
-    C64_LOG_INFO("🔍 SANITY CHECK: Writing %s color to color RAM $%04X...", color_name, color_ram_addr);
-    if (!c64_rest_write_memory(context->rest_client, color_ram_addr, color_data, msg_len)) {
-        C64_LOG_ERROR("🔍 SANITY CHECK: Failed to write to color RAM - REST call failed");
-        return true;
-    }
-
-    // Read back video RAM to verify
-    uint8_t read_buffer[64];
-    C64_LOG_INFO("🔍 SANITY CHECK: Reading back video RAM to verify...");
-    int bytes_read =
-        c64_rest_read_memory(context->rest_client, video_ram_addr, msg_len, read_buffer, sizeof(read_buffer));
-    if (bytes_read < 0) {
-        C64_LOG_ERROR("🔍 SANITY CHECK: Failed to read video RAM - REST call failed");
-        return true;
-    }
-
-    // Verify content
-    bool match = (bytes_read == (int)msg_len);
-    if (match) {
-        for (size_t i = 0; i < msg_len; i++) {
-            if (read_buffer[i] != petscii_data[i]) {
-                match = false;
-                break;
-            }
-        }
-    }
-
-    if (match) {
-        C64_LOG_INFO("🔍 SANITY CHECK: ✅ Memory test PASSED - message written and verified!");
-    } else {
-        C64_LOG_ERROR("🔍 SANITY CHECK: ❌ Memory test FAILED - read data doesn't match written data");
-    }
-
-    // Check keyboard capture
-    if (!context->keyboard) {
-        C64_LOG_WARNING("🔍 SANITY CHECK: Keyboard module not initialized");
-    } else {
-        C64_LOG_INFO("🔍 SANITY CHECK: Keyboard OK (enabled=%d, active=%d)", context->keyboard_capture_enabled,
-                     context->keyboard_capture_active);
-    }
-
-    // Check keymap
-    if (!context->keymap) {
-        C64_LOG_WARNING("🔍 SANITY CHECK: Keymap not loaded - keyboard capture will not work!");
-        C64_LOG_WARNING("🔍 SANITY CHECK: Set a keymap in Remote Control > Keyboard Keymap setting");
-    } else {
-        C64_LOG_INFO("🔍 SANITY CHECK: Keymap OK (%s)", context->keyboard_keymap_name);
-    }
-
-    // Check network streaming
-    if (!context->streaming) {
-        C64_LOG_WARNING("🔍 SANITY CHECK: Not currently streaming from C64");
-    } else {
-        C64_LOG_INFO("🔍 SANITY CHECK: Streaming active (C64: %s, video port: %u, audio port: %u)", context->ip_address,
-                     context->video_port, context->audio_port);
-    }
-
-    C64_LOG_INFO("🔍 SANITY CHECK: Validation complete");
-    return true;
-}
-
 // Script automation button callbacks
 static bool script_start_stop_clicked(obs_properties_t *props, obs_property_t *property, void *data)
 {
@@ -391,40 +252,41 @@ static bool script_start_stop_clicked(obs_properties_t *props, obs_property_t *p
         context->script_ended_successfully = false; // User stopped it
         C64_LOG_INFO("Script stopped by user");
         context->force_ui_update = true; // Force immediate UI update
-        return true;
-    }
-
-    // Otherwise, start the script
-    if (context->script_file_path[0] == '\0') {
-        C64_LOG_WARNING("No script file selected");
-        return false;
-    }
-
-    // Create executor if needed
-    if (!context->script_executor) {
-        context->script_executor = c64_script_executor_create(context->source);
-        if (!context->script_executor) {
-            C64_LOG_ERROR("Failed to create script executor");
+    } else {
+        // Otherwise, start the script
+        if (context->script_file_path[0] == '\0') {
+            C64_LOG_WARNING("No script file selected");
             return false;
+        }
+
+        // Create executor if needed
+        if (!context->script_executor) {
+            context->script_executor = c64_script_executor_create(context->source);
+            if (!context->script_executor) {
+                C64_LOG_ERROR("Failed to create script executor");
+                return false;
+            }
+        }
+
+        // Start execution
+        context->script_start_time = os_gettime_ns();
+        context->script_end_time = 0;
+        context->last_script_status = C64_SCRIPT_STATUS_IDLE;
+        if (c64_script_executor_start(context->script_executor, context->script_file_path)) {
+            C64_LOG_INFO("Script started: %s", context->script_file_path);
+            context->last_script_status = C64_SCRIPT_STATUS_RUNNING;
+            context->force_ui_update = true; // Force immediate UI update
+        } else {
+            const char *err = c64_script_executor_get_error(context->script_executor);
+            C64_LOG_ERROR("Failed to start script: %s", err ? err : "unknown error");
+            context->script_end_time = os_gettime_ns();
+            context->script_ended_successfully = false;
+            context->force_ui_update = true; // Force immediate UI update
         }
     }
 
-    // Start execution
-    context->script_start_time = os_gettime_ns();
-    context->script_end_time = 0;
-    context->last_script_status = C64_SCRIPT_STATUS_IDLE;
-    if (c64_script_executor_start(context->script_executor, context->script_file_path)) {
-        C64_LOG_INFO("Script started: %s", context->script_file_path);
-        context->last_script_status = C64_SCRIPT_STATUS_RUNNING;
-        context->force_ui_update = true; // Force immediate UI update
-    } else {
-        const char *err = c64_script_executor_get_error(context->script_executor);
-        C64_LOG_ERROR("Failed to start script: %s", err ? err : "unknown error");
-        context->script_end_time = os_gettime_ns();
-        context->script_ended_successfully = false;
-        context->force_ui_update = true; // Force immediate UI update
-    }
-
+    // Refresh properties UI to update button labels and status
+    obs_source_update_properties(context->source);
     return true; // Refresh properties
 }
 
@@ -450,6 +312,8 @@ static bool script_pause_resume_clicked(obs_properties_t *props, obs_property_t 
         context->force_ui_update = true; // Force immediate UI update
     }
 
+    // Refresh properties UI to update button labels and status
+    obs_source_update_properties(context->source);
     return true; // Refresh properties
 }
 
@@ -468,6 +332,8 @@ static bool script_step_clicked(obs_properties_t *props, obs_property_t *propert
         context->force_ui_update = true; // Force immediate UI update
     }
 
+    // Refresh properties UI to update button labels and status
+    obs_source_update_properties(context->source);
     return true; // Refresh properties
 }
 
@@ -565,15 +431,103 @@ static bool reset_all_clicked(obs_properties_t *props, obs_property_t *property,
     return true; // Refresh properties UI
 }
 
+// Content automation button callbacks
+static bool automation_start_stop_clicked(obs_properties_t *props, obs_property_t *property, void *data)
+{
+    UNUSED_PARAMETER(props);
+    UNUSED_PARAMETER(property);
+
+    struct c64_source *context = (struct c64_source *)data;
+    if (!context) {
+        return false;
+    }
+
+    // Check if automation is running
+    bool is_running = context->automation && c64_automation_is_running(context->automation);
+
+    if (is_running) {
+        // Stop automation
+        c64_automation_stop(context->automation);
+        C64_LOG_INFO("Content automation stopped by user");
+    } else {
+        // Start automation - first validate configuration
+        obs_data_t *settings = obs_source_get_settings(context->source);
+        const char *path = obs_data_get_string(settings, "automation_path");
+
+        if (!path || path[0] == '\0') {
+            C64_LOG_WARNING("No file/folder path specified for automation");
+            obs_data_release(settings);
+            return false;
+        }
+
+        // Auto-detect mode: if path ends with known extension, it's a file; otherwise folder
+        int mode = 1; // Default to single file
+        const char *ext = strrchr(path, '.');
+        if (!ext || (strcmp(ext, ".sid") != 0 && strcmp(ext, ".prg") != 0 && strcmp(ext, ".d64") != 0)) {
+            mode = 2; // Folder mode
+        }
+
+        // Create automation engine if needed
+        if (!context->automation) {
+            context->automation = c64_automation_create(context->rest_client, context->keyboard);
+            if (!context->automation) {
+                C64_LOG_ERROR("Failed to create automation engine");
+                obs_data_release(settings);
+                return false;
+            }
+        }
+
+        // Configure automation from settings
+        c64_automation_config_t config = {0};
+        config.mode = mode;
+        config.file_source = (int)obs_data_get_int(settings, "file_source");
+        strncpy(config.folder_path, path, sizeof(config.folder_path) - 1);
+        config.shuffle = obs_data_get_bool(settings, "automation_shuffle");
+        config.duration_seconds = (int)obs_data_get_int(settings, "automation_duration");
+        config.reset_between_items = obs_data_get_bool(settings, "automation_reset");
+        strncpy(config.d64_autostart_template, "LOAD\"*\",8,1\rRUN\r", sizeof(config.d64_autostart_template) - 1);
+
+        c64_automation_configure(context->automation, &config);
+        obs_data_release(settings);
+
+        // Start automation
+        if (c64_automation_start(context->automation)) {
+            C64_LOG_INFO("Content automation started");
+        } else {
+            C64_LOG_ERROR("Failed to start content automation");
+        }
+    }
+
+    return true; // Refresh properties
+}
+
+static void update_automation_status_property(obs_property_t *prop, struct c64_source *context)
+{
+    if (!prop || !context) {
+        return;
+    }
+
+    if (!context->automation) {
+        obs_property_set_description(prop, "Status: Not initialized");
+        return;
+    }
+
+    const char *status = c64_automation_get_status(context->automation);
+    char status_text[512];
+
+    if (status && status[0]) {
+        snprintf(status_text, sizeof(status_text), "Status: %s", status);
+    } else {
+        snprintf(status_text, sizeof(status_text), "Status: Idle");
+    }
+
+    obs_property_set_description(prop, status_text);
+}
+
 obs_properties_t *c64_create_properties(void *data)
 {
     struct c64_source *context = (struct c64_source *)data;
     obs_properties_t *props = obs_properties_create();
-
-    // Reset Test DMA color index to white when properties are opened
-    if (context) {
-        context->test_dma_color_index = 0; // White
-    }
 
     // General Group
     obs_property_t *info_group = obs_properties_add_group(props, "info_group", obs_module_text("PluginInformation"),
@@ -585,6 +539,73 @@ obs_properties_t *c64_create_properties(void *data)
         obs_properties_add_text(info_props, "version_info", obs_module_text("Version"), OBS_TEXT_INFO);
     obs_property_set_long_description(version_prop, c64_get_build_info());
     obs_property_text_set_info_type(version_prop, OBS_TEXT_INFO_NORMAL);
+
+    // Import/Export Settings
+    // Set initialization flag to prevent auto-import/export during properties UI setup
+    {
+        obs_data_t *init_settings = obs_source_get_settings(context->source);
+        obs_data_set_bool(init_settings, C64_CONFIG_INITIALIZING_KEY, true);
+        obs_data_release(init_settings);
+    }
+
+    // Import settings (INI) - action triggers immediately when file is selected
+    obs_property_t *import_path_prop = obs_properties_add_path(info_props, C64_CONFIG_IMPORT_PATH_KEY,
+                                                               obs_module_text("ImportSettings"), OBS_PATH_FILE,
+                                                               "INI Files (*.ini);;All Files (*.*)", NULL);
+    obs_property_set_long_description(import_path_prop, obs_module_text("ImportSettings.Description"));
+
+    // Set default directory path BEFORE registering callback to avoid triggering it
+    {
+        char settings_dir[512];
+        if (c64_get_user_dir(C64_USER_DIR_SETTINGS, settings_dir, sizeof(settings_dir))) {
+            // Ensure trailing slash to clearly indicate directory
+            size_t len = strlen(settings_dir);
+            if (len > 0 && len < sizeof(settings_dir) - 2 && settings_dir[len - 1] != '/' &&
+                settings_dir[len - 1] != '\\') {
+                settings_dir[len] = '/';
+                settings_dir[len + 1] = '\0';
+            }
+            obs_data_t *path_settings = obs_source_get_settings(context->source);
+            obs_data_set_default_string(path_settings, C64_CONFIG_IMPORT_PATH_KEY, settings_dir);
+            obs_data_release(path_settings);
+        }
+    }
+
+    obs_property_set_modified_callback(import_path_prop, config_import_path_changed);
+
+    // Export settings (INI) - action triggers immediately when destination is selected
+    obs_property_t *export_path_prop = obs_properties_add_path(info_props, C64_CONFIG_EXPORT_PATH_KEY,
+                                                               obs_module_text("ExportSettings"), OBS_PATH_FILE_SAVE,
+                                                               "INI Files (*.ini);;All Files (*.*)", NULL);
+    obs_property_set_long_description(export_path_prop, obs_module_text("ExportSettings.Description"));
+
+    // Set default directory path BEFORE registering callback to avoid triggering it
+    // CRITICAL: Use DIRECTORY (with trailing slash), not filename, to prevent spurious export
+    // If we set a filename, the callback might trigger and create the file automatically
+    {
+        char settings_dir[512];
+        if (c64_get_user_dir(C64_USER_DIR_SETTINGS, settings_dir, sizeof(settings_dir))) {
+            // Ensure trailing slash to clearly indicate directory
+            size_t len = strlen(settings_dir);
+            if (len > 0 && len < sizeof(settings_dir) - 2 && settings_dir[len - 1] != '/' &&
+                settings_dir[len - 1] != '\\') {
+                settings_dir[len] = '/';
+                settings_dir[len + 1] = '\0';
+            }
+            obs_data_t *path_settings = obs_source_get_settings(context->source);
+            obs_data_set_default_string(path_settings, C64_CONFIG_EXPORT_PATH_KEY, settings_dir);
+            obs_data_release(path_settings);
+        }
+    }
+
+    obs_property_set_modified_callback(export_path_prop, config_export_path_changed);
+
+    // Clear initialization flag now that properties UI setup is complete
+    {
+        obs_data_t *init_settings = obs_source_get_settings(context->source);
+        obs_data_erase(init_settings, C64_CONFIG_INITIALIZING_KEY);
+        obs_data_release(init_settings);
+    }
 
     UNUSED_PARAMETER(context);
 
@@ -631,6 +652,11 @@ obs_properties_t *c64_create_properties(void *data)
     obs_property_t *delay_prop =
         obs_properties_add_int_slider(network_props, "buffer_delay_ms", obs_module_text("BufferDelay"), 0, 500, 1);
     obs_property_set_long_description(delay_prop, obs_module_text("BufferDelay.Description"));
+
+    // REST API Password (hidden input)
+    obs_property_t *rest_pass_prop =
+        obs_properties_add_text(network_props, "rest_password", obs_module_text("RESTPassword"), OBS_TEXT_PASSWORD);
+    obs_property_set_long_description(rest_pass_prop, obs_module_text("RESTPassword.Description"));
 
     // Recording Group
     obs_property_t *recording_group = obs_properties_add_group(props, "recording_group", obs_module_text("Recording"),
@@ -893,91 +919,10 @@ obs_properties_t *c64_create_properties(void *data)
 
     obs_property_set_long_description(tint_strength_prop, obs_module_text("TintStrength.Description"));
 
-    // Import/Export Group
-    obs_property_t *importexport_group = obs_properties_add_group(
-        props, "importexport_group", obs_module_text("ImportExport"), OBS_GROUP_NORMAL, obs_properties_create());
-    obs_properties_t *importexport_props = obs_property_group_content(importexport_group);
-
-    // Set initialization flag to prevent auto-import/export during properties UI setup
-    {
-        obs_data_t *init_settings = obs_source_get_settings(context->source);
-        obs_data_set_bool(init_settings, C64_CONFIG_INITIALIZING_KEY, true);
-        obs_data_release(init_settings);
-    }
-
-    // Import settings (INI) - action triggers immediately when file is selected
-    obs_property_t *import_path_prop = obs_properties_add_path(importexport_props, C64_CONFIG_IMPORT_PATH_KEY,
-                                                               obs_module_text("ImportSettings"), OBS_PATH_FILE,
-                                                               "INI Files (*.ini);;All Files (*.*)", NULL);
-    obs_property_set_long_description(import_path_prop, obs_module_text("ImportSettings.Description"));
-
-    // Set default directory path BEFORE registering callback to avoid triggering it
-    {
-        char settings_dir[512];
-        if (c64_get_user_dir(C64_USER_DIR_SETTINGS, settings_dir, sizeof(settings_dir))) {
-            // Ensure trailing slash to clearly indicate directory
-            size_t len = strlen(settings_dir);
-            if (len > 0 && len < sizeof(settings_dir) - 2 && settings_dir[len - 1] != '/' &&
-                settings_dir[len - 1] != '\\') {
-                settings_dir[len] = '/';
-                settings_dir[len + 1] = '\0';
-            }
-            obs_data_t *path_settings = obs_source_get_settings(context->source);
-            obs_data_set_default_string(path_settings, C64_CONFIG_IMPORT_PATH_KEY, settings_dir);
-            obs_data_release(path_settings);
-        }
-    }
-
-    obs_property_set_modified_callback(import_path_prop, config_import_path_changed);
-
-    // Export settings (INI) - action triggers immediately when destination is selected
-    obs_property_t *export_path_prop = obs_properties_add_path(importexport_props, C64_CONFIG_EXPORT_PATH_KEY,
-                                                               obs_module_text("ExportSettings"), OBS_PATH_FILE_SAVE,
-                                                               "INI Files (*.ini);;All Files (*.*)", NULL);
-    obs_property_set_long_description(export_path_prop, obs_module_text("ExportSettings.Description"));
-
-    // Set default directory path BEFORE registering callback to avoid triggering it
-    // CRITICAL: Use DIRECTORY (with trailing slash), not filename, to prevent spurious export
-    // If we set a filename, the callback might trigger and create the file automatically
-    {
-        char settings_dir[512];
-        if (c64_get_user_dir(C64_USER_DIR_SETTINGS, settings_dir, sizeof(settings_dir))) {
-            // Ensure trailing slash to clearly indicate directory
-            size_t len = strlen(settings_dir);
-            if (len > 0 && len < sizeof(settings_dir) - 2 && settings_dir[len - 1] != '/' &&
-                settings_dir[len - 1] != '\\') {
-                settings_dir[len] = '/';
-                settings_dir[len + 1] = '\0';
-            }
-            obs_data_t *path_settings = obs_source_get_settings(context->source);
-            obs_data_set_default_string(path_settings, C64_CONFIG_EXPORT_PATH_KEY, settings_dir);
-            obs_data_release(path_settings);
-        }
-    }
-
-    obs_property_set_modified_callback(export_path_prop, config_export_path_changed);
-
-    // Clear initialization flag now that properties UI setup is complete
-    {
-        obs_data_t *init_settings = obs_source_get_settings(context->source);
-        obs_data_erase(init_settings, C64_CONFIG_INITIALIZING_KEY);
-        obs_data_release(init_settings);
-    }
-
     // Remote Control group
     obs_property_t *rest_group = obs_properties_add_group(props, "rest_group", obs_module_text("RemoteControl"),
                                                           OBS_GROUP_NORMAL, obs_properties_create());
     obs_properties_t *rest_props = obs_property_group_content(rest_group);
-
-    // REST password (hidden input)
-    obs_property_t *rest_pass_prop =
-        obs_properties_add_text(rest_props, "rest_password", obs_module_text("RESTPassword"), OBS_TEXT_PASSWORD);
-    obs_property_set_long_description(rest_pass_prop, obs_module_text("RESTPassword.Description"));
-
-    // Keyboard capture enable
-    obs_property_t *kb_enable_prop =
-        obs_properties_add_bool(rest_props, "keyboard_capture_enabled", obs_module_text("KeyboardCaptureEnabled"));
-    obs_property_set_long_description(kb_enable_prop, obs_module_text("KeyboardCaptureEnabled.Description"));
 
     // Keymap selection - dynamically populated
     obs_property_t *keymap_prop = obs_properties_add_list(
@@ -1010,14 +955,6 @@ obs_properties_t *c64_create_properties(void *data)
         obs_property_list_add_string(keymap_prop, "Positional US", "positional_us");
     }
 
-    // Automation mode
-    obs_property_t *automation_mode_prop = obs_properties_add_list(
-        rest_props, "automation_mode", obs_module_text("AutomationMode"), OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
-    obs_property_set_long_description(automation_mode_prop, obs_module_text("AutomationMode.Description"));
-    obs_property_list_add_int(automation_mode_prop, obs_module_text("AutomationMode.Disabled"), 0);
-    obs_property_list_add_int(automation_mode_prop, obs_module_text("AutomationMode.SingleFile"), 1);
-    obs_property_list_add_int(automation_mode_prop, obs_module_text("AutomationMode.Folder"), 2);
-
     // File source (Local Filesystem vs C64U Filesystem)
     obs_property_t *file_source_prop = obs_properties_add_list(rest_props, "file_source", obs_module_text("FileSource"),
                                                                OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
@@ -1025,9 +962,9 @@ obs_properties_t *c64_create_properties(void *data)
     obs_property_list_add_int(file_source_prop, obs_module_text("FileSource.Local"), 0);
     obs_property_list_add_int(file_source_prop, obs_module_text("FileSource.C64U"), 1);
 
-    // Automation file/folder path
-    obs_property_t *auto_path_prop = obs_properties_add_path(
-        rest_props, "automation_path", obs_module_text("AutomationPath"), OBS_PATH_FILE, "All Files (*.*)", NULL);
+    // Automation file/folder path - editable text field that accepts both files and folders
+    obs_property_t *auto_path_prop =
+        obs_properties_add_text(rest_props, "automation_path", obs_module_text("AutomationPath"), OBS_TEXT_DEFAULT);
     obs_property_set_long_description(auto_path_prop, obs_module_text("AutomationPath.Description"));
 
     // Automation shuffle
@@ -1045,14 +982,42 @@ obs_properties_t *c64_create_properties(void *data)
         obs_properties_add_bool(rest_props, "automation_reset", obs_module_text("AutomationReset"));
     obs_property_set_long_description(auto_reset_prop, obs_module_text("AutomationReset.Description"));
 
+    // Automation status display
+    obs_property_t *auto_status_prop =
+        obs_properties_add_text(rest_props, "automation_status", obs_module_text("AutomationStatus"), OBS_TEXT_INFO);
+    update_automation_status_property(auto_status_prop, context);
+
+    // Get automation status to determine button state
+    bool automation_running = false;
+    if (context->automation) {
+        automation_running = c64_automation_is_running((c64_automation_t *)context->automation);
+    }
+
+    // Start/Stop button - label changes based on state
+    obs_property_t *auto_start_stop_prop = obs_properties_add_button(
+        rest_props, "automation_start_stop", obs_module_text("AutomationStartStop"), automation_start_stop_clicked);
+    obs_property_set_long_description(auto_start_stop_prop, automation_running
+                                                                ? obs_module_text("AutomationStartStop.Stop")
+                                                                : obs_module_text("AutomationStartStop.Start"));
+
+    // Reset all button
+    obs_property_t *reset_all_prop =
+        obs_properties_add_button(rest_props, "reset_all", obs_module_text("ResetAll"), reset_all_clicked);
+    obs_property_set_long_description(reset_all_prop, obs_module_text("ResetAll.Description"));
+
+    // Script Group
+    obs_property_t *script_group = obs_properties_add_group(props, "script_group", obs_module_text("Script"),
+                                                            OBS_GROUP_NORMAL, obs_properties_create());
+    obs_properties_t *script_props = obs_property_group_content(script_group);
+
     // Script Automation
-    obs_property_t *script_file_prop = obs_properties_add_path(rest_props, "script_file", obs_module_text("ScriptFile"),
-                                                               OBS_PATH_FILE,
+    obs_property_t *script_file_prop = obs_properties_add_path(script_props, "script_file",
+                                                               obs_module_text("ScriptFile"), OBS_PATH_FILE,
                                                                "C64 Script (*.c64script);;All Files (*.*)", NULL);
     obs_property_set_long_description(script_file_prop, obs_module_text("ScriptFile.Description"));
 
     obs_property_t *script_status_prop =
-        obs_properties_add_text(rest_props, "script_status", obs_module_text("ScriptStatus"), OBS_TEXT_INFO);
+        obs_properties_add_text(script_props, "script_status", obs_module_text("ScriptStatus"), OBS_TEXT_INFO);
     update_script_status_property(script_status_prop, context);
 
     // Get current script status for button labels and visibility
@@ -1092,32 +1057,30 @@ obs_properties_t *c64_create_properties(void *data)
     }
 
     // Start/Stop button - label changes based on state
-    const char *start_stop_label = is_running_or_paused ? "Stop" : "Start";
-    obs_property_t *script_start_stop_prop =
-        obs_properties_add_button(rest_props, "script_start_stop", start_stop_label, script_start_stop_clicked);
+    obs_property_t *script_start_stop_prop = obs_properties_add_button(
+        script_props, "script_start_stop", obs_module_text("ScriptStartStop"), script_start_stop_clicked);
     obs_property_set_long_description(script_start_stop_prop, is_running_or_paused
-                                                                  ? "Stop the currently running script"
-                                                                  : "Start executing the selected script");
+                                                                  ? obs_module_text("ScriptStartStop.Stop")
+                                                                  : obs_module_text("ScriptStartStop.Start"));
 
     // Pause/Resume button - label changes based on state
-    const char *pause_resume_label = (current_status == C64_SCRIPT_STATUS_PAUSED) ? "Resume" : "Pause";
-    obs_property_t *script_pause_resume_prop =
-        obs_properties_add_button(rest_props, "script_pause_resume", pause_resume_label, script_pause_resume_clicked);
+    obs_property_t *script_pause_resume_prop = obs_properties_add_button(
+        script_props, "script_pause_resume", obs_module_text("ScriptPauseResume"), script_pause_resume_clicked);
     obs_property_set_long_description(script_pause_resume_prop, (current_status == C64_SCRIPT_STATUS_PAUSED)
-                                                                    ? "Resume script execution"
-                                                                    : "Pause script execution");
+                                                                    ? obs_module_text("ScriptPauseResume.Resume")
+                                                                    : obs_module_text("ScriptPauseResume.Pause"));
     obs_property_set_enabled(script_pause_resume_prop, is_running_or_paused);
 
     // Step button - only enabled when paused
     obs_property_t *script_step_prop =
-        obs_properties_add_button(rest_props, "script_step", "Step", script_step_clicked);
-    obs_property_set_long_description(script_step_prop, "Execute next source line (when paused)");
+        obs_properties_add_button(script_props, "script_step", obs_module_text("ScriptStep"), script_step_clicked);
+    obs_property_set_long_description(script_step_prop, obs_module_text("ScriptStep.Description"));
     obs_property_set_enabled(script_step_prop, current_status == C64_SCRIPT_STATUS_PAUSED);
 
     // Log variables button
-    obs_property_t *script_log_vars_prop =
-        obs_properties_add_button(rest_props, "script_log_vars", "Log variables", script_log_variables_clicked);
-    obs_property_set_long_description(script_log_vars_prop, "Log all variables to OBS log");
+    obs_property_t *script_log_vars_prop = obs_properties_add_button(
+        script_props, "script_log_vars", obs_module_text("ScriptLogVariables"), script_log_variables_clicked);
+    obs_property_set_long_description(script_log_vars_prop, obs_module_text("ScriptLogVariables.Description"));
     obs_property_set_enabled(script_log_vars_prop, is_running_or_paused);
 
     // Execution state display
@@ -1131,10 +1094,10 @@ obs_properties_t *c64_create_properties(void *data)
     } else if (current_status == C64_SCRIPT_STATUS_COMPLETED) {
         snprintf(exec_state, sizeof(exec_state), "completed");
     }
-    obs_property_t *exec_state_prop =
-        obs_properties_add_text(rest_props, "script_exec_state", "Execution state", OBS_TEXT_INFO);
+    obs_property_t *exec_state_prop = obs_properties_add_text(script_props, "script_exec_state",
+                                                              obs_module_text("ScriptExecutionState"), OBS_TEXT_INFO);
     obs_property_text_set_info_type(exec_state_prop, OBS_TEXT_INFO_NORMAL);
-    obs_property_set_description(exec_state_prop, "Execution state");
+    obs_property_set_description(exec_state_prop, obs_module_text("ScriptExecutionState"));
     obs_property_set_long_description(exec_state_prop, exec_state);
 
     // Last executed line - always visible, throttled in normal mode
@@ -1153,7 +1116,7 @@ obs_properties_t *c64_create_properties(void *data)
         snprintf(context->cached_last_line, sizeof(context->cached_last_line), "(not started)");
     }
     obs_property_t *last_line_prop =
-        obs_properties_add_text(rest_props, "script_last_line", "Last executed", OBS_TEXT_INFO);
+        obs_properties_add_text(script_props, "script_last_line", obs_module_text("ScriptLastExecuted"), OBS_TEXT_INFO);
     obs_property_text_set_info_type(last_line_prop, OBS_TEXT_INFO_NORMAL);
     obs_property_set_long_description(last_line_prop, context->cached_last_line);
 
@@ -1173,8 +1136,8 @@ obs_properties_t *c64_create_properties(void *data)
     if (context->cached_next_line[0] == '\0') {
         snprintf(context->cached_next_line, sizeof(context->cached_next_line), "(not started)");
     }
-    obs_property_t *next_line_prop =
-        obs_properties_add_text(rest_props, "script_next_line", "Next to execute", OBS_TEXT_INFO);
+    obs_property_t *next_line_prop = obs_properties_add_text(script_props, "script_next_line",
+                                                             obs_module_text("ScriptNextToExecute"), OBS_TEXT_INFO);
     obs_property_text_set_info_type(next_line_prop, OBS_TEXT_INFO_NORMAL);
     obs_property_set_long_description(next_line_prop, context->cached_next_line);
 
@@ -1182,24 +1145,12 @@ obs_properties_t *c64_create_properties(void *data)
     if (current_status == C64_SCRIPT_STATUS_ERROR && context->script_executor) {
         const char *err = c64_script_executor_get_error(context->script_executor);
         if (err && err[0] != '\0') {
-            obs_property_t *error_prop =
-                obs_properties_add_text(rest_props, "script_error", "Last runtime error", OBS_TEXT_INFO);
+            obs_property_t *error_prop = obs_properties_add_text(script_props, "script_error",
+                                                                 obs_module_text("ScriptLastError"), OBS_TEXT_INFO);
             obs_property_text_set_info_type(error_prop, OBS_TEXT_INFO_ERROR);
             obs_property_set_long_description(error_prop, err);
         }
     }
-
-    // REST memory test button
-    obs_property_t *rest_test_prop =
-        obs_properties_add_button(rest_props, "rest_test", "Test DMA", sanity_check_clicked);
-    obs_property_set_long_description(rest_test_prop, "Test C64U connectivity by writing/reading memory via DMA");
-
-    // Reset all button
-    obs_property_t *reset_all_prop =
-        obs_properties_add_button(rest_props, "reset_all", "Reset C64Stream and C64U", reset_all_clicked);
-    obs_property_set_long_description(
-        reset_all_prop,
-        "Reset all plugin properties to defaults (from properties.ini) and send hard reset to C64 Ultimate");
 
     return props;
 }
@@ -1671,11 +1622,9 @@ void c64_set_property_defaults(obs_data_t *settings)
 
     // REST Control defaults
     obs_data_set_default_string(settings, "rest_password", "");
-    obs_data_set_default_bool(settings, "keyboard_capture_enabled", false);
     obs_data_set_default_string(settings, "keyboard_keymap", "symbolic_us");
 
-    obs_data_set_default_int(settings, "automation_mode", 0); // Disabled
-    obs_data_set_default_int(settings, "file_source", 0);     // Local Filesystem
+    obs_data_set_default_int(settings, "file_source", 0); // Local Filesystem
     obs_data_set_default_string(settings, "automation_path", "");
     obs_data_set_default_bool(settings, "automation_shuffle", false);
     obs_data_set_default_int(settings, "automation_duration", 120); // 2 minutes default

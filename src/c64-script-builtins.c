@@ -92,3 +92,15 @@ bool c64script_builtin_int(double value, double *out_value)
     *out_value = floor(value);
     return true;
 }
+
+bool c64script_builtin_str(double value, char *out_string, size_t out_size)
+{
+    if (!out_string || out_size == 0) {
+        return false;
+    }
+
+    // Convert number to string with minimal precision
+    // Remove trailing zeros and decimal point if not needed
+    snprintf(out_string, out_size, "%.10g", value);
+    return true;
+}

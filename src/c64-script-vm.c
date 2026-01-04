@@ -1110,6 +1110,34 @@ bool c64script_vm_execute(c64script_runtime_t *runtime)
             break;
         }
 
+        case OP_CALL_STR: {
+            // Pop number from stack
+            c64script_value_t num_val;
+            if (!c64script_runtime_pop(runtime, &num_val))
+                return false;
+            if (!require_number(runtime, &num_val, "STR")) {
+                c64script_value_free(&num_val);
+                return false;
+            }
+
+            // Convert number to string
+            char str_buf[64];
+            if (!c64script_builtin_str(num_val.as.number, str_buf, sizeof(str_buf))) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "STR failed");
+                c64script_value_free(&num_val);
+                return false;
+            }
+
+            // Push string result onto stack
+            c64script_value_t result_val = c64script_value_string(str_buf);
+            c64script_value_free(&num_val);
+            if (!c64script_runtime_push(runtime, result_val)) {
+                c64script_value_free(&result_val);
+                return false;
+            }
+            break;
+        }
+
         case OP_CALL_BUILTIN:
             blog(LOG_WARNING, "Generic built-in function calls not yet implemented");
             break;

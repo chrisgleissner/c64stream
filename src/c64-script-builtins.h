@@ -47,3 +47,9 @@ bool c64script_builtin_sqr(double value, double *out_value);
  * INT(value) - Floor (integer part)
  */
 bool c64script_builtin_int(double value, double *out_value);
+
+/**
+ * STR$(value) / STR(value) - Convert number to string
+ * Returns formatted string representation of number
+ */
+bool c64script_builtin_str(double value, char *out_string, size_t out_size);

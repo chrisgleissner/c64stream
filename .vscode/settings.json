@@ -105,7 +105,7 @@
 
     // Exclude c64script files from various language services
     "files.exclude": {},
-    
+
     // Explicitly disable JS/TS validation for .c64script files
     "javascript.validate.enable": true,
     "typescript.validate.enable": true,

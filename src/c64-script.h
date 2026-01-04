@@ -531,6 +531,7 @@ typedef enum {
 
     // Built-in functions
     OP_CALL_PEEK,    // PEEK(address) - REST DMA read
+    OP_CALL_STR,     // STR$(number) - Convert number to string
     OP_CALL_BUILTIN, // Generic built-in call (future)
 
     // Plugin actions

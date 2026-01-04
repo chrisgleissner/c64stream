@@ -349,6 +349,20 @@ static bool compile_expression(compiler_context_t *ctx, c64script_ast_expr_t *ex
             return true;
         }
 
+        if (strcmp(expr->as.call.name, "STR") == 0 || strcmp(expr->as.call.name, "STR$") == 0) {
+            if (expr->as.call.arg_count != 1) {
+                if (ctx->error_msg) {
+                    snprintf(ctx->error_msg, ctx->error_msg_size, "STR expects 1 argument");
+                }
+                return false;
+            }
+            if (!compile_expression(ctx, expr->as.call.args[0])) {
+                return false;
+            }
+            emit(ctx, OP_CALL_STR, 0, expr->line);
+            return true;
+        }
+
         if (ctx->error_msg) {
             snprintf(ctx->error_msg, ctx->error_msg_size, "Undefined function: %s", expr->as.call.name);
         }

@@ -32,6 +32,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-keyboard.h"
 #include "c64-rest-client.h"
 #include "c64-script-executor.h"
+#include "c64-automation.h"
 #include "plugin-support.h"
 #include "c64-effect.h"
 
@@ -591,7 +592,6 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->rest_client = NULL;
     context->keyboard = NULL;
     context->keymap = NULL;
-    context->keyboard_capture_enabled = false;
     context->keyboard_capture_active = false;
     memset(context->rest_base_url, 0, sizeof(context->rest_base_url));
     memset(context->rest_password, 0, sizeof(context->rest_password));
@@ -615,7 +615,6 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     }
 
     // Load keyboard settings and create keyboard module
-    context->keyboard_capture_enabled = obs_data_get_bool(settings, "keyboard_capture_enabled");
     const char *keymap_name = obs_data_get_string(settings, "keyboard_keymap");
     if (keymap_name && keymap_name[0] != '\0') {
         strncpy(context->keyboard_keymap_name, keymap_name, sizeof(context->keyboard_keymap_name) - 1);
@@ -649,6 +648,10 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->force_ui_update = false;
     memset(context->cached_last_line, 0, sizeof(context->cached_last_line));
     memset(context->cached_next_line, 0, sizeof(context->cached_next_line));
+
+    // Initialize content automation fields
+    context->automation = NULL;
+    memset(context->automation_status, 0, sizeof(context->automation_status));
 
     // Load script file path if set
     const char *script_path = obs_data_get_string(settings, "script_file");
@@ -704,6 +707,12 @@ void c64_destroy(void *data)
     if (context->script_executor) {
         c64_script_executor_destroy(context->script_executor);
         context->script_executor = NULL;
+    }
+
+    // Cleanup content automation
+    if (context->automation) {
+        c64_automation_destroy((c64_automation_t *)context->automation);
+        context->automation = NULL;
     }
 
     // Cleanup logo system
@@ -1571,7 +1580,7 @@ void c64_focus(void *data, bool focus)
         return;
     }
 
-    if (focus && context->keyboard_capture_enabled) {
+    if (focus) {
         // Enable capture when focused
         context->keyboard_capture_active = true;
         C64_LOG_INFO("Keyboard capture activated (source focused)");
@@ -1624,15 +1633,13 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
 
     // Check if capture is enabled
     if (!context->keyboard_capture_active) {
-        C64_LOG_DEBUG("🕹 KEYBOARD: Capture not active (enabled=%d, active=%d)", context->keyboard_capture_enabled,
-                      context->keyboard_capture_active);
+        C64_LOG_DEBUG("🕹 KEYBOARD: Capture not active (active=%d)", context->keyboard_capture_active);
         return;
     }
 
     // Ctrl+ESC disables capture (ESC alone passes through for C64 RUN/STOP)
     if (event->native_vkey == 0x1B && event->modifiers & INTERACT_CONTROL_KEY) { // VK_ESCAPE + Ctrl
         context->keyboard_capture_active = false;
-        context->keyboard_capture_enabled = false;
         C64_LOG_INFO("Keyboard capture disabled (Ctrl+ESC pressed)");
         if (context->keyboard) {
             c64_keyboard_set_capture(context->keyboard, false);

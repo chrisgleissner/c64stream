@@ -21,7 +21,7 @@ This directory contains declarative TextMate grammar files for native VS Code sy
    cp doc/c64script.tmLanguage.json ~/.vscode/extensions/c64script-syntax-0.1.0/
    cp doc/c64script-language-configuration.json ~/.vscode/extensions/c64script-syntax-0.1.0/
    cp doc/c64script-vscode-package.json ~/.vscode/extensions/c64script-syntax-0.1.0/package.json
-   
+
    # Windows
    mkdir %USERPROFILE%\.vscode\extensions\c64script-syntax-0.1.0
    copy doc\c64script.tmLanguage.json %USERPROFILE%\.vscode\extensions\c64script-syntax-0.1.0\

@@ -235,7 +235,6 @@ struct c64_source {
     c64_rest_client_t *rest_client; // REST API client
     c64_keyboard_t *keyboard;       // Keyboard capture and injection
     c64_keymap_t *keymap;           // Current keymap
-    bool keyboard_capture_enabled;  // User setting: enable keyboard capture
     bool keyboard_capture_active;   // Runtime state: capture is currently active
     char rest_base_url[256];        // REST API base URL
     char rest_password[256];        // REST API password
@@ -254,8 +253,9 @@ struct c64_source {
     char cached_last_line[512];     // Cached "last executed" line string for UI display
     char cached_next_line[512];     // Cached "next to execute" line string for UI display
 
-    // Test DMA button state
-    int test_dma_color_index; // Current color index for Test DMA button cycling (resets when properties opened)
+    // Content automation
+    void *automation;            // c64_automation_t* automation engine
+    char automation_status[256]; // Current automation status for UI display
 };
 
 #endif // C64_TYPES_H

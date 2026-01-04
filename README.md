@@ -412,13 +412,12 @@ Control your Ultimate 64 remotely from within OBS Studio, enabling keyboard inpu
 
 **Features:**
 
-- **Keyboard Capture:** Type directly into the C64 from OBS preview window with intelligent backpressure handling
+- **Keyboard Capture:** Type directly into the C64 from OBS preview window with intelligent backpressure handling to help avoid lost keystrokes
 - **Automated Playback:** Unattended playback of SID music, PRG programs, and D64 disk images with shuffle support
 - **REST API Control:** Programmatic access to C64 Ultimate functions (reset, memory access, file mounting)
 
 **Configuration:**
 
-- **REST Base URL:** Ultimate 64 REST API endpoint (e.g., `http://c64u/v1`). Leave empty to disable remote control
 - **Password:** REST API password for X-Password header authentication. Leave empty if authentication is disabled
 - **Enable Keyboard Capture:** Captures keyboard input from OBS preview window and injects keystrokes into C64. Press ESC to disable capture
 - **Keymap:** Select keyboard mapping for converting PC keystrokes to C64 PETSCII codes
@@ -429,10 +428,12 @@ Control your Ultimate 64 remotely from within OBS Studio, enabling keyboard inpu
   - **Disabled:** No automation
   - **Single File:** Play one `.sid`, `.prg`, or `.d64` file
   - **Folder:** Enumerate and play all compatible files in a directory
-- **Automation Path:** File or folder path for automated playback
+- **Content File:** Select the file to play (Single File mode) or any file within the target folder (Folder mode)
 - **Shuffle Files:** Randomize playback order using Fisher-Yates shuffle algorithm (Folder mode only)
 - **Duration per Item:** Playback duration in seconds before advancing to next file (1-3600s, default 120s)
 - **Reset Between Items:** Perform soft reset between files to ensure clean state
+- **Start/Stop Button:** Start or stop content automation on demand
+- **Content Status:** Real-time display showing current automation state (idle, playing, stopped)
 
 **How Keyboard Capture Works:**
 
@@ -442,12 +443,11 @@ Control your Ultimate 64 remotely from within OBS Studio, enabling keyboard inpu
 4. Plugin polls C64 keyboard buffer (`$00C6`) every 50ms and only injects when buffer is empty (backpressure)
 5. Press ESC anytime to immediately disable capture and return control to OBS
 
-**Preview-Only Indicator:** When keyboard capture is enabled and OBS is not actively streaming/recording, a red overlay box appears in the preview window to indicate capture mode is active.
-
 **Technical Details:**
 
 - Injection uses DMA memory writes to C64 keyboard buffer at `$0277-$0280` (10 bytes max)
 - Worker thread handles asynchronous REST operations without blocking OBS UI/render threads
+- Buffer polling rate: 50ms intervals to minimize CPU usage while ensuring responsiveness
 
 ### C64Script Automation 🤖
 
@@ -462,6 +462,9 @@ C64Script is like a simplified, modernized version of Commodore BASIC. If you've
 - Type text and press keys automatically
 - Wait for specific times or conditions
 - Use variables, loops, and conditional logic
+
+> [!NOTE]
+> Scripts run only if you explicitly trigger them via the Properties window, so you always stay in control.
 
 **Quick Start Example - Hello World:**
 
@@ -499,25 +502,28 @@ The plugin includes minimal, easy-to-use debugging controls:
 **Try It Out:**
 
 1. In OBS, open your C64 Stream source properties
-2. Scroll to "REST Control & Automation"
-3. Set **Script File** to the included `hello_world.c64script`
+2. Scroll to "Remote Control"
+3. Set **Script File** to the included `hello_world.c64script` in the [scripts folder](#file-system-structure-) beneath the user data folder
 4. Click **Start** to run the script
 5. Click **Pause** and then **Step** to walk through line-by-line
 6. Click **Log variables** to see the COUNTER value
-7. Check your OBS log (View → Docks → Log Viewer) to see output
+7. Check your OBS log (Help → Log Files → Show Current Log) to see output
+
+**Syntax Highlighting in VS Code**
+
+To enable syntax highlighting for `.c64script` files in [VS Code](https://code.visualstudio.com/):
+
+```bash
+./build-aux/install-c64script-syntax.sh
+```
+
+Then reload VS Code (`Ctrl+Shift+P` → "Reload Window"). The language mode should show "C64Script" in the bottom-right corner when viewing `.c64script` files.
 
 **Learn More:**
 
 - **Full Language Reference:** [`doc/c64script-spec.md`](doc/c64script-spec.md) - Complete C64Script language documentation
 - **Debugging Guide:** [`doc/c64script-debugging.md`](doc/c64script-debugging.md) - Detailed debugging workflows and tips
 - **Example Scripts:** [`data/scripts/`](data/scripts/) - Demo scripts showing effects, palettes, and automation
-
-**Why C64Script?**
-
-- **Familiar:** If you know BASIC, you already know most of C64Script
-- **Powerful:** Control every aspect of your stream programmatically
-- **Debuggable:** Step through scripts line-by-line to understand and fix issues
-- **Safe:** Scripts can't harm your system - they only control the plugin
 
 ### File System Structure 📁
 
@@ -569,6 +575,7 @@ For easy access, simple backups, and visibility, it is always stored in `<Docume
 ```
 <Documents>/obs-studio/c64stream/
 ├── settings/        # Exported configuration files (.ini)
+├── scripts/         # Sample automation scripts (.c64script)
 ├── palettes/        # Custom palette files (.vpl)
 └── recordings/      # Recording session folders
 ```
