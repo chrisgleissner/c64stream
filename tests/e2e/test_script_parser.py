@@ -168,11 +168,10 @@ stop
         script_dir = os.path.join(os.path.dirname(__file__), '../../data/scripts')
         if os.path.exists(script_dir):
             expected_scripts = [
-                'demo_effects.c64script',
-                'palette_showcase.c64script',
-                'sid_playback_demo.c64script',
-                'visual_test_pattern.c64script',
-                'timing_benchmark.c64script',
+                'demo_basic_hello_world.c64script',
+                'demo_effect_preset_cycle.c64script',
+                'demo_palette_cycle.c64script',
+                'demo_sid_playback_cycle.c64script',
             ]
             for script_name in expected_scripts:
                 script_path = os.path.join(script_dir, script_name)

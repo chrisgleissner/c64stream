@@ -25,6 +25,10 @@ See <https://www.gnu.org/licenses/> for details.
 #include <direct.h>
 #define PATH_SEP '\\'
 #define strcasecmp _stricmp
+// Windows stat doesn't provide S_ISDIR, so define it using _S_IFDIR
+#ifndef S_ISDIR
+#define S_ISDIR(m) (((m)&_S_IFMT) == _S_IFDIR)
+#endif
 #else
 #include <sys/stat.h>
 #include <dirent.h>

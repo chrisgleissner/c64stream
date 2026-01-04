@@ -25,8 +25,14 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #include "c64-version.h"
 #include "c64-effect.h"
 #include "c64-palette.h"
+
+#ifdef _WIN32
+#include <windows.h>
+#else
 #include <sys/stat.h>
 #include <dirent.h>
+#endif
+
 #include <string.h>
 #include <errno.h>
 
@@ -80,6 +86,67 @@ static void copy_demo_scripts(void)
 #endif
 
     // Copy all .c64script files
+    C64_LOG_INFO("Copying demo scripts from %s to %s", source_dir, dest_dir);
+
+    int copied_count = 0;
+    int found_count = 0;
+
+#ifdef _WIN32
+    // Windows directory enumeration using FindFirstFile/FindNextFile
+    char search_path[2560];
+    snprintf(search_path, sizeof(search_path), "%s\\*.c64script", source_dir);
+
+    WIN32_FIND_DATAA find_data;
+    HANDLE find_handle = FindFirstFileA(search_path, &find_data);
+    if (find_handle != INVALID_HANDLE_VALUE) {
+        do {
+            if (!(find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
+                found_count++;
+                char src_path[2560], dst_path[2560];
+                snprintf(src_path, sizeof(src_path), "%s\\%s", source_dir, find_data.cFileName);
+                snprintf(dst_path, sizeof(dst_path), "%s\\%s", dest_dir, find_data.cFileName);
+
+                // Check if destination file exists and is newer
+                WIN32_FILE_ATTRIBUTE_DATA src_attr, dst_attr;
+                bool should_copy = true;
+                if (GetFileAttributesExA(dst_path, GetFileExInfoStandard, &dst_attr) &&
+                    GetFileAttributesExA(src_path, GetFileExInfoStandard, &src_attr)) {
+                    // Compare file times (only copy if source is newer)
+                    if (CompareFileTime(&src_attr.ftLastWriteTime, &dst_attr.ftLastWriteTime) <= 0) {
+                        should_copy = false;
+                    }
+                }
+
+                if (should_copy) {
+                    // Copy file
+                    FILE *src_file = fopen(src_path, "rb");
+                    FILE *dst_file = fopen(dst_path, "wb");
+                    if (src_file && dst_file) {
+                        char buffer[4096];
+                        size_t bytes;
+                        while ((bytes = fread(buffer, 1, sizeof(buffer), src_file)) > 0) {
+                            fwrite(buffer, 1, bytes, dst_file);
+                        }
+                        copied_count++;
+                    } else {
+                        C64_LOG_WARNING("Failed to open files for copying: %s -> %s (src=%p, dst=%p)", src_path,
+                                        dst_path, (void *)src_file, (void *)dst_file);
+                    }
+                    if (src_file)
+                        fclose(src_file);
+                    if (dst_file)
+                        fclose(dst_file);
+                }
+            }
+        } while (FindNextFileA(find_handle, &find_data));
+        FindClose(find_handle);
+    } else {
+        C64_LOG_WARNING("Failed to open source scripts directory: %s", source_dir);
+        bfree(source_dir);
+        return;
+    }
+#else
+    // POSIX directory enumeration using opendir/readdir
     DIR *dir = opendir(source_dir);
     if (!dir) {
         C64_LOG_WARNING("Failed to open source scripts directory: %s", source_dir);
@@ -87,10 +154,6 @@ static void copy_demo_scripts(void)
         return;
     }
 
-    C64_LOG_INFO("Copying demo scripts from %s to %s", source_dir, dest_dir);
-
-    int copied_count = 0;
-    int found_count = 0;
     struct dirent *entry;
     while ((entry = readdir(dir)) != NULL) {
         const char *ext = strrchr(entry->d_name, '.');
@@ -133,6 +196,7 @@ static void copy_demo_scripts(void)
         }
     }
     closedir(dir);
+#endif
 
     C64_LOG_INFO("Found %d script files, copied %d to user directory", found_count, copied_count);
     bfree(source_dir);
