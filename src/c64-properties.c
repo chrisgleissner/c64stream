@@ -397,8 +397,10 @@ static bool script_start_clicked(obs_properties_t *props, obs_property_t *proper
     // Start execution
     context->script_start_time = os_gettime_ns();
     context->script_end_time = 0;
+    context->last_script_status = C64_SCRIPT_STATUS_IDLE;
     if (c64_script_executor_start(context->script_executor, context->script_file_path)) {
         C64_LOG_INFO("Script started: %s", context->script_file_path);
+        context->last_script_status = C64_SCRIPT_STATUS_RUNNING;
     } else {
         const char *err = c64_script_executor_get_error(context->script_executor);
         C64_LOG_ERROR("Failed to start script: %s", err ? err : "unknown error");
@@ -987,10 +989,6 @@ obs_properties_t *c64_create_properties(void *data)
     obs_property_set_long_description(auto_reset_prop, obs_module_text("AutomationReset.Description"));
 
     // Script Automation
-    obs_property_t *script_enabled_prop =
-        obs_properties_add_bool(rest_props, "script_enabled", obs_module_text("ScriptEnabled"));
-    obs_property_set_long_description(script_enabled_prop, obs_module_text("ScriptEnabled.Description"));
-
     obs_property_t *script_file_prop = obs_properties_add_path(rest_props, "script_file", obs_module_text("ScriptFile"),
                                                                OBS_PATH_FILE,
                                                                "C64 Script (*.c64script);;All Files (*.*)", NULL);

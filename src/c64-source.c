@@ -1134,6 +1134,33 @@ void c64_video_tick(void *data, float seconds)
     if (!context)
         return;
 
+    // Monitor script executor status for completion/errors
+    if (context->script_executor) {
+        c64_script_status_t current_status = c64_script_executor_get_status(context->script_executor);
+        c64_script_status_t last_status = (c64_script_status_t)context->last_script_status;
+
+        // Detect status transitions
+        if (current_status != last_status) {
+            if (current_status == C64_SCRIPT_STATUS_COMPLETED) {
+                // Script completed successfully
+                context->script_end_time = os_gettime_ns();
+                context->script_ended_successfully = true;
+                C64_LOG_INFO("Script completed successfully");
+            } else if (current_status == C64_SCRIPT_STATUS_ERROR) {
+                // Script ended with error
+                context->script_end_time = os_gettime_ns();
+                context->script_ended_successfully = false;
+                const char *error = c64_script_executor_get_error(context->script_executor);
+                C64_LOG_ERROR("Script failed: %s", error ? error : "unknown error");
+            } else if (current_status == C64_SCRIPT_STATUS_IDLE && last_status == C64_SCRIPT_STATUS_RUNNING) {
+                // Script was stopped
+                context->script_end_time = os_gettime_ns();
+                context->script_ended_successfully = false;
+            }
+            context->last_script_status = (int)current_status;
+        }
+    }
+
     const bool effects_enabled =
         (context->scan_line_distance > 0.0f) || (context->bloom_strength > 0.0f) ||
         (context->afterglow_duration_ms > 0) || (context->tint_mode > 0 && context->tint_strength > 0.0f) ||

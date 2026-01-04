@@ -248,6 +248,7 @@ struct c64_source {
     uint64_t script_start_time;     // os_gettime_ns() when script started
     uint64_t script_end_time;       // os_gettime_ns() when script ended
     bool script_ended_successfully; // true if completed successfully, false if error/stopped
+    int last_script_status;         // Last known c64_script_status_t for detecting state changes
 
     // Test DMA button state
     int test_dma_color_index; // Current color index for Test DMA button cycling (resets when properties opened)
