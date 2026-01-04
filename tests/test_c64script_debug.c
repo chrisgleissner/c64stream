@@ -89,12 +89,12 @@ TEST(step_mode)
     runtime->is_paused = false;
 
     // Execute VM - should process first instruction then stop due to step mode
-    int result = c64script_vm_execute(runtime);
+    bool result = c64script_vm_execute(runtime);
 
     // VM should have executed at least one instruction
     // In step mode during pause loop, step_mode is cleared after one iteration
     assert(runtime->step_mode == false); // Step mode should be cleared
-    assert(result == 0);                 // Execution should succeed
+    assert(result);                       // Execution should succeed
 
     // Verify first variable was set
     c64script_value_t value;
