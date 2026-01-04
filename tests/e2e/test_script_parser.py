@@ -201,7 +201,7 @@ stop
                                      f"{filename} has no commands")
 
                     # Should end with stop (or have loop/goto)
-                    last_cmd = commands[-1].split()[0] if commands else ''
+                    last_cmd = commands[-1].split()[0].lower() if commands else ''
                     self.assertIn(last_cmd, ['stop', 'goto', 'loop'],
                                 f"{filename} doesn't end properly")
 

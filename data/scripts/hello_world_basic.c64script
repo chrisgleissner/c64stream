@@ -34,3 +34,4 @@ RESET
 WAIT 1s
 
 LOG "Hello World demo completed"
+STOP

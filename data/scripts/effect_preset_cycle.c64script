@@ -50,3 +50,4 @@ EFFECT "Default"
 WAIT 2s
 
 LOG "Effect preset cycle demo completed"
+STOP
