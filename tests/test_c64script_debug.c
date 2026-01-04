@@ -50,16 +50,16 @@ TEST(pause_and_resume)
 
     // Set pause flag before starting execution
     runtime->should_pause = true;
-    
+
     // Start execution in a simulated step mode
     // Since we can't test threading here, we just verify the pause mechanism works
     assert(runtime->should_pause == true);
     assert(runtime->is_paused == false);
-    
+
     // When VM encounters pause, it should set is_paused to true
     runtime->is_paused = true;
     assert(runtime->is_paused == true);
-    
+
     // Resume should clear is_paused
     runtime->is_paused = false;
     runtime->should_pause = false;
@@ -86,10 +86,10 @@ TEST(step_mode)
     // Verify step_mode flag can be set
     runtime->step_mode = false;
     assert(runtime->step_mode == false);
-    
+
     runtime->step_mode = true;
     assert(runtime->step_mode == true);
-    
+
     // Step mode should be cleared after one step
     runtime->step_mode = false;
     assert(runtime->step_mode == false);
@@ -107,7 +107,7 @@ TEST(line_tracking)
 
     c64script_runtime_t *runtime = c64script_runtime_create();
     assert(runtime != NULL);
-    
+
     // Store source text for line retrieval
     runtime->source_text = strdup(source);
     runtime->source_text_size = strlen(source);
@@ -118,7 +118,7 @@ TEST(line_tracking)
 
     // Initially, last_executed_line should be 0
     assert(runtime->last_executed_line == 0);
-    
+
     // Next line to execute should be set
     assert(runtime->next_line_to_execute >= 0);
 
@@ -142,7 +142,7 @@ TEST(wait_skips_in_step_mode)
 
     // Set step mode
     runtime->step_mode = true;
-    
+
     // Execute should skip the WAIT when in step mode
     // We can't easily test the actual execution here without threading,
     // but we verify the flag is set correctly
@@ -180,10 +180,10 @@ TEST(variable_logging_with_values)
     // Execute to set variables
     success = c64script_execute(runtime);
     assert(success);
-    
+
     // Verify variables were set
     assert(runtime->variable_count == 2);
-    
+
     // Find X variable
     bool found_x = false;
     for (size_t i = 0; i < runtime->variable_count; i++) {
@@ -204,16 +204,16 @@ TEST(status_transitions)
     // Test that status enum includes PAUSED
     c64_script_status_t status = C64_SCRIPT_STATUS_IDLE;
     assert(status == C64_SCRIPT_STATUS_IDLE);
-    
+
     status = C64_SCRIPT_STATUS_RUNNING;
     assert(status == C64_SCRIPT_STATUS_RUNNING);
-    
+
     status = C64_SCRIPT_STATUS_PAUSED;
     assert(status == C64_SCRIPT_STATUS_PAUSED);
-    
+
     status = C64_SCRIPT_STATUS_ERROR;
     assert(status == C64_SCRIPT_STATUS_ERROR);
-    
+
     status = C64_SCRIPT_STATUS_COMPLETED;
     assert(status == C64_SCRIPT_STATUS_COMPLETED);
 }
@@ -228,7 +228,7 @@ TEST(line_at_script_start)
 
     c64script_runtime_t *runtime = c64script_runtime_create();
     assert(runtime != NULL);
-    
+
     runtime->source_text = strdup(source);
     runtime->source_text_size = strlen(source);
 
@@ -238,7 +238,7 @@ TEST(line_at_script_start)
 
     // At start, last_executed should be 0 (not started)
     assert(runtime->last_executed_line == 0);
-    
+
     // Next line should be initialized to first instruction's line
     // (Will be set by VM during execution)
 
@@ -255,7 +255,7 @@ TEST(line_at_script_end)
 
     c64script_runtime_t *runtime = c64script_runtime_create();
     assert(runtime != NULL);
-    
+
     runtime->source_text = strdup(source);
     runtime->source_text_size = strlen(source);
 
@@ -266,7 +266,7 @@ TEST(line_at_script_end)
     // Execute to completion
     success = c64script_execute(runtime);
     assert(success);
-    
+
     // At end, next_line should be 0 (completed)
     assert(runtime->next_line_to_execute == 0);
 

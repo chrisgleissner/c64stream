@@ -1,71 +1,58 @@
-# C64 Stream Tests
+#C64 Stream Tests
 #
-# Contains unit tests and end-to-end testing utilities.
+#Contains unit tests and end - to - end testing utilities.
 #
 cmake_minimum_required(VERSION 3.28)
 
-project(c64stream-tests)
+    project(c64stream - tests)
 
-# Find libobs for the parser test (needed for logging headers)
-find_package(libobs REQUIRED)
+#Find libobs for the parser test(needed for logging headers)
+        find_package(libobs REQUIRED)
 
-# Parser unit tests - compile source files directly
-add_executable(
-  test_c64script_parser
-  test_c64script_parser.c
-  ${CMAKE_SOURCE_DIR}/src/c64-script-parser.c
-  ${CMAKE_SOURCE_DIR}/src/c64-script-token.c
-  ${CMAKE_SOURCE_DIR}/src/c64-script-ast.c
-)
-target_include_directories(test_c64script_parser PRIVATE ${CMAKE_SOURCE_DIR}/src)
-target_link_libraries(test_c64script_parser PRIVATE OBS::libobs)
-add_test(NAME c64script_parser COMMAND test_c64script_parser)
+#Parser unit tests - compile source files directly
+            add_executable(test_c64script_parser test_c64script_parser.c ${CMAKE_SOURCE_DIR} / src / c64 - script -
+                           parser.c ${CMAKE_SOURCE_DIR} / src / c64 - script - token.c ${CMAKE_SOURCE_DIR} / src / c64 -
+                           script -
+                           ast.c) target_include_directories(test_c64script_parser PRIVATE ${CMAKE_SOURCE_DIR} / src)
+                target_link_libraries(test_c64script_parser PRIVATE OBS::libobs) add_test(
+                    NAME c64script_parser COMMAND test_c64script_parser)
 
-# Compiler and VM unit tests
-add_executable(
-  test_c64script_compiler
-  test_c64script_compiler.c
-  c64script_test_stubs.c
-  ${CMAKE_SOURCE_DIR}/src/c64-script-parser.c
-  ${CMAKE_SOURCE_DIR}/src/c64-script-token.c
-  ${CMAKE_SOURCE_DIR}/src/c64-script-ast.c
-  ${CMAKE_SOURCE_DIR}/src/c64-script-bytecode.c
-  ${CMAKE_SOURCE_DIR}/src/c64-script-vm.c
-  ${CMAKE_SOURCE_DIR}/src/c64-script-runtime.c
-  ${CMAKE_SOURCE_DIR}/src/c64-script-builtins.c
-)
-target_include_directories(test_c64script_compiler PRIVATE ${CMAKE_SOURCE_DIR}/src)
-# Link math library on Unix systems (on Windows math is part of standard library)
-if(UNIX)
-  target_link_libraries(test_c64script_compiler PRIVATE OBS::libobs m)
-else()
-  target_link_libraries(test_c64script_compiler PRIVATE OBS::libobs)
-endif()
-add_test(NAME c64script_compiler COMMAND test_c64script_compiler)
+#Compiler and VM unit tests
+                    add_executable(
+                        test_c64script_compiler test_c64script_compiler.c c64script_test_stubs.c ${CMAKE_SOURCE_DIR} /
+                            src / c64 -
+                        script - parser.c ${CMAKE_SOURCE_DIR} / src / c64 - script -
+                        token.c ${CMAKE_SOURCE_DIR} / src / c64 - script - ast.c ${CMAKE_SOURCE_DIR} / src / c64 -
+                        script - bytecode.c ${CMAKE_SOURCE_DIR} / src / c64 - script -
+                        vm.c ${CMAKE_SOURCE_DIR} / src / c64 - script - runtime.c ${CMAKE_SOURCE_DIR} / src / c64 -
+                        script -
+                        builtins.c) target_include_directories(test_c64script_compiler PRIVATE ${CMAKE_SOURCE_DIR} /
+                                                               src)
+#Link math library on Unix systems(on Windows math is part of standard library)
+                        if (UNIX) target_link_libraries(test_c64script_compiler PRIVATE OBS::libobs m) else()
+                            target_link_libraries(test_c64script_compiler PRIVATE OBS::libobs) endif()
+                                add_test(NAME c64script_compiler COMMAND test_c64script_compiler)
 
-# Debug features unit tests
-add_executable(
-  test_c64script_debug
-  test_c64script_debug.c
-  c64script_test_stubs.c
-  ${CMAKE_SOURCE_DIR}/src/c64-script-parser.c
-  ${CMAKE_SOURCE_DIR}/src/c64-script-token.c
-  ${CMAKE_SOURCE_DIR}/src/c64-script-ast.c
-  ${CMAKE_SOURCE_DIR}/src/c64-script-bytecode.c
-  ${CMAKE_SOURCE_DIR}/src/c64-script-vm.c
-  ${CMAKE_SOURCE_DIR}/src/c64-script-runtime.c
-  ${CMAKE_SOURCE_DIR}/src/c64-script-builtins.c
-)
-target_include_directories(test_c64script_debug PRIVATE ${CMAKE_SOURCE_DIR}/src)
-# Link math library on Unix systems (on Windows math is part of standard library)
-if(UNIX)
-  target_link_libraries(test_c64script_debug PRIVATE OBS::libobs m)
-else()
-  target_link_libraries(test_c64script_debug PRIVATE OBS::libobs)
-endif()
-add_test(NAME c64script_debug COMMAND test_c64script_debug)
+#Debug features unit tests
+                                    add_executable(test_c64script_debug test_c64script_debug.c c64script_test_stubs.c ${
+                                                       CMAKE_SOURCE_DIR} /
+                                                       src / c64 -
+                                                   script - parser.c ${CMAKE_SOURCE_DIR} / src / c64 - script -
+                                                   token.c ${CMAKE_SOURCE_DIR} / src / c64 - script -
+                                                   ast.c ${CMAKE_SOURCE_DIR} / src / c64 - script -
+                                                   bytecode.c ${CMAKE_SOURCE_DIR} / src / c64 - script -
+                                                   vm.c ${CMAKE_SOURCE_DIR} / src / c64 - script -
+                                                   runtime.c ${CMAKE_SOURCE_DIR} / src / c64 - script - builtins.c)
+                                        target_include_directories(test_c64script_debug PRIVATE ${CMAKE_SOURCE_DIR} /
+                                                                   src)
+#Link math library on Unix systems(on Windows math is part of standard library)
+                                            if (UNIX)
+                                                target_link_libraries(test_c64script_debug PRIVATE OBS::libobs m) else()
+                                                    target_link_libraries(test_c64script_debug PRIVATE OBS::libobs)
+                                                        endif()
+                                                            add_test(NAME c64script_debug COMMAND test_c64script_debug)
 
-# Test all data/scripts/*.c64script files with the parser
+#Test all data / scripts/*.c64script files with the parser
 file(GLOB SCRIPT_FILES "${CMAKE_SOURCE_DIR}/data/scripts/*.c64script")
 foreach(SCRIPT_FILE ${SCRIPT_FILES})
   get_filename_component(SCRIPT_NAME ${SCRIPT_FILE} NAME_WE)
