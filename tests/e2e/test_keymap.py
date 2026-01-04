@@ -14,9 +14,7 @@ def test_keymap_parser():
     repo_root = os.path.dirname(os.path.dirname(script_dir))
     keymap_path = os.path.join(repo_root, "data/keymaps/symbolic_us.c64keymap.ini")
 
-    if not os.path.exists(keymap_path):
-        print(f"❌ Keymap file not found: {keymap_path}")
-        return False
+    assert os.path.exists(keymap_path), f"Keymap file not found: {keymap_path}"
 
     print(f"✓ Found keymap: {keymap_path}")
 
@@ -41,12 +39,11 @@ def test_keymap_parser():
     print(f"  [map] section: {'✓' if map_found else '❌'}")
     print(f"  Entries: {entries}")
 
-    if not meta_found or not map_found or entries == 0:
-        print("❌ Keymap format invalid")
-        return False
+    assert meta_found, "Keymap missing [meta] section"
+    assert map_found, "Keymap missing [map] section"
+    assert entries > 0, "Keymap has no entries"
 
     print("✅ Keymap format valid")
-    return True
 
 if __name__ == '__main__':
     success = test_keymap_parser()

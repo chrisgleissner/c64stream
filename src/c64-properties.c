@@ -962,7 +962,7 @@ obs_properties_t *c64_create_properties(void *data)
     obs_property_list_add_int(file_source_prop, obs_module_text("FileSource.Local"), 0);
     obs_property_list_add_int(file_source_prop, obs_module_text("FileSource.C64U"), 1);
 
-    // Automation file/folder path - editable text field that accepts both files and folders
+    // Automation file/folder path - editable text field for C64U remote paths or local paths
     obs_property_t *auto_path_prop =
         obs_properties_add_text(rest_props, "automation_path", obs_module_text("AutomationPath"), OBS_TEXT_DEFAULT);
     obs_property_set_long_description(auto_path_prop, obs_module_text("AutomationPath.Description"));
