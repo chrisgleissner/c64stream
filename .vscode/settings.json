@@ -87,7 +87,7 @@
         },
         "editor.parameterHints.enabled": false,
         "editor.suggest.enabled": false,
-        "editor.hover.enabled": false,
+        "editor.hover.enabled": "off",
         "editor.codeLens": false
     },
 
@@ -97,7 +97,7 @@
         "*": true,
         "c64script": false
     },
-    
+
     // Completely disable validation and diagnostics for C64Script files
     "problems.visibility": {
         "c64script": false
@@ -105,6 +105,11 @@
 
     // Exclude c64script files from various language services
     "files.exclude": {},
+    
+    // Explicitly disable JS/TS validation for .c64script files
+    "javascript.validate.enable": true,
+    "typescript.validate.enable": true,
+    "js/ts.implicitProjectConfig.checkJs": false,
 
     // GitHub Actions settings
     "github-actions.workflows.pinned.workflows": [
