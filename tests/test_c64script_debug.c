@@ -94,7 +94,7 @@ TEST(step_mode)
     // VM should have executed at least one instruction
     // In step mode during pause loop, step_mode is cleared after one iteration
     assert(runtime->step_mode == false); // Step mode should be cleared
-    assert(result);                       // Execution should succeed
+    assert(result);                      // Execution should succeed
 
     // Verify first variable was set
     c64script_value_t value;
