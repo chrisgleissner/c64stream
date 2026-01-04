@@ -121,20 +121,6 @@ c64script_runtime_t *c64script_runtime_create(void)
     runtime->rest_client = NULL;
     runtime->keyboard = NULL;
 
-    runtime->should_stop = false;
-    runtime->trace_enabled = false;
-
-    runtime->log_file = NULL;
-    runtime->log_filename[0] = '\0';
-
-    runtime->error_msg[0] = '\0';
-    runtime->error_line = -1;
-
-    runtime->source_data = NULL;
-    runtime->obs_source = NULL;
-    runtime->rest_client = NULL;
-    runtime->keyboard = NULL;
-
     return runtime;
 }
 
