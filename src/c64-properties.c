@@ -1182,6 +1182,7 @@ obs_properties_t *c64_create_properties(void *data)
             obs_property_t *error_prop =
                 obs_properties_add_text(rest_props, "script_error", "Last runtime error", OBS_TEXT_INFO);
             obs_property_text_set_info_type(error_prop, OBS_TEXT_INFO_ERROR);
+            obs_property_set_long_description(error_prop, err);
         }
     }
 
