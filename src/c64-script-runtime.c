@@ -100,13 +100,21 @@ c64script_runtime_t *c64script_runtime_create(void)
     runtime->gosub_stack_size = 0;
 
     runtime->should_stop = false;
+    runtime->should_pause = false;
+    runtime->is_paused = false;
+    runtime->step_mode = false;
     runtime->trace_enabled = false;
+
+    runtime->last_executed_line = 0;
+    runtime->next_line_to_execute = 0;
+    runtime->source_text = NULL;
+    runtime->source_text_size = 0;
 
     runtime->log_file = NULL;
     runtime->log_filename[0] = '\0';
 
     runtime->error_msg[0] = '\0';
-    runtime->error_line = -1;
+    runtime->error_line = 0;
 
     runtime->source_data = NULL;
     runtime->obs_source = NULL;
@@ -125,6 +133,12 @@ void c64script_runtime_destroy(c64script_runtime_t *runtime)
     if (runtime->log_file) {
         fclose(runtime->log_file);
         runtime->log_file = NULL;
+    }
+
+    // Free source text
+    if (runtime->source_text) {
+        free(runtime->source_text);
+        runtime->source_text = NULL;
     }
 
     // Free bytecode

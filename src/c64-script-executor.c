@@ -243,6 +243,10 @@ static bool compile_script(c64_script_executor_t *executor, const char *script_f
         return false;
     }
 
+    // Store source text for line display
+    runtime->source_text = source; // Transfer ownership to runtime
+    runtime->source_text_size = source_size;
+
     // Integration pointers
     void *source_data = obs_obj_get_data(executor->source);
     runtime->source_data = source_data;
@@ -253,7 +257,6 @@ static bool compile_script(c64_script_executor_t *executor, const char *script_f
     char compile_error[1024] = {0};
     bool ok = c64script_compile(ast, runtime, compile_error, sizeof(compile_error));
     c64script_ast_free(ast);
-    free(source);
 
     if (!ok) {
         if (error_msg && error_size > 0) {
@@ -519,4 +522,191 @@ const char *c64_script_executor_get_error(c64_script_executor_t *executor)
     const char *err = (executor->status == C64_SCRIPT_STATUS_ERROR) ? executor->error_msg : NULL;
     pthread_mutex_unlock(&executor->mutex);
     return err;
+}
+
+void c64_script_executor_pause(c64_script_executor_t *executor)
+{
+    if (!executor || !executor->runtime) {
+        return;
+    }
+
+    pthread_mutex_lock(&executor->mutex);
+    if (executor->status == C64_SCRIPT_STATUS_RUNNING) {
+        executor->runtime->should_pause = true;
+        executor->status = C64_SCRIPT_STATUS_PAUSED;
+    }
+    pthread_mutex_unlock(&executor->mutex);
+}
+
+void c64_script_executor_resume(c64_script_executor_t *executor)
+{
+    if (!executor || !executor->runtime) {
+        return;
+    }
+
+    pthread_mutex_lock(&executor->mutex);
+    if (executor->status == C64_SCRIPT_STATUS_PAUSED) {
+        executor->runtime->is_paused = false;
+        executor->runtime->should_pause = false;
+        executor->status = C64_SCRIPT_STATUS_RUNNING;
+    }
+    pthread_mutex_unlock(&executor->mutex);
+}
+
+bool c64_script_executor_step(c64_script_executor_t *executor)
+{
+    if (!executor || !executor->runtime) {
+        return false;
+    }
+
+    pthread_mutex_lock(&executor->mutex);
+    if (executor->status != C64_SCRIPT_STATUS_PAUSED) {
+        pthread_mutex_unlock(&executor->mutex);
+        return false;
+    }
+
+    // Activate step mode - this will execute one line and pause again
+    executor->runtime->step_mode = true;
+    pthread_mutex_unlock(&executor->mutex);
+
+    return true;
+}
+
+static void get_source_line(const char *source_text, int line_number, char *out_buf, size_t out_size)
+{
+    if (!source_text || !out_buf || out_size == 0 || line_number <= 0) {
+        if (out_buf && out_size > 0) {
+            out_buf[0] = '\0';
+        }
+        return;
+    }
+
+    int current_line = 1;
+    const char *line_start = source_text;
+    const char *p = source_text;
+
+    // Find the start of the requested line
+    while (*p && current_line < line_number) {
+        if (*p == '\n') {
+            current_line++;
+            line_start = p + 1;
+        }
+        p++;
+    }
+
+    // If we found the line, copy it
+    if (current_line == line_number) {
+        const char *line_end = line_start;
+        while (*line_end && *line_end != '\n' && *line_end != '\r') {
+            line_end++;
+        }
+
+        size_t line_len = line_end - line_start;
+        if (line_len > out_size - 1) {
+            line_len = out_size - 1;
+        }
+
+        memcpy(out_buf, line_start, line_len);
+        out_buf[line_len] = '\0';
+    } else {
+        out_buf[0] = '\0';
+    }
+}
+
+int c64_script_executor_get_last_executed_line(c64_script_executor_t *executor, char *line_text, size_t line_text_size)
+{
+    if (!executor) {
+        return 0;
+    }
+
+    pthread_mutex_lock(&executor->mutex);
+
+    c64script_runtime_t *runtime = executor->runtime;
+    if (!runtime) {
+        if (line_text && line_text_size > 0) {
+            line_text[0] = '\0';
+        }
+        pthread_mutex_unlock(&executor->mutex);
+        return 0;
+    }
+
+    int line_num = runtime->last_executed_line;
+
+    if (line_text && line_text_size > 0) {
+        if (line_num > 0 && runtime->source_text) {
+            get_source_line(runtime->source_text, line_num, line_text, line_text_size);
+        } else {
+            line_text[0] = '\0';
+        }
+    }
+
+    pthread_mutex_unlock(&executor->mutex);
+
+    return line_num;
+}
+
+int c64_script_executor_get_next_line(c64_script_executor_t *executor, char *line_text, size_t line_text_size)
+{
+    if (!executor) {
+        return 0;
+    }
+
+    pthread_mutex_lock(&executor->mutex);
+
+    c64script_runtime_t *runtime = executor->runtime;
+    if (!runtime) {
+        if (line_text && line_text_size > 0) {
+            line_text[0] = '\0';
+        }
+        pthread_mutex_unlock(&executor->mutex);
+        return 0;
+    }
+
+    int line_num = runtime->next_line_to_execute;
+
+    if (line_text && line_text_size > 0) {
+        if (line_num > 0 && runtime->source_text) {
+            get_source_line(runtime->source_text, line_num, line_text, line_text_size);
+        } else {
+            line_text[0] = '\0';
+        }
+    }
+
+    pthread_mutex_unlock(&executor->mutex);
+    return line_num;
+}
+
+void c64_script_executor_log_variables(c64_script_executor_t *executor)
+{
+    if (!executor || !executor->runtime) {
+        C64_LOG_INFO(EXECUTOR_LOG_PREFIX "No runtime available for variable logging");
+        return;
+    }
+
+    c64script_runtime_t *runtime = executor->runtime;
+
+    C64_LOG_INFO(EXECUTOR_LOG_PREFIX "=== Variable Dump ===");
+
+    if (runtime->variable_count == 0) {
+        C64_LOG_INFO(EXECUTOR_LOG_PREFIX "No variables defined");
+    } else {
+        // Log variables in alphabetical order for consistency
+        for (size_t i = 0; i < runtime->variable_count; i++) {
+            c64script_variable_t *var = &runtime->variables[i];
+            if (var->value.type == VALUE_NUMBER) {
+                C64_LOG_INFO(EXECUTOR_LOG_PREFIX "  %s = %.6g (number)", var->name, var->value.as.number);
+            } else if (var->value.type == VALUE_STRING) {
+                const char *str = var->value.as.string ? var->value.as.string : "";
+                // Truncate long strings
+                if (strlen(str) > 200) {
+                    C64_LOG_INFO(EXECUTOR_LOG_PREFIX "  %s = \"%.197s...\" (string, %zu chars)", var->name, str,
+                                 strlen(str));
+                } else {
+                    C64_LOG_INFO(EXECUTOR_LOG_PREFIX "  %s = \"%s\" (string)", var->name, str);
+                }
+            }
+        }
+    }
+
+    C64_LOG_INFO(EXECUTOR_LOG_PREFIX "=== End Variable Dump ===");
 }

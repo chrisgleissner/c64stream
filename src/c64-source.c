@@ -644,6 +644,11 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     // Initialize script automation fields
     context->script_executor = NULL;
     memset(context->script_file_path, 0, sizeof(context->script_file_path));
+    context->last_script_status = C64_SCRIPT_STATUS_IDLE;
+    context->last_ui_update_time = 0;
+    context->force_ui_update = false;
+    memset(context->cached_last_line, 0, sizeof(context->cached_last_line));
+    memset(context->cached_next_line, 0, sizeof(context->cached_next_line));
 
     // Load script file path if set
     const char *script_path = obs_data_get_string(settings, "script_file");
@@ -1146,16 +1151,22 @@ void c64_video_tick(void *data, float seconds)
                 context->script_end_time = os_gettime_ns();
                 context->script_ended_successfully = true;
                 C64_LOG_INFO("Script completed successfully");
+                context->force_ui_update = true; // Force immediate UI update
             } else if (current_status == C64_SCRIPT_STATUS_ERROR) {
                 // Script ended with error
                 context->script_end_time = os_gettime_ns();
                 context->script_ended_successfully = false;
                 const char *error = c64_script_executor_get_error(context->script_executor);
                 C64_LOG_ERROR("Script failed: %s", error ? error : "unknown error");
+                context->force_ui_update = true; // Force immediate UI update
             } else if (current_status == C64_SCRIPT_STATUS_IDLE && last_status == C64_SCRIPT_STATUS_RUNNING) {
                 // Script was stopped
                 context->script_end_time = os_gettime_ns();
                 context->script_ended_successfully = false;
+                context->force_ui_update = true; // Force immediate UI update
+            } else if (current_status == C64_SCRIPT_STATUS_PAUSED || current_status == C64_SCRIPT_STATUS_RUNNING) {
+                // Entering or leaving pause/debug mode - force immediate update
+                context->force_ui_update = true;
             }
             context->last_script_status = (int)current_status;
         }

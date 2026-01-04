@@ -443,9 +443,35 @@ bool c64script_vm_execute(c64script_runtime_t *runtime)
 
     runtime->ip = 0;
     runtime->should_stop = false;
+    runtime->last_executed_line = 0;
+    runtime->next_line_to_execute = runtime->bytecode_size > 0 ? runtime->bytecode[0].source_line : 0;
 
     while (runtime->ip < runtime->bytecode_size && !runtime->should_stop) {
         c64script_instruction_t *instr = &runtime->bytecode[runtime->ip];
+        int current_line = instr->source_line;
+
+        // Check for pause at source line boundaries
+        // Only pause when the line number changes (new source line)
+        if (runtime->should_pause && current_line != runtime->last_executed_line && current_line > 0) {
+            runtime->is_paused = true;
+            runtime->should_pause = false; // Clear pause request
+
+            // Wait until resumed or stopped
+            while (runtime->is_paused && !runtime->should_stop) {
+                os_sleep_ms(10); // Small sleep to avoid busy wait
+
+                // Check if step mode is activated
+                if (runtime->step_mode) {
+                    runtime->step_mode = false;
+                    break; // Execute one line then pause again
+                }
+            }
+
+            if (runtime->should_stop) {
+                break;
+            }
+        }
+
         runtime->error_line = instr->source_line;
 
         if (runtime->trace_enabled) {
@@ -990,6 +1016,11 @@ bool c64script_vm_execute(c64script_runtime_t *runtime)
                 return false;
             }
 
+            // Skip waiting in step mode or when paused to avoid blocking debugging
+            if (runtime->is_paused || runtime->step_mode) {
+                break;
+            }
+
             double multiplier = 1000.0;
             if (instr->operand == C64SCRIPT_WAIT_UNIT_MS) {
                 multiplier = 1.0;
@@ -1028,6 +1059,11 @@ bool c64script_vm_execute(c64script_runtime_t *runtime)
                 return false;
             }
             c64script_value_free(&target);
+
+            // Skip waiting in step mode or when paused to avoid blocking debugging
+            if (runtime->is_paused || runtime->step_mode) {
+                break;
+            }
 
             while (!runtime->should_stop) {
                 double now_epoch = wallclock_now_seconds();
@@ -1985,6 +2021,18 @@ bool c64script_vm_execute(c64script_runtime_t *runtime)
         default:
             snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Unknown opcode: %d", instr->opcode);
             return false;
+        }
+
+        // Update last executed line after instruction completes
+        if (current_line > 0 && current_line != runtime->last_executed_line) {
+            runtime->last_executed_line = current_line;
+        }
+
+        // Update next line to execute for the next iteration
+        if (runtime->ip < runtime->bytecode_size) {
+            runtime->next_line_to_execute = runtime->bytecode[runtime->ip].source_line;
+        } else {
+            runtime->next_line_to_execute = 0; // Script completed
         }
     }
 

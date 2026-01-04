@@ -249,6 +249,10 @@ struct c64_source {
     uint64_t script_end_time;       // os_gettime_ns() when script ended
     bool script_ended_successfully; // true if completed successfully, false if error/stopped
     int last_script_status;         // Last known c64_script_status_t for detecting state changes
+    uint64_t last_ui_update_time;   // Last time UI was updated for throttling (os_gettime_ns())
+    bool force_ui_update;           // Force immediate UI update on next tick (bypass throttling)
+    char cached_last_line[512];     // Cached "last executed" line string for UI display
+    char cached_next_line[512];     // Cached "next to execute" line string for UI display
 
     // Test DMA button state
     int test_dma_color_index; // Current color index for Test DMA button cycling (resets when properties opened)
