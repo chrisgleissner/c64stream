@@ -23,9 +23,11 @@ python3 -m unittest discover -v
 
 ## Coverage
 
-**34 test scripts** covering 100% of C64Script commands:
+**32 test scripts** covering 100% of C64Script commands:
 - Core language: control flow, boolean logic, data structures, functions
 - Plugin commands: effects, C64 control, recording, keyboard, memory, logging, file I/O, HTTP, local execution
 - Error handling: parse errors, runtime errors, safety limits
+
+**Note**: Script executor is tested at the C level in `tests/test_c64script_*.c` files.
 
 See `scripts/README.md` for script listing.
