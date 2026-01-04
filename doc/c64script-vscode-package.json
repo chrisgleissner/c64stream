@@ -32,14 +32,14 @@
         "extensions": [
           ".c64script"
         ],
-        "configuration": "./doc/c64script-language-configuration.json"
+        "configuration": "./c64script-language-configuration.json"
       }
     ],
     "grammars": [
       {
         "language": "c64script",
         "scopeName": "source.c64script",
-        "path": "./doc/c64script.tmLanguage.json"
+        "path": "./c64script.tmLanguage.json"
       }
     ]
   }
