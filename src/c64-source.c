@@ -1568,23 +1568,12 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
         return;
     }
 
-    // Log ALL event details for debugging
-    C64_LOG_INFO("🕹 KEYBOARD: ===== KEY EVENT DEBUG =====");
-    C64_LOG_INFO("🕹 KEYBOARD:   key_up: %d", key_up);
-    C64_LOG_INFO("🕹 KEYBOARD:   text: '%s'", event->text ? event->text : "(null)");
-    C64_LOG_INFO("🕹 KEYBOARD:   native_vkey: 0x%X (%u)", event->native_vkey, event->native_vkey);
-    C64_LOG_INFO("🕹 KEYBOARD:   native_scancode: 0x%X (%u)", event->native_scancode, event->native_scancode);
-    C64_LOG_INFO("🕹 KEYBOARD:   native_modifiers: 0x%X (%u)", event->native_modifiers, event->native_modifiers);
-    C64_LOG_INFO("🕹 KEYBOARD:   modifiers: 0x%X", event->modifiers);
-    C64_LOG_INFO("🕹 KEYBOARD:     SHIFT: %d", (event->modifiers & INTERACT_SHIFT_KEY) ? 1 : 0);
-    C64_LOG_INFO("🕹 KEYBOARD:     CTRL: %d", (event->modifiers & INTERACT_CONTROL_KEY) ? 1 : 0);
-    C64_LOG_INFO("🕹 KEYBOARD:     ALT: %d", (event->modifiers & INTERACT_ALT_KEY) ? 1 : 0);
-    C64_LOG_INFO("🕹 KEYBOARD:     CMD: %d", (event->modifiers & INTERACT_COMMAND_KEY) ? 1 : 0);
-    C64_LOG_INFO("🕹 KEYBOARD: =============================");
+    // Log key event with full details
+    C64_LOG_INFO("🕹 KEYBOARD: key_up=%d vkey=0x%04X scan=0x%02X mods=0x%02X text='%s'", key_up, event->native_vkey,
+                 event->native_scancode, event->modifiers, event->text ? event->text : "");
 
     // Only process key press events (not key up)
     if (key_up) {
-        C64_LOG_DEBUG("🕹 KEYBOARD: Skipping key_up event");
         return;
     }
 
@@ -1642,6 +1631,8 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
             snprintf(key_code, sizeof(key_code), "tab");
         } else if (event->native_vkey == 0x1B || event->native_vkey == 0xFF1B) { // Escape -> RUN/STOP (Linux: 0xFF1B)
             snprintf(key_code, sizeof(key_code), "esc");
+        } else if (event->native_vkey == 0x24 || event->native_vkey == 0xFF50) { // Home (Linux: 0xFF50)
+            snprintf(key_code, sizeof(key_code), "home");
         } else if (event->native_vkey == 0xFF52) { // Arrow Up (Linux X11)
             snprintf(key_code, sizeof(key_code), "up");
         } else if (event->native_vkey == 0xFF54) { // Arrow Down (Linux X11)
@@ -1673,16 +1664,7 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
         // Convert key to C64 output
         c64_output_t output;
         if (c64_keymap_convert(context->keymap, key_code, modifiers, &output)) {
-            // Log captured keystroke
-            if (output.mode == C64_OUTPUT_PETSCII) {
-                C64_LOG_INFO("🕹 KEYBOARD: Captured key '%s' (PETSCII 0x%02X)", key_code, output.data.petscii);
-            } else if (output.mode == C64_OUTPUT_SYMBOLIC) {
-                C64_LOG_INFO("🕹 KEYBOARD: Captured symbolic key '%s' (%s)", key_code, output.data.symbol);
-            } else if (output.mode == C64_OUTPUT_TEXT) {
-                C64_LOG_INFO("🕹 KEYBOARD: Captured text '%s'", key_code);
-            }
-
-            // Queue the keystroke for injection
+            // Queue the keystroke for injection (logging happens in queue function)
             c64_keyboard_queue_output(context->keyboard, &output);
         }
     }

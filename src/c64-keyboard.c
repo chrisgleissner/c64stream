@@ -36,6 +36,7 @@ See <https://www.gnu.org/licenses/> for details.
 #define C64_KEYBOARD_BUFFER 0x0277
 #define C64_KEYBOARD_LENGTH 0x00C6
 #define C64_KEYBOARD_BUFFER_SIZE 10
+#define C64_STOP_FLAG 0x0091 // RUN/STOP flag (bit 7)
 
 // Keymap entry
 typedef struct {
@@ -534,20 +535,28 @@ void c64_keyboard_queue_output(c64_keyboard_t *keyboard, const c64_output_t *out
     // Convert output to PETSCII bytes and queue them
     if (output->mode == C64_OUTPUT_PETSCII) {
         queue_push(keyboard, output->data.petscii);
+        C64_LOG_INFO(KEYBOARD_LOG_PREFIX "Key → PETSCII 0x%02X | Queue: %d", output->data.petscii,
+                     queue_available(keyboard));
     } else if (output->mode == C64_OUTPUT_SYMBOLIC) {
         // Symbolic keys map to single PETSCII codes
         uint8_t code = lookup_symbolic_key(output->data.symbol);
         if (code != 0) {
             queue_push(keyboard, code);
+            C64_LOG_INFO(KEYBOARD_LOG_PREFIX "Key → %s (0x%02X) | Queue: %d", output->data.symbol, code,
+                         queue_available(keyboard));
+        } else {
+            C64_LOG_WARNING(KEYBOARD_LOG_PREFIX "Unknown symbolic key: %s", output->data.symbol);
         }
     } else if (output->mode == C64_OUTPUT_TEXT) {
         // Queue each character in the text
+        size_t len = 0;
         for (size_t i = 0; i < sizeof(output->data.text) && output->data.text[i] != '\0'; i++) {
             queue_push(keyboard, (uint8_t)output->data.text[i]);
+            len++;
         }
+        C64_LOG_INFO(KEYBOARD_LOG_PREFIX "Text → '%s' (%zu chars) | Queue: %d", output->data.text, len,
+                     queue_available(keyboard));
     }
-
-    C64_LOG_DEBUG(KEYBOARD_LOG_PREFIX "Queued output mode=%d, queue size=%d", output->mode, queue_available(keyboard));
 }
 
 const char *c64_keyboard_get_status(c64_keyboard_t *keyboard)
