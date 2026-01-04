@@ -7,47 +7,46 @@ LOG "Starting effect preset cycle demo"
 REM Start with no effects
 LOG "Applying effect: Default"
 EFFECT "Default"
-WAIT 3s
+WAIT 2s
 
 REM Classic CRT with scanlines and bloom
 LOG "Applying effect: Classic CRT"
 EFFECT "Classic CRT"
-WAIT 3s
+WAIT 2s
 
 REM Amber monitor look
 LOG "Applying effect: Amber Monitor"
 EFFECT "Amber Monitor"
-WAIT 3s
+WAIT 2s
 
 REM Green phosphor monitor
 LOG "Applying effect: Green Monitor"
 EFFECT "Green Monitor"
-WAIT 3s
+WAIT 2s
 
 REM Sharp pixelated look
 LOG "Applying effect: Sharp Pixels"
 EFFECT "Sharp Pixels"
-WAIT 3s
+WAIT 2s
 
 REM Strong phosphor glow effect
 LOG "Applying effect: Phosphor Glow"
 EFFECT "Phosphor Glow"
-WAIT 3s
+WAIT 2s
 
 REM Vintage TV with heavy effects
 LOG "Applying effect: Vintage TV"
 EFFECT "Vintage TV"
-WAIT 3s
+WAIT 2s
 
 REM Arcade cabinet look
 LOG "Applying effect: Arcade Cabinet"
 EFFECT "Arcade Cabinet"
-WAIT 3s
+WAIT 2s
 
 REM Return to default
 LOG "Applying effect: Default"
 EFFECT "Default"
-WAIT 3s
 
 LOG "Effect preset cycle demo completed"
 STOP

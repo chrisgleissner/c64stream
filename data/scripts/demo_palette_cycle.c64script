@@ -6,53 +6,50 @@ LOG "Starting palette showcase demo"
 # Default palette
 LOG "Applying palette: default"
 PALETTE "default"
-WAIT 3s
+WAIT 2s
 
 # Vibrant palette
 LOG "Applying palette: vibrant"
 PALETTE "vibrant"
-WAIT 3s
+WAIT 2s
 
 # Muted palette
 LOG "Applying palette: muted"
 PALETTE "muted"
-WAIT 3s
+WAIT 2s
 
 # Warm palette
 LOG "Applying palette: warm"
 PALETTE "warm"
-WAIT 3s
+WAIT 2s
 
 # Cool palette
 LOG "Applying palette: cool"
 PALETTE "cool"
-WAIT 3s
+WAIT 2s
 
 # Neon palette
 LOG "Applying palette: neonblast"
 PALETTE "neonblast"
-WAIT 3s
+WAIT 2s
 
 # Night palette
 LOG "Applying palette: night"
 PALETTE "night"
-WAIT 3s
+WAIT 2s
 
 # Monochrome palette
 LOG "Applying palette: monochrome"
 PALETTE "monochrome"
-WAIT 3s
+WAIT 2s
 
 # Inverted palette
 LOG "Applying palette: inverted"
 PALETTE "inverted"
-WAIT 3s
+WAIT 2s
 
 # Return to default
 LOG "Applying palette: default"
 PALETTE "default"
-WAIT 3s
 
 LOG "Palette showcase demo completed"
-
-stop
