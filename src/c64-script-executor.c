@@ -602,7 +602,7 @@ static void get_source_line(const char *source_text, int line_number, char *out_
         }
 
         size_t line_len = line_end - line_start;
-        if (line_len >= out_size) {
+        if (line_len > out_size - 1) {
             line_len = out_size - 1;
         }
 

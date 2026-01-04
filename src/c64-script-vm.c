@@ -450,9 +450,6 @@ bool c64script_vm_execute(c64script_runtime_t *runtime)
         c64script_instruction_t *instr = &runtime->bytecode[runtime->ip];
         int current_line = instr->source_line;
 
-        // Update next line to execute
-        runtime->next_line_to_execute = current_line;
-
         // Check for pause at source line boundaries
         // Only pause when the line number changes (new source line)
         if (runtime->should_pause && current_line != runtime->last_executed_line && current_line > 0) {

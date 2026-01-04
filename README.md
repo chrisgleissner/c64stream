@@ -518,11 +518,6 @@ The plugin includes minimal, easy-to-use debugging controls:
 - **Powerful:** Control every aspect of your stream programmatically
 - **Debuggable:** Step through scripts line-by-line to understand and fix issues
 - **Safe:** Scripts can't harm your system - they only control the plugin
-- Supports modifier keys (Shift, Ctrl, Alt, Meta) with proper PETSCII conversion
-- Automation engine uses sequential or shuffled playback with configurable duration and reset options
-- D64 autostart injects `LOAD"*",8,1\rRUN\r` after mounting
-
-For detailed protocol documentation and advanced usage, see [`doc/rest-control.md`](doc/rest-control.md).
 
 ### File System Structure 📁
 

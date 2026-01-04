@@ -1135,6 +1135,7 @@ obs_properties_t *c64_create_properties(void *data)
         obs_properties_add_text(rest_props, "script_exec_state", "Execution state", OBS_TEXT_INFO);
     obs_property_text_set_info_type(exec_state_prop, OBS_TEXT_INFO_NORMAL);
     obs_property_set_description(exec_state_prop, "Execution state");
+    obs_property_set_long_description(exec_state_prop, exec_state);
 
     // Last executed line - always visible, throttled in normal mode
     if (context->script_executor && should_update_lines) {
@@ -1154,6 +1155,7 @@ obs_properties_t *c64_create_properties(void *data)
     obs_property_t *last_line_prop =
         obs_properties_add_text(rest_props, "script_last_line", "Last executed", OBS_TEXT_INFO);
     obs_property_text_set_info_type(last_line_prop, OBS_TEXT_INFO_NORMAL);
+    obs_property_set_long_description(last_line_prop, context->cached_last_line);
 
     // Next line to execute - always visible, throttled in normal mode
     if (context->script_executor && should_update_lines) {
@@ -1174,6 +1176,7 @@ obs_properties_t *c64_create_properties(void *data)
     obs_property_t *next_line_prop =
         obs_properties_add_text(rest_props, "script_next_line", "Next to execute", OBS_TEXT_INFO);
     obs_property_text_set_info_type(next_line_prop, OBS_TEXT_INFO_NORMAL);
+    obs_property_set_long_description(next_line_prop, context->cached_next_line);
 
     // Last runtime error (only show if there's an error)
     if (current_status == C64_SCRIPT_STATUS_ERROR && context->script_executor) {
