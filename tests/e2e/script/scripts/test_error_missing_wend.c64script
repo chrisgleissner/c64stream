@@ -1,0 +1,7 @@
+# Test WHILE loop without matching WEND
+
+WHILE 1
+    EFFECT Sharp Pixels
+    WAIT 100ms
+# Missing WEND - should cause parse error
+STOP

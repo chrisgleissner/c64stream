@@ -1,0 +1,77 @@
+# Test all comparison operators
+# Tests: =, ==, <>, !=, <, <=, >, >=
+
+# Test 1: Equality operators (= and ==)
+A = 5
+IF A = 5 THEN
+    EFFECT Sharp Pixels
+ENDIF
+
+IF A == 5 THEN
+    WAIT 100ms
+ENDIF
+
+# Test 2: Inequality operators (<> and !=)
+B = 3
+IF B <> 5 THEN
+    PALETTE colodore
+ENDIF
+
+IF B != 5 THEN
+    WAIT 100ms
+ENDIF
+
+# Test 3: Less than (<)
+C = 2
+D = 5
+IF C < D THEN
+    EFFECT Soft CRT
+ENDIF
+
+# Test 4: Less than or equal (<=)
+E = 5
+F = 5
+IF E <= F THEN
+    PALETTE pepto_ntsc
+ENDIF
+
+G = 3
+IF G <= F THEN
+    WAIT 100ms
+ENDIF
+
+# Test 5: Greater than (>)
+H = 10
+I = 5
+IF H > I THEN
+    EFFECT Light Scanlines
+ENDIF
+
+# Test 6: Greater than or equal (>=)
+J = 5
+K = 5
+IF J >= K THEN
+    PALETTE vice_new
+ENDIF
+
+L = 8
+IF L >= K THEN
+    WAIT 100ms
+ENDIF
+
+# Test 7: Comparison chains in loop conditions
+FOR M = 1 TO 5
+    IF M >= 3 AND M <= 4 THEN
+        EFFECT CRT Monitor Warm
+        WAIT 50ms
+    ENDIF
+NEXT M
+
+# Test 8: String comparisons (if supported)
+# Most BASIC dialects support string comparison
+NAME$ = "TEST"
+IF NAME$ = "TEST" THEN
+    EFFECT Heavy Scanlines
+ENDIF
+
+STOP

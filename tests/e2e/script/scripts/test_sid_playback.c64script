@@ -1,0 +1,6 @@
+# SID playback test script
+# Tests C64U path handling and audio playback
+
+play_sid c64u:/Commodore/HVSC/MUSICIANS/H/Hubbard_Rob/Commando.sid songnr=1
+wait 30s
+stop

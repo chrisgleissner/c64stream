@@ -1,0 +1,59 @@
+# Test variable mutation and scope
+# Tests FOR loop variables, assignments, and GOSUB parameters
+
+# Test 1: FOR loop variable mutation
+COUNTER = 0
+FOR I = 1 TO 5
+    COUNTER = COUNTER + I
+    EFFECT Sharp Pixels
+    WAIT 50ms
+NEXT I
+# COUNTER should be 15 (1+2+3+4+5)
+
+# Test 2: Nested FOR with different variables
+SUM = 0
+FOR X = 1 TO 3
+    FOR Y = 1 TO 2
+        SUM = SUM + 1
+        WAIT 50ms
+    NEXT Y
+NEXT X
+# SUM should be 6 (3 * 2)
+
+# Test 3: Variable mutation in WHILE loop
+VALUE = 0
+WHILE VALUE < 5
+    VALUE = VALUE + 1
+    PALETTE colodore
+    WAIT 50ms
+WEND
+# VALUE should be 5
+
+# Test 4: GOSUB with implicit parameters (if supported)
+# Set globals before GOSUB
+PARAM1 = 10
+PARAM2 = 20
+GOSUB ADD_VALUES
+# RESULT should be 30
+
+# Test 5: Variable shadowing in nested loops
+A = 0
+FOR B = 1 TO 2
+    A = A + B
+    C = 0
+    WHILE C < 2
+        A = A + 1
+        C = C + 1
+    WEND
+NEXT B
+# A should be 7 (0 + 1 + 2 + 2 + 2)
+
+GOTO END
+
+ADD_VALUES:
+    RESULT = PARAM1 + PARAM2
+    EFFECT Soft CRT
+    RETURN
+
+END:
+STOP
