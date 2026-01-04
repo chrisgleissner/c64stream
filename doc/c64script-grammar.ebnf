@@ -32,7 +32,7 @@ label_ref       = label ;
 
 string_literal  = '"', { string_char }, '"' ;
 string_char     = ? any character except '"', '\', and EOL ? | '""' | escape_seq ;
-escape_seq      = '\', ( '\' | '"' | "r" | "n" | "t" | ("x", HEX, HEX) ) ;
+escape_seq      = "\", ( "\" | """" | "r" | "n" | "t" | ("x", HEX, HEX) ) ;
 
 duration_lit    = number, ("ms" | "s" | "m" | "h" | "d") ;
 
