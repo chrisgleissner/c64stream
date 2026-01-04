@@ -114,3 +114,13 @@ const char *c64_keyboard_get_status(c64_keyboard_t *keyboard);
  * @return true on success
  */
 bool c64_keyboard_discover_keymaps(char ***paths, size_t *count);
+
+/**
+ * Perform BASIC warm start via IRQ vector manipulation
+ * Aborts currently running BASIC program and returns to READY prompt
+ * without resetting the machine or destroying user memory.
+ * Thread-safe and safe to call multiple times.
+ * @param keyboard Keyboard instance
+ * @return true on success, false on error
+ */
+bool c64_keyboard_basic_warm_start(c64_keyboard_t *keyboard);
