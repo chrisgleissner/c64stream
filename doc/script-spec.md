@@ -402,6 +402,11 @@ The following operations raise "TYPE MISMATCH" errors:
 
 #### 2.4.2 Control Flow and Stacks
 
+**Script Termination**:
+- Scripts terminate when reaching: `STOP` (or `END`), `GOTO`, `LOOP`, or **running out of instructions** (implicit termination).
+- Implicit termination: If the instruction pointer reaches the end of bytecode without encountering an explicit termination statement, the script completes successfully.
+- This allows scripts to omit trailing `STOP` statements for cleaner code.
+
 The executor maintains explicit stacks:
 - `FOR` stack: loop variable, end value, step, loop start location.
 - `WHILE` stack: loop condition location, loop start location.

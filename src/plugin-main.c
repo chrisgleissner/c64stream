@@ -25,12 +25,122 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #include "c64-version.h"
 #include "c64-effect.h"
 #include "c64-palette.h"
+#include <sys/stat.h>
+#include <dirent.h>
+#include <string.h>
+#include <errno.h>
 
 // Logging control - define the global variable
 bool c64_debug_logging = true;
 
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en")
+
+// Copy demo scripts from plugin data folder to user's scripts folder
+static void copy_demo_scripts(void)
+{
+    // Get source directory (plugin data/scripts)
+    char *source_dir = obs_module_file("scripts");
+    if (!source_dir) {
+        C64_LOG_WARNING("Failed to get plugin scripts directory");
+        return;
+    }
+
+    // Get destination directory (user documents)
+    char dest_dir[2048];
+    const char *home = getenv("HOME");
+    if (!home) {
+        home = getenv("USERPROFILE"); // Windows fallback
+    }
+    if (!home) {
+        C64_LOG_WARNING("Could not determine home directory for script copying");
+        bfree(source_dir);
+        return;
+    }
+
+#ifdef _WIN32
+    snprintf(dest_dir, sizeof(dest_dir), "%s\\Documents\\obs-studio\\c64stream\\scripts", home);
+#else
+    snprintf(dest_dir, sizeof(dest_dir), "%s/Documents/obs-studio/c64stream/scripts", home);
+#endif
+
+    // Create destination directory if it doesn't exist
+#ifdef _WIN32
+    char mkdir_cmd[2560];
+    snprintf(mkdir_cmd, sizeof(mkdir_cmd), "mkdir \"%s\"", dest_dir);
+    if (system(mkdir_cmd) != 0) {
+        C64_LOG_WARNING("Failed to create scripts directory: %s", dest_dir);
+    }
+#else
+    char mkdir_cmd[2560];
+    snprintf(mkdir_cmd, sizeof(mkdir_cmd), "mkdir -p \"%s\"", dest_dir);
+    if (system(mkdir_cmd) != 0) {
+        C64_LOG_WARNING("Failed to create scripts directory: %s", dest_dir);
+    }
+#endif
+
+    // Copy all .c64script files
+    DIR *dir = opendir(source_dir);
+    if (!dir) {
+        C64_LOG_WARNING("Failed to open source scripts directory: %s", source_dir);
+        bfree(source_dir);
+        return;
+    }
+
+    C64_LOG_INFO("Copying demo scripts from %s to %s", source_dir, dest_dir);
+
+    int copied_count = 0;
+    int found_count = 0;
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != NULL) {
+        const char *ext = strrchr(entry->d_name, '.');
+        if (ext && strcmp(ext, ".c64script") == 0) {
+            found_count++;
+            char src_path[2560], dst_path[2560];
+            snprintf(src_path, sizeof(src_path), "%s/%s", source_dir, entry->d_name);
+            snprintf(dst_path, sizeof(dst_path), "%s/%s", dest_dir, entry->d_name);
+
+            // Check if destination file exists and is newer
+            struct stat src_stat, dst_stat;
+            bool should_copy = true;
+            if (stat(dst_path, &dst_stat) == 0 && stat(src_path, &src_stat) == 0) {
+                // Only copy if source is newer
+                if (src_stat.st_mtime <= dst_stat.st_mtime) {
+                    should_copy = false;
+                }
+            }
+
+            if (should_copy) {
+                // Copy file
+                FILE *src_file = fopen(src_path, "rb");
+                FILE *dst_file = fopen(dst_path, "wb");
+                if (src_file && dst_file) {
+                    char buffer[4096];
+                    size_t bytes;
+                    while ((bytes = fread(buffer, 1, sizeof(buffer), src_file)) > 0) {
+                        fwrite(buffer, 1, bytes, dst_file);
+                    }
+                    copied_count++;
+                } else {
+                    C64_LOG_WARNING("Failed to open files for copying: %s -> %s (src=%p, dst=%p)", src_path, dst_path,
+                                    (void *)src_file, (void *)dst_file);
+                }
+                if (src_file)
+                    fclose(src_file);
+                if (dst_file)
+                    fclose(dst_file);
+            }
+        }
+    }
+    closedir(dir);
+
+    C64_LOG_INFO("Found %d script files, copied %d to user directory", found_count, copied_count);
+    bfree(source_dir);
+
+    if (copied_count > 0) {
+        C64_LOG_INFO("Copied %d demo script(s) to %s", copied_count, dest_dir);
+    }
+}
 
 bool obs_module_load(void)
 {
@@ -46,6 +156,9 @@ bool obs_module_load(void)
     if (!c64_palette_init()) {
         C64_LOG_WARNING("Failed to initialize palette system - using default palette");
     }
+
+    // Copy demo scripts to user's documents folder
+    copy_demo_scripts();
 
     struct obs_source_info c64_info = {.id = "c64_source",
                                        .type = OBS_SOURCE_TYPE_INPUT,

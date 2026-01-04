@@ -1062,10 +1062,54 @@ TEST(parse_case_insensitive_keywords)
 // MAIN TEST RUNNER
 // ============================================================================
 
-int main(void)
+int main(int argc, char **argv)
 {
     printf("=== C64Script Parser Tests ===\n\n");
 
+    // If a script file is provided as argument, parse and validate it
+    if (argc > 1) {
+        const char *script_path = argv[1];
+        printf("--- Testing Script File: %s ---\n", script_path);
+
+        FILE *f = fopen(script_path, "r");
+        if (!f) {
+            fprintf(stderr, "ERROR: Failed to open script file: %s\n", script_path);
+            return 1;
+        }
+
+        // Read entire file
+        fseek(f, 0, SEEK_END);
+        long size = ftell(f);
+        fseek(f, 0, SEEK_SET);
+
+        char *source = malloc(size + 1);
+        if (!source) {
+            fprintf(stderr, "ERROR: Failed to allocate memory for script\n");
+            fclose(f);
+            return 1;
+        }
+
+        size_t read = fread(source, 1, size, f);
+        source[read] = '\0';
+        fclose(f);
+
+        // Parse the script
+        char error_msg[1024];
+        c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+
+        if (!ast) {
+            fprintf(stderr, "ERROR: Failed to parse %s: %s\n", script_path, error_msg);
+            free(source);
+            return 1;
+        }
+
+        printf("✅ Successfully parsed %s (%ld bytes)\n", script_path, size);
+        c64script_ast_free(ast);
+        free(source);
+        return 0;
+    }
+
+    // Otherwise run built-in tests
     printf("--- Expression Parsing Tests ---\n");
     RUN_TEST(parse_number_literal);
     RUN_TEST(parse_string_literal);

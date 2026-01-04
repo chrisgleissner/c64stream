@@ -1,53 +1,53 @@
 REM Effect Preset Cycle Demo
 REM Cycles through all available CRT effect presets,
-REM displaying each one for 5 seconds.
+REM displaying each one for 3 seconds.
 
 LOG "Starting effect preset cycle demo"
 
 REM Start with no effects
-LOG "Applying: Default (no effects)"
+LOG "Applying effect: Default"
 EFFECT "Default"
-WAIT 5s
+WAIT 3s
 
 REM Classic CRT with scanlines and bloom
-LOG "Applying: Classic CRT"
+LOG "Applying effect: Classic CRT"
 EFFECT "Classic CRT"
-WAIT 5s
+WAIT 3s
 
 REM Amber monitor look
-LOG "Applying: Amber Monitor"
+LOG "Applying effect: Amber Monitor"
 EFFECT "Amber Monitor"
-WAIT 5s
+WAIT 3s
 
 REM Green phosphor monitor
-LOG "Applying: Green Monitor"
+LOG "Applying effect: Green Monitor"
 EFFECT "Green Monitor"
-WAIT 5s
+WAIT 3s
 
 REM Sharp pixelated look
-LOG "Applying: Sharp Pixels"
+LOG "Applying effect: Sharp Pixels"
 EFFECT "Sharp Pixels"
-WAIT 5s
+WAIT 3s
 
 REM Strong phosphor glow effect
-LOG "Applying: Phosphor Glow"
+LOG "Applying effect: Phosphor Glow"
 EFFECT "Phosphor Glow"
-WAIT 5s
+WAIT 3s
 
 REM Vintage TV with heavy effects
-LOG "Applying: Vintage TV"
+LOG "Applying effect: Vintage TV"
 EFFECT "Vintage TV"
-WAIT 5s
+WAIT 3s
 
 REM Arcade cabinet look
-LOG "Applying: Arcade Cabinet"
+LOG "Applying effect: Arcade Cabinet"
 EFFECT "Arcade Cabinet"
-WAIT 5s
+WAIT 3s
 
 REM Return to default
-LOG "Returning to default (no effects)"
+LOG "Applying effect: Default"
 EFFECT "Default"
-WAIT 2s
+WAIT 3s
 
 LOG "Effect preset cycle demo completed"
 STOP

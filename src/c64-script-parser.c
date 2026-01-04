@@ -783,10 +783,8 @@ static c64script_ast_node_t *rem_statement(parser_t *p)
     node->type = AST_STMT_REM;
     node->line = p->previous.line;
 
-    while (!check(p, TOKEN_NEWLINE) && !check(p, TOKEN_EOF)) {
-        advance(p);
-    }
-
+    // The REM token already contains everything until newline,
+    // so we don't need to consume additional tokens
     return node;
 }
 

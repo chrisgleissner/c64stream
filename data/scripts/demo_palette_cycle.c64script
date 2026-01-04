@@ -1,0 +1,58 @@
+# Palette Cycle Demo
+# Cycles through available palettes, displaying each one for 3 seconds
+
+LOG "Starting palette showcase demo"
+
+# Default palette
+LOG "Applying palette: default"
+PALETTE "default"
+WAIT 3s
+
+# Vibrant palette
+LOG "Applying palette: vibrant"
+PALETTE "vibrant"
+WAIT 3s
+
+# Muted palette
+LOG "Applying palette: muted"
+PALETTE "muted"
+WAIT 3s
+
+# Warm palette
+LOG "Applying palette: warm"
+PALETTE "warm"
+WAIT 3s
+
+# Cool palette
+LOG "Applying palette: cool"
+PALETTE "cool"
+WAIT 3s
+
+# Neon palette
+LOG "Applying palette: neonblast"
+PALETTE "neonblast"
+WAIT 3s
+
+# Night palette
+LOG "Applying palette: night"
+PALETTE "night"
+WAIT 3s
+
+# Monochrome palette
+LOG "Applying palette: monochrome"
+PALETTE "monochrome"
+WAIT 3s
+
+# Inverted palette
+LOG "Applying palette: inverted"
+PALETTE "inverted"
+WAIT 3s
+
+# Return to default
+LOG "Applying palette: default"
+PALETTE "default"
+WAIT 3s
+
+LOG "Palette showcase demo completed"
+
+stop

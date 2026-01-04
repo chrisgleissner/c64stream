@@ -629,6 +629,12 @@ bool c64_palette_parse_vpl(const char *path, uint32_t *colors, char *name, size_
         return false;
     }
 
+    // Check if path is a directory and silently skip
+    struct stat path_stat;
+    if (stat(path, &path_stat) == 0 && S_ISDIR(path_stat.st_mode)) {
+        return false;
+    }
+
     FILE *file = fopen(path, "r");
     if (!file) {
         C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Failed to open VPL file: %s", path);
@@ -1019,7 +1025,7 @@ static void discover_shipped_palettes(void)
     if (dir) {
         struct dirent *entry;
         while ((entry = readdir(dir)) != NULL) {
-            // Skip directories and non-.vpl files
+            // Skip non-.vpl files
             size_t len = strlen(entry->d_name);
             if (len < 5 || strcasecmp(entry->d_name + len - 4, ".vpl") != 0) {
                 continue;
@@ -1027,6 +1033,12 @@ static void discover_shipped_palettes(void)
 
             char full_path[C64_PALETTE_PATH_MAX];
             snprintf(full_path, sizeof(full_path), "%s/%s", palettes_path, entry->d_name);
+
+            // Skip directories using stat
+            struct stat st;
+            if (stat(full_path, &st) != 0 || !S_ISREG(st.st_mode)) {
+                continue;
+            }
 
             char id[C64_PALETTE_NAME_MAX];
             strncpy(id, entry->d_name, sizeof(id) - 1);

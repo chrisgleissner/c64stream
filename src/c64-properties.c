@@ -18,10 +18,12 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-palette.h"
 #include "c64-color.h"
 #include "c64-keyboard.h"
+#include "c64-rest-client.h"
 #include "c64-script-executor.h"
 #include <obs-module.h>
 #include <util/platform.h>
 #include <time.h>
+#include <string.h>
 
 // Cross-platform strcasecmp
 #ifdef _WIN32
@@ -160,6 +162,122 @@ static inline void c64_set_bool(obs_data_t *settings, const char *key, bool valu
     } else {
         obs_data_set_default_bool(settings, key, value);
     }
+}
+
+// Sanity check button callback
+static bool sanity_check_clicked(obs_properties_t *props, obs_property_t *property, void *data)
+{
+    UNUSED_PARAMETER(props);
+    UNUSED_PARAMETER(property);
+
+    struct c64_source *context = (struct c64_source *)data;
+    if (!context) {
+        C64_LOG_ERROR("🔍 SANITY CHECK: Invalid context");
+        return false;
+    }
+
+    C64_LOG_INFO("🔍 SANITY CHECK: Starting validation...");
+
+    // Check REST client
+    if (!context->rest_client) {
+        C64_LOG_ERROR("🔍 SANITY CHECK: REST client not initialized - cannot test C64U connectivity");
+        return true;
+    }
+
+    C64_LOG_INFO("🔍 SANITY CHECK: REST client OK (base URL: %s)", context->rest_base_url);
+
+    // Test actual C64U memory write/read
+    const char *test_message = "HELLO WORLD FROM C64STREAM";
+    size_t msg_len = strlen(test_message);
+    uint16_t video_ram_addr = 0x0400; // C64 video RAM start
+    uint16_t color_ram_addr = 0xD800; // C64 color RAM start
+
+    // PETSCII codes for the message (convert ASCII to PETSCII)
+    uint8_t petscii_data[64];
+    for (size_t i = 0; i < msg_len && i < sizeof(petscii_data); i++) {
+        char c = test_message[i];
+        if (c >= 'a' && c <= 'z') {
+            petscii_data[i] = (uint8_t)(c - 'a' + 1); // lowercase -> PETSCII uppercase
+        } else if (c >= 'A' && c <= 'Z') {
+            petscii_data[i] = (uint8_t)(c - 'A' + 1); // uppercase -> PETSCII uppercase
+        } else if (c == ' ') {
+            petscii_data[i] = 32;
+        } else {
+            petscii_data[i] = (uint8_t)c; // Other characters as-is
+        }
+    }
+
+    // White color for all characters (color value 1 = white)
+    uint8_t color_data[64];
+    memset(color_data, 1, msg_len);
+
+    // Write to video RAM
+    C64_LOG_INFO("🔍 SANITY CHECK: Writing '%s' to video RAM $%04X...", test_message, video_ram_addr);
+    if (!c64_rest_write_memory(context->rest_client, video_ram_addr, petscii_data, msg_len)) {
+        C64_LOG_ERROR("🔍 SANITY CHECK: Failed to write to video RAM - REST call failed");
+        return true;
+    }
+
+    // Write to color RAM
+    C64_LOG_INFO("🔍 SANITY CHECK: Writing white color to color RAM $%04X...", color_ram_addr);
+    if (!c64_rest_write_memory(context->rest_client, color_ram_addr, color_data, msg_len)) {
+        C64_LOG_ERROR("🔍 SANITY CHECK: Failed to write to color RAM - REST call failed");
+        return true;
+    }
+
+    // Read back video RAM to verify
+    uint8_t read_buffer[64];
+    C64_LOG_INFO("🔍 SANITY CHECK: Reading back video RAM to verify...");
+    int bytes_read =
+        c64_rest_read_memory(context->rest_client, video_ram_addr, msg_len, read_buffer, sizeof(read_buffer));
+    if (bytes_read < 0) {
+        C64_LOG_ERROR("🔍 SANITY CHECK: Failed to read video RAM - REST call failed");
+        return true;
+    }
+
+    // Verify content
+    bool match = (bytes_read == (int)msg_len);
+    if (match) {
+        for (size_t i = 0; i < msg_len; i++) {
+            if (read_buffer[i] != petscii_data[i]) {
+                match = false;
+                break;
+            }
+        }
+    }
+
+    if (match) {
+        C64_LOG_INFO("🔍 SANITY CHECK: ✅ Memory test PASSED - message written and verified!");
+    } else {
+        C64_LOG_ERROR("🔍 SANITY CHECK: ❌ Memory test FAILED - read data doesn't match written data");
+    }
+
+    // Check keyboard capture
+    if (!context->keyboard) {
+        C64_LOG_WARNING("🔍 SANITY CHECK: Keyboard module not initialized");
+    } else {
+        C64_LOG_INFO("🔍 SANITY CHECK: Keyboard OK (enabled=%d, active=%d)", context->keyboard_capture_enabled,
+                     context->keyboard_capture_active);
+    }
+
+    // Check keymap
+    if (!context->keymap) {
+        C64_LOG_WARNING("🔍 SANITY CHECK: Keymap not loaded - keyboard capture will not work!");
+        C64_LOG_WARNING("🔍 SANITY CHECK: Set a keymap in Remote Control > Keyboard Keymap setting");
+    } else {
+        C64_LOG_INFO("🔍 SANITY CHECK: Keymap OK (%s)", context->keyboard_keymap_name);
+    }
+
+    // Check network streaming
+    if (!context->streaming) {
+        C64_LOG_WARNING("🔍 SANITY CHECK: Not currently streaming from C64");
+    } else {
+        C64_LOG_INFO("🔍 SANITY CHECK: Streaming active (C64: %s, video port: %u, audio port: %u)", context->ip_address,
+                     context->video_port, context->audio_port);
+    }
+
+    C64_LOG_INFO("🔍 SANITY CHECK: Validation complete");
+    return true;
 }
 
 // Script automation button callbacks
@@ -773,6 +891,11 @@ obs_properties_t *c64_create_properties(void *data)
     obs_property_t *script_reload_prop =
         obs_properties_add_button(rest_props, "script_reload", obs_module_text("ScriptReload"), script_reload_clicked);
     obs_property_set_long_description(script_reload_prop, obs_module_text("ScriptReload.Description"));
+
+    // REST memory test button
+    obs_property_t *rest_test_prop =
+        obs_properties_add_button(rest_props, "rest_test", "Test DMA", sanity_check_clicked);
+    obs_property_set_long_description(rest_test_prop, "Test C64U connectivity by writing/reading memory via DMA");
 
     return props;
 }

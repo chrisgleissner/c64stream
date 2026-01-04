@@ -14,7 +14,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include <stdlib.h>
 #include <string.h>
 
-#define REST_LOG_PREFIX "[c64-rest] "
+#define REST_LOG_PREFIX "📡 REST: "
 #define HTTP_TIMEOUT_SECONDS 5
 
 struct c64_rest_client {
@@ -235,6 +235,8 @@ bool c64_rest_write_memory(c64_rest_client_t *client, uint16_t address, const ui
         return false;
     }
 
+    C64_LOG_INFO(REST_LOG_PREFIX "Writing %zu bytes to $%04X", length, address);
+
     // Convert data to hex string
     char *hex_data = malloc(length * 2 + 1);
     if (!hex_data) {
@@ -253,7 +255,9 @@ bool c64_rest_write_memory(c64_rest_client_t *client, uint16_t address, const ui
     bool result = http_request(client, "PUT", "/v1/machine:writemem", query, NULL, 0, NULL);
 
     if (result) {
-        C64_LOG_DEBUG(REST_LOG_PREFIX "Wrote memory $%04X: %zu bytes", address, length);
+        C64_LOG_INFO(REST_LOG_PREFIX "Successfully wrote memory $%04X: %zu bytes", address, length);
+    } else {
+        C64_LOG_ERROR(REST_LOG_PREFIX "Failed to write memory $%04X", address);
     }
 
     return result;

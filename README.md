@@ -25,6 +25,7 @@ The plugin connects directly to the Ultimate's network interface, eliminating th
 - Automatic VIC-II color space conversion
 - **Authentic CRT effects** with configurable presets (scan lines, bloom, tint, pixel geometry)
 - Built-in recording capabilities (BMP frames, AVI video, WAV audio)
+- **Keyboard capture** - click "Interact" button below preview to type directly into C64
 
 ## Configuration
 

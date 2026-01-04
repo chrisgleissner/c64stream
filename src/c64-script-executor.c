@@ -18,7 +18,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include <stdlib.h>
 #include <string.h>
 
-#define EXECUTOR_LOG_PREFIX "[c64-script-executor] "
+#define EXECUTOR_LOG_PREFIX "🕹 SCRIPT: "
 
 struct c64_script_executor {
     obs_source_t *source;

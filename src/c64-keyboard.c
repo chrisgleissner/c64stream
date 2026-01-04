@@ -27,7 +27,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include <stdlib.h>
 #include <string.h>
 
-#define KEYBOARD_LOG_PREFIX "[c64-keyboard] "
+#define KEYBOARD_LOG_PREFIX "🕹 KEYBOARD: "
 #define MAX_KEYMAP_ENTRIES 512
 #define QUEUE_SIZE 1024
 #define POLL_INTERVAL_MS 50

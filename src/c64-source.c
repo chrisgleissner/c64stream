@@ -600,11 +600,11 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     // Build REST base URL from c64_host
     const char *c64_host = obs_data_get_string(settings, "c64_host");
     if (c64_host && c64_host[0] != '\0' && strcmp(c64_host, "0.0.0.0") != 0) {
-        // Build REST API URL from host (add http:// if not present, append /v1 path)
+        // Build REST API URL from host (add http:// if not present)
         if (strncmp(c64_host, "http://", 7) == 0 || strncmp(c64_host, "https://", 8) == 0) {
-            snprintf(context->rest_base_url, sizeof(context->rest_base_url), "%s/v1", c64_host);
+            snprintf(context->rest_base_url, sizeof(context->rest_base_url), "%s", c64_host);
         } else {
-            snprintf(context->rest_base_url, sizeof(context->rest_base_url), "http://%s/v1", c64_host);
+            snprintf(context->rest_base_url, sizeof(context->rest_base_url), "http://%s", c64_host);
         }
 
         const char *rest_password = obs_data_get_string(settings, "rest_password");
@@ -619,12 +619,20 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     const char *keymap_name = obs_data_get_string(settings, "keyboard_keymap");
     if (keymap_name && keymap_name[0] != '\0') {
         strncpy(context->keyboard_keymap_name, keymap_name, sizeof(context->keyboard_keymap_name) - 1);
-        // Load keymap file
-        char keymap_path[512];
-        snprintf(keymap_path, sizeof(keymap_path), "data/keymaps/%s.c64keymap.ini", keymap_name);
-        context->keymap = c64_keymap_load(keymap_path);
-        if (!context->keymap) {
-            C64_LOG_WARNING("Failed to load keymap: %s", keymap_path);
+        // Load keymap file using absolute path from module
+        char keymap_filename[128];
+        snprintf(keymap_filename, sizeof(keymap_filename), "keymaps/%s.c64keymap.ini", keymap_name);
+        char *keymap_path = obs_module_file(keymap_filename);
+        if (keymap_path) {
+            context->keymap = c64_keymap_load(keymap_path);
+            if (!context->keymap) {
+                C64_LOG_WARNING("Failed to load keymap: %s", keymap_path);
+            } else {
+                C64_LOG_INFO("🕹 KEYBOARD: Loaded keymap: %s", keymap_name);
+            }
+            bfree(keymap_path);
+        } else {
+            C64_LOG_WARNING("Failed to resolve keymap path for: %s", keymap_name);
         }
     }
 
@@ -1255,118 +1263,6 @@ static bool is_output_active(void)
 #endif
 }
 
-// Render keyboard capture indicator overlay (preview-only)
-static void render_capture_indicator(struct c64_source *context)
-{
-#ifdef ENABLE_FRONTEND_API
-    if (!context || !context->keyboard_capture_active)
-        return;
-
-    // Only show in preview (not when streaming/recording)
-    if (is_output_active())
-        return;
-
-    // Calculate indicator position based on user preference
-    const uint32_t indicator_width = 72;
-    const uint32_t indicator_height = 16;
-    const uint32_t margin = 8;
-
-    uint32_t indicator_x, indicator_y;
-    switch (context->capture_indicator_position) {
-    case 0: // Top-right
-        indicator_x = context->width - indicator_width - margin;
-        indicator_y = margin;
-        break;
-    case 1: // Top-left
-        indicator_x = margin;
-        indicator_y = margin;
-        break;
-    case 2: // Bottom-right
-        indicator_x = context->width - indicator_width - margin;
-        indicator_y = context->height - indicator_height - margin;
-        break;
-    case 3: // Bottom-left
-        indicator_x = margin;
-        indicator_y = context->height - indicator_height - margin;
-        break;
-    default:
-        indicator_x = context->width - indicator_width - margin;
-        indicator_y = margin;
-        break;
-    }
-
-    // Draw semi-transparent red background with configurable opacity
-    gs_effect_t *solid = obs_get_base_effect(OBS_EFFECT_SOLID);
-    if (solid) {
-        struct vec4 color;
-        vec4_set(&color, 1.0f, 0.0f, 0.0f, context->capture_indicator_opacity);
-        gs_effect_set_vec4(gs_effect_get_param_by_name(solid, "color"), &color);
-
-        while (gs_effect_loop(solid, "Solid")) {
-            gs_render_start(true);
-            gs_vertex2f((float)indicator_x, (float)indicator_y);
-            gs_vertex2f((float)(indicator_x + indicator_width), (float)indicator_y);
-            gs_vertex2f((float)(indicator_x + indicator_width), (float)(indicator_y + indicator_height));
-            gs_vertex2f((float)indicator_x, (float)(indicator_y + indicator_height));
-            gs_render_stop(GS_TRISTRIP);
-        }
-    }
-
-    // TODO: Add configurable text rendering using context->capture_indicator_text
-    // For now, the red box is sufficient to indicate capture state
-#else
-    UNUSED_PARAMETER(context);
-#endif // ENABLE_FRONTEND_API
-}
-
-// Render recording indicator overlay (preview-only)
-static void render_recording_indicator(struct c64_source *context)
-{
-#ifdef ENABLE_FRONTEND_API
-    if (!context)
-        return;
-
-    // Check if any recording features are enabled
-    bool recording_active = c64_session_any_recording_active(context);
-
-    if (!recording_active)
-        return;
-
-    // Only show in preview (not when streaming/recording)
-    if (is_output_active())
-        return;
-
-    // Render indicator in bottom-left border area
-    const uint32_t indicator_x = 8;
-    const uint32_t indicator_y = context->height - 24;
-    const uint32_t indicator_width = 48;
-    const uint32_t indicator_height = 16;
-
-    // Draw semi-transparent orange background
-    gs_effect_t *solid = obs_get_base_effect(OBS_EFFECT_SOLID);
-    if (solid) {
-        // Set orange color with 70% opacity (RGBA: 0xB3FFA500)
-        struct vec4 color;
-        vec4_set(&color, 1.0f, 0.65f, 0.0f, 0.7f);
-        gs_effect_set_vec4(gs_effect_get_param_by_name(solid, "color"), &color);
-
-        while (gs_effect_loop(solid, "Solid")) {
-            gs_render_start(true);
-            gs_vertex2f((float)indicator_x, (float)indicator_y);
-            gs_vertex2f((float)(indicator_x + indicator_width), (float)indicator_y);
-            gs_vertex2f((float)(indicator_x + indicator_width), (float)(indicator_y + indicator_height));
-            gs_vertex2f((float)indicator_x, (float)(indicator_y + indicator_height));
-            gs_render_stop(GS_TRISTRIP);
-        }
-    }
-
-    // TODO: Add text "REC" using gs_font or recording dot icon
-    // For now, the orange box is sufficient to indicate recording state
-#else
-    UNUSED_PARAMETER(context);
-#endif // ENABLE_FRONTEND_API
-}
-
 // Video render callback for CRT effects (GPU rendering)
 void c64_video_render(void *data, gs_effect_t *effect)
 {
@@ -1406,9 +1302,6 @@ void c64_video_render(void *data, gs_effect_t *effect)
                 gs_draw_sprite(input_tex, 0, context->width, context->height);
             }
         }
-        // Render keyboard capture indicator (preview-only, not in output)
-        render_capture_indicator(context);
-        render_recording_indicator(context);
         return;
     }
 
@@ -1518,10 +1411,6 @@ void c64_video_render(void *data, gs_effect_t *effect)
     while (gs_effect_loop(context->crt_effect, "Draw")) {
         gs_draw_sprite(input_tex, 0, render_width, render_height);
     }
-
-    // Render keyboard capture indicator (preview-only, not in output)
-    render_capture_indicator(context);
-    render_recording_indicator(context);
 }
 
 // Helper function to get scanline scaling parameters based on distance setting
@@ -1675,16 +1564,51 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
 {
     struct c64_source *context = (struct c64_source *)data;
     if (!context || !event) {
+        C64_LOG_DEBUG("🕹 KEYBOARD: key_click called: context=%p, event=%p", (void *)context, (void *)event);
         return;
     }
 
+    // Log ALL event details for debugging
+    C64_LOG_INFO("🕹 KEYBOARD: ===== KEY EVENT DEBUG =====");
+    C64_LOG_INFO("🕹 KEYBOARD:   key_up: %d", key_up);
+    C64_LOG_INFO("🕹 KEYBOARD:   text: '%s'", event->text ? event->text : "(null)");
+    C64_LOG_INFO("🕹 KEYBOARD:   native_vkey: 0x%X (%u)", event->native_vkey, event->native_vkey);
+    C64_LOG_INFO("🕹 KEYBOARD:   native_scancode: 0x%X (%u)", event->native_scancode, event->native_scancode);
+    C64_LOG_INFO("🕹 KEYBOARD:   native_modifiers: 0x%X (%u)", event->native_modifiers, event->native_modifiers);
+    C64_LOG_INFO("🕹 KEYBOARD:   modifiers: 0x%X", event->modifiers);
+    C64_LOG_INFO("🕹 KEYBOARD:     SHIFT: %d", (event->modifiers & INTERACT_SHIFT_KEY) ? 1 : 0);
+    C64_LOG_INFO("🕹 KEYBOARD:     CTRL: %d", (event->modifiers & INTERACT_CONTROL_KEY) ? 1 : 0);
+    C64_LOG_INFO("🕹 KEYBOARD:     ALT: %d", (event->modifiers & INTERACT_ALT_KEY) ? 1 : 0);
+    C64_LOG_INFO("🕹 KEYBOARD:     CMD: %d", (event->modifiers & INTERACT_COMMAND_KEY) ? 1 : 0);
+    C64_LOG_INFO("🕹 KEYBOARD: =============================");
+
     // Only process key press events (not key up)
     if (key_up) {
+        C64_LOG_DEBUG("🕹 KEYBOARD: Skipping key_up event");
+        return;
+    }
+
+    // Skip modifier keys themselves (Shift, Ctrl, Alt, Command/Super)
+    // These should only modify other keys, not generate keypresses
+    if (event->native_vkey == 0xFFE1 || // Left Shift (X11)
+        event->native_vkey == 0xFFE2 || // Right Shift (X11)
+        event->native_vkey == 0xFFE3 || // Left Ctrl (X11)
+        event->native_vkey == 0xFFE4 || // Right Ctrl (X11)
+        event->native_vkey == 0xFFE9 || // Left Alt (X11)
+        event->native_vkey == 0xFFEA || // Right Alt (X11)
+        event->native_vkey == 0xFFEB || // Left Super/Windows (X11)
+        event->native_vkey == 0xFFEC || // Right Super/Windows (X11)
+        event->native_vkey == 0x10 ||   // Shift (Windows)
+        event->native_vkey == 0x11 ||   // Ctrl (Windows)
+        event->native_vkey == 0x12) {   // Alt (Windows)
+        C64_LOG_DEBUG("🕹 KEYBOARD: Skipping modifier key");
         return;
     }
 
     // Check if capture is enabled
     if (!context->keyboard_capture_active) {
+        C64_LOG_DEBUG("🕹 KEYBOARD: Capture not active (enabled=%d, active=%d)", context->keyboard_capture_enabled,
+                      context->keyboard_capture_active);
         return;
     }
 
@@ -1704,9 +1628,30 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
         // Build key code from event
         char key_code[64] = "";
 
-        // Map native virtual key to W3C key code (simplified - would need full mapping)
-        // For now, just use the text if available
-        if (event->text && event->text[0] != '\0') {
+        // Map special keys using native_vkey - check these FIRST before text
+        // because some keys (like Return) may have text but need special handling
+        if (event->native_vkey == 0x0D || event->native_vkey == 0xFF0D) { // Return/Enter (Linux: 0xFF0D)
+            snprintf(key_code, sizeof(key_code), "return");
+        } else if (event->native_vkey == 0x08 || event->native_vkey == 0xFF08) { // Backspace (Linux: 0xFF08)
+            snprintf(key_code, sizeof(key_code), "backspace");
+        } else if (event->native_vkey == 0x2E || event->native_vkey == 0xFFFF) { // Delete (Linux: 0xFFFF)
+            snprintf(key_code, sizeof(key_code), "delete");
+        } else if (event->native_vkey == 0x20) { // Space
+            snprintf(key_code, sizeof(key_code), "space");
+        } else if (event->native_vkey == 0x09 || event->native_vkey == 0xFF09) { // Tab (Linux: 0xFF09)
+            snprintf(key_code, sizeof(key_code), "tab");
+        } else if (event->native_vkey == 0x1B || event->native_vkey == 0xFF1B) { // Escape -> RUN/STOP (Linux: 0xFF1B)
+            snprintf(key_code, sizeof(key_code), "esc");
+        } else if (event->native_vkey == 0xFF52) { // Arrow Up (Linux X11)
+            snprintf(key_code, sizeof(key_code), "up");
+        } else if (event->native_vkey == 0xFF54) { // Arrow Down (Linux X11)
+            snprintf(key_code, sizeof(key_code), "down");
+        } else if (event->native_vkey == 0xFF51) { // Arrow Left (Linux X11)
+            snprintf(key_code, sizeof(key_code), "left");
+        } else if (event->native_vkey == 0xFF53) { // Arrow Right (Linux X11)
+            snprintf(key_code, sizeof(key_code), "right");
+        } else if (event->text && event->text[0] != '\0') {
+            // Use text for regular printable characters
             snprintf(key_code, sizeof(key_code), "%s", event->text);
         }
 
@@ -1728,6 +1673,15 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
         // Convert key to C64 output
         c64_output_t output;
         if (c64_keymap_convert(context->keymap, key_code, modifiers, &output)) {
+            // Log captured keystroke
+            if (output.mode == C64_OUTPUT_PETSCII) {
+                C64_LOG_INFO("🕹 KEYBOARD: Captured key '%s' (PETSCII 0x%02X)", key_code, output.data.petscii);
+            } else if (output.mode == C64_OUTPUT_SYMBOLIC) {
+                C64_LOG_INFO("🕹 KEYBOARD: Captured symbolic key '%s' (%s)", key_code, output.data.symbol);
+            } else if (output.mode == C64_OUTPUT_TEXT) {
+                C64_LOG_INFO("🕹 KEYBOARD: Captured text '%s'", key_code);
+            }
+
             // Queue the keystroke for injection
             c64_keyboard_queue_output(context->keyboard, &output);
         }

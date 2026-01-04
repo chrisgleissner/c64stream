@@ -466,6 +466,15 @@ static c64script_token_t tokenize_identifier(tokenizer_t *t)
 
     // Check if it's a keyword
     c64script_token_type_t type = lookup_keyword(start, length);
+
+    // Special handling for REM: consume everything until newline
+    if (type == TOKEN_REM) {
+        while (peek(t) != '\n' && peek(t) != '\0') {
+            advance(t);
+            length++;
+        }
+    }
+
     return make_token(t, type, start, length);
 }
 

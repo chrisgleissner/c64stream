@@ -43,4 +43,32 @@ else()
 endif()
 add_test(NAME c64script_compiler COMMAND test_c64script_compiler)
 
+# Test all data/scripts/*.c64script files with the parser
+file(GLOB SCRIPT_FILES "${CMAKE_SOURCE_DIR}/data/scripts/*.c64script")
+foreach(SCRIPT_FILE ${SCRIPT_FILES})
+  get_filename_component(SCRIPT_NAME ${SCRIPT_FILE} NAME_WE)
+
+  # Skip demo_sid_playback_cycle until PLAY_SID command is implemented
+  if(NOT SCRIPT_NAME STREQUAL "demo_sid_playback_cycle")
+    add_test(
+      NAME c64script_parse_${SCRIPT_NAME}
+      COMMAND test_c64script_parser ${SCRIPT_FILE}
+      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+  endif()
+endforeach()
+
+# Python script validation tests
+find_program(PYTHON_EXECUTABLE NAMES python3 python)
+if(PYTHON_EXECUTABLE)
+  add_test(
+    NAME c64script_validation
+    COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_scripts.py
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+  )
+  message(STATUS "Python script validation tests enabled")
+else()
+  message(WARNING "Python not found, skipping script validation tests")
+endif()
+
 add_subdirectory(e2e)
