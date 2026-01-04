@@ -1638,6 +1638,7 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
     }
 
     // Ctrl+ESC performs C64 reset via REST API
+    // User holds Ctrl key and presses Escape to reset the machine
     if (event->native_vkey == 0x1B && event->modifiers & INTERACT_CONTROL_KEY) { // VK_ESCAPE + Ctrl
         C64_LOG_INFO("Keyboard: Ctrl+ESC pressed - performing C64 reset");
         if (context->rest_client) {
