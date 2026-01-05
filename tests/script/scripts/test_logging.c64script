@@ -1,0 +1,58 @@
+rem Test logging commands
+rem Validates LOG, LOGFILE, TRON, TROFF, PRINT
+
+rem Test 1: Set log file with truncate mode
+LOGFILE "test_output.log" TRUNCATE
+wait 100ms
+
+rem Test 2: Log simple message
+LOG "Test started"
+wait 100ms
+
+rem Test 3: Log with variable
+COUNTER = 42
+LOG "Counter value: " + COUNTER
+wait 100ms
+
+rem Test 4: Enable tracing
+TRON
+effect "Sharp Pixels"
+wait 100ms
+palette colodore
+wait 100ms
+
+rem Test 5: Disable tracing
+TROFF
+effect "Soft CRT"
+wait 100ms
+
+rem Test 6: Log in a loop
+for I = 1 to 3
+    LOG "Loop iteration: " + I
+    wait 50ms
+next I
+
+rem Test 7: Set log file with append mode
+LOGFILE "test_output.log" APPEND
+LOG "Appended message"
+wait 100ms
+
+rem Test 8: PRINT to OBS log (different from script log)
+PRINT "This goes to OBS log"
+wait 100ms
+
+rem Test 9: Complex log message
+NAME$ = "C64Script"
+VERSION = 1.0
+LOG "Running " + NAME$ + " version " + VERSION
+wait 100ms
+
+rem Test 10: Log with tracing on
+TRON
+for J = 1 to 2
+    LOG "Traced loop: " + J
+    wait 50ms
+next J
+TROFF
+
+stop

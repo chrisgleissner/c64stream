@@ -1,0 +1,50 @@
+rem Test memory access commands
+rem Validates POKE and PEEK operations via REST DMA
+
+rem Test 1: POKE single byte to memory
+POKE $C000, 169
+wait 100ms
+
+rem Test 2: POKE to different address
+POKE $D020, 0
+wait 100ms
+
+rem Test 3: POKE to keyboard buffer length
+POKE $00C6, 0
+wait 100ms
+
+rem Test 4: POKE multiple bytes (array form)
+POKE $C000, [169, 255, 141, 32, 208]
+wait 100ms
+
+rem Test 5: POKE larger array
+POKE $C010, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+wait 100ms
+
+rem Test 6: PEEK from border color
+BORDER = PEEK($D020)
+wait 100ms
+
+rem Test 7: PEEK from keyboard buffer length
+BUFLEN = PEEK($00C6)
+wait 100ms
+
+rem Test 8: PEEK and use in condition
+VALUE = PEEK($C000)
+if VALUE = 169 then
+    effect "Sharp Pixels"
+endif
+wait 100ms
+
+rem Test 9: PEEK in expression
+TOTAL = PEEK($C000) + PEEK($C001)
+wait 100ms
+
+rem Test 10: Write and read back
+POKE $C100, 42
+CHECK = PEEK($C100)
+if CHECK = 42 then
+    palette colodore
+endif
+
+stop

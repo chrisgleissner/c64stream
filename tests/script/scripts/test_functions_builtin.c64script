@@ -1,0 +1,126 @@
+rem Test built-in functions
+rem Validates string, math, and utility functions
+
+rem Test 1: String functions - LEFT$
+TEXT$ = "HELLO WORLD"
+PREFIX$ = LEFT$(TEXT$, 5)
+LOG "Left 5: " + PREFIX$
+wait 100ms
+
+rem Test 2: String functions - RIGHT$
+SUFFIX$ = RIGHT$(TEXT$, 5)
+LOG "Right 5: " + SUFFIX$
+wait 100ms
+
+rem Test 3: String functions - MID$
+MIDDLE$ = MID$(TEXT$, 7, 5)
+LOG "Middle: " + MIDDLE$
+wait 100ms
+
+rem Test 4: String functions - LEN
+LENGTH = LEN(TEXT$)
+LOG "Length: " + LENGTH
+wait 100ms
+
+rem Test 5: String functions - CHR$
+CHAR_A$ = CHR$(65)
+LOG "CHR$(65): " + CHAR_A$
+wait 100ms
+
+rem Test 6: String functions - ASC
+CODE = ASC("A")
+LOG "ASC(A): " + CODE
+wait 100ms
+
+rem Test 7: Conversion functions - STR$
+NUM = 42
+NUM_STR$ = STR$(NUM)
+LOG "STR$(42): " + NUM_STR$
+wait 100ms
+
+rem Test 8: Conversion functions - VAL
+STR_NUM$ = "123.45"
+PARSED = VAL(STR_NUM$)
+LOG "VAL(123.45): " + PARSED
+wait 100ms
+
+rem Test 9: Math functions - ABS
+NEG = -42
+POS = ABS(NEG)
+LOG "ABS(-42): " + POS
+wait 100ms
+
+rem Test 10: Math functions - INT
+FLOAT = 3.7
+INTEGER = INT(FLOAT)
+LOG "INT(3.7): " + INTEGER
+wait 100ms
+
+rem Test 11: Math functions - RND
+RANDOM = RND(100)
+LOG "RND(100): " + RANDOM
+wait 100ms
+
+rem Test 12: Math functions - SIN
+ANGLE = 1.5708
+SINE = SIN(ANGLE)
+LOG "SIN(pi/2): " + SINE
+wait 100ms
+
+rem Test 13: Math functions - COS
+COSINE = COS(0)
+LOG "COS(0): " + COSINE
+wait 100ms
+
+rem Test 14: Math functions - TAN
+TANGENT = TAN(0.785398)
+LOG "TAN(pi/4): " + TANGENT
+wait 100ms
+
+rem Test 15: Math functions - SQRT
+SQUARE = 144
+ROOT = SQRT(SQUARE)
+LOG "SQRT(144): " + ROOT
+wait 100ms
+
+rem Test 16: Math functions - LOG (natural logarithm)
+E_VAL = 2.71828
+NAT_LOG = LOG(E_VAL)
+LOG "LOG(e): " + NAT_LOG
+wait 100ms
+
+rem Test 17: Math functions - EXP
+POWER = EXP(1)
+LOG "EXP(1): " + POWER
+wait 100ms
+
+rem Test 18: TIME$ function
+CURRENT_TIME$ = TIME$()
+LOG "Current time: " + CURRENT_TIME$
+wait 100ms
+
+rem Test 19: Functions in expressions
+RESULT = INT(RND(10)) + 1
+LOG "Random 1-10: " + RESULT
+wait 100ms
+
+rem Test 20: Nested function calls
+NESTED$ = LEFT$(RIGHT$("ABCDEFGH", 6), 3)
+LOG "Nested result: " + NESTED$
+wait 100ms
+
+rem Test 21: Functions in conditionals
+NAME$ = "TEST"
+if LEN(NAME$) = 4 then
+    effect "Sharp Pixels"
+endif
+wait 100ms
+
+rem Test 22: String manipulation chain
+ORIGINAL$ = "  hello world  "
+UPPER$ = ORIGINAL$
+LENGTH = LEN(UPPER$)
+TRIMMED$ = MID$(UPPER$, 3, 11)
+LOG "Manipulated: " + TRIMMED$
+
+stop

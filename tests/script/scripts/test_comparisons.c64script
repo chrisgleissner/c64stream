@@ -1,0 +1,77 @@
+rem Test all comparison operators
+rem Tests: =, ==, <>, !=, <, <=, >, >=
+
+rem Test 1: Equality operators (= and ==)
+A = 5
+if A = 5 then
+    effect "Sharp Pixels"
+endif
+
+if A == 5 then
+    wait 100ms
+endif
+
+rem Test 2: Inequality operators (<> and !=)
+B = 3
+if B <> 5 then
+    palette colodore
+endif
+
+if B != 5 then
+    wait 100ms
+endif
+
+rem Test 3: Less than (<)
+C = 2
+D = 5
+if C < D then
+    effect "Soft CRT"
+endif
+
+rem Test 4: Less than or equal (<=)
+E = 5
+F = 5
+if E <= F then
+    palette pepto_ntsc
+endif
+
+G = 3
+if G <= F then
+    wait 100ms
+endif
+
+rem Test 5: Greater than (>)
+H = 10
+I = 5
+if H > I then
+    effect "Light Scanlines"
+endif
+
+rem Test 6: Greater than or equal (>=)
+J = 5
+K = 5
+if J >= K then
+    palette vice_new
+endif
+
+L = 8
+if L >= K then
+    wait 100ms
+endif
+
+rem Test 7: Comparison chains in loop conditions
+for M = 1 to 5
+    if M >= 3 and M <= 4 then
+        effect "CRT Monitor Warm"
+        wait 50ms
+    endif
+next M
+
+rem Test 8: String comparisons (if supported)
+rem Most BASIC dialects support string comparison
+NAME$ = "TEST"
+if NAME$ = "TEST" then
+    effect "Heavy Scanlines"
+endif
+
+stop

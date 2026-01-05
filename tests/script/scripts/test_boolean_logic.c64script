@@ -1,0 +1,63 @@
+rem Test boolean logic operators (and, or, not, xor)
+rem Tests truthiness, operator precedence, and combinations
+
+rem Test 1: Basic and operator
+A = 1
+B = 1
+if A and B then
+    effect "Sharp Pixels"
+endif
+
+rem Test 2: Basic or operator
+C = 0
+D = 1
+if C or D then
+    palette colodore
+endif
+
+rem Test 3: not operator
+E = 0
+if not E then
+    effect "Soft CRT"
+endif
+
+rem Test 4: xor operator
+F = 1
+G = 0
+if F xor G then
+    palette pepto_ntsc
+endif
+
+rem Test 5: Combined operators - (A and B) or C
+H = 0
+I = 0
+J = 1
+if (H and I) or J then
+    effect "Light Scanlines"
+endif
+
+rem Test 6: not with and - not (A and B)
+K = 1
+L = 0
+if not (K and L) then
+    palette vice_new
+endif
+
+rem Test 7: Complex expression with precedence
+rem (A or B) and (C or D)
+M = 1
+N = 0
+O = 0
+P = 1
+if (M or N) and (O or P) then
+    effect "CRT Monitor Warm"
+endif
+
+rem Test 8: Bitwise operations (and/or/xor operate on integers)
+rem 5 and 3 should be 1 (0101 & 0011 = 0001)
+RESULT = 5 and 3
+if RESULT = 1 then
+    effect "Heavy Scanlines"
+endif
+
+stop

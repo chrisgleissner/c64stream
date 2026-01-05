@@ -1,0 +1,79 @@
+rem Test let and rem statements
+rem Validates optional let keyword and comment styles
+
+rem Test 1: Assignment without let
+X = 10
+wait 50ms
+
+rem Test 2: Assignment with let
+let Y = 20
+wait 50ms
+
+rem Test 3: Both forms produce same result
+Z = X + Y
+if Z = 30 then
+    effect "Sharp Pixels"
+endif
+wait 100ms
+
+rem Test 4: rem comment style
+rem This is a BASIC-style comment
+effect "Soft CRT"
+wait 100ms
+
+rem Test 5: # comment style (legacy)
+rem This is a hash comment
+palette colodore
+wait 100ms
+
+rem Test 6: Mixed comments
+rem First command
+effect "Light Scanlines"
+rem Second command
+wait 100ms
+
+rem Test 7: let with string variable
+let NAME$ = "C64Script"
+LOG "Language: " + NAME$
+wait 100ms
+
+rem Test 8: let with array element
+dim ARRAY(5)
+let ARRAY(0) = 100
+let ARRAY(1) = 200
+SUM = ARRAY(0) + ARRAY(1)
+LOG "Array sum: " + SUM
+wait 100ms
+
+rem Test 9: let with map element
+let CONFIG{"port"} = 8080
+let CONFIG{"timeout"} = 5000
+PORT = CONFIG{"port"}
+LOG "Port: " + PORT
+wait 100ms
+
+rem Test 10: rem on same line as label
+START: rem This is the start label
+effect "CRT Monitor Warm"
+wait 100ms
+
+rem Test 11: Complex expression with let
+let RESULT = (10 + 20) * 2 - 5
+LOG "Result: " + RESULT
+wait 100ms
+
+rem Test 12: Multiple LETs
+let A = 1
+let B = 2
+let C = 3
+TOTAL = A + B + C
+LOG "Total: " + TOTAL
+wait 100ms
+
+rem Test 13: let with function call
+let RANDOM = RND(100)
+LOG "Random: " + RANDOM
+wait 100ms
+
+rem Test completed
+stop

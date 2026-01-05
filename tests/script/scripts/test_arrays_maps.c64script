@@ -1,0 +1,96 @@
+rem Test arrays and maps
+rem Validates dim, array access, and map access
+
+rem Test 1: Declare numeric array
+dim VALUES(10)
+wait 50ms
+
+rem Test 2: Assign to array elements
+VALUES(0) = 100
+VALUES(1) = 200
+VALUES(2) = 300
+wait 50ms
+
+rem Test 3: Read from array
+FIRST = VALUES(0)
+if FIRST = 100 then
+    effect "Sharp Pixels"
+endif
+wait 100ms
+
+rem Test 4: Array in loop
+for I = 0 to 5
+    VALUES(I) = I * 10
+    wait 20ms
+next I
+
+rem Test 5: Sum array elements
+SUM = 0
+for J = 0 to 5
+    SUM = SUM + VALUES(J)
+    wait 20ms
+next J
+LOG "Array sum: " + SUM
+
+rem Test 6: String array
+dim NAMES$(5)
+NAMES$(0) = "Alice"
+NAMES$(1) = "Bob"
+NAMES$(2) = "Charlie"
+wait 50ms
+
+rem Test 7: Access string array
+FIRST_NAME$ = NAMES$(0)
+LOG "First name: " + FIRST_NAME$
+wait 100ms
+
+rem Test 8: Map with string keys
+CONFIG${"host"} = "192.168.1.64"
+CONFIG${"path"} = "/v1/api"
+CONFIG{"port"} = 8080
+CONFIG{"timeout"} = 5000
+wait 50ms
+
+rem Test 9: Read from map
+HOST$ = CONFIG${"host"}
+PORT = CONFIG{"port"}
+LOG "Server: " + HOST$ + ":" + PORT
+wait 100ms
+
+rem Test 10: Map in conditional
+if CONFIG{"port"} = 8080 then
+    palette colodore
+else
+    palette pepto_ntsc
+endif
+wait 100ms
+
+rem Test 11: Iterate with array
+dim PALETTES$(3)
+PALETTES$(0) = "colodore"
+PALETTES$(1) = "pepto_ntsc"
+PALETTES$(2) = "vice_new"
+
+for K = 0 to 2
+    palette PALETTES$(K)
+    wait 100ms
+next K
+
+rem Test 12: Nested arrays (2D simulation)
+dim ROW1(5)
+dim ROW2(5)
+ROW1(0) = 1
+ROW1(1) = 2
+ROW2(0) = 10
+ROW2(1) = 20
+wait 50ms
+
+rem Test 13: Array bounds
+dim SMALL(2)
+SMALL(0) = 100
+SMALL(1) = 200
+SMALL(2) = 300
+LAST = SMALL(2)
+LOG "Last element: " + LAST
+
+stop

@@ -1,0 +1,7 @@
+rem Test while loop without matching wend
+
+while 1
+    effect "Sharp Pixels"
+    wait 100ms
+rem Missing wend - should cause parse error
+stop

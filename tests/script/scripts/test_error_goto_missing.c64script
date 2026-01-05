@@ -1,0 +1,8 @@
+rem Test missing goto target (should cause runtime error)
+rem Jump to a label that doesn't exist
+
+effect "Sharp Pixels"
+wait 100ms
+goto nonexistent_label
+effect "Soft CRT"
+stop

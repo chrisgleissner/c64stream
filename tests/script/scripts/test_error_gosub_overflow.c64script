@@ -1,0 +1,12 @@
+rem Test GOSUB without matching RETURN in call stack overflow
+
+gosub recursive
+
+stop
+
+recursive:
+    effect "Sharp Pixels"
+    wait 10ms
+    # Call itself recursively - should hit max depth limit
+    gosub recursive
+    return

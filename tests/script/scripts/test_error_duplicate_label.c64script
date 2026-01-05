@@ -1,0 +1,10 @@
+rem Test duplicate label definitions (should cause parse error)
+
+START:
+effect "Sharp Pixels"
+wait 100ms
+
+START:
+rem Duplicate label should cause error
+effect "Soft CRT"
+stop

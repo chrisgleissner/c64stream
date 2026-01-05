@@ -1,0 +1,6 @@
+rem Cancellation test script
+rem Tests immediate stop during long wait
+
+wait 1s
+rem Effect would never execute after cancellation
+stop

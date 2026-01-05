@@ -1,6 +1,0 @@
-REM Cancellation test script
-REM Tests immediate stop during long wait
-
-wait 1s
-REM Effect would never execute after cancellation
-stop

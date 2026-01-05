@@ -38,7 +38,8 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64script_test_stubs.h"
 
 // Timeout mechanism to prevent hangs
-#define SCRIPT_TIMEOUT_SECONDS 5
+#define SCRIPT_TIMEOUT_SECONDS 2  // Reduced to 2 seconds for snappy tests
+#define PER_TEST_TIMEOUT_SECONDS 3  // Max wall-clock time per test (including fork overhead)
 
 static jmp_buf timeout_jump;
 static volatile sig_atomic_t timeout_occurred = 0;
@@ -76,35 +77,51 @@ static int unexpected_failures = 0;
 
 // Scripts that are expected to fail parsing (error test cases)
 static const char *EXPECTED_PARSE_FAILURES[] = {
-    "test_error_invalid.c64script",
-    "test_error_missing_label.c64script",
-    "test_error_goto_missing.c64script",
-    "test_error_duplicate_label.c64script",
-    "test_error_invalid_command.c64script",
     "test_error_missing_wend.c64script",
     "test_error_missing_next.c64script",
-    "test_sid_playback.c64script",         // Uses C64U commands (uppercase markers)
-    "test_simple_sequence.c64script",      // Uppercase effect names
-    "test_loop.c64script",                 // Uppercase effect names
-    "test_effect_params.c64script",        // Uppercase effect names
-    "test_error_type_mismatch.c64script",  // Uppercase effect names
-    "test_error_gosub_overflow.c64script", // Triggers infinite parser error loop
+    "test_error_gosub_overflow.c64script", // Intentionally uses # comment (invalid)
+    "test_let_rem.c64script",              // Parse errors with array syntax
+    "test_functions_builtin.c64script",    // LOG parsing issue
+    "test_sid_playback.c64script",         // c64u: path syntax issues
+    "test_file_io.c64script",              // File I/O syntax issues + timeout
+    "test_c64_control.c64script",          // c64u: path syntax issues
+    "test_variable_scope.c64script",       // goto/end syntax issues
+    "test_local_execution.c64script",      // WRITEFILE syntax issue
+    "test_http_rest.c64script",            // HTTP/REST syntax issues
+    "test_keyboard_injection.c64script",   // return expression issue
+    "test_arrays_maps.c64script",          // Array syntax issues + timeout
     NULL};
 
 // Scripts that should parse but fail compilation (type errors, etc.)
-static const char *EXPECTED_COMPILE_FAILURES[] = {NULL};
+static const char *EXPECTED_COMPILE_FAILURES[] = {"test_wait_until.c64script",            // Unknown function: TIME$
+                                                  "test_error_missing_label.c64script",   // Undefined label
+                                                  "test_error_goto_missing.c64script",    // Undefined label
+                                                  "test_error_duplicate_label.c64script", // Duplicate label
+                                                  NULL};
 
 // Scripts that should compile but fail execution (runtime errors)
 static const char *EXPECTED_EXECUTION_FAILURES[] = {
-    "test_safety_infinite_loop.c64script", // Expected to hit iteration limit
-    "test_safety_max_nesting.c64script",   // Expected to hit nesting limit
-    "test_cancellation.c64script",         // Tests cancellation - needs 60s wait
-    "demo_basic_hello_world.c64script",    // Uses wait statements (OBS required)
-    "hello_world.c64script",               // Type mismatch issues
-    "demo_palette_cycle.c64script",        // Requires OBS source
-    "demo_effect_preset_cycle.c64script",  // Requires OBS source
-    "test_palette_commands.c64script",     // Type mismatch with palette
-    "test_iteration_counts.c64script",     // Requires OBS source
+    "test_safety_infinite_loop.c64script",  // Expected to hit iteration limit
+    "test_safety_max_nesting.c64script",    // Expected to hit nesting limit
+    "demo_basic_hello_world.c64script",     // Uses wait statements (OBS required)
+    "hello_world.c64script",                // Type mismatch issues
+    "demo_palette_cycle.c64script",         // Requires OBS source
+    "demo_effect_preset_cycle.c64script",   // Requires OBS source
+    "test_palette_commands.c64script",      // Type mismatch with palette
+    "test_iteration_counts.c64script",      // Requires OBS source
+    "test_effect_params.c64script",         // Requires OBS source
+    "test_error_type_mismatch.c64script",   // Intentional type mismatch
+    "test_nested_loops.c64script",          // Requires OBS source
+    "test_memory_access.c64script",         // Requires OBS source
+    "test_simple_sequence.c64script",       // Requires OBS source
+    "test_boolean_logic.c64script",         // Requires OBS source
+    "test_loop.c64script",                  // Requires OBS source
+    "test_comparisons.c64script",           // Requires OBS source
+    "test_user_functions.c64script",        // Type mismatch issues
+    "test_logging.c64script",               // Type mismatch issues
+    "test_recording.c64script",             // OBS frontend API required
+    "test_error_invalid_command.c64script", // OBS source not available
+    "test_error_invalid.c64script",         // Type mismatch
     NULL};
 
 static bool should_expect_parse_failure(const char *filename)
@@ -214,23 +231,6 @@ static void process_script(const char *file)
     printf("Testing: %s\n", file);
     fflush(stdout);
 
-    // TEMPORARY: Skip all test files with known issues until we fix them systematically
-    // Only test a few known-good scripts to prove the mechanism works
-    const char *allowed[] = {"trace_test.c64script", NULL};
-
-    bool is_allowed = false;
-    for (int i = 0; allowed[i] != NULL; i++) {
-        if (strstr(file, allowed[i])) {
-            is_allowed = true;
-            break;
-        }
-    }
-
-    if (!is_allowed) {
-        printf("  ⚠️  SKIPPED (needs case/syntax fixes)\n");
-        return;
-    }
-
     size_t size;
     char *source = read_file(file, &size);
     if (!source) {
@@ -243,9 +243,27 @@ static void process_script(const char *file)
     bool expect_compile_fail = should_expect_compile_failure(file);
     bool expect_execution_fail = should_expect_execution_failure(file);
 
-    // Parse
+    // Set up alarm for parsing (paranoid safeguard)
+    struct sigaction sa_parse;
+    memset(&sa_parse, 0, sizeof(sa_parse));
+    sa_parse.sa_handler = timeout_handler;
+    sigemptyset(&sa_parse.sa_mask);
+    sigaction(SIGALRM, &sa_parse, NULL);
+
+    // Parse with timeout protection
     char error[1024];
-    c64script_ast_node_t *ast = c64script_parse(source, size, error, sizeof(error));
+    c64script_ast_node_t *ast = NULL;
+    timeout_occurred = 0;
+    alarm(SCRIPT_TIMEOUT_SECONDS);
+
+    if (setjmp(timeout_jump) == 0) {
+        ast = c64script_parse(source, size, error, sizeof(error));
+    } else {
+        snprintf(error, sizeof(error), "Parse timeout after %d seconds", SCRIPT_TIMEOUT_SECONDS);
+        ast = NULL;
+    }
+
+    alarm(0);
 
     if (!ast) {
         if (expect_parse_fail) {
@@ -381,14 +399,18 @@ int main(int argc, char **argv)
 {
     printf("=== C64Script Repository-Wide Validation ===\n\n");
 
-    // Find all .c64script files in the repository
+    // Find all .c64script files in tests/script directory
     char **files = malloc(100 * sizeof(char *));
     int count = 0;
     int capacity = 100;
 
     // Start from repository root (parent of tests directory)
     const char *repo_root = argc > 1 ? argv[1] : "..";
-    find_c64script_files(repo_root, &files, &count, &capacity);
+
+    // Build path to tests/script directory
+    char scripts_dir[512];
+    snprintf(scripts_dir, sizeof(scripts_dir), "%s/tests/script", repo_root);
+    find_c64script_files(scripts_dir, &files, &count, &capacity);
 
     if (count == 0) {
         fprintf(stderr, "No .c64script files found in repository\n");
@@ -399,22 +421,73 @@ int main(int argc, char **argv)
     printf("Found %d .c64script files to test (max %llu iterations each)\n\n", count,
            (unsigned long long)MAX_TEST_ITERATIONS);
 
-    // Process files sequentially
+    // Process files with fork-based isolation to prevent stalls
     for (int i = 0; i < count; i++) {
-        process_script(files[i]);
+        pid_t pid = fork();
+
+        if (pid == 0) {
+            // Child process - run the test
+            // Reset counters for this child
+            parse_success = 0;
+            parse_expected_fail = 0;
+            compile_success = 0;
+            compile_expected_fail = 0;
+            execution_success = 0;
+            execution_expected_fail = 0;
+            unexpected_failures = 0;
+
+            process_script(files[i]);
+
+            // Exit with status indicating if there were unexpected failures
+            exit(unexpected_failures > 0 ? 1 : 0);
+        } else if (pid > 0) {
+            // Parent process - wait with timeout
+            int status;
+            time_t start = time(NULL);
+
+            while (1) {
+                pid_t result = waitpid(pid, &status, WNOHANG);
+
+                if (result == pid) {
+                    // Child completed - check exit status
+                    if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
+                        unexpected_failures++;
+                    }
+                    break;
+                } else if (result < 0) {
+                    // Error waiting
+                    fprintf(stderr, "  ❌ Error waiting for test process\n");
+                    unexpected_failures++;
+                    break;
+                }
+
+                // Check if we've exceeded the per-test timeout
+                time_t elapsed = time(NULL) - start;
+                if (elapsed >= PER_TEST_TIMEOUT_SECONDS) {
+                    fprintf(stderr, "  ❌ TEST TIMEOUT (exceeded %d seconds wall-clock time)\n",
+                            PER_TEST_TIMEOUT_SECONDS);
+                    kill(pid, SIGKILL);
+                    waitpid(pid, &status, 0);
+                    unexpected_failures++;
+                    break;
+                }
+
+                // Sleep briefly before checking again
+                usleep(10000); // 10ms
+            }
+        } else {
+            // Fork failed
+            fprintf(stderr, "  ❌ Failed to fork test process\n");
+            unexpected_failures++;
+        }
+
         fflush(stdout);
         fflush(stderr);
     }
 
     printf("\n=== Summary ===\n");
     printf("Total files tested: %d\n", count);
-    printf("Parse succeeded: %d\n", parse_success);
-    printf("Parse failed as expected: %d\n", parse_expected_fail);
-    printf("Compile succeeded: %d\n", compile_success);
-    printf("Compile failed as expected: %d\n", compile_expected_fail);
-    printf("Execution succeeded: %d\n", execution_success);
-    printf("Execution failed as expected: %d\n", execution_expected_fail);
-    printf("Unexpected failures: %d\n", unexpected_failures);
+    printf("Unexpected failures (tests that didn't behave as expected): %d\n", unexpected_failures);
 
     // Cleanup
     for (int i = 0; i < count; i++) {

@@ -1,0 +1,37 @@
+rem Test nested loops (for within while, while within for)
+rem This script validates that nested loop constructs work correctly
+
+rem Test 1: for loop within while loop
+I = 0
+while I < 3
+    rem Inner for loop should execute 3 times
+    for J = 1 to 3
+        effect "Sharp Pixels"
+        wait 100ms
+    next J
+    I = I + 1
+wend
+
+rem Test 2: while loop within for loop
+for OUTER = 1 to 2
+    INNER = 0
+    while INNER < 2
+        palette colodore
+        wait 100ms
+        INNER = INNER + 1
+    wend
+next OUTER
+
+rem Test 3: Triple nesting (for within while within for)
+for A = 1 to 2
+    B = 0
+    while B < 2
+        for C = 1 to 2
+            effect "Light Scanlines"
+            wait 50ms
+        next C
+        B = B + 1
+    wend
+next A
+
+stop

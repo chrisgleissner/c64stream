@@ -112,7 +112,7 @@ git add tests/my_test.c64script tests/my_test.expected-trace.yaml
 
 ### CMakeLists.txt
 ```cmake
-add_test(NAME c64script_all_scripts 
+add_test(NAME c64script_all_scripts
          COMMAND test_c64script_all_scripts)
 ```
 
@@ -191,7 +191,7 @@ static void record_trace_entry(c64script_runtime_t *runtime, int line_num)
         return;
     }
     runtime->trace_step_count++;
-    
+
     // Write YAML entry
     fprintf(runtime->trace_file, "- line: %d\n", line_num);
     fprintf(runtime->trace_file, "  content: %s\n", line_content);

@@ -1,7 +1,0 @@
-REM Error recovery test script
-REM Tests handling of invalid commands and missing labels
-
-REM This should cause parse error (invalid command)
-invalid_command_here
-effect Test
-stop

@@ -1,7 +1,0 @@
-REM Test WHILE loop without matching WEND
-
-WHILE 1
-    EFFECT Sharp Pixels
-    WAIT 100ms
-REM Missing WEND - should cause parse error
-STOP

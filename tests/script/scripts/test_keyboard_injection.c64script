@@ -1,0 +1,58 @@
+rem Test keyboard injection commands
+rem Validates TYPE and KEY commands
+
+rem Test 1: Type simple text
+TYPE "LIST"
+wait 200ms
+
+rem Test 2: Type with carriage return
+TYPE "LOAD\"*\",8,1\r"
+wait 200ms
+
+rem Test 3: Type multiple lines
+TYPE "10 PRINT \"HELLO\"\r"
+wait 100ms
+TYPE "20 goto 10\r"
+wait 100ms
+TYPE "RUN\r"
+wait 200ms
+
+rem Test 4: Type with escape sequences
+TYPE "POKE 53280,0\r"
+wait 200ms
+
+rem Test 5: KEY command with symbolic key names
+KEY return
+wait 100ms
+
+KEY RUNSTOP
+wait 100ms
+
+KEY HOME
+wait 100ms
+
+KEY CLEAR
+wait 100ms
+
+rem Test 6: Cursor keys
+KEY CURSOR_UP
+wait 100ms
+
+KEY CURSOR_DOWN
+wait 100ms
+
+KEY CURSOR_LEFT
+wait 100ms
+
+KEY CURSOR_RIGHT
+wait 100ms
+
+rem Test 7: KEY with numeric value (raw byte)
+KEY 13
+wait 100ms
+
+rem Test 8: KEY with hex value
+KEY $0D
+wait 100ms
+
+stop

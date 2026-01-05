@@ -1,0 +1,59 @@
+rem Test variable mutation and scope
+rem Tests for loop variables, assignments, and gosub parameters
+
+rem Test 1: for loop variable mutation
+COUNTER = 0
+for I = 1 to 5
+    COUNTER = COUNTER + I
+    effect "Sharp Pixels"
+    wait 50ms
+next I
+rem COUNTER should be 15 (1+2+3+4+5)
+
+rem Test 2: Nested for with different variables
+SUM = 0
+for X = 1 to 3
+    for Y = 1 to 2
+        SUM = SUM + 1
+        wait 50ms
+    next Y
+next X
+rem SUM should be 6 (3 * 2)
+
+rem Test 3: Variable mutation in while loop
+VALUE = 0
+while VALUE < 5
+    VALUE = VALUE + 1
+    palette colodore
+    wait 50ms
+wend
+rem VALUE should be 5
+
+rem Test 4: gosub with implicit parameters (if supported)
+rem Set globals before gosub
+PARAM1 = 10
+PARAM2 = 20
+gosub ADD_VALUES
+rem RESULT should be 30
+
+rem Test 5: Variable shadowing in nested loops
+A = 0
+for B = 1 to 2
+    A = A + B
+    C = 0
+    while C < 2
+        A = A + 1
+        C = C + 1
+    wend
+next B
+rem A should be 7 (0 + 1 + 2 + 2 + 2)
+
+goto end
+
+ADD_VALUES:
+    RESULT = PARAM1 + PARAM2
+    effect "Soft CRT"
+    return
+
+end:
+stop

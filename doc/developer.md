@@ -307,7 +307,7 @@ python3 -m pytest test_*.py -v --tb=short
 
 **Purpose:** Real-world script execution scenarios for automation and REST control features.
 
-**Location:** `tests/e2e/scripts/*.c64script`
+**Location:** `tests/script/scripts/*.c64script`
 
 **Test scripts:**
 - `basic_automation.c64script` - Simple command sequence
@@ -582,7 +582,7 @@ cd tests/e2e && python3 -m pytest test_*.py -v
 |-----------|----------|-----|-------|---------|
 | C Unit Tests | `tests/test_*.c` | ✅ | ✅ | Component validation |
 | Python Unit Tests | `tests/e2e/test_*.py` | ✅ | ✅ | Script executor, network simulation |
-| E2E Script Tests | `tests/e2e/scripts/*.c64script` | ❌ | ✅ | Real-world automation scenarios |
+| E2E Script Tests | `tests/script/scripts/*.c64script` | ❌ | ✅ | Real-world automation scenarios |
 | E2E Full Validation | `tests/e2e/e2e.sh` | ❌ | ✅ | End-to-end recording validation |
 | Code Formatting | All `.c`/`.h` files | ✅ | ✅ | Style consistency |
 | Cross-platform Builds | CI matrix | ✅ | ⚠️ | Platform compatibility |

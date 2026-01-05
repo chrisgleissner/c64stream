@@ -1,6 +1,0 @@
-REM Error recovery test - missing label
-REM Tests handling of goto to nonexistent label
-
-goto nonexistent_label
-effect Test
-stop

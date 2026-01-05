@@ -1,0 +1,64 @@
+rem Test wait until command
+rem Validates waiting until a specific wall-clock time
+
+rem Test 1: Current time and immediate wait
+CURRENT$ = TIME$()
+LOG "Current time: " + CURRENT$
+wait 100ms
+
+rem Test 2: Wait until a time already passed (should complete immediately)
+wait until "00:00:01"
+LOG "Past time wait completed immediately"
+wait 100ms
+
+rem Test 3: Calculate future time (Unix epoch + 1 second)
+rem In practice, wait until would wait for a real future time
+rem These tests validate syntax and immediate completion for past times
+
+rem Test 4: Wait with HH:MM:SS format
+wait until "23:59:59"
+LOG "Time format wait completed"
+wait 100ms
+
+rem Test 5: Wait with HH:MM format
+wait until "12:00"
+LOG "Short time format wait completed"
+wait 100ms
+
+rem Test 6: Wait with full ISO-8601 format
+wait until "2024-01-01 00:00:00"
+LOG "Full datetime wait completed"
+wait 100ms
+
+rem Test 7: Wait with ISO-8601 T separator
+wait until "2024-01-01T00:00:00"
+LOG "ISO T-format wait completed"
+wait 100ms
+
+rem Test 8: Use in scheduling workflow
+LOG "Scheduling workflow..."
+effect "Sharp Pixels"
+wait until "00:00:05"
+effect "Soft CRT"
+LOG "Workflow completed"
+wait 100ms
+
+rem Test 9: Multiple timed events
+wait until "00:01:00"
+LOG "First event"
+palette colodore
+wait 50ms
+
+wait until "00:02:00"
+LOG "Second event"
+palette pepto_ntsc
+wait 50ms
+
+rem Test 10: Conditional with time-based wait
+CURRENT$ = TIME$()
+LOG "Starting at: " + CURRENT$
+wait until "00:00:10"
+AFTER$ = TIME$()
+LOG "Completed at: " + AFTER$
+
+stop

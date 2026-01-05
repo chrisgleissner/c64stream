@@ -1,0 +1,9 @@
+rem Loop test script
+rem Tests goto and label functionality
+
+label start
+effect "Sharp Pixels"
+wait 1s
+effect "Soft CRT"
+wait 1s
+goto start

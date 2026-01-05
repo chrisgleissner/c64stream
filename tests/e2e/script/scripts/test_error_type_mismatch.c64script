@@ -1,9 +1,0 @@
-REM Test type mismatch errors
-REM Operations that should fail due to type incompatibility
-
-REM Test 1: Invalid arithmetic on strings (if not auto-converted)
-NAME$ = "HELLO"
-REM This might cause type mismatch depending on implementation
-RESULT = NAME$ + 5
-EFFECT Sharp Pixels
-STOP

@@ -1,0 +1,69 @@
+rem Test HTTP REST API calls
+rem Validates HTTP GET, POST, PUT, DELETE, PATCH
+
+rem Test 1: HTTP GET request
+HTTP GET "http://localhost:8064/v1/version" STATUS STATUS_CODE RESPONSE RESP$
+wait 100ms
+LOG "GET status: " + STATUS_CODE
+
+rem Test 2: HTTP GET with status check
+HTTP GET "http://localhost:8064/v1/info" STATUS CODE
+if CODE = 200 then
+    effect "Sharp Pixels"
+endif
+wait 100ms
+
+rem Test 3: HTTP POST request with body
+BODY$ = "{\"command\":\"reset\"}"
+HTTP POST "http://localhost:8064/v1/command" BODY BODY$ STATUS POST_STATUS
+wait 100ms
+
+rem Test 4: HTTP POST with headers and body
+HEADERS${"Content-Type"} = "application/json"
+DATA$ = "{\"value\":42}"
+HTTP POST "http://localhost:8064/v1/data" HEADERS HEADERS$ BODY DATA$ STATUS S RESPONSE R$
+wait 100ms
+LOG "POST response: " + R$
+
+rem Test 5: HTTP PUT request
+HTTP PUT "http://localhost:8064/v1/machine:reset" STATUS PUT_CODE
+wait 100ms
+
+rem Test 6: HTTP DELETE request
+HTTP DELETE "http://localhost:8064/v1/resource/123" STATUS DEL_CODE
+wait 100ms
+
+rem Test 7: HTTP PATCH request
+PATCH_BODY$ = "{\"field\":\"updated\"}"
+HTTP PATCH "http://localhost:8064/v1/resource/456" BODY PATCH_BODY$ STATUS PATCH_CODE
+wait 100ms
+
+rem Test 8: HTTP GET in conditional
+HTTP GET "http://localhost:8064/v1/status" STATUS API_STATUS RESPONSE API_RESP$
+if API_STATUS = 200 then
+    LOG "API is available"
+    palette colodore
+else
+    LOG "API error: " + API_STATUS
+    palette pepto_ntsc
+endif
+wait 100ms
+
+rem Test 9: Multiple sequential API calls
+for I = 1 to 3
+    HTTP GET "http://localhost:8064/v1/version" STATUS S
+    LOG "Call " + I + " status: " + S
+    wait 50ms
+next I
+
+rem Test 10: Complex API workflow
+HTTP GET "http://localhost:8064/v1/info" STATUS INFO_CODE RESPONSE INFO$
+if INFO_CODE = 200 then
+    CMD$ = "{\"action\":\"start\"}"
+    HTTP POST "http://localhost:8064/v1/command" BODY CMD$ STATUS CMD_CODE
+    if CMD_CODE = 200 then
+        LOG "Command executed successfully"
+    endif
+endif
+
+stop

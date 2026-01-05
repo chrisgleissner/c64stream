@@ -26,6 +26,8 @@ typedef struct {
     bool had_any_error;
     bool panic_mode;
     char error_msg[1024];
+    int error_count; // Track number of errors reported
+    int max_errors;  // Maximum errors before stopping (0 = unlimited)
 } parser_t;
 
 // Forward declarations
@@ -191,13 +193,25 @@ static void error_at(parser_t *p, c64script_token_t *token, const char *message)
 {
     if (p->panic_mode)
         return;
+
+    // Stop reporting errors if we've hit the limit
+    if (p->max_errors > 0 && p->error_count >= p->max_errors) {
+        return;
+    }
+
     p->panic_mode = true;
     p->had_error = true;
     p->had_any_error = true;
+    p->error_count++;
 
     snprintf(p->error_msg, sizeof(p->error_msg), "[Line %d:%d] Error at '%.*s': %s", token->line, token->column,
              (int)token->length, token->start, message);
     blog(LOG_ERROR, "%s", p->error_msg);
+
+    // If we've hit the error limit, add a final message
+    if (p->max_errors > 0 && p->error_count >= p->max_errors) {
+        blog(LOG_ERROR, "Error limit reached (%d errors), stopping parse", p->max_errors);
+    }
 }
 
 static void error(parser_t *p, const char *message)
@@ -253,6 +267,11 @@ static void synchronize(parser_t *p)
 {
     p->panic_mode = false;
 
+    // Don't synchronize if we've hit the error limit
+    if (p->max_errors > 0 && p->error_count >= p->max_errors) {
+        return;
+    }
+
     while (p->current.type != TOKEN_EOF) {
         if (p->previous.type == TOKEN_NEWLINE)
             return;
@@ -272,6 +291,11 @@ static void synchronize(parser_t *p)
         }
 
         advance(p);
+
+        // Stop synchronizing if we hit the error limit during advance
+        if (p->max_errors > 0 && p->error_count >= p->max_errors) {
+            return;
+        }
     }
 }
 
@@ -1900,6 +1924,8 @@ c64script_ast_node_t *c64script_parse(const char *source, size_t source_size, ch
     parser.had_error = false;
     parser.had_any_error = false;
     parser.panic_mode = false;
+    parser.error_count = 0;
+    parser.max_errors = 50; // Limit to 50 errors to prevent runaway scenarios
 
     // Get first token
     advance(&parser);
@@ -1909,6 +1935,11 @@ c64script_ast_node_t *c64script_parse(const char *source, size_t source_size, ch
     c64script_ast_node_t *tail = NULL;
 
     while (!match(&parser, TOKEN_EOF)) {
+        // Stop parsing if we've hit the error limit
+        if (parser.max_errors > 0 && parser.error_count >= parser.max_errors) {
+            break;
+        }
+
         c64script_ast_node_t *decl = declaration(&parser);
         if (decl) {
             if (!root) {
@@ -1925,9 +1956,17 @@ c64script_ast_node_t *c64script_parse(const char *source, size_t source_size, ch
         }
 
         if (parser.had_error) {
-            synchronize(&parser);
+            // Don't synchronize if we've hit the error limit
+            if (parser.max_errors == 0 || parser.error_count < parser.max_errors) {
+                synchronize(&parser);
+            }
             parser.had_error = false;
             parser.panic_mode = false;
+
+            // Double-check error limit after synchronize
+            if (parser.max_errors > 0 && parser.error_count >= parser.max_errors) {
+                break;
+            }
         }
     }
 
@@ -1944,12 +1983,6 @@ c64script_ast_node_t *c64script_parse(const char *source, size_t source_size, ch
 
     return root;
 }
-
-// ============================================================================
-// NEW: DIM STATEMENT PARSING
-// ============================================================================
-
-// DIM identifier(size)
 static c64script_ast_node_t *dim_statement(parser_t *p)
 {
     c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
