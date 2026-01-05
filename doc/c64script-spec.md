@@ -43,7 +43,7 @@ BASIC-Inspired, Label-Oriented
   - `FOR … NEXT`, `WHILE … WEND` (or `ENDWHILE`), block `IF … THEN … ENDIF`
   - Nested blocks are allowed.
 - **Modern programming features**:
-  - User-defined functions with `FUNCTION`/`ENDFUNCTION` and local scope
+  - User-defined functions with `FUN`/`ENDFUN` and local scope
   - Parameterized `GOSUB` for BASIC-style subroutines with arguments
   - Arrays (`DIM DATA(10)`) and maps (`CONFIG{"key"}`) for structured data
   - Extended variable types: numeric, string, integer, boolean, array, map
@@ -235,15 +235,15 @@ The executor maintains explicit stacks:
 **Functions and Parameterized Subroutines**:
 
 **User-defined functions** (modern approach):
-- Syntax: `FUNCTION <name>([param1, param2, ...])` ... `ENDFUNCTION`
+- Syntax: `FUN <name>([param1, param2, ...])` ... `ENDFUN`
 - Functions create a local scope; parameters and variables declared inside are local.
 - Call with `<name>([arg1, arg2, ...])` in expression context.
 - Return value with `RETURN <expr>`; returns 0 if no expression provided.
 - Example:
   ```basic
-  FUNCTION ADD(A, B)
+  FUN ADD(A, B)
       RETURN A + B
-  ENDFUNCTION
+  ENDFUN
 
   RESULT = ADD(3, 5)  REM RESULT = 8
   ```
@@ -266,9 +266,9 @@ The executor maintains explicit stacks:
   ```
 
 **Design note**: Both mechanisms are supported:
-- `FUNCTION`/`ENDFUNCTION` is recommended for new scripts (clearer scoping, modern style).
+- `FUN`/`ENDFUN` is recommended for new scripts (clearer scoping, modern style).
 - `GOSUB` with parameters maintains BASIC heritage and is convenient for simple parameterized subroutines.
-- `FUNCTION` calls can appear in expressions; `GOSUB` calls are statements only.
+- `FUN` calls can appear in expressions; `GOSUB` calls are statements only.
 
 Labels and line numbers:
 - A label is either an alphanumeric name (e.g., `START`) or a numeric-only “line number” (e.g., `10`).
@@ -1018,7 +1018,7 @@ If/when implementing C64Script in code:
 3. Implement control flow: `IF`/`ENDIF`, `FOR`/`NEXT`, `WHILE`/`WEND` (+ `ENDWHILE`), `GOTO`, and `GOSUB`/`RETURN`.
 4. Implement waiting: duration waits and `WAIT UNTIL` (wall-clock) with time parsing.
 5. Implement plugin I/O: effects/palettes, runners/mount/reset, `POKE`/`PEEK`, `TYPE`/`KEY`, `LOGFILE`/`LOG`, `TRON`/`TROFF`.
-6. Implement user-defined functions: `FUNCTION`/`ENDFUNCTION` blocks with local scope and parameters.
+6. Implement user-defined functions: `FUN`/`ENDFUN` blocks with local scope and parameters.
 7. Implement arrays and maps: `DIM` statement, subscript access `()` and `{}`, type-suffixed collections.
 8. Implement extended durations: `h` (hours), `d` (days) in duration literals.
 9. Implement HTTP operations: `HTTP`/`CALLHTTP` with method, headers, body, status capture, response capture.

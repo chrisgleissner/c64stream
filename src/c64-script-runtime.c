@@ -57,6 +57,23 @@ void c64script_value_free(c64script_value_t *value)
     if (value->type == VALUE_STRING) {
         free(value->as.string);
         value->as.string = NULL;
+    } else if (value->type == VALUE_ARRAY && value->as.array) {
+        // Free array elements
+        for (size_t i = 0; i < value->as.array->size; i++) {
+            c64script_value_free(&value->as.array->elements[i]);
+        }
+        free(value->as.array->elements);
+        free(value->as.array);
+        value->as.array = NULL;
+    } else if (value->type == VALUE_MAP && value->as.map) {
+        // Free map entries
+        for (size_t i = 0; i < value->as.map->count; i++) {
+            free(value->as.map->entries[i].key);
+            c64script_value_free(&value->as.map->entries[i].value);
+        }
+        free(value->as.map->entries);
+        free(value->as.map);
+        value->as.map = NULL;
     }
 
     value->type = VALUE_NUMBER;
@@ -67,6 +84,13 @@ c64script_value_t c64script_value_clone(c64script_value_t value)
 {
     if (value.type == VALUE_STRING) {
         return c64script_value_string(value.as.string ? value.as.string : "");
+    } else if (value.type == VALUE_ARRAY) {
+        // For arrays, we just return a reference (shared ownership for now)
+        // Full deep copy would be expensive
+        return value;
+    } else if (value.type == VALUE_MAP) {
+        // For maps, we just return a reference (shared ownership for now)
+        return value;
     }
     return c64script_value_number(value.as.number);
 }
@@ -192,6 +216,38 @@ bool c64script_runtime_set_var(c64script_runtime_t *runtime, const char *name, c
         return false;
     }
 
+    // Check local scope first (if in function)
+    if (runtime->scope_stack_size > 0) {
+        c64script_scope_t *scope = &runtime->scope_stack[runtime->scope_stack_size - 1];
+        for (size_t i = 0; i < scope->local_var_count; i++) {
+            if (strcmp(scope->local_vars[i].name, key) == 0) {
+                c64script_value_free(&scope->local_vars[i].value);
+                scope->local_vars[i].value = stored_value;
+                return true;
+            }
+        }
+
+        // Not found in local scope, create new local variable
+        if (scope->local_var_count >= scope->local_var_capacity) {
+            size_t new_cap = scope->local_var_capacity == 0 ? 4 : scope->local_var_capacity * 2;
+            c64script_variable_t *new_vars = realloc(scope->local_vars, new_cap * sizeof(c64script_variable_t));
+            if (!new_vars) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Out of memory");
+                c64script_value_free(&stored_value);
+                return false;
+            }
+            scope->local_vars = new_vars;
+            scope->local_var_capacity = new_cap;
+        }
+
+        c64script_variable_t *var = &scope->local_vars[scope->local_var_count++];
+        strncpy(var->name, key, sizeof(var->name) - 1);
+        var->name[sizeof(var->name) - 1] = '\0';
+        var->value = stored_value;
+        return true;
+    }
+
+    // Global scope: update existing or create new
     for (size_t i = 0; i < runtime->variable_count; i++) {
         if (strcmp(runtime->variables[i].name, key) == 0) {
             c64script_value_free(&runtime->variables[i].value);
@@ -234,6 +290,22 @@ bool c64script_runtime_get_var(c64script_runtime_t *runtime, const char *name, c
     char key[64];
     normalize_identifier(name, key);
 
+    // Check local scope first (if in function)
+    if (runtime->scope_stack_size > 0) {
+        c64script_scope_t *scope = &runtime->scope_stack[runtime->scope_stack_size - 1];
+        for (size_t i = 0; i < scope->local_var_count; i++) {
+            if (strcmp(scope->local_vars[i].name, key) == 0) {
+                *out_value = c64script_value_clone(scope->local_vars[i].value);
+                if (out_value->type == VALUE_STRING && !out_value->as.string) {
+                    snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Out of memory");
+                    return false;
+                }
+                return true;
+            }
+        }
+    }
+
+    // Check global scope
     for (size_t i = 0; i < runtime->variable_count; i++) {
         if (strcmp(runtime->variables[i].name, key) == 0) {
             *out_value = c64script_value_clone(runtime->variables[i].value);
@@ -290,5 +362,173 @@ bool c64script_runtime_pop(c64script_runtime_t *runtime, c64script_value_t *out_
     }
 
     *out_value = runtime->stack[--runtime->stack_size];
+    return true;
+}
+
+// ============================================================================
+// ARRAY OPERATIONS
+// ============================================================================
+
+c64script_value_t c64script_value_array(size_t size, c64script_value_type_t element_type)
+{
+    c64script_value_t value = {0};
+    value.type = VALUE_ARRAY;
+    value.as.array = calloc(1, sizeof(c64script_array_t));
+    if (!value.as.array) {
+        return c64script_value_number(0.0);
+    }
+
+    value.as.array->element_type = element_type;
+    value.as.array->size = size;
+    value.as.array->elements = calloc(size, sizeof(c64script_value_t));
+    if (!value.as.array->elements) {
+        free(value.as.array);
+        value.type = VALUE_NUMBER;
+        value.as.number = 0.0;
+        return value;
+    }
+
+    // Initialize elements to default values
+    for (size_t i = 0; i < size; i++) {
+        if (element_type == VALUE_STRING) {
+            value.as.array->elements[i] = c64script_value_string("");
+        } else {
+            value.as.array->elements[i] = c64script_value_number(0.0);
+        }
+    }
+
+    return value;
+}
+
+bool c64script_array_get(c64script_array_t *array, size_t index, c64script_value_t *out_value)
+{
+    if (!array || !out_value) {
+        return false;
+    }
+
+    if (index >= array->size) {
+        return false; // Out of bounds
+    }
+
+    *out_value = c64script_value_clone(array->elements[index]);
+    return true;
+}
+
+bool c64script_array_set(c64script_array_t *array, size_t index, c64script_value_t value)
+{
+    if (!array) {
+        return false;
+    }
+
+    if (index >= array->size) {
+        return false; // Out of bounds
+    }
+
+    c64script_value_free(&array->elements[index]);
+    array->elements[index] = c64script_value_clone(value);
+    return true;
+}
+
+// ============================================================================
+// MAP OPERATIONS (Hash Table)
+// ============================================================================
+
+// FNV-1a hash function
+static uint32_t hash_string(const char *str)
+{
+    uint32_t hash = 2166136261u;
+    while (*str) {
+        hash ^= (uint32_t)(unsigned char)(*str++);
+        hash *= 16777619u;
+    }
+    return hash;
+}
+
+c64script_value_t c64script_value_map(c64script_value_type_t value_type)
+{
+    c64script_value_t value = {0};
+    value.type = VALUE_MAP;
+    value.as.map = calloc(1, sizeof(c64script_map_t));
+    if (!value.as.map) {
+        return c64script_value_number(0.0);
+    }
+
+    value.as.map->value_type = value_type;
+    value.as.map->count = 0;
+    value.as.map->capacity = 16; // Initial capacity
+    value.as.map->entries = calloc(16, sizeof(c64script_map_entry_t));
+    if (!value.as.map->entries) {
+        free(value.as.map);
+        value.type = VALUE_NUMBER;
+        value.as.number = 0.0;
+        return value;
+    }
+
+    return value;
+}
+
+bool c64script_map_get(c64script_map_t *map, const char *key, c64script_value_t *out_value)
+{
+    if (!map || !key || !out_value) {
+        return false;
+    }
+
+    uint32_t hash = hash_string(key);
+
+    // Linear search (simple for now)
+    for (size_t i = 0; i < map->count; i++) {
+        if (map->entries[i].hash == hash && strcmp(map->entries[i].key, key) == 0) {
+            *out_value = c64script_value_clone(map->entries[i].value);
+            return true;
+        }
+    }
+
+    // Key not found, return default value
+    if (map->value_type == VALUE_STRING) {
+        *out_value = c64script_value_string("");
+    } else {
+        *out_value = c64script_value_number(0.0);
+    }
+    return true;
+}
+
+bool c64script_map_set(c64script_map_t *map, const char *key, c64script_value_t value)
+{
+    if (!map || !key) {
+        return false;
+    }
+
+    uint32_t hash = hash_string(key);
+
+    // Check if key already exists
+    for (size_t i = 0; i < map->count; i++) {
+        if (map->entries[i].hash == hash && strcmp(map->entries[i].key, key) == 0) {
+            // Update existing entry
+            c64script_value_free(&map->entries[i].value);
+            map->entries[i].value = c64script_value_clone(value);
+            return true;
+        }
+    }
+
+    // Add new entry - grow if needed
+    if (map->count >= map->capacity) {
+        size_t new_capacity = map->capacity * 2;
+        c64script_map_entry_t *new_entries = realloc(map->entries, new_capacity * sizeof(c64script_map_entry_t));
+        if (!new_entries) {
+            return false; // Out of memory
+        }
+        map->entries = new_entries;
+        map->capacity = new_capacity;
+    }
+
+    // Insert new entry
+    map->entries[map->count].key = strdup(key);
+    if (!map->entries[map->count].key) {
+        return false; // Out of memory
+    }
+    map->entries[map->count].hash = hash;
+    map->entries[map->count].value = c64script_value_clone(value);
+    map->count++;
+
     return true;
 }

@@ -43,5 +43,19 @@ bool c64script_runtime_pop(c64script_runtime_t *runtime, c64script_value_t *out_
  */
 c64script_value_t c64script_value_number(double num);
 c64script_value_t c64script_value_string(const char *str);
+c64script_value_t c64script_value_array(size_t size, c64script_value_type_t element_type);
+c64script_value_t c64script_value_map(c64script_value_type_t value_type);
 void c64script_value_free(c64script_value_t *value);
 c64script_value_t c64script_value_clone(c64script_value_t value);
+
+/**
+ * Array operations
+ */
+bool c64script_array_get(c64script_array_t *array, size_t index, c64script_value_t *out_value);
+bool c64script_array_set(c64script_array_t *array, size_t index, c64script_value_t value);
+
+/**
+ * Map operations
+ */
+bool c64script_map_get(c64script_map_t *map, const char *key, c64script_value_t *out_value);
+bool c64script_map_set(c64script_map_t *map, const char *key, c64script_value_t value);

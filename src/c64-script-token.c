@@ -49,6 +49,11 @@ static const keyword_entry_t keywords[] = {
 
     // Variables
     {"LET", TOKEN_LET},
+    {"DIM", TOKEN_DIM},
+
+    // Functions
+    {"FUN", TOKEN_FUN},
+    {"ENDFUN", TOKEN_ENDFUN},
 
     // Comments
     {"REM", TOKEN_REM},
@@ -547,6 +552,10 @@ c64script_token_t c64script_tokenize_next(tokenizer_t *t)
         return make_token(t, TOKEN_LBRACKET, start, 1);
     case ']':
         return make_token(t, TOKEN_RBRACKET, start, 1);
+    case '{':
+        return make_token(t, TOKEN_LBRACE, start, 1);
+    case '}':
+        return make_token(t, TOKEN_RBRACE, start, 1);
     case ',':
         return make_token(t, TOKEN_COMMA, start, 1);
     case ':':

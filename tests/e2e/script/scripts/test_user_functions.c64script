@@ -1,68 +1,68 @@
 # Test user-defined functions
-# Validates FUNCTION/ENDFUNCTION with parameters and return values
+# Validates FUN/ENDFUN with parameters and return values
 
 # Test 1: Simple function with no parameters
-FUNCTION GET_CONSTANT()
+FUN GET_CONSTANT()
     RETURN 42
-ENDFUNCTION
+ENDFUN
 
 CONSTANT = GET_CONSTANT()
 LOG "Constant: " + CONSTANT
 WAIT 100ms
 
 # Test 2: Function with one parameter
-FUNCTION DOUBLE(X)
+FUN DOUBLE(X)
     RETURN X * 2
-ENDFUNCTION
+ENDFUN
 
 DOUBLED = DOUBLE(21)
 LOG "Double of 21: " + DOUBLED
 WAIT 100ms
 
 # Test 3: Function with multiple parameters
-FUNCTION ADD(A, B)
+FUN ADD(A, B)
     RETURN A + B
-ENDFUNCTION
+ENDFUN
 
 SUM = ADD(10, 20)
 LOG "10 + 20 = " + SUM
 WAIT 100ms
 
 # Test 4: Function with string parameter
-FUNCTION GREET(NAME$)
+FUN GREET(NAME$)
     RETURN "Hello, " + NAME$ + "!"
-ENDFUNCTION
+ENDFUN
 
 GREETING$ = GREET("Alice")
 LOG GREETING$
 WAIT 100ms
 
 # Test 5: Function with local variables
-FUNCTION CALCULATE(X, Y)
+FUN CALCULATE(X, Y)
     TEMP = X * 2
     RESULT = TEMP + Y
     RETURN RESULT
-ENDFUNCTION
+ENDFUN
 
 VALUE = CALCULATE(5, 10)
 LOG "Calculate(5, 10): " + VALUE
 WAIT 100ms
 
 # Test 6: Function with conditional
-FUNCTION MAX(A, B)
+FUN MAX(A, B)
     IF A > B THEN
         RETURN A
     ELSE
         RETURN B
     ENDIF
-ENDFUNCTION
+ENDFUN
 
 MAXIMUM = MAX(15, 10)
 LOG "MAX(15, 10): " + MAXIMUM
 WAIT 100ms
 
 # Test 7: Function with loop
-FUNCTION FACTORIAL(N)
+FUN FACTORIAL(N)
     IF N <= 1 THEN
         RETURN 1
     ENDIF
@@ -71,43 +71,43 @@ FUNCTION FACTORIAL(N)
         RESULT = RESULT * I
     NEXT I
     RETURN RESULT
-ENDFUNCTION
+ENDFUN
 
 FACT5 = FACTORIAL(5)
 LOG "Factorial(5): " + FACT5
 WAIT 100ms
 
 # Test 8: Recursive function (careful with depth)
-FUNCTION FIB(N)
+FUN FIB(N)
     IF N <= 1 THEN
         RETURN N
     ENDIF
     RETURN FIB(N - 1) + FIB(N - 2)
-ENDFUNCTION
+ENDFUN
 
 FIB5 = FIB(5)
 LOG "Fibonacci(5): " + FIB5
 WAIT 100ms
 
 # Test 9: Function calling another function
-FUNCTION SQUARE(X)
+FUN SQUARE(X)
     RETURN X * X
-ENDFUNCTION
+ENDFUN
 
-FUNCTION SUM_OF_SQUARES(A, B)
+FUN SUM_OF_SQUARES(A, B)
     RETURN SQUARE(A) + SQUARE(B)
-ENDFUNCTION
+ENDFUN
 
 SOS = SUM_OF_SQUARES(3, 4)
 LOG "3^2 + 4^2 = " + SOS
 WAIT 100ms
 
 # Test 10: Function with effect
-FUNCTION APPLY_EFFECT_AND_WAIT(EFFECT_NAME$, DURATION)
+FUN APPLY_EFFECT_AND_WAIT(EFFECT_NAME$, DURATION)
     EFFECT EFFECT_NAME$
     WAIT DURATION
     RETURN 1
-ENDFUNCTION
+ENDFUN
 
 SUCCESS = APPLY_EFFECT_AND_WAIT("Sharp Pixels", 0.2)
 IF SUCCESS = 1 THEN

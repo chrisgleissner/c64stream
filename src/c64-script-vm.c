@@ -525,6 +525,268 @@ bool c64script_vm_execute(c64script_runtime_t *runtime)
             break;
         }
 
+        // Array operations
+        case OP_DIM_ARRAY: {
+            // Stack: [size]
+            // Create array with given size
+            if (instr->operand >= runtime->constant_count) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Invalid constant index for array name");
+                return false;
+            }
+            const char *arrayname = runtime->constants[instr->operand].as.string;
+
+            c64script_value_t size_val;
+            if (!c64script_runtime_pop(runtime, &size_val))
+                return false;
+
+            if (size_val.type != VALUE_NUMBER) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Array size must be a number");
+                c64script_value_free(&size_val);
+                return false;
+            }
+
+            size_t size = (size_t)size_val.as.number;
+            c64script_value_free(&size_val);
+
+            if (size == 0) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Array size must be greater than 0");
+                return false;
+            }
+
+            c64script_value_t array = c64script_value_array(size, VALUE_NUMBER); // Default to number type
+            if (!c64script_runtime_set_var(runtime, arrayname, array)) {
+                c64script_value_free(&array);
+                return false;
+            }
+            c64script_value_free(&array);
+            break;
+        }
+
+        case OP_ARRAY_GET: {
+            // Stack: [index]
+            // Get element from array
+            if (instr->operand >= runtime->constant_count) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Invalid constant index for array name");
+                return false;
+            }
+            const char *arrayname = runtime->constants[instr->operand].as.string;
+
+            c64script_value_t index_val;
+            if (!c64script_runtime_pop(runtime, &index_val))
+                return false;
+
+            if (index_val.type != VALUE_NUMBER) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Array index must be a number");
+                c64script_value_free(&index_val);
+                return false;
+            }
+
+            size_t index = (size_t)index_val.as.number;
+            c64script_value_free(&index_val);
+
+            c64script_value_t array_var;
+            if (!c64script_runtime_get_var(runtime, arrayname, &array_var)) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Variable '%s' not found", arrayname);
+                return false;
+            }
+
+            if (array_var.type != VALUE_ARRAY) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Variable '%s' is not an array", arrayname);
+                c64script_value_free(&array_var);
+                return false;
+            }
+
+            c64script_value_t element;
+            if (!c64script_array_get(array_var.as.array, index, &element)) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Array index out of bounds");
+                c64script_value_free(&array_var);
+                return false;
+            }
+            c64script_value_free(&array_var);
+
+            if (!c64script_runtime_push(runtime, element)) {
+                c64script_value_free(&element);
+                return false;
+            }
+            break;
+        }
+
+        case OP_ARRAY_SET: {
+            // Stack: [value, index]
+            // Set element in array
+            if (instr->operand >= runtime->constant_count) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Invalid constant index for array name");
+                return false;
+            }
+            const char *arrayname = runtime->constants[instr->operand].as.string;
+
+            c64script_value_t index_val;
+            if (!c64script_runtime_pop(runtime, &index_val))
+                return false;
+
+            c64script_value_t value_val;
+            if (!c64script_runtime_pop(runtime, &value_val)) {
+                c64script_value_free(&index_val);
+                return false;
+            }
+
+            if (index_val.type != VALUE_NUMBER) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Array index must be a number");
+                c64script_value_free(&index_val);
+                c64script_value_free(&value_val);
+                return false;
+            }
+
+            size_t index = (size_t)index_val.as.number;
+            c64script_value_free(&index_val);
+
+            c64script_value_t array_var;
+            if (!c64script_runtime_get_var(runtime, arrayname, &array_var)) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Variable '%s' not found", arrayname);
+                c64script_value_free(&value_val);
+                return false;
+            }
+
+            if (array_var.type != VALUE_ARRAY) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Variable '%s' is not an array", arrayname);
+                c64script_value_free(&array_var);
+                c64script_value_free(&value_val);
+                return false;
+            }
+
+            if (!c64script_array_set(array_var.as.array, index, value_val)) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Array index out of bounds");
+                c64script_value_free(&array_var);
+                c64script_value_free(&value_val);
+                return false;
+            }
+
+            // Set the modified array back
+            bool ok = c64script_runtime_set_var(runtime, arrayname, array_var);
+            c64script_value_free(&array_var);
+            c64script_value_free(&value_val);
+            if (!ok)
+                return false;
+            break;
+        }
+
+        // Map operations
+        case OP_MAP_GET: {
+            // Stack: [key]
+            // Get value from map
+            if (instr->operand >= runtime->constant_count) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Invalid constant index for map name");
+                return false;
+            }
+            const char *mapname = runtime->constants[instr->operand].as.string;
+
+            c64script_value_t key_val;
+            if (!c64script_runtime_pop(runtime, &key_val))
+                return false;
+
+            if (key_val.type != VALUE_STRING) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Map key must be a string");
+                c64script_value_free(&key_val);
+                return false;
+            }
+
+            c64script_value_t map_var;
+            if (!c64script_runtime_get_var(runtime, mapname, &map_var)) {
+                // Auto-create empty map if it doesn't exist
+                map_var = c64script_value_map(VALUE_NUMBER); // Default to number type
+                if (!c64script_runtime_set_var(runtime, mapname, map_var)) {
+                    c64script_value_free(&map_var);
+                    c64script_value_free(&key_val);
+                    return false;
+                }
+            }
+
+            if (map_var.type != VALUE_MAP) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Variable '%s' is not a map", mapname);
+                c64script_value_free(&map_var);
+                c64script_value_free(&key_val);
+                return false;
+            }
+
+            c64script_value_t value;
+            if (!c64script_map_get(map_var.as.map, key_val.as.string, &value)) {
+                // Key not found - return default value (0 or "")
+                value.type = map_var.as.map->value_type;
+                if (value.type == VALUE_NUMBER) {
+                    value.as.number = 0.0;
+                } else {
+                    value.as.string = strdup("");
+                }
+            }
+
+            c64script_value_free(&map_var);
+            c64script_value_free(&key_val);
+
+            if (!c64script_runtime_push(runtime, value)) {
+                c64script_value_free(&value);
+                return false;
+            }
+            break;
+        }
+
+        case OP_MAP_SET: {
+            // Stack: [value, key]
+            // Set value in map
+            if (instr->operand >= runtime->constant_count) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Invalid constant index for map name");
+                return false;
+            }
+            const char *mapname = runtime->constants[instr->operand].as.string;
+
+            c64script_value_t key_val;
+            if (!c64script_runtime_pop(runtime, &key_val))
+                return false;
+
+            c64script_value_t value_val;
+            if (!c64script_runtime_pop(runtime, &value_val)) {
+                c64script_value_free(&key_val);
+                return false;
+            }
+
+            if (key_val.type != VALUE_STRING) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Map key must be a string");
+                c64script_value_free(&key_val);
+                c64script_value_free(&value_val);
+                return false;
+            }
+
+            c64script_value_t map_var;
+            if (!c64script_runtime_get_var(runtime, mapname, &map_var)) {
+                // Auto-create map if it doesn't exist (use value type from first value)
+                map_var = c64script_value_map(value_val.type);
+            }
+
+            if (map_var.type != VALUE_MAP) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Variable '%s' is not a map", mapname);
+                c64script_value_free(&map_var);
+                c64script_value_free(&key_val);
+                c64script_value_free(&value_val);
+                return false;
+            }
+
+            if (!c64script_map_set(map_var.as.map, key_val.as.string, value_val)) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Failed to set map value");
+                c64script_value_free(&map_var);
+                c64script_value_free(&key_val);
+                c64script_value_free(&value_val);
+                return false;
+            }
+
+            // Set the modified map back
+            bool ok = c64script_runtime_set_var(runtime, mapname, map_var);
+            c64script_value_free(&map_var);
+            c64script_value_free(&key_val);
+            c64script_value_free(&value_val);
+            if (!ok)
+                return false;
+            break;
+        }
+
         case OP_POP:
             if (!c64script_runtime_pop(runtime, &a))
                 return false;
@@ -835,34 +1097,65 @@ bool c64script_vm_execute(c64script_runtime_t *runtime)
         }
 
         case OP_RETURN: {
-            if (runtime->gosub_stack_size == 0) {
-                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "RETURN without GOSUB");
+            // Check if we're in a function scope or GOSUB
+            if (runtime->scope_stack_size > 0) {
+                // Function return
+                c64script_scope_t *scope = &runtime->scope_stack[runtime->scope_stack_size - 1];
+
+                // Get return value if present (operand = 1 means yes, 0 means no)
+                c64script_value_t return_val = {.type = VALUE_NUMBER, .as.number = 0.0};
+                if (instr->operand != 0) {
+                    if (!c64script_runtime_pop(runtime, &return_val))
+                        return false;
+                }
+
+                // Clean up local variables
+                for (size_t i = 0; i < scope->local_var_count; i++) {
+                    c64script_value_free(&scope->local_vars[i].value);
+                }
+                free(scope->local_vars);
+
+                // Pop scope
+                size_t return_ip = scope->return_ip;
+                runtime->scope_stack_size--;
+
+                // Push return value onto stack
+                if (!c64script_runtime_push(runtime, return_val)) {
+                    c64script_value_free(&return_val);
+                    return false;
+                }
+
+                // Return to caller
+                runtime->ip = return_ip;
+                continue; // Skip ip increment
+            } else if (runtime->gosub_stack_size > 0) {
+                // GOSUB return
+                bool has_return_value = (instr->operand != 0);
+                if (has_return_value) {
+                    c64script_value_t return_val;
+                    if (!c64script_runtime_pop(runtime, &return_val))
+                        return false;
+                    c64script_runtime_set_var(runtime, "RESULT", return_val);
+                    c64script_value_free(&return_val);
+                }
+
+                // Clean up parameters
+                size_t param_count = runtime->gosub_stack[runtime->gosub_stack_size - 1].param_count;
+                for (size_t i = 1; i <= param_count; i++) {
+                    char param_name[32];
+                    snprintf(param_name, sizeof(param_name), "PARAM%zu", i);
+                    // Remove the variable by setting it to undefined (number 0)
+                    c64script_value_t undef = {.type = VALUE_NUMBER, .as.number = 0.0};
+                    c64script_runtime_set_var(runtime, param_name, undef);
+                }
+
+                // Return to caller
+                runtime->ip = runtime->gosub_stack[--runtime->gosub_stack_size].return_ip;
+                break;
+            } else {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "RETURN without GOSUB or function call");
                 return false;
             }
-
-            // Check if there's a return value (operand = 1 means yes, 0 means no)
-            bool has_return_value = (instr->operand != 0);
-            if (has_return_value) {
-                c64script_value_t return_val;
-                if (!c64script_runtime_pop(runtime, &return_val))
-                    return false;
-                c64script_runtime_set_var(runtime, "RESULT", return_val);
-                c64script_value_free(&return_val);
-            }
-
-            // Clean up parameters
-            size_t param_count = runtime->gosub_stack[runtime->gosub_stack_size - 1].param_count;
-            for (size_t i = 1; i <= param_count; i++) {
-                char param_name[32];
-                snprintf(param_name, sizeof(param_name), "PARAM%zu", i);
-                // Remove the variable by setting it to undefined (number 0)
-                c64script_value_t undef = {.type = VALUE_NUMBER, .as.number = 0.0};
-                c64script_runtime_set_var(runtime, param_name, undef);
-            }
-
-            // Return to caller
-            runtime->ip = runtime->gosub_stack[--runtime->gosub_stack_size].return_ip;
-            break;
         }
 
         case OP_STOP:
@@ -2045,6 +2338,90 @@ bool c64script_vm_execute(c64script_runtime_t *runtime)
             c64script_value_free(&response_var_val);
             break;
         }
+
+        // Function operations (not yet implemented)
+        case OP_CALL_FUNCTION: {
+            // Operand: high 16 bits = function index, low 16 bits = arg count
+            uint32_t func_idx = instr->operand >> 16;
+            uint32_t arg_count = instr->operand & 0xFFFF;
+
+            if (func_idx >= runtime->function_count) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Invalid function index: %u", func_idx);
+                return false;
+            }
+
+            c64script_function_def_t *func = &runtime->functions[func_idx];
+
+            // Check argument count
+            if (arg_count != func->param_count) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Function %s expects %zu arguments, got %u",
+                         func->name, func->param_count, arg_count);
+                return false;
+            }
+
+            // Create new scope
+            if (runtime->scope_stack_size >= runtime->scope_stack_capacity) {
+                size_t new_cap = runtime->scope_stack_capacity == 0 ? 8 : runtime->scope_stack_capacity * 2;
+                c64script_scope_t *new_stack = realloc(runtime->scope_stack, new_cap * sizeof(c64script_scope_t));
+                if (!new_stack) {
+                    snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Out of memory for function call");
+                    return false;
+                }
+                runtime->scope_stack = new_stack;
+                runtime->scope_stack_capacity = new_cap;
+            }
+
+            c64script_scope_t *scope = &runtime->scope_stack[runtime->scope_stack_size++];
+            scope->local_vars = NULL;
+            scope->local_var_count = 0;
+            scope->local_var_capacity = 0;
+            scope->saved_var_count = runtime->variable_count;
+            scope->return_ip = runtime->ip + 1;
+
+            // Pop arguments from stack and create local parameter variables
+            // Arguments are in reverse order on stack (last arg on top)
+            for (int i = (int)arg_count - 1; i >= 0; i--) {
+                if (runtime->stack_size == 0) {
+                    runtime->scope_stack_size--;
+                    snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Stack underflow in function call");
+                    return false;
+                }
+
+                c64script_value_t arg = runtime->stack[--runtime->stack_size];
+
+                // Create local variable for parameter
+                if (scope->local_var_count >= scope->local_var_capacity) {
+                    size_t new_cap = scope->local_var_capacity == 0 ? 4 : scope->local_var_capacity * 2;
+                    c64script_variable_t *new_vars = realloc(scope->local_vars, new_cap * sizeof(c64script_variable_t));
+                    if (!new_vars) {
+                        c64script_value_free(&arg);
+                        runtime->scope_stack_size--;
+                        snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Out of memory for local variables");
+                        return false;
+                    }
+                    scope->local_vars = new_vars;
+                    scope->local_var_capacity = new_cap;
+                }
+
+                c64script_variable_t *var = &scope->local_vars[scope->local_var_count++];
+                strncpy(var->name, func->param_names[i], sizeof(var->name) - 1);
+                var->name[sizeof(var->name) - 1] = '\0';
+                var->value = arg;
+            }
+
+            // Jump to function body
+            runtime->ip = func->bytecode_address;
+            continue; // Skip ip increment
+        }
+
+        case OP_RETURN_VALUE:
+            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "RETURN statement not yet implemented");
+            return false;
+
+        case OP_ENTER_SCOPE:
+        case OP_EXIT_SCOPE:
+            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Function scopes not yet implemented");
+            return false;
 
         default:
             snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Unknown opcode: %d", instr->opcode);

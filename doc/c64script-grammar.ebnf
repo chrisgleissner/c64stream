@@ -109,9 +109,9 @@ wait_duration   = wait_arg ;
 wait_until      = "UNTIL", WS, expr ;
 wait_arg        = duration_lit | expr, [WS, ("ms" | "s" | "m" | "h" | "d")] ;
 
-function_def    = "FUNCTION", WS, identifier, [WS, "(", [WS], [identifier, { [WS], ",", [WS], identifier }], [WS], ")"], EOL,
+function_def    = "FUN", WS, identifier, [WS, "(", [WS], [identifier, { [WS], ",", [WS], identifier }], [WS], ")"], EOL,
                       { line },
-                  ("ENDFUNCTION" | ("END", WS, "FUNCTION")) ;
+                  ("ENDFUN" | ("END", WS, "FUN")) ;
 
 if_stmt         =
     "IF", WS, bool_expr, WS, "THEN", WS, statement, [WS, "ELSE", WS, statement]

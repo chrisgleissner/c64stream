@@ -30,8 +30,11 @@ typedef struct {
 
 // Forward declarations
 static c64script_ast_node_t *statement(parser_t *p);
+static c64script_ast_node_t *dim_statement(parser_t *p);
+static c64script_ast_node_t *function_def_statement(parser_t *p);
 static void error(parser_t *p, const char *message);
 static c64script_ast_expr_t *expression(parser_t *p);
+static void free_expr(c64script_ast_expr_t *expr);
 // HTTP <method> <url> [HEADERS <expr>] [BODY <expr>] [STATUS <var>] [RESPONSE <var>]
 static c64script_ast_node_t *declaration(parser_t *p);
 
@@ -335,12 +338,104 @@ static c64script_ast_expr_t *string(parser_t *p, bool can_assign)
 static c64script_ast_expr_t *variable(parser_t *p, bool can_assign)
 {
     (void)can_assign;
+
+    c64script_token_t ident_token = p->previous;
+    char *name = dup_upper(ident_token.start, ident_token.length);
+
+    // Check for array access: identifier(expr)
+    if (match(p, TOKEN_LPAREN)) {
+        // Could be array access or function call
+        // Try to parse as function call first (with arguments)
+        c64script_ast_expr_t **args = NULL;
+        size_t arg_count = 0;
+        size_t arg_capacity = 0;
+
+        if (!check(p, TOKEN_RPAREN)) {
+            arg_capacity = 4;
+            args = malloc(arg_capacity * sizeof(c64script_ast_expr_t *));
+            if (!args) {
+                free(name);
+                return NULL;
+            }
+
+            do {
+                if (arg_count >= arg_capacity) {
+                    arg_capacity *= 2;
+                    c64script_ast_expr_t **new_args = realloc(args, arg_capacity * sizeof(c64script_ast_expr_t *));
+                    if (!new_args) {
+                        for (size_t i = 0; i < arg_count; i++) {
+                            c64script_ast_free((c64script_ast_node_t *)args[i]);
+                        }
+                        free(args);
+                        free(name);
+                        return NULL;
+                    }
+                    args = new_args;
+                }
+
+                args[arg_count++] = expression(p);
+            } while (match(p, TOKEN_COMMA));
+        }
+
+        consume(p, TOKEN_RPAREN, "Expected ')' after arguments");
+        if (p->panic_mode) {
+            for (size_t i = 0; i < arg_count; i++) {
+                free_expr(args[i]);
+            }
+            free(args);
+            free(name);
+            return NULL;
+        }
+
+        // Always treat as function call (even with 0 or 1 argument)
+        // Array access uses [] not () in c64script
+        c64script_ast_expr_t *expr = calloc(1, sizeof(c64script_ast_expr_t));
+        if (!expr) {
+            for (size_t i = 0; i < arg_count; i++) {
+                free_expr(args[i]);
+            }
+            free(args);
+            free(name);
+            return NULL;
+        }
+        expr->type = AST_EXPR_CALL;
+        expr->line = ident_token.line;
+        expr->as.call.name = name;
+        expr->as.call.args = args;
+        expr->as.call.arg_count = arg_count;
+        return expr;
+    }
+
+    // Check for map access: identifier{expr}
+    if (match(p, TOKEN_LBRACE)) {
+        c64script_ast_expr_t *expr = calloc(1, sizeof(c64script_ast_expr_t));
+        if (!expr) {
+            free(name);
+            return NULL;
+        }
+        expr->type = AST_EXPR_MAP_ACCESS;
+        expr->line = ident_token.line;
+        expr->as.map_access.name = name;
+        expr->as.map_access.key = expression(p);
+
+        consume(p, TOKEN_RBRACE, "Expected '}' after map key");
+        if (p->panic_mode) {
+            free_expr(expr);
+            return NULL;
+        }
+
+        return expr;
+    }
+
+    // Simple identifier
     c64script_ast_expr_t *expr = calloc(1, sizeof(c64script_ast_expr_t));
-    if (!expr)
+    if (!expr) {
+        free(name);
         return NULL;
+    }
     expr->type = AST_EXPR_IDENTIFIER;
-    expr->line = p->previous.line;
-    expr->as.identifier = dup_upper(p->previous.start, p->previous.length);
+    expr->line = ident_token.line;
+    expr->as.identifier = name;
     return expr;
 }
 
@@ -655,17 +750,63 @@ static char *parse_label_ref(parser_t *p)
 }
 
 // Assignment: [LET] variable = expression
-static c64script_ast_node_t *assignment_statement(parser_t *p, const char *var_name_upper)
+// Also handles array[index] = value and map{key} = value
+static c64script_ast_node_t *assignment_statement(parser_t *p, c64script_ast_expr_t *target)
 {
     c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
-    if (!node)
+    if (!node) {
+        if (target)
+            free_expr(target);
         return NULL;
-    node->type = AST_STMT_ASSIGNMENT;
-    node->line = p->previous.line;
-    node->as.assignment.variable = strdup(var_name_upper);
+    }
+
+    // Target can be:
+    // - AST_EXPR_IDENTIFIER (simple assignment)
+    // - AST_EXPR_ARRAY_ACCESS (array element assignment)
+    // - AST_EXPR_MAP_ACCESS (map entry assignment)
+
+    if (target->type == AST_EXPR_IDENTIFIER) {
+        // Simple variable assignment
+        node->type = AST_STMT_ASSIGNMENT;
+        node->line = target->line;
+        node->as.assignment.variable = strdup(target->as.identifier);
+        free_expr(target);
+    } else if (target->type == AST_EXPR_ARRAY_ACCESS) {
+        // Array element assignment: arr(index) = value
+        node->type = AST_STMT_ARRAY_SET;
+        node->line = target->line;
+        node->as.array_set.array_name = strdup(target->as.array_access.name);
+        node->as.array_set.index = target->as.array_access.index;
+        target->as.array_access.index = NULL; // Transfer ownership
+        free(target);
+    } else if (target->type == AST_EXPR_MAP_ACCESS) {
+        // Map entry assignment: map{key} = value
+        node->type = AST_STMT_MAP_SET;
+        node->line = target->line;
+        node->as.map_set.map_name = strdup(target->as.map_access.name);
+        node->as.map_set.key = target->as.map_access.key;
+        target->as.map_access.key = NULL; // Transfer ownership
+        free(target);
+    } else {
+        error(p, "Invalid assignment target");
+        free_expr(target);
+        free(node);
+        return NULL;
+    }
 
     consume(p, TOKEN_EQ, "Expected '=' in assignment");
-    node->as.assignment.value = expression(p);
+    if (p->panic_mode) {
+        c64script_ast_free(node);
+        return NULL;
+    }
+
+    if (node->type == AST_STMT_ASSIGNMENT) {
+        node->as.assignment.value = expression(p);
+    } else if (node->type == AST_STMT_ARRAY_SET) {
+        node->as.array_set.value = expression(p);
+    } else if (node->type == AST_STMT_MAP_SET) {
+        node->as.map_set.value = expression(p);
+    }
 
     return node;
 }
@@ -1612,32 +1753,59 @@ static c64script_ast_node_t *statement(parser_t *p)
 
     // Keywords
     if (match(p, TOKEN_LET)) {
-        if (match(p, TOKEN_IDENTIFIER)) {
-            char *name = dup_upper(p->previous.start, p->previous.length);
-            c64script_ast_node_t *node = assignment_statement(p, name ? name : "");
-            free(name);
-            return node;
-        } else {
-            error(p, "Expected variable name after LET");
+        // LET variable = value (including array/map assignments)
+        if (!match(p, TOKEN_IDENTIFIER)) {
+            error(p, "Expected identifier after LET");
             return NULL;
         }
+        c64script_ast_expr_t *target = variable(p, false);
+        if (!target) {
+            error(p, "Expected variable, array, or map access after LET");
+            return NULL;
+        }
+        if (!check(p, TOKEN_EQ)) {
+            error(p, "Expected '=' after LET target");
+            free_expr(target);
+            return NULL;
+        }
+        return assignment_statement(p, target);
     }
 
     if (match(p, TOKEN_REM)) {
         return rem_statement(p);
     }
 
-    // Assignment
+    if (match(p, TOKEN_DIM)) {
+        return dim_statement(p);
+    }
+
+    if (match(p, TOKEN_FUN)) {
+        return function_def_statement(p);
+    }
+
+    // Check for assignment: identifier = value OR identifier(...) = value OR identifier{...} = value
+    // We need to handle: x=val, arr(i)=val, map{k}=val
     if (check(p, TOKEN_IDENTIFIER)) {
-        c64script_token_t ident = p->current;
-        c64script_token_t next = peek_token(p);
-        if (next.type == TOKEN_EQ) {
-            advance(p);
-            char *name = dup_upper(ident.start, ident.length);
-            c64script_ast_node_t *node = assignment_statement(p, name ? name : "");
-            free(name);
-            return node;
+        // Save position before trying to parse
+        c64script_token_t saved_current = p->current;
+        c64script_token_t saved_previous = p->previous;
+
+        // Consume the identifier
+        advance(p);
+
+        // Parse the left-hand side (variable, array access, or map access)
+        c64script_ast_expr_t *target = variable(p, false);
+        if (target && check(p, TOKEN_EQ)) {
+            // It's an assignment
+            return assignment_statement(p, target);
         }
+
+        // Not an assignment - restore parser state and continue
+        if (target) {
+            free_expr(target);
+        }
+        p->current = saved_current;
+        p->previous = saved_previous;
     }
 
     if (match(p, TOKEN_GOTO))
@@ -1775,4 +1943,225 @@ c64script_ast_node_t *c64script_parse(const char *source, size_t source_size, ch
     }
 
     return root;
+}
+
+// ============================================================================
+// NEW: DIM STATEMENT PARSING
+// ============================================================================
+
+// DIM identifier(size)
+static c64script_ast_node_t *dim_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_DIM;
+    node->line = p->previous.line;
+
+    if (!match(p, TOKEN_IDENTIFIER)) {
+        error(p, "Expected array name after DIM");
+        free(node);
+        return NULL;
+    }
+
+    node->as.dim_stmt.array_name = dup_upper(p->previous.start, p->previous.length);
+
+    consume(p, TOKEN_LPAREN, "Expected '(' after array name");
+    if (p->panic_mode) {
+        free(node);
+        return NULL;
+    }
+
+    node->as.dim_stmt.size = expression(p);
+
+    consume(p, TOKEN_RPAREN, "Expected ')' after array size");
+    if (p->panic_mode) {
+        free(node);
+        return NULL;
+    }
+
+    return node;
+}
+
+// ============================================================================
+// NEW: FUNCTION DEFINITION PARSING
+// ============================================================================
+
+// FUN identifier[(param, ...)] ... ENDFUN
+static c64script_ast_node_t *function_def_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_FUNCTION_DEF;
+    node->line = p->previous.line;
+
+    if (!match(p, TOKEN_IDENTIFIER)) {
+        error(p, "Expected function name after FUN");
+        free(node);
+        return NULL;
+    }
+
+    node->as.function_def.name = dup_upper(p->previous.start, p->previous.length);
+    node->as.function_def.param_names = NULL;
+    node->as.function_def.param_count = 0;
+    node->as.function_def.body = NULL;
+
+    // Optional parameters
+    if (match(p, TOKEN_LPAREN)) {
+        size_t capacity = 4;
+        char **params = malloc(capacity * sizeof(char *));
+        if (!params) {
+            c64script_ast_free(node);
+            return NULL;
+        }
+
+        // Parse parameters
+        if (!check(p, TOKEN_RPAREN)) {
+            do {
+                if (!match(p, TOKEN_IDENTIFIER)) {
+                    error(p, "Expected parameter name");
+                    for (size_t i = 0; i < node->as.function_def.param_count; i++) {
+                        free(params[i]);
+                    }
+                    free(params);
+                    c64script_ast_free(node);
+                    return NULL;
+                }
+
+                if (node->as.function_def.param_count >= capacity) {
+                    capacity *= 2;
+                    char **new_params = realloc(params, capacity * sizeof(char *));
+                    if (!new_params) {
+                        for (size_t i = 0; i < node->as.function_def.param_count; i++) {
+                            free(params[i]);
+                        }
+                        free(params);
+                        c64script_ast_free(node);
+                        return NULL;
+                    }
+                    params = new_params;
+                }
+
+                params[node->as.function_def.param_count++] = dup_upper(p->previous.start, p->previous.length);
+
+            } while (match(p, TOKEN_COMMA));
+        }
+
+        node->as.function_def.param_names = (const char **)params;
+
+        consume(p, TOKEN_RPAREN, "Expected ')' after parameters");
+        if (p->panic_mode) {
+            c64script_ast_free(node);
+            return NULL;
+        }
+    }
+
+    // Expect newline after function header
+    if (!match(p, TOKEN_NEWLINE)) {
+        error(p, "Expected newline after function header");
+        c64script_ast_free(node);
+        return NULL;
+    }
+
+    // Parse function body
+    c64script_ast_node_t *body_head = NULL;
+    c64script_ast_node_t *body_tail = NULL;
+
+    while (!check(p, TOKEN_ENDFUN) && !check(p, TOKEN_EOF)) {
+        // Check for "END FUN"
+        if (check(p, TOKEN_END)) {
+            c64script_token_t next = peek_token(p);
+            if (next.type == TOKEN_FUN) {
+                break;
+            }
+        }
+
+        // Skip empty lines
+        if (match(p, TOKEN_NEWLINE)) {
+            continue;
+        }
+
+        c64script_ast_node_t *stmt = statement(p);
+        if (stmt) {
+            if (!body_head) {
+                body_head = stmt;
+                body_tail = stmt;
+            } else {
+                body_tail->next = stmt;
+                body_tail = stmt;
+            }
+
+            while (body_tail->next) {
+                body_tail = body_tail->next;
+            }
+        }
+
+        if (p->had_error) {
+            c64script_ast_free(node);
+            c64script_ast_free(body_head);
+            return NULL;
+        }
+    }
+
+    node->as.function_def.body = body_head;
+
+    // Consume ENDFUN or END FUN
+    if (match(p, TOKEN_ENDFUN)) {
+        // Done
+    } else if (match(p, TOKEN_END)) {
+        consume(p, TOKEN_FUN, "Expected FUN after END");
+        if (p->panic_mode) {
+        }
+    } else {
+        error(p, "Expected ENDFUN or END FUN");
+        c64script_ast_free(node);
+        return NULL;
+    }
+
+    return node;
+}
+
+// ============================================================================
+// Expression memory management
+// ============================================================================
+
+static void free_expr(c64script_ast_expr_t *expr)
+{
+    if (!expr)
+        return;
+
+    switch (expr->type) {
+    case AST_EXPR_STRING:
+        // String is in string pool, don't free
+        break;
+    case AST_EXPR_IDENTIFIER:
+        free((char *)expr->as.identifier);
+        break;
+    case AST_EXPR_ARRAY_ACCESS:
+        free((char *)expr->as.array_access.name);
+        free_expr(expr->as.array_access.index);
+        break;
+    case AST_EXPR_MAP_ACCESS:
+        free((char *)expr->as.map_access.name);
+        free_expr(expr->as.map_access.key);
+        break;
+    case AST_EXPR_UNARY:
+        free_expr(expr->as.unary.operand);
+        break;
+    case AST_EXPR_BINARY:
+        free_expr(expr->as.binary.left);
+        free_expr(expr->as.binary.right);
+        break;
+    case AST_EXPR_CALL:
+        free((char *)expr->as.call.name);
+        for (size_t i = 0; i < expr->as.call.arg_count; i++) {
+            free_expr(expr->as.call.args[i]);
+        }
+        free(expr->as.call.args);
+        break;
+    default:
+        break;
+    }
+    free(expr);
 }

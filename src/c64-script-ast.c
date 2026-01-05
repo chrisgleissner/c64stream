@@ -40,6 +40,16 @@ static void free_expr(c64script_ast_expr_t *expr)
         free((char *)expr->as.identifier);
         break;
 
+    case AST_EXPR_ARRAY_ACCESS:
+        free((char *)expr->as.array_access.name);
+        free_expr(expr->as.array_access.index);
+        break;
+
+    case AST_EXPR_MAP_ACCESS:
+        free((char *)expr->as.map_access.name);
+        free_expr(expr->as.map_access.key);
+        break;
+
     case AST_EXPR_UNARY:
         free_expr(expr->as.unary.operand);
         break;
@@ -93,6 +103,32 @@ void c64script_ast_free(c64script_ast_node_t *node)
         case AST_STMT_ASSIGNMENT:
             free((char *)node->as.assignment.variable);
             free_expr(node->as.assignment.value);
+            break;
+
+        case AST_STMT_DIM:
+            free((char *)node->as.dim_stmt.array_name);
+            free_expr(node->as.dim_stmt.size);
+            break;
+
+        case AST_STMT_ARRAY_SET:
+            free((char *)node->as.array_set.array_name);
+            free_expr(node->as.array_set.index);
+            free_expr(node->as.array_set.value);
+            break;
+
+        case AST_STMT_MAP_SET:
+            free((char *)node->as.map_set.map_name);
+            free_expr(node->as.map_set.key);
+            free_expr(node->as.map_set.value);
+            break;
+
+        case AST_STMT_FUNCTION_DEF:
+            free((char *)node->as.function_def.name);
+            for (size_t i = 0; i < node->as.function_def.param_count; i++) {
+                free((char *)node->as.function_def.param_names[i]);
+            }
+            free(node->as.function_def.param_names);
+            c64script_ast_free(node->as.function_def.body);
             break;
 
         case AST_STMT_IF:

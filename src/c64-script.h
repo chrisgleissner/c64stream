@@ -82,6 +82,11 @@ typedef enum {
 
     // Keywords - variables
     TOKEN_LET,
+    TOKEN_DIM,
+
+    // Keywords - functions
+    TOKEN_FUN,
+    TOKEN_ENDFUN,
 
     // Keywords - comments
     TOKEN_REM,
@@ -168,6 +173,8 @@ typedef enum {
     TOKEN_RPAREN,   // )
     TOKEN_LBRACKET, // [
     TOKEN_RBRACKET, // ]
+    TOKEN_LBRACE,   // {
+    TOKEN_RBRACE,   // }
     TOKEN_COMMA,    // ,
     TOKEN_COLON,    // :
 
@@ -211,9 +218,13 @@ typedef enum {
     AST_STMT_REM,
     AST_STMT_LABEL,
     AST_STMT_ASSIGNMENT,
+    AST_STMT_DIM,
+    AST_STMT_ARRAY_SET,
+    AST_STMT_MAP_SET,
     AST_STMT_IF,
     AST_STMT_FOR,
     AST_STMT_WHILE,
+    AST_STMT_FUNCTION_DEF,
     AST_STMT_GOTO,
     AST_STMT_GOSUB,
     AST_STMT_RETURN,
@@ -249,6 +260,8 @@ typedef enum {
     AST_EXPR_NUMBER,
     AST_EXPR_STRING,
     AST_EXPR_IDENTIFIER,
+    AST_EXPR_ARRAY_ACCESS,
+    AST_EXPR_MAP_ACCESS,
     AST_EXPR_UNARY,
     AST_EXPR_BINARY,
     AST_EXPR_CALL,
@@ -301,6 +314,16 @@ struct c64script_ast_expr {
         const char *identifier; // Points into string pool
 
         struct {
+            const char *name;            // Array variable name (without () suffix)
+            c64script_ast_expr_t *index; // Index expression
+        } array_access;
+
+        struct {
+            const char *name;          // Map variable name (without {} suffix)
+            c64script_ast_expr_t *key; // Key expression
+        } map_access;
+
+        struct {
             c64script_operator_t op;
             c64script_ast_expr_t *operand;
         } unary;
@@ -338,6 +361,23 @@ struct c64script_ast_node {
         } assignment;
 
         struct {
+            const char *array_name;     // Array name (without () suffix)
+            c64script_ast_expr_t *size; // Size expression
+        } dim_stmt;
+
+        struct {
+            const char *array_name;      // Array name
+            c64script_ast_expr_t *index; // Index expression
+            c64script_ast_expr_t *value; // Value to set
+        } array_set;
+
+        struct {
+            const char *map_name;        // Map name
+            c64script_ast_expr_t *key;   // Key expression
+            c64script_ast_expr_t *value; // Value to set
+        } map_set;
+
+        struct {
             c64script_ast_expr_t *condition;
             c64script_ast_node_t *then_branch;
             c64script_ast_node_t *else_branch;
@@ -355,6 +395,13 @@ struct c64script_ast_node {
             c64script_ast_expr_t *condition;
             c64script_ast_node_t *body;
         } while_stmt;
+
+        struct {
+            const char *name;           // Function name
+            const char **param_names;   // Array of parameter names
+            size_t param_count;         // Number of parameters
+            c64script_ast_node_t *body; // Function body statements
+        } function_def;
 
         struct {
             const char *label; // Points into string pool
@@ -518,6 +565,21 @@ typedef enum {
     OP_JUMP_IF_FALSE, // Conditional jump (pop condition)
     OP_CALL,          // GOSUB (push return address, jump)
     OP_RETURN,        // POP return address, jump
+    OP_CALL_FUNCTION, // User-defined function call
+    OP_RETURN_VALUE,  // Return from function with value on stack
+
+    // Arrays
+    OP_DIM_ARRAY, // Allocate array (operand = constant pool index for name)
+    OP_ARRAY_GET, // Get array element (stack: index → value)
+    OP_ARRAY_SET, // Set array element (stack: value, index →)
+
+    // Maps
+    OP_MAP_GET, // Get map value (stack: key → value)
+    OP_MAP_SET, // Set map value (stack: value, key →)
+
+    // Function scope
+    OP_ENTER_SCOPE, // Enter function scope (operand = param count)
+    OP_EXIT_SCOPE,  // Exit function scope
 
     // Loops
     OP_FOR_INIT,    // Initialize FOR loop (push loop state)
@@ -582,15 +644,50 @@ typedef struct {
 typedef enum {
     VALUE_NUMBER,
     VALUE_STRING,
+    VALUE_ARRAY,
+    VALUE_MAP,
 } c64script_value_type_t;
 
-typedef struct {
+// Forward declarations for recursive types
+struct c64script_value;
+typedef struct c64script_value c64script_value_t;
+struct c64script_array;
+typedef struct c64script_array c64script_array_t;
+struct c64script_map;
+typedef struct c64script_map c64script_map_t;
+
+// Complete value type definition
+struct c64script_value {
     c64script_value_type_t type;
     union {
         double number;
-        char *string; // Owned by runtime, must be freed
+        char *string;             // Owned by runtime, must be freed
+        c64script_array_t *array; // Owned by runtime, must be freed
+        c64script_map_t *map;     // Owned by runtime, must be freed
     } as;
-} c64script_value_t;
+};
+
+// Array type
+struct c64script_array {
+    c64script_value_type_t element_type; // Element type (NUMBER or STRING)
+    size_t size;                         // Number of elements
+    c64script_value_t *elements;         // Array of values
+};
+
+// Map entry
+typedef struct {
+    char *key;               // Key string (owned, must be freed)
+    c64script_value_t value; // Value (owned)
+    uint32_t hash;           // Cached hash for key
+} c64script_map_entry_t;
+
+// Map type (hash table)
+struct c64script_map {
+    c64script_map_entry_t *entries;    // Array of entries
+    size_t count;                      // Number of entries
+    size_t capacity;                   // Capacity of entries array
+    c64script_value_type_t value_type; // Value type (NUMBER or STRING)
+};
 
 // ============================================================================
 // EXECUTION CONTEXT
@@ -622,6 +719,23 @@ typedef struct {
     c64script_value_t value;
 } c64script_variable_t;
 
+// Function definition
+typedef struct {
+    char name[64];           // Function name (uppercase)
+    size_t bytecode_address; // Entry point in bytecode
+    size_t param_count;      // Number of parameters
+    char **param_names;      // Parameter names (uppercase)
+} c64script_function_def_t;
+
+// Function scope (stack frame for local variables)
+typedef struct {
+    c64script_variable_t *local_vars; // Local variables
+    size_t local_var_count;
+    size_t local_var_capacity;
+    size_t saved_var_count; // Number of global variables to restore
+    size_t return_ip;       // Return address
+} c64script_scope_t;
+
 // Execution context
 typedef struct {
     // Bytecode
@@ -652,6 +766,16 @@ typedef struct {
 
     c64script_gosub_state_t gosub_stack[C64SCRIPT_MAX_GOSUB_DEPTH];
     size_t gosub_stack_size;
+
+    // Function definitions
+    c64script_function_def_t *functions;
+    size_t function_count;
+    size_t function_capacity;
+
+    // Function call stack (scopes)
+    c64script_scope_t *scope_stack;
+    size_t scope_stack_size;
+    size_t scope_stack_capacity;
 
     // Execution state (volatile for thread synchronization)
     volatile bool should_stop;  // Cancellation flag

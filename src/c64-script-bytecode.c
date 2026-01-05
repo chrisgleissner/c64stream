@@ -45,6 +45,9 @@ typedef struct {
     } patches[C64SCRIPT_MAX_LABELS];
     size_t patch_count;
 
+    // Runtime (for function registration)
+    c64script_runtime_t *runtime;
+
     // Error reporting
     char *error_msg;
     size_t error_msg_size;
@@ -214,6 +217,63 @@ static bool patch_jumps(compiler_context_t *ctx)
     return true;
 }
 
+// Register a user-defined function in the runtime
+static bool register_function(compiler_context_t *ctx, const char *name, size_t address, size_t param_count,
+                              const char **param_names)
+{
+    c64script_runtime_t *runtime = ctx->runtime;
+
+    // Check if function already exists
+    for (size_t i = 0; i < runtime->function_count; i++) {
+        if (strcmp(runtime->functions[i].name, name) == 0) {
+            return false; // Duplicate
+        }
+    }
+
+    // Grow function table if needed
+    if (runtime->function_count >= runtime->function_capacity) {
+        size_t new_cap = runtime->function_capacity == 0 ? 8 : runtime->function_capacity * 2;
+        c64script_function_def_t *new_funcs = realloc(runtime->functions, new_cap * sizeof(c64script_function_def_t));
+        if (!new_funcs) {
+            return false;
+        }
+        runtime->functions = new_funcs;
+        runtime->function_capacity = new_cap;
+    }
+
+    // Add function
+    c64script_function_def_t *func = &runtime->functions[runtime->function_count++];
+    strncpy(func->name, name, sizeof(func->name) - 1);
+    func->name[sizeof(func->name) - 1] = '\0';
+    func->bytecode_address = address;
+    func->param_count = param_count;
+
+    // Copy parameter names
+    if (param_count > 0) {
+        func->param_names = malloc(param_count * sizeof(char *));
+        if (!func->param_names) {
+            runtime->function_count--;
+            return false;
+        }
+        for (size_t i = 0; i < param_count; i++) {
+            func->param_names[i] = strdup(param_names[i]);
+            if (!func->param_names[i]) {
+                // Clean up on failure
+                for (size_t j = 0; j < i; j++) {
+                    free(func->param_names[j]);
+                }
+                free(func->param_names);
+                runtime->function_count--;
+                return false;
+            }
+        }
+    } else {
+        func->param_names = NULL;
+    }
+
+    return true;
+}
+
 // ============================================================================
 // COMPILATION FUNCTIONS (Forward declarations)
 // ============================================================================
@@ -257,6 +317,30 @@ static bool compile_expression(compiler_context_t *ctx, c64script_ast_expr_t *ex
         if (idx == UINT32_MAX)
             return false;
         emit(ctx, OP_PUSH_VAR, idx, expr->line);
+        return true;
+    }
+
+    case AST_EXPR_ARRAY_ACCESS: {
+        // arr(index) - compile index, then emit ARRAY_GET with array name
+        if (!compile_expression(ctx, expr->as.array_access.index))
+            return false;
+        c64script_value_t name = {.type = VALUE_STRING, .as.string = (char *)expr->as.array_access.name};
+        uint32_t idx = (uint32_t)add_constant(ctx, name);
+        if (idx == UINT32_MAX)
+            return false;
+        emit(ctx, OP_ARRAY_GET, idx, expr->line);
+        return true;
+    }
+
+    case AST_EXPR_MAP_ACCESS: {
+        // map{key} - compile key, then emit MAP_GET with map name
+        if (!compile_expression(ctx, expr->as.map_access.key))
+            return false;
+        c64script_value_t name = {.type = VALUE_STRING, .as.string = (char *)expr->as.map_access.name};
+        uint32_t idx = (uint32_t)add_constant(ctx, name);
+        if (idx == UINT32_MAX)
+            return false;
+        emit(ctx, OP_MAP_GET, idx, expr->line);
         return true;
     }
 
@@ -335,6 +419,7 @@ static bool compile_expression(compiler_context_t *ctx, c64script_ast_expr_t *ex
             return false;
         }
 
+        // Handle built-in functions
         if (strcmp(expr->as.call.name, "PEEK") == 0) {
             if (expr->as.call.arg_count != 1) {
                 if (ctx->error_msg) {
@@ -363,10 +448,34 @@ static bool compile_expression(compiler_context_t *ctx, c64script_ast_expr_t *ex
             return true;
         }
 
-        if (ctx->error_msg) {
-            snprintf(ctx->error_msg, ctx->error_msg_size, "Undefined function: %s", expr->as.call.name);
+        // User-defined function call
+        // Look up function index at compile time
+        int func_idx = -1;
+        for (size_t i = 0; i < ctx->runtime->function_count; i++) {
+            if (strcmp(ctx->runtime->functions[i].name, expr->as.call.name) == 0) {
+                func_idx = (int)i;
+                break;
+            }
         }
-        return false;
+
+        if (func_idx < 0) {
+            // Not a user-defined function, might be a built-in we didn't recognize
+            if (ctx->error_msg) {
+                snprintf(ctx->error_msg, ctx->error_msg_size, "Unknown function: %s", expr->as.call.name);
+            }
+            return false;
+        }
+
+        // Compile arguments in order
+        for (size_t i = 0; i < expr->as.call.arg_count; i++) {
+            if (!compile_expression(ctx, expr->as.call.args[i]))
+                return false;
+        }
+
+        // Emit call with function index in high 16 bits, arg count in low 16 bits
+        uint32_t operand = ((uint32_t)func_idx << 16) | (uint32_t)expr->as.call.arg_count;
+        emit(ctx, OP_CALL_FUNCTION, operand, expr->line);
+        return true;
     }
 
     default:
@@ -403,6 +512,96 @@ static bool compile_statement(compiler_context_t *ctx, c64script_ast_node_t *stm
         if (idx == UINT32_MAX)
             return false;
         emit(ctx, OP_POP_VAR, idx, stmt->line);
+        return true;
+    }
+
+    case AST_STMT_DIM: {
+        // DIM arrayname(size)
+        // Compile size expression
+        if (!compile_expression(ctx, stmt->as.dim_stmt.size))
+            return false;
+        // Push array name constant
+        c64script_value_t arrayname = {.type = VALUE_STRING, .as.string = (char *)stmt->as.dim_stmt.array_name};
+        uint32_t idx = (uint32_t)add_constant(ctx, arrayname);
+        if (idx == UINT32_MAX)
+            return false;
+        emit(ctx, OP_DIM_ARRAY, idx, stmt->line);
+        return true;
+    }
+
+    case AST_STMT_ARRAY_SET: {
+        // arr(index) = value
+        // Compile value expression first
+        if (!compile_expression(ctx, stmt->as.array_set.value))
+            return false;
+        // Compile index expression
+        if (!compile_expression(ctx, stmt->as.array_set.index))
+            return false;
+        // Push array name constant
+        c64script_value_t arrayname = {.type = VALUE_STRING, .as.string = (char *)stmt->as.array_set.array_name};
+        uint32_t idx = (uint32_t)add_constant(ctx, arrayname);
+        if (idx == UINT32_MAX)
+            return false;
+        emit(ctx, OP_ARRAY_SET, idx, stmt->line);
+        return true;
+    }
+
+    case AST_STMT_MAP_SET: {
+        // map{key} = value
+        // Compile value expression first
+        if (!compile_expression(ctx, stmt->as.map_set.value))
+            return false;
+        // Compile key expression
+        if (!compile_expression(ctx, stmt->as.map_set.key))
+            return false;
+        // Push map name constant
+        c64script_value_t mapname = {.type = VALUE_STRING, .as.string = (char *)stmt->as.map_set.map_name};
+        uint32_t idx = (uint32_t)add_constant(ctx, mapname);
+        if (idx == UINT32_MAX)
+            return false;
+        emit(ctx, OP_MAP_SET, idx, stmt->line);
+        return true;
+    }
+
+    case AST_STMT_FUNCTION_DEF: {
+        // Register function and compile its body
+
+        // Emit JUMP to skip function body during normal execution
+        size_t jump_over = ctx->instruction_count;
+        emit(ctx, OP_JUMP, 0, stmt->line); // Will be patched
+
+        // Record function entry point
+        size_t func_start = ctx->instruction_count;
+
+        // Register function definition
+        if (!register_function(ctx, stmt->as.function_def.name, func_start, stmt->as.function_def.param_count,
+                               stmt->as.function_def.param_names)) {
+            if (ctx->error_msg && ctx->error_msg_size > 0) {
+                snprintf(ctx->error_msg, ctx->error_msg_size,
+                         "Too many function definitions or duplicate function name: %s", stmt->as.function_def.name);
+            }
+            return false;
+        }
+
+        // Compile function body
+        for (c64script_ast_node_t *body_stmt = stmt->as.function_def.body; body_stmt != NULL;
+             body_stmt = body_stmt->next) {
+            if (!compile_statement(ctx, body_stmt))
+                return false;
+        }
+
+        // If function doesn't end with RETURN, add implicit RETURN 0
+        if (ctx->instruction_count == 0 || ctx->instructions[ctx->instruction_count - 1].opcode != OP_RETURN) {
+            emit(ctx, OP_PUSH_NUM, 0, stmt->line);
+            uint32_t zero_bits;
+            memcpy(&zero_bits, &(double){0.0}, sizeof(double));
+            ctx->instructions[ctx->instruction_count - 1].operand = zero_bits;
+            emit(ctx, OP_RETURN, 1, stmt->line); // Return 0
+        }
+
+        // Patch the jump-over to skip to here
+        ctx->instructions[jump_over].operand = (uint32_t)ctx->instruction_count;
+
         return true;
     }
 
@@ -870,6 +1069,7 @@ bool c64script_compile(c64script_ast_node_t *ast, c64script_runtime_t *runtime, 
     compiler_context_t ctx = {0};
     ctx.error_msg = error_msg;
     ctx.error_msg_size = error_msg_size;
+    ctx.runtime = runtime;
 
     // Compile AST to bytecode
     if (!compile_program(&ctx, ast)) {

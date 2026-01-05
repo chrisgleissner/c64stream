@@ -73,7 +73,7 @@
       "patterns": [
         {
           "name": "keyword.control.c64script",
-          "match": "(?i)\\b(IF|THEN|ELSE|ENDIF|FOR|TO|STEP|NEXT|WHILE|WEND|ENDWHILE|END\\s+WHILE|GOTO|GOSUB|RETURN|FUNCTION|ENDFUNCTION|END\\s+FUNCTION|STOP|END|LABEL|LET|DIM|UNTIL)\\b"
+          "match": "(?i)\\b(IF|THEN|ELSE|ENDIF|FOR|TO|STEP|NEXT|WHILE|WEND|ENDWHILE|END\\s+WHILE|GOTO|GOSUB|RETURN|FUN|ENDFUN|END\\s+FUN|STOP|END|LABEL|LET|DIM|UNTIL)\\b"
         },
         {
           "name": "keyword.operator.logical.c64script",

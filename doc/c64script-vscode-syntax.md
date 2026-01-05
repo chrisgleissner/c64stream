@@ -90,7 +90,7 @@ The TextMate grammar provides comprehensive syntax highlighting for:
 - `FOR`/`TO`/`STEP`/`NEXT`
 - `WHILE`/`WEND`/`ENDWHILE`
 - `GOTO`/`GOSUB`/`RETURN`
-- `FUNCTION`/`ENDFUNCTION`
+- `FUN`/`ENDFUN`
 - `STOP`/`END`
 
 #### Logical Operators
@@ -129,7 +129,7 @@ The language configuration provides:
 - **Auto-closing pairs:** `()`, `{}`, `[]`, `""`
 - **Comment toggling:** `#` (line comment)
 - **Bracket matching:** Highlights matching brackets
-- **Auto-indentation:** Increases indent after `IF`, `FOR`, `WHILE`, `FUNCTION`; decreases after `ENDIF`, `NEXT`, `WEND`, `ENDFUNCTION`
+- **Auto-indentation:** Increases indent after `IF`, `FOR`, `WHILE`, `FUN`; decreases after `ENDIF`, `NEXT`, `WEND`, `ENDFUN`
 
 ## Grammar Development
 
