@@ -1,18 +1,3015 @@
 # Execution trace
 script: "test_loop.c64script"
-status: failure
-error: "OBS source not available"
+status: success
+error: ~
 program: |
-    1: rem Loop test script
-    2: rem Tests goto and label functionality
-    3: 
-    4: label start
-    5: effect "Sharp Pixels"
-    6: wait 1s
-    7: effect "Soft CRT"
-    8: wait 1s
-    9: goto start
+  01: rem Loop test script
+  02: rem Tests goto and label functionality
+  03: 
+  04: label start
+  05: effect "Sharp Pixels"
+  06: wait 1s
+  07: effect "Soft CRT"
+  08: wait 1s
+  09: goto start
 trace:
 - line: 5
   content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
+  variables: {}
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 6
+  content: "wait 1s"
+  variables: {}
+- line: 7
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 8
+  content: "wait 1s"
+  variables: {}
+- line: 9
+  content: "goto start"
   variables: {}

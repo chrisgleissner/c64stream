@@ -111,20 +111,15 @@ static const char *EXPECTED_COMPILE_FAILURES[] = {"test_wait_until.c64script",  
 
 // Scripts that should compile but fail execution (runtime errors)
 static const char *EXPECTED_EXECUTION_FAILURES[] = {
-    "test_safety_infinite_loop.c64script", // Expected to hit iteration limit
     "test_safety_max_nesting.c64script",   // Expected to hit nesting limit
-    "demo_basic_hello_world.c64script",    // Uses wait statements (OBS required)
-    "hello_world.c64script",               // Type mismatch issues
-    "demo_palette_cycle.c64script",        // Requires OBS source
-    "demo_effect_preset_cycle.c64script",  // Requires OBS source
-    "test_iteration_counts.c64script",     // Times out with many waits
+    "demo_basic_hello_world.c64script",    // Uses TYPE/KEY commands which need more work
+    "hello_world.c64script",               // Type mismatch issues (STR function in concatenation)
+    "demo_palette_cycle.c64script",        // Requires OBS source (long running demo)
+    "demo_effect_preset_cycle.c64script",  // Requires OBS source (long running demo)
     "test_error_type_mismatch.c64script",  // Intentional type mismatch
-    "test_simple_sequence.c64script",      // Times out with waits
-    "test_loop.c64script",                 // Times out with infinite loop waits
     "test_comparisons.c64script",          // String comparison not yet supported
     "test_user_functions.c64script",       // Type mismatch issues
-    "test_logging.c64script",              // Type mismatch issues
-    "test_recording.c64script",            // OBS frontend API - times out
+    "test_logging.c64script",              // Type mismatch issues (string + number concatenation)
     "test_error_invalid.c64script",        // Type mismatch
     NULL};
 
