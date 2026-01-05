@@ -1,9 +1,18 @@
 rem Loop test script
-rem Tests goto and label functionality
+rem Tests goto and label functionality - limited iterations for trace size
+
+COUNTER = 0
 
 label start
 effect "Sharp Pixels"
 wait 1s
 effect "Soft CRT"
 wait 1s
-goto start
+
+COUNTER = COUNTER + 1
+if COUNTER < 3 then
+    goto start
+endif
+
+rem Demonstrate loop termination
+stop

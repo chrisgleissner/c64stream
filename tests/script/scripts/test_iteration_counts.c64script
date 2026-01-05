@@ -1,32 +1,32 @@
 rem Test multiple iteration counts and step values
 rem Validates for loop counting with various configurations
 
-rem Test 1: Simple forward counting (1 to 5)
-for i = 1 to 5
+rem Test 1: Simple forward counting (1 to 2)
+for i = 1 to 2
     effect "Sharp Pixels"
     wait 50ms
 next i
 
-rem Test 2: Counting with step value (0 to 10, step 2)
-for j = 0 to 10 step 2
+rem Test 2: Counting with step value (0 to 4, step 2)
+for j = 0 to 4 step 2
     palette "colodore"
     wait 50ms
 next j
-rem Should execute 6 times: 0, 2, 4, 6, 8, 10
+rem Should execute 3 times: 0, 2, 4
 
-rem Test 3: Backward counting (10 to 1, step -1)
-for k = 10 to 1 step -1
+rem Test 3: Backward counting (3 to 1, step -1)
+for k = 3 to 1 step -1
     effect "Soft CRT"
     wait 50ms
 next k
-rem Should execute 10 times
+rem Should execute 3 times
 
 rem Test 4: Backward counting with step -2
-for l = 20 to 10 step -2
+for l = 14 to 10 step -2
     palette "pepto_ntsc"
     wait 50ms
 next l
-rem Should execute 6 times: 20, 18, 16, 14, 12, 10
+rem Should execute 3 times: 14, 12, 10
 
 rem Test 5: Zero iterations (start > end with positive step)
 for m = 10 to 1
@@ -34,31 +34,31 @@ for m = 10 to 1
     effect "SHOULD_NOT_SEE"
 next m
 
-rem Test 6: Large iteration count
+rem Test 6: Loop with conditional
 count = 0
-for n = 1 to 100
+for n = 1 to 3
     count = count + 1
-    if count = 10 or count = 50 or count = 100 then
+    if count = 2 then
         effect "Light Scanlines"
         wait 50ms
     endif
 next n
 
 rem Test 7: Fractional step values
-for o = 0 to 2 step 0.5
+for o = 0 to 1 step 0.5
     palette "vice_new"
     wait 50ms
 next o
-rem Should execute 5 times: 0, 0.5, 1.0, 1.5, 2.0
+rem Should execute 3 times: 0, 0.5, 1.0
 
 rem Test 8: Nested loops with different step values
-for p = 2 to 8 step 2
-    for q = 10 to 5 step -1
+for p = 2 to 4 step 2
+    for q = 5 to 3 step -1
         effect "CRT Monitor Warm"
         wait 25ms
     next q
 next p
-rem Outer: 4 times (2,4,6,8), Inner: 6 times (10,9,8,7,6,5)
-rem Total: 24 executions
+rem Outer: 2 times (2,4), Inner: 3 times (5,4,3)
+rem Total: 6 executions
 
 stop
