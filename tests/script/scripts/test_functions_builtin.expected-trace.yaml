@@ -1,0 +1,132 @@
+# Execution trace
+script: "test_functions_builtin.c64script"
+status: parse_failure
+error: "[Line 88:11] Error at 'LOG': Expected expression"
+program: |
+    1: rem Test built-in functions
+    2: rem Validates string, math, and utility functions
+    3: 
+    4: rem Test 1: String functions - LEFT$
+    5: TEXT$ = "HELLO WORLD"
+    6: PREFIX$ = LEFT$(TEXT$, 5)
+    7: LOG "Left 5: " + PREFIX$
+    8: wait 100ms
+    9: 
+   10: rem Test 2: String functions - RIGHT$
+   11: SUFFIX$ = RIGHT$(TEXT$, 5)
+   12: LOG "Right 5: " + SUFFIX$
+   13: wait 100ms
+   14: 
+   15: rem Test 3: String functions - MID$
+   16: MIDDLE$ = MID$(TEXT$, 7, 5)
+   17: LOG "Middle: " + MIDDLE$
+   18: wait 100ms
+   19: 
+   20: rem Test 4: String functions - LEN
+   21: LENGTH = LEN(TEXT$)
+   22: LOG "Length: " + LENGTH
+   23: wait 100ms
+   24: 
+   25: rem Test 5: String functions - CHR$
+   26: CHAR_A$ = CHR$(65)
+   27: LOG "CHR$(65): " + CHAR_A$
+   28: wait 100ms
+   29: 
+   30: rem Test 6: String functions - ASC
+   31: CODE = ASC("A")
+   32: LOG "ASC(A): " + CODE
+   33: wait 100ms
+   34: 
+   35: rem Test 7: Conversion functions - STR$
+   36: NUM = 42
+   37: NUM_STR$ = STR$(NUM)
+   38: LOG "STR$(42): " + NUM_STR$
+   39: wait 100ms
+   40: 
+   41: rem Test 8: Conversion functions - VAL
+   42: STR_NUM$ = "123.45"
+   43: PARSED = VAL(STR_NUM$)
+   44: LOG "VAL(123.45): " + PARSED
+   45: wait 100ms
+   46: 
+   47: rem Test 9: Math functions - ABS
+   48: NEG = -42
+   49: POS = ABS(NEG)
+   50: LOG "ABS(-42): " + POS
+   51: wait 100ms
+   52: 
+   53: rem Test 10: Math functions - INT
+   54: FLOAT = 3.7
+   55: INTEGER = INT(FLOAT)
+   56: LOG "INT(3.7): " + INTEGER
+   57: wait 100ms
+   58: 
+   59: rem Test 11: Math functions - RND
+   60: RANDOM = RND(100)
+   61: LOG "RND(100): " + RANDOM
+   62: wait 100ms
+   63: 
+   64: rem Test 12: Math functions - SIN
+   65: ANGLE = 1.5708
+   66: SINE = SIN(ANGLE)
+   67: LOG "SIN(pi/2): " + SINE
+   68: wait 100ms
+   69: 
+   70: rem Test 13: Math functions - COS
+   71: COSINE = COS(0)
+   72: LOG "COS(0): " + COSINE
+   73: wait 100ms
+   74: 
+   75: rem Test 14: Math functions - TAN
+   76: TANGENT = TAN(0.785398)
+   77: LOG "TAN(pi/4): " + TANGENT
+   78: wait 100ms
+   79: 
+   80: rem Test 15: Math functions - SQRT
+   81: SQUARE = 144
+   82: ROOT = SQRT(SQUARE)
+   83: LOG "SQRT(144): " + ROOT
+   84: wait 100ms
+   85: 
+   86: rem Test 16: Math functions - LOG (natural logarithm)
+   87: E_VAL = 2.71828
+   88: NAT_LOG = LOG(E_VAL)
+   89: LOG "LOG(e): " + NAT_LOG
+   90: wait 100ms
+   91: 
+   92: rem Test 17: Math functions - EXP
+   93: POWER = EXP(1)
+   94: LOG "EXP(1): " + POWER
+   95: wait 100ms
+   96: 
+   97: rem Test 18: TIME$ function
+   98: CURRENT_TIME$ = TIME$()
+   99: LOG "Current time: " + CURRENT_TIME$
+  100: wait 100ms
+  101: 
+  102: rem Test 19: Functions in expressions
+  103: RESULT = INT(RND(10)) + 1
+  104: LOG "Random 1-10: " + RESULT
+  105: wait 100ms
+  106: 
+  107: rem Test 20: Nested function calls
+  108: NESTED$ = LEFT$(RIGHT$("ABCDEFGH", 6), 3)
+  109: LOG "Nested result: " + NESTED$
+  110: wait 100ms
+  111: 
+  112: rem Test 21: Functions in conditionals
+  113: NAME$ = "TEST"
+  114: if LEN(NAME$) = 4 then
+  115:     effect "Sharp Pixels"
+  116: endif
+  117: wait 100ms
+  118: 
+  119: rem Test 22: String manipulation chain
+  120: ORIGINAL$ = "  hello world  "
+  121: UPPER$ = ORIGINAL$
+  122: LENGTH = LEN(UPPER$)
+  123: TRIMMED$ = MID$(UPPER$, 3, 11)
+  124: LOG "Manipulated: " + TRIMMED$
+  125: 
+  126: stop
+trace: []

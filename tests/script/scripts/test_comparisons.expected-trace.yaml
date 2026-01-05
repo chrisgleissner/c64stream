@@ -1,0 +1,94 @@
+# Execution trace
+script: "test_comparisons.c64script"
+status: failure
+error: "OBS source not available"
+program: |
+    1: rem Test all comparison operators
+    2: rem Tests: =, ==, <>, !=, <, <=, >, >=
+    3: 
+    4: rem Test 1: Equality operators (= and ==)
+    5: A = 5
+    6: if A = 5 then
+    7:     effect "Sharp Pixels"
+    8: endif
+    9: 
+   10: if A == 5 then
+   11:     wait 100ms
+   12: endif
+   13: 
+   14: rem Test 2: Inequality operators (<> and !=)
+   15: B = 3
+   16: if B <> 5 then
+   17:     palette colodore
+   18: endif
+   19: 
+   20: if B != 5 then
+   21:     wait 100ms
+   22: endif
+   23: 
+   24: rem Test 3: Less than (<)
+   25: C = 2
+   26: D = 5
+   27: if C < D then
+   28:     effect "Soft CRT"
+   29: endif
+   30: 
+   31: rem Test 4: Less than or equal (<=)
+   32: E = 5
+   33: F = 5
+   34: if E <= F then
+   35:     palette pepto_ntsc
+   36: endif
+   37: 
+   38: G = 3
+   39: if G <= F then
+   40:     wait 100ms
+   41: endif
+   42: 
+   43: rem Test 5: Greater than (>)
+   44: H = 10
+   45: I = 5
+   46: if H > I then
+   47:     effect "Light Scanlines"
+   48: endif
+   49: 
+   50: rem Test 6: Greater than or equal (>=)
+   51: J = 5
+   52: K = 5
+   53: if J >= K then
+   54:     palette vice_new
+   55: endif
+   56: 
+   57: L = 8
+   58: if L >= K then
+   59:     wait 100ms
+   60: endif
+   61: 
+   62: rem Test 7: Comparison chains in loop conditions
+   63: for M = 1 to 5
+   64:     if M >= 3 and M <= 4 then
+   65:         effect "CRT Monitor Warm"
+   66:         wait 50ms
+   67:     endif
+   68: next M
+   69: 
+   70: rem Test 8: String comparisons (if supported)
+   71: rem Most BASIC dialects support string comparison
+   72: NAME$ = "TEST"
+   73: if NAME$ = "TEST" then
+   74:     effect "Heavy Scanlines"
+   75: endif
+   76: 
+   77: stop
+trace:
+- line: 5
+  content: "A = 5"
+  variables: {}
+- line: 6
+  content: "if A = 5 then"
+  variables:
+    A: 5
+- line: 7
+  content: "effect \"Sharp Pixels\""
+  variables:
+    A: 5

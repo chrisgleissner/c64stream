@@ -1,0 +1,12 @@
+# Execution trace
+script: "test_error_missing_label.c64script"
+status: compile_failure
+error: "Undefined label: NONEXISTENT_LABEL"
+program: |
+    1: rem Error recovery test - missing label
+    2: rem Tests handling of goto to nonexistent label
+    3: 
+    4: goto nonexistent_label
+    5: effect Test
+    6: stop
+trace: []

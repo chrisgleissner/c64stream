@@ -481,7 +481,7 @@ static void write_value_as_yaml(FILE *f, const c64script_value_t *val)
 // Record trace entry for current line
 static void record_trace_entry(c64script_runtime_t *runtime, int line_num)
 {
-    if (!runtime->trace_recording_enabled || !runtime->trace_file || line_num <= 0) {
+    if (!runtime->trace_recording_enabled || !runtime->trace_buffer || line_num <= 0) {
         return;
     }
 
@@ -536,28 +536,79 @@ static void record_trace_entry(c64script_runtime_t *runtime, int line_num)
         }
     }
 
-    fprintf(runtime->trace_file, "- line: %d\n", line_num);
-    fprintf(runtime->trace_file, "  content: ");
-    write_yaml_string(runtime->trace_file, line_buffer);
-    fprintf(runtime->trace_file, "\n");
+    // Write trace entry to buffer
+    char entry[2048];
+    int entry_len = 0;
+
+    entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "- line: %d\n", line_num);
+    entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "  content: ");
+
+    // Write YAML-escaped string
+    entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "\"");
+    for (const char *p = line_buffer; *p && entry_len < (int)sizeof(entry) - 10; p++) {
+        if (*p == '"') {
+            entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "\\\"");
+        } else if (*p == '\\') {
+            entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "\\\\");
+        } else if (*p == '\n') {
+            entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "\\n");
+        } else {
+            entry[entry_len++] = *p;
+        }
+    }
+    entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "\"\n");
 
     if (runtime->variable_count > 0) {
-        fprintf(runtime->trace_file, "  variables:\n");
-        for (size_t i = 0; i < runtime->variable_count; i++) {
-            fprintf(runtime->trace_file, "    %s: ", runtime->variables[i].name);
-            write_value_as_yaml(runtime->trace_file, &runtime->variables[i].value);
-            fprintf(runtime->trace_file, "\n");
+        entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "  variables:\n");
+        for (size_t i = 0; i < runtime->variable_count && entry_len < (int)sizeof(entry) - 100; i++) {
+            entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "    %s: ", runtime->variables[i].name);
+
+            // Write value as YAML
+            c64script_value_t *val = &runtime->variables[i].value;
+            if (val->type == VALUE_NUMBER) {
+                entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "%.10g\n", val->as.number);
+            } else if (val->type == VALUE_STRING) {
+                entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "\"%s\"\n",
+                                      val->as.string ? val->as.string : "");
+            } else if (val->type == VALUE_ARRAY) {
+                entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "[array]\n");
+            } else if (val->type == VALUE_MAP) {
+                entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "{map}\n");
+            } else {
+                entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "~\n");
+            }
         }
     } else {
-        fprintf(runtime->trace_file, "  variables: {}\n");
+        entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "  variables: {}\n");
     }
 
-    fflush(runtime->trace_file);
+    // Append to trace buffer (expand if needed)
+    while (runtime->trace_buffer_size + entry_len + 1 > runtime->trace_buffer_capacity) {
+        runtime->trace_buffer_capacity *= 2;
+        char *new_buffer = realloc(runtime->trace_buffer, runtime->trace_buffer_capacity);
+        if (!new_buffer) {
+            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Out of memory for trace buffer");
+            runtime->should_stop = true;
+            return;
+        }
+        runtime->trace_buffer = new_buffer;
+    }
+
+    memcpy(runtime->trace_buffer + runtime->trace_buffer_size, entry, entry_len);
+    runtime->trace_buffer_size += entry_len;
+    runtime->trace_buffer[runtime->trace_buffer_size] = '\0';
 }
 
 bool c64script_execute(c64script_runtime_t *runtime)
 {
-    return c64script_vm_execute(runtime);
+    bool result = c64script_vm_execute(runtime);
+
+    // Finalize trace recording with status and error (if any)
+    if (runtime && runtime->trace_recording_enabled) {
+        c64script_finalize_trace_recording(runtime, result, result ? NULL : runtime->error_msg);
+    }
+
+    return result;
 }
 
 bool c64script_vm_execute(c64script_runtime_t *runtime)
@@ -2586,6 +2637,8 @@ bool c64script_vm_execute(c64script_runtime_t *runtime)
             runtime->next_line_to_execute = 0; // Script completed
         }
     }
+
+    // Note: trace finalization is handled by c64script_execute wrapper
 
     return true;
 }

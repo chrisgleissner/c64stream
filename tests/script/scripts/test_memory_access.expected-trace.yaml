@@ -1,0 +1,119 @@
+# Execution trace
+script: "test_memory_access.c64script"
+status: failure
+error: "OBS source not available"
+program: |
+    1: rem Test memory access commands
+    2: rem Validates POKE and PEEK operations via REST DMA
+    3: 
+    4: rem Test 1: POKE single byte to memory
+    5: POKE $C000, 169
+    6: wait 100ms
+    7: 
+    8: rem Test 2: POKE to different address
+    9: POKE $D020, 0
+   10: wait 100ms
+   11: 
+   12: rem Test 3: POKE to keyboard buffer length
+   13: POKE $00C6, 0
+   14: wait 100ms
+   15: 
+   16: rem Test 4: POKE multiple bytes (array form)
+   17: POKE $C000, [169, 255, 141, 32, 208]
+   18: wait 100ms
+   19: 
+   20: rem Test 5: POKE larger array
+   21: POKE $C010, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+   22: wait 100ms
+   23: 
+   24: rem Test 6: PEEK from border color
+   25: BORDER = PEEK($D020)
+   26: wait 100ms
+   27: 
+   28: rem Test 7: PEEK from keyboard buffer length
+   29: BUFLEN = PEEK($00C6)
+   30: wait 100ms
+   31: 
+   32: rem Test 8: PEEK and use in condition
+   33: VALUE = PEEK($C000)
+   34: if VALUE = 169 then
+   35:     effect "Sharp Pixels"
+   36: endif
+   37: wait 100ms
+   38: 
+   39: rem Test 9: PEEK in expression
+   40: TOTAL = PEEK($C000) + PEEK($C001)
+   41: wait 100ms
+   42: 
+   43: rem Test 10: Write and read back
+   44: POKE $C100, 42
+   45: CHECK = PEEK($C100)
+   46: if CHECK = 42 then
+   47:     palette colodore
+   48: endif
+   49: 
+   50: stop
+trace:
+- line: 5
+  content: "POKE $C000, 169"
+  variables: {}
+- line: 6
+  content: "wait 100ms"
+  variables: {}
+- line: 9
+  content: "POKE $D020, 0"
+  variables: {}
+- line: 10
+  content: "wait 100ms"
+  variables: {}
+- line: 13
+  content: "POKE $00C6, 0"
+  variables: {}
+- line: 14
+  content: "wait 100ms"
+  variables: {}
+- line: 17
+  content: "POKE $C000, [169, 255, 141, 32, 208]"
+  variables: {}
+- line: 18
+  content: "wait 100ms"
+  variables: {}
+- line: 21
+  content: "POKE $C010, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]"
+  variables: {}
+- line: 22
+  content: "wait 100ms"
+  variables: {}
+- line: 25
+  content: "BORDER = PEEK($D020)"
+  variables: {}
+- line: 26
+  content: "wait 100ms"
+  variables:
+    BORDER: 0
+- line: 29
+  content: "BUFLEN = PEEK($00C6)"
+  variables:
+    BORDER: 0
+- line: 30
+  content: "wait 100ms"
+  variables:
+    BORDER: 0
+    BUFLEN: 0
+- line: 33
+  content: "VALUE = PEEK($C000)"
+  variables:
+    BORDER: 0
+    BUFLEN: 0
+- line: 34
+  content: "if VALUE = 169 then"
+  variables:
+    BORDER: 0
+    BUFLEN: 0
+    VALUE: 169
+- line: 35
+  content: "effect \"Sharp Pixels\""
+  variables:
+    BORDER: 0
+    BUFLEN: 0
+    VALUE: 169

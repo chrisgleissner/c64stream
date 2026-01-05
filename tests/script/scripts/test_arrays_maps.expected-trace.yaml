@@ -1,0 +1,102 @@
+# Execution trace
+script: "test_arrays_maps.c64script"
+status: parse_failure
+error: "Parse timeout after 2 seconds"
+program: |
+    1: rem Test arrays and maps
+    2: rem Validates dim, array access, and map access
+    3: 
+    4: rem Test 1: Declare numeric array
+    5: dim VALUES(10)
+    6: wait 50ms
+    7: 
+    8: rem Test 2: Assign to array elements
+    9: VALUES(0) = 100
+   10: VALUES(1) = 200
+   11: VALUES(2) = 300
+   12: wait 50ms
+   13: 
+   14: rem Test 3: Read from array
+   15: FIRST = VALUES(0)
+   16: if FIRST = 100 then
+   17:     effect "Sharp Pixels"
+   18: endif
+   19: wait 100ms
+   20: 
+   21: rem Test 4: Array in loop
+   22: for I = 0 to 5
+   23:     VALUES(I) = I * 10
+   24:     wait 20ms
+   25: next I
+   26: 
+   27: rem Test 5: Sum array elements
+   28: SUM = 0
+   29: for J = 0 to 5
+   30:     SUM = SUM + VALUES(J)
+   31:     wait 20ms
+   32: next J
+   33: LOG "Array sum: " + SUM
+   34: 
+   35: rem Test 6: String array
+   36: dim NAMES$(5)
+   37: NAMES$(0) = "Alice"
+   38: NAMES$(1) = "Bob"
+   39: NAMES$(2) = "Charlie"
+   40: wait 50ms
+   41: 
+   42: rem Test 7: Access string array
+   43: FIRST_NAME$ = NAMES$(0)
+   44: LOG "First name: " + FIRST_NAME$
+   45: wait 100ms
+   46: 
+   47: rem Test 8: Map with string keys
+   48: CONFIG${"host"} = "192.168.1.64"
+   49: CONFIG${"path"} = "/v1/api"
+   50: CONFIG{"port"} = 8080
+   51: CONFIG{"timeout"} = 5000
+   52: wait 50ms
+   53: 
+   54: rem Test 9: Read from map
+   55: HOST$ = CONFIG${"host"}
+   56: PORT = CONFIG{"port"}
+   57: LOG "Server: " + HOST$ + ":" + PORT
+   58: wait 100ms
+   59: 
+   60: rem Test 10: Map in conditional
+   61: if CONFIG{"port"} = 8080 then
+   62:     palette colodore
+   63: else
+   64:     palette pepto_ntsc
+   65: endif
+   66: wait 100ms
+   67: 
+   68: rem Test 11: Iterate with array
+   69: dim PALETTES$(3)
+   70: PALETTES$(0) = "colodore"
+   71: PALETTES$(1) = "pepto_ntsc"
+   72: PALETTES$(2) = "vice_new"
+   73: 
+   74: for K = 0 to 2
+   75:     palette PALETTES$(K)
+   76:     wait 100ms
+   77: next K
+   78: 
+   79: rem Test 12: Nested arrays (2D simulation)
+   80: dim ROW1(5)
+   81: dim ROW2(5)
+   82: ROW1(0) = 1
+   83: ROW1(1) = 2
+   84: ROW2(0) = 10
+   85: ROW2(1) = 20
+   86: wait 50ms
+   87: 
+   88: rem Test 13: Array bounds
+   89: dim SMALL(2)
+   90: SMALL(0) = 100
+   91: SMALL(1) = 200
+   92: SMALL(2) = 300
+   93: LAST = SMALL(2)
+   94: LOG "Last element: " + LAST
+   95: 
+   96: stop
+trace: []

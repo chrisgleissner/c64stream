@@ -1,0 +1,65 @@
+# Execution trace
+script: "test_variable_scope.c64script"
+status: parse_failure
+error: "[Line 58:1] Error at 'end': Unexpected statement"
+program: |
+    1: rem Test variable mutation and scope
+    2: rem Tests for loop variables, assignments, and gosub parameters
+    3: 
+    4: rem Test 1: for loop variable mutation
+    5: COUNTER = 0
+    6: for I = 1 to 5
+    7:     COUNTER = COUNTER + I
+    8:     effect "Sharp Pixels"
+    9:     wait 50ms
+   10: next I
+   11: rem COUNTER should be 15 (1+2+3+4+5)
+   12: 
+   13: rem Test 2: Nested for with different variables
+   14: SUM = 0
+   15: for X = 1 to 3
+   16:     for Y = 1 to 2
+   17:         SUM = SUM + 1
+   18:         wait 50ms
+   19:     next Y
+   20: next X
+   21: rem SUM should be 6 (3 * 2)
+   22: 
+   23: rem Test 3: Variable mutation in while loop
+   24: VALUE = 0
+   25: while VALUE < 5
+   26:     VALUE = VALUE + 1
+   27:     palette colodore
+   28:     wait 50ms
+   29: wend
+   30: rem VALUE should be 5
+   31: 
+   32: rem Test 4: gosub with implicit parameters (if supported)
+   33: rem Set globals before gosub
+   34: PARAM1 = 10
+   35: PARAM2 = 20
+   36: gosub ADD_VALUES
+   37: rem RESULT should be 30
+   38: 
+   39: rem Test 5: Variable shadowing in nested loops
+   40: A = 0
+   41: for B = 1 to 2
+   42:     A = A + B
+   43:     C = 0
+   44:     while C < 2
+   45:         A = A + 1
+   46:         C = C + 1
+   47:     wend
+   48: next B
+   49: rem A should be 7 (0 + 1 + 2 + 2 + 2)
+   50: 
+   51: goto end
+   52: 
+   53: ADD_VALUES:
+   54:     RESULT = PARAM1 + PARAM2
+   55:     effect "Soft CRT"
+   56:     return
+   57: 
+   58: end:
+   59: stop
+trace: []

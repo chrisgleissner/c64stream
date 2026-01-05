@@ -1,0 +1,16 @@
+# Execution trace
+script: "test_error_duplicate_label.c64script"
+status: compile_failure
+error: "Duplicate label: START (line 7)"
+program: |
+    1: rem Test duplicate label definitions (should cause parse error)
+    2: 
+    3: START:
+    4: effect "Sharp Pixels"
+    5: wait 100ms
+    6: 
+    7: START:
+    8: rem Duplicate label should cause error
+    9: effect "Soft CRT"
+   10: stop
+trace: []

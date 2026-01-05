@@ -148,6 +148,9 @@ c64script_runtime_t *c64script_runtime_create(void)
     runtime->trace_file = NULL;
     runtime->trace_filename[0] = '\0';
     runtime->trace_step_count = 0;
+    runtime->trace_buffer = NULL;
+    runtime->trace_buffer_size = 0;
+    runtime->trace_buffer_capacity = 0;
 
     runtime->source_data = NULL;
     runtime->obs_source = NULL;
@@ -170,9 +173,14 @@ void c64script_runtime_destroy(c64script_runtime_t *runtime)
 
     // Close trace file if open
     if (runtime->trace_file) {
-        // YAML doesn't need closing marker (it's a list)
         fclose(runtime->trace_file);
         runtime->trace_file = NULL;
+    }
+
+    // Free trace buffer
+    if (runtime->trace_buffer) {
+        free(runtime->trace_buffer);
+        runtime->trace_buffer = NULL;
     }
 
     // Free source text
@@ -555,40 +563,88 @@ bool c64script_enable_trace_recording(c64script_runtime_t *runtime, const char *
         return false;
     }
 
-    if (runtime->trace_file) {
-        fclose(runtime->trace_file);
-    }
-
-    runtime->trace_file = fopen(filename, "w");
-    if (!runtime->trace_file) {
-        blog(LOG_ERROR, "Failed to open trace file: %s", filename);
-        return false;
-    }
-
     strncpy(runtime->trace_filename, filename, sizeof(runtime->trace_filename) - 1);
     runtime->trace_filename[sizeof(runtime->trace_filename) - 1] = '\0';
     runtime->trace_recording_enabled = true;
     runtime->trace_first_entry = true;
+    runtime->trace_step_count = 0;
 
-    // Write YAML header with script info
-    fprintf(runtime->trace_file, "# Execution trace\n");
-    fprintf(runtime->trace_file, "script: \"%s\"\n", filename);
+    // Initialize trace buffer (will collect entries during execution)
+    runtime->trace_buffer_capacity = 64 * 1024; // 64KB initial
+    runtime->trace_buffer = malloc(runtime->trace_buffer_capacity);
+    if (!runtime->trace_buffer) {
+        runtime->trace_recording_enabled = false;
+        return false;
+    }
+    runtime->trace_buffer_size = 0;
 
-    // Write full program listing with line numbers if available
+    return true;
+}
+
+void c64script_finalize_trace_recording(c64script_runtime_t *runtime, bool success, const char *error_msg)
+{
+    if (!runtime || !runtime->trace_recording_enabled) {
+        return;
+    }
+
+    // Open file for writing
+    FILE *f = fopen(runtime->trace_filename, "w");
+    if (!f) {
+        if (runtime->trace_buffer) {
+            free(runtime->trace_buffer);
+            runtime->trace_buffer = NULL;
+        }
+        runtime->trace_recording_enabled = false;
+        return;
+    }
+
+    // Write header with status/error
+    fprintf(f, "# Execution trace\n");
+    const char *script_name = strrchr(runtime->trace_filename, '/');
+    script_name = script_name ? script_name + 1 : runtime->trace_filename;
+    // Remove .expected-trace.yaml suffix if present
+    char clean_name[256];
+    strncpy(clean_name, script_name, sizeof(clean_name) - 1);
+    clean_name[sizeof(clean_name) - 1] = '\0';
+    char *dot = strstr(clean_name, ".expected-trace.yaml");
+    if (dot) {
+        // Replace with .c64script
+        strcpy(dot, ".c64script");
+    }
+
+    fprintf(f, "script: \"%s\"\n", clean_name);
+    fprintf(f, "status: %s\n", success ? "success" : "failure");
+
+    if (error_msg && error_msg[0]) {
+        fprintf(f, "error: \"");
+        for (const char *p = error_msg; *p; p++) {
+            if (*p == '"')
+                fputs("\\\"", f);
+            else if (*p == '\n')
+                fputs("\\n", f);
+            else if (*p == '\\')
+                fputs("\\\\", f);
+            else
+                fputc(*p, f);
+        }
+        fprintf(f, "\"\n");
+    } else {
+        fprintf(f, "error: ~\n");
+    }
+
+    // Write program listing
     if (runtime->source_text) {
-        fprintf(runtime->trace_file, "program: |\n");
+        fprintf(f, "program: |\n");
         const char *src = runtime->source_text;
         int line_num = 1;
         const char *line_start = src;
 
         while (*src) {
             if (*src == '\n' || *src == '\r') {
-                // Write line with number
-                fprintf(runtime->trace_file, "  %3d: ", line_num);
-                fwrite(line_start, 1, src - line_start, runtime->trace_file);
-                fprintf(runtime->trace_file, "\n");
+                fprintf(f, "  %3d: ", line_num);
+                fwrite(line_start, 1, src - line_start, f);
+                fprintf(f, "\n");
 
-                // Handle \r\n
                 if (*src == '\r' && *(src + 1) == '\n') {
                     src++;
                 }
@@ -600,15 +656,25 @@ bool c64script_enable_trace_recording(c64script_runtime_t *runtime, const char *
             }
         }
 
-        // Write last line if it doesn't end with newline
         if (line_start < src) {
-            fprintf(runtime->trace_file, "  %3d: ", line_num);
-            fwrite(line_start, 1, src - line_start, runtime->trace_file);
-            fprintf(runtime->trace_file, "\n");
+            fprintf(f, "  %3d: ", line_num);
+            fwrite(line_start, 1, src - line_start, f);
+            fprintf(f, "\n");
         }
     }
 
-    fprintf(runtime->trace_file, "trace:\n");
+    // Write trace entries from buffer
+    fprintf(f, "trace:\n");
+    if (runtime->trace_buffer && runtime->trace_buffer_size > 0) {
+        fwrite(runtime->trace_buffer, 1, runtime->trace_buffer_size, f);
+    }
 
-    return true;
+    fclose(f);
+
+    // Clean up
+    if (runtime->trace_buffer) {
+        free(runtime->trace_buffer);
+        runtime->trace_buffer = NULL;
+    }
+    runtime->trace_recording_enabled = false;
 }

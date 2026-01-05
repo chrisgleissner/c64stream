@@ -1,0 +1,85 @@
+# Execution trace
+script: "test_let_rem.c64script"
+status: parse_failure
+error: "[Line 43:12] Error at ')': Invalid assignment target"
+program: |
+    1: rem Test let and rem statements
+    2: rem Validates optional let keyword and comment styles
+    3: 
+    4: rem Test 1: Assignment without let
+    5: X = 10
+    6: wait 50ms
+    7: 
+    8: rem Test 2: Assignment with let
+    9: let Y = 20
+   10: wait 50ms
+   11: 
+   12: rem Test 3: Both forms produce same result
+   13: Z = X + Y
+   14: if Z = 30 then
+   15:     effect "Sharp Pixels"
+   16: endif
+   17: wait 100ms
+   18: 
+   19: rem Test 4: rem comment style
+   20: rem This is a BASIC-style comment
+   21: effect "Soft CRT"
+   22: wait 100ms
+   23: 
+   24: rem Test 5: # comment style (legacy)
+   25: rem This is a hash comment
+   26: palette colodore
+   27: wait 100ms
+   28: 
+   29: rem Test 6: Mixed comments
+   30: rem First command
+   31: effect "Light Scanlines"
+   32: rem Second command
+   33: wait 100ms
+   34: 
+   35: rem Test 7: let with string variable
+   36: let NAME$ = "C64Script"
+   37: LOG "Language: " + NAME$
+   38: wait 100ms
+   39: 
+   40: rem Test 8: let with array element
+   41: dim ARRAY(5)
+   42: let ARRAY(0) = 100
+   43: let ARRAY(1) = 200
+   44: SUM = ARRAY(0) + ARRAY(1)
+   45: LOG "Array sum: " + SUM
+   46: wait 100ms
+   47: 
+   48: rem Test 9: let with map element
+   49: let CONFIG{"port"} = 8080
+   50: let CONFIG{"timeout"} = 5000
+   51: PORT = CONFIG{"port"}
+   52: LOG "Port: " + PORT
+   53: wait 100ms
+   54: 
+   55: rem Test 10: rem on same line as label
+   56: START: rem This is the start label
+   57: effect "CRT Monitor Warm"
+   58: wait 100ms
+   59: 
+   60: rem Test 11: Complex expression with let
+   61: let RESULT = (10 + 20) * 2 - 5
+   62: LOG "Result: " + RESULT
+   63: wait 100ms
+   64: 
+   65: rem Test 12: Multiple LETs
+   66: let A = 1
+   67: let B = 2
+   68: let C = 3
+   69: TOTAL = A + B + C
+   70: LOG "Total: " + TOTAL
+   71: wait 100ms
+   72: 
+   73: rem Test 13: let with function call
+   74: let RANDOM = RND(100)
+   75: LOG "Random: " + RANDOM
+   76: wait 100ms
+   77: 
+   78: rem Test completed
+   79: stop
+trace: []

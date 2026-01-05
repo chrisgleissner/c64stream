@@ -1,0 +1,18 @@
+# Execution trace
+script: "test_error_gosub_overflow.c64script"
+status: parse_failure
+error: "[Line 10:5] Error at 'Unexpected character': Unexpected character"
+program: |
+    1: rem Test GOSUB without matching RETURN in call stack overflow
+    2: 
+    3: gosub recursive
+    4: 
+    5: stop
+    6: 
+    7: recursive:
+    8:     effect "Sharp Pixels"
+    9:     wait 10ms
+   10:     # Call itself recursively - should hit max depth limit
+   11:     gosub recursive
+   12:     return
+trace: []

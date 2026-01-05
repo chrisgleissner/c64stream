@@ -1,0 +1,18 @@
+# Execution trace
+script: "test_loop.c64script"
+status: failure
+error: "OBS source not available"
+program: |
+    1: rem Loop test script
+    2: rem Tests goto and label functionality
+    3: 
+    4: label start
+    5: effect "Sharp Pixels"
+    6: wait 1s
+    7: effect "Soft CRT"
+    8: wait 1s
+    9: goto start
+trace:
+- line: 5
+  content: "effect \"Sharp Pixels\""
+  variables: {}

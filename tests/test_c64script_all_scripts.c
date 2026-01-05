@@ -225,6 +225,79 @@ static void find_c64script_files(const char *dir_path, char ***files, int *count
     closedir(dir);
 }
 
+// Write a simple error trace for scripts that fail to parse or compile
+static void write_error_trace(const char *file, const char *source, const char *error_msg, const char *status)
+{
+    char expected_trace_path[1024];
+    int base_len = strlen(file) - 10; // Length without .c64script
+    snprintf(expected_trace_path, sizeof(expected_trace_path), "%.*s.expected-trace.yaml", base_len, file);
+
+    FILE *f = fopen(expected_trace_path, "w");
+    if (!f) {
+        return;
+    }
+
+    // Write header
+    fprintf(f, "# Execution trace\n");
+    const char *script_name = strrchr(file, '/');
+    script_name = script_name ? script_name + 1 : file;
+    fprintf(f, "script: \"%s\"\n", script_name);
+    fprintf(f, "status: %s\n", status);
+
+    if (error_msg && error_msg[0]) {
+        fprintf(f, "error: \"");
+        for (const char *p = error_msg; *p; p++) {
+            if (*p == '"')
+                fputs("\\\"", f);
+            else if (*p == '\n')
+                fputs("\\n", f);
+            else if (*p == '\\')
+                fputs("\\\\", f);
+            else
+                fputc(*p, f);
+        }
+        fprintf(f, "\"\n");
+    } else {
+        fprintf(f, "error: ~\n");
+    }
+
+    // Write program listing if available
+    if (source) {
+        fprintf(f, "program: |\n");
+        const char *src = source;
+        int line_num = 1;
+        const char *line_start = src;
+
+        while (*src) {
+            if (*src == '\n' || *src == '\r') {
+                fprintf(f, "  %3d: ", line_num);
+                fwrite(line_start, 1, src - line_start, f);
+                fprintf(f, "\n");
+
+                if (*src == '\r' && *(src + 1) == '\n') {
+                    src++;
+                }
+                src++;
+                line_start = src;
+                line_num++;
+            } else {
+                src++;
+            }
+        }
+
+        if (line_start < src) {
+            fprintf(f, "  %3d: ", line_num);
+            fwrite(line_start, 1, src - line_start, f);
+            fprintf(f, "\n");
+        }
+    }
+
+    // Empty trace list
+    fprintf(f, "trace: []\n");
+
+    fclose(f);
+}
+
 // Process a single script file
 static void process_script(const char *file)
 {
@@ -266,6 +339,9 @@ static void process_script(const char *file)
     alarm(0);
 
     if (!ast) {
+        // Write error trace
+        write_error_trace(file, source, error, "parse_failure");
+
         if (expect_parse_fail) {
             printf("  ✅ Parse failed as expected: %s\n", error);
             parse_expected_fail++;
@@ -303,6 +379,9 @@ static void process_script(const char *file)
     c64script_ast_free(ast);
 
     if (!compiled) {
+        // Write error trace
+        write_error_trace(file, source, error, "compile_failure");
+
         if (expect_compile_fail) {
             printf("  ✅ Compile failed as expected: %s\n", error);
             compile_expected_fail++;
@@ -330,19 +409,14 @@ static void process_script(const char *file)
     printf("  ✅ Compile succeeded\n");
     compile_success++;
 
-    // Check if expected trace file exists for validation
+    // Always enable trace recording (will generate .expected-trace.yaml)
     char expected_trace_path[1024];
-    snprintf(expected_trace_path, sizeof(expected_trace_path), "%.*s.expected-trace.yaml", (int)(strlen(file) - 11),
-             file); // Remove .c64script extension
-    bool has_expected_trace = access(expected_trace_path, F_OK) == 0;
+    // Remove .c64script extension (10 chars) and append .expected-trace.yaml
+    int base_len = strlen(file) - 10; // Length without .c64script
+    snprintf(expected_trace_path, sizeof(expected_trace_path), "%.*s.expected-trace.yaml", base_len, file);
 
-    // Enable trace recording if expected trace exists
-    char actual_trace_path[1024];
-    if (has_expected_trace) {
-        snprintf(actual_trace_path, sizeof(actual_trace_path), "/tmp/c64script_trace_%d.yaml", getpid());
-        runtime->source_text = source;
-        c64script_enable_trace_recording(runtime, actual_trace_path);
-    }
+    runtime->source_text = source;
+    c64script_enable_trace_recording(runtime, expected_trace_path);
 
     // Execute with iteration limit AND timeout protection
     bool executed = false;
@@ -392,7 +466,8 @@ static void process_script(const char *file)
     c64script_test_keyboard_destroy(runtime->keyboard);
     c64script_test_rest_destroy(runtime->rest_client);
     c64script_runtime_destroy(runtime);
-    free(source);
+    // Note: source is owned by runtime->source_text and freed by runtime_destroy
+    // Do NOT free(source) here as it would be a double-free
 }
 
 int main(int argc, char **argv)

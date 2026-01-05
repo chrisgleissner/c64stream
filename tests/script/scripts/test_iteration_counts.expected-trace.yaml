@@ -1,0 +1,77 @@
+# Execution trace
+script: "test_iteration_counts.c64script"
+status: failure
+error: "OBS source not available"
+program: |
+    1: rem Test multiple iteration counts and step values
+    2: rem Validates for loop counting with various configurations
+    3: 
+    4: rem Test 1: Simple forward counting (1 to 5)
+    5: for i = 1 to 5
+    6:     effect "Sharp Pixels"
+    7:     wait 50ms
+    8: next i
+    9: 
+   10: rem Test 2: Counting with step value (0 to 10, step 2)
+   11: for j = 0 to 10 step 2
+   12:     palette "colodore"
+   13:     wait 50ms
+   14: next j
+   15: rem Should execute 6 times: 0, 2, 4, 6, 8, 10
+   16: 
+   17: rem Test 3: Backward counting (10 to 1, step -1)
+   18: for k = 10 to 1 step -1
+   19:     effect "Soft CRT"
+   20:     wait 50ms
+   21: next k
+   22: rem Should execute 10 times
+   23: 
+   24: rem Test 4: Backward counting with step -2
+   25: for l = 20 to 10 step -2
+   26:     palette "pepto_ntsc"
+   27:     wait 50ms
+   28: next l
+   29: rem Should execute 6 times: 20, 18, 16, 14, 12, 10
+   30: 
+   31: rem Test 5: Zero iterations (start > end with positive step)
+   32: for m = 10 to 1
+   33:     rem This should not execute
+   34:     effect "SHOULD_NOT_SEE"
+   35: next m
+   36: 
+   37: rem Test 6: Large iteration count
+   38: count = 0
+   39: for n = 1 to 100
+   40:     count = count + 1
+   41:     if count = 10 or count = 50 or count = 100 then
+   42:         effect "Light Scanlines"
+   43:         wait 50ms
+   44:     endif
+   45: next n
+   46: 
+   47: rem Test 7: Fractional step values
+   48: for o = 0 to 2 step 0.5
+   49:     palette "vice_new"
+   50:     wait 50ms
+   51: next o
+   52: rem Should execute 5 times: 0, 0.5, 1.0, 1.5, 2.0
+   53: 
+   54: rem Test 8: Nested loops with different step values
+   55: for p = 2 to 8 step 2
+   56:     for q = 10 to 5 step -1
+   57:         effect "CRT Monitor Warm"
+   58:         wait 25ms
+   59:     next q
+   60: next p
+   61: rem Outer: 4 times (2,4,6,8), Inner: 6 times (10,9,8,7,6,5)
+   62: rem Total: 24 executions
+   63: 
+   64: stop
+trace:
+- line: 5
+  content: "for i = 1 to 5"
+  variables: {}
+- line: 6
+  content: "effect \"Sharp Pixels\""
+  variables:
+    I: 1

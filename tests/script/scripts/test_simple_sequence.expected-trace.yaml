@@ -1,0 +1,19 @@
+# Execution trace
+script: "test_simple_sequence.c64script"
+status: failure
+error: "OBS source not available"
+program: |
+    1: rem Simple effect sequence test script
+    2: rem Tests basic command execution and timing
+    3: 
+    4: effect "Sharp Pixels"
+    5: wait 2s
+    6: effect "Soft CRT"
+    7: wait 2s
+    8: effect "CRT Monitor Warm"
+    9: wait 2s
+   10: stop
+trace:
+- line: 4
+  content: "effect \"Sharp Pixels\""
+  variables: {}

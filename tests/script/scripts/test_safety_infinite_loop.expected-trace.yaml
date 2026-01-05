@@ -1,0 +1,34 @@
+# Execution trace
+script: "test_safety_infinite_loop.c64script"
+status: failure
+error: "OBS source not available"
+program: |
+    1: rem Test potential infinite loop (should be detectable or cancellable)
+    2: rem This script deliberately creates an infinite loop
+    3: 
+    4: COUNTER = 0
+    5: 
+    6: LOOP_START:
+    7: COUNTER = COUNTER + 1
+    8: effect "Sharp Pixels"
+    9: wait 10ms
+   10: 
+   11: rem Infinite loop - always true condition
+   12: if 1 then
+   13:     goto LOOP_START
+   14: endif
+   15: 
+   16: rem Never reached
+   17: stop
+trace:
+- line: 4
+  content: "COUNTER = 0"
+  variables: {}
+- line: 7
+  content: "COUNTER = COUNTER + 1"
+  variables:
+    COUNTER: 0
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables:
+    COUNTER: 1

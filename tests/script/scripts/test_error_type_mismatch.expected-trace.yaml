@@ -1,0 +1,22 @@
+# Execution trace
+script: "test_error_type_mismatch.c64script"
+status: failure
+error: "TYPE MISMATCH (ADD)"
+program: |
+    1: rem Test type mismatch errors
+    2: rem Operations that should fail due to type incompatibility
+    3: 
+    4: rem Test 1: Invalid arithmetic on strings (if not auto-converted)
+    5: NAME$ = "HELLO"
+    6: rem This might cause type mismatch depending on implementation
+    7: RESULT = NAME$ + 5
+    8: effect "Sharp Pixels"
+    9: stop
+trace:
+- line: 5
+  content: "NAME$ = \"HELLO\""
+  variables: {}
+- line: 7
+  content: "RESULT = NAME$ + 5"
+  variables:
+    NAME$: "HELLO"

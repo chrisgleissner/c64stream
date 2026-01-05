@@ -810,6 +810,9 @@ typedef struct {
     FILE *trace_file;
     char trace_filename[512];
     size_t trace_step_count; // Number of trace entries recorded
+    char *trace_buffer;      // Buffer to collect trace entries
+    size_t trace_buffer_size;
+    size_t trace_buffer_capacity;
 
     // Integration points (set by executor)
     void *source_data; // OBS source data
@@ -856,6 +859,12 @@ void c64script_runtime_destroy(c64script_runtime_t *runtime);
  * Must be called before c64script_execute()
  */
 bool c64script_enable_trace_recording(c64script_runtime_t *runtime, const char *filename);
+
+/**
+ * Finalize trace recording with execution status and error (if any)
+ * Called automatically at end of execution
+ */
+void c64script_finalize_trace_recording(c64script_runtime_t *runtime, bool success, const char *error_msg);
 
 /**
  * Free an AST

@@ -1,0 +1,40 @@
+# Execution trace
+script: "test_recording.c64script"
+status: failure
+error: "OBS frontend API not enabled"
+program: |
+    1: rem Test recording control commands
+    2: rem Validates RECORDSTART and RECORDSTOP
+    3: 
+    4: rem Test 1: Start recording
+    5: RECORDSTART
+    6: wait 1s
+    7: 
+    8: rem Test 2: Stop recording
+    9: RECORDSTOP
+   10: wait 500ms
+   11: 
+   12: rem Test 3: Start and stop multiple times
+   13: RECORDSTART
+   14: wait 500ms
+   15: RECORDSTOP
+   16: wait 500ms
+   17: 
+   18: RECORDSTART
+   19: wait 500ms
+   20: RECORDSTOP
+   21: wait 500ms
+   22: 
+   23: rem Test 4: Recording with effects
+   24: RECORDSTART
+   25: effect "Sharp Pixels"
+   26: wait 500ms
+   27: effect "Soft CRT"
+   28: wait 500ms
+   29: RECORDSTOP
+   30: 
+   31: stop
+trace:
+- line: 5
+  content: "RECORDSTART"
+  variables: {}

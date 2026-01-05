@@ -1,0 +1,13 @@
+# Execution trace
+script: "test_error_missing_wend.c64script"
+status: parse_failure
+error: "[Line 8:0] Error at '\n': Expected WEND or ENDWHILE"
+program: |
+    1: rem Test while loop without matching wend
+    2: 
+    3: while 1
+    4:     effect "Sharp Pixels"
+    5:     wait 100ms
+    6: rem Missing wend - should cause parse error
+    7: stop
+trace: []

@@ -1,0 +1,78 @@
+# Execution trace
+script: "test_local_execution.c64script"
+status: parse_failure
+error: "[Line 70:11] Error at '\"execution_log.txt\"': Expected comma after path in WRITEFILE"
+program: |
+    1: rem Test local program execution
+    2: rem Validates RUNLOCAL command
+    3: 
+    4: rem Test 1: Run local command without arguments
+    5: RUNLOCAL "echo" ARGS "Hello World" STATUS EXIT_CODE OUTPUT OUT$
+    6: wait 100ms
+    7: LOG "Echo output: " + OUT$
+    8: 
+    9: rem Test 2: Run local command with status check
+   10: RUNLOCAL "true" STATUS SUCCESS_CODE
+   11: if SUCCESS_CODE = 0 then
+   12:     effect "Sharp Pixels"
+   13: endif
+   14: wait 100ms
+   15: 
+   16: rem Test 3: Run command that fails
+   17: RUNLOCAL "false" STATUS FAIL_CODE
+   18: if FAIL_CODE <> 0 then
+   19:     LOG "Command failed as expected"
+   20: endif
+   21: wait 100ms
+   22: 
+   23: rem Test 4: Run command with arguments
+   24: RUNLOCAL "ls" ARGS "-la" STATUS LS_CODE OUTPUT LS_OUT$
+   25: wait 100ms
+   26: LOG "Directory listing length: " + LEN(LS_OUT$)
+   27: 
+   28: rem Test 5: Conditional execution based on output
+   29: RUNLOCAL "date" ARGS "+%Y" STATUS D_CODE OUTPUT YEAR$
+   30: if VAL(YEAR$) >= 2024 then
+   31:     palette colodore
+   32: endif
+   33: wait 100ms
+   34: 
+   35: rem Test 6: Execute script file
+   36: RUNLOCAL "/bin/sh" ARGS "-c 'echo test'" STATUS SH_CODE OUTPUT SH_OUT$
+   37: wait 100ms
+   38: 
+   39: rem Test 7: Execute with error handling
+   40: RUNLOCAL "nonexistent_command" STATUS ERR_CODE OUTPUT ERR_OUT$
+   41: if ERR_CODE <> 0 then
+   42:     LOG "Error: " + ERR_OUT$
+   43:     effect "Soft CRT"
+   44: endif
+   45: wait 100ms
+   46: 
+   47: rem Test 8: Chain multiple local executions
+   48: RUNLOCAL "echo" ARGS "Step 1" STATUS S1 OUTPUT O1$
+   49: LOG O1$
+   50: wait 50ms
+   51: 
+   52: RUNLOCAL "echo" ARGS "Step 2" STATUS S2 OUTPUT O2$
+   53: LOG O2$
+   54: wait 50ms
+   55: 
+   56: RUNLOCAL "echo" ARGS "Step 3" STATUS S3 OUTPUT O3$
+   57: LOG O3$
+   58: wait 50ms
+   59: 
+   60: rem Test 9: Use output in subsequent operations
+   61: RUNLOCAL "expr" ARGS "10 + 20" STATUS EXPR_CODE OUTPUT RESULT$
+   62: NUM = VAL(RESULT$)
+   63: if NUM = 30 then
+   64:     LOG "Calculation correct: " + NUM
+   65: endif
+   66: wait 100ms
+   67: 
+   68: rem Test 10: Complex workflow with local execution
+   69: RUNLOCAL "date" ARGS "+%s" STATUS T_CODE OUTPUT TIMESTAMP$
+   70: WRITEFILE "execution_log.txt" "Executed at: " + TIMESTAMP$ APPEND
+   71: 
+   72: stop
+trace: []
