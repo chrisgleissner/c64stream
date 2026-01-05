@@ -275,7 +275,7 @@ static void find_c64script_files(const char *dir_path, char ***files, int *count
 static void write_error_trace(const char *file, const char *source, const char *error_msg, const char *status)
 {
     char expected_trace_path[1024];
-    int base_len = strlen(file) - 10; // Length without .c64script
+    int base_len = (int)strlen(file) - 10; // Length without .c64script
     snprintf(expected_trace_path, sizeof(expected_trace_path), "%.*s.expected-trace.yaml", base_len, file);
 
     FILE *f = fopen(expected_trace_path, "w");
@@ -484,7 +484,7 @@ static void process_script(const char *file)
     // Always enable trace recording (will generate .expected-trace.yaml)
     char expected_trace_path[1024];
     // Remove .c64script extension (10 chars) and append .expected-trace.yaml
-    int base_len = strlen(file) - 10; // Length without .c64script
+    int base_len = (int)strlen(file) - 10; // Length without .c64script
     snprintf(expected_trace_path, sizeof(expected_trace_path), "%.*s.expected-trace.yaml", base_len, file);
 
     runtime->source_text = source;
