@@ -592,10 +592,12 @@ static bool compile_statement(compiler_context_t *ctx, c64script_ast_node_t *stm
 
         // If function doesn't end with RETURN, add implicit RETURN 0
         if (ctx->instruction_count == 0 || ctx->instructions[ctx->instruction_count - 1].opcode != OP_RETURN) {
-            emit(ctx, OP_PUSH_NUM, 0, stmt->line);
-            uint32_t zero_bits;
-            memcpy(&zero_bits, &(double){0.0}, sizeof(double));
-            ctx->instructions[ctx->instruction_count - 1].operand = zero_bits;
+            // Push 0.0 as a constant
+            c64script_value_t zero_value = {.type = VALUE_NUMBER, .as.number = 0.0};
+            uint32_t zero_idx = (uint32_t)add_constant(ctx, zero_value);
+            if (zero_idx == UINT32_MAX)
+                return false;
+            emit(ctx, OP_PUSH_CONST, zero_idx, stmt->line);
             emit(ctx, OP_RETURN, 1, stmt->line); // Return 0
         }
 

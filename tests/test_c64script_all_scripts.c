@@ -24,16 +24,26 @@ See <https://www.gnu.org/licenses/> for details.
 #include "../src/c64-script-runtime.h"
 
 #include <assert.h>
-#include <dirent.h>
 #include <setjmp.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+
+#ifdef _WIN32
+#include <direct.h>
+#include <io.h>
+#include <windows.h>
+#define stat _stat
+#define S_ISDIR(m) (((m) & _S_IFMT) == _S_IFDIR)
+#define S_ISREG(m) (((m) & _S_IFMT) == _S_IFREG)
+#else
+#include <dirent.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
-#include <time.h>
 #include <unistd.h>
+#endif
 
 #include "c64script_test_stubs.h"
 
@@ -177,6 +187,47 @@ static char *read_file(const char *path, size_t *out_size)
 
 static void find_c64script_files(const char *dir_path, char ***files, int *count, int *capacity)
 {
+#ifdef _WIN32
+    char search_path[2048];
+    snprintf(search_path, sizeof(search_path), "%s\\*", dir_path);
+
+    WIN32_FIND_DATAA find_data;
+    HANDLE hFind = FindFirstFileA(search_path, &find_data);
+
+    if (hFind == INVALID_HANDLE_VALUE) {
+        return;
+    }
+
+    do {
+        if (find_data.cFileName[0] == '.') {
+            continue;
+        }
+
+        char path[2048];
+        snprintf(path, sizeof(path), "%s\\%s", dir_path, find_data.cFileName);
+
+        if (find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+            // Skip build directories
+            if (strstr(path, "\\build") != NULL || strstr(path, "\\node_modules") != NULL) {
+                continue;
+            }
+            find_c64script_files(path, files, count, capacity);
+        } else {
+            const char *ext = strrchr(find_data.cFileName, '.');
+            if (ext && strcmp(ext, ".c64script") == 0) {
+                if (*count >= *capacity) {
+                    *capacity *= 2;
+                    *files = realloc(*files, *capacity * sizeof(char *));
+                    assert(*files != NULL);
+                }
+                (*files)[*count] = strdup(path);
+                (*count)++;
+            }
+        }
+    } while (FindNextFileA(hFind, &find_data) != 0);
+
+    FindClose(hFind);
+#else
     DIR *dir = opendir(dir_path);
     if (!dir) {
         return;
@@ -217,6 +268,7 @@ static void find_c64script_files(const char *dir_path, char ***files, int *count
     }
 
     closedir(dir);
+#endif
 }
 
 // Write a simple error trace for scripts that fail to parse or compile
@@ -331,17 +383,21 @@ static void process_script(const char *file)
     bool expect_execution_fail = should_expect_execution_failure(file);
 
     // Set up alarm for parsing (paranoid safeguard)
+#ifndef _WIN32
     struct sigaction sa_parse;
     memset(&sa_parse, 0, sizeof(sa_parse));
     sa_parse.sa_handler = timeout_handler;
     sigemptyset(&sa_parse.sa_mask);
     sigaction(SIGALRM, &sa_parse, NULL);
+#endif
 
     // Parse with timeout protection
     char error[1024];
     c64script_ast_node_t *ast = NULL;
     timeout_occurred = 0;
+#ifndef _WIN32
     alarm(SCRIPT_TIMEOUT_SECONDS);
+#endif
 
     if (setjmp(timeout_jump) == 0) {
         ast = c64script_parse(source, size, error, sizeof(error));
@@ -350,7 +406,9 @@ static void process_script(const char *file)
         ast = NULL;
     }
 
+#ifndef _WIN32
     alarm(0);
+#endif
 
     if (!ast) {
         // Write error trace
@@ -437,6 +495,7 @@ static void process_script(const char *file)
     timeout_occurred = 0;
 
     // Set up alarm signal handler
+#ifndef _WIN32
     struct sigaction sa;
     memset(&sa, 0, sizeof(sa));
     sa.sa_handler = timeout_handler;
@@ -445,6 +504,7 @@ static void process_script(const char *file)
 
     // Set timeout
     alarm(SCRIPT_TIMEOUT_SECONDS);
+#endif
 
     // Execute with timeout protection
     if (setjmp(timeout_jump) == 0) {
@@ -457,7 +517,9 @@ static void process_script(const char *file)
     }
 
     // Cancel alarm
+#ifndef _WIN32
     alarm(0);
+#endif
 
     if (!executed) {
         if (expect_execution_fail) {
@@ -512,6 +574,10 @@ int main(int argc, char **argv)
 
     // Process files with fork-based isolation to prevent stalls
     for (int i = 0; i < count; i++) {
+#ifdef _WIN32
+        // Windows: Run tests directly (no fork available)
+        process_script(files[i]);
+#else
         pid_t pid = fork();
 
         if (pid == 0) {
@@ -569,6 +635,7 @@ int main(int argc, char **argv)
             fprintf(stderr, "  ❌ Failed to fork test process\n");
             unexpected_failures++;
         }
+#endif
 
         fflush(stdout);
         fflush(stderr);
