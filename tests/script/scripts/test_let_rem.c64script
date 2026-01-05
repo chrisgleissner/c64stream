@@ -23,7 +23,7 @@ wait 100ms
 
 rem Test 5: # comment style (legacy)
 rem This is a hash comment
-palette colodore
+palette "colodore"
 wait 100ms
 
 rem Test 6: Mixed comments

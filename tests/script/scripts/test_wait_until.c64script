@@ -46,12 +46,12 @@ wait 100ms
 rem Test 9: Multiple timed events
 wait until "00:01:00"
 LOG "First event"
-palette colodore
+palette "colodore"
 wait 50ms
 
 wait until "00:02:00"
 LOG "Second event"
-palette pepto_ntsc
+palette "pepto_ntsc"
 wait 50ms
 
 rem Test 10: Conditional with time-based wait

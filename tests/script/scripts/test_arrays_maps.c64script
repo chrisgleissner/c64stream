@@ -59,9 +59,9 @@ wait 100ms
 
 rem Test 10: Map in conditional
 if CONFIG{"port"} = 8080 then
-    palette colodore
+    palette "colodore"
 else
-    palette pepto_ntsc
+    palette "pepto_ntsc"
 endif
 wait 100ms
 

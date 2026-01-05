@@ -57,23 +57,37 @@ If it fails, format the files and re-check:
 **Important**: CI requires **clang-format 21.1.1+**. Distro packages are often too old.
 The wrapper auto-detects common Homebrew installs; you can also override via `CLANG_FORMAT=/path/to/clang-format`.
 
-### Unit tests
+### MANDATORY: Full test suite before commit
+
+**ALWAYS run the full test suite before committing or declaring work complete**:
+
+```bash
+./local-build.sh linux --tests --script-tests
+```
+
+This runs:
+- All C/C++ unit tests (CTest)
+- All C64Script validation tests (35 scripts)
+- All Python unit tests (E2E harness)
+
+**Do not commit or push without a green local build. No exceptions.**
+
+### Unit tests (individual)
+
+If you need to run specific test categories:
 
 ```bash
 # C/C++ tests (CMake/CTest)
 ctest --test-dir build_x86_64 --output-on-failure
 
 # C64Script validation tests (ALL .c64script files in repo)
-./build_x86_64/tests/test_c64script_all_scripts
+./build_x86_64/tests/test_c64script_all_scripts .
 
 # Python unit tests (E2E harness)
 python3 -m unittest \
     tests/e2e/test_network_simulation.py \
     tests/e2e/test_network_timing_validation.py
 ```
-
-Note: `./local-build.sh linux` runs unit tests by default (use `--no-tests` to skip).
-Use `./local-build.sh linux --script-tests` to run c64script validation.
 
 ### C64Script Trace Validation (MANDATORY for script changes)
 

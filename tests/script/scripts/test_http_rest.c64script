@@ -42,10 +42,10 @@ rem Test 8: HTTP GET in conditional
 HTTP GET "http://localhost:8064/v1/status" STATUS API_STATUS RESPONSE API_RESP$
 if API_STATUS = 200 then
     LOG "API is available"
-    palette colodore
+    palette "colodore"
 else
     LOG "API error: " + API_STATUS
-    palette pepto_ntsc
+    palette "pepto_ntsc"
 endif
 wait 100ms
 

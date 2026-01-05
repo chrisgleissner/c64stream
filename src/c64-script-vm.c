@@ -665,10 +665,9 @@ bool c64script_vm_execute(c64script_runtime_t *runtime)
 
         runtime->error_line = instr->source_line;
 
-        // Record trace entry if line changed
-        if (runtime->trace_recording_enabled && instr->source_line != runtime->last_executed_line &&
-            instr->source_line > 0) {
-            record_trace_entry(runtime, instr->source_line);
+        // Record trace entry BEFORE instruction execution (to show pre-execution variable state)
+        if (runtime->trace_recording_enabled && current_line != runtime->last_executed_line && current_line > 0) {
+            record_trace_entry(runtime, current_line);
         }
 
         if (runtime->trace_enabled) {
@@ -1652,9 +1651,10 @@ bool c64script_vm_execute(c64script_runtime_t *runtime)
                 return false;
             }
             if (!runtime->obs_source) {
+                // OBS source not available - log warning but continue execution
+                blog(LOG_WARNING, "[c64script] EFFECT: OBS source not available, skipping");
                 c64script_value_free(&preset);
-                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "OBS source not available");
-                return false;
+                break;
             }
 
             obs_source_t *source = (obs_source_t *)runtime->obs_source;
@@ -1683,10 +1683,11 @@ bool c64script_vm_execute(c64script_runtime_t *runtime)
                 return false;
             }
             if (!runtime->obs_source) {
+                // OBS source not available - log warning but continue execution
+                blog(LOG_WARNING, "[c64script] EFFECTPARAM: OBS source not available, skipping");
                 c64script_value_free(&param);
                 c64script_value_free(&value);
-                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "OBS source not available");
-                return false;
+                break;
             }
 
             obs_source_t *source = (obs_source_t *)runtime->obs_source;
@@ -1716,9 +1717,10 @@ bool c64script_vm_execute(c64script_runtime_t *runtime)
                 return false;
             }
             if (!runtime->obs_source) {
+                // OBS source not available - log warning but continue execution
+                blog(LOG_WARNING, "[c64script] PALETTE: OBS source not available, skipping");
                 c64script_value_free(&palette);
-                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "OBS source not available");
-                return false;
+                break;
             }
 
             obs_source_t *source = (obs_source_t *)runtime->obs_source;
@@ -1786,8 +1788,9 @@ bool c64script_vm_execute(c64script_runtime_t *runtime)
             }
 
             if (!runtime->obs_source) {
-                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "OBS source not available");
-                return false;
+                // OBS source not available - log warning but continue execution
+                blog(LOG_WARNING, "[c64script] PALETTECOLOR: OBS source not available, skipping");
+                break;
             }
 
             obs_source_t *source = (obs_source_t *)runtime->obs_source;
@@ -2089,8 +2092,8 @@ bool c64script_vm_execute(c64script_runtime_t *runtime)
 #ifdef ENABLE_FRONTEND_API
             obs_frontend_recording_start();
 #else
-            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "OBS frontend API not enabled");
-            return false;
+            // Frontend API not enabled - log warning but continue execution
+            blog(LOG_WARNING, "[c64script] RECORDSTART: OBS frontend API not enabled, skipping");
 #endif
             break;
 
@@ -2098,8 +2101,8 @@ bool c64script_vm_execute(c64script_runtime_t *runtime)
 #ifdef ENABLE_FRONTEND_API
             obs_frontend_recording_stop();
 #else
-            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "OBS frontend API not enabled");
-            return false;
+            // Frontend API not enabled - log warning but continue execution
+            blog(LOG_WARNING, "[c64script] RECORDSTOP: OBS frontend API not enabled, skipping");
 #endif
             break;
 

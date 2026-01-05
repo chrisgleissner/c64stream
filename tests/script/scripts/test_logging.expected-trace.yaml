@@ -1,66 +1,68 @@
 # Execution trace
 script: "test_logging.c64script"
 status: failure
-error: "TYPE MISMATCH (ADD)"
+error:
+  line: 14
+  message: "TYPE MISMATCH (ADD)"
 program: |
-    1: rem Test logging commands
-    2: rem Validates LOG, LOGFILE, TRON, TROFF, PRINT
-    3: 
-    4: rem Test 1: Set log file with truncate mode
-    5: LOGFILE "test_output.log" TRUNCATE
-    6: wait 100ms
-    7: 
-    8: rem Test 2: Log simple message
-    9: LOG "Test started"
-   10: wait 100ms
-   11: 
-   12: rem Test 3: Log with variable
-   13: COUNTER = 42
-   14: LOG "Counter value: " + COUNTER
-   15: wait 100ms
-   16: 
-   17: rem Test 4: Enable tracing
-   18: TRON
-   19: effect "Sharp Pixels"
-   20: wait 100ms
-   21: palette colodore
-   22: wait 100ms
-   23: 
-   24: rem Test 5: Disable tracing
-   25: TROFF
-   26: effect "Soft CRT"
-   27: wait 100ms
-   28: 
-   29: rem Test 6: Log in a loop
-   30: for I = 1 to 3
-   31:     LOG "Loop iteration: " + I
-   32:     wait 50ms
-   33: next I
-   34: 
-   35: rem Test 7: Set log file with append mode
-   36: LOGFILE "test_output.log" APPEND
-   37: LOG "Appended message"
-   38: wait 100ms
-   39: 
-   40: rem Test 8: PRINT to OBS log (different from script log)
-   41: PRINT "This goes to OBS log"
-   42: wait 100ms
-   43: 
-   44: rem Test 9: Complex log message
-   45: NAME$ = "C64Script"
-   46: VERSION = 1.0
-   47: LOG "Running " + NAME$ + " version " + VERSION
-   48: wait 100ms
-   49: 
-   50: rem Test 10: Log with tracing on
-   51: TRON
-   52: for J = 1 to 2
-   53:     LOG "Traced loop: " + J
-   54:     wait 50ms
-   55: next J
-   56: TROFF
-   57: 
-   58: stop
+  01: rem Test logging commands
+  02: rem Validates LOG, LOGFILE, TRON, TROFF, PRINT
+  03: 
+  04: rem Test 1: Set log file with truncate mode
+  05: LOGFILE "test_output.log" TRUNCATE
+  06: wait 100ms
+  07: 
+  08: rem Test 2: Log simple message
+  09: LOG "Test started"
+  10: wait 100ms
+  11: 
+  12: rem Test 3: Log with variable
+  13: COUNTER = 42
+  14: LOG "Counter value: " + COUNTER
+  15: wait 100ms
+  16: 
+  17: rem Test 4: Enable tracing
+  18: TRON
+  19: effect "Sharp Pixels"
+  20: wait 100ms
+  21: palette "colodore"
+  22: wait 100ms
+  23: 
+  24: rem Test 5: Disable tracing
+  25: TROFF
+  26: effect "Soft CRT"
+  27: wait 100ms
+  28: 
+  29: rem Test 6: Log in a loop
+  30: for I = 1 to 3
+  31:     LOG "Loop iteration: " + I
+  32:     wait 50ms
+  33: next I
+  34: 
+  35: rem Test 7: Set log file with append mode
+  36: LOGFILE "test_output.log" APPEND
+  37: LOG "Appended message"
+  38: wait 100ms
+  39: 
+  40: rem Test 8: PRINT to OBS log (different from script log)
+  41: PRINT "This goes to OBS log"
+  42: wait 100ms
+  43: 
+  44: rem Test 9: Complex log message
+  45: NAME$ = "C64Script"
+  46: VERSION = 1.0
+  47: LOG "Running " + NAME$ + " version " + VERSION
+  48: wait 100ms
+  49: 
+  50: rem Test 10: Log with tracing on
+  51: TRON
+  52: for J = 1 to 2
+  53:     LOG "Traced loop: " + J
+  54:     wait 50ms
+  55: next J
+  56: TROFF
+  57: 
+  58: stop
 trace:
 - line: 5
   content: "LOGFILE \"test_output.log\" TRUNCATE"

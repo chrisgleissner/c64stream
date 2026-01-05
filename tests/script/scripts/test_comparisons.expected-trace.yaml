@@ -1,85 +1,87 @@
 # Execution trace
 script: "test_comparisons.c64script"
 status: failure
-error: "OBS source not available"
+error:
+  line: 73
+  message: "TYPE MISMATCH (EQ)"
 program: |
-    1: rem Test all comparison operators
-    2: rem Tests: =, ==, <>, !=, <, <=, >, >=
-    3: 
-    4: rem Test 1: Equality operators (= and ==)
-    5: A = 5
-    6: if A = 5 then
-    7:     effect "Sharp Pixels"
-    8: endif
-    9: 
-   10: if A == 5 then
-   11:     wait 100ms
-   12: endif
-   13: 
-   14: rem Test 2: Inequality operators (<> and !=)
-   15: B = 3
-   16: if B <> 5 then
-   17:     palette colodore
-   18: endif
-   19: 
-   20: if B != 5 then
-   21:     wait 100ms
-   22: endif
-   23: 
-   24: rem Test 3: Less than (<)
-   25: C = 2
-   26: D = 5
-   27: if C < D then
-   28:     effect "Soft CRT"
-   29: endif
-   30: 
-   31: rem Test 4: Less than or equal (<=)
-   32: E = 5
-   33: F = 5
-   34: if E <= F then
-   35:     palette pepto_ntsc
-   36: endif
-   37: 
-   38: G = 3
-   39: if G <= F then
-   40:     wait 100ms
-   41: endif
-   42: 
-   43: rem Test 5: Greater than (>)
-   44: H = 10
-   45: I = 5
-   46: if H > I then
-   47:     effect "Light Scanlines"
-   48: endif
-   49: 
-   50: rem Test 6: Greater than or equal (>=)
-   51: J = 5
-   52: K = 5
-   53: if J >= K then
-   54:     palette vice_new
-   55: endif
-   56: 
-   57: L = 8
-   58: if L >= K then
-   59:     wait 100ms
-   60: endif
-   61: 
-   62: rem Test 7: Comparison chains in loop conditions
-   63: for M = 1 to 5
-   64:     if M >= 3 and M <= 4 then
-   65:         effect "CRT Monitor Warm"
-   66:         wait 50ms
-   67:     endif
-   68: next M
-   69: 
-   70: rem Test 8: String comparisons (if supported)
-   71: rem Most BASIC dialects support string comparison
-   72: NAME$ = "TEST"
-   73: if NAME$ = "TEST" then
-   74:     effect "Heavy Scanlines"
-   75: endif
-   76: 
-   77: stop
+  01: rem Test all comparison operators
+  02: rem Tests: =, ==, <>, !=, <, <=, >, >=
+  03: 
+  04: rem Test 1: Equality operators (= and ==)
+  05: A = 5
+  06: if A = 5 then
+  07:     effect "Sharp Pixels"
+  08: endif
+  09: 
+  10: if A == 5 then
+  11:     wait 100ms
+  12: endif
+  13: 
+  14: rem Test 2: Inequality operators (<> and !=)
+  15: B = 3
+  16: if B <> 5 then
+  17:     palette "colodore"
+  18: endif
+  19: 
+  20: if B != 5 then
+  21:     wait 100ms
+  22: endif
+  23: 
+  24: rem Test 3: Less than (<)
+  25: C = 2
+  26: D = 5
+  27: if C < D then
+  28:     effect "Soft CRT"
+  29: endif
+  30: 
+  31: rem Test 4: Less than or equal (<=)
+  32: E = 5
+  33: F = 5
+  34: if E <= F then
+  35:     palette "pepto_ntsc"
+  36: endif
+  37: 
+  38: G = 3
+  39: if G <= F then
+  40:     wait 100ms
+  41: endif
+  42: 
+  43: rem Test 5: Greater than (>)
+  44: H = 10
+  45: I = 5
+  46: if H > I then
+  47:     effect "Light Scanlines"
+  48: endif
+  49: 
+  50: rem Test 6: Greater than or equal (>=)
+  51: J = 5
+  52: K = 5
+  53: if J >= K then
+  54:     palette "vice_new"
+  55: endif
+  56: 
+  57: L = 8
+  58: if L >= K then
+  59:     wait 100ms
+  60: endif
+  61: 
+  62: rem Test 7: Comparison chains in loop conditions
+  63: for M = 1 to 5
+  64:     if M >= 3 and M <= 4 then
+  65:         effect "CRT Monitor Warm"
+  66:         wait 50ms
+  67:     endif
+  68: next M
+  69: 
+  70: rem Test 8: String comparisons (if supported)
+  71: rem Most BASIC dialects support string comparison
+  72: NAME$ = "TEST"
+  73: if NAME$ = "TEST" then
+  74:     effect "Heavy Scanlines"
+  75: endif
+  76: 
+  77: stop
 trace:
 - line: 5
   content: "A = 5"
@@ -92,3 +94,536 @@ trace:
   content: "effect \"Sharp Pixels\""
   variables:
     A: 5
+- line: 10
+  content: "if A == 5 then"
+  variables:
+    A: 5
+- line: 11
+  content: "wait 100ms"
+  variables:
+    A: 5
+- line: 15
+  content: "B = 3"
+  variables:
+    A: 5
+- line: 16
+  content: "if B <> 5 then"
+  variables:
+    A: 5
+    B: 3
+- line: 17
+  content: "palette \"colodore\""
+  variables:
+    A: 5
+    B: 3
+- line: 20
+  content: "if B != 5 then"
+  variables:
+    A: 5
+    B: 3
+- line: 21
+  content: "wait 100ms"
+  variables:
+    A: 5
+    B: 3
+- line: 25
+  content: "C = 2"
+  variables:
+    A: 5
+    B: 3
+- line: 26
+  content: "D = 5"
+  variables:
+    A: 5
+    B: 3
+    C: 2
+- line: 27
+  content: "if C < D then"
+  variables:
+    A: 5
+    B: 3
+    C: 2
+    D: 5
+- line: 28
+  content: "effect \"Soft CRT\""
+  variables:
+    A: 5
+    B: 3
+    C: 2
+    D: 5
+- line: 32
+  content: "E = 5"
+  variables:
+    A: 5
+    B: 3
+    C: 2
+    D: 5
+- line: 33
+  content: "F = 5"
+  variables:
+    A: 5
+    B: 3
+    C: 2
+    D: 5
+    E: 5
+- line: 34
+  content: "if E <= F then"
+  variables:
+    A: 5
+    B: 3
+    C: 2
+    D: 5
+    E: 5
+    F: 5
+- line: 35
+  content: "palette \"pepto_ntsc\""
+  variables:
+    A: 5
+    B: 3
+    C: 2
+    D: 5
+    E: 5
+    F: 5
+- line: 38
+  content: "G = 3"
+  variables:
+    A: 5
+    B: 3
+    C: 2
+    D: 5
+    E: 5
+    F: 5
+- line: 39
+  content: "if G <= F then"
+  variables:
+    A: 5
+    B: 3
+    C: 2
+    D: 5
+    E: 5
+    F: 5
+    G: 3
+- line: 40
+  content: "wait 100ms"
+  variables:
+    A: 5
+    B: 3
+    C: 2
+    D: 5
+    E: 5
+    F: 5
+    G: 3
+- line: 44
+  content: "H = 10"
+  variables:
+    A: 5
+    B: 3
+    C: 2
+    D: 5
+    E: 5
+    F: 5
+    G: 3
+- line: 45
+  content: "I = 5"
+  variables:
+    A: 5
+    B: 3
+    C: 2
+    D: 5
+    E: 5
+    F: 5
+    G: 3
+    H: 10
+- line: 46
+  content: "if H > I then"
+  variables:
+    A: 5
+    B: 3
+    C: 2
+    D: 5
+    E: 5
+    F: 5
+    G: 3
+    H: 10
+    I: 5
+- line: 47
+  content: "effect \"Light Scanlines\""
+  variables:
+    A: 5
+    B: 3
+    C: 2
+    D: 5
+    E: 5
+    F: 5
+    G: 3
+    H: 10
+    I: 5
+- line: 51
+  content: "J = 5"
+  variables:
+    A: 5
+    B: 3
+    C: 2
+    D: 5
+    E: 5
+    F: 5
+    G: 3
+    H: 10
+    I: 5
+- line: 52
+  content: "K = 5"
+  variables:
+    A: 5
+    B: 3
+    C: 2
+    D: 5
+    E: 5
+    F: 5
+    G: 3
+    H: 10
+    I: 5
+    J: 5
+- line: 53
+  content: "if J >= K then"
+  variables:
+    A: 5
+    B: 3
+    C: 2
+    D: 5
+    E: 5
+    F: 5
+    G: 3
+    H: 10
+    I: 5
+    J: 5
+    K: 5
+- line: 54
+  content: "palette \"vice_new\""
+  variables:
+    A: 5
+    B: 3
+    C: 2
+    D: 5
+    E: 5
+    F: 5
+    G: 3
+    H: 10
+    I: 5
+    J: 5
+    K: 5
+- line: 57
+  content: "L = 8"
+  variables:
+    A: 5
+    B: 3
+    C: 2
+    D: 5
+    E: 5
+    F: 5
+    G: 3
+    H: 10
+    I: 5
+    J: 5
+    K: 5
+- line: 58
+  content: "if L >= K then"
+  variables:
+    A: 5
+    B: 3
+    C: 2
+    D: 5
+    E: 5
+    F: 5
+    G: 3
+    H: 10
+    I: 5
+    J: 5
+    K: 5
+    L: 8
+- line: 59
+  content: "wait 100ms"
+  variables:
+    A: 5
+    B: 3
+    C: 2
+    D: 5
+    E: 5
+    F: 5
+    G: 3
+    H: 10
+    I: 5
+    J: 5
+    K: 5
+    L: 8
+- line: 63
+  content: "for M = 1 to 5"
+  variables:
+    A: 5
+    B: 3
+    C: 2
+    D: 5
+    E: 5
+    F: 5
+    G: 3
+    H: 10
+    I: 5
+    J: 5
+    K: 5
+    L: 8
+- line: 64
+  content: "if M >= 3 and M <= 4 then"
+  variables:
+    A: 5
+    B: 3
+    C: 2
+    D: 5
+    E: 5
+    F: 5
+    G: 3
+    H: 10
+    I: 5
+    J: 5
+    K: 5
+    L: 8
+    M: 1
+- line: 63
+  content: "for M = 1 to 5"
+  variables:
+    A: 5
+    B: 3
+    C: 2
+    D: 5
+    E: 5
+    F: 5
+    G: 3
+    H: 10
+    I: 5
+    J: 5
+    K: 5
+    L: 8
+    M: 1
+- line: 64
+  content: "if M >= 3 and M <= 4 then"
+  variables:
+    A: 5
+    B: 3
+    C: 2
+    D: 5
+    E: 5
+    F: 5
+    G: 3
+    H: 10
+    I: 5
+    J: 5
+    K: 5
+    L: 8
+    M: 2
+- line: 63
+  content: "for M = 1 to 5"
+  variables:
+    A: 5
+    B: 3
+    C: 2
+    D: 5
+    E: 5
+    F: 5
+    G: 3
+    H: 10
+    I: 5
+    J: 5
+    K: 5
+    L: 8
+    M: 2
+- line: 64
+  content: "if M >= 3 and M <= 4 then"
+  variables:
+    A: 5
+    B: 3
+    C: 2
+    D: 5
+    E: 5
+    F: 5
+    G: 3
+    H: 10
+    I: 5
+    J: 5
+    K: 5
+    L: 8
+    M: 3
+- line: 65
+  content: "effect \"CRT Monitor Warm\""
+  variables:
+    A: 5
+    B: 3
+    C: 2
+    D: 5
+    E: 5
+    F: 5
+    G: 3
+    H: 10
+    I: 5
+    J: 5
+    K: 5
+    L: 8
+    M: 3
+- line: 66
+  content: "wait 50ms"
+  variables:
+    A: 5
+    B: 3
+    C: 2
+    D: 5
+    E: 5
+    F: 5
+    G: 3
+    H: 10
+    I: 5
+    J: 5
+    K: 5
+    L: 8
+    M: 3
+- line: 63
+  content: "for M = 1 to 5"
+  variables:
+    A: 5
+    B: 3
+    C: 2
+    D: 5
+    E: 5
+    F: 5
+    G: 3
+    H: 10
+    I: 5
+    J: 5
+    K: 5
+    L: 8
+    M: 3
+- line: 64
+  content: "if M >= 3 and M <= 4 then"
+  variables:
+    A: 5
+    B: 3
+    C: 2
+    D: 5
+    E: 5
+    F: 5
+    G: 3
+    H: 10
+    I: 5
+    J: 5
+    K: 5
+    L: 8
+    M: 4
+- line: 65
+  content: "effect \"CRT Monitor Warm\""
+  variables:
+    A: 5
+    B: 3
+    C: 2
+    D: 5
+    E: 5
+    F: 5
+    G: 3
+    H: 10
+    I: 5
+    J: 5
+    K: 5
+    L: 8
+    M: 4
+- line: 66
+  content: "wait 50ms"
+  variables:
+    A: 5
+    B: 3
+    C: 2
+    D: 5
+    E: 5
+    F: 5
+    G: 3
+    H: 10
+    I: 5
+    J: 5
+    K: 5
+    L: 8
+    M: 4
+- line: 63
+  content: "for M = 1 to 5"
+  variables:
+    A: 5
+    B: 3
+    C: 2
+    D: 5
+    E: 5
+    F: 5
+    G: 3
+    H: 10
+    I: 5
+    J: 5
+    K: 5
+    L: 8
+    M: 4
+- line: 64
+  content: "if M >= 3 and M <= 4 then"
+  variables:
+    A: 5
+    B: 3
+    C: 2
+    D: 5
+    E: 5
+    F: 5
+    G: 3
+    H: 10
+    I: 5
+    J: 5
+    K: 5
+    L: 8
+    M: 5
+- line: 63
+  content: "for M = 1 to 5"
+  variables:
+    A: 5
+    B: 3
+    C: 2
+    D: 5
+    E: 5
+    F: 5
+    G: 3
+    H: 10
+    I: 5
+    J: 5
+    K: 5
+    L: 8
+    M: 5
+- line: 72
+  content: "NAME$ = \"TEST\""
+  variables:
+    A: 5
+    B: 3
+    C: 2
+    D: 5
+    E: 5
+    F: 5
+    G: 3
+    H: 10
+    I: 5
+    J: 5
+    K: 5
+    L: 8
+    M: 6
+- line: 73
+  content: "if NAME$ = \"TEST\" then"
+  variables:
+    A: 5
+    B: 3
+    C: 2
+    D: 5
+    E: 5
+    F: 5
+    G: 3
+    H: 10
+    I: 5
+    J: 5
+    K: 5
+    L: 8
+    M: 6
+    NAME$: "TEST"

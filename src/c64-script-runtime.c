@@ -616,7 +616,9 @@ void c64script_finalize_trace_recording(c64script_runtime_t *runtime, bool succe
     fprintf(f, "status: %s\n", success ? "success" : "failure");
 
     if (error_msg && error_msg[0]) {
-        fprintf(f, "error: \"");
+        fprintf(f, "error:\n");
+        fprintf(f, "  line: %d\n", runtime->error_line > 0 ? runtime->error_line : 0);
+        fprintf(f, "  message: \"");
         for (const char *p = error_msg; *p; p++) {
             if (*p == '"')
                 fputs("\\\"", f);
@@ -634,6 +636,24 @@ void c64script_finalize_trace_recording(c64script_runtime_t *runtime, bool succe
 
     // Write program listing
     if (runtime->source_text) {
+        // First pass: count total lines to determine padding
+        const char *src_count = runtime->source_text;
+        int max_line = 1;
+        while (*src_count) {
+            if (*src_count == '\n') {
+                max_line++;
+            }
+            src_count++;
+        }
+
+        // Calculate padding width (number of digits)
+        int padding_width = 1;
+        int temp = max_line;
+        while (temp >= 10) {
+            padding_width++;
+            temp /= 10;
+        }
+
         fprintf(f, "program: |\n");
         const char *src = runtime->source_text;
         int line_num = 1;
@@ -641,7 +661,7 @@ void c64script_finalize_trace_recording(c64script_runtime_t *runtime, bool succe
 
         while (*src) {
             if (*src == '\n' || *src == '\r') {
-                fprintf(f, "  %3d: ", line_num);
+                fprintf(f, "  %0*d: ", padding_width, line_num);
                 fwrite(line_start, 1, src - line_start, f);
                 fprintf(f, "\n");
 
@@ -657,7 +677,7 @@ void c64script_finalize_trace_recording(c64script_runtime_t *runtime, bool succe
         }
 
         if (line_start < src) {
-            fprintf(f, "  %3d: ", line_num);
+            fprintf(f, "  %0*d: ", padding_width, line_num);
             fwrite(line_start, 1, src - line_start, f);
             fprintf(f, "\n");
         }

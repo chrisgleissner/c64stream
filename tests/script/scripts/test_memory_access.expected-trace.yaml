@@ -1,58 +1,58 @@
 # Execution trace
 script: "test_memory_access.c64script"
-status: failure
-error: "OBS source not available"
+status: success
+error: ~
 program: |
-    1: rem Test memory access commands
-    2: rem Validates POKE and PEEK operations via REST DMA
-    3: 
-    4: rem Test 1: POKE single byte to memory
-    5: POKE $C000, 169
-    6: wait 100ms
-    7: 
-    8: rem Test 2: POKE to different address
-    9: POKE $D020, 0
-   10: wait 100ms
-   11: 
-   12: rem Test 3: POKE to keyboard buffer length
-   13: POKE $00C6, 0
-   14: wait 100ms
-   15: 
-   16: rem Test 4: POKE multiple bytes (array form)
-   17: POKE $C000, [169, 255, 141, 32, 208]
-   18: wait 100ms
-   19: 
-   20: rem Test 5: POKE larger array
-   21: POKE $C010, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-   22: wait 100ms
-   23: 
-   24: rem Test 6: PEEK from border color
-   25: BORDER = PEEK($D020)
-   26: wait 100ms
-   27: 
-   28: rem Test 7: PEEK from keyboard buffer length
-   29: BUFLEN = PEEK($00C6)
-   30: wait 100ms
-   31: 
-   32: rem Test 8: PEEK and use in condition
-   33: VALUE = PEEK($C000)
-   34: if VALUE = 169 then
-   35:     effect "Sharp Pixels"
-   36: endif
-   37: wait 100ms
-   38: 
-   39: rem Test 9: PEEK in expression
-   40: TOTAL = PEEK($C000) + PEEK($C001)
-   41: wait 100ms
-   42: 
-   43: rem Test 10: Write and read back
-   44: POKE $C100, 42
-   45: CHECK = PEEK($C100)
-   46: if CHECK = 42 then
-   47:     palette colodore
-   48: endif
-   49: 
-   50: stop
+  01: rem Test memory access commands
+  02: rem Validates POKE and PEEK operations via REST DMA
+  03: 
+  04: rem Test 1: POKE single byte to memory
+  05: POKE $C000, 169
+  06: wait 100ms
+  07: 
+  08: rem Test 2: POKE to different address
+  09: POKE $D020, 0
+  10: wait 100ms
+  11: 
+  12: rem Test 3: POKE to keyboard buffer length
+  13: POKE $00C6, 0
+  14: wait 100ms
+  15: 
+  16: rem Test 4: POKE multiple bytes (array form)
+  17: POKE $C000, [169, 255, 141, 32, 208]
+  18: wait 100ms
+  19: 
+  20: rem Test 5: POKE larger array
+  21: POKE $C010, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+  22: wait 100ms
+  23: 
+  24: rem Test 6: PEEK from border color
+  25: BORDER = PEEK($D020)
+  26: wait 100ms
+  27: 
+  28: rem Test 7: PEEK from keyboard buffer length
+  29: BUFLEN = PEEK($00C6)
+  30: wait 100ms
+  31: 
+  32: rem Test 8: PEEK and use in condition
+  33: VALUE = PEEK($C000)
+  34: if VALUE = 169 then
+  35:     effect "Sharp Pixels"
+  36: endif
+  37: wait 100ms
+  38: 
+  39: rem Test 9: PEEK in expression
+  40: TOTAL = PEEK($C000) + PEEK($C001)
+  41: wait 100ms
+  42: 
+  43: rem Test 10: Write and read back
+  44: POKE $C100, 42
+  45: CHECK = PEEK($C100)
+  46: if CHECK = 42 then
+  47:     palette "colodore"
+  48: endif
+  49: 
+  50: stop
 trace:
 - line: 5
   content: "POKE $C000, 169"
@@ -117,3 +117,60 @@ trace:
     BORDER: 0
     BUFLEN: 0
     VALUE: 169
+- line: 37
+  content: "wait 100ms"
+  variables:
+    BORDER: 0
+    BUFLEN: 0
+    VALUE: 169
+- line: 40
+  content: "TOTAL = PEEK($C000) + PEEK($C001)"
+  variables:
+    BORDER: 0
+    BUFLEN: 0
+    VALUE: 169
+- line: 41
+  content: "wait 100ms"
+  variables:
+    BORDER: 0
+    BUFLEN: 0
+    VALUE: 169
+    TOTAL: 424
+- line: 44
+  content: "POKE $C100, 42"
+  variables:
+    BORDER: 0
+    BUFLEN: 0
+    VALUE: 169
+    TOTAL: 424
+- line: 45
+  content: "CHECK = PEEK($C100)"
+  variables:
+    BORDER: 0
+    BUFLEN: 0
+    VALUE: 169
+    TOTAL: 424
+- line: 46
+  content: "if CHECK = 42 then"
+  variables:
+    BORDER: 0
+    BUFLEN: 0
+    VALUE: 169
+    TOTAL: 424
+    CHECK: 42
+- line: 47
+  content: "palette \"colodore\""
+  variables:
+    BORDER: 0
+    BUFLEN: 0
+    VALUE: 169
+    TOTAL: 424
+    CHECK: 42
+- line: 50
+  content: "stop"
+  variables:
+    BORDER: 0
+    BUFLEN: 0
+    VALUE: 169
+    TOTAL: 424
+    CHECK: 42

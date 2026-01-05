@@ -1,64 +1,66 @@
 # Execution trace
 script: "test_keyboard_injection.c64script"
 status: parse_failure
-error: "[Line 25:5] Error at 'return': Expected expression"
+error:
+  line: 0
+  message: "[Line 25:5] Error at 'return': Expected expression"
 program: |
-    1: rem Test keyboard injection commands
-    2: rem Validates TYPE and KEY commands
-    3: 
-    4: rem Test 1: Type simple text
-    5: TYPE "LIST"
-    6: wait 200ms
-    7: 
-    8: rem Test 2: Type with carriage return
-    9: TYPE "LOAD\"*\",8,1\r"
-   10: wait 200ms
-   11: 
-   12: rem Test 3: Type multiple lines
-   13: TYPE "10 PRINT \"HELLO\"\r"
-   14: wait 100ms
-   15: TYPE "20 goto 10\r"
-   16: wait 100ms
-   17: TYPE "RUN\r"
-   18: wait 200ms
-   19: 
-   20: rem Test 4: Type with escape sequences
-   21: TYPE "POKE 53280,0\r"
-   22: wait 200ms
-   23: 
-   24: rem Test 5: KEY command with symbolic key names
-   25: KEY return
-   26: wait 100ms
-   27: 
-   28: KEY RUNSTOP
-   29: wait 100ms
-   30: 
-   31: KEY HOME
-   32: wait 100ms
-   33: 
-   34: KEY CLEAR
-   35: wait 100ms
-   36: 
-   37: rem Test 6: Cursor keys
-   38: KEY CURSOR_UP
-   39: wait 100ms
-   40: 
-   41: KEY CURSOR_DOWN
-   42: wait 100ms
-   43: 
-   44: KEY CURSOR_LEFT
-   45: wait 100ms
-   46: 
-   47: KEY CURSOR_RIGHT
-   48: wait 100ms
-   49: 
-   50: rem Test 7: KEY with numeric value (raw byte)
-   51: KEY 13
-   52: wait 100ms
-   53: 
-   54: rem Test 8: KEY with hex value
-   55: KEY $0D
-   56: wait 100ms
-   57: 
-   58: stop
+  01: rem Test keyboard injection commands
+  02: rem Validates TYPE and KEY commands
+  03: 
+  04: rem Test 1: Type simple text
+  05: TYPE "LIST"
+  06: wait 200ms
+  07: 
+  08: rem Test 2: Type with carriage return
+  09: TYPE "LOAD\"*\",8,1\r"
+  10: wait 200ms
+  11: 
+  12: rem Test 3: Type multiple lines
+  13: TYPE "10 PRINT \"HELLO\"\r"
+  14: wait 100ms
+  15: TYPE "20 goto 10\r"
+  16: wait 100ms
+  17: TYPE "RUN\r"
+  18: wait 200ms
+  19: 
+  20: rem Test 4: Type with escape sequences
+  21: TYPE "POKE 53280,0\r"
+  22: wait 200ms
+  23: 
+  24: rem Test 5: KEY command with symbolic key names
+  25: KEY return
+  26: wait 100ms
+  27: 
+  28: KEY RUNSTOP
+  29: wait 100ms
+  30: 
+  31: KEY HOME
+  32: wait 100ms
+  33: 
+  34: KEY CLEAR
+  35: wait 100ms
+  36: 
+  37: rem Test 6: Cursor keys
+  38: KEY CURSOR_UP
+  39: wait 100ms
+  40: 
+  41: KEY CURSOR_DOWN
+  42: wait 100ms
+  43: 
+  44: KEY CURSOR_LEFT
+  45: wait 100ms
+  46: 
+  47: KEY CURSOR_RIGHT
+  48: wait 100ms
+  49: 
+  50: rem Test 7: KEY with numeric value (raw byte)
+  51: KEY 13
+  52: wait 100ms
+  53: 
+  54: rem Test 8: KEY with hex value
+  55: KEY $0D
+  56: wait 100ms
+  57: 
+  58: stop
 trace: []

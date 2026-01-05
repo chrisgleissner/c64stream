@@ -28,7 +28,7 @@ LOG "Directory listing length: " + LEN(LS_OUT$)
 rem Test 5: Conditional execution based on output
 RUNLOCAL "date" ARGS "+%Y" STATUS D_CODE OUTPUT YEAR$
 if VAL(YEAR$) >= 2024 then
-    palette colodore
+    palette "colodore"
 endif
 wait 100ms
 

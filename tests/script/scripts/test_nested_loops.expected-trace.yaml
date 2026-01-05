@@ -1,45 +1,45 @@
 # Execution trace
 script: "test_nested_loops.c64script"
-status: failure
-error: "OBS source not available"
+status: success
+error: ~
 program: |
-    1: rem Test nested loops (for within while, while within for)
-    2: rem This script validates that nested loop constructs work correctly
-    3: 
-    4: rem Test 1: for loop within while loop
-    5: I = 0
-    6: while I < 3
-    7:     rem Inner for loop should execute 3 times
-    8:     for J = 1 to 3
-    9:         effect "Sharp Pixels"
-   10:         wait 100ms
-   11:     next J
-   12:     I = I + 1
-   13: wend
-   14: 
-   15: rem Test 2: while loop within for loop
-   16: for OUTER = 1 to 2
-   17:     INNER = 0
-   18:     while INNER < 2
-   19:         palette colodore
-   20:         wait 100ms
-   21:         INNER = INNER + 1
-   22:     wend
-   23: next OUTER
-   24: 
-   25: rem Test 3: Triple nesting (for within while within for)
-   26: for A = 1 to 2
-   27:     B = 0
-   28:     while B < 2
-   29:         for C = 1 to 2
-   30:             effect "Light Scanlines"
-   31:             wait 50ms
-   32:         next C
-   33:         B = B + 1
-   34:     wend
-   35: next A
-   36: 
-   37: stop
+  01: rem Test nested loops (for within while, while within for)
+  02: rem This script validates that nested loop constructs work correctly
+  03: 
+  04: rem Test 1: for loop within while loop
+  05: I = 0
+  06: while I < 3
+  07:     rem Inner for loop should execute 3 times
+  08:     for J = 1 to 3
+  09:         effect "Sharp Pixels"
+  10:         wait 100ms
+  11:     next J
+  12:     I = I + 1
+  13: wend
+  14: 
+  15: rem Test 2: while loop within for loop
+  16: for OUTER = 1 to 2
+  17:     INNER = 0
+  18:     while INNER < 2
+  19:         palette "colodore"
+  20:         wait 100ms
+  21:         INNER = INNER + 1
+  22:     wend
+  23: next OUTER
+  24: 
+  25: rem Test 3: Triple nesting (for within while within for)
+  26: for A = 1 to 2
+  27:     B = 0
+  28:     while B < 2
+  29:         for C = 1 to 2
+  30:             effect "Light Scanlines"
+  31:             wait 50ms
+  32:         next C
+  33:         B = B + 1
+  34:     wend
+  35: next A
+  36: 
+  37: stop
 trace:
 - line: 5
   content: "I = 0"
@@ -57,3 +57,764 @@ trace:
   variables:
     I: 0
     J: 1
+- line: 10
+  content: "wait 100ms"
+  variables:
+    I: 0
+    J: 1
+- line: 8
+  content: "for J = 1 to 3"
+  variables:
+    I: 0
+    J: 1
+- line: 9
+  content: "effect \"Sharp Pixels\""
+  variables:
+    I: 0
+    J: 2
+- line: 10
+  content: "wait 100ms"
+  variables:
+    I: 0
+    J: 2
+- line: 8
+  content: "for J = 1 to 3"
+  variables:
+    I: 0
+    J: 2
+- line: 9
+  content: "effect \"Sharp Pixels\""
+  variables:
+    I: 0
+    J: 3
+- line: 10
+  content: "wait 100ms"
+  variables:
+    I: 0
+    J: 3
+- line: 8
+  content: "for J = 1 to 3"
+  variables:
+    I: 0
+    J: 3
+- line: 12
+  content: "I = I + 1"
+  variables:
+    I: 0
+    J: 4
+- line: 6
+  content: "while I < 3"
+  variables:
+    I: 1
+    J: 4
+- line: 8
+  content: "for J = 1 to 3"
+  variables:
+    I: 1
+    J: 4
+- line: 9
+  content: "effect \"Sharp Pixels\""
+  variables:
+    I: 1
+    J: 1
+- line: 10
+  content: "wait 100ms"
+  variables:
+    I: 1
+    J: 1
+- line: 8
+  content: "for J = 1 to 3"
+  variables:
+    I: 1
+    J: 1
+- line: 9
+  content: "effect \"Sharp Pixels\""
+  variables:
+    I: 1
+    J: 2
+- line: 10
+  content: "wait 100ms"
+  variables:
+    I: 1
+    J: 2
+- line: 8
+  content: "for J = 1 to 3"
+  variables:
+    I: 1
+    J: 2
+- line: 9
+  content: "effect \"Sharp Pixels\""
+  variables:
+    I: 1
+    J: 3
+- line: 10
+  content: "wait 100ms"
+  variables:
+    I: 1
+    J: 3
+- line: 8
+  content: "for J = 1 to 3"
+  variables:
+    I: 1
+    J: 3
+- line: 12
+  content: "I = I + 1"
+  variables:
+    I: 1
+    J: 4
+- line: 6
+  content: "while I < 3"
+  variables:
+    I: 2
+    J: 4
+- line: 8
+  content: "for J = 1 to 3"
+  variables:
+    I: 2
+    J: 4
+- line: 9
+  content: "effect \"Sharp Pixels\""
+  variables:
+    I: 2
+    J: 1
+- line: 10
+  content: "wait 100ms"
+  variables:
+    I: 2
+    J: 1
+- line: 8
+  content: "for J = 1 to 3"
+  variables:
+    I: 2
+    J: 1
+- line: 9
+  content: "effect \"Sharp Pixels\""
+  variables:
+    I: 2
+    J: 2
+- line: 10
+  content: "wait 100ms"
+  variables:
+    I: 2
+    J: 2
+- line: 8
+  content: "for J = 1 to 3"
+  variables:
+    I: 2
+    J: 2
+- line: 9
+  content: "effect \"Sharp Pixels\""
+  variables:
+    I: 2
+    J: 3
+- line: 10
+  content: "wait 100ms"
+  variables:
+    I: 2
+    J: 3
+- line: 8
+  content: "for J = 1 to 3"
+  variables:
+    I: 2
+    J: 3
+- line: 12
+  content: "I = I + 1"
+  variables:
+    I: 2
+    J: 4
+- line: 6
+  content: "while I < 3"
+  variables:
+    I: 3
+    J: 4
+- line: 16
+  content: "for OUTER = 1 to 2"
+  variables:
+    I: 3
+    J: 4
+- line: 17
+  content: "INNER = 0"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 1
+- line: 18
+  content: "while INNER < 2"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 1
+    INNER: 0
+- line: 19
+  content: "palette \"colodore\""
+  variables:
+    I: 3
+    J: 4
+    OUTER: 1
+    INNER: 0
+- line: 20
+  content: "wait 100ms"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 1
+    INNER: 0
+- line: 21
+  content: "INNER = INNER + 1"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 1
+    INNER: 0
+- line: 18
+  content: "while INNER < 2"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 1
+    INNER: 1
+- line: 19
+  content: "palette \"colodore\""
+  variables:
+    I: 3
+    J: 4
+    OUTER: 1
+    INNER: 1
+- line: 20
+  content: "wait 100ms"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 1
+    INNER: 1
+- line: 21
+  content: "INNER = INNER + 1"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 1
+    INNER: 1
+- line: 18
+  content: "while INNER < 2"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 1
+    INNER: 2
+- line: 16
+  content: "for OUTER = 1 to 2"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 1
+    INNER: 2
+- line: 17
+  content: "INNER = 0"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 2
+    INNER: 2
+- line: 18
+  content: "while INNER < 2"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 2
+    INNER: 0
+- line: 19
+  content: "palette \"colodore\""
+  variables:
+    I: 3
+    J: 4
+    OUTER: 2
+    INNER: 0
+- line: 20
+  content: "wait 100ms"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 2
+    INNER: 0
+- line: 21
+  content: "INNER = INNER + 1"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 2
+    INNER: 0
+- line: 18
+  content: "while INNER < 2"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 2
+    INNER: 1
+- line: 19
+  content: "palette \"colodore\""
+  variables:
+    I: 3
+    J: 4
+    OUTER: 2
+    INNER: 1
+- line: 20
+  content: "wait 100ms"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 2
+    INNER: 1
+- line: 21
+  content: "INNER = INNER + 1"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 2
+    INNER: 1
+- line: 18
+  content: "while INNER < 2"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 2
+    INNER: 2
+- line: 16
+  content: "for OUTER = 1 to 2"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 2
+    INNER: 2
+- line: 26
+  content: "for A = 1 to 2"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 3
+    INNER: 2
+- line: 27
+  content: "B = 0"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 3
+    INNER: 2
+    A: 1
+- line: 28
+  content: "while B < 2"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 3
+    INNER: 2
+    A: 1
+    B: 0
+- line: 29
+  content: "for C = 1 to 2"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 3
+    INNER: 2
+    A: 1
+    B: 0
+- line: 30
+  content: "effect \"Light Scanlines\""
+  variables:
+    I: 3
+    J: 4
+    OUTER: 3
+    INNER: 2
+    A: 1
+    B: 0
+    C: 1
+- line: 31
+  content: "wait 50ms"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 3
+    INNER: 2
+    A: 1
+    B: 0
+    C: 1
+- line: 29
+  content: "for C = 1 to 2"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 3
+    INNER: 2
+    A: 1
+    B: 0
+    C: 1
+- line: 30
+  content: "effect \"Light Scanlines\""
+  variables:
+    I: 3
+    J: 4
+    OUTER: 3
+    INNER: 2
+    A: 1
+    B: 0
+    C: 2
+- line: 31
+  content: "wait 50ms"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 3
+    INNER: 2
+    A: 1
+    B: 0
+    C: 2
+- line: 29
+  content: "for C = 1 to 2"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 3
+    INNER: 2
+    A: 1
+    B: 0
+    C: 2
+- line: 33
+  content: "B = B + 1"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 3
+    INNER: 2
+    A: 1
+    B: 0
+    C: 3
+- line: 28
+  content: "while B < 2"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 3
+    INNER: 2
+    A: 1
+    B: 1
+    C: 3
+- line: 29
+  content: "for C = 1 to 2"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 3
+    INNER: 2
+    A: 1
+    B: 1
+    C: 3
+- line: 30
+  content: "effect \"Light Scanlines\""
+  variables:
+    I: 3
+    J: 4
+    OUTER: 3
+    INNER: 2
+    A: 1
+    B: 1
+    C: 1
+- line: 31
+  content: "wait 50ms"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 3
+    INNER: 2
+    A: 1
+    B: 1
+    C: 1
+- line: 29
+  content: "for C = 1 to 2"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 3
+    INNER: 2
+    A: 1
+    B: 1
+    C: 1
+- line: 30
+  content: "effect \"Light Scanlines\""
+  variables:
+    I: 3
+    J: 4
+    OUTER: 3
+    INNER: 2
+    A: 1
+    B: 1
+    C: 2
+- line: 31
+  content: "wait 50ms"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 3
+    INNER: 2
+    A: 1
+    B: 1
+    C: 2
+- line: 29
+  content: "for C = 1 to 2"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 3
+    INNER: 2
+    A: 1
+    B: 1
+    C: 2
+- line: 33
+  content: "B = B + 1"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 3
+    INNER: 2
+    A: 1
+    B: 1
+    C: 3
+- line: 28
+  content: "while B < 2"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 3
+    INNER: 2
+    A: 1
+    B: 2
+    C: 3
+- line: 26
+  content: "for A = 1 to 2"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 3
+    INNER: 2
+    A: 1
+    B: 2
+    C: 3
+- line: 27
+  content: "B = 0"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 3
+    INNER: 2
+    A: 2
+    B: 2
+    C: 3
+- line: 28
+  content: "while B < 2"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 3
+    INNER: 2
+    A: 2
+    B: 0
+    C: 3
+- line: 29
+  content: "for C = 1 to 2"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 3
+    INNER: 2
+    A: 2
+    B: 0
+    C: 3
+- line: 30
+  content: "effect \"Light Scanlines\""
+  variables:
+    I: 3
+    J: 4
+    OUTER: 3
+    INNER: 2
+    A: 2
+    B: 0
+    C: 1
+- line: 31
+  content: "wait 50ms"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 3
+    INNER: 2
+    A: 2
+    B: 0
+    C: 1
+- line: 29
+  content: "for C = 1 to 2"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 3
+    INNER: 2
+    A: 2
+    B: 0
+    C: 1
+- line: 30
+  content: "effect \"Light Scanlines\""
+  variables:
+    I: 3
+    J: 4
+    OUTER: 3
+    INNER: 2
+    A: 2
+    B: 0
+    C: 2
+- line: 31
+  content: "wait 50ms"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 3
+    INNER: 2
+    A: 2
+    B: 0
+    C: 2
+- line: 29
+  content: "for C = 1 to 2"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 3
+    INNER: 2
+    A: 2
+    B: 0
+    C: 2
+- line: 33
+  content: "B = B + 1"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 3
+    INNER: 2
+    A: 2
+    B: 0
+    C: 3
+- line: 28
+  content: "while B < 2"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 3
+    INNER: 2
+    A: 2
+    B: 1
+    C: 3
+- line: 29
+  content: "for C = 1 to 2"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 3
+    INNER: 2
+    A: 2
+    B: 1
+    C: 3
+- line: 30
+  content: "effect \"Light Scanlines\""
+  variables:
+    I: 3
+    J: 4
+    OUTER: 3
+    INNER: 2
+    A: 2
+    B: 1
+    C: 1
+- line: 31
+  content: "wait 50ms"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 3
+    INNER: 2
+    A: 2
+    B: 1
+    C: 1
+- line: 29
+  content: "for C = 1 to 2"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 3
+    INNER: 2
+    A: 2
+    B: 1
+    C: 1
+- line: 30
+  content: "effect \"Light Scanlines\""
+  variables:
+    I: 3
+    J: 4
+    OUTER: 3
+    INNER: 2
+    A: 2
+    B: 1
+    C: 2
+- line: 31
+  content: "wait 50ms"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 3
+    INNER: 2
+    A: 2
+    B: 1
+    C: 2
+- line: 29
+  content: "for C = 1 to 2"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 3
+    INNER: 2
+    A: 2
+    B: 1
+    C: 2
+- line: 33
+  content: "B = B + 1"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 3
+    INNER: 2
+    A: 2
+    B: 1
+    C: 3
+- line: 28
+  content: "while B < 2"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 3
+    INNER: 2
+    A: 2
+    B: 2
+    C: 3
+- line: 26
+  content: "for A = 1 to 2"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 3
+    INNER: 2
+    A: 2
+    B: 2
+    C: 3
+- line: 37
+  content: "stop"
+  variables:
+    I: 3
+    J: 4
+    OUTER: 3
+    INNER: 2
+    A: 3
+    B: 2
+    C: 3

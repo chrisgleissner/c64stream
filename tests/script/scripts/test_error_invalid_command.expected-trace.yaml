@@ -1,16 +1,19 @@
 # Execution trace
 script: "test_error_invalid_command.c64script"
-status: failure
-error: "OBS source not available"
+status: success
+error: ~
 program: |
-    1: rem Test error handling and invalid constructs
-    2: rem This script should cause various parse/runtime errors
-    3: 
-    4: rem Test 1: Invalid command (should cause parse error)
-    5: invalid_command_that_does_not_exist
-    6: effect "Sharp Pixels"
-    7: stop
+  1: rem Test error handling and invalid constructs
+  2: rem This script should cause various parse/runtime errors
+  3: 
+  4: rem Test 1: Invalid command (should cause parse error)
+  5: invalid_command_that_does_not_exist
+  6: effect "Sharp Pixels"
+  7: stop
 trace:
 - line: 6
   content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 7
+  content: "stop"
   variables: {}

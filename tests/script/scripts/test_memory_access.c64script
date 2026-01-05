@@ -44,7 +44,7 @@ rem Test 10: Write and read back
 POKE $C100, 42
 CHECK = PEEK($C100)
 if CHECK = 42 then
-    palette colodore
+    palette "colodore"
 endif
 
 stop

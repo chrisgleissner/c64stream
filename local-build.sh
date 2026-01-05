@@ -14,6 +14,7 @@ BUILD_CONFIG="RelWithDebInfo"
 CLEAN_BUILD=false
 RUN_TESTS=true
 RUN_SCRIPT_TESTS=false
+RERECORD_TRACES=false
 INSTALL_DEPS=false
 INSTALL_PLUGIN=false
 RUN_E2E=false
@@ -183,6 +184,7 @@ OPTIONS:
     --tests             Run tests after building (default: on)
     --no-tests          Skip tests after building
     --script-tests      Run c64script validation tests (all .c64script files)
+    --rerecord-traces   Regenerate all expected trace files for c64script tests
     --install-deps      Install build dependencies
     --install-e2e-deps  Also install E2E testing dependencies (OBS, xvfb, etc.)
     --install           Install plugin to OBS after building
@@ -1369,6 +1371,10 @@ main() {
                 RUN_SCRIPT_TESTS=true
                 shift
                 ;;
+            --rerecord-traces)
+                RERECORD_TRACES=true
+                shift
+                ;;
             --install-deps)
                 INSTALL_DEPS=true
                 shift
@@ -1500,17 +1506,47 @@ main() {
     if [[ "$RUN_SCRIPT_TESTS" == "true" ]]; then
         log_info "Running c64script validation tests..."
         if [[ "$PLATFORM" == "linux" ]]; then
-            ./build_x86_64/tests/test_c64script_all_scripts || {
+            ./build_x86_64/tests/test_c64script_all_scripts . || {
                 log_error "Script validation tests failed"
                 exit 1
             }
         elif [[ "$PLATFORM" == "macos" ]]; then
-            ./build_universal/tests/test_c64script_all_scripts || {
+            ./build_universal/tests/test_c64script_all_scripts . || {
                 log_error "Script validation tests failed"
                 exit 1
             }
         else
             log_warning "Script tests not yet implemented for $PLATFORM"
+        fi
+    fi
+
+    if [[ "$RERECORD_TRACES" == "true" ]]; then
+        log_info "Regenerating expected trace files for all c64script tests..."
+
+        # Remove existing traces
+        rm -f tests/script/scripts/*.expected-trace.yaml
+        log_info "Removed old trace files"
+
+        # Run tests to generate new traces
+        if [[ "$PLATFORM" == "linux" ]]; then
+            ./build_x86_64/tests/test_c64script_all_scripts . || {
+                log_warning "Some tests failed during trace generation (expected for error tests)"
+            }
+        elif [[ "$PLATFORM" == "macos" ]]; then
+            ./build_universal/tests/test_c64script_all_scripts . || {
+                log_warning "Some tests failed during trace generation (expected for error tests)"
+            }
+        else
+            log_error "Trace rerecording not supported for $PLATFORM"
+            exit 1
+        fi
+
+        # Count generated traces
+        trace_count=$(ls tests/script/scripts/*.expected-trace.yaml 2>/dev/null | wc -l)
+        log_success "Generated $trace_count trace files"
+
+        if [[ "$trace_count" -ne 35 ]]; then
+            log_warning "Expected 35 trace files but got $trace_count"
         fi
     fi
 

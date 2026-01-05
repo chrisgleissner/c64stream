@@ -1,15 +1,17 @@
 # Execution trace
 script: "test_error_invalid.c64script"
 status: failure
-error: "TYPE MISMATCH (EFFECT)"
+error:
+  line: 6
+  message: "TYPE MISMATCH (EFFECT)"
 program: |
-    1: rem Error recovery test script
-    2: rem Tests handling of invalid commands and missing labels
-    3: 
-    4: rem This should cause parse error (invalid command)
-    5: invalid_command_here
-    6: effect Test
-    7: stop
+  1: rem Error recovery test script
+  2: rem Tests handling of invalid commands and missing labels
+  3: 
+  4: rem This should cause parse error (invalid command)
+  5: invalid_command_here
+  6: effect Test
+  7: stop
 trace:
 - line: 6
   content: "effect Test"

@@ -18,7 +18,7 @@ rem Test 4: Enable tracing
 TRON
 effect "Sharp Pixels"
 wait 100ms
-palette colodore
+palette "colodore"
 wait 100ms
 
 rem Test 5: Disable tracing

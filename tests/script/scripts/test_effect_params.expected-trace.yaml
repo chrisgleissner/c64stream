@@ -1,59 +1,149 @@
 # Execution trace
 script: "test_effect_params.c64script"
-status: failure
-error: "OBS source not available"
+status: success
+error: ~
 program: |
-    1: rem Test effect and effectparam commands
-    2: rem Validates effect selection and parameter customization
-    3: 
-    4: rem Test 1: Set effect and customize scanline intensity
-    5: effect "Classic CRT"
-    6: effectparam scanline_intensity 0.7
-    7: wait 100ms
-    8: 
-    9: rem Test 2: Customize phosphor persistence
-   10: effectparam phosphor_persistence 0.3
-   11: wait 100ms
-   12: 
-   13: rem Test 3: Customize curvature
-   14: effectparam curvature 0.1
-   15: wait 100ms
-   16: 
-   17: rem Test 4: Customize bloom
-   18: effectparam bloom 0.5
-   19: wait 100ms
-   20: 
-   21: rem Test 5: Switch effect and set parameters
-   22: effect "Sharp Pixels"
-   23: effectparam grid_intensity 0.3
-   24: effectparam grid_color_r 20
-   25: effectparam grid_color_g 20
-   26: effectparam grid_color_b 20
-   27: wait 100ms
-   28: 
-   29: rem Test 6: Amber monitor with tint
-   30: effect "Amber Monitor"
-   31: effectparam tint_intensity 0.9
-   32: effectparam brightness 1.2
-   33: effectparam contrast 1.1
-   34: wait 100ms
-   35: 
-   36: rem Test 7: Soft blur effect
-   37: effect "Soft Blur"
-   38: effectparam blur_radius 2.5
-   39: effectparam blur_direction 2
-   40: wait 100ms
-   41: 
-   42: rem Test 8: Color adjustments
-   43: effect "Classic CRT"
-   44: effectparam saturation 1.2
-   45: effectparam brightness 1.1
-   46: effectparam gamma 0.9
-   47: effectparam hue_shift 10
-   48: wait 100ms
-   49: 
-   50: stop
+  01: rem Test effect and effectparam commands
+  02: rem Validates effect selection and parameter customization
+  03: 
+  04: rem Test 1: Set effect and customize scanline intensity
+  05: effect "Classic CRT"
+  06: effectparam "scanline_intensity" 0.7
+  07: wait 100ms
+  08: 
+  09: rem Test 2: Customize phosphor persistence
+  10: effectparam "phosphor_persistence" 0.3
+  11: wait 100ms
+  12: 
+  13: rem Test 3: Customize curvature
+  14: effectparam "curvature" 0.1
+  15: wait 100ms
+  16: 
+  17: rem Test 4: Customize bloom
+  18: effectparam "bloom" 0.5
+  19: wait 100ms
+  20: 
+  21: rem Test 5: Switch effect and set parameters
+  22: effect "Sharp Pixels"
+  23: effectparam "grid_intensity" 0.3
+  24: effectparam "grid_color_r" 20
+  25: effectparam "grid_color_g" 20
+  26: effectparam "grid_color_b" 20
+  27: wait 100ms
+  28: 
+  29: rem Test 6: Amber monitor with tint
+  30: effect "Amber Monitor"
+  31: effectparam "tint_intensity" 0.9
+  32: effectparam "brightness" 1.2
+  33: effectparam "contrast" 1.1
+  34: wait 100ms
+  35: 
+  36: rem Test 7: Soft blur effect
+  37: effect "Soft Blur"
+  38: effectparam "blur_radius" 2.5
+  39: effectparam "blur_direction" 2
+  40: wait 100ms
+  41: 
+  42: rem Test 8: Color adjustments
+  43: effect "Classic CRT"
+  44: effectparam "saturation" 1.2
+  45: effectparam "brightness" 1.1
+  46: effectparam "gamma" 0.9
+  47: effectparam "hue_shift" 10
+  48: wait 100ms
+  49: 
+  50: stop
 trace:
 - line: 5
   content: "effect \"Classic CRT\""
+  variables: {}
+- line: 6
+  content: "effectparam \"scanline_intensity\" 0.7"
+  variables: {}
+- line: 7
+  content: "wait 100ms"
+  variables: {}
+- line: 10
+  content: "effectparam \"phosphor_persistence\" 0.3"
+  variables: {}
+- line: 11
+  content: "wait 100ms"
+  variables: {}
+- line: 14
+  content: "effectparam \"curvature\" 0.1"
+  variables: {}
+- line: 15
+  content: "wait 100ms"
+  variables: {}
+- line: 18
+  content: "effectparam \"bloom\" 0.5"
+  variables: {}
+- line: 19
+  content: "wait 100ms"
+  variables: {}
+- line: 22
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 23
+  content: "effectparam \"grid_intensity\" 0.3"
+  variables: {}
+- line: 24
+  content: "effectparam \"grid_color_r\" 20"
+  variables: {}
+- line: 25
+  content: "effectparam \"grid_color_g\" 20"
+  variables: {}
+- line: 26
+  content: "effectparam \"grid_color_b\" 20"
+  variables: {}
+- line: 27
+  content: "wait 100ms"
+  variables: {}
+- line: 30
+  content: "effect \"Amber Monitor\""
+  variables: {}
+- line: 31
+  content: "effectparam \"tint_intensity\" 0.9"
+  variables: {}
+- line: 32
+  content: "effectparam \"brightness\" 1.2"
+  variables: {}
+- line: 33
+  content: "effectparam \"contrast\" 1.1"
+  variables: {}
+- line: 34
+  content: "wait 100ms"
+  variables: {}
+- line: 37
+  content: "effect \"Soft Blur\""
+  variables: {}
+- line: 38
+  content: "effectparam \"blur_radius\" 2.5"
+  variables: {}
+- line: 39
+  content: "effectparam \"blur_direction\" 2"
+  variables: {}
+- line: 40
+  content: "wait 100ms"
+  variables: {}
+- line: 43
+  content: "effect \"Classic CRT\""
+  variables: {}
+- line: 44
+  content: "effectparam \"saturation\" 1.2"
+  variables: {}
+- line: 45
+  content: "effectparam \"brightness\" 1.1"
+  variables: {}
+- line: 46
+  content: "effectparam \"gamma\" 0.9"
+  variables: {}
+- line: 47
+  content: "effectparam \"hue_shift\" 10"
+  variables: {}
+- line: 48
+  content: "wait 100ms"
+  variables: {}
+- line: 50
+  content: "stop"
   variables: {}

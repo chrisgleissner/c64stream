@@ -136,12 +136,12 @@ fi
 # Workflow validation (MANDATORY for any .github/workflows/ changes)
 ./build-aux/validate-workflows
 
+# MANDATORY: Full test suite before commit
+./local-build.sh linux --tests --script-tests
+
 # E2E (MANDATORY for plugin behavior changes, but LOCAL ONLY. Do NOT run in cloud/CI environments.)
 # Requires a working graphical environment (X11/Wayland) and OBS installed.
 ./local-build.sh linux --install --e2e
-
-# Unit tests (run by default in local-build.sh; use --no-tests to skip)
-./local-build.sh linux --tests
 
 # Full E2E scenario suite (LOCAL ONLY) - run all scenarios
 cd tests/e2e
@@ -156,8 +156,9 @@ done
 - [ ] Code formatting passes
 - [ ] CMake formatting passes
 - [ ] Workflow validation passes (if .github/workflows/ modified)
+- [ ] **Full test suite passes: `./local-build.sh linux --tests --script-tests`**
 - [ ] Documentation reviewed (docs reflect current behavior)
-- [ ] Full local E2E scenario suite passes (LOCAL ONLY)
+- [ ] Full local E2E scenario suite passes if behavior changed (LOCAL ONLY)
 - [ ] Cross-platform compatibility maintained
 - [ ] Code committed with clear commit message
 

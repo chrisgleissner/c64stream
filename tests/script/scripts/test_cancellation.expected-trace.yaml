@@ -3,12 +3,12 @@ script: "test_cancellation.c64script"
 status: success
 error: ~
 program: |
-    1: rem Cancellation test script
-    2: rem Tests immediate stop during long wait
-    3: 
-    4: wait 1s
-    5: rem Effect would never execute after cancellation
-    6: stop
+  1: rem Cancellation test script
+  2: rem Tests immediate stop during long wait
+  3: 
+  4: wait 1s
+  5: rem Effect would never execute after cancellation
+  6: stop
 trace:
 - line: 4
   content: "wait 1s"

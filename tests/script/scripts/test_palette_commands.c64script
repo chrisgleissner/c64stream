@@ -2,15 +2,15 @@ rem Test palette and PALETTECOLOR commands
 rem Validates palette selection and individual color customization
 
 rem Test 1: Basic palette selection
-palette colodore
+palette "colodore"
 wait 100ms
 
 rem Test 2: Different palette
-palette pepto_ntsc
+palette "pepto_ntsc"
 wait 100ms
 
 rem Test 3: Another palette variant
-palette vice_new
+palette "vice_new"
 wait 100ms
 
 rem Test 4: Custom palette color - set background to black

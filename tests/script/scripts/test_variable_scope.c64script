@@ -24,7 +24,7 @@ rem Test 3: Variable mutation in while loop
 VALUE = 0
 while VALUE < 5
     VALUE = VALUE + 1
-    palette colodore
+    palette "colodore"
     wait 50ms
 wend
 rem VALUE should be 5

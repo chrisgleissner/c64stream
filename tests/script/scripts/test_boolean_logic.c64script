@@ -12,7 +12,7 @@ rem Test 2: Basic or operator
 C = 0
 D = 1
 if C or D then
-    palette colodore
+    palette "colodore"
 endif
 
 rem Test 3: not operator
@@ -25,7 +25,7 @@ rem Test 4: xor operator
 F = 1
 G = 0
 if F xor G then
-    palette pepto_ntsc
+    palette "pepto_ntsc"
 endif
 
 rem Test 5: Combined operators - (A and B) or C
@@ -40,7 +40,7 @@ rem Test 6: not with and - not (A and B)
 K = 1
 L = 0
 if not (K and L) then
-    palette vice_new
+    palette "vice_new"
 endif
 
 rem Test 7: Complex expression with precedence

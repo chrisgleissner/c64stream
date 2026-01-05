@@ -16,7 +16,7 @@ rem Test 2: while loop within for loop
 for OUTER = 1 to 2
     INNER = 0
     while INNER < 2
-        palette colodore
+        palette "colodore"
         wait 100ms
         INNER = INNER + 1
     wend

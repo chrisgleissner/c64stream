@@ -14,7 +14,7 @@ endif
 rem Test 2: Inequality operators (<> and !=)
 B = 3
 if B <> 5 then
-    palette colodore
+    palette "colodore"
 endif
 
 if B != 5 then
@@ -32,7 +32,7 @@ rem Test 4: Less than or equal (<=)
 E = 5
 F = 5
 if E <= F then
-    palette pepto_ntsc
+    palette "pepto_ntsc"
 endif
 
 G = 3
@@ -51,7 +51,7 @@ rem Test 6: Greater than or equal (>=)
 J = 5
 K = 5
 if J >= K then
-    palette vice_new
+    palette "vice_new"
 endif
 
 L = 8

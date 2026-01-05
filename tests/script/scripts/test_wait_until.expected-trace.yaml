@@ -1,70 +1,72 @@
 # Execution trace
 script: "test_wait_until.c64script"
 status: compile_failure
-error: "Unknown function: TIME$"
+error:
+  line: 0
+  message: "Unknown function: TIME$"
 program: |
-    1: rem Test wait until command
-    2: rem Validates waiting until a specific wall-clock time
-    3: 
-    4: rem Test 1: Current time and immediate wait
-    5: CURRENT$ = TIME$()
-    6: LOG "Current time: " + CURRENT$
-    7: wait 100ms
-    8: 
-    9: rem Test 2: Wait until a time already passed (should complete immediately)
-   10: wait until "00:00:01"
-   11: LOG "Past time wait completed immediately"
-   12: wait 100ms
-   13: 
-   14: rem Test 3: Calculate future time (Unix epoch + 1 second)
-   15: rem In practice, wait until would wait for a real future time
-   16: rem These tests validate syntax and immediate completion for past times
-   17: 
-   18: rem Test 4: Wait with HH:MM:SS format
-   19: wait until "23:59:59"
-   20: LOG "Time format wait completed"
-   21: wait 100ms
-   22: 
-   23: rem Test 5: Wait with HH:MM format
-   24: wait until "12:00"
-   25: LOG "Short time format wait completed"
-   26: wait 100ms
-   27: 
-   28: rem Test 6: Wait with full ISO-8601 format
-   29: wait until "2024-01-01 00:00:00"
-   30: LOG "Full datetime wait completed"
-   31: wait 100ms
-   32: 
-   33: rem Test 7: Wait with ISO-8601 T separator
-   34: wait until "2024-01-01T00:00:00"
-   35: LOG "ISO T-format wait completed"
-   36: wait 100ms
-   37: 
-   38: rem Test 8: Use in scheduling workflow
-   39: LOG "Scheduling workflow..."
-   40: effect "Sharp Pixels"
-   41: wait until "00:00:05"
-   42: effect "Soft CRT"
-   43: LOG "Workflow completed"
-   44: wait 100ms
-   45: 
-   46: rem Test 9: Multiple timed events
-   47: wait until "00:01:00"
-   48: LOG "First event"
-   49: palette colodore
-   50: wait 50ms
-   51: 
-   52: wait until "00:02:00"
-   53: LOG "Second event"
-   54: palette pepto_ntsc
-   55: wait 50ms
-   56: 
-   57: rem Test 10: Conditional with time-based wait
-   58: CURRENT$ = TIME$()
-   59: LOG "Starting at: " + CURRENT$
-   60: wait until "00:00:10"
-   61: AFTER$ = TIME$()
-   62: LOG "Completed at: " + AFTER$
-   63: 
-   64: stop
+  01: rem Test wait until command
+  02: rem Validates waiting until a specific wall-clock time
+  03: 
+  04: rem Test 1: Current time and immediate wait
+  05: CURRENT$ = TIME$()
+  06: LOG "Current time: " + CURRENT$
+  07: wait 100ms
+  08: 
+  09: rem Test 2: Wait until a time already passed (should complete immediately)
+  10: wait until "00:00:01"
+  11: LOG "Past time wait completed immediately"
+  12: wait 100ms
+  13: 
+  14: rem Test 3: Calculate future time (Unix epoch + 1 second)
+  15: rem In practice, wait until would wait for a real future time
+  16: rem These tests validate syntax and immediate completion for past times
+  17: 
+  18: rem Test 4: Wait with HH:MM:SS format
+  19: wait until "23:59:59"
+  20: LOG "Time format wait completed"
+  21: wait 100ms
+  22: 
+  23: rem Test 5: Wait with HH:MM format
+  24: wait until "12:00"
+  25: LOG "Short time format wait completed"
+  26: wait 100ms
+  27: 
+  28: rem Test 6: Wait with full ISO-8601 format
+  29: wait until "2024-01-01 00:00:00"
+  30: LOG "Full datetime wait completed"
+  31: wait 100ms
+  32: 
+  33: rem Test 7: Wait with ISO-8601 T separator
+  34: wait until "2024-01-01T00:00:00"
+  35: LOG "ISO T-format wait completed"
+  36: wait 100ms
+  37: 
+  38: rem Test 8: Use in scheduling workflow
+  39: LOG "Scheduling workflow..."
+  40: effect "Sharp Pixels"
+  41: wait until "00:00:05"
+  42: effect "Soft CRT"
+  43: LOG "Workflow completed"
+  44: wait 100ms
+  45: 
+  46: rem Test 9: Multiple timed events
+  47: wait until "00:01:00"
+  48: LOG "First event"
+  49: palette "colodore"
+  50: wait 50ms
+  51: 
+  52: wait until "00:02:00"
+  53: LOG "Second event"
+  54: palette "pepto_ntsc"
+  55: wait 50ms
+  56: 
+  57: rem Test 10: Conditional with time-based wait
+  58: CURRENT$ = TIME$()
+  59: LOG "Starting at: " + CURRENT$
+  60: wait until "00:00:10"
+  61: AFTER$ = TIME$()
+  62: LOG "Completed at: " + AFTER$
+  63: 
+  64: stop
 trace: []

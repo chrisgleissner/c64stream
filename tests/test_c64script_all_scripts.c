@@ -101,27 +101,21 @@ static const char *EXPECTED_COMPILE_FAILURES[] = {"test_wait_until.c64script",  
 
 // Scripts that should compile but fail execution (runtime errors)
 static const char *EXPECTED_EXECUTION_FAILURES[] = {
-    "test_safety_infinite_loop.c64script",  // Expected to hit iteration limit
-    "test_safety_max_nesting.c64script",    // Expected to hit nesting limit
-    "demo_basic_hello_world.c64script",     // Uses wait statements (OBS required)
-    "hello_world.c64script",                // Type mismatch issues
-    "demo_palette_cycle.c64script",         // Requires OBS source
-    "demo_effect_preset_cycle.c64script",   // Requires OBS source
-    "test_palette_commands.c64script",      // Type mismatch with palette
-    "test_iteration_counts.c64script",      // Requires OBS source
-    "test_effect_params.c64script",         // Requires OBS source
-    "test_error_type_mismatch.c64script",   // Intentional type mismatch
-    "test_nested_loops.c64script",          // Requires OBS source
-    "test_memory_access.c64script",         // Requires OBS source
-    "test_simple_sequence.c64script",       // Requires OBS source
-    "test_boolean_logic.c64script",         // Requires OBS source
-    "test_loop.c64script",                  // Requires OBS source
-    "test_comparisons.c64script",           // Requires OBS source
-    "test_user_functions.c64script",        // Type mismatch issues
-    "test_logging.c64script",               // Type mismatch issues
-    "test_recording.c64script",             // OBS frontend API required
-    "test_error_invalid_command.c64script", // OBS source not available
-    "test_error_invalid.c64script",         // Type mismatch
+    "test_safety_infinite_loop.c64script", // Expected to hit iteration limit
+    "test_safety_max_nesting.c64script",   // Expected to hit nesting limit
+    "demo_basic_hello_world.c64script",    // Uses wait statements (OBS required)
+    "hello_world.c64script",               // Type mismatch issues
+    "demo_palette_cycle.c64script",        // Requires OBS source
+    "demo_effect_preset_cycle.c64script",  // Requires OBS source
+    "test_iteration_counts.c64script",     // Times out with many waits
+    "test_error_type_mismatch.c64script",  // Intentional type mismatch
+    "test_simple_sequence.c64script",      // Times out with waits
+    "test_loop.c64script",                 // Times out with infinite loop waits
+    "test_comparisons.c64script",          // String comparison not yet supported
+    "test_user_functions.c64script",       // Type mismatch issues
+    "test_logging.c64script",              // Type mismatch issues
+    "test_recording.c64script",            // OBS frontend API - times out
+    "test_error_invalid.c64script",        // Type mismatch
     NULL};
 
 static bool should_expect_parse_failure(const char *filename)
@@ -245,7 +239,9 @@ static void write_error_trace(const char *file, const char *source, const char *
     fprintf(f, "status: %s\n", status);
 
     if (error_msg && error_msg[0]) {
-        fprintf(f, "error: \"");
+        fprintf(f, "error:\n");
+        fprintf(f, "  line: 0\n");
+        fprintf(f, "  message: \"");
         for (const char *p = error_msg; *p; p++) {
             if (*p == '"')
                 fputs("\\\"", f);
@@ -263,6 +259,24 @@ static void write_error_trace(const char *file, const char *source, const char *
 
     // Write program listing if available
     if (source) {
+        // First pass: count total lines to determine padding
+        const char *src_count = source;
+        int max_line = 1;
+        while (*src_count) {
+            if (*src_count == '\n') {
+                max_line++;
+            }
+            src_count++;
+        }
+
+        // Calculate padding width (number of digits)
+        int padding_width = 1;
+        int temp = max_line;
+        while (temp >= 10) {
+            padding_width++;
+            temp /= 10;
+        }
+
         fprintf(f, "program: |\n");
         const char *src = source;
         int line_num = 1;
@@ -270,7 +284,7 @@ static void write_error_trace(const char *file, const char *source, const char *
 
         while (*src) {
             if (*src == '\n' || *src == '\r') {
-                fprintf(f, "  %3d: ", line_num);
+                fprintf(f, "  %0*d: ", padding_width, line_num);
                 fwrite(line_start, 1, src - line_start, f);
                 fprintf(f, "\n");
 
@@ -286,7 +300,7 @@ static void write_error_trace(const char *file, const char *source, const char *
         }
 
         if (line_start < src) {
-            fprintf(f, "  %3d: ", line_num);
+            fprintf(f, "  %0*d: ", padding_width, line_num);
             fwrite(line_start, 1, src - line_start, f);
             fprintf(f, "\n");
         }
