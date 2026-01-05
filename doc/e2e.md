@@ -579,9 +579,10 @@ assertions:                   # What to verify
 
 ## Future Enhancements
 
-- **Bouncing Raster Bars**: Visual verification with animated rainbow bars and physics simulation
-- **Binary Frame Markers**: Embedded metadata for precise frame tracking
-- **Audio Sync Testing**: Heartbeat patterns aligned with visual cues
-- **Extended Duration**: Configurable test lengths for stress testing
-- **Cross-Platform**: Windows and macOS compatibility
-- **Performance Profiling**: Latency and jitter analysis
+A checked box indicates that the enhancement has been added.
+
+- [x] **Binary Frame Markers**: Embedded metadata for precise frame tracking
+- [x] **Audio Sync Testing**: Heartbeat patterns aligned with visual cues
+- [x] **Extended Duration**: Configurable test lengths for stress testing
+- [x] **Performance Profiling**: Latency and jitter analysis
+- [ ] **Cross-Platform**: Windows and macOS compatibility
