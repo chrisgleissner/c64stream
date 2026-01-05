@@ -6,6 +6,7 @@
   "patterns": [
     { "include": "#comments" },
     { "include": "#strings" },
+    { "include": "#function-definitions" },
     { "include": "#labels" },
     { "include": "#numbers" },
     { "include": "#keywords" },
@@ -15,6 +16,32 @@
     { "include": "#identifiers" }
   ],
   "repository": {
+    "function-definitions": {
+      "patterns": [
+        {
+          "name": "meta.function.c64script",
+          "begin": "(?i)\\b(FUN)\\s+([A-Za-z_][A-Za-z0-9_]*[$%]?)\\s*(?=\\(|$)",
+          "beginCaptures": {
+            "1": { "name": "keyword.control.c64script" },
+            "2": { "name": "entity.name.function.definition.c64script" }
+          },
+          "end": "(?i)\\b(ENDFUN|END\\s+FUN)\\b",
+          "endCaptures": {
+            "1": { "name": "keyword.control.c64script" }
+          },
+          "patterns": [
+            { "include": "#comments" },
+            { "include": "#strings" },
+            { "include": "#numbers" },
+            { "include": "#keywords" },
+            { "include": "#builtins" },
+            { "include": "#commands" },
+            { "include": "#operators" },
+            { "include": "#identifiers" }
+          ]
+        }
+      ]
+    },
     "comments": {
       "patterns": [
         {
