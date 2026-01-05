@@ -504,12 +504,6 @@ c64script_token_t c64script_tokenize_next(tokenizer_t *t)
         return make_token(t, TOKEN_NEWLINE, start, 1);
     }
 
-    // Comment (# at start of line or after whitespace)
-    if (c == '#') {
-        skip_line(t);
-        return c64script_tokenize_next(t); // Skip comment, get next token
-    }
-
     // Numbers
     if (is_digit(c)) {
         return tokenize_number(t);

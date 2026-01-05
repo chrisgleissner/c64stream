@@ -1,64 +1,64 @@
-# Test multiple iteration counts and step values
-# Validates FOR loop counting with various configurations
+REM Test multiple iteration counts and step values
+REM Validates FOR loop counting with various configurations
 
-# Test 1: Simple forward counting (1 to 5)
-FOR I = 1 TO 5
-    EFFECT Sharp Pixels
-    WAIT 50ms
-NEXT I
+REM Test 1: Simple forward counting (1 to 5)
+for i = 1 to 5
+    effect "Sharp Pixels"
+    wait 50ms
+next i
 
-# Test 2: Counting with step value (0 to 10, step 2)
-FOR J = 0 TO 10 STEP 2
-    PALETTE colodore
-    WAIT 50ms
-NEXT J
-# Should execute 6 times: 0, 2, 4, 6, 8, 10
+REM Test 2: Counting with step value (0 to 10, step 2)
+for j = 0 to 10 step 2
+    palette "colodore"
+    wait 50ms
+next j
+REM Should execute 6 times: 0, 2, 4, 6, 8, 10
 
-# Test 3: Backward counting (10 to 1, step -1)
-FOR K = 10 TO 1 STEP -1
-    EFFECT Soft CRT
-    WAIT 50ms
-NEXT K
-# Should execute 10 times
+REM Test 3: Backward counting (10 to 1, step -1)
+for k = 10 to 1 step -1
+    effect "Soft CRT"
+    wait 50ms
+next k
+REM Should execute 10 times
 
-# Test 4: Backward counting with step -2
-FOR L = 20 TO 10 STEP -2
-    PALETTE pepto_ntsc
-    WAIT 50ms
-NEXT L
-# Should execute 6 times: 20, 18, 16, 14, 12, 10
+REM Test 4: Backward counting with step -2
+for l = 20 to 10 step -2
+    palette "pepto_ntsc"
+    wait 50ms
+next l
+REM Should execute 6 times: 20, 18, 16, 14, 12, 10
 
-# Test 5: Zero iterations (start > end with positive step)
-FOR M = 10 TO 1
-    # This should not execute
-    EFFECT SHOULD_NOT_SEE
-NEXT M
+REM Test 5: Zero iterations (start > end with positive step)
+for m = 10 to 1
+    REM This should not execute
+    effect "SHOULD_NOT_SEE"
+next m
 
-# Test 6: Large iteration count
-COUNT = 0
-FOR N = 1 TO 100
-    COUNT = COUNT + 1
-    IF COUNT = 10 OR COUNT = 50 OR COUNT = 100 THEN
-        EFFECT Light Scanlines
-        WAIT 50ms
-    ENDIF
-NEXT N
+REM Test 6: Large iteration count
+count = 0
+for n = 1 to 100
+    count = count + 1
+    if count = 10 or count = 50 or count = 100 then
+        effect "Light Scanlines"
+        wait 50ms
+    endif
+next n
 
-# Test 7: Fractional step values
-FOR O = 0 TO 2 STEP 0.5
-    PALETTE vice_new
-    WAIT 50ms
-NEXT O
-# Should execute 5 times: 0, 0.5, 1.0, 1.5, 2.0
+REM Test 7: Fractional step values
+for o = 0 to 2 step 0.5
+    palette "vice_new"
+    wait 50ms
+next o
+REM Should execute 5 times: 0, 0.5, 1.0, 1.5, 2.0
 
-# Test 8: Nested loops with different step values
-FOR P = 2 TO 8 STEP 2
-    FOR Q = 10 TO 5 STEP -1
-        EFFECT CRT Monitor Warm
-        WAIT 25ms
-    NEXT Q
-NEXT P
-# Outer: 4 times (2,4,6,8), Inner: 6 times (10,9,8,7,6,5)
-# Total: 24 executions
+REM Test 8: Nested loops with different step values
+for p = 2 to 8 step 2
+    for q = 10 to 5 step -1
+        effect "CRT Monitor Warm"
+        wait 25ms
+    next q
+next p
+REM Outer: 4 times (2,4,6,8), Inner: 6 times (10,9,8,7,6,5)
+REM Total: 24 executions
 
-STOP
+stop

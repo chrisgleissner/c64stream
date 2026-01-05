@@ -389,11 +389,11 @@ TEST(parse_mixed_tabs_and_spaces)
 TEST(parse_very_long_comment)
 {
     char source[12000];
-    strcpy(source, "# ");
+    strcpy(source, "REM ");
     for (int i = 0; i < 10000; i++) {
-        source[2 + i] = 'A';
+        source[4 + i] = 'A';
     }
-    strcpy(source + 10002, "\nX = 1\n");
+    strcpy(source + 10004, "\nX = 1\n");
 
     char error_msg[1024];
     c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));

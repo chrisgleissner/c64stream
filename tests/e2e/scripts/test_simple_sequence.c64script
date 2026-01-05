@@ -1,5 +1,5 @@
-# Simple effect sequence test script
-# Tests basic command execution and timing
+REM Simple effect sequence test script
+REM Tests basic command execution and timing
 
 effect Sharp Pixels
 wait 2s

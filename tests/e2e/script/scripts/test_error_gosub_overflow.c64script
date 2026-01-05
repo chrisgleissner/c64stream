@@ -1,4 +1,4 @@
-# Test GOSUB without matching RETURN in call stack overflow
+REM Test GOSUB without matching RETURN in call stack overflow
 
 GOSUB RECURSIVE
 

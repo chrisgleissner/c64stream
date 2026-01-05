@@ -129,6 +129,9 @@ c64script_runtime_t *c64script_runtime_create(void)
     runtime->step_mode = false;
     runtime->trace_enabled = false;
 
+    runtime->max_iterations = 0; // 0 = unlimited
+    runtime->iteration_count = 0;
+
     runtime->last_executed_line = 0;
     runtime->next_line_to_execute = 0;
     runtime->source_text = NULL;
@@ -139,6 +142,12 @@ c64script_runtime_t *c64script_runtime_create(void)
 
     runtime->error_msg[0] = '\0';
     runtime->error_line = 0;
+
+    runtime->trace_recording_enabled = false;
+    runtime->trace_first_entry = true;
+    runtime->trace_file = NULL;
+    runtime->trace_filename[0] = '\0';
+    runtime->trace_step_count = 0;
 
     runtime->source_data = NULL;
     runtime->obs_source = NULL;
@@ -157,6 +166,13 @@ void c64script_runtime_destroy(c64script_runtime_t *runtime)
     if (runtime->log_file) {
         fclose(runtime->log_file);
         runtime->log_file = NULL;
+    }
+
+    // Close trace file if open
+    if (runtime->trace_file) {
+        // YAML doesn't need closing marker (it's a list)
+        fclose(runtime->trace_file);
+        runtime->trace_file = NULL;
     }
 
     // Free source text
@@ -529,6 +545,70 @@ bool c64script_map_set(c64script_map_t *map, const char *key, c64script_value_t 
     map->entries[map->count].hash = hash;
     map->entries[map->count].value = c64script_value_clone(value);
     map->count++;
+
+    return true;
+}
+
+bool c64script_enable_trace_recording(c64script_runtime_t *runtime, const char *filename)
+{
+    if (!runtime || !filename) {
+        return false;
+    }
+
+    if (runtime->trace_file) {
+        fclose(runtime->trace_file);
+    }
+
+    runtime->trace_file = fopen(filename, "w");
+    if (!runtime->trace_file) {
+        blog(LOG_ERROR, "Failed to open trace file: %s", filename);
+        return false;
+    }
+
+    strncpy(runtime->trace_filename, filename, sizeof(runtime->trace_filename) - 1);
+    runtime->trace_filename[sizeof(runtime->trace_filename) - 1] = '\0';
+    runtime->trace_recording_enabled = true;
+    runtime->trace_first_entry = true;
+
+    // Write YAML header with script info
+    fprintf(runtime->trace_file, "# Execution trace\n");
+    fprintf(runtime->trace_file, "script: \"%s\"\n", filename);
+
+    // Write full program listing with line numbers if available
+    if (runtime->source_text) {
+        fprintf(runtime->trace_file, "program: |\n");
+        const char *src = runtime->source_text;
+        int line_num = 1;
+        const char *line_start = src;
+
+        while (*src) {
+            if (*src == '\n' || *src == '\r') {
+                // Write line with number
+                fprintf(runtime->trace_file, "  %3d: ", line_num);
+                fwrite(line_start, 1, src - line_start, runtime->trace_file);
+                fprintf(runtime->trace_file, "\n");
+
+                // Handle \r\n
+                if (*src == '\r' && *(src + 1) == '\n') {
+                    src++;
+                }
+                src++;
+                line_start = src;
+                line_num++;
+            } else {
+                src++;
+            }
+        }
+
+        // Write last line if it doesn't end with newline
+        if (line_start < src) {
+            fprintf(runtime->trace_file, "  %3d: ", line_num);
+            fwrite(line_start, 1, src - line_start, runtime->trace_file);
+            fprintf(runtime->trace_file, "\n");
+        }
+    }
+
+    fprintf(runtime->trace_file, "trace:\n");
 
     return true;
 }

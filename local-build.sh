@@ -13,6 +13,7 @@ PLATFORM=""
 BUILD_CONFIG="RelWithDebInfo"
 CLEAN_BUILD=false
 RUN_TESTS=true
+RUN_SCRIPT_TESTS=false
 INSTALL_DEPS=false
 INSTALL_PLUGIN=false
 RUN_E2E=false
@@ -181,6 +182,7 @@ OPTIONS:
     --clean             Clean build directory before building
     --tests             Run tests after building (default: on)
     --no-tests          Skip tests after building
+    --script-tests      Run c64script validation tests (all .c64script files)
     --install-deps      Install build dependencies
     --install-e2e-deps  Also install E2E testing dependencies (OBS, xvfb, etc.)
     --install           Install plugin to OBS after building
@@ -1363,6 +1365,10 @@ main() {
                 RUN_TESTS=false
                 shift
                 ;;
+            --script-tests)
+                RUN_SCRIPT_TESTS=true
+                shift
+                ;;
             --install-deps)
                 INSTALL_DEPS=true
                 shift
@@ -1489,6 +1495,23 @@ main() {
 
     if [[ "$RUN_TESTS" == "true" ]]; then
         run_tests "$PLATFORM"
+    fi
+
+    if [[ "$RUN_SCRIPT_TESTS" == "true" ]]; then
+        log_info "Running c64script validation tests..."
+        if [[ "$PLATFORM" == "linux" ]]; then
+            ./build_x86_64/tests/test_c64script_all_scripts || {
+                log_error "Script validation tests failed"
+                exit 1
+            }
+        elif [[ "$PLATFORM" == "macos" ]]; then
+            ./build_universal/tests/test_c64script_all_scripts || {
+                log_error "Script validation tests failed"
+                exit 1
+            }
+        else
+            log_warning "Script tests not yet implemented for $PLATFORM"
+        fi
     fi
 
     if [[ "$INSTALL_PLUGIN" == "true" ]]; then

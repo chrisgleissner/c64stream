@@ -73,7 +73,6 @@ BASIC-Inspired, Label-Oriented
 - Spaces and tabs separate tokens, except inside quoted strings.
 
 **Comments**
-- `#` at the start of a (trimmed) line is a comment (legacy format compatibility).
 - `REM` is a statement that comments out the rest of the line (BASIC style). After `REM`, the remainder of the line is ignored.
 
 **Strings**

@@ -1,34 +1,34 @@
-# Test boolean logic operators (AND, OR, NOT, XOR)
-# Tests truthiness, operator precedence, and combinations
+REM Test boolean logic operators (AND, OR, NOT, XOR)
+REM Tests truthiness, operator precedence, and combinations
 
-# Test 1: Basic AND operator
+REM Test 1: Basic AND operator
 A = 1
 B = 1
 IF A AND B THEN
     EFFECT Sharp Pixels
 ENDIF
 
-# Test 2: Basic OR operator
+REM Test 2: Basic OR operator
 C = 0
 D = 1
 IF C OR D THEN
     PALETTE colodore
 ENDIF
 
-# Test 3: NOT operator
+REM Test 3: NOT operator
 E = 0
 IF NOT E THEN
     EFFECT Soft CRT
 ENDIF
 
-# Test 4: XOR operator
+REM Test 4: XOR operator
 F = 1
 G = 0
 IF F XOR G THEN
     PALETTE pepto_ntsc
 ENDIF
 
-# Test 5: Combined operators - (A AND B) OR C
+REM Test 5: Combined operators - (A AND B) OR C
 H = 0
 I = 0
 J = 1
@@ -36,15 +36,15 @@ IF (H AND I) OR J THEN
     EFFECT Light Scanlines
 ENDIF
 
-# Test 6: NOT with AND - NOT (A AND B)
+REM Test 6: NOT with AND - NOT (A AND B)
 K = 1
 L = 0
 IF NOT (K AND L) THEN
     PALETTE vice_new
 ENDIF
 
-# Test 7: Complex expression with precedence
-# (A OR B) AND (C OR D)
+REM Test 7: Complex expression with precedence
+REM (A OR B) AND (C OR D)
 M = 1
 N = 0
 O = 0
@@ -53,8 +53,8 @@ IF (M OR N) AND (O OR P) THEN
     EFFECT CRT Monitor Warm
 ENDIF
 
-# Test 8: Bitwise operations (AND/OR/XOR operate on integers)
-# 5 AND 3 should be 1 (0101 & 0011 = 0001)
+REM Test 8: Bitwise operations (AND/OR/XOR operate on integers)
+REM 5 AND 3 should be 1 (0101 & 0011 = 0001)
 RESULT = 5 AND 3
 IF RESULT = 1 THEN
     EFFECT Heavy Scanlines

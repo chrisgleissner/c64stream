@@ -1,55 +1,56 @@
-# Palette Cycle Demo
-# Cycles through available palettes, displaying each one for 3 seconds
+REM Palette Cycle Demo
+REM Cycles through available palettes, displaying each one for 3 seconds
 
 LOG "Starting palette showcase demo"
 
-# Default palette
+REM Default palette
 LOG "Applying palette: default"
 PALETTE "default"
 WAIT 2s
 
-# Vibrant palette
+REM Vibrant palette
 LOG "Applying palette: vibrant"
 PALETTE "vibrant"
 WAIT 2s
 
-# Muted palette
+REM Muted palette
 LOG "Applying palette: muted"
 PALETTE "muted"
 WAIT 2s
 
-# Warm palette
+REM Warm palette
 LOG "Applying palette: warm"
 PALETTE "warm"
 WAIT 2s
 
-# Cool palette
+REM Cool palette
 LOG "Applying palette: cool"
 PALETTE "cool"
 WAIT 2s
 
-# Neon palette
+REM Neon palette
 LOG "Applying palette: neonblast"
 PALETTE "neonblast"
 WAIT 2s
 
-# Night palette
+REM Night palette
 LOG "Applying palette: night"
 PALETTE "night"
 WAIT 2s
 
-# Monochrome palette
+REM Monochrome palette
 LOG "Applying palette: monochrome"
 PALETTE "monochrome"
 WAIT 2s
 
-# Inverted palette
+REM Inverted palette
 LOG "Applying palette: inverted"
 PALETTE "inverted"
 WAIT 2s
 
-# Return to default
+REM Return to default
 LOG "Applying palette: default"
 PALETTE "default"
+WAIT 2s
 
 LOG "Palette showcase demo completed"

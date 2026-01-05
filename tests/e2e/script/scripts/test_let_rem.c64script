@@ -1,43 +1,43 @@
-# Test LET and REM statements
-# Validates optional LET keyword and comment styles
+REM Test LET and REM statements
+REM Validates optional LET keyword and comment styles
 
-# Test 1: Assignment without LET
+REM Test 1: Assignment without LET
 X = 10
 WAIT 50ms
 
-# Test 2: Assignment with LET
+REM Test 2: Assignment with LET
 LET Y = 20
 WAIT 50ms
 
-# Test 3: Both forms produce same result
+REM Test 3: Both forms produce same result
 Z = X + Y
 IF Z = 30 THEN
     EFFECT Sharp Pixels
 ENDIF
 WAIT 100ms
 
-# Test 4: REM comment style
+REM Test 4: REM comment style
 REM This is a BASIC-style comment
 EFFECT Soft CRT
 WAIT 100ms
 
-# Test 5: # comment style (legacy)
-# This is a hash comment
+REM Test 5: # comment style (legacy)
+REM This is a hash comment
 PALETTE colodore
 WAIT 100ms
 
-# Test 6: Mixed comments
+REM Test 6: Mixed comments
 REM First command
 EFFECT Light Scanlines
-# Second command
+REM Second command
 WAIT 100ms
 
-# Test 7: LET with string variable
+REM Test 7: LET with string variable
 LET NAME$ = "C64Script"
 LOG "Language: " + NAME$
 WAIT 100ms
 
-# Test 8: LET with array element
+REM Test 8: LET with array element
 DIM ARRAY(5)
 LET ARRAY(0) = 100
 LET ARRAY(1) = 200
@@ -45,24 +45,24 @@ SUM = ARRAY(0) + ARRAY(1)
 LOG "Array sum: " + SUM
 WAIT 100ms
 
-# Test 9: LET with map element
+REM Test 9: LET with map element
 LET CONFIG{"port"} = 8080
 LET CONFIG{"timeout"} = 5000
 PORT = CONFIG{"port"}
 LOG "Port: " + PORT
 WAIT 100ms
 
-# Test 10: REM on same line as label
+REM Test 10: REM on same line as label
 START: REM This is the start label
 EFFECT CRT Monitor Warm
 WAIT 100ms
 
-# Test 11: Complex expression with LET
+REM Test 11: Complex expression with LET
 LET RESULT = (10 + 20) * 2 - 5
 LOG "Result: " + RESULT
 WAIT 100ms
 
-# Test 12: Multiple LETs
+REM Test 12: Multiple LETs
 LET A = 1
 LET B = 2
 LET C = 3
@@ -70,7 +70,7 @@ TOTAL = A + B + C
 LOG "Total: " + TOTAL
 WAIT 100ms
 
-# Test 13: LET with function call
+REM Test 13: LET with function call
 LET RANDOM = RND(100)
 LOG "Random: " + RANDOM
 WAIT 100ms

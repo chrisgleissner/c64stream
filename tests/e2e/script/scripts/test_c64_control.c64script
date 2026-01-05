@@ -1,43 +1,43 @@
-# Test C64 Ultimate control commands
-# Validates PLAYSID, RUNPRG, MOUNTDISK, AUTOSTART, RESET, REBOOT
+REM Test C64 Ultimate control commands
+REM Validates PLAYSID, RUNPRG, MOUNTDISK, AUTOSTART, RESET, REBOOT
 
-# Test 1: Play SID file with song number
+REM Test 1: Play SID file with song number
 PLAYSID c64u:/Commodore/SID/tune1.sid SONGNR=1
 WAIT 500ms
 
-# Test 2: Play different SID file
+REM Test 2: Play different SID file
 PLAYSID c64u:/Commodore/SID/tune2.sid SONGNR=2
 WAIT 500ms
 
-# Test 3: Play SID without explicit song number (defaults to 0)
+REM Test 3: Play SID without explicit song number (defaults to 0)
 PLAYSID c64u:/Commodore/SID/subfolder/tune3.sid
 WAIT 500ms
 
-# Test 4: Run PRG file
+REM Test 4: Run PRG file
 RUNPRG c64u:/Commodore/PRG/game1.prg
 WAIT 500ms
 
-# Test 5: Run another PRG
+REM Test 5: Run another PRG
 RUNPRG c64u:/Commodore/PRG/demo.prg
 WAIT 500ms
 
-# Test 6: Mount disk image
+REM Test 6: Mount disk image
 MOUNTDISK c64u:/Commodore/D64/disk1.d64
 WAIT 500ms
 
-# Test 7: Mount another disk
+REM Test 7: Mount another disk
 MOUNTDISK c64u:/Commodore/D64/disk2.d64
 WAIT 500ms
 
-# Test 8: Reset C64
+REM Test 8: Reset C64
 RESET
 WAIT 500ms
 
-# Test 9: Reboot C64 Ultimate
+REM Test 9: Reboot C64 Ultimate
 REBOOT
 WAIT 500ms
 
-# Test 10: Autostart (sends LOAD"*",8,1 and RUN)
+REM Test 10: Autostart (sends LOAD"*",8,1 and RUN)
 AUTOSTART
 WAIT 500ms
 

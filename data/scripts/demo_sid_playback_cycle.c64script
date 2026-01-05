@@ -1,5 +1,5 @@
-# SID Playback Demo (C64U paths)
-# Requires C64 Ultimate with SID files
+REM SID Playback Demo (C64U paths)
+REM Requires C64 Ultimate with SID files
 
 PLAY_SID "c64u:/Usb2/SID/HVSC/C64Music/DEMOS/0-9/10_Orbyte.sid" SONGNR=0
 WAIT 5s

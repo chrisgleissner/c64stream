@@ -1,0 +1,40 @@
+# Execution trace
+script: "trace_test.c64script"
+program: |
+  1: REM Simple trace test
+  2: x = 1
+  3: y = 2
+  4: z = x + y
+  5: REM Final value
+  6: print(z)
+trace:
+- line: 1
+  content: REM Simple trace test
+  variables: {}
+- line: 2
+  content: x = 1
+  variables:
+    x: 1
+- line: 3
+  content: y = 2
+  variables:
+    x: 1
+    y: 2
+- line: 4
+  content: z = x + y
+  variables:
+    x: 1
+    y: 2
+    z: 3
+- line: 5
+  content: REM Final value
+  variables:
+    x: 1
+    y: 2
+    z: 3
+- line: 6
+  content: print(z)
+  variables:
+    x: 1
+    y: 2
+    z: 3

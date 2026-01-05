@@ -380,19 +380,19 @@ TEST(parse_multiple_statements)
 
 TEST(parse_empty_lines_and_comments)
 {
-    const char *source = "# Comment\n\nx = 1\n\n# Another comment\ny = 2";
+    const char *source = "REM Comment\n\nx = 1\n\nREM Another comment\ny = 2";
     char error_msg[1024];
     c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
     assert(ast != NULL && "Failed to parse with comments");
 
-    // Count actual statements (should skip comments and empty lines)
+    // Count actual statements (including REM statements)
     int count = 0;
     c64script_ast_node_t *node = ast;
     while (node) {
         count++;
         node = node->next;
     }
-    assert(count == 2 && "Expected 2 statements (comments should be skipped)");
+    assert(count == 4 && "Expected 4 statements (2 assignments + 2 REM)");
     c64script_ast_free(ast);
 }
 
@@ -763,7 +763,7 @@ TEST(parse_troff)
 
 TEST(parse_full_program)
 {
-    const char *source = "# Simple program\n"
+    const char *source = "REM Simple program\n"
                          "LABEL start\n"
                          "x = 0\n"
                          "LABEL loop\n"
@@ -774,10 +774,12 @@ TEST(parse_full_program)
     c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
     assert(ast != NULL && "Failed to parse full program");
 
-    // Verify structure
-    assert(ast->type == AST_STMT_LABEL);
+    // Verify structure (first node is now REM statement)
+    assert(ast->type == AST_STMT_REM);
     assert(ast->next != NULL);
-    assert(ast->next->type == AST_STMT_ASSIGNMENT);
+    assert(ast->next->type == AST_STMT_LABEL);
+    assert(ast->next->next != NULL);
+    assert(ast->next->next->type == AST_STMT_ASSIGNMENT);
 }
 
 // ============================================================================

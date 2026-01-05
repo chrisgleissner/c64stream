@@ -1,9 +1,9 @@
-# Test type mismatch errors
-# Operations that should fail due to type incompatibility
+REM Test type mismatch errors
+REM Operations that should fail due to type incompatibility
 
-# Test 1: Invalid arithmetic on strings (if not auto-converted)
+REM Test 1: Invalid arithmetic on strings (if not auto-converted)
 NAME$ = "HELLO"
-# This might cause type mismatch depending on implementation
+REM This might cause type mismatch depending on implementation
 RESULT = NAME$ + 5
 EFFECT Sharp Pixels
 STOP

@@ -1,7 +1,7 @@
-# Test error handling and invalid constructs
-# This script should cause various parse/runtime errors
+REM Test error handling and invalid constructs
+REM This script should cause various parse/runtime errors
 
-# Test 1: Invalid command (should cause parse error)
+REM Test 1: Invalid command (should cause parse error)
 invalid_command_that_does_not_exist
 EFFECT Sharp Pixels
 STOP

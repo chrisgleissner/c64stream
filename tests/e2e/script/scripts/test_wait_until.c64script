@@ -1,41 +1,41 @@
-# Test WAIT UNTIL command
-# Validates waiting until a specific wall-clock time
+REM Test WAIT UNTIL command
+REM Validates waiting until a specific wall-clock time
 
-# Test 1: Current time and immediate wait
+REM Test 1: Current time and immediate wait
 CURRENT$ = TIME$()
 LOG "Current time: " + CURRENT$
 WAIT 100ms
 
-# Test 2: Wait until a time already passed (should complete immediately)
+REM Test 2: Wait until a time already passed (should complete immediately)
 WAIT UNTIL "00:00:01"
 LOG "Past time wait completed immediately"
 WAIT 100ms
 
-# Test 3: Calculate future time (Unix epoch + 1 second)
+REM Test 3: Calculate future time (Unix epoch + 1 second)
 REM In practice, WAIT UNTIL would wait for a real future time
 REM These tests validate syntax and immediate completion for past times
 
-# Test 4: Wait with HH:MM:SS format
+REM Test 4: Wait with HH:MM:SS format
 WAIT UNTIL "23:59:59"
 LOG "Time format wait completed"
 WAIT 100ms
 
-# Test 5: Wait with HH:MM format
+REM Test 5: Wait with HH:MM format
 WAIT UNTIL "12:00"
 LOG "Short time format wait completed"
 WAIT 100ms
 
-# Test 6: Wait with full ISO-8601 format
+REM Test 6: Wait with full ISO-8601 format
 WAIT UNTIL "2024-01-01 00:00:00"
 LOG "Full datetime wait completed"
 WAIT 100ms
 
-# Test 7: Wait with ISO-8601 T separator
+REM Test 7: Wait with ISO-8601 T separator
 WAIT UNTIL "2024-01-01T00:00:00"
 LOG "ISO T-format wait completed"
 WAIT 100ms
 
-# Test 8: Use in scheduling workflow
+REM Test 8: Use in scheduling workflow
 LOG "Scheduling workflow..."
 EFFECT Sharp Pixels
 WAIT UNTIL "00:00:05"
@@ -43,7 +43,7 @@ EFFECT Soft CRT
 LOG "Workflow completed"
 WAIT 100ms
 
-# Test 9: Multiple timed events
+REM Test 9: Multiple timed events
 WAIT UNTIL "00:01:00"
 LOG "First event"
 PALETTE colodore
@@ -54,7 +54,7 @@ LOG "Second event"
 PALETTE pepto_ntsc
 WAIT 50ms
 
-# Test 10: Conditional with time-based wait
+REM Test 10: Conditional with time-based wait
 CURRENT$ = TIME$()
 LOG "Starting at: " + CURRENT$
 WAIT UNTIL "00:00:10"

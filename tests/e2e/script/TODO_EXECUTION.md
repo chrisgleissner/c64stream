@@ -100,39 +100,39 @@ Add to `tests/test_c64script_compiler.c`:
 TEST(execute_script_from_file)
 {
     const char *script_path = "tests/e2e/script/scripts/test_user_functions.c64script";
-    
+
     // Read script from file
     FILE *f = fopen(script_path, "r");
     assert(f != NULL && "Failed to open script file");
-    
+
     fseek(f, 0, SEEK_END);
     long size = ftell(f);
     fseek(f, 0, SEEK_SET);
-    
+
     char *source = malloc(size + 1);
     fread(source, 1, size, f);
     source[size] = '\0';
     fclose(f);
-    
+
     // Parse, compile, execute
     char error[256];
     c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error, sizeof(error));
     assert(ast != NULL);
-    
+
     c64script_runtime_t *runtime = c64script_runtime_create();
     bool success = c64script_compile(ast, runtime, error, sizeof(error));
     assert(success);
-    
+
     success = c64script_execute(runtime);
     assert(success);
-    
+
     // Assert against expected results
     c64script_value_t value;
     success = c64script_runtime_get_var(runtime, "CONSTANT", &value);
     assert(success);
     assert(value.type == VALUE_NUMBER);
     assert(value.as.number == 42.0);
-    
+
     c64script_runtime_destroy(runtime);
     c64script_ast_free(ast);
     free(source);

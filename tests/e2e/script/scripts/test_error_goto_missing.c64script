@@ -1,5 +1,5 @@
-# Test missing GOTO target (should cause runtime error)
-# Jump to a label that doesn't exist
+REM Test missing GOTO target (should cause runtime error)
+REM Jump to a label that doesn't exist
 
 EFFECT Sharp Pixels
 WAIT 100ms

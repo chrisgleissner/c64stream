@@ -784,6 +784,10 @@ typedef struct {
     volatile bool step_mode;    // Single-step mode
     bool trace_enabled;         // TRON/TROFF state
 
+    // Iteration limit for testing (0 = unlimited)
+    uint64_t max_iterations;
+    uint64_t iteration_count;
+
     // Line tracking for debugging (volatile for thread synchronization)
     volatile int last_executed_line;   // Last source line that completed execution
     volatile int next_line_to_execute; // Next source line to execute
@@ -799,6 +803,13 @@ typedef struct {
     // Error reporting
     char error_msg[1024];
     int error_line;
+
+    // Execution trace (for testing/verification)
+    bool trace_recording_enabled;
+    bool trace_first_entry; // Track if this is the first trace entry
+    FILE *trace_file;
+    char trace_filename[512];
+    size_t trace_step_count; // Number of trace entries recorded
 
     // Integration points (set by executor)
     void *source_data; // OBS source data
@@ -839,6 +850,12 @@ c64script_runtime_t *c64script_runtime_create(void);
  * Destroy a runtime context
  */
 void c64script_runtime_destroy(c64script_runtime_t *runtime);
+
+/**
+ * Enable execution trace recording to a JSON file
+ * Must be called before c64script_execute()
+ */
+bool c64script_enable_trace_recording(c64script_runtime_t *runtime, const char *filename);
 
 /**
  * Free an AST

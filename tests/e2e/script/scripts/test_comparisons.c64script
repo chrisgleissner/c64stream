@@ -1,7 +1,7 @@
-# Test all comparison operators
-# Tests: =, ==, <>, !=, <, <=, >, >=
+REM Test all comparison operators
+REM Tests: =, ==, <>, !=, <, <=, >, >=
 
-# Test 1: Equality operators (= and ==)
+REM Test 1: Equality operators (= and ==)
 A = 5
 IF A = 5 THEN
     EFFECT Sharp Pixels
@@ -11,7 +11,7 @@ IF A == 5 THEN
     WAIT 100ms
 ENDIF
 
-# Test 2: Inequality operators (<> and !=)
+REM Test 2: Inequality operators (<> and !=)
 B = 3
 IF B <> 5 THEN
     PALETTE colodore
@@ -21,14 +21,14 @@ IF B != 5 THEN
     WAIT 100ms
 ENDIF
 
-# Test 3: Less than (<)
+REM Test 3: Less than (<)
 C = 2
 D = 5
 IF C < D THEN
     EFFECT Soft CRT
 ENDIF
 
-# Test 4: Less than or equal (<=)
+REM Test 4: Less than or equal (<=)
 E = 5
 F = 5
 IF E <= F THEN
@@ -40,14 +40,14 @@ IF G <= F THEN
     WAIT 100ms
 ENDIF
 
-# Test 5: Greater than (>)
+REM Test 5: Greater than (>)
 H = 10
 I = 5
 IF H > I THEN
     EFFECT Light Scanlines
 ENDIF
 
-# Test 6: Greater than or equal (>=)
+REM Test 6: Greater than or equal (>=)
 J = 5
 K = 5
 IF J >= K THEN
@@ -59,7 +59,7 @@ IF L >= K THEN
     WAIT 100ms
 ENDIF
 
-# Test 7: Comparison chains in loop conditions
+REM Test 7: Comparison chains in loop conditions
 FOR M = 1 TO 5
     IF M >= 3 AND M <= 4 THEN
         EFFECT CRT Monitor Warm
@@ -67,8 +67,8 @@ FOR M = 1 TO 5
     ENDIF
 NEXT M
 
-# Test 8: String comparisons (if supported)
-# Most BASIC dialects support string comparison
+REM Test 8: String comparisons (if supported)
+REM Most BASIC dialects support string comparison
 NAME$ = "TEST"
 IF NAME$ = "TEST" THEN
     EFFECT Heavy Scanlines

@@ -42,11 +42,9 @@ duration_lit    = number, ("ms" | "s" | "m" | "h" | "d") ;
 
 script          = { line }, EOF ;
 line            = [WS], [label_def], [statement], EOL
-                | [WS], comment_line, EOL
                 | [WS], EOL ;
 
 label_def       = label, [":"], [WS] ;
-comment_line    = "#", { ? any character except EOL ? } ;
 
 (* ========================================================================== *)
 (* STATEMENTS *)

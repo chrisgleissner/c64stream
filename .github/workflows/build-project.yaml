@@ -418,6 +418,16 @@ jobs:
           # Build with Ninja
           cmake --build build_x86_64 --config ${{ needs.check-event.outputs.config }} --parallel
 
+      - name: Run Unit Tests 🧪
+        run: |
+          : Run Unit Tests 🧪
+          ctest --test-dir build_x86_64 --output-on-failure
+
+      - name: Run C64Script Validation Tests 📝
+        run: |
+          : Run C64Script Validation Tests 📝
+          ./build_x86_64/tests/test_c64script_all_scripts
+
       - name: Package Plugin 📦
         env:
           PLUGIN_VERSION_OVERRIDE: ${{ needs.check-event.outputs.pluginVersion }}

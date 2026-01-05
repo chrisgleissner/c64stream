@@ -1,5 +1,5 @@
-# Loop test script
-# Tests goto and label functionality
+REM Loop test script
+REM Tests goto and label functionality
 
 label start
 effect Sharp Pixels

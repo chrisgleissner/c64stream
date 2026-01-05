@@ -1,7 +1,7 @@
-# Test nested loops (FOR within WHILE, WHILE within FOR)
-# This script validates that nested loop constructs work correctly
+REM Test nested loops (FOR within WHILE, WHILE within FOR)
+REM This script validates that nested loop constructs work correctly
 
-# Test 1: FOR loop within WHILE loop
+REM Test 1: FOR loop within WHILE loop
 I = 0
 WHILE I < 3
     # Inner FOR loop should execute 3 times
@@ -12,7 +12,7 @@ WHILE I < 3
     I = I + 1
 WEND
 
-# Test 2: WHILE loop within FOR loop  
+REM Test 2: WHILE loop within FOR loop  
 FOR OUTER = 1 TO 2
     INNER = 0
     WHILE INNER < 2
@@ -22,7 +22,7 @@ FOR OUTER = 1 TO 2
     WEND
 NEXT OUTER
 
-# Test 3: Triple nesting (FOR within WHILE within FOR)
+REM Test 3: Triple nesting (FOR within WHILE within FOR)
 FOR A = 1 TO 2
     B = 0
     WHILE B < 2

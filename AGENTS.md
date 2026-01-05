@@ -63,6 +63,9 @@ The wrapper auto-detects common Homebrew installs; you can also override via `CL
 # C/C++ tests (CMake/CTest)
 ctest --test-dir build_x86_64 --output-on-failure
 
+# C64Script validation tests (ALL .c64script files in repo)
+./build_x86_64/tests/test_c64script_all_scripts
+
 # Python unit tests (E2E harness)
 python3 -m unittest \
     tests/e2e/test_network_simulation.py \
@@ -70,6 +73,16 @@ python3 -m unittest \
 ```
 
 Note: `./local-build.sh linux` runs unit tests by default (use `--no-tests` to skip).
+Use `./local-build.sh linux --script-tests` to run c64script validation.
+
+### C64Script Trace Validation (MANDATORY for script changes)
+
+All `.c64script` files are executed during tests. Scripts with `.expected-trace.yaml` files have their execution traces validated:
+
+- Trace limit: **1000 steps max** (prevents huge traces in repo)
+- Traces record: line number, line content, variable states
+- Format: YAML for readability
+- Location: `<script>.expected-trace.yaml` alongside script file
 
 ### Documentation review (MANDATORY before declaring completion)
 

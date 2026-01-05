@@ -1,7 +1,7 @@
-# Test maximum nesting depth for loops
-# This should hit the nesting limit (typically 16 levels)
+REM Test maximum nesting depth for loops
+REM This should hit the nesting limit (typically 16 levels)
 
-# Attempt to nest 20 FOR loops (should fail at limit)
+REM Attempt to nest 20 FOR loops (should fail at limit)
 FOR L1 = 1 TO 2
 FOR L2 = 1 TO 2
 FOR L3 = 1 TO 2
@@ -19,7 +19,7 @@ FOR L14 = 1 TO 2
 FOR L15 = 1 TO 2
 FOR L16 = 1 TO 2
 FOR L17 = 1 TO 2
-# Should fail here or earlier
+REM Should fail here or earlier
 EFFECT Sharp Pixels
 WAIT 10ms
 NEXT L17

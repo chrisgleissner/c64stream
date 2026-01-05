@@ -1,5 +1,5 @@
-# Test potential infinite loop (should be detectable or cancellable)
-# This script deliberately creates an infinite loop
+REM Test potential infinite loop (should be detectable or cancellable)
+REM This script deliberately creates an infinite loop
 
 COUNTER = 0
 
@@ -8,10 +8,10 @@ COUNTER = COUNTER + 1
 EFFECT Sharp Pixels
 WAIT 10ms
 
-# Infinite loop - always true condition
+REM Infinite loop - always true condition
 IF 1 THEN
     GOTO LOOP_START
 ENDIF
 
-# Never reached
+REM Never reached
 STOP

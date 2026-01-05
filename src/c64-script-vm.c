@@ -14,6 +14,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-keyboard.h"
 #include "c64-rest-client.h"
 
+#include <ctype.h>
 #include <obs-module.h>
 #ifdef ENABLE_FRONTEND_API
 #include <obs-frontend-api.h>
@@ -424,6 +425,136 @@ static bool require_number(c64script_runtime_t *runtime, const c64script_value_t
 // VM EXECUTION
 // ============================================================================
 
+// Helper to escape YAML strings (only if needed)
+static void write_yaml_string(FILE *f, const char *str)
+{
+    // Check if we need quotes (contains special chars, starts with special chars, etc.)
+    bool needs_quotes = false;
+    if (!str || !*str) {
+        fprintf(f, "''");
+        return;
+    }
+
+    // Simple heuristic: quote if contains : or starts with special chars
+    if (strchr(str, ':') || strchr(str, '#') || strchr(str, '\n') || str[0] == '-' || str[0] == '[' || str[0] == '{') {
+        needs_quotes = true;
+    }
+
+    if (needs_quotes) {
+        fputc('\'', f);
+        while (*str) {
+            if (*str == '\'') {
+                fputs("''", f); // Escape single quotes by doubling
+            } else {
+                fputc(*str, f);
+            }
+            str++;
+        }
+        fputc('\'', f);
+    } else {
+        fputs(str, f);
+    }
+}
+
+// Helper to write a c64script value as YAML
+static void write_value_as_yaml(FILE *f, const c64script_value_t *val)
+{
+    switch (val->type) {
+    case VALUE_NUMBER:
+        fprintf(f, "%.17g", val->as.number);
+        break;
+    case VALUE_STRING:
+        write_yaml_string(f, val->as.string);
+        break;
+    case VALUE_ARRAY:
+        fprintf(f, "<array>");
+        break;
+    case VALUE_MAP:
+        fprintf(f, "<map>");
+        break;
+    default:
+        fprintf(f, "<unknown>");
+        break;
+    }
+}
+
+// Record trace entry for current line
+static void record_trace_entry(c64script_runtime_t *runtime, int line_num)
+{
+    if (!runtime->trace_recording_enabled || !runtime->trace_file || line_num <= 0) {
+        return;
+    }
+
+    // Enforce 1k trace step limit (prevents huge traces in repo)
+    if (runtime->trace_step_count >= 1000) {
+        snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Trace step limit exceeded (1000 steps max)");
+        runtime->should_stop = true;
+        return;
+    }
+    runtime->trace_step_count++;
+
+    char line_buffer[512];
+    const char *src = runtime->source_text;
+    if (!src) {
+        snprintf(line_buffer, sizeof(line_buffer), "<line %d>", line_num);
+    } else {
+        // Extract line content
+        int current_line = 1;
+        const char *line_start = src;
+
+        while (*src && current_line < line_num) {
+            if (*src == '\n') {
+                current_line++;
+                line_start = src + 1;
+            }
+            src++;
+        }
+
+        if (current_line == line_num) {
+            const char *line_end = line_start;
+            while (*line_end && *line_end != '\n' && *line_end != '\r') {
+                line_end++;
+            }
+
+            size_t len = line_end - line_start;
+            if (len >= sizeof(line_buffer)) {
+                len = sizeof(line_buffer) - 1;
+            }
+            memcpy(line_buffer, line_start, len);
+            line_buffer[len] = '\0';
+
+            // Trim
+            char *trimmed = line_buffer;
+            while (isspace((unsigned char)*trimmed))
+                trimmed++;
+            char *end = trimmed + strlen(trimmed) - 1;
+            while (end > trimmed && isspace((unsigned char)*end))
+                *end-- = '\0';
+            memmove(line_buffer, trimmed, strlen(trimmed) + 1);
+        } else {
+            snprintf(line_buffer, sizeof(line_buffer), "<line %d not found>", line_num);
+        }
+    }
+
+    fprintf(runtime->trace_file, "- line: %d\n", line_num);
+    fprintf(runtime->trace_file, "  content: ");
+    write_yaml_string(runtime->trace_file, line_buffer);
+    fprintf(runtime->trace_file, "\n");
+
+    if (runtime->variable_count > 0) {
+        fprintf(runtime->trace_file, "  variables:\n");
+        for (size_t i = 0; i < runtime->variable_count; i++) {
+            fprintf(runtime->trace_file, "    %s: ", runtime->variables[i].name);
+            write_value_as_yaml(runtime->trace_file, &runtime->variables[i].value);
+            fprintf(runtime->trace_file, "\n");
+        }
+    } else {
+        fprintf(runtime->trace_file, "  variables: {}\n");
+    }
+
+    fflush(runtime->trace_file);
+}
+
 bool c64script_execute(c64script_runtime_t *runtime)
 {
     return c64script_vm_execute(runtime);
@@ -445,10 +576,19 @@ bool c64script_vm_execute(c64script_runtime_t *runtime)
     runtime->should_stop = false;
     runtime->last_executed_line = 0;
     runtime->next_line_to_execute = runtime->bytecode_size > 0 ? runtime->bytecode[0].source_line : 0;
+    runtime->iteration_count = 0;
 
     while (runtime->ip < runtime->bytecode_size && !runtime->should_stop) {
         c64script_instruction_t *instr = &runtime->bytecode[runtime->ip];
         int current_line = instr->source_line;
+
+        // Check iteration limit (for testing to prevent infinite loops)
+        if (runtime->max_iterations > 0 && ++runtime->iteration_count >= runtime->max_iterations) {
+            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Iteration limit exceeded (%llu iterations)",
+                     (unsigned long long)runtime->max_iterations);
+            runtime->should_stop = true;
+            return false;
+        }
 
         // Check for pause at source line boundaries
         // Only pause when the line number changes (new source line)
@@ -473,6 +613,12 @@ bool c64script_vm_execute(c64script_runtime_t *runtime)
         }
 
         runtime->error_line = instr->source_line;
+
+        // Record trace entry if line changed
+        if (runtime->trace_recording_enabled && instr->source_line != runtime->last_executed_line &&
+            instr->source_line > 0) {
+            record_trace_entry(runtime, instr->source_line);
+        }
 
         if (runtime->trace_enabled) {
             blog(LOG_INFO, "[TRACE] IP=%zu OP=%d line=%d", runtime->ip, instr->opcode, instr->source_line);

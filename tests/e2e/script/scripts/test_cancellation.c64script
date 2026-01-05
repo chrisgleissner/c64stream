@@ -1,5 +1,5 @@
-# Cancellation test script
-# Tests immediate stop during long wait
+REM Cancellation test script
+REM Tests immediate stop during long wait
 
 wait 60s
 effect This Should Never Execute

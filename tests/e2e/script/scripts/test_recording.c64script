@@ -1,15 +1,15 @@
-# Test recording control commands
-# Validates RECORDSTART and RECORDSTOP
+REM Test recording control commands
+REM Validates RECORDSTART and RECORDSTOP
 
-# Test 1: Start recording
+REM Test 1: Start recording
 RECORDSTART
 WAIT 1s
 
-# Test 2: Stop recording
+REM Test 2: Stop recording
 RECORDSTOP
 WAIT 500ms
 
-# Test 3: Start and stop multiple times
+REM Test 3: Start and stop multiple times
 RECORDSTART
 WAIT 500ms
 RECORDSTOP
@@ -20,7 +20,7 @@ WAIT 500ms
 RECORDSTOP
 WAIT 500ms
 
-# Test 4: Recording with effects
+REM Test 4: Recording with effects
 RECORDSTART
 EFFECT Sharp Pixels
 WAIT 500ms
