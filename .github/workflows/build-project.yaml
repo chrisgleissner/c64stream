@@ -426,7 +426,7 @@ jobs:
       - name: Run C64Script Validation Tests 📝
         run: |
           : Run C64Script Validation Tests 📝
-          ./build_x86_64/tests/test_c64script_all_scripts
+          ./build_x86_64/tests/test_c64script_all_scripts .
 
       - name: Package Plugin 📦
         env:
