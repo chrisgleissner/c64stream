@@ -630,9 +630,8 @@ bool c64_palette_parse_vpl(const char *path, uint32_t *colors, char *name, size_
     }
 
     // Skip directories silently (e.g., when scanning import paths)
-    // Check if path ends with a separator indicating it's a directory
-    size_t len = strlen(path);
-    if (len > 0 && (path[len - 1] == '/' || path[len - 1] == '\\')) {
+    struct stat st;
+    if (os_stat(path, &st) == 0 && S_ISDIR(st.st_mode)) {
         return false;
     }
 
