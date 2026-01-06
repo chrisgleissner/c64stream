@@ -139,9 +139,9 @@ static void validate_audio_timestamp_progression(struct c64_source *context, uin
 // Generate monotonic audio timestamps with format-specific intervals
 static uint64_t generate_monotonic_audio_timestamp(struct c64_source *context)
 {
-    // Audio packet intervals are format-specific:
-    // PAL:  192 samples ÷ C64_PAL_AUDIO_SAMPLE_RATE = 4,001,417 ns/packet
-    // NTSC: 192 samples ÷ C64_NTSC_AUDIO_SAMPLE_RATE = 4,005,006 ns/packet
+    // Audio packet intervals are format-specific (exact fractional rates):
+    // PAL:  192 samples ÷ 47982.8869047619 Hz = 4,001,416.96 ns/packet
+    // NTSC: 192 samples ÷ 47940.3408482143 Hz = 4,005,005.95 ns/packet
     //
     // The interval_ns is calculated dynamically based on detected format
 
@@ -153,13 +153,13 @@ static uint64_t generate_monotonic_audio_timestamp(struct c64_source *context)
         // interval_ns = (192 samples * 1,000,000,000 ns/sec) / sample_rate
         if (context->audio_sample_rate > 0) {
             context->audio_interval_ns = (192ULL * 1000000000ULL) / context->audio_sample_rate;
-            C64_LOG_INFO("" AUDIO_LOG_PREFIX " Audio packet interval: %" PRIu64 " ns (rate=%u Hz)",
+            C64_LOG_INFO("" AUDIO_LOG_PREFIX " Audio packet interval: %" PRIu64 " ns (rate=%.4f Hz)",
                          context->audio_interval_ns, context->audio_sample_rate);
         } else {
             // Fallback to PAL rate if format not yet detected
             context->audio_sample_rate = C64_PAL_AUDIO_SAMPLE_RATE;
             context->audio_interval_ns = (192ULL * 1000000000ULL) / context->audio_sample_rate;
-            C64_LOG_WARNING("" AUDIO_LOG_PREFIX " Format not detected, using PAL audio rate: %u Hz",
+            C64_LOG_WARNING("" AUDIO_LOG_PREFIX " Format not detected, using PAL audio rate: %.4f Hz",
                             context->audio_sample_rate);
         }
 
@@ -238,8 +238,8 @@ void c64_process_audio_packet(struct c64_source *context, const uint8_t *audio_d
 
     // Set up OBS audio data structure - optimized for minimal latency
     struct obs_source_audio audio_output = {0};
-    audio_output.frames = 192;                                 // 192 stereo samples per packet
-    audio_output.samples_per_sec = context->audio_sample_rate; // Format-specific rate (PAL/NTSC)
+    audio_output.frames = 192;                                           // 192 stereo samples per packet
+    audio_output.samples_per_sec = (uint32_t)context->audio_sample_rate; // Format-specific rate (PAL/NTSC)
     audio_output.format = AUDIO_FORMAT_16BIT;
     audio_output.speakers = SPEAKERS_STEREO;
     audio_output.timestamp = audio_timestamp; // Use synthetic timestamp for smooth playback

@@ -117,7 +117,7 @@ struct c64_source {
     // Monotonic audio timestamp generation
     uint64_t audio_packet_count;              // Total audio packets processed since stream start
     uint64_t audio_interval_ns;               // Nanoseconds per audio packet (format-specific)
-    uint32_t audio_sample_rate;               // Audio sample rate (47983 Hz PAL, 47940 Hz NTSC)
+    double audio_sample_rate;                 // Audio sample rate (exact: 47982.887 Hz PAL, 47940.341 Hz NTSC)
     uint64_t audio_base_time;                 // Base timestamp for synthetic audio timestamps
     uint64_t last_audio_timestamp_validation; // Last timestamp for progression validation
 

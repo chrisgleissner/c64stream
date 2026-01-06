@@ -72,9 +72,11 @@ Both formats maintain identical 320×200 inner screen dimensions with symmetric 
 
 ### Stream Format
 - Packet Size: 770 bytes (2 byte header + 768 byte payload)
-- Sample Rate:
-  - PAL: 47983 Hz (-356 ppm from 48kHz)
-  - NTSC: 47940 Hz (-1243 ppm from 48kHz)
+- Sample Rate (exact fractional frequencies derived from hardware clock):
+  - PAL: 47982.887 Hz (exact: 47982.8869047619 Hz, -356.52 ppm from 48kHz)
+  - NTSC: 47940.341 Hz (exact: 47940.3408482143 Hz, -1242.9 ppm from 48kHz)
+  - Note: Integer display values (47983/47940 Hz) are rounded for readability only
+  - Clock derivation: PAL uses (4433618.75 × 16/9 × 15/77/32), NTSC uses (3579545.45 × 16/7 × 15/80/32)
 
 ### Packet Structure
 1. Header: Sequence number (16-bit)

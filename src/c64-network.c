@@ -456,7 +456,7 @@ socket_t c64_create_udp_socket(uint32_t port)
 #ifdef _WIN32
     // Windows: Small delay to ensure socket is fully ready for receiving
     // This helps with reconnection scenarios where port was recently closed
-    Sleep(50); // 50ms delay
+    os_sleep_ms(50); // 50ms delay
 #endif
 
     return sock;

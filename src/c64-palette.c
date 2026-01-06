@@ -23,6 +23,9 @@ See <https://www.gnu.org/licenses/> for details.
 #ifdef _WIN32
 #define PATH_SEP '\\\\'
 #define strcasecmp _stricmp
+#ifndef S_ISDIR
+#define S_ISDIR(m) (((m) & S_IFMT) == S_IFDIR)
+#endif
 #else
 #define PATH_SEP '/'
 #endif
