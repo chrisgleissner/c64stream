@@ -18,28 +18,33 @@
    - This applies to all tests, including unit tests, integration tests, and E2E tests, as well as any environment, both local and cloud/CI
 ## Quick discovery
 
-- **High-level context**: `README.md`, `implementation-plan.md`, and `INVESTIGATION.md` describe the product vision, planned work, and ongoing research.
+- **High-level context**: `README.md`, `implementation-plan.md`, `INVESTIGATION.md`, and `IMPLEMENTATION_SUMMARY.md` (REST control snapshot) describe the product vision, planned work, and ongoing research.
 - **Planning**: `PLANS.md` (multi-hour requests) and `AGENTS.md` (workflow rules) guide how you should work.
-- **Documentation**: `doc/` hosts technical references and `docs/` is the website; add new docs there instead of scattering markdown elsewhere.
+- **Documentation**: `doc/` hosts technical references (including `doc/c64u/c64u-stream-spec.md` for protocol details) and `docs/` is the website; add new docs there instead of scattering markdown elsewhere.
 - **Tests and scripts**: `tests/` houses the validation suites and `build-aux/` provides helper scripts such as formatting and validation helpers.
 - **CI context**: `.github/build-instructions.md` and the workflow YAML files describe the required CI behaviors.
 
 ## Project Overview
-OBS Studio plugin for streaming C64 Ultimate device video/audio over network. See `doc/c64-stream-spec.md` for protocol details.
+OBS Studio plugin for streaming C64 Ultimate device video/audio over network. See `doc/c64u/c64u-stream-spec.md` for protocol details.
 
 ## Key Files
 **Core Implementation:**
-- `src/c64-source.c/h` - Main OBS source plugin
-- `src/c64-network.c/h` - UDP/TCP streaming client
+- `src/c64-source.c/h` - OBS source (render, properties, lifecycle)
+- `src/c64-network*.c/h` - UDP/TCP streaming client and buffering
 - `src/c64-video.c/h` - Video format conversion
 - `src/c64-audio.c/h` - Audio stream processing
 - `src/c64-protocol.c/h` - C64 Ultimate protocol handling
+- `src/c64-rest-client.c/h` - REST control client
+- `src/c64-automation.c` - Automation/preset helpers
+- `src/c64-script-*.c/h` - Script parser, bytecode/VM, runtime, executor
 - `src/plugin-main.c` - OBS plugin entry point
 
 **Build System:**
 - `CMakePresets.json` - Platform build configurations
 - `buildspec.json` - Dependencies and versions
 - `build-aux/run-clang-format` - Code formatting tool
+- `build-aux/run-gersemi` - CMake formatting tool
+- `.github/scripts/build-ubuntu` - GitHub Actions/Copilot build entrypoint
 
 ## Code Guidelines
 
@@ -86,7 +91,7 @@ See <https://www.gnu.org/licenses/> for details.
 ```
 
 ### Documentation
-- Keep documentation Markdown inside `doc/` (technical references) or `docs/` (site content). Root-level Markdown should be limited to `README.md`, `AGENTS.md`, `implementation-plan.md`, and other high-level summaries such as `INVESTIGATION.md`.
+- Keep documentation Markdown inside `doc/` (technical references) or `docs/` (site content). Root-level Markdown should be limited to `README.md`, `AGENTS.md`, `implementation-plan.md`, and other high-level summaries such as `INVESTIGATION.md` or `IMPLEMENTATION_SUMMARY.md` (when relevant).
 - Prefer kebab-case filenames for any new documentation to stay consistent with existing styles.
 
 ## Linux Build (MANDATORY)

@@ -7,7 +7,7 @@ This repository is an OBS Studio source plugin (`c64stream`) for streaming C64 U
 1. Start with `README.md` for the overall goal and repository layout.
 2. For feature context, read `implementation-plan.md` and `INVESTIGATION.md` (if present) before developing your solution.
 3. For any multi-hour task, open `PLANS.md` before planning changes.
-4. Technical protocol details live in `doc/c64-stream-spec.md`; cross-check there as needed.
+4. Technical protocol details live in `doc/c64u/c64u-stream-spec.md`; cross-check there as needed.
 5. Build/test workflows are defined in `.github/build-instructions.md`.
 6. Use `.github/copilot-instructions.md` for the latest rules and conventions (it supersedes anything below if there is a conflict).
 
@@ -15,7 +15,7 @@ This repository is an OBS Studio source plugin (`c64stream`) for streaming C64 U
 
 - **Primary rules & conventions**: see `.github/copilot-instructions.md`
 - **Multi-hour planning**: see `PLANS.md` (read at start of substantial tasks)
-- **Protocol documentation**: `doc/c64-stream-spec.md`
+- **Protocol documentation**: `doc/c64u/c64u-stream-spec.md`
 - **Build details (CI)**: `.github/build-instructions.md`
 
 If anything in this file conflicts with `.github/copilot-instructions.md`, follow `.github/copilot-instructions.md`.
@@ -76,7 +76,7 @@ The wrapper auto-detects common Homebrew installs; you can also override via `CL
 
 This runs:
 - All C/C++ unit tests (CTest)
-- All C64Script validation tests (35 scripts)
+- All C64Script validation tests (all scripts in the repository)
 - All Python unit tests (E2E harness)
 
 **Do not commit or push without a green local build. No exceptions.**
@@ -90,7 +90,7 @@ If you need to run specific test categories:
 ctest --test-dir build_x86_64 --output-on-failure
 
 # C64Script validation tests (ALL .c64script files in repo)
-./build_x86_64/tests/script/test_c64script_all_scripts .
+ctest --test-dir build_x86_64 -R c64script_all_scripts --output-on-failure
 
 # Python unit tests (E2E harness)
 python3 -m unittest \
