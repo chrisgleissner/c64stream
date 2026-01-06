@@ -629,9 +629,20 @@ bool c64_palette_parse_vpl(const char *path, uint32_t *colors, char *name, size_
         return false;
     }
 
+    // Skip directories silently (e.g., when scanning import paths)
+    // Check if path ends with a separator indicating it's a directory
+    size_t len = strlen(path);
+    if (len > 0 && (path[len - 1] == '/' || path[len - 1] == '\\')) {
+        return false;
+    }
+
     FILE *file = fopen(path, "r");
     if (!file) {
-        C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Failed to open VPL file: %s", path);
+        // Only log warning if it looks like a VPL file (has .vpl extension)
+        const char *ext = strrchr(path, '.');
+        if (ext && strcasecmp(ext, ".vpl") == 0) {
+            C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Failed to open VPL file: %s", path);
+        }
         return false;
     }
 
