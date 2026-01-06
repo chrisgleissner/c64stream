@@ -57,7 +57,7 @@ trace:
 
 #### Local (standalone)
 ```bash
-./build_x86_64/tests/test_c64script_all_scripts
+./build_x86_64/tests/script/test_c64script_all_scripts
 ```
 
 #### Local (via build script)
@@ -70,7 +70,7 @@ Automatically runs as part of standard build:
 ```yaml
 - name: Run C64Script Validation Tests 📝
   run: |
-    ./build_x86_64/tests/test_c64script_all_scripts
+    ./build_x86_64/tests/script/test_c64script_all_scripts
 ```
 
 ### Creating Expected Traces
@@ -84,7 +84,7 @@ Automatically runs as part of standard build:
 Example:
 ```bash
 # Script will generate trace in /tmp if expected trace exists
-./build_x86_64/tests/test_c64script_all_scripts
+./build_x86_64/tests/script/test_c64script_all_scripts
 # Review and copy
 cp /tmp/c64script_trace_12345.yaml tests/my_test.expected-trace.yaml
 # Commit
@@ -94,8 +94,8 @@ git add tests/my_test.c64script tests/my_test.expected-trace.yaml
 ## Test Infrastructure
 
 ### Components
-- `tests/test_c64script_all_scripts.c` - Main test runner
-- `tests/c64script_test_stubs.c/h` - Mocked OBS/C64U dependencies
+- `tests/script/test_c64script_all_scripts.c` - Main test runner
+- `tests/script/c64script_test_stubs.c/h` - Mocked OBS/C64U dependencies
 - `src/c64-script-vm.c` - Trace recording logic
 
 ### Mocked Dependencies
@@ -119,7 +119,7 @@ add_test(NAME c64script_all_scripts
 ### GitHub Workflow
 ```yaml
 - name: Run C64Script Validation Tests 📝
-  run: ./build_x86_64/tests/test_c64script_all_scripts
+  run: ./build_x86_64/tests/script/test_c64script_all_scripts
 ```
 
 ### Local Build Script

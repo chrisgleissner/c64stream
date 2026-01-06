@@ -1,7 +1,7 @@
 # C64 Script Trace Validation Report
 
-**Date:** 2026-01-05  
-**Task:** Validate all C64 script execution traces for completeness and correctness  
+**Date:** 2026-01-05
+**Task:** Validate all C64 script execution traces for completeness and correctness
 **Result:** ✅ All traces are correct and complete
 
 ## Executive Summary
@@ -19,7 +19,7 @@ A comprehensive analysis of the C64 script trace validation system was performed
 - **Bytecode Compiler** (src/c64-script-bytecode.c):
   - Identified which statements generate code vs. markers
   - Confirmed REM, LABEL, ENDIF, NEXT, WEND generate no opcodes
-  
+
 - **VM Executor** (src/c64-script-vm.c):
   - Analyzed trace recording logic (lines 669-671)
   - Verified `last_executed_line` tracking (lines 2632-2634)
@@ -81,7 +81,7 @@ For each examined script, the complete execution path was independently derived 
 
 #### 6. Duplicate Line Prevention
 - **Mechanism:** `last_executed_line` tracking
-- **Logic:** 
+- **Logic:**
   - Before execution: if `current_line != last_executed_line`, record trace
   - After execution: update `last_executed_line = current_line`
 - **Effect:** Prevents duplicate traces when multiple instructions share same source line
@@ -111,7 +111,7 @@ For each examined script, the complete execution path was independently derived 
 ### Test Suite Execution
 ```bash
 cd build_x86_64
-./tests/test_c64script_all_scripts ..
+./tests/script/test_c64script_all_scripts ..
 ```
 
 **Result:**
@@ -259,8 +259,8 @@ All 35 scripts have correct traces:
 **Trace Recording Trigger:**
 ```c
 // File: src/c64-script-vm.c, lines 669-671
-if (runtime->trace_recording_enabled && 
-    current_line != runtime->last_executed_line && 
+if (runtime->trace_recording_enabled &&
+    current_line != runtime->last_executed_line &&
     current_line > 0) {
     record_trace_entry(runtime, current_line);
 }
@@ -278,7 +278,7 @@ if (current_line > 0 && current_line != runtime->last_executed_line) {
 ```c
 // File: src/c64-script-vm.c, lines 489-493
 if (runtime->trace_step_count >= 1000) {
-    snprintf(runtime->error_msg, sizeof(runtime->error_msg), 
+    snprintf(runtime->error_msg, sizeof(runtime->error_msg),
              "Trace step limit exceeded (1000 steps max)");
     runtime->should_stop = true;
     return;
@@ -303,6 +303,6 @@ if (runtime->trace_step_count >= 1000) {
 
 ---
 
-**Report prepared by:** Copilot Agent  
-**Date:** 2026-01-05  
+**Report prepared by:** Copilot Agent
+**Date:** 2026-01-05
 **Status:** COMPLETE - No issues found

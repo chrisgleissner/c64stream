@@ -20,8 +20,8 @@ See <https://www.gnu.org/licenses/> for details.
 #undef NDEBUG
 #endif
 
-#include "../src/c64-script.h"
-#include "../src/c64-script-runtime.h"
+#include "c64-script.h"
+#include "c64-script-runtime.h"
 
 #include <assert.h>
 #include <setjmp.h>
@@ -111,16 +111,16 @@ static const char *EXPECTED_COMPILE_FAILURES[] = {"test_wait_until.c64script",  
 
 // Scripts that should compile but fail execution (runtime errors)
 static const char *EXPECTED_EXECUTION_FAILURES[] = {
-    "test_safety_max_nesting.c64script",   // Expected to hit nesting limit
-    "demo_basic_hello_world.c64script",    // Uses TYPE/KEY commands which need more work
-    "hello_world.c64script",               // Type mismatch issues (STR function in concatenation)
-    "demo_palette_cycle.c64script",        // Requires OBS source (long running demo)
-    "demo_effect_preset_cycle.c64script",  // Requires OBS source (long running demo)
-    "test_error_type_mismatch.c64script",  // Intentional type mismatch
-    "test_comparisons.c64script",          // String comparison not yet supported
-    "test_user_functions.c64script",       // Type mismatch issues
-    "test_logging.c64script",              // Type mismatch issues (string + number concatenation)
-    "test_error_invalid.c64script",        // Type mismatch
+    "test_safety_max_nesting.c64script",  // Expected to hit nesting limit
+    "demo_basic_hello_world.c64script",   // Uses TYPE/KEY commands which need more work
+    "hello_world.c64script",              // Type mismatch issues (STR function in concatenation)
+    "demo_palette_cycle.c64script",       // Requires OBS source (long running demo)
+    "demo_effect_preset_cycle.c64script", // Requires OBS source (long running demo)
+    "test_error_type_mismatch.c64script", // Intentional type mismatch
+    "test_comparisons.c64script",         // String comparison not yet supported
+    "test_user_functions.c64script",      // Type mismatch issues
+    "test_logging.c64script",             // Type mismatch issues (string + number concatenation)
+    "test_error_invalid.c64script",       // Type mismatch
     NULL};
 
 static bool should_expect_parse_failure(const char *filename)

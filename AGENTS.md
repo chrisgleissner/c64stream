@@ -2,6 +2,15 @@
 
 This repository is an OBS Studio source plugin (`c64stream`) for streaming C64 Ultimate video/audio over the network.
 
+## Quick orientation
+
+1. Start with `README.md` for the overall goal and repository layout.
+2. For feature context, read `implementation-plan.md` and `INVESTIGATION.md` (if present) before developing your solution.
+3. For any multi-hour task, open `PLANS.md` before planning changes.
+4. Technical protocol details live in `doc/c64-stream-spec.md`; cross-check there as needed.
+5. Build/test workflows are defined in `.github/build-instructions.md`.
+6. Use `.github/copilot-instructions.md` for the latest rules and conventions (it supersedes anything below if there is a conflict).
+
 ## Source of truth
 
 - **Primary rules & conventions**: see `.github/copilot-instructions.md`
@@ -81,7 +90,7 @@ If you need to run specific test categories:
 ctest --test-dir build_x86_64 --output-on-failure
 
 # C64Script validation tests (ALL .c64script files in repo)
-./build_x86_64/tests/test_c64script_all_scripts .
+./build_x86_64/tests/script/test_c64script_all_scripts .
 
 # Python unit tests (E2E harness)
 python3 -m unittest \

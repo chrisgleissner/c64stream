@@ -7,11 +7,8 @@
    - If it fails, run `./build-aux/run-clang-format <files...>` and re-run the check.
 2. **E2E is LOCAL ONLY**: do **not** run E2E tests in cloud/CI environments (known instability). Only run E2E locally with a working GUI.
 3. **Agent entrypoint**: also see `AGENTS.md` (references this file and standard workflows).
-4. **Before declaring work "complete"**: do a documentation review (docs match code/behavior) and run a full local E2E scenario suite (all scenarios).
-5. **Run BOTH local AND CI builds**: before any change is considered done, run:
-    - Local build: `./local-build.sh linux --install --e2e-scenarios` (runs full build, unit tests, and all E2E scenarios)
-    - CI build: trigger via push (do not use `act`)
-   - Both must pass with zero errors before declaring completion
+4. **Before declaring work "complete"**: review the documentation that your changes touch (`doc/`, `docs/`, README/AGENTS) and, for runtime-behavior changes, run the entire local E2E scenario suite (note spin-up trade-offs in your summary if you skip it).
+5. **Run the prescribed local build and let CI verify**: execute `./local-build.sh linux --install --e2e-scenarios` locally until it succeeds, then push so GitHub Actions can run the CI build (do not rely on `act` or other shortcuts). Both runs must exit without errors before labeling the work as done.
 6. **NEVER skip tests or ignore problems**: When facing test failures, performance issues, or other problems:
    - **Do NOT** add `skip`, `ci_skip`, `@pytest.mark.skip`, or similar markers to bypass tests
    - **Do NOT** comment out failing code or tests
@@ -19,6 +16,14 @@
    - **ALWAYS** fix the root cause of the problem
    - If a fix requires significant work, document the issue and create a plan, but never ship with skipped tests
    - This applies to all tests, including unit tests, integration tests, and E2E tests, as well as any environment, both local and cloud/CI
+## Quick discovery
+
+- **High-level context**: `README.md`, `implementation-plan.md`, and `INVESTIGATION.md` describe the product vision, planned work, and ongoing research.
+- **Planning**: `PLANS.md` (multi-hour requests) and `AGENTS.md` (workflow rules) guide how you should work.
+- **Documentation**: `doc/` hosts technical references and `docs/` is the website; add new docs there instead of scattering markdown elsewhere.
+- **Tests and scripts**: `tests/` houses the validation suites and `build-aux/` provides helper scripts such as formatting and validation helpers.
+- **CI context**: `.github/build-instructions.md` and the workflow YAML files describe the required CI behaviors.
+
 ## Project Overview
 OBS Studio plugin for streaming C64 Ultimate device video/audio over network. See `doc/c64-stream-spec.md` for protocol details.
 
@@ -81,9 +86,8 @@ See <https://www.gnu.org/licenses/> for details.
 ```
 
 ### Documentation
-- All markdown files go in `doc/` folder (except `README.md`)
-- Use kebab-case naming
-- Avoid ad-hoc markdown files in the project root during development (exceptions: `README.md`, `AGENTS.md`)
+- Keep documentation Markdown inside `doc/` (technical references) or `docs/` (site content). Root-level Markdown should be limited to `README.md`, `AGENTS.md`, `implementation-plan.md`, and other high-level summaries such as `INVESTIGATION.md`.
+- Prefer kebab-case filenames for any new documentation to stay consistent with existing styles.
 
 ## Linux Build (MANDATORY)
 
