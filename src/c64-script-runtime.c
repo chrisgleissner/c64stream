@@ -84,13 +84,47 @@ c64script_value_t c64script_value_clone(c64script_value_t value)
 {
     if (value.type == VALUE_STRING) {
         return c64script_value_string(value.as.string ? value.as.string : "");
-    } else if (value.type == VALUE_ARRAY) {
-        // For arrays, we just return a reference (shared ownership for now)
-        // Full deep copy would be expensive
-        return value;
-    } else if (value.type == VALUE_MAP) {
-        // For maps, we just return a reference (shared ownership for now)
-        return value;
+    } else if (value.type == VALUE_ARRAY && value.as.array) {
+        // Deep copy array
+        c64script_value_t result = {0};
+        result.type = VALUE_ARRAY;
+        result.as.array = calloc(1, sizeof(c64script_array_t));
+        if (!result.as.array) {
+            return c64script_value_number(0);
+        }
+        result.as.array->element_type = value.as.array->element_type;
+        result.as.array->size = value.as.array->size;
+        result.as.array->elements = calloc(result.as.array->size, sizeof(c64script_value_t));
+        if (!result.as.array->elements) {
+            free(result.as.array);
+            return c64script_value_number(0);
+        }
+        for (size_t i = 0; i < result.as.array->size; i++) {
+            result.as.array->elements[i] = c64script_value_clone(value.as.array->elements[i]);
+        }
+        return result;
+    } else if (value.type == VALUE_MAP && value.as.map) {
+        // Deep copy map
+        c64script_value_t result = {0};
+        result.type = VALUE_MAP;
+        result.as.map = calloc(1, sizeof(c64script_map_t));
+        if (!result.as.map) {
+            return c64script_value_number(0);
+        }
+        result.as.map->value_type = value.as.map->value_type;
+        result.as.map->count = value.as.map->count;
+        result.as.map->capacity = value.as.map->capacity;
+        result.as.map->entries = calloc(result.as.map->capacity, sizeof(c64script_map_entry_t));
+        if (!result.as.map->entries) {
+            free(result.as.map);
+            return c64script_value_number(0);
+        }
+        for (size_t i = 0; i < result.as.map->count; i++) {
+            result.as.map->entries[i].key = strdup(value.as.map->entries[i].key);
+            result.as.map->entries[i].hash = value.as.map->entries[i].hash;
+            result.as.map->entries[i].value = c64script_value_clone(value.as.map->entries[i].value);
+        }
+        return result;
     }
     return c64script_value_number(value.as.number);
 }
