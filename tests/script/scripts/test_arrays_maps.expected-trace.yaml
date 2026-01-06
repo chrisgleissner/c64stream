@@ -108,172 +108,172 @@ trace:
 - line: 6
   content: "wait 50ms"
   variables:
-    VALUES: [array]
+    VALUES: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 - line: 9
   content: "VALUES(0) = 100"
   variables:
-    VALUES: [array]
+    VALUES: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 - line: 10
   content: "VALUES(1) = 200"
   variables:
-    VALUES: [array]
+    VALUES: [100, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 - line: 11
   content: "VALUES(2) = 300"
   variables:
-    VALUES: [array]
+    VALUES: [100, 200, 0, 0, 0, 0, 0, 0, 0, 0]
 - line: 12
   content: "wait 50ms"
   variables:
-    VALUES: [array]
+    VALUES: [100, 200, 300, 0, 0, 0, 0, 0, 0, 0]
 - line: 15
   content: "FIRST = VALUES(0)"
   variables:
-    VALUES: [array]
+    VALUES: [100, 200, 300, 0, 0, 0, 0, 0, 0, 0]
 - line: 16
   content: "if FIRST = 100 then"
   variables:
-    VALUES: [array]
+    VALUES: [100, 200, 300, 0, 0, 0, 0, 0, 0, 0]
     FIRST: 100
 - line: 17
   content: "effect \"Sharp Pixels\""
   variables:
-    VALUES: [array]
+    VALUES: [100, 200, 300, 0, 0, 0, 0, 0, 0, 0]
     FIRST: 100
 - line: 19
   content: "wait 100ms"
   variables:
-    VALUES: [array]
+    VALUES: [100, 200, 300, 0, 0, 0, 0, 0, 0, 0]
     FIRST: 100
 - line: 22
   content: "for I = 0 to 5"
   variables:
-    VALUES: [array]
+    VALUES: [100, 200, 300, 0, 0, 0, 0, 0, 0, 0]
     FIRST: 100
 - line: 23
   content: "VALUES(I) = I * 10"
   variables:
-    VALUES: [array]
+    VALUES: [100, 200, 300, 0, 0, 0, 0, 0, 0, 0]
     FIRST: 100
     I: 0
 - line: 24
   content: "wait 20ms"
   variables:
-    VALUES: [array]
+    VALUES: [0, 200, 300, 0, 0, 0, 0, 0, 0, 0]
     FIRST: 100
     I: 0
 - line: 22
   content: "for I = 0 to 5"
   variables:
-    VALUES: [array]
+    VALUES: [0, 200, 300, 0, 0, 0, 0, 0, 0, 0]
     FIRST: 100
     I: 0
 - line: 23
   content: "VALUES(I) = I * 10"
   variables:
-    VALUES: [array]
+    VALUES: [0, 200, 300, 0, 0, 0, 0, 0, 0, 0]
     FIRST: 100
     I: 1
 - line: 24
   content: "wait 20ms"
   variables:
-    VALUES: [array]
+    VALUES: [0, 10, 300, 0, 0, 0, 0, 0, 0, 0]
     FIRST: 100
     I: 1
 - line: 22
   content: "for I = 0 to 5"
   variables:
-    VALUES: [array]
+    VALUES: [0, 10, 300, 0, 0, 0, 0, 0, 0, 0]
     FIRST: 100
     I: 1
 - line: 23
   content: "VALUES(I) = I * 10"
   variables:
-    VALUES: [array]
+    VALUES: [0, 10, 300, 0, 0, 0, 0, 0, 0, 0]
     FIRST: 100
     I: 2
 - line: 24
   content: "wait 20ms"
   variables:
-    VALUES: [array]
+    VALUES: [0, 10, 20, 0, 0, 0, 0, 0, 0, 0]
     FIRST: 100
     I: 2
 - line: 22
   content: "for I = 0 to 5"
   variables:
-    VALUES: [array]
+    VALUES: [0, 10, 20, 0, 0, 0, 0, 0, 0, 0]
     FIRST: 100
     I: 2
 - line: 23
   content: "VALUES(I) = I * 10"
   variables:
-    VALUES: [array]
+    VALUES: [0, 10, 20, 0, 0, 0, 0, 0, 0, 0]
     FIRST: 100
     I: 3
 - line: 24
   content: "wait 20ms"
   variables:
-    VALUES: [array]
+    VALUES: [0, 10, 20, 30, 0, 0, 0, 0, 0, 0]
     FIRST: 100
     I: 3
 - line: 22
   content: "for I = 0 to 5"
   variables:
-    VALUES: [array]
+    VALUES: [0, 10, 20, 30, 0, 0, 0, 0, 0, 0]
     FIRST: 100
     I: 3
 - line: 23
   content: "VALUES(I) = I * 10"
   variables:
-    VALUES: [array]
+    VALUES: [0, 10, 20, 30, 0, 0, 0, 0, 0, 0]
     FIRST: 100
     I: 4
 - line: 24
   content: "wait 20ms"
   variables:
-    VALUES: [array]
+    VALUES: [0, 10, 20, 30, 40, 0, 0, 0, 0, 0]
     FIRST: 100
     I: 4
 - line: 22
   content: "for I = 0 to 5"
   variables:
-    VALUES: [array]
+    VALUES: [0, 10, 20, 30, 40, 0, 0, 0, 0, 0]
     FIRST: 100
     I: 4
 - line: 23
   content: "VALUES(I) = I * 10"
   variables:
-    VALUES: [array]
+    VALUES: [0, 10, 20, 30, 40, 0, 0, 0, 0, 0]
     FIRST: 100
     I: 5
 - line: 24
   content: "wait 20ms"
   variables:
-    VALUES: [array]
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
     FIRST: 100
     I: 5
 - line: 22
   content: "for I = 0 to 5"
   variables:
-    VALUES: [array]
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
     FIRST: 100
     I: 5
 - line: 28
   content: "SUM = 0"
   variables:
-    VALUES: [array]
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
     FIRST: 100
     I: 6
 - line: 29
   content: "for J = 0 to 5"
   variables:
-    VALUES: [array]
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
     FIRST: 100
     I: 6
     SUM: 0
 - line: 30
   content: "SUM = SUM + VALUES(J)"
   variables:
-    VALUES: [array]
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
     FIRST: 100
     I: 6
     SUM: 0
@@ -281,7 +281,7 @@ trace:
 - line: 31
   content: "wait 20ms"
   variables:
-    VALUES: [array]
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
     FIRST: 100
     I: 6
     SUM: 0
@@ -289,7 +289,7 @@ trace:
 - line: 29
   content: "for J = 0 to 5"
   variables:
-    VALUES: [array]
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
     FIRST: 100
     I: 6
     SUM: 0
@@ -297,7 +297,7 @@ trace:
 - line: 30
   content: "SUM = SUM + VALUES(J)"
   variables:
-    VALUES: [array]
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
     FIRST: 100
     I: 6
     SUM: 0
@@ -305,7 +305,7 @@ trace:
 - line: 31
   content: "wait 20ms"
   variables:
-    VALUES: [array]
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
     FIRST: 100
     I: 6
     SUM: 10
@@ -313,7 +313,7 @@ trace:
 - line: 29
   content: "for J = 0 to 5"
   variables:
-    VALUES: [array]
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
     FIRST: 100
     I: 6
     SUM: 10
@@ -321,7 +321,7 @@ trace:
 - line: 30
   content: "SUM = SUM + VALUES(J)"
   variables:
-    VALUES: [array]
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
     FIRST: 100
     I: 6
     SUM: 10
@@ -329,7 +329,7 @@ trace:
 - line: 31
   content: "wait 20ms"
   variables:
-    VALUES: [array]
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
     FIRST: 100
     I: 6
     SUM: 30
@@ -337,7 +337,7 @@ trace:
 - line: 29
   content: "for J = 0 to 5"
   variables:
-    VALUES: [array]
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
     FIRST: 100
     I: 6
     SUM: 30
@@ -345,7 +345,7 @@ trace:
 - line: 30
   content: "SUM = SUM + VALUES(J)"
   variables:
-    VALUES: [array]
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
     FIRST: 100
     I: 6
     SUM: 30
@@ -353,7 +353,7 @@ trace:
 - line: 31
   content: "wait 20ms"
   variables:
-    VALUES: [array]
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
     FIRST: 100
     I: 6
     SUM: 60
@@ -361,7 +361,7 @@ trace:
 - line: 29
   content: "for J = 0 to 5"
   variables:
-    VALUES: [array]
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
     FIRST: 100
     I: 6
     SUM: 60
@@ -369,7 +369,7 @@ trace:
 - line: 30
   content: "SUM = SUM + VALUES(J)"
   variables:
-    VALUES: [array]
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
     FIRST: 100
     I: 6
     SUM: 60
@@ -377,7 +377,7 @@ trace:
 - line: 31
   content: "wait 20ms"
   variables:
-    VALUES: [array]
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
     FIRST: 100
     I: 6
     SUM: 100
@@ -385,7 +385,7 @@ trace:
 - line: 29
   content: "for J = 0 to 5"
   variables:
-    VALUES: [array]
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
     FIRST: 100
     I: 6
     SUM: 100
@@ -393,7 +393,7 @@ trace:
 - line: 30
   content: "SUM = SUM + VALUES(J)"
   variables:
-    VALUES: [array]
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
     FIRST: 100
     I: 6
     SUM: 100
@@ -401,7 +401,7 @@ trace:
 - line: 31
   content: "wait 20ms"
   variables:
-    VALUES: [array]
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
     FIRST: 100
     I: 6
     SUM: 150
@@ -409,7 +409,7 @@ trace:
 - line: 29
   content: "for J = 0 to 5"
   variables:
-    VALUES: [array]
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
     FIRST: 100
     I: 6
     SUM: 150
@@ -417,7 +417,7 @@ trace:
 - line: 33
   content: "LOG \"Array sum: \" + SUM"
   variables:
-    VALUES: [array]
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
     FIRST: 100
     I: 6
     SUM: 150

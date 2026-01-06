@@ -571,9 +571,72 @@ static void record_trace_entry(c64script_runtime_t *runtime, int line_num)
                 entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "\"%s\"\n",
                                       val->as.string ? val->as.string : "");
             } else if (val->type == VALUE_ARRAY) {
-                entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "[array]\n");
+                // Render array with first 10 elements
+                entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "[");
+                if (val->as.array) {
+                    size_t max_elements = val->as.array->size < 10 ? val->as.array->size : 10;
+                    for (size_t j = 0; j < max_elements && entry_len < (int)sizeof(entry) - 50; j++) {
+                        if (j > 0) {
+                            entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, ", ");
+                        }
+                        c64script_value_t *elem = &val->as.array->elements[j];
+                        if (elem->type == VALUE_NUMBER) {
+                            entry_len +=
+                                snprintf(entry + entry_len, sizeof(entry) - entry_len, "%.10g", elem->as.number);
+                        } else if (elem->type == VALUE_STRING) {
+                            entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "\"%s\"",
+                                                  elem->as.string ? elem->as.string : "");
+                        } else {
+                            entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "~");
+                        }
+                    }
+                    if (val->as.array->size > 10) {
+                        entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, ", ...");
+                    }
+                }
+                entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "]\n");
             } else if (val->type == VALUE_MAP) {
-                entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "{map}\n");
+                // Render map with first 10 entries, sorted alphabetically by key
+                entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "{");
+                if (val->as.map && val->as.map->count > 0) {
+                    // Create sorted index array
+                    size_t *sorted_indices = alloca(val->as.map->count * sizeof(size_t));
+                    for (size_t j = 0; j < val->as.map->count; j++) {
+                        sorted_indices[j] = j;
+                    }
+                    // Simple bubble sort by key (good enough for small maps)
+                    for (size_t j = 0; j < val->as.map->count - 1; j++) {
+                        for (size_t k = j + 1; k < val->as.map->count; k++) {
+                            if (strcmp(val->as.map->entries[sorted_indices[j]].key,
+                                       val->as.map->entries[sorted_indices[k]].key) > 0) {
+                                size_t temp = sorted_indices[j];
+                                sorted_indices[j] = sorted_indices[k];
+                                sorted_indices[k] = temp;
+                            }
+                        }
+                    }
+                    size_t max_entries = val->as.map->count < 10 ? val->as.map->count : 10;
+                    for (size_t j = 0; j < max_entries && entry_len < (int)sizeof(entry) - 50; j++) {
+                        if (j > 0) {
+                            entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, ", ");
+                        }
+                        c64script_map_entry_t *entry_ptr = &val->as.map->entries[sorted_indices[j]];
+                        entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "%s: ", entry_ptr->key);
+                        if (entry_ptr->value.type == VALUE_NUMBER) {
+                            entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "%.10g",
+                                                  entry_ptr->value.as.number);
+                        } else if (entry_ptr->value.type == VALUE_STRING) {
+                            entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "\"%s\"",
+                                                  entry_ptr->value.as.string ? entry_ptr->value.as.string : "");
+                        } else {
+                            entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "~");
+                        }
+                    }
+                    if (val->as.map->count > 10) {
+                        entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, ", ...");
+                    }
+                }
+                entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "}\n");
             } else {
                 entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "~\n");
             }
