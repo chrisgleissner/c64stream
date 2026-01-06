@@ -1,9 +1,7 @@
 # Execution trace
 script: "test_functions_builtin.c64script"
-status: parse_failure
-error:
-  line: 0
-  message: "[Line 88:11] Error at 'LOG': Expected expression"
+status: success
+error: ~
 program: |
   001: rem Test built-in functions
   002: rem Validates string, math, and utility functions
@@ -131,4 +129,1516 @@ program: |
   124: LOG "Manipulated: " + TRIMMED$
   125: 
   126: stop
-trace: []
+trace:
+- line: 5
+  content: "TEXT$ = \"HELLO WORLD\""
+  variables: {}
+- line: 6
+  content: "PREFIX$ = LEFT$(TEXT$, 5)"
+  variables:
+    TEXT$: "HELLO WORLD"
+- line: 7
+  content: "LOG \"Left 5: \" + PREFIX$"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+- line: 8
+  content: "wait 100ms"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+- line: 11
+  content: "SUFFIX$ = RIGHT$(TEXT$, 5)"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+- line: 12
+  content: "LOG \"Right 5: \" + SUFFIX$"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+- line: 13
+  content: "wait 100ms"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+- line: 16
+  content: "MIDDLE$ = MID$(TEXT$, 7, 5)"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+- line: 17
+  content: "LOG \"Middle: \" + MIDDLE$"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+- line: 18
+  content: "wait 100ms"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+- line: 21
+  content: "LENGTH = LEN(TEXT$)"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+- line: 22
+  content: "LOG \"Length: \" + LENGTH"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+- line: 23
+  content: "wait 100ms"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+- line: 26
+  content: "CHAR_A$ = CHR$(65)"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+- line: 27
+  content: "LOG \"CHR$(65): \" + CHAR_A$"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+- line: 28
+  content: "wait 100ms"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+- line: 31
+  content: "CODE = ASC(\"A\")"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+- line: 32
+  content: "LOG \"ASC(A): \" + CODE"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+- line: 33
+  content: "wait 100ms"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+- line: 36
+  content: "NUM = 42"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+- line: 37
+  content: "NUM_STR$ = STR$(NUM)"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+- line: 38
+  content: "LOG \"STR$(42): \" + NUM_STR$"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+- line: 39
+  content: "wait 100ms"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+- line: 42
+  content: "STR_NUM$ = \"123.45\""
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+- line: 43
+  content: "PARSED = VAL(STR_NUM$)"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+- line: 44
+  content: "LOG \"VAL(123.45): \" + PARSED"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+- line: 45
+  content: "wait 100ms"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+- line: 48
+  content: "NEG = -42"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+- line: 49
+  content: "POS = ABS(NEG)"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+- line: 50
+  content: "LOG \"ABS(-42): \" + POS"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+- line: 51
+  content: "wait 100ms"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+- line: 54
+  content: "FLOAT = 3.7"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+- line: 55
+  content: "INTEGER = INT(FLOAT)"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+- line: 56
+  content: "LOG \"INT(3.7): \" + INTEGER"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+- line: 57
+  content: "wait 100ms"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+- line: 60
+  content: "RANDOM = RND(100)"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+- line: 61
+  content: "LOG \"RND(100): \" + RANDOM"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+    RANDOM: 51.38700784
+- line: 62
+  content: "wait 100ms"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+    RANDOM: 51.38700784
+- line: 65
+  content: "ANGLE = 1.5708"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+    RANDOM: 51.38700784
+- line: 66
+  content: "SINE = SIN(ANGLE)"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+    RANDOM: 51.38700784
+    ANGLE: 1.5708
+- line: 67
+  content: "LOG \"SIN(pi/2): \" + SINE"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+    RANDOM: 51.38700784
+    ANGLE: 1.5708
+    SINE: 1
+- line: 68
+  content: "wait 100ms"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+    RANDOM: 51.38700784
+    ANGLE: 1.5708
+    SINE: 1
+- line: 71
+  content: "COSINE = COS(0)"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+    RANDOM: 51.38700784
+    ANGLE: 1.5708
+    SINE: 1
+- line: 72
+  content: "LOG \"COS(0): \" + COSINE"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+    RANDOM: 51.38700784
+    ANGLE: 1.5708
+    SINE: 1
+    COSINE: 1
+- line: 73
+  content: "wait 100ms"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+    RANDOM: 51.38700784
+    ANGLE: 1.5708
+    SINE: 1
+    COSINE: 1
+- line: 76
+  content: "TANGENT = TAN(0.785398)"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+    RANDOM: 51.38700784
+    ANGLE: 1.5708
+    SINE: 1
+    COSINE: 1
+- line: 77
+  content: "LOG \"TAN(pi/4): \" + TANGENT"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+    RANDOM: 51.38700784
+    ANGLE: 1.5708
+    SINE: 1
+    COSINE: 1
+    TANGENT: 0.9999996732
+- line: 78
+  content: "wait 100ms"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+    RANDOM: 51.38700784
+    ANGLE: 1.5708
+    SINE: 1
+    COSINE: 1
+    TANGENT: 0.9999996732
+- line: 81
+  content: "SQUARE = 144"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+    RANDOM: 51.38700784
+    ANGLE: 1.5708
+    SINE: 1
+    COSINE: 1
+    TANGENT: 0.9999996732
+- line: 82
+  content: "ROOT = SQRT(SQUARE)"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+    RANDOM: 51.38700784
+    ANGLE: 1.5708
+    SINE: 1
+    COSINE: 1
+    TANGENT: 0.9999996732
+    SQUARE: 144
+- line: 83
+  content: "LOG \"SQRT(144): \" + ROOT"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+    RANDOM: 51.38700784
+    ANGLE: 1.5708
+    SINE: 1
+    COSINE: 1
+    TANGENT: 0.9999996732
+    SQUARE: 144
+    ROOT: 12
+- line: 84
+  content: "wait 100ms"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+    RANDOM: 51.38700784
+    ANGLE: 1.5708
+    SINE: 1
+    COSINE: 1
+    TANGENT: 0.9999996732
+    SQUARE: 144
+    ROOT: 12
+- line: 87
+  content: "E_VAL = 2.71828"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+    RANDOM: 51.38700784
+    ANGLE: 1.5708
+    SINE: 1
+    COSINE: 1
+    TANGENT: 0.9999996732
+    SQUARE: 144
+    ROOT: 12
+- line: 88
+  content: "NAT_LOG = LOG(E_VAL)"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+    RANDOM: 51.38700784
+    ANGLE: 1.5708
+    SINE: 1
+    COSINE: 1
+    TANGENT: 0.9999996732
+    SQUARE: 144
+    ROOT: 12
+    E_VAL: 2.71828
+- line: 89
+  content: "LOG \"LOG(e): \" + NAT_LOG"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+    RANDOM: 51.38700784
+    ANGLE: 1.5708
+    SINE: 1
+    COSINE: 1
+    TANGENT: 0.9999996732
+    SQUARE: 144
+    ROOT: 12
+    E_VAL: 2.71828
+    NAT_LOG: 0.9999993273
+- line: 90
+  content: "wait 100ms"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+    RANDOM: 51.38700784
+    ANGLE: 1.5708
+    SINE: 1
+    COSINE: 1
+    TANGENT: 0.9999996732
+    SQUARE: 144
+    ROOT: 12
+    E_VAL: 2.71828
+    NAT_LOG: 0.9999993273
+- line: 93
+  content: "POWER = EXP(1)"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+    RANDOM: 51.38700784
+    ANGLE: 1.5708
+    SINE: 1
+    COSINE: 1
+    TANGENT: 0.9999996732
+    SQUARE: 144
+    ROOT: 12
+    E_VAL: 2.71828
+    NAT_LOG: 0.9999993273
+- line: 94
+  content: "LOG \"EXP(1): \" + POWER"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+    RANDOM: 51.38700784
+    ANGLE: 1.5708
+    SINE: 1
+    COSINE: 1
+    TANGENT: 0.9999996732
+    SQUARE: 144
+    ROOT: 12
+    E_VAL: 2.71828
+    NAT_LOG: 0.9999993273
+    POWER: 2.718281828
+- line: 95
+  content: "wait 100ms"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+    RANDOM: 51.38700784
+    ANGLE: 1.5708
+    SINE: 1
+    COSINE: 1
+    TANGENT: 0.9999996732
+    SQUARE: 144
+    ROOT: 12
+    E_VAL: 2.71828
+    NAT_LOG: 0.9999993273
+    POWER: 2.718281828
+- line: 98
+  content: "CURRENT_TIME$ = TIME$()"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+    RANDOM: 51.38700784
+    ANGLE: 1.5708
+    SINE: 1
+    COSINE: 1
+    TANGENT: 0.9999996732
+    SQUARE: 144
+    ROOT: 12
+    E_VAL: 2.71828
+    NAT_LOG: 0.9999993273
+    POWER: 2.718281828
+- line: 99
+  content: "LOG \"Current time: \" + CURRENT_TIME$"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+    RANDOM: 51.38700784
+    ANGLE: 1.5708
+    SINE: 1
+    COSINE: 1
+    TANGENT: 0.9999996732
+    SQUARE: 144
+    ROOT: 12
+    E_VAL: 2.71828
+    NAT_LOG: 0.9999993273
+    POWER: 2.718281828
+    CURRENT_TIME$: "2026-01-06 17:57:18"
+- line: 100
+  content: "wait 100ms"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+    RANDOM: 51.38700784
+    ANGLE: 1.5708
+    SINE: 1
+    COSINE: 1
+    TANGENT: 0.9999996732
+    SQUARE: 144
+    ROOT: 12
+    E_VAL: 2.71828
+    NAT_LOG: 0.9999993273
+    POWER: 2.718281828
+    CURRENT_TIME$: "2026-01-06 17:57:18"
+- line: 103
+  content: "RESULT = INT(RND(10)) + 1"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+    RANDOM: 51.38700784
+    ANGLE: 1.5708
+    SINE: 1
+    COSINE: 1
+    TANGENT: 0.9999996732
+    SQUARE: 144
+    ROOT: 12
+    E_VAL: 2.71828
+    NAT_LOG: 0.9999993273
+    POWER: 2.718281828
+    CURRENT_TIME$: "2026-01-06 17:57:18"
+- line: 104
+  content: "LOG \"Random 1-10: \" + RESULT"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+    RANDOM: 51.38700784
+    ANGLE: 1.5708
+    SINE: 1
+    COSINE: 1
+    TANGENT: 0.9999996732
+    SQUARE: 144
+    ROOT: 12
+    E_VAL: 2.71828
+    NAT_LOG: 0.9999993273
+    POWER: 2.718281828
+    CURRENT_TIME$: "2026-01-06 17:57:18"
+    RESULT: 2
+- line: 105
+  content: "wait 100ms"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+    RANDOM: 51.38700784
+    ANGLE: 1.5708
+    SINE: 1
+    COSINE: 1
+    TANGENT: 0.9999996732
+    SQUARE: 144
+    ROOT: 12
+    E_VAL: 2.71828
+    NAT_LOG: 0.9999993273
+    POWER: 2.718281828
+    CURRENT_TIME$: "2026-01-06 17:57:18"
+    RESULT: 2
+- line: 108
+  content: "NESTED$ = LEFT$(RIGHT$(\"ABCDEFGH\", 6), 3)"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+    RANDOM: 51.38700784
+    ANGLE: 1.5708
+    SINE: 1
+    COSINE: 1
+    TANGENT: 0.9999996732
+    SQUARE: 144
+    ROOT: 12
+    E_VAL: 2.71828
+    NAT_LOG: 0.9999993273
+    POWER: 2.718281828
+    CURRENT_TIME$: "2026-01-06 17:57:18"
+    RESULT: 2
+- line: 109
+  content: "LOG \"Nested result: \" + NESTED$"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+    RANDOM: 51.38700784
+    ANGLE: 1.5708
+    SINE: 1
+    COSINE: 1
+    TANGENT: 0.9999996732
+    SQUARE: 144
+    ROOT: 12
+    E_VAL: 2.71828
+    NAT_LOG: 0.9999993273
+    POWER: 2.718281828
+    CURRENT_TIME$: "2026-01-06 17:57:18"
+    RESULT: 2
+    NESTED$: "CDE"
+- line: 110
+  content: "wait 100ms"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+    RANDOM: 51.38700784
+    ANGLE: 1.5708
+    SINE: 1
+    COSINE: 1
+    TANGENT: 0.9999996732
+    SQUARE: 144
+    ROOT: 12
+    E_VAL: 2.71828
+    NAT_LOG: 0.9999993273
+    POWER: 2.718281828
+    CURRENT_TIME$: "2026-01-06 17:57:18"
+    RESULT: 2
+    NESTED$: "CDE"
+- line: 113
+  content: "NAME$ = \"TEST\""
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+    RANDOM: 51.38700784
+    ANGLE: 1.5708
+    SINE: 1
+    COSINE: 1
+    TANGENT: 0.9999996732
+    SQUARE: 144
+    ROOT: 12
+    E_VAL: 2.71828
+    NAT_LOG: 0.9999993273
+    POWER: 2.718281828
+    CURRENT_TIME$: "2026-01-06 17:57:18"
+    RESULT: 2
+    NESTED$: "CDE"
+- line: 114
+  content: "if LEN(NAME$) = 4 then"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+    RANDOM: 51.38700784
+    ANGLE: 1.5708
+    SINE: 1
+    COSINE: 1
+    TANGENT: 0.9999996732
+    SQUARE: 144
+    ROOT: 12
+    E_VAL: 2.71828
+    NAT_LOG: 0.9999993273
+    POWER: 2.718281828
+    CURRENT_TIME$: "2026-01-06 17:57:18"
+    RESULT: 2
+    NESTED$: "CDE"
+    NAME$: "TEST"
+- line: 115
+  content: "effect \"Sharp Pixels\""
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+    RANDOM: 51.38700784
+    ANGLE: 1.5708
+    SINE: 1
+    COSINE: 1
+    TANGENT: 0.9999996732
+    SQUARE: 144
+    ROOT: 12
+    E_VAL: 2.71828
+    NAT_LOG: 0.9999993273
+    POWER: 2.718281828
+    CURRENT_TIME$: "2026-01-06 17:57:18"
+    RESULT: 2
+    NESTED$: "CDE"
+    NAME$: "TEST"
+- line: 117
+  content: "wait 100ms"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+    RANDOM: 51.38700784
+    ANGLE: 1.5708
+    SINE: 1
+    COSINE: 1
+    TANGENT: 0.9999996732
+    SQUARE: 144
+    ROOT: 12
+    E_VAL: 2.71828
+    NAT_LOG: 0.9999993273
+    POWER: 2.718281828
+    CURRENT_TIME$: "2026-01-06 17:57:18"
+    RESULT: 2
+    NESTED$: "CDE"
+    NAME$: "TEST"
+- line: 120
+  content: "ORIGINAL$ = \"  hello world  \""
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+    RANDOM: 51.38700784
+    ANGLE: 1.5708
+    SINE: 1
+    COSINE: 1
+    TANGENT: 0.9999996732
+    SQUARE: 144
+    ROOT: 12
+    E_VAL: 2.71828
+    NAT_LOG: 0.9999993273
+    POWER: 2.718281828
+    CURRENT_TIME$: "2026-01-06 17:57:18"
+    RESULT: 2
+    NESTED$: "CDE"
+    NAME$: "TEST"
+- line: 121
+  content: "UPPER$ = ORIGINAL$"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+    RANDOM: 51.38700784
+    ANGLE: 1.5708
+    SINE: 1
+    COSINE: 1
+    TANGENT: 0.9999996732
+    SQUARE: 144
+    ROOT: 12
+    E_VAL: 2.71828
+    NAT_LOG: 0.9999993273
+    POWER: 2.718281828
+    CURRENT_TIME$: "2026-01-06 17:57:18"
+    RESULT: 2
+    NESTED$: "CDE"
+    NAME$: "TEST"
+    ORIGINAL$: "  hello world  "
+- line: 122
+  content: "LENGTH = LEN(UPPER$)"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 11
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+    RANDOM: 51.38700784
+    ANGLE: 1.5708
+    SINE: 1
+    COSINE: 1
+    TANGENT: 0.9999996732
+    SQUARE: 144
+    ROOT: 12
+    E_VAL: 2.71828
+    NAT_LOG: 0.9999993273
+    POWER: 2.718281828
+    CURRENT_TIME$: "2026-01-06 17:57:18"
+    RESULT: 2
+    NESTED$: "CDE"
+    NAME$: "TEST"
+    ORIGINAL$: "  hello world  "
+    UPPER$: "  hello world  "
+- line: 123
+  content: "TRIMMED$ = MID$(UPPER$, 3, 11)"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 15
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+    RANDOM: 51.38700784
+    ANGLE: 1.5708
+    SINE: 1
+    COSINE: 1
+    TANGENT: 0.9999996732
+    SQUARE: 144
+    ROOT: 12
+    E_VAL: 2.71828
+    NAT_LOG: 0.9999993273
+    POWER: 2.718281828
+    CURRENT_TIME$: "2026-01-06 17:57:18"
+    RESULT: 2
+    NESTED$: "CDE"
+    NAME$: "TEST"
+    ORIGINAL$: "  hello world  "
+    UPPER$: "  hello world  "
+- line: 124
+  content: "LOG \"Manipulated: \" + TRIMMED$"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 15
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+    RANDOM: 51.38700784
+    ANGLE: 1.5708
+    SINE: 1
+    COSINE: 1
+    TANGENT: 0.9999996732
+    SQUARE: 144
+    ROOT: 12
+    E_VAL: 2.71828
+    NAT_LOG: 0.9999993273
+    POWER: 2.718281828
+    CURRENT_TIME$: "2026-01-06 17:57:18"
+    RESULT: 2
+    NESTED$: "CDE"
+    NAME$: "TEST"
+    ORIGINAL$: "  hello world  "
+    UPPER$: "  hello world  "
+    TRIMMED$: "hello world"
+- line: 126
+  content: "stop"
+  variables:
+    TEXT$: "HELLO WORLD"
+    PREFIX$: "HELLO"
+    SUFFIX$: "WORLD"
+    MIDDLE$: "WORLD"
+    LENGTH: 15
+    CHAR_A$: "A"
+    CODE: 65
+    NUM: 42
+    NUM_STR$: "42"
+    STR_NUM$: "123.45"
+    PARSED: 123.45
+    NEG: -42
+    POS: 42
+    FLOAT: 3.7
+    INTEGER: 3
+    RANDOM: 51.38700784
+    ANGLE: 1.5708
+    SINE: 1
+    COSINE: 1
+    TANGENT: 0.9999996732
+    SQUARE: 144
+    ROOT: 12
+    E_VAL: 2.71828
+    NAT_LOG: 0.9999993273
+    POWER: 2.718281828
+    CURRENT_TIME$: "2026-01-06 17:57:18"
+    RESULT: 2
+    NESTED$: "CDE"
+    NAME$: "TEST"
+    ORIGINAL$: "  hello world  "
+    UPPER$: "  hello world  "
+    TRIMMED$: "hello world"

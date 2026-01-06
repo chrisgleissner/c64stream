@@ -1,0 +1,61 @@
+# Execution trace
+script: "test_coverage_while_endings.c64script"
+status: success
+error: ~
+program: |
+  01: REM Coverage: ENDWHILE and END WHILE
+  02: COUNT = 0
+  03: WHILE COUNT < 1
+  04:     COUNT = COUNT + 1
+  05: ENDWHILE
+  06: TOTAL = 0
+  07: WHILE TOTAL < 1
+  08:     TOTAL = TOTAL + 1
+  09: END WHILE
+  10: LOG "done"
+  11: STOP
+trace:
+- line: 2
+  content: "COUNT = 0"
+  variables: {}
+- line: 3
+  content: "WHILE COUNT < 1"
+  variables:
+    COUNT: 0
+- line: 4
+  content: "COUNT = COUNT + 1"
+  variables:
+    COUNT: 0
+- line: 3
+  content: "WHILE COUNT < 1"
+  variables:
+    COUNT: 1
+- line: 6
+  content: "TOTAL = 0"
+  variables:
+    COUNT: 1
+- line: 7
+  content: "WHILE TOTAL < 1"
+  variables:
+    COUNT: 1
+    TOTAL: 0
+- line: 8
+  content: "TOTAL = TOTAL + 1"
+  variables:
+    COUNT: 1
+    TOTAL: 0
+- line: 7
+  content: "WHILE TOTAL < 1"
+  variables:
+    COUNT: 1
+    TOTAL: 1
+- line: 10
+  content: "LOG \"done\""
+  variables:
+    COUNT: 1
+    TOTAL: 1
+- line: 11
+  content: "STOP"
+  variables:
+    COUNT: 1
+    TOTAL: 1

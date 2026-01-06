@@ -90,34 +90,25 @@ static int unexpected_failures = 0;
 #define MAX_WORKERS_CAP 64
 
 // Scripts that are expected to fail parsing (error test cases)
-static const char *EXPECTED_PARSE_FAILURES[] = {
-    "test_error_missing_wend.c64script",
-    "test_error_missing_next.c64script",
-    "test_error_gosub_overflow.c64script", // Intentionally uses # comment (invalid)
-    "test_functions_builtin.c64script",    // LOG parsing issue
-    "test_file_io.c64script",              // File I/O syntax issues + timeout
-    "test_variable_scope.c64script",       // goto/end syntax issues
-    "test_local_execution.c64script",      // WRITEFILE syntax issue
-    "test_keyboard_injection.c64script",   // return expression issue
-    NULL};
+static const char *EXPECTED_PARSE_FAILURES[] = {"test_error_missing_wend.c64script",
+                                                "test_error_missing_next.c64script", NULL};
 
 // Scripts that should parse but fail compilation (type errors, etc.)
-static const char *EXPECTED_COMPILE_FAILURES[] = {"test_wait_until.c64script",            // Unknown function: TIME$
-                                                  "test_error_missing_label.c64script",   // Undefined label
+static const char *EXPECTED_COMPILE_FAILURES[] = {"test_error_missing_label.c64script",   // Undefined label
                                                   "test_error_goto_missing.c64script",    // Undefined label
                                                   "test_error_duplicate_label.c64script", // Duplicate label
                                                   NULL};
 
 // Scripts that should compile but fail execution (runtime errors)
 static const char *EXPECTED_EXECUTION_FAILURES[] = {
-    "test_safety_max_nesting.c64script",  // Expected to hit nesting limit
-    "demo_basic_hello_world.c64script",   // Uses TYPE/KEY commands which need more work
-    "hello_world.c64script",              // Type mismatch issues (STR function in concatenation)
-    "demo_palette_cycle.c64script",       // Requires OBS source (long running demo)
-    "demo_effect_preset_cycle.c64script", // Requires OBS source (long running demo)
-    "test_comparisons.c64script",         // String comparison not yet supported
-    "test_error_invalid.c64script",       // Type mismatch
-    "test_http_rest.c64script",           // Type mismatch in HTTP operations (not fully implemented)
+    "test_safety_max_nesting.c64script",   // Expected to hit nesting limit
+    "test_error_gosub_overflow.c64script", // Expected to hit GOSUB stack limit
+    "demo_basic_hello_world.c64script",    // Exceeds test timeout (multi-second waits)
+    "hello_world.c64script",               // Exceeds test timeout (looped waits)
+    "demo_palette_cycle.c64script",        // Requires OBS source (long running demo)
+    "demo_effect_preset_cycle.c64script",  // Requires OBS source (long running demo)
+    "test_comparisons.c64script",          // String comparison not yet supported
+    "test_error_invalid.c64script",        // Type mismatch
     NULL};
 
 static bool should_expect_parse_failure(const char *filename)

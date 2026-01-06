@@ -1,34 +1,32 @@
 # Execution trace
 script: "test_file_io.c64script"
-status: parse_failure
-error:
-  line: 0
-  message: "Parse timeout after 2 seconds"
+status: success
+error: ~
 program: |
   01: rem Test file I/O commands
   02: rem Validates READFILE and WRITEFILE
   03: 
   04: rem Test 1: Write to file with truncate mode
-  05: WRITEFILE "test_data.txt", "Hello World", TRUNCATE
+  05: WRITEFILE "test_data.txt", "Hello World" TRUNCATE
   06: wait 100ms
   07: 
   08: rem Test 2: Append to file
-  09: WRITEFILE "test_data.txt", "\nLine 2", APPEND
+  09: WRITEFILE "test_data.txt", "\nLine 2" APPEND
   10: wait 100ms
   11: 
   12: rem Test 3: Write with variable content
   13: MESSAGE$ = "Test message from script"
-  14: WRITEFILE "test_data.txt", MESSAGE$, APPEND
+  14: WRITEFILE "test_data.txt", MESSAGE$ APPEND
   15: wait 100ms
   16: 
   17: rem Test 4: Write numeric value (auto-converted to string)
   18: VALUE = 123.45
-  19: WRITEFILE "numbers.txt", VALUE, TRUNCATE
+  19: WRITEFILE "numbers.txt", VALUE TRUNCATE
   20: wait 100ms
   21: 
   22: rem Test 5: Write in a loop
   23: for I = 1 to 5
-  24:     WRITEFILE "loop_output.txt", "Iteration " + I + "\n", APPEND
+  24:     WRITEFILE "loop_output.txt", "Iteration " + I + "\n" APPEND
   25:     wait 50ms
   26: next I
   27: 
@@ -51,9 +49,9 @@ program: |
   44: wait 100ms
   45: 
   46: rem Test 9: Write configuration
-  47: WRITEFILE "config.ini", "host=192.168.1.64\n", TRUNCATE
-  48: WRITEFILE "config.ini", "port=8080\n", APPEND
-  49: WRITEFILE "config.ini", "timeout=5000\n", APPEND
+  47: WRITEFILE "config.ini", "host=192.168.1.64\n" TRUNCATE
+  48: WRITEFILE "config.ini", "port=8080\n" APPEND
+  49: WRITEFILE "config.ini", "timeout=5000\n" APPEND
   50: wait 100ms
   51: 
   52: rem Test 10: Read configuration back
@@ -61,4 +59,301 @@ program: |
   54: LOG "Configuration: " + CONFIG$
   55: 
   56: stop
-trace: []
+trace:
+- line: 5
+  content: "WRITEFILE \"test_data.txt\", \"Hello World\" TRUNCATE"
+  variables: {}
+- line: 6
+  content: "wait 100ms"
+  variables: {}
+- line: 9
+  content: "WRITEFILE \"test_data.txt\", \"\\nLine 2\" APPEND"
+  variables: {}
+- line: 10
+  content: "wait 100ms"
+  variables: {}
+- line: 13
+  content: "MESSAGE$ = \"Test message from script\""
+  variables: {}
+- line: 14
+  content: "WRITEFILE \"test_data.txt\", MESSAGE$ APPEND"
+  variables:
+    MESSAGE$: "Test message from script"
+- line: 15
+  content: "wait 100ms"
+  variables:
+    MESSAGE$: "Test message from script"
+- line: 18
+  content: "VALUE = 123.45"
+  variables:
+    MESSAGE$: "Test message from script"
+- line: 19
+  content: "WRITEFILE \"numbers.txt\", VALUE TRUNCATE"
+  variables:
+    MESSAGE$: "Test message from script"
+    VALUE: 123.45
+- line: 20
+  content: "wait 100ms"
+  variables:
+    MESSAGE$: "Test message from script"
+    VALUE: 123.45
+- line: 23
+  content: "for I = 1 to 5"
+  variables:
+    MESSAGE$: "Test message from script"
+    VALUE: 123.45
+- line: 24
+  content: "WRITEFILE \"loop_output.txt\", \"Iteration \" + I + \"\\n\" APPEND"
+  variables:
+    MESSAGE$: "Test message from script"
+    VALUE: 123.45
+    I: 1
+- line: 25
+  content: "wait 50ms"
+  variables:
+    MESSAGE$: "Test message from script"
+    VALUE: 123.45
+    I: 1
+- line: 23
+  content: "for I = 1 to 5"
+  variables:
+    MESSAGE$: "Test message from script"
+    VALUE: 123.45
+    I: 1
+- line: 24
+  content: "WRITEFILE \"loop_output.txt\", \"Iteration \" + I + \"\\n\" APPEND"
+  variables:
+    MESSAGE$: "Test message from script"
+    VALUE: 123.45
+    I: 2
+- line: 25
+  content: "wait 50ms"
+  variables:
+    MESSAGE$: "Test message from script"
+    VALUE: 123.45
+    I: 2
+- line: 23
+  content: "for I = 1 to 5"
+  variables:
+    MESSAGE$: "Test message from script"
+    VALUE: 123.45
+    I: 2
+- line: 24
+  content: "WRITEFILE \"loop_output.txt\", \"Iteration \" + I + \"\\n\" APPEND"
+  variables:
+    MESSAGE$: "Test message from script"
+    VALUE: 123.45
+    I: 3
+- line: 25
+  content: "wait 50ms"
+  variables:
+    MESSAGE$: "Test message from script"
+    VALUE: 123.45
+    I: 3
+- line: 23
+  content: "for I = 1 to 5"
+  variables:
+    MESSAGE$: "Test message from script"
+    VALUE: 123.45
+    I: 3
+- line: 24
+  content: "WRITEFILE \"loop_output.txt\", \"Iteration \" + I + \"\\n\" APPEND"
+  variables:
+    MESSAGE$: "Test message from script"
+    VALUE: 123.45
+    I: 4
+- line: 25
+  content: "wait 50ms"
+  variables:
+    MESSAGE$: "Test message from script"
+    VALUE: 123.45
+    I: 4
+- line: 23
+  content: "for I = 1 to 5"
+  variables:
+    MESSAGE$: "Test message from script"
+    VALUE: 123.45
+    I: 4
+- line: 24
+  content: "WRITEFILE \"loop_output.txt\", \"Iteration \" + I + \"\\n\" APPEND"
+  variables:
+    MESSAGE$: "Test message from script"
+    VALUE: 123.45
+    I: 5
+- line: 25
+  content: "wait 50ms"
+  variables:
+    MESSAGE$: "Test message from script"
+    VALUE: 123.45
+    I: 5
+- line: 23
+  content: "for I = 1 to 5"
+  variables:
+    MESSAGE$: "Test message from script"
+    VALUE: 123.45
+    I: 5
+- line: 29
+  content: "READFILE \"test_data.txt\", CONTENT$"
+  variables:
+    MESSAGE$: "Test message from script"
+    VALUE: 123.45
+    I: 6
+- line: 30
+  content: "wait 100ms"
+  variables:
+    MESSAGE$: "Test message from script"
+    VALUE: 123.45
+    I: 6
+    CONTENT$: "Hello World
+Line 2Test message from script"
+- line: 33
+  content: "LOG \"File content: \" + CONTENT$"
+  variables:
+    MESSAGE$: "Test message from script"
+    VALUE: 123.45
+    I: 6
+    CONTENT$: "Hello World
+Line 2Test message from script"
+- line: 34
+  content: "wait 100ms"
+  variables:
+    MESSAGE$: "Test message from script"
+    VALUE: 123.45
+    I: 6
+    CONTENT$: "Hello World
+Line 2Test message from script"
+- line: 37
+  content: "READFILE \"numbers.txt\", NUM_STR$"
+  variables:
+    MESSAGE$: "Test message from script"
+    VALUE: 123.45
+    I: 6
+    CONTENT$: "Hello World
+Line 2Test message from script"
+- line: 38
+  content: "NUM = VAL(NUM_STR$)"
+  variables:
+    MESSAGE$: "Test message from script"
+    VALUE: 123.45
+    I: 6
+    CONTENT$: "Hello World
+Line 2Test message from script"
+    NUM_STR$: "123.45"
+- line: 39
+  content: "if NUM > 100 then"
+  variables:
+    MESSAGE$: "Test message from script"
+    VALUE: 123.45
+    I: 6
+    CONTENT$: "Hello World
+Line 2Test message from script"
+    NUM_STR$: "123.45"
+    NUM: 123.45
+- line: 40
+  content: "effect \"Sharp Pixels\""
+  variables:
+    MESSAGE$: "Test message from script"
+    VALUE: 123.45
+    I: 6
+    CONTENT$: "Hello World
+Line 2Test message from script"
+    NUM_STR$: "123.45"
+    NUM: 123.45
+- line: 39
+  content: "if NUM > 100 then"
+  variables:
+    MESSAGE$: "Test message from script"
+    VALUE: 123.45
+    I: 6
+    CONTENT$: "Hello World
+Line 2Test message from script"
+    NUM_STR$: "123.45"
+    NUM: 123.45
+- line: 44
+  content: "wait 100ms"
+  variables:
+    MESSAGE$: "Test message from script"
+    VALUE: 123.45
+    I: 6
+    CONTENT$: "Hello World
+Line 2Test message from script"
+    NUM_STR$: "123.45"
+    NUM: 123.45
+- line: 47
+  content: "WRITEFILE \"config.ini\", \"host=192.168.1.64\\n\" TRUNCATE"
+  variables:
+    MESSAGE$: "Test message from script"
+    VALUE: 123.45
+    I: 6
+    CONTENT$: "Hello World
+Line 2Test message from script"
+    NUM_STR$: "123.45"
+    NUM: 123.45
+- line: 48
+  content: "WRITEFILE \"config.ini\", \"port=8080\\n\" APPEND"
+  variables:
+    MESSAGE$: "Test message from script"
+    VALUE: 123.45
+    I: 6
+    CONTENT$: "Hello World
+Line 2Test message from script"
+    NUM_STR$: "123.45"
+    NUM: 123.45
+- line: 49
+  content: "WRITEFILE \"config.ini\", \"timeout=5000\\n\" APPEND"
+  variables:
+    MESSAGE$: "Test message from script"
+    VALUE: 123.45
+    I: 6
+    CONTENT$: "Hello World
+Line 2Test message from script"
+    NUM_STR$: "123.45"
+    NUM: 123.45
+- line: 50
+  content: "wait 100ms"
+  variables:
+    MESSAGE$: "Test message from script"
+    VALUE: 123.45
+    I: 6
+    CONTENT$: "Hello World
+Line 2Test message from script"
+    NUM_STR$: "123.45"
+    NUM: 123.45
+- line: 53
+  content: "READFILE \"config.ini\", CONFIG$"
+  variables:
+    MESSAGE$: "Test message from script"
+    VALUE: 123.45
+    I: 6
+    CONTENT$: "Hello World
+Line 2Test message from script"
+    NUM_STR$: "123.45"
+    NUM: 123.45
+- line: 54
+  content: "LOG \"Configuration: \" + CONFIG$"
+  variables:
+    MESSAGE$: "Test message from script"
+    VALUE: 123.45
+    I: 6
+    CONTENT$: "Hello World
+Line 2Test message from script"
+    NUM_STR$: "123.45"
+    NUM: 123.45
+    CONFIG$: "host=192.168.1.64
+port=8080
+timeout=5000
+"
+- line: 56
+  content: "stop"
+  variables:
+    MESSAGE$: "Test message from script"
+    VALUE: 123.45
+    I: 6
+    CONTENT$: "Hello World
+Line 2Test message from script"
+    NUM_STR$: "123.45"
+    NUM: 123.45
+    CONFIG$: "host=192.168.1.64
+port=8080
+timeout=5000
+"

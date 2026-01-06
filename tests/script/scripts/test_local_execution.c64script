@@ -67,6 +67,6 @@ wait 100ms
 
 rem Test 10: Complex workflow with local execution
 RUNLOCAL "date" ARGS "+%s" STATUS T_CODE OUTPUT TIMESTAMP$
-WRITEFILE "execution_log.txt" "Executed at: " + TIMESTAMP$ APPEND
+WRITEFILE "execution_log.txt", "Executed at: " + TIMESTAMP$ APPEND
 
 stop

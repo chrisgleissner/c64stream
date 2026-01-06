@@ -1,0 +1,167 @@
+# Execution trace
+script: "hello_world.c64script"
+status: success
+error: ~
+program: |
+  01: REM ================================================
+  02: REM Hello World - Your First C64Script
+  03: REM ================================================
+  04: REM This simple script demonstrates basic features:
+  05: REM - Variables and arithmetic
+  06: REM - Text output to the OBS log
+  07: REM - Waiting/delays
+  08: REM - Basic control flow
+  09: REM ================================================
+  10: 
+  11: REM Initialize a counter variable
+  12: COUNTER = 0
+  13: 
+  14: REM Display a welcome message
+  15: LOG "=== Hello World Script Started ==="
+  16: LOG "Welcome to C64Script!"
+  17: LOG ""
+  18: 
+  19: REM Main loop - count from 1 to 5
+  20: LABEL counting_loop
+  21:     COUNTER = COUNTER + 1
+  22:     LOG "Count: " + STR(COUNTER)
+  23:     
+  24:     REM Wait half a second between counts
+  25:     WAIT 500ms
+  26:     
+  27:     REM Check if we've reached 5
+  28:     IF COUNTER < 5 THEN
+  29:         GOTO counting_loop
+  30:     ENDIF
+  31: 
+  32: REM Final message
+  33: LOG ""
+  34: LOG "=== Counting Complete! ==="
+  35: LOG "Final counter value: " + STR(COUNTER)
+  36: 
+  37: REM That's it! Check the OBS log to see the output.
+  38: REM Try using the debug controls to step through line-by-line!
+trace:
+- line: 12
+  content: "COUNTER = 0"
+  variables: {}
+- line: 15
+  content: "LOG \"=== Hello World Script Started ===\""
+  variables:
+    COUNTER: 0
+- line: 16
+  content: "LOG \"Welcome to C64Script!\""
+  variables:
+    COUNTER: 0
+- line: 17
+  content: "LOG \"\""
+  variables:
+    COUNTER: 0
+- line: 21
+  content: "COUNTER = COUNTER + 1"
+  variables:
+    COUNTER: 0
+- line: 22
+  content: "LOG \"Count: \" + STR(COUNTER)"
+  variables:
+    COUNTER: 1
+- line: 25
+  content: "WAIT 500ms"
+  variables:
+    COUNTER: 1
+- line: 28
+  content: "IF COUNTER < 5 THEN"
+  variables:
+    COUNTER: 1
+- line: 29
+  content: "GOTO counting_loop"
+  variables:
+    COUNTER: 1
+- line: 21
+  content: "COUNTER = COUNTER + 1"
+  variables:
+    COUNTER: 1
+- line: 22
+  content: "LOG \"Count: \" + STR(COUNTER)"
+  variables:
+    COUNTER: 2
+- line: 25
+  content: "WAIT 500ms"
+  variables:
+    COUNTER: 2
+- line: 28
+  content: "IF COUNTER < 5 THEN"
+  variables:
+    COUNTER: 2
+- line: 29
+  content: "GOTO counting_loop"
+  variables:
+    COUNTER: 2
+- line: 21
+  content: "COUNTER = COUNTER + 1"
+  variables:
+    COUNTER: 2
+- line: 22
+  content: "LOG \"Count: \" + STR(COUNTER)"
+  variables:
+    COUNTER: 3
+- line: 25
+  content: "WAIT 500ms"
+  variables:
+    COUNTER: 3
+- line: 28
+  content: "IF COUNTER < 5 THEN"
+  variables:
+    COUNTER: 3
+- line: 29
+  content: "GOTO counting_loop"
+  variables:
+    COUNTER: 3
+- line: 21
+  content: "COUNTER = COUNTER + 1"
+  variables:
+    COUNTER: 3
+- line: 22
+  content: "LOG \"Count: \" + STR(COUNTER)"
+  variables:
+    COUNTER: 4
+- line: 25
+  content: "WAIT 500ms"
+  variables:
+    COUNTER: 4
+- line: 28
+  content: "IF COUNTER < 5 THEN"
+  variables:
+    COUNTER: 4
+- line: 29
+  content: "GOTO counting_loop"
+  variables:
+    COUNTER: 4
+- line: 21
+  content: "COUNTER = COUNTER + 1"
+  variables:
+    COUNTER: 4
+- line: 22
+  content: "LOG \"Count: \" + STR(COUNTER)"
+  variables:
+    COUNTER: 5
+- line: 25
+  content: "WAIT 500ms"
+  variables:
+    COUNTER: 5
+- line: 28
+  content: "IF COUNTER < 5 THEN"
+  variables:
+    COUNTER: 5
+- line: 33
+  content: "LOG \"\""
+  variables:
+    COUNTER: 5
+- line: 34
+  content: "LOG \"=== Counting Complete! ===\""
+  variables:
+    COUNTER: 5
+- line: 35
+  content: "LOG \"Final counter value: \" + STR(COUNTER)"
+  variables:
+    COUNTER: 5

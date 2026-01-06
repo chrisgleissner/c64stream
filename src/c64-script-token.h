@@ -22,6 +22,7 @@ typedef struct {
     size_t current;
     int line;
     int column;
+    size_t line_start_pos;
     char error[512];
 } c64script_tokenizer_t;
 

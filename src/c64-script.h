@@ -276,6 +276,26 @@ typedef enum {
     C64SCRIPT_WAIT_UNIT_M,
 } c64script_wait_unit_t;
 
+typedef enum {
+    C64SCRIPT_BUILTIN_LEN,
+    C64SCRIPT_BUILTIN_LEFT,
+    C64SCRIPT_BUILTIN_RIGHT,
+    C64SCRIPT_BUILTIN_MID,
+    C64SCRIPT_BUILTIN_CHR,
+    C64SCRIPT_BUILTIN_ASC,
+    C64SCRIPT_BUILTIN_VAL,
+    C64SCRIPT_BUILTIN_ABS,
+    C64SCRIPT_BUILTIN_INT,
+    C64SCRIPT_BUILTIN_RND,
+    C64SCRIPT_BUILTIN_SIN,
+    C64SCRIPT_BUILTIN_COS,
+    C64SCRIPT_BUILTIN_TAN,
+    C64SCRIPT_BUILTIN_SQRT,
+    C64SCRIPT_BUILTIN_LOG,
+    C64SCRIPT_BUILTIN_EXP,
+    C64SCRIPT_BUILTIN_TIME,
+} c64script_builtin_id_t;
+
 // Forward declarations
 typedef struct c64script_ast_node c64script_ast_node_t;
 typedef struct c64script_ast_expr c64script_ast_expr_t;

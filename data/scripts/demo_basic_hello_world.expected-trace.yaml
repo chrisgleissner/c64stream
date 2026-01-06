@@ -1,0 +1,83 @@
+# Execution trace
+script: "demo_basic_hello_world.c64script"
+status: success
+error: ~
+program: |
+  01: REM Hello World BASIC Demo
+  02: REM Resets the C64, types a BASIC program that prints "HELLO WORLD" in a loop,
+  03: REM runs it for 5 seconds, then resets the C64 again.
+  04: 
+  05: LOG "Starting Hello World BASIC demo"
+  06: RESET
+  07: WAIT 3s
+  08: 
+  09: TYPE "10 FOR I=1 TO 1000:PRINT \"HELLO WORLD\";I:NEXT I"
+  10: KEY 13
+  11: WAIT 500ms
+  12: 
+  13: TYPE "20 GOTO 10"
+  14: KEY 13
+  15: WAIT 500ms
+  16: 
+  17: TYPE "RUN"
+  18: KEY 13
+  19: LOG "BASIC program running, waiting 5 seconds..."
+  20: WAIT 5s
+  21: 
+  22: LOG "Resetting C64 to stop program"
+  23: RESET
+  24: WAIT 1s
+  25: 
+  26: LOG "Hello World demo completed"
+trace:
+- line: 5
+  content: "LOG \"Starting Hello World BASIC demo\""
+  variables: {}
+- line: 6
+  content: "RESET"
+  variables: {}
+- line: 7
+  content: "WAIT 3s"
+  variables: {}
+- line: 9
+  content: "TYPE \"10 FOR I=1 TO 1000:PRINT \\\"HELLO WORLD\\\";I:NEXT I\""
+  variables: {}
+- line: 10
+  content: "KEY 13"
+  variables: {}
+- line: 11
+  content: "WAIT 500ms"
+  variables: {}
+- line: 13
+  content: "TYPE \"20 GOTO 10\""
+  variables: {}
+- line: 14
+  content: "KEY 13"
+  variables: {}
+- line: 15
+  content: "WAIT 500ms"
+  variables: {}
+- line: 17
+  content: "TYPE \"RUN\""
+  variables: {}
+- line: 18
+  content: "KEY 13"
+  variables: {}
+- line: 19
+  content: "LOG \"BASIC program running, waiting 5 seconds...\""
+  variables: {}
+- line: 20
+  content: "WAIT 5s"
+  variables: {}
+- line: 22
+  content: "LOG \"Resetting C64 to stop program\""
+  variables: {}
+- line: 23
+  content: "RESET"
+  variables: {}
+- line: 24
+  content: "WAIT 1s"
+  variables: {}
+- line: 26
+  content: "LOG \"Hello World demo completed\""
+  variables: {}

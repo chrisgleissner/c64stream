@@ -1,0 +1,7 @@
+REM Coverage: END FUN terminator
+FUN DOUBLE(X)
+    RETURN X * 2
+END FUN
+RESULT = DOUBLE(3)
+LOG RESULT
+STOP

@@ -1,0 +1,5 @@
+REM Coverage: label prefix without colon
+START LOG "start"
+GOTO FINISH
+FINISH LOG "done"
+END

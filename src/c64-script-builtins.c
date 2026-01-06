@@ -89,7 +89,7 @@ bool c64script_builtin_int(double value, double *out_value)
     if (!out_value) {
         return false;
     }
-    *out_value = floor(value);
+    *out_value = trunc(value);
     return true;
 }
 

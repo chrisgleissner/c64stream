@@ -1,0 +1,16 @@
+# Execution trace
+script: "test_coverage_end_statement.c64script"
+status: success
+error: ~
+program: |
+  1: REM Coverage: END statement
+  2: LOG "before end"
+  3: END
+  4: LOG "after end"
+trace:
+- line: 2
+  content: "LOG \"before end\""
+  variables: {}
+- line: 3
+  content: "END"
+  variables: {}

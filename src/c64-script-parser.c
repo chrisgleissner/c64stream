@@ -59,6 +59,20 @@ static char *dup_upper(const char *start, size_t length)
     return out;
 }
 
+static bool token_matches_ci(const c64script_token_t *tok, const char *text)
+{
+    size_t len = strlen(text);
+    if (tok->length != len) {
+        return false;
+    }
+    for (size_t i = 0; i < len; i++) {
+        if (tolower((unsigned char)tok->start[i]) != tolower((unsigned char)text[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
 static char *dup_token_text(const c64script_token_t *tok)
 {
     if (!tok || !tok->start || tok->length == 0) {
@@ -408,8 +422,6 @@ static c64script_ast_expr_t *string(parser_t *p, bool can_assign)
 // Detects array assignment vs function call by peeking ahead
 static c64script_ast_expr_t *variable(parser_t *p, bool can_assign)
 {
-    (void)can_assign; // We'll detect assignment context by lookahead instead
-
     c64script_token_t ident_token = p->previous;
     char *name = dup_upper(ident_token.start, ident_token.length);
 
@@ -419,33 +431,33 @@ static c64script_ast_expr_t *variable(parser_t *p, bool can_assign)
         // If the pattern is: identifier(expr) = ..., it's array assignment
         // Otherwise, it's a function call
 
-        // Create a clone tokenizer for lookahead (doesn't affect parser state)
-        c64script_tokenizer_t lookahead_tokenizer = *p->tokenizer;
-
-        // Scan ahead to find matching ) and check if = follows
-        int paren_depth = 1;
         bool found_assignment = false;
+        if (can_assign) {
+            // Create a clone tokenizer for lookahead (doesn't affect parser state)
+            c64script_tokenizer_t lookahead_tokenizer = *p->tokenizer;
 
-        while (paren_depth > 0) {
-            c64script_token_t t = c64script_tokenizer_next(&lookahead_tokenizer);
-            if (t.type == TOKEN_EOF) {
-                break;
-            }
-            if (t.type == TOKEN_LPAREN) {
-                paren_depth++;
-            } else if (t.type == TOKEN_RPAREN) {
-                paren_depth--;
-                if (paren_depth == 0) {
-                    // Check if next token is =
-                    c64script_token_t next = c64script_tokenizer_peek(&lookahead_tokenizer);
-                    if (next.type == TOKEN_EQ) {
-                        found_assignment = true;
+            // Scan ahead to find matching ) and check if = follows
+            int paren_depth = 1;
+
+            while (paren_depth > 0) {
+                c64script_token_t t = c64script_tokenizer_next(&lookahead_tokenizer);
+                if (t.type == TOKEN_EOF) {
+                    break;
+                }
+                if (t.type == TOKEN_LPAREN) {
+                    paren_depth++;
+                } else if (t.type == TOKEN_RPAREN) {
+                    paren_depth--;
+                    if (paren_depth == 0) {
+                        // Check if next token is =
+                        c64script_token_t next = c64script_tokenizer_peek(&lookahead_tokenizer);
+                        if (next.type == TOKEN_EQ) {
+                            found_assignment = true;
+                        }
                     }
                 }
             }
         }
-
-        // No need to restore - we used a separate tokenizer
 
         if (found_assignment) {
             // Parse as array access
@@ -695,7 +707,7 @@ static parse_rule_t rules[] = {
     [TOKEN_NUMBER] = {number, NULL, PREC_NONE},     [TOKEN_HEX_NUMBER] = {number, NULL, PREC_NONE},
     [TOKEN_DURATION] = {number, NULL, PREC_NONE},   [TOKEN_STRING] = {string, NULL, PREC_NONE},
     [TOKEN_C64U_PATH] = {string, NULL, PREC_NONE},  [TOKEN_IDENTIFIER] = {variable, NULL, PREC_NONE},
-    [TOKEN_PEEK] = {variable, NULL, PREC_NONE},
+    [TOKEN_PEEK] = {variable, NULL, PREC_NONE},     [TOKEN_LOG] = {variable, NULL, PREC_NONE},
 };
 
 static parse_rule_t *get_rule(c64script_token_type_t type)
@@ -716,7 +728,7 @@ static c64script_ast_expr_t *parse_precedence(parser_t *p, precedence_t preceden
         return NULL;
     }
 
-    bool can_assign = precedence <= PREC_OR;
+    bool can_assign = false;
     c64script_ast_expr_t *left = prefix_rule(p, can_assign);
     if (!left) {
         return NULL;
@@ -1749,7 +1761,7 @@ static c64script_ast_node_t *troff_statement(parser_t *p)
     return node;
 }
 
-// READFILE variable, path
+// READFILE path, variable
 static c64script_ast_node_t *readfile_statement(parser_t *p)
 {
     c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
@@ -1758,15 +1770,15 @@ static c64script_ast_node_t *readfile_statement(parser_t *p)
     node->type = AST_STMT_READFILE;
     node->line = p->previous.line;
 
-    node->as.readfile_stmt.variable = expression(p);
+    node->as.readfile_stmt.path = expression(p);
 
     if (!match(p, TOKEN_COMMA)) {
-        error(p, "Expected comma after variable in READFILE");
+        error(p, "Expected comma after path in READFILE");
         c64script_ast_free(node);
         return NULL;
     }
 
-    node->as.readfile_stmt.path = expression(p);
+    node->as.readfile_stmt.variable = expression(p);
 
     return node;
 }
@@ -1865,6 +1877,13 @@ static c64script_ast_node_t *statement(parser_t *p)
 
     bool allow_line_label = skipped_newlines || p->previous.type == TOKEN_EOF;
 
+    if (check(p, TOKEN_IDENTIFIER)) {
+        if (token_matches_ci(&p->current, "CALL_HTTP") || token_matches_ci(&p->current, "CALLHTTP")) {
+            advance(p);
+            return http_statement(p);
+        }
+    }
+
     // Optional line prefix label/line-number, possibly followed by a statement on the same line.
     if (allow_line_label && (check(p, TOKEN_IDENTIFIER) || check(p, TOKEN_NUMBER))) {
         c64script_token_t first = p->current;
@@ -1933,7 +1952,7 @@ static c64script_ast_node_t *statement(parser_t *p)
             error(p, "Expected identifier after LET");
             return NULL;
         }
-        c64script_ast_expr_t *target = variable(p, false);
+        c64script_ast_expr_t *target = variable(p, true);
         if (!target) {
             error(p, "Expected variable, array, or map access after LET");
             return NULL;
@@ -1969,7 +1988,7 @@ static c64script_ast_node_t *statement(parser_t *p)
         advance(p);
 
         // Parse the left-hand side (variable, array access, or map access)
-        c64script_ast_expr_t *target = variable(p, false);
+        c64script_ast_expr_t *target = variable(p, true);
         if (target && check(p, TOKEN_EQ)) {
             // It's an assignment
             return assignment_statement(p, target);

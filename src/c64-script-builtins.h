@@ -44,7 +44,7 @@ bool c64script_builtin_abs(double value, double *out_value);
 bool c64script_builtin_sqr(double value, double *out_value);
 
 /**
- * INT(value) - Floor (integer part)
+ * INT(value) - Truncate toward zero
  */
 bool c64script_builtin_int(double value, double *out_value);
 

@@ -22,7 +22,7 @@ TYPE "POKE 53280,0\r"
 wait 200ms
 
 rem Test 5: KEY command with symbolic key names
-KEY return
+KEY "RETURN"
 wait 100ms
 
 KEY RUNSTOP
