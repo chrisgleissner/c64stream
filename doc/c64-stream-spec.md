@@ -72,9 +72,11 @@ Both formats maintain identical 320×200 inner screen dimensions with symmetric 
 
 ### Stream Format
 - Packet Size: 770 bytes (2 byte header + 768 byte payload)
-- Sample Rate:
-  - PAL: 47983 Hz (-356 ppm from 48kHz)
-  - NTSC: 47940 Hz (-1243 ppm from 48kHz)
+- Sample Rate (exact fractional frequencies derived from hardware clock):
+  - PAL: 47982.887 Hz (exact: 47982.8869047619 Hz, -356.52 ppm from 48kHz)
+  - NTSC: 47940.341 Hz (exact: 47940.3408482143 Hz, -1242.9 ppm from 48kHz)
+  - Note: Integer display values (47983/47940 Hz) are rounded for readability only
+  - Clock derivation: PAL uses (4433618.75 × 16/9 × 15/77/32), NTSC uses (3579545.45 × 16/7 × 15/80/32)
 
 ### Packet Structure
 1. Header: Sequence number (16-bit)
@@ -109,15 +111,15 @@ Both formats maintain identical 320×200 inner screen dimensions with symmetric 
 
 **PAL Audio (47,983 Hz)**
 - Samples per Packet: 192 stereo samples
-- Packet Interval: 192 samples ÷ 47,983 Hz = 4.000 ms/packet
-- Packet Rate: **250.0 packets/sec** (exact)
-- Data Rate: 250.0 × 770 bytes = 192,500 bytes/sec = **1.540 Mbps**
+- Packet Interval: 192 samples ÷ 47,983 Hz = 4.001417 ms/packet (4,001,417 ns)
+- Packet Rate: **249.911 packets/sec**
+- Data Rate: 249.911 × 770 bytes = 192,431 bytes/sec = **1.540 Mbps**
 
 **NTSC Audio (47,940 Hz)**
 - Samples per Packet: 192 stereo samples
-- Packet Interval: 192 samples ÷ 47,940 Hz = 4.004 ms/packet
-- Packet Rate: **249.7 packets/sec**
-- Data Rate: 249.7 × 770 bytes = 192,269 bytes/sec = **1.538 Mbps**
+- Packet Interval: 192 samples ÷ 47,940 Hz = 4.005006 ms/packet (4,005,006 ns)
+- Packet Rate: **249.688 packets/sec**
+- Data Rate: 249.688 × 770 bytes = 192,260 bytes/sec = **1.538 Mbps**
 
 ### Network Buffer Sizing
 
@@ -127,9 +129,9 @@ Both formats maintain identical 320×200 inner screen dimensions with symmetric 
 - **Maximum Rate**: 3,590 packets/sec (NTSC)
 
 **Audio Buffer Requirements (integer packets per delay period)**
-- PAL: 1 packet per 4.000 ms
-- NTSC: 1 packet per 4.004 ms
-- **Maximum Rate**: 250 packets/sec (PAL)
+- PAL: 1 packet per 4.001417 ms
+- NTSC: 1 packet per 4.005006 ms
+- **Maximum Rate**: 249.911 packets/sec (PAL)
 
 **Data Volume Ratio**: Video:Audio ≈ **14.56:1** (22.399:1.538 Mbps)
 

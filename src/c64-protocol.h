@@ -40,6 +40,13 @@ See <https://www.gnu.org/licenses/> for details.
 #define C64_PAL_FRAME_INTERVAL_NS 19950125ULL  // 19.950125ms for 50.125Hz PAL (matches OBS canvas 401/8)
 #define C64_NTSC_FRAME_INTERVAL_NS 16715141ULL // 16.715141ms for 59.826Hz NTSC (matches OBS canvas 29913/500)
 
+// Audio sample rate constants (format-specific, derived from color subcarrier)
+// These are exact fractional frequencies, not rounded integers.
+// PAL:  (4433618.75 Hz × 16/9 × 15 / 77 / 32) = 47982.8869047619 Hz (-356.52 ppm from 48kHz)
+// NTSC: (3579545.45 Hz × 16/7 × 15 / 80 / 32) = 47940.3408482143 Hz (-1242.9 ppm from 48kHz)
+#define C64_PAL_AUDIO_SAMPLE_RATE 47982.8869047619   // PAL audio sample rate (exact)
+#define C64_NTSC_AUDIO_SAMPLE_RATE 47940.3408482143  // NTSC audio sample rate (exact)
+
 // Forward declaration
 struct c64_source;
 

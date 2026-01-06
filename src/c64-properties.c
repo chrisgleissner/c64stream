@@ -21,10 +21,14 @@ See <https://www.gnu.org/licenses/> for details.
 #include <util/platform.h>
 #include <time.h>
 #include <time.h>
+#include <sys/stat.h>
 
-// Cross-platform strcasecmp
+// Cross-platform strcasecmp and S_ISDIR
 #ifdef _WIN32
 #define strcasecmp _stricmp
+#ifndef S_ISDIR
+#define S_ISDIR(m) (((m) & S_IFMT) == S_IFDIR)
+#endif
 #endif
 #include <util/dstr.h>
 #include <stdio.h>
@@ -1258,6 +1262,12 @@ static bool palette_import_path_changed(obs_properties_t *props, obs_property_t 
 
     // Check if this is a file (not just a directory)
     if (!os_file_exists(path)) {
+        return false;
+    }
+
+    // Skip directories silently (e.g., when user browses to palette folder)
+    struct stat st;
+    if (os_stat(path, &st) == 0 && S_ISDIR(st.st_mode)) {
         return false;
     }
 

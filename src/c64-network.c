@@ -6,6 +6,7 @@ Licensed under the GNU General Public License v2.0 or later.
 See <https://www.gnu.org/licenses/> for details.
 */
 #include <obs-module.h>
+#include <util/platform.h>
 #include <string.h>
 #include "c64-logging.h"
 #include "c64-network.h"
@@ -456,7 +457,7 @@ socket_t c64_create_udp_socket(uint32_t port)
 #ifdef _WIN32
     // Windows: Small delay to ensure socket is fully ready for receiving
     // This helps with reconnection scenarios where port was recently closed
-    Sleep(50); // 50ms delay
+    os_sleep_ms(50); // 50ms delay
 #endif
 
     return sock;

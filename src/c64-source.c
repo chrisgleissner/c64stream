@@ -57,6 +57,11 @@ static void c64_apply_format_hint(struct c64_source *context, bool prefer_pal)
     context->height = prefer_pal ? C64_PAL_HEIGHT : C64_NTSC_HEIGHT;
     context->expected_fps = prefer_pal ? 50.125 : 59.826;
     context->frame_interval_ns = prefer_pal ? C64_PAL_FRAME_INTERVAL_NS : C64_NTSC_FRAME_INTERVAL_NS;
+
+    // Set format-specific audio sample rate (derived from color subcarrier)
+    context->audio_sample_rate = prefer_pal ? C64_PAL_AUDIO_SAMPLE_RATE : C64_NTSC_AUDIO_SAMPLE_RATE;
+    context->audio_info.samples_per_sec = (uint32_t)context->audio_sample_rate;
+
     c64_logo_set_format_preference(context, prefer_pal);
 }
 
@@ -442,13 +447,16 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->auto_start_attempted = false;
 
     // Initialize audio info for low-latency audio processing hints to OBS
-    context->audio_info.samples_per_sec = 47976; // Exact C64 Ultimate sample rate
+    // Audio sample rate will be set by format detection
+    // Default to PAL until format is detected
+    context->audio_sample_rate = C64_PAL_AUDIO_SAMPLE_RATE;
+    context->audio_info.samples_per_sec = (uint32_t)context->audio_sample_rate;
     context->audio_info.format = AUDIO_FORMAT_16BIT;
     context->audio_info.speakers = SPEAKERS_STEREO;
 
     // Log low-latency configuration
-    C64_LOG_INFO("Low-latency mode: buffer_delay=%ums, audio_rate=%uHz", context->buffer_delay_ms,
-                 context->audio_info.samples_per_sec);
+    C64_LOG_INFO("Low-latency mode: buffer_delay=%ums, audio_rate=%.1fHz (will adjust to format)",
+                 context->buffer_delay_ms, context->audio_sample_rate);
 
     // Initialize statistics counters
     os_atomic_set_long(&context->video_packets_received, 0);
