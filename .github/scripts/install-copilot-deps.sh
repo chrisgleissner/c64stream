@@ -55,38 +55,33 @@ install_minimal_deps() {
 # Install clang-format 21 via official LLVM APT repository
 install_clang_format_21() {
     log_info "Installing clang-format 21 from official LLVM repository..."
-    
-    # Check if already installed
-    if command -v clang-format >/dev/null 2>&1; then
-        local version=$(clang-format --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-        if [[ -n "$version" ]]; then
-            local major=$(echo "$version" | cut -d. -f1)
-            if [[ "$major" -ge 21 ]]; then
-                log_success "clang-format $version already installed"
-                return 0
-            fi
-        fi
+
+    # Add LLVM repo if not already present
+    if ! grep -Rq "llvm-toolchain-.*-21" /etc/apt/sources.list.d /etc/apt/sources.list; then
+        log_info "Adding LLVM APT repository..."
+        curl -fsSL https://apt.llvm.org/llvm.sh | sudo bash -s -- 21
     fi
-    
-    # Install from LLVM APT repository
-    log_info "Adding LLVM APT repository..."
-    curl -sSL https://apt.llvm.org/llvm.sh | sudo bash -s -- 21
-    
-    # Set up alternatives to make clang-format-21 the default
-    if [ -f /usr/bin/clang-format-21 ]; then
-        sudo update-alternatives --install /usr/bin/clang-format clang-format /usr/bin/clang-format-21 2100 --force
-        sudo update-alternatives --set clang-format /usr/bin/clang-format-21
-        log_success "clang-format 21 installed and set as default"
-    else
-        log_error "clang-format-21 binary not found after installation"
+
+    sudo apt-get update -qq
+    sudo apt-get install -y clang-tools-21
+
+    # Verify binary exists
+    if ! command -v clang-format >/dev/null 2>&1; then
+        log_error "clang-format binary not found after installation"
         return 1
     fi
-    
-    # Verify
-    if command -v clang-format >/dev/null 2>&1; then
-        local version=$(clang-format --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-        log_success "clang-format $version is now available"
+
+    # Verify major version
+    local version
+    version=$(clang-format --version | grep -oE '[0-9]+' | head -1)
+
+    if [[ "$version" != "21" ]]; then
+        log_error "clang-format is not version 21"
+        clang-format --version
+        return 1
     fi
+
+    log_success "clang-format 21 installed and verified"
 }
 
 # Install gersemi for CMake formatting
