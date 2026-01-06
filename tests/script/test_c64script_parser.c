@@ -11,7 +11,7 @@ See <https://www.gnu.org/licenses/> for details.
 #undef NDEBUG
 #endif
 
-#include "../src/c64-script.h"
+#include "c64-script.h"
 
 #include <assert.h>
 #include <stdio.h>

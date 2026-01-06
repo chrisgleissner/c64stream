@@ -638,8 +638,8 @@ reset_obs_configuration() {
             # Check if it's an E2E properties file (contains localhost)
             if grep -q "localhost" "$props_file"; then
                 log_info "Found E2E properties file with localhost settings"
-                mv "$props_file" "${props_file}.e2e_backup_$(date +%Y%m%d_%H%M%S)"
-                log_info "Backed up E2E properties file"
+                rm "$props_file"
+                log_info "Removed E2E properties file (will be replaced with default)"
 
                 # Restore correct properties.ini with real C64 Ultimate settings
                 if [[ -f "$PROJECT_ROOT/data/properties.ini" ]]; then
@@ -792,6 +792,9 @@ install_plugin() {
     # Create directory structure
     mkdir -p "$install_dir/bin/64bit"
     mkdir -p "$install_dir/data"
+
+    # Clean up any existing E2E backups in the installation directory
+    find "$install_dir/data" -name "*.e2e_backup_*" -delete 2>/dev/null || true
 
     # Copy binary based on platform
     case $platform in
@@ -956,6 +959,9 @@ install_plugin_for_e2e() {
     mkdir -p "$install_dir/bin/64bit"
     mkdir -p "$install_dir/data"
 
+    # Clean up any existing E2E backups
+    find "$install_dir/data" -name "*.e2e_backup_*" -delete 2>/dev/null || true
+
     # Copy plugin files
     case $platform in
         linux)
@@ -1002,11 +1008,6 @@ install_plugin_for_e2e() {
     fi
 
     if [[ -n "$e2e_props" ]]; then
-        # Create backup of existing properties.ini if it exists
-        if [[ -f "$install_dir/data/properties.ini" ]]; then
-            cp "$install_dir/data/properties.ini" "$install_dir/data/properties.ini.e2e_backup_$(date +%Y%m%d_%H%M%S)"
-        fi
-
         cp "$e2e_props" "$install_dir/data/properties.ini"
         log_success "Installed E2E properties.ini from $e2e_props"
 
@@ -1506,12 +1507,12 @@ main() {
     if [[ "$RUN_SCRIPT_TESTS" == "true" ]]; then
         log_info "Running c64script validation tests..."
         if [[ "$PLATFORM" == "linux" ]]; then
-            ./build_x86_64/tests/test_c64script_all_scripts . || {
+            ./build_x86_64/tests/script/test_c64script_all_scripts . || {
                 log_error "Script validation tests failed"
                 exit 1
             }
         elif [[ "$PLATFORM" == "macos" ]]; then
-            ./build_universal/tests/test_c64script_all_scripts . || {
+            ./build_universal/tests/script/test_c64script_all_scripts . || {
                 log_error "Script validation tests failed"
                 exit 1
             }
@@ -1529,11 +1530,11 @@ main() {
 
         # Run tests to generate new traces
         if [[ "$PLATFORM" == "linux" ]]; then
-            ./build_x86_64/tests/test_c64script_all_scripts . || {
+            ./build_x86_64/tests/script/test_c64script_all_scripts . || {
                 log_warning "Some tests failed during trace generation (expected for error tests)"
             }
         elif [[ "$PLATFORM" == "macos" ]]; then
-            ./build_universal/tests/test_c64script_all_scripts . || {
+            ./build_universal/tests/script/test_c64script_all_scripts . || {
                 log_warning "Some tests failed during trace generation (expected for error tests)"
             }
         else

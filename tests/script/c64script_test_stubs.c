@@ -6,8 +6,8 @@ Licensed under the GNU General Public License v2.0 or later.
 See <https://www.gnu.org/licenses/> for details.
 */
 
-#include "../src/c64-keyboard.h"
-#include "../src/c64-rest-client.h"
+#include "../../src/c64-keyboard.h"
+#include "../../src/c64-rest-client.h"
 
 #include <stdbool.h>
 #include <stdint.h>

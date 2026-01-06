@@ -1,0 +1,65 @@
+name: "Copilot Setup Steps"
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+  pull_request:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+
+jobs:
+  copilot-setup-steps:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install dependencies needed by llvm.sh
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y wget gnupg lsb-release software-properties-common
+
+      - name: Install Clang 21 toolchain
+        run: |
+          curl -sSL https://apt.llvm.org/llvm.sh | sudo bash -s -- 21 all
+
+      - name: Prefer Clang 21 binaries
+        run: |
+          # Check which tools are actually installed
+          for tool in clang clang++ clang-format clangd; do
+            if [ -f /usr/bin/${tool}-21 ]; then
+              sudo update-alternatives --install /usr/bin/${tool} ${tool} /usr/bin/${tool}-21 2100 --force
+              sudo update-alternatives --set ${tool} /usr/bin/${tool}-21
+            else
+              echo "Warning: ${tool}-21 not found, skipping"
+            fi
+          done
+
+      - name: Report selected clang version
+        run: |
+          echo "=== Clang Toolchain Status ==="
+          for tool in clang clang++ clang-format clangd; do
+            if command -v ${tool} &> /dev/null; then
+              echo "✅ ${tool}: $(${tool} --version | head -n1)"
+            else
+              echo "❌ ${tool}: not available"
+            fi
+          done
+
+      - name: Verify build tools functionality
+        run: |
+          echo "=== Testing Build Environment ==="
+          # Test that we can actually use the tools
+          echo "int main() { return 0; }" > /tmp/test.c
+          clang /tmp/test.c -o /tmp/test && echo "✅ clang compilation works" || echo "❌ clang compilation failed"
+          
+          # Test clang-format if available
+          if command -v clang-format &> /dev/null; then
+            echo "int main(){return 0;}" | clang-format && echo "✅ clang-format works" || echo "❌ clang-format failed"
+          fi
+          
+          rm -f /tmp/test.c /tmp/test

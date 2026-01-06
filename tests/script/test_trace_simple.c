@@ -10,12 +10,12 @@ See <https://www.gnu.org/licenses/> for details.
 #include <stdlib.h>
 #include <string.h>
 
-#include "../src/c64-script.h"
+#include "../../src/c64-script.h"
 
 int main(void)
 {
     // Read test script
-    FILE *f = fopen("tests/trace_test.c64script", "r");
+    FILE *f = fopen("tests/script/scripts/trace_test.c64script", "r");
     if (!f) {
         fprintf(stderr, "Failed to open trace_test.c64script\n");
         return 1;

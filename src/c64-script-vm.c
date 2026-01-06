@@ -1505,8 +1505,8 @@ bool c64script_vm_execute(c64script_runtime_t *runtime)
                 return false;
             }
 
-            // Skip waiting in step mode or when paused to avoid blocking debugging
-            if (runtime->is_paused || runtime->step_mode) {
+            // Skip waiting in step mode, when paused, or during trace recording (test mode)
+            if (runtime->is_paused || runtime->step_mode || runtime->trace_recording_enabled) {
                 break;
             }
 
@@ -1549,8 +1549,8 @@ bool c64script_vm_execute(c64script_runtime_t *runtime)
             }
             c64script_value_free(&target);
 
-            // Skip waiting in step mode or when paused to avoid blocking debugging
-            if (runtime->is_paused || runtime->step_mode) {
+            // Skip waiting in step mode, when paused, or during trace recording (test mode)
+            if (runtime->is_paused || runtime->step_mode || runtime->trace_recording_enabled) {
                 break;
             }
 

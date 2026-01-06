@@ -1,7 +1,7 @@
 /*
 Simple trace generator for test_cancellation.c64script
 */
-#include "../src/c64-script.h"
+#include "../../src/c64-script.h"
 #include "c64script_test_stubs.h"
 #include <stdio.h>
 #include <stdlib.h>

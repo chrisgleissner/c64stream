@@ -535,7 +535,7 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->frame_dirty = false;
 
     // Initialize palette from settings (must be done after palette system init)
-    // CRITICAL: Always select Default if settings are empty (first startup guarantee)
+    // Always select Default if settings are empty (first startup guarantee)
     const char *palette_id = obs_data_get_string(settings, "palette");
     if (!palette_id || !palette_id[0]) {
         // No palette specified - select Default (first startup)

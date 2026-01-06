@@ -580,7 +580,7 @@ obs_properties_t *c64_create_properties(void *data)
     obs_property_set_long_description(export_path_prop, obs_module_text("ExportSettings.Description"));
 
     // Set default directory path BEFORE registering callback to avoid triggering it
-    // CRITICAL: Use DIRECTORY (with trailing slash), not filename, to prevent spurious export
+    // Use DIRECTORY (with trailing slash), not filename, to prevent spurious export
     // If we set a filename, the callback might trigger and create the file automatically
     {
         char settings_dir[512];
@@ -823,7 +823,7 @@ obs_properties_t *c64_create_properties(void *data)
     // This prevents spurious "Default (Custom)" palette creation when properties dialog opens
     obs_data_set_bool(palette_settings, C64_PALETTE_INITIALIZING_KEY, true);
 
-    // CRITICAL: Manually trigger palette_changed with validated settings BEFORE setting the callback
+    // Manually trigger palette_changed with validated settings BEFORE setting the callback
     // This ensures the correct palette is loaded before OBS can fire callbacks with stale data
     // Without this, OBS may call palette_changed with the old palette name from settings,
     // triggering auto-save and recreating deleted palettes
@@ -1717,7 +1717,7 @@ static bool config_export_path_changed(obs_properties_t *props, obs_property_t *
     if (!settings)
         return false;
 
-    // CRITICAL: Never export during initialization
+    // Never export during initialization
     // This prevents spurious exports when properties dialog opens
     if (obs_data_get_bool(settings, C64_CONFIG_INITIALIZING_KEY)) {
         return false;
@@ -1734,7 +1734,7 @@ static bool config_export_path_changed(obs_properties_t *props, obs_property_t *
         return false; // Already processed
     }
 
-    // CRITICAL: Don't export if the path is a directory (not an .ini file)
+    // Don't export if the path is a directory (not an .ini file)
     if (c64_path_is_directory(path)) {
         return false;
     }
@@ -1771,7 +1771,7 @@ static bool config_import_path_changed(obs_properties_t *props, obs_property_t *
     if (!settings)
         return false;
 
-    // CRITICAL: Never import during initialization
+    // Never import during initialization
     // This prevents spurious imports when properties dialog opens
     if (obs_data_get_bool(settings, C64_CONFIG_INITIALIZING_KEY)) {
         return false;
@@ -1830,7 +1830,7 @@ static void update_palette_color_properties(obs_data_t *settings)
         // Convert BGRA to OBS color format (0xAABBGGRR)
         uint32_t obs_color = c64_bgra_to_obs_color(bgra);
 
-        // CRITICAL: Check if actual value exists and matches working color
+        // Check if actual value exists and matches working color
         // If not, set it to prevent stale values from triggering callbacks
         // This prevents deleted palette colors from persisting and triggering recreation
         if (!obs_data_has_user_value(settings, key) || obs_data_get_int(settings, key) != (long long)obs_color) {
@@ -1881,7 +1881,7 @@ static bool palette_changed(void *priv, obs_properties_t *props, obs_property_t 
             return false;
         }
 
-        // CRITICAL: Save the palette selection to settings AND persist to disk
+        // Save the palette selection to settings AND persist to disk
         // This ensures the selection persists across OBS restarts
         obs_data_set_string(settings, C64_PALETTE_KEY, palette_id);
 
@@ -1907,7 +1907,7 @@ static bool palette_import_path_changed(obs_properties_t *props, obs_property_t 
         return false;
     }
 
-    // CRITICAL: Never import during initialization
+    // Never import during initialization
     // This prevents spurious palette imports when properties dialog opens
     if (obs_data_get_bool(settings, C64_PALETTE_INITIALIZING_KEY)) {
         return false;
@@ -1968,7 +1968,7 @@ static bool palette_export_path_changed(obs_properties_t *props, obs_property_t 
         return false;
     }
 
-    // CRITICAL: Never export during initialization
+    // Never export during initialization
     // This prevents spurious palette file creation when properties dialog opens
     if (obs_data_get_bool(settings, C64_PALETTE_INITIALIZING_KEY)) {
         return false;
@@ -1985,7 +1985,7 @@ static bool palette_export_path_changed(obs_properties_t *props, obs_property_t 
         return false; // Already processed
     }
 
-    // CRITICAL: Don't export if the path is a directory (not a .vpl file)
+    // Don't export if the path is a directory (not a .vpl file)
     if (c64_path_is_directory(path)) {
         return false;
     }
@@ -2158,7 +2158,7 @@ static bool palette_color_changed(void *data, obs_properties_t *props, obs_prope
     // Maintain ABGR format (0xFFBBGGRR) used by the palette system
     uint32_t color = 0xFF000000 | (b << 16) | (g << 8) | r;
 
-    // CRITICAL: Never auto-save during initialization
+    // Never auto-save during initialization
     // This prevents spurious "Default (Custom)" palette creation on Windows
     // where OBS may trigger color callbacks before working colors are properly initialized
     if (obs_data_get_bool(settings, C64_PALETTE_INITIALIZING_KEY)) {

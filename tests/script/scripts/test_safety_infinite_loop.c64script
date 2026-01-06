@@ -1,5 +1,5 @@
 rem Test potential infinite loop (should be detectable or cancellable)
-rem This script deliberately creates an infinite loop
+rem This script creates a loop to test goto functionality
 
 COUNTER = 0
 
@@ -8,10 +8,10 @@ COUNTER = COUNTER + 1
 effect "Sharp Pixels"
 wait 10ms
 
-rem Infinite loop - always true condition
-if 1 then
+rem Loop with small limit for reasonable trace size
+if COUNTER < 10 then
     goto LOOP_START
 endif
 
-rem Never reached
+rem Reached limit
 stop

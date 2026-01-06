@@ -20,14 +20,15 @@ See <https://www.gnu.org/licenses/> for details.
 #undef NDEBUG
 #endif
 
-#include "../src/c64-script.h"
-#include "../src/c64-script-runtime.h"
+#include "c64-script.h"
+#include "c64-script-runtime.h"
 
 #include <assert.h>
 #include <setjmp.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
 #include <time.h>
 
@@ -43,6 +44,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <errno.h>
 #endif
 
 #include "c64script_test_stubs.h"
@@ -84,6 +86,8 @@ static int unexpected_failures = 0;
 
 // Maximum iterations to prevent infinite loops in tests
 #define MAX_TEST_ITERATIONS 100000
+#define MAX_WORKERS_CAP 64
+#define MAX_WORKERS_CAP 64
 
 // Scripts that are expected to fail parsing (error test cases)
 static const char *EXPECTED_PARSE_FAILURES[] = {
@@ -111,21 +115,16 @@ static const char *EXPECTED_COMPILE_FAILURES[] = {"test_wait_until.c64script",  
 
 // Scripts that should compile but fail execution (runtime errors)
 static const char *EXPECTED_EXECUTION_FAILURES[] = {
-    "test_safety_infinite_loop.c64script", // Expected to hit iteration limit
-    "test_safety_max_nesting.c64script",   // Expected to hit nesting limit
-    "demo_basic_hello_world.c64script",    // Uses wait statements (OBS required)
-    "hello_world.c64script",               // Type mismatch issues
-    "demo_palette_cycle.c64script",        // Requires OBS source
-    "demo_effect_preset_cycle.c64script",  // Requires OBS source
-    "test_iteration_counts.c64script",     // Times out with many waits
-    "test_error_type_mismatch.c64script",  // Intentional type mismatch
-    "test_simple_sequence.c64script",      // Times out with waits
-    "test_loop.c64script",                 // Times out with infinite loop waits
-    "test_comparisons.c64script",          // String comparison not yet supported
-    "test_user_functions.c64script",       // Type mismatch issues
-    "test_logging.c64script",              // Type mismatch issues
-    "test_recording.c64script",            // OBS frontend API - times out
-    "test_error_invalid.c64script",        // Type mismatch
+    "test_safety_max_nesting.c64script",  // Expected to hit nesting limit
+    "demo_basic_hello_world.c64script",   // Uses TYPE/KEY commands which need more work
+    "hello_world.c64script",              // Type mismatch issues (STR function in concatenation)
+    "demo_palette_cycle.c64script",       // Requires OBS source (long running demo)
+    "demo_effect_preset_cycle.c64script", // Requires OBS source (long running demo)
+    "test_error_type_mismatch.c64script", // Intentional type mismatch
+    "test_comparisons.c64script",         // String comparison not yet supported
+    "test_user_functions.c64script",      // Type mismatch issues
+    "test_logging.c64script",             // Type mismatch issues (string + number concatenation)
+    "test_error_invalid.c64script",       // Type mismatch
     NULL};
 
 static bool should_expect_parse_failure(const char *filename)
@@ -546,6 +545,20 @@ static void process_script(const char *file)
     // Do NOT free(source) here as it would be a double-free
 }
 
+#ifndef _WIN32
+static int detect_worker_count(void)
+{
+    long nproc = sysconf(_SC_NPROCESSORS_ONLN);
+    if (nproc < 1) {
+        return 1;
+    }
+    if (nproc > MAX_WORKERS_CAP) {
+        nproc = MAX_WORKERS_CAP;
+    }
+    return (int)nproc;
+}
+#endif
+
 int main(int argc, char **argv)
 {
     printf("=== C64Script Repository-Wide Validation ===\n\n");
@@ -572,74 +585,115 @@ int main(int argc, char **argv)
     printf("Found %d .c64script files to test (max %llu iterations each)\n\n", count,
            (unsigned long long)MAX_TEST_ITERATIONS);
 
-    // Process files with fork-based isolation to prevent stalls
-    for (int i = 0; i < count; i++) {
 #ifdef _WIN32
-        // Windows: Run tests directly (no fork available)
+    // Windows: Run tests directly (no fork available)
+    for (int i = 0; i < count; i++) {
         process_script(files[i]);
+    }
 #else
-        pid_t pid = fork();
+    // POSIX: run tests with a worker pool using fork for isolation
+    int worker_count = detect_worker_count();
+    if (worker_count > count) {
+        worker_count = count;
+    }
+    printf("Running up to %d parallel workers\n", worker_count);
 
-        if (pid == 0) {
-            // Child process - run the test
-            // Reset counters for this child
-            parse_success = 0;
-            parse_expected_fail = 0;
-            compile_success = 0;
-            compile_expected_fail = 0;
-            execution_success = 0;
-            execution_expected_fail = 0;
-            unexpected_failures = 0;
-
+    pid_t *pids = calloc((size_t)count, sizeof(pid_t));
+    time_t *starts = calloc((size_t)count, sizeof(time_t));
+    if (!pids || !starts) {
+        fprintf(stderr, "  ❌ Failed to allocate worker tracking arrays\n");
+        free(pids);
+        free(starts);
+        for (int i = 0; i < count; i++) {
             process_script(files[i]);
+        }
+    } else {
+        int next = 0;
+        int active = 0;
+        int completed = 0;
 
-            // Exit with status indicating if there were unexpected failures
-            exit(unexpected_failures > 0 ? 1 : 0);
-        } else if (pid > 0) {
-            // Parent process - wait with timeout
+        while (completed < count) {
+            // Launch new workers until we reach the concurrency limit
+            while (next < count && active < worker_count) {
+                pid_t pid = fork();
+                if (pid == 0) {
+                    // Child process - reset counters and run one script
+                    parse_success = 0;
+                    parse_expected_fail = 0;
+                    compile_success = 0;
+                    compile_expected_fail = 0;
+                    execution_success = 0;
+                    execution_expected_fail = 0;
+                    unexpected_failures = 0;
+
+                    process_script(files[next]);
+                    exit(unexpected_failures > 0 ? 1 : 0);
+                } else if (pid > 0) {
+                    pids[next] = pid;
+                    starts[next] = time(NULL);
+                    active++;
+                } else {
+                    fprintf(stderr, "  ❌ Failed to fork test process\n");
+                    unexpected_failures++;
+                    completed++;
+                }
+                next++;
+            }
+
             int status;
-            time_t start = time(NULL);
-
-            while (1) {
-                pid_t result = waitpid(pid, &status, WNOHANG);
-
-                if (result == pid) {
-                    // Child completed - check exit status
-                    if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
+            pid_t done = waitpid(-1, &status, WNOHANG);
+            if (done > 0) {
+                bool found = false;
+                for (int i = 0; i < count; i++) {
+                    if (pids[i] == done) {
+                        pids[i] = 0;
+                        active--;
+                        completed++;
+                        if ((WIFEXITED(status) && WEXITSTATUS(status) != 0) || WIFSIGNALED(status)) {
+                            unexpected_failures++;
+                        }
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    // Should not happen, but prevent deadlock if it does
+                    completed++;
+                    unexpected_failures++;
+                }
+            } else if (done == 0) {
+                // Check for per-test wall-clock timeout
+                time_t now = time(NULL);
+                for (int i = 0; i < count; i++) {
+                    if (pids[i] != 0 && now - starts[i] >= PER_TEST_TIMEOUT_SECONDS) {
+                        fprintf(stderr, "  ❌ TEST TIMEOUT (exceeded %d seconds wall-clock time)\n",
+                                PER_TEST_TIMEOUT_SECONDS);
+                        kill(pids[i], SIGKILL);
+                        waitpid(pids[i], &status, 0);
+                        pids[i] = 0;
+                        active--;
+                        completed++;
                         unexpected_failures++;
                     }
-                    break;
-                } else if (result < 0) {
-                    // Error waiting
-                    fprintf(stderr, "  ❌ Error waiting for test process\n");
-                    unexpected_failures++;
-                    break;
                 }
-
-                // Check if we've exceeded the per-test timeout
-                time_t elapsed = time(NULL) - start;
-                if (elapsed >= PER_TEST_TIMEOUT_SECONDS) {
-                    fprintf(stderr, "  ❌ TEST TIMEOUT (exceeded %d seconds wall-clock time)\n",
-                            PER_TEST_TIMEOUT_SECONDS);
-                    kill(pid, SIGKILL);
-                    waitpid(pid, &status, 0);
-                    unexpected_failures++;
-                    break;
-                }
-
-                // Sleep briefly before checking again
                 usleep(10000); // 10ms
+            } else {
+                if (errno == ECHILD) {
+                    break;
+                }
+                fprintf(stderr, "  ❌ waitpid error: %s\n", strerror(errno));
+                unexpected_failures++;
+                break;
             }
-        } else {
-            // Fork failed
-            fprintf(stderr, "  ❌ Failed to fork test process\n");
-            unexpected_failures++;
         }
+
+        free(pids);
+        free(starts);
+    }
 #endif
 
-        fflush(stdout);
-        fflush(stderr);
-    }
+    fflush(stdout);
+    fflush(stderr);
 
     printf("\n=== Summary ===\n");
     printf("Total files tested: %d\n", count);

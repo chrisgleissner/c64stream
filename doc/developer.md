@@ -642,7 +642,7 @@ if (runtime->should_pause && current_line != runtime->last_executed_line) {
 
 ### Testing Scripts
 
-Unit tests in `tests/test_c64script_debug.c` validate:
+Unit tests in `tests/script/test_c64script_debug.c` validate:
 - Pause/resume state transitions
 - Step mode execution
 - Line tracking accuracy
