@@ -1,9 +1,7 @@
 # Execution trace
 script: "test_logging.c64script"
-status: failure
-error:
-  line: 14
-  message: "TYPE MISMATCH (ADD)"
+status: success
+error: ~
 program: |
   01: rem Test logging commands
   02: rem Validates LOG, LOGFILE, TRON, TROFF, PRINT
@@ -83,3 +81,216 @@ trace:
   content: "LOG \"Counter value: \" + STR(COUNTER)"
   variables:
     COUNTER: 42
+- line: 15
+  content: "wait 100ms"
+  variables:
+    COUNTER: 42
+- line: 18
+  content: "TRON"
+  variables:
+    COUNTER: 42
+- line: 19
+  content: "effect \"Sharp Pixels\""
+  variables:
+    COUNTER: 42
+- line: 20
+  content: "wait 100ms"
+  variables:
+    COUNTER: 42
+- line: 21
+  content: "palette \"colodore\""
+  variables:
+    COUNTER: 42
+- line: 22
+  content: "wait 100ms"
+  variables:
+    COUNTER: 42
+- line: 25
+  content: "TROFF"
+  variables:
+    COUNTER: 42
+- line: 26
+  content: "effect \"Soft CRT\""
+  variables:
+    COUNTER: 42
+- line: 27
+  content: "wait 100ms"
+  variables:
+    COUNTER: 42
+- line: 30
+  content: "for I = 1 to 3"
+  variables:
+    COUNTER: 42
+- line: 31
+  content: "LOG \"Loop iteration: \" + STR(I)"
+  variables:
+    COUNTER: 42
+    I: 1
+- line: 32
+  content: "wait 50ms"
+  variables:
+    COUNTER: 42
+    I: 1
+- line: 30
+  content: "for I = 1 to 3"
+  variables:
+    COUNTER: 42
+    I: 1
+- line: 31
+  content: "LOG \"Loop iteration: \" + STR(I)"
+  variables:
+    COUNTER: 42
+    I: 2
+- line: 32
+  content: "wait 50ms"
+  variables:
+    COUNTER: 42
+    I: 2
+- line: 30
+  content: "for I = 1 to 3"
+  variables:
+    COUNTER: 42
+    I: 2
+- line: 31
+  content: "LOG \"Loop iteration: \" + STR(I)"
+  variables:
+    COUNTER: 42
+    I: 3
+- line: 32
+  content: "wait 50ms"
+  variables:
+    COUNTER: 42
+    I: 3
+- line: 30
+  content: "for I = 1 to 3"
+  variables:
+    COUNTER: 42
+    I: 3
+- line: 36
+  content: "LOGFILE \"test_output.log\" APPEND"
+  variables:
+    COUNTER: 42
+    I: 4
+- line: 37
+  content: "LOG \"Appended message\""
+  variables:
+    COUNTER: 42
+    I: 4
+- line: 38
+  content: "wait 100ms"
+  variables:
+    COUNTER: 42
+    I: 4
+- line: 41
+  content: "PRINT \"This goes to OBS log\""
+  variables:
+    COUNTER: 42
+    I: 4
+- line: 42
+  content: "wait 100ms"
+  variables:
+    COUNTER: 42
+    I: 4
+- line: 45
+  content: "NAME$ = \"C64Script\""
+  variables:
+    COUNTER: 42
+    I: 4
+- line: 46
+  content: "VERSION = 1.0"
+  variables:
+    COUNTER: 42
+    I: 4
+    NAME$: "C64Script"
+- line: 47
+  content: "LOG \"Running \" + NAME$ + \" version \" + STR(VERSION)"
+  variables:
+    COUNTER: 42
+    I: 4
+    NAME$: "C64Script"
+    VERSION: 1
+- line: 48
+  content: "wait 100ms"
+  variables:
+    COUNTER: 42
+    I: 4
+    NAME$: "C64Script"
+    VERSION: 1
+- line: 51
+  content: "TRON"
+  variables:
+    COUNTER: 42
+    I: 4
+    NAME$: "C64Script"
+    VERSION: 1
+- line: 52
+  content: "for J = 1 to 2"
+  variables:
+    COUNTER: 42
+    I: 4
+    NAME$: "C64Script"
+    VERSION: 1
+- line: 53
+  content: "LOG \"Traced loop: \" + STR(J)"
+  variables:
+    COUNTER: 42
+    I: 4
+    NAME$: "C64Script"
+    VERSION: 1
+    J: 1
+- line: 54
+  content: "wait 50ms"
+  variables:
+    COUNTER: 42
+    I: 4
+    NAME$: "C64Script"
+    VERSION: 1
+    J: 1
+- line: 52
+  content: "for J = 1 to 2"
+  variables:
+    COUNTER: 42
+    I: 4
+    NAME$: "C64Script"
+    VERSION: 1
+    J: 1
+- line: 53
+  content: "LOG \"Traced loop: \" + STR(J)"
+  variables:
+    COUNTER: 42
+    I: 4
+    NAME$: "C64Script"
+    VERSION: 1
+    J: 2
+- line: 54
+  content: "wait 50ms"
+  variables:
+    COUNTER: 42
+    I: 4
+    NAME$: "C64Script"
+    VERSION: 1
+    J: 2
+- line: 52
+  content: "for J = 1 to 2"
+  variables:
+    COUNTER: 42
+    I: 4
+    NAME$: "C64Script"
+    VERSION: 1
+    J: 2
+- line: 56
+  content: "TROFF"
+  variables:
+    COUNTER: 42
+    I: 4
+    NAME$: "C64Script"
+    VERSION: 1
+    J: 3
+- line: 58
+  content: "stop"
+  variables:
+    COUNTER: 42
+    I: 4
+    NAME$: "C64Script"
+    VERSION: 1
+    J: 3

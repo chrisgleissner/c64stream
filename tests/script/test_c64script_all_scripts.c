@@ -115,7 +115,6 @@ static const char *EXPECTED_EXECUTION_FAILURES[] = {
     "hello_world.c64script",              // Type mismatch issues (STR function in concatenation)
     "demo_palette_cycle.c64script",       // Requires OBS source (long running demo)
     "demo_effect_preset_cycle.c64script", // Requires OBS source (long running demo)
-    "test_error_type_mismatch.c64script", // Intentional type mismatch
     "test_comparisons.c64script",         // String comparison not yet supported
     "test_error_invalid.c64script",       // Type mismatch
     "test_http_rest.c64script",           // Type mismatch in HTTP operations (not fully implemented)

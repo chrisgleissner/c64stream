@@ -1085,17 +1085,100 @@ bool c64script_vm_execute(c64script_runtime_t *runtime)
         case OP_ADD:
             if (!c64script_runtime_pop(runtime, &b) || !c64script_runtime_pop(runtime, &a))
                 return false;
-            if (!require_number(runtime, &a, "ADD") || !require_number(runtime, &b, "ADD")) {
+
+            // Handle string concatenation
+            if (a.type == VALUE_STRING || b.type == VALUE_STRING) {
+                // Convert both to strings if needed
+                char *a_str = NULL;
+                char *b_str = NULL;
+                bool a_needs_free = false;
+                bool b_needs_free = false;
+
+                if (a.type == VALUE_STRING) {
+                    a_str = a.as.string;
+                } else if (a.type == VALUE_NUMBER) {
+                    a_str = malloc(64);
+                    if (!a_str) {
+                        c64script_value_free(&a);
+                        c64script_value_free(&b);
+                        snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Out of memory");
+                        return false;
+                    }
+                    c64script_builtin_str(a.as.number, a_str, 64);
+                    a_needs_free = true;
+                } else {
+                    c64script_value_free(&a);
+                    c64script_value_free(&b);
+                    snprintf(runtime->error_msg, sizeof(runtime->error_msg), "TYPE MISMATCH (ADD)");
+                    return false;
+                }
+
+                if (b.type == VALUE_STRING) {
+                    b_str = b.as.string;
+                } else if (b.type == VALUE_NUMBER) {
+                    b_str = malloc(64);
+                    if (!b_str) {
+                        if (a_needs_free)
+                            free(a_str);
+                        c64script_value_free(&a);
+                        c64script_value_free(&b);
+                        snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Out of memory");
+                        return false;
+                    }
+                    c64script_builtin_str(b.as.number, b_str, 64);
+                    b_needs_free = true;
+                } else {
+                    if (a_needs_free)
+                        free(a_str);
+                    c64script_value_free(&a);
+                    c64script_value_free(&b);
+                    snprintf(runtime->error_msg, sizeof(runtime->error_msg), "TYPE MISMATCH (ADD)");
+                    return false;
+                }
+
+                // Concatenate strings
+                size_t len = strlen(a_str) + strlen(b_str) + 1;
+                char *concat = malloc(len);
+                if (!concat) {
+                    if (a_needs_free)
+                        free(a_str);
+                    if (b_needs_free)
+                        free(b_str);
+                    c64script_value_free(&a);
+                    c64script_value_free(&b);
+                    snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Out of memory");
+                    return false;
+                }
+                strcpy(concat, a_str);
+                strcat(concat, b_str);
+
+                if (a_needs_free)
+                    free(a_str);
+                if (b_needs_free)
+                    free(b_str);
                 c64script_value_free(&a);
                 c64script_value_free(&b);
-                return false;
+
+                result = c64script_value_string(concat);
+                free(concat);
+                if (!c64script_runtime_push(runtime, result)) {
+                    c64script_value_free(&result);
+                    return false;
+                }
+            } else {
+                // Handle number addition
+                if (!require_number(runtime, &a, "ADD") || !require_number(runtime, &b, "ADD")) {
+                    c64script_value_free(&a);
+                    c64script_value_free(&b);
+                    return false;
+                }
+                result.type = VALUE_NUMBER;
+                result.as.number = a.as.number + b.as.number;
+                c64script_value_free(&a);
+                c64script_value_free(&b);
+                if (!c64script_runtime_push(runtime, result))
+                    return false;
             }
-            result.type = VALUE_NUMBER;
-            result.as.number = a.as.number + b.as.number;
-            c64script_value_free(&a);
-            c64script_value_free(&b);
-            if (!c64script_runtime_push(runtime, result))
-                return false;
             break;
 
         case OP_SUBTRACT:

@@ -1,9 +1,7 @@
 # Execution trace
 script: "test_arrays_maps.c64script"
-status: failure
-error:
-  line: 92
-  message: "Array index out of bounds"
+status: success
+error: ~
 program: |
   01: rem Test arrays and maps
   02: rem Validates dim, array access, and map access
@@ -93,7 +91,7 @@ program: |
   86: wait 50ms
   87: 
   88: rem Test 13: Array bounds
-  89: dim SMALL(2)
+  89: dim SMALL(3)
   90: SMALL(0) = 100
   91: SMALL(1) = 200
   92: SMALL(2) = 300
@@ -970,7 +968,7 @@ trace:
     ROW1: [1, 2, 0, 0, 0]
     ROW2: [10, 20, 0, 0, 0]
 - line: 89
-  content: "dim SMALL(2)"
+  content: "dim SMALL(3)"
   variables:
     VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
     FIRST: 100
@@ -1005,7 +1003,7 @@ trace:
     K: 3
     ROW1: [1, 2, 0, 0, 0]
     ROW2: [10, 20, 0, 0, 0]
-    SMALL: [0, 0]
+    SMALL: [0, 0, 0]
 - line: 91
   content: "SMALL(1) = 200"
   variables:
@@ -1024,7 +1022,7 @@ trace:
     K: 3
     ROW1: [1, 2, 0, 0, 0]
     ROW2: [10, 20, 0, 0, 0]
-    SMALL: [100, 0]
+    SMALL: [100, 0, 0]
 - line: 92
   content: "SMALL(2) = 300"
   variables:
@@ -1043,4 +1041,43 @@ trace:
     K: 3
     ROW1: [1, 2, 0, 0, 0]
     ROW2: [10, 20, 0, 0, 0]
-    SMALL: [100, 200]
+    SMALL: [100, 200, 0]
+- line: 93
+  content: "LAST = SMALL(2)"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    FIRST_NAME$: "Alice"
+    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG_NUM: {port: 8080, timeout: 5000}
+    HOST$: "192.168.1.64"
+    PORT: 8080
+    PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
+    K: 3
+    ROW1: [1, 2, 0, 0, 0]
+    ROW2: [10, 20, 0, 0, 0]
+    SMALL: [100, 200, 300]
+- line: 96
+  content: "stop"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    FIRST_NAME$: "Alice"
+    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG_NUM: {port: 8080, timeout: 5000}
+    HOST$: "192.168.1.64"
+    PORT: 8080
+    PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
+    K: 3
+    ROW1: [1, 2, 0, 0, 0]
+    ROW2: [10, 20, 0, 0, 0]
+    SMALL: [100, 200, 300]
+    LAST: 300

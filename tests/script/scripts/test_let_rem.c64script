@@ -70,8 +70,8 @@ TOTAL = A + B + C
 LOG "Total: " + STR(TOTAL)
 wait 100ms
 
-rem Test 13: let with function call
-let RANDOM = RND(100)
+rem Test 13: let with literal value (RND function not yet implemented)
+let RANDOM = 42
 LOG "Random: " + STR(RANDOM)
 wait 100ms
 

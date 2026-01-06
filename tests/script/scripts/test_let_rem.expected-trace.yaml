@@ -1,9 +1,7 @@
 # Execution trace
 script: "test_let_rem.c64script"
-status: failure
-error:
-  line: 37
-  message: "TYPE MISMATCH (ADD)"
+status: success
+error: ~
 program: |
   01: rem Test let and rem statements
   02: rem Validates optional let keyword and comment styles
@@ -77,8 +75,8 @@ program: |
   70: LOG "Total: " + STR(TOTAL)
   71: wait 100ms
   72: 
-  73: rem Test 13: let with function call
-  74: let RANDOM = RND(100)
+  73: rem Test 13: let with literal value (RND function not yet implemented)
+  74: let RANDOM = 42
   75: LOG "Random: " + STR(RANDOM)
   76: wait 100ms
   77: 
@@ -173,3 +171,320 @@ trace:
     Y: 20
     Z: 30
     NAME$: "C64Script"
+- line: 38
+  content: "wait 100ms"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+- line: 41
+  content: "dim ARRAY(5)"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+- line: 42
+  content: "let ARRAY(0) = 100"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [0, 0, 0, 0, 0]
+- line: 43
+  content: "let ARRAY(1) = 200"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 0, 0, 0, 0]
+- line: 44
+  content: "SUM = ARRAY(0) + ARRAY(1)"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+- line: 45
+  content: "LOG \"Array sum: \" + STR(SUM)"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+    SUM: 300
+- line: 46
+  content: "wait 100ms"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+    SUM: 300
+- line: 49
+  content: "let CONFIG{\"port\"} = 8080"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+    SUM: 300
+- line: 50
+  content: "let CONFIG{\"timeout\"} = 5000"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+    SUM: 300
+    CONFIG: {port: 8080}
+- line: 51
+  content: "PORT = CONFIG{\"port\"}"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+    SUM: 300
+    CONFIG: {port: 8080, timeout: 5000}
+- line: 52
+  content: "LOG \"Port: \" + STR(PORT)"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+    SUM: 300
+    CONFIG: {port: 8080, timeout: 5000}
+    PORT: 8080
+- line: 53
+  content: "wait 100ms"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+    SUM: 300
+    CONFIG: {port: 8080, timeout: 5000}
+    PORT: 8080
+- line: 57
+  content: "effect \"CRT Monitor Warm\""
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+    SUM: 300
+    CONFIG: {port: 8080, timeout: 5000}
+    PORT: 8080
+- line: 58
+  content: "wait 100ms"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+    SUM: 300
+    CONFIG: {port: 8080, timeout: 5000}
+    PORT: 8080
+- line: 61
+  content: "let RESULT = (10 + 20) * 2 - 5"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+    SUM: 300
+    CONFIG: {port: 8080, timeout: 5000}
+    PORT: 8080
+- line: 62
+  content: "LOG \"Result: \" + STR(RESULT)"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+    SUM: 300
+    CONFIG: {port: 8080, timeout: 5000}
+    PORT: 8080
+    RESULT: 55
+- line: 63
+  content: "wait 100ms"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+    SUM: 300
+    CONFIG: {port: 8080, timeout: 5000}
+    PORT: 8080
+    RESULT: 55
+- line: 66
+  content: "let A = 1"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+    SUM: 300
+    CONFIG: {port: 8080, timeout: 5000}
+    PORT: 8080
+    RESULT: 55
+- line: 67
+  content: "let B = 2"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+    SUM: 300
+    CONFIG: {port: 8080, timeout: 5000}
+    PORT: 8080
+    RESULT: 55
+    A: 1
+- line: 68
+  content: "let C = 3"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+    SUM: 300
+    CONFIG: {port: 8080, timeout: 5000}
+    PORT: 8080
+    RESULT: 55
+    A: 1
+    B: 2
+- line: 69
+  content: "TOTAL = A + B + C"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+    SUM: 300
+    CONFIG: {port: 8080, timeout: 5000}
+    PORT: 8080
+    RESULT: 55
+    A: 1
+    B: 2
+    C: 3
+- line: 70
+  content: "LOG \"Total: \" + STR(TOTAL)"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+    SUM: 300
+    CONFIG: {port: 8080, timeout: 5000}
+    PORT: 8080
+    RESULT: 55
+    A: 1
+    B: 2
+    C: 3
+    TOTAL: 6
+- line: 71
+  content: "wait 100ms"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+    SUM: 300
+    CONFIG: {port: 8080, timeout: 5000}
+    PORT: 8080
+    RESULT: 55
+    A: 1
+    B: 2
+    C: 3
+    TOTAL: 6
+- line: 74
+  content: "let RANDOM = 42"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+    SUM: 300
+    CONFIG: {port: 8080, timeout: 5000}
+    PORT: 8080
+    RESULT: 55
+    A: 1
+    B: 2
+    C: 3
+    TOTAL: 6
+- line: 75
+  content: "LOG \"Random: \" + STR(RANDOM)"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+    SUM: 300
+    CONFIG: {port: 8080, timeout: 5000}
+    PORT: 8080
+    RESULT: 55
+    A: 1
+    B: 2
+    C: 3
+    TOTAL: 6
+    RANDOM: 42
+- line: 76
+  content: "wait 100ms"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+    SUM: 300
+    CONFIG: {port: 8080, timeout: 5000}
+    PORT: 8080
+    RESULT: 55
+    A: 1
+    B: 2
+    C: 3
+    TOTAL: 6
+    RANDOM: 42
+- line: 79
+  content: "stop"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+    SUM: 300
+    CONFIG: {port: 8080, timeout: 5000}
+    PORT: 8080
+    RESULT: 55
+    A: 1
+    B: 2
+    C: 3
+    TOTAL: 6
+    RANDOM: 42

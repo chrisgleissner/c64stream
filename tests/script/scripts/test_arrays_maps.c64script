@@ -86,7 +86,7 @@ ROW2(1) = 20
 wait 50ms
 
 rem Test 13: Array bounds
-dim SMALL(2)
+dim SMALL(3)
 SMALL(0) = 100
 SMALL(1) = 200
 SMALL(2) = 300

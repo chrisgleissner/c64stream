@@ -1,9 +1,7 @@
 # Execution trace
 script: "test_error_type_mismatch.c64script"
-status: failure
-error:
-  line: 7
-  message: "TYPE MISMATCH (ADD)"
+status: success
+error: ~
 program: |
   01: rem Test type mismatch errors
   02: rem Operations that should fail due to type incompatibility
@@ -22,3 +20,13 @@ trace:
   content: "RESULT = NAME$ + 5"
   variables:
     NAME$: "HELLO"
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables:
+    NAME$: "HELLO"
+    RESULT: "HELLO5"
+- line: 9
+  content: "stop"
+  variables:
+    NAME$: "HELLO"
+    RESULT: "HELLO5"
