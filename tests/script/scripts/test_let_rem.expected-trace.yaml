@@ -49,14 +49,14 @@ program: |
   42: let ARRAY(0) = 100
   43: let ARRAY(1) = 200
   44: SUM = ARRAY(0) + ARRAY(1)
-  45: LOG "Array sum: " + SUM
+  45: LOG "Array sum: " + STR(SUM)
   46: wait 100ms
   47: 
   48: rem Test 9: let with map element
   49: let CONFIG{"port"} = 8080
   50: let CONFIG{"timeout"} = 5000
   51: PORT = CONFIG{"port"}
-  52: LOG "Port: " + PORT
+  52: LOG "Port: " + STR(PORT)
   53: wait 100ms
   54: 
   55: rem Test 10: rem on same line as label
@@ -66,7 +66,7 @@ program: |
   59: 
   60: rem Test 11: Complex expression with let
   61: let RESULT = (10 + 20) * 2 - 5
-  62: LOG "Result: " + RESULT
+  62: LOG "Result: " + STR(RESULT)
   63: wait 100ms
   64: 
   65: rem Test 12: Multiple LETs
@@ -74,12 +74,12 @@ program: |
   67: let B = 2
   68: let C = 3
   69: TOTAL = A + B + C
-  70: LOG "Total: " + TOTAL
+  70: LOG "Total: " + STR(TOTAL)
   71: wait 100ms
   72: 
   73: rem Test 13: let with function call
   74: let RANDOM = RND(100)
-  75: LOG "Random: " + RANDOM
+  75: LOG "Random: " + STR(RANDOM)
   76: wait 100ms
   77: 
   78: rem Test completed

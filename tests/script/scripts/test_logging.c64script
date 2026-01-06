@@ -11,7 +11,7 @@ wait 100ms
 
 rem Test 3: Log with variable
 COUNTER = 42
-LOG "Counter value: " + COUNTER
+LOG "Counter value: " + STR(COUNTER)
 wait 100ms
 
 rem Test 4: Enable tracing
@@ -28,7 +28,7 @@ wait 100ms
 
 rem Test 6: Log in a loop
 for I = 1 to 3
-    LOG "Loop iteration: " + I
+    LOG "Loop iteration: " + STR(I)
     wait 50ms
 next I
 
@@ -44,13 +44,13 @@ wait 100ms
 rem Test 9: Complex log message
 NAME$ = "C64Script"
 VERSION = 1.0
-LOG "Running " + NAME$ + " version " + VERSION
+LOG "Running " + NAME$ + " version " + STR(VERSION)
 wait 100ms
 
 rem Test 10: Log with tracing on
 TRON
 for J = 1 to 2
-    LOG "Traced loop: " + J
+    LOG "Traced loop: " + STR(J)
     wait 50ms
 next J
 TROFF

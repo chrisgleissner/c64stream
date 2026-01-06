@@ -18,7 +18,7 @@ program: |
   11: 
   12: rem Test 3: Log with variable
   13: COUNTER = 42
-  14: LOG "Counter value: " + COUNTER
+  14: LOG "Counter value: " + STR(COUNTER)
   15: wait 100ms
   16: 
   17: rem Test 4: Enable tracing
@@ -35,7 +35,7 @@ program: |
   28: 
   29: rem Test 6: Log in a loop
   30: for I = 1 to 3
-  31:     LOG "Loop iteration: " + I
+  31:     LOG "Loop iteration: " + STR(I)
   32:     wait 50ms
   33: next I
   34: 
@@ -51,13 +51,13 @@ program: |
   44: rem Test 9: Complex log message
   45: NAME$ = "C64Script"
   46: VERSION = 1.0
-  47: LOG "Running " + NAME$ + " version " + VERSION
+  47: LOG "Running " + NAME$ + " version " + STR(VERSION)
   48: wait 100ms
   49: 
   50: rem Test 10: Log with tracing on
   51: TRON
   52: for J = 1 to 2
-  53:     LOG "Traced loop: " + J
+  53:     LOG "Traced loop: " + STR(J)
   54:     wait 50ms
   55: next J
   56: TROFF
@@ -80,6 +80,6 @@ trace:
   content: "COUNTER = 42"
   variables: {}
 - line: 14
-  content: "LOG \"Counter value: \" + COUNTER"
+  content: "LOG \"Counter value: \" + STR(COUNTER)"
   variables:
     COUNTER: 42

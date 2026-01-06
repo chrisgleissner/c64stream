@@ -1027,13 +1027,30 @@ bool c64script_vm_execute(c64script_runtime_t *runtime)
             }
 
             c64script_value_t map_var;
-            if (!c64script_runtime_get_var(runtime, mapname, &map_var)) {
+            bool var_exists = c64script_runtime_var_exists(runtime, mapname);
+            if (!var_exists) {
                 // Auto-create map if it doesn't exist (use value type from first value)
+                blog(LOG_DEBUG, "[C64Script] Auto-creating map '%s' with value type %d", mapname, value_val.type);
                 map_var = c64script_value_map(value_val.type);
+                if (map_var.type != VALUE_MAP) {
+                    snprintf(runtime->error_msg, sizeof(runtime->error_msg),
+                             "Failed to create map (allocation failure)");
+                    c64script_value_free(&map_var);
+                    c64script_value_free(&key_val);
+                    c64script_value_free(&value_val);
+                    return false;
+                }
+            } else {
+                if (!c64script_runtime_get_var(runtime, mapname, &map_var)) {
+                    c64script_value_free(&key_val);
+                    c64script_value_free(&value_val);
+                    return false;
+                }
             }
 
             if (map_var.type != VALUE_MAP) {
-                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Variable '%s' is not a map", mapname);
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Variable '%s' is not a map (type=%d)",
+                         mapname, map_var.type);
                 c64script_value_free(&map_var);
                 c64script_value_free(&key_val);
                 c64script_value_free(&value_val);

@@ -479,6 +479,35 @@ bool c64script_runtime_get_var(c64script_runtime_t *runtime, const char *name, c
     return true;
 }
 
+bool c64script_runtime_var_exists(c64script_runtime_t *runtime, const char *name)
+{
+    if (!runtime || !name) {
+        return false;
+    }
+
+    char key[64];
+    normalize_identifier(name, key);
+
+    // Check local scope first (if in function)
+    if (runtime->scope_stack_size > 0) {
+        c64script_scope_t *scope = &runtime->scope_stack[runtime->scope_stack_size - 1];
+        for (size_t i = 0; i < scope->local_var_count; i++) {
+            if (strcmp(scope->local_vars[i].name, key) == 0) {
+                return true;
+            }
+        }
+    }
+
+    // Check global scope
+    for (size_t i = 0; i < runtime->variable_count; i++) {
+        if (strcmp(runtime->variables[i].name, key) == 0) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 bool c64script_runtime_push(c64script_runtime_t *runtime, c64script_value_t value)
 {
     if (!runtime) {

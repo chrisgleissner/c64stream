@@ -31,6 +31,7 @@ void c64script_runtime_destroy(c64script_runtime_t *runtime);
  */
 bool c64script_runtime_set_var(c64script_runtime_t *runtime, const char *name, c64script_value_t value);
 bool c64script_runtime_get_var(c64script_runtime_t *runtime, const char *name, c64script_value_t *out_value);
+bool c64script_runtime_var_exists(c64script_runtime_t *runtime, const char *name);
 
 /**
  * Stack operations
