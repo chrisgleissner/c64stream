@@ -73,7 +73,9 @@ TEST(parse_string_with_invalid_escape)
 {
     const char *source = "X$ = \"\\z\"\n"; // \z is not a valid escape
     char error_msg[1024];
-    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    c64script_parse_options_t options = {.log_errors = false};
+    c64script_ast_node_t *ast =
+        c64script_parse_with_options(source, strlen(source), error_msg, sizeof(error_msg), &options);
     // Should still parse (implementation may treat \z as literal z or error)
     // This tests that we handle it gracefully either way
     if (ast) {
@@ -150,7 +152,9 @@ TEST(parse_very_long_variable_name)
     strcpy(source + 300, " = 42\n");
 
     char error_msg[1024];
-    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    c64script_parse_options_t options = {.log_errors = false};
+    c64script_ast_node_t *ast =
+        c64script_parse_with_options(source, strlen(source), error_msg, sizeof(error_msg), &options);
     // Should either parse or error gracefully
     if (ast) {
         c64script_ast_free(ast);
@@ -161,7 +165,9 @@ TEST(parse_variable_starting_with_underscore)
 {
     const char *source = "_VAR = 42\n";
     char error_msg[1024];
-    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    c64script_parse_options_t options = {.log_errors = false};
+    c64script_ast_node_t *ast =
+        c64script_parse_with_options(source, strlen(source), error_msg, sizeof(error_msg), &options);
     // Variables cannot start with underscore - should error
     assert(ast == NULL && "Variables cannot start with underscore");
     assert(strlen(error_msg) > 0 && "Should have error message");
@@ -185,7 +191,9 @@ TEST(parse_function_missing_endfun)
 {
     const char *source = "FUN TEST()\n    RETURN 1\n";
     char error_msg[1024];
-    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    c64script_parse_options_t options = {.log_errors = false};
+    c64script_ast_node_t *ast =
+        c64script_parse_with_options(source, strlen(source), error_msg, sizeof(error_msg), &options);
     // Should error - missing ENDFUN
     assert(ast == NULL && "Should fail without ENDFUN");
 }
@@ -496,7 +504,9 @@ TEST(parse_potential_buffer_overflow_string)
     strcpy(source + 90006, "\"\n");
 
     char error_msg[1024];
-    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    c64script_parse_options_t options = {.log_errors = false};
+    c64script_ast_node_t *ast =
+        c64script_parse_with_options(source, strlen(source), error_msg, sizeof(error_msg), &options);
     // Should either parse or fail gracefully without crashing
     if (ast) {
         c64script_ast_free(ast);
@@ -512,7 +522,8 @@ TEST(parse_null_byte_in_source)
 
     char error_msg[1024];
     // Parser should stop at null byte or handle it
-    c64script_ast_node_t *ast = c64script_parse(source, 13, error_msg, sizeof(error_msg));
+    c64script_parse_options_t options = {.log_errors = false};
+    c64script_ast_node_t *ast = c64script_parse_with_options(source, 13, error_msg, sizeof(error_msg), &options);
     if (ast) {
         c64script_ast_free(ast);
     }

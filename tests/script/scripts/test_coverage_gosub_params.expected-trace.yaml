@@ -1,0 +1,32 @@
+# Execution trace
+script: "test_coverage_gosub_params.c64script"
+status: success
+error: ~
+program: |
+  1: REM Coverage: GOSUB parameters and RESULT
+  2: GOSUB ADD(2, 3)
+  3: LOG RESULT
+  4: STOP
+  5: ADD:
+  6:     RETURN PARAM1 + PARAM2
+trace:
+- line: 2
+  content: "GOSUB ADD(2, 3)"
+  variables: {}
+- line: 6
+  content: "RETURN PARAM1 + PARAM2"
+  variables:
+    PARAM2: 3
+    PARAM1: 2
+- line: 3
+  content: "LOG RESULT"
+  variables:
+    PARAM2: 0
+    PARAM1: 0
+    RESULT: 5
+- line: 4
+  content: "STOP"
+  variables:
+    PARAM2: 0
+    PARAM1: 0
+    RESULT: 5

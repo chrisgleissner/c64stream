@@ -1,9 +1,7 @@
 # Execution trace
 script: "test_keyboard_injection.c64script"
-status: parse_failure
-error:
-  line: 0
-  message: "[Line 25:5] Error at 'return': Expected expression"
+status: success
+error: ~
 program: |
   01: rem Test keyboard injection commands
   02: rem Validates TYPE and KEY commands
@@ -29,7 +27,7 @@ program: |
   22: wait 200ms
   23: 
   24: rem Test 5: KEY command with symbolic key names
-  25: KEY return
+  25: KEY "RETURN"
   26: wait 100ms
   27: 
   28: KEY RUNSTOP
@@ -63,4 +61,103 @@ program: |
   56: wait 100ms
   57: 
   58: stop
-trace: []
+trace:
+- line: 5
+  content: "TYPE \"LIST\""
+  variables: {}
+- line: 6
+  content: "wait 200ms"
+  variables: {}
+- line: 9
+  content: "TYPE \"LOAD\\\"*\\\",8,1\\r\""
+  variables: {}
+- line: 10
+  content: "wait 200ms"
+  variables: {}
+- line: 13
+  content: "TYPE \"10 PRINT \\\"HELLO\\\"\\r\""
+  variables: {}
+- line: 14
+  content: "wait 100ms"
+  variables: {}
+- line: 15
+  content: "TYPE \"20 goto 10\\r\""
+  variables: {}
+- line: 16
+  content: "wait 100ms"
+  variables: {}
+- line: 17
+  content: "TYPE \"RUN\\r\""
+  variables: {}
+- line: 18
+  content: "wait 200ms"
+  variables: {}
+- line: 21
+  content: "TYPE \"POKE 53280,0\\r\""
+  variables: {}
+- line: 22
+  content: "wait 200ms"
+  variables: {}
+- line: 25
+  content: "KEY \"RETURN\""
+  variables: {}
+- line: 26
+  content: "wait 100ms"
+  variables: {}
+- line: 28
+  content: "KEY RUNSTOP"
+  variables: {}
+- line: 29
+  content: "wait 100ms"
+  variables: {}
+- line: 31
+  content: "KEY HOME"
+  variables: {}
+- line: 32
+  content: "wait 100ms"
+  variables: {}
+- line: 34
+  content: "KEY CLEAR"
+  variables: {}
+- line: 35
+  content: "wait 100ms"
+  variables: {}
+- line: 38
+  content: "KEY CURSOR_UP"
+  variables: {}
+- line: 39
+  content: "wait 100ms"
+  variables: {}
+- line: 41
+  content: "KEY CURSOR_DOWN"
+  variables: {}
+- line: 42
+  content: "wait 100ms"
+  variables: {}
+- line: 44
+  content: "KEY CURSOR_LEFT"
+  variables: {}
+- line: 45
+  content: "wait 100ms"
+  variables: {}
+- line: 47
+  content: "KEY CURSOR_RIGHT"
+  variables: {}
+- line: 48
+  content: "wait 100ms"
+  variables: {}
+- line: 51
+  content: "KEY 13"
+  variables: {}
+- line: 52
+  content: "wait 100ms"
+  variables: {}
+- line: 55
+  content: "KEY $0D"
+  variables: {}
+- line: 56
+  content: "wait 100ms"
+  variables: {}
+- line: 58
+  content: "stop"
+  variables: {}

@@ -1,0 +1,6 @@
+REM Coverage: GOSUB parameters and RESULT
+GOSUB ADD(2, 3)
+LOG RESULT
+STOP
+ADD:
+    RETURN PARAM1 + PARAM2

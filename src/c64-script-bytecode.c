@@ -282,6 +282,87 @@ static bool compile_expression(compiler_context_t *ctx, c64script_ast_expr_t *ex
 static bool compile_statement(compiler_context_t *ctx, c64script_ast_node_t *stmt);
 static bool compile_program(compiler_context_t *ctx, c64script_ast_node_t *first_stmt);
 
+typedef struct {
+    const char *name;
+    c64script_builtin_id_t id;
+    size_t arg_count;
+} builtin_entry_t;
+
+static bool compile_builtin_call(compiler_context_t *ctx, c64script_ast_expr_t *expr, const builtin_entry_t *builtin)
+{
+    if (expr->as.call.arg_count != builtin->arg_count) {
+        if (ctx->error_msg) {
+            snprintf(ctx->error_msg, ctx->error_msg_size, "%s expects %zu argument%s", builtin->name,
+                     builtin->arg_count, builtin->arg_count == 1 ? "" : "s");
+        }
+        return false;
+    }
+
+    for (size_t i = 0; i < expr->as.call.arg_count; i++) {
+        if (!compile_expression(ctx, expr->as.call.args[i]))
+            return false;
+    }
+
+    uint32_t operand = ((uint32_t)builtin->id << 16) | (uint32_t)builtin->arg_count;
+    emit(ctx, OP_CALL_BUILTIN, operand, expr->line);
+    return true;
+}
+
+static bool compile_named_builtin(compiler_context_t *ctx, c64script_ast_expr_t *expr, bool *handled)
+{
+    if (handled) {
+        *handled = false;
+    }
+
+    static const builtin_entry_t builtins[] = {
+        {"LEN", C64SCRIPT_BUILTIN_LEN, 1},      {"LEFT$", C64SCRIPT_BUILTIN_LEFT, 2},
+        {"RIGHT$", C64SCRIPT_BUILTIN_RIGHT, 2}, {"MID$", C64SCRIPT_BUILTIN_MID, 3},
+        {"CHR$", C64SCRIPT_BUILTIN_CHR, 1},     {"ASC", C64SCRIPT_BUILTIN_ASC, 1},
+        {"VAL", C64SCRIPT_BUILTIN_VAL, 1},      {"ABS", C64SCRIPT_BUILTIN_ABS, 1},
+        {"INT", C64SCRIPT_BUILTIN_INT, 1},      {"RND", C64SCRIPT_BUILTIN_RND, 1},
+        {"SIN", C64SCRIPT_BUILTIN_SIN, 1},      {"COS", C64SCRIPT_BUILTIN_COS, 1},
+        {"TAN", C64SCRIPT_BUILTIN_TAN, 1},      {"SQRT", C64SCRIPT_BUILTIN_SQRT, 1},
+        {"LOG", C64SCRIPT_BUILTIN_LOG, 1},      {"EXP", C64SCRIPT_BUILTIN_EXP, 1},
+        {"TIME$", C64SCRIPT_BUILTIN_TIME, 0},
+    };
+
+    for (size_t i = 0; i < sizeof(builtins) / sizeof(builtins[0]); i++) {
+        if (strcmp(expr->as.call.name, builtins[i].name) == 0) {
+            if (handled) {
+                *handled = true;
+            }
+            return compile_builtin_call(ctx, expr, &builtins[i]);
+        }
+    }
+
+    return false;
+}
+
+static bool compile_var_name_expr(compiler_context_t *ctx, c64script_ast_expr_t *expr, const char *what)
+{
+    if (!expr) {
+        return false;
+    }
+
+    if (expr->type == AST_EXPR_IDENTIFIER) {
+        c64script_value_t name = {.type = VALUE_STRING, .as.string = (char *)expr->as.identifier};
+        uint32_t idx = (uint32_t)add_constant(ctx, name);
+        if (idx == UINT32_MAX)
+            return false;
+        emit(ctx, OP_PUSH_CONST, idx, expr->line);
+        return true;
+    }
+
+    if (expr->type == AST_EXPR_STRING) {
+        return compile_expression(ctx, expr);
+    }
+
+    if (ctx->error_msg) {
+        snprintf(ctx->error_msg, ctx->error_msg_size, "Expected %s variable name", what);
+    }
+    return false;
+}
+
 // ============================================================================
 // EXPRESSION COMPILATION
 // ============================================================================
@@ -448,6 +529,14 @@ static bool compile_expression(compiler_context_t *ctx, c64script_ast_expr_t *ex
             return true;
         }
 
+        bool builtin_handled = false;
+        if (compile_named_builtin(ctx, expr, &builtin_handled)) {
+            return true;
+        }
+        if (builtin_handled) {
+            return false;
+        }
+
         // User-defined function call
         // Look up function index at compile time
         int func_idx = -1;
@@ -459,9 +548,23 @@ static bool compile_expression(compiler_context_t *ctx, c64script_ast_expr_t *ex
         }
 
         if (func_idx < 0) {
-            // Not a user-defined function, might be a built-in we didn't recognize
+            // Not a user-defined function - could be array access
+            // If single argument, treat as array access: array_name(index)
+            if (expr->as.call.arg_count == 1) {
+                // Compile index expression
+                if (!compile_expression(ctx, expr->as.call.args[0]))
+                    return false;
+                // Emit array get with array name
+                c64script_value_t arrayname = {.type = VALUE_STRING, .as.string = (char *)expr->as.call.name};
+                uint32_t idx = (uint32_t)add_constant(ctx, arrayname);
+                if (idx == UINT32_MAX)
+                    return false;
+                emit(ctx, OP_ARRAY_GET, idx, expr->line);
+                return true;
+            }
+            // Not array access - unknown function
             if (ctx->error_msg) {
-                snprintf(ctx->error_msg, ctx->error_msg_size, "Unknown function: %s", expr->as.call.name);
+                snprintf(ctx->error_msg, ctx->error_msg_size, "UNDEF'D FUNCTION");
             }
             return false;
         }
@@ -612,15 +715,14 @@ static bool compile_statement(compiler_context_t *ctx, c64script_ast_node_t *stm
         return true;
 
     case AST_STMT_GOSUB:
-        // Push parameter count first
-        emit(ctx, OP_PUSH_NUM, 0, stmt->line);
-        ctx->instructions[ctx->instruction_count - 1].operand = (uint32_t)stmt->as.gosub_stmt.param_count;
-
         // Push each parameter value
         for (size_t i = 0; i < stmt->as.gosub_stmt.param_count; i++) {
             if (!compile_expression(ctx, stmt->as.gosub_stmt.params[i]))
                 return false;
         }
+
+        // Push parameter count last (stack top)
+        emit(ctx, OP_PUSH_NUM, (uint32_t)stmt->as.gosub_stmt.param_count, stmt->line);
 
         // Call the subroutine
         emit_jump(ctx, OP_CALL, stmt->as.gosub_stmt.label, stmt->line);
@@ -856,7 +958,7 @@ static bool compile_statement(compiler_context_t *ctx, c64script_ast_node_t *stm
         }
 
         if (stmt->as.runlocal_stmt.status_var) {
-            if (!compile_expression(ctx, stmt->as.runlocal_stmt.status_var))
+            if (!compile_var_name_expr(ctx, stmt->as.runlocal_stmt.status_var, "status"))
                 return false;
         } else {
             // Push empty string for no status var
@@ -868,7 +970,7 @@ static bool compile_statement(compiler_context_t *ctx, c64script_ast_node_t *stm
         }
 
         if (stmt->as.runlocal_stmt.output_var) {
-            if (!compile_expression(ctx, stmt->as.runlocal_stmt.output_var))
+            if (!compile_var_name_expr(ctx, stmt->as.runlocal_stmt.output_var, "output"))
                 return false;
         } else {
             // Push empty string for no output var
@@ -973,16 +1075,22 @@ static bool compile_statement(compiler_context_t *ctx, c64script_ast_node_t *stm
         return true;
 
     case AST_STMT_READFILE: {
-        // READFILE needs: variable name (as identifier), path
-        if (!compile_expression(ctx, stmt->as.readfile_stmt.variable))
-            return false;
+        // READFILE needs: path, variable name (as identifier)
         if (!compile_expression(ctx, stmt->as.readfile_stmt.path))
+            return false;
+        if (!compile_var_name_expr(ctx, stmt->as.readfile_stmt.variable, "READFILE"))
             return false;
         emit(ctx, OP_READFILE, 0, stmt->line);
         return true;
     }
 
     case AST_STMT_WRITEFILE: {
+        if (!compile_expression(ctx, stmt->as.writefile_stmt.path))
+            return false;
+        if (!compile_expression(ctx, stmt->as.writefile_stmt.content))
+            return false;
+        emit(ctx, stmt->as.writefile_stmt.truncate ? OP_WRITEFILE_TRUNCATE : OP_WRITEFILE_APPEND, 0, stmt->line);
+        return true;
     }
 
     case AST_STMT_HTTP: {
@@ -993,7 +1101,7 @@ static bool compile_statement(compiler_context_t *ctx, c64script_ast_node_t *stm
 
         // Push response_var name (or empty)
         if (stmt->as.http_stmt.response_var) {
-            if (!compile_expression(ctx, stmt->as.http_stmt.response_var))
+            if (!compile_var_name_expr(ctx, stmt->as.http_stmt.response_var, "response"))
                 return false;
         } else {
             emit(ctx, OP_PUSH_CONST, empty_idx, stmt->line);
@@ -1001,7 +1109,7 @@ static bool compile_statement(compiler_context_t *ctx, c64script_ast_node_t *stm
 
         // Push status_var name (or empty)
         if (stmt->as.http_stmt.status_var) {
-            if (!compile_expression(ctx, stmt->as.http_stmt.status_var))
+            if (!compile_var_name_expr(ctx, stmt->as.http_stmt.status_var, "status"))
                 return false;
         } else {
             emit(ctx, OP_PUSH_CONST, empty_idx, stmt->line);

@@ -167,7 +167,6 @@ Design a tokenizer that fully supports the language defined in the specification
 - Label prefixes at start of line (with or without :)
 - Optional numeric labels (BASIC-style line numbers)
 - REM comments
-- # comments at start of line
 
 Explain how ambiguous cases are resolved, especially:
 - Label vs assignment at start of line

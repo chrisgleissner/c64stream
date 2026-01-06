@@ -48,12 +48,12 @@ for B = 1 to 2
 next B
 rem A should be 7 (0 + 1 + 2 + 2 + 2)
 
-goto end
+goto end_label
 
 ADD_VALUES:
     RESULT = PARAM1 + PARAM2
     effect "Soft CRT"
     return
 
-end:
+end_label:
 stop

@@ -80,19 +80,122 @@ void c64script_value_free(c64script_value_t *value)
     value->as.number = 0.0;
 }
 
+static bool c64script_value_clone_internal(c64script_value_t value, c64script_value_t *out)
+{
+    if (!out) {
+        return false;
+    }
+
+    if (value.type == VALUE_STRING) {
+        const char *src = value.as.string ? value.as.string : "";
+        char *dup = strdup(src);
+        if (!dup) {
+            return false;
+        }
+        out->type = VALUE_STRING;
+        out->as.string = dup;
+        return true;
+    }
+
+    if (value.type == VALUE_ARRAY) {
+        if (!value.as.array) {
+            return false;
+        }
+
+        c64script_array_t *array = calloc(1, sizeof(c64script_array_t));
+        if (!array) {
+            return false;
+        }
+        array->element_type = value.as.array->element_type;
+        array->size = value.as.array->size;
+        array->elements = calloc(array->size, sizeof(c64script_value_t));
+        if (!array->elements) {
+            free(array);
+            return false;
+        }
+
+        for (size_t i = 0; i < array->size; i++) {
+            c64script_value_t cloned = {0};
+            if (!c64script_value_clone_internal(value.as.array->elements[i], &cloned)) {
+                for (size_t j = 0; j < i; j++) {
+                    c64script_value_free(&array->elements[j]);
+                }
+                free(array->elements);
+                free(array);
+                return false;
+            }
+            array->elements[i] = cloned;
+        }
+
+        out->type = VALUE_ARRAY;
+        out->as.array = array;
+        return true;
+    }
+
+    if (value.type == VALUE_MAP) {
+        if (!value.as.map) {
+            return false;
+        }
+
+        c64script_map_t *map = calloc(1, sizeof(c64script_map_t));
+        if (!map) {
+            return false;
+        }
+        map->value_type = value.as.map->value_type;
+        map->count = value.as.map->count;
+        map->capacity = value.as.map->capacity;
+        map->entries = calloc(map->capacity, sizeof(c64script_map_entry_t));
+        if (!map->entries) {
+            free(map);
+            return false;
+        }
+
+        for (size_t i = 0; i < map->count; i++) {
+            const char *src_key = value.as.map->entries[i].key;
+            if (src_key) {
+                map->entries[i].key = strdup(src_key);
+                if (!map->entries[i].key) {
+                    for (size_t j = 0; j < i; j++) {
+                        free(map->entries[j].key);
+                        c64script_value_free(&map->entries[j].value);
+                    }
+                    free(map->entries);
+                    free(map);
+                    return false;
+                }
+            }
+
+            c64script_value_t cloned = {0};
+            if (!c64script_value_clone_internal(value.as.map->entries[i].value, &cloned)) {
+                free(map->entries[i].key);
+                for (size_t j = 0; j < i; j++) {
+                    free(map->entries[j].key);
+                    c64script_value_free(&map->entries[j].value);
+                }
+                free(map->entries);
+                free(map);
+                return false;
+            }
+            map->entries[i].hash = value.as.map->entries[i].hash;
+            map->entries[i].value = cloned;
+        }
+
+        out->type = VALUE_MAP;
+        out->as.map = map;
+        return true;
+    }
+
+    *out = c64script_value_number(value.as.number);
+    return true;
+}
+
 c64script_value_t c64script_value_clone(c64script_value_t value)
 {
-    if (value.type == VALUE_STRING) {
-        return c64script_value_string(value.as.string ? value.as.string : "");
-    } else if (value.type == VALUE_ARRAY) {
-        // For arrays, we just return a reference (shared ownership for now)
-        // Full deep copy would be expensive
-        return value;
-    } else if (value.type == VALUE_MAP) {
-        // For maps, we just return a reference (shared ownership for now)
-        return value;
+    c64script_value_t result = {0};
+    if (!c64script_value_clone_internal(value, &result)) {
+        return c64script_value_number(0.0);
     }
-    return c64script_value_number(value.as.number);
+    return result;
 }
 
 c64script_runtime_t *c64script_runtime_create(void)
@@ -222,6 +325,37 @@ void c64script_runtime_destroy(c64script_runtime_t *runtime)
         runtime->stack = NULL;
     }
 
+    // Free function definitions
+    if (runtime->functions) {
+        for (size_t i = 0; i < runtime->function_count; i++) {
+            if (runtime->functions[i].param_names) {
+                for (size_t j = 0; j < runtime->functions[i].param_count; j++) {
+                    free(runtime->functions[i].param_names[j]);
+                }
+                free(runtime->functions[i].param_names);
+                runtime->functions[i].param_names = NULL;
+            }
+        }
+        free(runtime->functions);
+        runtime->functions = NULL;
+    }
+
+    // Free scope stack and any remaining locals
+    if (runtime->scope_stack) {
+        for (size_t i = 0; i < runtime->scope_stack_size; i++) {
+            c64script_scope_t *scope = &runtime->scope_stack[i];
+            if (scope->local_vars) {
+                for (size_t j = 0; j < scope->local_var_count; j++) {
+                    c64script_value_free(&scope->local_vars[j].value);
+                }
+                free(scope->local_vars);
+                scope->local_vars = NULL;
+            }
+        }
+        free(runtime->scope_stack);
+        runtime->scope_stack = NULL;
+    }
+
     free(runtime);
 }
 
@@ -343,6 +477,35 @@ bool c64script_runtime_get_var(c64script_runtime_t *runtime, const char *name, c
 
     *out_value = c64script_value_number(0.0);
     return true;
+}
+
+bool c64script_runtime_var_exists(c64script_runtime_t *runtime, const char *name)
+{
+    if (!runtime || !name) {
+        return false;
+    }
+
+    char key[64];
+    normalize_identifier(name, key);
+
+    // Check local scope first (if in function)
+    if (runtime->scope_stack_size > 0) {
+        c64script_scope_t *scope = &runtime->scope_stack[runtime->scope_stack_size - 1];
+        for (size_t i = 0; i < scope->local_var_count; i++) {
+            if (strcmp(scope->local_vars[i].name, key) == 0) {
+                return true;
+            }
+        }
+    }
+
+    // Check global scope
+    for (size_t i = 0; i < runtime->variable_count; i++) {
+        if (strcmp(runtime->variables[i].name, key) == 0) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 bool c64script_runtime_push(c64script_runtime_t *runtime, c64script_value_t value)

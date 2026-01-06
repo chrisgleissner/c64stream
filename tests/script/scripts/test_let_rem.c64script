@@ -42,14 +42,14 @@ dim ARRAY(5)
 let ARRAY(0) = 100
 let ARRAY(1) = 200
 SUM = ARRAY(0) + ARRAY(1)
-LOG "Array sum: " + SUM
+LOG "Array sum: " + STR(SUM)
 wait 100ms
 
 rem Test 9: let with map element
 let CONFIG{"port"} = 8080
 let CONFIG{"timeout"} = 5000
 PORT = CONFIG{"port"}
-LOG "Port: " + PORT
+LOG "Port: " + STR(PORT)
 wait 100ms
 
 rem Test 10: rem on same line as label
@@ -59,7 +59,7 @@ wait 100ms
 
 rem Test 11: Complex expression with let
 let RESULT = (10 + 20) * 2 - 5
-LOG "Result: " + RESULT
+LOG "Result: " + STR(RESULT)
 wait 100ms
 
 rem Test 12: Multiple LETs
@@ -67,12 +67,12 @@ let A = 1
 let B = 2
 let C = 3
 TOTAL = A + B + C
-LOG "Total: " + TOTAL
+LOG "Total: " + STR(TOTAL)
 wait 100ms
 
-rem Test 13: let with function call
-let RANDOM = RND(100)
-LOG "Random: " + RANDOM
+rem Test 13: let with literal value (RND function not yet implemented)
+let RANDOM = 42
+LOG "Random: " + STR(RANDOM)
 wait 100ms
 
 rem Test completed

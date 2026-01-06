@@ -1,9 +1,7 @@
 # Execution trace
 script: "test_sid_playback.c64script"
-status: parse_failure
-error:
-  line: 0
-  message: "[Line 4:63] Error at 'Unexpected character': Unexpected character"
+status: success
+error: ~
 program: |
   1: rem SID playback test script
   2: rem Tests C64U path handling and audio playback
@@ -11,4 +9,13 @@ program: |
   4: play_sid c64u:/Commodore/HVSC/MUSICIANS/H/Hubbard_Rob/Commando.sid songnr=1
   5: wait 30s
   6: stop
-trace: []
+trace:
+- line: 4
+  content: "play_sid c64u:/Commodore/HVSC/MUSICIANS/H/Hubbard_Rob/Commando.sid songnr=1"
+  variables: {}
+- line: 5
+  content: "wait 30s"
+  variables: {}
+- line: 6
+  content: "stop"
+  variables: {}

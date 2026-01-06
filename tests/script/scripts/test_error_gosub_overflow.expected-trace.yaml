@@ -1,9 +1,9 @@
 # Execution trace
 script: "test_error_gosub_overflow.c64script"
-status: parse_failure
+status: failure
 error:
-  line: 0
-  message: "[Line 10:5] Error at 'Unexpected character': Unexpected character"
+  line: 11
+  message: "GOSUB stack overflow"
 program: |
   01: rem Test GOSUB without matching RETURN in call stack overflow
   02: 
@@ -14,7 +14,298 @@ program: |
   07: recursive:
   08:     effect "Sharp Pixels"
   09:     wait 10ms
-  10:     # Call itself recursively - should hit max depth limit
+  10:     rem Call itself recursively - should hit max depth limit
   11:     gosub recursive
   12:     return
-trace: []
+trace:
+- line: 3
+  content: "gosub recursive"
+  variables: {}
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 9
+  content: "wait 10ms"
+  variables: {}
+- line: 11
+  content: "gosub recursive"
+  variables: {}
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 9
+  content: "wait 10ms"
+  variables: {}
+- line: 11
+  content: "gosub recursive"
+  variables: {}
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 9
+  content: "wait 10ms"
+  variables: {}
+- line: 11
+  content: "gosub recursive"
+  variables: {}
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 9
+  content: "wait 10ms"
+  variables: {}
+- line: 11
+  content: "gosub recursive"
+  variables: {}
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 9
+  content: "wait 10ms"
+  variables: {}
+- line: 11
+  content: "gosub recursive"
+  variables: {}
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 9
+  content: "wait 10ms"
+  variables: {}
+- line: 11
+  content: "gosub recursive"
+  variables: {}
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 9
+  content: "wait 10ms"
+  variables: {}
+- line: 11
+  content: "gosub recursive"
+  variables: {}
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 9
+  content: "wait 10ms"
+  variables: {}
+- line: 11
+  content: "gosub recursive"
+  variables: {}
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 9
+  content: "wait 10ms"
+  variables: {}
+- line: 11
+  content: "gosub recursive"
+  variables: {}
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 9
+  content: "wait 10ms"
+  variables: {}
+- line: 11
+  content: "gosub recursive"
+  variables: {}
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 9
+  content: "wait 10ms"
+  variables: {}
+- line: 11
+  content: "gosub recursive"
+  variables: {}
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 9
+  content: "wait 10ms"
+  variables: {}
+- line: 11
+  content: "gosub recursive"
+  variables: {}
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 9
+  content: "wait 10ms"
+  variables: {}
+- line: 11
+  content: "gosub recursive"
+  variables: {}
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 9
+  content: "wait 10ms"
+  variables: {}
+- line: 11
+  content: "gosub recursive"
+  variables: {}
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 9
+  content: "wait 10ms"
+  variables: {}
+- line: 11
+  content: "gosub recursive"
+  variables: {}
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 9
+  content: "wait 10ms"
+  variables: {}
+- line: 11
+  content: "gosub recursive"
+  variables: {}
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 9
+  content: "wait 10ms"
+  variables: {}
+- line: 11
+  content: "gosub recursive"
+  variables: {}
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 9
+  content: "wait 10ms"
+  variables: {}
+- line: 11
+  content: "gosub recursive"
+  variables: {}
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 9
+  content: "wait 10ms"
+  variables: {}
+- line: 11
+  content: "gosub recursive"
+  variables: {}
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 9
+  content: "wait 10ms"
+  variables: {}
+- line: 11
+  content: "gosub recursive"
+  variables: {}
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 9
+  content: "wait 10ms"
+  variables: {}
+- line: 11
+  content: "gosub recursive"
+  variables: {}
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 9
+  content: "wait 10ms"
+  variables: {}
+- line: 11
+  content: "gosub recursive"
+  variables: {}
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 9
+  content: "wait 10ms"
+  variables: {}
+- line: 11
+  content: "gosub recursive"
+  variables: {}
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 9
+  content: "wait 10ms"
+  variables: {}
+- line: 11
+  content: "gosub recursive"
+  variables: {}
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 9
+  content: "wait 10ms"
+  variables: {}
+- line: 11
+  content: "gosub recursive"
+  variables: {}
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 9
+  content: "wait 10ms"
+  variables: {}
+- line: 11
+  content: "gosub recursive"
+  variables: {}
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 9
+  content: "wait 10ms"
+  variables: {}
+- line: 11
+  content: "gosub recursive"
+  variables: {}
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 9
+  content: "wait 10ms"
+  variables: {}
+- line: 11
+  content: "gosub recursive"
+  variables: {}
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 9
+  content: "wait 10ms"
+  variables: {}
+- line: 11
+  content: "gosub recursive"
+  variables: {}
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 9
+  content: "wait 10ms"
+  variables: {}
+- line: 11
+  content: "gosub recursive"
+  variables: {}
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 9
+  content: "wait 10ms"
+  variables: {}
+- line: 11
+  content: "gosub recursive"
+  variables: {}
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 9
+  content: "wait 10ms"
+  variables: {}
+- line: 11
+  content: "gosub recursive"
+  variables: {}

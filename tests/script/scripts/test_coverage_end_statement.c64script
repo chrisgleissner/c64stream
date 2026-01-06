@@ -1,0 +1,4 @@
+REM Coverage: END statement
+LOG "before end"
+END
+LOG "after end"

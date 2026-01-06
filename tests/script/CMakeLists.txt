@@ -5,6 +5,7 @@
 add_executable(
   test_c64script_parser
   test_c64script_parser.c
+  c64script_test_logging.c
   ${CMAKE_SOURCE_DIR}/src/c64-script-parser.c
   ${CMAKE_SOURCE_DIR}/src/c64-script-token.c
   ${CMAKE_SOURCE_DIR}/src/c64-script-ast.c
@@ -17,6 +18,7 @@ add_test(NAME c64script_parser COMMAND test_c64script_parser)
 add_executable(
   test_c64script_compiler
   test_c64script_compiler.c
+  c64script_test_logging.c
   c64script_test_stubs.c
   ${CMAKE_SOURCE_DIR}/src/c64-script-parser.c
   ${CMAKE_SOURCE_DIR}/src/c64-script-token.c
@@ -38,6 +40,7 @@ add_test(NAME c64script_compiler COMMAND test_c64script_compiler)
 add_executable(
   test_c64script_edge_cases
   test_c64script_edge_cases.c
+  c64script_test_logging.c
   c64script_test_stubs.c
   ${CMAKE_SOURCE_DIR}/src/c64-script-parser.c
   ${CMAKE_SOURCE_DIR}/src/c64-script-token.c
@@ -59,6 +62,7 @@ add_test(NAME c64script_edge_cases COMMAND test_c64script_edge_cases)
 add_executable(
   test_c64script_all_scripts
   test_c64script_all_scripts.c
+  c64script_test_logging.c
   c64script_test_stubs.c
   ${CMAKE_SOURCE_DIR}/src/c64-script-parser.c
   ${CMAKE_SOURCE_DIR}/src/c64-script-token.c
@@ -112,6 +116,7 @@ endif()
 add_executable(
   test_c64script_debug
   test_c64script_debug.c
+  c64script_test_logging.c
   c64script_test_stubs.c
   ${CMAKE_SOURCE_DIR}/src/c64-script-parser.c
   ${CMAKE_SOURCE_DIR}/src/c64-script-token.c

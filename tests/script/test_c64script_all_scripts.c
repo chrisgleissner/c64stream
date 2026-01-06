@@ -90,41 +90,25 @@ static int unexpected_failures = 0;
 #define MAX_WORKERS_CAP 64
 
 // Scripts that are expected to fail parsing (error test cases)
-static const char *EXPECTED_PARSE_FAILURES[] = {
-    "test_error_missing_wend.c64script",
-    "test_error_missing_next.c64script",
-    "test_error_gosub_overflow.c64script", // Intentionally uses # comment (invalid)
-    "test_let_rem.c64script",              // Parse errors with array syntax
-    "test_functions_builtin.c64script",    // LOG parsing issue
-    "test_sid_playback.c64script",         // c64u: path syntax issues
-    "test_file_io.c64script",              // File I/O syntax issues + timeout
-    "test_c64_control.c64script",          // c64u: path syntax issues
-    "test_variable_scope.c64script",       // goto/end syntax issues
-    "test_local_execution.c64script",      // WRITEFILE syntax issue
-    "test_http_rest.c64script",            // HTTP/REST syntax issues
-    "test_keyboard_injection.c64script",   // return expression issue
-    "test_arrays_maps.c64script",          // Array syntax issues + timeout
-    NULL};
+static const char *EXPECTED_PARSE_FAILURES[] = {"test_error_missing_wend.c64script",
+                                                "test_error_missing_next.c64script", NULL};
 
 // Scripts that should parse but fail compilation (type errors, etc.)
-static const char *EXPECTED_COMPILE_FAILURES[] = {"test_wait_until.c64script",            // Unknown function: TIME$
-                                                  "test_error_missing_label.c64script",   // Undefined label
+static const char *EXPECTED_COMPILE_FAILURES[] = {"test_error_missing_label.c64script",   // Undefined label
                                                   "test_error_goto_missing.c64script",    // Undefined label
                                                   "test_error_duplicate_label.c64script", // Duplicate label
                                                   NULL};
 
 // Scripts that should compile but fail execution (runtime errors)
 static const char *EXPECTED_EXECUTION_FAILURES[] = {
-    "test_safety_max_nesting.c64script",  // Expected to hit nesting limit
-    "demo_basic_hello_world.c64script",   // Uses TYPE/KEY commands which need more work
-    "hello_world.c64script",              // Type mismatch issues (STR function in concatenation)
-    "demo_palette_cycle.c64script",       // Requires OBS source (long running demo)
-    "demo_effect_preset_cycle.c64script", // Requires OBS source (long running demo)
-    "test_error_type_mismatch.c64script", // Intentional type mismatch
-    "test_comparisons.c64script",         // String comparison not yet supported
-    "test_user_functions.c64script",      // Type mismatch issues
-    "test_logging.c64script",             // Type mismatch issues (string + number concatenation)
-    "test_error_invalid.c64script",       // Type mismatch
+    "test_safety_max_nesting.c64script",   // Expected to hit nesting limit
+    "test_error_gosub_overflow.c64script", // Expected to hit GOSUB stack limit
+    "demo_basic_hello_world.c64script",    // Exceeds test timeout (multi-second waits)
+    "hello_world.c64script",               // Exceeds test timeout (looped waits)
+    "demo_palette_cycle.c64script",        // Requires OBS source (long running demo)
+    "demo_effect_preset_cycle.c64script",  // Requires OBS source (long running demo)
+    "test_comparisons.c64script",          // String comparison not yet supported
+    "test_error_invalid.c64script",        // Type mismatch
     NULL};
 
 static bool should_expect_parse_failure(const char *filename)
@@ -399,7 +383,8 @@ static void process_script(const char *file)
 #endif
 
     if (setjmp(timeout_jump) == 0) {
-        ast = c64script_parse(source, size, error, sizeof(error));
+        c64script_parse_options_t parse_options = {.log_errors = !expect_parse_fail};
+        ast = c64script_parse_with_options(source, size, error, sizeof(error), &parse_options);
     } else {
         snprintf(error, sizeof(error), "Parse timeout after %d seconds", SCRIPT_TIMEOUT_SECONDS);
         ast = NULL;

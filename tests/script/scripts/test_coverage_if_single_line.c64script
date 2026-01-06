@@ -1,0 +1,4 @@
+REM Coverage: single-line IF THEN ELSE
+X = 1
+IF X = 1 THEN LOG "yes" ELSE LOG "no"
+STOP

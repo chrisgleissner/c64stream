@@ -62,22 +62,26 @@ OBS Studio plugin for streaming C64 Ultimate device video/audio over network. Se
 - 4 spaces indentation, 120 char limit, files end with newline
 - **Never commit code that fails clang-format**
 
-#### Installing clang-format 21 on Linux (recommended)
+#### Installing clang-format 21 on Linux (for local development)
 
-CI uses clang-format 21.x. Many Linux distros ship older versions; if `./build-aux/run-clang-format --check` reports an old/missing formatter, install clang-format 21 via Homebrew LLVM and add it to `PATH`:
+**Note:** Copilot agent builds do NOT install clang-format. Formatting is automatically skipped when clang-format is unavailable. Code formatting is validated in CI only.
+
+For local development with formatting:
 
 ```bash
-# one-time Homebrew install to ~/.linuxbrew (no sudo)
-git clone --depth=1 https://github.com/Homebrew/brew ~/.linuxbrew/Homebrew
-mkdir -p ~/.linuxbrew/bin
-ln -sf ../Homebrew/bin/brew ~/.linuxbrew/bin/brew
-eval "$(~/.linuxbrew/bin/brew shellenv)"
-
-# clang-format 21.x
-brew install llvm
-export PATH="$(brew --prefix llvm)/bin:$PATH"
-clang-format --version
+# Install clang-format 21 from official LLVM repository
+curl -sSL https://apt.llvm.org/llvm.sh | sudo bash -s -- 21
+sudo update-alternatives --install /usr/bin/clang-format clang-format /usr/bin/clang-format-21 2100
 ```
+
+Alternatively, the automated Copilot setup installs minimal dependencies only:
+
+```bash
+# Minimal install (no clang-format)
+./.github/scripts/install-copilot-deps.sh
+```
+
+For manual installation or troubleshooting, see `.github/COPILOT_DEPENDENCIES.md`.
 
 ### License Header (Required)
 ```c

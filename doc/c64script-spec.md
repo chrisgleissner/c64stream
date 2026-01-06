@@ -1,6 +1,6 @@
 # C64Script Language Specification
 
-This document defines the `.c64script` language as implemented by the C64Stream OBS Studio plugin (BASIC-inspired: labels and optional BASIC-style line numbers; `GOTO`/`GOSUB`; structured loops).
+This document defines the BASIC-inspired `.c64script` language as implemented by the C64Stream OBS Studio plugin.
 
 MUST READ:
 - c64script-spec: Detailed language spec.
@@ -63,7 +63,7 @@ BASIC-Inspired, Label-Oriented
   - Fine-grained effect parameter control (`EFFECTPARAM`)
   - Per-color palette customization (`PALETTECOLOR`)
 
-### 2.2 Lexical Rules (C64Script)
+### 2.2 Lexical Rules
 
 **Case sensitivity**
 - Keywords, labels, and identifiers are **case-insensitive** (`goto`, `GOTO`, and `GoTo` are the same).
@@ -122,7 +122,7 @@ BASIC-Inspired, Label-Oriented
 - Additionally, allow `WAIT <expr> [unit]` with default unit `s`:
   - `WAIT 1.5` means `1.5s`
 
-### 2.3 C64Script Grammar (EBNF)
+### 2.3 Grammar
 
 The complete formal grammar for C64Script is maintained in a separate file:
 
@@ -140,7 +140,7 @@ The grammar serves as the authoritative reference for:
 - Generating syntax highlighters and language tools
 - Understanding language structure and precedence rules
 
-### 2.4 Semantics (C64Script)
+### 2.4 Semantics
 
 #### 2.4.1 Variables and Types
 
@@ -338,9 +338,6 @@ These statements/functions exist to make C64 automation scripts practical in the
   - Built-in function names should be treated case-insensitively (`peek($00C6)` is valid).
   - If `<address>` is not numeric at runtime, the executor should raise a BASIC-style “TYPE MISMATCH” error.
   - `PEEK`/`POKE` are network operations and may fail or time out; failures should stop execution with a clear error message by default.
-
-Important REST constraint:
-- DMA writes cannot target 6510 I/O registers; `POKE $D020, ...` (border color) is expected to fail on real hardware.
 
 **Keyboard injection (`TYPE`/`KEY`)**
 - `TYPE <string_expr>` enqueues keystrokes derived from text.
@@ -620,7 +617,7 @@ To discover available parameters for a specific effect at runtime:
 - Invalid parameter values: runtime warning, clamped to valid range
 - Type mismatches: "TYPE MISMATCH" error (parameters must be numeric)
 
-### 2.6 Examples (C64Script)
+### 2.6 Examples
 
 **Example 0: Label and line-number forms**
 
@@ -1006,43 +1003,17 @@ LOG "All captures completed"
 END
 ```
 
----
+## 3. Implementation Notes
 
-## 3. Recommended next steps (implementation roadmap)
+### General
 
-If/when implementing C64Script in code:
-
-1. Implement parsing: case-insensitive keywords/labels/identifiers, label prefixes (optional `:`), optional line numbers, quoted strings, and `REM`.
-2. Implement expressions: parentheses, `NOT`/`AND`/`XOR`/`OR`, and relational operators (with `==`/`!=` aliases).
-3. Implement control flow: `IF`/`ENDIF`, `FOR`/`NEXT`, `WHILE`/`WEND` (+ `ENDWHILE`), `GOTO`, and `GOSUB`/`RETURN`.
-4. Implement waiting: duration waits and `WAIT UNTIL` (wall-clock) with time parsing.
-5. Implement plugin I/O: effects/palettes, runners/mount/reset, `POKE`/`PEEK`, `TYPE`/`KEY`, `LOGFILE`/`LOG`, `TRON`/`TROFF`.
-6. Implement user-defined functions: `FUN`/`ENDFUN` blocks with local scope and parameters.
-7. Implement arrays and maps: `DIM` statement, subscript access `()` and `{}`, type-suffixed collections.
-8. Implement extended durations: `h` (hours), `d` (days) in duration literals.
-9. Implement HTTP operations: `HTTP`/`CALLHTTP` with method, headers, body, status capture, response capture.
-10. Implement local execution: `RUNLOCAL` with arguments, status code, output capture.
-11. Implement file I/O: `READFILE`, `WRITEFILE` with APPEND/TRUNCATE modes.
-12. Implement palette color control: `PALETTECOLOR` for per-index RGB modification.
-13. Implement parameterized GOSUB: parameter passing via `PARAM1`, `PARAM2`, etc., return value via `RESULT`.
-14. Implement automatic type casting according to the rules in section 3.5.1.
-
----
-
-## 4. Runtime support notes
-
-As of the current executor implementation:
 - `c64u:` filesystem paths are supported for `PLAYSID`, `RUNPRG`, and `MOUNTDISK` (path-based REST API).
 - Local file upload variants are fully supported (uploads file data via REST API for all three commands).
 - `AUTOSTART` injects the default template `LOAD"*",8,1\rRUN\r` via keyboard buffer.
 - D64 autostart template is customizable via automation configuration (see `c64-automation.h`).
 - HTTP requests are parsed and compiled but require libcurl integration for full execution (VM currently returns placeholder values).
 
----
-
-## 5. Implementation limits (current parser/executor)
-
-These limits are implementation-defined by the current parser/executor and may change:
+### Limits
 
 - Max script size: **1 MiB**
 - Max line length: **1024** bytes (parser line buffer)

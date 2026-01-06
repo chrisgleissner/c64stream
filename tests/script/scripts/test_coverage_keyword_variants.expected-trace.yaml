@@ -1,0 +1,66 @@
+# Execution trace
+script: "test_coverage_keyword_variants.c64script"
+status: success
+error: ~
+program: |
+  01: REM Coverage: underscore variants and CALL_HTTP/CALLHTTP
+  02: EFFECT_PARAM "scanline_intensity" 0.5
+  03: PALETTE_COLOR 0, 0, 0, 0
+  04: RUN_PRG "c64u:/Programs/demo.prg"
+  05: RUN_LOCAL "/bin/true"
+  06: MOUNT_DISK "c64u:/Disks/demo.d64"
+  07: RECORD_START
+  08: RECORD_STOP
+  09: WRITE_FILE "/tmp/c64script_coverage_io.txt", "ok" TRUNCATE
+  10: READ_FILE "/tmp/c64script_coverage_io.txt", CONTENT$
+  11: CALL_HTTP GET "http://example.com"
+  12: CALLHTTP POST "http://example.com"
+  13: LOG "done"
+  14: STOP
+trace:
+- line: 2
+  content: "EFFECT_PARAM \"scanline_intensity\" 0.5"
+  variables: {}
+- line: 3
+  content: "PALETTE_COLOR 0, 0, 0, 0"
+  variables: {}
+- line: 4
+  content: "RUN_PRG \"c64u:/Programs/demo.prg\""
+  variables: {}
+- line: 5
+  content: "RUN_LOCAL \"/bin/true\""
+  variables: {}
+- line: 6
+  content: "MOUNT_DISK \"c64u:/Disks/demo.d64\""
+  variables: {}
+- line: 7
+  content: "RECORD_START"
+  variables: {}
+- line: 8
+  content: "RECORD_STOP"
+  variables: {}
+- line: 9
+  content: "WRITE_FILE \"/tmp/c64script_coverage_io.txt\", \"ok\" TRUNCATE"
+  variables: {}
+- line: 10
+  content: "READ_FILE \"/tmp/c64script_coverage_io.txt\", CONTENT$"
+  variables: {}
+- line: 11
+  content: "CALL_HTTP GET \"http://example.com\""
+  variables:
+    CONTENT$: "ok"
+- line: 12
+  content: "CALLHTTP POST \"http://example.com\""
+  variables:
+    CONTENT$: "ok"
+    HTTP://EXAMPLE.COM: ""
+- line: 13
+  content: "LOG \"done\""
+  variables:
+    CONTENT$: "ok"
+    HTTP://EXAMPLE.COM: ""
+- line: 14
+  content: "STOP"
+  variables:
+    CONTENT$: "ok"
+    HTTP://EXAMPLE.COM: ""

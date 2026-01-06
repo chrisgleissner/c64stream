@@ -21,6 +21,7 @@ RUN_E2E=false
 E2E_SCENARIO=""
 GENERATE_E2E_SCENARIOS=false
 VERBOSE=false
+DEBUG_LOGS=false
 
 # Colors for output
 RED='\033[0;31m'
@@ -191,6 +192,7 @@ OPTIONS:
     --e2e[=SCENARIO]    Run E2E tests after building and installing (default scenario: ntsc_default)
     --e2e-scenarios     Run all scenarios in tests/e2e/scenarios/* and write results to tests/e2e/results/<scenario>
     --verbose           Enable verbose output
+    --debug-logs        Enable debug logging for C64Script tests
     --help              Show this help message
 
 EXAMPLES:
@@ -307,6 +309,9 @@ install_dependencies() {
                     python3
                     python3-pip
                     libobs-dev
+                    curl                   # Required for REST client and downloads
+                    libcurl4-openssl-dev   # Required for libcurl development
+                    zsh                    # Required by build-aux scripts
                 )
 
                 local -a e2e_packages=(
@@ -561,7 +566,11 @@ run_tests() {
 
     if [[ -f "$build_dir/CTestTestfile.cmake" ]]; then
         cd "$build_dir"
-        ctest --output-on-failure --parallel 2
+        if [[ "$DEBUG_LOGS" == "true" ]]; then
+            env C64SCRIPT_DEBUG_LOGS=1 ctest --output-on-failure --parallel 2
+        else
+            ctest --output-on-failure --parallel 2
+        fi
         cd "$PROJECT_ROOT"
     else
         log_warning "No tests found in build directory"
@@ -1412,8 +1421,13 @@ main() {
                 GENERATE_E2E_SCENARIOS=true
                 shift
                 ;;
+            --debug-logs)
+                DEBUG_LOGS=true
+                shift
+                ;;
             --verbose)
                 VERBOSE=true
+                DEBUG_LOGS=true
                 shift
                 ;;
             --help|-h)
@@ -1507,15 +1521,29 @@ main() {
     if [[ "$RUN_SCRIPT_TESTS" == "true" ]]; then
         log_info "Running c64script validation tests..."
         if [[ "$PLATFORM" == "linux" ]]; then
-            ./build_x86_64/tests/script/test_c64script_all_scripts . || {
-                log_error "Script validation tests failed"
-                exit 1
-            }
+            if [[ "$DEBUG_LOGS" == "true" ]]; then
+                env C64SCRIPT_DEBUG_LOGS=1 ./build_x86_64/tests/script/test_c64script_all_scripts . || {
+                    log_error "Script validation tests failed"
+                    exit 1
+                }
+            else
+                ./build_x86_64/tests/script/test_c64script_all_scripts . || {
+                    log_error "Script validation tests failed"
+                    exit 1
+                }
+            fi
         elif [[ "$PLATFORM" == "macos" ]]; then
-            ./build_universal/tests/script/test_c64script_all_scripts . || {
-                log_error "Script validation tests failed"
-                exit 1
-            }
+            if [[ "$DEBUG_LOGS" == "true" ]]; then
+                env C64SCRIPT_DEBUG_LOGS=1 ./build_universal/tests/script/test_c64script_all_scripts . || {
+                    log_error "Script validation tests failed"
+                    exit 1
+                }
+            else
+                ./build_universal/tests/script/test_c64script_all_scripts . || {
+                    log_error "Script validation tests failed"
+                    exit 1
+                }
+            fi
         else
             log_warning "Script tests not yet implemented for $PLATFORM"
         fi
@@ -1530,13 +1558,25 @@ main() {
 
         # Run tests to generate new traces
         if [[ "$PLATFORM" == "linux" ]]; then
-            ./build_x86_64/tests/script/test_c64script_all_scripts . || {
-                log_warning "Some tests failed during trace generation (expected for error tests)"
-            }
+            if [[ "$DEBUG_LOGS" == "true" ]]; then
+                env C64SCRIPT_DEBUG_LOGS=1 ./build_x86_64/tests/script/test_c64script_all_scripts . || {
+                    log_warning "Some tests failed during trace generation (expected for error tests)"
+                }
+            else
+                ./build_x86_64/tests/script/test_c64script_all_scripts . || {
+                    log_warning "Some tests failed during trace generation (expected for error tests)"
+                }
+            fi
         elif [[ "$PLATFORM" == "macos" ]]; then
-            ./build_universal/tests/script/test_c64script_all_scripts . || {
-                log_warning "Some tests failed during trace generation (expected for error tests)"
-            }
+            if [[ "$DEBUG_LOGS" == "true" ]]; then
+                env C64SCRIPT_DEBUG_LOGS=1 ./build_universal/tests/script/test_c64script_all_scripts . || {
+                    log_warning "Some tests failed during trace generation (expected for error tests)"
+                }
+            else
+                ./build_universal/tests/script/test_c64script_all_scripts . || {
+                    log_warning "Some tests failed during trace generation (expected for error tests)"
+                }
+            fi
         else
             log_error "Trace rerecording not supported for $PLATFORM"
             exit 1

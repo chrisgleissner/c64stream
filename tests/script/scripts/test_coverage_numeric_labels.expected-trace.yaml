@@ -1,0 +1,24 @@
+# Execution trace
+script: "test_coverage_numeric_labels.c64script"
+status: success
+error: ~
+program: |
+  1: REM Coverage: numeric labels
+  2: 10 LOG "start"
+  3: 20 GOTO 40
+  4: 30 LOG "skip"
+  5: 40 LOG "end"
+  6: END
+trace:
+- line: 2
+  content: "10 LOG \"start\""
+  variables: {}
+- line: 3
+  content: "20 GOTO 40"
+  variables: {}
+- line: 5
+  content: "40 LOG \"end\""
+  variables: {}
+- line: 6
+  content: "END"
+  variables: {}

@@ -1,0 +1,6 @@
+REM Coverage: numeric labels
+10 LOG "start"
+20 GOTO 40
+30 LOG "skip"
+40 LOG "end"
+END

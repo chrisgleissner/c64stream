@@ -1,9 +1,7 @@
 # Execution trace
 script: "test_variable_scope.c64script"
-status: parse_failure
-error:
-  line: 0
-  message: "[Line 58:1] Error at 'end': Unexpected statement"
+status: success
+error: ~
 program: |
   01: rem Test variable mutation and scope
   02: rem Tests for loop variables, assignments, and gosub parameters
@@ -55,13 +53,937 @@ program: |
   48: next B
   49: rem A should be 7 (0 + 1 + 2 + 2 + 2)
   50: 
-  51: goto end
+  51: goto end_label
   52: 
   53: ADD_VALUES:
   54:     RESULT = PARAM1 + PARAM2
   55:     effect "Soft CRT"
   56:     return
   57: 
-  58: end:
+  58: end_label:
   59: stop
-trace: []
+trace:
+- line: 5
+  content: "COUNTER = 0"
+  variables: {}
+- line: 6
+  content: "for I = 1 to 5"
+  variables:
+    COUNTER: 0
+- line: 7
+  content: "COUNTER = COUNTER + I"
+  variables:
+    COUNTER: 0
+    I: 1
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables:
+    COUNTER: 1
+    I: 1
+- line: 9
+  content: "wait 50ms"
+  variables:
+    COUNTER: 1
+    I: 1
+- line: 6
+  content: "for I = 1 to 5"
+  variables:
+    COUNTER: 1
+    I: 1
+- line: 7
+  content: "COUNTER = COUNTER + I"
+  variables:
+    COUNTER: 1
+    I: 2
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables:
+    COUNTER: 3
+    I: 2
+- line: 9
+  content: "wait 50ms"
+  variables:
+    COUNTER: 3
+    I: 2
+- line: 6
+  content: "for I = 1 to 5"
+  variables:
+    COUNTER: 3
+    I: 2
+- line: 7
+  content: "COUNTER = COUNTER + I"
+  variables:
+    COUNTER: 3
+    I: 3
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables:
+    COUNTER: 6
+    I: 3
+- line: 9
+  content: "wait 50ms"
+  variables:
+    COUNTER: 6
+    I: 3
+- line: 6
+  content: "for I = 1 to 5"
+  variables:
+    COUNTER: 6
+    I: 3
+- line: 7
+  content: "COUNTER = COUNTER + I"
+  variables:
+    COUNTER: 6
+    I: 4
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables:
+    COUNTER: 10
+    I: 4
+- line: 9
+  content: "wait 50ms"
+  variables:
+    COUNTER: 10
+    I: 4
+- line: 6
+  content: "for I = 1 to 5"
+  variables:
+    COUNTER: 10
+    I: 4
+- line: 7
+  content: "COUNTER = COUNTER + I"
+  variables:
+    COUNTER: 10
+    I: 5
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables:
+    COUNTER: 15
+    I: 5
+- line: 9
+  content: "wait 50ms"
+  variables:
+    COUNTER: 15
+    I: 5
+- line: 6
+  content: "for I = 1 to 5"
+  variables:
+    COUNTER: 15
+    I: 5
+- line: 14
+  content: "SUM = 0"
+  variables:
+    COUNTER: 15
+    I: 6
+- line: 15
+  content: "for X = 1 to 3"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 0
+- line: 16
+  content: "for Y = 1 to 2"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 0
+    X: 1
+- line: 17
+  content: "SUM = SUM + 1"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 0
+    X: 1
+    Y: 1
+- line: 18
+  content: "wait 50ms"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 1
+    X: 1
+    Y: 1
+- line: 16
+  content: "for Y = 1 to 2"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 1
+    X: 1
+    Y: 1
+- line: 17
+  content: "SUM = SUM + 1"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 1
+    X: 1
+    Y: 2
+- line: 18
+  content: "wait 50ms"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 2
+    X: 1
+    Y: 2
+- line: 16
+  content: "for Y = 1 to 2"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 2
+    X: 1
+    Y: 2
+- line: 15
+  content: "for X = 1 to 3"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 2
+    X: 1
+    Y: 3
+- line: 16
+  content: "for Y = 1 to 2"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 2
+    X: 2
+    Y: 3
+- line: 17
+  content: "SUM = SUM + 1"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 2
+    X: 2
+    Y: 1
+- line: 18
+  content: "wait 50ms"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 3
+    X: 2
+    Y: 1
+- line: 16
+  content: "for Y = 1 to 2"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 3
+    X: 2
+    Y: 1
+- line: 17
+  content: "SUM = SUM + 1"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 3
+    X: 2
+    Y: 2
+- line: 18
+  content: "wait 50ms"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 4
+    X: 2
+    Y: 2
+- line: 16
+  content: "for Y = 1 to 2"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 4
+    X: 2
+    Y: 2
+- line: 15
+  content: "for X = 1 to 3"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 4
+    X: 2
+    Y: 3
+- line: 16
+  content: "for Y = 1 to 2"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 4
+    X: 3
+    Y: 3
+- line: 17
+  content: "SUM = SUM + 1"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 4
+    X: 3
+    Y: 1
+- line: 18
+  content: "wait 50ms"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 5
+    X: 3
+    Y: 1
+- line: 16
+  content: "for Y = 1 to 2"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 5
+    X: 3
+    Y: 1
+- line: 17
+  content: "SUM = SUM + 1"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 5
+    X: 3
+    Y: 2
+- line: 18
+  content: "wait 50ms"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 3
+    Y: 2
+- line: 16
+  content: "for Y = 1 to 2"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 3
+    Y: 2
+- line: 15
+  content: "for X = 1 to 3"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 3
+    Y: 3
+- line: 24
+  content: "VALUE = 0"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+- line: 25
+  content: "while VALUE < 5"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 0
+- line: 26
+  content: "VALUE = VALUE + 1"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 0
+- line: 27
+  content: "palette \"colodore\""
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 1
+- line: 28
+  content: "wait 50ms"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 1
+- line: 25
+  content: "while VALUE < 5"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 1
+- line: 26
+  content: "VALUE = VALUE + 1"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 1
+- line: 27
+  content: "palette \"colodore\""
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 2
+- line: 28
+  content: "wait 50ms"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 2
+- line: 25
+  content: "while VALUE < 5"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 2
+- line: 26
+  content: "VALUE = VALUE + 1"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 2
+- line: 27
+  content: "palette \"colodore\""
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 3
+- line: 28
+  content: "wait 50ms"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 3
+- line: 25
+  content: "while VALUE < 5"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 3
+- line: 26
+  content: "VALUE = VALUE + 1"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 3
+- line: 27
+  content: "palette \"colodore\""
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 4
+- line: 28
+  content: "wait 50ms"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 4
+- line: 25
+  content: "while VALUE < 5"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 4
+- line: 26
+  content: "VALUE = VALUE + 1"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 4
+- line: 27
+  content: "palette \"colodore\""
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 5
+- line: 28
+  content: "wait 50ms"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 5
+- line: 25
+  content: "while VALUE < 5"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 5
+- line: 34
+  content: "PARAM1 = 10"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 5
+- line: 35
+  content: "PARAM2 = 20"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 5
+    PARAM1: 10
+- line: 36
+  content: "gosub ADD_VALUES"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 5
+    PARAM1: 10
+    PARAM2: 20
+- line: 54
+  content: "RESULT = PARAM1 + PARAM2"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 5
+    PARAM1: 10
+    PARAM2: 20
+- line: 55
+  content: "effect \"Soft CRT\""
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 5
+    PARAM1: 10
+    PARAM2: 20
+    RESULT: 30
+- line: 56
+  content: "return"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 5
+    PARAM1: 10
+    PARAM2: 20
+    RESULT: 30
+- line: 40
+  content: "A = 0"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 5
+    PARAM1: 10
+    PARAM2: 20
+    RESULT: 30
+- line: 41
+  content: "for B = 1 to 2"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 5
+    PARAM1: 10
+    PARAM2: 20
+    RESULT: 30
+    A: 0
+- line: 42
+  content: "A = A + B"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 5
+    PARAM1: 10
+    PARAM2: 20
+    RESULT: 30
+    A: 0
+    B: 1
+- line: 43
+  content: "C = 0"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 5
+    PARAM1: 10
+    PARAM2: 20
+    RESULT: 30
+    A: 1
+    B: 1
+- line: 44
+  content: "while C < 2"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 5
+    PARAM1: 10
+    PARAM2: 20
+    RESULT: 30
+    A: 1
+    B: 1
+    C: 0
+- line: 45
+  content: "A = A + 1"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 5
+    PARAM1: 10
+    PARAM2: 20
+    RESULT: 30
+    A: 1
+    B: 1
+    C: 0
+- line: 46
+  content: "C = C + 1"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 5
+    PARAM1: 10
+    PARAM2: 20
+    RESULT: 30
+    A: 2
+    B: 1
+    C: 0
+- line: 44
+  content: "while C < 2"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 5
+    PARAM1: 10
+    PARAM2: 20
+    RESULT: 30
+    A: 2
+    B: 1
+    C: 1
+- line: 45
+  content: "A = A + 1"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 5
+    PARAM1: 10
+    PARAM2: 20
+    RESULT: 30
+    A: 2
+    B: 1
+    C: 1
+- line: 46
+  content: "C = C + 1"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 5
+    PARAM1: 10
+    PARAM2: 20
+    RESULT: 30
+    A: 3
+    B: 1
+    C: 1
+- line: 44
+  content: "while C < 2"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 5
+    PARAM1: 10
+    PARAM2: 20
+    RESULT: 30
+    A: 3
+    B: 1
+    C: 2
+- line: 41
+  content: "for B = 1 to 2"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 5
+    PARAM1: 10
+    PARAM2: 20
+    RESULT: 30
+    A: 3
+    B: 1
+    C: 2
+- line: 42
+  content: "A = A + B"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 5
+    PARAM1: 10
+    PARAM2: 20
+    RESULT: 30
+    A: 3
+    B: 2
+    C: 2
+- line: 43
+  content: "C = 0"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 5
+    PARAM1: 10
+    PARAM2: 20
+    RESULT: 30
+    A: 5
+    B: 2
+    C: 2
+- line: 44
+  content: "while C < 2"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 5
+    PARAM1: 10
+    PARAM2: 20
+    RESULT: 30
+    A: 5
+    B: 2
+    C: 0
+- line: 45
+  content: "A = A + 1"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 5
+    PARAM1: 10
+    PARAM2: 20
+    RESULT: 30
+    A: 5
+    B: 2
+    C: 0
+- line: 46
+  content: "C = C + 1"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 5
+    PARAM1: 10
+    PARAM2: 20
+    RESULT: 30
+    A: 6
+    B: 2
+    C: 0
+- line: 44
+  content: "while C < 2"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 5
+    PARAM1: 10
+    PARAM2: 20
+    RESULT: 30
+    A: 6
+    B: 2
+    C: 1
+- line: 45
+  content: "A = A + 1"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 5
+    PARAM1: 10
+    PARAM2: 20
+    RESULT: 30
+    A: 6
+    B: 2
+    C: 1
+- line: 46
+  content: "C = C + 1"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 5
+    PARAM1: 10
+    PARAM2: 20
+    RESULT: 30
+    A: 7
+    B: 2
+    C: 1
+- line: 44
+  content: "while C < 2"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 5
+    PARAM1: 10
+    PARAM2: 20
+    RESULT: 30
+    A: 7
+    B: 2
+    C: 2
+- line: 41
+  content: "for B = 1 to 2"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 5
+    PARAM1: 10
+    PARAM2: 20
+    RESULT: 30
+    A: 7
+    B: 2
+    C: 2
+- line: 51
+  content: "goto end_label"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 5
+    PARAM1: 10
+    PARAM2: 20
+    RESULT: 30
+    A: 7
+    B: 3
+    C: 2
+- line: 59
+  content: "stop"
+  variables:
+    COUNTER: 15
+    I: 6
+    SUM: 6
+    X: 4
+    Y: 3
+    VALUE: 5
+    PARAM1: 10
+    PARAM2: 20
+    RESULT: 30
+    A: 7
+    B: 3
+    C: 2

@@ -1,0 +1,35 @@
+# Execution trace
+script: "test_coverage_duration_units.c64script"
+status: success
+error: ~
+program: |
+  1: REM Coverage: duration units and default seconds
+  2: LOG "start"
+  3: WAIT 1m
+  4: WAIT 1h
+  5: WAIT 1d
+  6: WAIT 1.5
+  7: LOG "done"
+  8: STOP
+trace:
+- line: 2
+  content: "LOG \"start\""
+  variables: {}
+- line: 3
+  content: "WAIT 1m"
+  variables: {}
+- line: 4
+  content: "WAIT 1h"
+  variables: {}
+- line: 5
+  content: "WAIT 1d"
+  variables: {}
+- line: 6
+  content: "WAIT 1.5"
+  variables: {}
+- line: 7
+  content: "LOG \"done\""
+  variables: {}
+- line: 8
+  content: "STOP"
+  variables: {}

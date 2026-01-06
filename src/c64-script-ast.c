@@ -257,6 +257,14 @@ void c64script_ast_free(c64script_ast_node_t *node)
             free_expr(node->as.writefile_stmt.content);
             break;
 
+        case AST_STMT_HTTP:
+            free_expr(node->as.http_stmt.url);
+            free_expr(node->as.http_stmt.headers);
+            free_expr(node->as.http_stmt.body);
+            free_expr(node->as.http_stmt.status_var);
+            free_expr(node->as.http_stmt.response_var);
+            break;
+
         default:
             // Unknown node type - log warning but continue
             blog(LOG_WARNING, "c64script_ast_free: Unknown AST node type %d", node->type);

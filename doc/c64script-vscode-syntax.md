@@ -72,8 +72,7 @@ To create a distributable `.vsix` extension package:
 The TextMate grammar provides comprehensive syntax highlighting for:
 
 #### Comments
-- `# Line comments` - Hash-style (legacy)
-- `REM Comments` - BASIC-style (preferred)
+- `REM Comments` - BASIC-style
 
 #### Strings
 - `"Double-quoted strings"`

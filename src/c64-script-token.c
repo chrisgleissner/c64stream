@@ -65,6 +65,7 @@ static const keyword_entry_t keywords[] = {
     // Plugin actions
     {"EFFECT", TOKEN_EFFECT},
     {"EFFECTPARAM", TOKEN_EFFECTPARAM},
+    {"EFFECT_PARAM", TOKEN_EFFECTPARAM}, // Alias
     {"PALETTE", TOKEN_PALETTE},
     {"PALETTECOLOR", TOKEN_PALETTECOLOR},
     {"PALETTE_COLOR", TOKEN_PALETTECOLOR}, // Alias
@@ -109,6 +110,8 @@ static const keyword_entry_t keywords[] = {
 
     // HTTP
     {"HTTP", TOKEN_HTTP},
+    {"CALL_HTTP", TOKEN_HTTP}, // Alias
+    {"CALLHTTP", TOKEN_HTTP},  // Alias
     {"GET", TOKEN_GET},
     {"POST", TOKEN_POST},
     {"PUT", TOKEN_PUT},
@@ -173,6 +176,21 @@ static bool is_identifier_start(char c)
 static bool is_identifier_continue(char c)
 {
     return is_alpha(c) || is_digit(c) || c == '_';
+}
+
+static bool is_c64u_path_terminator(char c)
+{
+    return c == '\0' || c == '\n' || is_whitespace(c) || c == ',' || c == ')' || c == ']' || c == '}';
+}
+
+static bool is_c64u_path_start(tokenizer_t *t)
+{
+    if (t->pos + 5 > t->source_size) {
+        return false;
+    }
+    const char *src = t->source + t->pos;
+    return (tolower((unsigned char)src[0]) == 'c' && src[1] == '6' && src[2] == '4' &&
+            tolower((unsigned char)src[3]) == 'u' && src[4] == ':');
 }
 
 // ============================================================================
@@ -489,7 +507,19 @@ static c64script_token_t tokenize_identifier(tokenizer_t *t)
 
 c64script_token_t c64script_tokenize_next(tokenizer_t *t)
 {
+    bool line_start = (t->pos == (size_t)t->line_start_pos);
     skip_whitespace(t);
+
+    if (line_start && peek(t) == '#') {
+        // # comment at start of line (after optional whitespace)
+        skip_line(t);
+        if (peek(t) == '\n') {
+            const char *start = &t->source[t->pos];
+            advance(t);
+            return make_token(t, TOKEN_NEWLINE, start, 1);
+        }
+        return make_token(t, TOKEN_EOF, &t->source[t->pos], 0);
+    }
 
     if (t->pos >= t->source_size) {
         return make_token(t, TOKEN_EOF, &t->source[t->pos], 0);
@@ -517,6 +547,17 @@ c64script_token_t c64script_tokenize_next(tokenizer_t *t)
     // Strings
     if (c == '"') {
         return tokenize_string(t);
+    }
+
+    // C64U filesystem paths (unquoted)
+    if (is_c64u_path_start(t)) {
+        const char *start = &t->source[t->pos];
+        size_t length = 0;
+        while (!is_c64u_path_terminator(peek(t))) {
+            advance(t);
+            length++;
+        }
+        return make_token(t, TOKEN_C64U_PATH, start, length);
     }
 
     // Identifiers and keywords
@@ -632,6 +673,7 @@ void c64script_tokenizer_init(c64script_tokenizer_t *tokenizer, const char *sour
     tokenizer->current = 0;
     tokenizer->line = 1;
     tokenizer->column = 1;
+    tokenizer->line_start_pos = 0;
     tokenizer->error[0] = '\0';
 }
 
@@ -643,7 +685,7 @@ c64script_token_t c64script_tokenizer_next(c64script_tokenizer_t *tokenizer)
                             .pos = tokenizer->current,
                             .line = tokenizer->line,
                             .column = tokenizer->column,
-                            .line_start_pos = 0, // Will be recalculated
+                            .line_start_pos = (int)tokenizer->line_start_pos,
                             .error_msg = {0}};
 
     c64script_token_t token = c64script_tokenize_next(&internal);
@@ -652,6 +694,7 @@ c64script_token_t c64script_tokenizer_next(c64script_tokenizer_t *tokenizer)
     tokenizer->current = internal.pos;
     tokenizer->line = internal.line;
     tokenizer->column = internal.column;
+    tokenizer->line_start_pos = (size_t)internal.line_start_pos;
     if (internal.error_msg[0]) {
         snprintf(tokenizer->error, sizeof(tokenizer->error), "%s", internal.error_msg);
     }
@@ -665,6 +708,7 @@ c64script_token_t c64script_tokenizer_peek(c64script_tokenizer_t *tokenizer)
     size_t saved_current = tokenizer->current;
     int saved_line = tokenizer->line;
     int saved_column = tokenizer->column;
+    size_t saved_line_start = tokenizer->line_start_pos;
 
     // Get next token
     c64script_token_t token = c64script_tokenizer_next(tokenizer);
@@ -673,6 +717,7 @@ c64script_token_t c64script_tokenizer_peek(c64script_tokenizer_t *tokenizer)
     tokenizer->current = saved_current;
     tokenizer->line = saved_line;
     tokenizer->column = saved_column;
+    tokenizer->line_start_pos = saved_line_start;
 
     return token;
 }
