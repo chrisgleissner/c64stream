@@ -158,7 +158,7 @@ static uint64_t generate_monotonic_audio_timestamp(struct c64_source *context)
         } else {
             // Fallback to PAL rate if format not yet detected
             context->audio_sample_rate = C64_PAL_AUDIO_SAMPLE_RATE;
-            context->audio_interval_ns = 4001417ULL;
+            context->audio_interval_ns = (192ULL * 1000000000ULL) / context->audio_sample_rate;
             C64_LOG_WARNING("" AUDIO_LOG_PREFIX " Format not detected, using PAL audio rate: %u Hz",
                             context->audio_sample_rate);
         }
