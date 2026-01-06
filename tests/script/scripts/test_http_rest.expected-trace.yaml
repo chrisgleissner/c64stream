@@ -1,9 +1,9 @@
 # Execution trace
 script: "test_http_rest.c64script"
-status: parse_failure
+status: failure
 error:
-  line: 0
-  message: "[Line 22:1] Error at 'HEADERS$': Unexpected statement"
+  line: 5
+  message: "TYPE MISMATCH (HTTP url)"
 program: |
   01: rem Test HTTP REST API calls
   02: rem Validates HTTP GET, POST, PUT, DELETE, PATCH
@@ -74,4 +74,7 @@ program: |
   67: endif
   68: 
   69: stop
-trace: []
+trace:
+- line: 5
+  content: "HTTP GET \"http://localhost:8064/v1/version\" STATUS STATUS_CODE RESPONSE RESP$"
+  variables: {}

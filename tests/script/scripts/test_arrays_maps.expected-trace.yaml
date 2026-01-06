@@ -1,9 +1,9 @@
 # Execution trace
 script: "test_arrays_maps.c64script"
-status: parse_failure
+status: failure
 error:
-  line: 0
-  message: "Parse timeout after 2 seconds"
+  line: 33
+  message: "TYPE MISMATCH (ADD)"
 program: |
   01: rem Test arrays and maps
   02: rem Validates dim, array access, and map access
@@ -101,4 +101,324 @@ program: |
   94: LOG "Last element: " + LAST
   95: 
   96: stop
-trace: []
+trace:
+- line: 5
+  content: "dim VALUES(10)"
+  variables: {}
+- line: 6
+  content: "wait 50ms"
+  variables:
+    VALUES: [array]
+- line: 9
+  content: "VALUES(0) = 100"
+  variables:
+    VALUES: [array]
+- line: 10
+  content: "VALUES(1) = 200"
+  variables:
+    VALUES: [array]
+- line: 11
+  content: "VALUES(2) = 300"
+  variables:
+    VALUES: [array]
+- line: 12
+  content: "wait 50ms"
+  variables:
+    VALUES: [array]
+- line: 15
+  content: "FIRST = VALUES(0)"
+  variables:
+    VALUES: [array]
+- line: 16
+  content: "if FIRST = 100 then"
+  variables:
+    VALUES: [array]
+    FIRST: 100
+- line: 17
+  content: "effect \"Sharp Pixels\""
+  variables:
+    VALUES: [array]
+    FIRST: 100
+- line: 19
+  content: "wait 100ms"
+  variables:
+    VALUES: [array]
+    FIRST: 100
+- line: 22
+  content: "for I = 0 to 5"
+  variables:
+    VALUES: [array]
+    FIRST: 100
+- line: 23
+  content: "VALUES(I) = I * 10"
+  variables:
+    VALUES: [array]
+    FIRST: 100
+    I: 0
+- line: 24
+  content: "wait 20ms"
+  variables:
+    VALUES: [array]
+    FIRST: 100
+    I: 0
+- line: 22
+  content: "for I = 0 to 5"
+  variables:
+    VALUES: [array]
+    FIRST: 100
+    I: 0
+- line: 23
+  content: "VALUES(I) = I * 10"
+  variables:
+    VALUES: [array]
+    FIRST: 100
+    I: 1
+- line: 24
+  content: "wait 20ms"
+  variables:
+    VALUES: [array]
+    FIRST: 100
+    I: 1
+- line: 22
+  content: "for I = 0 to 5"
+  variables:
+    VALUES: [array]
+    FIRST: 100
+    I: 1
+- line: 23
+  content: "VALUES(I) = I * 10"
+  variables:
+    VALUES: [array]
+    FIRST: 100
+    I: 2
+- line: 24
+  content: "wait 20ms"
+  variables:
+    VALUES: [array]
+    FIRST: 100
+    I: 2
+- line: 22
+  content: "for I = 0 to 5"
+  variables:
+    VALUES: [array]
+    FIRST: 100
+    I: 2
+- line: 23
+  content: "VALUES(I) = I * 10"
+  variables:
+    VALUES: [array]
+    FIRST: 100
+    I: 3
+- line: 24
+  content: "wait 20ms"
+  variables:
+    VALUES: [array]
+    FIRST: 100
+    I: 3
+- line: 22
+  content: "for I = 0 to 5"
+  variables:
+    VALUES: [array]
+    FIRST: 100
+    I: 3
+- line: 23
+  content: "VALUES(I) = I * 10"
+  variables:
+    VALUES: [array]
+    FIRST: 100
+    I: 4
+- line: 24
+  content: "wait 20ms"
+  variables:
+    VALUES: [array]
+    FIRST: 100
+    I: 4
+- line: 22
+  content: "for I = 0 to 5"
+  variables:
+    VALUES: [array]
+    FIRST: 100
+    I: 4
+- line: 23
+  content: "VALUES(I) = I * 10"
+  variables:
+    VALUES: [array]
+    FIRST: 100
+    I: 5
+- line: 24
+  content: "wait 20ms"
+  variables:
+    VALUES: [array]
+    FIRST: 100
+    I: 5
+- line: 22
+  content: "for I = 0 to 5"
+  variables:
+    VALUES: [array]
+    FIRST: 100
+    I: 5
+- line: 28
+  content: "SUM = 0"
+  variables:
+    VALUES: [array]
+    FIRST: 100
+    I: 6
+- line: 29
+  content: "for J = 0 to 5"
+  variables:
+    VALUES: [array]
+    FIRST: 100
+    I: 6
+    SUM: 0
+- line: 30
+  content: "SUM = SUM + VALUES(J)"
+  variables:
+    VALUES: [array]
+    FIRST: 100
+    I: 6
+    SUM: 0
+    J: 0
+- line: 31
+  content: "wait 20ms"
+  variables:
+    VALUES: [array]
+    FIRST: 100
+    I: 6
+    SUM: 0
+    J: 0
+- line: 29
+  content: "for J = 0 to 5"
+  variables:
+    VALUES: [array]
+    FIRST: 100
+    I: 6
+    SUM: 0
+    J: 0
+- line: 30
+  content: "SUM = SUM + VALUES(J)"
+  variables:
+    VALUES: [array]
+    FIRST: 100
+    I: 6
+    SUM: 0
+    J: 1
+- line: 31
+  content: "wait 20ms"
+  variables:
+    VALUES: [array]
+    FIRST: 100
+    I: 6
+    SUM: 10
+    J: 1
+- line: 29
+  content: "for J = 0 to 5"
+  variables:
+    VALUES: [array]
+    FIRST: 100
+    I: 6
+    SUM: 10
+    J: 1
+- line: 30
+  content: "SUM = SUM + VALUES(J)"
+  variables:
+    VALUES: [array]
+    FIRST: 100
+    I: 6
+    SUM: 10
+    J: 2
+- line: 31
+  content: "wait 20ms"
+  variables:
+    VALUES: [array]
+    FIRST: 100
+    I: 6
+    SUM: 30
+    J: 2
+- line: 29
+  content: "for J = 0 to 5"
+  variables:
+    VALUES: [array]
+    FIRST: 100
+    I: 6
+    SUM: 30
+    J: 2
+- line: 30
+  content: "SUM = SUM + VALUES(J)"
+  variables:
+    VALUES: [array]
+    FIRST: 100
+    I: 6
+    SUM: 30
+    J: 3
+- line: 31
+  content: "wait 20ms"
+  variables:
+    VALUES: [array]
+    FIRST: 100
+    I: 6
+    SUM: 60
+    J: 3
+- line: 29
+  content: "for J = 0 to 5"
+  variables:
+    VALUES: [array]
+    FIRST: 100
+    I: 6
+    SUM: 60
+    J: 3
+- line: 30
+  content: "SUM = SUM + VALUES(J)"
+  variables:
+    VALUES: [array]
+    FIRST: 100
+    I: 6
+    SUM: 60
+    J: 4
+- line: 31
+  content: "wait 20ms"
+  variables:
+    VALUES: [array]
+    FIRST: 100
+    I: 6
+    SUM: 100
+    J: 4
+- line: 29
+  content: "for J = 0 to 5"
+  variables:
+    VALUES: [array]
+    FIRST: 100
+    I: 6
+    SUM: 100
+    J: 4
+- line: 30
+  content: "SUM = SUM + VALUES(J)"
+  variables:
+    VALUES: [array]
+    FIRST: 100
+    I: 6
+    SUM: 100
+    J: 5
+- line: 31
+  content: "wait 20ms"
+  variables:
+    VALUES: [array]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 5
+- line: 29
+  content: "for J = 0 to 5"
+  variables:
+    VALUES: [array]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 5
+- line: 33
+  content: "LOG \"Array sum: \" + SUM"
+  variables:
+    VALUES: [array]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6

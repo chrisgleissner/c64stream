@@ -1104,20 +1104,18 @@ TEST(parse_array_access)
     c64script_ast_free(ast);
 }
 
-// TODO: Array assignment syntax (VALUES(3) = 42) not yet implemented in parser
-// Parser currently treats identifier(expr) as function call, not array access
-// TEST(parse_array_assignment)
-// {
-//     const char *source = "VALUES(3) = 42\n";
-//     char error_msg[1024];
-//     c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
-//     assert(ast != NULL && "Failed to parse array assignment");
-//     assert(ast->type == AST_STMT_ARRAY_SET);
-//     assert(strcmp(ast->as.array_set.array_name, "VALUES") == 0);
-//     assert(ast->as.array_set.index != NULL);
-//     assert(ast->as.array_set.value != NULL);
-//     c64script_ast_free(ast);
-// }
+TEST(parse_array_assignment)
+{
+    const char *source = "VALUES(3) = 42\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse array assignment");
+    assert(ast->type == AST_STMT_ARRAY_SET);
+    assert(strcmp(ast->as.array_set.array_name, "VALUES") == 0);
+    assert(ast->as.array_set.index != NULL);
+    assert(ast->as.array_set.value != NULL);
+    c64script_ast_free(ast);
+}
 
 TEST(parse_nested_array_access)
 {
@@ -1145,31 +1143,28 @@ TEST(parse_map_access)
     c64script_ast_free(ast);
 }
 
-// TODO: Map assignment syntax (CONFIG{"key"} = value) not yet implemented in parser
-// Parser needs to handle map{} in assignment position
-// TEST(parse_map_assignment)
-// {
-//     const char *source = "CONFIG{\"host\"} = \"localhost\"\n";
-//     char error_msg[1024];
-//     c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
-//     assert(ast != NULL && "Failed to parse map assignment");
-//     assert(ast->type == AST_STMT_MAP_SET);
-//     assert(strcmp(ast->as.map_set.map_name, "CONFIG") == 0);
-//     assert(ast->as.map_set.key != NULL);
-//     assert(ast->as.map_set.value != NULL);
-//     c64script_ast_free(ast);
-// }
+TEST(parse_map_assignment)
+{
+    const char *source = "CONFIG{\"host\"} = \"localhost\"\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse map assignment");
+    assert(ast->type == AST_STMT_MAP_SET);
+    assert(strcmp(ast->as.map_set.map_name, "CONFIG") == 0);
+    assert(ast->as.map_set.key != NULL);
+    assert(ast->as.map_set.value != NULL);
+    c64script_ast_free(ast);
+}
 
-// TODO: Map assignment not implemented
-// TEST(parse_map_string_key)
-// {
-//     const char *source = "DATA{\"key\"} = 100\n";
-//     char error_msg[1024];
-//     c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
-//     assert(ast != NULL && "Failed to parse map with string key");
-//     assert(ast->type == AST_STMT_MAP_SET);
-//     c64script_ast_free(ast);
-// }
+TEST(parse_map_string_key)
+{
+    const char *source = "DATA{\"key\"} = 100\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse map with string key");
+    assert(ast->type == AST_STMT_MAP_SET);
+    c64script_ast_free(ast);
+}
 
 TEST(parse_map_in_expression)
 {
@@ -1485,13 +1480,13 @@ int main(int argc, char **argv)
     RUN_TEST(parse_dim_array);
     RUN_TEST(parse_dim_string_array);
     RUN_TEST(parse_array_access);
-    // RUN_TEST(parse_array_assignment); // TODO: Not implemented yet
+    RUN_TEST(parse_array_assignment);
     RUN_TEST(parse_nested_array_access);
 
     printf("\n--- Map Tests ---\n");
     RUN_TEST(parse_map_access);
-    // RUN_TEST(parse_map_assignment); // TODO: Not implemented yet
-    // RUN_TEST(parse_map_string_key); // TODO: Not implemented
+    RUN_TEST(parse_map_assignment);
+    RUN_TEST(parse_map_string_key);
     RUN_TEST(parse_map_in_expression);
 
     printf("\n--- Function Tests ---\n");

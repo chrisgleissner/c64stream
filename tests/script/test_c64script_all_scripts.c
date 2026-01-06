@@ -94,14 +94,11 @@ static const char *EXPECTED_PARSE_FAILURES[] = {
     "test_error_missing_wend.c64script",
     "test_error_missing_next.c64script",
     "test_error_gosub_overflow.c64script", // Intentionally uses # comment (invalid)
-    "test_let_rem.c64script",              // Parse errors with array syntax
     "test_functions_builtin.c64script",    // LOG parsing issue
     "test_file_io.c64script",              // File I/O syntax issues + timeout
     "test_variable_scope.c64script",       // goto/end syntax issues
     "test_local_execution.c64script",      // WRITEFILE syntax issue
-    "test_http_rest.c64script",            // HTTP/REST syntax issues
     "test_keyboard_injection.c64script",   // return expression issue
-    "test_arrays_maps.c64script",          // Array syntax issues + timeout
     NULL};
 
 // Scripts that should parse but fail compilation (type errors, etc.)
@@ -123,6 +120,9 @@ static const char *EXPECTED_EXECUTION_FAILURES[] = {
     "test_user_functions.c64script",      // Type mismatch issues
     "test_logging.c64script",             // Type mismatch issues (string + number concatenation)
     "test_error_invalid.c64script",       // Type mismatch
+    "test_let_rem.c64script",             // Type mismatch in array operations (string + number)
+    "test_arrays_maps.c64script",         // Type mismatch in array operations
+    "test_http_rest.c64script",           // Type mismatch in HTTP operations (not fully implemented)
     NULL};
 
 static bool should_expect_parse_failure(const char *filename)

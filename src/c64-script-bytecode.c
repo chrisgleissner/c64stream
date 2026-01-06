@@ -459,7 +459,21 @@ static bool compile_expression(compiler_context_t *ctx, c64script_ast_expr_t *ex
         }
 
         if (func_idx < 0) {
-            // Not a user-defined function, might be a built-in we didn't recognize
+            // Not a user-defined function - could be array access
+            // If single argument, treat as array access: array_name(index)
+            if (expr->as.call.arg_count == 1) {
+                // Compile index expression
+                if (!compile_expression(ctx, expr->as.call.args[0]))
+                    return false;
+                // Emit array get with array name
+                c64script_value_t arrayname = {.type = VALUE_STRING, .as.string = (char *)expr->as.call.name};
+                uint32_t idx = (uint32_t)add_constant(ctx, arrayname);
+                if (idx == UINT32_MAX)
+                    return false;
+                emit(ctx, OP_ARRAY_GET, idx, expr->line);
+                return true;
+            }
+            // Not array access - unknown function
             if (ctx->error_msg) {
                 snprintf(ctx->error_msg, ctx->error_msg_size, "Unknown function: %s", expr->as.call.name);
             }

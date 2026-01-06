@@ -1,9 +1,9 @@
 # Execution trace
 script: "test_let_rem.c64script"
-status: parse_failure
+status: failure
 error:
-  line: 0
-  message: "[Line 43:12] Error at ')': Invalid assignment target"
+  line: 37
+  message: "TYPE MISMATCH (ADD)"
 program: |
   01: rem Test let and rem statements
   02: rem Validates optional let keyword and comment styles
@@ -84,4 +84,92 @@ program: |
   77: 
   78: rem Test completed
   79: stop
-trace: []
+trace:
+- line: 5
+  content: "X = 10"
+  variables: {}
+- line: 6
+  content: "wait 50ms"
+  variables:
+    X: 10
+- line: 9
+  content: "let Y = 20"
+  variables:
+    X: 10
+- line: 10
+  content: "wait 50ms"
+  variables:
+    X: 10
+    Y: 20
+- line: 13
+  content: "Z = X + Y"
+  variables:
+    X: 10
+    Y: 20
+- line: 14
+  content: "if Z = 30 then"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+- line: 15
+  content: "effect \"Sharp Pixels\""
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+- line: 17
+  content: "wait 100ms"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+- line: 21
+  content: "effect \"Soft CRT\""
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+- line: 22
+  content: "wait 100ms"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+- line: 26
+  content: "palette \"colodore\""
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+- line: 27
+  content: "wait 100ms"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+- line: 31
+  content: "effect \"Light Scanlines\""
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+- line: 33
+  content: "wait 100ms"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+- line: 36
+  content: "let NAME$ = \"C64Script\""
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+- line: 37
+  content: "LOG \"Language: \" + NAME$"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"

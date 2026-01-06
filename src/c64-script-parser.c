@@ -405,75 +405,127 @@ static c64script_ast_expr_t *string(parser_t *p, bool can_assign)
 }
 
 // Identifier or function name
+// Detects array assignment vs function call by peeking ahead
 static c64script_ast_expr_t *variable(parser_t *p, bool can_assign)
 {
-    (void)can_assign;
+    (void)can_assign; // We'll detect assignment context by lookahead instead
 
     c64script_token_t ident_token = p->previous;
     char *name = dup_upper(ident_token.start, ident_token.length);
 
     // Check for array access: identifier(expr)
     if (match(p, TOKEN_LPAREN)) {
-        // Could be array access or function call
-        // Try to parse as function call first (with arguments)
-        c64script_ast_expr_t **args = NULL;
-        size_t arg_count = 0;
-        size_t arg_capacity = 0;
+        // Decide whether this is array access or function call
+        // If the pattern is: identifier(expr) = ..., it's array assignment
+        // Otherwise, it's a function call
 
-        if (!check(p, TOKEN_RPAREN)) {
-            arg_capacity = 4;
-            args = malloc(arg_capacity * sizeof(c64script_ast_expr_t *));
-            if (!args) {
+        // Create a clone tokenizer for lookahead (doesn't affect parser state)
+        c64script_tokenizer_t lookahead_tokenizer = *p->tokenizer;
+
+        // Scan ahead to find matching ) and check if = follows
+        int paren_depth = 1;
+        bool found_assignment = false;
+
+        while (paren_depth > 0) {
+            c64script_token_t t = c64script_tokenizer_next(&lookahead_tokenizer);
+            if (t.type == TOKEN_EOF) {
+                break;
+            }
+            if (t.type == TOKEN_LPAREN) {
+                paren_depth++;
+            } else if (t.type == TOKEN_RPAREN) {
+                paren_depth--;
+                if (paren_depth == 0) {
+                    // Check if next token is =
+                    c64script_token_t next = c64script_tokenizer_peek(&lookahead_tokenizer);
+                    if (next.type == TOKEN_EQ) {
+                        found_assignment = true;
+                    }
+                }
+            }
+        }
+
+        // No need to restore - we used a separate tokenizer
+
+        if (found_assignment) {
+            // Parse as array access
+            c64script_ast_expr_t *expr = calloc(1, sizeof(c64script_ast_expr_t));
+            if (!expr) {
+                free(name);
+                return NULL;
+            }
+            expr->type = AST_EXPR_ARRAY_ACCESS;
+            expr->line = ident_token.line;
+            expr->as.array_access.name = name;
+            expr->as.array_access.index = expression(p);
+
+            consume(p, TOKEN_RPAREN, "Expected ')' after array index");
+            if (p->panic_mode) {
+                free_expr(expr);
+                return NULL;
+            }
+
+            return expr;
+        } else {
+            // Parse as function call
+            c64script_ast_expr_t **args = NULL;
+            size_t arg_count = 0;
+            size_t arg_capacity = 0;
+
+            if (!check(p, TOKEN_RPAREN)) {
+                arg_capacity = 4;
+                args = malloc(arg_capacity * sizeof(c64script_ast_expr_t *));
+                if (!args) {
+                    free(name);
+                    return NULL;
+                }
+
+                do {
+                    if (arg_count >= arg_capacity) {
+                        arg_capacity *= 2;
+                        c64script_ast_expr_t **new_args = realloc(args, arg_capacity * sizeof(c64script_ast_expr_t *));
+                        if (!new_args) {
+                            for (size_t i = 0; i < arg_count; i++) {
+                                free_expr(args[i]);
+                            }
+                            free(args);
+                            free(name);
+                            return NULL;
+                        }
+                        args = new_args;
+                    }
+
+                    args[arg_count++] = expression(p);
+                } while (match(p, TOKEN_COMMA));
+            }
+
+            consume(p, TOKEN_RPAREN, "Expected ')' after arguments");
+            if (p->panic_mode) {
+                for (size_t i = 0; i < arg_count; i++) {
+                    free_expr(args[i]);
+                }
+                free(args);
                 free(name);
                 return NULL;
             }
 
-            do {
-                if (arg_count >= arg_capacity) {
-                    arg_capacity *= 2;
-                    c64script_ast_expr_t **new_args = realloc(args, arg_capacity * sizeof(c64script_ast_expr_t *));
-                    if (!new_args) {
-                        for (size_t i = 0; i < arg_count; i++) {
-                            free_expr(args[i]);
-                        }
-                        free(args);
-                        free(name);
-                        return NULL;
-                    }
-                    args = new_args;
+            // Function call
+            c64script_ast_expr_t *expr = calloc(1, sizeof(c64script_ast_expr_t));
+            if (!expr) {
+                for (size_t i = 0; i < arg_count; i++) {
+                    free_expr(args[i]);
                 }
-
-                args[arg_count++] = expression(p);
-            } while (match(p, TOKEN_COMMA));
-        }
-
-        consume(p, TOKEN_RPAREN, "Expected ')' after arguments");
-        if (p->panic_mode) {
-            for (size_t i = 0; i < arg_count; i++) {
-                free_expr(args[i]);
+                free(args);
+                free(name);
+                return NULL;
             }
-            free(args);
-            free(name);
-            return NULL;
+            expr->type = AST_EXPR_CALL;
+            expr->line = ident_token.line;
+            expr->as.call.name = name;
+            expr->as.call.args = args;
+            expr->as.call.arg_count = arg_count;
+            return expr;
         }
-
-        // Always treat as function call (even with 0 or 1 argument)
-        // Array access uses [] not () in c64script
-        c64script_ast_expr_t *expr = calloc(1, sizeof(c64script_ast_expr_t));
-        if (!expr) {
-            for (size_t i = 0; i < arg_count; i++) {
-                free_expr(args[i]);
-            }
-            free(args);
-            free(name);
-            return NULL;
-        }
-        expr->type = AST_EXPR_CALL;
-        expr->line = ident_token.line;
-        expr->as.call.name = name;
-        expr->as.call.args = args;
-        expr->as.call.arg_count = arg_count;
-        return expr;
     }
 
     // Check for map access: identifier{expr}
@@ -1822,7 +1874,18 @@ static c64script_ast_node_t *statement(parser_t *p)
         if (first.type == TOKEN_NUMBER) {
             is_label = memchr(first.start, '.', first.length) == NULL;
         } else if (first.type == TOKEN_IDENTIFIER) {
-            is_label = (second.type == TOKEN_COLON) || (second.type != TOKEN_EQ);
+            // Check if this is a label or an assignment
+            // It's a label if followed by : or not followed by = or (
+            // It's an assignment if followed by = or (
+            if (second.type == TOKEN_COLON) {
+                is_label = true;
+            } else if (second.type == TOKEN_EQ || second.type == TOKEN_LPAREN || second.type == TOKEN_LBRACE) {
+                // Could be assignment: x = val, arr(i) = val, map{k} = val
+                is_label = false;
+            } else {
+                // Otherwise assume it's a label
+                is_label = true;
+            }
         }
 
         if (is_label) {
