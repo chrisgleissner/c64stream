@@ -1338,23 +1338,31 @@ void c64_process_video_packet_direct(struct c64_source *context, const uint8_t *
                 if (frame_height == C64_PAL_HEIGHT) {
                     context->expected_fps = 50.125;
                     context->frame_interval_ns = C64_PAL_FRAME_INTERVAL_NS;
+                    context->audio_sample_rate = C64_PAL_AUDIO_SAMPLE_RATE;
+                    context->audio_info.samples_per_sec = C64_PAL_AUDIO_SAMPLE_RATE;
                     context->last_connected_format_was_pal = true; // Update logo format preference
-                    C64_LOG_INFO("" VIDEO_LOG_PREFIX " 🎥 Detected PAL format: 384x%u @ %.3f Hz", frame_height,
-                                 context->expected_fps);
+                    C64_LOG_INFO("" VIDEO_LOG_PREFIX " 🎥 Detected PAL format: 384x%u @ %.3f Hz (audio: %u Hz)",
+                                 frame_height, context->expected_fps, C64_PAL_AUDIO_SAMPLE_RATE);
                 } else if (frame_height == C64_NTSC_HEIGHT) {
                     context->expected_fps = 59.826;
                     context->frame_interval_ns = C64_NTSC_FRAME_INTERVAL_NS;
+                    context->audio_sample_rate = C64_NTSC_AUDIO_SAMPLE_RATE;
+                    context->audio_info.samples_per_sec = C64_NTSC_AUDIO_SAMPLE_RATE;
                     context->last_connected_format_was_pal = false; // Update logo format preference
-                    C64_LOG_INFO("" VIDEO_LOG_PREFIX " 🎥 Detected NTSC format: 384x%u @ %.3f Hz", frame_height,
-                                 context->expected_fps);
+                    C64_LOG_INFO("" VIDEO_LOG_PREFIX " 🎥 Detected NTSC format: 384x%u @ %.3f Hz (audio: %u Hz)",
+                                 frame_height, context->expected_fps, C64_NTSC_AUDIO_SAMPLE_RATE);
                 } else {
                     // Unknown format, estimate based on packet count
                     context->expected_fps = (frame_height <= 250) ? 59.826 : 50.125;
                     context->frame_interval_ns = (frame_height <= 250) ? C64_NTSC_FRAME_INTERVAL_NS
                                                                        : C64_PAL_FRAME_INTERVAL_NS;
+                    context->audio_sample_rate = (frame_height <= 250) ? C64_NTSC_AUDIO_SAMPLE_RATE
+                                                                       : C64_PAL_AUDIO_SAMPLE_RATE;
+                    context->audio_info.samples_per_sec = context->audio_sample_rate;
                     context->last_connected_format_was_pal = (frame_height > 250); // Assume PAL for larger heights
-                    C64_LOG_WARNING("" VIDEO_LOG_PREFIX " ⚠️ Unknown video format: 384x%u, assuming %.3f Hz",
-                                    frame_height, context->expected_fps);
+                    C64_LOG_WARNING("" VIDEO_LOG_PREFIX
+                                    " ⚠️ Unknown video format: 384x%u, assuming %.3f Hz (audio: %u Hz)",
+                                    frame_height, context->expected_fps, context->audio_sample_rate);
                 }
 
                 // Update context dimensions if they changed

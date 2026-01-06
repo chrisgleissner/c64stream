@@ -125,26 +125,44 @@ static void validate_audio_timestamp_progression(struct c64_source *context, uin
 {
     if (context->last_audio_timestamp_validation > 0) {
         int64_t timestamp_delta = (int64_t)(current_timestamp - context->last_audio_timestamp_validation);
-        // Expected delta is ~4ms (4,000,000 ns), warn if significantly off
-        if (timestamp_delta < 2000000 || timestamp_delta > 6000000) {
+        // Expected delta is ~4ms (format-specific: PAL 4.001ms, NTSC 4.005ms)
+        // Allow 3.5ms to 4.5ms tolerance for both formats
+        if (timestamp_delta < 3500000 || timestamp_delta > 4500000) {
             C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " Audio timestamp jump detected [%s]: delta=%" PRId64
-                          "ns (expected ~4000000ns)",
+                          "ns (expected ~4000000ns, format-specific)",
                           obs_source_get_name(context->source), timestamp_delta);
         }
     }
     context->last_audio_timestamp_validation = current_timestamp;
 }
 
-// Generate monotonic audio timestamps at exactly 4ms intervals with drift correction
+// Generate monotonic audio timestamps with format-specific intervals
 static uint64_t generate_monotonic_audio_timestamp(struct c64_source *context)
 {
-    // Audio packets must have exactly 4ms intervals (192 samples at 48kHz = 4000000ns)
-    // This creates synthetic timestamps with periodic drift correction
+    // Audio packet intervals are format-specific:
+    // PAL:  192 samples ÷ C64_PAL_AUDIO_SAMPLE_RATE = 4,001,417 ns/packet
+    // NTSC: 192 samples ÷ C64_NTSC_AUDIO_SAMPLE_RATE = 4,005,006 ns/packet
+    //
+    // The interval_ns is calculated dynamically based on detected format
 
     uint64_t current_real_time = os_gettime_ns();
 
     // Initialize on first call - prefer video's timing base if already set for A/V sync
     if (context->audio_base_time == 0) {
+        // Calculate format-specific audio packet interval
+        // interval_ns = (192 samples * 1,000,000,000 ns/sec) / sample_rate
+        if (context->audio_sample_rate > 0) {
+            context->audio_interval_ns = (192ULL * 1000000000ULL) / context->audio_sample_rate;
+            C64_LOG_INFO("" AUDIO_LOG_PREFIX " Audio packet interval: %" PRIu64 " ns (rate=%u Hz)",
+                         context->audio_interval_ns, context->audio_sample_rate);
+        } else {
+            // Fallback to PAL rate if format not yet detected
+            context->audio_sample_rate = C64_PAL_AUDIO_SAMPLE_RATE;
+            context->audio_interval_ns = 4001417ULL;
+            C64_LOG_WARNING("" AUDIO_LOG_PREFIX " Format not detected, using PAL audio rate: %u Hz",
+                            context->audio_sample_rate);
+        }
+
         // Use video's stream_start_time_ns if already established (ensures A/V sync)
         // Otherwise use current real time
         if (context->timestamp_base_set && context->stream_start_time_ns > 0) {
@@ -159,12 +177,13 @@ static uint64_t generate_monotonic_audio_timestamp(struct c64_source *context)
         context->audio_packet_count = 0;
     }
 
-    // Calculate current timestamp: base + (packet_count * 4ms)
-    uint64_t synthetic_timestamp = context->audio_base_time + (context->audio_packet_count * 4000000ULL);
+    // Calculate current timestamp: base + (packet_count * format_specific_interval)
+    uint64_t synthetic_timestamp =
+        context->audio_base_time + (context->audio_packet_count * context->audio_interval_ns);
     context->audio_packet_count++;
 
     // Drift correction: periodically adjust base time to prevent excessive drift
-    // Check every 250 packets (1 second of audio) to see if we're drifting too far
+    // Check every 250 packets (~1 second of audio) to see if we're drifting too far
     if ((context->audio_packet_count % 250) == 0) {
         int64_t drift_ns = (int64_t)(synthetic_timestamp - current_real_time);
         const int64_t MAX_DRIFT_NS = 100000000LL; // 100ms maximum drift
@@ -219,8 +238,8 @@ void c64_process_audio_packet(struct c64_source *context, const uint8_t *audio_d
 
     // Set up OBS audio data structure - optimized for minimal latency
     struct obs_source_audio audio_output = {0};
-    audio_output.frames = 192;            // 192 stereo samples per packet (4ms at C64 rate)
-    audio_output.samples_per_sec = 47976; // Exact C64 Ultimate sample rate to avoid resampling
+    audio_output.frames = 192;                                 // 192 stereo samples per packet
+    audio_output.samples_per_sec = context->audio_sample_rate; // Format-specific rate (PAL/NTSC)
     audio_output.format = AUDIO_FORMAT_16BIT;
     audio_output.speakers = SPEAKERS_STEREO;
     audio_output.timestamp = audio_timestamp; // Use synthetic timestamp for smooth playback
