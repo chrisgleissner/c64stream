@@ -5,9 +5,11 @@ on:
   push:
     paths:
       - .github/workflows/copilot-setup-steps.yml
+      - .github/scripts/install-copilot-deps.sh
   pull_request:
     paths:
       - .github/workflows/copilot-setup-steps.yml
+      - .github/scripts/install-copilot-deps.sh
 
 jobs:
   copilot-setup-steps:
@@ -18,48 +20,65 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Install dependencies needed by llvm.sh
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y wget gnupg lsb-release software-properties-common
+      - name: Cache Homebrew and dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.linuxbrew
+            ~/.cache/c64stream
+          key: copilot-deps-${{ runner.os }}-${{ hashFiles('.github/scripts/install-copilot-deps.sh') }}
+          restore-keys: |
+            copilot-deps-${{ runner.os }}-
 
-      - name: Install Clang 21 toolchain
+      - name: Install Copilot dependencies with caching
         run: |
-          curl -sSL https://apt.llvm.org/llvm.sh | sudo bash -s -- 21 all
+          ./.github/scripts/install-copilot-deps.sh
 
-      - name: Prefer Clang 21 binaries
+      - name: Source Homebrew environment
         run: |
-          # Check which tools are actually installed
-          for tool in clang clang++ clang-format clangd; do
-            if [ -f /usr/bin/${tool}-21 ]; then
-              sudo update-alternatives --install /usr/bin/${tool} ${tool} /usr/bin/${tool}-21 2100 --force
-              sudo update-alternatives --set ${tool} /usr/bin/${tool}-21
-            else
-              echo "Warning: ${tool}-21 not found, skipping"
-            fi
-          done
+          if [[ -d "$HOME/.linuxbrew" ]]; then
+            eval "$("$HOME/.linuxbrew/bin/brew" shellenv)"
+            export PATH="$(brew --prefix llvm)/bin:$PATH"
+            echo "PATH=$PATH" >> $GITHUB_ENV
+          fi
 
-      - name: Report selected clang version
+      - name: Verify installation
         run: |
-          echo "=== Clang Toolchain Status ==="
-          for tool in clang clang++ clang-format clangd; do
-            if command -v ${tool} &> /dev/null; then
-              echo "✅ ${tool}: $(${tool} --version | head -n1)"
-            else
-              echo "❌ ${tool}: not available"
-            fi
-          done
-
-      - name: Verify build tools functionality
-        run: |
-          echo "=== Testing Build Environment ==="
-          # Test that we can actually use the tools
-          echo "int main() { return 0; }" > /tmp/test.c
-          clang /tmp/test.c -o /tmp/test && echo "✅ clang compilation works" || echo "❌ clang compilation failed"
+          echo "=== Dependency Verification ==="
           
-          # Test clang-format if available
+          # Core dependencies
+          for cmd in cmake ninja pkg-config git zsh curl python3; do
+            if command -v $cmd &> /dev/null; then
+              echo "✅ $cmd: $(command -v $cmd)"
+            else
+              echo "❌ $cmd: not found"
+            fi
+          done
+          
+          echo ""
+          echo "=== Clang-format Status ==="
           if command -v clang-format &> /dev/null; then
+            version=$(clang-format --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+            echo "✅ clang-format $version: $(command -v clang-format)"
+            
+            # Test formatting
             echo "int main(){return 0;}" | clang-format && echo "✅ clang-format works" || echo "❌ clang-format failed"
+          else
+            echo "❌ clang-format: not found"
           fi
           
-          rm -f /tmp/test.c /tmp/test
+          echo ""
+          echo "=== libcurl Status ==="
+          if pkg-config --exists libcurl; then
+            echo "✅ libcurl: $(pkg-config --modversion libcurl)"
+          else
+            echo "❌ libcurl development files not found"
+          fi
+
+      - name: Test minimal build
+        run: |
+          echo "=== Testing Minimal Build Setup ==="
+          # Just verify CMake can configure (don't actually build OBS dependencies)
+          cmake --version
+          ninja --version
+          echo "✅ Build tools ready"

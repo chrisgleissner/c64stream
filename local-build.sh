@@ -307,6 +307,9 @@ install_dependencies() {
                     python3
                     python3-pip
                     libobs-dev
+                    curl                   # Required for REST client and downloads
+                    libcurl4-openssl-dev   # Required for libcurl development
+                    zsh                    # Required by build-aux scripts
                 )
 
                 local -a e2e_packages=(
