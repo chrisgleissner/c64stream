@@ -37,7 +37,7 @@ Copilot agent builds use a minimal dependency set to ensure fast session startup
 
 ### Automated Installation (Recommended for Copilot)
 
-Use the provided script for automated setup with caching:
+Use the provided script for automated setup:
 
 ```bash
 ./.github/scripts/install-copilot-deps.sh
@@ -45,10 +45,9 @@ Use the provided script for automated setup with caching:
 
 This script:
 - Installs minimal dependencies via APT
-- Installs clang-format 21 via Homebrew (to `~/.linuxbrew` for persistence)
+- Installs clang-format 21 from official LLVM APT repository
+- Sets up update-alternatives for clang-format
 - Installs gersemi via pip
-- Creates cache markers for fast re-runs
-- Updates shell profile for persistent PATH configuration
 
 ### Manual Installation
 
@@ -59,25 +58,19 @@ If you prefer manual installation or need to troubleshoot:
 sudo apt-get update
 sudo apt-get install -y \
     build-essential cmake ninja-build pkg-config git \
-    curl libcurl4-openssl-dev zsh ccache \
-    python3 python3-pip libsimde-dev
+    curl wget libcurl4-openssl-dev zsh ccache \
+    python3 python3-pip libsimde-dev \
+    ca-certificates gnupg lsb-release software-properties-common
 ```
 
-#### 2. clang-format 21 via Homebrew
+#### 2. clang-format 21 from LLVM APT
 ```bash
-# Install Homebrew (one-time, persists across sessions)
-git clone --depth=1 https://github.com/Homebrew/brew ~/.linuxbrew/Homebrew
-mkdir -p ~/.linuxbrew/bin
-ln -sf ../Homebrew/bin/brew ~/.linuxbrew/bin/brew
+# Install from official LLVM repository
+curl -sSL https://apt.llvm.org/llvm.sh | sudo bash -s -- 21
 
-# Configure environment
-eval "$(~/.linuxbrew/bin/brew shellenv)"
-
-# Install LLVM (includes clang-format 21)
-brew install llvm
-
-# Add to PATH
-export PATH="$(brew --prefix llvm)/bin:$PATH"
+# Set as default
+sudo update-alternatives --install /usr/bin/clang-format clang-format /usr/bin/clang-format-21 2100 --force
+sudo update-alternatives --set clang-format /usr/bin/clang-format-21
 
 # Verify
 clang-format --version
@@ -102,31 +95,30 @@ This installs core packages + libobs-dev. For E2E testing dependencies (OBS, xvf
 ./local-build.sh linux --install-e2e-deps
 ```
 
-## Caching Strategy
+## Troubleshooting
 
-### GitHub Actions Caching
+### clang-format not found or wrong version
 
-The `.github/workflows/copilot-setup-steps.yml` workflow uses GitHub Actions cache:
+```bash
+# Check current version
+clang-format --version
 
-```yaml
-- name: Cache Homebrew and dependencies
-  uses: actions/cache@v4
-  with:
-    path: |
-      ~/.linuxbrew
-      ~/.cache/c64stream
-    key: copilot-deps-${{ runner.os }}-${{ hashFiles('.github/scripts/install-copilot-deps.sh') }}
+# If < 21.1.1, install from LLVM APT:
+curl -sSL https://apt.llvm.org/llvm.sh | sudo bash -s -- 21
+sudo update-alternatives --install /usr/bin/clang-format clang-format /usr/bin/clang-format-21 2100 --force
 ```
 
-This caches:
-- `~/.linuxbrew`: Homebrew installation and LLVM/clang-format
-- `~/.cache/c64stream`: Dependency markers
+### zsh not found
 
-Cache is invalidated when the install script changes.
+```bash
+sudo apt-get install -y zsh
+```
 
-### Local Caching
+### libcurl not found
 
-For local builds, Homebrew is installed to `~/.linuxbrew` which persists across terminal sessions. The install script adds Homebrew to `~/.bash_profile` automatically.
+```bash
+sudo apt-get install -y curl libcurl4-openssl-dev
+```
 
 ## Docker Images
 
@@ -147,44 +139,6 @@ For local builds, Homebrew is installed to `~/.linuxbrew` which persists across 
 - X11, audio, and E2E testing dependencies
 - Used for full CI builds and E2E tests
 
-## Troubleshooting
-
-### clang-format not found or wrong version
-
-```bash
-# Check current version
-clang-format --version
-
-# If < 21.1.1, install via Homebrew:
-./.github/scripts/install-copilot-deps.sh
-
-# Or manually:
-eval "$(~/.linuxbrew/bin/brew shellenv)"
-brew install llvm
-export PATH="$(brew --prefix llvm)/bin:$PATH"
-```
-
-### zsh not found
-
-```bash
-sudo apt-get install -y zsh
-```
-
-### libcurl not found
-
-```bash
-sudo apt-get install -y curl libcurl4-openssl-dev
-```
-
-### Homebrew installation fails
-
-If Homebrew installation fails (e.g., due to network issues), you can use the LLVM APT repository instead:
-
-```bash
-curl -sSL https://apt.llvm.org/llvm.sh | sudo bash -s -- 21 all
-sudo update-alternatives --install /usr/bin/clang-format clang-format /usr/bin/clang-format-21 2100
-```
-
 ## Dependency Comparison
 
 | Dependency | Copilot Build | Full CI Build | E2E Testing |
@@ -193,7 +147,7 @@ sudo update-alternatives --install /usr/bin/clang-format clang-format /usr/bin/c
 | cmake, ninja | ✅ | ✅ | ✅ |
 | curl, libcurl-dev | ✅ | ✅ | ✅ |
 | zsh | ✅ | ✅ | ✅ |
-| clang-format 21 | ✅ | ✅ | ✅ |
+| clang-format 21 | ✅ (LLVM APT) | ✅ | ✅ |
 | libobs-dev | ❌ (auto-downloaded) | ✅ | ✅ |
 | obs-studio | ❌ | ✅ | ✅ |
 | Qt6 | ❌ (auto-downloaded) | ✅ | ✅ |
@@ -202,14 +156,11 @@ sudo update-alternatives --install /usr/bin/clang-format clang-format /usr/bin/c
 
 ## Performance
 
-### Session Startup Times
+### Installation Times
 
-With caching:
-- **Cold start** (no cache): ~2-3 minutes (Homebrew + LLVM install)
-- **Warm start** (cached): ~10-20 seconds (restore from cache)
-
-Without caching:
-- **Every start**: ~2-3 minutes (full install each time)
+- **APT packages only**: ~30-60 seconds
+- **With LLVM APT repository**: ~2-3 minutes (first time)
+- **Subsequent runs**: ~30-60 seconds (APT cache)
 
 ### Image Sizes
 

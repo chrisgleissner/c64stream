@@ -64,18 +64,17 @@ OBS Studio plugin for streaming C64 Ultimate device video/audio over network. Se
 
 #### Installing clang-format 21 on Linux (recommended)
 
-CI uses clang-format 21.x. Many Linux distros ship older versions. For Copilot agent builds, use the automated installation script:
+CI uses clang-format 21.x. For Copilot agent builds, use the automated installation script:
 
 ```bash
-# Automated installation with caching (recommended for Copilot)
+# Automated installation (recommended for Copilot)
 ./.github/scripts/install-copilot-deps.sh
 ```
 
 This installs:
-- clang-format 21 via Homebrew (to `~/.linuxbrew` for persistence)
+- clang-format 21 from official LLVM APT repository
 - All required build dependencies (curl, zsh, libcurl-dev, etc.)
 - gersemi for CMake formatting
-- Configures shell profile for persistent PATH
 
 For manual installation or troubleshooting, see `.github/COPILOT_DEPENDENCIES.md`.
 

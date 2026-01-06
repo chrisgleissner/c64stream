@@ -20,80 +20,40 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Cache APT packages
-        uses: actions/cache@v4
-        with:
-          path: |
-            /var/cache/apt/archives
-            /var/lib/apt/lists
-          key: ${{ runner.os }}-apt-${{ hashFiles('.github/scripts/.Aptfile') }}
-          restore-keys: |
-            ${{ runner.os }}-apt-
-
-      - name: Cache Homebrew and dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.linuxbrew
-            ~/.cache/c64stream
-          key: copilot-deps-${{ runner.os }}-${{ hashFiles('.github/scripts/install-copilot-deps.sh') }}
-          restore-keys: |
-            copilot-deps-${{ runner.os }}-
-
-      - name: Install Copilot dependencies with caching
+      - name: Install Copilot dependencies
         run: |
           ./.github/scripts/install-copilot-deps.sh
-
-      - name: Install additional build tools
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends jq file dpkg-dev xz-utils
-
-      - name: Source Homebrew environment
-        run: |
-          if [[ -d "$HOME/.linuxbrew" ]]; then
-            eval "$("$HOME/.linuxbrew/bin/brew" shellenv)"
-            export PATH="$(brew --prefix llvm)/bin:$PATH"
-            echo "PATH=$PATH" >> $GITHUB_ENV
-          fi
 
       - name: Verify installation
         run: |
           echo "=== Dependency Verification ==="
-
+          
           # Core dependencies
-          for cmd in cmake ninja pkg-config git zsh curl python3 jq; do
+          for cmd in cmake ninja pkg-config git zsh curl python3 clang-format; do
             if command -v $cmd &> /dev/null; then
               echo "✅ $cmd: $(command -v $cmd)"
             else
               echo "❌ $cmd: not found"
+              exit 1
             fi
           done
-
+          
           echo ""
           echo "=== Clang-format Status ==="
-          if command -v clang-format &> /dev/null; then
-            version=$(clang-format --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-            echo "✅ clang-format $version: $(command -v clang-format)"
-
-            # Test formatting
-            echo "int main(){return 0;}" | clang-format && echo "✅ clang-format works" || echo "❌ clang-format failed"
-          else
-            echo "❌ clang-format: not found"
-          fi
-
+          version=$(clang-format --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+          echo "✅ clang-format $version: $(command -v clang-format)"
+          
+          # Test formatting
+          echo "int main(){return 0;}" | clang-format && echo "✅ clang-format works" || (echo "❌ clang-format failed" && exit 1)
+          
           echo ""
           echo "=== libcurl Status ==="
           if pkg-config --exists libcurl; then
             echo "✅ libcurl: $(pkg-config --modversion libcurl)"
           else
             echo "❌ libcurl development files not found"
+            exit 1
           fi
-
-      - name: Test minimal build
-        run: |
-          echo "=== Testing Minimal Build Setup ==="
-          # Just verify CMake can configure (don't actually build OBS dependencies)
-          cmake --version
-          ninja --version
-          echo "✅ Build tools ready"
+          
+          echo ""
+          echo "✅ All dependencies verified successfully"
