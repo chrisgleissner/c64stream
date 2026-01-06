@@ -16,7 +16,7 @@ See <https://www.gnu.org/licenses/> for details.
 /**
  * C64Script - BASIC-Inspired Scripting Language
  *
- * This is a complete rewrite of the C64Script language with:
+ * Features :
  * - Case-insensitive keywords and identifiers
  * - BASIC-style control flow (IF/FOR/WHILE/GOSUB/RETURN)
  * - Expressions with proper operator precedence
@@ -24,6 +24,7 @@ See <https://www.gnu.org/licenses/> for details.
  * - Built-in functions (PEEK/POKE for DMA)
  * - Keyboard injection (TYPE/KEY)
  * - Logging and tracing (LOG/TRON/TROFF)
+ * - Plugin control (EFFECT/PALETTE/etc.)
  */
 
 // ============================================================================
@@ -56,6 +57,7 @@ typedef enum {
     TOKEN_HEX_NUMBER, // $C000
     TOKEN_STRING,     // "hello"
     TOKEN_DURATION,   // 500ms, 1.5s
+    TOKEN_C64U_PATH,  // c64u:/path (unquoted)
 
     // Identifiers and labels
     TOKEN_IDENTIFIER, // var, VAR, var$, var%
@@ -831,6 +833,16 @@ typedef struct {
  * Returns NULL on parse error (check error_msg)
  */
 c64script_ast_node_t *c64script_parse(const char *source, size_t source_size, char *error_msg, size_t error_msg_size);
+
+typedef struct {
+    bool log_errors; // When false, parse errors are only logged if debug logging is enabled
+} c64script_parse_options_t;
+
+/**
+ * Parse a C64Script source file into an AST with configurable logging behavior.
+ */
+c64script_ast_node_t *c64script_parse_with_options(const char *source, size_t source_size, char *error_msg,
+                                                   size_t error_msg_size, const c64script_parse_options_t *options);
 
 /**
  * Compile an AST into bytecode

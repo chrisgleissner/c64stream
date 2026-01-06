@@ -404,7 +404,9 @@ TEST(parse_error_unterminated_string)
 {
     const char *source = "x = \"unterminated";
     char error_msg[1024];
-    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    c64script_parse_options_t options = {.log_errors = false};
+    c64script_ast_node_t *ast =
+        c64script_parse_with_options(source, strlen(source), error_msg, sizeof(error_msg), &options);
     assert(ast == NULL);
     assert(error_msg[0] != '\0');
 }
@@ -413,7 +415,9 @@ TEST(parse_error_invalid_operator)
 {
     const char *source = "x = 1 @ 2"; // @ is not a valid operator
     char error_msg[1024];
-    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    c64script_parse_options_t options = {.log_errors = false};
+    c64script_ast_node_t *ast =
+        c64script_parse_with_options(source, strlen(source), error_msg, sizeof(error_msg), &options);
     assert(ast == NULL);
     assert(error_msg[0] != '\0');
 }

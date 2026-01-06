@@ -96,9 +96,7 @@ static const char *EXPECTED_PARSE_FAILURES[] = {
     "test_error_gosub_overflow.c64script", // Intentionally uses # comment (invalid)
     "test_let_rem.c64script",              // Parse errors with array syntax
     "test_functions_builtin.c64script",    // LOG parsing issue
-    "test_sid_playback.c64script",         // c64u: path syntax issues
     "test_file_io.c64script",              // File I/O syntax issues + timeout
-    "test_c64_control.c64script",          // c64u: path syntax issues
     "test_variable_scope.c64script",       // goto/end syntax issues
     "test_local_execution.c64script",      // WRITEFILE syntax issue
     "test_http_rest.c64script",            // HTTP/REST syntax issues
@@ -399,7 +397,8 @@ static void process_script(const char *file)
 #endif
 
     if (setjmp(timeout_jump) == 0) {
-        ast = c64script_parse(source, size, error, sizeof(error));
+        c64script_parse_options_t parse_options = {.log_errors = !expect_parse_fail};
+        ast = c64script_parse_with_options(source, size, error, sizeof(error), &parse_options);
     } else {
         snprintf(error, sizeof(error), "Parse timeout after %d seconds", SCRIPT_TIMEOUT_SECONDS);
         ast = NULL;

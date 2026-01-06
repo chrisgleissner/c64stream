@@ -61,21 +61,21 @@ typedef struct {
 } c64_script_t;
 
 /**
- * Parse script script from file
+ * Parse script from file
  * @param file_path Path to .c64script file
  * @return Parsed script or NULL on error
  */
 c64_script_t *c64_script_parse_file(const char *file_path);
 
 /**
- * Parse script script from string
+ * Parse script from string
  * @param content Script content
  * @return Parsed script or NULL on error
  */
 c64_script_t *c64_script_parse_string(const char *content);
 
 /**
- * Free script script
+ * Free script
  */
 void c64_script_free(c64_script_t *script);
 

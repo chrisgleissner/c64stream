@@ -34,7 +34,7 @@ c64_script_executor_t *c64_script_executor_create(obs_source_t *source);
 void c64_script_executor_destroy(c64_script_executor_t *executor);
 
 /**
- * Start executing a script script
+ * Start executing a script
  * Returns true if started successfully, false if already running or error
  */
 bool c64_script_executor_start(c64_script_executor_t *executor, const char *script_file_path);

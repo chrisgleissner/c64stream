@@ -402,6 +402,10 @@ bool c64_script_executor_start(c64_script_executor_t *executor, const char *scri
         executor->status = C64_SCRIPT_STATUS_ERROR;
         snprintf(executor->error_msg, sizeof(executor->error_msg), "Failed to start script thread");
         pthread_mutex_unlock(&executor->mutex);
+        if (executor->runtime) {
+            c64script_runtime_destroy(executor->runtime);
+            executor->runtime = NULL;
+        }
         return false;
     }
 

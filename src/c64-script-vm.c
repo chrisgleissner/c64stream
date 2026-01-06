@@ -599,6 +599,18 @@ static void record_trace_entry(c64script_runtime_t *runtime, int line_num)
     runtime->trace_buffer[runtime->trace_buffer_size] = '\0';
 }
 
+static bool c64script_debug_logging_enabled(void)
+{
+    if (c64_debug_logging) {
+        return true;
+    }
+    const char *env = getenv("C64SCRIPT_DEBUG_LOGS");
+    if (!env || env[0] == '\0' || strcmp(env, "0") == 0) {
+        return false;
+    }
+    return true;
+}
+
 bool c64script_execute(c64script_runtime_t *runtime)
 {
     bool result = c64script_vm_execute(runtime);
@@ -1651,8 +1663,10 @@ bool c64script_vm_execute(c64script_runtime_t *runtime)
                 return false;
             }
             if (!runtime->obs_source) {
-                // OBS source not available - log warning but continue execution
-                blog(LOG_WARNING, "[c64script] EFFECT: OBS source not available, skipping");
+                // OBS source not available - log and continue execution
+                if (c64script_debug_logging_enabled()) {
+                    blog(LOG_DEBUG, "[c64script] EFFECT: OBS source not available, skipping");
+                }
                 c64script_value_free(&preset);
                 break;
             }
@@ -1683,8 +1697,10 @@ bool c64script_vm_execute(c64script_runtime_t *runtime)
                 return false;
             }
             if (!runtime->obs_source) {
-                // OBS source not available - log warning but continue execution
-                blog(LOG_WARNING, "[c64script] EFFECTPARAM: OBS source not available, skipping");
+                // OBS source not available - log and continue execution
+                if (c64script_debug_logging_enabled()) {
+                    blog(LOG_DEBUG, "[c64script] EFFECTPARAM: OBS source not available, skipping");
+                }
                 c64script_value_free(&param);
                 c64script_value_free(&value);
                 break;
@@ -1717,8 +1733,10 @@ bool c64script_vm_execute(c64script_runtime_t *runtime)
                 return false;
             }
             if (!runtime->obs_source) {
-                // OBS source not available - log warning but continue execution
-                blog(LOG_WARNING, "[c64script] PALETTE: OBS source not available, skipping");
+                // OBS source not available - log and continue execution
+                if (c64script_debug_logging_enabled()) {
+                    blog(LOG_DEBUG, "[c64script] PALETTE: OBS source not available, skipping");
+                }
                 c64script_value_free(&palette);
                 break;
             }
@@ -1788,8 +1806,10 @@ bool c64script_vm_execute(c64script_runtime_t *runtime)
             }
 
             if (!runtime->obs_source) {
-                // OBS source not available - log warning but continue execution
-                blog(LOG_WARNING, "[c64script] PALETTECOLOR: OBS source not available, skipping");
+                // OBS source not available - log and continue execution
+                if (c64script_debug_logging_enabled()) {
+                    blog(LOG_DEBUG, "[c64script] PALETTECOLOR: OBS source not available, skipping");
+                }
                 break;
             }
 
@@ -2092,8 +2112,10 @@ bool c64script_vm_execute(c64script_runtime_t *runtime)
 #ifdef ENABLE_FRONTEND_API
             obs_frontend_recording_start();
 #else
-            // Frontend API not enabled - log warning but continue execution
-            blog(LOG_WARNING, "[c64script] RECORDSTART: OBS frontend API not enabled, skipping");
+            // Frontend API not enabled - log and continue execution
+            if (c64script_debug_logging_enabled()) {
+                blog(LOG_DEBUG, "[c64script] RECORDSTART: OBS frontend API not enabled, skipping");
+            }
 #endif
             break;
 
@@ -2101,8 +2123,10 @@ bool c64script_vm_execute(c64script_runtime_t *runtime)
 #ifdef ENABLE_FRONTEND_API
             obs_frontend_recording_stop();
 #else
-            // Frontend API not enabled - log warning but continue execution
-            blog(LOG_WARNING, "[c64script] RECORDSTOP: OBS frontend API not enabled, skipping");
+            // Frontend API not enabled - log and continue execution
+            if (c64script_debug_logging_enabled()) {
+                blog(LOG_DEBUG, "[c64script] RECORDSTOP: OBS frontend API not enabled, skipping");
+            }
 #endif
             break;
 

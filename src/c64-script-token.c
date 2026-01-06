@@ -175,6 +175,21 @@ static bool is_identifier_continue(char c)
     return is_alpha(c) || is_digit(c) || c == '_';
 }
 
+static bool is_c64u_path_terminator(char c)
+{
+    return c == '\0' || c == '\n' || is_whitespace(c) || c == ',' || c == ')' || c == ']' || c == '}';
+}
+
+static bool is_c64u_path_start(tokenizer_t *t)
+{
+    if (t->pos + 5 > t->source_size) {
+        return false;
+    }
+    const char *src = t->source + t->pos;
+    return (tolower((unsigned char)src[0]) == 'c' && src[1] == '6' && src[2] == '4' &&
+            tolower((unsigned char)src[3]) == 'u' && src[4] == ':');
+}
+
 // ============================================================================
 // TOKENIZER HELPERS
 // ============================================================================
@@ -517,6 +532,17 @@ c64script_token_t c64script_tokenize_next(tokenizer_t *t)
     // Strings
     if (c == '"') {
         return tokenize_string(t);
+    }
+
+    // C64U filesystem paths (unquoted)
+    if (is_c64u_path_start(t)) {
+        const char *start = &t->source[t->pos];
+        size_t length = 0;
+        while (!is_c64u_path_terminator(peek(t))) {
+            advance(t);
+            length++;
+        }
+        return make_token(t, TOKEN_C64U_PATH, start, length);
     }
 
     // Identifiers and keywords
