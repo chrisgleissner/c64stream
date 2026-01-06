@@ -62,19 +62,24 @@ OBS Studio plugin for streaming C64 Ultimate device video/audio over network. Se
 - 4 spaces indentation, 120 char limit, files end with newline
 - **Never commit code that fails clang-format**
 
-#### Installing clang-format 21 on Linux (recommended)
+#### Installing clang-format 21 on Linux (for local development)
 
-CI uses clang-format 21.x. For Copilot agent builds, use the automated installation script:
+**Note:** Copilot agent builds do NOT install clang-format. Formatting is automatically skipped when clang-format is unavailable. Code formatting is validated in CI only.
+
+For local development with formatting:
 
 ```bash
-# Automated installation (recommended for Copilot)
-./.github/scripts/install-copilot-deps.sh
+# Install clang-format 21 from official LLVM repository
+curl -sSL https://apt.llvm.org/llvm.sh | sudo bash -s -- 21
+sudo update-alternatives --install /usr/bin/clang-format clang-format /usr/bin/clang-format-21 2100
 ```
 
-This installs:
-- clang-format 21 from official LLVM APT repository
-- All required build dependencies (curl, zsh, libcurl-dev, etc.)
-- gersemi for CMake formatting
+Alternatively, the automated Copilot setup installs minimal dependencies only:
+
+```bash
+# Minimal install (no clang-format)
+./.github/scripts/install-copilot-deps.sh
+```
 
 For manual installation or troubleshooting, see `.github/COPILOT_DEPENDENCIES.md`.
 

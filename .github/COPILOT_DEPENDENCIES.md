@@ -6,6 +6,8 @@ This document describes the dependencies and setup for Copilot agent builds.
 
 Copilot agent builds use a minimal dependency set to ensure fast session startup. Unlike CI builds that run in a full OBS environment, Copilot builds only install what's absolutely necessary, with OBS and Qt6 dependencies downloaded automatically by the build system.
 
+**Note:** clang-format is NOT installed in Copilot environments. The local-build.sh script automatically skips formatting if clang-format is not available. Code formatting validation happens in CI, not during Copilot builds.
+
 ## Core Dependencies
 
 ### Essential Build Tools
@@ -22,8 +24,9 @@ Copilot agent builds use a minimal dependency set to ensure fast session startup
 - **zsh**: Z shell (required by `build-aux/run-clang-format` and `build-aux/run-gersemi`)
 
 ### Code Quality Tools
-- **clang-format 21.1.1+**: Code formatting (installed via Homebrew or LLVM APT)
 - **gersemi**: CMake formatting (installed via pip)
+
+**Note:** clang-format 21 is NOT installed for Copilot builds - formatting is skipped and validated in CI only.
 
 ### Python Environment
 - **python3**: Python interpreter
@@ -97,17 +100,6 @@ This installs core packages + libobs-dev. For E2E testing dependencies (OBS, xvf
 
 ## Troubleshooting
 
-### clang-format not found or wrong version
-
-```bash
-# Check current version
-clang-format --version
-
-# If < 21.1.1, install from LLVM APT:
-curl -sSL https://apt.llvm.org/llvm.sh | sudo bash -s -- 21
-sudo update-alternatives --install /usr/bin/clang-format clang-format /usr/bin/clang-format-21 2100 --force
-```
-
 ### zsh not found
 
 ```bash
@@ -118,6 +110,16 @@ sudo apt-get install -y zsh
 
 ```bash
 sudo apt-get install -y curl libcurl4-openssl-dev
+```
+
+### clang-format missing
+
+This is expected and intentional. Copilot builds skip formatting. If you need formatting locally:
+
+```bash
+# For CI/local development with formatting:
+curl -sSL https://apt.llvm.org/llvm.sh | sudo bash -s -- 21
+sudo update-alternatives --install /usr/bin/clang-format clang-format /usr/bin/clang-format-21 2100
 ```
 
 ## Docker Images
@@ -147,7 +149,7 @@ sudo apt-get install -y curl libcurl4-openssl-dev
 | cmake, ninja | ✅ | ✅ | ✅ |
 | curl, libcurl-dev | ✅ | ✅ | ✅ |
 | zsh | ✅ | ✅ | ✅ |
-| clang-format 21 | ✅ (LLVM APT) | ✅ | ✅ |
+| clang-format 21 | ❌ (skipped) | ✅ (CI validates) | ✅ |
 | libobs-dev | ❌ (auto-downloaded) | ✅ | ✅ |
 | obs-studio | ❌ | ✅ | ✅ |
 | Qt6 | ❌ (auto-downloaded) | ✅ | ✅ |
@@ -158,9 +160,8 @@ sudo apt-get install -y curl libcurl4-openssl-dev
 
 ### Installation Times
 
-- **APT packages only**: ~30-60 seconds
-- **With LLVM APT repository**: ~2-3 minutes (first time)
-- **Subsequent runs**: ~30-60 seconds (APT cache)
+- **Core APT packages**: ~30-60 seconds
+- **No LLVM/clang installation**: Fast and simple
 
 ### Image Sizes
 

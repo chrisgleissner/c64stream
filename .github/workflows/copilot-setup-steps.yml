@@ -29,7 +29,7 @@ jobs:
           echo "=== Dependency Verification ==="
           
           # Core dependencies
-          for cmd in cmake ninja pkg-config git zsh curl python3 clang-format; do
+          for cmd in cmake ninja pkg-config git zsh curl python3; do
             if command -v $cmd &> /dev/null; then
               echo "✅ $cmd: $(command -v $cmd)"
             else
@@ -37,14 +37,6 @@ jobs:
               exit 1
             fi
           done
-          
-          echo ""
-          echo "=== Clang-format Status ==="
-          version=$(clang-format --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
-          echo "✅ clang-format $version: $(command -v clang-format)"
-          
-          # Test formatting
-          echo "int main(){return 0;}" | clang-format && echo "✅ clang-format works" || (echo "❌ clang-format failed" && exit 1)
           
           echo ""
           echo "=== libcurl Status ==="
