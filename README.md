@@ -289,7 +289,7 @@ Recreate the authentic look and feel of classic CRT monitors and TVs with config
 
 - **[Classic CRT](./docs/images/effects/classic-crt.png)** - Balanced scan lines and bloom for general retro appeal
 - **[Amber Monitor](./docs/images/effects/amber-monitor.png)** - Warm amber tint reminiscent of early computer monitors
-- **[Green Monitor](./docs/images/effects/green-monitor.png)** - Classic green phosphor terminal look
+- **[Green Monitor](./docs/images/effects/green-monitor.png)** - Classic green phosphor terminal look with CRT afterglow effect. See the eye-catching tail of the pinball in this short [video](./docs/videos/effects/green-monitor.mp4).
 - **[Sharp Pixels](./docs/images/effects/sharp-pixels.png)** - Crisp pixel doubling for arcade-style clarity
 - **[Phosphor Glow](./docs/images/effects/phosphor-glow.png)** - Dramatic phosphor persistence trails with extended afterglow. The sample image here was taken from the automated E2E test which shows an afterglow for each moving diagonal line.
 - **[Vintage TV](./docs/images/effects/vintage-tv.png)** - Softer look with prominent scan lines for old television feel
