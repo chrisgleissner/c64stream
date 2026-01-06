@@ -152,13 +152,13 @@ static uint64_t generate_monotonic_audio_timestamp(struct c64_source *context)
         // Calculate format-specific audio packet interval
         // interval_ns = (192 samples * 1,000,000,000 ns/sec) / sample_rate
         if (context->audio_sample_rate > 0) {
-            context->audio_interval_ns = (192ULL * 1000000000ULL) / context->audio_sample_rate;
+            context->audio_interval_ns = (uint64_t)((192ULL * 1000000000ULL) / context->audio_sample_rate);
             C64_LOG_INFO("" AUDIO_LOG_PREFIX " Audio packet interval: %" PRIu64 " ns (rate=%.4f Hz)",
                          context->audio_interval_ns, context->audio_sample_rate);
         } else {
             // Fallback to PAL rate if format not yet detected
             context->audio_sample_rate = C64_PAL_AUDIO_SAMPLE_RATE;
-            context->audio_interval_ns = (192ULL * 1000000000ULL) / context->audio_sample_rate;
+            context->audio_interval_ns = (uint64_t)((192ULL * 1000000000ULL) / context->audio_sample_rate);
             C64_LOG_WARNING("" AUDIO_LOG_PREFIX " Format not detected, using PAL audio rate: %.4f Hz",
                             context->audio_sample_rate);
         }
