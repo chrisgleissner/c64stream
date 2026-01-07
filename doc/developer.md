@@ -263,7 +263,7 @@ cd tests/e2e
 ./local-build.sh linux --e2e --install    # Build, install, and run E2E tests
 ```
 
-See [`doc/e2e.md`](e2e.md) for comprehensive E2E testing documentation.
+See [`doc/testing/e2e.md`](e2e.md) for comprehensive E2E testing documentation.
 
 ### End-to-end tests (in-depth)
 
@@ -303,7 +303,7 @@ Running locally (Linux):
 ./local-build.sh linux --e2e --install
 ```
 
-More details and CI usage in [`doc/e2e.md`](e2e.md).
+More details and CI usage in [`doc/testing/e2e.md`](e2e.md).
 
 ## Build Configurations
 
@@ -462,5 +462,5 @@ The project uses GitHub Actions for:
 ## Resources
 
 - **C64U Streaming Specification:** [`doc/c64-stream-spec.md`](c64-stream-spec.md)
-- **E2E Testing:** [`doc/e2e.md`](e2e.md)
+- **E2E Testing:** [`doc/testing/e2e.md`](e2e.md)
 - **OBS Plugin Guide:** [OBS Studio Documentation](https://obsproject.com/wiki/Plugin-Development)

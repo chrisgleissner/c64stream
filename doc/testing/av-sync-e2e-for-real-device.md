@@ -9,7 +9,7 @@ This is **LOCAL ONLY** (requires real hardware and a working GUI for OBS). Do no
 There are two complementary ways we check A/V synchronization in this project:
 
 - **Mocked C64U (most E2E tests):** the harness generates deterministic UDP packets that emulate the device. These
-  tests exercise the full OBS + plugin pipeline in a reproducible, CI-friendly way. See `doc/e2e.md`.
+  tests exercise the full OBS + plugin pipeline in a reproducible, CI-friendly way. See `doc/testing/e2e.md`.
 - **Real C64U (this document):** run `av-sync-auto.prg` on a physical C64 Ultimate, record in OBS, and analyze the
   resulting CSVs/logs.
 
@@ -266,4 +266,4 @@ events.
 ## References
 
 - Protocol details and device control: `doc/c64-stream-spec.md`
-- Mock E2E scenarios and harness behavior: `doc/e2e.md`
+- Mock E2E scenarios and harness behavior: `doc/testing/e2e.md`

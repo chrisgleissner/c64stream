@@ -480,7 +480,7 @@ Many recent reports (without videos) are checked into this GitHub repository:
 
 You can download all [Latest E2E results](https://github.com/chrisgleissner/c64stream/actions/workflows/build-project.yaml?query=branch%3Amain+is%3Asuccess) (with videos) as GitHub CI build artifact ZIP.
 
-For more information, see [`doc/e2e.md`](doc/e2e.md).
+For more information, see [`doc/testing/e2e.md`](doc/testing/e2e.md).
 
 ## Network Details
 
