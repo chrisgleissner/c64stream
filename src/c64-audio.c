@@ -9,7 +9,8 @@ See <https://www.gnu.org/licenses/> for details.
 #include <util/platform.h>
 #include <util/threading.h> // For atomic operations
 #include <inttypes.h>       // For PRIu64, PRId64 format specifiers
-#include "c64-network.h"    // Include network header first to avoid Windows header conflicts
+#include <stdint.h>
+#include "c64-network.h" // Include network header first to avoid Windows header conflicts
 #include "c64-logging.h"
 #include "c64-audio.h"
 #include "c64-types.h"
@@ -138,11 +139,30 @@ static void validate_audio_timestamp_progression(struct c64_source *context, uin
 
 static bool c64_debug_audio_has_signal(const uint8_t *samples, size_t samples_size)
 {
-    for (size_t i = 0; i < samples_size; i++) {
-        if (samples[i] != 0) {
-            return true;
+    // Detect a deliberate "pop" tone, not mere background noise.
+    // Samples are 16-bit signed little-endian stereo interleaved.
+    // Return true only if we see enough samples above a conservative amplitude threshold.
+
+    const int threshold = 512;
+    const size_t min_hits = 8;
+    size_t hits = 0;
+
+    if (samples_size < 2) {
+        return false;
+    }
+
+    size_t sample_count = samples_size / 2;
+    for (size_t i = 0; i < sample_count; i++) {
+        uint8_t lo = samples[i * 2 + 0];
+        uint8_t hi = samples[i * 2 + 1];
+        int16_t v = (int16_t)((uint16_t)lo | ((uint16_t)hi << 8));
+        if (v > threshold || v < -threshold) {
+            if (++hits >= min_hits) {
+                return true;
+            }
         }
     }
+
     return false;
 }
 

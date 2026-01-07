@@ -112,9 +112,6 @@ void c64_log_video_packet_if_enabled(struct c64_source *context, const uint8_t *
         return;
     }
 
-    // Avoid unused parameter warning (timestamp_ns reserved for future jitter calculation)
-    (void)timestamp_ns;
-
     // Parse video packet header (only when logging is enabled)
     uint16_t seq_num = *(uint16_t *)(packet + 0);
     uint16_t frame_num = *(uint16_t *)(packet + 2);
@@ -140,7 +137,7 @@ void c64_log_video_packet_if_enabled(struct c64_source *context, const uint8_t *
     }
 
     c64_network_log_video_packet(context, seq_num, frame_num, line_num, is_last_packet, packet_size, data_payload,
-                                 jitter_us, is_all_white);
+                                 jitter_us, is_all_white, timestamp_ns);
 }
 
 /**
@@ -159,9 +156,6 @@ void c64_log_audio_packet_if_enabled(struct c64_source *context, const uint8_t *
         return;
     }
 
-    // Avoid unused parameter warning (timestamp_ns reserved for future jitter calculation)
-    (void)timestamp_ns;
-
     // Parse audio packet header (only when logging is enabled)
     uint16_t seq_num = *(uint16_t *)(packet + 0);
 
@@ -173,13 +167,24 @@ void c64_log_audio_packet_if_enabled(struct c64_source *context, const uint8_t *
     if (c64_debug_logging && packet_size > 2) {
         const uint8_t *samples = packet + 2;
         size_t samples_size = packet_size - 2;
-        for (size_t i = 0; i < samples_size; i++) {
-            if (samples[i] != 0) {
-                has_signal = true;
-                break;
+        const int threshold = 512;
+        const size_t min_hits = 8;
+        size_t hits = 0;
+        if (samples_size >= 2) {
+            size_t sample_words = samples_size / 2;
+            for (size_t i = 0; i < sample_words; i++) {
+                uint8_t lo = samples[i * 2 + 0];
+                uint8_t hi = samples[i * 2 + 1];
+                int16_t v = (int16_t)((uint16_t)lo | ((uint16_t)hi << 8));
+                if (v > threshold || v < -threshold) {
+                    if (++hits >= min_hits) {
+                        has_signal = true;
+                        break;
+                    }
+                }
             }
         }
     }
 
-    c64_network_log_audio_packet(context, seq_num, packet_size, sample_count, jitter_us, has_signal);
+    c64_network_log_audio_packet(context, seq_num, packet_size, sample_count, jitter_us, has_signal, timestamp_ns);
 }

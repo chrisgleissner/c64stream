@@ -680,9 +680,15 @@ bool c64_is_frame_timeout(struct frame_assembly *frame)
 
 static bool c64_debug_frame_is_all_white(const uint32_t *pixels, size_t pixel_count)
 {
-    const uint32_t white = 0xFFFFFFFF;
     for (size_t i = 0; i < pixel_count; i++) {
-        if (pixels[i] != white) {
+        // Frame buffer pixels may not always have alpha set to 0xFF and some
+        // conversions may yield slightly off-white values.
+        // For A/V pop detection, treat "white" as sufficiently high RGB.
+        const uint32_t rgb = pixels[i] & 0x00FFFFFF;
+        const uint8_t r = (rgb >> 16) & 0xFF;
+        const uint8_t g = (rgb >> 8) & 0xFF;
+        const uint8_t b = (rgb >> 0) & 0xFF;
+        if (r < 0xF0 || g < 0xF0 || b < 0xF0) {
             return false;
         }
     }

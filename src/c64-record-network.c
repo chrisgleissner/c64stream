@@ -57,14 +57,14 @@ void c64_network_write_header(struct c64_source *context)
  */
 void c64_network_log_video_packet(struct c64_source *context, uint16_t sequence_num, uint16_t frame_num,
                                   uint16_t line_num, bool is_last_packet, size_t packet_size, size_t data_payload,
-                                  int64_t jitter_us, bool is_all_white)
+                                  int64_t jitter_us, bool is_all_white, uint64_t packet_timestamp_ns)
 {
     if (!context || !context->network_file) {
         return; // Silently ignore if network file not available
     }
 
     // Calculate elapsed microseconds since shared CSV timing started
-    uint64_t current_ns = os_gettime_ns();
+    uint64_t current_ns = packet_timestamp_ns;
 
     // Set shared timing base on first event (network or OBS) to ensure elapsed_us starts at 0
     if (context->csv_timing_base_ns == 0) {
@@ -110,14 +110,15 @@ void c64_network_log_video_packet(struct c64_source *context, uint16_t sequence_
  * @param jitter_us Calculated jitter from expected timing (microseconds)
  */
 void c64_network_log_audio_packet(struct c64_source *context, uint16_t sequence_num, size_t packet_size,
-                                  uint16_t sample_count, int64_t jitter_us, bool has_signal)
+                                  uint16_t sample_count, int64_t jitter_us, bool has_signal,
+                                  uint64_t packet_timestamp_ns)
 {
     if (!context || !context->network_file) {
         return; // Silently ignore if network file not available
     }
 
     // Calculate elapsed microseconds since shared CSV timing started
-    uint64_t current_ns = os_gettime_ns();
+    uint64_t current_ns = packet_timestamp_ns;
 
     // Set shared timing base on first event (network or OBS) to ensure elapsed_us starts at 0
     if (context->csv_timing_base_ns == 0) {

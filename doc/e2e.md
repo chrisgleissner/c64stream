@@ -23,6 +23,24 @@ Or via convenience script (Linux):
 ./local-build.sh linux --e2e-scenarios --install  # ALL scenarios
 ```
 
+## Real Device A/V Sync Test (LOCAL ONLY)
+
+This is a separate, hardware-backed flow that runs `av-sync-auto.prg` on a real C64U via REST, records 10 seconds
+in OBS, and checks A/V pop delta from CSV/log artifacts. It is fully automated once the user starts the script.
+
+```bash
+./tests/e2e/real-device-av-sync.sh --host 192.168.1.13
+
+# Analyze existing artifacts only
+./tests/e2e/real-device-av-sync.sh --analyze-only /path/to/results/session_YYYYmmdd_HHMMSS
+```
+
+See `doc/real-device-av-sync.md` for full setup and Linux/Windows (WSL2) instructions.
+
+Notes:
+- Requires a real C64 Ultimate and a working GUI environment for OBS.
+- CSVs are authoritative when present; OBS log parsing is a fallback only.
+
 ## Settling Period (Frame Progression)
 
 Frame progression checks may show transient anomalies immediately after OBS starts (e.g., shader compilation / pipeline stabilization). The E2E framework supports a settling period that is **ignored for pass/fail** in the frame progression assertion.
