@@ -1,0 +1,8 @@
+name: NTSC Default Debug
+format: NTSC
+preset: Default
+full_frame_pop: true
+overrides:
+  debug_logging: true
+assertions:
+  - av_pop_delta

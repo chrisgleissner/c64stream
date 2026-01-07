@@ -244,6 +244,31 @@ def is_sync_marker_active(frame_num, format_name, total_frames=None, disable_pop
     return True
 
 
+def is_full_frame_pop_active(frame_num, format_name, total_frames=None):
+    """Return True if this frame should use full-frame pop (black/white) pattern."""
+    frame_rate, frame_duration_ms, pop_interval, pop_duration, _ = get_sync_timing_info(format_name)
+    pop_offset = 0
+
+    if frame_num < pop_offset:
+        return False
+
+    frames_since_offset = frame_num - pop_offset
+    position_in_cycle = frames_since_offset % pop_interval
+    is_in_pop_window = position_in_cycle < pop_duration
+
+    if not is_in_pop_window:
+        return False
+
+    if total_frames is not None:
+        test_duration_ms = total_frames * frame_duration_ms
+        if test_duration_ms >= 2000.0:
+            cutoff_frames = int(1000.0 / frame_duration_ms)
+            if frame_num > (total_frames - cutoff_frames):
+                return False
+
+    return True
+
+
 def _get_font_pixel(char: str, row: int, col: int) -> bool:
     """Get whether a pixel is set in the C64 font for a character."""
     if char not in C64_FONT:
@@ -358,7 +383,8 @@ def _get_corner_chamfer_color(
     return outer_color if (u + v) == 2 else inner_color
 
 
-def generate_video_packet(frame_num, packet_num, width, height, packets_per_frame, format_name, total_frames, pattern='diagonal', disable_pops=False):
+def generate_video_packet(frame_num, packet_num, width, height, packets_per_frame, format_name, total_frames, pattern='diagonal',
+                          disable_pops=False, full_frame_pop=False):
     """
     Generate a single video packet with professional E2E test pattern.
 
@@ -383,7 +409,12 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                          width, LINES_PER_PACKET, BITS_PER_PIXEL, 0)
 
     payload = bytearray(768)
-    sync_active = is_sync_marker_active(frame_num, format_name, total_frames)
+    if full_frame_pop:
+        sync_active = is_full_frame_pop_active(frame_num, format_name, total_frames)
+        payload[:] = b"\x11" * len(payload) if sync_active else b"\x00" * len(payload)
+        return header + bytes(payload)
+
+    sync_active = is_sync_marker_active(frame_num, format_name, total_frames, disable_pops)
 
     # Image refinements:
     # - Outer border: light blue
@@ -712,7 +743,7 @@ def _one_pole_highpass(x: np.ndarray, cutoff_hz: float, sample_rate: float) -> n
     return y
 
 
-def generate_audio_packet(audio_packet_num, sample_rate, total_frames, format_name, disable_pops=False):
+def generate_audio_packet(audio_packet_num, sample_rate, total_frames, format_name, disable_pops=False, full_frame_pop=False):
     """
     Generate a single audio packet following C64 Ultimate spec.
 
@@ -753,6 +784,9 @@ def generate_audio_packet(audio_packet_num, sample_rate, total_frames, format_na
         if current_frame > (total_frames - cutoff_frames):
             is_sync_pop = False
 
+    if full_frame_pop:
+        is_sync_pop = is_full_frame_pop_active(int(current_frame), format_name, total_frames)
+
     # Generate time array for this packet's 192 samples
     t = np.linspace(time_in_test_ms / 1000.0,
                     (time_in_test_ms + packet_duration_ms) / 1000.0,
@@ -769,7 +803,13 @@ def generate_audio_packet(audio_packet_num, sample_rate, total_frames, format_na
         # Normalize and scale to comfortable level
         peak = np.max(np.abs(noise)) if np.max(np.abs(noise)) > 0 else 1.0
         noise = 0.55 * (noise / peak)
-        audio_signal = (noise * 32767.0).astype(np.int16)
+        if full_frame_pop:
+            tone_freq_hz = 130.8
+            phase = (tone_freq_hz * t) % 1.0
+            triangle = 4.0 * np.abs(phase - 0.5) - 1.0
+            audio_signal = (triangle * (0.75 * 32767.0)).astype(np.int16)
+        else:
+            audio_signal = (noise * 32767.0).astype(np.int16)
     else:
         # Silence between pops
         audio_signal = np.zeros(AUDIO_SAMPLES_PER_PACKET, dtype=np.int16)
@@ -777,7 +817,10 @@ def generate_audio_packet(audio_packet_num, sample_rate, total_frames, format_na
     # Interleave left and right channels
     # During pops, alternate speakers per pop: even pop_index => LEFT, odd => RIGHT
     payload = np.empty(AUDIO_SAMPLES_PER_PACKET * 2, dtype=np.int16)
-    if is_sync_pop and pop_index >= 0:
+    if full_frame_pop and is_sync_pop:
+        payload[0::2] = audio_signal
+        payload[1::2] = audio_signal
+    elif is_sync_pop and pop_index >= 0:
         if (pop_index % 2) == 0:
             # LEFT pop (pop_index 0, 2, 4...)
             payload[0::2] = audio_signal   # Left
@@ -802,9 +845,9 @@ def generate_audio_packet(audio_packet_num, sample_rate, total_frames, format_na
 
 def _generate_video_packet_task(args):
     """Worker task for generating a single video packet."""
-    frame_num, packet_num, width, height, ppf, format_name, total_frames, pattern, output_path = args
+    frame_num, packet_num, width, height, ppf, format_name, total_frames, pattern, output_path, disable_pops, full_frame_pop = args
     packet_data = generate_video_packet(
-        frame_num, packet_num, width, height, ppf, format_name, total_frames, pattern
+        frame_num, packet_num, width, height, ppf, format_name, total_frames, pattern, disable_pops, full_frame_pop
     )
     packet_file = output_path / f"video_{frame_num:04d}_{packet_num:04d}.bin"
     packet_file.write_bytes(packet_data)
@@ -813,8 +856,8 @@ def _generate_video_packet_task(args):
 
 def _generate_audio_packet_task(args):
     """Worker task for generating a single audio packet."""
-    audio_packet_num, sample_rate, total_frames, format_name, output_path = args
-    packet_data = generate_audio_packet(audio_packet_num, sample_rate, total_frames, format_name)
+    audio_packet_num, sample_rate, total_frames, format_name, output_path, disable_pops, full_frame_pop = args
+    packet_data = generate_audio_packet(audio_packet_num, sample_rate, total_frames, format_name, disable_pops, full_frame_pop)
     packet_file = output_path / f"audio_{audio_packet_num:04d}.bin"
     packet_file.write_bytes(packet_data)
     return 1
@@ -822,12 +865,12 @@ def _generate_audio_packet_task(args):
 
 def _generate_frame_batch_task(args):
     """Worker task for generating all packets for a batch of frames (more efficient than per-packet)."""
-    frame_start, frame_end, width, height, ppf, format_name, total_frames, pattern, output_path, disable_pops = args
+    frame_start, frame_end, width, height, ppf, format_name, total_frames, pattern, output_path, disable_pops, full_frame_pop = args
     count = 0
     for frame_num in range(frame_start, frame_end):
         for packet_num in range(ppf):
             packet_data = generate_video_packet(
-                frame_num, packet_num, width, height, ppf, format_name, total_frames, pattern, disable_pops
+                frame_num, packet_num, width, height, ppf, format_name, total_frames, pattern, disable_pops, full_frame_pop
             )
             packet_file = output_path / f"video_{frame_num:04d}_{packet_num:04d}.bin"
             packet_file.write_bytes(packet_data)
@@ -837,17 +880,17 @@ def _generate_frame_batch_task(args):
 
 def _generate_audio_batch_task(args):
     """Worker task for generating a batch of audio packets."""
-    start_idx, end_idx, sample_rate, total_frames, format_name, output_path, disable_pops = args
+    start_idx, end_idx, sample_rate, total_frames, format_name, output_path, disable_pops, full_frame_pop = args
     count = 0
     for audio_packet_num in range(start_idx, end_idx):
-        packet_data = generate_audio_packet(audio_packet_num, sample_rate, total_frames, format_name, disable_pops)
+        packet_data = generate_audio_packet(audio_packet_num, sample_rate, total_frames, format_name, disable_pops, full_frame_pop)
         packet_file = output_path / f"audio_{audio_packet_num:04d}.bin"
         packet_file.write_bytes(packet_data)
         count += 1
     return count
 
 
-def generate_packets(output_dir, num_frames=30, formats=None, pattern='diagonal', parallel=True, disable_pops=False):
+def generate_packets(output_dir, num_frames=30, formats=None, pattern='diagonal', parallel=True, disable_pops=False, full_frame_pop=False):
     """
     Generate test packets for specified formats with A/V sync pops.
 
@@ -858,6 +901,9 @@ def generate_packets(output_dir, num_frames=30, formats=None, pattern='diagonal'
         pattern: Video pattern - 'diagonal' (moving lines) or 'solid' (uniform color)
         parallel: Use multiprocessing for faster generation (default: True)
     """
+    if full_frame_pop:
+        disable_pops = False
+
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 
@@ -908,7 +954,7 @@ def generate_packets(output_dir, num_frames=30, formats=None, pattern='diagonal'
                 end = min(start + frames_per_worker, num_frames) if i < num_workers - 1 else num_frames
                 if start < end:
                     video_tasks.append((start, end, width, height, ppf, format_name,
-                                        num_frames, pattern, video_dir, disable_pops))
+                                        num_frames, pattern, video_dir, disable_pops, full_frame_pop))
 
             # Divide audio packets into batches
             audio_per_worker = max(1, total_audio_packets // num_workers)
@@ -918,7 +964,7 @@ def generate_packets(output_dir, num_frames=30, formats=None, pattern='diagonal'
                 end = min(start + audio_per_worker, total_audio_packets) if i < num_workers - 1 else total_audio_packets
                 if start < end:
                     audio_tasks.append((start, end, fmt['audio_sample_rate'],
-                                        num_frames, format_name, audio_dir, disable_pops))
+                                        num_frames, format_name, audio_dir, disable_pops, full_frame_pop))
 
             # Execute in parallel using ProcessPoolExecutor
             video_count = 0
@@ -944,13 +990,13 @@ def generate_packets(output_dir, num_frames=30, formats=None, pattern='diagonal'
             for frame_num in range(num_frames):
                 for packet_num in range(ppf):
                     packet_data = generate_video_packet(
-                        frame_num, packet_num, width, height, ppf, format_name, num_frames, pattern, disable_pops
+                        frame_num, packet_num, width, height, ppf, format_name, num_frames, pattern, disable_pops, full_frame_pop
                     )
                     packet_file = video_dir / f"video_{frame_num:04d}_{packet_num:04d}.bin"
                     packet_file.write_bytes(packet_data)
 
             for audio_packet_num in range(total_audio_packets):
-                packet_data = generate_audio_packet(audio_packet_num, fmt['audio_sample_rate'], num_frames, format_name, disable_pops)
+                packet_data = generate_audio_packet(audio_packet_num, fmt['audio_sample_rate'], num_frames, format_name, disable_pops, full_frame_pop)
                 packet_file = audio_dir / f"audio_{audio_packet_num:04d}.bin"
                 packet_file.write_bytes(packet_data)
 
@@ -996,13 +1042,23 @@ Examples:
                         help='Scenario name to display in top-left text box (underscores become newlines)')
     parser.add_argument('--disable-pops', action='store_true',
                         help='Disable A/V sync pops (for testing frame progression without pop interference)')
+    parser.add_argument('--full-frame-pop', action='store_true',
+                        help='Generate full-frame black/white pop mode with audio tone during white frames')
     parser.add_argument('--no-parallel', action='store_true',
                         help='Disable parallel generation (use single thread)')
 
     args = parser.parse_args()
 
     set_scenario_name(args.scenario)
-    generate_packets(args.output, args.frames, args.formats, args.pattern, parallel=not args.no_parallel, disable_pops=args.disable_pops)
+    generate_packets(
+        args.output,
+        args.frames,
+        args.formats,
+        args.pattern,
+        parallel=not args.no_parallel,
+        disable_pops=args.disable_pops,
+        full_frame_pop=args.full_frame_pop,
+    )
 
 
 if __name__ == '__main__':

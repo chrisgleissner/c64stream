@@ -3108,6 +3108,7 @@ class E2ETest:
 
         validation_errors = []
         validation_warnings = []
+        is_full_frame_pop = (self.scenario_id == 'ntsc_default_debug')
 
         # Track individual validation results
         validation_results = {
@@ -3287,92 +3288,98 @@ class E2ETest:
                     # - sample multiple timestamps
                     # - analyze center crop (avoid letterboxing)
                     # - use luma instead of raw RGB byte mean
-                    try:
-                        import subprocess
-                        import numpy as np
-
-                        w, h = 1920, 1080
-                        crop_w, crop_h = w // 2, h // 2
-                        frame_bytes = crop_w * crop_h * 3
-
-                        # Choose a few offsets that are likely to land inside stable content.
-                        # Use duration if available; otherwise fall back to fixed timestamps.
-                        offsets = []
+                    if is_full_frame_pop:
+                        validation_results['video_brightness'] = {
+                            'status': 'skipped',
+                            'details': 'Skipped (full-frame-pop scenario)'
+                        }
+                    else:
                         try:
-                            d = float(duration) if duration else 0.0
-                        except Exception:
-                            d = 0.0
+                            import subprocess
+                            import numpy as np
 
-                        if d > 2.0:
-                            offsets = [max(0.5, d * 0.25), max(0.5, d * 0.5), max(0.5, min(d * 0.75, d - 0.5))]
-                        else:
-                            offsets = [0.5, 1.0, 1.5]
+                            w, h = 1920, 1080
+                            crop_w, crop_h = w // 2, h // 2
+                            frame_bytes = crop_w * crop_h * 3
 
-                        # Ensure offsets are unique and within bounds.
-                        cleaned_offsets = []
-                        for t in offsets:
-                            t = float(t)
-                            if d > 0.0:
-                                t = max(0.0, min(t, max(0.0, d - 0.1)))
-                            if t not in cleaned_offsets:
-                                cleaned_offsets.append(t)
+                            # Choose a few offsets that are likely to land inside stable content.
+                            # Use duration if available; otherwise fall back to fixed timestamps.
+                            offsets = []
+                            try:
+                                d = float(duration) if duration else 0.0
+                            except Exception:
+                                d = 0.0
 
-                        best_mean_luma = None
-                        best_offset = None
-                        sampled = []
-
-                        for t in cleaned_offsets:
-                            brightness_cmd = [
-                                'ffmpeg', '-v', 'error',
-                                '-ss', f'{t:.3f}',
-                                '-i', str(recording_file),
-                                '-vframes', '1',
-                                '-vf', 'crop=iw*0.5:ih*0.5:iw*0.25:ih*0.25',
-                                '-f', 'rawvideo',
-                                '-pix_fmt', 'rgb24',
-                                '-'
-                            ]
-                            brightness_result = subprocess.run(brightness_cmd, capture_output=True, timeout=10)
-                            if brightness_result.returncode != 0 or len(brightness_result.stdout) != frame_bytes:
-                                continue
-
-                            frame = np.frombuffer(brightness_result.stdout, dtype=np.uint8).reshape((crop_h, crop_w, 3))
-                            # Luma in 0..255
-                            f = frame.astype(np.float32)
-                            luma = 0.2126 * f[..., 0] + 0.7152 * f[..., 1] + 0.0722 * f[..., 2]
-                            mean_luma = float(np.mean(luma))
-                            sampled.append({"t": float(t), "mean_luma": mean_luma})
-                            if best_mean_luma is None or mean_luma > best_mean_luma:
-                                best_mean_luma = mean_luma
-                                best_offset = float(t)
-
-                        if best_mean_luma is not None:
-                            details = {"best_offset_s": best_offset, "best_mean_luma": float(best_mean_luma), "samples": sampled}
-                            # Note: Sparse patterns like 'dots' can have very low mean luma (e.g., 1.12)
-                            # Only fail if essentially black (< 1.0), warn if very dark (< 5.0)
-                            if best_mean_luma < 1.0:  # Essentially black
-                                print(f"❌ Video Brightness: Content appears black (best_mean_luma={best_mean_luma:.2f} @ {best_offset:.1f}s)")
-                                validation_errors.append(
-                                    f"Video content appears black (best mean luma {best_mean_luma:.1f}/255 @ {best_offset:.1f}s)"
-                                )
-                                validation_results['video_brightness'] = {'status': 'fail', 'details': f'Black (best_mean_luma={best_mean_luma:.1f})', 'metrics': details}
-                            elif best_mean_luma < 5.0:  # Very dark (e.g., sparse dot patterns)
-                                print(f"⚠️  Video Brightness: Content appears very dark (best_mean_luma={best_mean_luma:.2f} @ {best_offset:.1f}s) - OK for sparse patterns")
-                                validation_results['video_brightness'] = {'status': 'pass', 'details': f'Very dark but acceptable (best_mean_luma={best_mean_luma:.1f})', 'metrics': details}
-                            elif best_mean_luma < 15.0:  # Dark
-                                print(f"⚠️  Video Brightness: Content appears very dark (best_mean_luma={best_mean_luma:.2f} @ {best_offset:.1f}s)")
-                                validation_warnings.append(
-                                    f"Video content is very dark (best mean luma {best_mean_luma:.1f}/255 @ {best_offset:.1f}s)"
-                                )
-                                validation_results['video_brightness'] = {'status': 'warning', 'details': f'Very dark (best_mean_luma={best_mean_luma:.1f})', 'metrics': details}
+                            if d > 2.0:
+                                offsets = [max(0.5, d * 0.25), max(0.5, d * 0.5), max(0.5, min(d * 0.75, d - 0.5))]
                             else:
-                                print(f"✅ Video Brightness: Normal (best_mean_luma={best_mean_luma:.2f} @ {best_offset:.1f}s)")
-                                validation_results['video_brightness'] = {'status': 'pass', 'details': f'Normal (best_mean_luma={best_mean_luma:.1f})', 'metrics': details}
-                        else:
-                            validation_results['video_brightness'] = {'status': 'unknown', 'details': 'Could not sample frames for brightness check'}
-                    except Exception as e:
-                        # Non-critical - just log and continue
-                        validation_results['video_brightness'] = {'status': 'unknown', 'details': f'Check failed: {e}'}
+                                offsets = [0.5, 1.0, 1.5]
+
+                            # Ensure offsets are unique and within bounds.
+                            cleaned_offsets = []
+                            for t in offsets:
+                                t = float(t)
+                                if d > 0.0:
+                                    t = max(0.0, min(t, max(0.0, d - 0.1)))
+                                if t not in cleaned_offsets:
+                                    cleaned_offsets.append(t)
+
+                            best_mean_luma = None
+                            best_offset = None
+                            sampled = []
+
+                            for t in cleaned_offsets:
+                                brightness_cmd = [
+                                    'ffmpeg', '-v', 'error',
+                                    '-ss', f'{t:.3f}',
+                                    '-i', str(recording_file),
+                                    '-vframes', '1',
+                                    '-vf', 'crop=iw*0.5:ih*0.5:iw*0.25:ih*0.25',
+                                    '-f', 'rawvideo',
+                                    '-pix_fmt', 'rgb24',
+                                    '-'
+                                ]
+                                brightness_result = subprocess.run(brightness_cmd, capture_output=True, timeout=10)
+                                if brightness_result.returncode != 0 or len(brightness_result.stdout) != frame_bytes:
+                                    continue
+
+                                frame = np.frombuffer(brightness_result.stdout, dtype=np.uint8).reshape((crop_h, crop_w, 3))
+                                # Luma in 0..255
+                                f = frame.astype(np.float32)
+                                luma = 0.2126 * f[..., 0] + 0.7152 * f[..., 1] + 0.0722 * f[..., 2]
+                                mean_luma = float(np.mean(luma))
+                                sampled.append({"t": float(t), "mean_luma": mean_luma})
+                                if best_mean_luma is None or mean_luma > best_mean_luma:
+                                    best_mean_luma = mean_luma
+                                    best_offset = float(t)
+
+                            if best_mean_luma is not None:
+                                details = {"best_offset_s": best_offset, "best_mean_luma": float(best_mean_luma), "samples": sampled}
+                                # Note: Sparse patterns like 'dots' can have very low mean luma (e.g., 1.12)
+                                # Only fail if essentially black (< 1.0), warn if very dark (< 5.0)
+                                if best_mean_luma < 1.0:  # Essentially black
+                                    print(f"❌ Video Brightness: Content appears black (best_mean_luma={best_mean_luma:.2f} @ {best_offset:.1f}s)")
+                                    validation_errors.append(
+                                        f"Video content appears black (best mean luma {best_mean_luma:.1f}/255 @ {best_offset:.1f}s)"
+                                    )
+                                    validation_results['video_brightness'] = {'status': 'fail', 'details': f'Black (best_mean_luma={best_mean_luma:.1f})', 'metrics': details}
+                                elif best_mean_luma < 5.0:  # Very dark (e.g., sparse dot patterns)
+                                    print(f"⚠️  Video Brightness: Content appears very dark (best_mean_luma={best_mean_luma:.2f} @ {best_offset:.1f}s) - OK for sparse patterns")
+                                    validation_results['video_brightness'] = {'status': 'pass', 'details': f'Very dark but acceptable (best_mean_luma={best_mean_luma:.1f})', 'metrics': details}
+                                elif best_mean_luma < 15.0:  # Dark
+                                    print(f"⚠️  Video Brightness: Content appears very dark (best_mean_luma={best_mean_luma:.2f} @ {best_offset:.1f}s)")
+                                    validation_warnings.append(
+                                        f"Video content is very dark (best mean luma {best_mean_luma:.1f}/255 @ {best_offset:.1f}s)"
+                                    )
+                                    validation_results['video_brightness'] = {'status': 'warning', 'details': f'Very dark (best_mean_luma={best_mean_luma:.1f})', 'metrics': details}
+                                else:
+                                    print(f"✅ Video Brightness: Normal (best_mean_luma={best_mean_luma:.2f} @ {best_offset:.1f}s)")
+                                    validation_results['video_brightness'] = {'status': 'pass', 'details': f'Normal (best_mean_luma={best_mean_luma:.1f})', 'metrics': details}
+                            else:
+                                validation_results['video_brightness'] = {'status': 'unknown', 'details': 'Could not sample frames for brightness check'}
+                        except Exception as e:
+                            # Non-critical - just log and continue
+                            validation_results['video_brightness'] = {'status': 'unknown', 'details': f'Check failed: {e}'}
 
                 else:
                     print(f"❌ Video Recording: {file_size:,} bytes (<{min_expected_size:,} bytes)")
@@ -3392,7 +3399,7 @@ class E2ETest:
         # A/V sync is a critical component of the streaming functionality
         av_validation = True
         visuals_results = None  # cache visual checks to avoid running twice
-        if recording_file and Path(recording_file).exists() and verify_av_sync:
+        if (not is_full_frame_pop) and recording_file and Path(recording_file).exists() and verify_av_sync:
             try:
                 print(f"🎵 A/V Sync: Running A/V sync check (pops, tolerance={self.av_sync_tolerance_ms}ms)...")
                 # Tolerance: configurable per-scenario, default 60ms (~3 frames at 60fps)
@@ -3619,7 +3626,16 @@ class E2ETest:
                             ('record_frames', RecordFramesAssertion),
                         ]:
                             try:
-                                a = assertion_cls()
+                                if assertion_name == 'record_video':
+                                    record_height = 240 if self.format == 'NTSC' else 272
+                                    a = assertion_cls(
+                                        thresholds={
+                                            "expected_width": 384,
+                                            "expected_height": record_height,
+                                        }
+                                    )
+                                else:
+                                    a = assertion_cls()
                                 res = a.verify(Path(recording_file), properties={}, preset=None, verbose=self.verbose)
                                 recording_results[assertion_name] = {
                                     'status': res.status.value,
@@ -3655,11 +3671,44 @@ class E2ETest:
                 validation_results['av_sync'] = {'status': 'fail', 'details': 'Analysis failed'}
                 av_validation = False
         else:
-            if not verify_av_sync:
+            if is_full_frame_pop:
+                print("⚪ A/V Sync: Skipped (full-frame-pop scenario)")
+                validation_results['av_sync'] = {'status': 'skipped', 'details': 'Skipped (full-frame-pop scenario)'}
+            elif not verify_av_sync:
                 print("❌ A/V Sync: Analysis not available (missing dependencies)")
                 validation_errors.append("A/V sync analysis unavailable")
                 validation_results['av_sync'] = {'status': 'fail', 'details': 'Analysis unavailable'}
                 av_validation = False
+
+        if is_full_frame_pop and recording_file and Path(recording_file).exists():
+            try:
+                from assertions.av_pop_delta import AvPopDeltaAssertion
+
+                a = AvPopDeltaAssertion()
+                res = a.verify(Path(recording_file), properties={}, preset=None, verbose=self.verbose)
+                validation_results['av_pop_delta'] = {
+                    'status': res.status.value,
+                    'message': res.message,
+                    'details': res.details,
+                    'metrics': res.metrics,
+                }
+                if res.status.value == 'pass':
+                    print(f"✅ {a.name}: {res.message}")
+                elif res.status.value == 'warning':
+                    print(f"⚠️  {a.name}: {res.message}")
+                    validation_warnings.append(f"{a.name}: {res.message}")
+                elif res.status.value == 'skip':
+                    print(f"⚪ {a.name}: {res.message}")
+                else:
+                    print(f"❌ {a.name}: {res.message}")
+                    validation_errors.append(f"{a.name}: {res.message}")
+            except Exception as e:
+                print(f"❌ av_pop_delta: Analysis failed - {e}")
+                validation_errors.append(f"av_pop_delta error: {e}")
+                validation_results['av_pop_delta'] = {
+                    'status': 'fail',
+                    'message': f'Analysis failed - {e}',
+                }
 
         # Summary with traffic-light statuses and key metrics
         print(f"\n{'='*60}")

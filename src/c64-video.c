@@ -697,7 +697,6 @@ static void c64_debug_handle_video_pop(struct c64_source *context, uint16_t fram
     }
 
     bool was_all_white = context->av_sync_last_video_all_white;
-    context->av_sync_last_video_all_white = is_all_white;
 
     if (!was_all_white && is_all_white) {
         context->av_sync_video_pop_count++;
@@ -729,7 +728,7 @@ void c64_render_frame_direct(struct c64_source *context, struct frame_assembly *
     const uint32_t *out_pixels = c64_get_afterglow_output_pixels(context, context->frame_buffer, pixel_count);
     bool is_all_white = false;
     if (c64_debug_logging) {
-        is_all_white = c64_debug_frame_is_all_white(out_pixels, pixel_count);
+        is_all_white = c64_debug_frame_is_all_white(context->frame_buffer, pixel_count);
         c64_debug_handle_video_pop(context, frame->frame_num, monotonic_timestamp, is_all_white);
     }
     context->av_sync_last_video_all_white = is_all_white;

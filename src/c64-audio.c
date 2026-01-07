@@ -153,7 +153,6 @@ static void c64_debug_handle_audio_pop(struct c64_source *context, uint64_t time
     }
 
     bool was_has_signal = context->av_sync_last_audio_has_signal;
-    context->av_sync_last_audio_has_signal = has_signal;
 
     if (!was_has_signal && has_signal) {
         context->av_sync_audio_pop_count++;

@@ -42,6 +42,7 @@ DEFAULT_MONITOR_RESOURCES=true  # Resource monitoring for CI (enabled by default
 DEFAULT_SCENARIO_OVERRIDES=""
 DEFAULT_SCENARIO_NAME=""
 DEFAULT_PACKET_PATTERN=""
+DEFAULT_FULL_FRAME_POP=false
 DEFAULT_SCENARIO=""
 DEFAULT_CSV_MAX_ROWS=2000  # 0 = unlimited CSV lines (preserve all data)
 SCENARIO_CI_SKIPPED=false  # Set by load_scenario if ci_skip=true on CI
@@ -450,11 +451,12 @@ load_scenario() {
     log_info "Loading scenario: ${scenario_name}"
 
     # Parse scenario.yaml (new concise format)
-    local name format preset pattern
+    local name format preset pattern full_frame_pop
     name=$(grep -m1 "^name:" "${scenario_yaml}" | sed 's/^name: *//' || true)
     format=$(grep -m1 "^format:" "${scenario_yaml}" | sed 's/^format: *//' || true)
     preset=$(grep -m1 "^preset:" "${scenario_yaml}" | sed 's/^preset: *//' || true)
     pattern=$(grep -m1 "^pattern:" "${scenario_yaml}" | sed 's/^pattern: *//' || true)
+    full_frame_pop=$(grep -m1 "^full_frame_pop:" "${scenario_yaml}" | sed 's/^full_frame_pop: *//' || true)
 
     if [[ -z "${name}" || -z "${format}" ]]; then
         log_error "Invalid scenario.yaml (missing required fields)"
@@ -497,6 +499,10 @@ load_scenario() {
     if [[ -n "${pattern}" ]]; then
         PACKET_PATTERN="${pattern}"
         log_info "  Packet pattern: ${PACKET_PATTERN}"
+    fi
+    if [[ "${full_frame_pop}" == "true" ]]; then
+        FULL_FRAME_POP=true
+        log_info "  Packet mode: full-frame-pop"
     fi
 
     # Generate OBS scene JSON from scenario
@@ -545,6 +551,7 @@ parse_args() {
     SCENARIO_NAME="${DEFAULT_SCENARIO_NAME}"
     SCENARIO="${DEFAULT_SCENARIO}"
     PACKET_PATTERN="${DEFAULT_PACKET_PATTERN}"
+    FULL_FRAME_POP="${DEFAULT_FULL_FRAME_POP}"
     RUN_ALL_SCENARIOS="${DEFAULT_RUN_ALL_SCENARIOS}"
     ENABLE_RESOURCE_MONITORING="${DEFAULT_ENABLE_RESOURCE_MONITORING}"
     RESOURCE_INTERVAL_MS="${DEFAULT_RESOURCE_INTERVAL_MS}"
@@ -1247,6 +1254,9 @@ generate_packets() {
             exit 1
         fi
         cmd+=("--pattern" "${PACKET_PATTERN}")
+    fi
+    if [[ "${FULL_FRAME_POP}" == true ]]; then
+        cmd+=("--full-frame-pop")
     fi
 
     # Optional pop disabling (useful for testing network strain hypothesis)
