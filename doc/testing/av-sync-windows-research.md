@@ -1,12 +1,18 @@
-# Forensic Investigation Report — Windows-only ~400 ms Audio Lag vs Video (c64stream OBS Source Plugin)
+# A/V Sync on Windows
 
-_Investigation constraints satisfied:_ performed on branch `investigation/windows-av-audio-lag`; no production code/tests/build/config were modified; no builds were triggered. Findings are based on repository code inspection, documented protocol math, and reproducible measurement methodology as implemented in repo tooling.
+This document contains research on A/V sync when running OBS on Windows 11. As part of that, the detailed data flow from the C64 Ultimate to an OBS recording is covered.
 
 ---
 
 ## 1. Executive Summary
 
-An OBS source plugin (`c64stream`) receives C64 Ultimate UDP video+audio, applies an internal jitter/delay buffer, generates synthetic monotonic timestamps for both streams, and pushes frames/samples into OBS. The observed behavior is platform-dependent: Kubuntu 24.04 produces “perfect” A/V alignment in the recording, while Windows 11 produces a mostly-stable ~400 ms audio lag (sometimes disappearing). **Multiple candidate root causes remain.** The repository code contains **no explicit platform-specific +400 ms audio delay**, so the offset must arise from (a) Windows-only OBS-side buffering/offset behavior, or (b) Windows-only differences in the plugin’s real-time behavior (thread scheduling / receive backlog / timing-base establishment). Certainty is not yet possible because the repo contains no Windows-side timing artifacts (CSV logs or debug logs) for this specific failure mode.
+An OBS source plugin (`c64stream`) receives C64 Ultimate UDP video+audio, applies an internal jitter/delay buffer, generates synthetic monotonic timestamps for both streams, and pushes frames/samples into OBS.
+
+The observed behavior is platform-dependent: Kubuntu 24.04 produces “perfect” A/V alignment in the recording, while Windows 11 OBS recordings produces a mostly-stable ~400 ms audio lag (sometimes disappearing).
+
+**Multiple candidate root causes remain.** The repository code contains **no explicit platform-specific +400 ms audio delay**, so the offset must arise from (a) Windows-only OBS-side buffering/offset behavior, or (b) Windows-only differences in the plugin’s real-time behavior (thread scheduling / receive backlog / timing-base establishment).
+
+Certainty is not yet possible because the repo contains no Windows-side timing artifacts (CSV logs or debug logs) for this specific failure mode.
 
 ---
 
@@ -455,4 +461,3 @@ These would immediately discriminate between:
 - “audio is scheduled late” (timestamp bias) vs
 - “audio data is arriving late” (backlog) vs
 - “OBS is delaying audio downstream” (submission timestamp OK, but encoded output shifted).
-
