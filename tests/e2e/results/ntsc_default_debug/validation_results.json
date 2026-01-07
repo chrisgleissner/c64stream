@@ -1,7 +1,7 @@
 {
   "udp_reception": {
     "status": "pass",
-    "details": "30803/30803 packets (28745 video, 1975 audio)"
+    "details": "30803/30803 packets (28747 video, 1976 audio)"
   },
   "frame_processing": {
     "status": "pass",
@@ -9,15 +9,15 @@
   },
   "video_recording": {
     "status": "pass",
-    "details": "10.9 MB"
+    "details": "11.0 MB"
   },
   "packet_integrity": {
     "status": "pass",
-    "details": "22.1s duration"
+    "details": "22.2s duration"
   },
   "network_timing": {
     "status": "pass",
-    "details": "span=8023.8ms, video_mean=278.7us, audio_mean=4001.7us"
+    "details": "span=8023.9ms, video_mean=278.5us, audio_mean=4006.5us"
   },
   "video_brightness": {
     "status": "skipped",
@@ -29,22 +29,22 @@
   },
   "av_pop_delta": {
     "status": "pass",
-    "message": "Pop delta OK: obs=20.81ms, network=15.65ms",
+    "message": "Pop delta OK: obs=21.23ms, network=16.89ms",
     "details": {
       "obs": {
         "pop_count": 9,
-        "max_delta_ms": 20.806,
-        "avg_delta_ms": 18.729333333333333
+        "max_delta_ms": 21.229,
+        "avg_delta_ms": 19.101555555555553
       },
       "network": {
         "pop_count": 9,
-        "max_delta_ms": 15.654,
-        "avg_delta_ms": 14.064777777777778
+        "max_delta_ms": 16.89,
+        "avg_delta_ms": 14.208111111111112
       }
     },
     "metrics": {
-      "obs_max_delta_ms": 20.806,
-      "network_max_delta_ms": 15.654
+      "obs_max_delta_ms": 21.229,
+      "network_max_delta_ms": 16.89
     }
   }
 }
