@@ -50,6 +50,10 @@ compile_commands.json
 *.tmp
 obs_log.txt
 
+# C64 build outputs
+*.prg
+*.lst
+
 # Exclude CMake build number cache
 /cmake/.CMakeBuildNumber
 
