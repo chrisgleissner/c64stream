@@ -109,6 +109,7 @@ void c64_session_cleanup_if_needed(struct c64_source *context)
         c64_stop_csv_recording(context);
         c64_stop_network_recording(context);
         context->session_folder[0] = '\0';
+        context->csv_debug_enabled = false;
         C64_LOG_INFO("" RECORD_LOG_PREFIX " Recording session ended");
     }
 }
@@ -175,6 +176,8 @@ void c64_start_csv_recording(struct c64_source *context)
         return;
     }
 
+    context->csv_debug_enabled = c64_debug_logging;
+
     // Write CSV header
     c64_obs_write_header(context);
     C64_LOG_INFO("" RECORD_LOG_PREFIX " Started CSV timing recording: %s", timing_filename);
@@ -208,6 +211,8 @@ void c64_start_network_recording(struct c64_source *context)
         C64_LOG_ERROR("" RECORD_LOG_PREFIX " Failed to create network packet file: %s", network_filename);
         return;
     }
+
+    context->csv_debug_enabled = c64_debug_logging;
 
     // Write network CSV header
     c64_network_write_header(context);

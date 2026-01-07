@@ -127,8 +127,20 @@ void c64_log_video_packet_if_enabled(struct c64_source *context, const uint8_t *
     int64_t jitter_us = 0; // Placeholder for now
     size_t data_payload = packet_size - C64_VIDEO_HEADER_SIZE;
 
+    bool is_all_white = false;
+    if (c64_debug_logging) {
+        const uint8_t *payload = packet + C64_VIDEO_HEADER_SIZE;
+        is_all_white = true;
+        for (size_t i = 0; i < data_payload; i++) {
+            if (payload[i] != 0x11) {
+                is_all_white = false;
+                break;
+            }
+        }
+    }
+
     c64_network_log_video_packet(context, seq_num, frame_num, line_num, is_last_packet, packet_size, data_payload,
-                                 jitter_us);
+                                 jitter_us, is_all_white);
 }
 
 /**
@@ -157,5 +169,17 @@ void c64_log_audio_packet_if_enabled(struct c64_source *context, const uint8_t *
     int64_t jitter_us = 0;       // Placeholder for now
     uint16_t sample_count = 192; // C64 Ultimate spec: 192 stereo samples per packet
 
-    c64_network_log_audio_packet(context, seq_num, packet_size, sample_count, jitter_us);
+    bool has_signal = false;
+    if (c64_debug_logging && packet_size > 2) {
+        const uint8_t *samples = packet + 2;
+        size_t samples_size = packet_size - 2;
+        for (size_t i = 0; i < samples_size; i++) {
+            if (samples[i] != 0) {
+                has_signal = true;
+                break;
+            }
+        }
+    }
+
+    c64_network_log_audio_packet(context, seq_num, packet_size, sample_count, jitter_us, has_signal);
 }

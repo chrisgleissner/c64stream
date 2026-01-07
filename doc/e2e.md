@@ -438,6 +438,10 @@ Records every video frame and audio chunk submitted to OBS:
 | `audio_packets_received` | Cumulative audio packets |
 | `sequence_errors` | Cumulative sequence errors |
 
+When Debug logging is enabled in the C64 Stream source, `obs.csv` appends two optional columns:
+`is_all_white` (1 if the submitted frame is all white) and `has_signal` (1 if the audio buffer contains any
+non-silent samples). These columns are omitted when Debug is disabled.
+
 ### playback.csv Format
 
 Authoritative source for skipped/repeated frame analysis. Each row = one displayed frame (1:1 with recording).

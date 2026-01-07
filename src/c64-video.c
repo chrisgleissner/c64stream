@@ -678,6 +678,42 @@ bool c64_is_frame_timeout(struct frame_assembly *frame)
     return elapsed > C64_FRAME_TIMEOUT_MS;
 }
 
+static bool c64_debug_frame_is_all_white(const uint32_t *pixels, size_t pixel_count)
+{
+    const uint32_t white = 0xFFFFFFFF;
+    for (size_t i = 0; i < pixel_count; i++) {
+        if (pixels[i] != white) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static void c64_debug_handle_video_pop(struct c64_source *context, uint16_t frame_num, uint64_t timestamp_ns,
+                                       bool is_all_white)
+{
+    if (!c64_debug_logging) {
+        return;
+    }
+
+    bool was_all_white = context->av_sync_last_video_all_white;
+    context->av_sync_last_video_all_white = is_all_white;
+
+    if (!was_all_white && is_all_white) {
+        context->av_sync_video_pop_count++;
+        context->av_sync_last_video_pop_ts = timestamp_ns;
+
+        if (context->av_sync_last_audio_pop_ts != 0) {
+            int64_t delta_ns = (int64_t)context->av_sync_last_audio_pop_ts - (int64_t)timestamp_ns;
+            C64_LOG_DEBUG("" VIDEO_LOG_PREFIX " A/V pop video #%u: frame=%u ts=%" PRIu64 " ns, audio_delta_ms=%.3f",
+                          context->av_sync_video_pop_count, frame_num, timestamp_ns, (double)delta_ns / 1000000.0);
+        } else {
+            C64_LOG_DEBUG("" VIDEO_LOG_PREFIX " A/V pop video #%u: frame=%u ts=%" PRIu64 " ns",
+                          context->av_sync_video_pop_count, frame_num, timestamp_ns);
+        }
+    }
+}
+
 // Direct frame rendering with row interpolation for missing packets
 void c64_render_frame_direct(struct c64_source *context, struct frame_assembly *frame, uint64_t timestamp_ns)
 {
@@ -686,6 +722,17 @@ void c64_render_frame_direct(struct c64_source *context, struct frame_assembly *
 
     // Generate monotonic timestamp based on frame sequence for butter-smooth playback
     uint64_t monotonic_timestamp = c64_calculate_ideal_timestamp(context, frame->frame_num);
+
+    // Apply afterglow in the video thread (prevents races/flicker with raw frame_buffer).
+    // This is ONLY for OBS display/streaming, NOT for recording.
+    const size_t pixel_count = (size_t)context->width * (size_t)context->height;
+    const uint32_t *out_pixels = c64_get_afterglow_output_pixels(context, context->frame_buffer, pixel_count);
+    bool is_all_white = false;
+    if (c64_debug_logging) {
+        is_all_white = c64_debug_frame_is_all_white(out_pixels, pixel_count);
+        c64_debug_handle_video_pop(context, frame->frame_num, monotonic_timestamp, is_all_white);
+    }
+    context->av_sync_last_video_all_white = is_all_white;
 
     // Save RAW frame to disk if enabled (NO effects applied)
     if (context->record_frames) {
@@ -698,11 +745,6 @@ void c64_render_frame_direct(struct c64_source *context, struct frame_assembly *
     if (context->record_video) {
         c64_record_video_frame(context, context->frame_buffer);
     }
-
-    // Apply afterglow in the video thread (prevents races/flicker with raw frame_buffer).
-    // This is ONLY for OBS display/streaming, NOT for recording.
-    const size_t pixel_count = (size_t)context->width * (size_t)context->height;
-    const uint32_t *out_pixels = c64_get_afterglow_output_pixels(context, context->frame_buffer, pixel_count);
 
     // Direct async video output - optimized for low latency
     // This ensures the source always shows video regardless of CRT effects
@@ -723,7 +765,7 @@ void c64_render_frame_direct(struct c64_source *context, struct frame_assembly *
     // Log video frame delivery to CSV if enabled (high-level event: complete frame delivered to OBS)
     if (context->timing_file) {
         size_t frame_size = context->width * context->height * 4; // RGBA bytes
-        c64_obs_log_video_event(context, frame->frame_num, frame_size);
+        c64_obs_log_video_event(context, frame->frame_num, frame_size, is_all_white);
     }
 
     // Update timing and status

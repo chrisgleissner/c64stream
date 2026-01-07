@@ -176,9 +176,18 @@ struct c64_source {
     char session_folder[800]; // Current session folder path
     uint64_t recording_start_time;
     uint64_t csv_timing_base_ns; // Shared nanosecond timestamp when first CSV entry is written (network or OBS)
+    bool csv_debug_enabled;      // Snapshot of debug state for CSV headers/rows
     volatile long recorded_frames;
     volatile long recorded_audio_samples;
     pthread_mutex_t recording_mutex;
+
+    // Debug-only A/V pop detection (edge-based)
+    bool av_sync_last_video_all_white;
+    bool av_sync_last_audio_has_signal;
+    uint64_t av_sync_last_video_pop_ts;
+    uint64_t av_sync_last_audio_pop_ts;
+    uint32_t av_sync_video_pop_count;
+    uint32_t av_sync_audio_pop_count;
 
     // Pre-allocated recording buffers (eliminates malloc/free in hot paths)
     uint8_t *bmp_row_buffer;      // Pre-allocated BMP row buffer for frame saving

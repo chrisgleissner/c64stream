@@ -136,6 +136,40 @@ static void validate_audio_timestamp_progression(struct c64_source *context, uin
     context->last_audio_timestamp_validation = current_timestamp;
 }
 
+static bool c64_debug_audio_has_signal(const uint8_t *samples, size_t samples_size)
+{
+    for (size_t i = 0; i < samples_size; i++) {
+        if (samples[i] != 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static void c64_debug_handle_audio_pop(struct c64_source *context, uint64_t timestamp_ns, bool has_signal)
+{
+    if (!c64_debug_logging) {
+        return;
+    }
+
+    bool was_has_signal = context->av_sync_last_audio_has_signal;
+    context->av_sync_last_audio_has_signal = has_signal;
+
+    if (!was_has_signal && has_signal) {
+        context->av_sync_audio_pop_count++;
+        context->av_sync_last_audio_pop_ts = timestamp_ns;
+
+        if (context->av_sync_last_video_pop_ts != 0) {
+            int64_t delta_ns = (int64_t)timestamp_ns - (int64_t)context->av_sync_last_video_pop_ts;
+            C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " A/V pop audio #%u: ts=%" PRIu64 " ns, audio_delta_ms=%.3f",
+                          context->av_sync_audio_pop_count, timestamp_ns, (double)delta_ns / 1000000.0);
+        } else {
+            C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " A/V pop audio #%u: ts=%" PRIu64 " ns", context->av_sync_audio_pop_count,
+                          timestamp_ns);
+        }
+    }
+}
+
 // Generate monotonic audio timestamps with format-specific intervals
 static uint64_t generate_monotonic_audio_timestamp(struct c64_source *context)
 {
@@ -233,6 +267,13 @@ void c64_process_audio_packet(struct c64_source *context, const uint8_t *audio_d
         return;
     }
 
+    bool has_signal = false;
+    if (c64_debug_logging) {
+        has_signal = c64_debug_audio_has_signal(samples, samples_size);
+        c64_debug_handle_audio_pop(context, audio_timestamp, has_signal);
+    }
+    context->av_sync_last_audio_has_signal = has_signal;
+
     // Validate timestamp progression for debugging
     validate_audio_timestamp_progression(context, audio_timestamp);
 
@@ -253,7 +294,7 @@ void c64_process_audio_packet(struct c64_source *context, const uint8_t *audio_d
 
     // Log audio delivery to CSV if enabled (high-level event: audio samples delivered to OBS)
     if (context->timing_file) {
-        c64_obs_log_audio_event(context, samples_size);
+        c64_obs_log_audio_event(context, samples_size, has_signal);
     }
 
     // Very rare spot checks for audio timestamp debugging (every 10 minutes)
