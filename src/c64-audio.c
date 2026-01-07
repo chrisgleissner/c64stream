@@ -291,6 +291,17 @@ void c64_process_audio_packet(struct c64_source *context, const uint8_t *audio_d
 
     // Send audio to OBS for playback
     obs_source_output_audio(context->source, &audio_output);
+    context->last_audio_submit_ns = os_gettime_ns();
+
+    if (context->last_video_submit_ns != 0) {
+        static uint32_t av_sync_log_counter = 0;
+        if ((++av_sync_log_counter % 5000) == 0) {
+            int64_t delta_ns = (int64_t)context->last_audio_submit_ns - (int64_t)context->last_video_submit_ns;
+            double delta_ms = (double)((delta_ns < 0) ? -delta_ns : delta_ns) / 1000000.0;
+            const char *lead = (delta_ns >= 0) ? "audio" : "video";
+            C64_LOG_INFO("" AUDIO_LOG_PREFIX " A/V SYNC: OBS handoff delta: %s +%.1f ms", lead, delta_ms);
+        }
+    }
 
     // Log audio delivery to CSV if enabled (high-level event: audio samples delivered to OBS)
     if (context->timing_file) {

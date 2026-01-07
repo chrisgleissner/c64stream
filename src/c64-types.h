@@ -89,6 +89,8 @@ struct c64_source {
 
     // Audio data
     struct audio_output_info audio_info;
+    uint64_t last_audio_submit_ns;
+    uint64_t last_video_submit_ns;
 
     // Network
     socket_t video_socket;

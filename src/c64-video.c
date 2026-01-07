@@ -761,6 +761,7 @@ void c64_render_frame_direct(struct c64_source *context, struct frame_assembly *
 
     // Output frame directly to OBS
     obs_source_output_video(context->source, &obs_frame);
+    context->last_video_submit_ns = os_gettime_ns();
 
     // Log video frame delivery to CSV if enabled (high-level event: complete frame delivered to OBS)
     if (context->timing_file) {
