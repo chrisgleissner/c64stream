@@ -2,6 +2,7 @@ name: NTSC Default Debug
 format: NTSC
 preset: Default
 full_frame_pop: true
+csv_max_rows: 0
 overrides:
   debug_logging: true
 assertions:

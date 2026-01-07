@@ -2,7 +2,7 @@
 
 ## Scenario: NTSC Default 720p
 
-Generated: 2026-01-07 11:48:20 UTC
+Generated: 2026-01-07 14:41:34 UTC
 
 ## Test configuration
 
@@ -23,15 +23,15 @@ Generated: 2026-01-07 11:48:20 UTC
 - OS: Ubuntu 24.04.3 LTS (kernel 6.14.0-37-generic)
 - OBS: 32.0.2
 - CPU: Intel(R) Core(TM) i7-6700K CPU @ 4.00GHz (8 cores)
-- RAM: 31Gi total, 23Gi available
+- RAM: 31Gi total, 22Gi available
 - Disk (/): 1.8T total, 1.1T available
 
 ## Test results
 
 ### Validation Summary
 
-- ✅ UDP Packet Reception: 30803/30803 packets (28774 video, 1982 audio)
-- ✅ Network Timing: span=8023.5ms, video_mean=278.6us, audio_mean=4003.2us
+- ✅ UDP Packet Reception: 30803/30803 packets (28754 video, 1975 audio)
+- ✅ Network Timing: span=8023.5ms, video_mean=277.9us, audio_mean=4003.9us
 - ✅ Frame Processing: 2481 frames processed
 - ✅ Video Recording: 10.9 MB
 - ✅ Content Integrity: 22.0s duration
@@ -42,9 +42,9 @@ During the test's processing window (7.6s, 16 of 49 samples) (8 cores):
 
 | Metric | Min | Median | Mean | Max |
 |--------|-----|--------|------|-----|
-| CPU | 38.3% | 53.1% | 54.0% | 80.0% |
-| RAM | 6054.58 MB | 6128.57 MB | 6132.55 MB | 6183.17 MB |
-| GPU | 35.5% | 50.56% | 48.0% | 56.32% |
+| CPU | 37.2% | 49.15% | 48.39% | 61.1% |
+| RAM | 7826.66 MB | 7887.84 MB | 7878.71 MB | 7895.82 MB |
+| GPU | 26.98% | 47.78% | 44.52% | 52.57% |
 
 Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
@@ -56,36 +56,36 @@ Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
 #### Network Quality (Measured)
 
-- Packet span (first→last): 8023.499 ms
-- Total packets analyzed: 30756
+- Packet span (first→last): 8023.504 ms
+- Total packets analyzed: 30732
 
 | Stream | Packets | Spacing (min) | Spacing (mean) | Spacing (max) | CV | Burst <0.5×P50 | Gaps >2×P50 | P99/P50 |
 |--------|---------|---------------|----------------|---------------|----|--------------|------------|--------|
-| All | 30756 | 0.001 ms | 0.519 ms | 15.910 ms | 206.75% | 0.18% | 33.84% | 1133.250 |
-| Video | 28772 | 0.001 ms | 0.279 ms | 13.141 ms | 189.11% | 0.19% | 29.31% | 493.500 |
-| Audio | 1981 | 0.003 ms | 4.003 ms | 15.910 ms | 22.85% | 1.41% | 0.25% | 1.488 |
+| All | 30732 | 0.001 ms | 0.517 ms | 21.435 ms | 203.32% | 0.05% | 34.08% | 1108.500 |
+| Video | 28752 | 0.001 ms | 0.278 ms | 3.607 ms | 179.89% | 0.05% | 29.56% | 434.750 |
+| Audio | 1974 | 0.004 ms | 4.004 ms | 21.435 ms | 19.24% | 0.41% | 0.05% | 1.323 |
 
 | Stream | Packets | Jitter (median) | Jitter (max) | Out-of-Order |
 |--------|---------|-----------------|--------------|--------------|
-| Video | 28772 | 0.001 ms | 13.137 ms | 0 |
-| Audio | 1981 | 0.385 ms | 11.661 ms | 0 |
+| Video | 28752 | 0.001 ms | 3.603 ms | 0 |
+| Audio | 1974 | 0.230 ms | 17.184 ms | 0 |
 
 Details: [network.json](network.json)
 
 ### A/V Sync
 
-- ✅ Good synchronization (100.0%): avg offset 22.7ms, max 25.0ms
+- ✅ Good synchronization (100.0%): avg offset 16.2ms, max 26.0ms
 
 #### Sync Details
 
 - 🟢 Pop #1 [L]: audio=10940.0ms, video=10915.0ms (frame 653), diff=25.0ms
 - 🟢 Pop #2 [R]: audio=11740.0ms, video=11717.3ms (frame 701), diff=22.7ms
-- 🟢 Pop #3 [L]: audio=12540.0ms, video=12519.6ms (frame 749), diff=20.4ms
-- 🟢 Pop #4 [R]: audio=13345.0ms, video=13322.0ms (frame 797), diff=23.0ms
-- 🟢 Pop #5 [L]: audio=14148.0ms, video=14124.3ms (frame 845), diff=23.7ms
-- 🟢 Pop #6 [R]: audio=14948.0ms, video=14926.6ms (frame 893), diff=21.4ms
-- 🟢 Pop #7 [L]: audio=15753.0ms, video=15728.9ms (frame 941), diff=24.1ms
-- 🟢 Pop #8 [R]: audio=16553.0ms, video=16531.3ms (frame 989), diff=21.7ms
+- 🟢 Pop #3 [L]: audio=12542.0ms, video=12536.4ms (frame 750), diff=5.6ms
+- 🟢 Pop #4 [R]: audio=13348.0ms, video=13322.0ms (frame 797), diff=26.0ms
+- 🟢 Pop #5 [L]: audio=14148.0ms, video=14141.0ms (frame 846), diff=7.0ms
+- 🟢 Pop #6 [R]: audio=14948.0ms, video=14943.3ms (frame 894), diff=4.7ms
+- 🟢 Pop #7 [L]: audio=15753.0ms, video=15745.7ms (frame 942), diff=7.3ms
+- 🟢 Pop #8 [R]: audio=16556.0ms, video=16531.3ms (frame 989), diff=24.7ms
 - 🟢 Pop #9 [L]: audio=17356.0ms, video=17333.6ms (frame 1037), diff=22.4ms
 
 - Channels: LRLRLRLRL
@@ -93,14 +93,14 @@ Details: [network.json](network.json)
 
 ### Frame Progression
 
-- 🟢 Frame sequence verified (478 frames analyzed, 0 colors)
+- 🟡 Frame sequence OK with jitter (skips=61, back_steps=0) (post-settling)
 
 - Settling: 4.0s (pass/fail uses post-settling only)
 
 | Window | Stuck runs (count/min/med/max) | Skips (count/min/med/max) | Back steps | Severe steps |
 |--------|------------------------------:|--------------------------:|-----------:|-------------:|
-| During settling | 0/0/0/0 | 0/0/0/0 | 0 | 0 |
-| After settling | 5/2/2/2 | 7/1/1/1 | 0 | 0 |
+| During settling | 47/2/2/2 | 46/1/1/1 | 0 | 0 |
+| After settling | 49/2/2/2 | 60/1/1/2 | 0 | 0 |
 
 See [playback.csv](playback.csv) for frame-by-frame playback timeline with anomaly markers.
 
@@ -108,13 +108,12 @@ See [playback.csv](playback.csv) for frame-by-frame playback timeline with anoma
 
 - Definition: rows with repeated=1 or skipped=1 in playback.csv; clustering uses max gap 0.5s
 - Note: this is independent from the Frame Progression (frame-box) check above
-- Note: repeated/skipped markers only exist while content is detected (video_s 10.531–21.529).
+- Note: repeated/skipped markers only exist while content is detected (video_s 10.547–21.529).
   The jitter-free tail after content ends is expected and does not indicate steady-state performance.
 
 | # | Events | Center (s) | Std dev (s) | Span (s) | Window (s) |
 |---|--------|------------|-------------|----------|------------|
-| 1 | 5 | 17.718 | 0.205 | 0.451 | 17.534–17.985 |
-| 2 | 4 | 16.017 | 0.036 | 0.100 | 15.963–16.063 |
+| 1 | 157 | 14.475 | 2.148 | 7.772 | 10.698–18.470 |
 
 ### Video
 

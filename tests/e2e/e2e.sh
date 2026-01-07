@@ -451,12 +451,13 @@ load_scenario() {
     log_info "Loading scenario: ${scenario_name}"
 
     # Parse scenario.yaml (new concise format)
-    local name format preset pattern full_frame_pop
+    local name format preset pattern full_frame_pop csv_max_rows
     name=$(grep -m1 "^name:" "${scenario_yaml}" | sed 's/^name: *//' || true)
     format=$(grep -m1 "^format:" "${scenario_yaml}" | sed 's/^format: *//' || true)
     preset=$(grep -m1 "^preset:" "${scenario_yaml}" | sed 's/^preset: *//' || true)
     pattern=$(grep -m1 "^pattern:" "${scenario_yaml}" | sed 's/^pattern: *//' || true)
     full_frame_pop=$(grep -m1 "^full_frame_pop:" "${scenario_yaml}" | sed 's/^full_frame_pop: *//' || true)
+    csv_max_rows=$(grep -m1 "^csv_max_rows:" "${scenario_yaml}" | sed 's/^csv_max_rows: *//' || true)
 
     if [[ -z "${name}" || -z "${format}" ]]; then
         log_error "Invalid scenario.yaml (missing required fields)"
@@ -503,6 +504,10 @@ load_scenario() {
     if [[ "${full_frame_pop}" == "true" ]]; then
         FULL_FRAME_POP=true
         log_info "  Packet mode: full-frame-pop"
+    fi
+    if [[ -n "${csv_max_rows}" ]]; then
+        CSV_MAX_ROWS="${csv_max_rows}"
+        log_info "  CSV max rows: ${CSV_MAX_ROWS}"
     fi
 
     # Generate OBS scene JSON from scenario

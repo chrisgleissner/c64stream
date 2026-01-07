@@ -2,7 +2,7 @@
 
 ## Scenario: NTSC Default Debug
 
-Generated: 2026-01-07 11:49:01 UTC
+Generated: 2026-01-07 14:42:14 UTC
 
 ## Test configuration
 
@@ -23,15 +23,15 @@ Generated: 2026-01-07 11:49:01 UTC
 - OS: Ubuntu 24.04.3 LTS (kernel 6.14.0-37-generic)
 - OBS: 32.0.2
 - CPU: Intel(R) Core(TM) i7-6700K CPU @ 4.00GHz (8 cores)
-- RAM: 31Gi total, 23Gi available
+- RAM: 31Gi total, 22Gi available
 - Disk (/): 1.8T total, 1.1T available
 
 ## Test results
 
 ### Validation Summary
 
-- ✅ UDP Packet Reception: 30803/30803 packets (28743 video, 1956 audio)
-- ✅ Network Timing: span=8024.4ms, video_mean=278.5us, audio_mean=4001.5us
+- ✅ UDP Packet Reception: 30803/30803 packets (28745 video, 1975 audio)
+- ✅ Network Timing: span=8023.8ms, video_mean=278.7us, audio_mean=4001.7us
 - ✅ Frame Processing: 2481 frames processed
 - ✅ Video Recording: 10.9 MB
 - ✅ Content Integrity: 22.1s duration
@@ -42,9 +42,9 @@ During the test's processing window (7.6s, 16 of 49 samples) (8 cores):
 
 | Metric | Min | Median | Mean | Max |
 |--------|-----|--------|------|-----|
-| CPU | 63.7% | 70.95% | 72.26% | 82.2% |
-| RAM | 6278.91 MB | 6387.81 MB | 6371.61 MB | 6395.64 MB |
-| GPU | 23.58% | 46.2% | 42.74% | 53.74% |
+| CPU | 56.9% | 59.4% | 62.09% | 76.5% |
+| RAM | 7958.1 MB | 8019.64 MB | 8006.46 MB | 8025.23 MB |
+| GPU | 36.82% | 50.47% | 49.06% | 53.21% |
 
 Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
@@ -56,19 +56,19 @@ Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
 #### Network Quality (Measured)
 
-- Packet span (first→last): 8024.449 ms
-- Total packets analyzed: 30706
+- Packet span (first→last): 8023.769 ms
+- Total packets analyzed: 30725
 
 | Stream | Packets | Spacing (min) | Spacing (mean) | Spacing (max) | CV | Burst <0.5×P50 | Gaps >2×P50 | P99/P50 |
 |--------|---------|---------------|----------------|---------------|----|--------------|------------|--------|
-| All | 30706 | 0.001 ms | 0.516 ms | 9.848 ms | 213.55% | 0.09% | 32.74% | 1210.250 |
-| Video | 28742 | 0.001 ms | 0.278 ms | 7.071 ms | 208.93% | 0.10% | 28.15% | 603.500 |
-| Audio | 1954 | 0.006 ms | 4.002 ms | 9.848 ms | 26.08% | 2.30% | 0.15% | 1.633 |
+| All | 30725 | 0.001 ms | 0.518 ms | 13.853 ms | 211.78% | 0.12% | 32.79% | 1189.250 |
+| Video | 28743 | 0.001 ms | 0.279 ms | 7.625 ms | 204.08% | 0.13% | 28.18% | 586.000 |
+| Audio | 1974 | 0.003 ms | 4.002 ms | 13.853 ms | 25.65% | 2.33% | 0.15% | 1.610 |
 
 | Stream | Packets | Jitter (median) | Jitter (max) | Out-of-Order |
 |--------|---------|-----------------|--------------|--------------|
-| Video | 28742 | 0.001 ms | 7.067 ms | 0 |
-| Audio | 1954 | 0.648 ms | 5.607 ms | 0 |
+| Video | 28743 | 0.001 ms | 7.621 ms | 0 |
+| Audio | 1974 | 0.594 ms | 9.611 ms | 0 |
 
 Details: [network.json](network.json)
 
@@ -87,4 +87,4 @@ Details: [network.json](network.json)
 - **Center**: Diagonal pattern cycling through all C64 colors
 - **Bottom-left**: Frame progression indicator (8-slot moving bar, cycles every 8 frames)
 - **Bottom-right**: A/V pop indicator (pops every 48 frames, split left/right for audio channels)
-- Taken from frame 681 at 00:11.4 of the 22.1 s video above.
+- Taken from frame 680 at 00:11.3 of the 22.1 s video above.
