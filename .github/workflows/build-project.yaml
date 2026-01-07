@@ -924,6 +924,7 @@ jobs:
           - ntsc_classic_crt
           - ntsc_default
           - ntsc_default_720p
+          - ntsc_default_debug
           - ntsc_default_record
           - ntsc_delay_buffer500
           # TODO Investigate why these scenarios pass locally but experience large UDP packet loss on CI.
