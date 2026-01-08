@@ -718,31 +718,33 @@ static void c64_debug_handle_video_pop(struct c64_source *context, uint16_t fram
         context->av_sync_video_pop_count++;
         context->av_sync_last_video_pop_ts = timestamp_ns;
 
+        // Unified A/V sync log: single DEBUG line with all technical details for correlation with CSV files
+        uint64_t wall_clock_ns = os_gettime_ns();
+        time_t wall_clock_sec = (time_t)(wall_clock_ns / 1000000000ULL);
+        uint32_t wall_clock_ms = (uint32_t)((wall_clock_ns / 1000000ULL) % 1000ULL);
+        struct tm wall_clock_tm;
+#ifdef _WIN32
+        localtime_s(&wall_clock_tm, &wall_clock_sec);
+#else
+        localtime_r(&wall_clock_sec, &wall_clock_tm);
+#endif
+
         if (context->av_sync_last_audio_pop_ts != 0) {
             int64_t delta_ns = (int64_t)context->av_sync_last_audio_pop_ts - (int64_t)timestamp_ns;
-            C64_LOG_DEBUG("" VIDEO_LOG_PREFIX " A/V pop video #%u: frame=%u ts=%" PRIu64 " ns, audio_delta_ms=%.3f",
-                          context->av_sync_video_pop_count, frame_num, timestamp_ns, (double)delta_ns / 1000000.0);
-
-            // Unified A/V SYNC log with complete technical information
-            uint64_t wall_clock_ns = os_gettime_ns();
-            time_t wall_clock_sec = (time_t)(wall_clock_ns / 1000000000ULL);
-            uint32_t wall_clock_ms = (uint32_t)((wall_clock_ns / 1000000ULL) % 1000ULL);
-            struct tm wall_clock_tm;
-#ifdef _WIN32
-            localtime_s(&wall_clock_tm, &wall_clock_sec);
-#else
-            localtime_r(&wall_clock_sec, &wall_clock_tm);
-#endif
-            C64_LOG_INFO("" VIDEO_LOG_PREFIX " AV SYNC: offset=%.1fms video=#%u audio=#%u "
-                         "detected=%04d-%02d-%02d_%02d:%02d:%02d.%03u video_frame=%u video_ts=%" PRIu64
-                         " audio_ts=%" PRIu64,
-                         (double)delta_ns / 1000000.0, context->av_sync_video_pop_count,
-                         context->av_sync_audio_pop_count, wall_clock_tm.tm_year + 1900, wall_clock_tm.tm_mon + 1,
-                         wall_clock_tm.tm_mday, wall_clock_tm.tm_hour, wall_clock_tm.tm_min, wall_clock_tm.tm_sec,
-                         wall_clock_ms, frame_num, timestamp_ns, context->av_sync_last_audio_pop_ts);
+            C64_LOG_DEBUG("" VIDEO_LOG_PREFIX " AV SYNC: offset=%.1fms video=#%u audio=#%u "
+                          "detected=%04d-%02d-%02d_%02d:%02d:%02d.%03u video_frame=%u video_ts=%" PRIu64
+                          " audio_ts=%" PRIu64,
+                          (double)delta_ns / 1000000.0, context->av_sync_video_pop_count,
+                          context->av_sync_audio_pop_count, wall_clock_tm.tm_year + 1900, wall_clock_tm.tm_mon + 1,
+                          wall_clock_tm.tm_mday, wall_clock_tm.tm_hour, wall_clock_tm.tm_min, wall_clock_tm.tm_sec,
+                          wall_clock_ms, frame_num, timestamp_ns, context->av_sync_last_audio_pop_ts);
         } else {
-            C64_LOG_DEBUG("" VIDEO_LOG_PREFIX " A/V pop video #%u: frame=%u ts=%" PRIu64 " ns",
-                          context->av_sync_video_pop_count, frame_num, timestamp_ns);
+            C64_LOG_DEBUG("" VIDEO_LOG_PREFIX " AV SYNC: video=#%u audio=#%u "
+                          "detected=%04d-%02d-%02d_%02d:%02d:%02d.%03u video_frame=%u video_ts=%" PRIu64,
+                          context->av_sync_video_pop_count, context->av_sync_audio_pop_count,
+                          wall_clock_tm.tm_year + 1900, wall_clock_tm.tm_mon + 1, wall_clock_tm.tm_mday,
+                          wall_clock_tm.tm_hour, wall_clock_tm.tm_min, wall_clock_tm.tm_sec, wall_clock_ms, frame_num,
+                          timestamp_ns);
         }
     }
 }
