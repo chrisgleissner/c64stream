@@ -176,9 +176,16 @@ static void c64_debug_handle_audio_pop(struct c64_source *context, uint64_t time
 
     bool was_has_signal = context->av_sync_last_audio_has_signal;
 
+    // Debug logging: trace all audio pop detection calls to diagnose first pop miss
+    C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " Audio pop handler: was=%d has=%d count=%u ts=%" PRIu64, (int)was_has_signal,
+                  (int)has_signal, context->av_sync_audio_pop_count, timestamp_ns);
+
     if (!was_has_signal && has_signal) {
         context->av_sync_audio_pop_count++;
         context->av_sync_last_audio_pop_ts = timestamp_ns;
+
+        C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " Audio pop DETECTED: transition from silent to has_signal, count now=%u",
+                      context->av_sync_audio_pop_count);
 
         if (context->av_sync_last_video_pop_ts != 0) {
             int64_t delta_ns = (int64_t)timestamp_ns - (int64_t)context->av_sync_last_video_pop_ts;
@@ -186,9 +193,10 @@ static void c64_debug_handle_audio_pop(struct c64_source *context, uint64_t time
                           context->av_sync_audio_pop_count, timestamp_ns, (double)delta_ns / 1000000.0);
 
             // Unified A/V SYNC log with complete technical information
-            uint64_t wall_clock_ns = os_gettime_ns();
-            time_t wall_clock_sec = (time_t)(wall_clock_ns / 1000000000ULL);
-            uint32_t wall_clock_ms = (uint32_t)((wall_clock_ns / 1000000ULL) % 1000ULL);
+            // Use c64_get_millis() for actual wall clock time (CLOCK_REALTIME), not os_gettime_ns() (monotonic)
+            uint64_t wall_clock_ms_total = c64_get_millis();
+            time_t wall_clock_sec = (time_t)(wall_clock_ms_total / 1000ULL);
+            uint32_t wall_clock_ms = (uint32_t)(wall_clock_ms_total % 1000ULL);
             struct tm wall_clock_tm;
 #ifdef _WIN32
             localtime_s(&wall_clock_tm, &wall_clock_sec);

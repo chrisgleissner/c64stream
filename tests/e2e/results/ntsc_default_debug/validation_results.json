@@ -1,0 +1,65 @@
+{
+  "udp_reception": {
+    "status": "warning",
+    "details": "111290/19252 packets (103537 video, 7412 audio, minor loss)"
+  },
+  "frame_processing": {
+    "status": "pass",
+    "details": "9082 frames processed"
+  },
+  "video_recording": {
+    "status": "pass",
+    "details": "9.4 MB"
+  },
+  "packet_integrity": {
+    "status": "pass",
+    "details": "18.9s duration"
+  },
+  "network_timing": {
+    "status": "warning",
+    "details": "span=25158.3ms, video_mean=242.3us, audio_mean=3331.8us"
+  },
+  "video_brightness": {
+    "status": "skipped",
+    "details": "Skipped (full-frame-pop scenario)"
+  },
+  "av_sync": {
+    "status": "skipped",
+    "details": "Skipped (full-frame-pop scenario)"
+  },
+  "av_sync_offset": {
+    "status": "fail",
+    "message": "Missing pop data from: MP4",
+    "details": {
+      "sources": {
+        "obs_csv": {
+          "pop_count": 5,
+          "max_offset_ms": 434.604,
+          "avg_offset_ms": 184.3328,
+          "per_pop_offsets_ms": [
+            81.757,
+            434.604,
+            24.816,
+            14.581,
+            365.906
+          ]
+        },
+        "network_csv": {
+          "pop_count": 6,
+          "max_offset_ms": 3386.196,
+          "avg_offset_ms": 575.2093333333333,
+          "per_pop_offsets_ms": [
+            3386.196,
+            11.74,
+            13.773,
+            13.344,
+            12.279,
+            13.924
+          ]
+        }
+      },
+      "output_dir": "/home/chris/dev/c64/c64stream/tests/e2e/results/ntsc_default_debug"
+    },
+    "metrics": {}
+  }
+}
