@@ -1,23 +1,23 @@
 {
   "udp_reception": {
     "status": "pass",
-    "details": "30803/30803 packets (28747 video, 1976 audio)"
+    "details": "19252/19252 packets (17960 video, 1232 audio)"
   },
   "frame_processing": {
     "status": "pass",
-    "details": "2481 frames processed"
+    "details": "1550 frames processed"
   },
   "video_recording": {
     "status": "pass",
-    "details": "11.0 MB"
+    "details": "9.3 MB"
   },
   "packet_integrity": {
     "status": "pass",
-    "details": "22.2s duration"
+    "details": "18.9s duration"
   },
   "network_timing": {
     "status": "pass",
-    "details": "span=8023.9ms, video_mean=278.5us, audio_mean=4006.5us"
+    "details": "span=5014.4ms, video_mean=277.3us, audio_mean=4017.8us"
   },
   "video_brightness": {
     "status": "skipped",
@@ -27,24 +27,50 @@
     "status": "skipped",
     "details": "Skipped (full-frame-pop scenario)"
   },
-  "av_pop_delta": {
-    "status": "pass",
-    "message": "Pop delta OK: obs=21.23ms, network=16.89ms",
+  "av_pop_offset": {
+    "status": "fail",
+    "message": "Pop offset too large (max 40.00ms): mp4=10764.55ms",
     "details": {
-      "obs": {
-        "pop_count": 9,
-        "max_delta_ms": 21.229,
-        "avg_delta_ms": 19.101555555555553
-      },
-      "network": {
-        "pop_count": 9,
-        "max_delta_ms": 16.89,
-        "avg_delta_ms": 14.208111111111112
+      "sources": {
+        "obs_csv": {
+          "pop_count": 5,
+          "max_offset_ms": 2.351,
+          "avg_offset_ms": 1.152,
+          "per_pop_offsets_ms": [
+            1.812,
+            1.402,
+            0.033,
+            0.162,
+            2.351
+          ]
+        },
+        "network_csv": {
+          "pop_count": 5,
+          "max_offset_ms": 16.796,
+          "avg_offset_ms": 15.140600000000001,
+          "per_pop_offsets_ms": [
+            14.645,
+            13.492,
+            16.796,
+            16.765,
+            14.005
+          ]
+        },
+        "mp4": {
+          "pop_count": 6,
+          "max_offset_ms": 10764.55,
+          "avg_offset_ms": 1934.8776666666665,
+          "per_pop_offsets_ms": [
+            10764.55,
+            5.45,
+            3.123,
+            781.53,
+            28.47,
+            26.143
+          ]
+        }
       }
     },
-    "metrics": {
-      "obs_max_delta_ms": 21.229,
-      "network_max_delta_ms": 16.89
-    }
+    "metrics": {}
   }
 }
