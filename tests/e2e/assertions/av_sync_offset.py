@@ -19,7 +19,7 @@ from .config import PresetConfig
 from test_av_sync import detect_video_pop_events, detect_audio_pops
 
 
-class AvPopOffsetAssertion(EffectAssertion):
+class AvSyncOffsetAssertion(EffectAssertion):
     """Verify that audio and video pops are closely aligned across all sources."""
 
     def __init__(self, thresholds: Optional[dict[str, float]] = None):

@@ -3,7 +3,8 @@ format: NTSC
 preset: Default
 full_frame_pop: true
 csv_max_rows: 6000
+debug_logging: true
 assertions:
-  - av_pop_offset
+  - av_sync_offset
   - av_sync_log_validation
   - debug_log_presence

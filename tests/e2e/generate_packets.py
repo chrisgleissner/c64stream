@@ -770,7 +770,9 @@ def generate_audio_packet(audio_packet_num, sample_rate, total_frames, format_na
     frame_rate, frame_duration_ms, pop_interval, pop_duration, pop_offset = get_sync_timing_info(format_name)
 
     # Convert audio time to frame number to align with video pop timing
-    current_frame = time_in_test_ms / frame_duration_ms
+    # Use int() to assign audio packet to the frame it starts in
+    # This ensures audio/video pops are synchronized at frame boundaries
+    current_frame = int(time_in_test_ms / frame_duration_ms)
 
     # Check if we're in a sync pop period using the same frame-based logic as video
     if current_frame < pop_offset:
@@ -790,7 +792,7 @@ def generate_audio_packet(audio_packet_num, sample_rate, total_frames, format_na
             is_sync_pop = False
 
     if full_frame_pop:
-        is_sync_pop = is_full_frame_pop_active(int(current_frame), format_name, total_frames)
+        is_sync_pop = is_full_frame_pop_active(current_frame, format_name, total_frames)
 
     # Generate time array for this packet's 192 samples
     t = np.linspace(time_in_test_ms / 1000.0,

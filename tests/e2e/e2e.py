@@ -3682,11 +3682,11 @@ class E2ETest:
 
         if is_full_frame_pop and recording_file and Path(recording_file).exists():
             try:
-                from assertions.av_pop_offset import AvPopOffsetAssertion
+                from assertions.av_sync_offset import AvSyncOffsetAssertion
 
-                a = AvPopOffsetAssertion()
+                a = AvSyncOffsetAssertion()
                 res = a.verify(Path(recording_file), properties={}, preset=None, verbose=self.verbose)
-                validation_results['av_pop_offset'] = {
+                validation_results['av_sync_offset'] = {
                     'status': res.status.value,
                     'message': res.message,
                     'details': res.details,
@@ -3703,9 +3703,9 @@ class E2ETest:
                     print(f"❌ {a.name}: {res.message}")
                     validation_errors.append(f"{a.name}: {res.message}")
             except Exception as e:
-                print(f"❌ av_pop_offset: Analysis failed - {e}")
-                validation_errors.append(f"av_pop_offset error: {e}")
-                validation_results['av_pop_offset'] = {
+                print(f"❌ av_sync_offset: Analysis failed - {e}")
+                validation_errors.append(f"av_sync_offset error: {e}")
+                validation_results['av_sync_offset'] = {
                     'status': 'fail',
                     'message': f'Analysis failed - {e}',
                 }
