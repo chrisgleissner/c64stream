@@ -41,15 +41,25 @@ jobs:
 
       - name: Install OBS Studio 🎥
         run: |
-          # Download OBS Studio installer
+          # Download OBS Studio
           $obsVersion = "${{ inputs.obs-version }}"
-          $archSuffix = if ("${{ inputs.arch }}" -eq "arm64") { "-arm64" } else { "" }
-          $obsUrl = "https://github.com/obsproject/obs-studio/releases/download/${obsVersion}/OBS-Studio-${obsVersion}-Windows${archSuffix}-Installer.exe"
-          Invoke-WebRequest -Uri $obsUrl -OutFile obs-installer.exe
-
-          # Install OBS silently
-          Start-Process -FilePath obs-installer.exe -ArgumentList "/S" -Wait
-
+          
+          if ("${{ inputs.arch }}" -eq "arm64") {
+            # ARM64: Download and extract zip (no installer available)
+            $obsUrl = "https://github.com/obsproject/obs-studio/releases/download/${obsVersion}/OBS-Studio-${obsVersion}-Windows-arm64.zip"
+            Invoke-WebRequest -Uri $obsUrl -OutFile obs.zip
+            
+            # Extract to Program Files
+            Expand-Archive -Path obs.zip -DestinationPath "${env:ProgramFiles}\obs-studio" -Force
+          } else {
+            # x64: Use installer
+            $obsUrl = "https://github.com/obsproject/obs-studio/releases/download/${obsVersion}/OBS-Studio-${obsVersion}-Windows-x64-Installer.exe"
+            Invoke-WebRequest -Uri $obsUrl -OutFile obs-installer.exe
+            
+            # Install OBS silently
+            Start-Process -FilePath obs-installer.exe -ArgumentList "/S" -Wait
+          }
+          
           # Wait for installation to complete
           Start-Sleep -Seconds 10
 
