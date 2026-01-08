@@ -57,7 +57,7 @@ class DebugLogPresenceAssertion(EffectAssertion):
         """
         output_dir = mp4_path.parent
         obs_log_path = output_dir / "obs_log.txt"
-        
+
         if not obs_log_path.exists():
             return AssertionResult(
                 status=AssertionStatus.FAIL,
@@ -113,7 +113,7 @@ class DebugLogPresenceAssertion(EffectAssertion):
 
         # Validation results
         min_debug_logs = int(self.thresholds.get("min_debug_logs", 10))
-        
+
         if missing_required:
             msg = f"Missing required debug logs:\n" + "\n".join(missing_required)
             msg += f"\n\nFound patterns:\n" + "\n".join(found_patterns)
@@ -130,7 +130,7 @@ class DebugLogPresenceAssertion(EffectAssertion):
 
         # Success - all required patterns found
         msg = f"Debug logs present and working correctly! Total debug log lines: {total_debug_logs}"
-        
+
         if verbose:
             msg += "\n\nFound patterns:\n" + "\n".join(found_patterns)
 
