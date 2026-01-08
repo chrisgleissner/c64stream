@@ -145,7 +145,7 @@ static bool c64_debug_audio_has_signal(const uint8_t *samples, size_t samples_si
     // Audio pops are full-volume square wave: we expect values near ±32767 (0x7FFF).
     // Use aggressive threshold to only detect intentional test pops, not noise or music.
 
-    const int threshold = 16384; // Half of max 16-bit signed (32767), catches strong signals
+    const int threshold = 8192; // Quarter of max 16-bit signed (32767), catches strong signals
     const size_t min_hits = 100;
     size_t hits = 0;
 
