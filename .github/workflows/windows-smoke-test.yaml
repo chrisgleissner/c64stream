@@ -94,26 +94,47 @@ jobs:
           Write-Output "Starting OBS..."
           $obsProcess = Start-Process -FilePath $obsPath -ArgumentList "--verbose", "--minimize-to-tray", "--disable-shutdown-check" -PassThru -RedirectStandardOutput $logFile -RedirectStandardError "${logFile}.err"
           
-          # Monitor log file until we see plugin loading activity (or timeout)
-          Write-Output "Monitoring OBS startup..."
-          $timeout = 15
+          # Monitor log file for c64stream plugin loading
+          Write-Output "Monitoring for c64stream plugin loading..."
+          $timeout = 30
           $elapsed = 0
+          $pluginLoaded = $false
+          
           while ($elapsed -lt $timeout) {
             Start-Sleep -Seconds 1
             $elapsed++
             
             if (Test-Path $logFile) {
               $content = Get-Content $logFile -Raw -ErrorAction SilentlyContinue
-              # Check if plugins are being loaded
-              if ($content -match "obs-plugins|Loading module|Finished loading|plugin") {
-                Write-Output "Plugin loading detected at ${elapsed}s"
-                Start-Sleep -Seconds 3  # Give it a bit more time to finish loading
-                break
+              
+              # Check if c64stream plugin loaded successfully (no errors/warnings)
+              if ($content -match "c64stream") {
+                Write-Output "c64stream detected in logs at ${elapsed}s"
+                
+                # Check for errors or warnings related to c64stream
+                if ($content -match "error.*c64stream|warning.*c64stream|failed.*c64stream|c64stream.*failed") {
+                  Write-Output "Detected errors/warnings with c64stream, continuing to monitor..."
+                } else {
+                  # Plugin mentioned without errors - likely loaded successfully
+                  Write-Output "c64stream appears to have loaded successfully"
+                  $pluginLoaded = $true
+                  Start-Sleep -Seconds 2  # Give it a moment to finish
+                  break
+                }
               }
+            }
+            
+            if ($elapsed % 5 -eq 0) {
+              Write-Output "Still monitoring... ${elapsed}s elapsed"
             }
           }
           
-          Write-Output "Terminating OBS after ${elapsed}s..."
+          if ($pluginLoaded) {
+            Write-Output "✓ Plugin loaded successfully, terminating OBS after ${elapsed}s"
+          } else {
+            Write-Output "⏱ Timeout reached (${elapsed}s), terminating OBS"
+          }
+          
           Stop-Process -Id $obsProcess.Id -Force -ErrorAction SilentlyContinue
           Start-Sleep -Seconds 2
           Start-Sleep -Seconds 2
