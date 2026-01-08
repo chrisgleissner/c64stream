@@ -31,6 +31,8 @@ OBS_CSV=""
 NETWORK_CSV=""
 OBS_LOG=""
 VERBOSE=false
+NO_MP4_ANALYSIS=false
+OBS_ONLY=false
 
 usage() {
     cat <<'EOF'
@@ -63,6 +65,8 @@ Options:
   --rest-token <token>       Optional REST auth token
   --rest-token-header <hdr>  Header name for REST token (default: X-Password)
   --no-build                 Skip PRG build (use existing av-sync-auto.prg)
+  --obs-only                 Skip PRG build/run, only do OBS recording (assumes C64U already running av-sync-auto.prg)
+  --no-mp4-analysis          Skip MP4 recording analysis (only analyze CSV/logs)
   --analyze-only <path>      Analyze a log/CSV directory or file (no OBS run)
   --obs-csv <path>           Analyze obs.csv directly (no OBS run)
   --network-csv <path>       Analyze network.csv directly (no OBS run)
@@ -71,10 +75,25 @@ Options:
   --help                     Show this help
 
 Examples:
+    # Full run: build PRG, run on C64U, record with OBS, analyze CSV/logs/MP4
     ./tests/e2e/real-device-av-sync.sh
+
+    # Connect to specific host
     ./tests/e2e/real-device-av-sync.sh --host 192.168.1.13
-  ./tests/e2e/real-device-av-sync.sh --host c64u.local --duration 15 --max-delta-ms 25
+
+    # Custom duration and thresholds
+    ./tests/e2e/real-device-av-sync.sh --host c64u.local --duration 15 --max-delta-ms 25
+
+  # OBS-only mode (PRG already running on C64U)
+  ./tests/e2e/real-device-av-sync.sh --obs-only --duration 20
+
+  # Skip MP4 analysis (faster, only CSV/log analysis)
+  ./tests/e2e/real-device-av-sync.sh --no-mp4-analysis
+
+  # Analyze existing session results
   ./tests/e2e/real-device-av-sync.sh --analyze-only /path/to/results/session_20250209_120000
+
+  # Analyze specific log file
   ./tests/e2e/real-device-av-sync.sh --obs-log /path/to/obs.log --max-delta-ms 30
 EOF
 }
@@ -260,6 +279,14 @@ while [[ $# -gt 0 ]]; do
             NO_BUILD=true
             shift
             ;;
+        --obs-only)
+            OBS_ONLY=true
+            shift
+            ;;
+        --no-mp4-analysis)
+            NO_MP4_ANALYSIS=true
+            shift
+            ;;
         --analyze-only)
             ANALYZE_ONLY="$2"
             shift 2
@@ -301,21 +328,28 @@ if [[ -z "${HOST}" ]]; then
     HOST="c64u"
 fi
 
-# Always try to reset the device at the end of a full run (pass or fail).
-trap 'reset_device || true' EXIT
-
-if [[ "${NO_BUILD}" != "true" ]]; then
-    log "Building av-sync-auto.prg..."
-    "${ROOT_DIR}/tools/c64/c64-build.sh" "${ROOT_DIR}/tools/c64/av-sync-auto.asm"
+# Only reset device at end if we actually ran the PRG (not in OBS-only mode)
+if [[ "${OBS_ONLY}" != "true" ]]; then
+    trap 'reset_device || true' EXIT
 fi
 
-PRG_PATH="${ROOT_DIR}/tools/c64/av-sync-auto.prg"
-if [[ ! -f "${PRG_PATH}" ]]; then
-    log "PRG not found: ${PRG_PATH}"
-    exit 1
-fi
+# Build and run PRG unless in OBS-only mode
+if [[ "${OBS_ONLY}" != "true" ]]; then
+    if [[ "${NO_BUILD}" != "true" ]]; then
+        log "Building av-sync-auto.prg..."
+        "${ROOT_DIR}/tools/c64/c64-build.sh" "${ROOT_DIR}/tools/c64/av-sync-auto.asm"
+    fi
 
-run_prg "${PRG_PATH}"
+    PRG_PATH="${ROOT_DIR}/tools/c64/av-sync-auto.prg"
+    if [[ ! -f "${PRG_PATH}" ]]; then
+        log "PRG not found: ${PRG_PATH}"
+        exit 1
+    fi
+
+    run_prg "${PRG_PATH}"
+else
+    log "Skipping PRG build/run (OBS-only mode). Assuming av-sync-auto.prg already running on C64U."
+fi
 
 timestamp="$(date +%Y%m%d_%H%M%S)"
 session_dir="${OUTPUT_DIR}/session_${timestamp}"
@@ -335,6 +369,7 @@ python3 "${SCRIPT_DIR}/real_device_av_sync.py" \
     --video-port "${VIDEO_PORT}" \
     --audio-port "${AUDIO_PORT}" \
     --control-port "${CONTROL_PORT}" \
-    $( [[ "${VERBOSE}" == "true" ]] && echo "--verbose" )
+    $( [[ "${VERBOSE}" == "true" ]] && echo "--verbose" ) \
+    $( [[ "${NO_MP4_ANALYSIS}" == "true" ]] && echo "--no-mp4-analysis" )
 
 log "Done. Results: ${session_dir}"

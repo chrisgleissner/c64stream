@@ -76,7 +76,24 @@ cd tools/c64
 2. Use the Ultimate’s file browser to select the PRG.
 3. Run it from the file browser (or from BASIC with `SYS` if preferred).
 
-## Prerequisites
+## Running the test
+
+### Quick start: One-stop shop for A/V sync testing
+
+The `real-device-av-sync.sh` script is a complete one-stop solution that:
+
+1. **Builds** the `av-sync-auto.prg` C64 program (unless `--no-build` specified)
+2. **Uploads and starts** the program on your C64 Ultimate via REST API
+3. **Starts OBS** in recording mode with the c64stream plugin
+4. **Enables debug logging** automatically in the plugin properties
+5. **Records** video and audio from the C64 Ultimate for the specified duration
+6. **Extracts A/V pop timing** from OBS logs, CSV files, and the MP4 recording
+7. **Analyzes and reports** A/V sync quality with detailed statistics
+8. **Resets** the C64 Ultimate device when done
+
+**Platform support:** Linux, macOS, and Windows (via Git Bash or WSL2)
+
+### Prerequisites
 
 - A reachable C64 Ultimate device:
   - REST API reachable at `http(s)://<host>/v1/...` (PRG start + optional reset)
@@ -85,25 +102,16 @@ cd tools/c64
 - OBS installed and runnable from the command line as `obs`
 - The `c64stream` plugin built and installed into OBS
 - Python 3 available as `python3`
-- OBS source **Debug** enabled (required for pop detection + CSV columns)
+- `64tass` assembler installed (for building the C64 program)
+- `curl` for REST API calls (pre-installed on most systems)
 
-## OBS configuration
+### Installation steps
 
-1. Add or select the **C64 Stream** source in OBS.
-2. Open the source properties.
-3. Enable the **Debug** checkbox (labeled “Show Debug Messages”).
-
-Important:
-
-- Pop detection and CSV extensions exist **only** when Debug is enabled.
-- When Debug is disabled, all detection/annotation logic is bypassed.
-
-## Running the test (Linux)
-
-### 1) Build and install the plugin
+#### 1) Build and install the plugin
 
 From the repo root:
 
+**Linux:**
 ```bash
 cmake --preset ubuntu-x86_64
 cmake --build build_x86_64
@@ -114,85 +122,220 @@ cp build_x86_64/c64stream.so "$HOME/.config/obs-studio/plugins/c64stream/bin/64b
 cp -r data/* "$HOME/.config/obs-studio/plugins/c64stream/data/"
 ```
 
-### 2) Install Python deps (recommended)
+**macOS:**
+```bash
+cmake --preset macos-universal
+cmake --build build_macos
+
+mkdir -p "$HOME/Library/Application Support/obs-studio/plugins/c64stream/bin"
+mkdir -p "$HOME/Library/Application Support/obs-studio/plugins/c64stream/data"
+cp -r build_macos/c64stream.plugin "$HOME/Library/Application Support/obs-studio/plugins/c64stream/bin/"
+cp -r data/* "$HOME/Library/Application Support/obs-studio/plugins/c64stream/data/"
+```
+
+**Windows (WSL2 or Git Bash):**
+See Windows section below for full details.
+
+#### 2) Install Python dependencies
 
 ```bash
 python3 -m pip install -r tests/e2e/requirements.txt
 ```
 
-### 3) Run the real-device runner
+#### 3) Install 64tass assembler
 
-The user-facing entrypoint is:
-
-- `tests/e2e/real-device-av-sync.sh`
-
-Defaults (as of this repo state):
-
-- `--host c64u`
-- `--format NTSC`
-- `--duration 10`
-
-Examples:
-
+**Linux (Debian/Ubuntu):**
 ```bash
-# Default run
+sudo apt-get install 64tass
+```
+
+**macOS:**
+```bash
+brew install 64tass
+```
+
+**Windows:**
+Download from https://sourceforge.net/projects/tass64/ and add to PATH.
+
+### Running the test
+
+**Default run (automatic mode):**
+```bash
 ./tests/e2e/real-device-av-sync.sh
-
-# Explicit host, PAL, longer duration
-./tests/e2e/real-device-av-sync.sh --host 192.168.1.13 --format PAL --duration 60 --verbose
-
-# Analyze existing artifacts only (no device access, no OBS run)
-./tests/e2e/real-device-av-sync.sh --analyze-only tests/e2e/results/real_c64u_av_sync/session_YYYYmmdd_HHMMSS
 ```
 
-## Running on Windows
+This performs the complete end-to-end test with default settings:
+- Host: `c64u` (DNS name or add to /etc/hosts)
+- Format: NTSC
+- Duration: 10 seconds
+- Builds PRG, uploads to C64U, records with OBS, analyzes all outputs
 
-### Recommended: WSL2 (Windows + Linux userland)
-
-The real-device shell runner is Bash + Linux-OBS oriented. The most reliable way to run it on Windows is inside **WSL2**
-(with WSLg for GUI support).
-
-High-level steps:
-
-1. Install WSL2 + Ubuntu.
-2. Inside WSL, install dependencies (including OBS).
-3. Build + install the plugin in WSL.
-4. Run the same command as on Linux.
-
-Example (inside WSL):
-
+**Custom host and settings:**
 ```bash
-sudo apt-get update
-sudo apt-get install -y \
-  build-essential cmake ninja-build pkg-config \
-  python3 python3-pip \
-  curl \
-  obs-studio
-
-python3 -m pip install -r tests/e2e/requirements.txt
-
-cmake --preset ubuntu-x86_64
-cmake --build build_x86_64
-
-mkdir -p "$HOME/.config/obs-studio/plugins/c64stream/bin/64bit"
-mkdir -p "$HOME/.config/obs-studio/plugins/c64stream/data"
-cp build_x86_64/c64stream.so "$HOME/.config/obs-studio/plugins/c64stream/bin/64bit/"
-cp -r data/* "$HOME/.config/obs-studio/plugins/c64stream/data/"
-
 ./tests/e2e/real-device-av-sync.sh --host 192.168.1.13 --format PAL --duration 60 --verbose
 ```
 
-Notes:
+**OBS-only mode (PRG already running on C64U):**
+```bash
+./tests/e2e/real-device-av-sync.sh --obs-only --duration 20
+```
 
-- If `c64u` does not resolve inside WSL, use `--host <ip>`.
+**Skip MP4 analysis (faster, CSV/log analysis only):**
+```bash
+./tests/e2e/real-device-av-sync.sh --no-mp4-analysis
+```
 
-### Native Windows
+**Analyze existing results (no device access, no OBS run):**
+```bash
+./tests/e2e/real-device-av-sync.sh --analyze-only tests/e2e/results/real_c64u_av_sync/session_20250108_120000
+```
 
-There is a Python runner (`tests/e2e/real_device_av_sync.py`) that can be executed natively, but it requires a working
-native OBS installation and a bit of environment setup (paths, config locations, etc.). Prefer WSL2 unless you
-specifically need a native flow.
+**All available options:**
+```bash
+./tests/e2e/real-device-av-sync.sh --help
+```
 
-## Artifacts
+### Understanding the output
+
+After a successful run, you'll find in the session directory:
+
+- `c64_recording.mp4` - OBS recording of the C64 output
+- `obs.csv` - Frame-by-frame timing from OBS plugin
+- `network.csv` - Packet-by-packet network timing
+- `obs.log` - OBS debug log with A/V sync pop detections
+- `av_pop_report.json` - Complete A/V sync analysis results
+- `README.md` - Human-readable session summary
+
+The report includes:
+- **A/V offset statistics:** p50, p95, max deltas in milliseconds
+- **Pop event counts:** Video and audio pops detected
+- **CSV correlation:** Timing data from plugin instrumentation
+- **MP4 analysis:** Independent verification from recorded video
+
+### Running on Windows
+
+#### Option 1: WSL2 (Recommended)
+
+The shell script works seamlessly in WSL2 with WSLg for GUI support.
+
+**Setup steps:**
+
+1. Install WSL2 with Ubuntu:
+   ```powershell
+   wsl --install
+   ```
+
+2. Inside WSL, install dependencies:
+   ```bash
+   sudo apt-get update
+   sudo apt-get install -y \
+     build-essential cmake ninja-build pkg-config \
+     python3 python3-pip curl obs-studio 64tass
+   
+   python3 -m pip install -r tests/e2e/requirements.txt
+   ```
+
+3. Build and install the plugin:
+   ```bash
+   cmake --preset ubuntu-x86_64
+   cmake --build build_x86_64
+   
+   mkdir -p "$HOME/.config/obs-studio/plugins/c64stream/bin/64bit"
+   mkdir -p "$HOME/.config/obs-studio/plugins/c64stream/data"
+   cp build_x86_64/c64stream.so "$HOME/.config/obs-studio/plugins/c64stream/bin/64bit/"
+   cp -r data/* "$HOME/.config/obs-studio/plugins/c64stream/data/"
+   ```
+
+4. Run the test:
+   ```bash
+   ./tests/e2e/real-device-av-sync.sh --host 192.168.1.13
+   ```
+
+**Note:** If `c64u` hostname doesn't resolve in WSL, use `--host <ip>` or add to `/etc/hosts`.
+
+#### Option 2: Git Bash
+
+The script also works in Git Bash on Windows, but requires:
+- Git for Windows (includes bash, curl)
+- OBS Studio installed
+- Python 3 installed and in PATH
+- 64tass assembler in PATH
+
+**Run from Git Bash:**
+```bash
+./tests/e2e/real-device-av-sync.sh --host 192.168.1.13
+```
+
+#### Option 3: Native Python (Advanced)
+
+For direct Python execution without bash:
+```powershell
+python tests\e2e\real_device_av_sync.py --host 192.168.1.13 --duration 10 --format NTSC
+```
+
+**Note:** This skips PRG build/upload. You must manually start `av-sync-auto.prg` on the C64U first.
+
+### Running on macOS
+
+The script works natively on macOS with minor adjustments:
+
+1. Install dependencies via Homebrew:
+   ```bash
+   brew install cmake ninja pkg-config python3 64tass obs
+   python3 -m pip install -r tests/e2e/requirements.txt
+   ```
+
+2. Build and install the plugin:
+   ```bash
+   cmake --preset macos-universal
+   cmake --build build_macos
+   
+   mkdir -p "$HOME/Library/Application Support/obs-studio/plugins/c64stream/bin"
+   mkdir -p "$HOME/Library/Application Support/obs-studio/plugins/c64stream/data"
+   cp -r build_macos/c64stream.plugin "$HOME/Library/Application Support/obs-studio/plugins/c64stream/bin/"
+   cp -r data/* "$HOME/Library/Application Support/obs-studio/plugins/c64stream/data/"
+   ```
+
+3. Run the test:
+   ```bash
+   ./tests/e2e/real-device-av-sync.sh --host c64u
+   ```
+
+### Troubleshooting
+
+**PRG build fails:**
+- Ensure `64tass` is installed and in PATH: `which 64tass` (Unix) or `where 64tass` (Windows)
+- Try building manually: `./tools/c64/c64-build.sh tools/c64/av-sync-auto.asm`
+
+**REST API connection fails:**
+- Check C64U is reachable: `curl http://<host>/v1/system:status`
+- Verify REST API is enabled on your C64U firmware
+- Use `--rest-token <token>` if authentication is required
+- Check firewall settings on both machines
+
+**OBS doesn't start:**
+- Verify OBS is installed: `which obs` (Unix) or `where obs` (Windows)
+- Check plugin is installed in the correct location
+- Try starting OBS manually first to verify it works
+
+**No video/audio received:**
+- Check UDP ports are not blocked by firewall (default: 21000 video, 21001 audio)
+- Verify C64U is streaming to the correct IP address
+- Use `--verbose` flag to see detailed network activity
+
+**No A/V pops detected:**
+- Ensure Debug checkbox is enabled in plugin properties (script does this automatically)
+- Check that `av-sync-auto.prg` is running on the C64U (you should see white flashes)
+- Try longer duration: `--duration 30`
+
+**Hostname `c64u` not found:**
+- Use IP address instead: `--host 192.168.1.13`
+- Or add to `/etc/hosts` (Unix) or `C:\Windows\System32\drivers\etc\hosts` (Windows):
+  ```
+  192.168.1.13  c64u
+  ```
+
+## Artifacts and Output Files
 
 Each run creates a session directory under the output base dir:
 

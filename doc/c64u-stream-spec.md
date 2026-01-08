@@ -66,7 +66,7 @@ The stream does not represent the full physical video output resolution. Instead
 | PAL        | 400 × 288                  | 384 × 272           |
 | NTSC       | 400 × 240                  | 384 × 240           |
 
-The streamed data contains a slightly cropped window of the physical output. This window is deliberately aligned with VICE reference images to guarantee pixel-exact comparability:
+Cropping details:
 
 - Horizontal cropping: 8 pixels removed from each side (400 → 384)
 - Vertical cropping (PAL): 8 lines removed top and bottom (288 → 272)

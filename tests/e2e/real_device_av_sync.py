@@ -489,10 +489,13 @@ def run(args: argparse.Namespace) -> int:
             min_pop_events=args.min_pop_events,
             verbose=args.verbose,
         )
-        mp4_source = _analyze_mp4_recording(recording, args.max_delta_ms)
-        if "sources" not in report or not isinstance(report["sources"], dict):
-            report["sources"] = {}
-        report["sources"]["obs_mp4_recording"] = mp4_source
+        if not args.no_mp4_analysis:
+            mp4_source = _analyze_mp4_recording(recording, args.max_delta_ms)
+            if "sources" not in report or not isinstance(report["sources"], dict):
+                report["sources"] = {}
+            report["sources"]["obs_mp4_recording"] = mp4_source
+        else:
+            print("Skipping MP4 analysis (--no-mp4-analysis)")
         report_path = output_dir / "av_pop_report.json"
         report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
         av_pop_analyzer.print_summary(report)
@@ -538,6 +541,7 @@ def main() -> int:
     parser.add_argument("--format", choices=["PAL", "NTSC"], default="NTSC", help="Video format hint")
     parser.add_argument("--enable-websocket", action="store_true", help="Enable OBS WebSocket calls")
     parser.add_argument("--verbose", action="store_true", help="Verbose logging")
+    parser.add_argument("--no-mp4-analysis", action="store_true", help="Skip MP4 recording analysis")
 
     args = parser.parse_args()
     return run(args)
