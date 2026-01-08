@@ -153,6 +153,20 @@
       "configuration": "RelWithDebInfo"
     },
     {
+      "name": "windows-arm64",
+      "configurePreset": "windows-arm64",
+      "displayName": "Windows ARM64",
+      "description": "Windows build for ARM64",
+      "configuration": "RelWithDebInfo"
+    },
+    {
+      "name": "windows-ci-arm64",
+      "configurePreset": "windows-ci-arm64",
+      "displayName": "Windows ARM64 CI",
+      "description": "Windows CI build for ARM64 (RelWithDebInfo configuration)",
+      "configuration": "RelWithDebInfo"
+    },
+    {
       "name": "ubuntu-x86_64",
       "configurePreset": "ubuntu-x86_64",
       "displayName": "Ubuntu x86_64",
