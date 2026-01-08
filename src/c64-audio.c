@@ -218,15 +218,20 @@ static void c64_debug_handle_audio_pop(struct c64_source *context, uint64_t time
         }
         context->av_sync_last_audio_pop_detection_ts = context->av_sync_audio_signal_start_ts;
 
+        // CRITICAL: Store timestamp BEFORE incrementing counter to prevent race condition
+        // Otherwise another thread may read the incremented counter before timestamp is stored
+        // Use audio signal start time (when pop rising edge arrived) for A/V sync comparison
+        // This matches video's approach (uses frame arrival time, not detection time)
+        context->av_sync_last_audio_pop_ts = context->av_sync_audio_signal_start_ts;
         context->av_sync_audio_pop_count++;
-        context->av_sync_last_audio_pop_ts = context->av_sync_audio_signal_start_ts; // Use rising edge timestamp
 
         C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " Audio pop DETECTED: duration=%.1fms, count now=%u", signal_duration_ms,
                       context->av_sync_audio_pop_count);
 
         if (context->av_sync_last_video_pop_ts != 0) {
             int64_t delta_ns =
-                (int64_t)context->av_sync_audio_signal_start_ts - (int64_t)context->av_sync_last_video_pop_ts;
+                (int64_t)timestamp_ns -
+                (int64_t)context->av_sync_last_video_pop_ts; // Changed from av_sync_audio_signal_start_ts
             double delta_ms = (double)delta_ns / 1000000.0;
 
             C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " A/V pop audio #%u: ts=%" PRIu64 " ns, audio_delta_ms=%.3f",
@@ -251,14 +256,17 @@ static void c64_debug_handle_audio_pop(struct c64_source *context, uint64_t time
 #endif
 
             // Suppress audio-only logging if within pairing window - video pop will log the pairing
-            // Two cases where we should log from audio side:
-            // 1. Pops are paired (within 500ms threshold)
-            // 2. Audio pop counter is behind video counter AND offset >500ms (truly unpaired)
+            // Log from audio side only if:
+            // 1. Audio pop counter is behind video counter (audio lagging)
+            // 2. Pops are unpaired (>500ms offset) regardless of counter position
             //
-            // Skip logging if: audio counter > video counter (audio arrived first, wait for matching video)
+            // Skip logging if:
+            // - Audio counter == video counter AND pops are paired (video will log it)
+            // - Audio counter > video counter (audio ahead, wait for matching video)
             bool audio_ahead_of_video = context->av_sync_audio_pop_count > context->av_sync_video_pop_count;
-            bool should_log_from_audio = pops_are_paired ||
-                                         (!audio_ahead_of_video && fabs(delta_ms) > pairing_threshold_ms);
+            bool counters_match = context->av_sync_audio_pop_count == context->av_sync_video_pop_count;
+            bool should_log_from_audio = !pops_are_paired ||                         // Unpaired: always log
+                                         (!audio_ahead_of_video && !counters_match); // Paired: only if audio behind
 
             if (should_log_from_audio) {
                 if (pops_are_paired) {

@@ -732,9 +732,10 @@ static void c64_debug_handle_video_pop(struct c64_source *context, uint16_t fram
         context->av_sync_last_video_pop_ts = timestamp_ns;
 
         // Unified A/V sync log: single DEBUG line with all technical details for correlation with CSV files
-        uint64_t wall_clock_ns = os_gettime_ns();
-        time_t wall_clock_sec = (time_t)(wall_clock_ns / 1000000000ULL);
-        uint32_t wall_clock_ms = (uint32_t)((wall_clock_ns / 1000000ULL) % 1000ULL);
+        // Use wall clock time (not monotonic time) for human-readable timestamps
+        uint64_t wall_clock_ms_total = c64_get_millis();
+        time_t wall_clock_sec = (time_t)(wall_clock_ms_total / 1000ULL);
+        uint32_t wall_clock_ms = (uint32_t)(wall_clock_ms_total % 1000ULL);
         struct tm wall_clock_tm;
 #ifdef _WIN32
         localtime_s(&wall_clock_tm, &wall_clock_sec);
@@ -751,15 +752,18 @@ static void c64_debug_handle_video_pop(struct c64_source *context, uint16_t fram
             bool pops_are_paired = (delta_ms >= 0 && delta_ms <= pairing_threshold_ms) ||
                                    (delta_ms < 0 && delta_ms > -pairing_threshold_ms);
 
-            // Suppress video-side logging if video arrived before matching audio pop
-            // Two cases where we should log from video side:
-            // 1. Pops are paired (within 500ms threshold)
-            // 2. Video pop counter is behind audio counter AND offset >500ms (truly unpaired)
+            // Log paired pops from video side when counters match (video typically processes after audio)
+            // Log from video side only if:
+            // 1. Video pop counter is behind audio counter (video lagging)
+            // 2. Counters match AND pops are paired (video logs the pairing)
+            // 3. Pops are unpaired (>500ms offset) regardless of counter position
             //
-            // Skip logging if: video counter > audio counter (video arrived first, wait for matching audio)
+            // Skip logging if: video counter > audio counter (video ahead, wait for matching audio)
             bool video_ahead_of_audio = context->av_sync_video_pop_count > context->av_sync_audio_pop_count;
-            bool should_log_from_video = pops_are_paired ||
-                                         (!video_ahead_of_audio && fabs(delta_ms) > pairing_threshold_ms);
+            bool counters_match = context->av_sync_video_pop_count == context->av_sync_audio_pop_count;
+            bool should_log_from_video = (counters_match && pops_are_paired) || // Counters match: video logs paired
+                                         !pops_are_paired ||                    // Unpaired: always log
+                                         (!video_ahead_of_audio && !counters_match); // Paired but behind: log
 
             if (should_log_from_video) {
                 if (pops_are_paired) {
@@ -807,8 +811,9 @@ void c64_render_frame_direct(struct c64_source *context, struct frame_assembly *
     bool is_all_white = false;
     if (c64_debug_logging) {
         is_all_white = c64_debug_frame_is_all_white(context->frame_buffer, pixel_count);
-        // Use last packet arrival time (most recent packet in frame) for A/V sync pop detection
-        c64_debug_handle_video_pop(context, frame->frame_num, frame->last_packet_time, is_all_white);
+        // Use frame timestamp (when data arrived) for A/V sync comparison with audio packet timestamps
+        // This ensures we compare apples-to-apples: both video and audio use packet arrival times
+        c64_debug_handle_video_pop(context, frame->frame_num, timestamp_ns, is_all_white);
     }
     context->av_sync_last_video_all_white = is_all_white;
 
