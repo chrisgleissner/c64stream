@@ -627,6 +627,7 @@ void c64_init_frame_assembly(struct frame_assembly *frame, uint16_t frame_num)
     memset(frame, 0, sizeof(struct frame_assembly));
     frame->frame_num = frame_num;
     frame->start_time = os_gettime_ns();
+    // last_packet_time is 0 initially, will be set when first packet arrives
     frame->received_packets = 0;
     frame->expected_packets = 0;
     frame->complete = false;
@@ -740,7 +741,10 @@ void c64_render_frame_direct(struct c64_source *context, struct frame_assembly *
         is_all_white = c64_debug_frame_is_all_white(context->frame_buffer, pixel_count);
         // Use last packet arrival time (not ideal timestamp) for A/V sync comparison
         // This ensures video and audio pops use the same timebase (real packet arrival time)
-        c64_debug_handle_video_pop(context, frame->frame_num, frame->last_packet_time, is_all_white);
+        // Only detect pops if we have received at least one packet (last_packet_time != 0)
+        if (frame->last_packet_time != 0) {
+            c64_debug_handle_video_pop(context, frame->frame_num, frame->last_packet_time, is_all_white);
+        }
     }
     context->av_sync_last_video_all_white = is_all_white;
 
