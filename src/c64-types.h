@@ -48,7 +48,9 @@ struct c64_source {
     char obs_ip_address[64];      // OBS IP Address (this machine)
     pthread_mutex_t config_mutex; // Protects dns_server_ip/hostname/ip_address from concurrent access
     bool auto_detect_ip;
-    bool initial_ip_detected; // Flag to track if initial IP detection was done
+    bool expected_peer_ip_set; // Whether expected_peer_ip contains a valid IPv4 address
+    uint32_t expected_peer_ip; // Expected peer IPv4 address in network byte order (AF_INET)
+    bool initial_ip_detected;  // Flag to track if initial IP detection was done
     uint32_t video_port;
     uint32_t audio_port;
     uint32_t control_port;

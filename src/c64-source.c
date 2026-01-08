@@ -34,6 +34,7 @@ See <https://www.gnu.org/licenses/> for details.
 static void close_and_reset_sockets(struct c64_source *context);
 static void c64_schedule_retry(struct c64_source *context, const char *reason);
 static void c64_refresh_resolved_ip(struct c64_source *context);
+static void c64_set_expected_peer_ip(struct c64_source *context, const char *ip_string);
 
 static bool c64_try_get_prefer_pal_from_obs_fps(bool *prefer_pal)
 {
@@ -213,6 +214,7 @@ static void c64_refresh_resolved_ip(struct c64_source *context)
             context->ip_address[sizeof(context->ip_address) - 1] = '\0';
             C64_LOG_INFO("" NETWORK_LOG_PREFIX " Resolved C64 host '%s' -> %s", hostname_copy, context->ip_address);
         }
+        c64_set_expected_peer_ip(context, context->ip_address);
         pthread_mutex_unlock(&context->config_mutex);
     } else {
         // Keep ip_address as-is (may be hostname) and let connectivity checks fail fast.
@@ -772,6 +774,7 @@ void c64_update(void *data, obs_data_t *settings)
     // Store hostname as-is; resolution will happen in the background before connecting.
     strncpy(context->ip_address, new_host, sizeof(context->ip_address) - 1);
     context->ip_address[sizeof(context->ip_address) - 1] = '\0';
+    c64_set_expected_peer_ip(context, context->ip_address);
     pthread_mutex_unlock(&context->config_mutex);
 
     if (new_obs_ip) {
@@ -872,6 +875,23 @@ void c64_update(void *data, obs_data_t *settings)
     c64_schedule_retry(context, "update");
 }
 
+static void c64_set_expected_peer_ip(struct c64_source *context, const char *ip_string)
+{
+    if (!context || !ip_string) {
+        return;
+    }
+
+    struct in_addr addr;
+    if (inet_pton(AF_INET, ip_string, &addr) == 1) {
+        context->expected_peer_ip = addr.s_addr;
+        context->expected_peer_ip_set = true;
+        C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Expected peer IP set to %s", ip_string);
+    } else {
+        context->expected_peer_ip_set = false;
+        C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Expected peer IP cleared (non-IPv4 input): %s", ip_string);
+    }
+}
+
 void c64_start_streaming(struct c64_source *context)
 {
     if (!context) {
@@ -881,6 +901,9 @@ void c64_start_streaming(struct c64_source *context)
 
     C64_LOG_INFO("Starting C64 Stream streaming to C64 %s (OBS IP: %s, video:%u, audio:%u)...", context->ip_address,
                  context->obs_ip_address, context->video_port, context->audio_port);
+
+    // Ensure expected peer IP matches current ip_address before binding sockets
+    c64_set_expected_peer_ip(context, context->ip_address);
 
     // Stop existing threads BEFORE closing sockets (prevents race conditions on Windows)
     if (context->streaming) {

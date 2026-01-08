@@ -752,10 +752,8 @@ void c64_render_frame_direct(struct c64_source *context, struct frame_assembly *
     const size_t pixel_count = (size_t)context->width * (size_t)context->height;
     const uint32_t *out_pixels = c64_get_afterglow_output_pixels(context, context->frame_buffer, pixel_count);
 
-    // TODO(chris): Fix white frame detection - currently broken due to pixel buffer/border issues
-    // Temporarily disabled to unblock CI. E2E tests will use post-recording video analysis instead.
+    // Check for white frames (debug/testing mode)
     bool is_all_white = false;
-    /*
     if (c64_debug_logging) {
         C64_LOG_INFO("" VIDEO_LOG_PREFIX " Frame %u: Checking if all-white (debug_logging=true)", frame->frame_num);
         is_all_white = c64_debug_frame_is_all_white(out_pixels, pixel_count);
@@ -763,7 +761,6 @@ void c64_render_frame_direct(struct c64_source *context, struct frame_assembly *
             c64_debug_handle_video_pop(context, frame->frame_num, frame->last_packet_time, is_all_white);
         }
     }
-    */
     context->av_sync_last_video_all_white = is_all_white;
 
     // Save RAW frame to disk if enabled (NO effects applied)
@@ -1122,6 +1119,23 @@ void *c64_video_thread_func(void *data)
         }
         { // Scope block for shared packet processing code
 #endif
+
+            // Drop packets from unexpected sources to prevent intermingled streams
+            if (context->expected_peer_ip_set && sender_addr.sin_addr.s_addr != context->expected_peer_ip) {
+                static uint64_t last_drop_log_time = 0;
+                uint64_t now = os_gettime_ns();
+                if (now - last_drop_log_time >= 2000000000ULL) { // Log at most every 2s
+                    char sender_ip[INET_ADDRSTRLEN] = {0};
+                    char expected_ip[INET_ADDRSTRLEN] = {0};
+                    inet_ntop(AF_INET, &sender_addr.sin_addr, sender_ip, sizeof(sender_ip));
+                    struct in_addr expected_addr = {.s_addr = context->expected_peer_ip};
+                    inet_ntop(AF_INET, &expected_addr, expected_ip, sizeof(expected_ip));
+                    C64_LOG_WARNING("" VIDEO_LOG_PREFIX " Dropping video UDP packet from %s (expected %s)", sender_ip,
+                                    expected_ip);
+                    last_drop_log_time = now;
+                }
+                continue;
+            }
 
             if (received != C64_VIDEO_PACKET_SIZE) {
                 // Small packets (2-4 bytes) are normal during stream startup/buffer changes
