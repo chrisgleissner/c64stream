@@ -43,23 +43,23 @@ jobs:
         run: |
           # Download OBS Studio
           $obsVersion = "${{ inputs.obs-version }}"
-          
+
           if ("${{ inputs.arch }}" -eq "arm64") {
             # ARM64: Download and extract zip (no installer available)
             $obsUrl = "https://github.com/obsproject/obs-studio/releases/download/${obsVersion}/OBS-Studio-${obsVersion}-Windows-arm64.zip"
             Invoke-WebRequest -Uri $obsUrl -OutFile obs.zip
-            
+
             # Extract to Program Files
             Expand-Archive -Path obs.zip -DestinationPath "${env:ProgramFiles}\obs-studio" -Force
           } else {
             # x64: Use installer
             $obsUrl = "https://github.com/obsproject/obs-studio/releases/download/${obsVersion}/OBS-Studio-${obsVersion}-Windows-x64-Installer.exe"
             Invoke-WebRequest -Uri $obsUrl -OutFile obs-installer.exe
-            
+
             # Install OBS silently
             Start-Process -FilePath obs-installer.exe -ArgumentList "/S" -Wait
           }
-          
+
           # Wait for installation to complete
           Start-Sleep -Seconds 10
 
@@ -86,46 +86,42 @@ jobs:
           $obsPath = "${env:ProgramFiles}\obs-studio\bin\64bit\obs64.exe"
           $obsConfig = Join-Path $env:APPDATA "obs-studio"
           $obsLogs = Join-Path $obsConfig "logs"
-          
+
           # Create OBS config and logs directory
           New-Item -ItemType Directory -Force -Path $obsLogs | Out-Null
-          
-          # OBS writes to its own log file (not stdout/stderr)
-          $logFile = Join-Path $obsLogs "$(Get-Date -Format 'yyyy-MM-dd HH-mm-ss').txt"
 
           # Start OBS asynchronously in background
           Write-Output "Starting OBS..."
-          Write-Output "OBS log file: $logFile"
           $obsProcess = Start-Process -FilePath $obsPath -ArgumentList "--verbose", "--minimize-to-tray", "--disable-shutdown-check" -PassThru
-          
-          # Give OBS a moment to start and create the log file
-          Start-Sleep -Seconds 3
-          
-          # Find the actual OBS log file (most recent .txt file in logs directory)
-          if (-not (Test-Path $logFile)) {
-            $logFile = Get-ChildItem -Path $obsLogs -Filter "*.txt" | Sort-Object LastWriteTime -Descending | Select-Object -First 1 | ForEach-Object { $_.FullName }
-            if ($logFile) {
+
+          # Wait for OBS to create its log file (OBS generates the filename with its own timestamp)
+          Write-Output "Waiting for OBS to create log file..."
+          $logFile = $null
+          $logWaitTimeout = 10
+          for ($i = 0; $i -lt $logWaitTimeout; $i++) {
+            Start-Sleep -Seconds 1
+            $logFiles = Get-ChildItem -Path $obsLogs -Filter "*.txt" -ErrorAction SilentlyContinue | 
+                        Where-Object { $_.LastWriteTime -gt (Get-Date).AddSeconds(-15) } |
+                        Sort-Object LastWriteTime -Descending
+            if ($logFiles) {
+              $logFile = $logFiles[0].FullName
               Write-Output "Found OBS log: $logFile"
-            } else {
-              Write-Error "No OBS log file found!"
-              Stop-Process -Id $obsProcess.Id -Force -ErrorAction SilentlyContinue
-              exit 1
+              break
             }
           }
           
-          # Monitor log file for c64stream plugin loading
-          Write-Output "Monitoring for c64stream plugin loading..."
-          Write-Output "=== OBS Log (Live) ==="
-          
-          $timeout = 30
-          $elapsed = 0
-          $pluginLoaded = $false
+          if (-not $logFile) {
+            Write-Error "OBS did not create a log file within ${logWaitTimeout}s!"
+            Write-Output "Log directory contents:"
+            Get-ChildItem -Path $obsLogs -ErrorAction SilentlyContinue | Format-Table Name, LastWriteTime
+            Stop-Process -Id $obsProcess.Id -Force -ErrorAction SilentlyContinue
+            exit 1
           $lastLogSize = 0
-          
+
           while ($elapsed -lt $timeout) {
             Start-Sleep -Seconds 1
             $elapsed++
-            
+
             if (Test-Path $logFile) {
               # Print new log content as it arrives
               $fileInfo = Get-Item $logFile
@@ -135,11 +131,11 @@ jobs:
                   $newLines = $newContent.Substring($lastLogSize)
                   Write-Output $newLines
                   $lastLogSize = $fileInfo.Length
-                  
+
                   # Check if c64stream plugin loaded successfully (no errors/warnings)
                   if ($newContent -match "c64stream") {
                     Write-Output "[Monitor] c64stream detected at ${elapsed}s"
-                    
+
                     # Check for errors or warnings related to c64stream
                     if ($newContent -match "error.*c64stream|warning.*c64stream|failed.*c64stream|c64stream.*failed") {
                       Write-Output "[Monitor] Detected errors/warnings with c64stream, continuing..."
@@ -154,20 +150,20 @@ jobs:
                 }
               }
             }
-            
+
             if ($elapsed % 5 -eq 0) {
               Write-Output "[Monitor] Still monitoring... ${elapsed}s elapsed"
             }
           }
-          
+
           Write-Output "=== End OBS Log (Live) ==="
-          
+
           if ($pluginLoaded) {
             Write-Output "✓ Plugin loaded successfully, terminating OBS after ${elapsed}s"
           } else {
             Write-Output "⏱ Timeout reached (${elapsed}s), terminating OBS"
           }
-          
+
           Stop-Process -Id $obsProcess.Id -Force -ErrorAction SilentlyContinue
           Start-Sleep -Seconds 2
           Start-Sleep -Seconds 2
@@ -177,7 +173,7 @@ jobs:
           if (Test-Path $logFile) {
             $logContent = Get-Content $logFile -Raw
           }
-          
+
           if (-not $logContent) {
             Write-Error "No log content captured!"
             exit 1
