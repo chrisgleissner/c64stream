@@ -621,6 +621,188 @@ jobs:
           name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-windows-arm64-${{ needs.check-event.outputs.commitHash }}
           path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-windows-arm64*.*
 
+  windows-x64-smoke-test:
+    name: Windows x64 Smoke Test 💨
+    runs-on: windows-2022
+    needs: [check-event, windows-build]
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Download Plugin Artifact 📥
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '*-windows-x64-*'
+          path: artifacts
+
+      - name: Extract Plugin 📦
+        run: |
+          $artifact = Get-ChildItem -Path artifacts -Filter "*.zip" -Recurse | Select-Object -First 1
+          Expand-Archive -Path $artifact.FullName -DestinationPath plugin -Force
+          
+      - name: Install OBS Studio 🎥
+        run: |
+          # Download OBS Studio x64 installer
+          $obsVersion = "31.1.1"
+          $obsUrl = "https://github.com/obsproject/obs-studio/releases/download/${obsVersion}/OBS-Studio-${obsVersion}-Windows-Installer.exe"
+          Invoke-WebRequest -Uri $obsUrl -OutFile obs-installer.exe
+          
+          # Install OBS silently
+          Start-Process -FilePath obs-installer.exe -ArgumentList "/S" -Wait
+          
+          # Wait for installation to complete
+          Start-Sleep -Seconds 10
+
+      - name: Install Plugin 🔌
+        run: |
+          $obsPluginPath = "${env:ProgramFiles}\obs-studio\obs-plugins\64bit"
+          $obsDataPath = "${env:ProgramFiles}\obs-studio\data\obs-plugins"
+          
+          # Create directories if they don't exist
+          New-Item -ItemType Directory -Force -Path $obsPluginPath
+          New-Item -ItemType Directory -Force -Path $obsDataPath
+          
+          # Copy plugin DLL
+          Copy-Item -Path "plugin\c64stream\bin\64bit\c64stream.dll" -Destination $obsPluginPath -Force
+          
+          # Copy data directory
+          if (Test-Path "plugin\c64stream\data") {
+            Copy-Item -Path "plugin\c64stream\data" -Destination "${obsDataPath}\c64stream" -Recurse -Force
+          }
+
+      - name: Test Plugin Load 🧪
+        run: |
+          # Launch OBS with verbose logging
+          $obsPath = "${env:ProgramFiles}\obs-studio\bin\64bit\obs64.exe"
+          $logFile = Join-Path $env:TEMP "obs-smoke-test.log"
+          
+          # Start OBS in background, capture output
+          $process = Start-Process -FilePath $obsPath -ArgumentList "--verbose", "--portable", "--minimize-to-tray" -PassThru -RedirectStandardOutput $logFile -RedirectStandardError "${logFile}.err"
+          
+          # Wait for OBS to start
+          Start-Sleep -Seconds 8
+          
+          # Terminate OBS
+          Stop-Process -Id $process.Id -Force
+          Start-Sleep -Seconds 2
+          
+          # Read and display log
+          if (Test-Path $logFile) {
+            $logContent = Get-Content $logFile -Raw
+            Write-Output "=== OBS Log ==="
+            Write-Output $logContent
+            
+            # Check for plugin load
+            if ($logContent -match "c64stream") {
+              Write-Output "✅ Plugin referenced in logs"
+            } else {
+              Write-Error "❌ Plugin not found in logs"
+              exit 1
+            }
+            
+            # Check for critical errors
+            if ($logContent -match "error.*c64stream" -or $logContent -match "failed.*c64stream") {
+              Write-Error "❌ Plugin errors detected in logs"
+              exit 1
+            }
+            
+            Write-Output "✅ Smoke test PASSED - No errors detected"
+          } else {
+            Write-Error "❌ Log file not created"
+            exit 1
+          }
+
+  windows-arm64-smoke-test:
+    name: Windows ARM64 Smoke Test 💨
+    runs-on: windows-11-arm
+    needs: [check-event, windows-arm64-build]
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Download Plugin Artifact 📥
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '*-windows-arm64-*'
+          path: artifacts
+
+      - name: Extract Plugin 📦
+        run: |
+          $artifact = Get-ChildItem -Path artifacts -Filter "*.zip" -Recurse | Select-Object -First 1
+          Expand-Archive -Path $artifact.FullName -DestinationPath plugin -Force
+          
+      - name: Install OBS Studio ARM64 🎥
+        run: |
+          # Download OBS Studio ARM64 installer
+          $obsVersion = "31.1.1"
+          $obsUrl = "https://github.com/obsproject/obs-studio/releases/download/${obsVersion}/OBS-Studio-${obsVersion}-Windows-ARM64-Installer.exe"
+          Invoke-WebRequest -Uri $obsUrl -OutFile obs-installer.exe
+          
+          # Install OBS silently
+          Start-Process -FilePath obs-installer.exe -ArgumentList "/S" -Wait
+          
+          # Wait for installation to complete
+          Start-Sleep -Seconds 10
+
+      - name: Install Plugin 🔌
+        run: |
+          $obsPluginPath = "${env:ProgramFiles}\obs-studio\obs-plugins\64bit"
+          $obsDataPath = "${env:ProgramFiles}\obs-studio\data\obs-plugins"
+          
+          # Create directories if they don't exist
+          New-Item -ItemType Directory -Force -Path $obsPluginPath
+          New-Item -ItemType Directory -Force -Path $obsDataPath
+          
+          # Copy plugin DLL
+          Copy-Item -Path "plugin\c64stream\bin\64bit\c64stream.dll" -Destination $obsPluginPath -Force
+          
+          # Copy data directory
+          if (Test-Path "plugin\c64stream\data") {
+            Copy-Item -Path "plugin\c64stream\data" -Destination "${obsDataPath}\c64stream" -Recurse -Force
+          }
+
+      - name: Test Plugin Load 🧪
+        run: |
+          # Launch OBS with verbose logging
+          $obsPath = "${env:ProgramFiles}\obs-studio\bin\64bit\obs64.exe"
+          $logFile = Join-Path $env:TEMP "obs-smoke-test.log"
+          
+          # Start OBS in background, capture output
+          $process = Start-Process -FilePath $obsPath -ArgumentList "--verbose", "--portable", "--minimize-to-tray" -PassThru -RedirectStandardOutput $logFile -RedirectStandardError "${logFile}.err"
+          
+          # Wait for OBS to start
+          Start-Sleep -Seconds 8
+          
+          # Terminate OBS
+          Stop-Process -Id $process.Id -Force
+          Start-Sleep -Seconds 2
+          
+          # Read and display log
+          if (Test-Path $logFile) {
+            $logContent = Get-Content $logFile -Raw
+            Write-Output "=== OBS Log ==="
+            Write-Output $logContent
+            
+            # Check for plugin load
+            if ($logContent -match "c64stream") {
+              Write-Output "✅ Plugin referenced in logs"
+            } else {
+              Write-Error "❌ Plugin not found in logs"
+              exit 1
+            }
+            
+            # Check for critical errors
+            if ($logContent -match "error.*c64stream" -or $logContent -match "failed.*c64stream") {
+              Write-Error "❌ Plugin errors detected in logs"
+              exit 1
+            }
+            
+            Write-Output "✅ Smoke test PASSED - No errors detected"
+          } else {
+            Write-Error "❌ Log file not created"
+            exit 1
+          }
+
 
   # E2E Basic Test (Multi-Distro) - runs basic E2E scenario on all Linux distributions
   e2e-basic:
