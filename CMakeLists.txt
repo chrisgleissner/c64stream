@@ -139,6 +139,7 @@ target_sources(
     src/c64-network.c
     src/c64-network-buffer.c
     src/c64-protocol.c
+    src/c64-av-sync.c
     src/c64-video.c
     src/c64-color.c
     src/c64-audio.c

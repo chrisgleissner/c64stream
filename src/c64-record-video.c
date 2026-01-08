@@ -279,7 +279,7 @@ void c64_video_record_frame(struct c64_source *context, uint32_t *frame_buffer)
             c64_video_update_avi_header(context->video_file, (uint32_t)new_frame_count, 0);
 
             // Log video recording timing information to CSV (frame_num = 0 for recording events)
-            c64_obs_log_video_event(context, 0, frame_size);
+            c64_obs_log_video_event(context, 0, frame_size, false);
         } else {
             C64_LOG_WARNING("" RECORD_LOG_PREFIX " Failed to write video frame to recording");
         }

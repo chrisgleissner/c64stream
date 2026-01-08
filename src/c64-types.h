@@ -34,6 +34,7 @@ struct frame_assembly {
     uint16_t expected_packets;
     bool complete;                  // Frame completion flag
     uint64_t start_time;            // When frame assembly started
+    uint64_t last_packet_time;      // When last packet arrived (for A/V sync)
     uint64_t packets_received_mask; // Bitmask of received packets (for 64 packets max)
 };
 
@@ -176,9 +177,31 @@ struct c64_source {
     char session_folder[800]; // Current session folder path
     uint64_t recording_start_time;
     uint64_t csv_timing_base_ns; // Shared nanosecond timestamp when first CSV entry is written (network or OBS)
+    bool csv_debug_enabled;      // Snapshot of debug state for CSV headers/rows
     volatile long recorded_frames;
     volatile long recorded_audio_samples;
     pthread_mutex_t recording_mutex;
+
+    // Debug-only A/V pop detection (edge-based)
+    bool av_sync_last_video_all_white;
+    bool av_sync_last_audio_has_signal;
+    uint64_t av_sync_last_video_pop_ts;
+    uint64_t av_sync_last_audio_pop_ts;
+    uint64_t av_sync_last_audio_pop_detection_ts; // Debounce: last audio pop detection time
+    uint64_t av_sync_last_video_pop_detection_ts; // Debounce: last video pop detection time
+    uint32_t av_sync_video_pop_count;
+    uint32_t av_sync_audio_pop_count;
+
+#define C64_AV_SYNC_EVENT_QUEUE_SIZE 8
+    struct c64_av_sync_event {
+        uint64_t ts;
+        uint32_t seq;
+        uint16_t frame_num;
+        bool used;
+    } av_sync_audio_events[C64_AV_SYNC_EVENT_QUEUE_SIZE], av_sync_video_events[C64_AV_SYNC_EVENT_QUEUE_SIZE];
+    size_t av_sync_audio_events_count;
+    size_t av_sync_video_events_count;
+    pthread_mutex_t av_sync_mutex;
 
     // Pre-allocated recording buffers (eliminates malloc/free in hot paths)
     uint8_t *bmp_row_buffer;      // Pre-allocated BMP row buffer for frame saving

@@ -13,6 +13,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-logging.h"
 #include "c64-audio.h"
 #include "c64-types.h"
+#include "c64-av-sync.h"
 #include "c64-protocol.h"
 #include "c64-video.h"
 #include "c64-record.h"
@@ -251,9 +252,26 @@ void c64_process_audio_packet(struct c64_source *context, const uint8_t *audio_d
     // Send audio to OBS for playback
     obs_source_output_audio(context->source, &audio_output);
 
+    bool has_signal = false;
+    if (c64_debug_logging || context->csv_debug_enabled) {
+        const int16_t *samples_i16 = (const int16_t *)samples;
+        const size_t sample_count = samples_size / sizeof(int16_t);
+        for (size_t i = 0; i < sample_count; i++) {
+            if (samples_i16[i] != 0) {
+                has_signal = true;
+                break;
+            }
+        }
+
+        if (!context->av_sync_last_audio_has_signal && has_signal) {
+            c64_av_sync_on_audio_pop(context, audio_timestamp);
+        }
+        context->av_sync_last_audio_has_signal = has_signal;
+    }
+
     // Log audio delivery to CSV if enabled (high-level event: audio samples delivered to OBS)
     if (context->timing_file) {
-        c64_obs_log_audio_event(context, samples_size);
+        c64_obs_log_audio_event(context, samples_size, context->csv_debug_enabled ? has_signal : false);
     }
 
     // Very rare spot checks for audio timestamp debugging (every 10 minutes)

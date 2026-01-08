@@ -51,6 +51,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-protocol.h"
 #include "c64-record.h"
 #include "c64-source.h"
+#include "c64-av-sync.h"
 
 #ifdef _WIN32
 #include <timeapi.h>
@@ -625,6 +626,7 @@ void c64_init_frame_assembly(struct frame_assembly *frame, uint16_t frame_num)
     memset(frame, 0, sizeof(struct frame_assembly));
     frame->frame_num = frame_num;
     frame->start_time = os_gettime_ns();
+    frame->last_packet_time = 0;
     frame->received_packets = 0;
     frame->expected_packets = 0;
     frame->complete = false;
@@ -678,6 +680,33 @@ bool c64_is_frame_timeout(struct frame_assembly *frame)
     return elapsed > C64_FRAME_TIMEOUT_MS;
 }
 
+static bool c64_debug_frame_is_all_white(const uint32_t *pixels, size_t pixel_count)
+{
+    if (!pixels || pixel_count == 0) {
+        return false;
+    }
+
+    // Full-frame pop detection: treat as white if >80% pixels have RGB >= 0xE0.
+    // Use sampling to keep cost down for 1080p frames.
+    const size_t stride = (pixel_count > 200000) ? 8 : 1;
+    size_t white_count = 0;
+    size_t sampled = 0;
+
+    for (size_t i = 0; i < pixel_count; i += stride) {
+        const uint32_t rgb = pixels[i] & 0x00FFFFFF;
+        const uint8_t r = (rgb >> 16) & 0xFF;
+        const uint8_t g = (rgb >> 8) & 0xFF;
+        const uint8_t b = (rgb >> 0) & 0xFF;
+        if (r >= 0xE0 && g >= 0xE0 && b >= 0xE0) {
+            white_count++;
+        }
+        sampled++;
+    }
+
+    const size_t threshold = (size_t)(sampled * 0.8);
+    return white_count > threshold;
+}
+
 // Direct frame rendering with row interpolation for missing packets
 void c64_render_frame_direct(struct c64_source *context, struct frame_assembly *frame, uint64_t timestamp_ns)
 {
@@ -704,6 +733,21 @@ void c64_render_frame_direct(struct c64_source *context, struct frame_assembly *
     const size_t pixel_count = (size_t)context->width * (size_t)context->height;
     const uint32_t *out_pixels = c64_get_afterglow_output_pixels(context, context->frame_buffer, pixel_count);
 
+    bool is_all_white = false;
+    if (context->csv_debug_enabled || c64_debug_logging) {
+        is_all_white = c64_debug_frame_is_all_white(out_pixels, pixel_count);
+
+        if (c64_debug_logging) {
+            const bool was_all_white = context->av_sync_last_video_all_white;
+            if (!was_all_white && is_all_white) {
+                const uint64_t pop_ts = (frame->last_packet_time != 0) ? frame->last_packet_time : timestamp_ns;
+                c64_av_sync_on_video_pop(context, frame->frame_num, pop_ts);
+            }
+        }
+
+        context->av_sync_last_video_all_white = is_all_white;
+    }
+
     // Direct async video output - optimized for low latency
     // This ensures the source always shows video regardless of CRT effects
     struct obs_source_frame obs_frame = {0};
@@ -723,7 +767,7 @@ void c64_render_frame_direct(struct c64_source *context, struct frame_assembly *
     // Log video frame delivery to CSV if enabled (high-level event: complete frame delivered to OBS)
     if (context->timing_file) {
         size_t frame_size = context->width * context->height * 4; // RGBA bytes
-        c64_obs_log_video_event(context, frame->frame_num, frame_size);
+        c64_obs_log_video_event(context, frame->frame_num, frame_size, is_all_white);
     }
 
     // Update timing and status
@@ -1316,6 +1360,7 @@ void c64_process_video_packet_direct(struct c64_source *context, const uint8_t *
                 fp->received = true;
                 memcpy(fp->packet_data, payload_ptr, C64_VIDEO_PACKET_SIZE - C64_VIDEO_HEADER_SIZE);
                 context->current_frame.received_packets++;
+                context->current_frame.last_packet_time = timestamp_ns;
             }
         } else {
             C64_LOG_WARNING("" VIDEO_LOG_PREFIX

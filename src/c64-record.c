@@ -81,6 +81,7 @@ void c64_stop_csv_recording(struct c64_source *context)
         fclose(context->timing_file);
         context->timing_file = NULL;
         context->csv_timing_base_ns = 0; // Reset timing base for next recording session
+        context->csv_debug_enabled = false;
         C64_LOG_INFO("" RECORD_LOG_PREFIX " CSV timing recording stopped");
     }
 }
@@ -94,6 +95,7 @@ void c64_stop_network_recording(struct c64_source *context)
     if (context->network_file) {
         fclose(context->network_file);
         context->network_file = NULL;
+        context->csv_debug_enabled = false;
         C64_LOG_INFO("" RECORD_LOG_PREFIX " Network packet recording stopped");
     }
 }
@@ -108,6 +110,7 @@ void c64_session_cleanup_if_needed(struct c64_source *context)
         // Stop all recording when session ends
         c64_stop_csv_recording(context);
         c64_stop_network_recording(context);
+        context->csv_debug_enabled = false;
         context->session_folder[0] = '\0';
         C64_LOG_INFO("" RECORD_LOG_PREFIX " Recording session ended");
     }
@@ -156,6 +159,9 @@ void c64_start_csv_recording(struct c64_source *context)
         return; // Already recording CSV
     }
 
+    // Snapshot debug state for this recording session so headers/rows stay consistent.
+    context->csv_debug_enabled = c64_debug_logging;
+
     // Ensure we have a recording session
     C64_LOG_INFO("" RECORD_LOG_PREFIX " Creating CSV recording session...");
     c64_session_ensure_exists(context);
@@ -189,6 +195,9 @@ void c64_start_network_recording(struct c64_source *context)
     if (context->network_file) {
         return; // Already recording network packets
     }
+
+    // Snapshot debug state for this recording session so headers/rows stay consistent.
+    context->csv_debug_enabled = c64_debug_logging;
 
     // Ensure we have a recording session
     C64_LOG_DEBUG("" RECORD_LOG_PREFIX " Creating network recording session...");

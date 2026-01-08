@@ -28,6 +28,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-palette.h"
 #include "plugin-support.h"
 #include "c64-effect.h"
+#include "c64-av-sync.h"
 
 // Forward declarations
 static void close_and_reset_sockets(struct c64_source *context);
@@ -284,6 +285,8 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     }
 
     context->source = source;
+
+    c64_av_sync_init(context);
 
     // Initialize configuration from settings
     const char *host = obs_data_get_string(settings, "c64_host");
@@ -583,6 +586,8 @@ void c64_destroy(void *data)
         return;
 
     C64_LOG_INFO("Destroying C64 Stream source");
+
+    c64_av_sync_cleanup(context);
 
     // Stop any background retry thread.
     if (os_atomic_load_long(&context->retry_thread_active)) {
