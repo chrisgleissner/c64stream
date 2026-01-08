@@ -85,8 +85,12 @@ jobs:
           # Launch OBS with verbose logging
           $obsPath = "${env:ProgramFiles}\obs-studio\bin\64bit\obs64.exe"
           $logFile = Join-Path $env:TEMP "obs-smoke-test.log"
+          
+          # Create OBS config directory to avoid sentinel file errors
+          $obsConfig = Join-Path $env:APPDATA "obs-studio"
+          New-Item -ItemType Directory -Force -Path $obsConfig | Out-Null
 
-          # Start OBS in background (no portable mode), capture output
+          # Start OBS in background, capture output
           $process = Start-Process -FilePath $obsPath -ArgumentList "--verbose", "--minimize-to-tray", "--disable-shutdown-check" -PassThru -RedirectStandardOutput $logFile -RedirectStandardError "${logFile}.err"
 
           # Wait for OBS to start and load plugins
