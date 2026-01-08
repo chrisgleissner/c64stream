@@ -6,3 +6,4 @@ csv_max_rows: 6000
 assertions:
   - av_pop_offset
   - av_sync_log_validation
+  - debug_log_presence
