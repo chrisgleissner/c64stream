@@ -6,4 +6,4 @@ csv_max_rows: 6000
 overrides:
   debug_logging: true
 assertions:
-  - av_pop_delta
+  - av_pop_offset

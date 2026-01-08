@@ -14,7 +14,7 @@ from .afterglow import AfterglowAssertion
 from .afterglow_decay import AfterglowDecayAssertion
 from .afterglow_width import AfterglowWidthAssertion
 from .audio import AudioAssertion
-from .av_pop_delta import AvPopDeltaAssertion
+from .av_pop_offset import AvPopOffsetAssertion
 from .base import AssertionResult, AssertionStatus, EffectAssertion
 from .config import PresetConfig
 from .frame_progression import FrameProgressionAssertion
@@ -126,7 +126,7 @@ def create_assertions_from_list(
     assertion_map = {
         "video_quality": VideoQualityAssertion,
         "audio": AudioAssertion,
-        "av_pop_delta": AvPopDeltaAssertion,
+        "av_pop_offset": AvPopOffsetAssertion,
         "tint": TintAssertion,
         "palette_stability": PaletteStabilityAssertion,
         "palette_mapping": PaletteMappingAssertion,

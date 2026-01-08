@@ -245,9 +245,14 @@ def is_sync_marker_active(frame_num, format_name, total_frames=None, disable_pop
 
 
 def is_full_frame_pop_active(frame_num, format_name, total_frames=None):
-    """Return True if this frame should use full-frame pop (black/white) pattern."""
-    frame_rate, frame_duration_ms, pop_interval, pop_duration, _ = get_sync_timing_info(format_name)
-    pop_offset = 0
+    """Return True if this frame should use full-frame pop (black/white) pattern.
+
+    Uses same timing as normal pops for consistency:
+    - First pop at frame 48 (matches POP_FRAME_OFFSET)
+    - Pop interval: 48 frames
+    - Pop duration: 2 frames
+    """
+    frame_rate, frame_duration_ms, pop_interval, pop_duration, pop_offset = get_sync_timing_info(format_name)
 
     if frame_num < pop_offset:
         return False

@@ -13,7 +13,7 @@ from .afterglow import AfterglowAssertion
 from .afterglow_decay import AfterglowDecayAssertion
 from .afterglow_width import AfterglowWidthAssertion
 from .audio import AudioAssertion
-from .av_pop_delta import AvPopDeltaAssertion
+from .av_pop_offset import AvPopOffsetAssertion
 from .base import AssertionResult, AssertionStatus, EffectAssertion
 from .config import (
     PresetConfig,
@@ -52,7 +52,7 @@ __all__ = [
     # Assertions
     "VideoQualityAssertion",
     "AudioAssertion",
-    "AvPopDeltaAssertion",
+    "AvPopOffsetAssertion",
     "TintAssertion",
     "PaletteMappingAssertion",
     "PaletteStabilityAssertion",
