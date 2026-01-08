@@ -54,6 +54,9 @@ add_compile_definitions(
   _CRT_NONSTDC_NO_WARNINGS
   $<$<CONFIG:DEBUG>:DEBUG>
   $<$<CONFIG:DEBUG>:_DEBUG>
+  # Workaround for SIMDE SSE emulation on ARM64 with MSVC
+  # SIMDE tries to use C11 atomics which have incomplete support in MSVC ARM64
+  $<$<STREQUAL:${CMAKE_VS_PLATFORM_NAME},ARM64>:SIMDE_NO_NATIVE>
 )
 
 add_link_options(
