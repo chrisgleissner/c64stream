@@ -77,7 +77,7 @@ class AvSyncLogValidationAssertion(EffectAssertion):
             # 1. AV SYNC logs exist (plugin is logging properly)
             # 2. Pop numbers are reasonable (sequential, no huge gaps)
             # 3. Multiple detections of the same pop are consistent
-            
+
             validation_errors = []
             seen_pops = {}  # Track (video_pop, audio_pop) pairs
 
@@ -87,13 +87,13 @@ class AvSyncLogValidationAssertion(EffectAssertion):
                 log_offset_ms = log_entry["offset_ms"]
 
                 pop_pair = (video_pop_num, audio_pop_num)
-                
+
                 if pop_pair in seen_pops:
                     # Same pop pair logged multiple times (from both video and audio handlers)
                     # Verify the offsets are consistent
                     prev_offset = seen_pops[pop_pair]
                     offset_diff = abs(log_offset_ms - prev_offset)
-                    
+
                     # Both handlers should report the same offset (they use same timestamps)
                     if offset_diff > 1.0:  # Allow 1ms rounding difference
                         validation_errors.append(
@@ -184,7 +184,7 @@ class AvSyncLogValidationAssertion(EffectAssertion):
                 # elapsed_us is column 2 (0-indexed)
                 elapsed_us = float(parts[2])
                 time_ms = elapsed_us / 1000.0
-                
+
                 # is_all_white is column 9 (0-indexed), has_signal is column 10
                 is_white = parts[9] == '1'
 
@@ -221,7 +221,7 @@ class AvSyncLogValidationAssertion(EffectAssertion):
                 # elapsed_us is column 1 (0-indexed)
                 elapsed_us = float(parts[1])
                 time_ms = elapsed_us / 1000.0
-                
+
                 # has_signal is the last column (column 14, 0-indexed)
                 has_signal = parts[14] == '1'
 

@@ -770,9 +770,10 @@ def generate_audio_packet(audio_packet_num, sample_rate, total_frames, format_na
     frame_rate, frame_duration_ms, pop_interval, pop_duration, pop_offset = get_sync_timing_info(format_name)
 
     # Convert audio time to frame number to align with video pop timing
-    # Use int() to assign audio packet to the frame it starts in
-    # This ensures audio/video pops are synchronized at frame boundaries
-    current_frame = int(time_in_test_ms / frame_duration_ms)
+    # Use the MID-point of the audio packet for frame assignment
+    # This ensures audio packets are assigned to the frame they overlap with most
+    packet_midpoint_ms = time_in_test_ms + (packet_duration_ms / 2.0)
+    current_frame = int(packet_midpoint_ms / frame_duration_ms)
 
     # Check if we're in a sync pop period using the same frame-based logic as video
     if current_frame < pop_offset:
