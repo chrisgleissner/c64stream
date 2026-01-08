@@ -189,6 +189,8 @@ struct c64_source {
     uint64_t av_sync_audio_signal_start_ts; // Timestamp when audio signal started (for duration check)
     uint64_t av_sync_last_video_pop_ts;
     uint64_t av_sync_last_audio_pop_ts;
+    uint64_t av_sync_last_audio_pop_detection_ts; // Debounce: last audio pop detection time
+    uint64_t av_sync_last_video_pop_detection_ts; // Debounce: last video pop detection time
     uint32_t av_sync_video_pop_count;
     uint32_t av_sync_audio_pop_count;
 

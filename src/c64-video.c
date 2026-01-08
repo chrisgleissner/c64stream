@@ -715,6 +715,19 @@ static void c64_debug_handle_video_pop(struct c64_source *context, uint16_t fram
     bool was_all_white = context->av_sync_last_video_all_white;
 
     if (!was_all_white && is_all_white) {
+        // Debounce: ignore video pops within 100ms of previous video pop (same-type debounce)
+        const uint64_t debounce_ns = 100000000; // 100ms in nanoseconds
+        if (context->av_sync_last_video_pop_detection_ts != 0) {
+            uint64_t time_since_last_ns = timestamp_ns - context->av_sync_last_video_pop_detection_ts;
+            if (time_since_last_ns < debounce_ns) {
+                double time_since_ms = (double)time_since_last_ns / 1000000.0;
+                C64_LOG_DEBUG(VIDEO_LOG_PREFIX " Video pop DEBOUNCED: %.1fms since last (< 100ms threshold)",
+                              time_since_ms);
+                return;
+            }
+        }
+        context->av_sync_last_video_pop_detection_ts = timestamp_ns;
+
         context->av_sync_video_pop_count++;
         context->av_sync_last_video_pop_ts = timestamp_ns;
 

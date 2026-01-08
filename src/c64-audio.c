@@ -204,6 +204,20 @@ static void c64_debug_handle_audio_pop(struct c64_source *context, uint64_t time
             return;
         }
 
+        // Debounce: ignore audio pops within 100ms of previous audio pop (same-type debounce)
+        const uint64_t debounce_ns = 100000000; // 100ms in nanoseconds
+        if (context->av_sync_last_audio_pop_detection_ts != 0) {
+            uint64_t time_since_last_ns =
+                context->av_sync_audio_signal_start_ts - context->av_sync_last_audio_pop_detection_ts;
+            if (time_since_last_ns < debounce_ns) {
+                double time_since_ms = (double)time_since_last_ns / 1000000.0;
+                C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " Audio pop DEBOUNCED: %.1fms since last (< 100ms threshold)",
+                              time_since_ms);
+                return;
+            }
+        }
+        context->av_sync_last_audio_pop_detection_ts = context->av_sync_audio_signal_start_ts;
+
         context->av_sync_audio_pop_count++;
         context->av_sync_last_audio_pop_ts = context->av_sync_audio_signal_start_ts; // Use rising edge timestamp
 
