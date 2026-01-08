@@ -1,0 +1,5 @@
+timestamp_ms,cpu_percent,ram_percent,ram_mb,proc_cpu_harness,proc_cpu_obs,gpu_percent,gpu_mem_percent,gpu_mem_mb
+0,57.30,17.80,4516.80,0.00,0.00,0.00,,
+603,67.00,17.80,4520.93,0.00,50.38,0.00,,
+1105,60.00,17.80,4524.25,0.25,51.90,0.58,,
+1606,61.50,17.90,4534.96,0.00,51.89,28.02,,

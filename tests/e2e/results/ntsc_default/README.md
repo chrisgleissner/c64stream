@@ -2,13 +2,13 @@
 
 ## Scenario: NTSC Default
 
-Generated: 2026-01-02 16:51:09 UTC
+Generated: 2026-01-08 20:59:07 UTC
 
 ## Test configuration
 
 - Format: NTSC
-- Frames: 480
-- Duration: 8.0 seconds
+- Frames: 60
+- Duration: 1.0 seconds
 - Video Port: 21000
 - Audio Port: 21001
 - OBS Enabled: true
@@ -16,7 +16,7 @@ Generated: 2026-01-02 16:51:09 UTC
 ## Build information
 
 - Project: c64stream
-- Version: 1.0.0
+- Version: 1.0.2
 
 ## System information
 
@@ -30,88 +30,86 @@ Generated: 2026-01-02 16:51:09 UTC
 
 ### Validation Summary
 
-- ✅ UDP Packet Reception: 30803/30803 packets (28800 video, 2003 audio)
-- ✅ Network Timing: span=8023.3ms, video_mean=278.6us, audio_mean=4005.1us
-- ✅ Frame Processing: 2481 frames processed
-- ✅ Video Recording: 10.9 MB
-- ✅ Content Integrity: 22.0s duration
+- ⚠️ UDP Packet Reception: 80539/3850 packets (74840 video, 5356 audio, minor loss)
+- ⚠️ Network Timing: span=20964.3ms, video_mean=279.5us, audio_mean=3817.8us
+- ✅ Frame Processing: 6596 frames processed
+- ✅ Video Recording: 7.3 MB
+- ✅ Content Integrity: 14.7s duration
 
 ### Resource Usage
 
-During the test's processing window (7.6s, 16 of 49 samples) (8 cores):
+During the test's processing window (17.1s, 35 samples) (8 cores):
 
 | Metric | Min | Median | Mean | Max |
 |--------|-----|--------|------|-----|
-| CPU | 51.7% | 59.3% | 59.01% | 71.3% |
-| RAM | 4157.16 MB | 4185.04 MB | 4187.94 MB | 4213.22 MB |
-| GPU | 23.44% | 25.66% | 25.55% | 28.28% |
+| CPU | 47.6% | 50.3% | 53.05% | 79.2% |
+| RAM | 4104.53 MB | 4479.02 MB | 4386.85 MB | 4499.56 MB |
+| GPU | 0.0% | 0.51% | 3.29% | 31.84% |
 
 Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
 ### Packet & Network Data
 
-- ✅ Packet Generation: 28800 video, 2003 audio packets
+- ✅ Packet Generation: 3600 video, 250 audio packets
 - ✅ UDP Replay: Completed successfully
 - Events: [network.csv](network.csv), [obs.csv](obs.csv), [playback.csv](playback.csv)
 
 #### Network Quality (Measured)
 
-- Packet span (first→last): 8023.342 ms
-- Total packets analyzed: 30800
+- Packet span (first→last): 20964.295 ms
+- Total packets analyzed: 80235
 
 | Stream | Packets | Spacing (min) | Spacing (mean) | Spacing (max) | CV | Burst <0.5×P50 | Gaps >2×P50 | P99/P50 |
 |--------|---------|---------------|----------------|---------------|----|--------------|------------|--------|
-| All | 30800 | 0.001 ms | 0.521 ms | 8.675 ms | 209.16% | 0.29% | 33.48% | 1183.250 |
-| Video | 28798 | 0.001 ms | 0.279 ms | 4.463 ms | 198.12% | 0.31% | 28.86% | 596.500 |
-| Audio | 2002 | 0.006 ms | 4.005 ms | 8.675 ms | 23.53% | 1.45% | 0.05% | 1.521 |
+| All | 80235 | 0.001 ms | 0.516 ms | 29.930 ms | 216.24% | 10.95% | 31.81% | 901.400 |
+| Video | 74838 | 0.001 ms | 0.280 ms | 28.258 ms | 224.11% | 11.74% | 27.11% | 594.400 |
+| Audio | 5355 | 0.003 ms | 3.818 ms | 29.930 ms | 31.87% | 6.05% | 0.22% | 1.504 |
 
 | Stream | Packets | Jitter (median) | Jitter (max) | Out-of-Order |
 |--------|---------|-----------------|--------------|--------------|
-| Video | 28798 | 0.002 ms | 4.459 ms | 0 |
-| Audio | 2002 | 0.574 ms | 4.432 ms | 0 |
+| Video | 74838 | 0.002 ms | 28.253 ms | 2596 (3.5%) |
+| Audio | 5355 | 0.448 ms | 25.696 ms | 207 (3.9%) |
 
 Details: [network.json](network.json)
 
 ### A/V Sync
 
-- ✅ Good synchronization (100.0%): avg offset 10.5ms, max 13.3ms
+- ❌ Poor synchronization (0.0%): avg offset 0.0ms, max 0.0ms
 
 #### Sync Details
 
-- 🟢 Pop #1 [L]: audio=10945.0ms, video=10931.7ms (frame 654), diff=13.3ms
-- 🟢 Pop #2 [R]: audio=11746.0ms, video=11734.0ms (frame 702), diff=12.0ms
-- 🟢 Pop #3 [L]: audio=12548.0ms, video=12536.4ms (frame 750), diff=11.6ms
-- 🟢 Pop #4 [R]: audio=13350.0ms, video=13338.7ms (frame 798), diff=11.3ms
-- 🟢 Pop #5 [L]: audio=14152.0ms, video=14141.0ms (frame 846), diff=11.0ms
-- 🟢 Pop #6 [R]: audio=14953.0ms, video=14943.3ms (frame 894), diff=9.7ms
-- 🟢 Pop #7 [L]: audio=15756.0ms, video=15745.7ms (frame 942), diff=10.3ms
-- 🟢 Pop #8 [R]: audio=16556.0ms, video=16548.0ms (frame 990), diff=8.0ms
-- 🟢 Pop #9 [L]: audio=17358.0ms, video=17350.3ms (frame 1038), diff=7.7ms
 
-- Channels: LRLRLRLRL
-- 🔁 Channel alternation: OK (alternating, starts with L)
+- Channels: 
+- 🔁 Channel alternation: MISMATCH
 
 ### Frame Progression
 
-- 🟢 Frame sequence verified (478 frames analyzed, 0 colors)
+- 🟢 Frame sequence verified (59 frames analyzed, 0 colors)
 
 - Settling: 4.0s (pass/fail uses post-settling only)
 
 | Window | Stuck runs (count/min/med/max) | Skips (count/min/med/max) | Back steps | Severe steps |
 |--------|------------------------------:|--------------------------:|-----------:|-------------:|
-| During settling | 0/0/0/0 | 0/0/0/0 | 0 | 0 |
+| During settling | 0/0/0/0 | 4/1/2/5 | 1 | 0 |
 | After settling | 0/0/0/0 | 0/0/0/0 | 0 | 0 |
 
 See [playback.csv](playback.csv) for frame-by-frame playback timeline with anomaly markers.
 
 #### Playback Jitter Clusters (post-settling)
 
-- No post-settling repeated/skipped markers detected in playback timeline.
+- Definition: rows with repeated=1 or skipped=1 in playback.csv; clustering uses max gap 0.5s
+- Note: this is independent from the Frame Progression (frame-box) check above
+- Note: repeated/skipped markers only exist while content is detected (video_s 10.196–11.182).
+  The jitter-free tail after content ends is expected and does not indicate steady-state performance.
+
+| # | Events | Center (s) | Std dev (s) | Span (s) | Window (s) |
+|---|--------|------------|-------------|----------|------------|
+| 1 | 4 | 10.777 | 0.284 | 0.803 | 10.363–11.166 |
 
 ### Video
 
 - Download: [c64_recording.mp4](c64_recording.mp4) (Available from local runs or CI build artifacts.)
-- Duration: 22.0 s
+- Duration: 14.7 s
 
 
 ### Sample Frame
@@ -123,4 +121,4 @@ See [playback.csv](playback.csv) for frame-by-frame playback timeline with anoma
 - **Center**: Diagonal pattern cycling through all C64 colors
 - **Bottom-left**: Frame progression indicator (8-slot moving bar, cycles every 8 frames)
 - **Bottom-right**: A/V pop indicator (pops every 48 frames, split left/right for audio channels)
-- Taken from frame 654 at 00:10.9 of the 22.0 s video above.
+- Taken from frame 634 at 00:10.6 of the 14.7 s video above.
