@@ -250,24 +250,36 @@ static void c64_debug_handle_audio_pop(struct c64_source *context, uint64_t time
             localtime_r(&wall_clock_sec, &wall_clock_tm);
 #endif
 
-            // Log ALL audio pops (paired and unpaired) so user sees every single pop
-            if (pops_are_paired) {
-                // Paired pop: audio and video within 500ms - this is a real A/V sync measurement
-                C64_LOG_INFO("" AUDIO_LOG_PREFIX " AV SYNC: offset=%.1fms video=#%u audio=#%u "
-                             "detected=%04d-%02d-%02d_%02d:%02d:%02d.%03u video_ts=%" PRIu64 " audio_ts=%" PRIu64,
-                             delta_ms, context->av_sync_video_pop_count, context->av_sync_audio_pop_count,
-                             wall_clock_tm.tm_year + 1900, wall_clock_tm.tm_mon + 1, wall_clock_tm.tm_mday,
-                             wall_clock_tm.tm_hour, wall_clock_tm.tm_min, wall_clock_tm.tm_sec, wall_clock_ms,
-                             context->av_sync_last_video_pop_ts, timestamp_ns);
-            } else {
-                // Unpaired pop: audio too far from video (>500ms) - log so user sees every pop
-                C64_LOG_INFO("" AUDIO_LOG_PREFIX " AV SYNC: offset=%.1fms video=#%u audio=#%u unpaired "
-                             "detected=%04d-%02d-%02d_%02d:%02d:%02d.%03u video_ts=%" PRIu64 " audio_ts=%" PRIu64,
-                             delta_ms, context->av_sync_video_pop_count, context->av_sync_audio_pop_count,
-                             wall_clock_tm.tm_year + 1900, wall_clock_tm.tm_mon + 1, wall_clock_tm.tm_mday,
-                             wall_clock_tm.tm_hour, wall_clock_tm.tm_min, wall_clock_tm.tm_sec, wall_clock_ms,
-                             context->av_sync_last_video_pop_ts, timestamp_ns);
+            // Suppress audio-only logging if within pairing window - video pop will log the pairing
+            // Two cases where we should log from audio side:
+            // 1. Pops are paired (within 500ms threshold)
+            // 2. Audio pop counter is behind video counter AND offset >500ms (truly unpaired)
+            //
+            // Skip logging if: audio counter > video counter (audio arrived first, wait for matching video)
+            bool audio_ahead_of_video = context->av_sync_audio_pop_count > context->av_sync_video_pop_count;
+            bool should_log_from_audio = pops_are_paired ||
+                                         (!audio_ahead_of_video && fabs(delta_ms) > pairing_threshold_ms);
+
+            if (should_log_from_audio) {
+                if (pops_are_paired) {
+                    // Paired pop: audio and video within 500ms - this is a real A/V sync measurement
+                    C64_LOG_INFO("" AUDIO_LOG_PREFIX " AV SYNC: offset=%.1fms video=#%u audio=#%u "
+                                 "detected=%04d-%02d-%02d_%02d:%02d:%02d.%03u video_ts=%" PRIu64 " audio_ts=%" PRIu64,
+                                 delta_ms, context->av_sync_video_pop_count, context->av_sync_audio_pop_count,
+                                 wall_clock_tm.tm_year + 1900, wall_clock_tm.tm_mon + 1, wall_clock_tm.tm_mday,
+                                 wall_clock_tm.tm_hour, wall_clock_tm.tm_min, wall_clock_tm.tm_sec, wall_clock_ms,
+                                 context->av_sync_last_video_pop_ts, timestamp_ns);
+                } else {
+                    // Unpaired pop: audio too far from video (>500ms) - truly disjoint events
+                    C64_LOG_INFO("" AUDIO_LOG_PREFIX " AV SYNC: offset=%.1fms video=#%u audio=#%u unpaired "
+                                 "detected=%04d-%02d-%02d_%02d:%02d:%02d.%03u video_ts=%" PRIu64 " audio_ts=%" PRIu64,
+                                 delta_ms, context->av_sync_video_pop_count, context->av_sync_audio_pop_count,
+                                 wall_clock_tm.tm_year + 1900, wall_clock_tm.tm_mon + 1, wall_clock_tm.tm_mday,
+                                 wall_clock_tm.tm_hour, wall_clock_tm.tm_min, wall_clock_tm.tm_sec, wall_clock_ms,
+                                 context->av_sync_last_video_pop_ts, timestamp_ns);
+                }
             }
+            // else: Audio arrived before matching video pop - skip logging, let video side log the pairing
         } else {
             // No video pop detected yet - log audio-only pop at INFO level
             uint64_t wall_clock_ms_total = c64_get_millis();
@@ -389,7 +401,8 @@ void c64_process_audio_packet(struct c64_source *context, const uint8_t *audio_d
     bool has_signal = false;
     if (c64_debug_logging) {
         has_signal = c64_debug_audio_has_signal(samples, samples_size);
-        c64_debug_handle_audio_pop(context, audio_timestamp, has_signal);
+        // Use real packet timestamp for A/V sync pop detection (not synthetic timestamp)
+        c64_debug_handle_audio_pop(context, timestamp_ns, has_signal);
         context->av_sync_last_audio_has_signal = has_signal;
     }
 

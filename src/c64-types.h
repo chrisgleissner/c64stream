@@ -33,7 +33,8 @@ struct frame_assembly {
     uint16_t received_packets; // Number of packets received
     uint16_t expected_packets;
     bool complete;                  // Frame completion flag
-    uint64_t start_time;            // When frame assembly started
+    uint64_t start_time;            // When frame assembly started (first packet)
+    uint64_t last_packet_time;      // When last packet arrived (for A/V sync)
     uint64_t packets_received_mask; // Bitmask of received packets (for 64 packets max)
 };
 

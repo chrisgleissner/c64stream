@@ -744,20 +744,49 @@ static void c64_debug_handle_video_pop(struct c64_source *context, uint16_t fram
 
         if (context->av_sync_last_audio_pop_ts != 0) {
             int64_t delta_ns = (int64_t)context->av_sync_last_audio_pop_ts - (int64_t)timestamp_ns;
-            C64_LOG_DEBUG("" VIDEO_LOG_PREFIX " AV SYNC: offset=%.1fms video=#%u audio=#%u "
-                          "detected=%04d-%02d-%02d_%02d:%02d:%02d.%03u video_frame=%u video_ts=%" PRIu64
-                          " audio_ts=%" PRIu64,
-                          (double)delta_ns / 1000000.0, context->av_sync_video_pop_count,
-                          context->av_sync_audio_pop_count, wall_clock_tm.tm_year + 1900, wall_clock_tm.tm_mon + 1,
-                          wall_clock_tm.tm_mday, wall_clock_tm.tm_hour, wall_clock_tm.tm_min, wall_clock_tm.tm_sec,
-                          wall_clock_ms, frame_num, timestamp_ns, context->av_sync_last_audio_pop_ts);
+            double delta_ms = (double)delta_ns / 1000000.0;
+
+            // Smart pairing: check if pops are within 500ms window (same as audio side)
+            const double pairing_threshold_ms = 500.0;
+            bool pops_are_paired = (delta_ms >= 0 && delta_ms <= pairing_threshold_ms) ||
+                                   (delta_ms < 0 && delta_ms > -pairing_threshold_ms);
+
+            // Suppress video-side logging if video arrived before matching audio pop
+            // Two cases where we should log from video side:
+            // 1. Pops are paired (within 500ms threshold)
+            // 2. Video pop counter is behind audio counter AND offset >500ms (truly unpaired)
+            //
+            // Skip logging if: video counter > audio counter (video arrived first, wait for matching audio)
+            bool video_ahead_of_audio = context->av_sync_video_pop_count > context->av_sync_audio_pop_count;
+            bool should_log_from_video = pops_are_paired ||
+                                         (!video_ahead_of_audio && fabs(delta_ms) > pairing_threshold_ms);
+
+            if (should_log_from_video) {
+                if (pops_are_paired) {
+                    C64_LOG_INFO("" VIDEO_LOG_PREFIX " AV SYNC: offset=%.1fms video=#%u audio=#%u "
+                                 "detected=%04d-%02d-%02d_%02d:%02d:%02d.%03u video_frame=%u video_ts=%" PRIu64
+                                 " audio_ts=%" PRIu64,
+                                 delta_ms, context->av_sync_video_pop_count, context->av_sync_audio_pop_count,
+                                 wall_clock_tm.tm_year + 1900, wall_clock_tm.tm_mon + 1, wall_clock_tm.tm_mday,
+                                 wall_clock_tm.tm_hour, wall_clock_tm.tm_min, wall_clock_tm.tm_sec, wall_clock_ms,
+                                 frame_num, timestamp_ns, context->av_sync_last_audio_pop_ts);
+                } else {
+                    C64_LOG_INFO("" VIDEO_LOG_PREFIX " AV SYNC: offset=%.1fms video=#%u audio=#%u unpaired "
+                                 "detected=%04d-%02d-%02d_%02d:%02d:%02d.%03u video_frame=%u video_ts=%" PRIu64
+                                 " audio_ts=%" PRIu64,
+                                 delta_ms, context->av_sync_video_pop_count, context->av_sync_audio_pop_count,
+                                 wall_clock_tm.tm_year + 1900, wall_clock_tm.tm_mon + 1, wall_clock_tm.tm_mday,
+                                 wall_clock_tm.tm_hour, wall_clock_tm.tm_min, wall_clock_tm.tm_sec, wall_clock_ms,
+                                 frame_num, timestamp_ns, context->av_sync_last_audio_pop_ts);
+                }
+            }
+            // else: Video arrived before matching audio pop - skip logging, let audio side log the pairing
         } else {
-            C64_LOG_DEBUG("" VIDEO_LOG_PREFIX " AV SYNC: video=#%u audio=#%u "
-                          "detected=%04d-%02d-%02d_%02d:%02d:%02d.%03u video_frame=%u video_ts=%" PRIu64,
-                          context->av_sync_video_pop_count, context->av_sync_audio_pop_count,
-                          wall_clock_tm.tm_year + 1900, wall_clock_tm.tm_mon + 1, wall_clock_tm.tm_mday,
-                          wall_clock_tm.tm_hour, wall_clock_tm.tm_min, wall_clock_tm.tm_sec, wall_clock_ms, frame_num,
-                          timestamp_ns);
+            C64_LOG_INFO("" VIDEO_LOG_PREFIX " AV SYNC: video=#%u (no audio pop yet) "
+                         "detected=%04d-%02d-%02d_%02d:%02d:%02d.%03u video_frame=%u video_ts=%" PRIu64,
+                         context->av_sync_video_pop_count, wall_clock_tm.tm_year + 1900, wall_clock_tm.tm_mon + 1,
+                         wall_clock_tm.tm_mday, wall_clock_tm.tm_hour, wall_clock_tm.tm_min, wall_clock_tm.tm_sec,
+                         wall_clock_ms, frame_num, timestamp_ns);
         }
     }
 }
@@ -778,7 +807,8 @@ void c64_render_frame_direct(struct c64_source *context, struct frame_assembly *
     bool is_all_white = false;
     if (c64_debug_logging) {
         is_all_white = c64_debug_frame_is_all_white(context->frame_buffer, pixel_count);
-        c64_debug_handle_video_pop(context, frame->frame_num, monotonic_timestamp, is_all_white);
+        // Use last packet arrival time (most recent packet in frame) for A/V sync pop detection
+        c64_debug_handle_video_pop(context, frame->frame_num, frame->last_packet_time, is_all_white);
     }
     context->av_sync_last_video_all_white = is_all_white;
 
@@ -1407,6 +1437,8 @@ void c64_process_video_packet_direct(struct c64_source *context, const uint8_t *
                 fp->received = true;
                 memcpy(fp->packet_data, payload_ptr, C64_VIDEO_PACKET_SIZE - C64_VIDEO_HEADER_SIZE);
                 context->current_frame.received_packets++;
+                // Track last packet arrival time for A/V sync
+                context->current_frame.last_packet_time = timestamp_ns;
             }
         } else {
             C64_LOG_WARNING("" VIDEO_LOG_PREFIX
