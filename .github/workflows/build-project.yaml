@@ -628,7 +628,7 @@ jobs:
       arch: x64
       artifact-pattern: '*-windows-x64-*'
       runner: windows-2022
-      obs-version: '31.1.1'
+      obs-version: '32.0.4'
 
   windows-arm64-smoke-test:
     uses: ./.github/workflows/windows-smoke-test.yaml
@@ -637,7 +637,7 @@ jobs:
       arch: arm64
       artifact-pattern: '*-windows-arm64-*'
       runner: windows-11-arm
-      obs-version: '31.1.1'
+      obs-version: '32.0.4'
 
 
   # E2E Basic Test (Multi-Distro) - runs basic E2E scenario on all Linux distributions

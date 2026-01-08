@@ -43,7 +43,7 @@ jobs:
         run: |
           # Download OBS Studio installer
           $obsVersion = "${{ inputs.obs-version }}"
-          $archSuffix = if ("${{ inputs.arch }}" -eq "arm64") { "-ARM64" } else { "" }
+          $archSuffix = if ("${{ inputs.arch }}" -eq "arm64") { "-arm64" } else { "" }
           $obsUrl = "https://github.com/obsproject/obs-studio/releases/download/${obsVersion}/OBS-Studio-${obsVersion}-Windows${archSuffix}-Installer.exe"
           Invoke-WebRequest -Uri $obsUrl -OutFile obs-installer.exe
 
