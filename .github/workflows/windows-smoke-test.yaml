@@ -96,38 +96,52 @@ jobs:
           
           # Monitor log file for c64stream plugin loading
           Write-Output "Monitoring for c64stream plugin loading..."
+          Write-Output "=== OBS Log (Live) ==="
+          
           $timeout = 30
           $elapsed = 0
           $pluginLoaded = $false
+          $lastLogSize = 0
           
           while ($elapsed -lt $timeout) {
             Start-Sleep -Seconds 1
             $elapsed++
             
             if (Test-Path $logFile) {
-              $content = Get-Content $logFile -Raw -ErrorAction SilentlyContinue
-              
-              # Check if c64stream plugin loaded successfully (no errors/warnings)
-              if ($content -match "c64stream") {
-                Write-Output "c64stream detected in logs at ${elapsed}s"
-                
-                # Check for errors or warnings related to c64stream
-                if ($content -match "error.*c64stream|warning.*c64stream|failed.*c64stream|c64stream.*failed") {
-                  Write-Output "Detected errors/warnings with c64stream, continuing to monitor..."
-                } else {
-                  # Plugin mentioned without errors - likely loaded successfully
-                  Write-Output "c64stream appears to have loaded successfully"
-                  $pluginLoaded = $true
-                  Start-Sleep -Seconds 2  # Give it a moment to finish
-                  break
+              # Print new log content as it arrives
+              $fileInfo = Get-Item $logFile
+              if ($fileInfo.Length -gt $lastLogSize) {
+                $newContent = Get-Content $logFile -Raw -ErrorAction SilentlyContinue
+                if ($newContent) {
+                  $newLines = $newContent.Substring($lastLogSize)
+                  Write-Output $newLines
+                  $lastLogSize = $fileInfo.Length
+                  
+                  # Check if c64stream plugin loaded successfully (no errors/warnings)
+                  if ($newContent -match "c64stream") {
+                    Write-Output "[Monitor] c64stream detected at ${elapsed}s"
+                    
+                    # Check for errors or warnings related to c64stream
+                    if ($newContent -match "error.*c64stream|warning.*c64stream|failed.*c64stream|c64stream.*failed") {
+                      Write-Output "[Monitor] Detected errors/warnings with c64stream, continuing..."
+                    } else {
+                      # Plugin mentioned without errors - likely loaded successfully
+                      Write-Output "[Monitor] c64stream appears loaded successfully"
+                      $pluginLoaded = $true
+                      Start-Sleep -Seconds 2  # Give it a moment to finish
+                      break
+                    }
+                  }
                 }
               }
             }
             
             if ($elapsed % 5 -eq 0) {
-              Write-Output "Still monitoring... ${elapsed}s elapsed"
+              Write-Output "[Monitor] Still monitoring... ${elapsed}s elapsed"
             }
           }
+          
+          Write-Output "=== End OBS Log (Live) ==="
           
           if ($pluginLoaded) {
             Write-Output "✓ Plugin loaded successfully, terminating OBS after ${elapsed}s"
@@ -139,7 +153,7 @@ jobs:
           Start-Sleep -Seconds 2
           Start-Sleep -Seconds 2
 
-          # Read and combine log content
+          # Read final log content for assertions
           $logContent = ""
           if (Test-Path $logFile) {
             $logContent += Get-Content $logFile -Raw
@@ -153,9 +167,8 @@ jobs:
             exit 1
           }
 
-          Write-Output "=== OBS Log ==="
-          Write-Output $logContent
-          Write-Output "=== End OBS Log ==="
+          Write-Output ""
+          Write-Output "=== Running Assertions ==="
 
           # ASSERTION 1: Check plugin DLL is loaded
           if ($logContent -match "c64stream\.dll" -or $logContent -match "Loaded module.*c64stream") {
