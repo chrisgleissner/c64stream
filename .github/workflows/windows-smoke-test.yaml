@@ -116,6 +116,15 @@ jobs:
             Get-ChildItem -Path $obsLogs -ErrorAction SilentlyContinue | Format-Table Name, LastWriteTime
             Stop-Process -Id $obsProcess.Id -Force -ErrorAction SilentlyContinue
             exit 1
+          }
+          
+          # Monitor log file for c64stream plugin loading
+          Write-Output "Monitoring for c64stream plugin loading..."
+          Write-Output "=== OBS Log (Live) ==="
+          
+          $timeout = 30
+          $elapsed = 0
+          $pluginLoaded = $false
           $lastLogSize = 0
 
           while ($elapsed -lt $timeout) {
