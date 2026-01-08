@@ -1,0 +1,138 @@
+name: Windows Smoke Test (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      arch:
+        description: 'Architecture (x64 or arm64)'
+        required: true
+        type: string
+      artifact-pattern:
+        description: 'Artifact pattern to download'
+        required: true
+        type: string
+      runner:
+        description: 'GitHub runner to use'
+        required: true
+        type: string
+      obs-version:
+        description: 'OBS Studio version'
+        required: true
+        type: string
+
+jobs:
+  smoke-test:
+    name: Windows ${{ inputs.arch }} Smoke Test 💨
+    runs-on: ${{ inputs.runner }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Download Plugin Artifact 📥
+        uses: actions/download-artifact@v4
+        with:
+          pattern: ${{ inputs.artifact-pattern }}
+          path: artifacts
+
+      - name: Extract Plugin 📦
+        run: |
+          $artifact = Get-ChildItem -Path artifacts -Filter "*.zip" -Recurse | Select-Object -First 1
+          Expand-Archive -Path $artifact.FullName -DestinationPath plugin -Force
+
+      - name: Install OBS Studio 🎥
+        run: |
+          # Download OBS Studio installer
+          $obsVersion = "${{ inputs.obs-version }}"
+          $archSuffix = if ("${{ inputs.arch }}" -eq "arm64") { "-ARM64" } else { "" }
+          $obsUrl = "https://github.com/obsproject/obs-studio/releases/download/${obsVersion}/OBS-Studio-${obsVersion}-Windows${archSuffix}-Installer.exe"
+          Invoke-WebRequest -Uri $obsUrl -OutFile obs-installer.exe
+
+          # Install OBS silently
+          Start-Process -FilePath obs-installer.exe -ArgumentList "/S" -Wait
+
+          # Wait for installation to complete
+          Start-Sleep -Seconds 10
+
+      - name: Install Plugin 🔌
+        run: |
+          $obsPluginPath = "${env:ProgramFiles}\obs-studio\obs-plugins\64bit"
+          $obsDataPath = "${env:ProgramFiles}\obs-studio\data\obs-plugins"
+
+          # Create directories if they don't exist
+          New-Item -ItemType Directory -Force -Path $obsPluginPath
+          New-Item -ItemType Directory -Force -Path $obsDataPath
+
+          # Copy plugin DLL
+          Copy-Item -Path "plugin\c64stream\bin\64bit\c64stream.dll" -Destination $obsPluginPath -Force
+
+          # Copy data directory
+          if (Test-Path "plugin\c64stream\data") {
+            Copy-Item -Path "plugin\c64stream\data" -Destination "${obsDataPath}\c64stream" -Recurse -Force
+          }
+
+      - name: Test Plugin Load 🧪
+        run: |
+          # Launch OBS with verbose logging
+          $obsPath = "${env:ProgramFiles}\obs-studio\bin\64bit\obs64.exe"
+          $logFile = Join-Path $env:TEMP "obs-smoke-test.log"
+
+          # Start OBS in background, capture output
+          $process = Start-Process -FilePath $obsPath -ArgumentList "--verbose", "--portable", "--minimize-to-tray" -PassThru -RedirectStandardOutput $logFile -RedirectStandardError "${logFile}.err"
+
+          # Wait for OBS to start and load plugins
+          Start-Sleep -Seconds 10
+
+          # Terminate OBS
+          Stop-Process -Id $process.Id -Force
+          Start-Sleep -Seconds 2
+
+          # Combine stdout and stderr
+          $logContent = ""
+          if (Test-Path $logFile) { $logContent += Get-Content $logFile -Raw }
+          if (Test-Path "${logFile}.err") { $logContent += Get-Content "${logFile}.err" -Raw }
+
+          Write-Output "=== OBS Log ==="
+          Write-Output $logContent
+          Write-Output "=== End OBS Log ==="
+
+          # ASSERTION 1: Check plugin DLL is loaded
+          if ($logContent -match "c64stream\.dll" -or $logContent -match "Loaded module.*c64stream") {
+            Write-Output "✅ ASSERTION 1 PASSED: Plugin DLL loaded"
+          } else {
+            Write-Error "❌ ASSERTION 1 FAILED: Plugin DLL not found in logs"
+            exit 1
+          }
+
+          # ASSERTION 2: Check plugin registered (source type)
+          if ($logContent -match "c64.*stream" -or $logContent -match "C64 Stream") {
+            Write-Output "✅ ASSERTION 2 PASSED: Plugin registered"
+          } else {
+            Write-Error "❌ ASSERTION 2 FAILED: Plugin not registered as source"
+            exit 1
+          }
+
+          # ASSERTION 3: No critical errors
+          $errorPatterns = @(
+            "error.*loading.*c64stream",
+            "failed.*c64stream",
+            "c64stream.*failed",
+            "unresolved.*c64stream",
+            "missing.*c64stream"
+          )
+
+          $foundError = $false
+          foreach ($pattern in $errorPatterns) {
+            if ($logContent -match $pattern) {
+              Write-Error "❌ ASSERTION 3 FAILED: Error detected: $pattern"
+              $foundError = $true
+            }
+          }
+
+          if (-not $foundError) {
+            Write-Output "✅ ASSERTION 3 PASSED: No critical errors detected"
+          } else {
+            exit 1
+          }
+
+          Write-Output ""
+          Write-Output "🎉 All smoke test assertions PASSED"
