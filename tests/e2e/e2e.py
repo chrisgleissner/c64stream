@@ -1282,7 +1282,7 @@ class E2ETest:
     def _replace_config_variables(self, obs_config_dir):
         """Replace variables in OBS configuration files with actual values."""
         # Define variable replacements
-        # C64 Ultimate exact frame rates (from c64-stream-spec.md):
+        # C64 Ultimate exact frame rates (from c64u-stream-spec.md):
         # - PAL:  50.125 Hz = 401/8  (FPSNum=401, FPSDen=8)
         # - NTSC: 59.826 Hz = 29913/500 (FPSNum=29913, FPSDen=500)
         if self.format == 'PAL':

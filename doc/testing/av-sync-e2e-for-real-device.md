@@ -250,20 +250,20 @@ Acceptance criteria used:
 - `p95_delta_ms <= 40`
 - `max_delta_ms <= 60`
 
-| Duration | Status | p50 (ms) | p95 (ms) | max (ms) | Pop count | Standard | Results dir |
-|---:|:---:|---:|---:|---:|---:|:---:|---|
-| 10s | pass | 1.101 | 3.211 | 3.211 | 15 | PAL | `tests/e2e/results/real_c64u_av_sync/session_20260107_185615` |
-| 60s | pass | 1.104 | 3.276 | 3.333 | 67 | PAL | `tests/e2e/results/real_c64u_av_sync/session_20260107_185641` |
-| 600s | pass | 1.093 | 3.263 | 6.493 | 610 | PAL | `tests/e2e/results/real_c64u_av_sync/session_20260107_185808` |
+| Duration | Status | p50 (ms) | p95 (ms) | max (ms) | Pop count | Standard | Results dir                                                   |
+| -------: | :----: | -------: | -------: | -------: | --------: | :------: | ------------------------------------------------------------- |
+|      10s |  pass  |    1.101 |    3.211 |    3.211 |        15 |   PAL    | `tests/e2e/results/real_c64u_av_sync/session_20260107_185615` |
+|      60s |  pass  |    1.104 |    3.276 |    3.333 |        67 |   PAL    | `tests/e2e/results/real_c64u_av_sync/session_20260107_185641` |
+|     600s |  pass  |    1.093 |    3.263 |    6.493 |       610 |   PAL    | `tests/e2e/results/real_c64u_av_sync/session_20260107_185808` |
 
 NTSC run note (same date): the analyzer reported `authoritative_source = network_csv` because `obs.csv` contained no pop
 events.
 
-| Duration | Status | p50 (ms) | p95 (ms) | max (ms) | Pop count | Standard | Results dir |
-|---:|:---:|---:|---:|---:|---:|:---:|---|
-| 600s | pass | 1.695 | 4.371 | 22.712 | 1360 | NTSC | `tests/e2e/results/real_c64u_av_sync/session_20260107_175147` |
+| Duration | Status | p50 (ms) | p95 (ms) | max (ms) | Pop count | Standard | Results dir                                                   |
+| -------: | :----: | -------: | -------: | -------: | --------: | :------: | ------------------------------------------------------------- |
+|     600s |  pass  |    1.695 |    4.371 |   22.712 |      1360 |   NTSC   | `tests/e2e/results/real_c64u_av_sync/session_20260107_175147` |
 
 ## References
 
-- Protocol details and device control: `doc/c64-stream-spec.md`
+- Protocol details and device control: `doc/c64u-stream-spec.md`
 - Mock E2E scenarios and harness behavior: `doc/testing/e2e.md`

@@ -244,7 +244,7 @@ There are two distinct buffering mechanisms in the plugin:
 
 **Key math:** a 400 ms audio lag equals ~100 audio packets.
 
-- From protocol: PAL audio packet interval ≈ 4.001417 ms (`doc/c64-stream-spec.md:112-116`).
+- From protocol: PAL audio packet interval ≈ 4.001417 ms (`doc/c64u-stream-spec.md:112-116`).
   100 packets ≈ 400.1417 ms.
 - From buffer slot math: at 400 ms delay, the computed audio “active slots” would be `ceil(250 * 0.4) = 100` packets (`src/c64-network-buffer.c:466-469`, using `C64_MAX_AUDIO_RATE=250` from `src/c64-network-buffer.h:31-33`).
 
@@ -322,7 +322,7 @@ The reported symptom (“audio lags video by ~400 ms, mostly stable, occasionall
 
 **Supporting evidence:**
 
-- Video receive thread is Windows-prioritized (`src/c64-video.c:929-935`) while audio is not (`src/c64-audio.c:21-74`), and video packet rate is extremely high (≈3408–3590 pkt/s) vs audio (≈250 pkt/s) (`src/c64-network-buffer.h:24-33`, `doc/c64-stream-spec.md:92-122`).
+- Video receive thread is Windows-prioritized (`src/c64-video.c:929-935`) while audio is not (`src/c64-audio.c:21-74`), and video packet rate is extremely high (≈3408–3590 pkt/s) vs audio (≈250 pkt/s) (`src/c64-network-buffer.h:24-33`, `doc/c64u-stream-spec.md:92-122`).
 - Backlog of ~100 audio packets corresponds to ~400 ms exactly (math in §6.1).
 - The plugin’s design can sustain ~1 second of buffered backlog without overflow (`src/c64-network-buffer.h:47-48`), making a 400 ms steady backlog feasible.
 
@@ -333,7 +333,7 @@ The reported symptom (“audio lags video by ~400 ms, mostly stable, occasionall
 
 **Why it explains ~400 ms specifically:**
 
-- ~400 ms corresponds to exactly 100 audio packets at the specified packet duration (`doc/c64-stream-spec.md:112-122`) and to the scale of “jitter budget” the plugin anticipates (`src/c64-network-buffer.h:39`).
+- ~400 ms corresponds to exactly 100 audio packets at the specified packet duration (`doc/c64u-stream-spec.md:112-122`) and to the scale of “jitter budget” the plugin anticipates (`src/c64-network-buffer.h:39`).
 - A scheduler-induced lag could stabilize around a fixed backlog if audio consumption chronically trails production by a small amount (OS scheduling equilibrium), occasionally draining to zero (lag disappears).
 
 **Discriminating experiment (conclusive):**
