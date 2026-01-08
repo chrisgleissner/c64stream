@@ -84,15 +84,34 @@ jobs:
         run: |
           # Launch OBS with verbose logging
           $obsPath = "${env:ProgramFiles}\obs-studio\bin\64bit\obs64.exe"
-          $logFile = Join-Path $env:TEMP "obs-smoke-test.log"
-          
-          # Create OBS config directory to avoid sentinel file errors
           $obsConfig = Join-Path $env:APPDATA "obs-studio"
-          New-Item -ItemType Directory -Force -Path $obsConfig | Out-Null
+          $obsLogs = Join-Path $obsConfig "logs"
+          
+          # Create OBS config and logs directory
+          New-Item -ItemType Directory -Force -Path $obsLogs | Out-Null
+          
+          # OBS writes to its own log file (not stdout/stderr)
+          $logFile = Join-Path $obsLogs "$(Get-Date -Format 'yyyy-MM-dd HH-mm-ss').txt"
 
           # Start OBS asynchronously in background
           Write-Output "Starting OBS..."
-          $obsProcess = Start-Process -FilePath $obsPath -ArgumentList "--verbose", "--minimize-to-tray", "--disable-shutdown-check" -PassThru -RedirectStandardOutput $logFile -RedirectStandardError "${logFile}.err"
+          Write-Output "OBS log file: $logFile"
+          $obsProcess = Start-Process -FilePath $obsPath -ArgumentList "--verbose", "--minimize-to-tray", "--disable-shutdown-check" -PassThru
+          
+          # Give OBS a moment to start and create the log file
+          Start-Sleep -Seconds 3
+          
+          # Find the actual OBS log file (most recent .txt file in logs directory)
+          if (-not (Test-Path $logFile)) {
+            $logFile = Get-ChildItem -Path $obsLogs -Filter "*.txt" | Sort-Object LastWriteTime -Descending | Select-Object -First 1 | ForEach-Object { $_.FullName }
+            if ($logFile) {
+              Write-Output "Found OBS log: $logFile"
+            } else {
+              Write-Error "No OBS log file found!"
+              Stop-Process -Id $obsProcess.Id -Force -ErrorAction SilentlyContinue
+              exit 1
+            }
+          }
           
           # Monitor log file for c64stream plugin loading
           Write-Output "Monitoring for c64stream plugin loading..."
@@ -156,10 +175,7 @@ jobs:
           # Read final log content for assertions
           $logContent = ""
           if (Test-Path $logFile) {
-            $logContent += Get-Content $logFile -Raw
-          }
-          if (Test-Path "${logFile}.err") {
-            $logContent += Get-Content "${logFile}.err" -Raw
+            $logContent = Get-Content $logFile -Raw
           }
           
           if (-not $logContent) {
