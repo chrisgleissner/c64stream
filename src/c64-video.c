@@ -706,7 +706,8 @@ static bool c64_debug_frame_is_all_white(const uint32_t *pixels, size_t pixel_co
     return white_count > threshold_count;
 }
 
-static void c64_debug_handle_video_pop(struct c64_source *context, uint16_t frame_num, bool is_all_white)
+static void c64_debug_handle_video_pop(struct c64_source *context, uint16_t frame_num, uint64_t timestamp_ns,
+                                       bool is_all_white)
 {
     if (!c64_debug_logging) {
         return;
@@ -715,10 +716,9 @@ static void c64_debug_handle_video_pop(struct c64_source *context, uint16_t fram
     bool was_all_white = context->av_sync_last_video_all_white;
 
     if (!was_all_white && is_all_white) {
-        // Capture wall clock time at the moment we detect the white frame
-        // This ensures video and audio pops use the same timebase (detection moment, not packet arrival)
-        uint64_t detection_time_ns = os_gettime_ns();
-        c64_av_sync_on_video_pop(context, frame_num, detection_time_ns);
+        // Use packet timestamp for A/V sync comparison
+        // This ensures video and audio pops use the same timebase (packet arrival time)
+        c64_av_sync_on_video_pop(context, frame_num, timestamp_ns);
     }
 }
 
@@ -738,9 +738,9 @@ void c64_render_frame_direct(struct c64_source *context, struct frame_assembly *
     bool is_all_white = false;
     if (c64_debug_logging) {
         is_all_white = c64_debug_frame_is_all_white(context->frame_buffer, pixel_count);
-        // Capture detection time at the moment we see the white frame
-        // This ensures video and audio pops use the same timebase (wall clock at detection)
-        c64_debug_handle_video_pop(context, frame->frame_num, is_all_white);
+        // Use last packet arrival time (not ideal timestamp) for A/V sync comparison
+        // This ensures video and audio pops use the same timebase (real packet arrival time)
+        c64_debug_handle_video_pop(context, frame->frame_num, frame->last_packet_time, is_all_white);
     }
     context->av_sync_last_video_all_white = is_all_white;
 

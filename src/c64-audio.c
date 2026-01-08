@@ -182,11 +182,10 @@ static void c64_debug_handle_audio_pop(struct c64_source *context, uint64_t time
                   (int)has_signal, context->av_sync_audio_pop_count, timestamp_ns);
 
     if (!was_has_signal && has_signal) {
-        // Rising edge: signal started, capture wall clock time at detection moment
-        // This ensures video and audio pops use the same timebase (detection moment, not packet arrival)
-        context->av_sync_audio_signal_start_ts = os_gettime_ns();
-        C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " Audio signal rising edge detected at ts=%" PRIu64,
-                      context->av_sync_audio_signal_start_ts);
+        // Rising edge: signal started, record packet timestamp for duration validation
+        // Use packet timestamp (not wall clock) to ensure consistent time base with video
+        context->av_sync_audio_signal_start_ts = timestamp_ns;
+        C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " Audio signal rising edge detected at ts=%" PRIu64, timestamp_ns);
     } else if (was_has_signal && !has_signal) {
         // Falling edge: signal ended, check duration before counting as valid pop
         // Audio packets are ~4ms (192 samples @ 48kHz). Require at least one full packet.
