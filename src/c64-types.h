@@ -195,6 +195,17 @@ struct c64_source {
     uint32_t av_sync_video_pop_count;
     uint32_t av_sync_audio_pop_count;
 
+#define C64_AV_SYNC_EVENT_QUEUE_SIZE 8
+    struct c64_av_sync_event {
+        uint64_t ts;
+        uint32_t seq;
+        uint16_t frame_num;
+        bool used;
+    } av_sync_audio_events[C64_AV_SYNC_EVENT_QUEUE_SIZE], av_sync_video_events[C64_AV_SYNC_EVENT_QUEUE_SIZE];
+    size_t av_sync_audio_events_count;
+    size_t av_sync_video_events_count;
+    pthread_mutex_t av_sync_mutex;
+
     // Pre-allocated recording buffers (eliminates malloc/free in hot paths)
     uint8_t *bmp_row_buffer;      // Pre-allocated BMP row buffer for frame saving
     uint8_t *bgr_frame_buffer;    // Pre-allocated BGR buffer for video recording
