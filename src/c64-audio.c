@@ -140,12 +140,12 @@ static void validate_audio_timestamp_progression(struct c64_source *context, uin
 
 static bool c64_debug_audio_has_signal(const uint8_t *samples, size_t samples_size)
 {
-    // Detect a deliberate "pop" tone, not mere background noise.
+    // Detect full-volume square wave pops, not background noise.
     // Samples are 16-bit signed little-endian stereo interleaved.
-    // Audio pop detection: 100+ consecutive samples exceed 0xFF (255 decimal)
-    // This ignores background noise while reliably detecting test pops.
+    // Audio pops are full-volume square wave: we expect values near ±32767 (0x7FFF).
+    // Use aggressive threshold to only detect intentional test pops, not noise or music.
 
-    const int threshold = 0xFF; // 255 decimal
+    const int threshold = 16384; // Half of max 16-bit signed (32767), catches strong signals
     const size_t min_hits = 100;
     size_t hits = 0;
 
@@ -181,19 +181,51 @@ static void c64_debug_handle_audio_pop(struct c64_source *context, uint64_t time
                   (int)has_signal, context->av_sync_audio_pop_count, timestamp_ns);
 
     if (!was_has_signal && has_signal) {
-        context->av_sync_audio_pop_count++;
-        context->av_sync_last_audio_pop_ts = timestamp_ns;
+        // Rising edge: signal started, record timestamp for duration validation
+        context->av_sync_audio_signal_start_ts = timestamp_ns;
+        C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " Audio signal rising edge detected at ts=%" PRIu64, timestamp_ns);
+    } else if (was_has_signal && !has_signal) {
+        // Falling edge: signal ended, check duration before counting as valid pop
+        // Audio packets are ~4ms (192 samples @ 48kHz). Require at least one full packet.
+        const uint64_t min_duration_ns = 4000000; // 4ms in nanoseconds
+        uint64_t signal_duration_ns = timestamp_ns - context->av_sync_audio_signal_start_ts;
+        double signal_duration_ms = (double)signal_duration_ns / 1000000.0;
 
-        C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " Audio pop DETECTED: transition from silent to has_signal, count now=%u",
+        if (signal_duration_ns < min_duration_ns) {
+            C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " Audio pop IGNORED: too short (%.1fms < 4ms)", signal_duration_ms);
+            return;
+        }
+
+        // Valid pop: signal lasted at least one packet duration
+        // Ignore first audio pop if no video pop has been detected yet.
+        if (context->av_sync_video_pop_count == 0 && context->av_sync_audio_pop_count == 0) {
+            C64_LOG_DEBUG("" AUDIO_LOG_PREFIX
+                          " Audio pop IGNORED: first audio signal before any video pop (likely stream initialization)");
+            return;
+        }
+
+        context->av_sync_audio_pop_count++;
+        context->av_sync_last_audio_pop_ts = context->av_sync_audio_signal_start_ts; // Use rising edge timestamp
+
+        C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " Audio pop DETECTED: duration=%.1fms, count now=%u", signal_duration_ms,
                       context->av_sync_audio_pop_count);
 
         if (context->av_sync_last_video_pop_ts != 0) {
-            int64_t delta_ns = (int64_t)timestamp_ns - (int64_t)context->av_sync_last_video_pop_ts;
-            C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " A/V pop audio #%u: ts=%" PRIu64 " ns, audio_delta_ms=%.3f",
-                          context->av_sync_audio_pop_count, timestamp_ns, (double)delta_ns / 1000000.0);
+            int64_t delta_ns =
+                (int64_t)context->av_sync_audio_signal_start_ts - (int64_t)context->av_sync_last_video_pop_ts;
+            double delta_ms = (double)delta_ns / 1000000.0;
 
-            // Unified A/V SYNC log with complete technical information
-            // Use c64_get_millis() for actual wall clock time (CLOCK_REALTIME), not os_gettime_ns() (monotonic)
+            C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " A/V pop audio #%u: ts=%" PRIu64 " ns, audio_delta_ms=%.3f",
+                          context->av_sync_audio_pop_count, timestamp_ns, delta_ms);
+
+            // Smart pairing: audio and video pops are related if within 24 frames
+            // 24 frames = 401ms for NTSC (24×16.7ms), 480ms for PAL (24×20ms)
+            // Use 500ms threshold to cover both with margin
+            const double pairing_threshold_ms = 500.0;
+            bool pops_are_paired = (delta_ms >= 0 && delta_ms < pairing_threshold_ms) ||
+                                   (delta_ms < 0 && delta_ms > -pairing_threshold_ms);
+
+            // Calculate wall clock timestamp for log entry
             uint64_t wall_clock_ms_total = c64_get_millis();
             time_t wall_clock_sec = (time_t)(wall_clock_ms_total / 1000ULL);
             uint32_t wall_clock_ms = (uint32_t)(wall_clock_ms_total % 1000ULL);
@@ -203,15 +235,28 @@ static void c64_debug_handle_audio_pop(struct c64_source *context, uint64_t time
 #else
             localtime_r(&wall_clock_sec, &wall_clock_tm);
 #endif
-            C64_LOG_INFO("" AUDIO_LOG_PREFIX " AV SYNC: offset=%.1fms video=#%u audio=#%u "
-                         "detected=%04d-%02d-%02d_%02d:%02d:%02d.%03u video_ts=%" PRIu64 " audio_ts=%" PRIu64,
-                         (double)delta_ns / 1000000.0, context->av_sync_video_pop_count,
-                         context->av_sync_audio_pop_count, wall_clock_tm.tm_year + 1900, wall_clock_tm.tm_mon + 1,
-                         wall_clock_tm.tm_mday, wall_clock_tm.tm_hour, wall_clock_tm.tm_min, wall_clock_tm.tm_sec,
-                         wall_clock_ms, context->av_sync_last_video_pop_ts, timestamp_ns);
+
+            if (pops_are_paired) {
+                // Log paired A/V pop with consistent format for assertion parsing
+                C64_LOG_INFO("" AUDIO_LOG_PREFIX " AV SYNC: offset=%.1fms video=#%u audio=#%u "
+                             "detected=%04d-%02d-%02d_%02d:%02d:%02d.%03u video_ts=%" PRIu64 " audio_ts=%" PRIu64,
+                             delta_ms, context->av_sync_video_pop_count, context->av_sync_audio_pop_count,
+                             wall_clock_tm.tm_year + 1900, wall_clock_tm.tm_mon + 1, wall_clock_tm.tm_mday,
+                             wall_clock_tm.tm_hour, wall_clock_tm.tm_min, wall_clock_tm.tm_sec, wall_clock_ms,
+                             context->av_sync_last_video_pop_ts, timestamp_ns);
+            } else {
+                // Log unpaired audio pop (video pop too far away - likely from different cycle)
+                C64_LOG_INFO("" AUDIO_LOG_PREFIX " AV SYNC: offset=%.1fms video=#%u audio=#%u unpaired "
+                             "detected=%04d-%02d-%02d_%02d:%02d:%02d.%03u video_ts=%" PRIu64 " audio_ts=%" PRIu64,
+                             delta_ms, context->av_sync_video_pop_count, context->av_sync_audio_pop_count,
+                             wall_clock_tm.tm_year + 1900, wall_clock_tm.tm_mon + 1, wall_clock_tm.tm_mday,
+                             wall_clock_tm.tm_hour, wall_clock_tm.tm_min, wall_clock_tm.tm_sec, wall_clock_ms,
+                             context->av_sync_last_video_pop_ts, timestamp_ns);
+            }
         } else {
-            C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " A/V pop audio #%u: ts=%" PRIu64 " ns", context->av_sync_audio_pop_count,
-                          timestamp_ns);
+            // No video pop detected yet - log audio-only
+            C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " A/V pop audio #%u: ts=%" PRIu64 " ns (no video pop yet)",
+                          context->av_sync_audio_pop_count, timestamp_ns);
         }
     }
 }
@@ -317,8 +362,8 @@ void c64_process_audio_packet(struct c64_source *context, const uint8_t *audio_d
     if (c64_debug_logging) {
         has_signal = c64_debug_audio_has_signal(samples, samples_size);
         c64_debug_handle_audio_pop(context, audio_timestamp, has_signal);
+        context->av_sync_last_audio_has_signal = has_signal;
     }
-    context->av_sync_last_audio_has_signal = has_signal;
 
     // Validate timestamp progression for debugging
     validate_audio_timestamp_progression(context, audio_timestamp);

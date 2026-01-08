@@ -241,19 +241,22 @@ class AvSyncLogValidationAssertion(EffectAssertion):
         """Parse obs_log.txt for AV SYNC log entries."""
         av_sync_entries = []
 
-        # Pattern: AV SYNC: offset=X.Xms video=#N audio=#M detected=...
+        # Pattern: AV SYNC: offset=X.Xms video=#N audio=#M [unpaired] detected=...
+        # The "unpaired" keyword is optional and indicates pops are from different cycles
         pattern = re.compile(
-            r'AV SYNC: offset=([\d.]+)ms video=#(\d+) audio=#(\d+)'
+            r'AV SYNC: offset=([\d.]+)ms video=#(\d+) audio=#(\d+)(?: unpaired)?'
         )
 
         with open(log_path, 'r') as f:
             for line in f:
                 match = pattern.search(line)
                 if match:
+                    is_unpaired = 'unpaired' in line
                     av_sync_entries.append({
                         "offset_ms": float(match.group(1)),
                         "video_pop_num": int(match.group(2)),
                         "audio_pop_num": int(match.group(3)),
+                        "is_unpaired": is_unpaired,
                         "log_line": line.strip(),
                     })
 
