@@ -54,7 +54,7 @@ OBS Studio's ARM64 support is **experimental**. Some features are not yet availa
 - **Game Capture** source
 - **AJA device** support
 
-✅ **Supported:**
+✅ **Supported:** (but in **experimental** state - expect things to break)
 - C64 Stream plugin (full functionality)
 - Most built-in sources (Display Capture, Window Capture, etc.)
 - Browser Source (with hardware acceleration)
@@ -356,4 +356,4 @@ dumpbin /dependents build_arm64\RelWithDebInfo\c64stream.dll
 
 ---
 
-**Questions?** Open an issue with the `windows-arm64` label!
+**Questions?** Open an issue with the `windows-arm` label!

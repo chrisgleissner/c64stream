@@ -53,7 +53,7 @@ These settings work out-of-the-box with most C64 Ultimate setups. You can overri
 
 In the following instructions, replace `$VERSION` with the latest released version as shown on the [Releases](../../releases) page.
 
-#### Windows
+#### Windows (X64)
 
 Verified on Windows 11:
 
@@ -69,6 +69,28 @@ If you are using Windows Firewall and block all incoming connections, you may ha
 ```powershell
 New-NetFirewallRule -DisplayName "C64 Stream" -Direction Inbound -Protocol UDP -LocalPort 11000,11001 -RemoteAddress 192.168.1.64 -Action Allow
 ```
+
+## Windows (ARM64 - Experimental)
+
+> [!WARNING]
+> Windows on ARM64 support is experimental.
+> OBS Studio must be a native ARM64 build.
+
+1. Install OBS Studio by unzipping https://github.com/obsproject/obs-studio/releases/download/32.0.4/OBS-Studio-32.0.4-Windows-arm64.zip to your local drive.
+2. Ensure OBS Studio is closed.
+3. [Download](../../releases) `c64stream-$VERSION-windows-arm64.zip`.
+   - Pre-release builds may contain an outer ZIP. Extract until the inner ZIP is reached.
+4. Extract the archive. The resulting structure will be:
+   ```
+   c64stream/
+     bin/64bit/c64stream.dll
+     data/
+   ```
+5. Copy the `c64stream` directory to:
+   ```
+   C:\ProgramData\obs-studio\plugins
+   ```
+6. Start OBS Studio.
 
 #### macOS
 

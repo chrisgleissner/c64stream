@@ -85,13 +85,9 @@ jobs:
           # Launch OBS with verbose logging
           $obsPath = "${env:ProgramFiles}\obs-studio\bin\64bit\obs64.exe"
           $logFile = Join-Path $env:TEMP "obs-smoke-test.log"
-          
-          # Create portable config directory
-          $portableDir = Join-Path $PWD "obs-portable"
-          New-Item -ItemType Directory -Force -Path "$portableDir\config\obs-studio" | Out-Null
 
-          # Start OBS in background, capture output
-          $process = Start-Process -FilePath $obsPath -ArgumentList "--verbose", "--portable", "--minimize-to-tray" -WorkingDirectory $portableDir -PassThru -RedirectStandardOutput $logFile -RedirectStandardError "${logFile}.err"
+          # Start OBS in background (no portable mode), capture output
+          $process = Start-Process -FilePath $obsPath -ArgumentList "--verbose", "--minimize-to-tray", "--disable-shutdown-check" -PassThru -RedirectStandardOutput $logFile -RedirectStandardError "${logFile}.err"
 
           # Wait for OBS to start and load plugins
           Start-Sleep -Seconds 10
