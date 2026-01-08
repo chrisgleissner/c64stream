@@ -81,8 +81,8 @@ Examples:
     # Connect to specific host
     ./tests/e2e/real-device-av-sync.sh --host 192.168.1.13
 
-  # Custom duration and thresholds
-  ./tests/e2e/real-device-av-sync.sh --host c64u.local --duration 15 --max-delta-ms 25
+    # Custom duration and thresholds
+    ./tests/e2e/real-device-av-sync.sh --host c64u.local --duration 15 --max-delta-ms 25
 
   # OBS-only mode (PRG already running on C64U)
   ./tests/e2e/real-device-av-sync.sh --obs-only --duration 20
