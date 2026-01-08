@@ -90,20 +90,32 @@ jobs:
           $obsConfig = Join-Path $env:APPDATA "obs-studio"
           New-Item -ItemType Directory -Force -Path $obsConfig | Out-Null
 
-          # Start OBS in background, capture output
-          $process = Start-Process -FilePath $obsPath -ArgumentList "--verbose", "--minimize-to-tray", "--disable-shutdown-check" -PassThru -RedirectStandardOutput $logFile -RedirectStandardError "${logFile}.err"
-
+          # Run OBS with output capture (different approach - use cmd /c)
+          Write-Output "Starting OBS..."
+          $obsArgs = "--verbose --minimize-to-tray --disable-shutdown-check"
+          cmd /c "start /b `"$obsPath`" $obsArgs > `"$logFile`" 2>&1"
+          
           # Wait for OBS to start and load plugins
-          Start-Sleep -Seconds 10
-
-          # Terminate OBS
-          Stop-Process -Id $process.Id -Force
+          Start-Sleep -Seconds 12
+          
+          # Find and terminate OBS process
+          $obsProcess = Get-Process -Name "obs64" -ErrorAction SilentlyContinue
+          if ($obsProcess) {
+            Write-Output "Terminating OBS process..."
+            $obsProcess | Stop-Process -Force
+            Start-Sleep -Seconds 2
+          } else {
+            Write-Output "Warning: OBS process not found"
+          }
           Start-Sleep -Seconds 2
 
-          # Combine stdout and stderr
+          # Read log content
           $logContent = ""
-          if (Test-Path $logFile) { $logContent += Get-Content $logFile -Raw }
-          if (Test-Path "${logFile}.err") { $logContent += Get-Content "${logFile}.err" -Raw }
+          if (Test-Path $logFile) {
+            $logContent = Get-Content $logFile -Raw
+          } else {
+            Write-Output "Warning: Log file not found at $logFile"
+          }
 
           Write-Output "=== OBS Log ==="
           Write-Output $logContent
