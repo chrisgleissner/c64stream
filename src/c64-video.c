@@ -37,6 +37,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include <pthread.h>
 #include <math.h>
 #include <stdlib.h> // For aligned_alloc and free
+#include <time.h>   // For localtime_r/localtime_s in AV SYNC logging
 #include "c64-network.h"
 #include "c64-network-buffer.h"
 
@@ -680,6 +681,11 @@ bool c64_is_frame_timeout(struct frame_assembly *frame)
 
 static bool c64_debug_frame_is_all_white(const uint32_t *pixels, size_t pixel_count)
 {
+    // Video pop detection: >80% of frame pixels have RGB >= 0xE0
+    // This allows for slightly off-white colors from VPL files and CRT effects.
+    size_t white_count = 0;
+    const size_t threshold_count = (size_t)(pixel_count * 0.8);
+
     for (size_t i = 0; i < pixel_count; i++) {
         // Frame buffer pixels may not always have alpha set to 0xFF and some
         // conversions may yield slightly off-white values.
@@ -688,11 +694,15 @@ static bool c64_debug_frame_is_all_white(const uint32_t *pixels, size_t pixel_co
         const uint8_t r = (rgb >> 16) & 0xFF;
         const uint8_t g = (rgb >> 8) & 0xFF;
         const uint8_t b = (rgb >> 0) & 0xFF;
-        if (r < 0xF0 || g < 0xF0 || b < 0xF0) {
-            return false;
+        if (r >= 0xE0 && g >= 0xE0 && b >= 0xE0) {
+            white_count++;
+            // Early exit if we've already confirmed >80% white
+            if (white_count > threshold_count) {
+                return true;
+            }
         }
     }
-    return true;
+    return white_count > threshold_count;
 }
 
 static void c64_debug_handle_video_pop(struct c64_source *context, uint16_t frame_num, uint64_t timestamp_ns,
@@ -712,6 +722,24 @@ static void c64_debug_handle_video_pop(struct c64_source *context, uint16_t fram
             int64_t delta_ns = (int64_t)context->av_sync_last_audio_pop_ts - (int64_t)timestamp_ns;
             C64_LOG_DEBUG("" VIDEO_LOG_PREFIX " A/V pop video #%u: frame=%u ts=%" PRIu64 " ns, audio_delta_ms=%.3f",
                           context->av_sync_video_pop_count, frame_num, timestamp_ns, (double)delta_ns / 1000000.0);
+
+            // Unified A/V SYNC log with complete technical information
+            uint64_t wall_clock_ns = os_gettime_ns();
+            time_t wall_clock_sec = (time_t)(wall_clock_ns / 1000000000ULL);
+            uint32_t wall_clock_ms = (uint32_t)((wall_clock_ns / 1000000ULL) % 1000ULL);
+            struct tm wall_clock_tm;
+#ifdef _WIN32
+            localtime_s(&wall_clock_tm, &wall_clock_sec);
+#else
+            localtime_r(&wall_clock_sec, &wall_clock_tm);
+#endif
+            C64_LOG_INFO("" VIDEO_LOG_PREFIX " AV SYNC: offset=%.1fms video=#%u audio=#%u "
+                         "detected=%04d-%02d-%02d_%02d:%02d:%02d.%03u video_frame=%u video_ts=%" PRIu64
+                         " audio_ts=%" PRIu64,
+                         (double)delta_ns / 1000000.0, context->av_sync_video_pop_count,
+                         context->av_sync_audio_pop_count, wall_clock_tm.tm_year + 1900, wall_clock_tm.tm_mon + 1,
+                         wall_clock_tm.tm_mday, wall_clock_tm.tm_hour, wall_clock_tm.tm_min, wall_clock_tm.tm_sec,
+                         wall_clock_ms, frame_num, timestamp_ns, context->av_sync_last_audio_pop_ts);
         } else {
             C64_LOG_DEBUG("" VIDEO_LOG_PREFIX " A/V pop video #%u: frame=%u ts=%" PRIu64 " ns",
                           context->av_sync_video_pop_count, frame_num, timestamp_ns);

@@ -14,6 +14,7 @@ from .afterglow_decay import AfterglowDecayAssertion
 from .afterglow_width import AfterglowWidthAssertion
 from .audio import AudioAssertion
 from .av_pop_offset import AvPopOffsetAssertion
+from .av_sync_log_validation import AvSyncLogValidationAssertion
 from .base import AssertionResult, AssertionStatus, EffectAssertion
 from .config import (
     PresetConfig,

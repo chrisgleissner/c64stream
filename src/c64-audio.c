@@ -10,6 +10,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include <util/threading.h> // For atomic operations
 #include <inttypes.h>       // For PRIu64, PRId64 format specifiers
 #include <stdint.h>
+#include <time.h>        // For localtime_r/localtime_s in AV SYNC logging
 #include "c64-network.h" // Include network header first to avoid Windows header conflicts
 #include "c64-logging.h"
 #include "c64-audio.h"
@@ -141,10 +142,11 @@ static bool c64_debug_audio_has_signal(const uint8_t *samples, size_t samples_si
 {
     // Detect a deliberate "pop" tone, not mere background noise.
     // Samples are 16-bit signed little-endian stereo interleaved.
-    // Return true only if we see enough samples above a conservative amplitude threshold.
+    // Audio pop detection: 100+ consecutive samples exceed 0xFF (255 decimal)
+    // This ignores background noise while reliably detecting test pops.
 
-    const int threshold = 512;
-    const size_t min_hits = 8;
+    const int threshold = 0xFF; // 255 decimal
+    const size_t min_hits = 100;
     size_t hits = 0;
 
     if (samples_size < 2) {
@@ -182,6 +184,23 @@ static void c64_debug_handle_audio_pop(struct c64_source *context, uint64_t time
             int64_t delta_ns = (int64_t)timestamp_ns - (int64_t)context->av_sync_last_video_pop_ts;
             C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " A/V pop audio #%u: ts=%" PRIu64 " ns, audio_delta_ms=%.3f",
                           context->av_sync_audio_pop_count, timestamp_ns, (double)delta_ns / 1000000.0);
+
+            // Unified A/V SYNC log with complete technical information
+            uint64_t wall_clock_ns = os_gettime_ns();
+            time_t wall_clock_sec = (time_t)(wall_clock_ns / 1000000000ULL);
+            uint32_t wall_clock_ms = (uint32_t)((wall_clock_ns / 1000000ULL) % 1000ULL);
+            struct tm wall_clock_tm;
+#ifdef _WIN32
+            localtime_s(&wall_clock_tm, &wall_clock_sec);
+#else
+            localtime_r(&wall_clock_sec, &wall_clock_tm);
+#endif
+            C64_LOG_INFO("" AUDIO_LOG_PREFIX " AV SYNC: offset=%.1fms video=#%u audio=#%u "
+                         "detected=%04d-%02d-%02d_%02d:%02d:%02d.%03u video_ts=%" PRIu64 " audio_ts=%" PRIu64,
+                         (double)delta_ns / 1000000.0, context->av_sync_video_pop_count,
+                         context->av_sync_audio_pop_count, wall_clock_tm.tm_year + 1900, wall_clock_tm.tm_mon + 1,
+                         wall_clock_tm.tm_mday, wall_clock_tm.tm_hour, wall_clock_tm.tm_min, wall_clock_tm.tm_sec,
+                         wall_clock_ms, context->av_sync_last_video_pop_ts, timestamp_ns);
         } else {
             C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " A/V pop audio #%u: ts=%" PRIu64 " ns", context->av_sync_audio_pop_count,
                           timestamp_ns);
