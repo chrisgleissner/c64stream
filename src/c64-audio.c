@@ -225,18 +225,19 @@ static void c64_debug_handle_audio_pop(struct c64_source *context, uint64_t time
             bool pops_are_paired = (delta_ms >= 0 && delta_ms < pairing_threshold_ms) ||
                                    (delta_ms < 0 && delta_ms > -pairing_threshold_ms);
 
-            // Calculate wall clock timestamp for log entry
-            uint64_t wall_clock_ms_total = c64_get_millis();
-            time_t wall_clock_sec = (time_t)(wall_clock_ms_total / 1000ULL);
-            uint32_t wall_clock_ms = (uint32_t)(wall_clock_ms_total % 1000ULL);
-            struct tm wall_clock_tm;
+            // Only log if pops are paired (ignore unpaired pops - they're from different cycles)
+            if (pops_are_paired) {
+                // Calculate wall clock timestamp for log entry
+                uint64_t wall_clock_ms_total = c64_get_millis();
+                time_t wall_clock_sec = (time_t)(wall_clock_ms_total / 1000ULL);
+                uint32_t wall_clock_ms = (uint32_t)(wall_clock_ms_total % 1000ULL);
+                struct tm wall_clock_tm;
 #ifdef _WIN32
-            localtime_s(&wall_clock_tm, &wall_clock_sec);
+                localtime_s(&wall_clock_tm, &wall_clock_sec);
 #else
-            localtime_r(&wall_clock_sec, &wall_clock_tm);
+                localtime_r(&wall_clock_sec, &wall_clock_tm);
 #endif
 
-            if (pops_are_paired) {
                 // Log paired A/V pop with consistent format for assertion parsing
                 C64_LOG_INFO("" AUDIO_LOG_PREFIX " AV SYNC: offset=%.1fms video=#%u audio=#%u "
                              "detected=%04d-%02d-%02d_%02d:%02d:%02d.%03u video_ts=%" PRIu64 " audio_ts=%" PRIu64,
@@ -245,13 +246,9 @@ static void c64_debug_handle_audio_pop(struct c64_source *context, uint64_t time
                              wall_clock_tm.tm_hour, wall_clock_tm.tm_min, wall_clock_tm.tm_sec, wall_clock_ms,
                              context->av_sync_last_video_pop_ts, timestamp_ns);
             } else {
-                // Log unpaired audio pop (video pop too far away - likely from different cycle)
-                C64_LOG_INFO("" AUDIO_LOG_PREFIX " AV SYNC: offset=%.1fms video=#%u audio=#%u unpaired "
-                             "detected=%04d-%02d-%02d_%02d:%02d:%02d.%03u video_ts=%" PRIu64 " audio_ts=%" PRIu64,
-                             delta_ms, context->av_sync_video_pop_count, context->av_sync_audio_pop_count,
-                             wall_clock_tm.tm_year + 1900, wall_clock_tm.tm_mon + 1, wall_clock_tm.tm_mday,
-                             wall_clock_tm.tm_hour, wall_clock_tm.tm_min, wall_clock_tm.tm_sec, wall_clock_ms,
-                             context->av_sync_last_video_pop_ts, timestamp_ns);
+                // Unpaired audio pop - don't log (it's from a different cycle, not useful)
+                C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " A/V pop audio #%u UNPAIRED (offset=%.1fms > %.0fms threshold)",
+                              context->av_sync_audio_pop_count, delta_ms, pairing_threshold_ms);
             }
         } else {
             // No video pop detected yet - log audio-only
