@@ -34,7 +34,11 @@ void c64_network_write_header(struct c64_source *context)
     // Write CSV header for network packet analysis
     fprintf(context->network_file,
             "packet_type,elapsed_us,sequence_num,frame_num,line_num,last_packet,packet_size,data_payload,jitter_us,"
-            "packet_interval_us,total_video_packets,total_audio_packets,sequence_errors\n");
+            "packet_interval_us,total_video_packets,total_audio_packets,sequence_errors");
+    if (context->csv_debug_enabled) {
+        fprintf(context->network_file, ",is_all_white,has_signal");
+    }
+    fprintf(context->network_file, "\n");
     fflush(context->network_file);
 
     C64_LOG_INFO("" RECORD_LOG_PREFIX " Network packet CSV header written successfully");
@@ -53,7 +57,7 @@ void c64_network_write_header(struct c64_source *context)
  */
 void c64_network_log_video_packet(struct c64_source *context, uint16_t sequence_num, uint16_t frame_num,
                                   uint16_t line_num, bool is_last_packet, size_t packet_size, size_t data_payload,
-                                  int64_t jitter_us)
+                                  int64_t jitter_us, bool is_all_white)
 {
     if (!context || !context->network_file) {
         return; // Silently ignore if network file not available
@@ -80,10 +84,14 @@ void c64_network_log_video_packet(struct c64_source *context, uint16_t sequence_
     uint64_t sequence_errors = (uint64_t)os_atomic_load_long(&context->video_sequence_errors);
 
     // Write video packet event to CSV
-    fprintf(context->network_file, "video,%llu,%u,%u,%u,%d,%zu,%zu,%lld,%llu,%llu,%llu,%llu\n",
+    fprintf(context->network_file, "video,%llu,%u,%u,%u,%d,%zu,%zu,%lld,%llu,%llu,%llu,%llu",
             (unsigned long long)elapsed_us, sequence_num, frame_num, line_num, is_last_packet ? 1 : 0, packet_size,
             data_payload, (long long)jitter_us, (unsigned long long)packet_interval_us,
             (unsigned long long)video_packets, (unsigned long long)audio_packets, (unsigned long long)sequence_errors);
+    if (context->csv_debug_enabled) {
+        fprintf(context->network_file, ",%d,0", is_all_white ? 1 : 0);
+    }
+    fprintf(context->network_file, "\n");
 
     // Flush every 50 packets to balance performance vs real-time analysis
     static int flush_counter = 0;
@@ -102,7 +110,7 @@ void c64_network_log_video_packet(struct c64_source *context, uint16_t sequence_
  * @param jitter_us Calculated jitter from expected timing (microseconds)
  */
 void c64_network_log_audio_packet(struct c64_source *context, uint16_t sequence_num, size_t packet_size,
-                                  uint16_t sample_count, int64_t jitter_us)
+                                  uint16_t sample_count, int64_t jitter_us, bool has_signal)
 {
     if (!context || !context->network_file) {
         return; // Silently ignore if network file not available
@@ -129,10 +137,14 @@ void c64_network_log_audio_packet(struct c64_source *context, uint16_t sequence_
     uint64_t sequence_errors = (uint64_t)os_atomic_load_long(&context->video_sequence_errors);
 
     // Write audio packet event to CSV (use 0 for video-specific fields)
-    fprintf(context->network_file, "audio,%llu,%u,0,0,0,%zu,%u,%lld,%llu,%llu,%llu,%llu\n",
+    fprintf(context->network_file, "audio,%llu,%u,0,0,0,%zu,%u,%lld,%llu,%llu,%llu,%llu",
             (unsigned long long)elapsed_us, sequence_num, packet_size, sample_count, (long long)jitter_us,
             (unsigned long long)packet_interval_us, (unsigned long long)video_packets,
             (unsigned long long)audio_packets, (unsigned long long)sequence_errors);
+    if (context->csv_debug_enabled) {
+        fprintf(context->network_file, ",0,%d", has_signal ? 1 : 0);
+    }
+    fprintf(context->network_file, "\n");
 
     // Flush every 25 packets for audio (lower frequency than video)
     static int flush_counter = 0;
