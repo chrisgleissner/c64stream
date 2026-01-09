@@ -47,7 +47,9 @@ These settings work out-of-the-box with most C64 Ultimate setups. You can overri
 - For complete and up-to-date hardware and software requirements, please refer to the [OBS Studio System Requirements](https://obsproject.com/kb/system-requirements).
 
 > [!NOTE]
-> The plugin has been **verified to work** on the systems listed below. Other environments have not been verified and are not supported explicitly, but community contributions are always welcome.
+> The plugin has been **verified to work** on the systems listed below unless mentioned otherwise. Other environments have not been verified, but community contributions are always welcome.
+> 
+> If you use a firewall, make sure to open ports 11000 and 11001 for incoming UDP traffic from the Commodore 64 Ultimate.
 
 ### Easy Installation 📦
 
@@ -72,25 +74,18 @@ New-NetFirewallRule -DisplayName "C64 Stream" -Direction Inbound -Protocol UDP -
 
 ## Windows (ARM64 - Experimental)
 
-> [!WARNING]
-> Windows on ARM64 support is experimental.
+> [!NOTE]
+> Windows on ARM64 support is experimental and has not yet been fully tested. If would like to help with testing, please reach out in the discussions section of this repository.
 > OBS Studio must be a native ARM64 build.
 
 1. Install OBS Studio by unzipping https://github.com/obsproject/obs-studio/releases/download/32.0.4/OBS-Studio-32.0.4-Windows-arm64.zip to your local drive.
 2. Ensure OBS Studio is closed.
-3. [Download](../../releases) `c64stream-$VERSION-windows-arm64.zip`.
-   - Pre-release builds may contain an outer ZIP. Extract until the inner ZIP is reached.
-4. Extract the archive. The resulting structure will be:
-   ```
-   c64stream/
-     bin/64bit/c64stream.dll
-     data/
-   ```
-5. Copy the `c64stream` directory to:
-   ```
-   C:\ProgramData\obs-studio\plugins
-   ```
-6. Start OBS Studio.
+3. [Download](../../releases) the plugin package with name `c64stream-$VERSION-windows-arm64.zip`. It should now be in your `Downloads` folder (typically `C:\Users\<YourName>\Downloads`).
+4. Install the plugin to `C:\ProgramData\obs-studio\plugins` by either extracting the ZIP with a tool of your choice or by running the following in Powershell:
+```powershell
+Expand-Archive -Path "$env:USERPROFILE\Downloads\c64stream-*-windows-arm64.zip" -DestinationPath "C:\ProgramData\obs-studio\plugins" -Force
+```
+5. Start OBS Studio.
 
 #### macOS
 
