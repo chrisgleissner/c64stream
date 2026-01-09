@@ -870,6 +870,14 @@ parse_args() {
 check_dependencies() {
     log_info "Checking system dependencies..."
 
+    # If running inside a virtual environment, prefer installing Python module
+    # dependencies into the venv via pip. System package installs (apt/dnf/etc)
+    # won't be visible to the venv's interpreter.
+    local in_venv=false
+    if [[ -n "${VIRTUAL_ENV:-}" ]]; then
+        in_venv=true
+    fi
+
     local missing_deps=()
 
     # Required tools - map command names to package names
@@ -907,6 +915,64 @@ check_dependencies() {
     fi
     if ! python3 -c "import websocket" >/dev/null 2>&1; then
         missing_deps+=("python3-websocket")
+    fi
+
+    if [[ "${in_venv}" == "true" ]]; then
+        local -a pip_pkgs=()
+        for dep in "${missing_deps[@]}"; do
+            case "${dep}" in
+                python3-numpy) pip_pkgs+=("numpy") ;;
+                python3-opencv) pip_pkgs+=("opencv-python-headless") ;;
+                python3-pil) pip_pkgs+=("Pillow") ;;
+                python3-yaml) pip_pkgs+=("PyYAML") ;;
+                python3-scipy) pip_pkgs+=("scipy") ;;
+                python3-requests) pip_pkgs+=("requests") ;;
+                python3-websocket) pip_pkgs+=("websocket-client") ;;
+            esac
+        done
+
+        if [[ ${#pip_pkgs[@]} -gt 0 ]]; then
+            if python3 -m pip --version >/dev/null 2>&1; then
+                log_info "Detected Python venv; installing missing Python modules via pip: ${pip_pkgs[*]}"
+                if [[ "${VERBOSE}" == true ]]; then
+                    python3 -m pip install --upgrade "${pip_pkgs[@]}"
+                else
+                    python3 -m pip install --upgrade "${pip_pkgs[@]}" >/dev/null
+                fi
+
+                # Re-check Python deps after pip install.
+                missing_deps=()
+                for tool in "${!tool_packages[@]}"; do
+                    if ! command -v "${tool}" &> /dev/null; then
+                        missing_deps+=("${tool_packages[$tool]}")
+                    fi
+                done
+
+                if ! python3 -c "import numpy" >/dev/null 2>&1; then
+                    missing_deps+=("python3-numpy")
+                fi
+                if ! python3 -c "import cv2" >/dev/null 2>&1; then
+                    missing_deps+=("python3-opencv")
+                fi
+                if ! python3 -c "from PIL import Image" >/dev/null 2>&1; then
+                    missing_deps+=("python3-pil")
+                fi
+                if ! python3 -c "import yaml" >/dev/null 2>&1; then
+                    missing_deps+=("python3-yaml")
+                fi
+                if ! python3 -c "import scipy" >/dev/null 2>&1; then
+                    missing_deps+=("python3-scipy")
+                fi
+                if ! python3 -c "import requests" >/dev/null 2>&1; then
+                    missing_deps+=("python3-requests")
+                fi
+                if ! python3 -c "import websocket" >/dev/null 2>&1; then
+                    missing_deps+=("python3-websocket")
+                fi
+            else
+                log_warning "Detected Python venv but pip is unavailable; cannot auto-install Python module dependencies."
+            fi
+        fi
     fi
 
     # Virtual display tools (always needed for headless testing)
