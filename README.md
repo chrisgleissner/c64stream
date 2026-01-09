@@ -71,7 +71,7 @@ Verified on Windows 11:
    ```
 5. Start OBS Studio
 
-## Windows (ARM64 - Experimental)
+#### Windows (ARM64 - Experimental)
 
 > [!NOTE]
 > Windows on ARM64 support is experimental and has not yet been fully tested. If would like to help with testing, please reach out in the discussions section of this repository.
