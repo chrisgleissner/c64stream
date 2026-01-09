@@ -1253,12 +1253,8 @@ stop_real_c64_streaming() {
         return 0
     fi
 
-    log_info "Stopping real C64 device streaming to prevent test cross-pollution..."
-    log_warning "NOTE: If C64U is configured to stream to ports 21000/21001, cross-pollution may occur!"
-    log_warning "Real device tests should use ports 11000/11001 (C64U hardware default)."
-    log_warning "To fix: Reconfigure C64U via web interface to use default UDP ports 11000/11001."
-
     # Explicitly stop all streams before resetting
+    log_info "Stopping real C64 device streaming to prevent test cross-pollution..."
     if command -v curl &>/dev/null; then
         local streams=("video" "audio" "debug")
         for stream in "${streams[@]}"; do
