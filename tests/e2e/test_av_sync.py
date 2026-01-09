@@ -312,7 +312,7 @@ def detect_video_pop_events(video_path, frame_rate=30.0):
 
     best_indices.append(cluster_start)
 
-    # Remove exact duplicates before onset lookback (but not enforcing spacing yet)
+    # Enforce minimum spacing to prevent any double-triggering.
     best_indices = sorted(set(best_indices))
 
     # For each detected pop, look backwards to find the true onset.
@@ -322,9 +322,8 @@ def detect_video_pop_events(video_path, frame_rate=30.0):
     onset_threshold_factor = 0.25  # Slightly earlier onset for CRT effects
     lookback_frames = max(6, int(round(0.25 * frame_rate)))  # allow up to ~250ms lookback
 
-    # Track onset-adjusted indices to prevent double-counting when lookbacks overlap
-    onset_adjusted_indices: list[tuple[int, int]] = []  # [(original_idx, true_idx), ...]
-
+    events: list[dict] = []
+    last_frame = None
     for idx in best_indices:
         # Find the true onset by looking backwards
         true_idx = idx
@@ -347,34 +346,6 @@ def detect_video_pop_events(video_path, frame_rate=30.0):
                 else:
                     break  # Stop looking back once we find a frame below threshold
 
-        onset_adjusted_indices.append((idx, true_idx))
-
-    # CRITICAL: Deduplicate by true_idx and enforce minimum spacing AFTER onset lookback.
-    #
-    # Why this is necessary:
-    # - Initial clustering creates best_indices with cluster starts (e.g., frames 10, 30, 50)
-    # - Onset lookback adjusts each to an earlier frame (e.g., 8, 28, 48)
-    # - If clusters are close together and lookback windows overlap, we can get duplicates:
-    #   Example: cluster at frame 32 looks back and finds frame 30, but we already
-    #   detected a cluster starting at frame 30. Result: same pop counted twice.
-    # - We must deduplicate AFTER lookback to catch these overlapping onsets.
-    #
-    # Additionally, by sorting by true_idx (not orig_idx), we ensure temporal ordering
-    # and that the min_spacing check works correctly.
-    onset_adjusted_indices.sort(key=lambda x: x[1])
-
-    # Remove duplicates where multiple clusters resolved to the same true_idx
-    seen_true_idx: set[int] = set()
-    unique_onset_indices: list[tuple[int, int]] = []
-    for orig_idx, true_idx in onset_adjusted_indices:
-        if true_idx not in seen_true_idx:
-            unique_onset_indices.append((orig_idx, true_idx))
-            seen_true_idx.add(true_idx)
-
-    events: list[dict] = []
-    last_frame = None
-
-    for orig_idx, true_idx in unique_onset_indices:
         fn = int(frame_nums[true_idx])
         if last_frame is not None and (fn - last_frame) < min_spacing:
             continue
