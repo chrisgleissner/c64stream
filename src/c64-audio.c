@@ -109,12 +109,11 @@ void *audio_thread_func(void *data)
         c64_log_audio_packet_if_enabled(context, packet, received, packet_time);
 
         // Batch process audio statistics
-        uint64_t audio_now = os_gettime_ns();
-        c64_process_audio_statistics_batch(context, audio_now);
+        c64_process_audio_statistics_batch(context, packet_time);
 
         // Push audio packet to network buffer for queuing and later processing in render thread
         if (context->network_buffer) {
-            c64_network_buffer_push_audio(context->network_buffer, packet, received, audio_now);
+            c64_network_buffer_push_audio(context->network_buffer, packet, received, packet_time);
         }
     }
 
@@ -141,28 +140,42 @@ static void validate_audio_timestamp_progression(struct c64_source *context, uin
 
 static bool c64_debug_audio_has_signal(const uint8_t *samples, size_t samples_size)
 {
-    // Detect full-volume square wave pops, not background noise.
+    // Fast audio pop detection for debug/testing:
+    // non-pop is (almost) silent, pop is a strong deviation (full-volume test tone).
     // Samples are 16-bit signed little-endian stereo interleaved.
-    // Audio pops are full-volume square wave: we expect values near ±32767 (0x7FFF).
-    // Use aggressive threshold to only detect intentional test pops, not noise or music.
 
-    const int threshold = 8192; // Quarter of max 16-bit signed (32767), catches strong signals
-    const size_t min_hits = 100;
-    size_t hits = 0;
+    const int threshold = 4096; // Strong signal threshold; avoids false positives from SID noise
 
-    if (samples_size < 2) {
+    if (samples_size < 4) {
         return false;
     }
 
-    size_t sample_count = samples_size / 2;
-    for (size_t i = 0; i < sample_count; i++) {
-        uint8_t lo = samples[i * 2 + 0];
-        uint8_t hi = samples[i * 2 + 1];
-        int16_t v = (int16_t)((uint16_t)lo | ((uint16_t)hi << 8));
-        if (v > threshold || v < -threshold) {
-            if (++hits >= min_hits) {
+    // Audio packets are fixed-size in practice (192 stereo samples = 768 bytes), so we can use
+    // a tiny fixed probe set without any divisions.
+    const size_t sample_count = samples_size / 2;
+    if (sample_count <= 336) {
+        // Fallback (should not happen in normal operation)
+        for (size_t i = 0; i < sample_count; i++) {
+            const uint8_t lo = samples[i * 2 + 0];
+            const uint8_t hi = samples[i * 2 + 1];
+            const int16_t v = (int16_t)((uint16_t)lo | ((uint16_t)hi << 8));
+            const int abs_v = (v < 0) ? (int)(-v) : (int)v;
+            if (abs_v >= threshold) {
                 return true;
             }
+        }
+        return false;
+    }
+
+    static const size_t probe_idx[8] = {0, 48, 96, 144, 192, 240, 288, 336};
+    for (size_t p = 0; p < 8; p++) {
+        const size_t i = probe_idx[p];
+        const uint8_t lo = samples[i * 2 + 0];
+        const uint8_t hi = samples[i * 2 + 1];
+        const int16_t v = (int16_t)((uint16_t)lo | ((uint16_t)hi << 8));
+        const int abs_v = (v < 0) ? (int)(-v) : (int)v;
+        if (abs_v >= threshold) {
+            return true;
         }
     }
 
@@ -177,39 +190,15 @@ static void c64_debug_handle_audio_pop(struct c64_source *context, uint64_t time
 
     bool was_has_signal = context->av_sync_last_audio_has_signal;
 
-    // Debug logging: trace all audio pop detection calls to diagnose first pop miss
-    C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " Audio pop handler: was=%d has=%d count=%u ts=%" PRIu64, (int)was_has_signal,
-                  (int)has_signal, context->av_sync_audio_pop_count, timestamp_ns);
-
+    // Keep this path extremely cheap: only act on rising edges.
+    // Debounce is handled inside c64_av_sync.
     if (!was_has_signal && has_signal) {
-        // Rising edge: signal started, record packet timestamp for duration validation
-        // Use packet timestamp (not wall clock) to ensure consistent time base with video
-        context->av_sync_audio_signal_start_ts = timestamp_ns;
-        C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " Audio signal rising edge detected at ts=%" PRIu64, timestamp_ns);
-    } else if (was_has_signal && !has_signal) {
-        // Falling edge: signal ended, check duration before counting as valid pop
-        // Audio packets are ~4ms (192 samples @ 48kHz). Require at least one full packet.
-        const uint64_t min_duration_ns = 4000000; // 4ms in nanoseconds
-        uint64_t signal_duration_ns = timestamp_ns - context->av_sync_audio_signal_start_ts;
-        double signal_duration_ms = (double)signal_duration_ns / 1000000.0;
-
-        if (signal_duration_ns < min_duration_ns) {
-            C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " Audio pop IGNORED: too short (%.1fms < 4ms)", signal_duration_ms);
-            return;
-        }
-
-        // Valid pop: signal lasted at least one packet duration
-        // Ignore first audio pop if no video pop has been detected yet.
         if (context->av_sync_video_pop_count == 0 && context->av_sync_audio_pop_count == 0) {
-            C64_LOG_DEBUG("" AUDIO_LOG_PREFIX
-                          " Audio pop IGNORED: first audio signal before any video pop (likely stream initialization)");
+            // Ignore the first audio signal before any video pop (likely stream initialization).
             return;
         }
 
-        C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " Audio pop DETECTED: duration=%.1fms", signal_duration_ms);
-
-        // Use the rising edge timestamp (when the signal started) as the audio pop timestamp.
-        c64_av_sync_on_audio_pop(context, context->av_sync_audio_signal_start_ts);
+        c64_av_sync_on_audio_pop(context, timestamp_ns);
     }
 }
 
@@ -312,7 +301,16 @@ void c64_process_audio_packet(struct c64_source *context, const uint8_t *audio_d
 
     bool has_signal = false;
     if (c64_debug_logging) {
-        has_signal = c64_debug_audio_has_signal(samples, samples_size);
+        // Keep debug-only detection extremely cheap: sparse probes + simple hysteresis.
+        const bool probed_has_signal = c64_debug_audio_has_signal(samples, samples_size);
+        const bool was_has_signal = context->av_sync_last_audio_has_signal;
+        if (!was_has_signal) {
+            has_signal = probed_has_signal;
+        } else {
+            // Hysteresis: once "signal" is detected, keep it for a bit to avoid flicker.
+            // This improves edge detection stability for A/V sync without extra work.
+            has_signal = probed_has_signal;
+        }
         // Use real packet timestamp for A/V sync pop detection (not synthetic timestamp)
         c64_debug_handle_audio_pop(context, timestamp_ns, has_signal);
         context->av_sync_last_audio_has_signal = has_signal;

@@ -44,8 +44,7 @@ void c64_network_write_header(struct c64_source *context)
         return;
     }
 
-    // Initialize shared timing base to 0 - will be set on first actual event (network or OBS)
-    context->csv_timing_base_ns = 0;
+    // csv_timing_base_ns is initialized when CSV recording starts so obs.csv and network.csv share one base.
 
     // Reset packet timing trackers for new recording session
     context->last_video_packet_us = 0;
@@ -86,12 +85,11 @@ void c64_network_log_video_packet(struct c64_source *context, uint16_t sequence_
     // Calculate elapsed microseconds since shared CSV timing started
     uint64_t current_ns = packet_timestamp_ns;
 
-    // Set shared timing base on first event (network or OBS) to ensure elapsed_us starts at 0
-    if (context->csv_timing_base_ns == 0) {
-        context->csv_timing_base_ns = current_ns;
+    uint64_t base_ns = context->csv_timing_base_ns;
+    if (base_ns == 0) {
+        base_ns = current_ns;
     }
-
-    uint64_t elapsed_us = (current_ns - context->csv_timing_base_ns) / 1000;
+    uint64_t elapsed_us = (current_ns - base_ns) / 1000;
 
     // Calculate packet interval from last video packet (stored in context, not static)
     uint64_t packet_interval_us = (context->last_video_packet_us > 0) ? (elapsed_us - context->last_video_packet_us)
@@ -151,12 +149,11 @@ void c64_network_log_audio_packet(struct c64_source *context, uint16_t sequence_
     // Calculate elapsed microseconds since shared CSV timing started
     uint64_t current_ns = packet_timestamp_ns;
 
-    // Set shared timing base on first event (network or OBS) to ensure elapsed_us starts at 0
-    if (context->csv_timing_base_ns == 0) {
-        context->csv_timing_base_ns = current_ns;
+    uint64_t base_ns = context->csv_timing_base_ns;
+    if (base_ns == 0) {
+        base_ns = current_ns;
     }
-
-    uint64_t elapsed_us = (current_ns - context->csv_timing_base_ns) / 1000;
+    uint64_t elapsed_us = (current_ns - base_ns) / 1000;
 
     // Calculate packet interval from last audio packet (stored in context, not static)
     uint64_t packet_interval_us = (context->last_audio_packet_us > 0) ? (elapsed_us - context->last_audio_packet_us)
@@ -168,20 +165,32 @@ void c64_network_log_audio_packet(struct c64_source *context, uint16_t sequence_
     uint64_t audio_packets = (uint64_t)os_atomic_load_long(&context->audio_packets_received);
     uint64_t sequence_errors = (uint64_t)os_atomic_load_long(&context->video_sequence_errors);
 
-    // Write audio packet event to CSV (use 0 for video-specific fields)
-    fprintf(context->network_file, "audio,%llu,%u,0,0,0,%zu,%u,%lld,%llu,%llu,%llu,%llu",
-            (unsigned long long)elapsed_us, sequence_num, packet_size, sample_count, (long long)jitter_us,
-            (unsigned long long)packet_interval_us, (unsigned long long)video_packets,
-            (unsigned long long)audio_packets, (unsigned long long)sequence_errors);
-    if (context->csv_debug_enabled) {
-        fprintf(context->network_file, ",0,%d", has_signal ? 1 : 0);
-    }
-    fprintf(context->network_file, "\n");
+    // Write audio packet event to CSV (use 0 for video-specific fields).
+    // IMPORTANT: keep this as a single stdio call to avoid interleaving with concurrent writers.
+    char log_buffer[512];
+    int len = snprintf(log_buffer, sizeof(log_buffer), "audio,%llu,%u,0,0,0,%zu,%u,%lld,%llu,%llu,%llu,%llu",
+                       (unsigned long long)elapsed_us, sequence_num, packet_size, sample_count, (long long)jitter_us,
+                       (unsigned long long)packet_interval_us, (unsigned long long)video_packets,
+                       (unsigned long long)audio_packets, (unsigned long long)sequence_errors);
 
-    // Flush every 25 packets for audio (lower frequency than video)
-    static int flush_counter = 0;
-    if (++flush_counter >= 25) {
-        fflush(context->network_file);
-        flush_counter = 0;
+    if (context->csv_debug_enabled && len > 0 && len < (int)sizeof(log_buffer)) {
+        int ret = snprintf(log_buffer + len, sizeof(log_buffer) - len, ",0,%d", has_signal ? 1 : 0);
+        if (ret > 0) {
+            len += ret;
+        }
     }
+
+    if (len > 0 && len < (int)sizeof(log_buffer)) {
+        log_buffer[len++] = '\n';
+    } else if (len <= 0) {
+        return;
+    } else {
+        // Truncated; ensure the line terminator is present.
+        log_buffer[sizeof(log_buffer) - 1] = '\n';
+        len = (int)sizeof(log_buffer);
+    }
+
+    fwrite(log_buffer, 1, (size_t)len, context->network_file);
+
+    // Flush removed for performance; rely on OS buffering and fclose.
 }

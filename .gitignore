@@ -107,5 +107,8 @@ tests/e2e/results/**/*.mkv
 tests/e2e/results/**/video_manifest.csv
 tests/e2e/results/**/audio_manifest.csv
 
+# Local-only archived E2E snapshots (baseline comparisons)
+tests/e2e/results-archive/
+
 # FlameGraph scripts (cloned via build-aux/install-flamegraph.sh)
 tools/FlameGraph/

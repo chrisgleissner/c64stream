@@ -28,8 +28,7 @@ void c64_obs_write_header(struct c64_source *context)
         return;
     }
 
-    // Initialize shared timing base to 0 - will be set on first actual event (network or OBS)
-    context->csv_timing_base_ns = 0;
+    // csv_timing_base_ns is initialized when CSV recording starts so obs.csv and network.csv share one base.
 
     // Write CSV header with all timing columns
     fprintf(context->timing_file,
@@ -59,12 +58,11 @@ void c64_obs_log_video_event(struct c64_source *context, uint16_t frame_num, siz
     // Calculate elapsed microseconds since shared CSV timing started
     uint64_t current_ns = os_gettime_ns();
 
-    // Set shared timing base on first event (network or OBS) to ensure elapsed_us starts at 0
-    if (context->csv_timing_base_ns == 0) {
-        context->csv_timing_base_ns = current_ns;
+    uint64_t base_ns = context->csv_timing_base_ns;
+    if (base_ns == 0) {
+        base_ns = current_ns;
     }
-
-    uint64_t elapsed_us = (current_ns - context->csv_timing_base_ns) / 1000;
+    uint64_t elapsed_us = (current_ns - base_ns) / 1000;
 
     // Write video timing event to CSV with actual frame number
     uint64_t video_packets = (uint64_t)os_atomic_load_long(&context->video_packets_received);
@@ -98,12 +96,11 @@ void c64_obs_log_audio_event(struct c64_source *context, size_t data_size, bool 
     // Calculate elapsed microseconds since shared CSV timing started
     uint64_t current_ns = os_gettime_ns();
 
-    // Set shared timing base on first event (network or OBS) to ensure elapsed_us starts at 0
-    if (context->csv_timing_base_ns == 0) {
-        context->csv_timing_base_ns = current_ns;
+    uint64_t base_ns = context->csv_timing_base_ns;
+    if (base_ns == 0) {
+        base_ns = current_ns;
     }
-
-    uint64_t elapsed_us = (current_ns - context->csv_timing_base_ns) / 1000;
+    uint64_t elapsed_us = (current_ns - base_ns) / 1000;
 
     // Write audio timing event to CSV (frame_num = 0 since audio doesn't correspond to specific video frames)
     uint64_t video_packets = (uint64_t)os_atomic_load_long(&context->video_packets_received);

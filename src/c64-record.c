@@ -359,20 +359,24 @@ void c64_record_init(struct c64_source *context)
  */
 void c64_record_cleanup(struct c64_source *context)
 {
-    // Stop recording if active
-    if (context->record_video) {
-        if (pthread_mutex_lock(&context->recording_mutex) == 0) {
-            if (context->video_file) {
-                fclose(context->video_file);
-                context->video_file = NULL;
-            }
-            if (context->audio_file) {
-                fclose(context->audio_file);
-                context->audio_file = NULL;
-            }
-            // CSV file is handled by session cleanup
-            pthread_mutex_unlock(&context->recording_mutex);
+    if (pthread_mutex_lock(&context->recording_mutex) == 0) {
+        if (context->video_file) {
+            fclose(context->video_file);
+            context->video_file = NULL;
         }
+        if (context->audio_file) {
+            fclose(context->audio_file);
+            context->audio_file = NULL;
+        }
+        if (context->timing_file) {
+            fclose(context->timing_file);
+            context->timing_file = NULL;
+        }
+        if (context->network_file) {
+            fclose(context->network_file);
+            context->network_file = NULL;
+        }
+        pthread_mutex_unlock(&context->recording_mutex);
     }
 
     // Clean up recording mutex
@@ -417,6 +421,10 @@ void c64_record_update_settings(struct c64_source *context, void *settings_ptr)
         context->record_csv = new_record_csv;
 
         if (new_record_csv) {
+            // Initialize a shared timing base once so obs.csv and network.csv use a consistent epoch.
+            // This avoids racy "first event wins" initialization from multiple threads.
+            context->csv_timing_base_ns = os_gettime_ns();
+
             // Start CSV recording independently
             C64_LOG_INFO("" RECORD_LOG_PREFIX " Starting CSV recording...");
             c64_start_csv_recording(context);

@@ -118,6 +118,8 @@ void c64_async_retry_task(void *data)
         // Already streaming - test connectivity and send start commands
         // Use quick connectivity test instead of recreating sockets (avoids race conditions)
         if (c64_test_connectivity(context->ip_address, context->control_port)) {
+            // We are explicitly requesting the peer to (re)start streaming now.
+            context->last_start_command_time_ns = os_gettime_ns();
             c64_send_control_command(context, true, 0); // Video
             c64_send_control_command(context, true, 1); // Audio
             tcp_success = true;
@@ -954,6 +956,7 @@ void c64_start_streaming(struct c64_source *context)
     C64_LOG_DEBUG("Audio timestamp state reset for reconnection");
 
     // Send start commands to C64 Ultimate
+    context->last_start_command_time_ns = os_gettime_ns();
     c64_send_control_command(context, true, 0); // Start video
     c64_send_control_command(context, true, 1); // Start audio
 

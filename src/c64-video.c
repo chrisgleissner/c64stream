@@ -681,45 +681,64 @@ bool c64_is_frame_timeout(struct frame_assembly *frame)
     return elapsed > C64_FRAME_TIMEOUT_MS;
 }
 
-static bool c64_debug_frame_is_all_white(const uint32_t *pixels, size_t pixel_count)
+static bool c64_debug_frame_is_all_white_fast_probe(const uint32_t *pixels, uint32_t width, uint32_t height)
 {
-    // Video pop detection: >80% of frame pixels have RGB >= 0xE0
-    // This allows for slightly off-white colors from VPL files and CRT effects.
-    size_t white_count = 0;
-    const size_t threshold_count = (size_t)(pixel_count * 0.8);
-
-    // Sample first few pixels for debugging
-    if (pixel_count > 0) {
-        uint32_t sample_pixel = pixels[0];
-        uint8_t sample_r = (sample_pixel >> 16) & 0xFF;
-        uint8_t sample_g = (sample_pixel >> 8) & 0xFF;
-        uint8_t sample_b = sample_pixel & 0xFF;
-        C64_LOG_INFO("" VIDEO_LOG_PREFIX " White detection: first pixel RGB=(%02X,%02X,%02X)", sample_r, sample_g,
-                     sample_b);
+    // Ultra-fast video pop detection for debug/testing.
+    // A pop marker is expected to be very bright; we classify "white" as RGB >= 0xE0 (alpha ignored).
+    // Probe two tiny 3x3 areas:
+    //  - Center: catches full-frame flashes.
+    //  - ~Bottom-right of the content: catches small pop markers embedded in the scene.
+    if (!pixels || width == 0 || height == 0) {
+        return false;
     }
 
-    for (size_t i = 0; i < pixel_count; i++) {
-        // Frame buffer pixels may not always have alpha set to 0xFF and some
-        // conversions may yield slightly off-white values.
-        // For A/V pop detection, treat "white" as sufficiently high RGB.
-        const uint32_t rgb = pixels[i] & 0x00FFFFFF;
-        const uint8_t r = (rgb >> 16) & 0xFF;
-        const uint8_t g = (rgb >> 8) & 0xFF;
-        const uint8_t b = (rgb >> 0) & 0xFF;
-        if (r >= 0xE0 && g >= 0xE0 && b >= 0xE0) {
-            white_count++;
-            // Early exit if we've already confirmed >80% white
-            if (white_count > threshold_count) {
-                C64_LOG_INFO("" VIDEO_LOG_PREFIX " White frame detected: %zu/%zu pixels white (>80%%)", white_count,
-                             pixel_count);
-                return true;
+    const uint32_t probe_x[2] = {
+        width / 2,
+        (uint32_t)(((uint64_t)width * 78ULL) / 100ULL),
+    };
+    const uint32_t probe_y[2] = {
+        height / 2,
+        (uint32_t)(((uint64_t)height * 80ULL) / 100ULL),
+    };
+
+    for (size_t p = 0; p < 2; p++) {
+        size_t white_count = 0;
+        size_t probed = 0;
+
+        for (int dy = -1; dy <= 1; dy++) {
+            int y = (int)probe_y[p] + dy;
+            if (y < 0 || y >= (int)height) {
+                continue;
+            }
+            for (int dx = -1; dx <= 1; dx++) {
+                int x = (int)probe_x[p] + dx;
+                if (x < 0 || x >= (int)width) {
+                    continue;
+                }
+
+                const uint32_t rgb = pixels[(size_t)y * (size_t)width + (size_t)x] & 0x00FFFFFF;
+                const uint8_t r = (rgb >> 16) & 0xFF;
+                const uint8_t g = (rgb >> 8) & 0xFF;
+                const uint8_t b = (rgb >> 0) & 0xFF;
+
+                probed++;
+                if (r >= 0xE0 && g >= 0xE0 && b >= 0xE0) {
+                    white_count++;
+                }
             }
         }
+
+        if (probed == 0) {
+            continue;
+        }
+
+        const size_t threshold_count = (size_t)(probed * 0.8);
+        if (white_count > threshold_count) {
+            return true;
+        }
     }
-    bool is_white = white_count > threshold_count;
-    C64_LOG_INFO("" VIDEO_LOG_PREFIX " White detection result: %s (%zu/%zu pixels, threshold=%zu)",
-                 is_white ? "YES" : "NO", white_count, pixel_count, threshold_count);
-    return is_white;
+
+    return false;
 }
 
 static void c64_debug_handle_video_pop(struct c64_source *context, uint16_t frame_num, uint64_t timestamp_ns,
@@ -752,11 +771,10 @@ void c64_render_frame_direct(struct c64_source *context, struct frame_assembly *
     const size_t pixel_count = (size_t)context->width * (size_t)context->height;
     const uint32_t *out_pixels = c64_get_afterglow_output_pixels(context, context->frame_buffer, pixel_count);
 
-    // Check for white frames (debug/testing mode)
+    // Check for video pops (debug/testing mode)
     bool is_all_white = false;
     if (c64_debug_logging) {
-        C64_LOG_INFO("" VIDEO_LOG_PREFIX " Frame %u: Checking if all-white (debug_logging=true)", frame->frame_num);
-        is_all_white = c64_debug_frame_is_all_white(out_pixels, pixel_count);
+        is_all_white = c64_debug_frame_is_all_white_fast_probe(out_pixels, context->width, context->height);
         if (frame->last_packet_time != 0) {
             c64_debug_handle_video_pop(context, frame->frame_num, frame->last_packet_time, is_all_white);
         }
@@ -1188,8 +1206,9 @@ void *c64_video_thread_func(void *data)
             os_atomic_set_long(&context->video_bytes_received,
                                os_atomic_load_long(&context->video_bytes_received) + (long)received);
 
-            // Log network packet at UDP reception - REDUNDANT HERE, moved to consumer thread to avoid I/O blocking
-            // c64_log_video_packet_if_enabled(context, packet, received, packet_time);
+            // Log network packet at UDP reception (CSV logging). This must happen here to ensure we log every
+            // received packet, independent of any later buffering/consumer behavior.
+            c64_log_video_packet_if_enabled(context, packet, received, packet_time);
 
             // Parse packet header for validation (always needed for packet validation)
             uint16_t pixels_per_line = *(uint16_t *)(packet + 6);
@@ -1532,43 +1551,7 @@ void *c64_video_processor_thread_func(void *data)
                                        &timestamp_us)) {
 
                 if (video_data && video_size > 0) {
-                    // Profiling: Measure precise costs of logging vs processing
-                    static uint64_t total_log_ns = 0;
-                    static uint64_t total_process_ns = 0;
-                    static uint64_t max_log_ns = 0;
-                    static uint64_t max_process_ns = 0;
-                    static uint64_t prof_pkt_count = 0;
-
-                    uint64_t t_start = os_gettime_ns();
-
-                    // Log packet here (offload from UDP thread)
-                    c64_log_video_packet_if_enabled(context, video_data, video_size, timestamp_us * 1000);
-
-                    uint64_t t_mid = os_gettime_ns();
-
                     c64_process_video_packet_direct(context, video_data, video_size, timestamp_us * 1000);
-
-                    uint64_t t_end = os_gettime_ns();
-
-                    uint64_t log_dur = t_mid - t_start;
-                    uint64_t process_dur = t_end - t_mid;
-
-                    total_log_ns += log_dur;
-                    total_process_ns += process_dur;
-                    if (log_dur > max_log_ns)
-                        max_log_ns = log_dur;
-                    if (process_dur > max_process_ns)
-                        max_process_ns = process_dur;
-                    prof_pkt_count++;
-
-                    if (prof_pkt_count % 1000 == 0) {
-                        C64_LOG_INFO("PROFILING [%llu]: Avg Log: %llu ns (Max: %llu), Avg Process: %llu ns (Max: %llu)",
-                                     (unsigned long long)prof_pkt_count,
-                                     (unsigned long long)(total_log_ns / prof_pkt_count),
-                                     (unsigned long long)max_log_ns,
-                                     (unsigned long long)(total_process_ns / prof_pkt_count),
-                                     (unsigned long long)max_process_ns);
-                    }
 
                     // Reset retry count on successful video packet processing
                     if (context->retry_count > 0) {
@@ -1633,7 +1616,23 @@ void *c64_video_processor_thread_func(void *data)
             }
 
             // Retry TCP connection and recreate UDP sockets if no VIDEO packets for 1+ seconds
-            if (time_since_last_video > retry_interval_ns && time_since_last_retry >= retry_interval_ns &&
+            // During initial startup it's normal to have a longer delay between sending START commands and
+            // receiving the first UDP packets (e.g. E2E harness setup). Avoid thrashing sockets in that window.
+            const uint64_t initial_no_packet_grace_ns = 15000000000ULL; // 15 seconds
+            long video_packets_received = os_atomic_load_long(&context->video_packets_received);
+            bool have_seen_any_video = (video_packets_received > 0);
+
+            uint64_t no_video_retry_threshold_ns = retry_interval_ns;
+            if (!have_seen_any_video) {
+                // If we haven't even requested streaming yet, don't schedule no-packet retries.
+                if (context->last_start_command_time_ns == 0) {
+                    no_video_retry_threshold_ns = UINT64_MAX;
+                } else {
+                    no_video_retry_threshold_ns = initial_no_packet_grace_ns;
+                }
+            }
+
+            if (time_since_last_video > no_video_retry_threshold_ns && time_since_last_retry >= retry_interval_ns &&
                 !os_atomic_load_long(&context->retry_in_progress)) {
                 uint64_t time_since_last_audio = current_time - context->last_audio_packet_time;
                 C64_LOG_INFO(
