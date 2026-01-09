@@ -17,7 +17,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-network.h"
 #include "c64-network-buffer.h"
 #include "c64-protocol.h"
-#include "c64-ingest-ring.h"
+#include "c64-network-fifo.h"
 
 // Frame packet structure for reordering
 struct frame_packet {
@@ -168,11 +168,11 @@ struct c64_source {
     volatile long debug_recvfrom_bytes_total; // Sum of all bytes from recvfrom (including partial/headers)
     volatile long debug_packets_dropped_size; // Packets dropped due to wrong size
 
-    // Stage-1 UDP ingest rings (decouple socket recv from buffering/order work)
-    struct c64_ingest_ring video_ingest;
-    struct c64_ingest_ring audio_ingest;
-    struct c64_ingest_packet *video_ingest_entries;
-    struct c64_ingest_packet *audio_ingest_entries;
+    // Stage-1 UDP network FIFOs (decouple socket recv from buffering/order work)
+    struct c64_network_fifo video_fifo;
+    struct c64_network_fifo audio_fifo;
+    struct c64_network_fifo_packet *video_fifo_entries;
+    struct c64_network_fifo_packet *audio_fifo_entries;
 
     uint64_t last_stats_log_time;       // Last time video statistics were logged (non-atomic)
     uint64_t last_audio_stats_log_time; // Last time audio statistics were logged (non-atomic)

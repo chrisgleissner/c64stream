@@ -106,7 +106,7 @@ void *audio_thread_func(void *data)
         os_atomic_set_long(&context->audio_bytes_received,
                            os_atomic_load_long(&context->audio_bytes_received) + (long)received);
 
-        (void)c64_ingest_ring_push(&context->audio_ingest, packet, (uint16_t)received, packet_time);
+        (void)c64_network_fifo_push(&context->audio_fifo, packet, (uint16_t)received, packet_time);
     }
 
     C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " Audio thread stopped for C64 Stream source '%s'",

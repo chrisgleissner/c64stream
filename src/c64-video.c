@@ -1224,7 +1224,7 @@ void *c64_video_thread_func(void *data)
             os_atomic_set_long(&context->video_bytes_received,
                                os_atomic_load_long(&context->video_bytes_received) + (long)received);
 
-            (void)c64_ingest_ring_push(&context->video_ingest, packet, (uint16_t)received, packet_time);
+            (void)c64_network_fifo_push(&context->video_fifo, packet, (uint16_t)received, packet_time);
 
 #ifdef __linux__
         } // End batch packet processing loop
@@ -1500,7 +1500,7 @@ void c64_process_video_packet_direct(struct c64_source *context, const uint8_t *
     }
 }
 
-static bool c64_stage2_drain_video_ingest(struct c64_source *context, uint32_t max_packets)
+static bool c64_stage2_drain_video_fifo(struct c64_source *context, uint32_t max_packets)
 {
     if (!context) {
         return false;
@@ -1510,7 +1510,7 @@ static bool c64_stage2_drain_video_ingest(struct c64_source *context, uint32_t m
     uint8_t packet[C64_VIDEO_PACKET_SIZE];
 
     for (uint32_t i = 0; i < max_packets; i++) {
-        struct c64_ingest_packet *slot = c64_ingest_ring_peek(&context->video_ingest);
+        struct c64_network_fifo_packet *slot = c64_network_fifo_peek(&context->video_fifo);
         if (!slot) {
             break;
         }
@@ -1518,7 +1518,7 @@ static bool c64_stage2_drain_video_ingest(struct c64_source *context, uint32_t m
         const uint64_t packet_time = slot->timestamp_ns;
         const uint16_t received = slot->size;
         memcpy(packet, slot->data, received);
-        c64_ingest_ring_commit_pop(&context->video_ingest);
+        c64_network_fifo_commit_pop(&context->video_fifo);
         did_work = true;
 
         // Stage-2: buffering / ordering / validation / optional CSV logging.
@@ -1556,7 +1556,7 @@ static bool c64_stage2_drain_video_ingest(struct c64_source *context, uint32_t m
     return did_work;
 }
 
-static bool c64_stage2_drain_audio_ingest(struct c64_source *context, uint32_t max_packets)
+static bool c64_stage2_drain_audio_fifo(struct c64_source *context, uint32_t max_packets)
 {
     if (!context) {
         return false;
@@ -1566,7 +1566,7 @@ static bool c64_stage2_drain_audio_ingest(struct c64_source *context, uint32_t m
     uint8_t packet[C64_AUDIO_PACKET_SIZE];
 
     for (uint32_t i = 0; i < max_packets; i++) {
-        struct c64_ingest_packet *slot = c64_ingest_ring_peek(&context->audio_ingest);
+        struct c64_network_fifo_packet *slot = c64_network_fifo_peek(&context->audio_fifo);
         if (!slot) {
             break;
         }
@@ -1574,7 +1574,7 @@ static bool c64_stage2_drain_audio_ingest(struct c64_source *context, uint32_t m
         const uint64_t packet_time = slot->timestamp_ns;
         const uint16_t received = slot->size;
         memcpy(packet, slot->data, received);
-        c64_ingest_ring_commit_pop(&context->audio_ingest);
+        c64_network_fifo_commit_pop(&context->audio_fifo);
         did_work = true;
 
         c64_log_audio_packet_if_enabled(context, packet, received, packet_time);
@@ -1618,10 +1618,10 @@ void *c64_video_processor_thread_func(void *data)
 
         // Stage-2 ingress: consume from Stage-1 UDP ingest rings and feed the ordering/delay buffer.
         // Drain video more aggressively (higher PPS) and audio lightly.
-        if (c64_stage2_drain_video_ingest(context, 512)) {
+        if (c64_stage2_drain_video_fifo(context, 512)) {
             packet_processed = true;
         }
-        if (c64_stage2_drain_audio_ingest(context, 128)) {
+        if (c64_stage2_drain_audio_fifo(context, 128)) {
             packet_processed = true;
         }
 
