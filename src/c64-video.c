@@ -927,7 +927,21 @@ void c64_process_video_statistics_batch(struct c64_source *context, uint64_t cur
     double avg_pipeline_latency = context->frames_delivered_to_obs > 0
                                       ? context->total_pipeline_latency / (context->frames_delivered_to_obs * 1000000.0)
                                       : 0.0;
-    if (packets_received > 0) {
+
+    // Load and reset debug counters
+    long recv_calls = os_atomic_load_long(&context->debug_recvfrom_calls);
+    long recv_eagain = os_atomic_load_long(&context->debug_recvfrom_eagain);
+    long recv_bytes = os_atomic_load_long(&context->debug_recvfrom_bytes_total);
+    long drop_size = os_atomic_load_long(&context->debug_packets_dropped_size);
+
+    os_atomic_set_long(&context->debug_recvfrom_calls, 0);
+    os_atomic_set_long(&context->debug_recvfrom_eagain, 0);
+    os_atomic_set_long(&context->debug_recvfrom_bytes_total, 0);
+    os_atomic_set_long(&context->debug_packets_dropped_size, 0);
+
+    if (packets_received > 0 || recv_calls > 0) {
+        C64_LOG_INFO("" VIDEO_LOG_PREFIX " DBG: recv_calls=%ld eagain=%ld bytes=%ld drop_size=%ld", recv_calls,
+                     recv_eagain, recv_bytes, drop_size);
         C64_LOG_INFO("" VIDEO_LOG_PREFIX " %.1f fps | %.2f Mbps | %.0f pps | Frames: %u", frames_per_second,
                      bandwidth_mbps, packets_per_second, (uint32_t)frames_processed);
         C64_LOG_INFO("" VIDEO_LOG_PREFIX
@@ -936,6 +950,8 @@ void c64_process_video_statistics_batch(struct c64_source *context, uint64_t cur
                      frame_completion_rate);
         C64_LOG_INFO("" VIDEO_LOG_PREFIX " Capture drops %.1f%% | Delivery drops %.1f%% | Avg latency %.1f ms",
                      capture_drop_pct, delivery_drop_pct, avg_pipeline_latency);
+        C64_LOG_INFO("" VIDEO_LOG_PREFIX " DEBUG: recv calls=%ld, EAGAIN=%ld, bytes=%ld, dropped_size=%ld (Valid: %lu)",
+                     recv_calls, recv_eagain, recv_bytes, drop_size, packets_received);
     }
 
     // Reset diagnostic counters and update timestamp
@@ -1022,10 +1038,9 @@ void *c64_video_thread_func(void *data)
 
     C64_LOG_DEBUG("" VIDEO_LOG_PREFIX " Video thread function started with optimized scheduling");
 
-#ifdef __linux__DISABLED_FOR_E2E_STABILITY
+#ifdef __linux__
 // Batch read optimization for Linux: receive up to 8 packets per syscall
-// DISABLED: Causes frame repetition issues in E2E tests - needs further investigation
-#define BATCH_SIZE 8
+#define BATCH_SIZE 64
     uint8_t packet_batch[BATCH_SIZE][C64_VIDEO_PACKET_SIZE];
     struct mmsghdr msgs[BATCH_SIZE];
     struct iovec iovs[BATCH_SIZE];
@@ -1051,18 +1066,27 @@ void *c64_video_thread_func(void *data)
             continue;
         }
 
-#ifdef __linux__DISABLED_FOR_E2E_STABILITY
+#ifdef __linux__
+        // Reset message headers to prevent size/address corruption/truncation across calls
+        for (int i = 0; i < BATCH_SIZE; i++) {
+            msgs[i].msg_hdr.msg_namelen = sizeof(struct sockaddr_in);
+            iovs[i].iov_len = C64_VIDEO_PACKET_SIZE;
+        }
+
         // Linux: batch read with recvmmsg (reduces syscall overhead)
-        // DISABLED: Causes frame repetition issues in E2E tests
+        // Use MSG_DONTWAIT to drain socket buffer as fast as possible without waiting for full batch
         int num_msgs = recvmmsg(context->video_socket, msgs, BATCH_SIZE, MSG_DONTWAIT, NULL);
 
         if (num_msgs < 0) {
             int error = c64_get_socket_error();
             if (error == EAGAIN || error == EWOULDBLOCK) {
+                os_atomic_inc_long(&context->debug_recvfrom_eagain);
+                // Socket empty - sleep briefly to yield CPU
                 os_sleep_ms(1);
                 continue;
             }
             if (error == EBADF && context->video_socket == INVALID_SOCKET_VALUE) {
+
                 C64_LOG_DEBUG("" VIDEO_LOG_PREFIX " Video socket closed (EBADF) - exiting receiver thread gracefully");
                 break;
             }
@@ -1070,6 +1094,9 @@ void *c64_video_thread_func(void *data)
                           c64_get_socket_error_string(error), error);
             break;
         }
+
+        // Count just one "call" for the batch (approximating overhead)
+        os_atomic_inc_long(&context->debug_recvfrom_calls);
 
         // Process each received packet
         for (int i = 0; i < num_msgs; i++) {
@@ -1080,6 +1107,9 @@ void *c64_video_thread_func(void *data)
         uint8_t packet[C64_VIDEO_PACKET_SIZE];
         struct sockaddr_in sender_addr;
         socklen_t sender_len = sizeof(sender_addr);
+
+        os_atomic_inc_long(&context->debug_recvfrom_calls);
+
         ssize_t received = recvfrom(context->video_socket, (char *)packet, (int)sizeof(packet), 0,
                                     (struct sockaddr *)&sender_addr, &sender_len);
 
@@ -1087,6 +1117,7 @@ void *c64_video_thread_func(void *data)
             int error = c64_get_socket_error();
 #ifdef _WIN32
             if (error == WSAEWOULDBLOCK) {
+                os_atomic_inc_long(&context->debug_recvfrom_eagain);
                 os_sleep_ms(0);
                 continue;
             }
@@ -1104,6 +1135,7 @@ void *c64_video_thread_func(void *data)
             }
 #else
             if (error == EAGAIN || error == EWOULDBLOCK) {
+                os_atomic_inc_long(&context->debug_recvfrom_eagain);
                 os_sleep_ms(1);
                 continue;
             }
@@ -1119,8 +1151,15 @@ void *c64_video_thread_func(void *data)
         }
         { // Scope block for shared packet processing code
 #endif
+            if (received > 0) {
+                os_atomic_set_long(&context->debug_recvfrom_bytes_total,
+                                   os_atomic_load_long(&context->debug_recvfrom_bytes_total) + (long)received);
+            }
 
             if (received != C64_VIDEO_PACKET_SIZE) {
+                if (received > 0) {
+                    os_atomic_inc_long(&context->debug_packets_dropped_size);
+                }
                 // Small packets (2-4 bytes) are normal during stream startup/buffer changes
                 // Log as debug to avoid confusing users with normal control/startup packets
                 static uint64_t last_incomplete_log_time = 0;
@@ -1149,8 +1188,8 @@ void *c64_video_thread_func(void *data)
             os_atomic_set_long(&context->video_bytes_received,
                                os_atomic_load_long(&context->video_bytes_received) + (long)received);
 
-            // Log network packet at UDP reception (conditional - no parsing overhead if disabled)
-            c64_log_video_packet_if_enabled(context, packet, received, packet_time);
+            // Log network packet at UDP reception - REDUNDANT HERE, moved to consumer thread to avoid I/O blocking
+            // c64_log_video_packet_if_enabled(context, packet, received, packet_time);
 
             // Parse packet header for validation (always needed for packet validation)
             uint16_t pixels_per_line = *(uint16_t *)(packet + 6);
@@ -1179,10 +1218,12 @@ void *c64_video_thread_func(void *data)
             if (context->network_buffer) {
                 c64_network_buffer_push_video(context->network_buffer, packet, received, now);
             } else {
+                // In direct mode (buffer disabled), we must log here despite the overhead
+                c64_log_video_packet_if_enabled(context, packet, received, now);
                 c64_process_video_packet_direct(context, packet, received, now);
             }
 
-#ifdef __linux__DISABLED_FOR_E2E_STABILITY
+#ifdef __linux__
         } // End batch packet processing loop
 #else
         } // End scope block
@@ -1491,7 +1532,39 @@ void *c64_video_processor_thread_func(void *data)
                                        &timestamp_us)) {
 
                 if (video_data && video_size > 0) {
+                    // Profiling: Measure precise costs of logging vs processing
+                    static uint64_t total_log_ns = 0;
+                    static uint64_t total_process_ns = 0;
+                    static uint64_t max_log_ns = 0;
+                    static uint64_t max_process_ns = 0;
+                    static uint64_t prof_pkt_count = 0;
+
+                    uint64_t t_start = os_gettime_ns();
+
+                    // Log packet here (offload from UDP thread)
+                    c64_log_video_packet_if_enabled(context, video_data, video_size, timestamp_us * 1000);
+
+                    uint64_t t_mid = os_gettime_ns();
+
                     c64_process_video_packet_direct(context, video_data, video_size, timestamp_us * 1000);
+
+                    uint64_t t_end = os_gettime_ns();
+
+                    uint64_t log_dur = t_mid - t_start;
+                    uint64_t process_dur = t_end - t_mid;
+
+                    total_log_ns += log_dur;
+                    total_process_ns += process_dur;
+                    if (log_dur > max_log_ns) max_log_ns = log_dur;
+                    if (process_dur > max_process_ns) max_process_ns = process_dur;
+                    prof_pkt_count++;
+
+                    if (prof_pkt_count % 1000 == 0) {
+                         C64_LOG_INFO("PROFILING [%llu]: Avg Log: %llu ns (Max: %llu), Avg Process: %llu ns (Max: %llu)",
+                            (unsigned long long)prof_pkt_count,
+                            (unsigned long long)(total_log_ns / prof_pkt_count), (unsigned long long)max_log_ns,
+                            (unsigned long long)(total_process_ns / prof_pkt_count), (unsigned long long)max_process_ns);
+                    }
 
                     // Reset retry count on successful video packet processing
                     if (context->retry_count > 0) {

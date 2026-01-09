@@ -414,11 +414,20 @@ socket_t c64_create_udp_socket(uint32_t port)
 #else
     // Linux/macOS: Increase receive buffer to handle burst packet transmission in E2E tests
     // System drops packets (RcvbufErrors) with 1MB buffer - E2E sends 19K packets in ~5s
-    int recv_buffer_size = 4 * 1024 * 1024; // 4MB receive buffer (increased from 1MB)
+    // 16MB buffer to ensure no drops even if thread is stalled for seconds
+    int recv_buffer_size = 16 * 1024 * 1024;
+
+    // Try to set large buffer
     if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF, &recv_buffer_size, sizeof(recv_buffer_size)) < 0) {
         int error = c64_get_socket_error();
         C64_LOG_WARNING("" NETWORK_LOG_PREFIX " Failed to set UDP receive buffer size to %d bytes: %s",
                         recv_buffer_size, c64_get_socket_error_string(error));
+
+        // Fallback to 4MB if 16MB fails (likely due to rmem_max)
+        recv_buffer_size = 4 * 1024 * 1024;
+        if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF, &recv_buffer_size, sizeof(recv_buffer_size)) < 0) {
+            // Just verify we at least tried
+        }
     } else {
         C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Set UDP receive buffer to %d bytes", recv_buffer_size);
     }

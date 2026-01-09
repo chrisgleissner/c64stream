@@ -159,9 +159,16 @@ struct c64_source {
     volatile long video_frames_processed; // Total video frames processed (atomic)
     volatile long audio_packets_received; // Total audio packets received (atomic)
     volatile long audio_bytes_received;   // Total audio bytes received (atomic)
-    uint64_t last_stats_log_time;         // Last time video statistics were logged (non-atomic)
-    uint64_t last_audio_stats_log_time;   // Last time audio statistics were logged (non-atomic)
-    uint64_t last_stats_tick_ns;          // Last time stats batching was checked (limits per-packet timing calls)
+
+    // Debug counters for packet loss investigation
+    volatile long debug_recvfrom_calls;       // Total recvfrom calls made
+    volatile long debug_recvfrom_eagain;      // Total EAGAIN/EWOULDBLOCK results
+    volatile long debug_recvfrom_bytes_total; // Sum of all bytes from recvfrom (including partial/headers)
+    volatile long debug_packets_dropped_size; // Packets dropped due to wrong size
+
+    uint64_t last_stats_log_time;       // Last time video statistics were logged (non-atomic)
+    uint64_t last_audio_stats_log_time; // Last time audio statistics were logged (non-atomic)
+    uint64_t last_stats_tick_ns;        // Last time stats batching was checked (limits per-packet timing calls)
 
     // Frame saving for analysis (logo handled by async video - no manual logo needed)
     bool record_frames;
@@ -180,8 +187,10 @@ struct c64_source {
     FILE *network_file;
     char session_folder[800]; // Current session folder path
     uint64_t recording_start_time;
-    uint64_t csv_timing_base_ns; // Shared nanosecond timestamp when first CSV entry is written (network or OBS)
-    bool csv_debug_enabled;      // Snapshot of debug state for CSV headers/rows
+    uint64_t csv_timing_base_ns;   // Shared nanosecond timestamp when first CSV entry is written (network or OBS)
+    bool csv_debug_enabled;        // Snapshot of debug state for CSV headers/rows
+    uint64_t last_video_packet_us; // Last video packet timestamp for interval calculation (per-session)
+    uint64_t last_audio_packet_us; // Last audio packet timestamp for interval calculation (per-session)
     volatile long recorded_frames;
     volatile long recorded_audio_samples;
     pthread_mutex_t recording_mutex;

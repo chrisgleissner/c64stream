@@ -470,6 +470,13 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     os_atomic_set_long(&context->video_frames_processed, 0);
     os_atomic_set_long(&context->audio_packets_received, 0);
     os_atomic_set_long(&context->audio_bytes_received, 0);
+
+    // Initialize debug counters
+    os_atomic_set_long(&context->debug_recvfrom_calls, 0);
+    os_atomic_set_long(&context->debug_recvfrom_eagain, 0);
+    os_atomic_set_long(&context->debug_recvfrom_bytes_total, 0);
+    os_atomic_set_long(&context->debug_packets_dropped_size, 0);
+
     context->last_stats_log_time = os_gettime_ns();
     context->last_audio_stats_log_time = context->last_stats_log_time;
     context->last_stats_tick_ns = context->last_stats_log_time;

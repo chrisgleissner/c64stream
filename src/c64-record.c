@@ -212,6 +212,10 @@ void c64_start_network_recording(struct c64_source *context)
         return;
     }
 
+    // Optimize for high throughput: 4MB buffer to minimize syscalls
+    // This allows the consumer thread to write to memory and stay ahead of the ring buffer
+    setvbuf(context->network_file, NULL, _IOFBF, 4 * 1024 * 1024);
+
     context->csv_debug_enabled = c64_debug_logging;
 
     // Write network CSV header

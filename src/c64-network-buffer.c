@@ -160,27 +160,19 @@ static void rb_push(struct packet_ring_buffer *rb, const uint8_t *data, size_t l
     // Check if buffer is full or at high utilization
     size_t next_head = (head + 1) % rb->max_capacity;
     if (next_head == tail) {
-        // Buffer full: use dropping strategy to prevent continuous packet loss
-        // Drop 10% of packets (minimum 2) to create breathing room
-        size_t packets_to_drop = (current_packets / 10) + 2; // At least 2, typically 10%
-        if (packets_to_drop > current_packets / 2) {
-            packets_to_drop = current_packets / 2; // Never drop more than half
-        }
+        // Buffer full: drop incoming packet to prevent blocking
+        // We cannot advance 'tail' here (drop oldest) because 'tail' is owned by the consumer thread.
+        // Modifying 'tail' concurrently from the producer thread causes race conditions.
 
-        for (size_t i = 0; i < packets_to_drop && tail != head; i++) {
-            tail = (tail + 1) % rb->max_capacity;
-            os_atomic_set_long(&rb->tail, (long)tail);
-        }
-
-        // Log buffer utilization once per second
         static uint64_t last_full_log_time = 0;
         uint64_t now = os_gettime_ns();
         if (now - last_full_log_time >= 1000000000ULL) {
             C64_LOG_WARNING("" NETWORK_LOG_PREFIX
-                            " %s buffer full: dropped %zu packets, utilization was=%zu%% (%zu/%zu packets)",
-                            type_name, packets_to_drop, utilization_percent, current_packets, rb->max_capacity);
+                            " %s buffer full: dropping incoming packet, utilization=%zu%% (%zu/%zu packets)",
+                            type_name, utilization_percent, current_packets, rb->max_capacity);
             last_full_log_time = now;
         }
+        return;
     } else if (utilization_percent >= 90) {
         // Warn when approaching capacity (but don't spam logs)
         static uint64_t last_warn_log_time = 0;
