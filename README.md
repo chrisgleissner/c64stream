@@ -74,7 +74,7 @@ Verified on Windows 11:
 #### Windows (ARM64 - Experimental)
 
 > [!NOTE]
-> Windows on ARM64 support is experimental and has not yet been fully tested. If would like to help with testing, please reach out in the discussions section of this repository.
+> Windows on ARM64 support is experimental and has not yet been fully tested. If you would like to help with testing, please reach out in the "Discussions" tab of this repository.
 > OBS Studio must be a native ARM64 build.
 
 1. Install OBS Studio by unzipping https://github.com/obsproject/obs-studio/releases/download/32.0.4/OBS-Studio-32.0.4-Windows-arm64.zip to your local drive.
