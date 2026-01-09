@@ -311,15 +311,16 @@ void c64_process_audio_packet(struct c64_source *context, const uint8_t *audio_d
     // For now, send interleaved data directly - OBS can handle it
     audio_output.data[0] = (uint8_t *)samples;
 
-    // Send audio to OBS for playback
-    obs_source_output_audio(context->source, &audio_output);
-
     bool has_signal = false;
-    if (c64_debug_logging || context->csv_debug_enabled) {
+    if (c64_debug_logging) {
         has_signal = c64_debug_audio_has_signal(samples, samples_size);
-        c64_debug_handle_audio_pop(context, audio_timestamp, has_signal);
+        // Use real packet timestamp for A/V sync pop detection (not synthetic timestamp).
+        c64_debug_handle_audio_pop(context, timestamp_ns, has_signal);
         context->av_sync_last_audio_has_signal = has_signal;
     }
+
+    // Send audio to OBS for playback
+    obs_source_output_audio(context->source, &audio_output);
 
     // Log audio delivery to CSV if enabled (high-level event: audio samples delivered to OBS)
     if (context->timing_file) {
