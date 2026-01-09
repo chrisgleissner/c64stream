@@ -6,8 +6,8 @@ Copyright (C) 2025 Christian Gleissner
 Licensed under the GNU General Public License v2.0 or later.
 See <https://www.gnu.org/licenses/> for details.
 
-Starts an A/V pop generator program on a real C64U, then records the stream
-and analyses the A/V pop offsets.
+Starts an A/V pop generator on a real C64U, then records the stream
+and analyses the A/V pop offsets in the MP4 recording.
 """
 
 from __future__ import annotations
