@@ -112,12 +112,12 @@ try:
 #Real device tests need to clear this so properties.ini takes precedence.
 #We'll update the scene later in the test with real device settings.
         self._clear_scene_plugin_state(scenes_dst_dir)
-        
+
         return profile_dst_dir
-    
+
     def _clear_scene_plugin_state(self, scenes_dir: Path):
         """Remove hardcoded plugin settings from scene JSON so properties.ini takes precedence.
-        
+
         The template scenes have c64_host=127.0.0.1 hardcoded for synthetic tests.
         Real device tests need these cleared so properties.ini values are used instead.
         """
@@ -134,7 +134,7 @@ try:
 #Remove c64_host so properties.ini value is used
                     if "c64_host" in settings:
                         del settings["c64_host"]
-                    
+
             scene_path.write_text(json.dumps(data, indent=4), encoding="utf-8")
         except (json.JSONDecodeError, KeyError, OSError):
             pass  # If scene update fails, properties.ini will still work (may show as localhost in UI)

@@ -1216,7 +1216,7 @@ stop_real_c64_streaming() {
     log_warning "NOTE: If C64U is configured to stream to ports 21000/21001, cross-pollution may occur!"
     log_warning "Real device tests should use ports 11000/11001 (C64U hardware default)."
     log_warning "To fix: Reconfigure C64U via web interface to use default UDP ports 11000/11001."
-    
+
     # Attempt to reset via REST API (may not work if device auto-restarts streaming)
     if command -v curl &>/dev/null; then
         local url="http://${c64_host}${reset_endpoint}"
@@ -1231,7 +1231,7 @@ stop_real_c64_streaming() {
             fi
         fi
     fi
-    
+
     sleep 1
     return 0
 }
