@@ -98,27 +98,41 @@ void c64_send_control_command(struct c64_source *context, bool enable, uint8_t s
             return;
         }
 
-        // Create IP:PORT string for the destination
-        char ip_port_str[128]; // Larger buffer to avoid truncation warnings
-        uint32_t port = (stream_id == 0) ? context->video_port : context->audio_port;
-        snprintf(ip_port_str, sizeof(ip_port_str), "%s:%u", client_ip, port);
-        size_t ip_port_len = strlen(ip_port_str);
+        // Destination string for the control protocol.
+        // Per spec/examples, this is an IP address string (port is implied by the stream).
+        // Some firmwares may tolerate "IP:PORT", but sticking to IP-only is the most compatible.
+        char dest_str[64];
+        snprintf(dest_str, sizeof(dest_str), "%s", client_ip);
+        size_t dest_len = strlen(dest_str);
 
-        // Enable stream command with destination IP:PORT
-        // Command structure: <command word LE> <param length LE> <duration LE> <IP:PORT string>
+        // The C64U may keep its streaming state/destination unless the stream is
+        // explicitly stopped first. Make the start command idempotent by sending a stop command
+        // for the same stream ID right before enabling it.
+        {
+            uint8_t stop_cmd[4];
+            stop_cmd[0] = 0x30 + stream_id; // 0x30 for video (stream 0), 0x31 for audio (stream 1)
+            stop_cmd[1] = 0xFF;
+            stop_cmd[2] = 0x00; // No parameters
+            stop_cmd[3] = 0x00;
+
+            (void)send(sock, (const char *)stop_cmd, (int)sizeof(stop_cmd), 0);
+        }
+
+        // Enable stream command with destination string
+        // Command structure: <command word LE> <param length LE> <duration LE> <destination string>
         // According to docs: FF2n where n is stream ID (0=video, 1=audio)
-        uint8_t cmd[140];          // Large enough buffer for IP:PORT string (128 + header bytes)
+        uint8_t cmd[140];          // Large enough buffer for destination string + header bytes
         cmd[0] = 0x20 + stream_id; // 0x20 for video (stream 0), 0x21 for audio (stream 1)
         cmd[1] = 0xFF;
-        cmd[2] = (uint8_t)(2 + ip_port_len); // Parameter length: 2 bytes duration + IP:PORT string length
+        cmd[2] = (uint8_t)(2 + dest_len); // Parameter length: 2 bytes duration + destination string length
         cmd[3] = 0x00;
         cmd[4] = 0x00; // Duration: 0 = forever (little endian)
         cmd[5] = 0x00;
-        memcpy(&cmd[6], ip_port_str, ip_port_len);
+        memcpy(&cmd[6], dest_str, dest_len);
 
-        int cmd_len = 6 + (int)ip_port_len;
+        int cmd_len = 6 + (int)dest_len;
         C64_LOG_INFO("" NETWORK_LOG_PREFIX " Sending start command for stream %u to %s with client destination: %s",
-                     stream_id, context->ip_address, ip_port_str);
+                     stream_id, context->ip_address, dest_str);
 
         ssize_t sent = send(sock, (const char *)cmd, cmd_len, 0);
         if (sent != (ssize_t)cmd_len) {
