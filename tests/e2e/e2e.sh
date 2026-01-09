@@ -1198,6 +1198,36 @@ build_project() {
     log_success "Build completed successfully"
 }
 
+# Stop real C64 Ultimate device from streaming to prevent cross-pollution
+stop_real_c64_streaming() {
+    local c64_host="c64u"
+    local reset_endpoint="/v1/machine:reset"
+    local reset_method="PUT"
+
+    # Check if c64u is reachable
+    if ! host "${c64_host}" >/dev/null 2>&1 && ! ping -c 1 -W 1 "${c64_host}" >/dev/null 2>&1; then
+        if [[ "${VERBOSE}" == true ]]; then
+            log_info "Real C64 device (${c64_host}) not reachable - skipping reset"
+        fi
+        return 0
+    fi
+
+    log_info "Stopping real C64 device streaming to prevent test cross-pollution..."
+    log_warning "NOTE: If C64U is configured to stream to ports 21000/21001, cross-pollution may occur!"
+    log_warning "Real device tests should use ports 11000/11001 (C64U hardware default)."
+    log_warning "To fix: Reconfigure C64U via web interface to use default UDP ports 11000/11001."
+        sleep 1
+        return 0
+    else
+        if [[ "${VERBOSE}" == true ]]; then
+            log_warning "Could not reset real C64 device - it may not be running or REST API unavailable"
+            log_warning "Continuing anyway, but test may receive real device packets if it's streaming"
+        fi
+        return 0
+    fi
+}
+
+
 # Install plugin to OBS
 install_plugin() {
     if [[ "${SKIP_BUILD}" == true ]]; then
@@ -3110,6 +3140,12 @@ main() {
 
     check_dependencies
     setup_process_priority
+
+    # CRITICAL: Stop real C64 device from streaming to prevent cross-pollution
+    # Synthetic tests use mock C64U on localhost, but real device may be sending
+    # UDP packets to the same ports, causing tests to receive wrong packets
+    stop_real_c64_streaming
+
     build_project
     install_plugin
     generate_packets

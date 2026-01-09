@@ -2,7 +2,7 @@
 
 ## Scenario: NTSC Default
 
-Generated: 2026-01-09 07:54:22 UTC
+Generated: 2026-01-09 08:15:44 UTC
 
 ## Test configuration
 
@@ -30,9 +30,9 @@ Generated: 2026-01-09 07:54:22 UTC
 
 ### Validation Summary
 
-- ⚠️ UDP Packet Reception: 16195/19252 packets (15055 video, 1075 audio, major loss)
-- ✅ Network Timing: span=4432.7ms, video_mean=293.7us, audio_mean=3994.4us
-- ✅ Frame Processing: 1017 frames processed
+- ⚠️ UDP Packet Reception: 16249/19252 packets (15110 video, 1078 audio, major loss)
+- ✅ Network Timing: span=4443.0ms, video_mean=293.0us, audio_mean=4001.1us
+- ✅ Frame Processing: 1020 frames processed
 - ✅ Video Recording: 17.2 MB
 - ✅ Content Integrity: 34.7s duration
 
@@ -42,9 +42,9 @@ During the test's processing window (3.1s, 7 of 53 samples) (8 cores):
 
 | Metric | Min | Median | Mean | Max |
 |--------|-----|--------|------|-----|
-| CPU | 50.1% | 57.5% | 57.79% | 71.3% |
-| RAM | 6156.66 MB | 6188.5 MB | 6196.54 MB | 6237.59 MB |
-| GPU | 0.89% | 4.33% | 3.95% | 8.53% |
+| CPU | 52.1% | 53.0% | 59.67% | 76.9% |
+| RAM | 6280.18 MB | 6292.09 MB | 6303.17 MB | 6332.35 MB |
+| GPU | 0.0% | 6.61% | 6.45% | 12.21% |
 
 Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
@@ -56,19 +56,19 @@ Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
 #### Network Quality (Measured)
 
-- Packet span (first→last): 4432.658 ms
-- Total packets analyzed: 16135
+- Packet span (first→last): 4442.980 ms
+- Total packets analyzed: 16192
 
 | Stream | Packets | Spacing (min) | Spacing (mean) | Spacing (max) | CV | Burst <0.5×P50 | Gaps >2×P50 | P99/P50 |
 |--------|---------|---------------|----------------|---------------|----|--------------|------------|--------|
-| All | 16135 | 0.001 ms | 0.540 ms | 6.769 ms | 205.87% | 0.39% | 32.89% | 1130.500 |
-| Video | 15053 | 0.001 ms | 0.294 ms | 5.416 ms | 209.26% | 0.42% | 28.06% | 787.750 |
-| Audio | 1074 | 1.785 ms | 3.994 ms | 6.769 ms | 17.82% | 0.84% | 0.00% | 1.442 |
+| All | 16192 | 0.001 ms | 0.540 ms | 7.881 ms | 206.33% | 0.30% | 32.15% | 1139.500 |
+| Video | 15108 | 0.001 ms | 0.293 ms | 7.881 ms | 208.60% | 0.32% | 27.29% | 748.250 |
+| Audio | 1077 | 0.008 ms | 4.001 ms | 7.432 ms | 18.97% | 0.74% | 0.00% | 1.468 |
 
 | Stream | Packets | Jitter (median) | Jitter (max) | Out-of-Order |
 |--------|---------|-----------------|--------------|--------------|
-| Video | 15053 | 0.001 ms | 5.412 ms | 0 |
-| Audio | 1074 | 0.334 ms | 2.529 ms | 0 |
+| Video | 15108 | 0.001 ms | 7.877 ms | 1 (0.0%) |
+| Audio | 1077 | 0.395 ms | 4.232 ms | 0 |
 
 Details: [network.json](network.json)
 

@@ -3108,6 +3108,49 @@ class E2ETest:
 
         validation_errors = []
         validation_warnings = []
+
+        # CRITICAL: Check for cross-pollution from real C64 device
+        # Synthetic tests should receive packets from mock C64U (sequence starts at 0)
+        # If we see high sequence numbers (>1000), we're receiving from real device!
+        network_csv = self.output_dir / 'network.csv'
+        if network_csv.exists():
+            try:
+                import csv
+                with open(network_csv, 'r') as f:
+                    reader = csv.DictReader(f)
+                    first_video_seq = None
+                    first_audio_seq = None
+                    for row in reader:
+                        if row['packet_type'] == 'video' and first_video_seq is None:
+                            first_video_seq = int(row['sequence_num'])
+                        elif row['packet_type'] == 'audio' and first_audio_seq is None:
+                            first_audio_seq = int(row['sequence_num'])
+                        if first_video_seq is not None and first_audio_seq is not None:
+                            break
+
+                    # For synthetic tests, sequences should start near 0 (within first 100 packets)
+                    # If we see sequences >1000, we're receiving from real C64 device
+                    if first_video_seq is not None and first_video_seq > 1000:
+                        error_msg = (
+                            f"❌ CROSS-POLLUTION DETECTED: First video packet has sequence {first_video_seq} (expected <100)\n"
+                            f"   This indicates packets came from REAL C64 device, not mock C64U!\n"
+                            f"   Real C64 device must be stopped before running synthetic tests."
+                        )
+                        print(error_msg)
+                        validation_errors.append(f"Cross-pollution: video sequence {first_video_seq} >> 1000")
+                    elif first_audio_seq is not None and first_audio_seq > 1000:
+                        error_msg = (
+                            f"❌ CROSS-POLLUTION DETECTED: First audio packet has sequence {first_audio_seq} (expected <100)\n"
+                            f"   This indicates packets came from REAL C64 device, not mock C64U!\n"
+                            f"   Real C64 device must be stopped before running synthetic tests."
+                        )
+                        print(error_msg)
+                        validation_errors.append(f"Cross-pollution: audio sequence {first_audio_seq} >> 1000")
+                    else:
+                        # Good - sequences start near 0 as expected
+                        print(f"✅ Packet Source: Mock C64U (video seq={first_video_seq}, audio seq={first_audio_seq})")
+            except Exception as e:
+                validation_warnings.append(f"Could not verify packet source: {e}")
         is_full_frame_pop = (self.scenario_id == 'ntsc_default_debug')
 
         # Track individual validation results

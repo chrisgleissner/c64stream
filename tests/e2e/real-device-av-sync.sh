@@ -23,8 +23,8 @@ P95_MAX_MS=40
 MAX_MAX_MS=60
 MIN_POP_EVENTS=2
 NO_BUILD=false
-VIDEO_PORT=21000
-AUDIO_PORT=21001
+VIDEO_PORT=11000  # C64 Ultimate default video port (different from synthetic tests)
+AUDIO_PORT=11001  # C64 Ultimate default audio port (different from synthetic tests)
 CONTROL_PORT=64
 ANALYZE_ONLY=""
 OBS_CSV=""
@@ -55,8 +55,10 @@ Options:
     --p95-max-ms <ms>          Max allowed p95 A/V delta (default: 40)
     --max-max-ms <ms>          Max allowed max A/V delta (default: 60)
   --min-pop-events <n>       Minimum pop events required (default: 2)
-  --video-port <port>        Video UDP port (default: 21000)
-  --audio-port <port>        Audio UDP port (default: 21001)
+  --video-port <port>        Video UDP port (default: 11000 - C64U native default)
+                             NOTE: Synthetic tests use 21000 for port isolation
+  --audio-port <port>        Audio UDP port (default: 11001 - C64U native default)
+                             NOTE: Synthetic tests use 21001 for port isolation
   --control-port <port>      Control TCP port (default: 64)
   --rest-scheme <scheme>     REST scheme (default: http)
   --run-prg-endpoint <path>  REST endpoint for PRG upload+run (default: /v1/runners:run_prg)

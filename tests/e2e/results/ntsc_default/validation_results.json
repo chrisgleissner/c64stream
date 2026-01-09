@@ -1,11 +1,11 @@
 {
   "udp_reception": {
     "status": "warning",
-    "details": "16195/19252 packets (15055 video, 1075 audio, major loss)"
+    "details": "16249/19252 packets (15110 video, 1078 audio, major loss)"
   },
   "frame_processing": {
     "status": "pass",
-    "details": "1017 frames processed"
+    "details": "1020 frames processed"
   },
   "video_recording": {
     "status": "pass",
@@ -17,26 +17,26 @@
   },
   "network_timing": {
     "status": "pass",
-    "details": "span=4432.7ms, video_mean=293.7us, audio_mean=3994.4us"
+    "details": "span=4443.0ms, video_mean=293.0us, audio_mean=4001.1us"
   },
   "video_brightness": {
     "status": "pass",
     "details": "Normal (best_mean_luma=51.6)",
     "metrics": {
-      "best_offset_s": 26.025474,
-      "best_mean_luma": 51.58598709106445,
+      "best_offset_s": 26.000401500000002,
+      "best_mean_luma": 51.58586120605469,
       "samples": [
         {
-          "t": 8.675158,
-          "mean_luma": 51.58563232421875
+          "t": 8.6668005,
+          "mean_luma": 51.585628509521484
         },
         {
-          "t": 17.350316,
+          "t": 17.333601,
           "mean_luma": 51.58583068847656
         },
         {
-          "t": 26.025474,
-          "mean_luma": 51.58598709106445
+          "t": 26.000401500000002,
+          "mean_luma": 51.58586120605469
         }
       ]
     }
@@ -65,7 +65,7 @@
     ],
     "is_perfectly_synced": false,
     "last_event_within_limit": true,
-    "duration_ms": 34700.632,
+    "duration_ms": 34667.202000000005,
     "video_pop_times_ms": [],
     "video_pop_frame_indices": [],
     "traffic": [
