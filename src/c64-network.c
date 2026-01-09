@@ -412,8 +412,9 @@ socket_t c64_create_udp_socket(uint32_t port)
         C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " UDP_NOCHECKSUM option not supported on this system");
     }
 #else
-    // Linux/macOS: Also increase receive buffer, but usually less critical than Windows
-    int recv_buffer_size = 1 * 1024 * 1024; // 1MB receive buffer (Linux default is often larger)
+    // Linux/macOS: Increase receive buffer to handle burst packet transmission in E2E tests
+    // E2E tests send ~19K packets in ~3.5s (5400 pkt/s burst), requiring large buffer
+    int recv_buffer_size = 4 * 1024 * 1024; // 4MB receive buffer (increased from 1MB)
     if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF, &recv_buffer_size, sizeof(recv_buffer_size)) < 0) {
         int error = c64_get_socket_error();
         C64_LOG_WARNING("" NETWORK_LOG_PREFIX " Failed to set UDP receive buffer size to %d bytes: %s",
