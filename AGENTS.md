@@ -65,8 +65,8 @@ ctest --test-dir build_x86_64 --output-on-failure
 
 # Python unit tests (E2E harness)
 python3 -m unittest \
-    tests/e2e/test_network_simulation.py \
-    tests/e2e/test_network_timing_validation.py
+    tests/e2e/util/test_network_simulation.py \
+    tests/e2e/util/test_network_timing_validation.py
 ```
 
 Note: `./local-build.sh linux` runs unit tests by default (use `--no-tests` to skip).

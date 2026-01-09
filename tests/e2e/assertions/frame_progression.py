@@ -439,12 +439,9 @@ def _analyze_frame_progression(
 
     # Fallback method: detect video pops (requires test pattern with pops).
     try:
-        from test_av_sync import detect_video_pops
+        from util.test_av_sync import detect_video_pops
     except Exception:
-        try:
-            from ..test_av_sync import detect_video_pops  # type: ignore
-        except Exception:
-            detect_video_pops = None
+        detect_video_pops = None
 
     pop_starts: list[int] = []
     if detect_video_pops is not None:

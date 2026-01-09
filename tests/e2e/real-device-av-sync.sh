@@ -17,6 +17,7 @@ REST_TOKEN_HEADER="X-Password"
 OUTPUT_DIR="${SCRIPT_DIR}/results/real_c64u_av_sync"
 DURATION=10
 FORMAT="NTSC"
+DNS_SERVER_IP="192.168.1.1"
 MAX_DELTA_MS=30
 P50_MAX_MS=20
 P95_MAX_MS=40
@@ -49,6 +50,7 @@ Default (full run):
 Options:
   --duration <sec>           Recording duration (default: 10)
     --format <PAL|NTSC>        OBS output format (default: NTSC)
+    --dns-server-ip <ip>       DNS server IP used to resolve --host (default: 192.168.1.1)
   --output-dir <dir>         Output base dir (default: tests/e2e/results/real_c64u_av_sync)
     --max-delta-ms <ms>        Legacy max allowed A/V delta (default: 30)
     --p50-max-ms <ms>          Max allowed p50 A/V delta (default: 20)
@@ -148,7 +150,7 @@ run_analyzer() {
         args+=("--obs-log" "${OBS_LOG}")
     fi
 
-    python3 "${SCRIPT_DIR}/av_pop_analyzer.py" "${args[@]}"
+    python3 "${SCRIPT_DIR}/util/av_pop_analyzer.py" "${args[@]}"
 }
 
 run_prg() {
@@ -244,6 +246,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --format)
             FORMAT="$2"
+            shift 2
+            ;;
+        --dns-server-ip)
+            DNS_SERVER_IP="$2"
             shift 2
             ;;
         --output-dir)
@@ -389,6 +395,7 @@ mkdir -p "${session_dir}"
 log "Running OBS capture (duration: ${DURATION}s)"
 python3 "${SCRIPT_DIR}/real_device_av_sync.py" \
     --host "${HOST}" \
+    --dns-server-ip "${DNS_SERVER_IP}" \
     --duration "${DURATION}" \
     --format "${FORMAT}" \
     --output-dir "${session_dir}" \

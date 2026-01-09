@@ -26,9 +26,9 @@ import subprocess
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-import av_pop_analyzer  # noqa: E402
+from util import av_pop_analyzer  # noqa: E402
 import e2e  # noqa: E402
-import test_av_sync  # noqa: E402
+from util import test_av_sync  # noqa: E402
 
 
 class RealDeviceE2E(e2e.E2ETest):
@@ -132,26 +132,45 @@ def _replace_or_add(lines: list[str], key: str, value: str) -> list[str]:
 def apply_properties_overrides(
     properties_path: Path,
     host: str,
+    dns_server_ip: str,
     control_port: int,
     video_port: int,
     audio_port: int,
 ) -> None:
+    # NOTE: The plugin normally applies properties.ini values as OBS defaults only.
+    # If the scene collection has user-values (e.g. c64_host=127.0.0.1), those
+    # will override defaults and the real-device test will still connect to localhost.
+    # Setting is_ci=true makes the plugin enforce values as both defaults + direct.
     overrides = {
         "c64_host": host,
         "control_port": str(control_port),
         "video_port": str(video_port),
         "audio_port": str(audio_port),
-        "dns_server_ip": "",
+        "dns_server_ip": dns_server_ip,
         "auto_detect_ip": "true",
         "obs_ip_address": "",
         "record_csv": "true",
         "record_video": "false",
         "record_frames": "false",
         "debug_logging": "true",
+        "is_ci": "true",
     }
 
     text = properties_path.read_text(encoding="utf-8", errors="ignore")
     lines = text.splitlines(keepends=True)
+
+    # Ensure `is_ci=true` is seen early while parsing so subsequent keys are enforced.
+    # Remove existing is_ci entries and re-insert it near the top (after any header comments).
+    lines = [ln for ln in lines if not re.match(r"^\s*is_ci\s*=", ln)]
+    insert_at = 0
+    while insert_at < len(lines):
+        stripped = lines[insert_at].strip()
+        if not stripped or stripped.startswith("#") or stripped.startswith(";"):
+            insert_at += 1
+            continue
+        break
+    lines.insert(insert_at, "is_ci=true\n")
+
     for key, value in overrides.items():
         lines = _replace_or_add(lines, key, value)
     if lines and not lines[-1].endswith("\n"):
@@ -440,6 +459,7 @@ def run(args: argparse.Namespace) -> int:
         apply_properties_overrides(
             properties_path=properties_path,
             host=args.host,
+            dns_server_ip=args.dns_server_ip,
             control_port=args.control_port,
             video_port=args.video_port,
             audio_port=args.audio_port,
@@ -524,6 +544,11 @@ def main() -> int:
         description="Run a real-device A/V sync capture and analyze A/V pop deltas."
     )
     parser.add_argument("--host", default="c64u", help="C64 Ultimate hostname or IP (default: c64u)")
+    parser.add_argument(
+        "--dns-server-ip",
+        default="192.168.1.1",
+        help="DNS server IP for resolving --host when it is a hostname (default: 192.168.1.1)",
+    )
     parser.add_argument("--duration", type=int, default=10, help="Recording duration in seconds")
     parser.add_argument(
         "--output-dir",

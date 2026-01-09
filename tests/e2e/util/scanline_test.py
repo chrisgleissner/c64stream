@@ -551,12 +551,13 @@ UseAdvanced=false
         packet_dir = self.output_dir / 'packets' / 'video' / 'PAL'
         if not packet_dir.exists():
             self.log("Generating solid color test packets...")
+            generator = (Path(__file__).resolve().parent / 'generate_packets.py')
             result = subprocess.run(
-                ['python', 'generate_packets.py', '--format', 'PAL', '--frames', '60',
+                ['python3', str(generator), '--format', 'PAL', '--frames', '60',
                  '--output', str(self.output_dir / 'packets'), '--pattern', 'solid'],
                 cwd=self.test_dir,
                 capture_output=True,
-                text=True
+                text=True,
             )
             if result.returncode != 0:
                 self.log_always(f"Packet generation failed: {result.stderr}")

@@ -26,18 +26,18 @@ The repository’s E2E harness uses paired audio+video “pop” markers designe
 - **Audio pop**: a short band-limited noise burst, alternating channels per pop.
 - **Cadence**: every 48 video frames (≈960 ms PAL, ≈800 ms NTSC).
 - **Duration discrepancy in repo**:
-  - Generator defines `POP_FRAME_DURATION = 1` frame in `tests/e2e/generate_packets.py:176-179`.
-  - The verifier docstring claims “Duration: 2 frames” in `tests/e2e/test_av_sync.py:8-16`.
-  - Observable “source of truth” for actual generated duration is the generator constant (`tests/e2e/generate_packets.py:176-179`), not the comment.
+  - Generator defines `POP_FRAME_DURATION = 1` frame in `tests/e2e/util/generate_packets.py:176-179`.
+  - The verifier docstring claims “Duration: 2 frames” in `tests/e2e/util/test_av_sync.py:8-16`.
+  - Observable “source of truth” for actual generated duration is the generator constant (`tests/e2e/util/generate_packets.py:176-179`), not the comment.
 
 **Key artifact**: the verifier pairs detected audio pop times to detected video pop times and reports `difference_ms` (audio_time_ms − video_time_ms), i.e. **positive values mean audio lags video** (see typical output structures in `tests/e2e/results/*/validation_results.json`).
 
 ### 2.2 How alignment is measured (frame-accurate vs sample-accurate)
 
-The repo’s A/V sync verifier (`tests/e2e/test_av_sync.py`) uses:
+The repo’s A/V sync verifier (`tests/e2e/util/test_av_sync.py`) uses:
 
-- **Video timing**: pop detection in video frames via OpenCV; timestamps derived from frame time (frame index / fps), thus frame-accurate at best (see `detect_video_pop_events` in `tests/e2e/test_av_sync.py:102+`).
-- **Audio timing**: audio is extracted via ffmpeg to PCM at 48 kHz and reduced to a coarse RMS envelope with `window_ms=10` by default (`tests/e2e/test_av_sync.py:57-99`). Pop timing is therefore **quantized to 10 ms bins** unless `window_ms` is reduced.
+- **Video timing**: pop detection in video frames via OpenCV; timestamps derived from frame time (frame index / fps), thus frame-accurate at best (see `detect_video_pop_events` in `tests/e2e/util/test_av_sync.py:102+`).
+- **Audio timing**: audio is extracted via ffmpeg to PCM at 48 kHz and reduced to a coarse RMS envelope with `window_ms=10` by default (`tests/e2e/util/test_av_sync.py:57-99`). Pop timing is therefore **quantized to 10 ms bins** unless `window_ms` is reduced.
 
 So repo tooling is **not sample-accurate** by default; it is ~10 ms-quantized on the audio side, and frame-quantized on the video side. A measured ~400 ms lag is orders of magnitude above this quantization and is unambiguous.
 
@@ -50,7 +50,7 @@ Examples (all are `difference_ms` stats; positive means audio lags video):
 - `tests/e2e/results/ntsc_default/validation_results.json`: mean ≈ 10.55 ms, max ≈ 13.30 ms.
 - `tests/e2e/results/pal_default/validation_results.json`: mean ≈ 31.72 ms, max ≈ 32.92 ms.
 
-These small offsets are consistent with the verifier’s discussion of encoder/muxer effects (`tests/e2e/test_av_sync.py:32-37`) and are **not** in the same regime as a 400 ms lag.
+These small offsets are consistent with the verifier’s discussion of encoder/muxer effects (`tests/e2e/util/test_av_sync.py:32-37`) and are **not** in the same regime as a 400 ms lag.
 
 ### 2.4 Quantified offsets: Linux vs Windows for the reported issue
 
@@ -260,7 +260,7 @@ Yes, by architecture:
   - video frame queues,
   - encoder lookahead and muxing.
 
-Repository E2E tooling explicitly expects baseline offsets up to ~60 ms due to encode/muxer behavior (`tests/e2e/test_av_sync.py:32-37`). That is far smaller than 400 ms; therefore, a 400 ms offset requires either extreme OBS buffering/offset configuration or a substantial upstream backlog/clock-bias.
+Repository E2E tooling explicitly expects baseline offsets up to ~60 ms due to encode/muxer behavior (`tests/e2e/util/test_av_sync.py:32-37`). That is far smaller than 400 ms; therefore, a 400 ms offset requires either extreme OBS buffering/offset configuration or a substantial upstream backlog/clock-bias.
 
 ---
 
@@ -304,7 +304,7 @@ The reported symptom (“audio lags video by ~400 ms, mostly stable, occasionall
 **Counterevidence:**
 
 - The prompt states OBS is configured for low latency; that *suggests* such an offset is unlikely, but this is not an observable repo fact.
-- The offset magnitude (400 ms) is much larger than typical encode/muxer priming delays referenced in repo E2E docs (`tests/e2e/test_av_sync.py:32-37`), implying an explicit offset rather than incidental encoder behavior.
+- The offset magnitude (400 ms) is much larger than typical encode/muxer priming delays referenced in repo E2E docs (`tests/e2e/util/test_av_sync.py:32-37`), implying an explicit offset rather than incidental encoder behavior.
 
 **Why it explains ~400 ms specifically:**
 
@@ -315,7 +315,7 @@ The reported symptom (“audio lags video by ~400 ms, mostly stable, occasionall
 - Record two outputs on Windows from the same OBS session:
   1. a lossless/uncompressed audio codec recording (or separate WAV capture) and
   2. the normal encoder path,
-  then run the repo’s pop analysis script (`tests/e2e/test_av_sync.py`) on both recordings.
+  then run the repo’s pop analysis script (`tests/e2e/util/test_av_sync.py`) on both recordings.
   If the ~400 ms offset persists identically across codecs/containers, it is almost certainly an OBS-level sync offset/routing configuration rather than encoder priming.
 
 ### Hypothesis 2: Audio UDP receive backlog on Windows causes the audio stream to run ~100 packets (~400 ms) “behind” video
@@ -426,7 +426,7 @@ The plugin can already write two key CSVs to a session folder:
   - compute audio packet inter-arrival and “stall” durations;
   - compute the time offset between corresponding audio/video marker packets if your diagnostic can be recognized in payload (for real hardware this is harder; pops help).
 - From the final recording:
-  - run pop detection (same technique as `tests/e2e/test_av_sync.py`) to compute `difference_ms` per pop.
+  - run pop detection (same technique as `tests/e2e/util/test_av_sync.py`) to compute `difference_ms` per pop.
 
 If the recording shows +400 ms while `network.csv` shows audio arriving contemporaneously with video (no backlog), the root cause shifts downstream (OBS routing/offset). If `network.csv` shows audio “late” in bursts, the root cause is upstream receive/backlog.
 
@@ -435,12 +435,12 @@ If the recording shows +400 ms while `network.csv` shows audio arriving contempo
 Use the repo’s established approach (adapted to your recording):
 
 - Video pop time:
-  - detect ROI brightness spikes in the known pop box (method in `tests/e2e/test_av_sync.py:102+`).
+  - detect ROI brightness spikes in the known pop box (method in `tests/e2e/util/test_av_sync.py:102+`).
   - map frame index to time via fps.
 - Audio pop time:
-  - decode audio to PCM at a known sample rate (ffmpeg extraction in `tests/e2e/test_av_sync.py:57-74`),
-  - compute short-window RMS envelope (10 ms default in `tests/e2e/test_av_sync.py:85-95`),
-  - detect threshold crossings (`tests/e2e/test_av_sync.py:415-470`).
+  - decode audio to PCM at a known sample rate (ffmpeg extraction in `tests/e2e/util/test_av_sync.py:57-74`),
+  - compute short-window RMS envelope (10 ms default in `tests/e2e/util/test_av_sync.py:85-95`),
+  - detect threshold crossings (`tests/e2e/util/test_av_sync.py:415-470`).
 
 Compute `difference_ms = audio_pop_time_ms - video_pop_time_ms` per matched pop.
 

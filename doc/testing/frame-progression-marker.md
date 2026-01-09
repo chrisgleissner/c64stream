@@ -176,6 +176,6 @@ The adaptive threshold computation adds negligible overhead:
 ## References
 
 - Implementation: `tests/e2e/assertions/frame_progression.py`
-- Test content generation: `tests/e2e/generate_packets.py` (position marker rendering)
+- Test content generation: `tests/e2e/util/generate_packets.py` (position marker rendering)
 - E2E test harness: `tests/e2e/e2e.py`
 - CI workflow: `.github/workflows/build-and-test.yml`

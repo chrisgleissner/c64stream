@@ -567,8 +567,8 @@ run_tests() {
     if command -v python3 >/dev/null 2>&1; then
         log_info "Running Python unit tests..."
         python3 -m unittest \
-            tests/e2e/test_network_simulation.py \
-            tests/e2e/test_network_timing_validation.py
+            tests/e2e/util/test_network_simulation.py \
+            tests/e2e/util/test_network_timing_validation.py
     else
         log_warning "python3 not found; skipping Python unit tests"
     fi
@@ -1226,9 +1226,9 @@ run_e2e_tests() {
     local src_mkv="$test_output_dir/c64_recording.mkv"
     local out_mp4="$results_root_dir/c64_recording.mp4"
     if [[ -f "$src_mp4" && "$src_mp4" != "$out_mp4" ]]; then
-        bash "$PROJECT_ROOT/tests/e2e/compress_e2e_mp4.sh" "$src_mp4" "$out_mp4" || true
+        bash "$PROJECT_ROOT/tests/e2e/util/compress_e2e_mp4.sh" "$src_mp4" "$out_mp4" || true
     elif [[ -f "$src_mkv" ]]; then
-        bash "$PROJECT_ROOT/tests/e2e/compress_e2e_mp4.sh" "$src_mkv" "$out_mp4" || true
+        bash "$PROJECT_ROOT/tests/e2e/util/compress_e2e_mp4.sh" "$src_mkv" "$out_mp4" || true
     else
         if [[ -f "$out_mp4" ]]; then
             log_info "Recording already present at $out_mp4; skipping compression"

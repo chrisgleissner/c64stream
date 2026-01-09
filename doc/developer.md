@@ -273,7 +273,7 @@ The E2E harness validates the full path: deterministic packet generation → UDP
   - `tests/e2e/e2e.sh` — shell wrapper for deps/build/run/report (generates `tests/e2e/test_output/README.md`)
   - `tests/e2e/e2e.py` — launches Xvfb/OBS, starts packet replay, validates results, writes `validation_results.json`
 - Generators/Tools:
-  - `tests/e2e/generate_packets.py` — PAL/NTSC packets with visual and audio pop markers
+  - `tests/e2e/util/generate_packets.py` — PAL/NTSC packets with visual and audio pop markers
   - `build_x86_64/tests/e2e/udp_replay` — precise UDP timing sender
 
 Key behaviors and correctness guards:

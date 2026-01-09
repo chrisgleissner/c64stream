@@ -455,7 +455,7 @@ EOF
 list_scenarios() {
     echo "Available E2E scenarios:"
     echo ""
-    python3 "${TEST_DIR}/scenario_loader.py" --list 2>/dev/null || {
+    python3 "${TEST_DIR}/util/scenario_loader.py" --list 2>/dev/null || {
         if [[ -d "${SCENARIOS_DIR}" ]]; then
             for scenario_dir in "${SCENARIOS_DIR}"/*/; do
                 if [[ -f "${scenario_dir}scenario.yaml" ]]; then
@@ -562,10 +562,10 @@ load_scenario() {
     local generated_dir="${scenario_dir}/generated"
     mkdir -p "${generated_dir}/basic/scenes"
     if [[ "${VERBOSE}" == true ]]; then
-        python3 "${TEST_DIR}/scenario_loader.py" --scenario "${scenario_name}" \
+        python3 "${TEST_DIR}/util/scenario_loader.py" --scenario "${scenario_name}" \
             --output "${generated_dir}/basic/scenes/C64StreamTest.json"
     else
-        python3 "${TEST_DIR}/scenario_loader.py" --scenario "${scenario_name}" \
+        python3 "${TEST_DIR}/util/scenario_loader.py" --scenario "${scenario_name}" \
             --output "${generated_dir}/basic/scenes/C64StreamTest.json" 2>/dev/null
     fi
 
@@ -1408,7 +1408,7 @@ generate_packets() {
 
     # Generate packets
     local cmd=(
-        "./generate_packets.py"
+        "./util/generate_packets.py"
         "--frames" "${FRAMES}"
         "--format" "${FORMAT}"
         "--output" "test_packets"
@@ -2755,7 +2755,7 @@ PY
     #
     # IMPORTANT: extract by exact frame index (n) rather than by timestamp (t).
     # Timestamp-based extraction can miss a 1–2 frame marker due to PTS rounding/offsets.
-    if [[ -n "${recording_mp4}" && -f "${recording_mp4}" && -x "${TEST_DIR}/extract.frame" ]]; then
+    if [[ -n "${recording_mp4}" && -f "${recording_mp4}" && -x "${TEST_DIR}/util/extract-frame.sh" ]]; then
         local pop_time_ms pop_frame_num first_pop_frame frame_rate
         pop_time_ms=""
         pop_frame_num=""
@@ -2811,7 +2811,7 @@ PY
             pop_frame_num=$(python3 -c "
 import sys
 sys.path.insert(0, '${TEST_DIR}')
-from test_av_sync import detect_video_pops
+from util.test_av_sync import detect_video_pops
 pops = detect_video_pops('${recording_mp4}', frame_rate=float('${frame_rate}'))
 if pops:
     print(int(pops[0]))
@@ -2868,7 +2868,7 @@ if pops:
                     fi
                     local out_tmp
                     out_tmp="${tmp_dir}/frame_${cand}.png"
-                    "${TEST_DIR}/extract.frame" --input "${recording_mp4}" --output "${out_tmp}" --frame "${cand}" >/dev/null 2>&1 || continue
+                    "${TEST_DIR}/util/extract-frame.sh" --input "${recording_mp4}" --output "${out_tmp}" --frame "${cand}" >/dev/null 2>&1 || continue
                     if [[ ! -s "${out_tmp}" ]]; then
                         continue
                     fi
@@ -2975,7 +2975,7 @@ PY
 
             # Fallback if python scoring not available
             if [[ "${sample_frame_extracted}" != true ]]; then
-                "${TEST_DIR}/extract.frame" --input "${recording_mp4}" --output "${sample_frame_path}" --frame "${first_pop_frame}" || true
+                "${TEST_DIR}/util/extract-frame.sh" --input "${recording_mp4}" --output "${sample_frame_path}" --frame "${first_pop_frame}" || true
                 sample_frame_extracted=true
                 sample_frame_index="${first_pop_frame}"
             fi
@@ -2990,7 +2990,7 @@ PY
             if [[ -n "${content_start_frame}" && -n "${content_end_frame}" ]]; then
                 local mid_frame
                 mid_frame=$(( (content_start_frame + content_end_frame) / 2 ))
-                "${TEST_DIR}/extract.frame" --input "${recording_mp4}" --output "${sample_frame_path}" --frame "${mid_frame}" || true
+                "${TEST_DIR}/util/extract-frame.sh" --input "${recording_mp4}" --output "${sample_frame_path}" --frame "${mid_frame}" || true
             else
                 if [[ -z "${sample_frame_seconds}" ]]; then
                     local dur_sec
@@ -3004,7 +3004,7 @@ PY
                     fi
                 fi
 
-                "${TEST_DIR}/extract.frame" --input "${recording_mp4}" --output "${sample_frame_path}" --time "${sample_frame_seconds}" || true
+                "${TEST_DIR}/util/extract-frame.sh" --input "${recording_mp4}" --output "${sample_frame_path}" --time "${sample_frame_seconds}" || true
             fi
         fi
     fi

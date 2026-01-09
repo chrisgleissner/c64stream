@@ -16,7 +16,7 @@ from typing import Any, Optional
 
 from .base import AssertionResult, AssertionStatus, EffectAssertion
 from .config import PresetConfig
-from test_av_sync import detect_video_pop_events, detect_audio_pops
+from util.test_av_sync import detect_video_pop_events, detect_audio_pops
 
 
 class AvSyncOffsetAssertion(EffectAssertion):
@@ -355,7 +355,7 @@ class AvSyncOffsetAssertion(EffectAssertion):
     def _analyze_mp4(self, mp4_path: Path, verbose: bool = False) -> Optional[dict[str, float]]:
         """Extract A/V pops from MP4 recording using test_av_sync module."""
         try:
-            from test_av_sync import extract_audio_envelope
+            from util.test_av_sync import extract_audio_envelope
 
             # Detect video pops (white frames) - doesn't accept verbose
             video_events = detect_video_pop_events(str(mp4_path))

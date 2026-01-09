@@ -171,7 +171,7 @@ def _is_benign_network_timing_warning(warning: str) -> bool:
 
 # Import A/V sync testing
 try:
-    from test_av_sync import verify_av_sync
+    from util.test_av_sync import verify_av_sync
 except ImportError:
     verify_av_sync = None
 try:
@@ -183,7 +183,7 @@ except ImportError:
 
 # Import resource monitoring
 try:
-    from resource_monitor import ResourceMonitor
+    from util.resource_monitor import ResourceMonitor
     RESOURCE_MONITOR_AVAILABLE = True
 except ImportError:
     ResourceMonitor = None

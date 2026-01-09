@@ -34,6 +34,6 @@ endforeach()
 
 message(STATUS "E2E test components configured:")
 message(STATUS "  UDP replay tool: udp_replay (build-tree only)")
-message(STATUS "  Packet generator: generate_packets.py (build-tree only)")
+message(STATUS "  Packet generator: util/generate_packets.py (build-tree only)")
 message(STATUS "  Test orchestrator: e2e.py (build-tree only)")
 message(STATUS "  Output verifier: verify_output.py (build-tree only)")
