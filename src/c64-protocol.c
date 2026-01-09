@@ -191,7 +191,7 @@ void c64_log_video_packet_if_enabled(struct c64_source *context, const uint8_t *
         const bool was_marker = context->av_sync_last_video_pop_marker;
         context->av_sync_last_video_pop_marker = is_all_white;
         if (!was_marker && is_all_white) {
-            c64_av_sync_on_video_pop(context, frame_num, timestamp_ns);
+            c64_av_sync_on_video_pop(context, C64_AV_SYNC_ORIGIN_NETWORK, frame_num, timestamp_ns);
         }
     }
 
@@ -233,8 +233,9 @@ void c64_log_audio_packet_if_enabled(struct c64_source *context, const uint8_t *
         context->av_sync_last_audio_pop_marker = has_signal;
         if (!was_marker && has_signal) {
             // Mirror c64_process_audio_packet behavior: ignore the very first audio marker before any video pop.
-            if (context->av_sync_video_pop_count != 0 || context->av_sync_audio_pop_count != 0) {
-                c64_av_sync_on_audio_pop(context, timestamp_ns);
+            const struct c64_av_sync_state *state = &context->av_sync[C64_AV_SYNC_ORIGIN_NETWORK];
+            if (state->video_pop_count != 0 || state->audio_pop_count != 0) {
+                c64_av_sync_on_audio_pop(context, C64_AV_SYNC_ORIGIN_NETWORK, timestamp_ns);
             }
         }
     }

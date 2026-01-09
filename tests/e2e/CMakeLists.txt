@@ -8,7 +8,7 @@ cmake_minimum_required(VERSION 3.28)
 project(c64stream-e2e-tests)
 
 # Build the UDP replay tool
-add_executable(udp_replay udp_replay.c)
+add_executable(udp_replay util/udp_replay.c)
 
 # Compiler flags for the UDP replay tool
 if(MSVC)

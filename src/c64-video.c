@@ -750,22 +750,6 @@ static bool c64_debug_frame_is_all_white_fast_probe(const uint32_t *pixels, uint
     return false;
 }
 
-static void c64_debug_handle_video_pop(struct c64_source *context, uint16_t frame_num, uint64_t timestamp_ns,
-                                       bool is_all_white)
-{
-    if (!c64_debug_logging) {
-        return;
-    }
-
-    bool was_all_white = context->av_sync_last_video_all_white;
-
-    if (!was_all_white && is_all_white) {
-        // Use packet timestamp for A/V sync comparison
-        // This ensures video and audio pops use the same timebase (packet arrival time)
-        c64_av_sync_on_video_pop(context, frame_num, timestamp_ns);
-    }
-}
-
 // Direct frame rendering with row interpolation for missing packets
 void c64_render_frame_direct(struct c64_source *context, struct frame_assembly *frame, uint64_t timestamp_ns)
 {
@@ -782,11 +766,11 @@ void c64_render_frame_direct(struct c64_source *context, struct frame_assembly *
 
     // Check for video pops (debug/testing mode)
     bool is_all_white = false;
+    bool video_pop_rise = false;
     if (c64_debug_logging) {
         is_all_white = c64_debug_frame_is_all_white_fast_probe(out_pixels, context->width, context->height);
-        if (frame->last_packet_time != 0) {
-            c64_debug_handle_video_pop(context, frame->frame_num, frame->last_packet_time, is_all_white);
-        }
+        const bool was_all_white = context->av_sync_last_video_all_white;
+        video_pop_rise = (!was_all_white && is_all_white);
     }
     context->av_sync_last_video_all_white = is_all_white;
 
@@ -818,6 +802,11 @@ void c64_render_frame_direct(struct c64_source *context, struct frame_assembly *
     // Output frame directly to OBS
     obs_source_output_video(context->source, &obs_frame);
     context->last_video_submit_ns = os_gettime_ns();
+
+    // Emit AV-sync pop only once it's been handed off to OBS.
+    if (c64_debug_logging && video_pop_rise) {
+        c64_av_sync_on_video_pop(context, C64_AV_SYNC_ORIGIN_OBS, frame->frame_num, context->last_video_submit_ns);
+    }
 
     // Log video frame delivery to CSV if enabled (high-level event: complete frame delivered to OBS)
     if (context->timing_file) {

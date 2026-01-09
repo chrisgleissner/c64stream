@@ -13,10 +13,16 @@ See <https://www.gnu.org/licenses/> for details.
 
 struct c64_source;
 
+enum c64_av_sync_origin {
+    C64_AV_SYNC_ORIGIN_NETWORK = 0,
+    C64_AV_SYNC_ORIGIN_OBS = 1,
+};
+
 void c64_av_sync_init(struct c64_source *context);
 void c64_av_sync_cleanup(struct c64_source *context);
 
-void c64_av_sync_on_video_pop(struct c64_source *context, uint16_t frame_num, uint64_t timestamp_ns);
-void c64_av_sync_on_audio_pop(struct c64_source *context, uint64_t timestamp_ns);
+void c64_av_sync_on_video_pop(struct c64_source *context, enum c64_av_sync_origin origin, uint16_t frame_num,
+                              uint64_t timestamp_ns);
+void c64_av_sync_on_audio_pop(struct c64_source *context, enum c64_av_sync_origin origin, uint64_t timestamp_ns);
 
 #endif // C64_AV_SYNC_H

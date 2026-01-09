@@ -14,6 +14,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include <util/threading.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include "c64-network.h"
 #include "c64-network-buffer.h"
 #include "c64-protocol.h"
@@ -37,6 +38,41 @@ struct frame_assembly {
     uint64_t start_time;            // When frame assembly started (first packet)
     uint64_t last_packet_time;      // When last packet arrived (for A/V sync)
     uint64_t packets_received_mask; // Bitmask of received packets (for 64 packets max)
+};
+
+#define C64_AV_SYNC_EVENT_QUEUE_SIZE 8
+#define C64_AV_SYNC_ORIGIN_COUNT 2
+
+struct c64_av_sync_event {
+    uint64_t ts;
+    uint32_t seq;
+    uint16_t frame_num;
+    bool used;
+};
+
+struct c64_av_sync_match {
+    uint64_t video_ts;
+    uint64_t audio_ts;
+    uint32_t video_seq;
+    uint32_t audio_seq;
+    uint16_t video_frame_num;
+    bool valid;
+};
+
+struct c64_av_sync_state {
+    uint64_t last_video_pop_ts;
+    uint64_t last_audio_pop_ts;
+    uint64_t last_audio_pop_detection_ts; // Debounce: last audio pop detection time
+    uint64_t last_video_pop_detection_ts; // Debounce: last video pop detection time
+    uint32_t video_pop_count;
+    uint32_t audio_pop_count;
+
+    struct c64_av_sync_match last_match;
+
+    struct c64_av_sync_event audio_events[C64_AV_SYNC_EVENT_QUEUE_SIZE];
+    struct c64_av_sync_event video_events[C64_AV_SYNC_EVENT_QUEUE_SIZE];
+    size_t audio_events_count;
+    size_t video_events_count;
 };
 
 struct c64_source {
@@ -210,23 +246,8 @@ struct c64_source {
     // UDP full-frame-pop marker detection (packet-level). Kept separate from OBS frame probe state.
     bool av_sync_last_video_pop_marker;
     bool av_sync_last_audio_pop_marker;
-    uint64_t av_sync_audio_signal_start_ts; // Timestamp when audio signal started (for duration check)
-    uint64_t av_sync_last_video_pop_ts;
-    uint64_t av_sync_last_audio_pop_ts;
-    uint64_t av_sync_last_audio_pop_detection_ts; // Debounce: last audio pop detection time
-    uint64_t av_sync_last_video_pop_detection_ts; // Debounce: last video pop detection time
-    uint32_t av_sync_video_pop_count;
-    uint32_t av_sync_audio_pop_count;
 
-#define C64_AV_SYNC_EVENT_QUEUE_SIZE 8
-    struct c64_av_sync_event {
-        uint64_t ts;
-        uint32_t seq;
-        uint16_t frame_num;
-        bool used;
-    } av_sync_audio_events[C64_AV_SYNC_EVENT_QUEUE_SIZE], av_sync_video_events[C64_AV_SYNC_EVENT_QUEUE_SIZE];
-    size_t av_sync_audio_events_count;
-    size_t av_sync_video_events_count;
+    struct c64_av_sync_state av_sync[C64_AV_SYNC_ORIGIN_COUNT];
     pthread_mutex_t av_sync_mutex;
 
     // Pre-allocated recording buffers (eliminates malloc/free in hot paths)

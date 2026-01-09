@@ -41,6 +41,12 @@ Notes:
 - Requires a real C64 Ultimate and a working GUI environment for OBS.
 - CSVs are authoritative when present; OBS log parsing is a fallback only.
 
+### Real-device configuration note (2026-01-09)
+
+Root cause of “streaming only starts after opening OBS Source Properties”: the baseline OBS scene JSON can contain saved `c64_source` settings (e.g. `c64_host=127.0.0.1`), and those scene values override `properties.ini` defaults at source creation.
+
+Final fix: the real-device runner patches the OBS scene JSON source settings (host/DNS/ports) before OBS starts, mirroring synthetic scenario configuration. `properties.ini` overrides are treated as secondary hardening.
+
 ## Settling Period (Frame Progression)
 
 Frame progression checks may show transient anomalies immediately after OBS starts (e.g., shader compilation / pipeline stabilization). The E2E framework supports a settling period that is **ignored for pass/fail** in the frame progression assertion.

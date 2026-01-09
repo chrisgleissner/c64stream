@@ -1476,8 +1476,8 @@ run_e2e_test() {
     local udp_replay_path="${BUILD_DIR}/tests/e2e/udp_replay"
     if [[ ! -f "${udp_replay_path}" ]]; then
         # If the prebuilt tool doesn't exist (e.g., when --skip-build is used),
-        # let the Python harness auto-build into the current directory.
-        udp_replay_path="./udp_replay"
+        # fall back to the repo copy under util/.
+        udp_replay_path="./util/udp_replay"
     fi
 
     # Build test command

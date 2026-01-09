@@ -174,26 +174,6 @@ static bool c64_debug_audio_has_signal(const uint8_t *samples, size_t samples_si
     return false;
 }
 
-static void c64_debug_handle_audio_pop(struct c64_source *context, uint64_t timestamp_ns, bool has_signal)
-{
-    if (!c64_debug_logging) {
-        return;
-    }
-
-    bool was_has_signal = context->av_sync_last_audio_has_signal;
-
-    // Keep this path extremely cheap: only act on rising edges.
-    // Debounce is handled inside c64_av_sync.
-    if (!was_has_signal && has_signal) {
-        if (context->av_sync_video_pop_count == 0 && context->av_sync_audio_pop_count == 0) {
-            // Ignore the first audio signal before any video pop (likely stream initialization).
-            return;
-        }
-
-        c64_av_sync_on_audio_pop(context, timestamp_ns);
-    }
-}
-
 // Generate monotonic audio timestamps with format-specific intervals
 static uint64_t generate_monotonic_audio_timestamp(struct c64_source *context)
 {
@@ -292,6 +272,7 @@ void c64_process_audio_packet(struct c64_source *context, const uint8_t *audio_d
     }
 
     bool has_signal = false;
+    bool audio_pop_rise = false;
     if (c64_debug_logging) {
         // Keep debug-only detection extremely cheap: sparse probes + simple hysteresis.
         const bool probed_has_signal = c64_debug_audio_has_signal(samples, samples_size);
@@ -303,8 +284,13 @@ void c64_process_audio_packet(struct c64_source *context, const uint8_t *audio_d
             // This improves edge detection stability for A/V sync without extra work.
             has_signal = probed_has_signal;
         }
-        // Use real packet timestamp for A/V sync pop detection (not synthetic timestamp)
-        c64_debug_handle_audio_pop(context, timestamp_ns, has_signal);
+        // Rising edge only; debounce is handled inside c64_av_sync.
+        if (!was_has_signal && has_signal) {
+            const struct c64_av_sync_state *state = &context->av_sync[C64_AV_SYNC_ORIGIN_OBS];
+            if (!(state->video_pop_count == 0 && state->audio_pop_count == 0)) {
+                audio_pop_rise = true;
+            }
+        }
         context->av_sync_last_audio_has_signal = has_signal;
     }
 
@@ -326,6 +312,11 @@ void c64_process_audio_packet(struct c64_source *context, const uint8_t *audio_d
     // Send audio to OBS for playback
     obs_source_output_audio(context->source, &audio_output);
     context->last_audio_submit_ns = os_gettime_ns();
+
+    // Emit AV-sync pop only once it's been handed off to OBS.
+    if (c64_debug_logging && audio_pop_rise) {
+        c64_av_sync_on_audio_pop(context, C64_AV_SYNC_ORIGIN_OBS, context->last_audio_submit_ns);
+    }
 
     if (context->last_video_submit_ns != 0) {
         static uint32_t av_sync_log_counter = 0;

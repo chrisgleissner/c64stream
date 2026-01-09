@@ -4027,8 +4027,8 @@ def main():
                         help='Audio UDP port (default: 21001)')
     parser.add_argument('--control-port', type=int, default=6400,
                         help='Control TCP port for mock C64 Ultimate server (default: 6400)')
-    parser.add_argument('--udp-replay', default='./udp_replay',
-                        help='Path to udp_replay executable (default: ./udp_replay)')
+    parser.add_argument('--udp-replay', default='./util/udp_replay',
+                        help='Path to udp_replay executable (default: ./util/udp_replay)')
     parser.add_argument('--verbose', action='store_true',
                         help='Enable verbose logging')
     parser.add_argument('--enable-websocket', action='store_true',
@@ -4103,7 +4103,7 @@ def main():
     # - Do NOT build into args.output_dir: the test harness wipes output_dir at runtime
     #   (see E2ETest.clean_test_output), which would delete the freshly built binary.
     script_dir = Path(__file__).parent
-    udp_replay_src = script_dir / "udp_replay.c"
+    udp_replay_src = script_dir / "util" / "udp_replay.c"
 
     udp_replay_requested = Path(args.udp_replay)
     udp_replay_path = udp_replay_requested

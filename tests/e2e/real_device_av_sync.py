@@ -6,7 +6,8 @@ Copyright (C) 2025 Christian Gleissner
 Licensed under the GNU General Public License v2.0 or later.
 See <https://www.gnu.org/licenses/> for details.
 
-Runs a local OBS recording against a real C64 Ultimate device and analyzes A/V pop deltas.
+Starts an A/V pop generator program on a real C64U, then records the stream
+and analyses the A/V pop offsets.
 """
 
 from __future__ import annotations
