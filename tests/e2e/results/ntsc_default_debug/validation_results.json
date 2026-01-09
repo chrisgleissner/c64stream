@@ -1,23 +1,23 @@
 {
   "udp_reception": {
     "status": "warning",
-    "details": "11259/3850 packets (10477 video, 741 audio, minor loss)"
+    "details": "16142/38504 packets (15016 video, 1080 audio, major loss)"
   },
   "frame_processing": {
     "status": "pass",
-    "details": "613 frames processed"
+    "details": "1013 frames processed"
   },
   "video_recording": {
     "status": "pass",
-    "details": "15.1 MB"
+    "details": "19.9 MB"
   },
   "packet_integrity": {
     "status": "pass",
-    "details": "30.5s duration"
+    "details": "40.1s duration"
   },
   "network_timing": {
-    "status": "warning",
-    "details": "span=3079.5ms, video_mean=293.7us, audio_mean=4007.6us"
+    "status": "fail",
+    "details": "span=4414.6ms, video_mean=293.4us, audio_mean=3993.2us"
   },
   "video_brightness": {
     "status": "skipped",
@@ -32,7 +32,7 @@
     "message": "Missing pop data from: CSV (obs.csv or network.csv), MP4",
     "details": {
       "sources": {},
-      "output_dir": "/home/chris/dev/c64/c64stream/tests/e2e/results/ntsc_default_debug"
+      "output_dir": "/home/chris/dev/c64/c64stream-workspace/c64stream-av-sync-instrumentation/tests/e2e/results/ntsc_default_debug"
     },
     "metrics": {}
   }

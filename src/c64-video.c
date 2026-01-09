@@ -1120,23 +1120,6 @@ void *c64_video_thread_func(void *data)
         { // Scope block for shared packet processing code
 #endif
 
-            // Drop packets from unexpected sources to prevent intermingled streams
-            if (context->expected_peer_ip_set && sender_addr.sin_addr.s_addr != context->expected_peer_ip) {
-                static uint64_t last_drop_log_time = 0;
-                uint64_t now = os_gettime_ns();
-                if (now - last_drop_log_time >= 2000000000ULL) { // Log at most every 2s
-                    char sender_ip[INET_ADDRSTRLEN] = {0};
-                    char expected_ip[INET_ADDRSTRLEN] = {0};
-                    inet_ntop(AF_INET, &sender_addr.sin_addr, sender_ip, sizeof(sender_ip));
-                    struct in_addr expected_addr = {.s_addr = context->expected_peer_ip};
-                    inet_ntop(AF_INET, &expected_addr, expected_ip, sizeof(expected_ip));
-                    C64_LOG_WARNING("" VIDEO_LOG_PREFIX " Dropping video UDP packet from %s (expected %s)", sender_ip,
-                                    expected_ip);
-                    last_drop_log_time = now;
-                }
-                continue;
-            }
-
             if (received != C64_VIDEO_PACKET_SIZE) {
                 // Small packets (2-4 bytes) are normal during stream startup/buffer changes
                 // Log as debug to avoid confusing users with normal control/startup packets
