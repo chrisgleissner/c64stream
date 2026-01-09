@@ -104,7 +104,7 @@ chmod -R 755 "$HOME/Library/Application Support/obs-studio/plugins/c64stream.plu
 
 #### Linux
 
-Verified on Ubuntu 24.04 and Debian 12 as per the instructions below. as well as Fedora 40 and Arch Linux via automatic CI builds. Other distributions may work but are not officially supported.
+Verified on Ubuntu 24.04, Debian 12, Fedora 40 and Arch Linux via automated [end-to-end tests](#end-to-end-tests-) on each build. Other distributions may work but are not officially supported.
 
 ##### Ubuntu / Debian (Recommended)
 
