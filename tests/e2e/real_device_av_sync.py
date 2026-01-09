@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/ usr / bin / env python3
 """
 C64 Stream - Real Device A/V Sync Runner
 Copyright (C) 2025 Christian Gleissner
@@ -48,16 +48,16 @@ class RealDeviceE2E(e2e.E2ETest):
 
     def _restore_obs_files(self) -> None:
         for backup_path, original_path in self._backed_up_obs_files:
-            try:
-                if backup_path.exists():
+try:
+    if backup_path.exists():
                     shutil.copy2(backup_path, original_path)
                     backup_path.unlink()
             except Exception:
                 pass
         self._backed_up_obs_files.clear()
         for created_path in self._created_obs_files:
-            try:
-                if created_path.exists():
+        try:
+            if created_path.exists():
                     created_path.unlink()
             except Exception:
                 pass
@@ -107,7 +107,37 @@ class RealDeviceE2E(e2e.E2ETest):
 
         self._replace_config_variables(obs_config_dir)
         self._cleanup_obs_state_files(obs_config_dir)
+
+#CRITICAL : Scene templates have c64_host = 127.0.0.1 hardcoded(for synthetic tests).
+#Real device tests need to clear this so properties.ini takes precedence.
+#We'll update the scene later in the test with real device settings.
+        self._clear_scene_plugin_state(scenes_dst_dir)
+        
         return profile_dst_dir
+    
+    def _clear_scene_plugin_state(self, scenes_dir: Path):
+        """Remove hardcoded plugin settings from scene JSON so properties.ini takes precedence.
+        
+        The template scenes have c64_host=127.0.0.1 hardcoded for synthetic tests.
+        Real device tests need these cleared so properties.ini values are used instead.
+        """
+        scene_path = scenes_dir / "C64StreamTest.json"
+        if not scene_path.exists():
+            return
+
+                try : data = json.loads(scene_path.read_text(encoding="utf-8"))
+
+#Find the C64 Stream source and remove hardcoded c64_host
+            for source in data.get("sources", []):
+                if source.get("id") == "c64_source":
+                    settings = source.get("settings", {})
+#Remove c64_host so properties.ini value is used
+                    if "c64_host" in settings:
+                        del settings["c64_host"]
+                    
+            scene_path.write_text(json.dumps(data, indent=4), encoding="utf-8")
+        except (json.JSONDecodeError, KeyError, OSError):
+            pass  # If scene update fails, properties.ini will still work (may show as localhost in UI)
 
     def cleanup(self):
         super().cleanup()
@@ -127,6 +157,46 @@ def _replace_or_add(lines: list[str], key: str, value: str) -> list[str]:
     if not replaced:
         out_lines.append(f"{key}={value}\n")
     return out_lines
+
+
+def apply_scene_overrides(
+    scene_path: Path,
+    host: str,
+    control_port: int,
+    video_port: int,
+    audio_port: int,
+) -> None:
+    """Update C64 Stream plugin settings in OBS scene JSON file.
+
+    This is CRITICAL because OBS stores plugin state in the scene JSON,
+    which takes precedence over properties.ini. Without this, the plugin
+    will use cached settings from previous test runs.
+    """
+                    try : data = json.loads(scene_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, FileNotFoundError):
+        return
+
+#Find the C64 Stream source in the scene
+    for source in data.get("sources", []):
+        if source.get("id") == "c64_source":
+            settings = source.setdefault("settings", {})
+
+#Update plugin settings to match real device configuration
+            settings["c64_host"] = host
+            settings["control_port"] = control_port
+            settings["video_port"] = video_port
+            settings["audio_port"] = audio_port
+            settings["dns_server_ip"] = ""
+            settings["auto_detect_ip"] = True
+            settings["obs_ip_address"] = ""
+            settings["record_csv"] = True
+            settings["record_video"] = False
+            settings["record_frames"] = False
+            settings["debug_logging"] = True
+
+#Write updated scene back
+            scene_path.write_text(json.dumps(data, indent=4), encoding="utf-8")
+            break
 
 
 def apply_properties_overrides(
@@ -184,19 +254,17 @@ def copy_recording(output_dir: Path, cutoff_time_s: Optional[float]) -> Optional
     recording = candidates[0]
     suffix = ".mp4" if recording.suffix == ".hybrid_mp4" else recording.suffix
     dest = output_dir / f"c64_recording{suffix}"
-    try:
-        shutil.copy2(recording, dest)
-        return dest
-    except Exception:
-        return None
+                        try : shutil
+                            .copy2(recording, dest) return dest except Exception
+                                : return None
 
+                                  def _analyze_mp4_recording(recording : Optional[Path], tolerance_ms : float)
+                                      ->dict : if not recording : return
+                            {
+                                "status" : "missing", "details" : "No recording available", "path" : None
+                            }
 
-def _analyze_mp4_recording(recording: Optional[Path], tolerance_ms: float) -> dict:
-    if not recording:
-        return {"status": "missing", "details": "No recording available", "path": None}
-
-    try:
-        results = test_av_sync.verify_av_sync(
+try : results = test_av_sync.verify_av_sync(
             recording,
             tolerance_ms=tolerance_ms,
             audio_threshold_factor=1.8,
@@ -249,64 +317,42 @@ def _analyze_mp4_recording(recording: Optional[Path], tolerance_ms: float) -> di
 
 def _get_git_info() -> dict[str, str]:
     info = {"revision": "unknown", "dirty": "unknown"}
-    try:
-        rev = subprocess.run(
-            ["git", "rev-parse", "--short", "HEAD"],
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout.strip()
-        info["revision"] = rev
-        dirty = subprocess.run(
-            ["git", "status", "--porcelain"],
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout.strip()
-        info["dirty"] = "yes" if dirty else "no"
-    except Exception:
-        pass
-    return info
+    try : rev
+        = subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output = True, text = True, check = True, )
+              .stdout.strip() info["revision"] = rev dirty =
+            subprocess.run(["git", "status", "--porcelain"], capture_output = True, text = True, check = True, )
+                .stdout.strip() info["dirty"] = "yes" if dirty else "no" except Exception
+            : pass return info
 
+                  def
+                  _get_obs_version(obs_log : Optional[Path]) -> str
+            : if not obs_log or not obs_log.exists() : return "unknown"
+        try : text
+            = obs_log.read_text(errors = "replace") except Exception : return "unknown" match =
+                re.search(r "OBS\s+([\d\.]+)", text) return match
+                    .group(1) if match else "unknown"
 
-def _get_obs_version(obs_log: Optional[Path]) -> str:
-    if not obs_log or not obs_log.exists():
-        return "unknown"
-    try:
-        text = obs_log.read_text(errors="replace")
-    except Exception:
-        return "unknown"
-    match = re.search(r"OBS\s+([\d\.]+)", text)
-    return match.group(1) if match else "unknown"
+                def
+                write_session_readme(output_dir : Path, report : dict, args : argparse.Namespace,
+                                     recording : Optional[Path], obs_csv : Optional[Path], network_csv : Optional[Path],
+                                     obs_log : Optional[Path], ) -> None
+                : output_dir.mkdir(parents = True, exist_ok = True)
+                      timestamp = time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()) git_info = _get_git_info()
+                    obs_version = _get_obs_version(obs_log)
+                        python_version = sys.version.split()[0]
 
+                                         disk_usage = shutil.disk_usage(str(output_dir)) disk_total_gb =
+                            disk_usage.total / (1024 * *3) disk_free_gb =
+                                disk_usage.free / (1024 * *3)
 
-def write_session_readme(
-    output_dir: Path,
-    report: dict,
-    args: argparse.Namespace,
-    recording: Optional[Path],
-    obs_csv: Optional[Path],
-    network_csv: Optional[Path],
-    obs_log: Optional[Path],
-) -> None:
-    output_dir.mkdir(parents=True, exist_ok=True)
-    timestamp = time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime())
-    git_info = _get_git_info()
-    obs_version = _get_obs_version(obs_log)
-    python_version = sys.version.split()[0]
+                                                      sources = report.get("sources", {}) authoritative =
+                                    report.get("authoritative_source", "unknown") errors =
+                                        report
+                                            .get("errors", [])
 
-    disk_usage = shutil.disk_usage(str(output_dir))
-    disk_total_gb = disk_usage.total / (1024**3)
-    disk_free_gb = disk_usage.free / (1024**3)
-
-    sources = report.get("sources", {})
-    authoritative = report.get("authoritative_source", "unknown")
-    errors = report.get("errors", [])
-
-    def _fmt1(value: object) -> str:
-        if value is None:
-            return "n/a"
-        try:
+                                                def _fmt1(value : object)
+                                            ->str : if value is None : return "n/a"
+            try:
             return f"{float(value):.1f}"
         except (TypeError, ValueError):
             return str(value)
@@ -426,126 +472,97 @@ def run(args: argparse.Namespace) -> int:
     network_csv = None
     obs_log = None
 
-    try:
-        test.clean_test_output()
+            try : test
+                .clean_test_output()
 
-        if not test.copy_e2e_properties():
-            print("Failed to apply E2E properties.")
-            return 1
+                    if not test
+                        .copy_e2e_properties()
+                    : print("Failed to apply E2E properties.") return 1
 
-        if not properties_path.exists():
-            print(f"properties.ini not found: {properties_path}")
-            return 1
+                      if not properties_path
+                        .exists()
+                    : print(f "properties.ini not found: {properties_path}") return 1
 
-        apply_properties_overrides(
-            properties_path=properties_path,
-            host=args.host,
-            control_port=args.control_port,
-            video_port=args.video_port,
-            audio_port=args.audio_port,
-        )
+                      apply_properties_overrides(properties_path = properties_path, host = args.host,
+                                                 control_port = args.control_port, video_port = args.video_port,
+                                                 audio_port = args.audio_port, )
 
-        if not test.start_obs(start_recording=True):
-            print("Failed to start OBS.")
-            return 1
+                          if not test
+                        .start_obs(start_recording = True)
+                    : print("Failed to start OBS.") return 1
 
-        if not test.wait_for_plugin_initialization(timeout=20):
-            print("Plugin did not initialize within timeout.")
-            return 1
+                      if not test
+                        .wait_for_plugin_initialization(timeout = 20)
+                    : print("Plugin did not initialize within timeout.") return 1
 
-        if not test.wait_for_receiver_threads(timeout=10):
-            print("Receiver threads did not become ready within timeout.")
-            return 1
+                      if not test
+                        .wait_for_receiver_threads(timeout = 10)
+                    : print("Receiver threads did not become ready within timeout.") return 1
 
-        time.sleep(args.duration)
-        test.stop_recording()
-        test.stop_obs()
+                      time.sleep(args.duration) test.stop_recording() test.stop_obs()
 
-        recording = copy_recording(output_dir, test._obs_start_time_s)
-        if recording:
-            print(f"Recording copied to: {recording}")
-        else:
-            print("No recording found.")
+                          recording = copy_recording(output_dir, test._obs_start_time_s) if recording
+                    : print(f "Recording copied to: {recording}") else
+                    : print("No recording found.")
 
-        csv_success = test.check_csv_recordings()
-        if not csv_success:
-            print("No CSV outputs found.")
+                          csv_success = test.check_csv_recordings() if not csv_success
+                    : print("No CSV outputs found.")
 
-        obs_log = test._collect_obs_log()
-        if obs_log:
-            print(f"OBS log copied to: {obs_log}")
+                          obs_log = test._collect_obs_log() if obs_log
+                    : print(f "OBS log copied to: {obs_log}")
 
-        obs_csv = output_dir / "obs.csv"
-        network_csv = output_dir / "network.csv"
+                          obs_csv = output_dir / "obs.csv" network_csv = output_dir / "network.csv"
 
-        exit_code, report = av_pop_analyzer.analyze_paths(
-            obs_csv=obs_csv if obs_csv.exists() else None,
-            network_csv=network_csv if network_csv.exists() else None,
-            obs_log=obs_log if obs_log else None,
-            max_delta_ms=args.max_delta_ms,
-            p50_max_ms=args.p50_max_ms,
-            p95_max_ms=args.p95_max_ms,
-            max_max_ms=args.max_max_ms,
-            min_pop_events=args.min_pop_events,
-            verbose=args.verbose,
-        )
-        if not args.no_mp4_analysis:
-            mp4_source = _analyze_mp4_recording(recording, args.max_delta_ms)
-            if "sources" not in report or not isinstance(report["sources"], dict):
-                report["sources"] = {}
-            report["sources"]["obs_mp4_recording"] = mp4_source
-        else:
-            print("Skipping MP4 analysis (--no-mp4-analysis)")
-        report_path = output_dir / "av_pop_report.json"
-        report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
-        av_pop_analyzer.print_summary(report)
-        print(f"A/V pop report: {report_path}")
-        write_session_readme(
-            output_dir=output_dir,
-            report=report,
-            args=args,
-            recording=recording,
-            obs_csv=obs_csv if obs_csv.exists() else None,
-            network_csv=network_csv if network_csv.exists() else None,
-            obs_log=obs_log,
-        )
-        return exit_code
-    finally:
-        test.cleanup()
-        if not properties_existed and properties_path.exists():
-            try:
-                properties_path.unlink()
-            except Exception:
-                pass
+                                                                         exit_code,
+                          report = av_pop_analyzer
+                                       .analyze_paths(obs_csv = obs_csv if obs_csv.exists() else None,
+                                                      network_csv = network_csv if network_csv.exists() else None,
+                                                      obs_log = obs_log if obs_log else None,
+                                                      max_delta_ms = args.max_delta_ms, p50_max_ms = args.p50_max_ms,
+                                                      p95_max_ms = args.p95_max_ms, max_max_ms = args.max_max_ms,
+                                                      min_pop_events = args.min_pop_events,
+                                                      verbose = args.verbose, ) if not args.no_mp4_analysis
+                    : mp4_source = _analyze_mp4_recording(recording, args.max_delta_ms) if "sources" not in report or
+                                   not isinstance(report["sources"], dict)
+                    : report["sources"] = {} report["sources"]["obs_mp4_recording"] = mp4_source else
+                    : print("Skipping MP4 analysis (--no-mp4-analysis)") report_path =
+                          output_dir /
+                              "av_pop_report.json" report_path
+                                  .write_text(json.dumps(report, indent = 2), encoding = "utf-8") av_pop_analyzer
+                                  .print_summary(report) print(f "A/V pop report: {report_path}")
+                                      write_session_readme(output_dir = output_dir, report = report, args = args,
+                                                           recording = recording,
+                                                           obs_csv = obs_csv if obs_csv.exists() else None,
+                                                           network_csv = network_csv if network_csv.exists() else None,
+                                                           obs_log = obs_log, ) return exit_code finally
+                    : test.cleanup() if not properties_existed
+                          and properties_path.exists() :
+                try : properties_path
+.unlink() except Exception : pass
 
+                             def main()
+                                 ->int : parser =
+    argparse.ArgumentParser(description = "Run a real-device A/V sync capture and analyze A/V pop deltas.") parser
+        .add_argument("--host", default = "c64u", help = "C64 Ultimate hostname or IP (default: c64u)") parser
+        .add_argument("--duration", type = int, default = 10, help = "Recording duration in seconds") parser
+        .add_argument("--output-dir", default = str(SCRIPT_DIR / "results" / "real_c64u_av_sync"),
+                      help = "Output directory for artifacts", ) parser
+        .add_argument("--max-delta-ms", type = float, default = 30.0,
+                      help = "Legacy max allowed A/V delta in ms") parser
+        .add_argument("--p50-max-ms", type = float, default = 20.0, help = "Max allowed p50 A/V delta in ms") parser
+        .add_argument("--p95-max-ms", type = float, default = 40.0, help = "Max allowed p95 A/V delta in ms") parser
+        .add_argument("--max-max-ms", type = float, default = 60.0, help = "Max allowed max A/V delta in ms") parser
+        .add_argument("--min-pop-events", type = int, default = 2, help = "Minimum pop events required") parser
+        .add_argument("--video-port", type = int, default = 21000, help = "Video UDP port") parser
+        .add_argument("--audio-port", type = int, default = 21001, help = "Audio UDP port") parser
+        .add_argument("--control-port", type = int, default = 64, help = "Control TCP port") parser
+        .add_argument("--format", choices = ["PAL", "NTSC"], default = "NTSC", help = "Video format hint") parser
+        .add_argument("--enable-websocket", action = "store_true", help = "Enable OBS WebSocket calls") parser
+        .add_argument("--verbose", action = "store_true",
+                      help = "Verbose logging") parser.add_argument("--no-mp4-analysis", action = "store_true",
+                                                                    help = "Skip MP4 recording analysis")
 
-def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Run a real-device A/V sync capture and analyze A/V pop deltas."
-    )
-    parser.add_argument("--host", default="c64u", help="C64 Ultimate hostname or IP (default: c64u)")
-    parser.add_argument("--duration", type=int, default=10, help="Recording duration in seconds")
-    parser.add_argument(
-        "--output-dir",
-        default=str(SCRIPT_DIR / "results" / "real_c64u_av_sync"),
-        help="Output directory for artifacts",
-    )
-    parser.add_argument("--max-delta-ms", type=float, default=30.0, help="Legacy max allowed A/V delta in ms")
-    parser.add_argument("--p50-max-ms", type=float, default=20.0, help="Max allowed p50 A/V delta in ms")
-    parser.add_argument("--p95-max-ms", type=float, default=40.0, help="Max allowed p95 A/V delta in ms")
-    parser.add_argument("--max-max-ms", type=float, default=60.0, help="Max allowed max A/V delta in ms")
-    parser.add_argument("--min-pop-events", type=int, default=2, help="Minimum pop events required")
-    parser.add_argument("--video-port", type=int, default=21000, help="Video UDP port")
-    parser.add_argument("--audio-port", type=int, default=21001, help="Audio UDP port")
-    parser.add_argument("--control-port", type=int, default=64, help="Control TCP port")
-    parser.add_argument("--format", choices=["PAL", "NTSC"], default="NTSC", help="Video format hint")
-    parser.add_argument("--enable-websocket", action="store_true", help="Enable OBS WebSocket calls")
-    parser.add_argument("--verbose", action="store_true", help="Verbose logging")
-    parser.add_argument("--no-mp4-analysis", action="store_true", help="Skip MP4 recording analysis")
+            args = parser.parse_args() return run(args)
 
-    args = parser.parse_args()
-    return run(args)
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+                       if __name__
+                   == "__main__" : raise SystemExit(main())

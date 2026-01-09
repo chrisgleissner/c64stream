@@ -1216,15 +1216,24 @@ stop_real_c64_streaming() {
     log_warning "NOTE: If C64U is configured to stream to ports 21000/21001, cross-pollution may occur!"
     log_warning "Real device tests should use ports 11000/11001 (C64U hardware default)."
     log_warning "To fix: Reconfigure C64U via web interface to use default UDP ports 11000/11001."
-        sleep 1
-        return 0
-    else
-        if [[ "${VERBOSE}" == true ]]; then
-            log_warning "Could not reset real C64 device - it may not be running or REST API unavailable"
-            log_warning "Continuing anyway, but test may receive real device packets if it's streaming"
+    
+    # Attempt to reset via REST API (may not work if device auto-restarts streaming)
+    if command -v curl &>/dev/null; then
+        local url="http://${c64_host}${reset_endpoint}"
+        if curl -s -X "${reset_method}" "${url}" >/dev/null 2>&1; then
+            if [[ "${VERBOSE}" == true ]]; then
+                log_success "Reset request sent to ${c64_host}"
+            fi
+        else
+            if [[ "${VERBOSE}" == true ]]; then
+                log_warning "Could not reset real C64 device - it may not be running or REST API unavailable"
+                log_warning "Continuing anyway, but test may receive real device packets if it's streaming"
+            fi
         fi
-        return 0
     fi
+    
+    sleep 1
+    return 0
 }
 
 
