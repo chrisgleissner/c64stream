@@ -199,6 +199,10 @@ struct c64_source {
     // Debug-only A/V pop detection (edge-based)
     bool av_sync_last_video_all_white;
     bool av_sync_last_audio_has_signal;
+
+    // UDP full-frame-pop marker detection (packet-level). Kept separate from OBS frame probe state.
+    bool av_sync_last_video_pop_marker;
+    bool av_sync_last_audio_pop_marker;
     uint64_t av_sync_audio_signal_start_ts; // Timestamp when audio signal started (for duration check)
     uint64_t av_sync_last_video_pop_ts;
     uint64_t av_sync_last_audio_pop_ts;

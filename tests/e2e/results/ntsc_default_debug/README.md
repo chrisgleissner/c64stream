@@ -2,13 +2,13 @@
 
 ## Scenario: NTSC Default Debug
 
-Generated: 2026-01-09 07:52:27 UTC
+Generated: 2026-01-09 15:31:20 UTC
 
 ## Test configuration
 
 - Format: NTSC
-- Frames: 600
-- Duration: 10.0 seconds
+- Frames: 480
+- Duration: 8.0 seconds
 - Video Port: 21000
 - Audio Port: 21001
 - OBS Enabled: true
@@ -30,52 +30,52 @@ Generated: 2026-01-09 07:52:27 UTC
 
 ### Validation Summary
 
-- ⚠️ UDP Packet Reception: 16142/38504 packets (15016 video, 1080 audio, major loss)
-- ❌ Network Timing: span=4414.6ms, video_mean=293.4us, audio_mean=3993.2us
-- ✅ Frame Processing: 1013 frames processed
-- ✅ Video Recording: 19.9 MB
-- ✅ Content Integrity: 40.1s duration
+- ⚠️ UDP Packet Reception: 30801/30803 packets (28798 video, 2003 audio, minor loss)
+- ✅ Network Timing: span=8023.4ms, video_mean=287.1us, audio_mean=4004.8us
+- ✅ Frame Processing: 2481 frames processed
+- ✅ Video Recording: 10.9 MB
+- ✅ Content Integrity: 22.0s duration
 
 ### Resource Usage
 
-During the test's processing window (3.1s, 7 of 63 samples) (8 cores):
+During the test's processing window (18.1s, 37 of 49 samples) (8 cores):
 
 | Metric | Min | Median | Mean | Max |
 |--------|-----|--------|------|-----|
-| CPU | 57.3% | 75.5% | 76.4% | 93.8% |
-| RAM | 6127.99 MB | 6190.66 MB | 6184.4 MB | 6217.34 MB |
-| GPU | 30.9% | 33.05% | 32.68% | 35.12% |
+| CPU | 51.7% | 58.4% | 61.41% | 85.7% |
+| RAM | 5904.2 MB | 5941.15 MB | 5976.41 MB | 6095.51 MB |
+| GPU | 11.54% | 16.01% | 19.89% | 42.38% |
 
 Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
 ### Packet & Network Data
 
-- ✅ Packet Generation: 36000 video, 2504 audio packets
+- ✅ Packet Generation: 28800 video, 2003 audio packets
 - ✅ UDP Replay: Completed successfully
 - Events: [network.csv](network.csv), [obs.csv](obs.csv)
 
 #### Network Quality (Measured)
 
-- Packet span (first→last): 4414.551 ms
-- Total packets analyzed: 16096
+- Packet span (first→last): 8023.387 ms
+- Total packets analyzed: 29953
 
 | Stream | Packets | Spacing (min) | Spacing (mean) | Spacing (max) | CV | Burst <0.5×P50 | Gaps >2×P50 | P99/P50 |
 |--------|---------|---------------|----------------|---------------|----|--------------|------------|--------|
-| All | 16096 | 0.001 ms | 0.541 ms | 8.473 ms | 211.46% | 8.48% | 31.81% | 940.600 |
-| Video | 15014 | 0.001 ms | 0.293 ms | 7.447 ms | 221.35% | 0.13% | 29.19% | 795.250 |
-| Audio | 1079 | 0.031 ms | 3.993 ms | 8.473 ms | 24.01% | 2.50% | 0.09% | 1.625 |
+| All | 29953 | 0.001 ms | 0.536 ms | 30.023 ms | 210.93% | 0.00% | 35.67% | 2342.500 |
+| Video | 27951 | 0.001 ms | 0.287 ms | 30.023 ms | 206.50% | 0.00% | 31.09% | 1149.000 |
+| Audio | 2002 | 0.003 ms | 4.005 ms | 28.266 ms | 28.34% | 1.75% | 0.25% | 1.565 |
 
 | Stream | Packets | Jitter (median) | Jitter (max) | Out-of-Order |
 |--------|---------|-----------------|--------------|--------------|
-| Video | 15014 | 0.001 ms | 7.443 ms | 0 |
-| Audio | 1079 | 0.477 ms | 4.254 ms | 0 |
+| Video | 27951 | 0.001 ms | 30.021 ms | 0 |
+| Audio | 2002 | 0.519 ms | 24.024 ms | 0 |
 
 Details: [network.json](network.json)
 
 ### Video
 
 - Download: [c64_recording.mp4](c64_recording.mp4) (Available from local runs or CI build artifacts.)
-- Duration: 40.1 s
+- Duration: 22.0 s
 
 
 ### Sample Frame
@@ -87,4 +87,4 @@ Details: [network.json](network.json)
 - **Center**: Diagonal pattern cycling through all C64 colors
 - **Bottom-left**: Frame progression indicator (8-slot moving bar, cycles every 8 frames)
 - **Bottom-right**: A/V pop indicator (pops every 48 frames, split left/right for audio channels)
-- Taken from 00:20.1 of the 40.1 s video above.
+- Taken from frame 652 at 00:10.9 of the 22.0 s video above.

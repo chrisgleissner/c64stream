@@ -15,9 +15,65 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-logging.h"
 #include "c64-protocol.h"
 #include "c64-source.h"
+#include "c64-av-sync.h"
 #include "c64-types.h"
 #include "c64-video.h"
 #include "c64-record-network.h"
+
+/* ============================================================================
+ * Hot packet-level pop marker detection (debug/testing)
+ * ============================================================================
+ *
+ * Used for "full-frame-pop" scenarios where the packet payload itself contains
+ * deterministic pop markers.
+ *
+ * Rules:
+ * - O(1)
+ * - portable C only
+ */
+
+static inline bool c64_udp_packet_pop_fast(const uint8_t *payload_768)
+{
+    if (!payload_768) {
+        return false;
+    }
+
+    // Pixel index 768 -> byte 384, high nibble (VIC index 0 == black)
+    return (payload_768[384] & 0xF0u) != 0u;
+}
+
+static inline int16_t c64_load_le_i16_unaligned(const uint8_t *p)
+{
+    return (int16_t)((uint16_t)p[0] | ((uint16_t)p[1] << 8));
+}
+
+static inline bool c64_audio_pop_fast_i16_le(const uint8_t *samples, size_t samples_size)
+{
+    if (!samples || samples_size < 4) {
+        return false;
+    }
+
+    const size_t n = samples_size / 2;
+    if (n <= 10) {
+        return false;
+    }
+
+    const size_t mid = n >> 1;
+
+    const int16_t s0 = c64_load_le_i16_unaligned(samples + mid * 2);
+    const int16_t s1 = c64_load_le_i16_unaligned(samples + (mid + 10) * 2);
+
+    if (s0 >= 20000 || s0 <= -20000) {
+        return true;
+    }
+
+    const int32_t d = (int32_t)s1 - (int32_t)s0;
+    if (d >= 15000 || d <= -15000) {
+        return true;
+    }
+
+    return false;
+}
 
 void c64_send_control_command(struct c64_source *context, bool enable, uint8_t stream_id)
 {
@@ -127,12 +183,15 @@ void c64_log_video_packet_if_enabled(struct c64_source *context, const uint8_t *
     bool is_all_white = false;
     if (c64_debug_logging) {
         const uint8_t *payload = packet + C64_VIDEO_HEADER_SIZE;
-        is_all_white = true;
-        for (size_t i = 0; i < data_payload; i++) {
-            if (payload[i] != 0x11) {
-                is_all_white = false;
-                break;
-            }
+        if (data_payload >= 768) {
+            is_all_white = c64_udp_packet_pop_fast(payload);
+        }
+
+        // Emit A/V sync events from packet-level marker (rising edge only).
+        const bool was_marker = context->av_sync_last_video_pop_marker;
+        context->av_sync_last_video_pop_marker = is_all_white;
+        if (!was_marker && is_all_white) {
+            c64_av_sync_on_video_pop(context, frame_num, timestamp_ns);
         }
     }
 
@@ -167,21 +226,15 @@ void c64_log_audio_packet_if_enabled(struct c64_source *context, const uint8_t *
     if (c64_debug_logging && packet_size > 2) {
         const uint8_t *samples = packet + 2;
         size_t samples_size = packet_size - 2;
-        const int threshold = 512;
-        const size_t min_hits = 8;
-        size_t hits = 0;
-        if (samples_size >= 2) {
-            size_t sample_words = samples_size / 2;
-            for (size_t i = 0; i < sample_words; i++) {
-                uint8_t lo = samples[i * 2 + 0];
-                uint8_t hi = samples[i * 2 + 1];
-                int16_t v = (int16_t)((uint16_t)lo | ((uint16_t)hi << 8));
-                if (v > threshold || v < -threshold) {
-                    if (++hits >= min_hits) {
-                        has_signal = true;
-                        break;
-                    }
-                }
+
+        has_signal = c64_audio_pop_fast_i16_le(samples, samples_size);
+
+        const bool was_marker = context->av_sync_last_audio_pop_marker;
+        context->av_sync_last_audio_pop_marker = has_signal;
+        if (!was_marker && has_signal) {
+            // Mirror c64_process_audio_packet behavior: ignore the very first audio marker before any video pop.
+            if (context->av_sync_video_pop_count != 0 || context->av_sync_audio_pop_count != 0) {
+                c64_av_sync_on_audio_pop(context, timestamp_ns);
             }
         }
     }

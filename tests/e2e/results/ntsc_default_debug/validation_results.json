@@ -1,23 +1,23 @@
 {
   "udp_reception": {
     "status": "warning",
-    "details": "16142/38504 packets (15016 video, 1080 audio, major loss)"
+    "details": "30801/30803 packets (28798 video, 2003 audio, minor loss)"
   },
   "frame_processing": {
     "status": "pass",
-    "details": "1013 frames processed"
+    "details": "2481 frames processed"
   },
   "video_recording": {
     "status": "pass",
-    "details": "19.9 MB"
+    "details": "10.9 MB"
   },
   "packet_integrity": {
     "status": "pass",
-    "details": "40.1s duration"
+    "details": "22.0s duration"
   },
   "network_timing": {
-    "status": "fail",
-    "details": "span=4414.6ms, video_mean=293.4us, audio_mean=3993.2us"
+    "status": "pass",
+    "details": "span=8023.4ms, video_mean=287.1us, audio_mean=4004.8us"
   },
   "video_brightness": {
     "status": "skipped",
@@ -28,12 +28,58 @@
     "details": "Skipped (full-frame-pop scenario)"
   },
   "av_sync_offset": {
-    "status": "fail",
-    "message": "Missing pop data from: CSV (obs.csv or network.csv), MP4",
+    "status": "pass",
+    "message": "Pop offset OK (max 40.00ms): obs_csv=7.67ms, network_csv=13.32ms, mp4=23.11ms",
     "details": {
-      "sources": {},
-      "output_dir": "/home/chris/dev/c64/c64stream-workspace/c64stream-av-sync-instrumentation/tests/e2e/results/ntsc_default_debug"
+      "sources": {
+        "obs_csv": {
+          "pop_count": 9,
+          "max_offset_ms": 7.668,
+          "avg_offset_ms": 5.062666666666667,
+          "per_pop_offsets_ms": [
+            7.668,
+            5.608,
+            3.287,
+            6.466,
+            2.234,
+            4.995,
+            6.503,
+            3.293,
+            5.51
+          ]
+        },
+        "network_csv": {
+          "pop_count": 3,
+          "max_offset_ms": 13.317,
+          "avg_offset_ms": 10.997333333333335,
+          "per_pop_offsets_ms": [
+            13.317,
+            7.266,
+            12.409
+          ]
+        },
+        "mp4": {
+          "pop_count": 9,
+          "max_offset_ms": 23.115,
+          "avg_offset_ms": 17.977444444444444,
+          "per_pop_offsets_ms": [
+            21.729,
+            19.402,
+            17.075,
+            14.749,
+            12.422,
+            20.095,
+            17.768,
+            15.442,
+            23.115
+          ]
+        }
+      }
     },
-    "metrics": {}
+    "metrics": {
+      "obs_csv_max_offset_ms": 7.668,
+      "network_csv_max_offset_ms": 13.317,
+      "mp4_max_offset_ms": 23.115
+    }
   }
 }
