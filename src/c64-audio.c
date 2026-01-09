@@ -26,6 +26,7 @@ void *audio_thread_func(void *data)
 {
     struct c64_source *context = data;
     uint8_t packet[C64_AUDIO_PACKET_SIZE];
+    uint32_t wouldblock_spins = 0;
 
     C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " Audio receiver thread started on port %u", context->audio_port);
 
@@ -45,7 +46,13 @@ void *audio_thread_func(void *data)
             int error = c64_get_socket_error();
 #ifdef _WIN32
             if (error == WSAEWOULDBLOCK) {
-                os_sleep_ms(1); // 1ms delay
+                wouldblock_spins++;
+                if (wouldblock_spins < 1000) {
+                    os_sleep_ms(0);
+                } else {
+                    os_sleep_ms(1);
+                    wouldblock_spins = 0;
+                }
                 continue;
             }
             // On Windows, WSAENOTSOCK means socket was closed - this is normal during shutdown
@@ -62,7 +69,13 @@ void *audio_thread_func(void *data)
             }
 #else
             if (error == EAGAIN || error == EWOULDBLOCK) {
-                os_sleep_ms(1); // 1ms delay
+                wouldblock_spins++;
+                if (wouldblock_spins < 1000) {
+                    os_sleep_ms(0);
+                } else {
+                    os_sleep_ms(1);
+                    wouldblock_spins = 0;
+                }
                 continue;
             }
             // On POSIX, EBADF means socket was closed - this is normal during shutdown
@@ -76,45 +89,24 @@ void *audio_thread_func(void *data)
             break;
         }
 
+        wouldblock_spins = 0;
+
+        // Stage-1: UDP ingest
+        // Keep the socket receive path minimal to avoid receiver-side backpressure.
+        // No parsing, no sorting, no per-packet logging, no blocking.
         if (received != C64_AUDIO_PACKET_SIZE) {
-            // Small packets (2-4 bytes) are normal during stream startup/buffer changes
-            static uint64_t last_incomplete_log_time = 0;
-            uint64_t now = os_gettime_ns();
-            if (now - last_incomplete_log_time >= 2000000000ULL) { // Throttle to every 2 seconds
-                if (received <= 4) {
-                    C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " Audio startup/control packets: " SSIZE_T_FORMAT
-                                  " bytes (normal during initialization)",
-                                  SSIZE_T_CAST(received));
-                } else {
-                    C64_LOG_WARNING("" AUDIO_LOG_PREFIX " Received incomplete audio packet: " SSIZE_T_FORMAT
-                                    " bytes (expected %d)",
-                                    SSIZE_T_CAST(received), C64_AUDIO_PACKET_SIZE);
-                }
-                last_incomplete_log_time = now;
-            }
             continue;
         }
 
-        // Update timestamp for timeout detection - UDP packet received successfully
-        uint64_t packet_time = os_gettime_ns();
+        const uint64_t packet_time = os_gettime_ns();
         context->last_udp_packet_time = packet_time; // DEPRECATED - kept for compatibility
         context->last_audio_packet_time = packet_time;
 
-        // Update audio statistics
         os_atomic_set_long(&context->audio_packets_received, os_atomic_load_long(&context->audio_packets_received) + 1);
         os_atomic_set_long(&context->audio_bytes_received,
                            os_atomic_load_long(&context->audio_bytes_received) + (long)received);
 
-        // Log network packet at UDP reception (conditional - no parsing overhead if disabled)
-        c64_log_audio_packet_if_enabled(context, packet, received, packet_time);
-
-        // Batch process audio statistics
-        c64_process_audio_statistics_batch(context, packet_time);
-
-        // Push audio packet to network buffer for queuing and later processing in render thread
-        if (context->network_buffer) {
-            c64_network_buffer_push_audio(context->network_buffer, packet, received, packet_time);
-        }
+        (void)c64_ingest_ring_push(&context->audio_ingest, packet, (uint16_t)received, packet_time);
     }
 
     C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " Audio thread stopped for C64 Stream source '%s'",

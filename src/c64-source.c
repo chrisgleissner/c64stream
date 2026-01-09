@@ -29,6 +29,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "plugin-support.h"
 #include "c64-effect.h"
 #include "c64-av-sync.h"
+#include "c64-ingest-ring.h"
 
 // Forward declarations
 static void close_and_reset_sockets(struct c64_source *context);
@@ -479,6 +480,44 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     os_atomic_set_long(&context->debug_recvfrom_bytes_total, 0);
     os_atomic_set_long(&context->debug_packets_dropped_size, 0);
 
+    // Preallocate Stage-1 ingest rings (Stage-1: socket recv, Stage-2: buffering/order)
+    // Video is higher PPS; keep a larger backlog to absorb short processing stalls.
+    {
+        const uint32_t video_ingest_capacity = 8192;
+        const uint32_t audio_ingest_capacity = 2048;
+
+        context->video_ingest_entries = bmalloc(sizeof(struct c64_ingest_packet) * video_ingest_capacity);
+        context->audio_ingest_entries = bmalloc(sizeof(struct c64_ingest_packet) * audio_ingest_capacity);
+
+        if (!context->video_ingest_entries || !context->audio_ingest_entries) {
+            C64_LOG_ERROR("Failed to allocate UDP ingest rings");
+            if (context->video_ingest_entries) {
+                bfree(context->video_ingest_entries);
+                context->video_ingest_entries = NULL;
+            }
+            if (context->audio_ingest_entries) {
+                bfree(context->audio_ingest_entries);
+                context->audio_ingest_entries = NULL;
+            }
+            c64_network_buffer_destroy(context->network_buffer);
+            context->network_buffer = NULL;
+            pthread_mutex_destroy(&context->assembly_mutex);
+            pthread_mutex_destroy(&context->config_mutex);
+            bfree(context->frame_buffer);
+            bfree(context->bmp_row_buffer);
+            bfree(context->bgr_frame_buffer);
+            bfree(context);
+            return NULL;
+        }
+
+        context->video_ingest.entries = context->video_ingest_entries;
+        context->video_ingest.capacity = video_ingest_capacity;
+        context->audio_ingest.entries = context->audio_ingest_entries;
+        context->audio_ingest.capacity = audio_ingest_capacity;
+        c64_ingest_ring_reset(&context->video_ingest);
+        c64_ingest_ring_reset(&context->audio_ingest);
+    }
+
     context->last_stats_log_time = os_gettime_ns();
     context->last_audio_stats_log_time = context->last_stats_log_time;
     context->last_stats_tick_ns = context->last_stats_log_time;
@@ -681,6 +720,15 @@ void c64_destroy(void *data)
     if (context->network_buffer) {
         c64_network_buffer_destroy(context->network_buffer);
         context->network_buffer = NULL;
+    }
+
+    if (context->video_ingest_entries) {
+        bfree(context->video_ingest_entries);
+        context->video_ingest_entries = NULL;
+    }
+    if (context->audio_ingest_entries) {
+        bfree(context->audio_ingest_entries);
+        context->audio_ingest_entries = NULL;
     }
 
     if (context->afterglow_cpu_accum) {
@@ -964,6 +1012,10 @@ void c64_start_streaming(struct c64_source *context)
     os_atomic_set_bool(&context->thread_active, true);
     context->streaming = true;
 
+    // Reset Stage-1 UDP ingest rings for a clean start/reconnect.
+    c64_ingest_ring_reset(&context->video_ingest);
+    c64_ingest_ring_reset(&context->audio_ingest);
+
     if (pthread_create(&context->video_thread, NULL, c64_video_thread_func, context) != 0) {
         C64_LOG_ERROR("Failed to create video receiver thread");
         context->streaming = false;
@@ -1035,6 +1087,10 @@ void c64_stop_streaming(struct c64_source *context)
         C64_LOG_WARNING("Failed to join audio thread");
     }
     os_atomic_set_bool(&context->audio_thread_active, false);
+
+    // Clear any queued UDP packets so the next start begins from an empty ingest state.
+    c64_ingest_ring_reset(&context->video_ingest);
+    c64_ingest_ring_reset(&context->audio_ingest);
 
     // Clear frame buffer (async video will stop automatically)
     if (context->frame_buffer) {
