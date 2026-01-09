@@ -138,7 +138,9 @@ void c64_log_video_packet_if_enabled(struct c64_source *context, const uint8_t *
         is_all_white = true;
         for (size_t i = 0; i < n; i++) {
             const size_t idx = (sample_points[i] < data_payload) ? sample_points[i] : (data_payload - 1);
-            if (payload[idx] != 0xFF) {
+            // Stream pixels are 4bpp packed: two pixels per byte.
+            // A full-white frame is therefore bytes of 0x11 (nibbles 0x1).
+            if (payload[idx] != 0x11) {
                 is_all_white = false;
                 break;
             }

@@ -224,9 +224,22 @@ def analyze_obs_log(log_path: Path) -> tuple[Optional[dict[str, Any]], Optional[
     try:
         video_re = re.compile(r"A/V pop video #\d+: .*?ts=(\d+)\s+ns")
         audio_re = re.compile(r"A/V pop audio #\d+: .*?ts=(\d+)\s+ns")
+        # Also support the newer paired log format emitted by the plugin:
+        # "AV SYNC: offset=... video_ts=<ns> audio_ts=<ns>"
+        pair_re = re.compile(r"AV SYNC:.*?video_ts=(\d+)\s+audio_ts=(\d+)")
         video_times_us: list[int] = []
         audio_times_us: list[int] = []
         for line in log_path.read_text(errors="replace").splitlines():
+            pair_match = pair_re.search(line)
+            if pair_match:
+                try:
+                    v_ns = int(pair_match.group(1))
+                    a_ns = int(pair_match.group(2))
+                    video_times_us.append(v_ns // 1000)
+                    audio_times_us.append(a_ns // 1000)
+                    continue
+                except ValueError:
+                    pass
             video_match = video_re.search(line)
             if video_match:
                 try:
