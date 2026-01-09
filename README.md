@@ -75,9 +75,8 @@ Verified on Windows 11:
 
 > [!NOTE]
 > Windows on ARM64 support is experimental and has not yet been fully tested. If you would like to help with testing, please reach out in the "Discussions" tab of this repository.
-> OBS Studio must be a native ARM64 build.
 
-1. Install OBS Studio by unzipping https://github.com/obsproject/obs-studio/releases/download/32.0.4/OBS-Studio-32.0.4-Windows-arm64.zip to your local drive.
+1. Install the ARM64 version of OBS Studio by unzipping https://github.com/obsproject/obs-studio/releases/download/32.0.4/OBS-Studio-32.0.4-Windows-arm64.zip to your local drive.
 2. Ensure OBS Studio is closed.
 3. [Download](../../releases) the plugin package with name `c64stream-$VERSION-windows-arm64.zip`. It should now be in your `Downloads` folder (typically `C:\Users\<YourName>\Downloads`).
 4. Follow step 3 and all subsequent steps as described in the “Windows (x64)” chapter above.
