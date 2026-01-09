@@ -1555,15 +1555,19 @@ void *c64_video_processor_thread_func(void *data)
 
                     total_log_ns += log_dur;
                     total_process_ns += process_dur;
-                    if (log_dur > max_log_ns) max_log_ns = log_dur;
-                    if (process_dur > max_process_ns) max_process_ns = process_dur;
+                    if (log_dur > max_log_ns)
+                        max_log_ns = log_dur;
+                    if (process_dur > max_process_ns)
+                        max_process_ns = process_dur;
                     prof_pkt_count++;
 
                     if (prof_pkt_count % 1000 == 0) {
-                         C64_LOG_INFO("PROFILING [%llu]: Avg Log: %llu ns (Max: %llu), Avg Process: %llu ns (Max: %llu)",
-                            (unsigned long long)prof_pkt_count,
-                            (unsigned long long)(total_log_ns / prof_pkt_count), (unsigned long long)max_log_ns,
-                            (unsigned long long)(total_process_ns / prof_pkt_count), (unsigned long long)max_process_ns);
+                        C64_LOG_INFO("PROFILING [%llu]: Avg Log: %llu ns (Max: %llu), Avg Process: %llu ns (Max: %llu)",
+                                     (unsigned long long)prof_pkt_count,
+                                     (unsigned long long)(total_log_ns / prof_pkt_count),
+                                     (unsigned long long)max_log_ns,
+                                     (unsigned long long)(total_process_ns / prof_pkt_count),
+                                     (unsigned long long)max_process_ns);
                     }
 
                     // Reset retry count on successful video packet processing
