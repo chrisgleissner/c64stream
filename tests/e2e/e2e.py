@@ -2805,60 +2805,96 @@ class E2ETest:
         self.log(f"  - Remote address: {conn.getpeername()}")
 
         try:
-            conn.settimeout(5.0)  # 5 second timeout for receive
-            data = conn.recv(1024)
-            self.log(f"📨 Received {len(data)} bytes from {addr}")
+            # TCP is a byte stream: one recv() can contain multiple commands, or a partial command.
+            # Buffer and parse commands by their declared param_len.
+            buffer = bytearray()
+            deadline = time.monotonic() + 5.0
+            conn.settimeout(1.0)
 
-            if len(data) >= 4:
-                self.log(f"Received TCP command from {addr}: {data.hex()}")
+            def handle_command(cmd: bytes) -> None:
+                self.log(f"Received TCP command from {addr}: {cmd.hex()}")
 
                 # Parse the command according to C64 protocol
-                # Format: [command_byte][0xFF][param_len][0x00][duration_bytes...][ip:port_string]
-                cmd_byte = data[0]
+                # Format: [command_byte][0xFF][param_len][0x00][param_bytes...]
+                cmd_byte = cmd[0]
+                if cmd[1] != 0xFF:
+                    return
 
-                if data[1] == 0xFF:  # Valid command marker
-                    stream_id = cmd_byte & 0x0F  # Extract stream ID (0=video, 1=audio)
-                    is_start = (cmd_byte & 0xF0) == 0x20  # 0x20 = start, 0x30 = stop
+                stream_id = cmd_byte & 0x0F  # Extract stream ID (0=video, 1=audio)
+                is_start = (cmd_byte & 0xF0) == 0x20  # 0x20 = start, 0x30 = stop
 
-                    if is_start:
-                        self.log(f"✅ Received START command for stream {stream_id}")
+                if is_start:
+                    self.log(f"✅ Received START command for stream {stream_id}")
 
-                        # Extract destination IP:port if present
-                        if len(data) > 6:
-                            param_len = data[2]
-                            if param_len > 2 and len(data) >= 6 + param_len - 2:
-                                dest_str = data[6:6+param_len-2].decode('ascii', errors='ignore')
-                                self.log(f"Stream destination: {dest_str}")
+                    # Extract destination IP:port if present.
+                    # param_len includes 2 duration bytes + dest string.
+                    param_len = cmd[2]
+                    if param_len > 2 and len(cmd) >= 6 + (param_len - 2):
+                        dest_str = cmd[6 : 6 + (param_len - 2)].decode("ascii", errors="ignore")
+                        self.log(f"Stream destination: {dest_str}")
 
-                                # Parse and store the destination for UDP replay
-                                if ':' in dest_str:
-                                    dest_ip, dest_port_str = dest_str.split(':', 1)
-                                    try:
-                                        dest_port = int(dest_port_str)
-                                        if stream_id == 0:  # Video
-                                            self.video_dest_ip = dest_ip
-                                            self.video_dest_port = dest_port
-                                            self.log(f"Updated video destination: {dest_ip}:{dest_port}")
-                                        elif stream_id == 1:  # Audio
-                                            self.audio_dest_ip = dest_ip
-                                            self.audio_dest_port = dest_port
-                                            self.log(f"Updated audio destination: {dest_ip}:{dest_port}")
-                                    except ValueError:
-                                        self.log(f"Invalid port in destination: {dest_str}")
+                        # Parse and store the destination for UDP replay
+                        if ":" in dest_str:
+                            dest_ip, dest_port_str = dest_str.split(":", 1)
+                            try:
+                                dest_port = int(dest_port_str)
+                                if stream_id == 0:  # Video
+                                    self.video_dest_ip = dest_ip
+                                    self.video_dest_port = dest_port
+                                    self.log(f"Updated video destination: {dest_ip}:{dest_port}")
+                                elif stream_id == 1:  # Audio
+                                    self.audio_dest_ip = dest_ip
+                                    self.audio_dest_port = dest_port
+                                    self.log(f"Updated audio destination: {dest_ip}:{dest_port}")
+                            except ValueError:
+                                self.log(f"Invalid port in destination: {dest_str}")
 
-                        # Signal that we should start UDP packet replay.
-                        # Wait until we've received START for both streams (video+audio).
-                        with self._stream_start_lock:
-                            if stream_id == 0:
-                                self._stream_start_mask |= 0x1
-                            elif stream_id == 1:
-                                self._stream_start_mask |= 0x2
-                            if self._stream_start_mask == 0x3:
-                                self.udp_replay_triggered.set()
+                    # Signal that we should start UDP packet replay.
+                    # Wait until we've received START for both streams (video+audio).
+                    with self._stream_start_lock:
+                        if stream_id == 0:
+                            self._stream_start_mask |= 0x1
+                        elif stream_id == 1:
+                            self._stream_start_mask |= 0x2
+                        if self._stream_start_mask == 0x3:
+                            self.udp_replay_triggered.set()
+                else:
+                    self.log(f"Received STOP command for stream {stream_id}")
 
-                    else:
-                        self.log(f"Received STOP command for stream {stream_id}")
+            total_received = 0
+            while time.monotonic() < deadline:
+                try:
+                    chunk = conn.recv(1024)
+                except socket.timeout:
+                    continue
 
+                if not chunk:
+                    break
+
+                total_received += len(chunk)
+                buffer.extend(chunk)
+
+                # Parse as many complete commands as are available.
+                while len(buffer) >= 4:
+                    if buffer[1] != 0xFF:
+                        # Resync (defensive): drop until the marker aligns.
+                        del buffer[0]
+                        continue
+
+                    param_len = buffer[2]
+                    total_len = 4 + param_len
+                    if total_len < 4:
+                        del buffer[0]
+                        continue
+
+                    if len(buffer) < total_len:
+                        break
+
+                    cmd = bytes(buffer[:total_len])
+                    del buffer[:total_len]
+                    handle_command(cmd)
+
+            self.log(f"📨 Received {total_received} bytes from {addr}")
             conn.close()
 
         except Exception as e:

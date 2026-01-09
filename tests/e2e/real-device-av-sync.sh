@@ -15,7 +15,7 @@ RESET_METHOD="PUT"
 REST_TOKEN=""
 REST_TOKEN_HEADER="X-Password"
 OUTPUT_DIR="${SCRIPT_DIR}/results/real_c64u_av_sync"
-DURATION=10
+DURATION=20
 FORMAT="NTSC"
 DNS_SERVER_IP="192.168.1.1"
 MAX_DELTA_MS=30
@@ -24,8 +24,11 @@ P95_MAX_MS=40
 MAX_MAX_MS=60
 MIN_POP_EVENTS=2
 NO_BUILD=false
-VIDEO_PORT=11000  # C64 Ultimate default video port (different from synthetic tests)
-AUDIO_PORT=11001  # C64 Ultimate default audio port (different from synthetic tests)
+# NOTE: Although the C64U firmware has a native default, this runner uses isolated
+# ports by default to match the known-good real-device sessions and avoid port
+# collisions with other tools.
+VIDEO_PORT=21000
+AUDIO_PORT=21001
 CONTROL_PORT=64
 ANALYZE_ONLY=""
 OBS_CSV=""
@@ -48,7 +51,7 @@ Default (full run):
     --host <name|ip>           C64 Ultimate hostname or IP (default: c64u)
 
 Options:
-  --duration <sec>           Recording duration (default: 10)
+    --duration <sec>           Recording duration (default: 20)
     --format <PAL|NTSC>        OBS output format (default: NTSC)
     --dns-server-ip <ip>       DNS server IP used to resolve --host (default: 192.168.1.1)
   --output-dir <dir>         Output base dir (default: tests/e2e/results/real_c64u_av_sync)
@@ -57,10 +60,10 @@ Options:
     --p95-max-ms <ms>          Max allowed p95 A/V delta (default: 40)
     --max-max-ms <ms>          Max allowed max A/V delta (default: 60)
   --min-pop-events <n>       Minimum pop events required (default: 2)
-  --video-port <port>        Video UDP port (default: 11000 - C64U native default)
-                             NOTE: Synthetic tests use 21000 for port isolation
-  --audio-port <port>        Audio UDP port (default: 11001 - C64U native default)
-                             NOTE: Synthetic tests use 21001 for port isolation
+    --video-port <port>        Video UDP port (default: 21000)
+                                                         TIP: Try 11000 if your device expects the native default
+    --audio-port <port>        Audio UDP port (default: 21001)
+                                                         TIP: Try 11001 if your device expects the native default
   --control-port <port>      Control TCP port (default: 64)
   --rest-scheme <scheme>     REST scheme (default: http)
   --run-prg-endpoint <path>  REST endpoint for PRG upload+run (default: /v1/runners:run_prg)

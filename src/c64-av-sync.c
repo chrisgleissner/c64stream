@@ -21,6 +21,9 @@ See <https://www.gnu.org/licenses/> for details.
 #define C64_AV_SYNC_DEBOUNCE_NS 100000000ULL          // 100ms
 #define C64_AV_SYNC_MATCH_WINDOW_NS 200000000ULL      // 200ms
 #define C64_AV_SYNC_EXPIRE_UNMATCHED_NS 2000000000ULL // 2s
+// Max expected end-to-end buffering/queueing between packet-level and OBS-level pop observations.
+// We only correlate Network↔OBS matches when they are within this window to avoid false pairings.
+#define C64_AV_SYNC_CORRELATION_MAX_NS 600000000ULL // 600ms
 
 static const char *c64_av_sync_origin_str(enum c64_av_sync_origin origin)
 {
@@ -130,6 +133,39 @@ static void c64_av_sync_store_match(struct c64_av_sync_state *state, const struc
     state->last_match.valid = true;
 }
 
+static bool c64_av_sync_can_correlate_network_and_obs(const struct c64_av_sync_match *obs_match,
+                                                      const struct c64_av_sync_match *net_match)
+{
+    if (!obs_match || !obs_match->valid || !net_match || !net_match->valid) {
+        return false;
+    }
+
+    // Strongest discriminator: the same originating video frame number.
+    if (net_match->video_frame_num != obs_match->video_frame_num) {
+        return false;
+    }
+
+    // OBS observation must be after Network observation, within a bounded pipeline delay.
+    if (obs_match->video_ts < net_match->video_ts || obs_match->audio_ts < net_match->audio_ts) {
+        return false;
+    }
+
+    const uint64_t video_path_ns = obs_match->video_ts - net_match->video_ts;
+    const uint64_t audio_path_ns = obs_match->audio_ts - net_match->audio_ts;
+    if (video_path_ns > C64_AV_SYNC_CORRELATION_MAX_NS || audio_path_ns > C64_AV_SYNC_CORRELATION_MAX_NS) {
+        return false;
+    }
+
+    // Sequence counters should track the same pop events; allow a tiny tolerance.
+    const int64_t dv = (int64_t)obs_match->video_seq - (int64_t)net_match->video_seq;
+    const int64_t da = (int64_t)obs_match->audio_seq - (int64_t)net_match->audio_seq;
+    if (dv < -1 || dv > 1 || da < -1 || da > 1) {
+        return false;
+    }
+
+    return true;
+}
+
 static void c64_av_sync_log_network_and_obs_match(const struct c64_av_sync_match *obs_match,
                                                   const struct c64_av_sync_match *net_match, bool is_audio_trigger)
 {
@@ -143,26 +179,26 @@ static void c64_av_sync_log_network_and_obs_match(const struct c64_av_sync_match
     int64_t obs_delta_ns = (int64_t)obs_match->audio_ts - (int64_t)obs_match->video_ts;
     double obs_delta_ms = (double)obs_delta_ns / 1000000.0;
 
-    if (net_match && net_match->valid) {
+    const char *prefix = is_audio_trigger ? AUDIO_LOG_PREFIX : VIDEO_LOG_PREFIX;
+    if (c64_av_sync_can_correlate_network_and_obs(obs_match, net_match)) {
         int64_t net_delta_ns = (int64_t)net_match->audio_ts - (int64_t)net_match->video_ts;
         double net_delta_ms = (double)net_delta_ns / 1000000.0;
 
-        int64_t video_path_ns = (int64_t)obs_match->video_ts - (int64_t)net_match->video_ts;
-        int64_t audio_path_ns = (int64_t)obs_match->audio_ts - (int64_t)net_match->audio_ts;
+        const double net_to_obs_video_ms =
+            (double)((int64_t)obs_match->video_ts - (int64_t)net_match->video_ts) / 1000000.0;
+        const double net_to_obs_audio_ms =
+            (double)((int64_t)obs_match->audio_ts - (int64_t)net_match->audio_ts) / 1000000.0;
 
-        const char *prefix = is_audio_trigger ? AUDIO_LOG_PREFIX : VIDEO_LOG_PREFIX;
-        C64_LOG_INFO("%s AV SYNC (OBS+Network): obs_offset=%.1fms net_offset=%.1fms video=#%u audio=#%u detected=%s "
-                     "video_frame=%u obs_video_ts=%" PRIu64 " obs_audio_ts=%" PRIu64 " net_video_ts=%" PRIu64
-                     " net_audio_ts=%" PRIu64 " net_to_obs_video=%+.1fms net_to_obs_audio=%+.1fms",
-                     prefix, obs_delta_ms, net_delta_ms, obs_match->video_seq, obs_match->audio_seq, detected,
-                     (uint32_t)obs_match->video_frame_num, obs_match->video_ts, obs_match->audio_ts,
-                     net_match->video_ts, net_match->audio_ts, (double)video_path_ns / 1000000.0,
-                     (double)audio_path_ns / 1000000.0);
+        C64_LOG_INFO("%s AV SYNC (OBS): offset=%.1fms video=#%u audio=#%u detected=%s video_frame=%u video_ts=%" PRIu64
+                     " audio_ts=%" PRIu64 " | AV SYNC (Network): offset=%.1fms video=#%u audio=#%u video_ts=%" PRIu64
+                     " audio_ts=%" PRIu64 " net_to_obs_video=%+.1fms net_to_obs_audio=%+.1fms",
+                     prefix, obs_delta_ms, obs_match->video_seq, obs_match->audio_seq, detected,
+                     (uint32_t)obs_match->video_frame_num, obs_match->video_ts, obs_match->audio_ts, net_delta_ms,
+                     net_match->video_seq, net_match->audio_seq, net_match->video_ts, net_match->audio_ts,
+                     net_to_obs_video_ms, net_to_obs_audio_ms);
         return;
     }
 
-    // Fallback: OBS-only.
-    const char *prefix = is_audio_trigger ? AUDIO_LOG_PREFIX : VIDEO_LOG_PREFIX;
     C64_LOG_INFO("%s AV SYNC (OBS): offset=%.1fms video=#%u audio=#%u detected=%s video_frame=%u video_ts=%" PRIu64
                  " audio_ts=%" PRIu64,
                  prefix, obs_delta_ms, obs_match->video_seq, obs_match->audio_seq, detected,
@@ -282,29 +318,8 @@ void c64_av_sync_on_video_pop(struct c64_source *context, enum c64_av_sync_origi
 
         if (origin == C64_AV_SYNC_ORIGIN_OBS) {
             struct c64_av_sync_state *net_state = &context->av_sync[C64_AV_SYNC_ORIGIN_NETWORK];
-            const bool related = net_state->last_match.valid &&
-                                 (net_state->last_match.video_frame_num == state->last_match.video_frame_num);
-
-            if (related) {
-                c64_av_sync_log_network_and_obs_match(&state->last_match, &net_state->last_match, false);
-            } else {
-                c64_av_sync_log_network_and_obs_match(&state->last_match, NULL, false);
-                if (net_state->last_match.valid) {
-                    log_matched_pair_from_video(C64_AV_SYNC_ORIGIN_NETWORK,
-                                                &(struct c64_av_sync_event){
-                                                    .ts = net_state->last_match.video_ts,
-                                                    .seq = net_state->last_match.video_seq,
-                                                    .frame_num = net_state->last_match.video_frame_num,
-                                                    .used = true,
-                                                },
-                                                &(struct c64_av_sync_event){
-                                                    .ts = net_state->last_match.audio_ts,
-                                                    .seq = net_state->last_match.audio_seq,
-                                                    .frame_num = 0,
-                                                    .used = true,
-                                                });
-                }
-            }
+            c64_av_sync_log_network_and_obs_match(&state->last_match,
+                                                  net_state->last_match.valid ? &net_state->last_match : NULL, false);
         }
     }
 
@@ -364,29 +379,8 @@ void c64_av_sync_on_audio_pop(struct c64_source *context, enum c64_av_sync_origi
 
         if (origin == C64_AV_SYNC_ORIGIN_OBS) {
             struct c64_av_sync_state *net_state = &context->av_sync[C64_AV_SYNC_ORIGIN_NETWORK];
-            const bool related = net_state->last_match.valid &&
-                                 (net_state->last_match.video_frame_num == state->last_match.video_frame_num);
-
-            if (related) {
-                c64_av_sync_log_network_and_obs_match(&state->last_match, &net_state->last_match, true);
-            } else {
-                c64_av_sync_log_network_and_obs_match(&state->last_match, NULL, true);
-                if (net_state->last_match.valid) {
-                    log_matched_pair_from_audio(C64_AV_SYNC_ORIGIN_NETWORK,
-                                                &(struct c64_av_sync_event){
-                                                    .ts = net_state->last_match.video_ts,
-                                                    .seq = net_state->last_match.video_seq,
-                                                    .frame_num = net_state->last_match.video_frame_num,
-                                                    .used = true,
-                                                },
-                                                &(struct c64_av_sync_event){
-                                                    .ts = net_state->last_match.audio_ts,
-                                                    .seq = net_state->last_match.audio_seq,
-                                                    .frame_num = 0,
-                                                    .used = true,
-                                                });
-                }
-            }
+            c64_av_sync_log_network_and_obs_match(&state->last_match,
+                                                  net_state->last_match.valid ? &net_state->last_match : NULL, true);
         }
     }
 

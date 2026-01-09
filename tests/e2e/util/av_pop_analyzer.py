@@ -222,6 +222,55 @@ def analyze_network_csv(csv_path: Path) -> tuple[Optional[dict[str, Any]], Optio
 
 def analyze_obs_log(log_path: Path) -> tuple[Optional[dict[str, Any]], Optional[str]]:
     try:
+        def summarize_offsets(deltas_ms: list[float]) -> Optional[dict[str, Any]]:
+            if not deltas_ms:
+                return None
+            p50_ms = _percentile_nearest_rank(deltas_ms, 50.0)
+            p95_ms = _percentile_nearest_rank(deltas_ms, 95.0)
+            return {
+                "pop_count": len(deltas_ms),
+                "max_delta_ms": max(deltas_ms),
+                "avg_delta_ms": sum(deltas_ms) / len(deltas_ms),
+                "p50_delta_ms": p50_ms,
+                "p95_delta_ms": p95_ms,
+                "deltas_ms": deltas_ms,
+                "audio_pops": len(deltas_ms),
+                "video_pops": len(deltas_ms),
+                "unmatched_video_pops": 0,
+            }
+
+        # Preferred: parse the plugin's matched-pair log lines.
+        # These are unambiguous (the plugin has already paired audio+video pops) and may appear as
+        # OBS-only or as a combined line that also includes Network.
+        av_sync_re = re.compile(r"AV SYNC \((OBS|Network)\): offset=([+-]?[0-9]+(?:\.[0-9]+)?)ms")
+        obs_offsets_ms: list[float] = []
+        net_offsets_ms: list[float] = []
+
+        for line in log_path.read_text(errors="replace").splitlines():
+            for match in av_sync_re.finditer(line):
+                origin = match.group(1)
+                try:
+                    offset_ms = abs(float(match.group(2)))
+                except ValueError:
+                    continue
+                if origin == "OBS":
+                    obs_offsets_ms.append(offset_ms)
+                else:
+                    net_offsets_ms.append(offset_ms)
+
+        # Prefer OBS-origin offsets when present (that's what the recorded MP4/OBS timeline reflects).
+        if obs_offsets_ms:
+            result = summarize_offsets(obs_offsets_ms)
+            if result is None:
+                return None, "obs.log contains no pop events"
+            return result, None
+        if net_offsets_ms:
+            result = summarize_offsets(net_offsets_ms)
+            if result is None:
+                return None, "obs.log contains no pop events"
+            return result, None
+
+        # Legacy fallback: parse older per-pop marker lines.
         video_re = re.compile(r"A/V pop video #\d+: .*?ts=(\d+)\s+ns")
         audio_re = re.compile(r"A/V pop audio #\d+: .*?ts=(\d+)\s+ns")
         video_times_us: list[int] = []
