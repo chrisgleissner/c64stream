@@ -216,14 +216,25 @@ ensure_udp_buffers() {
         return 0
     fi
 
-    local current_rmem_max=""
-    if [[ -r /proc/sys/net/core/rmem_max ]]; then
-        current_rmem_max=$(cat /proc/sys/net/core/rmem_max 2>/dev/null || echo "")
+    # Check all critical UDP parameters
+    local current_rmem_max current_rmem_default current_netdev_backlog
+    current_rmem_max=$(cat /proc/sys/net/core/rmem_max 2>/dev/null || echo "0")
+    current_rmem_default=$(cat /proc/sys/net/core/rmem_default 2>/dev/null || echo "0")
+    current_netdev_backlog=$(cat /proc/sys/net/core/netdev_max_backlog 2>/dev/null || echo "0")
+
+    local target_max=8388608      # 8MB max
+    local target_default=2097152  # 2MB default (critical for new sockets)
+    local target_backlog=5000     # 5000 packets (handles 19K burst)
+
+    # Check if all settings are adequate
+    local needs_update=false
+    if [[ "${current_rmem_max}" -lt "${target_max}" ]] || \
+       [[ "${current_rmem_default}" -lt "${target_default}" ]] || \
+       [[ "${current_netdev_backlog}" -lt "${target_backlog}" ]]; then
+        needs_update=true
     fi
 
-    local target_buffer=8388608  # 8MB
-
-    if [[ -n "${current_rmem_max}" ]] && [[ "${current_rmem_max}" =~ ^[0-9]+$ ]] && [[ "${current_rmem_max}" -ge "${target_buffer}" ]]; then
+    if [[ "${needs_update}" == "false" ]]; then
         return 0  # Already adequate
     fi
 
@@ -231,11 +242,21 @@ ensure_udp_buffers() {
     # Only attempt if we have sudo AND we're in an interactive session
     if [[ "$(id -u)" == "0" ]]; then
         # Running as root - apply directly and make persistent
-        sysctl -w net.core.rmem_max=${target_buffer} >/dev/null 2>&1
-        sysctl -w net.core.wmem_max=${target_buffer} >/dev/null 2>&1
+        sysctl -w net.core.rmem_max=${target_max} >/dev/null 2>&1
+        sysctl -w net.core.wmem_max=${target_max} >/dev/null 2>&1
+        sysctl -w net.core.rmem_default=${target_default} >/dev/null 2>&1
+        sysctl -w net.core.wmem_default=${target_default} >/dev/null 2>&1
+        sysctl -w net.core.netdev_max_backlog=${target_backlog} >/dev/null 2>&1
         # Make persistent
-        echo "net.core.rmem_max = ${target_buffer}" > /etc/sysctl.d/99-c64stream-udp.conf
-        echo "net.core.wmem_max = ${target_buffer}" >> /etc/sysctl.d/99-c64stream-udp.conf
+        cat > /etc/sysctl.d/99-c64stream-udp.conf <<EOF
+# C64 Stream E2E Test UDP Configuration
+# Ensures adequate buffers for high-throughput packet replay (19K packets in ~5s)
+net.core.rmem_max = ${target_max}
+net.core.wmem_max = ${target_max}
+net.core.rmem_default = ${target_default}
+net.core.wmem_default = ${target_default}
+net.core.netdev_max_backlog = ${target_backlog}
+EOF
     elif command -v sudo >/dev/null 2>&1 && [[ -t 0 ]]; then
         # Check if persistent config already exists (skip prompt if so)
         if [[ -f "/etc/sysctl.d/99-c64stream-udp.conf" ]]; then
@@ -244,36 +265,56 @@ ensure_udp_buffers() {
             sudo sysctl -p /etc/sysctl.d/99-c64stream-udp.conf >/dev/null 2>&1
         else
             # Interactive terminal: offer to increase buffers permanently (one-time setup)
-            log_warning "UDP receive buffer too small: ${current_rmem_max} bytes (< ${target_buffer} recommended)"
-            log_info "High-jitter tests may drop packets without larger buffers."
+            log_warning "UDP configuration insufficient for E2E tests:"
+            log_info "  rmem_default: ${current_rmem_default} bytes (need ${target_default})"
+            log_info "  rmem_max: ${current_rmem_max} bytes (need ${target_max})"
+            log_info "  netdev_max_backlog: ${current_netdev_backlog} packets (need ${target_backlog})"
             echo ""
             echo "This is a one-time setup that will:"
-            echo "  1. Increase UDP buffers to 8MB immediately"
-            echo "  2. Make the change persistent (survives reboots)"
-            echo "  3. Create: /etc/sysctl.d/99-c64stream-udp.conf"
+            echo "  1. Set UDP buffer defaults to 2MB (critical for packet reception)"
+            echo "  2. Set UDP buffer max to 8MB"
+            echo "  3. Increase netdev backlog to 5000 packets (handles 19K burst)"
+            echo "  4. Make changes persistent (survives reboots)"
+            echo "  5. Create: /etc/sysctl.d/99-c64stream-udp.conf"
             echo ""
-            echo -n "Increase UDP buffers permanently (requires sudo)? [y/N] "
+            echo "Without these settings, E2E tests will drop ~30% of packets."
+            echo ""
+            echo -n "Apply UDP tuning permanently (requires sudo)? [y/N] "
             read -r response
             if [[ "${response}" =~ ^[Yy] ]]; then
                 # Create persistent configuration
-                echo "net.core.rmem_max = ${target_buffer}" | sudo tee /etc/sysctl.d/99-c64stream-udp.conf >/dev/null
-                echo "net.core.wmem_max = ${target_buffer}" | sudo tee -a /etc/sysctl.d/99-c64stream-udp.conf >/dev/null
+                cat | sudo tee /etc/sysctl.d/99-c64stream-udp.conf >/dev/null <<EOF
+# C64 Stream E2E Test UDP Configuration
+# Ensures adequate buffers for high-throughput packet replay (19K packets in ~5s)
+net.core.rmem_max = ${target_max}
+net.core.wmem_max = ${target_max}
+net.core.rmem_default = ${target_default}
+net.core.wmem_default = ${target_default}
+net.core.netdev_max_backlog = ${target_backlog}
+EOF
                 # Apply immediately
                 sudo sysctl -p /etc/sysctl.d/99-c64stream-udp.conf >/dev/null 2>&1
-                log_success "UDP buffers increased permanently"
+                log_success "UDP tuning applied permanently"
             else
-                log_info "Skipping UDP buffer increase (tests will use MIN_PACKET_DELAY)"
+                log_warning "Skipping UDP tuning - tests will drop packets (expect ~30% loss)"
             fi
         fi
     fi
 
-    local new_rmem_max=$(cat /proc/sys/net/core/rmem_max 2>/dev/null || echo "0")
-    if [[ "${new_rmem_max}" -ge "${target_buffer}" ]]; then
-        log_success "UDP buffers: ${new_rmem_max} bytes"
+    # Verify final state
+    local new_rmem_max new_rmem_default new_netdev_backlog
+    new_rmem_max=$(cat /proc/sys/net/core/rmem_max 2>/dev/null || echo "0")
+    new_rmem_default=$(cat /proc/sys/net/core/rmem_default 2>/dev/null || echo "0")
+    new_netdev_backlog=$(cat /proc/sys/net/core/netdev_max_backlog 2>/dev/null || echo "0")
+
+    if [[ "${new_rmem_max}" -ge "${target_max}" ]] && \
+       [[ "${new_rmem_default}" -ge "${target_default}" ]] && \
+       [[ "${new_netdev_backlog}" -ge "${target_backlog}" ]]; then
+        log_success "UDP tuning: default=${new_rmem_default}, max=${new_rmem_max}, backlog=${new_netdev_backlog}"
     else
         # CI/non-interactive: Tests adapt to smaller buffers with MIN_PACKET_DELAY
-        log_info "UDP buffers: ${new_rmem_max} bytes (tests will use MIN_PACKET_DELAY)"
-        log_info "This is expected in CI environments (kernel parameters are read-only)"
+        log_warning "UDP tuning insufficient: default=${new_rmem_default}, max=${new_rmem_max}, backlog=${new_netdev_backlog}"
+        log_info "Tests will adapt with MIN_PACKET_DELAY (expected in CI environments)"
     fi
 }
 
@@ -1207,7 +1248,7 @@ stop_real_c64_streaming() {
     # Check if c64u is reachable
     if ! host "${c64_host}" >/dev/null 2>&1 && ! ping -c 1 -W 1 "${c64_host}" >/dev/null 2>&1; then
         if [[ "${VERBOSE}" == true ]]; then
-            log_info "Real C64 device (${c64_host}) not reachable - skipping reset"
+            log_info "Real C64 device (${c64_host}) not reachable - skipping stream stop"
         fi
         return 0
     fi
@@ -1217,8 +1258,23 @@ stop_real_c64_streaming() {
     log_warning "Real device tests should use ports 11000/11001 (C64U hardware default)."
     log_warning "To fix: Reconfigure C64U via web interface to use default UDP ports 11000/11001."
 
-    # Attempt to reset via REST API (may not work if device auto-restarts streaming)
+    # Explicitly stop all streams before resetting
     if command -v curl &>/dev/null; then
+        local streams=("video" "audio" "debug")
+        for stream in "${streams[@]}"; do
+            local stop_url="http://${c64_host}/v1/streams/${stream}:stop"
+            if curl -s -X PUT "${stop_url}" >/dev/null 2>&1; then
+                if [[ "${VERBOSE}" == true ]]; then
+                    log_success "Stopped ${stream} stream on ${c64_host}"
+                fi
+            else
+                if [[ "${VERBOSE}" == true ]]; then
+                    log_warning "Could not stop ${stream} stream - it may not have been running"
+                fi
+            fi
+        done
+
+        # Then reset the machine
         local url="http://${c64_host}${reset_endpoint}"
         if curl -s -X "${reset_method}" "${url}" >/dev/null 2>&1; then
             if [[ "${VERBOSE}" == true ]]; then

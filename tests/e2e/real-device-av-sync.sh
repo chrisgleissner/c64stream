@@ -178,6 +178,35 @@ run_prg() {
     log "PRG started successfully."
 }
 
+stop_streams() {
+    local base_url="${REST_SCHEME}://${HOST}"
+    local streams=("video" "audio" "debug")
+
+    for stream in "${streams[@]}"; do
+        local url="${base_url}/v1/streams/${stream}:stop"
+        local curl_args=(
+            --fail
+            --silent
+            --show-error
+            --connect-timeout 5
+            --max-time 10
+            -X PUT
+            "${url}"
+        )
+
+        if [[ -n "${REST_TOKEN}" ]]; then
+            curl_args+=(-H "${REST_TOKEN_HEADER}: ${REST_TOKEN}")
+        fi
+
+        log "Stopping ${stream} stream: PUT ${url}"
+        if ! curl "${curl_args[@]}"; then
+            log "Warning: Failed to stop ${stream} stream. It may not have been running."
+        else
+            log "${stream} stream stopped successfully."
+        fi
+    done
+}
+
 reset_device() {
     local base_url="${REST_SCHEME}://${HOST}"
     local url="${base_url}${RESET_ENDPOINT}"
@@ -332,7 +361,7 @@ fi
 
 # Only reset device at end if we actually ran the PRG (not in OBS-only mode)
 if [[ "${OBS_ONLY}" != "true" ]]; then
-    trap 'reset_device || true' EXIT
+    trap 'stop_streams || true; reset_device || true' EXIT
 fi
 
 # Build and run PRG unless in OBS-only mode

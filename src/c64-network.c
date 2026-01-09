@@ -413,7 +413,7 @@ socket_t c64_create_udp_socket(uint32_t port)
     }
 #else
     // Linux/macOS: Increase receive buffer to handle burst packet transmission in E2E tests
-    // E2E tests send ~19K packets in ~3.5s (5400 pkt/s burst), requiring large buffer
+    // System drops packets (RcvbufErrors) with 1MB buffer - E2E sends 19K packets in ~5s
     int recv_buffer_size = 4 * 1024 * 1024; // 4MB receive buffer (increased from 1MB)
     if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF, &recv_buffer_size, sizeof(recv_buffer_size)) < 0) {
         int error = c64_get_socket_error();

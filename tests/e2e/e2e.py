@@ -733,8 +733,8 @@ class E2ETest:
             # CI environment: Extended timeouts
             self.plugin_init_timeout = 45  # Increased from 30s for more robust CI
             self.obs_startup_delay = 4     # Increased from 3s
-            # Reduced to minimize logo display at start (was 2.0s)
-            self.async_task_delay = 1.0    # Reduced to minimize empty recording
+            # Reduced from 6s - plugin connects quickly, we just need UDP binding
+            self.async_task_delay = 2.0    # Plugin async tasks (recording start, etc.)
             self.websocket_settings_delay = 3  # Increased from 2s
             # Give OBS/plugin more time to bind UDP ports on CI
             self.udp_socket_delay = 2.0    # Increased from 1.0s
@@ -744,8 +744,8 @@ class E2ETest:
             # Local environment: Short timeouts
             self.plugin_init_timeout = 6
             self.obs_startup_delay = 0.5
-            # Minimal delay to allow UDP binding (was 0.1s)
-            self.async_task_delay = 0.05   # Reduced to minimize empty recording
+            # Reduced from 0.3s - plugin connects almost instantly locally
+            self.async_task_delay = 0.1    # Minimal delay to allow UDP binding
             self.websocket_settings_delay = 0.2
             # Even locally, OBS/plugin may need a moment to bind UDP ports reliably.
             # Too-small delays can cause occasional packet loss and flaky assertions.
@@ -2683,8 +2683,8 @@ class E2ETest:
             # the grace period in run() to capture full OBS processing time.
             # This ensures we measure the entire test duration, not just packet sending.
 
-            # Give plugin time to process the packets (reduced to minimize empty recording)
-            time.sleep(1.0)
+            # Give plugin time to process the packets (increased slightly for CI)
+            time.sleep(2.0)
             self.log("✅ Plugin processing delay complete")
 
             return packets_sent > 0
@@ -3900,9 +3900,9 @@ class E2ETest:
             else:
                 self.log("✅ Plugin is ready, starting packet replay immediately")
 
-            # Minimal delay to ensure UDP sockets are bound (reduced to minimize logo display)
-            udp_ready_delay = 1.0 if self.is_ci else 0.15
-            self.log(f"⏳ Allowing {udp_ready_delay}s for UDP socket binding...")
+            # Brief delay to ensure UDP sockets are bound and plugin is fully ready
+            udp_ready_delay = 2.0 if self.is_ci else 0.3
+            self.log(f"⏳ Allowing {udp_ready_delay}s for UDP socket binding and plugin readiness...")
             time.sleep(udp_ready_delay)
 
             self.log("✅ OBS recording active, plugin ready")
@@ -3927,8 +3927,8 @@ class E2ETest:
 
             # Stop recording promptly after last frame received
             # Keep recording a short grace period to allow OBS to flush frames
-            # Further reduced to minimize empty recording at end
-            grace = 1.0 if self.is_ci else 0.8
+            # Reduced grace period to minimize logo display at end (was 5s/3s, now 2s/1.5s)
+            grace = 2.0 if self.is_ci else 1.5
             self.log(f"⏳ Waiting {grace}s after last frame, then stopping recording...")
             time.sleep(grace)
             self.stop_recording()
