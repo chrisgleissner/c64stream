@@ -36,6 +36,32 @@ class RealDeviceE2E(e2e.E2ETest):
         super().__init__(*args, **kwargs)
         self._backed_up_obs_files: list[tuple[Path, Path]] = []
         self._created_obs_files: list[Path] = []
+        self.scene_source_overrides: Optional[dict[str, object]] = None
+
+    def _apply_scene_source_overrides(self, obs_config_dir: Path) -> None:
+        if not self.scene_source_overrides:
+            return
+
+        scenes_dir = obs_config_dir / "basic" / "scenes"
+        for scene_name in ("C64StreamTest.json", "Untitled.json"):
+            scene_path = scenes_dir / scene_name
+            if not scene_path.exists():
+                continue
+            try:
+                scene = json.loads(scene_path.read_text(encoding="utf-8", errors="ignore"))
+                for source in scene.get("sources", []):
+                    if source.get("id") != "c64_source":
+                        continue
+                    settings = source.get("settings")
+                    if not isinstance(settings, dict):
+                        settings = {}
+                    settings.update(self.scene_source_overrides)
+                    source["settings"] = settings
+                    break
+                scene_path.write_text(json.dumps(scene, indent=4) + "\n", encoding="utf-8")
+            except Exception:
+                # Best-effort only; if we can't patch, the test will fail later.
+                pass
 
     def _backup_file(self, path: Path) -> None:
         if not path.exists():
@@ -106,6 +132,9 @@ class RealDeviceE2E(e2e.E2ETest):
                 shutil.copy2(src, dst)
 
         self._replace_config_variables(obs_config_dir)
+        # Ensure the source settings in the scene match requested host/DNS/ports.
+        # Real-device runs must not rely on opening the Properties UI.
+        self._apply_scene_source_overrides(obs_config_dir)
         self._cleanup_obs_state_files(obs_config_dir)
         return profile_dst_dir
 
@@ -417,16 +446,14 @@ def run(args: argparse.Namespace) -> int:
         return 1
 
     output_dir = Path(args.output_dir).resolve()
-    properties_path = (
-        Path.home()
-        / ".config"
-        / "obs-studio"
-        / "plugins"
-        / "c64stream"
-        / "data"
-        / "properties.ini"
-    )
-    properties_existed = properties_path.exists()
+    properties_paths = [
+        # User install (local development / E2E)
+        Path.home() / ".config" / "obs-studio" / "plugins" / "c64stream" / "data" / "properties.ini",
+        # System install (package installs on Linux)
+        Path("/usr/share/obs/obs-plugins/c64stream/properties.ini"),
+        Path("/usr/share/obs/obs-plugins/c64stream/data/properties.ini"),
+    ]
+    properties_existed = any(p.exists() for p in properties_paths)
 
     test = RealDeviceE2E(
         test_dir=str(SCRIPT_DIR),
@@ -441,6 +468,23 @@ def run(args: argparse.Namespace) -> int:
         csv_max_rows=None,
     )
 
+    # Apply the same network settings via the OBS scene JSON.
+    # This is what makes the plugin start streaming automatically without opening the Properties UI.
+    test.scene_source_overrides = {
+        "c64_host": args.host,
+        "control_port": int(args.control_port),
+        "video_port": int(args.video_port),
+        "audio_port": int(args.audio_port),
+        "dns_server_ip": args.dns_server_ip,
+        "auto_detect_ip": True,
+        "obs_ip_address": "",
+        "record_csv": True,
+        "record_video": False,
+        "record_frames": False,
+        "debug_logging": True,
+        "is_ci": True,
+    }
+
     obs_csv = None
     network_csv = None
     obs_log = None
@@ -452,18 +496,23 @@ def run(args: argparse.Namespace) -> int:
             print("Failed to apply E2E properties.")
             return 1
 
-        if not properties_path.exists():
-            print(f"properties.ini not found: {properties_path}")
-            return 1
+        updated_any = False
+        for properties_path in properties_paths:
+            if not properties_path.exists():
+                continue
+            apply_properties_overrides(
+                properties_path=properties_path,
+                host=args.host,
+                dns_server_ip=args.dns_server_ip,
+                control_port=args.control_port,
+                video_port=args.video_port,
+                audio_port=args.audio_port,
+            )
+            updated_any = True
 
-        apply_properties_overrides(
-            properties_path=properties_path,
-            host=args.host,
-            dns_server_ip=args.dns_server_ip,
-            control_port=args.control_port,
-            video_port=args.video_port,
-            audio_port=args.audio_port,
-        )
+        if not updated_any:
+            print(f"properties.ini not found in any known location: {', '.join(str(p) for p in properties_paths)}")
+            return 1
 
         if not test.start_obs(start_recording=True):
             print("Failed to start OBS.")
