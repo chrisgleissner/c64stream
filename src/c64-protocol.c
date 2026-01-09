@@ -127,26 +127,8 @@ void c64_log_video_packet_if_enabled(struct c64_source *context, const uint8_t *
     int64_t jitter_us = 0; // Placeholder for now
     size_t data_payload = packet_size - C64_VIDEO_HEADER_SIZE;
 
-    bool is_all_white = false;
-    if (context->csv_debug_enabled && data_payload > 0) {
-        const uint8_t *payload = packet + C64_VIDEO_HEADER_SIZE;
-
-        // Sampling-based check (avoid scanning full payload; this code runs on the UDP receive path).
-        // Full-frame pops are all-white frames, so even sparse sampling is very likely to detect non-white.
-        static const size_t sample_points[] = {0, 1, 7, 15, 31, 63, 127, 255};
-        const size_t n = sizeof(sample_points) / sizeof(sample_points[0]);
-        is_all_white = true;
-        for (size_t i = 0; i < n; i++) {
-            const size_t idx = (sample_points[i] < data_payload) ? sample_points[i] : (data_payload - 1);
-            if (payload[idx] != 0xFF) {
-                is_all_white = false;
-                break;
-            }
-        }
-    }
-
     c64_network_log_video_packet(context, seq_num, frame_num, line_num, is_last_packet, packet_size, data_payload,
-                                 jitter_us, is_all_white);
+                                 jitter_us);
 }
 
 /**
@@ -175,24 +157,5 @@ void c64_log_audio_packet_if_enabled(struct c64_source *context, const uint8_t *
     int64_t jitter_us = 0;       // Placeholder for now
     uint16_t sample_count = 192; // C64 Ultimate spec: 192 stereo samples per packet
 
-    bool has_signal = false;
-    if (context->csv_debug_enabled && packet_size > 2) {
-        const uint8_t *samples = packet + 2;
-        size_t samples_size = packet_size - 2;
-        const int16_t *samples_i16 = (const int16_t *)samples;
-        size_t count_i16 = samples_size / sizeof(int16_t);
-
-        // Sampling-based check to keep receive path cheap.
-        // A real pop should have many non-zero samples, so sampling is sufficient.
-        const size_t samples_to_check = (count_i16 < 32) ? count_i16 : 32;
-        for (size_t i = 0; i < samples_to_check; i++) {
-            const size_t idx = (count_i16 <= samples_to_check) ? i : (i * (count_i16 - 1)) / (samples_to_check - 1);
-            if (samples_i16[idx] != 0) {
-                has_signal = true;
-                break;
-            }
-        }
-    }
-
-    c64_network_log_audio_packet(context, seq_num, packet_size, sample_count, jitter_us, has_signal);
+    c64_network_log_audio_packet(context, seq_num, packet_size, sample_count, jitter_us);
 }
