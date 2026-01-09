@@ -229,7 +229,7 @@ ARM64 preset in [CMakePresets.json](../CMakePresets.json):
   "name": "windows-arm64",
   "displayName": "Windows ARM64",
   "description": "Windows ARM64 build",
-  "inheritsFrom": ["base"],
+  "inherits": ["template"],
   "generator": "Visual Studio 17 2022",
   "architecture": "ARM64,version=10.0.26100.0",
   "binaryDir": "${sourceDir}/build_arm64",
