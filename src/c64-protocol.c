@@ -179,17 +179,22 @@ void c64_log_audio_packet_if_enabled(struct c64_source *context, const uint8_t *
     if (context->csv_debug_enabled && packet_size > 2) {
         const uint8_t *samples = packet + 2;
         size_t samples_size = packet_size - 2;
-        const int16_t *samples_i16 = (const int16_t *)samples;
-        size_t count_i16 = samples_size / sizeof(int16_t);
+        const int threshold = 512;
+        const size_t min_hits = 8;
+        size_t hits = 0;
 
-        // Sampling-based check to keep receive path cheap.
-        // A real pop should have many non-zero samples, so sampling is sufficient.
-        const size_t samples_to_check = (count_i16 < 32) ? count_i16 : 32;
-        for (size_t i = 0; i < samples_to_check; i++) {
-            const size_t idx = (count_i16 <= samples_to_check) ? i : (i * (count_i16 - 1)) / (samples_to_check - 1);
-            if (samples_i16[idx] != 0) {
-                has_signal = true;
-                break;
+        if (samples_size >= 2) {
+            size_t sample_words = samples_size / 2;
+            for (size_t i = 0; i < sample_words; i++) {
+                uint8_t lo = samples[i * 2 + 0];
+                uint8_t hi = samples[i * 2 + 1];
+                int16_t v = (int16_t)((uint16_t)lo | ((uint16_t)hi << 8));
+                if (v > threshold || v < -threshold) {
+                    if (++hits >= min_hits) {
+                        has_signal = true;
+                        break;
+                    }
+                }
             }
         }
     }

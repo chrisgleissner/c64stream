@@ -137,6 +137,68 @@ static void validate_audio_timestamp_progression(struct c64_source *context, uin
     context->last_audio_timestamp_validation = current_timestamp;
 }
 
+static bool c64_debug_audio_has_signal(const uint8_t *samples, size_t samples_size)
+{
+    // Detect full-volume square wave pops, not background noise.
+    // Samples are 16-bit signed little-endian stereo interleaved.
+    // Audio pops are full-volume square wave: we expect values near ±32767 (0x7FFF).
+    // Use aggressive threshold to only detect intentional test pops, not noise or music.
+    const int threshold = 8192; // Quarter of max 16-bit signed (32767), catches strong signals
+    const size_t min_hits = 100;
+    size_t hits = 0;
+
+    if (samples_size < 2) {
+        return false;
+    }
+
+    size_t sample_count = samples_size / 2;
+    for (size_t i = 0; i < sample_count; i++) {
+        uint8_t lo = samples[i * 2 + 0];
+        uint8_t hi = samples[i * 2 + 1];
+        int16_t v = (int16_t)((uint16_t)lo | ((uint16_t)hi << 8));
+        if (v > threshold || v < -threshold) {
+            if (++hits >= min_hits) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+static void c64_debug_handle_audio_pop(struct c64_source *context, uint64_t timestamp_ns, bool has_signal)
+{
+    if (!c64_debug_logging) {
+        return;
+    }
+
+    bool was_has_signal = context->av_sync_last_audio_has_signal;
+
+    if (!was_has_signal && has_signal) {
+        // Rising edge: signal started, record packet timestamp for duration validation
+        // Use packet timestamp (not wall clock) to ensure consistent time base with video
+        context->av_sync_audio_signal_start_ts = timestamp_ns;
+    } else if (was_has_signal && !has_signal) {
+        // Falling edge: signal ended, check duration before counting as valid pop
+        // Audio packets are ~4ms (192 samples @ 48kHz). Require at least one full packet.
+        const uint64_t min_duration_ns = 4000000; // 4ms in nanoseconds
+        uint64_t signal_duration_ns = timestamp_ns - context->av_sync_audio_signal_start_ts;
+
+        if (signal_duration_ns < min_duration_ns) {
+            return;
+        }
+
+        // Valid pop: signal lasted at least one packet duration
+        // Ignore first audio pop if no video pop has been detected yet.
+        if (context->av_sync_video_pop_count == 0 && context->av_sync_audio_pop_count == 0) {
+            return;
+        }
+
+        // Use the rising edge timestamp (when the signal started) as the audio pop timestamp.
+        c64_av_sync_on_audio_pop(context, context->av_sync_audio_signal_start_ts);
+    }
+}
+
 // Generate monotonic audio timestamps with format-specific intervals
 static uint64_t generate_monotonic_audio_timestamp(struct c64_source *context)
 {
@@ -254,18 +316,8 @@ void c64_process_audio_packet(struct c64_source *context, const uint8_t *audio_d
 
     bool has_signal = false;
     if (c64_debug_logging || context->csv_debug_enabled) {
-        const int16_t *samples_i16 = (const int16_t *)samples;
-        const size_t sample_count = samples_size / sizeof(int16_t);
-        for (size_t i = 0; i < sample_count; i++) {
-            if (samples_i16[i] != 0) {
-                has_signal = true;
-                break;
-            }
-        }
-
-        if (!context->av_sync_last_audio_has_signal && has_signal) {
-            c64_av_sync_on_audio_pop(context, audio_timestamp);
-        }
+        has_signal = c64_debug_audio_has_signal(samples, samples_size);
+        c64_debug_handle_audio_pop(context, audio_timestamp, has_signal);
         context->av_sync_last_audio_has_signal = has_signal;
     }
 
