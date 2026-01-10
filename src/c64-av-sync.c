@@ -209,6 +209,8 @@ static void c64_av_sync_log_network_and_obs_match(struct c64_source *context, co
                             obs_match->audio_ts, net_delta_ms, net_match->video_seq, net_match->audio_seq,
                             (uint32_t)net_match->video_frame_num, net_match->video_ts, net_match->audio_ts,
                             net_to_obs_video_ms, net_to_obs_audio_ms);
+
+                    fflush(f);
                 }
                 pthread_mutex_unlock(&context->recording_mutex);
             }
@@ -229,6 +231,8 @@ static void c64_av_sync_log_network_and_obs_match(struct c64_source *context, co
                         is_audio_trigger ? "audio" : "video", detected, obs_delta_ms, obs_match->video_seq,
                         obs_match->audio_seq, (uint32_t)obs_match->video_frame_num, obs_match->video_ts,
                         obs_match->audio_ts);
+
+                fflush(f);
             }
             pthread_mutex_unlock(&context->recording_mutex);
         }

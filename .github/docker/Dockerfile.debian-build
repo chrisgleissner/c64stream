@@ -36,7 +36,7 @@ RUN apt-get install -y --no-install-recommends \
         ninja-build \
         pkg-config \
         git \
-    64tass \
+        64tass \
         zsh \
         jq \
         ccache \

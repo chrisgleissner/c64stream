@@ -19,7 +19,7 @@ RUN pacman -Syu --noconfirm && \
         ninja \
         pkg-config \
         git \
-                64tass \
+        64tass \
         zsh \
         jq \
         ccache \

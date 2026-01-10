@@ -430,10 +430,16 @@ void c64_start_av_sync_csv_recording(struct c64_source *context)
         return;
     }
 
+    // av-sync.csv is very low volume; if OBS terminates abruptly the stdio buffer may never flush.
+    // Prefer line buffering and explicit flushes so E2E can reliably validate the file.
+    setvbuf(context->av_sync_file, NULL, _IOLBF, 0);
+
     fprintf(context->av_sync_file,
             "trigger,detected,obs_offset_ms,obs_video_seq,obs_audio_seq,obs_video_frame,obs_video_ts_ns,obs_audio_ts_"
             "ns,has_network_match,net_offset_ms,net_video_seq,net_audio_seq,net_video_frame,net_video_ts_ns,net_audio_"
             "ts_ns,net_to_obs_video_ms,net_to_obs_audio_ms\n");
+
+    fflush(context->av_sync_file);
 
     C64_LOG_INFO("" RECORD_LOG_PREFIX " Started av-sync CSV recording: %s", filename);
 }
