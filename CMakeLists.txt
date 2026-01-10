@@ -97,7 +97,8 @@ if(C64_64TASS_EXECUTABLE)
     add_custom_command(
       TARGET ${CMAKE_PROJECT_NAME}
       POST_BUILD
-      COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/rundir/$<CONFIG>/${CMAKE_PROJECT_NAME}/prg"
+      COMMAND
+        "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/rundir/$<CONFIG>/${CMAKE_PROJECT_NAME}/prg"
       COMMAND
         "${CMAKE_COMMAND}" -E copy_if_different "${C64_AV_SYNC_PRG}"
         "${CMAKE_CURRENT_BINARY_DIR}/rundir/$<CONFIG>/${CMAKE_PROJECT_NAME}/prg/av-sync-auto.prg"
