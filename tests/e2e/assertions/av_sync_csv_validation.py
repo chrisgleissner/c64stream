@@ -150,6 +150,7 @@ class AvSyncCsvValidationAssertion(EffectAssertion):
                     try:
                         obs_offsets.append(abs(float(obs_off)))
                     except ValueError:
+                        # Skip malformed offset values in CSV (non-numeric or corrupted data)
                         pass
 
                 if (row.get("has_network_match") or "").strip() == "1":
@@ -158,6 +159,7 @@ class AvSyncCsvValidationAssertion(EffectAssertion):
                         try:
                             net_offsets.append(abs(float(net_off)))
                         except ValueError:
+                            # Skip malformed offset values in CSV (non-numeric or corrupted data)
                             pass
 
         return obs_offsets, net_offsets
