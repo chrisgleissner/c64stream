@@ -226,10 +226,7 @@ The plugin offers four independent recording options that can be enabled separat
 **🔬 Record A/V Sync (CSV):**
 
 - Creates `av-sync.csv` with detailed audio/video synchronization measurements
-- Automatically triggers A/V sync test program on Ultimate 64 devices via REST API (when connected to a real device)
-- **Purpose:** Debugging and validating audio/video synchronization accuracy
-- **When to use:** When experiencing A/V sync issues or contributing sync test data for bug reports
-- **Requirements:** For automated testing on real hardware, requires Ultimate 64 with REST API enabled and password configured
+- Automatically triggers A/V sync test program on Ultimate 64 devices via REST API for checking audio/video synchronization
 - File: `session_YYYYMMDD_HHMMSS/av-sync.csv`
 
 #### File Organization
