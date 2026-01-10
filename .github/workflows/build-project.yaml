@@ -1376,8 +1376,10 @@ jobs:
         run: |
           : Create Consolidated Archive 📦
 
+          mkdir -p all-e2e-artifacts
+
           echo "📁 Downloaded E2E artifacts:"
-          find all-e2e-artifacts -type f | head -50
+          find all-e2e-artifacts -type f 2>/dev/null | head -50 || true
 
           # Create a summary of all results
           echo "# E2E Test Results Summary" > all-e2e-artifacts/SUMMARY.md
