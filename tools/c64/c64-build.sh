@@ -65,9 +65,9 @@ EXAMPLES:
     ./c64-build.sh av-sync.asm                           # Build av-sync.prg
     ./c64-build.sh digit-cycle.asm --run                 # Build and run in VICE
     ./c64-build.sh my-program.asm --output /tmp          # Build to specific directory
-    ./c64-build.sh --install-deps                        # Install dependencies onlyDEPENDENCIES:
-    - 64tass: C64 cross-assembler (sudo apt install 64tass)  
-    - VICE: C64 emulator (sudo apt install vice) - optional, for --run
+    ./c64-build.sh --install-deps                        # Install dependencies only:
+      - 64tass: C64 cross-assembler (sudo apt install 64tass)  
+      - VICE: C64 emulator (sudo apt install vice) - optional, for --run
 
 NOTES:
     - Assembly file can be specified with relative or absolute path
