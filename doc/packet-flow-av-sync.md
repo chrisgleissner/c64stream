@@ -183,24 +183,19 @@ Key properties:
 
 ```mermaid
 flowchart LR
-  C64U[C64 Ultimate] -->|UDP video packets| VSOCK[Video UDP socket]
-  C64U -->|UDP audio packets| ASOCK[Audio UDP socket]
-
-  VSOCK -->|os_gettime_ns + FIFO push| VFIFO[Stage-1 FIFO (video)]
-  ASOCK -->|os_gettime_ns + FIFO push| AFIFO[Stage-1 FIFO (audio)]
-
-  VFIFO -->|drain| ST2[Stage-2: video processor thread]
-  AFIFO -->|drain| ST2
-
-  ST2 -->|buffer disabled| VPROC[Video packet processing]
-  ST2 -->|buffer disabled| APROC[Audio packet processing]
-
-  ST2 -->|buffer enabled| NBUF["Unified network buffer<br/>(video+audio ring buffers)"]
-  NBUF -->|delayed pop| VPROC
-  NBUF -->|delayed pop| APROC
-
-  VPROC -->|obs_source_output_video| OBS[OBS]
-  APROC -->|obs_source_output_audio| OBS
+  C64U["C64 Ultimate"] -->|UDP video packets| VSOCK["Video UDP socket"];
+  C64U -->|UDP audio packets| ASOCK["Audio UDP socket"];
+  VSOCK -->|os_gettime_ns + FIFO push| VFIFO["Stage-1 FIFO (video)"];
+  ASOCK -->|os_gettime_ns + FIFO push| AFIFO["Stage-1 FIFO (audio)"];
+  VFIFO -->|drain| ST2["Stage-2: video processor thread"];
+  AFIFO -->|drain| ST2;
+  ST2 -->|buffer disabled| VPROC["Video packet processing"];
+  ST2 -->|buffer disabled| APROC["Audio packet processing"];
+  ST2 -->|buffer enabled| NBUF["Unified network buffer<br/>(video+audio ring buffers)"];
+  NBUF -->|delayed pop| VPROC;
+  NBUF -->|delayed pop| APROC;
+  VPROC -->|obs_source_output_video| OBS["OBS"];
+  APROC -->|obs_source_output_audio| OBS;
 ```
 
 ### Buffered mode packet lifetime
