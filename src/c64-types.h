@@ -15,6 +15,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdio.h>
 #include "c64-network.h"
 #include "c64-network-buffer.h"
 #include "c64-protocol.h"
@@ -82,6 +83,7 @@ struct c64_source {
     char hostname[64];            // C64 Ultimate hostname or IP as entered by user
     char ip_address[64];          // C64 Ultimate IP Address (resolved from hostname)
     char dns_server_ip[64];       // DNS server IP for resolving hostnames (optional)
+    char c64_password[256];       // Optional Ultimate 64 REST password (sent as X-Password header)
     char obs_ip_address[64];      // OBS IP Address (this machine)
     pthread_mutex_t config_mutex; // Protects dns_server_ip/hostname/ip_address from concurrent access
     bool auto_detect_ip;
@@ -242,11 +244,13 @@ struct c64_source {
 
     // Video recording for analysis
     bool record_video;
-    bool record_csv; // CSV recording control (network and OBS events)
+    bool record_csv;     // CSV recording control (network and OBS events)
+    bool record_av_sync; // av-sync.csv recording control (OBS AV SYNC matches)
     FILE *video_file;
     FILE *audio_file;
     FILE *timing_file;
     FILE *network_file;
+    FILE *av_sync_file;
     char session_folder[800]; // Current session folder path
     uint64_t recording_start_time;
     uint64_t csv_timing_base_ns;   // Shared nanosecond timestamp when first CSV entry is written (network or OBS)

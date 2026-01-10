@@ -788,8 +788,9 @@ void c64_update(void *data, obs_data_t *settings)
         C64_LOG_DEBUG("" EFFECT_LOG_PREFIX " Preset update skipped; manual effect overrides present");
     }
 
-    // Update debug logging setting
-    c64_debug_logging = obs_data_get_bool(settings, "debug_logging");
+    // Update debug logging setting (Record A/V Sync relies on debug logging for pop detection)
+    const bool record_av_sync = obs_data_get_bool(settings, "record_av_sync");
+    c64_debug_logging = obs_data_get_bool(settings, "debug_logging") || record_av_sync;
     C64_LOG_DEBUG("Debug logging %s", c64_debug_logging ? "enabled" : "disabled");
 
     // Update IP detection setting - only auto-detect when checkbox state changes from off to on
@@ -808,6 +809,7 @@ void c64_update(void *data, obs_data_t *settings)
 
     // Update configuration
     const char *new_host = obs_data_get_string(settings, "c64_host");
+    const char *new_password = obs_data_get_string(settings, "c64_password");
     const char *new_obs_ip = obs_data_get_string(settings, "obs_ip_address");
     uint32_t new_video_port = (uint32_t)obs_data_get_int(settings, "video_port");
     uint32_t new_audio_port = (uint32_t)obs_data_get_int(settings, "audio_port");
@@ -823,14 +825,41 @@ void c64_update(void *data, obs_data_t *settings)
     if (new_control_port == 0)
         new_control_port = C64_CONTROL_PORT;
 
+    // Snapshot existing network-related settings so we can avoid unnecessary retries/restarts.
+    char old_hostname[64];
+    char old_dns_server_ip[64];
+    pthread_mutex_lock(&context->config_mutex);
+    strncpy(old_hostname, context->hostname, sizeof(old_hostname) - 1);
+    old_hostname[sizeof(old_hostname) - 1] = '\0';
+    strncpy(old_dns_server_ip, context->dns_server_ip, sizeof(old_dns_server_ip) - 1);
+    old_dns_server_ip[sizeof(old_dns_server_ip) - 1] = '\0';
+    pthread_mutex_unlock(&context->config_mutex);
+
+    char old_obs_ip[64];
+    strncpy(old_obs_ip, context->obs_ip_address, sizeof(old_obs_ip) - 1);
+    old_obs_ip[sizeof(old_obs_ip) - 1] = '\0';
+
+    const bool host_changed = (strcmp(old_hostname, new_host) != 0);
+    const char *dns_server_ip = obs_data_get_string(settings, "dns_server_ip");
+    const char *new_dns_server_ip = (dns_server_ip && dns_server_ip[0] != '\0') ? dns_server_ip : "";
+    const bool dns_changed = (strcmp(old_dns_server_ip, new_dns_server_ip) != 0);
+    const char *new_obs_ip_str = new_obs_ip ? new_obs_ip : "";
+    const bool obs_ip_changed = (strcmp(old_obs_ip, new_obs_ip_str) != 0);
+
     // Check if ports have changed (requires socket recreation)
     bool ports_changed = (new_video_port != context->video_port) || (new_audio_port != context->audio_port) ||
                          (new_control_port != context->control_port);
 
-    if (ports_changed && context->streaming) {
-        C64_LOG_INFO("Port configuration changed (video: %u->%u, audio: %u->%u, control: %u->%u), recreating sockets",
-                     context->video_port, new_video_port, context->audio_port, new_audio_port, context->control_port,
-                     new_control_port);
+    if ((ports_changed || host_changed) && context->streaming) {
+        if (ports_changed) {
+            C64_LOG_INFO(
+                "Port configuration changed (video: %u->%u, audio: %u->%u, control: %u->%u), recreating sockets",
+                context->video_port, new_video_port, context->audio_port, new_audio_port, context->control_port,
+                new_control_port);
+        }
+        if (host_changed) {
+            C64_LOG_INFO("C64 host changed (%s->%s), restarting streaming", old_hostname, new_host);
+        }
 
         // Stop streaming and close existing sockets
         c64_stop_streaming(context);
@@ -844,10 +873,16 @@ void c64_update(void *data, obs_data_t *settings)
     strncpy(context->hostname, new_host, sizeof(context->hostname) - 1);
     context->hostname[sizeof(context->hostname) - 1] = '\0';
 
+    if (new_password && new_password[0] != '\0') {
+        strncpy(context->c64_password, new_password, sizeof(context->c64_password) - 1);
+        context->c64_password[sizeof(context->c64_password) - 1] = '\0';
+    } else {
+        context->c64_password[0] = '\0';
+    }
+
     // Update DNS server IP (resolution happens in background).
-    const char *dns_server_ip = obs_data_get_string(settings, "dns_server_ip");
-    if (dns_server_ip && dns_server_ip[0] != '\0') {
-        strncpy(context->dns_server_ip, dns_server_ip, sizeof(context->dns_server_ip) - 1);
+    if (new_dns_server_ip[0] != '\0') {
+        strncpy(context->dns_server_ip, new_dns_server_ip, sizeof(context->dns_server_ip) - 1);
         context->dns_server_ip[sizeof(context->dns_server_ip) - 1] = '\0';
     } else {
         context->dns_server_ip[0] = '\0';
@@ -855,8 +890,10 @@ void c64_update(void *data, obs_data_t *settings)
 
     // IMPORTANT: do not do DNS resolution in c64_update (OBS UI thread).
     // Store hostname as-is; resolution will happen in the background before connecting.
-    strncpy(context->ip_address, new_host, sizeof(context->ip_address) - 1);
-    context->ip_address[sizeof(context->ip_address) - 1] = '\0';
+    if (host_changed) {
+        strncpy(context->ip_address, new_host, sizeof(context->ip_address) - 1);
+        context->ip_address[sizeof(context->ip_address) - 1] = '\0';
+    }
     c64_set_expected_peer_ip(context, context->ip_address);
     pthread_mutex_unlock(&context->config_mutex);
 
@@ -931,9 +968,21 @@ void c64_update(void *data, obs_data_t *settings)
     (void)prev_dimension_effects;
     (void)new_dimension_effects;
 
-    // Start/restart streaming with current configuration asynchronously (avoid blocking UI thread).
-    C64_LOG_INFO("" NETWORK_LOG_PREFIX " Applying configuration and scheduling streaming start");
-    c64_schedule_retry(context, "update");
+    // Only schedule a background retry when network-related settings changed or streaming is stopped.
+    const bool should_schedule_retry = (!context->streaming) || ports_changed || host_changed || obs_ip_changed ||
+                                       dns_changed;
+    if (should_schedule_retry) {
+        const char *reason = !context->streaming ? "update (not streaming)"
+                             : host_changed      ? "update (host changed)"
+                             : ports_changed     ? "update (ports changed)"
+                             : obs_ip_changed    ? "update (OBS IP changed)"
+                             : dns_changed       ? "update (DNS changed)"
+                                                 : "update";
+        C64_LOG_INFO("" NETWORK_LOG_PREFIX " Applying configuration and scheduling streaming start (%s)", reason);
+        c64_schedule_retry(context, reason);
+    } else {
+        C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Configuration update does not require streaming restart");
+    }
 }
 
 static void c64_set_expected_peer_ip(struct c64_source *context, const char *ip_string)

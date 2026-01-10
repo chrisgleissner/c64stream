@@ -7,4 +7,5 @@ debug_logging: true
 assertions:
   - av_sync_offset
   - av_sync_log_validation
+  - av_sync_csv_validation
   - debug_log_presence

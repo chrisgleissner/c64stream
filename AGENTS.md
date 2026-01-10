@@ -7,7 +7,8 @@ This repository is an OBS Studio source plugin (`c64stream`) for streaming C64 U
 - **Primary rules & conventions**: see `.github/copilot-instructions.md`
 - **Complex feature work**: see `PLANS.md` (read at start of substantial tasks)
 - **Complex research or bug fix work**: see `INVESTIGATIONS.md` (read at start of substantial tasks)
-- **Protocol documentation**: `doc/c64u-stream-spec.md`
+- **Streaming protocol documentation**: `doc/c64u/c64u-stream-spec.md`
+- **REST API documentation**: `doc/c64u/c64u-rest-api.md` and its formal OpenAPI specification  `doc/c64u/c64u-openapi.yaml`
 - **Build details (CI)**: `.github/build-instructions.md`
 
 If anything in this file conflicts with `.github/copilot-instructions.md`, follow `.github/copilot-instructions.md`.

@@ -2,6 +2,8 @@
 
 This file is the long-lived planning surface for complex or multi-hour tasks in this repository, following the "Using PLANS.md for multi-hour problem solving" pattern.
 
+This file is the **single source of truth** for task state, progress, and completion.
+
 Any LLM agent (Copilot, Cursor, Codex, etc.) working in this repo must:
 
 - Read this file at the start of a substantial task or when resuming work.
@@ -9,6 +11,9 @@ Any LLM agent (Copilot, Cursor, Codex, etc.) working in this repo must:
 - Keep an explicit, checklist-style plan here for the current task.
 - Update the plan and progress sections as work proceeds.
 - Record assumptions, decisions, and known gaps so future agents can continue smoothly.
+- Treat this file as authoritative over any chat UI elements.
+
+---
 
 ## Discovery first
 
@@ -20,12 +25,16 @@ Before planning or editing, do a minimal discovery pass to ground decisions in e
 - Identify existing patterns and constraints; do not assume you remember them.
 - If the request is ambiguous after discovery, ask targeted questions and record assumptions in the plan.
 
+Discovery findings must be reflected in the **Context and constraints** section.
+
+---
+
 ## How to use this file
 
 For each substantial user request or multi-step feature, create a new **Task** section like this:
 
 ```markdown
-### Task: <short title>
+## Task: <short title>
 
 **User request (summary)**
 - <One or two bullet points capturing the essence of the request.>
@@ -52,7 +61,132 @@ For each substantial user request or multi-step feature, create a new **Task** s
 
 ---
 
+## Mandatory execution contract (non-negotiable)
+
+### Single source of truth
+
+- `PLANS.md` is the only authoritative record of progress.
+- Chat-based to-do lists are **non-authoritative** and must never replace file updates.
+- Any action taken that is not logged here is considered **not done**.
+
+### Step gating (hard rule)
+
+- Checklist steps are strictly sequential.
+- An agent **must not** begin Step N+1 unless Step N is:
+  - Completed in code or documentation,
+  - Logged in the **Progress log**, and
+  - Ticked `[x]` in the **Plan (checklist)**.
+- Skipping, batching, or retroactively ticking steps is forbidden.
+
+### Transactional update rule
+
+Each checklist step is a transaction and must follow this order:
+
+1. Execute the work for the step.
+2. Append a concrete entry to **Progress log** describing what was done.
+3. Tick the corresponding checklist item.
+4. Only then proceed to the next step.
+
+If any part fails, the checklist item must remain unticked.
+
+### Chat to-do reconciliation
+
+- If the agent creates or uses chat-based to-dos for transparency:
+  - Each chat to-do must map 1:1 to a checklist item in this file.
+  - Completion of a chat to-do requires updating `PLANS.md`.
+- At natural stopping points, the agent must verify that:
+  - No chat to-dos exist without a corresponding checklist update.
+  - No checklist items are ticked without a progress log entry.
+
+---
+
+## Maintenance rules
+
+### Pruning and archiving
+
+To prevent uncontrolled growth of this file:
+
+- Keep only active tasks and the last 2–3 days of progress logs in this file.
+- When a Task is completed, move the entire Task section to the end under "Completed tasks (archived)".
+- When progress logs exceed 30 lines, summarize older entries into a single "Historical summary" bullet.
+- Do not delete information; always archive it.
+
+### Structure rules
+
+- Each substantial task must begin with a second-level header: `## Task: <short title>`
+- Sub-sections must follow this order exactly:
+  - User request (summary)
+  - Context and constraints
+  - Plan (checklist)
+  - Progress log
+  - Assumptions and open questions
+  - Follow-ups / future work
+- Agents must not introduce new section layouts or reorder sections.
+
+---
+
+## Plan-then-act contract
+
+- Planning must complete before any code or config changes.
+- The checklist must reflect the actual execution order.
+- Agents must append short, factual progress notes after each major step.
+- Agents must ensure Build, Format check, and E2E tests PASS before a Task is marked complete.
+- All assumptions must be recorded explicitly.
+
+---
+
+## Error investigation rules
+
+- Every error, warning, or assertion failure is caused by our code changes.
+- Every problem must be investigated to root cause and fixed before declaring completion.
+- If a test shows warnings or failures after your changes, you broke it.
+- Do not proceed to the next step until all errors or warnings from the current step are resolved.
+- Do not mark a task as complete while any test warnings or failures exist.
+- This rule applies to ALL errors, including performance regressions.
+
+---
+
 ## Current Active Task
+
+### Task: feat/av-sync-csv — Record A/V Sync CSV + PRG bundling + hostname + restart hygiene
+
+**User request (summary)**
+- Add a new “Record A/V Sync” feature that produces `av-sync.csv` in the session recordings folder and (on real devices) can start/stop the A/V pop generator via Ultimate 64 REST.
+- Treat `c64u` as a hostname (not “invalid IP”) for all TCP/REST connectivity; avoid restarting streaming for non-network property changes; reduce noisy “VIDEO: DBG/DEBUG” logs.
+- Ensure distributables contain C64 PRGs built via 64tass (CI Docker images must include 64tass).
+
+**Context and constraints**
+- E2E is LOCAL ONLY for full scenario suite; CI E2E is limited and flaky; do not run full GUI E2E here.
+- REST contract (Ultimate 64): port 80; endpoints include `/v1/runners:run_prg` and `/v1/machine:reset`.
+- OBS update callback (`c64_update`) runs on the UI thread: must not block on DNS/REST.
+- Resources are installed from `data/` via `target_install_resources()`; Windows packaging uses `${target}/bin/64bit` + `${target}/data` layout.
+
+**Plan (checklist)**
+- [ ] Update `c64_update()` to only schedule reconnect when network-relevant settings change (host/ports/IP/DNS), not for effect/recording toggles.
+- [ ] Fix TCP connect helpers to accept hostnames (use `getaddrinfo` fallback, stop rejecting `c64u`).
+- [ ] Add `record_av_sync` property; when enabled:
+  - enable *effective* debug logging (without forcing user setting) and create `av-sync.csv` in session folder.
+  - best-effort start AV-pop generator via REST (upload PRG or run from filesystem depending on availability).
+  - when disabled: best-effort reset device via REST; stop writing CSV.
+- [ ] Add proper translations for all new UI strings across all locale `.ini` files (no English fallback):
+  - `C64UPassword`, `C64UPassword.Description`
+  - `RecordAVSync`, `RecordAVSync.Description`
+- [ ] Add `av-sync.csv` schema + writer and ensure it matches the emitted `AV SYNC` obs log lines.
+- [ ] Extend E2E harness to copy `av-sync.csv` into output dir and add an assertion for `ntsc_default_debug` validating CSV ↔ log consistency.
+- [ ] Add build+install of PRGs (64tass) and include them in packaged artifacts; update CI Docker images to install 64tass.
+- [ ] Refactor all code to use `c64-rest-client.h/.c` (do not modify these files) instead of `c64-rest.h/.c`, then remove `c64-rest.*`.
+- [ ] Run `./build-aux/run-clang-format --check`, then build and run targeted Python assertion tests.
+
+**Progress log**
+- 2026-01-10 — Started task; completed discovery of AV sync logging, recording session layout, hostname resolution gaps, and CI packaging paths.
+
+**Assumptions and open questions**
+- Assumption: REST control is best-effort and must not fail streaming when unavailable (synthetic E2E runs without a REST server).
+- Decision: store distributable C64 PRGs under `data/prg/` (cross-platform install + packaging already ships `data/`).
+
+---
+
+## Previous Task (Archived)
 
 ### Task: A/V Sync instrumentation — strict combined OBS+Network logs
 
@@ -234,44 +368,6 @@ Guidelines:
 - Perform a full build after completing each major step. If any errors occur, fix them and rerun all tests until they pass.
 - Then commit changes with a clear message indicating progress.
 
-## Maintenance rules
-
-### Pruning and archiving
-
-To prevent uncontrolled growth of this file:
-
-- Keep only active tasks and the last 2–3 days of progress logs in this file.
-- When a Task is completed, move the entire Task section to the end under "Completed tasks (archived)".
-- When progress logs exceed 30 lines, summarize older entries into a single "Historical summary" bullet.
-- Do not delete information; always archive it.
-
-### Structure rules
-
-- Each substantial task must begin with a second-level header: `## Task: <short title>`
-- Sub-sections must follow this order:
-  - User request (summary)
-  - Context and constraints
-  - Plan (checklist)
-  - Progress log
-  - Assumptions and open questions
-  - Follow-ups / future work
-- Agents must not introduce new section layouts.
-
-### Plan-then-act contract
-
-- Agents must keep the checklist strictly synchronized with actual work.
-- Agents must append short progress notes after each major step.
-- Agents must ensure that Build, Format check, and E2E tests PASS before a Task is marked complete.
-- All assumptions must be recorded in the "Assumptions and open questions" section.
-
-## Error investigation
-
-- Every error, warning, or assertion failure is caused by our code changes, not by "known issues" or "test content"
-- Every problem must be investigated to root cause and fixed before declaring completion
-- If a test shows warnings or failures after your changes, you broke it - fix it
-- Do not proceed to the next phase until all errors/warnings from the current phase are resolved
-- Do not mark a task as complete while any test warnings or failures exist
-- This rule applies to ALL errors: build errors, test failures, assertion failures, warnings, performance regressions, etc.
 
 ---
 

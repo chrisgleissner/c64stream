@@ -21,8 +21,224 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-record-video.h"
 #include "c64-record-audio.h"
 #include "c64-record-frames.h"
+#include "c64-rest-client.h"
 #include "c64-types.h"
 #include "c64-file.h"
+
+enum c64_rest_job_action {
+    C64_REST_JOB_RUN_PRG = 0,
+    C64_REST_JOB_RESET = 1,
+};
+
+struct c64_rest_job {
+    enum c64_rest_job_action action;
+    char base_url[256];
+    char password[256];
+    char prg_path[1024];
+};
+
+static bool c64_rest_read_file_to_buffer(const char *path, uint8_t **out_data, size_t *out_size)
+{
+    if (!path || !out_data || !out_size) {
+        return false;
+    }
+
+    *out_data = NULL;
+    *out_size = 0;
+
+    FILE *f = os_fopen(path, "rb");
+    if (!f) {
+        return false;
+    }
+
+    if (fseek(f, 0, SEEK_END) != 0) {
+        fclose(f);
+        return false;
+    }
+
+    long sz = ftell(f);
+    if (sz <= 0) {
+        fclose(f);
+        return false;
+    }
+
+    if (fseek(f, 0, SEEK_SET) != 0) {
+        fclose(f);
+        return false;
+    }
+
+    uint8_t *data = (uint8_t *)malloc((size_t)sz);
+    if (!data) {
+        fclose(f);
+        return false;
+    }
+
+    size_t n = fread(data, 1, (size_t)sz, f);
+    fclose(f);
+
+    if (n != (size_t)sz) {
+        free(data);
+        return false;
+    }
+
+    *out_data = data;
+    *out_size = n;
+    return true;
+}
+
+static bool c64_rest_starts_with(const char *s, const char *prefix)
+{
+    if (!s || !prefix) {
+        return false;
+    }
+    size_t n = strlen(prefix);
+    return strncmp(s, prefix, n) == 0;
+}
+
+static void c64_rest_build_base_url(const char *input, char *out, size_t out_size)
+{
+    if (!out || out_size == 0) {
+        return;
+    }
+
+    out[0] = '\0';
+    if (!input || input[0] == '\0') {
+        return;
+    }
+
+    const char *s = input;
+    if (c64_rest_starts_with(s, "http://")) {
+        s += strlen("http://");
+    } else if (c64_rest_starts_with(s, "https://")) {
+        // Match previous behavior: accept, but use plain HTTP.
+        s += strlen("https://");
+    }
+
+    // Strip any path.
+    const char *slash = strchr(s, '/');
+    size_t host_len = slash ? (size_t)(slash - s) : strlen(s);
+    if (host_len == 0) {
+        return;
+    }
+
+    const char prefix[] = "http://";
+    const size_t prefix_len = sizeof(prefix) - 1;
+    if (out_size <= prefix_len + host_len) {
+        // Not enough space for prefix + host + NUL.
+        return;
+    }
+
+    memcpy(out, prefix, prefix_len);
+    memcpy(out + prefix_len, s, host_len);
+    out[prefix_len + host_len] = '\0';
+}
+
+static void *c64_rest_thread_main(void *arg)
+{
+    struct c64_rest_job *job = (struct c64_rest_job *)arg;
+    if (!job) {
+        return NULL;
+    }
+
+    const char *password = (job->password[0] != '\0') ? job->password : NULL;
+    c64_rest_client_t *client = c64_rest_client_create(job->base_url, password);
+    if (!client) {
+        C64_LOG_WARNING("REST: failed to create client for %s", job->base_url);
+        free(job);
+        return NULL;
+    }
+
+    bool ok = false;
+    if (job->action == C64_REST_JOB_RESET) {
+        ok = c64_rest_reset(client);
+    } else if (job->action == C64_REST_JOB_RUN_PRG) {
+        uint8_t *prg_data = NULL;
+        size_t prg_size = 0;
+        if (c64_rest_read_file_to_buffer(job->prg_path, &prg_data, &prg_size)) {
+            ok = c64_rest_run_prg(client, prg_data, prg_size);
+        }
+        free(prg_data);
+    }
+
+    if (!ok) {
+        const char *err = c64_rest_get_error(client);
+        if (err && err[0] != '\0') {
+            C64_LOG_WARNING("REST: request failed: %s", err);
+        } else {
+            C64_LOG_WARNING("REST: request failed");
+        }
+    }
+
+    c64_rest_client_destroy(client);
+    free(job);
+    return NULL;
+}
+
+static bool c64_rest_launch_job(struct c64_rest_job *job)
+{
+    if (!job) {
+        return false;
+    }
+
+    pthread_t t;
+    int err = pthread_create(&t, NULL, c64_rest_thread_main, job);
+    if (err != 0) {
+        free(job);
+        return false;
+    }
+
+    pthread_detach(t);
+    return true;
+}
+
+static bool c64_rest_run_prg_async(const char *host, const char *password, const char *prg_path)
+{
+    if (!host || host[0] == '\0' || !prg_path || prg_path[0] == '\0') {
+        return false;
+    }
+
+    struct c64_rest_job *job = (struct c64_rest_job *)calloc(1, sizeof(*job));
+    if (!job) {
+        return false;
+    }
+
+    job->action = C64_REST_JOB_RUN_PRG;
+    c64_rest_build_base_url(host, job->base_url, sizeof(job->base_url));
+    if (job->base_url[0] == '\0') {
+        free(job);
+        return false;
+    }
+
+    if (password && password[0] != '\0') {
+        strncpy(job->password, password, sizeof(job->password) - 1);
+    }
+    strncpy(job->prg_path, prg_path, sizeof(job->prg_path) - 1);
+    return c64_rest_launch_job(job);
+}
+
+static bool c64_rest_reset_machine_async(const char *host, const char *password)
+{
+    if (!host || host[0] == '\0') {
+        return false;
+    }
+
+    struct c64_rest_job *job = (struct c64_rest_job *)calloc(1, sizeof(*job));
+    if (!job) {
+        return false;
+    }
+
+    job->action = C64_REST_JOB_RESET;
+    c64_rest_build_base_url(host, job->base_url, sizeof(job->base_url));
+    if (job->base_url[0] == '\0') {
+        free(job);
+        return false;
+    }
+
+    if (password && password[0] != '\0') {
+        strncpy(job->password, password, sizeof(job->password) - 1);
+    }
+    return c64_rest_launch_job(job);
+}
 
 #ifndef S_ISDIR
 #ifdef _WIN32
@@ -68,14 +284,14 @@ void c64_session_ensure_exists(struct c64_source *context)
  */
 bool c64_session_any_recording_active(struct c64_source *context)
 {
-    return context->record_frames || context->record_video || context->record_csv;
+    return context->record_frames || context->record_video || context->record_csv || context->record_av_sync;
 }
 
 /**
  * Stop CSV timing recording
  * @param context Source context
  */
-void c64_stop_csv_recording(struct c64_source *context)
+void c64_stop_obs_csv_recording(struct c64_source *context)
 {
     if (context->timing_file) {
         fclose(context->timing_file);
@@ -85,11 +301,20 @@ void c64_stop_csv_recording(struct c64_source *context)
     }
 }
 
+void c64_stop_av_sync_csv_recording(struct c64_source *context)
+{
+    if (context->av_sync_file) {
+        fclose(context->av_sync_file);
+        context->av_sync_file = NULL;
+        C64_LOG_INFO("" RECORD_LOG_PREFIX " av-sync CSV recording stopped");
+    }
+}
+
 /**
  * Stop network packet recording
  * @param context Source context
  */
-void c64_stop_network_recording(struct c64_source *context)
+void c64_stop_network_csv_recording(struct c64_source *context)
 {
     if (context->network_file) {
         fclose(context->network_file);
@@ -106,8 +331,9 @@ void c64_session_cleanup_if_needed(struct c64_source *context)
 {
     if (!c64_session_any_recording_active(context)) {
         // Stop all recording when session ends
-        c64_stop_csv_recording(context);
-        c64_stop_network_recording(context);
+        c64_stop_obs_csv_recording(context);
+        c64_stop_network_csv_recording(context);
+        c64_stop_av_sync_csv_recording(context);
         context->session_folder[0] = '\0';
         context->csv_debug_enabled = false;
         C64_LOG_INFO("" RECORD_LOG_PREFIX " Recording session ended");
@@ -151,7 +377,7 @@ void c64_record_audio_data(struct c64_source *context, const uint8_t *audio_data
  * Start CSV timing recording for any recording type
  * @param context Source context
  */
-void c64_start_csv_recording(struct c64_source *context)
+void c64_start_obs_csv_recording(struct c64_source *context)
 {
     if (context->timing_file) {
         return; // Already recording CSV
@@ -183,11 +409,40 @@ void c64_start_csv_recording(struct c64_source *context)
     C64_LOG_INFO("" RECORD_LOG_PREFIX " Started CSV timing recording: %s", timing_filename);
 }
 
+void c64_start_av_sync_csv_recording(struct c64_source *context)
+{
+    if (context->av_sync_file) {
+        return;
+    }
+
+    c64_session_ensure_exists(context);
+    if (context->session_folder[0] == '\0') {
+        C64_LOG_WARNING("" RECORD_LOG_PREFIX " Failed to create recording session for av-sync CSV");
+        return;
+    }
+
+    char filename[950];
+    snprintf(filename, sizeof(filename), "%s/av-sync.csv", context->session_folder);
+
+    context->av_sync_file = fopen(filename, "w");
+    if (!context->av_sync_file) {
+        C64_LOG_ERROR("" RECORD_LOG_PREFIX " Failed to create av-sync CSV file: %s", filename);
+        return;
+    }
+
+    fprintf(context->av_sync_file,
+            "trigger,detected,obs_offset_ms,obs_video_seq,obs_audio_seq,obs_video_frame,obs_video_ts_ns,obs_audio_ts_"
+            "ns,has_network_match,net_offset_ms,net_video_seq,net_audio_seq,net_video_frame,net_video_ts_ns,net_audio_"
+            "ts_ns,net_to_obs_video_ms,net_to_obs_audio_ms\n");
+
+    C64_LOG_INFO("" RECORD_LOG_PREFIX " Started av-sync CSV recording: %s", filename);
+}
+
 /**
  * Start network packet recording for network analysis
  * @param context Source context
  */
-void c64_start_network_recording(struct c64_source *context)
+void c64_start_network_csv_recording(struct c64_source *context)
 {
     if (context->network_file) {
         return; // Already recording network packets
@@ -247,8 +502,8 @@ void c64_start_video_recording(struct c64_source *context)
 
     // Start CSV and network recording if enabled
     if (context->record_csv) {
-        c64_start_csv_recording(context);
-        c64_start_network_recording(context);
+        c64_start_obs_csv_recording(context);
+        c64_start_network_csv_recording(context);
     }
 
     // Create filenames in the session folder
@@ -338,10 +593,12 @@ void c64_record_init(struct c64_source *context)
     // Initialize video recording
     context->record_video = false;
     context->record_csv = false;
+    context->record_av_sync = false;
     context->video_file = NULL;
     context->audio_file = NULL;
     context->timing_file = NULL;
     context->network_file = NULL;
+    context->av_sync_file = NULL;
     context->recording_start_time = 0;
     context->csv_timing_base_ns = 0;
     os_atomic_store_long(&context->recorded_frames, 0);
@@ -376,6 +633,10 @@ void c64_record_cleanup(struct c64_source *context)
             fclose(context->network_file);
             context->network_file = NULL;
         }
+        if (context->av_sync_file) {
+            fclose(context->av_sync_file);
+            context->av_sync_file = NULL;
+        }
         pthread_mutex_unlock(&context->recording_mutex);
     }
 
@@ -391,8 +652,6 @@ void c64_record_cleanup(struct c64_source *context)
 void c64_record_update_settings(struct c64_source *context, void *settings_ptr)
 {
     obs_data_t *settings = (obs_data_t *)settings_ptr;
-
-    C64_LOG_INFO("" RECORD_LOG_PREFIX " c64_record_update_settings() called - checking CSV settings...");
 
     // Update frame saving settings
     const char *new_save_folder = obs_data_get_string(settings, "save_folder");
@@ -415,8 +674,6 @@ void c64_record_update_settings(struct c64_source *context, void *settings_ptr)
 
     // Update CSV recording setting
     bool new_record_csv = obs_data_get_bool(settings, "record_csv");
-    C64_LOG_INFO("" RECORD_LOG_PREFIX " CSV recording setting: current=%s, new=%s",
-                 context->record_csv ? "true" : "false", new_record_csv ? "true" : "false");
     if (new_record_csv != context->record_csv) {
         context->record_csv = new_record_csv;
 
@@ -426,16 +683,51 @@ void c64_record_update_settings(struct c64_source *context, void *settings_ptr)
             context->csv_timing_base_ns = os_gettime_ns();
 
             // Start CSV recording independently
-            C64_LOG_INFO("" RECORD_LOG_PREFIX " Starting CSV recording...");
-            c64_start_csv_recording(context);
-            c64_start_network_recording(context);
+            c64_start_obs_csv_recording(context);
+            c64_start_network_csv_recording(context);
             C64_LOG_INFO("" RECORD_LOG_PREFIX " CSV recording started");
         } else {
             // Stop CSV recording
-            c64_stop_csv_recording(context);
-            c64_stop_network_recording(context);
+            c64_stop_obs_csv_recording(context);
+            c64_stop_network_csv_recording(context);
             c64_session_cleanup_if_needed(context);
             C64_LOG_INFO("" RECORD_LOG_PREFIX " CSV recording stopped");
+        }
+    }
+
+    // Update av-sync CSV recording setting
+    bool new_record_av_sync = obs_data_get_bool(settings, "record_av_sync");
+    if (new_record_av_sync != context->record_av_sync) {
+        context->record_av_sync = new_record_av_sync;
+
+        if (new_record_av_sync) {
+            c64_start_av_sync_csv_recording(context);
+
+            const char *host = obs_data_get_string(settings, "c64_host");
+            const char *password = obs_data_get_string(settings, "c64_password");
+            if (host && host[0] != '\0' && strcmp(host, "0.0.0.0") != 0) {
+                char *prg_path = obs_module_file("prg/av-sync-auto.prg");
+                if (prg_path) {
+                    if (!c64_rest_run_prg_async(host, password, prg_path)) {
+                        C64_LOG_WARNING("" RECORD_LOG_PREFIX " Failed to start av-sync PRG via REST");
+                    }
+                    bfree(prg_path);
+                } else {
+                    C64_LOG_WARNING("" RECORD_LOG_PREFIX
+                                    " av-sync PRG not found in plugin data (prg/av-sync-auto.prg)");
+                }
+            }
+        } else {
+            c64_stop_av_sync_csv_recording(context);
+            c64_session_cleanup_if_needed(context);
+
+            const char *host = obs_data_get_string(settings, "c64_host");
+            const char *password = obs_data_get_string(settings, "c64_password");
+            if (host && host[0] != '\0' && strcmp(host, "0.0.0.0") != 0) {
+                if (!c64_rest_reset_machine_async(host, password)) {
+                    C64_LOG_WARNING("" RECORD_LOG_PREFIX " Failed to reset device via REST");
+                }
+            }
         }
     }
 

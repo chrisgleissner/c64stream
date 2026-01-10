@@ -33,6 +33,7 @@ CONTROL_PORT=64
 ANALYZE_ONLY=""
 OBS_CSV=""
 NETWORK_CSV=""
+AV_SYNC_CSV=""
 OBS_LOG=""
 VERBOSE=false
 NO_MP4_ANALYSIS=false
@@ -77,6 +78,7 @@ Options:
   --analyze-only <path>      Analyze a log/CSV directory or file (no OBS run)
   --obs-csv <path>           Analyze obs.csv directly (no OBS run)
   --network-csv <path>       Analyze network.csv directly (no OBS run)
+    --av-sync-csv <path>       Analyze av-sync.csv directly (no OBS run)
   --obs-log <path>           Analyze obs.log directly (no OBS run)
   --verbose                  Verbose logs
   --help                     Show this help
@@ -127,7 +129,9 @@ run_analyzer() {
         elif [[ -f "${ANALYZE_ONLY}" ]]; then
             case "${ANALYZE_ONLY}" in
                 *.csv)
-                    if [[ "${ANALYZE_ONLY}" == *network* ]]; then
+                    if [[ "${ANALYZE_ONLY}" == *av-sync* ]]; then
+                        args+=("--av-sync-csv" "${ANALYZE_ONLY}")
+                    elif [[ "${ANALYZE_ONLY}" == *network* ]]; then
                         args+=("--network-csv" "${ANALYZE_ONLY}")
                     else
                         args+=("--obs-csv" "${ANALYZE_ONLY}")
@@ -148,6 +152,9 @@ run_analyzer() {
     fi
     if [[ -n "${NETWORK_CSV}" ]]; then
         args+=("--network-csv" "${NETWORK_CSV}")
+    fi
+    if [[ -n "${AV_SYNC_CSV}" ]]; then
+        args+=("--av-sync-csv" "${AV_SYNC_CSV}")
     fi
     if [[ -n "${OBS_LOG}" ]]; then
         args+=("--obs-log" "${OBS_LOG}")
@@ -339,6 +346,10 @@ while [[ $# -gt 0 ]]; do
             NETWORK_CSV="$2"
             shift 2
             ;;
+        --av-sync-csv)
+            AV_SYNC_CSV="$2"
+            shift 2
+            ;;
         --obs-log)
             OBS_LOG="$2"
             shift 2
@@ -359,7 +370,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-if [[ -n "${ANALYZE_ONLY}" || -n "${OBS_CSV}" || -n "${NETWORK_CSV}" || -n "${OBS_LOG}" ]]; then
+if [[ -n "${ANALYZE_ONLY}" || -n "${OBS_CSV}" || -n "${NETWORK_CSV}" || -n "${AV_SYNC_CSV}" || -n "${OBS_LOG}" ]]; then
     run_analyzer
     exit $?
 fi
@@ -377,10 +388,10 @@ fi
 if [[ "${OBS_ONLY}" != "true" ]]; then
     if [[ "${NO_BUILD}" != "true" ]]; then
         log "Building av-sync-auto.prg..."
-        "${ROOT_DIR}/tools/c64/c64-build.sh" "${ROOT_DIR}/tools/c64/av-sync-auto.asm"
+        "${ROOT_DIR}/tools/c64/c64-build.sh" "${ROOT_DIR}/tools/c64/av-sync-auto.asm" --output "${ROOT_DIR}/data/prg"
     fi
 
-    PRG_PATH="${ROOT_DIR}/tools/c64/av-sync-auto.prg"
+    PRG_PATH="${ROOT_DIR}/data/prg/av-sync-auto.prg"
     if [[ ! -f "${PRG_PATH}" ]]; then
         log "PRG not found: ${PRG_PATH}"
         exit 1

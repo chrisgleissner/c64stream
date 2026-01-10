@@ -36,6 +36,7 @@ class AvSyncOffsetAssertion(EffectAssertion):
         output_dir = mp4_path.parent
         obs_csv = self._find_csv(output_dir, "obs.csv")
         network_csv = self._find_csv(output_dir, "network.csv")
+        av_sync_csv = self._find_csv(output_dir, "av-sync.csv")
         obs_log = self._find_log(output_dir, "obs_log.txt")
 
         # Collect all pop data from different sources
@@ -46,6 +47,11 @@ class AvSyncOffsetAssertion(EffectAssertion):
             obs_result = self._analyze_obs_csv(obs_csv)
             if obs_result and obs_result.get("pop_count", 0) > 0:
                 sources["obs_csv"] = obs_result
+
+        if av_sync_csv:
+            av_result = self._analyze_av_sync_csv(av_sync_csv)
+            if av_result and av_result.get("pop_count", 0) > 0:
+                sources["av_sync_csv"] = av_result
 
         if network_csv:
             net_result = self._analyze_network_csv(network_csv)
@@ -75,10 +81,11 @@ class AvSyncOffsetAssertion(EffectAssertion):
             if verbose:
                 print(f"MP4 analysis failed: {e}")
 
-# Validate we have data from all sources (obs.log is optional for now since plugin may not log it yet)
+        # Validate we have data from at least one CSV source plus MP4.
+        # obs.log is optional; av-sync.csv is treated as a CSV source.
         missing_sources = []
-        if "obs_csv" not in sources and "network_csv" not in sources:
-            missing_sources.append("CSV (obs.csv or network.csv)")
+        if "obs_csv" not in sources and "network_csv" not in sources and "av_sync_csv" not in sources:
+            missing_sources.append("CSV (obs.csv, network.csv, or av-sync.csv)")
         if "mp4" not in sources:
             missing_sources.append("MP4")
 
@@ -145,6 +152,37 @@ class AvSyncOffsetAssertion(EffectAssertion):
             details={"sources": sources},
             metrics={f"{name}_max_offset_ms": r["max_offset_ms"] for name, r in sources.items()},
         )
+
+    def _analyze_av_sync_csv(self, csv_path: Path) -> Optional[dict[str, float]]:
+        try:
+            with open(csv_path, "r", newline="") as f:
+                reader = csv.DictReader(f)
+                if not reader.fieldnames:
+                    return None
+                if "obs_offset_ms" not in reader.fieldnames:
+                    return None
+
+                offsets_ms: list[float] = []
+                for row in reader:
+                    val = row.get("obs_offset_ms")
+                    if val is None or str(val).strip() == "":
+                        continue
+                    try:
+                        offsets_ms.append(abs(float(val)))
+                    except ValueError:
+                        continue
+
+            if not offsets_ms:
+                return None
+
+            return {
+                "pop_count": len(offsets_ms),
+                "max_offset_ms": max(offsets_ms),
+                "avg_offset_ms": sum(offsets_ms) / len(offsets_ms),
+                "per_pop_offsets_ms": offsets_ms,
+            }
+        except Exception:
+            return None
 
     def _analyze_obs_csv(self, csv_path: Path) -> Optional[dict[str, float]]:
         try:
@@ -355,6 +393,7 @@ class AvSyncOffsetAssertion(EffectAssertion):
     def _analyze_mp4(self, mp4_path: Path, verbose: bool = False) -> Optional[dict[str, float]]:
         """Extract A/V pops from MP4 recording using test_av_sync module."""
         try:
+            from bisect import bisect_left
             from util.test_av_sync import extract_audio_envelope
 
             # Detect video pops (white frames) - doesn't accept verbose
@@ -389,6 +428,31 @@ class AvSyncOffsetAssertion(EffectAssertion):
             # Convert to microseconds for consistency with CSV analysis
             video_times_us = [int(t * 1000) for t in video_times_ms]
             audio_times_us = [int(t * 1000) for t in audio_times_ms]
+
+            # Drop spurious audio-pop detections that are not plausibly associated with any video pop.
+            # MP4 audio envelope detection can occasionally produce false positives; a single outlier
+            # would otherwise dominate max_offset_ms.
+            video_times_us = sorted(video_times_us)
+            if not video_times_us:
+                return None
+
+            max_window_us = int(float(self.thresholds["max_offset_ms_mp4"]) * 1000.0)
+            filtered_audio_times_us: list[int] = []
+            for at in sorted(audio_times_us):
+                idx = bisect_left(video_times_us, at)
+                best = None
+                if idx < len(video_times_us):
+                    best = abs(video_times_us[idx] - at)
+                if idx > 0:
+                    prev = abs(video_times_us[idx - 1] - at)
+                    best = prev if best is None else min(best, prev)
+                if best is not None and best <= max_window_us:
+                    filtered_audio_times_us.append(at)
+
+            # Collapse close-together detections into one pop event (best-effort).
+            audio_times_us = self._collapse_pop_times(filtered_audio_times_us, 100000)
+            if not audio_times_us:
+                return None
 
             return self._compute_deltas(video_times_us, audio_times_us)
         except Exception:

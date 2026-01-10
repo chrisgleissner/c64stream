@@ -28,6 +28,8 @@ Or via convenience script (Linux):
 This is a separate, hardware-backed flow that runs `av-sync-auto.prg` on a real C64U via REST, records 10 seconds
 in OBS, and checks A/V pop delta from CSV/log artifacts. It is fully automated once the user starts the script.
 
+The script builds the PRG into `data/prg/` by default.
+
 ```bash
 ./tests/e2e/real-device-av-sync.sh --host 192.168.1.13
 
