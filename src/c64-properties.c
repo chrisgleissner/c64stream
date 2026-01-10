@@ -583,7 +583,8 @@ static bool c64_export_settings_to_ini(obs_data_t *settings, const char *path)
     }
 
     const char *c64_host = obs_data_get_string(settings, "c64_host");
-    const char *c64_password = obs_data_get_string(settings, "c64_password");
+    // NOTE: Password is intentionally excluded from export for security.
+    // Passwords remain in OBS settings which are protected by OS-level access controls.
     const char *dns_server_ip = obs_data_get_string(settings, "dns_server_ip");
     const char *obs_ip_address = obs_data_get_string(settings, "obs_ip_address");
     const bool auto_detect_ip = obs_data_get_bool(settings, "auto_detect_ip");
@@ -655,7 +656,7 @@ static bool c64_export_settings_to_ini(obs_data_t *settings, const char *path)
 
     fprintf(f, "[network]\n");
     fprintf(f, "c64_host=%s\n", c64_host ? c64_host : "");
-    fprintf(f, "c64_password=%s\n", c64_password ? c64_password : "");
+    // Password is intentionally excluded from export for security
     fprintf(f, "dns_server_ip=%s\n", dns_server_ip ? dns_server_ip : "");
     fprintf(f, "obs_ip_address=%s\n", obs_ip_address ? obs_ip_address : "");
     fprintf(f, "auto_detect_ip=%s\n", auto_detect_ip ? "true" : "false");
@@ -758,7 +759,9 @@ static bool c64_apply_ini_to_settings(obs_data_t *settings, const char *path)
         } else if (strcmp(key, "c64_host") == 0) {
             obs_data_set_string(settings, "c64_host", value);
         } else if (strcmp(key, "c64_password") == 0) {
-            obs_data_set_string(settings, "c64_password", value);
+            // Password is intentionally excluded from import for security.
+            // Users must re-enter passwords after importing configuration.
+            C64_LOG_INFO("Config import: skipping c64_password (excluded for security)");
         } else if (strcmp(key, "obs_ip_address") == 0) {
             // Allow empty string (means "leave as-is"/auto-detect default).
             if (value && value[0] != '\0')
@@ -1697,9 +1700,9 @@ bool c64_load_configuration(obs_data_t *settings)
                     loaded_settings++;
                 }
             } else if (strcmp(key, "c64_password") == 0) {
-                c64_set_string(settings, "c64_password", value, ci_enforced);
-                C64_LOG_DEBUG("Config: c64_password = %s", (value && value[0] != '\0') ? "(set)" : "(empty)");
-                loaded_settings++;
+                // Password is intentionally excluded from import for security.
+                // Users must re-enter passwords after importing configuration.
+                C64_LOG_INFO("Config import: skipping c64_password (excluded for security)");
             } else if (strcmp(key, "buffer_delay_ms") == 0) {
                 int delay = atoi(value);
                 if (delay >= 0 && delay <= 500) {

@@ -196,7 +196,7 @@ The plugin includes built-in recording capabilities that work independently of O
 
 ### Recording Options
 
-The plugin offers three independent recording options that can be enabled separately or together:
+The plugin offers four independent recording options that can be enabled separately or together:
 
 **📊 Network and Streaming Events (CSV):**
 
@@ -223,6 +223,15 @@ The plugin offers three independent recording options that can be enabled separa
 - Video file: `session_YYYYMMDD_HHMMSS/video.avi` (24-bit BGR format)
 - Audio file: `session_YYYYMMDD_HHMMSS/audio.wav` (16-bit stereo PCM)
 
+**🔬 Record A/V Sync (CSV):**
+
+- Creates `av-sync.csv` with detailed audio/video synchronization measurements
+- Automatically triggers A/V sync test program on Ultimate 64 devices via REST API (when connected to a real device)
+- **Purpose:** Debugging and validating audio/video synchronization accuracy
+- **When to use:** When experiencing A/V sync issues or contributing sync test data for bug reports
+- **Requirements:** For automated testing on real hardware, requires Ultimate 64 with REST API enabled and password configured
+- File: `session_YYYYMMDD_HHMMSS/av-sync.csv`
+
 #### File Organization
 
 All recording files are organized into timestamped session folders in the [recordings directory](#file-system-structure-):
@@ -233,6 +242,7 @@ recordings/
 │   ├── frames/           # BMP frame files (if "Raw Frames" enabled)
 │   ├── network.csv       # Network timings (if "CSV Events" enabled)
 │   ├── obs.csv           # OBS timings (if "CSV Events" enabled)
+│   ├── av-sync.csv       # A/V sync measurements (if "Record A/V Sync" enabled)
 │   ├── video.avi         # Uncompressed video (if "Raw Video" enabled)
 │   └── audio.wav         # Uncompressed audio (if "Raw Video" enabled)
 └── session_20240929_151234/
