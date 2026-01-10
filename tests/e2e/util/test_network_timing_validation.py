@@ -22,7 +22,7 @@ from pathlib import Path
 
 def _load_e2e_module():
     here = Path(__file__).resolve().parent
-    e2e_path = here / 'e2e.py'
+    e2e_path = here.parent / 'e2e.py'
     spec = importlib.util.spec_from_file_location('c64stream_e2e', e2e_path)
     if spec is None or spec.loader is None:
         raise RuntimeError('failed to load e2e.py module spec')

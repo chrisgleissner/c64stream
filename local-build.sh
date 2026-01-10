@@ -18,6 +18,9 @@ INSTALL_PLUGIN=false
 RUN_E2E=false
 E2E_SCENARIO=""
 GENERATE_E2E_SCENARIOS=false
+RUN_REAL_DEVICE=false
+REAL_DEVICE_HOST=""
+NEED_E2E_DEPS=false
 VERBOSE=false
 
 # Colors for output
@@ -186,6 +189,8 @@ OPTIONS:
     --install           Install plugin to OBS after building
     --e2e[=SCENARIO]    Run E2E tests after building and installing (default scenario: ntsc_default)
     --e2e-scenarios     Run all scenarios in tests/e2e/scenarios/* and write results to tests/e2e/results/<scenario>
+    --real-device[=HOST] Run a real C64 Ultimate A/V sync test (Linux only; requires OBS + device)
+                       Optional HOST overrides the device hostname/IP (default: c64u)
     --verbose           Enable verbose output
     --help              Show this help message
 
@@ -194,6 +199,8 @@ EXAMPLES:
     $0 linux --config Release --tests          # Build Release for Linux and run tests
     $0 linux --install                         # Build and install to OBS
     $0 linux --e2e --install                   # Build, install and run E2E tests
+    $0 linux --real-device                     # Build, install and run real-device test (defaults)
+    $0 linux --real-device=192.168.1.13        # Real-device test against specific host/IP
     $0 windows --clean --install-deps          # Clean build for Windows, install deps
     $0 linux --install-e2e-deps --e2e          # Install all deps including E2E and run E2E tests
     $0 macos --verbose                          # Build for macOS with verbose output
@@ -203,6 +210,7 @@ NOTES:
     - Dependencies are automatically downloaded where possible
     - Cross-compilation is supported for Windows on Linux (MinGW)
     - E2E tests require OBS Studio, Python3, xvfb, and additional dependencies (auto-installed)
+    - Real-device tests require a reachable C64 Ultimate device and a local GUI-capable environment
     - Each platform may have specific prerequisites (see README.md)
 EOF
 }
@@ -567,8 +575,8 @@ run_tests() {
     if command -v python3 >/dev/null 2>&1; then
         log_info "Running Python unit tests..."
         python3 -m unittest \
-            tests/e2e/test_network_simulation.py \
-            tests/e2e/test_network_timing_validation.py
+            tests/e2e/util/test_network_simulation.py \
+            tests/e2e/util/test_network_timing_validation.py
     else
         log_warning "python3 not found; skipping Python unit tests"
     fi
@@ -1226,9 +1234,9 @@ run_e2e_tests() {
     local src_mkv="$test_output_dir/c64_recording.mkv"
     local out_mp4="$results_root_dir/c64_recording.mp4"
     if [[ -f "$src_mp4" && "$src_mp4" != "$out_mp4" ]]; then
-        bash "$PROJECT_ROOT/tests/e2e/compress_e2e_mp4.sh" "$src_mp4" "$out_mp4" || true
+        bash "$PROJECT_ROOT/tests/e2e/util/compress_e2e_mp4.sh" "$src_mp4" "$out_mp4" || true
     elif [[ -f "$src_mkv" ]]; then
-        bash "$PROJECT_ROOT/tests/e2e/compress_e2e_mp4.sh" "$src_mkv" "$out_mp4" || true
+        bash "$PROJECT_ROOT/tests/e2e/util/compress_e2e_mp4.sh" "$src_mkv" "$out_mp4" || true
     else
         if [[ -f "$out_mp4" ]]; then
             log_info "Recording already present at $out_mp4; skipping compression"
@@ -1303,6 +1311,29 @@ run_e2e_scenarios() {
     fi
 }
 
+run_real_device_test() {
+    local platform=$1
+
+    if [[ "$platform" != "linux" ]]; then
+        log_warning "Real-device tests are currently only supported on Linux"
+        return 0
+    fi
+
+    local runner="$PROJECT_ROOT/tests/e2e/real-device-av-sync.sh"
+    if [[ ! -f "$runner" ]]; then
+        log_error "Real-device runner not found: $runner"
+        return 1
+    fi
+
+    local -a args=()
+    if [[ -n "${REAL_DEVICE_HOST}" ]]; then
+        args+=("--host" "${REAL_DEVICE_HOST}")
+    fi
+
+    log_info "Running real-device A/V sync test${REAL_DEVICE_HOST:+ (host=${REAL_DEVICE_HOST})}"
+    bash "$runner" "${args[@]}"
+}
+
 main() {
     # Parse arguments
     if [[ $# -eq 0 ]]; then
@@ -1366,6 +1397,20 @@ main() {
                 INSTALL_PLUGIN=true
                 shift
                 ;;
+            --real-device=*)
+                RUN_REAL_DEVICE=true
+                REAL_DEVICE_HOST="${1#--real-device=}"
+                shift
+                ;;
+            --real-device)
+                RUN_REAL_DEVICE=true
+                if [[ $# -gt 1 && "$2" != --* ]]; then
+                    REAL_DEVICE_HOST="$2"
+                    shift 2
+                else
+                    shift
+                fi
+                ;;
             --e2e=*)
                 RUN_E2E=true
                 E2E_SCENARIO="${1#--e2e=}"
@@ -1410,11 +1455,30 @@ main() {
         RUN_E2E=true
     fi
 
+    # Determine whether we need E2E-style runtime dependencies (OBS/xvfb/python)
+    if [[ "$RUN_E2E" == "true" || "$RUN_REAL_DEVICE" == "true" ]]; then
+        NEED_E2E_DEPS=true
+    fi
+
+    # Keep modes simple and predictable.
+    if [[ "$RUN_REAL_DEVICE" == "true" && ( "$RUN_E2E" == "true" || "$GENERATE_E2E_SCENARIOS" == "true" ) ]]; then
+        log_error "Choose one: --real-device OR --e2e/--e2e-scenarios"
+        exit 1
+    fi
+
     if [[ "$RUN_E2E" == "true" ]]; then
         if [[ -z "$E2E_SCENARIO" ]]; then
             E2E_SCENARIO="ntsc_default"
         fi
         E2E_SCENARIO="$(echo "$E2E_SCENARIO" | tr '[:upper:]' '[:lower:]')"
+    fi
+
+    # Real-device tests require the plugin installed, but should not force E2E properties.ini.
+    if [[ "$RUN_REAL_DEVICE" == "true" ]]; then
+        INSTALL_PLUGIN=true
+        if [[ -z "${REAL_DEVICE_HOST}" ]]; then
+            REAL_DEVICE_HOST="c64u"
+        fi
     fi
 
     # Validate build config
@@ -1439,8 +1503,8 @@ main() {
 
     ensure_linux_build_prereqs "$PLATFORM"
 
-    # Auto-install E2E dependencies if E2E is requested and dependencies are missing
-    if [[ "$RUN_E2E" == "true" ]]; then
+    # Auto-install E2E-style dependencies if E2E or real-device tests are requested and dependencies are missing
+    if [[ "${NEED_E2E_DEPS}" == "true" ]]; then
         # Check if essential E2E dependencies are missing
         local missing_e2e_deps=()
 
@@ -1456,9 +1520,9 @@ main() {
         # Keep Python deps minimal; only numpy is required
 
         if [[ ${#missing_e2e_deps[@]} -gt 0 ]]; then
-            log_info "E2E testing requested but missing dependencies: ${missing_e2e_deps[*]}"
+            log_info "OBS-based testing requested but missing dependencies: ${missing_e2e_deps[*]}"
             if can_auto_install_packages "$PLATFORM"; then
-                log_info "Auto-installing missing E2E dependencies..."
+                log_info "Auto-installing missing OBS/E2E dependencies..."
                 INSTALL_DEPS=true
                 INSTALL_E2E_DEPS=true
             else
@@ -1467,7 +1531,7 @@ main() {
                 exit 1
             fi
         else
-            log_info "E2E testing requested - all dependencies already installed"
+            log_info "OBS-based testing requested - all dependencies already installed"
         fi
     fi
 
@@ -1503,6 +1567,10 @@ main() {
         fi
     fi
 
+    if [[ "$RUN_REAL_DEVICE" == "true" ]]; then
+        run_real_device_test "$PLATFORM"
+    fi
+
     log_success "Local build workflow completed!"
     log_info ""
     log_info "Next steps:"
@@ -1516,6 +1584,9 @@ main() {
         if [[ "$GENERATE_E2E_SCENARIOS" == "true" ]]; then
             log_info "  - View scenarios: tests/e2e/results/README.md"
         fi
+    fi
+    if [[ "$RUN_REAL_DEVICE" != "true" ]]; then
+        log_info "  - Run real-device test: $0 $PLATFORM --real-device"
     fi
     log_info "  - Test with OBS: Start OBS and add C64 Stream source"
     log_info "  - Package: cmake --build <build_dir> --target package"

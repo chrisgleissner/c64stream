@@ -51,35 +51,35 @@ assertions:
 
 ### Available Assertions
 
-| Assertion          | Description                                                      |
-| ------------------ | ---------------------------------------------------------------- |
-| `video_quality`    | Basic video quality: duration, resolution, black frames          |
-| `audio`            | Audio presence and quality validation                            |
-| `tint`             | Color tint detection (amber/green monitor)                       |
-| `afterglow`        | Phosphor persistence/decay verification                          |
-| `scanlines`        | Scanline pattern uniformity (<1% variance)                       |
-| `frame_progression`| Verify frames increment properly (frame counter marker)          |
-| `palette_mapping`  | Verify palette colors match expected VPL (16-color watch region) |
-| `palette_stability`| Verify palette colors don't drift over time                      |
-| `sharp_pixels`     | Verify pixel sharpness when effects disabled                     |
+| Assertion           | Description                                                      |
+| ------------------- | ---------------------------------------------------------------- |
+| `video_quality`     | Basic video quality: duration, resolution, black frames          |
+| `audio`             | Audio presence and quality validation                            |
+| `tint`              | Color tint detection (amber/green monitor)                       |
+| `afterglow`         | Phosphor persistence/decay verification                          |
+| `scanlines`         | Scanline pattern uniformity (<1% variance)                       |
+| `frame_progression` | Verify frames increment properly (frame counter marker)          |
+| `palette_mapping`   | Verify palette colors match expected VPL (16-color watch region) |
+| `palette_stability` | Verify palette colors don't drift over time                      |
+| `sharp_pixels`      | Verify pixel sharpness when effects disabled                     |
 
 ## Available Scenarios
 
-| Scenario              | Format | Preset         | Key Assertions                    |
-| --------------------- | ------ | -------------- | --------------------------------- |
-| ntsc_default          | NTSC   | Default        | video_quality, audio              |
-| ntsc_classic_crt      | NTSC   | Classic CRT    | video_quality, audio, afterglow, scanlines |
-| ntsc_amber_monitor    | NTSC   | Amber Monitor  | video_quality, audio, tint, afterglow, scanlines |
-| ntsc_green_monitor    | NTSC   | Green Monitor  | video_quality, audio, tint, afterglow, scanlines |
-| ntsc_sharp_pixels     | NTSC   | Sharp Pixels   | video_quality, audio              |
-| ntsc_sharp_scan_lines | NTSC   | Default        | video_quality, audio, scanlines   |
-| ntsc_phosphor_glow    | NTSC   | Phosphor Glow  | video_quality, audio, afterglow, scanlines |
-| ntsc_vintage_tv       | NTSC   | Vintage TV     | video_quality, audio, afterglow, scanlines |
-| ntsc_arcade_cabinet   | NTSC   | Arcade Cabinet | video_quality, audio, scanlines   |
-| ntsc_palette_vibrant  | NTSC   | Default        | video_quality, audio, palette_mapping |
-| ntsc_palette_muted    | NTSC   | Default        | video_quality, audio, palette_mapping |
-| ntsc_delay_buffer500ms| NTSC   | Default        | video_quality, audio (buffer test)|
-| pal_default           | PAL    | Default        | video_quality, audio              |
+| Scenario               | Format | Preset         | Key Assertions                                   |
+| ---------------------- | ------ | -------------- | ------------------------------------------------ |
+| ntsc_default           | NTSC   | Default        | video_quality, audio                             |
+| ntsc_classic_crt       | NTSC   | Classic CRT    | video_quality, audio, afterglow, scanlines       |
+| ntsc_amber_monitor     | NTSC   | Amber Monitor  | video_quality, audio, tint, afterglow, scanlines |
+| ntsc_green_monitor     | NTSC   | Green Monitor  | video_quality, audio, tint, afterglow, scanlines |
+| ntsc_sharp_pixels      | NTSC   | Sharp Pixels   | video_quality, audio                             |
+| ntsc_sharp_scan_lines  | NTSC   | Default        | video_quality, audio, scanlines                  |
+| ntsc_phosphor_glow     | NTSC   | Phosphor Glow  | video_quality, audio, afterglow, scanlines       |
+| ntsc_vintage_tv        | NTSC   | Vintage TV     | video_quality, audio, afterglow, scanlines       |
+| ntsc_arcade_cabinet    | NTSC   | Arcade Cabinet | video_quality, audio, scanlines                  |
+| ntsc_palette_vibrant   | NTSC   | Default        | video_quality, audio, palette_mapping            |
+| ntsc_palette_muted     | NTSC   | Default        | video_quality, audio, palette_mapping            |
+| ntsc_delay_buffer500ms | NTSC   | Default        | video_quality, audio (buffer test)               |
+| pal_default            | PAL    | Default        | video_quality, audio                             |
 
 ## Adding New Scenarios
 
@@ -109,7 +109,7 @@ assertions:
 ## Base Template
 
 The `base_template.json` contains the common OBS scene structure.
-The `scenario_loader.py` merges preset settings and overrides into this template at runtime.
+The `util/scenario_loader.py` merges preset settings and overrides into this template at runtime.
 
 ## Test Pattern Notes
 

@@ -1,6 +1,4 @@
 line_length: 120
 indent: 2
 definitions:
-  - cmake/linux/helpers.cmake
-  - cmake/macos/helpers.cmake  
-  - cmake/windows/helpers.cmake
+  - cmake/gersemi-defs.cmake

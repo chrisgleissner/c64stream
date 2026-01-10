@@ -42,7 +42,7 @@
     },
     "name": "c64stream",
     "displayName": "C64 Stream",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "author": "Christian Gleissner",
     "website": "https://chrisgleissner.github.io/c64stream",
     "email": "c64stream@gleissner.uk"

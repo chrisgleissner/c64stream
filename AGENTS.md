@@ -5,8 +5,9 @@ This repository is an OBS Studio source plugin (`c64stream`) for streaming C64 U
 ## Source of truth
 
 - **Primary rules & conventions**: see `.github/copilot-instructions.md`
-- **Multi-hour planning**: see `PLANS.md` (read at start of substantial tasks)
-- **Protocol documentation**: `doc/c64-stream-spec.md`
+- **Complex feature work**: see `PLANS.md` (read at start of substantial tasks)
+- **Complex research or bug fix work**: see `INVESTIGATIONS.md` (read at start of substantial tasks)
+- **Protocol documentation**: `doc/c64u-stream-spec.md`
 - **Build details (CI)**: `.github/build-instructions.md`
 
 If anything in this file conflicts with `.github/copilot-instructions.md`, follow `.github/copilot-instructions.md`.
@@ -65,8 +66,8 @@ ctest --test-dir build_x86_64 --output-on-failure
 
 # Python unit tests (E2E harness)
 python3 -m unittest \
-    tests/e2e/test_network_simulation.py \
-    tests/e2e/test_network_timing_validation.py
+    tests/e2e/util/test_network_simulation.py \
+    tests/e2e/util/test_network_timing_validation.py
 ```
 
 Note: `./local-build.sh linux` runs unit tests by default (use `--no-tests` to skip).

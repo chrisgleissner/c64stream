@@ -20,7 +20,7 @@
    - If a fix requires significant work, document the issue and create a plan, but never ship with skipped tests
    - This applies to all tests, including unit tests, integration tests, and E2E tests, as well as any environment, both local and cloud/CI
 ## Project Overview
-OBS Studio plugin for streaming C64 Ultimate device video/audio over network. See `doc/c64-stream-spec.md` for protocol details.
+OBS Studio plugin for streaming C64 Ultimate device video/audio over network. See `doc/c64u-stream-spec.md` for protocol details.
 
 ## Key Files
 **Core Implementation:**

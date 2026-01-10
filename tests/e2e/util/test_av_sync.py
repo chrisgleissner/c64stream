@@ -128,6 +128,8 @@ def detect_video_pop_events(video_path, frame_rate=30.0):
     metrics: list[float] = []
     frame_nums: list[int] = []
     frame_times_ms: list[float | None] = []
+    max_brightness: list[float] = []
+    full_p95: list[float] = []
 
     def _find_pop_box_in_frame(gray_frame, content_bounds):
         """Calculate the A/V pop box position from content bounds.
@@ -186,23 +188,23 @@ def detect_video_pop_events(video_path, frame_rate=30.0):
         return None, None
 
     pop_box, content_bounds = _pick_stable_pop_box()
+    use_roi = pop_box is not None
 
-    if pop_box is None:
-        cap.release()
-        return []
+    if use_roi:
+        inner_x0, inner_y0, inner_x1, inner_y1 = pop_box
+        inner_w = inner_x1 - inner_x0
 
-    inner_x0, inner_y0, inner_x1, inner_y1 = pop_box
-    inner_w = inner_x1 - inner_x0
-    inner_h = inner_y1 - inner_y0
+        # Calculate left/right half regions (avoiding 2px center divider)
+        # The pop box inner area is 72px wide: [35px left][2px divider][35px right]
+        # At 1920x1080 output, the scaling factor is ~1080/272 ≈ 3.97
+        # So 35px -> ~139px, 2px divider -> ~8px
+        half_w = inner_w // 2
+        divider_w = max(2, inner_w // 36)  # ~2px at source, scales with resolution
+        left_half_x1 = inner_x0 + half_w - divider_w
+        right_half_x0 = inner_x0 + half_w + divider_w
 
-    # Calculate left/right half regions (avoiding 2px center divider)
-    # The pop box inner area is 72px wide: [35px left][2px divider][35px right]
-    # At 1920x1080 output, the scaling factor is ~1080/272 ≈ 3.97
-    # So 35px -> ~139px, 2px divider -> ~8px
-    half_w = inner_w // 2
-    divider_w = max(2, inner_w // 36)  # ~2px at source, scales with resolution
-    left_half_x1 = inner_x0 + half_w - divider_w
-    right_half_x0 = inner_x0 + half_w + divider_w
+    min_white_luma = 224.0  # >= 0xE0 brightness threshold for "white" pop
+    sample_stride = 8
 
     frame_num = 0
     while True:
@@ -220,18 +222,32 @@ def detect_video_pop_events(video_path, frame_rate=30.0):
             ts_ms = float(cap.get(cv2.CAP_PROP_POS_MSEC))
         except Exception:
             ts_ms = float('nan')
+        if frame_num > 0 and isinstance(ts_ms, float) and ts_ms <= 0.0:
+            ts_ms = float('nan')
 
-        # Sample left and right halves of the inner area
-        left_half = gray[inner_y0:inner_y1, inner_x0:left_half_x1]
-        right_half = gray[inner_y0:inner_y1, right_half_x0:inner_x1]
+        if content_bounds is None:
+            h, w = gray.shape[:2]
+            content_bounds = (0, w, 0, h)
 
-        # Get brightness of each half
-        left_brightness = float(np.percentile(left_half, 95.0)) if left_half.size > 0 else 0.0
-        right_brightness = float(np.percentile(right_half, 95.0)) if right_half.size > 0 else 0.0
+        left, right, top, bottom = content_bounds
+        sample = gray[top:bottom:sample_stride, left:right:sample_stride]
+        if sample.size == 0:
+            sample = gray[::sample_stride, ::sample_stride]
+        full_p95.append(float(np.percentile(sample, 95.0)))
 
-        # Store both brightnesses as tuple (left, right) to determine channel later
-        # A pop lights up one half to ~200+ while inactive is ~60-80
-        metrics.append((left_brightness, right_brightness))
+        if use_roi:
+            # Sample left and right halves of the inner area
+            left_half = gray[inner_y0:inner_y1, inner_x0:left_half_x1]
+            right_half = gray[inner_y0:inner_y1, right_half_x0:inner_x1]
+
+            # Get brightness of each half
+            left_brightness = float(np.percentile(left_half, 95.0)) if left_half.size > 0 else 0.0
+            right_brightness = float(np.percentile(right_half, 95.0)) if right_half.size > 0 else 0.0
+
+            # Store both brightnesses as tuple (left, right) to determine channel later
+            # A pop lights up one half to ~200+ while inactive is ~60-80
+            metrics.append((left_brightness, right_brightness))
+            max_brightness.append(max(left_brightness, right_brightness))
         frame_nums.append(frame_num)
         frame_times_ms.append(ts_ms)
         frame_num += 1
@@ -248,18 +264,6 @@ def detect_video_pop_events(video_path, frame_rate=30.0):
         peak = float(np.percentile(arr, 99.5))
         return (peak - med) / mad, med, mad
 
-    # metrics is list of (left_brightness, right_brightness) tuples.
-    #
-    # IMPORTANT:
-    # For heavy CRT effects (afterglow/bloom/tint/scanlines), absolute brightness
-    # can drift and/or compress, which causes missed pops and wrong cadence.
-    # We instead detect pops using *delta above a rolling baseline* per half.
-    lr = np.array(metrics, dtype=float)
-    left_b = lr[:, 0]
-    right_b = lr[:, 1]
-
-    window = max(8, int(round(0.50 * frame_rate)))  # ~0.5s rolling baseline
-
     def _rolling_median(x: np.ndarray, w: int) -> np.ndarray:
         out = np.empty_like(x)
         for i in range(len(x)):
@@ -271,138 +275,213 @@ def detect_video_pop_events(video_path, frame_rate=30.0):
                 out[i] = float(np.nanmedian(x[s:i]))
         return out
 
-    base_l = _rolling_median(left_b, window)
-    base_r = _rolling_median(right_b, window)
-    delta_l = left_b - base_l
-    delta_r = right_b - base_r
+    events: list[dict] = []
+    min_pop_events = 2
 
-    delta_max = np.maximum(delta_l, delta_r)
-    _, chosen_med, chosen_mad = _score(delta_max)
+    if use_roi and metrics:
+        # metrics is list of (left_brightness, right_brightness) tuples.
+        #
+        # IMPORTANT:
+        # For heavy CRT effects (afterglow/bloom/tint/scanlines), absolute brightness
+        # can drift and/or compress, which causes missed pops and wrong cadence.
+        # We instead detect pops using *delta above a rolling baseline* per half.
+        lr = np.array(metrics, dtype=float)
+        max_b = np.array(max_brightness, dtype=float)
+        left_b = lr[:, 0]
+        right_b = lr[:, 1]
 
-    # Threshold for spikes in delta-space.
-    if chosen_mad <= 1.0:
-        threshold = float(np.nanpercentile(delta_max, 98.0))
-    else:
-        threshold = float(chosen_med + 6.0 * chosen_mad)
-    threshold = max(threshold, 2.0)
+        window = max(8, int(round(0.50 * frame_rate)))  # ~0.5s rolling baseline
+        base_l = _rolling_median(left_b, window)
+        base_r = _rolling_median(right_b, window)
+        delta_l = left_b - base_l
+        delta_r = right_b - base_r
 
+        delta_max = np.maximum(delta_l, delta_r)
+        _, chosen_med, chosen_mad = _score(delta_max)
 
-    # Convert threshold hits into stable, de-bounced pop start events.
-    hot = np.where(np.isfinite(delta_max) & (delta_max > threshold))[0]
-    if hot.size == 0:
-        return []
+        # Threshold for spikes in delta-space.
+        if chosen_mad <= 1.0:
+            threshold = float(np.nanpercentile(delta_max, 98.0))
+        else:
+            threshold = float(chosen_med + 6.0 * chosen_mad)
+        threshold = max(threshold, 2.0)
 
-    max_gap = 1
-    min_spacing = max(1, int(round(0.5 * frame_rate)))  # pops are ~1s apart
+        # Convert threshold hits into stable, de-bounced pop start events.
+        hot = np.where(np.isfinite(delta_max) & (delta_max > threshold))[0]
+        if hot.size != 0:
+            max_gap = 1
+            min_spacing = max(1, int(round(0.5 * frame_rate)))  # pops are ~1s apart
 
-    best_indices: list[int] = []
-    cluster_start = int(hot[0])
-    cluster_end = int(hot[0])
-    for idx in hot[1:]:
-        idx = int(idx)
-        if idx <= cluster_end + max_gap:
+            best_indices: list[int] = []
+            cluster_start = int(hot[0])
+            cluster_end = int(hot[0])
+            for idx in hot[1:]:
+                idx = int(idx)
+                if idx <= cluster_end + max_gap:
+                    cluster_end = idx
+                    continue
+
+                # Pick the first frame where the pop is confidently visible.
+                best_indices.append(cluster_start)
+
+                cluster_start = idx
+                cluster_end = idx
+
+            best_indices.append(cluster_start)
+
+            # Enforce minimum spacing to prevent any double-triggering.
+            best_indices = sorted(set(best_indices))
+
+            # For each detected pop, look backwards to find the true onset.
+            # With bloom/blur effects, the first frame above threshold may be 1-2 frames after
+            # the actual pop started, because the effect takes time to build up brightness.
+            # We detect the onset by finding where brightness first rises significantly above baseline.
+            onset_threshold_factor = 0.25  # Slightly earlier onset for CRT effects
+            lookback_frames = max(6, int(round(0.25 * frame_rate)))  # allow up to ~250ms lookback
+
+            last_frame = None
+            for idx in best_indices:
+                # Find the true onset by looking backwards
+                true_idx = idx
+                if idx > 0:
+                    # Get the peak metric value for this pop cluster
+                    cluster_end_idx = idx
+                    while cluster_end_idx + 1 < len(delta_max) and delta_max[cluster_end_idx + 1] > threshold:
+                        cluster_end_idx += 1
+                    peak_metric = float(np.nanmax(delta_max[idx:cluster_end_idx + 1]))
+                    peak_brightness = float(np.nanmax(max_b[idx:cluster_end_idx + 1]))
+                    if not np.isfinite(peak_brightness) or peak_brightness < min_white_luma:
+                        continue
+
+                    # In delta-space, baseline should be ~0. Use a small floor to avoid
+                    # NaN/negative artifacts from rolling median.
+                    onset_thresh = max(0.5, onset_threshold_factor * peak_metric)
+
+                    # Look backwards to find first frame above onset threshold
+                    for lookback in range(1, min(lookback_frames + 1, idx + 1)):
+                        check_idx = idx - lookback
+                        if np.isfinite(delta_max[check_idx]) and delta_max[check_idx] > onset_thresh:
+                            true_idx = check_idx
+                        else:
+                            break  # Stop looking back once we find a frame below threshold
+
+                fn = int(frame_nums[true_idx])
+                if last_frame is not None and (fn - last_frame) < min_spacing:
+                    continue
+
+                t = frame_times_ms[true_idx]
+                if t is None or (isinstance(t, float) and not np.isfinite(t)):
+                    t = None
+
+                # Determine which channel (L/R) the pop is on.
+                #
+                # Under heavy CRT effects (notably afterglow), absolute brightness can remain elevated
+                # on the *previous* side for several frames, and even rolling-baseline deltas can be
+                # ambiguous around the onset frame. To avoid false channel mismatches, classify the
+                # side by the strongest dark→bright transition using a small pre/post window.
+                #
+                # If the transition is ambiguous (both sides rise similarly), report channel as unknown.
+                pre_n = 2
+                post_n = 2
+                pre_s = max(0, true_idx - pre_n)
+                pre_e = max(pre_s, true_idx)
+                post_s = true_idx
+                post_e = min(len(left_b), true_idx + post_n)
+
+                pre_l = float(np.nanmedian(left_b[pre_s:pre_e])) if pre_e > pre_s else float(left_b[true_idx])
+                pre_r = float(np.nanmedian(right_b[pre_s:pre_e])) if pre_e > pre_s else float(right_b[true_idx])
+
+                # Use a peak over a couple of frames to cope with bloom/afterglow ramping.
+                post_l = float(np.nanmax(left_b[post_s:post_e])) if post_e > post_s else float(left_b[true_idx])
+                post_r = float(np.nanmax(right_b[post_s:post_e])) if post_e > post_s else float(right_b[true_idx])
+
+                # Deterministic side selection: choose the half with the stronger *dark→bright edge*.
+                #
+                # Afterglow can bias absolute brightness, but the pop itself is an instantaneous
+                # (1–2 frame) large increase. So we base side selection on the maximum frame-to-frame
+                # brightness increase within a small window around the detected onset.
+                # There is always exactly one chosen side.
+                edge_window = 3
+                edge_s = max(1, true_idx - edge_window)
+                edge_e = min(len(left_b) - 1, true_idx + edge_window)
+
+                if edge_e >= edge_s:
+                    inc_l = left_b[edge_s:edge_e + 1] - left_b[edge_s - 1:edge_e]
+                    inc_r = right_b[edge_s:edge_e + 1] - right_b[edge_s - 1:edge_e]
+                    max_inc_l = float(np.nanmax(inc_l))
+                    max_inc_r = float(np.nanmax(inc_r))
+                else:
+                    max_inc_l = float(left_b[true_idx] - left_b[max(0, true_idx - 1)])
+                    max_inc_r = float(right_b[true_idx] - right_b[max(0, true_idx - 1)])
+
+                channel_guess = 'L' if max_inc_l >= max_inc_r else 'R'
+
+                ev = {'frame': fn, 'time_ms': t, 'channel': channel_guess}
+                events.append(ev)
+                last_frame = fn
+
+    if len(events) >= min_pop_events:
+        return events
+
+    def _detect_full_frame_events() -> list[dict]:
+        full = np.array(full_p95, dtype=float)
+        if full.size == 0:
+            return []
+
+        window = max(8, int(round(0.50 * frame_rate)))  # ~0.5s rolling baseline
+        base = _rolling_median(full, window)
+        delta = full - base
+        _, chosen_med, chosen_mad = _score(delta)
+        if chosen_mad <= 1.0:
+            threshold = float(np.nanpercentile(delta, 98.0))
+        else:
+            threshold = float(chosen_med + 6.0 * chosen_mad)
+        threshold = max(threshold, 2.0)
+
+        hot = np.where(
+            np.isfinite(delta)
+            & (delta >= threshold)
+            & np.isfinite(full)
+            & (full >= min_white_luma)
+        )[0]
+        if hot.size == 0:
+            return []
+
+        max_gap = 1
+        min_spacing = max(1, int(round(0.5 * frame_rate)))
+
+        best_indices: list[int] = []
+        cluster_start = int(hot[0])
+        cluster_end = int(hot[0])
+        for idx in hot[1:]:
+            idx = int(idx)
+            if idx <= cluster_end + max_gap:
+                cluster_end = idx
+                continue
+            best_indices.append(cluster_start)
+            cluster_start = idx
             cluster_end = idx
-            continue
-
-        # Pick the first frame where the pop is confidently visible.
         best_indices.append(cluster_start)
 
-        cluster_start = idx
-        cluster_end = idx
+        best_indices = sorted(set(best_indices))
+        events_ff: list[dict] = []
+        last_frame = None
+        for idx in best_indices:
+            fn = int(frame_nums[idx])
+            if last_frame is not None and (fn - last_frame) < min_spacing:
+                continue
 
-    best_indices.append(cluster_start)
+            t = frame_times_ms[idx]
+            if t is None or (isinstance(t, float) and not np.isfinite(t)):
+                t = None
+            events_ff.append({'frame': fn, 'time_ms': t, 'channel': 'B'})
+            last_frame = fn
 
-    # Enforce minimum spacing to prevent any double-triggering.
-    best_indices = sorted(set(best_indices))
+        return events_ff
 
-    # For each detected pop, look backwards to find the true onset.
-    # With bloom/blur effects, the first frame above threshold may be 1-2 frames after
-    # the actual pop started, because the effect takes time to build up brightness.
-    # We detect the onset by finding where brightness first rises significantly above baseline.
-    onset_threshold_factor = 0.25  # Slightly earlier onset for CRT effects
-    lookback_frames = max(6, int(round(0.25 * frame_rate)))  # allow up to ~250ms lookback
-
-    events: list[dict] = []
-    last_frame = None
-    for idx in best_indices:
-        # Find the true onset by looking backwards
-        true_idx = idx
-        if idx > 0:
-            # Get the peak metric value for this pop cluster
-            cluster_end_idx = idx
-            while cluster_end_idx + 1 < len(delta_max) and delta_max[cluster_end_idx + 1] > threshold:
-                cluster_end_idx += 1
-            peak_metric = float(np.nanmax(delta_max[idx:cluster_end_idx + 1]))
-
-            # In delta-space, baseline should be ~0. Use a small floor to avoid
-            # NaN/negative artifacts from rolling median.
-            onset_thresh = max(0.5, onset_threshold_factor * peak_metric)
-
-            # Look backwards to find first frame above onset threshold
-            for lookback in range(1, min(lookback_frames + 1, idx + 1)):
-                check_idx = idx - lookback
-                if np.isfinite(delta_max[check_idx]) and delta_max[check_idx] > onset_thresh:
-                    true_idx = check_idx
-                else:
-                    break  # Stop looking back once we find a frame below threshold
-
-        fn = int(frame_nums[true_idx])
-        if last_frame is not None and (fn - last_frame) < min_spacing:
-            continue
-
-        t = frame_times_ms[true_idx]
-        if t is None or (isinstance(t, float) and not np.isfinite(t)):
-            t = None
-
-        # Determine which channel (L/R) the pop is on.
-        #
-        # Under heavy CRT effects (notably afterglow), absolute brightness can remain elevated
-        # on the *previous* side for several frames, and even rolling-baseline deltas can be
-        # ambiguous around the onset frame. To avoid false channel mismatches, classify the
-        # side by the strongest dark→bright transition using a small pre/post window.
-        #
-        # If the transition is ambiguous (both sides rise similarly), report channel as unknown.
-        pre_n = 2
-        post_n = 2
-        pre_s = max(0, true_idx - pre_n)
-        pre_e = max(pre_s, true_idx)
-        post_s = true_idx
-        post_e = min(len(left_b), true_idx + post_n)
-
-        pre_l = float(np.nanmedian(left_b[pre_s:pre_e])) if pre_e > pre_s else float(left_b[true_idx])
-        pre_r = float(np.nanmedian(right_b[pre_s:pre_e])) if pre_e > pre_s else float(right_b[true_idx])
-
-        # Use a peak over a couple of frames to cope with bloom/afterglow ramping.
-        post_l = float(np.nanmax(left_b[post_s:post_e])) if post_e > post_s else float(left_b[true_idx])
-        post_r = float(np.nanmax(right_b[post_s:post_e])) if post_e > post_s else float(right_b[true_idx])
-
-        rise_l = post_l - pre_l
-        rise_r = post_r - pre_r
-
-        # Deterministic side selection: choose the half with the stronger *dark→bright edge*.
-        #
-        # Afterglow can bias absolute brightness, but the pop itself is an instantaneous
-        # (1–2 frame) large increase. So we base side selection on the maximum frame-to-frame
-        # brightness increase within a small window around the detected onset.
-        # There is always exactly one chosen side.
-        edge_window = 3
-        edge_s = max(1, true_idx - edge_window)
-        edge_e = min(len(left_b) - 1, true_idx + edge_window)
-
-        if edge_e >= edge_s:
-            inc_l = left_b[edge_s:edge_e + 1] - left_b[edge_s - 1:edge_e]
-            inc_r = right_b[edge_s:edge_e + 1] - right_b[edge_s - 1:edge_e]
-            max_inc_l = float(np.nanmax(inc_l))
-            max_inc_r = float(np.nanmax(inc_r))
-        else:
-            max_inc_l = float(left_b[true_idx] - left_b[max(0, true_idx - 1)])
-            max_inc_r = float(right_b[true_idx] - right_b[max(0, true_idx - 1)])
-
-        channel_guess = 'L' if max_inc_l >= max_inc_r else 'R'
-
-        ev = {'frame': fn, 'time_ms': t, 'channel': channel_guess}
-        events.append(ev)
-        last_frame = fn
+    full_events = _detect_full_frame_events()
+    if full_events:
+        return full_events
 
     return events
 
@@ -412,7 +491,7 @@ def detect_video_pops(video_path, frame_rate=30.0):
     return [int(ev['frame']) for ev in detect_video_pop_events(video_path, frame_rate=frame_rate)]
 
 
-def detect_audio_pops(envelope, window_ms=10, threshold_factor=3.0, min_duration_ms=10):
+def detect_audio_pops(envelope, window_ms=10, threshold_factor=3.0, min_duration_ms=10, min_spacing_ms=200):
     """
     Detect audio pops in the envelope.
     Returns list of pop start times in milliseconds (10ms resolution).
@@ -421,11 +500,16 @@ def detect_audio_pops(envelope, window_ms=10, threshold_factor=3.0, min_duration
     if envelope.ndim == 2 and envelope.shape[1] == 2:
         bg_l = np.percentile(envelope[:, 0], 10)
         bg_r = np.percentile(envelope[:, 1], 10)
-        thr_l = bg_l * threshold_factor
-        thr_r = bg_r * threshold_factor
+        peak_l = np.percentile(envelope[:, 0], 99.5)
+        peak_r = np.percentile(envelope[:, 1], 99.5)
+        peak_floor = max(1.0, max(peak_l, peak_r) * 0.10)
+        thr_l = max(bg_l * threshold_factor, peak_floor)
+        thr_r = max(bg_r * threshold_factor, peak_floor)
     else:
         bg = np.percentile(envelope, 10)
-        thr_l = thr_r = bg * threshold_factor
+        peak = np.percentile(envelope, 99.5)
+        peak_floor = max(1.0, peak * 0.10)
+        thr_l = thr_r = max(bg * threshold_factor, peak_floor)
 
     pop_starts = []
     in_pop = False
@@ -456,6 +540,16 @@ def detect_audio_pops(envelope, window_ms=10, threshold_factor=3.0, min_duration
                         pop_starts.append({'time_ms': pop_start * int(window_ms), 'channel': chan})
             in_pop = False
             pop_start = None
+
+    if min_spacing_ms is not None and pop_starts:
+        filtered = []
+        last_time = None
+        for pop in pop_starts:
+            t_ms = pop.get('time_ms', 0)
+            if last_time is None or (t_ms - last_time) >= min_spacing_ms:
+                filtered.append(pop)
+                last_time = t_ms
+        pop_starts = filtered
 
     return pop_starts
 
@@ -779,7 +873,7 @@ def verify_frame_sequence_box(video_path, solid_stddev_thresh=26.0, change_dist_
     }
 
 
-def verify_av_sync(video_path, tolerance_ms=30):
+def verify_av_sync(video_path, tolerance_ms=30, audio_threshold_factor=2.5, audio_min_duration_ms=8, envelope_window_ms=1):
     """
     Verify A/V synchronization between black squares and audio beeps.
 
@@ -841,10 +935,14 @@ def verify_av_sync(video_path, tolerance_ms=30):
     try:
         # Use 1ms windows for much finer onset timing than the old 10ms RMS.
         # This reduces false sync failures caused by coarse audio quantization.
-        envelope_window_ms = 1
         envelope = extract_audio_envelope(video_path, sample_rate, window_ms=envelope_window_ms)
         # Detect audio pops - reduced threshold and min_duration for 1-frame pops (~16.7ms NTSC, 20ms PAL)
-        audio_pops = detect_audio_pops(envelope, window_ms=envelope_window_ms, threshold_factor=2.5, min_duration_ms=8)
+        audio_pops = detect_audio_pops(
+            envelope,
+            window_ms=envelope_window_ms,
+            threshold_factor=audio_threshold_factor,
+            min_duration_ms=audio_min_duration_ms,
+        )
         print(f"🎵 Detected {len(audio_pops)} audio pop(s)")
     except Exception as e:
         print(f"⚠️  Audio analysis skipped ({e})")
@@ -922,8 +1020,11 @@ def verify_av_sync(video_path, tolerance_ms=30):
         is_unmatched = min_diff > max_match_window_ms
 
         # Check if audio and video channels match (L/R consistency)
-        # Hard logic channel match: both signals alternate L/R, and the pop box side is either L or R.
-        channels_match = (audio_channel == closest_event_channel) if closest_event_channel else True
+        # Treat 'B' (both/unknown) as a neutral match to avoid false mismatches.
+        if (closest_event_channel in (None, 'B')) or (audio_channel in (None, 'B')):
+            channels_match = True
+        else:
+            channels_match = (audio_channel == closest_event_channel)
         if not is_unmatched:
             if channels_match:
                 channel_match_count += 1

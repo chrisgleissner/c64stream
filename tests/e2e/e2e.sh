@@ -42,6 +42,7 @@ DEFAULT_MONITOR_RESOURCES=true  # Resource monitoring for CI (enabled by default
 DEFAULT_SCENARIO_OVERRIDES=""
 DEFAULT_SCENARIO_NAME=""
 DEFAULT_PACKET_PATTERN=""
+DEFAULT_FULL_FRAME_POP=false
 DEFAULT_SCENARIO=""
 DEFAULT_CSV_MAX_ROWS=2000  # 0 = unlimited CSV lines (preserve all data)
 SCENARIO_CI_SKIPPED=false  # Set by load_scenario if ci_skip=true on CI
@@ -215,14 +216,25 @@ ensure_udp_buffers() {
         return 0
     fi
 
-    local current_rmem_max=""
-    if [[ -r /proc/sys/net/core/rmem_max ]]; then
-        current_rmem_max=$(cat /proc/sys/net/core/rmem_max 2>/dev/null || echo "")
+    # Check all critical UDP parameters
+    local current_rmem_max current_rmem_default current_netdev_backlog
+    current_rmem_max=$(cat /proc/sys/net/core/rmem_max 2>/dev/null || echo "0")
+    current_rmem_default=$(cat /proc/sys/net/core/rmem_default 2>/dev/null || echo "0")
+    current_netdev_backlog=$(cat /proc/sys/net/core/netdev_max_backlog 2>/dev/null || echo "0")
+
+    local target_max=8388608      # 8MB max
+    local target_default=2097152  # 2MB default (critical for new sockets)
+    local target_backlog=5000     # 5000 packets (handles 19K burst)
+
+    # Check if all settings are adequate
+    local needs_update=false
+    if [[ "${current_rmem_max}" -lt "${target_max}" ]] || \
+       [[ "${current_rmem_default}" -lt "${target_default}" ]] || \
+       [[ "${current_netdev_backlog}" -lt "${target_backlog}" ]]; then
+        needs_update=true
     fi
 
-    local target_buffer=8388608  # 8MB
-
-    if [[ -n "${current_rmem_max}" ]] && [[ "${current_rmem_max}" =~ ^[0-9]+$ ]] && [[ "${current_rmem_max}" -ge "${target_buffer}" ]]; then
+    if [[ "${needs_update}" == "false" ]]; then
         return 0  # Already adequate
     fi
 
@@ -230,42 +242,79 @@ ensure_udp_buffers() {
     # Only attempt if we have sudo AND we're in an interactive session
     if [[ "$(id -u)" == "0" ]]; then
         # Running as root - apply directly and make persistent
-        sysctl -w net.core.rmem_max=${target_buffer} >/dev/null 2>&1
-        sysctl -w net.core.wmem_max=${target_buffer} >/dev/null 2>&1
+        sysctl -w net.core.rmem_max=${target_max} >/dev/null 2>&1
+        sysctl -w net.core.wmem_max=${target_max} >/dev/null 2>&1
+        sysctl -w net.core.rmem_default=${target_default} >/dev/null 2>&1
+        sysctl -w net.core.wmem_default=${target_default} >/dev/null 2>&1
+        sysctl -w net.core.netdev_max_backlog=${target_backlog} >/dev/null 2>&1
         # Make persistent
-        echo "net.core.rmem_max = ${target_buffer}" > /etc/sysctl.d/99-c64stream-udp.conf
-        echo "net.core.wmem_max = ${target_buffer}" >> /etc/sysctl.d/99-c64stream-udp.conf
+        cat > /etc/sysctl.d/99-c64stream-udp.conf <<EOF
+# C64 Stream E2E Test UDP Configuration
+# Ensures adequate buffers for high-throughput packet replay (19K packets in ~5s)
+net.core.rmem_max = ${target_max}
+net.core.wmem_max = ${target_max}
+net.core.rmem_default = ${target_default}
+net.core.wmem_default = ${target_default}
+net.core.netdev_max_backlog = ${target_backlog}
+EOF
     elif command -v sudo >/dev/null 2>&1 && [[ -t 0 ]]; then
-        # Interactive terminal: offer to increase buffers permanently (one-time setup)
-        log_warning "UDP receive buffer too small: ${current_rmem_max} bytes (< ${target_buffer} recommended)"
-        log_info "High-jitter tests may drop packets without larger buffers."
-        echo ""
-        echo "This is a one-time setup that will:"
-        echo "  1. Increase UDP buffers to 8MB immediately"
-        echo "  2. Make the change persistent (survives reboots)"
-        echo "  3. Create: /etc/sysctl.d/99-c64stream-udp.conf"
-        echo ""
-        echo -n "Increase UDP buffers permanently (requires sudo)? [y/N] "
-        read -r response
-        if [[ "${response}" =~ ^[Yy] ]]; then
-            # Create persistent configuration
-            echo "net.core.rmem_max = ${target_buffer}" | sudo tee /etc/sysctl.d/99-c64stream-udp.conf >/dev/null
-            echo "net.core.wmem_max = ${target_buffer}" | sudo tee -a /etc/sysctl.d/99-c64stream-udp.conf >/dev/null
-            # Apply immediately
+        # Check if persistent config already exists (skip prompt if so)
+        if [[ -f "/etc/sysctl.d/99-c64stream-udp.conf" ]]; then
+            log_info "UDP buffer config already exists: /etc/sysctl.d/99-c64stream-udp.conf"
+            # Reapply it in case current kernel value is lower
             sudo sysctl -p /etc/sysctl.d/99-c64stream-udp.conf >/dev/null 2>&1
-            log_success "UDP buffers increased permanently"
         else
-            log_info "Skipping UDP buffer increase (tests will use MIN_PACKET_DELAY)"
+            # Interactive terminal: offer to increase buffers permanently (one-time setup)
+            log_warning "UDP configuration insufficient for E2E tests:"
+            log_info "  rmem_default: ${current_rmem_default} bytes (need ${target_default})"
+            log_info "  rmem_max: ${current_rmem_max} bytes (need ${target_max})"
+            log_info "  netdev_max_backlog: ${current_netdev_backlog} packets (need ${target_backlog})"
+            echo ""
+            echo "This is a one-time setup that will:"
+            echo "  1. Set UDP buffer defaults to 2MB (critical for packet reception)"
+            echo "  2. Set UDP buffer max to 8MB"
+            echo "  3. Increase netdev backlog to 5000 packets (handles 19K burst)"
+            echo "  4. Make changes persistent (survives reboots)"
+            echo "  5. Create: /etc/sysctl.d/99-c64stream-udp.conf"
+            echo ""
+            echo "Without these settings, E2E tests will drop ~30% of packets."
+            echo ""
+            echo -n "Apply UDP tuning permanently (requires sudo)? [y/N] "
+            read -r response
+            if [[ "${response}" =~ ^[Yy] ]]; then
+                # Create persistent configuration
+                cat | sudo tee /etc/sysctl.d/99-c64stream-udp.conf >/dev/null <<EOF
+# C64 Stream E2E Test UDP Configuration
+# Ensures adequate buffers for high-throughput packet replay (19K packets in ~5s)
+net.core.rmem_max = ${target_max}
+net.core.wmem_max = ${target_max}
+net.core.rmem_default = ${target_default}
+net.core.wmem_default = ${target_default}
+net.core.netdev_max_backlog = ${target_backlog}
+EOF
+                # Apply immediately
+                sudo sysctl -p /etc/sysctl.d/99-c64stream-udp.conf >/dev/null 2>&1
+                log_success "UDP tuning applied permanently"
+            else
+                log_warning "Skipping UDP tuning - tests will drop packets (expect ~30% loss)"
+            fi
         fi
     fi
 
-    local new_rmem_max=$(cat /proc/sys/net/core/rmem_max 2>/dev/null || echo "0")
-    if [[ "${new_rmem_max}" -ge "${target_buffer}" ]]; then
-        log_success "UDP buffers: ${new_rmem_max} bytes"
+    # Verify final state
+    local new_rmem_max new_rmem_default new_netdev_backlog
+    new_rmem_max=$(cat /proc/sys/net/core/rmem_max 2>/dev/null || echo "0")
+    new_rmem_default=$(cat /proc/sys/net/core/rmem_default 2>/dev/null || echo "0")
+    new_netdev_backlog=$(cat /proc/sys/net/core/netdev_max_backlog 2>/dev/null || echo "0")
+
+    if [[ "${new_rmem_max}" -ge "${target_max}" ]] && \
+       [[ "${new_rmem_default}" -ge "${target_default}" ]] && \
+       [[ "${new_netdev_backlog}" -ge "${target_backlog}" ]]; then
+        log_success "UDP tuning: default=${new_rmem_default}, max=${new_rmem_max}, backlog=${new_netdev_backlog}"
     else
         # CI/non-interactive: Tests adapt to smaller buffers with MIN_PACKET_DELAY
-        log_info "UDP buffers: ${new_rmem_max} bytes (tests will use MIN_PACKET_DELAY)"
-        log_info "This is expected in CI environments (kernel parameters are read-only)"
+        log_warning "UDP tuning insufficient: default=${new_rmem_default}, max=${new_rmem_max}, backlog=${new_netdev_backlog}"
+        log_info "Tests will adapt with MIN_PACKET_DELAY (expected in CI environments)"
     fi
 }
 
@@ -406,7 +455,7 @@ EOF
 list_scenarios() {
     echo "Available E2E scenarios:"
     echo ""
-    python3 "${TEST_DIR}/scenario_loader.py" --list 2>/dev/null || {
+    python3 "${TEST_DIR}/util/scenario_loader.py" --list 2>/dev/null || {
         if [[ -d "${SCENARIOS_DIR}" ]]; then
             for scenario_dir in "${SCENARIOS_DIR}"/*/; do
                 if [[ -f "${scenario_dir}scenario.yaml" ]]; then
@@ -450,11 +499,13 @@ load_scenario() {
     log_info "Loading scenario: ${scenario_name}"
 
     # Parse scenario.yaml (new concise format)
-    local name format preset pattern
+    local name format preset pattern full_frame_pop csv_max_rows
     name=$(grep -m1 "^name:" "${scenario_yaml}" | sed 's/^name: *//' || true)
     format=$(grep -m1 "^format:" "${scenario_yaml}" | sed 's/^format: *//' || true)
     preset=$(grep -m1 "^preset:" "${scenario_yaml}" | sed 's/^preset: *//' || true)
     pattern=$(grep -m1 "^pattern:" "${scenario_yaml}" | sed 's/^pattern: *//' || true)
+    full_frame_pop=$(grep -m1 "^full_frame_pop:" "${scenario_yaml}" | sed 's/^full_frame_pop: *//' || true)
+    csv_max_rows=$(grep -m1 "^csv_max_rows:" "${scenario_yaml}" | sed 's/^csv_max_rows: *//' || true)
 
     if [[ -z "${name}" || -z "${format}" ]]; then
         log_error "Invalid scenario.yaml (missing required fields)"
@@ -498,15 +549,23 @@ load_scenario() {
         PACKET_PATTERN="${pattern}"
         log_info "  Packet pattern: ${PACKET_PATTERN}"
     fi
+    if [[ "${full_frame_pop}" == "true" ]]; then
+        FULL_FRAME_POP=true
+        log_info "  Packet mode: full-frame-pop"
+    fi
+    if [[ -n "${csv_max_rows}" ]]; then
+        CSV_MAX_ROWS="${csv_max_rows}"
+        log_info "  CSV max rows: ${CSV_MAX_ROWS}"
+    fi
 
     # Generate OBS scene JSON from scenario
     local generated_dir="${scenario_dir}/generated"
     mkdir -p "${generated_dir}/basic/scenes"
     if [[ "${VERBOSE}" == true ]]; then
-        python3 "${TEST_DIR}/scenario_loader.py" --scenario "${scenario_name}" \
+        python3 "${TEST_DIR}/util/scenario_loader.py" --scenario "${scenario_name}" \
             --output "${generated_dir}/basic/scenes/C64StreamTest.json"
     else
-        python3 "${TEST_DIR}/scenario_loader.py" --scenario "${scenario_name}" \
+        python3 "${TEST_DIR}/util/scenario_loader.py" --scenario "${scenario_name}" \
             --output "${generated_dir}/basic/scenes/C64StreamTest.json" 2>/dev/null
     fi
 
@@ -545,6 +604,7 @@ parse_args() {
     SCENARIO_NAME="${DEFAULT_SCENARIO_NAME}"
     SCENARIO="${DEFAULT_SCENARIO}"
     PACKET_PATTERN="${DEFAULT_PACKET_PATTERN}"
+    FULL_FRAME_POP="${DEFAULT_FULL_FRAME_POP}"
     RUN_ALL_SCENARIOS="${DEFAULT_RUN_ALL_SCENARIOS}"
     ENABLE_RESOURCE_MONITORING="${DEFAULT_ENABLE_RESOURCE_MONITORING}"
     RESOURCE_INTERVAL_MS="${DEFAULT_RESOURCE_INTERVAL_MS}"
@@ -810,6 +870,14 @@ parse_args() {
 check_dependencies() {
     log_info "Checking system dependencies..."
 
+    # If running inside a virtual environment, prefer installing Python module
+    # dependencies into the venv via pip. System package installs (apt/dnf/etc)
+    # won't be visible to the venv's interpreter.
+    local in_venv=false
+    if [[ -n "${VIRTUAL_ENV:-}" ]]; then
+        in_venv=true
+    fi
+
     local missing_deps=()
 
     # Required tools - map command names to package names
@@ -847,6 +915,64 @@ check_dependencies() {
     fi
     if ! python3 -c "import websocket" >/dev/null 2>&1; then
         missing_deps+=("python3-websocket")
+    fi
+
+    if [[ "${in_venv}" == "true" ]]; then
+        local -a pip_pkgs=()
+        for dep in "${missing_deps[@]}"; do
+            case "${dep}" in
+                python3-numpy) pip_pkgs+=("numpy") ;;
+                python3-opencv) pip_pkgs+=("opencv-python-headless") ;;
+                python3-pil) pip_pkgs+=("Pillow") ;;
+                python3-yaml) pip_pkgs+=("PyYAML") ;;
+                python3-scipy) pip_pkgs+=("scipy") ;;
+                python3-requests) pip_pkgs+=("requests") ;;
+                python3-websocket) pip_pkgs+=("websocket-client") ;;
+            esac
+        done
+
+        if [[ ${#pip_pkgs[@]} -gt 0 ]]; then
+            if python3 -m pip --version >/dev/null 2>&1; then
+                log_info "Detected Python venv; installing missing Python modules via pip: ${pip_pkgs[*]}"
+                if [[ "${VERBOSE}" == true ]]; then
+                    python3 -m pip install --upgrade "${pip_pkgs[@]}"
+                else
+                    python3 -m pip install --upgrade "${pip_pkgs[@]}" >/dev/null
+                fi
+
+                # Re-check Python deps after pip install.
+                missing_deps=()
+                for tool in "${!tool_packages[@]}"; do
+                    if ! command -v "${tool}" &> /dev/null; then
+                        missing_deps+=("${tool_packages[$tool]}")
+                    fi
+                done
+
+                if ! python3 -c "import numpy" >/dev/null 2>&1; then
+                    missing_deps+=("python3-numpy")
+                fi
+                if ! python3 -c "import cv2" >/dev/null 2>&1; then
+                    missing_deps+=("python3-opencv")
+                fi
+                if ! python3 -c "from PIL import Image" >/dev/null 2>&1; then
+                    missing_deps+=("python3-pil")
+                fi
+                if ! python3 -c "import yaml" >/dev/null 2>&1; then
+                    missing_deps+=("python3-yaml")
+                fi
+                if ! python3 -c "import scipy" >/dev/null 2>&1; then
+                    missing_deps+=("python3-scipy")
+                fi
+                if ! python3 -c "import requests" >/dev/null 2>&1; then
+                    missing_deps+=("python3-requests")
+                fi
+                if ! python3 -c "import websocket" >/dev/null 2>&1; then
+                    missing_deps+=("python3-websocket")
+                fi
+            else
+                log_warning "Detected Python venv but pip is unavailable; cannot auto-install Python module dependencies."
+            fi
+        fi
     fi
 
     # Virtual display tools (always needed for headless testing)
@@ -1179,6 +1305,56 @@ build_project() {
     log_success "Build completed successfully"
 }
 
+# Stop real C64 Ultimate device from streaming to prevent cross-pollution
+stop_real_c64_streaming() {
+    local c64_host="c64u"
+    local reset_endpoint="/v1/machine:reset"
+    local reset_method="PUT"
+
+    # Check if c64u is reachable
+    if ! host "${c64_host}" >/dev/null 2>&1 && ! ping -c 1 -W 1 "${c64_host}" >/dev/null 2>&1; then
+        if [[ "${VERBOSE}" == true ]]; then
+            log_info "Real C64 device (${c64_host}) not reachable - skipping stream stop"
+        fi
+        return 0
+    fi
+
+    # Explicitly stop all streams before resetting
+    log_info "Stopping real C64 device streaming to prevent test cross-pollution..."
+    if command -v curl &>/dev/null; then
+        local streams=("video" "audio" "debug")
+        for stream in "${streams[@]}"; do
+            local stop_url="http://${c64_host}/v1/streams/${stream}:stop"
+            if curl -s -X PUT "${stop_url}" >/dev/null 2>&1; then
+                if [[ "${VERBOSE}" == true ]]; then
+                    log_success "Stopped ${stream} stream on ${c64_host}"
+                fi
+            else
+                if [[ "${VERBOSE}" == true ]]; then
+                    log_warning "Could not stop ${stream} stream - it may not have been running"
+                fi
+            fi
+        done
+
+        # Then reset the machine
+        local url="http://${c64_host}${reset_endpoint}"
+        if curl -s -X "${reset_method}" "${url}" >/dev/null 2>&1; then
+            if [[ "${VERBOSE}" == true ]]; then
+                log_success "Reset request sent to ${c64_host}"
+            fi
+        else
+            if [[ "${VERBOSE}" == true ]]; then
+                log_warning "Could not reset real C64 device - it may not be running or REST API unavailable"
+                log_warning "Continuing anyway, but test may receive real device packets if it's streaming"
+            fi
+        fi
+    fi
+
+    sleep 1
+    return 0
+}
+
+
 # Install plugin to OBS
 install_plugin() {
     if [[ "${SKIP_BUILD}" == true ]]; then
@@ -1232,7 +1408,7 @@ generate_packets() {
 
     # Generate packets
     local cmd=(
-        "./generate_packets.py"
+        "./util/generate_packets.py"
         "--frames" "${FRAMES}"
         "--format" "${FORMAT}"
         "--output" "test_packets"
@@ -1247,6 +1423,9 @@ generate_packets() {
             exit 1
         fi
         cmd+=("--pattern" "${PACKET_PATTERN}")
+    fi
+    if [[ "${FULL_FRAME_POP}" == true ]]; then
+        cmd+=("--full-frame-pop")
     fi
 
     # Optional pop disabling (useful for testing network strain hypothesis)
@@ -1297,8 +1476,8 @@ run_e2e_test() {
     local udp_replay_path="${BUILD_DIR}/tests/e2e/udp_replay"
     if [[ ! -f "${udp_replay_path}" ]]; then
         # If the prebuilt tool doesn't exist (e.g., when --skip-build is used),
-        # let the Python harness auto-build into the current directory.
-        udp_replay_path="./udp_replay"
+        # fall back to the repo copy under util/.
+        udp_replay_path="./util/udp_replay"
     fi
 
     # Build test command
@@ -2576,7 +2755,7 @@ PY
     #
     # IMPORTANT: extract by exact frame index (n) rather than by timestamp (t).
     # Timestamp-based extraction can miss a 1–2 frame marker due to PTS rounding/offsets.
-    if [[ -n "${recording_mp4}" && -f "${recording_mp4}" && -x "${TEST_DIR}/extract.frame" ]]; then
+    if [[ -n "${recording_mp4}" && -f "${recording_mp4}" && -x "${TEST_DIR}/util/extract-frame.sh" ]]; then
         local pop_time_ms pop_frame_num first_pop_frame frame_rate
         pop_time_ms=""
         pop_frame_num=""
@@ -2632,7 +2811,7 @@ PY
             pop_frame_num=$(python3 -c "
 import sys
 sys.path.insert(0, '${TEST_DIR}')
-from test_av_sync import detect_video_pops
+from util.test_av_sync import detect_video_pops
 pops = detect_video_pops('${recording_mp4}', frame_rate=float('${frame_rate}'))
 if pops:
     print(int(pops[0]))
@@ -2689,7 +2868,7 @@ if pops:
                     fi
                     local out_tmp
                     out_tmp="${tmp_dir}/frame_${cand}.png"
-                    "${TEST_DIR}/extract.frame" --input "${recording_mp4}" --output "${out_tmp}" --frame "${cand}" >/dev/null 2>&1 || continue
+                    "${TEST_DIR}/util/extract-frame.sh" --input "${recording_mp4}" --output "${out_tmp}" --frame "${cand}" >/dev/null 2>&1 || continue
                     if [[ ! -s "${out_tmp}" ]]; then
                         continue
                     fi
@@ -2796,7 +2975,7 @@ PY
 
             # Fallback if python scoring not available
             if [[ "${sample_frame_extracted}" != true ]]; then
-                "${TEST_DIR}/extract.frame" --input "${recording_mp4}" --output "${sample_frame_path}" --frame "${first_pop_frame}" || true
+                "${TEST_DIR}/util/extract-frame.sh" --input "${recording_mp4}" --output "${sample_frame_path}" --frame "${first_pop_frame}" || true
                 sample_frame_extracted=true
                 sample_frame_index="${first_pop_frame}"
             fi
@@ -2811,7 +2990,7 @@ PY
             if [[ -n "${content_start_frame}" && -n "${content_end_frame}" ]]; then
                 local mid_frame
                 mid_frame=$(( (content_start_frame + content_end_frame) / 2 ))
-                "${TEST_DIR}/extract.frame" --input "${recording_mp4}" --output "${sample_frame_path}" --frame "${mid_frame}" || true
+                "${TEST_DIR}/util/extract-frame.sh" --input "${recording_mp4}" --output "${sample_frame_path}" --frame "${mid_frame}" || true
             else
                 if [[ -z "${sample_frame_seconds}" ]]; then
                     local dur_sec
@@ -2825,7 +3004,7 @@ PY
                     fi
                 fi
 
-                "${TEST_DIR}/extract.frame" --input "${recording_mp4}" --output "${sample_frame_path}" --time "${sample_frame_seconds}" || true
+                "${TEST_DIR}/util/extract-frame.sh" --input "${recording_mp4}" --output "${sample_frame_path}" --time "${sample_frame_seconds}" || true
             fi
         fi
     fi
@@ -3088,6 +3267,12 @@ main() {
 
     check_dependencies
     setup_process_priority
+
+    # CRITICAL: Stop real C64 device from streaming to prevent cross-pollution
+    # Synthetic tests use mock C64U on localhost, but real device may be sending
+    # UDP packets to the same ports, causing tests to receive wrong packets
+    stop_real_c64_streaming
+
     build_project
     install_plugin
     generate_packets

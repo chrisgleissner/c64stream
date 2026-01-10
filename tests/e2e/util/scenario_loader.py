@@ -27,6 +27,16 @@ from typing import Any, Optional
 import yaml
 
 
+def _e2e_dir() -> Path:
+    # tests/e2e/util/scenario_loader.py -> parents[1] == tests/e2e
+    return Path(__file__).resolve().parents[1]
+
+
+def _repo_root() -> Path:
+    # tests/e2e/util/scenario_loader.py -> parents[3] == repo root
+    return Path(__file__).resolve().parents[3]
+
+
 @dataclass
 class ScenarioConfig:
     """Parsed scenario configuration."""
@@ -54,8 +64,9 @@ def load_preset_settings(preset_name: str, presets_path: Optional[Path] = None) 
     if presets_path is None:
         # Find effect_presets.ini relative to this script or project root
         script_dir = Path(__file__).parent
+        repo_root = _repo_root()
         candidates = [
-            script_dir.parent.parent / "data" / "effect_presets.ini",
+            repo_root / "data" / "effect_presets.ini",
             script_dir / "effect_presets.ini",
             Path.home() / ".config" / "obs-studio" / "plugins" / "c64stream" / "data" / "effect_presets.ini",
         ]
@@ -124,8 +135,7 @@ def load_base_template(template_path: Optional[Path] = None) -> dict:
         Dictionary representing the base OBS scene JSON
     """
     if template_path is None:
-        script_dir = Path(__file__).parent
-        template_path = script_dir / "scenarios" / "base_template.json"
+        template_path = _e2e_dir() / "scenarios" / "base_template.json"
 
     if not template_path.exists():
         raise FileNotFoundError(f"Base template not found: {template_path}")
@@ -389,8 +399,7 @@ def list_scenarios(scenarios_dir: Optional[Path] = None) -> list[str]:
         List of scenario directory names
     """
     if scenarios_dir is None:
-        script_dir = Path(__file__).parent
-        scenarios_dir = script_dir / "scenarios"
+        scenarios_dir = _e2e_dir() / "scenarios"
 
     scenarios = []
     for entry in sorted(scenarios_dir.iterdir()):
@@ -414,8 +423,7 @@ def get_scenario_summary(scenario_name: str, scenarios_dir: Optional[Path] = Non
         Dictionary with scenario summary info
     """
     if scenarios_dir is None:
-        script_dir = Path(__file__).parent
-        scenarios_dir = script_dir / "scenarios"
+        scenarios_dir = _e2e_dir() / "scenarios"
 
     scenario_path = scenarios_dir / scenario_name / "scenario.yaml"
     scenario = load_scenario(scenario_path)
@@ -450,8 +458,7 @@ if __name__ == "__main__":
             except Exception as e:
                 print(f"  {name}: (error loading: {e})")
     elif args.scenario:
-        script_dir = Path(__file__).parent
-        scenario_path = script_dir / "scenarios" / args.scenario / "scenario.yaml"
+        scenario_path = _e2e_dir() / "scenarios" / args.scenario / "scenario.yaml"
         scenario = load_scenario(scenario_path)
 
         if args.verbose:

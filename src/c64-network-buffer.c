@@ -160,27 +160,19 @@ static void rb_push(struct packet_ring_buffer *rb, const uint8_t *data, size_t l
     // Check if buffer is full or at high utilization
     size_t next_head = (head + 1) % rb->max_capacity;
     if (next_head == tail) {
-        // Buffer full: use dropping strategy to prevent continuous packet loss
-        // Drop 10% of packets (minimum 2) to create breathing room
-        size_t packets_to_drop = (current_packets / 10) + 2; // At least 2, typically 10%
-        if (packets_to_drop > current_packets / 2) {
-            packets_to_drop = current_packets / 2; // Never drop more than half
-        }
+        // Buffer full: drop incoming packet to prevent blocking
+        // We cannot advance 'tail' here (drop oldest) because 'tail' is owned by the consumer thread.
+        // Modifying 'tail' concurrently from the producer thread causes race conditions.
 
-        for (size_t i = 0; i < packets_to_drop && tail != head; i++) {
-            tail = (tail + 1) % rb->max_capacity;
-            os_atomic_set_long(&rb->tail, (long)tail);
-        }
-
-        // Log buffer utilization once per second
         static uint64_t last_full_log_time = 0;
         uint64_t now = os_gettime_ns();
         if (now - last_full_log_time >= 1000000000ULL) {
             C64_LOG_WARNING("" NETWORK_LOG_PREFIX
-                            " %s buffer full: dropped %zu packets, utilization was=%zu%% (%zu/%zu packets)",
-                            type_name, packets_to_drop, utilization_percent, current_packets, rb->max_capacity);
+                            " %s buffer full: dropping incoming packet, utilization=%zu%% (%zu/%zu packets)",
+                            type_name, utilization_percent, current_packets, rb->max_capacity);
             last_full_log_time = now;
         }
+        return;
     } else if (utilization_percent >= 90) {
         // Warn when approaching capacity (but don't spam logs)
         static uint64_t last_warn_log_time = 0;
@@ -441,6 +433,44 @@ void c64_network_buffer_destroy(struct c64_network_buffer *buf)
     pthread_mutex_destroy(&buf->video.mutex);
     pthread_mutex_destroy(&buf->audio.mutex);
     free(buf);
+}
+
+static size_t c64_rb_packet_count(const struct packet_ring_buffer *rb)
+{
+    if (!rb) {
+        return 0;
+    }
+
+    const long head_l = os_atomic_load_long((volatile long *)&rb->head);
+    const long tail_l = os_atomic_load_long((volatile long *)&rb->tail);
+    if (head_l < 0 || tail_l < 0) {
+        return 0;
+    }
+
+    const size_t head = (size_t)head_l;
+    const size_t tail = (size_t)tail_l;
+    const size_t cap = rb->max_capacity;
+    if (cap == 0) {
+        return 0;
+    }
+
+    return (head >= tail) ? (head - tail) : (cap - tail + head);
+}
+
+size_t c64_network_buffer_get_video_packet_count(const struct c64_network_buffer *buf)
+{
+    if (!buf) {
+        return 0;
+    }
+    return c64_rb_packet_count(&buf->video);
+}
+
+size_t c64_network_buffer_get_audio_packet_count(const struct c64_network_buffer *buf)
+{
+    if (!buf) {
+        return 0;
+    }
+    return c64_rb_packet_count(&buf->audio);
 }
 
 void c64_network_buffer_set_delay(struct c64_network_buffer *buf, size_t video_delay_ms, size_t audio_delay_ms)

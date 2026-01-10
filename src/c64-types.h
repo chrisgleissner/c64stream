@@ -14,9 +14,11 @@ See <https://www.gnu.org/licenses/> for details.
 #include <util/threading.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include "c64-network.h"
 #include "c64-network-buffer.h"
 #include "c64-protocol.h"
+#include "c64-network-fifo.h"
 
 // Frame packet structure for reordering
 struct frame_packet {
@@ -33,8 +35,44 @@ struct frame_assembly {
     uint16_t received_packets; // Number of packets received
     uint16_t expected_packets;
     bool complete;                  // Frame completion flag
-    uint64_t start_time;            // When frame assembly started
+    uint64_t start_time;            // When frame assembly started (first packet)
+    uint64_t last_packet_time;      // When last packet arrived (for A/V sync)
     uint64_t packets_received_mask; // Bitmask of received packets (for 64 packets max)
+};
+
+#define C64_AV_SYNC_EVENT_QUEUE_SIZE 8
+#define C64_AV_SYNC_ORIGIN_COUNT 2
+
+struct c64_av_sync_event {
+    uint64_t ts;
+    uint32_t seq;
+    uint16_t frame_num;
+    bool used;
+};
+
+struct c64_av_sync_match {
+    uint64_t video_ts;
+    uint64_t audio_ts;
+    uint32_t video_seq;
+    uint32_t audio_seq;
+    uint16_t video_frame_num;
+    bool valid;
+};
+
+struct c64_av_sync_state {
+    uint64_t last_video_pop_ts;
+    uint64_t last_audio_pop_ts;
+    uint64_t last_audio_pop_detection_ts; // Debounce: last audio pop detection time
+    uint64_t last_video_pop_detection_ts; // Debounce: last video pop detection time
+    uint32_t video_pop_count;
+    uint32_t audio_pop_count;
+
+    struct c64_av_sync_match last_match;
+
+    struct c64_av_sync_event audio_events[C64_AV_SYNC_EVENT_QUEUE_SIZE];
+    struct c64_av_sync_event video_events[C64_AV_SYNC_EVENT_QUEUE_SIZE];
+    size_t audio_events_count;
+    size_t video_events_count;
 };
 
 struct c64_source {
@@ -47,11 +85,14 @@ struct c64_source {
     char obs_ip_address[64];      // OBS IP Address (this machine)
     pthread_mutex_t config_mutex; // Protects dns_server_ip/hostname/ip_address from concurrent access
     bool auto_detect_ip;
-    bool initial_ip_detected; // Flag to track if initial IP detection was done
+    bool expected_peer_ip_set; // Whether expected_peer_ip contains a valid IPv4 address
+    uint32_t expected_peer_ip; // Expected peer IPv4 address in network byte order (AF_INET)
+    bool initial_ip_detected;  // Flag to track if initial IP detection was done
     uint32_t video_port;
     uint32_t audio_port;
     uint32_t control_port;
     bool streaming;
+    uint64_t last_start_command_time_ns; // When we last requested streaming (START commands or start_streaming)
 
     // Video data
     uint32_t width;
@@ -89,6 +130,24 @@ struct c64_source {
 
     // Audio data
     struct audio_output_info audio_info;
+    uint64_t last_audio_submit_ns;
+    uint64_t last_video_submit_ns;
+
+    // Synthetic A/V timeline (single shared origin)
+    pthread_mutex_t stream_start_mutex; // Guards one-time init/reset of stream_start_ns
+    uint64_t stream_start_ns;           // Shared synthetic start time (ns)
+    volatile bool stream_start_set;     // Atomic read (lock-free fast path)
+
+    // Synthetic timestamps (derived solely from stream_start_ns + indices)
+    uint64_t last_video_ts_ns; // Last synthetic video timestamp submitted to OBS
+    uint64_t last_audio_ts_ns; // Last synthetic audio timestamp submitted to OBS
+
+    // One-time startup timing logs
+    uint64_t first_video_ts_ns;
+    uint64_t first_audio_ts_ns;
+    bool first_video_ts_logged;
+    bool first_audio_ts_logged;
+    bool initial_av_delta_logged;
 
     // Network
     socket_t video_socket;
@@ -109,17 +168,19 @@ struct c64_source {
     uint64_t last_frame_time;
     uint64_t frame_interval_ns; // Target frame interval (20ms for 50Hz PAL)
 
-    // Ideal timestamp generation for OBS async video
-    uint64_t stream_start_time_ns; // Base timestamp when streaming started
-    uint16_t first_frame_num;      // First frame number seen (for offset calculation)
-    bool timestamp_base_set;       // Flag indicating if base timestamp is established
-
-    // Monotonic audio timestamp generation
+    // Synthetic timestamp generation (monotonic, packet-index based)
     uint64_t audio_packet_count;              // Total audio packets processed since stream start
+    uint16_t last_audio_ts_seq;               // Last 16-bit audio packet sequence number seen (wrap-aware)
+    bool audio_ts_seq_set;                    // True once last_audio_ts_seq has been initialized
+    uint64_t audio_packet_index;              // Monotonic packet index derived from sequence progression
     uint64_t audio_interval_ns;               // Nanoseconds per audio packet (format-specific)
     double audio_sample_rate;                 // Audio sample rate (exact: 47982.887 Hz PAL, 47940.341 Hz NTSC)
-    uint64_t audio_base_time;                 // Base timestamp for synthetic audio timestamps
     uint64_t last_audio_timestamp_validation; // Last timestamp for progression validation
+
+    // Video timestamp tracking (frame-index based, derived from observed frame numbers)
+    uint16_t last_video_ts_frame_num;
+    bool video_ts_frame_num_set;
+    uint64_t video_frame_index;
 
     // Logo texture for no-connection display
     gs_texture_t *logo_texture; // Loaded logo texture for async video output
@@ -154,9 +215,22 @@ struct c64_source {
     volatile long video_frames_processed; // Total video frames processed (atomic)
     volatile long audio_packets_received; // Total audio packets received (atomic)
     volatile long audio_bytes_received;   // Total audio bytes received (atomic)
-    uint64_t last_stats_log_time;         // Last time video statistics were logged (non-atomic)
-    uint64_t last_audio_stats_log_time;   // Last time audio statistics were logged (non-atomic)
-    uint64_t last_stats_tick_ns;          // Last time stats batching was checked (limits per-packet timing calls)
+
+    // Debug counters for packet loss investigation
+    volatile long debug_recvfrom_calls;       // Total recvfrom calls made
+    volatile long debug_recvfrom_eagain;      // Total EAGAIN/EWOULDBLOCK results
+    volatile long debug_recvfrom_bytes_total; // Sum of all bytes from recvfrom (including partial/headers)
+    volatile long debug_packets_dropped_size; // Packets dropped due to wrong size
+
+    // Stage-1 UDP network FIFOs (decouple socket recv from buffering/order work)
+    struct c64_network_fifo video_fifo;
+    struct c64_network_fifo audio_fifo;
+    struct c64_network_fifo_packet *video_fifo_entries;
+    struct c64_network_fifo_packet *audio_fifo_entries;
+
+    uint64_t last_stats_log_time;       // Last time video statistics were logged (non-atomic)
+    uint64_t last_audio_stats_log_time; // Last time audio statistics were logged (non-atomic)
+    uint64_t last_stats_tick_ns;        // Last time stats batching was checked (limits per-packet timing calls)
 
     // Frame saving for analysis (logo handled by async video - no manual logo needed)
     bool record_frames;
@@ -175,10 +249,24 @@ struct c64_source {
     FILE *network_file;
     char session_folder[800]; // Current session folder path
     uint64_t recording_start_time;
-    uint64_t csv_timing_base_ns; // Shared nanosecond timestamp when first CSV entry is written (network or OBS)
+    uint64_t csv_timing_base_ns;   // Shared nanosecond timestamp when first CSV entry is written (network or OBS)
+    bool csv_debug_enabled;        // Snapshot of debug state for CSV headers/rows
+    uint64_t last_video_packet_us; // Last video packet timestamp for interval calculation (per-session)
+    uint64_t last_audio_packet_us; // Last audio packet timestamp for interval calculation (per-session)
     volatile long recorded_frames;
     volatile long recorded_audio_samples;
     pthread_mutex_t recording_mutex;
+
+    // Debug-only A/V pop detection (edge-based)
+    bool av_sync_last_video_all_white;
+    bool av_sync_last_audio_has_signal;
+
+    // UDP full-frame-pop marker detection (packet-level). Kept separate from OBS frame probe state.
+    bool av_sync_last_video_pop_marker;
+    bool av_sync_last_audio_pop_marker;
+
+    struct c64_av_sync_state av_sync[C64_AV_SYNC_ORIGIN_COUNT];
+    pthread_mutex_t av_sync_mutex;
 
     // Pre-allocated recording buffers (eliminates malloc/free in hot paths)
     uint8_t *bmp_row_buffer;      // Pre-allocated BMP row buffer for frame saving

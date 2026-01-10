@@ -506,7 +506,8 @@ jobs:
         run: |
           : Run Python Unit Tests 🧪
           cd tests/e2e
-          python -m pytest test_*.py -v --tb=short --junitxml=../../test-results.xml
+          # Tests live in tests/e2e/util (see util/test_*.py)
+          python -m pytest util/test_*.py -v --tb=short --junitxml=../../test-results.xml
 
       - name: Upload Test Results 📊
         uses: actions/upload-artifact@v4
@@ -994,6 +995,7 @@ jobs:
           - ntsc_classic_crt
           - ntsc_default
           - ntsc_default_720p
+          - ntsc_default_debug
           - ntsc_default_record
           - ntsc_delay_buffer500
           # TODO Investigate why these scenarios pass locally but experience large UDP packet loss on CI.

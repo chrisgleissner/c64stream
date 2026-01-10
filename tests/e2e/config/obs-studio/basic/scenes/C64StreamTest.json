@@ -103,6 +103,9 @@
             "uuid": "e4232553-c3cc-4d08-bbf9-9fce742c85c1",
             "id": "c64_source",
             "versioned_id": "c64_source",
+            "settings": {
+                "c64_host": "127.0.0.1"
+            },
             "mixers": 255,
             "sync": 0,
             "flags": 0,

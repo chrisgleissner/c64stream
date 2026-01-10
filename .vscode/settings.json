@@ -72,7 +72,7 @@
         }
     },
     "[markdown]": {
-        "editor.defaultFormatter": "DavidAnson.vscode-markdownlint"
+        "editor.defaultFormatter": "yzhang.markdown-all-in-one"
     },
 
     // GitHub Actions settings

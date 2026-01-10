@@ -70,6 +70,10 @@ int c64_network_buffer_pop(struct c64_network_buffer *buf, const uint8_t **video
 // Flush all buffers (clear all pending data)
 void c64_network_buffer_flush(struct c64_network_buffer *buf);
 
+// Approximate current buffer occupancy (packets). Intended for periodic statistics logging.
+size_t c64_network_buffer_get_video_packet_count(const struct c64_network_buffer *buf);
+size_t c64_network_buffer_get_audio_packet_count(const struct c64_network_buffer *buf);
+
 #ifdef __cplusplus
 }
 #endif

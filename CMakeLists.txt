@@ -136,6 +136,7 @@ target_sources(
   ${CMAKE_PROJECT_NAME}
   PRIVATE
     src/plugin-main.c
+    src/c64-av-sync.c
     src/c64-network.c
     src/c64-network-buffer.c
     src/c64-protocol.c
