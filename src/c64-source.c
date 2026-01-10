@@ -419,6 +419,18 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
         return NULL;
     }
 
+    // Initialize shared synthetic start time mutex (A/V timestamps share a single origin)
+    if (pthread_mutex_init(&context->stream_start_mutex, NULL) != 0) {
+        C64_LOG_ERROR("Failed to initialize stream start mutex");
+        pthread_mutex_destroy(&context->config_mutex);
+        pthread_mutex_destroy(&context->assembly_mutex);
+        bfree(context->frame_buffer);
+        bfree(context->bmp_row_buffer);
+        bfree(context->bgr_frame_buffer);
+        bfree(context);
+        return NULL;
+    }
+
     // Initialize buffer delay from settings - optimized for low latency
     context->buffer_delay_ms = (uint32_t)obs_data_get_int(settings, "buffer_delay_ms");
     if (context->buffer_delay_ms == 0) {
@@ -429,6 +441,9 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->network_buffer = c64_network_buffer_create();
     if (!context->network_buffer) {
         C64_LOG_ERROR("Failed to create network buffer");
+        pthread_mutex_destroy(&context->stream_start_mutex);
+        pthread_mutex_destroy(&context->config_mutex);
+        pthread_mutex_destroy(&context->assembly_mutex);
         if (context->frame_buffer)
             bfree(context->frame_buffer);
         if (context->bmp_row_buffer)
@@ -501,6 +516,7 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
             }
             c64_network_buffer_destroy(context->network_buffer);
             context->network_buffer = NULL;
+            pthread_mutex_destroy(&context->stream_start_mutex);
             pthread_mutex_destroy(&context->assembly_mutex);
             pthread_mutex_destroy(&context->config_mutex);
             bfree(context->frame_buffer);
@@ -532,10 +548,19 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->consecutive_failures = 0;
     os_atomic_set_long(&context->retry_thread_active, 0);
 
-    // Initialize ideal timestamp generation
-    context->stream_start_time_ns = 0;
-    context->first_frame_num = 0;
-    context->timestamp_base_set = false;
+    // Initialize synthetic A/V timeline state
+    context->stream_start_ns = 0;
+    os_atomic_set_bool(&context->stream_start_set, false);
+    context->last_video_ts_ns = 0;
+    context->last_audio_ts_ns = 0;
+    context->first_video_ts_ns = 0;
+    context->first_audio_ts_ns = 0;
+    context->first_video_ts_logged = false;
+    context->first_audio_ts_logged = false;
+    context->initial_av_delta_logged = false;
+    context->last_video_ts_frame_num = 0;
+    context->video_ts_frame_num_set = false;
+    context->video_frame_index = 0;
     context->frame_interval_ns = prefer_pal ? C64_PAL_FRAME_INTERVAL_NS
                                             : C64_NTSC_FRAME_INTERVAL_NS; // Default to OBS FPS
 
@@ -706,6 +731,7 @@ void c64_destroy(void *data)
     obs_leave_graphics();
 
     // Cleanup resources
+    pthread_mutex_destroy(&context->stream_start_mutex);
     pthread_mutex_destroy(&context->assembly_mutex);
     pthread_mutex_destroy(&context->config_mutex);
     if (context->frame_buffer) {
@@ -852,26 +878,7 @@ void c64_update(void *data, obs_data_t *settings)
 
         // Update network buffer delay (this adjusts UDP packet buffering only)
         if (context->network_buffer) {
-            c64_network_buffer_set_delay(
-                context->network_buffer, new_buffer_delay_ms,
-                new_buffer_delay_ms); // Adjust timing bases forward to maintain monotonic timestamps for OBS
-            // This prevents audio pipeline confusion while correcting for buffer delay changes
-            uint64_t delay_adjustment_ns = (uint64_t)(old_buffer_delay_ms - new_buffer_delay_ms) * 1000000ULL;
-
-            // Adjust video timing base forward by the delay difference
-            if (context->timestamp_base_set) {
-                context->stream_start_time_ns += delay_adjustment_ns;
-                C64_LOG_DEBUG("📐 Video timing base adjusted forward by %llu ms", delay_adjustment_ns / 1000000ULL);
-            }
-
-            // Adjust audio timing base forward by the delay difference
-            if (context->audio_base_time != 0) {
-                context->audio_base_time += delay_adjustment_ns;
-                C64_LOG_DEBUG("🎵 Audio timing base adjusted forward by %llu ms", delay_adjustment_ns / 1000000ULL);
-            }
-
-            C64_LOG_INFO("🔄 A/V timing bases adjusted forward due to buffer delay change (%ums -> %ums)",
-                         old_buffer_delay_ms, new_buffer_delay_ms);
+            c64_network_buffer_set_delay(context->network_buffer, new_buffer_delay_ms, new_buffer_delay_ms);
 
             // Force render texture refresh to prevent display freeze after buffer changes
             // Buffer delay changes can cause frame buffer desynchronization
@@ -921,11 +928,8 @@ void c64_update(void *data, obs_data_t *settings)
                                  (context->pixel_height != 1.0f);
 
     // Reset timing base if dimension-affecting effects were just enabled during streaming
-    if (!prev_dimension_effects && new_dimension_effects && context->timestamp_base_set && context->streaming) {
-        context->timestamp_base_set = false;
-        C64_LOG_INFO("" EFFECT_LOG_PREFIX
-                     " Dimension-affecting effects activated - timing base reset to maintain A/V sync");
-    }
+    (void)prev_dimension_effects;
+    (void)new_dimension_effects;
 
     // Start/restart streaming with current configuration asynchronously (avoid blocking UI thread).
     C64_LOG_INFO("" NETWORK_LOG_PREFIX " Applying configuration and scheduling streaming start");
@@ -997,11 +1001,31 @@ void c64_start_streaming(struct c64_source *context)
     os_sleep_ms(100);
 #endif
 
-    // Reset audio timestamp state for clean reconnection
-    context->audio_base_time = 0;
-    context->audio_packet_count = 0;
-    context->last_audio_timestamp_validation = 0;
-    C64_LOG_DEBUG("Audio timestamp state reset for reconnection");
+    // Reset synthetic timing state for clean reconnection
+    if (pthread_mutex_lock(&context->stream_start_mutex) == 0) {
+        context->stream_start_ns = 0;
+        os_atomic_set_bool(&context->stream_start_set, false);
+
+        context->audio_packet_count = 0;
+        context->audio_interval_ns = 0;
+        context->last_audio_timestamp_validation = 0;
+
+        context->last_video_ts_frame_num = 0;
+        context->video_ts_frame_num_set = false;
+        context->video_frame_index = 0;
+
+        context->last_video_ts_ns = 0;
+        context->last_audio_ts_ns = 0;
+
+        context->first_video_ts_ns = 0;
+        context->first_audio_ts_ns = 0;
+        context->first_video_ts_logged = false;
+        context->first_audio_ts_logged = false;
+        context->initial_av_delta_logged = false;
+
+        pthread_mutex_unlock(&context->stream_start_mutex);
+    }
+    C64_LOG_DEBUG("Synthetic A/V timing state reset for reconnection");
 
     // Send start commands to C64 Ultimate
     context->last_start_command_time_ns = os_gettime_ns();
@@ -1269,13 +1293,7 @@ void c64_video_render(void *data, gs_effect_t *effect)
                 C64_LOG_ERROR("" EFFECT_LOG_PREFIX
                               " Failed to load CRT effect shader - falling back to default rendering");
             } else {
-                // Reset timing base to prevent sync drift caused by shader compilation delay
-                // Only reset if we're actually streaming (have established timing)
-                if (context->timestamp_base_set) {
-                    context->timestamp_base_set = false;
-                    C64_LOG_INFO("" EFFECT_LOG_PREFIX
-                                 " CRT effect loaded during stream - timing base reset to maintain A/V sync");
-                }
+                // Do not reset synthetic timing during shader compilation; timestamps are derived from a shared origin.
             }
             if (!context->crt_effect) {
                 // Fall back to default rendering
@@ -1363,6 +1381,49 @@ void c64_video_render(void *data, gs_effect_t *effect)
     while (gs_effect_loop(context->crt_effect, "Draw")) {
         gs_draw_sprite(input_tex, 0, render_width, render_height);
     }
+}
+
+void c64_try_init_stream_start_ns(struct c64_source *context, uint64_t packet_time_ns, const char *trigger)
+{
+    if (!context) {
+        return;
+    }
+
+    if (os_atomic_load_bool(&context->stream_start_set)) {
+        return;
+    }
+
+    if (pthread_mutex_lock(&context->stream_start_mutex) != 0) {
+        return;
+    }
+
+    if (!os_atomic_load_bool(&context->stream_start_set)) {
+        context->stream_start_ns = packet_time_ns;
+        os_atomic_set_bool(&context->stream_start_set, true);
+
+        // Reset per-stream synthetic counters at stream start.
+        context->audio_packet_count = 0;
+        context->audio_interval_ns = 0;
+        context->last_audio_timestamp_validation = 0;
+
+        context->last_video_ts_frame_num = 0;
+        context->video_ts_frame_num_set = false;
+        context->video_frame_index = 0;
+
+        context->last_video_ts_ns = 0;
+        context->last_audio_ts_ns = 0;
+
+        context->first_video_ts_ns = 0;
+        context->first_audio_ts_ns = 0;
+        context->first_video_ts_logged = false;
+        context->first_audio_ts_logged = false;
+        context->initial_av_delta_logged = false;
+
+        C64_LOG_INFO("STREAM START: stream_start_ns=%" PRIu64 " trigger=%s", context->stream_start_ns,
+                     trigger ? trigger : "unknown");
+    }
+
+    pthread_mutex_unlock(&context->stream_start_mutex);
 }
 
 // Helper function to get scanline scaling parameters based on distance setting

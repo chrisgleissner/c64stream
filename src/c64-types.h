@@ -133,6 +133,22 @@ struct c64_source {
     uint64_t last_audio_submit_ns;
     uint64_t last_video_submit_ns;
 
+    // Synthetic A/V timeline (single shared origin)
+    pthread_mutex_t stream_start_mutex; // Guards one-time init/reset of stream_start_ns
+    uint64_t stream_start_ns;           // Shared synthetic start time (ns)
+    volatile bool stream_start_set;     // Atomic read (lock-free fast path)
+
+    // Synthetic timestamps (derived solely from stream_start_ns + indices)
+    uint64_t last_video_ts_ns; // Last synthetic video timestamp submitted to OBS
+    uint64_t last_audio_ts_ns; // Last synthetic audio timestamp submitted to OBS
+
+    // One-time startup timing logs
+    uint64_t first_video_ts_ns;
+    uint64_t first_audio_ts_ns;
+    bool first_video_ts_logged;
+    bool first_audio_ts_logged;
+    bool initial_av_delta_logged;
+
     // Network
     socket_t video_socket;
     socket_t audio_socket;
@@ -152,17 +168,16 @@ struct c64_source {
     uint64_t last_frame_time;
     uint64_t frame_interval_ns; // Target frame interval (20ms for 50Hz PAL)
 
-    // Ideal timestamp generation for OBS async video
-    uint64_t stream_start_time_ns; // Base timestamp when streaming started
-    uint16_t first_frame_num;      // First frame number seen (for offset calculation)
-    bool timestamp_base_set;       // Flag indicating if base timestamp is established
-
-    // Monotonic audio timestamp generation
+    // Synthetic timestamp generation (monotonic, packet-index based)
     uint64_t audio_packet_count;              // Total audio packets processed since stream start
     uint64_t audio_interval_ns;               // Nanoseconds per audio packet (format-specific)
     double audio_sample_rate;                 // Audio sample rate (exact: 47982.887 Hz PAL, 47940.341 Hz NTSC)
-    uint64_t audio_base_time;                 // Base timestamp for synthetic audio timestamps
     uint64_t last_audio_timestamp_validation; // Last timestamp for progression validation
+
+    // Video timestamp tracking (frame-index based, derived from observed frame numbers)
+    uint16_t last_video_ts_frame_num;
+    bool video_ts_frame_num_set;
+    uint64_t video_frame_index;
 
     // Logo texture for no-connection display
     gs_texture_t *logo_texture; // Loaded logo texture for async video output

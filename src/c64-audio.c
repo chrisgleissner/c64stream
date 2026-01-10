@@ -20,6 +20,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-record.h"
 #include "c64-record-network.h"
 #include "c64-av-sync.h"
+#include "c64-source.h"
 
 // Audio thread function
 void *audio_thread_func(void *data)
@@ -102,6 +103,9 @@ void *audio_thread_func(void *data)
         context->last_udp_packet_time = packet_time; // DEPRECATED - kept for compatibility
         context->last_audio_packet_time = packet_time;
 
+        // Ensure shared synthetic start time is initialized on first packet receipt.
+        c64_try_init_stream_start_ns(context, packet_time, "audio packet recv");
+
         os_atomic_set_long(&context->audio_packets_received, os_atomic_load_long(&context->audio_packets_received) + 1);
         os_atomic_set_long(&context->audio_bytes_received,
                            os_atomic_load_long(&context->audio_bytes_received) + (long)received);
@@ -122,9 +126,13 @@ static void validate_audio_timestamp_progression(struct c64_source *context, uin
         // Expected delta is ~4ms (format-specific: PAL 4.001ms, NTSC 4.005ms)
         // Allow 3.5ms to 4.5ms tolerance for both formats
         if (timestamp_delta < 3500000 || timestamp_delta > 4500000) {
-            C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " Audio timestamp jump detected [%s]: delta=%" PRId64
-                          "ns (expected ~4000000ns, format-specific)",
-                          obs_source_get_name(context->source), timestamp_delta);
+            uint64_t packet_index = 0;
+            if (context->audio_packet_count > 0) {
+                packet_index = context->audio_packet_count - 1;
+            }
+            C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " Audio timestamp jump detected [%s]: delta=%" PRId64 "ns ts=%" PRIu64
+                          " packet_index=%" PRIu64 " (expected ~4000000ns, format-specific)",
+                          obs_source_get_name(context->source), timestamp_delta, current_timestamp, packet_index);
         }
     }
     context->last_audio_timestamp_validation = current_timestamp;
@@ -183,67 +191,35 @@ static uint64_t generate_monotonic_audio_timestamp(struct c64_source *context)
     //
     // The interval_ns is calculated dynamically based on detected format
 
-    uint64_t current_real_time = os_gettime_ns();
+    if (!context) {
+        return 0;
+    }
 
-    // Initialize on first call - prefer video's timing base if already set for A/V sync
-    if (context->audio_base_time == 0) {
-        // Calculate format-specific audio packet interval
-        // interval_ns = (192 samples * 1,000,000,000 ns/sec) / sample_rate
+    // Calculate format-specific audio packet interval once.
+    // interval_ns = (192 samples * 1,000,000,000 ns/sec) / sample_rate
+    if (context->audio_interval_ns == 0) {
         if (context->audio_sample_rate > 0) {
             context->audio_interval_ns = (uint64_t)((192ULL * 1000000000ULL) / context->audio_sample_rate);
             C64_LOG_INFO("" AUDIO_LOG_PREFIX " Audio packet interval: %" PRIu64 " ns (rate=%.4f Hz)",
                          context->audio_interval_ns, context->audio_sample_rate);
         } else {
-            // Fallback to PAL rate if format not yet detected
             context->audio_sample_rate = C64_PAL_AUDIO_SAMPLE_RATE;
             context->audio_interval_ns = (uint64_t)((192ULL * 1000000000ULL) / context->audio_sample_rate);
             C64_LOG_WARNING("" AUDIO_LOG_PREFIX " Format not detected, using PAL audio rate: %.4f Hz",
                             context->audio_sample_rate);
         }
-
-        // Use video's stream_start_time_ns if already established (ensures A/V sync)
-        // Otherwise use current real time
-        if (context->timestamp_base_set && context->stream_start_time_ns > 0) {
-            context->audio_base_time = context->stream_start_time_ns;
-            C64_LOG_INFO("" AUDIO_LOG_PREFIX " 🎵 Audio using video timing base for A/V sync: %" PRIu64 " ns",
-                         context->audio_base_time);
-        } else {
-            context->audio_base_time = current_real_time;
-            C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " Audio synthetic timestamps initialized for source '%s': base=%" PRIu64,
-                          obs_source_get_name(context->source), context->audio_base_time);
-        }
-        context->audio_packet_count = 0;
     }
 
-    // Calculate current timestamp: base + (packet_count * format_specific_interval)
+    // Shared origin must exist; if we haven't seen any packets yet, keep timestamp at 0.
+    if (!os_atomic_load_bool(&context->stream_start_set) || context->stream_start_ns == 0) {
+        return 0;
+    }
+
+    // Synthetic timestamps are derived solely from stream_start_ns + packet/sample index.
+    // This advances monotonically by sample count (192 stereo frames per packet).
     uint64_t synthetic_timestamp =
-        context->audio_base_time + (context->audio_packet_count * context->audio_interval_ns);
+        context->stream_start_ns + (context->audio_packet_count * context->audio_interval_ns);
     context->audio_packet_count++;
-
-    // Drift correction: periodically adjust base time to prevent excessive drift
-    // Check every 250 packets (~1 second of audio) to see if we're drifting too far
-    if ((context->audio_packet_count % 250) == 0) {
-        int64_t drift_ns = (int64_t)(synthetic_timestamp - current_real_time);
-        const int64_t MAX_DRIFT_NS = 100000000LL; // 100ms maximum drift
-
-        if (llabs(drift_ns) > MAX_DRIFT_NS) {
-            // Adjust base time to reduce drift while maintaining monotonic progression
-            int64_t adjustment = drift_ns / 2; // Correct half the drift gradually
-            context->audio_base_time -= adjustment;
-            synthetic_timestamp -= adjustment;
-
-            C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " Audio drift correction [%s]: drift=%" PRId64 "ms, adjusted by %" PRId64
-                          "ms",
-                          obs_source_get_name(context->source), drift_ns / 1000000, adjustment / 1000000);
-        }
-    }
-
-    // Debug logging every 100 packets to verify progression
-    if ((context->audio_packet_count % 1000) == 0) {
-        int64_t drift_ms = (int64_t)(synthetic_timestamp - current_real_time) / 1000000;
-        C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " Audio synthetic TS [%s]: count=%" PRIu64 ", drift=%" PRId64 "ms",
-                      obs_source_get_name(context->source), context->audio_packet_count - 1, drift_ms);
-    }
 
     return synthetic_timestamp;
 }
@@ -256,9 +232,15 @@ void c64_process_audio_packet(struct c64_source *context, const uint8_t *audio_d
         return;
     }
 
-    // Generate synthetic audio timestamp for smooth monotonic progression
-    // Coordinated with video timing base resets to maintain A/V sync during buffer changes
+    // Ensure shared synthetic start time is initialized (fallback: receipt timestamp).
+    c64_try_init_stream_start_ns(context, timestamp_ns, "audio packet pop");
+
+    // Generate synthetic audio timestamp for monotonic progression.
     uint64_t audio_timestamp = generate_monotonic_audio_timestamp(context);
+    if (audio_timestamp == 0) {
+        // If we cannot generate a synthetic timestamp yet, do not submit audio with a zero timestamp.
+        return;
+    }
 
     // Skip the 2-byte sequence number header to get to audio samples
     const uint8_t *samples = audio_data + 2;
@@ -312,19 +294,38 @@ void c64_process_audio_packet(struct c64_source *context, const uint8_t *audio_d
     // Send audio to OBS for playback
     obs_source_output_audio(context->source, &audio_output);
     context->last_audio_submit_ns = os_gettime_ns();
+    context->last_audio_ts_ns = audio_timestamp;
+
+    if (!context->first_audio_ts_logged) {
+        context->first_audio_ts_logged = true;
+        context->first_audio_ts_ns = audio_timestamp;
+
+        int64_t initial_delta = 0;
+        if (context->first_video_ts_logged) {
+            initial_delta = (int64_t)context->first_audio_ts_ns - (int64_t)context->first_video_ts_ns;
+        }
+
+        C64_LOG_INFO("" AUDIO_LOG_PREFIX " FIRST AUDIO SUBMIT: stream_start_ns=%" PRIu64 " first_audio_ts_ns=%" PRIu64
+                     " first_video_ts_ns=%" PRIu64 " initial_audio_minus_video_delta_ns=%" PRId64,
+                     context->stream_start_ns, context->first_audio_ts_ns, context->first_video_ts_ns, initial_delta);
+
+        if (context->first_video_ts_logged && !context->initial_av_delta_logged) {
+            context->initial_av_delta_logged = true;
+        }
+    }
 
     // Emit AV-sync pop only once it's been handed off to OBS.
     if (c64_debug_logging && audio_pop_rise) {
         c64_av_sync_on_audio_pop(context, C64_AV_SYNC_ORIGIN_OBS, context->last_audio_submit_ns);
     }
 
-    if (context->last_video_submit_ns != 0) {
+    if (context->last_video_ts_ns != 0) {
         static uint32_t av_sync_log_counter = 0;
         if ((++av_sync_log_counter % 5000) == 0) {
-            int64_t delta_ns = (int64_t)context->last_audio_submit_ns - (int64_t)context->last_video_submit_ns;
+            int64_t delta_ns = (int64_t)context->last_audio_ts_ns - (int64_t)context->last_video_ts_ns;
             double delta_ms = (double)((delta_ns < 0) ? -delta_ns : delta_ns) / 1000000.0;
             const char *lead = (delta_ns >= 0) ? "audio" : "video";
-            C64_LOG_INFO("" AUDIO_LOG_PREFIX " A/V SYNC: OBS handoff delta: %s +%.1f ms", lead, delta_ms);
+            C64_LOG_INFO("" AUDIO_LOG_PREFIX " A/V SYNC: synthetic delta: %s +%.1f ms", lead, delta_ms);
         }
     }
 

@@ -756,8 +756,12 @@ void c64_render_frame_direct(struct c64_source *context, struct frame_assembly *
     // First, assemble the frame with interpolation for missing rows
     c64_assemble_frame_with_interpolation(context, frame);
 
-    // Generate monotonic timestamp based on frame sequence for butter-smooth playback
+    // Generate monotonic synthetic timestamp based on a shared stream_start_ns and frame index.
     uint64_t monotonic_timestamp = c64_calculate_ideal_timestamp(context, frame->frame_num);
+    if (monotonic_timestamp == 0) {
+        // If we cannot generate a synthetic timestamp yet, do not submit video with a zero timestamp.
+        return;
+    }
 
     // Apply afterglow in the video thread (prevents races/flicker with raw frame_buffer).
     // This is ONLY for OBS display/streaming, NOT for recording.
@@ -802,6 +806,25 @@ void c64_render_frame_direct(struct c64_source *context, struct frame_assembly *
     // Output frame directly to OBS
     obs_source_output_video(context->source, &obs_frame);
     context->last_video_submit_ns = os_gettime_ns();
+    context->last_video_ts_ns = monotonic_timestamp;
+
+    if (!context->first_video_ts_logged) {
+        context->first_video_ts_logged = true;
+        context->first_video_ts_ns = monotonic_timestamp;
+
+        int64_t initial_delta = 0;
+        if (context->first_audio_ts_logged) {
+            initial_delta = (int64_t)context->first_audio_ts_ns - (int64_t)context->first_video_ts_ns;
+        }
+
+        C64_LOG_INFO("" VIDEO_LOG_PREFIX " FIRST VIDEO SUBMIT: stream_start_ns=%" PRIu64 " first_video_ts_ns=%" PRIu64
+                     " first_audio_ts_ns=%" PRIu64 " initial_audio_minus_video_delta_ns=%" PRId64,
+                     context->stream_start_ns, context->first_video_ts_ns, context->first_audio_ts_ns, initial_delta);
+
+        if (context->first_audio_ts_logged && !context->initial_av_delta_logged) {
+            context->initial_av_delta_logged = true;
+        }
+    }
 
     // Emit AV-sync pop only once it's been handed off to OBS.
     if (c64_debug_logging && video_pop_rise) {
@@ -956,10 +979,24 @@ void c64_process_video_statistics_batch(struct c64_source *context, uint64_t cur
     os_atomic_set_long(&context->debug_packets_dropped_size, 0);
 
     if (packets_received > 0 || recv_calls > 0) {
+        const uint64_t stream_start_ns = os_atomic_load_bool(&context->stream_start_set) ? context->stream_start_ns : 0;
+        const uint64_t current_video_ts_ns = context->last_video_ts_ns;
+        const uint64_t video_ts_minus_stream_start_ns = (stream_start_ns != 0 && current_video_ts_ns >= stream_start_ns)
+                                                            ? (current_video_ts_ns - stream_start_ns)
+                                                            : 0;
+
+        double video_buffer_depth_ms = 0.0;
+        if (context->network_buffer) {
+            const size_t v_pkts = c64_network_buffer_get_video_packet_count(context->network_buffer);
+            video_buffer_depth_ms = ((double)v_pkts * 1000.0) / (double)C64_MAX_VIDEO_RATE;
+        }
+
         C64_LOG_INFO("" VIDEO_LOG_PREFIX " DBG: recv_calls=%ld eagain=%ld bytes=%ld drop_size=%ld", recv_calls,
                      recv_eagain, recv_bytes, drop_size);
-        C64_LOG_INFO("" VIDEO_LOG_PREFIX " %.1f fps | %.2f Mbps | %.0f pps | Frames: %u", frames_per_second,
-                     bandwidth_mbps, packets_per_second, (uint32_t)frames_processed);
+        C64_LOG_INFO("" VIDEO_LOG_PREFIX " %.1f fps | %.2f Mbps | %.0f pps | Frames: %u | current_video_ts_ns=%" PRIu64
+                     " video_ts_minus_stream_start_ns=%" PRIu64 " video_buf_depth_ms=%.1f",
+                     frames_per_second, bandwidth_mbps, packets_per_second, (uint32_t)frames_processed,
+                     current_video_ts_ns, video_ts_minus_stream_start_ns, video_buffer_depth_ms);
         C64_LOG_INFO("" VIDEO_LOG_PREFIX
                      " Expected %.0f fps | Captured %.1f fps | Delivered %.1f fps | Completed %.1f fps",
                      expected_fps, context->frames_captured / duration_seconds, frame_delivery_rate,
@@ -998,8 +1035,28 @@ void c64_process_audio_statistics_batch(struct c64_source *context, uint64_t cur
         double packets_per_second = packets_received / duration_seconds;
         double bandwidth_mbps = (bytes_received * 8.0) / (duration_seconds * 1000000.0);
 
-        C64_LOG_INFO("" AUDIO_LOG_PREFIX " %.2f Mbps | %.0f pps | Packets: %llu", bandwidth_mbps, packets_per_second,
-                     (unsigned long long)packets_received);
+        const uint64_t stream_start_ns = os_atomic_load_bool(&context->stream_start_set) ? context->stream_start_ns : 0;
+        const uint64_t current_audio_ts_ns = context->last_audio_ts_ns;
+        const uint64_t audio_ts_minus_stream_start_ns = (stream_start_ns != 0 && current_audio_ts_ns >= stream_start_ns)
+                                                            ? (current_audio_ts_ns - stream_start_ns)
+                                                            : 0;
+
+        int64_t audio_minus_video_delta_ns = 0;
+        if (context->last_video_ts_ns != 0 && context->last_audio_ts_ns != 0) {
+            audio_minus_video_delta_ns = (int64_t)context->last_audio_ts_ns - (int64_t)context->last_video_ts_ns;
+        }
+
+        double audio_buffer_depth_ms = 0.0;
+        if (context->network_buffer) {
+            const size_t a_pkts = c64_network_buffer_get_audio_packet_count(context->network_buffer);
+            audio_buffer_depth_ms = ((double)a_pkts * 1000.0) / (double)C64_MAX_AUDIO_RATE;
+        }
+
+        C64_LOG_INFO("" AUDIO_LOG_PREFIX " %.2f Mbps | %.0f pps | Packets: %llu | current_audio_ts_ns=%" PRIu64
+                     " audio_ts_minus_stream_start_ns=%" PRIu64 " audio_minus_video_delta_ns=%" PRId64
+                     " audio_buf_depth_ms=%.1f",
+                     bandwidth_mbps, packets_per_second, (unsigned long long)packets_received, current_audio_ts_ns,
+                     audio_ts_minus_stream_start_ns, audio_minus_video_delta_ns, audio_buffer_depth_ms);
     }
 
     // Update audio stats timestamp separately from video
@@ -1211,6 +1268,9 @@ void *c64_video_thread_func(void *data)
             context->last_udp_packet_time = packet_time; // DEPRECATED - kept for compatibility
             context->last_video_packet_time = packet_time;
 
+            // Ensure shared synthetic start time is initialized on first packet receipt.
+            c64_try_init_stream_start_ns(context, packet_time, "video packet recv");
+
             os_atomic_set_long(&context->video_packets_received,
                                os_atomic_load_long(&context->video_packets_received) + 1);
             os_atomic_set_long(&context->video_bytes_received,
@@ -1237,51 +1297,91 @@ void *c64_video_thread_func(void *data)
 // Calculate ideal timestamp for a frame based on sequence number and video standard
 static uint64_t c64_calculate_ideal_timestamp(struct c64_source *context, uint16_t frame_num)
 {
-    // Initialize timing base if not already set - prefer audio's base if already set for A/V sync
-    if (!context->timestamp_base_set) {
-        // Use audio's timing base if already established (ensures A/V sync)
-        // Otherwise use current real time
-        if (context->audio_base_time > 0) {
-            context->stream_start_time_ns = context->audio_base_time;
-            C64_LOG_INFO("" AUDIO_LOG_PREFIX " 📐 Video using audio timing base for A/V sync: %" PRIu64 " ns",
-                         context->stream_start_time_ns);
-        } else {
-            context->stream_start_time_ns = os_gettime_ns();
-            C64_LOG_INFO("" VIDEO_LOG_PREFIX " 📐 Video timing base established: %" PRIu64 " ns",
-                         context->stream_start_time_ns);
+    if (!context) {
+        return 0;
+    }
+
+    // Shared origin must exist; if we haven't seen any packets yet, keep timestamp at 0.
+    if (!os_atomic_load_bool(&context->stream_start_set) || context->stream_start_ns == 0) {
+        return 0;
+    }
+
+    // Initialize on first submitted frame.
+    if (!context->video_ts_frame_num_set) {
+        context->last_video_ts_frame_num = frame_num;
+        context->video_ts_frame_num_set = true;
+        context->video_frame_index = 0;
+    } else {
+        // Map observed 16-bit frame numbers to a monotonic frame_index.
+        // Rules:
+        // - Always advance by at least 1 to avoid timestamp reuse.
+        // - If frames were dropped, advance by the number of missing frames.
+        int32_t frame_diff = (int32_t)frame_num - (int32_t)context->last_video_ts_frame_num;
+        if (frame_diff < -32768) {
+            frame_diff += 65536;
+        } else if (frame_diff > 32768) {
+            frame_diff -= 65536;
         }
-        context->timestamp_base_set = true;
+
+        if (frame_diff > 0) {
+            context->video_frame_index += (uint64_t)frame_diff;
+            context->last_video_ts_frame_num = frame_num;
+        } else {
+            // Out-of-order/duplicate frame numbers should never cause timestamp reuse.
+            context->video_frame_index += 1;
+        }
     }
 
-    // Set first frame reference for video calculations
-    if (context->first_frame_num == 0 || frame_num < context->first_frame_num) {
-        context->first_frame_num = frame_num;
-        C64_LOG_INFO("" VIDEO_LOG_PREFIX " 📐 Video first frame reference: %u", frame_num);
-    }
-
-    // Calculate frame offset from the first frame
-    int32_t frame_offset = (int32_t)(frame_num - context->first_frame_num);
-
-    // Handle sequence number wraparound (16-bit counter)
-    if (frame_offset < -32768) {
-        frame_offset += 65536; // Wrapped forward
-    } else if (frame_offset > 32768) {
-        frame_offset -= 65536; // Wrapped backward
-    }
-
-    // Calculate ideal timestamp: base + (frame_offset * frame_interval)
-    // Handle negative offsets correctly by using signed arithmetic first
-    int64_t signed_offset_ns = (int64_t)frame_offset * (int64_t)context->frame_interval_ns;
-    uint64_t ideal_timestamp = context->stream_start_time_ns + signed_offset_ns;
+    uint64_t ideal_timestamp = context->stream_start_ns + (context->video_frame_index * context->frame_interval_ns);
 
     // Debug log occasionally to verify timestamp calculation
     static uint32_t log_counter = 0;
     if ((log_counter++ % 250) == 0) { // Log every 250 frames (~5 seconds at 50Hz)
-        C64_LOG_DEBUG("" VIDEO_LOG_PREFIX " 📐 Ideal timestamp: frame %u (offset %d) = %" PRIu64 " ns", frame_num,
-                      frame_offset, ideal_timestamp);
+        C64_LOG_DEBUG("" VIDEO_LOG_PREFIX " 📐 Ideal timestamp: frame %u -> index=%" PRIu64 " ts=%" PRIu64, frame_num,
+                      context->video_frame_index, ideal_timestamp);
     }
 
     return ideal_timestamp;
+}
+
+static bool c64_predict_video_timestamp_for_frame(const struct c64_source *context, uint16_t frame_num,
+                                                  uint64_t *out_frame_index, uint64_t *out_timestamp_ns)
+{
+    if (out_frame_index) {
+        *out_frame_index = 0;
+    }
+    if (out_timestamp_ns) {
+        *out_timestamp_ns = 0;
+    }
+
+    if (!context || !os_atomic_load_bool(&context->stream_start_set) || context->stream_start_ns == 0) {
+        return false;
+    }
+
+    uint64_t predicted_index = 0;
+    if (!context->video_ts_frame_num_set) {
+        predicted_index = 0;
+    } else {
+        int32_t frame_diff = (int32_t)frame_num - (int32_t)context->last_video_ts_frame_num;
+        if (frame_diff < -32768) {
+            frame_diff += 65536;
+        } else if (frame_diff > 32768) {
+            frame_diff -= 65536;
+        }
+
+        predicted_index = context->video_frame_index + (uint64_t)((frame_diff > 0) ? frame_diff : 1);
+    }
+
+    const uint64_t predicted_ts = context->stream_start_ns + (predicted_index * context->frame_interval_ns);
+
+    if (out_frame_index) {
+        *out_frame_index = predicted_index;
+    }
+    if (out_timestamp_ns) {
+        *out_timestamp_ns = predicted_ts;
+    }
+
+    return true;
 }
 
 // Render black screen fallback when no logo is available
@@ -1360,14 +1460,19 @@ void c64_process_video_packet_direct(struct c64_source *context, const uint8_t *
                 static uint64_t last_skip_log = 0;
                 uint64_t now_skip = os_gettime_ns();
                 if ((frame_diff != 0) && (now_skip - last_skip_log >= 5000000000ULL)) { // 5 sec throttle
+                    uint64_t predicted_index = 0;
+                    uint64_t predicted_ts_ns = 0;
+                    (void)c64_predict_video_timestamp_for_frame(context, frame_num, &predicted_index, &predicted_ts_ns);
                     if (frame_diff > 0) {
                         C64_LOG_WARNING("" VIDEO_LOG_PREFIX
-                                        " 📽️ FRAME SKIP: Expected frame %u, got %u (skipped %d frames)",
-                                        expected_next, frame_num, frame_diff);
+                                        " 📽️ FRAME SKIP: Expected frame %u, got %u (skipped %d frames)"
+                                        " predicted_video_ts_ns=%" PRIu64 " predicted_video_frame_index=%" PRIu64,
+                                        expected_next, frame_num, frame_diff, predicted_ts_ns, predicted_index);
                     } else if (frame_diff < 0) {
                         C64_LOG_WARNING("" VIDEO_LOG_PREFIX
-                                        " Frame sequence regression: Expected frame %u, got %u (offset %d frames)",
-                                        expected_next, frame_num, -frame_diff);
+                                        " Frame sequence regression: Expected frame %u, got %u (offset %d frames)"
+                                        " predicted_video_ts_ns=%" PRIu64 " predicted_video_frame_index=%" PRIu64,
+                                        expected_next, frame_num, -frame_diff, predicted_ts_ns, predicted_index);
                     }
                     last_skip_log = now_skip;
                 }
@@ -1385,12 +1490,9 @@ void c64_process_video_packet_direct(struct c64_source *context, const uint8_t *
                 if (c64_is_frame_complete(&context->current_frame) || c64_is_frame_timeout(&context->current_frame)) {
                     if (c64_is_frame_complete(&context->current_frame)) {
                         if (context->last_completed_frame != context->current_frame.frame_num) {
-                            // Calculate ideal timestamp for smooth OBS async video rendering
-                            uint64_t ideal_timestamp =
-                                c64_calculate_ideal_timestamp(context, context->current_frame.frame_num);
-
-                            // Direct rendering - assembly and output with ideal timestamp!
-                            c64_render_frame_direct(context, &context->current_frame, ideal_timestamp);
+                            // Direct rendering - synthetic timestamp is derived from stream_start_ns inside the renderer.
+                            c64_render_frame_direct(context, &context->current_frame,
+                                                    context->current_frame.last_packet_time);
                             context->last_completed_frame = context->current_frame.frame_num;
 
                             // Track diagnostics
@@ -1399,12 +1501,18 @@ void c64_process_video_packet_direct(struct c64_source *context, const uint8_t *
                         }
                     } else {
                         // Frame timeout - log drop and continue
+                        uint64_t predicted_index = 0;
+                        uint64_t predicted_ts_ns = 0;
+                        (void)c64_predict_video_timestamp_for_frame(context, context->current_frame.frame_num,
+                                                                    &predicted_index, &predicted_ts_ns);
                         C64_LOG_WARNING("" VIDEO_LOG_PREFIX
-                                        " ⏰ FRAME TIMEOUT: Frame %u timed out with %u/%u packets (%.1f%% complete)",
+                                        " ⏰ FRAME TIMEOUT: Frame %u timed out with %u/%u packets (%.1f%% complete)"
+                                        " predicted_video_ts_ns=%" PRIu64 " predicted_video_frame_index=%" PRIu64,
                                         context->current_frame.frame_num, context->current_frame.received_packets,
                                         context->current_frame.expected_packets,
                                         (context->current_frame.received_packets * 100.0f) /
-                                            context->current_frame.expected_packets);
+                                            context->current_frame.expected_packets,
+                                        predicted_ts_ns, predicted_index);
                         context->frame_drops++;
                     }
                 }

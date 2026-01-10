@@ -435,6 +435,44 @@ void c64_network_buffer_destroy(struct c64_network_buffer *buf)
     free(buf);
 }
 
+static size_t c64_rb_packet_count(const struct packet_ring_buffer *rb)
+{
+    if (!rb) {
+        return 0;
+    }
+
+    const long head_l = os_atomic_load_long((volatile long *)&rb->head);
+    const long tail_l = os_atomic_load_long((volatile long *)&rb->tail);
+    if (head_l < 0 || tail_l < 0) {
+        return 0;
+    }
+
+    const size_t head = (size_t)head_l;
+    const size_t tail = (size_t)tail_l;
+    const size_t cap = rb->max_capacity;
+    if (cap == 0) {
+        return 0;
+    }
+
+    return (head >= tail) ? (head - tail) : (cap - tail + head);
+}
+
+size_t c64_network_buffer_get_video_packet_count(const struct c64_network_buffer *buf)
+{
+    if (!buf) {
+        return 0;
+    }
+    return c64_rb_packet_count(&buf->video);
+}
+
+size_t c64_network_buffer_get_audio_packet_count(const struct c64_network_buffer *buf)
+{
+    if (!buf) {
+        return 0;
+    }
+    return c64_rb_packet_count(&buf->audio);
+}
+
 void c64_network_buffer_set_delay(struct c64_network_buffer *buf, size_t video_delay_ms, size_t audio_delay_ms)
 {
     if (!buf) {

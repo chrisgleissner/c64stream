@@ -31,4 +31,7 @@ void c64_stop_streaming(struct c64_source *context);
 void c64_async_retry_task(void *data);
 void c64_schedule_retry_task(struct c64_source *context, const char *reason);
 
+// Timing: initialize shared synthetic stream start time on first packet receipt (audio or video).
+void c64_try_init_stream_start_ns(struct c64_source *context, uint64_t packet_time_ns, const char *trigger);
+
 #endif // C64_SOURCE_H
