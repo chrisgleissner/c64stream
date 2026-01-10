@@ -1,0 +1,1110 @@
+openapi: 3.1.0
+info:
+  title: Ultimate 64 REST API
+  version: "1.0.0"
+  summary: REST interface exposed by Ultimate 64 / 1541 Ultimate firmware ≥ 3.11.
+  description: |
+    This OpenAPI document captures the public HTTP interface described in the
+    official Ultimate 64 REST API documentation at
+    https://1541u-documentation.readthedocs.io/en/latest/api/api_calls.html.
+    Responses always include an `errors` array unless noted. When a network
+    password is configured, clients must supply the `X-Password` header on every
+    request. Example payloads were captured against a local Ultimate 64 Elite
+    reachable as `http://c64u` running firmware 3.12a.
+servers:
+  - url: http://c64u
+    description: Ultimate 64 on the local network (example fixture)
+components:
+  securitySchemes:
+    NetworkPassword:
+      type: apiKey
+      in: header
+      name: X-Password
+  schemas:
+    ErrorResponse:
+      type: object
+      required:
+        - errors
+      properties:
+        errors:
+          type: array
+          items:
+            type: string
+    VersionResponse:
+      allOf:
+        - $ref: '#/components/schemas/ErrorResponse'
+        - type: object
+          required:
+            - version
+          properties:
+            version:
+              type: string
+    InfoResponse:
+      allOf:
+        - $ref: '#/components/schemas/ErrorResponse'
+        - type: object
+          properties:
+            product:
+              type: string
+            firmware_version:
+              type: string
+            fpga_version:
+              type: string
+            core_version:
+              type: string
+              description: Present on Ultimate 64 devices.
+            hostname:
+              type: string
+            unique_id:
+              type: string
+    ConfigListResponse:
+      allOf:
+        - $ref: '#/components/schemas/ErrorResponse'
+        - type: object
+          properties:
+            categories:
+              type: array
+              items:
+                type: string
+    ConfigCategoryResponse:
+      allOf:
+        - $ref: '#/components/schemas/ErrorResponse'
+        - type: object
+          additionalProperties:
+            type: object
+    ConfigItemResponse:
+      allOf:
+        - $ref: '#/components/schemas/ErrorResponse'
+        - type: object
+          additionalProperties:
+            type: object
+    MemoryReadJson:
+      allOf:
+        - $ref: '#/components/schemas/ErrorResponse'
+        - type: object
+          properties:
+            data:
+              oneOf:
+                - type: string
+                  description: Base64 encoded bytes.
+                - type: array
+                  items:
+                    type: integer
+                    format: int32
+                    minimum: 0
+                    maximum: 255
+    MemoryDebugResponse:
+      allOf:
+        - $ref: '#/components/schemas/ErrorResponse'
+        - type: object
+          required:
+            - value
+          properties:
+            value:
+              type: string
+              description: Hex string read from $D7FF.
+    DriveListResponse:
+      allOf:
+        - $ref: '#/components/schemas/ErrorResponse'
+        - type: object
+          properties:
+            drives:
+              type: array
+              items:
+                type: object
+                additionalProperties:
+                  type: object
+                  properties:
+                    enabled:
+                      type: boolean
+                    bus_id:
+                      type: integer
+                    type:
+                      type: string
+                    rom:
+                      type: string
+                    image_file:
+                      type: string
+                    image_path:
+                      type: string
+                    last_error:
+                      type: string
+                    partitions:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          id:
+                            type: integer
+                          path:
+                            type: string
+    FileInfoResponse:
+      allOf:
+        - $ref: '#/components/schemas/ErrorResponse'
+        - type: object
+          properties:
+            files:
+              type: object
+              properties:
+                path:
+                  type: string
+                filename:
+                  type: string
+                size:
+                  type: integer
+                extension:
+                  type: string
+              additionalProperties: true
+    MachineActionResponse:
+      allOf:
+        - $ref: '#/components/schemas/ErrorResponse'
+    RunnerActionResponse:
+      allOf:
+        - $ref: '#/components/schemas/ErrorResponse'
+security:
+  - NetworkPassword: []
+paths:
+  /v1/version:
+    get:
+      summary: Get API version
+      description: Returns the firmware-defined REST API semantic version.
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionResponse'
+              examples:
+                live:
+                  value:
+                    version: "0.1"
+                    errors: []
+  /v1/info:
+    get:
+      summary: Get device information
+      description: >-
+        Returns hardware metadata (product, firmware version, FPGA/core
+        versions, hostname). Available on Ultimate firmware 3.12 and newer. On
+        earlier releases the endpoint responds with HTTP 404.
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InfoResponse'
+              examples:
+                live:
+                  value:
+                    product: Ultimate 64 Elite
+                    firmware_version: "3.12a"
+                    fpga_version: "121"
+                    core_version: "1.45"
+                    hostname: c64u
+                    unique_id: 38C1BA
+                    errors: []
+  /v1/runners:sidplay:
+    put:
+      summary: Play SID from filesystem
+      parameters:
+        - in: query
+          name: file
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: songnr
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        '200':
+          description: Request accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunnerActionResponse'
+    post:
+      summary: Play uploaded SID
+      parameters:
+        - in: query
+          name: songnr
+          schema:
+            type: integer
+            minimum: 0
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                sid:
+                  type: string
+                  format: binary
+                songlengths:
+                  type: string
+                  format: binary
+              required:
+                - sid
+      responses:
+        '200':
+          description: Request accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunnerActionResponse'
+  /v1/runners:modplay:
+    put:
+      summary: Play MOD from filesystem
+      parameters:
+        - in: query
+          name: file
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Request accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunnerActionResponse'
+    post:
+      summary: Play uploaded MOD
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '200':
+          description: Request accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunnerActionResponse'
+  /v1/runners:load_prg:
+    put:
+      summary: Load PRG from filesystem
+      parameters:
+        - in: query
+          name: file
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Request accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunnerActionResponse'
+    post:
+      summary: Load uploaded PRG
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '200':
+          description: Request accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunnerActionResponse'
+  /v1/runners:run_prg:
+    put:
+      summary: Run PRG from filesystem
+      parameters:
+        - in: query
+          name: file
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Request accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunnerActionResponse'
+    post:
+      summary: Run uploaded PRG
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '200':
+          description: Request accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunnerActionResponse'
+  /v1/runners:run_crt:
+    put:
+      summary: Run cartridge from filesystem
+      parameters:
+        - in: query
+          name: file
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Request accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunnerActionResponse'
+    post:
+      summary: Run uploaded cartridge
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '200':
+          description: Request accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunnerActionResponse'
+  /v1/configs:
+    get:
+      summary: List configuration categories
+      description: Enumerates top-level configuration pages as displayed in the
+        Ultimate menu. Supports wildcard queries via URL encoding.
+      responses:
+        '200':
+          description: Categories returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigListResponse'
+              examples:
+                live:
+                  value:
+                    categories:
+                      - Audio Mixer
+                      - SID Sockets Configuration
+                      - UltiSID Configuration
+                      - SID Addressing
+                      - U64 Specific Settings
+                      - C64 and Cartridge Settings
+                      - Clock Settings
+                      - Network Settings
+                      - Ethernet Settings
+                      - WiFi settings
+                      - LED Strip Settings
+                      - Data Streams
+                      - SoftIEC Drive Settings
+                      - Printer Settings
+                      - Modem Settings
+                      - User Interface Settings
+                      - Tape Settings
+                      - Drive A Settings
+                      - Drive B Settings
+                    errors: []
+    post:
+      summary: Batch update configuration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties:
+                type: object
+      responses:
+        '200':
+          description: Update applied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/configs/{category}:
+    get:
+      summary: Inspect category
+      description: Returns all items inside the specified category. Wildcards
+        may match multiple categories; each appears as an object property in the
+        response.
+      parameters:
+        - in: path
+          name: category
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Category returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigCategoryResponse'
+              examples:
+                drive_a:
+                  summary: Drive A Settings (firmware 3.12a)
+                  value:
+                    Drive A Settings:
+                      Drive: Enabled
+                      Drive Type: "1541"
+                      Drive Bus ID: 8
+                      ROM for 1541 mode: 1541.rom
+                      ROM for 1571 mode: 1571.rom
+                      ROM for 1581 mode: 1581.rom
+                      Extra RAM: Disabled
+                      Disk swap delay: 1
+                      Resets when C64 resets: "Yes"
+                      Freezes in menu: "Yes"
+                      GCR Save Align Tracks: "Yes"
+                      Leave Menu on Mount: "Yes"
+                      D64 Geos Copy Protection: none
+                    errors: []
+  /v1/configs/{category}/{item}:
+    get:
+      summary: Inspect configuration item
+      parameters:
+        - in: path
+          name: category
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: item
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Item returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigItemResponse'
+    put:
+      summary: Update configuration item
+      parameters:
+        - in: path
+          name: category
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: item
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: value
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Update applied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/configs:load_from_flash:
+    put:
+      summary: Load configuration from flash
+      responses:
+        '200':
+          description: Loaded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/configs:save_to_flash:
+    put:
+      summary: Save configuration to flash
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/configs:reset_to_default:
+    put:
+      summary: Reset configuration to defaults
+      responses:
+        '200':
+          description: Reset complete
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/machine:reset:
+    put:
+      summary: Soft reset machine
+      responses:
+        '200':
+          description: Reset triggered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MachineActionResponse'
+  /v1/machine:reboot:
+    put:
+      summary: Reboot machine
+      responses:
+        '200':
+          description: Reboot triggered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MachineActionResponse'
+  /v1/machine:pause:
+    put:
+      summary: Pause machine via DMA
+      responses:
+        '200':
+          description: Pause applied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MachineActionResponse'
+  /v1/machine:resume:
+    put:
+      summary: Resume machine from pause
+      responses:
+        '200':
+          description: Resume applied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MachineActionResponse'
+  /v1/machine:poweroff:
+    put:
+      summary: Power off machine
+      responses:
+        '200':
+          description: Power off requested
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MachineActionResponse'
+  /v1/machine:menu_button:
+    put:
+      summary: Toggle Ultimate menu button
+      responses:
+        '200':
+          description: Button event queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MachineActionResponse'
+  /v1/machine:writemem:
+    put:
+      summary: Write memory via query data
+      parameters:
+        - in: query
+          name: address
+          required: true
+          schema:
+            type: string
+          description: Hexadecimal start address.
+        - in: query
+          name: data
+          required: true
+          schema:
+            type: string
+          description: Hex string representing bytes (≤ 128 bytes).
+      responses:
+        '200':
+          description: Write applied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MachineActionResponse'
+    post:
+      summary: Write memory via binary payload
+      parameters:
+        - in: query
+          name: address
+          required: true
+          schema:
+            type: string
+          description: Hexadecimal start address.
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '200':
+          description: Write applied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MachineActionResponse'
+  /v1/machine:readmem:
+    get:
+      summary: Read memory
+      description: Performs a DMA read at the requested address. Firmware
+        returns either a JSON wrapper or raw bytes. Use `length` to limit the
+        transfer (default 256 bytes).
+      parameters:
+        - in: query
+          name: address
+          required: true
+          schema:
+            type: string
+            description: Hexadecimal start address.
+        - in: query
+          name: length
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 4096
+      responses:
+        '200':
+          description: Memory data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemoryReadJson'
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+              examples:
+                vic_border:
+                  summary: Raw bytes for $D020-$D021
+                  value: !!binary |
+                    /vY=
+  /v1/machine:debugreg:
+    get:
+      summary: Read debug register
+      responses:
+        '200':
+          description: Register value
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemoryDebugResponse'
+    put:
+      summary: Write debug register
+      parameters:
+        - in: query
+          name: value
+          required: true
+          schema:
+            type: string
+            description: Hexadecimal value to write.
+      responses:
+        '200':
+          description: Updated register value
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemoryDebugResponse'
+  /v1/drives:
+    get:
+      summary: List internal drives
+      description: Returns current Ultimate-managed drives, images, and service
+        devices (SoftIEC, printer emulation).
+      responses:
+        '200':
+          description: Drive information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DriveListResponse'
+              examples:
+                live:
+                  value:
+                    drives:
+                      - a:
+                          enabled: true
+                          bus_id: 8
+                          type: "1541"
+                          rom: "1541.rom"
+                          image_file: ""
+                          image_path: ""
+                      - b:
+                          enabled: false
+                          bus_id: 9
+                          type: "1541"
+                          rom: "1541.rom"
+                          image_file: ""
+                          image_path: ""
+                      - IEC Drive:
+                          bus_id: 11
+                          enabled: false
+                          type: "DOS emulation"
+                          last_error: "73,U64IEC ULTIMATE DOS V1.1,00,00"
+                          partitions:
+                            - id: 0
+                              path: "/Usb0/"
+                      - Printer Emulation:
+                          bus_id: 4
+                          enabled: false
+                    errors: []
+  /v1/drives/{drive}:mount:
+    put:
+      summary: Mount disk image from filesystem
+      parameters:
+        - in: path
+          name: drive
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: image
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: type
+          schema:
+            type: string
+            enum: [d64, g64, d71, g71, d81]
+        - in: query
+          name: mode
+          schema:
+            type: string
+            enum: [readwrite, readonly, unlinked]
+      responses:
+        '200':
+          description: Mount complete
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Mount uploaded disk image
+      parameters:
+        - in: path
+          name: drive
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: type
+          schema:
+            type: string
+            enum: [d64, g64, d71, g71, d81]
+        - in: query
+          name: mode
+          schema:
+            type: string
+            enum: [readwrite, readonly, unlinked]
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '200':
+          description: Mount complete
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/drives/{drive}:reset:
+    put:
+      summary: Reset drive
+      parameters:
+        - in: path
+          name: drive
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Reset complete
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/drives/{drive}:remove:
+    put:
+      summary: Remove mounted image
+      parameters:
+        - in: path
+          name: drive
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Removal complete
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/drives/{drive}:on:
+    put:
+      summary: Power on drive
+      parameters:
+        - in: path
+          name: drive
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Drive powered on
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/drives/{drive}:off:
+    put:
+      summary: Power off drive
+      parameters:
+        - in: path
+          name: drive
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Drive powered off
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/drives/{drive}:load_rom:
+    put:
+      summary: Load ROM from filesystem
+      parameters:
+        - in: path
+          name: drive
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: file
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ROM loaded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Load ROM from upload
+      parameters:
+        - in: path
+          name: drive
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '200':
+          description: ROM loaded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/drives/{drive}:set_mode:
+    put:
+      summary: Set drive mode
+      parameters:
+        - in: path
+          name: drive
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: mode
+          required: true
+          schema:
+            type: string
+            enum: [1541, 1571, 1581]
+      responses:
+        '200':
+          description: Mode updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/streams/{stream}:start:
+    put:
+      summary: Start data stream
+      parameters:
+        - in: path
+          name: stream
+          required: true
+          schema:
+            type: string
+            enum: [video, audio, debug]
+        - in: query
+          name: ip
+          required: true
+          schema:
+            type: string
+          description: Target IP address with optional port (ip[:port]).
+      responses:
+        '200':
+          description: Stream started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/streams/{stream}:stop:
+    put:
+      summary: Stop data stream
+      parameters:
+        - in: path
+          name: stream
+          required: true
+          schema:
+            type: string
+            enum: [video, audio, debug]
+      responses:
+        '200':
+          description: Stream stopped
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/files/{path}:info:
+    get:
+      summary: Inspect file metadata
+      parameters:
+        - in: path
+          name: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Metadata returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileInfoResponse'
+              examples:
+                live:
+                  value:
+                    files:
+                      path: /Flash/roms/1541.rom
+                      filename: 1541.rom
+                      size: 16384
+                      extension: ROM
+                    errors: []
+  /v1/files/{path}:create_d64:
+    put:
+      summary: Create D64 image
+      parameters:
+        - in: path
+          name: path
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: tracks
+          schema:
+            type: integer
+            enum: [35, 40]
+        - in: query
+          name: diskname
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Image created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/files/{path}:create_d71:
+    put:
+      summary: Create D71 image
+      parameters:
+        - in: path
+          name: path
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: diskname
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Image created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/files/{path}:create_d81:
+    put:
+      summary: Create D81 image
+      parameters:
+        - in: path
+          name: path
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: diskname
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Image created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/files/{path}:create_dnp:
+    put:
+      summary: Create DNP image
+      parameters:
+        - in: path
+          name: path
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: tracks
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 255
+        - in: query
+          name: diskname
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Image created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'

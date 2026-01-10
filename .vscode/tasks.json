@@ -130,7 +130,7 @@
             "command": "bash",
             "args": [
                 "-c",
-                "mkdir -p \"$HOME/.config/obs-studio/plugins/c64stream/bin/64bit\" && mkdir -p \"$HOME/.config/obs-studio/plugins/c64stream/data\" && cp \"build_x86_64/c64stream.so\" \"$HOME/.config/obs-studio/plugins/c64stream/bin/64bit/\" && cp -r \"data\"/* \"$HOME/.config/obs-studio/plugins/c64stream/data/\" && echo 'Plugin installed successfully'"
+                "mkdir -p \"$HOME/.config/obs-studio/plugins/c64stream/bin/64bit\" && mkdir -p \"$HOME/.config/obs-studio/plugins/c64stream/data\" && cp \"build_x86_64/c64stream.so\" \"$HOME/.config/obs-studio/plugins/c64stream/bin/64bit/\" && cp -r \"data\"/* \"$HOME/.config/obs-studio/plugins/c64stream/data/\" && if [ -f \"build_x86_64/generated/prg/av-sync-auto.prg\" ]; then mkdir -p \"$HOME/.config/obs-studio/plugins/c64stream/data/prg\" && cp \"build_x86_64/generated/prg/av-sync-auto.prg\" \"$HOME/.config/obs-studio/plugins/c64stream/data/prg/\"; fi && echo 'Plugin installed successfully'"
             ],
             "group": "build",
             "presentation": {
@@ -211,7 +211,7 @@
             "command": "bash",
             "args": [
                 "-c",
-                "echo 'Building plugin...' && cmake --build build_x86_64 && echo 'Installing plugin...' && mkdir -p \"$HOME/.config/obs-studio/plugins/c64stream/bin/64bit\" && mkdir -p \"$HOME/.config/obs-studio/plugins/c64stream/data\" && cp \"build_x86_64/c64stream.so\" \"$HOME/.config/obs-studio/plugins/c64stream/bin/64bit/\" && cp -r \"data\"/* \"$HOME/.config/obs-studio/plugins/c64stream/data/\" && echo 'Plugin build and install completed successfully!'"
+                "echo 'Building plugin...' && cmake --build build_x86_64 && echo 'Installing plugin...' && mkdir -p \"$HOME/.config/obs-studio/plugins/c64stream/bin/64bit\" && mkdir -p \"$HOME/.config/obs-studio/plugins/c64stream/data\" && cp \"build_x86_64/c64stream.so\" \"$HOME/.config/obs-studio/plugins/c64stream/bin/64bit/\" && cp -r \"data\"/* \"$HOME/.config/obs-studio/plugins/c64stream/data/\" && if [ -f \"build_x86_64/generated/prg/av-sync-auto.prg\" ]; then mkdir -p \"$HOME/.config/obs-studio/plugins/c64stream/data/prg\" && cp \"build_x86_64/generated/prg/av-sync-auto.prg\" \"$HOME/.config/obs-studio/plugins/c64stream/data/prg/\"; fi && echo 'Plugin build and install completed successfully!'"
             ],
             "group": {
                 "kind": "build"

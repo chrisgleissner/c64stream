@@ -29,13 +29,17 @@ void c64_session_ensure_exists(struct c64_source *context);
 bool c64_session_any_recording_active(struct c64_source *context);
 void c64_session_cleanup_if_needed(struct c64_source *context);
 
-// CSV recording functions
-void c64_start_csv_recording(struct c64_source *context);
-void c64_stop_csv_recording(struct c64_source *context);
+// Record network.csv
+void c64_start_network_csv_recording(struct c64_source *context);
+void c64_stop_network_csv_recording(struct c64_source *context);
 
-// Network recording functions
-void c64_start_network_recording(struct c64_source *context);
-void c64_stop_network_recording(struct c64_source *context);
+// Record obs.csv
+void c64_start_obs_csv_recording(struct c64_source *context);
+void c64_stop_obs_csv_recording(struct c64_source *context);
+
+// Record av-sync.csv
+void c64_start_av_sync_csv_recording(struct c64_source *context);
+void c64_stop_av_sync_csv_recording(struct c64_source *context);
 
 // Main entry point functions - delegate to appropriate modules
 void c64_save_frame_as_bmp(struct c64_source *context, uint32_t *frame_buffer);

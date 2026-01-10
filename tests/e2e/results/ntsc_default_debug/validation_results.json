@@ -1,23 +1,23 @@
 {
   "udp_reception": {
     "status": "warning",
-    "details": "30735/30803 packets (28736 video, 1999 audio, minor loss)"
+    "details": "19186/19252 packets (17938 video, 1248 audio, minor loss)"
   },
   "frame_processing": {
     "status": "pass",
-    "details": "2481 frames processed"
+    "details": "1550 frames processed"
   },
   "video_recording": {
     "status": "pass",
-    "details": "11.0 MB"
+    "details": "9.4 MB"
   },
   "packet_integrity": {
     "status": "pass",
-    "details": "22.1s duration"
+    "details": "19.0s duration"
   },
   "network_timing": {
     "status": "pass",
-    "details": "span=8005.1ms, video_mean=340.0us, audio_mean=4005.0us"
+    "details": "span=4999.9ms, video_mean=354.2us, audio_mean=4005.8us"
   },
   "video_brightness": {
     "status": "skipped",
@@ -29,63 +29,51 @@
   },
   "av_sync_offset": {
     "status": "pass",
-    "message": "Pop offset OK (max 40.00ms): obs_csv=6.02ms, network_csv=14.11ms, mp4=24.58ms",
+    "message": "Pop offset OK (max 40.00ms): obs_csv=6.75ms, network_csv=14.35ms, mp4=4.84ms",
     "details": {
       "sources": {
         "obs_csv": {
-          "pop_count": 9,
-          "max_offset_ms": 6.02,
-          "avg_offset_ms": 4.347555555555555,
+          "pop_count": 5,
+          "max_offset_ms": 6.753,
+          "avg_offset_ms": 4.7674,
           "per_pop_offsets_ms": [
-            6.02,
-            3.338,
-            4.434,
-            5.676,
-            2.345,
-            4.601,
-            5.611,
-            2.613,
-            4.49
+            5.568,
+            3.35,
+            5.559,
+            6.753,
+            2.607
           ]
         },
         "network_csv": {
-          "pop_count": 9,
-          "max_offset_ms": 14.105,
-          "avg_offset_ms": 12.738555555555557,
+          "pop_count": 5,
+          "max_offset_ms": 14.346,
+          "avg_offset_ms": 12.2598,
           "per_pop_offsets_ms": [
-            11.358,
-            14.017,
-            12.666,
-            11.484,
-            14.105,
-            12.759,
-            11.425,
-            14.076,
-            12.757
+            10.133,
+            13.642,
+            12.739,
+            10.439,
+            14.346
           ]
         },
         "mp4": {
-          "pop_count": 9,
-          "max_offset_ms": 24.584,
-          "avg_offset_ms": 19.028555555555556,
+          "pop_count": 5,
+          "max_offset_ms": 4.841,
+          "avg_offset_ms": 2.8296,
           "per_pop_offsets_ms": [
-            15.277,
-            17.604,
-            19.931,
-            22.257,
-            24.584,
-            16.911,
-            19.238,
-            21.564,
-            13.891
+            4.841,
+            2.832,
+            0.506,
+            1.821,
+            4.148
           ]
         }
       }
     },
     "metrics": {
-      "obs_csv_max_offset_ms": 6.02,
-      "network_csv_max_offset_ms": 14.105,
-      "mp4_max_offset_ms": 24.584
+      "obs_csv_max_offset_ms": 6.753,
+      "network_csv_max_offset_ms": 14.346,
+      "mp4_max_offset_ms": 4.841
     }
   }
 }

@@ -2119,6 +2119,7 @@ class E2ETest:
         # Check for CSV files
         network_csv = latest_session / 'network.csv'
         obs_csv = latest_session / 'obs.csv'
+        av_sync_csv = latest_session / 'av-sync.csv'
 
         csv_results = {}
 
@@ -2186,6 +2187,11 @@ class E2ETest:
                 dest_obs = self.output_dir / 'obs.csv'
                 self._copy_csv_truncated(obs_csv, dest_obs)
                 self.log(f"✅ Copied obs.csv to: {dest_obs}")
+
+            if av_sync_csv.exists():
+                dest_av_sync = self.output_dir / 'av-sync.csv'
+                self._copy_csv_truncated(av_sync_csv, dest_av_sync)
+                self.log(f"✅ Copied av-sync.csv to: {dest_av_sync}")
 
         except Exception as e:
             self.log(f"⚠️ Failed to copy CSV files: {e}")

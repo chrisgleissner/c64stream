@@ -166,10 +166,10 @@ static bool c64_av_sync_can_correlate_network_and_obs(const struct c64_av_sync_m
     return true;
 }
 
-static void c64_av_sync_log_network_and_obs_match(const struct c64_av_sync_match *obs_match,
+static void c64_av_sync_log_network_and_obs_match(struct c64_source *context, const struct c64_av_sync_match *obs_match,
                                                   const struct c64_av_sync_match *net_match, bool is_audio_trigger)
 {
-    if (!obs_match || !obs_match->valid) {
+    if (!context || !obs_match || !obs_match->valid) {
         return;
     }
 
@@ -196,6 +196,25 @@ static void c64_av_sync_log_network_and_obs_match(const struct c64_av_sync_match
                      (uint32_t)obs_match->video_frame_num, obs_match->video_ts, obs_match->audio_ts, net_delta_ms,
                      net_match->video_seq, net_match->audio_seq, net_match->video_ts, net_match->audio_ts,
                      net_to_obs_video_ms, net_to_obs_audio_ms);
+
+        if (context->record_av_sync && context->av_sync_file) {
+            if (pthread_mutex_trylock(&context->recording_mutex) == 0) {
+                FILE *f = context->av_sync_file;
+                if (f) {
+                    fprintf(f,
+                            "%s,%s,%.1f,%u,%u,%u,%" PRIu64 ",%" PRIu64 ",1,%.1f,%u,%u,%u,%" PRIu64 ",%" PRIu64
+                            ",%+.1f,%+.1f\n",
+                            is_audio_trigger ? "audio" : "video", detected, obs_delta_ms, obs_match->video_seq,
+                            obs_match->audio_seq, (uint32_t)obs_match->video_frame_num, obs_match->video_ts,
+                            obs_match->audio_ts, net_delta_ms, net_match->video_seq, net_match->audio_seq,
+                            (uint32_t)net_match->video_frame_num, net_match->video_ts, net_match->audio_ts,
+                            net_to_obs_video_ms, net_to_obs_audio_ms);
+
+                    fflush(f);
+                }
+                pthread_mutex_unlock(&context->recording_mutex);
+            }
+        }
         return;
     }
 
@@ -203,6 +222,21 @@ static void c64_av_sync_log_network_and_obs_match(const struct c64_av_sync_match
                  " audio_ts=%" PRIu64,
                  prefix, obs_delta_ms, obs_match->video_seq, obs_match->audio_seq, detected,
                  (uint32_t)obs_match->video_frame_num, obs_match->video_ts, obs_match->audio_ts);
+
+    if (context->record_av_sync && context->av_sync_file) {
+        if (pthread_mutex_trylock(&context->recording_mutex) == 0) {
+            FILE *f = context->av_sync_file;
+            if (f) {
+                fprintf(f, "%s,%s,%.1f,%u,%u,%u,%" PRIu64 ",%" PRIu64 ",0,,,,,,,,\n",
+                        is_audio_trigger ? "audio" : "video", detected, obs_delta_ms, obs_match->video_seq,
+                        obs_match->audio_seq, (uint32_t)obs_match->video_frame_num, obs_match->video_ts,
+                        obs_match->audio_ts);
+
+                fflush(f);
+            }
+            pthread_mutex_unlock(&context->recording_mutex);
+        }
+    }
 }
 
 static void log_matched_pair_from_audio(enum c64_av_sync_origin origin, const struct c64_av_sync_event *video_ev,
@@ -318,7 +352,7 @@ void c64_av_sync_on_video_pop(struct c64_source *context, enum c64_av_sync_origi
 
         if (origin == C64_AV_SYNC_ORIGIN_OBS) {
             struct c64_av_sync_state *net_state = &context->av_sync[C64_AV_SYNC_ORIGIN_NETWORK];
-            c64_av_sync_log_network_and_obs_match(&state->last_match,
+            c64_av_sync_log_network_and_obs_match(context, &state->last_match,
                                                   net_state->last_match.valid ? &net_state->last_match : NULL, false);
         }
     }
@@ -379,7 +413,7 @@ void c64_av_sync_on_audio_pop(struct c64_source *context, enum c64_av_sync_origi
 
         if (origin == C64_AV_SYNC_ORIGIN_OBS) {
             struct c64_av_sync_state *net_state = &context->av_sync[C64_AV_SYNC_ORIGIN_NETWORK];
-            c64_av_sync_log_network_and_obs_match(&state->last_match,
+            c64_av_sync_log_network_and_obs_match(context, &state->last_match,
                                                   net_state->last_match.valid ? &net_state->last_match : NULL, true);
         }
     }

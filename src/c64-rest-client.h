@@ -1,0 +1,156 @@
+/*
+C64 Stream - An OBS Studio source plugin for Commodore 64 video and audio streaming
+Copyright (C) 2025 Christian Gleissner
+
+Licensed under the GNU General Public License v2.0 or later.
+See <https://www.gnu.org/licenses/> for details.
+*/
+
+#pragma once
+
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+
+/**
+ * REST API client for Ultimate 64 control
+ * Implements the Ultimate 64 REST API specification
+ */
+
+typedef struct c64_rest_client c64_rest_client_t;
+
+/**
+ * Create a new REST client
+ * @param base_url Base URL (e.g. "http://192.168.1.64" or "http://c64u")
+ * @param password Optional password for X-Password header (NULL if none)
+ * @return Client instance or NULL on error
+ */
+c64_rest_client_t *c64_rest_client_create(const char *base_url, const char *password);
+
+/**
+ * Destroy REST client and free resources
+ */
+void c64_rest_client_destroy(c64_rest_client_t *client);
+
+/**
+ * Machine reset (soft)
+ * PUT /v1/machine:reset
+ */
+bool c64_rest_reset(c64_rest_client_t *client);
+
+/**
+ * Machine reboot (hard)
+ * PUT /v1/machine:reboot
+ */
+bool c64_rest_reboot(c64_rest_client_t *client);
+
+/**
+ * Read memory via DMA
+ * GET /v1/machine:readmem?address=<hex>&length=<dec>
+ * @param address Memory address (hex, e.g. 0x00C6)
+ * @param length Number of bytes to read
+ * @param buffer Output buffer
+ * @param buffer_size Size of output buffer
+ * @return Number of bytes read, or -1 on error
+ */
+int c64_rest_read_memory(c64_rest_client_t *client, uint16_t address, size_t length, uint8_t *buffer,
+                         size_t buffer_size);
+
+/**
+ * Write memory via DMA
+ * PUT /v1/machine:writemem?address=<hex>&data=<hex>
+ * @param address Memory address (hex, e.g. 0x0277)
+ * @param data Bytes to write
+ * @param length Number of bytes
+ */
+bool c64_rest_write_memory(c64_rest_client_t *client, uint16_t address, const uint8_t *data, size_t length);
+
+/**
+ * Play SID file
+ * POST /v1/runners:sidplay?songnr=<n>
+ * @param sid_data SID file content
+ * @param sid_size Size of SID data
+ * @param song_number Song number (1-based, 0 for default)
+ */
+bool c64_rest_play_sid(c64_rest_client_t *client, const uint8_t *sid_data, size_t sid_size, int song_number);
+
+/**
+ * Play SID file from C64U filesystem
+ * POST /v1/runners:sidplay?path=<path>&songnr=<n>
+ * @param c64u_path Path to SID file on C64U filesystem
+ * @param song_number Song number (1-based, 0 for default)
+ */
+bool c64_rest_play_sid_path(c64_rest_client_t *client, const char *c64u_path, int song_number);
+
+/**
+ * Run PRG file
+ * POST /v1/runners:run_prg
+ * @param prg_data PRG file content
+ * @param prg_size Size of PRG data
+ */
+bool c64_rest_run_prg(c64_rest_client_t *client, const uint8_t *prg_data, size_t prg_size);
+
+/**
+ * Run PRG file from C64U filesystem
+ * POST /v1/runners:run_prg?path=<path>
+ * @param c64u_path Path to PRG file on C64U filesystem
+ */
+bool c64_rest_run_prg_path(c64_rest_client_t *client, const char *c64u_path);
+
+/**
+ * Mount disk image
+ * POST /v1/drives/{drive}:mount?type=<type>&mode=<mode>
+ * @param drive Drive letter ('a', 'b', etc.)
+ * @param type Disk type ("d64", "d81", etc.)
+ * @param mode Mount mode ("readonly", "readwrite")
+ * @param disk_data Disk image content
+ * @param disk_size Size of disk data
+ */
+bool c64_rest_mount_disk(c64_rest_client_t *client, char drive, const char *type, const char *mode,
+                         const uint8_t *disk_data, size_t disk_size);
+
+/**
+ * Mount disk image from C64U filesystem
+ * POST /v1/drives/{drive}:mount?path=<path>
+ * @param drive Drive letter ('a', 'b', etc.)
+ * @param c64u_path Path to disk image on C64U filesystem
+ */
+bool c64_rest_mount_disk_path(c64_rest_client_t *client, char drive, const char *c64u_path);
+
+/**
+ * Get last error message
+ * @return Error string (valid until next operation)
+ */
+const char *c64_rest_get_error(c64_rest_client_t *client);
+
+/**
+ * File entry from C64U filesystem
+ */
+typedef struct {
+    char name[256];
+    bool is_directory;
+    uint32_t size; // File size in bytes (0 for directories)
+} c64_file_entry_t;
+
+/**
+ * List files in C64U filesystem directory
+ * GET /v1/files:list?path=<path>&recursive=<bool>
+ * @param client REST client instance
+ * @param path Directory path (e.g., "/Commodore/SID")
+ * @param recursive Whether to enumerate subdirectories
+ * @param entries Output array pointer (allocated by function, caller must free)
+ * @param entry_count Output count of entries
+ * @return true on success, false on error
+ */
+bool c64_rest_list_files(c64_rest_client_t *client, const char *path, bool recursive, c64_file_entry_t **entries,
+                         size_t *entry_count);
+
+/**
+ * Check if a path exists in C64U filesystem
+ * HEAD /v1/files:stat?path=<path>
+ * @param client REST client instance
+ * @param path Path to check
+ * @param is_directory Output: true if path is a directory, false if file
+ * @return true if path exists, false otherwise
+ */
+bool c64_rest_stat_file(c64_rest_client_t *client, const char *path, bool *is_directory);

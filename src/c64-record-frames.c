@@ -31,8 +31,8 @@ void c64_frames_save_as_bmp(struct c64_source *context, uint32_t *frame_buffer)
 
     // Start CSV and network recording if enabled and not already active
     if (context->record_csv) {
-        c64_start_csv_recording(context);
-        c64_start_network_recording(context);
+        c64_start_obs_csv_recording(context);
+        c64_start_network_csv_recording(context);
     }
 
     // Create frames subfolder within session folder

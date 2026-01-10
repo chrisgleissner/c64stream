@@ -61,6 +61,55 @@ include(helpers)
 
 add_library(${CMAKE_PROJECT_NAME} MODULE)
 
+# Build bundled C64 PRGs (e.g. A/V sync auto-trigger)
+find_program(C64_64TASS_EXECUTABLE NAMES 64tass)
+if(C64_64TASS_EXECUTABLE)
+  set(C64_AV_SYNC_ASM "${CMAKE_CURRENT_SOURCE_DIR}/tools/c64/av-sync-auto.asm")
+  set(C64_PRG_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/prg")
+  set(C64_AV_SYNC_PRG "${C64_PRG_OUTPUT_DIR}/av-sync-auto.prg")
+
+  add_custom_command(
+    OUTPUT "${C64_AV_SYNC_PRG}"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${C64_PRG_OUTPUT_DIR}"
+    COMMAND "${C64_64TASS_EXECUTABLE}" --cbm-prg --labels --quiet -o "${C64_AV_SYNC_PRG}" "${C64_AV_SYNC_ASM}"
+    DEPENDS "${C64_AV_SYNC_ASM}"
+    VERBATIM
+  )
+
+  add_custom_target(c64_prgs ALL DEPENDS "${C64_AV_SYNC_PRG}")
+
+  # Ensure the PRG is available in dev rundir and shipped in install artifacts.
+  target_sources(${CMAKE_PROJECT_NAME} PRIVATE "${C64_AV_SYNC_PRG}")
+  if(OS_MACOS)
+    set_property(SOURCE "${C64_AV_SYNC_PRG}" PROPERTY MACOSX_PACKAGE_LOCATION "Resources/prg")
+  endif()
+
+  if(OS_WINDOWS)
+    install(FILES "${C64_AV_SYNC_PRG}" DESTINATION "${CMAKE_PROJECT_NAME}/data/prg")
+  elseif(OS_LINUX OR OS_FREEBSD OR OS_OPENBSD)
+    install(
+      FILES "${C64_AV_SYNC_PRG}"
+      DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/obs/obs-plugins/${CMAKE_PROJECT_NAME}/prg"
+    )
+  endif()
+
+  if(NOT OS_MACOS)
+    add_custom_command(
+      TARGET ${CMAKE_PROJECT_NAME}
+      POST_BUILD
+      COMMAND
+        "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/rundir/$<CONFIG>/${CMAKE_PROJECT_NAME}/prg"
+      COMMAND
+        "${CMAKE_COMMAND}" -E copy_if_different "${C64_AV_SYNC_PRG}"
+        "${CMAKE_CURRENT_BINARY_DIR}/rundir/$<CONFIG>/${CMAKE_PROJECT_NAME}/prg/av-sync-auto.prg"
+      COMMENT "Copy generated PRGs to rundir"
+      VERBATIM
+    )
+  endif()
+else()
+  message(WARNING "64tass not found; bundled PRGs (e.g. av-sync-auto.prg) will not be built")
+endif()
+
 # Update buildspec.json with authoritative version for consistent packaging
 # Always update for PR builds (development versions) and tagged releases
 if(AUTHORITATIVE_VERSION)
@@ -112,7 +161,9 @@ target_compile_definitions(
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 find_package(libobs REQUIRED)
+find_package(CURL REQUIRED)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE OBS::libobs)
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE CURL::libcurl)
 
 if(ENABLE_FRONTEND_API)
   find_package(obs-frontend-api REQUIRED)
@@ -137,6 +188,7 @@ target_sources(
   PRIVATE
     src/plugin-main.c
     src/c64-av-sync.c
+    src/c64-rest-client.c
     src/c64-network.c
     src/c64-network-buffer.c
     src/c64-protocol.c

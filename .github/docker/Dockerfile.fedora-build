@@ -24,6 +24,7 @@ RUN dnf install -y \
         ninja-build \
         pkg-config \
         git \
+        64tass \
         zsh \
         jq \
         ccache \

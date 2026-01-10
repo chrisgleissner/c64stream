@@ -842,6 +842,16 @@ install_plugin() {
         cp -r data/* "$install_dir/data/"
         log_success "Copied data files to $install_dir/data/"
 
+        # Copy generated PRGs if available (built via CMake + 64tass)
+        local prg_src="$build_dir/generated/prg/av-sync-auto.prg"
+        if [[ -f "$prg_src" ]]; then
+            mkdir -p "$install_dir/data/prg"
+            cp "$prg_src" "$install_dir/data/prg/av-sync-auto.prg"
+            log_success "Copied av-sync-auto.prg to $install_dir/data/prg/"
+        else
+            log_warning "Generated PRG not found (skipping): $prg_src"
+        fi
+
         # Ensure we always have the correct properties.ini with real C64 Ultimate settings
         # This overwrites any E2E properties that might be lingering
         local properties_file="$install_dir/data/properties.ini"
@@ -985,6 +995,14 @@ install_plugin_for_e2e() {
     if [[ -d "data" ]]; then
         cp -r data/* "$install_dir/data/"
         log_success "Copied data files to $install_dir/data/"
+
+        # Copy generated PRGs if available (keeps runtime paths consistent even in E2E installs)
+        local prg_src="$build_dir/generated/prg/av-sync-auto.prg"
+        if [[ -f "$prg_src" ]]; then
+            mkdir -p "$install_dir/data/prg"
+            cp "$prg_src" "$install_dir/data/prg/av-sync-auto.prg"
+            log_success "Copied av-sync-auto.prg to $install_dir/data/prg/"
+        fi
     fi
 
     # Install E2E properties file

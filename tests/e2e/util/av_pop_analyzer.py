@@ -69,6 +69,44 @@ def _infer_video_standard_from_pop_period_ms(video_pop_times_us: list[int]) -> O
         "pop_period_p95_ms": _percentile_nearest_rank(periods_ms, 95.0),
     }
 
+
+def _summarize_offsets(deltas_ms: list[float]) -> Optional[dict[str, Any]]:
+    if not deltas_ms:
+        return None
+    p50_ms = _percentile_nearest_rank(deltas_ms, 50.0)
+    p95_ms = _percentile_nearest_rank(deltas_ms, 95.0)
+    return {
+        "pop_count": len(deltas_ms),
+        "max_delta_ms": max(deltas_ms),
+        "avg_delta_ms": sum(deltas_ms) / len(deltas_ms),
+        "p50_delta_ms": p50_ms,
+        "p95_delta_ms": p95_ms,
+        "deltas_ms": deltas_ms,
+        "audio_pops": len(deltas_ms),
+        "video_pops": len(deltas_ms),
+        "unmatched_video_pops": 0,
+    }
+
+
+def _parse_obs_log_offsets(log_path: Path) -> tuple[list[float], list[float]]:
+    av_sync_re = re.compile(r"AV SYNC \((OBS|Network)\): offset=([+-]?[0-9]+(?:\.[0-9]+)?)ms")
+    obs_offsets_ms: list[float] = []
+    net_offsets_ms: list[float] = []
+
+    for line in log_path.read_text(errors="replace").splitlines():
+        for match in av_sync_re.finditer(line):
+            origin = match.group(1)
+            try:
+                offset_ms = abs(float(match.group(2)))
+            except ValueError:
+                continue
+            if origin == "OBS":
+                obs_offsets_ms.append(offset_ms)
+            else:
+                net_offsets_ms.append(offset_ms)
+
+    return obs_offsets_ms, net_offsets_ms
+
 def _collapse_pop_times(times_us: list[int], min_gap_us: int) -> list[int]:
     if not times_us:
         return []
@@ -222,50 +260,19 @@ def analyze_network_csv(csv_path: Path) -> tuple[Optional[dict[str, Any]], Optio
 
 def analyze_obs_log(log_path: Path) -> tuple[Optional[dict[str, Any]], Optional[str]]:
     try:
-        def summarize_offsets(deltas_ms: list[float]) -> Optional[dict[str, Any]]:
-            if not deltas_ms:
-                return None
-            p50_ms = _percentile_nearest_rank(deltas_ms, 50.0)
-            p95_ms = _percentile_nearest_rank(deltas_ms, 95.0)
-            return {
-                "pop_count": len(deltas_ms),
-                "max_delta_ms": max(deltas_ms),
-                "avg_delta_ms": sum(deltas_ms) / len(deltas_ms),
-                "p50_delta_ms": p50_ms,
-                "p95_delta_ms": p95_ms,
-                "deltas_ms": deltas_ms,
-                "audio_pops": len(deltas_ms),
-                "video_pops": len(deltas_ms),
-                "unmatched_video_pops": 0,
-            }
-
         # Preferred: parse the plugin's matched-pair log lines.
         # These are unambiguous (the plugin has already paired audio+video pops) and may appear as
         # OBS-only or as a combined line that also includes Network.
-        av_sync_re = re.compile(r"AV SYNC \((OBS|Network)\): offset=([+-]?[0-9]+(?:\.[0-9]+)?)ms")
-        obs_offsets_ms: list[float] = []
-        net_offsets_ms: list[float] = []
-
-        for line in log_path.read_text(errors="replace").splitlines():
-            for match in av_sync_re.finditer(line):
-                origin = match.group(1)
-                try:
-                    offset_ms = abs(float(match.group(2)))
-                except ValueError:
-                    continue
-                if origin == "OBS":
-                    obs_offsets_ms.append(offset_ms)
-                else:
-                    net_offsets_ms.append(offset_ms)
+        obs_offsets_ms, net_offsets_ms = _parse_obs_log_offsets(log_path)
 
         # Prefer OBS-origin offsets when present (that's what the recorded MP4/OBS timeline reflects).
         if obs_offsets_ms:
-            result = summarize_offsets(obs_offsets_ms)
+            result = _summarize_offsets(obs_offsets_ms)
             if result is None:
                 return None, "obs.log contains no pop events"
             return result, None
         if net_offsets_ms:
-            result = summarize_offsets(net_offsets_ms)
+            result = _summarize_offsets(net_offsets_ms)
             if result is None:
                 return None, "obs.log contains no pop events"
             return result, None
@@ -303,10 +310,58 @@ def analyze_obs_log(log_path: Path) -> tuple[Optional[dict[str, Any]], Optional[
         return None, f"obs.log parse failed: {exc}"
 
 
+def analyze_av_sync_csv(csv_path: Path) -> tuple[Optional[dict[str, Any]], Optional[str]]:
+    try:
+        with open(csv_path, "r", newline="") as f:
+            reader = csv.DictReader(f)
+            if not reader.fieldnames:
+                return None, "av-sync.csv is empty or missing headers"
+            if "obs_offset_ms" not in reader.fieldnames or "has_network_match" not in reader.fieldnames:
+                return None, "av-sync.csv missing required columns (obs_offset_ms/has_network_match)"
+
+            obs_offsets_ms: list[float] = []
+            net_offsets_ms: list[float] = []
+            for row in reader:
+                obs_off = row.get("obs_offset_ms")
+                if obs_off is None or str(obs_off).strip() == "":
+                    continue
+                try:
+                    obs_offsets_ms.append(abs(float(obs_off)))
+                except ValueError:
+                    continue
+
+                if (row.get("has_network_match") or "").strip() == "1":
+                    net_off = row.get("net_offset_ms")
+                    if net_off is None or str(net_off).strip() == "":
+                        continue
+                    try:
+                        net_offsets_ms.append(abs(float(net_off)))
+                    except ValueError:
+                        continue
+
+            if not obs_offsets_ms:
+                return None, "av-sync.csv contains no usable rows"
+
+            result = _summarize_offsets(obs_offsets_ms)
+            if result is None:
+                return None, "av-sync.csv contains no pop events"
+            result["network_match_count"] = len(net_offsets_ms)
+            if net_offsets_ms:
+                net_summary = _summarize_offsets(net_offsets_ms)
+                if net_summary is not None:
+                    result["network_match_max_delta_ms"] = net_summary.get("max_delta_ms")
+                    result["network_match_p50_delta_ms"] = net_summary.get("p50_delta_ms")
+                    result["network_match_p95_delta_ms"] = net_summary.get("p95_delta_ms")
+            return result, None
+    except Exception as exc:
+        return None, f"av-sync.csv parse failed: {exc}"
+
+
 def _find_input_files(input_dir: Path) -> dict[str, Optional[Path]]:
     candidates = {
         "obs_csv": None,
         "network_csv": None,
+        "av_sync_csv": None,
         "obs_log": None,
     }
     if not input_dir.exists():
@@ -314,10 +369,13 @@ def _find_input_files(input_dir: Path) -> dict[str, Optional[Path]]:
 
     obs_csv = input_dir / "obs.csv"
     network_csv = input_dir / "network.csv"
+    av_sync_csv = input_dir / "av-sync.csv"
     if obs_csv.exists():
         candidates["obs_csv"] = obs_csv
     if network_csv.exists():
         candidates["network_csv"] = network_csv
+    if av_sync_csv.exists():
+        candidates["av_sync_csv"] = av_sync_csv
 
     for name in ("obs_log.txt", "obs.log", "obs.txt"):
         log_path = input_dir / name
@@ -337,10 +395,13 @@ def _find_input_files(input_dir: Path) -> dict[str, Optional[Path]]:
         session = session_dirs[0]
         obs_csv = session / "obs.csv"
         network_csv = session / "network.csv"
+        av_sync_csv = session / "av-sync.csv"
         if obs_csv.exists():
             candidates["obs_csv"] = obs_csv
         if network_csv.exists():
             candidates["network_csv"] = network_csv
+        if av_sync_csv.exists():
+            candidates["av_sync_csv"] = av_sync_csv
 
     return candidates
 
@@ -348,6 +409,7 @@ def _find_input_files(input_dir: Path) -> dict[str, Optional[Path]]:
 def analyze_paths(
     obs_csv: Optional[Path],
     network_csv: Optional[Path],
+    av_sync_csv: Optional[Path],
     obs_log: Optional[Path],
     max_delta_ms: float,
     p50_max_ms: float,
@@ -361,6 +423,7 @@ def analyze_paths(
 
     obs_result = None
     network_result = None
+    av_sync_result = None
     log_result = None
 
     if obs_csv:
@@ -379,6 +442,14 @@ def analyze_paths(
             sources["network_csv"] = network_result
             sources["network_csv"]["path"] = str(network_csv)
 
+    if av_sync_csv:
+        av_sync_result, err = analyze_av_sync_csv(av_sync_csv)
+        if err:
+            errors.append(err)
+        if av_sync_result:
+            sources["av_sync_csv"] = av_sync_result
+            sources["av_sync_csv"]["path"] = str(av_sync_csv)
+
     if obs_result:
         authoritative = "obs_csv"
         combined = {
@@ -387,6 +458,16 @@ def analyze_paths(
             "p50_delta_ms": obs_result.get("p50_delta_ms"),
             "p95_delta_ms": obs_result.get("p95_delta_ms"),
             "pop_count": obs_result["pop_count"],
+            "authoritative_source": authoritative,
+        }
+    elif av_sync_result:
+        authoritative = "av_sync_csv"
+        combined = {
+            "max_delta_ms": av_sync_result["max_delta_ms"],
+            "avg_delta_ms": av_sync_result["avg_delta_ms"],
+            "p50_delta_ms": av_sync_result.get("p50_delta_ms"),
+            "p95_delta_ms": av_sync_result.get("p95_delta_ms"),
+            "pop_count": av_sync_result["pop_count"],
             "authoritative_source": authoritative,
         }
     elif network_result:
@@ -492,6 +573,41 @@ def analyze_paths(
     except Exception:
         inferred = None
 
+    # If both av-sync.csv and obs.log are provided, validate the per-event offsets match.
+    if av_sync_csv and obs_log:
+        try:
+            # Re-parse both sources to keep report JSON small (avoid embedding full arrays).
+            av_result, _ = analyze_av_sync_csv(av_sync_csv)
+            log_obs_offsets, log_net_offsets = _parse_obs_log_offsets(obs_log)
+            if av_result is not None:
+                av_offsets = av_result.get("deltas_ms") or []
+                tol_ms = 0.15
+                if len(av_offsets) != len(log_obs_offsets):
+                    status = "fail"
+                    errors.append(
+                        f"av-sync.csv/obs.log mismatch: {len(av_offsets)} CSV rows vs {len(log_obs_offsets)} OBS log offsets"
+                    )
+                else:
+                    for i, (a, b) in enumerate(zip(av_offsets, log_obs_offsets)):
+                        if abs(a - b) > tol_ms:
+                            status = "fail"
+                            errors.append(
+                                f"av-sync.csv/obs.log mismatch at index {i}: csv={a:.2f}ms log={b:.2f}ms (tol {tol_ms}ms)"
+                            )
+                            break
+
+                # Best-effort: validate network-match counts when log includes Network offsets.
+                if log_net_offsets:
+                    net_match_count = int(av_result.get("network_match_count") or 0)
+                    if net_match_count != len(log_net_offsets):
+                        status = "fail"
+                        errors.append(
+                            f"av-sync.csv/obs.log mismatch: {net_match_count} network matches vs {len(log_net_offsets)} Network log offsets"
+                        )
+        except Exception as exc:
+            status = "fail"
+            errors.append(f"av-sync.csv/obs.log validation failed: {exc}")
+
     report = {
         "status": status,
         "authoritative_source": authoritative,
@@ -544,7 +660,7 @@ def print_summary(report: dict[str, Any]) -> None:
         )
 
     sources = report.get("sources", {})
-    for key in ("obs_csv", "network_csv", "obs_log", "obs_mp4_recording"):
+    for key in ("av_sync_csv", "obs_csv", "network_csv", "obs_log", "obs_mp4_recording"):
         if key not in sources:
             continue
         src = sources[key]
@@ -567,6 +683,7 @@ def main() -> int:
     )
     parser.add_argument("--obs-csv", type=str, default=None, help="Path to obs.csv")
     parser.add_argument("--network-csv", type=str, default=None, help="Path to network.csv")
+    parser.add_argument("--av-sync-csv", type=str, default=None, help="Path to av-sync.csv")
     parser.add_argument("--obs-log", type=str, default=None, help="Path to obs.log")
     parser.add_argument("--input-dir", type=str, default=None, help="Directory containing obs.csv/network.csv/obs_log")
     parser.add_argument("--max-delta-ms", type=float, default=30.0, help="Legacy max allowed A/V delta in ms")
@@ -581,6 +698,7 @@ def main() -> int:
 
     obs_csv = Path(args.obs_csv).resolve() if args.obs_csv else None
     network_csv = Path(args.network_csv).resolve() if args.network_csv else None
+    av_sync_csv = Path(args.av_sync_csv).resolve() if args.av_sync_csv else None
     obs_log = Path(args.obs_log).resolve() if args.obs_log else None
 
     if args.input_dir:
@@ -588,11 +706,13 @@ def main() -> int:
         discovered = _find_input_files(input_dir)
         obs_csv = obs_csv or discovered.get("obs_csv")
         network_csv = network_csv or discovered.get("network_csv")
+        av_sync_csv = av_sync_csv or discovered.get("av_sync_csv")
         obs_log = obs_log or discovered.get("obs_log")
 
     exit_code, report = analyze_paths(
         obs_csv=obs_csv,
         network_csv=network_csv,
+        av_sync_csv=av_sync_csv,
         obs_log=obs_log,
         max_delta_ms=args.max_delta_ms,
         p50_max_ms=args.p50_max_ms,

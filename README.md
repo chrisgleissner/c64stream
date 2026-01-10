@@ -50,7 +50,7 @@ These settings work out-of-the-box with most C64 Ultimate setups. You can overri
 
 > [!NOTE]
 > The plugin has been **verified to work** on the systems listed below unless mentioned otherwise. Other environments have not been verified, but community contributions are always welcome.
-> 
+>
 > If you use a **firewall**, please make sure to open ports 11000 and 11001 for incoming UDP traffic from the Commodore 64 Ultimate.
 
 ### Easy Installation 📦
@@ -196,7 +196,7 @@ The plugin includes built-in recording capabilities that work independently of O
 
 ### Recording Options
 
-The plugin offers three independent recording options that can be enabled separately or together:
+The plugin offers four independent recording options that can be enabled separately or together:
 
 **📊 Network and Streaming Events (CSV):**
 
@@ -223,6 +223,15 @@ The plugin offers three independent recording options that can be enabled separa
 - Video file: `session_YYYYMMDD_HHMMSS/video.avi` (24-bit BGR format)
 - Audio file: `session_YYYYMMDD_HHMMSS/audio.wav` (16-bit stereo PCM)
 
+**🔬 Record A/V Sync (CSV):**
+
+- Creates `av-sync.csv` with detailed audio/video synchronization measurements
+- Automatically triggers A/V sync test program on Ultimate 64 devices via REST API (when connected to a real device)
+- **Purpose:** Debugging and validating audio/video synchronization accuracy
+- **When to use:** When experiencing A/V sync issues or contributing sync test data for bug reports
+- **Requirements:** For automated testing on real hardware, requires Ultimate 64 with REST API enabled and password configured
+- File: `session_YYYYMMDD_HHMMSS/av-sync.csv`
+
 #### File Organization
 
 All recording files are organized into timestamped session folders in the [recordings directory](#file-system-structure-):
@@ -233,6 +242,7 @@ recordings/
 │   ├── frames/           # BMP frame files (if "Raw Frames" enabled)
 │   ├── network.csv       # Network timings (if "CSV Events" enabled)
 │   ├── obs.csv           # OBS timings (if "CSV Events" enabled)
+│   ├── av-sync.csv       # A/V sync measurements (if "Record A/V Sync" enabled)
 │   ├── video.avi         # Uncompressed video (if "Raw Video" enabled)
 │   └── audio.wav         # Uncompressed audio (if "Raw Video" enabled)
 └── session_20240929_151234/
@@ -539,13 +549,16 @@ For comprehensive configuration details, refer to the [official C64 Ultimate doc
 
 ## Technical Details 🔧
 
-This plugin implements the [C64 Ultimate Data Streams specification](./doc/c64u-stream-spec.md) to receive video and audio streams from Ultimate devices via UDP/TCP network protocols.
+**Specifications:**
+
+- Implements the [C64 Ultimate Data Streams specification](./doc/c64u/c64u-stream-spec.md) for receiving video and audio streams from Ultimate devices over UDP and TCP.
+- Implements the [C64 Ultimate REST API specification](./doc/c64u/c64u-rest-api.md) for control and automation use cases, including automated A/V synchronization tests. An [OpenAPI](./doc/c64u/c64u-openapi.yaml) description is provided.
 
 **Supported Platforms:**
 
-- Windows 10/11 (x64) - verified on Windows 11
-- Linux with X window system or Wayland - verified on Kubuntu 24.04
-- macOS 11+ (Intel/Apple Silicon) - verified on macOS Sequoia 15.7 and Tahoe 26.0
+- **Windows 10/11 (x64)** – verified on Windows 11. Experimental support for ARM64.
+- **Linux (X11 or Wayland)** – verified on Kubuntu 24.04.
+- **macOS 11+ (Intel and Apple Silicon)** – verified on macOS Sequoia 15.7 and Tahoe 26.0.
 
 **Software Requirements:**
 
@@ -559,6 +572,12 @@ One of:
 - [Ultimate 64 Elite](https://ultimate64.com/Ultimate-64-Elite)
 - [Ultimate 64 Elite MK2](https://ultimate64.com/Ultimate-64-Elite-MK2)
 
+**Network Requirements:**
+
+- UDP/TCP connectivity to Ultimate device
+- Bandwidth: ~22 Mbps total (21.7 Mbps video + 1.4 Mbps audio, uncompressed streams)
+- Built-in UDP jitter compensation via configurable frame buffering
+
 **Video Formats:**
 
 - PAL: 384x272 @ 50Hz
@@ -571,12 +590,6 @@ One of:
 - 16-bit stereo PCM
 - Sample rate: ~48kHz (device dependent)
 - Low-latency streaming
-
-**Network Requirements:**
-
-- UDP/TCP connectivity to Ultimate device
-- Bandwidth: ~22 Mbps total (21.7 Mbps video + 1.4 Mbps audio, uncompressed streams)
-- Built-in UDP jitter compensation via configurable frame buffering
 
 **Recording Formats:**
 

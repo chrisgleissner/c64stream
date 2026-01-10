@@ -14,6 +14,7 @@ from .afterglow import AfterglowAssertion
 from .afterglow_decay import AfterglowDecayAssertion
 from .afterglow_width import AfterglowWidthAssertion
 from .audio import AudioAssertion
+from .av_sync_csv_validation import AvSyncCsvValidationAssertion
 from .av_sync_offset import AvSyncOffsetAssertion
 from .av_sync_log_validation import AvSyncLogValidationAssertion
 from .base import AssertionResult, AssertionStatus, EffectAssertion
@@ -129,6 +130,7 @@ def create_assertions_from_list(
         "video_quality": VideoQualityAssertion,
         "audio": AudioAssertion,
         "av_sync_offset": AvSyncOffsetAssertion,
+        "av_sync_csv_validation": AvSyncCsvValidationAssertion,
         "av_sync_log_validation": AvSyncLogValidationAssertion,
         "debug_log_presence": DebugLogPresenceAssertion,
         "tint": TintAssertion,

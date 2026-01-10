@@ -31,6 +31,7 @@ RUN apt-get install -y --no-install-recommends \
         ninja-build \
         pkg-config \
         git \
+        64tass \
         zsh \
         jq \
         ccache \
@@ -38,6 +39,7 @@ RUN apt-get install -y --no-install-recommends \
         dpkg-dev \
         xz-utils \
         net-tools \
+    libcurl4-openssl-dev \
         libgl1 \
         libgl1-mesa-dri \
         libglu1-mesa \
