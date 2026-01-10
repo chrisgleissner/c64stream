@@ -170,6 +170,9 @@ struct c64_source {
 
     // Synthetic timestamp generation (monotonic, packet-index based)
     uint64_t audio_packet_count;              // Total audio packets processed since stream start
+    uint16_t last_audio_ts_seq;               // Last 16-bit audio packet sequence number seen (wrap-aware)
+    bool audio_ts_seq_set;                    // True once last_audio_ts_seq has been initialized
+    uint64_t audio_packet_index;              // Monotonic packet index derived from sequence progression
     uint64_t audio_interval_ns;               // Nanoseconds per audio packet (format-specific)
     double audio_sample_rate;                 // Audio sample rate (exact: 47982.887 Hz PAL, 47940.341 Hz NTSC)
     uint64_t last_audio_timestamp_validation; // Last timestamp for progression validation

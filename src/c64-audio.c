@@ -123,16 +123,30 @@ static void validate_audio_timestamp_progression(struct c64_source *context, uin
 {
     if (context->last_audio_timestamp_validation > 0) {
         int64_t timestamp_delta = (int64_t)(current_timestamp - context->last_audio_timestamp_validation);
-        // Expected delta is ~4ms (format-specific: PAL 4.001ms, NTSC 4.005ms)
-        // Allow 3.5ms to 4.5ms tolerance for both formats
-        if (timestamp_delta < 3500000 || timestamp_delta > 4500000) {
-            uint64_t packet_index = 0;
-            if (context->audio_packet_count > 0) {
-                packet_index = context->audio_packet_count - 1;
+        if (context->audio_interval_ns > 0) {
+            const int64_t interval = (int64_t)context->audio_interval_ns;
+            // Allow timestamp deltas that are close to an integer multiple of interval.
+            // This is expected when packets are dropped or arrive out-of-order.
+            int64_t k = 1;
+            if (timestamp_delta > 0 && interval > 0) {
+                k = (timestamp_delta + (interval / 2)) / interval; // nearest integer multiple
+                if (k < 1) {
+                    k = 1;
+                }
             }
-            C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " Audio timestamp jump detected [%s]: delta=%" PRId64 "ns ts=%" PRIu64
-                          " packet_index=%" PRIu64 " (expected ~4000000ns, format-specific)",
-                          obs_source_get_name(context->source), timestamp_delta, current_timestamp, packet_index);
+
+            const int64_t expected = k * interval;
+            const int64_t err = timestamp_delta - expected;
+            const int64_t abs_err = (err < 0) ? -err : err;
+            const int64_t tolerance = 500000; // 0.5ms
+
+            if (timestamp_delta <= 0 || abs_err > tolerance) {
+                C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " Audio timestamp jump detected [%s]: delta=%" PRId64 "ns (k=%" PRId64
+                              " expected=%" PRId64 "ns err=%" PRId64 "ns) ts=%" PRIu64 " packet_index=%" PRIu64
+                              " processed_packets=%" PRIu64,
+                              obs_source_get_name(context->source), timestamp_delta, k, expected, err,
+                              current_timestamp, context->audio_packet_index, context->audio_packet_count);
+            }
         }
     }
     context->last_audio_timestamp_validation = current_timestamp;
@@ -183,7 +197,7 @@ static bool c64_debug_audio_has_signal(const uint8_t *samples, size_t samples_si
 }
 
 // Generate monotonic audio timestamps with format-specific intervals
-static uint64_t generate_monotonic_audio_timestamp(struct c64_source *context)
+static uint64_t generate_monotonic_audio_timestamp(struct c64_source *context, uint16_t packet_seq)
 {
     // Audio packet intervals are format-specific (exact fractional rates):
     // PAL:  192 samples ÷ 47982.8869047619 Hz = 4,001,416.96 ns/packet
@@ -215,11 +229,28 @@ static uint64_t generate_monotonic_audio_timestamp(struct c64_source *context)
         return 0;
     }
 
-    // Synthetic timestamps are derived solely from stream_start_ns + packet/sample index.
-    // This advances monotonically by sample count (192 stereo frames per packet).
-    uint64_t synthetic_timestamp =
-        context->stream_start_ns + (context->audio_packet_count * context->audio_interval_ns);
+    // Derive a monotonic packet index from the 16-bit sequence number.
+    // This keeps the synthetic audio timeline advancing even when packets are dropped.
+    if (!context->audio_ts_seq_set) {
+        context->audio_ts_seq_set = true;
+        context->last_audio_ts_seq = packet_seq;
+        context->audio_packet_index = 0;
+    } else {
+        const int16_t delta = (int16_t)(packet_seq - context->last_audio_ts_seq);
+        if (delta > 0) {
+            context->audio_packet_index += (uint64_t)delta;
+            context->last_audio_ts_seq = packet_seq;
+        } else {
+            // Duplicate/out-of-order: still advance by 1 to avoid timestamp reuse.
+            context->audio_packet_index += 1;
+        }
+    }
+
+    // Keep the old counter as a processed-packet statistic.
     context->audio_packet_count++;
+
+    uint64_t synthetic_timestamp =
+        context->stream_start_ns + (context->audio_packet_index * context->audio_interval_ns);
 
     return synthetic_timestamp;
 }
@@ -235,8 +266,10 @@ void c64_process_audio_packet(struct c64_source *context, const uint8_t *audio_d
     // Ensure shared synthetic start time is initialized (fallback: receipt timestamp).
     c64_try_init_stream_start_ns(context, timestamp_ns, "audio packet pop");
 
+    const uint16_t packet_seq = (uint16_t)audio_data[0] | ((uint16_t)audio_data[1] << 8);
+
     // Generate synthetic audio timestamp for monotonic progression.
-    uint64_t audio_timestamp = generate_monotonic_audio_timestamp(context);
+    uint64_t audio_timestamp = generate_monotonic_audio_timestamp(context, packet_seq);
     if (audio_timestamp == 0) {
         // If we cannot generate a synthetic timestamp yet, do not submit audio with a zero timestamp.
         return;

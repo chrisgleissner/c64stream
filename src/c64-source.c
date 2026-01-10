@@ -1007,6 +1007,9 @@ void c64_start_streaming(struct c64_source *context)
         os_atomic_set_bool(&context->stream_start_set, false);
 
         context->audio_packet_count = 0;
+        context->last_audio_ts_seq = 0;
+        context->audio_ts_seq_set = false;
+        context->audio_packet_index = 0;
         context->audio_interval_ns = 0;
         context->last_audio_timestamp_validation = 0;
 
@@ -1399,10 +1402,16 @@ void c64_try_init_stream_start_ns(struct c64_source *context, uint64_t packet_ti
 
     if (!os_atomic_load_bool(&context->stream_start_set)) {
         context->stream_start_ns = packet_time_ns;
+        if (context->network_buffer && context->buffer_delay_ms > 0) {
+            context->stream_start_ns += (uint64_t)context->buffer_delay_ms * 1000000ULL;
+        }
         os_atomic_set_bool(&context->stream_start_set, true);
 
         // Reset per-stream synthetic counters at stream start.
         context->audio_packet_count = 0;
+        context->last_audio_ts_seq = 0;
+        context->audio_ts_seq_set = false;
+        context->audio_packet_index = 0;
         context->audio_interval_ns = 0;
         context->last_audio_timestamp_validation = 0;
 
@@ -1419,8 +1428,8 @@ void c64_try_init_stream_start_ns(struct c64_source *context, uint64_t packet_ti
         context->first_audio_ts_logged = false;
         context->initial_av_delta_logged = false;
 
-        C64_LOG_INFO("STREAM START: stream_start_ns=%" PRIu64 " trigger=%s", context->stream_start_ns,
-                     trigger ? trigger : "unknown");
+        C64_LOG_INFO("STREAM START: stream_start_ns=%" PRIu64 " trigger=%s buffer_delay_ms=%u",
+                     context->stream_start_ns, trigger ? trigger : "unknown", context->buffer_delay_ms);
     }
 
     pthread_mutex_unlock(&context->stream_start_mutex);
