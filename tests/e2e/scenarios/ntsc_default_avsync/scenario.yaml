@@ -1,4 +1,4 @@
-name: NTSC Default Debug
+name: NTSC Default A/V Sync
 format: NTSC
 preset: Default
 full_frame_pop: true

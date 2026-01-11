@@ -24,9 +24,6 @@
 !README.md
 !AGENTS.md
 
-# Include development helper files
-!local-build.sh
-
 # Include private folder (for private repo only - excluded in public sync)
 !private
 

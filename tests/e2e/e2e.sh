@@ -52,6 +52,7 @@ DEFAULT_ENABLE_RESOURCE_MONITORING=true  # CPU/GPU/RAM monitoring during packet 
 DEFAULT_RESOURCE_INTERVAL_MS=500  # Resource monitoring sample interval in ms (internal)
 DEFAULT_DISABLE_POPS=false  # Disable A/V sync pops in generated packets
 DEFAULT_SETTLING_SECONDS=0  # Ignore early frame progression errors for pass/fail
+DEFAULT_PACKET_SOURCE="mock"  # mock (synthetic sender) | device (real C64U)
 
 # Optional CPU profiling (Linux perf). Disabled by default.
 DEFAULT_PERF_PROFILE=false
@@ -499,13 +500,14 @@ load_scenario() {
     log_info "Loading scenario: ${scenario_name}"
 
     # Parse scenario.yaml (new concise format)
-    local name format preset pattern full_frame_pop csv_max_rows
+    local name format preset pattern full_frame_pop csv_max_rows packet_source
     name=$(grep -m1 "^name:" "${scenario_yaml}" | sed 's/^name: *//' || true)
     format=$(grep -m1 "^format:" "${scenario_yaml}" | sed 's/^format: *//' || true)
     preset=$(grep -m1 "^preset:" "${scenario_yaml}" | sed 's/^preset: *//' || true)
     pattern=$(grep -m1 "^pattern:" "${scenario_yaml}" | sed 's/^pattern: *//' || true)
     full_frame_pop=$(grep -m1 "^full_frame_pop:" "${scenario_yaml}" | sed 's/^full_frame_pop: *//' || true)
     csv_max_rows=$(grep -m1 "^csv_max_rows:" "${scenario_yaml}" | sed 's/^csv_max_rows: *//' || true)
+    packet_source=$(grep -m1 "^packet_source:" "${scenario_yaml}" | sed 's/^packet_source: *//' || true)
 
     if [[ -z "${name}" || -z "${format}" ]]; then
         log_error "Invalid scenario.yaml (missing required fields)"
@@ -548,6 +550,10 @@ load_scenario() {
     if [[ -n "${pattern}" ]]; then
         PACKET_PATTERN="${pattern}"
         log_info "  Packet pattern: ${PACKET_PATTERN}"
+    fi
+    if [[ -n "${packet_source}" ]]; then
+        PACKET_SOURCE="${packet_source}"
+        log_info "  Packet source: ${PACKET_SOURCE}"
     fi
     if [[ "${full_frame_pop}" == "true" ]]; then
         FULL_FRAME_POP=true
@@ -610,6 +616,7 @@ parse_args() {
     RESOURCE_INTERVAL_MS="${DEFAULT_RESOURCE_INTERVAL_MS}"
     DISABLE_POPS="${DEFAULT_DISABLE_POPS}"
     SETTLING_SECONDS="${DEFAULT_SETTLING_SECONDS}"
+    PACKET_SOURCE="${DEFAULT_PACKET_SOURCE}"
 
     PERF_PROFILE="${DEFAULT_PERF_PROFILE}"
     PERF_FLAMEGRAPH="${DEFAULT_PERF_FLAMEGRAPH}"
@@ -1492,6 +1499,16 @@ run_e2e_test() {
         "--audio-port" "${AUDIO_PORT}"
         "--udp-replay" "${udp_replay_path}"
     )
+
+    # Packet-source behavior (mock vs device) is scenario-defined.
+    if [[ -n "${PACKET_SOURCE}" ]]; then
+        cmd+=("--packet-source" "${PACKET_SOURCE}")
+    fi
+
+    # Make full-frame-pop behavior explicit in the Python harness (avoid scenario-id special casing).
+    if [[ "${FULL_FRAME_POP}" == true ]]; then
+        cmd+=("--full-frame-pop")
+    fi
 
     if [[ "${OBS_ENABLED}" == true ]]; then
         cmd+=("--enable-websocket")

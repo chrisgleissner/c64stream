@@ -1,0 +1,29 @@
+name: NTSC Default A/V Sync (Device)
+format: NTSC
+preset: Default
+# Use real C64 Ultimate device packets rather than the synthetic UDP sender.
+packet_source: device
+# Local-only: requires a reachable C64U device on the network.
+ci_skip: true
+ci_skip_reason: "Requires a real C64 Ultimate device (hostname: c64u)"
+full_frame_pop: true
+csv_max_rows: 6000
+# Configure the source to connect to the real device; A/V sync itself is enabled/disabled at runtime via OBS WebSocket.
+overrides:
+  c64_host: c64u
+  control_port: 64
+  video_port: 21000
+  audio_port: 21001
+  dns_server_ip: 192.168.1.1
+  auto_detect_ip: true
+  obs_ip_address: ""
+  record_av_sync: false
+  record_csv: true
+  record_video: false
+  record_frames: false
+  debug_logging: true
+assertions:
+  - av_sync_offset
+  - av_sync_log_validation
+  - av_sync_csv_validation
+  - debug_log_presence

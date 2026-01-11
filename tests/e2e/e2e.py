@@ -197,6 +197,8 @@ class E2ETest:
                  scenario_id: str | None = None, output_dir: str | None = None,
                  csv_max_rows: int | None = None, enable_resource_monitoring: bool = False,
                  resource_interval_ms: int = 500,
+                 packet_source: str = 'mock',
+                 full_frame_pop: bool = False,
                  settling_seconds: float = 0.0,
                  enable_perf_profile: bool = False,
                  perf_frequency_hz: int = 99,
@@ -214,6 +216,8 @@ class E2ETest:
         self.frames = frames
         self.verbose = verbose
         self.enable_websocket = enable_websocket  # Disable WebSocket by default for performance
+        self.packet_source = str(packet_source or 'mock').strip().lower()
+        self.full_frame_pop = bool(full_frame_pop)
         self.scenario_overrides_dir = Path(scenario_overrides_dir).resolve() if scenario_overrides_dir else None
         self.scenario_name = scenario_name
         self.scenario_id = scenario_id
@@ -1604,6 +1608,70 @@ class E2ETest:
         except Exception as e:
             self.log(f"OBS WebSocket error: {e}")
             return None
+
+    def _set_obs_input_settings(self, input_name: str, settings: dict, overlay: bool = True) -> bool:
+        """Set OBS input settings via WebSocket.
+
+        Returns True if the request succeeded.
+        """
+        resp = self.send_obs_request(
+            "SetInputSettings",
+            {
+                "inputName": input_name,
+                "inputSettings": settings,
+                "overlay": bool(overlay),
+            },
+        )
+        if not resp:
+            return False
+        status = resp.get("requestStatus") or {}
+        return bool(status.get("result", False))
+
+    def _find_active_recording_session_dir(self, timeout_s: float = 20.0) -> Path | None:
+        """Find the newest plugin recording session created after OBS startup."""
+        recordings_base = Path.home() / 'Documents' / 'obs-studio' / 'c64stream' / 'recordings'
+        start_time = time.time()
+        obs_start = float(self._obs_start_time_s or 0.0)
+        while time.time() - start_time < timeout_s:
+            if recordings_base.exists():
+                sessions = [p for p in recordings_base.glob('session_*') if p.is_dir()]
+                # Prefer sessions created/modified after OBS start to avoid stale folder selection.
+                sessions = [p for p in sessions if p.stat().st_mtime >= (obs_start - 2.0)] or sessions
+                if sessions:
+                    sessions.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+                    return sessions[0]
+            time.sleep(0.2)
+        return None
+
+    def _wait_for_obs_csv_frames(self, min_frames: int, timeout_s: float) -> bool:
+        """Wait until the current session's obs.csv contains at least min_frames frames."""
+        session_dir = self._find_active_recording_session_dir(timeout_s=max(3.0, min(20.0, timeout_s)))
+        if not session_dir:
+            self.log("❌ Could not locate active recording session folder")
+            return False
+
+        obs_csv = session_dir / 'obs.csv'
+        start_time = time.time()
+        last_count = -1
+        while time.time() - start_time < timeout_s:
+            try:
+                if obs_csv.exists():
+                    with open(obs_csv, 'r', encoding='utf-8', errors='ignore') as f:
+                        # Count lines quickly; first line is header.
+                        lines = sum(1 for _ in f)
+                    count = max(0, lines - 1)
+                    if count != last_count and self.verbose:
+                        self.log(f"📈 OBS frames captured so far: {count}/{min_frames}")
+                        last_count = count
+                    if count >= min_frames:
+                        self.log(f"✅ Captured at least {min_frames} OBS frames ({count})")
+                        return True
+            except Exception:
+                pass
+            time.sleep(0.2)
+
+        self.log(f"❌ Timed out waiting for {min_frames} OBS frames")
+        return False
 
     def start_obs_recording(self):
         """
@@ -3160,9 +3228,9 @@ class E2ETest:
         validation_errors = []
         validation_warnings = []
 
-        # CRITICAL: Check for cross-pollution from real C64 device
-        # Synthetic tests should receive packets from mock C64U (sequence starts at 0)
-        # If we see high sequence numbers (>1000), we're receiving from real device!
+        # CRITICAL: Check packet source to prevent cross-test pollution.
+        # - Synthetic/mock runs should see sequence numbers starting near 0.
+        # - Device runs should see high sequence numbers (real device stream), not near-zero.
         network_csv = self.output_dir / 'network.csv'
         if network_csv.exists():
             try:
@@ -3179,30 +3247,47 @@ class E2ETest:
                         if first_video_seq is not None and first_audio_seq is not None:
                             break
 
-                    # For synthetic tests, sequences should start near 0 (within first 100 packets)
-                    # If we see sequences >1000, we're receiving from real C64 device
-                    if first_video_seq is not None and first_video_seq > 1000:
-                        error_msg = (
-                            f"❌ CROSS-POLLUTION DETECTED: First video packet has sequence {first_video_seq} (expected <100)\n"
-                            f"   This indicates packets came from REAL C64 device, not mock C64U!\n"
-                            f"   Real C64 device must be stopped before running synthetic tests."
-                        )
-                        print(error_msg)
-                        validation_errors.append(f"Cross-pollution: video sequence {first_video_seq} >> 1000")
-                    elif first_audio_seq is not None and first_audio_seq > 1000:
-                        error_msg = (
-                            f"❌ CROSS-POLLUTION DETECTED: First audio packet has sequence {first_audio_seq} (expected <100)\n"
-                            f"   This indicates packets came from REAL C64 device, not mock C64U!\n"
-                            f"   Real C64 device must be stopped before running synthetic tests."
-                        )
-                        print(error_msg)
-                        validation_errors.append(f"Cross-pollution: audio sequence {first_audio_seq} >> 1000")
-                    else:
-                        # Good - sequences start near 0 as expected
-                        print(f"✅ Packet Source: Mock C64U (video seq={first_video_seq}, audio seq={first_audio_seq})")
+                    if self.packet_source == 'mock':
+                        # Mock runs should start near 0 (within first 100 packets).
+                        if first_video_seq is not None and first_video_seq > 1000:
+                            error_msg = (
+                                f"❌ CROSS-POLLUTION DETECTED: First video packet has sequence {first_video_seq} (expected <100)\n"
+                                f"   This indicates packets came from REAL C64 device, not mock C64U!\n"
+                                f"   Real C64 device must be stopped before running synthetic tests."
+                            )
+                            print(error_msg)
+                            validation_errors.append(f"Cross-pollution: video sequence {first_video_seq} >> 1000")
+                        elif first_audio_seq is not None and first_audio_seq > 1000:
+                            error_msg = (
+                                f"❌ CROSS-POLLUTION DETECTED: First audio packet has sequence {first_audio_seq} (expected <100)\n"
+                                f"   This indicates packets came from REAL C64 device, not mock C64U!\n"
+                                f"   Real C64 device must be stopped before running synthetic tests."
+                            )
+                            print(error_msg)
+                            validation_errors.append(f"Cross-pollution: audio sequence {first_audio_seq} >> 1000")
+                        else:
+                            print(f"✅ Packet Source: Mock C64U (video seq={first_video_seq}, audio seq={first_audio_seq})")
+                    elif self.packet_source == 'device':
+                        # Device runs should not look like mock (near 0). Real devices typically have large seq numbers.
+                        if first_video_seq is not None and first_video_seq < 1000:
+                            error_msg = (
+                                f"❌ WRONG PACKET SOURCE: First video packet has sequence {first_video_seq} (expected >1000 for device)\n"
+                                f"   This indicates packets likely came from the mock sender, not the real device."
+                            )
+                            print(error_msg)
+                            validation_errors.append(f"Wrong packet source (device expected): video sequence {first_video_seq} < 1000")
+                        elif first_audio_seq is not None and first_audio_seq < 1000:
+                            error_msg = (
+                                f"❌ WRONG PACKET SOURCE: First audio packet has sequence {first_audio_seq} (expected >1000 for device)\n"
+                                f"   This indicates packets likely came from the mock sender, not the real device."
+                            )
+                            print(error_msg)
+                            validation_errors.append(f"Wrong packet source (device expected): audio sequence {first_audio_seq} < 1000")
+                        else:
+                            print(f"✅ Packet Source: Real device (video seq={first_video_seq}, audio seq={first_audio_seq})")
             except Exception as e:
                 validation_warnings.append(f"Could not verify packet source: {e}")
-        is_full_frame_pop = (self.scenario_id == 'ntsc_default_debug')
+        is_full_frame_pop = self.full_frame_pop
 
         # Track individual validation results
         validation_results = {
@@ -3905,10 +3990,19 @@ class E2ETest:
                 self.log("❌ Failed to copy E2E properties")
                 return False
 
-            # Start mock C64 Ultimate TCP server BEFORE OBS
-            # This is critical because the plugin auto-connects when it's created
-            if not self.start_mock_c64_server():
-                self.log("❌ Failed to start mock C64 server")
+            # Packet source selection:
+            # - mock: start the mock C64 Ultimate TCP server and use udp_replay.
+            # - device: do NOT start mock sender infrastructure.
+            if self.packet_source == 'mock':
+                # Start mock C64 Ultimate TCP server BEFORE OBS.
+                # This is critical because the plugin auto-connects when it's created.
+                if not self.start_mock_c64_server():
+                    self.log("❌ Failed to start mock C64 server")
+                    return False
+            elif self.packet_source == 'device':
+                self.log("ℹ️ Packet source is 'device' - skipping mock C64 server")
+            else:
+                self.log(f"❌ Unknown packet_source: {self.packet_source}")
                 return False
 
             # Start OBS with recording enabled
@@ -3943,14 +4037,22 @@ class E2ETest:
                 self.log("✅ Plugin is ready, starting packet replay immediately")
 
             # Brief delay to ensure UDP sockets are bound and plugin is fully ready
-            udp_ready_delay = 2.0 if self.is_ci else 0.3
+            udp_ready_delay = 2.0 if self.is_ci else (0.8 if self.packet_source == 'device' else 0.3)
             self.log(f"⏳ Allowing {udp_ready_delay}s for UDP socket binding and plugin readiness...")
             time.sleep(udp_ready_delay)
 
             self.log("✅ OBS recording active, plugin ready")
 
-            # Run packet replay while recording
-            self.log("Running packet replay while OBS is recording...")
+            # Ensure receiver threads are ready before driving packet source.
+            receiver_timeout = 20 if self.is_ci else 8
+            if not self.wait_for_receiver_threads(timeout=receiver_timeout):
+                self.log("⚠️ Receiver threads not confirmed within timeout; proceeding")
+
+            # Drive packet source while recording
+            if self.packet_source == 'mock':
+                self.log("Running packet replay while OBS is recording...")
+            else:
+                self.log("Running device-backed capture while OBS is recording...")
 
             # Optional: record a perf profile of OBS during replay + grace period.
             if self.enable_perf_profile and self.obs_process:
@@ -3960,20 +4062,48 @@ class E2ETest:
                 duration_s = self.perf_duration_s if self.perf_duration_s is not None else expected_s
                 self._start_perf_profile(self.obs_process.pid, duration_s)
 
-            replay_success = self.replay_packets(udp_replay_path)
+            if self.packet_source == 'mock':
+                replay_success = self.replay_packets(udp_replay_path)
+            else:
+                # Device-backed scenario: enable A/V sync at runtime via OBS properties.
+                if not self.wait_for_obs_websocket(timeout=20):
+                    self.log("❌ OBS WebSocket not ready; cannot toggle A/V sync property")
+                    return False
+
+                if not self._set_obs_input_settings('C64 Stream', {'record_av_sync': True}, overlay=True):
+                    self.log("❌ Failed to enable A/V sync (record_av_sync) via WebSocket")
+                    return False
+
+                # Wait until we've captured enough frames to satisfy assertions (and include multiple sync pulses).
+                fps = 59.826 if self.format == 'NTSC' else 50.125
+                expected_s = (float(self.frames) / fps) + (8.0 if self.is_ci else 4.0)
+                if not self._wait_for_obs_csv_frames(min_frames=int(self.frames), timeout_s=expected_s):
+                    return False
+
+                replay_success = True
 
             if replay_success:
                 self.log("✅ Packet replay completed successfully")
             else:
                 self.log("❌ Packet replay failed")
 
-            # Stop recording promptly after last frame received
+            # Stop recording promptly after last frame received / captured.
             # Keep recording a short grace period to allow OBS to flush frames
             # Reduced grace period to minimize logo display at end (was 5s/3s, now 2s/1.5s)
             grace = 2.0 if self.is_ci else 1.5
             self.log(f"⏳ Waiting {grace}s after last frame, then stopping recording...")
             time.sleep(grace)
             self.stop_recording()
+
+            # Device teardown requirement: disable A/V sync (triggers device reset) without manual interaction.
+            if self.packet_source == 'device' and self.enable_websocket and WEBSOCKET_AVAILABLE:
+                if self._set_obs_input_settings('C64 Stream', {'record_av_sync': False}, overlay=True):
+                    self.log("✅ Disabled A/V sync via WebSocket (record_av_sync=false)")
+                    # Give the plugin a moment to issue reset/cleanup calls.
+                    time.sleep(1.0)
+                else:
+                    self.log("⚠️ Failed to disable A/V sync via WebSocket")
+
             # Minimal extra wait to ensure the output file is finalized
             time.sleep(1)
 
@@ -4071,6 +4201,10 @@ def main():
                         help='Control TCP port for mock C64 Ultimate server (default: 6400)')
     parser.add_argument('--udp-replay', default='./util/udp_replay',
                         help='Path to udp_replay executable (default: ./util/udp_replay)')
+    parser.add_argument('--packet-source', choices=['mock', 'device'], default='mock',
+                        help='Packet source: mock (synthetic sender) or device (real C64U) (default: mock)')
+    parser.add_argument('--full-frame-pop', action='store_true',
+                        help='Enable full-frame-pop validation behavior (scenario-driven)')
     parser.add_argument('--verbose', action='store_true',
                         help='Enable verbose logging')
     parser.add_argument('--enable-websocket', action='store_true',
@@ -4206,6 +4340,8 @@ def main():
         csv_max_rows=csv_max_rows,
         enable_resource_monitoring=args.enable_resource_monitoring,
         resource_interval_ms=args.resource_interval_ms,
+        packet_source=args.packet_source,
+        full_frame_pop=args.full_frame_pop,
         settling_seconds=args.settling_seconds,
         enable_perf_profile=args.perf_profile,
         perf_frequency_hz=args.perf_frequency_hz,
