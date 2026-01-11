@@ -969,9 +969,6 @@ void c64_process_video_statistics_batch(struct c64_source *context, uint64_t cur
 
     // Load and reset debug counters
     long recv_calls = os_atomic_load_long(&context->debug_recvfrom_calls);
-    long recv_eagain = os_atomic_load_long(&context->debug_recvfrom_eagain);
-    long recv_bytes = os_atomic_load_long(&context->debug_recvfrom_bytes_total);
-    long drop_size = os_atomic_load_long(&context->debug_packets_dropped_size);
 
     os_atomic_set_long(&context->debug_recvfrom_calls, 0);
     os_atomic_set_long(&context->debug_recvfrom_eagain, 0);
