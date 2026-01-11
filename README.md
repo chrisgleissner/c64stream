@@ -33,57 +33,72 @@ The plugin connects directly to the Ultimate's network interface, eliminating th
 - The Ultimate device must be connected via its Ethernet port. The OBS computer may connect via Wi-Fi if both are on the same network, but using Ethernet all the way to OBS is recommended for the most stable connection and lowest delay. Wi-Fi on the Ultimate itself is [not supported](https://1541u-documentation.readthedocs.io/en/latest/howto/wifi.html#functionality-available-on-wifi).
 - For complete and up-to-date hardware and software requirements, please refer to the [OBS Studio System Requirements](https://obsproject.com/kb/system-requirements).
 
-## Configuration
+---
 
-The plugin uses a `properties.ini` file to provide default settings for connecting to your C64 Ultimate device. This file is automatically installed with the plugin and contains the standard C64 Ultimate network settings:
-
-- **Hostname**: `c64u` (the default C64 Ultimate hostname)
-- **Control Port**: `64` (the standard C64 Ultimate control port)
-- **DNS Server**: `192.168.1.1` (common router DNS)
-- **Video/Audio Ports**: `11000`/`11001` (C64 Ultimate streaming ports)
-
-These settings work out-of-the-box with most C64 Ultimate setups. You can override any of these settings directly in the OBS source properties if your setup differs.
-
-## Quick Start
-
-
+## Installation 📦
 
 > [!NOTE]
 > The plugin has been **verified to work** on the systems listed below unless mentioned otherwise. Other environments have not been verified, but community contributions are always welcome.
 >
 > If you use a **firewall**, please make sure to open ports 11000 and 11001 for incoming UDP traffic from the Commodore 64 Ultimate.
+> 
+> In the following instructions, replace `$VERSION` with the latest released version as shown on the [Releases](../../releases) page.
 
-### Easy Installation 📦
+### Windows (Standard Installation)
 
-In the following instructions, replace `$VERSION` with the latest released version as shown on the [Releases](../../releases) page.
+Applies when OBS Studio is installed normally using the official Windows installer.
 
 #### Windows (X64)
 
-Verified on Windows 11:
+Verified on Windows 11.
 
-1. Close OBS Studio
-2. [Download](../../releases) the plugin package with name `c64stream-$VERSION-windows-x64.zip`. It should now be in your `Downloads` folder (typically `C:\Users\<YourName>\Downloads`).
-3. Install the plugin to `C:\ProgramData\obs-studio\plugins` by either extracting the ZIP with a tool of your choice or by running the following in Powershell:
+1. Close OBS Studio.
+2. [Download](../../releases) the plugin package `c64stream-$VERSION-windows-x64.zip`. The file will be downloaded to your `Downloads` folder, typically `C:\Users\<YourName>\Downloads`.
+3. Install the plugin by extracting the ZIP to the OBS plugin directory:
    ```powershell
    Expand-Archive -Path "$env:USERPROFILE\Downloads\c64stream-*-windows-*.zip" -DestinationPath "C:\ProgramData\obs-studio\plugins" -Force
    ```
-4. If you use Windows Firewall to block incoming connections, yo'weasdf u may have to setup an exclusion to allow for incoming UDP connections to port 11000 (Video) and 11001 (Audio) from the C64 Ultimate as follows. Be sure to adjust the `RemoteAddress` from `192.168.1.64` to the IP of your C64 Ultimate before you run this in Powershell:
+4. If Windows Firewall blocks incoming connections, create an inbound rule allowing UDP traffic on ports **11000** (video) and **11001** (audio). Replace `192.168.1.64` with the IP address of your C64 Ultimate:
    ```powershell
    New-NetFirewallRule -DisplayName "C64 Stream" -Direction Inbound -Protocol UDP -LocalPort 11000,11001 -RemoteAddress 192.168.1.64 -Action Allow
    ```
-5. Start OBS Studio
+5. Start OBS Studio.
 
 #### Windows (ARM64 - Experimental)
 
-> [!NOTE]
-> Windows on ARM64 support is experimental and has not yet been fully tested. If you would like to help with testing, please reach out in the "Discussions" tab of this repository.
+> [!NOTE]  
+> Windows on ARM64 support is experimental and has not yet been fully tested.
+> If you would like to help with testing, please reach out via the
+> *Discussions* tab of this repository.
 
-1. Install the ARM64 version of OBS Studio by unzipping https://github.com/obsproject/obs-studio/releases/download/32.0.4/OBS-Studio-32.0.4-Windows-arm64.zip to your local drive.
+1. Download and unzip the ARM64 build of OBS Studio:  
+   https://github.com/obsproject/obs-studio/releases/download/32.0.4/OBS-Studio-32.0.4-Windows-arm64.zip
 2. Ensure OBS Studio is closed.
-3. [Download](../../releases) the plugin package with name `c64stream-$VERSION-windows-arm64.zip`. It should now be in your `Downloads` folder (typically `C:\Users\<YourName>\Downloads`).
-4. Follow step 3 and all subsequent steps as described in the “Windows (x64)” chapter above.
+3. [Download](../../releases) the plugin package `c64stream-$VERSION-windows-arm64.zip` to your `Downloads` folder.
+4. Install the plugin exactly as described in **Windows (X64)** above.
 
-#### macOS
+### Windows (Portable Mode)
+
+> [!IMPORTANT]  
+> This section applies **only** if OBS Studio is run in [portable mode](https://obsproject.com/kb/portable-mode), for example when `portable_mode.txt` exists next to `obs64.exe`.
+> If you installed OBS using the Windows installer, use the *Standard Installation* instructions above.
+
+In portable mode, OBS does **not** use `C:\ProgramData\obs-studio\plugins`. Instead, plugins are loaded relative to the OBS installation directory.
+
+1. Download the appropriate plugin ZIP (X64 or ARM64), as described above.
+2. Open PowerShell **in the root directory of your portable OBS installation** (the directory containing `obs64.exe`).
+3. Run the following command:
+   ```powershell
+   $zip=Get-ChildItem "$env:USERPROFILE\Downloads\c64stream-*-windows-*.zip" | Select-Object -First 1;
+   Expand-Archive -Path $zip -DestinationPath "$env:TEMP\c64stream" -Force;
+   New-Item -ItemType Directory -Force ".\obs-plugins\64bit" | Out-Null;
+   Copy-Item "$env:TEMP\c64stream\c64stream\bin\64bit\*" ".\obs-plugins\64bit\" -Recurse -Force;
+   New-Item -ItemType Directory -Force ".\data\obs-plugins\c64stream" | Out-Null;
+   Copy-Item "$env:TEMP\c64stream\c64stream\data\*" ".\data\obs-plugins\c64stream\" -Recurse -Force
+   ```
+4. Start OBS Studio.
+
+### macOS
 
 Verified on macOS Sequoia 15.7 and Tahoe 26.0 with Apple Silicon M4 (Intel systems should also work):
 
@@ -103,11 +118,11 @@ chmod -R 755 "$HOME/Library/Application Support/obs-studio/plugins/c64stream.plu
 ```
 4. Start OBS Studio
 
-#### Linux
+### Linux
 
 Verified on Ubuntu 24.04, Debian 12, Fedora 40 and Arch Linux via automated [end-to-end tests](#end-to-end-tests-) on each build. Other distributions may work but are not officially supported.
 
-##### Ubuntu / Debian (Recommended)
+#### Ubuntu / Debian (Recommended)
 
 1. Close OBS Studio
 2. Install OBS Studio (32.0.1+):
@@ -129,7 +144,7 @@ Verified on Ubuntu 24.04, Debian 12, Fedora 40 and Arch Linux via automated [end
    ```
 5. Start OBS Studio
 
-##### Other Distributions (Fedora, Arch, etc.)
+#### Other Distributions (Fedora, Arch, etc.)
 
 For non-Debian-based distributions, you can extract the `.deb` package manually:
 
@@ -150,7 +165,9 @@ For non-Debian-based distributions, you can extract the `.deb` package manually:
 **Further Details:**
 See the [OBS Plugins Guide](https://obsproject.com/kb/plugins-guide).
 
-### Configuration ⚙️
+---
+
+## Configuration ⚙️
 
 **Getting Your C64 on Stream:**
 
@@ -170,12 +187,15 @@ A new window opens. Keep the default settings and click "OK":
 
 🎉 **DONE!** Enjoy streaming from your C64 Ultimate.
 
-## Plugin Setup
+---
+
+## Plugin Properties
+
+This chapter explains the plugin properties in greater detail.
 
 ### General
 
 - **Version:** Information about release version, Git ID, and build time
-- **Debug Logging:** Check this to see debug logs
 
 ### Network 📡
 
@@ -194,7 +214,7 @@ A new window opens. Keep the default settings and click "OK":
 
 The plugin includes built-in recording capabilities that work independently of OBS Studio's recording system, letting you save raw C64 Ultimate data streams directly to disk.
 
-### Recording Options
+#### Recording Options
 
 The plugin offers four independent recording options that can be enabled separately or together:
 
@@ -254,9 +274,6 @@ recordings/
 - **Mix and Match:** All three recording options can be enabled simultaneously
 - **Instant Recording:** Recording starts immediately when a checkbox is checked and continues until unchecked
 - **⚠️ Persistent State:** Checkbox states persist across OBS restarts - uncheck to stop recording or risk filling disk space
-- **Real-Time Writing:** Files are written in real-time as data is received from the C64 Ultimate
-- **Auto-Organization:** Session folders are created automatically with proper directory structure
-- **Recommended:** Enable **CSV recording** for debugging and **disable** BMP/AVI recording for normal streaming
 
 #### Debug & Analysis CSV Logs 📊
 
@@ -271,33 +288,13 @@ Examples from recent automated E2E runs against a 'mocked' (i.e. simulated) Ulti
 - PAL: [`obs.csv`](tests/e2e/results/pal_default/obs.csv), [`network.csv`](tests/e2e/results/pal_default/network.csv)
 - NTSC: [`obs.csv`](tests/e2e/results/ntsc_default/obs.csv), [`network.csv`](tests/e2e/results/ntsc_default/network.csv)
 
-**Sample OBS Timeline (obs.csv):**
-
-```csv
-event_type,frame_num,elapsed_us,data_size_bytes,fps,audio_samples_total,video_packets_received,audio_packets_received,sequence_errors
-video,1,43874,368640,59.826,0,160,12,0
-audio,0,48250,768,59.826,0,175,13,0
-```
-
-**Sample Network Analysis (network.csv):**
-
-```csv
-packet_type,elapsed_us,sequence_num,frame_num,line_num,packet_size,jitter_us
-video,225,1510,7671,8,780,0
-audio,2341,847,0,0,192,125
-```
-
-**Use Cases:**
-
-- **Debug OBS Performance:** Analyze frame processing delays and audio sync issues
-- **Network Stream Analysis:** Monitor UDP packet timing, jitter, and sequence errors
-- **Bit-Accurate Recordings:** Capture every frame with precise timing for forensic analysis
-- **C64 Ultimate Diagnostics:** Validate device streaming performance and network stability
-
 **Sample Recording:** See [docs/recordings/session_19700101_024625](docs/recordings/session_19700101_024625) for complete examples with all file types.
 
-**Activation:** Enable the **"Network and Streaming Events (CSV)"** checkbox in the Recording properties. CSV files are generated only when this option is explicitly enabled.
+#### Debug Logging
 
+**Show Debug Messages in OBS Logs:** Check this to see debug messages in the OBS logs.
+
+---
 
 ### Effects ✨
 
@@ -352,6 +349,7 @@ The following screenshot assumes you select "Wide" scan line mode, again assumin
 
 ![Edit Source Transform](./docs/images/source-transform-edit.png "Edit Source Transform in OBS")
 
+---
 
 ### Color Palettes 🎨
 
@@ -421,6 +419,8 @@ Import and export your complete plugin settings:
 
 Exported configurations are saved to the [settings directory](#file-system-structure-).
 
+---
+
 ### File System Structure 📁
 
 The plugin uses three distinct filesystem locations:
@@ -481,6 +481,8 @@ For easy access, simple backups, and visibility, it is always stored in `<Docume
 - **macOS:** `~/Documents/obs-studio/c64stream/` (e.g., `/Users/yourname/Documents/obs-studio/c64stream/`)
 - **Linux:** `~/Documents/obs-studio/c64stream/` (e.g., `/home/yourname/Documents/obs-studio/c64stream/`)
 
+---
+
 ## End-to-end tests 🧪
 
 This project is continuously validated with automated end-to-end (E2E) tests that simulate a C64 Ultimate, drive OBS, and verify the full pipeline from UDP packets to recorded video/audio.
@@ -501,6 +503,8 @@ Many recent reports (without videos) are checked into this GitHub repository:
 You can download all [Latest E2E results](https://github.com/chrisgleissner/c64stream/actions/workflows/build-project.yaml?query=branch%3Amain+is%3Asuccess) (with videos) as GitHub CI build artifact ZIP.
 
 For more information, see [`doc/testing/e2e.md`](doc/testing/e2e.md).
+
+---
 
 ## Network Details
 
@@ -543,6 +547,8 @@ The plugin offers hostname resolution that works reliably on Linux and macOS whe
 6. Manually start streaming from the Ultimate device
 
 For comprehensive configuration details, refer to the [official C64 Ultimate documentation](https://1541u-documentation.readthedocs.io/en/latest/data_streams.html).
+
+---
 
 ## Technical Details 🔧
 
@@ -594,6 +600,8 @@ One of:
 - AVI video: Uncompressed BGR24 format with precise timing
 - WAV audio: 16-bit stereo PCM, sample rate matches C64 Ultimate output
 - Session organization: Automatic timestamped folder creation
+
+---
 
 ## Troubleshooting 🔍
 
