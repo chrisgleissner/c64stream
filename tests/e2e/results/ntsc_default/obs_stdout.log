@@ -1,0 +1,9 @@
+debug: Found portal inhibitor
+debug: Attempted path: /usr/bin/../share/obs/obs-studio/locale/en-US.ini
+debug: Attempted path: /usr/bin/../share/obs/obs-studio/locale.ini
+debug: Attempted path: /usr/bin/../share/obs/obs-studio/locale/en-GB.ini
+info: Using preferred locale 'en-GB'
+debug: Attempted path: /usr/bin/../share/obs/obs-studio/themes
+debug: Attempted path: /usr/bin/../share/obs/obs-studio/themes/
+warning: ReadOne on org.freedesktop.portal.Settings returned an invalid reply
+warning: Crash or unclean shutdown detected

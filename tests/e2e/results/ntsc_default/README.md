@@ -2,13 +2,13 @@
 
 ## Scenario: NTSC Default
 
-Generated: 2026-01-11 14:50:06 UTC
+Generated: 2026-01-11 15:43:00 UTC
 
 ## Test configuration
 
 - Format: NTSC
-- Frames: 480
-- Duration: 8.0 seconds
+- Frames: 120
+- Duration: 2.0 seconds
 - Video Port: 21000
 - Audio Port: 21001
 - OBS Enabled: true
@@ -23,7 +23,7 @@ Generated: 2026-01-11 14:50:06 UTC
 - OS: Ubuntu 24.04.3 LTS (kernel 6.14.0-37-generic)
 - OBS: 32.0.2
 - CPU: Intel(R) Core(TM) i7-6700K CPU @ 4.00GHz (8 cores)
-- RAM: 31Gi total, 24Gi available
+- RAM: 31Gi total, 26Gi available
 - Disk (/): 1.8T total, 1.1T available
 
 ## Test results
@@ -50,7 +50,7 @@ Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
 ### Packet & Network Data
 
-- ✅ Packet Generation: 28800 video, 2003 audio packets
+- ✅ Packet Generation: 7200 video, 500 audio packets
 - ✅ UDP Replay: Completed successfully
 - Events: [network.csv](network.csv), [obs.csv](obs.csv), [playback.csv](playback.csv)
 
