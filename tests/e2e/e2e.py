@@ -3518,31 +3518,24 @@ class E2ETest:
         expected_duration_s: float | None = None
 
         if self.packet_source == 'device':
-            # Use measured network span when available; it's the best proxy for "how long did we receive packets".
-            network_json = self.output_dir / 'network.json'
-            if not network_json.exists() and network_csv.exists():
-                # Some paths may reach validation before check_csv_recordings() produced network.json.
-                # Generate it now from the full network.csv to avoid falling back to frame-count.
-                self._save_network_analysis(network_csv)
+            # Device runs: sender packet count isn't deterministic.
+            # Prefer network.json's measured packet span (computed from the full CSV in check_csv_recordings()).
             duration_ms = None
+            network_json = self.output_dir / 'network.json'
             if network_json.exists():
-                # network.json is generated just before validation; on some systems it may still be mid-write.
-                for attempt in range(10):
-                    try:
-                        with open(network_json, 'r') as f:
-                            net = json.load(f)
-                        duration_ms = (net.get('summary', {}) or {}).get('duration_ms', None)
-                        if duration_ms is not None:
-                            break
-                    except Exception:
-                        duration_ms = None
-                    if attempt < 9:
-                        time.sleep(0.05)
+                try:
+                    with open(network_json, 'r') as f:
+                        net = json.load(f)
+                    duration_ms = (net.get('summary', {}) or {}).get('duration_ms', None)
+                except Exception:
+                    duration_ms = None
 
-            if duration_ms is not None:
-                expected_duration_s = float(duration_ms) / 1000.0
-            else:
-                expected_duration_s = float(self.frames) / frame_rate
+            # Fallback: obs.csv processing duration is a good proxy for "how long OBS was receiving/processing".
+            if duration_ms is None:
+                duration_ms = self._get_obs_processing_duration_ms()
+
+            # Last resort: scenario target duration.
+            expected_duration_s = (float(duration_ms) / 1000.0) if duration_ms is not None else (float(self.frames) / frame_rate)
 
             expected_total_est = int(expected_duration_s * (video_packets_per_s + audio_packets_per_s))
             expected_total_low = int(expected_total_est * 0.75)
