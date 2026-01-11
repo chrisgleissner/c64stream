@@ -47,7 +47,7 @@ static BOOL CALLBACK c64_curl_init_once_cb(PINIT_ONCE once, PVOID param, PVOID *
     return TRUE;
 }
 #else
-static CURLcode g_c64_curl_rc = CURLE_OK;
+static CURLcode g_c64_curl_rc = CURLE_FAILED_INIT;
 
 static void c64_curl_init_once_cb(void)
 {
