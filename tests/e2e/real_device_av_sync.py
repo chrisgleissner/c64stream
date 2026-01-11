@@ -547,10 +547,12 @@ def run(args: argparse.Namespace) -> int:
 
         obs_csv = output_dir / "obs.csv"
         network_csv = output_dir / "network.csv"
+        av_sync_csv = output_dir / "av-sync.csv"
 
         exit_code, report = av_pop_analyzer.analyze_paths(
             obs_csv=obs_csv if obs_csv.exists() else None,
             network_csv=network_csv if network_csv.exists() else None,
+            av_sync_csv=av_sync_csv if av_sync_csv.exists() else None,
             obs_log=obs_log if obs_log else None,
             max_delta_ms=args.max_delta_ms,
             p50_max_ms=args.p50_max_ms,
