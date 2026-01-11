@@ -991,8 +991,6 @@ void c64_process_video_statistics_batch(struct c64_source *context, uint64_t cur
             video_buffer_depth_ms = ((double)v_pkts * 1000.0) / (double)C64_MAX_VIDEO_RATE;
         }
 
-        C64_LOG_INFO("" VIDEO_LOG_PREFIX " DBG: recv_calls=%ld eagain=%ld bytes=%ld drop_size=%ld", recv_calls,
-                     recv_eagain, recv_bytes, drop_size);
         C64_LOG_INFO("" VIDEO_LOG_PREFIX " %.1f fps | %.2f Mbps | %.0f pps | Frames: %u | current_video_ts_ns=%" PRIu64
                      " video_ts_minus_stream_start_ns=%" PRIu64 " video_buf_depth_ms=%.1f",
                      frames_per_second, bandwidth_mbps, packets_per_second, (uint32_t)frames_processed,
@@ -1003,9 +1001,6 @@ void c64_process_video_statistics_batch(struct c64_source *context, uint64_t cur
                      frame_completion_rate);
         C64_LOG_INFO("" VIDEO_LOG_PREFIX " Capture drops %.1f%% | Delivery drops %.1f%% | Avg latency %.1f ms",
                      capture_drop_pct, delivery_drop_pct, avg_pipeline_latency);
-        C64_LOG_INFO("" VIDEO_LOG_PREFIX
-                     " DEBUG: recv calls=%ld, EAGAIN=%ld, bytes=%ld, dropped_size=%ld (Valid: %" PRIu64 ")",
-                     recv_calls, recv_eagain, recv_bytes, drop_size, packets_received);
     }
 
     // Reset diagnostic counters and update timestamp
