@@ -10,9 +10,16 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-logging.h"
 
 #include <curl/curl.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <pthread.h>
+#endif
 
 #define REST_LOG_PREFIX "📡 REST: "
 #define HTTP_TIMEOUT_SECONDS 5
@@ -23,6 +30,52 @@ struct c64_rest_client {
     char error_msg[512];
     CURL *curl;
 };
+
+#ifdef _WIN32
+static volatile LONG g_c64_curl_ok = 0;
+static volatile LONG g_c64_curl_done = 0;
+
+static BOOL CALLBACK c64_curl_init_once_cb(PINIT_ONCE once, PVOID param, PVOID *context)
+{
+    (void)once;
+    (void)param;
+    (void)context;
+
+    CURLcode rc = curl_global_init(CURL_GLOBAL_DEFAULT);
+    InterlockedExchange(&g_c64_curl_ok, (rc == CURLE_OK) ? 1 : 0);
+    InterlockedExchange(&g_c64_curl_done, 1);
+    return TRUE;
+}
+#else
+static CURLcode g_c64_curl_rc = CURLE_FAILED_INIT;
+
+static void c64_curl_init_once_cb(void)
+{
+    g_c64_curl_rc = curl_global_init(CURL_GLOBAL_DEFAULT);
+}
+#endif
+
+static bool c64_curl_global_init_once(void)
+{
+#ifdef _WIN32
+    static INIT_ONCE curl_once = INIT_ONCE_STATIC_INIT;
+    BOOL ok = InitOnceExecuteOnce(&curl_once, c64_curl_init_once_cb, NULL, NULL);
+    if (!ok) {
+        return false;
+    }
+
+    while (InterlockedCompareExchange(&g_c64_curl_done, 1, 1) == 0) {
+        Sleep(0);
+    }
+
+    return InterlockedCompareExchange(&g_c64_curl_ok, 1, 1) == 1;
+#else
+    static pthread_once_t curl_once = PTHREAD_ONCE_INIT;
+
+    pthread_once(&curl_once, c64_curl_init_once_cb);
+    return g_c64_curl_rc == CURLE_OK;
+#endif
+}
 
 // Callback for capturing HTTP response data
 typedef struct {
@@ -57,6 +110,11 @@ static size_t write_callback(void *contents, size_t size, size_t nmemb, void *us
 c64_rest_client_t *c64_rest_client_create(const char *base_url, const char *password)
 {
     if (!base_url) {
+        return NULL;
+    }
+
+    if (!c64_curl_global_init_once()) {
+        C64_LOG_ERROR(REST_LOG_PREFIX "curl_global_init failed");
         return NULL;
     }
 
