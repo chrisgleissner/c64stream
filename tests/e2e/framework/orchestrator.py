@@ -171,7 +171,7 @@ class E2EOrchestrator:
                 self.xvfb.stop()
             except Exception:
                 pass
-            
+
             self.obs_config.restore_backup()
 
     def _process_csvs(self) -> Dict[str, int]:
