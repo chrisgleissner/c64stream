@@ -36,6 +36,9 @@ This file tracks multi-step work items that require investigation + verification
   - `cd3b09c` Fix build after VIDEO log cleanup
   - `e4a3e8e` Ship PRGs for all C64 tools
   - `c3bee75` Init curl global state once
+  - `5d2fcb0` Real-device runner: enable AV sync PRG
+  - `dc7a9ad` Update plan with PRG packaging proof
+  - `e6a7325` Update AV sync plan with verification
 
 #### 1) Remove remaining `DBG`/`DEBUG` log spam
 - [ ] Search for remaining case-sensitive `DBG` / `DEBUG` log strings in `src/`.
