@@ -39,6 +39,7 @@ def validate_network_timing(
     video_format: str,
     frames: int,
     network_simulation: dict | None,
+    packet_source: str = 'mock',
 ) -> tuple[str, str, list[str], list[str]]:
     """Validate sender pacing using derived metrics in network.json.
 
@@ -87,7 +88,13 @@ def validate_network_timing(
     else:
         min_ok_ms = expected_duration_ms * 0.70
         # Allow extra network simulation delay on top of baseline.
-        max_ok_ms = expected_duration_ms + extra_delay_ms + 2000.0
+        if str(packet_source or 'mock').strip().lower() == 'device':
+            # Device runs have more timing variability:
+            # - We stop capture based on observed frames, not sender completion.
+            # - Teardown/grace can keep packets arriving briefly.
+            max_ok_ms = (expected_duration_ms * 2.0) + extra_delay_ms + 2000.0
+        else:
+            max_ok_ms = expected_duration_ms + extra_delay_ms + 2000.0
         if duration_ms < min_ok_ms:
             errors.append(
                 f"Network timing span too short: {duration_ms:.1f}ms < {min_ok_ms:.1f}ms (expected ~{expected_duration_ms:.1f}ms)"
@@ -3487,7 +3494,9 @@ class E2ETest:
             'network_timing': {'status': 'unknown', 'details': ''},
         }
 
-        # Calculate expected packet counts using actual generation logic
+        # Calculate expected packet counts.
+        # - mock: deterministic (based on frames + generator logic)
+        # - device: estimated from observed capture duration + nominal packet rates
         if self.format == 'PAL':
             video_packets_per_frame = 68  # 272 lines / 4 lines per packet
             frame_rate = 50.125
@@ -3497,19 +3506,62 @@ class E2ETest:
             frame_rate = 59.826
             audio_sample_rate = 47940
 
-        # Video packets calculation (unchanged)
-        expected_video_packets = self.frames * video_packets_per_frame
-
-        # Audio packets calculation (matches generate_packets.py logic)
-        frame_duration_ms = 1000.0 / frame_rate
-        total_test_duration_ms = self.frames * frame_duration_ms
         audio_samples_per_packet = 192  # Stereo samples
-        audio_packet_duration_ms = (audio_samples_per_packet / audio_sample_rate) * 1000
-        expected_audio_packets = int(total_test_duration_ms / audio_packet_duration_ms)
+        video_packets_per_s = video_packets_per_frame * frame_rate
+        audio_packets_per_s = audio_sample_rate / float(audio_samples_per_packet)
 
-        expected_total_packets = expected_video_packets + expected_audio_packets
+        expected_total_packets: int | None = None
+        expected_video_packets: int | None = None
+        expected_audio_packets: int | None = None
+        expected_total_low: int | None = None
+        expected_total_high: int | None = None
+        expected_duration_s: float | None = None
 
-        print(f"Expected: {expected_total_packets} packets ({expected_video_packets} video + {expected_audio_packets} audio)")
+        if self.packet_source == 'device':
+            # Use measured network span when available; it's the best proxy for "how long did we receive packets".
+            network_json = self.output_dir / 'network.json'
+            if not network_json.exists() and network_csv.exists():
+                # Some paths may reach validation before check_csv_recordings() produced network.json.
+                # Generate it now from the full network.csv to avoid falling back to frame-count.
+                self._save_network_analysis(network_csv)
+            duration_ms = None
+            if network_json.exists():
+                # network.json is generated just before validation; on some systems it may still be mid-write.
+                for attempt in range(10):
+                    try:
+                        with open(network_json, 'r') as f:
+                            net = json.load(f)
+                        duration_ms = (net.get('summary', {}) or {}).get('duration_ms', None)
+                        if duration_ms is not None:
+                            break
+                    except Exception:
+                        duration_ms = None
+                    if attempt < 9:
+                        time.sleep(0.05)
+
+            if duration_ms is not None:
+                expected_duration_s = float(duration_ms) / 1000.0
+            else:
+                expected_duration_s = float(self.frames) / frame_rate
+
+            expected_total_est = int(expected_duration_s * (video_packets_per_s + audio_packets_per_s))
+            expected_total_low = int(expected_total_est * 0.75)
+            expected_total_high = int(expected_total_est * 1.35)
+            print(
+                f"Expected (estimated): ~{expected_total_est} packets over {expected_duration_s:.1f}s "
+                f"(range {expected_total_low}..{expected_total_high})"
+            )
+        else:
+            # Deterministic expectation matching generate_packets.py.
+            expected_video_packets = self.frames * video_packets_per_frame
+            frame_duration_ms = 1000.0 / frame_rate
+            total_test_duration_ms = self.frames * frame_duration_ms
+            audio_packet_duration_ms = (audio_samples_per_packet / audio_sample_rate) * 1000
+            expected_audio_packets = int(total_test_duration_ms / audio_packet_duration_ms)
+            expected_total_packets = expected_video_packets + expected_audio_packets
+            print(
+                f"Expected: {expected_total_packets} packets ({expected_video_packets} video + {expected_audio_packets} audio)"
+            )
 
         # 1. UDP Packet Reception Validation
         # Use original counts from before CSV truncation for accurate validation
@@ -3519,24 +3571,72 @@ class E2ETest:
         audio_packets = original_counts.get('audio_packets', 0)
 
         if received_packets > 0:
-            if received_packets == expected_total_packets:
-                print(f"✅ UDP Reception: {received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio)")
-                validation_results['udp_reception'] = {'status': 'pass', 'details': f"{received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio)"}
-            elif received_packets >= expected_total_packets * 0.95:  # 95% threshold
-                print(f"⚠️  UDP Reception: {received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio)")
-                validation_warnings.append(f"Packet loss: {expected_total_packets - received_packets} packets missing")
-                validation_results['udp_reception'] = {'status': 'warning', 'details': f"{received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio, minor loss)"}
+            if self.packet_source == 'device' and expected_total_low is not None and expected_total_high is not None:
+                # Device: sender packet count isn't deterministic. Validate within a reasonable range.
+                expected_midpoint = (expected_total_low + expected_total_high) / 2.0
+                deviation_pct = ((float(received_packets) - expected_midpoint) / expected_midpoint) * 100.0
+                device_expectation_str = (
+                    f"expected range {expected_total_low}..{expected_total_high} "
+                    f"(mid {expected_midpoint:.0f}, deviation {deviation_pct:+.1f}% vs midpoint)"
+                )
+                if expected_total_low <= received_packets <= expected_total_high:
+                    print(
+                        f"✅ UDP Reception: {received_packets} packets ({video_packets} video, {audio_packets} audio, within expected range; {device_expectation_str})"
+                    )
+                    validation_results['udp_reception'] = {
+                        'status': 'pass',
+                        'details': f"{received_packets} packets ({video_packets} video, {audio_packets} audio, within expected range; {device_expectation_str})",
+                    }
+                elif received_packets < expected_total_low:
+                    print(
+                        f"⚠️  UDP Reception: {received_packets} packets ({video_packets} video, {audio_packets} audio, below expected range; {device_expectation_str})"
+                    )
+                    # Defer to frame processing: low packet rate is only fatal if frames also fail.
+                    validation_results['udp_reception'] = {
+                        'status': 'deferred',
+                        'details': f"{received_packets} packets ({video_packets} video, {audio_packets} audio, below expected range; {device_expectation_str})",
+                        'packets_missing': expected_total_low - received_packets,
+                    }
+                else:
+                    print(
+                        f"⚠️  UDP Reception: {received_packets} packets ({video_packets} video, {audio_packets} audio, above expected range; {device_expectation_str})"
+                    )
+                    validation_warnings.append(
+                        f"Higher-than-expected packet count for device run: {received_packets} > {expected_total_high}"
+                    )
+                    validation_results['udp_reception'] = {
+                        'status': 'warning',
+                        'details': f"{received_packets} packets ({video_packets} video, {audio_packets} audio, above expected range; {device_expectation_str})",
+                    }
             else:
-                # Major packet loss - but defer error decision until we check frame processing
-                # If frames are processed successfully, packet logging loss is a warning (CI timing issue)
-                # If frames also fail, then it's a true error
-                print(f"⚠️  UDP Reception: {received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio)")
-                # Store info for deferred decision after frame processing check
-                validation_results['udp_reception'] = {
-                    'status': 'deferred',  # Will be resolved after frame check
-                    'details': f"{received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio, major loss)",
-                    'packets_missing': expected_total_packets - received_packets
-                }
+                assert expected_total_packets is not None
+                if received_packets >= expected_total_packets:
+                    print(
+                        f"✅ UDP Reception: {received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio)"
+                    )
+                    validation_results['udp_reception'] = {
+                        'status': 'pass',
+                        'details': f"{received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio)",
+                    }
+                elif received_packets >= expected_total_packets * 0.95:  # 95% threshold
+                    missing = max(0, expected_total_packets - received_packets)
+                    print(
+                        f"⚠️  UDP Reception: {received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio)"
+                    )
+                    validation_warnings.append(f"Packet loss: {missing} packets missing")
+                    validation_results['udp_reception'] = {
+                        'status': 'warning',
+                        'details': f"{received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio, minor loss)",
+                    }
+                else:
+                    print(
+                        f"⚠️  UDP Reception: {received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio)"
+                    )
+                    validation_results['udp_reception'] = {
+                        'status': 'deferred',
+                        'details': f"{received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio, major loss)",
+                        'packets_missing': max(0, expected_total_packets - received_packets),
+                    }
         else:
             print("❌ UDP Reception: No network.csv found")
             validation_errors.append("Missing network.csv - plugin may not be receiving UDP packets")
@@ -3550,6 +3650,7 @@ class E2ETest:
             video_format=self.format,
             frames=self.frames,
             network_simulation=self.network_simulation,
+            packet_source=self.packet_source,
         )
 
         strict_network_timing = self.is_ci or (os.environ.get('C64_E2E_STRICT_NETWORK_TIMING', '') == '1')

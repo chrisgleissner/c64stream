@@ -1405,6 +1405,15 @@ install_plugin() {
 
 # Generate test packets
 generate_packets() {
+    if [[ "${PACKET_SOURCE}" == "device" ]]; then
+        # Device scenarios use a real C64U stream; pre-generated packets are not used and would
+        # mislead validation/reporting if left around from previous runs.
+        cd "${TEST_DIR}"
+        rm -rf test_packets
+        log_info "Skipping packet generation (packet_source=device)"
+        return 0
+    fi
+
     log_info "Generating ${FORMAT} test packets (${FRAMES} frames)..."
 
     cd "${TEST_DIR}"
@@ -2159,14 +2168,19 @@ EOF
 
     local video_count=0
     local audio_count=0
-    if [[ -d "${TEST_DIR}/test_packets" ]]; then
-        video_count=$(find "${TEST_DIR}/test_packets/video/${FORMAT}" -name "*.bin" 2>/dev/null | wc -l)
-        audio_count=$(find "${TEST_DIR}/test_packets/audio/${FORMAT}" -name "*.bin" 2>/dev/null | wc -l)
-        echo "- ✅ Packet Generation: ${video_count} video, ${audio_count} audio packets" >> "${report_file}"
+    if [[ "${PACKET_SOURCE}" == "device" ]]; then
+        echo "- ℹ️ Packet Generation: Skipped (device packet source)" >> "${report_file}"
+        echo "- ✅ UDP Capture: Device stream" >> "${report_file}"
     else
-        echo "- ⚠️ Packet Generation: Not captured" >> "${report_file}"
+        if [[ -d "${TEST_DIR}/test_packets" ]]; then
+            video_count=$(find "${TEST_DIR}/test_packets/video/${FORMAT}" -name "*.bin" 2>/dev/null | wc -l)
+            audio_count=$(find "${TEST_DIR}/test_packets/audio/${FORMAT}" -name "*.bin" 2>/dev/null | wc -l)
+            echo "- ✅ Packet Generation: ${video_count} video, ${audio_count} audio packets" >> "${report_file}"
+        else
+            echo "- ⚠️ Packet Generation: Not captured" >> "${report_file}"
+        fi
+        echo "- ✅ UDP Replay: Completed successfully" >> "${report_file}"
     fi
-    echo "- ✅ UDP Replay: Completed successfully" >> "${report_file}"
 
     local event_links=()
     if [[ -f "${OUTPUT_DIR}/network.csv" ]]; then
