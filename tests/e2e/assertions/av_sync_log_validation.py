@@ -41,6 +41,7 @@ class AvSyncLogValidationAssertion(EffectAssertion):
         output_dir = mp4_path.parent
         obs_csv = output_dir / "obs.csv"
         network_csv = output_dir / "network.csv"
+        av_sync_csv = output_dir / "av-sync.csv"
         obs_log = output_dir / "obs_log.txt"
 
         if not obs_log.exists():
@@ -52,9 +53,35 @@ class AvSyncLogValidationAssertion(EffectAssertion):
             )
 
         try:
-            # Parse CSV files for pop events
-            video_pops = self._parse_obs_csv_pops(obs_csv)
-            audio_pops = self._parse_network_csv_pops(network_csv)
+            # Parse CSV files for pop events.
+            #
+            # In device/full-frame-pop runs, the on-screen pop pattern is not guaranteed to be a strict
+            # all-white transition detectable from obs.csv. In those cases, the plugin-produced
+            # av-sync.csv is the authoritative source for pop numbering.
+            csv_video_max = 0
+            csv_audio_max = 0
+            csv_video_count = 0
+            csv_audio_count = 0
+
+            video_pops = []
+            audio_pops = []
+
+            if av_sync_csv.exists():
+                csv_video_max, csv_audio_max, csv_row_count = self._parse_av_sync_csv_pop_max(av_sync_csv)
+                csv_video_count = csv_row_count
+                csv_audio_count = csv_row_count
+                if verbose:
+                    self.log(
+                        f"Using av-sync.csv for pop maxima: video_max={csv_video_max}, audio_max={csv_audio_max} (rows={csv_row_count})",
+                        verbose,
+                    )
+            else:
+                video_pops = self._parse_obs_csv_pops(obs_csv)
+                audio_pops = self._parse_network_csv_pops(network_csv)
+                csv_video_count = len(video_pops)
+                csv_audio_count = len(audio_pops)
+                csv_video_max = csv_video_count
+                csv_audio_max = csv_audio_count
 
             # Parse obs.log for AV SYNC entries
             av_sync_logs = self._parse_av_sync_logs(obs_log)
@@ -131,20 +158,18 @@ class AvSyncLogValidationAssertion(EffectAssertion):
             # Verify CSV data matches logs where possible
             # Note: CSV timestamps are at packet reception time, logs are at frame delivery time
             # So there may be timing differences, but we can still validate pop counts
-            csv_video_count = len(video_pops)
-            csv_audio_count = len(audio_pops)
             log_video_max = max((e["video_pop_num"] for e in obs_av_sync_logs), default=0)
             log_audio_max = max((e["audio_pop_num"] for e in obs_av_sync_logs), default=0)
 
             # CSV may not see all pops due to different detection thresholds
             # But logs should not see MORE pops than CSV (sanity check)
-            if log_video_max > csv_video_count + 2:  # Allow 2 extra for edge cases
+            if log_video_max > csv_video_max + 2:  # Allow 2 extra for edge cases
                 validation_errors.append(
                     f"Plugin logged {log_video_max} video pops but CSV only shows {csv_video_count} "
                     f"(difference too large, possible detection mismatch)"
                 )
 
-            if log_audio_max > csv_audio_count + 3:  # Audio detection varies more
+            if log_audio_max > csv_audio_max + 3:  # Audio detection varies more
                 self.log(
                     f"Note: Plugin logged {log_audio_max} audio pops but network.csv shows {csv_audio_count}. "
                     f"This is expected if plugin uses stricter detection threshold.",
@@ -157,8 +182,8 @@ class AvSyncLogValidationAssertion(EffectAssertion):
                     name=self.name,
                     message=f"AV SYNC log validation failed: {len(validation_errors)} error(s)",
                     details={
-                        "video_pops_csv": len(video_pops),
-                        "audio_pops_csv": len(audio_pops),
+                        "video_pops_csv": csv_video_count,
+                        "audio_pops_csv": csv_audio_count,
                         "av_sync_logs": len(av_sync_logs),
                         "matched_logs": matched_logs,
                         "errors": validation_errors,
@@ -170,8 +195,8 @@ class AvSyncLogValidationAssertion(EffectAssertion):
                 name=self.name,
                 message=f"AV SYNC logs validated: {matched_logs} matching entries",
                 details={
-                    "video_pops_csv": len(video_pops),
-                    "audio_pops_csv": len(audio_pops),
+                    "video_pops_csv": csv_video_count,
+                    "audio_pops_csv": csv_audio_count,
                     "av_sync_logs": len(av_sync_logs),
                     "matched_logs": matched_logs,
                 }
@@ -258,6 +283,36 @@ class AvSyncLogValidationAssertion(EffectAssertion):
                 prev_has_signal = has_signal
 
         return pops
+
+    def _parse_av_sync_csv_pop_max(self, csv_path: Path) -> tuple[int, int, int]:
+        """Parse av-sync.csv and return (max_video_pop, max_audio_pop, row_count)."""
+        max_video = 0
+        max_audio = 0
+        row_count = 0
+
+        with open(csv_path, 'r', encoding='utf-8', errors='ignore') as f:
+            # Header: trigger,detected,obs_offset_ms,obs_video_seq,obs_audio_seq,...
+            header = f.readline()
+            if not header:
+                return 0, 0, 0
+
+            for line in f:
+                parts = line.strip().split(',')
+                if len(parts) < 5:
+                    continue
+                try:
+                    obs_video_seq = int(parts[3])
+                    obs_audio_seq = int(parts[4])
+                except ValueError:
+                    continue
+
+                row_count += 1
+                if obs_video_seq > max_video:
+                    max_video = obs_video_seq
+                if obs_audio_seq > max_audio:
+                    max_audio = obs_audio_seq
+
+        return max_video, max_audio, row_count
 
     def _parse_av_sync_logs(self, log_path: Path) -> list:
         """Parse obs_log.txt for AV SYNC log entries."""
