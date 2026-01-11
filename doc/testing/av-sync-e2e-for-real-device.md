@@ -78,32 +78,45 @@ cd tools/c64
 
 ## Running the test
 
-### Quick start: One-stop shop for A/V sync testing
+### Quick start (recommended): deterministic A/V sync suite
 
-The `real-device-av-sync.sh` script is a complete one-stop solution that:
+Run the unified suite runner. It enforces the required ordering to detect cross-test pollution:
 
-1. **Builds** the `av-sync-auto.prg` C64 program (unless `--no-build` specified)
-2. **Uploads and starts** the program on your C64 Ultimate via REST API
-3. **Starts OBS** in recording mode with the c64stream plugin
-4. **Enables debug logging** automatically in the plugin properties
-5. **Records** video and audio from the C64 Ultimate for the specified duration
-6. **Extracts A/V pop timing** from OBS logs, CSV files, and the MP4 recording
-7. **Analyzes and reports** A/V sync quality with detailed statistics
-8. **Resets** the C64 Ultimate device when done
+1. Mocked sender (baseline)
+2. Real device
+3. Mocked sender again (verifies the device run was cleanly disabled/reset)
 
-**Platform support:** Linux, macOS, and Windows (via Git Bash or WSL2)
+```bash
+cd tests/e2e
+./run_avsync_suite.sh --duration 10 --verbose
+```
+
+This produces artifacts under:
+
+- `tests/e2e/results/avsync_suite/01_mock_pre/`
+- `tests/e2e/results/avsync_suite/02_device/`
+- `tests/e2e/results/avsync_suite/03_mock_post/`
+
+### Running only the device-backed scenario
+
+```bash
+cd tests/e2e
+./e2e.sh --scenario ntsc_default_avsync_device --duration 10 --verbose
+```
+
+The device scenario enables A/V sync detection at runtime by toggling the plugin property `record_av_sync` via OBS WebSocket, and disables it again at teardown to reset/stop device activity.
 
 ### Prerequisites
 
 - A reachable C64 Ultimate device:
-  - REST API reachable at `http(s)://<host>/v1/...` (PRG start + optional reset)
-  - UDP stream reachable from the machine running OBS (default ports `21000` video, `21001` audio)
-  - Control socket reachable (TCP port `64`) if the runner needs it
+   - UDP stream reachable from the machine running OBS (default ports `21000` video, `21001` audio)
+   - Control socket reachable (TCP port `64`) as required by the plugin
 - OBS installed and runnable from the command line as `obs`
-- The `c64stream` plugin built and installed into OBS
+- OBS WebSocket enabled (OBS v28+ includes it; the E2E harness uses it to toggle `record_av_sync`)
+- The `c64stream` plugin built and installed into OBS (including `data/` files)
 - Python 3 available as `python3`
-- `64tass` assembler installed (for building the C64 program)
-- `curl` for REST API calls (pre-installed on most systems)
+
+Optional (only if you want to rebuild/inspect the C64 programs manually): `64tass`.
 
 ### Installation steps
 
@@ -159,40 +172,21 @@ Download from https://sourceforge.net/projects/tass64/ and add to PATH.
 
 ### Running the test
 
-**Default run (automatic mode):**
+**Default run (suite):**
+
 ```bash
-./tests/e2e/real-device-av-sync.sh
+cd tests/e2e
+./run_avsync_suite.sh
 ```
 
-This performs the complete end-to-end test with default settings:
-- Host: `c64u` (DNS name or add to /etc/hosts)
-- Format: NTSC
-- Duration: 10 seconds
-- Builds PRG, uploads to C64U, records with OBS, analyzes all outputs
+**Custom host:** the device scenario defaults to hostname `c64u`. Override by editing the scenario overrides in
+`tests/e2e/scenarios/ntsc_default_avsync_device/scenario.yaml` (e.g. `c64_host: 192.168.1.13`).
 
-**Custom host and settings:**
-```bash
-./tests/e2e/real-device-av-sync.sh --host 192.168.1.13 --format PAL --duration 60 --verbose
-```
+**Run just the device scenario:**
 
-**OBS-only mode (PRG already running on C64U):**
 ```bash
-./tests/e2e/real-device-av-sync.sh --obs-only --duration 20
-```
-
-**Skip MP4 analysis (faster, CSV/log analysis only):**
-```bash
-./tests/e2e/real-device-av-sync.sh --no-mp4-analysis
-```
-
-**Analyze existing results (no device access, no OBS run):**
-```bash
-./tests/e2e/real-device-av-sync.sh --analyze-only tests/e2e/results/real_c64u_av_sync/session_20250108_120000
-```
-
-**All available options:**
-```bash
-./tests/e2e/real-device-av-sync.sh --help
+cd tests/e2e
+./e2e.sh --scenario ntsc_default_avsync_device --duration 20 --verbose
 ```
 
 ### Understanding the output
@@ -231,7 +225,7 @@ The shell script works seamlessly in WSL2 with WSLg for GUI support.
    sudo apt-get install -y \
      build-essential cmake ninja-build pkg-config \
      python3 python3-pip curl obs-studio 64tass
-   
+
    python3 -m pip install -r tests/e2e/requirements.txt
    ```
 
@@ -239,16 +233,17 @@ The shell script works seamlessly in WSL2 with WSLg for GUI support.
    ```bash
    cmake --preset ubuntu-x86_64
    cmake --build build_x86_64
-   
+
    mkdir -p "$HOME/.config/obs-studio/plugins/c64stream/bin/64bit"
    mkdir -p "$HOME/.config/obs-studio/plugins/c64stream/data"
    cp build_x86_64/c64stream.so "$HOME/.config/obs-studio/plugins/c64stream/bin/64bit/"
    cp -r data/* "$HOME/.config/obs-studio/plugins/c64stream/data/"
    ```
 
-4. Run the test:
+4. Run the suite:
    ```bash
-   ./tests/e2e/real-device-av-sync.sh --host 192.168.1.13
+   cd tests/e2e
+   ./run_avsync_suite.sh --duration 10 --verbose
    ```
 
 **Note:** If `c64u` hostname doesn't resolve in WSL, use `--host <ip>` or add to `/etc/hosts`.
@@ -263,17 +258,9 @@ The script also works in Git Bash on Windows, but requires:
 
 **Run from Git Bash:**
 ```bash
-./tests/e2e/real-device-av-sync.sh --host 192.168.1.13
+cd tests/e2e
+./run_avsync_suite.sh --duration 10 --verbose
 ```
-
-#### Option 3: Native Python (Advanced)
-
-For direct Python execution without bash:
-```powershell
-python tests\e2e\real_device_av_sync.py --host 192.168.1.13 --duration 10 --format NTSC
-```
-
-**Note:** This skips PRG build/upload. You must manually start `av-sync-auto.prg` on the C64U first.
 
 ### Running on macOS
 
@@ -289,29 +276,24 @@ The script works natively on macOS with minor adjustments:
    ```bash
    cmake --preset macos-universal
    cmake --build build_macos
-   
+
    mkdir -p "$HOME/Library/Application Support/obs-studio/plugins/c64stream/bin"
    mkdir -p "$HOME/Library/Application Support/obs-studio/plugins/c64stream/data"
    cp -r build_macos/c64stream.plugin "$HOME/Library/Application Support/obs-studio/plugins/c64stream/bin/"
    cp -r data/* "$HOME/Library/Application Support/obs-studio/plugins/c64stream/data/"
    ```
 
-3. Run the test:
+3. Run the suite:
    ```bash
-   ./tests/e2e/real-device-av-sync.sh --host c64u
+   cd tests/e2e
+   ./run_avsync_suite.sh --duration 10 --verbose
    ```
 
 ### Troubleshooting
 
-**PRG build fails:**
-- Ensure `64tass` is installed and in PATH: `which 64tass` (Unix) or `where 64tass` (Windows)
-- Try building manually: `./tools/c64/c64-build.sh tools/c64/av-sync-auto.asm`
-
-**REST API connection fails:**
-- Check C64U is reachable: `curl http://<host>/v1/system:status`
-- Verify REST API is enabled on your C64U firmware
-- Use `--rest-token <token>` if authentication is required
-- Check firewall settings on both machines
+**OBS WebSocket connection fails:**
+- Ensure OBS WebSocket is enabled and reachable from the machine running the test.
+- If OBS is already running, close it before running the harness (the harness starts OBS itself).
 
 **OBS doesn't start:**
 - Verify OBS is installed: `which obs` (Unix) or `where obs` (Windows)
@@ -324,9 +306,9 @@ The script works natively on macOS with minor adjustments:
 - Use `--verbose` flag to see detailed network activity
 
 **No A/V pops detected:**
-- Ensure Debug checkbox is enabled in plugin properties (script does this automatically)
-- Check that `av-sync-auto.prg` is running on the C64U (you should see white flashes)
-- Try longer duration: `--duration 30`
+- Ensure Debug is enabled for the source (the scenario sets `debug_logging: true`).
+- Verify the device is reachable and streaming to the host running OBS.
+- Try longer duration: `--duration 30`.
 
 **Hostname `c64u` not found:**
 - Use IP address instead: `--host 192.168.1.13`
@@ -337,16 +319,18 @@ The script works natively on macOS with minor adjustments:
 
 ## Artifacts and Output Files
 
-Each run creates a session directory under the output base dir:
+Each run creates a session directory under the output base dir. For the suite runner:
 
-- `tests/e2e/results/real_c64u_av_sync/session_YYYYmmdd_HHMMSS/`
+- `tests/e2e/results/avsync_suite/01_mock_pre/session_YYYYmmdd_HHMMSS/`
+- `tests/e2e/results/avsync_suite/02_device/session_YYYYmmdd_HHMMSS/`
+- `tests/e2e/results/avsync_suite/03_mock_post/session_YYYYmmdd_HHMMSS/`
 
 Typical contents:
 
 - Recording: `*.mp4`
 - `obs.csv` and `network.csv`
 - `obs_log.txt`
-- Analyzer output: `av_pop_report.json`
+- `validation_results.json`
 
 ## Analyzer inputs and interpretation
 

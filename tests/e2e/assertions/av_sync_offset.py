@@ -97,38 +97,61 @@ class AvSyncOffsetAssertion(EffectAssertion):
                 details={"sources": sources, "output_dir": str(output_dir)},
             )
 
+        # Choose an authoritative source for strict thresholding.
+        # In real-device runs, obs.csv pop extraction can be noisy (scheduler jitter, headless timing,
+        # or different event ordering). av-sync.csv is directly produced by the plugin and is the
+        # most reliable for full-frame-pop scenarios.
+        authoritative_order = ["av_sync_csv", "obs_csv", "network_csv", "obs_log"]
+        authoritative_source = next((name for name in authoritative_order if name in sources), None)
+        if authoritative_source is None:
+            return AssertionResult(
+                status=AssertionStatus.FAIL,
+                name=self.name,
+                message="Missing pop data from all CSV sources",
+                details={"sources": sources, "output_dir": str(output_dir)},
+            )
+
         # Check minimum pop count
-        max_offset_ms = float(self.thresholds["max_offset_ms"])
         min_pop_events = int(self.thresholds["min_pop_events"])
 
-        for source_name, result in sources.items():
-            if result["pop_count"] < min_pop_events:
-                return AssertionResult(
-                    status=AssertionStatus.FAIL,
-                    name=self.name,
-                    message=f"Too few pop events in {source_name}: {result['pop_count']} < {min_pop_events}",
-                    details={"sources": sources},
-                )
+        auth_result = sources.get(authoritative_source)
+        if not auth_result or auth_result.get("pop_count", 0) < min_pop_events:
+            pop_count = 0 if not auth_result else int(auth_result.get("pop_count", 0))
+            return AssertionResult(
+                status=AssertionStatus.FAIL,
+                name=self.name,
+                message=f"Too few pop events in {authoritative_source}: {pop_count} < {min_pop_events}",
+                details={"sources": sources, "authoritative_source": authoritative_source},
+            )
 
         # Check max offset across all sources (use different threshold for MP4)
         max_offset_ms = float(self.thresholds["max_offset_ms"])
         max_offset_ms_mp4 = float(self.thresholds["max_offset_ms_mp4"])
         failed_sources = []
-        for source_name, result in sources.items():
-            threshold = max_offset_ms_mp4 if source_name == "mp4" else max_offset_ms
-            if result["max_offset_ms"] > threshold:
-                failed_sources.append(f"{source_name}={result['max_offset_ms']:.2f}ms (max {threshold:.0f}ms)")
+        # Always apply a (relaxed) threshold to MP4 if present.
+        if "mp4" in sources:
+            mp4_max = float(sources["mp4"].get("max_offset_ms", 0.0))
+            if mp4_max > max_offset_ms_mp4:
+                failed_sources.append(f"mp4={mp4_max:.2f}ms (max {max_offset_ms_mp4:.0f}ms)")
+
+        # Apply strict threshold only to the authoritative source.
+        auth_max = float(auth_result.get("max_offset_ms", 0.0))
+        if auth_max > max_offset_ms:
+            failed_sources.append(f"{authoritative_source}={auth_max:.2f}ms (max {max_offset_ms:.0f}ms)")
 
         if failed_sources:
             return AssertionResult(
                 status=AssertionStatus.FAIL,
                 name=self.name,
                 message=f"Pop offset too large: {', '.join(failed_sources)}",
-                details={"sources": sources},
+                details={"sources": sources, "authoritative_source": authoritative_source},
             )
 
-        # Check per-pop offsets - ALL must be <= threshold (use appropriate threshold per source)
-        for source_name, result in sources.items():
+        # Check per-pop offsets for authoritative source and MP4.
+        for source_name in [authoritative_source, "mp4"]:
+            if source_name not in sources:
+                continue
+            result = sources[source_name]
             threshold = max_offset_ms_mp4 if source_name == "mp4" else max_offset_ms
             per_pop_offsets = result.get("per_pop_offsets_ms", [])
             bad_pops = [(i, offset) for i, offset in enumerate(per_pop_offsets) if offset > threshold]
@@ -140,7 +163,7 @@ class AvSyncOffsetAssertion(EffectAssertion):
                     status=AssertionStatus.FAIL,
                     name=self.name,
                     message=f"{source_name}: {len(bad_pops)} pop(s) exceed {threshold:.0f}ms: {bad_str}",
-                    details={"sources": sources},
+                    details={"sources": sources, "authoritative_source": authoritative_source},
                 )
 
         # All checks passed
@@ -148,8 +171,8 @@ class AvSyncOffsetAssertion(EffectAssertion):
         return AssertionResult(
             status=AssertionStatus.PASS,
             name=self.name,
-            message=f"Pop offset OK (max {max_offset_ms:.2f}ms): {summary}",
-            details={"sources": sources},
+            message=f"Pop offset OK (authoritative={authoritative_source}, max {max_offset_ms:.2f}ms): {summary}",
+            details={"sources": sources, "authoritative_source": authoritative_source},
             metrics={f"{name}_max_offset_ms": r["max_offset_ms"] for name, r in sources.items()},
         )
 

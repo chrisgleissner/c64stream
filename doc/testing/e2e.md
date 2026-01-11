@@ -25,29 +25,32 @@ Or via convenience script (Linux):
 
 ## Real Device A/V Sync Test (LOCAL ONLY)
 
-This is a separate, hardware-backed flow that runs `av-sync-auto.prg` on a real C64U via REST, records 10 seconds
-in OBS, and checks A/V pop delta from CSV/log artifacts. It is fully automated once the user starts the script.
+This is the same E2E harness as the mocked scenarios, but it uses real packets from a physical C64 Ultimate.
 
-The script builds the PRG into `data/prg/` by default.
+Recommended (enforces the required ordering: mock  device  mock):
 
 ```bash
-./tests/e2e/real-device-av-sync.sh --host 192.168.1.13
-
-# Analyze existing artifacts only
-./tests/e2e/real-device-av-sync.sh --analyze-only /path/to/results/session_YYYYmmdd_HHMMSS
+cd tests/e2e
+./run_avsync_suite.sh --duration 10 --verbose
 ```
 
-See `doc/real-device-av-sync.md` for full setup and Linux/Windows (WSL2) instructions.
+To run only the device-backed scenario:
+
+```bash
+cd tests/e2e
+./e2e.sh --scenario ntsc_default_avsync_device --duration 10 --verbose
+```
 
 Notes:
-- Requires a real C64 Ultimate and a working GUI environment for OBS.
-- CSVs are authoritative when present; OBS log parsing is a fallback only.
+- Requires a reachable real C64 Ultimate (default hostname: `c64u`) and a working GUI environment for OBS.
+- The device scenario is marked `ci_skip: true` and is excluded from CI.
 
-### Real-device configuration note (2026-01-09)
+### Real-device configuration note
 
-Root cause of “streaming only starts after opening OBS Source Properties”: the baseline OBS scene JSON can contain saved `c64_source` settings (e.g. `c64_host=127.0.0.1`), and those scene values override `properties.ini` defaults at source creation.
+If a saved OBS scene JSON contains stale `c64_source` settings (e.g. `c64_host=127.0.0.1`), those can override defaults.
+The device scenario sets connection settings via scenario overrides to avoid relying on `properties.ini` defaults.
 
-Final fix: the real-device runner patches the OBS scene JSON source settings (host/DNS/ports) before OBS starts, mirroring synthetic scenario configuration. `properties.ini` overrides are treated as secondary hardening.
+See `doc/testing/av-sync-e2e-for-real-device.md` for setup details.
 
 ## Settling Period (Frame Progression)
 

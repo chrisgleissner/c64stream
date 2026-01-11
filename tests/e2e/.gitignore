@@ -19,8 +19,8 @@ results/*
 !results/ntsc_default/**
 !results/ntsc_default_720p/
 !results/ntsc_default_720p/**
-!results/ntsc_default_debug/
-!results/ntsc_default_debug/**
+!results/ntsc_default_avsync/
+!results/ntsc_default_avsync/**
 !results/ntsc_green_monitor/
 !results/ntsc_green_monitor/**
 !results/ntsc_vintage_tv/

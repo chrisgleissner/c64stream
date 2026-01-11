@@ -23,13 +23,6 @@
 !LICENSE
 !README.md
 !AGENTS.md
-!PLANS.md
-!INVESTIGATIONS.md
-!build-docker.sh
-!AGENTS.md
-
-# Include development helper files
-!local-build.sh
 
 # Include private folder (for private repo only - excluded in public sync)
 !private
