@@ -87,11 +87,6 @@ class OBSProcessManager:
         # Set minimal env vars if needed, but usually inherit
         env = os.environ.copy()
 
-        # Redirect output to file? e2e.py didn't seem to redirect OBS stdout/stderr explicitly
-        # except when it checked for crash. It let it go to terminal or capture.
-        # Actually e2e.py did: stdout=subprocess.PIPE, stderr=subprocess.PIPE
-        # But then how did it read logs? Ah, OBS writes to file in ~/.config/obs-studio/logs
-
         # We should capture stdout/stderr to debug crashes
         try:
             # Use a log file for stdout/stderr

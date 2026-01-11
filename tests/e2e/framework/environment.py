@@ -26,10 +26,24 @@ class Environment:
 
         self.is_ci = self._detect_ci()
         self._configure_timeouts()
+        self._setup_os_env()
 
     def prepare(self):
         """Prepare environment (create directories)."""
         self.output_dir.mkdir(parents=True, exist_ok=True)
+
+    def _setup_os_env(self):
+        """Configure OS environment variables for OBS stability."""
+        # Disable XDG desktop portal to prevent dbus hangs/crashes
+        # "warning: ReadOne on org.freedesktop.portal.Settings returned an invalid reply"
+        os.environ['QT_NO_XDG_DESKTOP_PORTAL'] = '1'
+
+        # Ensure correct QPA platform (xcb is usually good for xvfb, fail-safe)
+        os.environ['QT_QPA_PLATFORM'] = 'xcb'
+
+        if not self.is_ci:
+            # Local tweaks if needed
+            pass
 
     def _detect_ci(self) -> bool:
         """Detect if running in CI environment."""

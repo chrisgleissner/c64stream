@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Default build directory if not set
+BUILD_DIR="${BUILD_DIR:-build_x86_64}"
+
 build_project() {
     if [[ "${SKIP_BUILD}" == true ]]; then
         log_info "Skipping build (--skip-build specified)"

@@ -3,10 +3,13 @@ import time
 import subprocess
 import logging
 
+from .environment import Environment
+
 logger = logging.getLogger(__name__)
 
 class XvfbController:
-    def __init__(self, display: str = ':99'):
+    def __init__(self, env: Environment, display: str = ':99'):
+        self.env = env
         self.display = display
         self.process = None
         self.managed = False
@@ -46,9 +49,9 @@ class XvfbController:
             except Exception:
                 pass  # Ignore errors
 
-            # Start Xvfb with stderr redirection to suppress xkbcomp warnings
+            # Start Xvfb with minimal args and -ac to avoid auth issues
             self.process = subprocess.Popen(
-                ['Xvfb', self.display, '-screen', '0', '1280x720x24'],
+                ['Xvfb', self.display, '-screen', '0', '1280x720x24', '-ac', '-nolisten', 'tcp'],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL
             )
@@ -72,11 +75,17 @@ class XvfbController:
     def _configure_env(self):
         # Set DISPLAY environment variable
         os.environ['DISPLAY'] = self.display
-        # Apply conservative Qt/GL settings when using Xvfb.
-        os.environ.setdefault('QT_QPA_PLATFORM', 'xcb')
-        os.environ.setdefault('QT_X11_NO_MITSHM', '1')
-        os.environ.setdefault('LIBGL_ALWAYS_SOFTWARE', '1')
-        logger.info("🧪 Applied headless Qt/GL environment variables")
+
+        # In CI, we need to handle Qt/GL explicitly.
+        # Locally, we rely on the system configuration.
+        # Note: xvfb-run works locally without setting these, so we shouldn't force them.
+        if self.env.is_ci:
+            os.environ.setdefault('QT_QPA_PLATFORM', 'xcb')
+            os.environ.setdefault('QT_X11_NO_MITSHM', '1')
+            os.environ.setdefault('LIBGL_ALWAYS_SOFTWARE', '1')
+            logger.info("🧪 Applied CI headless Qt/GL environment variables")
+        else:
+            logger.info("🚀 Local environment: Using system Qt/GL settings")
 
     def stop(self):
         """Stop Xvfb and clean up lock files."""

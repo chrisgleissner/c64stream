@@ -1,4 +1,5 @@
 from __future__ import annotations
+import os
 import time
 import logging
 import sys
@@ -56,7 +57,9 @@ class E2EOrchestrator:
         self.full_frame_pop = full_frame_pop
 
         # 2. Components
-        self.xvfb = XvfbController()
+        # Use display from environment if set, otherwise default to :99
+        display = os.environ.get('DISPLAY', ':99')
+        self.xvfb = XvfbController(self.env, display=display)
         self.obs_config = OBSConfigManager(self.env)
         self.obs_logs = OBSLogManager(self.env)
         self.obs_process = OBSProcessManager(self.env, self.obs_logs)
@@ -116,8 +119,6 @@ class E2EOrchestrator:
                     aud_dest = self.mock_server.audio_dest or ("127.0.0.1", 21001)
 
                     # Log readiness check (simplified, replayer doesn't wait strictly unless we tell it)
-                    # e2e.py waited for receiver threads here.
-
                     logger.info("▶️ Starting Packet Replay...")
                     replay_success = self.replayer.replay(self.udp_replay_path, vid_dest, aud_dest)
                 else:
