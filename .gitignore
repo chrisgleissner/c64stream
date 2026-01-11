@@ -56,6 +56,9 @@ obs_log.txt
 *.prg
 *.lst
 
+# Prebuilt PRGs shipped with the plugin (needed for packaging on platforms without 64tass)
+!data/prg/*.prg
+
 # Exclude CMake build number cache
 /cmake/.CMakeBuildNumber
 

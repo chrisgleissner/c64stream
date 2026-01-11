@@ -64,31 +64,40 @@ add_library(${CMAKE_PROJECT_NAME} MODULE)
 # Build bundled C64 PRGs (e.g. A/V sync auto-trigger)
 find_program(C64_64TASS_EXECUTABLE NAMES 64tass)
 if(C64_64TASS_EXECUTABLE)
-  set(C64_AV_SYNC_ASM "${CMAKE_CURRENT_SOURCE_DIR}/tools/c64/av-sync-auto.asm")
+  file(GLOB C64_C64_ASM_FILES "${CMAKE_CURRENT_SOURCE_DIR}/tools/c64/*.asm")
   set(C64_PRG_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/prg")
-  set(C64_AV_SYNC_PRG "${C64_PRG_OUTPUT_DIR}/av-sync-auto.prg")
 
-  add_custom_command(
-    OUTPUT "${C64_AV_SYNC_PRG}"
-    COMMAND "${CMAKE_COMMAND}" -E make_directory "${C64_PRG_OUTPUT_DIR}"
-    COMMAND "${C64_64TASS_EXECUTABLE}" --cbm-prg --labels --quiet -o "${C64_AV_SYNC_PRG}" "${C64_AV_SYNC_ASM}"
-    DEPENDS "${C64_AV_SYNC_ASM}"
-    VERBATIM
-  )
+  set(C64_C64_PRG_OUTPUTS "")
+  foreach(c64_asm IN LISTS C64_C64_ASM_FILES)
+    cmake_path(GET c64_asm STEM c64_stem)
+    set(c64_prg "${C64_PRG_OUTPUT_DIR}/${c64_stem}.prg")
 
-  add_custom_target(c64_prgs ALL DEPENDS "${C64_AV_SYNC_PRG}")
+    add_custom_command(
+      OUTPUT "${c64_prg}"
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${C64_PRG_OUTPUT_DIR}"
+      COMMAND "${C64_64TASS_EXECUTABLE}" --cbm-prg --labels --quiet -o "${c64_prg}" "${c64_asm}"
+      DEPENDS "${c64_asm}"
+      VERBATIM
+    )
 
-  # Ensure the PRG is available in dev rundir and shipped in install artifacts.
-  target_sources(${CMAKE_PROJECT_NAME} PRIVATE "${C64_AV_SYNC_PRG}")
+    list(APPEND C64_C64_PRG_OUTPUTS "${c64_prg}")
+  endforeach()
+
+  add_custom_target(c64_prgs ALL DEPENDS ${C64_C64_PRG_OUTPUTS})
+
+  # Ensure the PRGs are available in dev rundir and shipped in install artifacts.
+  target_sources(${CMAKE_PROJECT_NAME} PRIVATE ${C64_C64_PRG_OUTPUTS})
   if(OS_MACOS)
-    set_property(SOURCE "${C64_AV_SYNC_PRG}" PROPERTY MACOSX_PACKAGE_LOCATION "Resources/prg")
+    foreach(c64_prg IN LISTS C64_C64_PRG_OUTPUTS)
+      set_property(SOURCE "${c64_prg}" PROPERTY MACOSX_PACKAGE_LOCATION "Resources/prg")
+    endforeach()
   endif()
 
   if(OS_WINDOWS)
-    install(FILES "${C64_AV_SYNC_PRG}" DESTINATION "${CMAKE_PROJECT_NAME}/data/prg")
+    install(FILES ${C64_C64_PRG_OUTPUTS} DESTINATION "${CMAKE_PROJECT_NAME}/data/prg")
   elseif(OS_LINUX OR OS_FREEBSD OR OS_OPENBSD)
     install(
-      FILES "${C64_AV_SYNC_PRG}"
+      FILES ${C64_C64_PRG_OUTPUTS}
       DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/obs/obs-plugins/${CMAKE_PROJECT_NAME}/prg"
     )
   endif()
@@ -100,14 +109,29 @@ if(C64_64TASS_EXECUTABLE)
       COMMAND
         "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/rundir/$<CONFIG>/${CMAKE_PROJECT_NAME}/prg"
       COMMAND
-        "${CMAKE_COMMAND}" -E copy_if_different "${C64_AV_SYNC_PRG}"
-        "${CMAKE_CURRENT_BINARY_DIR}/rundir/$<CONFIG>/${CMAKE_PROJECT_NAME}/prg/av-sync-auto.prg"
+        "${CMAKE_COMMAND}" -E copy_if_different ${C64_C64_PRG_OUTPUTS}
+        "${CMAKE_CURRENT_BINARY_DIR}/rundir/$<CONFIG>/${CMAKE_PROJECT_NAME}/prg"
       COMMENT "Copy generated PRGs to rundir"
       VERBATIM
     )
   endif()
 else()
-  message(WARNING "64tass not found; bundled PRGs (e.g. av-sync-auto.prg) will not be built")
+  message(WARNING "64tass not found; bundled PRGs will not be built from tools/c64/*.asm")
+
+  # Fall back to prebuilt PRGs tracked in the repository (important for Windows CI packaging).
+  file(GLOB C64_PREBUILT_PRGS "${CMAKE_CURRENT_SOURCE_DIR}/data/prg/*.prg")
+  if(C64_PREBUILT_PRGS)
+    if(OS_WINDOWS)
+      install(FILES ${C64_PREBUILT_PRGS} DESTINATION "${CMAKE_PROJECT_NAME}/data/prg")
+    elseif(OS_LINUX OR OS_FREEBSD OR OS_OPENBSD)
+      install(
+        FILES ${C64_PREBUILT_PRGS}
+        DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/obs/obs-plugins/${CMAKE_PROJECT_NAME}/prg"
+      )
+    endif()
+  else()
+    message(WARNING "No prebuilt PRGs found under data/prg; PRG folder in packages may be empty")
+  endif()
 endif()
 
 # Update buildspec.json with authoritative version for consistent packaging
