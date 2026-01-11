@@ -300,3 +300,27 @@ class OBSConfigManager:
 
         if cleaned_count > 0:
             logger.info(f"Cleaned up {cleaned_count} OBS state files")
+
+        # Also patch global.ini to prevent crash dialogs
+        global_ini = self.obs_config_dir / 'global.ini'
+        if not global_ini.exists():
+            global_ini.parent.mkdir(parents=True, exist_ok=True)
+            global_ini.write_text("[General]\nCleanShutdown=true\n", encoding='utf-8')
+            logger.info("✅ Created global.ini with CleanShutdown=true")
+        else:
+            try:
+                content = global_ini.read_text(encoding='utf-8')
+                if '[General]' in content:
+                    # check if CleanShutdown is present
+                    import re
+                    if not re.search(r'CleanShutdown=', content):
+                        content = content.replace('[General]', '[General]\nCleanShutdown=true')
+                        global_ini.write_text(content, encoding='utf-8')
+                        logger.info("✅ Patched global.ini with CleanShutdown=true")
+                else:
+                    # No [General] section, append it
+                    content += "\n[General]\nCleanShutdown=true\n"
+                    global_ini.write_text(content, encoding='utf-8')
+                    logger.info("✅ Appended CleanShutdown to global.ini")
+            except Exception as e:
+                logger.warning(f"Failed to patch global.ini: {e}")

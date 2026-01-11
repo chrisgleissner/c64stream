@@ -170,6 +170,7 @@ class OBSLogManager:
                 latest_log = current_latest
                 last_size = 0
 
+            # Check if logs indicate success
             try:
                 if latest_log.stat().st_size > last_size:
                     with open(latest_log, 'r', errors='ignore') as f:
@@ -184,6 +185,13 @@ class OBSLogManager:
                             # Fail fast on some errors?
             except Exception:
                 pass
+
+            # Alternative success indicator: check if network.csv is being written
+            # This handles cases where logs are truncated/missing but plugin is working
+            network_csv = self.env.output_dir / 'network.csv'
+            if network_csv.exists() and network_csv.stat().st_size > 0:
+                logger.info("✅ Plugin initialized (detected network.csv activity)")
+                return True
 
             time.sleep(0.2)
 

@@ -1,6 +1,8 @@
 from __future__ import annotations
 import subprocess
 import os
+import sys
+import shutil
 import time
 import signal
 import logging
@@ -25,12 +27,17 @@ class OBSProcessManager:
         """Start OBS with specific profile and collection."""
         logger.info("Starting OBS Studio...")
 
-        cmd = [
-            'obs',
+        cmd = ['obs']
+        if sys.platform.startswith('linux') and shutil.which('dbus-run-session'):
+            logger.info("Wrapping OBS in dbus-run-session for headless stability")
+            cmd = ['dbus-run-session', '--', 'obs']
+
+        cmd.extend([
             '--verbose',
             '--startrecording',  # Auto-start recording
             '--profile', profile_name,
-        ]
+            '--disable-missing-files-check', # Prevent "Missing Files" dialog
+        ])
 
         # Add portable mode flag if needed (usually handled by config copying, but let's see)
         # e2e.py didn't use --portable, just standard paths.
@@ -66,6 +73,19 @@ class OBSProcessManager:
                 continue
 
         if not launched:
+            # If we didn't launch but verify failed, show that.
+            # If process creation failed, show last_error.
+            # If process crashed immediately, verify it.
+            if self.process and self.process.poll() is not None:
+                # Get stdout/stderr if possible
+                header = f"\n=== OBS CRASH LOG ({self.env.output_dir / 'obs_stdout.log'}) ===\n"
+                try:
+                    with open(self.env.output_dir / 'obs_stdout.log', 'r') as f:
+                        log_content = f.read()[-1000:] # Last 1000 chars
+                    last_error = f"Process crashed immediately.\n{header}{log_content}\n=================="
+                except:
+                    last_error = "Process crashed immediately (log unreadable)"
+
             raise RuntimeError(f"OBS failed to start: {last_error}")
 
         if not init_ok:
@@ -110,6 +130,21 @@ class OBSProcessManager:
                 # Crashed
                 return False
 
+            # XdoTool mitigation for Safe Mode dialog (Experimental)
+            if shutil.which("xdotool") and sys.platform.startswith('linux'):
+                 import threading
+                 def press_keys():
+                    time.sleep(2.0) # Wait for dialog
+                    try:
+                        logger.info("🤖 xdotool: Sending interaction keys...")
+                        # Try to dismiss dialogs
+                        subprocess.run(["xdotool", "key", "Escape"], check=False)
+                        time.sleep(0.5)
+                        subprocess.run(["xdotool", "key", "Return"], check=False)
+                    except Exception as e:
+                        logger.warning(f"xdotool failed: {e}")
+                 threading.Thread(target=press_keys, daemon=True).start()
+
             return True
         except Exception as e:
             logger.error(f"Failed to Popen OBS: {e}")
@@ -121,9 +156,11 @@ class OBSProcessManager:
             logger.info("Stopping OBS...")
             try:
                 # Graceful termination first
-                self.process.terminate()
+                # Use SIGINT (Ctrl+C) prevents dbus-run-session from killing child immediately?
+                # Send to process group to ensure all processes (dbus, obs) receive it.
+                os.killpg(os.getpgid(self.process.pid), signal.SIGINT)
                 try:
-                    self.process.wait(timeout=5)
+                    self.process.wait(timeout=10)
                 except subprocess.TimeoutExpired:
                     logger.warning("OBS did not exit gracefully, killing...")
                     os.killpg(os.getpgid(self.process.pid), signal.SIGKILL)

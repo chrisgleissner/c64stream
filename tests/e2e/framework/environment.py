@@ -30,6 +30,14 @@ class Environment:
 
     def prepare(self):
         """Prepare environment (create directories)."""
+        if self.output_dir.exists():
+            # Clean up previous results to ensure clean test
+            try:
+                for file in self.output_dir.glob('*'):
+                    if file.is_file():
+                        file.unlink()
+            except Exception as e:
+                logger.warning(f"Failed to clean output dir: {e}")
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
     def _setup_os_env(self):
@@ -40,6 +48,16 @@ class Environment:
 
         # Ensure correct QPA platform (xcb is usually good for xvfb, fail-safe)
         os.environ['QT_QPA_PLATFORM'] = 'xcb'
+
+        # Force software rendering for Xvfb stability
+        os.environ['LIBGL_ALWAYS_SOFTWARE'] = '1'
+
+        # Override Desktop Environment to avoid complex Portal interactions (e.g. KDE)
+        os.environ['XDG_CURRENT_DESKTOP'] = 'XFCE'
+        os.environ['KDE_FULL_SESSION'] = 'false'
+        os.environ['GNOME_DESKTOP_SESSION_ID'] = ''
+        os.environ['QT_QPA_PLATFORMTHEME'] = 'gtk2'
+        os.environ['GALLIUM_DRIVER'] = 'llvmpipe'
 
         if not self.is_ci:
             # Local tweaks if needed
