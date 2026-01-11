@@ -162,6 +162,7 @@ def _replace_or_add(lines: list[str], key: str, value: str) -> list[str]:
 def apply_properties_overrides(
     properties_path: Path,
     host: str,
+    password: str,
     dns_server_ip: str,
     control_port: int,
     video_port: int,
@@ -179,12 +180,16 @@ def apply_properties_overrides(
         "dns_server_ip": dns_server_ip,
         "auto_detect_ip": "true",
         "obs_ip_address": "",
+        "record_av_sync": "true",
         "record_csv": "true",
         "record_video": "false",
         "record_frames": "false",
         "debug_logging": "true",
         "is_ci": "true",
     }
+
+    if password:
+        overrides["c64_password"] = password
 
     text = properties_path.read_text(encoding="utf-8", errors="ignore")
     lines = text.splitlines(keepends=True)
@@ -473,12 +478,14 @@ def run(args: argparse.Namespace) -> int:
     # This is what makes the plugin start streaming automatically without opening the Properties UI.
     test.scene_source_overrides = {
         "c64_host": args.host,
+        "c64_password": args.password,
         "control_port": int(args.control_port),
         "video_port": int(args.video_port),
         "audio_port": int(args.audio_port),
         "dns_server_ip": args.dns_server_ip,
         "auto_detect_ip": True,
         "obs_ip_address": "",
+        "record_av_sync": True,
         "record_csv": True,
         "record_video": False,
         "record_frames": False,
@@ -504,6 +511,7 @@ def run(args: argparse.Namespace) -> int:
             apply_properties_overrides(
                 properties_path=properties_path,
                 host=args.host,
+                password=args.password,
                 dns_server_ip=args.dns_server_ip,
                 control_port=args.control_port,
                 video_port=args.video_port,
@@ -596,6 +604,11 @@ def main() -> int:
         description="Run a real-device A/V sync capture and analyze A/V pop deltas."
     )
     parser.add_argument("--host", default="c64u", help="C64 Ultimate hostname or IP (default: c64u)")
+    parser.add_argument(
+        "--password",
+        default="",
+        help="C64 Ultimate password (optional; default: empty)",
+    )
     parser.add_argument(
         "--dns-server-ip",
         default="192.168.1.1",
