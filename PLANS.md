@@ -33,6 +33,9 @@ This file tracks multi-step work items that require investigation + verification
 - Commits on branch:
   - `4be960d` Fix real-device AV sync analyzer args
   - `be95240` Remove low-value VIDEO DBG logs
+  - `cd3b09c` Fix build after VIDEO log cleanup
+  - `e4a3e8e` Ship PRGs for all C64 tools
+  - `c3bee75` Init curl global state once
 
 #### 1) Remove remaining `DBG`/`DEBUG` log spam
 - [ ] Search for remaining case-sensitive `DBG` / `DEBUG` log strings in `src/`.
@@ -40,11 +43,21 @@ This file tracks multi-step work items that require investigation + verification
 - [ ] Build + quick sanity run of `ntsc_default`.
 
 #### 2) Fix distributable zip: include `data/prg/*.prg`
-- [ ] Inventory `tools/c64/*.asm` and expected `.prg` outputs.
-- [ ] Find current packaging/install path for `data/` and where `data/prg` comes from.
-- [ ] Add CMake build steps to generate `.prg` for each `.asm` (via `64tass`) into the build tree.
-- [ ] Add explicit `install(FILES ...)` rules so generated `.prg` land in `.../data/prg/` for all platforms.
-- [ ] Validate by producing a package (`cmake --build build_x86_64 --target package`) and inspecting zip contents.
+- [x] Inventory `tools/c64/*.asm` and expected `.prg` outputs.
+- [x] Find current packaging/install path for `data/` and where `data/prg` comes from.
+- [x] Add CMake build steps to generate `.prg` for each `.asm` (via `64tass`) into the build tree.
+- [x] Add explicit `install(FILES ...)` rules so generated `.prg` land in install artifacts.
+- [x] Add fallback to install prebuilt `data/prg/*.prg` when `64tass` is unavailable (Windows CI).
+- [x] Validate by producing a zip package and inspecting contents.
+
+**Proof**
+- Inventory: `tools/c64/*.asm` → `av-sync.asm`, `av-sync-auto.asm`, `digit-cycle.asm`
+- Prebuilt PRGs committed under `data/prg/` (unignored via `.gitignore`).
+- Zip created locally: `release/c64stream-1.0.3-x86_64-linux-gnu.zip`
+- Zip contains:
+  - `.../usr/share/obs/obs-plugins/c64stream/prg/av-sync.prg`
+  - `.../usr/share/obs/obs-plugins/c64stream/prg/av-sync-auto.prg`
+  - `.../usr/share/obs/obs-plugins/c64stream/prg/digit-cycle.prg`
 
 #### 3) Fix OBS crash when enabling A/V sync checkbox
 - [ ] Identify the checkbox property name and its code path (property definition → update handler → runtime effect).
@@ -61,3 +74,6 @@ This file tracks multi-step work items that require investigation + verification
 
 ### Progress log
 - 2026-01-11 — Updated from `origin/main`, created `fix/av-sync-test`, committed runner fix + removed `VIDEO: DBG/DEBUG` logs.
+- 2026-01-11 — Fixed build fallout from log cleanup (unused vars).
+- 2026-01-11 — Fixed packaging: generate PRGs from all `tools/c64/*.asm`, ship prebuilt PRGs, and validated zip contains PRGs.
+- 2026-01-11 — Added libcurl global init-once guard in REST client (candidate fix for AV-sync checkbox crash).
