@@ -52,6 +52,16 @@ function(_setup_obs_studio)
     set(_is_fresh --fresh)
   endif()
 
+  # Keep third-party configure output warning-free.
+  # - OBS emits a developer warning when detours version can't be detected.
+  # - OBS emits a warning if VIRTUALCAM_GUID is unset.
+  set(_obs_cmake_flags "")
+  list(APPEND _obs_cmake_flags -Wno-dev)
+  list(APPEND _obs_cmake_flags -DCMAKE_SUPPRESS_DEVELOPER_WARNINGS:BOOL=ON)
+  if(DEFINED VIRTUALCAM_GUID AND NOT "${VIRTUALCAM_GUID}" STREQUAL "")
+    list(APPEND _obs_cmake_flags "-DVIRTUALCAM_GUID:STRING=${VIRTUALCAM_GUID}")
+  endif()
+
   if(OS_WINDOWS)
     set(_cmake_generator "${CMAKE_GENERATOR}")
     set(_cmake_arch "-A ${arch},version=${CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION}")
@@ -65,7 +75,7 @@ function(_setup_obs_studio)
   message(STATUS "Configure ${label} (${arch})")
   execute_process(
     COMMAND
-      "${CMAKE_COMMAND}" -S "${dependencies_dir}/${_obs_destination}" -B
+      "${CMAKE_COMMAND}" ${_obs_cmake_flags} -S "${dependencies_dir}/${_obs_destination}" -B
       "${dependencies_dir}/${_obs_destination}/build_${arch}" -G ${_cmake_generator} "${_cmake_arch}"
       -DOBS_CMAKE_VERSION:STRING=3.0.0 -DENABLE_PLUGINS:BOOL=OFF -DENABLE_FRONTEND:BOOL=OFF
       -DOBS_VERSION_OVERRIDE:STRING=${_obs_version} "-DCMAKE_PREFIX_PATH='${CMAKE_PREFIX_PATH}'" ${_is_fresh}

@@ -3,16 +3,43 @@
     "tasks": [
         // Cross-platform build tasks - these override workspace tasks
         {
-            "label": "Build Debug Plugin (Windows)",
+            "label": "Configure (Windows x64)",
             "type": "shell",
             "command": "cmake",
+            "args": ["--preset", "windows-x64"],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "windows": {
+                "command": "cmake"
+            },
+            "linux": {
+                "command": "echo",
+                "args": ["This task is Windows-only"]
+            },
+            "osx": {
+                "command": "echo",
+                "args": ["This task is Windows-only"]
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Build Debug Plugin (Windows)",
+            "type": "shell",
+            "command": "powershell",
             "args": [
-                "--build",
-                "build_x64",
-                "--config",
-                "Debug",
-                "--target",
-                "c64stream"
+                "-NoProfile",
+                "-Command",
+                "cmake --build build_x64 --config Debug --target c64stream; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; New-Item -ItemType Directory -Path 'C:/ProgramData/obs-studio/plugins/c64stream/bin/64bit' -Force | Out-Null; New-Item -ItemType Directory -Path 'C:/ProgramData/obs-studio/plugins/c64stream/data' -Force | Out-Null; Copy-Item '${workspaceFolder}/build_x64/Debug/c64stream.dll' -Destination 'C:/ProgramData/obs-studio/plugins/c64stream/bin/64bit/' -Force; Copy-Item '${workspaceFolder}/data/*' -Destination 'C:/ProgramData/obs-studio/plugins/c64stream/data/' -Recurse -Force; Write-Host 'Plugin installed to C:/ProgramData/obs-studio/plugins/c64stream'"
             ],
             "group": {
                 "kind": "build",
@@ -31,10 +58,10 @@
             },
             "dependsOrder": "sequence",
             "dependsOn": [
-                "Install Plugin to OBS (Windows)"
+                "Configure (Windows x64)"
             ],
             "windows": {
-                "command": "cmake"
+                "command": "powershell"
             },
             "linux": {
                 "command": "echo",
@@ -99,7 +126,7 @@
             "command": "powershell",
             "args": [
                 "-Command",
-                "New-Item -ItemType Directory -Path 'C:\\ProgramData\\obs-studio\\plugins\\c64stream\\bin\\64bit' -Force | Out-Null; Copy-Item '${workspaceFolder}\\build_x64\\Debug\\c64stream.dll' -Destination 'C:\\ProgramData\\obs-studio\\plugins\\c64stream\\bin\\64bit\\' -Force; Write-Host 'Plugin installed to C:\\ProgramData\\obs-studio\\plugins\\c64stream'"
+                "New-Item -ItemType Directory -Path 'C:\\ProgramData\\obs-studio\\plugins\\c64stream\\bin\\64bit' -Force | Out-Null; New-Item -ItemType Directory -Path 'C:\\ProgramData\\obs-studio\\plugins\\c64stream\\data' -Force | Out-Null; Copy-Item '${workspaceFolder}\\build_x64\\Debug\\c64stream.dll' -Destination 'C:\\ProgramData\\obs-studio\\plugins\\c64stream\\bin\\64bit\\' -Force; Copy-Item '${workspaceFolder}\\data\\*' -Destination 'C:\\ProgramData\\obs-studio\\plugins\\c64stream\\data\\' -Recurse -Force; Write-Host 'Plugin installed to C:\\ProgramData\\obs-studio\\plugins\\c64stream'"
             ],
             "group": "build",
             "presentation": {

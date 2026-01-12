@@ -30,7 +30,7 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 bool c64_debug_logging = true;
 
 OBS_DECLARE_MODULE()
-OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en")
+OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en-US")
 
 bool obs_module_load(void)
 {
