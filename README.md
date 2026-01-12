@@ -80,14 +80,14 @@ Verified on Windows 11.
 ### Windows (Portable Mode)
 
 > [!IMPORTANT]  
-> This section applies **only** if OBS Studio is run in [portable mode](https://obsproject.com/kb/portable-mode), for example when `portable_mode.txt` exists next to `obs64.exe`.
+> This section applies **only** if OBS Studio is run in [portable mode](https://obsproject.com/kb/portable-mode), for example when `portable_mode.txt` exists in the root directory of OBS.
 > If you installed OBS using the Windows installer, use the *Standard Installation* instructions above.
 
 In portable mode, OBS does **not** use `C:\ProgramData\obs-studio\plugins`. Instead, plugins are loaded relative to the OBS installation directory.
 
 1. Download the appropriate plugin ZIP (X64 or ARM64), as described above.
-2. Open PowerShell **in the root directory of your portable OBS installation** (the directory containing `obs64.exe`).
-3. Run the following command:
+2. Open PowerShell **in the root directory of your portable OBS installation**.
+4. Run the following command:
    ```powershell
    $zip=Get-ChildItem "$env:USERPROFILE\Downloads\c64stream-*-windows-*.zip" | Select-Object -First 1;
    Expand-Archive -Path $zip -DestinationPath "$env:TEMP\c64stream" -Force;
@@ -96,7 +96,7 @@ In portable mode, OBS does **not** use `C:\ProgramData\obs-studio\plugins`. Inst
    New-Item -ItemType Directory -Force ".\data\obs-plugins\c64stream" | Out-Null;
    Copy-Item "$env:TEMP\c64stream\c64stream\data\*" ".\data\obs-plugins\c64stream\" -Recurse -Force
    ```
-4. Start OBS Studio.
+5. Start OBS Studio.
 
 ### macOS
 
