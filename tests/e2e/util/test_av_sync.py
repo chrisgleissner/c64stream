@@ -350,7 +350,7 @@ def detect_video_pop_events(video_path, frame_rate=30.0):
                         cluster_end_idx += 1
                     peak_metric = float(np.nanmax(delta_max[idx:cluster_end_idx + 1]))
                     peak_brightness = float(np.nanmax(max_b[idx:cluster_end_idx + 1]))
-                    
+
                     # Adaptive brightness check: For heavy CRT effects (afterglow/tint), absolute
                     # brightness is significantly reduced. The delta-based detection already found
                     # a valid pop spike. We verify brightness isn't *too* low (e.g., not in black
