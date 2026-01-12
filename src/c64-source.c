@@ -1234,7 +1234,7 @@ void c64_video_tick(void *data, float seconds)
     // Stream health monitoring: detect if stream has stopped and trigger reconnection
     // Check every tick if we should be streaming but haven't received packets recently
     if (context->streaming && context->last_packet_received_ns > 0) {
-        const uint64_t packet_timeout_ns = 3000000000ULL; // 3 seconds
+        const uint64_t packet_timeout_ns = 1000000000ULL; // 1 second (50-60 frames)
         if ((now_ns - context->last_packet_received_ns) > packet_timeout_ns) {
             C64_LOG_WARNING("No packets received for %.1f seconds - triggering reconnection",
                             (now_ns - context->last_packet_received_ns) / 1000000000.0);
