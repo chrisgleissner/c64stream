@@ -1,4 +1,7 @@
 {
+    // Debugging defaults (Windows)
+    "debug.defaultLaunchConfiguration": "🪟 Debug OBS with C64 Stream Plugin (Windows)",
+
     // Formatting settings
     "editor.formatOnSave": true,
     "editor.formatOnType": true,

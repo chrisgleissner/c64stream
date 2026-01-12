@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.28...3.30)
 
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/common/bootstrap.cmake" NO_POLICY_SCOPE)
 
+# Keep configure output clean (OBS subprojects can emit noisy developer warnings).
+set(CMAKE_SUPPRESS_DEVELOPER_WARNINGS 1 CACHE BOOL "Suppress CMake developer warnings" FORCE)
+
 # Determine authoritative version from git tag first (skip for PR builds)
 if(DEFINED ENV{GITHUB_EVENT_NAME} AND "$ENV{GITHUB_EVENT_NAME}" STREQUAL "pull_request")
   # For PR builds, use development version with high patch numbers
@@ -48,8 +51,9 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DE
   set(CMAKE_INSTALL_PREFIX "/usr" CACHE PATH "Install prefix for Linux packages" FORCE)
 endif()
 
-# Set dummy VirtualCam GUID to prevent Windows build warning
-set(VIRTUALCAM_GUID "{00000000-0000-0000-0000-000000000000}")
+# Set dummy VirtualCam GUID (must be a CACHE var for OBS subprojects).
+# Note: OBS' GUID validator expects a plain UUID without braces.
+set(VIRTUALCAM_GUID "00000000-0000-0000-0000-000000000000" CACHE STRING "Virtual camera GUID" FORCE)
 
 option(ENABLE_FRONTEND_API "Use obs-frontend-api for UI functionality" OFF)
 option(ENABLE_QT "Use Qt functionality" OFF)
@@ -62,7 +66,12 @@ include(helpers)
 add_library(${CMAKE_PROJECT_NAME} MODULE)
 
 # Build bundled C64 PRGs (e.g. A/V sync auto-trigger)
-find_program(C64_64TASS_EXECUTABLE NAMES 64tass)
+set(C64_64TASS_HINTS "")
+if(OS_WINDOWS)
+  # Common MSYS2 locations (recommended upstream install path for Windows).
+  list(APPEND C64_64TASS_HINTS "C:/msys64/usr/bin" "C:/msys64/mingw64/bin")
+endif()
+find_program(C64_64TASS_EXECUTABLE NAMES 64tass 64tass.exe HINTS ${C64_64TASS_HINTS})
 if(C64_64TASS_EXECUTABLE)
   file(GLOB C64_C64_ASM_FILES "${CMAKE_CURRENT_SOURCE_DIR}/tools/c64/*.asm")
   set(C64_PRG_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/prg")
@@ -116,7 +125,7 @@ if(C64_64TASS_EXECUTABLE)
     )
   endif()
 else()
-  message(WARNING "64tass not found; bundled PRGs will not be built from tools/c64/*.asm")
+  message(STATUS "64tass not found; using prebuilt PRGs from data/prg")
 
   # Fall back to prebuilt PRGs tracked in the repository (important for Windows CI packaging).
   file(GLOB C64_PREBUILT_PRGS "${CMAKE_CURRENT_SOURCE_DIR}/data/prg/*.prg")
@@ -130,35 +139,7 @@ else()
       )
     endif()
   else()
-    message(WARNING "No prebuilt PRGs found under data/prg; PRG folder in packages may be empty")
-  endif()
-endif()
-
-# Update buildspec.json with authoritative version for consistent packaging
-# Always update for PR builds (development versions) and tagged releases
-if(AUTHORITATIVE_VERSION)
-  # Update buildspec.json with the calculated version to keep it in sync
-  # Use a cross-platform approach with temporary file to avoid sed -i incompatibilities
-  execute_process(
-    COMMAND
-      sed "41s/\"version\": \"[^\"]*\"/\"version\": \"${AUTHORITATIVE_VERSION}\"/" "${CMAKE_SOURCE_DIR}/buildspec.json"
-    OUTPUT_FILE "${CMAKE_SOURCE_DIR}/buildspec.json.tmp"
-    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-    RESULT_VARIABLE sed_result
-  )
-
-  if(sed_result EQUAL 0)
-    execute_process(
-      COMMAND ${CMAKE_COMMAND} -E rename "${CMAKE_SOURCE_DIR}/buildspec.json.tmp" "${CMAKE_SOURCE_DIR}/buildspec.json"
-      RESULT_VARIABLE mv_result
-    )
-    set(sed_result ${mv_result})
-  endif()
-
-  if(sed_result EQUAL 0)
-    message(STATUS "Updated buildspec.json version to: ${AUTHORITATIVE_VERSION}")
-  else()
-    message(WARNING "Failed to update buildspec.json version")
+    message(STATUS "No prebuilt PRGs found under data/prg; PRG folder in packages may be empty")
   endif()
 endif()
 
@@ -183,7 +164,7 @@ target_compile_definitions(
   PRIVATE C64_VERSION_TAG="${DISPLAY_VERSION}" C64_GIT_HASH="${GIT_HASH}" C64_BUILD_TIME="${BUILD_TIME}"
 )
 
-find_package(Python3 REQUIRED COMPONENTS Interpreter)
+find_package(Python3 COMPONENTS Interpreter)
 find_package(libobs REQUIRED)
 find_package(CURL REQUIRED)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE OBS::libobs)

@@ -16,6 +16,25 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "🪟 Debug OBS with C64 Stream Plugin (Windows)",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "C:/Program Files/obs-studio/bin/64bit/obs64.exe",
+            "args": ["--verbose"],
+            "stopAtEntry": false,
+            "cwd": "C:/Program Files/obs-studio/bin/64bit",
+            "environment": [],
+            "console": "externalTerminal",
+            "preLaunchTask": "Build Debug Plugin (Windows)",
+            "logging": {
+                "moduleLoad": false,
+                "trace": false,
+                "engineLogging": false,
+                "programOutput": true,
+                "exceptions": true
+            }
+        },
+        {
             "name": "🐧 Debug OBS with C64 Stream Plugin (Linux)",
             "type": "cppdbg",
             "request": "launch",
@@ -35,25 +54,6 @@
             ],
             "preLaunchTask": "Linux: Build and Install Plugin",
             "miDebuggerPath": "/usr/bin/gdb",
-            "logging": {
-                "moduleLoad": false,
-                "trace": false,
-                "engineLogging": false,
-                "programOutput": true,
-                "exceptions": true
-            }
-        },
-        {
-            "name": "🪟 Debug OBS with C64 Stream Plugin (Windows)",
-            "type": "cppvsdbg",
-            "request": "launch",
-            "program": "C:/Program Files/obs-studio/bin/64bit/obs64.exe",
-            "args": ["--verbose"],
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}",
-            "environment": [],
-            "console": "externalTerminal",
-            "preLaunchTask": "Build Debug Plugin (Windows)",
             "logging": {
                 "moduleLoad": false,
                 "trace": false,
