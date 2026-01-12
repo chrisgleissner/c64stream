@@ -1526,8 +1526,6 @@ void c64_process_video_packet_direct(struct c64_source *context, const uint8_t *
                 context->current_frame.received_packets++;
                 // Track last packet arrival time for A/V sync
                 context->current_frame.last_packet_time = timestamp_ns;
-                // Track global last packet time for stream health monitoring
-                context->last_packet_received_ns = os_gettime_ns();
             }
         } else {
             C64_LOG_WARNING("" VIDEO_LOG_PREFIX
