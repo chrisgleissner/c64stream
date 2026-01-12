@@ -350,7 +350,17 @@ def detect_video_pop_events(video_path, frame_rate=30.0):
                         cluster_end_idx += 1
                     peak_metric = float(np.nanmax(delta_max[idx:cluster_end_idx + 1]))
                     peak_brightness = float(np.nanmax(max_b[idx:cluster_end_idx + 1]))
-                    if not np.isfinite(peak_brightness) or peak_brightness < min_white_luma:
+                    
+                    # Adaptive brightness check: For heavy CRT effects (afterglow/tint), absolute
+                    # brightness is significantly reduced. The delta-based detection already found
+                    # a valid pop spike. We verify brightness isn't *too* low (e.g., not in black
+                    # areas), but allow dimmed whites from effects like green monitor.
+                    #
+                    # Use a lenient threshold: require brightness to be above the baseline median
+                    # by a meaningful amount, rather than an absolute 224+ requirement.
+                    # This allows detection of dimmed whites (150-200 range) from heavy effects.
+                    min_brightness_threshold = max(60.0, float(chosen_med) + 40.0)
+                    if not np.isfinite(peak_brightness) or peak_brightness < min_brightness_threshold:
                         continue
 
                     # In delta-space, baseline should be ~0. Use a small floor to avoid
