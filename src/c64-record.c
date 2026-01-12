@@ -290,11 +290,8 @@ void c64_session_ensure_exists(struct c64_source *context)
 {
     // If session already exists, do nothing
     if (context->session_folder[0] != '\0') {
-        C64_LOG_DEBUG("" RECORD_LOG_PREFIX " Session folder already exists: %s", context->session_folder);
         return;
     }
-
-    C64_LOG_DEBUG("" RECORD_LOG_PREFIX " Creating new session folder");
 
     // Create new session folder with timestamp
     time_t rawtime = time(NULL);
@@ -470,39 +467,29 @@ void c64_start_obs_csv_recording(struct c64_source *context)
 
 void c64_start_av_sync_csv_recording(struct c64_source *context)
 {
-    C64_LOG_DEBUG("" RECORD_LOG_PREFIX " c64_start_av_sync_csv_recording called");
-
     if (context->av_sync_file) {
-        C64_LOG_DEBUG("" RECORD_LOG_PREFIX " av-sync CSV already recording");
         return;
     }
 
-    C64_LOG_DEBUG("" RECORD_LOG_PREFIX " Ensuring session exists");
     c64_session_ensure_exists(context);
     if (context->session_folder[0] == '\0') {
         C64_LOG_WARNING("" RECORD_LOG_PREFIX " Failed to create recording session for av-sync CSV");
         return;
     }
 
-    C64_LOG_DEBUG("" RECORD_LOG_PREFIX " Session folder: %s", context->session_folder);
-
     char filename[950];
     snprintf(filename, sizeof(filename), "%s/av-sync.csv", context->session_folder);
 
-    C64_LOG_DEBUG("" RECORD_LOG_PREFIX " Opening av-sync CSV file: %s", filename);
     context->av_sync_file = fopen(filename, "w");
     if (!context->av_sync_file) {
         C64_LOG_ERROR("" RECORD_LOG_PREFIX " Failed to create av-sync CSV file: %s (errno=%d)", filename, errno);
         return;
     }
 
-    C64_LOG_DEBUG("" RECORD_LOG_PREFIX " av-sync CSV file opened successfully");
-
     // av-sync.csv is very low volume; if OBS terminates abruptly the stdio buffer may never flush.
     // Prefer line buffering and explicit flushes so E2E can reliably validate the file.
     setvbuf(context->av_sync_file, NULL, _IOLBF, 0);
 
-    C64_LOG_DEBUG("" RECORD_LOG_PREFIX " Writing CSV header");
     fprintf(context->av_sync_file,
             "trigger,detected,obs_offset_ms,obs_video_seq,obs_audio_seq,obs_video_frame,obs_video_ts_ns,obs_audio_ts_"
             "ns,has_network_match,net_offset_ms,net_video_seq,net_audio_seq,net_video_frame,net_video_ts_ns,net_audio_"
