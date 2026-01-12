@@ -232,13 +232,13 @@ static bool parse_wallclock_target(const char *s, double *out_epoch_seconds)
     return true;
 }
 
-static bool format_current_time(char *out, size_t out_size)
+static bool format_current_time(c64script_runtime_t *runtime, char *out, size_t out_size)
 {
     if (!out || out_size == 0) {
         return false;
     }
 
-    time_t now = time(NULL);
+    time_t now = runtime && runtime->override_time_enabled ? runtime->override_time : time(NULL);
     struct tm local_tm;
 #ifdef _WIN32
     localtime_s(&local_tm, &now);
@@ -2192,7 +2192,7 @@ bool c64script_vm_execute(c64script_runtime_t *runtime)
                     goto builtin_fail;
                 }
                 char buf[32];
-                if (!format_current_time(buf, sizeof(buf))) {
+                if (!format_current_time(runtime, buf, sizeof(buf))) {
                     snprintf(runtime->error_msg, sizeof(runtime->error_msg), "TIME$ failed");
                     goto builtin_fail;
                 }

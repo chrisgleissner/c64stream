@@ -21,9 +21,9 @@ endif
 wait 100ms
 
 rem Test 4: Run command with arguments
-RUNLOCAL "ls" ARGS "-la" STATUS LS_CODE OUTPUT LS_OUT$
+RUNLOCAL "echo" ARGS "test output" STATUS LS_CODE OUTPUT LS_OUT$
 wait 100ms
-LOG "Directory listing length: " + LEN(LS_OUT$)
+LOG "Command output: " + LS_OUT$
 
 rem Test 5: Conditional execution based on output
 RUNLOCAL "date" ARGS "+%Y" STATUS D_CODE OUTPUT YEAR$
@@ -66,7 +66,7 @@ endif
 wait 100ms
 
 rem Test 10: Complex workflow with local execution
-RUNLOCAL "date" ARGS "+%s" STATUS T_CODE OUTPUT TIMESTAMP$
+RUNLOCAL "echo" ARGS "1234567890" STATUS T_CODE OUTPUT TIMESTAMP$
 WRITEFILE "execution_log.txt", "Executed at: " + TIMESTAMP$ APPEND
 
 stop

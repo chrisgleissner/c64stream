@@ -424,6 +424,18 @@ static void process_script(const char *file)
     c64script_runtime_t *runtime = c64script_runtime_create();
     assert(runtime != NULL);
 
+    // Set fixed time for TIME$() function (for stable expected traces)
+    // Use January 1, 2024 00:00:00 UTC as a fixed test time
+    struct tm test_time = {0};
+    test_time.tm_year = 2024 - 1900; // Years since 1900
+    test_time.tm_mon = 0;            // January
+    test_time.tm_mday = 1;
+    test_time.tm_hour = 0;
+    test_time.tm_min = 0;
+    test_time.tm_sec = 0;
+    time_t fixed_time = mktime(&test_time);
+    c64script_set_time_override(runtime, fixed_time);
+
     // Set iteration limit to prevent infinite loops
     runtime->max_iterations = MAX_TEST_ITERATIONS;
 

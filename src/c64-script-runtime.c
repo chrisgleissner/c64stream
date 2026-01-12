@@ -861,3 +861,18 @@ void c64script_finalize_trace_recording(c64script_runtime_t *runtime, bool succe
     }
     runtime->trace_recording_enabled = false;
 }
+
+void c64script_set_time_override(c64script_runtime_t *runtime, time_t fixed_time)
+{
+    if (!runtime) {
+        return;
+    }
+
+    if (fixed_time == 0) {
+        runtime->override_time_enabled = false;
+        runtime->override_time = 0;
+    } else {
+        runtime->override_time_enabled = true;
+        runtime->override_time = fixed_time;
+    }
+}

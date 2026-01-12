@@ -12,6 +12,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <time.h>
 
 /**
  * C64Script - BASIC-Inspired Scripting Language
@@ -842,6 +843,10 @@ typedef struct {
     void *rest_client; // REST client for PEEK/POKE
     void *keyboard;    // Keyboard injection module
 
+    // Test overrides
+    bool override_time_enabled; // When true, use override_time instead of current time
+    time_t override_time;       // Fixed time for TIME$() function (for testing)
+
 } c64script_runtime_t;
 
 // ============================================================================
@@ -897,6 +902,12 @@ bool c64script_enable_trace_recording(c64script_runtime_t *runtime, const char *
  * Called automatically at end of execution
  */
 void c64script_finalize_trace_recording(c64script_runtime_t *runtime, bool success, const char *error_msg);
+
+/**
+ * Set a fixed time override for TIME$() function (for testing)
+ * Pass 0 to disable override and use current time
+ */
+void c64script_set_time_override(c64script_runtime_t *runtime, time_t fixed_time);
 
 /**
  * Free an AST

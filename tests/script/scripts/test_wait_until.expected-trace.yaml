@@ -74,150 +74,150 @@ trace:
 - line: 6
   content: "LOG \"Current time: \" + CURRENT$"
   variables:
-    CURRENT$: "2026-01-06 17:57:18"
+    CURRENT$: "2024-01-01 00:00:00"
 - line: 7
   content: "wait 100ms"
   variables:
-    CURRENT$: "2026-01-06 17:57:18"
+    CURRENT$: "2024-01-01 00:00:00"
 - line: 10
   content: "wait until \"00:00:01\""
   variables:
-    CURRENT$: "2026-01-06 17:57:18"
+    CURRENT$: "2024-01-01 00:00:00"
 - line: 11
   content: "LOG \"Past time wait completed immediately\""
   variables:
-    CURRENT$: "2026-01-06 17:57:18"
+    CURRENT$: "2024-01-01 00:00:00"
 - line: 12
   content: "wait 100ms"
   variables:
-    CURRENT$: "2026-01-06 17:57:18"
+    CURRENT$: "2024-01-01 00:00:00"
 - line: 19
   content: "wait until \"23:59:59\""
   variables:
-    CURRENT$: "2026-01-06 17:57:18"
+    CURRENT$: "2024-01-01 00:00:00"
 - line: 20
   content: "LOG \"Time format wait completed\""
   variables:
-    CURRENT$: "2026-01-06 17:57:18"
+    CURRENT$: "2024-01-01 00:00:00"
 - line: 21
   content: "wait 100ms"
   variables:
-    CURRENT$: "2026-01-06 17:57:18"
+    CURRENT$: "2024-01-01 00:00:00"
 - line: 24
   content: "wait until \"12:00\""
   variables:
-    CURRENT$: "2026-01-06 17:57:18"
+    CURRENT$: "2024-01-01 00:00:00"
 - line: 25
   content: "LOG \"Short time format wait completed\""
   variables:
-    CURRENT$: "2026-01-06 17:57:18"
+    CURRENT$: "2024-01-01 00:00:00"
 - line: 26
   content: "wait 100ms"
   variables:
-    CURRENT$: "2026-01-06 17:57:18"
+    CURRENT$: "2024-01-01 00:00:00"
 - line: 29
   content: "wait until \"2024-01-01 00:00:00\""
   variables:
-    CURRENT$: "2026-01-06 17:57:18"
+    CURRENT$: "2024-01-01 00:00:00"
 - line: 30
   content: "LOG \"Full datetime wait completed\""
   variables:
-    CURRENT$: "2026-01-06 17:57:18"
+    CURRENT$: "2024-01-01 00:00:00"
 - line: 31
   content: "wait 100ms"
   variables:
-    CURRENT$: "2026-01-06 17:57:18"
+    CURRENT$: "2024-01-01 00:00:00"
 - line: 34
   content: "wait until \"2024-01-01T00:00:00\""
   variables:
-    CURRENT$: "2026-01-06 17:57:18"
+    CURRENT$: "2024-01-01 00:00:00"
 - line: 35
   content: "LOG \"ISO T-format wait completed\""
   variables:
-    CURRENT$: "2026-01-06 17:57:18"
+    CURRENT$: "2024-01-01 00:00:00"
 - line: 36
   content: "wait 100ms"
   variables:
-    CURRENT$: "2026-01-06 17:57:18"
+    CURRENT$: "2024-01-01 00:00:00"
 - line: 39
   content: "LOG \"Scheduling workflow...\""
   variables:
-    CURRENT$: "2026-01-06 17:57:18"
+    CURRENT$: "2024-01-01 00:00:00"
 - line: 40
   content: "effect \"Sharp Pixels\""
   variables:
-    CURRENT$: "2026-01-06 17:57:18"
+    CURRENT$: "2024-01-01 00:00:00"
 - line: 41
   content: "wait until \"00:00:05\""
   variables:
-    CURRENT$: "2026-01-06 17:57:18"
+    CURRENT$: "2024-01-01 00:00:00"
 - line: 42
   content: "effect \"Soft CRT\""
   variables:
-    CURRENT$: "2026-01-06 17:57:18"
+    CURRENT$: "2024-01-01 00:00:00"
 - line: 43
   content: "LOG \"Workflow completed\""
   variables:
-    CURRENT$: "2026-01-06 17:57:18"
+    CURRENT$: "2024-01-01 00:00:00"
 - line: 44
   content: "wait 100ms"
   variables:
-    CURRENT$: "2026-01-06 17:57:18"
+    CURRENT$: "2024-01-01 00:00:00"
 - line: 47
   content: "wait until \"00:01:00\""
   variables:
-    CURRENT$: "2026-01-06 17:57:18"
+    CURRENT$: "2024-01-01 00:00:00"
 - line: 48
   content: "LOG \"First event\""
   variables:
-    CURRENT$: "2026-01-06 17:57:18"
+    CURRENT$: "2024-01-01 00:00:00"
 - line: 49
   content: "palette \"colodore\""
   variables:
-    CURRENT$: "2026-01-06 17:57:18"
+    CURRENT$: "2024-01-01 00:00:00"
 - line: 50
   content: "wait 50ms"
   variables:
-    CURRENT$: "2026-01-06 17:57:18"
+    CURRENT$: "2024-01-01 00:00:00"
 - line: 52
   content: "wait until \"00:02:00\""
   variables:
-    CURRENT$: "2026-01-06 17:57:18"
+    CURRENT$: "2024-01-01 00:00:00"
 - line: 53
   content: "LOG \"Second event\""
   variables:
-    CURRENT$: "2026-01-06 17:57:18"
+    CURRENT$: "2024-01-01 00:00:00"
 - line: 54
   content: "palette \"pepto_ntsc\""
   variables:
-    CURRENT$: "2026-01-06 17:57:18"
+    CURRENT$: "2024-01-01 00:00:00"
 - line: 55
   content: "wait 50ms"
   variables:
-    CURRENT$: "2026-01-06 17:57:18"
+    CURRENT$: "2024-01-01 00:00:00"
 - line: 58
   content: "CURRENT$ = TIME$()"
   variables:
-    CURRENT$: "2026-01-06 17:57:18"
+    CURRENT$: "2024-01-01 00:00:00"
 - line: 59
   content: "LOG \"Starting at: \" + CURRENT$"
   variables:
-    CURRENT$: "2026-01-06 17:57:18"
+    CURRENT$: "2024-01-01 00:00:00"
 - line: 60
   content: "wait until \"00:00:10\""
   variables:
-    CURRENT$: "2026-01-06 17:57:18"
+    CURRENT$: "2024-01-01 00:00:00"
 - line: 61
   content: "AFTER$ = TIME$()"
   variables:
-    CURRENT$: "2026-01-06 17:57:18"
+    CURRENT$: "2024-01-01 00:00:00"
 - line: 62
   content: "LOG \"Completed at: \" + AFTER$"
   variables:
-    CURRENT$: "2026-01-06 17:57:18"
-    AFTER$: "2026-01-06 17:57:18"
+    CURRENT$: "2024-01-01 00:00:00"
+    AFTER$: "2024-01-01 00:00:00"
 - line: 64
   content: "stop"
   variables:
-    CURRENT$: "2026-01-06 17:57:18"
-    AFTER$: "2026-01-06 17:57:18"
+    CURRENT$: "2024-01-01 00:00:00"
+    AFTER$: "2024-01-01 00:00:00"
