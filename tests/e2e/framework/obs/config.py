@@ -68,7 +68,8 @@ class OBSConfigManager:
                 logger.info(f"✅ Copied E2E properties: {e2e_properties} -> {target_properties}")
 
                 # Inject output_dir as save_folder for ALL runs to satisfy test expectations
-                self._inject_recording_path(target_properties)
+                # self._inject_recording_path(target_properties) # DISABLED: User feedback says this is incorrect usage.
+                # The plugin should write to its standard location (Documents/...), and we will retrieve files from there.
 
                 # Apply CI-specific adjustments
                 if self.env.is_ci:

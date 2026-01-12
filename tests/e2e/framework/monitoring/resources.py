@@ -31,9 +31,8 @@ class ResourceManager:
 
         try:
             self._monitor = ResourceMonitor(
-                pid=self.pid,
-                output_csv=self.output_csv,
-                interval=self.interval_sec
+                interval_ms=int(self.interval_sec * 1000),
+                tracked_pids={'obs': self.pid}
             )
             self._monitor.start()
             logger.info(f"📊 Resource monitoring started (pid={self.pid}, interval={self.interval_sec}s)")
@@ -46,6 +45,9 @@ class ResourceManager:
         if self._monitor:
             try:
                 self._monitor.stop()
+                if self.output_csv:
+                     self.output_csv.parent.mkdir(parents=True, exist_ok=True)
+                     self._monitor.save_csv(self.output_csv)
                 logger.info("📊 Resource monitoring stopped")
             except Exception as e:
                 logger.warning(f"Error stopping resource monitor: {e}")

@@ -3,6 +3,9 @@ import os
 import time
 import logging
 import sys
+import shutil
+import csv
+import json
 from pathlib import Path
 from typing import Optional, Dict
 
@@ -19,6 +22,11 @@ from .monitoring.resources import ResourceManager
 from .validation.recording import RecordingValidator
 from .validation.results import ResultValidator
 from .validation.network import NetworkTimingValidator # Import purely for logging/checking? ResultValidator uses it.
+try:
+    from util.network_analysis import analyze_network_jitter
+except ImportError:
+    # Fallback to absolute if needed (should not be needed if e2e.py adds tests/e2e to path)
+    from framework.util.network_analysis import analyze_network_jitter
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +89,9 @@ class E2EOrchestrator:
             self.env.prepare()
 
             # 2. Configure OBS
-            if not self.obs_config.copy_e2e_properties():
+            # Enable record_av_sync if full_frame_pop is enabled (implies AV sync test)
+            enable_av_sync = self.full_frame_pop
+            if not self.obs_config.copy_e2e_properties(enable_av_sync=enable_av_sync):
                 raise RuntimeError("Failed to setup plugin properties")
 
             profile = self.obs_config.create_obs_profile(self.format, self.scenario_overrides)
@@ -153,8 +163,16 @@ class E2EOrchestrator:
             # Find and process CSVs from the session folder
             counts = self._process_csvs()
 
-            validator = ResultValidator(self.env, self.format, self.frames, self.packet_source, self.network_simulation)
+            validator = ResultValidator(self.env, self.format, self.frames, self.packet_source, self.network_simulation, self.full_frame_pop)
             success, results = validator.validate(replay_success, recording_path, counts)
+
+            # Save validation results for report generation
+            if self.env.output_dir:
+                try:
+                    with open(self.env.output_dir / 'validation_results.json', 'w') as f:
+                        json.dump(results, f, indent=4, default=str)
+                except Exception as e:
+                    logger.warning(f"Failed to save validation_results.json: {e}")
 
             return success
 
@@ -179,22 +197,40 @@ class E2EOrchestrator:
         """Find session folder, process network.csv, and return counts."""
         counts = {'network_packets': 0, 'video_packets': 0}
 
-        # storage path was set to output_dir in config.py
-        # Plugin creates subfolder: YYYY-MM-DD-HH-MM-SS
-        # or if name template is used.
-        # Let's search for network.csv recursively in output_dir
-        # But prefer the one created *just now*.
-
         try:
-            # Find all network.csv files in output_dir subdirectories
-            candidates = list(self.env.output_dir.glob('**/network.csv'))
+            # Look for CSVs in multiple locations
+            # 1. Plugin default location (Documents/obs-studio/c64stream/recordings)
+            # 2. Output directory (if configured to write there)
+
+            candidates = []
+
+            # Check default plugin location
+            plugin_recordings_base = Path.home() / 'Documents' / 'obs-studio' / 'c64stream' / 'recordings'
+            if plugin_recordings_base.exists():
+                session_folders = [f for f in plugin_recordings_base.glob('session_*') if f.is_dir()]
+                for session in session_folders:
+                     candidate = session / 'network.csv'
+                     if candidate.exists():
+                         candidates.append(candidate)
+
+            # Check output directory
+            candidates.extend(list(self.env.output_dir.glob('**/network.csv')))
+
             if not candidates:
-                logger.warning("⚠️ No network.csv found in output directory")
+                logger.warning("⚠️ No network.csv found in default location or output directory")
                 return counts
 
             # Pick the most recent one
             candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
             network_csv = candidates[0]
+            logger.info(f"📁 Processing CSV from: {network_csv}")
+
+            # Also copy obs.csv and av-sync.csv if present in the same folder
+            session_dir = network_csv.parent
+            for other_csv in ['obs.csv', 'av-sync.csv']:
+                src = session_dir / other_csv
+                if src.exists():
+                    shutil.copy2(src, self.env.output_dir / other_csv)
 
             # Destination in main output dir
             dest_csv = self.env.output_dir / 'network.csv'
@@ -203,29 +239,40 @@ class E2EOrchestrator:
             packet_count = 0
             video_count = 0
 
-            import csv
-            with open(network_csv, 'r', errors='replace') as f_in, \
-                 open(dest_csv, 'w', newline='') as f_out:
+            # First, perform analysis on the ORIGINAL full CSV before truncation/copying
+            # This generates network.json which is needed for logging and validation
+            try:
+                analysis = analyze_network_jitter(network_csv)
+                if analysis:
+                    with open(self.env.output_dir / 'network.json', 'w') as f_json:
+                        json.dump(analysis, f_json, indent=2)
+                    logger.info(f"✅ Saved network analysis to: {self.env.output_dir / 'network.json'}")
+            except Exception as e:
+                logger.error(f"❌ Failed to analyze network jitter: {e}")
 
-                reader = csv.DictReader(f_in)
-                if reader.fieldnames:
-                    writer = csv.DictWriter(f_out, fieldnames=reader.fieldnames)
-                    writer.writeheader()
+            if network_csv != dest_csv: # Avoid self-overwrite if paths match
+                with open(network_csv, 'r', errors='replace') as f_in, \
+                     open(dest_csv, 'w', newline='') as f_out:
 
-                    row_idx = 0
-                    max_rows = self.env.csv_max_rows or 0
+                    reader = csv.DictReader(f_in)
+                    if reader.fieldnames:
+                        writer = csv.DictWriter(f_out, fieldnames=reader.fieldnames)
+                        writer.writeheader()
 
-                    for row in reader:
-                        # Count packets
-                        packet_count += 1
-                        if row.get('packet_type') == 'video':
-                            video_count += 1
+                        row_idx = 0
+                        max_rows = self.env.csv_max_rows or 0
 
-                        # Write if within limit or unlimited
-                        if max_rows == 0 or row_idx < max_rows:
-                            writer.writerow(row)
+                        for row in reader:
+                            # Count packets
+                            packet_count += 1
+                            if row.get('packet_type') == 'video':
+                                video_count += 1
 
-                        row_idx += 1
+                            # Write if within limit or unlimited
+                            if max_rows == 0 or row_idx < max_rows:
+                                writer.writerow(row)
+
+                            row_idx += 1
 
             counts['network_packets'] = packet_count
             counts['video_packets'] = video_count

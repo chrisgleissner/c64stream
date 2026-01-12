@@ -188,10 +188,27 @@ class OBSLogManager:
 
             # Alternative success indicator: check if network.csv is being written
             # This handles cases where logs are truncated/missing but plugin is working
+
+            # Check configured output dir
             network_csv = self.env.output_dir / 'network.csv'
             if network_csv.exists() and network_csv.stat().st_size > 0:
-                logger.info("✅ Plugin initialized (detected network.csv activity)")
+                logger.info("✅ Plugin initialized (detected network.csv activity in output dir)")
                 return True
+
+            # Check default plugin location (recursively in recent sessions)
+            plugin_recordings_base = Path.home() / 'Documents' / 'obs-studio' / 'c64stream' / 'recordings'
+            if plugin_recordings_base.exists():
+                # Find sessions specific to this run (very recent modification)
+                # We can just check if ANY network.csv in a recent session has content
+                cutoff = start_time - 2.0
+                try:
+                    for network_csv_path in plugin_recordings_base.glob('**/network.csv'):
+                        # Check mtime to ensure it's recent
+                         if network_csv_path.stat().st_mtime >= cutoff and network_csv_path.stat().st_size > 0:
+                             logger.info(f"✅ Plugin initialized (detected activity in {network_csv_path})")
+                             return True
+                except Exception:
+                    pass
 
             time.sleep(0.2)
 

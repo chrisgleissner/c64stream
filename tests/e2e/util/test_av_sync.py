@@ -1139,12 +1139,10 @@ def analyze_visual_elements(video_path):
     else:
         framebox = verify_frame_sequence_box(video_path)
         _VISUALS_CACHE[key] = framebox
-    # Disable frame sequence box reporting (WIP)
-    frame_details = "Skipped, work in progress"
 
-    # TODO: Re-enable frame sequence box once stable
+    # Re-enable frame sequence box reporting
     return {
-        'frame_sequence_box': {'pass': True, 'details': frame_details}
+        'frame_sequence_box': {'pass': framebox.get('pass', False), 'details': framebox}
     }
 
 

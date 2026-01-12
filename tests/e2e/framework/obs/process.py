@@ -27,20 +27,32 @@ class OBSProcessManager:
         """Start OBS with specific profile and collection."""
         logger.info("Starting OBS Studio...")
 
+        # Base OBS command
         cmd = ['obs']
-        if sys.platform.startswith('linux') and shutil.which('dbus-run-session'):
-            logger.info("Wrapping OBS in dbus-run-session for headless stability")
-            cmd = ['dbus-run-session', '--', 'obs']
+
+        # Check if we can use nice for priority
+        if shutil.which('nice'):
+            try:
+                # Test if nice -n -10 works (might need caps)
+                subprocess.run(['nice', '-n', '-10', 'true'], check=True, capture_output=True)
+                cmd = ['nice', '-n', '-10', 'obs']
+                logger.info("✅ Using high priority scheduling (nice -n -10)")
+            except Exception:
+                pass
 
         cmd.extend([
             '--verbose',
             '--startrecording',  # Auto-start recording
             '--profile', profile_name,
             '--disable-missing-files-check', # Prevent "Missing Files" dialog
+            '--disable-updater',
+            '--minimize-to-tray',
         ])
 
-        # Add portable mode flag if needed (usually handled by config copying, but let's see)
-        # e2e.py didn't use --portable, just standard paths.
+        if self.env.is_ci:
+             logger.info("🏗️ Added --verbose flag for CI debugging")
+             if '--verbose' not in cmd:
+                 cmd.append('--verbose')
 
         # Try launch flags logic
         collection_flags = ['--collection', '--scene-collection']
@@ -107,6 +119,13 @@ class OBSProcessManager:
         # Set minimal env vars if needed, but usually inherit
         env = os.environ.copy()
 
+        # Match main branch logic for headless environment
+        if self.env.is_ci or env.get('DISPLAY') == ':99':
+             env.setdefault('QT_QPA_PLATFORM', 'xcb')
+             env.setdefault('QT_X11_NO_MITSHM', '1')
+             env.setdefault('LIBGL_ALWAYS_SOFTWARE', '1')
+             logger.info("🧪 Applied headless Qt/GL environment variables to OBS subprocess")
+
         # We should capture stdout/stderr to debug crashes
         try:
             # Use a log file for stdout/stderr
@@ -156,14 +175,27 @@ class OBSProcessManager:
             logger.info("Stopping OBS...")
             try:
                 # Graceful termination first
-                # Use SIGINT (Ctrl+C) prevents dbus-run-session from killing child immediately?
-                # Send to process group to ensure all processes (dbus, obs) receive it.
-                os.killpg(os.getpgid(self.process.pid), signal.SIGINT)
+                # On main branch, simply terminate() is used and it works.
+                # Sending SIGTERM to the process group to ensure children are handled too
+                # but main branch just does process.terminate().
+
+                # Using terminate() (SIGTERM)
+                self.process.terminate()
+
                 try:
-                    self.process.wait(timeout=10)
+                    # Give ample time for MP4 finalization (can take seconds for large files)
+                    self.process.wait(timeout=15)
                 except subprocess.TimeoutExpired:
                     logger.warning("OBS did not exit gracefully, killing...")
-                    os.killpg(os.getpgid(self.process.pid), signal.SIGKILL)
+                    try:
+                        self.process.kill()
+                    except:
+                        pass
+                    try:
+                         # Fallback safety: kill process group
+                         os.killpg(os.getpgid(self.process.pid), signal.SIGKILL)
+                    except:
+                         pass
                     self.process.wait(timeout=2)
             except Exception as e:
                 logger.warning(f"Error stopping OBS: {e}")
