@@ -1,7 +1,7 @@
 {
     "udp_reception": {
         "status": "pass",
-        "details": "19197 packets (17945 video, 0 audio)"
+        "details": "19248 packets (17996 video, 0 audio)"
     },
     "frame_processing": {
         "status": "pass",
@@ -9,7 +9,7 @@
     },
     "video_recording": {
         "status": "pass",
-        "details": "4.1 MB"
+        "details": "4.0 MB"
     },
     "packet_integrity": {
         "status": "pass",
@@ -17,7 +17,7 @@
     },
     "network_timing": {
         "status": "pass",
-        "details": "span=5155.0ms, video_mean=337.4us, audio_mean=4004.6us"
+        "details": "span=5161.4ms, video_mean=333.9us, audio_mean=4005.3us"
     },
     "video_brightness": {
         "status": "fail",
@@ -27,15 +27,15 @@
             "best_mean_luma": 0,
             "samples": [
                 {
-                    "t": 2.089392571791529,
+                    "t": 2.0225320094941996,
                     "mean_luma": 0.0
                 },
                 {
-                    "t": 4.178785143583058,
+                    "t": 4.0617791595627315,
                     "mean_luma": 0.0
                 },
                 {
-                    "t": 6.268177715374586,
+                    "t": 6.101026309631264,
                     "mean_luma": 0.0
                 }
             ]
@@ -54,23 +54,10 @@
         "tolerance_ms": 30,
         "sync_details": [
             {
-                "audio_pop_time_ms": 1779,
-                "closest_video_pop_ms": 4329.221408752048,
-                "closest_video_pop_frame": 259,
-                "difference_ms": 2550.221408752048,
-                "is_synced": false,
-                "included_in_analysis": false,
-                "ignore_reason": "unmatched_audio_pop",
-                "audio_channel": "R",
-                "video_channel": "L",
-                "channels_match": false,
-                "traffic": "gray"
-            },
-            {
-                "audio_pop_time_ms": 2580,
-                "closest_video_pop_ms": 4329.221408752048,
-                "closest_video_pop_frame": 259,
-                "difference_ms": 1749.2214087520479,
+                "audio_pop_time_ms": 1563,
+                "closest_video_pop_ms": 4111.924581285728,
+                "closest_video_pop_frame": 246,
+                "difference_ms": 2548.924581285728,
                 "is_synced": false,
                 "included_in_analysis": false,
                 "ignore_reason": "unmatched_audio_pop",
@@ -80,10 +67,36 @@
                 "traffic": "gray"
             },
             {
-                "audio_pop_time_ms": 3385,
-                "closest_video_pop_ms": 4329.221408752048,
-                "closest_video_pop_frame": 259,
-                "difference_ms": 944.2214087520479,
+                "audio_pop_time_ms": 2364,
+                "closest_video_pop_ms": 4111.924581285728,
+                "closest_video_pop_frame": 246,
+                "difference_ms": 1747.924581285728,
+                "is_synced": false,
+                "included_in_analysis": false,
+                "ignore_reason": "unmatched_audio_pop",
+                "audio_channel": "L",
+                "video_channel": "L",
+                "channels_match": true,
+                "traffic": "gray"
+            },
+            {
+                "audio_pop_time_ms": 3169,
+                "closest_video_pop_ms": 4111.924581285728,
+                "closest_video_pop_frame": 246,
+                "difference_ms": 942.924581285728,
+                "is_synced": false,
+                "included_in_analysis": false,
+                "ignore_reason": "unmatched_audio_pop",
+                "audio_channel": "L",
+                "video_channel": "L",
+                "channels_match": true,
+                "traffic": "gray"
+            },
+            {
+                "audio_pop_time_ms": 3971,
+                "closest_video_pop_ms": 4111.924581285728,
+                "closest_video_pop_frame": 246,
+                "difference_ms": 140.92458128572798,
                 "is_synced": false,
                 "included_in_analysis": false,
                 "ignore_reason": "unmatched_audio_pop",
@@ -93,42 +106,29 @@
                 "traffic": "gray"
             },
             {
-                "audio_pop_time_ms": 4186,
-                "closest_video_pop_ms": 4329.221408752048,
-                "closest_video_pop_frame": 259,
-                "difference_ms": 143.22140875204786,
+                "audio_pop_time_ms": 4771,
+                "closest_video_pop_ms": 4914.251328853675,
+                "closest_video_pop_frame": 294,
+                "difference_ms": 143.25132885367475,
                 "is_synced": false,
                 "included_in_analysis": false,
                 "ignore_reason": "unmatched_audio_pop",
-                "audio_channel": "R",
+                "audio_channel": "L",
                 "video_channel": "L",
-                "channels_match": false,
-                "traffic": "gray"
-            },
-            {
-                "audio_pop_time_ms": 4987,
-                "closest_video_pop_ms": 5131.548156319995,
-                "closest_video_pop_frame": 307,
-                "difference_ms": 144.54815631999463,
-                "is_synced": false,
-                "included_in_analysis": false,
-                "ignore_reason": "unmatched_audio_pop",
-                "audio_channel": "R",
-                "video_channel": "L",
-                "channels_match": false,
+                "channels_match": true,
                 "traffic": "gray"
             }
         ],
         "is_perfectly_synced": false,
         "last_event_within_limit": true,
-        "duration_ms": 8357.570000000002,
+        "duration_ms": 8140.273,
         "video_pop_times_ms": [
-            4345.93654932638,
-            5148.263296894327
+            4128.6397218600605,
+            4930.966469428007
         ],
         "video_pop_frame_indices": [
-            260,
-            308
+            247,
+            295
         ],
         "traffic": [
             "gray",

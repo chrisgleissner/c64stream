@@ -2,7 +2,7 @@
 
 ## Scenario: ntsc_default_avsync
 
-Generated: 2026-01-12 14:14:45 UTC
+Generated: 2026-01-12 15:01:20 UTC
 
 ## Test configuration
 
@@ -29,10 +29,10 @@ Generated: 2026-01-12 14:14:45 UTC
 
 ### Validation Summary
 
-- ✅ UDP Packet Reception: 19197 packets (17945 video, 0 audio)
-- ✅ Network Timing: span=5155.0ms, video_mean=337.4us, audio_mean=4004.6us
+- ✅ UDP Packet Reception: 19248 packets (17996 video, 0 audio)
+- ✅ Network Timing: span=5161.4ms, video_mean=333.9us, audio_mean=4005.3us
 - ✅ Frame Processing: 299 frames processed
-- ✅ Video Recording: 4.1 MB
+- ✅ Video Recording: 4.0 MB
 - ✅ Content Integrity: Verified
 
 ### Resource Usage
@@ -41,33 +41,33 @@ During the test's processing window (7.1s, 15 of 15 samples) (8 cores):
 
 | Metric | Min | Median | Mean | Max |
 |--------|-----|--------|------|-----|
-| CPU | 50.4% | 54.2% | 55.68% | 69.9% |
-| RAM | 6370.77 MB | 6412.79 MB | 6413.78 MB | 6438.03 MB |
-| GPU | 30.4% | 30.4% | 41.26% | 95.7% |
+| CPU | 49.1% | 50.9% | 52.14% | 63.4% |
+| RAM | 6334.21 MB | 6395.66 MB | 6393.30 MB | 6416.03 MB |
+| GPU | 30.4% | 89.8% | 75.94% | 97.1% |
 
 Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
 ### Packet & Network Data
 
-- ✅ Packet Generation: 19197 (approx)
+- ✅ Packet Generation: 19248 (approx)
 - ✅ UDP Replay: Completed successfully
 - Events: [network.csv](network.csv), [obs.csv](obs.csv), [playback.csv](playback.csv)
 
 #### Network Quality (Measured)
 
-- Packet span (first→last): 5155.038 ms
-- Total packets analyzed: 16067
+- Packet span (first→last): 5161.380 ms
+- Total packets analyzed: 16267
 
 | Stream | Packets | Spacing (min) | Spacing (mean) | Spacing (max) | CV | Burst <0.5×P50 | Gaps >2×P50 | P99/P50 |
 |--------|---------|---------------|----------------|---------------|----|----------------|-------------|---------|
-| All | 16067 | 0.001 ms | 0.623 ms | 6.949 ms | 170.85% | 10.39% | 15.47% | 17.218 |
-| Video | 14816 | 0.001 ms | 0.337 ms | 3.300 ms | 106.13% | 11.26% | 8.36% | 8.176 |
-| Audio | 1251 | 1.148 ms | 4.005 ms | 6.949 ms | 19.79% | 1.52% | 0.00% | 1.534 |
+| All | 16267 | 0.001 ms | 0.616 ms | 6.500 ms | 170.95% | 9.53% | 15.00% | 16.764 |
+| Video | 15016 | 0.001 ms | 0.334 ms | 3.077 ms | 103.84% | 10.32% | 7.92% | 8.079 |
+| Audio | 1251 | 1.763 ms | 4.005 ms | 6.500 ms | 18.40% | 0.96% | 0.00% | 1.515 |
 
 | Stream | Packets | Jitter (median) | Jitter (max) | Out-of-Order |
 |--------|---------|-----------------|--------------|--------------|
-| Video | 14816 | 0.018 ms | 3.021 ms | 0 |
-| Audio | 1251 | 0.154 ms | 2.949 ms | 0 |
+| Video | 15016 | 0.014 ms | 2.798 ms | 0 |
+| Audio | 1251 | 0.109 ms | 2.500 ms | 0 |
 
 Details: [network.json](network.json)
 
@@ -77,16 +77,16 @@ Details: [network.json](network.json)
 
 #### Sync Details
 
-- ⚪ Pop #1 [R]: audio=1779.0ms (ignored: unmatched_audio_pop)
-- ⚪ Pop #2 [L]: audio=2580.0ms (ignored: unmatched_audio_pop)
-- ⚪ Pop #3 [R]: audio=3385.0ms (ignored: unmatched_audio_pop)
-- ⚪ Pop #4 [R]: audio=4186.0ms (ignored: unmatched_audio_pop)
-- ⚪ Pop #5 [R]: audio=4987.0ms (ignored: unmatched_audio_pop)
+- ⚪ Pop #1 [L]: audio=1563.0ms (ignored: unmatched_audio_pop)
+- ⚪ Pop #2 [L]: audio=2364.0ms (ignored: unmatched_audio_pop)
+- ⚪ Pop #3 [L]: audio=3169.0ms (ignored: unmatched_audio_pop)
+- ⚪ Pop #4 [R]: audio=3971.0ms (ignored: unmatched_audio_pop)
+- ⚪ Pop #5 [L]: audio=4771.0ms (ignored: unmatched_audio_pop)
 
 ### Video
 
 - Download: [c64_recording.mp4](c64_recording.mp4) (Available from local runs or CI build artifacts.)
-- Duration: 8.4 s
+- Duration: 8.1 s
 
 ### Sample Frame
 

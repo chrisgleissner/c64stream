@@ -319,9 +319,17 @@ class ResultValidator:
             results['frame_processing'] = {'status': status_str, 'details': msg}
 
         if not passed and details:
-             # AV sync failure is only a warning for regular scenarios
-             # (AV sync detection may not be reliable with heavy effects like amber tint/afterglow)
-             warnings.append(f"AV Sync: {msg}")
+             # Check if this is a severe AV sync failure (all pops out of sync)
+             sync_details = details.get('sync_details', [])
+             synced_count = sum(1 for d in sync_details if d.get('is_synced', False))
+             total_count = len(sync_details)
+             
+             # If NO pops are synced, this is a critical failure (test content/timing issue)
+             if total_count > 0 and synced_count == 0:
+                 errors.append(f"AV Sync: All {total_count} pops out of sync - {msg}")
+             else:
+                 # Partial failures are warnings (may be due to effects or minor timing jitter)
+                 warnings.append(f"AV Sync: {msg}")
 
         logger.info(f"{'✅' if passed else '⚠️ ' } A/V Sync: {passed} ({msg})")
 
