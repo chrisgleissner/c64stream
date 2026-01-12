@@ -9,8 +9,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include <string.h>
 #include <time.h>
 #include <errno.h>
-#include "c64-network.h" // Include network header first to avoid Windows header conflicts
-
+#include "c64-network.h"
 #include <util/platform.h>
 #include "c64-logging.h"
 #include "c64-protocol.h"

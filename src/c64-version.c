@@ -6,7 +6,7 @@ Licensed under the GNU General Public License v2.0 or later.
 See <https://www.gnu.org/licenses/> for details.
 */
 #include "c64-version.h"
-#include "c64-logging.h" // For Windows snprintf compatibility
+#include "c64-logging.h"
 #include <stdio.h>
 #include <time.h>
 
