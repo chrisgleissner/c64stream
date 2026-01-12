@@ -276,14 +276,14 @@ class ResultValidator:
             packets_per_frame = 62 if self.format == 'PAL' else 60
             estimated_frames = int(video_packets / packets_per_frame) if packets_per_frame > 0 else 0
             results['frame_processing'] = {'status': 'pass', 'details': f"{estimated_frames} frames processed"}
-            
+
             # Run post-analysis to get AV pops for README (but don't fail if sync isn't perfect)
             try:
                 from util.test_av_sync import verify_av_sync
                 if recording_path and recording_path.exists():
                     av_results = verify_av_sync(str(recording_path))
                     results['av_sync_details'] = av_results
-                    
+
                     # Report as skipped for validation purposes (av-sync.csv test is separate)
                     results['av_sync'] = {'status': 'skipped', 'details': 'Skipped (full-frame-pop scenario)'}
                     logger.info("⏭️  A/V Sync: Skipped (full-frame-pop scenario) - but pops detected for reporting")

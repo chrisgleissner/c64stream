@@ -180,7 +180,7 @@ class MockC64UServer:
                 if stream_id == 0: self._stream_start_mask |= 0x1
                 elif stream_id == 1: self._stream_start_mask |= 0x2
 
-                # Trigger if Video (0x1) is started. We don't strictly wait for Audio (0x2)
-                # because some scenarios or plugin states might delay audio start until video is received.
-                if self._stream_start_mask & 0x1:
+                # Trigger only when BOTH video (0x1) and audio (0x2) have started.
+                # Starting replay early can create artificial A/V offset in the recording.
+                if self._stream_start_mask == 0x3:
                     self._trigger_event.set()
