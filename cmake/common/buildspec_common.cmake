@@ -52,17 +52,24 @@ function(_setup_obs_studio)
     set(_is_fresh --fresh)
   endif()
 
-  # Keep third-party configure output warning-free.
-  # - OBS emits a developer warning when detours version can't be detected.
-  # - OBS emits a warning if VIRTUALCAM_GUID is unset.
+  # Keep third-party configure output warning-free and platform-correct.
   set(_obs_cmake_flags "")
-  # Silence Detours' AUTHOR_WARNING when pkg-config version info isn't present.
-  list(APPEND _obs_cmake_flags "-DDetours_FIND_QUIETLY:BOOL=ON")
-  # Ensure developer/author warnings from OBS don't surface.
   list(APPEND _obs_cmake_flags -Wno-dev)
   list(APPEND _obs_cmake_flags "-DCMAKE_SUPPRESS_DEVELOPER_WARNINGS:BOOL=ON")
-  # Disable virtualcam module entirely (not needed for libobs builds; avoids GUID warnings).
-  list(APPEND _obs_cmake_flags "-DENABLE_VIRTUALCAM:BOOL=OFF")
+
+  if(OS_WINDOWS)
+    # Silence Detours' AUTHOR_WARNING when pkg-config version info isn't present.
+    list(APPEND _obs_cmake_flags "-DDetours_FIND_QUIETLY:BOOL=ON")
+    # Disable virtualcam module entirely (not needed for libobs builds; avoids GUID warnings).
+    list(APPEND _obs_cmake_flags "-DENABLE_VIRTUALCAM:BOOL=OFF")
+  elseif(OS_MACOS)
+    # OBS 32 adds libobs-metal (Swift) even for headless builds; ensure Swift language is enabled.
+    list(
+      APPEND
+      _obs_cmake_flags
+      "-DCMAKE_PROJECT_TOP_LEVEL_INCLUDES:FILEPATH=${CMAKE_CURRENT_SOURCE_DIR}/cmake/common/obs-top-level-includes.cmake"
+    )
+  endif()
 
   if(OS_WINDOWS)
     set(_cmake_generator "${CMAKE_GENERATOR}")
