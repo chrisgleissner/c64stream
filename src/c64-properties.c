@@ -11,7 +11,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-network.h"
 #include "c64-protocol.h"
 #include "c64-video.h"
-#include "c64-logging.h" // For Windows snprintf compatibility
+#include "c64-logging.h"
 #include "c64-file.h"
 #include "c64-effect.h"
 #include "c64-source.h"
