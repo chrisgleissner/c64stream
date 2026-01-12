@@ -1,1 +1,0 @@
-trigger,detected,obs_offset_ms,obs_video_seq,obs_audio_seq,obs_video_frame,obs_video_ts_ns,obs_audio_ts_ns,has_network_match,net_offset_ms,net_video_seq,net_audio_seq,net_video_frame,net_video_ts_ns,net_audio_ts_ns,net_to_obs_video_ms,net_to_obs_audio_ms

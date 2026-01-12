@@ -696,16 +696,22 @@ class ReportGenerator:
             )
             duration = float(result.stdout.strip())
 
-            # Try to extract at first audio pop time if av_sync data is available
+            # Try to extract at first video pop time if av_sync data is available
             timestamp = duration / 2.0  # default: 50% mark
             av_details = self.validation_data.get('av_sync_details', {})
             sync_details = av_details.get('sync_details', [])
             if sync_details:
-                # Use first audio pop time (converted to seconds)
-                first_pop_ms = sync_details[0].get('audio_pop_time_ms', 0)
-                if first_pop_ms > 0:
-                    timestamp = first_pop_ms / 1000.0
-                    print(f"Extracting sample frame at first audio pop: {timestamp:.3f}s")
+                # Use first video pop time (converted to seconds) - this shows the white square/frame
+                first_video_pop_ms = sync_details[0].get('closest_video_pop_ms', 0)
+                if first_video_pop_ms > 0:
+                    timestamp = first_video_pop_ms / 1000.0
+                    print(f"Extracting sample frame at first video pop: {timestamp:.3f}s")
+                else:
+                    # Fallback to audio pop time if video pop not available
+                    first_pop_ms = sync_details[0].get('audio_pop_time_ms', 0)
+                    if first_pop_ms > 0:
+                        timestamp = first_pop_ms / 1000.0
+                        print(f"Extracting sample frame at first audio pop: {timestamp:.3f}s")
 
             subprocess.run(
                 ['ffmpeg', '-ss', str(timestamp), '-i', str(self.recording_path),
