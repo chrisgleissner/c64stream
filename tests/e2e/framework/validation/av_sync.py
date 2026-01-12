@@ -15,7 +15,7 @@ class AVSyncValidator:
     """Validates Audio/Video synchronization."""
 
     @staticmethod
-    def validate(recording_path: Path, csv_path: Path, video_format: str) -> Tuple[bool, str, float, Dict[str, Any]]:
+    def validate(recording_path: Path, csv_path: Path, video_format: str, tolerance_ms: int = 40) -> Tuple[bool, str, float, Dict[str, Any]]:
         """Verify A/V sync using recording and CSV data.
         Returns: (passed, message, offset_ms, details)
         """
@@ -29,8 +29,8 @@ class AVSyncValidator:
              return False, "AV Sync CSV not found", 0.0, {}
 
         try:
-            # New usage: verify_av_sync returns a dictionary and takes video_path
-            results = verify_av_sync(str(recording_path))
+            # New usage: verify_av_sync returns a dictionary and takes video_path with tolerance
+            results = verify_av_sync(str(recording_path), tolerance_ms=tolerance_ms)
 
             passed = results.get('is_perfectly_synced', False)
             accuracy = results.get('sync_accuracy_percent', 0.0)

@@ -48,12 +48,14 @@ class E2EOrchestrator:
                  control_port: int = 6400,
                  csv_max_rows: Optional[int] = None,
                  verbose: bool = False,
-                 full_frame_pop: bool = False):
+                 full_frame_pop: bool = False,
+                 av_sync_tolerance_ms: int = 40):
 
         # 1. Environment Setup
         self.env = Environment(test_dir, output_dir, csv_max_rows=csv_max_rows)
         self.format = video_format
         self.frames = frames
+        self.av_sync_tolerance_ms = av_sync_tolerance_ms
         self.udp_replay_path = Path(udp_replay_path) if udp_replay_path else (self.env.test_dir / 'util' / 'udp_replay')
         self.packet_source = packet_source
         self.scenario_overrides = scenario_overrides
@@ -163,7 +165,7 @@ class E2EOrchestrator:
             # Find and process CSVs from the session folder
             counts = self._process_csvs()
 
-            validator = ResultValidator(self.env, self.format, self.frames, self.packet_source, self.network_simulation, self.full_frame_pop)
+            validator = ResultValidator(self.env, self.format, self.frames, self.packet_source, self.network_simulation, self.full_frame_pop, self.av_sync_tolerance_ms)
             success, results = validator.validate(replay_success, recording_path, counts)
 
             # Save validation results for report generation

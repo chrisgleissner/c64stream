@@ -2,7 +2,7 @@
 
 ## Scenario: ntsc_default_avsync
 
-Generated: 2026-01-12 16:54:17 UTC
+Generated: 2026-01-12 17:06:18 UTC
 
 ## Test configuration
 
@@ -29,9 +29,9 @@ Generated: 2026-01-12 16:54:17 UTC
 
 ### Validation Summary
 
-- ✅ UDP Packet Reception: 30740 packets (28739 video, 0 audio)
-- ❓ Network Timing: network.json not found
-- ✅ Frame Processing: 478 frames processed
+- ✅ UDP Packet Reception: 30756 packets (28756 video, 0 audio)
+- ✅ Network Timing: span=8010.8ms, video_mean=336.3us, audio_mean=4004.6us
+- ✅ Frame Processing: 479 frames processed
 - ✅ Video Recording: 9.5 MB
 - ✅ Content Integrity: Verified
 
@@ -41,33 +41,51 @@ During the test's processing window (18.2s, 37 of 37 samples) (8 cores):
 
 | Metric | Min | Median | Mean | Max |
 |--------|-----|--------|------|-----|
-| CPU | 66.6% | 87.9% | 85.17% | 93.3% |
-| RAM | 6228.35 MB | 6481.16 MB | 6487.83 MB | 6691.91 MB |
-| GPU | 30.4% | 89.8% | 79.50% | 100.0% |
+| CPU | 47.3% | 49.5% | 50.41% | 67.0% |
+| RAM | 5814.96 MB | 5876.18 MB | 5873.01 MB | 5904.04 MB |
+| GPU | 30.4% | 89.8% | 76.69% | 100.0% |
 
 Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
 ### Packet & Network Data
 
-- ✅ Packet Generation: 30740 (approx)
+- ✅ Packet Generation: 30756 (approx)
 - ✅ UDP Replay: Completed successfully
 - Events: [network.csv](network.csv), [obs.csv](obs.csv), [playback.csv](playback.csv)
 
+#### Network Quality (Measured)
+
+- Packet span (first→last): 8010.755 ms
+- Total packets analyzed: 25822
+
+| Stream | Packets | Spacing (min) | Spacing (mean) | Spacing (max) | CV | Burst <0.5×P50 | Gaps >2×P50 | P99/P50 |
+|--------|---------|---------------|----------------|---------------|----|----------------|-------------|---------|
+| All | 25822 | 0.001 ms | 0.620 ms | 6.421 ms | 169.44% | 8.37% | 15.16% | 16.429 |
+| Video | 23823 | 0.001 ms | 0.336 ms | 3.239 ms | 100.95% | 9.08% | 8.07% | 8.086 |
+| Audio | 1999 | 1.680 ms | 4.005 ms | 6.421 ms | 17.28% | 0.45% | 0.00% | 1.509 |
+
+| Stream | Packets | Jitter (median) | Jitter (max) | Out-of-Order |
+|--------|---------|-----------------|--------------|--------------|
+| Video | 23823 | 0.012 ms | 2.960 ms | 0 |
+| Audio | 1999 | 0.069 ms | 2.420 ms | 0 |
+
+Details: [network.json](network.json)
+
 ### A/V Sync
 
-- ⚠️ Accuracy: 87.5% (7/8 perfect)
+- ⚠️ Accuracy: 12.5% (1/8 perfect)
 
 #### Sync Details
 
-- 🟢 Pop #1 [L]: audio=9736.0ms, video=9728.2ms (frame 582), diff=7.8ms
-- 🟢 Pop #2 [L]: audio=10559.0ms, video=10547.3ms (frame 631), diff=11.7ms
-- 🟢 Pop #3 [R]: audio=11364.0ms, video=11332.9ms (frame 678), diff=31.1ms
-- 🟢 Pop #4 [L]: audio=12165.0ms, video=12151.9ms (frame 727), diff=13.1ms
-- ⚪ Pop #5 [R]: audio=12966.0ms (ignored: unmatched_audio_pop)
-- 🟢 Pop #6 [R]: audio=13771.0ms, video=13756.6ms (frame 823), diff=14.4ms
-- 🟢 Pop #7 [R]: audio=14572.0ms, video=14558.9ms (frame 871), diff=13.1ms
-- 🟢 Pop #8 [R]: audio=15373.0ms, video=15361.2ms (frame 919), diff=11.8ms
-- 🟢 Pop #9 [R]: audio=16178.0ms, video=16163.5ms (frame 967), diff=14.5ms
+- 🟢 Pop #1 [L]: audio=9779.0ms, video=9761.6ms (frame 584), diff=17.4ms
+- 🟡 Pop #2 [R]: audio=10601.0ms, video=10564.0ms (frame 632), diff=37.0ms
+- 🟡 Pop #3 [L]: audio=11406.0ms, video=11366.3ms (frame 680), diff=39.7ms
+- 🟡 Pop #4 [R]: audio=12208.0ms, video=12168.6ms (frame 728), diff=39.4ms
+- ⚪ Pop #5 [L]: audio=13008.0ms (ignored: unmatched_audio_pop)
+- 🟡 Pop #6 [L]: audio=13813.0ms, video=13773.3ms (frame 824), diff=39.7ms
+- 🟡 Pop #7 [L]: audio=14614.0ms, video=14575.6ms (frame 872), diff=38.4ms
+- 🟡 Pop #8 [L]: audio=15415.0ms, video=15377.9ms (frame 920), diff=37.1ms
+- 🟡 Pop #9 [L]: audio=16220.0ms, video=16180.3ms (frame 968), diff=39.7ms
 
 ### Video
 

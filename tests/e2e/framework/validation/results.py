@@ -20,13 +20,15 @@ class ResultValidator:
                  frames: int = 100,
                  packet_source: str = 'mock',
                  network_simulation: Optional[Dict] = None,
-                 full_frame_pop: bool = False):
+                 full_frame_pop: bool = False,
+                 av_sync_tolerance_ms: int = 40):
         self.env = env
         self.format = video_format
         self.frames = frames
         self.packet_source = packet_source
         self.network_simulation = network_simulation or {}
         self.full_frame_pop = full_frame_pop
+        self.av_sync_tolerance_ms = av_sync_tolerance_ms
 
     def validate(self,
                  replay_success: bool,
@@ -305,7 +307,7 @@ class ResultValidator:
              results['av_sync_details'] = {}
              return
 
-        passed, msg, offset, details = AVSyncValidator.validate(recording_path, av_csv, self.format)
+        passed, msg, offset, details = AVSyncValidator.validate(recording_path, av_csv, self.format, self.av_sync_tolerance_ms)
 
         # Store detailed results at root for report.sh/jq access
         results['av_sync_details'] = details

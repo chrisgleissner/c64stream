@@ -140,11 +140,13 @@ def main():
 
     # Load Network Simulation
     network_simulation = {}
+    av_sync_tolerance_ms = 40  # Default tolerance
     if args.scenario_yaml:
         try:
             with open(args.scenario_yaml, 'r') as f:
                 scenario_data = yaml.safe_load(f)
                 network_simulation = scenario_data.get('network_simulation', {})
+                av_sync_tolerance_ms = scenario_data.get('av_sync_tolerance_ms', 40)
                 print(f"📡 Loaded network simulation config from {Path(args.scenario_yaml).name}")
         except Exception as e:
             print(f"⚠️  Failed to load scenario YAML: {e}")
@@ -178,7 +180,8 @@ def main():
         control_port=args.control_port,
         csv_max_rows=args.csv_max_rows if args.csv_max_rows > 0 else None,
         verbose=args.verbose,
-        full_frame_pop=args.full_frame_pop
+        full_frame_pop=args.full_frame_pop,
+        av_sync_tolerance_ms=av_sync_tolerance_ms
     )
 
     return 0 if orchestrator.run() else 1
