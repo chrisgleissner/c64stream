@@ -48,21 +48,34 @@ The plugin connects directly to the Ultimate's network interface, eliminating th
 
 Applies when OBS Studio is installed normally using the official Windows installer.
 
-#### Windows (X64)
+#### Windows (64-bit)
 
-Verified on Windows 11.
+Tested on Windows 11.
 
-1. Close OBS Studio.
-2. [Download](../../releases) the plugin package `c64stream-$VERSION-windows-x64.zip`. The file will be downloaded to your `Downloads` folder, typically `C:\Users\<YourName>\Downloads`.
-3. Install the plugin by extracting the ZIP to the OBS plugin directory:
+1. **Close OBS Studio**  
+   Make sure OBS Studio is completely closed before continuing.
+2. **Download the plugin**
+   - Open the Releases page.
+   - [Download](../../releases) the file named `c64stream-$VERSION-windows-x64.zip`.
+   - Windows will usually save this file in your **Downloads** folder: `C:\Users\<YourName>\Downloads`
+3. **Install the plugin**
+   - Press **Start**, type **Windows PowerShell**, and open it.  
+   - Copy the command below and paste it into the PowerShell window.
+   - Press **Enter**.
    ```powershell
    Expand-Archive -Path "$env:USERPROFILE\Downloads\c64stream-*-windows-*.zip" -DestinationPath "C:\ProgramData\obs-studio\plugins" -Force
    ```
-4. If Windows Firewall blocks incoming connections, create an inbound rule allowing UDP traffic on ports **11000** (video) and **11001** (audio). Replace `192.168.1.64` with the IP address of your C64 Ultimate:
+   This extracts the plugin files into the correct OBS plugin folder.
+4. **Allow the plugin through Windows Firewall**  
+   This step allows OBS to receive video and audio from your C64 Ultimate on ports 11000 (video) and 11001 (audio).
+   - Copy the command below and paste it into the Powershell window.
+   - Replace `192.168.1.64` with the IP address of your C64 Ultimate.
+   - Press **Enter**.
    ```powershell
    New-NetFirewallRule -DisplayName "C64 Stream" -Direction Inbound -Protocol UDP -LocalPort 11000,11001 -RemoteAddress 192.168.1.64 -Action Allow
    ```
-5. Start OBS Studio.
+5. **Start OBS Studio**  
+   Open OBS Studio again. The plugin is now installed and ready to use.
 
 #### Windows (ARM64 - Experimental)
 
@@ -87,7 +100,7 @@ In portable mode, OBS does **not** use `C:\ProgramData\obs-studio\plugins`. Inst
 
 1. Download the appropriate plugin ZIP (X64 or ARM64), as described above.
 2. Open PowerShell **in the root directory of your portable OBS installation**.
-4. Run the following command:
+4. Copy/paste the following command into the Powershell window and press **Enter**:
    ```powershell
    $zip=Get-ChildItem "$env:USERPROFILE\Downloads\c64stream-*-windows-*.zip" | Select-Object -First 1;
    Expand-Archive -Path $zip -DestinationPath "$env:TEMP\c64stream" -Force;
