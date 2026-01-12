@@ -197,7 +197,7 @@ class E2EOrchestrator:
 
     def _process_csvs(self) -> Dict[str, int]:
         """Find session folder, process network.csv, and return counts."""
-        counts = {'network_packets': 0, 'video_packets': 0}
+        counts = {'network_packets': 0, 'video_packets': 0, 'audio_packets': 0}
 
         try:
             # Look for CSVs in multiple locations
@@ -240,6 +240,7 @@ class E2EOrchestrator:
             # Process (copy & truncate & count)
             packet_count = 0
             video_count = 0
+            audio_count = 0
 
             # First, perform analysis on the ORIGINAL full CSV before truncation/copying
             # This generates network.json which is needed for logging and validation
@@ -269,6 +270,8 @@ class E2EOrchestrator:
                             packet_count += 1
                             if row.get('packet_type') == 'video':
                                 video_count += 1
+                            elif row.get('packet_type') == 'audio':
+                                audio_count += 1
 
                             # Write if within limit or unlimited
                             if max_rows == 0 or row_idx < max_rows:
@@ -278,6 +281,7 @@ class E2EOrchestrator:
 
             counts['network_packets'] = packet_count
             counts['video_packets'] = video_count
+            counts['audio_packets'] = audio_count
             logger.info(f"📊 Processed network.csv: {packet_count} packets (Recv)")
 
         except Exception as e:

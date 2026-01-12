@@ -23,7 +23,7 @@ generate_playback_csv() {
     # Using the new standalone python report generator
     if python3 "${TEST_DIR}/util/report_generator.py" \
         "${OUTPUT_DIR}" \
-        "${SCENARIO:-${SCENARIO_NAME:-Unknown}}" \
+        "${SCENARIO_NAME:-Unknown}" \
         "${FORMAT}" \
         "${FRAMES}" \
         "${project_root}"; then

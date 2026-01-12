@@ -382,6 +382,7 @@ class ReportGenerator:
 
 
         md.append("\n## Build information\n")
+        md.append(f"- Project: c64stream\n")
         md.append(f"- Version: {resolved_version}\n")
 
         md.append("## System information\n")
