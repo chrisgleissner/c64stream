@@ -1233,12 +1233,30 @@ void c64_video_tick(void *data, float seconds)
 
     // Stream health monitoring: detect if stream has stopped and trigger reconnection
     // Check every tick if we should be streaming but haven't received packets recently
-    if (context->streaming && context->last_packet_received_ns > 0) {
+    if (context->streaming) {
         const uint64_t packet_timeout_ns = 1000000000ULL; // 1 second (50-60 frames)
-        if ((now_ns - context->last_packet_received_ns) > packet_timeout_ns) {
+        uint64_t time_since_last_packet_ns;
+
+        if (context->last_packet_received_ns > 0) {
+            // Normal case: have received packets before, check against last packet time
+            time_since_last_packet_ns = now_ns - context->last_packet_received_ns;
+        } else if (context->last_start_command_time_ns > 0) {
+            // Initial connection case: no packets received yet, check against when we started streaming
+            time_since_last_packet_ns = now_ns - context->last_start_command_time_ns;
+        } else {
+            // Haven't even tried to connect yet
+            time_since_last_packet_ns = 0;
+        }
+
+        if (time_since_last_packet_ns > packet_timeout_ns) {
             C64_LOG_WARNING("No packets received for %.1f seconds - triggering reconnection",
-                            (now_ns - context->last_packet_received_ns) / 1000000000.0);
-            context->last_packet_received_ns = now_ns; // Prevent repeated triggers
+                            time_since_last_packet_ns / 1000000000.0);
+            // Update timestamp to prevent repeated triggers within the same second
+            if (context->last_packet_received_ns > 0) {
+                context->last_packet_received_ns = now_ns;
+            } else {
+                context->last_start_command_time_ns = now_ns;
+            }
             c64_schedule_retry(context, "stream timeout");
         }
     }

@@ -1799,7 +1799,7 @@ void *c64_video_processor_thread_func(void *data)
             // Retry TCP connection and recreate UDP sockets if no VIDEO packets for 1+ seconds
             // During initial startup it's normal to have a longer delay between sending START commands and
             // receiving the first UDP packets (e.g. E2E harness setup). Avoid thrashing sockets in that window.
-            const uint64_t initial_no_packet_grace_ns = 15000000000ULL; // 15 seconds
+            const uint64_t initial_no_packet_grace_ns = 2000000000ULL; // 2 seconds
             long video_packets_received = os_atomic_load_long(&context->video_packets_received);
             bool have_seen_any_video = (video_packets_received > 0);
 
