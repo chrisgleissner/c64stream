@@ -12,8 +12,8 @@ csv_max_rows: 6000
 overrides:
   c64_host: c64u
   control_port: 64
-  video_port: 21000
-  audio_port: 21001
+  video_port: 11000
+  audio_port: 11001
   dns_server_ip: 192.168.1.1
   auto_detect_ip: true
   obs_ip_address: ""
