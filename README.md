@@ -41,7 +41,7 @@ The plugin connects directly to the Ultimate's network interface, eliminating th
 > The plugin has been **verified to work** on the systems listed below unless mentioned otherwise. Other environments have not been verified, but community contributions are always welcome.
 >
 > If you use a **firewall**, please make sure to open ports 11000 and 11001 for incoming UDP traffic from the Commodore 64 Ultimate.
-> 
+>
 > In the following instructions, replace `$VERSION` with the latest released version as shown on the [Releases](../../releases) page.
 
 ### Windows (Standard Installation)
@@ -52,21 +52,21 @@ Applies when OBS Studio is installed normally using the official Windows install
 
 Tested on Windows 11.
 
-1. **Close OBS Studio**  
+1. **Close OBS Studio**
    Make sure OBS Studio is completely closed before continuing.
 2. **Download the plugin**
    - Open the Releases page.
    - [Download](../../releases) the file named `c64stream-$VERSION-windows-x64.zip`.
    - Windows will usually save this file in your **Downloads** folder: `C:\Users\<YourName>\Downloads`
 3. **Install the plugin**
-   - Press **Start**, type **Windows PowerShell**, and open it.  
+   - Press **Start**, type **Windows PowerShell**, and open it.
    - Copy the command below and paste it into the PowerShell window.
    - Press **Enter**.
    ```powershell
    Expand-Archive -Path "$env:USERPROFILE\Downloads\c64stream-*-windows-*.zip" -DestinationPath "C:\ProgramData\obs-studio\plugins" -Force
    ```
    This extracts the plugin files into the correct OBS plugin folder.
-4. **Allow the plugin through Windows Firewall**  
+4. **Allow the plugin through Windows Firewall**
    This step allows OBS to receive video and audio from your C64 Ultimate on ports 11000 (video) and 11001 (audio).
    - Copy the command below and paste it into the Powershell window.
    - Replace `192.168.1.64` with the IP address of your C64 Ultimate.
@@ -74,17 +74,17 @@ Tested on Windows 11.
    ```powershell
    New-NetFirewallRule -DisplayName "C64 Stream" -Direction Inbound -Protocol UDP -LocalPort 11000,11001 -RemoteAddress 192.168.1.64 -Action Allow
    ```
-5. **Start OBS Studio**  
+5. **Start OBS Studio**
    Open OBS Studio again. The plugin is now installed and ready to use.
 
 #### Windows (ARM64 - Experimental)
 
-> [!NOTE]  
+> [!NOTE]
 > Windows on ARM64 support is experimental and has not yet been fully tested.
 > If you would like to help with testing, please reach out via the
 > *Discussions* tab of this repository.
 
-1. Download and unzip the ARM64 build of OBS Studio:  
+1. Download and unzip the ARM64 build of OBS Studio:
    https://github.com/obsproject/obs-studio/releases/download/32.0.4/OBS-Studio-32.0.4-Windows-arm64.zip
 2. Ensure OBS Studio is closed.
 3. [Download](../../releases) the plugin package `c64stream-$VERSION-windows-arm64.zip` to your `Downloads` folder.
@@ -92,7 +92,7 @@ Tested on Windows 11.
 
 ### Windows (Portable Mode)
 
-> [!IMPORTANT]  
+> [!IMPORTANT]
 > This section applies **only** if OBS Studio is run in [portable mode](https://obsproject.com/kb/portable-mode), for example when `portable_mode.txt` exists in the root directory of OBS.
 > If you installed OBS using the Windows installer, use the *Standard Installation* instructions above.
 
