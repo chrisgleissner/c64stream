@@ -575,6 +575,12 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
 
     c64_apply_format_hint(context, prefer_pal);
 
+    // Display logo immediately so user sees it instantly (before connection attempt)
+    if (c64_logo_is_available(context)) {
+        c64_logo_render_to_frame(context, os_gettime_ns());
+        C64_LOG_DEBUG("Logo rendered immediately on source creation");
+    }
+
     // Initialize recording for this source
     c64_record_init(context);
 
