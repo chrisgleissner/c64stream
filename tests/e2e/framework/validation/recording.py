@@ -65,15 +65,22 @@ class RecordingValidator:
                     suffix = '.mp4' if recording.suffix == '.hybrid_mp4' else recording.suffix
                     dest_file = self.env.output_dir / f"c64_recording{suffix}"
                     try:
-                        # If finding in output_dir, just rename/ensure correct name
+                        # If finding in output_dir with correct name, just return it
                         if recording.parent == self.env.output_dir and recording.name == f"c64_recording{suffix}":
                             return dest_file
 
-                        shutil.copy2(recording, dest_file)
-                        logger.info(f"📦 Copied recording to {dest_file}")
+                        # Move (not copy) to avoid duplicates
+                        # If in output_dir but wrong name, rename it
+                        if recording.parent == self.env.output_dir:
+                            recording.rename(dest_file)
+                            logger.info(f"📦 Renamed recording to {dest_file}")
+                        else:
+                            # Move from external location to output_dir
+                            shutil.move(str(recording), str(dest_file))
+                            logger.info(f"📦 Moved recording to {dest_file}")
                         return dest_file
                     except Exception as e:
-                        logger.error(f"❌ Failed to copy recording: {e}")
+                        logger.error(f"❌ Failed to move recording: {e}")
                 else:
                     logger.warning(f"⚠️ Recording too small: {abs_path} ({file_size} bytes)")
 
