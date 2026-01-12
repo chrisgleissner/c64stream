@@ -309,9 +309,10 @@ void c64_log_audio_packet_if_enabled(struct c64_source *context, const uint8_t *
 {
     const bool do_csv_log = (context && context->network_file);
     const bool do_debug_pop_detect = c64_debug_logging;
+    const bool do_av_sync_track = (context && context->record_av_sync);
 
     // Early return if we have nothing to do.
-    if (!do_csv_log && !do_debug_pop_detect) {
+    if (!do_csv_log && !do_debug_pop_detect && !do_av_sync_track) {
         return;
     }
 
@@ -323,7 +324,7 @@ void c64_log_audio_packet_if_enabled(struct c64_source *context, const uint8_t *
     uint16_t sample_count = 192; // C64 Ultimate spec: 192 stereo samples per packet
 
     bool has_signal = false;
-    if (do_debug_pop_detect && packet_size > 2) {
+    if ((do_debug_pop_detect || do_av_sync_track) && packet_size > 2) {
         const uint8_t *samples = packet + 2;
         size_t samples_size = packet_size - 2;
 
