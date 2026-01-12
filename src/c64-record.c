@@ -14,6 +14,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <time.h>
+#include <errno.h>
 #include "c64-logging.h"
 #include "c64-record.h"
 #include "c64-record-obs.h"
@@ -135,27 +136,44 @@ static void c64_rest_build_base_url(const char *input, char *out, size_t out_siz
 
 static void *c64_rest_thread_main(void *arg)
 {
+    C64_LOG_DEBUG("REST: thread started");
+
     struct c64_rest_job *job = (struct c64_rest_job *)arg;
     if (!job) {
+        C64_LOG_ERROR("REST: thread received NULL job");
         return NULL;
     }
 
+    C64_LOG_DEBUG("REST: thread processing action=%d url=%s", job->action, job->base_url);
+
     const char *password = (job->password[0] != '\0') ? job->password : NULL;
+    C64_LOG_DEBUG("REST: creating client for %s", job->base_url);
+
     c64_rest_client_t *client = c64_rest_client_create(job->base_url, password);
     if (!client) {
         C64_LOG_WARNING("REST: failed to create client for %s", job->base_url);
         free(job);
+        C64_LOG_DEBUG("REST: thread exiting after client creation failure");
         return NULL;
     }
 
+    C64_LOG_DEBUG("REST: client created successfully");
+
     bool ok = false;
     if (job->action == C64_REST_JOB_RESET) {
+        C64_LOG_DEBUG("REST: executing RESET action");
         ok = c64_rest_reset(client);
+        C64_LOG_DEBUG("REST: RESET action completed, result=%d", ok);
     } else if (job->action == C64_REST_JOB_RUN_PRG) {
+        C64_LOG_DEBUG("REST: executing RUN_PRG action for %s", job->prg_path);
         uint8_t *prg_data = NULL;
         size_t prg_size = 0;
         if (c64_rest_read_file_to_buffer(job->prg_path, &prg_data, &prg_size)) {
+            C64_LOG_DEBUG("REST: PRG file loaded, size=%zu", prg_size);
             ok = c64_rest_run_prg(client, prg_data, prg_size);
+            C64_LOG_DEBUG("REST: RUN_PRG action completed, result=%d", ok);
+        } else {
+            C64_LOG_WARNING("REST: failed to read PRG file: %s", job->prg_path);
         }
         free(prg_data);
     }
@@ -169,25 +187,41 @@ static void *c64_rest_thread_main(void *arg)
         }
     }
 
+    C64_LOG_DEBUG("REST: destroying client");
     c64_rest_client_destroy(client);
+    C64_LOG_DEBUG("REST: client destroyed");
+
     free(job);
+    C64_LOG_DEBUG("REST: thread exiting normally");
     return NULL;
 }
 
 static bool c64_rest_launch_job(struct c64_rest_job *job)
 {
     if (!job) {
+        C64_LOG_ERROR("REST: c64_rest_launch_job called with NULL job");
         return false;
     }
+
+    C64_LOG_DEBUG("REST: launching job thread for action=%d", job->action);
 
     pthread_t t;
     int err = pthread_create(&t, NULL, c64_rest_thread_main, job);
     if (err != 0) {
+        C64_LOG_ERROR("REST: pthread_create failed with error %d", err);
         free(job);
         return false;
     }
 
-    pthread_detach(t);
+    C64_LOG_DEBUG("REST: thread created, detaching");
+    int detach_err = pthread_detach(t);
+    if (detach_err != 0) {
+        C64_LOG_ERROR("REST: pthread_detach failed with error %d", detach_err);
+        // Thread is already running, can't safely clean up job
+        return false;
+    }
+
+    C64_LOG_DEBUG("REST: job launched successfully");
     return true;
 }
 
@@ -256,12 +290,37 @@ void c64_session_ensure_exists(struct c64_source *context)
 {
     // If session already exists, do nothing
     if (context->session_folder[0] != '\0') {
+        C64_LOG_DEBUG("" RECORD_LOG_PREFIX " Session folder already exists: %s", context->session_folder);
         return;
     }
 
+    C64_LOG_DEBUG("" RECORD_LOG_PREFIX " Creating new session folder");
+
     // Create new session folder with timestamp
     time_t rawtime = time(NULL);
-    struct tm *timeinfo = localtime(&rawtime);
+    if (rawtime == (time_t)-1) {
+        C64_LOG_ERROR("" RECORD_LOG_PREFIX " time() failed");
+        return;
+    }
+
+    struct tm timeinfo_buf;
+    struct tm *timeinfo;
+
+#ifdef _WIN32
+    // Windows: use localtime_s (thread-safe)
+    if (localtime_s(&timeinfo_buf, &rawtime) != 0) {
+        C64_LOG_ERROR("" RECORD_LOG_PREFIX " localtime_s failed on Windows");
+        return;
+    }
+    timeinfo = &timeinfo_buf;
+#else
+    // POSIX: use localtime_r (thread-safe)
+    timeinfo = localtime_r(&rawtime, &timeinfo_buf);
+    if (!timeinfo) {
+        C64_LOG_ERROR("" RECORD_LOG_PREFIX " localtime_r failed");
+        return;
+    }
+#endif
 
     snprintf(context->session_folder, sizeof(context->session_folder), "%s/session_%04d%02d%02d_%02d%02d%02d",
              context->save_folder, timeinfo->tm_year + 1900, timeinfo->tm_mon + 1, timeinfo->tm_mday, timeinfo->tm_hour,
@@ -411,29 +470,39 @@ void c64_start_obs_csv_recording(struct c64_source *context)
 
 void c64_start_av_sync_csv_recording(struct c64_source *context)
 {
+    C64_LOG_DEBUG("" RECORD_LOG_PREFIX " c64_start_av_sync_csv_recording called");
+
     if (context->av_sync_file) {
+        C64_LOG_DEBUG("" RECORD_LOG_PREFIX " av-sync CSV already recording");
         return;
     }
 
+    C64_LOG_DEBUG("" RECORD_LOG_PREFIX " Ensuring session exists");
     c64_session_ensure_exists(context);
     if (context->session_folder[0] == '\0') {
         C64_LOG_WARNING("" RECORD_LOG_PREFIX " Failed to create recording session for av-sync CSV");
         return;
     }
 
+    C64_LOG_DEBUG("" RECORD_LOG_PREFIX " Session folder: %s", context->session_folder);
+
     char filename[950];
     snprintf(filename, sizeof(filename), "%s/av-sync.csv", context->session_folder);
 
+    C64_LOG_DEBUG("" RECORD_LOG_PREFIX " Opening av-sync CSV file: %s", filename);
     context->av_sync_file = fopen(filename, "w");
     if (!context->av_sync_file) {
-        C64_LOG_ERROR("" RECORD_LOG_PREFIX " Failed to create av-sync CSV file: %s", filename);
+        C64_LOG_ERROR("" RECORD_LOG_PREFIX " Failed to create av-sync CSV file: %s (errno=%d)", filename, errno);
         return;
     }
+
+    C64_LOG_DEBUG("" RECORD_LOG_PREFIX " av-sync CSV file opened successfully");
 
     // av-sync.csv is very low volume; if OBS terminates abruptly the stdio buffer may never flush.
     // Prefer line buffering and explicit flushes so E2E can reliably validate the file.
     setvbuf(context->av_sync_file, NULL, _IOLBF, 0);
 
+    C64_LOG_DEBUG("" RECORD_LOG_PREFIX " Writing CSV header");
     fprintf(context->av_sync_file,
             "trigger,detected,obs_offset_ms,obs_video_seq,obs_audio_seq,obs_video_frame,obs_video_ts_ns,obs_audio_ts_"
             "ns,has_network_match,net_offset_ms,net_video_seq,net_audio_seq,net_video_frame,net_video_ts_ns,net_audio_"
@@ -703,35 +772,54 @@ void c64_record_update_settings(struct c64_source *context, void *settings_ptr)
 
     // Update av-sync CSV recording setting
     bool new_record_av_sync = obs_data_get_bool(settings, "record_av_sync");
+    C64_LOG_DEBUG("" RECORD_LOG_PREFIX " record_av_sync setting: old=%d new=%d", context->record_av_sync,
+                  new_record_av_sync);
+
     if (new_record_av_sync != context->record_av_sync) {
+        C64_LOG_INFO("" RECORD_LOG_PREFIX " record_av_sync changed from %d to %d", context->record_av_sync,
+                     new_record_av_sync);
         context->record_av_sync = new_record_av_sync;
 
         if (new_record_av_sync) {
+            C64_LOG_DEBUG("" RECORD_LOG_PREFIX " Starting av-sync CSV recording");
             c64_start_av_sync_csv_recording(context);
 
             const char *host = obs_data_get_string(settings, "c64_host");
             const char *password = obs_data_get_string(settings, "c64_password");
+            C64_LOG_DEBUG("" RECORD_LOG_PREFIX " host=%s password=%s", host ? host : "(null)",
+                          password && password[0] != '\0' ? "***" : "(empty)");
+
             if (host && host[0] != '\0' && strcmp(host, "0.0.0.0") != 0) {
+                C64_LOG_DEBUG("" RECORD_LOG_PREFIX " Looking for av-sync PRG file");
                 char *prg_path = obs_module_file("prg/av-sync-auto.prg");
                 if (prg_path) {
+                    C64_LOG_DEBUG("" RECORD_LOG_PREFIX " PRG file found: %s", prg_path);
                     if (!c64_rest_run_prg_async(host, password, prg_path)) {
                         C64_LOG_WARNING("" RECORD_LOG_PREFIX " Failed to start av-sync PRG via REST");
+                    } else {
+                        C64_LOG_INFO("" RECORD_LOG_PREFIX " av-sync PRG async call initiated");
                     }
                     bfree(prg_path);
                 } else {
                     C64_LOG_WARNING("" RECORD_LOG_PREFIX
                                     " av-sync PRG not found in plugin data (prg/av-sync-auto.prg)");
                 }
+            } else {
+                C64_LOG_DEBUG("" RECORD_LOG_PREFIX " No valid host configured, skipping PRG execution");
             }
         } else {
+            C64_LOG_DEBUG("" RECORD_LOG_PREFIX " Stopping av-sync CSV recording");
             c64_stop_av_sync_csv_recording(context);
             c64_session_cleanup_if_needed(context);
 
             const char *host = obs_data_get_string(settings, "c64_host");
             const char *password = obs_data_get_string(settings, "c64_password");
             if (host && host[0] != '\0' && strcmp(host, "0.0.0.0") != 0) {
+                C64_LOG_DEBUG("" RECORD_LOG_PREFIX " Sending reset to device");
                 if (!c64_rest_reset_machine_async(host, password)) {
                     C64_LOG_WARNING("" RECORD_LOG_PREFIX " Failed to reset device via REST");
+                } else {
+                    C64_LOG_INFO("" RECORD_LOG_PREFIX " Device reset async call initiated");
                 }
             }
         }
