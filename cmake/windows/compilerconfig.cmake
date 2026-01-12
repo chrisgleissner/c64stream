@@ -54,6 +54,16 @@ add_compile_definitions(
   _CRT_NONSTDC_NO_WARNINGS
   $<$<CONFIG:DEBUG>:DEBUG>
   $<$<CONFIG:DEBUG>:_DEBUG>
+  # Workaround for SIMDE SSE emulation on ARM64 with MSVC
+  # SIMDE includes stdatomic.h which defines memory_order_seq_cst, but
+  # MSVC's experimental C11 atomics don't work properly on ARM64.
+  # Define the missing identifiers to bypass the issue.
+  $<$<STREQUAL:${CMAKE_VS_PLATFORM_NAME},ARM64>:memory_order_relaxed=0>
+  $<$<STREQUAL:${CMAKE_VS_PLATFORM_NAME},ARM64>:memory_order_consume=1>
+  $<$<STREQUAL:${CMAKE_VS_PLATFORM_NAME},ARM64>:memory_order_acquire=2>
+  $<$<STREQUAL:${CMAKE_VS_PLATFORM_NAME},ARM64>:memory_order_release=3>
+  $<$<STREQUAL:${CMAKE_VS_PLATFORM_NAME},ARM64>:memory_order_acq_rel=4>
+  $<$<STREQUAL:${CMAKE_VS_PLATFORM_NAME},ARM64>:memory_order_seq_cst=5>
 )
 
 add_link_options(

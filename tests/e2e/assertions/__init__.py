@@ -13,7 +13,11 @@ from .afterglow import AfterglowAssertion
 from .afterglow_decay import AfterglowDecayAssertion
 from .afterglow_width import AfterglowWidthAssertion
 from .audio import AudioAssertion
+from .av_sync_csv_validation import AvSyncCsvValidationAssertion
+from .av_sync_offset import AvSyncOffsetAssertion
+from .av_sync_log_validation import AvSyncLogValidationAssertion
 from .base import AssertionResult, AssertionStatus, EffectAssertion
+from .debug_log_presence import DebugLogPresenceAssertion
 from .config import (
     PresetConfig,
     load_preset_from_ini,
@@ -51,6 +55,8 @@ __all__ = [
     # Assertions
     "VideoQualityAssertion",
     "AudioAssertion",
+    "AvPopOffsetAssertion",
+    "DebugLogPresenceAssertion",
     "TintAssertion",
     "PaletteMappingAssertion",
     "PaletteStabilityAssertion",

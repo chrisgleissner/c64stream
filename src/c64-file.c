@@ -55,7 +55,7 @@ bool c64_create_directory_recursive(const char *path)
             if (os_mkdir(tmp) != 0) {
                 // Check if it already exists (ignore error if it does)
                 struct stat st;
-                if (stat(tmp, &st) != 0 || !S_ISDIR(st.st_mode)) {
+                if (os_stat(tmp, &st) != 0 || !S_ISDIR(st.st_mode)) {
                     // Directory creation failed and it doesn't exist
                     return false;
                 }
@@ -67,7 +67,7 @@ bool c64_create_directory_recursive(const char *path)
     // Create the final directory
     if (os_mkdir(tmp) != 0) {
         struct stat st;
-        if (stat(tmp, &st) != 0 || !S_ISDIR(st.st_mode)) {
+        if (os_stat(tmp, &st) != 0 || !S_ISDIR(st.st_mode)) {
             return false;
         }
     }

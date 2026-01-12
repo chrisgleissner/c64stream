@@ -11,10 +11,12 @@ The main tool is `c64-build.sh` - a unified script that replaces the individual 
 ```bash
 # Basic build
 ./c64-build.sh av-sync.asm
+./c64-build.sh av-sync-auto.asm
 ./c64-build.sh digit-cycle.asm
 
 # Build and run in VICE emulator  
 ./c64-build.sh av-sync.asm --run
+./c64-build.sh av-sync-auto.asm --run
 
 # Build with verbose output
 ./c64-build.sh digit-cycle.asm --verbose
@@ -47,6 +49,7 @@ The main tool is `c64-build.sh` - a unified script that replaces the individual 
 ### Available Programs
 
 - `av-sync.asm` - Audio/Video synchronization test program
+- `av-sync-auto.asm` - Automatic A/V sync pop generator (one-frame pops every 48 frames)
 - `digit-cycle.asm` - Digit cycling display program
 
 ### Directory Structure
@@ -57,7 +60,9 @@ tools/c64/
 ├── install-vice.sh        # VICE installer  
 ├── README.md             # Documentation
 ├── av-sync.asm           # Audio/Video sync test program
+├── av-sync-auto.asm      # Automatic A/V sync pop generator
 ├── av-sync.prg           # Built program (created by build script)
+├── av-sync-auto.prg      # Built program (created by build script)
 ├── digit-cycle.asm       # Digit cycling display program
 └── digit-cycle.prg       # Built program (created by build script)
 ```

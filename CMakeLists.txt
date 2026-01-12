@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.28...3.30)
 
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/common/bootstrap.cmake" NO_POLICY_SCOPE)
 
+# Keep configure output clean (OBS subprojects can emit noisy developer warnings).
+set(CMAKE_SUPPRESS_DEVELOPER_WARNINGS 1 CACHE BOOL "Suppress CMake developer warnings" FORCE)
+
 # Determine authoritative version from git tag first (skip for PR builds)
 if(DEFINED ENV{GITHUB_EVENT_NAME} AND "$ENV{GITHUB_EVENT_NAME}" STREQUAL "pull_request")
   # For PR builds, use development version with high patch numbers
@@ -48,8 +51,9 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DE
   set(CMAKE_INSTALL_PREFIX "/usr" CACHE PATH "Install prefix for Linux packages" FORCE)
 endif()
 
-# Set dummy VirtualCam GUID to prevent Windows build warning
-set(VIRTUALCAM_GUID "{00000000-0000-0000-0000-000000000000}")
+# Set dummy VirtualCam GUID (must be a CACHE var for OBS subprojects).
+# Note: OBS' GUID validator expects a plain UUID without braces.
+set(VIRTUALCAM_GUID "00000000-0000-0000-0000-000000000000" CACHE STRING "Virtual camera GUID" FORCE)
 
 option(ENABLE_FRONTEND_API "Use obs-frontend-api for UI functionality" OFF)
 option(ENABLE_QT "Use Qt functionality" OFF)
@@ -61,31 +65,81 @@ include(helpers)
 
 add_library(${CMAKE_PROJECT_NAME} MODULE)
 
-# Update buildspec.json with authoritative version for consistent packaging
-# Always update for PR builds (development versions) and tagged releases
-if(AUTHORITATIVE_VERSION)
-  # Update buildspec.json with the calculated version to keep it in sync
-  # Use a cross-platform approach with temporary file to avoid sed -i incompatibilities
-  execute_process(
-    COMMAND
-      sed "41s/\"version\": \"[^\"]*\"/\"version\": \"${AUTHORITATIVE_VERSION}\"/" "${CMAKE_SOURCE_DIR}/buildspec.json"
-    OUTPUT_FILE "${CMAKE_SOURCE_DIR}/buildspec.json.tmp"
-    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-    RESULT_VARIABLE sed_result
-  )
+# Build bundled C64 PRGs (e.g. A/V sync auto-trigger)
+set(C64_64TASS_HINTS "")
+if(OS_WINDOWS)
+  # Common MSYS2 locations (recommended upstream install path for Windows).
+  list(APPEND C64_64TASS_HINTS "C:/msys64/usr/bin" "C:/msys64/mingw64/bin")
+endif()
+find_program(C64_64TASS_EXECUTABLE NAMES 64tass 64tass.exe HINTS ${C64_64TASS_HINTS})
+if(C64_64TASS_EXECUTABLE)
+  file(GLOB C64_C64_ASM_FILES "${CMAKE_CURRENT_SOURCE_DIR}/tools/c64/*.asm")
+  set(C64_PRG_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/prg")
 
-  if(sed_result EQUAL 0)
-    execute_process(
-      COMMAND ${CMAKE_COMMAND} -E rename "${CMAKE_SOURCE_DIR}/buildspec.json.tmp" "${CMAKE_SOURCE_DIR}/buildspec.json"
-      RESULT_VARIABLE mv_result
+  set(C64_C64_PRG_OUTPUTS "")
+  foreach(c64_asm IN LISTS C64_C64_ASM_FILES)
+    cmake_path(GET c64_asm STEM c64_stem)
+    set(c64_prg "${C64_PRG_OUTPUT_DIR}/${c64_stem}.prg")
+
+    add_custom_command(
+      OUTPUT "${c64_prg}"
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${C64_PRG_OUTPUT_DIR}"
+      COMMAND "${C64_64TASS_EXECUTABLE}" --cbm-prg --labels --quiet -o "${c64_prg}" "${c64_asm}"
+      DEPENDS "${c64_asm}"
+      VERBATIM
     )
-    set(sed_result ${mv_result})
+
+    list(APPEND C64_C64_PRG_OUTPUTS "${c64_prg}")
+  endforeach()
+
+  add_custom_target(c64_prgs ALL DEPENDS ${C64_C64_PRG_OUTPUTS})
+
+  # Ensure the PRGs are available in dev rundir and shipped in install artifacts.
+  target_sources(${CMAKE_PROJECT_NAME} PRIVATE ${C64_C64_PRG_OUTPUTS})
+  if(OS_MACOS)
+    foreach(c64_prg IN LISTS C64_C64_PRG_OUTPUTS)
+      set_property(SOURCE "${c64_prg}" PROPERTY MACOSX_PACKAGE_LOCATION "Resources/prg")
+    endforeach()
   endif()
 
-  if(sed_result EQUAL 0)
-    message(STATUS "Updated buildspec.json version to: ${AUTHORITATIVE_VERSION}")
+  if(OS_WINDOWS)
+    install(FILES ${C64_C64_PRG_OUTPUTS} DESTINATION "${CMAKE_PROJECT_NAME}/data/prg")
+  elseif(OS_LINUX OR OS_FREEBSD OR OS_OPENBSD)
+    install(
+      FILES ${C64_C64_PRG_OUTPUTS}
+      DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/obs/obs-plugins/${CMAKE_PROJECT_NAME}/prg"
+    )
+  endif()
+
+  if(NOT OS_MACOS)
+    add_custom_command(
+      TARGET ${CMAKE_PROJECT_NAME}
+      POST_BUILD
+      COMMAND
+        "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/rundir/$<CONFIG>/${CMAKE_PROJECT_NAME}/prg"
+      COMMAND
+        "${CMAKE_COMMAND}" -E copy_if_different ${C64_C64_PRG_OUTPUTS}
+        "${CMAKE_CURRENT_BINARY_DIR}/rundir/$<CONFIG>/${CMAKE_PROJECT_NAME}/prg"
+      COMMENT "Copy generated PRGs to rundir"
+      VERBATIM
+    )
+  endif()
+else()
+  message(STATUS "64tass not found; using prebuilt PRGs from data/prg")
+
+  # Fall back to prebuilt PRGs tracked in the repository (important for Windows CI packaging).
+  file(GLOB C64_PREBUILT_PRGS "${CMAKE_CURRENT_SOURCE_DIR}/data/prg/*.prg")
+  if(C64_PREBUILT_PRGS)
+    if(OS_WINDOWS)
+      install(FILES ${C64_PREBUILT_PRGS} DESTINATION "${CMAKE_PROJECT_NAME}/data/prg")
+    elseif(OS_LINUX OR OS_FREEBSD OR OS_OPENBSD)
+      install(
+        FILES ${C64_PREBUILT_PRGS}
+        DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/obs/obs-plugins/${CMAKE_PROJECT_NAME}/prg"
+      )
+    endif()
   else()
-    message(WARNING "Failed to update buildspec.json version")
+    message(STATUS "No prebuilt PRGs found under data/prg; PRG folder in packages may be empty")
   endif()
 endif()
 
@@ -110,9 +164,11 @@ target_compile_definitions(
   PRIVATE C64_VERSION_TAG="${DISPLAY_VERSION}" C64_GIT_HASH="${GIT_HASH}" C64_BUILD_TIME="${BUILD_TIME}"
 )
 
-find_package(Python3 REQUIRED COMPONENTS Interpreter)
+find_package(Python3 COMPONENTS Interpreter)
 find_package(libobs REQUIRED)
+find_package(CURL REQUIRED)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE OBS::libobs)
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE CURL::libcurl)
 
 if(ENABLE_FRONTEND_API)
   find_package(obs-frontend-api REQUIRED)
@@ -136,6 +192,8 @@ target_sources(
   ${CMAKE_PROJECT_NAME}
   PRIVATE
     src/plugin-main.c
+    src/c64-av-sync.c
+    src/c64-rest-client.c
     src/c64-network.c
     src/c64-network-buffer.c
     src/c64-protocol.c

@@ -20,6 +20,7 @@ INSTALL_PLUGIN=false
 RUN_E2E=false
 E2E_SCENARIO=""
 GENERATE_E2E_SCENARIOS=false
+NEED_E2E_DEPS=false
 VERBOSE=false
 DEBUG_LOGS=false
 
@@ -581,8 +582,8 @@ run_tests() {
         log_info "Running Python unit tests..."
         # Run unittest-based tests
         python3 -m unittest \
-            tests/e2e/test_network_simulation.py \
-            tests/e2e/test_network_timing_validation.py
+            tests/e2e/util/test_network_simulation.py \
+            tests/e2e/util/test_network_timing_validation.py
 
         # Run pytest-based tests (if pytest is available)
         if command -v pytest >/dev/null 2>&1; then
@@ -860,6 +861,16 @@ install_plugin() {
         cp -r data/* "$install_dir/data/"
         log_success "Copied data files to $install_dir/data/"
 
+        # Copy generated PRGs if available (built via CMake + 64tass)
+        local prg_src="$build_dir/generated/prg/av-sync-auto.prg"
+        if [[ -f "$prg_src" ]]; then
+            mkdir -p "$install_dir/data/prg"
+            cp "$prg_src" "$install_dir/data/prg/av-sync-auto.prg"
+            log_success "Copied av-sync-auto.prg to $install_dir/data/prg/"
+        else
+            log_warning "Generated PRG not found (skipping): $prg_src"
+        fi
+
         # Ensure we always have the correct properties.ini with real C64 Ultimate settings
         # This overwrites any E2E properties that might be lingering
         local properties_file="$install_dir/data/properties.ini"
@@ -1006,6 +1017,14 @@ install_plugin_for_e2e() {
     if [[ -d "data" ]]; then
         cp -r data/* "$install_dir/data/"
         log_success "Copied data files to $install_dir/data/"
+
+        # Copy generated PRGs if available (keeps runtime paths consistent even in E2E installs)
+        local prg_src="$build_dir/generated/prg/av-sync-auto.prg"
+        if [[ -f "$prg_src" ]]; then
+            mkdir -p "$install_dir/data/prg"
+            cp "$prg_src" "$install_dir/data/prg/av-sync-auto.prg"
+            log_success "Copied av-sync-auto.prg to $install_dir/data/prg/"
+        fi
     fi
 
     # Install E2E properties file
@@ -1250,9 +1269,9 @@ run_e2e_tests() {
     local src_mkv="$test_output_dir/c64_recording.mkv"
     local out_mp4="$results_root_dir/c64_recording.mp4"
     if [[ -f "$src_mp4" && "$src_mp4" != "$out_mp4" ]]; then
-        bash "$PROJECT_ROOT/tests/e2e/compress_e2e_mp4.sh" "$src_mp4" "$out_mp4" || true
+        bash "$PROJECT_ROOT/tests/e2e/util/compress_e2e_mp4.sh" "$src_mp4" "$out_mp4" || true
     elif [[ -f "$src_mkv" ]]; then
-        bash "$PROJECT_ROOT/tests/e2e/compress_e2e_mp4.sh" "$src_mkv" "$out_mp4" || true
+        bash "$PROJECT_ROOT/tests/e2e/util/compress_e2e_mp4.sh" "$src_mkv" "$out_mp4" || true
     else
         if [[ -f "$out_mp4" ]]; then
             log_info "Recording already present at $out_mp4; skipping compression"
@@ -1447,6 +1466,11 @@ main() {
         RUN_E2E=true
     fi
 
+    # Determine whether we need E2E-style runtime dependencies (OBS/xvfb/python)
+    if [[ "$RUN_E2E" == "true" ]]; then
+        NEED_E2E_DEPS=true
+    fi
+
     if [[ "$RUN_E2E" == "true" ]]; then
         if [[ -z "$E2E_SCENARIO" ]]; then
             E2E_SCENARIO="ntsc_default"
@@ -1476,8 +1500,8 @@ main() {
 
     ensure_linux_build_prereqs "$PLATFORM"
 
-    # Auto-install E2E dependencies if E2E is requested and dependencies are missing
-    if [[ "$RUN_E2E" == "true" ]]; then
+    # Auto-install E2E-style dependencies if E2E or real-device tests are requested and dependencies are missing
+    if [[ "${NEED_E2E_DEPS}" == "true" ]]; then
         # Check if essential E2E dependencies are missing
         local missing_e2e_deps=()
 
@@ -1493,9 +1517,9 @@ main() {
         # Keep Python deps minimal; only numpy is required
 
         if [[ ${#missing_e2e_deps[@]} -gt 0 ]]; then
-            log_info "E2E testing requested but missing dependencies: ${missing_e2e_deps[*]}"
+            log_info "OBS-based testing requested but missing dependencies: ${missing_e2e_deps[*]}"
             if can_auto_install_packages "$PLATFORM"; then
-                log_info "Auto-installing missing E2E dependencies..."
+                log_info "Auto-installing missing OBS/E2E dependencies..."
                 INSTALL_DEPS=true
                 INSTALL_E2E_DEPS=true
             else
@@ -1504,7 +1528,7 @@ main() {
                 exit 1
             fi
         else
-            log_info "E2E testing requested - all dependencies already installed"
+            log_info "OBS-based testing requested - all dependencies already installed"
         fi
     fi
 

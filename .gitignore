@@ -23,11 +23,6 @@
 !LICENSE
 !README.md
 !AGENTS.md
-!build-docker.sh
-!AGENTS.md
-
-# Include development helper files
-!local-build.sh
 
 # Include private folder (for private repo only - excluded in public sync)
 !private
@@ -49,6 +44,13 @@ compile_commands.json
 *.log
 *.tmp
 obs_log.txt
+
+# C64 build outputs
+*.prg
+*.lst
+
+# Prebuilt PRGs shipped with the plugin (needed for packaging on platforms without 64tass)
+!data/prg/*.prg
 
 # Exclude CMake build number cache
 /cmake/.CMakeBuildNumber
@@ -81,10 +83,6 @@ tests/cmake_install.cmake
 !/tests/*.h
 !/tests/CMakeLists.txt
 
-# C64 build artifacts (generated from .asm source files)
-*.prg
-*.lst
-
 # E2E scenario generated files
 tests/e2e/scenarios/*/generated/
 
@@ -106,6 +104,9 @@ tests/e2e/results/**/*.mk4
 tests/e2e/results/**/*.mkv
 tests/e2e/results/**/video_manifest.csv
 tests/e2e/results/**/audio_manifest.csv
+
+# Local-only archived E2E snapshots (baseline comparisons)
+tests/e2e/results-archive/
 
 # FlameGraph scripts (cloned via build-aux/install-flamegraph.sh)
 tools/FlameGraph/

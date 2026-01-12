@@ -6,6 +6,7 @@ Licensed under the GNU General Public License v2.0 or later.
 See <https://www.gnu.org/licenses/> for details.
 */
 #include <obs-module.h>
+#include <util/platform.h>
 #include <string.h>
 #include "c64-logging.h"
 #include "c64-network.h"
@@ -426,12 +427,22 @@ socket_t c64_create_udp_socket(uint32_t port)
         C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " UDP_NOCHECKSUM option not supported on this system");
     }
 #else
-    // Linux/macOS: Also increase receive buffer, but usually less critical than Windows
-    int recv_buffer_size = 1 * 1024 * 1024; // 1MB receive buffer (Linux default is often larger)
+    // Linux/macOS: Increase receive buffer to handle burst packet transmission in E2E tests
+    // System drops packets (RcvbufErrors) with 1MB buffer - E2E sends 19K packets in ~5s
+    // 16MB buffer to ensure no drops even if thread is stalled for seconds
+    int recv_buffer_size = 16 * 1024 * 1024;
+
+    // Try to set large buffer
     if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF, &recv_buffer_size, sizeof(recv_buffer_size)) < 0) {
         int error = c64_get_socket_error();
         C64_LOG_WARNING("" NETWORK_LOG_PREFIX " Failed to set UDP receive buffer size to %d bytes: %s",
                         recv_buffer_size, c64_get_socket_error_string(error));
+
+        // Fallback to 4MB if 16MB fails (likely due to rmem_max)
+        recv_buffer_size = 4 * 1024 * 1024;
+        if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF, &recv_buffer_size, sizeof(recv_buffer_size)) < 0) {
+            // Just verify we at least tried
+        }
     } else {
         C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Set UDP receive buffer to %d bytes", recv_buffer_size);
     }
@@ -471,7 +482,7 @@ socket_t c64_create_udp_socket(uint32_t port)
 #ifdef _WIN32
     // Windows: Small delay to ensure socket is fully ready for receiving
     // This helps with reconnection scenarios where port was recently closed
-    Sleep(50); // 50ms delay
+    os_sleep_ms(50); // 50ms delay
 #endif
 
     return sock;
@@ -484,137 +495,238 @@ bool c64_test_connectivity(const char *ip, uint32_t port)
         return false;
     }
 
-    socket_t sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock == INVALID_SOCKET_VALUE) {
+    char port_str[16];
+    snprintf(port_str, sizeof(port_str), "%u", port);
+
+    struct addrinfo hints;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_family = AF_INET;
+
+    struct addrinfo *res = NULL;
+    if (getaddrinfo(ip, port_str, &hints, &res) != 0 || !res) {
         return false;
     }
 
-    struct sockaddr_in addr;
-    memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(port);
+    bool ok = false;
 
-    if (inet_pton(AF_INET, ip, &addr.sin_addr) <= 0) {
-        close(sock);
-        return false;
-    }
+    for (struct addrinfo *ai = res; ai != NULL; ai = ai->ai_next) {
+        socket_t sock = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+        if (sock == INVALID_SOCKET_VALUE) {
+            continue;
+        }
 
-    // Set socket to non-blocking for timeout control
+        // Set socket to non-blocking for timeout control
 #ifdef _WIN32
-    u_long non_blocking = 1;
-    if (ioctlsocket(sock, FIONBIO, &non_blocking) != 0) {
-        close(sock);
-        return false;
-    }
+        u_long non_blocking = 1;
+        if (ioctlsocket(sock, FIONBIO, &non_blocking) != 0) {
+            close(sock);
+            continue;
+        }
 #else
-    int flags = fcntl(sock, F_GETFL, 0);
-    if (flags == -1 || fcntl(sock, F_SETFL, flags | O_NONBLOCK) == -1) {
-        close(sock);
-        return false;
-    }
+        int flags = fcntl(sock, F_GETFL, 0);
+        if (flags == -1 || fcntl(sock, F_SETFL, flags | O_NONBLOCK) == -1) {
+            close(sock);
+            continue;
+        }
 #endif
 
-    // Attempt connection (will return immediately with EINPROGRESS/WSAEWOULDBLOCK)
-    int connect_result = connect(sock, (struct sockaddr *)&addr, sizeof(addr));
-    if (connect_result == 0) {
-        close(sock);
-        return true;
-    }
+        // Attempt connection (will return immediately with EINPROGRESS/WSAEWOULDBLOCK)
+        int connect_result = connect(sock, ai->ai_addr, (socklen_t)ai->ai_addrlen);
+        if (connect_result == 0) {
+            close(sock);
+            ok = true;
+            break;
+        }
 
-    int error = c64_get_socket_error();
+        int error = c64_get_socket_error();
 #ifdef _WIN32
-    if (error != WSAEWOULDBLOCK) {
+        if (error != WSAEWOULDBLOCK) {
 #else
-    if (error != EINPROGRESS) {
+        if (error != EINPROGRESS) {
 #endif
-        close(sock);
-        return false;
-    }
+            close(sock);
+            continue;
+        }
 
-    // Universal moderate timeout for connectivity tests
-    // 250ms: Fast enough to prevent UI blocking, long enough for most real connections
-    fd_set write_fds;
-    FD_ZERO(&write_fds);
-    FD_SET(sock, &write_fds);
+        // Universal moderate timeout for connectivity tests
+        // 250ms: Fast enough to prevent UI blocking, long enough for most real connections
+        fd_set write_fds;
+        FD_ZERO(&write_fds);
+        FD_SET(sock, &write_fds);
 
-    struct timeval timeout_quick;
-    timeout_quick.tv_sec = 0;
-    timeout_quick.tv_usec = 250000; // 250ms - balanced for all network types
+        struct timeval timeout_quick;
+        timeout_quick.tv_sec = 0;
+        timeout_quick.tv_usec = 250000; // 250ms - balanced for all network types
 
 #ifdef _WIN32
-    int select_result = select(0, NULL, &write_fds, NULL, &timeout_quick);
+        int select_result = select(0, NULL, &write_fds, NULL, &timeout_quick);
 #else
-    int select_result = select(sock + 1, NULL, &write_fds, NULL, &timeout_quick);
+        int select_result = select(sock + 1, NULL, &write_fds, NULL, &timeout_quick);
 #endif
 
-    if (select_result <= 0) {
-        // Timeout or error
-        close(sock);
-        return false;
-    }
+        if (select_result <= 0) {
+            close(sock);
+            continue;
+        }
 
-    // Check if connection succeeded or failed
-    int sock_error;
-    socklen_t len = sizeof(sock_error);
+        // Check if connection succeeded or failed
+        int sock_error;
+        socklen_t len = sizeof(sock_error);
 #ifdef _WIN32
-    if (getsockopt(sock, SOL_SOCKET, SO_ERROR, (char *)&sock_error, &len) != 0) {
+        if (getsockopt(sock, SOL_SOCKET, SO_ERROR, (char *)&sock_error, &len) != 0) {
 #else
-    if (getsockopt(sock, SOL_SOCKET, SO_ERROR, &sock_error, &len) != 0) {
+        if (getsockopt(sock, SOL_SOCKET, SO_ERROR, &sock_error, &len) != 0) {
 #endif
+            close(sock);
+            continue;
+        }
+
         close(sock);
-        return false;
+        if (sock_error == 0) {
+            ok = true;
+            break;
+        }
     }
 
-    close(sock);
-    return (sock_error == 0);
+    freeaddrinfo(res);
+    return ok;
 }
 
 socket_t c64_create_tcp_socket(const char *ip, uint32_t port)
 {
     if (!ip || strlen(ip) == 0) {
-        C64_LOG_ERROR("" NETWORK_LOG_PREFIX " Invalid IP address provided");
+        C64_LOG_ERROR("" NETWORK_LOG_PREFIX " Invalid host provided");
         return INVALID_SOCKET_VALUE;
     }
 
-    socket_t sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock == INVALID_SOCKET_VALUE) {
-        int error = c64_get_socket_error();
-        C64_LOG_ERROR("" NETWORK_LOG_PREFIX " Failed to create TCP socket: %s", c64_get_socket_error_string(error));
+    char port_str[16];
+    snprintf(port_str, sizeof(port_str), "%u", port);
+
+    struct addrinfo hints;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_family = AF_INET;
+
+    struct addrinfo *res = NULL;
+    if (getaddrinfo(ip, port_str, &hints, &res) != 0 || !res) {
+        C64_LOG_WARNING("" NETWORK_LOG_PREFIX " Failed to resolve host: %s", ip);
         return INVALID_SOCKET_VALUE;
     }
 
-    struct sockaddr_in addr;
-    memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(port);
+    socket_t connected = INVALID_SOCKET_VALUE;
 
-    if (inet_pton(AF_INET, ip, &addr.sin_addr) <= 0) {
-        C64_LOG_ERROR("" NETWORK_LOG_PREFIX " Invalid IP address format: %s", ip);
-        close(sock);
-        return INVALID_SOCKET_VALUE;
-    }
+    for (struct addrinfo *ai = res; ai != NULL; ai = ai->ai_next) {
+        socket_t sock = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+        if (sock == INVALID_SOCKET_VALUE) {
+            continue;
+        }
 
-    // Set socket to non-blocking for timeout control
+        // Set socket to non-blocking for timeout control
 #ifdef _WIN32
-    u_long non_blocking = 1;
-    if (ioctlsocket(sock, FIONBIO, &non_blocking) != 0) {
-        C64_LOG_ERROR("" NETWORK_LOG_PREFIX " Failed to set socket non-blocking");
-        close(sock);
-        return INVALID_SOCKET_VALUE;
-    }
+        u_long non_blocking = 1;
+        if (ioctlsocket(sock, FIONBIO, &non_blocking) != 0) {
+            C64_LOG_ERROR("" NETWORK_LOG_PREFIX " Failed to set socket non-blocking");
+            close(sock);
+            continue;
+        }
 #else
-    int flags = fcntl(sock, F_GETFL, 0);
-    if (flags == -1 || fcntl(sock, F_SETFL, flags | O_NONBLOCK) == -1) {
-        C64_LOG_ERROR("" NETWORK_LOG_PREFIX " Failed to set socket non-blocking");
-        close(sock);
-        return INVALID_SOCKET_VALUE;
-    }
+        int flags = fcntl(sock, F_GETFL, 0);
+        if (flags == -1 || fcntl(sock, F_SETFL, flags | O_NONBLOCK) == -1) {
+            C64_LOG_ERROR("" NETWORK_LOG_PREFIX " Failed to set socket non-blocking");
+            close(sock);
+            continue;
+        }
 #endif
 
-    // Attempt connection (will return immediately with EINPROGRESS/WSAEWOULDBLOCK)
-    int connect_result = connect(sock, (struct sockaddr *)&addr, sizeof(addr));
-    if (connect_result == 0) {
-        // Connected immediately (rare case)
+        // Attempt connection (will return immediately with EINPROGRESS/WSAEWOULDBLOCK)
+        int connect_result = connect(sock, ai->ai_addr, (socklen_t)ai->ai_addrlen);
+        if (connect_result == 0) {
+            // Connected immediately (rare case)
+#ifdef _WIN32
+            u_long blocking = 0;
+            ioctlsocket(sock, FIONBIO, &blocking);
+#else
+            fcntl(sock, F_SETFL, flags);
+#endif
+            connected = sock;
+            break;
+        }
+
+        int error = c64_get_socket_error();
+#ifdef _WIN32
+        if (error != WSAEWOULDBLOCK) {
+#else
+        if (error != EINPROGRESS) {
+#endif
+            close(sock);
+            continue;
+        }
+
+        // Two-stage timeout: fast for local networks, fallback for internet connections
+        fd_set write_fds;
+        FD_ZERO(&write_fds);
+        FD_SET(sock, &write_fds);
+
+        // First try: 100ms timeout for local network responsiveness
+        struct timeval timeout_fast;
+        timeout_fast.tv_sec = 0;
+        timeout_fast.tv_usec = 100000; // 100 milliseconds
+
+#ifdef _WIN32
+        int select_result = select(0, NULL, &write_fds, NULL, &timeout_fast);
+#else
+        int select_result = select(sock + 1, NULL, &write_fds, NULL, &timeout_fast);
+#endif
+
+        if (select_result == 0) {
+            // Fast timeout - try longer timeout for internet connections
+            C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Fast connection attempt to %s:%u timed out, trying slower timeout...",
+                          ip, port);
+
+            // Reset the fd_set for second attempt
+            FD_ZERO(&write_fds);
+            FD_SET(sock, &write_fds);
+
+            // Second try: 1.5 second timeout for internet connections
+            struct timeval timeout_slow;
+            timeout_slow.tv_sec = 1;       // 1 second
+            timeout_slow.tv_usec = 500000; // + 500 milliseconds = 1.5s total
+
+#ifdef _WIN32
+            select_result = select(0, NULL, &write_fds, NULL, &timeout_slow);
+#else
+            select_result = select(sock + 1, NULL, &write_fds, NULL, &timeout_slow);
+#endif
+
+            if (select_result == 0) {
+                close(sock);
+                continue;
+            }
+        }
+
+        if (select_result < 0) {
+            close(sock);
+            continue;
+        }
+
+        // Check if connection succeeded or failed
+        int sock_error;
+        socklen_t len = sizeof(sock_error);
+#ifdef _WIN32
+        if (getsockopt(sock, SOL_SOCKET, SO_ERROR, (char *)&sock_error, &len) != 0) {
+#else
+        if (getsockopt(sock, SOL_SOCKET, SO_ERROR, &sock_error, &len) < 0) {
+#endif
+            close(sock);
+            continue;
+        }
+
+        if (sock_error != 0) {
+            close(sock);
+            continue;
+        }
+
         // Restore blocking mode
 #ifdef _WIN32
         u_long blocking = 0;
@@ -622,104 +734,18 @@ socket_t c64_create_tcp_socket(const char *ip, uint32_t port)
 #else
         fcntl(sock, F_SETFL, flags);
 #endif
+
+        connected = sock;
+        break;
+    }
+
+    freeaddrinfo(res);
+
+    if (connected != INVALID_SOCKET_VALUE) {
         C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Connected to C64 Ultimate at %s:%u", ip, port);
-        return sock;
+        return connected;
     }
 
-    int error = c64_get_socket_error();
-#ifdef _WIN32
-    if (error != WSAEWOULDBLOCK) {
-#else
-    if (error != EINPROGRESS) {
-#endif
-        C64_LOG_WARNING("" NETWORK_LOG_PREFIX " Failed to connect to C64 Ultimate at %s:%u: %s", ip, port,
-                        c64_get_socket_error_string(error));
-        close(sock);
-        return INVALID_SOCKET_VALUE;
-    }
-
-    // Two-stage timeout: fast for local networks, fallback for internet connections
-    fd_set write_fds;
-    FD_ZERO(&write_fds);
-    FD_SET(sock, &write_fds);
-
-    // First try: 100ms timeout for local network responsiveness
-    struct timeval timeout_fast;
-    timeout_fast.tv_sec = 0;
-    timeout_fast.tv_usec = 100000; // 100 milliseconds
-
-#ifdef _WIN32
-    int select_result = select(0, NULL, &write_fds, NULL, &timeout_fast);
-#else
-    int select_result = select(sock + 1, NULL, &write_fds, NULL, &timeout_fast);
-#endif
-
-    if (select_result == 0) {
-        // Fast timeout - try longer timeout for internet connections
-        C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Fast connection attempt to %s:%u timed out, trying slower timeout...", ip,
-                      port);
-
-        // Reset the fd_set for second attempt
-        FD_ZERO(&write_fds);
-        FD_SET(sock, &write_fds);
-
-        // Second try: 1.5 second timeout for internet connections
-        struct timeval timeout_slow;
-        timeout_slow.tv_sec = 1;       // 1 second
-        timeout_slow.tv_usec = 500000; // + 500 milliseconds = 1.5s total
-
-#ifdef _WIN32
-        select_result = select(0, NULL, &write_fds, NULL, &timeout_slow);
-#else
-        select_result = select(sock + 1, NULL, &write_fds, NULL, &timeout_slow);
-#endif
-
-        if (select_result == 0) {
-            // Both timeouts failed
-            C64_LOG_WARNING("" NETWORK_LOG_PREFIX
-                            " Connection to C64 Ultimate at %s:%u timed out after 1.6 seconds total",
-                            ip, port);
-            close(sock);
-            return INVALID_SOCKET_VALUE;
-        }
-    }
-
-    if (select_result < 0) {
-        int select_error = c64_get_socket_error();
-        C64_LOG_ERROR("" NETWORK_LOG_PREFIX " Select failed during connection to %s:%u: %s", ip, port,
-                      c64_get_socket_error_string(select_error));
-        close(sock);
-        return INVALID_SOCKET_VALUE;
-    }
-
-    // Check if connection succeeded or failed
-    int sock_error;
-    socklen_t len = sizeof(sock_error);
-#ifdef _WIN32
-    if (getsockopt(sock, SOL_SOCKET, SO_ERROR, (char *)&sock_error, &len) != 0) {
-#else
-    if (getsockopt(sock, SOL_SOCKET, SO_ERROR, &sock_error, &len) < 0) {
-#endif
-        C64_LOG_ERROR("" NETWORK_LOG_PREFIX " Failed to get socket error for %s:%u", ip, port);
-        close(sock);
-        return INVALID_SOCKET_VALUE;
-    }
-
-    if (sock_error != 0) {
-        C64_LOG_WARNING("" NETWORK_LOG_PREFIX " Failed to connect to C64 Ultimate at %s:%u: %s", ip, port,
-                        c64_get_socket_error_string(sock_error));
-        close(sock);
-        return INVALID_SOCKET_VALUE;
-    }
-
-    // Restore blocking mode
-#ifdef _WIN32
-    u_long blocking = 0;
-    ioctlsocket(sock, FIONBIO, &blocking);
-#else
-    fcntl(sock, F_SETFL, flags);
-#endif
-
-    C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Connected to C64 Ultimate at %s:%u", ip, port);
-    return sock;
+    C64_LOG_WARNING("" NETWORK_LOG_PREFIX " Failed to connect to C64 Ultimate at %s:%u", ip, port);
+    return INVALID_SOCKET_VALUE;
 }

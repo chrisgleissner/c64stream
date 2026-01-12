@@ -1,0 +1,79 @@
+{
+  "udp_reception": {
+    "status": "warning",
+    "details": "19186/19252 packets (17938 video, 1248 audio, minor loss)"
+  },
+  "frame_processing": {
+    "status": "pass",
+    "details": "1550 frames processed"
+  },
+  "video_recording": {
+    "status": "pass",
+    "details": "9.4 MB"
+  },
+  "packet_integrity": {
+    "status": "pass",
+    "details": "19.0s duration"
+  },
+  "network_timing": {
+    "status": "pass",
+    "details": "span=4999.9ms, video_mean=354.2us, audio_mean=4005.8us"
+  },
+  "video_brightness": {
+    "status": "skipped",
+    "details": "Skipped (full-frame-pop scenario)"
+  },
+  "av_sync": {
+    "status": "skipped",
+    "details": "Skipped (full-frame-pop scenario)"
+  },
+  "av_sync_offset": {
+    "status": "pass",
+    "message": "Pop offset OK (max 40.00ms): obs_csv=6.75ms, network_csv=14.35ms, mp4=4.84ms",
+    "details": {
+      "sources": {
+        "obs_csv": {
+          "pop_count": 5,
+          "max_offset_ms": 6.753,
+          "avg_offset_ms": 4.7674,
+          "per_pop_offsets_ms": [
+            5.568,
+            3.35,
+            5.559,
+            6.753,
+            2.607
+          ]
+        },
+        "network_csv": {
+          "pop_count": 5,
+          "max_offset_ms": 14.346,
+          "avg_offset_ms": 12.2598,
+          "per_pop_offsets_ms": [
+            10.133,
+            13.642,
+            12.739,
+            10.439,
+            14.346
+          ]
+        },
+        "mp4": {
+          "pop_count": 5,
+          "max_offset_ms": 4.841,
+          "avg_offset_ms": 2.8296,
+          "per_pop_offsets_ms": [
+            4.841,
+            2.832,
+            0.506,
+            1.821,
+            4.148
+          ]
+        }
+      }
+    },
+    "metrics": {
+      "obs_csv_max_offset_ms": 6.753,
+      "network_csv_max_offset_ms": 14.346,
+      "mp4_max_offset_ms": 4.841
+    }
+  }
+}

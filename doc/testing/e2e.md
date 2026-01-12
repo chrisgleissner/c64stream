@@ -23,6 +23,35 @@ Or via convenience script (Linux):
 ./local-build.sh linux --e2e-scenarios --install  # ALL scenarios
 ```
 
+## Real Device A/V Sync Test (LOCAL ONLY)
+
+This is the same E2E harness as the mocked scenarios, but it uses real packets from a physical C64 Ultimate.
+
+Recommended (enforces the required ordering: mock  device  mock):
+
+```bash
+cd tests/e2e
+./run_avsync_suite.sh --duration 10 --verbose
+```
+
+To run only the device-backed scenario:
+
+```bash
+cd tests/e2e
+./e2e.sh --scenario ntsc_default_avsync_device --duration 10 --verbose
+```
+
+Notes:
+- Requires a reachable real C64 Ultimate (default hostname: `c64u`) and a working GUI environment for OBS.
+- The device scenario is marked `ci_skip: true` and is excluded from CI.
+
+### Real-device configuration note
+
+If a saved OBS scene JSON contains stale `c64_source` settings (e.g. `c64_host=127.0.0.1`), those can override defaults.
+The device scenario sets connection settings via scenario overrides to avoid relying on `properties.ini` defaults.
+
+See `doc/testing/av-sync-e2e-for-real-device.md` for setup details.
+
 ## Settling Period (Frame Progression)
 
 Frame progression checks may show transient anomalies immediately after OBS starts (e.g., shader compilation / pipeline stabilization). The E2E framework supports a settling period that is **ignored for pass/fail** in the frame progression assertion.
@@ -48,16 +77,16 @@ Implication:
 
 Key options for `e2e.sh`:
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--all` | off | Run ALL scenarios in sequence |
-| `--format FORMAT` | NTSC | Video format (PAL or NTSC) |
-| `--duration SECONDS` | 8 | Test duration in seconds |
-| `--frames FRAMES` | 300 | Number of frames (overridden by --duration) |
-| `--scenario NAME` | - | Named scenario from scenarios/ directory |
-| `--list-scenarios` | - | List all available scenarios |
-| `--verbose` | off | Enable detailed logging |
-| `--settling-seconds SEC` | 0 | Ignore frame progression errors during first SEC seconds |
+| Option                   | Default | Description                                              |
+| ------------------------ | ------- | -------------------------------------------------------- |
+| `--all`                  | off     | Run ALL scenarios in sequence                            |
+| `--format FORMAT`        | NTSC    | Video format (PAL or NTSC)                               |
+| `--duration SECONDS`     | 8       | Test duration in seconds                                 |
+| `--frames FRAMES`        | 300     | Number of frames (overridden by --duration)              |
+| `--scenario NAME`        | -       | Named scenario from scenarios/ directory                 |
+| `--list-scenarios`       | -       | List all available scenarios                             |
+| `--verbose`              | off     | Enable detailed logging                                  |
+| `--settling-seconds SEC` | 0       | Ignore frame progression errors during first SEC seconds |
 
 ## Default Duration
 
@@ -136,10 +165,10 @@ sequenceDiagram
 ### Key Components
 
 - **`e2e.sh`** - Main orchestrator, handles dependencies and build process
-- **`scenario_loader.py`** - Loads scenarios and generates OBS scene JSON
+- **`util/scenario_loader.py`** - Loads scenarios and generates OBS scene JSON
 - **`assertions/`** - Assertion package for validating recordings
 - **`e2e.py`** - Python test runner with OBS integration and validation
-- **`generate_packets.py`** - Creates deterministic test packets with visual markers
+- **`util/generate_packets.py`** - Creates deterministic test packets with visual markers
 - **`udp_replay`** - High-performance C utility for precise UDP packet transmission
 - **Mock TCP Server** - Simulates C64 Ultimate control protocol handshake
 
@@ -176,7 +205,7 @@ flowchart TB
         C[base_template.json]
     end
 
-    subgraph loader["scenario_loader.py"]
+    subgraph loader["util/scenario_loader.py"]
         D[Load Scenario]
         E[Load Preset]
         F[Merge Settings]
@@ -206,26 +235,26 @@ flowchart TB
 
 Available scenarios include:
 
-| Scenario             | Format | Description                          |
-| -------------------- | ------ | ------------------------------------ |
-| ntsc_amber_monitor   | NTSC   | Amber monochrome tint                |
-| ntsc_arcade_cabinet  | NTSC   | Strong scanlines for arcade look     |
-| ntsc_classic_crt     | NTSC   | Classic CRT with scanlines and blur  |
-| ntsc_default         | NTSC   | Default preset (no effects)          |
-| ntsc_default_720p    | NTSC   | 720p, 59.826 Hz (standard HD)        |
-| ntsc_default_record  | NTSC   | Default preset + recording enabled   |
-| ntsc_delay_buffer500 | NTSC   | 500ms buffer delay test              |
-| ntsc_delay_buffer500_jitter10  | NTSC   | 500ms buffer + jitter simulation (10ms) |
-| ntsc_delay_buffer500_jitter100 | NTSC   | 500ms buffer + jitter simulation (see scenario) |
-| ntsc_green_monitor   | NTSC   | Green monochrome tint                |
-| ntsc_palette_muted   | NTSC   | Default preset with 'Muted' palette (no effects)          |
-| ntsc_palette_vibrant   | NTSC   | Default preset with 'Vibrant' palette (no effects)          |
-| ntsc_phosphor_glow   | NTSC   | Afterglow and bloom effects          |
-| ntsc_sharp_pixels    | NTSC   | Sharp pixel scaling                  |
-| ntsc_sharp_scan_lines| NTSC   | Pixel-perfect scanline rendering     |
-| ntsc_vintage_tv      | NTSC   | Vintage TV simulation                |
-| pal_default          | PAL    | Default preset (no effects)          |
-| pal_default_720p     | PAL    | 720p, 50.125 Hz (standard HD)        |
+| Scenario                       | Format | Description                                        |
+| ------------------------------ | ------ | -------------------------------------------------- |
+| ntsc_amber_monitor             | NTSC   | Amber monochrome tint                              |
+| ntsc_arcade_cabinet            | NTSC   | Strong scanlines for arcade look                   |
+| ntsc_classic_crt               | NTSC   | Classic CRT with scanlines and blur                |
+| ntsc_default                   | NTSC   | Default preset (no effects)                        |
+| ntsc_default_720p              | NTSC   | 720p, 59.826 Hz (standard HD)                      |
+| ntsc_default_record            | NTSC   | Default preset + recording enabled                 |
+| ntsc_delay_buffer500           | NTSC   | 500ms buffer delay test                            |
+| ntsc_delay_buffer500_jitter10  | NTSC   | 500ms buffer + jitter simulation (10ms)            |
+| ntsc_delay_buffer500_jitter100 | NTSC   | 500ms buffer + jitter simulation (see scenario)    |
+| ntsc_green_monitor             | NTSC   | Green monochrome tint                              |
+| ntsc_palette_muted             | NTSC   | Default preset with 'Muted' palette (no effects)   |
+| ntsc_palette_vibrant           | NTSC   | Default preset with 'Vibrant' palette (no effects) |
+| ntsc_phosphor_glow             | NTSC   | Afterglow and bloom effects                        |
+| ntsc_sharp_pixels              | NTSC   | Sharp pixel scaling                                |
+| ntsc_sharp_scan_lines          | NTSC   | Pixel-perfect scanline rendering                   |
+| ntsc_vintage_tv                | NTSC   | Vintage TV simulation                              |
+| pal_default                    | PAL    | Default preset (no effects)                        |
+| pal_default_720p               | PAL    | 720p, 50.125 Hz (standard HD)                      |
 
 ### Running a Scenario
 
@@ -335,12 +364,12 @@ If `assertions` is omitted, defaults to `["video_quality", "audio"]`.
 
 When using `--preset` or `--scene-json` (without `--scenario`), assertions are auto-detected based on effect settings:
 
-| Preset Setting                  | Assertion Added |
-| ------------------------------- | --------------- |
-| Always                          | `video_quality`, `audio` |
-| `tint_mode > 0` and `tint_strength > 0` | `tint` |
-| `afterglow_duration_ms > 0`     | `afterglow` |
-| `scan_line_distance > 0` and `scan_line_strength > 0` | `scanlines` |
+| Preset Setting                                        | Assertion Added          |
+| ----------------------------------------------------- | ------------------------ |
+| Always                                                | `video_quality`, `audio` |
+| `tint_mode > 0` and `tint_strength > 0`               | `tint`                   |
+| `afterglow_duration_ms > 0`                           | `afterglow`              |
+| `scan_line_distance > 0` and `scan_line_strength > 0` | `scanlines`              |
 
 ### Usage
 
@@ -369,13 +398,13 @@ python3 -m assertions --list-presets
 
 ### Assertion Types
 
-| Assertion      | Description                                               |
-| -------------- | --------------------------------------------------------- |
-| `video_quality` | Resolution (1920×1080), duration, non-black frame ratio (≥50%) |
-| `audio`        | Sample rate (48kHz), channel count                        |
-| `tint`         | Amber/Green color verification via dominant channel ratio (≥1.2×) |
-| `afterglow`    | Persistence decay detection using A/V pop ROI analysis    |
-| `scanlines`    | Line uniformity analysis (variance <0.5%)                 |
+| Assertion       | Description                                                       |
+| --------------- | ----------------------------------------------------------------- |
+| `video_quality` | Resolution (1920×1080), duration, non-black frame ratio (≥50%)    |
+| `audio`         | Sample rate (48kHz), channel count                                |
+| `tint`          | Amber/Green color verification via dominant channel ratio (≥1.2×) |
+| `afterglow`     | Persistence decay detection using A/V pop ROI analysis            |
+| `scanlines`     | Line uniformity analysis (variance <0.5%)                         |
 
 ### Assertion Flow
 
@@ -416,45 +445,49 @@ The E2E framework generates several CSV files for detailed analysis:
 
 ### CSV Files
 
-| File | Description |
-|------|-------------|
-| `network.csv` | UDP packet reception timestamps and metadata |
-| `obs.csv` | Frame/audio events submitted to OBS |
-| `playback.csv` | Decoded frame analysis with anomaly markers |
+| File           | Description                                  |
+| -------------- | -------------------------------------------- |
+| `network.csv`  | UDP packet reception timestamps and metadata |
+| `obs.csv`      | Frame/audio events submitted to OBS          |
+| `playback.csv` | Decoded frame analysis with anomaly markers  |
 
 ### obs.csv Format
 
 Records every video frame and audio chunk submitted to OBS:
 
-| Column | Description |
-|--------|-------------|
-| `event_type` | "video" or "audio" |
-| `frame_num` | Frame counter from the stream |
-| `elapsed_us` | Microseconds since recording started |
-| `data_size_bytes` | Size of the frame/audio data |
-| `fps` | Current measured FPS |
-| `audio_samples_total` | Cumulative audio samples processed |
-| `video_packets_received` | Cumulative video packets |
-| `audio_packets_received` | Cumulative audio packets |
-| `sequence_errors` | Cumulative sequence errors |
+| Column                   | Description                          |
+| ------------------------ | ------------------------------------ |
+| `event_type`             | "video" or "audio"                   |
+| `frame_num`              | Frame counter from the stream        |
+| `elapsed_us`             | Microseconds since recording started |
+| `data_size_bytes`        | Size of the frame/audio data         |
+| `fps`                    | Current measured FPS                 |
+| `audio_samples_total`    | Cumulative audio samples processed   |
+| `video_packets_received` | Cumulative video packets             |
+| `audio_packets_received` | Cumulative audio packets             |
+| `sequence_errors`        | Cumulative sequence errors           |
+
+When Debug logging is enabled in the C64 Stream source, `obs.csv` appends two optional columns:
+`is_all_white` (1 if the submitted frame is all white) and `has_signal` (1 if the audio buffer contains any
+non-silent samples). These columns are omitted when Debug is disabled.
 
 ### playback.csv Format
 
 Authoritative source for skipped/repeated frame analysis. Each row = one displayed frame (1:1 with recording).
 
-| Column | Description |
-|--------|-------------|
-| `playback_frame_index` | Absolute frame index in recording (0-based) |
-| `frame_num` | C64U stream frame number from obs.csv (empty for logo frames) |
-| `frame_slot` | Detected slot (0-7) from bottom-left progress bar (empty if not detected) |
-| `video_s` | Position in video file (seconds since recording start) |
-| `video_ssff` | Position in SS:FF format (seconds:frames) for tools like Shotcut |
-| `content_s` | Time since C64U content started streaming (empty for logo/post-stream) |
-| `repeated` | If start of run: times shown; empty otherwise |
-| `skipped` | Frames lost before this; empty if none |
-| `event` | Human-readable: "repeated", "skipped", "repeated+skipped", or empty |
-| `video_pop` | "video_pop" if video pop (frame sync marker) detected at this frame |
-| `audio_pop` | "audio_pop" if audio pop detected within this frame's time window |
+| Column                 | Description                                                               |
+| ---------------------- | ------------------------------------------------------------------------- |
+| `playback_frame_index` | Absolute frame index in recording (0-based)                               |
+| `frame_num`            | C64U stream frame number from obs.csv (empty for logo frames)             |
+| `frame_slot`           | Detected slot (0-7) from bottom-left progress bar (empty if not detected) |
+| `video_s`              | Position in video file (seconds since recording start)                    |
+| `video_ssff`           | Position in SS:FF format (seconds:frames) for tools like Shotcut          |
+| `content_s`            | Time since C64U content started streaming (empty for logo/post-stream)    |
+| `repeated`             | If start of run: times shown; empty otherwise                             |
+| `skipped`              | Frames lost before this; empty if none                                    |
+| `event`                | Human-readable: "repeated", "skipped", "repeated+skipped", or empty       |
+| `video_pop`            | "video_pop" if video pop (frame sync marker) detected at this frame       |
+| `audio_pop`            | "audio_pop" if audio pop detected within this frame's time window         |
 
 **Frame Number Mapping:**
 
@@ -568,20 +601,21 @@ assertions:                   # What to verify
 
 ## File Reference
 
-| File | Purpose |
-| ---- | ------- |
-| `e2e.sh` | Main test orchestrator |
-| `scenario_loader.py` | Loads scenarios, generates OBS scene JSON |
-| `assertions/` | Assertion package for validating recordings |
-| `scenarios/base_template.json` | Common OBS scene structure |
-| `scenarios/*/scenario.yaml` | Per-scenario configuration |
-| `data/effect_presets.ini` | Effect preset definitions |
+| File                           | Purpose                                     |
+| ------------------------------ | ------------------------------------------- |
+| `e2e.sh`                       | Main test orchestrator                      |
+| `util/scenario_loader.py`      | Loads scenarios, generates OBS scene JSON   |
+| `assertions/`                  | Assertion package for validating recordings |
+| `scenarios/base_template.json` | Common OBS scene structure                  |
+| `scenarios/*/scenario.yaml`    | Per-scenario configuration                  |
+| `data/effect_presets.ini`      | Effect preset definitions                   |
 
 ## Future Enhancements
 
-- **Bouncing Raster Bars**: Visual verification with animated rainbow bars and physics simulation
-- **Binary Frame Markers**: Embedded metadata for precise frame tracking
-- **Audio Sync Testing**: Heartbeat patterns aligned with visual cues
-- **Extended Duration**: Configurable test lengths for stress testing
-- **Cross-Platform**: Windows and macOS compatibility
-- **Performance Profiling**: Latency and jitter analysis
+A checked box indicates that the enhancement has been added.
+
+- [x] **Binary Frame Markers**: Embedded metadata for precise frame tracking
+- [x] **Audio Sync Testing**: Heartbeat patterns aligned with visual cues
+- [x] **Extended Duration**: Configurable test lengths for stress testing
+- [x] **Performance Profiling**: Latency and jitter analysis
+- [ ] **Cross-Platform**: Windows and macOS compatibility

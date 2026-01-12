@@ -35,11 +35,14 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-automation.h"
 #include "plugin-support.h"
 #include "c64-effect.h"
+#include "c64-av-sync.h"
+#include "c64-network-fifo.h"
 
 // Forward declarations
 static void close_and_reset_sockets(struct c64_source *context);
 static void c64_schedule_retry(struct c64_source *context, const char *reason);
 static void c64_refresh_resolved_ip(struct c64_source *context);
+static void c64_set_expected_peer_ip(struct c64_source *context, const char *ip_string);
 
 static bool c64_try_get_prefer_pal_from_obs_fps(bool *prefer_pal)
 {
@@ -64,6 +67,11 @@ static void c64_apply_format_hint(struct c64_source *context, bool prefer_pal)
     context->height = prefer_pal ? C64_PAL_HEIGHT : C64_NTSC_HEIGHT;
     context->expected_fps = prefer_pal ? 50.125 : 59.826;
     context->frame_interval_ns = prefer_pal ? C64_PAL_FRAME_INTERVAL_NS : C64_NTSC_FRAME_INTERVAL_NS;
+
+    // Set format-specific audio sample rate (derived from color subcarrier)
+    context->audio_sample_rate = prefer_pal ? C64_PAL_AUDIO_SAMPLE_RATE : C64_NTSC_AUDIO_SAMPLE_RATE;
+    context->audio_info.samples_per_sec = (uint32_t)context->audio_sample_rate;
+
     c64_logo_set_format_preference(context, prefer_pal);
 }
 
@@ -118,6 +126,8 @@ void c64_async_retry_task(void *data)
         // Already streaming - test connectivity and send start commands
         // Use quick connectivity test instead of recreating sockets (avoids race conditions)
         if (c64_test_connectivity(context->ip_address, context->control_port)) {
+            // We are explicitly requesting the peer to (re)start streaming now.
+            context->last_start_command_time_ns = os_gettime_ns();
             c64_send_control_command(context, true, 0); // Video
             c64_send_control_command(context, true, 1); // Audio
             tcp_success = true;
@@ -230,6 +240,7 @@ static void c64_refresh_resolved_ip(struct c64_source *context)
             context->ip_address[sizeof(context->ip_address) - 1] = '\0';
             C64_LOG_INFO("" NETWORK_LOG_PREFIX " Resolved C64 host '%s' -> %s", hostname_copy, context->ip_address);
         }
+        c64_set_expected_peer_ip(context, context->ip_address);
         pthread_mutex_unlock(&context->config_mutex);
     } else {
         // Keep ip_address as-is (may be hostname) and let connectivity checks fail fast.
@@ -302,6 +313,8 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     }
 
     context->source = source;
+
+    c64_av_sync_init(context);
 
     // Initialize configuration from settings
     const char *host = obs_data_get_string(settings, "c64_host");
@@ -429,6 +442,18 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
         return NULL;
     }
 
+    // Initialize shared synthetic start time mutex (A/V timestamps share a single origin)
+    if (pthread_mutex_init(&context->stream_start_mutex, NULL) != 0) {
+        C64_LOG_ERROR("Failed to initialize stream start mutex");
+        pthread_mutex_destroy(&context->config_mutex);
+        pthread_mutex_destroy(&context->assembly_mutex);
+        bfree(context->frame_buffer);
+        bfree(context->bmp_row_buffer);
+        bfree(context->bgr_frame_buffer);
+        bfree(context);
+        return NULL;
+    }
+
     // Initialize buffer delay from settings - optimized for low latency
     context->buffer_delay_ms = (uint32_t)obs_data_get_int(settings, "buffer_delay_ms");
     if (context->buffer_delay_ms == 0) {
@@ -439,6 +464,9 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->network_buffer = c64_network_buffer_create();
     if (!context->network_buffer) {
         C64_LOG_ERROR("Failed to create network buffer");
+        pthread_mutex_destroy(&context->stream_start_mutex);
+        pthread_mutex_destroy(&context->config_mutex);
+        pthread_mutex_destroy(&context->assembly_mutex);
         if (context->frame_buffer)
             bfree(context->frame_buffer);
         if (context->bmp_row_buffer)
@@ -465,13 +493,16 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->auto_start_attempted = false;
 
     // Initialize audio info for low-latency audio processing hints to OBS
-    context->audio_info.samples_per_sec = 47976; // Exact C64 Ultimate sample rate
+    // Audio sample rate will be set by format detection
+    // Default to PAL until format is detected
+    context->audio_sample_rate = C64_PAL_AUDIO_SAMPLE_RATE;
+    context->audio_info.samples_per_sec = (uint32_t)context->audio_sample_rate;
     context->audio_info.format = AUDIO_FORMAT_16BIT;
     context->audio_info.speakers = SPEAKERS_STEREO;
 
     // Log low-latency configuration
-    C64_LOG_INFO("Low-latency mode: buffer_delay=%ums, audio_rate=%uHz", context->buffer_delay_ms,
-                 context->audio_info.samples_per_sec);
+    C64_LOG_INFO("Low-latency mode: buffer_delay=%ums, audio_rate=%.1fHz (will adjust to format)",
+                 context->buffer_delay_ms, context->audio_sample_rate);
 
     // Initialize statistics counters
     os_atomic_set_long(&context->video_packets_received, 0);
@@ -480,6 +511,52 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     os_atomic_set_long(&context->video_frames_processed, 0);
     os_atomic_set_long(&context->audio_packets_received, 0);
     os_atomic_set_long(&context->audio_bytes_received, 0);
+
+    // Initialize debug counters
+    os_atomic_set_long(&context->debug_recvfrom_calls, 0);
+    os_atomic_set_long(&context->debug_recvfrom_eagain, 0);
+    os_atomic_set_long(&context->debug_recvfrom_bytes_total, 0);
+    os_atomic_set_long(&context->debug_packets_dropped_size, 0);
+
+    // Preallocate Stage-1 network FIFOs (Stage-1: socket recv, Stage-2: buffering/order)
+    // Video is higher PPS; keep a larger backlog to absorb short processing stalls.
+    {
+        const uint32_t video_fifo_capacity = 8192;
+        const uint32_t audio_fifo_capacity = 2048;
+
+        context->video_fifo_entries = bmalloc(sizeof(struct c64_network_fifo_packet) * video_fifo_capacity);
+        context->audio_fifo_entries = bmalloc(sizeof(struct c64_network_fifo_packet) * audio_fifo_capacity);
+
+        if (!context->video_fifo_entries || !context->audio_fifo_entries) {
+            C64_LOG_ERROR("Failed to allocate UDP network FIFOs");
+            if (context->video_fifo_entries) {
+                bfree(context->video_fifo_entries);
+                context->video_fifo_entries = NULL;
+            }
+            if (context->audio_fifo_entries) {
+                bfree(context->audio_fifo_entries);
+                context->audio_fifo_entries = NULL;
+            }
+            c64_network_buffer_destroy(context->network_buffer);
+            context->network_buffer = NULL;
+            pthread_mutex_destroy(&context->stream_start_mutex);
+            pthread_mutex_destroy(&context->assembly_mutex);
+            pthread_mutex_destroy(&context->config_mutex);
+            bfree(context->frame_buffer);
+            bfree(context->bmp_row_buffer);
+            bfree(context->bgr_frame_buffer);
+            bfree(context);
+            return NULL;
+        }
+
+        context->video_fifo.entries = context->video_fifo_entries;
+        context->video_fifo.capacity = video_fifo_capacity;
+        context->audio_fifo.entries = context->audio_fifo_entries;
+        context->audio_fifo.capacity = audio_fifo_capacity;
+        c64_network_fifo_reset(&context->video_fifo);
+        c64_network_fifo_reset(&context->audio_fifo);
+    }
+
     context->last_stats_log_time = os_gettime_ns();
     context->last_audio_stats_log_time = context->last_stats_log_time;
     context->last_stats_tick_ns = context->last_stats_log_time;
@@ -494,16 +571,25 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->consecutive_failures = 0;
     os_atomic_set_long(&context->retry_thread_active, 0);
 
-    // Initialize ideal timestamp generation
-    context->stream_start_time_ns = 0;
-    context->first_frame_num = 0;
-    context->timestamp_base_set = false;
+    // Initialize synthetic A/V timeline state
+    context->stream_start_ns = 0;
+    os_atomic_set_bool(&context->stream_start_set, false);
+    context->last_video_ts_ns = 0;
+    context->last_audio_ts_ns = 0;
+    context->first_video_ts_ns = 0;
+    context->first_audio_ts_ns = 0;
+    context->first_video_ts_logged = false;
+    context->first_audio_ts_logged = false;
+    context->initial_av_delta_logged = false;
+    context->last_video_ts_frame_num = 0;
+    context->video_ts_frame_num_set = false;
+    context->video_frame_index = 0;
     context->frame_interval_ns = prefer_pal ? C64_PAL_FRAME_INTERVAL_NS
                                             : C64_NTSC_FRAME_INTERVAL_NS; // Default to OBS FPS
 
     // Initialize debug logging from settings (must be done before any debug logs)
     c64_debug_logging = obs_data_get_bool(settings, "debug_logging");
-    C64_LOG_DEBUG("Debug logging initialized: %s", c64_debug_logging ? "enabled" : "disabled");
+    C64_LOG_INFO("Debug logging initialized: %s", c64_debug_logging ? "enabled" : "disabled");
 
     // Initialize logo system with pre-rendered frame
     if (!c64_logo_init(context)) {
@@ -511,6 +597,12 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     }
 
     c64_apply_format_hint(context, prefer_pal);
+
+    // Display logo immediately so user sees it instantly (before connection attempt)
+    if (c64_logo_is_available(context)) {
+        c64_logo_render_to_frame(context, os_gettime_ns());
+        C64_LOG_DEBUG("Logo rendered immediately on source creation");
+    }
 
     // Initialize recording for this source
     c64_record_init(context);
@@ -670,6 +762,8 @@ void c64_destroy(void *data)
 
     C64_LOG_INFO("Destroying C64 Stream source");
 
+    c64_av_sync_cleanup(context);
+
     // Stop any background retry thread.
     if (os_atomic_load_long(&context->retry_thread_active)) {
         int join_result = pthread_join(context->retry_thread, NULL);
@@ -749,6 +843,7 @@ void c64_destroy(void *data)
     obs_leave_graphics();
 
     // Cleanup resources
+    pthread_mutex_destroy(&context->stream_start_mutex);
     pthread_mutex_destroy(&context->assembly_mutex);
     pthread_mutex_destroy(&context->config_mutex);
     if (context->frame_buffer) {
@@ -763,6 +858,15 @@ void c64_destroy(void *data)
     if (context->network_buffer) {
         c64_network_buffer_destroy(context->network_buffer);
         context->network_buffer = NULL;
+    }
+
+    if (context->video_fifo_entries) {
+        bfree(context->video_fifo_entries);
+        context->video_fifo_entries = NULL;
+    }
+    if (context->audio_fifo_entries) {
+        bfree(context->audio_fifo_entries);
+        context->audio_fifo_entries = NULL;
     }
 
     if (context->afterglow_cpu_accum) {
@@ -819,8 +923,9 @@ void c64_update(void *data, obs_data_t *settings)
         C64_LOG_DEBUG("" EFFECT_LOG_PREFIX " Preset update skipped; manual effect overrides present");
     }
 
-    // Update debug logging setting
-    c64_debug_logging = obs_data_get_bool(settings, "debug_logging");
+    // Update debug logging setting (Record A/V Sync relies on debug logging for pop detection)
+    const bool record_av_sync = obs_data_get_bool(settings, "record_av_sync");
+    c64_debug_logging = obs_data_get_bool(settings, "debug_logging") || record_av_sync;
     C64_LOG_DEBUG("Debug logging %s", c64_debug_logging ? "enabled" : "disabled");
 
     // Update IP detection setting - only auto-detect when checkbox state changes from off to on
@@ -839,6 +944,7 @@ void c64_update(void *data, obs_data_t *settings)
 
     // Update configuration
     const char *new_host = obs_data_get_string(settings, "c64_host");
+    const char *new_password = obs_data_get_string(settings, "c64_password");
     const char *new_obs_ip = obs_data_get_string(settings, "obs_ip_address");
     uint32_t new_video_port = (uint32_t)obs_data_get_int(settings, "video_port");
     uint32_t new_audio_port = (uint32_t)obs_data_get_int(settings, "audio_port");
@@ -854,14 +960,41 @@ void c64_update(void *data, obs_data_t *settings)
     if (new_control_port == 0)
         new_control_port = C64_CONTROL_PORT;
 
+    // Snapshot existing network-related settings so we can avoid unnecessary retries/restarts.
+    char old_hostname[64];
+    char old_dns_server_ip[64];
+    pthread_mutex_lock(&context->config_mutex);
+    strncpy(old_hostname, context->hostname, sizeof(old_hostname) - 1);
+    old_hostname[sizeof(old_hostname) - 1] = '\0';
+    strncpy(old_dns_server_ip, context->dns_server_ip, sizeof(old_dns_server_ip) - 1);
+    old_dns_server_ip[sizeof(old_dns_server_ip) - 1] = '\0';
+    pthread_mutex_unlock(&context->config_mutex);
+
+    char old_obs_ip[64];
+    strncpy(old_obs_ip, context->obs_ip_address, sizeof(old_obs_ip) - 1);
+    old_obs_ip[sizeof(old_obs_ip) - 1] = '\0';
+
+    const bool host_changed = (strcmp(old_hostname, new_host) != 0);
+    const char *dns_server_ip = obs_data_get_string(settings, "dns_server_ip");
+    const char *new_dns_server_ip = (dns_server_ip && dns_server_ip[0] != '\0') ? dns_server_ip : "";
+    const bool dns_changed = (strcmp(old_dns_server_ip, new_dns_server_ip) != 0);
+    const char *new_obs_ip_str = new_obs_ip ? new_obs_ip : "";
+    const bool obs_ip_changed = (strcmp(old_obs_ip, new_obs_ip_str) != 0);
+
     // Check if ports have changed (requires socket recreation)
     bool ports_changed = (new_video_port != context->video_port) || (new_audio_port != context->audio_port) ||
                          (new_control_port != context->control_port);
 
-    if (ports_changed && context->streaming) {
-        C64_LOG_INFO("Port configuration changed (video: %u->%u, audio: %u->%u, control: %u->%u), recreating sockets",
-                     context->video_port, new_video_port, context->audio_port, new_audio_port, context->control_port,
-                     new_control_port);
+    if ((ports_changed || host_changed) && context->streaming) {
+        if (ports_changed) {
+            C64_LOG_INFO(
+                "Port configuration changed (video: %u->%u, audio: %u->%u, control: %u->%u), recreating sockets",
+                context->video_port, new_video_port, context->audio_port, new_audio_port, context->control_port,
+                new_control_port);
+        }
+        if (host_changed) {
+            C64_LOG_INFO("C64 host changed (%s->%s), restarting streaming", old_hostname, new_host);
+        }
 
         // Stop streaming and close existing sockets
         c64_stop_streaming(context);
@@ -875,10 +1008,16 @@ void c64_update(void *data, obs_data_t *settings)
     strncpy(context->hostname, new_host, sizeof(context->hostname) - 1);
     context->hostname[sizeof(context->hostname) - 1] = '\0';
 
+    if (new_password && new_password[0] != '\0') {
+        strncpy(context->c64_password, new_password, sizeof(context->c64_password) - 1);
+        context->c64_password[sizeof(context->c64_password) - 1] = '\0';
+    } else {
+        context->c64_password[0] = '\0';
+    }
+
     // Update DNS server IP (resolution happens in background).
-    const char *dns_server_ip = obs_data_get_string(settings, "dns_server_ip");
-    if (dns_server_ip && dns_server_ip[0] != '\0') {
-        strncpy(context->dns_server_ip, dns_server_ip, sizeof(context->dns_server_ip) - 1);
+    if (new_dns_server_ip[0] != '\0') {
+        strncpy(context->dns_server_ip, new_dns_server_ip, sizeof(context->dns_server_ip) - 1);
         context->dns_server_ip[sizeof(context->dns_server_ip) - 1] = '\0';
     } else {
         context->dns_server_ip[0] = '\0';
@@ -886,8 +1025,11 @@ void c64_update(void *data, obs_data_t *settings)
 
     // IMPORTANT: do not do DNS resolution in c64_update (OBS UI thread).
     // Store hostname as-is; resolution will happen in the background before connecting.
-    strncpy(context->ip_address, new_host, sizeof(context->ip_address) - 1);
-    context->ip_address[sizeof(context->ip_address) - 1] = '\0';
+    if (host_changed) {
+        strncpy(context->ip_address, new_host, sizeof(context->ip_address) - 1);
+        context->ip_address[sizeof(context->ip_address) - 1] = '\0';
+    }
+    c64_set_expected_peer_ip(context, context->ip_address);
     pthread_mutex_unlock(&context->config_mutex);
 
     if (new_obs_ip) {
@@ -908,26 +1050,7 @@ void c64_update(void *data, obs_data_t *settings)
 
         // Update network buffer delay (this adjusts UDP packet buffering only)
         if (context->network_buffer) {
-            c64_network_buffer_set_delay(
-                context->network_buffer, new_buffer_delay_ms,
-                new_buffer_delay_ms); // Adjust timing bases forward to maintain monotonic timestamps for OBS
-            // This prevents audio pipeline confusion while correcting for buffer delay changes
-            uint64_t delay_adjustment_ns = (uint64_t)(old_buffer_delay_ms - new_buffer_delay_ms) * 1000000ULL;
-
-            // Adjust video timing base forward by the delay difference
-            if (context->timestamp_base_set) {
-                context->stream_start_time_ns += delay_adjustment_ns;
-                C64_LOG_DEBUG("📐 Video timing base adjusted forward by %llu ms", delay_adjustment_ns / 1000000ULL);
-            }
-
-            // Adjust audio timing base forward by the delay difference
-            if (context->audio_base_time != 0) {
-                context->audio_base_time += delay_adjustment_ns;
-                C64_LOG_DEBUG("🎵 Audio timing base adjusted forward by %llu ms", delay_adjustment_ns / 1000000ULL);
-            }
-
-            C64_LOG_INFO("🔄 A/V timing bases adjusted forward due to buffer delay change (%ums -> %ums)",
-                         old_buffer_delay_ms, new_buffer_delay_ms);
+            c64_network_buffer_set_delay(context->network_buffer, new_buffer_delay_ms, new_buffer_delay_ms);
 
             // Force render texture refresh to prevent display freeze after buffer changes
             // Buffer delay changes can cause frame buffer desynchronization
@@ -977,15 +1100,41 @@ void c64_update(void *data, obs_data_t *settings)
                                  (context->pixel_height != 1.0f);
 
     // Reset timing base if dimension-affecting effects were just enabled during streaming
-    if (!prev_dimension_effects && new_dimension_effects && context->timestamp_base_set && context->streaming) {
-        context->timestamp_base_set = false;
-        C64_LOG_INFO("" EFFECT_LOG_PREFIX
-                     " Dimension-affecting effects activated - timing base reset to maintain A/V sync");
+    (void)prev_dimension_effects;
+    (void)new_dimension_effects;
+
+    // Only schedule a background retry when network-related settings changed or streaming is stopped.
+    const bool should_schedule_retry = (!context->streaming) || ports_changed || host_changed || obs_ip_changed ||
+                                       dns_changed;
+    if (should_schedule_retry) {
+        const char *reason = !context->streaming ? "update (not streaming)"
+                             : host_changed      ? "update (host changed)"
+                             : ports_changed     ? "update (ports changed)"
+                             : obs_ip_changed    ? "update (OBS IP changed)"
+                             : dns_changed       ? "update (DNS changed)"
+                                                 : "update";
+        C64_LOG_INFO("" NETWORK_LOG_PREFIX " Applying configuration and scheduling streaming start (%s)", reason);
+        c64_schedule_retry(context, reason);
+    } else {
+        C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Configuration update does not require streaming restart");
+    }
+}
+
+static void c64_set_expected_peer_ip(struct c64_source *context, const char *ip_string)
+{
+    if (!context || !ip_string) {
+        return;
     }
 
-    // Start/restart streaming with current configuration asynchronously (avoid blocking UI thread).
-    C64_LOG_INFO("" NETWORK_LOG_PREFIX " Applying configuration and scheduling streaming start");
-    c64_schedule_retry(context, "update");
+    struct in_addr addr;
+    if (inet_pton(AF_INET, ip_string, &addr) == 1) {
+        context->expected_peer_ip = addr.s_addr;
+        context->expected_peer_ip_set = true;
+        C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Expected peer IP set to %s", ip_string);
+    } else {
+        context->expected_peer_ip_set = false;
+        C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Expected peer IP cleared (non-IPv4 input): %s", ip_string);
+    }
 }
 
 void c64_start_streaming(struct c64_source *context)
@@ -997,6 +1146,19 @@ void c64_start_streaming(struct c64_source *context)
 
     C64_LOG_INFO("Starting C64 Stream streaming to C64 %s (OBS IP: %s, video:%u, audio:%u)...", context->ip_address,
                  context->obs_ip_address, context->video_port, context->audio_port);
+
+    // Proactively disconnect all streams before starting to ensure clean state
+    // This prevents stale streaming state on the C64U from previous sessions
+    if (strcmp(context->ip_address, "0.0.0.0") != 0) {
+        C64_LOG_DEBUG("Sending proactive disconnect for all streams before starting");
+        c64_send_control_command(context, false, 0); // Stop video
+        c64_send_control_command(context, false, 1); // Stop audio
+        // Brief delay to ensure stop commands are processed before start commands
+        os_sleep_ms(50);
+    }
+
+    // Ensure expected peer IP matches current ip_address before binding sockets
+    c64_set_expected_peer_ip(context, context->ip_address);
 
     // Stop existing threads BEFORE closing sockets (prevents race conditions on Windows)
     if (context->streaming) {
@@ -1033,19 +1195,47 @@ void c64_start_streaming(struct c64_source *context)
     os_sleep_ms(100);
 #endif
 
-    // Reset audio timestamp state for clean reconnection
-    context->audio_base_time = 0;
-    context->audio_packet_count = 0;
-    context->last_audio_timestamp_validation = 0;
-    C64_LOG_DEBUG("Audio timestamp state reset for reconnection");
+    // Reset synthetic timing state for clean reconnection
+    if (pthread_mutex_lock(&context->stream_start_mutex) == 0) {
+        context->stream_start_ns = 0;
+        os_atomic_set_bool(&context->stream_start_set, false);
+
+        context->audio_packet_count = 0;
+        context->last_audio_ts_seq = 0;
+        context->audio_ts_seq_set = false;
+        context->audio_packet_index = 0;
+        context->audio_interval_ns = 0;
+        context->last_audio_timestamp_validation = 0;
+
+        context->last_video_ts_frame_num = 0;
+        context->video_ts_frame_num_set = false;
+        context->video_frame_index = 0;
+
+        context->last_video_ts_ns = 0;
+        context->last_audio_ts_ns = 0;
+
+        context->first_video_ts_ns = 0;
+        context->first_audio_ts_ns = 0;
+        context->first_video_ts_logged = false;
+        context->first_audio_ts_logged = false;
+        context->initial_av_delta_logged = false;
+
+        pthread_mutex_unlock(&context->stream_start_mutex);
+    }
+    C64_LOG_DEBUG("Synthetic A/V timing state reset for reconnection");
 
     // Send start commands to C64 Ultimate
+    context->last_start_command_time_ns = os_gettime_ns();
     c64_send_control_command(context, true, 0); // Start video
     c64_send_control_command(context, true, 1); // Start audio
 
     // Start fresh worker threads
     os_atomic_set_bool(&context->thread_active, true);
     context->streaming = true;
+
+    // Reset Stage-1 UDP network FIFOs for a clean start/reconnect.
+    c64_network_fifo_reset(&context->video_fifo);
+    c64_network_fifo_reset(&context->audio_fifo);
 
     if (pthread_create(&context->video_thread, NULL, c64_video_thread_func, context) != 0) {
         C64_LOG_ERROR("Failed to create video receiver thread");
@@ -1118,6 +1308,10 @@ void c64_stop_streaming(struct c64_source *context)
         C64_LOG_WARNING("Failed to join audio thread");
     }
     os_atomic_set_bool(&context->audio_thread_active, false);
+
+    // Clear any queued UDP packets so the next start begins from an empty ingest state.
+    c64_network_fifo_reset(&context->video_fifo);
+    c64_network_fifo_reset(&context->audio_fifo);
 
     // Clear frame buffer (async video will stop automatically)
     if (context->frame_buffer) {
@@ -1354,13 +1548,7 @@ void c64_video_render(void *data, gs_effect_t *effect)
                 C64_LOG_ERROR("" EFFECT_LOG_PREFIX
                               " Failed to load CRT effect shader - falling back to default rendering");
             } else {
-                // Reset timing base to prevent sync drift caused by shader compilation delay
-                // Only reset if we're actually streaming (have established timing)
-                if (context->timestamp_base_set) {
-                    context->timestamp_base_set = false;
-                    C64_LOG_INFO("" EFFECT_LOG_PREFIX
-                                 " CRT effect loaded during stream - timing base reset to maintain A/V sync");
-                }
+                // Do not reset synthetic timing during shader compilation; timestamps are derived from a shared origin.
             }
             if (!context->crt_effect) {
                 // Fall back to default rendering
@@ -1448,6 +1636,55 @@ void c64_video_render(void *data, gs_effect_t *effect)
     while (gs_effect_loop(context->crt_effect, "Draw")) {
         gs_draw_sprite(input_tex, 0, render_width, render_height);
     }
+}
+
+void c64_try_init_stream_start_ns(struct c64_source *context, uint64_t packet_time_ns, const char *trigger)
+{
+    if (!context) {
+        return;
+    }
+
+    if (os_atomic_load_bool(&context->stream_start_set)) {
+        return;
+    }
+
+    if (pthread_mutex_lock(&context->stream_start_mutex) != 0) {
+        return;
+    }
+
+    if (!os_atomic_load_bool(&context->stream_start_set)) {
+        context->stream_start_ns = packet_time_ns;
+        if (context->network_buffer && context->buffer_delay_ms > 0) {
+            context->stream_start_ns += (uint64_t)context->buffer_delay_ms * 1000000ULL;
+        }
+        os_atomic_set_bool(&context->stream_start_set, true);
+
+        // Reset per-stream synthetic counters at stream start.
+        context->audio_packet_count = 0;
+        context->last_audio_ts_seq = 0;
+        context->audio_ts_seq_set = false;
+        context->audio_packet_index = 0;
+        context->audio_interval_ns = 0;
+        context->last_audio_timestamp_validation = 0;
+
+        context->last_video_ts_frame_num = 0;
+        context->video_ts_frame_num_set = false;
+        context->video_frame_index = 0;
+
+        context->last_video_ts_ns = 0;
+        context->last_audio_ts_ns = 0;
+
+        context->first_video_ts_ns = 0;
+        context->first_audio_ts_ns = 0;
+        context->first_video_ts_logged = false;
+        context->first_audio_ts_logged = false;
+        context->initial_av_delta_logged = false;
+
+        C64_LOG_INFO("STREAM START: stream_start_ns=%" PRIu64 " trigger=%s buffer_delay_ms=%u",
+                     context->stream_start_ns, trigger ? trigger : "unknown", context->buffer_delay_ms);
+    }
+
+    pthread_mutex_unlock(&context->stream_start_mutex);
 }
 
 // Helper function to get scanline scaling parameters based on distance setting

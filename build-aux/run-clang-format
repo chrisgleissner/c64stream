@@ -12,11 +12,31 @@ autoload -Uz is-at-least
 # Simple version check and format
 main() {
   local formatter=""
+  local uname_s=""
+  uname_s=$(uname -s 2>/dev/null || true)
 
   # Find clang-format
   # 1) Explicit override
   if [[ -n "${CLANG_FORMAT:-}" && -x "${CLANG_FORMAT}" ]]; then
     formatter="${CLANG_FORMAT}"
+
+  # 2) Windows (MSYS2 / Git Bash) common locations
+  elif [[ "$uname_s" == MINGW* || "$uname_s" == MSYS* || "$uname_s" == CYGWIN* ]]; then
+    if [[ -x /c/mysys64/mingw64/bin/clang-format.exe ]]; then
+      formatter="/c/mysys64/mingw64/bin/clang-format.exe"
+    elif [[ -x /c/msys64/mingw64/bin/clang-format.exe ]]; then
+      formatter="/c/msys64/mingw64/bin/clang-format.exe"
+    elif [[ -x /c/mysys64/clang64/bin/clang-format.exe ]]; then
+      formatter="/c/mysys64/clang64/bin/clang-format.exe"
+    elif [[ -x /c/msys64/clang64/bin/clang-format.exe ]]; then
+      formatter="/c/msys64/clang64/bin/clang-format.exe"
+    elif [[ -x /c/mysys64/usr/bin/clang-format.exe ]]; then
+      formatter="/c/mysys64/usr/bin/clang-format.exe"
+    elif [[ -x /c/msys64/usr/bin/clang-format.exe ]]; then
+      formatter="/c/msys64/usr/bin/clang-format.exe"
+    elif [[ -x /c/Program\ Files/LLVM/bin/clang-format.exe ]]; then
+      formatter="/c/Program Files/LLVM/bin/clang-format.exe"
+    fi
 
   # 2) Common CI location (GitHub Actions linuxbrew)
   elif [[ -x /home/linuxbrew/.linuxbrew/bin/clang-format ]]; then

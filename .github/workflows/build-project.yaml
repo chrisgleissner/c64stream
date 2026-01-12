@@ -516,7 +516,8 @@ jobs:
         run: |
           : Run Python Unit Tests 🧪
           cd tests/e2e
-          python -m pytest test_*.py -v --tb=short --junitxml=../../test-results.xml
+          # Tests live in tests/e2e/util (see util/test_*.py)
+          python -m pytest util/test_*.py -v --tb=short --junitxml=../../test-results.xml
 
       - name: Upload Test Results 📊
         uses: actions/upload-artifact@v4
@@ -578,6 +579,76 @@ jobs:
           name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-windows-x64-${{ needs.check-event.outputs.commitHash }}
           path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-windows-x64*.*
 
+  windows-arm64-build:
+    name: Build for Windows ARM64 🪟
+    runs-on: windows-11-arm
+    needs: check-event
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Set Up Environment 🔧
+        id: setup
+        run: |
+          : Set Up Environment 🔧
+          if [[ "${RUNNER_DEBUG}" ]]; then set -x; fi
+
+          read -r product_name <<< \
+            "$(jq -r '.name' buildspec.json)"
+
+          echo "pluginName=${product_name}" >> $GITHUB_OUTPUT
+          echo "pluginVersion=${{ needs.check-event.outputs.pluginVersion }}" >> $GITHUB_OUTPUT
+
+      - uses: actions/cache/restore@v4
+        id: ccache-cache
+        with:
+          path: ${{ github.workspace }}/.ccache
+          key: ${{ runner.os }}-ccache-arm64-${{ needs.check-event.outputs.config }}
+          restore-keys: |
+            ${{ runner.os }}-ccache-arm64-
+
+      - name: Build Plugin 🧱
+        uses: ./.github/actions/build-plugin
+        with:
+          target: arm64
+          config: ${{ needs.check-event.outputs.config }}
+
+      - name: Package Plugin 📀
+        uses: ./.github/actions/package-plugin
+        with:
+          target: arm64
+          config: ${{ needs.check-event.outputs.config }}
+          package: ${{ fromJSON(needs.check-event.outputs.package) }}
+          version: ${{ needs.check-event.outputs.pluginVersion }}
+
+      - name: Upload Artifacts 📡
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-windows-arm64-${{ needs.check-event.outputs.commitHash }}
+          path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-windows-arm64*.*
+
+  windows-x64-smoke-test:
+    uses: ./.github/workflows/windows-smoke-test.yaml
+    needs: [windows-build]
+    with:
+      arch: x64
+      artifact-pattern: '*-windows-x64-*'
+      runner: windows-2022
+      obs-version: '32.0.4'
+
+  windows-arm64-smoke-test:
+    uses: ./.github/workflows/windows-smoke-test.yaml
+    needs: [windows-arm64-build]
+    with:
+      arch: arm64
+      artifact-pattern: '*-windows-arm64-*'
+      runner: windows-11-arm
+      obs-version: '32.0.4'
 
 
   # E2E Basic Test (Multi-Distro) - runs basic E2E scenario on all Linux distributions
@@ -934,6 +1005,7 @@ jobs:
           - ntsc_classic_crt
           - ntsc_default
           - ntsc_default_720p
+          - ntsc_default_avsync
           - ntsc_default_record
           - ntsc_delay_buffer500
           # TODO: Investigate why these scenarios pass locally but experience large UDP packet loss on CI.
@@ -1314,8 +1386,10 @@ jobs:
         run: |
           : Create Consolidated Archive 📦
 
+          mkdir -p all-e2e-artifacts
+
           echo "📁 Downloaded E2E artifacts:"
-          find all-e2e-artifacts -type f | head -50
+          find all-e2e-artifacts -type f 2>/dev/null | head -50 || true
 
           # Create a summary of all results
           echo "# E2E Test Results Summary" > all-e2e-artifacts/SUMMARY.md

@@ -39,6 +39,7 @@ def validate_network_timing(
     video_format: str,
     frames: int,
     network_simulation: dict | None,
+    packet_source: str = 'mock',
 ) -> tuple[str, str, list[str], list[str]]:
     """Validate sender pacing using derived metrics in network.json.
 
@@ -87,7 +88,13 @@ def validate_network_timing(
     else:
         min_ok_ms = expected_duration_ms * 0.70
         # Allow extra network simulation delay on top of baseline.
-        max_ok_ms = expected_duration_ms + extra_delay_ms + 2000.0
+        if str(packet_source or 'mock').strip().lower() == 'device':
+            # Device runs have more timing variability:
+            # - We stop capture based on observed frames, not sender completion.
+            # - Teardown/grace can keep packets arriving briefly.
+            max_ok_ms = (expected_duration_ms * 2.0) + extra_delay_ms + 2000.0
+        else:
+            max_ok_ms = expected_duration_ms + extra_delay_ms + 2000.0
         if duration_ms < min_ok_ms:
             errors.append(
                 f"Network timing span too short: {duration_ms:.1f}ms < {min_ok_ms:.1f}ms (expected ~{expected_duration_ms:.1f}ms)"
@@ -171,7 +178,7 @@ def _is_benign_network_timing_warning(warning: str) -> bool:
 
 # Import A/V sync testing
 try:
-    from test_av_sync import verify_av_sync
+    from util.test_av_sync import verify_av_sync
 except ImportError:
     verify_av_sync = None
 try:
@@ -183,7 +190,7 @@ except ImportError:
 
 # Import resource monitoring
 try:
-    from resource_monitor import ResourceMonitor
+    from util.resource_monitor import ResourceMonitor
     RESOURCE_MONITOR_AVAILABLE = True
 except ImportError:
     ResourceMonitor = None
@@ -197,6 +204,8 @@ class E2ETest:
                  scenario_id: str | None = None, output_dir: str | None = None,
                  csv_max_rows: int | None = None, enable_resource_monitoring: bool = False,
                  resource_interval_ms: int = 500,
+                 packet_source: str = 'mock',
+                 full_frame_pop: bool = False,
                  settling_seconds: float = 0.0,
                  enable_perf_profile: bool = False,
                  perf_frequency_hz: int = 99,
@@ -214,6 +223,8 @@ class E2ETest:
         self.frames = frames
         self.verbose = verbose
         self.enable_websocket = enable_websocket  # Disable WebSocket by default for performance
+        self.packet_source = str(packet_source or 'mock').strip().lower()
+        self.full_frame_pop = bool(full_frame_pop)
         self.scenario_overrides_dir = Path(scenario_overrides_dir).resolve() if scenario_overrides_dir else None
         self.scenario_name = scenario_name
         self.scenario_id = scenario_id
@@ -656,6 +667,166 @@ class E2ETest:
             self.log(f"⚠️ Failed to read obs.csv duration: {e}")
         return None
 
+    def _build_av_sync_details_from_csv(self, output_dir: Path) -> Optional[dict]:
+        """Build av_sync_details from av-sync.csv directly for full-frame-pop scenarios."""
+        import csv
+
+        # Look for av-sync.csv in output directory
+        av_sync_csv = output_dir / 'av-sync.csv'
+        if not av_sync_csv.exists():
+            # Try in session subdirectory
+            for session_dir in output_dir.glob('session_*'):
+                candidate = session_dir / 'av-sync.csv'
+                if candidate.exists():
+                    av_sync_csv = candidate
+                    break
+
+        if not av_sync_csv.exists():
+            return None
+
+        # Read av-sync.csv
+        sync_details = []
+        try:
+            with open(av_sync_csv, 'r', newline='') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    if not row.get('trigger'):
+                        continue
+
+                    # Extract offset from obs_offset_ms column
+                    try:
+                        offset_ms = abs(float(row['obs_offset_ms']))
+                    except (ValueError, KeyError):
+                        continue
+
+                    # Get frame number
+                    try:
+                        frame_num = int(row['obs_video_frame'])
+                    except (ValueError, KeyError):
+                        frame_num = 0
+
+                    # Determine traffic light status
+                    if offset_ms <= 20.0:
+                        traffic = "green"
+                    elif offset_ms <= 40.0:
+                        traffic = "yellow"
+                    else:
+                        traffic = "red"
+
+                    # Alternate channels
+                    channel = "L" if len(sync_details) % 2 == 0 else "R"
+
+                    # Approximate timing (frame * 16.7ms for NTSC, 20ms for PAL)
+                    fps = 59.826 if self.format == 'NTSC' else 50.125
+                    video_time_ms = (frame_num / fps) * 1000
+                    audio_time_ms = video_time_ms + offset_ms
+
+                    sync_details.append({
+                        "audio_pop_time_ms": audio_time_ms,
+                        "closest_video_pop_ms": video_time_ms,
+                        "closest_video_pop_frame": frame_num,
+                        "difference_ms": offset_ms,
+                        "is_synced": offset_ms <= 60.0,
+                        "included_in_analysis": True,
+                        "ignore_reason": None,
+                        "audio_channel": channel,
+                        "video_channel": channel,
+                        "channels_match": True,
+                        "traffic": traffic
+                    })
+        except Exception as e:
+            if self.verbose:
+                print(f"Failed to read av-sync.csv: {e}")
+            return None
+
+        if not sync_details:
+            return None
+
+        # Calculate accuracy
+        pop_count = len(sync_details)
+        synced_count = sum(1 for d in sync_details if d['is_synced'])
+        sync_accuracy_percent = (synced_count / pop_count * 100.0) if pop_count > 0 else 0.0
+
+        return {
+            "total_audio_pops": pop_count,
+            "total_analyzed": pop_count,
+            "total_video_pops": pop_count,
+            "perfect_sync_count": synced_count,
+            "sync_accuracy_percent": sync_accuracy_percent,
+            "tolerance_ms": 60,
+            "sync_details": sync_details,
+            "is_perfectly_synced": sync_accuracy_percent == 100.0,
+        }
+
+    def _build_av_sync_details_from_offset(self, sources: dict) -> Optional[dict]:
+        """Convert av_sync_offset source data to av_sync_details format for markdown reporting.
+
+        The av_sync_offset assertion provides per-pop offset data from multiple sources.
+        We need to convert this to the av_sync_details format expected by e2e.sh for rendering.
+        """
+        # Extract pop data from available sources (prefer av_sync_csv, then obs_csv, then network_csv)
+        pop_data = None
+        source_name = None
+        for src in ['av_sync_csv', 'obs_csv', 'network_csv']:
+            if src in sources and sources[src].get('pop_count', 0) > 0:
+                pop_data = sources[src]
+                source_name = src
+                break
+
+        if not pop_data:
+            return None
+
+        per_pop_offsets = pop_data.get('per_pop_offsets_ms', [])
+        pop_count = pop_data.get('pop_count', 0)
+
+        if pop_count == 0:
+            return None
+
+        # Build sync_details array (one entry per pop)
+        # For full-frame-pop scenarios, we don't have audio/video separation,
+        # so we represent the offset as the difference between sources
+        sync_details = []
+        for i, offset_ms in enumerate(per_pop_offsets):
+            # Determine traffic light status based on offset
+            if offset_ms <= 20.0:
+                traffic = "green"
+            elif offset_ms <= 40.0:
+                traffic = "yellow"
+            else:
+                traffic = "red"
+
+            # Alternate channels for visual representation
+            channel = "L" if i % 2 == 0 else "R"
+
+            sync_details.append({
+                "audio_pop_time_ms": i * 800 + 10000,  # Approximate timing (pop every 800ms starting at 10s)
+                "closest_video_pop_ms": i * 800 + 10000 - offset_ms,
+                "closest_video_pop_frame": i * 48 + 600,  # Approximate frame (pop every 48 frames)
+                "difference_ms": offset_ms,
+                "is_synced": offset_ms <= 60.0,
+                "included_in_analysis": True,
+                "ignore_reason": None,
+                "audio_channel": channel,
+                "video_channel": channel,
+                "channels_match": True,
+                "traffic": traffic
+            })
+
+        # Calculate accuracy (percent of pops that are synced)
+        synced_count = sum(1 for d in sync_details if d['is_synced'])
+        sync_accuracy_percent = (synced_count / pop_count * 100.0) if pop_count > 0 else 0.0
+
+        return {
+            "total_audio_pops": pop_count,
+            "total_analyzed": pop_count,
+            "total_video_pops": pop_count,
+            "perfect_sync_count": synced_count,
+            "sync_accuracy_percent": sync_accuracy_percent,
+            "tolerance_ms": 60,
+            "sync_details": sync_details,
+            "is_perfectly_synced": sync_accuracy_percent == 100.0,
+        }
+
     def _save_resource_data(self):
         """Save resource monitoring data to CSV and JSON files.
 
@@ -734,7 +905,7 @@ class E2ETest:
             self.plugin_init_timeout = 45  # Increased from 30s for more robust CI
             self.obs_startup_delay = 4     # Increased from 3s
             # Reduced from 6s - plugin connects quickly, we just need UDP binding
-            self.async_task_delay = 2.0    # Reduced to minimize logo display at start
+            self.async_task_delay = 2.0    # Plugin async tasks (recording start, etc.)
             self.websocket_settings_delay = 3  # Increased from 2s
             # Give OBS/plugin more time to bind UDP ports on CI
             self.udp_socket_delay = 2.0    # Increased from 1.0s
@@ -1282,7 +1453,7 @@ class E2ETest:
     def _replace_config_variables(self, obs_config_dir):
         """Replace variables in OBS configuration files with actual values."""
         # Define variable replacements
-        # C64 Ultimate exact frame rates (from c64-stream-spec.md):
+        # C64 Ultimate exact frame rates (from c64u-stream-spec.md):
         # - PAL:  50.125 Hz = 401/8  (FPSNum=401, FPSDen=8)
         # - NTSC: 59.826 Hz = 29913/500 (FPSNum=29913, FPSDen=500)
         if self.format == 'PAL':
@@ -1604,6 +1775,112 @@ class E2ETest:
         except Exception as e:
             self.log(f"OBS WebSocket error: {e}")
             return None
+
+    def _set_obs_input_settings(self, input_name: str, settings: dict, overlay: bool = True) -> bool:
+        """Set OBS input settings via WebSocket.
+
+        Returns True if the request succeeded.
+        """
+        resp = self.send_obs_request(
+            "SetInputSettings",
+            {
+                "inputName": input_name,
+                "inputSettings": settings,
+                "overlay": bool(overlay),
+            },
+        )
+        if not resp:
+            return False
+        status = resp.get("requestStatus") or {}
+        return bool(status.get("result", False))
+
+    def _find_active_recording_session_dir(self, timeout_s: float = 20.0) -> Path | None:
+        """Find the newest plugin recording session created after OBS startup."""
+        recordings_base = Path.home() / 'Documents' / 'obs-studio' / 'c64stream' / 'recordings'
+        start_time = time.time()
+        obs_start = float(self._obs_start_time_s or 0.0)
+        while time.time() - start_time < timeout_s:
+            if recordings_base.exists():
+                sessions = [p for p in recordings_base.glob('session_*') if p.is_dir()]
+                # Prefer sessions created/modified after OBS start to avoid stale folder selection.
+                sessions = [p for p in sessions if p.stat().st_mtime >= (obs_start - 2.0)] or sessions
+                if sessions:
+                    sessions.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+                    return sessions[0]
+            time.sleep(0.2)
+        return None
+
+    def _wait_for_obs_csv_frames(self, min_frames: int, timeout_s: float) -> bool:
+        """Wait until the current session's obs.csv contains at least min_frames frames."""
+        session_dir = self._find_active_recording_session_dir(timeout_s=max(3.0, min(20.0, timeout_s)))
+        if not session_dir:
+            self.log("❌ Could not locate active recording session folder")
+            return False
+
+        obs_csv = session_dir / 'obs.csv'
+        start_time = time.time()
+        last_count = -1
+        while time.time() - start_time < timeout_s:
+            try:
+                if obs_csv.exists():
+                    with open(obs_csv, 'r', encoding='utf-8', errors='ignore') as f:
+                        # Count lines quickly; first line is header.
+                        lines = sum(1 for _ in f)
+                    count = max(0, lines - 1)
+                    if count != last_count and self.verbose:
+                        self.log(f"📈 OBS frames captured so far: {count}/{min_frames}")
+                        last_count = count
+                    if count >= min_frames:
+                        self.log(f"✅ Captured at least {min_frames} OBS frames ({count})")
+                        return True
+            except Exception:
+                pass
+            time.sleep(0.2)
+
+        self.log(f"❌ Timed out waiting for {min_frames} OBS frames")
+        return False
+
+    def _wait_for_av_sync_csv_quiescent(self, timeout_s: float = 6.0, stable_s: float = 1.0) -> None:
+        """Best-effort wait until av-sync.csv exists and stops changing.
+
+        This helps avoid a race where the plugin logs an A/V sync event but the corresponding
+        CSV row is still buffered when we disable record_av_sync and tear down OBS.
+        """
+        try:
+            recordings_base = Path.home() / 'Documents' / 'obs-studio' / 'c64stream' / 'recordings'
+            if not recordings_base.exists():
+                return
+
+            session_folders = [f for f in recordings_base.glob('session_*') if f.is_dir()]
+            if not session_folders:
+                return
+
+            session_folders.sort(key=lambda f: f.stat().st_mtime, reverse=True)
+            latest_session = session_folders[0]
+            av_sync_csv = latest_session / 'av-sync.csv'
+            if not av_sync_csv.exists():
+                return
+
+            start = time.time()
+            last_rows = -1
+            last_change = time.time()
+
+            while time.time() - start < timeout_s:
+                try:
+                    with open(av_sync_csv, 'r', encoding='utf-8', errors='ignore') as f:
+                        # Count lines quickly; first line is header.
+                        lines = sum(1 for _ in f)
+                    rows = max(0, lines - 1)
+                    if rows != last_rows:
+                        last_rows = rows
+                        last_change = time.time()
+                    if last_rows > 0 and (time.time() - last_change) >= stable_s:
+                        return
+                except Exception:
+                    pass
+                time.sleep(0.2)
+        except Exception:
+            return
 
     def start_obs_recording(self):
         """
@@ -2119,6 +2396,7 @@ class E2ETest:
         # Check for CSV files
         network_csv = latest_session / 'network.csv'
         obs_csv = latest_session / 'obs.csv'
+        av_sync_csv = latest_session / 'av-sync.csv'
 
         csv_results = {}
 
@@ -2186,6 +2464,11 @@ class E2ETest:
                 dest_obs = self.output_dir / 'obs.csv'
                 self._copy_csv_truncated(obs_csv, dest_obs)
                 self.log(f"✅ Copied obs.csv to: {dest_obs}")
+
+            if av_sync_csv.exists():
+                dest_av_sync = self.output_dir / 'av-sync.csv'
+                self._copy_csv_truncated(av_sync_csv, dest_av_sync)
+                self.log(f"✅ Copied av-sync.csv to: {dest_av_sync}")
 
         except Exception as e:
             self.log(f"⚠️ Failed to copy CSV files: {e}")
@@ -2288,6 +2571,15 @@ class E2ETest:
         # Create UDP sockets
         video_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         audio_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+        # Increase UDP send buffer size to prevent packet loss during burst sending
+        # Default is typically 208KB, increase to 2MB to handle rapid packet bursts
+        try:
+            video_sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 2 * 1024 * 1024)
+            audio_sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 2 * 1024 * 1024)
+            self.log("📡 Increased UDP send buffer size to 2MB to prevent packet loss")
+        except OSError as e:
+            self.log(f"⚠️ Could not increase UDP send buffer size: {e}")
 
         # Do NOT send test packets - they interfere with packet counting
         # The plugin logs all received packets to network.csv, including test packets
@@ -2796,60 +3088,96 @@ class E2ETest:
         self.log(f"  - Remote address: {conn.getpeername()}")
 
         try:
-            conn.settimeout(5.0)  # 5 second timeout for receive
-            data = conn.recv(1024)
-            self.log(f"📨 Received {len(data)} bytes from {addr}")
+            # TCP is a byte stream: one recv() can contain multiple commands, or a partial command.
+            # Buffer and parse commands by their declared param_len.
+            buffer = bytearray()
+            deadline = time.monotonic() + 5.0
+            conn.settimeout(1.0)
 
-            if len(data) >= 4:
-                self.log(f"Received TCP command from {addr}: {data.hex()}")
+            def handle_command(cmd: bytes) -> None:
+                self.log(f"Received TCP command from {addr}: {cmd.hex()}")
 
                 # Parse the command according to C64 protocol
-                # Format: [command_byte][0xFF][param_len][0x00][duration_bytes...][ip:port_string]
-                cmd_byte = data[0]
+                # Format: [command_byte][0xFF][param_len][0x00][param_bytes...]
+                cmd_byte = cmd[0]
+                if cmd[1] != 0xFF:
+                    return
 
-                if data[1] == 0xFF:  # Valid command marker
-                    stream_id = cmd_byte & 0x0F  # Extract stream ID (0=video, 1=audio)
-                    is_start = (cmd_byte & 0xF0) == 0x20  # 0x20 = start, 0x30 = stop
+                stream_id = cmd_byte & 0x0F  # Extract stream ID (0=video, 1=audio)
+                is_start = (cmd_byte & 0xF0) == 0x20  # 0x20 = start, 0x30 = stop
 
-                    if is_start:
-                        self.log(f"✅ Received START command for stream {stream_id}")
+                if is_start:
+                    self.log(f"✅ Received START command for stream {stream_id}")
 
-                        # Extract destination IP:port if present
-                        if len(data) > 6:
-                            param_len = data[2]
-                            if param_len > 2 and len(data) >= 6 + param_len - 2:
-                                dest_str = data[6:6+param_len-2].decode('ascii', errors='ignore')
-                                self.log(f"Stream destination: {dest_str}")
+                    # Extract destination IP:port if present.
+                    # param_len includes 2 duration bytes + dest string.
+                    param_len = cmd[2]
+                    if param_len > 2 and len(cmd) >= 6 + (param_len - 2):
+                        dest_str = cmd[6 : 6 + (param_len - 2)].decode("ascii", errors="ignore")
+                        self.log(f"Stream destination: {dest_str}")
 
-                                # Parse and store the destination for UDP replay
-                                if ':' in dest_str:
-                                    dest_ip, dest_port_str = dest_str.split(':', 1)
-                                    try:
-                                        dest_port = int(dest_port_str)
-                                        if stream_id == 0:  # Video
-                                            self.video_dest_ip = dest_ip
-                                            self.video_dest_port = dest_port
-                                            self.log(f"Updated video destination: {dest_ip}:{dest_port}")
-                                        elif stream_id == 1:  # Audio
-                                            self.audio_dest_ip = dest_ip
-                                            self.audio_dest_port = dest_port
-                                            self.log(f"Updated audio destination: {dest_ip}:{dest_port}")
-                                    except ValueError:
-                                        self.log(f"Invalid port in destination: {dest_str}")
+                        # Parse and store the destination for UDP replay
+                        if ":" in dest_str:
+                            dest_ip, dest_port_str = dest_str.split(":", 1)
+                            try:
+                                dest_port = int(dest_port_str)
+                                if stream_id == 0:  # Video
+                                    self.video_dest_ip = dest_ip
+                                    self.video_dest_port = dest_port
+                                    self.log(f"Updated video destination: {dest_ip}:{dest_port}")
+                                elif stream_id == 1:  # Audio
+                                    self.audio_dest_ip = dest_ip
+                                    self.audio_dest_port = dest_port
+                                    self.log(f"Updated audio destination: {dest_ip}:{dest_port}")
+                            except ValueError:
+                                self.log(f"Invalid port in destination: {dest_str}")
 
-                        # Signal that we should start UDP packet replay.
-                        # Wait until we've received START for both streams (video+audio).
-                        with self._stream_start_lock:
-                            if stream_id == 0:
-                                self._stream_start_mask |= 0x1
-                            elif stream_id == 1:
-                                self._stream_start_mask |= 0x2
-                            if self._stream_start_mask == 0x3:
-                                self.udp_replay_triggered.set()
+                    # Signal that we should start UDP packet replay.
+                    # Wait until we've received START for both streams (video+audio).
+                    with self._stream_start_lock:
+                        if stream_id == 0:
+                            self._stream_start_mask |= 0x1
+                        elif stream_id == 1:
+                            self._stream_start_mask |= 0x2
+                        if self._stream_start_mask == 0x3:
+                            self.udp_replay_triggered.set()
+                else:
+                    self.log(f"Received STOP command for stream {stream_id}")
 
-                    else:
-                        self.log(f"Received STOP command for stream {stream_id}")
+            total_received = 0
+            while time.monotonic() < deadline:
+                try:
+                    chunk = conn.recv(1024)
+                except socket.timeout:
+                    continue
 
+                if not chunk:
+                    break
+
+                total_received += len(chunk)
+                buffer.extend(chunk)
+
+                # Parse as many complete commands as are available.
+                while len(buffer) >= 4:
+                    if buffer[1] != 0xFF:
+                        # Resync (defensive): drop until the marker aligns.
+                        del buffer[0]
+                        continue
+
+                    param_len = buffer[2]
+                    total_len = 4 + param_len
+                    if total_len < 4:
+                        del buffer[0]
+                        continue
+
+                    if len(buffer) < total_len:
+                        break
+
+                    cmd = bytes(buffer[:total_len])
+                    del buffer[:total_len]
+                    handle_command(cmd)
+
+            self.log(f"📨 Received {total_received} bytes from {addr}")
             conn.close()
 
         except Exception as e:
@@ -3109,6 +3437,54 @@ class E2ETest:
         validation_errors = []
         validation_warnings = []
 
+        # CRITICAL: Check packet source to prevent cross-test pollution.
+        # - Synthetic/mock runs should see sequence numbers starting near 0.
+        # - Device runs should see high sequence numbers (real device stream), not near-zero.
+        network_csv = self.output_dir / 'network.csv'
+        if network_csv.exists():
+            try:
+                import csv
+                with open(network_csv, 'r') as f:
+                    reader = csv.DictReader(f)
+                    first_video_seq = None
+                    first_audio_seq = None
+                    for row in reader:
+                        if row['packet_type'] == 'video' and first_video_seq is None:
+                            first_video_seq = int(row['sequence_num'])
+                        elif row['packet_type'] == 'audio' and first_audio_seq is None:
+                            first_audio_seq = int(row['sequence_num'])
+                        if first_video_seq is not None and first_audio_seq is not None:
+                            break
+
+                    if self.packet_source == 'mock':
+                        # Mock runs should start near 0 (within first 100 packets).
+                        if first_video_seq is not None and first_video_seq > 1000:
+                            error_msg = (
+                                f"❌ CROSS-POLLUTION DETECTED: First video packet has sequence {first_video_seq} (expected <100)\n"
+                                f"   This indicates packets came from REAL C64 device, not mock C64U!\n"
+                                f"   Real C64 device must be stopped before running synthetic tests."
+                            )
+                            print(error_msg)
+                            validation_errors.append(f"Cross-pollution: video sequence {first_video_seq} >> 1000")
+                        elif first_audio_seq is not None and first_audio_seq > 1000:
+                            error_msg = (
+                                f"❌ CROSS-POLLUTION DETECTED: First audio packet has sequence {first_audio_seq} (expected <100)\n"
+                                f"   This indicates packets came from REAL C64 device, not mock C64U!\n"
+                                f"   Real C64 device must be stopped before running synthetic tests."
+                            )
+                            print(error_msg)
+                            validation_errors.append(f"Cross-pollution: audio sequence {first_audio_seq} >> 1000")
+                        else:
+                            print(f"✅ Packet Source: Mock C64U (video seq={first_video_seq}, audio seq={first_audio_seq})")
+                    elif self.packet_source == 'device':
+                        # Device runs often begin with a device reset to prevent cross-test pollution.
+                        # After a reset, the real device sequence numbers may legitimately start near 0,
+                        # so sequence is not a reliable discriminator between mock vs device.
+                        print(f"ℹ️ Packet Source: Device mode (video seq={first_video_seq}, audio seq={first_audio_seq})")
+            except Exception as e:
+                validation_warnings.append(f"Could not verify packet source: {e}")
+        is_full_frame_pop = self.full_frame_pop
+
         # Track individual validation results
         validation_results = {
             'udp_reception': {'status': 'unknown', 'details': ''},
@@ -3118,7 +3494,9 @@ class E2ETest:
             'network_timing': {'status': 'unknown', 'details': ''},
         }
 
-        # Calculate expected packet counts using actual generation logic
+        # Calculate expected packet counts.
+        # - mock: deterministic (based on frames + generator logic)
+        # - device: estimated from observed capture duration + nominal packet rates
         if self.format == 'PAL':
             video_packets_per_frame = 68  # 272 lines / 4 lines per packet
             frame_rate = 50.125
@@ -3128,19 +3506,55 @@ class E2ETest:
             frame_rate = 59.826
             audio_sample_rate = 47940
 
-        # Video packets calculation (unchanged)
-        expected_video_packets = self.frames * video_packets_per_frame
-
-        # Audio packets calculation (matches generate_packets.py logic)
-        frame_duration_ms = 1000.0 / frame_rate
-        total_test_duration_ms = self.frames * frame_duration_ms
         audio_samples_per_packet = 192  # Stereo samples
-        audio_packet_duration_ms = (audio_samples_per_packet / audio_sample_rate) * 1000
-        expected_audio_packets = int(total_test_duration_ms / audio_packet_duration_ms)
+        video_packets_per_s = video_packets_per_frame * frame_rate
+        audio_packets_per_s = audio_sample_rate / float(audio_samples_per_packet)
 
-        expected_total_packets = expected_video_packets + expected_audio_packets
+        expected_total_packets: int | None = None
+        expected_video_packets: int | None = None
+        expected_audio_packets: int | None = None
+        expected_total_low: int | None = None
+        expected_total_high: int | None = None
+        expected_duration_s: float | None = None
 
-        print(f"Expected: {expected_total_packets} packets ({expected_video_packets} video + {expected_audio_packets} audio)")
+        if self.packet_source == 'device':
+            # Device runs: sender packet count isn't deterministic.
+            # Prefer network.json's measured packet span (computed from the full CSV in check_csv_recordings()).
+            duration_ms = None
+            network_json = self.output_dir / 'network.json'
+            if network_json.exists():
+                try:
+                    with open(network_json, 'r') as f:
+                        net = json.load(f)
+                    duration_ms = (net.get('summary', {}) or {}).get('duration_ms', None)
+                except Exception:
+                    duration_ms = None
+
+            # Fallback: obs.csv processing duration is a good proxy for "how long OBS was receiving/processing".
+            if duration_ms is None:
+                duration_ms = self._get_obs_processing_duration_ms()
+
+            # Last resort: scenario target duration.
+            expected_duration_s = (float(duration_ms) / 1000.0) if duration_ms is not None else (float(self.frames) / frame_rate)
+
+            expected_total_est = int(expected_duration_s * (video_packets_per_s + audio_packets_per_s))
+            expected_total_low = int(expected_total_est * 0.75)
+            expected_total_high = int(expected_total_est * 1.35)
+            print(
+                f"Expected (estimated): ~{expected_total_est} packets over {expected_duration_s:.1f}s "
+                f"(range {expected_total_low}..{expected_total_high})"
+            )
+        else:
+            # Deterministic expectation matching generate_packets.py.
+            expected_video_packets = self.frames * video_packets_per_frame
+            frame_duration_ms = 1000.0 / frame_rate
+            total_test_duration_ms = self.frames * frame_duration_ms
+            audio_packet_duration_ms = (audio_samples_per_packet / audio_sample_rate) * 1000
+            expected_audio_packets = int(total_test_duration_ms / audio_packet_duration_ms)
+            expected_total_packets = expected_video_packets + expected_audio_packets
+            print(
+                f"Expected: {expected_total_packets} packets ({expected_video_packets} video + {expected_audio_packets} audio)"
+            )
 
         # 1. UDP Packet Reception Validation
         # Use original counts from before CSV truncation for accurate validation
@@ -3150,24 +3564,72 @@ class E2ETest:
         audio_packets = original_counts.get('audio_packets', 0)
 
         if received_packets > 0:
-            if received_packets == expected_total_packets:
-                print(f"✅ UDP Reception: {received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio)")
-                validation_results['udp_reception'] = {'status': 'pass', 'details': f"{received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio)"}
-            elif received_packets >= expected_total_packets * 0.95:  # 95% threshold
-                print(f"⚠️  UDP Reception: {received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio)")
-                validation_warnings.append(f"Packet loss: {expected_total_packets - received_packets} packets missing")
-                validation_results['udp_reception'] = {'status': 'warning', 'details': f"{received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio, minor loss)"}
+            if self.packet_source == 'device' and expected_total_low is not None and expected_total_high is not None:
+                # Device: sender packet count isn't deterministic. Validate within a reasonable range.
+                expected_midpoint = (expected_total_low + expected_total_high) / 2.0
+                deviation_pct = ((float(received_packets) - expected_midpoint) / expected_midpoint) * 100.0
+                device_expectation_str = (
+                    f"expected range {expected_total_low}..{expected_total_high} "
+                    f"(mid {expected_midpoint:.0f}, deviation {deviation_pct:+.1f}% vs midpoint)"
+                )
+                if expected_total_low <= received_packets <= expected_total_high:
+                    print(
+                        f"✅ UDP Reception: {received_packets} packets ({video_packets} video, {audio_packets} audio, within expected range; {device_expectation_str})"
+                    )
+                    validation_results['udp_reception'] = {
+                        'status': 'pass',
+                        'details': f"{received_packets} packets ({video_packets} video, {audio_packets} audio, within expected range; {device_expectation_str})",
+                    }
+                elif received_packets < expected_total_low:
+                    print(
+                        f"⚠️  UDP Reception: {received_packets} packets ({video_packets} video, {audio_packets} audio, below expected range; {device_expectation_str})"
+                    )
+                    # Defer to frame processing: low packet rate is only fatal if frames also fail.
+                    validation_results['udp_reception'] = {
+                        'status': 'deferred',
+                        'details': f"{received_packets} packets ({video_packets} video, {audio_packets} audio, below expected range; {device_expectation_str})",
+                        'packets_missing': expected_total_low - received_packets,
+                    }
+                else:
+                    print(
+                        f"⚠️  UDP Reception: {received_packets} packets ({video_packets} video, {audio_packets} audio, above expected range; {device_expectation_str})"
+                    )
+                    validation_warnings.append(
+                        f"Higher-than-expected packet count for device run: {received_packets} > {expected_total_high}"
+                    )
+                    validation_results['udp_reception'] = {
+                        'status': 'warning',
+                        'details': f"{received_packets} packets ({video_packets} video, {audio_packets} audio, above expected range; {device_expectation_str})",
+                    }
             else:
-                # Major packet loss - but defer error decision until we check frame processing
-                # If frames are processed successfully, packet logging loss is a warning (CI timing issue)
-                # If frames also fail, then it's a true error
-                print(f"⚠️  UDP Reception: {received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio)")
-                # Store info for deferred decision after frame processing check
-                validation_results['udp_reception'] = {
-                    'status': 'deferred',  # Will be resolved after frame check
-                    'details': f"{received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio, major loss)",
-                    'packets_missing': expected_total_packets - received_packets
-                }
+                assert expected_total_packets is not None
+                if received_packets >= expected_total_packets:
+                    print(
+                        f"✅ UDP Reception: {received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio)"
+                    )
+                    validation_results['udp_reception'] = {
+                        'status': 'pass',
+                        'details': f"{received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio)",
+                    }
+                elif received_packets >= expected_total_packets * 0.95:  # 95% threshold
+                    missing = max(0, expected_total_packets - received_packets)
+                    print(
+                        f"⚠️  UDP Reception: {received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio)"
+                    )
+                    validation_warnings.append(f"Packet loss: {missing} packets missing")
+                    validation_results['udp_reception'] = {
+                        'status': 'warning',
+                        'details': f"{received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio, minor loss)",
+                    }
+                else:
+                    print(
+                        f"⚠️  UDP Reception: {received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio)"
+                    )
+                    validation_results['udp_reception'] = {
+                        'status': 'deferred',
+                        'details': f"{received_packets}/{expected_total_packets} packets ({video_packets} video, {audio_packets} audio, major loss)",
+                        'packets_missing': max(0, expected_total_packets - received_packets),
+                    }
         else:
             print("❌ UDP Reception: No network.csv found")
             validation_errors.append("Missing network.csv - plugin may not be receiving UDP packets")
@@ -3181,6 +3643,7 @@ class E2ETest:
             video_format=self.format,
             frames=self.frames,
             network_simulation=self.network_simulation,
+            packet_source=self.packet_source,
         )
 
         strict_network_timing = self.is_ci or (os.environ.get('C64_E2E_STRICT_NETWORK_TIMING', '') == '1')
@@ -3287,92 +3750,98 @@ class E2ETest:
                     # - sample multiple timestamps
                     # - analyze center crop (avoid letterboxing)
                     # - use luma instead of raw RGB byte mean
-                    try:
-                        import subprocess
-                        import numpy as np
-
-                        w, h = 1920, 1080
-                        crop_w, crop_h = w // 2, h // 2
-                        frame_bytes = crop_w * crop_h * 3
-
-                        # Choose a few offsets that are likely to land inside stable content.
-                        # Use duration if available; otherwise fall back to fixed timestamps.
-                        offsets = []
+                    if is_full_frame_pop:
+                        validation_results['video_brightness'] = {
+                            'status': 'skipped',
+                            'details': 'Skipped (full-frame-pop scenario)'
+                        }
+                    else:
                         try:
-                            d = float(duration) if duration else 0.0
-                        except Exception:
-                            d = 0.0
+                            import subprocess
+                            import numpy as np
 
-                        if d > 2.0:
-                            offsets = [max(0.5, d * 0.25), max(0.5, d * 0.5), max(0.5, min(d * 0.75, d - 0.5))]
-                        else:
-                            offsets = [0.5, 1.0, 1.5]
+                            w, h = 1920, 1080
+                            crop_w, crop_h = w // 2, h // 2
+                            frame_bytes = crop_w * crop_h * 3
 
-                        # Ensure offsets are unique and within bounds.
-                        cleaned_offsets = []
-                        for t in offsets:
-                            t = float(t)
-                            if d > 0.0:
-                                t = max(0.0, min(t, max(0.0, d - 0.1)))
-                            if t not in cleaned_offsets:
-                                cleaned_offsets.append(t)
+                            # Choose a few offsets that are likely to land inside stable content.
+                            # Use duration if available; otherwise fall back to fixed timestamps.
+                            offsets = []
+                            try:
+                                d = float(duration) if duration else 0.0
+                            except Exception:
+                                d = 0.0
 
-                        best_mean_luma = None
-                        best_offset = None
-                        sampled = []
-
-                        for t in cleaned_offsets:
-                            brightness_cmd = [
-                                'ffmpeg', '-v', 'error',
-                                '-ss', f'{t:.3f}',
-                                '-i', str(recording_file),
-                                '-vframes', '1',
-                                '-vf', 'crop=iw*0.5:ih*0.5:iw*0.25:ih*0.25',
-                                '-f', 'rawvideo',
-                                '-pix_fmt', 'rgb24',
-                                '-'
-                            ]
-                            brightness_result = subprocess.run(brightness_cmd, capture_output=True, timeout=10)
-                            if brightness_result.returncode != 0 or len(brightness_result.stdout) != frame_bytes:
-                                continue
-
-                            frame = np.frombuffer(brightness_result.stdout, dtype=np.uint8).reshape((crop_h, crop_w, 3))
-                            # Luma in 0..255
-                            f = frame.astype(np.float32)
-                            luma = 0.2126 * f[..., 0] + 0.7152 * f[..., 1] + 0.0722 * f[..., 2]
-                            mean_luma = float(np.mean(luma))
-                            sampled.append({"t": float(t), "mean_luma": mean_luma})
-                            if best_mean_luma is None or mean_luma > best_mean_luma:
-                                best_mean_luma = mean_luma
-                                best_offset = float(t)
-
-                        if best_mean_luma is not None:
-                            details = {"best_offset_s": best_offset, "best_mean_luma": float(best_mean_luma), "samples": sampled}
-                            # Note: Sparse patterns like 'dots' can have very low mean luma (e.g., 1.12)
-                            # Only fail if essentially black (< 1.0), warn if very dark (< 5.0)
-                            if best_mean_luma < 1.0:  # Essentially black
-                                print(f"❌ Video Brightness: Content appears black (best_mean_luma={best_mean_luma:.2f} @ {best_offset:.1f}s)")
-                                validation_errors.append(
-                                    f"Video content appears black (best mean luma {best_mean_luma:.1f}/255 @ {best_offset:.1f}s)"
-                                )
-                                validation_results['video_brightness'] = {'status': 'fail', 'details': f'Black (best_mean_luma={best_mean_luma:.1f})', 'metrics': details}
-                            elif best_mean_luma < 5.0:  # Very dark (e.g., sparse dot patterns)
-                                print(f"⚠️  Video Brightness: Content appears very dark (best_mean_luma={best_mean_luma:.2f} @ {best_offset:.1f}s) - OK for sparse patterns")
-                                validation_results['video_brightness'] = {'status': 'pass', 'details': f'Very dark but acceptable (best_mean_luma={best_mean_luma:.1f})', 'metrics': details}
-                            elif best_mean_luma < 15.0:  # Dark
-                                print(f"⚠️  Video Brightness: Content appears very dark (best_mean_luma={best_mean_luma:.2f} @ {best_offset:.1f}s)")
-                                validation_warnings.append(
-                                    f"Video content is very dark (best mean luma {best_mean_luma:.1f}/255 @ {best_offset:.1f}s)"
-                                )
-                                validation_results['video_brightness'] = {'status': 'warning', 'details': f'Very dark (best_mean_luma={best_mean_luma:.1f})', 'metrics': details}
+                            if d > 2.0:
+                                offsets = [max(0.5, d * 0.25), max(0.5, d * 0.5), max(0.5, min(d * 0.75, d - 0.5))]
                             else:
-                                print(f"✅ Video Brightness: Normal (best_mean_luma={best_mean_luma:.2f} @ {best_offset:.1f}s)")
-                                validation_results['video_brightness'] = {'status': 'pass', 'details': f'Normal (best_mean_luma={best_mean_luma:.1f})', 'metrics': details}
-                        else:
-                            validation_results['video_brightness'] = {'status': 'unknown', 'details': 'Could not sample frames for brightness check'}
-                    except Exception as e:
-                        # Non-critical - just log and continue
-                        validation_results['video_brightness'] = {'status': 'unknown', 'details': f'Check failed: {e}'}
+                                offsets = [0.5, 1.0, 1.5]
+
+                            # Ensure offsets are unique and within bounds.
+                            cleaned_offsets = []
+                            for t in offsets:
+                                t = float(t)
+                                if d > 0.0:
+                                    t = max(0.0, min(t, max(0.0, d - 0.1)))
+                                if t not in cleaned_offsets:
+                                    cleaned_offsets.append(t)
+
+                            best_mean_luma = None
+                            best_offset = None
+                            sampled = []
+
+                            for t in cleaned_offsets:
+                                brightness_cmd = [
+                                    'ffmpeg', '-v', 'error',
+                                    '-ss', f'{t:.3f}',
+                                    '-i', str(recording_file),
+                                    '-vframes', '1',
+                                    '-vf', 'crop=iw*0.5:ih*0.5:iw*0.25:ih*0.25',
+                                    '-f', 'rawvideo',
+                                    '-pix_fmt', 'rgb24',
+                                    '-'
+                                ]
+                                brightness_result = subprocess.run(brightness_cmd, capture_output=True, timeout=10)
+                                if brightness_result.returncode != 0 or len(brightness_result.stdout) != frame_bytes:
+                                    continue
+
+                                frame = np.frombuffer(brightness_result.stdout, dtype=np.uint8).reshape((crop_h, crop_w, 3))
+                                # Luma in 0..255
+                                f = frame.astype(np.float32)
+                                luma = 0.2126 * f[..., 0] + 0.7152 * f[..., 1] + 0.0722 * f[..., 2]
+                                mean_luma = float(np.mean(luma))
+                                sampled.append({"t": float(t), "mean_luma": mean_luma})
+                                if best_mean_luma is None or mean_luma > best_mean_luma:
+                                    best_mean_luma = mean_luma
+                                    best_offset = float(t)
+
+                            if best_mean_luma is not None:
+                                details = {"best_offset_s": best_offset, "best_mean_luma": float(best_mean_luma), "samples": sampled}
+                                # Note: Sparse patterns like 'dots' can have very low mean luma (e.g., 1.12)
+                                # Only fail if essentially black (< 1.0), warn if very dark (< 5.0)
+                                if best_mean_luma < 1.0:  # Essentially black
+                                    print(f"❌ Video Brightness: Content appears black (best_mean_luma={best_mean_luma:.2f} @ {best_offset:.1f}s)")
+                                    validation_errors.append(
+                                        f"Video content appears black (best mean luma {best_mean_luma:.1f}/255 @ {best_offset:.1f}s)"
+                                    )
+                                    validation_results['video_brightness'] = {'status': 'fail', 'details': f'Black (best_mean_luma={best_mean_luma:.1f})', 'metrics': details}
+                                elif best_mean_luma < 5.0:  # Very dark (e.g., sparse dot patterns)
+                                    print(f"⚠️  Video Brightness: Content appears very dark (best_mean_luma={best_mean_luma:.2f} @ {best_offset:.1f}s) - OK for sparse patterns")
+                                    validation_results['video_brightness'] = {'status': 'pass', 'details': f'Very dark but acceptable (best_mean_luma={best_mean_luma:.1f})', 'metrics': details}
+                                elif best_mean_luma < 15.0:  # Dark
+                                    print(f"⚠️  Video Brightness: Content appears very dark (best_mean_luma={best_mean_luma:.2f} @ {best_offset:.1f}s)")
+                                    validation_warnings.append(
+                                        f"Video content is very dark (best mean luma {best_mean_luma:.1f}/255 @ {best_offset:.1f}s)"
+                                    )
+                                    validation_results['video_brightness'] = {'status': 'warning', 'details': f'Very dark (best_mean_luma={best_mean_luma:.1f})', 'metrics': details}
+                                else:
+                                    print(f"✅ Video Brightness: Normal (best_mean_luma={best_mean_luma:.2f} @ {best_offset:.1f}s)")
+                                    validation_results['video_brightness'] = {'status': 'pass', 'details': f'Normal (best_mean_luma={best_mean_luma:.1f})', 'metrics': details}
+                            else:
+                                validation_results['video_brightness'] = {'status': 'unknown', 'details': 'Could not sample frames for brightness check'}
+                        except Exception as e:
+                            # Non-critical - just log and continue
+                            validation_results['video_brightness'] = {'status': 'unknown', 'details': f'Check failed: {e}'}
 
                 else:
                     print(f"❌ Video Recording: {file_size:,} bytes (<{min_expected_size:,} bytes)")
@@ -3392,7 +3861,7 @@ class E2ETest:
         # A/V sync is a critical component of the streaming functionality
         av_validation = True
         visuals_results = None  # cache visual checks to avoid running twice
-        if recording_file and Path(recording_file).exists() and verify_av_sync:
+        if (not is_full_frame_pop) and recording_file and Path(recording_file).exists() and verify_av_sync:
             try:
                 print(f"🎵 A/V Sync: Running A/V sync check (pops, tolerance={self.av_sync_tolerance_ms}ms)...")
                 # Tolerance: configurable per-scenario, default 60ms (~3 frames at 60fps)
@@ -3619,7 +4088,16 @@ class E2ETest:
                             ('record_frames', RecordFramesAssertion),
                         ]:
                             try:
-                                a = assertion_cls()
+                                if assertion_name == 'record_video':
+                                    record_height = 240 if self.format == 'NTSC' else 272
+                                    a = assertion_cls(
+                                        thresholds={
+                                            "expected_width": 384,
+                                            "expected_height": record_height,
+                                        }
+                                    )
+                                else:
+                                    a = assertion_cls()
                                 res = a.verify(Path(recording_file), properties={}, preset=None, verbose=self.verbose)
                                 recording_results[assertion_name] = {
                                     'status': res.status.value,
@@ -3655,11 +4133,68 @@ class E2ETest:
                 validation_results['av_sync'] = {'status': 'fail', 'details': 'Analysis failed'}
                 av_validation = False
         else:
-            if not verify_av_sync:
+            if is_full_frame_pop:
+                print("⚪ A/V Sync: Skipped (full-frame-pop scenario)")
+                validation_results['av_sync'] = {'status': 'skipped', 'details': 'Skipped (full-frame-pop scenario)'}
+            elif not verify_av_sync:
                 print("❌ A/V Sync: Analysis not available (missing dependencies)")
                 validation_errors.append("A/V sync analysis unavailable")
                 validation_results['av_sync'] = {'status': 'fail', 'details': 'Analysis unavailable'}
                 av_validation = False
+
+        if is_full_frame_pop and recording_file and Path(recording_file).exists():
+            try:
+                from assertions.av_sync_offset import AvSyncOffsetAssertion
+
+                a = AvSyncOffsetAssertion()
+                res = a.verify(Path(recording_file), properties={}, preset=None, verbose=self.verbose)
+                validation_results['av_sync_offset'] = {
+                    'status': res.status.value,
+                    'message': res.message,
+                    'details': res.details,
+                    'metrics': res.metrics,
+                }
+
+                # Convert av_sync_offset data to av_sync_details format for markdown reporting
+                # Try multiple approaches to get pop data
+                av_sync_details = None
+
+                # Approach 1: Read directly from av-sync.csv (most reliable for full-frame-pop)
+                av_sync_details = self._build_av_sync_details_from_csv(self.output_dir)
+
+                # Approach 2: Fall back to av_sync_offset sources if CSV didn't work
+                if not av_sync_details and res.details and 'sources' in res.details:
+                    av_sync_details = self._build_av_sync_details_from_offset(res.details['sources'])
+
+                if av_sync_details:
+                    validation_results['av_sync_details'] = av_sync_details
+                    # If we have pop data but the assertion failed, it's because not enough pops or threshold issues
+                    # We should still fail if we don't have ANY pops
+                    if av_sync_details['total_audio_pops'] < 2:
+                        validation_errors.append(f"Too few A/V pops detected: {av_sync_details['total_audio_pops']} (minimum 2 required)")
+                else:
+                    # NO pop data at all - this is a critical failure
+                    validation_errors.append("No A/V sync pops detected in recording")
+
+                if res.status.value == 'pass':
+                    print(f"✅ {a.name}: {res.message}")
+                elif res.status.value == 'warning':
+                    print(f"⚠️  {a.name}: {res.message}")
+                    validation_warnings.append(f"{a.name}: {res.message}")
+                elif res.status.value == 'skip':
+                    print(f"⚪ {a.name}: {res.message}")
+                else:
+                    print(f"❌ {a.name}: {res.message}")
+                    # Only add to validation_errors if we don't already have it (from no pops check above)
+                    if av_sync_details and av_sync_details['total_audio_pops'] >= 2:
+                        validation_errors.append(f"{a.name}: {res.message}")
+            except Exception as e:
+                print(f"❌ av_sync_offset: Analysis failed - {e}")
+                validation_errors.append(f"av_sync_offset error: {e}")
+                validation_results['av_sync_offset'] = {
+                    'status': 'fail',
+                    'message': f'Analysis failed - {e}',
+                }
 
         # Summary with traffic-light statuses and key metrics
         print(f"\n{'='*60}")
@@ -3762,10 +4297,19 @@ class E2ETest:
                 self.log("❌ Failed to copy E2E properties")
                 return False
 
-            # Start mock C64 Ultimate TCP server BEFORE OBS
-            # This is critical because the plugin auto-connects when it's created
-            if not self.start_mock_c64_server():
-                self.log("❌ Failed to start mock C64 server")
+            # Packet source selection:
+            # - mock: start the mock C64 Ultimate TCP server and use udp_replay.
+            # - device: do NOT start mock sender infrastructure.
+            if self.packet_source == 'mock':
+                # Start mock C64 Ultimate TCP server BEFORE OBS.
+                # This is critical because the plugin auto-connects when it's created.
+                if not self.start_mock_c64_server():
+                    self.log("❌ Failed to start mock C64 server")
+                    return False
+            elif self.packet_source == 'device':
+                self.log("ℹ️ Packet source is 'device' - skipping mock C64 server")
+            else:
+                self.log(f"❌ Unknown packet_source: {self.packet_source}")
                 return False
 
             # Start OBS with recording enabled
@@ -3800,14 +4344,22 @@ class E2ETest:
                 self.log("✅ Plugin is ready, starting packet replay immediately")
 
             # Brief delay to ensure UDP sockets are bound and plugin is fully ready
-            udp_ready_delay = 2.0 if self.is_ci else 0.3
+            udp_ready_delay = 2.0 if self.is_ci else (0.8 if self.packet_source == 'device' else 0.3)
             self.log(f"⏳ Allowing {udp_ready_delay}s for UDP socket binding and plugin readiness...")
             time.sleep(udp_ready_delay)
 
             self.log("✅ OBS recording active, plugin ready")
 
-            # Run packet replay while recording
-            self.log("Running packet replay while OBS is recording...")
+            # Ensure receiver threads are ready before driving packet source.
+            receiver_timeout = 20 if self.is_ci else 8
+            if not self.wait_for_receiver_threads(timeout=receiver_timeout):
+                self.log("⚠️ Receiver threads not confirmed within timeout; proceeding")
+
+            # Drive packet source while recording
+            if self.packet_source == 'mock':
+                self.log("Running packet replay while OBS is recording...")
+            else:
+                self.log("Running device-backed capture while OBS is recording...")
 
             # Optional: record a perf profile of OBS during replay + grace period.
             if self.enable_perf_profile and self.obs_process:
@@ -3817,20 +4369,56 @@ class E2ETest:
                 duration_s = self.perf_duration_s if self.perf_duration_s is not None else expected_s
                 self._start_perf_profile(self.obs_process.pid, duration_s)
 
-            replay_success = self.replay_packets(udp_replay_path)
+            if self.packet_source == 'mock':
+                replay_success = self.replay_packets(udp_replay_path)
+            else:
+                # Device-backed scenario: enable A/V sync at runtime via OBS properties.
+                if not self.wait_for_obs_websocket(timeout=20):
+                    self.log("❌ OBS WebSocket not ready; cannot toggle A/V sync property")
+                    return False
+
+                if not self._set_obs_input_settings('C64 Stream', {'record_av_sync': True}, overlay=True):
+                    self.log("❌ Failed to enable A/V sync (record_av_sync) via WebSocket")
+                    return False
+
+                # Wait for C64U to launch the A/V sync PRG and start emitting packets
+                # The PRG needs time to: receive REST call, load, start, and begin pattern
+                prg_launch_delay = 15.0 if self.is_ci else 10.0
+                self.log(f"⏳ Waiting {prg_launch_delay}s for C64U to launch A/V sync PRG and start emitting...")
+                time.sleep(prg_launch_delay)
+
+                # Wait until we've captured enough frames to satisfy assertions (and include multiple sync pulses).
+                fps = 59.826 if self.format == 'NTSC' else 50.125
+                expected_s = (float(self.frames) / fps) + (12.0 if self.is_ci else 8.0)
+                if not self._wait_for_obs_csv_frames(min_frames=int(self.frames), timeout_s=expected_s):
+                    return False
+
+                replay_success = True
 
             if replay_success:
                 self.log("✅ Packet replay completed successfully")
             else:
                 self.log("❌ Packet replay failed")
 
-            # Stop recording promptly after last frame received
+            # Stop recording promptly after last frame received / captured.
             # Keep recording a short grace period to allow OBS to flush frames
             # Reduced grace period to minimize logo display at end (was 5s/3s, now 2s/1.5s)
             grace = 2.0 if self.is_ci else 1.5
             self.log(f"⏳ Waiting {grace}s after last frame, then stopping recording...")
             time.sleep(grace)
             self.stop_recording()
+
+            # Device teardown requirement: disable A/V sync (triggers device reset) without manual interaction.
+            if self.packet_source == 'device' and self.enable_websocket and WEBSOCKET_AVAILABLE:
+                # Best-effort: allow the plugin to flush av-sync.csv rows before toggling.
+                self._wait_for_av_sync_csv_quiescent(timeout_s=6.0, stable_s=1.0)
+                if self._set_obs_input_settings('C64 Stream', {'record_av_sync': False}, overlay=True):
+                    self.log("✅ Disabled A/V sync via WebSocket (record_av_sync=false)")
+                    # Give the plugin a moment to issue reset/cleanup calls.
+                    time.sleep(2.5)
+                else:
+                    self.log("⚠️ Failed to disable A/V sync via WebSocket")
+
             # Minimal extra wait to ensure the output file is finalized
             time.sleep(1)
 
@@ -3926,8 +4514,12 @@ def main():
                         help='Audio UDP port (default: 21001)')
     parser.add_argument('--control-port', type=int, default=6400,
                         help='Control TCP port for mock C64 Ultimate server (default: 6400)')
-    parser.add_argument('--udp-replay', default='./udp_replay',
-                        help='Path to udp_replay executable (default: ./udp_replay)')
+    parser.add_argument('--udp-replay', default='./util/udp_replay',
+                        help='Path to udp_replay executable (default: ./util/udp_replay)')
+    parser.add_argument('--packet-source', choices=['mock', 'device'], default='mock',
+                        help='Packet source: mock (synthetic sender) or device (real C64U) (default: mock)')
+    parser.add_argument('--full-frame-pop', action='store_true',
+                        help='Enable full-frame-pop validation behavior (scenario-driven)')
     parser.add_argument('--verbose', action='store_true',
                         help='Enable verbose logging')
     parser.add_argument('--enable-websocket', action='store_true',
@@ -4002,7 +4594,7 @@ def main():
     # - Do NOT build into args.output_dir: the test harness wipes output_dir at runtime
     #   (see E2ETest.clean_test_output), which would delete the freshly built binary.
     script_dir = Path(__file__).parent
-    udp_replay_src = script_dir / "udp_replay.c"
+    udp_replay_src = script_dir / "util" / "udp_replay.c"
 
     udp_replay_requested = Path(args.udp_replay)
     udp_replay_path = udp_replay_requested
@@ -4063,6 +4655,8 @@ def main():
         csv_max_rows=csv_max_rows,
         enable_resource_monitoring=args.enable_resource_monitoring,
         resource_interval_ms=args.resource_interval_ms,
+        packet_source=args.packet_source,
+        full_frame_pop=args.full_frame_pop,
         settling_seconds=args.settling_seconds,
         enable_perf_profile=args.perf_profile,
         perf_frequency_hz=args.perf_frequency_hz,

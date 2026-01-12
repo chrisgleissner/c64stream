@@ -10,6 +10,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-logging.h"
 
 #include <curl/curl.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -57,31 +58,54 @@ static size_t write_callback(void *contents, size_t size, size_t nmemb, void *us
 c64_rest_client_t *c64_rest_client_create(const char *base_url, const char *password)
 {
     if (!base_url) {
+        C64_LOG_ERROR(REST_LOG_PREFIX "c64_rest_client_create called with NULL base_url");
         return NULL;
     }
 
+    C64_LOG_DEBUG(REST_LOG_PREFIX "Creating REST client for %s", base_url);
+
+    // Note: We do NOT call curl_global_init() here. OBS Studio initializes libcurl
+    // globally during startup, and plugins must use only per-handle APIs like
+    // curl_easy_init/cleanup. Calling curl_global_init in a plugin can cause
+    // crashes on Windows when detached threads exit.
+
     c64_rest_client_t *client = calloc(1, sizeof(c64_rest_client_t));
     if (!client) {
+        C64_LOG_ERROR(REST_LOG_PREFIX "Failed to allocate client");
         return NULL;
     }
 
     client->base_url = strdup(base_url);
-    if (password) {
-        client->password = strdup(password);
+    if (!client->base_url) {
+        C64_LOG_ERROR(REST_LOG_PREFIX "Failed to duplicate base_url");
+        free(client);
+        return NULL;
     }
 
-    // Initialize curl handle
+    if (password) {
+        client->password = strdup(password);
+        if (!client->password) {
+            C64_LOG_ERROR(REST_LOG_PREFIX "Failed to duplicate password");
+            free(client->base_url);
+            free(client);
+            return NULL;
+        }
+    }
+
+    // Initialize curl handle (per-handle API, safe in OBS plugins)
+    C64_LOG_DEBUG(REST_LOG_PREFIX "Initializing CURL handle");
     client->curl = curl_easy_init();
     if (!client->curl) {
+        C64_LOG_ERROR(REST_LOG_PREFIX "curl_easy_init failed");
         free(client->base_url);
         free(client->password);
         free(client);
         return NULL;
     }
 
-    // Set common curl options
-    curl_easy_setopt(client->curl, CURLOPT_TIMEOUT, HTTP_TIMEOUT_SECONDS);
+    // Set common curl options - CRITICAL: NOSIGNAL must be set to prevent crashes on Windows
     curl_easy_setopt(client->curl, CURLOPT_NOSIGNAL, 1L);
+    curl_easy_setopt(client->curl, CURLOPT_TIMEOUT, HTTP_TIMEOUT_SECONDS);
     curl_easy_setopt(client->curl, CURLOPT_FOLLOWLOCATION, 1L);
 
     C64_LOG_INFO(REST_LOG_PREFIX "Created REST client for %s", base_url);
@@ -94,12 +118,17 @@ void c64_rest_client_destroy(c64_rest_client_t *client)
         return;
     }
 
+    C64_LOG_DEBUG(REST_LOG_PREFIX "Destroying REST client");
+
     if (client->curl) {
         curl_easy_cleanup(client->curl);
+        C64_LOG_DEBUG(REST_LOG_PREFIX "CURL handle cleaned up");
     }
     free(client->base_url);
     free(client->password);
     free(client);
+
+    C64_LOG_DEBUG(REST_LOG_PREFIX "REST client destroyed");
 }
 
 // Perform HTTP request
@@ -107,8 +136,11 @@ static bool http_request(c64_rest_client_t *client, const char *method, const ch
                          const uint8_t *body_data, size_t body_size, response_buffer_t *response)
 {
     if (!client || !client->curl || !method || !endpoint) {
+        C64_LOG_ERROR(REST_LOG_PREFIX "http_request called with invalid parameters");
         return false;
     }
+
+    C64_LOG_DEBUG(REST_LOG_PREFIX "HTTP %s %s%s", method, endpoint, query_params ? query_params : "");
 
     char url[1024];
     if (query_params) {
@@ -119,8 +151,10 @@ static bool http_request(c64_rest_client_t *client, const char *method, const ch
 
     // Reset curl for new request
     curl_easy_reset(client->curl);
-    curl_easy_setopt(client->curl, CURLOPT_TIMEOUT, HTTP_TIMEOUT_SECONDS);
+
+    // CRITICAL: After curl_easy_reset, we must re-set NOSIGNAL to prevent Windows crashes
     curl_easy_setopt(client->curl, CURLOPT_NOSIGNAL, 1L);
+    curl_easy_setopt(client->curl, CURLOPT_TIMEOUT, HTTP_TIMEOUT_SECONDS);
     curl_easy_setopt(client->curl, CURLOPT_URL, url);
 
     // Set custom headers
@@ -159,6 +193,7 @@ static bool http_request(c64_rest_client_t *client, const char *method, const ch
     }
 
     // Perform request
+    C64_LOG_DEBUG(REST_LOG_PREFIX "Performing CURL request");
     CURLcode res = curl_easy_perform(client->curl);
 
     // Clean up headers
@@ -175,6 +210,8 @@ static bool http_request(c64_rest_client_t *client, const char *method, const ch
     // Check HTTP status code
     long http_code = 0;
     curl_easy_getinfo(client->curl, CURLINFO_RESPONSE_CODE, &http_code);
+    C64_LOG_DEBUG(REST_LOG_PREFIX "HTTP response code: %ld", http_code);
+
     if (http_code < 200 || http_code >= 300) {
         snprintf(client->error_msg, sizeof(client->error_msg), "HTTP error %ld", http_code);
         C64_LOG_ERROR(REST_LOG_PREFIX "%s", client->error_msg);
@@ -280,6 +317,9 @@ bool c64_rest_play_sid(c64_rest_client_t *client, const uint8_t *sid_data, size_
     // Reset CURL handle
     curl_easy_reset(client->curl);
 
+    // CRITICAL: Re-set NOSIGNAL after reset to prevent Windows crashes
+    curl_easy_setopt(client->curl, CURLOPT_NOSIGNAL, 1L);
+
     // Create MIME structure (modern API)
     curl_mime *mime = curl_mime_init(client->curl);
     curl_mimepart *part = curl_mime_addpart(mime);
@@ -342,6 +382,9 @@ bool c64_rest_run_prg(c64_rest_client_t *client, const uint8_t *prg_data, size_t
 
     // Reset CURL handle
     curl_easy_reset(client->curl);
+
+    // CRITICAL: Re-set NOSIGNAL after reset to prevent Windows crashes
+    curl_easy_setopt(client->curl, CURLOPT_NOSIGNAL, 1L);
 
     // Create MIME structure (modern API)
     curl_mime *mime = curl_mime_init(client->curl);
@@ -410,6 +453,9 @@ bool c64_rest_mount_disk(c64_rest_client_t *client, char drive, const char *type
 
     // Reset CURL handle
     curl_easy_reset(client->curl);
+
+    // CRITICAL: Re-set NOSIGNAL after reset to prevent Windows crashes
+    curl_easy_setopt(client->curl, CURLOPT_NOSIGNAL, 1L);
 
     // Create MIME structure (modern API)
     curl_mime *mime = curl_mime_init(client->curl);
@@ -489,6 +535,10 @@ bool c64_rest_play_sid_path(c64_rest_client_t *client, const char *c64u_path, in
 
     // Reset CURL handle
     curl_easy_reset(client->curl);
+
+    // CRITICAL: Re-set NOSIGNAL after reset to prevent Windows crashes
+    curl_easy_setopt(client->curl, CURLOPT_NOSIGNAL, 1L);
+
     curl_easy_setopt(client->curl, CURLOPT_URL, url);
     curl_easy_setopt(client->curl, CURLOPT_CUSTOMREQUEST, "PUT"); // Use PUT not POST
     curl_easy_setopt(client->curl, CURLOPT_TIMEOUT, HTTP_TIMEOUT_SECONDS);
@@ -548,6 +598,10 @@ bool c64_rest_run_prg_path(c64_rest_client_t *client, const char *c64u_path)
 
     // Reset CURL handle
     curl_easy_reset(client->curl);
+
+    // CRITICAL: Re-set NOSIGNAL after reset to prevent Windows crashes
+    curl_easy_setopt(client->curl, CURLOPT_NOSIGNAL, 1L);
+
     curl_easy_setopt(client->curl, CURLOPT_URL, url);
     curl_easy_setopt(client->curl, CURLOPT_POST, 1L);
     curl_easy_setopt(client->curl, CURLOPT_POSTFIELDS, "");
@@ -606,6 +660,10 @@ bool c64_rest_mount_disk_path(c64_rest_client_t *client, char drive, const char 
 
     // Reset CURL handle
     curl_easy_reset(client->curl);
+
+    // CRITICAL: Re-set NOSIGNAL after reset to prevent Windows crashes
+    curl_easy_setopt(client->curl, CURLOPT_NOSIGNAL, 1L);
+
     curl_easy_setopt(client->curl, CURLOPT_URL, url);
     curl_easy_setopt(client->curl, CURLOPT_POST, 1L);
     curl_easy_setopt(client->curl, CURLOPT_POSTFIELDS, "");
@@ -783,6 +841,10 @@ bool c64_rest_list_files(c64_rest_client_t *client, const char *path, bool recur
 
     // Reset CURL handle
     curl_easy_reset(client->curl);
+
+    // CRITICAL: Re-set NOSIGNAL after reset to prevent Windows crashes
+    curl_easy_setopt(client->curl, CURLOPT_NOSIGNAL, 1L);
+
     curl_easy_setopt(client->curl, CURLOPT_URL, url);
     curl_easy_setopt(client->curl, CURLOPT_HTTPGET, 1L);
     curl_easy_setopt(client->curl, CURLOPT_TIMEOUT, HTTP_TIMEOUT_SECONDS);
@@ -859,6 +921,10 @@ bool c64_rest_stat_file(c64_rest_client_t *client, const char *path, bool *is_di
 
     // Reset CURL handle
     curl_easy_reset(client->curl);
+
+    // CRITICAL: Re-set NOSIGNAL after reset to prevent Windows crashes
+    curl_easy_setopt(client->curl, CURLOPT_NOSIGNAL, 1L);
+
     curl_easy_setopt(client->curl, CURLOPT_URL, url);
     curl_easy_setopt(client->curl, CURLOPT_NOBODY, 1L); // HEAD request
     curl_easy_setopt(client->curl, CURLOPT_TIMEOUT, HTTP_TIMEOUT_SECONDS);

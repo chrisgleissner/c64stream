@@ -18,7 +18,7 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 
 #include <obs-module.h>
 #include "plugin-support.h"
-#include "c64-network.h" // Include network header first to avoid Windows header conflicts
+#include "c64-network.h"
 #include "c64-logging.h"
 #include "c64-protocol.h"
 #include "c64-source.h"
@@ -40,7 +40,7 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 bool c64_debug_logging = true;
 
 OBS_DECLARE_MODULE()
-OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en")
+OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en-US")
 
 // Copy demo scripts from plugin data folder to user's scripts folder
 static void copy_demo_scripts(void)

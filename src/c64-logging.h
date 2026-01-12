@@ -9,7 +9,7 @@ See <https://www.gnu.org/licenses/> for details.
 #define C64_LOGGING_H
 
 #include <obs-module.h>
-#include <stdio.h> // Ensure snprintf is available on all platforms
+#include <stdio.h>
 #include <time.h>
 #include <stdint.h>
 

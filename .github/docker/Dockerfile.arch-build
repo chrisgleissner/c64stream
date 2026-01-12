@@ -11,20 +11,33 @@ LABEL org.opencontainers.image.licenses="GPL-2.0-or-later"
 # Set timezone
 ENV TZ=UTC
 
-# Update system and install base packages
-RUN pacman -Syu --noconfirm && \
-    pacman -S --noconfirm \
+# Initialize pacman keys (required in container builds) and update system
+RUN pacman-key --init && \
+    pacman-key --populate archlinux && \
+    pacman -Sy --noconfirm archlinux-keyring && \
+    pacman -Syu --noconfirm
+
+# Install base packages
+RUN pacman -S --noconfirm \
         base-devel \
         cmake \
         ninja \
         pkg-config \
         git \
+        subversion \
+        ca-certificates \
         zsh \
         jq \
         ccache \
         file \
         xz \
         net-tools
+
+# Build and install 64tass (not available in all Arch package snapshots)
+RUN svn checkout https://svn.code.sf.net/p/tass64/code/trunk /tmp/tass64 && \
+    make -C /tmp/tass64 -j"$(nproc)" && \
+    make -C /tmp/tass64 install-strip prefix=/usr && \
+    rm -rf /tmp/tass64
 
 # Install OBS Studio and dependencies
 RUN pacman -S --noconfirm \

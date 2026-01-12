@@ -11,7 +11,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-network.h"
 #include "c64-protocol.h"
 #include "c64-video.h"
-#include "c64-logging.h" // For Windows snprintf compatibility
+#include "c64-logging.h"
 #include "c64-file.h"
 #include "c64-effect.h"
 #include "c64-source.h"
@@ -25,10 +25,14 @@ See <https://www.gnu.org/licenses/> for details.
 #include <util/platform.h>
 #include <time.h>
 #include <string.h>
+#include <sys/stat.h>
 
-// Cross-platform strcasecmp
+// Cross-platform strcasecmp and S_ISDIR
 #ifdef _WIN32
 #define strcasecmp _stricmp
+#ifndef S_ISDIR
+#define S_ISDIR(m) (((m) & S_IFMT) == S_IFDIR)
+#endif
 #endif
 #include <util/dstr.h>
 #include <stdio.h>
@@ -624,6 +628,11 @@ obs_properties_t *c64_create_properties(void *data)
         obs_properties_add_text(network_props, "c64_host", obs_module_text("C64UHost"), OBS_TEXT_DEFAULT);
     obs_property_set_long_description(host_prop, obs_module_text("C64UHost.Description"));
 
+    // C64 Ultimate Network Password (optional)
+    obs_property_t *password_prop =
+        obs_properties_add_text(network_props, "c64_password", obs_module_text("C64UPassword"), OBS_TEXT_PASSWORD);
+    obs_property_set_long_description(password_prop, obs_module_text("C64UPassword.Description"));
+
     // OBS IP Address
     obs_property_t *obs_ip_prop =
         obs_properties_add_text(network_props, "obs_ip_address", obs_module_text("OBSMachineIP"), OBS_TEXT_DEFAULT);
@@ -682,6 +691,11 @@ obs_properties_t *c64_create_properties(void *data)
     obs_property_t *record_csv_prop =
         obs_properties_add_bool(recording_props, "record_csv", obs_module_text("RecordNetworkEvents"));
     obs_property_set_long_description(record_csv_prop, obs_module_text("RecordNetworkEvents.Description"));
+
+    // Record A/V Sync (CSV)
+    obs_property_t *record_av_sync_prop =
+        obs_properties_add_bool(recording_props, "record_av_sync", obs_module_text("RecordAVSync"));
+    obs_property_set_long_description(record_av_sync_prop, obs_module_text("RecordAVSync.Description"));
 
     // Show Debug Messages in OBS Logs
     obs_property_t *debug_prop =
@@ -1227,6 +1241,8 @@ static bool c64_export_settings_to_ini(obs_data_t *settings, const char *path)
     }
 
     const char *c64_host = obs_data_get_string(settings, "c64_host");
+    // NOTE: Password is intentionally excluded from export for security.
+    // Passwords remain in OBS settings which are protected by OS-level access controls.
     const char *dns_server_ip = obs_data_get_string(settings, "dns_server_ip");
     const char *obs_ip_address = obs_data_get_string(settings, "obs_ip_address");
     const bool auto_detect_ip = obs_data_get_bool(settings, "auto_detect_ip");
@@ -1239,6 +1255,7 @@ static bool c64_export_settings_to_ini(obs_data_t *settings, const char *path)
     const bool record_frames = obs_data_get_bool(settings, "record_frames");
     const bool record_video = obs_data_get_bool(settings, "record_video");
     const bool record_csv = obs_data_get_bool(settings, "record_csv");
+    const bool record_av_sync = obs_data_get_bool(settings, "record_av_sync");
 
     const bool debug_logging = obs_data_get_bool(settings, "debug_logging");
 
@@ -1297,6 +1314,7 @@ static bool c64_export_settings_to_ini(obs_data_t *settings, const char *path)
 
     fprintf(f, "[network]\n");
     fprintf(f, "c64_host=%s\n", c64_host ? c64_host : "");
+    // Password is intentionally excluded from export for security
     fprintf(f, "dns_server_ip=%s\n", dns_server_ip ? dns_server_ip : "");
     fprintf(f, "obs_ip_address=%s\n", obs_ip_address ? obs_ip_address : "");
     fprintf(f, "auto_detect_ip=%s\n", auto_detect_ip ? "true" : "false");
@@ -1311,6 +1329,7 @@ static bool c64_export_settings_to_ini(obs_data_t *settings, const char *path)
     fprintf(f, "record_frames=%s\n", record_frames ? "true" : "false");
     fprintf(f, "record_video=%s\n", record_video ? "true" : "false");
     fprintf(f, "record_csv=%s\n", record_csv ? "true" : "false");
+    fprintf(f, "record_av_sync=%s\n", record_av_sync ? "true" : "false");
     fprintf(f, "\n");
 
     fprintf(f, "[debug]\n");
@@ -1397,6 +1416,10 @@ static bool c64_apply_ini_to_settings(obs_data_t *settings, const char *path)
             obs_data_set_string(settings, "dns_server_ip", value);
         } else if (strcmp(key, "c64_host") == 0) {
             obs_data_set_string(settings, "c64_host", value);
+        } else if (strcmp(key, "c64_password") == 0) {
+            // Password is intentionally excluded from import for security.
+            // Users must re-enter passwords after importing configuration.
+            C64_LOG_INFO("Config import: skipping c64_password (excluded for security)");
         } else if (strcmp(key, "obs_ip_address") == 0) {
             // Allow empty string (means "leave as-is"/auto-detect default).
             if (value && value[0] != '\0')
@@ -1428,6 +1451,8 @@ static bool c64_apply_ini_to_settings(obs_data_t *settings, const char *path)
             obs_data_set_bool(settings, "record_video", c64_parse_bool(value, false));
         } else if (strcmp(key, "record_csv") == 0) {
             obs_data_set_bool(settings, "record_csv", c64_parse_bool(value, false));
+        } else if (strcmp(key, "record_av_sync") == 0) {
+            obs_data_set_bool(settings, "record_av_sync", c64_parse_bool(value, false));
         } else if (strcmp(key, "debug_logging") == 0) {
             obs_data_set_bool(settings, "debug_logging", c64_parse_bool(value, false));
         } else if (strcmp(key, "crt_preset") == 0) {
@@ -1547,6 +1572,7 @@ void c64_set_property_defaults(obs_data_t *settings)
     obs_data_set_default_bool(settings, "auto_detect_ip", true);
     obs_data_set_default_string(settings, "dns_server_ip", "192.168.1.1");
     obs_data_set_default_string(settings, "c64_host", C64_DEFAULT_HOST);
+    obs_data_set_default_string(settings, "c64_password", "");
     // Default OBS IP should be the dynamically detected local IP so OBS "Defaults" fills it in immediately.
     // If detection fails, fall back to empty and the runtime code will use localhost.
     {
@@ -1590,6 +1616,9 @@ void c64_set_property_defaults(obs_data_t *settings)
 
     // CSV recording defaults
     obs_data_set_default_bool(settings, "record_csv", false); // Disabled by default
+
+    // A/V sync CSV recording defaults
+    obs_data_set_default_bool(settings, "record_av_sync", false); // Disabled by default
 
     // CRT effects defaults
     obs_data_set_default_double(settings, "scan_line_distance", 0.0);
@@ -1926,6 +1955,12 @@ static bool palette_import_path_changed(obs_properties_t *props, obs_property_t 
 
     // Check if this is a file (not just a directory)
     if (!os_file_exists(path)) {
+        return false;
+    }
+
+    // Skip directories silently (e.g., when user browses to palette folder)
+    struct stat st;
+    if (os_stat(path, &st) == 0 && S_ISDIR(st.st_mode)) {
         return false;
     }
 
@@ -2332,6 +2367,10 @@ bool c64_load_configuration(obs_data_t *settings)
                     C64_LOG_INFO("Config: obs_ip_address = %s", value);
                     loaded_settings++;
                 }
+            } else if (strcmp(key, "c64_password") == 0) {
+                // Password is intentionally excluded from import for security.
+                // Users must re-enter passwords after importing configuration.
+                C64_LOG_INFO("Config import: skipping c64_password (excluded for security)");
             } else if (strcmp(key, "buffer_delay_ms") == 0) {
                 int delay = atoi(value);
                 if (delay >= 0 && delay <= 500) {
@@ -2367,6 +2406,15 @@ bool c64_load_configuration(obs_data_t *settings)
                 obs_data_set_bool(settings, "record_csv", enabled);
                 C64_LOG_INFO("Config: record_csv = %s%s (value='%s')", enabled ? "true" : "false",
                              ci_enforced ? " (default+direct)" : " (direct)", value);
+                loaded_settings++;
+            } else if (strcmp(key, "record_av_sync") == 0) {
+                bool enabled = (strcmp(value, "true") == 0) || (strcmp(value, "1") == 0);
+                if (ci_enforced) {
+                    obs_data_set_default_bool(settings, "record_av_sync", enabled);
+                }
+                obs_data_set_bool(settings, "record_av_sync", enabled);
+                C64_LOG_DEBUG("Config: record_av_sync = %s%s", enabled ? "true" : "false",
+                              ci_enforced ? " (default+direct)" : " (direct)");
                 loaded_settings++;
             } else if (strcmp(key, "save_folder") == 0 && strlen(value) > 0) {
                 c64_set_string(settings, "save_folder", value, ci_enforced);

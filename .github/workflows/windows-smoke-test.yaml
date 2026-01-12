@@ -1,0 +1,202 @@
+name: Windows Smoke Test (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      arch:
+        description: 'Architecture (x64 or arm64)'
+        required: true
+        type: string
+      artifact-pattern:
+        description: 'Artifact pattern to download'
+        required: true
+        type: string
+      runner:
+        description: 'GitHub runner to use'
+        required: true
+        type: string
+      obs-version:
+        description: 'OBS Studio version'
+        required: true
+        type: string
+
+jobs:
+  smoke-test:
+    name: Windows ${{ inputs.arch }} Smoke Test 💨
+    runs-on: ${{ inputs.runner }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Download Plugin Artifact 📥
+        uses: actions/download-artifact@v4
+        with:
+          pattern: ${{ inputs.artifact-pattern }}
+          path: artifacts
+
+      - name: Extract Plugin 📦
+        run: |
+          $artifact = Get-ChildItem -Path artifacts -Filter "*.zip" -Recurse | Select-Object -First 1
+          Expand-Archive -Path $artifact.FullName -DestinationPath plugin -Force
+
+      - name: Install OBS Studio 🎥
+        run: |
+          # Download OBS Studio
+          $obsVersion = "${{ inputs.obs-version }}"
+
+          if ("${{ inputs.arch }}" -eq "arm64") {
+            # ARM64: Download and extract zip (no installer available)
+            $obsUrl = "https://github.com/obsproject/obs-studio/releases/download/${obsVersion}/OBS-Studio-${obsVersion}-Windows-arm64.zip"
+            Invoke-WebRequest -Uri $obsUrl -OutFile obs.zip
+
+            # Extract to Program Files
+            Expand-Archive -Path obs.zip -DestinationPath "${env:ProgramFiles}\obs-studio" -Force
+          } else {
+            # x64: Use installer
+            $obsUrl = "https://github.com/obsproject/obs-studio/releases/download/${obsVersion}/OBS-Studio-${obsVersion}-Windows-x64-Installer.exe"
+            Invoke-WebRequest -Uri $obsUrl -OutFile obs-installer.exe
+
+            # Install OBS silently
+            Start-Process -FilePath obs-installer.exe -ArgumentList "/S" -Wait
+          }
+
+          # Wait for installation to complete
+          Start-Sleep -Seconds 10
+
+      - name: Install Plugin 🔌
+        run: |
+          # Install to ProgramData per Windows installation instructions
+          $obsPluginPath = "C:\ProgramData\obs-studio\plugins\c64stream"
+
+          # Create directories if they don't exist
+          New-Item -ItemType Directory -Force -Path $obsPluginPath
+
+          # Copy entire plugin directory structure
+          Copy-Item -Path "plugin\c64stream\*" -Destination $obsPluginPath -Recurse -Force
+
+          Write-Output "Plugin installed to: $obsPluginPath"
+
+      - name: Test Plugin Load 🧪
+        run: |
+          Write-Output "=== DLL Load Validation Smoke Test ==="
+          Write-Output ""
+
+          # Set working directory to OBS bin folder (where obs.dll and dependencies live)
+          $obsBinPath = "${env:ProgramFiles}\obs-studio\bin\64bit"
+          Set-Location $obsBinPath
+          Write-Output "Working directory: $obsBinPath"
+          Write-Output ""
+          
+          # Locate the plugin DLL (installed to ProgramData per Windows x64 instructions)
+          $dllPath = "C:\ProgramData\obs-studio\plugins\c64stream\bin\64bit\c64stream.dll"
+          
+          if (-not (Test-Path $dllPath)) {
+            Write-Error "Plugin DLL not found at: $dllPath"
+            Write-Error "Check that plugin was extracted to C:\ProgramData\obs-studio\plugins per installation instructions"
+            exit 1
+          }
+          
+          Write-Output "✓ Plugin DLL found: $dllPath"
+          
+          # Get DLL file info
+          $dllInfo = Get-Item $dllPath
+          Write-Output "  Size: $($dllInfo.Length) bytes"
+          Write-Output "  Modified: $($dllInfo.LastWriteTime)"
+          Write-Output ""
+          
+          # Check DLL dependencies using dumpbin
+          Write-Output "Checking DLL dependencies..."
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          if (Test-Path $vswhere) {
+            $vsPath = & $vswhere -latest -property installationPath
+            $dumpbin = Join-Path $vsPath "VC\Tools\MSVC\*\bin\Hostx64\x64\dumpbin.exe"
+            $dumpbinPath = Get-Item $dumpbin -ErrorAction SilentlyContinue | Select-Object -First 1
+            
+            if ($dumpbinPath) {
+              Write-Output "Running dumpbin /dependents..."
+              & $dumpbinPath /dependents $dllPath
+              Write-Output ""
+            }
+          }
+          
+          # Verify OBS dependencies are present
+          Write-Output "Verifying OBS dependencies..."
+          $obsDll = Join-Path $obsBinPath "obs.dll"
+          $pthreadsDll = Join-Path $obsBinPath "w32-pthreads.dll"
+          
+          if (-not (Test-Path $obsDll)) {
+            Write-Error "obs.dll not found at: $obsDll"
+            exit 1
+          }
+          if (-not (Test-Path $pthreadsDll)) {
+            Write-Error "w32-pthreads.dll not found at: $pthreadsDll"
+            exit 1
+          }
+          Write-Output "✓ obs.dll found"
+          Write-Output "✓ w32-pthreads.dll found"
+          Write-Output ""
+          
+          # Test DLL load using LoadLibrary
+          Write-Output "Testing DLL load with LoadLibrary..."
+          Write-Output "Note: Working directory is set to OBS bin folder for DLL dependency resolution"
+          Write-Output ""
+          
+          $code = 'using System; using System.Runtime.InteropServices; public class DllLoader { [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)] public static extern IntPtr LoadLibrary(string lpFileName); [DllImport("kernel32.dll", SetLastError = true)] public static extern bool FreeLibrary(IntPtr hModule); [DllImport("kernel32.dll", SetLastError = true)] public static extern bool SetDllDirectory(string lpPathName); [DllImport("kernel32.dll")] public static extern uint GetLastError(); }'
+          
+          try {
+            Add-Type -TypeDefinition $code -ErrorAction Stop
+            
+            # Add OBS bin folder to DLL search path for dependency resolution
+            $setDllDir = [DllLoader]::SetDllDirectory($obsBinPath)
+            if (-not $setDllDir) {
+              Write-Warning "SetDllDirectory failed, but continuing (working directory should suffice)"
+            }
+            
+            $handle = [DllLoader]::LoadLibrary($dllPath)
+            
+            if ($handle -eq [IntPtr]::Zero) {
+              $errorCode = [DllLoader]::GetLastError()
+              Write-Error "LoadLibrary failed with error code: $errorCode"
+              
+              # Provide helpful error messages for common error codes
+              switch ($errorCode) {
+                126 { Write-Error "ERROR_MOD_NOT_FOUND (126): DLL or a required dependency not found" }
+                193 { Write-Error "ERROR_BAD_EXE_FORMAT (193): Not a valid Win32 application (architecture mismatch)" }
+                1114 { Write-Error "ERROR_DLL_INIT_FAILED (1114): DLL initialization failed" }
+                default { Write-Error "Unknown error code: $errorCode" }
+              }
+              
+              Write-Error "Verify all dependencies are present in OBS bin folder"
+              exit 1
+            }
+            
+            Write-Output "✅ LoadLibrary succeeded! Handle: 0x$($handle.ToString('X'))"
+            Write-Output "✅ DllMain(DLL_PROCESS_ATTACH) completed successfully"
+            Write-Output "✅ All dependencies resolved"
+            
+            # Clean up
+            $freed = [DllLoader]::FreeLibrary($handle)
+            if ($freed) {
+              Write-Output "✅ FreeLibrary succeeded"
+            } else {
+              Write-Warning "FreeLibrary returned false (may be harmless)"
+            }
+            
+          } catch {
+            Write-Error "Failed to load DLL: $_"
+            Write-Error $_.Exception.Message
+            if ($_.Exception.InnerException) {
+              Write-Error "Inner exception: $($_.Exception.InnerException.Message)"
+            }
+            exit 1
+          }
+          
+          Write-Output ""
+          Write-Output "=== Summary ==="
+          Write-Output "✅ Plugin DLL exists at correct location"
+          Write-Output "✅ Plugin DLL loads successfully via LoadLibrary"
+          Write-Output "✅ All symbol imports resolve"
+          Write-Output "✅ All dependent DLLs present and loadable"
+          Write-Output "✅ DLL initialization (DllMain) succeeds"
+          Write-Output ""
+          Write-Output "🎉 Smoke test PASSED - plugin is loadable in OBS environment!"

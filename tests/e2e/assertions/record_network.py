@@ -57,13 +57,19 @@ class RecordNetworkAssertion(EffectAssertion):
                 reader = csv.DictReader(f)
 
                 for row in reader:
+                    packet_type = row.get("packet_type")
+                    if not packet_type:
+                        continue
+                    packet_type = packet_type.strip()
                     total_packets += 1
-                    packet_type = row.get("packet_type", "").strip()
 
                     if packet_type == "video":
                         video_packets += 1
+                        frame_num_raw = row.get("frame_num")
+                        if frame_num_raw is None or frame_num_raw == "":
+                            frame_num_raw = 0
                         try:
-                            frame_num = int(row.get("frame_num", 0))
+                            frame_num = int(frame_num_raw)
                             max_frame_num = max(max_frame_num, frame_num)
                         except ValueError:
                             pass
@@ -71,15 +77,21 @@ class RecordNetworkAssertion(EffectAssertion):
                         audio_packets += 1
 
                     # Track sequence errors
+                    seq_errors_raw = row.get("sequence_errors")
+                    if seq_errors_raw is None or seq_errors_raw == "":
+                        seq_errors_raw = 0
                     try:
-                        seq_errors = int(row.get("sequence_errors", 0))
+                        seq_errors = int(seq_errors_raw)
                         max_sequence_errors = max(max_sequence_errors, seq_errors)
                     except ValueError:
                         pass
 
                     # Track jitter
+                    jitter_raw = row.get("jitter_us")
+                    if jitter_raw is None or jitter_raw == "":
+                        jitter_raw = 0
                     try:
-                        jitter = abs(int(row.get("jitter_us", 0)))
+                        jitter = abs(int(jitter_raw))
                         total_jitter_us += jitter
                         jitter_count += 1
                     except ValueError:

@@ -8,7 +8,7 @@ cmake_minimum_required(VERSION 3.28)
 project(c64stream-e2e-tests)
 
 # Build the UDP replay tool
-add_executable(udp_replay udp_replay.c)
+add_executable(udp_replay util/udp_replay.c)
 
 # Compiler flags for the UDP replay tool
 if(MSVC)
@@ -34,6 +34,6 @@ endforeach()
 
 message(STATUS "E2E test components configured:")
 message(STATUS "  UDP replay tool: udp_replay (build-tree only)")
-message(STATUS "  Packet generator: generate_packets.py (build-tree only)")
+message(STATUS "  Packet generator: util/generate_packets.py (build-tree only)")
 message(STATUS "  Test orchestrator: e2e.py (build-tree only)")
 message(STATUS "  Output verifier: verify_output.py (build-tree only)")

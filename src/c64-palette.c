@@ -18,20 +18,15 @@ See <https://www.gnu.org/licenses/> for details.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 #ifdef _WIN32
-#include <windows.h>
-#include <shlobj.h>
-#include <direct.h>
-#define PATH_SEP '\\'
+#define PATH_SEP '\\\\'
 #define strcasecmp _stricmp
-// Windows stat doesn't provide S_ISDIR, so define it using _S_IFDIR
 #ifndef S_ISDIR
-#define S_ISDIR(m) (((m)&_S_IFMT) == _S_IFDIR)
+#define S_ISDIR(m) (((m) & S_IFMT) == S_IFDIR)
 #endif
 #else
-#include <sys/stat.h>
-#include <dirent.h>
 #define PATH_SEP '/'
 #endif
 
@@ -633,15 +628,19 @@ bool c64_palette_parse_vpl(const char *path, uint32_t *colors, char *name, size_
         return false;
     }
 
-    // Check if path is a directory and silently skip
-    struct stat path_stat;
-    if (stat(path, &path_stat) == 0 && S_ISDIR(path_stat.st_mode)) {
+    // Skip directories silently (e.g., when scanning import paths)
+    struct stat st;
+    if (os_stat(path, &st) == 0 && S_ISDIR(st.st_mode)) {
         return false;
     }
 
     FILE *file = fopen(path, "r");
     if (!file) {
-        C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Failed to open VPL file: %s", path);
+        // Only log warning if it looks like a VPL file (has .vpl extension)
+        const char *ext = strrchr(path, '.');
+        if (ext && strcasecmp(ext, ".vpl") == 0) {
+            C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Failed to open VPL file: %s", path);
+        }
         return false;
     }
 
@@ -980,56 +979,15 @@ static void discover_shipped_palettes(void)
 
     C64_LOG_INFO("" PALETTE_LOG_PREFIX " Discovering shipped palettes from: %s", palettes_path);
 
-#ifdef _WIN32
-    char search_path[C64_PALETTE_PATH_MAX];
-    snprintf(search_path, sizeof(search_path), "%s\\*.vpl", palettes_path);
-
-    WIN32_FIND_DATAA find_data;
-    HANDLE find_handle = FindFirstFileA(search_path, &find_data);
-    if (find_handle != INVALID_HANDLE_VALUE) {
-        do {
-            if (!(find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
-                char full_path[C64_PALETTE_PATH_MAX];
-                snprintf(full_path, sizeof(full_path), "%s\\%s", palettes_path, find_data.cFileName);
-
-                char id[C64_PALETTE_NAME_MAX];
-                strncpy(id, find_data.cFileName, sizeof(id) - 1);
-                id[sizeof(id) - 1] = '\0';
-                char *ext = strrchr(id, '.');
-                if (ext)
-                    *ext = '\0';
-
-                // Skip "default" and "Default" - we add it manually
-                if (strcasecmp(id, "Default") == 0) {
-                    continue;
-                }
-
-                // Try to get display name from file
-                char name[C64_PALETTE_NAME_MAX];
-                char desc[256];
-                uint32_t temp_colors[C64_PALETTE_COLORS];
-                if (c64_palette_parse_vpl(full_path, temp_colors, name, sizeof(name), desc, sizeof(desc))) {
-                    if (!name[0]) {
-                        strncpy(name, id, sizeof(name) - 1);
-                    }
-                    add_palette_entry(id, name, full_path, true);
-                    // Store description if we got one
-                    if (desc[0] && palette_system.palette_count > 0) {
-                        int idx = palette_system.palette_count - 1;
-                        strncpy(palette_system.palettes[idx].desc, desc, sizeof(palette_system.palettes[idx].desc) - 1);
-                        palette_system.palettes[idx].desc[sizeof(palette_system.palettes[idx].desc) - 1] = '\0';
-                    }
-                }
-            }
-        } while (FindNextFileA(find_handle, &find_data));
-        FindClose(find_handle);
-    }
-#else
-    DIR *dir = opendir(palettes_path);
+    os_dir_t *dir = os_opendir(palettes_path);
     if (dir) {
-        struct dirent *entry;
-        while ((entry = readdir(dir)) != NULL) {
-            // Skip non-.vpl files
+        struct os_dirent *entry;
+        while ((entry = os_readdir(dir)) != NULL) {
+            // Skip directories and non-.vpl files
+            if (entry->directory) {
+                continue;
+            }
+
             size_t len = strlen(entry->d_name);
             if (len < 5 || strcasecmp(entry->d_name + len - 4, ".vpl") != 0) {
                 continue;
@@ -1074,9 +1032,8 @@ static void discover_shipped_palettes(void)
                 }
             }
         }
-        closedir(dir);
+        os_closedir(dir);
     }
-#endif
 
     bfree(palettes_path);
 }
@@ -1090,78 +1047,19 @@ static void discover_custom_palettes(void)
     C64_LOG_INFO("" PALETTE_LOG_PREFIX " Discovering custom palettes from: %s", palette_system.user_palette_dir);
     int discovered_count = 0;
 
-#ifdef _WIN32
-    char search_path[C64_PALETTE_PATH_MAX];
-    snprintf(search_path, sizeof(search_path), "%s\\*.vpl", palette_system.user_palette_dir);
-
-    WIN32_FIND_DATAA find_data;
-    HANDLE find_handle = FindFirstFileA(search_path, &find_data);
-    if (find_handle != INVALID_HANDLE_VALUE) {
-        do {
-            if (!(find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
-                char full_path[C64_PALETTE_PATH_MAX];
-                snprintf(full_path, sizeof(full_path), "%s\\%s", palette_system.user_palette_dir, find_data.cFileName);
-
-                char id[C64_PALETTE_NAME_MAX];
-                strncpy(id, find_data.cFileName, sizeof(id) - 1);
-                id[sizeof(id) - 1] = '\0';
-                char *ext = strrchr(id, '.');
-                if (ext)
-                    *ext = '\0';
-
-                // Check if already exists (avoid duplicates)
-                bool found = false;
-                for (int i = 0; i < palette_system.palette_count; i++) {
-                    if (strcmp(palette_system.palettes[i].id, id) == 0) {
-                        found = true;
-                        break;
-                    }
-                }
-
-                if (!found) {
-                    char name[C64_PALETTE_NAME_MAX];
-                    char desc[256];
-                    uint32_t temp_colors[C64_PALETTE_COLORS];
-                    if (c64_palette_parse_vpl(full_path, temp_colors, name, sizeof(name), desc, sizeof(desc))) {
-                        if (!name[0]) {
-                            strncpy(name, id, sizeof(name) - 1);
-                        }
-                        C64_LOG_INFO("" PALETTE_LOG_PREFIX "   Discovered: %s (%s)", id, name);
-                        add_palette_entry(id, name, full_path, false);
-                        discovered_count++;
-                        if (desc[0] && palette_system.palette_count > 0) {
-                            int idx = palette_system.palette_count - 1;
-                            strncpy(palette_system.palettes[idx].desc, desc,
-                                    sizeof(palette_system.palettes[idx].desc) - 1);
-                            palette_system.palettes[idx].desc[sizeof(palette_system.palettes[idx].desc) - 1] = '\0';
-                        }
-                    }
-                } else {
-                    C64_LOG_INFO("" PALETTE_LOG_PREFIX "   Skipped (already exists): %s", id);
-                }
-            }
-        } while (FindNextFileA(find_handle, &find_data));
-        FindClose(find_handle);
-    }
-#else
-    DIR *dir = opendir(palette_system.user_palette_dir);
+    os_dir_t *dir = os_opendir(palette_system.user_palette_dir);
     if (!dir) {
         C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Failed to open palette directory: %s", palette_system.user_palette_dir);
         return;
     }
 
-    struct dirent *entry;
-    while ((entry = readdir(dir)) != NULL) {
-        if (entry->d_type == DT_REG || entry->d_type == DT_UNKNOWN) {
+    struct os_dirent *entry;
+    while ((entry = os_readdir(dir)) != NULL) {
+        if (!entry->directory) {
             const char *ext = strrchr(entry->d_name, '.');
             if (ext && strcasecmp(ext, ".vpl") == 0) {
-                char full_path[C64_PALETTE_PATH_MAX];
-                int path_len =
-                    snprintf(full_path, sizeof(full_path), "%s/%s", palette_system.user_palette_dir, entry->d_name);
-                if (path_len < 0 || (size_t)path_len >= sizeof(full_path)) {
-                    C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Palette path too long, skipping: %s", entry->d_name);
-                    continue;
-                }
+                char full_path[1024];
+                snprintf(full_path, sizeof(full_path), "%s/%s", palette_system.user_palette_dir, entry->d_name);
 
                 char id[C64_PALETTE_NAME_MAX];
                 strncpy(id, entry->d_name, sizeof(id) - 1);
@@ -1204,8 +1102,7 @@ static void discover_custom_palettes(void)
         }
     }
 
-    closedir(dir);
-#endif
+    os_closedir(dir);
 
     C64_LOG_INFO("" PALETTE_LOG_PREFIX " Discovery complete: added %d new custom palette%s", discovered_count,
                  discovered_count == 1 ? "" : "s");
@@ -1317,7 +1214,7 @@ bool c64_palette_auto_save(obs_data_t *settings)
         }
 
         // Build path with lowercase ID and "-custom" suffix (e.g., "default-custom.vpl")
-        char custom_path[C64_PALETTE_PATH_MAX];
+        char custom_path[1024];
         int path_len = snprintf(custom_path, sizeof(custom_path), "%s%c%s-custom.vpl", palette_system.user_palette_dir,
                                 PATH_SEP, lowercase_id);
         if (path_len < 0 || (size_t)path_len >= sizeof(custom_path)) {

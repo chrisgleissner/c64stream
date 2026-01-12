@@ -102,7 +102,7 @@ Examples:
 
     if args.scenario:
         # Load from scenario (preferred)
-        from scenario_loader import generate_scene_json, load_scenario, _get_canvas_size_from_scenario
+        from util.scenario_loader import generate_scene_json, load_scenario, _get_canvas_size_from_scenario
 
         scenarios_dir = Path(__file__).parent.parent / "scenarios"
         scenario_yaml = scenarios_dir / args.scenario / "scenario.yaml"

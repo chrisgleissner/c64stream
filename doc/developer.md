@@ -364,7 +364,7 @@ cd tests/e2e
 ./local-build.sh linux --e2e --install    # Build, install, and run E2E tests
 ```
 
-See [`doc/e2e.md`](e2e.md) for comprehensive E2E testing documentation.
+See [`doc/testing/e2e.md`](e2e.md) for comprehensive E2E testing documentation.
 
 ### End-to-end tests (in-depth)
 
@@ -374,7 +374,7 @@ The E2E harness validates the full path: deterministic packet generation → UDP
   - `tests/e2e/e2e.sh` — shell wrapper for deps/build/run/report (generates `tests/e2e/test_output/README.md`)
   - `tests/e2e/e2e.py` — launches Xvfb/OBS, starts packet replay, validates results, writes `validation_results.json`
 - Generators/Tools:
-  - `tests/e2e/generate_packets.py` — PAL/NTSC packets with visual and audio pop markers
+  - `tests/e2e/util/generate_packets.py` — PAL/NTSC packets with visual and audio pop markers
   - `build_x86_64/tests/e2e/udp_replay` — precise UDP timing sender
 
 Key behaviors and correctness guards:
@@ -404,7 +404,7 @@ Running locally (Linux):
 ./local-build.sh linux --e2e --install
 ```
 
-More details and CI usage in [`doc/e2e.md`](e2e.md).
+More details and CI usage in [`doc/testing/e2e.md`](e2e.md).
 
 ## Build Configurations
 
@@ -678,6 +678,6 @@ TEST(pause_and_resume) {
 
 ## Resources
 
-- **C64U Streaming Specification:** [`doc/c64-stream-spec.md`](c64-stream-spec.md)
-- **E2E Testing:** [`doc/e2e.md`](e2e.md)
+- **C64U Streaming Specification:** [`doc/c64u-stream-spec.md`](c64u-stream-spec.md)
+- **E2E Testing:** [`doc/testing/e2e.md`](e2e.md)
 - **OBS Plugin Guide:** [OBS Studio Documentation](https://obsproject.com/wiki/Plugin-Development)
