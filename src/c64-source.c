@@ -575,6 +575,12 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
 
     c64_apply_format_hint(context, prefer_pal);
 
+    // Display logo immediately so user sees it instantly (before connection attempt)
+    if (c64_logo_is_available(context)) {
+        c64_logo_render_to_frame(context, os_gettime_ns());
+        C64_LOG_DEBUG("Logo rendered immediately on source creation");
+    }
+
     // Initialize recording for this source
     c64_record_init(context);
 
@@ -1011,6 +1017,16 @@ void c64_start_streaming(struct c64_source *context)
 
     C64_LOG_INFO("Starting C64 Stream streaming to C64 %s (OBS IP: %s, video:%u, audio:%u)...", context->ip_address,
                  context->obs_ip_address, context->video_port, context->audio_port);
+
+    // Proactively disconnect all streams before starting to ensure clean state
+    // This prevents stale streaming state on the C64U from previous sessions
+    if (strcmp(context->ip_address, "0.0.0.0") != 0) {
+        C64_LOG_DEBUG("Sending proactive disconnect for all streams before starting");
+        c64_send_control_command(context, false, 0); // Stop video
+        c64_send_control_command(context, false, 1); // Stop audio
+        // Brief delay to ensure stop commands are processed before start commands
+        os_sleep_ms(50);
+    }
 
     // Ensure expected peer IP matches current ip_address before binding sockets
     c64_set_expected_peer_ip(context, context->ip_address);

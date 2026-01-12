@@ -11,7 +11,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-network.h"
 #include "c64-protocol.h"
 #include "c64-video.h"
-#include "c64-logging.h" // For Windows snprintf compatibility
+#include "c64-logging.h"
 #include "c64-file.h"
 #include "c64-effect.h"
 #include "c64-source.h"
@@ -137,7 +137,7 @@ obs_properties_t *c64_create_properties(void *data)
         obs_properties_add_text(network_props, "c64_host", obs_module_text("C64UHost"), OBS_TEXT_DEFAULT);
     obs_property_set_long_description(host_prop, obs_module_text("C64UHost.Description"));
 
-    // C64 Ultimate REST password (optional)
+    // C64 Ultimate Network Password (optional)
     obs_property_t *password_prop =
         obs_properties_add_text(network_props, "c64_password", obs_module_text("C64UPassword"), OBS_TEXT_PASSWORD);
     obs_property_set_long_description(password_prop, obs_module_text("C64UPassword.Description"));

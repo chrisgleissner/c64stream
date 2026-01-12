@@ -1,13 +1,13 @@
 {
     "dependencies": {
         "obs-studio": {
-            "version": "31.1.1",
+            "version": "32.0.4",
             "baseUrl": "https://github.com/obsproject/obs-studio/archive/refs/tags",
             "label": "OBS sources",
             "hashes": {
-                "macos": "39751f067bacc13d44b116c5138491b5f1391f91516d3d590d874edd21292291",
-                "windows-x64": "2c8427c10b55ac6d68008df2e9a3e82f4647aaad18f105e30d4713c2de678ccf",
-                "windows-ARM64": "2c8427c10b55ac6d68008df2e9a3e82f4647aaad18f105e30d4713c2de678ccf"
+                "macos": "625ee6a29c3cf93177436094b8a16254c3eb21162356662b9a62c122aabd0a4b",
+                "windows-x64": "5e17f2e99213af77ee15c047755ee3e3e88b78e5eee17351c113d79671ffb98b",
+                "windows-ARM64": "5e17f2e99213af77ee15c047755ee3e3e88b78e5eee17351c113d79671ffb98b"
             }
         },
         "prebuilt": {
@@ -42,7 +42,7 @@
     },
     "name": "c64stream",
     "displayName": "C64 Stream",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "author": "Christian Gleissner",
     "website": "https://chrisgleissner.github.io/c64stream",
     "email": "c64stream@gleissner.uk"

@@ -197,23 +197,22 @@ static void c64_av_sync_log_network_and_obs_match(struct c64_source *context, co
                      net_match->video_seq, net_match->audio_seq, net_match->video_ts, net_match->audio_ts,
                      net_to_obs_video_ms, net_to_obs_audio_ms);
 
-        if (context->record_av_sync && context->av_sync_file) {
-            if (pthread_mutex_trylock(&context->recording_mutex) == 0) {
-                FILE *f = context->av_sync_file;
-                if (f) {
-                    fprintf(f,
-                            "%s,%s,%.1f,%u,%u,%u,%" PRIu64 ",%" PRIu64 ",1,%.1f,%u,%u,%u,%" PRIu64 ",%" PRIu64
-                            ",%+.1f,%+.1f\n",
-                            is_audio_trigger ? "audio" : "video", detected, obs_delta_ms, obs_match->video_seq,
-                            obs_match->audio_seq, (uint32_t)obs_match->video_frame_num, obs_match->video_ts,
-                            obs_match->audio_ts, net_delta_ms, net_match->video_seq, net_match->audio_seq,
-                            (uint32_t)net_match->video_frame_num, net_match->video_ts, net_match->audio_ts,
-                            net_to_obs_video_ms, net_to_obs_audio_ms);
+        if (pthread_mutex_trylock(&context->recording_mutex) == 0) {
+            const bool record = context->record_av_sync;
+            FILE *f = context->av_sync_file;
+            if (record && f) {
+                fprintf(f,
+                        "%s,%s,%.1f,%u,%u,%u,%" PRIu64 ",%" PRIu64 ",1,%.1f,%u,%u,%u,%" PRIu64 ",%" PRIu64
+                        ",%+.1f,%+.1f\n",
+                        is_audio_trigger ? "audio" : "video", detected, obs_delta_ms, obs_match->video_seq,
+                        obs_match->audio_seq, (uint32_t)obs_match->video_frame_num, obs_match->video_ts,
+                        obs_match->audio_ts, net_delta_ms, net_match->video_seq, net_match->audio_seq,
+                        (uint32_t)net_match->video_frame_num, net_match->video_ts, net_match->audio_ts,
+                        net_to_obs_video_ms, net_to_obs_audio_ms);
 
-                    fflush(f);
-                }
-                pthread_mutex_unlock(&context->recording_mutex);
+                fflush(f);
             }
+            pthread_mutex_unlock(&context->recording_mutex);
         }
         return;
     }
@@ -223,19 +222,17 @@ static void c64_av_sync_log_network_and_obs_match(struct c64_source *context, co
                  prefix, obs_delta_ms, obs_match->video_seq, obs_match->audio_seq, detected,
                  (uint32_t)obs_match->video_frame_num, obs_match->video_ts, obs_match->audio_ts);
 
-    if (context->record_av_sync && context->av_sync_file) {
-        if (pthread_mutex_trylock(&context->recording_mutex) == 0) {
-            FILE *f = context->av_sync_file;
-            if (f) {
-                fprintf(f, "%s,%s,%.1f,%u,%u,%u,%" PRIu64 ",%" PRIu64 ",0,,,,,,,,\n",
-                        is_audio_trigger ? "audio" : "video", detected, obs_delta_ms, obs_match->video_seq,
-                        obs_match->audio_seq, (uint32_t)obs_match->video_frame_num, obs_match->video_ts,
-                        obs_match->audio_ts);
+    if (pthread_mutex_trylock(&context->recording_mutex) == 0) {
+        const bool record = context->record_av_sync;
+        FILE *f = context->av_sync_file;
+        if (record && f) {
+            fprintf(f, "%s,%s,%.1f,%u,%u,%u,%" PRIu64 ",%" PRIu64 ",0,,,,,,,,\n", is_audio_trigger ? "audio" : "video",
+                    detected, obs_delta_ms, obs_match->video_seq, obs_match->audio_seq,
+                    (uint32_t)obs_match->video_frame_num, obs_match->video_ts, obs_match->audio_ts);
 
-                fflush(f);
-            }
-            pthread_mutex_unlock(&context->recording_mutex);
+            fflush(f);
         }
+        pthread_mutex_unlock(&context->recording_mutex);
     }
 }
 

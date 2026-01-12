@@ -7,11 +7,11 @@ See <https://www.gnu.org/licenses/> for details.
 */
 #include <obs-module.h>
 #include <util/platform.h>
-#include <util/threading.h> // For atomic operations
-#include <inttypes.h>       // For PRIu64, PRId64 format specifiers
+#include <util/threading.h>
+#include <inttypes.h>
 #include <stdint.h>
-#include <time.h>        // For localtime_r/localtime_s in AV SYNC logging
-#include "c64-network.h" // Include network header first to avoid Windows header conflicts
+#include <time.h>
+#include "c64-network.h"
 #include "c64-logging.h"
 #include "c64-audio.h"
 #include "c64-types.h"

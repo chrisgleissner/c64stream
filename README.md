@@ -41,7 +41,7 @@ The plugin connects directly to the Ultimate's network interface, eliminating th
 > The plugin has been **verified to work** on the systems listed below unless mentioned otherwise. Other environments have not been verified, but community contributions are always welcome.
 >
 > If you use a **firewall**, please make sure to open ports 11000 and 11001 for incoming UDP traffic from the Commodore 64 Ultimate.
-> 
+>
 > In the following instructions, replace `$VERSION` with the latest released version as shown on the [Releases](../../releases) page.
 
 ### Windows (Standard Installation)
@@ -52,21 +52,21 @@ Applies when OBS Studio is installed normally using the official Windows install
 
 Tested on Windows 11.
 
-1. **Close OBS Studio**  
+1. **Close OBS Studio**
    Make sure OBS Studio is completely closed before continuing.
 2. **Download the plugin**
    - Open the Releases page.
    - [Download](../../releases) the file named `c64stream-$VERSION-windows-x64.zip`.
    - Windows will usually save this file in your **Downloads** folder: `C:\Users\<YourName>\Downloads`
 3. **Install the plugin**
-   - Press **Start**, type **Windows PowerShell**, and open it.  
+   - Press **Start**, type **Windows PowerShell**, and open it.
    - Copy the command below and paste it into the PowerShell window.
    - Press **Enter**.
    ```powershell
    Expand-Archive -Path "$env:USERPROFILE\Downloads\c64stream-*-windows-*.zip" -DestinationPath "C:\ProgramData\obs-studio\plugins" -Force
    ```
    This extracts the plugin files into the correct OBS plugin folder.
-4. **Allow the plugin through Windows Firewall**  
+4. **Allow the plugin through Windows Firewall**
    This step allows OBS to receive video and audio from your C64 Ultimate on ports 11000 (video) and 11001 (audio).
    - Copy the command below and paste it into the Powershell window.
    - Replace `192.168.1.64` with the IP address of your C64 Ultimate.
@@ -74,17 +74,17 @@ Tested on Windows 11.
    ```powershell
    New-NetFirewallRule -DisplayName "C64 Stream" -Direction Inbound -Protocol UDP -LocalPort 11000,11001 -RemoteAddress 192.168.1.64 -Action Allow
    ```
-5. **Start OBS Studio**  
+5. **Start OBS Studio**
    Open OBS Studio again. The plugin is now installed and ready to use.
 
 #### Windows (ARM64 - Experimental)
 
-> [!NOTE]  
+> [!NOTE]
 > Windows on ARM64 support is experimental and has not yet been fully tested.
 > If you would like to help with testing, please reach out via the
 > *Discussions* tab of this repository.
 
-1. Download and unzip the ARM64 build of OBS Studio:  
+1. Download and unzip the ARM64 build of OBS Studio:
    https://github.com/obsproject/obs-studio/releases/download/32.0.4/OBS-Studio-32.0.4-Windows-arm64.zip
 2. Ensure OBS Studio is closed.
 3. [Download](../../releases) the plugin package `c64stream-$VERSION-windows-arm64.zip` to your `Downloads` folder.
@@ -92,7 +92,7 @@ Tested on Windows 11.
 
 ### Windows (Portable Mode)
 
-> [!IMPORTANT]  
+> [!IMPORTANT]
 > This section applies **only** if OBS Studio is run in [portable mode](https://obsproject.com/kb/portable-mode), for example when `portable_mode.txt` exists in the root directory of OBS.
 > If you installed OBS using the Windows installer, use the *Standard Installation* instructions above.
 
@@ -204,34 +204,50 @@ A new window opens. Keep the default settings and click "OK":
 
 ## Plugin Properties
 
-This chapter explains the plugin properties in greater detail.
+This section provides detailed descriptions of all plugin properties, organized by category.
 
 ### General
 
-- **Version:** Information about release version, Git ID, and build time
+#### Version
+Displays release version, Git commit ID, and build timestamp.
+
+#### Import/Export
+- **Import settings:** Load all plugin settings from a previously exported `.ini` file. All current settings will be replaced.
+- **Export settings:** Save all current plugin settings to an `.ini` file for backup, sharing, or attaching to bug reports.
 
 ### Network 📡
 
-- **DNS Resolution Details:**
+#### DNS Configuration
+- **DNS Server IP:** IP address of DNS server for resolving device hostnames (default: `192.168.1.1` for most routers). The plugin uses multiple DNS resolution strategies for maximum compatibility. If router DNS fails, the plugin automatically tries standard DNS servers and FQDN resolution.
 
-- **Default:** `192.168.1.1` (most common home router DNS server)
-- **Fallback:** If router DNS fails, the plugin tries standard DNS servers
-- **Enhanced Resolution:** The plugin uses multiple resolution strategies for maximum compatibility
-- **C64 Ultimate Host:** Enter your Ultimate device's hostname (default: `c64u`) or IP address to enable automatic streaming control from OBS (recommended for convenience), or set to `0.0.0.0` to accept streams from any C64 Ultimate on your network (requires manual control from the device)
-- **OBS Server IP:** IP address where C64 Ultimate sends streams (auto-detected by default)
-- **Auto-detect OBS IP:** Automatically detect and use OBS server IP in streaming commands (recommended)
-- **Configure Ports** Use the default ports (video: 11000, audio: 11001) unless network conflicts require different values
-- **Buffer Delay:** Sets the network buffer for incoming UDP packets arriving from the C64 Ultimate (0–500 ms, default 10 ms). The buffer size is expressed in milliseconds to represent the time-based delay it introduces, compensating for packet loss, reordering, and variable network latency. Larger buffers improve stability under high-latency or congested conditions but increase end-to-end delay.
+#### Device Configuration
+- **C64U Host:** Hostname (default: `c64u`) or IP address of your C64 Ultimate device. This enables automatic streaming control from OBS. Set to `0.0.0.0` to skip control commands and accept streams from any device on your network.
+- **C64U Password:** Only needed if C64U REST API was secured with a password. By default, no password is set, so this can be left empty.
+
+#### OBS Server Configuration
+- **OBS IP:** IP address where C64 Ultimate sends streams. Auto-detected by default.
+- **Auto-detect OBS IP:** Automatically detect and use OBS server IP in streaming commands (recommended).
+
+#### Port Configuration
+- **Video Port:** UDP port for video stream from C64 Ultimate (default: `11000`).
+- **Audio Port:** UDP port for audio stream from C64 Ultimate (default: `11001`).
+- **Control Port:** TCP port used to send control commands to C64 Ultimate (default: `64`).
+
+#### Buffer Configuration
+- **Buffer Delay (millis):** Network buffer for incoming UDP packets (0–500 ms, default: `10` ms). Compensates for packet loss, reordering, and variable network latency. Larger buffers improve stability under high-latency or congested conditions but increase end-to-end delay.
 
 ### Recording 💾
 
 The plugin includes built-in recording capabilities that work independently of OBS Studio's recording system, letting you save raw C64 Ultimate data streams directly to disk.
 
+#### Output Folder
+Directory where timestamped session folders will be created. Each session folder contains frames, video, audio, and timing files depending on which recording options are enabled.
+
 #### Recording Options
 
-The plugin offers four independent recording options that can be enabled separately or together:
+The plugin offers five independent recording options that can be enabled separately or together:
 
-**📊 Network and Streaming Events (CSV):**
+**📊 Record Network and Streaming Events (CSV):**
 
 - Records detailed timing data for network packets and OBS processing events
 - Creates `obs.csv` (OBS processing timeline) and `network.csv` (UDP packet analysis)
@@ -239,15 +255,15 @@ The plugin offers four independent recording options that can be enabled separat
 - **Use Cases:** Debug performance issues, analyze network jitter, validate frame timing
 - Files: `session_YYYYMMDD_HHMMSS/obs.csv` and `session_YYYYMMDD_HHMMSS/network.csv`
 
-**🖼️ Raw Frames (BMP):**
+**🖼️ Record Raw Frames (BMP):**
 
-- Saves individual video frames as uncompressed BMP files
+- Saves individual video frames as uncompressed BMP files in `frames/` subfolder
 - Useful for debugging video issues or creating frame-by-frame analysis
 - **Performance Impact:** Enabling this feature will reduce streaming performance due to disk I/O
 - **Note:** CRT effects (scanlines, bloom, afterglow, etc.) are NOT applied to recorded frames. Palette changes ARE applied.
 - Files saved as: `session_YYYYMMDD_HHMMSS/frames/frame_NNNNNN.bmp`
 
-**🎬 Raw Video and Audio (AVI + WAV):**
+**🎬 Record Raw Video (AVI) and Audio (WAV):**
 
 - Records uncompressed AVI video and separate WAV audio files
 - Captures the raw data stream without OBS processing
@@ -259,8 +275,13 @@ The plugin offers four independent recording options that can be enabled separat
 **🔬 Record A/V Sync (CSV):**
 
 - Creates `av-sync.csv` with detailed audio/video synchronization measurements
-- Automatically triggers A/V sync test program on Ultimate 64 devices via REST API for checking audio/video synchronization
+- Automatically triggers A/V sync test program on Ultimate 64 devices via REST API
 - File: `session_YYYYMMDD_HHMMSS/av-sync.csv`
+
+**🐛 Show Debug Messages in OBS Logs:**
+
+- Enable detailed logging for debugging connection issues, DNS resolution, and network problems
+- Messages appear in OBS Studio's log files with microsecond-precision timestamps
 
 #### File Organization
 
@@ -279,18 +300,18 @@ recordings/
     └── ...
 ```
 
-**Session Management:** A new session folder is automatically created each time recording is enabled. The output folder can be changed in the plugin properties.
+**Session Management:** A new session folder is automatically created each time recording is enabled. The output folder can be changed via the **Output Folder** property.
 
 #### Usage Notes
 
 - **Independent Operation:** All recording operates independently of OBS Studio's built-in recording
-- **Mix and Match:** All three recording options can be enabled simultaneously
+- **Mix and Match:** All recording options can be enabled simultaneously
 - **Instant Recording:** Recording starts immediately when a checkbox is checked and continues until unchecked
 - **⚠️ Persistent State:** Checkbox states persist across OBS restarts - uncheck to stop recording or risk filling disk space
 
 #### Debug & Analysis CSV Logs 📊
 
-When **"Network and Streaming Events (CSV)"** recording is enabled, the plugin generates detailed CSV logs for debugging OBS performance and analyzing C64 Ultimate network streams. These logs enable bit-accurate recording analysis and precise frame timing measurements.
+When **"Record Network and Streaming Events (CSV)"** is enabled, the plugin generates detailed CSV logs for debugging OBS performance and analyzing C64 Ultimate network streams. These logs enable bit-accurate recording analysis and precise frame timing measurements.
 
 **Generated CSV Files:**
 
@@ -303,10 +324,6 @@ Examples from recent automated E2E runs against a 'mocked' (i.e. simulated) Ulti
 
 **Sample Recording:** See [docs/recordings/session_19700101_024625](docs/recordings/session_19700101_024625) for complete examples with all file types.
 
-#### Debug Logging
-
-**Show Debug Messages in OBS Logs:** Check this to see debug messages in the OBS logs.
-
 ---
 
 ### Effects ✨
@@ -315,7 +332,8 @@ Recreate the authentic look and feel of classic CRT monitors and TVs with config
 
 ![C64 Stream Effects](./docs/images/properties-effects.png "C64 Stream Effects")
 
-**Presets:** One-click configurations for different display types
+#### Presets
+One-click configurations for different display types:
 
 - **[Classic CRT](./docs/images/effects/classic-crt.png)** - Balanced scan lines and bloom for general retro appeal
 - **[Amber Monitor](./docs/images/effects/amber-monitor.png)** - Warm amber tint reminiscent of early computer monitors
@@ -325,17 +343,56 @@ Recreate the authentic look and feel of classic CRT monitors and TVs with config
 - **[Vintage TV](./docs/images/effects/vintage-tv.png)** - Softer look with prominent scan lines for old television feel
 - **[Arcade Cabinet](./docs/images/effects/arcade-cabinet.png)** - High-contrast effects for authentic arcade experience
 
-**Customizable Effects:**
-
-- **Scan Lines:** CRT raster line simulation with precise control (see table below). The "Scan Line Strength" slider (0.0–1.0) controls how dark the gaps appear. At 0.0, gaps are invisible; at 1.0, they are completely black.
-
-- **Bloom:** Glow effect that makes bright pixels bleed into darker areas
-- **Pixel Geometry:** Independent width/height scaling for authentic pixel aspect ratios
-- **Blur Control:** Fine-tune between crisp pixels and soft scaling
-- **Afterglow**: CRT phosphor persistence effect (0-250ms) with configurable decay curves
-- **Screen Tint:** Amber, green, or monochrome overlays for period-accurate monitor simulation
-
 **Reset:** To reset to default values, simply select the "Default" preset. If you have changed individual effects whilst the "Default" preset was active, select any other preset first and then re-select the "Default" preset.
+
+#### Individual Effect Controls
+
+All effects can be customized individually:
+
+**Scan Line Distance:**
+Controls the dark gap between each pair of C64 pixel rows, simulating CRT raster lines.
+- **None (0%):** No gaps, 4× scaling
+- **Tight (25%):** 5× scaling, subtle gaps (4 bright + 1 dark pattern)
+- **Normal (50%):** 3× scaling, classic CRT look (2 bright + 1 dark pattern)
+- **Wide (100%):** 4× scaling, fills 1080p canvas (2 bright + 2 dark pattern)
+- **Extra Wide (200%):** 3× scaling, prominent gaps (1 bright + 2 dark pattern)
+
+See [Perfect Scan Lines](#perfect-scan-lines) section for pixel-perfect configuration details.
+
+**Scan Line Strength:**
+How dark the gaps between scan lines appear (0.0 = gaps invisible, 0.7 = recommended, 1.0 = gaps completely black).
+
+**Pixel Width:**
+Horizontal pixel size multiplier for authentic C64 pixel aspect ratios.
+
+**Pixel Height:**
+Vertical pixel size multiplier for authentic C64 pixel aspect ratios.
+
+**Blur:**
+Scaling blur strength (0.0 = precise scaling, 1.0 = very blurry with gaussian blur). GPU multi-sample effect.
+
+**Bloom:**
+Bloom effect strength (0.0 = off, 1.0 = maximum). GPU multi-pass effect that makes bright pixels bleed into darker areas.
+
+**Afterglow Duration (ms):**
+Phosphor persistence duration in milliseconds (0 = off, max = 250). Simulates CRT phosphor decay trails. High CPU impact: processes every pixel every frame. Disable for best performance.
+
+**Afterglow Curve:**
+How quickly the afterglow fades away:
+- **Instant Fade (Linear):** Even, linear decay
+- **Gradual Fade (Slow Start):** Slow initial fade, then faster
+- **Rapid Fade (Fast Start):** Quick initial fade, then slower
+- **Long Tail (Exponential):** Dramatic exponential decay with long persistence
+
+**Tint Type:**
+Type of monochrome tint to apply. GPU shader effect:
+- **None (colour):** Full color output
+- **Amber:** Warm amber tint for vintage monitor look
+- **Green:** Classic green phosphor terminal appearance
+- **Monochrome:** Grayscale conversion
+
+**Tint Strength:**
+Strength of tint effect (0.0 = off, 1.0 = full tint). GPU shader effect.
 
 #### Perfect Scan Lines
 
@@ -370,6 +427,9 @@ Customize the VIC-II color palette to match different C64 hardware variants, per
 
 ![C64 Stream Palettes](./docs/images/properties-palettes.png "C64 Stream Palettes")
 
+#### Palette Selection
+Select a color palette for the C64 video output. Shipped palettes show '(Preset)' suffix. Custom palettes are saved automatically when closing the properties dialog.
+
 **Shipped Palettes:** The plugin includes the following preset palettes:
 
 - **Default** - Standard VIC-II colors matching original C64 hardware
@@ -382,14 +442,21 @@ Customize the VIC-II color palette to match different C64 hardware variants, per
 - **Vibrant** - Increased color saturation for enhanced visual impact
 - **Warm** - Amber/orange color temperature shift
 
-**Palette Controls:**
+#### Palette Controls
 
-- **Palette Dropdown:** Select from shipped palettes or any custom palettes you've added
-- **Import palette:** Imports a `.vpl` file
-- **Export palette:** Exports the currently active palette (with any color adjustments) to a `.vpl` file
-- **Color Editor:** Expand to access 16 color pickers (0-15) for editing individual VIC-II colors. Changes apply immediately to the video output
+**Import palette:**
+Select a `.vpl` palette file to import and apply it. Imported palettes become available in the palette dropdown.
 
-**Auto-Save Behavior:**
+**Export palette:**
+Choose a destination path to save the current palette as a `.vpl` file. Exports the currently active palette with any color adjustments you've made.
+
+**Delete:**
+Removes the currently selected custom palette. Shipped preset palettes cannot be deleted.
+
+**Color Editor:**
+Expand to access 16 color pickers (0-15) for editing individual VIC-II colors. Changes apply immediately to the video output.
+
+#### Auto-Save Behavior
 
 - Custom palettes are automatically saved when you edit them in the color editor
 - **Preset modifications:** If you edit a shipped preset palette, a custom copy is automatically created with the same name (the original preset remains unchanged)
