@@ -95,6 +95,7 @@ struct c64_source {
     uint32_t control_port;
     bool streaming;
     uint64_t last_start_command_time_ns; // When we last requested streaming (START commands or start_streaming)
+    uint64_t last_packet_received_ns;    // When we last received any packet (for stream health monitoring)
 
     // Video data
     uint32_t width;

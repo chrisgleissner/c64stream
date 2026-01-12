@@ -320,6 +320,7 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->audio_port = (uint32_t)obs_data_get_int(settings, "audio_port");
     context->control_port = (uint32_t)obs_data_get_int(settings, "control_port");
     context->streaming = false;
+    context->last_packet_received_ns = 0; // Initialize stream health monitoring
 
     // Initialize OBS IP address from settings or auto-detect if enabled
     memset(context->obs_ip_address, 0, sizeof(context->obs_ip_address));
@@ -1229,6 +1230,18 @@ void c64_video_tick(void *data, float seconds)
         context->afterglow_dt_ms = fallback;
     }
     context->afterglow_last_tick_ns = now_ns;
+
+    // Stream health monitoring: detect if stream has stopped and trigger reconnection
+    // Check every tick if we should be streaming but haven't received packets recently
+    if (context->streaming && context->last_packet_received_ns > 0) {
+        const uint64_t packet_timeout_ns = 3000000000ULL; // 3 seconds
+        if ((now_ns - context->last_packet_received_ns) > packet_timeout_ns) {
+            C64_LOG_WARNING("No packets received for %.1f seconds - triggering reconnection",
+                            (now_ns - context->last_packet_received_ns) / 1000000000.0);
+            context->last_packet_received_ns = now_ns; // Prevent repeated triggers
+            c64_schedule_retry(context, "stream timeout");
+        }
+    }
 
     // Always update texture from frame buffer for consistent rendering.
     // Important: do NOT call gs_texture_get_width/height outside graphics context; cache dimensions instead.

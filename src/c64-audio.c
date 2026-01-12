@@ -102,6 +102,8 @@ void *audio_thread_func(void *data)
         const uint64_t packet_time = os_gettime_ns();
         context->last_udp_packet_time = packet_time; // DEPRECATED - kept for compatibility
         context->last_audio_packet_time = packet_time;
+        // Track global last packet time for stream health monitoring
+        context->last_packet_received_ns = packet_time;
 
         // Ensure shared synthetic start time is initialized on first packet receipt.
         c64_try_init_stream_start_ns(context, packet_time, "audio packet recv");
