@@ -48,6 +48,16 @@ class ResourceManager:
                 if self.output_csv:
                      self.output_csv.parent.mkdir(parents=True, exist_ok=True)
                      self._monitor.save_csv(self.output_csv)
+
+                     # Also save JSON for report generator
+                     json_path = self.output_csv.with_suffix('.json')
+                     if self.output_csv.name == 'resource_usage.csv':
+                         # If default name, also try saving as 'resource.json' to match report expectation
+                         alt_json_path = self.output_csv.parent / 'resource.json'
+                         self._monitor.save_json(alt_json_path)
+                     else:
+                         self._monitor.save_json(json_path)
+
                 logger.info("📊 Resource monitoring stopped")
             except Exception as e:
                 logger.warning(f"Error stopping resource monitor: {e}")

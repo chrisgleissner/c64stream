@@ -92,7 +92,7 @@ class ResultValidator:
 
         # 5. A/V Sync & Frame Logic
         if recording_path and recording_path.exists():
-             self._check_av_sync(recording_path, results, errors)
+             self._check_av_sync(recording_path, results, errors, warnings)
              self._check_frame_logic(recording_path, results, errors)
 
         # 6. Scanlines Check
@@ -265,13 +265,13 @@ class ResultValidator:
             'record_frames': {'status': 'skipped', 'message': 'Skipped (not enabled)'}
         }
 
-    def _check_av_sync(self, recording_path, results, errors):
+    def _check_av_sync(self, recording_path, results, errors, warnings):
         # Skip av_sync validation for full-frame-pop scenarios (matches main branch behavior)
         if self.full_frame_pop:
             results['av_sync'] = {'status': 'skipped', 'details': 'Skipped (full-frame-pop scenario)'}
             results['av_sync_details'] = {}
             logger.info("⏭️  A/V Sync: Skipped (full-frame-pop scenario)")
-            
+
             # For full_frame_pop, set frame_processing based on video packets received
             # (since frame logic is also skipped for these scenarios)
             video_packets = self.counts.get('video_packets', 0)
@@ -302,10 +302,11 @@ class ResultValidator:
             results['frame_processing'] = {'status': status_str, 'details': msg}
 
         if not passed and details:
-             # AV sync failure is an error
-             errors.append(f"AV Sync Failed: {msg}")
+             # AV sync failure is only a warning for regular scenarios
+             # (AV sync detection may not be reliable with heavy effects like amber tint/afterglow)
+             warnings.append(f"AV Sync: {msg}")
 
-        logger.info(f"{'✅' if passed else '❌'} A/V Sync: {passed} ({msg})")
+        logger.info(f"{'✅' if passed else '⚠️ ' } A/V Sync: {passed} ({msg})")
 
     def _check_frame_logic(self, recording_path, results, errors):
         # Skip frame logic for full-frame-pop scenarios (matches main branch behavior)

@@ -32,7 +32,7 @@ class OBSConfigManager:
                 return False
         return True
 
-    def copy_e2e_properties(self) -> bool:
+    def copy_e2e_properties(self, enable_av_sync: bool = False) -> bool:
         """Copy E2E properties file to plugin data directory."""
         if not self.setup_plugin_data():
             return False
@@ -65,6 +65,11 @@ class OBSConfigManager:
                     logger.info(f"📦 Backed up production properties: {target_properties} -> {backup_path}")
 
                 shutil.copy2(e2e_properties, target_properties)
+
+                # Apply AV Sync Override if requested (for specific scenarios)
+                if enable_av_sync:
+                     self._enable_av_sync_property(target_properties)
+
                 logger.info(f"✅ Copied E2E properties: {e2e_properties} -> {target_properties}")
 
                 # Inject output_dir as save_folder for ALL runs to satisfy test expectations
@@ -83,6 +88,24 @@ class OBSConfigManager:
         else:
             logger.error(f"❌ E2E properties file not found: {e2e_properties}")
             return False
+
+    def _enable_av_sync_property(self, target_properties: Path):
+        """Force record_av_sync=true in properties.ini."""
+        try:
+            content = target_properties.read_text(encoding='utf-8')
+            import re
+            if re.search(r'^record_av_sync=.*$', content, flags=re.MULTILINE):
+                content = re.sub(r'^record_av_sync=.*$', 'record_av_sync=true', content, flags=re.MULTILINE)
+            else:
+                if '[recording]' in content:
+                    content = content.replace('[recording]', '[recording]\nrecord_av_sync=true')
+                else:
+                    content += '\n[recording]\nrecord_av_sync=true'
+
+            target_properties.write_text(content, encoding='utf-8')
+            logger.info("🔄 Enabled record_av_sync=true for this scenario")
+        except Exception as e:
+            logger.warning(f"Failed to enable AV sync property: {e}")
 
     def _inject_recording_path(self, target_properties: Path):
         """Force the plugin to save recordings/CSVs to the test output directory."""

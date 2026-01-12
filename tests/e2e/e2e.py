@@ -23,6 +23,10 @@ TEST_DIR = Path(__file__).parent.resolve()
 sys.path.insert(0, str(TEST_DIR))
 
 from framework.orchestrator import E2EOrchestrator
+from framework.validation.network import NetworkTimingValidator
+
+# Expose validation function for unit tests
+validate_network_timing = NetworkTimingValidator.validate
 
 def build_udp_replay(test_dir: Path, is_ci: bool) -> Path:
     """Ensure udp_replay tool is built and available."""

@@ -89,9 +89,9 @@ class E2EOrchestrator:
             self.env.prepare()
 
             # 2. Configure OBS
-            # Enable record_av_sync if full_frame_pop is enabled (implies AV sync test)
-            enable_av_sync = self.full_frame_pop
-            if not self.obs_config.copy_e2e_properties(enable_av_sync=enable_av_sync):
+            # Copy E2E properties (record_av_sync=true by default in properties_e2e_*.ini)
+            # Scenarios can override via their overrides/plugins/c64stream/data/properties.ini
+            if not self.obs_config.copy_e2e_properties():
                 raise RuntimeError("Failed to setup plugin properties")
 
             profile = self.obs_config.create_obs_profile(self.format, self.scenario_overrides)

@@ -211,7 +211,14 @@ class OBSProcessManager:
 
         try:
             pid = self.process.pid
-            os.system(f"sudo renice -n -10 -p {pid} 2>/dev/null || true")
+            # Attempt to renice without sudo. If user limits allow (ulimit -e), this works.
+            # If not, it fails silently, which is preferred over blocking on a sudo prompt.
+            subprocess.run(
+                ["renice", "-n", "-10", "-p", str(pid)],
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
         except Exception:
             pass
 

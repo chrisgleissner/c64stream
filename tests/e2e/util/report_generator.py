@@ -514,7 +514,6 @@ class ReportGenerator:
 
              md.append("\n#### Sync Details\n")
              for i, d in enumerate(av.get('sync_details', []), 1):
-                  if not d.get('included_in_analysis'): continue
                   diff = d.get('difference_ms', 0)
                   audio_t = d.get('audio_pop_time_ms', 0)
                   video_t = d.get('closest_video_pop_ms', 0)
@@ -522,12 +521,18 @@ class ReportGenerator:
                   audio_ch = d.get('audio_channel', '')
                   color = d.get('traffic', 'gray')
                   icon = "🟢" if color=='green' else ("🟡" if color=='yellow' else "🔴")
-
-                  # Format frame number and channel
-                  frame_str = f" (frame {frame_num})" if frame_num else ""
-                  ch_str = f" [{audio_ch}]" if audio_ch else ""
-
-                  md.append(f"- {icon} Pop #{i}{ch_str}: audio={audio_t:.1f}ms, video={video_t:.1f}ms{frame_str}, diff={diff:.1f}ms")
+                  
+                  # Show if included in analysis, otherwise show why ignored
+                  if d.get('included_in_analysis'):
+                      # Format frame number and channel
+                      frame_str = f" (frame {frame_num})" if frame_num else ""
+                      ch_str = f" [{audio_ch}]" if audio_ch else ""
+                      md.append(f"- {icon} Pop #{i}{ch_str}: audio={audio_t:.1f}ms, video={video_t:.1f}ms{frame_str}, diff={diff:.1f}ms")
+                  else:
+                      # Show ignored pop with reason
+                      ignore_reason = d.get('ignore_reason', 'unknown')
+                      ch_str = f" [{audio_ch}]" if audio_ch else ""
+                      md.append(f"- ⚪ Pop #{i}{ch_str}: audio={audio_t:.1f}ms (ignored: {ignore_reason})")
 
              # Channel sequence and alternation
              channels = av.get('channels', '')
@@ -678,7 +683,7 @@ class ReportGenerator:
              f.write("\n".join(md))
 
     def _extract_sample_frame(self, output_path: Path):
-        """Extract a sample frame at ~50% mark from recording."""
+        """Extract a sample frame, preferring times with AV pops when available."""
         if not self.recording_path or not self.recording_path.exists():
             return
 
@@ -691,8 +696,16 @@ class ReportGenerator:
             )
             duration = float(result.stdout.strip())
 
-            # Extract at 50% mark
-            timestamp = duration / 2.0
+            # Try to extract at first audio pop time if av_sync data is available
+            timestamp = duration / 2.0  # default: 50% mark
+            av_details = self.validation_data.get('av_sync_details', {})
+            sync_details = av_details.get('sync_details', [])
+            if sync_details:
+                # Use first audio pop time (converted to seconds)
+                first_pop_ms = sync_details[0].get('audio_pop_time_ms', 0)
+                if first_pop_ms > 0:
+                    timestamp = first_pop_ms / 1000.0
+                    print(f"Extracting sample frame at first audio pop: {timestamp:.3f}s")
 
             subprocess.run(
                 ['ffmpeg', '-ss', str(timestamp), '-i', str(self.recording_path),
