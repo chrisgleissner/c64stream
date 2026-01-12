@@ -102,7 +102,10 @@ main() {
     setup_process_priority
 
     # CRITICAL: Stop real C64 device from streaming to prevent cross-pollution
-    stop_real_c64_streaming
+    # Only send reset for the device test to avoid disrupting the real C64U unnecessarily
+    if [[ "${SCENARIO}" == "ntsc_default_avsync_device" ]]; then
+        stop_real_c64_streaming
+    fi
 
     if [[ "${SKIP_BUILD}" != true ]]; then
         build_project || exit 1
@@ -129,6 +132,11 @@ main() {
 
     # Stop resource monitoring before generating final outputs
     stop_resource_monitoring
+
+    # Clean up real C64 device after device test
+    if [[ "${SCENARIO}" == "ntsc_default_avsync_device" ]]; then
+        stop_real_c64_streaming
+    fi
 
     # Generate playback.csv before report
     generate_playback_csv
