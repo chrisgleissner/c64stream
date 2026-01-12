@@ -323,7 +323,7 @@ class ResultValidator:
              sync_details = details.get('sync_details', [])
              synced_count = sum(1 for d in sync_details if d.get('is_synced', False))
              total_count = len(sync_details)
-             
+
              # If NO pops are synced, this is a critical failure (test content/timing issue)
              if total_count > 0 and synced_count == 0:
                  errors.append(f"AV Sync: All {total_count} pops out of sync - {msg}")

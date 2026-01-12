@@ -93,23 +93,33 @@ class PacketReplayer:
         if not udp_replay_bin.exists():
             raise FileNotFoundError(f"udp_replay not found: {udp_replay_bin}")
 
+        # Synchronize start time across both senders to avoid A/V offset.
+        # Use a future monotonic timestamp so both processes can preload packets
+        # and start sending at the exact same time (critical for A/V sync).
+        # Lead time: 8-10 seconds to handle slow disk I/O (especially on CI).
+        lead_s = 10.0 if self.env.is_ci else 8.0
+        start_at_us = (time.monotonic_ns() // 1000) + int(lead_s * 1_000_000)
+
         # Command construction
-        # udp-replay --host <ip> --port <port> --manifest <csv> --dir <dir>
+        # udp-replay --host <ip> --port <port> --manifest <csv> --dir <dir> --start-at-us <us>
 
         video_cmd = [
             '--host', video_dest[0],
             '--port', str(video_dest[1]),
             '--manifest', str(video_manifest_path),
-            '--dir', str(video_dir)
+            '--dir', str(video_dir),
+            '--start-at-us', str(start_at_us)
         ]
 
         audio_cmd = [
             '--host', audio_dest[0],
             '--port', str(audio_dest[1]),
             '--manifest', str(audio_manifest_path),
-            '--dir', str(audio_dir)
+            '--dir', str(audio_dir),
+            '--start-at-us', str(start_at_us)
         ]
 
+        logger.info(f"🚀 Synchronized packet replay start: +{lead_s}s from now")
         return self._execute_parallel_replay(udp_replay_bin, video_cmd, audio_cmd)
 
     def _apply_simulation(self, timeline: List[Dict]):
