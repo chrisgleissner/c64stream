@@ -26,7 +26,7 @@ try:
     from util.network_analysis import analyze_network_jitter
 except ImportError:
     # Fallback to absolute if needed (should not be needed if e2e.py adds tests/e2e to path)
-    from framework.util.network_analysis import analyze_network_jitter
+    from util.network_analysis import analyze_network_jitter
 
 logger = logging.getLogger(__name__)
 
