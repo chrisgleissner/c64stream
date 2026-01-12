@@ -1,79 +1,272 @@
 {
-  "udp_reception": {
-    "status": "warning",
-    "details": "19186/19252 packets (17938 video, 1248 audio, minor loss)"
-  },
-  "frame_processing": {
-    "status": "pass",
-    "details": "1550 frames processed"
-  },
-  "video_recording": {
-    "status": "pass",
-    "details": "9.4 MB"
-  },
-  "packet_integrity": {
-    "status": "pass",
-    "details": "19.0s duration"
-  },
-  "network_timing": {
-    "status": "pass",
-    "details": "span=4999.9ms, video_mean=354.2us, audio_mean=4005.8us"
-  },
-  "video_brightness": {
-    "status": "skipped",
-    "details": "Skipped (full-frame-pop scenario)"
-  },
-  "av_sync": {
-    "status": "skipped",
-    "details": "Skipped (full-frame-pop scenario)"
-  },
-  "av_sync_offset": {
-    "status": "pass",
-    "message": "Pop offset OK (max 40.00ms): obs_csv=6.75ms, network_csv=14.35ms, mp4=4.84ms",
-    "details": {
-      "sources": {
-        "obs_csv": {
-          "pop_count": 5,
-          "max_offset_ms": 6.753,
-          "avg_offset_ms": 4.7674,
-          "per_pop_offsets_ms": [
-            5.568,
-            3.35,
-            5.559,
-            6.753,
-            2.607
-          ]
-        },
-        "network_csv": {
-          "pop_count": 5,
-          "max_offset_ms": 14.346,
-          "avg_offset_ms": 12.2598,
-          "per_pop_offsets_ms": [
-            10.133,
-            13.642,
-            12.739,
-            10.439,
-            14.346
-          ]
-        },
-        "mp4": {
-          "pop_count": 5,
-          "max_offset_ms": 4.841,
-          "avg_offset_ms": 2.8296,
-          "per_pop_offsets_ms": [
-            4.841,
-            2.832,
-            0.506,
-            1.821,
-            4.148
-          ]
-        }
-      }
+    "udp_reception": {
+        "status": "pass",
+        "details": "38456 packets (35952 video, 0 audio)"
     },
-    "metrics": {
-      "obs_csv_max_offset_ms": 6.753,
-      "network_csv_max_offset_ms": 14.346,
-      "mp4_max_offset_ms": 4.841
-    }
-  }
+    "frame_processing": {
+        "status": "pass",
+        "details": "599 frames processed"
+    },
+    "video_recording": {
+        "status": "pass",
+        "details": "6.8 MB"
+    },
+    "packet_integrity": {
+        "status": "pass",
+        "details": "Verified"
+    },
+    "network_timing": {
+        "status": "pass",
+        "details": "span=10322.3ms, video_mean=340.6us, audio_mean=4005.0us"
+    },
+    "video_brightness": {
+        "status": "fail",
+        "details": "Black screen (best_mean_luma=0.0)",
+        "metrics": {
+            "best_offset_s": 0,
+            "best_mean_luma": 0,
+            "samples": [
+                {
+                    "t": 3.426603817738107,
+                    "mean_luma": 0.0
+                },
+                {
+                    "t": 6.853207635476214,
+                    "mean_luma": 0.0
+                },
+                {
+                    "t": 10.279811453214322,
+                    "mean_luma": 0.0
+                }
+            ]
+        }
+    },
+    "av_sync": {
+        "status": "skipped",
+        "details": "Skipped (full-frame-pop scenario)"
+    },
+    "av_sync_details": {
+        "total_audio_pops": 11,
+        "total_analyzed": 0,
+        "total_video_pops": 8,
+        "perfect_sync_count": 0,
+        "sync_accuracy_percent": 0,
+        "tolerance_ms": 30,
+        "sync_details": [
+            {
+                "audio_pop_time_ms": 1919,
+                "closest_video_pop_ms": 4630.093939090028,
+                "closest_video_pop_frame": 277,
+                "difference_ms": 2711.0939390900276,
+                "is_synced": false,
+                "included_in_analysis": false,
+                "ignore_reason": "unmatched_audio_pop",
+                "audio_channel": "L",
+                "video_channel": "L",
+                "channels_match": true,
+                "traffic": "gray"
+            },
+            {
+                "audio_pop_time_ms": 2720,
+                "closest_video_pop_ms": 4630.093939090028,
+                "closest_video_pop_frame": 277,
+                "difference_ms": 1910.0939390900276,
+                "is_synced": false,
+                "included_in_analysis": false,
+                "ignore_reason": "unmatched_audio_pop",
+                "audio_channel": "R",
+                "video_channel": "L",
+                "channels_match": false,
+                "traffic": "gray"
+            },
+            {
+                "audio_pop_time_ms": 3525,
+                "closest_video_pop_ms": 4630.093939090028,
+                "closest_video_pop_frame": 277,
+                "difference_ms": 1105.0939390900276,
+                "is_synced": false,
+                "included_in_analysis": false,
+                "ignore_reason": "unmatched_audio_pop",
+                "audio_channel": "L",
+                "video_channel": "L",
+                "channels_match": true,
+                "traffic": "gray"
+            },
+            {
+                "audio_pop_time_ms": 4327,
+                "closest_video_pop_ms": 4630.093939090028,
+                "closest_video_pop_frame": 277,
+                "difference_ms": 303.09393909002756,
+                "is_synced": false,
+                "included_in_analysis": false,
+                "ignore_reason": "unmatched_audio_pop",
+                "audio_channel": "R",
+                "video_channel": "L",
+                "channels_match": false,
+                "traffic": "gray"
+            },
+            {
+                "audio_pop_time_ms": 5127,
+                "closest_video_pop_ms": 5432.420686657974,
+                "closest_video_pop_frame": 325,
+                "difference_ms": 305.42068665797433,
+                "is_synced": false,
+                "included_in_analysis": false,
+                "ignore_reason": "unmatched_audio_pop",
+                "audio_channel": "L",
+                "video_channel": "L",
+                "channels_match": true,
+                "traffic": "gray"
+            },
+            {
+                "audio_pop_time_ms": 5932,
+                "closest_video_pop_ms": 6234.747434225921,
+                "closest_video_pop_frame": 373,
+                "difference_ms": 302.7474342259211,
+                "is_synced": false,
+                "included_in_analysis": false,
+                "ignore_reason": "unmatched_audio_pop",
+                "audio_channel": "L",
+                "video_channel": "L",
+                "channels_match": true,
+                "traffic": "gray"
+            },
+            {
+                "audio_pop_time_ms": 6733,
+                "closest_video_pop_ms": 7020.359041219536,
+                "closest_video_pop_frame": 420,
+                "difference_ms": 287.35904121953627,
+                "is_synced": false,
+                "included_in_analysis": false,
+                "ignore_reason": "unmatched_audio_pop",
+                "audio_channel": "R",
+                "video_channel": "L",
+                "channels_match": false,
+                "traffic": "gray"
+            },
+            {
+                "audio_pop_time_ms": 7534,
+                "closest_video_pop_ms": 7822.685788787483,
+                "closest_video_pop_frame": 468,
+                "difference_ms": 288.68578878748303,
+                "is_synced": false,
+                "included_in_analysis": false,
+                "ignore_reason": "unmatched_audio_pop",
+                "audio_channel": "L",
+                "video_channel": "L",
+                "channels_match": true,
+                "traffic": "gray"
+            },
+            {
+                "audio_pop_time_ms": 8339,
+                "closest_video_pop_ms": 8625.012536355433,
+                "closest_video_pop_frame": 516,
+                "difference_ms": 286.01253635543253,
+                "is_synced": false,
+                "included_in_analysis": false,
+                "ignore_reason": "unmatched_audio_pop",
+                "audio_channel": "L",
+                "video_channel": "L",
+                "channels_match": true,
+                "traffic": "gray"
+            },
+            {
+                "audio_pop_time_ms": 9140,
+                "closest_video_pop_ms": 9427.339283923378,
+                "closest_video_pop_frame": 564,
+                "difference_ms": 287.3392839233784,
+                "is_synced": false,
+                "included_in_analysis": false,
+                "ignore_reason": "unmatched_audio_pop",
+                "audio_channel": "L",
+                "video_channel": "L",
+                "channels_match": true,
+                "traffic": "gray"
+            },
+            {
+                "audio_pop_time_ms": 9941,
+                "closest_video_pop_ms": 10229.666031491326,
+                "closest_video_pop_frame": 612,
+                "difference_ms": 288.66603149132607,
+                "is_synced": false,
+                "included_in_analysis": false,
+                "ignore_reason": "unmatched_audio_pop",
+                "audio_channel": "R",
+                "video_channel": "L",
+                "channels_match": false,
+                "traffic": "gray"
+            }
+        ],
+        "is_perfectly_synced": false,
+        "last_event_within_limit": true,
+        "duration_ms": 13706.414999999999,
+        "video_pop_times_ms": [
+            4646.80907966436,
+            5449.135827232307,
+            6251.462574800254,
+            7037.074181793869,
+            7839.4009293618155,
+            8641.727676929764,
+            9444.05442449771,
+            10246.381172065658
+        ],
+        "video_pop_frame_indices": [
+            278,
+            326,
+            374,
+            421,
+            469,
+            517,
+            565,
+            613
+        ],
+        "traffic": [
+            "gray",
+            "gray",
+            "gray",
+            "gray",
+            "gray",
+            "gray",
+            "gray",
+            "gray",
+            "gray",
+            "gray",
+            "gray"
+        ],
+        "channel_match_count": 0,
+        "channel_mismatch_count": 0,
+        "channels_all_match": true
+    },
+    "scanlines": {
+        "status": "pass",
+        "details": "Checked"
+    },
+    "frame_sequence_box": null,
+    "recording": {
+        "record_audio": {
+            "status": "skipped",
+            "message": "Skipped (not enabled)"
+        },
+        "record_video": {
+            "status": "skipped",
+            "message": "Skipped (not enabled)"
+        },
+        "record_obs": {
+            "status": "skipped",
+            "message": "Skipped (not enabled)"
+        },
+        "record_network": {
+            "status": "skipped",
+            "message": "Skipped (not enabled)"
+        },
+        "record_frames": {
+            "status": "skipped",
+            "message": "Skipped (not enabled)"
+        }
+    },
+    "success": true,
+    "errors": [],
+    "warnings": [
+        "Video brightness check: Black screen (best_mean_luma=0.0)"
+    ]
 }

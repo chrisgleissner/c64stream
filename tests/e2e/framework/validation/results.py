@@ -266,19 +266,36 @@ class ResultValidator:
         }
 
     def _check_av_sync(self, recording_path, results, errors, warnings):
-        # Skip av_sync validation for full-frame-pop scenarios (matches main branch behavior)
+        # For full-frame-pop scenarios, we still want to run post-analysis on the MP4
+        # to populate av_sync_details for the README, but we skip the av-sync.csv validation
+        # (since those scenarios test the plugin's runtime AV sync detection separately)
         if self.full_frame_pop:
-            results['av_sync'] = {'status': 'skipped', 'details': 'Skipped (full-frame-pop scenario)'}
-            results['av_sync_details'] = {}
-            logger.info("⏭️  A/V Sync: Skipped (full-frame-pop scenario)")
-
-            # For full_frame_pop, set frame_processing based on video packets received
-            # (since frame logic is also skipped for these scenarios)
+            # Set frame_processing based on video packets received
             video_packets = self.counts.get('video_packets', 0)
             # NTSC: 60 packets per frame, PAL: 62 packets per frame
             packets_per_frame = 62 if self.format == 'PAL' else 60
             estimated_frames = int(video_packets / packets_per_frame) if packets_per_frame > 0 else 0
             results['frame_processing'] = {'status': 'pass', 'details': f"{estimated_frames} frames processed"}
+            
+            # Run post-analysis to get AV pops for README (but don't fail if sync isn't perfect)
+            try:
+                from util.test_av_sync import verify_av_sync
+                if recording_path and recording_path.exists():
+                    av_results = verify_av_sync(str(recording_path))
+                    results['av_sync_details'] = av_results
+                    
+                    # Report as skipped for validation purposes (av-sync.csv test is separate)
+                    results['av_sync'] = {'status': 'skipped', 'details': 'Skipped (full-frame-pop scenario)'}
+                    logger.info("⏭️  A/V Sync: Skipped (full-frame-pop scenario) - but pops detected for reporting")
+                else:
+                    results['av_sync'] = {'status': 'skipped', 'details': 'Skipped (full-frame-pop scenario)'}
+                    results['av_sync_details'] = {}
+                    logger.info("⏭️  A/V Sync: Skipped (full-frame-pop scenario)")
+            except Exception as e:
+                logger.warning(f"Failed to run AV sync post-analysis: {e}")
+                results['av_sync'] = {'status': 'skipped', 'details': 'Skipped (full-frame-pop scenario)'}
+                results['av_sync_details'] = {}
+                logger.info("⏭️  A/V Sync: Skipped (full-frame-pop scenario)")
             return
 
         # Assuming av-sync.csv is present

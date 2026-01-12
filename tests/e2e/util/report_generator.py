@@ -521,7 +521,7 @@ class ReportGenerator:
                   audio_ch = d.get('audio_channel', '')
                   color = d.get('traffic', 'gray')
                   icon = "🟢" if color=='green' else ("🟡" if color=='yellow' else "🔴")
-                  
+
                   # Show if included in analysis, otherwise show why ignored
                   if d.get('included_in_analysis'):
                       # Format frame number and channel
