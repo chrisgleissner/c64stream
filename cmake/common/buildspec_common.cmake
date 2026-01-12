@@ -56,11 +56,13 @@ function(_setup_obs_studio)
   # - OBS emits a developer warning when detours version can't be detected.
   # - OBS emits a warning if VIRTUALCAM_GUID is unset.
   set(_obs_cmake_flags "")
+  # Silence Detours' AUTHOR_WARNING when pkg-config version info isn't present.
+  list(APPEND _obs_cmake_flags "-DDetours_FIND_QUIETLY:BOOL=ON")
+  # Ensure developer/author warnings from OBS don't surface.
   list(APPEND _obs_cmake_flags -Wno-dev)
-  list(APPEND _obs_cmake_flags -DCMAKE_SUPPRESS_DEVELOPER_WARNINGS:BOOL=ON)
-  if(DEFINED VIRTUALCAM_GUID AND NOT "${VIRTUALCAM_GUID}" STREQUAL "")
-    list(APPEND _obs_cmake_flags "-DVIRTUALCAM_GUID:STRING=${VIRTUALCAM_GUID}")
-  endif()
+  list(APPEND _obs_cmake_flags "-DCMAKE_SUPPRESS_DEVELOPER_WARNINGS:BOOL=ON")
+  # Disable virtualcam module entirely (not needed for libobs builds; avoids GUID warnings).
+  list(APPEND _obs_cmake_flags "-DENABLE_VIRTUALCAM:BOOL=OFF")
 
   if(OS_WINDOWS)
     set(_cmake_generator "${CMAKE_GENERATOR}")

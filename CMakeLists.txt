@@ -51,8 +51,9 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DE
   set(CMAKE_INSTALL_PREFIX "/usr" CACHE PATH "Install prefix for Linux packages" FORCE)
 endif()
 
-# Set dummy VirtualCam GUID to prevent Windows build warning (must be a CACHE var for OBS subprojects)
-set(VIRTUALCAM_GUID "{00000000-0000-0000-0000-000000000000}" CACHE STRING "Virtual camera GUID" FORCE)
+# Set dummy VirtualCam GUID (must be a CACHE var for OBS subprojects).
+# Note: OBS' GUID validator expects a plain UUID without braces.
+set(VIRTUALCAM_GUID "00000000-0000-0000-0000-000000000000" CACHE STRING "Virtual camera GUID" FORCE)
 
 option(ENABLE_FRONTEND_API "Use obs-frontend-api for UI functionality" OFF)
 option(ENABLE_QT "Use Qt functionality" OFF)
@@ -139,38 +140,6 @@ else()
     endif()
   else()
     message(STATUS "No prebuilt PRGs found under data/prg; PRG folder in packages may be empty")
-  endif()
-endif()
-
-# Update buildspec.json with authoritative version for consistent packaging
-# Always update for PR builds (development versions) and tagged releases
-if(AUTHORITATIVE_VERSION)
-  # Update buildspec.json with the calculated version (cross-platform, no external tools).
-  # If the source tree is read-only (common in CI), skip quietly.
-  if(EXISTS "${CMAKE_SOURCE_DIR}/buildspec.json")
-    file(READ "${CMAKE_SOURCE_DIR}/buildspec.json" _buildspec_json)
-    string(
-      REGEX REPLACE
-      "\"version\"[ \t\r\n]*:[ \t\r\n]*\"[^\"]*\""
-      "\"version\": \"${AUTHORITATIVE_VERSION}\""
-      _buildspec_json_updated
-      "${_buildspec_json}"
-    )
-
-    if(_buildspec_json_updated STREQUAL _buildspec_json)
-      message(STATUS "buildspec.json version already set to: ${AUTHORITATIVE_VERSION}")
-    else()
-      file(WRITE "${CMAKE_SOURCE_DIR}/buildspec.json.tmp" "${_buildspec_json_updated}")
-      execute_process(
-        COMMAND ${CMAKE_COMMAND} -E rename "${CMAKE_SOURCE_DIR}/buildspec.json.tmp" "${CMAKE_SOURCE_DIR}/buildspec.json"
-        RESULT_VARIABLE mv_result
-      )
-      if(mv_result EQUAL 0)
-        message(STATUS "Updated buildspec.json version to: ${AUTHORITATIVE_VERSION}")
-      else()
-        message(STATUS "Could not update buildspec.json version (rename failed); continuing")
-      endif()
-    endif()
   endif()
 endif()
 
