@@ -37,7 +37,7 @@ DEFAULT_VERBOSE=false
 DEFAULT_SKIP_BUILD=false
 DEFAULT_CLEANUP=true
 DEFAULT_OBS_ENABLED=true   # OBS integration now implemented
-DEFAULT_X11_DISPLAY=":99"
+DEFAULT_X11_DISPLAY="${DEFAULT_X11_DISPLAY:-${DISPLAY:-:99}}"
 DEFAULT_MONITOR_RESOURCES=true  # Resource monitoring for CI (enabled by default)
 DEFAULT_SCENARIO_OVERRIDES=""
 DEFAULT_SCENARIO_NAME=""
@@ -842,6 +842,10 @@ parse_args() {
     if [[ "${SCENARIO_CI_SKIPPED}" == "true" ]]; then
         log_success "Scenario skipped on CI (success)"
         exit 0
+    fi
+    if [[ "${SCENARIO_SKIPPED}" == "true" ]]; then
+        log_success "Scenario skipped (${SCENARIO_SKIP_REASON})"
+        exit 2
     fi
 
     # Default output layout: keep all artifacts under tests/e2e/results/.

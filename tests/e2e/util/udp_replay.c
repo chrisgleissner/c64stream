@@ -461,7 +461,7 @@ int main(int argc, char **argv)
 
         sent++;
 
-        if (verbose && sent % 500 == 0)
+        if (verbose && sent % 1000 == 0)
             printf("  Sent %d/%d\n", sent, count);
     }
 

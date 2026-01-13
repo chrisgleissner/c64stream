@@ -18,6 +18,11 @@ python3 -m assertions \
     --verbose
 ```
 
+## Device Scenarios
+
+Scenarios that use `packet_source: device` require a reachable C64 Ultimate and are opt-in. Set `E2E_DEVICE_TESTS=1`
+to enable them; otherwise they will be skipped.
+
 ## Scenario Structure (New Format)
 
 Each scenario is a **concise YAML file** that references a preset from `effect_presets.ini`:
@@ -47,6 +52,12 @@ assertions:
   - tint
   - afterglow
   - scanlines
+
+# Optional: per-assertion tolerance scaling (1.0 = default). Values <1.0 are more lenient.
+tolerances:
+  frame_progression:
+    local: 1.0
+    ci: 0.6
 ```
 
 ### Available Assertions
@@ -104,6 +115,11 @@ assertions:
   - video_quality
   - audio
   - scanlines
+
+tolerances:
+  frame_progression:
+    local: 1.0
+    ci: 0.8
 ```
 
 ## Base Template

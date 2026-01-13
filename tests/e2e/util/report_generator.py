@@ -26,6 +26,27 @@ def load_json(path: Path) -> Dict[str, Any]:
 def format_duration(seconds: float) -> str:
     return f"{seconds:.1f}"
 
+def _format_trimmed(value: float, decimals: int = 2) -> str:
+    fmt = f"{value:.{decimals}f}"
+    if "." in fmt:
+        fmt = fmt.rstrip("0").rstrip(".")
+    return fmt
+
+def _format_mmss(seconds: float) -> str:
+    if seconds < 0:
+        seconds = 0.0
+    minutes = int(seconds // 60)
+    sec = seconds - (minutes * 60)
+    sec_whole = int(sec)
+    sec_tenths = int(round((sec - sec_whole) * 10))
+    if sec_tenths == 10:
+        sec_whole += 1
+        sec_tenths = 0
+        if sec_whole == 60:
+            minutes += 1
+            sec_whole = 0
+    return f"{minutes:02d}:{sec_whole:02d}.{sec_tenths:d}"
+
 class ReportGenerator:
     def __init__(self, output_dir: Path, scenario_name: str, video_format: str, frames: int,
                  project_root: Path):
@@ -155,6 +176,51 @@ class ReportGenerator:
 
         return results
 
+    def _load_playback_jitter_events(
+        self, settling_seconds: float
+    ) -> Tuple[List[float], Optional[Tuple[float, float]]]:
+        events: List[float] = []
+        content_video_s: List[float] = []
+
+        if not self.playback_csv.exists():
+            return events, None
+
+        try:
+            with open(self.playback_csv, 'r') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    video_s_raw = row.get('video_s')
+                    content_s_raw = row.get('content_s')
+                    try:
+                        video_s = float(video_s_raw) if video_s_raw not in (None, '') else None
+                        content_s = float(content_s_raw) if content_s_raw not in (None, '') else None
+                    except Exception:
+                        continue
+
+                    if content_s is not None and video_s is not None:
+                        content_video_s.append(video_s)
+
+                    t = video_s if video_s is not None else (content_s if content_s is not None else 0.0)
+                    if t < settling_seconds:
+                        continue
+
+                    try:
+                        repeated = int(float(row.get('repeated') or 0))
+                        skipped = int(float(row.get('skipped') or 0))
+                    except Exception:
+                        continue
+
+                    if repeated or skipped:
+                        events.append(t)
+        except Exception as e:
+            print(f"Warning: Failed to parse playback.csv for jitter clustering: {e}")
+            return [], None
+
+        events.sort()
+        content_video_s.sort()
+        content_span = (content_video_s[0], content_video_s[-1]) if content_video_s else None
+        return events, content_span
+
     def generate_playback_csv(self):
         """Generate playback.csv for frame analysis."""
         frame_seq = self.validation_data.get("frame_sequence_box")
@@ -169,7 +235,7 @@ class ReportGenerator:
         start_frame = details.get("window", {}).get("start_frame", 0)
         end_frame = details.get("window", {}).get("end_frame", 0)
 
-        content_bounds = details.get("content_bounds", {})
+        content_bounds = details.get("content_bounds") or {}
         first_content = content_bounds.get("first_content_frame", start_frame)
         last_content = content_bounds.get("last_content_frame", end_frame)
 
@@ -308,6 +374,19 @@ class ReportGenerator:
         except:
              pass
 
+        if not self.network_data:
+            network_csv = self.output_dir / 'network.csv'
+            if network_csv.exists():
+                try:
+                    from util.network_analysis import analyze_network_jitter
+                    analysis = analyze_network_jitter(network_csv)
+                    if isinstance(analysis, dict) and analysis:
+                        self.network_data = analysis
+                        with open(self.network_file, 'w') as f:
+                            json.dump(analysis, f, indent=2)
+                except Exception:
+                    pass
+
         # Gather System Info (enhanced)
         import platform
         import shutil
@@ -316,7 +395,18 @@ class ReportGenerator:
         try:
             if platform.system() == 'Linux':
                 import subprocess as sp
-                distro = sp.check_output(['lsb_release', '-ds'], text=True).strip() if shutil.which('lsb_release') else platform.system()
+                if shutil.which('lsb_release'):
+                    distro = sp.check_output(['lsb_release', '-ds'], text=True).strip().strip('"')
+                elif Path('/etc/os-release').exists():
+                    with open('/etc/os-release', 'r') as f:
+                        for line in f:
+                            if line.startswith('PRETTY_NAME='):
+                                distro = line.split('=', 1)[1].strip().strip('"')
+                                break
+                        else:
+                            distro = platform.system()
+                else:
+                    distro = platform.system()
                 kernel = platform.release()
                 sys_info = f"- OS: {distro} (kernel {kernel})\n"
             else:
@@ -360,19 +450,42 @@ class ReportGenerator:
 
         # Disk info
         try:
-            disk = shutil.disk_usage('/')
-            total_tb = disk.total / (1024**4)
-            free_tb = disk.free / (1024**4)
-            sys_info += f"- Disk (/): {total_tb:.1f}T total, {free_tb:.1f}T available\n"
+            disk_total = None
+            disk_available = None
+            disk_mount = None
+            try:
+                result = subprocess.check_output(
+                    ['df', '-h', str(self.project_root)], text=True, stderr=subprocess.DEVNULL
+                )
+                lines = result.strip().splitlines()
+                if len(lines) >= 2:
+                    parts = lines[1].split()
+                    if len(parts) >= 6:
+                        disk_total = parts[1]
+                        disk_available = parts[3]
+                        disk_mount = parts[5]
+            except Exception:
+                disk = shutil.disk_usage(str(self.project_root))
+                total_tb = disk.total / (1024**4)
+                free_tb = disk.free / (1024**4)
+                disk_total = f"{total_tb:.1f}T"
+                disk_available = f"{free_tb:.1f}T"
+                disk_mount = str(self.project_root)
+
+            if disk_total and disk_available and disk_mount:
+                sys_info += f"- Disk ({disk_mount}): {disk_total} total, {disk_available} available\n"
         except:
             pass
 
         md = []
-        md.append(f"# C64 Stream E2E Test Report\n")
-        md.append(f"## Scenario: {self.scenario_name}\n")
-        md.append(f"Generated: {now}\n")
-
-        md.append("## Test configuration\n")
+        md.append("# C64 Stream E2E Test Report")
+        md.append("")
+        md.append(f"## Scenario: {self.scenario_name}")
+        md.append("")
+        md.append(f"Generated: {now}")
+        md.append("")
+        md.append("## Test configuration")
+        md.append("")
         md.append(f"- Format: {self.format}")
         md.append(f"- Frames: {self.frames}")
         md.append(f"- Duration: {format_duration(self.frames / self.fps)} seconds")
@@ -380,18 +493,22 @@ class ReportGenerator:
         md.append(f"- Audio Port: 21001")
         md.append(f"- OBS Enabled: true")
 
-
-        md.append("\n## Build information\n")
-        md.append(f"- Project: c64stream\n")
-        md.append(f"- Version: {resolved_version}\n")
-
-        md.append("## System information\n")
-        md.append(sys_info)
-
-        md.append("## Test results\n")
+        md.append("")
+        md.append("## Build information")
+        md.append("")
+        md.append("- Project: c64stream")
+        md.append(f"- Version: {resolved_version}")
+        md.append("")
+        md.append("## System information")
+        md.append("")
+        md.extend(sys_info.strip().splitlines())
+        md.append("")
+        md.append("## Test results")
+        md.append("")
 
         # Validation Summary
-        md.append("### Validation Summary\n")
+        md.append("### Validation Summary")
+        md.append("")
         for key, label in [
             ('udp_reception', 'UDP Packet Reception'),
             ('network_timing', 'Network Timing'),
@@ -407,19 +524,30 @@ class ReportGenerator:
 
         # Resource Usage
         if self.resource_data:
-             md.append("\n### Resource Usage\n")
+             md.append("")
+             md.append("### Resource Usage")
+             md.append("")
 
              # Add context about processing window
              duration_s = self.resource_data.get('duration_ms', 0) / 1000.0
              sample_count = self.resource_data.get('sample_count', 0)
              total_sample_count = self.resource_data.get('total_sample_count', 0)
-             cpu_cores = self.resource_data.get('total_cpu_cores', 0)
+             allocated_cpus = self.resource_data.get('allocated_cpu_cores', 0)
+             total_cpus = self.resource_data.get('total_cpu_cores', 0)
 
-             context = f"During the test's processing window ({duration_s:.1f}s, {sample_count} of {total_sample_count} samples)"
-             if cpu_cores > 0:
-                 context += f" ({cpu_cores} cores)"
+             if total_sample_count and total_sample_count != sample_count:
+                 samples_text = f"{sample_count} of {total_sample_count} samples"
+             else:
+                 samples_text = f"{sample_count} samples"
+
+             context = f"During the test's processing window ({duration_s:.1f}s, {samples_text})"
+             if allocated_cpus and total_cpus and allocated_cpus < total_cpus:
+                 context += f" (cgroup-limited: {_format_trimmed(allocated_cpus, 2)} of {total_cpus} cores)"
+             elif total_cpus:
+                 context += f" ({total_cpus} cores)"
              context += ":\n"
-             md.append(context)
+             md.append(context.rstrip())
+             md.append("")
 
              cpu = self.resource_data.get('cpu_percent', {})
              ram = self.resource_data.get('ram_mb', {})
@@ -428,37 +556,83 @@ class ReportGenerator:
              md.append("| Metric | Min | Median | Mean | Max |")
              md.append("|--------|-----|--------|------|-----|")
 
-             def row(name, stats):
-                 return f"| {name} | {stats.get('min',0):.1f}% | {stats.get('median',0):.1f}% | {stats.get('mean',0):.2f}% | {stats.get('max',0):.1f}% |"
+             def fmt_stat(stats, key, decimals=2):
+                 val = stats.get(key, 0)
+                 try:
+                     val = float(val)
+                 except Exception:
+                     return str(val)
+                 return _format_trimmed(val, decimals)
 
-             md.append(row("CPU", cpu).replace("%", "%"))
+             cpu_row = (
+                 f"| CPU | {fmt_stat(cpu, 'min')}% | {fmt_stat(cpu, 'median')}% | "
+                 f"{fmt_stat(cpu, 'mean')}% | {fmt_stat(cpu, 'max')}% |"
+             )
+             md.append(cpu_row)
 
-             ram_row = f"| RAM | {ram.get('min',0):.2f} MB | {ram.get('median',0):.2f} MB | {ram.get('mean',0):.2f} MB | {ram.get('max',0):.2f} MB |"
+             ram_row = (
+                 f"| RAM | {fmt_stat(ram, 'min')} MB | {fmt_stat(ram, 'median')} MB | "
+                 f"{fmt_stat(ram, 'mean')} MB | {fmt_stat(ram, 'max')} MB |"
+             )
              md.append(ram_row)
 
              if gpu:
-                  md.append(row("GPU", gpu))
+                  gpu_row = (
+                      f"| GPU | {fmt_stat(gpu, 'min')}% | {fmt_stat(gpu, 'median')}% | "
+                      f"{fmt_stat(gpu, 'mean')}% | {fmt_stat(gpu, 'max')}% |"
+                  )
+                  md.append(gpu_row)
 
-             md.append("\nDetails: [resource.csv](resource.csv) | [resource.json](resource.json)")
+             md.append("")
+             md.append("Details: [resource.csv](resource.csv) | [resource.json](resource.json)")
 
         # Network Quality
-        md.append("\n### Packet & Network Data\n")
-        video_pkts = self.validation_data.get('udp_reception', {}).get('details', '').split(' ')[0]
-        md.append(f"- ✅ Packet Generation: {video_pkts} (approx)")
-        md.append(f"- ✅ UDP Replay: Completed successfully")
-        md.append(f"- Events: [network.csv](network.csv), [obs.csv](obs.csv), [playback.csv](playback.csv)")
+        md.append("")
+        md.append("### Packet & Network Data")
+        md.append("")
+        test_packets = self.project_root / "tests" / "e2e" / "test_packets"
+        udp_details = self.validation_data.get('udp_reception', {}).get('details', '')
+        if udp_details.startswith("Received"):
+            md.append("- ℹ️ Packet Generation: Skipped (device packet source)")
+            md.append("- ✅ UDP Capture: Device stream")
+        elif test_packets.exists():
+            video_count = len(list((test_packets / "video" / self.format).glob("*.bin")))
+            audio_count = len(list((test_packets / "audio" / self.format).glob("*.bin")))
+            if video_count or audio_count:
+                md.append(f"- ✅ Packet Generation: {video_count} video, {audio_count} audio packets")
+            else:
+                md.append("- ⚠️ Packet Generation: Not captured")
+            md.append("- ✅ UDP Replay: Completed successfully")
+        else:
+            md.append("- ⚠️ Packet Generation: Not captured")
+            md.append("- ✅ UDP Replay: Completed successfully")
+
+        event_links = []
+        if (self.output_dir / 'network.csv').exists():
+            event_links.append("[network.csv](network.csv)")
+        if (self.output_dir / 'obs.csv').exists():
+            event_links.append("[obs.csv](obs.csv)")
+        if (self.output_dir / 'playback.csv').exists():
+            event_links.append("[playback.csv](playback.csv)")
+        if event_links:
+            md.append(f"- Events: {', '.join(event_links)}")
 
         if self.network_data:
-             md.append("\n#### Network Quality (Measured)\n")
+             md.append("")
+             md.append("#### Network Quality (Measured)")
+             md.append("")
              summary = self.network_data.get('summary', {})
              span = summary.get('duration_ms', 0)
              count = summary.get('total_packets', 0)
-             md.append(f"- Packet span (first→last): {span:.3f} ms")
-             md.append(f"- Total packets analyzed: {count}\n")
+             if span:
+                 md.append(f"- Packet span (first→last): {span:.3f} ms")
+             if count:
+                 md.append(f"- Total packets analyzed: {count}")
+             md.append("")
 
              # Enhanced network quality table with all spacing/burst metrics
              md.append("| Stream | Packets | Spacing (min) | Spacing (mean) | Spacing (max) | CV | Burst <0.5×P50 | Gaps >2×P50 | P99/P50 |")
-             md.append("|--------|---------|---------------|----------------|---------------|----|----------------|-------------|---------|")
+             md.append("|--------|---------|---------------|----------------|---------------|----|--------------|------------|--------|")
 
              # Combined all streams
              all_stats = self.network_data.get('all', {})
@@ -482,72 +656,96 @@ class ReportGenerator:
              md.append(net_row_enhanced("Audio", aud))
 
              # Jitter table
-             md.append("\n| Stream | Packets | Jitter (median) | Jitter (max) | Out-of-Order |")
+             md.append("")
+             md.append("| Stream | Packets | Jitter (median) | Jitter (max) | Out-of-Order |")
              md.append("|--------|---------|-----------------|--------------|--------------|")
 
              def net_row_jitter(name, stats):
                  count = stats.get('count', 0)
-                 jitter_median = stats.get('jitter_median_us', 0) / 1000
-                 jitter_max = stats.get('jitter_max_us', 0) / 1000
+                 jitter_median = stats.get('jitter_median_ms', stats.get('jitter_median_us', 0) / 1000)
+                 jitter_max = stats.get('jitter_max_ms', stats.get('jitter_max_us', 0) / 1000)
                  out_of_order = stats.get('out_of_order_count', 0)
-                 return f"| {name} | {count} | {jitter_median:.3f} ms | {jitter_max:.3f} ms | {out_of_order} |"
+                 ooo_rate = stats.get('out_of_order_rate_pct', 0)
+                 ooo_str = f"{out_of_order} ({ooo_rate:.1f}%)" if out_of_order else "0"
+                 return f"| {name} | {count} | {jitter_median:.3f} ms | {jitter_max:.3f} ms | {ooo_str} |"
 
              md.append(net_row_jitter("Video", vid))
              md.append(net_row_jitter("Audio", aud))
 
-             md.append("\nDetails: [network.json](network.json)")
+             md.append("")
+             md.append("Details: [network.json](network.json)")
 
         # A/V Sync
         if 'av_sync_details' in self.validation_data:
              av = self.validation_data['av_sync_details']
-             md.append("\n### A/V Sync\n")
+             md.append("")
+             md.append("### A/V Sync")
+             md.append("")
              acc = av.get('sync_accuracy_percent', 0)
-             perfect = av.get('perfect_sync_count', 0)
-             total = av.get('total_analyzed', 0)
-             avg_offset = av.get('avg_offset_ms', 0)
-             max_offset = av.get('max_offset_ms', 0)
+             is_perfect = av.get('is_perfectly_synced', False)
+             sync_details = av.get('sync_details', [])
+             diffs = [d.get('difference_ms') for d in sync_details if d.get('closest_video_pop_ms') is not None]
+             diffs = [d for d in diffs if d is not None]
+             avg_offset = sum(diffs) / len(diffs) if diffs else 0.0
+             max_offset = max(diffs) if diffs else 0.0
 
-             icon = "✅" if acc == 100 else "⚠️"
-             if acc == 100:
-                 md.append(f"- {icon} Good synchronization ({acc:.1f}%): avg offset {avg_offset:.1f}ms, max {max_offset:.1f}ms")
+             if is_perfect:
+                 md.append(f"- ✅ Good synchronization ({acc:.1f}%): avg offset {avg_offset:.1f}ms, max {max_offset:.1f}ms")
+             elif acc >= 60:
+                 md.append(f"- ✅ Acceptable synchronization ({acc:.1f}%): avg offset {avg_offset:.1f}ms, max {max_offset:.1f}ms")
              else:
-                 md.append(f"- {icon} Accuracy: {acc:.1f}% ({perfect}/{total} perfect)")
+                 md.append(f"- ❌ Poor synchronization ({acc:.1f}%): avg offset {avg_offset:.1f}ms, max {max_offset:.1f}ms")
 
-             md.append("\n#### Sync Details\n")
-             for i, d in enumerate(av.get('sync_details', []), 1):
+             md.append("")
+             md.append("#### Sync Details")
+             md.append("")
+             for i, d in enumerate(sync_details, 1):
                   diff = d.get('difference_ms', 0)
                   audio_t = d.get('audio_pop_time_ms', 0)
-                  video_t = d.get('closest_video_pop_ms', 0)
-                  frame_num = d.get('closest_video_pop_frame', '')
-                  audio_ch = d.get('audio_channel', '')
-                  color = d.get('traffic', 'gray')
-                  icon = "🟢" if color=='green' else ("🟡" if color=='yellow' else "🔴")
+                  video_t = d.get('closest_video_pop_ms', None)
+                  frame_num = d.get('closest_video_pop_frame', None)
+                  audio_ch = d.get('audio_channel') or d.get('channel') or '?'
+                  color = d.get('traffic', '')
+                  icon = "🟢" if color == 'green' else ("🟡" if color == 'yellow' else ("🔴" if color == 'red' else "•"))
 
-                  # Show if included in analysis, otherwise show why ignored
-                  if d.get('included_in_analysis'):
-                      # Format frame number and channel
-                      frame_str = f" (frame {frame_num})" if frame_num else ""
-                      ch_str = f" [{audio_ch}]" if audio_ch else ""
-                      md.append(f"- {icon} Pop #{i}{ch_str}: audio={audio_t:.1f}ms, video={video_t:.1f}ms{frame_str}, diff={diff:.1f}ms")
+                  audio_t_fmt = f"{float(audio_t):.1f}" if audio_t is not None else "0.0"
+                  if video_t is not None and diff is not None:
+                      if frame_num is not None and frame_num != '':
+                          md.append(
+                              f"- {icon} Pop #{i} [{audio_ch}]: audio={audio_t_fmt}ms, "
+                              f"video={float(video_t):.1f}ms (frame {frame_num}), diff={float(diff):.1f}ms"
+                          )
+                      else:
+                          md.append(
+                              f"- {icon} Pop #{i} [{audio_ch}]: audio={audio_t_fmt}ms, "
+                              f"video={float(video_t):.1f}ms, diff={float(diff):.1f}ms"
+                          )
                   else:
-                      # Show ignored pop with reason
-                      ignore_reason = d.get('ignore_reason', 'unknown')
-                      ch_str = f" [{audio_ch}]" if audio_ch else ""
-                      md.append(f"- ⚪ Pop #{i}{ch_str}: audio={audio_t:.1f}ms (ignored: {ignore_reason})")
+                      md.append(f"- {icon} Pop #{i} [{audio_ch}]: audio={audio_t_fmt}ms, no matching video pop found")
 
-             # Channel sequence and alternation
-             channels = av.get('channels', '')
-             if channels:
-                 md.append(f"\n- Channels: {channels}")
+             channels = "".join(
+                 ("L" if (d.get('audio_channel') or d.get('channel')) == "L" else
+                  "R" if (d.get('audio_channel') or d.get('channel')) == "R" else "B")
+                 for d in sync_details
+             )
+             md.append("")
+             md.append(f"- Channels: {channels}")
 
-                 # Check for alternation
-                 channels_match = av.get('channels_match', True)
-                 channels_alternate = av.get('channels_alternate', False)
-                 if channels_alternate:
-                     first_ch = channels[0] if channels else ''
-                     md.append(f"- 🔁 Channel alternation: OK (alternating, starts with {first_ch})")
-                 elif not channels_match:
-                     md.append(f"- ⚠️ Channel alternation: Mismatch detected")
+             lr_seq = [
+                 (d.get('audio_channel') or d.get('channel'))
+                 for d in sync_details
+                 if (d.get('audio_channel') or d.get('channel')) in ("L", "R")
+             ]
+             alternates = True
+             if len(lr_seq) >= 2:
+                 for i in range(1, len(lr_seq)):
+                     if lr_seq[i] == lr_seq[i - 1]:
+                         alternates = False
+                         break
+             if alternates and lr_seq:
+                 md.append(f"- 🔁 Channel alternation: OK (alternating, starts with {lr_seq[0]})")
+             else:
+                 md.append("- 🔁 Channel alternation: MISMATCH")
 
         # Frame Progression
         if 'frame_sequence_box' in self.validation_data:
@@ -557,97 +755,172 @@ class ReportGenerator:
                  metrics = fb.get('metrics', {})
                  details = fb.get('details', {})
 
-                 md.append("\n### Frame Progression\n")
+                 md.append("")
+                 md.append("### Frame Progression")
+                 md.append("")
 
                  # Status icon and summary
                  status = fb.get('status', 'unknown')
                  status_icon = "🟢" if status == "pass" else "🔴" if status == "fail" else "🟡"
+                 message = fb.get('message', '')
 
                  valid_frames = metrics.get('valid_frames', 0)
-                 colors = details.get('colors', 0)
-                 md.append(f"- {status_icon} Frame sequence verified ({valid_frames} frames analyzed, {colors} colors)\n")
+                 distinct_colors = metrics.get('distinct_colors', 0)
+                 try:
+                     valid_frames = int(float(valid_frames))
+                 except Exception:
+                     valid_frames = valid_frames or 0
+                 try:
+                     distinct_colors = int(float(distinct_colors))
+                 except Exception:
+                     distinct_colors = distinct_colors or 0
+
+                 if status == "pass":
+                     md.append(
+                         f"- {status_icon} Frame sequence verified ({valid_frames} frames analyzed, {distinct_colors} colors)"
+                     )
+                 elif message:
+                     md.append(f"- {status_icon} {message}")
+                 else:
+                     md.append(f"- {status_icon} Frame sequence verification incomplete")
 
                  # Settling info
-                 settling_s = metrics.get('settling_seconds', 0.0)
-                 md.append(f"- Settling: {settling_s}s (pass/fail uses post-settling only)\n")
+                 settling_s = metrics.get('settling_seconds', details.get('settling_seconds', 0.0))
+                 md.append("")
+                 md.append(f"- Settling: {settling_s}s (pass/fail uses post-settling only)")
 
                  # Table with min/med/max statistics
-                 md.append("| Window | Stuck runs (count/min/med/max) | Skips (count/min/med/max) | Back steps | Severe steps |")
-                 md.append("|--------|--------------------------------:|---------------------------:|-----------:|-------------:|")
-
-                 # During settling row
                  pre_stuck_count = metrics.get('pre_settling_stuck_run_count', 0)
-                 pre_stuck_min = metrics.get('pre_settling_stuck_run_min', 0)
-                 pre_stuck_med = metrics.get('pre_settling_stuck_run_median', 0)
-                 pre_stuck_max = metrics.get('pre_settling_max_stuck_run', 0)
                  pre_skip_count = metrics.get('pre_settling_skip_count', 0)
-                 pre_skip_min = metrics.get('pre_settling_skip_min', 0)
-                 pre_skip_med = metrics.get('pre_settling_skip_median', 0)
-                 pre_skip_max = metrics.get('pre_settling_skip_max', 0)
                  pre_back_steps = metrics.get('pre_settling_back_steps', 0)
                  pre_severe_steps = metrics.get('pre_settling_severe_steps', 0)
-
-                 md.append(f"| During settling | {pre_stuck_count}/{pre_stuck_min}/{pre_stuck_med}/{pre_stuck_max} | "
-                          f"{pre_skip_count}/{pre_skip_min}/{pre_skip_med}/{pre_skip_max} | "
-                          f"{pre_back_steps} | {pre_severe_steps} |")
-
-                 # After settling row
                  post_stuck_count = metrics.get('post_settling_stuck_run_count', 0)
-                 post_stuck_min = metrics.get('post_settling_stuck_run_min', 0)
-                 post_stuck_med = metrics.get('post_settling_stuck_run_median', 0)
-                 post_stuck_max = metrics.get('post_settling_max_stuck_run', 0)
                  post_skip_count = metrics.get('post_settling_skip_count', 0)
-                 post_skip_min = metrics.get('post_settling_skip_min', 0)
-                 post_skip_med = metrics.get('post_settling_skip_median', 0)
-                 post_skip_max = metrics.get('post_settling_skip_max', 0)
                  post_back_steps = metrics.get('post_settling_back_steps', 0)
                  post_severe_steps = metrics.get('post_settling_severe_steps', 0)
 
-                 md.append(f"| After settling | {post_stuck_count}/{post_stuck_min}/{post_stuck_med}/{post_stuck_max} | "
-                          f"{post_skip_count}/{post_skip_min}/{post_skip_med}/{post_skip_max} | "
-                          f"{post_back_steps} | {post_severe_steps} |")
+                 def has_nonzero(value):
+                     try:
+                         return float(value) != 0.0
+                     except Exception:
+                         return bool(value)
 
-                 md.append("\nSee [playback.csv](playback.csv) for details.")
+                 if (
+                     has_nonzero(pre_stuck_count)
+                     or has_nonzero(pre_skip_count)
+                     or has_nonzero(pre_back_steps)
+                     or has_nonzero(pre_severe_steps)
+                     or has_nonzero(post_stuck_count)
+                     or has_nonzero(post_skip_count)
+                     or has_nonzero(post_back_steps)
+                     or has_nonzero(post_severe_steps)
+                 ):
+                     md.append("")
+                     md.append("| Window | Stuck runs (count/min/med/max) | Skips (count/min/med/max) | Back steps | Severe steps |")
+                     md.append("|--------|------------------------------:|--------------------------:|-----------:|-------------:|")
+
+                     pre_stuck_min = metrics.get('pre_settling_stuck_run_min', 0)
+                     pre_stuck_med = metrics.get('pre_settling_stuck_run_median', 0)
+                     pre_stuck_max = metrics.get('pre_settling_max_stuck_run', 0)
+                     pre_skip_min = metrics.get('pre_settling_skip_min', 0)
+                     pre_skip_med = metrics.get('pre_settling_skip_median', 0)
+                     pre_skip_max = metrics.get('pre_settling_skip_max', 0)
+
+                     post_stuck_min = metrics.get('post_settling_stuck_run_min', 0)
+                     post_stuck_med = metrics.get('post_settling_stuck_run_median', 0)
+                     post_stuck_max = metrics.get('post_settling_max_stuck_run', 0)
+                     post_skip_min = metrics.get('post_settling_skip_min', 0)
+                     post_skip_med = metrics.get('post_settling_skip_median', 0)
+                     post_skip_max = metrics.get('post_settling_skip_max', 0)
+
+                     def fmt_int(val):
+                         try:
+                             return str(int(float(val)))
+                         except Exception:
+                             return str(val)
+
+                     md.append(
+                         f"| During settling | {fmt_int(pre_stuck_count)}/{fmt_int(pre_stuck_min)}/"
+                         f"{fmt_int(pre_stuck_med)}/{fmt_int(pre_stuck_max)} | "
+                         f"{fmt_int(pre_skip_count)}/{fmt_int(pre_skip_min)}/"
+                         f"{fmt_int(pre_skip_med)}/{fmt_int(pre_skip_max)} | "
+                         f"{fmt_int(pre_back_steps)} | {fmt_int(pre_severe_steps)} |"
+                     )
+                     md.append(
+                         f"| After settling | {fmt_int(post_stuck_count)}/{fmt_int(post_stuck_min)}/"
+                         f"{fmt_int(post_stuck_med)}/{fmt_int(post_stuck_max)} | "
+                         f"{fmt_int(post_skip_count)}/{fmt_int(post_skip_min)}/"
+                         f"{fmt_int(post_skip_med)}/{fmt_int(post_skip_max)} | "
+                         f"{fmt_int(post_back_steps)} | {fmt_int(post_severe_steps)} |"
+                     )
+
+                 if self.playback_csv.exists():
+                     md.append("")
+                     md.append("See [playback.csv](playback.csv) for frame-by-frame playback timeline with anomaly markers.")
 
         # Playback Jitter Clusters
         if self.playback_csv.exists():
-            md.append("\n#### Playback Jitter Clusters (post-settling)\n")
+            md.append("")
+            md.append("#### Playback Jitter Clusters (post-settling)")
+            md.append("")
 
-            # Get content bounds for context
+            settling_seconds = 0.0
             frame_seq_box = self.validation_data.get('frame_sequence_box')
-            content_bounds = {}
             if frame_seq_box and frame_seq_box is not None:
-                content_bounds = frame_seq_box.get('details', {}).get('content_bounds', {})
-            first_content_s = content_bounds.get('first_content_time', 0.0)
-            last_content_s = content_bounds.get('last_content_time', 0.0)
+                settling_seconds = frame_seq_box.get('metrics', {}).get('settling_seconds', 0.0)
 
-            md.append(f"- Definition: rows with repeated=1 or skipped=1 in playback.csv; clustering uses max gap 0.5s")
-            md.append(f"- Note: this is independent from the Frame Progression (frame-box) check above")
-            if first_content_s > 0 and last_content_s > 0:
-                md.append(f"- Note: repeated/skipped markers only exist while content is detected (video_s {first_content_s:.3f}–{last_content_s:.3f}).")
-                md.append(f"  The jitter-free tail after content ends is expected and does not indicate steady-state performance.\n")
+            events, content_span = self._load_playback_jitter_events(settling_seconds)
 
-            clusters = self._cluster_jitter_events(max_gap=0.5)
+            if not events:
+                md.append("- No post-settling repeated/skipped markers detected in playback timeline.")
+            else:
+                md.append("- Definition: rows with repeated=1 or skipped=1 in playback.csv; clustering uses max gap 0.5s")
+                md.append("- Note: this is independent from the Frame Progression (frame-box) check above")
+                if content_span is not None:
+                    md.append(
+                        f"- Note: repeated/skipped markers only exist while content is detected "
+                        f"(video_s {content_span[0]:.3f}–{content_span[1]:.3f})."
+                    )
+                    md.append(
+                        "  The jitter-free tail after content ends is expected and does not indicate steady-state performance."
+                    )
+                md.append("")
 
-            if clusters:
+                max_gap_s = 0.5
+                clusters = []
+                bucket = [events[0]]
+                prev = events[0]
+                for t in events[1:]:
+                    if (t - prev) <= max_gap_s:
+                        bucket.append(t)
+                    else:
+                        clusters.append(bucket)
+                        bucket = [t]
+                    prev = t
+                clusters.append(bucket)
+
+                def stats(xs):
+                    n = len(xs)
+                    center = sum(xs) / n
+                    var = sum((x - center) ** 2 for x in xs) / n if n else 0.0
+                    return center, math.sqrt(var), xs[-1] - xs[0]
+
+                summaries = []
+                for c in clusters:
+                    center, std, span = stats(c)
+                    summaries.append((len(c), span, center, std, c[0], c[-1]))
+
+                summaries.sort(key=lambda x: (x[0], x[1]), reverse=True)
+
                 md.append("| # | Events | Center (s) | Std dev (s) | Span (s) | Window (s) |")
                 md.append("|---|--------|------------|-------------|----------|------------|")
-
-                for c in clusters:
-                    num = c['num']
-                    events = c['events']
-                    center = c['center']
-                    std_dev = c['std_dev']
-                    span = c['span']
-                    window_start = c['window_start']
-                    window_end = c['window_end']
-
-                    md.append(f"| {num} | {events} | {center:.3f} | {std_dev:.3f} | {span:.3f} | {window_start:.3f}–{window_end:.3f} |")
-            else:
-                md.append("\n- No jitter events detected (post-settling)")
+                for i, (count, span, center, std, start, end) in enumerate(summaries[:3], start=1):
+                    md.append(f"| {i} | {count} | {center:.3f} | {std:.3f} | {span:.3f} | {start:.3f}–{end:.3f} |")
 
         # Video
-        md.append("\n### Video\n")
+        md.append("")
+        md.append("### Video")
+        md.append("")
         if self.recording_path:
              name = self.recording_path.name
              md.append(f"- Download: [{name}]({name}) (Available from local runs or CI build artifacts.)")
@@ -669,7 +942,10 @@ class ReportGenerator:
         # Sample Frame
         still_path = self.output_dir / 'c64_recording_still.png'
         if self.recording_path and self.recording_path.exists():
-            md.append("\n### Sample Frame\n")
+            md.append("")
+            md.append("")
+            md.append("### Sample Frame")
+            md.append("")
 
             # Extract frame at 50% mark if not exists
             if not still_path.exists():
@@ -677,11 +953,50 @@ class ReportGenerator:
 
             if still_path.exists():
                 md.append("![Sample Frame](./c64_recording_still.png)")
+
+                # Add description of sample frame elements
+                md.append("")
+                md.append("- **Top-left**: Text box with scenario name")
+                md.append("- **Top-right**: VIC-II palette reference grid of all C64 colors")
+                md.append("- **Center**: Diagonal pattern cycling through all C64 colors")
+                md.append("- **Bottom-left**: Frame progression indicator (8-slot moving bar, cycles every 8 frames)")
+                md.append("- **Bottom-right**: A/V pop indicator (pops every 48 frames, split left/right for audio channels)")
+
+                # Add frame context
+                av_details = self.validation_data.get('av_sync_details', {})
+                video_pop_frames = av_details.get('video_pop_frame_indices', [])
+                video_pop_times = av_details.get('video_pop_times_ms', [])
+                if video_pop_frames and video_pop_times:
+                    first_video_frame = video_pop_frames[0]
+                    first_video_pop_ms = video_pop_times[0]
+                else:
+                    sync_details = av_details.get('sync_details', [])
+                    if sync_details:
+                        first_video_frame = sync_details[0].get('closest_video_pop_frame', 0)
+                        first_video_pop_ms = sync_details[0].get('closest_video_pop_ms', 0)
+                    else:
+                        first_video_frame = 0
+                        first_video_pop_ms = 0
+
+                if first_video_frame and first_video_pop_ms:
+                    try:
+                        result = subprocess.run(
+                            ['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+                             '-of', 'default=noprint_wrappers=1:nokey=1', str(self.recording_path)],
+                            capture_output=True, text=True, check=True
+                        )
+                        duration = float(result.stdout.strip())
+                        timestamp = _format_mmss(first_video_pop_ms / 1000.0)
+                        md.append(
+                            f"- Taken from frame {first_video_frame} at {timestamp} of the {duration:.1f} s video above."
+                        )
+                    except:
+                        pass
             else:
                 md.append("- ⚠️ Failed to extract sample frame")
 
         with open(md_path, 'w') as f:
-             f.write("\n".join(md))
+             f.write("\n".join(md) + "\n")
 
     def _extract_sample_frame(self, output_path: Path):
         """Extract a sample frame, preferring times with AV pops when available."""
@@ -700,19 +1015,24 @@ class ReportGenerator:
             # Try to extract at first video pop time if av_sync data is available
             timestamp = duration / 2.0  # default: 50% mark
             av_details = self.validation_data.get('av_sync_details', {})
-            sync_details = av_details.get('sync_details', [])
-            if sync_details:
-                # Use first video pop time (converted to seconds) - this shows the white square/frame
-                first_video_pop_ms = sync_details[0].get('closest_video_pop_ms', 0)
+            video_pop_times = av_details.get('video_pop_times_ms', [])
+            if video_pop_times:
+                first_video_pop_ms = video_pop_times[0]
                 if first_video_pop_ms > 0:
                     timestamp = first_video_pop_ms / 1000.0
                     print(f"Extracting sample frame at first video pop: {timestamp:.3f}s")
-                else:
-                    # Fallback to audio pop time if video pop not available
-                    first_pop_ms = sync_details[0].get('audio_pop_time_ms', 0)
-                    if first_pop_ms > 0:
-                        timestamp = first_pop_ms / 1000.0
-                        print(f"Extracting sample frame at first audio pop: {timestamp:.3f}s")
+            else:
+                sync_details = av_details.get('sync_details', [])
+                if sync_details:
+                    first_video_pop_ms = sync_details[0].get('closest_video_pop_ms', 0)
+                    if first_video_pop_ms > 0:
+                        timestamp = first_video_pop_ms / 1000.0
+                        print(f"Extracting sample frame at first video pop: {timestamp:.3f}s")
+                    else:
+                        first_pop_ms = sync_details[0].get('audio_pop_time_ms', 0)
+                        if first_pop_ms > 0:
+                            timestamp = first_pop_ms / 1000.0
+                            print(f"Extracting sample frame at first audio pop: {timestamp:.3f}s")
 
             subprocess.run(
                 ['ffmpeg', '-ss', str(timestamp), '-i', str(self.recording_path),

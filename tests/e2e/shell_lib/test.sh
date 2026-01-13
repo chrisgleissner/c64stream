@@ -212,7 +212,7 @@ run_all_scenarios() {
             log_success "Scenario ${scenario}: PASSED"
         else
             local exit_code=$?
-            if [[ ${exit_code} -eq 0 ]]; then
+            if [[ ${exit_code} -eq 2 ]]; then
                 skipped=$((skipped + 1))
                 log_info "Scenario ${scenario}: SKIPPED"
             else

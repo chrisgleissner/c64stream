@@ -34,10 +34,13 @@ def analyze_network_jitter(network_csv: Path) -> Optional[Dict[str, Any]]:
 
             for row in reader:
                 try:
+                    packet_type = row.get('packet_type')
+                    seq_str = row.get('sequence_num')
+                    if not packet_type or seq_str is None or seq_str == '':
+                        continue
+
                     elapsed_us = float(row['elapsed_us'])
                     elapsed_us_values.append(elapsed_us)
-                    packet_type = row.get('packet_type', 'unknown')
-                    seq_str = row.get('sequence_num', '0')
 
                     # Compute spacing/intervals
                     interval_us = 0.0

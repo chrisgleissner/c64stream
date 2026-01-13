@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-C64 Stream - E2E Test Orchestrator (Refactored)
+C64 Stream - E2E Test Orchestrator
 Copyright (C) 2025 Christian Gleissner
 
 Licensed under the GNU General Public License v2.0 or later.
@@ -17,6 +17,7 @@ import subprocess
 import logging
 import yaml
 from pathlib import Path
+
 
 # Ensure we can import the framework
 TEST_DIR = Path(__file__).parent.resolve()

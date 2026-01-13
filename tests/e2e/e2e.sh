@@ -73,6 +73,10 @@ main() {
     if [[ -n "${SCENARIO}" ]]; then
         load_scenario "${SCENARIO}"
     fi
+    if [[ "${SCENARIO_SKIPPED}" == "true" ]]; then
+        log_info "Scenario skipped: ${SCENARIO_SKIP_REASON}"
+        exit 2
+    fi
 
     # Show configuration
     log_info "Test Configuration:"

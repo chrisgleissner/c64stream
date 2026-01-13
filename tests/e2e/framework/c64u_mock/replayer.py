@@ -108,7 +108,8 @@ class PacketReplayer:
             '--port', str(video_dest[1]),
             '--manifest', str(video_manifest_path),
             '--dir', str(video_dir),
-            '--start-at-us', str(start_at_us)
+            '--start-at-us', str(start_at_us),
+            '--verbose'
         ]
 
         audio_cmd = [
@@ -116,7 +117,8 @@ class PacketReplayer:
             '--port', str(audio_dest[1]),
             '--manifest', str(audio_manifest_path),
             '--dir', str(audio_dir),
-            '--start-at-us', str(start_at_us)
+            '--start-at-us', str(start_at_us),
+            '--verbose'
         ]
 
         logger.info(f"🚀 Synchronized packet replay start: +{lead_s}s from now")
@@ -202,8 +204,9 @@ class PacketReplayer:
                 for line in proc.stdout:
                     line = line.rstrip('\n')
                     if line:
-                        if len(lines) < 200: lines.append(line)
-                        # logger.info(f"[{label}] {line}") # maybe verbose only?
+                        if len(lines) < 200:
+                            lines.append(line)
+                        logger.info(f"[{label}] {line}")
 
                 result_dict['rc'] = proc.wait()
                 result_dict['lines'] = lines

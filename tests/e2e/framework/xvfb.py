@@ -19,6 +19,12 @@ class XvfbController:
         logger.info(f"Starting Xvfb on display {self.display}")
 
         try:
+            if os.environ.get('E2E_DISABLE_XVFB') == '1':
+                logger.info("✅ Xvfb disabled by E2E_DISABLE_XVFB")
+                self._configure_env()
+                self.managed = False
+                return True
+
             # Check if Xvfb is already running on this display
             try:
                 result = subprocess.run(['pgrep', '-f', f'Xvfb.*{self.display}'],
@@ -31,13 +37,17 @@ class XvfbController:
             except Exception:
                 pass  # Ignore errors
 
-            # Clean up any stale lock files
+            # Clean up any stale lock or socket files
             display_num = self.display.lstrip(':')
             lock_file = f"/tmp/.X{display_num}-lock"
+            socket_file = f"/tmp/.X11-unix/X{display_num}"
             try:
                 if os.path.exists(lock_file):
                     os.remove(lock_file)
                     logger.info(f"Removed stale lock file: {lock_file}")
+                if os.path.exists(socket_file):
+                    os.remove(socket_file)
+                    logger.info(f"Removed stale socket file: {socket_file}")
             except OSError:
                 pass  # Ignore permission errors
 

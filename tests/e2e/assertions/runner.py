@@ -114,8 +114,29 @@ def create_preset_assertions(preset: PresetConfig) -> list[EffectAssertion]:
     return assertions
 
 
+def _apply_tolerance_to_thresholds(thresholds: dict[str, float], tolerance: float) -> None:
+    if tolerance <= 0:
+        return
+    for key, value in list(thresholds.items()):
+        if not isinstance(value, (int, float)):
+            continue
+        key_lower = key.lower()
+        if "expected" in key_lower:
+            continue
+        if key_lower.startswith("max") or "_max" in key_lower:
+            thresholds[key] = value / tolerance
+        elif key_lower.startswith("min") or "_min" in key_lower:
+            thresholds[key] = value * tolerance
+        elif "tolerance" in key_lower:
+            thresholds[key] = value / tolerance
+        elif "threshold" in key_lower or "ratio" in key_lower:
+            thresholds[key] = value * tolerance
+
+
 def create_assertions_from_list(
-    assertion_names: list[str], thresholds: Optional[dict[str, dict[str, float]]] = None
+    assertion_names: list[str],
+    thresholds: Optional[dict[str, dict[str, float]]] = None,
+    tolerances: Optional[dict[str, float]] = None,
 ) -> list[EffectAssertion]:
     """Create assertions from a list of assertion names.
 
@@ -150,12 +171,17 @@ def create_assertions_from_list(
     }
 
     thresholds = thresholds or {}
+    tolerances = tolerances or {}
     assertions: list[EffectAssertion] = []
 
     for name in assertion_names:
         assertion_cls = assertion_map.get(name.lower())
         if assertion_cls:
             assertion_thresholds = thresholds.get(name.lower())
-            assertions.append(assertion_cls(assertion_thresholds))
+            assertion = assertion_cls(assertion_thresholds)
+            tolerance = tolerances.get(name.lower(), 1.0)
+            if tolerance != 1.0:
+                _apply_tolerance_to_thresholds(assertion.thresholds, tolerance)
+            assertions.append(assertion)
 
     return assertions

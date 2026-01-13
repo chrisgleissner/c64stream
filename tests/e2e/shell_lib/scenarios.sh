@@ -51,6 +51,43 @@ load_scenario() {
         return 0
     fi
 
+    if [[ "${packet_source}" == "device" ]]; then
+        if [[ "${E2E_DEVICE_TESTS:-0}" != "1" ]]; then
+            SCENARIO_SKIPPED=true
+            SCENARIO_SKIP_REASON="Device tests disabled (set E2E_DEVICE_TESTS=1 to run)"
+            log_warning "⏭️  Skipping scenario '${name}' (device packet source)"
+            log_info "  Reason: ${SCENARIO_SKIP_REASON}"
+            return 0
+        fi
+        local c64_host
+        c64_host=$(grep -m1 "^[[:space:]]*c64_host:" "${scenario_yaml}" | sed 's/^[[:space:]]*c64_host: *//' || true)
+        c64_host="${c64_host:-c64u}"
+        local c64_port
+        c64_port=$(grep -m1 "^[[:space:]]*control_port:" "${scenario_yaml}" | sed 's/^[[:space:]]*control_port: *//' || true)
+        c64_port="${c64_port:-64}"
+        if ! python3 - <<PY
+import socket
+host = "${c64_host}"
+port = int("${c64_port}")
+sock = socket.socket()
+sock.settimeout(1.0)
+try:
+    sock.connect((host, port))
+except Exception:
+    raise SystemExit(1)
+finally:
+    sock.close()
+raise SystemExit(0)
+PY
+        then
+            SCENARIO_SKIPPED=true
+            SCENARIO_SKIP_REASON="Real C64 Ultimate device (${c64_host}:${c64_port}) not reachable"
+            log_warning "⏭️  Skipping scenario '${name}' (device packet source)"
+            log_info "  Reason: ${SCENARIO_SKIP_REASON}"
+            return 0
+        fi
+    fi
+
     # Set FORMAT from scenario if not explicitly set via CLI
     if [[ "${FORMAT}" == "${DEFAULT_FORMAT}" ]]; then
         FORMAT="${format}"

@@ -202,6 +202,8 @@ class OBSProcessManager:
             finally:
                 if self._stdout_file:
                     self._stdout_file.close()
+                    self._stdout_file = None
+                self._patch_obs_stdout_cpu_speed()
                 self.process = None
 
     def boost_priority(self):
@@ -226,3 +228,61 @@ class OBSProcessManager:
         """Raise error if OBS died."""
         if self.process and self.process.poll() is not None:
             raise RuntimeError("OBS process exited unexpectedly")
+
+    def _patch_obs_stdout_cpu_speed(self) -> None:
+        max_mhz = self._get_cpu_max_mhz()
+        if max_mhz is None:
+            return
+
+        log_path = self.env.output_dir / 'obs_stdout.log'
+        if not log_path.exists():
+            return
+
+        try:
+            with open(log_path, 'r') as f:
+                lines = f.readlines()
+        except Exception:
+            return
+
+        replaced = False
+        for idx, line in enumerate(lines):
+            if line.startswith("info: CPU Speed:"):
+                lines[idx] = f"info: CPU Speed: {max_mhz:.3f}MHz\n"
+                replaced = True
+                break
+
+        if not replaced:
+            return
+
+        try:
+            with open(log_path, 'w') as f:
+                f.writelines(lines)
+        except Exception:
+            return
+
+    def _get_cpu_max_mhz(self) -> Optional[float]:
+        sysfs_paths = [
+            Path("/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq"),
+            Path("/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq"),
+        ]
+        for path in sysfs_paths:
+            if path.exists():
+                try:
+                    khz = int(path.read_text().strip())
+                    if khz > 0:
+                        return khz / 1000.0
+                except Exception:
+                    pass
+
+        if shutil.which("lscpu"):
+            try:
+                output = subprocess.check_output(["lscpu"], text=True)
+                for line in output.splitlines():
+                    if "CPU max MHz" in line:
+                        _, value = line.split(":", 1)
+                        value = value.strip()
+                        return float(value)
+            except Exception:
+                pass
+
+        return None

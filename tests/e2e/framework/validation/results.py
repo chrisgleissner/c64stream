@@ -316,10 +316,6 @@ class ResultValidator:
         status_str = 'pass' if passed else 'fail'
         results['av_sync'] = {'status': status_str, 'details': msg}
 
-        # Also set frame_processing status based on AV sync if we have data
-        if details:
-            results['frame_processing'] = {'status': status_str, 'details': msg}
-
         if not passed and details:
              # Check if this is a severe AV sync failure (all pops out of sync)
              sync_details = details.get('sync_details', [])
@@ -366,6 +362,18 @@ class ResultValidator:
 
     def _check_network_timing(self, results, errors, warnings):
         network_json = self.env.output_dir / 'network.json'
+        if not network_json.exists():
+            network_csv = self.env.output_dir / 'network.csv'
+            if network_csv.exists():
+                try:
+                    from util.network_analysis import analyze_network_jitter
+                    analysis = analyze_network_jitter(network_csv)
+                    if isinstance(analysis, dict) and analysis:
+                        with open(network_json, 'w') as f:
+                            json.dump(analysis, f, indent=2)
+                        logger.info(f"✅ Generated network.json from network.csv: {network_json}")
+                except Exception as e:
+                    logger.warning(f"Failed to generate network.json: {e}")
         status, details, err_list, warn_list = NetworkTimingValidator.validate(
             network_json, self.format, self.frames, self.network_simulation, self.packet_source
         )
