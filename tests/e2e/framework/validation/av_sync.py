@@ -35,25 +35,16 @@ class AVSyncValidator:
             passed = results.get('is_perfectly_synced', False)
             accuracy = results.get('sync_accuracy_percent', 0.0)
 
-            total_analyzed = int(results.get('total_analyzed', 0) or 0)
-            total_audio_pops = int(results.get('total_audio_pops', 0) or 0)
-            total_video_pops = int(results.get('total_video_pops', 0) or 0)
-
             # Calculate average offset for reporting
             details_list = results.get('sync_details', [])
             offsets = [d['difference_ms'] for d in details_list if d.get('is_synced')]
             avg_offset = sum(offsets) / len(offsets) if offsets else 0.0
 
-            if total_analyzed == 0:
-                msg = (
-                    "No matched A/V pop pairs "
-                    f"(audio_pops={total_audio_pops}, video_pops={total_video_pops})"
-                )
-            else:
-                msg = f"Accuracy: {accuracy:.1f}%"
-                if not passed:
-                    perfect_count = int(results.get('perfect_sync_count', 0) or 0)
-                    msg += f" ({max(0, total_analyzed - perfect_count)} mismatches)"
+            msg = f"Accuracy: {accuracy:.1f}%"
+            if not passed:
+                total_analyzed = results.get('total_analyzed', 0)
+                perfect_count = results.get('perfect_sync_count', 0)
+                msg += f" ({total_analyzed - perfect_count} mismatches)"
 
             status_icon = "✅" if passed else "❌"
             logger.info(f"{status_icon} A/V Sync: {passed} ({msg})")
