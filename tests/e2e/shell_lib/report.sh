@@ -5,7 +5,7 @@
 # Also generates the README.md report now via the unified Python generator
 generate_playback_csv() {
     local validation_file="${OUTPUT_DIR}/validation_results.json"
-    
+
     if [[ ! -f "${validation_file}" ]]; then
         log_info "Skipping playback.csv generation (validation_results.json not found)"
         return 0
@@ -27,14 +27,14 @@ generate_playback_csv() {
         "${FORMAT}" \
         "${FRAMES}" \
         "${project_root}"; then
-        
+
         local playback_csv="${OUTPUT_DIR}/playback.csv"
         if [[ -f "${playback_csv}" ]]; then
             log_success "Generated playback.csv"
         else
             log_warning "Failed to generate playback.csv"
         fi
-        
+
         local report_file="${OUTPUT_DIR}/README.md"
         if [[ -f "${report_file}" ]]; then
             log_success "Generated README.md"
