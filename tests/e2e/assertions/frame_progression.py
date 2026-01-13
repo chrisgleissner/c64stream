@@ -429,7 +429,14 @@ def _split_frame_ranges(start_frame: int, end_frame: int, workers: int) -> list[
     return ranges
 
 
+def _is_ci() -> bool:
+    """Detect if running in CI environment."""
+    return bool(os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS"))
+
+
 def _choose_profile_workers(total_frames: int) -> int:
+    if _is_ci():
+        return 1
     cpu_count = os.cpu_count() or 1
     min_frames_per_worker = 60
     max_workers = max(1, total_frames // min_frames_per_worker)

@@ -38,6 +38,18 @@ from .tint import TintAssertion
 from .video_quality import VideoQualityAssertion
 
 
+def _is_ci() -> bool:
+    """Detect if running in CI environment."""
+    return bool(os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS"))
+
+
+def _get_max_workers_for_assertions() -> int:
+    """Get appropriate worker count for parallel assertion execution."""
+    if _is_ci():
+        return 1
+    return os.cpu_count() or 1
+
+
 class AssertionRunner:
     """Orchestrates running multiple assertions against a recording."""
 
@@ -56,7 +68,7 @@ class AssertionRunner:
         if not self.assertions:
             return []
 
-        max_workers = min(len(self.assertions), os.cpu_count() or 1)
+        max_workers = min(len(self.assertions), _get_max_workers_for_assertions())
         results: list[Optional[AssertionResult]] = [None] * len(self.assertions)
         logs: list[str] = [""] * len(self.assertions)
 
