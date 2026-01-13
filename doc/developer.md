@@ -263,7 +263,7 @@ cd tests/e2e
 ./local-build.sh linux --e2e --install    # Build, install, and run E2E tests
 ```
 
-See [`doc/testing/e2e.md`](e2e.md) for comprehensive E2E testing documentation.
+See [`doc/testing/e2e.md`](testing/e2e.md) for comprehensive E2E testing documentation.
 
 ### End-to-end tests (in-depth)
 
