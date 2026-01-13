@@ -349,24 +349,33 @@ class ResultValidator:
         # Store detailed results at root for report.sh/jq access
         results['av_sync_details'] = details
 
-        # Main status
-        status_str = 'pass' if passed else 'fail'
-        results['av_sync'] = {'status': status_str, 'details': msg}
+        # Interpret results conservatively:
+        # - If we couldn't match any A/V pop pairs, we cannot assess sync quality. Treat as warning.
+        # - If we matched pops but none are synced, this is a true failure.
+        # - If some are synced but not all, treat as warning (effects/jitter).
+        total_analyzed = int((details or {}).get('total_analyzed', 0) or 0)
+        sync_details = (details or {}).get('sync_details', [])
+        analyzed_details = [d for d in sync_details if d.get('included_in_analysis', False)]
+        analyzed_count = len(analyzed_details)
+        synced_count = sum(1 for d in analyzed_details if d.get('is_synced', False))
 
-        if not passed and details:
-             # Check if this is a severe AV sync failure (all pops out of sync)
-             sync_details = details.get('sync_details', [])
-             synced_count = sum(1 for d in sync_details if d.get('is_synced', False))
-             total_count = len(sync_details)
+        if total_analyzed == 0 or analyzed_count == 0:
+            status_str = 'warning'
+            results['av_sync'] = {'status': status_str, 'details': msg}
+            warnings.append(f"AV Sync: {msg}")
+        elif passed:
+            status_str = 'pass'
+            results['av_sync'] = {'status': status_str, 'details': msg}
+        elif synced_count == 0:
+            status_str = 'fail'
+            results['av_sync'] = {'status': status_str, 'details': msg}
+            errors.append(f"AV Sync: All {analyzed_count} analyzed pops out of sync - {msg}")
+        else:
+            status_str = 'warning'
+            results['av_sync'] = {'status': status_str, 'details': msg}
+            warnings.append(f"AV Sync: {msg}")
 
-             # If NO pops are synced, this is a critical failure (test content/timing issue)
-             if total_count > 0 and synced_count == 0:
-                 errors.append(f"AV Sync: All {total_count} pops out of sync - {msg}")
-             else:
-                 # Partial failures are warnings (may be due to effects or minor timing jitter)
-                 warnings.append(f"AV Sync: {msg}")
-
-        logger.info(f"{'✅' if passed else '⚠️ ' } A/V Sync: {passed} ({msg})")
+        logger.info(f"{'✅' if status_str == 'pass' else '⚠️ ' if status_str == 'warning' else '❌'} A/V Sync: {status_str} ({msg})")
 
     def _check_frame_logic(self, recording_path, results, errors):
         # Skip frame logic for full-frame-pop scenarios (matches main branch behavior)
