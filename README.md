@@ -1,4 +1,3 @@
-
 # C64 Stream
 
 [![Build](https://github.com/chrisgleissner/c64stream/actions/workflows/push.yaml/badge.svg?branch=main)](https://github.com/chrisgleissner/c64stream/actions/workflows/push.yaml)
@@ -10,7 +9,7 @@ Bridge your Commodore 64 Ultimate directly to [OBS Studio](https://obsproject.co
 
 <img src="./docs/images/c64stream.png" alt="C64 Stream Logo" width="200"/>
 
-This plugin implements a native OBS source that receives video and audio streams from C64 Ultimate devices (Commodore 64 Ultimate or Ultimate 64) via the Ultimate's built-in data streaming capability.
+This plugin implements a native OBS source that receives video and audio streams from a Commodore 64 Ultimate or Ultimate 64.
 
 The plugin connects directly to the Ultimate's network interface, eliminating the need for capture cards or composite video connections.
 
