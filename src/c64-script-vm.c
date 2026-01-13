@@ -3068,18 +3068,19 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
 
     case OP_HTTP: {
         // HTTP method (from operand), url, headers, body, status_var, response_var
-        // Pop in reverse order: response_var, status_var, body, headers, url
+        // Compiler pushes: response_var, status_var, body, headers, url
+        // Pop in reverse order (LIFO): url, headers, body, status_var, response_var
         c64script_value_t response_var_val, status_var_val, body_val, headers_val, url_val;
 
-        if (!c64script_runtime_pop(runtime, &response_var_val))
-            return false;
-        if (!c64script_runtime_pop(runtime, &status_var_val))
-            return false;
-        if (!c64script_runtime_pop(runtime, &body_val))
+        if (!c64script_runtime_pop(runtime, &url_val))
             return false;
         if (!c64script_runtime_pop(runtime, &headers_val))
             return false;
-        if (!c64script_runtime_pop(runtime, &url_val))
+        if (!c64script_runtime_pop(runtime, &body_val))
+            return false;
+        if (!c64script_runtime_pop(runtime, &status_var_val))
+            return false;
+        if (!c64script_runtime_pop(runtime, &response_var_val))
             return false;
 
         if (url_val.type != VALUE_STRING) {

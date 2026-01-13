@@ -79,496 +79,591 @@ trace:
 - line: 6
   content: "wait 100ms"
   variables:
-    HTTP://LOCALHOST:8064/V1/VERSION: ""
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
 - line: 7
   content: "LOG \"GET status: \" + STATUS_CODE"
   variables:
-    HTTP://LOCALHOST:8064/V1/VERSION: ""
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
 - line: 10
   content: "HTTP GET \"http://localhost:8064/v1/info\" STATUS CODE"
   variables:
-    HTTP://LOCALHOST:8064/V1/VERSION: ""
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
 - line: 11
   content: "if CODE = 200 then"
   variables:
-    HTTP://LOCALHOST:8064/V1/VERSION: ""
-    HTTP://LOCALHOST:8064/V1/INFO: ""
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
 - line: 14
   content: "wait 100ms"
   variables:
-    HTTP://LOCALHOST:8064/V1/VERSION: ""
-    HTTP://LOCALHOST:8064/V1/INFO: ""
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
 - line: 17
   content: "BODY$ = \"{\\\"command\\\":\\\"reset\\\"}\""
   variables:
-    HTTP://LOCALHOST:8064/V1/VERSION: ""
-    HTTP://LOCALHOST:8064/V1/INFO: ""
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
 - line: 18
   content: "HTTP POST \"http://localhost:8064/v1/command\" BODY BODY$ STATUS POST_STATUS"
   variables:
-    HTTP://LOCALHOST:8064/V1/VERSION: ""
-    HTTP://LOCALHOST:8064/V1/INFO: ""
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
     BODY$: "{"command":"reset"}"
 - line: 19
   content: "wait 100ms"
   variables:
-    HTTP://LOCALHOST:8064/V1/VERSION: ""
-    HTTP://LOCALHOST:8064/V1/INFO: ""
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
     BODY$: "{"command":"reset"}"
-    HTTP://LOCALHOST:8064/V1/COMMAND: ""
+    POST_STATUS: 0
 - line: 22
   content: "HEADERS${\"Content-Type\"} = \"application/json\""
   variables:
-    HTTP://LOCALHOST:8064/V1/VERSION: ""
-    HTTP://LOCALHOST:8064/V1/INFO: ""
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
     BODY$: "{"command":"reset"}"
-    HTTP://LOCALHOST:8064/V1/COMMAND: ""
+    POST_STATUS: 0
 - line: 23
   content: "DATA$ = \"{\\\"value\\\":42}\""
   variables:
-    HTTP://LOCALHOST:8064/V1/VERSION: ""
-    HTTP://LOCALHOST:8064/V1/INFO: ""
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
     BODY$: "{"command":"reset"}"
-    HTTP://LOCALHOST:8064/V1/COMMAND: ""
+    POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
 - line: 24
   content: "HTTP POST \"http://localhost:8064/v1/data\" HEADERS HEADERS$ BODY DATA$ STATUS S RESPONSE R$"
   variables:
-    HTTP://LOCALHOST:8064/V1/VERSION: ""
-    HTTP://LOCALHOST:8064/V1/INFO: ""
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
     BODY$: "{"command":"reset"}"
-    HTTP://LOCALHOST:8064/V1/COMMAND: ""
+    POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
     DATA$: "{"value":42}"
 - line: 25
   content: "wait 100ms"
   variables:
-    HTTP://LOCALHOST:8064/V1/VERSION: ""
-    HTTP://LOCALHOST:8064/V1/INFO: ""
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
     BODY$: "{"command":"reset"}"
-    HTTP://LOCALHOST:8064/V1/COMMAND: ""
+    POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
     DATA$: "{"value":42}"
-    HTTP://LOCALHOST:8064/V1/DATA: ""
+    S: 0
+    R$: "Couldn't connect to server"
 - line: 26
   content: "LOG \"POST response: \" + R$"
   variables:
-    HTTP://LOCALHOST:8064/V1/VERSION: ""
-    HTTP://LOCALHOST:8064/V1/INFO: ""
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
     BODY$: "{"command":"reset"}"
-    HTTP://LOCALHOST:8064/V1/COMMAND: ""
+    POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
     DATA$: "{"value":42}"
-    HTTP://LOCALHOST:8064/V1/DATA: ""
+    S: 0
+    R$: "Couldn't connect to server"
 - line: 29
   content: "HTTP PUT \"http://localhost:8064/v1/machine:reset\" STATUS PUT_CODE"
   variables:
-    HTTP://LOCALHOST:8064/V1/VERSION: ""
-    HTTP://LOCALHOST:8064/V1/INFO: ""
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
     BODY$: "{"command":"reset"}"
-    HTTP://LOCALHOST:8064/V1/COMMAND: ""
+    POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
     DATA$: "{"value":42}"
-    HTTP://LOCALHOST:8064/V1/DATA: ""
+    S: 0
+    R$: "Couldn't connect to server"
 - line: 30
   content: "wait 100ms"
   variables:
-    HTTP://LOCALHOST:8064/V1/VERSION: ""
-    HTTP://LOCALHOST:8064/V1/INFO: ""
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
     BODY$: "{"command":"reset"}"
-    HTTP://LOCALHOST:8064/V1/COMMAND: ""
+    POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
     DATA$: "{"value":42}"
-    HTTP://LOCALHOST:8064/V1/DATA: ""
-    HTTP://LOCALHOST:8064/V1/MACHINE:RESET: ""
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
 - line: 33
   content: "HTTP DELETE \"http://localhost:8064/v1/resource/123\" STATUS DEL_CODE"
   variables:
-    HTTP://LOCALHOST:8064/V1/VERSION: ""
-    HTTP://LOCALHOST:8064/V1/INFO: ""
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
     BODY$: "{"command":"reset"}"
-    HTTP://LOCALHOST:8064/V1/COMMAND: ""
+    POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
     DATA$: "{"value":42}"
-    HTTP://LOCALHOST:8064/V1/DATA: ""
-    HTTP://LOCALHOST:8064/V1/MACHINE:RESET: ""
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
 - line: 34
   content: "wait 100ms"
   variables:
-    HTTP://LOCALHOST:8064/V1/VERSION: ""
-    HTTP://LOCALHOST:8064/V1/INFO: ""
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
     BODY$: "{"command":"reset"}"
-    HTTP://LOCALHOST:8064/V1/COMMAND: ""
+    POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
     DATA$: "{"value":42}"
-    HTTP://LOCALHOST:8064/V1/DATA: ""
-    HTTP://LOCALHOST:8064/V1/MACHINE:RESET: ""
-    HTTP://LOCALHOST:8064/V1/RESOURCE/123: ""
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
 - line: 37
   content: "PATCH_BODY$ = \"{\\\"field\\\":\\\"updated\\\"}\""
   variables:
-    HTTP://LOCALHOST:8064/V1/VERSION: ""
-    HTTP://LOCALHOST:8064/V1/INFO: ""
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
     BODY$: "{"command":"reset"}"
-    HTTP://LOCALHOST:8064/V1/COMMAND: ""
+    POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
     DATA$: "{"value":42}"
-    HTTP://LOCALHOST:8064/V1/DATA: ""
-    HTTP://LOCALHOST:8064/V1/MACHINE:RESET: ""
-    HTTP://LOCALHOST:8064/V1/RESOURCE/123: ""
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
 - line: 38
   content: "HTTP PATCH \"http://localhost:8064/v1/resource/456\" BODY PATCH_BODY$ STATUS PATCH_CODE"
   variables:
-    HTTP://LOCALHOST:8064/V1/VERSION: ""
-    HTTP://LOCALHOST:8064/V1/INFO: ""
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
     BODY$: "{"command":"reset"}"
-    HTTP://LOCALHOST:8064/V1/COMMAND: ""
+    POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
     DATA$: "{"value":42}"
-    HTTP://LOCALHOST:8064/V1/DATA: ""
-    HTTP://LOCALHOST:8064/V1/MACHINE:RESET: ""
-    HTTP://LOCALHOST:8064/V1/RESOURCE/123: ""
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
     PATCH_BODY$: "{"field":"updated"}"
 - line: 39
   content: "wait 100ms"
   variables:
-    HTTP://LOCALHOST:8064/V1/VERSION: ""
-    HTTP://LOCALHOST:8064/V1/INFO: ""
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
     BODY$: "{"command":"reset"}"
-    HTTP://LOCALHOST:8064/V1/COMMAND: ""
+    POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
     DATA$: "{"value":42}"
-    HTTP://LOCALHOST:8064/V1/DATA: ""
-    HTTP://LOCALHOST:8064/V1/MACHINE:RESET: ""
-    HTTP://LOCALHOST:8064/V1/RESOURCE/123: ""
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
     PATCH_BODY$: "{"field":"updated"}"
-    HTTP://LOCALHOST:8064/V1/RESOURCE/456: ""
+    PATCH_CODE: 0
 - line: 42
   content: "HTTP GET \"http://localhost:8064/v1/status\" STATUS API_STATUS RESPONSE API_RESP$"
   variables:
-    HTTP://LOCALHOST:8064/V1/VERSION: ""
-    HTTP://LOCALHOST:8064/V1/INFO: ""
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
     BODY$: "{"command":"reset"}"
-    HTTP://LOCALHOST:8064/V1/COMMAND: ""
+    POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
     DATA$: "{"value":42}"
-    HTTP://LOCALHOST:8064/V1/DATA: ""
-    HTTP://LOCALHOST:8064/V1/MACHINE:RESET: ""
-    HTTP://LOCALHOST:8064/V1/RESOURCE/123: ""
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
     PATCH_BODY$: "{"field":"updated"}"
-    HTTP://LOCALHOST:8064/V1/RESOURCE/456: ""
+    PATCH_CODE: 0
 - line: 43
   content: "if API_STATUS = 200 then"
   variables:
-    HTTP://LOCALHOST:8064/V1/VERSION: ""
-    HTTP://LOCALHOST:8064/V1/INFO: ""
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
     BODY$: "{"command":"reset"}"
-    HTTP://LOCALHOST:8064/V1/COMMAND: ""
+    POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
     DATA$: "{"value":42}"
-    HTTP://LOCALHOST:8064/V1/DATA: ""
-    HTTP://LOCALHOST:8064/V1/MACHINE:RESET: ""
-    HTTP://LOCALHOST:8064/V1/RESOURCE/123: ""
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
     PATCH_BODY$: "{"field":"updated"}"
-    HTTP://LOCALHOST:8064/V1/RESOURCE/456: ""
-    HTTP://LOCALHOST:8064/V1/STATUS: ""
+    PATCH_CODE: 0
+    API_STATUS: 0
+    API_RESP$: "Couldn't connect to server"
 - line: 47
   content: "LOG \"API error: \" + API_STATUS"
   variables:
-    HTTP://LOCALHOST:8064/V1/VERSION: ""
-    HTTP://LOCALHOST:8064/V1/INFO: ""
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
     BODY$: "{"command":"reset"}"
-    HTTP://LOCALHOST:8064/V1/COMMAND: ""
+    POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
     DATA$: "{"value":42}"
-    HTTP://LOCALHOST:8064/V1/DATA: ""
-    HTTP://LOCALHOST:8064/V1/MACHINE:RESET: ""
-    HTTP://LOCALHOST:8064/V1/RESOURCE/123: ""
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
     PATCH_BODY$: "{"field":"updated"}"
-    HTTP://LOCALHOST:8064/V1/RESOURCE/456: ""
-    HTTP://LOCALHOST:8064/V1/STATUS: ""
+    PATCH_CODE: 0
+    API_STATUS: 0
+    API_RESP$: "Couldn't connect to server"
 - line: 48
   content: "palette \"pepto_ntsc\""
   variables:
-    HTTP://LOCALHOST:8064/V1/VERSION: ""
-    HTTP://LOCALHOST:8064/V1/INFO: ""
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
     BODY$: "{"command":"reset"}"
-    HTTP://LOCALHOST:8064/V1/COMMAND: ""
+    POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
     DATA$: "{"value":42}"
-    HTTP://LOCALHOST:8064/V1/DATA: ""
-    HTTP://LOCALHOST:8064/V1/MACHINE:RESET: ""
-    HTTP://LOCALHOST:8064/V1/RESOURCE/123: ""
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
     PATCH_BODY$: "{"field":"updated"}"
-    HTTP://LOCALHOST:8064/V1/RESOURCE/456: ""
-    HTTP://LOCALHOST:8064/V1/STATUS: ""
+    PATCH_CODE: 0
+    API_STATUS: 0
+    API_RESP$: "Couldn't connect to server"
 - line: 50
   content: "wait 100ms"
   variables:
-    HTTP://LOCALHOST:8064/V1/VERSION: ""
-    HTTP://LOCALHOST:8064/V1/INFO: ""
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
     BODY$: "{"command":"reset"}"
-    HTTP://LOCALHOST:8064/V1/COMMAND: ""
+    POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
     DATA$: "{"value":42}"
-    HTTP://LOCALHOST:8064/V1/DATA: ""
-    HTTP://LOCALHOST:8064/V1/MACHINE:RESET: ""
-    HTTP://LOCALHOST:8064/V1/RESOURCE/123: ""
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
     PATCH_BODY$: "{"field":"updated"}"
-    HTTP://LOCALHOST:8064/V1/RESOURCE/456: ""
-    HTTP://LOCALHOST:8064/V1/STATUS: ""
+    PATCH_CODE: 0
+    API_STATUS: 0
+    API_RESP$: "Couldn't connect to server"
 - line: 53
   content: "for I = 1 to 3"
   variables:
-    HTTP://LOCALHOST:8064/V1/VERSION: ""
-    HTTP://LOCALHOST:8064/V1/INFO: ""
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
     BODY$: "{"command":"reset"}"
-    HTTP://LOCALHOST:8064/V1/COMMAND: ""
+    POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
     DATA$: "{"value":42}"
-    HTTP://LOCALHOST:8064/V1/DATA: ""
-    HTTP://LOCALHOST:8064/V1/MACHINE:RESET: ""
-    HTTP://LOCALHOST:8064/V1/RESOURCE/123: ""
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
     PATCH_BODY$: "{"field":"updated"}"
-    HTTP://LOCALHOST:8064/V1/RESOURCE/456: ""
-    HTTP://LOCALHOST:8064/V1/STATUS: ""
+    PATCH_CODE: 0
+    API_STATUS: 0
+    API_RESP$: "Couldn't connect to server"
 - line: 54
   content: "HTTP GET \"http://localhost:8064/v1/version\" STATUS S"
   variables:
-    HTTP://LOCALHOST:8064/V1/VERSION: ""
-    HTTP://LOCALHOST:8064/V1/INFO: ""
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
     BODY$: "{"command":"reset"}"
-    HTTP://LOCALHOST:8064/V1/COMMAND: ""
+    POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
     DATA$: "{"value":42}"
-    HTTP://LOCALHOST:8064/V1/DATA: ""
-    HTTP://LOCALHOST:8064/V1/MACHINE:RESET: ""
-    HTTP://LOCALHOST:8064/V1/RESOURCE/123: ""
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
     PATCH_BODY$: "{"field":"updated"}"
-    HTTP://LOCALHOST:8064/V1/RESOURCE/456: ""
-    HTTP://LOCALHOST:8064/V1/STATUS: ""
+    PATCH_CODE: 0
+    API_STATUS: 0
+    API_RESP$: "Couldn't connect to server"
     I: 1
 - line: 55
   content: "LOG \"Call \" + I + \" status: \" + S"
   variables:
-    HTTP://LOCALHOST:8064/V1/VERSION: ""
-    HTTP://LOCALHOST:8064/V1/INFO: ""
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
     BODY$: "{"command":"reset"}"
-    HTTP://LOCALHOST:8064/V1/COMMAND: ""
+    POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
     DATA$: "{"value":42}"
-    HTTP://LOCALHOST:8064/V1/DATA: ""
-    HTTP://LOCALHOST:8064/V1/MACHINE:RESET: ""
-    HTTP://LOCALHOST:8064/V1/RESOURCE/123: ""
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
     PATCH_BODY$: "{"field":"updated"}"
-    HTTP://LOCALHOST:8064/V1/RESOURCE/456: ""
-    HTTP://LOCALHOST:8064/V1/STATUS: ""
+    PATCH_CODE: 0
+    API_STATUS: 0
+    API_RESP$: "Couldn't connect to server"
     I: 1
 - line: 56
   content: "wait 50ms"
   variables:
-    HTTP://LOCALHOST:8064/V1/VERSION: ""
-    HTTP://LOCALHOST:8064/V1/INFO: ""
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
     BODY$: "{"command":"reset"}"
-    HTTP://LOCALHOST:8064/V1/COMMAND: ""
+    POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
     DATA$: "{"value":42}"
-    HTTP://LOCALHOST:8064/V1/DATA: ""
-    HTTP://LOCALHOST:8064/V1/MACHINE:RESET: ""
-    HTTP://LOCALHOST:8064/V1/RESOURCE/123: ""
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
     PATCH_BODY$: "{"field":"updated"}"
-    HTTP://LOCALHOST:8064/V1/RESOURCE/456: ""
-    HTTP://LOCALHOST:8064/V1/STATUS: ""
+    PATCH_CODE: 0
+    API_STATUS: 0
+    API_RESP$: "Couldn't connect to server"
     I: 1
 - line: 53
   content: "for I = 1 to 3"
   variables:
-    HTTP://LOCALHOST:8064/V1/VERSION: ""
-    HTTP://LOCALHOST:8064/V1/INFO: ""
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
     BODY$: "{"command":"reset"}"
-    HTTP://LOCALHOST:8064/V1/COMMAND: ""
+    POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
     DATA$: "{"value":42}"
-    HTTP://LOCALHOST:8064/V1/DATA: ""
-    HTTP://LOCALHOST:8064/V1/MACHINE:RESET: ""
-    HTTP://LOCALHOST:8064/V1/RESOURCE/123: ""
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
     PATCH_BODY$: "{"field":"updated"}"
-    HTTP://LOCALHOST:8064/V1/RESOURCE/456: ""
-    HTTP://LOCALHOST:8064/V1/STATUS: ""
+    PATCH_CODE: 0
+    API_STATUS: 0
+    API_RESP$: "Couldn't connect to server"
     I: 1
 - line: 54
   content: "HTTP GET \"http://localhost:8064/v1/version\" STATUS S"
   variables:
-    HTTP://LOCALHOST:8064/V1/VERSION: ""
-    HTTP://LOCALHOST:8064/V1/INFO: ""
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
     BODY$: "{"command":"reset"}"
-    HTTP://LOCALHOST:8064/V1/COMMAND: ""
+    POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
     DATA$: "{"value":42}"
-    HTTP://LOCALHOST:8064/V1/DATA: ""
-    HTTP://LOCALHOST:8064/V1/MACHINE:RESET: ""
-    HTTP://LOCALHOST:8064/V1/RESOURCE/123: ""
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
     PATCH_BODY$: "{"field":"updated"}"
-    HTTP://LOCALHOST:8064/V1/RESOURCE/456: ""
-    HTTP://LOCALHOST:8064/V1/STATUS: ""
+    PATCH_CODE: 0
+    API_STATUS: 0
+    API_RESP$: "Couldn't connect to server"
     I: 2
 - line: 55
   content: "LOG \"Call \" + I + \" status: \" + S"
   variables:
-    HTTP://LOCALHOST:8064/V1/VERSION: ""
-    HTTP://LOCALHOST:8064/V1/INFO: ""
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
     BODY$: "{"command":"reset"}"
-    HTTP://LOCALHOST:8064/V1/COMMAND: ""
+    POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
     DATA$: "{"value":42}"
-    HTTP://LOCALHOST:8064/V1/DATA: ""
-    HTTP://LOCALHOST:8064/V1/MACHINE:RESET: ""
-    HTTP://LOCALHOST:8064/V1/RESOURCE/123: ""
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
     PATCH_BODY$: "{"field":"updated"}"
-    HTTP://LOCALHOST:8064/V1/RESOURCE/456: ""
-    HTTP://LOCALHOST:8064/V1/STATUS: ""
+    PATCH_CODE: 0
+    API_STATUS: 0
+    API_RESP$: "Couldn't connect to server"
     I: 2
 - line: 56
   content: "wait 50ms"
   variables:
-    HTTP://LOCALHOST:8064/V1/VERSION: ""
-    HTTP://LOCALHOST:8064/V1/INFO: ""
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
     BODY$: "{"command":"reset"}"
-    HTTP://LOCALHOST:8064/V1/COMMAND: ""
+    POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
     DATA$: "{"value":42}"
-    HTTP://LOCALHOST:8064/V1/DATA: ""
-    HTTP://LOCALHOST:8064/V1/MACHINE:RESET: ""
-    HTTP://LOCALHOST:8064/V1/RESOURCE/123: ""
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
     PATCH_BODY$: "{"field":"updated"}"
-    HTTP://LOCALHOST:8064/V1/RESOURCE/456: ""
-    HTTP://LOCALHOST:8064/V1/STATUS: ""
+    PATCH_CODE: 0
+    API_STATUS: 0
+    API_RESP$: "Couldn't connect to server"
     I: 2
 - line: 53
   content: "for I = 1 to 3"
   variables:
-    HTTP://LOCALHOST:8064/V1/VERSION: ""
-    HTTP://LOCALHOST:8064/V1/INFO: ""
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
     BODY$: "{"command":"reset"}"
-    HTTP://LOCALHOST:8064/V1/COMMAND: ""
+    POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
     DATA$: "{"value":42}"
-    HTTP://LOCALHOST:8064/V1/DATA: ""
-    HTTP://LOCALHOST:8064/V1/MACHINE:RESET: ""
-    HTTP://LOCALHOST:8064/V1/RESOURCE/123: ""
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
     PATCH_BODY$: "{"field":"updated"}"
-    HTTP://LOCALHOST:8064/V1/RESOURCE/456: ""
-    HTTP://LOCALHOST:8064/V1/STATUS: ""
+    PATCH_CODE: 0
+    API_STATUS: 0
+    API_RESP$: "Couldn't connect to server"
     I: 2
 - line: 54
   content: "HTTP GET \"http://localhost:8064/v1/version\" STATUS S"
   variables:
-    HTTP://LOCALHOST:8064/V1/VERSION: ""
-    HTTP://LOCALHOST:8064/V1/INFO: ""
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
     BODY$: "{"command":"reset"}"
-    HTTP://LOCALHOST:8064/V1/COMMAND: ""
+    POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
     DATA$: "{"value":42}"
-    HTTP://LOCALHOST:8064/V1/DATA: ""
-    HTTP://LOCALHOST:8064/V1/MACHINE:RESET: ""
-    HTTP://LOCALHOST:8064/V1/RESOURCE/123: ""
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
     PATCH_BODY$: "{"field":"updated"}"
-    HTTP://LOCALHOST:8064/V1/RESOURCE/456: ""
-    HTTP://LOCALHOST:8064/V1/STATUS: ""
+    PATCH_CODE: 0
+    API_STATUS: 0
+    API_RESP$: "Couldn't connect to server"
     I: 3
 - line: 55
   content: "LOG \"Call \" + I + \" status: \" + S"
   variables:
-    HTTP://LOCALHOST:8064/V1/VERSION: ""
-    HTTP://LOCALHOST:8064/V1/INFO: ""
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
     BODY$: "{"command":"reset"}"
-    HTTP://LOCALHOST:8064/V1/COMMAND: ""
+    POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
     DATA$: "{"value":42}"
-    HTTP://LOCALHOST:8064/V1/DATA: ""
-    HTTP://LOCALHOST:8064/V1/MACHINE:RESET: ""
-    HTTP://LOCALHOST:8064/V1/RESOURCE/123: ""
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
     PATCH_BODY$: "{"field":"updated"}"
-    HTTP://LOCALHOST:8064/V1/RESOURCE/456: ""
-    HTTP://LOCALHOST:8064/V1/STATUS: ""
+    PATCH_CODE: 0
+    API_STATUS: 0
+    API_RESP$: "Couldn't connect to server"
     I: 3
 - line: 56
   content: "wait 50ms"
   variables:
-    HTTP://LOCALHOST:8064/V1/VERSION: ""
-    HTTP://LOCALHOST:8064/V1/INFO: ""
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
     BODY$: "{"command":"reset"}"
-    HTTP://LOCALHOST:8064/V1/COMMAND: ""
+    POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
     DATA$: "{"value":42}"
-    HTTP://LOCALHOST:8064/V1/DATA: ""
-    HTTP://LOCALHOST:8064/V1/MACHINE:RESET: ""
-    HTTP://LOCALHOST:8064/V1/RESOURCE/123: ""
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
     PATCH_BODY$: "{"field":"updated"}"
-    HTTP://LOCALHOST:8064/V1/RESOURCE/456: ""
-    HTTP://LOCALHOST:8064/V1/STATUS: ""
+    PATCH_CODE: 0
+    API_STATUS: 0
+    API_RESP$: "Couldn't connect to server"
     I: 3
 - line: 53
   content: "for I = 1 to 3"
   variables:
-    HTTP://LOCALHOST:8064/V1/VERSION: ""
-    HTTP://LOCALHOST:8064/V1/INFO: ""
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
     BODY$: "{"command":"reset"}"
-    HTTP://LOCALHOST:8064/V1/COMMAND: ""
+    POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
     DATA$: "{"value":42}"
-    HTTP://LOCALHOST:8064/V1/DATA: ""
-    HTTP://LOCALHOST:8064/V1/MACHINE:RESET: ""
-    HTTP://LOCALHOST:8064/V1/RESOURCE/123: ""
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
     PATCH_BODY$: "{"field":"updated"}"
-    HTTP://LOCALHOST:8064/V1/RESOURCE/456: ""
-    HTTP://LOCALHOST:8064/V1/STATUS: ""
+    PATCH_CODE: 0
+    API_STATUS: 0
+    API_RESP$: "Couldn't connect to server"
     I: 3
 - line: 60
   content: "HTTP GET \"http://localhost:8064/v1/info\" STATUS INFO_CODE RESPONSE INFO$"
   variables:
-    HTTP://LOCALHOST:8064/V1/VERSION: ""
-    HTTP://LOCALHOST:8064/V1/INFO: ""
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
     BODY$: "{"command":"reset"}"
-    HTTP://LOCALHOST:8064/V1/COMMAND: ""
+    POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
     DATA$: "{"value":42}"
-    HTTP://LOCALHOST:8064/V1/DATA: ""
-    HTTP://LOCALHOST:8064/V1/MACHINE:RESET: ""
-    HTTP://LOCALHOST:8064/V1/RESOURCE/123: ""
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
     PATCH_BODY$: "{"field":"updated"}"
-    HTTP://LOCALHOST:8064/V1/RESOURCE/456: ""
-    HTTP://LOCALHOST:8064/V1/STATUS: ""
+    PATCH_CODE: 0
+    API_STATUS: 0
+    API_RESP$: "Couldn't connect to server"
     I: 4
 - line: 61
   content: "if INFO_CODE = 200 then"
   variables:
-    HTTP://LOCALHOST:8064/V1/VERSION: ""
-    HTTP://LOCALHOST:8064/V1/INFO: ""
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
     BODY$: "{"command":"reset"}"
-    HTTP://LOCALHOST:8064/V1/COMMAND: ""
+    POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
     DATA$: "{"value":42}"
-    HTTP://LOCALHOST:8064/V1/DATA: ""
-    HTTP://LOCALHOST:8064/V1/MACHINE:RESET: ""
-    HTTP://LOCALHOST:8064/V1/RESOURCE/123: ""
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
     PATCH_BODY$: "{"field":"updated"}"
-    HTTP://LOCALHOST:8064/V1/RESOURCE/456: ""
-    HTTP://LOCALHOST:8064/V1/STATUS: ""
+    PATCH_CODE: 0
+    API_STATUS: 0
+    API_RESP$: "Couldn't connect to server"
     I: 4
+    INFO_CODE: 0
+    INFO$: "Couldn't connect to server"
 - line: 69
   content: "stop"
   variables:
-    HTTP://LOCALHOST:8064/V1/VERSION: ""
-    HTTP://LOCALHOST:8064/V1/INFO: ""
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
     BODY$: "{"command":"reset"}"
-    HTTP://LOCALHOST:8064/V1/COMMAND: ""
+    POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
     DATA$: "{"value":42}"
-    HTTP://LOCALHOST:8064/V1/DATA: ""
-    HTTP://LOCALHOST:8064/V1/MACHINE:RESET: ""
-    HTTP://LOCALHOST:8064/V1/RESOURCE/123: ""
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
     PATCH_BODY$: "{"field":"updated"}"
-    HTTP://LOCALHOST:8064/V1/RESOURCE/456: ""
-    HTTP://LOCALHOST:8064/V1/STATUS: ""
+    PATCH_CODE: 0
+    API_STATUS: 0
+    API_RESP$: "Couldn't connect to server"
     I: 4
+    INFO_CODE: 0
+    INFO$: "Couldn't connect to server"

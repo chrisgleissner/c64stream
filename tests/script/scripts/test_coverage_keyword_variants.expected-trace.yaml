@@ -53,14 +53,11 @@ trace:
   content: "CALLHTTP POST \"http://example.com\""
   variables:
     CONTENT$: "ok"
-    HTTP://EXAMPLE.COM: ""
 - line: 13
   content: "LOG \"done\""
   variables:
     CONTENT$: "ok"
-    HTTP://EXAMPLE.COM: ""
 - line: 14
   content: "STOP"
   variables:
     CONTENT$: "ok"
-    HTTP://EXAMPLE.COM: ""
