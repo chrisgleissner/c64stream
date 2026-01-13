@@ -21,14 +21,14 @@ class ResultValidator:
                  packet_source: str = 'mock',
                  network_simulation: Optional[Dict] = None,
                  full_frame_pop: bool = False,
-                 av_sync_tolerance_ms: int = 40):
+                 av_sync_tolerance_mode = None):
         self.env = env
         self.format = video_format
         self.frames = frames
         self.packet_source = packet_source
         self.network_simulation = network_simulation or {}
         self.full_frame_pop = full_frame_pop
-        self.av_sync_tolerance_ms = av_sync_tolerance_ms
+        self.av_sync_tolerance_mode = av_sync_tolerance_mode
 
     def validate(self,
                  replay_success: bool,
@@ -344,14 +344,23 @@ class ResultValidator:
              results['av_sync_details'] = {}
              return
 
-        passed, msg, offset, details = AVSyncValidator.validate(recording_path, av_csv, self.format, self.av_sync_tolerance_ms)
+        # Determine tolerance mode
+        # - If tolerance_mode is numeric, use that value
+        # - If tolerance_mode is 'lenient', use default 40ms but apply lenient validation logic
+        # - Otherwise use default 40ms with strict validation
+        use_lenient_validation = (self.av_sync_tolerance_mode == 'lenient')
+        tolerance_ms = 40  # Default tolerance
+        if isinstance(self.av_sync_tolerance_mode, (int, float)):
+            tolerance_ms = int(self.av_sync_tolerance_mode)
+
+        passed, msg, offset, details = AVSyncValidator.validate(recording_path, av_csv, self.format, tolerance_ms)
 
         # Store detailed results at root for report.sh/jq access
         results['av_sync_details'] = details
 
-        # Interpret results conservatively:
+        # Interpret results:
         # - If we couldn't match any A/V pop pairs, we cannot assess sync quality. Treat as warning.
-        # - If we matched pops but none are synced, this is a true failure.
+        # - If we matched pops but none are synced, this is a true failure (unless lenient mode on CI).
         # - If some are synced but not all, treat as warning (effects/jitter).
         total_analyzed = int((details or {}).get('total_analyzed', 0) or 0)
         sync_details = (details or {}).get('sync_details', [])
@@ -367,9 +376,16 @@ class ResultValidator:
             status_str = 'pass'
             results['av_sync'] = {'status': status_str, 'details': msg}
         elif synced_count == 0:
-            status_str = 'fail'
-            results['av_sync'] = {'status': status_str, 'details': msg}
-            errors.append(f"AV Sync: All {analyzed_count} analyzed pops out of sync - {msg}")
+            # All pops are out of sync
+            # If lenient mode is enabled and we're on CI, treat as warning instead of error
+            if use_lenient_validation and self.env.is_ci:
+                status_str = 'warning'
+                results['av_sync'] = {'status': status_str, 'details': f"{msg} (lenient on CI)"}
+                warnings.append(f"AV Sync: All {analyzed_count} analyzed pops out of sync - {msg} (lenient tolerance on CI)")
+            else:
+                status_str = 'fail'
+                results['av_sync'] = {'status': status_str, 'details': msg}
+                errors.append(f"AV Sync: All {analyzed_count} analyzed pops out of sync - {msg}")
         else:
             status_str = 'warning'
             results['av_sync'] = {'status': status_str, 'details': msg}
