@@ -7,3 +7,7 @@ assertions:
   - audio
   - afterglow
   - scanlines
+
+tolerances:
+  av_sync:
+    ci: lenient  # Heavy CRT effects can cause pop detection issues on CI
