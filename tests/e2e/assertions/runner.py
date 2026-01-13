@@ -21,7 +21,7 @@ from .audio import AudioAssertion
 from .av_sync_csv_validation import AvSyncCsvValidationAssertion
 from .av_sync_offset import AvSyncOffsetAssertion
 from .av_sync_log_validation import AvSyncLogValidationAssertion
-from .base import AssertionResult, AssertionStatus, EffectAssertion
+from .base import AssertionResult, AssertionStatus, EffectAssertion, is_ci
 from .debug_log_presence import DebugLogPresenceAssertion
 from .config import PresetConfig
 from .frame_progression import FrameProgressionAssertion
@@ -36,6 +36,13 @@ from .scanlines import ScanlineAssertion
 from .sharp_pixels import SharpPixelsAssertion
 from .tint import TintAssertion
 from .video_quality import VideoQualityAssertion
+
+
+def _get_max_workers_for_assertions() -> int:
+    """Get appropriate worker count for parallel assertion execution."""
+    if is_ci():
+        return 1
+    return os.cpu_count() or 1
 
 
 class AssertionRunner:
@@ -56,7 +63,7 @@ class AssertionRunner:
         if not self.assertions:
             return []
 
-        max_workers = min(len(self.assertions), os.cpu_count() or 1)
+        max_workers = min(len(self.assertions), _get_max_workers_for_assertions())
         results: list[Optional[AssertionResult]] = [None] * len(self.assertions)
         logs: list[str] = [""] * len(self.assertions)
 
