@@ -461,6 +461,6 @@ The project uses GitHub Actions for:
 
 ## Resources
 
-- **C64U Streaming Specification:** [`doc/c64u-stream-spec.md`](c64u-stream-spec.md)
-- **E2E Testing:** [`doc/testing/e2e.md`](e2e.md)
+- **C64U Streaming Specification:** [`doc/c64u-stream-spec.md`](c64u/c64u-stream-spec.md)
+- **E2E Testing:** [`doc/testing/e2e.md`](testing/e2e.md)
 - **OBS Plugin Guide:** [OBS Studio Documentation](https://obsproject.com/wiki/Plugin-Development)
