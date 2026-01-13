@@ -28,7 +28,7 @@ The plugin connects directly to the Ultimate's network interface, eliminating th
 ### What You'll Need
 
 - [OBS Studio 32.0.1](https://obsproject.com/download) or above
-- [C64 Ultimate](https://www.commodore.net/) or [Ultimate 64](https://ultimate64.com/)
+- [Commodore 64 Ultimate](https://www.commodore.net/) or [Ultimate 64](https://ultimate64.com/)
 - The Ultimate device must be connected via its Ethernet port. The OBS computer may connect via Wi-Fi if both are on the same network, but using Ethernet all the way to OBS is recommended for the most stable connection and lowest delay. Wi-Fi on the Ultimate itself is [not supported](https://1541u-documentation.readthedocs.io/en/latest/howto/wifi.html#functionality-available-on-wifi).
 - For complete and up-to-date hardware and software requirements, please refer to the [OBS Studio System Requirements](https://obsproject.com/kb/system-requirements).
 
