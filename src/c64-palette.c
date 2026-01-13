@@ -21,6 +21,12 @@ See <https://www.gnu.org/licenses/> for details.
 #include <sys/stat.h>
 
 #ifdef _WIN32
+#ifndef S_ISREG
+#define S_ISREG(mode) (((mode)&_S_IFMT) == _S_IFREG)
+#endif
+#endif
+
+#ifdef _WIN32
 #define PATH_SEP '\\\\'
 #define strcasecmp _stricmp
 #ifndef S_ISDIR

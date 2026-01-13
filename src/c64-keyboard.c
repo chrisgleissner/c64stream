@@ -183,8 +183,11 @@ c64_keymap_t *c64_keymap_load(const char *path)
         line_num++;
         trim(line);
 
-        // Skip empty lines and comments
-        if (line[0] == '\0' || line[0] == '#') {
+        // Skip empty lines and comments (allow literal '#' keys like '#=0x23')
+        if (line[0] == '\0') {
+            continue;
+        }
+        if (line[0] == '#' && strchr(line, '=') == NULL) {
             continue;
         }
 
@@ -206,6 +209,14 @@ c64_keymap_t *c64_keymap_load(const char *path)
         char *value = equals + 1;
         trim(key);
         trim(value);
+        const char *parsed_key = key;
+
+        // Allow literal '=' keys represented as '==<value>'
+        if (parsed_key[0] == '\0' && value[0] == '=') {
+            parsed_key = "=";
+            value++;
+            trim(value);
+        }
 
         if (strcmp(section, "meta") == 0) {
             // Meta section
@@ -222,7 +233,7 @@ c64_keymap_t *c64_keymap_load(const char *path)
             }
 
             keymap_entry_t *entry = &keymap->entries[keymap->num_entries];
-            strncpy(entry->key, key, sizeof(entry->key) - 1);
+            strncpy(entry->key, parsed_key, sizeof(entry->key) - 1);
 
             // Parse value
             if (strncmp(value, "c64:", 4) == 0) {
