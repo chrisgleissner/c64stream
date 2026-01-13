@@ -21,7 +21,7 @@ from .audio import AudioAssertion
 from .av_sync_csv_validation import AvSyncCsvValidationAssertion
 from .av_sync_offset import AvSyncOffsetAssertion
 from .av_sync_log_validation import AvSyncLogValidationAssertion
-from .base import AssertionResult, AssertionStatus, EffectAssertion
+from .base import AssertionResult, AssertionStatus, EffectAssertion, is_ci
 from .debug_log_presence import DebugLogPresenceAssertion
 from .config import PresetConfig
 from .frame_progression import FrameProgressionAssertion
@@ -38,14 +38,9 @@ from .tint import TintAssertion
 from .video_quality import VideoQualityAssertion
 
 
-def _is_ci() -> bool:
-    """Detect if running in CI environment."""
-    return bool(os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS"))
-
-
 def _get_max_workers_for_assertions() -> int:
     """Get appropriate worker count for parallel assertion execution."""
-    if _is_ci():
+    if is_ci():
         return 1
     return os.cpu_count() or 1
 
