@@ -156,29 +156,66 @@ class ResultValidator:
         video = counts.get('video_packets', 0)
         audio = counts.get('audio_packets', 0)
 
-        # Calculate expected
+        # Calculate expected totals
         if self.format == 'PAL':
             packets_per_frame = 68
+            frame_rate = 50.125
+            audio_sample_rate = 47983
         else:
             packets_per_frame = 60
+            frame_rate = 59.826
+            audio_sample_rate = 47940
 
         expected_video = self.frames * packets_per_frame
+        frame_duration_ms = 1000.0 / frame_rate
+        total_test_duration_ms = self.frames * frame_duration_ms
+        audio_packet_duration_ms = (192 / audio_sample_rate) * 1000.0
+        expected_audio = int(total_test_duration_ms / audio_packet_duration_ms)
+
+        video_packet_interval_ms = frame_duration_ms / packets_per_frame
+        last_video_arrival_ms = total_test_duration_ms - video_packet_interval_ms
+        last_audio_arrival_ms = (expected_audio - 1) * audio_packet_duration_ms if expected_audio > 0 else 0.0
+        if last_audio_arrival_ms > last_video_arrival_ms:
+            expected_audio = int(last_video_arrival_ms / audio_packet_duration_ms) + 1
+
+        expected_total = expected_video + expected_audio
 
         if self.packet_source == 'mock':
             # Strict check
             logger.info(f"UDP Packet Check: Received {video} video packets (Expected ~{expected_video})")
 
             # Check for packet loss
-            if video < expected_video * 0.95:
-                 loss_ratio = (expected_video - video) / expected_video
-                 if loss_ratio > 0.05:  # More than 5% loss
-                     msg = f"Packet loss detected: {video} < {expected_video} expected"
-                     errors.append(msg)
-                     results['udp_reception'] = {'status': 'fail', 'details': f"Loss: {video}/{expected_video}"}
-                 else:
-                     results['udp_reception'] = {'status': 'warning', 'details': f"{received}/{received+int(expected_video-video)} packets ({video} video, {audio} audio, minor loss)"}
+            if expected_total > 0:
+                missing = max(0, expected_total - received)
+                loss_pct = (missing / expected_total) * 100.0
+                if loss_pct < 0.5:
+                    status = 'pass'
+                elif loss_pct < 1.0:
+                    status = 'warning'
+                else:
+                    status = 'fail'
+                    msg = f"Packet loss detected: {missing}/{expected_total} missing ({loss_pct:.2f}%)"
+                    errors.append(msg)
+
+                results['udp_reception'] = {
+                    'status': status,
+                    'details': f"{received}/{expected_total} packets ({video} video, {audio} audio)",
+                    'metrics': {
+                        'expected_total': expected_total,
+                        'received_total': received,
+                        'missing_total': missing,
+                        'missing_pct': loss_pct,
+                        'expected_video': expected_video,
+                        'expected_audio': expected_audio,
+                        'received_video': video,
+                        'received_audio': audio,
+                    }
+                }
+            elif received == 0:
+                errors.append("No UDP packets received")
+                results['udp_reception'] = {'status': 'fail', 'details': "No packets"}
             else:
-                 results['udp_reception'] = {'status': 'pass', 'details': f"{received} packets ({video} video, {audio} audio)"}
+                results['udp_reception'] = {'status': 'pass', 'details': f"{received} packets ({video} video, {audio} audio)"}
         else:
             # Device mode lax check
             if received == 0:

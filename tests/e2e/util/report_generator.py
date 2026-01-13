@@ -47,6 +47,37 @@ def _format_mmss(seconds: float) -> str:
             sec_whole = 0
     return f"{minutes:02d}:{sec_whole:02d}.{sec_tenths:d}"
 
+def _get_git_info(project_root: Path) -> Tuple[str, str]:
+    branch = "unknown"
+    git_id = "unknown"
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=str(project_root),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            branch = result.stdout.strip()
+    except Exception:
+        pass
+
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=str(project_root),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            git_id = result.stdout.strip()
+    except Exception:
+        pass
+
+    return branch, git_id
+
 class ReportGenerator:
     def __init__(self, output_dir: Path, scenario_name: str, video_format: str, frames: int,
                  project_root: Path):
@@ -483,6 +514,11 @@ class ReportGenerator:
         md.append(f"## Scenario: {self.scenario_name}")
         md.append("")
         md.append(f"Generated: {now}")
+        branch, git_id = _get_git_info(self.project_root)
+        env_label = "CI" if (os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS")) else "local"
+        md.append(f"Git Branch: {branch}")
+        md.append(f"Git ID: {git_id}")
+        md.append(f"Environment: {env_label}")
         md.append("")
         md.append("## Test configuration")
         md.append("")
@@ -519,6 +555,17 @@ class ReportGenerator:
             val = self.validation_data.get(key, {})
             status = val.get('status', 'unknown')
             details = val.get('details', '')
+            if key == 'udp_reception':
+                metrics = val.get('metrics', {})
+                expected = metrics.get('expected_total')
+                received = metrics.get('received_total')
+                missing = metrics.get('missing_total')
+                missing_pct = metrics.get('missing_pct')
+                if expected is not None and received is not None and missing is not None and missing_pct is not None:
+                    details = (
+                        f"Expected {expected}, Received {received}, Missing {missing} "
+                        f"({_format_trimmed(float(missing_pct), 2)}%)"
+                    )
             icon = {'pass': '✅', 'fail': '❌', 'warning': '⚠️'}.get(status, '❓')
             md.append(f"- {icon} {label}: {details}")
 
