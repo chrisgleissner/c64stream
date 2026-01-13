@@ -92,7 +92,7 @@ Tested on Windows 11.
 
 ### Windows (Portable Mode)
 
-> [!IMPORTANT]
+> [!NOTE]
 > This section applies **only** if OBS Studio is run in [portable mode](https://obsproject.com/kb/portable-mode), for example when `portable_mode.txt` exists in the root directory of OBS.
 > If you installed OBS using the Windows installer, use the *Standard Installation* instructions above.
 
