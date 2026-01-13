@@ -68,7 +68,20 @@ class PaletteStabilityAssertion(EffectAssertion):
     def _read_frames_rgb24(self, mp4_path: Path, max_frames: int) -> np.ndarray:
         """Decode video to RGB24 frames. Returns array [N,H,W,3] uint8."""
         w, h = self._ffprobe_size(mp4_path)
-        cmd = ["ffmpeg", "-v", "error", "-i", str(mp4_path), "-f", "rawvideo", "-pix_fmt", "rgb24", "-"]
+        cmd = [
+            "ffmpeg",
+            "-v",
+            "error",
+            "-i",
+            str(mp4_path),
+            "-frames:v",
+            str(max_frames),
+            "-f",
+            "rawvideo",
+            "-pix_fmt",
+            "rgb24",
+            "-",
+        ]
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
         frame_bytes = w * h * 3
         frames = []
@@ -82,8 +95,11 @@ class PaletteStabilityAssertion(EffectAssertion):
         finally:
             with suppress(Exception):
                 proc.stdout.close()
-            proc.kill()
-            proc.wait(timeout=5)
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=5)
         return np.array(frames) if frames else np.zeros((0, h, w, 3), dtype=np.uint8)
 
     def _ffprobe_size(self, mp4_path: Path) -> tuple[int, int]:

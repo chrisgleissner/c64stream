@@ -52,13 +52,6 @@ load_scenario() {
     fi
 
     if [[ "${packet_source}" == "device" ]]; then
-        if [[ "${E2E_DEVICE_TESTS:-0}" != "1" ]]; then
-            SCENARIO_SKIPPED=true
-            SCENARIO_SKIP_REASON="Device tests disabled (set E2E_DEVICE_TESTS=1 to run)"
-            log_warning "⏭️  Skipping scenario '${name}' (device packet source)"
-            log_info "  Reason: ${SCENARIO_SKIP_REASON}"
-            return 0
-        fi
         local c64_host
         c64_host=$(grep -m1 "^[[:space:]]*c64_host:" "${scenario_yaml}" | sed 's/^[[:space:]]*c64_host: *//' || true)
         c64_host="${c64_host:-c64u}"

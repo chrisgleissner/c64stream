@@ -7,6 +7,10 @@ Licensed under the GNU General Public License v2.0 or later.
 See <https://www.gnu.org/licenses/> for details.
 """
 
+import contextlib
+import io
+import os
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from typing import Any, Optional
 
@@ -49,17 +53,33 @@ class AssertionRunner:
         self, mp4_path: Path, properties: dict[str, Any], preset: PresetConfig
     ) -> list[AssertionResult]:
         """Run all configured assertions and return results."""
-        results = []
-        for assertion in self.assertions:
-            if self.verbose:
+        if not self.assertions:
+            return []
+
+        max_workers = min(len(self.assertions), os.cpu_count() or 1)
+        results: list[Optional[AssertionResult]] = [None] * len(self.assertions)
+        logs: list[str] = [""] * len(self.assertions)
+
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(
+                    _run_assertion_worker, assertion, mp4_path, properties, preset, self.verbose
+                ): index
+                for index, assertion in enumerate(self.assertions)
+            }
+
+            for future, index in futures.items():
+                result, output = future.result()
+                results[index] = result
+                logs[index] = output
+
+        if self.verbose:
+            for assertion, result, output in zip(self.assertions, results, logs):
                 print(f"\n{'='*60}")
                 print(f"Running: {assertion.name}")
                 print(f"{'='*60}")
-
-            result = assertion.verify(mp4_path, properties, preset, self.verbose)
-            results.append(result)
-
-            if self.verbose:
+                if output:
+                    print(output, end="")
                 status_icon = {
                     AssertionStatus.PASS: "✅",
                     AssertionStatus.FAIL: "❌",
@@ -68,7 +88,7 @@ class AssertionRunner:
                 }[result.status]
                 print(f"{status_icon} {result.message}")
 
-        return results
+        return [result for result in results if result is not None]
 
     @staticmethod
     def summarize(results: list[AssertionResult]) -> tuple[bool, dict[str, Any]]:
@@ -185,3 +205,21 @@ def create_assertions_from_list(
             assertions.append(assertion)
 
     return assertions
+
+
+def _run_assertion_worker(
+    assertion: EffectAssertion,
+    mp4_path: Path,
+    properties: dict[str, Any],
+    preset: PresetConfig,
+    verbose: bool,
+) -> tuple[AssertionResult, str]:
+    output = ""
+    if verbose:
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            result = assertion.verify(mp4_path, properties, preset, verbose)
+        output = buffer.getvalue()
+    else:
+        result = assertion.verify(mp4_path, properties, preset, verbose)
+    return result, output

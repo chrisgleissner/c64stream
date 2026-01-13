@@ -20,8 +20,9 @@ python3 -m assertions \
 
 ## Device Scenarios
 
-Scenarios that use `packet_source: device` require a reachable C64 Ultimate and are opt-in. Set `E2E_DEVICE_TESTS=1`
-to enable them; otherwise they will be skipped.
+Scenarios that use `packet_source: device` require a reachable C64 Ultimate.
+
+They run automatically when selected explicitly or when running the full scenario suite; otherwise they will be skipped when the device is unreachable.
 
 ## Scenario Structure (New Format)
 

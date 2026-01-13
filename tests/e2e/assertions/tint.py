@@ -83,6 +83,8 @@ class TintAssertion(EffectAssertion):
             str(mp4_path),
             "-vf",
             f"fps={fps}",
+            "-frames:v",
+            str(max_frames),
             "-f",
             "rawvideo",
             "-pix_fmt",
@@ -106,8 +108,11 @@ class TintAssertion(EffectAssertion):
         finally:
             with suppress(Exception):
                 proc.stdout.close()
-            proc.kill()
-            proc.wait(timeout=5)
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=5)
 
         self.log(f"Sampled {len(frames)} frames for tint analysis", verbose)
         return frames

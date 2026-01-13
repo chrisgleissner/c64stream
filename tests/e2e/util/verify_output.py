@@ -188,14 +188,21 @@ class OutputVerifier:
     def _read_frames_rgb24(self, max_frames=360):
         """Decode video to RGB24 frames. Returns array [N,H,W,3] uint8."""
         w, h = self._ffprobe_size()
-        cmd = ["ffmpeg", "-v", "error", "-i", str(self.recording_file), "-f", "rawvideo", "-pix_fmt", "rgb24", "-"]
+        cmd = [
+            "ffmpeg",
+            "-v",
+            "error",
+            "-i",
+            str(self.recording_file),
+        ]
+        if max_frames is not None:
+            cmd += ["-frames:v", str(int(max_frames))]
+        cmd += ["-f", "rawvideo", "-pix_fmt", "rgb24", "-"]
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
         frame_bytes = w * h * 3
         frames = []
         try:
             while True:
-                if max_frames is not None and len(frames) >= max_frames:
-                    break
                 buf = proc.stdout.read(frame_bytes)
                 if len(buf) != frame_bytes:
                     break
@@ -204,8 +211,11 @@ class OutputVerifier:
             # Best-effort cleanup: ffmpeg may exit early and close pipes.
             with suppress(Exception):
                 proc.stdout.close()
-            proc.kill()
-            proc.wait(timeout=5)
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=5)
         if not frames:
             raise RuntimeError("No frames decoded from recording")
         return np.stack(frames, axis=0)

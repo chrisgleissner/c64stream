@@ -2,7 +2,10 @@
 
 ## Scenario: NTSC Default 720p
 
-Generated: 2026-01-13 15:01:17 UTC
+Generated: 2026-01-13 16:52:53 UTC
+Git Branch: test/modularize-e2e
+Git ID: f4f3cd8
+Environment: local
 
 ## Test configuration
 
@@ -23,28 +26,28 @@ Generated: 2026-01-13 15:01:17 UTC
 - OS: Ubuntu 24.04.3 LTS (kernel 6.14.0-37-generic)
 - OBS: 32.0.2
 - CPU: Intel(R) Core(TM) i7-6700K CPU @ 4.00GHz (8 cores)
-- RAM: 31Gi total, 25Gi available
+- RAM: 31Gi total, 24Gi available
 - Disk (/): 1.8T total, 1.1T available
 
 ## Test results
 
 ### Validation Summary
 
-- ✅ UDP Packet Reception: 30759 packets (28758 video, 2001 audio)
-- ✅ Network Timing: span=8011.1ms, video_mean=313.7us, audio_mean=4004.9us
-- ✅ Frame Processing: 478 frames processed
-- ✅ Video Recording: 9.5 MB
+- ❌ UDP Packet Reception: Expected 30803, Received 0, Missing 30803 (100%)
+- ⚠️ Network Timing: ok
+- ❌ Frame Processing: 0 frames processed
+- ✅ Video Recording: 1.5 MB
 - ✅ Content Integrity: Verified
 
 ### Resource Usage
 
-During the test's processing window (18.1s, 37 samples) (8 cores):
+During the test's processing window (2.1s, 5 samples) (8 cores):
 
 | Metric | Min | Median | Mean | Max |
 |--------|-----|--------|------|-----|
-| CPU | 44.2% | 50% | 52.4% | 77.4% |
-| RAM | 5665.07 MB | 5804.21 MB | 5814.03 MB | 6048.59 MB |
-| GPU | 30.43% | 89.83% | 73.13% | 100% |
+| CPU | 98.9% | 99.3% | 99.34% | 99.8% |
+| RAM | 6618.16 MB | 6618.9 MB | 6619.34 MB | 6620.71 MB |
+| GPU | 30.43% | 89.83% | 72.45% | 97.13% |
 
 Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
@@ -56,71 +59,45 @@ Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
 #### Network Quality (Measured)
 
-- Packet span (first→last): 8011.101 ms
-- Total packets analyzed: 27540
 
 | Stream | Packets | Spacing (min) | Spacing (mean) | Spacing (max) | CV | Burst <0.5×P50 | Gaps >2×P50 | P99/P50 |
 |--------|---------|---------------|----------------|---------------|----|--------------|------------|--------|
-| All | 27540 | 0.001 ms | 0.582 ms | 6.846 ms | 170.23% | 7.61% | 13.14% | 15.067 |
-| Video | 25540 | 0.001 ms | 0.314 ms | 4.576 ms | 74.97% | 8.19% | 6.40% | 5.389 |
-| Audio | 2000 | 1.564 ms | 4.005 ms | 6.846 ms | 10.03% | 0.10% | 0.00% | 1.324 |
+| Video | 0 | 0.000 ms | 0.000 ms | 0.000 ms | 0.00% | 0.00% | 0.00% | 0.000 |
+| Audio | 0 | 0.000 ms | 0.000 ms | 0.000 ms | 0.00% | 0.00% | 0.00% | 0.000 |
 
 | Stream | Packets | Jitter (median) | Jitter (max) | Out-of-Order |
 |--------|---------|-----------------|--------------|--------------|
-| Video | 25540 | 0.018 ms | 4.296 ms | 0 |
-| Audio | 2000 | 0.043 ms | 2.844 ms | 0 |
+| Video | 0 | 0.000 ms | 0.000 ms | 0 |
+| Audio | 0 | 0.000 ms | 0.000 ms | 0 |
 
 Details: [network.json](network.json)
 
 ### A/V Sync
 
-- ✅ Acceptable synchronization (85.7%): avg offset 189.0ms, max 764.4ms
+- ❌ Poor synchronization (0.0%): avg offset 0.0ms, max 0.0ms
 
 #### Sync Details
 
-- 🟢 Pop #1 [L]: audio=9834.0ms, video=9811.8ms (frame 587), diff=22.2ms
-- 🟢 Pop #2 [R]: audio=10633.0ms, video=10614.1ms (frame 635), diff=18.9ms
-- 🟢 Pop #3 [L]: audio=11440.0ms, video=11416.4ms (frame 683), diff=23.6ms
-- 🟢 Pop #4 [R]: audio=12239.0ms, video=12218.8ms (frame 731), diff=20.2ms
-- • Pop #5 [L]: audio=13043.0ms, video=13806.7ms (frame 826), diff=763.7ms
-- 🟢 Pop #6 [R]: audio=13846.0ms, video=13823.4ms (frame 827), diff=22.6ms
-- • Pop #7 [L]: audio=14647.0ms, video=15411.4ms (frame 922), diff=764.4ms
-- 🟢 Pop #8 [R]: audio=15448.0ms, video=15428.1ms (frame 923), diff=19.9ms
-- 🟡 Pop #9 [L]: audio=16276.0ms, video=16230.4ms (frame 971), diff=45.6ms
 
-- Channels: LRLRLRLRL
-- 🔁 Channel alternation: OK (alternating, starts with L)
+- Channels: 
+- 🔁 Channel alternation: MISMATCH
 
 ### Frame Progression
 
-- 🟢 Frame sequence verified (478 frames analyzed, 0 colors)
+- 🔴 Could not detect content boundaries or video pops
 
-- Settling: 4.0s (pass/fail uses post-settling only)
-
-| Window | Stuck runs (count/min/med/max) | Skips (count/min/med/max) | Back steps | Severe steps |
-|--------|------------------------------:|--------------------------:|-----------:|-------------:|
-| During settling | 22/2/2/2 | 22/1/1/1 | 0 | 0 |
-| After settling | 0/0/0/0 | 23/1/1/1 | 0 | 0 |
+- Settling: 0.0s (pass/fail uses post-settling only)
 
 See [playback.csv](playback.csv) for frame-by-frame playback timeline with anomaly markers.
 
 #### Playback Jitter Clusters (post-settling)
 
-- Definition: rows with repeated=1 or skipped=1 in playback.csv; clustering uses max gap 0.5s
-- Note: this is independent from the Frame Progression (frame-box) check above
-- Note: repeated/skipped markers only exist while content is detected (video_s 9.427–17.417).
-  The jitter-free tail after content ends is expected and does not indicate steady-state performance.
-
-| # | Events | Center (s) | Std dev (s) | Span (s) | Window (s) |
-|---|--------|------------|-------------|----------|------------|
-| 1 | 21 | 10.396 | 0.582 | 2.190 | 9.477–11.667 |
-| 2 | 17 | 14.895 | 0.388 | 1.555 | 14.074–15.629 |
-| 3 | 5 | 17.123 | 0.237 | 0.652 | 16.715–17.367 |
+- No post-settling repeated/skipped markers detected in playback timeline.
 
 ### Video
 
 - Download: [c64_recording.mp4](c64_recording.mp4) (Available from local runs or CI build artifacts.)
-- Duration: 19.2 s
+- Duration: 3.1 s
 
 
 ### Sample Frame
@@ -132,4 +109,3 @@ See [playback.csv](playback.csv) for frame-by-frame playback timeline with anoma
 - **Center**: Diagonal pattern cycling through all C64 colors
 - **Bottom-left**: Frame progression indicator (8-slot moving bar, cycles every 8 frames)
 - **Bottom-right**: A/V pop indicator (pops every 48 frames, split left/right for audio channels)
-- Taken from frame 587 at 00:09.8 of the 19.2 s video above.

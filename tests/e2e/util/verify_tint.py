@@ -46,6 +46,8 @@ def iter_rgb_frames(path: Path, max_frames: int, fps: float) -> tuple[int, int, 
         str(path),
         "-vf",
         f"fps={fps}",
+        "-frames:v",
+        str(max_frames),
         "-f",
         "rawvideo",
         "-pix_fmt",
@@ -69,8 +71,11 @@ def iter_rgb_frames(path: Path, max_frames: int, fps: float) -> tuple[int, int, 
         # Best-effort cleanup: ffmpeg may exit early and close pipes.
         with suppress(Exception):
             proc.stdout.close()
-        proc.kill()
-        proc.wait(timeout=5)
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait(timeout=5)
 
     return w, h, frames
 
