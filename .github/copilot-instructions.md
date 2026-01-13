@@ -147,7 +147,7 @@ fi
 cd tests/e2e
 scenarios=$(./e2e.sh --list-scenarios | awk -F: '/^  [a-z0-9_]+:/{print $1}' | tr -d ' ')
 for s in $scenarios; do
-    ./e2e.sh --scenario "$s" --duration 5 || exit 1
+    ./e2e.sh --scenario "$s" --duration 8 || exit 1
 done
 ```
 

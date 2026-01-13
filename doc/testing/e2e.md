@@ -12,7 +12,7 @@ Validates complete UDP packet reception, video processing, audio synchronization
 cd tests/e2e
 ./e2e.sh              # 8-second NTSC test (default scenario)
 ./e2e.sh --all        # Run ALL scenarios in sequence
-./e2e.sh --format PAL --duration 5 --verbose  # 5-second PAL test
+./e2e.sh --format PAL --duration 8 --verbose  # 8-second PAL test
 ./e2e.sh --scenario ntsc_amber_monitor --verbose  # Named scenario with assertions
 ```
 

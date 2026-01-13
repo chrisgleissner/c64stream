@@ -9,6 +9,7 @@ See <https://www.gnu.org/licenses/> for details.
 
 import argparse
 import json
+import os
 import sys
 from configparser import ConfigParser
 from pathlib import Path
@@ -99,6 +100,7 @@ Examples:
     preset = None
     properties = {}
     scenario_assertions = None
+    scenario_tolerances = {}
 
     if args.scenario:
         # Load from scenario (preferred)
@@ -124,6 +126,7 @@ Examples:
         preset = PresetConfig.from_obs_settings(settings)
         properties = settings
         scenario_assertions = scenario_cfg.assertions
+        scenario_tolerances = scenario_cfg.tolerances or {}
 
         # Add expected resolution from scenario
         canvas_w, canvas_h = _get_canvas_size_from_scenario(scenario_cfg)
@@ -168,7 +171,22 @@ Examples:
 
     # Create assertions - from scenario list or auto-detect from preset
     if scenario_assertions:
-        assertions = create_assertions_from_list(scenario_assertions)
+        is_ci = (
+            os.environ.get("CI", "").lower() in ("1", "true", "yes")
+            or os.environ.get("GITHUB_ACTIONS", "").lower() in ("1", "true", "yes")
+        )
+        selected_tolerances = {}
+        for name, cfg in scenario_tolerances.items():
+            if isinstance(cfg, dict):
+                tol = cfg.get("ci") if is_ci else cfg.get("local")
+            else:
+                tol = cfg
+            try:
+                tol_val = float(tol)
+            except (TypeError, ValueError):
+                continue
+            selected_tolerances[name.lower()] = tol_val
+        assertions = create_assertions_from_list(scenario_assertions, tolerances=selected_tolerances)
     else:
         assertions = create_preset_assertions(preset)
 
