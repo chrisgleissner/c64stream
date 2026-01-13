@@ -47,6 +47,7 @@ class ScenarioConfig:
     overrides: dict[str, Any] = field(default_factory=dict)
     network_simulation: dict[str, Any] = field(default_factory=dict)
     assertions: list[str] = field(default_factory=list)
+    tolerances: dict[str, Any] = field(default_factory=dict)
     scenario_dir: Path = field(default_factory=Path)
 
 
@@ -120,6 +121,7 @@ def load_scenario(scenario_path: Path) -> ScenarioConfig:
         overrides=data.get("overrides", {}),
         network_simulation=data.get("network_simulation", {}),
         assertions=data.get("assertions", ["video_quality", "audio"]),
+        tolerances=data.get("tolerances", {}),
         scenario_dir=scenario_path.parent,
     )
 

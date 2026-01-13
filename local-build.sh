@@ -21,6 +21,7 @@ RUN_E2E=false
 E2E_SCENARIO=""
 GENERATE_E2E_SCENARIOS=false
 NEED_E2E_DEPS=false
+E2E_NO_XVFB=false
 VERBOSE=false
 DEBUG_LOGS=false
 
@@ -192,6 +193,7 @@ OPTIONS:
     --install           Install plugin to OBS after building
     --e2e[=SCENARIO]    Run E2E tests after building and installing (default scenario: ntsc_default)
     --e2e-scenarios     Run all scenarios in tests/e2e/scenarios/* and write results to tests/e2e/results/<scenario>
+    --no-xvfb           Run E2E tests without starting Xvfb (uses current DISPLAY)
     --verbose           Enable verbose output
     --debug-logs        Enable debug logging for C64Script tests
     --help              Show this help message
@@ -1192,6 +1194,9 @@ run_e2e_tests() {
         "--skip-build"      # We already built and installed
         "--verbose"
     )
+    if [[ "$E2E_NO_XVFB" == "true" ]]; then
+        e2e_args+=("--display" "${DISPLAY:-:0}")
+    fi
 
     # Pass the scenario key to e2e.sh so it can load scenario.yaml and get pattern, assertions, etc.
     if [[ -n "$scenario_key" ]]; then
@@ -1221,7 +1226,8 @@ run_e2e_tests() {
 
     # Run E2E test
     # Run via bash to avoid executable-bit issues
-    if bash ./e2e.sh "${e2e_args[@]}"; then
+    if E2E_DISABLE_XVFB=$([[ "$E2E_NO_XVFB" == "true" ]] && echo 1 || echo 0) \
+        bash ./e2e.sh "${e2e_args[@]}"; then
         log_success "E2E tests completed successfully!"
 
         # Show test results if available
@@ -1335,7 +1341,11 @@ run_e2e_scenarios() {
         "--skip-build"
         "--verbose"
     )
-    if bash ./e2e.sh "${e2e_args[@]}"; then
+    if [[ "$E2E_NO_XVFB" == "true" ]]; then
+        e2e_args+=("--display" "${DISPLAY:-:0}")
+    fi
+    if E2E_DISABLE_XVFB=$([[ "$E2E_NO_XVFB" == "true" ]] && echo 1 || echo 0) \
+        bash ./e2e.sh "${e2e_args[@]}"; then
         log_success "All E2E scenarios completed successfully"
         popd >/dev/null
         return 0
@@ -1447,6 +1457,10 @@ main() {
             --verbose)
                 VERBOSE=true
                 DEBUG_LOGS=true
+                shift
+                ;;
+            --no-xvfb)
+                E2E_NO_XVFB=true
                 shift
                 ;;
             --help|-h)

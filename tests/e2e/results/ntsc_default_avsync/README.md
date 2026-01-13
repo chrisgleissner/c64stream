@@ -1,14 +1,17 @@
 # C64 Stream E2E Test Report
 
-## Scenario: NTSC Default Debug
+## Scenario: NTSC Default A/V Sync
 
-Generated: 2026-01-10 18:58:32 UTC
+Generated: 2026-01-13 16:53:39 UTC
+Git Branch: test/modularize-e2e
+Git ID: f4f3cd8
+Environment: local
 
 ## Test configuration
 
 - Format: NTSC
-- Frames: 300
-- Duration: 5.0 seconds
+- Frames: 480
+- Duration: 8.0 seconds
 - Video Port: 21000
 - Audio Port: 21001
 - OBS Enabled: true
@@ -30,52 +33,71 @@ Generated: 2026-01-10 18:58:32 UTC
 
 ### Validation Summary
 
-- ⚠️ UDP Packet Reception: 19186/19252 packets (17938 video, 1248 audio, minor loss)
-- ✅ Network Timing: span=4999.9ms, video_mean=354.2us, audio_mean=4005.8us
-- ✅ Frame Processing: 1550 frames processed
-- ✅ Video Recording: 9.4 MB
-- ✅ Content Integrity: 19.0s duration
+- ✅ UDP Packet Reception: Expected 30803, Received 30738, Missing 65 (0.21%)
+- ✅ Network Timing: span=8006.5ms, video_mean=376.8us, audio_mean=4006.5us
+- ✅ Frame Processing: 478 frames processed
+- ✅ Video Recording: 9.5 MB
+- ✅ Content Integrity: Verified
 
 ### Resource Usage
 
-During the test's processing window (15.1s, 31 of 43 samples) (8 cores):
+During the test's processing window (31.7s, 64 samples) (8 cores):
 
 | Metric | Min | Median | Mean | Max |
 |--------|-----|--------|------|-----|
-| CPU | 57.5% | 66.7% | 67.49% | 94.2% |
-| RAM | 7511.37 MB | 7526.34 MB | 7531.4 MB | 7570.08 MB |
-| GPU | 14.01% | 20.2% | 20.3% | 37.11% |
+| CPU | 22.8% | 76.1% | 77.22% | 100% |
+| RAM | 6258.65 MB | 6840.76 MB | 6627.11 MB | 6898.74 MB |
+| GPU | 30.43% | 37.7% | 56.77% | 100% |
 
 Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
 ### Packet & Network Data
 
-- ✅ Packet Generation: 18000 video, 1252 audio packets
+- ✅ Packet Generation: 28800 video, 2003 audio packets
 - ✅ UDP Replay: Completed successfully
 - Events: [network.csv](network.csv), [obs.csv](obs.csv)
 
 #### Network Quality (Measured)
 
-- Packet span (first→last): 4999.869 ms
-- Total packets analyzed: 15355
+- Packet span (first→last): 8006.467 ms
+- Total packets analyzed: 23246
 
 | Stream | Packets | Spacing (min) | Spacing (mean) | Spacing (max) | CV | Burst <0.5×P50 | Gaps >2×P50 | P99/P50 |
 |--------|---------|---------------|----------------|---------------|----|--------------|------------|--------|
-| All | 15355 | 0.001 ms | 0.651 ms | 9.743 ms | 171.46% | 14.02% | 17.06% | 17.053 |
-| Video | 14108 | 0.001 ms | 0.354 ms | 7.437 ms | 126.33% | 15.20% | 9.79% | 8.904 |
-| Audio | 1247 | 0.002 ms | 4.006 ms | 9.743 ms | 22.55% | 2.09% | 0.16% | 1.675 |
+| All | 23246 | 0.001 ms | 0.689 ms | 11.585 ms | 169.31% | 17.00% | 19.25% | 17.853 |
+| Video | 21248 | 0.001 ms | 0.377 ms | 10.988 ms | 135.02% | 18.52% | 11.86% | 9.950 |
+| Audio | 1998 | 0.003 ms | 4.006 ms | 11.585 ms | 25.30% | 2.75% | 0.15% | 1.778 |
 
 | Stream | Packets | Jitter (median) | Jitter (max) | Out-of-Order |
 |--------|---------|-----------------|--------------|--------------|
-| Video | 14108 | 0.035 ms | 7.156 ms | 0 |
-| Audio | 1247 | 0.183 ms | 5.744 ms | 0 |
+| Video | 21248 | 0.044 ms | 10.707 ms | 0 |
+| Audio | 1998 | 0.362 ms | 7.585 ms | 0 |
 
 Details: [network.json](network.json)
+
+### A/V Sync
+
+- ✅ Good synchronization (100.0%): avg offset 94.4ms, max 774.9ms
+
+#### Sync Details
+
+- 🟢 Pop #1 [L]: audio=9771.0ms, video=9761.6ms (frame 584), diff=9.4ms
+- 🟢 Pop #2 [L]: audio=10572.0ms, video=10564.0ms (frame 632), diff=8.0ms
+- 🟢 Pop #3 [L]: audio=11377.0ms, video=11366.3ms (frame 680), diff=10.7ms
+- 🟢 Pop #4 [R]: audio=12179.0ms, video=12168.6ms (frame 728), diff=10.4ms
+- 🟢 Pop #5 [L]: audio=12979.0ms, video=12970.9ms (frame 776), diff=8.1ms
+- • Pop #6 [L]: audio=13784.0ms, video=14558.9ms (frame 871), diff=774.9ms
+- 🟢 Pop #7 [L]: audio=14585.0ms, video=14575.6ms (frame 872), diff=9.4ms
+- 🟢 Pop #8 [L]: audio=15386.0ms, video=15377.9ms (frame 920), diff=8.1ms
+- 🟢 Pop #9 [L]: audio=16191.0ms, video=16180.3ms (frame 968), diff=10.7ms
+
+- Channels: LLLRLLLLL
+- 🔁 Channel alternation: MISMATCH
 
 ### Video
 
 - Download: [c64_recording.mp4](c64_recording.mp4) (Available from local runs or CI build artifacts.)
-- Duration: 19.0 s
+- Duration: 19.2 s
 
 
 ### Sample Frame
@@ -87,4 +109,4 @@ Details: [network.json](network.json)
 - **Center**: Diagonal pattern cycling through all C64 colors
 - **Bottom-left**: Frame progression indicator (8-slot moving bar, cycles every 8 frames)
 - **Bottom-right**: A/V pop indicator (pops every 48 frames, split left/right for audio channels)
-- Taken from frame 650 at 00:10.8 of the 19.0 s video above.
+- Taken from frame 584 at 00:09.8 of the 19.2 s video above.

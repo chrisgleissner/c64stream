@@ -1,0 +1,16 @@
+debug: Found portal inhibitor
+debug: Attempted path: /usr/bin/../share/obs/obs-studio/locale/en-US.ini
+debug: Attempted path: /usr/bin/../share/obs/obs-studio/locale.ini
+debug: Attempted path: /usr/bin/../share/obs/obs-studio/locale/en-GB.ini
+info: Using preferred locale 'en-GB'
+debug: Attempted path: /usr/bin/../share/obs/obs-studio/themes
+debug: Attempted path: /usr/bin/../share/obs/obs-studio/themes/
+warning: ReadOne on org.freedesktop.portal.Settings returned an invalid reply
+info: == Profiler Results =============================
+info: run_program_init: 1758.84 ms
+info:  ┗OBSApp::AppInit: 21.097 ms
+info:    ┗OBSApp::InitLocale: 1.168 ms
+info: =================================================
+info: == Profiler Time Between Calls ==================
+info: =================================================
+info: Number of memory leaks: 5

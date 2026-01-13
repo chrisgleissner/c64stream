@@ -3,9 +3,13 @@ format: NTSC
 preset: Vintage TV
 
 # Vintage TV has demanding CRT effects (blur=0.8, bloom=0.5, scanlines, afterglow).
-# Performance optimization is tracked in doc/crt-effect-performance.md
 
 assertions:
   - frame_progression
   - video_quality
   - audio
+
+tolerances:
+  frame_progression:
+    local: 1.0
+    ci: 0.4

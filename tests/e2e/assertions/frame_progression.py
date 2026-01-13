@@ -10,6 +10,8 @@ See <https://www.gnu.org/licenses/> for details.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from typing import Any, Optional
 
@@ -17,6 +19,185 @@ import cv2
 import numpy as np
 
 from .base import AssertionResult, AssertionStatus, EffectAssertion
+
+
+def _configure_opencv_threads(max_threads: Optional[int] = None) -> None:
+    threads = max_threads or (os.cpu_count() or 1)
+    os.environ.setdefault("OPENCV_FFMPEG_THREADS", str(threads))
+    cv2.setNumThreads(threads)
+    cv2.setUseOptimized(True)
+
+
+def _find_marker_slot_luminances(
+    frame: np.ndarray,
+    content_left: int,
+    content_bottom: int,
+    scale: float,
+) -> Optional[list[float]]:
+    num_slots = 8
+    slot_width_c64 = 7
+    gap_width_c64 = 1
+    slot_pitch_c64 = slot_width_c64 + gap_width_c64  # 8px per slot
+
+    # Corner element dimensions in C64 coordinates (88x56 aspect ratio ~1.57)
+    corner_outer_width_c64 = 88
+    corner_outer_height_c64 = 56
+    corner_frame_total_c64 = 8    # 1px white + 7px black border
+    corner_inner_width_c64 = 72   # 88 - 16
+    corner_inner_height_c64 = 40  # 56 - 16
+
+    # Position bar dimensions in C64 coordinates (inside the 72x40 inner area)
+    bar_area_width_c64 = 63  # 8 slots × 7px + 7 gaps × 1px
+    bar_left_padding_c64 = 4  # Centered in 72px
+
+    # Scale to video coordinates
+    inner_width = int(round(corner_inner_width_c64 * scale))
+    inner_height = int(round(corner_inner_height_c64 * scale))
+    bar_area_width = int(round(bar_area_width_c64 * scale))
+    slot_pitch = max(2, int(round(slot_pitch_c64 * scale)))
+    slot_width = max(1, int(round(slot_width_c64 * scale)))
+    frame_offset = int(round(corner_frame_total_c64 * scale))
+    outer_height = int(round(corner_outer_height_c64 * scale))
+    bar_padding = int(round(bar_left_padding_c64 * scale))
+
+    h, w = frame.shape[:2]
+    if bar_area_width < 8:
+        return None
+
+    def compute_slot_luminances(y: int, bar_x0: int, bar_x1: int) -> Optional[list[float]]:
+        if y < 0 or y >= h or bar_x0 < 0 or bar_x1 > w or bar_x1 <= bar_x0:
+            return None
+        scanline = frame[y : y + 1, bar_x0:bar_x1]
+        if scanline.size == 0:
+            return None
+        gray_line = cv2.cvtColor(scanline, cv2.COLOR_BGR2GRAY)
+        luminance_profile = gray_line.flatten()
+
+        slot_luminances: list[float] = []
+        for slot_idx in range(num_slots):
+            slot_start = int(round(slot_idx * slot_pitch_c64 * scale))
+            slot_end = int(round((slot_idx * slot_pitch_c64 + slot_width_c64) * scale))
+            slot_end = min(slot_end, bar_area_width)
+
+            if slot_end <= slot_start:
+                slot_luminances.append(0.0)
+                continue
+
+            slot_center_start = slot_start + max(0, (slot_end - slot_start) // 4)
+            slot_center_end = slot_end - max(0, (slot_end - slot_start) // 4)
+            if slot_center_end <= slot_center_start:
+                slot_center_start = slot_start
+                slot_center_end = slot_end
+
+            slot_pixels = luminance_profile[slot_center_start:slot_center_end]
+            if slot_pixels.size == 0:
+                slot_luminances.append(0.0)
+                continue
+
+            slot_luminances.append(float(np.mean(slot_pixels)))
+        if len(slot_luminances) != num_slots:
+            return None
+        return slot_luminances
+
+    def pick_best_profile(sample_y0: int, sample_y1: int, bar_x0: int, bar_x1: int) -> tuple[Optional[list[float]], float]:
+        if sample_y1 <= sample_y0:
+            return None, -1.0
+        scanline_center = (sample_y0 + sample_y1) // 2
+        y_candidates = [
+            max(sample_y0, min(sample_y1 - 1, scanline_center + dy))
+            for dy in (-2, -1, 0, 1, 2)
+        ]
+        best_slot_luminances: Optional[list[float]] = None
+        best_score = -1.0
+        for y in y_candidates:
+            sl = compute_slot_luminances(y, bar_x0, bar_x1)
+            if sl is None:
+                continue
+            sl_arr = np.array(sl, dtype=np.float32)
+            sl_sorted = np.sort(sl_arr)
+            peak = float(sl_sorted[-1])
+            second = float(sl_sorted[-2]) if sl_sorted.size >= 2 else float(sl_sorted[-1])
+            median = float(np.median(sl_arr))
+            # Prefer profiles that look like the bar: one strong peak and clear separation
+            # from the background.
+            score = (peak - median) + 0.5 * max(0.0, (peak - second))
+            if score > best_score:
+                best_score = score
+                best_slot_luminances = sl
+        return best_slot_luminances, best_score
+
+    # Search a small neighborhood around the expected corner element location.
+    # Some presets (and some content-bound estimates) can shift the effective bottom/left
+    # by a few pixels, which would otherwise make the sampled scanline miss the marker.
+    best_slot_luminances: Optional[list[float]] = None
+    best_score = -1.0
+    # Wider search: content bounds can include border/overscan so the element may be
+    # inset from the detected left/bottom by dozens of pixels.
+    dx_candidates = (-16, -8, -4, -2, 0, 2, 4, 8, 16)
+    dy_candidates = (-16, -12, -8, -4, 0, 4, 8, 12, 16)
+    marker_shift_c64 = 2
+    marker_height_c64 = corner_inner_height_c64 - (marker_shift_c64 * 2)
+    marker_shift = int(round(marker_shift_c64 * scale))
+    marker_height = max(1, int(round(marker_height_c64 * scale)))
+
+    for dx in dx_candidates:
+        for dy in dy_candidates:
+            element_left = content_left + int(round(dx * scale))
+            element_bottom = content_bottom + int(round(dy * scale))
+            element_top = element_bottom - outer_height
+
+            inner_x0 = element_left + frame_offset
+            inner_y0 = element_top + frame_offset
+
+            bar_x0 = inner_x0 + bar_padding
+            bar_x1 = bar_x0 + bar_area_width
+
+            sample_y0 = inner_y0 + marker_shift
+            sample_y1 = min(inner_y0 + inner_height, sample_y0 + marker_height)
+
+            # Quick bounds check
+            if bar_x0 < 0 or bar_x1 > w or sample_y0 < 0 or sample_y0 >= h:
+                continue
+
+            sl, score = pick_best_profile(sample_y0, sample_y1, bar_x0, bar_x1)
+            if sl is None:
+                continue
+            if score > best_score:
+                best_score = score
+                best_slot_luminances = sl
+
+    # If we couldn't find a plausible bar profile, treat as ambiguous.
+    if best_slot_luminances is None:
+        return None
+
+    # Basic confidence gate: avoid latching onto unrelated high-contrast regions.
+    # Threshold is intentionally low; we prefer "ambiguous" over persistent wrong slots.
+    if best_score >= 0 and best_score < 6.0:
+        return None
+
+    return best_slot_luminances
+
+
+def _detect_slot_from_profile(
+    slot_luminances: list[float],
+    prev_slot_luminances: Optional[list[float]],
+) -> tuple[Optional[int], list[float]]:
+    num_slots = 8
+    if not prev_slot_luminances or len(prev_slot_luminances) != num_slots:
+        return None, slot_luminances
+
+    baseline = np.array(prev_slot_luminances, dtype=np.float32)
+    current = np.array(slot_luminances, dtype=np.float32)
+
+    delta = current - baseline
+    # Remove any global drift by centering per frame.
+    delta_centered = delta - float(np.median(delta))
+    detected_slot = int(np.argmax(delta_centered))
+
+    # Update baseline (slow enough to not erase the pop, fast enough to track afterglow).
+    alpha = 0.20
+    updated = (1.0 - alpha) * baseline + alpha * current
+    return detected_slot, [float(x) for x in updated]
 
 
 def _read_frame_with_seek_backoff(
@@ -195,150 +376,9 @@ def _detect_position_marker(
         Tuple of (detected slot index 0-7 or None, current slot luminances for next frame)
     """
     num_slots = 8
-    slot_width_c64 = 7
-    gap_width_c64 = 1
-    slot_pitch_c64 = slot_width_c64 + gap_width_c64  # 8px per slot
-
-    # Corner element dimensions in C64 coordinates (88x56 aspect ratio ~1.57)
-    corner_outer_width_c64 = 88
-    corner_outer_height_c64 = 56
-    corner_frame_total_c64 = 8    # 1px white + 7px black border
-    corner_inner_width_c64 = 72   # 88 - 16
-    corner_inner_height_c64 = 40  # 56 - 16
-
-    # Position bar dimensions in C64 coordinates (inside the 72x40 inner area)
-    bar_area_width_c64 = 63  # 8 slots × 7px + 7 gaps × 1px
-    bar_left_padding_c64 = 4  # Centered in 72px
-
-    # Scale to video coordinates
-    inner_width = int(round(corner_inner_width_c64 * scale))
-    inner_height = int(round(corner_inner_height_c64 * scale))
-    bar_area_width = int(round(bar_area_width_c64 * scale))
-    slot_pitch = max(2, int(round(slot_pitch_c64 * scale)))
-    slot_width = max(1, int(round(slot_width_c64 * scale)))
-    frame_offset = int(round(corner_frame_total_c64 * scale))
-    outer_height = int(round(corner_outer_height_c64 * scale))
-    bar_padding = int(round(bar_left_padding_c64 * scale))
-
-    h, w = frame.shape[:2]
-    if bar_area_width < 8:
-        return None, []
-
-    def compute_slot_luminances(y: int, bar_x0: int, bar_x1: int) -> Optional[list[float]]:
-        if y < 0 or y >= h or bar_x0 < 0 or bar_x1 > w or bar_x1 <= bar_x0:
-            return None
-        scanline = frame[y : y + 1, bar_x0:bar_x1]
-        if scanline.size == 0:
-            return None
-        gray_line = cv2.cvtColor(scanline, cv2.COLOR_BGR2GRAY)
-        luminance_profile = gray_line.flatten()
-
-        slot_luminances: list[float] = []
-        for slot_idx in range(num_slots):
-            slot_start = int(round(slot_idx * slot_pitch_c64 * scale))
-            slot_end = int(round((slot_idx * slot_pitch_c64 + slot_width_c64) * scale))
-            slot_end = min(slot_end, bar_area_width)
-
-            if slot_end <= slot_start:
-                slot_luminances.append(0.0)
-                continue
-
-            slot_center_start = slot_start + max(0, (slot_end - slot_start) // 4)
-            slot_center_end = slot_end - max(0, (slot_end - slot_start) // 4)
-            if slot_center_end <= slot_center_start:
-                slot_center_start = slot_start
-                slot_center_end = slot_end
-
-            slot_pixels = luminance_profile[slot_center_start:slot_center_end]
-            if slot_pixels.size == 0:
-                slot_luminances.append(0.0)
-                continue
-
-            slot_luminances.append(float(np.mean(slot_pixels)))
-        if len(slot_luminances) != num_slots:
-            return None
-        return slot_luminances
-
-    def pick_best_profile(sample_y0: int, sample_y1: int, bar_x0: int, bar_x1: int) -> tuple[Optional[list[float]], float]:
-        if sample_y1 <= sample_y0:
-            return None, -1.0
-        scanline_center = (sample_y0 + sample_y1) // 2
-        y_candidates = [
-            max(sample_y0, min(sample_y1 - 1, scanline_center + dy))
-            for dy in (-2, -1, 0, 1, 2)
-        ]
-        best_slot_luminances: Optional[list[float]] = None
-        best_score = -1.0
-        for y in y_candidates:
-            sl = compute_slot_luminances(y, bar_x0, bar_x1)
-            if sl is None:
-                continue
-            sl_arr = np.array(sl, dtype=np.float32)
-            sl_sorted = np.sort(sl_arr)
-            peak = float(sl_sorted[-1])
-            second = float(sl_sorted[-2]) if sl_sorted.size >= 2 else float(sl_sorted[-1])
-            median = float(np.median(sl_arr))
-            # Prefer profiles that look like the bar: one strong peak and clear separation
-            # from the background.
-            score = (peak - median) + 0.5 * max(0.0, (peak - second))
-            if score > best_score:
-                best_score = score
-                best_slot_luminances = sl
-        return best_slot_luminances, best_score
-
-    # Search a small neighborhood around the expected corner element location.
-    # Some presets (and some content-bound estimates) can shift the effective bottom/left
-    # by a few pixels, which would otherwise make the sampled scanline miss the marker.
-    best_slot_luminances: Optional[list[float]] = None
-    best_score = -1.0
-    # Wider search: content bounds can include border/overscan so the element may be
-    # inset from the detected left/bottom by dozens of pixels.
-    dx_candidates = (-16, -8, -4, -2, 0, 2, 4, 8, 16)
-    dy_candidates = (-16, -12, -8, -4, 0, 4, 8, 12, 16)
-    marker_shift_c64 = 2
-    marker_height_c64 = corner_inner_height_c64 - (marker_shift_c64 * 2)
-    marker_shift = int(round(marker_shift_c64 * scale))
-    marker_height = max(1, int(round(marker_height_c64 * scale)))
-
-    for dx in dx_candidates:
-        for dy in dy_candidates:
-            element_left = content_left + int(round(dx * scale))
-            element_bottom = content_bottom + int(round(dy * scale))
-            element_top = element_bottom - outer_height
-
-            inner_x0 = element_left + frame_offset
-            inner_y0 = element_top + frame_offset
-
-            bar_x0 = inner_x0 + bar_padding
-            bar_x1 = bar_x0 + bar_area_width
-
-            sample_y0 = inner_y0 + marker_shift
-            sample_y1 = min(inner_y0 + inner_height, sample_y0 + marker_height)
-
-            # Quick bounds check
-            if bar_x0 < 0 or bar_x1 > w or sample_y0 < 0 or sample_y0 >= h:
-                continue
-
-            sl, score = pick_best_profile(sample_y0, sample_y1, bar_x0, bar_x1)
-            if sl is None:
-                continue
-            if score > best_score:
-                best_score = score
-                best_slot_luminances = sl
-
-    # If we couldn't find a plausible bar profile, treat as ambiguous.
-    if best_slot_luminances is None:
-        return None, []
-
-    # Basic confidence gate: avoid latching onto unrelated high-contrast regions.
-    # Threshold is intentionally low; we prefer "ambiguous" over persistent wrong slots.
-    if best_score >= 0 and best_score < 6.0:
-        return None, []
-
-    slot_luminances = best_slot_luminances
-
+    slot_luminances = _find_marker_slot_luminances(frame, content_left, content_bottom, scale)
     if not slot_luminances or len(slot_luminances) != num_slots:
-        return None, slot_luminances
+        return None, slot_luminances or []
 
     # TEMPORAL DETECTION USING A ROLLING BASELINE (EMA)
     #
@@ -348,18 +388,7 @@ def _detect_position_marker(
     #
     # prev_slot_luminances is treated as the baseline state and updated via EMA.
     if prev_slot_luminances and len(prev_slot_luminances) == num_slots:
-        baseline = np.array(prev_slot_luminances, dtype=np.float32)
-        current = np.array(slot_luminances, dtype=np.float32)
-
-        delta = current - baseline
-        # Remove any global drift by centering per frame.
-        delta_centered = delta - float(np.median(delta))
-        detected_slot = int(np.argmax(delta_centered))
-
-        # Update baseline (slow enough to not erase the pop, fast enough to track afterglow).
-        alpha = 0.20
-        updated = (1.0 - alpha) * baseline + alpha * current
-        return detected_slot, [float(x) for x in updated]
+        return _detect_slot_from_profile(slot_luminances, prev_slot_luminances)
 
     # First frame: seed baseline and wait for the next frame to compute deltas.
     return None, slot_luminances
@@ -378,6 +407,69 @@ def _group_consecutive_frames(frames: list[int]) -> list[int]:
             grouped.append(f)
         last = f
     return grouped
+
+
+def _split_frame_ranges(start_frame: int, end_frame: int, workers: int) -> list[tuple[int, int]]:
+    total = max(0, end_frame - start_frame + 1)
+    if total == 0 or workers <= 1:
+        return [(start_frame, end_frame)]
+    workers = min(workers, total)
+    base = total // workers
+    remainder = total % workers
+    ranges = []
+    current = start_frame
+    for idx in range(workers):
+        chunk_size = base + (1 if idx < remainder else 0)
+        if chunk_size <= 0:
+            break
+        chunk_start = current
+        chunk_end = current + chunk_size - 1
+        ranges.append((chunk_start, chunk_end))
+        current = chunk_end + 1
+    return ranges
+
+
+def _choose_profile_workers(total_frames: int) -> int:
+    cpu_count = os.cpu_count() or 1
+    min_frames_per_worker = 60
+    max_workers = max(1, total_frames // min_frames_per_worker)
+    return max(1, min(cpu_count, max_workers))
+
+
+def _scan_marker_profiles_chunk(
+    video_path: Path,
+    start_frame: int,
+    end_frame: int,
+    content_left: int,
+    content_bottom: int,
+    scale: float,
+    worker_threads: int,
+) -> tuple[int, list[Optional[list[float]]], Optional[str]]:
+    _configure_opencv_threads(worker_threads)
+    cap = cv2.VideoCapture(str(video_path))
+    if not cap.isOpened():
+        return start_frame, [], "Could not open video"
+
+    ret, frame, seek_details = _read_frame_with_seek_backoff(cap, start_frame)
+    if not ret or frame is None:
+        cap.release()
+        return start_frame, [], f"Could not seek to frame {start_frame}: {seek_details}"
+
+    profiles: list[Optional[list[float]]] = []
+    current_frame = start_frame
+    while True:
+        slot_luminances = _find_marker_slot_luminances(frame, content_left, content_bottom, scale)
+        profiles.append(slot_luminances)
+
+        if current_frame >= end_frame:
+            break
+        ret, frame = cap.read()
+        if not ret:
+            break
+        current_frame += 1
+
+    cap.release()
+    return start_frame, profiles, None
 
 
 @dataclass
@@ -407,6 +499,7 @@ def _analyze_frame_progression(
     effects where previous positions remain lit. Works for ALL presets including
     monochrome (Green Monitor, Amber Monitor) because it uses luminance only.
     """
+    _configure_opencv_threads()
     cap = cv2.VideoCapture(str(mp4_path))
     if not cap.isOpened():
         return _AnalysisResult(
@@ -514,34 +607,85 @@ def _analyze_frame_progression(
     if verbose:
         print(f"[frame_progression] Content: left={left}, right={right}, top={top}, bottom={bottom}, scale={scale:.3f}")
 
-    # Reset to start for analysis loop
-    cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
-
+    total_scan_frames = (end_frame - start_frame) + 1
     indices: list[int] = []
     index_frame_nums: list[int] = []
     ambiguous = 0
     analyzed = 0
     prev_slot_luminances: list[float] = []  # For temporal delta detection
 
-    current_frame = start_frame
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
+    profiles: Optional[list[Optional[list[float]]]] = None
+    worker_count = _choose_profile_workers(total_scan_frames)
+    if worker_count > 1:
+        ranges = _split_frame_ranges(start_frame, end_frame, worker_count)
+        worker_threads = max(1, int((os.cpu_count() or 1) / worker_count))
+        unset = object()
+        profiles = [unset] * total_scan_frames
+        errors: list[str] = []
+        with ProcessPoolExecutor(max_workers=worker_count) as executor:
+            futures = [
+                executor.submit(
+                    _scan_marker_profiles_chunk,
+                    mp4_path,
+                    chunk_start,
+                    chunk_end,
+                    left,
+                    bottom,
+                    scale,
+                    worker_threads,
+                )
+                for chunk_start, chunk_end in ranges
+            ]
+            for future in futures:
+                chunk_start, chunk_profiles, error = future.result()
+                if error:
+                    errors.append(error)
+                    continue
+                offset = chunk_start - start_frame
+                profiles[offset : offset + len(chunk_profiles)] = chunk_profiles
 
-        analyzed += 1
+        if errors or any(p is unset for p in profiles):
+            profiles = None
 
-        # Detect position marker using temporal delta detection (bottom-left of content)
-        slot, prev_slot_luminances = _detect_position_marker(frame, left, bottom, scale, prev_slot_luminances)
-        if slot is not None:
-            indices.append(slot)
-            index_frame_nums.append(current_frame)
-        else:
-            ambiguous += 1
+    if profiles is None:
+        # Reset to start for analysis loop (sequential fallback)
+        cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
+        current_frame = start_frame
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
 
-        if current_frame >= end_frame:
-            break
-        current_frame += 1
+            analyzed += 1
+
+            # Detect position marker using temporal delta detection (bottom-left of content)
+            slot, prev_slot_luminances = _detect_position_marker(frame, left, bottom, scale, prev_slot_luminances)
+            if slot is not None:
+                indices.append(slot)
+                index_frame_nums.append(current_frame)
+            else:
+                ambiguous += 1
+
+            if current_frame >= end_frame:
+                break
+            current_frame += 1
+    else:
+        for frame_offset, slot_luminances in enumerate(profiles):
+            current_frame = start_frame + frame_offset
+            analyzed += 1
+
+            if slot_luminances is None or len(slot_luminances) != 8:
+                ambiguous += 1
+                continue
+
+            slot, prev_slot_luminances = _detect_slot_from_profile(
+                slot_luminances, prev_slot_luminances
+            )
+            if slot is not None:
+                indices.append(slot)
+                index_frame_nums.append(current_frame)
+            else:
+                ambiguous += 1
 
     cap.release()
 

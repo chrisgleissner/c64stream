@@ -132,8 +132,20 @@ class AfterglowDecayAssertion(EffectAssertion):
 
     def _read_frames(self, mp4_path: Path, w: int, h: int, max_frames: int) -> np.ndarray:
         """Read frames as RGB24."""
-        cmd = ["ffmpeg", "-v", "error", "-i", str(mp4_path),
-               "-f", "rawvideo", "-pix_fmt", "rgb24", "-"]
+        cmd = [
+            "ffmpeg",
+            "-v",
+            "error",
+            "-i",
+            str(mp4_path),
+            "-frames:v",
+            str(max_frames),
+            "-f",
+            "rawvideo",
+            "-pix_fmt",
+            "rgb24",
+            "-",
+        ]
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
         frame_bytes = w * h * 3
         frames = []
@@ -146,8 +158,11 @@ class AfterglowDecayAssertion(EffectAssertion):
         finally:
             with suppress(Exception):
                 proc.stdout.close()
-            proc.kill()
-            proc.wait(timeout=5)
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=5)
         return np.stack(frames, axis=0)
 
     @staticmethod

@@ -65,8 +65,7 @@ function(_setup_obs_studio)
   elseif(OS_MACOS)
     # OBS 32 adds libobs-metal (Swift) even for headless builds; ensure Swift language is enabled.
     list(
-      APPEND
-      _obs_cmake_flags
+      APPEND _obs_cmake_flags
       "-DCMAKE_PROJECT_TOP_LEVEL_INCLUDES:FILEPATH=${CMAKE_CURRENT_SOURCE_DIR}/cmake/common/obs-top-level-includes.cmake"
     )
   endif()

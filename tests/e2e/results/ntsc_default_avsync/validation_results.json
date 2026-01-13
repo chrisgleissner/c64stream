@@ -1,79 +1,254 @@
 {
-  "udp_reception": {
-    "status": "warning",
-    "details": "19186/19252 packets (17938 video, 1248 audio, minor loss)"
-  },
-  "frame_processing": {
-    "status": "pass",
-    "details": "1550 frames processed"
-  },
-  "video_recording": {
-    "status": "pass",
-    "details": "9.4 MB"
-  },
-  "packet_integrity": {
-    "status": "pass",
-    "details": "19.0s duration"
-  },
-  "network_timing": {
-    "status": "pass",
-    "details": "span=4999.9ms, video_mean=354.2us, audio_mean=4005.8us"
-  },
-  "video_brightness": {
-    "status": "skipped",
-    "details": "Skipped (full-frame-pop scenario)"
-  },
-  "av_sync": {
-    "status": "skipped",
-    "details": "Skipped (full-frame-pop scenario)"
-  },
-  "av_sync_offset": {
-    "status": "pass",
-    "message": "Pop offset OK (max 40.00ms): obs_csv=6.75ms, network_csv=14.35ms, mp4=4.84ms",
-    "details": {
-      "sources": {
-        "obs_csv": {
-          "pop_count": 5,
-          "max_offset_ms": 6.753,
-          "avg_offset_ms": 4.7674,
-          "per_pop_offsets_ms": [
-            5.568,
-            3.35,
-            5.559,
-            6.753,
-            2.607
-          ]
-        },
-        "network_csv": {
-          "pop_count": 5,
-          "max_offset_ms": 14.346,
-          "avg_offset_ms": 12.2598,
-          "per_pop_offsets_ms": [
-            10.133,
-            13.642,
-            12.739,
-            10.439,
-            14.346
-          ]
-        },
-        "mp4": {
-          "pop_count": 5,
-          "max_offset_ms": 4.841,
-          "avg_offset_ms": 2.8296,
-          "per_pop_offsets_ms": [
-            4.841,
-            2.832,
-            0.506,
-            1.821,
-            4.148
-          ]
+    "udp_reception": {
+        "status": "pass",
+        "details": "30738/30803 packets (28739 video, 1999 audio)",
+        "metrics": {
+            "expected_total": 30803,
+            "received_total": 30738,
+            "missing_total": 65,
+            "missing_pct": 0.21101840729799043,
+            "expected_video": 28800,
+            "expected_audio": 2003,
+            "received_video": 28739,
+            "received_audio": 1999
         }
-      }
     },
-    "metrics": {
-      "obs_csv_max_offset_ms": 6.753,
-      "network_csv_max_offset_ms": 14.346,
-      "mp4_max_offset_ms": 4.841
-    }
-  }
+    "frame_processing": {
+        "status": "pass",
+        "details": "478 frames processed"
+    },
+    "video_recording": {
+        "status": "pass",
+        "details": "9.5 MB"
+    },
+    "packet_integrity": {
+        "status": "pass",
+        "details": "Verified"
+    },
+    "network_timing": {
+        "status": "pass",
+        "details": "span=8006.5ms, video_mean=376.8us, audio_mean=4006.5us"
+    },
+    "video_brightness": {
+        "status": "pass",
+        "details": "Normal (best_mean_luma=26.4)",
+        "metrics": {
+            "best_offset_s": 4.780530204259017,
+            "best_mean_luma": 26.40528549382716,
+            "samples": [
+                {
+                    "t": 4.780530204259017,
+                    "mean_luma": 26.40528549382716
+                },
+                {
+                    "t": 9.577775549092367,
+                    "mean_luma": 0.0
+                },
+                {
+                    "t": 14.375020893925718,
+                    "mean_luma": 0.0
+                }
+            ]
+        }
+    },
+    "av_sync": {
+        "status": "skipped",
+        "details": "Skipped (full-frame-pop scenario)"
+    },
+    "av_sync_details": {
+        "total_audio_pops": 9,
+        "total_analyzed": 8,
+        "total_video_pops": 8,
+        "perfect_sync_count": 8,
+        "sync_accuracy_percent": 100.0,
+        "tolerance_ms": 30,
+        "sync_details": [
+            {
+                "audio_pop_time_ms": 9771,
+                "closest_video_pop_ms": 9761.642095410021,
+                "closest_video_pop_frame": 584,
+                "difference_ms": 9.357904589978716,
+                "is_synced": true,
+                "included_in_analysis": true,
+                "ignore_reason": null,
+                "audio_channel": "L",
+                "video_channel": "L",
+                "channels_match": true,
+                "traffic": "green"
+            },
+            {
+                "audio_pop_time_ms": 10572,
+                "closest_video_pop_ms": 10563.968842977969,
+                "closest_video_pop_frame": 632,
+                "difference_ms": 8.031157022031039,
+                "is_synced": true,
+                "included_in_analysis": true,
+                "ignore_reason": null,
+                "audio_channel": "L",
+                "video_channel": "L",
+                "channels_match": true,
+                "traffic": "green"
+            },
+            {
+                "audio_pop_time_ms": 11377,
+                "closest_video_pop_ms": 11366.295590545915,
+                "closest_video_pop_frame": 680,
+                "difference_ms": 10.70440945408518,
+                "is_synced": true,
+                "included_in_analysis": true,
+                "ignore_reason": null,
+                "audio_channel": "L",
+                "video_channel": "L",
+                "channels_match": true,
+                "traffic": "green"
+            },
+            {
+                "audio_pop_time_ms": 12179,
+                "closest_video_pop_ms": 12168.622338113862,
+                "closest_video_pop_frame": 728,
+                "difference_ms": 10.377661886137503,
+                "is_synced": true,
+                "included_in_analysis": true,
+                "ignore_reason": null,
+                "audio_channel": "R",
+                "video_channel": "L",
+                "channels_match": false,
+                "traffic": "green"
+            },
+            {
+                "audio_pop_time_ms": 12979,
+                "closest_video_pop_ms": 12970.949085681808,
+                "closest_video_pop_frame": 776,
+                "difference_ms": 8.050914318191644,
+                "is_synced": true,
+                "included_in_analysis": true,
+                "ignore_reason": null,
+                "audio_channel": "L",
+                "video_channel": "L",
+                "channels_match": true,
+                "traffic": "green"
+            },
+            {
+                "audio_pop_time_ms": 13784,
+                "closest_video_pop_ms": 14558.887440243374,
+                "closest_video_pop_frame": 871,
+                "difference_ms": 774.8874402433739,
+                "is_synced": false,
+                "included_in_analysis": false,
+                "ignore_reason": "unmatched_audio_pop",
+                "audio_channel": "L",
+                "video_channel": "L",
+                "channels_match": true,
+                "traffic": "gray"
+            },
+            {
+                "audio_pop_time_ms": 14585,
+                "closest_video_pop_ms": 14575.602580817706,
+                "closest_video_pop_frame": 872,
+                "difference_ms": 9.39741918229447,
+                "is_synced": true,
+                "included_in_analysis": true,
+                "ignore_reason": null,
+                "audio_channel": "L",
+                "video_channel": "L",
+                "channels_match": true,
+                "traffic": "green"
+            },
+            {
+                "audio_pop_time_ms": 15386,
+                "closest_video_pop_ms": 15377.929328385651,
+                "closest_video_pop_frame": 920,
+                "difference_ms": 8.070671614348612,
+                "is_synced": true,
+                "included_in_analysis": true,
+                "ignore_reason": null,
+                "audio_channel": "L",
+                "video_channel": "L",
+                "channels_match": true,
+                "traffic": "green"
+            },
+            {
+                "audio_pop_time_ms": 16191,
+                "closest_video_pop_ms": 16180.256075953597,
+                "closest_video_pop_frame": 968,
+                "difference_ms": 10.743924046402753,
+                "is_synced": true,
+                "included_in_analysis": true,
+                "ignore_reason": null,
+                "audio_channel": "L",
+                "video_channel": "L",
+                "channels_match": true,
+                "traffic": "green"
+            }
+        ],
+        "is_perfectly_synced": true,
+        "last_event_within_limit": true,
+        "duration_ms": 19172.266,
+        "video_pop_times_ms": [
+            9761.642095410021,
+            10563.968842977969,
+            11366.295590545915,
+            12168.622338113862,
+            12970.949085681808,
+            14575.602580817706,
+            15377.929328385651,
+            16180.256075953597
+        ],
+        "video_pop_frame_indices": [
+            584,
+            632,
+            680,
+            728,
+            776,
+            872,
+            920,
+            968
+        ],
+        "traffic": [
+            "green",
+            "green",
+            "green",
+            "green",
+            "green",
+            "gray",
+            "green",
+            "green",
+            "green"
+        ],
+        "channel_match_count": 7,
+        "channel_mismatch_count": 1,
+        "channels_all_match": false
+    },
+    "scanlines": {
+        "status": "pass",
+        "details": "Checked"
+    },
+    "frame_sequence_box": null,
+    "recording": {
+        "record_audio": {
+            "status": "skipped",
+            "message": "Skipped (not enabled)"
+        },
+        "record_video": {
+            "status": "skipped",
+            "message": "Skipped (not enabled)"
+        },
+        "record_obs": {
+            "status": "skipped",
+            "message": "Skipped (not enabled)"
+        },
+        "record_network": {
+            "status": "skipped",
+            "message": "Skipped (not enabled)"
+        },
+        "record_frames": {
+            "status": "skipped",
+            "message": "Skipped (not enabled)"
+        }
+    },
+    "success": false,
+    "errors": [
+        "Packet replay failed"
+    ],
+    "warnings": []
 }

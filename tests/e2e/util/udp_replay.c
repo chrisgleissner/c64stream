@@ -188,28 +188,59 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    const char *manifest_path = argv[1];
-    const char *dir_path = argv[2];
-    const char *host = argv[3];
-    int port = atoi(argv[4]);
-    int packet_size = atoi(argv[5]);
+    const char *manifest_path = NULL;
+    const char *dir_path = NULL;
+    const char *host = NULL;
+    int port = 0;
+    int packet_size = 0;
     int verbose = 0;
     uint64_t start_at_us = 0;
 
-    for (int i = 6; i < argc; i++) {
-        if (strcmp(argv[i], "--verbose") == 0) {
+    // Try parsing as flags first
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--manifest") == 0 && i + 1 < argc)
+            manifest_path = argv[++i];
+        else if (strcmp(argv[i], "--dir") == 0 && i + 1 < argc)
+            dir_path = argv[++i];
+        else if (strcmp(argv[i], "--host") == 0 && i + 1 < argc)
+            host = argv[++i];
+        else if (strcmp(argv[i], "--port") == 0 && i + 1 < argc)
+            port = atoi(argv[++i]);
+        else if (strcmp(argv[i], "--packet-size") == 0 && i + 1 < argc)
+            packet_size = atoi(argv[++i]);
+        else if (strcmp(argv[i], "--verbose") == 0)
             verbose = 1;
-            continue;
-        }
-        if (strcmp(argv[i], "--start-at-us") == 0 && (i + 1) < argc) {
-            start_at_us = (uint64_t)strtoull(argv[i + 1], NULL, 10);
-            i++;
-            continue;
+        else if (strcmp(argv[i], "--start-at-us") == 0 && i + 1 < argc)
+            start_at_us = (uint64_t)strtoull(argv[++i], NULL, 10);
+    }
+
+    // Fallback to positional arguments if flags missing (legacy support)
+    if (!manifest_path && argc >= 6 && argv[1][0] != '-') {
+        manifest_path = argv[1];
+        dir_path = argv[2];
+        host = argv[3];
+        port = atoi(argv[4]);
+        packet_size = atoi(argv[5]);
+        for (int i = 6; i < argc; i++) {
+            if (strcmp(argv[i], "--verbose") == 0)
+                verbose = 1;
+            if (strcmp(argv[i], "--start-at-us") == 0 && (i + 1) < argc) {
+                start_at_us = (uint64_t)strtoull(argv[i + 1], NULL, 10);
+                i++;
+            }
         }
     }
 
-    if (port <= 0 || port > 65535 || packet_size <= 0 || packet_size > MAX_PACKET_SIZE) {
-        fprintf(stderr, "Invalid port or packet_size\n");
+    if (!manifest_path || !dir_path || !host) {
+        fprintf(
+            stderr,
+            "Usage: %s --manifest <csv> --dir <dir> --host <ip> --port <port> [--packet-size <bytes>] [--verbose]\n",
+            argv[0]);
+        return 1;
+    }
+
+    if (port <= 0 || port > 65535) {
+        fprintf(stderr, "Invalid port: %d\n", port);
         return 1;
     }
 
@@ -255,6 +286,34 @@ int main(int argc, char **argv)
 
     if (verbose)
         printf("Loaded %d entries from manifest\n", count);
+
+    // Auto-detect packet_size if not provided
+    if (packet_size <= 0 && count > 0) {
+        char path[MAX_PATH_LEN];
+#ifdef _WIN32
+        snprintf(path, sizeof(path), "%s\\%s", dir_path, entries[0].filename);
+#else
+        snprintf(path, sizeof(path), "%s/%s", dir_path, entries[0].filename);
+#endif
+        FILE *f = fopen(path, "rb");
+        if (f) {
+            fseek(f, 0, SEEK_END);
+            long fsize = ftell(f);
+            fclose(f);
+            if (fsize > 0 && fsize <= MAX_PACKET_SIZE) {
+                packet_size = (int)fsize;
+                if (verbose)
+                    printf("Auto-detected packet size: %d bytes\n", packet_size);
+            }
+        }
+    }
+
+    if (packet_size <= 0 || packet_size > MAX_PACKET_SIZE) {
+        fprintf(stderr, "Invalid or undetected packet size (max %d)\n", MAX_PACKET_SIZE);
+        if (entries)
+            free(entries);
+        return 1;
+    }
 
     // Preload packets into memory so send timing is not dominated by per-packet file I/O.
     // This is critical for keeping up with the ~3.8K packets/sec rate without relying on
@@ -402,7 +461,7 @@ int main(int argc, char **argv)
 
         sent++;
 
-        if (verbose && sent % 500 == 0)
+        if (verbose && sent % 1000 == 0)
             printf("  Sent %d/%d\n", sent, count);
     }
 
