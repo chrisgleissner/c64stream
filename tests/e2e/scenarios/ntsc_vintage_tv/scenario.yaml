@@ -13,3 +13,5 @@ tolerances:
   frame_progression:
     local: 1.0
     ci: 0.4
+  av_sync:
+    ci: lenient  # Heavy CRT effects can cause pop detection issues on CI

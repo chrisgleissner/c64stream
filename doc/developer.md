@@ -364,7 +364,7 @@ cd tests/e2e
 ./local-build.sh linux --e2e --install    # Build, install, and run E2E tests
 ```
 
-See [`doc/testing/e2e.md`](e2e.md) for comprehensive E2E testing documentation.
+See [`doc/testing/e2e.md`](testing/e2e.md) for comprehensive E2E testing documentation.
 
 ### End-to-end tests (in-depth)
 
@@ -678,6 +678,6 @@ TEST(pause_and_resume) {
 
 ## Resources
 
-- **C64U Streaming Specification:** [`doc/c64u-stream-spec.md`](c64u-stream-spec.md)
-- **E2E Testing:** [`doc/testing/e2e.md`](e2e.md)
+- **C64U Streaming Specification:** [`doc/c64u-stream-spec.md`](c64u/c64u-stream-spec.md)
+- **E2E Testing:** [`doc/testing/e2e.md`](testing/e2e.md)
 - **OBS Plugin Guide:** [OBS Studio Documentation](https://obsproject.com/wiki/Plugin-Development)

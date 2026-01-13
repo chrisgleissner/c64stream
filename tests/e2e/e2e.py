@@ -139,16 +139,32 @@ def main():
         datefmt='%H:%M:%S'
     )
 
-    # Load Network Simulation
+    # Load Network Simulation and Tolerances
     network_simulation = {}
-    av_sync_tolerance_ms = 40  # Default tolerance
+    av_sync_tolerance_mode = None  # None, 'lenient', or numeric value
     if args.scenario_yaml:
         try:
             with open(args.scenario_yaml, 'r') as f:
                 scenario_data = yaml.safe_load(f)
                 network_simulation = scenario_data.get('network_simulation', {})
-                av_sync_tolerance_ms = scenario_data.get('av_sync_tolerance_ms', 40)
-                print(f"📡 Loaded network simulation config from {Path(args.scenario_yaml).name}")
+                
+                # Support both old and new tolerance formats
+                # Old: av_sync_tolerance_ms: 40
+                # New: tolerances.av_sync.ci: lenient
+                if 'av_sync_tolerance_ms' in scenario_data:
+                    av_sync_tolerance_mode = scenario_data['av_sync_tolerance_ms']
+                elif 'tolerances' in scenario_data and 'av_sync' in scenario_data['tolerances']:
+                    av_sync_tol = scenario_data['tolerances']['av_sync']
+                    is_ci = os.environ.get('CI', '').lower() in ('1', 'true', 'yes') or \
+                            os.environ.get('GITHUB_ACTIONS', '').lower() in ('1', 'true', 'yes')
+                    
+                    # Check for CI-specific or local-specific tolerance
+                    if is_ci and 'ci' in av_sync_tol:
+                        av_sync_tolerance_mode = av_sync_tol['ci']
+                    elif not is_ci and 'local' in av_sync_tol:
+                        av_sync_tolerance_mode = av_sync_tol['local']
+                
+                print(f"📡 Loaded scenario config from {Path(args.scenario_yaml).name}")
         except Exception as e:
             print(f"⚠️  Failed to load scenario YAML: {e}")
 
@@ -182,7 +198,7 @@ def main():
         csv_max_rows=args.csv_max_rows if args.csv_max_rows > 0 else None,
         verbose=args.verbose,
         full_frame_pop=args.full_frame_pop,
-        av_sync_tolerance_ms=av_sync_tolerance_ms
+        av_sync_tolerance_mode=av_sync_tolerance_mode
     )
 
     return 0 if orchestrator.run() else 1

@@ -7,6 +7,7 @@ Licensed under the GNU General Public License v2.0 or later.
 See <https://www.gnu.org/licenses/> for details.
 """
 
+import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
@@ -14,6 +15,11 @@ from pathlib import Path
 from typing import Any, Optional
 
 from .config import PresetConfig
+
+
+def is_ci() -> bool:
+    """Detect if running in CI environment."""
+    return bool(os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS"))
 
 
 class AssertionStatus(Enum):

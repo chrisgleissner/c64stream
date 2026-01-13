@@ -1,4 +1,3 @@
-
 # C64 Stream
 
 [![Build](https://github.com/chrisgleissner/c64stream/actions/workflows/push.yaml/badge.svg?branch=main)](https://github.com/chrisgleissner/c64stream/actions/workflows/push.yaml)
@@ -10,7 +9,7 @@ Bridge your Commodore 64 Ultimate directly to [OBS Studio](https://obsproject.co
 
 <img src="./docs/images/c64stream.png" alt="C64 Stream Logo" width="200"/>
 
-This plugin implements a native OBS source that receives video and audio streams from C64 Ultimate devices (Commodore 64 Ultimate or Ultimate 64) via the Ultimate's built-in data streaming capability.
+This plugin implements a native OBS source that receives video and audio streams from a Commodore 64 Ultimate or Ultimate 64.
 
 The plugin connects directly to the Ultimate's network interface, eliminating the need for capture cards or composite video connections.
 
@@ -45,8 +44,8 @@ These settings work out-of-the-box with most C64 Ultimate setups. You can overri
 ### What You'll Need
 
 - [OBS Studio 32.0.1](https://obsproject.com/download) or above
-- [C64 Ultimate](https://www.commodore.net/) or [Ultimate 64](https://ultimate64.com/)
-- Ethernet connection between your OBS computer and Ultimate device. Wifi is [not supported](https://1541u-documentation.readthedocs.io/en/latest/howto/wifi.html#functionality-available-on-wifi).
+- [Commodore 64 Ultimate](https://www.commodore.net/) or [Ultimate 64](https://ultimate64.com/)
+- The Ultimate device must be connected via its [Ethernet port](https://1541u-documentation.readthedocs.io/en/latest/howto/wifi.html#functionality-available-on-wifi). The OBS computer may connect via Wi-Fi if both are on the same network, but using Ethernet all the way to OBS is recommended for the most stable connection.
 - For complete and up-to-date hardware and software requirements, please refer to the [OBS Studio System Requirements](https://obsproject.com/kb/system-requirements).
 
 > [!NOTE]
@@ -72,6 +71,37 @@ If you are using Windows Firewall and block all incoming connections, you may ha
 ```powershell
 New-NetFirewallRule -DisplayName "C64 Stream" -Direction Inbound -Protocol UDP -LocalPort 11000,11001 -RemoteAddress 192.168.1.64 -Action Allow
 ```
+> [!NOTE]
+> Windows on ARM64 support is experimental and has not yet been fully tested.
+> If you would like to help with testing, please reach out via the
+> *Discussions* tab of this repository.
+
+1. Download and unzip the ARM64 build of OBS Studio:
+   https://github.com/obsproject/obs-studio/releases/download/32.0.4/OBS-Studio-32.0.4-Windows-arm64.zip
+2. Ensure OBS Studio is closed.
+3. [Download](../../releases) the plugin package `c64stream-$VERSION-windows-arm64.zip` to your `Downloads` folder.
+4. Install the plugin exactly as described in **Windows (X64)** above.
+
+### Windows (Portable Mode)
+
+> [!NOTE]
+> This section applies **only** if OBS Studio is run in [portable mode](https://obsproject.com/kb/portable-mode), for example when `portable_mode.txt` exists in the root directory of OBS.
+> If you installed OBS using the Windows installer, use the *Standard Installation* instructions above.
+
+In portable mode, OBS does **not** use `C:\ProgramData\obs-studio\plugins`. Instead, plugins are loaded relative to the OBS installation directory.
+
+1. Download the appropriate plugin ZIP (X64 or ARM64), as described above.
+2. Open PowerShell **in the root directory of your portable OBS installation**.
+4. Copy/paste the following command into the Powershell window and press **Enter**:
+   ```powershell
+   $zip=Get-ChildItem "$env:USERPROFILE\Downloads\c64stream-*-windows-*.zip" | Select-Object -First 1;
+   Expand-Archive -Path $zip -DestinationPath "$env:TEMP\c64stream" -Force;
+   New-Item -ItemType Directory -Force ".\obs-plugins\64bit" | Out-Null;
+   Copy-Item "$env:TEMP\c64stream\c64stream\bin\64bit\*" ".\obs-plugins\64bit\" -Recurse -Force;
+   New-Item -ItemType Directory -Force ".\data\obs-plugins\c64stream" | Out-Null;
+   Copy-Item "$env:TEMP\c64stream\c64stream\data\*" ".\data\obs-plugins\c64stream\" -Recurse -Force
+   ```
+5. Start OBS Studio.
 
 #### macOS
 
