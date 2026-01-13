@@ -353,13 +353,13 @@ First, right-click on the C64 Stream source → **Scale Filtering → Point**. T
 
 Then, right-click the C64 Stream source in OBS → **Transform** → **Edit Transform**, then enter the exact values from the table below, assuming you are using a 1920 x 1080 ("Full HD") screen. Adjust the width/height settings as needed if you use a different screen:
 
-| Mode | Distance | Scale | Pattern | Output Width | Output Height | Canvas Fit |
-|------|----------|-------|---------|--------------|---------------|------------|
-| None | 0% | 4× | No gaps | 1456 px | 1088 px | Full (8 px vertical crop) |
-| Tight | 25% | 5× | 4 bright + 1 dark | 1820 px | 1360 px | Vertical overflow |
-| Normal | 50% | 3× | 2 bright + 1 dark | 1092 px | 816 px | Letterboxed |
-| Wide | 100% | 4× | 2 bright + 2 dark | 1456 px | 1088 px | Full (8 px vertical crop) |
-| Extra Wide | 200% | 3× | 1 bright + 2 dark | 1092 px | 816 px | Letterboxed |
+| Mode       | Distance | Scale | Pattern           | Output Width | Output Height | Canvas Fit                |
+| ---------- | -------- | ----- | ----------------- | ------------ | ------------- | ------------------------- |
+| None       | 0%       | 4×    | No gaps           | 1456 px      | 1088 px       | Full (8 px vertical crop) |
+| Tight      | 25%      | 5×    | 4 bright + 1 dark | 1820 px      | 1360 px       | Vertical overflow         |
+| Normal     | 50%      | 3×    | 2 bright + 1 dark | 1092 px      | 816 px        | Letterboxed               |
+| Wide       | 100%     | 4×    | 2 bright + 2 dark | 1456 px      | 1088 px       | Full (8 px vertical crop) |
+| Extra Wide | 200%     | 3×    | 1 bright + 2 dark | 1092 px      | 816 px        | Letterboxed               |
 
 The following screenshot assumes you select "Wide" scan line mode, again assuming you use a 1920 x 1080 screen:
 
@@ -565,11 +565,11 @@ This folder contains OBS plugin binary and loader files.
 
 OBS Studio searches for plugins in multiple locations. The installation location depends on how you installed the plugin:
 
-| Platform | Package Install (System-Wide) | User Install (Local Development) |
-|----------|-------------------------------|----------------------------------|
-| **Windows** | `C:\ProgramData\obs-studio\plugins\c64stream\` | N/A (uses system path) |
-| **macOS** | `/Library/Application Support/obs-studio/plugins/c64stream.plugin/` | `~/Library/Application Support/obs-studio/plugins/c64stream.plugin/` |
-| **Linux** | `/usr/lib/obs-plugins/c64stream.so` | `~/.config/obs-studio/plugins/c64stream/bin/64bit/c64stream.so` |
+| Platform    | Package Install (System-Wide)                                       | User Install (Local Development)                                     |
+| ----------- | ------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| **Windows** | `C:\ProgramData\obs-studio\plugins\c64stream\`                      | N/A (uses system path)                                               |
+| **macOS**   | `/Library/Application Support/obs-studio/plugins/c64stream.plugin/` | `~/Library/Application Support/obs-studio/plugins/c64stream.plugin/` |
+| **Linux**   | `/usr/lib/obs-plugins/c64stream.so`                                 | `~/.config/obs-studio/plugins/c64stream/bin/64bit/c64stream.so`      |
 
 ### 2. Shipped Data
 
@@ -585,11 +585,11 @@ The data directory contains:
 - Default network settings (`properties.ini`)
 - Localization files (`locale/*.ini`)
 
-| Platform | Package Install (System-Wide) | User Install (Local Development) |
-|----------|-------------------------------|----------------------------------|
-| **Windows** | `C:\ProgramData\obs-studio\plugins\c64stream\data\` | N/A (uses system path) |
-| **macOS** | `/Library/Application Support/obs-studio/plugins/c64stream.plugin/Contents/Resources/` | `~/Library/Application Support/obs-studio/plugins/c64stream.plugin/Contents/Resources/` |
-| **Linux** | `/usr/share/obs/obs-plugins/c64stream/` | `~/.config/obs-studio/plugins/c64stream/data/` |
+| Platform    | Package Install (System-Wide)                                                          | User Install (Local Development)                                                        |
+| ----------- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| **Windows** | `C:\ProgramData\obs-studio\plugins\c64stream\data\`                                    | N/A (uses system path)                                                                  |
+| **macOS**   | `/Library/Application Support/obs-studio/plugins/c64stream.plugin/Contents/Resources/` | `~/Library/Application Support/obs-studio/plugins/c64stream.plugin/Contents/Resources/` |
+| **Linux**   | `/usr/share/obs/obs-plugins/c64stream/`                                                | `~/.config/obs-studio/plugins/c64stream/data/`                                          |
 
 > [!NOTE]
 > **Package Install** is for end users who install via `.deb` packages, `.pkg` installers, or `.zip` extraction to system directories.
