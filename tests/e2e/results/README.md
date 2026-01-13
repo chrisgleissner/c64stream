@@ -1,129 +1,160 @@
-# C64 Stream E2E Test Report
+# C64 Stream E2E Test Results
 
-## Scenario: Unknown
+This directory contains reference recordings and test results for E2E testing.
 
-Generated: 2026-01-08 19:21:14 UTC
+Important: Most subfolders here are generated locally and are intentionally not committed.
+Only a small curated subset is tracked in git to avoid bloating the repository.
 
-## Test configuration
+## Directory Structure
 
-- Format: PAL
-- Frames: 180
-- Duration: 3.6 seconds
-- Video Port: 21000
-- Audio Port: 21001
-- OBS Enabled: true
+```
+tests/e2e/results/
+├── README.md
+├── ntsc_default/        # committed (NTSC, Default preset, 480p)
+├── ntsc_default_720p/   # committed (NTSC, Default preset, 720p)
+├── ntsc_green_monitor/  # committed (NTSC, Green Monitor preset)
+├── ntsc_vintage_tv/     # committed (NTSC, Vintage TV preset)
+└── pal_default/         # committed (PAL, Default preset)
+```
 
-## Build information
+Any other folders under `tests/e2e/results/` are expected to be local-only outputs
+from running scenarios (e.g. `ntsc_classic_crt/`, `ntsc_amber_monitor/`, etc.).
 
-- Project: c64stream
-- Version: 1.0.2
+## Results
 
-## System information
+- [NTSC Default](./ntsc_default/README.md)
+- [NTSC Default 720p](./ntsc_default_720p/README.md)
+- [NTSC Green Monitor](./ntsc_green_monitor/README.md)
+- [NTSC Vintage TV](./ntsc_vintage_tv/README.md)
+- [PAL Default](./pal_default/README.md)
 
-- OS: Ubuntu 24.04.3 LTS (kernel 6.14.0-37-generic)
-- OBS: 32.0.2
-- CPU: Intel(R) Core(TM) i7-6700K CPU @ 4.00GHz (8 cores)
-- RAM: 31Gi total, 24Gi available
-- Disk (/): 1.8T total, 1.1T available
+## Per-Preset Contents
 
-## Test results
+Each scenario folder contains:
 
-### Validation Summary
+- `c64_recording_still.png` - Sample frame showing A/V pop
+- `README.md` - Test report with validation results
+- `validation_results.json` - Machine-readable validation data
+- `network.csv` - Network packet reception log (what arrived at the plugin)
+- `obs.csv` - OBS event log (what was submitted into OBS)
+- `playback.csv` - Playback timeline analysis (what was observed during playback)
+- `config_used/` - Copy of properties.ini used for the test
 
-- ⚠️ UDP Packet Reception: 13095/13137 packets (12177 video, 887 audio, minor loss)
-- ✅ Network Timing: span=3579.1ms, video_mean=293.7us, audio_mean=4004.0us
-- ✅ Frame Processing: 1075 frames processed
-- ✅ Video Recording: 8.6 MB
-- ✅ Content Integrity: 17.4s duration
+### CSV Pipeline
 
-### Resource Usage
+The CSV files represent different stages of the streaming pipeline:
 
-During the test's processing window (3.1s, 7 of 40 samples) (8 cores):
+```
+network.csv   → what arrived at the plugin (UDP packets)
+obs.csv       → what was submitted into OBS (frames/audio events)
+playback.csv  → what was observed during playback (decoded frames + anomalies)
+```
 
-| Metric | Min | Median | Mean | Max |
-|--------|-----|--------|------|-----|
-| CPU | 47.1% | 59.5% | 57.01% | 63.3% |
-| RAM | 7949.17 MB | 7956.25 MB | 7966.47 MB | 8015.84 MB |
-| GPU | 31.8% | 36.78% | 36.44% | 42.35% |
+#### obs.csv Columns
 
-Details: [resource.csv](resource.csv) | [resource.json](resource.json)
+| Column | Description |
+|--------|-------------|
+| `event_type` | "video" or "audio" |
+| `frame_num` | Frame counter from the stream |
+| `elapsed_us` | Microseconds since recording started |
+| `data_size_bytes` | Size of the frame/audio data |
+| `fps` | Current measured FPS |
+| `audio_samples_total` | Cumulative audio samples processed |
+| `video_packets_received` | Cumulative video packets received |
+| `audio_packets_received` | Cumulative audio packets received |
+| `sequence_errors` | Cumulative sequence errors detected |
 
-### Packet & Network Data
+#### playback.csv Columns
 
-- ✅ Packet Generation: 12240 video, 897 audio packets
-- ✅ UDP Replay: Completed successfully
-- Events: [network.csv](network.csv), [obs.csv](obs.csv), [playback.csv](playback.csv)
+`playback.csv` is the authoritative source for skipped/repeated frame analysis. Each row represents one displayed frame in the recording (1:1 mapping with `playback_frame_index`).
 
-#### Network Quality (Measured)
+| Column | Description |
+|--------|-------------|
+| `playback_frame_index` | Absolute frame index in the recording (0-based) |
+| `frame_num` | C64U stream frame number from obs.csv (empty for logo frames) |
+| `frame_slot` | Detected slot (0-7) from bottom-left progress bar (empty if not detected) |
+| `video_s` | Position in video file (seconds since recording start) |
+| `video_ssff` | Position in SS:FF format (seconds:frames) for tools like Shotcut |
+| `content_s` | Time since C64U content started streaming (empty for logo/post-stream) |
+| `repeated` | If start of repeated run: total times shown; empty otherwise |
+| `skipped` | Frames permanently lost before this one; empty if none |
+| `event` | Human-readable summary (see below) |
+| `video_pop` | "video_pop" if video pop (frame sync marker) detected at this frame |
+| `audio_pop` | "audio_pop" if audio pop detected within this frame's time window |
 
-- Packet span (first→last): 3579.140 ms
-- Total packets analyzed: 13063
+**Frame Number Mapping:**
 
-| Stream | Packets | Spacing (min) | Spacing (mean) | Spacing (max) | CV | Burst <0.5×P50 | Gaps >2×P50 | P99/P50 |
-|--------|---------|---------------|----------------|---------------|----|--------------|------------|--------|
-| All | 13063 | 0.001 ms | 0.545 ms | 8.838 ms | 204.10% | 10.35% | 34.18% | 960.200 |
-| Video | 12175 | 0.001 ms | 0.294 ms | 5.382 ms | 191.13% | 0.20% | 31.75% | 591.500 |
-| Audio | 886 | 0.006 ms | 4.004 ms | 8.838 ms | 26.30% | 2.71% | 0.11% | 1.613 |
+The `frame_num` column uses detected video slots as ground truth:
+1. Content bounds detection identifies first/last content frames
+2. For each video frame, the bottom-left progress bar slot is detected (0-7)
+3. Slots are matched to obs.csv entries where `frame_num % 8` equals the slot
+4. This ensures playback.csv reflects actual displayed content, not assumptions
 
-| Stream | Packets | Jitter (median) | Jitter (max) | Out-of-Order |
-|--------|---------|-----------------|--------------|--------------|
-| Video | 12175 | 0.002 ms | 5.378 ms | 0 |
-| Audio | 886 | 0.581 ms | 4.591 ms | 0 |
+For scenarios with visual effects (CRT filters, phosphor glow), slot detection may be
+skipped and playback.csv falls back to frame sequencing without frame_num mapping.
 
-Details: [network.json](network.json)
+**Event Values:**
 
-### A/V Sync
+| Event | Meaning |
+|-------|---------|
+| `repeated` | Start of a run where same content is displayed multiple times |
+| `skipped` | Source frames were permanently lost before this frame |
+| `repeated+skipped` | Both anomalies on same frame (rare) |
+| _(empty)_ | Normal frame, no anomaly |
 
-- ✅ Good synchronization (100.0%): avg offset 7.1ms, max 8.1ms
+**Time Columns:**
 
-#### Sync Details
+- **`video_s`**: Absolute position in the recording file. Starts at 0.0 when recording begins.
+- **`video_ssff`**: Same as `video_s` but in SS:FF format (e.g., `08:39` = second 8, frame 39). Matches Shotcut's timeline display.
+- **`content_s`**: Relative time since C64U content started. Empty during logo display and post-stream frames. Useful for comparing runs with different logo durations.
 
-- 🟢 Pop #1 [L]: audio=10841.0ms, video=10832.9ms (frame 543), diff=8.1ms
-- 🟢 Pop #2 [R]: audio=11798.0ms, video=11790.5ms (frame 591), diff=7.5ms
-- 🟢 Pop #3 [L]: audio=12754.0ms, video=12748.1ms (frame 639), diff=5.9ms
+**Semantics:**
 
-- Channels: LRL
-- 🔁 Channel alternation: OK (alternating, starts with L)
+- **`repeated`**: Source didn't deliver a new frame in time, so the previous content was displayed again. The `repeated` column shows the count only on the FIRST frame of the run (e.g., `3` means shown 3 times total). Continuation frames have empty `repeated` column.
 
-### Frame Progression
+- **`skipped`**: Frames are permanently missing - the frame counter jumped. These frames will never appear. The count indicates how many source frames were lost before this frame arrived.
 
-- 🟢 Frame sequence verified (328 frames analyzed, 0 colors)
+- Both can occur on the same frame (rare): frames were lost, then the arriving frame was repeated.
 
-- Settling: 4.0s (pass/fail uses post-settling only)
+**Example:**
 
-| Window | Stuck runs (count/min/med/max) | Skips (count/min/med/max) | Back steps | Severe steps |
-|--------|------------------------------:|--------------------------:|-----------:|-------------:|
-| During settling | 15/2/2/2 | 21/1/1/1 | 0 | 0 |
-| After settling | 0/0/0/0 | 4/1/3/3 | 0 | 0 |
+```csv
+playback_frame_index,frame_num,marker_color,video_s,video_ssff,content_s,repeated,skipped,event,video_pop,audio_pop
+462,,,7.7,07:42,,,,,,
+463,,,7.717,07:43,,,,,,
+464,1,1,7.733,07:44,0.0,,,,,
+524,60,12,8.733,08:44,1.0,,,,,
+525,60,12,8.75,08:45,1.017,3,,repeated,,
+528,63,15,8.8,08:48,1.067,,1,skipped,,
+540,75,11,9.0,09:00,1.267,2,3,repeated+skipped,video_pop,audio_pop
+```
 
-See [playback.csv](playback.csv) for frame-by-frame playback timeline with anomaly markers.
+Reading this example:
+- Frames 462-463: Logo/pre-content (empty frame_num and content_s)
+- Frame 464: First content frame (content_s=0.0)
+- Frame 524: Normal content frame (content_s=1.0)
+- Frame 525: Content shown 3 times (at indices 525, 526, 527)
+- Frame 528: 1 source frame was permanently lost before this arrived
+- Frame 540: 3 frames lost, then this frame was shown twice; also has video/audio pop
 
-#### Playback Jitter Clusters (post-settling)
+## Running Tests
 
-- Definition: rows with repeated=1 or skipped=1 in playback.csv; clustering uses max gap 0.5s
-- Note: this is independent from the Frame Progression (frame-box) check above
-- Note: repeated/skipped markers only exist while content is detected (video_s 10.374–16.918).
-  The jitter-free tail after content ends is expected and does not indicate steady-state performance.
+### Single Scenario
 
-| # | Events | Center (s) | Std dev (s) | Span (s) | Window (s) |
-|---|--------|------------|-------------|----------|------------|
-| 1 | 22 | 12.272 | 1.002 | 3.351 | 10.494–13.845 |
-| 2 | 2 | 14.863 | 0.100 | 0.200 | 14.763–14.963 |
-| 3 | 2 | 16.908 | 0.010 | 0.020 | 16.898–16.918 |
+```bash
+cd tests/e2e
+./e2e.sh --scenario ntsc_default --verbose
+```
 
-### Video
+### All Scenarios
 
-- Download: [c64_recording.mp4](c64_recording.mp4) (Available from local runs or CI build artifacts.)
-- Duration: 17.4 s
+```bash
+./run_all_scenarios.sh
+```
 
+## CI Integration
 
-### Sample Frame
-
-![Sample Frame](./c64_recording_still.png)
-
-- **Top-left**: Text box with scenario name
-- **Top-right**: VIC-II palette reference grid of all C64 colors
-- **Center**: Diagonal pattern cycling through all C64 colors
-- **Bottom-left**: Frame progression indicator (8-slot moving bar, cycles every 8 frames)
-- **Bottom-right**: A/V pop indicator (pops every 48 frames, split left/right for audio channels)
-- Taken from frame 543 at 00:10.9 of the 17.4 s video above.
+In CI, tests run via the GitHub Actions workflow with matrix builds:
+- Each scenario runs in parallel
+- Results are uploaded as artifacts
+- Failures are reported in the job summary
