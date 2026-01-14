@@ -70,7 +70,7 @@ static bool automation_start_stop_clicked(obs_properties_t *props, obs_property_
 static bool automation_next_clicked(obs_properties_t *props, obs_property_t *property, void *data);
 static bool playlist_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings);
 static bool folder_path_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings);
-static void update_playlist_property(obs_property_t *prop, struct c64_source *context);
+static void update_playlist_property(obs_property_t *prop, struct c64_source *context, obs_data_t *settings);
 static bool file_source_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings);
 static bool playback_source_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings);
 
@@ -622,11 +622,16 @@ static bool automation_start_stop_clicked(obs_properties_t *props, obs_property_
         obs_property_set_long_description(button_prop, new_desc);
     }
 
+    // Get current settings to pass to playlist update
+    obs_data_t *current_settings = obs_source_get_settings(context->source);
+
     // Update playlist dropdown
     obs_property_t *playlist_prop = obs_properties_get(props, "playlist");
     if (playlist_prop) {
-        update_playlist_property(playlist_prop, context);
+        update_playlist_property(playlist_prop, context, current_settings);
     }
+
+    obs_data_release(current_settings);
 
     // Update Next button state
     obs_property_t *next_prop = obs_properties_get(props, "automation_next");
@@ -649,11 +654,19 @@ static bool automation_next_clicked(obs_properties_t *props, obs_property_t *pro
     if (c64_automation_skip_next(context->automation)) {
         C64_LOG_INFO("Skipped to next item");
 
+        // Small delay to allow worker thread to update current_index
+        os_sleep_ms(150);
+
+        // Get current settings
+        obs_data_t *settings = obs_source_get_settings(context->source);
+
         // Update playlist dropdown
         obs_property_t *playlist_prop = obs_properties_get(props, "playlist");
         if (playlist_prop) {
-            update_playlist_property(playlist_prop, context);
+            update_playlist_property(playlist_prop, context, settings);
         }
+
+        obs_data_release(settings);
     }
 
     return true; // Refresh properties
@@ -662,7 +675,6 @@ static bool automation_next_clicked(obs_properties_t *props, obs_property_t *pro
 static bool folder_path_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings)
 {
     UNUSED_PARAMETER(property);
-    UNUSED_PARAMETER(settings);
 
     // Refresh playlist dropdown when folder path changes
     struct c64_source *context = obs_properties_get_param(props);
@@ -673,7 +685,7 @@ static bool folder_path_changed(obs_properties_t *props, obs_property_t *propert
     if (c64_automation_is_running(context->automation)) {
         obs_property_t *playlist_prop = obs_properties_get(props, "playlist");
         if (playlist_prop) {
-            update_playlist_property(playlist_prop, context);
+            update_playlist_property(playlist_prop, context, settings);
         }
         return true; // Refresh properties to update playlist
     }
@@ -683,7 +695,6 @@ static bool folder_path_changed(obs_properties_t *props, obs_property_t *propert
 
 static bool playlist_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings)
 {
-    UNUSED_PARAMETER(props);
     UNUSED_PARAMETER(property);
 
     // Get the source context from settings (this is a bit tricky in OBS)
@@ -697,12 +708,20 @@ static bool playlist_changed(obs_properties_t *props, obs_property_t *property, 
 
     if (c64_automation_jump_to_index(context->automation, selected_index)) {
         C64_LOG_INFO("Jumped to playlist index %d", selected_index);
+
+        // Update playlist dropdown to reflect new current index
+        obs_property_t *playlist_prop = obs_properties_get(props, "playlist");
+        if (playlist_prop) {
+            update_playlist_property(playlist_prop, context, settings);
+        }
+
+        return true; // Refresh properties to update UI
     }
 
-    return false; // Don't refresh properties (avoid rebuilding dropdown)
+    return false;
 }
 
-static void update_playlist_property(obs_property_t *prop, struct c64_source *context)
+static void update_playlist_property(obs_property_t *prop, struct c64_source *context, obs_data_t *settings)
 {
     if (!prop || !context || !context->automation) {
         return;
@@ -715,6 +734,9 @@ static void update_playlist_property(obs_property_t *prop, struct c64_source *co
     if (!is_running) {
         obs_property_list_add_int(prop, "(Not playing)", -1);
         obs_property_set_enabled(prop, false);
+        if (settings) {
+            obs_data_set_int(settings, "playlist", -1);
+        }
         return;
     }
 
@@ -725,6 +747,9 @@ static void update_playlist_property(obs_property_t *prop, struct c64_source *co
 
     if (playlist_count == 0) {
         obs_property_list_add_int(prop, "(No files)", -1);
+        if (settings) {
+            obs_data_set_int(settings, "playlist", -1);
+        }
         return;
     }
 
@@ -766,6 +791,11 @@ static void update_playlist_property(obs_property_t *prop, struct c64_source *co
         char suffix_text[64];
         snprintf(suffix_text, sizeof(suffix_text), "...(%d files after)", playlist_count - window_end - 1);
         obs_property_list_add_int(prop, suffix_text, -1);
+    }
+
+    // Set the dropdown to show the currently playing file as selected
+    if (settings) {
+        obs_data_set_int(settings, "playlist", current_index);
     }
 }
 
@@ -1329,7 +1359,10 @@ obs_properties_t *c64_create_properties(void *data)
                                                             OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
     obs_property_set_long_description(playlist_prop, obs_module_text("Playing.Description"));
     obs_property_set_modified_callback(playlist_prop, playlist_changed);
-    update_playlist_property(playlist_prop, context);
+    // Get current settings to populate playlist
+    obs_data_t *current_settings_for_playlist = obs_source_get_settings(context->source);
+    update_playlist_property(playlist_prop, context, current_settings_for_playlist);
+    obs_data_release(current_settings_for_playlist);
 
     // Get automation status to determine button state
     bool automation_running = false;
