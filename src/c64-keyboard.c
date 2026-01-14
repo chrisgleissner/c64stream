@@ -265,7 +265,7 @@ c64_keymap_t *c64_keymap_load(const char *path)
 
     fclose(file);
 
-    C64_LOG_INFO(KEYBOARD_LOG_PREFIX "Loaded keymap: %s (%d entries)", keymap->name, keymap->num_entries);
+    C64_LOG_DEBUG(KEYBOARD_LOG_PREFIX "Loaded keymap: %s (%d entries)", keymap->name, keymap->num_entries);
     return keymap;
 }
 
@@ -404,7 +404,7 @@ static void *injection_worker(void *arg)
 {
     c64_keyboard_t *keyboard = (c64_keyboard_t *)arg;
 
-    C64_LOG_INFO(KEYBOARD_LOG_PREFIX "Injection worker started");
+    C64_LOG_DEBUG(KEYBOARD_LOG_PREFIX "Injection worker started");
 
     while (keyboard->worker_running) {
         // Check if there are bytes to inject
@@ -456,7 +456,7 @@ static void *injection_worker(void *arg)
         os_sleep_ms(POLL_INTERVAL_MS);
     }
 
-    C64_LOG_INFO(KEYBOARD_LOG_PREFIX "Injection worker stopped");
+    C64_LOG_DEBUG(KEYBOARD_LOG_PREFIX "Injection worker stopped");
     return NULL;
 }
 
@@ -490,7 +490,7 @@ c64_keyboard_t *c64_keyboard_create(void *rest_client)
         return NULL;
     }
 
-    C64_LOG_INFO(KEYBOARD_LOG_PREFIX "Created keyboard controller");
+    C64_LOG_DEBUG(KEYBOARD_LOG_PREFIX "Created keyboard controller");
     return keyboard;
 }
 
@@ -527,9 +527,9 @@ void c64_keyboard_set_capture(c64_keyboard_t *keyboard, bool enabled)
     if (!enabled) {
         // Flush queue when capture disabled
         queue_flush(keyboard);
-        C64_LOG_INFO(KEYBOARD_LOG_PREFIX "Capture disabled, flushing queue");
+        C64_LOG_DEBUG(KEYBOARD_LOG_PREFIX "Capture disabled, flushing queue");
     } else {
-        C64_LOG_INFO(KEYBOARD_LOG_PREFIX "Capture enabled");
+        C64_LOG_DEBUG(KEYBOARD_LOG_PREFIX "Capture enabled");
     }
 }
 
@@ -550,15 +550,15 @@ void c64_keyboard_queue_output(c64_keyboard_t *keyboard, const c64_output_t *out
     // Convert output to PETSCII bytes and queue them
     if (output->mode == C64_OUTPUT_PETSCII) {
         queue_push(keyboard, output->data.petscii);
-        C64_LOG_INFO(KEYBOARD_LOG_PREFIX "Key → PETSCII 0x%02X | Queue: %d", output->data.petscii,
-                     queue_available(keyboard));
+        C64_LOG_DEBUG(KEYBOARD_LOG_PREFIX "Key → PETSCII 0x%02X | Queue: %d", output->data.petscii,
+                      queue_available(keyboard));
     } else if (output->mode == C64_OUTPUT_SYMBOLIC) {
         // Symbolic keys map to single PETSCII codes
         uint8_t code = lookup_symbolic_key(output->data.symbol);
         if (code != 0) {
             queue_push(keyboard, code);
-            C64_LOG_INFO(KEYBOARD_LOG_PREFIX "Key → %s (0x%02X) | Queue: %d", output->data.symbol, code,
-                         queue_available(keyboard));
+            C64_LOG_DEBUG(KEYBOARD_LOG_PREFIX "Key → %s (0x%02X) | Queue: %d", output->data.symbol, code,
+                          queue_available(keyboard));
         } else {
             C64_LOG_WARNING(KEYBOARD_LOG_PREFIX "Unknown symbolic key: %s", output->data.symbol);
         }
@@ -569,8 +569,8 @@ void c64_keyboard_queue_output(c64_keyboard_t *keyboard, const c64_output_t *out
             queue_push(keyboard, (uint8_t)output->data.text[i]);
             len++;
         }
-        C64_LOG_INFO(KEYBOARD_LOG_PREFIX "Text → '%s' (%zu chars) | Queue: %d", output->data.text, len,
-                     queue_available(keyboard));
+        C64_LOG_DEBUG(KEYBOARD_LOG_PREFIX "Text → '%s' (%zu chars) | Queue: %d", output->data.text, len,
+                      queue_available(keyboard));
     }
 }
 
@@ -589,7 +589,7 @@ bool c64_keyboard_basic_warm_start(c64_keyboard_t *keyboard)
         return false;
     }
 
-    C64_LOG_INFO(KEYBOARD_LOG_PREFIX "Performing BASIC warm start via IRQ vector");
+    C64_LOG_DEBUG(KEYBOARD_LOG_PREFIX "Performing BASIC warm start via IRQ vector");
 
     // Step 1: Read current IRQ vector from $0314/$0315
     uint8_t original_vector[2];
@@ -628,7 +628,7 @@ bool c64_keyboard_basic_warm_start(c64_keyboard_t *keyboard)
                       original_vector[0]);
     }
 
-    C64_LOG_INFO(KEYBOARD_LOG_PREFIX "BASIC warm start completed");
+    C64_LOG_DEBUG(KEYBOARD_LOG_PREFIX "BASIC warm start completed");
     return true;
 }
 
@@ -680,7 +680,7 @@ static void process_keymap_directory(const char *dir_path, bool is_user_dir, key
             for (size_t i = 0; i < *ctx->count; i++) {
                 if (strcmp(ctx->keymap_paths[i], name) == 0) {
                     duplicate = true;
-                    C64_LOG_INFO(KEYBOARD_LOG_PREFIX "User keymap '%s' overrides builtin", name);
+                    C64_LOG_DEBUG(KEYBOARD_LOG_PREFIX "User keymap '%s' overrides builtin", name);
                     break;
                 }
             }
@@ -740,7 +740,7 @@ static void process_keymap_directory(const char *dir_path, bool is_user_dir, key
             for (size_t i = 0; i < *ctx->count; i++) {
                 if (strcmp(ctx->keymap_paths[i], name) == 0) {
                     duplicate = true;
-                    C64_LOG_INFO(KEYBOARD_LOG_PREFIX "User keymap '%s' overrides builtin", name);
+                    C64_LOG_DEBUG(KEYBOARD_LOG_PREFIX "User keymap '%s' overrides builtin", name);
                     break;
                 }
             }
@@ -815,7 +815,7 @@ bool c64_keyboard_discover_keymaps(char ***paths, size_t *count)
         return false;
     }
 
-    C64_LOG_INFO(KEYBOARD_LOG_PREFIX "Discovered %zu keymaps", *count);
+    C64_LOG_DEBUG(KEYBOARD_LOG_PREFIX "Discovered %zu keymaps", *count);
     *paths = ctx.keymap_paths;
     return true;
 }

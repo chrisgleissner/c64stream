@@ -205,6 +205,7 @@ A new window opens. Keep the default settings and click "OK":
 - **Fallback:** If router DNS fails, the plugin tries standard DNS servers
 - **Enhanced Resolution:** The plugin uses multiple resolution strategies for maximum compatibility
 - **C64 Ultimate Host:** Enter your Ultimate device's hostname (default: `c64u`) or IP address to enable automatic streaming control from OBS (recommended for convenience), or set to `0.0.0.0` to accept streams from any C64 Ultimate on your network (requires manual control from the device)
+- **C64 Ultimate Password:** C64 Ultimate network password for REST `X-Password` header authentication. Leave empty if authentication is disabled
 - **OBS Server IP:** IP address where C64 Ultimate sends streams (auto-detected by default)
 - **Auto-detect OBS IP:** Automatically detect and use OBS server IP in streaming commands (recommended)
 - **Configure Ports** Use the default ports (video: 11000, audio: 11001) unless network conflicts require different values
@@ -434,7 +435,7 @@ Import and export your complete plugin settings:
 
 Exported configurations are saved to the [settings directory](#file-system-structure-).
 
-### Remote Control 🎮
+### Remote Control 🎮 (**EXPERIMENTAL** - since version 1.1)
 
 Control your Ultimate 64 remotely from within OBS Studio, enabling keyboard input capture, automated content playback, and programmatic control via REST API.
 
@@ -448,8 +449,6 @@ Control your Ultimate 64 remotely from within OBS Studio, enabling keyboard inpu
 
 **Configuration:**
 
-- **Password:** C64 Ultimate network password for REST `X-Password` header authentication (and streaming, if enabled). Leave empty if authentication is disabled
-- **Enable Keyboard Capture:** Captures keyboard input from OBS preview window and injects keystrokes into C64. Press ESC to disable capture
 - **Keymap:** Select keyboard mapping for converting PC keystrokes to C64 PETSCII codes
   - **Symbolic keymaps:** Match key labels (e.g., PC Q → C64 Q)
   - **Positional keymaps:** Match physical locations (e.g., PC Q → C64 Q on QWERTY, but C64 A on AZERTY)
@@ -465,21 +464,19 @@ Control your Ultimate 64 remotely from within OBS Studio, enabling keyboard inpu
 - **Start/Stop Button:** Start or stop content automation on demand
 - **Content Status:** Real-time display showing current automation state (idle, playing, stopped)
 
-**How Keyboard Capture Works:**
+### How Keyboard Capture Works
 
-1. Enable keyboard capture in properties
-2. Click on OBS preview window to focus it
-3. Type normally - keystrokes are converted to PETSCII and injected into C64 keyboard buffer
-4. Plugin polls C64 keyboard buffer (`$00C6`) every 50ms and only injects when buffer is empty (backpressure)
-5. Press ESC anytime to immediately disable capture and return control to OBS
+1. Click inside the OBS preview to give it focus.
+2. Click **Interact** (below the preview) to route keyboard input to the source.
+3. Type as usual. Keystrokes are converted to PETSCII and injected into the C64 KERNAL keyboard buffer.
+4. The plugin polls the C64 keyboard buffer counter at `$00C6` every 50 ms and only injects a new key when the buffer is empty, providing backpressure and preventing overfilling.
+5. Press **ESC** to send **RUN/STOP** to the C64, for example to abort a running BASIC program. The **CBM** key is available via the **ALT** key.
+6. To return keyboard control to OBS, click anywhere outside the Interact window so it loses focus, then close the Interact window.
 
-**Technical Details:**
+> [!NOTE]
+> Keyboard capture only works with software that reads input via the KERNAL keyboard buffer. Many programs, especially games, bypass this buffer and read key state directly from CIA1. Because the C64 Ultimate does not allow writing to the CIA1 registers, keyboard input will not work for those programs.
 
-- Injection uses DMA memory writes to C64 keyboard buffer at `$0277-$0280` (10 bytes max)
-- Worker thread handles asynchronous REST operations without blocking OBS UI/render threads
-- Buffer polling rate: 50ms intervals to minimize CPU usage while ensuring responsiveness
-
-### C64Script Automation 🤖
+### C64Script Automation 🤖 (**EXPERIMENTAL** - since version 1.1)
 
 Automate your C64 stream with C64Script - a modernized BASIC-like language designed specifically for stream control.
 

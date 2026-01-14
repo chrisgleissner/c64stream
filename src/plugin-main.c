@@ -37,7 +37,8 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #include <errno.h>
 
 // Logging control - define the global variable
-bool c64_debug_logging = true;
+// Default to quiet; users can enable debug logging via the properties checkbox.
+bool c64_debug_logging = false;
 
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en-US")

@@ -1944,7 +1944,8 @@ void c64_set_property_defaults(obs_data_t *settings)
 {
     // Defaults initialization
 
-    obs_data_set_default_bool(settings, "debug_logging", true);
+    // Keep debug logging off by default; users can enable it explicitly.
+    obs_data_set_default_bool(settings, "debug_logging", false);
     // Default: auto-detect OBS IP enabled (OBS "Defaults" button uses these defaults)
     obs_data_set_default_bool(settings, "auto_detect_ip", true);
     obs_data_set_default_string(settings, "dns_server_ip", "192.168.1.1");

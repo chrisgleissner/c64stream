@@ -302,7 +302,8 @@ void c64_av_sync_cleanup(struct c64_source *context)
 void c64_av_sync_on_video_pop(struct c64_source *context, enum c64_av_sync_origin origin, uint16_t frame_num,
                               uint64_t timestamp_ns)
 {
-    if (!context || !c64_debug_logging) {
+    // Pop detection should run when explicitly recording AV sync OR when debug logging is enabled.
+    if (!context || (!context->record_av_sync && !c64_debug_logging)) {
         return;
     }
 
@@ -364,7 +365,8 @@ void c64_av_sync_on_video_pop(struct c64_source *context, enum c64_av_sync_origi
 
 void c64_av_sync_on_audio_pop(struct c64_source *context, enum c64_av_sync_origin origin, uint64_t timestamp_ns)
 {
-    if (!context || !c64_debug_logging) {
+    // Pop detection should run when explicitly recording AV sync OR when debug logging is enabled.
+    if (!context || (!context->record_av_sync && !c64_debug_logging)) {
         return;
     }
 

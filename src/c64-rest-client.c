@@ -108,7 +108,7 @@ c64_rest_client_t *c64_rest_client_create(const char *base_url, const char *pass
     curl_easy_setopt(client->curl, CURLOPT_TIMEOUT, HTTP_TIMEOUT_SECONDS);
     curl_easy_setopt(client->curl, CURLOPT_FOLLOWLOCATION, 1L);
 
-    C64_LOG_INFO(REST_LOG_PREFIX "Created REST client for %s", base_url);
+    C64_LOG_DEBUG(REST_LOG_PREFIX "Created REST client for %s", base_url);
     return client;
 }
 
@@ -227,7 +227,7 @@ bool c64_rest_reset(c64_rest_client_t *client)
         return false;
     }
 
-    C64_LOG_INFO(REST_LOG_PREFIX "Reset machine");
+    C64_LOG_DEBUG(REST_LOG_PREFIX "Reset machine");
     return http_request(client, "PUT", "/v1/machine:reset", NULL, NULL, 0, NULL);
 }
 
@@ -237,7 +237,7 @@ bool c64_rest_reboot(c64_rest_client_t *client)
         return false;
     }
 
-    C64_LOG_INFO(REST_LOG_PREFIX "Reboot machine");
+    C64_LOG_DEBUG(REST_LOG_PREFIX "Reboot machine");
     return http_request(client, "PUT", "/v1/machine:reboot", NULL, NULL, 0, NULL);
 }
 
@@ -272,7 +272,7 @@ bool c64_rest_write_memory(c64_rest_client_t *client, uint16_t address, const ui
         return false;
     }
 
-    C64_LOG_INFO(REST_LOG_PREFIX "Writing %zu bytes to $%04X", length, address);
+    C64_LOG_DEBUG(REST_LOG_PREFIX "Writing %zu bytes to $%04X", length, address);
 
     // Convert data to hex string
     char *hex_data = malloc(length * 2 + 1);
@@ -292,7 +292,7 @@ bool c64_rest_write_memory(c64_rest_client_t *client, uint16_t address, const ui
     bool result = http_request(client, "PUT", "/v1/machine:writemem", query, NULL, 0, NULL);
 
     if (result) {
-        C64_LOG_INFO(REST_LOG_PREFIX "Successfully wrote memory $%04X: %zu bytes", address, length);
+        C64_LOG_DEBUG(REST_LOG_PREFIX "Successfully wrote memory $%04X: %zu bytes", address, length);
     } else {
         C64_LOG_ERROR(REST_LOG_PREFIX "Failed to write memory $%04X", address);
     }
@@ -366,7 +366,7 @@ bool c64_rest_play_sid(c64_rest_client_t *client, const uint8_t *sid_data, size_
         return false;
     }
 
-    C64_LOG_INFO(REST_LOG_PREFIX "Playing SID song=%d size=%zu", song_number, sid_size);
+    C64_LOG_DEBUG(REST_LOG_PREFIX "Playing SID song=%d size=%zu", song_number, sid_size);
     return true;
 }
 
@@ -432,7 +432,7 @@ bool c64_rest_run_prg(c64_rest_client_t *client, const uint8_t *prg_data, size_t
         return false;
     }
 
-    C64_LOG_INFO(REST_LOG_PREFIX "Running PRG size=%zu", prg_size);
+    C64_LOG_DEBUG(REST_LOG_PREFIX "Running PRG size=%zu", prg_size);
     return true;
 }
 
@@ -506,7 +506,7 @@ bool c64_rest_mount_disk(c64_rest_client_t *client, char drive, const char *type
         return false;
     }
 
-    C64_LOG_INFO(REST_LOG_PREFIX "Mounted disk drive=%c type=%s mode=%s size=%zu", drive, type, mode, disk_size);
+    C64_LOG_DEBUG(REST_LOG_PREFIX "Mounted disk drive=%c type=%s mode=%s size=%zu", drive, type, mode, disk_size);
     return true;
 }
 
@@ -516,7 +516,7 @@ bool c64_rest_play_sid_path(c64_rest_client_t *client, const char *c64u_path, in
         return false;
     }
 
-    C64_LOG_INFO(REST_LOG_PREFIX "Playing SID from C64U: %s song=%d", c64u_path, song_number);
+    C64_LOG_DEBUG(REST_LOG_PREFIX "Playing SID from C64U: %s song=%d", c64u_path, song_number);
 
     // URL encode the path
     char *escaped_path = curl_easy_escape(client->curl, c64u_path, 0);
@@ -574,7 +574,7 @@ bool c64_rest_play_sid_path(c64_rest_client_t *client, const char *c64u_path, in
         return false;
     }
 
-    C64_LOG_INFO(REST_LOG_PREFIX "✅ SID playback started successfully");
+    C64_LOG_DEBUG(REST_LOG_PREFIX "✅ SID playback started successfully");
     return true;
 }
 
@@ -636,7 +636,7 @@ bool c64_rest_run_prg_path(c64_rest_client_t *client, const char *c64u_path)
         return false;
     }
 
-    C64_LOG_INFO(REST_LOG_PREFIX "Running PRG from C64U: %s", c64u_path);
+    C64_LOG_DEBUG(REST_LOG_PREFIX "Running PRG from C64U: %s", c64u_path);
     return true;
 }
 
@@ -702,7 +702,7 @@ bool c64_rest_play_mod(c64_rest_client_t *client, const uint8_t *mod_data, size_
         return false;
     }
 
-    C64_LOG_INFO(REST_LOG_PREFIX "Playing MOD size=%zu", mod_size);
+    C64_LOG_DEBUG(REST_LOG_PREFIX "Playing MOD size=%zu", mod_size);
     return true;
 }
 
@@ -712,7 +712,7 @@ bool c64_rest_play_mod_path(c64_rest_client_t *client, const char *c64u_path)
         return false;
     }
 
-    C64_LOG_INFO(REST_LOG_PREFIX "Playing MOD from C64U: %s", c64u_path);
+    C64_LOG_DEBUG(REST_LOG_PREFIX "Playing MOD from C64U: %s", c64u_path);
 
     // URL encode the path
     char *escaped_path = curl_easy_escape(client->curl, c64u_path, 0);
@@ -768,7 +768,7 @@ bool c64_rest_play_mod_path(c64_rest_client_t *client, const char *c64u_path)
         return false;
     }
 
-    C64_LOG_INFO(REST_LOG_PREFIX "✅ MOD playback started successfully");
+    C64_LOG_DEBUG(REST_LOG_PREFIX "✅ MOD playback started successfully");
     return true;
 }
 
@@ -834,7 +834,7 @@ bool c64_rest_run_crt(c64_rest_client_t *client, const uint8_t *crt_data, size_t
         return false;
     }
 
-    C64_LOG_INFO(REST_LOG_PREFIX "Running CRT size=%zu", crt_size);
+    C64_LOG_DEBUG(REST_LOG_PREFIX "Running CRT size=%zu", crt_size);
     return true;
 }
 
@@ -844,7 +844,7 @@ bool c64_rest_run_crt_path(c64_rest_client_t *client, const char *c64u_path)
         return false;
     }
 
-    C64_LOG_INFO(REST_LOG_PREFIX "Running CRT from C64U: %s", c64u_path);
+    C64_LOG_DEBUG(REST_LOG_PREFIX "Running CRT from C64U: %s", c64u_path);
 
     // URL encode the path
     char *escaped_path = curl_easy_escape(client->curl, c64u_path, 0);
@@ -900,7 +900,7 @@ bool c64_rest_run_crt_path(c64_rest_client_t *client, const char *c64u_path)
         return false;
     }
 
-    C64_LOG_INFO(REST_LOG_PREFIX "✅ CRT execution started successfully");
+    C64_LOG_DEBUG(REST_LOG_PREFIX "✅ CRT execution started successfully");
     return true;
 }
 
@@ -962,7 +962,7 @@ bool c64_rest_mount_disk_path(c64_rest_client_t *client, char drive, const char 
         return false;
     }
 
-    C64_LOG_INFO(REST_LOG_PREFIX "Mounted disk from C64U: drive=%c path=%s", drive, c64u_path);
+    C64_LOG_DEBUG(REST_LOG_PREFIX "Mounted disk from C64U: drive=%c path=%s", drive, c64u_path);
     return true;
 }
 

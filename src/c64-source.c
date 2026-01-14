@@ -926,9 +926,8 @@ void c64_update(void *data, obs_data_t *settings)
         C64_LOG_DEBUG("" EFFECT_LOG_PREFIX " Preset update skipped; manual effect overrides present");
     }
 
-    // Update debug logging setting (Record A/V Sync relies on debug logging for pop detection)
-    const bool record_av_sync = obs_data_get_bool(settings, "record_av_sync");
-    c64_debug_logging = obs_data_get_bool(settings, "debug_logging") || record_av_sync;
+    // Update debug logging setting
+    c64_debug_logging = obs_data_get_bool(settings, "debug_logging");
     C64_LOG_DEBUG("Debug logging %s", c64_debug_logging ? "enabled" : "disabled");
 
     // Update IP detection setting - only auto-detect when checkbox state changes from off to on
@@ -1923,6 +1922,16 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
         } else if (event->text && event->text[0] != '\0') {
             // Use text for regular printable characters
             snprintf(key_code, sizeof(key_code), "%s", event->text);
+        }
+
+        // Some key combinations (e.g. Ctrl/Alt + digit) may not provide text.
+        // Fall back to ASCII-ish native key values for common alphanumerics.
+        if (key_code[0] == '\0') {
+            const int vkey = (int)event->native_vkey;
+            if ((vkey >= '0' && vkey <= '9') || (vkey >= 'A' && vkey <= 'Z') || (vkey >= 'a' && vkey <= 'z')) {
+                key_code[0] = (char)vkey;
+                key_code[1] = '\0';
+            }
         }
 
         // Build modifiers bitmask
