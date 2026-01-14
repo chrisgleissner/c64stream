@@ -42,6 +42,7 @@ typedef struct {
     c64_file_source_t file_source;
     char folder_path[512];
     bool shuffle;
+    bool include_subfolders;
     int duration_seconds;
     bool reset_between_items;
     char d64_autostart_template[256]; // e.g. "LOAD\"*\",8,1\rRUN\r"

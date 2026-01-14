@@ -593,6 +593,7 @@ static bool automation_start_stop_clicked(obs_properties_t *props, obs_property_
         config.file_source = (file_system == 0) ? C64_FILE_SOURCE_LOCAL : C64_FILE_SOURCE_C64U;
         strncpy(config.folder_path, path, sizeof(config.folder_path) - 1);
         config.shuffle = obs_data_get_bool(settings, "shuffle_playback");
+        config.include_subfolders = obs_data_get_bool(settings, "include_subfolders");
         config.duration_seconds = (int)obs_data_get_int(settings, "automation_duration");
         config.reset_between_items = obs_data_get_bool(settings, "automation_reset");
         strncpy(config.d64_autostart_template, "LOAD\"*\",8,1\rRUN\r", sizeof(config.d64_autostart_template) - 1);

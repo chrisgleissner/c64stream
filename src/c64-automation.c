@@ -149,9 +149,9 @@ static uint8_t *load_file(const char *path, size_t *size)
     return data;
 }
 
-// Enumerate files in folder
+// Enumerate files in folder (with optional recursion)
 static int enumerate_files(c64_rest_client_t *rest_client, const char *folder_path, c64_file_source_t file_source,
-                           file_entry_t **out_files)
+                           bool include_subfolders, file_entry_t **out_files)
 {
     file_entry_t *files = calloc(MAX_FILES, sizeof(file_entry_t));
     if (!files) {
@@ -206,85 +206,191 @@ static int enumerate_files(c64_rest_client_t *rest_client, const char *folder_pa
     // Local filesystem enumeration
 #ifdef _WIN32
     // Windows implementation using FindFirstFile/FindNextFile
-    WIN32_FIND_DATAA find_data;
-    char search_path[MAX_PATH];
-    int written = snprintf(search_path, sizeof(search_path), "%s\\*", folder_path);
-    if (written < 0 || (size_t)written >= sizeof(search_path)) {
+    // Use a stack-based approach for recursion to avoid deep call stacks
+    typedef struct {
+        char path[MAX_PATH];
+    } dir_entry_t;
+
+    dir_entry_t *dir_stack = NULL;
+    int dir_count = 0;
+    int dir_capacity = 0;
+
+    // Add initial directory to stack
+    dir_capacity = 64;
+    dir_stack = calloc(dir_capacity, sizeof(dir_entry_t));
+    if (!dir_stack) {
         free(files);
         return 0;
     }
+    strncpy_s(dir_stack[0].path, sizeof(dir_stack[0].path), folder_path, _TRUNCATE);
+    dir_count = 1;
 
-    HANDLE h_find = FindFirstFileA(search_path, &find_data);
-    if (h_find == INVALID_HANDLE_VALUE) {
-        C64_LOG_ERROR(AUTOMATION_LOG_PREFIX "Failed to open folder: %s", folder_path);
-        free(files);
-        return 0;
+    // Process directories from stack
+    while (dir_count > 0 && count < MAX_FILES) {
+        // Pop directory from stack
+        dir_count--;
+        const char *current_dir = dir_stack[dir_count].path;
+
+        WIN32_FIND_DATAA find_data;
+        char search_path[MAX_PATH];
+        int written = snprintf(search_path, sizeof(search_path), "%s\\*", current_dir);
+        if (written < 0 || (size_t)written >= sizeof(search_path)) {
+            continue;
+        }
+
+        HANDLE h_find = FindFirstFileA(search_path, &find_data);
+        if (h_find == INVALID_HANDLE_VALUE) {
+            C64_LOG_WARNING(AUTOMATION_LOG_PREFIX "Failed to open folder: %s", current_dir);
+            continue;
+        }
+
+        do {
+            // Skip . and ..
+            if (strcmp(find_data.cFileName, ".") == 0 || strcmp(find_data.cFileName, "..") == 0) {
+                continue;
+            }
+
+            // Build full path
+            char full_path[MAX_PATH];
+            written = snprintf(full_path, sizeof(full_path), "%s\\%s", current_dir, find_data.cFileName);
+            if (written < 0 || (size_t)written >= sizeof(full_path)) {
+                continue; // Path too long
+            }
+
+            // Check if it's a directory
+            if (find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+                // Add to stack if recursion is enabled
+                if (include_subfolders) {
+                    if (dir_count >= dir_capacity) {
+                        // Grow stack
+                        int new_capacity = dir_capacity * 2;
+                        dir_entry_t *new_stack = realloc(dir_stack, new_capacity * sizeof(dir_entry_t));
+                        if (!new_stack) {
+                            break; // Out of memory, stop recursion
+                        }
+                        dir_stack = new_stack;
+                        dir_capacity = new_capacity;
+                    }
+                    strncpy_s(dir_stack[dir_count].path, sizeof(dir_stack[dir_count].path), full_path, _TRUNCATE);
+                    dir_count++;
+                }
+                continue;
+            }
+
+            // Process regular files
+            c64_file_type_t type = get_file_type(find_data.cFileName);
+            if (type < 0) {
+                continue; // Not a supported file
+            }
+
+            // Store file path
+            if (strlen(full_path) >= sizeof(files[count].path)) {
+                C64_LOG_WARNING(AUTOMATION_LOG_PREFIX "Path too long, skipping: %s", full_path);
+                continue;
+            }
+
+            strncpy(files[count].path, full_path, sizeof(files[count].path) - 1);
+            files[count].type = type;
+            count++;
+        } while (FindNextFileA(h_find, &find_data) && count < MAX_FILES);
+
+        FindClose(h_find);
     }
 
-    do {
-        // Skip directories
-        if (find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-            continue;
-        }
-
-        c64_file_type_t type = get_file_type(find_data.cFileName);
-        if (type < 0) {
-            continue; // Not a supported file
-        }
-
-        // Check length to prevent overflow
-        size_t needed = strlen(folder_path) + 1 + strlen(find_data.cFileName) + 1;
-        if (needed > sizeof(files[count].path)) {
-            C64_LOG_WARNING(AUTOMATION_LOG_PREFIX "Path too long, skipping: %s\\%s", folder_path, find_data.cFileName);
-            continue;
-        }
-
-        written = snprintf(files[count].path, sizeof(files[count].path), "%s\\%s", folder_path, find_data.cFileName);
-        if (written < 0 || (size_t)written >= sizeof(files[count].path)) {
-            continue; // Truncated
-        }
-        files[count].type = type;
-        count++;
-    } while (FindNextFileA(h_find, &find_data) && count < MAX_FILES);
-
-    FindClose(h_find);
+    free(dir_stack);
 
 #else
     // Unix implementation using opendir/readdir
-    DIR *dir = opendir(folder_path);
-    if (!dir) {
-        C64_LOG_ERROR(AUTOMATION_LOG_PREFIX "Failed to open folder: %s", folder_path);
+    // Use a stack-based approach for recursion to avoid deep call stacks
+    typedef struct {
+        char path[512];
+    } dir_entry_t;
+
+    dir_entry_t *dir_stack = NULL;
+    int dir_count = 0;
+    int dir_capacity = 0;
+
+    // Add initial directory to stack
+    dir_capacity = 64;
+    dir_stack = calloc(dir_capacity, sizeof(dir_entry_t));
+    if (!dir_stack) {
         free(files);
         return 0;
     }
+    strncpy(dir_stack[0].path, folder_path, sizeof(dir_stack[0].path) - 1);
+    dir_count = 1;
 
-    struct dirent *entry;
-    while ((entry = readdir(dir)) != NULL && count < MAX_FILES) {
-        if (entry->d_type != DT_REG) {
+    // Process directories from stack
+    while (dir_count > 0 && count < MAX_FILES) {
+        // Pop directory from stack
+        dir_count--;
+        const char *current_dir = dir_stack[dir_count].path;
+
+        DIR *dir = opendir(current_dir);
+        if (!dir) {
+            C64_LOG_WARNING(AUTOMATION_LOG_PREFIX "Failed to open folder: %s", current_dir);
             continue;
         }
 
-        c64_file_type_t type = get_file_type(entry->d_name);
-        if (type < 0) {
-            continue; // Not a supported file
+        struct dirent *entry;
+        while ((entry = readdir(dir)) != NULL && count < MAX_FILES) {
+            // Skip . and ..
+            if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+                continue;
+            }
+
+            // Build full path
+            char full_path[512];
+            int written = snprintf(full_path, sizeof(full_path), "%s/%s", current_dir, entry->d_name);
+            if (written < 0 || (size_t)written >= sizeof(full_path)) {
+                continue; // Path too long
+            }
+
+            // Check if it's a directory
+            if (entry->d_type == DT_DIR) {
+                // Add to stack if recursion is enabled
+                if (include_subfolders) {
+                    if (dir_count >= dir_capacity) {
+                        // Grow stack
+                        int new_capacity = dir_capacity * 2;
+                        dir_entry_t *new_stack = realloc(dir_stack, new_capacity * sizeof(dir_entry_t));
+                        if (!new_stack) {
+                            break; // Out of memory, stop recursion
+                        }
+                        dir_stack = new_stack;
+                        dir_capacity = new_capacity;
+                    }
+                    strncpy(dir_stack[dir_count].path, full_path, sizeof(dir_stack[dir_count].path) - 1);
+                    dir_count++;
+                }
+                continue;
+            }
+
+            // Process regular files
+            if (entry->d_type != DT_REG) {
+                continue;
+            }
+
+            c64_file_type_t type = get_file_type(entry->d_name);
+            if (type < 0) {
+                continue; // Not a supported file
+            }
+
+            // Store file path
+            if (strlen(full_path) >= sizeof(files[count].path)) {
+                C64_LOG_WARNING(AUTOMATION_LOG_PREFIX "Path too long, skipping: %s", full_path);
+                continue;
+            }
+
+            strncpy(files[count].path, full_path, sizeof(files[count].path) - 1);
+            files[count].type = type;
+            count++;
         }
 
-        // Check length to prevent overflow
-        size_t needed = strlen(folder_path) + 1 + strlen(entry->d_name) + 1; // path + / + name + \0
-        if (needed > sizeof(files[count].path)) {
-            C64_LOG_WARNING(AUTOMATION_LOG_PREFIX "Path too long, skipping: %s/%s", folder_path, entry->d_name);
-            continue;
-        }
-
-        int written = snprintf(files[count].path, sizeof(files[count].path), "%s/%s", folder_path, entry->d_name);
-        if (written < 0 || (size_t)written >= sizeof(files[count].path)) {
-            continue; // Truncated
-        }
-        files[count].type = type;
-        count++;
+        closedir(dir);
     }
 
-    closedir(dir);
+    free(dir_stack);
 #endif
 
     *out_files = files;
@@ -549,8 +655,9 @@ void c64_automation_configure(c64_automation_t *automation, const c64_automation
     }
 
     memcpy(&automation->config, config, sizeof(c64_automation_config_t));
-    C64_LOG_INFO(AUTOMATION_LOG_PREFIX "Configured: mode=%d folder=%s shuffle=%d duration=%d", config->mode,
-                 config->folder_path, config->shuffle, config->duration_seconds);
+    C64_LOG_INFO(AUTOMATION_LOG_PREFIX "Configured: mode=%d folder=%s shuffle=%d recursive=%d duration=%d",
+                 config->mode, config->folder_path, config->shuffle, config->include_subfolders,
+                 config->duration_seconds);
 }
 
 bool c64_automation_start(c64_automation_t *automation)
@@ -586,7 +693,8 @@ bool c64_automation_start(c64_automation_t *automation)
     } else if (automation->config.mode == C64_AUTO_MODE_FOLDER) {
         // Folder mode - enumerate files
         automation->num_files = enumerate_files(automation->rest_client, automation->config.folder_path,
-                                                automation->config.file_source, &automation->files);
+                                                automation->config.file_source, automation->config.include_subfolders,
+                                                &automation->files);
         if (automation->num_files == 0) {
             C64_LOG_ERROR(AUTOMATION_LOG_PREFIX "No supported files found in: %s", automation->config.folder_path);
             return false;
