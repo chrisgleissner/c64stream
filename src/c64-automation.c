@@ -47,6 +47,7 @@ struct c64_automation {
     bool running;
     bool should_stop;
     char status[128];
+    char current_file_path[512]; // Full path of currently playing file
 
     // File list
     file_entry_t *files;
@@ -71,10 +72,22 @@ static c64_file_type_t get_file_type(const char *path)
     const char *ext = get_extension(path);
     if (strcasecmp(ext, ".sid") == 0) {
         return C64_FILE_TYPE_SID;
+    } else if (strcasecmp(ext, ".mod") == 0) {
+        return C64_FILE_TYPE_MOD;
     } else if (strcasecmp(ext, ".prg") == 0) {
         return C64_FILE_TYPE_PRG;
+    } else if (strcasecmp(ext, ".crt") == 0) {
+        return C64_FILE_TYPE_CRT;
     } else if (strcasecmp(ext, ".d64") == 0) {
         return C64_FILE_TYPE_D64;
+    } else if (strcasecmp(ext, ".g64") == 0) {
+        return C64_FILE_TYPE_G64;
+    } else if (strcasecmp(ext, ".d71") == 0) {
+        return C64_FILE_TYPE_D71;
+    } else if (strcasecmp(ext, ".g71") == 0) {
+        return C64_FILE_TYPE_G71;
+    } else if (strcasecmp(ext, ".d81") == 0) {
+        return C64_FILE_TYPE_D81;
     }
     return -1;
 }
@@ -299,6 +312,12 @@ static void *automation_worker(void *arg)
             set_status(automation, status_msg);
         }
 
+        // Store current file path (thread-safe)
+        pthread_mutex_lock(&automation->status_mutex);
+        strncpy(automation->current_file_path, file->path, sizeof(automation->current_file_path) - 1);
+        automation->current_file_path[sizeof(automation->current_file_path) - 1] = '\0';
+        pthread_mutex_unlock(&automation->status_mutex);
+
         C64_LOG_INFO(AUTOMATION_LOG_PREFIX "Processing: %s", file->path);
 
         // Execute based on file source
@@ -309,10 +328,20 @@ static void *automation_worker(void *arg)
             case C64_FILE_TYPE_SID:
                 success = c64_rest_play_sid_path(automation->rest_client, file->path, 0);
                 break;
+            case C64_FILE_TYPE_MOD:
+                success = c64_rest_play_mod_path(automation->rest_client, file->path);
+                break;
             case C64_FILE_TYPE_PRG:
                 success = c64_rest_run_prg_path(automation->rest_client, file->path);
                 break;
+            case C64_FILE_TYPE_CRT:
+                success = c64_rest_run_crt_path(automation->rest_client, file->path);
+                break;
             case C64_FILE_TYPE_D64:
+            case C64_FILE_TYPE_G64:
+            case C64_FILE_TYPE_D71:
+            case C64_FILE_TYPE_G71:
+            case C64_FILE_TYPE_D81:
                 // Reset before mounting
                 if (automation->config.reset_between_items) {
                     c64_rest_reset(automation->rest_client);
@@ -320,7 +349,7 @@ static void *automation_worker(void *arg)
                 }
                 success = c64_rest_mount_disk_path(automation->rest_client, 'a', file->path);
                 if (success && automation->keyboard) {
-                    // Inject autostart command
+                    // Inject LOAD"*",8,1:RUN followed by RETURN
                     const char *template = automation->config.d64_autostart_template;
                     for (size_t j = 0; template[j] && !automation->should_stop; j++) {
                         c64_output_t output = {0};
@@ -348,18 +377,50 @@ static void *automation_worker(void *arg)
             case C64_FILE_TYPE_SID:
                 success = c64_rest_play_sid(automation->rest_client, file_data, file_size, 0);
                 break;
+            case C64_FILE_TYPE_MOD:
+                success = c64_rest_play_mod(automation->rest_client, file_data, file_size);
+                break;
             case C64_FILE_TYPE_PRG:
                 success = c64_rest_run_prg(automation->rest_client, file_data, file_size);
                 break;
+            case C64_FILE_TYPE_CRT:
+                success = c64_rest_run_crt(automation->rest_client, file_data, file_size);
+                break;
             case C64_FILE_TYPE_D64:
-                // Reset, mount, inject autostart
+            case C64_FILE_TYPE_G64:
+            case C64_FILE_TYPE_D71:
+            case C64_FILE_TYPE_G71:
+            case C64_FILE_TYPE_D81:
+                // Reset, mount (determine type from file extension), inject autostart
                 if (automation->config.reset_between_items) {
                     c64_rest_reset(automation->rest_client);
                     os_sleep_ms(RESET_DELAY_MS);
                 }
-                success = c64_rest_mount_disk(automation->rest_client, 'a', "d64", "readonly", file_data, file_size);
+                // Determine disk type string from file type
+                const char *disk_type;
+                switch (file->type) {
+                case C64_FILE_TYPE_D64:
+                    disk_type = "d64";
+                    break;
+                case C64_FILE_TYPE_G64:
+                    disk_type = "g64";
+                    break;
+                case C64_FILE_TYPE_D71:
+                    disk_type = "d71";
+                    break;
+                case C64_FILE_TYPE_G71:
+                    disk_type = "g71";
+                    break;
+                case C64_FILE_TYPE_D81:
+                    disk_type = "d81";
+                    break;
+                default:
+                    disk_type = "d64";
+                }
+                success =
+                    c64_rest_mount_disk(automation->rest_client, 'a', disk_type, "readwrite", file_data, file_size);
                 if (success && automation->keyboard) {
-                    // Inject autostart command
+                    // Inject LOAD"*",8,1:RUN followed by RETURN
                     const char *template = automation->config.d64_autostart_template;
                     for (size_t j = 0; template[j] && !automation->should_stop; j++) {
                         c64_output_t output = {0};
@@ -392,12 +453,19 @@ static void *automation_worker(void *arg)
             elapsed_ms += sleep_interval_ms;
         }
 
-        // Reset between items if configured
-        if (automation->config.reset_between_items && file->type != C64_FILE_TYPE_D64) {
+        // Reset between items if configured (skip if disk type since already reset before mount)
+        if (automation->config.reset_between_items && file->type != C64_FILE_TYPE_D64 &&
+            file->type != C64_FILE_TYPE_G64 && file->type != C64_FILE_TYPE_D71 && file->type != C64_FILE_TYPE_G71 &&
+            file->type != C64_FILE_TYPE_D81) {
             c64_rest_reset(automation->rest_client);
             os_sleep_ms(RESET_DELAY_MS);
         }
     }
+
+    // Clear current file path
+    pthread_mutex_lock(&automation->status_mutex);
+    automation->current_file_path[0] = '\0';
+    pthread_mutex_unlock(&automation->status_mutex);
 
     set_status(automation, automation->should_stop ? "stopped" : "completed");
     automation->running = false;
@@ -679,4 +747,18 @@ bool c64_automation_start_d64(c64_automation_t *automation, const char *path)
 
     C64_LOG_INFO(AUTOMATION_LOG_PREFIX "Started D64: %s", path);
     return true;
+}
+
+const char *c64_automation_get_current_file(c64_automation_t *automation)
+{
+    if (!automation) {
+        return NULL;
+    }
+
+    static char file_path_copy[512];
+    pthread_mutex_lock(&automation->status_mutex);
+    strncpy(file_path_copy, automation->current_file_path, sizeof(file_path_copy) - 1);
+    pthread_mutex_unlock(&automation->status_mutex);
+
+    return file_path_copy[0] ? file_path_copy : NULL;
 }

@@ -20,7 +20,17 @@ typedef struct c64_automation c64_automation_t;
 
 typedef enum { C64_AUTO_MODE_OFF, C64_AUTO_MODE_SINGLE, C64_AUTO_MODE_FOLDER } c64_automation_mode_t;
 
-typedef enum { C64_FILE_TYPE_SID, C64_FILE_TYPE_PRG, C64_FILE_TYPE_D64 } c64_file_type_t;
+typedef enum {
+    C64_FILE_TYPE_SID,
+    C64_FILE_TYPE_MOD,
+    C64_FILE_TYPE_PRG,
+    C64_FILE_TYPE_CRT,
+    C64_FILE_TYPE_D64,
+    C64_FILE_TYPE_G64,
+    C64_FILE_TYPE_D71,
+    C64_FILE_TYPE_G71,
+    C64_FILE_TYPE_D81
+} c64_file_type_t;
 
 typedef enum { C64_FILE_SOURCE_LOCAL, C64_FILE_SOURCE_C64U } c64_file_source_t;
 
@@ -76,6 +86,12 @@ bool c64_automation_is_running(c64_automation_t *automation);
  * @return Status string (e.g. "idle", "playing 3/10", "stopped")
  */
 const char *c64_automation_get_status(c64_automation_t *automation);
+
+/**
+ * Get currently playing file path
+ * @return Full path to current file or NULL if not playing
+ */
+const char *c64_automation_get_current_file(c64_automation_t *automation);
 
 /**
  * Play single SID file

@@ -640,6 +640,270 @@ bool c64_rest_run_prg_path(c64_rest_client_t *client, const char *c64u_path)
     return true;
 }
 
+bool c64_rest_play_mod(c64_rest_client_t *client, const uint8_t *mod_data, size_t mod_size)
+{
+    if (!client || !mod_data || mod_size == 0) {
+        return false;
+    }
+
+    // Build full URL
+    char url[512];
+    snprintf(url, sizeof(url), "%s/v1/runners:modplay", client->base_url);
+
+    // Reset CURL handle
+    curl_easy_reset(client->curl);
+
+    // CRITICAL: Re-set NOSIGNAL after reset to prevent Windows crashes
+    curl_easy_setopt(client->curl, CURLOPT_NOSIGNAL, 1L);
+
+    // Create MIME structure (modern API)
+    curl_mime *mime = curl_mime_init(client->curl);
+    curl_mimepart *part = curl_mime_addpart(mime);
+    curl_mime_name(part, "file");
+    curl_mime_filename(part, "module.mod");
+    curl_mime_data(part, (const char *)mod_data, mod_size);
+    curl_mime_type(part, "application/octet-stream");
+
+    // Set CURL options
+    curl_easy_setopt(client->curl, CURLOPT_URL, url);
+    curl_easy_setopt(client->curl, CURLOPT_MIMEPOST, mime);
+    curl_easy_setopt(client->curl, CURLOPT_TIMEOUT, 5L);
+
+    // Add password header if present
+    struct curl_slist *headers = NULL;
+    if (client->password && client->password[0]) {
+        char auth_header[256];
+        snprintf(auth_header, sizeof(auth_header), "X-Password: %s", client->password);
+        headers = curl_slist_append(headers, auth_header);
+        curl_easy_setopt(client->curl, CURLOPT_HTTPHEADER, headers);
+    }
+
+    // Perform request
+    CURLcode res = curl_easy_perform(client->curl);
+
+    // Cleanup
+    curl_mime_free(mime);
+    if (headers) {
+        curl_slist_free_all(headers);
+    }
+
+    if (res != CURLE_OK) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "CURL error: %s", curl_easy_strerror(res));
+        C64_LOG_ERROR(REST_LOG_PREFIX "%s", client->error_msg);
+        return false;
+    }
+
+    // Check HTTP status code
+    long http_code = 0;
+    curl_easy_getinfo(client->curl, CURLINFO_RESPONSE_CODE, &http_code);
+    if (http_code != 200) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "HTTP error %ld", http_code);
+        C64_LOG_ERROR(REST_LOG_PREFIX "%s", client->error_msg);
+        return false;
+    }
+
+    C64_LOG_INFO(REST_LOG_PREFIX "Playing MOD size=%zu", mod_size);
+    return true;
+}
+
+bool c64_rest_play_mod_path(c64_rest_client_t *client, const char *c64u_path)
+{
+    if (!client || !c64u_path) {
+        return false;
+    }
+
+    C64_LOG_INFO(REST_LOG_PREFIX "Playing MOD from C64U: %s", c64u_path);
+
+    // URL encode the path
+    char *escaped_path = curl_easy_escape(client->curl, c64u_path, 0);
+    if (!escaped_path) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "Failed to escape path");
+        C64_LOG_ERROR(REST_LOG_PREFIX "Failed to escape path: %s", c64u_path);
+        return false;
+    }
+
+    // Build URL with file parameter
+    char url[512];
+    snprintf(url, sizeof(url), "%s/v1/runners:modplay?file=%s", client->base_url, escaped_path);
+    curl_free(escaped_path);
+
+    // Reset CURL handle
+    curl_easy_reset(client->curl);
+
+    // CRITICAL: Re-set NOSIGNAL after reset to prevent Windows crashes
+    curl_easy_setopt(client->curl, CURLOPT_NOSIGNAL, 1L);
+
+    curl_easy_setopt(client->curl, CURLOPT_URL, url);
+    curl_easy_setopt(client->curl, CURLOPT_CUSTOMREQUEST, "PUT"); // Use PUT not POST
+    curl_easy_setopt(client->curl, CURLOPT_TIMEOUT, HTTP_TIMEOUT_SECONDS);
+
+    // Add password header if present
+    struct curl_slist *headers = NULL;
+    if (client->password && client->password[0]) {
+        char auth_header[256];
+        snprintf(auth_header, sizeof(auth_header), "X-Password: %s", client->password);
+        headers = curl_slist_append(headers, auth_header);
+        curl_easy_setopt(client->curl, CURLOPT_HTTPHEADER, headers);
+    }
+
+    // Perform request
+    CURLcode res = curl_easy_perform(client->curl);
+
+    if (headers) {
+        curl_slist_free_all(headers);
+    }
+
+    if (res != CURLE_OK) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "CURL error: %s", curl_easy_strerror(res));
+        C64_LOG_ERROR(REST_LOG_PREFIX "CURL error: %s", curl_easy_strerror(res));
+        return false;
+    }
+
+    // Check HTTP status
+    long http_code = 0;
+    curl_easy_getinfo(client->curl, CURLINFO_RESPONSE_CODE, &http_code);
+    if (http_code != 200) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "HTTP error %ld", http_code);
+        C64_LOG_ERROR(REST_LOG_PREFIX "HTTP error %ld for MOD playback", http_code);
+        return false;
+    }
+
+    C64_LOG_INFO(REST_LOG_PREFIX "✅ MOD playback started successfully");
+    return true;
+}
+
+bool c64_rest_run_crt(c64_rest_client_t *client, const uint8_t *crt_data, size_t crt_size)
+{
+    if (!client || !crt_data || crt_size == 0) {
+        return false;
+    }
+
+    // Build full URL
+    char url[512];
+    snprintf(url, sizeof(url), "%s/v1/runners:run_crt", client->base_url);
+
+    // Reset CURL handle
+    curl_easy_reset(client->curl);
+
+    // CRITICAL: Re-set NOSIGNAL after reset to prevent Windows crashes
+    curl_easy_setopt(client->curl, CURLOPT_NOSIGNAL, 1L);
+
+    // Create MIME structure (modern API)
+    curl_mime *mime = curl_mime_init(client->curl);
+    curl_mimepart *part = curl_mime_addpart(mime);
+    curl_mime_name(part, "file");
+    curl_mime_filename(part, "cartridge.crt");
+    curl_mime_data(part, (const char *)crt_data, crt_size);
+    curl_mime_type(part, "application/octet-stream");
+
+    // Set CURL options
+    curl_easy_setopt(client->curl, CURLOPT_URL, url);
+    curl_easy_setopt(client->curl, CURLOPT_MIMEPOST, mime);
+    curl_easy_setopt(client->curl, CURLOPT_TIMEOUT, 5L);
+
+    // Add password header if present
+    struct curl_slist *headers = NULL;
+    if (client->password && client->password[0]) {
+        char auth_header[256];
+        snprintf(auth_header, sizeof(auth_header), "X-Password: %s", client->password);
+        headers = curl_slist_append(headers, auth_header);
+        curl_easy_setopt(client->curl, CURLOPT_HTTPHEADER, headers);
+    }
+
+    // Perform request
+    CURLcode res = curl_easy_perform(client->curl);
+
+    // Cleanup
+    curl_mime_free(mime);
+    if (headers) {
+        curl_slist_free_all(headers);
+    }
+
+    if (res != CURLE_OK) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "CURL error: %s", curl_easy_strerror(res));
+        C64_LOG_ERROR(REST_LOG_PREFIX "%s", client->error_msg);
+        return false;
+    }
+
+    // Check HTTP status code
+    long http_code = 0;
+    curl_easy_getinfo(client->curl, CURLINFO_RESPONSE_CODE, &http_code);
+    if (http_code != 200) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "HTTP error %ld", http_code);
+        C64_LOG_ERROR(REST_LOG_PREFIX "%s", client->error_msg);
+        return false;
+    }
+
+    C64_LOG_INFO(REST_LOG_PREFIX "Running CRT size=%zu", crt_size);
+    return true;
+}
+
+bool c64_rest_run_crt_path(c64_rest_client_t *client, const char *c64u_path)
+{
+    if (!client || !c64u_path) {
+        return false;
+    }
+
+    C64_LOG_INFO(REST_LOG_PREFIX "Running CRT from C64U: %s", c64u_path);
+
+    // URL encode the path
+    char *escaped_path = curl_easy_escape(client->curl, c64u_path, 0);
+    if (!escaped_path) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "Failed to escape path");
+        C64_LOG_ERROR(REST_LOG_PREFIX "Failed to escape path: %s", c64u_path);
+        return false;
+    }
+
+    // Build URL with file parameter
+    char url[512];
+    snprintf(url, sizeof(url), "%s/v1/runners:run_crt?file=%s", client->base_url, escaped_path);
+    curl_free(escaped_path);
+
+    // Reset CURL handle
+    curl_easy_reset(client->curl);
+
+    // CRITICAL: Re-set NOSIGNAL after reset to prevent Windows crashes
+    curl_easy_setopt(client->curl, CURLOPT_NOSIGNAL, 1L);
+
+    curl_easy_setopt(client->curl, CURLOPT_URL, url);
+    curl_easy_setopt(client->curl, CURLOPT_CUSTOMREQUEST, "PUT"); // Use PUT not POST
+    curl_easy_setopt(client->curl, CURLOPT_TIMEOUT, HTTP_TIMEOUT_SECONDS);
+
+    // Add password header if present
+    struct curl_slist *headers = NULL;
+    if (client->password && client->password[0]) {
+        char auth_header[256];
+        snprintf(auth_header, sizeof(auth_header), "X-Password: %s", client->password);
+        headers = curl_slist_append(headers, auth_header);
+        curl_easy_setopt(client->curl, CURLOPT_HTTPHEADER, headers);
+    }
+
+    // Perform request
+    CURLcode res = curl_easy_perform(client->curl);
+
+    if (headers) {
+        curl_slist_free_all(headers);
+    }
+
+    if (res != CURLE_OK) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "CURL error: %s", curl_easy_strerror(res));
+        C64_LOG_ERROR(REST_LOG_PREFIX "CURL error: %s", curl_easy_strerror(res));
+        return false;
+    }
+
+    // Check HTTP status
+    long http_code = 0;
+    curl_easy_getinfo(client->curl, CURLINFO_RESPONSE_CODE, &http_code);
+    if (http_code != 200) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "HTTP error %ld", http_code);
+        C64_LOG_ERROR(REST_LOG_PREFIX "HTTP error %ld for CRT execution", http_code);
+        return false;
+    }
+
+    C64_LOG_INFO(REST_LOG_PREFIX "✅ CRT execution started successfully");
+    return true;
+}
+
 bool c64_rest_mount_disk_path(c64_rest_client_t *client, char drive, const char *c64u_path)
 {
     if (!client || !c64u_path) {

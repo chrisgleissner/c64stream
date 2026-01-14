@@ -435,6 +435,27 @@ static bool reset_all_clicked(obs_properties_t *props, obs_property_t *property,
     return true; // Refresh properties UI
 }
 
+// File source changed callback - switch between file picker and text input
+static bool file_source_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings)
+{
+    UNUSED_PARAMETER(property);
+
+    int file_source = (int)obs_data_get_int(settings, "file_source");
+    obs_property_t *path_prop = obs_properties_get(props, "automation_path");
+
+    if (path_prop) {
+        if (file_source == 0) {
+            // Local Filesystem: use file picker
+            obs_property_set_description(path_prop, obs_module_text("AutomationPath"));
+        } else {
+            // C64U Filesystem: text input with c64u:/ prefix hint
+            obs_property_set_description(path_prop, obs_module_text("AutomationPath.C64U"));
+        }
+    }
+
+    return true; // Refresh properties
+}
+
 // Content automation button callbacks
 static bool automation_start_stop_clicked(obs_properties_t *props, obs_property_t *property, void *data)
 {
@@ -517,9 +538,13 @@ static void update_automation_status_property(obs_property_t *prop, struct c64_s
     }
 
     const char *status = c64_automation_get_status(context->automation);
-    char status_text[512];
+    const char *current_file = c64_automation_get_current_file(context->automation);
+    char status_text[1024];
 
-    if (status && status[0]) {
+    if (current_file && current_file[0]) {
+        // Show full path of currently playing file
+        snprintf(status_text, sizeof(status_text), "Status: %s", current_file);
+    } else if (status && status[0]) {
         snprintf(status_text, sizeof(status_text), "Status: %s", status);
     } else {
         snprintf(status_text, sizeof(status_text), "Status: Idle");
@@ -942,25 +967,63 @@ obs_properties_t *c64_create_properties(void *data)
     char **keymap_paths = NULL;
     size_t keymap_count = 0;
     if (c64_keyboard_discover_keymaps(&keymap_paths, &keymap_count)) {
-        for (size_t i = 0; i < keymap_count; i++) {
-            // Create display name from keymap filename
+        // Build display name array for sorting
+        typedef struct {
             char display_name[128];
-            strncpy(display_name, keymap_paths[i], sizeof(display_name) - 1);
-            display_name[sizeof(display_name) - 1] = '\0';
+            char *path;
+            bool is_default;
+        } keymap_entry_t;
 
-            // Convert underscores to spaces for display
-            for (char *p = display_name; *p; p++) {
-                if (*p == '_')
-                    *p = ' ';
+        keymap_entry_t *entries = calloc(keymap_count, sizeof(keymap_entry_t));
+        if (entries) {
+            // Create display names and mark default
+            for (size_t i = 0; i < keymap_count; i++) {
+                strncpy(entries[i].display_name, keymap_paths[i], sizeof(entries[i].display_name) - 1);
+                entries[i].display_name[sizeof(entries[i].display_name) - 1] = '\0';
+                entries[i].path = keymap_paths[i];
+                entries[i].is_default = (strcmp(keymap_paths[i], "symbolic_us") == 0);
+
+                // Convert underscores to spaces for display
+                for (char *p = entries[i].display_name; *p; p++) {
+                    if (*p == '_')
+                        *p = ' ';
+                }
             }
 
-            obs_property_list_add_string(keymap_prop, display_name, keymap_paths[i]);
-            free(keymap_paths[i]);
+            // Sort alphabetically (case-insensitive), ignoring default entry
+            for (size_t i = 0; i < keymap_count - 1; i++) {
+                for (size_t j = i + 1; j < keymap_count; j++) {
+                    if (!entries[i].is_default && !entries[j].is_default &&
+                        strcasecmp(entries[i].display_name, entries[j].display_name) > 0) {
+                        keymap_entry_t temp = entries[i];
+                        entries[i] = entries[j];
+                        entries[j] = temp;
+                    }
+                }
+            }
+
+            // Add "Default (symbolic us)" first if present
+            for (size_t i = 0; i < keymap_count; i++) {
+                if (entries[i].is_default) {
+                    obs_property_list_add_string(keymap_prop, "Default (symbolic us)", entries[i].path);
+                    break;
+                }
+            }
+
+            // Add remaining keymaps in sorted order
+            for (size_t i = 0; i < keymap_count; i++) {
+                if (!entries[i].is_default) {
+                    obs_property_list_add_string(keymap_prop, entries[i].display_name, entries[i].path);
+                }
+                free(entries[i].path);
+            }
+
+            free(entries);
         }
         free(keymap_paths);
     } else {
         // Fallback to hardcoded defaults if discovery fails
-        obs_property_list_add_string(keymap_prop, "Symbolic US", "symbolic_us");
+        obs_property_list_add_string(keymap_prop, "Default (symbolic us)", "symbolic_us");
         obs_property_list_add_string(keymap_prop, "Positional US", "positional_us");
     }
 
@@ -970,10 +1033,20 @@ obs_properties_t *c64_create_properties(void *data)
     obs_property_set_long_description(file_source_prop, obs_module_text("FileSource.Description"));
     obs_property_list_add_int(file_source_prop, obs_module_text("FileSource.Local"), 0);
     obs_property_list_add_int(file_source_prop, obs_module_text("FileSource.C64U"), 1);
+    obs_property_set_modified_callback(file_source_prop, file_source_changed);
 
-    // Automation file/folder path - editable text field for C64U remote paths or local paths
-    obs_property_t *auto_path_prop =
-        obs_properties_add_text(rest_props, "automation_path", obs_module_text("AutomationPath"), OBS_TEXT_DEFAULT);
+    // Automation file/folder path - dynamic based on file_source
+    int current_file_source = (int)obs_data_get_int(obs_source_get_settings(context->source), "file_source");
+    obs_property_t *auto_path_prop;
+    if (current_file_source == 0) {
+        // Local Filesystem: use path picker
+        auto_path_prop = obs_properties_add_path(rest_props, "automation_path", obs_module_text("AutomationPath"),
+                                                 OBS_PATH_FILE, "All Files (*.*)", NULL);
+    } else {
+        // C64U Filesystem: text input
+        auto_path_prop = obs_properties_add_text(rest_props, "automation_path", obs_module_text("AutomationPath.C64U"),
+                                                 OBS_TEXT_DEFAULT);
+    }
     obs_property_set_long_description(auto_path_prop, obs_module_text("AutomationPath.Description"));
 
     // Automation shuffle
@@ -1002,12 +1075,14 @@ obs_properties_t *c64_create_properties(void *data)
         automation_running = c64_automation_is_running((c64_automation_t *)context->automation);
     }
 
-    // Start/Stop button - label changes based on state
-    obs_property_t *auto_start_stop_prop = obs_properties_add_button(
-        rest_props, "automation_start_stop", obs_module_text("AutomationStartStop"), automation_start_stop_clicked);
+    // Play/Stop Content button - label changes based on state
+    const char *button_label = automation_running ? obs_module_text("AutomationStopContent")
+                                                  : obs_module_text("AutomationPlayContent");
+    obs_property_t *auto_start_stop_prop =
+        obs_properties_add_button(rest_props, "automation_start_stop", button_label, automation_start_stop_clicked);
     obs_property_set_long_description(auto_start_stop_prop, automation_running
-                                                                ? obs_module_text("AutomationStartStop.Stop")
-                                                                : obs_module_text("AutomationStartStop.Start"));
+                                                                ? obs_module_text("AutomationStopContent.Description")
+                                                                : obs_module_text("AutomationPlayContent.Description"));
 
     // Reset all button
     obs_property_t *reset_all_prop =
