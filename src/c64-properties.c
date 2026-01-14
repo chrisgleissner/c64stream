@@ -662,11 +662,6 @@ obs_properties_t *c64_create_properties(void *data)
         obs_properties_add_int_slider(network_props, "buffer_delay_ms", obs_module_text("BufferDelay"), 0, 500, 1);
     obs_property_set_long_description(delay_prop, obs_module_text("BufferDelay.Description"));
 
-    // REST API Password (hidden input)
-    obs_property_t *rest_pass_prop =
-        obs_properties_add_text(network_props, "rest_password", obs_module_text("RESTPassword"), OBS_TEXT_PASSWORD);
-    obs_property_set_long_description(rest_pass_prop, obs_module_text("RESTPassword.Description"));
-
     // Recording Group
     obs_property_t *recording_group = obs_properties_add_group(props, "recording_group", obs_module_text("Recording"),
                                                                OBS_GROUP_NORMAL, obs_properties_create());
@@ -1650,7 +1645,6 @@ void c64_set_property_defaults(obs_data_t *settings)
     obs_data_erase(settings, C64_PALETTE_INITIALIZING_KEY);
 
     // REST Control defaults
-    obs_data_set_default_string(settings, "rest_password", "");
     obs_data_set_default_string(settings, "keyboard_keymap", "symbolic_us");
 
     obs_data_set_default_int(settings, "file_source", 0); // Local Filesystem

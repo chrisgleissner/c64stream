@@ -320,6 +320,14 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     const char *host = obs_data_get_string(settings, "c64_host");
     const char *hostname = host ? host : C64_DEFAULT_HOST;
 
+    const char *c64_password = obs_data_get_string(settings, "c64_password");
+    if (c64_password && c64_password[0] != '\0') {
+        strncpy(context->c64_password, c64_password, sizeof(context->c64_password) - 1);
+        context->c64_password[sizeof(context->c64_password) - 1] = '\0';
+    } else {
+        context->c64_password[0] = '\0';
+    }
+
     // Store the original hostname/IP as entered by user
     strncpy(context->hostname, hostname, sizeof(context->hostname) - 1);
     context->hostname[sizeof(context->hostname) - 1] = '\0';
@@ -686,7 +694,6 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->keymap = NULL;
     context->keyboard_capture_active = false;
     memset(context->rest_base_url, 0, sizeof(context->rest_base_url));
-    memset(context->rest_password, 0, sizeof(context->rest_password));
     memset(context->keyboard_keymap_name, 0, sizeof(context->keyboard_keymap_name));
 
     // Build REST base URL from c64_host
@@ -699,11 +706,7 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
             snprintf(context->rest_base_url, sizeof(context->rest_base_url), "http://%s", c64_host);
         }
 
-        const char *rest_password = obs_data_get_string(settings, "rest_password");
-        if (rest_password) {
-            strncpy(context->rest_password, rest_password, sizeof(context->rest_password) - 1);
-        }
-        context->rest_client = c64_rest_client_create(context->rest_base_url, context->rest_password);
+        context->rest_client = c64_rest_client_create(context->rest_base_url, context->c64_password);
     }
 
     // Load keyboard settings and create keyboard module

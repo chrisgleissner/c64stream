@@ -330,7 +330,6 @@ struct c64_source {
     c64_keymap_t *keymap;           // Current keymap
     bool keyboard_capture_active;   // Runtime state: capture is currently active
     char rest_base_url[256];        // REST API base URL
-    char rest_password[256];        // REST API password
     char keyboard_keymap_name[64];  // Keymap name (e.g., "symbolic_us")
 
     // Script automation
