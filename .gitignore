@@ -59,6 +59,9 @@ obs_log.txt
 build_*/
 tests/build*
 
+# Tools
+tools/__pycache__/
+
 # CMake generated files (everywhere)
 CMakeFiles/
 CMakeCache.txt

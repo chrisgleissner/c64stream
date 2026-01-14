@@ -1,0 +1,257 @@
+screen_code,screen_code_dec,petscii_code,petscii_code_dec,char,unicode,name,keyboard,control_code,byte1,byte2,byte3,byte4,byte5,byte6,byte7,byte8
+$00,0,$40,64,@,U+0040,commercial at,,@,$3C,$66,$6E,$6E,$60,$62,$3C,$00
+$01,1,$41,65,A,U+0041,latin capital letter a,,a,$18,$3C,$66,$7E,$66,$66,$66,$00
+$02,2,$42,66,B,U+0042,latin capital letter b,,b,$7C,$66,$66,$7C,$66,$66,$7C,$00
+$03,3,$43,67,C,U+0043,latin capital letter c,,c,$3C,$66,$60,$60,$60,$66,$3C,$00
+$04,4,$44,68,D,U+0044,latin capital letter d,,d,$78,$6C,$66,$66,$66,$6C,$78,$00
+$05,5,$45,69,E,U+0045,latin capital letter e,,e,$7E,$60,$60,$78,$60,$60,$7E,$00
+$06,6,$46,70,F,U+0046,latin capital letter f,,f,$7E,$60,$60,$78,$60,$60,$60,$00
+$07,7,$47,71,G,U+0047,latin capital letter g,,g,$3C,$66,$60,$6E,$66,$66,$3C,$00
+$08,8,$48,72,H,U+0048,latin capital letter h,,h,$66,$66,$66,$7E,$66,$66,$66,$00
+$09,9,$49,73,I,U+0049,latin capital letter i,,i,$3C,$18,$18,$18,$18,$18,$3C,$00
+$0A,10,$4A,74,J,U+004A,latin capital letter j,,j,$1E,$0C,$0C,$0C,$0C,$6C,$38,$00
+$0B,11,$4B,75,K,U+004B,latin capital letter k,,k,$66,$6C,$78,$70,$78,$6C,$66,$00
+$0C,12,$4C,76,L,U+004C,latin capital letter l,,l,$60,$60,$60,$60,$60,$60,$7E,$00
+$0D,13,$4D,77,M,U+004D,latin capital letter m,,m,$63,$77,$7F,$6B,$63,$63,$63,$00
+$0E,14,$4E,78,N,U+004E,latin capital letter n,,n,$66,$76,$7E,$7E,$6E,$66,$66,$00
+$0F,15,$4F,79,O,U+004F,latin capital letter o,,o,$3C,$66,$66,$66,$66,$66,$3C,$00
+$10,16,$50,80,P,U+0050,latin capital letter p,,p,$7C,$66,$66,$7C,$60,$60,$60,$00
+$11,17,$51,81,Q,U+0051,latin capital letter q,,q,$3C,$66,$66,$66,$66,$3C,$0E,$00
+$12,18,$52,82,R,U+0052,latin capital letter r,,r,$7C,$66,$66,$7C,$78,$6C,$66,$00
+$13,19,$53,83,S,U+0053,latin capital letter s,,s,$3C,$66,$60,$3C,$06,$66,$3C,$00
+$14,20,$54,84,T,U+0054,latin capital letter t,,t,$7E,$18,$18,$18,$18,$18,$18,$00
+$15,21,$55,85,U,U+0055,latin capital letter u,,u,$66,$66,$66,$66,$66,$66,$3C,$00
+$16,22,$56,86,V,U+0056,latin capital letter v,,v,$66,$66,$66,$66,$66,$3C,$18,$00
+$17,23,$57,87,W,U+0057,latin capital letter w,,w,$63,$63,$63,$6B,$7F,$77,$63,$00
+$18,24,$58,88,X,U+0058,latin capital letter x,,x,$66,$66,$3C,$18,$3C,$66,$66,$00
+$19,25,$59,89,Y,U+0059,latin capital letter y,,y,$66,$66,$66,$3C,$18,$18,$18,$00
+$1A,26,$5A,90,Z,U+005A,latin capital letter z,,z,$7E,$06,$0C,$18,$30,$60,$7E,$00
+$1B,27,$5B,91,[,U+005B,left square bracket,shift + :,c= + :,$3C,$30,$30,$30,$30,$30,$3C,$00
+$1C,28,$5C,92,£,U+00A3,pound sign,,£,$0C,$12,$30,$7C,$30,$62,$FC,$00
+$1D,29,$5D,93,],U+005D,right square bracket,shift + ;,c= + ;,$3C,$0C,$0C,$0C,$0C,$0C,$3C,$00
+$1E,30,$5E,94,↑,U+2191,upwards arrow,,↑,$00,$18,$3C,$7E,$18,$18,$18,$18
+$1F,31,$5F,95,←,U+2190,leftwards arrow,shift + ←,← / c= + ←,$00,$10,$30,$7F,$7F,$30,$10,$00
+$20,32,$20,32,,U+0020,space,,space,$00,$00,$00,$00,$00,$00,$00,$00
+$21,33,$21,33,!,U+0021,exclamation mark,shift + 1,,$18,$18,$18,$18,$00,$00,$18,$00
+$22,34,$22,34,"""",U+0022,quotation mark,shift + 2,,$66,$66,$66,$00,$00,$00,$00,$00
+$23,35,$23,35,#,U+0023,number sign,shift + 3,,$66,$66,$FF,$66,$FF,$66,$66,$00
+$24,36,$24,36,$,U+0024,dollar sign,shift + 4,,$18,$3E,$60,$3C,$06,$7C,$18,$00
+$25,37,$25,37,%,U+0025,percent sign,shift + 5,,$62,$66,$0C,$18,$30,$66,$46,$00
+$26,38,$26,38,&,U+0026,ampersand,shift + 6,,$3C,$66,$3C,$38,$67,$66,$3F,$00
+$27,39,$27,39,',U+0027,apostrophe,shift + 7,,$06,$0C,$18,$00,$00,$00,$00,$00
+$28,40,$28,40,(,U+0028,left parenthesis,shift + 8,,$0C,$18,$30,$30,$30,$18,$0C,$00
+$29,41,$29,41,),U+0029,right parenthesis,shift + 9,c= + 9,$30,$18,$0C,$0C,$0C,$18,$30,$00
+$2A,42,$2A,42,*,U+002A,asterisk,,*,$00,$66,$3C,$FF,$3C,$66,$00,$00
+$2B,43,$2B,43,+,U+002B,plus sign,,+,$00,$18,$18,$7E,$18,$18,$00,$00
+$2C,44,$2C,44,",",U+002C,comma,,",",$00,$00,$00,$00,$00,$18,$18,$30
+$2D,45,$2D,45,-,U+002D,hyphen-minus,,-,$00,$00,$00,$7E,$00,$00,$00,$00
+$2E,46,$2E,46,.,U+002E,full stop,,.,$00,$00,$00,$00,$00,$18,$18,$00
+$2F,47,$2F,47,/,U+002F,solidus,,/,$00,$03,$06,$0C,$18,$30,$60,$00
+$30,48,$30,48,0,U+0030,digit zero,shift + 0,0 / c= + 0,$3C,$66,$6E,$76,$66,$66,$3C,$00
+$31,49,$31,49,1,U+0031,digit one,,1,$18,$18,$38,$18,$18,$18,$7E,$00
+$32,50,$32,50,2,U+0032,digit two,,2,$3C,$66,$06,$0C,$30,$60,$7E,$00
+$33,51,$33,51,3,U+0033,digit three,,3,$3C,$66,$06,$1C,$06,$66,$3C,$00
+$34,52,$34,52,4,U+0034,digit four,,4,$06,$0E,$1E,$66,$7F,$06,$06,$00
+$35,53,$35,53,5,U+0035,digit five,,5,$7E,$60,$7C,$06,$06,$66,$3C,$00
+$36,54,$36,54,6,U+0036,digit six,,6,$3C,$66,$60,$7C,$66,$66,$3C,$00
+$37,55,$37,55,7,U+0037,digit seven,,7,$7E,$66,$0C,$18,$18,$18,$18,$00
+$38,56,$38,56,8,U+0038,digit eight,,8,$3C,$66,$66,$3C,$66,$66,$3C,$00
+$39,57,$39,57,9,U+0039,digit nine,,9,$3C,$66,$66,$3E,$06,$66,$3C,$00
+$3A,58,$3A,58,:,U+003A,colon,,:,$00,$00,$18,$00,$00,$18,$00,$00
+$3B,59,$3B,59,;,U+003B,semicolon,,;,$00,$00,$18,$00,$00,$18,$18,$30
+$3C,60,$3C,60,<,U+003C,less-than sign,"shift + ,","c= + ,",$0E,$18,$30,$60,$30,$18,$0E,$00
+$3D,61,$3D,61,=,U+003D,equals sign,shift + =,= / c= + =,$00,$00,$7E,$00,$7E,$00,$00,$00
+$3E,62,$3E,62,>,U+003E,greater-than sign,shift + .,c= + .,$70,$18,$0C,$06,$0C,$18,$70,$00
+$3F,63,$3F,63,?,U+003F,question mark,shift + /,c= + /,$3C,$66,$06,$0C,$18,$00,$18,$00
+$40,64,$60,96,─,U+2500,box drawings light horizontal,,,$00,$00,$00,$FF,$FF,$00,$00,$00
+$41,65,$61,97,♠,U+2660,black spade suit,,,$08,$1C,$3E,$7F,$7F,$1C,$3E,$00
+$42,66,$62,98,🭲,U+1FB72,vertical one eighth block-4,,,$18,$18,$18,$18,$18,$18,$18,$18
+$43,67,$63,99,🭸,U+1FB78,horizontal one eighth block-4,,,$00,$00,$00,$FF,$FF,$00,$00,$00
+$44,68,$64,100,🭷,U+1FB77,horizontal one eighth block-3,,,$00,$00,$FF,$FF,$00,$00,$00,$00
+$45,69,$65,101,🭶,U+1FB76,horizontal one eighth block-2,,,$00,$FF,$FF,$00,$00,$00,$00,$00
+$46,70,$66,102,🭺,U+1FB7A,horizontal one eighth block-6,,,$00,$00,$00,$00,$FF,$FF,$00,$00
+$47,71,$67,103,🭱,U+1FB71,vertical one eighth block-3,,,$30,$30,$30,$30,$30,$30,$30,$30
+$48,72,$68,104,🭴,U+1FB74,vertical one eighth block-6,,,$0C,$0C,$0C,$0C,$0C,$0C,$0C,$0C
+$49,73,$69,105,╮,U+256E,box drawings light arc down and left,,,$00,$00,$00,$E0,$F0,$38,$18,$18
+$4A,74,$6A,106,╰,U+2570,box drawings light arc up and right,,,$18,$18,$1C,$0F,$07,$00,$00,$00
+$4B,75,$6B,107,╯,U+256F,box drawings light arc up and left,,,$18,$18,$38,$F0,$E0,$00,$00,$00
+$4C,76,$6C,108,🭼,U+1FB7C,left and lower one eighth block,,,$C0,$C0,$C0,$C0,$C0,$C0,$FF,$FF
+$4D,77,$6D,109,╲,U+2572,box drawings light diagonal upper left to lower right,,,$C0,$E0,$70,$38,$1C,$0E,$07,$03
+$4E,78,$6E,110,╱,U+2571,box drawings light diagonal upper right to lower left,,,$03,$07,$0E,$1C,$38,$70,$E0,$C0
+$4F,79,$6F,111,🭽,U+1FB7D,left and upper one eighth block,,,$FF,$FF,$C0,$C0,$C0,$C0,$C0,$C0
+$50,80,$70,112,🭾,U+1FB7E,right and upper one eighth block,,,$FF,$FF,$03,$03,$03,$03,$03,$03
+$51,81,$71,113,•,U+2022,bullet,,,$00,$3C,$7E,$7E,$7E,$7E,$3C,$00
+$52,82,$72,114,🭻,U+1FB7B,horizontal one eighth block-7,,,$00,$00,$00,$00,$00,$FF,$FF,$00
+$53,83,$73,115,♥,U+2665,black heart suit,,,$36,$7F,$7F,$7F,$3E,$1C,$08,$00
+$54,84,$74,116,🭰,U+1FB70,vertical one eighth block-2,,,$60,$60,$60,$60,$60,$60,$60,$60
+$55,85,$75,117,╭,U+256D,box drawings light arc down and right,,,$00,$00,$00,$07,$0F,$1C,$18,$18
+$56,86,$76,118,╳,U+2573,box drawings light diagonal cross,,,$C3,$E7,$7E,$3C,$3C,$7E,$E7,$C3
+$57,87,$77,119,○,U+25CB,white circle,,,$00,$3C,$7E,$66,$66,$7E,$3C,$00
+$58,88,$78,120,♣,U+2663,black club suit,,,$18,$18,$66,$66,$18,$18,$3C,$00
+$59,89,$79,121,🭵,U+1FB75,vertical one eighth block-7,,,$06,$06,$06,$06,$06,$06,$06,$06
+$5A,90,$7A,122,♦,U+2666,black diamond suit,,,$08,$1C,$3E,$7F,$3E,$1C,$08,$00
+$5B,91,$7B,123,┼,U+253C,box drawings light vertical and horizontal,,,$18,$18,$18,$FF,$FF,$18,$18,$18
+$5C,92,$7C,124,🮌,U+1FB8C,left half medium shade,,,$C0,$C0,$30,$30,$C0,$C0,$30,$30
+$5D,93,$7D,125,│,U+2502,box drawings light vertical,,,$18,$18,$18,$18,$18,$18,$18,$18
+$5E,94,$7E,126,π,U+03C0,greek small letter pi,,,$00,$00,$03,$3E,$76,$36,$36,$00
+$5F,95,$7F,127,◥,U+25E5,black upper right triangle,,,$FF,$7F,$3F,$1F,$0F,$07,$03,$01
+$60,96,,,,,,,,$00,$00,$00,$00,$00,$00,$00,$00
+$61,97,,,,,,,,$F0,$F0,$F0,$F0,$F0,$F0,$F0,$F0
+$62,98,,,,,,,,$00,$00,$00,$00,$FF,$FF,$FF,$FF
+$63,99,,,,,,,,$FF,$00,$00,$00,$00,$00,$00,$00
+$64,100,,,,,,,,$00,$00,$00,$00,$00,$00,$00,$FF
+$65,101,,,,,,,,$C0,$C0,$C0,$C0,$C0,$C0,$C0,$C0
+$66,102,,,,,,,,$CC,$CC,$33,$33,$CC,$CC,$33,$33
+$67,103,,,,,,,,$03,$03,$03,$03,$03,$03,$03,$03
+$68,104,,,,,,,,$00,$00,$00,$00,$CC,$CC,$33,$33
+$69,105,,,,,,,,$FF,$FE,$FC,$F8,$F0,$E0,$C0,$80
+$6A,106,,,,,,,,$03,$03,$03,$03,$03,$03,$03,$03
+$6B,107,,,,,,,,$18,$18,$18,$1F,$1F,$18,$18,$18
+$6C,108,,,,,,,,$00,$00,$00,$00,$0F,$0F,$0F,$0F
+$6D,109,,,,,,,,$18,$18,$18,$1F,$1F,$00,$00,$00
+$6E,110,,,,,,,,$00,$00,$00,$F8,$F8,$18,$18,$18
+$6F,111,,,,,,,,$00,$00,$00,$00,$00,$00,$FF,$FF
+$70,112,,,,,,,,$00,$00,$00,$1F,$1F,$18,$18,$18
+$71,113,,,,,,,,$18,$18,$18,$FF,$FF,$00,$00,$00
+$72,114,,,,,,,,$00,$00,$00,$FF,$FF,$18,$18,$18
+$73,115,,,,,,,,$18,$18,$18,$F8,$F8,$18,$18,$18
+$74,116,,,,,,,,$C0,$C0,$C0,$C0,$C0,$C0,$C0,$C0
+$75,117,,,,,,,,$E0,$E0,$E0,$E0,$E0,$E0,$E0,$E0
+$76,118,,,,,,,,$07,$07,$07,$07,$07,$07,$07,$07
+$77,119,,,,,,,,$FF,$FF,$00,$00,$00,$00,$00,$00
+$78,120,,,,,,,,$FF,$FF,$FF,$00,$00,$00,$00,$00
+$79,121,,,,,,,,$00,$00,$00,$00,$00,$FF,$FF,$FF
+$7A,122,,,,,,,,$03,$03,$03,$03,$03,$03,$FF,$FF
+$7B,123,,,,,,,,$00,$00,$00,$00,$F0,$F0,$F0,$F0
+$7C,124,,,,,,,,$0F,$0F,$0F,$0F,$00,$00,$00,$00
+$7D,125,,,,,,,,$18,$18,$18,$F8,$F8,$00,$00,$00
+$7E,126,,,,,,,,$F0,$F0,$F0,$F0,$00,$00,$00,$00
+$7F,127,,,,,,,,$F0,$F0,$F0,$F0,$0F,$0F,$0F,$0F
+$80,128,$40,64,@,U+0040,commercial at (reverse),,@,$C3,$99,$91,$91,$9F,$99,$C3,$FF
+$81,129,$41,65,A,U+0041,latin capital letter a (reverse),,a,$E7,$C3,$99,$81,$99,$99,$99,$FF
+$82,130,$42,66,B,U+0042,latin capital letter b (reverse),,b,$83,$99,$99,$83,$99,$99,$83,$FF
+$83,131,$43,67,C,U+0043,latin capital letter c (reverse),,c,$C3,$99,$9F,$9F,$9F,$99,$C3,$FF
+$84,132,$44,68,D,U+0044,latin capital letter d (reverse),,d,$87,$93,$99,$99,$99,$93,$87,$FF
+$85,133,$45,69,E,U+0045,latin capital letter e (reverse),,e,$81,$9F,$9F,$87,$9F,$9F,$81,$FF
+$86,134,$46,70,F,U+0046,latin capital letter f (reverse),,f,$81,$9F,$9F,$87,$9F,$9F,$9F,$FF
+$87,135,$47,71,G,U+0047,latin capital letter g (reverse),,g,$C3,$99,$9F,$91,$99,$99,$C3,$FF
+$88,136,$48,72,H,U+0048,latin capital letter h (reverse),,h,$99,$99,$99,$81,$99,$99,$99,$FF
+$89,137,$49,73,I,U+0049,latin capital letter i (reverse),,i,$C3,$E7,$E7,$E7,$E7,$E7,$C3,$FF
+$8A,138,$4A,74,J,U+004A,latin capital letter j (reverse),,j,$E1,$F3,$F3,$F3,$F3,$93,$C7,$FF
+$8B,139,$4B,75,K,U+004B,latin capital letter k (reverse),,k,$99,$93,$87,$8F,$87,$93,$99,$FF
+$8C,140,$4C,76,L,U+004C,latin capital letter l (reverse),,l,$9F,$9F,$9F,$9F,$9F,$9F,$81,$FF
+$8D,141,$4D,77,M,U+004D,latin capital letter m (reverse),,m,$9C,$88,$80,$94,$9C,$9C,$9C,$FF
+$8E,142,$4E,78,N,U+004E,latin capital letter n (reverse),,n,$99,$89,$81,$81,$91,$99,$99,$FF
+$8F,143,$4F,79,O,U+004F,latin capital letter o (reverse),,o,$C3,$99,$99,$99,$99,$99,$C3,$FF
+$90,144,$50,80,P,U+0050,latin capital letter p (reverse),,p,$83,$99,$99,$83,$9F,$9F,$9F,$FF
+$91,145,$51,81,Q,U+0051,latin capital letter q (reverse),,q,$C3,$99,$99,$99,$99,$C3,$F1,$FF
+$92,146,$52,82,R,U+0052,latin capital letter r (reverse),,r,$83,$99,$99,$83,$87,$93,$99,$FF
+$93,147,$53,83,S,U+0053,latin capital letter s (reverse),,s,$C3,$99,$9F,$C3,$F9,$99,$C3,$FF
+$94,148,$54,84,T,U+0054,latin capital letter t (reverse),,t,$81,$E7,$E7,$E7,$E7,$E7,$E7,$FF
+$95,149,$55,85,U,U+0055,latin capital letter u (reverse),,u,$99,$99,$99,$99,$99,$99,$C3,$FF
+$96,150,$56,86,V,U+0056,latin capital letter v (reverse),,v,$99,$99,$99,$99,$99,$C3,$E7,$FF
+$97,151,$57,87,W,U+0057,latin capital letter w (reverse),,w,$9C,$9C,$9C,$94,$80,$88,$9C,$FF
+$98,152,$58,88,X,U+0058,latin capital letter x (reverse),,x,$99,$99,$C3,$E7,$C3,$99,$99,$FF
+$99,153,$59,89,Y,U+0059,latin capital letter y (reverse),,y,$99,$99,$99,$C3,$E7,$E7,$E7,$FF
+$9A,154,$5A,90,Z,U+005A,latin capital letter z (reverse),,z,$81,$F9,$F3,$E7,$CF,$9F,$81,$FF
+$9B,155,$5B,91,[,U+005B,left square bracket (reverse),shift + :,c= + :,$C3,$CF,$CF,$CF,$CF,$CF,$C3,$FF
+$9C,156,$5C,92,£,U+00A3,pound sign (reverse),,£,$F3,$ED,$CF,$83,$CF,$9D,$03,$FF
+$9D,157,$5D,93,],U+005D,right square bracket (reverse),shift + ;,c= + ;,$C3,$F3,$F3,$F3,$F3,$F3,$C3,$FF
+$9E,158,$5E,94,↑,U+2191,upwards arrow (reverse),,↑,$FF,$E7,$C3,$81,$E7,$E7,$E7,$E7
+$9F,159,$5F,95,←,U+2190,leftwards arrow (reverse),shift + ←,← / c= + ←,$FF,$EF,$CF,$80,$80,$CF,$EF,$FF
+$A0,160,$20,32,,U+0020,space (reverse),,space,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
+$A1,161,$21,33,!,U+0021,exclamation mark (reverse),shift + 1,,$E7,$E7,$E7,$E7,$FF,$FF,$E7,$FF
+$A2,162,$22,34,"""",U+0022,quotation mark (reverse),shift + 2,,$99,$99,$99,$FF,$FF,$FF,$FF,$FF
+$A3,163,$23,35,#,U+0023,number sign (reverse),shift + 3,,$99,$99,$00,$99,$00,$99,$99,$FF
+$A4,164,$24,36,$,U+0024,dollar sign (reverse),shift + 4,,$E7,$C1,$9F,$C3,$F9,$83,$E7,$FF
+$A5,165,$25,37,%,U+0025,percent sign (reverse),shift + 5,,$9D,$99,$F3,$E7,$CF,$99,$B9,$FF
+$A6,166,$26,38,&,U+0026,ampersand (reverse),shift + 6,,$C3,$99,$C3,$C7,$98,$99,$C0,$FF
+$A7,167,$27,39,',U+0027,apostrophe (reverse),shift + 7,,$F9,$F3,$E7,$FF,$FF,$FF,$FF,$FF
+$A8,168,$28,40,(,U+0028,left parenthesis (reverse),shift + 8,,$F3,$E7,$CF,$CF,$CF,$E7,$F3,$FF
+$A9,169,$29,41,),U+0029,right parenthesis (reverse),shift + 9,c= + 9,$CF,$E7,$F3,$F3,$F3,$E7,$CF,$FF
+$AA,170,$2A,42,*,U+002A,asterisk (reverse),,*,$FF,$99,$C3,$00,$C3,$99,$FF,$FF
+$AB,171,$2B,43,+,U+002B,plus sign (reverse),,+,$FF,$E7,$E7,$81,$E7,$E7,$FF,$FF
+$AC,172,$2C,44,",",U+002C,comma (reverse),,",",$FF,$FF,$FF,$FF,$FF,$E7,$E7,$CF
+$AD,173,$2D,45,-,U+002D,hyphen-minus (reverse),,-,$FF,$FF,$FF,$81,$FF,$FF,$FF,$FF
+$AE,174,$2E,46,.,U+002E,full stop (reverse),,.,$FF,$FF,$FF,$FF,$FF,$E7,$E7,$FF
+$AF,175,$2F,47,/,U+002F,solidus (reverse),,/,$FF,$FC,$F9,$F3,$E7,$CF,$9F,$FF
+$B0,176,$30,48,0,U+0030,digit zero (reverse),shift + 0,0 / c= + 0,$C3,$99,$91,$89,$99,$99,$C3,$FF
+$B1,177,$31,49,1,U+0031,digit one (reverse),,1,$E7,$E7,$C7,$E7,$E7,$E7,$81,$FF
+$B2,178,$32,50,2,U+0032,digit two (reverse),,2,$C3,$99,$F9,$F3,$CF,$9F,$81,$FF
+$B3,179,$33,51,3,U+0033,digit three (reverse),,3,$C3,$99,$F9,$E3,$F9,$99,$C3,$FF
+$B4,180,$34,52,4,U+0034,digit four (reverse),,4,$F9,$F1,$E1,$99,$80,$F9,$F9,$FF
+$B5,181,$35,53,5,U+0035,digit five (reverse),,5,$81,$9F,$83,$F9,$F9,$99,$C3,$FF
+$B6,182,$36,54,6,U+0036,digit six (reverse),,6,$C3,$99,$9F,$83,$99,$99,$C3,$FF
+$B7,183,$37,55,7,U+0037,digit seven (reverse),,7,$81,$99,$F3,$E7,$E7,$E7,$E7,$FF
+$B8,184,$38,56,8,U+0038,digit eight (reverse),,8,$C3,$99,$99,$C3,$99,$99,$C3,$FF
+$B9,185,$39,57,9,U+0039,digit nine (reverse),,9,$C3,$99,$99,$C1,$F9,$99,$C3,$FF
+$BA,186,$3A,58,:,U+003A,colon (reverse),,:,$FF,$FF,$E7,$FF,$FF,$E7,$FF,$FF
+$BB,187,$3B,59,;,U+003B,semicolon (reverse),,;,$FF,$FF,$E7,$FF,$FF,$E7,$E7,$CF
+$BC,188,$3C,60,<,U+003C,less-than sign (reverse),"shift + ,","c= + ,",$F1,$E7,$CF,$9F,$CF,$E7,$F1,$FF
+$BD,189,$3D,61,=,U+003D,equals sign (reverse),shift + =,= / c= + =,$FF,$FF,$81,$FF,$81,$FF,$FF,$FF
+$BE,190,$3E,62,>,U+003E,greater-than sign (reverse),shift + .,c= + .,$8F,$E7,$F3,$F9,$F3,$E7,$8F,$FF
+$BF,191,$3F,63,?,U+003F,question mark (reverse),shift + /,c= + /,$C3,$99,$F9,$F3,$E7,$FF,$E7,$FF
+$C0,192,$60,96,─,U+2500,box drawings light horizontal (reverse),,,$FF,$FF,$FF,$00,$00,$FF,$FF,$FF
+$C1,193,$61,97,♠,U+2660,black spade suit (reverse),,,$F7,$E3,$C1,$80,$80,$E3,$C1,$FF
+$C2,194,$62,98,🭲,U+1FB72,vertical one eighth block-4 (reverse),,,$E7,$E7,$E7,$E7,$E7,$E7,$E7,$E7
+$C3,195,$63,99,🭸,U+1FB78,horizontal one eighth block-4 (reverse),,,$FF,$FF,$FF,$00,$00,$FF,$FF,$FF
+$C4,196,$64,100,🭷,U+1FB77,horizontal one eighth block-3 (reverse),,,$FF,$FF,$00,$00,$FF,$FF,$FF,$FF
+$C5,197,$65,101,🭶,U+1FB76,horizontal one eighth block-2 (reverse),,,$FF,$00,$00,$FF,$FF,$FF,$FF,$FF
+$C6,198,$66,102,🭺,U+1FB7A,horizontal one eighth block-6 (reverse),,,$FF,$FF,$FF,$FF,$00,$00,$FF,$FF
+$C7,199,$67,103,🭱,U+1FB71,vertical one eighth block-3 (reverse),,,$CF,$CF,$CF,$CF,$CF,$CF,$CF,$CF
+$C8,200,$68,104,🭴,U+1FB74,vertical one eighth block-6 (reverse),,,$F3,$F3,$F3,$F3,$F3,$F3,$F3,$F3
+$C9,201,$69,105,╮,U+256E,box drawings light arc down and left (reverse),,,$FF,$FF,$FF,$1F,$0F,$C7,$E7,$E7
+$CA,202,$6A,106,╰,U+2570,box drawings light arc up and right (reverse),,,$E7,$E7,$E3,$F0,$F8,$FF,$FF,$FF
+$CB,203,$6B,107,╯,U+256F,box drawings light arc up and left (reverse),,,$E7,$E7,$C7,$0F,$1F,$FF,$FF,$FF
+$CC,204,$6C,108,🭼,U+1FB7C,left and lower one eighth block (reverse),,,$3F,$3F,$3F,$3F,$3F,$3F,$00,$00
+$CD,205,$6D,109,╲,U+2572,box drawings light diagonal upper left to lower right (reverse),,,$3F,$1F,$8F,$C7,$E3,$F1,$F8,$FC
+$CE,206,$6E,110,╱,U+2571,box drawings light diagonal upper right to lower left (reverse),,,$FC,$F8,$F1,$E3,$C7,$8F,$1F,$3F
+$CF,207,$6F,111,🭽,U+1FB7D,left and upper one eighth block (reverse),,,$00,$00,$3F,$3F,$3F,$3F,$3F,$3F
+$D0,208,$70,112,🭾,U+1FB7E,right and upper one eighth block (reverse),,,$00,$00,$FC,$FC,$FC,$FC,$FC,$FC
+$D1,209,$71,113,•,U+2022,bullet (reverse),,,$FF,$C3,$81,$81,$81,$81,$C3,$FF
+$D2,210,$72,114,🭻,U+1FB7B,horizontal one eighth block-7 (reverse),,,$FF,$FF,$FF,$FF,$FF,$00,$00,$FF
+$D3,211,$73,115,♥,U+2665,black heart suit (reverse),,,$C9,$80,$80,$80,$C1,$E3,$F7,$FF
+$D4,212,$74,116,🭰,U+1FB70,vertical one eighth block-2 (reverse),,,$9F,$9F,$9F,$9F,$9F,$9F,$9F,$9F
+$D5,213,$75,117,╭,U+256D,box drawings light arc down and right (reverse),,,$FF,$FF,$FF,$F8,$F0,$E3,$E7,$E7
+$D6,214,$76,118,╳,U+2573,box drawings light diagonal cross (reverse),,,$3C,$18,$81,$C3,$C3,$81,$18,$3C
+$D7,215,$77,119,○,U+25CB,white circle (reverse),,,$FF,$C3,$81,$99,$99,$81,$C3,$FF
+$D8,216,$78,120,♣,U+2663,black club suit (reverse),,,$E7,$E7,$99,$99,$E7,$E7,$C3,$FF
+$D9,217,$79,121,🭵,U+1FB75,vertical one eighth block-7 (reverse),,,$F9,$F9,$F9,$F9,$F9,$F9,$F9,$F9
+$DA,218,$7A,122,♦,U+2666,black diamond suit (reverse),,,$F7,$E3,$C1,$80,$C1,$E3,$F7,$FF
+$DB,219,$7B,123,┼,U+253C,box drawings light vertical and horizontal (reverse),,,$E7,$E7,$E7,$00,$00,$E7,$E7,$E7
+$DC,220,$7C,124,🮌,U+1FB8C,left half medium shade (reverse),,,$3F,$3F,$CF,$CF,$3F,$3F,$CF,$CF
+$DD,221,$7D,125,│,U+2502,box drawings light vertical (reverse),,,$E7,$E7,$E7,$E7,$E7,$E7,$E7,$E7
+$DE,222,$7E,126,π,U+03C0,greek small letter pi (reverse),,,$FF,$FF,$FC,$C1,$89,$C9,$C9,$FF
+$DF,223,$7F,127,◥,U+25E5,black upper right triangle (reverse),,,$00,$80,$C0,$E0,$F0,$F8,$FC,$FE
+$E0,224,,,,,,,,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
+$E1,225,,,,,,,,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F
+$E2,226,,,,,,,,$FF,$FF,$FF,$FF,$00,$00,$00,$00
+$E3,227,,,,,,,,$00,$FF,$FF,$FF,$FF,$FF,$FF,$FF
+$E4,228,,,,,,,,$FF,$FF,$FF,$FF,$FF,$FF,$FF,$00
+$E5,229,,,,,,,,$3F,$3F,$3F,$3F,$3F,$3F,$3F,$3F
+$E6,230,,,,,,,,$33,$33,$CC,$CC,$33,$33,$CC,$CC
+$E7,231,,,,,,,,$FC,$FC,$FC,$FC,$FC,$FC,$FC,$FC
+$E8,232,,,,,,,,$FF,$FF,$FF,$FF,$33,$33,$CC,$CC
+$E9,233,,,,,,,,$00,$01,$03,$07,$0F,$1F,$3F,$7F
+$EA,234,,,,,,,,$FC,$FC,$FC,$FC,$FC,$FC,$FC,$FC
+$EB,235,,,,,,,,$E7,$E7,$E7,$E0,$E0,$E7,$E7,$E7
+$EC,236,,,,,,,,$FF,$FF,$FF,$FF,$F0,$F0,$F0,$F0
+$ED,237,,,,,,,,$E7,$E7,$E7,$E0,$E0,$FF,$FF,$FF
+$EE,238,,,,,,,,$FF,$FF,$FF,$07,$07,$E7,$E7,$E7
+$EF,239,,,,,,,,$FF,$FF,$FF,$FF,$FF,$FF,$00,$00
+$F0,240,,,,,,,,$FF,$FF,$FF,$E0,$E0,$E7,$E7,$E7
+$F1,241,,,,,,,,$E7,$E7,$E7,$00,$00,$FF,$FF,$FF
+$F2,242,,,,,,,,$FF,$FF,$FF,$00,$00,$E7,$E7,$E7
+$F3,243,,,,,,,,$E7,$E7,$E7,$07,$07,$E7,$E7,$E7
+$F4,244,,,,,,,,$3F,$3F,$3F,$3F,$3F,$3F,$3F,$3F
+$F5,245,,,,,,,,$1F,$1F,$1F,$1F,$1F,$1F,$1F,$1F
+$F6,246,,,,,,,,$F8,$F8,$F8,$F8,$F8,$F8,$F8,$F8
+$F7,247,,,,,,,,$00,$00,$FF,$FF,$FF,$FF,$FF,$FF
+$F8,248,,,,,,,,$00,$00,$00,$FF,$FF,$FF,$FF,$FF
+$F9,249,,,,,,,,$FF,$FF,$FF,$FF,$FF,$00,$00,$00
+$FA,250,,,,,,,,$FC,$FC,$FC,$FC,$FC,$FC,$00,$00
+$FB,251,,,,,,,,$FF,$FF,$FF,$FF,$0F,$0F,$0F,$0F
+$FC,252,,,,,,,,$F0,$F0,$F0,$F0,$FF,$FF,$FF,$FF
+$FD,253,,,,,,,,$E7,$E7,$E7,$07,$07,$FF,$FF,$FF
+$FE,254,,,,,,,,$0F,$0F,$0F,$0F,$FF,$FF,$FF,$FF
+$FF,255,,,,,,,,$0F,$0F,$0F,$0F,$F0,$F0,$F0,$F0

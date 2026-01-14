@@ -46,5 +46,8 @@ def test_keymap_parser():
     print("✅ Keymap format valid")
 
 if __name__ == '__main__':
-    success = test_keymap_parser()
-    sys.exit(0 if success else 1)
+    try:
+        test_keymap_parser()
+    except AssertionError:
+        sys.exit(1)
+    sys.exit(0)
