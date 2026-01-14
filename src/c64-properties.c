@@ -69,6 +69,7 @@ static bool script_reload_clicked(obs_properties_t *props, obs_property_t *prope
 static bool automation_start_stop_clicked(obs_properties_t *props, obs_property_t *property, void *data);
 static bool automation_next_clicked(obs_properties_t *props, obs_property_t *property, void *data);
 static bool playlist_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings);
+static bool folder_path_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings);
 static void update_playlist_property(obs_property_t *prop, struct c64_source *context);
 static bool file_source_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings);
 static bool playback_source_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings);
@@ -609,10 +610,28 @@ static bool automation_start_stop_clicked(obs_properties_t *props, obs_property_
         }
     }
 
-    // Force complete properties rebuild to update button labels and playlist
+    // Update button state immediately
+    bool new_state = context->automation && c64_automation_is_running(context->automation);
+    obs_property_t *button_prop = obs_properties_get(props, "automation_start_stop");
+    if (button_prop) {
+        const char *new_label = new_state ? obs_module_text("AutomationStopContent")
+                                          : obs_module_text("AutomationPlayContent");
+        const char *new_desc = new_state ? obs_module_text("AutomationStopContent.Description")
+                                         : obs_module_text("AutomationPlayContent.Description");
+        obs_property_set_description(button_prop, new_label);
+        obs_property_set_long_description(button_prop, new_desc);
+    }
+
+    // Update playlist dropdown
     obs_property_t *playlist_prop = obs_properties_get(props, "playlist");
     if (playlist_prop) {
         update_playlist_property(playlist_prop, context);
+    }
+
+    // Update Next button state
+    obs_property_t *next_prop = obs_properties_get(props, "automation_next");
+    if (next_prop) {
+        obs_property_set_enabled(next_prop, new_state);
     }
 
     return true; // Refresh properties
@@ -638,6 +657,28 @@ static bool automation_next_clicked(obs_properties_t *props, obs_property_t *pro
     }
 
     return true; // Refresh properties
+}
+
+static bool folder_path_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings)
+{
+    UNUSED_PARAMETER(property);
+    UNUSED_PARAMETER(settings);
+
+    // Refresh playlist dropdown when folder path changes
+    struct c64_source *context = obs_properties_get_param(props);
+    if (!context || !context->automation) {
+        return false;
+    }
+
+    if (c64_automation_is_running(context->automation)) {
+        obs_property_t *playlist_prop = obs_properties_get(props, "playlist");
+        if (playlist_prop) {
+            update_playlist_property(playlist_prop, context);
+        }
+        return true; // Refresh properties to update playlist
+    }
+
+    return false;
 }
 
 static bool playlist_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings)
@@ -1233,6 +1274,7 @@ obs_properties_t *c64_create_properties(void *data)
     // Local folder path (file_system=0, playback_source=1)
     obs_property_t *local_folder_prop = obs_properties_add_path(
         rest_props, "local_folder_path", obs_module_text("LocalFolderPath"), OBS_PATH_DIRECTORY, NULL, NULL);
+    obs_property_set_modified_callback(local_folder_prop, folder_path_changed);
     obs_property_set_long_description(local_folder_prop, obs_module_text("LocalFolderPath.Description"));
     obs_property_set_visible(local_folder_prop, file_system == 0 && playback_source == 1);
 
@@ -1250,6 +1292,7 @@ obs_properties_t *c64_create_properties(void *data)
     // C64U folder path (file_system=1, playback_source=1)
     obs_property_t *c64u_folder_prop =
         obs_properties_add_text(rest_props, "c64u_folder_path", obs_module_text("C64UFolderPath"), OBS_TEXT_DEFAULT);
+    obs_property_set_modified_callback(c64u_folder_prop, folder_path_changed);
     obs_property_set_long_description(c64u_folder_prop, obs_module_text("C64UFolderPath.Description"));
     obs_property_set_visible(c64u_folder_prop, file_system == 1 && playback_source == 1);
     // Ensure c64u:/ prefix exists in settings

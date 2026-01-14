@@ -32,7 +32,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include <time.h>
 
 #define AUTOMATION_LOG_PREFIX "[c64-automation] "
-#define MAX_FILES 1000
+#define MAX_FILES 100000
 #define RESET_DELAY_MS 500
 
 typedef struct {
@@ -956,8 +956,10 @@ bool c64_automation_jump_to_index(c64_automation_t *automation, int target_index
         return false;
     }
 
-    automation->current_index = target_index - 1; // Will be incremented in loop
-    automation->skip_requested = true;            // Skip current playback
+    // Set to target_index - 1 because the worker loop will increment current_index
+    // at the start of the next iteration (after skip)
+    automation->current_index = target_index - 1;
+    automation->skip_requested = true; // Skip current playback
     pthread_mutex_unlock(&automation->status_mutex);
 
     C64_LOG_INFO(AUTOMATION_LOG_PREFIX "Jumping to index %d", target_index);
