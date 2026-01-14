@@ -211,6 +211,8 @@ A new window opens. Keep the default settings and click "OK":
 - **Configure Ports** Use the default ports (video: 11000, audio: 11001) unless network conflicts require different values
 - **Buffer Delay:** Sets the network buffer for incoming UDP packets arriving from the C64 Ultimate (0–500 ms, default 10 ms). The buffer size is expressed in milliseconds to represent the time-based delay it introduces, compensating for packet loss, reordering, and variable network latency. Larger buffers improve stability under high-latency or congested conditions but increase end-to-end delay.
 
+---
+
 ### Recording 💾
 
 The plugin includes built-in recording capabilities that work independently of OBS Studio's recording system, letting you save raw C64 Ultimate data streams directly to disk.
@@ -312,6 +314,7 @@ audio,2341,847,0,0,192,125
 
 **Activation:** Enable the **"Network and Streaming Events (CSV)"** checkbox in the Recording properties. CSV files are generated only when this option is explicitly enabled.
 
+---
 
 ### Effects ✨
 
@@ -366,6 +369,7 @@ The following screenshot assumes you select "Wide" scan line mode, again assumin
 
 ![Edit Source Transform](./docs/images/source-transform-edit.png "Edit Source Transform in OBS")
 
+---
 
 ### Color Palettes 🎨
 
@@ -435,6 +439,8 @@ Import and export your complete plugin settings:
 
 Exported configurations are saved to the [settings directory](#file-system-structure-).
 
+---
+
 ### Remote Control 🎮 (**EXPERIMENTAL** - since version 1.1)
 
 Control your Ultimate 64 remotely from within OBS Studio, enabling keyboard input capture, automated content playback, and programmatic control via REST API.
@@ -475,6 +481,8 @@ Control your Ultimate 64 remotely from within OBS Studio, enabling keyboard inpu
 
 > [!NOTE]
 > Keyboard capture only works with software that reads input via the KERNAL keyboard buffer. Many programs, especially games, bypass this buffer and read key state directly from CIA1. Because the C64 Ultimate does not allow writing to the CIA1 registers, keyboard input will not work for those programs.
+
+---
 
 ### C64Script Automation 🤖 (**EXPERIMENTAL** - since version 1.1)
 
@@ -552,7 +560,7 @@ Then reload VS Code (`Ctrl+Shift+P` → "Reload Window"). The language mode shou
 - **Debugging Guide:** [`doc/c64script-debugging.md`](doc/c64script-debugging.md) - Detailed debugging workflows and tips
 - **Example Scripts:** [`data/scripts/`](data/scripts/) - Demo scripts showing effects, palettes, and automation
 
-### File System Structure 📁
+## File System Structure 📁
 
 The plugin uses three distinct filesystem locations:
 
