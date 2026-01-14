@@ -441,7 +441,9 @@ Exported configurations are saved to the [settings directory](#file-system-struc
 
 ---
 
-### Remote Control 🎮 (**EXPERIMENTAL** - since version 1.1)
+### Remote Control 🎮
+
+**EXPERIMENTAL - since version 1.1**
 
 Control your Ultimate 64 remotely from within OBS Studio, enabling keyboard input capture, automated content playback, and programmatic control via REST API.
 
@@ -450,7 +452,7 @@ Control your Ultimate 64 remotely from within OBS Studio, enabling keyboard inpu
 **Features:**
 
 - **Keyboard Capture:** Type directly into the C64 from OBS preview window with intelligent backpressure handling to help avoid lost keystrokes
-- **Automated Playback:** Unattended playback of SID music, PRG programs, and D64 disk images with shuffle support
+- **Automated Playback:** Unattended playback of SID/MOD music, PRG/CRT programs, and disk images (D64, G64, D71, G71 or D81) with shuffle support. When using disk images, it loads and starts the first program in the volume using `LOAD"*",8,1:RUN`.
 - **REST API Control:** Programmatic access to C64 Ultimate functions (reset, memory access, file mounting)
 
 **Configuration:**
@@ -461,7 +463,7 @@ Control your Ultimate 64 remotely from within OBS Studio, enabling keyboard inpu
   - Supports built-in and custom user keymaps (`.c64keymap.ini` format)
 - **Automation Mode:** Automated playback of C64 content
   - **Disabled:** No automation
-  - **Single File:** Play one `.sid`, `.prg`, or `.d64` file
+  - **Single File:** Play one `.sid`, `.mod`, `.prg`, or `.crt` file. If it finds a disk image, it plays the first file on that disk.
   - **Folder:** Enumerate and play all compatible files in a directory
 - **Content File:** Select the file to play (Single File mode) or any file within the target folder (Folder mode)
 - **Shuffle Files:** Randomize playback order using Fisher-Yates shuffle algorithm (Folder mode only)
@@ -484,7 +486,9 @@ Control your Ultimate 64 remotely from within OBS Studio, enabling keyboard inpu
 
 ---
 
-### C64Script Automation 🤖 (**EXPERIMENTAL** - since version 1.1)
+### C64Script Automation 🤖
+
+**EXPERIMENTAL - since version 1.1**
 
 Automate your C64 stream with C64Script - a modernized BASIC-like language designed specifically for stream control.
 
