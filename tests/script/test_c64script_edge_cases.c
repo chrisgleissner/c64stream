@@ -242,6 +242,65 @@ TEST(execute_function_with_wrong_arg_count)
 }
 
 // ============================================================================
+// VM COMPATIBILITY EDGE CASES
+// ============================================================================
+
+TEST(vm_op_return_value_is_supported)
+{
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    assert(runtime != NULL);
+
+    runtime->constant_count = 1;
+    runtime->constants = calloc(runtime->constant_count, sizeof(*runtime->constants));
+    assert(runtime->constants != NULL);
+    runtime->constants[0] = c64script_value_number(42.0);
+
+    runtime->bytecode_size = 2;
+    runtime->bytecode = calloc(runtime->bytecode_size, sizeof(*runtime->bytecode));
+    assert(runtime->bytecode != NULL);
+    runtime->bytecode[0] = (c64script_instruction_t){.opcode = OP_PUSH_CONST, .operand = 0, .source_line = 1};
+    runtime->bytecode[1] = (c64script_instruction_t){.opcode = OP_RETURN_VALUE, .operand = 0, .source_line = 1};
+
+    runtime->scope_stack_capacity = 1;
+    runtime->scope_stack_size = 1;
+    runtime->scope_stack = calloc(runtime->scope_stack_capacity, sizeof(*runtime->scope_stack));
+    assert(runtime->scope_stack != NULL);
+    runtime->scope_stack[0] = (c64script_scope_t){
+        .local_vars = NULL,
+        .local_var_count = 0,
+        .local_var_capacity = 0,
+        .saved_var_count = runtime->variable_count,
+        .return_ip = runtime->bytecode_size,
+    };
+
+    bool ok = c64script_execute(runtime);
+    assert(ok && "OP_RETURN_VALUE should execute successfully");
+    assert(runtime->stack_size == 1);
+    assert(runtime->stack[0].type == VALUE_NUMBER);
+    assert(runtime->stack[0].as.number == 42.0);
+
+    c64script_runtime_destroy(runtime);
+}
+
+TEST(vm_scope_opcodes_are_supported)
+{
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    assert(runtime != NULL);
+
+    runtime->bytecode_size = 3;
+    runtime->bytecode = calloc(runtime->bytecode_size, sizeof(*runtime->bytecode));
+    assert(runtime->bytecode != NULL);
+    runtime->bytecode[0] = (c64script_instruction_t){.opcode = OP_ENTER_SCOPE, .operand = 0, .source_line = 1};
+    runtime->bytecode[1] = (c64script_instruction_t){.opcode = OP_EXIT_SCOPE, .operand = 0, .source_line = 1};
+    runtime->bytecode[2] = (c64script_instruction_t){.opcode = OP_STOP, .operand = 0, .source_line = 1};
+
+    bool ok = c64script_execute(runtime);
+    assert(ok && "OP_ENTER_SCOPE/OP_EXIT_SCOPE should execute successfully");
+
+    c64script_runtime_destroy(runtime);
+}
+
+// ============================================================================
 // CONTROL FLOW EDGE CASES
 // ============================================================================
 
@@ -558,6 +617,10 @@ int main(void)
     RUN_TEST(parse_function_missing_endfun);
     RUN_TEST(execute_undefined_function_call);
     RUN_TEST(execute_function_with_wrong_arg_count);
+
+    printf("\n--- VM Compatibility Edge Cases ---\n");
+    RUN_TEST(vm_op_return_value_is_supported);
+    RUN_TEST(vm_scope_opcodes_are_supported);
 
     printf("\n--- Control Flow Edge Cases ---\n");
     RUN_TEST(execute_goto_undefined_label);

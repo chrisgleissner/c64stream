@@ -1480,7 +1480,10 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
         break;
     }
 
-    case OP_RETURN: {
+    case OP_RETURN:
+    case OP_RETURN_VALUE: {
+        bool has_return_value = (instr->opcode == OP_RETURN_VALUE) || (instr->operand != 0);
+
         // Check if we're in a function scope or GOSUB
         if (runtime->scope_stack_size > 0) {
             // Function return
@@ -1488,7 +1491,7 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
 
             // Get return value if present (operand = 1 means yes, 0 means no)
             c64script_value_t return_val = {.type = VALUE_NUMBER, .as.number = 0.0};
-            if (instr->operand != 0) {
+            if (has_return_value) {
                 if (!c64script_runtime_pop(runtime, &return_val))
                     return false;
             }
@@ -1517,7 +1520,6 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
             return true;
         } else if (runtime->gosub_stack_size > 0) {
             // GOSUB return
-            bool has_return_value = (instr->operand != 0);
             if (has_return_value) {
                 c64script_value_t return_val;
                 if (!c64script_runtime_pop(runtime, &return_val))
@@ -1544,6 +1546,11 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
             return false;
         }
     }
+
+    case OP_ENTER_SCOPE:
+    case OP_EXIT_SCOPE:
+        // Compatibility no-ops: current function scoping is managed by OP_CALL_FUNCTION/OP_RETURN.
+        break;
 
     case OP_STOP:
     case OP_HALT:
@@ -3376,15 +3383,6 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
         }
         return true;
     }
-
-    case OP_RETURN_VALUE:
-        snprintf(runtime->error_msg, sizeof(runtime->error_msg), "RETURN statement not yet implemented");
-        return false;
-
-    case OP_ENTER_SCOPE:
-    case OP_EXIT_SCOPE:
-        snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Function scopes not yet implemented");
-        return false;
 
     default:
         snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Unknown opcode: %d", instr->opcode);
