@@ -64,13 +64,16 @@ static bool script_pause_resume_clicked(obs_properties_t *props, obs_property_t 
 static bool script_step_clicked(obs_properties_t *props, obs_property_t *property, void *data);
 static bool script_log_variables_clicked(obs_properties_t *props, obs_property_t *property, void *data);
 static bool script_reload_clicked(obs_properties_t *props, obs_property_t *property, void *data);
-static bool reset_all_clicked(obs_properties_t *props, obs_property_t *property, void *data);
 
 // Content automation callbacks
 static bool automation_start_stop_clicked(obs_properties_t *props, obs_property_t *property, void *data);
 static void update_automation_status_property(obs_property_t *prop, struct c64_source *context);
-static bool script_reload_clicked(obs_properties_t *props, obs_property_t *property, void *data);
-static bool reset_all_clicked(obs_properties_t *props, obs_property_t *property, void *data);
+static bool file_source_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings);
+static bool playback_source_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings);
+
+// Reset controls
+static bool reset_plugin_clicked(obs_properties_t *props, obs_property_t *property, void *data);
+static bool reset_c64u_clicked(obs_properties_t *props, obs_property_t *property, void *data);
 
 static const char *script_status_to_text(c64_script_status_t status)
 {
@@ -238,8 +241,16 @@ static bool script_start_stop_clicked(obs_properties_t *props, obs_property_t *p
     UNUSED_PARAMETER(props);
     UNUSED_PARAMETER(property);
 
+    C64_LOG_INFO("Script start/stop button clicked");
+
     struct c64_source *context = (struct c64_source *)data;
     if (!context) {
+        C64_LOG_ERROR("Script start/stop: null context");
+        return false;
+    }
+
+    if (!context->source) {
+        C64_LOG_ERROR("Script start/stop: null source");
         return false;
     }
 
@@ -247,15 +258,23 @@ static bool script_start_stop_clicked(obs_properties_t *props, obs_property_t *p
     c64_script_status_t status = C64_SCRIPT_STATUS_IDLE;
     if (context->script_executor) {
         status = c64_script_executor_get_status(context->script_executor);
+        C64_LOG_INFO("Script executor exists with status: %d", (int)status);
+    } else {
+        C64_LOG_INFO("No script executor exists yet");
     }
 
     // If running or paused, stop it
     if (status == C64_SCRIPT_STATUS_RUNNING || status == C64_SCRIPT_STATUS_PAUSED) {
-        c64_script_executor_stop(context->script_executor);
-        context->script_end_time = os_gettime_ns();
-        context->script_ended_successfully = false; // User stopped it
-        C64_LOG_INFO("Script stopped by user");
-        context->force_ui_update = true; // Force immediate UI update
+        C64_LOG_INFO("Stopping script...");
+        if (context->script_executor) {
+            c64_script_executor_stop(context->script_executor);
+            context->script_end_time = os_gettime_ns();
+            context->script_ended_successfully = false; // User stopped it
+            C64_LOG_INFO("Script stopped by user");
+            context->force_ui_update = true; // Force immediate UI update
+        } else {
+            C64_LOG_ERROR("Script executor is null, cannot stop");
+        }
     } else {
         // Otherwise, start the script
         if (context->script_file_path[0] == '\0') {
@@ -263,16 +282,21 @@ static bool script_start_stop_clicked(obs_properties_t *props, obs_property_t *p
             return false;
         }
 
+        C64_LOG_INFO("Starting script: %s", context->script_file_path);
+
         // Create executor if needed
         if (!context->script_executor) {
+            C64_LOG_INFO("Creating script executor...");
             context->script_executor = c64_script_executor_create(context->source);
             if (!context->script_executor) {
                 C64_LOG_ERROR("Failed to create script executor");
                 return false;
             }
+            C64_LOG_INFO("Script executor created successfully");
         }
 
         // Start execution
+        C64_LOG_INFO("Calling c64_script_executor_start...");
         context->script_start_time = os_gettime_ns();
         context->script_end_time = 0;
         context->last_script_status = C64_SCRIPT_STATUS_IDLE;
@@ -290,7 +314,9 @@ static bool script_start_stop_clicked(obs_properties_t *props, obs_property_t *p
     }
 
     // Refresh properties UI to update button labels and status
+    C64_LOG_INFO("Refreshing properties UI...");
     obs_source_update_properties(context->source);
+    C64_LOG_INFO("Script start/stop handler complete");
     return true; // Refresh properties
 }
 
@@ -390,7 +416,7 @@ static bool script_reload_clicked(obs_properties_t *props, obs_property_t *prope
     return true; // Refresh properties (status field)
 }
 
-static bool reset_all_clicked(obs_properties_t *props, obs_property_t *property, void *data)
+static bool reset_plugin_clicked(obs_properties_t *props, obs_property_t *property, void *data)
 {
     UNUSED_PARAMETER(props);
     UNUSED_PARAMETER(property);
@@ -400,7 +426,7 @@ static bool reset_all_clicked(obs_properties_t *props, obs_property_t *property,
         return false;
     }
 
-    C64_LOG_INFO("🔄 Resetting all properties to defaults and hard resetting C64U...");
+    C64_LOG_INFO("🔄 Resetting plugin properties to defaults...");
 
     // Get current settings object
     obs_data_t *settings = obs_source_get_settings(context->source);
@@ -419,7 +445,22 @@ static bool reset_all_clicked(obs_properties_t *props, obs_property_t *property,
     obs_source_update(context->source, settings);
     obs_data_release(settings);
 
-    C64_LOG_INFO("✅ Properties reset to defaults");
+    C64_LOG_INFO("✅ Plugin properties reset to defaults");
+
+    return true; // Refresh properties UI
+}
+
+static bool reset_c64u_clicked(obs_properties_t *props, obs_property_t *property, void *data)
+{
+    UNUSED_PARAMETER(props);
+    UNUSED_PARAMETER(property);
+
+    struct c64_source *context = (struct c64_source *)data;
+    if (!context) {
+        return false;
+    }
+
+    C64_LOG_INFO("🔄 Sending hard reset to C64U...");
 
     // Send hard reset (reboot) to C64U
     if (context->rest_client) {
@@ -429,31 +470,59 @@ static bool reset_all_clicked(obs_properties_t *props, obs_property_t *property,
             C64_LOG_WARNING("⚠️ Failed to send hard reset to C64U");
         }
     } else {
-        C64_LOG_WARNING("⚠️ REST client not available, skipping C64U reset");
+        C64_LOG_WARNING("⚠️ REST client not available, cannot reset C64U");
     }
 
-    return true; // Refresh properties UI
+    return false; // No UI refresh needed
 }
 
-// File source changed callback - switch between file picker and text input
+// File system changed callback - update path property visibility
 static bool file_source_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings)
 {
     UNUSED_PARAMETER(property);
 
-    int file_source = (int)obs_data_get_int(settings, "file_source");
-    obs_property_t *path_prop = obs_properties_get(props, "automation_path");
+    int file_system = (int)obs_data_get_int(settings, "file_system");
+    int playback_source = (int)obs_data_get_int(settings, "playback_source");
 
-    if (path_prop) {
-        if (file_source == 0) {
-            // Local Filesystem: use file picker
-            obs_property_set_description(path_prop, obs_module_text("AutomationPath"));
-        } else {
-            // C64U Filesystem: text input with c64u:/ prefix hint
-            obs_property_set_description(path_prop, obs_module_text("AutomationPath.C64U"));
-        }
+    // Show/hide path properties based on file_system and playback_source combination
+    obs_property_t *local_file_prop = obs_properties_get(props, "local_file_path");
+    obs_property_t *local_folder_prop = obs_properties_get(props, "local_folder_path");
+    obs_property_t *c64u_file_prop = obs_properties_get(props, "c64u_file_path");
+    obs_property_t *c64u_folder_prop = obs_properties_get(props, "c64u_folder_path");
+
+    if (local_file_prop) {
+        obs_property_set_visible(local_file_prop, file_system == 0 && playback_source == 0);
+    }
+    if (local_folder_prop) {
+        obs_property_set_visible(local_folder_prop, file_system == 0 && playback_source == 1);
+    }
+    if (c64u_file_prop) {
+        obs_property_set_visible(c64u_file_prop, file_system == 1 && playback_source == 0);
+    }
+    if (c64u_folder_prop) {
+        obs_property_set_visible(c64u_folder_prop, file_system == 1 && playback_source == 1);
     }
 
-    return true; // Refresh properties
+    // Show/hide folder options
+    obs_property_t *subfolders_prop = obs_properties_get(props, "include_subfolders");
+    obs_property_t *shuffle_prop = obs_properties_get(props, "shuffle_playback");
+    if (subfolders_prop) {
+        obs_property_set_visible(subfolders_prop, playback_source == 1);
+    }
+    if (shuffle_prop) {
+        obs_property_set_visible(shuffle_prop, playback_source == 1);
+    }
+
+    return true;
+}
+
+// Playback source changed callback - update path property visibility and folder options
+static bool playback_source_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings)
+{
+    UNUSED_PARAMETER(property);
+
+    // Trigger same visibility logic as file_system change
+    return file_source_changed(props, NULL, settings);
 }
 
 // Content automation button callbacks
@@ -475,9 +544,22 @@ static bool automation_start_stop_clicked(obs_properties_t *props, obs_property_
         c64_automation_stop(context->automation);
         C64_LOG_INFO("Content automation stopped by user");
     } else {
-        // Start automation - first validate configuration
+        // Start automation - validate configuration
         obs_data_t *settings = obs_source_get_settings(context->source);
-        const char *path = obs_data_get_string(settings, "automation_path");
+        int file_system = (int)obs_data_get_int(settings, "file_system");
+        int playback_source = (int)obs_data_get_int(settings, "playback_source");
+
+        // Get the appropriate path based on file_system and playback_source
+        const char *path = NULL;
+        if (file_system == 0 && playback_source == 0) {
+            path = obs_data_get_string(settings, "local_file_path");
+        } else if (file_system == 0 && playback_source == 1) {
+            path = obs_data_get_string(settings, "local_folder_path");
+        } else if (file_system == 1 && playback_source == 0) {
+            path = obs_data_get_string(settings, "c64u_file_path");
+        } else if (file_system == 1 && playback_source == 1) {
+            path = obs_data_get_string(settings, "c64u_folder_path");
+        }
 
         if (!path || path[0] == '\0') {
             C64_LOG_WARNING("No file/folder path specified for automation");
@@ -485,11 +567,13 @@ static bool automation_start_stop_clicked(obs_properties_t *props, obs_property_
             return false;
         }
 
-        // Auto-detect mode: if path ends with known extension, it's a file; otherwise folder
-        int mode = 1; // Default to single file
-        const char *ext = strrchr(path, '.');
-        if (!ext || (strcmp(ext, ".sid") != 0 && strcmp(ext, ".prg") != 0 && strcmp(ext, ".d64") != 0)) {
-            mode = 2; // Folder mode
+        // Enforce c64u:/ prefix for C64U paths
+        if (file_system == 1) {
+            if (strncmp(path, "c64u:/", 6) != 0) {
+                C64_LOG_WARNING("C64U path must start with c64u:/ prefix: %s", path);
+                obs_data_release(settings);
+                return false;
+            }
         }
 
         // Create automation engine if needed
@@ -504,10 +588,10 @@ static bool automation_start_stop_clicked(obs_properties_t *props, obs_property_
 
         // Configure automation from settings
         c64_automation_config_t config = {0};
-        config.mode = mode;
-        config.file_source = (int)obs_data_get_int(settings, "file_source");
+        config.mode = (playback_source == 0) ? C64_AUTO_MODE_SINGLE : C64_AUTO_MODE_FOLDER;
+        config.file_source = (file_system == 0) ? C64_FILE_SOURCE_LOCAL : C64_FILE_SOURCE_C64U;
         strncpy(config.folder_path, path, sizeof(config.folder_path) - 1);
-        config.shuffle = obs_data_get_bool(settings, "automation_shuffle");
+        config.shuffle = obs_data_get_bool(settings, "shuffle_playback");
         config.duration_seconds = (int)obs_data_get_int(settings, "automation_duration");
         config.reset_between_items = obs_data_get_bool(settings, "automation_reset");
         strncpy(config.d64_autostart_template, "LOAD\"*\",8,1\rRUN\r", sizeof(config.d64_autostart_template) - 1);
@@ -533,21 +617,24 @@ static void update_automation_status_property(obs_property_t *prop, struct c64_s
     }
 
     if (!context->automation) {
-        obs_property_set_description(prop, "Status: Not initialized");
+        obs_property_set_description(prop, "Not playing");
         return;
     }
 
-    const char *status = c64_automation_get_status(context->automation);
+    bool is_running = c64_automation_is_running(context->automation);
     const char *current_file = c64_automation_get_current_file(context->automation);
     char status_text[1024];
 
-    if (current_file && current_file[0]) {
-        // Show full path of currently playing file
-        snprintf(status_text, sizeof(status_text), "Status: %s", current_file);
-    } else if (status && status[0]) {
-        snprintf(status_text, sizeof(status_text), "Status: %s", status);
+    if (is_running && current_file && current_file[0]) {
+        // Show full path with file system prefix
+        obs_data_t *settings = obs_source_get_settings(context->source);
+        int file_system = (int)obs_data_get_int(settings, "file_system");
+        obs_data_release(settings);
+
+        const char *fs_prefix = (file_system == 0) ? "Local computer" : "C64 Ultimate";
+        snprintf(status_text, sizeof(status_text), "Playing: %s - %s", fs_prefix, current_file);
     } else {
-        snprintf(status_text, sizeof(status_text), "Status: Idle");
+        snprintf(status_text, sizeof(status_text), "Not playing");
     }
 
     obs_property_set_description(prop, status_text);
@@ -1027,32 +1114,74 @@ obs_properties_t *c64_create_properties(void *data)
         obs_property_list_add_string(keymap_prop, "Positional US", "positional_us");
     }
 
-    // File source (Local Filesystem vs C64U Filesystem)
-    obs_property_t *file_source_prop = obs_properties_add_list(rest_props, "file_source", obs_module_text("FileSource"),
+    // File system dropdown (renamed from "File source")
+    obs_property_t *file_system_prop = obs_properties_add_list(rest_props, "file_system", obs_module_text("FileSystem"),
                                                                OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
-    obs_property_set_long_description(file_source_prop, obs_module_text("FileSource.Description"));
-    obs_property_list_add_int(file_source_prop, obs_module_text("FileSource.Local"), 0);
-    obs_property_list_add_int(file_source_prop, obs_module_text("FileSource.C64U"), 1);
-    obs_property_set_modified_callback(file_source_prop, file_source_changed);
+    obs_property_set_long_description(file_system_prop, obs_module_text("FileSystem.Description"));
+    obs_property_list_add_int(file_system_prop, obs_module_text("FileSystem.Local"), 0);
+    obs_property_list_add_int(file_system_prop, obs_module_text("FileSystem.C64U"), 1);
+    obs_property_set_modified_callback(file_system_prop, file_source_changed);
 
-    // Automation file/folder path - dynamic based on file_source
-    int current_file_source = (int)obs_data_get_int(obs_source_get_settings(context->source), "file_source");
-    obs_property_t *auto_path_prop;
-    if (current_file_source == 0) {
-        // Local Filesystem: use path picker
-        auto_path_prop = obs_properties_add_path(rest_props, "automation_path", obs_module_text("AutomationPath"),
-                                                 OBS_PATH_FILE, "All Files (*.*)", NULL);
-    } else {
-        // C64U Filesystem: text input
-        auto_path_prop = obs_properties_add_text(rest_props, "automation_path", obs_module_text("AutomationPath.C64U"),
-                                                 OBS_TEXT_DEFAULT);
+    // Playback source dropdown (new)
+    obs_property_t *playback_source_prop = obs_properties_add_list(
+        rest_props, "playback_source", obs_module_text("PlaybackSource"), OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+    obs_property_set_long_description(playback_source_prop, obs_module_text("PlaybackSource.Description"));
+    obs_property_list_add_int(playback_source_prop, obs_module_text("PlaybackSource.SingleFile"), 0);
+    obs_property_list_add_int(playback_source_prop, obs_module_text("PlaybackSource.Folder"), 1);
+    obs_property_set_modified_callback(playback_source_prop, playback_source_changed);
+
+    // Get current selections for visibility
+    obs_data_t *current_settings = obs_source_get_settings(context->source);
+    int file_system = (int)obs_data_get_int(current_settings, "file_system");
+    int playback_source = (int)obs_data_get_int(current_settings, "playback_source");
+
+    // Local file path (file_system=0, playback_source=0)
+    obs_property_t *local_file_prop =
+        obs_properties_add_path(rest_props, "local_file_path", obs_module_text("LocalFilePath"), OBS_PATH_FILE,
+                                "Programs and music (*.prg *.sid *.d64 *.t64);;All files (*.*)", NULL);
+    obs_property_set_long_description(local_file_prop, obs_module_text("LocalFilePath.Description"));
+    obs_property_set_visible(local_file_prop, file_system == 0 && playback_source == 0);
+
+    // Local folder path (file_system=0, playback_source=1)
+    obs_property_t *local_folder_prop = obs_properties_add_path(
+        rest_props, "local_folder_path", obs_module_text("LocalFolderPath"), OBS_PATH_DIRECTORY, NULL, NULL);
+    obs_property_set_long_description(local_folder_prop, obs_module_text("LocalFolderPath.Description"));
+    obs_property_set_visible(local_folder_prop, file_system == 0 && playback_source == 1);
+
+    // C64U file path (file_system=1, playback_source=0)
+    obs_property_t *c64u_file_prop =
+        obs_properties_add_text(rest_props, "c64u_file_path", obs_module_text("C64UFilePath"), OBS_TEXT_DEFAULT);
+    obs_property_set_long_description(c64u_file_prop, obs_module_text("C64UFilePath.Description"));
+    obs_property_set_visible(c64u_file_prop, file_system == 1 && playback_source == 0);
+    // Ensure c64u:/ prefix exists in settings
+    const char *c64u_file_val = obs_data_get_string(current_settings, "c64u_file_path");
+    if (!c64u_file_val || c64u_file_val[0] == '\0') {
+        obs_data_set_string(current_settings, "c64u_file_path", "c64u:/");
     }
-    obs_property_set_long_description(auto_path_prop, obs_module_text("AutomationPath.Description"));
 
-    // Automation shuffle
-    obs_property_t *auto_shuffle_prop =
-        obs_properties_add_bool(rest_props, "automation_shuffle", obs_module_text("AutomationShuffle"));
-    obs_property_set_long_description(auto_shuffle_prop, obs_module_text("AutomationShuffle.Description"));
+    // C64U folder path (file_system=1, playback_source=1)
+    obs_property_t *c64u_folder_prop =
+        obs_properties_add_text(rest_props, "c64u_folder_path", obs_module_text("C64UFolderPath"), OBS_TEXT_DEFAULT);
+    obs_property_set_long_description(c64u_folder_prop, obs_module_text("C64UFolderPath.Description"));
+    obs_property_set_visible(c64u_folder_prop, file_system == 1 && playback_source == 1);
+    // Ensure c64u:/ prefix exists in settings
+    const char *c64u_folder_val = obs_data_get_string(current_settings, "c64u_folder_path");
+    if (!c64u_folder_val || c64u_folder_val[0] == '\0') {
+        obs_data_set_string(current_settings, "c64u_folder_path", "c64u:/");
+    }
+
+    obs_data_release(current_settings);
+
+    // Folder playback options (only visible when playback_source=1)
+    obs_property_t *include_subfolders_prop =
+        obs_properties_add_bool(rest_props, "include_subfolders", obs_module_text("IncludeSubfolders"));
+    obs_property_set_long_description(include_subfolders_prop, obs_module_text("IncludeSubfolders.Description"));
+    obs_property_set_visible(include_subfolders_prop, playback_source == 1);
+
+    obs_property_t *shuffle_playback_prop =
+        obs_properties_add_bool(rest_props, "shuffle_playback", obs_module_text("ShufflePlayback"));
+    obs_property_set_long_description(shuffle_playback_prop, obs_module_text("ShufflePlayback.Description"));
+    obs_property_set_visible(shuffle_playback_prop, playback_source == 1);
 
     // Automation duration (seconds)
     obs_property_t *auto_dur_prop =
@@ -1084,10 +1213,14 @@ obs_properties_t *c64_create_properties(void *data)
                                                                 ? obs_module_text("AutomationStopContent.Description")
                                                                 : obs_module_text("AutomationPlayContent.Description"));
 
-    // Reset all button
-    obs_property_t *reset_all_prop =
-        obs_properties_add_button(rest_props, "reset_all", obs_module_text("ResetAll"), reset_all_clicked);
-    obs_property_set_long_description(reset_all_prop, obs_module_text("ResetAll.Description"));
+    // Reset controls (split into two buttons)
+    obs_property_t *reset_plugin_prop =
+        obs_properties_add_button(rest_props, "reset_plugin", obs_module_text("ResetPlugin"), reset_plugin_clicked);
+    obs_property_set_long_description(reset_plugin_prop, obs_module_text("ResetPlugin.Description"));
+
+    obs_property_t *reset_c64u_prop =
+        obs_properties_add_button(rest_props, "reset_c64u", obs_module_text("ResetC64U"), reset_c64u_clicked);
+    obs_property_set_long_description(reset_c64u_prop, obs_module_text("ResetC64U.Description"));
 
     // Script Group
     obs_property_t *script_group = obs_properties_add_group(props, "script_group", obs_module_text("Script"),
@@ -1141,8 +1274,10 @@ obs_properties_t *c64_create_properties(void *data)
     }
 
     // Start/Stop button - label changes based on state
-    obs_property_t *script_start_stop_prop = obs_properties_add_button(
-        script_props, "script_start_stop", obs_module_text("ScriptStartStop"), script_start_stop_clicked);
+    const char *script_button_label = is_running_or_paused ? obs_module_text("ScriptStopScript")
+                                                           : obs_module_text("ScriptStartScript");
+    obs_property_t *script_start_stop_prop =
+        obs_properties_add_button(script_props, "script_start_stop", script_button_label, script_start_stop_clicked);
     obs_property_set_long_description(script_start_stop_prop, is_running_or_paused
                                                                   ? obs_module_text("ScriptStartStop.Stop")
                                                                   : obs_module_text("ScriptStartStop.Start"));
