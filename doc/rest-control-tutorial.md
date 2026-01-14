@@ -18,7 +18,7 @@ This tutorial guides you through setting up and using the REST control features 
 3. Navigate to "Remote Control" section
 4. Configure connection:
    - **C64 Ultimate Host**: Enter hostname or IP (e.g., `192.168.1.100` or `c64u`)
-   - **Password**: Enter REST API password if authentication enabled (leave empty if disabled)
+   - **Password**: Enter your C64 Ultimate network password (used for both streaming and REST auth; leave empty if disabled)
 
 ### 1.2 Verify Connection
 

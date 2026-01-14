@@ -448,7 +448,7 @@ Control your Ultimate 64 remotely from within OBS Studio, enabling keyboard inpu
 
 **Configuration:**
 
-- **Password:** REST API password for X-Password header authentication. Leave empty if authentication is disabled
+- **Password:** C64 Ultimate network password for REST `X-Password` header authentication (and streaming, if enabled). Leave empty if authentication is disabled
 - **Enable Keyboard Capture:** Captures keyboard input from OBS preview window and injects keystrokes into C64. Press ESC to disable capture
 - **Keymap:** Select keyboard mapping for converting PC keystrokes to C64 PETSCII codes
   - **Symbolic keymaps:** Match key labels (e.g., PC Q → C64 Q)
