@@ -94,6 +94,38 @@ const char *c64_automation_get_status(c64_automation_t *automation);
 const char *c64_automation_get_current_file(c64_automation_t *automation);
 
 /**
+ * Get current playlist size
+ * @return Number of files in playlist, or 0 if not running
+ */
+int c64_automation_get_playlist_count(c64_automation_t *automation);
+
+/**
+ * Get current index in playlist
+ * @return Current index (0-based), or -1 if not running
+ */
+int c64_automation_get_current_index(c64_automation_t *automation);
+
+/**
+ * Get playlist item at index
+ * @param index Index into playlist (0-based)
+ * @return File path or NULL if index out of range
+ */
+const char *c64_automation_get_playlist_item(c64_automation_t *automation, int index);
+
+/**
+ * Skip to next item in playlist
+ * @return true if skipped successfully
+ */
+bool c64_automation_skip_next(c64_automation_t *automation);
+
+/**
+ * Jump to specific playlist index
+ * @param index Target index (0-based)
+ * @return true if jumped successfully
+ */
+bool c64_automation_jump_to_index(c64_automation_t *automation, int index);
+
+/**
  * Play single SID file
  * @param path Path to .sid file
  * @param song_number Song number (1-based, 0 for default)

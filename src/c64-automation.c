@@ -46,6 +46,7 @@ struct c64_automation {
     c64_automation_config_t config;
     bool running;
     bool should_stop;
+    bool skip_requested; // Flag to skip to next item
     char status[128];
     char current_file_path[512]; // Full path of currently playing file
 
@@ -443,7 +444,7 @@ static void *automation_worker(void *arg)
             C64_LOG_ERROR(AUTOMATION_LOG_PREFIX "Failed to execute: %s", file->path);
         }
 
-        // Wait for duration (check should_stop periodically)
+        // Wait for duration (check should_stop and skip_requested periodically)
         int duration_ms = automation->config.duration_seconds * 1000;
         int elapsed_ms = 0;
         int sleep_interval_ms = 100;
@@ -451,6 +452,19 @@ static void *automation_worker(void *arg)
         while (elapsed_ms < duration_ms && !automation->should_stop) {
             os_sleep_ms(sleep_interval_ms);
             elapsed_ms += sleep_interval_ms;
+
+            // Check skip flag
+            pthread_mutex_lock(&automation->status_mutex);
+            bool skip = automation->skip_requested;
+            if (skip) {
+                automation->skip_requested = false;
+            }
+            pthread_mutex_unlock(&automation->status_mutex);
+
+            if (skip) {
+                C64_LOG_INFO(AUTOMATION_LOG_PREFIX "Skipping current item");
+                break;
+            }
         }
 
         // Reset between items if configured (skip if disk type since already reset before mount)
@@ -489,6 +503,7 @@ c64_automation_t *c64_automation_create(void *rest_client, void *keyboard)
     automation->keyboard = (c64_keyboard_t *)keyboard;
     automation->running = false;
     automation->should_stop = false;
+    automation->skip_requested = false;
     automation->files = NULL;
     automation->num_files = 0;
     automation->current_index = 0;
@@ -589,6 +604,7 @@ bool c64_automation_start(c64_automation_t *automation)
     // Start worker thread
     automation->running = true;
     automation->should_stop = false;
+    automation->skip_requested = false;
     automation->current_index = 0;
     set_status(automation, "starting");
 
@@ -761,4 +777,81 @@ const char *c64_automation_get_current_file(c64_automation_t *automation)
     pthread_mutex_unlock(&automation->status_mutex);
 
     return file_path_copy[0] ? file_path_copy : NULL;
+}
+
+int c64_automation_get_playlist_count(c64_automation_t *automation)
+{
+    if (!automation) {
+        return 0;
+    }
+
+    pthread_mutex_lock(&automation->status_mutex);
+    int count = automation->num_files;
+    pthread_mutex_unlock(&automation->status_mutex);
+
+    return count;
+}
+
+int c64_automation_get_current_index(c64_automation_t *automation)
+{
+    if (!automation || !automation->running) {
+        return -1;
+    }
+
+    pthread_mutex_lock(&automation->status_mutex);
+    int index = automation->current_index;
+    pthread_mutex_unlock(&automation->status_mutex);
+
+    return index;
+}
+
+const char *c64_automation_get_playlist_item(c64_automation_t *automation, int index)
+{
+    if (!automation || index < 0) {
+        return NULL;
+    }
+
+    pthread_mutex_lock(&automation->status_mutex);
+    const char *path = NULL;
+    if (index < automation->num_files && automation->files) {
+        path = automation->files[index].path;
+    }
+    pthread_mutex_unlock(&automation->status_mutex);
+
+    return path;
+}
+
+bool c64_automation_skip_next(c64_automation_t *automation)
+{
+    if (!automation || !automation->running) {
+        return false;
+    }
+
+    pthread_mutex_lock(&automation->status_mutex);
+    // Set skip flag to interrupt the wait loop
+    automation->skip_requested = true;
+    pthread_mutex_unlock(&automation->status_mutex);
+
+    C64_LOG_INFO(AUTOMATION_LOG_PREFIX "Skip to next item requested");
+    return true;
+}
+
+bool c64_automation_jump_to_index(c64_automation_t *automation, int target_index)
+{
+    if (!automation || !automation->running || target_index < 0) {
+        return false;
+    }
+
+    pthread_mutex_lock(&automation->status_mutex);
+    if (target_index >= automation->num_files) {
+        pthread_mutex_unlock(&automation->status_mutex);
+        return false;
+    }
+
+    automation->current_index = target_index - 1; // Will be incremented in loop
+    automation->skip_requested = true;            // Skip current playback
+    pthread_mutex_unlock(&automation->status_mutex);
+
+    C64_LOG_INFO(AUTOMATION_LOG_PREFIX "Jumping to index %d", target_index);
+    return true;
 }

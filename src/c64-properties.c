@@ -67,7 +67,9 @@ static bool script_reload_clicked(obs_properties_t *props, obs_property_t *prope
 
 // Content automation callbacks
 static bool automation_start_stop_clicked(obs_properties_t *props, obs_property_t *property, void *data);
-static void update_automation_status_property(obs_property_t *prop, struct c64_source *context);
+static bool automation_next_clicked(obs_properties_t *props, obs_property_t *property, void *data);
+static bool playlist_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings);
+static void update_playlist_property(obs_property_t *prop, struct c64_source *context);
 static bool file_source_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings);
 static bool playback_source_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings);
 
@@ -528,7 +530,6 @@ static bool playback_source_changed(obs_properties_t *props, obs_property_t *pro
 // Content automation button callbacks
 static bool automation_start_stop_clicked(obs_properties_t *props, obs_property_t *property, void *data)
 {
-    UNUSED_PARAMETER(props);
     UNUSED_PARAMETER(property);
 
     struct c64_source *context = (struct c64_source *)data;
@@ -607,37 +608,123 @@ static bool automation_start_stop_clicked(obs_properties_t *props, obs_property_
         }
     }
 
+    // Force complete properties rebuild to update button labels and playlist
+    obs_property_t *playlist_prop = obs_properties_get(props, "playlist");
+    if (playlist_prop) {
+        update_playlist_property(playlist_prop, context);
+    }
+
     return true; // Refresh properties
 }
 
-static void update_automation_status_property(obs_property_t *prop, struct c64_source *context)
+static bool automation_next_clicked(obs_properties_t *props, obs_property_t *property, void *data)
 {
-    if (!prop || !context) {
+    UNUSED_PARAMETER(property);
+
+    struct c64_source *context = (struct c64_source *)data;
+    if (!context || !context->automation) {
+        return false;
+    }
+
+    if (c64_automation_skip_next(context->automation)) {
+        C64_LOG_INFO("Skipped to next item");
+
+        // Update playlist dropdown
+        obs_property_t *playlist_prop = obs_properties_get(props, "playlist");
+        if (playlist_prop) {
+            update_playlist_property(playlist_prop, context);
+        }
+    }
+
+    return true; // Refresh properties
+}
+
+static bool playlist_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings)
+{
+    UNUSED_PARAMETER(props);
+    UNUSED_PARAMETER(property);
+
+    // Get the source context from settings (this is a bit tricky in OBS)
+    // We need to get it from the property's private data
+    struct c64_source *context = obs_properties_get_param(props);
+    if (!context || !context->automation) {
+        return false;
+    }
+
+    int selected_index = (int)obs_data_get_int(settings, "playlist");
+
+    if (c64_automation_jump_to_index(context->automation, selected_index)) {
+        C64_LOG_INFO("Jumped to playlist index %d", selected_index);
+    }
+
+    return false; // Don't refresh properties (avoid rebuilding dropdown)
+}
+
+static void update_playlist_property(obs_property_t *prop, struct c64_source *context)
+{
+    if (!prop || !context || !context->automation) {
         return;
     }
 
-    if (!context->automation) {
-        obs_property_set_description(prop, "Not playing");
-        return;
-    }
+    // Clear existing list
+    obs_property_list_clear(prop);
 
     bool is_running = c64_automation_is_running(context->automation);
-    const char *current_file = c64_automation_get_current_file(context->automation);
-    char status_text[1024];
-
-    if (is_running && current_file && current_file[0]) {
-        // Show full path with file system prefix
-        obs_data_t *settings = obs_source_get_settings(context->source);
-        int file_system = (int)obs_data_get_int(settings, "file_system");
-        obs_data_release(settings);
-
-        const char *fs_prefix = (file_system == 0) ? "Local computer" : "C64 Ultimate";
-        snprintf(status_text, sizeof(status_text), "Playing: %s - %s", fs_prefix, current_file);
-    } else {
-        snprintf(status_text, sizeof(status_text), "Not playing");
+    if (!is_running) {
+        obs_property_list_add_int(prop, "(Not playing)", -1);
+        obs_property_set_enabled(prop, false);
+        return;
     }
 
-    obs_property_set_description(prop, status_text);
+    obs_property_set_enabled(prop, true);
+
+    int playlist_count = c64_automation_get_playlist_count(context->automation);
+    int current_index = c64_automation_get_current_index(context->automation);
+
+    if (playlist_count == 0) {
+        obs_property_list_add_int(prop, "(No files)", -1);
+        return;
+    }
+
+    // Calculate window: show up to 10 before, current, and 10 after
+    int window_start = (current_index >= 10) ? (current_index - 10) : 0;
+    int window_end = (current_index + 10 < playlist_count) ? (current_index + 10) : (playlist_count - 1);
+
+    // Add ellipsis if we're not showing the beginning
+    if (window_start > 0) {
+        char prefix_text[64];
+        snprintf(prefix_text, sizeof(prefix_text), "...(%d files before)", window_start);
+        obs_property_list_add_int(prop, prefix_text, -1);
+    }
+
+    // Add visible items
+    for (int i = window_start; i <= window_end; i++) {
+        const char *path = c64_automation_get_playlist_item(context->automation, i);
+        if (path) {
+            // Extract filename from path for display
+            const char *filename = strrchr(path, '/');
+            if (!filename) {
+                filename = strrchr(path, '\\');
+            }
+            filename = filename ? (filename + 1) : path;
+
+            char display_text[256];
+            if (i == current_index) {
+                snprintf(display_text, sizeof(display_text), "► %d: %s", i + 1, filename);
+            } else {
+                snprintf(display_text, sizeof(display_text), "  %d: %s", i + 1, filename);
+            }
+
+            obs_property_list_add_int(prop, display_text, i);
+        }
+    }
+
+    // Add ellipsis if we're not showing the end
+    if (window_end < playlist_count - 1) {
+        char suffix_text[64];
+        snprintf(suffix_text, sizeof(suffix_text), "...(%d files after)", playlist_count - window_end - 1);
+        obs_property_list_add_int(prop, suffix_text, -1);
+    }
 }
 
 obs_properties_t *c64_create_properties(void *data)
@@ -1193,10 +1280,12 @@ obs_properties_t *c64_create_properties(void *data)
         obs_properties_add_bool(rest_props, "automation_reset", obs_module_text("AutomationReset"));
     obs_property_set_long_description(auto_reset_prop, obs_module_text("AutomationReset.Description"));
 
-    // Automation status display
-    obs_property_t *auto_status_prop =
-        obs_properties_add_text(rest_props, "automation_status", obs_module_text("AutomationStatus"), OBS_TEXT_INFO);
-    update_automation_status_property(auto_status_prop, context);
+    // Playlist dropdown (replaces status text)
+    obs_property_t *playlist_prop = obs_properties_add_list(rest_props, "playlist", obs_module_text("Playing"),
+                                                            OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+    obs_property_set_long_description(playlist_prop, obs_module_text("Playing.Description"));
+    obs_property_set_modified_callback(playlist_prop, playlist_changed);
+    update_playlist_property(playlist_prop, context);
 
     // Get automation status to determine button state
     bool automation_running = false;
@@ -1212,6 +1301,12 @@ obs_properties_t *c64_create_properties(void *data)
     obs_property_set_long_description(auto_start_stop_prop, automation_running
                                                                 ? obs_module_text("AutomationStopContent.Description")
                                                                 : obs_module_text("AutomationPlayContent.Description"));
+
+    // Next button (only enabled when playing)
+    obs_property_t *auto_next_prop = obs_properties_add_button(
+        rest_props, "automation_next", obs_module_text("AutomationNext"), automation_next_clicked);
+    obs_property_set_long_description(auto_next_prop, obs_module_text("AutomationNext.Description"));
+    obs_property_set_enabled(auto_next_prop, automation_running);
 
     // Reset controls (split into two buttons)
     obs_property_t *reset_plugin_prop =
