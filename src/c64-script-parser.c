@@ -1328,7 +1328,61 @@ static c64script_ast_node_t *while_statement(parser_t *p)
     return NULL;
 }
 
-// WAIT duration or WAIT UNTIL condition
+static void parse_wait_unit_suffix(parser_t *p, c64script_wait_unit_t *unit)
+{
+    if (!check(p, TOKEN_IDENTIFIER)) {
+        return;
+    }
+
+    c64script_token_t unit_tok = p->current;
+    if (unit_tok.length == 2 && (unit_tok.start[0] == 'm' || unit_tok.start[0] == 'M') &&
+        (unit_tok.start[1] == 's' || unit_tok.start[1] == 'S')) {
+        advance(p);
+        *unit = C64SCRIPT_WAIT_UNIT_MS;
+    } else if (unit_tok.length == 1 && (unit_tok.start[0] == 's' || unit_tok.start[0] == 'S')) {
+        advance(p);
+        *unit = C64SCRIPT_WAIT_UNIT_S;
+    } else if (unit_tok.length == 1 && (unit_tok.start[0] == 'm' || unit_tok.start[0] == 'M')) {
+        advance(p);
+        *unit = C64SCRIPT_WAIT_UNIT_M;
+    } else if (unit_tok.length == 1 && (unit_tok.start[0] == 'h' || unit_tok.start[0] == 'H')) {
+        advance(p);
+        *unit = C64SCRIPT_WAIT_UNIT_H;
+    } else if (unit_tok.length == 1 && (unit_tok.start[0] == 'd' || unit_tok.start[0] == 'D')) {
+        advance(p);
+        *unit = C64SCRIPT_WAIT_UNIT_D;
+    }
+}
+
+static bool parse_wait_duration_arg(parser_t *p, c64script_ast_expr_t **out_expr, c64script_wait_unit_t *out_unit,
+                                    int line)
+{
+    if (!out_expr || !out_unit) {
+        return false;
+    }
+
+    *out_unit = C64SCRIPT_WAIT_UNIT_S;
+
+    if (check(p, TOKEN_DURATION)) {
+        advance(p);
+        c64script_ast_expr_t *duration = calloc(1, sizeof(c64script_ast_expr_t));
+        if (!duration) {
+            return false;
+        }
+        duration->type = AST_EXPR_NUMBER;
+        duration->line = line;
+        duration->as.number = (double)p->previous.value.duration_ms;
+        *out_expr = duration;
+        *out_unit = C64SCRIPT_WAIT_UNIT_MS;
+        return true;
+    }
+
+    *out_expr = expression(p);
+    parse_wait_unit_suffix(p, out_unit);
+    return true;
+}
+
+// WAIT duration, WAIT UNTIL condition, or WAIT addr,mask[,value] [EVERY duration]
 static c64script_ast_node_t *wait_statement(parser_t *p)
 {
     c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
@@ -1341,36 +1395,38 @@ static c64script_ast_node_t *wait_statement(parser_t *p)
         node->type = AST_STMT_WAIT_UNTIL;
         node->as.wait_until_stmt.time_expr = expression(p);
     } else {
-        // WAIT duration
-        node->type = AST_STMT_WAIT;
-        node->as.wait_stmt.unit = C64SCRIPT_WAIT_UNIT_S;
-
-        if (check(p, TOKEN_DURATION)) {
-            advance(p);
-            c64script_ast_expr_t *duration = calloc(1, sizeof(c64script_ast_expr_t));
-            duration->type = AST_EXPR_NUMBER;
-            duration->line = node->line;
-            duration->as.number = (double)p->previous.value.duration_ms;
-            node->as.wait_stmt.duration = duration;
-            node->as.wait_stmt.unit = C64SCRIPT_WAIT_UNIT_MS;
-            return node;
+        c64script_ast_expr_t *first_expr = NULL;
+        c64script_wait_unit_t first_unit = C64SCRIPT_WAIT_UNIT_S;
+        if (!parse_wait_duration_arg(p, &first_expr, &first_unit, node->line)) {
+            free(node);
+            return NULL;
         }
 
-        node->as.wait_stmt.duration = expression(p);
+        if (match(p, TOKEN_COMMA)) {
+            // WAIT addr, mask[, value] [EVERY duration]
+            node->type = AST_STMT_WAIT_MEM;
+            node->as.wait_mem_stmt.address = first_expr;
+            node->as.wait_mem_stmt.mask = expression(p);
+            node->as.wait_mem_stmt.value = NULL;
+            node->as.wait_mem_stmt.poll = NULL;
+            node->as.wait_mem_stmt.poll_unit = C64SCRIPT_WAIT_UNIT_MS;
 
-        if (check(p, TOKEN_IDENTIFIER)) {
-            c64script_token_t unit_tok = p->current;
-            if (unit_tok.length == 2 && (unit_tok.start[0] == 'm' || unit_tok.start[0] == 'M') &&
-                (unit_tok.start[1] == 's' || unit_tok.start[1] == 'S')) {
-                advance(p);
-                node->as.wait_stmt.unit = C64SCRIPT_WAIT_UNIT_MS;
-            } else if (unit_tok.length == 1 && (unit_tok.start[0] == 's' || unit_tok.start[0] == 'S')) {
-                advance(p);
-                node->as.wait_stmt.unit = C64SCRIPT_WAIT_UNIT_S;
-            } else if (unit_tok.length == 1 && (unit_tok.start[0] == 'm' || unit_tok.start[0] == 'M')) {
-                advance(p);
-                node->as.wait_stmt.unit = C64SCRIPT_WAIT_UNIT_M;
+            if (match(p, TOKEN_COMMA)) {
+                node->as.wait_mem_stmt.value = expression(p);
             }
+
+            if (match(p, TOKEN_EVERY)) {
+                if (!parse_wait_duration_arg(p, &node->as.wait_mem_stmt.poll, &node->as.wait_mem_stmt.poll_unit,
+                                             node->line)) {
+                    free(node);
+                    return NULL;
+                }
+            }
+        } else {
+            // WAIT duration
+            node->type = AST_STMT_WAIT;
+            node->as.wait_stmt.duration = first_expr;
+            node->as.wait_stmt.unit = first_unit;
         }
     }
 

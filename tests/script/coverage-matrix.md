@@ -27,6 +27,7 @@ It is a living checklist for `tests/script/` coverage.
   `tests/script/scripts/test_coverage_end_fun.c64script`
 - WAIT/WAIT UNTIL: `tests/script/scripts/test_coverage_duration_units.c64script`,
   `tests/script/scripts/test_wait_until.c64script`
+- WAIT memory polling: `tests/script/scripts/test_wait_memory.c64script`
 - STOP/END: `tests/script/scripts/test_coverage_end_statement.c64script`
 
 ## Expressions / Operators

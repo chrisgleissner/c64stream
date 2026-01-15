@@ -871,6 +871,34 @@ static bool compile_statement(compiler_context_t *ctx, c64script_ast_node_t *stm
         return true;
     }
 
+    case AST_STMT_WAIT_MEM: {
+        const uint32_t wait_mem_has_value = (1u << 8);
+        const uint32_t wait_mem_has_poll = (1u << 9);
+
+        if (!compile_expression(ctx, stmt->as.wait_mem_stmt.address))
+            return false;
+        if (!compile_expression(ctx, stmt->as.wait_mem_stmt.mask))
+            return false;
+        if (stmt->as.wait_mem_stmt.value) {
+            if (!compile_expression(ctx, stmt->as.wait_mem_stmt.value))
+                return false;
+        }
+        if (stmt->as.wait_mem_stmt.poll) {
+            if (!compile_expression(ctx, stmt->as.wait_mem_stmt.poll))
+                return false;
+        }
+
+        uint32_t operand = (uint32_t)stmt->as.wait_mem_stmt.poll_unit;
+        if (stmt->as.wait_mem_stmt.value) {
+            operand |= wait_mem_has_value;
+        }
+        if (stmt->as.wait_mem_stmt.poll) {
+            operand |= wait_mem_has_poll;
+        }
+        emit(ctx, OP_WAIT_MEM, operand, stmt->line);
+        return true;
+    }
+
     case AST_STMT_WAIT_UNTIL: {
         if (!compile_expression(ctx, stmt->as.wait_until_stmt.time_expr))
             return false;

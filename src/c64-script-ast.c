@@ -172,6 +172,13 @@ void c64script_ast_free(c64script_ast_node_t *node)
             free_expr(node->as.wait_stmt.duration);
             break;
 
+        case AST_STMT_WAIT_MEM:
+            free_expr(node->as.wait_mem_stmt.address);
+            free_expr(node->as.wait_mem_stmt.mask);
+            free_expr(node->as.wait_mem_stmt.value);
+            free_expr(node->as.wait_mem_stmt.poll);
+            break;
+
         case AST_STMT_WAIT_UNTIL:
             free_expr(node->as.wait_until_stmt.time_expr);
             break;

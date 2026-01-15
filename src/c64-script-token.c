@@ -61,6 +61,7 @@ static const keyword_entry_t keywords[] = {
     // Waiting
     {"WAIT", TOKEN_WAIT},
     {"UNTIL", TOKEN_UNTIL},
+    {"EVERY", TOKEN_EVERY},
 
     // Plugin actions
     {"EFFECT", TOKEN_EFFECT},

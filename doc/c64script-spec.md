@@ -161,7 +161,7 @@ The grammar serves as the authoritative reference for:
   - Variables are created on first assignment.
   - Type is determined by suffix or value type at first assignment.
 - **Assignments**:
-  - `LET` is optional: `X = 10` and `LET X = 10` are equivalent.
+
   - Array/map elements: `DATA(3) = 42`, `CONFIG{"port"} = 8080`
 
 **Array Declaration with `DIM`**:
@@ -172,7 +172,6 @@ The grammar serves as the authoritative reference for:
 - `<size>` must be greater than 0.
 - Re-declaring an array with `DIM` reallocates it, discarding previous contents.
 - Maps (`{}` suffix) do not require `DIM`; they are created on first access and grow dynamically.
-  - **Note:** This differs from C64 BASIC V2, which uses `<size> + 1` elements for `DIM`.
 
 **Automatic Type Casting Rules**:
 
@@ -293,7 +292,6 @@ Limits should be explicit (e.g., max nesting depth) and produce clear runtime er
 #### 2.4.3 Boolean Logic
 
 - Relational operators return numeric truth values (`0` false, `1` true).
-  - **Note:** This differs from C64 BASIC V2, which uses `-1` for true.
 - Boolean operators follow BASIC-like precedence (`NOT` > `AND` > `XOR` > `OR`).
   - `NOT`/`AND`/`OR`/`XOR` operate as **bitwise operators** on integer-truncated operands (useful for common C64 patterns like `PEEK(addr) AND mask`).
   - For bitwise operations, operands are truncated toward zero to signed 32-bit integers; results are returned as signed 32-bit integers.
@@ -302,7 +300,7 @@ Limits should be explicit (e.g., max nesting depth) and produce clear runtime er
 
 #### 2.4.4 Waiting (Duration vs Wall Clock)
 
-`WAIT` supports two forms:
+`WAIT` supports three forms:
 
 - `WAIT <duration>`
   - If a unit is omitted, the default unit is seconds (e.g., `WAIT 1.5` means `1.5s`).
@@ -320,6 +318,13 @@ Limits should be explicit (e.g., max nesting depth) and produce clear runtime er
       - ISO-8601 `"YYYY-MM-DDTHH:MM:SS[.fff][Z|±HH:MM]"`.
   - If the computed target time is ≤ “now”, the wait completes immediately.
   - If the time cannot be parsed, raise a BASIC-style runtime error (recommended: “ILLEGAL QUANTITY”).
+
+- `WAIT <address>, <mask>[, <value>] [EVERY <duration>]`
+  - Reads one byte from `<address>` and compares `(byte & mask)` to `<value>`.
+  - If `<value>` is omitted, it defaults to `<mask>` (BASIC V2 behavior).
+  - `<address>` must be in `0..65535` and `<mask>/<value>` must be in `0..255`.
+  - Polling interval defaults to **500ms** and can be overridden with `EVERY <duration>`.
+  - Uses REST DMA reads; failures raise a runtime error.
 
 #### 2.4.5 Plugin-Specific I/O
 
@@ -1011,7 +1016,7 @@ END
 
 ## 3. Implementation Notes
 
-### General
+### 3.1 General
 
 - `c64u:` filesystem paths are supported for `PLAYSID`, `RUNPRG`, and `MOUNTDISK` (path-based REST API).
 - Local file upload variants are fully supported (uploads file data via REST API for all three commands).
@@ -1019,7 +1024,7 @@ END
 - D64 autostart template is customizable via automation configuration (see `c64-automation.h`).
 - HTTP requests are parsed and compiled but require libcurl integration for full execution (VM currently returns placeholder values).
 
-### Limits
+### 3.2 Limits
 
 - Max script size: **1 MiB**
 - Max line length: **1024** bytes (parser line buffer)
@@ -1028,3 +1033,11 @@ END
 - Max GOSUB depth: **32** (`C64SCRIPT_MAX_GOSUB_DEPTH`)
 - Max variables: **512** (`C64SCRIPT_MAX_VARIABLES`)
 - Max bytecode size: **256 KiB** (`C64SCRIPT_MAX_BYTECODE_SIZE`)
+
+### 3.3 Differences from C64 BASIC V2
+
+- **Execution model:** label-oriented scripts; line numbers are optional.
+- **Truth values:** relational operators return `1` for true (BASIC uses `-1`).
+- **Arrays:** `DIM X(n)` allocates `n` elements (`0..n-1`), not `n+1` elements.
+- **WAIT:** supports BASIC-style `WAIT addr,mask[,value]` plus optional `EVERY <duration>` polling (default 500ms).
+- **Strings:** UTF-8 strings; comparisons are case-sensitive lexicographic.

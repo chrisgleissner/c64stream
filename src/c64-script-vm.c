@@ -601,6 +601,54 @@ static bool number_to_int(c64script_runtime_t *runtime, const c64script_value_t 
     return true;
 }
 
+static bool number_to_uint16(c64script_runtime_t *runtime, const c64script_value_t *value, uint16_t *out,
+                             const char *what)
+{
+    int temp = 0;
+    if (!number_to_int(runtime, value, &temp, what)) {
+        return false;
+    }
+    if (temp < 0 || temp > 0xFFFF) {
+        snprintf(runtime->error_msg, sizeof(runtime->error_msg), "ILLEGAL QUANTITY");
+        return false;
+    }
+    *out = (uint16_t)temp;
+    return true;
+}
+
+static bool number_to_uint8(c64script_runtime_t *runtime, const c64script_value_t *value, uint8_t *out,
+                            const char *what)
+{
+    int temp = 0;
+    if (!number_to_int(runtime, value, &temp, what)) {
+        return false;
+    }
+    if (temp < 0 || temp > 0xFF) {
+        snprintf(runtime->error_msg, sizeof(runtime->error_msg), "ILLEGAL QUANTITY");
+        return false;
+    }
+    *out = (uint8_t)temp;
+    return true;
+}
+
+static double wait_unit_multiplier(c64script_wait_unit_t unit)
+{
+    switch (unit) {
+    case C64SCRIPT_WAIT_UNIT_MS:
+        return 1.0;
+    case C64SCRIPT_WAIT_UNIT_S:
+        return 1000.0;
+    case C64SCRIPT_WAIT_UNIT_M:
+        return 60000.0;
+    case C64SCRIPT_WAIT_UNIT_H:
+        return 3600000.0;
+    case C64SCRIPT_WAIT_UNIT_D:
+        return 86400000.0;
+    default:
+        return 1000.0;
+    }
+}
+
 // ============================================================================
 // VM EXECUTION
 // ============================================================================
@@ -1822,20 +1870,143 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
             break;
         }
 
-        double multiplier = 1000.0;
-        if (instr->operand == C64SCRIPT_WAIT_UNIT_MS) {
-            multiplier = 1.0;
-        } else if (instr->operand == C64SCRIPT_WAIT_UNIT_S) {
-            multiplier = 1000.0;
-        } else if (instr->operand == C64SCRIPT_WAIT_UNIT_M) {
-            multiplier = 60000.0;
-        }
-
+        double multiplier = wait_unit_multiplier((c64script_wait_unit_t)instr->operand);
         uint64_t remaining_ms = (uint64_t)(v * multiplier);
         while (remaining_ms > 0 && !runtime->should_stop) {
             uint64_t step = remaining_ms > 50 ? 50 : remaining_ms;
             os_sleep_ms((uint32_t)step);
             remaining_ms -= step;
+        }
+        break;
+    }
+
+    case OP_WAIT_MEM: {
+        const uint32_t wait_mem_has_value = (1u << 8);
+        const uint32_t wait_mem_has_poll = (1u << 9);
+        const uint32_t wait_mem_unit_mask = 0xFFu;
+
+        bool has_value = (instr->operand & wait_mem_has_value) != 0;
+        bool has_poll = (instr->operand & wait_mem_has_poll) != 0;
+        c64script_wait_unit_t poll_unit = (c64script_wait_unit_t)(instr->operand & wait_mem_unit_mask);
+
+        c64script_value_t poll_val = {0};
+        c64script_value_t value_val = {0};
+        c64script_value_t mask_val = {0};
+        c64script_value_t addr_val = {0};
+
+        if (has_poll) {
+            if (!c64script_runtime_pop(runtime, &poll_val))
+                return false;
+        }
+        if (has_value) {
+            if (!c64script_runtime_pop(runtime, &value_val)) {
+                c64script_value_free(&poll_val);
+                return false;
+            }
+        }
+        if (!c64script_runtime_pop(runtime, &mask_val)) {
+            c64script_value_free(&poll_val);
+            c64script_value_free(&value_val);
+            return false;
+        }
+        if (!c64script_runtime_pop(runtime, &addr_val)) {
+            c64script_value_free(&poll_val);
+            c64script_value_free(&value_val);
+            c64script_value_free(&mask_val);
+            return false;
+        }
+
+        uint16_t address = 0;
+        uint8_t mask = 0;
+        uint8_t value = 0;
+        uint32_t poll_ms = 500;
+
+        if (!number_to_uint16(runtime, &addr_val, &address, "WAIT")) {
+            c64script_value_free(&poll_val);
+            c64script_value_free(&value_val);
+            c64script_value_free(&mask_val);
+            c64script_value_free(&addr_val);
+            return false;
+        }
+        if (!number_to_uint8(runtime, &mask_val, &mask, "WAIT")) {
+            c64script_value_free(&poll_val);
+            c64script_value_free(&value_val);
+            c64script_value_free(&mask_val);
+            c64script_value_free(&addr_val);
+            return false;
+        }
+        if (has_value) {
+            if (!number_to_uint8(runtime, &value_val, &value, "WAIT")) {
+                c64script_value_free(&poll_val);
+                c64script_value_free(&value_val);
+                c64script_value_free(&mask_val);
+                c64script_value_free(&addr_val);
+                return false;
+            }
+        } else {
+            value = mask;
+        }
+
+        if (has_poll) {
+            if (!require_number(runtime, &poll_val, "WAIT")) {
+                c64script_value_free(&poll_val);
+                c64script_value_free(&value_val);
+                c64script_value_free(&mask_val);
+                c64script_value_free(&addr_val);
+                return false;
+            }
+            double poll_seconds = poll_val.as.number;
+            if (poll_seconds < 0.0) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "ILLEGAL QUANTITY");
+                c64script_value_free(&poll_val);
+                c64script_value_free(&value_val);
+                c64script_value_free(&mask_val);
+                c64script_value_free(&addr_val);
+                return false;
+            }
+            poll_ms = (uint32_t)(poll_seconds * wait_unit_multiplier(poll_unit));
+        }
+
+        c64script_value_free(&poll_val);
+        c64script_value_free(&value_val);
+        c64script_value_free(&mask_val);
+        c64script_value_free(&addr_val);
+
+        if (poll_ms == 0) {
+            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "ILLEGAL QUANTITY");
+            return false;
+        }
+
+        // Skip waiting in step mode, when paused, or during trace recording (test mode)
+        if (runtime->is_paused || runtime->step_mode || runtime->trace_recording_enabled) {
+            break;
+        }
+
+        if (!runtime->rest_client) {
+            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "REST client not available");
+            return false;
+        }
+
+        uint8_t buf[1] = {0};
+        while (!runtime->should_stop) {
+            int read_count =
+                c64_rest_read_memory((c64_rest_client_t *)runtime->rest_client, address, 1, buf, sizeof(buf));
+            if (read_count != 1) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "WAIT failed: %s",
+                         c64_rest_get_error((c64_rest_client_t *)runtime->rest_client));
+                return false;
+            }
+
+            if ((buf[0] & mask) == value) {
+                break;
+            }
+
+            uint32_t remaining_ms = poll_ms;
+            while (remaining_ms > 0 && !runtime->should_stop) {
+                uint32_t step = remaining_ms > 50 ? 50 : remaining_ms;
+                os_sleep_ms(step);
+                remaining_ms -= step;
+            }
         }
         break;
     }

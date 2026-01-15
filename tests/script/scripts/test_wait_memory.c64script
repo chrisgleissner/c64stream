@@ -1,0 +1,16 @@
+rem Test WAIT memory polling
+rem Validates WAIT addr,mask[,value] with optional EVERY duration
+
+rem Test 1: Value defaults to mask
+POKE $C000, 1
+WAIT $C000, 1
+
+rem Test 2: Explicit value with default poll interval
+POKE $C001, 2
+WAIT $C001, 2, 2
+
+rem Test 3: Explicit value with EVERY poll interval
+POKE $C002, 0
+WAIT $C002, 1, 0 EVERY 10ms
+
+stop

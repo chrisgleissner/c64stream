@@ -93,6 +93,8 @@ static const char *opcode_name(c64script_opcode_t opcode)
         return "WHILE_CHECK";
     case OP_WAIT:
         return "WAIT";
+    case OP_WAIT_MEM:
+        return "WAIT_MEM";
     case OP_WAIT_UNTIL:
         return "WAIT_UNTIL";
     case OP_CALL_PEEK:

@@ -102,10 +102,11 @@ gosub_stmt      = "GOSUB", WS, label_ref, [WS, "(", [WS], [expr, { [WS], ",", [W
 return_stmt     = "RETURN", [[WS], expr] ;
 stop_stmt       = "STOP" | "END" ;
 
-wait_stmt       = "WAIT", WS, (wait_until | wait_duration) ;
+wait_stmt       = "WAIT", WS, (wait_until | wait_duration | wait_mem) ;
 wait_duration   = wait_arg ;
 wait_until      = "UNTIL", WS, expr ;
 wait_arg        = duration_lit | expr, [WS, ("ms" | "s" | "m" | "h" | "d")] ;
+wait_mem        = expr, [WS], ",", [WS], expr, [WS], [",", [WS], expr], [WS, "EVERY", WS, wait_arg] ;
 
 function_def    = "FUN", WS, identifier, [WS, "(", [WS], [identifier, { [WS], ",", [WS], identifier }], [WS], ")"], EOL,
                       { line },

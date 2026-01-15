@@ -97,6 +97,7 @@ typedef enum {
     // Keywords - waiting
     TOKEN_WAIT,
     TOKEN_UNTIL,
+    TOKEN_EVERY,
 
     // Keywords - plugin actions
     TOKEN_EFFECT,
@@ -233,6 +234,7 @@ typedef enum {
     AST_STMT_RETURN,
     AST_STMT_STOP,
     AST_STMT_WAIT,
+    AST_STMT_WAIT_MEM,
     AST_STMT_WAIT_UNTIL,
     AST_STMT_EFFECT,
     AST_STMT_EFFECTPARAM,
@@ -275,6 +277,8 @@ typedef enum {
     C64SCRIPT_WAIT_UNIT_MS,
     C64SCRIPT_WAIT_UNIT_S,
     C64SCRIPT_WAIT_UNIT_M,
+    C64SCRIPT_WAIT_UNIT_H,
+    C64SCRIPT_WAIT_UNIT_D,
 } c64script_wait_unit_t;
 
 typedef enum {
@@ -447,6 +451,14 @@ struct c64script_ast_node {
         } wait_stmt;
 
         struct {
+            c64script_ast_expr_t *address;
+            c64script_ast_expr_t *mask;
+            c64script_ast_expr_t *value; // NULL means use mask
+            c64script_ast_expr_t *poll;  // NULL means default polling
+            c64script_wait_unit_t poll_unit;
+        } wait_mem_stmt;
+
+        struct {
             c64script_ast_expr_t *time_expr;
         } wait_until_stmt;
 
@@ -612,6 +624,7 @@ typedef enum {
 
     // Waiting
     OP_WAIT,       // Wait for duration (operand = c64script_wait_unit_t)
+    OP_WAIT_MEM,   // Wait for memory value (operand encodes poll unit + flags)
     OP_WAIT_UNTIL, // Wait until wall-clock target
 
     // Built-in functions
