@@ -675,6 +675,11 @@ static bool refresh_playlist_from_settings(obs_properties_t *props, obs_data_t *
     }
 
     if (c64_automation_is_running(context->automation)) {
+        c64_automation_config_t runtime_config = {0};
+        runtime_config.duration_seconds = (int)obs_data_get_int(settings, "automation_duration");
+        runtime_config.reset_between_items = obs_data_get_bool(settings, "automation_reset");
+        c64_automation_update_runtime_config(context->automation, &runtime_config);
+
         obs_property_t *playlist_prop = obs_properties_get(props, "playlist");
         if (playlist_prop) {
             update_playlist_property(playlist_prop, context, settings);

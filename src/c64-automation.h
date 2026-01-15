@@ -69,6 +69,11 @@ void c64_automation_destroy(c64_automation_t *automation);
 void c64_automation_configure(c64_automation_t *automation, const c64_automation_config_t *config);
 
 /**
+ * Update runtime-only automation settings while running (e.g., duration).
+ */
+void c64_automation_update_runtime_config(c64_automation_t *automation, const c64_automation_config_t *config);
+
+/**
  * Start automation
  * @return true if started successfully
  */

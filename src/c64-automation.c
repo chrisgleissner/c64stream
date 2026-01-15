@@ -50,6 +50,8 @@ struct c64_automation {
     c64_keyboard_t *keyboard;
     obs_source_t *source;
     c64_automation_config_t config;
+    c64_automation_config_t playlist_config;
+    bool playlist_config_valid;
     bool running;
     bool should_stop;
     bool skip_requested; // Flag to skip to next item
@@ -116,6 +118,14 @@ typedef struct {
     obs_source_t *source;
 } c64_automation_ui_update_t;
 
+static bool automation_should_stop(c64_automation_t *automation)
+{
+    pthread_mutex_lock(&automation->status_mutex);
+    bool should_stop = automation->should_stop;
+    pthread_mutex_unlock(&automation->status_mutex);
+    return should_stop;
+}
+
 static void c64_automation_ui_update_task(void *data)
 {
     c64_automation_ui_update_t *update = (c64_automation_ui_update_t *)data;
@@ -162,6 +172,35 @@ static void c64_automation_clear_playlist_internal(c64_automation_t *automation)
     }
     automation->num_files = 0;
     automation->playlist_ready = false;
+    automation->playlist_config_valid = false;
+}
+
+static bool playlist_config_equals(const c64_automation_config_t *left, const c64_automation_config_t *right)
+{
+    if (!left || !right) {
+        return false;
+    }
+
+    if (left->mode != right->mode || left->file_source != right->file_source ||
+        left->include_subfolders != right->include_subfolders || left->shuffle != right->shuffle) {
+        return false;
+    }
+
+    return strncmp(left->folder_path, right->folder_path, sizeof(left->folder_path)) == 0;
+}
+
+static void playlist_config_copy(c64_automation_config_t *dest, const c64_automation_config_t *src)
+{
+    if (!dest || !src) {
+        return;
+    }
+
+    memset(dest, 0, sizeof(*dest));
+    dest->mode = src->mode;
+    dest->file_source = src->file_source;
+    dest->shuffle = src->shuffle;
+    dest->include_subfolders = src->include_subfolders;
+    strncpy(dest->folder_path, src->folder_path, sizeof(dest->folder_path) - 1);
 }
 
 static bool c64_automation_build_playlist(c64_automation_t *automation)
@@ -208,6 +247,8 @@ static bool c64_automation_build_playlist(c64_automation_t *automation)
     }
 
     automation->playlist_ready = true;
+    playlist_config_copy(&automation->playlist_config, &automation->config);
+    automation->playlist_config_valid = true;
     return true;
 }
 
@@ -517,7 +558,13 @@ static void *automation_worker(void *arg)
     }
     pthread_mutex_unlock(&automation->status_mutex);
 
-    while (i < automation->num_files && !automation->should_stop) {
+    while (i < automation->num_files) {
+        pthread_mutex_lock(&automation->status_mutex);
+        bool should_stop = automation->should_stop;
+        pthread_mutex_unlock(&automation->status_mutex);
+        if (should_stop) {
+            break;
+        }
         pthread_mutex_lock(&automation->status_mutex);
         automation->current_index = i;
         pthread_mutex_unlock(&automation->status_mutex);
@@ -544,6 +591,10 @@ static void *automation_worker(void *arg)
 
         C64_LOG_INFO(AUTOMATION_LOG_PREFIX "Processing: %s", file->path);
 
+        pthread_mutex_lock(&automation->status_mutex);
+        bool reset_between_items = automation->config.reset_between_items;
+        pthread_mutex_unlock(&automation->status_mutex);
+
         // Execute based on file source
         bool success = false;
         if (automation->config.file_source == C64_FILE_SOURCE_C64U) {
@@ -567,7 +618,7 @@ static void *automation_worker(void *arg)
             case C64_FILE_TYPE_G71:
             case C64_FILE_TYPE_D81:
                 // Reset before mounting
-                if (automation->config.reset_between_items) {
+                if (reset_between_items) {
                     c64_rest_reset(automation->rest_client);
                     os_sleep_ms(RESET_DELAY_MS);
                 }
@@ -575,7 +626,7 @@ static void *automation_worker(void *arg)
                 if (success && automation->keyboard) {
                     // Inject LOAD"*",8,1:RUN followed by RETURN
                     const char *template = automation->config.d64_autostart_template;
-                    for (size_t j = 0; template[j] && !automation->should_stop; j++) {
+                    for (size_t j = 0; template[j] && !automation_should_stop(automation); j++) {
                         c64_output_t output = {0};
                         output.mode = C64_OUTPUT_PETSCII;
                         if (template[j] == '\r') {
@@ -616,7 +667,7 @@ static void *automation_worker(void *arg)
             case C64_FILE_TYPE_G71:
             case C64_FILE_TYPE_D81:
                 // Reset, mount (determine type from file extension), inject autostart
-                if (automation->config.reset_between_items) {
+                if (reset_between_items) {
                     c64_rest_reset(automation->rest_client);
                     os_sleep_ms(RESET_DELAY_MS);
                 }
@@ -646,7 +697,7 @@ static void *automation_worker(void *arg)
                 if (success && automation->keyboard) {
                     // Inject LOAD"*",8,1:RUN followed by RETURN
                     const char *template = automation->config.d64_autostart_template;
-                    for (size_t j = 0; template[j] && !automation->should_stop; j++) {
+                    for (size_t j = 0; template[j] && !automation_should_stop(automation); j++) {
                         c64_output_t output = {0};
                         output.mode = C64_OUTPUT_PETSCII;
                         if (template[j] == '\r') {
@@ -668,22 +719,23 @@ static void *automation_worker(void *arg)
         }
 
         // Wait for duration (check should_stop and skip_requested periodically)
-        int duration_ms = automation->config.duration_seconds * 1000;
         int elapsed_ms = 0;
         int sleep_interval_ms = 100;
 
-        while (elapsed_ms < duration_ms && !automation->should_stop) {
-            os_sleep_ms(sleep_interval_ms);
-            elapsed_ms += sleep_interval_ms;
-
-            // Check skip flag
+        while (true) {
             pthread_mutex_lock(&automation->status_mutex);
             bool skip = automation->skip_requested;
             if (skip) {
                 automation->skip_requested = false;
             }
             int jump_target = automation->current_index;
+            int duration_ms = automation->config.duration_seconds * 1000;
+            bool should_stop_loop = automation->should_stop;
             pthread_mutex_unlock(&automation->status_mutex);
+
+            if (should_stop_loop || elapsed_ms >= duration_ms) {
+                break;
+            }
 
             if (skip) {
                 C64_LOG_INFO(AUTOMATION_LOG_PREFIX "Skipping current item");
@@ -694,12 +746,14 @@ static void *automation_worker(void *arg)
                 }
                 goto advance_item;
             }
+
+            os_sleep_ms(sleep_interval_ms);
+            elapsed_ms += sleep_interval_ms;
         }
 
         // Reset between items if configured (skip if disk type since already reset before mount)
-        if (automation->config.reset_between_items && file->type != C64_FILE_TYPE_D64 &&
-            file->type != C64_FILE_TYPE_G64 && file->type != C64_FILE_TYPE_D71 && file->type != C64_FILE_TYPE_G71 &&
-            file->type != C64_FILE_TYPE_D81) {
+        if (reset_between_items && file->type != C64_FILE_TYPE_D64 && file->type != C64_FILE_TYPE_G64 &&
+            file->type != C64_FILE_TYPE_D71 && file->type != C64_FILE_TYPE_G71 && file->type != C64_FILE_TYPE_D81) {
             c64_rest_reset(automation->rest_client);
             os_sleep_ms(RESET_DELAY_MS);
         }
@@ -714,8 +768,11 @@ static void *automation_worker(void *arg)
     automation->current_file_path[0] = '\0';
     pthread_mutex_unlock(&automation->status_mutex);
 
-    set_status(automation, automation->should_stop ? "stopped" : "completed");
+    bool stopped = automation_should_stop(automation);
+    set_status(automation, stopped ? "stopped" : "completed");
+    pthread_mutex_lock(&automation->status_mutex);
     automation->running = false;
+    pthread_mutex_unlock(&automation->status_mutex);
 
     c64_automation_queue_ui_update(automation);
 
@@ -744,6 +801,7 @@ c64_automation_t *c64_automation_create(void *rest_client, void *keyboard, obs_s
     automation->num_files = 0;
     automation->current_index = 0;
     automation->playlist_ready = false;
+    automation->playlist_config_valid = false;
     strncpy(automation->status, "idle", sizeof(automation->status) - 1);
 
     pthread_mutex_init(&automation->status_mutex, NULL);
@@ -766,7 +824,7 @@ void c64_automation_destroy(c64_automation_t *automation)
     }
 
     // Stop if running
-    if (automation->running) {
+    if (c64_automation_is_running(automation)) {
         c64_automation_stop(automation);
     }
 
@@ -782,10 +840,24 @@ void c64_automation_configure(c64_automation_t *automation, const c64_automation
         return;
     }
 
+    pthread_mutex_lock(&automation->status_mutex);
     memcpy(&automation->config, config, sizeof(c64_automation_config_t));
+    pthread_mutex_unlock(&automation->status_mutex);
     C64_LOG_INFO(AUTOMATION_LOG_PREFIX "Configured: mode=%d folder=%s shuffle=%d recursive=%d duration=%d",
                  config->mode, config->folder_path, config->shuffle, config->include_subfolders,
                  config->duration_seconds);
+}
+
+void c64_automation_update_runtime_config(c64_automation_t *automation, const c64_automation_config_t *config)
+{
+    if (!automation || !config) {
+        return;
+    }
+
+    pthread_mutex_lock(&automation->status_mutex);
+    automation->config.duration_seconds = config->duration_seconds;
+    automation->config.reset_between_items = config->reset_between_items;
+    pthread_mutex_unlock(&automation->status_mutex);
 }
 
 void c64_automation_clear_playlist(c64_automation_t *automation)
@@ -800,14 +872,24 @@ bool c64_automation_refresh_playlist(c64_automation_t *automation, const c64_aut
         return false;
     }
 
-    if (automation->running) {
+    pthread_mutex_lock(&automation->status_mutex);
+    bool is_running = automation->running;
+    pthread_mutex_unlock(&automation->status_mutex);
+    if (is_running) {
         return false;
     }
 
     c64_automation_configure(automation, config);
 
-    if (!c64_automation_build_playlist(automation)) {
-        return false;
+    bool needs_rebuild = !automation->playlist_ready || !automation->files || automation->num_files == 0 ||
+                         !automation->playlist_config_valid ||
+                         !playlist_config_equals(config, &automation->playlist_config) || config->shuffle;
+    if (needs_rebuild) {
+        if (!c64_automation_build_playlist(automation)) {
+            return false;
+        }
+        playlist_config_copy(&automation->playlist_config, config);
+        automation->playlist_config_valid = true;
     }
 
     if (selected_index < 0 || selected_index >= automation->num_files) {
@@ -827,7 +909,10 @@ bool c64_automation_start(c64_automation_t *automation, int start_index)
         return false;
     }
 
-    if (automation->running) {
+    pthread_mutex_lock(&automation->status_mutex);
+    bool already_running = automation->running;
+    pthread_mutex_unlock(&automation->status_mutex);
+    if (already_running) {
         C64_LOG_WARNING(AUTOMATION_LOG_PREFIX "Already running");
         return false;
     }
@@ -839,9 +924,11 @@ bool c64_automation_start(c64_automation_t *automation, int start_index)
     }
 
     // Start worker thread
+    pthread_mutex_lock(&automation->status_mutex);
     automation->running = true;
     automation->should_stop = false;
     automation->skip_requested = false;
+    pthread_mutex_unlock(&automation->status_mutex);
     if (start_index < 0 || start_index >= automation->num_files) {
         start_index = 0;
     }
@@ -854,7 +941,9 @@ bool c64_automation_start(c64_automation_t *automation, int start_index)
         C64_LOG_ERROR(AUTOMATION_LOG_PREFIX "Failed to create worker thread");
         free(automation->files);
         automation->files = NULL;
+        pthread_mutex_lock(&automation->status_mutex);
         automation->running = false;
+        pthread_mutex_unlock(&automation->status_mutex);
         return false;
     }
 
@@ -869,19 +958,26 @@ void c64_automation_stop(c64_automation_t *automation)
         return;
     }
 
-    if (!automation->running) {
+    pthread_mutex_lock(&automation->status_mutex);
+    bool is_running = automation->running;
+    if (is_running) {
+        automation->should_stop = true;
+    }
+    pthread_mutex_unlock(&automation->status_mutex);
+    if (!is_running) {
         return;
     }
 
     // Signal worker to stop
-    automation->should_stop = true;
     set_status(automation, "stopping");
 
     // Wait for worker thread to finish
     pthread_join(automation->worker_thread, NULL);
 
+    pthread_mutex_lock(&automation->status_mutex);
     automation->running = false;
     automation->should_stop = false;
+    pthread_mutex_unlock(&automation->status_mutex);
 
     C64_LOG_INFO(AUTOMATION_LOG_PREFIX "Stopped automation");
 }
@@ -891,7 +987,10 @@ bool c64_automation_is_running(c64_automation_t *automation)
     if (!automation) {
         return false;
     }
-    return automation->running;
+    pthread_mutex_lock(&automation->status_mutex);
+    bool running = automation->running;
+    pthread_mutex_unlock(&automation->status_mutex);
+    return running;
 }
 
 const char *c64_automation_get_status(c64_automation_t *automation)
@@ -1060,14 +1159,21 @@ const char *c64_automation_get_playlist_item(c64_automation_t *automation, int i
 
 bool c64_automation_skip_next(c64_automation_t *automation)
 {
-    if (!automation || !automation->running) {
+    if (!automation) {
         return false;
     }
 
     pthread_mutex_lock(&automation->status_mutex);
-    // Set skip flag to interrupt the wait loop
-    automation->skip_requested = true;
+    bool running = automation->running;
+    if (running) {
+        // Set skip flag to interrupt the wait loop
+        automation->skip_requested = true;
+    }
     pthread_mutex_unlock(&automation->status_mutex);
+
+    if (!running) {
+        return false;
+    }
 
     C64_LOG_INFO(AUTOMATION_LOG_PREFIX "Skip to next item requested");
     return true;

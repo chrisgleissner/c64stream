@@ -461,16 +461,19 @@ Control your Ultimate 64 remotely from within OBS Studio, enabling keyboard inpu
   - **Symbolic keymaps:** Match key labels (e.g., PC Q → C64 Q)
   - **Positional keymaps:** Match physical locations (e.g., PC Q → C64 Q on QWERTY, but C64 A on AZERTY)
   - Supports built-in and custom user keymaps (`.c64keymap.ini` format)
-- **Automation Mode:** Automated playback of C64 content
-  - **Disabled:** No automation
-  - **Single File:** Play one `.sid`, `.mod`, `.prg`, or `.crt` file. If it finds a disk image, it plays the first file on that disk.
-  - **Folder:** Enumerate and play all compatible files in a directory
-- **Content File:** Select the file to play (Single File mode) or any file within the target folder (Folder mode)
-- **Shuffle Files:** Randomize playback order using Fisher-Yates shuffle algorithm (Folder mode only)
-- **Duration per Item:** Playback duration in seconds before advancing to next file (1-3600s, default 120s)
-- **Reset Between Items:** Perform soft reset between files to ensure clean state
-- **Start/Stop Button:** Start or stop content automation on demand
-- **Content Status:** Real-time display showing current automation state (idle, playing, stopped)
+- **File System:** Choose between local files or C64 Ultimate storage (`c64u:/`)
+- **Playback Source:** Pick **Single File** or **Folder**
+- **Local/C64U Path:** File or folder path, shown based on file system + playback source
+- **Include Subfolders:** Include subfolders when enumerating folder playback (Folder only)
+- **Shuffle Playback:** Randomize folder playback order (Folder only)
+- **Duration per Item:** Playback duration in seconds before advancing (1-3600s, default 120s)
+- **Reset Between Items:** Perform soft reset between items
+- **Playlist:** Shows the current queue; selecting an entry jumps to that item
+- **Refresh Playlist:** Rebuilds the playlist based on current settings
+- **Play/Stop Content:** Starts or stops automated playback
+- **Next:** Skips to the next item while playing
+- **Reset Plugin:** Restarts the plugin state (no OBS restart needed)
+- **Reset C64U:** Sends a C64 Ultimate reset
 
 ### How Keyboard Capture Works
 
@@ -526,8 +529,11 @@ Save this as `hello_world.c64script`, load it in the Script File property, and c
 
 **Debugging Your Scripts:**
 
-The plugin includes minimal, easy-to-use debugging controls:
+The plugin includes built-in controls for running and inspecting scripts:
 
+- **Script File** - Select the `.c64script` to run
+- **Auto Start** - Start the script automatically when the source becomes active
+- **Status** - High-level script status (idle, running, paused, error, completed)
 - **Start/Stop** - Start your script from the beginning or stop it
 - **Pause/Resume** - Pause at any point to inspect what's happening
 - **Step** - Execute your script one line at a time
@@ -536,7 +542,8 @@ The plugin includes minimal, easy-to-use debugging controls:
 **Line Tracking:**
 - **Last executed** - Shows which line just ran
 - **Next to execute** - Shows which line will run next
-- **Execution state** - Shows if script is running, paused, or stopped
+- **Execution state** - Shows running, paused, error, or completed
+- **Last error** - Shows the most recent runtime error when one occurs
 
 **Try It Out:**
 
