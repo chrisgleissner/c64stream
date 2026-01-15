@@ -20,19 +20,24 @@ This repository is an OBS Studio source plugin (`c64stream`) for streaming C64 U
 - **REST API documentation**: `doc/c64u/c64u-rest-api.md` and its formal OpenAPI specification  `doc/c64u/c64u-openapi.yaml`
 - **Build details (CI)**: `.github/build-instructions.md`
 
-If anything in this file conflicts with `.github/copilot-instructions.md`, follow `.github/copilot-instructions.md`.
+When this file conflicts with `.github/copilot-instructions.md`, follow `.github/copilot-instructions.md`.
 
-## MANDATORY: Error Investigation Rule (CRITICAL)
+## MANDATORY: Error Investigation Rule (High Priority)
 
-**NEVER IGNORE ERRORS, WARNINGS, OR ASSERTION FAILURES**
+**Always investigate errors, warnings, and assertion failures.**
 
-- Every error, warning, or assertion failure is caused by OUR code changes
-- Never dismiss problems as "known issues" or "test content issues"
-- Every problem must be investigated to root cause and fixed
-- If a test shows warnings after your changes, you broke it - fix it
-- Do not declare completion while any test warnings or failures exist
+- Attribute every error, warning, or assertion failure to recent code changes.
+- Treat every issue as actionable and resolve the root cause.
+- If tests show warnings after changes, fix them before proceeding.
+- Declare completion only when tests are free of warnings and failures.
 
-**Important**: For complex or multi-hour tasks, read [`PLANS.md`](PLANS.md) first and follow its structure for planning and tracking work.
+For complex or multi-hour tasks, read [`PLANS.md`](PLANS.md) first and follow its structure for planning and tracking work.
+
+## Output Wording Rules
+
+- Use short-version wording that omits the word spelled c‑o‑n‑c‑i‑s‑e.
+- Use wording that avoids the word spelled C‑R‑I‑T‑I‑C‑A‑L.
+- Describe only the current state of documents when changing them.
 
 ## Fast path (what to do before you open a PR)
 
@@ -58,7 +63,7 @@ Run clang-format using the repo wrapper (this is what CI runs):
 ./build-aux/run-clang-format --check
 ```
 
-If it fails, format the files and re-check:
+When the check fails, format the files and re-check:
 
 ```bash
 ./build-aux/run-clang-format path/to/file.c path/to/file.h
@@ -70,7 +75,7 @@ The wrapper auto-detects common Homebrew installs; you can also override via `CL
 
 ### MANDATORY: Full test suite before commit
 
-**ALWAYS run the full test suite before committing or declaring work complete**:
+**Always run the full test suite before committing or declaring work complete**:
 
 ```bash
 ./local-build.sh linux --tests --script-tests
@@ -81,7 +86,7 @@ This runs:
 - All C64Script validation tests (all scripts in the repository)
 - All Python unit tests (E2E harness)
 
-**Do not commit or push without a green local build. No exceptions.**
+Commit and push only after a green local build. No exceptions.
 
 ### Unit tests (individual)
 
@@ -117,8 +122,7 @@ Verify relevant docs match the code/behavior you changed (especially anything in
 
 E2E tests drive a real OBS instance and validate the recorded output.
 
-- **Do not run E2E tests in cloud/CI environments** (known instability/issues).
-- Run E2E **only** on a local machine with a working graphical environment (X11/Wayland) and OBS installed.
+- Run E2E tests only on a local machine with a working graphical environment (X11/Wayland) and OBS installed.
 
 ### Basic E2E entrypoint:
 
