@@ -44,6 +44,7 @@ static void c64_schedule_retry(struct c64_source *context, const char *reason);
 static void c64_refresh_resolved_ip(struct c64_source *context);
 static void c64_set_expected_peer_ip(struct c64_source *context, const char *ip_string);
 static void c64_attempt_script_autostart(struct c64_source *context, obs_data_t *settings);
+static void c64_queue_properties_refresh(struct c64_source *context);
 
 static bool c64_try_get_prefer_pal_from_obs_fps(bool *prefer_pal)
 {
@@ -951,6 +952,45 @@ static void c64_attempt_script_autostart(struct c64_source *context, obs_data_t 
     context->script_autostarted = true;
 }
 
+typedef struct {
+    obs_source_t *source;
+} c64_source_properties_refresh_t;
+
+static void c64_apply_properties_refresh(void *data)
+{
+    c64_source_properties_refresh_t *refresh = (c64_source_properties_refresh_t *)data;
+    if (!refresh || !refresh->source) {
+        if (refresh) {
+            free(refresh);
+        }
+        return;
+    }
+
+    obs_source_update_properties(refresh->source);
+    obs_source_release(refresh->source);
+    free(refresh);
+}
+
+static void c64_queue_properties_refresh(struct c64_source *context)
+{
+    if (!context || !context->source) {
+        return;
+    }
+
+    c64_source_properties_refresh_t *refresh = calloc(1, sizeof(c64_source_properties_refresh_t));
+    if (!refresh) {
+        return;
+    }
+
+    refresh->source = obs_source_get_ref(context->source);
+    if (!refresh->source) {
+        free(refresh);
+        return;
+    }
+
+    obs_queue_task(OBS_TASK_UI, c64_apply_properties_refresh, refresh, false);
+}
+
 void c64_update(void *data, obs_data_t *settings)
 {
     struct c64_source *context = data;
@@ -1421,6 +1461,7 @@ void c64_video_tick(void *data, float seconds)
                 context->script_ended_successfully = true;
                 C64_LOG_INFO("Script completed successfully");
                 context->force_ui_update = true; // Force immediate UI update
+                c64_queue_properties_refresh(context);
             } else if (current_status == C64_SCRIPT_STATUS_ERROR) {
                 // Script ended with error
                 context->script_end_time = os_gettime_ns();
@@ -1428,14 +1469,17 @@ void c64_video_tick(void *data, float seconds)
                 const char *error = c64_script_executor_get_error(context->script_executor);
                 C64_LOG_ERROR("Script failed: %s", error ? error : "unknown error");
                 context->force_ui_update = true; // Force immediate UI update
+                c64_queue_properties_refresh(context);
             } else if (current_status == C64_SCRIPT_STATUS_IDLE && last_status == C64_SCRIPT_STATUS_RUNNING) {
                 // Script was stopped
                 context->script_end_time = os_gettime_ns();
                 context->script_ended_successfully = false;
                 context->force_ui_update = true; // Force immediate UI update
+                c64_queue_properties_refresh(context);
             } else if (current_status == C64_SCRIPT_STATUS_PAUSED || current_status == C64_SCRIPT_STATUS_RUNNING) {
                 // Entering or leaving pause/debug mode - force immediate update
                 context->force_ui_update = true;
+                c64_queue_properties_refresh(context);
             }
             context->last_script_status = (int)current_status;
         }
