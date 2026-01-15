@@ -16,20 +16,24 @@ See <https://www.gnu.org/licenses/> for details.
 
 #ifdef _WIN32
 #include <direct.h>
-#include <stdlib.h>
 #include <windows.h>
 static bool make_temp_dir(char *buffer, size_t size)
 {
     char temp_path[MAX_PATH] = {0};
-    if (GetTempPathA((DWORD)sizeof(temp_path), temp_path) == 0) {
+    DWORD path_len = GetTempPathA((DWORD)sizeof(temp_path), temp_path);
+    if (path_len == 0 || path_len >= sizeof(temp_path)) {
         return false;
     }
 
-    if (snprintf(buffer, size, "%sc64stream_test_XXXXXX", temp_path) < 0) {
+    if (size < MAX_PATH) {
         return false;
     }
 
-    if (_mktemp_s(buffer, size) != 0) {
+    if (GetTempFileNameA(temp_path, "c64", 0, buffer) == 0) {
+        return false;
+    }
+
+    if (!DeleteFileA(buffer)) {
         return false;
     }
 
@@ -77,7 +81,7 @@ static void cleanup_dir(const char *dir, const char *file1, const char *file2)
 
 int main(void)
 {
-    char temp_dir[256] = {0};
+    char temp_dir[512] = {0};
     assert(make_temp_dir(temp_dir, sizeof(temp_dir)));
 
     char file_sid[512];
