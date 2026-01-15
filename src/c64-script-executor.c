@@ -511,10 +511,8 @@ const char *c64_script_executor_get_current_command(c64_script_executor_t *execu
     }
 
     size_t ip = executor->runtime->ip;
-    if (ip == 0) {
-        ip = 0;
-    } else {
-        ip = ip - 1;
+    if (ip > 0) {
+        ip--;
     }
     if (ip >= executor->runtime->bytecode_size) {
         ip = executor->runtime->bytecode_size - 1;
