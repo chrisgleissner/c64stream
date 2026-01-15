@@ -20,6 +20,7 @@ INSTALL_PLUGIN=false
 RUN_E2E=false
 E2E_SCENARIO=""
 GENERATE_E2E_SCENARIOS=false
+E2E_RESULTS_ONLY=false
 NEED_E2E_DEPS=false
 E2E_NO_XVFB=false
 VERBOSE=false
@@ -193,6 +194,7 @@ OPTIONS:
     --install           Install plugin to OBS after building
     --e2e[=SCENARIO]    Run E2E tests after building and installing (default scenario: ntsc_default)
     --e2e-scenarios     Run all scenarios in tests/e2e/scenarios/* and write results to tests/e2e/results/<scenario>
+    --e2e-results       Regenerate tests/e2e/results/README.md from discovered result folders (no tests)
     --no-xvfb           Run E2E tests without starting Xvfb (uses current DISPLAY)
     --verbose           Enable verbose output
     --debug-logs        Enable debug logging for C64Script tests
@@ -205,6 +207,7 @@ EXAMPLES:
     $0 linux --e2e --install                   # Build, install and run E2E tests
     $0 windows --clean --install-deps          # Clean build for Windows, install deps
     $0 linux --install-e2e-deps --e2e          # Install all deps including E2E and run E2E tests
+    $0 linux --e2e-results                     # Regenerate the E2E results README
     $0 macos --verbose                          # Build for macOS with verbose output
 
 NOTES:
@@ -1311,6 +1314,29 @@ parse_scenario_yaml() {
     echo "$val"
 }
 
+generate_e2e_results_readme() {
+    local results_root="${PROJECT_ROOT}/tests/e2e/results"
+    local generator="${PROJECT_ROOT}/tests/e2e/util/generate_results_readme.py"
+
+    if [[ ! -d "$results_root" ]]; then
+        log_error "E2E results directory not found: $results_root"
+        return 1
+    fi
+    if [[ ! -f "$generator" ]]; then
+        log_error "E2E results generator not found: $generator"
+        return 1
+    fi
+
+    log_info "Generating E2E results README..."
+    if python3 "$generator" "$results_root"; then
+        log_success "Generated tests/e2e/results/README.md"
+        return 0
+    fi
+
+    log_error "Failed to generate tests/e2e/results/README.md"
+    return 1
+}
+
 run_e2e_scenarios() {
     local platform=$1
 
@@ -1348,6 +1374,7 @@ run_e2e_scenarios() {
         bash ./e2e.sh "${e2e_args[@]}"; then
         log_success "All E2E scenarios completed successfully"
         popd >/dev/null
+        generate_e2e_results_readme
         return 0
     else
         log_error "Some E2E scenarios failed"
@@ -1450,6 +1477,10 @@ main() {
                 GENERATE_E2E_SCENARIOS=true
                 shift
                 ;;
+            --e2e-results)
+                E2E_RESULTS_ONLY=true
+                shift
+                ;;
             --debug-logs)
                 DEBUG_LOGS=true
                 shift
@@ -1507,6 +1538,12 @@ main() {
     log_info "Config: $BUILD_CONFIG"
     if [[ "$RUN_E2E" == "true" && "$GENERATE_E2E_SCENARIOS" != "true" ]]; then
         log_info "E2E scenario: $E2E_SCENARIO"
+    fi
+
+    if [[ "$E2E_RESULTS_ONLY" == "true" ]]; then
+        generate_e2e_results_readme
+        log_success "E2E results README regenerated."
+        exit 0
     fi
 
     # Execute workflow

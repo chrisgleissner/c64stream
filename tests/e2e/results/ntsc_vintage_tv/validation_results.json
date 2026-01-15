@@ -1,16 +1,16 @@
 {
     "udp_reception": {
         "status": "pass",
-        "details": "30757/30803 packets (28756 video, 2001 audio)",
+        "details": "30797/30803 packets (28795 video, 2002 audio)",
         "metrics": {
             "expected_total": 30803,
-            "received_total": 30757,
-            "missing_total": 46,
-            "missing_pct": 0.14933610362627017,
+            "received_total": 30797,
+            "missing_total": 6,
+            "missing_pct": 0.019478622212122196,
             "expected_video": 28800,
             "expected_audio": 2003,
-            "received_video": 28756,
-            "received_audio": 2001
+            "received_video": 28795,
+            "received_audio": 2002
         }
     },
     "frame_processing": {
@@ -19,7 +19,7 @@
     },
     "video_recording": {
         "status": "pass",
-        "details": "9.5 MB"
+        "details": "10.6 MB"
     },
     "packet_integrity": {
         "status": "pass",
@@ -27,47 +27,47 @@
     },
     "network_timing": {
         "status": "pass",
-        "details": "span=8010.7ms, video_mean=456.8us, audio_mean=4004.9us"
+        "details": "span=8021.5ms, video_mean=414.4us, audio_mean=4003.8us"
     },
     "video_brightness": {
         "status": "pass",
         "details": "Normal (best_mean_luma=28.5)",
         "metrics": {
-            "best_offset_s": 4.780530204259017,
-            "best_mean_luma": 28.53742862654321,
+            "best_offset_s": 5.332129843211981,
+            "best_mean_luma": 28.53748794367284,
             "samples": [
                 {
-                    "t": 4.780530204259017,
-                    "mean_luma": 28.53742862654321
+                    "t": 5.332129843211981,
+                    "mean_luma": 28.53748794367284
                 },
                 {
-                    "t": 9.577775549092367,
-                    "mean_luma": 25.677028356481483
+                    "t": 10.664259686423962,
+                    "mean_luma": 28.524574652777776
                 },
                 {
-                    "t": 14.358305753351386,
-                    "mean_luma": 25.59485725308642
+                    "t": 15.996389529635945,
+                    "mean_luma": 25.471265914351854
                 }
             ]
         }
     },
     "av_sync": {
-        "status": "fail",
-        "details": "Accuracy: 50.0% (3 mismatches)"
+        "status": "warning",
+        "details": "Accuracy: 77.8% (2 mismatches)"
     },
     "av_sync_details": {
         "total_audio_pops": 9,
-        "total_analyzed": 6,
-        "total_video_pops": 6,
-        "perfect_sync_count": 3,
-        "sync_accuracy_percent": 50.0,
+        "total_analyzed": 9,
+        "total_video_pops": 9,
+        "perfect_sync_count": 7,
+        "sync_accuracy_percent": 77.77777777777779,
         "tolerance_ms": 40,
         "sync_details": [
             {
-                "audio_pop_time_ms": 9801,
-                "closest_video_pop_ms": 9795.072376558686,
-                "closest_video_pop_frame": 586,
-                "difference_ms": 5.927623441313699,
+                "audio_pop_time_ms": 9885,
+                "closest_video_pop_ms": 9878.648079430346,
+                "closest_video_pop_frame": 591,
+                "difference_ms": 6.351920569653885,
                 "is_synced": true,
                 "included_in_analysis": true,
                 "ignore_reason": null,
@@ -77,10 +77,10 @@
                 "traffic": "green"
             },
             {
-                "audio_pop_time_ms": 10602,
-                "closest_video_pop_ms": 10597.399124126634,
-                "closest_video_pop_frame": 634,
-                "difference_ms": 4.6008758733660216,
+                "audio_pop_time_ms": 10684,
+                "closest_video_pop_ms": 10664.259686423962,
+                "closest_video_pop_frame": 638,
+                "difference_ms": 19.740313576037806,
                 "is_synced": true,
                 "included_in_analysis": true,
                 "ignore_reason": null,
@@ -90,10 +90,10 @@
                 "traffic": "green"
             },
             {
-                "audio_pop_time_ms": 11407,
-                "closest_video_pop_ms": 11399.72587169458,
-                "closest_video_pop_frame": 682,
-                "difference_ms": 7.274128305420163,
+                "audio_pop_time_ms": 11490,
+                "closest_video_pop_ms": 11483.301574566241,
+                "closest_video_pop_frame": 687,
+                "difference_ms": 6.69842543375853,
                 "is_synced": true,
                 "included_in_analysis": true,
                 "ignore_reason": null,
@@ -103,49 +103,23 @@
                 "traffic": "green"
             },
             {
-                "audio_pop_time_ms": 12250,
-                "closest_video_pop_ms": 11399.72587169458,
-                "closest_video_pop_frame": 682,
-                "difference_ms": 850.2741283054202,
-                "is_synced": false,
-                "included_in_analysis": false,
-                "ignore_reason": "unmatched_audio_pop",
-                "audio_channel": "R",
-                "video_channel": "L",
-                "channels_match": false,
-                "traffic": "gray"
-            },
-            {
-                "audio_pop_time_ms": 13051,
-                "closest_video_pop_ms": 13773.275833249758,
-                "closest_video_pop_frame": 824,
-                "difference_ms": 722.2758332497579,
-                "is_synced": false,
-                "included_in_analysis": false,
-                "ignore_reason": "unmatched_audio_pop",
-                "audio_channel": "L",
-                "video_channel": "R",
-                "channels_match": false,
-                "traffic": "gray"
-            },
-            {
-                "audio_pop_time_ms": 13855,
-                "closest_video_pop_ms": 13789.99097382409,
-                "closest_video_pop_frame": 825,
-                "difference_ms": 65.00902617591055,
-                "is_synced": false,
+                "audio_pop_time_ms": 12290,
+                "closest_video_pop_ms": 12285.62832213419,
+                "closest_video_pop_frame": 735,
+                "difference_ms": 4.371677865810852,
+                "is_synced": true,
                 "included_in_analysis": true,
                 "ignore_reason": null,
                 "audio_channel": "R",
                 "video_channel": "R",
                 "channels_match": true,
-                "traffic": "red"
+                "traffic": "green"
             },
             {
-                "audio_pop_time_ms": 14657,
-                "closest_video_pop_ms": 14609.032861966369,
-                "closest_video_pop_frame": 874,
-                "difference_ms": 47.96713803363127,
+                "audio_pop_time_ms": 13114,
+                "closest_video_pop_ms": 13071.239929127803,
+                "closest_video_pop_frame": 782,
+                "difference_ms": 42.76007087219659,
                 "is_synced": false,
                 "included_in_analysis": true,
                 "ignore_reason": null,
@@ -155,63 +129,95 @@
                 "traffic": "yellow"
             },
             {
-                "audio_pop_time_ms": 15458,
-                "closest_video_pop_ms": 15394.644468959983,
-                "closest_video_pop_frame": 921,
-                "difference_ms": 63.35553104001701,
+                "audio_pop_time_ms": 13919,
+                "closest_video_pop_ms": 13873.566676695751,
+                "closest_video_pop_frame": 830,
+                "difference_ms": 45.433323304248916,
                 "is_synced": false,
                 "included_in_analysis": true,
                 "ignore_reason": null,
                 "audio_channel": "R",
                 "video_channel": "R",
                 "channels_match": true,
-                "traffic": "red"
+                "traffic": "yellow"
             },
             {
-                "audio_pop_time_ms": 16264,
-                "closest_video_pop_ms": 15394.644468959983,
-                "closest_video_pop_frame": 921,
-                "difference_ms": 869.355531040017,
-                "is_synced": false,
-                "included_in_analysis": false,
-                "ignore_reason": "unmatched_audio_pop",
+                "audio_pop_time_ms": 14719,
+                "closest_video_pop_ms": 14692.60856483803,
+                "closest_video_pop_frame": 879,
+                "difference_ms": 26.39143516196964,
+                "is_synced": true,
+                "included_in_analysis": true,
+                "ignore_reason": null,
                 "audio_channel": "L",
+                "video_channel": "L",
+                "channels_match": true,
+                "traffic": "green"
+            },
+            {
+                "audio_pop_time_ms": 15519,
+                "closest_video_pop_ms": 15494.935312405976,
+                "closest_video_pop_frame": 927,
+                "difference_ms": 24.06468759402378,
+                "is_synced": true,
+                "included_in_analysis": true,
+                "ignore_reason": null,
+                "audio_channel": "R",
                 "video_channel": "R",
-                "channels_match": false,
-                "traffic": "gray"
+                "channels_match": true,
+                "traffic": "green"
+            },
+            {
+                "audio_pop_time_ms": 16326,
+                "closest_video_pop_ms": 16297.262059973924,
+                "closest_video_pop_frame": 975,
+                "difference_ms": 28.737940026076103,
+                "is_synced": true,
+                "included_in_analysis": true,
+                "ignore_reason": null,
+                "audio_channel": "L",
+                "video_channel": "L",
+                "channels_match": true,
+                "traffic": "green"
             }
         ],
         "is_perfectly_synced": false,
         "last_event_within_limit": true,
-        "duration_ms": 19155.551,
+        "duration_ms": 21345.235,
         "video_pop_times_ms": [
-            9795.072376558686,
-            10597.399124126634,
-            11399.72587169458,
-            13789.99097382409,
-            14609.032861966369,
-            15394.644468959983
+            9878.648079430346,
+            10664.259686423962,
+            11483.301574566241,
+            12285.62832213419,
+            13071.239929127803,
+            13873.566676695751,
+            14692.60856483803,
+            15494.935312405976,
+            16297.262059973924
         ],
         "video_pop_frame_indices": [
-            586,
-            634,
-            682,
-            825,
-            874,
-            921
+            591,
+            638,
+            687,
+            735,
+            782,
+            830,
+            879,
+            927,
+            975
         ],
         "traffic": [
             "green",
             "green",
             "green",
-            "gray",
-            "gray",
-            "red",
+            "green",
             "yellow",
-            "red",
-            "gray"
+            "yellow",
+            "green",
+            "green",
+            "green"
         ],
-        "channel_match_count": 6,
+        "channel_match_count": 9,
         "channel_mismatch_count": 0,
         "channels_all_match": true
     },
@@ -233,17 +239,20 @@
             "settling_cutoff_frame": 252,
             "content_bounds": {
                 "first_content_frame": 13,
-                "last_content_frame": 1039,
+                "last_content_frame": 1045,
                 "logo_end_frame": 12,
                 "detection_confidence": 1.0
             },
             "video_pop_starts": [
-                586,
-                634,
-                682,
-                825,
-                874,
-                921
+                591,
+                638,
+                687,
+                735,
+                782,
+                830,
+                879,
+                927,
+                975
             ],
             "analyzed_frames": 479,
             "valid_frames": 478,
@@ -903,6 +912,6 @@
     "success": true,
     "errors": [],
     "warnings": [
-        "AV Sync: Accuracy: 50.0% (3 mismatches)"
+        "AV Sync: Accuracy: 77.8% (2 mismatches)"
     ]
 }
