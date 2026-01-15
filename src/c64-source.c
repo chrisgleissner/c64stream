@@ -2005,7 +2005,8 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
             snprintf(key_code, sizeof(key_code), "return");
         } else if (event->native_vkey == 0x08 || event->native_vkey == 0xFF08) { // Backspace (Linux: 0xFF08)
             snprintf(key_code, sizeof(key_code), "backspace");
-        } else if (event->native_vkey == 0x2E || event->native_vkey == 0xFFFF) { // Delete (Linux: 0xFFFF)
+        } else if ((event->native_vkey == 0x2E || event->native_vkey == 0xFFFF) &&
+                   (!event->text || event->text[0] == '\0')) { // Delete (Linux: 0xFFFF)
             snprintf(key_code, sizeof(key_code), "delete");
         } else if (event->native_vkey == 0x20) { // Space
             snprintf(key_code, sizeof(key_code), "space");

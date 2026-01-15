@@ -495,6 +495,8 @@ Control your Ultimate 64 remotely from within OBS Studio, enabling keyboard inpu
 
 Automate your C64 stream with C64Script - a modernized BASIC-like language designed specifically for stream control.
 
+![C64 Script](./docs/images/properties-script.png "C64 Script")
+
 **What is C64Script?**
 
 C64Script is like a simplified, modernized version of Commodore BASIC. If you've ever typed `10 PRINT "HELLO"` on a C64, you'll feel right at home. The language lets you:
