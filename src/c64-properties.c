@@ -270,9 +270,11 @@ static bool script_start_stop_clicked(obs_properties_t *props, obs_property_t *p
         C64_LOG_INFO("No script executor exists yet");
     }
 
+    bool executor_running = context->script_executor && c64_script_executor_is_running(context->script_executor);
+
     // If running or paused, stop it
     if (status == C64_SCRIPT_STATUS_RUNNING || status == C64_SCRIPT_STATUS_PAUSED ||
-        status == C64_SCRIPT_STATUS_WAITING) {
+        status == C64_SCRIPT_STATUS_WAITING || executor_running) {
         C64_LOG_INFO("Stopping script...");
         if (context->script_executor) {
             c64_script_executor_stop(context->script_executor);

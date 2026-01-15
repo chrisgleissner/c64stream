@@ -20,10 +20,10 @@ REM Main loop - count from 1 to 5
 LABEL counting_loop
     COUNTER = COUNTER + 1
     PRINT "Count: " + STR(COUNTER)
-    
+
     REM Wait half a second between counts
     WAIT 500ms
-    
+
     REM Check if we've reached 5
     IF COUNTER < 5 THEN
         GOTO counting_loop
