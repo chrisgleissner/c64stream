@@ -165,12 +165,14 @@ The grammar serves as the authoritative reference for:
   - Array/map elements: `DATA(3) = 42`, `CONFIG{"port"} = 8080`
 
 **Array Declaration with `DIM`**:
-- `DIM <array_var>(<size>)` allocates an array with `<size> + 1` elements (indices 0 to `<size>`).
-- Example: `DIM VALUES(10)` creates an array with 11 numeric elements (indices 0-10).
-- Example: `DIM NAMES$(5)` creates a string array with 6 elements (indices 0-5).
+- `DIM <array_var>(<size>)` allocates an array with `<size>` elements (indices 0 to `<size>-1`).
+- Example: `DIM VALUES(10)` creates an array with 10 numeric elements (indices 0-9).
+- Example: `DIM NAMES$(5)` creates a string array with 5 elements (indices 0-4).
 - Arrays are initialized with default values: `0` for numeric, `""` for strings.
+- `<size>` must be greater than 0.
 - Re-declaring an array with `DIM` reallocates it, discarding previous contents.
 - Maps (`{}` suffix) do not require `DIM`; they are created on first access and grow dynamically.
+  - **Note:** This differs from C64 BASIC V2, which uses `<size> + 1` elements for `DIM`.
 
 **Automatic Type Casting Rules**:
 
@@ -181,11 +183,11 @@ The language performs automatic type conversion in specific contexts to maintain
    - Format: decimal representation with minimal precision (e.g., `123`, `3.14`).
    - Example: `MSG$ = "Count: " + 42` results in `"Count: 42"`
 
-2. **String to Numeric** (automatic, with validation):
-   - When a string is used in arithmetic context.
-   - Valid string formats: decimal numbers, optional sign, optional decimal point.
-   - Invalid formats raise "ILLEGAL QUANTITY" error.
-   - Example: `X = "123" + 1` results in `124`
+2. **String to Numeric** (explicit only):
+   - Strings are not automatically converted to numbers in arithmetic or relational contexts.
+   - Use `VAL(<string>)` for explicit conversion.
+   - Using a string in numeric context raises "TYPE MISMATCH".
+   - Example: `X = VAL("123") + 1` results in `124`
 
 3. **Numeric to Boolean** (automatic):
    - `0` becomes false; any non-zero value becomes true.
@@ -214,9 +216,12 @@ The following operations raise "TYPE MISMATCH" errors:
 - Invalid string-to-numeric conversion
 
 **Type Compatibility in Expressions**:
-- Numeric operators (`+`, `-`, `*`, `/`) cast operands to numeric.
+- Numeric operators (`+`, `-`, `*`, `/`) require numeric operands.
 - String operator (`+` for concatenation) casts operands to string when at least one operand is string.
-- Relational operators (`=`, `<`, `>`, etc.) support both numeric and string comparisons (type of first operand determines comparison mode).
+- Relational operators (`=`, `<`, `>`, etc.) compare:
+  - numbers if both operands are numeric, or
+  - strings if both operands are strings (case-sensitive lexicographic order).
+- Mixed numeric/string relational comparisons raise "TYPE MISMATCH".
 
 #### 2.4.2 Control Flow and Stacks
 
@@ -287,7 +292,8 @@ Limits should be explicit (e.g., max nesting depth) and produce clear runtime er
 
 #### 2.4.3 Boolean Logic
 
-- Relational operators return numeric truth values (`0` false, `-1` true recommended; BASIC style).
+- Relational operators return numeric truth values (`0` false, `1` true).
+  - **Note:** This differs from C64 BASIC V2, which uses `-1` for true.
 - Boolean operators follow BASIC-like precedence (`NOT` > `AND` > `XOR` > `OR`).
   - `NOT`/`AND`/`OR`/`XOR` operate as **bitwise operators** on integer-truncated operands (useful for common C64 patterns like `PEEK(addr) AND mask`).
   - For bitwise operations, operands are truncated toward zero to signed 32-bit integers; results are returned as signed 32-bit integers.

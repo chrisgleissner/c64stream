@@ -107,7 +107,6 @@ static const char *EXPECTED_EXECUTION_FAILURES[] = {
     "hello_world.c64script",               // Exceeds test timeout (looped waits)
     "demo_palette_cycle.c64script",        // Requires OBS source (long running demo)
     "demo_effect_preset_cycle.c64script",  // Requires OBS source (long running demo)
-    "test_comparisons.c64script",          // String comparison not yet supported
     "test_error_invalid.c64script",        // Type mismatch
     NULL};
 

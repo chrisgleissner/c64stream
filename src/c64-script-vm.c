@@ -554,6 +554,37 @@ static bool require_string(c64script_runtime_t *runtime, const c64script_value_t
     return false;
 }
 
+static bool compare_values(c64script_runtime_t *runtime, const c64script_value_t *a, const c64script_value_t *b,
+                           int *out_cmp, const char *what)
+{
+    if (!out_cmp) {
+        snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Invalid comparison output");
+        return false;
+    }
+
+    if (a->type == VALUE_NUMBER && b->type == VALUE_NUMBER) {
+        if (a->as.number < b->as.number) {
+            *out_cmp = -1;
+        } else if (a->as.number > b->as.number) {
+            *out_cmp = 1;
+        } else {
+            *out_cmp = 0;
+        }
+        return true;
+    }
+
+    if (a->type == VALUE_STRING && b->type == VALUE_STRING) {
+        const char *a_str = a->as.string ? a->as.string : "";
+        const char *b_str = b->as.string ? b->as.string : "";
+        int cmp = strcmp(a_str, b_str);
+        *out_cmp = (cmp < 0) ? -1 : (cmp > 0 ? 1 : 0);
+        return true;
+    }
+
+    snprintf(runtime->error_msg, sizeof(runtime->error_msg), "TYPE MISMATCH (%s)", what);
+    return false;
+}
+
 static bool number_to_int(c64script_runtime_t *runtime, const c64script_value_t *value, int *out, const char *what)
 {
     if (!require_number(runtime, value, what)) {
@@ -1343,13 +1374,14 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
     case OP_EQ:
         if (!c64script_runtime_pop(runtime, &b) || !c64script_runtime_pop(runtime, &a))
             return false;
-        if (!require_number(runtime, &a, "EQ") || !require_number(runtime, &b, "EQ")) {
+        int cmp_eq = 0;
+        if (!compare_values(runtime, &a, &b, &cmp_eq, "EQ")) {
             c64script_value_free(&a);
             c64script_value_free(&b);
             return false;
         }
         result.type = VALUE_NUMBER;
-        result.as.number = (a.as.number == b.as.number) ? 1.0 : 0.0;
+        result.as.number = (cmp_eq == 0) ? 1.0 : 0.0;
         c64script_value_free(&a);
         c64script_value_free(&b);
         if (!c64script_runtime_push(runtime, result))
@@ -1359,13 +1391,14 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
     case OP_NE:
         if (!c64script_runtime_pop(runtime, &b) || !c64script_runtime_pop(runtime, &a))
             return false;
-        if (!require_number(runtime, &a, "NE") || !require_number(runtime, &b, "NE")) {
+        int cmp_ne = 0;
+        if (!compare_values(runtime, &a, &b, &cmp_ne, "NE")) {
             c64script_value_free(&a);
             c64script_value_free(&b);
             return false;
         }
         result.type = VALUE_NUMBER;
-        result.as.number = (a.as.number != b.as.number) ? 1.0 : 0.0;
+        result.as.number = (cmp_ne != 0) ? 1.0 : 0.0;
         c64script_value_free(&a);
         c64script_value_free(&b);
         if (!c64script_runtime_push(runtime, result))
@@ -1375,13 +1408,14 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
     case OP_LT:
         if (!c64script_runtime_pop(runtime, &b) || !c64script_runtime_pop(runtime, &a))
             return false;
-        if (!require_number(runtime, &a, "LT") || !require_number(runtime, &b, "LT")) {
+        int cmp_lt = 0;
+        if (!compare_values(runtime, &a, &b, &cmp_lt, "LT")) {
             c64script_value_free(&a);
             c64script_value_free(&b);
             return false;
         }
         result.type = VALUE_NUMBER;
-        result.as.number = (a.as.number < b.as.number) ? 1.0 : 0.0;
+        result.as.number = (cmp_lt < 0) ? 1.0 : 0.0;
         c64script_value_free(&a);
         c64script_value_free(&b);
         if (!c64script_runtime_push(runtime, result))
@@ -1391,13 +1425,14 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
     case OP_LE:
         if (!c64script_runtime_pop(runtime, &b) || !c64script_runtime_pop(runtime, &a))
             return false;
-        if (!require_number(runtime, &a, "LE") || !require_number(runtime, &b, "LE")) {
+        int cmp_le = 0;
+        if (!compare_values(runtime, &a, &b, &cmp_le, "LE")) {
             c64script_value_free(&a);
             c64script_value_free(&b);
             return false;
         }
         result.type = VALUE_NUMBER;
-        result.as.number = (a.as.number <= b.as.number) ? 1.0 : 0.0;
+        result.as.number = (cmp_le <= 0) ? 1.0 : 0.0;
         c64script_value_free(&a);
         c64script_value_free(&b);
         if (!c64script_runtime_push(runtime, result))
@@ -1407,13 +1442,14 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
     case OP_GT:
         if (!c64script_runtime_pop(runtime, &b) || !c64script_runtime_pop(runtime, &a))
             return false;
-        if (!require_number(runtime, &a, "GT") || !require_number(runtime, &b, "GT")) {
+        int cmp_gt = 0;
+        if (!compare_values(runtime, &a, &b, &cmp_gt, "GT")) {
             c64script_value_free(&a);
             c64script_value_free(&b);
             return false;
         }
         result.type = VALUE_NUMBER;
-        result.as.number = (a.as.number > b.as.number) ? 1.0 : 0.0;
+        result.as.number = (cmp_gt > 0) ? 1.0 : 0.0;
         c64script_value_free(&a);
         c64script_value_free(&b);
         if (!c64script_runtime_push(runtime, result))
@@ -1423,13 +1459,14 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
     case OP_GE:
         if (!c64script_runtime_pop(runtime, &b) || !c64script_runtime_pop(runtime, &a))
             return false;
-        if (!require_number(runtime, &a, "GE") || !require_number(runtime, &b, "GE")) {
+        int cmp_ge = 0;
+        if (!compare_values(runtime, &a, &b, &cmp_ge, "GE")) {
             c64script_value_free(&a);
             c64script_value_free(&b);
             return false;
         }
         result.type = VALUE_NUMBER;
-        result.as.number = (a.as.number >= b.as.number) ? 1.0 : 0.0;
+        result.as.number = (cmp_ge >= 0) ? 1.0 : 0.0;
         c64script_value_free(&a);
         c64script_value_free(&b);
         if (!c64script_runtime_push(runtime, result))

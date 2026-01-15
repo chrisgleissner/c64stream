@@ -1,9 +1,7 @@
 # Execution trace
 script: "test_comparisons.c64script"
-status: failure
-error:
-  line: 73
-  message: "TYPE MISMATCH (EQ)"
+status: success
+error: ~
 program: |
   01: rem Test all comparison operators
   02: rem Tests: =, ==, <>, !=, <, <=, >, >=
@@ -81,7 +79,16 @@ program: |
   74:     effect "Heavy Scanlines"
   75: endif
   76: 
-  77: stop
+  77: rem Test 9: String ordering (case-sensitive, lexicographic)
+  78: if "ALPHA" < "BETA" then
+  79:     wait 50ms
+  80: endif
+  81: 
+  82: if "Z" > "A" then
+  83:     wait 50ms
+  84: endif
+  85: 
+  86: stop
 trace:
 - line: 5
   content: "A = 5"
@@ -612,6 +619,108 @@ trace:
     M: 6
 - line: 73
   content: "if NAME$ = \"TEST\" then"
+  variables:
+    A: 5
+    B: 3
+    C: 2
+    D: 5
+    E: 5
+    F: 5
+    G: 3
+    H: 10
+    I: 5
+    J: 5
+    K: 5
+    L: 8
+    M: 6
+    NAME$: "TEST"
+- line: 74
+  content: "effect \"Heavy Scanlines\""
+  variables:
+    A: 5
+    B: 3
+    C: 2
+    D: 5
+    E: 5
+    F: 5
+    G: 3
+    H: 10
+    I: 5
+    J: 5
+    K: 5
+    L: 8
+    M: 6
+    NAME$: "TEST"
+- line: 78
+  content: "if \"ALPHA\" < \"BETA\" then"
+  variables:
+    A: 5
+    B: 3
+    C: 2
+    D: 5
+    E: 5
+    F: 5
+    G: 3
+    H: 10
+    I: 5
+    J: 5
+    K: 5
+    L: 8
+    M: 6
+    NAME$: "TEST"
+- line: 79
+  content: "wait 50ms"
+  variables:
+    A: 5
+    B: 3
+    C: 2
+    D: 5
+    E: 5
+    F: 5
+    G: 3
+    H: 10
+    I: 5
+    J: 5
+    K: 5
+    L: 8
+    M: 6
+    NAME$: "TEST"
+- line: 82
+  content: "if \"Z\" > \"A\" then"
+  variables:
+    A: 5
+    B: 3
+    C: 2
+    D: 5
+    E: 5
+    F: 5
+    G: 3
+    H: 10
+    I: 5
+    J: 5
+    K: 5
+    L: 8
+    M: 6
+    NAME$: "TEST"
+- line: 83
+  content: "wait 50ms"
+  variables:
+    A: 5
+    B: 3
+    C: 2
+    D: 5
+    E: 5
+    F: 5
+    G: 3
+    H: 10
+    I: 5
+    J: 5
+    K: 5
+    L: 8
+    M: 6
+    NAME$: "TEST"
+- line: 86
+  content: "stop"
   variables:
     A: 5
     B: 3

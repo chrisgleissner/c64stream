@@ -74,4 +74,13 @@ if NAME$ = "TEST" then
     effect "Heavy Scanlines"
 endif
 
+rem Test 9: String ordering (case-sensitive, lexicographic)
+if "ALPHA" < "BETA" then
+    wait 50ms
+endif
+
+if "Z" > "A" then
+    wait 50ms
+endif
+
 stop
