@@ -152,6 +152,9 @@ class E2EOrchestrator:
             # obs_process auto-starts recording via --startrecording argument? Yes.
 
             self.resource_monitor.stop()
+            if self.enable_websocket and self.obs_ws.enabled:
+                self.obs_ws.request_exit()
+                time.sleep(2.0)
             self.obs_process.stop()
             if self.mock_server:
                 self.mock_server.stop()
@@ -187,6 +190,9 @@ class E2EOrchestrator:
             # Ensure cleanup happens even on error
             try:
                 if self.enable_resource_monitoring: self.resource_monitor.stop()
+                if self.enable_websocket and self.obs_ws.enabled:
+                    self.obs_ws.request_exit()
+                    time.sleep(2.0)
                 self.obs_process.stop()
                 if self.mock_server: self.mock_server.stop()
                 self.xvfb.stop()

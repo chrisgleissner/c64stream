@@ -43,6 +43,7 @@ static void close_and_reset_sockets(struct c64_source *context);
 static void c64_schedule_retry(struct c64_source *context, const char *reason);
 static void c64_refresh_resolved_ip(struct c64_source *context);
 static void c64_set_expected_peer_ip(struct c64_source *context, const char *ip_string);
+static void c64_attempt_script_autostart(struct c64_source *context, obs_data_t *settings);
 
 static bool c64_try_get_prefer_pal_from_obs_fps(bool *prefer_pal)
 {
@@ -741,6 +742,7 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->last_script_status = C64_SCRIPT_STATUS_IDLE;
     context->last_ui_update_time = 0;
     context->force_ui_update = false;
+    context->script_autostarted = false;
     memset(context->cached_last_line, 0, sizeof(context->cached_last_line));
     memset(context->cached_next_line, 0, sizeof(context->cached_next_line));
 
@@ -753,6 +755,8 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     if (script_path && script_path[0] != '\0') {
         strncpy(context->script_file_path, script_path, sizeof(context->script_file_path) - 1);
     }
+
+    c64_attempt_script_autostart(context, settings);
 
     return context;
 }
@@ -897,11 +901,65 @@ void c64_destroy(void *data)
     C64_LOG_INFO("C64 Stream source destroyed");
 }
 
+static void c64_attempt_script_autostart(struct c64_source *context, obs_data_t *settings)
+{
+    if (!context || !settings) {
+        return;
+    }
+
+    bool script_auto_start = obs_data_get_bool(settings, "script_auto_start");
+    if (!script_auto_start) {
+        context->script_autostarted = false;
+        return;
+    }
+
+    if (context->script_autostarted || context->script_file_path[0] == '\0') {
+        return;
+    }
+
+    c64_script_status_t status = C64_SCRIPT_STATUS_IDLE;
+    if (context->script_executor) {
+        status = c64_script_executor_get_status(context->script_executor);
+    }
+
+    if (status == C64_SCRIPT_STATUS_RUNNING || status == C64_SCRIPT_STATUS_PAUSED) {
+        context->script_autostarted = true;
+        return;
+    }
+
+    if (!context->script_executor) {
+        context->script_executor = c64_script_executor_create(context->source);
+    }
+
+    if (context->script_executor) {
+        C64_LOG_INFO("Auto-starting script: %s", context->script_file_path);
+        context->script_start_time = os_gettime_ns();
+        context->script_end_time = 0;
+        context->last_script_status = C64_SCRIPT_STATUS_IDLE;
+        if (c64_script_executor_start(context->script_executor, context->script_file_path)) {
+            context->last_script_status = C64_SCRIPT_STATUS_RUNNING;
+            context->force_ui_update = true;
+        } else {
+            const char *err = c64_script_executor_get_error(context->script_executor);
+            C64_LOG_ERROR("Auto-start script failed: %s", err ? err : "unknown error");
+            context->script_end_time = os_gettime_ns();
+            context->script_ended_successfully = false;
+            context->force_ui_update = true;
+        }
+    }
+
+    context->script_autostarted = true;
+}
+
 void c64_update(void *data, obs_data_t *settings)
 {
     struct c64_source *context = data;
     if (!context)
         return;
+
+    char old_script_path[512];
+    strncpy(old_script_path, context->script_file_path, sizeof(old_script_path) - 1);
+    old_script_path[sizeof(old_script_path) - 1] = '\0';
 
     // Script file path (used by Properties UI controls)
     const char *script_path = obs_data_get_string(settings, "script_file");
@@ -911,6 +969,12 @@ void c64_update(void *data, obs_data_t *settings)
     } else {
         context->script_file_path[0] = '\0';
     }
+
+    if (strcmp(old_script_path, context->script_file_path) != 0) {
+        context->script_autostarted = false;
+    }
+
+    c64_attempt_script_autostart(context, settings);
 
     // If a preset is specified and no manual overrides exist, apply it before reading effect values
     // This supports E2E scenarios that set effects via OBS scene JSON source settings

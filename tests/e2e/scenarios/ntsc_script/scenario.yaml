@@ -1,0 +1,11 @@
+name: NTSC Script
+format: NTSC
+preset: Default
+overrides:
+  script_file: "${repo_root}/data/scripts/hello_world.c64script"
+  script_auto_start: true
+assertions:
+  - video_quality
+  - audio
+  - frame_progression
+  - script_log

@@ -243,6 +243,13 @@ static bool compile_script(c64_script_executor_t *executor, const char *script_f
         return false;
     }
 
+    char *log_path = obs_module_config_path("c64script.log");
+    if (log_path) {
+        strncpy(runtime->log_filename, log_path, sizeof(runtime->log_filename) - 1);
+        runtime->log_filename[sizeof(runtime->log_filename) - 1] = '\0';
+        bfree(log_path);
+    }
+
     // Store source text for line display
     runtime->source_text = source; // Transfer ownership to runtime
     runtime->source_text_size = source_size;

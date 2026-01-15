@@ -12,6 +12,8 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-logging.h"
 #include "c64-rest-client.h"
 #include <util/platform.h>
+#include <obs-module.h>
+#include <obs.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -40,15 +42,20 @@ typedef struct {
     c64_file_type_t type;
 } file_entry_t;
 
+static int enumerate_files(c64_rest_client_t *rest_client, const char *folder_path, c64_file_source_t file_source,
+                           bool include_subfolders, file_entry_t **out_files);
+
 struct c64_automation {
     c64_rest_client_t *rest_client;
     c64_keyboard_t *keyboard;
+    obs_source_t *source;
     c64_automation_config_t config;
     bool running;
     bool should_stop;
     bool skip_requested; // Flag to skip to next item
     char status[128];
     char current_file_path[512]; // Full path of currently playing file
+    bool playlist_ready;
 
     // File list
     file_entry_t *files;
@@ -103,6 +110,105 @@ static void shuffle_files(file_entry_t *files, int count)
         files[i] = files[j];
         files[j] = temp;
     }
+}
+
+typedef struct {
+    obs_source_t *source;
+} c64_automation_ui_update_t;
+
+static void c64_automation_ui_update_task(void *data)
+{
+    c64_automation_ui_update_t *update = (c64_automation_ui_update_t *)data;
+    if (!update || !update->source) {
+        if (update) {
+            free(update);
+        }
+        return;
+    }
+
+    obs_source_update_properties(update->source);
+    obs_source_release(update->source);
+    free(update);
+}
+
+static void c64_automation_queue_ui_update(c64_automation_t *automation)
+{
+    if (!automation || !automation->source) {
+        return;
+    }
+
+    c64_automation_ui_update_t *update = calloc(1, sizeof(c64_automation_ui_update_t));
+    if (!update) {
+        return;
+    }
+
+    update->source = obs_source_get_ref(automation->source);
+    if (!update->source) {
+        free(update);
+        return;
+    }
+    obs_queue_task(OBS_TASK_UI, c64_automation_ui_update_task, update, false);
+}
+
+static void c64_automation_clear_playlist_internal(c64_automation_t *automation)
+{
+    if (!automation) {
+        return;
+    }
+
+    if (automation->files) {
+        free(automation->files);
+        automation->files = NULL;
+    }
+    automation->num_files = 0;
+    automation->playlist_ready = false;
+}
+
+static bool c64_automation_build_playlist(c64_automation_t *automation)
+{
+    if (!automation) {
+        return false;
+    }
+
+    c64_automation_clear_playlist_internal(automation);
+
+    if (automation->config.mode == C64_AUTO_MODE_SINGLE) {
+        automation->files = calloc(1, sizeof(file_entry_t));
+        if (!automation->files) {
+            return false;
+        }
+
+        strncpy(automation->files[0].path, automation->config.folder_path, sizeof(automation->files[0].path) - 1);
+        automation->files[0].type = get_file_type(automation->config.folder_path);
+
+        if (automation->files[0].type < 0) {
+            C64_LOG_ERROR(AUTOMATION_LOG_PREFIX "Unsupported file type: %s", automation->config.folder_path);
+            c64_automation_clear_playlist_internal(automation);
+            return false;
+        }
+
+        automation->num_files = 1;
+    } else if (automation->config.mode == C64_AUTO_MODE_FOLDER) {
+        automation->num_files = enumerate_files(automation->rest_client, automation->config.folder_path,
+                                                automation->config.file_source, automation->config.include_subfolders,
+                                                &automation->files);
+        if (automation->num_files == 0) {
+            C64_LOG_ERROR(AUTOMATION_LOG_PREFIX "No supported files found in: %s", automation->config.folder_path);
+            c64_automation_clear_playlist_internal(automation);
+            return false;
+        }
+
+        if (automation->config.shuffle) {
+            shuffle_files(automation->files, automation->num_files);
+        }
+    } else {
+        C64_LOG_ERROR(AUTOMATION_LOG_PREFIX "Invalid mode: %d", automation->config.mode);
+        c64_automation_clear_playlist_internal(automation);
+        return false;
+    }
+
+    automation->playlist_ready = true;
+    return true;
 }
 
 // Helper: Set status string (thread-safe)
@@ -404,8 +510,17 @@ static void *automation_worker(void *arg)
 
     C64_LOG_INFO(AUTOMATION_LOG_PREFIX "Worker thread started");
 
-    for (int i = 0; i < automation->num_files && !automation->should_stop; i++) {
+    int i = 0;
+    pthread_mutex_lock(&automation->status_mutex);
+    if (automation->current_index >= 0) {
+        i = automation->current_index;
+    }
+    pthread_mutex_unlock(&automation->status_mutex);
+
+    while (i < automation->num_files && !automation->should_stop) {
+        pthread_mutex_lock(&automation->status_mutex);
         automation->current_index = i;
+        pthread_mutex_unlock(&automation->status_mutex);
         file_entry_t *file = &automation->files[i];
 
         // Extract filename for status message
@@ -424,6 +539,8 @@ static void *automation_worker(void *arg)
         strncpy(automation->current_file_path, file->path, sizeof(automation->current_file_path) - 1);
         automation->current_file_path[sizeof(automation->current_file_path) - 1] = '\0';
         pthread_mutex_unlock(&automation->status_mutex);
+
+        c64_automation_queue_ui_update(automation);
 
         C64_LOG_INFO(AUTOMATION_LOG_PREFIX "Processing: %s", file->path);
 
@@ -565,11 +682,17 @@ static void *automation_worker(void *arg)
             if (skip) {
                 automation->skip_requested = false;
             }
+            int jump_target = automation->current_index;
             pthread_mutex_unlock(&automation->status_mutex);
 
             if (skip) {
                 C64_LOG_INFO(AUTOMATION_LOG_PREFIX "Skipping current item");
-                break;
+                if (jump_target >= 0 && jump_target < automation->num_files && jump_target != i) {
+                    i = jump_target;
+                } else {
+                    i++;
+                }
+                goto advance_item;
             }
         }
 
@@ -580,6 +703,10 @@ static void *automation_worker(void *arg)
             c64_rest_reset(automation->rest_client);
             os_sleep_ms(RESET_DELAY_MS);
         }
+        i++;
+
+    advance_item:
+        continue;
     }
 
     // Clear current file path
@@ -590,11 +717,13 @@ static void *automation_worker(void *arg)
     set_status(automation, automation->should_stop ? "stopped" : "completed");
     automation->running = false;
 
+    c64_automation_queue_ui_update(automation);
+
     C64_LOG_INFO(AUTOMATION_LOG_PREFIX "Worker thread finished");
     return NULL;
 }
 
-c64_automation_t *c64_automation_create(void *rest_client, void *keyboard)
+c64_automation_t *c64_automation_create(void *rest_client, void *keyboard, obs_source_t *source)
 {
     if (!rest_client) {
         return NULL;
@@ -607,12 +736,14 @@ c64_automation_t *c64_automation_create(void *rest_client, void *keyboard)
 
     automation->rest_client = (c64_rest_client_t *)rest_client;
     automation->keyboard = (c64_keyboard_t *)keyboard;
+    automation->source = source;
     automation->running = false;
     automation->should_stop = false;
     automation->skip_requested = false;
     automation->files = NULL;
     automation->num_files = 0;
     automation->current_index = 0;
+    automation->playlist_ready = false;
     strncpy(automation->status, "idle", sizeof(automation->status) - 1);
 
     pthread_mutex_init(&automation->status_mutex, NULL);
@@ -639,10 +770,7 @@ void c64_automation_destroy(c64_automation_t *automation)
         c64_automation_stop(automation);
     }
 
-    // Free file list
-    if (automation->files) {
-        free(automation->files);
-    }
+    c64_automation_clear_playlist_internal(automation);
 
     pthread_mutex_destroy(&automation->status_mutex);
     free(automation);
@@ -660,7 +788,40 @@ void c64_automation_configure(c64_automation_t *automation, const c64_automation
                  config->duration_seconds);
 }
 
-bool c64_automation_start(c64_automation_t *automation)
+void c64_automation_clear_playlist(c64_automation_t *automation)
+{
+    c64_automation_clear_playlist_internal(automation);
+}
+
+bool c64_automation_refresh_playlist(c64_automation_t *automation, const c64_automation_config_t *config,
+                                     int selected_index)
+{
+    if (!automation || !config) {
+        return false;
+    }
+
+    if (automation->running) {
+        return false;
+    }
+
+    c64_automation_configure(automation, config);
+
+    if (!c64_automation_build_playlist(automation)) {
+        return false;
+    }
+
+    if (selected_index < 0 || selected_index >= automation->num_files) {
+        selected_index = 0;
+    }
+
+    pthread_mutex_lock(&automation->status_mutex);
+    automation->current_index = selected_index;
+    pthread_mutex_unlock(&automation->status_mutex);
+
+    return true;
+}
+
+bool c64_automation_start(c64_automation_t *automation, int start_index)
 {
     if (!automation) {
         return false;
@@ -671,49 +832,22 @@ bool c64_automation_start(c64_automation_t *automation)
         return false;
     }
 
-    // Handle single file vs folder mode
-    if (automation->config.mode == C64_AUTO_MODE_SINGLE) {
-        // Single file mode - create single-entry list
-        automation->files = calloc(1, sizeof(file_entry_t));
-        if (!automation->files) {
+    if (!automation->playlist_ready || !automation->files || automation->num_files == 0) {
+        if (!c64_automation_build_playlist(automation)) {
             return false;
         }
-
-        strncpy(automation->files[0].path, automation->config.folder_path, sizeof(automation->files[0].path) - 1);
-        automation->files[0].type = get_file_type(automation->config.folder_path);
-
-        if (automation->files[0].type < 0) {
-            C64_LOG_ERROR(AUTOMATION_LOG_PREFIX "Unsupported file type: %s", automation->config.folder_path);
-            free(automation->files);
-            automation->files = NULL;
-            return false;
-        }
-
-        automation->num_files = 1;
-    } else if (automation->config.mode == C64_AUTO_MODE_FOLDER) {
-        // Folder mode - enumerate files
-        automation->num_files = enumerate_files(automation->rest_client, automation->config.folder_path,
-                                                automation->config.file_source, automation->config.include_subfolders,
-                                                &automation->files);
-        if (automation->num_files == 0) {
-            C64_LOG_ERROR(AUTOMATION_LOG_PREFIX "No supported files found in: %s", automation->config.folder_path);
-            return false;
-        }
-
-        // Shuffle if configured
-        if (automation->config.shuffle) {
-            shuffle_files(automation->files, automation->num_files);
-        }
-    } else {
-        C64_LOG_ERROR(AUTOMATION_LOG_PREFIX "Invalid mode: %d", automation->config.mode);
-        return false;
     }
 
     // Start worker thread
     automation->running = true;
     automation->should_stop = false;
     automation->skip_requested = false;
-    automation->current_index = 0;
+    if (start_index < 0 || start_index >= automation->num_files) {
+        start_index = 0;
+    }
+    pthread_mutex_lock(&automation->status_mutex);
+    automation->current_index = start_index;
+    pthread_mutex_unlock(&automation->status_mutex);
     set_status(automation, "starting");
 
     if (pthread_create(&automation->worker_thread, NULL, automation_worker, automation) != 0) {
@@ -746,13 +880,8 @@ void c64_automation_stop(c64_automation_t *automation)
     // Wait for worker thread to finish
     pthread_join(automation->worker_thread, NULL);
 
-    // Cleanup
-    if (automation->files) {
-        free(automation->files);
-        automation->files = NULL;
-    }
-    automation->num_files = 0;
     automation->running = false;
+    automation->should_stop = false;
 
     C64_LOG_INFO(AUTOMATION_LOG_PREFIX "Stopped automation");
 }
@@ -902,12 +1031,12 @@ int c64_automation_get_playlist_count(c64_automation_t *automation)
 
 int c64_automation_get_current_index(c64_automation_t *automation)
 {
-    if (!automation || !automation->running) {
+    if (!automation) {
         return -1;
     }
 
     pthread_mutex_lock(&automation->status_mutex);
-    int index = automation->current_index;
+    int index = (automation->num_files > 0) ? automation->current_index : -1;
     pthread_mutex_unlock(&automation->status_mutex);
 
     return index;
@@ -946,7 +1075,7 @@ bool c64_automation_skip_next(c64_automation_t *automation)
 
 bool c64_automation_jump_to_index(c64_automation_t *automation, int target_index)
 {
-    if (!automation || !automation->running || target_index < 0) {
+    if (!automation || target_index < 0) {
         return false;
     }
 
@@ -956,10 +1085,10 @@ bool c64_automation_jump_to_index(c64_automation_t *automation, int target_index
         return false;
     }
 
-    // Set to target_index - 1 because the worker loop will increment current_index
-    // at the start of the next iteration (after skip)
-    automation->current_index = target_index - 1;
-    automation->skip_requested = true; // Skip current playback
+    automation->current_index = target_index;
+    if (automation->running) {
+        automation->skip_requested = true; // Skip current playback
+    }
     pthread_mutex_unlock(&automation->status_mutex);
 
     C64_LOG_INFO(AUTOMATION_LOG_PREFIX "Jumping to index %d", target_index);

@@ -11,6 +11,8 @@ See <https://www.gnu.org/licenses/> for details.
 #include <stdbool.h>
 #include <stddef.h>
 
+typedef struct obs_source obs_source_t;
+
 /**
  * Automation engine for SID/PRG/D64 playback
  * Handles single files and folder batch mode with shuffle and duration control
@@ -54,7 +56,7 @@ typedef struct {
  * @param keyboard Keyboard controller for D64 autostart commands
  * @return Automation instance or NULL on error
  */
-c64_automation_t *c64_automation_create(void *rest_client, void *keyboard);
+c64_automation_t *c64_automation_create(void *rest_client, void *keyboard, obs_source_t *source);
 
 /**
  * Destroy automation engine
@@ -70,7 +72,20 @@ void c64_automation_configure(c64_automation_t *automation, const c64_automation
  * Start automation
  * @return true if started successfully
  */
-bool c64_automation_start(c64_automation_t *automation);
+bool c64_automation_start(c64_automation_t *automation, int start_index);
+
+/**
+ * Refresh the playlist without starting playback
+ * @param selected_index Preferred selected index for display/start
+ * @return true if refreshed successfully
+ */
+bool c64_automation_refresh_playlist(c64_automation_t *automation, const c64_automation_config_t *config,
+                                     int selected_index);
+
+/**
+ * Clear any cached playlist entries
+ */
+void c64_automation_clear_playlist(c64_automation_t *automation);
 
 /**
  * Stop automation immediately

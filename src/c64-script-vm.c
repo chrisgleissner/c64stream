@@ -49,6 +49,83 @@ typedef struct {
     size_t size;
 } c64script_http_response_t;
 
+typedef enum { C64_SCRIPT_UPDATE_STRING, C64_SCRIPT_UPDATE_DOUBLE, C64_SCRIPT_UPDATE_INT } c64_script_update_type_t;
+
+typedef struct {
+    obs_source_t *source;
+    c64_script_update_type_t type;
+    char key[128];
+    char string_value[256];
+    double number_value;
+    int64_t int_value;
+} c64_script_source_update_t;
+
+static void c64_script_apply_source_update(void *data)
+{
+    c64_script_source_update_t *update = (c64_script_source_update_t *)data;
+    if (!update || !update->source) {
+        if (update) {
+            free(update);
+        }
+        return;
+    }
+
+    obs_data_t *settings = obs_source_get_settings(update->source);
+    if (settings) {
+        switch (update->type) {
+        case C64_SCRIPT_UPDATE_STRING:
+            obs_data_set_string(settings, update->key, update->string_value);
+            break;
+        case C64_SCRIPT_UPDATE_DOUBLE:
+            obs_data_set_double(settings, update->key, update->number_value);
+            break;
+        case C64_SCRIPT_UPDATE_INT:
+            obs_data_set_int(settings, update->key, update->int_value);
+            break;
+        }
+        obs_source_update(update->source, settings);
+        obs_data_release(settings);
+    }
+
+    obs_source_release(update->source);
+    free(update);
+}
+
+static bool c64_script_queue_source_update(obs_source_t *source, c64_script_update_type_t type, const char *key,
+                                           const char *string_value, double number_value, int64_t int_value)
+{
+    if (!source || !key || key[0] == '\0') {
+        return false;
+    }
+
+    c64_script_source_update_t *update = calloc(1, sizeof(c64_script_source_update_t));
+    if (!update) {
+        return false;
+    }
+
+    update->source = source;
+    update->type = type;
+    strncpy(update->key, key, sizeof(update->key) - 1);
+    update->key[sizeof(update->key) - 1] = '\0';
+
+    if (string_value) {
+        strncpy(update->string_value, string_value, sizeof(update->string_value) - 1);
+        update->string_value[sizeof(update->string_value) - 1] = '\0';
+    }
+    update->number_value = number_value;
+    update->int_value = int_value;
+
+    update->source = obs_source_get_ref(source);
+    if (!update->source) {
+        free(update);
+        return false;
+    }
+
+    obs_queue_task(OBS_TASK_UI, c64_script_apply_source_update, update, false);
+
+    return true;
+}
+
 static size_t http_write_callback(char *ptr, size_t size, size_t nmemb, void *userdata)
 {
     size_t total = size * nmemb;
@@ -2238,15 +2315,12 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
         }
 
         obs_source_t *source = (obs_source_t *)runtime->obs_source;
-        obs_data_t *settings = obs_source_get_settings(source);
-        if (!settings) {
+        if (!c64_script_queue_source_update(source, C64_SCRIPT_UPDATE_STRING, "crt_preset",
+                                            preset.as.string ? preset.as.string : "", 0.0, 0)) {
             c64script_value_free(&preset);
-            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Failed to get source settings");
+            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Failed to queue OBS update");
             return false;
         }
-        obs_data_set_string(settings, "crt_preset", preset.as.string ? preset.as.string : "");
-        obs_source_update(source, settings);
-        obs_data_release(settings);
         c64script_value_free(&preset);
         break;
     }
@@ -2273,16 +2347,13 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
         }
 
         obs_source_t *source = (obs_source_t *)runtime->obs_source;
-        obs_data_t *settings = obs_source_get_settings(source);
-        if (!settings) {
+        if (!c64_script_queue_source_update(source, C64_SCRIPT_UPDATE_DOUBLE, param.as.string ? param.as.string : "",
+                                            NULL, value.as.number, 0)) {
             c64script_value_free(&param);
             c64script_value_free(&value);
-            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Failed to get source settings");
+            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Failed to queue OBS update");
             return false;
         }
-        obs_data_set_double(settings, param.as.string ? param.as.string : "", value.as.number);
-        obs_source_update(source, settings);
-        obs_data_release(settings);
         c64script_value_free(&param);
         c64script_value_free(&value);
         break;
@@ -2308,15 +2379,12 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
         }
 
         obs_source_t *source = (obs_source_t *)runtime->obs_source;
-        obs_data_t *settings = obs_source_get_settings(source);
-        if (!settings) {
+        if (!c64_script_queue_source_update(source, C64_SCRIPT_UPDATE_STRING, "palette",
+                                            palette.as.string ? palette.as.string : "", 0.0, 0)) {
             c64script_value_free(&palette);
-            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Failed to get source settings");
+            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Failed to queue OBS update");
             return false;
         }
-        obs_data_set_string(settings, "palette", palette.as.string ? palette.as.string : "");
-        obs_source_update(source, settings);
-        obs_data_release(settings);
         c64script_value_free(&palette);
         break;
     }
@@ -2380,20 +2448,15 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
         }
 
         obs_source_t *source = (obs_source_t *)runtime->obs_source;
-        obs_data_t *settings = obs_source_get_settings(source);
-        if (!settings) {
-            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Failed to get source settings");
-            return false;
-        }
-
         // Set the custom color in OBS settings
         // Format: "custom_color_N" with RGB value as a 32-bit integer
         char color_key[32];
         snprintf(color_key, sizeof(color_key), "custom_color_%d", index);
         uint32_t rgb = ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b;
-        obs_data_set_int(settings, color_key, (int64_t)rgb);
-        obs_source_update(source, settings);
-        obs_data_release(settings);
+        if (!c64_script_queue_source_update(source, C64_SCRIPT_UPDATE_INT, color_key, NULL, 0.0, (int64_t)rgb)) {
+            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Failed to queue OBS update");
+            return false;
+        }
         break;
     }
 

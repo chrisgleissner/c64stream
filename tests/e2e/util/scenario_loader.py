@@ -169,6 +169,13 @@ def build_source_settings(
     # Apply overrides
     settings.update(scenario.overrides)
 
+    repo_root = _repo_root()
+    for key, value in list(settings.items()):
+        if isinstance(value, str):
+            value = value.replace("${repo_root}", str(repo_root))
+            value = value.replace("${REPO_ROOT}", str(repo_root))
+            settings[key] = value
+
     # Add E2E testing defaults
     e2e_defaults = {
         "record_video": False,

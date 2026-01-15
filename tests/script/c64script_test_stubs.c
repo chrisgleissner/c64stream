@@ -138,6 +138,19 @@ bool c64_rest_play_sid_path(c64_rest_client_t *client, const char *c64u_path, in
     return client != NULL;
 }
 
+bool c64_rest_play_mod(c64_rest_client_t *client, const uint8_t *mod_data, size_t mod_size)
+{
+    (void)mod_data;
+    (void)mod_size;
+    return client != NULL;
+}
+
+bool c64_rest_play_mod_path(c64_rest_client_t *client, const char *c64u_path)
+{
+    (void)c64u_path;
+    return client != NULL;
+}
+
 bool c64_rest_run_prg(c64_rest_client_t *client, const uint8_t *prg_data, size_t prg_size)
 {
     (void)prg_data;
@@ -146,6 +159,19 @@ bool c64_rest_run_prg(c64_rest_client_t *client, const uint8_t *prg_data, size_t
 }
 
 bool c64_rest_run_prg_path(c64_rest_client_t *client, const char *c64u_path)
+{
+    (void)c64u_path;
+    return client != NULL;
+}
+
+bool c64_rest_run_crt(c64_rest_client_t *client, const uint8_t *crt_data, size_t crt_size)
+{
+    (void)crt_data;
+    (void)crt_size;
+    return client != NULL;
+}
+
+bool c64_rest_run_crt_path(c64_rest_client_t *client, const char *c64u_path)
 {
     (void)c64u_path;
     return client != NULL;
@@ -167,6 +193,21 @@ bool c64_rest_mount_disk_path(c64_rest_client_t *client, char drive, const char 
     (void)drive;
     (void)c64u_path;
     return client != NULL;
+}
+
+bool c64_rest_list_files(c64_rest_client_t *client, const char *path, bool recursive, c64_file_entry_t **entries,
+                         size_t *entry_count)
+{
+    (void)client;
+    (void)path;
+    (void)recursive;
+    if (entries) {
+        *entries = NULL;
+    }
+    if (entry_count) {
+        *entry_count = 0;
+    }
+    return true;
 }
 
 // ----------------------------------------------------------------------------

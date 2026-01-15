@@ -1016,6 +1016,7 @@ jobs:
           - ntsc_palette_muted
           - ntsc_palette_vibrant
           - ntsc_phosphor_glow
+          - ntsc_script
           - ntsc_sharp_pixels
           - ntsc_sharp_scan_lines
           - ntsc_vintage_tv

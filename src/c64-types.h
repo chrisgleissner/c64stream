@@ -342,6 +342,7 @@ struct c64_source {
     int last_script_status;         // Last known c64_script_status_t for detecting state changes
     uint64_t last_ui_update_time;   // Last time UI was updated for throttling (os_gettime_ns())
     bool force_ui_update;           // Force immediate UI update on next tick (bypass throttling)
+    bool script_autostarted;        // Whether auto-start has been triggered for current script
     char cached_last_line[512];     // Cached "last executed" line string for UI display
     char cached_next_line[512];     // Cached "next to execute" line string for UI display
 

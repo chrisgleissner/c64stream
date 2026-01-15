@@ -41,6 +41,7 @@ from .scanlines import ScanlineAssertion
 from .sharp_pixels import SharpPixelsAssertion
 from .tint import TintAssertion
 from .video_quality import VideoQualityAssertion
+from .script_log import ScriptLogAssertion
 
 __all__ = [
     # Base
@@ -66,6 +67,7 @@ __all__ = [
     "ScanlineAssertion",
     "SharpPixelsAssertion",
     "FrameProgressionAssertion",
+    "ScriptLogAssertion",
     "RecordAudioAssertion",
     "RecordVideoAssertion",
     "RecordObsAssertion",

@@ -12,14 +12,14 @@ REM Initialize a counter variable
 COUNTER = 0
 
 REM Display a welcome message
-LOG "=== Hello World Script Started ==="
-LOG "Welcome to C64Script!"
-LOG ""
+PRINT "=== Hello World Script Started ==="
+PRINT "Welcome to C64Script!"
+PRINT ""
 
 REM Main loop - count from 1 to 5
 LABEL counting_loop
     COUNTER = COUNTER + 1
-    LOG "Count: " + STR(COUNTER)
+    PRINT "Count: " + STR(COUNTER)
     
     REM Wait half a second between counts
     WAIT 500ms
@@ -30,9 +30,9 @@ LABEL counting_loop
     ENDIF
 
 REM Final message
-LOG ""
-LOG "=== Counting Complete! ==="
-LOG "Final counter value: " + STR(COUNTER)
+PRINT ""
+PRINT "=== Counting Complete! ==="
+PRINT "Final counter value: " + STR(COUNTER)
 
 REM That's it! Check the OBS log to see the output.
 REM Try using the debug controls to step through line-by-line!

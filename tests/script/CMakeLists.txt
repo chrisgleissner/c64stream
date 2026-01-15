@@ -133,3 +133,36 @@ else()
   target_link_libraries(test_c64script_debug PRIVATE OBS::libobs CURL::libcurl)
 endif()
 add_test(NAME c64script_debug COMMAND test_c64script_debug)
+
+# Script executor thread-safety test (no OBS UI thread)
+add_executable(
+  test_c64script_thread_safety
+  test_c64script_thread_safety.c
+  c64script_test_logging.c
+  c64script_test_stubs.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-parser.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-token.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-ast.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-bytecode.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-runtime.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-builtins.c
+)
+target_include_directories(test_c64script_thread_safety PRIVATE ${CMAKE_SOURCE_DIR}/src)
+if(UNIX)
+  target_link_libraries(test_c64script_thread_safety PRIVATE OBS::libobs CURL::libcurl m)
+else()
+  target_link_libraries(test_c64script_thread_safety PRIVATE OBS::libobs CURL::libcurl)
+endif()
+add_test(NAME c64script_thread_safety COMMAND test_c64script_thread_safety)
+
+# Automation playlist selection test (headless)
+add_executable(
+  test_automation_playlist
+  test_automation_playlist.c
+  c64script_test_stubs.c
+  ${CMAKE_SOURCE_DIR}/src/c64-automation.c
+)
+target_include_directories(test_automation_playlist PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(test_automation_playlist PRIVATE OBS::libobs)
+add_test(NAME automation_playlist COMMAND test_automation_playlist)
