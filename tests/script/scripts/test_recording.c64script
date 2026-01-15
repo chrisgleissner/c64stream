@@ -3,29 +3,29 @@ rem Validates RECORDSTART and RECORDSTOP
 
 rem Test 1: Start recording
 RECORDSTART
-wait 1s
+wait 200ms
 
 rem Test 2: Stop recording
 RECORDSTOP
-wait 500ms
+wait 100ms
 
 rem Test 3: Start and stop multiple times
 RECORDSTART
-wait 500ms
+wait 100ms
 RECORDSTOP
-wait 500ms
+wait 100ms
 
 RECORDSTART
-wait 500ms
+wait 100ms
 RECORDSTOP
-wait 500ms
+wait 100ms
 
 rem Test 4: Recording with effects
 RECORDSTART
 effect "Sharp Pixels"
-wait 500ms
+wait 100ms
 effect "Soft CRT"
-wait 500ms
+wait 100ms
 RECORDSTOP
 
 stop

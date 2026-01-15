@@ -64,6 +64,7 @@ static bool script_pause_resume_clicked(obs_properties_t *props, obs_property_t 
 static bool script_step_clicked(obs_properties_t *props, obs_property_t *property, void *data);
 static bool script_log_variables_clicked(obs_properties_t *props, obs_property_t *property, void *data);
 static bool script_reload_clicked(obs_properties_t *props, obs_property_t *property, void *data);
+static const char *c64_script_basename(const char *path);
 
 // Content automation callbacks
 static bool automation_start_stop_clicked(obs_properties_t *props, obs_property_t *property, void *data);
@@ -2846,8 +2847,9 @@ bool c64_load_configuration(obs_data_t *settings)
         trim_config_string(line);
 
         // Skip empty lines and comments
-        if (line[0] == '\0' || line[0] == ';' || line[0] == '#')
+        if (line[0] == '\0' || line[0] == ';' || line[0] == '#') {
             continue;
+        }
 
         // Check for section header [SectionName]
         if (line[0] == '[') {
@@ -2858,134 +2860,134 @@ bool c64_load_configuration(obs_data_t *settings)
                 current_section[sizeof(current_section) - 1] = '\0';
                 C64_LOG_DEBUG("Processing configuration section: %s", current_section);
             }
-
-            c64_queue_properties_refresh(context);
             continue;
-            return false;
-
-            // Parse key=value pairs
-            char *equals = strchr(line, '=');
-            if (equals) {
-                *equals = '\0';
-                char *key = line;
-                char *value = equals + 1;
-
-                trim_config_string(key);
-                trim_config_string(value);
-
-                C64_LOG_INFO("Properties: Processing key='%s' value='%s'", key, value);
-
-                // Detect CI enforcement flag inside [ci] section
-                if (strcmp(key, "is_ci") == 0) {
-                    bool enabled = (strcmp(value, "true") == 0) || (strcmp(value, "1") == 0);
-                    if (enabled) {
-                        ci_enforced = true;
-                        C64_LOG_INFO("CI mode detected in properties.ini - enforcing values as defaults and direct");
-                    }
-                    continue;
-                }
-
-                // Apply configuration based on key name
-                if (strcmp(key, "c64_host") == 0) {
-                    c64_set_string(settings, "c64_host", value, ci_enforced);
-                    C64_LOG_INFO("Config: c64_host = %s", value);
-                    loaded_settings++;
-                } else if (strcmp(key, "dns_server_ip") == 0) {
-                    c64_set_string(settings, "dns_server_ip", value, ci_enforced);
-                    C64_LOG_DEBUG("Config: dns_server_ip = %s", value);
-                    loaded_settings++;
-                } else if (strcmp(key, "video_port") == 0) {
-                    int port = atoi(value);
-                    if (port >= 1024 && port <= 65535) {
-                        c64_set_int(settings, "video_port", port, ci_enforced);
-                        C64_LOG_DEBUG("Config: video_port = %d", port);
-                        loaded_settings++;
-                    }
-                } else if (strcmp(key, "audio_port") == 0) {
-                    int port = atoi(value);
-                    if (port >= 1024 && port <= 65535) {
-                        c64_set_int(settings, "audio_port", port, ci_enforced);
-                        C64_LOG_DEBUG("Config: audio_port = %d", port);
-                        loaded_settings++;
-                    }
-                } else if (strcmp(key, "control_port") == 0) {
-                    int port = atoi(value);
-                    if (port >= 64 && port <= 65535) {
-                        c64_set_int(settings, "control_port", port, ci_enforced);
-                        C64_LOG_DEBUG("Config: control_port = %d", port);
-                        loaded_settings++;
-                    }
-                } else if (strcmp(key, "auto_detect_ip") == 0) {
-                    bool enabled = (strcmp(value, "true") == 0) || (strcmp(value, "1") == 0);
-                    c64_set_bool(settings, "auto_detect_ip", enabled, ci_enforced);
-                    C64_LOG_DEBUG("Config: auto_detect_ip = %s", enabled ? "true" : "false");
-                    loaded_settings++;
-                } else if (strcmp(key, "obs_ip_address") == 0) {
-                    // Only apply non-empty value. Empty means "use auto-detect default".
-                    if (value && value[0] != '\0') {
-                        c64_set_string(settings, "obs_ip_address", value, ci_enforced);
-                        C64_LOG_INFO("Config: obs_ip_address = %s", value);
-                        loaded_settings++;
-                    }
-                } else if (strcmp(key, "c64_password") == 0) {
-                    // Password is intentionally excluded from import for security.
-                    // Users must re-enter passwords after importing configuration.
-                    C64_LOG_INFO("Config import: skipping c64_password (excluded for security)");
-                } else if (strcmp(key, "buffer_delay_ms") == 0) {
-                    int delay = atoi(value);
-                    if (delay >= 0 && delay <= 500) {
-                        c64_set_int(settings, "buffer_delay_ms", delay, ci_enforced);
-                        C64_LOG_DEBUG("Config: buffer_delay_ms = %d", delay);
-                        loaded_settings++;
-                    }
-                } else if (strcmp(key, "debug_logging") == 0) {
-                    bool enabled = (strcmp(value, "true") == 0) || (strcmp(value, "1") == 0);
-                    c64_set_bool(settings, "debug_logging", enabled, ci_enforced);
-                    C64_LOG_DEBUG("Config: debug_logging = %s", enabled ? "true" : "false");
-                    loaded_settings++;
-                } else if (strcmp(key, "record_frames") == 0) {
-                    bool enabled = (strcmp(value, "true") == 0) || (strcmp(value, "1") == 0);
-                    c64_set_bool(settings, "record_frames", enabled, ci_enforced);
-                    C64_LOG_DEBUG("Config: record_frames = %s", enabled ? "true" : "false");
-                    loaded_settings++;
-                } else if (strcmp(key, "record_video") == 0) {
-                    bool enabled = (strcmp(value, "true") == 0) || (strcmp(value, "1") == 0);
-                    if (ci_enforced) {
-                        // Enforce both default and direct on CI
-                        obs_data_set_default_bool(settings, "record_video", enabled);
-                    }
-                    obs_data_set_bool(settings, "record_video", enabled);
-                    C64_LOG_DEBUG("Config: record_video = %s%s", enabled ? "true" : "false",
-                                  ci_enforced ? " (default+direct)" : " (direct)");
-                    loaded_settings++;
-                } else if (strcmp(key, "record_csv") == 0) {
-                    bool enabled = (strcmp(value, "true") == 0) || (strcmp(value, "1") == 0);
-                    if (ci_enforced) {
-                        obs_data_set_default_bool(settings, "record_csv", enabled);
-                    }
-                    obs_data_set_bool(settings, "record_csv", enabled);
-                    C64_LOG_INFO("Config: record_csv = %s%s (value='%s')", enabled ? "true" : "false",
-                                 ci_enforced ? " (default+direct)" : " (direct)", value);
-                    loaded_settings++;
-                } else if (strcmp(key, "record_av_sync") == 0) {
-                    bool enabled = (strcmp(value, "true") == 0) || (strcmp(value, "1") == 0);
-                    if (ci_enforced) {
-                        obs_data_set_default_bool(settings, "record_av_sync", enabled);
-                    }
-                    obs_data_set_bool(settings, "record_av_sync", enabled);
-                    C64_LOG_DEBUG("Config: record_av_sync = %s%s", enabled ? "true" : "false",
-                                  ci_enforced ? " (default+direct)" : " (direct)");
-                    loaded_settings++;
-                } else if (strcmp(key, "save_folder") == 0 && strlen(value) > 0) {
-                    c64_set_string(settings, "save_folder", value, ci_enforced);
-                    C64_LOG_DEBUG("Config: save_folder = %s", value);
-                    loaded_settings++;
-                }
-                // Note: CRT effects can be configured here too if needed in the future
-            }
         }
 
-        fclose(file);
-        C64_LOG_INFO("Configuration loaded successfully: %d settings applied", loaded_settings);
-        return true;
+        // Parse key=value pairs
+        char *equals = strchr(line, '=');
+        if (!equals) {
+            continue;
+        }
+
+        *equals = '\0';
+        char *key = line;
+        char *value = equals + 1;
+
+        trim_config_string(key);
+        trim_config_string(value);
+
+        C64_LOG_INFO("Properties: Processing key='%s' value='%s'", key, value);
+
+        // Detect CI enforcement flag inside [ci] section
+        if (strcmp(key, "is_ci") == 0) {
+            bool enabled = (strcmp(value, "true") == 0) || (strcmp(value, "1") == 0);
+            if (enabled) {
+                ci_enforced = true;
+                C64_LOG_INFO("CI mode detected in properties.ini - enforcing values as defaults and direct");
+            }
+            continue;
+        }
+
+        // Apply configuration based on key name
+        if (strcmp(key, "c64_host") == 0) {
+            c64_set_string(settings, "c64_host", value, ci_enforced);
+            C64_LOG_INFO("Config: c64_host = %s", value);
+            loaded_settings++;
+        } else if (strcmp(key, "dns_server_ip") == 0) {
+            c64_set_string(settings, "dns_server_ip", value, ci_enforced);
+            C64_LOG_DEBUG("Config: dns_server_ip = %s", value);
+            loaded_settings++;
+        } else if (strcmp(key, "video_port") == 0) {
+            int port = atoi(value);
+            if (port >= 1024 && port <= 65535) {
+                c64_set_int(settings, "video_port", port, ci_enforced);
+                C64_LOG_DEBUG("Config: video_port = %d", port);
+                loaded_settings++;
+            }
+        } else if (strcmp(key, "audio_port") == 0) {
+            int port = atoi(value);
+            if (port >= 1024 && port <= 65535) {
+                c64_set_int(settings, "audio_port", port, ci_enforced);
+                C64_LOG_DEBUG("Config: audio_port = %d", port);
+                loaded_settings++;
+            }
+        } else if (strcmp(key, "control_port") == 0) {
+            int port = atoi(value);
+            if (port >= 64 && port <= 65535) {
+                c64_set_int(settings, "control_port", port, ci_enforced);
+                C64_LOG_DEBUG("Config: control_port = %d", port);
+                loaded_settings++;
+            }
+        } else if (strcmp(key, "auto_detect_ip") == 0) {
+            bool enabled = (strcmp(value, "true") == 0) || (strcmp(value, "1") == 0);
+            c64_set_bool(settings, "auto_detect_ip", enabled, ci_enforced);
+            C64_LOG_DEBUG("Config: auto_detect_ip = %s", enabled ? "true" : "false");
+            loaded_settings++;
+        } else if (strcmp(key, "obs_ip_address") == 0) {
+            // Only apply non-empty value. Empty means "use auto-detect default".
+            if (value && value[0] != '\0') {
+                c64_set_string(settings, "obs_ip_address", value, ci_enforced);
+                C64_LOG_INFO("Config: obs_ip_address = %s", value);
+                loaded_settings++;
+            }
+        } else if (strcmp(key, "c64_password") == 0) {
+            // Password is intentionally excluded from import for security.
+            // Users must re-enter passwords after importing configuration.
+            C64_LOG_INFO("Config import: skipping c64_password (excluded for security)");
+        } else if (strcmp(key, "buffer_delay_ms") == 0) {
+            int delay = atoi(value);
+            if (delay >= 0 && delay <= 500) {
+                c64_set_int(settings, "buffer_delay_ms", delay, ci_enforced);
+                C64_LOG_DEBUG("Config: buffer_delay_ms = %d", delay);
+                loaded_settings++;
+            }
+        } else if (strcmp(key, "debug_logging") == 0) {
+            bool enabled = (strcmp(value, "true") == 0) || (strcmp(value, "1") == 0);
+            c64_set_bool(settings, "debug_logging", enabled, ci_enforced);
+            C64_LOG_DEBUG("Config: debug_logging = %s", enabled ? "true" : "false");
+            loaded_settings++;
+        } else if (strcmp(key, "record_frames") == 0) {
+            bool enabled = (strcmp(value, "true") == 0) || (strcmp(value, "1") == 0);
+            c64_set_bool(settings, "record_frames", enabled, ci_enforced);
+            C64_LOG_DEBUG("Config: record_frames = %s", enabled ? "true" : "false");
+            loaded_settings++;
+        } else if (strcmp(key, "record_video") == 0) {
+            bool enabled = (strcmp(value, "true") == 0) || (strcmp(value, "1") == 0);
+            if (ci_enforced) {
+                // Enforce both default and direct on CI
+                obs_data_set_default_bool(settings, "record_video", enabled);
+            }
+            obs_data_set_bool(settings, "record_video", enabled);
+            C64_LOG_DEBUG("Config: record_video = %s%s", enabled ? "true" : "false",
+                          ci_enforced ? " (default+direct)" : " (direct)");
+            loaded_settings++;
+        } else if (strcmp(key, "record_csv") == 0) {
+            bool enabled = (strcmp(value, "true") == 0) || (strcmp(value, "1") == 0);
+            if (ci_enforced) {
+                obs_data_set_default_bool(settings, "record_csv", enabled);
+            }
+            obs_data_set_bool(settings, "record_csv", enabled);
+            C64_LOG_INFO("Config: record_csv = %s%s (value='%s')", enabled ? "true" : "false",
+                         ci_enforced ? " (default+direct)" : " (direct)", value);
+            loaded_settings++;
+        } else if (strcmp(key, "record_av_sync") == 0) {
+            bool enabled = (strcmp(value, "true") == 0) || (strcmp(value, "1") == 0);
+            if (ci_enforced) {
+                obs_data_set_default_bool(settings, "record_av_sync", enabled);
+            }
+            obs_data_set_bool(settings, "record_av_sync", enabled);
+            C64_LOG_DEBUG("Config: record_av_sync = %s%s", enabled ? "true" : "false",
+                          ci_enforced ? " (default+direct)" : " (direct)");
+            loaded_settings++;
+        } else if (strcmp(key, "save_folder") == 0 && strlen(value) > 0) {
+            c64_set_string(settings, "save_folder", value, ci_enforced);
+            C64_LOG_DEBUG("Config: save_folder = %s", value);
+            loaded_settings++;
+        }
+        // Note: CRT effects can be configured here too if needed in the future
     }
+
+    fclose(file);
+    C64_LOG_INFO("Configuration loaded successfully: %d settings applied", loaded_settings);
+    return true;
+}

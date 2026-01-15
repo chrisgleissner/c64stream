@@ -8,29 +8,29 @@ program: |
   03: 
   04: rem Test 1: Start recording
   05: RECORDSTART
-  06: wait 1s
+  06: wait 200ms
   07: 
   08: rem Test 2: Stop recording
   09: RECORDSTOP
-  10: wait 500ms
+  10: wait 100ms
   11: 
   12: rem Test 3: Start and stop multiple times
   13: RECORDSTART
-  14: wait 500ms
+  14: wait 100ms
   15: RECORDSTOP
-  16: wait 500ms
+  16: wait 100ms
   17: 
   18: RECORDSTART
-  19: wait 500ms
+  19: wait 100ms
   20: RECORDSTOP
-  21: wait 500ms
+  21: wait 100ms
   22: 
   23: rem Test 4: Recording with effects
   24: RECORDSTART
   25: effect "Sharp Pixels"
-  26: wait 500ms
+  26: wait 100ms
   27: effect "Soft CRT"
-  28: wait 500ms
+  28: wait 100ms
   29: RECORDSTOP
   30: 
   31: stop
@@ -39,37 +39,37 @@ trace:
   content: "RECORDSTART"
   variables: {}
 - line: 6
-  content: "wait 1s"
+  content: "wait 200ms"
   variables: {}
 - line: 9
   content: "RECORDSTOP"
   variables: {}
 - line: 10
-  content: "wait 500ms"
+  content: "wait 100ms"
   variables: {}
 - line: 13
   content: "RECORDSTART"
   variables: {}
 - line: 14
-  content: "wait 500ms"
+  content: "wait 100ms"
   variables: {}
 - line: 15
   content: "RECORDSTOP"
   variables: {}
 - line: 16
-  content: "wait 500ms"
+  content: "wait 100ms"
   variables: {}
 - line: 18
   content: "RECORDSTART"
   variables: {}
 - line: 19
-  content: "wait 500ms"
+  content: "wait 100ms"
   variables: {}
 - line: 20
   content: "RECORDSTOP"
   variables: {}
 - line: 21
-  content: "wait 500ms"
+  content: "wait 100ms"
   variables: {}
 - line: 24
   content: "RECORDSTART"
@@ -78,13 +78,13 @@ trace:
   content: "effect \"Sharp Pixels\""
   variables: {}
 - line: 26
-  content: "wait 500ms"
+  content: "wait 100ms"
   variables: {}
 - line: 27
   content: "effect \"Soft CRT\""
   variables: {}
 - line: 28
-  content: "wait 500ms"
+  content: "wait 100ms"
   variables: {}
 - line: 29
   content: "RECORDSTOP"
