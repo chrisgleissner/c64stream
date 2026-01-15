@@ -16,6 +16,7 @@ See <https://www.gnu.org/licenses/> for details.
 
 #ifdef _WIN32
 #include <direct.h>
+#include <stdlib.h>
 #include <windows.h>
 static bool make_temp_dir(char *buffer, size_t size)
 {
@@ -28,7 +29,7 @@ static bool make_temp_dir(char *buffer, size_t size)
         return false;
     }
 
-    if (!_mktemp(buffer)) {
+    if (_mktemp_s(buffer, size) != 0) {
         return false;
     }
 
