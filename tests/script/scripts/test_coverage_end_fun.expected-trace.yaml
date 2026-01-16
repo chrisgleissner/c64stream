@@ -1,0 +1,28 @@
+# Execution trace
+script: "test_coverage_end_fun.c64script"
+status: success
+error: ~
+program: |
+  1: REM Coverage: END FUN terminator
+  2: FUN DOUBLE(X)
+  3:     RETURN X * 2
+  4: END FUN
+  5: RESULT = DOUBLE(3)
+  6: LOG RESULT
+  7: STOP
+trace:
+- line: 2
+  content: "FUN DOUBLE(X)"
+  variables: {}
+- line: 5
+  content: "RESULT = DOUBLE(3)"
+  variables: {}
+- line: 3
+  content: "RETURN X * 2"
+  variables: {}
+- line: 6
+  content: "LOG RESULT"
+  variables: {}
+- line: 7
+  content: "STOP"
+  variables: {}

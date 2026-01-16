@@ -42,6 +42,7 @@ cd tests/e2e
 ```
 
 Notes:
+
 - Requires a reachable real C64 Ultimate (default hostname: `c64u`) and a working GUI environment for OBS.
 - The device scenario is marked `ci_skip: true` and is excluded from CI.
 
@@ -106,6 +107,7 @@ Use `--csv-max-rows 0` to disable truncation.
 By default, CSV diagnostic files (`network.csv`, `obs.csv`) are truncated to the first 1000ms of events. This keeps file sizes manageable while preserving the critical startup data for debugging.
 
 To disable truncation and keep full CSV files:
+
 ```bash
 ./e2e.sh --scenario ntsc_default --csv-max-duration 0
 ```
@@ -492,6 +494,7 @@ Authoritative source for skipped/repeated frame analysis. Each row = one display
 **Frame Number Mapping:**
 
 The `frame_num` column uses detected video slots as ground truth:
+
 1. Content bounds detection identifies first/last content frames via frame-difference analysis
 2. For each content frame, the bottom-left progress bar slot (0-7) is detected
 3. Slots are matched to obs.csv entries where `frame_num % 8` equals the slot
@@ -585,7 +588,7 @@ assertions:                   # What to verify
   - scanlines
 ```
 
-3. Test locally:
+1. Test locally:
 
 ```bash
 ./e2e.sh --scenario {scenario_name} --verbose

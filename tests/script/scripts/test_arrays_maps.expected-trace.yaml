@@ -1,0 +1,1083 @@
+# Execution trace
+script: "test_arrays_maps.c64script"
+status: success
+error: ~
+program: |
+  01: rem Test arrays and maps
+  02: rem Validates dim, array access, and map access
+  03: 
+  04: rem Test 1: Declare numeric array
+  05: dim VALUES(10)
+  06: wait 50ms
+  07: 
+  08: rem Test 2: Assign to array elements
+  09: VALUES(0) = 100
+  10: VALUES(1) = 200
+  11: VALUES(2) = 300
+  12: wait 50ms
+  13: 
+  14: rem Test 3: Read from array
+  15: FIRST = VALUES(0)
+  16: if FIRST = 100 then
+  17:     effect "Sharp Pixels"
+  18: endif
+  19: wait 100ms
+  20: 
+  21: rem Test 4: Array in loop
+  22: for I = 0 to 5
+  23:     VALUES(I) = I * 10
+  24:     wait 20ms
+  25: next I
+  26: 
+  27: rem Test 5: Sum array elements
+  28: SUM = 0
+  29: for J = 0 to 5
+  30:     SUM = SUM + VALUES(J)
+  31:     wait 20ms
+  32: next J
+  33: rem Skip LOG to continue to map tests
+  34: 
+  35: rem Test 6: String array
+  36: dim NAMES$(5)
+  37: NAMES$(0) = "Alice"
+  38: NAMES$(1) = "Bob"
+  39: NAMES$(2) = "Charlie"
+  40: wait 50ms
+  41: 
+  42: rem Test 7: Access string array
+  43: FIRST_NAME$ = NAMES$(0)
+  44: rem Skip LOG with string concat
+  45: wait 100ms
+  46: 
+  47: rem Test 8: Map with string keys
+  48: CONFIG_STR{"host"} = "192.168.1.64"
+  49: CONFIG_STR{"path"} = "/v1/api"
+  50: CONFIG_NUM{"port"} = 8080
+  51: CONFIG_NUM{"timeout"} = 5000
+  52: wait 50ms
+  53: 
+  54: rem Test 9: Read from map
+  55: HOST$ = CONFIG_STR{"host"}
+  56: PORT = CONFIG_NUM{"port"}
+  57: rem Skip LOG to continue testing
+  58: wait 100ms
+  59: 
+  60: rem Test 10: Map in conditional
+  61: if CONFIG_NUM{"port"} = 8080 then
+  62:     palette "colodore"
+  63: else
+  64:     palette "pepto_ntsc"
+  65: endif
+  66: wait 100ms
+  67: 
+  68: rem Test 11: Iterate with array
+  69: dim PALETTES$(3)
+  70: PALETTES$(0) = "colodore"
+  71: PALETTES$(1) = "pepto_ntsc"
+  72: PALETTES$(2) = "vice_new"
+  73: 
+  74: for K = 0 to 2
+  75:     palette PALETTES$(K)
+  76:     wait 100ms
+  77: next K
+  78: 
+  79: rem Test 12: Nested arrays (2D simulation)
+  80: dim ROW1(5)
+  81: dim ROW2(5)
+  82: ROW1(0) = 1
+  83: ROW1(1) = 2
+  84: ROW2(0) = 10
+  85: ROW2(1) = 20
+  86: wait 50ms
+  87: 
+  88: rem Test 13: Array bounds
+  89: dim SMALL(3)
+  90: SMALL(0) = 100
+  91: SMALL(1) = 200
+  92: SMALL(2) = 300
+  93: LAST = SMALL(2)
+  94: rem Skip LOG to complete successfully
+  95: 
+  96: stop
+trace:
+- line: 5
+  content: "dim VALUES(10)"
+  variables: {}
+- line: 6
+  content: "wait 50ms"
+  variables:
+    VALUES: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+- line: 9
+  content: "VALUES(0) = 100"
+  variables:
+    VALUES: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+- line: 10
+  content: "VALUES(1) = 200"
+  variables:
+    VALUES: [100, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+- line: 11
+  content: "VALUES(2) = 300"
+  variables:
+    VALUES: [100, 200, 0, 0, 0, 0, 0, 0, 0, 0]
+- line: 12
+  content: "wait 50ms"
+  variables:
+    VALUES: [100, 200, 300, 0, 0, 0, 0, 0, 0, 0]
+- line: 15
+  content: "FIRST = VALUES(0)"
+  variables:
+    VALUES: [100, 200, 300, 0, 0, 0, 0, 0, 0, 0]
+- line: 16
+  content: "if FIRST = 100 then"
+  variables:
+    VALUES: [100, 200, 300, 0, 0, 0, 0, 0, 0, 0]
+    FIRST: 100
+- line: 17
+  content: "effect \"Sharp Pixels\""
+  variables:
+    VALUES: [100, 200, 300, 0, 0, 0, 0, 0, 0, 0]
+    FIRST: 100
+- line: 19
+  content: "wait 100ms"
+  variables:
+    VALUES: [100, 200, 300, 0, 0, 0, 0, 0, 0, 0]
+    FIRST: 100
+- line: 22
+  content: "for I = 0 to 5"
+  variables:
+    VALUES: [100, 200, 300, 0, 0, 0, 0, 0, 0, 0]
+    FIRST: 100
+- line: 23
+  content: "VALUES(I) = I * 10"
+  variables:
+    VALUES: [100, 200, 300, 0, 0, 0, 0, 0, 0, 0]
+    FIRST: 100
+    I: 0
+- line: 24
+  content: "wait 20ms"
+  variables:
+    VALUES: [0, 200, 300, 0, 0, 0, 0, 0, 0, 0]
+    FIRST: 100
+    I: 0
+- line: 22
+  content: "for I = 0 to 5"
+  variables:
+    VALUES: [0, 200, 300, 0, 0, 0, 0, 0, 0, 0]
+    FIRST: 100
+    I: 0
+- line: 23
+  content: "VALUES(I) = I * 10"
+  variables:
+    VALUES: [0, 200, 300, 0, 0, 0, 0, 0, 0, 0]
+    FIRST: 100
+    I: 1
+- line: 24
+  content: "wait 20ms"
+  variables:
+    VALUES: [0, 10, 300, 0, 0, 0, 0, 0, 0, 0]
+    FIRST: 100
+    I: 1
+- line: 22
+  content: "for I = 0 to 5"
+  variables:
+    VALUES: [0, 10, 300, 0, 0, 0, 0, 0, 0, 0]
+    FIRST: 100
+    I: 1
+- line: 23
+  content: "VALUES(I) = I * 10"
+  variables:
+    VALUES: [0, 10, 300, 0, 0, 0, 0, 0, 0, 0]
+    FIRST: 100
+    I: 2
+- line: 24
+  content: "wait 20ms"
+  variables:
+    VALUES: [0, 10, 20, 0, 0, 0, 0, 0, 0, 0]
+    FIRST: 100
+    I: 2
+- line: 22
+  content: "for I = 0 to 5"
+  variables:
+    VALUES: [0, 10, 20, 0, 0, 0, 0, 0, 0, 0]
+    FIRST: 100
+    I: 2
+- line: 23
+  content: "VALUES(I) = I * 10"
+  variables:
+    VALUES: [0, 10, 20, 0, 0, 0, 0, 0, 0, 0]
+    FIRST: 100
+    I: 3
+- line: 24
+  content: "wait 20ms"
+  variables:
+    VALUES: [0, 10, 20, 30, 0, 0, 0, 0, 0, 0]
+    FIRST: 100
+    I: 3
+- line: 22
+  content: "for I = 0 to 5"
+  variables:
+    VALUES: [0, 10, 20, 30, 0, 0, 0, 0, 0, 0]
+    FIRST: 100
+    I: 3
+- line: 23
+  content: "VALUES(I) = I * 10"
+  variables:
+    VALUES: [0, 10, 20, 30, 0, 0, 0, 0, 0, 0]
+    FIRST: 100
+    I: 4
+- line: 24
+  content: "wait 20ms"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 0, 0, 0, 0, 0]
+    FIRST: 100
+    I: 4
+- line: 22
+  content: "for I = 0 to 5"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 0, 0, 0, 0, 0]
+    FIRST: 100
+    I: 4
+- line: 23
+  content: "VALUES(I) = I * 10"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 0, 0, 0, 0, 0]
+    FIRST: 100
+    I: 5
+- line: 24
+  content: "wait 20ms"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 5
+- line: 22
+  content: "for I = 0 to 5"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 5
+- line: 28
+  content: "SUM = 0"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+- line: 29
+  content: "for J = 0 to 5"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 0
+- line: 30
+  content: "SUM = SUM + VALUES(J)"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 0
+    J: 0
+- line: 31
+  content: "wait 20ms"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 0
+    J: 0
+- line: 29
+  content: "for J = 0 to 5"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 0
+    J: 0
+- line: 30
+  content: "SUM = SUM + VALUES(J)"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 0
+    J: 1
+- line: 31
+  content: "wait 20ms"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 10
+    J: 1
+- line: 29
+  content: "for J = 0 to 5"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 10
+    J: 1
+- line: 30
+  content: "SUM = SUM + VALUES(J)"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 10
+    J: 2
+- line: 31
+  content: "wait 20ms"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 30
+    J: 2
+- line: 29
+  content: "for J = 0 to 5"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 30
+    J: 2
+- line: 30
+  content: "SUM = SUM + VALUES(J)"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 30
+    J: 3
+- line: 31
+  content: "wait 20ms"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 60
+    J: 3
+- line: 29
+  content: "for J = 0 to 5"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 60
+    J: 3
+- line: 30
+  content: "SUM = SUM + VALUES(J)"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 60
+    J: 4
+- line: 31
+  content: "wait 20ms"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 100
+    J: 4
+- line: 29
+  content: "for J = 0 to 5"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 100
+    J: 4
+- line: 30
+  content: "SUM = SUM + VALUES(J)"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 100
+    J: 5
+- line: 31
+  content: "wait 20ms"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 5
+- line: 29
+  content: "for J = 0 to 5"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 5
+- line: 36
+  content: "dim NAMES$(5)"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+- line: 37
+  content: "NAMES$(0) = \"Alice\""
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: [0, 0, 0, 0, 0]
+- line: 38
+  content: "NAMES$(1) = \"Bob\""
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", 0, 0, 0, 0]
+- line: 39
+  content: "NAMES$(2) = \"Charlie\""
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", 0, 0, 0]
+- line: 40
+  content: "wait 50ms"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+- line: 43
+  content: "FIRST_NAME$ = NAMES$(0)"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+- line: 45
+  content: "wait 100ms"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    FIRST_NAME$: "Alice"
+- line: 48
+  content: "CONFIG_STR{\"host\"} = \"192.168.1.64\""
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    FIRST_NAME$: "Alice"
+- line: 49
+  content: "CONFIG_STR{\"path\"} = \"/v1/api\""
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    FIRST_NAME$: "Alice"
+    CONFIG_STR: {host: "192.168.1.64"}
+- line: 50
+  content: "CONFIG_NUM{\"port\"} = 8080"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    FIRST_NAME$: "Alice"
+    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
+- line: 51
+  content: "CONFIG_NUM{\"timeout\"} = 5000"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    FIRST_NAME$: "Alice"
+    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG_NUM: {port: 8080}
+- line: 52
+  content: "wait 50ms"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    FIRST_NAME$: "Alice"
+    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG_NUM: {port: 8080, timeout: 5000}
+- line: 55
+  content: "HOST$ = CONFIG_STR{\"host\"}"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    FIRST_NAME$: "Alice"
+    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG_NUM: {port: 8080, timeout: 5000}
+- line: 56
+  content: "PORT = CONFIG_NUM{\"port\"}"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    FIRST_NAME$: "Alice"
+    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG_NUM: {port: 8080, timeout: 5000}
+    HOST$: "192.168.1.64"
+- line: 58
+  content: "wait 100ms"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    FIRST_NAME$: "Alice"
+    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG_NUM: {port: 8080, timeout: 5000}
+    HOST$: "192.168.1.64"
+    PORT: 8080
+- line: 61
+  content: "if CONFIG_NUM{\"port\"} = 8080 then"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    FIRST_NAME$: "Alice"
+    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG_NUM: {port: 8080, timeout: 5000}
+    HOST$: "192.168.1.64"
+    PORT: 8080
+- line: 62
+  content: "palette \"colodore\""
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    FIRST_NAME$: "Alice"
+    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG_NUM: {port: 8080, timeout: 5000}
+    HOST$: "192.168.1.64"
+    PORT: 8080
+- line: 61
+  content: "if CONFIG_NUM{\"port\"} = 8080 then"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    FIRST_NAME$: "Alice"
+    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG_NUM: {port: 8080, timeout: 5000}
+    HOST$: "192.168.1.64"
+    PORT: 8080
+- line: 66
+  content: "wait 100ms"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    FIRST_NAME$: "Alice"
+    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG_NUM: {port: 8080, timeout: 5000}
+    HOST$: "192.168.1.64"
+    PORT: 8080
+- line: 69
+  content: "dim PALETTES$(3)"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    FIRST_NAME$: "Alice"
+    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG_NUM: {port: 8080, timeout: 5000}
+    HOST$: "192.168.1.64"
+    PORT: 8080
+- line: 70
+  content: "PALETTES$(0) = \"colodore\""
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    FIRST_NAME$: "Alice"
+    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG_NUM: {port: 8080, timeout: 5000}
+    HOST$: "192.168.1.64"
+    PORT: 8080
+    PALETTES$: [0, 0, 0]
+- line: 71
+  content: "PALETTES$(1) = \"pepto_ntsc\""
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    FIRST_NAME$: "Alice"
+    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG_NUM: {port: 8080, timeout: 5000}
+    HOST$: "192.168.1.64"
+    PORT: 8080
+    PALETTES$: ["colodore", 0, 0]
+- line: 72
+  content: "PALETTES$(2) = \"vice_new\""
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    FIRST_NAME$: "Alice"
+    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG_NUM: {port: 8080, timeout: 5000}
+    HOST$: "192.168.1.64"
+    PORT: 8080
+    PALETTES$: ["colodore", "pepto_ntsc", 0]
+- line: 74
+  content: "for K = 0 to 2"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    FIRST_NAME$: "Alice"
+    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG_NUM: {port: 8080, timeout: 5000}
+    HOST$: "192.168.1.64"
+    PORT: 8080
+    PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
+- line: 75
+  content: "palette PALETTES$(K)"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    FIRST_NAME$: "Alice"
+    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG_NUM: {port: 8080, timeout: 5000}
+    HOST$: "192.168.1.64"
+    PORT: 8080
+    PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
+    K: 0
+- line: 76
+  content: "wait 100ms"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    FIRST_NAME$: "Alice"
+    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG_NUM: {port: 8080, timeout: 5000}
+    HOST$: "192.168.1.64"
+    PORT: 8080
+    PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
+    K: 0
+- line: 74
+  content: "for K = 0 to 2"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    FIRST_NAME$: "Alice"
+    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG_NUM: {port: 8080, timeout: 5000}
+    HOST$: "192.168.1.64"
+    PORT: 8080
+    PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
+    K: 0
+- line: 75
+  content: "palette PALETTES$(K)"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    FIRST_NAME$: "Alice"
+    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG_NUM: {port: 8080, timeout: 5000}
+    HOST$: "192.168.1.64"
+    PORT: 8080
+    PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
+    K: 1
+- line: 76
+  content: "wait 100ms"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    FIRST_NAME$: "Alice"
+    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG_NUM: {port: 8080, timeout: 5000}
+    HOST$: "192.168.1.64"
+    PORT: 8080
+    PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
+    K: 1
+- line: 74
+  content: "for K = 0 to 2"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    FIRST_NAME$: "Alice"
+    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG_NUM: {port: 8080, timeout: 5000}
+    HOST$: "192.168.1.64"
+    PORT: 8080
+    PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
+    K: 1
+- line: 75
+  content: "palette PALETTES$(K)"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    FIRST_NAME$: "Alice"
+    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG_NUM: {port: 8080, timeout: 5000}
+    HOST$: "192.168.1.64"
+    PORT: 8080
+    PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
+    K: 2
+- line: 76
+  content: "wait 100ms"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    FIRST_NAME$: "Alice"
+    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG_NUM: {port: 8080, timeout: 5000}
+    HOST$: "192.168.1.64"
+    PORT: 8080
+    PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
+    K: 2
+- line: 74
+  content: "for K = 0 to 2"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    FIRST_NAME$: "Alice"
+    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG_NUM: {port: 8080, timeout: 5000}
+    HOST$: "192.168.1.64"
+    PORT: 8080
+    PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
+    K: 2
+- line: 80
+  content: "dim ROW1(5)"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    FIRST_NAME$: "Alice"
+    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG_NUM: {port: 8080, timeout: 5000}
+    HOST$: "192.168.1.64"
+    PORT: 8080
+    PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
+    K: 3
+- line: 81
+  content: "dim ROW2(5)"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    FIRST_NAME$: "Alice"
+    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG_NUM: {port: 8080, timeout: 5000}
+    HOST$: "192.168.1.64"
+    PORT: 8080
+    PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
+    K: 3
+    ROW1: [0, 0, 0, 0, 0]
+- line: 82
+  content: "ROW1(0) = 1"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    FIRST_NAME$: "Alice"
+    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG_NUM: {port: 8080, timeout: 5000}
+    HOST$: "192.168.1.64"
+    PORT: 8080
+    PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
+    K: 3
+    ROW1: [0, 0, 0, 0, 0]
+    ROW2: [0, 0, 0, 0, 0]
+- line: 83
+  content: "ROW1(1) = 2"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    FIRST_NAME$: "Alice"
+    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG_NUM: {port: 8080, timeout: 5000}
+    HOST$: "192.168.1.64"
+    PORT: 8080
+    PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
+    K: 3
+    ROW1: [1, 0, 0, 0, 0]
+    ROW2: [0, 0, 0, 0, 0]
+- line: 84
+  content: "ROW2(0) = 10"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    FIRST_NAME$: "Alice"
+    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG_NUM: {port: 8080, timeout: 5000}
+    HOST$: "192.168.1.64"
+    PORT: 8080
+    PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
+    K: 3
+    ROW1: [1, 2, 0, 0, 0]
+    ROW2: [0, 0, 0, 0, 0]
+- line: 85
+  content: "ROW2(1) = 20"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    FIRST_NAME$: "Alice"
+    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG_NUM: {port: 8080, timeout: 5000}
+    HOST$: "192.168.1.64"
+    PORT: 8080
+    PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
+    K: 3
+    ROW1: [1, 2, 0, 0, 0]
+    ROW2: [10, 0, 0, 0, 0]
+- line: 86
+  content: "wait 50ms"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    FIRST_NAME$: "Alice"
+    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG_NUM: {port: 8080, timeout: 5000}
+    HOST$: "192.168.1.64"
+    PORT: 8080
+    PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
+    K: 3
+    ROW1: [1, 2, 0, 0, 0]
+    ROW2: [10, 20, 0, 0, 0]
+- line: 89
+  content: "dim SMALL(3)"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    FIRST_NAME$: "Alice"
+    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG_NUM: {port: 8080, timeout: 5000}
+    HOST$: "192.168.1.64"
+    PORT: 8080
+    PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
+    K: 3
+    ROW1: [1, 2, 0, 0, 0]
+    ROW2: [10, 20, 0, 0, 0]
+- line: 90
+  content: "SMALL(0) = 100"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    FIRST_NAME$: "Alice"
+    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG_NUM: {port: 8080, timeout: 5000}
+    HOST$: "192.168.1.64"
+    PORT: 8080
+    PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
+    K: 3
+    ROW1: [1, 2, 0, 0, 0]
+    ROW2: [10, 20, 0, 0, 0]
+    SMALL: [0, 0, 0]
+- line: 91
+  content: "SMALL(1) = 200"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    FIRST_NAME$: "Alice"
+    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG_NUM: {port: 8080, timeout: 5000}
+    HOST$: "192.168.1.64"
+    PORT: 8080
+    PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
+    K: 3
+    ROW1: [1, 2, 0, 0, 0]
+    ROW2: [10, 20, 0, 0, 0]
+    SMALL: [100, 0, 0]
+- line: 92
+  content: "SMALL(2) = 300"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    FIRST_NAME$: "Alice"
+    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG_NUM: {port: 8080, timeout: 5000}
+    HOST$: "192.168.1.64"
+    PORT: 8080
+    PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
+    K: 3
+    ROW1: [1, 2, 0, 0, 0]
+    ROW2: [10, 20, 0, 0, 0]
+    SMALL: [100, 200, 0]
+- line: 93
+  content: "LAST = SMALL(2)"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    FIRST_NAME$: "Alice"
+    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG_NUM: {port: 8080, timeout: 5000}
+    HOST$: "192.168.1.64"
+    PORT: 8080
+    PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
+    K: 3
+    ROW1: [1, 2, 0, 0, 0]
+    ROW2: [10, 20, 0, 0, 0]
+    SMALL: [100, 200, 300]
+- line: 96
+  content: "stop"
+  variables:
+    VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
+    FIRST: 100
+    I: 6
+    SUM: 150
+    J: 6
+    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    FIRST_NAME$: "Alice"
+    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG_NUM: {port: 8080, timeout: 5000}
+    HOST$: "192.168.1.64"
+    PORT: 8080
+    PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
+    K: 3
+    ROW1: [1, 2, 0, 0, 0]
+    ROW2: [10, 20, 0, 0, 0]
+    SMALL: [100, 200, 300]
+    LAST: 300

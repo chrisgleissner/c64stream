@@ -1,0 +1,23 @@
+# Execution trace
+script: "test_coverage_label_no_colon.c64script"
+status: success
+error: ~
+program: |
+  1: REM Coverage: label prefix without colon
+  2: START LOG "start"
+  3: GOTO FINISH
+  4: FINISH LOG "done"
+  5: END
+trace:
+- line: 2
+  content: "START LOG \"start\""
+  variables: {}
+- line: 3
+  content: "GOTO FINISH"
+  variables: {}
+- line: 4
+  content: "FINISH LOG \"done\""
+  variables: {}
+- line: 5
+  content: "END"
+  variables: {}

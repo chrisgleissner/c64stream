@@ -1,0 +1,50 @@
+rem Test effect and effectparam commands
+rem Validates effect selection and parameter customization
+
+rem Test 1: Set effect and customize scanline intensity
+effect "Classic CRT"
+effectparam "scanline_intensity" 0.7
+wait 100ms
+
+rem Test 2: Customize phosphor persistence
+effectparam "phosphor_persistence" 0.3
+wait 100ms
+
+rem Test 3: Customize curvature
+effectparam "curvature" 0.1
+wait 100ms
+
+rem Test 4: Customize bloom
+effectparam "bloom" 0.5
+wait 100ms
+
+rem Test 5: Switch effect and set parameters
+effect "Sharp Pixels"
+effectparam "grid_intensity" 0.3
+effectparam "grid_color_r" 20
+effectparam "grid_color_g" 20
+effectparam "grid_color_b" 20
+wait 100ms
+
+rem Test 6: Amber monitor with tint
+effect "Amber Monitor"
+effectparam "tint_intensity" 0.9
+effectparam "brightness" 1.2
+effectparam "contrast" 1.1
+wait 100ms
+
+rem Test 7: Soft blur effect
+effect "Soft Blur"
+effectparam "blur_radius" 2.5
+effectparam "blur_direction" 2
+wait 100ms
+
+rem Test 8: Color adjustments
+effect "Classic CRT"
+effectparam "saturation" 1.2
+effectparam "brightness" 1.1
+effectparam "gamma" 0.9
+effectparam "hue_shift" 10
+wait 100ms
+
+stop

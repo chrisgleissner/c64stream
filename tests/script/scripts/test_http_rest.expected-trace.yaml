@@ -1,0 +1,669 @@
+# Execution trace
+script: "test_http_rest.c64script"
+status: success
+error: ~
+program: |
+  01: rem Test HTTP REST API calls
+  02: rem Validates HTTP GET, POST, PUT, DELETE, PATCH
+  03: 
+  04: rem Test 1: HTTP GET request
+  05: HTTP GET "http://localhost:8064/v1/version" STATUS STATUS_CODE RESPONSE RESP$
+  06: wait 100ms
+  07: LOG "GET status: " + STATUS_CODE
+  08: 
+  09: rem Test 2: HTTP GET with status check
+  10: HTTP GET "http://localhost:8064/v1/info" STATUS CODE
+  11: if CODE = 200 then
+  12:     effect "Sharp Pixels"
+  13: endif
+  14: wait 100ms
+  15: 
+  16: rem Test 3: HTTP POST request with body
+  17: BODY$ = "{\"command\":\"reset\"}"
+  18: HTTP POST "http://localhost:8064/v1/command" BODY BODY$ STATUS POST_STATUS
+  19: wait 100ms
+  20: 
+  21: rem Test 4: HTTP POST with headers and body
+  22: HEADERS${"Content-Type"} = "application/json"
+  23: DATA$ = "{\"value\":42}"
+  24: HTTP POST "http://localhost:8064/v1/data" HEADERS HEADERS$ BODY DATA$ STATUS S RESPONSE R$
+  25: wait 100ms
+  26: LOG "POST response: " + R$
+  27: 
+  28: rem Test 5: HTTP PUT request
+  29: HTTP PUT "http://localhost:8064/v1/machine:reset" STATUS PUT_CODE
+  30: wait 100ms
+  31: 
+  32: rem Test 6: HTTP DELETE request
+  33: HTTP DELETE "http://localhost:8064/v1/resource/123" STATUS DEL_CODE
+  34: wait 100ms
+  35: 
+  36: rem Test 7: HTTP PATCH request
+  37: PATCH_BODY$ = "{\"field\":\"updated\"}"
+  38: HTTP PATCH "http://localhost:8064/v1/resource/456" BODY PATCH_BODY$ STATUS PATCH_CODE
+  39: wait 100ms
+  40: 
+  41: rem Test 8: HTTP GET in conditional
+  42: HTTP GET "http://localhost:8064/v1/status" STATUS API_STATUS RESPONSE API_RESP$
+  43: if API_STATUS = 200 then
+  44:     LOG "API is available"
+  45:     palette "colodore"
+  46: else
+  47:     LOG "API error: " + API_STATUS
+  48:     palette "pepto_ntsc"
+  49: endif
+  50: wait 100ms
+  51: 
+  52: rem Test 9: Multiple sequential API calls
+  53: for I = 1 to 3
+  54:     HTTP GET "http://localhost:8064/v1/version" STATUS S
+  55:     LOG "Call " + I + " status: " + S
+  56:     wait 50ms
+  57: next I
+  58: 
+  59: rem Test 10: Complex API workflow
+  60: HTTP GET "http://localhost:8064/v1/info" STATUS INFO_CODE RESPONSE INFO$
+  61: if INFO_CODE = 200 then
+  62:     CMD$ = "{\"action\":\"start\"}"
+  63:     HTTP POST "http://localhost:8064/v1/command" BODY CMD$ STATUS CMD_CODE
+  64:     if CMD_CODE = 200 then
+  65:         LOG "Command executed successfully"
+  66:     endif
+  67: endif
+  68: 
+  69: stop
+trace:
+- line: 5
+  content: "HTTP GET \"http://localhost:8064/v1/version\" STATUS STATUS_CODE RESPONSE RESP$"
+  variables: {}
+- line: 6
+  content: "wait 100ms"
+  variables:
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+- line: 7
+  content: "LOG \"GET status: \" + STATUS_CODE"
+  variables:
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+- line: 10
+  content: "HTTP GET \"http://localhost:8064/v1/info\" STATUS CODE"
+  variables:
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+- line: 11
+  content: "if CODE = 200 then"
+  variables:
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
+- line: 14
+  content: "wait 100ms"
+  variables:
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
+- line: 17
+  content: "BODY$ = \"{\\\"command\\\":\\\"reset\\\"}\""
+  variables:
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
+- line: 18
+  content: "HTTP POST \"http://localhost:8064/v1/command\" BODY BODY$ STATUS POST_STATUS"
+  variables:
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
+    BODY$: "{"command":"reset"}"
+- line: 19
+  content: "wait 100ms"
+  variables:
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
+    BODY$: "{"command":"reset"}"
+    POST_STATUS: 0
+- line: 22
+  content: "HEADERS${\"Content-Type\"} = \"application/json\""
+  variables:
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
+    BODY$: "{"command":"reset"}"
+    POST_STATUS: 0
+- line: 23
+  content: "DATA$ = \"{\\\"value\\\":42}\""
+  variables:
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
+    BODY$: "{"command":"reset"}"
+    POST_STATUS: 0
+    HEADERS$: {Content-Type: "application/json"}
+- line: 24
+  content: "HTTP POST \"http://localhost:8064/v1/data\" HEADERS HEADERS$ BODY DATA$ STATUS S RESPONSE R$"
+  variables:
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
+    BODY$: "{"command":"reset"}"
+    POST_STATUS: 0
+    HEADERS$: {Content-Type: "application/json"}
+    DATA$: "{"value":42}"
+- line: 25
+  content: "wait 100ms"
+  variables:
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
+    BODY$: "{"command":"reset"}"
+    POST_STATUS: 0
+    HEADERS$: {Content-Type: "application/json"}
+    DATA$: "{"value":42}"
+    S: 0
+    R$: "Couldn't connect to server"
+- line: 26
+  content: "LOG \"POST response: \" + R$"
+  variables:
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
+    BODY$: "{"command":"reset"}"
+    POST_STATUS: 0
+    HEADERS$: {Content-Type: "application/json"}
+    DATA$: "{"value":42}"
+    S: 0
+    R$: "Couldn't connect to server"
+- line: 29
+  content: "HTTP PUT \"http://localhost:8064/v1/machine:reset\" STATUS PUT_CODE"
+  variables:
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
+    BODY$: "{"command":"reset"}"
+    POST_STATUS: 0
+    HEADERS$: {Content-Type: "application/json"}
+    DATA$: "{"value":42}"
+    S: 0
+    R$: "Couldn't connect to server"
+- line: 30
+  content: "wait 100ms"
+  variables:
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
+    BODY$: "{"command":"reset"}"
+    POST_STATUS: 0
+    HEADERS$: {Content-Type: "application/json"}
+    DATA$: "{"value":42}"
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+- line: 33
+  content: "HTTP DELETE \"http://localhost:8064/v1/resource/123\" STATUS DEL_CODE"
+  variables:
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
+    BODY$: "{"command":"reset"}"
+    POST_STATUS: 0
+    HEADERS$: {Content-Type: "application/json"}
+    DATA$: "{"value":42}"
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+- line: 34
+  content: "wait 100ms"
+  variables:
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
+    BODY$: "{"command":"reset"}"
+    POST_STATUS: 0
+    HEADERS$: {Content-Type: "application/json"}
+    DATA$: "{"value":42}"
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
+- line: 37
+  content: "PATCH_BODY$ = \"{\\\"field\\\":\\\"updated\\\"}\""
+  variables:
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
+    BODY$: "{"command":"reset"}"
+    POST_STATUS: 0
+    HEADERS$: {Content-Type: "application/json"}
+    DATA$: "{"value":42}"
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
+- line: 38
+  content: "HTTP PATCH \"http://localhost:8064/v1/resource/456\" BODY PATCH_BODY$ STATUS PATCH_CODE"
+  variables:
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
+    BODY$: "{"command":"reset"}"
+    POST_STATUS: 0
+    HEADERS$: {Content-Type: "application/json"}
+    DATA$: "{"value":42}"
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
+    PATCH_BODY$: "{"field":"updated"}"
+- line: 39
+  content: "wait 100ms"
+  variables:
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
+    BODY$: "{"command":"reset"}"
+    POST_STATUS: 0
+    HEADERS$: {Content-Type: "application/json"}
+    DATA$: "{"value":42}"
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
+    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_CODE: 0
+- line: 42
+  content: "HTTP GET \"http://localhost:8064/v1/status\" STATUS API_STATUS RESPONSE API_RESP$"
+  variables:
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
+    BODY$: "{"command":"reset"}"
+    POST_STATUS: 0
+    HEADERS$: {Content-Type: "application/json"}
+    DATA$: "{"value":42}"
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
+    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_CODE: 0
+- line: 43
+  content: "if API_STATUS = 200 then"
+  variables:
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
+    BODY$: "{"command":"reset"}"
+    POST_STATUS: 0
+    HEADERS$: {Content-Type: "application/json"}
+    DATA$: "{"value":42}"
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
+    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_CODE: 0
+    API_STATUS: 0
+    API_RESP$: "Couldn't connect to server"
+- line: 47
+  content: "LOG \"API error: \" + API_STATUS"
+  variables:
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
+    BODY$: "{"command":"reset"}"
+    POST_STATUS: 0
+    HEADERS$: {Content-Type: "application/json"}
+    DATA$: "{"value":42}"
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
+    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_CODE: 0
+    API_STATUS: 0
+    API_RESP$: "Couldn't connect to server"
+- line: 48
+  content: "palette \"pepto_ntsc\""
+  variables:
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
+    BODY$: "{"command":"reset"}"
+    POST_STATUS: 0
+    HEADERS$: {Content-Type: "application/json"}
+    DATA$: "{"value":42}"
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
+    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_CODE: 0
+    API_STATUS: 0
+    API_RESP$: "Couldn't connect to server"
+- line: 50
+  content: "wait 100ms"
+  variables:
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
+    BODY$: "{"command":"reset"}"
+    POST_STATUS: 0
+    HEADERS$: {Content-Type: "application/json"}
+    DATA$: "{"value":42}"
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
+    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_CODE: 0
+    API_STATUS: 0
+    API_RESP$: "Couldn't connect to server"
+- line: 53
+  content: "for I = 1 to 3"
+  variables:
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
+    BODY$: "{"command":"reset"}"
+    POST_STATUS: 0
+    HEADERS$: {Content-Type: "application/json"}
+    DATA$: "{"value":42}"
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
+    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_CODE: 0
+    API_STATUS: 0
+    API_RESP$: "Couldn't connect to server"
+- line: 54
+  content: "HTTP GET \"http://localhost:8064/v1/version\" STATUS S"
+  variables:
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
+    BODY$: "{"command":"reset"}"
+    POST_STATUS: 0
+    HEADERS$: {Content-Type: "application/json"}
+    DATA$: "{"value":42}"
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
+    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_CODE: 0
+    API_STATUS: 0
+    API_RESP$: "Couldn't connect to server"
+    I: 1
+- line: 55
+  content: "LOG \"Call \" + I + \" status: \" + S"
+  variables:
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
+    BODY$: "{"command":"reset"}"
+    POST_STATUS: 0
+    HEADERS$: {Content-Type: "application/json"}
+    DATA$: "{"value":42}"
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
+    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_CODE: 0
+    API_STATUS: 0
+    API_RESP$: "Couldn't connect to server"
+    I: 1
+- line: 56
+  content: "wait 50ms"
+  variables:
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
+    BODY$: "{"command":"reset"}"
+    POST_STATUS: 0
+    HEADERS$: {Content-Type: "application/json"}
+    DATA$: "{"value":42}"
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
+    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_CODE: 0
+    API_STATUS: 0
+    API_RESP$: "Couldn't connect to server"
+    I: 1
+- line: 53
+  content: "for I = 1 to 3"
+  variables:
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
+    BODY$: "{"command":"reset"}"
+    POST_STATUS: 0
+    HEADERS$: {Content-Type: "application/json"}
+    DATA$: "{"value":42}"
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
+    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_CODE: 0
+    API_STATUS: 0
+    API_RESP$: "Couldn't connect to server"
+    I: 1
+- line: 54
+  content: "HTTP GET \"http://localhost:8064/v1/version\" STATUS S"
+  variables:
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
+    BODY$: "{"command":"reset"}"
+    POST_STATUS: 0
+    HEADERS$: {Content-Type: "application/json"}
+    DATA$: "{"value":42}"
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
+    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_CODE: 0
+    API_STATUS: 0
+    API_RESP$: "Couldn't connect to server"
+    I: 2
+- line: 55
+  content: "LOG \"Call \" + I + \" status: \" + S"
+  variables:
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
+    BODY$: "{"command":"reset"}"
+    POST_STATUS: 0
+    HEADERS$: {Content-Type: "application/json"}
+    DATA$: "{"value":42}"
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
+    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_CODE: 0
+    API_STATUS: 0
+    API_RESP$: "Couldn't connect to server"
+    I: 2
+- line: 56
+  content: "wait 50ms"
+  variables:
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
+    BODY$: "{"command":"reset"}"
+    POST_STATUS: 0
+    HEADERS$: {Content-Type: "application/json"}
+    DATA$: "{"value":42}"
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
+    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_CODE: 0
+    API_STATUS: 0
+    API_RESP$: "Couldn't connect to server"
+    I: 2
+- line: 53
+  content: "for I = 1 to 3"
+  variables:
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
+    BODY$: "{"command":"reset"}"
+    POST_STATUS: 0
+    HEADERS$: {Content-Type: "application/json"}
+    DATA$: "{"value":42}"
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
+    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_CODE: 0
+    API_STATUS: 0
+    API_RESP$: "Couldn't connect to server"
+    I: 2
+- line: 54
+  content: "HTTP GET \"http://localhost:8064/v1/version\" STATUS S"
+  variables:
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
+    BODY$: "{"command":"reset"}"
+    POST_STATUS: 0
+    HEADERS$: {Content-Type: "application/json"}
+    DATA$: "{"value":42}"
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
+    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_CODE: 0
+    API_STATUS: 0
+    API_RESP$: "Couldn't connect to server"
+    I: 3
+- line: 55
+  content: "LOG \"Call \" + I + \" status: \" + S"
+  variables:
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
+    BODY$: "{"command":"reset"}"
+    POST_STATUS: 0
+    HEADERS$: {Content-Type: "application/json"}
+    DATA$: "{"value":42}"
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
+    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_CODE: 0
+    API_STATUS: 0
+    API_RESP$: "Couldn't connect to server"
+    I: 3
+- line: 56
+  content: "wait 50ms"
+  variables:
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
+    BODY$: "{"command":"reset"}"
+    POST_STATUS: 0
+    HEADERS$: {Content-Type: "application/json"}
+    DATA$: "{"value":42}"
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
+    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_CODE: 0
+    API_STATUS: 0
+    API_RESP$: "Couldn't connect to server"
+    I: 3
+- line: 53
+  content: "for I = 1 to 3"
+  variables:
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
+    BODY$: "{"command":"reset"}"
+    POST_STATUS: 0
+    HEADERS$: {Content-Type: "application/json"}
+    DATA$: "{"value":42}"
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
+    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_CODE: 0
+    API_STATUS: 0
+    API_RESP$: "Couldn't connect to server"
+    I: 3
+- line: 60
+  content: "HTTP GET \"http://localhost:8064/v1/info\" STATUS INFO_CODE RESPONSE INFO$"
+  variables:
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
+    BODY$: "{"command":"reset"}"
+    POST_STATUS: 0
+    HEADERS$: {Content-Type: "application/json"}
+    DATA$: "{"value":42}"
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
+    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_CODE: 0
+    API_STATUS: 0
+    API_RESP$: "Couldn't connect to server"
+    I: 4
+- line: 61
+  content: "if INFO_CODE = 200 then"
+  variables:
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
+    BODY$: "{"command":"reset"}"
+    POST_STATUS: 0
+    HEADERS$: {Content-Type: "application/json"}
+    DATA$: "{"value":42}"
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
+    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_CODE: 0
+    API_STATUS: 0
+    API_RESP$: "Couldn't connect to server"
+    I: 4
+    INFO_CODE: 0
+    INFO$: "Couldn't connect to server"
+- line: 69
+  content: "stop"
+  variables:
+    STATUS_CODE: 0
+    RESP$: "Couldn't connect to server"
+    CODE: 0
+    BODY$: "{"command":"reset"}"
+    POST_STATUS: 0
+    HEADERS$: {Content-Type: "application/json"}
+    DATA$: "{"value":42}"
+    S: 0
+    R$: "Couldn't connect to server"
+    PUT_CODE: 0
+    DEL_CODE: 0
+    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_CODE: 0
+    API_STATUS: 0
+    API_RESP$: "Couldn't connect to server"
+    I: 4
+    INFO_CODE: 0
+    INFO$: "Couldn't connect to server"

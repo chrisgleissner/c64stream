@@ -1,0 +1,158 @@
+# Execution trace
+script: "demo_palette_cycle.c64script"
+status: success
+error: ~
+program: |
+  01: REM Palette Cycle Demo
+  02: REM Cycles through available palettes, displaying each one for 3 seconds
+  03: 
+  04: LOG "Starting palette showcase demo"
+  05: 
+  06: REM Default palette
+  07: LOG "Applying palette: default"
+  08: PALETTE "default"
+  09: WAIT 2s
+  10: 
+  11: REM Vibrant palette
+  12: LOG "Applying palette: vibrant"
+  13: PALETTE "vibrant"
+  14: WAIT 2s
+  15: 
+  16: REM Muted palette
+  17: LOG "Applying palette: muted"
+  18: PALETTE "muted"
+  19: WAIT 2s
+  20: 
+  21: REM Warm palette
+  22: LOG "Applying palette: warm"
+  23: PALETTE "warm"
+  24: WAIT 2s
+  25: 
+  26: REM Cool palette
+  27: LOG "Applying palette: cool"
+  28: PALETTE "cool"
+  29: WAIT 2s
+  30: 
+  31: REM Neon palette
+  32: LOG "Applying palette: neonblast"
+  33: PALETTE "neonblast"
+  34: WAIT 2s
+  35: 
+  36: REM Night palette
+  37: LOG "Applying palette: night"
+  38: PALETTE "night"
+  39: WAIT 2s
+  40: 
+  41: REM Monochrome palette
+  42: LOG "Applying palette: monochrome"
+  43: PALETTE "monochrome"
+  44: WAIT 2s
+  45: 
+  46: REM Inverted palette
+  47: LOG "Applying palette: inverted"
+  48: PALETTE "inverted"
+  49: WAIT 2s
+  50: 
+  51: REM Return to default
+  52: LOG "Applying palette: default"
+  53: PALETTE "default"
+  54: WAIT 2s
+  55: 
+  56: LOG "Palette showcase demo completed"
+trace:
+- line: 4
+  content: "LOG \"Starting palette showcase demo\""
+  variables: {}
+- line: 7
+  content: "LOG \"Applying palette: default\""
+  variables: {}
+- line: 8
+  content: "PALETTE \"default\""
+  variables: {}
+- line: 9
+  content: "WAIT 2s"
+  variables: {}
+- line: 12
+  content: "LOG \"Applying palette: vibrant\""
+  variables: {}
+- line: 13
+  content: "PALETTE \"vibrant\""
+  variables: {}
+- line: 14
+  content: "WAIT 2s"
+  variables: {}
+- line: 17
+  content: "LOG \"Applying palette: muted\""
+  variables: {}
+- line: 18
+  content: "PALETTE \"muted\""
+  variables: {}
+- line: 19
+  content: "WAIT 2s"
+  variables: {}
+- line: 22
+  content: "LOG \"Applying palette: warm\""
+  variables: {}
+- line: 23
+  content: "PALETTE \"warm\""
+  variables: {}
+- line: 24
+  content: "WAIT 2s"
+  variables: {}
+- line: 27
+  content: "LOG \"Applying palette: cool\""
+  variables: {}
+- line: 28
+  content: "PALETTE \"cool\""
+  variables: {}
+- line: 29
+  content: "WAIT 2s"
+  variables: {}
+- line: 32
+  content: "LOG \"Applying palette: neonblast\""
+  variables: {}
+- line: 33
+  content: "PALETTE \"neonblast\""
+  variables: {}
+- line: 34
+  content: "WAIT 2s"
+  variables: {}
+- line: 37
+  content: "LOG \"Applying palette: night\""
+  variables: {}
+- line: 38
+  content: "PALETTE \"night\""
+  variables: {}
+- line: 39
+  content: "WAIT 2s"
+  variables: {}
+- line: 42
+  content: "LOG \"Applying palette: monochrome\""
+  variables: {}
+- line: 43
+  content: "PALETTE \"monochrome\""
+  variables: {}
+- line: 44
+  content: "WAIT 2s"
+  variables: {}
+- line: 47
+  content: "LOG \"Applying palette: inverted\""
+  variables: {}
+- line: 48
+  content: "PALETTE \"inverted\""
+  variables: {}
+- line: 49
+  content: "WAIT 2s"
+  variables: {}
+- line: 52
+  content: "LOG \"Applying palette: default\""
+  variables: {}
+- line: 53
+  content: "PALETTE \"default\""
+  variables: {}
+- line: 54
+  content: "WAIT 2s"
+  variables: {}
+- line: 56
+  content: "LOG \"Palette showcase demo completed\""
+  variables: {}

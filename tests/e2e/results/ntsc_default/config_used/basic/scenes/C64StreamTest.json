@@ -126,8 +126,7 @@
                 "palette_color_13": 4287885215,
                 "palette_color_14": 4293880429,
                 "palette_color_15": 4289901234,
-                "c64_host": "localhost",
-                "record_av_sync": true
+                "c64_host": "localhost"
             },
             "mixers": 255,
             "sync": 0,

@@ -24,6 +24,22 @@ The plugin connects directly to the Ultimate's network interface, eliminating th
 - Automatic VIC-II color space conversion
 - **Authentic CRT effects** with configurable presets (scan lines, bloom, tint, pixel geometry)
 - Built-in recording capabilities (BMP frames, AVI video, WAV audio)
+- **Keyboard capture** - click "Interact" button below preview to type directly into C64
+- **C64Script automation** - BASIC-like scripting language for controlling your stream
+- **Source-level debugging** - pause, step, and inspect scripts with minimal debug controls
+
+## Configuration
+
+The plugin uses a `properties.ini` file to provide default settings for connecting to your C64 Ultimate device. This file is automatically installed with the plugin and contains the standard C64 Ultimate network settings:
+
+- **Hostname**: `c64u` (the default C64 Ultimate hostname)
+- **Control Port**: `64` (the standard C64 Ultimate control port)
+- **DNS Server**: `192.168.1.1` (common router DNS)
+- **Video/Audio Ports**: `11000`/`11001` (C64 Ultimate streaming ports)
+
+These settings work out-of-the-box with most C64 Ultimate setups. You can override any of these settings directly in the OBS source properties if your setup differs.
+
+## Quick Start
 
 ### What You'll Need
 
@@ -32,52 +48,29 @@ The plugin connects directly to the Ultimate's network interface, eliminating th
 - The Ultimate device must be connected via its [Ethernet port](https://1541u-documentation.readthedocs.io/en/latest/howto/wifi.html#functionality-available-on-wifi). The OBS computer may connect via Wi-Fi if both are on the same network, but using Ethernet all the way to OBS is recommended for the most stable connection.
 - For complete and up-to-date hardware and software requirements, please refer to the [OBS Studio System Requirements](https://obsproject.com/kb/system-requirements).
 
----
-
-## Installation 📦
-
 > [!NOTE]
-> The plugin has been **verified to work** on the systems listed below unless mentioned otherwise. Other environments have not been verified, but community contributions are always welcome.
->
-> If you use a **firewall**, please make sure to open ports 11000 and 11001 for incoming UDP traffic from the Commodore 64 Ultimate.
->
-> In the following instructions, replace `$VERSION` with the latest released version as shown on the [Releases](../../releases) page.
+> The plugin has been **verified to work** on the systems listed below. Other environments have not been verified and are not supported explicitly, but community contributions are always welcome.
 
-### Windows (Standard Installation)
+### Easy Installation 📦
 
-Applies when OBS Studio is installed normally using the official Windows installer.
+In the following instructions, replace `$VERSION` with the latest released version as shown on the [Releases](../../releases) page.
 
-#### Windows (64-bit)
+#### Windows
 
-Tested on Windows 11.
+Verified on Windows 11:
 
-1. **Close OBS Studio**
-   Make sure OBS Studio is completely closed before continuing.
-2. **Download the plugin**
-   - Open the Releases page.
-   - [Download](../../releases) the file named `c64stream-$VERSION-windows-x64.zip`.
-   - Windows will usually save this file in your **Downloads** folder: `C:\Users\<YourName>\Downloads`
-3. **Install the plugin**
-   - Press **Start**, type **Windows PowerShell**, and open it.
-   - Copy the command below and paste it into the PowerShell window.
-   - Press **Enter**.
-   ```powershell
-   Expand-Archive -Path "$env:USERPROFILE\Downloads\c64stream-*-windows-*.zip" -DestinationPath "C:\ProgramData\obs-studio\plugins" -Force
-   ```
-   This extracts the plugin files into the correct OBS plugin folder.
-4. **Allow the plugin through Windows Firewall**
-   This step allows OBS to receive video and audio from your C64 Ultimate on ports 11000 (video) and 11001 (audio).
-   - Copy the command below and paste it into the Powershell window.
-   - Replace `192.168.1.64` with the IP address of your C64 Ultimate.
-   - Press **Enter**.
-   ```powershell
-   New-NetFirewallRule -DisplayName "C64 Stream" -Direction Inbound -Protocol UDP -LocalPort 11000,11001 -RemoteAddress 192.168.1.64 -Action Allow
-   ```
-5. **Start OBS Studio**
-   Open OBS Studio again. The plugin is now installed and ready to use.
+1. Close OBS Studio
+2. [Download](../../releases) the plugin package with name `c64stream-$VERSION-windows-x64.zip`. It should now be in your `Downloads` folder (typically `C:\Users\<YourName>\Downloads`).
+3. Install the plugin to `C:\ProgramData\obs-studio\plugins` by either extracting the ZIP with a tool of your choice or by running the following in Powershell:
+```powershell
+Expand-Archive -Path "$env:USERPROFILE\Downloads\c64stream-*-windows-x64.zip" -DestinationPath "C:\ProgramData\obs-studio\plugins" -Force
+```
+4. Start OBS Studio
 
-#### Windows (ARM64 - Experimental)
-
+If you are using Windows Firewall and block all incoming connections, you may have to setup an exclusion to allow for incoming UDP connections to port 11000 (Video) and 11001 (Audio) from the C64 Ultimate a follows. Be sure to adjust the `RemoteAddress` from `192.168.1.64` to the IP of your C64 Ultimate before you run this in Powershell:
+```powershell
+New-NetFirewallRule -DisplayName "C64 Stream" -Direction Inbound -Protocol UDP -LocalPort 11000,11001 -RemoteAddress 192.168.1.64 -Action Allow
+```
 > [!NOTE]
 > Windows on ARM64 support is experimental and has not yet been fully tested.
 > If you would like to help with testing, please reach out via the
@@ -110,7 +103,7 @@ In portable mode, OBS does **not** use `C:\ProgramData\obs-studio\plugins`. Inst
    ```
 5. Start OBS Studio.
 
-### macOS
+#### macOS
 
 Verified on macOS Sequoia 15.7 and Tahoe 26.0 with Apple Silicon M4 (Intel systems should also work):
 
@@ -130,11 +123,11 @@ chmod -R 755 "$HOME/Library/Application Support/obs-studio/plugins/c64stream.plu
 ```
 4. Start OBS Studio
 
-### Linux
+#### Linux
 
-Verified on Ubuntu 24.04, Debian 12, Fedora 40 and Arch Linux via automated [end-to-end tests](#end-to-end-tests-) on each build. Other distributions may work but are not officially supported.
+Verified on Ubuntu 24.04 and Debian 12. Other distributions may work but are not officially supported.
 
-#### Ubuntu / Debian (Recommended)
+##### Ubuntu / Debian (Recommended)
 
 1. Close OBS Studio
 2. Install OBS Studio (32.0.1+):
@@ -156,7 +149,7 @@ Verified on Ubuntu 24.04, Debian 12, Fedora 40 and Arch Linux via automated [end
    ```
 5. Start OBS Studio
 
-#### Other Distributions (Fedora, Arch, etc.)
+##### Other Distributions (Fedora, Arch, etc.)
 
 For non-Debian-based distributions, you can extract the `.deb` package manually:
 
@@ -177,9 +170,7 @@ For non-Debian-based distributions, you can extract the `.deb` package manually:
 **Further Details:**
 See the [OBS Plugins Guide](https://obsproject.com/kb/plugins-guide).
 
----
-
-## Configuration ⚙️
+### Configuration ⚙️
 
 **Getting Your C64 on Stream:**
 
@@ -199,54 +190,38 @@ A new window opens. Keep the default settings and click "OK":
 
 🎉 **DONE!** Enjoy streaming from your C64 Ultimate.
 
----
-
-## Plugin Properties
-
-This section provides detailed descriptions of all plugin properties, organized by category.
+## Plugin Setup
 
 ### General
 
-#### Version
-Displays release version, Git commit ID, and build timestamp.
-
-#### Import/Export
-- **Import settings:** Load all plugin settings from a previously exported `.ini` file. All current settings will be replaced.
-- **Export settings:** Save all current plugin settings to an `.ini` file for backup, sharing, or attaching to bug reports.
+- **Version:** Information about release version, Git ID, and build time
+- **Debug Logging:** Check this to see debug logs
 
 ### Network 📡
 
-#### DNS Configuration
-- **DNS Server IP:** IP address of DNS server for resolving device hostnames (default: `192.168.1.1` for most routers). The plugin uses multiple DNS resolution strategies for maximum compatibility. If router DNS fails, the plugin automatically tries standard DNS servers and FQDN resolution.
+- **DNS Resolution Details:**
 
-#### Device Configuration
-- **C64U Host:** Hostname (default: `c64u`) or IP address of your C64 Ultimate device. This enables automatic streaming control from OBS. Set to `0.0.0.0` to skip control commands and accept streams from any device on your network.
-- **C64U Password:** Only needed if C64U REST API was secured with a password. By default, no password is set, so this can be left empty.
+- **Default:** `192.168.1.1` (most common home router DNS server)
+- **Fallback:** If router DNS fails, the plugin tries standard DNS servers
+- **Enhanced Resolution:** The plugin uses multiple resolution strategies for maximum compatibility
+- **C64 Ultimate Host:** Enter your Ultimate device's hostname (default: `c64u`) or IP address to enable automatic streaming control from OBS (recommended for convenience), or set to `0.0.0.0` to accept streams from any C64 Ultimate on your network (requires manual control from the device)
+- **C64 Ultimate Password:** C64 Ultimate network password for REST `X-Password` header authentication. Leave empty if authentication is disabled
+- **OBS Server IP:** IP address where C64 Ultimate sends streams (auto-detected by default)
+- **Auto-detect OBS IP:** Automatically detect and use OBS server IP in streaming commands (recommended)
+- **Configure Ports** Use the default ports (video: 11000, audio: 11001) unless network conflicts require different values
+- **Buffer Delay:** Sets the network buffer for incoming UDP packets arriving from the C64 Ultimate (0–500 ms, default 10 ms). The buffer size is expressed in milliseconds to represent the time-based delay it introduces, compensating for packet loss, reordering, and variable network latency. Larger buffers improve stability under high-latency or congested conditions but increase end-to-end delay.
 
-#### OBS Server Configuration
-- **OBS IP:** IP address where C64 Ultimate sends streams. Auto-detected by default.
-- **Auto-detect OBS IP:** Automatically detect and use OBS server IP in streaming commands (recommended).
-
-#### Port Configuration
-- **Video Port:** UDP port for video stream from C64 Ultimate (default: `11000`).
-- **Audio Port:** UDP port for audio stream from C64 Ultimate (default: `11001`).
-- **Control Port:** TCP port used to send control commands to C64 Ultimate (default: `64`).
-
-#### Buffer Configuration
-- **Buffer Delay (millis):** Network buffer for incoming UDP packets (0–500 ms, default: `10` ms). Compensates for packet loss, reordering, and variable network latency. Larger buffers improve stability under high-latency or congested conditions but increase end-to-end delay.
+---
 
 ### Recording 💾
 
 The plugin includes built-in recording capabilities that work independently of OBS Studio's recording system, letting you save raw C64 Ultimate data streams directly to disk.
 
-#### Output Folder
-Directory where timestamped session folders will be created. Each session folder contains frames, video, audio, and timing files depending on which recording options are enabled.
+### Recording Options
 
-#### Recording Options
+The plugin offers three independent recording options that can be enabled separately or together:
 
-The plugin offers five independent recording options that can be enabled separately or together:
-
-**📊 Record Network and Streaming Events (CSV):**
+**📊 Network and Streaming Events (CSV):**
 
 - Records detailed timing data for network packets and OBS processing events
 - Creates `obs.csv` (OBS processing timeline) and `network.csv` (UDP packet analysis)
@@ -254,15 +229,15 @@ The plugin offers five independent recording options that can be enabled separat
 - **Use Cases:** Debug performance issues, analyze network jitter, validate frame timing
 - Files: `session_YYYYMMDD_HHMMSS/obs.csv` and `session_YYYYMMDD_HHMMSS/network.csv`
 
-**🖼️ Record Raw Frames (BMP):**
+**🖼️ Raw Frames (BMP):**
 
-- Saves individual video frames as uncompressed BMP files in `frames/` subfolder
+- Saves individual video frames as uncompressed BMP files
 - Useful for debugging video issues or creating frame-by-frame analysis
 - **Performance Impact:** Enabling this feature will reduce streaming performance due to disk I/O
 - **Note:** CRT effects (scanlines, bloom, afterglow, etc.) are NOT applied to recorded frames. Palette changes ARE applied.
 - Files saved as: `session_YYYYMMDD_HHMMSS/frames/frame_NNNNNN.bmp`
 
-**🎬 Record Raw Video (AVI) and Audio (WAV):**
+**🎬 Raw Video and Audio (AVI + WAV):**
 
 - Records uncompressed AVI video and separate WAV audio files
 - Captures the raw data stream without OBS processing
@@ -270,17 +245,6 @@ The plugin offers five independent recording options that can be enabled separat
 - **Note:** CRT effects (scanlines, bloom, afterglow, etc.) are NOT applied to recorded video. Palette changes ARE applied.
 - Video file: `session_YYYYMMDD_HHMMSS/video.avi` (24-bit BGR format)
 - Audio file: `session_YYYYMMDD_HHMMSS/audio.wav` (16-bit stereo PCM)
-
-**🔬 Record A/V Sync (CSV):**
-
-- Creates `av-sync.csv` with detailed audio/video synchronization measurements
-- Automatically triggers A/V sync test program on Ultimate 64 devices via REST API
-- File: `session_YYYYMMDD_HHMMSS/av-sync.csv`
-
-**🐛 Show Debug Messages in OBS Logs:**
-
-- Enable detailed logging for debugging connection issues, DNS resolution, and network problems
-- Messages appear in OBS Studio's log files with microsecond-precision timestamps
 
 #### File Organization
 
@@ -292,25 +256,27 @@ recordings/
 │   ├── frames/           # BMP frame files (if "Raw Frames" enabled)
 │   ├── network.csv       # Network timings (if "CSV Events" enabled)
 │   ├── obs.csv           # OBS timings (if "CSV Events" enabled)
-│   ├── av-sync.csv       # A/V sync measurements (if "Record A/V Sync" enabled)
 │   ├── video.avi         # Uncompressed video (if "Raw Video" enabled)
 │   └── audio.wav         # Uncompressed audio (if "Raw Video" enabled)
 └── session_20240929_151234/
     └── ...
 ```
 
-**Session Management:** A new session folder is automatically created each time recording is enabled. The output folder can be changed via the **Output Folder** property.
+**Session Management:** A new session folder is automatically created each time recording is enabled. The output folder can be changed in the plugin properties.
 
 #### Usage Notes
 
 - **Independent Operation:** All recording operates independently of OBS Studio's built-in recording
-- **Mix and Match:** All recording options can be enabled simultaneously
+- **Mix and Match:** All three recording options can be enabled simultaneously
 - **Instant Recording:** Recording starts immediately when a checkbox is checked and continues until unchecked
 - **⚠️ Persistent State:** Checkbox states persist across OBS restarts - uncheck to stop recording or risk filling disk space
+- **Real-Time Writing:** Files are written in real-time as data is received from the C64 Ultimate
+- **Auto-Organization:** Session folders are created automatically with proper directory structure
+- **Recommended:** Enable **CSV recording** for debugging and **disable** BMP/AVI recording for normal streaming
 
 #### Debug & Analysis CSV Logs 📊
 
-When **"Record Network and Streaming Events (CSV)"** is enabled, the plugin generates detailed CSV logs for debugging OBS performance and analyzing C64 Ultimate network streams. These logs enable bit-accurate recording analysis and precise frame timing measurements.
+When **"Network and Streaming Events (CSV)"** recording is enabled, the plugin generates detailed CSV logs for debugging OBS performance and analyzing C64 Ultimate network streams. These logs enable bit-accurate recording analysis and precise frame timing measurements.
 
 **Generated CSV Files:**
 
@@ -321,7 +287,32 @@ Examples from recent automated E2E runs against a 'mocked' (i.e. simulated) Ulti
 - PAL: [`obs.csv`](tests/e2e/results/pal_default/obs.csv), [`network.csv`](tests/e2e/results/pal_default/network.csv)
 - NTSC: [`obs.csv`](tests/e2e/results/ntsc_default/obs.csv), [`network.csv`](tests/e2e/results/ntsc_default/network.csv)
 
+**Sample OBS Timeline (obs.csv):**
+
+```csv
+event_type,frame_num,elapsed_us,data_size_bytes,fps,audio_samples_total,video_packets_received,audio_packets_received,sequence_errors
+video,1,43874,368640,59.826,0,160,12,0
+audio,0,48250,768,59.826,0,175,13,0
+```
+
+**Sample Network Analysis (network.csv):**
+
+```csv
+packet_type,elapsed_us,sequence_num,frame_num,line_num,packet_size,jitter_us
+video,225,1510,7671,8,780,0
+audio,2341,847,0,0,192,125
+```
+
+**Use Cases:**
+
+- **Debug OBS Performance:** Analyze frame processing delays and audio sync issues
+- **Network Stream Analysis:** Monitor UDP packet timing, jitter, and sequence errors
+- **Bit-Accurate Recordings:** Capture every frame with precise timing for forensic analysis
+- **C64 Ultimate Diagnostics:** Validate device streaming performance and network stability
+
 **Sample Recording:** See [docs/recordings/session_19700101_024625](docs/recordings/session_19700101_024625) for complete examples with all file types.
+
+**Activation:** Enable the **"Network and Streaming Events (CSV)"** checkbox in the Recording properties. CSV files are generated only when this option is explicitly enabled.
 
 ---
 
@@ -331,67 +322,27 @@ Recreate the authentic look and feel of classic CRT monitors and TVs with config
 
 ![C64 Stream Effects](./docs/images/properties-effects.png "C64 Stream Effects")
 
-#### Presets
-One-click configurations for different display types:
+**Presets:** One-click configurations for different display types
 
 - **[Classic CRT](./docs/images/effects/classic-crt.png)** - Balanced scan lines and bloom for general retro appeal
 - **[Amber Monitor](./docs/images/effects/amber-monitor.png)** - Warm amber tint reminiscent of early computer monitors
-- **[Green Monitor](./docs/images/effects/green-monitor.png)** - Classic green phosphor terminal look with CRT afterglow effect. See the eye-catching tail of the pinball in this short [video](./docs/videos/effects/green-monitor.mp4).
+- **[Green Monitor](./docs/images/effects/green-monitor.png)** - Classic green phosphor terminal look
 - **[Sharp Pixels](./docs/images/effects/sharp-pixels.png)** - Crisp pixel doubling for arcade-style clarity
 - **[Phosphor Glow](./docs/images/effects/phosphor-glow.png)** - Dramatic phosphor persistence trails with extended afterglow. The sample image here was taken from the automated E2E test which shows an afterglow for each moving diagonal line.
 - **[Vintage TV](./docs/images/effects/vintage-tv.png)** - Softer look with prominent scan lines for old television feel
 - **[Arcade Cabinet](./docs/images/effects/arcade-cabinet.png)** - High-contrast effects for authentic arcade experience
 
+**Customizable Effects:**
+
+- **Scan Lines:** CRT raster line simulation with precise control (see table below). The "Scan Line Strength" slider (0.0–1.0) controls how dark the gaps appear. At 0.0, gaps are invisible; at 1.0, they are completely black.
+
+- **Bloom:** Glow effect that makes bright pixels bleed into darker areas
+- **Pixel Geometry:** Independent width/height scaling for authentic pixel aspect ratios
+- **Blur Control:** Fine-tune between crisp pixels and soft scaling
+- **Afterglow**: CRT phosphor persistence effect (0-250ms) with configurable decay curves
+- **Screen Tint:** Amber, green, or monochrome overlays for period-accurate monitor simulation
+
 **Reset:** To reset to default values, simply select the "Default" preset. If you have changed individual effects whilst the "Default" preset was active, select any other preset first and then re-select the "Default" preset.
-
-#### Individual Effect Controls
-
-All effects can be customized individually:
-
-**Scan Line Distance:**
-Controls the dark gap between each pair of C64 pixel rows, simulating CRT raster lines.
-- **None (0%):** No gaps, 4× scaling
-- **Tight (25%):** 5× scaling, subtle gaps (4 bright + 1 dark pattern)
-- **Normal (50%):** 3× scaling, classic CRT look (2 bright + 1 dark pattern)
-- **Wide (100%):** 4× scaling, fills 1080p canvas (2 bright + 2 dark pattern)
-- **Extra Wide (200%):** 3× scaling, prominent gaps (1 bright + 2 dark pattern)
-
-See [Perfect Scan Lines](#perfect-scan-lines) section for pixel-perfect configuration details.
-
-**Scan Line Strength:**
-How dark the gaps between scan lines appear (0.0 = gaps invisible, 0.7 = recommended, 1.0 = gaps completely black).
-
-**Pixel Width:**
-Horizontal pixel size multiplier for authentic C64 pixel aspect ratios.
-
-**Pixel Height:**
-Vertical pixel size multiplier for authentic C64 pixel aspect ratios.
-
-**Blur:**
-Scaling blur strength (0.0 = precise scaling, 1.0 = very blurry with gaussian blur). GPU multi-sample effect.
-
-**Bloom:**
-Bloom effect strength (0.0 = off, 1.0 = maximum). GPU multi-pass effect that makes bright pixels bleed into darker areas.
-
-**Afterglow Duration (ms):**
-Phosphor persistence duration in milliseconds (0 = off, max = 250). Simulates CRT phosphor decay trails. High CPU impact: processes every pixel every frame. Disable for best performance.
-
-**Afterglow Curve:**
-How quickly the afterglow fades away:
-- **Instant Fade (Linear):** Even, linear decay
-- **Gradual Fade (Slow Start):** Slow initial fade, then faster
-- **Rapid Fade (Fast Start):** Quick initial fade, then slower
-- **Long Tail (Exponential):** Dramatic exponential decay with long persistence
-
-**Tint Type:**
-Type of monochrome tint to apply. GPU shader effect:
-- **None (colour):** Full color output
-- **Amber:** Warm amber tint for vintage monitor look
-- **Green:** Classic green phosphor terminal appearance
-- **Monochrome:** Grayscale conversion
-
-**Tint Strength:**
-Strength of tint effect (0.0 = off, 1.0 = full tint). GPU shader effect.
 
 #### Perfect Scan Lines
 
@@ -426,9 +377,6 @@ Customize the VIC-II color palette to match different C64 hardware variants, per
 
 ![C64 Stream Palettes](./docs/images/properties-palettes.png "C64 Stream Palettes")
 
-#### Palette Selection
-Select a color palette for the C64 video output. Shipped palettes show '(Preset)' suffix. Custom palettes are saved automatically when closing the properties dialog.
-
 **Shipped Palettes:** The plugin includes the following preset palettes:
 
 - **Default** - Standard VIC-II colors matching original C64 hardware
@@ -441,21 +389,14 @@ Select a color palette for the C64 video output. Shipped palettes show '(Preset)
 - **Vibrant** - Increased color saturation for enhanced visual impact
 - **Warm** - Amber/orange color temperature shift
 
-#### Palette Controls
+**Palette Controls:**
 
-**Import palette:**
-Select a `.vpl` palette file to import and apply it. Imported palettes become available in the palette dropdown.
+- **Palette Dropdown:** Select from shipped palettes or any custom palettes you've added
+- **Import palette:** Imports a `.vpl` file
+- **Export palette:** Exports the currently active palette (with any color adjustments) to a `.vpl` file
+- **Color Editor:** Expand to access 16 color pickers (0-15) for editing individual VIC-II colors. Changes apply immediately to the video output
 
-**Export palette:**
-Choose a destination path to save the current palette as a `.vpl` file. Exports the currently active palette with any color adjustments you've made.
-
-**Delete:**
-Removes the currently selected custom palette. Shipped preset palettes cannot be deleted.
-
-**Color Editor:**
-Expand to access 16 color pickers (0-15) for editing individual VIC-II colors. Changes apply immediately to the video output.
-
-#### Auto-Save Behavior
+**Auto-Save Behavior:**
 
 - Custom palettes are automatically saved when you edit them in the color editor
 - **Preset modifications:** If you edit a shipped preset palette, a custom copy is automatically created with the same name (the original preset remains unchanged)
@@ -500,7 +441,125 @@ Exported configurations are saved to the [settings directory](#file-system-struc
 
 ---
 
-### File System Structure 📁
+### Remote Control 🎮
+
+**EXPERIMENTAL - since version 1.1**
+
+Control your Ultimate 64 remotely from within OBS Studio, enabling keyboard input capture, automated content playback, and programmatic control via REST API.
+
+![C64 Stream Remote Control](./docs/images/properties-remote-control.png "C64 Stream Remote Control")
+
+**Features:**
+
+- **Keyboard Capture:** Type directly into the C64 from OBS preview window with intelligent backpressure handling to help avoid lost keystrokes
+- **Automated Playback:** Unattended playback of SID/MOD music, PRG/CRT programs, and disk images (D64, G64, D71, G71 or D81) with shuffle support. When using disk images, it loads and starts the first program in the volume using `LOAD"*",8,1:RUN`.
+- **REST API Control:** Programmatic access to C64 Ultimate functions (reset, memory access, file mounting)
+
+**Configuration:**
+
+- **Keymap:** Select keyboard mapping for converting PC keystrokes to C64 PETSCII codes
+  - **Symbolic keymaps:** Match key labels (e.g., PC Q → C64 Q)
+  - **Positional keymaps:** Match physical locations (e.g., PC Q → C64 Q on QWERTY, but C64 A on AZERTY)
+  - Supports built-in and custom user keymaps (`.c64keymap.ini` format)
+- **File System:** Choose between local files or C64 Ultimate storage
+- **Playback Source:** Pick **Single File** or **Folder**
+- **Local/C64U Path:** File or folder path, shown based on file system + playback source
+- **Include Subfolders:** Include subfolders when enumerating folder playback (Folder only)
+- **Shuffle Playback:** Randomize folder playback order (Folder only)
+- **Duration per Item:** Playback duration in seconds before advancing (1-3600s, default 120s)
+- **Use Songlengths:** When enabled for local SID playback, uses a Songlengths.md5 file to set per-song durations
+- **Songlengths Path:** Optional path to a Songlengths.md5 file (local + songlengths enabled only)
+- **Reset Between Items:** Perform soft reset between items
+- **Playing:** Shows the current queue; selecting an entry jumps to that item (switches immediately while playing)
+- **Refresh Playlist:** Rebuilds the playlist based on current settings (disabled while playing)
+- **Play/Stop Content:** Starts or stops automated playback
+- **Next:** Skips to the next item while playing
+- **Reset Plugin:** Restarts the plugin state (no OBS restart needed)
+- **Reset C64U:** Sends a C64 Ultimate reset
+
+### How Keyboard Capture Works
+
+1. Click inside the OBS preview to give it focus.
+2. Click **Interact** (below the preview) to route keyboard input to the source.
+3. Type as usual. Keystrokes are converted to PETSCII and injected into the C64 KERNAL keyboard buffer.
+4. The plugin polls the C64 keyboard buffer counter at `$00C6` every 50 ms and only injects a new key when the buffer is empty, providing backpressure and preventing overfilling.
+5. Press **ESC** to send **RUN/STOP** to the C64, for example to abort a running BASIC program. The **CBM** key is available via the **ALT** key.
+6. To return keyboard control to OBS, click anywhere outside the Interact window so it loses focus, then close the Interact window.
+
+> [!NOTE]
+> Keyboard capture only works with software that reads input via the KERNAL keyboard buffer. Many programs, especially games, bypass this buffer and read key state directly from CIA1. Because the C64 Ultimate does not allow writing to the CIA1 registers, keyboard input will not work for those programs.
+
+---
+
+### C64Script Automation 🤖
+
+**EXPERIMENTAL - since version 1.1**
+
+Automate your C64 stream with C64Script - a modernized BASIC-like language designed specifically for stream control.
+
+![C64 Script](./docs/images/properties-script.png "C64 Script")
+
+**What is C64Script?**
+
+C64Script is like a simplified, modernized version of Commodore BASIC. If you've ever typed `10 PRINT "HELLO"` on a C64, you'll feel right at home. The language lets you:
+
+- Control visual effects and palettes
+- Play SID music and run programs
+- Start and stop recordings
+- Type text and press keys automatically
+- Wait for specific times or conditions
+- Use variables, loops, and conditional logic
+
+> [!NOTE]
+> C64Script never runs automatically without your consent. Scripts execute only when you explicitly start them from the Properties window, ensuring full control at all times. If desired, you may enable automatic execution when the plugin starts by selecting the Auto-start script checkbox.
+
+**Quick Start Example - Color Palette Cycle:**
+
+Let's run the demo program [demo_color_cycle.c64script](./data/scripts/demo_palette_cycle.c64script) that ships with the plugin in the `scripts` folder:
+
+1. Click on **Browse** to the right of **Script File** and select the script.
+2. Click **Start Script**.
+3. You should now see C64 Stream cycle through all of its color palettes.
+
+**Debugging Your Scripts:**
+
+The plugin includes built-in controls for running and inspecting scripts:
+
+- **Script File** - Select the `.c64script` to run
+- **Auto Start** - Start the script automatically when the source becomes active
+- **Script Status** - High-level script status (idle, running, paused, error, completed)
+- **Start/Stop** - Start your script from the beginning or stop it
+- **Pause/Resume** - Pause at any point to inspect what's happening
+- **Step** - Execute your script one line at a time (only while paused)
+- **Log variables** - See all variable values in the OBS log
+- **Execution state** - Shows running, paused, error, or completed
+- **Last executed** - Shows which line just ran
+- **Next to execute** - Shows which line will run next
+- **Last error** - Shows the most recent runtime error when one occurs
+
+Assuming you already ran the palette cycling script described earlier, let's now try and debug it:
+
+1. Click **Start Script** to run the script
+2. Click **Pause Script** and then **Step** to walk through line-by-line
+3. Click **Log variables** to see any variables in the OBS log (Help → Log Files → Show Current Log)
+
+**Syntax Highlighting in VS Code**
+
+To enable syntax highlighting for `.c64script` files in [VS Code](https://code.visualstudio.com/):
+
+```bash
+./build-aux/install-c64script-syntax.sh
+```
+
+Then reload VS Code (`Ctrl+Shift+P` → "Reload Window"). The language mode should show "C64Script" in the bottom-right corner when viewing `.c64script` files.
+
+**Learn More:**
+
+- **Full Language Reference:** [`doc/c64script/c64script-spec.md`](doc/c64script/c64script-spec.md) - Complete C64Script language documentation
+- **Debugging Guide:** [`doc/c64script/c64script-debugging.md`](doc/c64script/c64script-debugging.md) - Detailed debugging workflows and tips
+- **Example Scripts:** [`data/scripts/`](data/scripts/) - Demo scripts showing effects, palettes, and automation
+
+## File System Structure 📁
 
 The plugin uses three distinct filesystem locations:
 
@@ -521,14 +580,18 @@ OBS Studio searches for plugins in multiple locations. The installation location
 This folder contains read-only defaults bundled with the plugin.
 
 OBS searches in this order:
+
 1. User plugin directory (if it exists)
 2. System plugin directory
 
 The data directory contains:
+
 - Effect presets (`effect_presets.ini`)
 - Palette presets (`palettes/*.vpl`)
 - Default network settings (`properties.ini`)
 - Localization files (`locale/*.ini`)
+- C64 programs (`prg/*.prg`)
+- C64Script files (`scripts/*.c64script`)
 
 | Platform    | Package Install (System-Wide)                                                          | User Install (Local Development)                                                        |
 | ----------- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
@@ -550,6 +613,7 @@ For easy access, simple backups, and visibility, it is always stored in `<Docume
 ```
 <Documents>/obs-studio/c64stream/
 ├── settings/        # Exported configuration files (.ini)
+├── scripts/         # Sample automation scripts (.c64script)
 ├── palettes/        # Custom palette files (.vpl)
 └── recordings/      # Recording session folders
 ```
@@ -559,8 +623,6 @@ For easy access, simple backups, and visibility, it is always stored in `<Docume
 - **Windows:** `%USERPROFILE%\Documents\obs-studio\c64stream\` (e.g., `C:\Users\YourName\Documents\obs-studio\c64stream\`)
 - **macOS:** `~/Documents/obs-studio/c64stream/` (e.g., `/Users/yourname/Documents/obs-studio/c64stream/`)
 - **Linux:** `~/Documents/obs-studio/c64stream/` (e.g., `/home/yourname/Documents/obs-studio/c64stream/`)
-
----
 
 ## End-to-end tests 🧪
 
@@ -582,8 +644,6 @@ Many recent reports (without videos) are checked into this GitHub repository:
 You can download all [Latest E2E results](https://github.com/chrisgleissner/c64stream/actions/workflows/build-project.yaml?query=branch%3Amain+is%3Asuccess) (with videos) as GitHub CI build artifact ZIP.
 
 For more information, see [`doc/testing/e2e.md`](doc/testing/e2e.md).
-
----
 
 ## Network Details
 
@@ -627,20 +687,15 @@ The plugin offers hostname resolution that works reliably on Linux and macOS whe
 
 For comprehensive configuration details, refer to the [official C64 Ultimate documentation](https://1541u-documentation.readthedocs.io/en/latest/data_streams.html).
 
----
-
 ## Technical Details 🔧
 
-**Specifications:**
-
-- Implements the [C64 Ultimate Data Streams specification](./doc/c64u/c64u-stream-spec.md) for receiving video and audio streams from Ultimate devices over UDP and TCP.
-- Implements the [C64 Ultimate REST API specification](./doc/c64u/c64u-rest-api.md) for control and automation use cases, including automated A/V synchronization tests. An [OpenAPI](./doc/c64u/c64u-openapi.yaml) description is provided.
+This plugin implements the [C64 Ultimate Data Streams specification](./doc/c64/c64u-stream-spec.md) to receive video and audio streams from Ultimate devices via UDP/TCP network protocols.
 
 **Supported Platforms:**
 
-- **Windows 10/11 (x64)** – verified on Windows 11. Experimental support for ARM64.
-- **Linux (X11 or Wayland)** – verified on Kubuntu 24.04.
-- **macOS 11+ (Intel and Apple Silicon)** – verified on macOS Sequoia 15.7 and Tahoe 26.0.
+- Windows 10/11 (x64) - verified on Windows 11
+- Linux with X window system or Wayland - verified on Kubuntu 24.04
+- macOS 11+ (Intel/Apple Silicon) - verified on macOS Sequoia 15.7 and Tahoe 26.0
 
 **Software Requirements:**
 
@@ -653,12 +708,6 @@ One of:
 - [Commodore 64 Ultimate](https://www.commodore.net/)
 - [Ultimate 64 Elite](https://ultimate64.com/Ultimate-64-Elite)
 - [Ultimate 64 Elite MK2](https://ultimate64.com/Ultimate-64-Elite-MK2)
-
-**Network Requirements:**
-
-- UDP/TCP connectivity to Ultimate device
-- Bandwidth: ~22 Mbps total (21.7 Mbps video + 1.4 Mbps audio, uncompressed streams)
-- Built-in UDP jitter compensation via configurable frame buffering
 
 **Video Formats:**
 
@@ -673,14 +722,18 @@ One of:
 - Sample rate: ~48kHz (device dependent)
 - Low-latency streaming
 
+**Network Requirements:**
+
+- UDP/TCP connectivity to Ultimate device
+- Bandwidth: ~22 Mbps total (21.7 Mbps video + 1.4 Mbps audio, uncompressed streams)
+- Built-in UDP jitter compensation via configurable frame buffering
+
 **Recording Formats:**
 
 - BMP frames: 24-bit uncompressed bitmap images
 - AVI video: Uncompressed BGR24 format with precise timing
 - WAV audio: 16-bit stereo PCM, sample rate matches C64 Ultimate output
 - Session organization: Automatic timestamped folder creation
-
----
 
 ## Troubleshooting 🔍
 

@@ -1,0 +1,490 @@
+# Execution trace
+script: "test_let_rem.c64script"
+status: success
+error: ~
+program: |
+  01: rem Test let and rem statements
+  02: rem Validates optional let keyword and comment styles
+  03: 
+  04: rem Test 1: Assignment without let
+  05: X = 10
+  06: wait 50ms
+  07: 
+  08: rem Test 2: Assignment with let
+  09: let Y = 20
+  10: wait 50ms
+  11: 
+  12: rem Test 3: Both forms produce same result
+  13: Z = X + Y
+  14: if Z = 30 then
+  15:     effect "Sharp Pixels"
+  16: endif
+  17: wait 100ms
+  18: 
+  19: rem Test 4: rem comment style
+  20: rem This is a BASIC-style comment
+  21: effect "Soft CRT"
+  22: wait 100ms
+  23: 
+  24: rem Test 5: # comment style (legacy)
+  25: rem This is a hash comment
+  26: palette "colodore"
+  27: wait 100ms
+  28: 
+  29: rem Test 6: Mixed comments
+  30: rem First command
+  31: effect "Light Scanlines"
+  32: rem Second command
+  33: wait 100ms
+  34: 
+  35: rem Test 7: let with string variable
+  36: let NAME$ = "C64Script"
+  37: LOG "Language: " + NAME$
+  38: wait 100ms
+  39: 
+  40: rem Test 8: let with array element
+  41: dim ARRAY(5)
+  42: let ARRAY(0) = 100
+  43: let ARRAY(1) = 200
+  44: SUM = ARRAY(0) + ARRAY(1)
+  45: LOG "Array sum: " + STR(SUM)
+  46: wait 100ms
+  47: 
+  48: rem Test 9: let with map element
+  49: let CONFIG{"port"} = 8080
+  50: let CONFIG{"timeout"} = 5000
+  51: PORT = CONFIG{"port"}
+  52: LOG "Port: " + STR(PORT)
+  53: wait 100ms
+  54: 
+  55: rem Test 10: rem on same line as label
+  56: START: rem This is the start label
+  57: effect "CRT Monitor Warm"
+  58: wait 100ms
+  59: 
+  60: rem Test 11: Complex expression with let
+  61: let RESULT = (10 + 20) * 2 - 5
+  62: LOG "Result: " + STR(RESULT)
+  63: wait 100ms
+  64: 
+  65: rem Test 12: Multiple LETs
+  66: let A = 1
+  67: let B = 2
+  68: let C = 3
+  69: TOTAL = A + B + C
+  70: LOG "Total: " + STR(TOTAL)
+  71: wait 100ms
+  72: 
+  73: rem Test 13: let with literal value (RND function not yet implemented)
+  74: let RANDOM = 42
+  75: LOG "Random: " + STR(RANDOM)
+  76: wait 100ms
+  77: 
+  78: rem Test completed
+  79: stop
+trace:
+- line: 5
+  content: "X = 10"
+  variables: {}
+- line: 6
+  content: "wait 50ms"
+  variables:
+    X: 10
+- line: 9
+  content: "let Y = 20"
+  variables:
+    X: 10
+- line: 10
+  content: "wait 50ms"
+  variables:
+    X: 10
+    Y: 20
+- line: 13
+  content: "Z = X + Y"
+  variables:
+    X: 10
+    Y: 20
+- line: 14
+  content: "if Z = 30 then"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+- line: 15
+  content: "effect \"Sharp Pixels\""
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+- line: 17
+  content: "wait 100ms"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+- line: 21
+  content: "effect \"Soft CRT\""
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+- line: 22
+  content: "wait 100ms"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+- line: 26
+  content: "palette \"colodore\""
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+- line: 27
+  content: "wait 100ms"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+- line: 31
+  content: "effect \"Light Scanlines\""
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+- line: 33
+  content: "wait 100ms"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+- line: 36
+  content: "let NAME$ = \"C64Script\""
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+- line: 37
+  content: "LOG \"Language: \" + NAME$"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+- line: 38
+  content: "wait 100ms"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+- line: 41
+  content: "dim ARRAY(5)"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+- line: 42
+  content: "let ARRAY(0) = 100"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [0, 0, 0, 0, 0]
+- line: 43
+  content: "let ARRAY(1) = 200"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 0, 0, 0, 0]
+- line: 44
+  content: "SUM = ARRAY(0) + ARRAY(1)"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+- line: 45
+  content: "LOG \"Array sum: \" + STR(SUM)"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+    SUM: 300
+- line: 46
+  content: "wait 100ms"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+    SUM: 300
+- line: 49
+  content: "let CONFIG{\"port\"} = 8080"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+    SUM: 300
+- line: 50
+  content: "let CONFIG{\"timeout\"} = 5000"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+    SUM: 300
+    CONFIG: {port: 8080}
+- line: 51
+  content: "PORT = CONFIG{\"port\"}"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+    SUM: 300
+    CONFIG: {port: 8080, timeout: 5000}
+- line: 52
+  content: "LOG \"Port: \" + STR(PORT)"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+    SUM: 300
+    CONFIG: {port: 8080, timeout: 5000}
+    PORT: 8080
+- line: 53
+  content: "wait 100ms"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+    SUM: 300
+    CONFIG: {port: 8080, timeout: 5000}
+    PORT: 8080
+- line: 57
+  content: "effect \"CRT Monitor Warm\""
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+    SUM: 300
+    CONFIG: {port: 8080, timeout: 5000}
+    PORT: 8080
+- line: 58
+  content: "wait 100ms"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+    SUM: 300
+    CONFIG: {port: 8080, timeout: 5000}
+    PORT: 8080
+- line: 61
+  content: "let RESULT = (10 + 20) * 2 - 5"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+    SUM: 300
+    CONFIG: {port: 8080, timeout: 5000}
+    PORT: 8080
+- line: 62
+  content: "LOG \"Result: \" + STR(RESULT)"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+    SUM: 300
+    CONFIG: {port: 8080, timeout: 5000}
+    PORT: 8080
+    RESULT: 55
+- line: 63
+  content: "wait 100ms"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+    SUM: 300
+    CONFIG: {port: 8080, timeout: 5000}
+    PORT: 8080
+    RESULT: 55
+- line: 66
+  content: "let A = 1"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+    SUM: 300
+    CONFIG: {port: 8080, timeout: 5000}
+    PORT: 8080
+    RESULT: 55
+- line: 67
+  content: "let B = 2"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+    SUM: 300
+    CONFIG: {port: 8080, timeout: 5000}
+    PORT: 8080
+    RESULT: 55
+    A: 1
+- line: 68
+  content: "let C = 3"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+    SUM: 300
+    CONFIG: {port: 8080, timeout: 5000}
+    PORT: 8080
+    RESULT: 55
+    A: 1
+    B: 2
+- line: 69
+  content: "TOTAL = A + B + C"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+    SUM: 300
+    CONFIG: {port: 8080, timeout: 5000}
+    PORT: 8080
+    RESULT: 55
+    A: 1
+    B: 2
+    C: 3
+- line: 70
+  content: "LOG \"Total: \" + STR(TOTAL)"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+    SUM: 300
+    CONFIG: {port: 8080, timeout: 5000}
+    PORT: 8080
+    RESULT: 55
+    A: 1
+    B: 2
+    C: 3
+    TOTAL: 6
+- line: 71
+  content: "wait 100ms"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+    SUM: 300
+    CONFIG: {port: 8080, timeout: 5000}
+    PORT: 8080
+    RESULT: 55
+    A: 1
+    B: 2
+    C: 3
+    TOTAL: 6
+- line: 74
+  content: "let RANDOM = 42"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+    SUM: 300
+    CONFIG: {port: 8080, timeout: 5000}
+    PORT: 8080
+    RESULT: 55
+    A: 1
+    B: 2
+    C: 3
+    TOTAL: 6
+- line: 75
+  content: "LOG \"Random: \" + STR(RANDOM)"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+    SUM: 300
+    CONFIG: {port: 8080, timeout: 5000}
+    PORT: 8080
+    RESULT: 55
+    A: 1
+    B: 2
+    C: 3
+    TOTAL: 6
+    RANDOM: 42
+- line: 76
+  content: "wait 100ms"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+    SUM: 300
+    CONFIG: {port: 8080, timeout: 5000}
+    PORT: 8080
+    RESULT: 55
+    A: 1
+    B: 2
+    C: 3
+    TOTAL: 6
+    RANDOM: 42
+- line: 79
+  content: "stop"
+  variables:
+    X: 10
+    Y: 20
+    Z: 30
+    NAME$: "C64Script"
+    ARRAY: [100, 200, 0, 0, 0]
+    SUM: 300
+    CONFIG: {port: 8080, timeout: 5000}
+    PORT: 8080
+    RESULT: 55
+    A: 1
+    B: 2
+    C: 3
+    TOTAL: 6
+    RANDOM: 42

@@ -1,0 +1,38 @@
+rem Test palette and PALETTECOLOR commands
+rem Validates palette selection and individual color customization
+
+rem Test 1: Basic palette selection
+palette "colodore"
+wait 100ms
+
+rem Test 2: Different palette
+palette "pepto_ntsc"
+wait 100ms
+
+rem Test 3: Another palette variant
+palette "vice_new"
+wait 100ms
+
+rem Test 4: Custom palette color - set background to black
+PALETTECOLOR 0, 0, 0, 0
+wait 100ms
+
+rem Test 5: Custom palette color - set white
+PALETTECOLOR 1, 255, 255, 255
+wait 100ms
+
+rem Test 6: Custom palette color - set blue
+PALETTECOLOR 6, 0, 0, 170
+wait 100ms
+
+rem Test 7: Custom palette color - set light blue  
+PALETTECOLOR 14, 128, 192, 255
+wait 100ms
+
+rem Test 8: Multiple color customizations in sequence
+PALETTECOLOR 2, 255, 0, 0
+PALETTECOLOR 5, 0, 255, 0
+PALETTECOLOR 7, 255, 255, 0
+wait 100ms
+
+stop

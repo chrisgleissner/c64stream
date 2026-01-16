@@ -1,0 +1,17 @@
+rem Test potential infinite loop (should be detectable or cancellable)
+rem This script creates a loop to test goto functionality
+
+COUNTER = 0
+
+LOOP_START:
+COUNTER = COUNTER + 1
+effect "Sharp Pixels"
+wait 10ms
+
+rem Loop with small limit for reasonable trace size
+if COUNTER < 10 then
+    goto LOOP_START
+endif
+
+rem Reached limit
+stop

@@ -1,0 +1,124 @@
+rem Test user-defined functions
+rem Validates FUN/ENDFUN with parameters and return values
+
+rem Test 1: Simple function with no parameters
+FUN GET_CONSTANT()
+    return 42
+ENDFUN
+
+CONSTANT = GET_CONSTANT()
+LOG "Constant: " + STR(CONSTANT)
+wait 100ms
+
+rem Test 2: Function with one parameter
+FUN DOUBLE(X)
+    return X * 2
+ENDFUN
+
+DOUBLED = DOUBLE(21)
+LOG "Double of 21: " + STR(DOUBLED)
+wait 100ms
+
+rem Test 3: Function with multiple parameters
+FUN ADD(A, B)
+    return A + B
+ENDFUN
+
+SUM = ADD(10, 20)
+LOG "10 + 20 = " + STR(SUM)
+wait 100ms
+
+rem Test 4: Function with string parameter
+FUN GREET(NAME$)
+    return "Hello, " + NAME$ + "!"
+ENDFUN
+
+GREETING$ = GREET("Alice")
+LOG GREETING$
+wait 100ms
+
+rem Test 5: Function with local variables
+FUN CALCULATE(X, Y)
+    TEMP = X * 2
+    RESULT = TEMP + Y
+    return RESULT
+ENDFUN
+
+VALUE = CALCULATE(5, 10)
+LOG "Calculate(5, 10): " + STR(VALUE)
+wait 100ms
+
+rem Test 6: Function with conditional
+FUN MAX(A, B)
+    if A > B then
+        return A
+    else
+        return B
+    endif
+ENDFUN
+
+MAXIMUM = MAX(15, 10)
+LOG "MAX(15, 10): " + STR(MAXIMUM)
+wait 100ms
+
+rem Test 7: Function with loop
+FUN FACTORIAL(N)
+    if N <= 1 then
+        return 1
+    endif
+    RESULT = 1
+    for I = 2 to N
+        RESULT = RESULT * I
+    next I
+    return RESULT
+ENDFUN
+
+FACT5 = FACTORIAL(5)
+LOG "Factorial(5): " + STR(FACT5)
+wait 100ms
+
+rem Test 8: Recursive function (careful with depth)
+FUN FIB(N)
+    if N <= 1 then
+        return N
+    endif
+    return FIB(N - 1) + FIB(N - 2)
+ENDFUN
+
+FIB5 = FIB(5)
+LOG "Fibonacci(5): " + STR(FIB5)
+wait 100ms
+
+rem Test 9: Function calling another function
+FUN SQUARE(X)
+    return X * X
+ENDFUN
+
+FUN SUM_OF_SQUARES(A, B)
+    return SQUARE(A) + SQUARE(B)
+ENDFUN
+
+SOS = SUM_OF_SQUARES(3, 4)
+LOG "3^2 + 4^2 = " + STR(SOS)
+wait 100ms
+
+rem Test 10: Function with effect
+FUN APPLY_EFFECT_AND_WAIT(EFFECT_NAME$, DURATION)
+    effect EFFECT_NAME$
+    wait DURATION
+    return 1
+ENDFUN
+
+SUCCESS = APPLY_EFFECT_AND_WAIT("Sharp Pixels", 0.2)
+if SUCCESS = 1 then
+    LOG "Effect applied successfully"
+endif
+
+rem Test 11: Function in loop
+for J = 1 to 3
+    RESULT = DOUBLE(J)
+    LOG "Double of " + STR(J) + " is " + STR(RESULT)
+    wait 50ms
+next J
+
+stop

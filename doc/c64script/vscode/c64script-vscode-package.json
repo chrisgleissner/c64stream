@@ -1,0 +1,57 @@
+{
+  "name": "c64script-syntax",
+  "displayName": "C64Script",
+  "description": "Syntax highlighting for C64Script (.c64script) - BASIC-inspired automation language for C64 Ultimate streaming",
+  "version": "0.1.0",
+  "publisher": "c64stream",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chrisgleissner/c64stream"
+  },
+  "engines": {
+    "vscode": "^1.70.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "c64",
+    "commodore64",
+    "basic",
+    "scripting",
+    "automation"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "c64script",
+        "aliases": [
+          "C64Script",
+          "c64script"
+        ],
+        "extensions": [
+          ".c64script"
+        ],
+        "configuration": "./c64script-language-configuration.json",
+        "mimetypes": ["text/x-c64script"]
+      }
+    ],
+    "grammars": [
+      {
+        "language": "c64script",
+        "scopeName": "source.c64script",
+        "path": "./c64script.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "title": "C64Script",
+      "properties": {
+        "c64script.validate.enable": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable/disable syntax validation for C64Script files"
+        }
+      }
+    }
+  }
+}

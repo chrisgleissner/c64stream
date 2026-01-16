@@ -1,0 +1,31 @@
+# Execution trace
+script: "demo_sid_playback_cycle.c64script"
+status: success
+error: ~
+program: |
+  01: REM SID Playback Demo (C64U paths)
+  02: REM Requires C64 Ultimate with SID files
+  03: 
+  04: PLAY_SID "c64u:/Usb2/SID/HVSC/C64Music/DEMOS/0-9/10_Orbyte.sid" SONGNR=0
+  05: WAIT 5s
+  06: 
+  07: PLAY_SID "c64u:/Usb2/SID/HVSC/C64Music/DEMOS/0-9/3_Days.sid" SONGNR=0
+  08: WAIT 5s
+  09: 
+  10: RESET
+trace:
+- line: 4
+  content: "PLAY_SID \"c64u:/Usb2/SID/HVSC/C64Music/DEMOS/0-9/10_Orbyte.sid\" SONGNR=0"
+  variables: {}
+- line: 5
+  content: "WAIT 5s"
+  variables: {}
+- line: 7
+  content: "PLAY_SID \"c64u:/Usb2/SID/HVSC/C64Music/DEMOS/0-9/3_Days.sid\" SONGNR=0"
+  variables: {}
+- line: 8
+  content: "WAIT 5s"
+  variables: {}
+- line: 10
+  content: "RESET"
+  variables: {}

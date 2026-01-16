@@ -1,0 +1,101 @@
+# Execution trace
+script: "test_palette_commands.c64script"
+status: success
+error: ~
+program: |
+  01: rem Test palette and PALETTECOLOR commands
+  02: rem Validates palette selection and individual color customization
+  03: 
+  04: rem Test 1: Basic palette selection
+  05: palette "colodore"
+  06: wait 100ms
+  07: 
+  08: rem Test 2: Different palette
+  09: palette "pepto_ntsc"
+  10: wait 100ms
+  11: 
+  12: rem Test 3: Another palette variant
+  13: palette "vice_new"
+  14: wait 100ms
+  15: 
+  16: rem Test 4: Custom palette color - set background to black
+  17: PALETTECOLOR 0, 0, 0, 0
+  18: wait 100ms
+  19: 
+  20: rem Test 5: Custom palette color - set white
+  21: PALETTECOLOR 1, 255, 255, 255
+  22: wait 100ms
+  23: 
+  24: rem Test 6: Custom palette color - set blue
+  25: PALETTECOLOR 6, 0, 0, 170
+  26: wait 100ms
+  27: 
+  28: rem Test 7: Custom palette color - set light blue  
+  29: PALETTECOLOR 14, 128, 192, 255
+  30: wait 100ms
+  31: 
+  32: rem Test 8: Multiple color customizations in sequence
+  33: PALETTECOLOR 2, 255, 0, 0
+  34: PALETTECOLOR 5, 0, 255, 0
+  35: PALETTECOLOR 7, 255, 255, 0
+  36: wait 100ms
+  37: 
+  38: stop
+trace:
+- line: 5
+  content: "palette \"colodore\""
+  variables: {}
+- line: 6
+  content: "wait 100ms"
+  variables: {}
+- line: 9
+  content: "palette \"pepto_ntsc\""
+  variables: {}
+- line: 10
+  content: "wait 100ms"
+  variables: {}
+- line: 13
+  content: "palette \"vice_new\""
+  variables: {}
+- line: 14
+  content: "wait 100ms"
+  variables: {}
+- line: 17
+  content: "PALETTECOLOR 0, 0, 0, 0"
+  variables: {}
+- line: 18
+  content: "wait 100ms"
+  variables: {}
+- line: 21
+  content: "PALETTECOLOR 1, 255, 255, 255"
+  variables: {}
+- line: 22
+  content: "wait 100ms"
+  variables: {}
+- line: 25
+  content: "PALETTECOLOR 6, 0, 0, 170"
+  variables: {}
+- line: 26
+  content: "wait 100ms"
+  variables: {}
+- line: 29
+  content: "PALETTECOLOR 14, 128, 192, 255"
+  variables: {}
+- line: 30
+  content: "wait 100ms"
+  variables: {}
+- line: 33
+  content: "PALETTECOLOR 2, 255, 0, 0"
+  variables: {}
+- line: 34
+  content: "PALETTECOLOR 5, 0, 255, 0"
+  variables: {}
+- line: 35
+  content: "PALETTECOLOR 7, 255, 255, 0"
+  variables: {}
+- line: 36
+  content: "wait 100ms"
+  variables: {}
+- line: 38
+  content: "stop"
+  variables: {}

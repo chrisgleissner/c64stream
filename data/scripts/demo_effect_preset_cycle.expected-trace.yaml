@@ -1,0 +1,148 @@
+# Execution trace
+script: "demo_effect_preset_cycle.c64script"
+status: success
+error: ~
+program: |
+  01: REM PLEASE NOTE
+  02: REM This script is work in progress. Effect cycling does not yet fully work.
+  03: 
+  04: REM Effect Preset Cycle Demo
+  05: REM Cycles through all available CRT effect presets,
+  06: REM displaying each one for 3 seconds.
+  07: 
+  08: LOG "Starting effect preset cycle demo"
+  09: 
+  10: REM Start with no effects
+  11: LOG "Applying effect: Default"
+  12: EFFECT "Default"
+  13: WAIT 2s
+  14: 
+  15: REM Classic CRT with scanlines and bloom
+  16: LOG "Applying effect: Classic CRT"
+  17: EFFECT "Classic CRT"
+  18: WAIT 2s
+  19: 
+  20: REM Amber monitor look
+  21: LOG "Applying effect: Amber Monitor"
+  22: EFFECT "Amber Monitor"
+  23: WAIT 2s
+  24: 
+  25: REM Green phosphor monitor
+  26: LOG "Applying effect: Green Monitor"
+  27: EFFECT "Green Monitor"
+  28: WAIT 2s
+  29: 
+  30: REM Sharp pixelated look
+  31: LOG "Applying effect: Sharp Pixels"
+  32: EFFECT "Sharp Pixels"
+  33: WAIT 2s
+  34: 
+  35: REM Strong phosphor glow effect
+  36: LOG "Applying effect: Phosphor Glow"
+  37: EFFECT "Phosphor Glow"
+  38: WAIT 2s
+  39: 
+  40: REM Vintage TV with heavy effects
+  41: LOG "Applying effect: Vintage TV"
+  42: EFFECT "Vintage TV"
+  43: WAIT 2s
+  44: 
+  45: REM Arcade cabinet look
+  46: LOG "Applying effect: Arcade Cabinet"
+  47: EFFECT "Arcade Cabinet"
+  48: WAIT 2s
+  49: 
+  50: REM Return to default
+  51: LOG "Applying effect: Default"
+  52: EFFECT "Default"
+  53: 
+  54: LOG "Effect preset cycle demo completed"
+  55: STOP
+trace:
+- line: 8
+  content: "LOG \"Starting effect preset cycle demo\""
+  variables: {}
+- line: 11
+  content: "LOG \"Applying effect: Default\""
+  variables: {}
+- line: 12
+  content: "EFFECT \"Default\""
+  variables: {}
+- line: 13
+  content: "WAIT 2s"
+  variables: {}
+- line: 16
+  content: "LOG \"Applying effect: Classic CRT\""
+  variables: {}
+- line: 17
+  content: "EFFECT \"Classic CRT\""
+  variables: {}
+- line: 18
+  content: "WAIT 2s"
+  variables: {}
+- line: 21
+  content: "LOG \"Applying effect: Amber Monitor\""
+  variables: {}
+- line: 22
+  content: "EFFECT \"Amber Monitor\""
+  variables: {}
+- line: 23
+  content: "WAIT 2s"
+  variables: {}
+- line: 26
+  content: "LOG \"Applying effect: Green Monitor\""
+  variables: {}
+- line: 27
+  content: "EFFECT \"Green Monitor\""
+  variables: {}
+- line: 28
+  content: "WAIT 2s"
+  variables: {}
+- line: 31
+  content: "LOG \"Applying effect: Sharp Pixels\""
+  variables: {}
+- line: 32
+  content: "EFFECT \"Sharp Pixels\""
+  variables: {}
+- line: 33
+  content: "WAIT 2s"
+  variables: {}
+- line: 36
+  content: "LOG \"Applying effect: Phosphor Glow\""
+  variables: {}
+- line: 37
+  content: "EFFECT \"Phosphor Glow\""
+  variables: {}
+- line: 38
+  content: "WAIT 2s"
+  variables: {}
+- line: 41
+  content: "LOG \"Applying effect: Vintage TV\""
+  variables: {}
+- line: 42
+  content: "EFFECT \"Vintage TV\""
+  variables: {}
+- line: 43
+  content: "WAIT 2s"
+  variables: {}
+- line: 46
+  content: "LOG \"Applying effect: Arcade Cabinet\""
+  variables: {}
+- line: 47
+  content: "EFFECT \"Arcade Cabinet\""
+  variables: {}
+- line: 48
+  content: "WAIT 2s"
+  variables: {}
+- line: 51
+  content: "LOG \"Applying effect: Default\""
+  variables: {}
+- line: 52
+  content: "EFFECT \"Default\""
+  variables: {}
+- line: 54
+  content: "LOG \"Effect preset cycle demo completed\""
+  variables: {}
+- line: 55
+  content: "STOP"
+  variables: {}

@@ -1,0 +1,38 @@
+REM ================================================
+REM Hello World - Your First C64Script
+REM ================================================
+REM This simple script demonstrates basic features:
+REM - Variables and arithmetic
+REM - Text output to the OBS log
+REM - Waiting/delays
+REM - Basic control flow
+REM ================================================
+
+REM Initialize a counter variable
+COUNTER = 0
+
+REM Display a welcome message
+PRINT "=== Hello World Script Started ==="
+PRINT "Welcome to C64Script!"
+PRINT ""
+
+REM Main loop - count from 1 to 5
+LABEL counting_loop
+    COUNTER = COUNTER + 1
+    PRINT "Count: " + STR(COUNTER)
+
+    REM Wait half a second between counts
+    WAIT 500ms
+
+    REM Check if we've reached 5
+    IF COUNTER < 5 THEN
+        GOTO counting_loop
+    ENDIF
+
+REM Final message
+PRINT ""
+PRINT "=== Counting Complete! ==="
+PRINT "Final counter value: " + STR(COUNTER)
+
+REM That's it! Check the OBS log to see the output.
+REM Try using the debug controls to step through line-by-line!

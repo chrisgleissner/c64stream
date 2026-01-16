@@ -1,0 +1,72 @@
+rem Test local program execution
+rem Validates RUNLOCAL command
+
+rem Test 1: Run local command without arguments
+RUNLOCAL "echo" ARGS "Hello World" STATUS EXIT_CODE OUTPUT OUT$
+wait 100ms
+LOG "Echo output: " + OUT$
+
+rem Test 2: Run local command with status check
+RUNLOCAL "true" STATUS SUCCESS_CODE
+if SUCCESS_CODE = 0 then
+    effect "Sharp Pixels"
+endif
+wait 100ms
+
+rem Test 3: Run command that fails
+RUNLOCAL "false" STATUS FAIL_CODE
+if FAIL_CODE <> 0 then
+    LOG "Command failed as expected"
+endif
+wait 100ms
+
+rem Test 4: Run command with arguments
+RUNLOCAL "echo" ARGS "test output" STATUS LS_CODE OUTPUT LS_OUT$
+wait 100ms
+LOG "Command output: " + LS_OUT$
+
+rem Test 5: Conditional execution based on output
+RUNLOCAL "date" ARGS "+%Y" STATUS D_CODE OUTPUT YEAR$
+if VAL(YEAR$) >= 2024 then
+    palette "colodore"
+endif
+wait 100ms
+
+rem Test 6: Execute script file
+RUNLOCAL "/bin/sh" ARGS "-c 'echo test'" STATUS SH_CODE OUTPUT SH_OUT$
+wait 100ms
+
+rem Test 7: Execute with error handling
+RUNLOCAL "nonexistent_command" STATUS ERR_CODE OUTPUT ERR_OUT$
+if ERR_CODE <> 0 then
+    LOG "Error: " + ERR_OUT$
+    effect "Soft CRT"
+endif
+wait 100ms
+
+rem Test 8: Chain multiple local executions
+RUNLOCAL "echo" ARGS "Step 1" STATUS S1 OUTPUT O1$
+LOG O1$
+wait 50ms
+
+RUNLOCAL "echo" ARGS "Step 2" STATUS S2 OUTPUT O2$
+LOG O2$
+wait 50ms
+
+RUNLOCAL "echo" ARGS "Step 3" STATUS S3 OUTPUT O3$
+LOG O3$
+wait 50ms
+
+rem Test 9: Use output in subsequent operations
+RUNLOCAL "expr" ARGS "10 + 20" STATUS EXPR_CODE OUTPUT RESULT$
+NUM = VAL(RESULT$)
+if NUM = 30 then
+    LOG "Calculation correct: " + NUM
+endif
+wait 100ms
+
+rem Test 10: Complex workflow with local execution
+RUNLOCAL "echo" ARGS "1234567890" STATUS T_CODE OUTPUT TIMESTAMP$
+WRITEFILE "execution_log.txt", "Executed at: " + TIMESTAMP$ APPEND
+
+stop

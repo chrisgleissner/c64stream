@@ -6,6 +6,9 @@ Licensed under the GNU General Public License v2.0 or later.
 See <https://www.gnu.org/licenses/> for details.
 */
 #include <obs-module.h>
+#ifdef ENABLE_FRONTEND_API
+#include <obs-frontend-api.h>
+#endif
 #include <graphics/graphics.h>
 #include <util/platform.h>
 #include <util/threading.h>
@@ -26,6 +29,10 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-version.h"
 #include "c64-properties.h"
 #include "c64-palette.h"
+#include "c64-keyboard.h"
+#include "c64-rest-client.h"
+#include "c64-script-executor.h"
+#include "c64-automation.h"
 #include "plugin-support.h"
 #include "c64-effect.h"
 #include "c64-av-sync.h"
@@ -36,6 +43,8 @@ static void close_and_reset_sockets(struct c64_source *context);
 static void c64_schedule_retry(struct c64_source *context, const char *reason);
 static void c64_refresh_resolved_ip(struct c64_source *context);
 static void c64_set_expected_peer_ip(struct c64_source *context, const char *ip_string);
+static void c64_attempt_script_autostart(struct c64_source *context, obs_data_t *settings);
+static void c64_queue_properties_refresh(struct c64_source *context);
 
 static bool c64_try_get_prefer_pal_from_obs_fps(bool *prefer_pal)
 {
@@ -184,6 +193,22 @@ void c64_schedule_retry_task(struct c64_source *context, const char *reason)
     c64_schedule_retry(context, reason);
 }
 
+void *c64_source_get_rest_client(struct c64_source *context)
+{
+    if (!context) {
+        return NULL;
+    }
+    return context->rest_client;
+}
+
+void *c64_source_get_keyboard(struct c64_source *context)
+{
+    if (!context) {
+        return NULL;
+    }
+    return context->keyboard;
+}
+
 static void c64_refresh_resolved_ip(struct c64_source *context)
 {
     if (!context)
@@ -296,6 +321,14 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     // Initialize configuration from settings
     const char *host = obs_data_get_string(settings, "c64_host");
     const char *hostname = host ? host : C64_DEFAULT_HOST;
+
+    const char *c64_password = obs_data_get_string(settings, "c64_password");
+    if (c64_password && c64_password[0] != '\0') {
+        strncpy(context->c64_password, c64_password, sizeof(context->c64_password) - 1);
+        context->c64_password[sizeof(context->c64_password) - 1] = '\0';
+    } else {
+        context->c64_password[0] = '\0';
+    }
 
     // Store the original hostname/IP as entered by user
     strncpy(context->hostname, hostname, sizeof(context->hostname) - 1);
@@ -604,7 +637,7 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->frame_dirty = false;
 
     // Initialize palette from settings (must be done after palette system init)
-    // CRITICAL: Always select Default if settings are empty (first startup guarantee)
+    // Always select Default if settings are empty (first startup guarantee)
     const char *palette_id = obs_data_get_string(settings, "palette");
     if (!palette_id || !palette_id[0]) {
         // No palette specified - select Default (first startup)
@@ -657,6 +690,75 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     C64_LOG_INFO("C64 Stream source created successfully - scheduling background initial connection");
     c64_schedule_retry(context, "initial connection");
 
+    // Initialize REST control and keyboard capture
+    context->rest_client = NULL;
+    context->keyboard = NULL;
+    context->keymap = NULL;
+    context->keyboard_capture_active = false;
+    memset(context->rest_base_url, 0, sizeof(context->rest_base_url));
+    memset(context->keyboard_keymap_name, 0, sizeof(context->keyboard_keymap_name));
+
+    // Build REST base URL from c64_host
+    const char *c64_host = obs_data_get_string(settings, "c64_host");
+    if (c64_host && c64_host[0] != '\0' && strcmp(c64_host, "0.0.0.0") != 0) {
+        // Build REST API URL from host (add http:// if not present)
+        if (strncmp(c64_host, "http://", 7) == 0 || strncmp(c64_host, "https://", 8) == 0) {
+            snprintf(context->rest_base_url, sizeof(context->rest_base_url), "%s", c64_host);
+        } else {
+            snprintf(context->rest_base_url, sizeof(context->rest_base_url), "http://%s", c64_host);
+        }
+
+        context->rest_client = c64_rest_client_create(context->rest_base_url, context->c64_password);
+    }
+
+    // Load keyboard settings and create keyboard module
+    const char *keymap_name = obs_data_get_string(settings, "keyboard_keymap");
+    if (keymap_name && keymap_name[0] != '\0') {
+        strncpy(context->keyboard_keymap_name, keymap_name, sizeof(context->keyboard_keymap_name) - 1);
+        // Load keymap file using absolute path from module
+        char keymap_filename[128];
+        snprintf(keymap_filename, sizeof(keymap_filename), "keymaps/%s.c64keymap.ini", keymap_name);
+        char *keymap_path = obs_module_file(keymap_filename);
+        if (keymap_path) {
+            context->keymap = c64_keymap_load(keymap_path);
+            if (!context->keymap) {
+                C64_LOG_WARNING("Failed to load keymap: %s", keymap_path);
+            } else {
+                C64_LOG_INFO("🕹 KEYBOARD: Loaded keymap: %s", keymap_name);
+            }
+            bfree(keymap_path);
+        } else {
+            C64_LOG_WARNING("Failed to resolve keymap path for: %s", keymap_name);
+        }
+    }
+
+    // Create keyboard module if REST client is available
+    if (context->rest_client) {
+        context->keyboard = c64_keyboard_create(context->rest_client);
+    }
+
+    // Initialize script automation fields
+    context->script_executor = NULL;
+    memset(context->script_file_path, 0, sizeof(context->script_file_path));
+    context->last_script_status = C64_SCRIPT_STATUS_IDLE;
+    context->last_ui_update_time = 0;
+    context->force_ui_update = false;
+    context->script_autostarted = false;
+    memset(context->cached_last_line, 0, sizeof(context->cached_last_line));
+    memset(context->cached_next_line, 0, sizeof(context->cached_next_line));
+
+    // Initialize content automation fields
+    context->automation = NULL;
+    memset(context->automation_status, 0, sizeof(context->automation_status));
+
+    // Load script file path if set
+    const char *script_path = obs_data_get_string(settings, "script_file");
+    if (script_path && script_path[0] != '\0') {
+        strncpy(context->script_file_path, script_path, sizeof(context->script_file_path) - 1);
+    }
+
+    c64_attempt_script_autostart(context, settings);
+
     return context;
 }
 
@@ -702,6 +804,18 @@ void c64_destroy(void *data)
     }
 
     c64_record_cleanup(context);
+
+    // Cleanup script automation
+    if (context->script_executor) {
+        c64_script_executor_destroy(context->script_executor);
+        context->script_executor = NULL;
+    }
+
+    // Cleanup content automation
+    if (context->automation) {
+        c64_automation_destroy((c64_automation_t *)context->automation);
+        context->automation = NULL;
+    }
 
     // Cleanup logo system
     c64_logo_cleanup(context);
@@ -770,8 +884,111 @@ void c64_destroy(void *data)
         context->afterglow_cpu_valid = false;
     }
 
+    // Cleanup REST control and keyboard capture
+    if (context->keyboard) {
+        c64_keyboard_destroy(context->keyboard);
+        context->keyboard = NULL;
+    }
+    if (context->keymap) {
+        c64_keymap_destroy(context->keymap);
+        context->keymap = NULL;
+    }
+    if (context->rest_client) {
+        c64_rest_client_destroy(context->rest_client);
+        context->rest_client = NULL;
+    }
+
     bfree(context);
     C64_LOG_INFO("C64 Stream source destroyed");
+}
+
+static void c64_attempt_script_autostart(struct c64_source *context, obs_data_t *settings)
+{
+    if (!context || !settings) {
+        return;
+    }
+
+    bool script_auto_start = obs_data_get_bool(settings, "script_auto_start");
+    if (!script_auto_start) {
+        context->script_autostarted = false;
+        return;
+    }
+
+    if (context->script_autostarted || context->script_file_path[0] == '\0') {
+        return;
+    }
+
+    c64_script_status_t status = C64_SCRIPT_STATUS_IDLE;
+    if (context->script_executor) {
+        status = c64_script_executor_get_status(context->script_executor);
+    }
+
+    if (status == C64_SCRIPT_STATUS_RUNNING || status == C64_SCRIPT_STATUS_PAUSED) {
+        context->script_autostarted = true;
+        return;
+    }
+
+    if (!context->script_executor) {
+        context->script_executor = c64_script_executor_create(context->source);
+    }
+
+    if (context->script_executor) {
+        C64_LOG_INFO("Auto-starting script: %s", context->script_file_path);
+        context->script_start_time = os_gettime_ns();
+        context->script_end_time = 0;
+        context->last_script_status = C64_SCRIPT_STATUS_IDLE;
+        if (c64_script_executor_start(context->script_executor, context->script_file_path)) {
+            context->last_script_status = C64_SCRIPT_STATUS_RUNNING;
+            context->force_ui_update = true;
+        } else {
+            const char *err = c64_script_executor_get_error(context->script_executor);
+            C64_LOG_ERROR("Auto-start script failed: %s", err ? err : "unknown error");
+            context->script_end_time = os_gettime_ns();
+            context->script_ended_successfully = false;
+            context->force_ui_update = true;
+        }
+    }
+
+    context->script_autostarted = true;
+}
+
+typedef struct {
+    obs_source_t *source;
+} c64_source_properties_refresh_t;
+
+static void c64_apply_properties_refresh(void *data)
+{
+    c64_source_properties_refresh_t *refresh = (c64_source_properties_refresh_t *)data;
+    if (!refresh || !refresh->source) {
+        if (refresh) {
+            free(refresh);
+        }
+        return;
+    }
+
+    obs_source_update_properties(refresh->source);
+    obs_source_release(refresh->source);
+    free(refresh);
+}
+
+static void c64_queue_properties_refresh(struct c64_source *context)
+{
+    if (!context || !context->source) {
+        return;
+    }
+
+    c64_source_properties_refresh_t *refresh = calloc(1, sizeof(c64_source_properties_refresh_t));
+    if (!refresh) {
+        return;
+    }
+
+    refresh->source = obs_source_get_ref(context->source);
+    if (!refresh->source) {
+        free(refresh);
+        return;
+    }
+
+    obs_queue_task(OBS_TASK_UI, c64_apply_properties_refresh, refresh, false);
 }
 
 void c64_update(void *data, obs_data_t *settings)
@@ -779,6 +996,25 @@ void c64_update(void *data, obs_data_t *settings)
     struct c64_source *context = data;
     if (!context)
         return;
+
+    char old_script_path[512];
+    strncpy(old_script_path, context->script_file_path, sizeof(old_script_path) - 1);
+    old_script_path[sizeof(old_script_path) - 1] = '\0';
+
+    // Script file path (used by Properties UI controls)
+    const char *script_path = obs_data_get_string(settings, "script_file");
+    if (script_path && script_path[0] != '\0') {
+        strncpy(context->script_file_path, script_path, sizeof(context->script_file_path) - 1);
+        context->script_file_path[sizeof(context->script_file_path) - 1] = '\0';
+    } else {
+        context->script_file_path[0] = '\0';
+    }
+
+    if (strcmp(old_script_path, context->script_file_path) != 0) {
+        context->script_autostarted = false;
+    }
+
+    c64_attempt_script_autostart(context, settings);
 
     // If a preset is specified and no manual overrides exist, apply it before reading effect values
     // This supports E2E scenarios that set effects via OBS scene JSON source settings
@@ -794,10 +1030,12 @@ void c64_update(void *data, obs_data_t *settings)
         C64_LOG_DEBUG("" EFFECT_LOG_PREFIX " Preset update skipped; manual effect overrides present");
     }
 
-    // Update debug logging setting (Record A/V Sync relies on debug logging for pop detection)
-    const bool record_av_sync = obs_data_get_bool(settings, "record_av_sync");
-    c64_debug_logging = obs_data_get_bool(settings, "debug_logging") || record_av_sync;
-    C64_LOG_DEBUG("Debug logging %s", c64_debug_logging ? "enabled" : "disabled");
+    // Update debug logging setting
+    bool previous_debug_logging = c64_debug_logging;
+    c64_debug_logging = obs_data_get_bool(settings, "debug_logging");
+    if (previous_debug_logging != c64_debug_logging) {
+        C64_LOG_INFO("Debug logging %s", c64_debug_logging ? "enabled" : "disabled");
+    }
 
     // Update IP detection setting - only auto-detect when checkbox state changes from off to on
     bool new_auto_detect = obs_data_get_bool(settings, "auto_detect_ip");
@@ -1213,6 +1451,43 @@ void c64_video_tick(void *data, float seconds)
     if (!context)
         return;
 
+    // Monitor script executor status for completion/errors
+    if (context->script_executor) {
+        c64_script_status_t current_status = c64_script_executor_get_status(context->script_executor);
+        c64_script_status_t last_status = (c64_script_status_t)context->last_script_status;
+
+        // Detect status transitions
+        if (current_status != last_status) {
+            if (current_status == C64_SCRIPT_STATUS_COMPLETED) {
+                // Script completed successfully
+                context->script_end_time = os_gettime_ns();
+                context->script_ended_successfully = true;
+                C64_LOG_INFO("Script completed successfully");
+                context->force_ui_update = true; // Force immediate UI update
+                c64_queue_properties_refresh(context);
+            } else if (current_status == C64_SCRIPT_STATUS_ERROR) {
+                // Script ended with error
+                context->script_end_time = os_gettime_ns();
+                context->script_ended_successfully = false;
+                const char *error = c64_script_executor_get_error(context->script_executor);
+                C64_LOG_ERROR("Script failed: %s", error ? error : "unknown error");
+                context->force_ui_update = true; // Force immediate UI update
+                c64_queue_properties_refresh(context);
+            } else if (current_status == C64_SCRIPT_STATUS_IDLE && last_status == C64_SCRIPT_STATUS_RUNNING) {
+                // Script was stopped
+                context->script_end_time = os_gettime_ns();
+                context->script_ended_successfully = false;
+                context->force_ui_update = true; // Force immediate UI update
+                c64_queue_properties_refresh(context);
+            } else if (current_status == C64_SCRIPT_STATUS_PAUSED || current_status == C64_SCRIPT_STATUS_RUNNING) {
+                // Entering or leaving pause/debug mode - force immediate update
+                context->force_ui_update = true;
+                c64_queue_properties_refresh(context);
+            }
+            context->last_script_status = (int)current_status;
+        }
+    }
+
     const bool effects_enabled =
         (context->scan_line_distance > 0.0f) || (context->bloom_strength > 0.0f) ||
         (context->afterglow_duration_ms > 0) || (context->tint_mode > 0 && context->tint_strength > 0.0f) ||
@@ -1305,6 +1580,31 @@ void c64_video_tick(void *data, float seconds)
             obs_leave_graphics();
         }
     }
+}
+
+// Helper to check if we're outputting to stream/recording
+static bool is_output_active(void)
+{
+#ifdef ENABLE_FRONTEND_API
+    // Check if OBS is streaming or recording
+    obs_output_t *streaming = obs_frontend_get_streaming_output();
+    obs_output_t *recording = obs_frontend_get_recording_output();
+
+    bool active = false;
+    if (streaming) {
+        active = active || obs_output_active(streaming);
+        obs_output_release(streaming);
+    }
+    if (recording) {
+        active = active || obs_output_active(recording);
+        obs_output_release(recording);
+    }
+
+    return active;
+#else
+    // Frontend API disabled - always show indicators in preview
+    return false;
+#endif
 }
 
 // Video render callback for CRT effects (GPU rendering)
@@ -1592,4 +1892,182 @@ obs_properties_t *c64_properties(void *data)
 void c64_defaults(obs_data_t *settings)
 {
     c64_set_property_defaults(settings);
+}
+
+// Interaction callbacks for keyboard capture
+
+void c64_mouse_click(void *data, const struct obs_mouse_event *event, int32_t type, bool mouse_up, uint32_t click_count)
+{
+    UNUSED_PARAMETER(data);
+    UNUSED_PARAMETER(event);
+    UNUSED_PARAMETER(type);
+    UNUSED_PARAMETER(mouse_up);
+    UNUSED_PARAMETER(click_count);
+    // No mouse interaction needed for C64 keyboard capture
+}
+
+void c64_mouse_move(void *data, const struct obs_mouse_event *event, bool mouse_leave)
+{
+    UNUSED_PARAMETER(data);
+    UNUSED_PARAMETER(event);
+    UNUSED_PARAMETER(mouse_leave);
+    // No mouse interaction needed for C64 keyboard capture
+}
+
+void c64_mouse_wheel(void *data, const struct obs_mouse_event *event, int x_delta, int y_delta)
+{
+    UNUSED_PARAMETER(data);
+    UNUSED_PARAMETER(event);
+    UNUSED_PARAMETER(x_delta);
+    UNUSED_PARAMETER(y_delta);
+    // No mouse interaction needed for C64 keyboard capture
+}
+
+void c64_focus(void *data, bool focus)
+{
+    struct c64_source *context = (struct c64_source *)data;
+    if (!context) {
+        return;
+    }
+
+    if (focus) {
+        // Enable capture when focused
+        context->keyboard_capture_active = true;
+        C64_LOG_INFO("Keyboard capture activated (source focused)");
+        if (context->keyboard) {
+            c64_keyboard_set_capture(context->keyboard, true);
+        }
+    } else if (!focus && context->keyboard_capture_active) {
+        // Disable capture when focus lost
+        context->keyboard_capture_active = false;
+        C64_LOG_INFO("Keyboard capture deactivated (source lost focus)");
+        if (context->keyboard) {
+            c64_keyboard_set_capture(context->keyboard, false);
+        }
+    }
+}
+
+void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
+{
+    struct c64_source *context = (struct c64_source *)data;
+    if (!context || !event) {
+        C64_LOG_DEBUG("🕹 KEYBOARD: key_click called: context=%p, event=%p", (void *)context, (void *)event);
+        return;
+    }
+
+    // Log key event with full details
+    C64_LOG_INFO("🕹 KEYBOARD: key_up=%d vkey=0x%04X scan=0x%02X mods=0x%02X text='%s'", key_up, event->native_vkey,
+                 event->native_scancode, event->modifiers, event->text ? event->text : "");
+
+    // Only process key press events (not key up)
+    if (key_up) {
+        return;
+    }
+
+    // Skip modifier keys themselves (Shift, Ctrl, Alt, Command/Super)
+    // These should only modify other keys, not generate keypresses
+    if (event->native_vkey == 0xFFE1 || // Left Shift (X11)
+        event->native_vkey == 0xFFE2 || // Right Shift (X11)
+        event->native_vkey == 0xFFE3 || // Left Ctrl (X11)
+        event->native_vkey == 0xFFE4 || // Right Ctrl (X11)
+        event->native_vkey == 0xFFE9 || // Left Alt (X11)
+        event->native_vkey == 0xFFEA || // Right Alt (X11)
+        event->native_vkey == 0xFFEB || // Left Super/Windows (X11)
+        event->native_vkey == 0xFFEC || // Right Super/Windows (X11)
+        event->native_vkey == 0x10 ||   // Shift (Windows)
+        event->native_vkey == 0x11 ||   // Ctrl (Windows)
+        event->native_vkey == 0x12) {   // Alt (Windows)
+        C64_LOG_DEBUG("🕹 KEYBOARD: Skipping modifier key");
+        return;
+    }
+
+    // Check if capture is enabled
+    if (!context->keyboard_capture_active) {
+        C64_LOG_DEBUG("🕹 KEYBOARD: Capture not active (active=%d)", context->keyboard_capture_active);
+        return;
+    }
+
+    // Ctrl+ESC performs C64 reset via REST API
+    // User holds Ctrl key and presses Escape to reset the machine
+    if (event->native_vkey == 0x1B && event->modifiers & INTERACT_CONTROL_KEY) { // VK_ESCAPE + Ctrl
+        C64_LOG_INFO("Keyboard: Ctrl+ESC pressed - performing C64 reset");
+        if (context->rest_client) {
+            c64_rest_reset(context->rest_client);
+        }
+        return;
+    }
+
+    // Convert OBS key event to keymap format and queue for injection
+    if (context->keymap && context->keyboard) {
+        // Build key code from event
+        char key_code[64] = "";
+
+        // Map special keys using native_vkey - check these FIRST before text
+        // because some keys (like Return) may have text but need special handling
+        if (event->native_vkey == 0x0D || event->native_vkey == 0xFF0D) { // Return/Enter (Linux: 0xFF0D)
+            snprintf(key_code, sizeof(key_code), "return");
+        } else if (event->native_vkey == 0x08 || event->native_vkey == 0xFF08) { // Backspace (Linux: 0xFF08)
+            snprintf(key_code, sizeof(key_code), "backspace");
+        } else if ((event->native_vkey == 0x2E || event->native_vkey == 0xFFFF) &&
+                   (!event->text || event->text[0] == '\0')) { // Delete (Linux: 0xFFFF)
+            snprintf(key_code, sizeof(key_code), "delete");
+        } else if (event->native_vkey == 0x20) { // Space
+            snprintf(key_code, sizeof(key_code), "space");
+        } else if (event->native_vkey == 0x09 || event->native_vkey == 0xFF09) { // Tab (Linux: 0xFF09)
+            snprintf(key_code, sizeof(key_code), "tab");
+        } else if (event->native_vkey == 0x1B || event->native_vkey == 0xFF1B) { // Escape (Linux: 0xFF1B)
+            // Escape performs BASIC warm start (abort running program)
+            if (context->keyboard) {
+                c64_keyboard_basic_warm_start(context->keyboard);
+            }
+            return;                                                              // Don't pass through to keymap
+        } else if (event->native_vkey == 0x24 || event->native_vkey == 0xFF50) { // Home (Linux: 0xFF50)
+            snprintf(key_code, sizeof(key_code), "home");
+        } else if (event->native_vkey == 0x2D || event->native_vkey == 0xFF63) { // Insert (Linux: 0xFF63)
+            snprintf(key_code, sizeof(key_code), "insert");
+        } else if (event->native_vkey == 0xFF52) { // Arrow Up (Linux X11)
+            snprintf(key_code, sizeof(key_code), "up");
+        } else if (event->native_vkey == 0xFF54) { // Arrow Down (Linux X11)
+            snprintf(key_code, sizeof(key_code), "down");
+        } else if (event->native_vkey == 0xFF51) { // Arrow Left (Linux X11)
+            snprintf(key_code, sizeof(key_code), "left");
+        } else if (event->native_vkey == 0xFF53) { // Arrow Right (Linux X11)
+            snprintf(key_code, sizeof(key_code), "right");
+        } else if (event->text && event->text[0] != '\0') {
+            // Use text for regular printable characters
+            snprintf(key_code, sizeof(key_code), "%s", event->text);
+        }
+
+        // Some key combinations (e.g. Ctrl/Alt + digit) may not provide text.
+        // Fall back to ASCII-ish native key values for common alphanumerics.
+        if (key_code[0] == '\0') {
+            const int vkey = (int)event->native_vkey;
+            if ((vkey >= '0' && vkey <= '9') || (vkey >= 'A' && vkey <= 'Z') || (vkey >= 'a' && vkey <= 'z')) {
+                key_code[0] = (char)vkey;
+                key_code[1] = '\0';
+            }
+        }
+
+        // Build modifiers bitmask
+        int modifiers = 0;
+        if (event->modifiers & INTERACT_SHIFT_KEY) {
+            modifiers |= 0x01;
+        }
+        if (event->modifiers & INTERACT_CONTROL_KEY) {
+            modifiers |= 0x02;
+        }
+        if (event->modifiers & INTERACT_ALT_KEY) {
+            modifiers |= 0x04;
+        }
+        if (event->modifiers & INTERACT_COMMAND_KEY) {
+            modifiers |= 0x08;
+        }
+
+        // Convert key to C64 output
+        c64_output_t output;
+        if (c64_keymap_convert(context->keymap, key_code, modifiers, &output)) {
+            // Queue the keystroke for injection (logging happens in queue function)
+            c64_keyboard_queue_output(context->keyboard, &output);
+        }
+    }
 }

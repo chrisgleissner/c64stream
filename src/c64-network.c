@@ -388,6 +388,21 @@ socket_t c64_create_udp_socket(uint32_t port)
         return INVALID_SOCKET_VALUE;
     }
 
+    // Enable SO_REUSEADDR to allow quick restart without "address already in use" errors
+    int reuse = 1;
+    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (char *)&reuse, sizeof(reuse)) < 0) {
+        int error = c64_get_socket_error();
+        C64_LOG_WARNING("" NETWORK_LOG_PREFIX " Failed to set SO_REUSEADDR: %s", c64_get_socket_error_string(error));
+    }
+
+    // Set close-on-exec flag to prevent child processes from inheriting the socket
+#ifndef _WIN32
+    int fd_flags = fcntl(sock, F_GETFD);
+    if (fd_flags >= 0) {
+        fcntl(sock, F_SETFD, fd_flags | FD_CLOEXEC);
+    }
+#endif
+
     // Configure UDP socket buffer sizes for high-frequency packet reception
     // C64 Stream video stream: ~3400 packets/sec × 780 bytes = ~2.6 Mbps
     // We need large enough buffers to handle temporary bursts and OS scheduling delays

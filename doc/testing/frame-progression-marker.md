@@ -8,13 +8,12 @@ The frame progression assertion verifies that video frames are correctly sequenc
 
 The position marker is a horizontal progress bar with 8 slots (0-7) inside a framed corner element:
 
-```
 C64 coordinates (384x272):
+
 - Outer element: 88x56 pixels (aspect ratio 1.57, matches C64)
 - Frame: 1px white outer + 7px black inner = 8px total border
 - Inner content: 72x40 pixels starting at offset (8, 8)
 - Position bar: 8 slots × 7px + 7 gaps × 1px = 63px, centered in 72px
-```
 
 ## Detection Algorithm
 
@@ -33,6 +32,7 @@ The detector finds which slot had the **largest brightness INCREASE** compared t
 ### 3. Adaptive Thresholds
 
 **Problem**: Fixed thresholds fail across different encoding environments:
+
 - Different OBS versions (30.2.2 vs 32.0.2)
 - Different codecs and bitrates
 - Different CPU architectures (AMD EPYC vs Intel)
@@ -73,7 +73,7 @@ if max_lum - min_lum >= adaptive_min_contrast:
 
 Frames where detection fails are marked as "ambiguous" and excluded from analysis. The assertion fails if:
 
-```
+```text
 ambiguous_ratio = ambiguous_frames / analyzed_frames > 0.40
 ```
 
@@ -107,6 +107,7 @@ ambiguous_ratio = ambiguous_frames / analyzed_frames > 0.40
 ### Fallback Contrast Threshold
 
 **Fallback contrast (15% of max luminance, min 4.0)**
+
 - Lower than temporal threshold since we don't have delta information
 - Ensures some minimum contrast exists for absolute brightness detection
 - Minimum prevents false detection in uniform dark regions
@@ -148,6 +149,7 @@ Enable verbose mode to see detection details:
 ```
 
 Look for:
+
 ```
 [frame_progression] Content: left=X, right=Y, top=Z, bottom=W, scale=S
 [frame_progression] Using content bounds: START-END
@@ -155,6 +157,7 @@ Look for:
 ```
 
 Check metrics in `results/validation_results.json`:
+
 ```bash
 python3 -c "
 import json
@@ -169,6 +172,7 @@ with open('results/validation_results.json') as f:
 ## Performance Impact
 
 The adaptive threshold computation adds negligible overhead:
+
 - Calculations: 4 min/max operations + 4 multiplications per frame
 - Total cost: <1μs per frame (vs ~16ms frame time at 60 FPS)
 - Memory: No additional allocations

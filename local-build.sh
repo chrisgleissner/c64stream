@@ -13,14 +13,18 @@ PLATFORM=""
 BUILD_CONFIG="RelWithDebInfo"
 CLEAN_BUILD=false
 RUN_TESTS=true
+RUN_SCRIPT_TESTS=false
+RERECORD_TRACES=false
 INSTALL_DEPS=false
 INSTALL_PLUGIN=false
 RUN_E2E=false
 E2E_SCENARIO=""
 GENERATE_E2E_SCENARIOS=false
+E2E_RESULTS_ONLY=false
 NEED_E2E_DEPS=false
 E2E_NO_XVFB=false
 VERBOSE=false
+DEBUG_LOGS=false
 
 # Colors for output
 RED='\033[0;31m'
@@ -183,13 +187,17 @@ OPTIONS:
     --clean             Clean build directory before building
     --tests             Run tests after building (default: on)
     --no-tests          Skip tests after building
+    --script-tests      Run c64script validation tests (all .c64script files)
+    --rerecord-traces   Regenerate all expected trace files for c64script tests
     --install-deps      Install build dependencies
     --install-e2e-deps  Also install E2E testing dependencies (OBS, xvfb, etc.)
     --install           Install plugin to OBS after building
     --e2e[=SCENARIO]    Run E2E tests after building and installing (default scenario: ntsc_default)
     --e2e-scenarios     Run all scenarios in tests/e2e/scenarios/* and write results to tests/e2e/results/<scenario>
+    --e2e-results       Regenerate tests/e2e/results/README.md from discovered result folders (no tests)
     --no-xvfb           Run E2E tests without starting Xvfb (uses current DISPLAY)
     --verbose           Enable verbose output
+    --debug-logs        Enable debug logging for C64Script tests
     --help              Show this help message
 
 EXAMPLES:
@@ -199,6 +207,7 @@ EXAMPLES:
     $0 linux --e2e --install                   # Build, install and run E2E tests
     $0 windows --clean --install-deps          # Clean build for Windows, install deps
     $0 linux --install-e2e-deps --e2e          # Install all deps including E2E and run E2E tests
+    $0 linux --e2e-results                     # Regenerate the E2E results README
     $0 macos --verbose                          # Build for macOS with verbose output
 
 NOTES:
@@ -306,6 +315,9 @@ install_dependencies() {
                     python3
                     python3-pip
                     libobs-dev
+                    curl                   # Required for REST client and downloads
+                    libcurl4-openssl-dev   # Required for libcurl development
+                    zsh                    # Required by build-aux scripts
                 )
 
                 local -a e2e_packages=(
@@ -560,7 +572,11 @@ run_tests() {
 
     if [[ -f "$build_dir/CTestTestfile.cmake" ]]; then
         cd "$build_dir"
-        ctest --output-on-failure --parallel 2
+        if [[ "$DEBUG_LOGS" == "true" ]]; then
+            env C64SCRIPT_DEBUG_LOGS=1 ctest --output-on-failure --parallel 2
+        else
+            ctest --output-on-failure --parallel 2
+        fi
         cd "$PROJECT_ROOT"
     else
         log_warning "No tests found in build directory"
@@ -569,9 +585,19 @@ run_tests() {
     # Python unit tests (E2E harness): keep this fast and dependency-light.
     if command -v python3 >/dev/null 2>&1; then
         log_info "Running Python unit tests..."
+        # Run unittest-based tests
         python3 -m unittest \
             tests/e2e/util/test_network_simulation.py \
             tests/e2e/util/test_network_timing_validation.py
+
+        # Run pytest-based tests (if pytest is available)
+        if command -v pytest >/dev/null 2>&1; then
+            pytest tests/e2e/test_keymap.py \
+                   tests/e2e/test_keystroke_injection.py \
+                   tests/e2e/test_rest_control_e2e.py -v
+        else
+            log_warning "pytest not found; skipping pytest-based tests"
+        fi
     else
         log_warning "python3 not found; skipping Python unit tests"
     fi
@@ -627,8 +653,8 @@ reset_obs_configuration() {
             # Check if it's an E2E properties file (contains localhost)
             if grep -q "localhost" "$props_file"; then
                 log_info "Found E2E properties file with localhost settings"
-                mv "$props_file" "${props_file}.e2e_backup_$(date +%Y%m%d_%H%M%S)"
-                log_info "Backed up E2E properties file"
+                rm "$props_file"
+                log_info "Removed E2E properties file (will be replaced with default)"
 
                 # Restore correct properties.ini with real C64 Ultimate settings
                 if [[ -f "$PROJECT_ROOT/data/properties.ini" ]]; then
@@ -781,6 +807,9 @@ install_plugin() {
     # Create directory structure
     mkdir -p "$install_dir/bin/64bit"
     mkdir -p "$install_dir/data"
+
+    # Clean up any existing E2E backups in the installation directory
+    find "$install_dir/data" -name "*.e2e_backup_*" -delete 2>/dev/null || true
 
     # Copy binary based on platform
     case $platform in
@@ -955,6 +984,9 @@ install_plugin_for_e2e() {
     mkdir -p "$install_dir/bin/64bit"
     mkdir -p "$install_dir/data"
 
+    # Clean up any existing E2E backups
+    find "$install_dir/data" -name "*.e2e_backup_*" -delete 2>/dev/null || true
+
     # Copy plugin files
     case $platform in
         linux)
@@ -1009,11 +1041,6 @@ install_plugin_for_e2e() {
     fi
 
     if [[ -n "$e2e_props" ]]; then
-        # Create backup of existing properties.ini if it exists
-        if [[ -f "$install_dir/data/properties.ini" ]]; then
-            cp "$install_dir/data/properties.ini" "$install_dir/data/properties.ini.e2e_backup_$(date +%Y%m%d_%H%M%S)"
-        fi
-
         cp "$e2e_props" "$install_dir/data/properties.ini"
         log_success "Installed E2E properties.ini from $e2e_props"
 
@@ -1287,6 +1314,29 @@ parse_scenario_yaml() {
     echo "$val"
 }
 
+generate_e2e_results_readme() {
+    local results_root="${PROJECT_ROOT}/tests/e2e/results"
+    local generator="${PROJECT_ROOT}/tests/e2e/util/generate_results_readme.py"
+
+    if [[ ! -d "$results_root" ]]; then
+        log_error "E2E results directory not found: $results_root"
+        return 1
+    fi
+    if [[ ! -f "$generator" ]]; then
+        log_error "E2E results generator not found: $generator"
+        return 1
+    fi
+
+    log_info "Generating E2E results README..."
+    if python3 "$generator" "$results_root"; then
+        log_success "Generated tests/e2e/results/README.md"
+        return 0
+    fi
+
+    log_error "Failed to generate tests/e2e/results/README.md"
+    return 1
+}
+
 run_e2e_scenarios() {
     local platform=$1
 
@@ -1324,6 +1374,7 @@ run_e2e_scenarios() {
         bash ./e2e.sh "${e2e_args[@]}"; then
         log_success "All E2E scenarios completed successfully"
         popd >/dev/null
+        generate_e2e_results_readme
         return 0
     else
         log_error "Some E2E scenarios failed"
@@ -1382,6 +1433,14 @@ main() {
                 RUN_TESTS=false
                 shift
                 ;;
+            --script-tests)
+                RUN_SCRIPT_TESTS=true
+                shift
+                ;;
+            --rerecord-traces)
+                RERECORD_TRACES=true
+                shift
+                ;;
             --install-deps)
                 INSTALL_DEPS=true
                 shift
@@ -1418,8 +1477,17 @@ main() {
                 GENERATE_E2E_SCENARIOS=true
                 shift
                 ;;
+            --e2e-results)
+                E2E_RESULTS_ONLY=true
+                shift
+                ;;
+            --debug-logs)
+                DEBUG_LOGS=true
+                shift
+                ;;
             --verbose)
                 VERBOSE=true
+                DEBUG_LOGS=true
                 shift
                 ;;
             --no-xvfb)
@@ -1472,6 +1540,12 @@ main() {
         log_info "E2E scenario: $E2E_SCENARIO"
     fi
 
+    if [[ "$E2E_RESULTS_ONLY" == "true" ]]; then
+        generate_e2e_results_readme
+        log_success "E2E results README regenerated."
+        exit 0
+    fi
+
     # Execute workflow
     check_prerequisites "$PLATFORM"
 
@@ -1517,6 +1591,79 @@ main() {
 
     if [[ "$RUN_TESTS" == "true" ]]; then
         run_tests "$PLATFORM"
+    fi
+
+    if [[ "$RUN_SCRIPT_TESTS" == "true" ]]; then
+        log_info "Running c64script validation tests..."
+        if [[ "$PLATFORM" == "linux" ]]; then
+            if [[ "$DEBUG_LOGS" == "true" ]]; then
+                env C64SCRIPT_DEBUG_LOGS=1 ./build_x86_64/tests/script/test_c64script_all_scripts . || {
+                    log_error "Script validation tests failed"
+                    exit 1
+                }
+            else
+                ./build_x86_64/tests/script/test_c64script_all_scripts . || {
+                    log_error "Script validation tests failed"
+                    exit 1
+                }
+            fi
+        elif [[ "$PLATFORM" == "macos" ]]; then
+            if [[ "$DEBUG_LOGS" == "true" ]]; then
+                env C64SCRIPT_DEBUG_LOGS=1 ./build_universal/tests/script/test_c64script_all_scripts . || {
+                    log_error "Script validation tests failed"
+                    exit 1
+                }
+            else
+                ./build_universal/tests/script/test_c64script_all_scripts . || {
+                    log_error "Script validation tests failed"
+                    exit 1
+                }
+            fi
+        else
+            log_warning "Script tests not yet implemented for $PLATFORM"
+        fi
+    fi
+
+    if [[ "$RERECORD_TRACES" == "true" ]]; then
+        log_info "Regenerating expected trace files for all c64script tests..."
+
+        # Remove existing traces
+        rm -f tests/script/scripts/*.expected-trace.yaml
+        log_info "Removed old trace files"
+
+        # Run tests to generate new traces
+        if [[ "$PLATFORM" == "linux" ]]; then
+            if [[ "$DEBUG_LOGS" == "true" ]]; then
+                env C64SCRIPT_DEBUG_LOGS=1 ./build_x86_64/tests/script/test_c64script_all_scripts . || {
+                    log_warning "Some tests failed during trace generation (expected for error tests)"
+                }
+            else
+                ./build_x86_64/tests/script/test_c64script_all_scripts . || {
+                    log_warning "Some tests failed during trace generation (expected for error tests)"
+                }
+            fi
+        elif [[ "$PLATFORM" == "macos" ]]; then
+            if [[ "$DEBUG_LOGS" == "true" ]]; then
+                env C64SCRIPT_DEBUG_LOGS=1 ./build_universal/tests/script/test_c64script_all_scripts . || {
+                    log_warning "Some tests failed during trace generation (expected for error tests)"
+                }
+            else
+                ./build_universal/tests/script/test_c64script_all_scripts . || {
+                    log_warning "Some tests failed during trace generation (expected for error tests)"
+                }
+            fi
+        else
+            log_error "Trace rerecording not supported for $PLATFORM"
+            exit 1
+        fi
+
+        # Count generated traces
+        trace_count=$(ls tests/script/scripts/*.expected-trace.yaml 2>/dev/null | wc -l)
+        log_success "Generated $trace_count trace files"
+
+        if [[ "$trace_count" -ne 35 ]]; then
+            log_warning "Expected 35 trace files but got $trace_count"
+        fi
     fi
 
     if [[ "$INSTALL_PLUGIN" == "true" ]]; then

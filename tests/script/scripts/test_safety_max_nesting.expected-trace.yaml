@@ -1,0 +1,237 @@
+# Execution trace
+script: "test_safety_max_nesting.c64script"
+status: failure
+error:
+  line: 21
+  message: "FOR loop nesting too deep"
+program: |
+  01: rem Test maximum nesting depth for loops
+  02: rem This should hit the nesting limit (typically 16 levels)
+  03: 
+  04: rem Attempt to nest 20 for loops (should fail at limit)
+  05: for L1 = 1 to 2
+  06: for L2 = 1 to 2
+  07: for L3 = 1 to 2
+  08: for L4 = 1 to 2
+  09: for L5 = 1 to 2
+  10: for L6 = 1 to 2
+  11: for L7 = 1 to 2
+  12: for L8 = 1 to 2
+  13: for L9 = 1 to 2
+  14: for L10 = 1 to 2
+  15: for L11 = 1 to 2
+  16: for L12 = 1 to 2
+  17: for L13 = 1 to 2
+  18: for L14 = 1 to 2
+  19: for L15 = 1 to 2
+  20: for L16 = 1 to 2
+  21: for L17 = 1 to 2
+  22: rem Should fail here or earlier
+  23: effect "Sharp Pixels"
+  24: wait 10ms
+  25: next L17
+  26: next L16
+  27: next L15
+  28: next L14
+  29: next L13
+  30: next L12
+  31: next L11
+  32: next L10
+  33: next L9
+  34: next L8
+  35: next L7
+  36: next L6
+  37: next L5
+  38: next L4
+  39: next L3
+  40: next L2
+  41: next L1
+  42: stop
+trace:
+- line: 5
+  content: "for L1 = 1 to 2"
+  variables: {}
+- line: 6
+  content: "for L2 = 1 to 2"
+  variables:
+    L1: 1
+- line: 7
+  content: "for L3 = 1 to 2"
+  variables:
+    L1: 1
+    L2: 1
+- line: 8
+  content: "for L4 = 1 to 2"
+  variables:
+    L1: 1
+    L2: 1
+    L3: 1
+- line: 9
+  content: "for L5 = 1 to 2"
+  variables:
+    L1: 1
+    L2: 1
+    L3: 1
+    L4: 1
+- line: 10
+  content: "for L6 = 1 to 2"
+  variables:
+    L1: 1
+    L2: 1
+    L3: 1
+    L4: 1
+    L5: 1
+- line: 11
+  content: "for L7 = 1 to 2"
+  variables:
+    L1: 1
+    L2: 1
+    L3: 1
+    L4: 1
+    L5: 1
+    L6: 1
+- line: 12
+  content: "for L8 = 1 to 2"
+  variables:
+    L1: 1
+    L2: 1
+    L3: 1
+    L4: 1
+    L5: 1
+    L6: 1
+    L7: 1
+- line: 13
+  content: "for L9 = 1 to 2"
+  variables:
+    L1: 1
+    L2: 1
+    L3: 1
+    L4: 1
+    L5: 1
+    L6: 1
+    L7: 1
+    L8: 1
+- line: 14
+  content: "for L10 = 1 to 2"
+  variables:
+    L1: 1
+    L2: 1
+    L3: 1
+    L4: 1
+    L5: 1
+    L6: 1
+    L7: 1
+    L8: 1
+    L9: 1
+- line: 15
+  content: "for L11 = 1 to 2"
+  variables:
+    L1: 1
+    L2: 1
+    L3: 1
+    L4: 1
+    L5: 1
+    L6: 1
+    L7: 1
+    L8: 1
+    L9: 1
+    L10: 1
+- line: 16
+  content: "for L12 = 1 to 2"
+  variables:
+    L1: 1
+    L2: 1
+    L3: 1
+    L4: 1
+    L5: 1
+    L6: 1
+    L7: 1
+    L8: 1
+    L9: 1
+    L10: 1
+    L11: 1
+- line: 17
+  content: "for L13 = 1 to 2"
+  variables:
+    L1: 1
+    L2: 1
+    L3: 1
+    L4: 1
+    L5: 1
+    L6: 1
+    L7: 1
+    L8: 1
+    L9: 1
+    L10: 1
+    L11: 1
+    L12: 1
+- line: 18
+  content: "for L14 = 1 to 2"
+  variables:
+    L1: 1
+    L2: 1
+    L3: 1
+    L4: 1
+    L5: 1
+    L6: 1
+    L7: 1
+    L8: 1
+    L9: 1
+    L10: 1
+    L11: 1
+    L12: 1
+    L13: 1
+- line: 19
+  content: "for L15 = 1 to 2"
+  variables:
+    L1: 1
+    L2: 1
+    L3: 1
+    L4: 1
+    L5: 1
+    L6: 1
+    L7: 1
+    L8: 1
+    L9: 1
+    L10: 1
+    L11: 1
+    L12: 1
+    L13: 1
+    L14: 1
+- line: 20
+  content: "for L16 = 1 to 2"
+  variables:
+    L1: 1
+    L2: 1
+    L3: 1
+    L4: 1
+    L5: 1
+    L6: 1
+    L7: 1
+    L8: 1
+    L9: 1
+    L10: 1
+    L11: 1
+    L12: 1
+    L13: 1
+    L14: 1
+    L15: 1
+- line: 21
+  content: "for L17 = 1 to 2"
+  variables:
+    L1: 1
+    L2: 1
+    L3: 1
+    L4: 1
+    L5: 1
+    L6: 1
+    L7: 1
+    L8: 1
+    L9: 1
+    L10: 1
+    L11: 1
+    L12: 1
+    L13: 1
+    L14: 1
+    L15: 1
+    L16: 1

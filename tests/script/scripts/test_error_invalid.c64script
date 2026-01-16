@@ -1,0 +1,7 @@
+rem Error recovery test script
+rem Tests handling of invalid commands and missing labels
+
+rem This should cause parse error (invalid command)
+invalid_command_here
+effect Test
+stop

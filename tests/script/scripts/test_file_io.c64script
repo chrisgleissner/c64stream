@@ -1,0 +1,56 @@
+rem Test file I/O commands
+rem Validates READFILE and WRITEFILE
+
+rem Test 1: Write to file with truncate mode
+WRITEFILE "test_data.txt", "Hello World" TRUNCATE
+wait 100ms
+
+rem Test 2: Append to file
+WRITEFILE "test_data.txt", "\nLine 2" APPEND
+wait 100ms
+
+rem Test 3: Write with variable content
+MESSAGE$ = "Test message from script"
+WRITEFILE "test_data.txt", MESSAGE$ APPEND
+wait 100ms
+
+rem Test 4: Write numeric value (auto-converted to string)
+VALUE = 123.45
+WRITEFILE "numbers.txt", VALUE TRUNCATE
+wait 100ms
+
+rem Test 5: Write in a loop
+for I = 1 to 5
+    WRITEFILE "loop_output.txt", "Iteration " + I + "\n" APPEND
+    wait 50ms
+next I
+
+rem Test 6: Read from file
+READFILE "test_data.txt", CONTENT$
+wait 100ms
+
+rem Test 7: Use read content
+LOG "File content: " + CONTENT$
+wait 100ms
+
+rem Test 8: Conditional based on file content
+READFILE "numbers.txt", NUM_STR$
+NUM = VAL(NUM_STR$)
+if NUM > 100 then
+    effect "Sharp Pixels"
+else
+    effect "Soft CRT"
+endif
+wait 100ms
+
+rem Test 9: Write configuration
+WRITEFILE "config.ini", "host=192.168.1.64\n" TRUNCATE
+WRITEFILE "config.ini", "port=8080\n" APPEND
+WRITEFILE "config.ini", "timeout=5000\n" APPEND
+wait 100ms
+
+rem Test 10: Read configuration back
+READFILE "config.ini", CONFIG$
+LOG "Configuration: " + CONFIG$
+
+stop

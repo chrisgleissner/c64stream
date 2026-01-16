@@ -358,7 +358,7 @@ void c64_process_audio_packet(struct c64_source *context, const uint8_t *audio_d
             int64_t delta_ns = (int64_t)context->last_audio_ts_ns - (int64_t)context->last_video_ts_ns;
             double delta_ms = (double)((delta_ns < 0) ? -delta_ns : delta_ns) / 1000000.0;
             const char *lead = (delta_ns >= 0) ? "audio" : "video";
-            C64_LOG_INFO("" AUDIO_LOG_PREFIX " A/V SYNC: synthetic delta: %s +%.1f ms", lead, delta_ms);
+            C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " A/V SYNC: synthetic delta: %s +%.1f ms", lead, delta_ms);
         }
     }
 

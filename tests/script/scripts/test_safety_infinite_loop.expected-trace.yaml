@@ -1,0 +1,226 @@
+# Execution trace
+script: "test_safety_infinite_loop.c64script"
+status: success
+error: ~
+program: |
+  01: rem Test potential infinite loop (should be detectable or cancellable)
+  02: rem This script creates a loop to test goto functionality
+  03: 
+  04: COUNTER = 0
+  05: 
+  06: LOOP_START:
+  07: COUNTER = COUNTER + 1
+  08: effect "Sharp Pixels"
+  09: wait 10ms
+  10: 
+  11: rem Loop with small limit for reasonable trace size
+  12: if COUNTER < 10 then
+  13:     goto LOOP_START
+  14: endif
+  15: 
+  16: rem Reached limit
+  17: stop
+trace:
+- line: 4
+  content: "COUNTER = 0"
+  variables: {}
+- line: 7
+  content: "COUNTER = COUNTER + 1"
+  variables:
+    COUNTER: 0
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables:
+    COUNTER: 1
+- line: 9
+  content: "wait 10ms"
+  variables:
+    COUNTER: 1
+- line: 12
+  content: "if COUNTER < 10 then"
+  variables:
+    COUNTER: 1
+- line: 13
+  content: "goto LOOP_START"
+  variables:
+    COUNTER: 1
+- line: 7
+  content: "COUNTER = COUNTER + 1"
+  variables:
+    COUNTER: 1
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables:
+    COUNTER: 2
+- line: 9
+  content: "wait 10ms"
+  variables:
+    COUNTER: 2
+- line: 12
+  content: "if COUNTER < 10 then"
+  variables:
+    COUNTER: 2
+- line: 13
+  content: "goto LOOP_START"
+  variables:
+    COUNTER: 2
+- line: 7
+  content: "COUNTER = COUNTER + 1"
+  variables:
+    COUNTER: 2
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables:
+    COUNTER: 3
+- line: 9
+  content: "wait 10ms"
+  variables:
+    COUNTER: 3
+- line: 12
+  content: "if COUNTER < 10 then"
+  variables:
+    COUNTER: 3
+- line: 13
+  content: "goto LOOP_START"
+  variables:
+    COUNTER: 3
+- line: 7
+  content: "COUNTER = COUNTER + 1"
+  variables:
+    COUNTER: 3
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables:
+    COUNTER: 4
+- line: 9
+  content: "wait 10ms"
+  variables:
+    COUNTER: 4
+- line: 12
+  content: "if COUNTER < 10 then"
+  variables:
+    COUNTER: 4
+- line: 13
+  content: "goto LOOP_START"
+  variables:
+    COUNTER: 4
+- line: 7
+  content: "COUNTER = COUNTER + 1"
+  variables:
+    COUNTER: 4
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables:
+    COUNTER: 5
+- line: 9
+  content: "wait 10ms"
+  variables:
+    COUNTER: 5
+- line: 12
+  content: "if COUNTER < 10 then"
+  variables:
+    COUNTER: 5
+- line: 13
+  content: "goto LOOP_START"
+  variables:
+    COUNTER: 5
+- line: 7
+  content: "COUNTER = COUNTER + 1"
+  variables:
+    COUNTER: 5
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables:
+    COUNTER: 6
+- line: 9
+  content: "wait 10ms"
+  variables:
+    COUNTER: 6
+- line: 12
+  content: "if COUNTER < 10 then"
+  variables:
+    COUNTER: 6
+- line: 13
+  content: "goto LOOP_START"
+  variables:
+    COUNTER: 6
+- line: 7
+  content: "COUNTER = COUNTER + 1"
+  variables:
+    COUNTER: 6
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables:
+    COUNTER: 7
+- line: 9
+  content: "wait 10ms"
+  variables:
+    COUNTER: 7
+- line: 12
+  content: "if COUNTER < 10 then"
+  variables:
+    COUNTER: 7
+- line: 13
+  content: "goto LOOP_START"
+  variables:
+    COUNTER: 7
+- line: 7
+  content: "COUNTER = COUNTER + 1"
+  variables:
+    COUNTER: 7
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables:
+    COUNTER: 8
+- line: 9
+  content: "wait 10ms"
+  variables:
+    COUNTER: 8
+- line: 12
+  content: "if COUNTER < 10 then"
+  variables:
+    COUNTER: 8
+- line: 13
+  content: "goto LOOP_START"
+  variables:
+    COUNTER: 8
+- line: 7
+  content: "COUNTER = COUNTER + 1"
+  variables:
+    COUNTER: 8
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables:
+    COUNTER: 9
+- line: 9
+  content: "wait 10ms"
+  variables:
+    COUNTER: 9
+- line: 12
+  content: "if COUNTER < 10 then"
+  variables:
+    COUNTER: 9
+- line: 13
+  content: "goto LOOP_START"
+  variables:
+    COUNTER: 9
+- line: 7
+  content: "COUNTER = COUNTER + 1"
+  variables:
+    COUNTER: 9
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables:
+    COUNTER: 10
+- line: 9
+  content: "wait 10ms"
+  variables:
+    COUNTER: 10
+- line: 12
+  content: "if COUNTER < 10 then"
+  variables:
+    COUNTER: 10
+- line: 17
+  content: "stop"
+  variables:
+    COUNTER: 10

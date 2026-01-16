@@ -21,6 +21,12 @@ See <https://www.gnu.org/licenses/> for details.
 #include <sys/stat.h>
 
 #ifdef _WIN32
+#ifndef S_ISREG
+#define S_ISREG(mode) (((mode)&_S_IFMT) == _S_IFREG)
+#endif
+#endif
+
+#ifdef _WIN32
 #define PATH_SEP '\\\\'
 #define strcasecmp _stricmp
 #ifndef S_ISDIR
@@ -105,7 +111,7 @@ struct c64_palette_system *c64_palette_get_system(void)
 
 void c64_palette_validate_filesystem(obs_data_t *settings)
 {
-    C64_LOG_INFO("" PALETTE_LOG_PREFIX " Validating palette filesystem (checking for deleted files)...");
+    C64_LOG_DEBUG("" PALETTE_LOG_PREFIX " Validating palette filesystem (checking for deleted files)...");
 
     // Check all custom (non-shipped) palettes and verify their files exist
     int i = 0;
@@ -113,8 +119,8 @@ void c64_palette_validate_filesystem(obs_data_t *settings)
     bool active_palette_missing = false;
     const char *active_palette_id = c64_palette_get_active_id();
 
-    C64_LOG_INFO("" PALETTE_LOG_PREFIX "   Current active palette: %s (total palettes: %d)", active_palette_id,
-                 palette_system.palette_count);
+    C64_LOG_DEBUG("" PALETTE_LOG_PREFIX "   Current active palette: %s (total palettes: %d)", active_palette_id,
+                  palette_system.palette_count);
 
     while (i < palette_system.palette_count) {
         struct c64_palette_entry *entry = &palette_system.palettes[i];
@@ -995,6 +1001,12 @@ static void discover_shipped_palettes(void)
 
             char full_path[C64_PALETTE_PATH_MAX];
             snprintf(full_path, sizeof(full_path), "%s/%s", palettes_path, entry->d_name);
+
+            // Skip directories using stat
+            struct stat st;
+            if (stat(full_path, &st) != 0 || !S_ISREG(st.st_mode)) {
+                continue;
+            }
 
             char id[C64_PALETTE_NAME_MAX];
             strncpy(id, entry->d_name, sizeof(id) - 1);

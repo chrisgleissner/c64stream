@@ -247,7 +247,108 @@ local-build.bat windows
 
 **Note:** The Linux build will fail if code is not properly formatted. Always run clang-format before committing changes made on Windows.
 
-## E2E Testing
+## Testing Strategy
+
+The c64stream plugin employs a multi-layered testing approach to ensure correctness, cross-platform compatibility, and robustness. Testing is conducted at multiple levels: unit tests, integration tests, and end-to-end validation.
+
+### Test Layers
+
+#### 1. Unit Tests (C)
+
+**Purpose:** Validate individual components and data structures in isolation.
+
+**Location:** `tests/test_*.c`
+
+**Examples:**
+- `tests/test_properties_ini_defaults.c` - Validates properties configuration system
+- Tests for protocol parsing, packet handling, color conversion
+
+**Running unit tests:**
+
+```bash
+# Build and run all unit tests
+ctest --test-dir build_x86_64 --output-on-failure
+
+# Run specific test
+./build_x86_64/tests/test_properties_ini_defaults
+```
+
+**Coverage:**
+- Properties system configuration and defaults
+- Data structure initialization and cleanup
+- Error handling and edge cases
+
+#### 2. Python Unit Tests
+
+**Purpose:** Validate Python-based test infrastructure and script execution framework.
+
+**Location:** `tests/e2e/test_*.py`
+
+**Examples:**
+- `test_script_executor.py` - Tests C64 script parser and executor (mock-based)
+- `test_network_simulation.py` - Network packet replay validation
+- `test_network_timing_validation.py` - UDP timing accuracy tests
+
+**Running Python tests:**
+
+```bash
+cd tests/e2e
+python3 -m pytest test_*.py -v --tb=short
+```
+
+**Coverage:**
+- Script command parsing and validation
+- Executor state machine behavior
+- REST API call sequencing
+- Network timing and packet generation
+- Mock-based testing of C64U interactions
+
+#### 3. E2E Script Tests
+
+**Purpose:** Real-world script execution scenarios for automation and REST control features.
+
+**Location:** `tests/script/scripts/*.c64script`
+
+**Test scripts:**
+- `basic_automation.c64script` - Simple command sequence
+- `palette_cycling.c64script` - Palette changes during execution
+- `effect_showcase.c64script` - Effect transitions
+- `recording_workflow.c64script` - Record start/stop automation
+- `error_recovery.c64script` - Error handling scenarios
+- `complex_sequence.c64script` - Multi-step automation workflow
+
+**Running script tests:**
+
+```bash
+# Run all script tests through OBS (requires OBS with plugin installed)
+cd tests/e2e
+for script in scripts/*.c64script; do
+    echo "Testing: $script"
+    # Manual execution through OBS UI or automated harness
+done
+```
+
+**Coverage:**
+- Script command execution in real OBS environment
+- REST API integration with C64U device
+- Keyboard injection and automation
+- Effect and palette changes
+- Recording lifecycle management
+
+#### 4. Integration Tests
+
+**Purpose:** Validate interaction between components (network → protocol → rendering).
+
+**Approach:**
+- Packet replay with deterministic inputs
+- Validation of rendering output against expected baselines
+- Frame progression marker detection
+
+**Tools:**
+- `udp_replay` - Precise packet replay tool (built from `udp_replay/udp_replay.c`)
+- `generate_packets.py` - Creates deterministic test packets with visual markers
+
+**E2E Testing**
 
 **Complete plugin validation:**
 
@@ -442,12 +543,128 @@ The project uses GitHub Actions for:
 
 - Multi-platform builds (Ubuntu, macOS, Windows)
 - Code formatting validation
+- Python unit tests (pytest)
 - Package generation
 - Code signing (macOS)
 
 **CI runs:**
 
 - CI is triggered by **committing and pushing** to GitHub.
+
+### CI Test Coverage
+
+**What CI validates:**
+1. **Build integrity** - All platforms compile without errors/warnings
+2. **Code formatting** - clang-format 21+ compliance on all source files
+3. **Python unit tests** - Mock-based testing of script executor and network simulation
+4. **Cross-platform compatibility** - Windows (MSVC), Linux (GCC/Clang), macOS (Clang)
+
+**What CI does NOT validate (local testing only):**
+- E2E tests with real OBS (requires GUI/X11, unstable in cloud environments)
+- Manual testing scenarios (keyboard capture, script execution)
+- Performance testing and profiling
+
+**Before pushing:**
+```bash
+# Run formatting check
+./build-aux/run-clang-format --check
+
+# Run Python unit tests
+cd tests/e2e && python3 -m pytest test_*.py -v
+
+# Run local E2E (if making plugin behavior changes)
+./local-build.sh linux --e2e --install
+```
+
+### Test Coverage Summary
+
+| Test Type             | Location                           | CI  | Local | Purpose                             |
+| --------------------- | ---------------------------------- | --- | ----- | ----------------------------------- |
+| C Unit Tests          | `tests/test_*.c`                   | ✅   | ✅     | Component validation                |
+| Python Unit Tests     | `tests/e2e/test_*.py`              | ✅   | ✅     | Script executor, network simulation |
+| E2E Script Tests      | `tests/script/scripts/*.c64script` | ❌   | ✅     | Real-world automation scenarios     |
+| E2E Full Validation   | `tests/e2e/e2e.sh`                 | ❌   | ✅     | End-to-end recording validation     |
+| Code Formatting       | All `.c`/`.h` files                | ✅   | ✅     | Style consistency                   |
+| Cross-platform Builds | CI matrix                          | ✅   | ⚠️     | Platform compatibility              |
+
+**Coverage philosophy:**
+- **CI:** Fast, deterministic tests that validate core logic and cross-platform builds
+- **Local:** Full validation including GUI, rendering, and real-world scenarios
+- **Both required:** CI must pass before merge, local E2E required for behavior changes
+
+## C64Script Development
+
+### Language Architecture
+
+C64Script is a BASIC-inspired scripting language with modern control flow. The implementation follows a classic compiler pipeline:
+
+1. **Lexer** (`c64-script-token.c`) - Tokenizes source text into tokens
+2. **Parser** (`c64-script-parser.c`) - Builds Abstract Syntax Tree (AST) from tokens
+3. **Compiler** (`c64-script-bytecode.c`) - Generates bytecode from AST
+4. **Runtime** (`c64-script-runtime.c`) - Manages variables, stacks, and execution state
+5. **VM** (`c64-script-vm.c`) - Executes bytecode instructions
+6. **Executor** (`c64-script-executor.c`) - Manages script lifecycle in OBS context
+
+### Script Debugging Features
+
+The debugging system provides source-level debugging without exposing VM internals:
+
+**Controls** (in `c64-properties.c`):
+- Start/Stop - Unified button with state-aware labels
+- Pause/Resume - Pauses at source-line boundaries
+- Step - Executes one source line when paused
+- Log variables - Dumps all variables to OBS log
+
+**Line Tracking** (in `c64-script-vm.c`):
+- `last_executed_line` - Updated after each instruction completes
+- `next_line_to_execute` - Set before executing next instruction
+- `source_line` field in bytecode tracks original line numbers
+
+**Pause Implementation**:
+```c
+// VM checks for pause at source-line boundaries
+if (runtime->should_pause && current_line != runtime->last_executed_line) {
+    runtime->is_paused = true;
+    while (runtime->is_paused && !runtime->should_stop) {
+        os_sleep_ms(10);  // Don't busy-wait
+        if (runtime->step_mode) {
+            runtime->step_mode = false;
+            break;  // Execute one line
+        }
+    }
+}
+```
+
+**Wait Command Handling**:
+- `WAIT` and `WAIT UNTIL` commands check `step_mode` and `is_paused`
+- In debug mode, waits return immediately to avoid blocking
+- Normal wait behavior resumes when script continues running
+
+### Testing Scripts
+
+Unit tests in `tests/script/test_c64script_debug.c` validate:
+- Pause/resume state transitions
+- Step mode execution
+- Line tracking accuracy
+- Variable logging
+- Wait command behavior in debug mode
+
+Example test:
+```c
+TEST(pause_and_resume) {
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    runtime->should_pause = true;  // Request pause
+    // VM will set is_paused when it encounters a new line
+    runtime->is_paused = false;    // Resume
+    c64script_runtime_destroy(runtime);
+}
+```
+
+### Language Reference
+
+- **Full Spec:** [`doc/c64script/c64script-spec.md`](c64script/c64script-spec.md) - Complete language reference
+- **Debugging:** [`doc/c64script/c64script-debugging.md`](c64script/c64script-debugging.md) - Debug workflows and tips
+- **Examples:** [`data/scripts/`](../data/scripts/) - Demo scripts and hello world
 
 ## Contributing
 
@@ -461,6 +678,6 @@ The project uses GitHub Actions for:
 
 ## Resources
 
-- **C64U Streaming Specification:** [`doc/c64u-stream-spec.md`](c64u/c64u-stream-spec.md)
+- **C64U Streaming Specification:** [`doc/c64/c64u-stream-spec.md`](c64/c64u-stream-spec.md)
 - **E2E Testing:** [`doc/testing/e2e.md`](testing/e2e.md)
 - **OBS Plugin Guide:** [OBS Studio Documentation](https://obsproject.com/wiki/Plugin-Development)

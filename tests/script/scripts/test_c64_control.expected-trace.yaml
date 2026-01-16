@@ -1,0 +1,113 @@
+# Execution trace
+script: "test_c64_control.c64script"
+status: success
+error: ~
+program: |
+  01: rem Test C64 Ultimate control commands
+  02: rem Validates playsid, runprg, mountdisk, autostart, reset, reboot
+  03: 
+  04: rem Test 1: Play SID file with song number
+  05: playsid c64u:/Commodore/SID/tune1.sid songnr=1
+  06: wait 500ms
+  07: 
+  08: rem Test 2: Play different SID file
+  09: playsid c64u:/Commodore/SID/tune2.sid songnr=2
+  10: wait 500ms
+  11: 
+  12: rem Test 3: Play SID without explicit song number (defaults to 0)
+  13: playsid c64u:/Commodore/SID/subfolder/tune3.sid
+  14: wait 500ms
+  15: 
+  16: rem Test 4: Run PRG file
+  17: runprg c64u:/Commodore/PRG/game1.prg
+  18: wait 500ms
+  19: 
+  20: rem Test 5: Run another PRG
+  21: runprg c64u:/Commodore/PRG/demo.prg
+  22: wait 500ms
+  23: 
+  24: rem Test 6: Mount disk image
+  25: mountdisk c64u:/Commodore/D64/disk1.d64
+  26: wait 500ms
+  27: 
+  28: rem Test 7: Mount another disk
+  29: mountdisk c64u:/Commodore/D64/disk2.d64
+  30: wait 500ms
+  31: 
+  32: rem Test 8: Reset C64
+  33: reset
+  34: wait 500ms
+  35: 
+  36: rem Test 9: Reboot C64 Ultimate
+  37: reboot
+  38: wait 500ms
+  39: 
+  40: rem Test 10: Autostart (sends LOAD"*",8,1 and RUN)
+  41: autostart
+  42: wait 500ms
+  43: 
+  44: stop
+trace:
+- line: 5
+  content: "playsid c64u:/Commodore/SID/tune1.sid songnr=1"
+  variables: {}
+- line: 6
+  content: "wait 500ms"
+  variables: {}
+- line: 9
+  content: "playsid c64u:/Commodore/SID/tune2.sid songnr=2"
+  variables: {}
+- line: 10
+  content: "wait 500ms"
+  variables: {}
+- line: 13
+  content: "playsid c64u:/Commodore/SID/subfolder/tune3.sid"
+  variables: {}
+- line: 14
+  content: "wait 500ms"
+  variables: {}
+- line: 17
+  content: "runprg c64u:/Commodore/PRG/game1.prg"
+  variables: {}
+- line: 18
+  content: "wait 500ms"
+  variables: {}
+- line: 21
+  content: "runprg c64u:/Commodore/PRG/demo.prg"
+  variables: {}
+- line: 22
+  content: "wait 500ms"
+  variables: {}
+- line: 25
+  content: "mountdisk c64u:/Commodore/D64/disk1.d64"
+  variables: {}
+- line: 26
+  content: "wait 500ms"
+  variables: {}
+- line: 29
+  content: "mountdisk c64u:/Commodore/D64/disk2.d64"
+  variables: {}
+- line: 30
+  content: "wait 500ms"
+  variables: {}
+- line: 33
+  content: "reset"
+  variables: {}
+- line: 34
+  content: "wait 500ms"
+  variables: {}
+- line: 37
+  content: "reboot"
+  variables: {}
+- line: 38
+  content: "wait 500ms"
+  variables: {}
+- line: 41
+  content: "autostart"
+  variables: {}
+- line: 42
+  content: "wait 500ms"
+  variables: {}
+- line: 44
+  content: "stop"
+  variables: {}

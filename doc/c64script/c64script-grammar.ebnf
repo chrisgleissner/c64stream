@@ -1,0 +1,201 @@
+(* C64Script Language Grammar (EBNF) *)
+(*
+   This grammar defines the C64Script language as implemented in the
+   C64Stream OBS Studio plugin. For complete language documentation,
+  see doc/c64script/c64script-spec.md
+*)
+
+(* ========================================================================== *)
+(* LEXEMES *)
+(* ========================================================================== *)
+
+WS              = {" " | "\t"} ;
+EOL             = "\n" | "\r\n" ;
+DIGIT           = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ;
+HEX             = DIGIT | "A" | "B" | "C" | "D" | "E" | "F" | "a" | "b" | "c" | "d" | "e" | "f" ;
+LETTER_UPPER    = "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J" | "K" | "L" | "M" | "N" | "O" | "P" | "Q" | "R" | "S" | "T" | "U" | "V" | "W" | "X" | "Y" | "Z" ;
+LETTER_LOWER    = "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" | "k" | "l" | "m" | "n" | "o" | "p" | "q" | "r" | "s" | "t" | "u" | "v" | "w" | "x" | "y" | "z" ;
+LETTER          = LETTER_UPPER | LETTER_LOWER ;
+
+identifier      = LETTER, { LETTER | DIGIT | "_" }, ["$" | "%" | "()" | "{}"] ;
+array_access    = identifier, "(", [WS], expr, [WS], ")" ;
+map_access      = identifier, "{", [WS], expr, [WS], "}" ;
+label_name      = LETTER, { LETTER | DIGIT } ;
+word            = ? any non-empty sequence of characters excluding whitespace, `"`, and EOL ? ;
+
+number          = DIGIT, {DIGIT}, [".", DIGIT, {DIGIT}] ;
+hex_number      = "$", HEX, {HEX} ;
+
+line_number     = DIGIT, {DIGIT} ;
+label           = label_name | line_number ;
+label_ref       = label ;
+
+string_literal  = '"', { string_char }, '"' ;
+string_char     = ? any character except '"', '\', and EOL ? | '""' | escape_seq ;
+escape_seq      = "\", ( "\" | """" | "r" | "n" | "t" | ("x", HEX, HEX) ) ;
+
+duration_lit    = number, ("ms" | "s" | "m" | "h" | "d") ;
+
+(* ========================================================================== *)
+(* TOP LEVEL *)
+(* ========================================================================== *)
+
+script          = { line }, EOF ;
+line            = [WS], [label_def], [statement], EOL
+                | [WS], EOL ;
+
+label_def       = label, [":"], [WS] ;
+
+(* ========================================================================== *)
+(* STATEMENTS *)
+(* ========================================================================== *)
+
+statement =
+    rem_stmt
+  | assignment
+  | dim_stmt
+  | if_stmt
+  | for_stmt
+  | while_stmt
+  | function_def
+  | label_stmt
+  | goto_stmt
+  | gosub_stmt
+  | return_stmt
+  | stop_stmt
+  | wait_stmt
+  | effect_stmt
+  | effect_param_stmt
+  | palette_stmt
+  | palette_color_stmt
+  | play_sid_stmt
+  | run_prg_stmt
+  | run_local_stmt
+  | mount_disk_stmt
+  | autostart_stmt
+  | reset_stmt
+  | reboot_stmt
+  | record_start_stmt
+  | record_stop_stmt
+  | type_stmt
+  | key_stmt
+  | http_stmt
+  | read_file_stmt
+  | write_file_stmt
+  | logfile_stmt
+  | log_stmt
+  | tron_stmt
+  | troff_stmt
+  | print_stmt
+  | poke_stmt
+  ;
+
+rem_stmt         = "REM", { ? any character except EOL ? } ;
+
+assignment      = ["LET", WS], ( identifier | array_access | map_access ), [WS], "=", [WS], expr ;
+
+dim_stmt        = "DIM", WS, identifier, "(", [WS], expr, [WS], ")" ;
+
+label_stmt      = "LABEL", WS, label_ref ;
+goto_stmt       = "GOTO", WS, label_ref ;
+gosub_stmt      = "GOSUB", WS, label_ref, [WS, "(", [WS], [expr, { [WS], ",", [WS], expr }], [WS], ")"] ;
+return_stmt     = "RETURN", [[WS], expr] ;
+stop_stmt       = "STOP" | "END" ;
+
+wait_stmt       = "WAIT", WS, (wait_until | wait_duration | wait_mem) ;
+wait_duration   = wait_arg ;
+wait_until      = "UNTIL", WS, expr ;
+wait_arg        = duration_lit | expr, [WS, ("ms" | "s" | "m" | "h" | "d")] ;
+wait_mem        = expr, [WS], ",", [WS], expr, [WS], [",", [WS], expr], [WS, "EVERY", WS, wait_arg] ;
+
+function_def    = "FUN", WS, identifier, [WS, "(", [WS], [identifier, { [WS], ",", [WS], identifier }], [WS], ")"], EOL,
+                      { line },
+                  ("ENDFUN" | ("END", WS, "FUN")) ;
+
+if_stmt         =
+    "IF", WS, bool_expr, WS, "THEN", WS, statement, [WS, "ELSE", WS, statement]
+  | "IF", WS, bool_expr, WS, "THEN", EOL,
+        { line },
+    ["ELSE", EOL, { line }],
+    "ENDIF"
+  ;
+
+for_stmt        = "FOR", WS, identifier, [WS], "=", [WS], expr, WS, "TO", WS, expr,
+                  [WS, "STEP", WS, expr], EOL,
+                      { line },
+                  "NEXT", [WS, identifier] ;
+
+while_stmt      = "WHILE", WS, bool_expr, EOL,
+                      { line },
+                  ("WEND" | "ENDWHILE" | ("END", WS, "WHILE")) ;
+
+(* ========================================================================== *)
+(* PLUGIN ACTIONS *)
+(* ========================================================================== *)
+
+effect_stmt         = "EFFECT", WS, string_or_word ;
+effect_param_stmt   = ("EFFECT_PARAM" | "EFFECTPARAM"), WS, identifier, WS, expr ;
+palette_stmt        = "PALETTE", WS, string_or_word ;
+palette_color_stmt  = ("PALETTE_COLOR" | "PALETTECOLOR"), WS, expr, [WS], ",", [WS], expr, [WS], ",", [WS], expr, [WS], ",", [WS], expr ;
+
+play_sid_stmt       = ("PLAY_SID" | "PLAYSID"), WS, path_expr, [WS, "SONGNR", [WS], "=", [WS], expr] ;
+run_prg_stmt        = ("RUN_PRG" | "RUNPRG"), WS, path_expr ;
+run_local_stmt      = ("RUN_LOCAL" | "RUNLOCAL"), WS, path_expr, [WS, "ARGS", WS, expr], [WS, "STATUS", WS, identifier], [WS, "OUTPUT", WS, identifier] ;
+mount_disk_stmt     = ("MOUNT_DISK" | "MOUNTDISK"), WS, path_expr ;
+
+http_stmt           = ("HTTP" | "CALL_HTTP" | "CALLHTTP"), WS, http_method, WS, expr,
+                      [WS, "HEADERS", WS, expr],
+                      [WS, "BODY", WS, expr],
+                      [WS, "STATUS", WS, identifier],
+                      [WS, "RESPONSE", WS, identifier] ;
+http_method         = "GET" | "POST" | "PUT" | "DELETE" | "PATCH" ;
+
+autostart_stmt      = "AUTOSTART" ;
+reset_stmt          = "RESET" ;
+reboot_stmt         = "REBOOT" ;
+
+record_start_stmt   = ("RECORD_START" | "RECORDSTART") ;
+record_stop_stmt    = ("RECORD_STOP" | "RECORDSTOP") ;
+
+type_stmt           = "TYPE", WS, expr ;
+key_stmt            = "KEY", WS, (string_or_word | number | hex_number) ;
+
+read_file_stmt      = ("READ_FILE" | "READFILE"), WS, path_expr, WS, identifier ;
+write_file_stmt     = ("WRITE_FILE" | "WRITEFILE"), WS, path_expr, [WS], ",", [WS], expr, [WS, ("APPEND" | "TRUNCATE")] ;
+
+logfile_stmt        = "LOGFILE", WS, path_expr, [WS, ("APPEND" | "TRUNCATE")] ;
+log_stmt            = "LOG", WS, expr ;
+
+tron_stmt           = "TRON" ;
+troff_stmt          = "TROFF" ;
+
+print_stmt          = "PRINT", WS, expr ;
+
+poke_stmt           = "POKE", WS, expr, [WS], ",", [WS], expr
+                    | "POKE", WS, expr, [WS], ",", [WS], "[", expr, { [WS], ",", [WS], expr }, "]" ;
+
+(* ========================================================================== *)
+(* EXPRESSIONS *)
+(* ========================================================================== *)
+
+expr            = or_expr ;
+bool_expr       = or_expr ;
+
+or_expr         = xor_expr, { [WS], "OR", [WS], xor_expr } ;
+xor_expr        = and_expr, { [WS], "XOR", [WS], and_expr } ;
+and_expr        = not_expr, { [WS], "AND", [WS], not_expr } ;
+not_expr        = ["NOT", [WS]], rel_expr ;
+
+rel_expr        = add_expr, [ [WS], rel_op, [WS], add_expr ] ;
+rel_op          = "=" | "==" | "<>" | "!=" | "<" | "<=" | ">" | ">=" ;
+
+add_expr        = mul_expr, { [WS], ("+" | "-"), [WS], mul_expr } ;
+mul_expr        = unary_expr, { [WS], ("*" | "/"), [WS], unary_expr } ;
+unary_expr      = [("+" | "-"), [WS]], primary ;
+
+primary         = number | hex_number | string_literal | function_call | array_access | map_access | identifier | "(", [WS], expr, [WS], ")" ;
+
+function_call   = identifier, [WS], "(", [WS], [expr, { [WS], ",", [WS], expr }], [WS], ")" ;
+
+string_or_word  = string_literal | identifier | word ;
+path_expr       = string_literal | identifier | word ;

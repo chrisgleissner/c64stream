@@ -1,0 +1,15 @@
+# Execution trace
+script: "test_error_missing_next.c64script"
+status: parse_failure
+error:
+  line: 0
+  message: "[Line 8:0] Error at '\n': Expected NEXT"
+program: |
+  1: rem Test for loop without matching next
+  2: 
+  3: for I = 1 to 5
+  4:     effect "Sharp Pixels"
+  5:     wait 100ms
+  6: rem Missing next I - should cause parse error
+  7: stop
+trace: []

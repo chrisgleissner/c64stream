@@ -1,0 +1,42 @@
+rem Test maximum nesting depth for loops
+rem This should hit the nesting limit (typically 16 levels)
+
+rem Attempt to nest 20 for loops (should fail at limit)
+for L1 = 1 to 2
+for L2 = 1 to 2
+for L3 = 1 to 2
+for L4 = 1 to 2
+for L5 = 1 to 2
+for L6 = 1 to 2
+for L7 = 1 to 2
+for L8 = 1 to 2
+for L9 = 1 to 2
+for L10 = 1 to 2
+for L11 = 1 to 2
+for L12 = 1 to 2
+for L13 = 1 to 2
+for L14 = 1 to 2
+for L15 = 1 to 2
+for L16 = 1 to 2
+for L17 = 1 to 2
+rem Should fail here or earlier
+effect "Sharp Pixels"
+wait 10ms
+next L17
+next L16
+next L15
+next L14
+next L13
+next L12
+next L11
+next L10
+next L9
+next L8
+next L7
+next L6
+next L5
+next L4
+next L3
+next L2
+next L1
+stop

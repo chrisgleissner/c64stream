@@ -1,0 +1,26 @@
+REM Hello World BASIC Demo
+REM Resets the C64, types a BASIC program that prints "HELLO WORLD" in a loop,
+REM runs it for 5 seconds, then resets the C64 again.
+
+LOG "Starting Hello World BASIC demo"
+RESET
+WAIT 3s
+
+TYPE "10 FOR I=1 TO 1000:PRINT \"HELLO WORLD\";I:NEXT I"
+KEY 13
+WAIT 500ms
+
+TYPE "20 GOTO 10"
+KEY 13
+WAIT 500ms
+
+TYPE "RUN"
+KEY 13
+LOG "BASIC program running, waiting 5 seconds..."
+WAIT 5s
+
+LOG "Resetting C64 to stop program"
+RESET
+WAIT 1s
+
+LOG "Hello World demo completed"

@@ -44,6 +44,7 @@
         "*.hpp": "cpp",
         "*.yml": "yaml",
         "*.yaml": "yaml",
+        "*.c64script": "c64script",
         "fstream": "c"
     },
 
@@ -77,6 +78,41 @@
     "[markdown]": {
         "editor.defaultFormatter": "yzhang.markdown-all-in-one"
     },
+    "[c64script]": {
+        "editor.tabSize": 4,
+        "editor.insertSpaces": true,
+        "editor.formatOnSave": false,
+        "editor.semanticHighlighting.enabled": false,
+        "editor.quickSuggestions": {
+            "other": false,
+            "comments": false,
+            "strings": false
+        },
+        "editor.parameterHints.enabled": false,
+        "editor.suggest.enabled": false,
+        "editor.hover.enabled": "off",
+        "editor.codeLens": false
+    },
+
+    // Disable Copilot diagnostics for C64Script
+    "github.copilot.editor.enableCodeActions": false,
+    "github.copilot.enable": {
+        "*": true,
+        "c64script": false
+    },
+
+    // Completely disable validation and diagnostics for C64Script files
+    "problems.visibility": {
+        "c64script": false
+    },
+
+    // Exclude c64script files from various language services
+    "files.exclude": {},
+
+    // Explicitly disable JS/TS validation for .c64script files
+    "javascript.validate.enable": true,
+    "typescript.validate.enable": true,
+    "js/ts.implicitProjectConfig.checkJs": false,
 
     // GitHub Actions settings
     "github-actions.workflows.pinned.workflows": [

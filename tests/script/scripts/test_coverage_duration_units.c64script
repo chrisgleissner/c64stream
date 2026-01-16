@@ -1,0 +1,8 @@
+REM Coverage: duration units and default seconds
+LOG "start"
+WAIT 1m
+WAIT 1h
+WAIT 1d
+WAIT 1.5
+LOG "done"
+STOP

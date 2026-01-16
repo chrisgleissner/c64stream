@@ -1,0 +1,7 @@
+rem Test for loop without matching next
+
+for I = 1 to 5
+    effect "Sharp Pixels"
+    wait 100ms
+rem Missing next I - should cause parse error
+stop

@@ -1,0 +1,470 @@
+# Execution trace
+script: "test_boolean_logic.c64script"
+status: success
+error: ~
+program: |
+  01: rem Test boolean logic operators (and, or, not, xor)
+  02: rem Tests truthiness, operator precedence, and combinations
+  03: 
+  04: rem Test 1: Basic and operator
+  05: A = 1
+  06: B = 1
+  07: if A and B then
+  08:     effect "Sharp Pixels"
+  09: endif
+  10: 
+  11: rem Test 2: Basic or operator
+  12: C = 0
+  13: D = 1
+  14: if C or D then
+  15:     palette "colodore"
+  16: endif
+  17: 
+  18: rem Test 3: not operator
+  19: E = 0
+  20: if not E then
+  21:     effect "Soft CRT"
+  22: endif
+  23: 
+  24: rem Test 4: xor operator
+  25: F = 1
+  26: G = 0
+  27: if F xor G then
+  28:     palette "pepto_ntsc"
+  29: endif
+  30: 
+  31: rem Test 5: Combined operators - (A and B) or C
+  32: H = 0
+  33: I = 0
+  34: J = 1
+  35: if (H and I) or J then
+  36:     effect "Light Scanlines"
+  37: endif
+  38: 
+  39: rem Test 6: not with and - not (A and B)
+  40: K = 1
+  41: L = 0
+  42: if not (K and L) then
+  43:     palette "vice_new"
+  44: endif
+  45: 
+  46: rem Test 7: Complex expression with precedence
+  47: rem (A or B) and (C or D)
+  48: M = 1
+  49: N = 0
+  50: O = 0
+  51: P = 1
+  52: if (M or N) and (O or P) then
+  53:     effect "CRT Monitor Warm"
+  54: endif
+  55: 
+  56: rem Test 8: Bitwise operations (and/or/xor operate on integers)
+  57: rem 5 and 3 should be 1 (0101 & 0011 = 0001)
+  58: RESULT = 5 and 3
+  59: if RESULT = 1 then
+  60:     effect "Heavy Scanlines"
+  61: endif
+  62: 
+  63: stop
+trace:
+- line: 5
+  content: "A = 1"
+  variables: {}
+- line: 6
+  content: "B = 1"
+  variables:
+    A: 1
+- line: 7
+  content: "if A and B then"
+  variables:
+    A: 1
+    B: 1
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables:
+    A: 1
+    B: 1
+- line: 12
+  content: "C = 0"
+  variables:
+    A: 1
+    B: 1
+- line: 13
+  content: "D = 1"
+  variables:
+    A: 1
+    B: 1
+    C: 0
+- line: 14
+  content: "if C or D then"
+  variables:
+    A: 1
+    B: 1
+    C: 0
+    D: 1
+- line: 15
+  content: "palette \"colodore\""
+  variables:
+    A: 1
+    B: 1
+    C: 0
+    D: 1
+- line: 19
+  content: "E = 0"
+  variables:
+    A: 1
+    B: 1
+    C: 0
+    D: 1
+- line: 20
+  content: "if not E then"
+  variables:
+    A: 1
+    B: 1
+    C: 0
+    D: 1
+    E: 0
+- line: 21
+  content: "effect \"Soft CRT\""
+  variables:
+    A: 1
+    B: 1
+    C: 0
+    D: 1
+    E: 0
+- line: 25
+  content: "F = 1"
+  variables:
+    A: 1
+    B: 1
+    C: 0
+    D: 1
+    E: 0
+- line: 26
+  content: "G = 0"
+  variables:
+    A: 1
+    B: 1
+    C: 0
+    D: 1
+    E: 0
+    F: 1
+- line: 27
+  content: "if F xor G then"
+  variables:
+    A: 1
+    B: 1
+    C: 0
+    D: 1
+    E: 0
+    F: 1
+    G: 0
+- line: 28
+  content: "palette \"pepto_ntsc\""
+  variables:
+    A: 1
+    B: 1
+    C: 0
+    D: 1
+    E: 0
+    F: 1
+    G: 0
+- line: 32
+  content: "H = 0"
+  variables:
+    A: 1
+    B: 1
+    C: 0
+    D: 1
+    E: 0
+    F: 1
+    G: 0
+- line: 33
+  content: "I = 0"
+  variables:
+    A: 1
+    B: 1
+    C: 0
+    D: 1
+    E: 0
+    F: 1
+    G: 0
+    H: 0
+- line: 34
+  content: "J = 1"
+  variables:
+    A: 1
+    B: 1
+    C: 0
+    D: 1
+    E: 0
+    F: 1
+    G: 0
+    H: 0
+    I: 0
+- line: 35
+  content: "if (H and I) or J then"
+  variables:
+    A: 1
+    B: 1
+    C: 0
+    D: 1
+    E: 0
+    F: 1
+    G: 0
+    H: 0
+    I: 0
+    J: 1
+- line: 36
+  content: "effect \"Light Scanlines\""
+  variables:
+    A: 1
+    B: 1
+    C: 0
+    D: 1
+    E: 0
+    F: 1
+    G: 0
+    H: 0
+    I: 0
+    J: 1
+- line: 40
+  content: "K = 1"
+  variables:
+    A: 1
+    B: 1
+    C: 0
+    D: 1
+    E: 0
+    F: 1
+    G: 0
+    H: 0
+    I: 0
+    J: 1
+- line: 41
+  content: "L = 0"
+  variables:
+    A: 1
+    B: 1
+    C: 0
+    D: 1
+    E: 0
+    F: 1
+    G: 0
+    H: 0
+    I: 0
+    J: 1
+    K: 1
+- line: 42
+  content: "if not (K and L) then"
+  variables:
+    A: 1
+    B: 1
+    C: 0
+    D: 1
+    E: 0
+    F: 1
+    G: 0
+    H: 0
+    I: 0
+    J: 1
+    K: 1
+    L: 0
+- line: 43
+  content: "palette \"vice_new\""
+  variables:
+    A: 1
+    B: 1
+    C: 0
+    D: 1
+    E: 0
+    F: 1
+    G: 0
+    H: 0
+    I: 0
+    J: 1
+    K: 1
+    L: 0
+- line: 48
+  content: "M = 1"
+  variables:
+    A: 1
+    B: 1
+    C: 0
+    D: 1
+    E: 0
+    F: 1
+    G: 0
+    H: 0
+    I: 0
+    J: 1
+    K: 1
+    L: 0
+- line: 49
+  content: "N = 0"
+  variables:
+    A: 1
+    B: 1
+    C: 0
+    D: 1
+    E: 0
+    F: 1
+    G: 0
+    H: 0
+    I: 0
+    J: 1
+    K: 1
+    L: 0
+    M: 1
+- line: 50
+  content: "O = 0"
+  variables:
+    A: 1
+    B: 1
+    C: 0
+    D: 1
+    E: 0
+    F: 1
+    G: 0
+    H: 0
+    I: 0
+    J: 1
+    K: 1
+    L: 0
+    M: 1
+    N: 0
+- line: 51
+  content: "P = 1"
+  variables:
+    A: 1
+    B: 1
+    C: 0
+    D: 1
+    E: 0
+    F: 1
+    G: 0
+    H: 0
+    I: 0
+    J: 1
+    K: 1
+    L: 0
+    M: 1
+    N: 0
+    O: 0
+- line: 52
+  content: "if (M or N) and (O or P) then"
+  variables:
+    A: 1
+    B: 1
+    C: 0
+    D: 1
+    E: 0
+    F: 1
+    G: 0
+    H: 0
+    I: 0
+    J: 1
+    K: 1
+    L: 0
+    M: 1
+    N: 0
+    O: 0
+    P: 1
+- line: 53
+  content: "effect \"CRT Monitor Warm\""
+  variables:
+    A: 1
+    B: 1
+    C: 0
+    D: 1
+    E: 0
+    F: 1
+    G: 0
+    H: 0
+    I: 0
+    J: 1
+    K: 1
+    L: 0
+    M: 1
+    N: 0
+    O: 0
+    P: 1
+- line: 58
+  content: "RESULT = 5 and 3"
+  variables:
+    A: 1
+    B: 1
+    C: 0
+    D: 1
+    E: 0
+    F: 1
+    G: 0
+    H: 0
+    I: 0
+    J: 1
+    K: 1
+    L: 0
+    M: 1
+    N: 0
+    O: 0
+    P: 1
+- line: 59
+  content: "if RESULT = 1 then"
+  variables:
+    A: 1
+    B: 1
+    C: 0
+    D: 1
+    E: 0
+    F: 1
+    G: 0
+    H: 0
+    I: 0
+    J: 1
+    K: 1
+    L: 0
+    M: 1
+    N: 0
+    O: 0
+    P: 1
+    RESULT: 1
+- line: 60
+  content: "effect \"Heavy Scanlines\""
+  variables:
+    A: 1
+    B: 1
+    C: 0
+    D: 1
+    E: 0
+    F: 1
+    G: 0
+    H: 0
+    I: 0
+    J: 1
+    K: 1
+    L: 0
+    M: 1
+    N: 0
+    O: 0
+    P: 1
+    RESULT: 1
+- line: 63
+  content: "stop"
+  variables:
+    A: 1
+    B: 1
+    C: 0
+    D: 1
+    E: 0
+    F: 1
+    G: 0
+    H: 0
+    I: 0
+    J: 1
+    K: 1
+    L: 0
+    M: 1
+    N: 0
+    O: 0
+    P: 1
+    RESULT: 1

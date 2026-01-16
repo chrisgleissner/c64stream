@@ -1,0 +1,16 @@
+# Execution trace
+script: "test_error_goto_missing.c64script"
+status: compile_failure
+error:
+  line: 0
+  message: "Undefined label: NONEXISTENT_LABEL"
+program: |
+  1: rem Test missing goto target (should cause runtime error)
+  2: rem Jump to a label that doesn't exist
+  3: 
+  4: effect "Sharp Pixels"
+  5: wait 100ms
+  6: goto nonexistent_label
+  7: effect "Soft CRT"
+  8: stop
+trace: []

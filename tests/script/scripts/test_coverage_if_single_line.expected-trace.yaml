@@ -1,0 +1,21 @@
+# Execution trace
+script: "test_coverage_if_single_line.c64script"
+status: success
+error: ~
+program: |
+  1: REM Coverage: single-line IF THEN ELSE
+  2: X = 1
+  3: IF X = 1 THEN LOG "yes" ELSE LOG "no"
+  4: STOP
+trace:
+- line: 2
+  content: "X = 1"
+  variables: {}
+- line: 3
+  content: "IF X = 1 THEN LOG \"yes\" ELSE LOG \"no\""
+  variables:
+    X: 1
+- line: 4
+  content: "STOP"
+  variables:
+    X: 1

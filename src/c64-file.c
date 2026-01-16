@@ -183,6 +183,9 @@ bool c64_get_user_dir(c64_user_dir_type type, char *path_buffer, size_t buffer_s
     case C64_USER_DIR_PRESETS:
         subdir = "presets";
         break;
+    case C64_USER_DIR_SCRIPTS:
+        subdir = "scripts";
+        break;
     default:
         C64_LOG_WARNING("" FILE_LOG_PREFIX " Invalid user directory type: %d", type);
         return false;

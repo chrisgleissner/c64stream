@@ -1,0 +1,6 @@
+REM Coverage: integer suffix and division
+I% = 7
+HALF = 14 / 2
+LOG I%
+LOG HALF
+STOP

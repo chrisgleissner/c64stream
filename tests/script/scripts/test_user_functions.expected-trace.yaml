@@ -1,0 +1,479 @@
+# Execution trace
+script: "test_user_functions.c64script"
+status: success
+error: ~
+program: |
+  001: rem Test user-defined functions
+  002: rem Validates FUN/ENDFUN with parameters and return values
+  003: 
+  004: rem Test 1: Simple function with no parameters
+  005: FUN GET_CONSTANT()
+  006:     return 42
+  007: ENDFUN
+  008: 
+  009: CONSTANT = GET_CONSTANT()
+  010: LOG "Constant: " + STR(CONSTANT)
+  011: wait 100ms
+  012: 
+  013: rem Test 2: Function with one parameter
+  014: FUN DOUBLE(X)
+  015:     return X * 2
+  016: ENDFUN
+  017: 
+  018: DOUBLED = DOUBLE(21)
+  019: LOG "Double of 21: " + STR(DOUBLED)
+  020: wait 100ms
+  021: 
+  022: rem Test 3: Function with multiple parameters
+  023: FUN ADD(A, B)
+  024:     return A + B
+  025: ENDFUN
+  026: 
+  027: SUM = ADD(10, 20)
+  028: LOG "10 + 20 = " + STR(SUM)
+  029: wait 100ms
+  030: 
+  031: rem Test 4: Function with string parameter
+  032: FUN GREET(NAME$)
+  033:     return "Hello, " + NAME$ + "!"
+  034: ENDFUN
+  035: 
+  036: GREETING$ = GREET("Alice")
+  037: LOG GREETING$
+  038: wait 100ms
+  039: 
+  040: rem Test 5: Function with local variables
+  041: FUN CALCULATE(X, Y)
+  042:     TEMP = X * 2
+  043:     RESULT = TEMP + Y
+  044:     return RESULT
+  045: ENDFUN
+  046: 
+  047: VALUE = CALCULATE(5, 10)
+  048: LOG "Calculate(5, 10): " + STR(VALUE)
+  049: wait 100ms
+  050: 
+  051: rem Test 6: Function with conditional
+  052: FUN MAX(A, B)
+  053:     if A > B then
+  054:         return A
+  055:     else
+  056:         return B
+  057:     endif
+  058: ENDFUN
+  059: 
+  060: MAXIMUM = MAX(15, 10)
+  061: LOG "MAX(15, 10): " + STR(MAXIMUM)
+  062: wait 100ms
+  063: 
+  064: rem Test 7: Function with loop
+  065: FUN FACTORIAL(N)
+  066:     if N <= 1 then
+  067:         return 1
+  068:     endif
+  069:     RESULT = 1
+  070:     for I = 2 to N
+  071:         RESULT = RESULT * I
+  072:     next I
+  073:     return RESULT
+  074: ENDFUN
+  075: 
+  076: FACT5 = FACTORIAL(5)
+  077: LOG "Factorial(5): " + STR(FACT5)
+  078: wait 100ms
+  079: 
+  080: rem Test 8: Recursive function (careful with depth)
+  081: FUN FIB(N)
+  082:     if N <= 1 then
+  083:         return N
+  084:     endif
+  085:     return FIB(N - 1) + FIB(N - 2)
+  086: ENDFUN
+  087: 
+  088: FIB5 = FIB(5)
+  089: LOG "Fibonacci(5): " + STR(FIB5)
+  090: wait 100ms
+  091: 
+  092: rem Test 9: Function calling another function
+  093: FUN SQUARE(X)
+  094:     return X * X
+  095: ENDFUN
+  096: 
+  097: FUN SUM_OF_SQUARES(A, B)
+  098:     return SQUARE(A) + SQUARE(B)
+  099: ENDFUN
+  100: 
+  101: SOS = SUM_OF_SQUARES(3, 4)
+  102: LOG "3^2 + 4^2 = " + STR(SOS)
+  103: wait 100ms
+  104: 
+  105: rem Test 10: Function with effect
+  106: FUN APPLY_EFFECT_AND_WAIT(EFFECT_NAME$, DURATION)
+  107:     effect EFFECT_NAME$
+  108:     wait DURATION
+  109:     return 1
+  110: ENDFUN
+  111: 
+  112: SUCCESS = APPLY_EFFECT_AND_WAIT("Sharp Pixels", 0.2)
+  113: if SUCCESS = 1 then
+  114:     LOG "Effect applied successfully"
+  115: endif
+  116: 
+  117: rem Test 11: Function in loop
+  118: for J = 1 to 3
+  119:     RESULT = DOUBLE(J)
+  120:     LOG "Double of " + STR(J) + " is " + STR(RESULT)
+  121:     wait 50ms
+  122: next J
+  123: 
+  124: stop
+trace:
+- line: 5
+  content: "FUN GET_CONSTANT()"
+  variables: {}
+- line: 9
+  content: "CONSTANT = GET_CONSTANT()"
+  variables: {}
+- line: 6
+  content: "return 42"
+  variables: {}
+- line: 10
+  content: "LOG \"Constant: \" + STR(CONSTANT)"
+  variables: {}
+- line: 11
+  content: "wait 100ms"
+  variables: {}
+- line: 14
+  content: "FUN DOUBLE(X)"
+  variables: {}
+- line: 18
+  content: "DOUBLED = DOUBLE(21)"
+  variables: {}
+- line: 15
+  content: "return X * 2"
+  variables: {}
+- line: 19
+  content: "LOG \"Double of 21: \" + STR(DOUBLED)"
+  variables: {}
+- line: 20
+  content: "wait 100ms"
+  variables: {}
+- line: 23
+  content: "FUN ADD(A, B)"
+  variables: {}
+- line: 27
+  content: "SUM = ADD(10, 20)"
+  variables: {}
+- line: 24
+  content: "return A + B"
+  variables: {}
+- line: 28
+  content: "LOG \"10 + 20 = \" + STR(SUM)"
+  variables: {}
+- line: 29
+  content: "wait 100ms"
+  variables: {}
+- line: 32
+  content: "FUN GREET(NAME$)"
+  variables: {}
+- line: 36
+  content: "GREETING$ = GREET(\"Alice\")"
+  variables: {}
+- line: 33
+  content: "return \"Hello, \" + NAME$ + \"!\""
+  variables: {}
+- line: 37
+  content: "LOG GREETING$"
+  variables: {}
+- line: 38
+  content: "wait 100ms"
+  variables: {}
+- line: 41
+  content: "FUN CALCULATE(X, Y)"
+  variables: {}
+- line: 47
+  content: "VALUE = CALCULATE(5, 10)"
+  variables: {}
+- line: 42
+  content: "TEMP = X * 2"
+  variables: {}
+- line: 43
+  content: "RESULT = TEMP + Y"
+  variables: {}
+- line: 44
+  content: "return RESULT"
+  variables: {}
+- line: 48
+  content: "LOG \"Calculate(5, 10): \" + STR(VALUE)"
+  variables: {}
+- line: 49
+  content: "wait 100ms"
+  variables: {}
+- line: 52
+  content: "FUN MAX(A, B)"
+  variables: {}
+- line: 60
+  content: "MAXIMUM = MAX(15, 10)"
+  variables: {}
+- line: 53
+  content: "if A > B then"
+  variables: {}
+- line: 54
+  content: "return A"
+  variables: {}
+- line: 61
+  content: "LOG \"MAX(15, 10): \" + STR(MAXIMUM)"
+  variables: {}
+- line: 62
+  content: "wait 100ms"
+  variables: {}
+- line: 65
+  content: "FUN FACTORIAL(N)"
+  variables: {}
+- line: 76
+  content: "FACT5 = FACTORIAL(5)"
+  variables: {}
+- line: 66
+  content: "if N <= 1 then"
+  variables: {}
+- line: 69
+  content: "RESULT = 1"
+  variables: {}
+- line: 70
+  content: "for I = 2 to N"
+  variables: {}
+- line: 71
+  content: "RESULT = RESULT * I"
+  variables: {}
+- line: 70
+  content: "for I = 2 to N"
+  variables: {}
+- line: 71
+  content: "RESULT = RESULT * I"
+  variables: {}
+- line: 70
+  content: "for I = 2 to N"
+  variables: {}
+- line: 71
+  content: "RESULT = RESULT * I"
+  variables: {}
+- line: 70
+  content: "for I = 2 to N"
+  variables: {}
+- line: 71
+  content: "RESULT = RESULT * I"
+  variables: {}
+- line: 70
+  content: "for I = 2 to N"
+  variables: {}
+- line: 73
+  content: "return RESULT"
+  variables: {}
+- line: 77
+  content: "LOG \"Factorial(5): \" + STR(FACT5)"
+  variables: {}
+- line: 78
+  content: "wait 100ms"
+  variables: {}
+- line: 81
+  content: "FUN FIB(N)"
+  variables: {}
+- line: 88
+  content: "FIB5 = FIB(5)"
+  variables: {}
+- line: 82
+  content: "if N <= 1 then"
+  variables: {}
+- line: 85
+  content: "return FIB(N - 1) + FIB(N - 2)"
+  variables: {}
+- line: 82
+  content: "if N <= 1 then"
+  variables: {}
+- line: 85
+  content: "return FIB(N - 1) + FIB(N - 2)"
+  variables: {}
+- line: 82
+  content: "if N <= 1 then"
+  variables: {}
+- line: 85
+  content: "return FIB(N - 1) + FIB(N - 2)"
+  variables: {}
+- line: 82
+  content: "if N <= 1 then"
+  variables: {}
+- line: 85
+  content: "return FIB(N - 1) + FIB(N - 2)"
+  variables: {}
+- line: 82
+  content: "if N <= 1 then"
+  variables: {}
+- line: 83
+  content: "return N"
+  variables: {}
+- line: 85
+  content: "return FIB(N - 1) + FIB(N - 2)"
+  variables: {}
+- line: 82
+  content: "if N <= 1 then"
+  variables: {}
+- line: 83
+  content: "return N"
+  variables: {}
+- line: 85
+  content: "return FIB(N - 1) + FIB(N - 2)"
+  variables: {}
+- line: 85
+  content: "return FIB(N - 1) + FIB(N - 2)"
+  variables: {}
+- line: 82
+  content: "if N <= 1 then"
+  variables: {}
+- line: 83
+  content: "return N"
+  variables: {}
+- line: 85
+  content: "return FIB(N - 1) + FIB(N - 2)"
+  variables: {}
+- line: 85
+  content: "return FIB(N - 1) + FIB(N - 2)"
+  variables: {}
+- line: 82
+  content: "if N <= 1 then"
+  variables: {}
+- line: 83
+  content: "return N"
+  variables: {}
+- line: 85
+  content: "return FIB(N - 1) + FIB(N - 2)"
+  variables: {}
+- line: 85
+  content: "return FIB(N - 1) + FIB(N - 2)"
+  variables: {}
+- line: 82
+  content: "if N <= 1 then"
+  variables: {}
+- line: 83
+  content: "return N"
+  variables: {}
+- line: 85
+  content: "return FIB(N - 1) + FIB(N - 2)"
+  variables: {}
+- line: 89
+  content: "LOG \"Fibonacci(5): \" + STR(FIB5)"
+  variables: {}
+- line: 90
+  content: "wait 100ms"
+  variables: {}
+- line: 93
+  content: "FUN SQUARE(X)"
+  variables: {}
+- line: 97
+  content: "FUN SUM_OF_SQUARES(A, B)"
+  variables: {}
+- line: 101
+  content: "SOS = SUM_OF_SQUARES(3, 4)"
+  variables: {}
+- line: 98
+  content: "return SQUARE(A) + SQUARE(B)"
+  variables: {}
+- line: 94
+  content: "return X * X"
+  variables: {}
+- line: 98
+  content: "return SQUARE(A) + SQUARE(B)"
+  variables: {}
+- line: 98
+  content: "return SQUARE(A) + SQUARE(B)"
+  variables: {}
+- line: 102
+  content: "LOG \"3^2 + 4^2 = \" + STR(SOS)"
+  variables: {}
+- line: 103
+  content: "wait 100ms"
+  variables: {}
+- line: 106
+  content: "FUN APPLY_EFFECT_AND_WAIT(EFFECT_NAME$, DURATION)"
+  variables: {}
+- line: 112
+  content: "SUCCESS = APPLY_EFFECT_AND_WAIT(\"Sharp Pixels\", 0.2)"
+  variables: {}
+- line: 107
+  content: "effect EFFECT_NAME$"
+  variables: {}
+- line: 108
+  content: "wait DURATION"
+  variables: {}
+- line: 109
+  content: "return 1"
+  variables: {}
+- line: 113
+  content: "if SUCCESS = 1 then"
+  variables: {}
+- line: 118
+  content: "for J = 1 to 3"
+  variables: {}
+- line: 119
+  content: "RESULT = DOUBLE(J)"
+  variables:
+    J: 1
+- line: 15
+  content: "return X * 2"
+  variables:
+    J: 1
+- line: 120
+  content: "LOG \"Double of \" + STR(J) + \" is \" + STR(RESULT)"
+  variables:
+    J: 1
+- line: 121
+  content: "wait 50ms"
+  variables:
+    J: 1
+- line: 118
+  content: "for J = 1 to 3"
+  variables:
+    J: 1
+- line: 119
+  content: "RESULT = DOUBLE(J)"
+  variables:
+    J: 2
+- line: 15
+  content: "return X * 2"
+  variables:
+    J: 2
+- line: 120
+  content: "LOG \"Double of \" + STR(J) + \" is \" + STR(RESULT)"
+  variables:
+    J: 2
+- line: 121
+  content: "wait 50ms"
+  variables:
+    J: 2
+- line: 118
+  content: "for J = 1 to 3"
+  variables:
+    J: 2
+- line: 119
+  content: "RESULT = DOUBLE(J)"
+  variables:
+    J: 3
+- line: 15
+  content: "return X * 2"
+  variables:
+    J: 3
+- line: 120
+  content: "LOG \"Double of \" + STR(J) + \" is \" + STR(RESULT)"
+  variables:
+    J: 3
+- line: 121
+  content: "wait 50ms"
+  variables:
+    J: 3
+- line: 118
+  content: "for J = 1 to 3"
+  variables:
+    J: 3
+- line: 124
+  content: "stop"
+  variables:
+    J: 4

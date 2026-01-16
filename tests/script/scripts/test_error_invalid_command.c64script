@@ -1,0 +1,7 @@
+rem Test error handling and invalid constructs
+rem This script should cause various parse/runtime errors
+
+rem Test 1: Invalid command (should cause parse error)
+invalid_command_that_does_not_exist
+effect "Sharp Pixels"
+stop

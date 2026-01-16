@@ -1,0 +1,51 @@
+name: "Copilot Setup Steps"
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+      - .github/scripts/install-copilot-deps.sh
+  pull_request:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+      - .github/scripts/install-copilot-deps.sh
+
+jobs:
+  copilot-setup-steps:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install Copilot dependencies
+        run: |
+          ./.github/scripts/install-copilot-deps.sh
+
+      - name: Verify installation
+        run: |
+          echo "=== Dependency Verification ==="
+          
+          # Core dependencies
+          for cmd in cmake ninja pkg-config git zsh curl python3; do
+            if command -v $cmd &> /dev/null; then
+              echo "✅ $cmd: $(command -v $cmd)"
+            else
+              echo "❌ $cmd: not found"
+              exit 1
+            fi
+          done
+          
+          echo ""
+          echo "=== libcurl Status ==="
+          if pkg-config --exists libcurl; then
+            echo "✅ libcurl: $(pkg-config --modversion libcurl)"
+          else
+            echo "❌ libcurl development files not found"
+            exit 1
+          fi
+          
+          echo ""
+          echo "✅ All dependencies verified successfully"

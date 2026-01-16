@@ -11,6 +11,7 @@
 !/src
 !/tests
 !/tools
+!/util
 !/.mcp
 !.clang-format
 !.gersemirc
@@ -58,6 +59,9 @@ obs_log.txt
 # Build directories and artifacts
 build_*/
 tests/build*
+
+# Tools
+tools/__pycache__/
 
 # CMake generated files (everywhere)
 CMakeFiles/

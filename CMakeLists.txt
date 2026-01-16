@@ -213,7 +213,24 @@ target_sources(
     src/c64-file.c
     src/c64-effect.c
     src/c64-palette.c
+    src/c64-rest-client.c
+    src/c64-keyboard.c
+    src/c64-automation.c
+    src/c64-automation-playlist.c
+    src/c64-automation-hvsc.c
+    src/c64-script-parser.c
+    src/c64-script-executor.c
+    src/c64-script-token.c
+    src/c64-script-ast.c
+    src/c64-script-bytecode.c
+    src/c64-script-vm.c
+    src/c64-script-runtime.c
+    src/c64-script-builtins.c
 )
+
+# Find and link libcurl for REST API client
+find_package(CURL REQUIRED)
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE CURL::libcurl)
 
 # Link resolver library for DNS functionality on Unix platforms
 if(UNIX)

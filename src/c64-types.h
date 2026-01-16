@@ -21,6 +21,11 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-protocol.h"
 #include "c64-network-fifo.h"
 
+// Forward declarations
+typedef struct c64_rest_client c64_rest_client_t;
+typedef struct c64_keyboard c64_keyboard_t;
+typedef struct c64_keymap c64_keymap_t;
+
 // Frame packet structure for reordering
 struct frame_packet {
     uint16_t line_num;
@@ -318,6 +323,44 @@ struct c64_source {
     int cached_duration_ms; // Duration used for cached decay factors
     int cached_curve;       // Curve used for cached decay factors
     bool decay_cache_valid; // Whether decay cache is valid
+
+    // REST control and keyboard capture
+    c64_rest_client_t *rest_client; // REST API client
+    c64_keyboard_t *keyboard;       // Keyboard capture and injection
+    c64_keymap_t *keymap;           // Current keymap
+    bool keyboard_capture_active;   // Runtime state: capture is currently active
+    char rest_base_url[256];        // REST API base URL
+    char keyboard_keymap_name[64];  // Keymap name (e.g., "symbolic_us")
+
+    // Script automation
+    void *script_executor;          // c64_script_executor_t* (forward declaration to avoid circular dependency)
+    void *current_script;           // c64_script_t* currently loaded script
+    char script_file_path[512];     // Path to .c64script file
+    uint64_t script_start_time;     // os_gettime_ns() when script started
+    uint64_t script_end_time;       // os_gettime_ns() when script ended
+    bool script_ended_successfully; // true if completed successfully, false if error/stopped
+    int last_script_status;         // Last known c64_script_status_t for detecting state changes
+    uint64_t last_ui_update_time;   // Last time UI was updated for throttling (os_gettime_ns())
+    bool force_ui_update;           // Force immediate UI update on next tick (bypass throttling)
+    bool script_autostarted;        // Whether auto-start has been triggered for current script
+    char cached_last_line[512];     // Cached "last executed" line string for UI display
+    char cached_next_line[512];     // Cached "next to execute" line string for UI display
+
+    // Content automation
+    void *automation;                      // c64_automation_t* automation engine
+    char automation_status[256];           // Current automation status for UI display
+    bool playlist_ui_update_in_progress;   // Guard for properties playlist UI updates
+    bool playlist_fingerprint_valid;       // Whether playlist fingerprint is initialized
+    int playlist_last_selected_index;      // Last selected playlist index
+    bool playlist_last_selected_valid;     // Whether last selected index is valid
+    bool playlist_pending_active;          // Whether a user selection is pending while running
+    int playlist_pending_index;            // Pending selection index while running
+    int playlist_ignore_changes;           // Count of programmatic selection changes to ignore
+    int playlist_last_file_system;         // Last file system (0=local,1=C64U)
+    int playlist_last_playback_source;     // Last playback source (0=single,1=folder)
+    bool playlist_last_shuffle;            // Last shuffle flag
+    bool playlist_last_include_subfolders; // Last recursive flag
+    char playlist_last_path[512];          // Last path used to build playlist
 };
 
 #endif // C64_TYPES_H

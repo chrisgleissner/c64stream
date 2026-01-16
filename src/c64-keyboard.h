@@ -1,0 +1,126 @@
+/*
+C64 Stream - An OBS Studio source plugin for Commodore 64 video and audio streaming
+Copyright (C) 2025 Christian Gleissner
+
+Licensed under the GNU General Public License v2.0 or later.
+See <https://www.gnu.org/licenses/> for details.
+*/
+
+#pragma once
+
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+
+/**
+ * Keyboard capture, keymap management, and keystroke injection for C64
+ */
+
+typedef struct c64_keyboard c64_keyboard_t;
+typedef struct c64_keymap c64_keymap_t;
+
+/**
+ * Keystroke output modes
+ */
+typedef enum {
+    C64_OUTPUT_TEXT,    // text:"..." - ASCII to PETSCII conversion
+    C64_OUTPUT_PETSCII, // petscii:0xNN - Raw PETSCII byte
+    C64_OUTPUT_SYMBOLIC // c64:NAME - Symbolic name (RETURN, CURSOR_UP, etc.)
+} c64_output_mode_t;
+
+/**
+ * Keystroke output descriptor
+ */
+typedef struct {
+    c64_output_mode_t mode;
+    union {
+        char text[256];  // For OUTPUT_TEXT
+        uint8_t petscii; // For OUTPUT_PETSCII
+        char symbol[32]; // For OUTPUT_SYMBOLIC
+    } data;
+} c64_output_t;
+
+/**
+ * Load keymap from file
+ * @param path Path to .c64keymap.ini file
+ * @return Keymap instance or NULL on error
+ */
+c64_keymap_t *c64_keymap_load(const char *path);
+
+/**
+ * Destroy keymap and free resources
+ */
+void c64_keymap_destroy(c64_keymap_t *keymap);
+
+/**
+ * Get keymap name (from [meta] name field)
+ */
+const char *c64_keymap_get_name(c64_keymap_t *keymap);
+
+/**
+ * Convert keyboard input to C64 output
+ * @param keymap Keymap to use
+ * @param key_code W3C KeyboardEvent.code (e.g. "KeyA", "Enter")
+ * @param modifiers Bitmask of modifiers (Ctrl=1, Shift=2, Alt=4, etc.)
+ * @param output Output descriptor (filled on success)
+ * @return true if mapping found
+ */
+bool c64_keymap_convert(c64_keymap_t *keymap, const char *key_code, int modifiers, c64_output_t *output);
+
+/**
+ * Create keyboard controller
+ * @param rest_client REST client for DMA operations
+ * @return Keyboard instance or NULL on error
+ */
+c64_keyboard_t *c64_keyboard_create(void *rest_client);
+
+/**
+ * Destroy keyboard controller
+ */
+void c64_keyboard_destroy(c64_keyboard_t *keyboard);
+
+/**
+ * Set active keymap
+ */
+void c64_keyboard_set_keymap(c64_keyboard_t *keyboard, c64_keymap_t *keymap);
+
+/**
+ * Enable/disable keyboard capture
+ * @param enabled true to enable, false to disable and flush queue
+ */
+void c64_keyboard_set_capture(c64_keyboard_t *keyboard, bool enabled);
+
+/**
+ * Check if capture is currently active
+ */
+bool c64_keyboard_is_capturing(c64_keyboard_t *keyboard);
+
+/**
+ * Queue keystroke for injection
+ * @param output Output descriptor from keymap conversion
+ */
+void c64_keyboard_queue_output(c64_keyboard_t *keyboard, const c64_output_t *output);
+
+/**
+ * Get injection worker status
+ * @return Status string (e.g. "idle", "injecting", "timeout")
+ */
+const char *c64_keyboard_get_status(c64_keyboard_t *keyboard);
+
+/**
+ * Discover available keymaps
+ * @param paths Output array of paths (caller must free)
+ * @param count Output count
+ * @return true on success
+ */
+bool c64_keyboard_discover_keymaps(char ***paths, size_t *count);
+
+/**
+ * Perform BASIC warm start via IRQ vector manipulation
+ * Aborts currently running BASIC program and returns to READY prompt
+ * without resetting the machine or destroying user memory.
+ * Thread-safe and safe to call multiple times.
+ * @param keyboard Keyboard instance
+ * @return true on success, false on error
+ */
+bool c64_keyboard_basic_warm_start(c64_keyboard_t *keyboard);

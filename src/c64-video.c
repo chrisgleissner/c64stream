@@ -988,16 +988,16 @@ void c64_process_video_statistics_batch(struct c64_source *context, uint64_t cur
             video_buffer_depth_ms = ((double)v_pkts * 1000.0) / (double)C64_MAX_VIDEO_RATE;
         }
 
-        C64_LOG_INFO("" VIDEO_LOG_PREFIX " %.1f fps | %.2f Mbps | %.0f pps | Frames: %u | current_video_ts_ns=%" PRIu64
-                     " video_ts_minus_stream_start_ns=%" PRIu64 " video_buf_depth_ms=%.1f",
-                     frames_per_second, bandwidth_mbps, packets_per_second, (uint32_t)frames_processed,
-                     current_video_ts_ns, video_ts_minus_stream_start_ns, video_buffer_depth_ms);
-        C64_LOG_INFO("" VIDEO_LOG_PREFIX
-                     " Expected %.0f fps | Captured %.1f fps | Delivered %.1f fps | Completed %.1f fps",
-                     expected_fps, context->frames_captured / duration_seconds, frame_delivery_rate,
-                     frame_completion_rate);
-        C64_LOG_INFO("" VIDEO_LOG_PREFIX " Capture drops %.1f%% | Delivery drops %.1f%% | Avg latency %.1f ms",
-                     capture_drop_pct, delivery_drop_pct, avg_pipeline_latency);
+        C64_LOG_DEBUG("" VIDEO_LOG_PREFIX " %.1f fps | %.2f Mbps | %.0f pps | Frames: %u | current_video_ts_ns=%" PRIu64
+                      " video_ts_minus_stream_start_ns=%" PRIu64 " video_buf_depth_ms=%.1f",
+                      frames_per_second, bandwidth_mbps, packets_per_second, (uint32_t)frames_processed,
+                      current_video_ts_ns, video_ts_minus_stream_start_ns, video_buffer_depth_ms);
+        C64_LOG_DEBUG("" VIDEO_LOG_PREFIX
+                      " Expected %.0f fps | Captured %.1f fps | Delivered %.1f fps | Completed %.1f fps",
+                      expected_fps, context->frames_captured / duration_seconds, frame_delivery_rate,
+                      frame_completion_rate);
+        C64_LOG_DEBUG("" VIDEO_LOG_PREFIX " Capture drops %.1f%% | Delivery drops %.1f%% | Avg latency %.1f ms",
+                      capture_drop_pct, delivery_drop_pct, avg_pipeline_latency);
     }
 
     // Reset diagnostic counters and update timestamp
@@ -1044,11 +1044,11 @@ void c64_process_audio_statistics_batch(struct c64_source *context, uint64_t cur
             audio_buffer_depth_ms = ((double)a_pkts * 1000.0) / (double)C64_MAX_AUDIO_RATE;
         }
 
-        C64_LOG_INFO("" AUDIO_LOG_PREFIX " %.2f Mbps | %.0f pps | Packets: %llu | current_audio_ts_ns=%" PRIu64
-                     " audio_ts_minus_stream_start_ns=%" PRIu64 " audio_minus_video_delta_ns=%" PRId64
-                     " audio_buf_depth_ms=%.1f",
-                     bandwidth_mbps, packets_per_second, (unsigned long long)packets_received, current_audio_ts_ns,
-                     audio_ts_minus_stream_start_ns, audio_minus_video_delta_ns, audio_buffer_depth_ms);
+        C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " %.2f Mbps | %.0f pps | Packets: %llu | current_audio_ts_ns=%" PRIu64
+                      " audio_ts_minus_stream_start_ns=%" PRIu64 " audio_minus_video_delta_ns=%" PRId64
+                      " audio_buf_depth_ms=%.1f",
+                      bandwidth_mbps, packets_per_second, (unsigned long long)packets_received, current_audio_ts_ns,
+                      audio_ts_minus_stream_start_ns, audio_minus_video_delta_ns, audio_buffer_depth_ms);
     }
 
     // Update audio stats timestamp separately from video

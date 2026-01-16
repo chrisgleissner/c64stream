@@ -1,0 +1,32 @@
+# Execution trace
+script: "test_error_type_mismatch.c64script"
+status: success
+error: ~
+program: |
+  01: rem Test type mismatch errors
+  02: rem Operations that should fail due to type incompatibility
+  03: 
+  04: rem Test 1: Invalid arithmetic on strings (if not auto-converted)
+  05: NAME$ = "HELLO"
+  06: rem This might cause type mismatch depending on implementation
+  07: RESULT = NAME$ + 5
+  08: effect "Sharp Pixels"
+  09: stop
+trace:
+- line: 5
+  content: "NAME$ = \"HELLO\""
+  variables: {}
+- line: 7
+  content: "RESULT = NAME$ + 5"
+  variables:
+    NAME$: "HELLO"
+- line: 8
+  content: "effect \"Sharp Pixels\""
+  variables:
+    NAME$: "HELLO"
+    RESULT: "HELLO5"
+- line: 9
+  content: "stop"
+  variables:
+    NAME$: "HELLO"
+    RESULT: "HELLO5"

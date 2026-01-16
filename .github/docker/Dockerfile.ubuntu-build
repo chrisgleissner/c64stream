@@ -48,6 +48,7 @@ RUN apt-get install -y --no-install-recommends \
         fonts-dejavu-core \
         libgles2-mesa-dev \
         libsimde-dev \
+        libcurl4-openssl-dev \
         obs-studio \
         qt6-base-dev \
         libqt6svg6-dev \

@@ -1,0 +1,11 @@
+{
+  "compilerOptions": {
+    "checkJs": false
+  },
+  "exclude": [
+    "node_modules",
+    "build_*",
+    ".deps",
+    "**/*.c64script"
+  ]
+}

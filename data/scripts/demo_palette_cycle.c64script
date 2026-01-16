@@ -1,0 +1,28 @@
+REM Palette Cycle Demo
+REM Cycles through palettes, displaying each one for 2 seconds
+
+PRINT "Starting palette showcase demo"
+
+REM Declare palette array
+DIM PALETTES$(10)
+PALETTES$(0) = "Default"
+PALETTES$(1) = "vibrant"
+PALETTES$(2) = "muted"
+PALETTES$(3) = "warm"
+PALETTES$(4) = "cool"
+PALETTES$(5) = "neonblast"
+PALETTES$(6) = "night"
+PALETTES$(7) = "monochrome"
+PALETTES$(8) = "inverted"
+PALETTES$(9) = "Default"
+
+REM Iterate through palettes
+FOR I = 0 TO 9
+    PRINT "=========================================="
+    PRINT "Applying palette " + PALETTES$(I)
+    PRINT "=========================================="
+    PALETTE PALETTES$(I)
+    WAIT 2s
+NEXT I
+
+PRINT "Palette showcase demo completed"

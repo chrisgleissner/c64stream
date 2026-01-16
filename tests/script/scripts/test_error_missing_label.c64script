@@ -1,0 +1,6 @@
+rem Error recovery test - missing label
+rem Tests handling of goto to nonexistent label
+
+goto nonexistent_label
+effect Test
+stop

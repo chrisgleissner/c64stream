@@ -17,13 +17,13 @@ setopt FUNCTION_ARGZERO
 # setopt XTRACE
 
 autoload -Uz is-at-least && if ! is-at-least 5.2; then
-  print -u2 -PR "${CI:+::error::}%F{1}${funcstack[1]##*/}:%f Running on Zsh version %B${ZSH_VERSION}%b, but Zsh %B5.2%b is the minimum supported version. Upgrade Zsh to fix this issue."
+  print -u2 -PR "${${CI-}:+::error::}%F{1}${funcstack[1]##*/}:%f Running on Zsh version %B${ZSH_VERSION}%b, but Zsh %B5.2%b is the minimum supported version. Upgrade Zsh to fix this issue."
   exit 1
 fi
 
 TRAPZERR() {
   if (( ${_loglevel:-3} > 2 )) {
-    print -u2 -PR "${CI:+::error::}%F{1}    ✖︎ script execution error%f"
+    print -u2 -PR "${${CI-}:+::error::}%F{1}    ✖︎ script execution error%f"
     print -PR -e "
     Callstack:
     ${(j:\n     :)funcfiletrace}
@@ -189,7 +189,7 @@ ${_usage_host:-}"
       *) cmake_args+=(--debug-output) ;;
     }
 
-    local -r _preset="${target%%-*}${CI:+-ci}"
+    local -r _preset="${target%%-*}${${CI-}:+-ci}"
     case ${target} {
       ubuntu-*)
         cmake_args+=(
@@ -223,7 +223,7 @@ ${_usage_host:-}"
     cmake ${cmake_build_args}
 
     # Only run tests if we're not in CI (tests are disabled in CI builds)
-    if [[ -z "$CI" && -z "$GITHUB_ACTIONS" ]]; then
+    if [[ -z "${CI-}" && -z "${GITHUB_ACTIONS-}" ]]; then
       log_group "Running tests..."
       local -a ctest_args=(--test-dir build_${target##*-} --verbose)
       if (( _loglevel < 2 )) {

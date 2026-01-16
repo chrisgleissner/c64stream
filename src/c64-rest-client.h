@@ -72,7 +72,8 @@ bool c64_rest_write_memory(c64_rest_client_t *client, uint16_t address, const ui
  * @param sid_size Size of SID data
  * @param song_number Song number (1-based, 0 for default)
  */
-bool c64_rest_play_sid(c64_rest_client_t *client, const uint8_t *sid_data, size_t sid_size, int song_number);
+bool c64_rest_play_sid(c64_rest_client_t *client, const uint8_t *sid_data, size_t sid_size, int song_number,
+                       const uint8_t *songlengths_data, size_t songlengths_size);
 
 /**
  * Play SID file from C64U filesystem
@@ -81,6 +82,21 @@ bool c64_rest_play_sid(c64_rest_client_t *client, const uint8_t *sid_data, size_
  * @param song_number Song number (1-based, 0 for default)
  */
 bool c64_rest_play_sid_path(c64_rest_client_t *client, const char *c64u_path, int song_number);
+
+/**
+ * Play MOD file
+ * POST /v1/runners:modplay
+ * @param mod_data MOD file content
+ * @param mod_size Size of MOD data
+ */
+bool c64_rest_play_mod(c64_rest_client_t *client, const uint8_t *mod_data, size_t mod_size);
+
+/**
+ * Play MOD file from C64U filesystem
+ * POST /v1/runners:modplay?path=<path>
+ * @param c64u_path Path to MOD file on C64U filesystem
+ */
+bool c64_rest_play_mod_path(c64_rest_client_t *client, const char *c64u_path);
 
 /**
  * Run PRG file
@@ -96,6 +112,21 @@ bool c64_rest_run_prg(c64_rest_client_t *client, const uint8_t *prg_data, size_t
  * @param c64u_path Path to PRG file on C64U filesystem
  */
 bool c64_rest_run_prg_path(c64_rest_client_t *client, const char *c64u_path);
+
+/**
+ * Run CRT file
+ * POST /v1/runners:run_crt
+ * @param crt_data CRT file content
+ * @param crt_size Size of CRT data
+ */
+bool c64_rest_run_crt(c64_rest_client_t *client, const uint8_t *crt_data, size_t crt_size);
+
+/**
+ * Run CRT file from C64U filesystem
+ * POST /v1/runners:run_crt?path=<path>
+ * @param c64u_path Path to CRT file on C64U filesystem
+ */
+bool c64_rest_run_crt_path(c64_rest_client_t *client, const char *c64u_path);
 
 /**
  * Mount disk image

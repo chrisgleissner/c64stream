@@ -418,6 +418,16 @@ jobs:
           # Build with Ninja
           cmake --build build_x86_64 --config ${{ needs.check-event.outputs.config }} --parallel
 
+      - name: Run Unit Tests 🧪
+        run: |
+          : Run Unit Tests 🧪
+          ctest --test-dir build_x86_64 --output-on-failure
+
+      - name: Run C64Script Validation Tests 📝
+        run: |
+          : Run C64Script Validation Tests 📝
+          ./build_x86_64/tests/script/test_c64script_all_scripts .
+
       - name: Package Plugin 📦
         env:
           PLUGIN_VERSION_OVERRIDE: ${{ needs.check-event.outputs.pluginVersion }}
@@ -998,13 +1008,15 @@ jobs:
           - ntsc_default_avsync
           - ntsc_default_record
           - ntsc_delay_buffer500
-          # TODO Investigate why these two scenarios fail on CI whilst passing locally
+          # TODO: Investigate why these scenarios pass locally but experience large UDP packet loss on CI.
+          # Theory: Related to 1MiB UDP buffer limit compared with 8MiB locally.
           # - ntsc_delay_buffer500_jitter10
           # - ntsc_delay_buffer500_jitter100
           - ntsc_green_monitor
           - ntsc_palette_muted
           - ntsc_palette_vibrant
           - ntsc_phosphor_glow
+          - ntsc_script
           - ntsc_sharp_pixels
           - ntsc_sharp_scan_lines
           - ntsc_vintage_tv

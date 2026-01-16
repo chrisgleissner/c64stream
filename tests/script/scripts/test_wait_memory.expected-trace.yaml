@@ -1,0 +1,43 @@
+# Execution trace
+script: "test_wait_memory.c64script"
+status: success
+error: ~
+program: |
+  01: rem Test WAIT memory polling
+  02: rem Validates WAIT addr,mask[,value] with optional EVERY duration
+  03: 
+  04: rem Test 1: Value defaults to mask
+  05: POKE $C000, 1
+  06: WAIT $C000, 1
+  07: 
+  08: rem Test 2: Explicit value with default poll interval
+  09: POKE $C001, 2
+  10: WAIT $C001, 2, 2
+  11: 
+  12: rem Test 3: Explicit value with EVERY poll interval
+  13: POKE $C002, 0
+  14: WAIT $C002, 1, 0 EVERY 10ms
+  15: 
+  16: stop
+trace:
+- line: 5
+  content: "POKE $C000, 1"
+  variables: {}
+- line: 6
+  content: "WAIT $C000, 1"
+  variables: {}
+- line: 9
+  content: "POKE $C001, 2"
+  variables: {}
+- line: 10
+  content: "WAIT $C001, 2, 2"
+  variables: {}
+- line: 13
+  content: "POKE $C002, 0"
+  variables: {}
+- line: 14
+  content: "WAIT $C002, 1, 0 EVERY 10ms"
+  variables: {}
+- line: 16
+  content: "stop"
+  variables: {}
