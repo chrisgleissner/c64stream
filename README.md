@@ -511,7 +511,7 @@ C64Script is like a simplified, modernized version of Commodore BASIC. If you've
 - Use variables, loops, and conditional logic
 
 > [!NOTE]
-> Scripts run only if you explicitly trigger them via the Properties window, so you always stay in control.
+> C64Script never runs automatically without your consent. Scripts execute only when you explicitly start them from the Properties window, ensuring full control at all times. If desired, you may enable automatic execution when the plugin starts by selecting the Auto-start script checkbox.
 
 **Quick Start Example - Color Palette Cycle:**
 
