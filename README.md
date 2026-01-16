@@ -505,6 +505,7 @@ C64Script is like a simplified, modernized version of Commodore BASIC. If you've
 
 - Control visual effects and palettes
 - Play SID music and run programs
+- Start and stop recordings
 - Type text and press keys automatically
 - Wait for specific times or conditions
 - Use variables, loops, and conditional logic
@@ -512,24 +513,13 @@ C64Script is like a simplified, modernized version of Commodore BASIC. If you've
 > [!NOTE]
 > Scripts run only if you explicitly trigger them via the Properties window, so you always stay in control.
 
-**Quick Start Example - Hello World:**
+**Quick Start Example - Color Palette Cycle:**
 
-```basic
-REM Your first C64Script!
-COUNTER = 0
+Let's run the demo program [demo_color_cycle.c64script](./data/scripts/demo_palette_cycle.c64script) that ships with the plugin in the `scripts` folder:
 
-LABEL loop
-    COUNTER = COUNTER + 1
-    LOG "Count: " + STR(COUNTER)
-    WAIT 500ms
-    IF COUNTER < 5 THEN
-        GOTO loop
-    ENDIF
-
-LOG "Done!"
-```
-
-Save this as `hello_world.c64script`, load it in the Script File property, and click **Start** to run it. Check your OBS log to see the output!
+1. Click on **Browse** to the right of **Script File** and select the script.
+2. Click **Start Script**.
+3. You should now see C64 Stream cycle through all of its color palettes.
 
 **Debugging Your Scripts:**
 
@@ -547,15 +537,11 @@ The plugin includes built-in controls for running and inspecting scripts:
 - **Next to execute** - Shows which line will run next
 - **Last error** - Shows the most recent runtime error when one occurs
 
-**Try It Out:**
+Assuming you already ran the palette cycling script described earlier, let's now try and debug it:
 
-1. In OBS, open your C64 Stream source properties
-2. Scroll to "Remote Control"
-3. Set **Script File** to the included `hello_world.c64script` in the [scripts folder](#file-system-structure-) beneath the user data folder
-4. Click **Start** to run the script
-5. Click **Pause** and then **Step** to walk through line-by-line
-6. Click **Log variables** to see the COUNTER value
-7. Check your OBS log (Help → Log Files → Show Current Log) to see output
+1. Click **Start Script** to run the script
+2. Click **Pause Script** and then **Step** to walk through line-by-line
+3. Click **Log variables** to see any variables in the OBS log (Help → Log Files → Show Current Log)
 
 **Syntax Highlighting in VS Code**
 
@@ -594,14 +580,18 @@ OBS Studio searches for plugins in multiple locations. The installation location
 This folder contains read-only defaults bundled with the plugin.
 
 OBS searches in this order:
+
 1. User plugin directory (if it exists)
 2. System plugin directory
 
 The data directory contains:
+
 - Effect presets (`effect_presets.ini`)
 - Palette presets (`palettes/*.vpl`)
 - Default network settings (`properties.ini`)
 - Localization files (`locale/*.ini`)
+- C64 programs (`prg/*.prg`)
+- C64Script files (`scripts/*.c64script`)
 
 | Platform    | Package Install (System-Wide)                                                          | User Install (Local Development)                                                        |
 | ----------- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
