@@ -140,7 +140,7 @@ bool c64_automation_jump_to_index(c64_automation_t *automation, int index);
  * @param song_number Song number (1-based, 0 for default). Ignored for MOD.
  * @return true if started successfully
  */
-bool c64_automation_play_song(c64_automation_t *automation, const char *path, int song_number);
+bool c64_automation_play_song(c64_automation_t *automation, const char *path, int song_number, int song_length_seconds);
 
 /**
  * Run a PRG or CRT file

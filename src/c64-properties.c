@@ -1297,6 +1297,7 @@ static void update_playlist_property(obs_property_t *prop, struct c64_source *co
     int playlist_count = c64_automation_get_playlist_count(context->automation);
     int current_index = c64_automation_get_current_index(context->automation);
     int selected_index = settings ? (int)obs_data_get_int(settings, "playlist") : -1;
+    bool has_pending_selection = is_running && selected_index >= 0 && selected_index != current_index;
 
     if (playlist_count == 0) {
         obs_property_list_add_int(prop, "(No files)", -1);
@@ -1312,7 +1313,7 @@ static void update_playlist_property(obs_property_t *prop, struct c64_source *co
 
     obs_property_set_enabled(prop, true);
 
-    int focus_index = is_running ? current_index : selected_index;
+    int focus_index = has_pending_selection ? selected_index : (is_running ? current_index : selected_index);
     if (focus_index < 0 || focus_index >= playlist_count) {
         focus_index = (current_index >= 0 && current_index < playlist_count) ? current_index : 0;
     }
@@ -1377,7 +1378,7 @@ static void update_playlist_property(obs_property_t *prop, struct c64_source *co
     // Set the dropdown to show the currently playing file as selected
     if (settings) {
         int desired_index = selected_index;
-        if (is_running) {
+        if (is_running && !has_pending_selection) {
             desired_index = current_index;
         } else if (selected_index < 0 || selected_index >= playlist_count) {
             desired_index = focus_index;

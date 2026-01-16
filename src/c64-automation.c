@@ -333,7 +333,7 @@ static void *automation_worker(void *arg)
 
             switch (file->type) {
             case C64_FILE_TYPE_SID:
-                success = c64_rest_play_sid(automation->rest_client, file_data, file_size, 0);
+                success = c64_rest_play_sid(automation->rest_client, file_data, file_size, 0, NULL, 0);
                 break;
             case C64_FILE_TYPE_MOD:
                 success = c64_rest_play_mod(automation->rest_client, file_data, file_size);
@@ -748,7 +748,7 @@ static const char *c64_volume_type_from_path(const char *path)
     return NULL;
 }
 
-bool c64_automation_play_song(c64_automation_t *automation, const char *path, int song_number)
+bool c64_automation_play_song(c64_automation_t *automation, const char *path, int song_number, int song_length_seconds)
 {
     if (!automation || !path) {
         return false;
@@ -764,7 +764,48 @@ bool c64_automation_play_song(c64_automation_t *automation, const char *path, in
 
     bool success = false;
     if (strcasecmp(ext, ".sid") == 0) {
-        success = c64_rest_play_sid(automation->rest_client, file_data, file_size, song_number);
+        char md5_hex[33] = {0};
+        uint8_t *songlengths_payload = NULL;
+        size_t songlengths_size = 0;
+
+        if (song_length_seconds > 0 && c64_hvsc_md5_file_hex(path, md5_hex)) {
+            int subsongs = 1;
+            if (file_size >= 0x10 && (memcmp(file_data, "PSID", 4) == 0 || memcmp(file_data, "RSID", 4) == 0)) {
+                subsongs = (int)((file_data[0x0E] << 8) | file_data[0x0F]);
+                if (subsongs < 1) {
+                    subsongs = 1;
+                }
+            }
+
+            int minutes = song_length_seconds / 60;
+            int seconds = song_length_seconds % 60;
+            if (minutes < 0) {
+                minutes = 0;
+            }
+            if (seconds < 0) {
+                seconds = 0;
+            }
+
+            size_t estimate = 32 + 1 + (size_t)subsongs * 6 + (size_t)(subsongs - 1) + 2;
+            songlengths_payload = (uint8_t *)malloc(estimate);
+            if (songlengths_payload) {
+                size_t written =
+                    (size_t)snprintf((char *)songlengths_payload, estimate, "%s=%d:%02d", md5_hex, minutes, seconds);
+                for (int i = 1; i < subsongs && written + 1 < estimate; i++) {
+                    written += (size_t)snprintf((char *)songlengths_payload + written, estimate - written, " %d:%02d",
+                                                minutes, seconds);
+                }
+                if (written + 1 < estimate) {
+                    songlengths_payload[written++] = '\n';
+                    songlengths_payload[written] = '\0';
+                }
+                songlengths_size = written;
+            }
+        }
+
+        success = c64_rest_play_sid(automation->rest_client, file_data, file_size, song_number, songlengths_payload,
+                                    songlengths_size);
+        free(songlengths_payload);
     } else if (strcasecmp(ext, ".mod") == 0) {
         success = c64_rest_play_mod(automation->rest_client, file_data, file_size);
     } else {

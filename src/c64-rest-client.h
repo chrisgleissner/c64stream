@@ -72,7 +72,8 @@ bool c64_rest_write_memory(c64_rest_client_t *client, uint16_t address, const ui
  * @param sid_size Size of SID data
  * @param song_number Song number (1-based, 0 for default)
  */
-bool c64_rest_play_sid(c64_rest_client_t *client, const uint8_t *sid_data, size_t sid_size, int song_number);
+bool c64_rest_play_sid(c64_rest_client_t *client, const uint8_t *sid_data, size_t sid_size, int song_number,
+                       const uint8_t *songlengths_data, size_t songlengths_size);
 
 /**
  * Play SID file from C64U filesystem

@@ -2700,7 +2700,8 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
                 snprintf(runtime->error_msg, sizeof(runtime->error_msg), "%s", err[0] ? err : "Failed to load SID");
                 return false;
             }
-            ok = c64_rest_play_sid((c64_rest_client_t *)runtime->rest_client, data, size, (int)song_nr.as.number);
+            ok = c64_rest_play_sid((c64_rest_client_t *)runtime->rest_client, data, size, (int)song_nr.as.number, NULL,
+                                   0);
             free(data);
         }
         if (!ok) {

@@ -467,9 +467,11 @@ Control your Ultimate 64 remotely from within OBS Studio, enabling keyboard inpu
 - **Include Subfolders:** Include subfolders when enumerating folder playback (Folder only)
 - **Shuffle Playback:** Randomize folder playback order (Folder only)
 - **Duration per Item:** Playback duration in seconds before advancing (1-3600s, default 120s)
+- **Use Songlengths:** When enabled for local SID playback, uses a Songlengths.md5 file to set per-song durations
+- **Songlengths Path:** Optional path to a Songlengths.md5 file (local + songlengths enabled only)
 - **Reset Between Items:** Perform soft reset between items
-- **Playlist:** Shows the current queue; selecting an entry jumps to that item
-- **Refresh Playlist:** Rebuilds the playlist based on current settings
+- **Playing:** Shows the current queue; selecting an entry jumps to that item (switches immediately while playing)
+- **Refresh Playlist:** Rebuilds the playlist based on current settings (disabled while playing)
 - **Play/Stop Content:** Starts or stops automated playback
 - **Next:** Skips to the next item while playing
 - **Reset Plugin:** Restarts the plugin state (no OBS restart needed)
@@ -535,16 +537,14 @@ The plugin includes built-in controls for running and inspecting scripts:
 
 - **Script File** - Select the `.c64script` to run
 - **Auto Start** - Start the script automatically when the source becomes active
-- **Status** - High-level script status (idle, running, paused, error, completed)
+- **Script Status** - High-level script status (idle, running, paused, error, completed)
 - **Start/Stop** - Start your script from the beginning or stop it
 - **Pause/Resume** - Pause at any point to inspect what's happening
-- **Step** - Execute your script one line at a time
+- **Step** - Execute your script one line at a time (only while paused)
 - **Log variables** - See all variable values in the OBS log
-
-**Line Tracking:**
+- **Execution state** - Shows running, paused, error, or completed
 - **Last executed** - Shows which line just ran
 - **Next to execute** - Shows which line will run next
-- **Execution state** - Shows running, paused, error, or completed
 - **Last error** - Shows the most recent runtime error when one occurs
 
 **Try It Out:**

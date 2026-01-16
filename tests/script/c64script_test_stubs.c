@@ -123,11 +123,14 @@ bool c64_rest_reboot(c64_rest_client_t *client)
     return true;
 }
 
-bool c64_rest_play_sid(c64_rest_client_t *client, const uint8_t *sid_data, size_t sid_size, int song_number)
+bool c64_rest_play_sid(c64_rest_client_t *client, const uint8_t *sid_data, size_t sid_size, int song_number,
+                       const uint8_t *songlengths_data, size_t songlengths_size)
 {
     (void)sid_data;
     (void)sid_size;
     (void)song_number;
+    (void)songlengths_data;
+    (void)songlengths_size;
     return client != NULL;
 }
 

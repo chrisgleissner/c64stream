@@ -111,7 +111,7 @@ struct c64_palette_system *c64_palette_get_system(void)
 
 void c64_palette_validate_filesystem(obs_data_t *settings)
 {
-    C64_LOG_INFO("" PALETTE_LOG_PREFIX " Validating palette filesystem (checking for deleted files)...");
+    C64_LOG_DEBUG("" PALETTE_LOG_PREFIX " Validating palette filesystem (checking for deleted files)...");
 
     // Check all custom (non-shipped) palettes and verify their files exist
     int i = 0;
@@ -119,8 +119,8 @@ void c64_palette_validate_filesystem(obs_data_t *settings)
     bool active_palette_missing = false;
     const char *active_palette_id = c64_palette_get_active_id();
 
-    C64_LOG_INFO("" PALETTE_LOG_PREFIX "   Current active palette: %s (total palettes: %d)", active_palette_id,
-                 palette_system.palette_count);
+    C64_LOG_DEBUG("" PALETTE_LOG_PREFIX "   Current active palette: %s (total palettes: %d)", active_palette_id,
+                  palette_system.palette_count);
 
     while (i < palette_system.palette_count) {
         struct c64_palette_entry *entry = &palette_system.palettes[i];

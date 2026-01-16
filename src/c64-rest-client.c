@@ -300,7 +300,8 @@ bool c64_rest_write_memory(c64_rest_client_t *client, uint16_t address, const ui
     return result;
 }
 
-bool c64_rest_play_sid(c64_rest_client_t *client, const uint8_t *sid_data, size_t sid_size, int song_number)
+bool c64_rest_play_sid(c64_rest_client_t *client, const uint8_t *sid_data, size_t sid_size, int song_number,
+                       const uint8_t *songlengths_data, size_t songlengths_size)
 {
     if (!client || !sid_data || sid_size == 0) {
         return false;
@@ -323,10 +324,18 @@ bool c64_rest_play_sid(c64_rest_client_t *client, const uint8_t *sid_data, size_
     // Create MIME structure (modern API)
     curl_mime *mime = curl_mime_init(client->curl);
     curl_mimepart *part = curl_mime_addpart(mime);
-    curl_mime_name(part, "file");
+    curl_mime_name(part, "sid");
     curl_mime_filename(part, "music.sid");
     curl_mime_data(part, (const char *)sid_data, sid_size);
     curl_mime_type(part, "application/octet-stream");
+
+    if (songlengths_data && songlengths_size > 0) {
+        curl_mimepart *songlengths_part = curl_mime_addpart(mime);
+        curl_mime_name(songlengths_part, "songlengths");
+        curl_mime_filename(songlengths_part, "songlengths.md5");
+        curl_mime_data(songlengths_part, (const char *)songlengths_data, songlengths_size);
+        curl_mime_type(songlengths_part, "text/plain");
+    }
 
     // Set CURL options
     curl_easy_setopt(client->curl, CURLOPT_URL, url);
@@ -366,7 +375,8 @@ bool c64_rest_play_sid(c64_rest_client_t *client, const uint8_t *sid_data, size_
         return false;
     }
 
-    C64_LOG_DEBUG(REST_LOG_PREFIX "Playing SID song=%d size=%zu", song_number, sid_size);
+    C64_LOG_DEBUG(REST_LOG_PREFIX "Playing SID song=%d size=%zu songlengths=%s", song_number, sid_size,
+                  (songlengths_data && songlengths_size > 0) ? "yes" : "no");
     return true;
 }
 
