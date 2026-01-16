@@ -445,7 +445,7 @@ Exported configurations are saved to the [settings directory](#file-system-struc
 
 **EXPERIMENTAL - since version 1.1**
 
-Control your Ultimate 64 remotely from within OBS Studio, enabling keyboard input capture, automated content playback, and programmatic control via REST API.
+Control your Ultimate 64 remotely from within OBS Studio, enabling keyboard input capture and automated content playback.
 
 ![C64 Stream Remote Control](./docs/images/properties-remote-control.png "C64 Stream Remote Control")
 
