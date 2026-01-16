@@ -9,15 +9,18 @@ This document contains technical implementation details for various features of 
 When keyboard capture is active (OBS interact mode), the Escape key provides special control functions for the C64.
 
 #### Escape (alone)
+
 **Function:** BASIC Warm Start
 
 **Behavior:**
+
 - Aborts the currently running BASIC program
 - Returns to the READY prompt
 - **Non-destructive** - preserves user memory and BASIC program
 - Does NOT reset the machine
 
 **Technical Implementation:**
+
 1. Reads the current IRQ vector from $0314/$0315
 2. Writes BASIC warm start address ($A474) to the IRQ vector
 3. Waits 40ms for the warm start to take effect
@@ -26,15 +29,18 @@ When keyboard capture is active (OBS interact mode), the Escape key provides spe
 **Use Case:** Break out of a running BASIC program without losing your work.
 
 #### Ctrl+Escape
+
 **Function:** C64 Reset
 
 **Behavior:**
+
 - Performs a soft reset of the C64 via REST API
 - Equivalent to pressing the reset button
 - Clears the keyboard buffer
 - **Destructive** - resets machine state
 
 **Technical Implementation:**
+
 - Calls the REST API endpoint: `PUT /v1/machine:reset`
 
 **Use Case:** Fully reset the C64 to start fresh.

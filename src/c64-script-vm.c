@@ -1866,7 +1866,7 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
         }
 
         // Skip waiting in step mode, when paused, or during trace recording (test mode)
-        if (runtime->is_paused || runtime->step_mode || runtime->trace_recording_enabled) {
+        if (runtime->is_paused || runtime->step_mode || runtime->step_skip_waits || runtime->trace_recording_enabled) {
             break;
         }
 
@@ -1978,7 +1978,7 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
         }
 
         // Skip waiting in step mode, when paused, or during trace recording (test mode)
-        if (runtime->is_paused || runtime->step_mode || runtime->trace_recording_enabled) {
+        if (runtime->is_paused || runtime->step_mode || runtime->step_skip_waits || runtime->trace_recording_enabled) {
             break;
         }
 
@@ -2033,7 +2033,7 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
         c64script_value_free(&target);
 
         // Skip waiting in step mode, when paused, or during trace recording (test mode)
-        if (runtime->is_paused || runtime->step_mode || runtime->trace_recording_enabled) {
+        if (runtime->is_paused || runtime->step_mode || runtime->step_skip_waits || runtime->trace_recording_enabled) {
             break;
         }
 
@@ -3699,7 +3699,9 @@ bool c64script_vm_execute(c64script_runtime_t *runtime)
         if (runtime->should_pause && current_line != runtime->last_executed_line && current_line > 0) {
             runtime->is_paused = true;
             runtime->should_pause = false; // Clear pause request
-
+            if (runtime->step_skip_waits) {
+                runtime->step_skip_waits = false;
+            }
             // Wait until resumed or stopped
             while (runtime->is_paused && !runtime->should_stop) {
                 os_sleep_ms(10); // Small sleep to avoid busy wait
@@ -3707,6 +3709,7 @@ bool c64script_vm_execute(c64script_runtime_t *runtime)
                 // Check if step mode is activated
                 if (runtime->step_mode) {
                     runtime->step_mode = false;
+                    runtime->step_skip_waits = true;
                     runtime->is_paused = false;
                     runtime->should_pause = true; // Pause again on next source line
                     break;                        // Execute one line then pause again

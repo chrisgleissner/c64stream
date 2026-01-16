@@ -461,7 +461,7 @@ Control your Ultimate 64 remotely from within OBS Studio, enabling keyboard inpu
   - **Symbolic keymaps:** Match key labels (e.g., PC Q → C64 Q)
   - **Positional keymaps:** Match physical locations (e.g., PC Q → C64 Q on QWERTY, but C64 A on AZERTY)
   - Supports built-in and custom user keymaps (`.c64keymap.ini` format)
-- **File System:** Choose between local files or C64 Ultimate storage (`c64u:/`)
+- **File System:** Choose between local files or C64 Ultimate storage
 - **Playback Source:** Pick **Single File** or **Folder**
 - **Local/C64U Path:** File or folder path, shown based on file system + playback source
 - **Include Subfolders:** Include subfolders when enumerating folder playback (Folder only)

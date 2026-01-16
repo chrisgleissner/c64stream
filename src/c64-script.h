@@ -814,11 +814,12 @@ typedef struct {
     size_t scope_stack_capacity;
 
     // Execution state (volatile for thread synchronization)
-    volatile bool should_stop;  // Cancellation flag
-    volatile bool should_pause; // Pause flag (set by debugger)
-    volatile bool is_paused;    // Current pause state
-    volatile bool step_mode;    // Single-step mode
-    bool trace_enabled;         // TRON/TROFF state
+    volatile bool should_stop;     // Cancellation flag
+    volatile bool should_pause;    // Pause flag (set by debugger)
+    volatile bool is_paused;       // Current pause state
+    volatile bool step_mode;       // Single-step mode
+    volatile bool step_skip_waits; // Skip WAIT delays during step
+    bool trace_enabled;            // TRON/TROFF state
 
     // Iteration limit for testing (0 = unlimited)
     uint64_t max_iterations;

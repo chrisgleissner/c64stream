@@ -595,6 +595,7 @@ bool c64_script_executor_step(c64_script_executor_t *executor)
 
     // Activate step mode - this will execute one line and pause again
     executor->runtime->step_mode = true;
+    executor->runtime->step_skip_waits = true;
     pthread_mutex_unlock(&executor->mutex);
 
     return true;

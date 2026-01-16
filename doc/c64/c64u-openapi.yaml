@@ -227,6 +227,9 @@ paths:
                 $ref: '#/components/schemas/RunnerActionResponse'
     post:
       summary: Play uploaded SID
+      description: >
+        Upload a SID file for playback. Optionally attach a song-lengths (.ssl) file
+        as the second multipart file to specify per-subsong durations.
       parameters:
         - in: query
           name: songnr
@@ -240,14 +243,21 @@ paths:
             schema:
               type: object
               properties:
-                sid:
-                  type: string
-                  format: binary
-                songlengths:
-                  type: string
-                  format: binary
+                file:
+                  type: array
+                  minItems: 1
+                  maxItems: 2
+                  items:
+                    type: string
+                    format: binary
+                  description: >
+                    Multipart field name used for uploads. The first entry is the SID file
+                    to play. The optional second entry is a .ssl song-lengths file: a binary
+                    array of 2-byte entries, one per subsong in order: [minutes, seconds],
+                    both packed BCD. Minutes range 00–99, seconds range 00–59. Max 512 bytes
+                    (256 entries). Missing or invalid entries are replaced with firmware defaults.
               required:
-                - sid
+                - file
       responses:
         '200':
           description: Request accepted
@@ -255,6 +265,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RunnerActionResponse'
+
   /v1/runners:modplay:
     put:
       summary: Play MOD from filesystem

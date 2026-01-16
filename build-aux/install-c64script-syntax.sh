@@ -4,7 +4,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DOC_DIR="$SCRIPT_DIR/../doc"
+DOC_DIR="$SCRIPT_DIR/../doc/c64script/vscode"
 VSCODE_EXT_DIR="$HOME/.vscode/extensions/c64script-syntax-0.1.0"
 
 echo "🔧 Installing C64Script syntax highlighting for VS Code..."

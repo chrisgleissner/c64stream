@@ -38,6 +38,7 @@ See <https://www.gnu.org/licenses/> for details.
 #define RESET_DELAY_MS 500
 
 static void c64_automation_queue_ui_update(c64_automation_t *automation);
+static const char *c64_strip_c64u_prefix(const char *path);
 static bool automation_should_stop(c64_automation_t *automation);
 
 static void c64_automation_clear_songlengths(c64_automation_t *automation)
@@ -282,18 +283,19 @@ static void *automation_worker(void *arg)
         bool success = false;
         if (automation->config.file_source == C64_FILE_SOURCE_C64U) {
             // C64U filesystem: use path-based REST API
+            const char *c64u_path = c64_strip_c64u_prefix(file->path);
             switch (file->type) {
             case C64_FILE_TYPE_SID:
-                success = c64_rest_play_sid_path(automation->rest_client, file->path, 0);
+                success = c64_rest_play_sid_path(automation->rest_client, c64u_path, 0);
                 break;
             case C64_FILE_TYPE_MOD:
-                success = c64_rest_play_mod_path(automation->rest_client, file->path);
+                success = c64_rest_play_mod_path(automation->rest_client, c64u_path);
                 break;
             case C64_FILE_TYPE_PRG:
-                success = c64_rest_run_prg_path(automation->rest_client, file->path);
+                success = c64_rest_run_prg_path(automation->rest_client, c64u_path);
                 break;
             case C64_FILE_TYPE_CRT:
-                success = c64_rest_run_crt_path(automation->rest_client, file->path);
+                success = c64_rest_run_crt_path(automation->rest_client, c64u_path);
                 break;
             case C64_FILE_TYPE_D64:
             case C64_FILE_TYPE_G64:
@@ -305,7 +307,7 @@ static void *automation_worker(void *arg)
                     c64_rest_reset(automation->rest_client);
                     os_sleep_ms(RESET_DELAY_MS);
                 }
-                success = c64_rest_mount_disk_path(automation->rest_client, 'a', file->path);
+                success = c64_rest_mount_disk_path(automation->rest_client, 'a', c64u_path);
                 if (success && automation->keyboard) {
                     // Inject LOAD"*",8,1:RUN followed by RETURN
                     const char *template = automation->config.d64_autostart_template;
@@ -748,6 +750,23 @@ static const char *c64_volume_type_from_path(const char *path)
     return NULL;
 }
 
+static const char *c64_strip_c64u_prefix(const char *path)
+{
+    if (!path) {
+        return NULL;
+    }
+
+    const char *prefix = "c64u:";
+    for (size_t i = 0; prefix[i] != '\0'; ++i) {
+        unsigned char ch = (unsigned char)path[i];
+        if (ch == '\0' || (char)tolower(ch) != prefix[i]) {
+            return path;
+        }
+    }
+
+    return path + 5;
+}
+
 bool c64_automation_play_song(c64_automation_t *automation, const char *path, int song_number, int song_length_seconds)
 {
     if (!automation || !path) {
@@ -764,11 +783,10 @@ bool c64_automation_play_song(c64_automation_t *automation, const char *path, in
 
     bool success = false;
     if (strcasecmp(ext, ".sid") == 0) {
-        char md5_hex[33] = {0};
         uint8_t *songlengths_payload = NULL;
         size_t songlengths_size = 0;
 
-        if (song_length_seconds > 0 && c64_hvsc_md5_file_hex(path, md5_hex)) {
+        if (song_length_seconds > 0) {
             int subsongs = 1;
             if (file_size >= 0x10 && (memcmp(file_data, "PSID", 4) == 0 || memcmp(file_data, "RSID", 4) == 0)) {
                 subsongs = (int)((file_data[0x0E] << 8) | file_data[0x0F]);
@@ -781,26 +799,27 @@ bool c64_automation_play_song(c64_automation_t *automation, const char *path, in
             int seconds = song_length_seconds % 60;
             if (minutes < 0) {
                 minutes = 0;
+            } else if (minutes > 99) {
+                minutes = 99;
             }
             if (seconds < 0) {
                 seconds = 0;
+            } else if (seconds > 59) {
+                seconds = 59;
             }
 
-            size_t estimate = 32 + 1 + (size_t)subsongs * 6 + (size_t)(subsongs - 1) + 3;
-            songlengths_payload = (uint8_t *)malloc(estimate);
+            uint8_t bcd_minutes = (uint8_t)(((minutes / 10) << 4) | (minutes % 10));
+            uint8_t bcd_seconds = (uint8_t)(((seconds / 10) << 4) | (seconds % 10));
+
+            size_t payload_size = (size_t)subsongs * 2u;
+            songlengths_payload = (uint8_t *)malloc(payload_size);
             if (songlengths_payload) {
-                size_t written =
-                    (size_t)snprintf((char *)songlengths_payload, estimate, "%s=%d:%02d", md5_hex, minutes, seconds);
-                for (int i = 1; i < subsongs && written + 1 < estimate; i++) {
-                    written += (size_t)snprintf((char *)songlengths_payload + written, estimate - written, " %d:%02d",
-                                                minutes, seconds);
+                for (int i = 0; i < subsongs; i++) {
+                    size_t offset = (size_t)i * 2u;
+                    songlengths_payload[offset] = bcd_minutes;
+                    songlengths_payload[offset + 1] = bcd_seconds;
                 }
-                if (written + 2 < estimate) {
-                    songlengths_payload[written++] = '\r';
-                    songlengths_payload[written++] = '\n';
-                    songlengths_payload[written] = '\0';
-                }
-                songlengths_size = written;
+                songlengths_size = payload_size;
             }
         }
 

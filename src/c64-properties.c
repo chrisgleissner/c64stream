@@ -615,6 +615,19 @@ static bool file_source_changed(obs_properties_t *props, obs_property_t *propert
     int playback_source = (int)obs_data_get_int(settings, "playback_source");
     bool use_songlengths = obs_data_get_bool(settings, "automation_use_songlengths");
 
+    obs_property_t *playback_source_prop = obs_properties_get(props, "playback_source");
+    if (file_system == 1) {
+        if (playback_source != 0) {
+            playback_source = 0;
+            obs_data_set_int(settings, "playback_source", playback_source);
+        }
+        if (playback_source_prop) {
+            obs_property_set_enabled(playback_source_prop, false);
+        }
+    } else if (playback_source_prop) {
+        obs_property_set_enabled(playback_source_prop, true);
+    }
+
     // Show/hide path properties based on file_system and playback_source combination
     obs_property_t *local_file_prop = obs_properties_get(props, "local_file_path");
     obs_property_t *local_folder_prop = obs_properties_get(props, "local_folder_path");
@@ -682,10 +695,6 @@ static bool build_automation_config_from_settings(obs_data_t *settings, c64_auto
     }
 
     if (!path || path[0] == '\0') {
-        return false;
-    }
-
-    if (file_system == 1 && strncmp(path, "c64u:/", 6) != 0) {
         return false;
     }
 
@@ -1150,6 +1159,12 @@ static bool automation_settings_changed(obs_properties_t *props, obs_property_t 
 {
     const char *property_name = property ? obs_property_name(property) : "(none)";
     C64_LOG_DEBUG(PROPS_LOG_PREFIX "Automation settings changed: property=%s", property_name);
+
+    int file_system = (int)obs_data_get_int(settings, "file_system");
+    if (file_system == 1 &&
+        (strcmp(property_name, "c64u_file_path") == 0 || strcmp(property_name, "c64u_folder_path") == 0)) {
+        return false;
+    }
 
     // Force rebuild when any playlist-affecting property changes
     return request_playlist_rebuild(props, settings, "automation_setting_changed", property, true);
@@ -1972,11 +1987,6 @@ obs_properties_t *c64_create_properties(void *data)
     obs_property_set_modified_callback(c64u_file_prop, automation_settings_changed);
     obs_property_set_long_description(c64u_file_prop, obs_module_text("C64UFilePath.Description"));
     obs_property_set_visible(c64u_file_prop, file_system == 1 && playback_source == 0);
-    // Ensure c64u:/ prefix exists in settings
-    const char *c64u_file_val = obs_data_get_string(current_settings, "c64u_file_path");
-    if (!c64u_file_val || c64u_file_val[0] == '\0') {
-        obs_data_set_string(current_settings, "c64u_file_path", "c64u:/");
-    }
 
     // C64U folder path (file_system=1, playback_source=1)
     obs_property_t *c64u_folder_prop =
@@ -1984,11 +1994,6 @@ obs_properties_t *c64_create_properties(void *data)
     obs_property_set_modified_callback(c64u_folder_prop, automation_settings_changed);
     obs_property_set_long_description(c64u_folder_prop, obs_module_text("C64UFolderPath.Description"));
     obs_property_set_visible(c64u_folder_prop, file_system == 1 && playback_source == 1);
-    // Ensure c64u:/ prefix exists in settings
-    const char *c64u_folder_val = obs_data_get_string(current_settings, "c64u_folder_path");
-    if (!c64u_folder_val || c64u_folder_val[0] == '\0') {
-        obs_data_set_string(current_settings, "c64u_folder_path", "c64u:/");
-    }
 
     obs_data_release(current_settings);
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Send a SID with optional Songlengths.md5 fragment to the C64U REST API.
+"""Send a SID with optional songlengths .ssl payload to the C64U REST API.
 
 Usage:
   ./util/send_sid_songlengths.py path/to/file.sid --length-seconds 123
@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import argparse
 import base64
-import hashlib
 import http.client
 import os
 import sys
@@ -25,12 +24,12 @@ def parse_sid_subsongs(sid_bytes: bytes) -> int:
     return 1
 
 
-def build_songlength_fragment(md5_hex: str, length_seconds: int, subsongs: int) -> bytes:
-    minutes = max(0, length_seconds // 60)
-    seconds = max(0, length_seconds % 60)
-    entry = f"{minutes}:{seconds:02d}"
-    line = f"{md5_hex}=" + " ".join([entry] * subsongs) + "\r\n"
-    return line.encode("ascii")
+def build_songlength_payload(length_seconds: int, subsongs: int) -> bytes:
+    minutes = max(0, min(99, length_seconds // 60))
+    seconds = max(0, min(59, length_seconds % 60))
+    bcd_minutes = ((minutes // 10) << 4) | (minutes % 10)
+    bcd_seconds = ((seconds // 10) << 4) | (seconds % 10)
+    return bytes([bcd_minutes, bcd_seconds]) * subsongs
 
 
 def build_multipart(sid_path: str, sid_bytes: bytes, songlengths: bytes | None) -> Tuple[str, bytes]:
@@ -45,9 +44,9 @@ def build_multipart(sid_path: str, sid_bytes: bytes, songlengths: bytes | None) 
         ).encode("ascii")
         parts.append(header + data + b"\r\n")
 
-    add_part("sid", os.path.basename(sid_path) or "music.sid", "application/octet-stream", sid_bytes)
+    add_part("file", os.path.basename(sid_path) or "music.sid", "application/octet-stream", sid_bytes)
     if songlengths:
-        add_part("songlengths", "Songlengths.md5", "application/octet-stream", songlengths)
+        add_part("file", "songlengths.ssl", "application/octet-stream", songlengths)
 
     parts.append(f"--{boundary}--\r\n".encode("ascii"))
     body = b"".join(parts)
@@ -69,7 +68,7 @@ def log_request(method: str, path: str, headers: dict, body: bytes) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Send SID with optional Songlengths.md5 fragment.")
+    parser = argparse.ArgumentParser(description="Send SID with optional songlengths .ssl payload.")
     parser.add_argument("sid", help="Path to SID file")
     parser.add_argument("--length-seconds", type=int, default=0, help="Song length in seconds (optional)")
     parser.add_argument("--songnr", type=int, default=0, help="Song number (0 for default)")
@@ -84,12 +83,11 @@ def main() -> int:
     with open(args.sid, "rb") as f:
         sid_bytes = f.read()
 
-    md5_hex = hashlib.md5(sid_bytes).hexdigest()
     subsongs = parse_sid_subsongs(sid_bytes)
 
     songlengths = None
     if args.length_seconds > 0:
-        songlengths = build_songlength_fragment(md5_hex, args.length_seconds, subsongs)
+        songlengths = build_songlength_payload(args.length_seconds, subsongs)
 
     boundary, body = build_multipart(args.sid, sid_bytes, songlengths)
 

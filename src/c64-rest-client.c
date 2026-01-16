@@ -10,6 +10,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-logging.h"
 
 #include <curl/curl.h>
+#include <ctype.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -31,6 +32,25 @@ typedef struct {
     size_t size;
     size_t capacity;
 } response_buffer_t;
+
+static const char *c64_strip_c64u_prefix(const char *path)
+{
+    if (!path) {
+        return NULL;
+    }
+
+    const char *prefix = "c64u:";
+    for (size_t i = 0; prefix[i] != '\0'; i++) {
+        if (path[i] == '\0') {
+            return path;
+        }
+        if ((char)tolower((unsigned char)path[i]) != prefix[i]) {
+            return path;
+        }
+    }
+
+    return path + strlen(prefix);
+}
 
 static size_t write_callback(void *contents, size_t size, size_t nmemb, void *userp)
 {
@@ -324,15 +344,15 @@ bool c64_rest_play_sid(c64_rest_client_t *client, const uint8_t *sid_data, size_
     // Create MIME structure (modern API)
     curl_mime *mime = curl_mime_init(client->curl);
     curl_mimepart *part = curl_mime_addpart(mime);
-    curl_mime_name(part, "sid");
+    curl_mime_name(part, "file");
     curl_mime_filename(part, "music.sid");
     curl_mime_data(part, (const char *)sid_data, sid_size);
     curl_mime_type(part, "application/octet-stream");
 
     if (songlengths_data && songlengths_size > 0) {
         curl_mimepart *songlengths_part = curl_mime_addpart(mime);
-        curl_mime_name(songlengths_part, "songlengths");
-        curl_mime_filename(songlengths_part, "Songlengths.md5");
+        curl_mime_name(songlengths_part, "file");
+        curl_mime_filename(songlengths_part, "songlengths.ssl");
         curl_mime_data(songlengths_part, (const char *)songlengths_data, songlengths_size);
         curl_mime_type(songlengths_part, "application/octet-stream");
     }
@@ -526,10 +546,11 @@ bool c64_rest_play_sid_path(c64_rest_client_t *client, const char *c64u_path, in
         return false;
     }
 
-    C64_LOG_DEBUG(REST_LOG_PREFIX "Playing SID from C64U: %s song=%d", c64u_path, song_number);
+    const char *device_path = c64_strip_c64u_prefix(c64u_path);
+    C64_LOG_DEBUG(REST_LOG_PREFIX "Playing SID from C64U: %s song=%d", device_path, song_number);
 
     // URL encode the path
-    char *escaped_path = curl_easy_escape(client->curl, c64u_path, 0);
+    char *escaped_path = curl_easy_escape(client->curl, device_path, 0);
     if (!escaped_path) {
         snprintf(client->error_msg, sizeof(client->error_msg), "Failed to escape path");
         C64_LOG_ERROR(REST_LOG_PREFIX "Failed to escape path: %s", c64u_path);

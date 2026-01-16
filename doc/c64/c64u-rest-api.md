@@ -65,6 +65,8 @@ Example for `/v1/info` (Ultimate 64 device):
 | PUT    | `/v1/runners:run_crt`  | `file`             | Resets the machine with the specified cartridge active. Configuration remains unchanged.                                     |
 | POST   | `/v1/runners:run_crt`  | –                  | Resets the machine with the attached cartridge active. Configuration remains unchanged.                                      |
 
+For `POST /v1/runners:sidplay`, send both the SID and optional song-lengths payload as multipart fields named `file` (two parts). The song-lengths payload is a `.ssl` binary file: two bytes per subsong, stored as packed BCD minutes and seconds. Minutes range 00–99, seconds range 00–59. A maximum of 512 bytes (256 entries) is accepted. Missing or invalid entries fall back to firmware defaults.
+
 ### Configuration
 
 | Method | Path                            | Parameters | Action                                                                                            |
