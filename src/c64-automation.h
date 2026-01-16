@@ -154,4 +154,4 @@ bool c64_automation_run_program(c64_automation_t *automation, const char *path);
  * @param path Path to .d64/.g64/.d71/.g71/.d81 file
  * @return true if started successfully
  */
-bool c64_automation_start_volume(c64_automation_t *automation, const char *path);
+bool c64_automation_run_disk(c64_automation_t *automation, const char *path);

@@ -818,7 +818,7 @@ bool c64_automation_run_program(c64_automation_t *automation, const char *path)
     return success;
 }
 
-bool c64_automation_start_volume(c64_automation_t *automation, const char *path)
+bool c64_automation_run_disk(c64_automation_t *automation, const char *path)
 {
     if (!automation || !path) {
         return false;
