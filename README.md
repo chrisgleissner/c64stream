@@ -452,7 +452,7 @@ Control your Ultimate 64 remotely from within OBS Studio, enabling keyboard inpu
 
 - **Keyboard Capture:** Type directly into the C64 from OBS preview window with intelligent backpressure handling to help avoid lost keystrokes
 - **Automated Playback:** Unattended playback of SID/MOD music, PRG/CRT programs, and disk images (D64, G64, D71, G71 or D81) with shuffle support. When using disk images, it loads and starts the first program in the volume using `LOAD"*",8,1:RUN`.
-- **REST API Control:** Programmatic access to C64 Ultimate functions (reset, memory access, file mounting)
+- **REST API Control:** Programmatic access to C64 Ultimate functions (reset, memory access, disk mounting)
 
 **Configuration:**
 
