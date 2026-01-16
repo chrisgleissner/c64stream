@@ -578,14 +578,14 @@ cd tests/e2e && python3 -m pytest test_*.py -v
 
 ### Test Coverage Summary
 
-| Test Type | Location | CI | Local | Purpose |
-|-----------|----------|-----|-------|---------|
-| C Unit Tests | `tests/test_*.c` | ✅ | ✅ | Component validation |
-| Python Unit Tests | `tests/e2e/test_*.py` | ✅ | ✅ | Script executor, network simulation |
-| E2E Script Tests | `tests/script/scripts/*.c64script` | ❌ | ✅ | Real-world automation scenarios |
-| E2E Full Validation | `tests/e2e/e2e.sh` | ❌ | ✅ | End-to-end recording validation |
-| Code Formatting | All `.c`/`.h` files | ✅ | ✅ | Style consistency |
-| Cross-platform Builds | CI matrix | ✅ | ⚠️ | Platform compatibility |
+| Test Type             | Location                           | CI  | Local | Purpose                             |
+| --------------------- | ---------------------------------- | --- | ----- | ----------------------------------- |
+| C Unit Tests          | `tests/test_*.c`                   | ✅   | ✅     | Component validation                |
+| Python Unit Tests     | `tests/e2e/test_*.py`              | ✅   | ✅     | Script executor, network simulation |
+| E2E Script Tests      | `tests/script/scripts/*.c64script` | ❌   | ✅     | Real-world automation scenarios     |
+| E2E Full Validation   | `tests/e2e/e2e.sh`                 | ❌   | ✅     | End-to-end recording validation     |
+| Code Formatting       | All `.c`/`.h` files                | ✅   | ✅     | Style consistency                   |
+| Cross-platform Builds | CI matrix                          | ✅   | ⚠️     | Platform compatibility              |
 
 **Coverage philosophy:**
 - **CI:** Fast, deterministic tests that validate core logic and cross-platform builds
@@ -662,8 +662,8 @@ TEST(pause_and_resume) {
 
 ### Language Reference
 
-- **Full Spec:** [`doc/c64script-spec.md`](c64script-spec.md) - Complete language reference
-- **Debugging:** [`doc/c64script-debugging.md`](c64script-debugging.md) - Debug workflows and tips
+- **Full Spec:** [`doc/c64script/c64script-spec.md`](c64script/c64script-spec.md) - Complete language reference
+- **Debugging:** [`doc/c64script/c64script-debugging.md`](c64script/c64script-debugging.md) - Debug workflows and tips
 - **Examples:** [`data/scripts/`](../data/scripts/) - Demo scripts and hello world
 
 ## Contributing
@@ -678,6 +678,6 @@ TEST(pause_and_resume) {
 
 ## Resources
 
-- **C64U Streaming Specification:** [`doc/c64u-stream-spec.md`](c64u/c64u-stream-spec.md)
+- **C64U Streaming Specification:** [`doc/c64/c64u-stream-spec.md`](c64/c64u-stream-spec.md)
 - **E2E Testing:** [`doc/testing/e2e.md`](testing/e2e.md)
 - **OBS Plugin Guide:** [OBS Studio Documentation](https://obsproject.com/wiki/Plugin-Development)

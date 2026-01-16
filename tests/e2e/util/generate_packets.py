@@ -94,7 +94,7 @@ C64_FONT = {
 }
 
 
-# Video format specifications (from doc/c64u-stream-spec.md)
+# Video format specifications (from doc/c64/c64u-stream-spec.md)
 VIDEO_FORMATS = {
     'PAL': {
         'width': 384,
@@ -112,7 +112,7 @@ VIDEO_FORMATS = {
     }
 }
 
-# Protocol constants (from doc/c64u-stream-spec.md)
+# Protocol constants (from doc/c64/c64u-stream-spec.md)
 VIDEO_PACKET_SIZE = 780  # 12 byte header + 768 byte payload
 AUDIO_PACKET_SIZE = 770  # 2 byte header + 768 byte payload
 VIDEO_HEADER_SIZE = 12

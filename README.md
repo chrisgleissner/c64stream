@@ -555,8 +555,8 @@ Then reload VS Code (`Ctrl+Shift+P` → "Reload Window"). The language mode shou
 
 **Learn More:**
 
-- **Full Language Reference:** [`doc/c64script-spec.md`](doc/c64script-spec.md) - Complete C64Script language documentation
-- **Debugging Guide:** [`doc/c64script-debugging.md`](doc/c64script-debugging.md) - Detailed debugging workflows and tips
+- **Full Language Reference:** [`doc/c64script/c64script-spec.md`](doc/c64script/c64script-spec.md) - Complete C64Script language documentation
+- **Debugging Guide:** [`doc/c64script/c64script-debugging.md`](doc/c64script/c64script-debugging.md) - Detailed debugging workflows and tips
 - **Example Scripts:** [`data/scripts/`](data/scripts/) - Demo scripts showing effects, palettes, and automation
 
 ## File System Structure 📁
@@ -643,7 +643,7 @@ Many recent reports (without videos) are checked into this GitHub repository:
 
 You can download all [Latest E2E results](https://github.com/chrisgleissner/c64stream/actions/workflows/build-project.yaml?query=branch%3Amain+is%3Asuccess) (with videos) as GitHub CI build artifact ZIP.
 
-For more information, see [`doc/e2e.md`](doc/e2e.md).
+For more information, see [`doc/testing/e2e.md`](doc/testing/e2e.md).
 
 ## Network Details
 
@@ -689,7 +689,7 @@ For comprehensive configuration details, refer to the [official C64 Ultimate doc
 
 ## Technical Details 🔧
 
-This plugin implements the [C64 Ultimate Data Streams specification](./doc/c64-stream-spec.md) to receive video and audio streams from Ultimate devices via UDP/TCP network protocols.
+This plugin implements the [C64 Ultimate Data Streams specification](./doc/c64/c64u-stream-spec.md) to receive video and audio streams from Ultimate devices via UDP/TCP network protocols.
 
 **Supported Platforms:**
 

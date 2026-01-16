@@ -20,12 +20,12 @@
 
 - **High-level context**: `README.md`, `implementation-plan.md`, `INVESTIGATION.md`, and `IMPLEMENTATION_SUMMARY.md` (REST control snapshot) describe the product vision, planned work, and ongoing research.
 - **Planning**: `PLANS.md` (multi-hour requests) and `AGENTS.md` (workflow rules) guide how you should work.
-- **Documentation**: `doc/` hosts technical references (including `doc/c64u/c64u-stream-spec.md` for protocol details) and `docs/` is the website; add new docs there instead of scattering markdown elsewhere.
+- **Documentation**: `doc/` hosts technical references (including `doc/c64/c64u-stream-spec.md` for protocol details) and `docs/` is the website; add new docs there instead of scattering markdown elsewhere.
 - **Tests and scripts**: `tests/` houses the validation suites and `build-aux/` provides helper scripts such as formatting and validation helpers.
 - **CI context**: `.github/build-instructions.md` and the workflow YAML files describe the required CI behaviors.
 
 ## Project Overview
-OBS Studio plugin for streaming C64 Ultimate device video/audio over network. See `doc/c64u/c64u-stream-spec.md` for protocol details.
+OBS Studio plugin for streaming C64 Ultimate device video/audio over network. See `doc/c64/c64u-stream-spec.md` for protocol details.
 
 ## Key Files
 **Core Implementation:**

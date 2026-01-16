@@ -3,11 +3,13 @@
 This document defines the BASIC-inspired `.c64script` language as implemented by the C64Stream OBS Studio plugin.
 
 MUST READ:
+
 - c64script-spec: Detailed language spec.
 - `c64script-tasks.md`: Breaks down spec into high-level tasks and fills in blanks, but spec remains source of truth where there are conflicts.
 - `c64script-progress.md`: Contains concrete, low-level tasks, and tracks progress
 
 Non-goals:
+
 - This document does not specify UI/OBS integration details (Properties UI, key capture UX, etc.).
 - This document does not guarantee that every command is fully implemented at runtime (see “Runtime support notes”).
 
@@ -20,7 +22,6 @@ Non-goals:
 - **Line endings**: `LF` (`\n`) or `CRLF` (`\r\n`)
 - **Size limit (current parser)**: ≤ 1 MiB
 - **Primary mental model**: a script is a sequence of statements executed by a worker thread, sequentially, unless control flow changes the next statement.
-
 
 ---
 
@@ -65,17 +66,21 @@ BASIC-Inspired, Label-Oriented
 
 ### 2.2 Lexical Rules
 
-**Case sensitivity**
+#### 2.2.1 Case sensitivity
+
 - Keywords, labels, and identifiers are **case-insensitive** (`goto`, `GOTO`, and `GoTo` are the same).
 - A recommended canonical form for display/logging is uppercase keywords and labels (BASIC style).
 
-**Whitespace**
+#### 2.2.2 Whitespace
+
 - Spaces and tabs separate tokens, except inside quoted strings.
 
-**Comments**
+#### 2.2.3 Comments
+
 - `REM` is a statement that comments out the rest of the line (BASIC style). After `REM`, the remainder of the line is ignored.
 
-**Strings**
+#### 2.2.4 Strings
+
 - Double-quoted: `"..."`.
 - To include a quote, either:
   - use doubled quotes: `"He said ""RUN""."` (BASIC style), or
@@ -85,7 +90,8 @@ BASIC-Inspired, Label-Oriented
   - `\r` (RETURN), `\n` (line feed), `\t` (tab)
   - `\xNN` (byte value, hex; useful for PETSCII/control bytes)
 
-**Identifiers**
+#### 2.2.5 Identifiers
+
 - Letter followed by letters/digits/underscore.
 - Optional BASIC-like type suffix:
   - `$` string variable (e.g., `PATH$`)
@@ -94,7 +100,8 @@ BASIC-Inspired, Label-Oriented
   - `{}` map variable (e.g., `CONFIG{}` - keys specified at access time)
 - Variables without suffixes are numeric (double precision) by default.
 
-**Labels (including line numbers)**
+#### 2.2.6 Labels (including line numbers)
+
 - A line may optionally start with a **label** that acts like an implicit jump target.
 - Labels may be:
   - alphanumeric (e.g., `START`, `PLAY2`, `DEMO2026`), or
@@ -106,12 +113,14 @@ BASIC-Inspired, Label-Oriented
   - At the start of a line, an alphanumeric token is treated as a label **only if** it is followed by `:` or end-of-line, or it is followed by whitespace that is **not** immediately followed by `=`.
   - This ensures `I = 0` is an assignment, while `START I=0` can be a label + statement.
 
-**Numbers**
+#### 2.2.8 Numbers
+
 - Decimal integers and reals: `10`, `1.5`
 - Optional hex integer literals (C64/assembly friendly):
   - `$C000` (hex), `$00C6` (hex)
 
-**Durations**
+#### 2.2.9 Durations
+
 - Duration literal: `number` + unit: `500ms`, `1.5s`, `0.5m`, `2h`, `3d`
 - Supported units:
   - `ms` (milliseconds)
@@ -129,6 +138,7 @@ The complete formal grammar for C64Script is maintained in a separate file:
 **[`c64script-grammar.ebnf`](c64script-grammar.ebnf)**
 
 This EBNF grammar defines the language syntax including:
+
 - **Lexemes**: Identifiers, numbers (decimal/hex), strings, duration literals
 - **Top-level structure**: Scripts, lines, labels, comments
 - **Statements**: All control flow, assignments, and command statements
@@ -136,6 +146,7 @@ This EBNF grammar defines the language syntax including:
 - **Expressions**: Complete operator precedence and expression syntax
 
 The grammar serves as the authoritative reference for:
+
 - Implementing parsers and validators
 - Generating syntax highlighters and language tools
 - Understanding language structure and precedence rules
@@ -165,6 +176,7 @@ The grammar serves as the authoritative reference for:
   - Array/map elements: `DATA(3) = 42`, `CONFIG{"port"} = 8080`
 
 **Array Declaration with `DIM`**:
+
 - `DIM <array_var>(<size>)` allocates an array with `<size>` elements (indices 0 to `<size>-1`).
 - Example: `DIM VALUES(10)` creates an array with 10 numeric elements (indices 0-9).
 - Example: `DIM NAMES$(5)` creates a string array with 5 elements (indices 0-4).
@@ -209,12 +221,14 @@ The language performs automatic type conversion in specific contexts to maintain
 **Type Mismatch Errors**:
 
 The following operations raise "TYPE MISMATCH" errors:
+
 - Using array/map without subscript in scalar context
 - Using scalar in array/map subscript context
 - Passing wrong type to built-in functions (e.g., `PEEK("hello")`)
 - Invalid string-to-numeric conversion
 
 **Type Compatibility in Expressions**:
+
 - Numeric operators (`+`, `-`, `*`, `/`) require numeric operands.
 - String operator (`+` for concatenation) casts operands to string when at least one operand is string.
 - Relational operators (`=`, `<`, `>`, etc.) compare:
@@ -225,11 +239,13 @@ The following operations raise "TYPE MISMATCH" errors:
 #### 2.4.2 Control Flow and Stacks
 
 **Script Termination**:
+
 - Scripts terminate when reaching: `STOP` (or `END`), `GOTO`, `LOOP`, or **running out of instructions** (implicit termination).
 - Implicit termination: If the instruction pointer reaches the end of bytecode without encountering an explicit termination statement, the script completes successfully.
 - This allows scripts to omit trailing `STOP` statements for cleaner code.
 
 The executor maintains explicit stacks:
+
 - `FOR` stack: loop variable, end value, step, loop start location.
 - `WHILE` stack: loop condition location, loop start location.
 - `GOSUB` stack: return address, saved parameter values (if any), saved local variables (for functions).
@@ -238,11 +254,13 @@ The executor maintains explicit stacks:
 **Functions and Parameterized Subroutines**:
 
 **User-defined functions** (modern approach):
+
 - Syntax: `FUN <name>([param1, param2, ...])` ... `ENDFUN`
 - Functions create a local scope; parameters and variables declared inside are local.
 - Call with `<name>([arg1, arg2, ...])` in expression context.
 - Return value with `RETURN <expr>`; returns 0 if no expression provided.
 - Example:
+
   ```basic
   FUN ADD(A, B)
       RETURN A + B
@@ -252,12 +270,14 @@ The executor maintains explicit stacks:
   ```
 
 **Parameterized GOSUB** (BASIC-inspired approach):
+
 - Syntax: `GOSUB <label>([expr1, expr2, ...])`
 - Parameters are passed by creating numbered local variables `PARAM1`, `PARAM2`, etc.
 - These variables are accessible within the subroutine until `RETURN`.
 - After `RETURN`, parameter variables are destroyed.
 - Optional return value: `RETURN <expr>` stores result in special variable `RESULT`.
 - Example:
+
   ```basic
   GOSUB MULTIPLY(5, 7)
   PRINT RESULT  REM Prints 35
@@ -269,11 +289,13 @@ The executor maintains explicit stacks:
   ```
 
 **Design note**: Both mechanisms are supported:
+
 - `FUN`/`ENDFUN` is recommended for new scripts (clearer scoping, modern style).
 - `GOSUB` with parameters maintains BASIC heritage and is convenient for simple parameterized subroutines.
 - `FUN` calls can appear in expressions; `GOSUB` calls are statements only.
 
 Labels and line numbers:
+
 - A label is either an alphanumeric name (e.g., `START`) or a numeric-only “line number” (e.g., `10`).
 - Labels are case-insensitive; numeric labels should be normalized by value (`0010` == `10`).
 - Numeric labels are labels only (no implicit ordering requirement), but authors may choose to keep them increasing to resemble BASIC listings.
@@ -284,6 +306,7 @@ Labels and line numbers:
 - `GOTO`/`GOSUB` jump to the labeled location; `RETURN` resumes after the `GOSUB` call site.
 
 `WHILE` terminators:
+
 - `WHILE … WEND` has historic precedent in the Microsoft BASIC family (GW-BASIC/QBasic/QuickBASIC), so `WEND` is recognizable to many BASIC users.
 - `ENDWHILE` (and `END WHILE`) are allowed as clearer modern spellings.
 
@@ -330,13 +353,16 @@ Limits should be explicit (e.g., max nesting depth) and produce clear runtime er
 
 These statements/functions exist to make C64 automation scripts practical in the context of this plugin (REST control, keyboard injection, and reproducible captures).
 
-**Effects / palettes**
+##### 2.4.5.1 Effects / palettes
+
 - `EFFECT`, `EFFECTPARAM`, `PALETTE` update OBS source settings.
 
-**C64U runners / machine control**
+#### 2.4.5.2 C64U runners / machine control
+
 - `PLAYSID`, `RUNPRG`, `MOUNTDISK`, `RESET`, `REBOOT` call Ultimate 64 REST actions.
 
-**Memory access (`PEEK`/`POKE`)**
+#### 2.4.5.3 Memory access (`PEEK`/`POKE`)
+
 - `POKE <address>, <value>` writes one byte to C64 memory via DMA.
   - `<address>` must be in `0..65535` (hex form: `$0000..$FFFF`).
   - `<value>` is truncated to 8-bit (`value & 255`), matching C64 expectations.
@@ -350,9 +376,10 @@ These statements/functions exist to make C64 automation scripts practical in the
   - If `<address>` is not numeric at runtime, the executor should raise a BASIC-style “TYPE MISMATCH” error.
   - `PEEK`/`POKE` are network operations and may fail or time out; failures should stop execution with a clear error message by default.
 
-**Keyboard injection (`TYPE`/`KEY`)**
+#### 2.4.5.4 Keyboard injection (`TYPE`/`KEY`)
+
 - `TYPE <string_expr>` enqueues keystrokes derived from text.
-  - The string is converted to injected bytes using the “BASIC-friendly ASCII→PETSCII” rules described in `doc/rest-control.md`.
+  - The string is converted to injected bytes using the “BASIC-friendly ASCII→PETSCII” rules described in `doc/c64/c64u-rest-api.md`.
   - Escape sequences like `\r` are useful for RETURN.
   - If `<string_expr>` is not a string at runtime, the executor should raise a BASIC-style “TYPE MISMATCH” error.
 - `KEY <name>` enqueues one symbolic key press (or one raw byte).
@@ -362,6 +389,7 @@ These statements/functions exist to make C64 automation scripts practical in the
   - `TYPE`/`KEY` enqueue locally; they do not imply the C64 has already consumed the keystrokes. Use `WAIT` or memory polling (`PEEK`) where necessary.
 
 Important injection constraint:
+
 - Keyboard injection is KERNAL keyboard-buffer based; it will not work for software that reads the CIA keyboard matrix directly.
 
 **Built-in Functions**:
@@ -432,6 +460,7 @@ The language provides several built-in functions callable in expression context:
   - Example: `E = EXP(1)` → `2.71828`
 
 **Error handling for built-in functions**:
+
 - Unknown function names raise "UNDEF'D FUNCTION" error
 - Type mismatches (wrong argument types) raise "TYPE MISMATCH" error
 - Invalid numeric operations (e.g., `SQRT(-1)`) raise "ILLEGAL QUANTITY" error
@@ -446,6 +475,7 @@ The language provides several built-in functions callable in expression context:
   - Invalid index or color values raise "ILLEGAL QUANTITY" error.
 
 **HTTP REST calls (`HTTP`)**
+
 - `HTTP <method> <url> [HEADERS <headers_map>] [BODY <body_expr>] [STATUS <status_var>] [RESPONSE <response_var>]`
 - Performs an HTTP request and optionally captures response.
 - `<method>`: `GET`, `POST`, `PUT`, `DELETE`, or `PATCH`
@@ -455,6 +485,7 @@ The language provides several built-in functions callable in expression context:
 - `STATUS <status_var>`: optional variable to receive HTTP status code (e.g., 200, 404, 500)
 - `RESPONSE <response_var>`: optional variable to receive response body (string)
 - Example:
+
   ```basic
   HTTP GET "http://example.com/api/status" STATUS S RESPONSE R$
   IF S = 200 THEN
@@ -463,10 +494,12 @@ The language provides several built-in functions callable in expression context:
       LOG "Error: " + S
   ENDIF
   ```
+
 - Network errors raise runtime errors unless STATUS variable is provided (then error code is stored).
 - Timeout: implementation-defined (recommended: 30 seconds).
 
 **Local program execution (`RUN_LOCAL`)**
+
 - `RUNLOCAL <path> [ARGS <args_string>] [STATUS <status_var>] [OUTPUT <output_var>]`
 - Executes a local program/script and optionally captures result.
 - `<path>`: file path to executable (relative to script directory or absolute)
@@ -474,17 +507,20 @@ The language provides several built-in functions callable in expression context:
 - `STATUS <status_var>`: optional variable to receive exit code (0 = success)
 - `OUTPUT <output_var>`: optional variable to receive stdout+stderr (string)
 - Example:
+
   ```basic
   RUNLOCAL "convert_image.sh" ARGS "input.png output.d64" STATUS CODE OUTPUT OUT$
   IF CODE <> 0 THEN
       LOG "Conversion failed: " + OUT$
   ENDIF
   ```
+
 - Security note: Scripts should validate/sanitize paths to prevent arbitrary code execution.
 - Execution is blocking; script waits for program to complete.
 - Maximum output capture: implementation-defined (recommended: 1 MB; excess is truncated).
 
 **File I/O operations (`READFILE`, `WRITEFILE`)**
+
 - `READFILE <path>, <var>` reads entire file content into variable.
   - `<path>`: file path (relative to script directory or absolute)
   - `<var>`: destination variable (typically string variable with `$` suffix)
@@ -517,6 +553,7 @@ The language provides several built-in functions callable in expression context:
 The `EFFECTPARAM` statement allows fine-grained control of visual effects beyond preset selection. Each effect type supports different parameters. Effect names and parameter names are **case-insensitive**.
 
 **General usage**:
+
 ```basic
 EFFECT "Classic CRT"
 EFFECTPARAM "scanline_intensity" 0.7
@@ -526,9 +563,11 @@ EFFECTPARAM "phosphor_persistence" 0.3
 **Common effect types and their parameters**:
 
 #### CRT Effects
+
 Effect presets: `"Classic CRT"`, `"Vintage TV"`, `"Arcade Cabinet"`
 
 Parameters:
+
 - `scanline_intensity` (0.0 - 1.0): Strength of horizontal scanlines (default: 0.5)
 - `scanline_thickness` (0.1 - 2.0): Thickness of scanlines in pixels (default: 1.0)
 - `curvature` (0.0 - 0.2): Screen curvature amount (default: 0.05)
@@ -539,6 +578,7 @@ Parameters:
 - `noise` (0.0 - 0.5): Random noise/grain (default: 0.1)
 
 Example:
+
 ```basic
 EFFECT "Classic CRT"
 EFFECTPARAM "scanline_intensity" 0.8
@@ -548,15 +588,18 @@ EFFECTPARAM "bloom" 0.5
 ```
 
 #### Sharp/Pixel Perfect
+
 Effect presets: `"Sharp Pixels"`, `"Pixel Perfect"`
 
 Parameters:
+
 - `grid_intensity` (0.0 - 1.0): Pixel grid visibility (default: 0.0)
 - `grid_color_r` (0 - 255): Grid color red component (default: 0)
 - `grid_color_g` (0 - 255): Grid color green component (default: 0)
 - `grid_color_b` (0 - 255): Grid color blue component (default: 0)
 
 Example:
+
 ```basic
 EFFECT "Sharp Pixels"
 EFFECTPARAM "grid_intensity" 0.3
@@ -566,9 +609,11 @@ EFFECTPARAM "grid_color_b" 20
 ```
 
 #### Monitor Emulation
+
 Effect presets: `"Amber Monitor"`, `"Green Monitor"`
 
 Parameters:
+
 - `tint_r` (0.0 - 1.0): Red tint component (default: depends on monitor type)
 - `tint_g` (0.0 - 1.0): Green tint component (default: depends on monitor type)
 - `tint_b` (0.0 - 1.0): Blue tint component (default: depends on monitor type)
@@ -577,6 +622,7 @@ Parameters:
 - `contrast` (0.5 - 2.0): Screen contrast (default: 1.0)
 
 Example:
+
 ```basic
 EFFECT "Amber Monitor"
 EFFECTPARAM "tint_intensity" 0.9
@@ -585,13 +631,16 @@ EFFECTPARAM "contrast" 1.1
 ```
 
 #### Blur/Smoothing
+
 Effect presets: `"Soft Blur"`, `"CRT Blur"`
 
 Parameters:
+
 - `blur_radius` (0.0 - 10.0): Blur amount in pixels (default: 1.5)
 - `blur_direction` (0 - 2): 0=horizontal, 1=vertical, 2=both (default: 2)
 
 Example:
+
 ```basic
 EFFECT "Soft Blur"
 EFFECTPARAM "blur_radius" 2.5
@@ -599,6 +648,7 @@ EFFECTPARAM "blur_direction" 2
 ```
 
 #### Color Adjustments
+
 Available via `EFFECTPARAM` with any effect active:
 
 - `saturation` (0.0 - 2.0): Color saturation (1.0 = normal, default: 1.0)
@@ -608,6 +658,7 @@ Available via `EFFECTPARAM` with any effect active:
 - `contrast` (0.0 - 2.0): Contrast multiplier (default: 1.0)
 
 Example:
+
 ```basic
 EFFECT "Classic CRT"
 EFFECTPARAM "saturation" 1.2
@@ -617,12 +668,14 @@ EFFECTPARAM "gamma" 0.9
 
 **Parameter discovery**:
 To discover available parameters for a specific effect at runtime:
+
 1. Use the OBS Studio UI to inspect effect properties
 2. Consult `data/effect_presets.ini` for preset configurations
 3. Check effect shader source code in `data/effects/` directory
 4. Parameters not listed here are implementation-specific and may vary
 
 **Error handling**:
+
 - Unknown effect names: runtime warning, effect unchanged
 - Unknown parameter names: runtime warning, parameter unchanged
 - Invalid parameter values: runtime warning, clamped to valid range
@@ -630,7 +683,7 @@ To discover available parameters for a specific effect at runtime:
 
 ### 2.6 Examples
 
-**Example 0: Label and line-number forms**
+#### Example 0: Label and line-number forms
 
 These are alternative forms; in a real script, label names must be unique.
 
@@ -649,7 +702,7 @@ REM Numeric labels (BASIC-style line numbers)
 I = 0
 ```
 
-**Example A: BASIC-like sequence with quoted preset names**
+#### Example A: BASIC-like sequence with quoted preset names
 
 ```basic
 REM Fade in, then run a demo
@@ -661,7 +714,7 @@ WAIT 60s
 END
 ```
 
-**Example B: Label + IF + GOTO (no line numbers)**
+#### Example B: Label + IF + GOTO (no line numbers)
 
 ```basic
 START:
@@ -679,7 +732,7 @@ EFFECT "Default"
 END
 ```
 
-**Example C: FOR/NEXT**
+#### Example C: FOR/NEXT
 
 ```basic
 FOR I = 1 TO 5
@@ -691,7 +744,7 @@ NEXT I
 END
 ```
 
-**Example D: GOSUB/RETURN as “functions”**
+#### Example D: GOSUB/RETURN as “functions”
 
 ```basic
 PATH$ = "c64u:/Temp/music/galway_collection.sid"
@@ -709,7 +762,7 @@ WAIT 20
 RETURN
 ```
 
-**Example E: PEEK/POKE + typing an autostart sequence**
+#### Example E: PEEK/POKE + typing an autostart sequence
 
 ```basic
 LOGFILE "run.log" TRUNCATE
@@ -729,7 +782,7 @@ WAIT 10s
 END
 ```
 
-**Example F: TRON/TROFF for automatic progress logging**
+#### Example F: TRON/TROFF for automatic progress logging
 
 ```basic
 LOGFILE "trace.log" TRUNCATE
@@ -745,7 +798,7 @@ LOG "Done"
 END
 ```
 
-**Example G: Wait until a wall-clock time**
+#### Example G: Wait until a wall-clock time
 
 ```basic
 LOGFILE "schedule.log" APPEND
@@ -760,7 +813,7 @@ RECORDSTOP
 END
 ```
 
-**Example H: BASIC-style program with line numbers (optional)**
+#### Example H: BASIC-style program with line numbers (optional)
 
 Line numbers are optional in C64Script; they behave exactly like labels and exist mainly for that classic BASIC feel.
 
@@ -786,7 +839,7 @@ Line numbers are optional in C64Script; they behave exactly like labels and exis
 1050 RETURN
 ```
 
-**Example I: User-defined functions with parameters**
+#### Example I: User-defined functions with parameters
 
 ```basic
 REM Define a function to apply effect and wait
@@ -811,7 +864,7 @@ LOG "Effect applied with delay: " + DELAY
 END
 ```
 
-**Example J: GOSUB with parameters (BASIC-inspired)**
+#### Example J: GOSUB with parameters (BASIC-inspired)
 
 ```basic
 REM Call subroutine with parameters
@@ -826,7 +879,7 @@ CONFIGURE:
     RETURN
 ```
 
-**Example K: Arrays and maps**
+#### Example K: Arrays and maps
 
 ```basic
 REM Arrays for storing palette sequence
@@ -853,7 +906,7 @@ LOG "Connecting to " + CONFIG${"host"} + ":" + CONFIG{"port"}
 END
 ```
 
-**Example L: HTTP REST API integration**
+#### Example L: HTTP REST API integration
 
 ```basic
 REM Configure API endpoint
@@ -878,7 +931,7 @@ ENDIF
 END
 ```
 
-**Example M: Local file processing and program execution**
+#### Example M: Local file processing and program execution
 
 ```basic
 REM Read configuration file
@@ -903,7 +956,7 @@ WAIT 30s
 END
 ```
 
-**Example N: Custom palette colors**
+#### Example N: Custom palette colors
 
 ```basic
 REM Start with a base palette
@@ -924,7 +977,7 @@ RECORDSTOP
 END
 ```
 
-**Example O: Long-duration waits and scheduling**
+#### Example O: Long-duration waits and scheduling
 
 ```basic
 REM Wait various durations
@@ -945,7 +998,7 @@ LOG "Nightly capture completed"
 END
 ```
 
-**Example P: Complex automation with all features**
+#### Example P: Complex automation with all features
 
 ```basic
 REM Complete automation example combining all features

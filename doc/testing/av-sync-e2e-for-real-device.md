@@ -9,7 +9,7 @@ This is **LOCAL ONLY** (requires real hardware and a working GUI for OBS). Do no
 There are two complementary ways we check A/V synchronization in this project:
 
 - **Mocked C64U (most E2E tests):** the harness generates deterministic UDP packets that emulate the device. These
-  tests exercise the full OBS + plugin pipeline in a reproducible, CI-friendly way. See `doc/testing/e2e.md`.
+   tests exercise the full OBS + plugin pipeline in a reproducible, CI-friendly way. See `doc/testing/e2e.md`.
 - **Real C64U (this document):** run `av-sync-auto.prg` on a physical C64 Ultimate, record in OBS, and analyze the
   resulting CSVs/logs.
 
@@ -109,8 +109,8 @@ The device scenario enables A/V sync detection at runtime by toggling the plugin
 ### Prerequisites
 
 - A reachable C64 Ultimate device:
-   - UDP stream reachable from the machine running OBS (default ports `21000` video, `21001` audio)
-   - Control socket reachable (TCP port `64`) as required by the plugin
+  - UDP stream reachable from the machine running OBS (default ports `21000` video, `21001` audio)
+  - Control socket reachable (TCP port `64`) as required by the plugin
 - OBS installed and runnable from the command line as `obs`
 - OBS WebSocket enabled (OBS v28+ includes it; the E2E harness uses it to toggle `record_av_sync`)
 - The `c64stream` plugin built and installed into OBS (including `data/` files)
@@ -125,6 +125,7 @@ Optional (only if you want to rebuild/inspect the C64 programs manually): `64tas
 From the repo root:
 
 **Linux:**
+
 ```bash
 cmake --preset ubuntu-x86_64
 cmake --build build_x86_64
@@ -136,6 +137,7 @@ cp -r data/* "$HOME/.config/obs-studio/plugins/c64stream/data/"
 ```
 
 **macOS:**
+
 ```bash
 cmake --preset macos-universal
 cmake --build build_macos
@@ -158,17 +160,19 @@ python3 -m pip install -r tests/e2e/requirements.txt
 #### 3) Install 64tass assembler
 
 **Linux (Debian/Ubuntu):**
+
 ```bash
 sudo apt-get install 64tass
 ```
 
 **macOS:**
+
 ```bash
 brew install 64tass
 ```
 
 **Windows:**
-Download from https://sourceforge.net/projects/tass64/ and add to PATH.
+Download from <https://sourceforge.net/projects/tass64/> and add to PATH.
 
 ### Running the test
 
@@ -201,6 +205,7 @@ After a successful run, you'll find in the session directory:
 - `README.md` - Human-readable session summary
 
 The report includes:
+
 - **A/V offset statistics:** p50, p95, max deltas in milliseconds
 - **Pop event counts:** Video and audio pops detected
 - **CSV correlation:** Timing data from plugin instrumentation
@@ -215,11 +220,13 @@ The shell script works seamlessly in WSL2 with WSLg for GUI support.
 **Setup steps:**
 
 1. Install WSL2 with Ubuntu:
+
    ```powershell
    wsl --install
    ```
 
 2. Inside WSL, install dependencies:
+
    ```bash
    sudo apt-get update
    sudo apt-get install -y \
@@ -230,6 +237,7 @@ The shell script works seamlessly in WSL2 with WSLg for GUI support.
    ```
 
 3. Build and install the plugin:
+
    ```bash
    cmake --preset ubuntu-x86_64
    cmake --build build_x86_64
@@ -241,6 +249,7 @@ The shell script works seamlessly in WSL2 with WSLg for GUI support.
    ```
 
 4. Run the suite:
+
    ```bash
    cd tests/e2e
    ./run_avsync_suite.sh --duration 10 --verbose
@@ -251,12 +260,14 @@ The shell script works seamlessly in WSL2 with WSLg for GUI support.
 #### Option 2: Git Bash
 
 The script also works in Git Bash on Windows, but requires:
+
 - Git for Windows (includes bash, curl)
 - OBS Studio installed
 - Python 3 installed and in PATH
 - 64tass assembler in PATH
 
 **Run from Git Bash:**
+
 ```bash
 cd tests/e2e
 ./run_avsync_suite.sh --duration 10 --verbose
@@ -267,12 +278,14 @@ cd tests/e2e
 The script works natively on macOS with minor adjustments:
 
 1. Install dependencies via Homebrew:
+
    ```bash
    brew install cmake ninja pkg-config python3 64tass obs
    python3 -m pip install -r tests/e2e/requirements.txt
    ```
 
 2. Build and install the plugin:
+
    ```bash
    cmake --preset macos-universal
    cmake --build build_macos
@@ -284,6 +297,7 @@ The script works natively on macOS with minor adjustments:
    ```
 
 3. Run the suite:
+
    ```bash
    cd tests/e2e
    ./run_avsync_suite.sh --duration 10 --verbose
@@ -292,28 +306,34 @@ The script works natively on macOS with minor adjustments:
 ### Troubleshooting
 
 **OBS WebSocket connection fails:**
+
 - Ensure OBS WebSocket is enabled and reachable from the machine running the test.
 - If OBS is already running, close it before running the harness (the harness starts OBS itself).
 
 **OBS doesn't start:**
+
 - Verify OBS is installed: `which obs` (Unix) or `where obs` (Windows)
 - Check plugin is installed in the correct location
 - Try starting OBS manually first to verify it works
 
 **No video/audio received:**
+
 - Check UDP ports are not blocked by firewall (default: 21000 video, 21001 audio)
 - Verify C64U is streaming to the correct IP address
 - Use `--verbose` flag to see detailed network activity
 
 **No A/V pops detected:**
+
 - Ensure Debug is enabled for the source (the scenario sets `debug_logging: true`).
 - Verify the device is reachable and streaming to the host running OBS.
 - Try longer duration: `--duration 30`.
 
 **Hostname `c64u` not found:**
+
 - Use IP address instead: `--host 192.168.1.13`
 - Or add to `/etc/hosts` (Unix) or `C:\Windows\System32\drivers\etc\hosts` (Windows):
-  ```
+
+  ```text
   192.168.1.13  c64u
   ```
 
@@ -392,5 +412,5 @@ events.
 
 ## References
 
-- Protocol details and device control: `doc/c64u-stream-spec.md`
+- Protocol details and device control: `doc/c64/c64u-stream-spec.md`
 - Mock E2E scenarios and harness behavior: `doc/testing/e2e.md`

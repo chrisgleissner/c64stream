@@ -50,7 +50,8 @@ This allows you to walk through your script line-by-line to understand its behav
 - **Function**: Logs all currently defined variables (names, types, and values) to the OBS log
 
 Variable output format:
-```
+
+```log
 🕹 SCRIPT: === Variable Dump ===
 🕹 SCRIPT:   X = 42 (number)
 🕹 SCRIPT:   MESSAGE = "Hello, World!" (string)
@@ -62,6 +63,7 @@ Variable output format:
 ### Execution State
 
 Shows the current execution state:
+
 - `stopped` - Script is not running
 - `running` - Script is executing normally
 - `paused` - Script is paused (use Resume or Step)
@@ -71,7 +73,8 @@ Shows the current execution state:
 ### Last Executed Line
 
 Shows the most recent source line that completed execution, in the format:
-```
+
+```log
 <lineNumber>: <source line text>
 ```
 
@@ -82,7 +85,8 @@ At script start, this may show `(not started)`.
 ### Next Line to Execute
 
 Shows the next source line that will execute if you continue, in the format:
-```
+
+```log
 <lineNumber>: <source line text>
 ```
 
@@ -141,11 +145,11 @@ COUNTER = 0
 LABEL loop
   COUNTER = COUNTER + 1
   LOG "Counter value: " + STR(COUNTER)
-  
+
   IF COUNTER >= 5 THEN
     GOTO done
   ENDIF
-  
+
   WAIT 500ms
 GOTO loop
 
@@ -181,6 +185,7 @@ These limitations keep the debugger simple and focused on casual users.
 ## Performance
 
 Debugging features are designed to have **no measurable performance impact** when:
+
 - Script is running normally (not paused)
 - Debugging controls are not being used
 

@@ -7,7 +7,7 @@ This repository is an OBS Studio source plugin (`c64stream`) for streaming C64 U
 1. Start with `README.md` for the overall goal and repository layout.
 2. For feature context, read `implementation-plan.md` and `INVESTIGATION.md` (if present) before developing your solution.
 3. For any multi-hour task, open `PLANS.md` before planning changes.
-4. Technical protocol details live in `doc/c64u/c64u-stream-spec.md`; cross-check there as needed.
+4. Technical protocol details live in `doc/c64/c64u-stream-spec.md`; cross-check there as needed.
 5. Build/test workflows are defined in `.github/build-instructions.md`.
 6. Use `.github/copilot-instructions.md` for the latest rules and conventions (it supersedes anything below if there is a conflict).
 
@@ -16,8 +16,8 @@ This repository is an OBS Studio source plugin (`c64stream`) for streaming C64 U
 - **Primary rules & conventions**: see `.github/copilot-instructions.md`
 - **Complex feature work**: see `PLANS.md` (read at start of substantial tasks)
 - **Complex research or bug fix work**: see `INVESTIGATIONS.md` (read at start of substantial tasks)
-- **Streaming protocol documentation**: `doc/c64u/c64u-stream-spec.md`
-- **REST API documentation**: `doc/c64u/c64u-rest-api.md` and its formal OpenAPI specification  `doc/c64u/c64u-openapi.yaml`
+- **Streaming protocol documentation**: `doc/c64/c64u-stream-spec.md`
+- **REST API documentation**: `doc/c64/c64u-rest-api.md` and its formal OpenAPI specification  `doc/c64/c64u-openapi.yaml`
 - **Build details (CI)**: `.github/build-instructions.md`
 
 When this file conflicts with `.github/copilot-instructions.md`, follow `.github/copilot-instructions.md`.

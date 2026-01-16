@@ -2,7 +2,7 @@
 (*
    This grammar defines the C64Script language as implemented in the
    C64Stream OBS Studio plugin. For complete language documentation,
-   see doc/c64script-spec.md
+  see doc/c64script/c64script-spec.md
 *)
 
 (* ========================================================================== *)

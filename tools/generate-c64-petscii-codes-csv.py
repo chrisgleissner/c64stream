@@ -3,21 +3,21 @@
 """Generate a canonical 00-FF PETSCII table CSV.
 
 Benefits:
-- Keeps doc/c64u/c64-petscii-codes.csv reproducible (always 256 rows, stable columns).
+- Keeps doc/c64/c64-petscii-codes.csv reproducible (always 256 rows, stable columns).
 - Preserves your existing key mapping fields (c64_key/key_modifier/notes) as source-of-truth.
 - Normalizes only the modifier token values (left/right -> cbm/shift).
-- Backfills missing meaning values from repo sources (src/c64-keyboard.c + doc/c64u/c64-character-set.csv).
+- Backfills missing meaning values from repo sources (src/c64-keyboard.c + doc/c64/c64-character-set.csv).
 
 When to run:
-- After editing doc/c64u/c64-petscii-codes.csv (to repair/normalize structure).
-- After changing src/c64-keyboard.c or doc/c64u/c64-character-set.csv (to refresh derived meanings).
+- After editing doc/c64/c64-petscii-codes.csv (to repair/normalize structure).
+- After changing src/c64-keyboard.c or doc/c64/c64-character-set.csv (to refresh derived meanings).
 
 What to do with the output:
 - Validate: generate to a temp file and diff against the checked-in CSV.
     python3 tools/generate-c64-petscii-codes-csv.py > /tmp/c64-petscii-codes.csv
-    diff -u doc/c64u/c64-petscii-codes.csv /tmp/c64-petscii-codes.csv
+    diff -u doc/c64/c64-petscii-codes.csv /tmp/c64-petscii-codes.csv
 - Regenerate: overwrite the checked-in CSV (then review the diff).
-    python3 tools/generate-c64-petscii-codes-csv.py > doc/c64u/c64-petscii-codes.csv
+    python3 tools/generate-c64-petscii-codes-csv.py > doc/c64/c64-petscii-codes.csv
 """
 
 import csv
@@ -176,8 +176,8 @@ def symbolic_to_meaning(symbolic: str) -> str:
 def main() -> int:
     repo_root = Path(__file__).resolve().parents[1]
 
-    codes_path = repo_root / 'doc/c64u/c64-petscii-codes.csv'
-    charset_path = repo_root / 'doc/c64u/c64-character-set.csv'
+    codes_path = repo_root / 'doc/c64/c64-petscii-codes.csv'
+    charset_path = repo_root / 'doc/c64/c64-character-set.csv'
     keyboard_path = repo_root / 'src/c64-keyboard.c'
 
     existing = load_existing(codes_path)

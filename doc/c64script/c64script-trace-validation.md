@@ -178,7 +178,7 @@ Trace step limit exceeded (1000 steps max)
 
 ### Execution Timeout
 
-```
+```log
 Execution timeout after 5 seconds
 ```
 
@@ -186,7 +186,7 @@ Execution timeout after 5 seconds
 
 ### Iteration Limit
 
-```
+```log
 Iteration limit exceeded (100000 iterations)
 ```
 

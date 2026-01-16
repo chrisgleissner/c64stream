@@ -7,7 +7,7 @@ This directory contains declarative TextMate grammar files for native VS Code sy
 - **[`c64script.tmLanguage.json`](c64script.tmLanguage.json)** - TextMate grammar defining syntax patterns and scopes
 - **[`c64script-language-configuration.json`](c64script-language-configuration.json)** - Language configuration for brackets, comments, auto-closing pairs
 - **[`c64script-vscode-package.json`](c64script-vscode-package.json)** - VS Code extension manifest (for reference)
-- **[`c64script-grammar.ebnf`](c64script-grammar.ebnf)** - Formal EBNF grammar specification (source of truth)
+- **[`c64script-grammar.ebnf`](../c64script-grammar.ebnf)** - Formal EBNF grammar specification (source of truth)
 
 ## Installation
 
@@ -18,15 +18,15 @@ This directory contains declarative TextMate grammar files for native VS Code sy
    ```bash
    # Linux/macOS
    mkdir -p ~/.vscode/extensions/c64script-syntax-0.1.0
-   cp doc/c64script.tmLanguage.json ~/.vscode/extensions/c64script-syntax-0.1.0/
-   cp doc/c64script-language-configuration.json ~/.vscode/extensions/c64script-syntax-0.1.0/
-   cp doc/c64script-vscode-package.json ~/.vscode/extensions/c64script-syntax-0.1.0/package.json
+   cp doc/c64script/vscode/c64script.tmLanguage.json ~/.vscode/extensions/c64script-syntax-0.1.0/
+   cp doc/c64script/vscode/c64script-language-configuration.json ~/.vscode/extensions/c64script-syntax-0.1.0/
+   cp doc/c64script/vscode/c64script-vscode-package.json ~/.vscode/extensions/c64script-syntax-0.1.0/package.json
 
    # Windows
    mkdir %USERPROFILE%\.vscode\extensions\c64script-syntax-0.1.0
-   copy doc\c64script.tmLanguage.json %USERPROFILE%\.vscode\extensions\c64script-syntax-0.1.0\
-   copy doc\c64script-language-configuration.json %USERPROFILE%\.vscode\extensions\c64script-syntax-0.1.0\
-   copy doc\c64script-vscode-package.json %USERPROFILE%\.vscode\extensions\c64script-syntax-0.1.0\package.json
+   copy doc\c64script\vscode\c64script.tmLanguage.json %USERPROFILE%\.vscode\extensions\c64script-syntax-0.1.0\
+   copy doc\c64script\vscode\c64script-language-configuration.json %USERPROFILE%\.vscode\extensions\c64script-syntax-0.1.0\
+   copy doc\c64script\vscode\c64script-vscode-package.json %USERPROFILE%\.vscode\extensions\c64script-syntax-0.1.0\package.json
    ```
 
 2. **Reload VS Code:**
@@ -51,9 +51,9 @@ To create a distributable `.vsix` extension package:
    ```bash
    mkdir -p c64script-vscode-extension
    cd c64script-vscode-extension
-   cp ../doc/c64script.tmLanguage.json ./
-   cp ../doc/c64script-language-configuration.json ./
-   cp ../doc/c64script-vscode-package.json ./package.json
+   cp ../doc/c64script/vscode/c64script.tmLanguage.json ./
+   cp ../doc/c64script/vscode/c64script-language-configuration.json ./
+   cp ../doc/c64script/vscode/c64script-vscode-package.json ./package.json
    ```
 
 3. **Package the extension:**

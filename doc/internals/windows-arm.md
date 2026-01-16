@@ -11,6 +11,7 @@ This document describes C64 Stream plugin support for Windows on ARM64 (Snapdrag
 ### What is Windows ARM64?
 
 Windows ARM64 refers to Windows 11 running on ARM-based processors like Qualcomm Snapdragon. These devices include:
+
 - Microsoft Surface Pro (Snapdragon models)
 - Microsoft Surface Laptop (Snapdragon models)
 - Lenovo ThinkPad X13s
@@ -49,12 +50,14 @@ ARM processors offer excellent battery life and fanless operation, making them i
 OBS Studio's ARM64 support is **experimental**. Some features are not yet available:
 
 ❌ **Not Supported:**
+
 - **Hardware encoders** (NVENC, AMF, Quick Sync) - must use software encoding
 - **Scripting** (Lua/Python scripts)
 - **Game Capture** source
 - **AJA device** support
 
 ✅ **Supported:** (but in **experimental** state - expect things to break)
+
 - C64 Stream plugin (full functionality)
 - Most built-in sources (Display Capture, Window Capture, etc.)
 - Browser Source (with hardware acceleration)
@@ -72,20 +75,24 @@ OBS Studio's ARM64 support is **experimental**. Some features are not yet availa
 ### Troubleshooting
 
 #### "Plugin failed to load"
+
 - Ensure you downloaded the **ARM64** version (not x64)
 - Check OBS Studio version is 31.1.1+ ARM64
 - Verify OBS Studio itself runs correctly (try built-in sources first)
 
 #### "No network stream detected"
+
 - This is not ARM64-specific - see main [README](../README.md) for C64 Ultimate configuration
 
 #### OBS crashes on startup
+
 - ARM64 OBS support is experimental - check [OBS forums](https://obsproject.com/forum/) for known issues
 - Try disabling other plugins to isolate the problem
 
 ### Reporting Issues
 
 If you encounter ARM64-specific issues:
+
 1. Check this is an ARM64 device (Settings → System → About → "Processor: Snapdragon...")
 2. Note your OBS Studio version (Help → About)
 3. Open an issue on [GitHub](https://github.com/chrisgleissner/c64stream/issues)
@@ -101,12 +108,14 @@ If you encounter ARM64-specific issues:
 ### Build Requirements
 
 **Native Windows ARM64 build (recommended):**
+
 - Windows 11 ARM64 device (or VM)
 - Visual Studio 2022 with "Desktop development with C++" workload
 - CMake 3.28.3+
 - Git for Windows
 
 **Cross-compilation from x64 Windows:**
+
 - Visual Studio 2022 with ARM64 build tools
 - CMake 3.28.3+
 - Can build ARM64 from x64 Windows machine
@@ -142,11 +151,13 @@ The CMake preset sets the architecture to ARM64, and Visual Studio's ARM64 compi
 ### Building on Linux
 
 **Docker cross-compilation is NOT feasible** for Windows ARM64 builds. Reasons:
+
 - MinGW-w64 lacks ARM64 Windows support
 - LLVM/Clang cross-compilation requires complete Windows SDK (impractical)
 - No mature cross-compilation toolchain exists
 
 **Alternative: Use WSL + Visual Studio**
+
 - Install WSL2 on ARM64 Windows
 - Clone repo in WSL
 - Call Visual Studio toolchain from WSL (requires careful path setup)
@@ -173,12 +184,14 @@ jobs:
 ```
 
 **Key points:**
+
 - Uses native ARM64 Windows runners (not cross-compilation)
 - Runs on `windows-11-arm` runner label
 - Downloads ARM64 dependencies (OBS SDK, Qt6, obs-deps)
 - Produces ARM64 artifacts: `c64stream-VERSION-windows-arm64.zip`
 
 **Cost implications:**
+
 - ARM64 runners are **paid** (not included in free tier)
 - Typical cost: $0.016-0.064/minute depending on runner size
 - Full build: ~5-10 minutes = ~$0.10-0.60 per build
@@ -216,6 +229,7 @@ ARM64 dependencies are defined in [buildspec.json](../buildspec.json):
 ```
 
 **Dependency sources:**
+
 - OBS Studio ARM64: [obsproject/obs-studio releases](https://github.com/obsproject/obs-studio/releases)
 - obs-deps ARM64: [obsproject/obs-deps releases](https://github.com/obsproject/obs-deps/releases)
 - Qt6 ARM64: [obsproject/obs-deps releases](https://github.com/obsproject/obs-deps/releases) (Qt6 packages)
@@ -240,12 +254,14 @@ ARM64 preset in [CMakePresets.json](../CMakePresets.json):
 ```
 
 **Key differences from x64:**
+
 - `architecture`: `"ARM64,version=10.0.26100.0"` (instead of `"x64,..."`)
 - `binaryDir`: `build_arm64` (instead of `build_x64`)
 
 ### Code Compatibility
 
 **C64 Stream plugin requires ZERO code changes** for ARM64:
+
 - Pure C code (C17 standard)
 - No inline assembly
 - No x86/x64-specific intrinsics
@@ -253,6 +269,7 @@ ARM64 preset in [CMakePresets.json](../CMakePresets.json):
 - Uses OBS SDK abstractions (portable across architectures)
 
 **Verified ARM64 compatibility:**
+
 - ✅ Network streaming (UDP/TCP)
 - ✅ Video format conversion
 - ✅ Audio processing
@@ -265,6 +282,7 @@ ARM64 preset in [CMakePresets.json](../CMakePresets.json):
 **CI testing:** Build-only (cannot execute ARM64 binaries on x64 runners)
 
 **Runtime testing:** Requires real ARM64 Windows hardware
+
 - Manually test on Snapdragon device
 - Connect to C64 Ultimate network stream
 - Verify video/audio sync
@@ -272,6 +290,7 @@ ARM64 preset in [CMakePresets.json](../CMakePresets.json):
 - Record test footage
 
 **Beta testing program:**
+
 - Seeking volunteers with ARM64 Windows devices
 - Test installations and report issues
 - Validate performance characteristics
@@ -281,15 +300,18 @@ ARM64 preset in [CMakePresets.json](../CMakePresets.json):
 ARM64 builds are released alongside x64 builds:
 
 **Artifacts:**
+
 - `c64stream-VERSION-windows-x64.zip` (traditional build)
 - `c64stream-VERSION-windows-arm64.zip` (ARM64 build)
 - `c64stream-VERSION-windows-x64.exe` (installer, x64 only)
 
 **Installation:**
+
 - No ARM64 installer yet (manual zip installation only)
 - Future: Consider ARM64 installer if demand warrants
 
 **Documentation:**
+
 - Mark ARM64 as "Experimental" in release notes
 - Include link to this document
 - Request beta tester feedback
@@ -297,15 +319,18 @@ ARM64 builds are released alongside x64 builds:
 ### Debugging
 
 **Debug symbols:**
+
 - Available in PDB files (included in CI artifacts)
 - Load in Visual Studio or WinDbg on ARM64 device
 
 **Common issues:**
+
 - **Linker errors:** Ensure ARM64 versions of all libraries
 - **Runtime crashes:** Check dependencies are ARM64 (use `dumpbin /headers c64stream.dll`)
 - **Missing symbols:** Verify OBS SDK ARM64 import libraries
 
 **Useful commands:**
+
 ```powershell
 # Check if DLL is ARM64
 dumpbin /headers build_arm64\RelWithDebInfo\c64stream.dll | Select-String "machine"
@@ -331,6 +356,7 @@ dumpbin /dependents build_arm64\RelWithDebInfo\c64stream.dll
 ### Future Improvements
 
 **Potential enhancements:**
+
 - ARM64 installer (if adoption justifies development)
 - Automated testing on ARM64 GitHub runners
 - Performance benchmarks (ARM vs x64)
@@ -339,11 +365,13 @@ dumpbin /dependents build_arm64\RelWithDebInfo\c64stream.dll
 ### Contributing
 
 **Testing contributions welcome:**
+
 - Report ARM64-specific bugs
 - Validate performance on different Snapdragon models
 - Test with various C64 Ultimate firmware versions
 
 **Code contributions:**
+
 - No ARM64-specific code needed (architecture-neutral)
 - Follow standard contribution guidelines in [developer.md](developer.md)
 
