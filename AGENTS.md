@@ -82,6 +82,7 @@ The wrapper auto-detects common Homebrew installs; you can also override via `CL
 ```
 
 This runs:
+
 - All C/C++ unit tests (CTest)
 - All C64Script validation tests (all scripts in the repository)
 - All Python unit tests (E2E harness)
@@ -124,14 +125,14 @@ E2E tests drive a real OBS instance and validate the recorded output.
 
 - Run E2E tests only on a local machine with a working graphical environment (X11/Wayland) and OBS installed.
 
-### Basic E2E entrypoint:
+### Basic E2E entrypoint
 
 ```bash
 cd tests/e2e
 ./e2e.sh --format PAL --frames 180 --verbose
 ```
 
-### Running named scenarios:
+### Running named scenarios
 
 ```bash
 # List available scenarios
@@ -151,7 +152,7 @@ for s in $scenarios; do
 done
 ```
 
-### Assertion framework (for verifying recordings):
+### Assertion framework (for verifying recordings)
 
 ```bash
 # Verify recording against scenario's OBS scene config

@@ -135,23 +135,23 @@ bool c64_automation_skip_next(c64_automation_t *automation);
 bool c64_automation_jump_to_index(c64_automation_t *automation, int index);
 
 /**
- * Play single SID file
- * @param path Path to .sid file
- * @param song_number Song number (1-based, 0 for default)
+ * Play a SID or MOD file
+ * @param path Path to .sid or .mod file
+ * @param song_number Song number (1-based, 0 for default). Ignored for MOD.
  * @return true if started successfully
  */
-bool c64_automation_play_sid(c64_automation_t *automation, const char *path, int song_number);
+bool c64_automation_play_song(c64_automation_t *automation, const char *path, int song_number);
 
 /**
- * Run single PRG file
- * @param path Path to .prg file
+ * Run a PRG or CRT file
+ * @param path Path to .prg or .crt file
  * @return true if started successfully
  */
-bool c64_automation_run_prg(c64_automation_t *automation, const char *path);
+bool c64_automation_run_program(c64_automation_t *automation, const char *path);
 
 /**
- * Mount and start single D64 file
- * @param path Path to .d64 file
+ * Mount and start a disk image
+ * @param path Path to .d64/.g64/.d71/.g71/.d81 file
  * @return true if started successfully
  */
-bool c64_automation_start_d64(c64_automation_t *automation, const char *path);
+bool c64_automation_start_volume(c64_automation_t *automation, const char *path);

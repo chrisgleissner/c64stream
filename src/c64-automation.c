@@ -721,55 +721,112 @@ const char *c64_automation_get_status(c64_automation_t *automation)
     return status_copy;
 }
 
-bool c64_automation_play_sid(c64_automation_t *automation, const char *path, int song_number)
+static const char *c64_get_extension(const char *path)
+{
+    const char *dot = strrchr(path, '.');
+    return (dot && dot != path) ? dot : "";
+}
+
+static const char *c64_volume_type_from_path(const char *path)
+{
+    const char *ext = c64_get_extension(path);
+    if (strcasecmp(ext, ".d64") == 0) {
+        return "d64";
+    }
+    if (strcasecmp(ext, ".g64") == 0) {
+        return "g64";
+    }
+    if (strcasecmp(ext, ".d71") == 0) {
+        return "d71";
+    }
+    if (strcasecmp(ext, ".g71") == 0) {
+        return "g71";
+    }
+    if (strcasecmp(ext, ".d81") == 0) {
+        return "d81";
+    }
+    return NULL;
+}
+
+bool c64_automation_play_song(c64_automation_t *automation, const char *path, int song_number)
 {
     if (!automation || !path) {
         return false;
     }
 
+    const char *ext = c64_get_extension(path);
     size_t file_size;
     uint8_t *file_data = load_file(path, &file_size);
     if (!file_data) {
-        C64_LOG_ERROR(AUTOMATION_LOG_PREFIX "Failed to load SID: %s", path);
+        C64_LOG_ERROR(AUTOMATION_LOG_PREFIX "Failed to load song: %s", path);
         return false;
     }
 
-    bool success = c64_rest_play_sid(automation->rest_client, file_data, file_size, song_number);
+    bool success = false;
+    if (strcasecmp(ext, ".sid") == 0) {
+        success = c64_rest_play_sid(automation->rest_client, file_data, file_size, song_number);
+    } else if (strcasecmp(ext, ".mod") == 0) {
+        success = c64_rest_play_mod(automation->rest_client, file_data, file_size);
+    } else {
+        C64_LOG_ERROR(AUTOMATION_LOG_PREFIX "Unsupported song file: %s", path);
+    }
     free(file_data);
 
     if (success) {
-        C64_LOG_INFO(AUTOMATION_LOG_PREFIX "Playing SID: %s song=%d", path, song_number);
+        if (strcasecmp(ext, ".sid") == 0) {
+            C64_LOG_INFO(AUTOMATION_LOG_PREFIX "Playing SID: %s song=%d", path, song_number);
+        } else {
+            C64_LOG_INFO(AUTOMATION_LOG_PREFIX "Playing MOD: %s", path);
+        }
     }
 
     return success;
 }
 
-bool c64_automation_run_prg(c64_automation_t *automation, const char *path)
+bool c64_automation_run_program(c64_automation_t *automation, const char *path)
 {
     if (!automation || !path) {
         return false;
     }
 
+    const char *ext = c64_get_extension(path);
     size_t file_size;
     uint8_t *file_data = load_file(path, &file_size);
     if (!file_data) {
-        C64_LOG_ERROR(AUTOMATION_LOG_PREFIX "Failed to load PRG: %s", path);
+        C64_LOG_ERROR(AUTOMATION_LOG_PREFIX "Failed to load program: %s", path);
         return false;
     }
 
-    bool success = c64_rest_run_prg(automation->rest_client, file_data, file_size);
+    bool success = false;
+    if (strcasecmp(ext, ".prg") == 0) {
+        success = c64_rest_run_prg(automation->rest_client, file_data, file_size);
+    } else if (strcasecmp(ext, ".crt") == 0) {
+        success = c64_rest_run_crt(automation->rest_client, file_data, file_size);
+    } else {
+        C64_LOG_ERROR(AUTOMATION_LOG_PREFIX "Unsupported program file: %s", path);
+    }
     free(file_data);
 
     if (success) {
-        C64_LOG_INFO(AUTOMATION_LOG_PREFIX "Running PRG: %s", path);
+        if (strcasecmp(ext, ".crt") == 0) {
+            C64_LOG_INFO(AUTOMATION_LOG_PREFIX "Running CRT: %s", path);
+        } else {
+            C64_LOG_INFO(AUTOMATION_LOG_PREFIX "Running PRG: %s", path);
+        }
     }
 
     return success;
 }
 
-bool c64_automation_start_d64(c64_automation_t *automation, const char *path)
+bool c64_automation_start_volume(c64_automation_t *automation, const char *path)
 {
     if (!automation || !path) {
+        return false;
+    }
+
+    const char *disk_type = c64_volume_type_from_path(path);
+    if (!disk_type) {
+        C64_LOG_ERROR(AUTOMATION_LOG_PREFIX "Unsupported volume file: %s", path);
         return false;
     }
 
@@ -784,15 +841,15 @@ bool c64_automation_start_d64(c64_automation_t *automation, const char *path)
     size_t file_size;
     uint8_t *file_data = load_file(path, &file_size);
     if (!file_data) {
-        C64_LOG_ERROR(AUTOMATION_LOG_PREFIX "Failed to load D64: %s", path);
+        C64_LOG_ERROR(AUTOMATION_LOG_PREFIX "Failed to load volume: %s", path);
         return false;
     }
 
-    bool success = c64_rest_mount_disk(automation->rest_client, 'a', "d64", "readonly", file_data, file_size);
+    bool success = c64_rest_mount_disk(automation->rest_client, 'a', disk_type, "readonly", file_data, file_size);
     free(file_data);
 
     if (!success) {
-        C64_LOG_ERROR(AUTOMATION_LOG_PREFIX "Failed to mount D64: %s", path);
+        C64_LOG_ERROR(AUTOMATION_LOG_PREFIX "Failed to mount volume: %s", path);
         return false;
     }
 
@@ -811,7 +868,7 @@ bool c64_automation_start_d64(c64_automation_t *automation, const char *path)
         }
     }
 
-    C64_LOG_INFO(AUTOMATION_LOG_PREFIX "Started D64: %s", path);
+    C64_LOG_INFO(AUTOMATION_LOG_PREFIX "Started volume: %s", path);
     return true;
 }
 
