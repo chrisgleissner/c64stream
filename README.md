@@ -51,13 +51,13 @@ These settings work out-of-the-box with most C64 Ultimate setups. You can overri
 > [!NOTE]
 > The plugin has been **verified to work** on the systems listed below. Other environments have not been verified and are not supported explicitly, but community contributions are always welcome.
 
-### Easy Installation 📦
+### Installation 📦
 
 In the following instructions, replace `$VERSION` with the latest released version as shown on the [Releases](../../releases) page.
 
-#### Windows
+#### Windows (X64) 
 
-Verified on Windows 11:
+The following applies if you have an Intel or AMD CPU. It has been verified to work on Windows 11:
 
 1. Close OBS Studio
 2. [Download](../../releases) the plugin package with name `c64stream-$VERSION-windows-x64.zip`. It should now be in your `Downloads` folder (typically `C:\Users\<YourName>\Downloads`).
@@ -71,6 +71,9 @@ If you are using Windows Firewall and block all incoming connections, you may ha
 ```powershell
 New-NetFirewallRule -DisplayName "C64 Stream" -Direction Inbound -Protocol UDP -LocalPort 11000,11001 -RemoteAddress 192.168.1.64 -Action Allow
 ```
+
+#### Windows (ARM64)
+
 > [!NOTE]
 > Windows on ARM64 support is experimental and has not yet been fully tested.
 > If you would like to help with testing, please reach out via the
@@ -82,7 +85,7 @@ New-NetFirewallRule -DisplayName "C64 Stream" -Direction Inbound -Protocol UDP -
 3. [Download](../../releases) the plugin package `c64stream-$VERSION-windows-arm64.zip` to your `Downloads` folder.
 4. Install the plugin exactly as described in **Windows (X64)** above.
 
-### Windows (Portable Mode)
+#### Windows (Portable Mode)
 
 > [!NOTE]
 > This section applies **only** if OBS Studio is run in [portable mode](https://obsproject.com/kb/portable-mode), for example when `portable_mode.txt` exists in the root directory of OBS.
@@ -123,11 +126,7 @@ chmod -R 755 "$HOME/Library/Application Support/obs-studio/plugins/c64stream.plu
 ```
 4. Start OBS Studio
 
-#### Linux
-
-Verified on Ubuntu 24.04 and Debian 12. Other distributions may work but are not officially supported.
-
-##### Ubuntu / Debian (Recommended)
+#### Linux (Ubuntu / Debian)
 
 1. Close OBS Studio
 2. Install OBS Studio (32.0.1+):
@@ -149,7 +148,7 @@ Verified on Ubuntu 24.04 and Debian 12. Other distributions may work but are not
    ```
 5. Start OBS Studio
 
-##### Other Distributions (Fedora, Arch, etc.)
+#### Linux (Fedora, Arch, etc.)
 
 For non-Debian-based distributions, you can extract the `.deb` package manually:
 
