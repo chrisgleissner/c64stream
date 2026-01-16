@@ -96,7 +96,7 @@ BASIC-Inspired, Label-Oriented
 - Labels may end with `:` (recommended), but the colon is optional.
 - Label names should not use reserved keywords (e.g., avoid naming a label `IF` or `GOTO`).
 - A label can appear on the same line as code, or on a line by itself to label the following line.
-- Disambiguation rule (keeps the language usable without becoming a hybrid monster):
+- Disambiguation rule:
   - At the start of a line, an alphanumeric token is treated as a label **only if** it is followed by `:` or end-of-line, or it is followed by whitespace that is **not** immediately followed by `=`.
   - This ensures `I = 0` is an assignment, while `START I=0` can be a label + statement.
 
