@@ -503,15 +503,18 @@ Automate your C64 stream with C64Script - a modernized BASIC-like language desig
 C64Script is like a simplified, modernized version of Commodore BASIC. If you've ever typed `10 PRINT "HELLO"` on a C64, you'll feel right at home. The language lets you:
 
 - Control visual effects and palettes
-- Play SID music and run programs
-- Peek and poke the C64U RAM
+- Play SID music and run C64 programs
+- Read and write the C64 RAM
+- Run programs on your OBS device and make HTTP requests to link your stream to external events
 - Start and stop recordings
 - Type text and press keys automatically
 - Wait for specific times or conditions
 - Use variables, loops, and conditional logic
 
 > [!NOTE]
-> C64Script never runs automatically without your consent. Scripts execute only when you explicitly start them from the Properties window, ensuring full control at all times. If desired, you may enable automatic execution when the plugin starts by selecting the Auto-start script checkbox.
+> C64Script never runs automatically without your consent.
+> Scripts execute only when you explicitly start them from the Properties window, ensuring full control at all times.
+> If desired, you may enable automatic execution when the plugin starts by selecting the Auto-start script checkbox.
 
 **Quick Start Example - Color Palette Cycle:**
 
