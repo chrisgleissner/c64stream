@@ -2,19 +2,6 @@
 
 This document defines the BASIC-inspired `.c64script` language as implemented by the C64Stream OBS Studio plugin.
 
-MUST READ:
-
-- c64script-spec: Detailed language spec.
-- `c64script-tasks.md`: Breaks down spec into high-level tasks and fills in blanks, but spec remains source of truth where there are conflicts.
-- `c64script-progress.md`: Contains concrete, low-level tasks, and tracks progress
-
-Non-goals:
-
-- This document does not specify UI/OBS integration details (Properties UI, key capture UX, etc.).
-- This document does not guarantee that every command is fully implemented at runtime (see “Runtime support notes”).
-
----
-
 ## 1. File format
 
 - **File extension**: `.c64script`
