@@ -2020,6 +2020,8 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
             return;                                                              // Don't pass through to keymap
         } else if (event->native_vkey == 0x24 || event->native_vkey == 0xFF50) { // Home (Linux: 0xFF50)
             snprintf(key_code, sizeof(key_code), "home");
+        } else if (event->native_vkey == 0x2D || event->native_vkey == 0xFF63) { // Insert (Linux: 0xFF63)
+            snprintf(key_code, sizeof(key_code), "insert");
         } else if (event->native_vkey == 0xFF52) { // Arrow Up (Linux X11)
             snprintf(key_code, sizeof(key_code), "up");
         } else if (event->native_vkey == 0xFF54) { // Arrow Down (Linux X11)

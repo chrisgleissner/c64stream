@@ -830,6 +830,12 @@ static bool automation_settings_changed(obs_properties_t *props, obs_property_t 
 {
     UNUSED_PARAMETER(property);
 
+    // Force clear playlist to ensure rebuild when properties change
+    struct c64_source *context = obs_properties_get_param(props);
+    if (context && context->automation && !c64_automation_is_running(context->automation)) {
+        c64_automation_clear_playlist(context->automation);
+    }
+
     return refresh_playlist_from_settings(props, settings);
 }
 
