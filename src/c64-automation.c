@@ -7,6 +7,7 @@ See <https://www.gnu.org/licenses/> for details.
 */
 
 #include "c64-automation.h"
+#include "c64-automation-hvsc.h"
 #include "c64-file.h"
 #include "c64-keyboard.h"
 #include "c64-logging.h"
@@ -30,6 +31,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <sys/stat.h>
 #include <time.h>
 
@@ -63,6 +65,10 @@ struct c64_automation {
     file_entry_t *files;
     int num_files;
     int current_index;
+
+    // Song length database
+    bool use_songlengths;
+    c64_hvsc_songlength_db_t songlength_db;
 
     // Worker thread
     pthread_t worker_thread;
@@ -100,6 +106,103 @@ static c64_file_type_t get_file_type(const char *path)
         return C64_FILE_TYPE_D81;
     }
     return -1;
+}
+
+static bool is_playable_path(const char *path)
+{
+    if (!path || path[0] == '\0') {
+        return false;
+    }
+
+    const char *last_sep = strrchr(path, '/');
+    const char *last_backslash = strrchr(path, '\\');
+    if (last_backslash && (!last_sep || last_backslash > last_sep)) {
+        last_sep = last_backslash;
+    }
+
+    const char *filename = last_sep ? last_sep + 1 : path;
+    if (!filename || filename[0] == '\0') {
+        return false;
+    }
+
+    const char *dot = strrchr(filename, '.');
+    if (!dot || dot == filename) {
+        return false;
+    }
+
+    return get_file_type(filename) >= 0;
+}
+
+static void c64_automation_clear_songlengths(c64_automation_t *automation)
+{
+    if (!automation) {
+        return;
+    }
+
+    c64_hvsc_songlength_db_clear(&automation->songlength_db);
+}
+
+static bool c64_automation_ensure_songlengths_loaded(c64_automation_t *automation)
+{
+    if (!automation || !automation->use_songlengths) {
+        return false;
+    }
+
+    if (automation->songlength_db.loaded) {
+        return true;
+    }
+
+    if (automation->config.file_source != C64_FILE_SOURCE_LOCAL) {
+        return false;
+    }
+
+    char root_path[512];
+    if (automation->config.mode == C64_AUTO_MODE_FOLDER) {
+        strncpy(root_path, automation->config.folder_path, sizeof(root_path) - 1);
+        root_path[sizeof(root_path) - 1] = '\0';
+    } else {
+        const char *last_sep = strrchr(automation->config.folder_path, '/');
+        const char *last_backslash = strrchr(automation->config.folder_path, '\\');
+        if (last_backslash && (!last_sep || last_backslash > last_sep)) {
+            last_sep = last_backslash;
+        }
+        if (last_sep) {
+            size_t len = (size_t)(last_sep - automation->config.folder_path);
+            if (len >= sizeof(root_path)) {
+                len = sizeof(root_path) - 1;
+            }
+            memcpy(root_path, automation->config.folder_path, len);
+            root_path[len] = '\0';
+        } else {
+            strncpy(root_path, automation->config.folder_path, sizeof(root_path) - 1);
+            root_path[sizeof(root_path) - 1] = '\0';
+        }
+    }
+
+    char songlengths_path[512];
+    if (!c64_hvsc_find_songlengths_file_local(root_path, songlengths_path, sizeof(songlengths_path))) {
+        return false;
+    }
+
+    return c64_hvsc_songlength_db_load(&automation->songlength_db, songlengths_path);
+}
+
+static bool c64_automation_lookup_songlength(c64_automation_t *automation, const char *path, double *out_seconds)
+{
+    if (!automation || !path || !out_seconds) {
+        return false;
+    }
+
+    if (!c64_automation_ensure_songlengths_loaded(automation)) {
+        return false;
+    }
+
+    char md5_hex[33];
+    if (!c64_hvsc_md5_file_hex(path, md5_hex)) {
+        return false;
+    }
+
+    return c64_hvsc_songlength_db_lookup(&automation->songlength_db, md5_hex, out_seconds);
 }
 
 // Helper: Shuffle array using Fisher-Yates
@@ -231,6 +334,18 @@ static bool c64_automation_build_playlist(c64_automation_t *automation)
         automation->num_files = enumerate_files(automation->rest_client, automation->config.folder_path,
                                                 automation->config.file_source, automation->config.include_subfolders,
                                                 &automation->files);
+        if (automation->num_files > 0) {
+            int write_index = 0;
+            for (int i = 0; i < automation->num_files; i++) {
+                if (is_playable_path(automation->files[i].path)) {
+                    if (write_index != i) {
+                        automation->files[write_index] = automation->files[i];
+                    }
+                    write_index++;
+                }
+            }
+            automation->num_files = write_index;
+        }
         if (automation->num_files == 0) {
             C64_LOG_ERROR(AUTOMATION_LOG_PREFIX "No supported files found in: %s", automation->config.folder_path);
             c64_automation_clear_playlist_internal(automation);
@@ -329,10 +444,11 @@ static int enumerate_files(c64_rest_client_t *rest_client, const char *folder_pa
                 continue; // Skip directories
             }
 
-            c64_file_type_t type = get_file_type(c64u_entries[i].name);
-            if (type < 0) {
+            if (!is_playable_path(c64u_entries[i].name)) {
                 continue; // Not a supported file
             }
+
+            c64_file_type_t type = get_file_type(c64u_entries[i].name);
 
             // For C64U files, store the full path within the C64U filesystem
             // The path should be: <folder_path>/<filename>
@@ -425,10 +541,11 @@ static int enumerate_files(c64_rest_client_t *rest_client, const char *folder_pa
             }
 
             // Process regular files
-            c64_file_type_t type = get_file_type(find_data.cFileName);
-            if (type < 0) {
+            if (!is_playable_path(find_data.cFileName)) {
                 continue; // Not a supported file
             }
+
+            c64_file_type_t type = get_file_type(find_data.cFileName);
 
             // Store file path
             if (strlen(full_path) >= sizeof(files[count].path)) {
@@ -518,10 +635,11 @@ static int enumerate_files(c64_rest_client_t *rest_client, const char *folder_pa
                 continue;
             }
 
-            c64_file_type_t type = get_file_type(entry->d_name);
-            if (type < 0) {
+            if (!is_playable_path(entry->d_name)) {
                 continue; // Not a supported file
             }
+
+            c64_file_type_t type = get_file_type(entry->d_name);
 
             // Store file path
             if (strlen(full_path) >= sizeof(files[count].path)) {
@@ -719,6 +837,18 @@ static void *automation_worker(void *arg)
         }
 
         // Wait for duration (check should_stop and skip_requested periodically)
+        int songlength_ms_override = -1;
+        if (automation->use_songlengths && file->type == C64_FILE_TYPE_SID) {
+            double song_seconds = 0.0;
+            if (c64_automation_lookup_songlength(automation, file->path, &song_seconds)) {
+                songlength_ms_override = (int)(song_seconds * 1000.0 + 0.5);
+                if (songlength_ms_override < 1000) {
+                    songlength_ms_override = 1000;
+                }
+                C64_LOG_INFO(AUTOMATION_LOG_PREFIX "Using songlength %.2fs for %s", song_seconds, file->path);
+            }
+        }
+
         int elapsed_ms = 0;
         int sleep_interval_ms = 100;
 
@@ -729,7 +859,11 @@ static void *automation_worker(void *arg)
                 automation->skip_requested = false;
             }
             int jump_target = automation->current_index;
-            int duration_ms = automation->config.duration_seconds * 1000;
+            int duration_seconds = automation->config.duration_seconds;
+            if (duration_seconds < 1) {
+                duration_seconds = 1;
+            }
+            int duration_ms = (songlength_ms_override > 0) ? songlength_ms_override : duration_seconds * 1000;
             bool should_stop_loop = automation->should_stop;
             pthread_mutex_unlock(&automation->status_mutex);
 
@@ -802,6 +936,8 @@ c64_automation_t *c64_automation_create(void *rest_client, void *keyboard, obs_s
     automation->current_index = 0;
     automation->playlist_ready = false;
     automation->playlist_config_valid = false;
+    automation->use_songlengths = true;
+    c64_hvsc_songlength_db_clear(&automation->songlength_db);
     strncpy(automation->status, "idle", sizeof(automation->status) - 1);
 
     pthread_mutex_init(&automation->status_mutex, NULL);
@@ -810,6 +946,7 @@ c64_automation_t *c64_automation_create(void *rest_client, void *keyboard, obs_s
     automation->config.mode = C64_AUTO_MODE_OFF;
     automation->config.duration_seconds = 120;
     automation->config.reset_between_items = true;
+    automation->config.use_songlengths = true;
     strncpy(automation->config.d64_autostart_template, "LOAD\"*\",8,1\rRUN\r",
             sizeof(automation->config.d64_autostart_template) - 1);
 
@@ -829,6 +966,7 @@ void c64_automation_destroy(c64_automation_t *automation)
     }
 
     c64_automation_clear_playlist_internal(automation);
+    c64_automation_clear_songlengths(automation);
 
     pthread_mutex_destroy(&automation->status_mutex);
     free(automation);
@@ -840,12 +978,33 @@ void c64_automation_configure(c64_automation_t *automation, const c64_automation
         return;
     }
 
+    bool previous_use_songlengths = automation->use_songlengths;
+    c64_file_source_t previous_source = automation->config.file_source;
+    char previous_folder[512];
+    strncpy(previous_folder, automation->config.folder_path, sizeof(previous_folder) - 1);
+    previous_folder[sizeof(previous_folder) - 1] = '\0';
+
+    int duration_seconds = config->duration_seconds;
+    if (duration_seconds < 1) {
+        duration_seconds = 1;
+    }
+
     pthread_mutex_lock(&automation->status_mutex);
     memcpy(&automation->config, config, sizeof(c64_automation_config_t));
+    automation->config.duration_seconds = duration_seconds;
     pthread_mutex_unlock(&automation->status_mutex);
+    automation->use_songlengths = config->use_songlengths;
+
+    if (!automation->use_songlengths || automation->config.file_source != C64_FILE_SOURCE_LOCAL) {
+        c64_automation_clear_songlengths(automation);
+    } else if (previous_use_songlengths != automation->use_songlengths ||
+               previous_source != automation->config.file_source ||
+               strncmp(previous_folder, automation->config.folder_path, sizeof(previous_folder)) != 0) {
+        c64_automation_clear_songlengths(automation);
+    }
     C64_LOG_INFO(AUTOMATION_LOG_PREFIX "Configured: mode=%d folder=%s shuffle=%d recursive=%d duration=%d",
                  config->mode, config->folder_path, config->shuffle, config->include_subfolders,
-                 config->duration_seconds);
+                 automation->config.duration_seconds);
 }
 
 void c64_automation_update_runtime_config(c64_automation_t *automation, const c64_automation_config_t *config)
@@ -854,10 +1013,24 @@ void c64_automation_update_runtime_config(c64_automation_t *automation, const c6
         return;
     }
 
+    int duration_seconds = config->duration_seconds;
+    if (duration_seconds < 1) {
+        duration_seconds = 1;
+    }
+
     pthread_mutex_lock(&automation->status_mutex);
-    automation->config.duration_seconds = config->duration_seconds;
+    automation->config.duration_seconds = duration_seconds;
     automation->config.reset_between_items = config->reset_between_items;
     pthread_mutex_unlock(&automation->status_mutex);
+
+    if (automation->use_songlengths != config->use_songlengths) {
+        automation->use_songlengths = config->use_songlengths;
+        if (!automation->use_songlengths) {
+            c64_automation_clear_songlengths(automation);
+        } else {
+            c64_hvsc_songlength_db_clear(&automation->songlength_db);
+        }
+    }
 }
 
 void c64_automation_clear_playlist(c64_automation_t *automation)

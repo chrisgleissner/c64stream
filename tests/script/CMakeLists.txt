@@ -162,6 +162,7 @@ add_executable(
   test_automation_playlist.c
   c64script_test_stubs.c
   ${CMAKE_SOURCE_DIR}/src/c64-automation.c
+  ${CMAKE_SOURCE_DIR}/src/c64-automation-hvsc.c
 )
 target_include_directories(test_automation_playlist PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_link_libraries(test_automation_playlist PRIVATE OBS::libobs)

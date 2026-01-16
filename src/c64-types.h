@@ -347,8 +347,18 @@ struct c64_source {
     char cached_next_line[512];     // Cached "next to execute" line string for UI display
 
     // Content automation
-    void *automation;            // c64_automation_t* automation engine
-    char automation_status[256]; // Current automation status for UI display
+    void *automation;                      // c64_automation_t* automation engine
+    char automation_status[256];           // Current automation status for UI display
+    bool playlist_ui_update_in_progress;   // Guard for properties playlist UI updates
+    bool playlist_fingerprint_valid;       // Whether playlist fingerprint is initialized
+    int playlist_last_selected_index;      // Last selected playlist index
+    bool playlist_last_selected_valid;     // Whether last selected index is valid
+    int playlist_ignore_changes;           // Count of programmatic selection changes to ignore
+    int playlist_last_file_system;         // Last file system (0=local,1=C64U)
+    int playlist_last_playback_source;     // Last playback source (0=single,1=folder)
+    bool playlist_last_shuffle;            // Last shuffle flag
+    bool playlist_last_include_subfolders; // Last recursive flag
+    char playlist_last_path[512];          // Last path used to build playlist
 };
 
 #endif // C64_TYPES_H

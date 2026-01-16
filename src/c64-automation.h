@@ -47,6 +47,7 @@ typedef struct {
     bool include_subfolders;
     int duration_seconds;
     bool reset_between_items;
+    bool use_songlengths;
     char d64_autostart_template[256]; // e.g. "LOAD\"*\",8,1\rRUN\r"
 } c64_automation_config_t;
 
