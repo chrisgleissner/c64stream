@@ -1327,10 +1327,6 @@ static void update_playlist_property(obs_property_t *prop, struct c64_source *co
     bool was_in_progress = context->playlist_ui_update_in_progress;
     context->playlist_ui_update_in_progress = true;
 
-    if (context->playlist_ignore_changes < INT_MAX) {
-        context->playlist_ignore_changes++;
-    }
-
     // Clear existing list
     obs_property_list_clear(prop);
 

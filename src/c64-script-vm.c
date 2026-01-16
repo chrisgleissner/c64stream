@@ -3707,7 +3707,9 @@ bool c64script_vm_execute(c64script_runtime_t *runtime)
                 // Check if step mode is activated
                 if (runtime->step_mode) {
                     runtime->step_mode = false;
-                    break; // Execute one line then pause again
+                    runtime->is_paused = false;
+                    runtime->should_pause = true; // Pause again on next source line
+                    break;                        // Execute one line then pause again
                 }
             }
 
