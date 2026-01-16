@@ -673,9 +673,9 @@ To discover available parameters for a specific effect at runtime:
 - Invalid parameter values: runtime warning, clamped to valid range
 - Type mismatches: "TYPE MISMATCH" error (parameters must be numeric)
 
-### 2.6 Examples
+## 3 Examples
 
-#### 2.6.1 Example 0: Label and line-number forms
+### 3.1 Label and line-number forms
 
 These are alternative forms; in a real script, label names must be unique.
 
@@ -694,7 +694,7 @@ REM Numeric labels (BASIC-style line numbers)
 I = 0
 ```
 
-#### 2.6.2 Example A: BASIC-like sequence with quoted preset names
+### 3.2 BASIC-like sequence with quoted preset names
 
 ```basic
 REM Fade in, then run a demo
@@ -706,7 +706,7 @@ WAIT 60s
 END
 ```
 
-#### 2.6.3 Example B: Label + IF + GOTO (no line numbers)
+### 3.3 Label + IF + GOTO (no line numbers)
 
 ```basic
 START:
@@ -724,7 +724,7 @@ EFFECT "Default"
 END
 ```
 
-#### 2.6.4 Example C: FOR/NEXT
+### 3.4 FOR/NEXT
 
 ```basic
 FOR I = 1 TO 5
@@ -736,7 +736,7 @@ NEXT I
 END
 ```
 
-#### 2.6.5 Example D: GOSUB/RETURN as “functions”
+### 3.5 GOSUB/RETURN as “functions”
 
 ```basic
 PATH$ = "c64u:/Temp/music/galway_collection.sid"
@@ -754,7 +754,7 @@ WAIT 20
 RETURN
 ```
 
-#### 2.6.6 Example E: PEEK/POKE + typing an autostart sequence
+### 3.6 PEEK/POKE + typing an autostart sequence
 
 ```basic
 LOGFILE "run.log" TRUNCATE
@@ -774,7 +774,7 @@ WAIT 10s
 END
 ```
 
-#### 2.6.7 Example F: TRON/TROFF for automatic progress logging
+### 3.7 TRON/TROFF for automatic progress logging
 
 ```basic
 LOGFILE "trace.log" TRUNCATE
@@ -790,7 +790,7 @@ LOG "Done"
 END
 ```
 
-#### 2.6.8 Example G: Wait until a wall-clock time
+### 3.8 Wait until a wall-clock time
 
 ```basic
 LOGFILE "schedule.log" APPEND
@@ -805,7 +805,7 @@ RECORDSTOP
 END
 ```
 
-#### 2.6.9 Example H: BASIC-style program with line numbers (optional)
+### 3.9 BASIC-style program with line numbers (optional)
 
 Line numbers are optional in C64Script; they behave exactly like labels and exist mainly for that classic BASIC feel.
 
@@ -831,7 +831,7 @@ Line numbers are optional in C64Script; they behave exactly like labels and exis
 1050 RETURN
 ```
 
-#### 2.6.10 Example I: User-defined functions with parameters
+### 3.10 User-defined functions with parameters
 
 ```basic
 REM Define a function to apply effect and wait
@@ -856,7 +856,7 @@ LOG "Effect applied with delay: " + DELAY
 END
 ```
 
-#### 2.6.11 Example J: GOSUB with parameters (BASIC-inspired)
+### 3.11 GOSUB with parameters (BASIC-inspired)
 
 ```basic
 REM Call subroutine with parameters
@@ -871,7 +871,7 @@ CONFIGURE:
     RETURN
 ```
 
-#### 2.6.12 Example K: Arrays and maps
+### 3.12 Arrays and maps
 
 ```basic
 REM Arrays for storing palette sequence
@@ -898,7 +898,7 @@ LOG "Connecting to " + CONFIG${"host"} + ":" + CONFIG{"port"}
 END
 ```
 
-#### 2.6.13 Example L: HTTP REST API integration
+### 3.13 HTTP REST API integration
 
 ```basic
 REM Configure API endpoint
@@ -923,7 +923,7 @@ ENDIF
 END
 ```
 
-#### 2.6.14 Example M: Local file processing and program execution
+### 3.14 Local file processing and program execution
 
 ```basic
 REM Read configuration file
@@ -948,7 +948,7 @@ WAIT 30s
 END
 ```
 
-#### 2.6.15 Example N: Custom palette colors
+### 3.15 Custom palette colors
 
 ```basic
 REM Start with a base palette
@@ -969,7 +969,7 @@ RECORDSTOP
 END
 ```
 
-#### 2.6.16 Example O: Long-duration waits and scheduling
+### 3.16 Long-duration waits and scheduling
 
 ```basic
 REM Wait various durations
@@ -990,7 +990,7 @@ LOG "Nightly capture completed"
 END
 ```
 
-#### 2.6.17 Example P: Complex automation with all features
+### 3.17 Complex automation with all features
 
 ```basic
 REM Complete automation example combining all features
@@ -1059,9 +1059,9 @@ LOG "All captures completed"
 END
 ```
 
-## 3. Implementation Notes
+## 4. Implementation Notes
 
-### 3.1 General
+### 4.1 General
 
 - `c64u:` filesystem paths are supported for `PLAYSID`, `RUNPRG`, and `MOUNTDISK` (path-based REST API).
 - Local file upload variants are fully supported (uploads file data via REST API for all three commands).
@@ -1069,7 +1069,7 @@ END
 - D64 autostart template is customizable via automation configuration (see `c64-automation.h`).
 - HTTP requests are parsed and compiled but require libcurl integration for full execution (VM currently returns placeholder values).
 
-### 3.2 Limits
+### 4.2 Limits
 
 - Max script size: **1 MiB**
 - Max line length: **1024** bytes (parser line buffer)
@@ -1079,7 +1079,7 @@ END
 - Max variables: **512** (`C64SCRIPT_MAX_VARIABLES`)
 - Max bytecode size: **256 KiB** (`C64SCRIPT_MAX_BYTECODE_SIZE`)
 
-### 3.3 Differences from C64 BASIC V2
+### 4.3 Differences from C64 BASIC V2
 
 - **Execution model:** label-oriented scripts; line numbers are optional.
 - **Truth values:** relational operators return `1` for true (BASIC uses `-1`).
