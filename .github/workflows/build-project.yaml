@@ -653,13 +653,15 @@ jobs:
 
   # E2E Basic Test (Multi-Distro) - runs basic E2E scenario on all Linux distributions
   e2e-basic:
-    name: E2E Basic (${{ matrix.display_name }}) 🧪
+    name: E2E Basic (${{ matrix.display_name }}) - attempt ${{ matrix.attempt }} 🧪
     if: ${{ inputs.run_e2e }}
     runs-on: ubuntu-24.04
     needs: [check-event, ubuntu-build]
     strategy:
       fail-fast: false
       matrix:
+        attempt: [1, 2, 3]
+        distro: [ubuntu, debian, fedora, arch]
         include:
           - distro: ubuntu
             image_tag: ghcr.io/${{ github.repository }}/ubuntu-build:latest
@@ -970,7 +972,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-basic-results-${{ matrix.distro }}-${{ needs.check-event.outputs.commitHash }}
+          name: e2e-basic-results-${{ matrix.distro }}-attempt${{ matrix.attempt }}-${{ needs.check-event.outputs.commitHash }}
           path: e2e-artifacts/
           if-no-files-found: warn
 
@@ -991,7 +993,7 @@ jobs:
   # E2E Full Test (Ubuntu, Matrix) - runs all scenarios in parallel
   # Runs concurrently with e2e-basic for faster CI
   e2e-full:
-    name: E2E Full (${{ matrix.scenario }}) 🧪
+    name: E2E Full (${{ matrix.scenario }}) - attempt ${{ matrix.attempt }} 🧪
     if: ${{ inputs.run_e2e }}
     runs-on: ubuntu-24.04
     needs: [check-event, ubuntu-build]
@@ -999,6 +1001,7 @@ jobs:
       fail-fast: false
       max-parallel: 20
       matrix:
+        attempt: [1, 2, 3]
         scenario:
           - ntsc_amber_monitor
           - ntsc_arcade_cabinet
@@ -1352,7 +1355,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-full-${{ matrix.scenario }}-${{ needs.check-event.outputs.commitHash }}
+          name: e2e-full-${{ matrix.scenario }}-attempt${{ matrix.attempt }}-${{ needs.check-event.outputs.commitHash }}
           path: e2e-artifacts/
           if-no-files-found: warn
 
