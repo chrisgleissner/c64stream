@@ -504,6 +504,7 @@ C64Script is like a simplified, modernized version of Commodore BASIC. If you've
 
 - Control visual effects and palettes
 - Play SID music and run programs
+- Peek and poke the C64U RAM
 - Start and stop recordings
 - Type text and press keys automatically
 - Wait for specific times or conditions
