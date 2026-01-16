@@ -1,6 +1,6 @@
-# Technical Details
+# Implementation Notes
 
-This document contains technical implementation details for various features of the c64stream plugin.
+This document contains implementation notes for various features of the c64stream plugin.
 
 ## Keyboard Control
 

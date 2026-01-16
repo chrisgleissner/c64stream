@@ -135,7 +135,7 @@ BASIC-Inspired, Label-Oriented
 
 The complete formal grammar for C64Script is maintained in a separate file:
 
-**[`c64script-grammar.ebnf`](c64script-grammar.ebnf)**
+#### 2.3.1 [`c64script-grammar.ebnf`](c64script-grammar.ebnf)
 
 This EBNF grammar defines the language syntax including:
 
@@ -175,7 +175,7 @@ The grammar serves as the authoritative reference for:
 
   - Array/map elements: `DATA(3) = 42`, `CONFIG{"port"} = 8080`
 
-**Array Declaration with `DIM`**:
+##### 2.4.1.1 Array Declaration with `DIM`
 
 - `DIM <array_var>(<size>)` allocates an array with `<size>` elements (indices 0 to `<size>-1`).
 - Example: `DIM VALUES(10)` creates an array with 10 numeric elements (indices 0-9).
@@ -185,7 +185,7 @@ The grammar serves as the authoritative reference for:
 - Re-declaring an array with `DIM` reallocates it, discarding previous contents.
 - Maps (`{}` suffix) do not require `DIM`; they are created on first access and grow dynamically.
 
-**Automatic Type Casting Rules**:
+##### 2.4.1.2 Automatic Type Casting Rules
 
 The language performs automatic type conversion in specific contexts to maintain BASIC-like simplicity while preventing common errors:
 
@@ -218,7 +218,7 @@ The language performs automatic type conversion in specific contexts to maintain
    - Overflow wraps around (implementation-defined behavior).
    - Example: `I% = 3.7` stores `3`
 
-**Type Mismatch Errors**:
+##### 2.4.1.3 Type Mismatch Errors
 
 The following operations raise "TYPE MISMATCH" errors:
 
@@ -227,7 +227,7 @@ The following operations raise "TYPE MISMATCH" errors:
 - Passing wrong type to built-in functions (e.g., `PEEK("hello")`)
 - Invalid string-to-numeric conversion
 
-**Type Compatibility in Expressions**:
+##### 2.4.1.4 Type Compatibility in Expressions
 
 - Numeric operators (`+`, `-`, `*`, `/`) require numeric operands.
 - String operator (`+` for concatenation) casts operands to string when at least one operand is string.
@@ -238,7 +238,7 @@ The following operations raise "TYPE MISMATCH" errors:
 
 #### 2.4.2 Control Flow and Stacks
 
-**Script Termination**:
+##### 2.4.2.1 Script Termination
 
 - Scripts terminate when reaching: `STOP` (or `END`), `GOTO`, `LOOP`, or **running out of instructions** (implicit termination).
 - Implicit termination: If the instruction pointer reaches the end of bytecode without encountering an explicit termination statement, the script completes successfully.
@@ -251,9 +251,9 @@ The executor maintains explicit stacks:
 - `GOSUB` stack: return address, saved parameter values (if any), saved local variables (for functions).
 - `FUNCTION` stack: function name, parameter names, local variable scope.
 
-**Functions and Parameterized Subroutines**:
+##### 2.4.2.2 Functions and Parameterized Subroutines
 
-**User-defined functions** (modern approach):
+###### 2.4.2.2.1 User-defined functions (modern approach)
 
 - Syntax: `FUN <name>([param1, param2, ...])` ... `ENDFUN`
 - Functions create a local scope; parameters and variables declared inside are local.
@@ -269,7 +269,7 @@ The executor maintains explicit stacks:
   RESULT = ADD(3, 5)  REM RESULT = 8
   ```
 
-**Parameterized GOSUB** (BASIC-inspired approach):
+###### 2.4.2.2.2 Parameterized GOSUB (BASIC-inspired approach)
 
 - Syntax: `GOSUB <label>([expr1, expr2, ...])`
 - Parameters are passed by creating numbered local variables `PARAM1`, `PARAM2`, etc.
@@ -288,7 +288,7 @@ The executor maintains explicit stacks:
       RETURN
   ```
 
-**Design note**: Both mechanisms are supported:
+###### 2.4.2.2.3 Design note: Both mechanisms are supported
 
 - `FUN`/`ENDFUN` is recommended for new scripts (clearer scoping, modern style).
 - `GOSUB` with parameters maintains BASIC heritage and is convenient for simple parameterized subroutines.
@@ -392,7 +392,7 @@ Important injection constraint:
 
 - Keyboard injection is KERNAL keyboard-buffer based; it will not work for software that reads the CIA keyboard matrix directly.
 
-**Built-in Functions**:
+##### 2.4.5.5 Built-in Functions
 
 The language provides several built-in functions callable in expression context:
 
@@ -459,13 +459,15 @@ The language provides several built-in functions callable in expression context:
 - `EXP(<power>)` - e raised to power
   - Example: `E = EXP(1)` → `2.71828`
 
-**Error handling for built-in functions**:
+###### 2.4.5.5.1 Error handling for built-in functions
 
 - Unknown function names raise "UNDEF'D FUNCTION" error
 - Type mismatches (wrong argument types) raise "TYPE MISMATCH" error
 - Invalid numeric operations (e.g., `SQRT(-1)`) raise "ILLEGAL QUANTITY" error
 - All function names are case-insensitive
-**Palette color control (`PALETTE_COLOR`)**
+
+##### 2.4.5.6 Palette color control (`PALETTE_COLOR`)
+
 - `PALETTECOLOR <index>, <r>, <g>, <b>` sets a specific palette color by index (0-15) to RGB values.
   - `<index>` must be in range 0-15 (palette indices).
   - `<r>`, `<g>`, `<b>` are color components in range 0-255.
@@ -474,7 +476,7 @@ The language provides several built-in functions callable in expression context:
   - This allows fine-tuned palette customization beyond preset selection.
   - Invalid index or color values raise "ILLEGAL QUANTITY" error.
 
-**HTTP REST calls (`HTTP`)**
+##### 2.4.5.7 HTTP REST calls (`HTTP`)
 
 - `HTTP <method> <url> [HEADERS <headers_map>] [BODY <body_expr>] [STATUS <status_var>] [RESPONSE <response_var>]`
 - Performs an HTTP request and optionally captures response.
@@ -498,7 +500,7 @@ The language provides several built-in functions callable in expression context:
 - Network errors raise runtime errors unless STATUS variable is provided (then error code is stored).
 - Timeout: implementation-defined (recommended: 30 seconds).
 
-**Local program execution (`RUN_LOCAL`)**
+##### 2.4.5.8 Local program execution (`RUN_LOCAL`)
 
 - `RUNLOCAL <path> [ARGS <args_string>] [STATUS <status_var>] [OUTPUT <output_var>]`
 - Executes a local program/script and optionally captures result.
@@ -519,7 +521,7 @@ The language provides several built-in functions callable in expression context:
 - Execution is blocking; script waits for program to complete.
 - Maximum output capture: implementation-defined (recommended: 1 MB; excess is truncated).
 
-**File I/O operations (`READFILE`, `WRITEFILE`)**
+##### 2.4.5.9 File I/O operations (`READFILE`, `WRITEFILE`)
 
 - `READFILE <path>, <var>` reads entire file content into variable.
   - `<path>`: file path (relative to script directory or absolute)
@@ -537,7 +539,9 @@ The language provides several built-in functions callable in expression context:
   - Write errors raise "I/O ERROR".
   - Example: `WRITEFILE "output.txt", "Result: " + RESULT, TRUNCATE`
   - Example: `WRITEFILE "log.txt", "Event at " + TIME$(), APPEND`
-**Logging / tracing (`LOG`, `LOGFILE`, `TRON`, `TROFF`)**
+
+  ##### 2.4.5.10 Logging / tracing (`LOG`, `LOGFILE`, `TRON`, `TROFF`)
+
 - `LOGFILE <path> [APPEND|TRUNCATE]` selects a script log file destination.
   - Relative paths should resolve relative to the script file’s directory.
   - If the mode is omitted, default is `APPEND`.
@@ -552,7 +556,7 @@ The language provides several built-in functions callable in expression context:
 
 The `EFFECTPARAM` statement allows fine-grained control of visual effects beyond preset selection. Each effect type supports different parameters. Effect names and parameter names are **case-insensitive**.
 
-**General usage**:
+#### 2.5.1 General usage
 
 ```basic
 EFFECT "Classic CRT"
@@ -560,9 +564,9 @@ EFFECTPARAM "scanline_intensity" 0.7
 EFFECTPARAM "phosphor_persistence" 0.3
 ```
 
-**Common effect types and their parameters**:
+#### 2.5.2 Common effect types and their parameters
 
-#### CRT Effects
+##### 2.5.2.1 CRT Effects
 
 Effect presets: `"Classic CRT"`, `"Vintage TV"`, `"Arcade Cabinet"`
 
@@ -587,7 +591,7 @@ EFFECTPARAM "phosphor_persistence" 0.4
 EFFECTPARAM "bloom" 0.5
 ```
 
-#### Sharp/Pixel Perfect
+##### 2.5.2.2 Sharp/Pixel Perfect
 
 Effect presets: `"Sharp Pixels"`, `"Pixel Perfect"`
 
@@ -608,7 +612,7 @@ EFFECTPARAM "grid_color_g" 20
 EFFECTPARAM "grid_color_b" 20
 ```
 
-#### Monitor Emulation
+##### 2.5.2.3 Monitor Emulation
 
 Effect presets: `"Amber Monitor"`, `"Green Monitor"`
 
@@ -630,7 +634,7 @@ EFFECTPARAM "brightness" 1.2
 EFFECTPARAM "contrast" 1.1
 ```
 
-#### Blur/Smoothing
+##### 2.5.2.4 Blur/Smoothing
 
 Effect presets: `"Soft Blur"`, `"CRT Blur"`
 
@@ -647,7 +651,7 @@ EFFECTPARAM "blur_radius" 2.5
 EFFECTPARAM "blur_direction" 2
 ```
 
-#### Color Adjustments
+##### 2.5.2.5 Color Adjustments
 
 Available via `EFFECTPARAM` with any effect active:
 
@@ -666,7 +670,8 @@ EFFECTPARAM "brightness" 1.1
 EFFECTPARAM "gamma" 0.9
 ```
 
-**Parameter discovery**:
+#### 2.5.3 Parameter discovery
+
 To discover available parameters for a specific effect at runtime:
 
 1. Use the OBS Studio UI to inspect effect properties
@@ -674,7 +679,7 @@ To discover available parameters for a specific effect at runtime:
 3. Check effect shader source code in `data/effects/` directory
 4. Parameters not listed here are implementation-specific and may vary
 
-**Error handling**:
+#### 2.5.4 Error handling
 
 - Unknown effect names: runtime warning, effect unchanged
 - Unknown parameter names: runtime warning, parameter unchanged
@@ -683,7 +688,7 @@ To discover available parameters for a specific effect at runtime:
 
 ### 2.6 Examples
 
-#### Example 0: Label and line-number forms
+#### 2.6.1 Example 0: Label and line-number forms
 
 These are alternative forms; in a real script, label names must be unique.
 
@@ -702,7 +707,7 @@ REM Numeric labels (BASIC-style line numbers)
 I = 0
 ```
 
-#### Example A: BASIC-like sequence with quoted preset names
+#### 2.6.2 Example A: BASIC-like sequence with quoted preset names
 
 ```basic
 REM Fade in, then run a demo
@@ -714,7 +719,7 @@ WAIT 60s
 END
 ```
 
-#### Example B: Label + IF + GOTO (no line numbers)
+#### 2.6.3 Example B: Label + IF + GOTO (no line numbers)
 
 ```basic
 START:
@@ -732,7 +737,7 @@ EFFECT "Default"
 END
 ```
 
-#### Example C: FOR/NEXT
+#### 2.6.4 Example C: FOR/NEXT
 
 ```basic
 FOR I = 1 TO 5
@@ -744,7 +749,7 @@ NEXT I
 END
 ```
 
-#### Example D: GOSUB/RETURN as “functions”
+#### 2.6.5 Example D: GOSUB/RETURN as “functions”
 
 ```basic
 PATH$ = "c64u:/Temp/music/galway_collection.sid"
@@ -762,7 +767,7 @@ WAIT 20
 RETURN
 ```
 
-#### Example E: PEEK/POKE + typing an autostart sequence
+#### 2.6.6 Example E: PEEK/POKE + typing an autostart sequence
 
 ```basic
 LOGFILE "run.log" TRUNCATE
@@ -782,7 +787,7 @@ WAIT 10s
 END
 ```
 
-#### Example F: TRON/TROFF for automatic progress logging
+#### 2.6.7 Example F: TRON/TROFF for automatic progress logging
 
 ```basic
 LOGFILE "trace.log" TRUNCATE
@@ -798,7 +803,7 @@ LOG "Done"
 END
 ```
 
-#### Example G: Wait until a wall-clock time
+#### 2.6.8 Example G: Wait until a wall-clock time
 
 ```basic
 LOGFILE "schedule.log" APPEND
@@ -813,7 +818,7 @@ RECORDSTOP
 END
 ```
 
-#### Example H: BASIC-style program with line numbers (optional)
+#### 2.6.9 Example H: BASIC-style program with line numbers (optional)
 
 Line numbers are optional in C64Script; they behave exactly like labels and exist mainly for that classic BASIC feel.
 
@@ -839,7 +844,7 @@ Line numbers are optional in C64Script; they behave exactly like labels and exis
 1050 RETURN
 ```
 
-#### Example I: User-defined functions with parameters
+#### 2.6.10 Example I: User-defined functions with parameters
 
 ```basic
 REM Define a function to apply effect and wait
@@ -864,7 +869,7 @@ LOG "Effect applied with delay: " + DELAY
 END
 ```
 
-#### Example J: GOSUB with parameters (BASIC-inspired)
+#### 2.6.11 Example J: GOSUB with parameters (BASIC-inspired)
 
 ```basic
 REM Call subroutine with parameters
@@ -879,7 +884,7 @@ CONFIGURE:
     RETURN
 ```
 
-#### Example K: Arrays and maps
+#### 2.6.12 Example K: Arrays and maps
 
 ```basic
 REM Arrays for storing palette sequence
@@ -906,7 +911,7 @@ LOG "Connecting to " + CONFIG${"host"} + ":" + CONFIG{"port"}
 END
 ```
 
-#### Example L: HTTP REST API integration
+#### 2.6.13 Example L: HTTP REST API integration
 
 ```basic
 REM Configure API endpoint
@@ -931,7 +936,7 @@ ENDIF
 END
 ```
 
-#### Example M: Local file processing and program execution
+#### 2.6.14 Example M: Local file processing and program execution
 
 ```basic
 REM Read configuration file
@@ -956,7 +961,7 @@ WAIT 30s
 END
 ```
 
-#### Example N: Custom palette colors
+#### 2.6.15 Example N: Custom palette colors
 
 ```basic
 REM Start with a base palette
@@ -977,7 +982,7 @@ RECORDSTOP
 END
 ```
 
-#### Example O: Long-duration waits and scheduling
+#### 2.6.16 Example O: Long-duration waits and scheduling
 
 ```basic
 REM Wait various durations
@@ -998,7 +1003,7 @@ LOG "Nightly capture completed"
 END
 ```
 
-#### Example P: Complex automation with all features
+#### 2.6.17 Example P: Complex automation with all features
 
 ```basic
 REM Complete automation example combining all features

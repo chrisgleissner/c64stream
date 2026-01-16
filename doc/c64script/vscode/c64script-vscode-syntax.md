@@ -7,7 +7,6 @@ This directory contains declarative TextMate grammar files for native VS Code sy
 - **[`c64script.tmLanguage.json`](c64script.tmLanguage.json)** - TextMate grammar defining syntax patterns and scopes
 - **[`c64script-language-configuration.json`](c64script-language-configuration.json)** - Language configuration for brackets, comments, auto-closing pairs
 - **[`c64script-vscode-package.json`](c64script-vscode-package.json)** - VS Code extension manifest (for reference)
-- **[`c64script-grammar.ebnf`](../c64script-grammar.ebnf)** - Formal EBNF grammar specification (source of truth)
 
 ## Installation
 
@@ -43,11 +42,13 @@ This directory contains declarative TextMate grammar files for native VS Code sy
 To create a distributable `.vsix` extension package:
 
 1. **Install vsce (VS Code Extension Manager):**
+
    ```bash
    npm install -g @vscode/vsce
    ```
 
 2. **Create extension directory structure:**
+
    ```bash
    mkdir -p c64script-vscode-extension
    cd c64script-vscode-extension
@@ -57,6 +58,7 @@ To create a distributable `.vsix` extension package:
    ```
 
 3. **Package the extension:**
+
    ```bash
    vsce package
    ```
@@ -72,19 +74,23 @@ To create a distributable `.vsix` extension package:
 The TextMate grammar provides comprehensive syntax highlighting for:
 
 #### Comments
+
 - `REM Comments` - BASIC-style
 
 #### Strings
+
 - `"Double-quoted strings"`
 - Escape sequences: `\"`, `\\`, `\n`, `\r`, `\t`, `\xNN`
 - BASIC-style escaping: `""`
 
 #### Numbers
+
 - Decimal: `42`, `3.14`, `-10`
 - Hexadecimal: `$C000`, `$FF`, `$D020`
 - Duration literals: `500ms`, `1.5s`, `2m`, `1h`
 
 #### Control Keywords
+
 - `IF`/`THEN`/`ELSE`/`ENDIF`
 - `FOR`/`TO`/`STEP`/`NEXT`
 - `WHILE`/`WEND`/`ENDWHILE`
@@ -93,9 +99,11 @@ The TextMate grammar provides comprehensive syntax highlighting for:
 - `STOP`/`END`
 
 #### Logical Operators
+
 - `NOT`, `AND`, `OR`, `XOR`
 
 #### Commands (all forms supported)
+
 - **Effects:** `EFFECT`, `EFFECT_PARAM`/`EFFECTPARAM`, `PALETTE`, `PALETTE_COLOR`/`PALETTECOLOR`
 - **C64 Control:** `PLAY_SID`/`PLAYSID`, `RUN_PRG`/`RUNPRG`, `MOUNT_DISK`/`MOUNTDISK`, `RESET`, `REBOOT`
 - **Recording:** `RECORD_START`/`RECORDSTART`, `RECORD_STOP`/`RECORDSTOP`
@@ -107,15 +115,18 @@ The TextMate grammar provides comprehensive syntax highlighting for:
 - **Timing:** `WAIT`
 
 #### Built-in Functions
+
 - **String:** `LEN`, `LEFT$`, `RIGHT$`, `MID$`, `CHR$`, `ASC`, `STR$`, `VAL`
 - **Math:** `ABS`, `INT`, `RND`, `SIN`, `COS`, `TAN`, `SQRT`, `LOG`, `EXP`
 - **Time:** `TIME$()`
 
 #### Labels
+
 - Numeric: `10`, `100`, `1000` (BASIC-style line numbers)
 - Alphanumeric: `START:`, `LOOP`, `DONE:`
 
 #### Variables with Type Suffixes
+
 - `NAME$` - String variable
 - `COUNT%` - Integer variable
 - `DATA()` - Array variable
@@ -151,6 +162,7 @@ code data/scripts/demo_basic_hello_world.c64script
 ```
 
 Verify that:
+
 - Keywords are highlighted correctly (any case)
 - Strings and escape sequences are styled properly
 - Comments work for both `#` and `REM`
@@ -163,5 +175,5 @@ Verify that:
 - **Language Specification:** [`c64script-spec.md`](c64script-spec.md)
 - **EBNF Grammar:** [`c64script-grammar.ebnf`](c64script-grammar.ebnf)
 - **Debugging Guide:** [`c64script-debugging.md`](c64script-debugging.md)
-- **TextMate Grammar Documentation:** https://macromates.com/manual/en/language_grammars
-- **VS Code Language Extensions:** https://code.visualstudio.com/api/language-extensions/syntax-highlight-guide
+- **TextMate Grammar Documentation:** <https://macromates.com/manual/en/language_grammars>
+- **VS Code Language Extensions:** <https://code.visualstudio.com/api/language-extensions/syntax-highlight-guide>
