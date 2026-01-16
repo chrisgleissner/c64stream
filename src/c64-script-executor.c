@@ -371,7 +371,8 @@ bool c64_script_executor_validate_file(c64_script_executor_t *executor, const ch
     return ok;
 }
 
-bool c64_script_executor_start(c64_script_executor_t *executor, const char *script_file_path)
+static bool c64_script_executor_start_internal(c64_script_executor_t *executor, const char *script_file_path,
+                                               bool start_paused)
 {
     if (!executor || !script_file_path || script_file_path[0] == '\0') {
         return false;
@@ -398,8 +399,14 @@ bool c64_script_executor_start(c64_script_executor_t *executor, const char *scri
         return false;
     }
 
+    if (start_paused && executor->runtime) {
+        executor->runtime->should_pause = true;
+        executor->runtime->is_paused = false;
+        executor->runtime->step_mode = false;
+    }
+
     pthread_mutex_lock(&executor->mutex);
-    executor->status = C64_SCRIPT_STATUS_RUNNING;
+    executor->status = start_paused ? C64_SCRIPT_STATUS_PAUSED : C64_SCRIPT_STATUS_RUNNING;
     executor->error_msg[0] = '\0';
     executor->thread_running = true;
     pthread_mutex_unlock(&executor->mutex);
@@ -420,6 +427,16 @@ bool c64_script_executor_start(c64_script_executor_t *executor, const char *scri
 
     C64_LOG_INFO(EXECUTOR_LOG_PREFIX "Started script: %s", script_file_path);
     return true;
+}
+
+bool c64_script_executor_start(c64_script_executor_t *executor, const char *script_file_path)
+{
+    return c64_script_executor_start_internal(executor, script_file_path, false);
+}
+
+bool c64_script_executor_start_debug(c64_script_executor_t *executor, const char *script_file_path)
+{
+    return c64_script_executor_start_internal(executor, script_file_path, true);
 }
 
 void c64_script_executor_stop(c64_script_executor_t *executor)

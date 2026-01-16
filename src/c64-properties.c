@@ -429,20 +429,51 @@ static bool script_pause_resume_clicked(obs_properties_t *props, obs_property_t 
     UNUSED_PARAMETER(property);
 
     struct c64_source *context = (struct c64_source *)data;
-    if (!context || !context->script_executor) {
+    if (!context) {
         return false;
     }
 
-    c64_script_status_t status = c64_script_executor_get_status(context->script_executor);
+    c64_script_status_t status = C64_SCRIPT_STATUS_IDLE;
+    if (context->script_executor) {
+        status = c64_script_executor_get_status(context->script_executor);
+    }
 
-    if (status == C64_SCRIPT_STATUS_RUNNING) {
+    if (status == C64_SCRIPT_STATUS_RUNNING || status == C64_SCRIPT_STATUS_WAITING) {
         c64_script_executor_pause(context->script_executor);
         C64_LOG_INFO("Script paused");
-        context->force_ui_update = true; // Force immediate UI update
+        context->force_ui_update = true;
     } else if (status == C64_SCRIPT_STATUS_PAUSED) {
         c64_script_executor_resume(context->script_executor);
         C64_LOG_INFO("Script resumed");
-        context->force_ui_update = true; // Force immediate UI update
+        context->force_ui_update = true;
+    } else {
+        if (context->script_file_path[0] == '\0') {
+            C64_LOG_WARNING("No script file selected");
+            return false;
+        }
+
+        if (!context->script_executor) {
+            context->script_executor = c64_script_executor_create(context->source);
+            if (!context->script_executor) {
+                C64_LOG_ERROR("Failed to create script executor");
+                return false;
+            }
+        }
+
+        context->script_start_time = os_gettime_ns();
+        context->script_end_time = 0;
+        context->last_script_status = C64_SCRIPT_STATUS_IDLE;
+        if (c64_script_executor_start_debug(context->script_executor, context->script_file_path)) {
+            C64_LOG_INFO("Script started in debug mode: %s", context->script_file_path);
+            context->last_script_status = C64_SCRIPT_STATUS_PAUSED;
+            context->force_ui_update = true;
+        } else {
+            const char *err = c64_script_executor_get_error(context->script_executor);
+            C64_LOG_ERROR("Failed to start script in debug mode: %s", err ? err : "unknown error");
+            context->script_end_time = os_gettime_ns();
+            context->script_ended_successfully = false;
+            context->force_ui_update = true;
+        }
     }
 
     c64_queue_properties_refresh(context);
@@ -1253,7 +1284,17 @@ static bool playlist_changed(obs_properties_t *props, obs_property_t *property, 
                   selected_path ? selected_path : "(none)");
 
     if (is_running && selected_index == current_index) {
+        context->playlist_pending_active = false;
+        context->playlist_pending_index = -1;
         return false;
+    }
+
+    if (is_running && selected_index >= 0 && selected_index != current_index) {
+        context->playlist_pending_active = true;
+        context->playlist_pending_index = selected_index;
+    } else {
+        context->playlist_pending_active = false;
+        context->playlist_pending_index = -1;
     }
 
     bool jumped = false;
@@ -1297,7 +1338,25 @@ static void update_playlist_property(obs_property_t *prop, struct c64_source *co
     int playlist_count = c64_automation_get_playlist_count(context->automation);
     int current_index = c64_automation_get_current_index(context->automation);
     int selected_index = settings ? (int)obs_data_get_int(settings, "playlist") : -1;
-    bool has_pending_selection = is_running && selected_index >= 0 && selected_index != current_index;
+    bool pending_active = context->playlist_pending_active;
+    int pending_index = context->playlist_pending_index;
+
+    if (!is_running) {
+        pending_active = false;
+    } else if (pending_active) {
+        if (pending_index < 0 || pending_index >= playlist_count) {
+            pending_active = false;
+        } else if (current_index == pending_index) {
+            pending_active = false;
+        }
+    }
+
+    if (!pending_active) {
+        context->playlist_pending_active = false;
+        context->playlist_pending_index = -1;
+    }
+
+    bool has_pending_selection = pending_active;
 
     if (playlist_count == 0) {
         obs_property_list_add_int(prop, "(No files)", -1);
@@ -1313,7 +1372,7 @@ static void update_playlist_property(obs_property_t *prop, struct c64_source *co
 
     obs_property_set_enabled(prop, true);
 
-    int focus_index = has_pending_selection ? selected_index : (is_running ? current_index : selected_index);
+    int focus_index = has_pending_selection ? pending_index : (is_running ? current_index : selected_index);
     if (focus_index < 0 || focus_index >= playlist_count) {
         focus_index = (current_index >= 0 && current_index < playlist_count) ? current_index : 0;
     }
@@ -1377,7 +1436,7 @@ static void update_playlist_property(obs_property_t *prop, struct c64_source *co
 
     // Set the dropdown to show the currently playing file as selected
     if (settings) {
-        int desired_index = selected_index;
+        int desired_index = has_pending_selection ? pending_index : selected_index;
         if (is_running && !has_pending_selection) {
             desired_index = current_index;
         } else if (selected_index < 0 || selected_index >= playlist_count) {
@@ -2036,6 +2095,25 @@ obs_properties_t *c64_create_properties(void *data)
                                                                "C64 Script (*.c64script);;All Files (*.*)", NULL);
     obs_property_set_long_description(script_file_prop, obs_module_text("ScriptFile.Description"));
 
+    {
+        obs_data_t *script_settings = obs_source_get_settings(context->source);
+        const char *existing_script = obs_data_get_string(script_settings, "script_file");
+        if (!existing_script || existing_script[0] == '\0') {
+            char scripts_dir[512];
+            if (c64_get_user_dir(C64_USER_DIR_SCRIPTS, scripts_dir, sizeof(scripts_dir))) {
+                size_t len = strlen(scripts_dir);
+                if (len > 0 && len < sizeof(scripts_dir) - 2 && scripts_dir[len - 1] != '/' &&
+                    scripts_dir[len - 1] != '\\') {
+                    scripts_dir[len] = '/';
+                    scripts_dir[len + 1] = '\0';
+                }
+                obs_data_set_default_string(script_settings, "script_file", scripts_dir);
+                obs_data_set_string(script_settings, "script_file", scripts_dir);
+            }
+        }
+        obs_data_release(script_settings);
+    }
+
     obs_property_t *script_auto_start_prop =
         obs_properties_add_bool(script_props, "script_auto_start", obs_module_text("ScriptAutoStart"));
     obs_property_set_long_description(script_auto_start_prop, obs_module_text("ScriptAutoStart.Description"));
@@ -2089,13 +2167,23 @@ obs_properties_t *c64_create_properties(void *data)
                                                                   ? obs_module_text("ScriptStartStop.Stop")
                                                                   : obs_module_text("ScriptStartStop.Start"));
 
-    // Pause/Resume button - label changes based on state
-    obs_property_t *script_pause_resume_prop = obs_properties_add_button(
-        script_props, "script_pause_resume", obs_module_text("ScriptPauseResume"), script_pause_resume_clicked);
-    obs_property_set_long_description(script_pause_resume_prop, (current_status == C64_SCRIPT_STATUS_PAUSED)
-                                                                    ? obs_module_text("ScriptPauseResume.Resume")
-                                                                    : obs_module_text("ScriptPauseResume.Pause"));
-    obs_property_set_enabled(script_pause_resume_prop, is_running_or_paused);
+    // Debug/Pause/Resume button - state machine labels
+    const char *debug_label = NULL;
+    const char *debug_desc = NULL;
+    if (current_status == C64_SCRIPT_STATUS_PAUSED) {
+        debug_label = obs_module_text("ScriptResumeScript");
+        debug_desc = obs_module_text("ScriptResumeScript.Description");
+    } else if (current_status == C64_SCRIPT_STATUS_RUNNING || current_status == C64_SCRIPT_STATUS_WAITING) {
+        debug_label = obs_module_text("ScriptPauseScript");
+        debug_desc = obs_module_text("ScriptPauseScript.Description");
+    } else {
+        debug_label = obs_module_text("ScriptDebugScript");
+        debug_desc = obs_module_text("ScriptDebugScript.Description");
+    }
+    obs_property_t *script_pause_resume_prop =
+        obs_properties_add_button(script_props, "script_pause_resume", debug_label, script_pause_resume_clicked);
+    obs_property_set_long_description(script_pause_resume_prop, debug_desc);
+    obs_property_set_enabled(script_pause_resume_prop, context->script_file_path[0] != '\0');
 
     // Step button - only enabled when paused
     obs_property_t *script_step_prop =
@@ -2626,6 +2714,20 @@ void c64_set_property_defaults(obs_data_t *settings)
     obs_data_set_default_int(settings, "buffer_delay_ms", 10); // Default 10ms buffer delay
 
     obs_data_set_default_bool(settings, "script_auto_start", false);
+
+    // Default script path (points to user scripts directory)
+    {
+        char scripts_path[512];
+        if (c64_get_user_dir(C64_USER_DIR_SCRIPTS, scripts_path, sizeof(scripts_path))) {
+            size_t len = strlen(scripts_path);
+            if (len > 0 && len < sizeof(scripts_path) - 2 && scripts_path[len - 1] != '/' &&
+                scripts_path[len - 1] != '\\') {
+                scripts_path[len] = '/';
+                scripts_path[len + 1] = '\0';
+            }
+            obs_data_set_default_string(settings, "script_file", scripts_path);
+        }
+    }
 
     // Frame saving defaults
     obs_data_set_default_bool(settings, "record_frames", false); // Disabled by default

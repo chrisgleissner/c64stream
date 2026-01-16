@@ -786,7 +786,7 @@ bool c64_automation_play_song(c64_automation_t *automation, const char *path, in
                 seconds = 0;
             }
 
-            size_t estimate = 32 + 1 + (size_t)subsongs * 6 + (size_t)(subsongs - 1) + 2;
+            size_t estimate = 32 + 1 + (size_t)subsongs * 6 + (size_t)(subsongs - 1) + 3;
             songlengths_payload = (uint8_t *)malloc(estimate);
             if (songlengths_payload) {
                 size_t written =
@@ -795,7 +795,8 @@ bool c64_automation_play_song(c64_automation_t *automation, const char *path, in
                     written += (size_t)snprintf((char *)songlengths_payload + written, estimate - written, " %d:%02d",
                                                 minutes, seconds);
                 }
-                if (written + 1 < estimate) {
+                if (written + 2 < estimate) {
+                    songlengths_payload[written++] = '\r';
                     songlengths_payload[written++] = '\n';
                     songlengths_payload[written] = '\0';
                 }

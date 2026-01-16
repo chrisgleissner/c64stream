@@ -40,6 +40,12 @@ void c64_script_executor_destroy(c64_script_executor_t *executor);
 bool c64_script_executor_start(c64_script_executor_t *executor, const char *script_file_path);
 
 /**
+ * Start executing a script in debug mode (paused on the first line).
+ * Returns true if started successfully, false if already running or error
+ */
+bool c64_script_executor_start_debug(c64_script_executor_t *executor, const char *script_file_path);
+
+/**
  * Validate/compile a script file without executing it.
  * Returns true if the script parses and compiles successfully.
  */

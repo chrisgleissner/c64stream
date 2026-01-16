@@ -353,6 +353,8 @@ struct c64_source {
     bool playlist_fingerprint_valid;       // Whether playlist fingerprint is initialized
     int playlist_last_selected_index;      // Last selected playlist index
     bool playlist_last_selected_valid;     // Whether last selected index is valid
+    bool playlist_pending_active;          // Whether a user selection is pending while running
+    int playlist_pending_index;            // Pending selection index while running
     int playlist_ignore_changes;           // Count of programmatic selection changes to ignore
     int playlist_last_file_system;         // Last file system (0=local,1=C64U)
     int playlist_last_playback_source;     // Last playback source (0=single,1=folder)
