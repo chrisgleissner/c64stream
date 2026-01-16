@@ -334,9 +334,65 @@ static void *automation_worker(void *arg)
             }
 
             switch (file->type) {
-            case C64_FILE_TYPE_SID:
-                success = c64_rest_play_sid(automation->rest_client, file_data, file_size, 0, NULL, 0);
+            case C64_FILE_TYPE_SID: {
+                uint8_t *songlengths_payload = NULL;
+                size_t songlengths_size = 0;
+                int song_length_seconds = 0;
+
+                if (automation->use_songlengths) {
+                    double song_seconds = 0.0;
+                    if (c64_automation_lookup_songlength(automation, file->path, &song_seconds)) {
+                        if (song_seconds > 0.0) {
+                            song_length_seconds = (int)(song_seconds + 0.5);
+                            if (song_length_seconds < 1) {
+                                song_length_seconds = 1;
+                            }
+                        }
+                    }
+                }
+
+                if (song_length_seconds > 0) {
+                    int subsongs = 1;
+                    if (file_size >= 0x10 && (memcmp(file_data, "PSID", 4) == 0 || memcmp(file_data, "RSID", 4) == 0)) {
+                        subsongs = (int)((file_data[0x0E] << 8) | file_data[0x0F]);
+                        if (subsongs < 1) {
+                            subsongs = 1;
+                        }
+                    }
+
+                    int minutes = song_length_seconds / 60;
+                    int seconds = song_length_seconds % 60;
+                    if (minutes < 0) {
+                        minutes = 0;
+                    } else if (minutes > 99) {
+                        minutes = 99;
+                    }
+                    if (seconds < 0) {
+                        seconds = 0;
+                    } else if (seconds > 59) {
+                        seconds = 59;
+                    }
+
+                    uint8_t bcd_minutes = (uint8_t)(((minutes / 10) << 4) | (minutes % 10));
+                    uint8_t bcd_seconds = (uint8_t)(((seconds / 10) << 4) | (seconds % 10));
+
+                    size_t payload_size = (size_t)subsongs * 2u;
+                    songlengths_payload = (uint8_t *)malloc(payload_size);
+                    if (songlengths_payload) {
+                        for (int i = 0; i < subsongs; i++) {
+                            size_t offset = (size_t)i * 2u;
+                            songlengths_payload[offset] = bcd_minutes;
+                            songlengths_payload[offset + 1] = bcd_seconds;
+                        }
+                        songlengths_size = payload_size;
+                    }
+                }
+
+                success = c64_rest_play_sid(automation->rest_client, file_data, file_size, 0, songlengths_payload,
+                                            songlengths_size);
+                free(songlengths_payload);
                 break;
+            }
             case C64_FILE_TYPE_MOD:
                 success = c64_rest_play_mod(automation->rest_client, file_data, file_size);
                 break;

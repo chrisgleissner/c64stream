@@ -92,7 +92,7 @@ static inline uint64_t c64_get_millis(void)
 #define C64_LOG_DEBUG(format, ...)                                                                       \
     do {                                                                                                   \
         if (c64_debug_logging) {                                                                          \
-            blog(LOG_DEBUG, "[c64stream] " format, ##__VA_ARGS__);                                        \
+            blog(LOG_INFO, "[c64stream] " format, ##__VA_ARGS__);                                         \
         }                                                                                                  \
     } while (0)
 

@@ -376,14 +376,12 @@ static int c64_automation_scan_local(c64_automation_t *automation)
                 continue;
             }
 
-            bool is_dir = (entry->d_type == DT_DIR);
-            bool is_file = (entry->d_type == DT_REG);
-            if (!is_dir && !is_file && entry->d_type == DT_UNKNOWN) {
-                struct stat st;
-                if (stat(full_path, &st) == 0) {
-                    is_dir = S_ISDIR(st.st_mode);
-                    is_file = S_ISREG(st.st_mode);
-                }
+            bool is_dir = false;
+            bool is_file = false;
+            struct stat st;
+            if (stat(full_path, &st) == 0) {
+                is_dir = S_ISDIR(st.st_mode);
+                is_file = S_ISREG(st.st_mode);
             }
 
             if (is_dir) {

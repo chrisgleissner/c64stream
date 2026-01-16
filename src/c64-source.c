@@ -1031,8 +1031,11 @@ void c64_update(void *data, obs_data_t *settings)
     }
 
     // Update debug logging setting
+    bool previous_debug_logging = c64_debug_logging;
     c64_debug_logging = obs_data_get_bool(settings, "debug_logging");
-    C64_LOG_DEBUG("Debug logging %s", c64_debug_logging ? "enabled" : "disabled");
+    if (previous_debug_logging != c64_debug_logging) {
+        C64_LOG_INFO("Debug logging %s", c64_debug_logging ? "enabled" : "disabled");
+    }
 
     // Update IP detection setting - only auto-detect when checkbox state changes from off to on
     bool new_auto_detect = obs_data_get_bool(settings, "auto_detect_ip");
