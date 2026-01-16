@@ -216,6 +216,7 @@ target_sources(
     src/c64-rest-client.c
     src/c64-keyboard.c
     src/c64-automation.c
+    src/c64-automation-playlist.c
     src/c64-automation-hvsc.c
     src/c64-script-parser.c
     src/c64-script-executor.c

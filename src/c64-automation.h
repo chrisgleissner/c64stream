@@ -43,6 +43,7 @@ typedef struct {
     c64_automation_mode_t mode;
     c64_file_source_t file_source;
     char folder_path[512];
+    char songlengths_path[512];
     bool shuffle;
     bool include_subfolders;
     int duration_seconds;
@@ -81,19 +82,6 @@ void c64_automation_update_runtime_config(c64_automation_t *automation, const c6
 bool c64_automation_start(c64_automation_t *automation, int start_index);
 
 /**
- * Refresh the playlist without starting playback
- * @param selected_index Preferred selected index for display/start
- * @return true if refreshed successfully
- */
-bool c64_automation_refresh_playlist(c64_automation_t *automation, const c64_automation_config_t *config,
-                                     int selected_index);
-
-/**
- * Clear any cached playlist entries
- */
-void c64_automation_clear_playlist(c64_automation_t *automation);
-
-/**
  * Stop automation immediately
  */
 void c64_automation_stop(c64_automation_t *automation);
@@ -116,23 +104,22 @@ const char *c64_automation_get_status(c64_automation_t *automation);
 const char *c64_automation_get_current_file(c64_automation_t *automation);
 
 /**
- * Get current playlist size
- * @return Number of files in playlist, or 0 if not running
- */
-int c64_automation_get_playlist_count(c64_automation_t *automation);
-
-/**
  * Get current index in playlist
  * @return Current index (0-based), or -1 if not running
  */
 int c64_automation_get_current_index(c64_automation_t *automation);
 
 /**
- * Get playlist item at index
- * @param index Index into playlist (0-based)
- * @return File path or NULL if index out of range
+ * Get songlengths database path if loaded (may trigger discovery)
+ * @return Fully qualified path or NULL if unavailable
  */
-const char *c64_automation_get_playlist_item(c64_automation_t *automation, int index);
+const char *c64_automation_get_songlengths_path(c64_automation_t *automation);
+
+/**
+ * Get songlength in seconds for a file path
+ * @return true if songlength is available
+ */
+bool c64_automation_get_songlength_seconds(c64_automation_t *automation, const char *path, double *out_seconds);
 
 /**
  * Skip to next item in playlist

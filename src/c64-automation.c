@@ -8,8 +8,9 @@ See <https://www.gnu.org/licenses/> for details.
 
 #include "c64-automation.h"
 #include "c64-automation-hvsc.h"
+#include "c64-automation-internal.h"
+#include "c64-automation-playlist.h"
 #include "c64-file.h"
-#include "c64-keyboard.h"
 #include "c64-logging.h"
 #include "c64-rest-client.h"
 #include <util/platform.h>
@@ -22,7 +23,6 @@ See <https://www.gnu.org/licenses/> for details.
 #define strcasecmp _stricmp
 #define sleep(x) Sleep((x) * 1000)
 #else
-#include <dirent.h>
 #include <strings.h>
 #include <unistd.h>
 #endif
@@ -32,106 +32,13 @@ See <https://www.gnu.org/licenses/> for details.
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
-#include <sys/stat.h>
 #include <time.h>
 
 #define AUTOMATION_LOG_PREFIX "[c64-automation] "
-#define MAX_FILES 100000
 #define RESET_DELAY_MS 500
 
-typedef struct {
-    char path[512];
-    c64_file_type_t type;
-} file_entry_t;
-
-static int enumerate_files(c64_rest_client_t *rest_client, const char *folder_path, c64_file_source_t file_source,
-                           bool include_subfolders, file_entry_t **out_files);
-
-struct c64_automation {
-    c64_rest_client_t *rest_client;
-    c64_keyboard_t *keyboard;
-    obs_source_t *source;
-    c64_automation_config_t config;
-    c64_automation_config_t playlist_config;
-    bool playlist_config_valid;
-    bool running;
-    bool should_stop;
-    bool skip_requested; // Flag to skip to next item
-    char status[128];
-    char current_file_path[512]; // Full path of currently playing file
-    bool playlist_ready;
-
-    // File list
-    file_entry_t *files;
-    int num_files;
-    int current_index;
-
-    // Song length database
-    bool use_songlengths;
-    c64_hvsc_songlength_db_t songlength_db;
-
-    // Worker thread
-    pthread_t worker_thread;
-    pthread_mutex_t status_mutex;
-};
-
-// Helper: Get file extension
-static const char *get_extension(const char *path)
-{
-    const char *dot = strrchr(path, '.');
-    return (dot && dot != path) ? dot : "";
-}
-
-// Helper: Determine file type by extension
-static c64_file_type_t get_file_type(const char *path)
-{
-    const char *ext = get_extension(path);
-    if (strcasecmp(ext, ".sid") == 0) {
-        return C64_FILE_TYPE_SID;
-    } else if (strcasecmp(ext, ".mod") == 0) {
-        return C64_FILE_TYPE_MOD;
-    } else if (strcasecmp(ext, ".prg") == 0) {
-        return C64_FILE_TYPE_PRG;
-    } else if (strcasecmp(ext, ".crt") == 0) {
-        return C64_FILE_TYPE_CRT;
-    } else if (strcasecmp(ext, ".d64") == 0) {
-        return C64_FILE_TYPE_D64;
-    } else if (strcasecmp(ext, ".g64") == 0) {
-        return C64_FILE_TYPE_G64;
-    } else if (strcasecmp(ext, ".d71") == 0) {
-        return C64_FILE_TYPE_D71;
-    } else if (strcasecmp(ext, ".g71") == 0) {
-        return C64_FILE_TYPE_G71;
-    } else if (strcasecmp(ext, ".d81") == 0) {
-        return C64_FILE_TYPE_D81;
-    }
-    return -1;
-}
-
-static bool is_playable_path(const char *path)
-{
-    if (!path || path[0] == '\0') {
-        return false;
-    }
-
-    const char *last_sep = strrchr(path, '/');
-    const char *last_backslash = strrchr(path, '\\');
-    if (last_backslash && (!last_sep || last_backslash > last_sep)) {
-        last_sep = last_backslash;
-    }
-
-    const char *filename = last_sep ? last_sep + 1 : path;
-    if (!filename || filename[0] == '\0') {
-        return false;
-    }
-
-    const char *dot = strrchr(filename, '.');
-    if (!dot || dot == filename) {
-        return false;
-    }
-
-    return get_file_type(filename) >= 0;
-}
+static void c64_automation_queue_ui_update(c64_automation_t *automation);
+static bool automation_should_stop(c64_automation_t *automation);
 
 static void c64_automation_clear_songlengths(c64_automation_t *automation)
 {
@@ -156,6 +63,15 @@ static bool c64_automation_ensure_songlengths_loaded(c64_automation_t *automatio
         return false;
     }
 
+    if (automation->config.songlengths_path[0] != '\0') {
+        if (c64_hvsc_songlength_db_load(&automation->songlength_db, automation->config.songlengths_path)) {
+            C64_LOG_INFO(AUTOMATION_LOG_PREFIX "Using songlengths file: %s", automation->songlength_db.source_path);
+            return true;
+        }
+        C64_LOG_WARNING(AUTOMATION_LOG_PREFIX "Failed to load songlengths file: %s",
+                        automation->config.songlengths_path);
+    }
+
     char root_path[512];
     if (automation->config.mode == C64_AUTO_MODE_FOLDER) {
         strncpy(root_path, automation->config.folder_path, sizeof(root_path) - 1);
@@ -167,12 +83,12 @@ static bool c64_automation_ensure_songlengths_loaded(c64_automation_t *automatio
             last_sep = last_backslash;
         }
         if (last_sep) {
-            size_t len = (size_t)(last_sep - automation->config.folder_path);
-            if (len >= sizeof(root_path)) {
-                len = sizeof(root_path) - 1;
+            size_t length = (size_t)(last_sep - automation->config.folder_path);
+            if (length >= sizeof(root_path)) {
+                length = sizeof(root_path) - 1;
             }
-            memcpy(root_path, automation->config.folder_path, len);
-            root_path[len] = '\0';
+            memcpy(root_path, automation->config.folder_path, length);
+            root_path[length] = '\0';
         } else {
             strncpy(root_path, automation->config.folder_path, sizeof(root_path) - 1);
             root_path[sizeof(root_path) - 1] = '\0';
@@ -180,11 +96,28 @@ static bool c64_automation_ensure_songlengths_loaded(c64_automation_t *automatio
     }
 
     char songlengths_path[512];
-    if (!c64_hvsc_find_songlengths_file_local(root_path, songlengths_path, sizeof(songlengths_path))) {
-        return false;
+    if (c64_hvsc_find_songlengths_file_local(root_path, songlengths_path, sizeof(songlengths_path))) {
+        if (c64_hvsc_songlength_db_load(&automation->songlength_db, songlengths_path)) {
+            C64_LOG_INFO(AUTOMATION_LOG_PREFIX "Using songlengths file: %s", automation->songlength_db.source_path);
+            return true;
+        }
+        C64_LOG_WARNING(AUTOMATION_LOG_PREFIX "Failed to load songlengths file: %s", songlengths_path);
     }
 
-    return c64_hvsc_songlength_db_load(&automation->songlength_db, songlengths_path);
+    return false;
+}
+
+const char *c64_automation_get_songlengths_path(c64_automation_t *automation)
+{
+    if (!automation) {
+        return NULL;
+    }
+
+    if (c64_automation_ensure_songlengths_loaded(automation)) {
+        return automation->songlength_db.source_path;
+    }
+
+    return NULL;
 }
 
 static bool c64_automation_lookup_songlength(c64_automation_t *automation, const char *path, double *out_seconds)
@@ -205,166 +138,9 @@ static bool c64_automation_lookup_songlength(c64_automation_t *automation, const
     return c64_hvsc_songlength_db_lookup(&automation->songlength_db, md5_hex, out_seconds);
 }
 
-// Helper: Shuffle array using Fisher-Yates
-static void shuffle_files(file_entry_t *files, int count)
+bool c64_automation_get_songlength_seconds(c64_automation_t *automation, const char *path, double *out_seconds)
 {
-    srand((unsigned int)time(NULL));
-    for (int i = count - 1; i > 0; i--) {
-        int j = rand() % (i + 1);
-        file_entry_t temp = files[i];
-        files[i] = files[j];
-        files[j] = temp;
-    }
-}
-
-typedef struct {
-    obs_source_t *source;
-} c64_automation_ui_update_t;
-
-static bool automation_should_stop(c64_automation_t *automation)
-{
-    pthread_mutex_lock(&automation->status_mutex);
-    bool should_stop = automation->should_stop;
-    pthread_mutex_unlock(&automation->status_mutex);
-    return should_stop;
-}
-
-static void c64_automation_ui_update_task(void *data)
-{
-    c64_automation_ui_update_t *update = (c64_automation_ui_update_t *)data;
-    if (!update || !update->source) {
-        if (update) {
-            free(update);
-        }
-        return;
-    }
-
-    obs_source_update_properties(update->source);
-    obs_source_release(update->source);
-    free(update);
-}
-
-static void c64_automation_queue_ui_update(c64_automation_t *automation)
-{
-    if (!automation || !automation->source) {
-        return;
-    }
-
-    c64_automation_ui_update_t *update = calloc(1, sizeof(c64_automation_ui_update_t));
-    if (!update) {
-        return;
-    }
-
-    update->source = obs_source_get_ref(automation->source);
-    if (!update->source) {
-        free(update);
-        return;
-    }
-    obs_queue_task(OBS_TASK_UI, c64_automation_ui_update_task, update, false);
-}
-
-static void c64_automation_clear_playlist_internal(c64_automation_t *automation)
-{
-    if (!automation) {
-        return;
-    }
-
-    if (automation->files) {
-        free(automation->files);
-        automation->files = NULL;
-    }
-    automation->num_files = 0;
-    automation->playlist_ready = false;
-    automation->playlist_config_valid = false;
-}
-
-static bool playlist_config_equals(const c64_automation_config_t *left, const c64_automation_config_t *right)
-{
-    if (!left || !right) {
-        return false;
-    }
-
-    if (left->mode != right->mode || left->file_source != right->file_source ||
-        left->include_subfolders != right->include_subfolders || left->shuffle != right->shuffle) {
-        return false;
-    }
-
-    return strncmp(left->folder_path, right->folder_path, sizeof(left->folder_path)) == 0;
-}
-
-static void playlist_config_copy(c64_automation_config_t *dest, const c64_automation_config_t *src)
-{
-    if (!dest || !src) {
-        return;
-    }
-
-    memset(dest, 0, sizeof(*dest));
-    dest->mode = src->mode;
-    dest->file_source = src->file_source;
-    dest->shuffle = src->shuffle;
-    dest->include_subfolders = src->include_subfolders;
-    strncpy(dest->folder_path, src->folder_path, sizeof(dest->folder_path) - 1);
-}
-
-static bool c64_automation_build_playlist(c64_automation_t *automation)
-{
-    if (!automation) {
-        return false;
-    }
-
-    c64_automation_clear_playlist_internal(automation);
-
-    if (automation->config.mode == C64_AUTO_MODE_SINGLE) {
-        automation->files = calloc(1, sizeof(file_entry_t));
-        if (!automation->files) {
-            return false;
-        }
-
-        strncpy(automation->files[0].path, automation->config.folder_path, sizeof(automation->files[0].path) - 1);
-        automation->files[0].type = get_file_type(automation->config.folder_path);
-
-        if (automation->files[0].type < 0) {
-            C64_LOG_ERROR(AUTOMATION_LOG_PREFIX "Unsupported file type: %s", automation->config.folder_path);
-            c64_automation_clear_playlist_internal(automation);
-            return false;
-        }
-
-        automation->num_files = 1;
-    } else if (automation->config.mode == C64_AUTO_MODE_FOLDER) {
-        automation->num_files = enumerate_files(automation->rest_client, automation->config.folder_path,
-                                                automation->config.file_source, automation->config.include_subfolders,
-                                                &automation->files);
-        if (automation->num_files > 0) {
-            int write_index = 0;
-            for (int i = 0; i < automation->num_files; i++) {
-                if (is_playable_path(automation->files[i].path)) {
-                    if (write_index != i) {
-                        automation->files[write_index] = automation->files[i];
-                    }
-                    write_index++;
-                }
-            }
-            automation->num_files = write_index;
-        }
-        if (automation->num_files == 0) {
-            C64_LOG_ERROR(AUTOMATION_LOG_PREFIX "No supported files found in: %s", automation->config.folder_path);
-            c64_automation_clear_playlist_internal(automation);
-            return false;
-        }
-
-        if (automation->config.shuffle) {
-            shuffle_files(automation->files, automation->num_files);
-        }
-    } else {
-        C64_LOG_ERROR(AUTOMATION_LOG_PREFIX "Invalid mode: %d", automation->config.mode);
-        c64_automation_clear_playlist_internal(automation);
-        return false;
-    }
-
-    automation->playlist_ready = true;
-    playlist_config_copy(&automation->playlist_config, &automation->config);
-    automation->playlist_config_valid = true;
-    return true;
+    return c64_automation_lookup_songlength(automation, path, out_seconds);
 }
 
 // Helper: Set status string (thread-safe)
@@ -374,6 +150,43 @@ static void set_status(c64_automation_t *automation, const char *status)
     strncpy(automation->status, status, sizeof(automation->status) - 1);
     automation->status[sizeof(automation->status) - 1] = '\0';
     pthread_mutex_unlock(&automation->status_mutex);
+}
+
+static void c64_automation_apply_ui_update(void *data)
+{
+    obs_source_t *source = (obs_source_t *)data;
+    if (!source) {
+        return;
+    }
+
+    obs_source_update_properties(source);
+    obs_source_release(source);
+}
+
+static void c64_automation_queue_ui_update(c64_automation_t *automation)
+{
+    if (!automation || !automation->source) {
+        return;
+    }
+
+    obs_source_t *source_ref = obs_source_get_ref(automation->source);
+    if (!source_ref) {
+        return;
+    }
+
+    obs_queue_task(OBS_TASK_UI, c64_automation_apply_ui_update, source_ref, false);
+}
+
+static bool automation_should_stop(c64_automation_t *automation)
+{
+    if (!automation) {
+        return true;
+    }
+
+    pthread_mutex_lock(&automation->status_mutex);
+    bool should_stop = automation->should_stop;
+    pthread_mutex_unlock(&automation->status_mutex);
+    return should_stop;
 }
 
 // Helper: Load file into memory
@@ -411,257 +224,6 @@ static uint8_t *load_file(const char *path, size_t *size)
     return data;
 }
 
-// Enumerate files in folder (with optional recursion)
-static int enumerate_files(c64_rest_client_t *rest_client, const char *folder_path, c64_file_source_t file_source,
-                           bool include_subfolders, file_entry_t **out_files)
-{
-    file_entry_t *files = calloc(MAX_FILES, sizeof(file_entry_t));
-    if (!files) {
-        return 0;
-    }
-
-    int count = 0;
-
-    if (file_source == C64_FILE_SOURCE_C64U) {
-        // C64U filesystem: use REST API to enumerate files
-        if (!rest_client) {
-            C64_LOG_ERROR(AUTOMATION_LOG_PREFIX "C64U mode requires REST client");
-            free(files);
-            return 0;
-        }
-
-        c64_file_entry_t *c64u_entries = NULL;
-        size_t c64u_count = 0;
-        bool success = c64_rest_list_files(rest_client, folder_path, true, &c64u_entries, &c64u_count);
-        if (!success) {
-            C64_LOG_ERROR(AUTOMATION_LOG_PREFIX "Failed to list C64U files: %s", c64_rest_get_error(rest_client));
-            free(files);
-            return 0;
-        }
-
-        for (size_t i = 0; i < c64u_count && count < MAX_FILES; i++) {
-            if (c64u_entries[i].is_directory) {
-                continue; // Skip directories
-            }
-
-            if (!is_playable_path(c64u_entries[i].name)) {
-                continue; // Not a supported file
-            }
-
-            c64_file_type_t type = get_file_type(c64u_entries[i].name);
-
-            // For C64U files, store the full path within the C64U filesystem
-            // The path should be: <folder_path>/<filename>
-            int written =
-                snprintf(files[count].path, sizeof(files[count].path), "%s/%s", folder_path, c64u_entries[i].name);
-            if (written < 0 || (size_t)written >= sizeof(files[count].path)) {
-                continue; // Truncated
-            }
-            files[count].type = type;
-            count++;
-        }
-
-        free(c64u_entries);
-        *out_files = files;
-        return count;
-    }
-
-    // Local filesystem enumeration
-#ifdef _WIN32
-    // Windows implementation using FindFirstFile/FindNextFile
-    // Use a stack-based approach for recursion to avoid deep call stacks
-    typedef struct {
-        char path[MAX_PATH];
-    } dir_entry_t;
-
-    dir_entry_t *dir_stack = NULL;
-    int dir_count = 0;
-    int dir_capacity = 0;
-
-    // Add initial directory to stack
-    dir_capacity = 64;
-    dir_stack = calloc(dir_capacity, sizeof(dir_entry_t));
-    if (!dir_stack) {
-        free(files);
-        return 0;
-    }
-    strncpy_s(dir_stack[0].path, sizeof(dir_stack[0].path), folder_path, _TRUNCATE);
-    dir_count = 1;
-
-    // Process directories from stack
-    while (dir_count > 0 && count < MAX_FILES) {
-        // Pop directory from stack
-        dir_count--;
-        const char *current_dir = dir_stack[dir_count].path;
-
-        WIN32_FIND_DATAA find_data;
-        char search_path[MAX_PATH];
-        int written = snprintf(search_path, sizeof(search_path), "%s\\*", current_dir);
-        if (written < 0 || (size_t)written >= sizeof(search_path)) {
-            continue;
-        }
-
-        HANDLE h_find = FindFirstFileA(search_path, &find_data);
-        if (h_find == INVALID_HANDLE_VALUE) {
-            C64_LOG_WARNING(AUTOMATION_LOG_PREFIX "Failed to open folder: %s", current_dir);
-            continue;
-        }
-
-        do {
-            // Skip . and ..
-            if (strcmp(find_data.cFileName, ".") == 0 || strcmp(find_data.cFileName, "..") == 0) {
-                continue;
-            }
-
-            // Build full path
-            char full_path[MAX_PATH];
-            written = snprintf(full_path, sizeof(full_path), "%s\\%s", current_dir, find_data.cFileName);
-            if (written < 0 || (size_t)written >= sizeof(full_path)) {
-                continue; // Path too long
-            }
-
-            // Check if it's a directory
-            if (find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-                // Add to stack if recursion is enabled
-                if (include_subfolders) {
-                    if (dir_count >= dir_capacity) {
-                        // Grow stack
-                        int new_capacity = dir_capacity * 2;
-                        dir_entry_t *new_stack = realloc(dir_stack, new_capacity * sizeof(dir_entry_t));
-                        if (!new_stack) {
-                            break; // Out of memory, stop recursion
-                        }
-                        dir_stack = new_stack;
-                        dir_capacity = new_capacity;
-                    }
-                    strncpy_s(dir_stack[dir_count].path, sizeof(dir_stack[dir_count].path), full_path, _TRUNCATE);
-                    dir_count++;
-                }
-                continue;
-            }
-
-            // Process regular files
-            if (!is_playable_path(find_data.cFileName)) {
-                continue; // Not a supported file
-            }
-
-            c64_file_type_t type = get_file_type(find_data.cFileName);
-
-            // Store file path
-            if (strlen(full_path) >= sizeof(files[count].path)) {
-                C64_LOG_WARNING(AUTOMATION_LOG_PREFIX "Path too long, skipping: %s", full_path);
-                continue;
-            }
-
-            strncpy(files[count].path, full_path, sizeof(files[count].path) - 1);
-            files[count].type = type;
-            count++;
-        } while (FindNextFileA(h_find, &find_data) && count < MAX_FILES);
-
-        FindClose(h_find);
-    }
-
-    free(dir_stack);
-
-#else
-    // Unix implementation using opendir/readdir
-    // Use a stack-based approach for recursion to avoid deep call stacks
-    typedef struct {
-        char path[512];
-    } dir_entry_t;
-
-    dir_entry_t *dir_stack = NULL;
-    int dir_count = 0;
-    int dir_capacity = 0;
-
-    // Add initial directory to stack
-    dir_capacity = 64;
-    dir_stack = calloc(dir_capacity, sizeof(dir_entry_t));
-    if (!dir_stack) {
-        free(files);
-        return 0;
-    }
-    strncpy(dir_stack[0].path, folder_path, sizeof(dir_stack[0].path) - 1);
-    dir_count = 1;
-
-    // Process directories from stack
-    while (dir_count > 0 && count < MAX_FILES) {
-        // Pop directory from stack
-        dir_count--;
-        const char *current_dir = dir_stack[dir_count].path;
-
-        DIR *dir = opendir(current_dir);
-        if (!dir) {
-            C64_LOG_WARNING(AUTOMATION_LOG_PREFIX "Failed to open folder: %s", current_dir);
-            continue;
-        }
-
-        struct dirent *entry;
-        while ((entry = readdir(dir)) != NULL && count < MAX_FILES) {
-            // Skip . and ..
-            if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
-                continue;
-            }
-
-            // Build full path
-            char full_path[512];
-            int written = snprintf(full_path, sizeof(full_path), "%s/%s", current_dir, entry->d_name);
-            if (written < 0 || (size_t)written >= sizeof(full_path)) {
-                continue; // Path too long
-            }
-
-            // Check if it's a directory
-            if (entry->d_type == DT_DIR) {
-                // Add to stack if recursion is enabled
-                if (include_subfolders) {
-                    if (dir_count >= dir_capacity) {
-                        // Grow stack
-                        int new_capacity = dir_capacity * 2;
-                        dir_entry_t *new_stack = realloc(dir_stack, new_capacity * sizeof(dir_entry_t));
-                        if (!new_stack) {
-                            break; // Out of memory, stop recursion
-                        }
-                        dir_stack = new_stack;
-                        dir_capacity = new_capacity;
-                    }
-                    strncpy(dir_stack[dir_count].path, full_path, sizeof(dir_stack[dir_count].path) - 1);
-                    dir_count++;
-                }
-                continue;
-            }
-
-            // Process regular files
-            if (entry->d_type != DT_REG) {
-                continue;
-            }
-
-            if (!is_playable_path(entry->d_name)) {
-                continue; // Not a supported file
-            }
-
-            c64_file_type_t type = get_file_type(entry->d_name);
-
-            // Store file path
-            if (strlen(full_path) >= sizeof(files[count].path)) {
-                C64_LOG_WARNING(AUTOMATION_LOG_PREFIX "Path too long, skipping: %s", full_path);
-                continue;
-            }
-
-            strncpy(files[count].path, full_path, sizeof(files[count].path) - 1);
-            files[count].type = type;
-            count++;
-        }
-
-        closedir(dir);
-    }
-
-    free(dir_stack);
-#endif
-
-    *out_files = files;
-    return count;
-}
-
 // Worker thread function
 static void *automation_worker(void *arg)
 {
@@ -676,7 +238,10 @@ static void *automation_worker(void *arg)
     }
     pthread_mutex_unlock(&automation->status_mutex);
 
-    while (i < automation->num_files) {
+    while (true) {
+        if (i >= automation->num_files) {
+            break;
+        }
         pthread_mutex_lock(&automation->status_mutex);
         bool should_stop = automation->should_stop;
         pthread_mutex_unlock(&automation->status_mutex);
@@ -933,6 +498,7 @@ c64_automation_t *c64_automation_create(void *rest_client, void *keyboard, obs_s
     automation->skip_requested = false;
     automation->files = NULL;
     automation->num_files = 0;
+    automation->files_capacity = 0;
     automation->current_index = 0;
     automation->playlist_ready = false;
     automation->playlist_config_valid = false;
@@ -981,8 +547,11 @@ void c64_automation_configure(c64_automation_t *automation, const c64_automation
     bool previous_use_songlengths = automation->use_songlengths;
     c64_file_source_t previous_source = automation->config.file_source;
     char previous_folder[512];
+    char previous_songlengths[512];
     strncpy(previous_folder, automation->config.folder_path, sizeof(previous_folder) - 1);
     previous_folder[sizeof(previous_folder) - 1] = '\0';
+    strncpy(previous_songlengths, automation->config.songlengths_path, sizeof(previous_songlengths) - 1);
+    previous_songlengths[sizeof(previous_songlengths) - 1] = '\0';
 
     int duration_seconds = config->duration_seconds;
     if (duration_seconds < 1) {
@@ -999,7 +568,8 @@ void c64_automation_configure(c64_automation_t *automation, const c64_automation
         c64_automation_clear_songlengths(automation);
     } else if (previous_use_songlengths != automation->use_songlengths ||
                previous_source != automation->config.file_source ||
-               strncmp(previous_folder, automation->config.folder_path, sizeof(previous_folder)) != 0) {
+               strncmp(previous_folder, automation->config.folder_path, sizeof(previous_folder)) != 0 ||
+               strncmp(previous_songlengths, automation->config.songlengths_path, sizeof(previous_songlengths)) != 0) {
         c64_automation_clear_songlengths(automation);
     }
     C64_LOG_INFO(AUTOMATION_LOG_PREFIX "Configured: mode=%d folder=%s shuffle=%d recursive=%d duration=%d",
@@ -1013,6 +583,10 @@ void c64_automation_update_runtime_config(c64_automation_t *automation, const c6
         return;
     }
 
+    char previous_songlengths[512];
+    strncpy(previous_songlengths, automation->config.songlengths_path, sizeof(previous_songlengths) - 1);
+    previous_songlengths[sizeof(previous_songlengths) - 1] = '\0';
+
     int duration_seconds = config->duration_seconds;
     if (duration_seconds < 1) {
         duration_seconds = 1;
@@ -1021,6 +595,13 @@ void c64_automation_update_runtime_config(c64_automation_t *automation, const c6
     pthread_mutex_lock(&automation->status_mutex);
     automation->config.duration_seconds = duration_seconds;
     automation->config.reset_between_items = config->reset_between_items;
+    if (config->songlengths_path[0] != '\0') {
+        strncpy(automation->config.songlengths_path, config->songlengths_path,
+                sizeof(automation->config.songlengths_path) - 1);
+        automation->config.songlengths_path[sizeof(automation->config.songlengths_path) - 1] = '\0';
+    } else {
+        automation->config.songlengths_path[0] = '\0';
+    }
     pthread_mutex_unlock(&automation->status_mutex);
 
     if (automation->use_songlengths != config->use_songlengths) {
@@ -1030,50 +611,9 @@ void c64_automation_update_runtime_config(c64_automation_t *automation, const c6
         } else {
             c64_hvsc_songlength_db_clear(&automation->songlength_db);
         }
+    } else if (strncmp(previous_songlengths, automation->config.songlengths_path, sizeof(previous_songlengths)) != 0) {
+        c64_hvsc_songlength_db_clear(&automation->songlength_db);
     }
-}
-
-void c64_automation_clear_playlist(c64_automation_t *automation)
-{
-    c64_automation_clear_playlist_internal(automation);
-}
-
-bool c64_automation_refresh_playlist(c64_automation_t *automation, const c64_automation_config_t *config,
-                                     int selected_index)
-{
-    if (!automation || !config) {
-        return false;
-    }
-
-    pthread_mutex_lock(&automation->status_mutex);
-    bool is_running = automation->running;
-    pthread_mutex_unlock(&automation->status_mutex);
-    if (is_running) {
-        return false;
-    }
-
-    c64_automation_configure(automation, config);
-
-    bool needs_rebuild = !automation->playlist_ready || !automation->files || automation->num_files == 0 ||
-                         !automation->playlist_config_valid ||
-                         !playlist_config_equals(config, &automation->playlist_config) || config->shuffle;
-    if (needs_rebuild) {
-        if (!c64_automation_build_playlist(automation)) {
-            return false;
-        }
-        playlist_config_copy(&automation->playlist_config, config);
-        automation->playlist_config_valid = true;
-    }
-
-    if (selected_index < 0 || selected_index >= automation->num_files) {
-        selected_index = 0;
-    }
-
-    pthread_mutex_lock(&automation->status_mutex);
-    automation->current_index = selected_index;
-    pthread_mutex_unlock(&automation->status_mutex);
-
-    return true;
 }
 
 bool c64_automation_start(c64_automation_t *automation, int start_index)
@@ -1114,6 +654,7 @@ bool c64_automation_start(c64_automation_t *automation, int start_index)
         C64_LOG_ERROR(AUTOMATION_LOG_PREFIX "Failed to create worker thread");
         free(automation->files);
         automation->files = NULL;
+        automation->files_capacity = 0;
         pthread_mutex_lock(&automation->status_mutex);
         automation->running = false;
         pthread_mutex_unlock(&automation->status_mutex);
@@ -1288,19 +829,6 @@ const char *c64_automation_get_current_file(c64_automation_t *automation)
     return file_path_copy[0] ? file_path_copy : NULL;
 }
 
-int c64_automation_get_playlist_count(c64_automation_t *automation)
-{
-    if (!automation) {
-        return 0;
-    }
-
-    pthread_mutex_lock(&automation->status_mutex);
-    int count = automation->num_files;
-    pthread_mutex_unlock(&automation->status_mutex);
-
-    return count;
-}
-
 int c64_automation_get_current_index(c64_automation_t *automation)
 {
     if (!automation) {
@@ -1312,22 +840,6 @@ int c64_automation_get_current_index(c64_automation_t *automation)
     pthread_mutex_unlock(&automation->status_mutex);
 
     return index;
-}
-
-const char *c64_automation_get_playlist_item(c64_automation_t *automation, int index)
-{
-    if (!automation || index < 0) {
-        return NULL;
-    }
-
-    pthread_mutex_lock(&automation->status_mutex);
-    const char *path = NULL;
-    if (index < automation->num_files && automation->files) {
-        path = automation->files[index].path;
-    }
-    pthread_mutex_unlock(&automation->status_mutex);
-
-    return path;
 }
 
 bool c64_automation_skip_next(c64_automation_t *automation)

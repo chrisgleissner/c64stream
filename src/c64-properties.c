@@ -21,6 +21,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-rest-client.h"
 #include "c64-script-executor.h"
 #include "c64-automation.h"
+#include "c64-automation-playlist.h"
 #include <obs-module.h>
 #include <util/platform.h>
 #include <time.h>
@@ -42,6 +43,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include <limits.h>
 
 #define PROPS_LOG_PREFIX "[props] "
+#define PLAYLIST_UI_LIMIT 300
 
 typedef struct {
     int file_system;
@@ -580,6 +582,7 @@ static bool file_source_changed(obs_properties_t *props, obs_property_t *propert
 {
     int file_system = (int)obs_data_get_int(settings, "file_system");
     int playback_source = (int)obs_data_get_int(settings, "playback_source");
+    bool use_songlengths = obs_data_get_bool(settings, "automation_use_songlengths");
 
     // Show/hide path properties based on file_system and playback_source combination
     obs_property_t *local_file_prop = obs_properties_get(props, "local_file_path");
@@ -608,6 +611,11 @@ static bool file_source_changed(obs_properties_t *props, obs_property_t *propert
     }
     if (shuffle_prop) {
         obs_property_set_visible(shuffle_prop, playback_source == 1);
+    }
+
+    obs_property_t *songlengths_path_prop = obs_properties_get(props, "automation_songlengths_path");
+    if (songlengths_path_prop) {
+        obs_property_set_visible(songlengths_path_prop, file_system == 0 && use_songlengths);
     }
 
     request_playlist_rebuild(props, settings, "file_source_changed", property, true);
@@ -662,6 +670,10 @@ static bool build_automation_config_from_settings(obs_data_t *settings, c64_auto
     }
     config->reset_between_items = obs_data_get_bool(settings, "automation_reset");
     config->use_songlengths = obs_data_get_bool(settings, "automation_use_songlengths");
+    const char *songlengths_override = obs_data_get_string(settings, "automation_songlengths_path");
+    if (songlengths_override && songlengths_override[0] != '\0') {
+        strncpy(config->songlengths_path, songlengths_override, sizeof(config->songlengths_path) - 1);
+    }
     strncpy(config->d64_autostart_template, "LOAD\"*\",8,1\rRUN\r", sizeof(config->d64_autostart_template) - 1);
 
     if (out_path) {
@@ -853,11 +865,24 @@ static bool refresh_playlist_from_settings(obs_properties_t *props, obs_data_t *
         c64_automation_config_t runtime_config = {0};
         runtime_config.duration_seconds = (int)obs_data_get_int(settings, "automation_duration");
         runtime_config.reset_between_items = obs_data_get_bool(settings, "automation_reset");
+        runtime_config.use_songlengths = obs_data_get_bool(settings, "automation_use_songlengths");
+        const char *runtime_songlengths = obs_data_get_string(settings, "automation_songlengths_path");
+        if (runtime_songlengths && runtime_songlengths[0] != '\0') {
+            strncpy(runtime_config.songlengths_path, runtime_songlengths, sizeof(runtime_config.songlengths_path) - 1);
+        }
         c64_automation_update_runtime_config(context->automation, &runtime_config);
 
         obs_property_t *playlist_prop = obs_properties_get(props, "playlist");
         if (playlist_prop) {
             update_playlist_property(playlist_prop, context, settings);
+        }
+
+        const char *songlengths_path = c64_automation_get_songlengths_path(context->automation);
+        if (songlengths_path && songlengths_path[0] != '\0') {
+            const char *existing = obs_data_get_string(settings, "automation_songlengths_path");
+            if (!existing || existing[0] == '\0') {
+                obs_data_set_string(settings, "automation_songlengths_path", songlengths_path);
+            }
         }
 
         C64_LOG_DEBUG(PROPS_LOG_PREFIX
@@ -918,6 +943,14 @@ static bool refresh_playlist_from_settings(obs_properties_t *props, obs_data_t *
     obs_property_t *playlist_prop = obs_properties_get(props, "playlist");
     if (playlist_prop) {
         update_playlist_property(playlist_prop, context, settings);
+    }
+
+    const char *songlengths_path = c64_automation_get_songlengths_path(context->automation);
+    if (songlengths_path && songlengths_path[0] != '\0') {
+        const char *existing = obs_data_get_string(settings, "automation_songlengths_path");
+        if (!existing || existing[0] == '\0') {
+            obs_data_set_string(settings, "automation_songlengths_path", songlengths_path);
+        }
     }
 
     C64_LOG_DEBUG(PROPS_LOG_PREFIX "Playlist rebuild %s: reason=%s property=%s count=%d selected=%d preserved=%d",
@@ -1099,10 +1132,21 @@ static bool automation_runtime_settings_changed(obs_properties_t *props, obs_pro
         return false;
     }
 
+    bool use_songlengths = obs_data_get_bool(settings, "automation_use_songlengths");
+    int file_system = (int)obs_data_get_int(settings, "file_system");
+    obs_property_t *songlengths_path_prop = obs_properties_get(props, "automation_songlengths_path");
+    if (songlengths_path_prop) {
+        obs_property_set_visible(songlengths_path_prop, file_system == 0 && use_songlengths);
+    }
+
     c64_automation_config_t runtime_config = {0};
     runtime_config.duration_seconds = (int)obs_data_get_int(settings, "automation_duration");
     runtime_config.reset_between_items = obs_data_get_bool(settings, "automation_reset");
     runtime_config.use_songlengths = obs_data_get_bool(settings, "automation_use_songlengths");
+    const char *songlengths_path = obs_data_get_string(settings, "automation_songlengths_path");
+    if (songlengths_path && songlengths_path[0] != '\0') {
+        strncpy(runtime_config.songlengths_path, songlengths_path, sizeof(runtime_config.songlengths_path) - 1);
+    }
     if (runtime_config.duration_seconds < 1) {
         runtime_config.duration_seconds = 1;
     }
@@ -1111,9 +1155,15 @@ static bool automation_runtime_settings_changed(obs_properties_t *props, obs_pro
         c64_automation_update_runtime_config(context->automation, &runtime_config);
     }
 
-    C64_LOG_DEBUG(PROPS_LOG_PREFIX "Automation runtime changed: property=%s duration=%d reset=%d songlengths=%d",
+    C64_LOG_DEBUG(PROPS_LOG_PREFIX
+                  "Automation runtime changed: property=%s duration=%d reset=%d songlengths=%d songlengths_path=%s",
                   property_name, runtime_config.duration_seconds, runtime_config.reset_between_items ? 1 : 0,
-                  runtime_config.use_songlengths ? 1 : 0);
+                  runtime_config.use_songlengths ? 1 : 0,
+                  runtime_config.songlengths_path[0] ? runtime_config.songlengths_path : "(auto)");
+
+    if (songlengths_path_prop && strcmp(property_name, "automation_use_songlengths") == 0) {
+        return true;
+    }
 
     return false; // No UI refresh
 }
@@ -1267,8 +1317,20 @@ static void update_playlist_property(obs_property_t *prop, struct c64_source *co
         focus_index = (current_index >= 0 && current_index < playlist_count) ? current_index : 0;
     }
 
-    // Add all items (full paths only)
-    for (int i = 0; i < playlist_count; i++) {
+    int window_start = 0;
+    int window_count = playlist_count;
+    if (playlist_count > PLAYLIST_UI_LIMIT) {
+        window_count = PLAYLIST_UI_LIMIT;
+        window_start = focus_index - (PLAYLIST_UI_LIMIT / 2);
+        if (window_start < 0) {
+            window_start = 0;
+        }
+        if (window_start + window_count > playlist_count) {
+            window_start = playlist_count - window_count;
+        }
+    }
+
+    for (int i = window_start; i < window_start + window_count; i++) {
         const char *path = c64_automation_get_playlist_item(context->automation, i);
         if (path && playlist_path_is_playable(path)) {
             char display_text[256];
@@ -1284,6 +1346,28 @@ static void update_playlist_property(obs_property_t *prop, struct c64_source *co
                 size_t remaining = sizeof(display_text) - (size_t)written - 1;
                 strncpy(display_text + written, path, remaining);
                 display_text[written + remaining] = '\0';
+            }
+
+            double song_seconds = 0.0;
+            if (c64_automation_get_songlength_seconds(context->automation, path, &song_seconds)) {
+                int total_seconds = (int)(song_seconds + 0.5);
+                if (total_seconds < 0) {
+                    total_seconds = 0;
+                }
+                char duration_text[32];
+                if (total_seconds >= 60) {
+                    int minutes = total_seconds / 60;
+                    int seconds = total_seconds % 60;
+                    snprintf(duration_text, sizeof(duration_text), " (%dm %ds)", minutes, seconds);
+                } else {
+                    snprintf(duration_text, sizeof(duration_text), " (%ds)", total_seconds);
+                }
+
+                size_t len = strlen(display_text);
+                size_t available = sizeof(display_text) - len - 1;
+                if (available > 0) {
+                    strncat(display_text, duration_text, available);
+                }
             }
 
             obs_property_list_add_int(prop, display_text, i);
@@ -1876,6 +1960,14 @@ obs_properties_t *c64_create_properties(void *data)
         obs_properties_add_bool(rest_props, "automation_use_songlengths", obs_module_text("UseSonglengths"));
     obs_property_set_long_description(auto_songlengths_prop, obs_module_text("UseSonglengths.Description"));
     obs_property_set_modified_callback(auto_songlengths_prop, automation_runtime_settings_changed);
+
+    obs_property_t *songlengths_path_prop = obs_properties_add_path(rest_props, "automation_songlengths_path",
+                                                                    obs_module_text("SonglengthsPath"), OBS_PATH_FILE,
+                                                                    "Songlengths (*.md5 *.txt);;All Files (*.*)", NULL);
+    obs_property_set_long_description(songlengths_path_prop, obs_module_text("SonglengthsPath.Description"));
+    obs_property_set_modified_callback(songlengths_path_prop, automation_runtime_settings_changed);
+    obs_property_set_visible(songlengths_path_prop,
+                             file_system == 0 && obs_data_get_bool(current_settings, "automation_use_songlengths"));
 
     // Automation reset between items
     obs_property_t *auto_reset_prop =

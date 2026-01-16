@@ -166,3 +166,8 @@ python3 -m assertions \
 - Low latency and robustness (network jitter, missing packets, reconnects).
 - Deterministic render/effect behavior across OBS render paths (preview/program/recording).
 - Tests that are stable, fast, and don’t depend on flaky external state (especially in CI).
+
+## Modularization guardrails
+
+- When a source file grows beyond 1000 lines or mixes distinct concerns, pause and plan a split into focused modules or
+    headers before adding more features.

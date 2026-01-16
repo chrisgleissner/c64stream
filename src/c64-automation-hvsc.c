@@ -817,6 +817,7 @@ bool c64_hvsc_find_songlengths_file_local(const char *root_path, char *out_path,
     }
 
     if (find_songlengths_file_recursive(root_path, out_path, out_size)) {
+        C64_LOG_INFO(HVSC_LOG_PREFIX "Found songlengths: %s", out_path);
         return true;
     }
 
@@ -832,12 +833,14 @@ bool c64_hvsc_find_songlengths_file_local(const char *root_path, char *out_path,
 
         char documents_path[512];
         if (find_songlengths_in_dir(parent_path, out_path, out_size, documents_path, sizeof(documents_path))) {
+            C64_LOG_INFO(HVSC_LOG_PREFIX "Found songlengths: %s", out_path);
             return true;
         }
 
         if (documents_path[0] != '\0') {
             char unused_docs[1] = {0};
             if (find_songlengths_in_dir(documents_path, out_path, out_size, unused_docs, sizeof(unused_docs))) {
+                C64_LOG_INFO(HVSC_LOG_PREFIX "Found songlengths: %s", out_path);
                 return true;
             }
         }
