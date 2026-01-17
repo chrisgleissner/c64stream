@@ -9,6 +9,7 @@ See <https://www.gnu.org/licenses/> for details.
 
 import json
 import subprocess
+import os
 from contextlib import suppress
 from pathlib import Path
 from typing import Any, Optional
@@ -120,14 +121,21 @@ class VideoQualityAssertion(EffectAssertion):
         frame_bytes = width * height * 3
         black_thresh = self.thresholds["black_threshold"]
 
+        hwaccel_args = []
+        vf = "fps=2"
+        if os.environ.get("C64_E2E_USE_NVIDIA") == "1":
+            hwaccel_args = ["-hwaccel", "cuda", "-hwaccel_output_format", "cuda"]
+            vf = "hwdownload,format=nv12,format=rgb24,fps=2"
+
         cmd = [
             "ffmpeg",
             "-v",
             "error",
+            *hwaccel_args,
             "-i",
             str(mp4_path),
             "-vf",
-            "fps=2",  # Sample at 2 fps
+            vf,  # Sample at 2 fps
             "-f",
             "rawvideo",
             "-pix_fmt",

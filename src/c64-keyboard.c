@@ -29,6 +29,7 @@ See <https://www.gnu.org/licenses/> for details.
 
 #define KEYBOARD_LOG_PREFIX "🕹 KEYBOARD: "
 #define MAX_KEYMAP_ENTRIES 512
+#define KEYMAP_VALUE_SEQUENCE_MAX 8
 #define QUEUE_SIZE 1024
 #define POLL_INTERVAL_MS 50
 
@@ -44,8 +45,11 @@ See <https://www.gnu.org/licenses/> for details.
 
 // Keymap entry
 typedef struct {
-    char key[64];     // Input key name (e.g., "a", "return", "f1")
-    uint8_t value;    // PETSCII code or special value
+    char key[64];  // Input key name (e.g., "a", "return", "f1")
+    uint8_t value; // PETSCII code or special value
+    uint8_t values[KEYMAP_VALUE_SEQUENCE_MAX];
+    uint8_t value_count;
+    uint8_t value_index;
     bool is_symbolic; // True if value is symbolic name
     char symbol[32];  // Symbolic name (e.g., "c64:RETURN")
 } keymap_entry_t;
@@ -236,6 +240,9 @@ c64_keymap_t *c64_keymap_load(const char *path)
             strncpy(entry->key, parsed_key, sizeof(entry->key) - 1);
 
             // Parse value
+            entry->value = 0;
+            entry->value_count = 0;
+            entry->value_index = 0;
             if (strncmp(value, "c64:", 4) == 0) {
                 // Symbolic key
                 entry->is_symbolic = true;
@@ -245,18 +252,48 @@ c64_keymap_t *c64_keymap_load(const char *path)
                     C64_LOG_WARNING(KEYBOARD_LOG_PREFIX "Unknown symbolic key: %s", value);
                     continue;
                 }
-            } else if (strncmp(value, "0x", 2) == 0 || strncmp(value, "0X", 2) == 0) {
-                // Hex value
-                entry->is_symbolic = false;
-                entry->value = (uint8_t)strtol(value, NULL, 16);
-            } else if (isdigit((unsigned char)value[0])) {
-                // Decimal value
-                entry->is_symbolic = false;
-                entry->value = (uint8_t)atoi(value);
             } else {
-                // Literal character
+                // PETSCII value(s)
                 entry->is_symbolic = false;
-                entry->value = (uint8_t)value[0];
+
+                char *saveptr = NULL;
+                for (char *token = strtok_r(value, ",", &saveptr); token; token = strtok_r(NULL, ",", &saveptr)) {
+                    trim(token);
+                    if (token[0] == '\0') {
+                        continue;
+                    }
+
+                    uint8_t parsed = 0;
+                    bool parsed_ok = false;
+                    if (strncmp(token, "0x", 2) == 0 || strncmp(token, "0X", 2) == 0) {
+                        parsed = (uint8_t)strtol(token, NULL, 16);
+                        parsed_ok = true;
+                    } else if (isdigit((unsigned char)token[0])) {
+                        parsed = (uint8_t)atoi(token);
+                        parsed_ok = true;
+                    } else {
+                        parsed = (uint8_t)token[0];
+                        parsed_ok = true;
+                    }
+
+                    if (!parsed_ok) {
+                        continue;
+                    }
+
+                    if (entry->value_count >= KEYMAP_VALUE_SEQUENCE_MAX) {
+                        C64_LOG_WARNING(KEYBOARD_LOG_PREFIX "Too many values for keymap entry: %s", parsed_key);
+                        break;
+                    }
+
+                    entry->values[entry->value_count++] = parsed;
+                }
+
+                if (entry->value_count == 0) {
+                    C64_LOG_WARNING(KEYBOARD_LOG_PREFIX "Invalid keymap value: %s=%s", parsed_key, value);
+                    continue;
+                }
+
+                entry->value = entry->values[0];
             }
 
             keymap->num_entries++;
@@ -283,6 +320,20 @@ const char *c64_keymap_get_name(c64_keymap_t *keymap)
         return "";
     }
     return keymap->name;
+}
+
+static uint8_t keymap_entry_next_value(keymap_entry_t *entry)
+{
+    if (entry->value_count == 0) {
+        return entry->value;
+    }
+
+    const uint8_t value = entry->values[entry->value_index];
+    if (entry->value_count > 1) {
+        entry->value_index = (uint8_t)((entry->value_index + 1) % entry->value_count);
+    }
+
+    return value;
 }
 
 bool c64_keymap_convert(c64_keymap_t *keymap, const char *key_code, int modifiers, c64_output_t *output)
@@ -318,7 +369,7 @@ bool c64_keymap_convert(c64_keymap_t *keymap, const char *key_code, int modifier
             } else {
                 // PETSCII output
                 output->mode = C64_OUTPUT_PETSCII;
-                output->data.petscii = keymap->entries[i].value;
+                output->data.petscii = keymap_entry_next_value(&keymap->entries[i]);
             }
             return true;
         }
@@ -335,7 +386,7 @@ bool c64_keymap_convert(c64_keymap_t *keymap, const char *key_code, int modifier
             } else {
                 // PETSCII output
                 output->mode = C64_OUTPUT_PETSCII;
-                output->data.petscii = keymap->entries[i].value;
+                output->data.petscii = keymap_entry_next_value(&keymap->entries[i]);
             }
 
             return true;

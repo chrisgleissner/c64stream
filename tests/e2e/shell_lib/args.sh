@@ -28,6 +28,7 @@ DEFAULT_RESOURCE_INTERVAL_MS=500
 DEFAULT_DISABLE_POPS=false
 DEFAULT_SETTLING_SECONDS=0
 DEFAULT_PACKET_SOURCE="mock"
+DEFAULT_DISABLE_NVIDIA=false
 DEFAULT_PERF_PROFILE=false
 DEFAULT_PERF_FLAMEGRAPH=false
 DEFAULT_PERF_FREQUENCY_HZ=99
@@ -68,6 +69,7 @@ OPTIONS:
     --perf-frequency-hz HZ  perf sampling frequency [default: ${DEFAULT_PERF_FREQUENCY_HZ}]
     --perf-callgraph MODE   perf callgraph mode (dwarf|fp) [default: ${DEFAULT_PERF_CALLGRAPH}]
     --perf-duration SEC     Override perf capture duration in seconds (default: auto from frames+grace)
+    --no-nvidia            Disable local NVIDIA (NVENC/NVDEC) auto-detection and usage
     --all                   Run ALL scenarios in sequence
     -h, --help             Show this help message
 
@@ -166,6 +168,7 @@ parse_args() {
     DISABLE_POPS="${DEFAULT_DISABLE_POPS}"
     SETTLING_SECONDS="${DEFAULT_SETTLING_SECONDS}"
     PACKET_SOURCE="${DEFAULT_PACKET_SOURCE}"
+    DISABLE_NVIDIA="${DEFAULT_DISABLE_NVIDIA}"
 
     PERF_PROFILE="${DEFAULT_PERF_PROFILE}"
     PERF_FLAMEGRAPH="${DEFAULT_PERF_FLAMEGRAPH}"
@@ -337,6 +340,10 @@ parse_args() {
                     exit 1
                 fi
                 shift 2
+                ;;
+            --no-nvidia)
+                DISABLE_NVIDIA=true
+                shift
                 ;;
             --resource-interval-ms)
                 RESOURCE_INTERVAL_MS="$2"

@@ -20,7 +20,7 @@ from typing import Any, Optional
 import numpy as np
 from scipy.ndimage import uniform_filter1d
 
-from .base import AssertionResult, AssertionStatus, EffectAssertion
+from .base import AssertionResult, AssertionStatus, EffectAssertion, ffmpeg_hwaccel_args, ffmpeg_vf_with_hwdownload
 from .config import PresetConfig
 
 
@@ -246,8 +246,14 @@ class AfterglowWidthAssertion(EffectAssertion):
 
         cmd = [
             "ffmpeg", "-v", "error",
+            *ffmpeg_hwaccel_args(),
             "-ss", str(time_sec),
             "-i", str(mp4_path),
+        ]
+        vf = ffmpeg_vf_with_hwdownload(None)
+        if vf:
+            cmd += ["-vf", vf]
+        cmd += [
             "-vframes", "1",
             "-f", "rawvideo",
             "-pix_fmt", "rgb24",

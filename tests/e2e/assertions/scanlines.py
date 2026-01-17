@@ -13,7 +13,7 @@ from typing import Any, Optional
 
 import numpy as np
 
-from .base import AssertionResult, AssertionStatus, EffectAssertion
+from .base import AssertionResult, AssertionStatus, EffectAssertion, ffmpeg_hwaccel_args, ffmpeg_vf_with_hwdownload
 from .config import PresetConfig
 
 
@@ -122,10 +122,16 @@ class ScanlineAssertion(EffectAssertion):
             "ffmpeg",
             "-v",
             "error",
+            *ffmpeg_hwaccel_args(),
             "-ss",
             str(time_offset),
             "-i",
             str(mp4_path),
+        ]
+        vf = ffmpeg_vf_with_hwdownload(None)
+        if vf:
+            cmd += ["-vf", vf]
+        cmd += [
             "-frames:v",
             "1",
             "-f",

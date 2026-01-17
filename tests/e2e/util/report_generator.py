@@ -1081,11 +1081,15 @@ class ReportGenerator:
                             timestamp = first_pop_ms / 1000.0
                             print(f"Extracting sample frame at first audio pop: {timestamp:.3f}s")
 
-            subprocess.run(
-                ['ffmpeg', '-ss', str(timestamp), '-i', str(self.recording_path),
-                 '-frames:v', '1', '-q:v', '2', str(output_path), '-y'],
-                capture_output=True, check=True
-            )
+            cmd = ['ffmpeg']
+            if os.environ.get("C64_E2E_USE_NVIDIA") == "1":
+                cmd += ["-hwaccel", "cuda", "-hwaccel_output_format", "cuda"]
+            cmd += ['-ss', str(timestamp), '-i', str(self.recording_path)]
+            if os.environ.get("C64_E2E_USE_NVIDIA") == "1":
+                cmd += ['-vf', 'hwdownload,format=nv12,format=rgb24']
+            cmd += ['-frames:v', '1', '-q:v', '2', str(output_path), '-y']
+
+            subprocess.run(cmd, capture_output=True, check=True)
 
             print(f"Extracted sample frame at {timestamp:.1f}s to {output_path.name}")
         except Exception as e:

@@ -91,18 +91,32 @@ extract_with_ffmpeg_time() {
   local input="$1" out="$2" t="$3"
   # First frame with timestamp >= t
   # Note: Use select filter for accurate thresholding
+  local vf_prefix=""
+  local -a hwaccel_args=()
+  if [[ "${C64_E2E_USE_NVIDIA:-}" == "1" ]]; then
+    vf_prefix="hwdownload,format=nv12,format=rgb24,"
+    hwaccel_args=("-hwaccel" "cuda" "-hwaccel_output_format" "cuda")
+  fi
   ffmpeg -hide_banner -loglevel error -y \
+    "${hwaccel_args[@]}" \
     -i "$input" \
-    -vf "select=gte(t\,$t)" -frames:v 1 -q:v 2 \
+    -vf "${vf_prefix}select=gte(t\,$t)" -frames:v 1 -q:v 2 \
     "$out"
 }
 
 extract_with_ffmpeg_frame() {
   local input="$1" out="$2" n="$3"
   # Exact frame by index
+  local vf_prefix=""
+  local -a hwaccel_args=()
+  if [[ "${C64_E2E_USE_NVIDIA:-}" == "1" ]]; then
+    vf_prefix="hwdownload,format=nv12,format=rgb24,"
+    hwaccel_args=("-hwaccel" "cuda" "-hwaccel_output_format" "cuda")
+  fi
   ffmpeg -hide_banner -loglevel error -y \
+    "${hwaccel_args[@]}" \
     -i "$input" \
-    -vf "select=eq(n\,$n)" -frames:v 1 -q:v 2 \
+    -vf "${vf_prefix}select=eq(n\,$n)" -frames:v 1 -q:v 2 \
     "$out"
 }
 

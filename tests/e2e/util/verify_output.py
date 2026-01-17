@@ -17,9 +17,29 @@ Checks for:
 import sys
 import argparse
 import subprocess
+import os
 from pathlib import Path
 import numpy as np
 from contextlib import suppress
+
+
+def _use_nvidia_hwaccel() -> bool:
+    return os.environ.get("C64_E2E_USE_NVIDIA") == "1"
+
+
+def _ffmpeg_hwaccel_args() -> list[str]:
+    if _use_nvidia_hwaccel():
+        return ["-hwaccel", "cuda", "-hwaccel_output_format", "cuda"]
+    return []
+
+
+def _ffmpeg_vf_with_hwdownload(vf: str | None) -> str | None:
+    if _use_nvidia_hwaccel():
+        prefix = "hwdownload,format=nv12,format=rgb24"
+        if vf:
+            return f"{prefix},{vf}"
+        return prefix
+    return vf
 
 
 class OutputVerifier:
@@ -129,10 +149,15 @@ class OutputVerifier:
         output_path.mkdir(parents=True, exist_ok=True)
 
         try:
+            vf = _ffmpeg_vf_with_hwdownload('select=not(mod(n\\,10))')
             cmd = [
                 'ffmpeg',
+                *_ffmpeg_hwaccel_args(),
                 '-i', str(self.recording_file),
-                '-vf', 'select=not(mod(n\\,10))',  # Extract every 10th frame
+            ]
+            if vf:
+                cmd += ['-vf', vf]
+            cmd += [
                 '-vsync', 'vfr',
                 str(output_path / 'frame_%04d.png')
             ]
@@ -192,11 +217,15 @@ class OutputVerifier:
             "ffmpeg",
             "-v",
             "error",
+            *_ffmpeg_hwaccel_args(),
             "-i",
             str(self.recording_file),
         ]
         if max_frames is not None:
             cmd += ["-frames:v", str(int(max_frames))]
+        vf = _ffmpeg_vf_with_hwdownload(None)
+        if vf:
+            cmd += ["-vf", vf]
         cmd += ["-f", "rawvideo", "-pix_fmt", "rgb24", "-"]
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
         frame_bytes = w * h * 3

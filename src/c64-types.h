@@ -329,8 +329,12 @@ struct c64_source {
     c64_keyboard_t *keyboard;       // Keyboard capture and injection
     c64_keymap_t *keymap;           // Current keymap
     bool keyboard_capture_active;   // Runtime state: capture is currently active
-    char rest_base_url[256];        // REST API base URL
-    char keyboard_keymap_name[64];  // Keymap name (e.g., "symbolic_us")
+    bool keyboard_ctrl_down;        // Ctrl key pressed state
+    bool keyboard_meta_down;        // Meta/Super key pressed state
+    bool keyboard_ctrl_meta_armed;  // Ctrl+Meta chord armed (no non-mod key pressed)
+    bool keyboard_ctrl_meta_consumed;
+    char rest_base_url[256];       // REST API base URL
+    char keyboard_keymap_name[64]; // Keymap name (e.g., "symbolic_us")
 
     // Script automation
     void *script_executor;          // c64_script_executor_t* (forward declaration to avoid circular dependency)

@@ -20,7 +20,7 @@ from typing import Any, Optional
 
 import numpy as np
 
-from .base import AssertionResult, AssertionStatus, EffectAssertion
+from .base import AssertionResult, AssertionStatus, EffectAssertion, ffmpeg_hwaccel_args, ffmpeg_vf_with_hwdownload
 from .config import PresetConfig
 
 
@@ -136,10 +136,16 @@ class AfterglowDecayAssertion(EffectAssertion):
             "ffmpeg",
             "-v",
             "error",
+            *ffmpeg_hwaccel_args(),
             "-i",
             str(mp4_path),
             "-frames:v",
             str(max_frames),
+        ]
+        vf = ffmpeg_vf_with_hwdownload(None)
+        if vf:
+            cmd += ["-vf", vf]
+        cmd += [
             "-f",
             "rawvideo",
             "-pix_fmt",

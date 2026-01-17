@@ -22,6 +22,25 @@ def is_ci() -> bool:
     return bool(os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS"))
 
 
+def use_nvidia_hwaccel() -> bool:
+    return os.environ.get("C64_E2E_USE_NVIDIA") == "1"
+
+
+def ffmpeg_hwaccel_args() -> list[str]:
+    if use_nvidia_hwaccel():
+        return ["-hwaccel", "cuda", "-hwaccel_output_format", "cuda"]
+    return []
+
+
+def ffmpeg_vf_with_hwdownload(vf: str | None) -> str | None:
+    if use_nvidia_hwaccel():
+        prefix = "hwdownload,format=nv12,format=rgb24"
+        if vf:
+            return f"{prefix},{vf}"
+        return prefix
+    return vf
+
+
 class AssertionStatus(Enum):
     """Status of an assertion result."""
 
