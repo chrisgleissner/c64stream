@@ -1,0 +1,11 @@
+# Execution trace
+script: "test_error_undef_function.c64script"
+status: compile_failure
+error:
+  line: 0
+  message: "UNDEF'D FUNCTION"
+program: |
+  1: rem Test undefined function error
+  2: X = DOES_NOT_EXIST(1, 2)
+  3: stop
+trace: []

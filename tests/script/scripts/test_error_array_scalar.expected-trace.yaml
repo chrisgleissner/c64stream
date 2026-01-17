@@ -1,0 +1,19 @@
+# Execution trace
+script: "test_error_array_scalar.c64script"
+status: failure
+error:
+  line: 3
+  message: "TYPE MISMATCH (ADD)"
+program: |
+  1: rem Test array used as scalar
+  2: dim VALUES(1)
+  3: X = VALUES + 1
+  4: stop
+trace:
+- line: 2
+  content: "dim VALUES(1)"
+  variables: {}
+- line: 3
+  content: "X = VALUES + 1"
+  variables:
+    VALUES: [0]

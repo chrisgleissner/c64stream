@@ -1,0 +1,3 @@
+rem Test invalid WAIT memory arguments
+WAIT -1, 1
+stop

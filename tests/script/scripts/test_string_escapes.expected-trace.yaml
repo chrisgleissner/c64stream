@@ -1,0 +1,286 @@
+# Execution trace
+script: "test_string_escapes.c64script"
+status: success
+error: ~
+program: |
+  01: rem Test string escape sequences
+  02: rem Covers doubled quotes, backslashes, tabs, and hex escapes
+  03: 
+  04: QUOTE$ = "He said ""RUN""."
+  05: QUOTE_LEN = LEN(QUOTE$)
+  06: QUOTE_MARK = ASC(MID$(QUOTE$, 9, 1))
+  07: 
+  08: PATH$ = "C:\\Temp\\file.txt"
+  09: PATH_SLASH = ASC(MID$(PATH$, 3, 1))
+  10: 
+  11: TAB$ = "Tab:\tX"
+  12: TAB_CODE = ASC(MID$(TAB$, 5, 1))
+  13: TAB_LEN = LEN(TAB$)
+  14: 
+  15: HEX$ = "Hex:\x41\x42"
+  16: HEX_A = ASC(MID$(HEX$, 5, 1))
+  17: HEX_B = ASC(MID$(HEX$, 6, 1))
+  18: 
+  19: WAIT 0.1 s
+  20: WAIT UNTIL 0
+  21: 
+  22: if QUOTE_LEN = 14 and QUOTE_MARK = 34 then
+  23:     effect "Sharp Pixels"
+  24: endif
+  25: 
+  26: if PATH_SLASH = 92 then
+  27:     palette "colodore"
+  28: endif
+  29: 
+  30: if TAB_CODE = 9 and TAB_LEN = 6 then
+  31:     palette "pepto_ntsc"
+  32: endif
+  33: 
+  34: if HEX_A = 65 and HEX_B = 66 then
+  35:     effect "Soft CRT"
+  36: endif
+  37: 
+  38: stop
+trace:
+- line: 4
+  content: "QUOTE$ = \"He said \"\"RUN\"\".\""
+  variables: {}
+- line: 5
+  content: "QUOTE_LEN = LEN(QUOTE$)"
+  variables:
+    QUOTE$: "He said "RUN"."
+- line: 6
+  content: "QUOTE_MARK = ASC(MID$(QUOTE$, 9, 1))"
+  variables:
+    QUOTE$: "He said "RUN"."
+    QUOTE_LEN: 14
+- line: 8
+  content: "PATH$ = \"C:\\\\Temp\\\\file.txt\""
+  variables:
+    QUOTE$: "He said "RUN"."
+    QUOTE_LEN: 14
+    QUOTE_MARK: 34
+- line: 9
+  content: "PATH_SLASH = ASC(MID$(PATH$, 3, 1))"
+  variables:
+    QUOTE$: "He said "RUN"."
+    QUOTE_LEN: 14
+    QUOTE_MARK: 34
+    PATH$: "C:\Temp\file.txt"
+- line: 11
+  content: "TAB$ = \"Tab:\\tX\""
+  variables:
+    QUOTE$: "He said "RUN"."
+    QUOTE_LEN: 14
+    QUOTE_MARK: 34
+    PATH$: "C:\Temp\file.txt"
+    PATH_SLASH: 92
+- line: 12
+  content: "TAB_CODE = ASC(MID$(TAB$, 5, 1))"
+  variables:
+    QUOTE$: "He said "RUN"."
+    QUOTE_LEN: 14
+    QUOTE_MARK: 34
+    PATH$: "C:\Temp\file.txt"
+    PATH_SLASH: 92
+    TAB$: "Tab:	X"
+- line: 13
+  content: "TAB_LEN = LEN(TAB$)"
+  variables:
+    QUOTE$: "He said "RUN"."
+    QUOTE_LEN: 14
+    QUOTE_MARK: 34
+    PATH$: "C:\Temp\file.txt"
+    PATH_SLASH: 92
+    TAB$: "Tab:	X"
+    TAB_CODE: 9
+- line: 15
+  content: "HEX$ = \"Hex:\\x41\\x42\""
+  variables:
+    QUOTE$: "He said "RUN"."
+    QUOTE_LEN: 14
+    QUOTE_MARK: 34
+    PATH$: "C:\Temp\file.txt"
+    PATH_SLASH: 92
+    TAB$: "Tab:	X"
+    TAB_CODE: 9
+    TAB_LEN: 6
+- line: 16
+  content: "HEX_A = ASC(MID$(HEX$, 5, 1))"
+  variables:
+    QUOTE$: "He said "RUN"."
+    QUOTE_LEN: 14
+    QUOTE_MARK: 34
+    PATH$: "C:\Temp\file.txt"
+    PATH_SLASH: 92
+    TAB$: "Tab:	X"
+    TAB_CODE: 9
+    TAB_LEN: 6
+    HEX$: "Hex:AB"
+- line: 17
+  content: "HEX_B = ASC(MID$(HEX$, 6, 1))"
+  variables:
+    QUOTE$: "He said "RUN"."
+    QUOTE_LEN: 14
+    QUOTE_MARK: 34
+    PATH$: "C:\Temp\file.txt"
+    PATH_SLASH: 92
+    TAB$: "Tab:	X"
+    TAB_CODE: 9
+    TAB_LEN: 6
+    HEX$: "Hex:AB"
+    HEX_A: 65
+- line: 19
+  content: "WAIT 0.1 s"
+  variables:
+    QUOTE$: "He said "RUN"."
+    QUOTE_LEN: 14
+    QUOTE_MARK: 34
+    PATH$: "C:\Temp\file.txt"
+    PATH_SLASH: 92
+    TAB$: "Tab:	X"
+    TAB_CODE: 9
+    TAB_LEN: 6
+    HEX$: "Hex:AB"
+    HEX_A: 65
+    HEX_B: 66
+- line: 20
+  content: "WAIT UNTIL 0"
+  variables:
+    QUOTE$: "He said "RUN"."
+    QUOTE_LEN: 14
+    QUOTE_MARK: 34
+    PATH$: "C:\Temp\file.txt"
+    PATH_SLASH: 92
+    TAB$: "Tab:	X"
+    TAB_CODE: 9
+    TAB_LEN: 6
+    HEX$: "Hex:AB"
+    HEX_A: 65
+    HEX_B: 66
+- line: 22
+  content: "if QUOTE_LEN = 14 and QUOTE_MARK = 34 then"
+  variables:
+    QUOTE$: "He said "RUN"."
+    QUOTE_LEN: 14
+    QUOTE_MARK: 34
+    PATH$: "C:\Temp\file.txt"
+    PATH_SLASH: 92
+    TAB$: "Tab:	X"
+    TAB_CODE: 9
+    TAB_LEN: 6
+    HEX$: "Hex:AB"
+    HEX_A: 65
+    HEX_B: 66
+- line: 23
+  content: "effect \"Sharp Pixels\""
+  variables:
+    QUOTE$: "He said "RUN"."
+    QUOTE_LEN: 14
+    QUOTE_MARK: 34
+    PATH$: "C:\Temp\file.txt"
+    PATH_SLASH: 92
+    TAB$: "Tab:	X"
+    TAB_CODE: 9
+    TAB_LEN: 6
+    HEX$: "Hex:AB"
+    HEX_A: 65
+    HEX_B: 66
+- line: 26
+  content: "if PATH_SLASH = 92 then"
+  variables:
+    QUOTE$: "He said "RUN"."
+    QUOTE_LEN: 14
+    QUOTE_MARK: 34
+    PATH$: "C:\Temp\file.txt"
+    PATH_SLASH: 92
+    TAB$: "Tab:	X"
+    TAB_CODE: 9
+    TAB_LEN: 6
+    HEX$: "Hex:AB"
+    HEX_A: 65
+    HEX_B: 66
+- line: 27
+  content: "palette \"colodore\""
+  variables:
+    QUOTE$: "He said "RUN"."
+    QUOTE_LEN: 14
+    QUOTE_MARK: 34
+    PATH$: "C:\Temp\file.txt"
+    PATH_SLASH: 92
+    TAB$: "Tab:	X"
+    TAB_CODE: 9
+    TAB_LEN: 6
+    HEX$: "Hex:AB"
+    HEX_A: 65
+    HEX_B: 66
+- line: 30
+  content: "if TAB_CODE = 9 and TAB_LEN = 6 then"
+  variables:
+    QUOTE$: "He said "RUN"."
+    QUOTE_LEN: 14
+    QUOTE_MARK: 34
+    PATH$: "C:\Temp\file.txt"
+    PATH_SLASH: 92
+    TAB$: "Tab:	X"
+    TAB_CODE: 9
+    TAB_LEN: 6
+    HEX$: "Hex:AB"
+    HEX_A: 65
+    HEX_B: 66
+- line: 31
+  content: "palette \"pepto_ntsc\""
+  variables:
+    QUOTE$: "He said "RUN"."
+    QUOTE_LEN: 14
+    QUOTE_MARK: 34
+    PATH$: "C:\Temp\file.txt"
+    PATH_SLASH: 92
+    TAB$: "Tab:	X"
+    TAB_CODE: 9
+    TAB_LEN: 6
+    HEX$: "Hex:AB"
+    HEX_A: 65
+    HEX_B: 66
+- line: 34
+  content: "if HEX_A = 65 and HEX_B = 66 then"
+  variables:
+    QUOTE$: "He said "RUN"."
+    QUOTE_LEN: 14
+    QUOTE_MARK: 34
+    PATH$: "C:\Temp\file.txt"
+    PATH_SLASH: 92
+    TAB$: "Tab:	X"
+    TAB_CODE: 9
+    TAB_LEN: 6
+    HEX$: "Hex:AB"
+    HEX_A: 65
+    HEX_B: 66
+- line: 35
+  content: "effect \"Soft CRT\""
+  variables:
+    QUOTE$: "He said "RUN"."
+    QUOTE_LEN: 14
+    QUOTE_MARK: 34
+    PATH$: "C:\Temp\file.txt"
+    PATH_SLASH: 92
+    TAB$: "Tab:	X"
+    TAB_CODE: 9
+    TAB_LEN: 6
+    HEX$: "Hex:AB"
+    HEX_A: 65
+    HEX_B: 66
+- line: 38
+  content: "stop"
+  variables:
+    QUOTE$: "He said "RUN"."
+    QUOTE_LEN: 14
+    QUOTE_MARK: 34
+    PATH$: "C:\Temp\file.txt"
+    PATH_SLASH: 92
+    TAB$: "Tab:	X"
+    TAB_CODE: 9
+    TAB_LEN: 6
+    HEX$: "Hex:AB"
+    HEX_A: 65
+    HEX_B: 66

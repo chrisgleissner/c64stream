@@ -32,6 +32,7 @@ from .record_frames import RecordFramesAssertion
 from .record_network import RecordNetworkAssertion
 from .record_obs import RecordObsAssertion
 from .record_video import RecordVideoAssertion
+from .script_record import ScriptRecordAssertion
 from .runner import (
     AssertionRunner,
     create_assertions_from_list,
@@ -70,6 +71,7 @@ __all__ = [
     "ScriptLogAssertion",
     "RecordAudioAssertion",
     "RecordVideoAssertion",
+    "ScriptRecordAssertion",
     "RecordObsAssertion",
     "RecordNetworkAssertion",
     "RecordFramesAssertion",

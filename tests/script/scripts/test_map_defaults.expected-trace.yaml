@@ -1,0 +1,71 @@
+# Execution trace
+script: "test_map_defaults.c64script"
+status: success
+error: ~
+program: |
+  01: rem Test map default values for missing keys
+  02: CONFIG{"port"} = 8080
+  03: CONFIG_STR{"host"} = "localhost"
+  04: VALUE = CONFIG{"missing"}
+  05: TEXT$ = CONFIG_STR{"missing"}
+  06: if VALUE = 0 then
+  07:     palette "colodore"
+  08: endif
+  09: if TEXT$ = "" then
+  10:     palette "pepto_ntsc"
+  11: endif
+  12: stop
+trace:
+- line: 2
+  content: "CONFIG{\"port\"} = 8080"
+  variables: {}
+- line: 3
+  content: "CONFIG_STR{\"host\"} = \"localhost\""
+  variables:
+    CONFIG: {port: 8080}
+- line: 4
+  content: "VALUE = CONFIG{\"missing\"}"
+  variables:
+    CONFIG: {port: 8080}
+    CONFIG_STR: {host: "localhost"}
+- line: 5
+  content: "TEXT$ = CONFIG_STR{\"missing\"}"
+  variables:
+    CONFIG: {port: 8080}
+    CONFIG_STR: {host: "localhost"}
+    VALUE: 0
+- line: 6
+  content: "if VALUE = 0 then"
+  variables:
+    CONFIG: {port: 8080}
+    CONFIG_STR: {host: "localhost"}
+    VALUE: 0
+    TEXT$: ""
+- line: 7
+  content: "palette \"colodore\""
+  variables:
+    CONFIG: {port: 8080}
+    CONFIG_STR: {host: "localhost"}
+    VALUE: 0
+    TEXT$: ""
+- line: 9
+  content: "if TEXT$ = \"\" then"
+  variables:
+    CONFIG: {port: 8080}
+    CONFIG_STR: {host: "localhost"}
+    VALUE: 0
+    TEXT$: ""
+- line: 10
+  content: "palette \"pepto_ntsc\""
+  variables:
+    CONFIG: {port: 8080}
+    CONFIG_STR: {host: "localhost"}
+    VALUE: 0
+    TEXT$: ""
+- line: 12
+  content: "stop"
+  variables:
+    CONFIG: {port: 8080}
+    CONFIG_STR: {host: "localhost"}
+    VALUE: 0
+    TEXT$: ""

@@ -1,16 +1,16 @@
 {
     "udp_reception": {
         "status": "pass",
-        "details": "30746/30803 packets (28746 video, 2000 audio)",
+        "details": "30778/30803 packets (28776 video, 2002 audio)",
         "metrics": {
             "expected_total": 30803,
-            "received_total": 30746,
-            "missing_total": 57,
-            "missing_pct": 0.18504691101516085,
+            "received_total": 30778,
+            "missing_total": 25,
+            "missing_pct": 0.08116092588384248,
             "expected_video": 28800,
             "expected_audio": 2003,
-            "received_video": 28746,
-            "received_audio": 2000
+            "received_video": 28776,
+            "received_audio": 2002
         }
     },
     "frame_processing": {
@@ -19,7 +19,7 @@
     },
     "video_recording": {
         "status": "pass",
-        "details": "10.6 MB"
+        "details": "10.7 MB"
     },
     "packet_integrity": {
         "status": "pass",
@@ -27,25 +27,25 @@
     },
     "network_timing": {
         "status": "pass",
-        "details": "span=8007.6ms, video_mean=334.1us, audio_mean=4005.0us"
+        "details": "span=8014.8ms, video_mean=366.3us, audio_mean=4004.4us"
     },
     "video_brightness": {
         "status": "pass",
         "details": "Normal (best_mean_luma=26.4)",
         "metrics": {
-            "best_offset_s": 5.332129843211981,
-            "best_mean_luma": 26.405289351851852,
+            "best_offset_s": 5.382275264934978,
+            "best_mean_luma": 26.40528549382716,
             "samples": [
                 {
-                    "t": 5.332129843211981,
-                    "mean_luma": 26.405289351851852
+                    "t": 5.382275264934978,
+                    "mean_luma": 26.40528549382716
                 },
                 {
-                    "t": 10.664259686423962,
+                    "t": 10.764550529869956,
                     "mean_luma": 0.0
                 },
                 {
-                    "t": 15.996389529635945,
+                    "t": 16.146825794804933,
                     "mean_luma": 0.0
                 }
             ]
@@ -59,15 +59,15 @@
         "total_audio_pops": 9,
         "total_analyzed": 9,
         "total_video_pops": 9,
-        "perfect_sync_count": 2,
-        "sync_accuracy_percent": 22.22222222222222,
+        "perfect_sync_count": 9,
+        "sync_accuracy_percent": 100.0,
         "tolerance_ms": 30,
         "sync_details": [
             {
-                "audio_pop_time_ms": 9857,
-                "closest_video_pop_ms": 9845.217798281683,
-                "closest_video_pop_frame": 589,
-                "difference_ms": 11.782201718317083,
+                "audio_pop_time_ms": 9946,
+                "closest_video_pop_ms": 9945.508641727676,
+                "closest_video_pop_frame": 595,
+                "difference_ms": 0.49135827232385054,
                 "is_synced": true,
                 "included_in_analysis": true,
                 "ignore_reason": null,
@@ -77,10 +77,10 @@
                 "traffic": "green"
             },
             {
-                "audio_pop_time_ms": 10658,
-                "closest_video_pop_ms": 10647.54454584963,
-                "closest_video_pop_frame": 637,
-                "difference_ms": 10.455454150369405,
+                "audio_pop_time_ms": 10769,
+                "closest_video_pop_ms": 10747.835389295624,
+                "closest_video_pop_frame": 643,
+                "difference_ms": 21.164610704376173,
                 "is_synced": true,
                 "included_in_analysis": true,
                 "ignore_reason": null,
@@ -90,24 +90,11 @@
                 "traffic": "green"
             },
             {
-                "audio_pop_time_ms": 11484,
-                "closest_video_pop_ms": 11449.871293417576,
-                "closest_video_pop_frame": 685,
-                "difference_ms": 34.12870658242355,
-                "is_synced": false,
-                "included_in_analysis": true,
-                "ignore_reason": null,
-                "audio_channel": "L",
-                "video_channel": "L",
-                "channels_match": true,
-                "traffic": "green"
-            },
-            {
-                "audio_pop_time_ms": 12286,
-                "closest_video_pop_ms": 12252.198040985524,
-                "closest_video_pop_frame": 733,
-                "difference_ms": 33.80195901447587,
-                "is_synced": false,
+                "audio_pop_time_ms": 11574,
+                "closest_video_pop_ms": 11550.162136863572,
+                "closest_video_pop_frame": 691,
+                "difference_ms": 23.837863136428496,
+                "is_synced": true,
                 "included_in_analysis": true,
                 "ignore_reason": null,
                 "audio_channel": "R",
@@ -116,11 +103,11 @@
                 "traffic": "green"
             },
             {
-                "audio_pop_time_ms": 13086,
-                "closest_video_pop_ms": 13054.524788553472,
-                "closest_video_pop_frame": 781,
-                "difference_ms": 31.475211446528192,
-                "is_synced": false,
+                "audio_pop_time_ms": 12375,
+                "closest_video_pop_ms": 12352.488884431517,
+                "closest_video_pop_frame": 739,
+                "difference_ms": 22.511115568482637,
+                "is_synced": true,
                 "included_in_analysis": true,
                 "ignore_reason": null,
                 "audio_channel": "L",
@@ -129,11 +116,50 @@
                 "traffic": "green"
             },
             {
-                "audio_pop_time_ms": 13891,
-                "closest_video_pop_ms": 13856.851536121418,
-                "closest_video_pop_frame": 829,
-                "difference_ms": 34.148463878582334,
-                "is_synced": false,
+                "audio_pop_time_ms": 13176,
+                "closest_video_pop_ms": 13154.815631999465,
+                "closest_video_pop_frame": 787,
+                "difference_ms": 21.18436800053496,
+                "is_synced": true,
+                "included_in_analysis": true,
+                "ignore_reason": null,
+                "audio_channel": "R",
+                "video_channel": "L",
+                "channels_match": false,
+                "traffic": "green"
+            },
+            {
+                "audio_pop_time_ms": 13981,
+                "closest_video_pop_ms": 13957.14237956741,
+                "closest_video_pop_frame": 835,
+                "difference_ms": 23.8576204325891,
+                "is_synced": true,
+                "included_in_analysis": true,
+                "ignore_reason": null,
+                "audio_channel": "R",
+                "video_channel": "L",
+                "channels_match": false,
+                "traffic": "green"
+            },
+            {
+                "audio_pop_time_ms": 14782,
+                "closest_video_pop_ms": 14759.469127135359,
+                "closest_video_pop_frame": 883,
+                "difference_ms": 22.530872864641424,
+                "is_synced": true,
+                "included_in_analysis": true,
+                "ignore_reason": null,
+                "audio_channel": "R",
+                "video_channel": "L",
+                "channels_match": false,
+                "traffic": "green"
+            },
+            {
+                "audio_pop_time_ms": 15583,
+                "closest_video_pop_ms": 15561.795874703306,
+                "closest_video_pop_frame": 931,
+                "difference_ms": 21.204125296693746,
+                "is_synced": true,
                 "included_in_analysis": true,
                 "ignore_reason": null,
                 "audio_channel": "L",
@@ -142,69 +168,43 @@
                 "traffic": "green"
             },
             {
-                "audio_pop_time_ms": 14692,
-                "closest_video_pop_ms": 14659.178283689365,
-                "closest_video_pop_frame": 877,
-                "difference_ms": 32.821716310634656,
-                "is_synced": false,
+                "audio_pop_time_ms": 16388,
+                "closest_video_pop_ms": 16364.122622271254,
+                "closest_video_pop_frame": 979,
+                "difference_ms": 23.87737772874607,
+                "is_synced": true,
                 "included_in_analysis": true,
                 "ignore_reason": null,
-                "audio_channel": "L",
+                "audio_channel": "R",
                 "video_channel": "L",
-                "channels_match": true,
-                "traffic": "green"
-            },
-            {
-                "audio_pop_time_ms": 15493,
-                "closest_video_pop_ms": 15461.505031257313,
-                "closest_video_pop_frame": 925,
-                "difference_ms": 31.49496874268698,
-                "is_synced": false,
-                "included_in_analysis": true,
-                "ignore_reason": null,
-                "audio_channel": "L",
-                "video_channel": "L",
-                "channels_match": true,
-                "traffic": "green"
-            },
-            {
-                "audio_pop_time_ms": 16298,
-                "closest_video_pop_ms": 16263.83177882526,
-                "closest_video_pop_frame": 973,
-                "difference_ms": 34.1682211747393,
-                "is_synced": false,
-                "included_in_analysis": true,
-                "ignore_reason": null,
-                "audio_channel": "L",
-                "video_channel": "L",
-                "channels_match": true,
+                "channels_match": false,
                 "traffic": "green"
             }
         ],
-        "is_perfectly_synced": false,
+        "is_perfectly_synced": true,
         "last_event_within_limit": true,
-        "duration_ms": 21345.235,
+        "duration_ms": 21545.816,
         "video_pop_times_ms": [
-            9845.217798281683,
-            10647.54454584963,
-            11449.871293417576,
-            12252.198040985524,
-            13054.524788553472,
-            13856.851536121418,
-            14659.178283689365,
-            15461.505031257313,
-            16263.83177882526
+            9945.508641727676,
+            10747.835389295624,
+            11550.162136863572,
+            12352.488884431517,
+            13154.815631999465,
+            13957.14237956741,
+            14759.469127135359,
+            15561.795874703306,
+            16364.122622271254
         ],
         "video_pop_frame_indices": [
-            589,
-            637,
-            685,
-            733,
-            781,
-            829,
-            877,
-            925,
-            973
+            595,
+            643,
+            691,
+            739,
+            787,
+            835,
+            883,
+            931,
+            979
         ],
         "traffic": [
             "green",
@@ -217,8 +217,8 @@
             "green",
             "green"
         ],
-        "channel_match_count": 7,
-        "channel_mismatch_count": 2,
+        "channel_match_count": 3,
+        "channel_mismatch_count": 6,
         "channels_all_match": false
     },
     "scanlines": {

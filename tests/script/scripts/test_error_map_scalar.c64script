@@ -1,0 +1,4 @@
+rem Test map used as scalar
+CONFIG{"mode"} = 1
+X = CONFIG + 1
+stop

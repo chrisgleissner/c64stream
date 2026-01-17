@@ -1,0 +1,14 @@
+# Execution trace
+script: "test_error_map_key_type.c64script"
+status: failure
+error:
+  line: 2
+  message: "Map key must be a string"
+program: |
+  1: rem Test map key type mismatch
+  2: CONFIG{1} = 10
+  3: stop
+trace:
+- line: 2
+  content: "CONFIG{1} = 10"
+  variables: {}

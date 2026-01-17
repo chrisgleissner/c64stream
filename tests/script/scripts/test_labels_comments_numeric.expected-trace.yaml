@@ -1,0 +1,42 @@
+# Execution trace
+script: "test_labels_comments_numeric.c64script"
+status: success
+error: ~
+program: |
+  01: rem Test labels, numeric normalization, and hash comments
+  02: goto 10
+  03: 
+  04: LABEL MixedCase
+  05: LOG "label keyword"
+  06: goto AFTER_LABEL
+  07: 
+  08: 0010
+  09: # comment between label and statement
+  10: LOG "numeric label"
+  11: goto mixedcase
+  12: 
+  13: AFTER_LABEL:
+  14: LOG "after label"
+  15: stop
+trace:
+- line: 2
+  content: "goto 10"
+  variables: {}
+- line: 10
+  content: "LOG \"numeric label\""
+  variables: {}
+- line: 11
+  content: "goto mixedcase"
+  variables: {}
+- line: 5
+  content: "LOG \"label keyword\""
+  variables: {}
+- line: 6
+  content: "goto AFTER_LABEL"
+  variables: {}
+- line: 14
+  content: "LOG \"after label\""
+  variables: {}
+- line: 15
+  content: "stop"
+  variables: {}

@@ -1,0 +1,21 @@
+# Execution trace
+script: "test_error_mixed_comparison.c64script"
+status: failure
+error:
+  line: 3
+  message: "TYPE MISMATCH (EQ)"
+program: |
+  1: rem Test mixed-type comparison error
+  2: NAME$ = "1"
+  3: if NAME$ = 1 then
+  4:     effect "Sharp Pixels"
+  5: endif
+  6: stop
+trace:
+- line: 2
+  content: "NAME$ = \"1\""
+  variables: {}
+- line: 3
+  content: "if NAME$ = 1 then"
+  variables:
+    NAME$: "1"

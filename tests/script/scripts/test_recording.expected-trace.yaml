@@ -8,68 +8,69 @@ program: |
   03: 
   04: rem Test 1: Start recording
   05: RECORDSTART
-  06: wait 200ms
+  06: wait 1000ms
   07: 
   08: rem Test 2: Stop recording
   09: RECORDSTOP
-  10: wait 100ms
+  10: wait 300ms
   11: 
   12: rem Test 3: Start and stop multiple times
   13: RECORDSTART
-  14: wait 100ms
+  14: wait 800ms
   15: RECORDSTOP
-  16: wait 100ms
+  16: wait 300ms
   17: 
   18: RECORDSTART
-  19: wait 100ms
+  19: wait 800ms
   20: RECORDSTOP
-  21: wait 100ms
+  21: wait 300ms
   22: 
   23: rem Test 4: Recording with effects
   24: RECORDSTART
   25: effect "Sharp Pixels"
-  26: wait 100ms
+  26: wait 500ms
   27: effect "Soft CRT"
-  28: wait 100ms
+  28: wait 500ms
   29: RECORDSTOP
-  30: 
-  31: stop
+  30: wait 300ms
+  31: 
+  32: stop
 trace:
 - line: 5
   content: "RECORDSTART"
   variables: {}
 - line: 6
-  content: "wait 200ms"
+  content: "wait 1000ms"
   variables: {}
 - line: 9
   content: "RECORDSTOP"
   variables: {}
 - line: 10
-  content: "wait 100ms"
+  content: "wait 300ms"
   variables: {}
 - line: 13
   content: "RECORDSTART"
   variables: {}
 - line: 14
-  content: "wait 100ms"
+  content: "wait 800ms"
   variables: {}
 - line: 15
   content: "RECORDSTOP"
   variables: {}
 - line: 16
-  content: "wait 100ms"
+  content: "wait 300ms"
   variables: {}
 - line: 18
   content: "RECORDSTART"
   variables: {}
 - line: 19
-  content: "wait 100ms"
+  content: "wait 800ms"
   variables: {}
 - line: 20
   content: "RECORDSTOP"
   variables: {}
 - line: 21
-  content: "wait 100ms"
+  content: "wait 300ms"
   variables: {}
 - line: 24
   content: "RECORDSTART"
@@ -78,17 +79,20 @@ trace:
   content: "effect \"Sharp Pixels\""
   variables: {}
 - line: 26
-  content: "wait 100ms"
+  content: "wait 500ms"
   variables: {}
 - line: 27
   content: "effect \"Soft CRT\""
   variables: {}
 - line: 28
-  content: "wait 100ms"
+  content: "wait 500ms"
   variables: {}
 - line: 29
   content: "RECORDSTOP"
   variables: {}
-- line: 31
+- line: 30
+  content: "wait 300ms"
+  variables: {}
+- line: 32
   content: "stop"
   variables: {}

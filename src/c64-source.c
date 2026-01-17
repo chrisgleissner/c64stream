@@ -15,6 +15,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include <string.h>
 #include <inttypes.h>
 #include <pthread.h>
+#include <ctype.h>
 #include "c64-network.h"
 #include "c64-network-buffer.h"
 #include "c64-logging.h"
@@ -1959,25 +1960,46 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
     C64_LOG_INFO("🕹 KEYBOARD: key_up=%d vkey=0x%04X scan=0x%02X mods=0x%02X text='%s'", key_up, event->native_vkey,
                  event->native_scancode, event->modifiers, event->text ? event->text : "");
 
-    // Only process key press events (not key up)
-    if (key_up) {
+    const bool is_ctrl_key =
+        (event->native_vkey == 0xFFE3 || event->native_vkey == 0xFFE4 || event->native_vkey == 0x11);
+    const bool is_meta_key = (event->native_vkey == 0xFFEB || event->native_vkey == 0xFFEC ||
+                              event->native_vkey == 0x5B || event->native_vkey == 0x5C);
+    const bool is_shift_key =
+        (event->native_vkey == 0xFFE1 || event->native_vkey == 0xFFE2 || event->native_vkey == 0x10);
+    const bool is_alt_key =
+        (event->native_vkey == 0xFFE9 || event->native_vkey == 0xFFEA || event->native_vkey == 0x12);
+    const bool is_modifier_key = (is_shift_key || is_ctrl_key || is_alt_key || is_meta_key);
+
+    if (is_ctrl_key) {
+        context->keyboard_ctrl_down = !key_up;
+    }
+    if (is_meta_key) {
+        context->keyboard_meta_down = !key_up;
+    }
+
+    if (is_modifier_key) {
+        if (!key_up && context->keyboard_ctrl_down && context->keyboard_meta_down &&
+            !context->keyboard_ctrl_meta_armed && !context->keyboard_ctrl_meta_consumed) {
+            context->keyboard_ctrl_meta_armed = true;
+            if (context->keymap && context->keyboard) {
+                c64_output_t output;
+                if (c64_keymap_convert(context->keymap, "Ctrl+Meta", 0, &output)) {
+                    c64_keyboard_queue_output(context->keyboard, &output);
+                }
+            }
+        }
+
+        if (key_up && (!context->keyboard_ctrl_down || !context->keyboard_meta_down)) {
+            context->keyboard_ctrl_meta_armed = false;
+            context->keyboard_ctrl_meta_consumed = false;
+        }
+
+        C64_LOG_DEBUG("🕹 KEYBOARD: Skipping modifier key");
         return;
     }
 
-    // Skip modifier keys themselves (Shift, Ctrl, Alt, Command/Super)
-    // These should only modify other keys, not generate keypresses
-    if (event->native_vkey == 0xFFE1 || // Left Shift (X11)
-        event->native_vkey == 0xFFE2 || // Right Shift (X11)
-        event->native_vkey == 0xFFE3 || // Left Ctrl (X11)
-        event->native_vkey == 0xFFE4 || // Right Ctrl (X11)
-        event->native_vkey == 0xFFE9 || // Left Alt (X11)
-        event->native_vkey == 0xFFEA || // Right Alt (X11)
-        event->native_vkey == 0xFFEB || // Left Super/Windows (X11)
-        event->native_vkey == 0xFFEC || // Right Super/Windows (X11)
-        event->native_vkey == 0x10 ||   // Shift (Windows)
-        event->native_vkey == 0x11 ||   // Ctrl (Windows)
-        event->native_vkey == 0x12) {   // Alt (Windows)
-        C64_LOG_DEBUG("🕹 KEYBOARD: Skipping modifier key");
+    // Only process key press events (not key up)
+    if (key_up) {
         return;
     }
 
@@ -1999,12 +2021,23 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
 
     // Convert OBS key event to keymap format and queue for injection
     if (context->keymap && context->keyboard) {
+        if (context->keyboard_ctrl_meta_armed) {
+            context->keyboard_ctrl_meta_consumed = true;
+        }
+
         // Build key code from event
         char key_code[64] = "";
 
-        // Map special keys using native_vkey - check these FIRST before text
-        // because some keys (like Return) may have text but need special handling
-        if (event->native_vkey == 0x0D || event->native_vkey == 0xFF0D) { // Return/Enter (Linux: 0xFF0D)
+        const bool has_text = (event->text && event->text[0] != '\0');
+        const bool single_char = (has_text && event->text[1] == '\0');
+        const bool text_is_space = (single_char && event->text[0] == ' ');
+        const bool text_is_printable = (single_char && isprint((unsigned char)event->text[0]) && !text_is_space);
+
+        // Prefer printable text over native_vkey for printable characters to avoid
+        // ambiguous vkeys (e.g. '$' shares 0x24 with VK_HOME).
+        if (text_is_printable) {
+            snprintf(key_code, sizeof(key_code), "%s", event->text);
+        } else if (event->native_vkey == 0x0D || event->native_vkey == 0xFF0D) { // Return/Enter (Linux: 0xFF0D)
             snprintf(key_code, sizeof(key_code), "return");
         } else if (event->native_vkey == 0x08 || event->native_vkey == 0xFF08) { // Backspace (Linux: 0xFF08)
             snprintf(key_code, sizeof(key_code), "backspace");
@@ -2033,8 +2066,8 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
             snprintf(key_code, sizeof(key_code), "left");
         } else if (event->native_vkey == 0xFF53) { // Arrow Right (Linux X11)
             snprintf(key_code, sizeof(key_code), "right");
-        } else if (event->text && event->text[0] != '\0') {
-            // Use text for regular printable characters
+        } else if (has_text) {
+            // Use text for remaining characters (including non-printables we didn't special-case)
             snprintf(key_code, sizeof(key_code), "%s", event->text);
         }
 

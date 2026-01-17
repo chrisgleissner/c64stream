@@ -1,0 +1,15 @@
+rem Test labels, numeric normalization, and hash comments
+goto 10
+
+LABEL MixedCase
+LOG "label keyword"
+goto AFTER_LABEL
+
+0010
+# comment between label and statement
+LOG "numeric label"
+goto mixedcase
+
+AFTER_LABEL:
+LOG "after label"
+stop

@@ -142,12 +142,15 @@ def main():
     # Load Network Simulation and Tolerances
     network_simulation = {}
     av_sync_tolerance_mode = None  # None, 'lenient', or numeric value
+    obs_start_recording = True
     if args.scenario_yaml:
         try:
             with open(args.scenario_yaml, 'r') as f:
                 scenario_data = yaml.safe_load(f)
                 network_simulation = scenario_data.get('network_simulation', {})
-                
+                if 'obs_start_recording' in scenario_data:
+                    obs_start_recording = bool(scenario_data['obs_start_recording'])
+
                 # Support both old and new tolerance formats
                 # Old: av_sync_tolerance_ms: 40
                 # New: tolerances.av_sync.ci: lenient
@@ -157,13 +160,13 @@ def main():
                     av_sync_tol = scenario_data['tolerances']['av_sync']
                     is_ci = os.environ.get('CI', '').lower() in ('1', 'true', 'yes') or \
                             os.environ.get('GITHUB_ACTIONS', '').lower() in ('1', 'true', 'yes')
-                    
+
                     # Check for CI-specific or local-specific tolerance
                     if is_ci and 'ci' in av_sync_tol:
                         av_sync_tolerance_mode = av_sync_tol['ci']
                     elif not is_ci and 'local' in av_sync_tol:
                         av_sync_tolerance_mode = av_sync_tol['local']
-                
+
                 print(f"📡 Loaded scenario config from {Path(args.scenario_yaml).name}")
         except Exception as e:
             print(f"⚠️  Failed to load scenario YAML: {e}")
@@ -191,6 +194,7 @@ def main():
         packet_source=args.packet_source,
         scenario_overrides=Path(args.scenario_overrides) if args.scenario_overrides else None,
         network_simulation=network_simulation,
+        obs_start_recording=obs_start_recording,
         enable_websocket=args.enable_websocket,
         enable_resource_monitoring=args.enable_resource_monitoring,
         monitor_resource_interval_ms=int(args.monitor_resource_duration * 1000),

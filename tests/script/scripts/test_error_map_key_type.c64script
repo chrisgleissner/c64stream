@@ -1,0 +1,3 @@
+rem Test map key type mismatch
+CONFIG{1} = 10
+stop

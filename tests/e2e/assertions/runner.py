@@ -37,6 +37,7 @@ from .sharp_pixels import SharpPixelsAssertion
 from .tint import TintAssertion
 from .video_quality import VideoQualityAssertion
 from .script_log import ScriptLogAssertion
+from .script_record import ScriptRecordAssertion
 
 
 def _get_max_workers_for_assertions() -> int:
@@ -197,6 +198,7 @@ def create_assertions_from_list(
         "record_network": RecordNetworkAssertion,
         "record_frames": RecordFramesAssertion,
         "script_log": ScriptLogAssertion,
+        "script_record": ScriptRecordAssertion,
     }
 
     thresholds = thresholds or {}

@@ -1067,7 +1067,8 @@ END
 - Local file upload variants are fully supported (uploads file data via REST API for all three commands).
 - `AUTOSTART` injects the default template `LOAD"*",8,1\rRUN\r` via keyboard buffer.
 - D64 autostart template is customizable via automation configuration (see `c64-automation.h`).
-- HTTP requests are parsed and compiled but require libcurl integration for full execution (VM currently returns placeholder values).
+- HTTP requests execute via libcurl in the VM and return real status/response values.
+- `RECORDSTART`/`RECORDSTOP` require builds with `ENABLE_FRONTEND_API` enabled (OBS frontend API).
 
 ### 4.2 Limits
 

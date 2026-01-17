@@ -1,0 +1,11 @@
+# Execution trace
+script: "test_error_invalid_escape.c64script"
+status: parse_failure
+error:
+  line: 0
+  message: "[Line 2:9] Error at '\"bad\\xZZ\"': Invalid hex escape (expected \\xNN)"
+program: |
+  1: rem Test invalid escape sequence
+  2: TEXT$ = "bad\xZZ"
+  3: stop
+trace: []

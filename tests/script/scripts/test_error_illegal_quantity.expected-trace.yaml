@@ -1,0 +1,14 @@
+# Execution trace
+script: "test_error_illegal_quantity.c64script"
+status: failure
+error:
+  line: 2
+  message: "ILLEGAL QUANTITY"
+program: |
+  1: rem Test illegal quantity errors
+  2: X = SQRT(-1)
+  3: stop
+trace:
+- line: 2
+  content: "X = SQRT(-1)"
+  variables: {}

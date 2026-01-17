@@ -42,6 +42,7 @@ class E2EOrchestrator:
                  packet_source: str = 'mock',
                  scenario_overrides: Optional[Path] = None,
                  network_simulation: Optional[Dict] = None,
+                 obs_start_recording: bool = True,
                  enable_websocket: bool = False,
                  enable_resource_monitoring: bool = False,
                  monitor_resource_interval_ms: int = 200,
@@ -60,6 +61,7 @@ class E2EOrchestrator:
         self.packet_source = packet_source
         self.scenario_overrides = scenario_overrides
         self.network_simulation = network_simulation or {}
+        self.obs_start_recording = obs_start_recording
         self.enable_websocket = enable_websocket
         self.enable_resource_monitoring = enable_resource_monitoring
         self.monitor_resource_interval_ms = monitor_resource_interval_ms
@@ -107,7 +109,7 @@ class E2EOrchestrator:
 
             # 5. Start OBS
             # Note: OBS process start needs to be robust
-            if not self.obs_process.start(profile_name=profile.name):
+            if not self.obs_process.start(profile_name=profile.name, start_recording=self.obs_start_recording):
                 raise RuntimeError("Failed to start OBS")
 
             # Update PID for resource monitor

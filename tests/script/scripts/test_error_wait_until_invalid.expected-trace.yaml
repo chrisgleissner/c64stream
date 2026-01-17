@@ -1,0 +1,14 @@
+# Execution trace
+script: "test_error_wait_until_invalid.c64script"
+status: failure
+error:
+  line: 2
+  message: "ILLEGAL QUANTITY"
+program: |
+  1: rem Test invalid WAIT UNTIL string
+  2: WAIT UNTIL "not-a-time"
+  3: stop
+trace:
+- line: 2
+  content: "WAIT UNTIL \"not-a-time\""
+  variables: {}

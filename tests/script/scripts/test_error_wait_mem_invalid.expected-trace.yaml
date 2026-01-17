@@ -1,0 +1,14 @@
+# Execution trace
+script: "test_error_wait_mem_invalid.c64script"
+status: failure
+error:
+  line: 2
+  message: "ILLEGAL QUANTITY"
+program: |
+  1: rem Test invalid WAIT memory arguments
+  2: WAIT -1, 1
+  3: stop
+trace:
+- line: 2
+  content: "WAIT -1, 1"
+  variables: {}

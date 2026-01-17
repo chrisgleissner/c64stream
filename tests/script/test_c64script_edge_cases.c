@@ -137,6 +137,94 @@ TEST(execute_division_by_zero)
     c64script_ast_free(ast);
 }
 
+TEST(execute_array_out_of_bounds)
+{
+    const char *source = "DIM A(2)\nA(5) = 1\n";
+    char error[256];
+
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error, sizeof(error));
+    assert(ast != NULL);
+
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    assert(runtime != NULL);
+
+    bool success = c64script_compile(ast, runtime, error, sizeof(error));
+    assert(success);
+
+    success = c64script_execute(runtime);
+    assert(!success && "Expected out-of-bounds array access to fail");
+    assert(strstr(runtime->error_msg, "Array index out of bounds") != NULL);
+
+    c64script_runtime_destroy(runtime);
+    c64script_ast_free(ast);
+}
+
+TEST(execute_map_non_string_key)
+{
+    const char *source = "CONFIG{1} = 2\n";
+    char error[256];
+
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error, sizeof(error));
+    assert(ast != NULL);
+
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    assert(runtime != NULL);
+
+    bool success = c64script_compile(ast, runtime, error, sizeof(error));
+    assert(success);
+
+    success = c64script_execute(runtime);
+    assert(!success && "Expected non-string map key to fail");
+    assert(strstr(runtime->error_msg, "Map key must be a string") != NULL);
+
+    c64script_runtime_destroy(runtime);
+    c64script_ast_free(ast);
+}
+
+TEST(execute_wait_negative)
+{
+    const char *source = "WAIT -1\n";
+    char error[256];
+
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error, sizeof(error));
+    assert(ast != NULL);
+
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    assert(runtime != NULL);
+
+    bool success = c64script_compile(ast, runtime, error, sizeof(error));
+    assert(success);
+
+    success = c64script_execute(runtime);
+    assert(!success && "Expected negative WAIT to fail");
+    assert(strstr(runtime->error_msg, "ILLEGAL QUANTITY") != NULL);
+
+    c64script_runtime_destroy(runtime);
+    c64script_ast_free(ast);
+}
+
+TEST(execute_wait_mem_zero_poll)
+{
+    const char *source = "WAIT 1024, 255 EVERY 0\n";
+    char error[256];
+
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error, sizeof(error));
+    assert(ast != NULL);
+
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    assert(runtime != NULL);
+
+    bool success = c64script_compile(ast, runtime, error, sizeof(error));
+    assert(success);
+
+    success = c64script_execute(runtime);
+    assert(!success && "Expected WAIT MEM with zero poll to fail");
+    assert(strstr(runtime->error_msg, "ILLEGAL QUANTITY") != NULL);
+
+    c64script_runtime_destroy(runtime);
+    c64script_ast_free(ast);
+}
+
 // ============================================================================
 // VARIABLE NAME EDGE CASES
 // ============================================================================

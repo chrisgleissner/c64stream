@@ -8,12 +8,12 @@ debug: Attempted path: /usr/bin/../share/obs/obs-studio/themes/
 warning: ReadOne on org.freedesktop.portal.Settings returned an invalid reply
 warning: Crash or unclean shutdown detected
 warning: [Safe Mode] Normal launch selected, loading third-party plugins is enabled
-info: Command Line Arguments: --verbose --startrecording --profile C64StreamTest --disable-missing-files-check --disable-updater --minimize-to-tray --collection C64StreamTest
+info: Command Line Arguments: --verbose --profile C64StreamTest --disable-missing-files-check --disable-updater --minimize-to-tray --startrecording --collection C64StreamTest
 info: Using EGL/X11
 info: CPU Name: Intel(R) Core(TM) i7-6700K CPU @ 4.00GHz
 info: CPU Speed: 4200.000MHz
 info: Physical Cores: 4, Logical Cores: 8
-info: Physical Memory: 31963MB Total, 22566MB Free
+info: Physical Memory: 31963MB Total, 21404MB Free
 info: Kernel Version: Linux 6.14.0-37-generic
 info: Distribution: "Ubuntu" "24.04"
 info: Desktop Environment: XFCE (KDE)
@@ -29,7 +29,7 @@ debug: found alternate keycode 215 for OBS_KEY_VK_MEDIA_PLAY_PAUSE which already
 debug: found alternate keycode 218 for OBS_KEY_PRINT which already has keycode 107
 debug: found alternate keycode 231 for OBS_KEY_CANCEL which already has keycode 136
 debug: canvas 'Main' (6c69626f-6273-4c00-9d88-c5136d61696e) created
-info: Current Date/Time: 2026-01-15, 16:12:55
+info: Current Date/Time: 2026-01-17, 17:01:51
 info: Browser Hardware Acceleration: true
 info: Qt Version: 6.4.2 (runtime), 6.4.2 (compiled)
 info: Portable mode: false
@@ -43,7 +43,7 @@ info: audio settings reset:
 	buffering type:  dynamically increasing
 info: ---------------------------------
 info: Initializing OpenGL...
-debug: Created EGLDisplay 0x556a6a966700
+debug: Created EGLDisplay 0x558c07433b90
 warning: Unable to open DRM render node.
 info: Loading up OpenGL on adapter Mesa llvmpipe (LLVM 20.1.2, 256 bits)
 info: OpenGL loaded successfully, version 4.5 (Core Profile) Mesa 25.0.7-0ubuntu0.24.04.2, shading language 4.50
@@ -141,6 +141,11 @@ debug: VAAPI: Display initialized
 debug: VAAPI: 'Intel iHD driver for Intel(R) Gen Graphics - 24.1.0 ()' in use for device '/dev/dri/renderD128'
 debug: VAAPI: VAProfileAV1Profile0 is not supported by the device '/dev/dri/renderD128'
 debug: VAAPI: VAProfileAV1Profile0 is not supported by the device '/dev/dri/renderD128'
+debug: VAAPI: Initializing display in vaapi_device_av1_supported
+debug: Libva: VA-API version 1.20.0
+debug: Libva: Trying to open /usr/lib/x86_64-linux-gnu/dri/nvidia_drv_video.so
+debug: Libva: va_openDriver() returns -1
+error: VAAPI: Failed to initialize display in vaapi_device_av1_supported
 info: FFmpeg VAAPI AV1 encoding not supported
 debug: VAAPI: Initializing display in vaapi_device_hevc_supported
 debug: Libva: VA-API version 1.20.0
@@ -158,10 +163,7 @@ debug: ---------------------------------
 debug: Loading module: obs-libfdk.so
 debug: ---------------------------------
 debug: Loading module: obs-nvenc.so
-error: os_dlopen(libnvidia-encode.so.1->libnvidia-encode.so.1): libnvidia-encode.so.1: cannot open shared object file: No such file or directory
-
-info: NVENC not supported
-warning: Failed to initialize module 'obs-nvenc.so'
+info: [obs-nvenc] NVENC version: 12.1 (compiled) / 13.0 (driver), CUDA driver version: 13.0, AV1 supported: false
 debug: ---------------------------------
 debug: Loading module: obs-outputs.so
 debug: ---------------------------------
@@ -191,8 +193,8 @@ debug: Loading module: vlc-video.so
 info: [vlc-video]: VLC 3.0.20 Vetinari found, VLC video source enabled
 debug: ---------------------------------
 debug: Loading module: c64stream.so
-info: [c64stream] Loading C64 Stream Plugin 1.0.3-149-g7c1ee20-dirty (7c1ee20)
-info: [c64stream] Build info: 1.0.3-149-g7c1ee20-dirty (Git ID: 7c1ee20, Built: 2026-01-15 16:06:43 UTC)
+info: [c64stream] Loading C64 Stream Plugin 1.1.0-beta1-12-g5886543-dirty (5886543)
+info: [c64stream] Build info: 1.1.0-beta1-12-g5886543-dirty (Git ID: 5886543, Built: 2026-01-17 16:54:20 UTC)
 info: [c64stream] ✨ EFFECT: Loaded preset: Default
 info: [c64stream] ✨ EFFECT: Loaded preset: Classic CRT
 info: [c64stream] ✨ EFFECT: Loaded preset: Amber Monitor
@@ -257,6 +259,7 @@ info:     obs-vst.so
 info:     obs-transitions.so
 info:     obs-qsv11.so
 info:     obs-outputs.so
+info:     obs-nvenc.so
 info:     obs-libfdk.so
 info:     obs-filters.so
 info:     obs-ffmpeg.so
@@ -283,6 +286,8 @@ info: 	- ffmpeg_svt_av1 (SVT-AV1)
 info: 	- ffmpeg_aom_av1 (AOM AV1)
 info: 	- ffmpeg_vaapi_tex (FFmpeg VAAPI H.264)
 info: 	- hevc_ffmpeg_vaapi_tex (FFmpeg VAAPI HEVC)
+info: 	- obs_nvenc_h264_tex (NVIDIA NVENC H.264)
+info: 	- obs_nvenc_hevc_tex (NVIDIA NVENC HEVC)
 info: 	- obs_qsv11_v2 (QuickSync H.264)
 info: 	- obs_qsv11_hevc (QuickSync HEVC)
 info: 	- obs_x264 (x264)
@@ -625,111 +630,112 @@ info: [c64stream] 📡 NETWORK: Network buffer delay set - Video: 10 ms (36 slot
 info: [c64stream] Network buffer initialized: 10 ms delay
 info: [c64stream] Low-latency mode: buffer_delay=10ms, audio_rate=47982.9Hz (will adjust to format)
 info: [c64stream] Debug logging initialized: enabled
-debug: [c64stream] Initializing logo system...
-debug: [c64stream] Loading PNG pixel data with stb_image...
-debug: [c64stream] PNG path resolved to: /home/chris/.config/obs-studio/plugins/c64stream/data/images/c64stream-logo.png
-debug: [c64stream] Loaded PNG pixel data: 224x149 (133504 bytes)
-debug: [c64stream] Attempting to load logo texture...
-debug: [c64stream] Logo path resolved to: /home/chris/.config/obs-studio/plugins/c64stream/data/images/c64stream-logo.png
+info: [c64stream] Initializing logo system...
+info: [c64stream] Loading PNG pixel data with stb_image...
+info: [c64stream] PNG path resolved to: /home/chris/.config/obs-studio/plugins/c64stream/data/images/c64stream-logo.png
+info: [c64stream] Loaded PNG pixel data: 224x149 (133504 bytes)
+info: [c64stream] Attempting to load logo texture...
+info: [c64stream] Logo path resolved to: /home/chris/.config/obs-studio/plugins/c64stream/data/images/c64stream-logo.png
 debug: gs_texture_create: called while not in a graphics context
 warning: [c64stream] Failed to load logo texture from: /home/chris/.config/obs-studio/plugins/c64stream/data/images/c64stream-logo.png
 info: [c64stream] 🔷 Pre-rendered C64 display with PNG logo: 224x149 (70% of screen) at (80,60) in 384x272 PAL frame
 info: [c64stream] 🔷 Pre-rendered C64 display with PNG logo: 224x149 (70% of screen) at (80,45) in 384x240 NTSC frame
 info: [c64stream] ✅ Logo system initialized successfully (PAL: 417792 bytes, NTSC: 368640 bytes, PNG pixels: loaded, texture: fallback)
-debug: [c64stream] Logo format preference updated: NTSC
-debug: [c64stream] 🔷 LOGO SPOT CHECK: 384x240 RGBA, timestamp=107198194595061 (total count: 1)
-debug: [c64stream] Logo rendered immediately on source creation
+info: [c64stream] Logo format preference updated: NTSC
+info: [c64stream] 🔷 LOGO SPOT CHECK: 384x240 RGBA, timestamp=22238185597744 (total count: 1)
+info: [c64stream] Logo rendered immediately on source creation
 info: [c64stream] 💾 RECORD: Frame save folder updated: /home/chris/Documents/obs-studio/c64stream/recordings
 info: [c64stream] 💾 RECORD: Creating CSV recording session...
-info: [c64stream] 💾 RECORD: Attempting to create session directory: /home/chris/Documents/obs-studio/c64stream/recordings/session_20260115_161256
-info: [c64stream] 💾 RECORD: Successfully created recording session: /home/chris/Documents/obs-studio/c64stream/recordings/session_20260115_161256
-info: [c64stream] 💾 RECORD: Session folder created: /home/chris/Documents/obs-studio/c64stream/recordings/session_20260115_161256
+info: [c64stream] 💾 RECORD: Attempting to create session directory: /home/chris/Documents/obs-studio/c64stream/recordings/session_20260117_170152
+info: [c64stream] 💾 RECORD: Successfully created recording session: /home/chris/Documents/obs-studio/c64stream/recordings/session_20260117_170152
+info: [c64stream] 💾 RECORD: Session folder created: /home/chris/Documents/obs-studio/c64stream/recordings/session_20260117_170152
 info: [c64stream] 💾 RECORD: OBS timing CSV header written successfully
-info: [c64stream] 💾 RECORD: Started CSV timing recording: /home/chris/Documents/obs-studio/c64stream/recordings/session_20260115_161256/obs.csv
-debug: [c64stream] 💾 RECORD: Creating network recording session...
-debug: [c64stream] 💾 RECORD: Network session folder: /home/chris/Documents/obs-studio/c64stream/recordings/session_20260115_161256
+info: [c64stream] 💾 RECORD: Started CSV timing recording: /home/chris/Documents/obs-studio/c64stream/recordings/session_20260117_170152/obs.csv
+info: [c64stream] 💾 RECORD: Creating network recording session...
+info: [c64stream] 💾 RECORD: Network session folder: /home/chris/Documents/obs-studio/c64stream/recordings/session_20260117_170152
 info: [c64stream] 💾 RECORD: Network packet CSV header written successfully
-info: [c64stream] 💾 RECORD: Started network packet recording: /home/chris/Documents/obs-studio/c64stream/recordings/session_20260115_161256/network.csv
+info: [c64stream] 💾 RECORD: Started network packet recording: /home/chris/Documents/obs-studio/c64stream/recordings/session_20260117_170152/network.csv
 info: [c64stream] 💾 RECORD: CSV recording started
 info: [c64stream] 💾 RECORD: record_av_sync changed from 0 to 1
-info: [c64stream] 💾 RECORD: Started av-sync CSV recording: /home/chris/Documents/obs-studio/c64stream/recordings/session_20260115_161256/av-sync.csv
+info: [c64stream] 💾 RECORD: Started av-sync CSV recording: /home/chris/Documents/obs-studio/c64stream/recordings/session_20260117_170152/av-sync.csv
 info: [c64stream] 💾 RECORD: av-sync PRG async call initiated
 info: [c64stream] 🎨 PALETTE: 🔄 Color LUT rebuilt with palette colors (256 lookup entries updated)
 info: [c64stream] 🎨 PALETTE: ✓ Activated palette: 'Default' (source: build-time generated from data/palettes/default.vpl)
-debug: [c64stream] 📡 REST: Creating REST client for http://localhost
-debug: [c64stream] 📡 REST: Initializing CURL handle
-debug: [c64stream] 📡 REST: Created REST client for http://localhost
+info: [c64stream] 📡 REST: Creating REST client for http://localhost
+info: [c64stream] 📡 REST: Initializing CURL handle
+info: [c64stream] 📡 REST: Created REST client for http://localhost
 info: [c64stream] C64 Stream source created successfully - scheduling background initial connection
-debug: [c64stream] Scheduled background retry (initial connection)
-debug: [c64stream] 📡 REST: Creating REST client for http://localhost
-debug: [c64stream] 📡 REST: Initializing CURL handle
+info: [c64stream] Scheduled background retry (initial connection)
+info: [c64stream] 📡 REST: Creating REST client for http://localhost
+info: [c64stream] 📡 REST: Initializing CURL handle
 info: [c64stream] 📡 NETWORK: Async retry attempt 0 - starting streaming
+info: [c64stream] 📡 REST: Created REST client for http://localhost
 error: [c64stream] 📡 REST: CURL error: Couldn't connect to server
-debug: [c64stream] 📡 REST: Created REST client for http://localhost
-debug: [c64stream] 📡 NETWORK: Attempting to resolve hostname: localhost
+info: [c64stream] 📡 NETWORK: Attempting to resolve hostname: localhost
 warning: [c64stream] REST: request failed: CURL error: Couldn't connect to server
-debug: [c64stream] 📡 REST: Destroying REST client
-debug: [c64stream] 📡 REST: CURL handle cleaned up
-debug: [c64stream] 📡 REST: REST client destroyed
-info: [c64stream] 📡 NETWORK: System DNS resolved 'localhost' to IP: 127.0.0.1
-info: [c64stream] 📡 NETWORK: Resolved C64 host 'localhost' -> 127.0.0.1
-debug: [c64stream] 📡 NETWORK: Expected peer IP set to 127.0.0.1
-info: [c64stream] Starting C64 Stream streaming to C64 127.0.0.1 (OBS IP: 127.0.0.1, video:21000, audio:21001)...
-debug: [c64stream] Sending proactive disconnect for all streams before starting
-debug: [c64stream] 🕹 KEYBOARD: Loaded keymap: Symbolic US (215 entries)
+info: [c64stream] 📡 REST: Destroying REST client
+info: [c64stream] 📡 REST: CURL handle cleaned up
+info: [c64stream] 📡 REST: REST client destroyed
+info: [c64stream] 🕹 KEYBOARD: Loaded keymap: Symbolic US (187 entries)
 info: [c64stream] 🕹 KEYBOARD: Loaded keymap: symbolic_us
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
-info: [c64stream] 📡 NETWORK: Sending stop command for stream 0 to C64 127.0.0.1
-debug: [c64stream] 🕹 KEYBOARD: Created keyboard controller
-debug: [c64stream] 📡 NETWORK: Stop control command sent successfully
+info: [c64stream] 📡 NETWORK: System DNS resolved 'localhost' to IP: 127.0.0.1
+info: [c64stream] 🕹 KEYBOARD: Created keyboard controller
+info: [c64stream] 📡 NETWORK: Resolved C64 host 'localhost' -> 127.0.0.1
 debug: source 'C64 Stream' (c64_source) created
-debug: [c64stream] 🕹 KEYBOARD: Injection worker started
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
-info: [c64stream] 📡 NETWORK: Sending stop command for stream 1 to C64 127.0.0.1
-debug: [c64stream] 📡 NETWORK: Stop control command sent successfully
+info: [c64stream] 📡 NETWORK: Expected peer IP set to 127.0.0.1
+info: [c64stream] Starting C64 Stream streaming to C64 127.0.0.1 (OBS IP: 127.0.0.1, video:21000, audio:21001)...
+info: [c64stream] Sending proactive disconnect for all streams before starting
+info: [c64stream] 🕹 KEYBOARD: Injection worker started
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Sending stop command for stream 0 to C64 127.0.0.1
+info: [c64stream] 📡 NETWORK: Stop control command sent successfully
 info: [c64stream] 📡 NETWORK: Detected Linux IP address: 192.168.1.185 (interface: enp0s31f6)
-debug: [c64stream] 💾 FILE: Retrieved Linux Documents path: /home/chris/Documents
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 💾 FILE: Retrieved Linux Documents path: /home/chris/Documents
+info: [c64stream] 📡 NETWORK: Sending stop command for stream 1 to C64 127.0.0.1
+info: [c64stream] 📡 NETWORK: Stop control command sent successfully
+info: [c64stream] 💾 FILE: Retrieved Linux Documents path: /home/chris/Documents
 info: [c64stream] Loading configuration from properties.ini
-debug: [c64stream] Processing configuration section: network
+info: [c64stream] Processing configuration section: network
 info: [c64stream] Properties: Processing key='c64_host' value='127.0.0.1'
 info: [c64stream] Config: c64_host = 127.0.0.1
 info: [c64stream] Properties: Processing key='control_port' value='6400'
-debug: [c64stream] Config: control_port = 6400
+info: [c64stream] Config: control_port = 6400
 info: [c64stream] Properties: Processing key='dns_server_ip' value='127.0.0.1'
-debug: [c64stream] Config: dns_server_ip = 127.0.0.1
+info: [c64stream] Config: dns_server_ip = 127.0.0.1
 info: [c64stream] Properties: Processing key='video_port' value='21000'
-debug: [c64stream] Config: video_port = 21000
+info: [c64stream] Config: video_port = 21000
 info: [c64stream] Properties: Processing key='audio_port' value='21001'
-debug: [c64stream] Config: audio_port = 21001
+info: [c64stream] Config: audio_port = 21001
 info: [c64stream] Properties: Processing key='auto_detect_ip' value='false'
-debug: [c64stream] Config: auto_detect_ip = false
+info: [c64stream] Config: auto_detect_ip = false
 info: [c64stream] Properties: Processing key='obs_ip_address' value='127.0.0.1'
 info: [c64stream] Config: obs_ip_address = 127.0.0.1
 info: [c64stream] Properties: Processing key='buffer_delay_ms' value='10'
-debug: [c64stream] Config: buffer_delay_ms = 10
-debug: [c64stream] Processing configuration section: recording
+info: [c64stream] Config: buffer_delay_ms = 10
+info: [c64stream] Processing configuration section: recording
 info: [c64stream] Properties: Processing key='save_folder' value=''
 info: [c64stream] Properties: Processing key='record_frames' value='false'
-debug: [c64stream] Config: record_frames = false
+info: [c64stream] Config: record_frames = false
 info: [c64stream] Properties: Processing key='record_video' value='false'
-debug: [c64stream] Config: record_video = false (direct)
+info: [c64stream] Config: record_video = false (direct)
 info: [c64stream] Properties: Processing key='record_csv' value='true'
 info: [c64stream] Config: record_csv = true (direct) (value='true')
 info: [c64stream] Properties: Processing key='record_av_sync' value='true'
-debug: [c64stream] Config: record_av_sync = true (direct)
-debug: [c64stream] Processing configuration section: ci
+info: [c64stream] Config: record_av_sync = true (direct)
+info: [c64stream] Processing configuration section: ci
 info: [c64stream] Properties: Processing key='is_ci' value='false'
-debug: [c64stream] Processing configuration section: debug
+info: [c64stream] Processing configuration section: debug
 info: [c64stream] Properties: Processing key='debug_logging' value='true'
-debug: [c64stream] Config: debug_logging = true
-debug: [c64stream] Processing configuration section: effects
+info: [c64stream] Config: debug_logging = true
+info: [c64stream] Processing configuration section: effects
 info: [c64stream] Properties: Processing key='scan_line_distance' value='0.0'
 info: [c64stream] Properties: Processing key='scan_line_strength' value='0.0'
 info: [c64stream] Properties: Processing key='afterglow_duration_ms' value='0'
 info: [c64stream] Properties: Processing key='afterglow_curve' value='0'
-debug: [c64stream] Processing configuration section: Debug
+info: [c64stream] Processing configuration section: Debug
 info: [c64stream] Properties: Processing key='debug_logging' value='true'
-debug: [c64stream] Config: debug_logging = true
+info: [c64stream] Config: debug_logging = true
 info: [c64stream] Configuration loaded successfully: 14 settings applied
 info: Switched to scene 'Scene'
 info: Starting recording due to command line parameter
@@ -738,27 +744,27 @@ info: Loaded scenes:
 info: - scene 'Scene':
 info:     - source: 'C64 Stream' (c64_source)
 info: ------------------------------------------------
-debug: [c64stream] 📡 NETWORK: Expected peer IP set to 127.0.0.1
-debug: [c64stream] 📡 NETWORK: Set UDP receive buffer to 16777216 bytes
+info: [c64stream] 📡 NETWORK: Expected peer IP set to 127.0.0.1
+info: [c64stream] 📡 NETWORK: Set UDP receive buffer to 16777216 bytes
 info: [c64stream] 📡 NETWORK: Created optimized UDP socket on port 21000
-debug: [c64stream] 📡 NETWORK: Set UDP receive buffer to 16777216 bytes
+info: [c64stream] 📡 NETWORK: Set UDP receive buffer to 16777216 bytes
 info: [c64stream] 📡 NETWORK: Created optimized UDP socket on port 21001
-debug: [c64stream] Synthetic A/V timing state reset for reconnection
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] Synthetic A/V timing state reset for reconnection
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
 info: [c64stream] 📡 NETWORK: Sending start command for stream 0 to 127.0.0.1 with client destination: 127.0.0.1:21000
-debug: [c64stream] 📡 NETWORK: Start control command sent successfully
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Start control command sent successfully
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
 info: [c64stream] 📡 NETWORK: Sending start command for stream 1 to 127.0.0.1 with client destination: 127.0.0.1:21001
-debug: [c64stream] 📡 NETWORK: Start control command sent successfully
-debug: [c64stream] 📺 VIDEO: Video processor thread started
-debug: [c64stream] 📺 VIDEO: Video receiver thread started on port 21000
+info: [c64stream] 📡 NETWORK: Start control command sent successfully
+info: [c64stream] 📺 VIDEO: Video receiver thread started on port 21000
+info: [c64stream] 📺 VIDEO: Video thread function started with optimized scheduling
+info: [c64stream] 📺 VIDEO: Linux batch recv enabled (recvmmsg with up to 64 packets per syscall)
+info: [c64stream] 📺 VIDEO: Video processor thread started
+info: [c64stream] 📡 NETWORK: 📦 BUFFER EMPTY SPOT CHECK: No video packets available
 info: [c64stream] C64 Stream streaming started successfully
-debug: [c64stream] 🔊 AUDIO: Audio receiver thread started on port 21001
-debug: [c64stream] 📡 NETWORK: 📦 BUFFER EMPTY SPOT CHECK: No video packets available
-debug: [c64stream] 📺 VIDEO: Video thread function started with optimized scheduling
-debug: [c64stream] 📺 VIDEO: Linux batch recv enabled (recvmmsg with up to 64 packets per syscall)
+info: [c64stream] 🔊 AUDIO: Audio receiver thread started on port 21001
 info: ---------------------------------
 info: [x264 encoder: 'simple_video_stream'] preset: superfast
 info: [x264 encoder: 'simple_video_stream'] settings:
@@ -776,224 +782,222 @@ info: libfdk_aac encoder created
 info: libfdk_aac bitrate: 160, channels: 2
 debug: Maximum interleaver batch size for 'simple_file_output' calculated to be 4 packets
 info: ==== Recording Start ===============================================
-info: [ffmpeg muxer: 'simple_file_output'] Writing file '/home/chris/dev/c64/c64stream/tests/e2e/results/ntsc_default_avsync/2026-01-15 16-12-56.mp4'...
+info: [ffmpeg muxer: 'simple_file_output'] Writing file '/home/chris/dev/c64/c64stream/tests/e2e/results/ntsc_default_avsync/2026-01-17 17-01-52.mp4'...
 debug: Attempted path: /usr/bin/../share/obs/obs-studio/images/overflow.png
 debug: Attempted path: /usr/bin/../share/obs/obs-studio/OBSPublicRSAKey.pem
-Warning: failed to launch javaldx - java may not function correctly
 info: [c64stream] No video packets for 2.0s (audio: 2.0s), retrying TCP commands and recreating UDP sockets
-debug: [c64stream] Scheduled background retry (no video packets)
+info: [c64stream] Scheduled background retry (no video packets)
 info: [c64stream] 📡 NETWORK: Async retry attempt 1 - sending start commands
-debug: [c64stream] 📡 NETWORK: Attempting to resolve hostname: localhost
+info: [c64stream] 📡 NETWORK: Attempting to resolve hostname: localhost
 info: [c64stream] 📡 NETWORK: System DNS resolved 'localhost' to IP: 127.0.0.1
-debug: [c64stream] 📡 NETWORK: Expected peer IP set to 127.0.0.1
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Expected peer IP set to 127.0.0.1
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
 info: [c64stream] 📡 NETWORK: Sending start command for stream 0 to 127.0.0.1 with client destination: 127.0.0.1:21000
-debug: [c64stream] 📡 NETWORK: Start control command sent successfully
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Start control command sent successfully
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
 info: [c64stream] 📡 NETWORK: Sending start command for stream 1 to 127.0.0.1 with client destination: 127.0.0.1:21001
-debug: [c64stream] 📡 NETWORK: Start control command sent successfully
+info: [c64stream] 📡 NETWORK: Start control command sent successfully
 info: [c64stream] No video packets for 3.0s (audio: 3.0s), retrying TCP commands and recreating UDP sockets
-debug: [c64stream] Scheduled background retry (no video packets)
+info: [c64stream] Scheduled background retry (no video packets)
 info: [c64stream] 📡 NETWORK: Async retry attempt 2 - sending start commands
-debug: [c64stream] 📡 NETWORK: Attempting to resolve hostname: localhost
+info: [c64stream] 📡 NETWORK: Attempting to resolve hostname: localhost
 info: [c64stream] 📡 NETWORK: System DNS resolved 'localhost' to IP: 127.0.0.1
-debug: [c64stream] 📡 NETWORK: Expected peer IP set to 127.0.0.1
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Expected peer IP set to 127.0.0.1
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
 info: [c64stream] 📡 NETWORK: Sending start command for stream 0 to 127.0.0.1 with client destination: 127.0.0.1:21000
-debug: [c64stream] 📡 NETWORK: Start control command sent successfully
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Start control command sent successfully
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
 info: [c64stream] 📡 NETWORK: Sending start command for stream 1 to 127.0.0.1 with client destination: 127.0.0.1:21001
-debug: [c64stream] 📡 NETWORK: Start control command sent successfully
+info: [c64stream] 📡 NETWORK: Start control command sent successfully
 info: [c64stream] No video packets for 4.0s (audio: 4.0s), retrying TCP commands and recreating UDP sockets
-debug: [c64stream] Scheduled background retry (no video packets)
 info: [c64stream] 📡 NETWORK: Async retry attempt 3 - sending start commands
-debug: [c64stream] 📡 NETWORK: Attempting to resolve hostname: localhost
+info: [c64stream] 📡 NETWORK: Attempting to resolve hostname: localhost
 info: [c64stream] 📡 NETWORK: System DNS resolved 'localhost' to IP: 127.0.0.1
-debug: [c64stream] 📡 NETWORK: Expected peer IP set to 127.0.0.1
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Expected peer IP set to 127.0.0.1
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
 info: [c64stream] 📡 NETWORK: Sending start command for stream 0 to 127.0.0.1 with client destination: 127.0.0.1:21000
-debug: [c64stream] 📡 NETWORK: Start control command sent successfully
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Start control command sent successfully
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
 info: [c64stream] 📡 NETWORK: Sending start command for stream 1 to 127.0.0.1 with client destination: 127.0.0.1:21001
-debug: [c64stream] 📡 NETWORK: Start control command sent successfully
+info: [c64stream] 📡 NETWORK: Start control command sent successfully
+info: [c64stream] Scheduled background retry (no video packets)
 info: [c64stream] No video packets for 5.0s (audio: 5.0s), retrying TCP commands and recreating UDP sockets
-debug: [c64stream] Scheduled background retry (no video packets)
+info: [c64stream] Scheduled background retry (no video packets)
 info: [c64stream] 📡 NETWORK: Async retry attempt 4 - sending start commands
-debug: [c64stream] 📡 NETWORK: Attempting to resolve hostname: localhost
+info: [c64stream] 📡 NETWORK: Attempting to resolve hostname: localhost
 info: [c64stream] 📡 NETWORK: System DNS resolved 'localhost' to IP: 127.0.0.1
-debug: [c64stream] 📡 NETWORK: Expected peer IP set to 127.0.0.1
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Expected peer IP set to 127.0.0.1
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
 info: [c64stream] 📡 NETWORK: Sending start command for stream 0 to 127.0.0.1 with client destination: 127.0.0.1:21000
-debug: [c64stream] 📡 NETWORK: Start control command sent successfully
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Start control command sent successfully
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
 info: [c64stream] 📡 NETWORK: Sending start command for stream 1 to 127.0.0.1 with client destination: 127.0.0.1:21001
-debug: [c64stream] 📡 NETWORK: Start control command sent successfully
+info: [c64stream] 📡 NETWORK: Start control command sent successfully
 info: [c64stream] No video packets for 6.0s (audio: 6.0s), retrying TCP commands and recreating UDP sockets
-debug: [c64stream] Scheduled background retry (no video packets)
+info: [c64stream] Scheduled background retry (no video packets)
 info: [c64stream] 📡 NETWORK: Async retry attempt 5 - sending start commands
-debug: [c64stream] 📡 NETWORK: Attempting to resolve hostname: localhost
+info: [c64stream] 📡 NETWORK: Attempting to resolve hostname: localhost
 info: [c64stream] 📡 NETWORK: System DNS resolved 'localhost' to IP: 127.0.0.1
-debug: [c64stream] 📡 NETWORK: Expected peer IP set to 127.0.0.1
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Expected peer IP set to 127.0.0.1
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
 info: [c64stream] 📡 NETWORK: Sending start command for stream 0 to 127.0.0.1 with client destination: 127.0.0.1:21000
-debug: [c64stream] 📡 NETWORK: Start control command sent successfully
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Start control command sent successfully
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
 info: [c64stream] 📡 NETWORK: Sending start command for stream 1 to 127.0.0.1 with client destination: 127.0.0.1:21001
-debug: [c64stream] 📡 NETWORK: Start control command sent successfully
+info: [c64stream] 📡 NETWORK: Start control command sent successfully
 info: [c64stream] No video packets for 7.0s (audio: 7.0s), retrying TCP commands and recreating UDP sockets
+info: [c64stream] Scheduled background retry (no video packets)
 info: [c64stream] 📡 NETWORK: Async retry attempt 6 - sending start commands
-debug: [c64stream] 📡 NETWORK: Attempting to resolve hostname: localhost
+info: [c64stream] 📡 NETWORK: Attempting to resolve hostname: localhost
 info: [c64stream] 📡 NETWORK: System DNS resolved 'localhost' to IP: 127.0.0.1
-debug: [c64stream] 📡 NETWORK: Expected peer IP set to 127.0.0.1
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Expected peer IP set to 127.0.0.1
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
 info: [c64stream] 📡 NETWORK: Sending start command for stream 0 to 127.0.0.1 with client destination: 127.0.0.1:21000
-debug: [c64stream] 📡 NETWORK: Start control command sent successfully
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Start control command sent successfully
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
 info: [c64stream] 📡 NETWORK: Sending start command for stream 1 to 127.0.0.1 with client destination: 127.0.0.1:21001
-debug: [c64stream] 📡 NETWORK: Start control command sent successfully
-debug: [c64stream] Scheduled background retry (no video packets)
+info: [c64stream] 📡 NETWORK: Start control command sent successfully
 info: [c64stream] No video packets for 8.0s (audio: 8.0s), retrying TCP commands and recreating UDP sockets
-debug: [c64stream] Scheduled background retry (no video packets)
+info: [c64stream] Scheduled background retry (no video packets)
 info: [c64stream] 📡 NETWORK: Async retry attempt 7 - sending start commands
-debug: [c64stream] 📡 NETWORK: Attempting to resolve hostname: localhost
+info: [c64stream] 📡 NETWORK: Attempting to resolve hostname: localhost
 info: [c64stream] 📡 NETWORK: System DNS resolved 'localhost' to IP: 127.0.0.1
-debug: [c64stream] 📡 NETWORK: Expected peer IP set to 127.0.0.1
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Expected peer IP set to 127.0.0.1
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
 info: [c64stream] 📡 NETWORK: Sending start command for stream 0 to 127.0.0.1 with client destination: 127.0.0.1:21000
-debug: [c64stream] 📡 NETWORK: Start control command sent successfully
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Start control command sent successfully
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
 info: [c64stream] 📡 NETWORK: Sending start command for stream 1 to 127.0.0.1 with client destination: 127.0.0.1:21001
-debug: [c64stream] 📡 NETWORK: Start control command sent successfully
+info: [c64stream] 📡 NETWORK: Start control command sent successfully
 info: [c64stream] No video packets for 9.0s (audio: 9.0s), retrying TCP commands and recreating UDP sockets
-debug: [c64stream] Scheduled background retry (no video packets)
+info: [c64stream] Scheduled background retry (no video packets)
 info: [c64stream] 📡 NETWORK: Async retry attempt 8 - sending start commands
-debug: [c64stream] 📡 NETWORK: Attempting to resolve hostname: localhost
+info: [c64stream] 📡 NETWORK: Attempting to resolve hostname: localhost
 info: [c64stream] 📡 NETWORK: System DNS resolved 'localhost' to IP: 127.0.0.1
-debug: [c64stream] 📡 NETWORK: Expected peer IP set to 127.0.0.1
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Expected peer IP set to 127.0.0.1
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
 info: [c64stream] 📡 NETWORK: Sending start command for stream 0 to 127.0.0.1 with client destination: 127.0.0.1:21000
-debug: [c64stream] 📡 NETWORK: Start control command sent successfully
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Start control command sent successfully
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
 info: [c64stream] 📡 NETWORK: Sending start command for stream 1 to 127.0.0.1 with client destination: 127.0.0.1:21001
-debug: [c64stream] 📡 NETWORK: Start control command sent successfully
-info: [c64stream] STREAM START: stream_start_ns=107207717231852 trigger=video packet recv buffer_delay_ms=10
-info: [c64stream] 📺 VIDEO: 0.0 fps | 0.00 Mbps | 0 pps | Frames: 0 | current_video_ts_ns=0 video_ts_minus_stream_start_ns=0 video_buf_depth_ms=0.0
+info: [c64stream] 📡 NETWORK: Start control command sent successfully
+info: [c64stream] STREAM START: stream_start_ns=22247845770256 trigger=video packet recv buffer_delay_ms=10
+info: [c64stream] 📺 VIDEO: 0.0 fps | 0.00 Mbps | 1 pps | Frames: 0 | current_video_ts_ns=0 video_ts_minus_stream_start_ns=0 video_buf_depth_ms=0.0
 info: [c64stream] 📺 VIDEO: Expected 50 fps | Captured 0.0 fps | Delivered 0.0 fps | Completed 0.0 fps
 info: [c64stream] 📺 VIDEO: Capture drops 0.0% | Delivery drops 0.0% | Avg latency 0.0 ms
-debug: [c64stream] 📡 NETWORK: Network buffer push video: packet 1 (len=780)
-debug: [c64stream] 📡 NETWORK: Video buffer: initialized with sequence 0
+info: [c64stream] 📡 NETWORK: Network buffer push video: packet 1 (len=780)
+info: [c64stream] 📡 NETWORK: Video buffer: initialized with sequence 0
 info: [c64stream] 🔊 AUDIO: 0.00 Mbps | 0 pps | Packets: 1 | current_audio_ts_ns=0 audio_ts_minus_stream_start_ns=0 audio_minus_video_delta_ns=0 audio_buf_depth_ms=0.0
-debug: [c64stream] 📡 NETWORK: Audio buffer: initialized with sequence 0
-debug: [c64stream] 📡 NETWORK: ⏰ DELAY WAIT SPOT CHECK: Oldest packet age=834 us, need=10000 us
-debug: [c64stream] 📡 NETWORK: Network buffer pop SPOT CHECK: video=yes, audio=yes (total count: 1)
+info: [c64stream] 📡 NETWORK: Audio buffer: initialized with sequence 0
+info: [c64stream] 📡 NETWORK: ⏰ DELAY WAIT SPOT CHECK: Oldest packet age=1212 us, need=10000 us
+info: [c64stream] 📡 NETWORK: Network buffer pop SPOT CHECK: video=yes, audio=yes (total count: 1)
 info: [c64stream] 📺 VIDEO: Video stream restored, resetting retry count (was 9)
 info: [c64stream] 🔊 AUDIO: Audio packet interval: 4004977 ns (rate=47940.3408 Hz)
-info: [c64stream] 🔊 AUDIO: FIRST AUDIO SUBMIT: stream_start_ns=107207717231852 first_audio_ts_ns=107207717231852 first_video_ts_ns=0 initial_audio_minus_video_delta_ns=0
-debug: [c64stream] 🔊 AUDIO: 🎵 AUDIO SPOT CHECK: audio_ts=107207717231852, packet_ts=107207707231000, delivery_delay=1ms (processed: 1)
+info: [c64stream] 🔊 AUDIO: FIRST AUDIO SUBMIT: stream_start_ns=22247845770256 first_audio_ts_ns=22247845770256 first_video_ts_ns=0 initial_audio_minus_video_delta_ns=0
+info: [c64stream] 🔊 AUDIO: 🎵 AUDIO SPOT CHECK: audio_ts=22247845770256, packet_ts=22247835770000, delivery_delay=2ms (processed: 1)
 info: [c64stream] 📺 VIDEO: 🎥 Detected NTSC format: 384x240 @ 59.826 Hz (audio: 47940.3 Hz)
-debug: [c64stream] 📺 VIDEO: 🎬 Frame COMPLETION SPOT CHECK: frame 0 with 60/60 packets! (total count: 1)
-debug: [c64stream] 📺 VIDEO: 🎬 Frame completion check: frame 1 has 60/60 packets (complete=1)
-debug: [c64stream] 📺 VIDEO: 🎬 ASSEMBLY SPOT CHECK: frame 1 with 60/60 packets (count: 1)
-debug: [c64stream] 📺 VIDEO: 📐 Ideal timestamp: frame 1 -> index=0 ts=107207717231852
-info: [c64stream] 📺 VIDEO: FIRST VIDEO SUBMIT: stream_start_ns=107207717231852 first_video_ts_ns=107207717231852 first_audio_ts_ns=107207717231852 initial_audio_minus_video_delta_ns=0
-debug: [c64stream] 📺 VIDEO: 🎬 MONOTONIC SPOT CHECK: frame=1, monotonic_ts=107207717231852, packet_ts=107207740400000, delta=-23168148, packets=60/60 (count: 1)
-debug: [c64stream] 📺 VIDEO: 🎬 Frame completion check: frame 61 has 60/60 packets (complete=1)
-info: [c64stream] 📺 VIDEO: AV SYNC (OBS): offset=-17.9ms video=#2 audio=#1 detected=2026-01-15_16:13:07.043 video_frame=72 video_ts=107208938340054 audio_ts=107208920455909 | AV SYNC (Network): offset=-2.0ms video=#2 audio=#2 video_ts=107208910738234 audio_ts=107208908721804 net_to_obs_video=+27.6ms net_to_obs_audio=+11.7ms
-debug: [c64stream] 📡 NETWORK: Network buffer push video: packet 5001 (len=780)
-info: [c64stream] 📺 VIDEO: AV SYNC (OBS): offset=-16.1ms video=#3 audio=#2 detected=2026-01-15_16:13:07.845 video_frame=120 video_ts=107209740766412 audio_ts=107209724657130 | AV SYNC (Network): offset=0.7ms video=#3 audio=#3 video_ts=107209713069734 audio_ts=107209713721392 net_to_obs_video=+27.7ms net_to_obs_audio=+10.9ms
-debug: [c64stream] 📺 VIDEO: 🎬 Frame completion check: frame 121 has 60/60 packets (complete=1)
-debug: [c64stream] 📡 NETWORK: Network buffer push video: packet 10001 (len=780)
-info: [c64stream] 📺 VIDEO: AV SYNC (OBS): offset=-18.5ms video=#4 audio=#3 detected=2026-01-15_16:13:08.648 video_frame=168 video_ts=107210543611775 audio_ts=107210525154350 | AV SYNC (Network): offset=-0.6ms video=#4 audio=#4 video_ts=107210515363010 audio_ts=107210514808064 net_to_obs_video=+28.2ms net_to_obs_audio=+10.3ms
-debug: [c64stream] 📺 VIDEO: 🎬 Frame completion check: frame 181 has 60/60 packets (complete=1)
-info: [c64stream] 📺 VIDEO: AV SYNC (OBS): offset=-17.7ms video=#5 audio=#4 detected=2026-01-15_16:13:09.450 video_frame=216 video_ts=107211345082096 audio_ts=107211327404269 | AV SYNC (Network): offset=-2.0ms video=#5 audio=#5 video_ts=107211317729409 audio_ts=107211315752139 net_to_obs_video=+27.4ms net_to_obs_audio=+11.7ms
-debug: [c64stream] 📺 VIDEO: 🎬 Frame completion check: frame 241 has 60/60 packets (complete=1)
-debug: [c64stream] 📡 NETWORK: Network buffer push video: packet 15001 (len=780)
-debug: [c64stream] 📺 VIDEO: 📐 Ideal timestamp: frame 251 -> index=250 ts=107211896017102
-info: [c64stream] 📺 VIDEO: AV SYNC (OBS): offset=-16.2ms video=#6 audio=#5 detected=2026-01-15_16:13:10.252 video_frame=264 video_ts=107212147612960 audio_ts=107212131452583 | AV SYNC (Network): offset=0.7ms video=#6 audio=#6 video_ts=107212120011723 audio_ts=107212120726829 net_to_obs_video=+27.6ms net_to_obs_audio=+10.7ms
-info: [c64stream] 🔊 AUDIO: 1.54 Mbps | 250 pps | Packets: 1249 | current_audio_ts_ns=107212707433194 audio_ts_minus_stream_start_ns=4990201342 audio_minus_video_delta_ns=42519606 audio_buf_depth_ms=8.0
-info: [c64stream] 📺 VIDEO: 59.4 fps | 22.40 Mbps | 3590 pps | Frames: 298 | current_video_ts_ns=107212681628729 video_ts_minus_stream_start_ns=4964396877 video_buf_depth_ms=10.0
-info: [c64stream] 📺 VIDEO: Expected 60 fps | Captured 59.6 fps | Delivered 59.4 fps | Completed 59.4 fps
-info: [c64stream] 📺 VIDEO: Capture drops 1441264193.0% | Delivery drops 0.0% | Avg latency 11.1 ms
-debug: [c64stream] 📺 VIDEO: 🎬 Frame completion check: frame 301 has 60/60 packets (complete=1)
-info: [c64stream] 📺 VIDEO: AV SYNC (OBS): offset=-17.3ms video=#7 audio=#6 detected=2026-01-15_16:13:11.054 video_frame=312 video_ts=107212949390585 audio_ts=107212932076079 | AV SYNC (Network): offset=-0.6ms video=#7 audio=#7 video_ts=107212922343368 audio_ts=107212921729033 net_to_obs_video=+27.0ms net_to_obs_audio=+10.3ms
-debug: [c64stream] 📡 NETWORK: Network buffer push video: packet 20001 (len=780)
-info: [c64stream] 📺 VIDEO: AV SYNC (OBS): offset=-19.8ms video=#8 audio=#7 detected=2026-01-15_16:13:11.858 video_frame=360 video_ts=107213753005925 audio_ts=107213733214800 | AV SYNC (Network): offset=-1.9ms video=#8 audio=#8 video_ts=107213724675915 audio_ts=107213722781450 net_to_obs_video=+28.3ms net_to_obs_audio=+10.4ms
-debug: [c64stream] 📺 VIDEO: 🎬 Frame completion check: frame 361 has 60/60 packets (complete=1)
-info: [c64stream] 📺 VIDEO: AV SYNC (OBS): offset=-16.4ms video=#9 audio=#8 detected=2026-01-15_16:13:12.659 video_frame=408 video_ts=107214554299059 audio_ts=107214537913700 | AV SYNC (Network): offset=0.8ms video=#9 audio=#9 video_ts=107214527009435 audio_ts=107214527774576 net_to_obs_video=+27.3ms net_to_obs_audio=+10.1ms
-debug: [c64stream] 📡 NETWORK: Network buffer push video: packet 25001 (len=780)
-debug: [c64stream] 📺 VIDEO: 🎬 Frame completion check: frame 421 has 60/60 packets (complete=1)
+info: [c64stream] 📺 VIDEO: 🎬 Frame COMPLETION SPOT CHECK: frame 0 with 60/60 packets! (total count: 1)
+info: [c64stream] 📺 VIDEO: 🎬 Frame completion check: frame 1 has 60/60 packets (complete=1)
+info: [c64stream] 📺 VIDEO: 🎬 ASSEMBLY SPOT CHECK: frame 1 with 60/60 packets (count: 1)
+info: [c64stream] 📺 VIDEO: 📐 Ideal timestamp: frame 1 -> index=0 ts=22247845770256
+info: [c64stream] 📺 VIDEO: FIRST VIDEO SUBMIT: stream_start_ns=22247845770256 first_video_ts_ns=22247845770256 first_audio_ts_ns=22247845770256 initial_audio_minus_video_delta_ns=0
+info: [c64stream] 📺 VIDEO: 🎬 MONOTONIC SPOT CHECK: frame=1, monotonic_ts=22247845770256, packet_ts=22247869934000, delta=-24163744, packets=60/60 (count: 1)
+info: [c64stream] 📺 VIDEO: 🎬 Frame completion check: frame 61 has 60/60 packets (complete=1)
+info: [c64stream] 📺 VIDEO: AV SYNC (OBS): offset=-20.5ms video=#2 audio=#1 detected=2026-01-17_17:02:02.958 video_frame=72 video_ts=22249067166301 audio_ts=22249046646911 | AV SYNC (Network): offset=-3.8ms video=#2 audio=#2 video_ts=22249039575235 audio_ts=22249035786065 net_to_obs_video=+27.6ms net_to_obs_audio=+10.9ms
+info: [c64stream] 📡 NETWORK: Network buffer push video: packet 5001 (len=780)
+info: [c64stream] 📺 VIDEO: AV SYNC (OBS): offset=-15.9ms video=#3 audio=#2 detected=2026-01-17_17:02:03.759 video_frame=120 video_ts=22249868365448 audio_ts=22249852448004 | AV SYNC (Network): offset=-0.1ms video=#3 audio=#3 video_ts=22249841984314 audio_ts=22249841898424 net_to_obs_video=+26.4ms net_to_obs_audio=+10.5ms
+info: [c64stream] 📺 VIDEO: 🎬 Frame completion check: frame 121 has 60/60 packets (complete=1)
+info: [c64stream] 📡 NETWORK: Network buffer push video: packet 10001 (len=780)
+info: [c64stream] 📺 VIDEO: AV SYNC (OBS): offset=-18.9ms video=#4 audio=#3 detected=2026-01-17_17:02:04.562 video_frame=168 video_ts=22250671070167 audio_ts=22250652150399 | AV SYNC (Network): offset=-2.1ms video=#4 audio=#4 video_ts=22250644025930 audio_ts=22250641897224 net_to_obs_video=+27.0ms net_to_obs_audio=+10.3ms
+info: [c64stream] 📺 VIDEO: 🎬 Frame completion check: frame 181 has 60/60 packets (complete=1)
+info: [c64stream] 📺 VIDEO: AV SYNC (OBS): offset=-19.5ms video=#5 audio=#4 detected=2026-01-17_17:02:05.365 video_frame=216 video_ts=22251473656141 audio_ts=22251454159012 | AV SYNC (Network): offset=-3.4ms video=#5 audio=#5 video_ts=22251446672963 audio_ts=22251443296527 net_to_obs_video=+27.0ms net_to_obs_audio=+10.9ms
+info: [c64stream] 📺 VIDEO: 🎬 Frame completion check: frame 241 has 60/60 packets (complete=1)
+info: [c64stream] 📡 NETWORK: Network buffer push video: packet 15001 (len=780)
+info: [c64stream] 📺 VIDEO: 📐 Ideal timestamp: frame 251 -> index=250 ts=22252024555506
+info: [c64stream] 📺 VIDEO: AV SYNC (OBS): offset=-12.2ms video=#6 audio=#5 detected=2026-01-17_17:02:06.165 video_frame=264 video_ts=22252274346017 audio_ts=22252262150692 | AV SYNC (Network): offset=0.1ms video=#6 audio=#6 video_ts=22252251038759 audio_ts=22252251102349 net_to_obs_video=+23.3ms net_to_obs_audio=+11.0ms
+info: [c64stream] 🔊 AUDIO: 1.54 Mbps | 250 pps | Packets: 1249 | current_audio_ts_ns=22252835971598 audio_ts_minus_stream_start_ns=4990201342 audio_minus_video_delta_ns=42519606 audio_buf_depth_ms=8.0
+info: [c64stream] 📺 VIDEO: 59.3 fps | 22.40 Mbps | 3590 pps | Frames: 299 | current_video_ts_ns=22252826882274 video_ts_minus_stream_start_ns=4981112018 video_buf_depth_ms=10.9
+info: [c64stream] 📺 VIDEO: Expected 60 fps | Captured 59.5 fps | Delivered 59.3 fps | Completed 59.3 fps
+info: [c64stream] 📺 VIDEO: Capture drops 1436443911.4% | Delivery drops 0.0% | Avg latency 10.8 ms
+info: [c64stream] 📺 VIDEO: 🎬 Frame completion check: frame 301 has 60/60 packets (complete=1)
+info: [c64stream] 📺 VIDEO: AV SYNC (OBS): offset=-18.4ms video=#7 audio=#6 detected=2026-01-17_17:02:06.968 video_frame=312 video_ts=22253077408570 audio_ts=22253059030069 | AV SYNC (Network): offset=-0.4ms video=#7 audio=#7 video_ts=22253049405233 audio_ts=22253048965363 net_to_obs_video=+28.0ms net_to_obs_audio=+10.1ms
+info: [c64stream] 📡 NETWORK: Network buffer push video: packet 20001 (len=780)
+info: [c64stream] 📺 VIDEO: AV SYNC (OBS): offset=-19.9ms video=#8 audio=#7 detected=2026-01-17_17:02:07.772 video_frame=360 video_ts=22253881187642 audio_ts=22253861275368 | AV SYNC (Network): offset=-2.1ms video=#8 audio=#8 video_ts=22253852715051 audio_ts=22253850661000 net_to_obs_video=+28.5ms net_to_obs_audio=+10.6ms
+info: [c64stream] 📺 VIDEO: 🎬 Frame completion check: frame 361 has 60/60 packets (complete=1)
+info: [c64stream] 📺 VIDEO: AV SYNC (OBS): offset=-13.5ms video=#9 audio=#8 detected=2026-01-17_17:02:08.572 video_frame=408 video_ts=22254681137024 audio_ts=22254667616735 | AV SYNC (Network): offset=2.9ms video=#9 audio=#9 video_ts=22254654082796 audio_ts=22254657010601 net_to_obs_video=+27.1ms net_to_obs_audio=+10.6ms
+info: [c64stream] 📡 NETWORK: Network buffer push video: packet 25001 (len=780)
+info: [c64stream] 📺 VIDEO: 🎬 Frame completion check: frame 421 has 60/60 packets (complete=1)
 info: [c64stream] No video packets for 1.0s (audio: 1.0s), retrying TCP commands and recreating UDP sockets
-debug: [c64stream] Scheduled background retry (no video packets)
+info: [c64stream] Scheduled background retry (no video packets)
 info: [c64stream] 📡 NETWORK: Async retry attempt 0 - sending start commands
-debug: [c64stream] 📡 NETWORK: Attempting to resolve hostname: localhost
+info: [c64stream] 📡 NETWORK: Attempting to resolve hostname: localhost
 info: [c64stream] 📡 NETWORK: System DNS resolved 'localhost' to IP: 127.0.0.1
-debug: [c64stream] 📡 NETWORK: Expected peer IP set to 127.0.0.1
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Expected peer IP set to 127.0.0.1
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
 info: [c64stream] 📡 NETWORK: Sending start command for stream 0 to 127.0.0.1 with client destination: 127.0.0.1:21000
-debug: [c64stream] 📡 NETWORK: Start control command sent successfully
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Start control command sent successfully
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
 info: [c64stream] 📡 NETWORK: Sending start command for stream 1 to 127.0.0.1 with client destination: 127.0.0.1:21001
-debug: [c64stream] 📡 NETWORK: Start control command sent successfully
+info: [c64stream] 📡 NETWORK: Start control command sent successfully
 info: [c64stream] No video packets for 2.0s (audio: 2.0s), retrying TCP commands and recreating UDP sockets
+info: [c64stream] Scheduled background retry (no video packets)
 info: [c64stream] 📡 NETWORK: Async retry attempt 1 - sending start commands
-debug: [c64stream] 📡 NETWORK: Attempting to resolve hostname: localhost
+info: [c64stream] 📡 NETWORK: Attempting to resolve hostname: localhost
 info: [c64stream] 📡 NETWORK: System DNS resolved 'localhost' to IP: 127.0.0.1
-debug: [c64stream] 📡 NETWORK: Expected peer IP set to 127.0.0.1
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Expected peer IP set to 127.0.0.1
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
 info: [c64stream] 📡 NETWORK: Sending start command for stream 0 to 127.0.0.1 with client destination: 127.0.0.1:21000
-debug: [c64stream] 📡 NETWORK: Start control command sent successfully
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Start control command sent successfully
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
 info: [c64stream] 📡 NETWORK: Sending start command for stream 1 to 127.0.0.1 with client destination: 127.0.0.1:21001
-debug: [c64stream] 📡 NETWORK: Start control command sent successfully
-debug: [c64stream] Scheduled background retry (no video packets)
-info: [obs-websocket] [WebSocketServer::onOpen] New WebSocket client has connected from [::ffff:127.0.0.1]:50116
-info: [obs-websocket] [WebSocketServer::onClose] WebSocket client `[::ffff:127.0.0.1]:50116` has disconnected with code `1000` and reason: 
+info: [c64stream] 📡 NETWORK: Start control command sent successfully
+info: [obs-websocket] [WebSocketServer::onOpen] New WebSocket client has connected from [::ffff:127.0.0.1]:59958
+info: [obs-websocket] [WebSocketServer::onClose] WebSocket client `[::ffff:127.0.0.1]:59958` has disconnected with code `1000` and reason: 
 info: [c64stream] No video packets for 3.0s (audio: 3.0s), retrying TCP commands and recreating UDP sockets
-debug: [c64stream] Scheduled background retry (no video packets)
+info: [c64stream] Scheduled background retry (no video packets)
 info: [c64stream] 📡 NETWORK: Async retry attempt 2 - sending start commands
-debug: [c64stream] 📡 NETWORK: Attempting to resolve hostname: localhost
+info: [c64stream] 📡 NETWORK: Attempting to resolve hostname: localhost
 info: [c64stream] 📡 NETWORK: System DNS resolved 'localhost' to IP: 127.0.0.1
-debug: [c64stream] 📡 NETWORK: Expected peer IP set to 127.0.0.1
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Expected peer IP set to 127.0.0.1
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
 info: [c64stream] 📡 NETWORK: Sending start command for stream 0 to 127.0.0.1 with client destination: 127.0.0.1:21000
-debug: [c64stream] 📡 NETWORK: Start control command sent successfully
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Start control command sent successfully
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
 info: [c64stream] 📡 NETWORK: Sending start command for stream 1 to 127.0.0.1 with client destination: 127.0.0.1:21001
-debug: [c64stream] 📡 NETWORK: Start control command sent successfully
+info: [c64stream] 📡 NETWORK: Start control command sent successfully
 info: [c64stream] No video packets for 4.0s (audio: 4.0s), retrying TCP commands and recreating UDP sockets
-debug: [c64stream] Scheduled background retry (no video packets)
+info: [c64stream] Scheduled background retry (no video packets)
 info: [c64stream] 📡 NETWORK: Async retry attempt 3 - sending start commands
-debug: [c64stream] 📡 NETWORK: Attempting to resolve hostname: localhost
+info: [c64stream] 📡 NETWORK: Attempting to resolve hostname: localhost
 info: [c64stream] 📡 NETWORK: System DNS resolved 'localhost' to IP: 127.0.0.1
-debug: [c64stream] 📡 NETWORK: Expected peer IP set to 127.0.0.1
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Expected peer IP set to 127.0.0.1
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
 info: [c64stream] 📡 NETWORK: Sending start command for stream 0 to 127.0.0.1 with client destination: 127.0.0.1:21000
-debug: [c64stream] 📡 NETWORK: Start control command sent successfully
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
-debug: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Start control command sent successfully
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
 info: [c64stream] 📡 NETWORK: Sending start command for stream 1 to 127.0.0.1 with client destination: 127.0.0.1:21001
-debug: [c64stream] 📡 NETWORK: Start control command sent successfully
-The X11 connection broke (error 1). Did the X11 server die?
+info: [c64stream] 📡 NETWORK: Start control command sent successfully

@@ -1,0 +1,6 @@
+rem Test array bounds errors
+dim VALUES(2)
+VALUES(0) = 1
+VALUES(1) = 2
+VALUES(2) = 3
+stop

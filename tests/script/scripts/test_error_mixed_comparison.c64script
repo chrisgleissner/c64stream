@@ -1,0 +1,6 @@
+rem Test mixed-type comparison error
+NAME$ = "1"
+if NAME$ = 1 then
+    effect "Sharp Pixels"
+endif
+stop
