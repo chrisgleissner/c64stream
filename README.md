@@ -55,7 +55,7 @@ These settings work out-of-the-box with most C64 Ultimate setups. You can overri
 
 In the following instructions, replace `$VERSION` with the latest released version as shown on the [Releases](../../releases) page.
 
-#### Windows (X64)
+#### Windows (X64) 
 
 The following applies if you have an Intel or AMD CPU. It has been verified to work on Windows 11:
 
@@ -482,7 +482,7 @@ Control your Ultimate 64 remotely from within OBS Studio, enabling keyboard inpu
 2. Click **Interact** (below the preview) to route keyboard input to the source.
 3. Type as usual. Keystrokes are converted to PETSCII and injected into the C64 KERNAL keyboard buffer.
 4. The plugin polls the C64 keyboard buffer counter at `$00C6` every 50 ms and only injects a new key when the buffer is empty, providing backpressure and preventing overfilling.
-5. Press **ESC** to send **RUN/STOP** to the C64, for example to abort a running BASIC program. The **CBM** key is available via the **ALT** key. Switch between text and graphics mode with **Ctrl+Meta** (for example, Ctrl+Windows).
+5. Press **ESC** to send **RUN/STOP** to the C64, for example to abort a running BASIC program. The **CBM** key is available via the **ALT** key.
 6. To return keyboard control to OBS, click anywhere outside the Interact window so it loses focus, then close the Interact window.
 
 > [!NOTE]

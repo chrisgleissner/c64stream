@@ -50,62 +50,6 @@ cleanup_on_signal() {
     exit 1
 }
 
-configure_nvidia_accel() {
-    export C64_E2E_USE_NVIDIA=0
-
-    if [[ "${DISABLE_NVIDIA}" == true ]]; then
-        log_info "NVIDIA acceleration disabled via --no-nvidia"
-        return 0
-    fi
-
-    if [[ "${CI:-false}" == "true" ]] || [[ "${GITHUB_ACTIONS:-false}" == "true" ]]; then
-        log_info "CI environment detected - NVIDIA acceleration disabled"
-        return 0
-    fi
-
-    if ! command -v ffmpeg >/dev/null 2>&1; then
-        log_info "ffmpeg not found; skipping NVIDIA acceleration"
-        return 0
-    fi
-
-    if ! ffmpeg -hide_banner -loglevel error -hwaccels 2>/dev/null | grep -qiE '(^|\s)cuda(\s|$)'; then
-        log_info "FFmpeg CUDA hwaccel not available; skipping NVIDIA acceleration"
-        return 0
-    fi
-
-    if ! ffmpeg -hide_banner -loglevel error -encoders 2>/dev/null | grep -qiE 'h264_nvenc'; then
-        log_info "FFmpeg NVENC encoder not available; skipping NVIDIA acceleration"
-        return 0
-    fi
-
-    if command -v nvidia-smi >/dev/null 2>&1; then
-        if ! nvidia-smi -L >/dev/null 2>&1; then
-            log_info "nvidia-smi did not report a GPU; skipping NVIDIA acceleration"
-            return 0
-        fi
-    fi
-
-    export C64_E2E_USE_NVIDIA=1
-    log_info "NVIDIA acceleration enabled (NVENC/NVDEC)"
-
-    local nvidia_overrides="${TEST_DIR}/config/obs-studio-overrides/nvidia"
-    if [[ -d "${nvidia_overrides}" ]]; then
-        if [[ -n "${SCENARIO_OVERRIDES}" ]]; then
-            local merged_dir="${TEST_DIR}/.e2e-tools/overrides_nvidia_$$"
-            mkdir -p "${merged_dir}"
-            cp -a "${SCENARIO_OVERRIDES}/." "${merged_dir}/" 2>/dev/null || true
-            cp -a "${nvidia_overrides}/." "${merged_dir}/"
-            SCENARIO_OVERRIDES="${merged_dir}"
-            log_info "NVIDIA overrides merged into scenario overrides: ${SCENARIO_OVERRIDES}"
-        else
-            SCENARIO_OVERRIDES="${nvidia_overrides}"
-            log_info "NVIDIA overrides enabled: ${SCENARIO_OVERRIDES}"
-        fi
-    else
-        log_warning "NVIDIA overrides directory not found: ${nvidia_overrides}"
-    fi
-}
-
 # Main execution
 main() {
     echo "=========================================="
@@ -166,8 +110,6 @@ main() {
     if [[ "${SCENARIO}" == "ntsc_default_avsync_device" ]]; then
         stop_real_c64_streaming
     fi
-
-    configure_nvidia_accel
 
     if [[ "${SKIP_BUILD}" != true ]]; then
         build_project || exit 1

@@ -23,7 +23,6 @@ GENERATE_E2E_SCENARIOS=false
 E2E_RESULTS_ONLY=false
 NEED_E2E_DEPS=false
 E2E_NO_XVFB=false
-E2E_DISABLE_NVIDIA=false
 VERBOSE=false
 DEBUG_LOGS=false
 
@@ -197,7 +196,6 @@ OPTIONS:
     --e2e-scenarios     Run all scenarios in tests/e2e/scenarios/* and write results to tests/e2e/results/<scenario>
     --e2e-results       Regenerate tests/e2e/results/README.md from discovered result folders (no tests)
     --no-xvfb           Run E2E tests without starting Xvfb (uses current DISPLAY)
-    --no-nvidia         Disable local NVIDIA (NVENC/NVDEC) auto-detection for E2E
     --verbose           Enable verbose output
     --debug-logs        Enable debug logging for C64Script tests
     --help              Show this help message
@@ -1202,13 +1200,6 @@ run_e2e_tests() {
     if [[ "$E2E_NO_XVFB" == "true" ]]; then
         e2e_args+=("--display" "${DISPLAY:-:0}")
     fi
-    if [[ "$E2E_DISABLE_NVIDIA" == "true" ]]; then
-        e2e_args+=("--no-nvidia")
-    fi
-
-    if [[ "$E2E_DISABLE_NVIDIA" == "true" ]]; then
-        e2e_args+=("--no-nvidia")
-    fi
 
     # Pass the scenario key to e2e.sh so it can load scenario.yaml and get pattern, assertions, etc.
     if [[ -n "$scenario_key" ]]; then
@@ -1501,10 +1492,6 @@ main() {
                 ;;
             --no-xvfb)
                 E2E_NO_XVFB=true
-                shift
-                ;;
-            --no-nvidia)
-                E2E_DISABLE_NVIDIA=true
                 shift
                 ;;
             --help|-h)

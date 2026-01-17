@@ -8,7 +8,6 @@ See <https://www.gnu.org/licenses/> for details.
 """
 
 import subprocess
-import os
 from contextlib import suppress
 from pathlib import Path
 from typing import Any, Optional
@@ -76,21 +75,14 @@ class TintAssertion(EffectAssertion):
         fps = self.thresholds["sample_fps"]
         max_frames = int(self.thresholds["max_frames"])
 
-        hwaccel_args = []
-        vf = f"fps={fps}"
-        if os.environ.get("C64_E2E_USE_NVIDIA") == "1":
-            hwaccel_args = ["-hwaccel", "cuda", "-hwaccel_output_format", "cuda"]
-            vf = f"hwdownload,format=nv12,format=rgb24,fps={fps}"
-
         cmd = [
             "ffmpeg",
             "-v",
             "error",
-            *hwaccel_args,
             "-i",
             str(mp4_path),
             "-vf",
-            vf,
+            f"fps={fps}",
             "-frames:v",
             str(max_frames),
             "-f",

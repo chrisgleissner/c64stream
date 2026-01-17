@@ -9,25 +9,8 @@ visual filters in recorded output before we move on to afterglow validation.
 import argparse
 import json
 import subprocess
-import os
 from contextlib import suppress
 from pathlib import Path
-
-
-def _use_nvidia_hwaccel() -> bool:
-    return os.environ.get("C64_E2E_USE_NVIDIA") == "1"
-
-
-def _ffmpeg_hwaccel_args() -> list[str]:
-    if _use_nvidia_hwaccel():
-        return ["-hwaccel", "cuda", "-hwaccel_output_format", "cuda"]
-    return []
-
-
-def _ffmpeg_vf_with_hwdownload(vf: str) -> str:
-    if _use_nvidia_hwaccel():
-        return f"hwdownload,format=nv12,format=rgb24,{vf}"
-    return vf
 
 
 def ffprobe_size(path: Path) -> tuple[int, int]:
@@ -59,11 +42,10 @@ def iter_rgb_frames(path: Path, max_frames: int, fps: float) -> tuple[int, int, 
         "ffmpeg",
         "-v",
         "error",
-        *_ffmpeg_hwaccel_args(),
         "-i",
         str(path),
         "-vf",
-        _ffmpeg_vf_with_hwdownload(f"fps={fps}"),
+        f"fps={fps}",
         "-frames:v",
         str(max_frames),
         "-f",
