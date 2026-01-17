@@ -309,6 +309,7 @@ Limits should be explicit (e.g., max nesting depth) and produce clear runtime er
   - Parentheses always override precedence.
 
 #### 2.4.4 Waiting (Duration vs Wall Clock)
+<a id="cmd-wait"></a>
 
 `WAIT` supports three forms:
 
@@ -336,19 +337,49 @@ Limits should be explicit (e.g., max nesting depth) and produce clear runtime er
   - Polling interval defaults to **500ms** and can be overridden with `EVERY <duration>`.
   - Uses REST DMA reads; failures raise a runtime error.
 
-#### 2.4.5 Plugin-Specific I/O
+## 3. Plugin & Integration Commands
 
 These statements/functions exist to make C64 automation scripts practical in the context of this plugin (REST control, keyboard injection, and reproducible captures).
 
-##### 2.4.5.1 Effects / palettes
+### 3.1 Command overview (Since v0.1.0 / Since v0.2.0)
+
+This table lists **all plugin-provided commands/functions** (not BASIC control-flow like `IF`/`FOR`).
+
+| Command / Function | Kind | Target | Since | Reference |
+|---|---:|---|---|---|
+| `LOG`, `LOGFILE`, `TRON`, `TROFF`, `PRINT` | stmt | Plugin | Since v0.1.0 | [`3.11 Logging / tracing`](#cmd-logging) |
+| `WAIT` | stmt | Plugin | Since v0.1.0 | [`2.4.4 Waiting`](#cmd-wait) |
+| `READFILE`, `WRITEFILE` | stmt | OS | Since v0.1.0 | [`3.10 File I/O operations`](#cmd-file-io) |
+| `RUNLOCAL` | stmt | OS | Since v0.1.0 | [`3.9 Local program execution`](#cmd-runlocal) |
+| `HTTP` | stmt | Network | Since v0.1.0 | [`3.8 HTTP REST calls`](#cmd-http) |
+| `EFFECT`, `EFFECTPARAM` | stmt | Plugin | Since v0.1.0 | [`3.2 Effects / palettes`](#cmd-effects) |
+| `PALETTE`, `PALETTECOLOR` | stmt | Plugin | Since v0.1.0 | [`3.2 Effects / palettes`](#cmd-effects) |
+| `RECORDSTART`, `RECORDSTOP` | stmt | OBS | Since v0.1.0 | [`3.12 Recording control`](#cmd-recording) |
+| `TYPE`, `KEY` | stmt | C64 | Since v0.1.0 | [`3.5 Keyboard injection`](#cmd-keyboard) |
+| `POKE`, `PEEK()` | stmt / fn | C64 | Since v0.1.0 | [`3.4 Memory access`](#cmd-memory) |
+| `PLAYSID`, `RUNPRG`, `MOUNTDISK`, `AUTOSTART` | stmt | C64U | Since v0.1.0 | [`3.3 C64U runners`](#cmd-runners) |
+| `RESET`, `REBOOT` | stmt | C64U | Since v0.1.0 | [`3.13 U64 machine control`](#cmd-u64-machine) |
+| `PAUSE`, `RESUME`, `POWEROFF` | stmt | C64U | Since v0.2.0 | [`3.13 U64 machine control`](#cmd-u64-machine) |
+| `CFG$()`, `CFG`, `CFG_ITEM$()`, `CFG_OPTIONS$()`, `CFGSAVE`, `CFGLOAD`, `CFGRESET` | fn / stmt | C64U | Since v0.2.0 | [`3.14 U64 configuration`](#cmd-u64-config) |
+| `SID_MODEL`, `SID_ENABLE`, `SID_VOL`, `SID_FILTER_CURVE`, `SID_RESONANCE`, `SID_COMBINED`, `SID_DIGIS` | stmt | C64U | Since v0.2.0 | [`3.14 U64 configuration`](#cmd-u64-config) |
+| `VIC_MODE`, `CPU_SPEED` | stmt | C64U | Since v0.2.0 | [`3.14 U64 configuration`](#cmd-u64-config) |
+| `DRIVE$()`, `DRIVE_MOUNT`, `DRIVE_UNMOUNT`, `DRIVE_RESET`, `DRIVE_ON`, `DRIVE_OFF`, `DRIVE_ROM`, `DRIVE_MODE`, `DRIVE_BUS_ID` | fn / stmt | C64U | Since v0.2.0 | [`3.15 U64 drives`](#cmd-u64-drives) |
+| `LOAD`, `RUN`, `SYS` | stmt | C64 | Since v0.2.0 | [`3.15 U64 drives`](#cmd-u64-drives) |
+
+<a id="cmd-effects"></a>
+### 3.2 Effects / palettes
+
+**Target**: Plugin (updates OBS source settings)
 
 - `EFFECT`, `EFFECTPARAM`, `PALETTE` update OBS source settings.
 
-#### 2.4.5.2 C64U runners / machine control
+<a id="cmd-runners"></a>
+### 3.3 C64U runners / machine control
 
 - `PLAYSID`, `RUNPRG`, `MOUNTDISK`, `RESET`, `REBOOT` call Ultimate 64 REST actions.
 
-#### 2.4.5.3 Memory access (`PEEK`/`POKE`)
+<a id="cmd-memory"></a>
+### 3.4 Memory access (`PEEK`/`POKE`)
 
 - `POKE <address>, <value>` writes one byte to C64 memory via DMA.
   - `<address>` must be in `0..65535` (hex form: `$0000..$FFFF`).
@@ -363,7 +394,8 @@ These statements/functions exist to make C64 automation scripts practical in the
   - If `<address>` is not numeric at runtime, the executor should raise a BASIC-style “TYPE MISMATCH” error.
   - `PEEK`/`POKE` are network operations and may fail or time out; failures should stop execution with a clear error message by default.
 
-#### 2.4.5.4 Keyboard injection (`TYPE`/`KEY`)
+### 3.5 Keyboard injection (`TYPE`/`KEY`)
+<a id="cmd-keyboard"></a>
 
 - `TYPE <string_expr>` enqueues keystrokes derived from text.
   - The string is converted to injected bytes using the “BASIC-friendly ASCII→PETSCII” rules described in `doc/c64/c64u-rest-api.md`.
@@ -379,7 +411,7 @@ Important injection constraint:
 
 - Keyboard injection is KERNAL keyboard-buffer based; it will not work for software that reads the CIA keyboard matrix directly.
 
-##### 2.4.5.5 Built-in Functions
+### 3.6 Built-in Functions
 
 The language provides several built-in functions callable in expression context:
 
@@ -446,14 +478,14 @@ The language provides several built-in functions callable in expression context:
 - `EXP(<power>)` - e raised to power
   - Example: `E = EXP(1)` → `2.71828`
 
-###### 2.4.5.5.1 Error handling for built-in functions
+#### 3.6.1 Error handling for built-in functions
 
 - Unknown function names raise "UNDEF'D FUNCTION" error
 - Type mismatches (wrong argument types) raise "TYPE MISMATCH" error
 - Invalid numeric operations (e.g., `SQRT(-1)`) raise "ILLEGAL QUANTITY" error
 - All function names are case-insensitive
 
-##### 2.4.5.6 Palette color control (`PALETTE_COLOR`)
+### 3.7 Palette color control (`PALETTE_COLOR`)
 
 - `PALETTECOLOR <index>, <r>, <g>, <b>` sets a specific palette color by index (0-15) to RGB values.
   - `<index>` must be in range 0-15 (palette indices).
@@ -463,7 +495,8 @@ The language provides several built-in functions callable in expression context:
   - This allows fine-tuned palette customization beyond preset selection.
   - Invalid index or color values raise "ILLEGAL QUANTITY" error.
 
-##### 2.4.5.7 HTTP REST calls (`HTTP`)
+### 3.8 HTTP REST calls (`HTTP`)
+<a id="cmd-http"></a>
 
 - `HTTP <method> <url> [HEADERS <headers_map>] [BODY <body_expr>] [STATUS <status_var>] [RESPONSE <response_var>]`
 - Performs an HTTP request and optionally captures response.
@@ -487,7 +520,8 @@ The language provides several built-in functions callable in expression context:
 - Network errors raise runtime errors unless STATUS variable is provided (then error code is stored).
 - Timeout: implementation-defined (recommended: 30 seconds).
 
-##### 2.4.5.8 Local program execution (`RUN_LOCAL`)
+### 3.9 Local program execution (`RUN_LOCAL`)
+<a id="cmd-runlocal"></a>
 
 - `RUNLOCAL <path> [ARGS <args_string>] [STATUS <status_var>] [OUTPUT <output_var>]`
 - Executes a local program/script and optionally captures result.
@@ -508,7 +542,8 @@ The language provides several built-in functions callable in expression context:
 - Execution is blocking; script waits for program to complete.
 - Maximum output capture: implementation-defined (recommended: 1 MB; excess is truncated).
 
-##### 2.4.5.9 File I/O operations (`READFILE`, `WRITEFILE`)
+### 3.10 File I/O operations (`READFILE`, `WRITEFILE`)
+<a id="cmd-file-io"></a>
 
 - `READFILE <path>, <var>` reads entire file content into variable.
   - `<path>`: file path (relative to script directory or absolute)
@@ -527,7 +562,8 @@ The language provides several built-in functions callable in expression context:
   - Example: `WRITEFILE "output.txt", "Result: " + RESULT, TRUNCATE`
   - Example: `WRITEFILE "log.txt", "Event at " + TIME$(), APPEND`
 
-  ##### 2.4.5.10 Logging / tracing (`LOG`, `LOGFILE`, `TRON`, `TROFF`)
+### 3.11 Logging / tracing (`LOG`, `LOGFILE`, `TRON`, `TROFF`)
+<a id="cmd-logging"></a>
 
 - `LOGFILE <path> [APPEND|TRUNCATE]` selects a script log file destination.
   - Relative paths should resolve relative to the script file’s directory.
@@ -539,11 +575,1084 @@ The language provides several built-in functions callable in expression context:
 - `TROFF` disables tracing.
 - `PRINT <expr>` writes to the OBS log (not the script log file).
 
-### 2.5 Effect Parameters Reference
+### 3.12 Recording control (`RECORDSTART`, `RECORDSTOP`) (Since v0.1.0)
+<a id="cmd-recording"></a>
+
+**Target**: OBS
+
+- `RECORDSTART` (**Since v0.1.0**) starts OBS recording.
+- `RECORDSTOP` (**Since v0.1.0**) stops OBS recording.
+
+Notes:
+- `RECORDSTART`/`RECORDSTOP` require builds with `ENABLE_FRONTEND_API` enabled (OBS frontend API).
+
+Example:
+
+```basic
+RECORDSTART
+WAIT 10s
+RECORDSTOP
+```
+
+### 3.13 Ultimate 64 machine control (Since v0.2.0)
+<a id="cmd-u64-machine"></a>
+
+This section merges `doc/c64script/c64script-machine-control-spec.md` into the main language spec.
+
+**Status**: Final Specification
+**Date**: 2025-01-17
+**Device**: Ultimate 64 Elite (Firmware 3.12a)
+
+**Target**: C64U (REST)
+
+Commands:
+
+#### `RESET` - Reset Machine (Since v0.1.0)
+
+**Syntax**: `RESET`
+
+**Description**: Sends a reset signal to the machine. Configuration remains unchanged.
+
+**REST API**: `PUT /v1/machine:reset`
+
+Example:
+
+```basic
+RESET
+WAIT 2s
+LOG "Machine reset complete"
+```
+
+#### `REBOOT` - Reboot Machine (Since v0.1.0)
+
+**Syntax**: `REBOOT`
+
+**Description**: Restarts the machine and re-initializes the cartridge configuration.
+
+**REST API**: `PUT /v1/machine:reboot`
+
+Example:
+
+```basic
+REBOOT
+WAIT 5s
+LOG "Machine rebooted"
+```
+
+#### `PAUSE` - Pause CPU Execution (Since v0.2.0)
+
+**Syntax**: `PAUSE`
+
+**Description**: Pulls the DMA line low at a safe moment, stopping the CPU while timers continue.
+
+**REST API**: `PUT /v1/machine:pause`
+
+Example:
+
+```basic
+PAUSE
+LOG "CPU paused"
+WAIT 1s
+RESUME
+```
+
+#### `RESUME` - Resume CPU Execution (Since v0.2.0)
+
+**Syntax**: `RESUME`
+
+**Description**: Releases the DMA line so the CPU resumes execution.
+
+**REST API**: `PUT /v1/machine:resume`
+
+Example:
+
+```basic
+PAUSE
+WAIT 2s
+RESUME
+LOG "CPU resumed"
+```
+
+#### `POWEROFF` - Power Off Machine (Since v0.2.0)
+
+**Syntax**: `POWEROFF`
+
+**Description**: Powers off the machine. Responses are not guaranteed after this command executes.
+
+**REST API**: `PUT /v1/machine:poweroff`
+
+**Warning**: After `POWEROFF`, the machine may not respond to further C64U commands. The script does not automatically terminate.
+
+Example:
+
+```basic
+LOG "Shutting down machine"
+POWEROFF
+REM Script continues, but C64U calls may fail
+```
+
+REST API mapping:
+
+| C64Script Command | REST API | Method |
+|------------------|----------|--------|
+| `RESET` | `PUT /v1/machine:reset` | PUT |
+| `REBOOT` | `PUT /v1/machine:reboot` | PUT |
+| `PAUSE` | `PUT /v1/machine:pause` | PUT |
+| `RESUME` | `PUT /v1/machine:resume` | PUT |
+| `POWEROFF` | `PUT /v1/machine:poweroff` | PUT |
+
+Usage examples:
+
+```basic
+RESET
+WAIT 2s
+LOG "Machine ready"
+```
+
+```basic
+LOG "Pausing CPU"
+PAUSE
+WAIT 1s
+LOG "Resuming CPU"
+RESUME
+```
+
+```basic
+CFG "U64 Specific Settings", "System Mode", "PAL"
+CFGSAVE
+REBOOT
+WAIT 5s
+LOG "Rebooted with PAL mode"
+```
+
+```basic
+LOG "Saving configuration"
+CFGSAVE
+WAIT 1s
+LOG "Powering off"
+POWEROFF
+```
+
+### 3.14 Ultimate 64 configuration (Since v0.2.0)
+<a id="cmd-u64-config"></a>
+
+All commands in this section are **Since v0.2.0**.
+
+**Status**: Final Specification
+**Date**: 2025-01-17
+**Device**: Ultimate 64 Elite (Firmware 3.12a)
+
+---
+
+#### Overview
+
+C64Script provides commands for accessing and modifying the Ultimate 64 hierarchical configuration menu system via REST API. The configuration system has 19 categories containing 193 configurable items (menu items).
+
+**Target**: C64U (REST)
+
+**Terminology**:
+- **Config Item** / **Menu Item**: A single configurable setting in the hierarchy (e.g., "System Mode", "CPU Speed")
+- **Category**: A parent node containing config items (e.g., "Audio Mixer", "U64 Specific Settings")
+- **Option**: A possible value for an enum config item (e.g., "PAL", "NTSC" for "System Mode")
+- **Value**: The current or desired value of a config item
+
+---
+
+#### General-purpose commands
+
+##### `CFG$()` - Read Config Item Value
+
+**Target**: C64U (REST)
+
+**Syntax**: `CFG$(category$, item$)`
+
+**Returns**: String value of the config item
+
+**Description**: Reads the current value of a config item.
+
+**Errors**:
+- If the REST request fails or returns non-empty `errors`, the function raises a runtime error.
+
+**Example**:
+```basic
+LET mode$ = CFG$("U64 Specific Settings", "System Mode")
+LOG "Current mode: " + mode$
+```
+
+##### `CFG` - Write Config Item Value
+
+**Target**: C64U (REST)
+
+**Syntax**: `CFG category$, item$, value$`
+
+**Description**: Sets the value of a config item.
+
+**Errors**:
+- If the REST request fails or returns non-empty `errors`, the statement raises a runtime error.
+- Value conversion is up to the script author; use strings that match the C64U menu options.
+
+**Example**:
+```basic
+CFG "U64 Specific Settings", "System Mode", "PAL"
+```
+
+##### `CFG_ITEM$()` - List Items at Path
+
+**Target**: C64U (REST)
+
+**Syntax**: `CFG_ITEM$([path$], arr$())`
+**Alternative**: `CFGITEM$()`
+
+**Returns**: Count of items (populates array)
+
+**Description**:
+- No parameter: Returns all top-level items (categories)
+- With path: Returns child items at the specified path
+
+**Errors**:
+- If the REST request fails or returns non-empty `errors`, the function raises a runtime error.
+
+**Examples**:
+```basic
+REM Get all categories
+DIM cats$(20)
+LET count = CFG_ITEM$(cats$())
+FOR I = 0 TO count - 1
+    LOG "Category: " + cats$(I)
+NEXT
+
+REM Get items in a category
+DIM items$(20)
+LET count = CFG_ITEM$("Audio Mixer", items$())
+FOR I = 0 TO count - 1
+    LOG "Item: " + items$(I)
+NEXT
+```
+
+##### `CFG_OPTIONS$()` - List Valid Options
+
+**Target**: C64U (REST)
+
+**Syntax**: `CFG_OPTIONS$(category$, item$, arr$())`
+**Alternative**: `CFGOPTIONS$()`
+
+**Returns**: Count of options (populates array)
+
+**Description**: Returns all valid option values for an enum config item.
+
+**Errors**:
+- If the REST request fails or returns non-empty `errors`, the function raises a runtime error.
+
+**Example**:
+```basic
+DIM modes$(10)
+LET count = CFG_OPTIONS$("U64 Specific Settings", "System Mode", modes$())
+REM Returns: ["PAL", "NTSC", "PAL-60", "NTSC-50", "PAL-60/L", "NTSC-50/L"]
+```
+
+##### `CFGSAVE` - Save Configuration to Flash
+
+**Target**: C64U (REST)
+
+**Syntax**: `CFGSAVE`
+**Alternative**: `CFG_SAVE`
+
+**Description**: Saves current configuration to non-volatile flash storage.
+
+##### `CFGLOAD` - Load Configuration from Flash
+
+**Target**: C64U (REST)
+
+**Syntax**: `CFGLOAD`
+**Alternative**: `CFG_LOAD`
+
+**Description**: Loads configuration from flash storage.
+
+##### `CFGRESET` - Reset to Factory Defaults
+
+**Target**: C64U (REST)
+
+**Syntax**: `CFGRESET`
+**Alternative**: `CFG_RESET`
+
+**Description**: Resets all configuration items to factory defaults.
+
+---
+
+#### Hardware-specific commands
+
+#### SID configuration
+
+**Target**: C64U (REST)
+
+**Architecture**: 2 physical SID sockets + 2 UltiSIDs
+
+**SID Targets** (keywords, case-insensitive):
+- `SOCKET1`
+- `SOCKET2`
+- `ULTI1` (UltiSID 1)
+- `ULTI2` (UltiSID 2)
+
+##### `SID_MODEL` - Set SID Model
+
+**Syntax**: `SID_MODEL target, model$`
+
+**Parameters**:
+- `target`: `SOCKET1`, `SOCKET2`, `ULTI1`, `ULTI2`
+- `model$`: Model string
+  - `SOCKET1` / `SOCKET2`: model is hardware-detected (read-only; cannot be changed)
+  - `ULTI1` / `ULTI2`: model can be changed (currently supported: `"UltiSID"`; future models may be added)
+
+**Note**:
+- Detected physical model can be read via:
+  - `CFG$("SID Sockets Configuration", "SID Detected Socket 1")`
+  - `CFG$("SID Sockets Configuration", "SID Detected Socket 2")`
+
+##### `SID_ENABLE` - Enable/Disable SID Socket
+
+**Syntax**: `SID_ENABLE target, enabled%`
+
+**Parameters**:
+- `target`: `SOCKET1` or `SOCKET2`
+- `enabled%`: `0` = disabled, `1` = enabled
+
+**Example**:
+```basic
+SID_ENABLE SOCKET1, 1  REM Enable socket 1
+SID_ENABLE SOCKET2, 0  REM Disable socket 2
+```
+
+##### `SID_VOL` - Set SID Volume
+
+**Syntax**: `SID_VOL target, level$`
+
+**Parameters**:
+- `target`: `SOCKET1`, `SOCKET2`, `ULTI1`, `ULTI2`
+- `level$`: Volume in dB format: `"OFF"`, `"+6 dB"` down to `"-42 dB"` (31 levels)
+
+**Example**:
+```basic
+SID_VOL ULTI1, "+3 dB"
+SID_VOL ULTI2, " 0 dB"
+SID_VOL SOCKET1, "-6 dB"
+```
+
+##### `SID_FILTER_CURVE` - Set UltiSID Filter Curve
+
+**Syntax**: `SID_FILTER_CURVE target, curve$`
+
+**Parameters**:
+- `target`: `ULTI1` or `ULTI2`
+- `curve$`: `"8580 Lo"`, `"8580 Hi"`, `"6581"`, `"6581 Alt"`, `"U2 Low"`, `"U2 Mid"`, `"U2 High"`
+
+**Note**: Only applies to UltiSIDs.
+
+##### `SID_RESONANCE` - Set UltiSID Resonance
+
+**Syntax**: `SID_RESONANCE target, resonance$`
+
+**Parameters**:
+- `target`: `ULTI1` or `ULTI2`
+- `resonance$`: `"Low"`, `"High"`
+
+**Note**: Only applies to UltiSIDs.
+
+##### `SID_COMBINED` - Set UltiSID Combined Waveforms
+
+**Syntax**: `SID_COMBINED target, waveforms$`
+
+**Parameters**:
+- `target`: `ULTI1` or `ULTI2`
+- `waveforms$`: `"6581"`, `"8580"`
+
+**Note**: Only applies to UltiSIDs.
+
+##### `SID_DIGIS` - Set UltiSID Digis Level
+
+**Syntax**: `SID_DIGIS target, level$`
+
+**Parameters**:
+- `target`: `ULTI1` or `ULTI2`
+- `level$`: `"Off"`, `"Low"`, `"Medium"`, `"High"`
+
+**Note**: Only applies to UltiSIDs.
+
+### Video Configuration
+
+##### `VIC_MODE` - Set Video Mode
+
+**Target**: C64U (REST)
+
+**Syntax**: `VIC_MODE mode$`
+
+**Parameters**:
+- `mode$`: `"PAL"`, `"NTSC"`, `"PAL-60"`, `"NTSC-50"`, `"PAL-60/L"`, `"NTSC-50/L"`
+
+**Example**:
+```basic
+VIC_MODE "PAL"
+```
+
+#### CPU configuration
+
+##### `CPU_SPEED` - Set CPU Speed
+
+**Target**: C64U (REST)
+
+**Syntax**: `CPU_SPEED speed$`
+
+**Parameters**:
+- `speed$`: `" 1"`, `" 2"`, `" 3"`, `" 4"`, `" 5"`, `" 6"`, `" 8"`, `"10"`, `"12"`, `"14"`, `"16"`, `"20"`, `"24"`, `"32"`, `"40"`, `"48"` (MHz)
+
+**Note**: Single-digit values have leading spaces (`" 1"` vs `"10"`).
+
+**Example**:
+```basic
+CPU_SPEED " 1"   REM 1 MHz
+CPU_SPEED "10"   REM 10 MHz
+CPU_SPEED "48"   REM 48 MHz
+```
+
+---
+
+#### Configuration structure
+
+##### Categories (19 total)
+
+1. Audio Mixer (20 items)
+2. SID Sockets Configuration (8 items)
+3. UltiSID Configuration (8 items)
+4. SID Addressing (8 items)
+5. U64 Specific Settings (20 items)
+6. C64 and Cartridge Settings (20 items)
+7. Clock Settings (7 items)
+8. Network Settings (14 items)
+9. Ethernet Settings (5 items)
+10. WiFi settings (6 items)
+11. LED Strip Settings (6 items)
+12. Data Streams (4 items)
+13. SoftIEC Drive Settings (3 items)
+14. Printer Settings (11 items)
+15. Modem Settings (15 items)
+16. User Interface Settings (11 items)
+17. Tape Settings (1 item)
+18. Drive A Settings (13 items)
+19. Drive B Settings (13 items)
+
+**Total**: 193 config items
+
+##### Setting types
+
+- **Enum**: 132 items (discrete choices)
+- **Numeric**: 20 items (ranges with min/max)
+- **String**: 12 items (free-form or presets)
+- **Read-Only**: 25 items (detected values, status)
+
+---
+
+#### REST API mapping
+
+| C64Script Command | REST API | Method |
+|------------------|----------|--------|
+| `CFG_ITEM$()` (no param) | `GET /v1/configs` | GET |
+| `CFG_ITEM$(path$)` | `GET /v1/configs/{category}` | GET |
+| `CFG_OPTIONS$(cat$, item$)` | `GET /v1/configs/{cat}/{item}` | GET |
+| `CFG$(cat$, item$)` | `GET /v1/configs/{cat}/{item}` | GET |
+| `CFG cat$, item$, val$` | `PUT /v1/configs/{cat}/{item}?value={val}` | PUT |
+| `CFGSAVE` | `PUT /v1/configs:save_to_flash` | PUT |
+| `CFGLOAD` | `PUT /v1/configs:load_from_flash` | PUT |
+| `CFGRESET` | `PUT /v1/configs:reset_to_default` | PUT |
+
+**Path Encoding**: Category and item names must be URL-encoded (space `" "` → `"%20"`).
+
+---
+
+#### Key findings (empirical)
+
+1. **Physical SID Model**: Hardware-detected and read-only. Read via `CFG$("SID Sockets Configuration", "SID Detected Socket 1")`.
+
+2. **CPU Speed Format**: Single-digit values have leading spaces (`" 1"` vs `"10"`).
+
+3. **Audio Volume**: Uses dB strings (`"OFF"`, `"+6 dB"` to `"-42 dB"`), not numeric percentages.
+
+4. **System Mode**: 6 options (PAL, NTSC, PAL-60, NTSC-50, PAL-60/L, NTSC-50/L).
+
+5. **UltiSID Options**: All filter curve (7), resonance (2), combined waveforms (2), and digis level (4) options verified.
+
+6. **Persistence**: Configuration changes persist after machine reset when saved to flash.
+
+---
+
+#### Examples
+
+##### Discover configuration structure
+
+```basic
+REM Get all categories
+DIM cats$(20)
+LET count = CFG_ITEM$(cats$())
+
+FOR C = 0 TO count - 1
+    LET cat$ = cats$(C)
+    LOG "=== " + cat$ + " ==="
+
+    REM Get items in category
+    DIM items$(20)
+    LET item_count = CFG_ITEM$(cat$, items$())
+
+    FOR I = 0 TO item_count - 1
+        LET item$ = items$(I)
+        LET value$ = CFG$(cat$, item$)
+        LOG "  " + item$ + " = " + value$
+    NEXT
+NEXT
+```
+
+##### Configure UltiSID
+
+```basic
+REM Select UltiSID model (virtual only)
+SID_MODEL ULTI1, "UltiSID"
+
+REM Configure UltiSID 1 filter
+SID_FILTER_CURVE ULTI1, "U2 High"
+SID_RESONANCE ULTI1, "High"
+SID_COMBINED ULTI1, "6581"
+SID_DIGIS ULTI1, "Medium"
+
+REM Set volume
+SID_VOL ULTI1, "+3 dB"
+```
+
+##### Set video mode and CPU speed
+
+```basic
+VIC_MODE "PAL"
+CPU_SPEED " 1"
+```
+
+##### Save configuration
+
+```basic
+REM Make changes
+CFG "Audio Mixer", "Vol UltiSid 1", "+3 dB"
+VIC_MODE "PAL"
+
+REM Save to flash
+CFGSAVE
+```
+
+### 3.15 Ultimate 64 drives (Since v0.2.0)
+<a id="cmd-u64-drives"></a>
+
+All commands in this section are **Since v0.2.0** unless explicitly marked **Since v0.1.0**.
+
+**Status**: Final Specification
+**Date**: 2025-01-17
+**Device**: Ultimate 64 Elite (Firmware 3.12a)
+
+---
+
+#### Overview
+
+C64Script provides commands for controlling Ultimate 64 floppy drives via REST API. These commands allow scripts to mount/unmount disk images, reset drives, load ROMs, and change drive modes.
+
+**Target**: C64U (REST) + C64 (keyboard buffer)
+
+**Drive Identifiers**: `DRIVE_A`, `DRIVE_B`, `DRIVE_SOFTIEC` (keywords, case-insensitive)
+
+---
+
+#### Keywords
+
+##### Drive Identifiers
+- `DRIVE_A` - Drive A
+- `DRIVE_B` - Drive B
+- `DRIVE_SOFTIEC` - SoftIEC drive
+
+##### Drive Modes
+- `MODE_1541` - 1541 drive mode
+- `MODE_1571` - 1571 drive mode
+- `MODE_1581` - 1581 drive mode
+
+##### Image Types
+- `TYPE_D64` - D64 disk image
+- `TYPE_G64` - G64 disk image
+- `TYPE_D71` - D71 disk image
+- `TYPE_G71` - G71 disk image
+- `TYPE_D81` - D81 disk image
+
+##### Mount Modes
+- `MODE_READWRITE` - Read/write access (default)
+- `MODE_READONLY` - Read-only access
+- `MODE_UNLINKED` - Unlinked mode
+
+##### Drive Properties
+- `PROP_ENABLED` - Drive enabled status
+- `PROP_BUS_ID` - Bus ID
+- `PROP_TYPE` - Drive type
+- `PROP_ROM` - ROM filename
+- `PROP_IMAGE_FILE` - Mounted image filename
+- `PROP_IMAGE_PATH` - Mounted image path
+
+---
+
+#### Commands
+
+##### `DRIVE$()` - Get Drive Information
+
+**Target**: C64U (REST)
+
+**Syntax**: `DRIVE$(drive, property)`
+
+**Returns**: String value of the drive property
+
+**Description**: Reads information about a drive. Returns empty string if property doesn't exist.
+
+**Parameters**:
+- `drive`: Drive identifier keyword (`DRIVE_A`, `DRIVE_B`, `DRIVE_SOFTIEC`)
+- `property`: Property keyword (`PROP_ENABLED`, `PROP_BUS_ID`, `PROP_TYPE`, `PROP_ROM`, `PROP_IMAGE_FILE`, `PROP_IMAGE_PATH`)
+
+**Typing**:
+- For numeric properties (e.g. `PROP_BUS_ID`), use `VAL(DRIVE$(...))` to convert to number.
+
+**Example**:
+```basic
+LET enabled$ = DRIVE$(DRIVE_A, PROP_ENABLED)
+LET type$ = DRIVE$(DRIVE_A, PROP_TYPE)
+LET image$ = DRIVE$(DRIVE_A, PROP_IMAGE_FILE)
+IF image$ <> "" THEN
+    LOG "Drive A has image: " + image$
+ENDIF
+```
+
+##### `DRIVE_MOUNT` - Mount Disk Image
+
+**Target**: C64U (REST)
+
+**Syntax**:
+- `DRIVE_MOUNT image$ [type] [mode]`
+- `DRIVE_MOUNT drive, image$ [type] [mode]`
+
+**Description**: Mounts a disk image file on the specified drive.
+
+**Parameters**:
+- `drive`: Optional drive identifier keyword (`DRIVE_A`, `DRIVE_B`, `DRIVE_SOFTIEC`). Default: `DRIVE_A`.
+- `image$`: Required image file path:
+  - Local file path (on PC): `"C:/path/to/file.d64"` or `"/home/user/file.d64"` (uploads the file)
+  - Remote file path (on C64U): `"c64u:/Games/game.d64"` (references file on C64U)
+- `type`: Optional image type keyword (`TYPE_D64`, `TYPE_G64`, `TYPE_D71`, `TYPE_G71`, `TYPE_D81`). Auto-detected from file suffix if omitted (`.d64` → `TYPE_D64`, `.g64` → `TYPE_G64`, etc.). Default: `TYPE_D64` if suffix unknown.
+- `mode`: Optional mount mode keyword (`MODE_READWRITE`, `MODE_READONLY`, `MODE_UNLINKED`). Default: `MODE_READWRITE`.
+
+**Defaults**:
+- Drive: `DRIVE_A`
+- Type: `TYPE_D64` (or inferred from file suffix)
+- Mode: `MODE_READWRITE`
+
+**REST API**:
+- `PUT /v1/drives/{drive}:mount` (when `image$` is `c64u:`; uses query `image=...`)
+- `POST /v1/drives/{drive}:mount` (when `image$` is local; uploads the image as the request body)
+
+**Examples**:
+```basic
+REM Mount local D64 image on drive A (defaults)
+DRIVE_MOUNT "C:/Games/game.d64"
+
+REM Mount remote D64 image on drive A
+DRIVE_MOUNT "c64u:/Games/game.d64"
+
+REM Mount with explicit drive and type
+DRIVE_MOUNT DRIVE_A, "c64u:/Demos/demo.d64", TYPE_D64, MODE_READONLY
+
+REM Mount with explicit drive only (type inferred from .d81 suffix)
+DRIVE_MOUNT DRIVE_B, "c64u:/Work/data.d81"
+```
+
+##### `DRIVE_UNMOUNT` - Unmount Disk Image
+
+**Target**: C64U (REST)
+
+**Syntax**: `DRIVE_UNMOUNT drive`
+
+**Description**: Removes the mounted image from the drive.
+
+**REST API**: `PUT /v1/drives/{drive}:remove`
+
+**Example**:
+```basic
+DRIVE_UNMOUNT DRIVE_A
+LOG "Drive A unmounted"
+```
+
+##### `DRIVE_RESET` - Reset Drive
+
+**Target**: C64U (REST)
+
+**Syntax**: `DRIVE_RESET drive`
+
+**Description**: Resets the selected drive.
+
+**REST API**: `PUT /v1/drives/{drive}:reset`
+
+**Example**:
+```basic
+DRIVE_RESET DRIVE_A
+WAIT 1s
+LOG "Drive A reset"
+```
+
+##### `DRIVE_ON` - Turn On Drive
+
+**Target**: C64U (REST)
+
+**Syntax**: `DRIVE_ON drive`
+
+**Description**: Turns on the selected drive and resets it if already on.
+
+**REST API**: `PUT /v1/drives/{drive}:on`
+
+**Example**:
+```basic
+DRIVE_ON DRIVE_A
+LOG "Drive A turned on"
+```
+
+##### `DRIVE_OFF` - Turn Off Drive
+
+**Target**: C64U (REST)
+
+**Syntax**: `DRIVE_OFF drive`
+
+**Description**: Turns off the selected drive.
+
+**REST API**: `PUT /v1/drives/{drive}:off`
+
+**Example**:
+```basic
+DRIVE_OFF DRIVE_A
+LOG "Drive A turned off"
+```
+
+##### `DRIVE_ROM` - Load Drive ROM
+
+**Target**: C64U (REST)
+
+**Description**: Loads a 16K or 32K ROM into the selected drive. The load is temporary (not saved to flash).
+
+**Syntax**:
+- `DRIVE_ROM file$`
+- `DRIVE_ROM drive, file$`
+
+**Parameters**:
+- `drive`: Optional drive identifier keyword (`DRIVE_A`, `DRIVE_B`). Default: `DRIVE_A`.
+- `file$`: Required ROM file path:
+  - Local file path (on PC): `"C:/path/to/rom.bin"` or `"/home/user/rom.bin"` (uploads the ROM)
+  - Remote file path (on C64U): `"c64u:/ROMs/1541.rom"` (references file on C64U)
+
+**Defaults**:
+- Drive: `DRIVE_A`
+
+**REST API**:
+- `PUT /v1/drives/{drive}:load_rom` (when `file$` is `c64u:`; uses query `file=...`)
+- `POST /v1/drives/{drive}:load_rom` (when `file$` is local; uploads the ROM as the request body)
+
+**Examples**:
+```basic
+REM Load ROM from C64U (default drive A)
+DRIVE_ROM "c64u:/ROMs/1541.rom"
+
+REM Load local ROM file
+DRIVE_ROM "C:/ROMs/custom_1541.rom"
+
+REM Load ROM with explicit drive
+DRIVE_ROM DRIVE_B, "c64u:/ROMs/1571.rom"
+```
+
+##### `DRIVE_MODE` - Set Drive Mode
+
+**Target**: C64U (REST)
+
+**Syntax**: `DRIVE_MODE drive, mode`
+
+**Description**: Changes the drive mode and loads the corresponding ROM.
+
+**Parameters**:
+- `drive`: Drive identifier keyword (`DRIVE_A`, `DRIVE_B`)
+- `mode`: Drive mode keyword (`MODE_1541`, `MODE_1571`, `MODE_1581`)
+
+**REST API**: `PUT /v1/drives/{drive}:set_mode`
+
+**Example**:
+```basic
+DRIVE_MODE DRIVE_A, MODE_1581
+LOG "Drive A set to 1581 mode"
+```
+
+##### `DRIVE_BUS_ID` - Set Drive Bus ID
+
+**Target**: C64U (REST)
+
+**Syntax**: `DRIVE_BUS_ID drive, bus_id`
+
+**Description**: Sets the bus ID for the specified drive.
+
+**Parameters**:
+- `drive`: Drive identifier keyword (`DRIVE_A`, `DRIVE_B`)
+- `bus_id`: Bus ID number (8-11). Default: `8` for drive A, `9` for drive B.
+
+**REST API**: `PUT /v1/configs/Drive {A|B} Settings/Drive Bus ID?value={bus_id}`
+
+**Example**:
+```basic
+DRIVE_BUS_ID DRIVE_A, 8
+DRIVE_BUS_ID DRIVE_B, 9
+```
+
+##### `LOAD` - Load Program from Disk
+
+**Target**: C64 (keyboard buffer)
+
+**Syntax**: `LOAD "filename" [device]`
+
+**Description**: Executes BASIC `LOAD` on the C64. Supports `*` and `?` wildcards. Uses `,device,1` to load to the program's stored start address.
+
+**Parameters**:
+- `filename`: Program filename (supports `*` and `?` wildcards)
+- `device`: Optional device number. Default: `8` (drive A)
+
+**Expansion** (exact):
+```basic
+TYPE "LOAD\"<filename>\",<device>,1\r"
+```
+
+**Example**:
+```basic
+LOAD "*"
+LOAD "GAME"
+LOAD "GAME", 8
+LOAD "DEMO?", 9
+```
+
+##### `RUN` - Run Program
+
+**Target**: C64 (keyboard buffer)
+
+**Syntax**: `RUN ["filename" [device]]`
+
+**Description**: Executes BASIC `RUN` on the C64. If filename is provided, performs `LOAD "<filename>",<device>,1` first.
+
+**Parameters**:
+- `filename`: Optional program filename (supports `*` and `?` wildcards). If omitted, runs already loaded program.
+- `device`: Optional device number. Default: `8` (drive A) when filename is provided.
+
+**Expansion** (exact):
+- `RUN`:
+```basic
+TYPE "RUN\r"
+```
+- `RUN "<filename>"[,device]`:
+```basic
+TYPE "LOAD\"<filename>\",<device>,1\rRUN\r"
+```
+
+**Examples**:
+```basic
+REM Just run (already loaded program)
+RUN
+
+REM Load and run (device defaults to 8)
+RUN "*"
+RUN "GAME"
+
+REM Load and run from specific device
+RUN "GAME", 8
+RUN "DEMO", 9
+```
+
+##### `SYS` - Execute SYS Command
+
+**Target**: C64 (keyboard buffer)
+
+**Syntax**: `SYS address`
+
+**Description**: Executes BASIC `SYS` on the C64. To load then SYS: `LOAD "..."[,device]` then `SYS address`.
+
+**Parameters**:
+- `address`: Memory address (decimal or hex)
+
+**Expansion** (exact):
+```basic
+TYPE "SYS <address>\r"
+```
+
+**Example**:
+```basic
+SYS 64738  REM Reset
+SYS $FCE2  REM Reset (hex)
+```
+
+---
+
+#### REST API mapping
+
+| C64Script Command | REST API | Method |
+|------------------|----------|--------|
+| `DRIVE$(drive, property)` | `GET /v1/drives` | GET |
+| `DRIVE_MOUNT ...` (`image$` is `c64u:`) | `PUT /v1/drives/{drive}:mount?image=...` | PUT |
+| `DRIVE_MOUNT ...` (`image$` is local) | `POST /v1/drives/{drive}:mount` (upload) | POST |
+| `DRIVE_UNMOUNT drive` | `PUT /v1/drives/{drive}:remove` | PUT |
+| `DRIVE_RESET drive` | `PUT /v1/drives/{drive}:reset` | PUT |
+| `DRIVE_ON drive` | `PUT /v1/drives/{drive}:on` | PUT |
+| `DRIVE_OFF drive` | `PUT /v1/drives/{drive}:off` | PUT |
+| `DRIVE_ROM ...` (`file$` is `c64u:`) | `PUT /v1/drives/{drive}:load_rom?file=...` | PUT |
+| `DRIVE_ROM ...` (`file$` is local) | `POST /v1/drives/{drive}:load_rom` (upload) | POST |
+| `DRIVE_MODE drive, mode` | `PUT /v1/drives/{drive}:set_mode` | PUT |
+| `DRIVE_BUS_ID drive, bus_id` | `PUT /v1/configs/Drive {A|B} Settings/Drive Bus ID` | PUT |
+| `LOAD "filename" [device]` | Keyboard injection | - |
+| `RUN` | Keyboard injection | - |
+| `SYS address` | Keyboard injection | - |
+
+**Note**: Drive keywords map to REST API paths (`DRIVE_A` → `"a"`, `DRIVE_B` → `"b"`, `DRIVE_SOFTIEC` → `"softiec"`). Mode keywords map to REST API values (`MODE_1541` → `"1541"`, etc.).
+
+---
+
+#### Usage examples
+
+##### Get drive status
+
+```basic
+LET enabled$ = DRIVE$(DRIVE_A, PROP_ENABLED)
+LET type$ = DRIVE$(DRIVE_A, PROP_TYPE)
+LET image$ = DRIVE$(DRIVE_A, PROP_IMAGE_FILE)
+
+IF enabled$ = "true" THEN
+    LOG "Drive A: " + type$ + " mode"
+    IF image$ <> "" THEN
+        LOG "  Image: " + image$
+    ELSE
+        LOG "  No image mounted"
+    ENDIF
+ENDIF
+```
+
+##### Mount and use disk
+
+```basic
+REM Turn on drive
+DRIVE_ON DRIVE_A
+
+REM Mount disk image (defaults: drive A, type inferred from .d64)
+DRIVE_MOUNT "c64u:/Games/demo.d64"
+
+REM Wait for mount
+WAIT 1s
+
+REM Load and run program (device defaults to 8)
+RUN "*"
+```
+
+##### Change drive mode
+
+```basic
+REM Switch drive A to 1581 mode
+DRIVE_MODE DRIVE_A, MODE_1581
+WAIT 1s
+LOG "Drive A is now 1581"
+```
+
+##### Load custom ROM
+
+```basic
+REM Load custom ROM
+DRIVE_ROM DRIVE_A, "custom_1541.rom"
+WAIT 1s
+LOG "Custom ROM loaded"
+```
+
+##### Unmount and turn off
+
+```basic
+REM Unmount image
+DRIVE_UNMOUNT DRIVE_A
+
+REM Turn off drive
+DRIVE_OFF DRIVE_A
+LOG "Drive A unmounted and turned off"
+```
+
+### Complete Drive Setup
+
+```basic
+REM Setup drive A for 1581 mode
+DRIVE_MODE DRIVE_A, MODE_1581
+DRIVE_ON DRIVE_A
+REM Type inferred from .d81 suffix, mode defaults to READWRITE
+DRIVE_MOUNT "c64u:/Disks/work.d81"
+WAIT 1s
+LOG "Drive A ready: 1581 mode with work disk"
+```
+
+### Local vs Remote Files
+
+```basic
+REM Mount local file (on PC)
+DRIVE_MOUNT "C:/Demos/demo.d64"
+
+REM Mount remote file (on C64U)
+DRIVE_MOUNT "c64u:/Games/game.d64"
+
+REM Load local ROM
+DRIVE_ROM "C:/ROMs/custom.rom"
+
+REM Load remote ROM
+DRIVE_ROM "c64u:/ROMs/1541.rom"
+```
+
+### Additional Drive Settings
+
+Other drive settings (ROM files, extra RAM, disk swap delay, etc.) can be configured via the `CFG` command:
+
+```basic
+REM Set ROM for 1541 mode
+CFG "Drive A Settings", "ROM for 1541 mode", "custom_1541.rom"
+
+REM Enable extra RAM
+CFG "Drive A Settings", "Extra RAM", "Enabled"
+
+REM Set disk swap delay
+CFG "Drive A Settings", "Disk swap delay", "2"
+```
+
+### Multiple Drives
+
+```basic
+REM Setup both drives with custom bus IDs
+DRIVE_BUS_ID DRIVE_A, 8
+DRIVE_BUS_ID DRIVE_B, 10
+DRIVE_MODE DRIVE_A, MODE_1541
+DRIVE_MODE DRIVE_B, MODE_1581
+DRIVE_ON DRIVE_A
+DRIVE_ON DRIVE_B
+DRIVE_MOUNT DRIVE_A, "c64u:/Games/game.d64", TYPE_D64, MODE_READONLY
+DRIVE_MOUNT DRIVE_B, "c64u:/Work/data.d81", TYPE_D81, MODE_READWRITE
+WAIT 1s
+LOG "Both drives ready"
+```
+
+#### Compatibility Alias: `MOUNTDISK` (Since v0.1.0)
+
+**Target**: C64U (REST)
+
+`MOUNTDISK image$` is a compatibility alias for:
+```basic
+DRIVE_MOUNT DRIVE_A, image$
+```
+
+## 4. Effect Parameters Reference
 
 The `EFFECTPARAM` statement allows fine-grained control of visual effects beyond preset selection. Each effect type supports different parameters. Effect names and parameter names are **case-insensitive**.
 
-#### 2.5.1 General usage
+### 4.1 General usage
 
 ```basic
 EFFECT "Classic CRT"
@@ -551,9 +1660,9 @@ EFFECTPARAM "scanline_intensity" 0.7
 EFFECTPARAM "phosphor_persistence" 0.3
 ```
 
-#### 2.5.2 Common effect types and their parameters
+### 4.2 Common effect types and their parameters
 
-##### 2.5.2.1 CRT Effects
+#### 4.2.1 CRT Effects
 
 Effect presets: `"Classic CRT"`, `"Vintage TV"`, `"Arcade Cabinet"`
 
@@ -578,7 +1687,7 @@ EFFECTPARAM "phosphor_persistence" 0.4
 EFFECTPARAM "bloom" 0.5
 ```
 
-##### 2.5.2.2 Sharp/Pixel Perfect
+#### 4.2.2 Sharp/Pixel Perfect
 
 Effect presets: `"Sharp Pixels"`, `"Pixel Perfect"`
 
@@ -599,7 +1708,7 @@ EFFECTPARAM "grid_color_g" 20
 EFFECTPARAM "grid_color_b" 20
 ```
 
-##### 2.5.2.3 Monitor Emulation
+#### 4.2.3 Monitor Emulation
 
 Effect presets: `"Amber Monitor"`, `"Green Monitor"`
 
@@ -621,7 +1730,7 @@ EFFECTPARAM "brightness" 1.2
 EFFECTPARAM "contrast" 1.1
 ```
 
-##### 2.5.2.4 Blur/Smoothing
+#### 4.2.4 Blur/Smoothing
 
 Effect presets: `"Soft Blur"`, `"CRT Blur"`
 
@@ -638,7 +1747,7 @@ EFFECTPARAM "blur_radius" 2.5
 EFFECTPARAM "blur_direction" 2
 ```
 
-##### 2.5.2.5 Color Adjustments
+#### 4.2.5 Color Adjustments
 
 Available via `EFFECTPARAM` with any effect active:
 
@@ -657,7 +1766,7 @@ EFFECTPARAM "brightness" 1.1
 EFFECTPARAM "gamma" 0.9
 ```
 
-#### 2.5.3 Parameter discovery
+### 4.3 Parameter discovery
 
 To discover available parameters for a specific effect at runtime:
 
@@ -666,7 +1775,7 @@ To discover available parameters for a specific effect at runtime:
 3. Check effect shader source code in `data/effects/` directory
 4. Parameters not listed here are implementation-specific and may vary
 
-#### 2.5.4 Error handling
+### 4.4 Error handling
 
 - Unknown effect names: runtime warning, effect unchanged
 - Unknown parameter names: runtime warning, parameter unchanged
