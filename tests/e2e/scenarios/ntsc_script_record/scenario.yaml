@@ -1,6 +1,7 @@
-name: NTSC Script Recording
+name: NTSC Script Record
 format: NTSC
 preset: Default
+full_frame_pop: true
 obs_start_recording: false
 overrides:
   script_file: "${repo_root}/tests/script/scripts/test_recording.c64script"
@@ -8,4 +9,4 @@ overrides:
 assertions:
   - video_quality
   - audio
-  - script_log
+  - script_record

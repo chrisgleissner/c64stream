@@ -902,6 +902,24 @@ static bool c64script_debug_logging_enabled(void)
     return true;
 }
 
+#ifdef ENABLE_FRONTEND_API
+static void c64_script_recording_start_task(void *data)
+{
+    (void)data;
+    if (!obs_frontend_recording_active()) {
+        obs_frontend_recording_start();
+    }
+}
+
+static void c64_script_recording_stop_task(void *data)
+{
+    (void)data;
+    if (obs_frontend_recording_active()) {
+        obs_frontend_recording_stop();
+    }
+}
+#endif
+
 bool c64script_execute(c64script_runtime_t *runtime)
 {
     bool result = c64script_vm_execute(runtime);
@@ -2946,7 +2964,7 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
 
     case OP_RECORDSTART:
 #ifdef ENABLE_FRONTEND_API
-        obs_frontend_recording_start();
+        obs_queue_task(OBS_TASK_UI, c64_script_recording_start_task, NULL, false);
 #else
         // Frontend API not enabled - log and continue execution
         if (c64script_debug_logging_enabled()) {
@@ -2957,7 +2975,7 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
 
     case OP_RECORDSTOP:
 #ifdef ENABLE_FRONTEND_API
-        obs_frontend_recording_stop();
+        obs_queue_task(OBS_TASK_UI, c64_script_recording_stop_task, NULL, false);
 #else
         // Frontend API not enabled - log and continue execution
         if (c64script_debug_logging_enabled()) {

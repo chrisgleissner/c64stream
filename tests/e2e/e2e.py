@@ -150,7 +150,7 @@ def main():
                 network_simulation = scenario_data.get('network_simulation', {})
                 if 'obs_start_recording' in scenario_data:
                     obs_start_recording = bool(scenario_data['obs_start_recording'])
-                
+
                 # Support both old and new tolerance formats
                 # Old: av_sync_tolerance_ms: 40
                 # New: tolerances.av_sync.ci: lenient
@@ -160,13 +160,13 @@ def main():
                     av_sync_tol = scenario_data['tolerances']['av_sync']
                     is_ci = os.environ.get('CI', '').lower() in ('1', 'true', 'yes') or \
                             os.environ.get('GITHUB_ACTIONS', '').lower() in ('1', 'true', 'yes')
-                    
+
                     # Check for CI-specific or local-specific tolerance
                     if is_ci and 'ci' in av_sync_tol:
                         av_sync_tolerance_mode = av_sync_tol['ci']
                     elif not is_ci and 'local' in av_sync_tol:
                         av_sync_tolerance_mode = av_sync_tol['local']
-                
+
                 print(f"📡 Loaded scenario config from {Path(args.scenario_yaml).name}")
         except Exception as e:
             print(f"⚠️  Failed to load scenario YAML: {e}")
