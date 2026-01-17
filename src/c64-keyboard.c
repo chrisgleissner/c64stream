@@ -27,6 +27,18 @@ See <https://www.gnu.org/licenses/> for details.
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef _WIN32
+static char *c64_strtok_r(char *str, const char *delim, char **saveptr)
+{
+    return strtok_s(str, delim, saveptr);
+}
+#else
+static char *c64_strtok_r(char *str, const char *delim, char **saveptr)
+{
+    return strtok_r(str, delim, saveptr);
+}
+#endif
+
 #define KEYBOARD_LOG_PREFIX "🕹 KEYBOARD: "
 #define MAX_KEYMAP_ENTRIES 512
 #define KEYMAP_VALUE_SEQUENCE_MAX 8
@@ -257,7 +269,8 @@ c64_keymap_t *c64_keymap_load(const char *path)
                 entry->is_symbolic = false;
 
                 char *saveptr = NULL;
-                for (char *token = strtok_r(value, ",", &saveptr); token; token = strtok_r(NULL, ",", &saveptr)) {
+                for (char *token = c64_strtok_r(value, ",", &saveptr); token;
+                     token = c64_strtok_r(NULL, ",", &saveptr)) {
                     trim(token);
                     if (token[0] == '\0') {
                         continue;

@@ -23,7 +23,8 @@ class OBSProcessManager:
         self.process: Optional[subprocess.Popen] = None
         self._start_time = None
 
-    def start(self, profile_name: str = "C64StreamTest", collection_name: str = "C64StreamTest") -> bool:
+    def start(self, profile_name: str = "C64StreamTest", collection_name: str = "C64StreamTest",
+              start_recording: bool = True) -> bool:
         """Start OBS with specific profile and collection."""
         logger.info("Starting OBS Studio...")
 
@@ -42,12 +43,14 @@ class OBSProcessManager:
 
         cmd.extend([
             '--verbose',
-            '--startrecording',  # Auto-start recording
             '--profile', profile_name,
             '--disable-missing-files-check', # Prevent "Missing Files" dialog
             '--disable-updater',
             '--minimize-to-tray',
         ])
+
+        if start_recording:
+            cmd.append('--startrecording')
 
         if self.env.is_ci:
              logger.info("🏗️ Added --verbose flag for CI debugging")

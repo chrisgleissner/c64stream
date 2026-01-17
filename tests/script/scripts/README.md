@@ -69,6 +69,7 @@ cd tests/e2e
 ./e2e.sh --scenario script_simple_sequence --duration 10
 ./e2e.sh --scenario script_sid_playback --duration 35
 ./e2e.sh --scenario script_loop --duration 10  # (will auto-stop after 10s)
+./e2e.sh --scenario ntsc_script_recording --duration 12
 ```
 
 ## Integration with E2E Framework
@@ -112,7 +113,6 @@ Current E2E script test coverage:
 Not yet covered (requires additional test scripts):
 - Palette changes
 - Reset/reboot commands
-- Recording start/stop
 - Effect parameter commands
 - Complex control flow (nested loops, conditional goto)
 - Multiple path types (local files vs C64U paths)
