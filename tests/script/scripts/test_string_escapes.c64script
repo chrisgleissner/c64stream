@@ -1,0 +1,38 @@
+rem Test string escape sequences
+rem Covers doubled quotes, backslashes, tabs, and hex escapes
+
+QUOTE$ = "He said ""RUN""."
+QUOTE_LEN = LEN(QUOTE$)
+QUOTE_MARK = ASC(MID$(QUOTE$, 9, 1))
+
+PATH$ = "C:\\Temp\\file.txt"
+PATH_SLASH = ASC(MID$(PATH$, 3, 1))
+
+TAB$ = "Tab:\tX"
+TAB_CODE = ASC(MID$(TAB$, 5, 1))
+TAB_LEN = LEN(TAB$)
+
+HEX$ = "Hex:\x41\x42"
+HEX_A = ASC(MID$(HEX$, 5, 1))
+HEX_B = ASC(MID$(HEX$, 6, 1))
+
+WAIT 0.1 s
+WAIT UNTIL 0
+
+if QUOTE_LEN = 14 and QUOTE_MARK = 34 then
+    effect "Sharp Pixels"
+endif
+
+if PATH_SLASH = 92 then
+    palette "colodore"
+endif
+
+if TAB_CODE = 9 and TAB_LEN = 6 then
+    palette "pepto_ntsc"
+endif
+
+if HEX_A = 65 and HEX_B = 66 then
+    effect "Soft CRT"
+endif
+
+stop

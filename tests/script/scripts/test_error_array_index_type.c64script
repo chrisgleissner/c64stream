@@ -1,0 +1,4 @@
+rem Test array index type mismatch
+dim VALUES(1)
+X = VALUES("a")
+stop

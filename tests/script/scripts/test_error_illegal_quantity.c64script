@@ -1,0 +1,3 @@
+rem Test illegal quantity errors
+X = SQRT(-1)
+stop

@@ -91,23 +91,35 @@ static int unexpected_failures = 0;
 
 // Scripts that are expected to fail parsing (error test cases)
 static const char *EXPECTED_PARSE_FAILURES[] = {"test_error_missing_wend.c64script",
-                                                "test_error_missing_next.c64script", NULL};
+                                                "test_error_missing_next.c64script",
+                                                "test_error_invalid_escape.c64script", NULL};
 
 // Scripts that should parse but fail compilation (type errors, etc.)
 static const char *EXPECTED_COMPILE_FAILURES[] = {"test_error_missing_label.c64script",   // Undefined label
                                                   "test_error_goto_missing.c64script",    // Undefined label
                                                   "test_error_duplicate_label.c64script", // Duplicate label
+                                                  "test_error_undef_function.c64script",  // Undefined function
                                                   NULL};
 
 // Scripts that should compile but fail execution (runtime errors)
 static const char *EXPECTED_EXECUTION_FAILURES[] = {
-    "test_safety_max_nesting.c64script",   // Expected to hit nesting limit
-    "test_error_gosub_overflow.c64script", // Expected to hit GOSUB stack limit
-    "demo_basic_hello_world.c64script",    // Exceeds test timeout (multi-second waits)
-    "hello_world.c64script",               // Exceeds test timeout (looped waits)
-    "demo_palette_cycle.c64script",        // Requires OBS source (long running demo)
-    "demo_effect_preset_cycle.c64script",  // Requires OBS source (long running demo)
-    "test_error_invalid.c64script",        // Type mismatch
+    "test_safety_max_nesting.c64script",       // Expected to hit nesting limit
+    "test_error_gosub_overflow.c64script",     // Expected to hit GOSUB stack limit
+    "demo_basic_hello_world.c64script",        // Exceeds test timeout (multi-second waits)
+    "hello_world.c64script",                   // Exceeds test timeout (looped waits)
+    "demo_palette_cycle.c64script",            // Requires OBS source (long running demo)
+    "demo_effect_preset_cycle.c64script",      // Requires OBS source (long running demo)
+    "test_error_invalid.c64script",            // Type mismatch
+    "test_error_array_bounds.c64script",       // Expected array bounds failure
+    "test_error_map_key_type.c64script",       // Expected map key type failure
+    "test_error_mixed_comparison.c64script",   // Expected mixed-type comparison failure
+    "test_error_array_scalar.c64script",       // Expected array scalar type failure
+    "test_error_map_scalar.c64script",         // Expected map scalar type failure
+    "test_error_array_index_type.c64script",   // Expected array index type failure
+    "test_error_dim_zero.c64script",           // Expected DIM zero failure
+    "test_error_wait_until_invalid.c64script", // Expected invalid wait-until failure
+    "test_error_wait_mem_invalid.c64script",   // Expected invalid wait mem failure
+    "test_error_illegal_quantity.c64script",   // Expected illegal quantity failure
     NULL};
 
 static bool should_expect_parse_failure(const char *filename)

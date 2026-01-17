@@ -1,0 +1,14 @@
+# Execution trace
+script: "test_error_dim_zero.c64script"
+status: failure
+error:
+  line: 2
+  message: "Array size must be greater than 0"
+program: |
+  1: rem Test zero-length array
+  2: dim VALUES(0)
+  3: stop
+trace:
+- line: 2
+  content: "dim VALUES(0)"
+  variables: {}

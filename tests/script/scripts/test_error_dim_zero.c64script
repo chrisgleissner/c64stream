@@ -1,0 +1,3 @@
+rem Test zero-length array
+dim VALUES(0)
+stop

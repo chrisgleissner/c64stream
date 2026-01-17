@@ -1,0 +1,4 @@
+rem Test array used as scalar
+dim VALUES(1)
+X = VALUES + 1
+stop

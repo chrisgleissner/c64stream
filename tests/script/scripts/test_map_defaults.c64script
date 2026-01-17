@@ -1,0 +1,12 @@
+rem Test map default values for missing keys
+CONFIG{"port"} = 8080
+CONFIG_STR{"host"} = "localhost"
+VALUE = CONFIG{"missing"}
+TEXT$ = CONFIG_STR{"missing"}
+if VALUE = 0 then
+    palette "colodore"
+endif
+if TEXT$ = "" then
+    palette "pepto_ntsc"
+endif
+stop

@@ -1,0 +1,3 @@
+rem Test invalid WAIT UNTIL string
+WAIT UNTIL "not-a-time"
+stop

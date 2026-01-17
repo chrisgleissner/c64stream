@@ -1,0 +1,29 @@
+# Execution trace
+script: "test_error_array_bounds.c64script"
+status: failure
+error:
+  line: 5
+  message: "Array index out of bounds"
+program: |
+  1: rem Test array bounds errors
+  2: dim VALUES(2)
+  3: VALUES(0) = 1
+  4: VALUES(1) = 2
+  5: VALUES(2) = 3
+  6: stop
+trace:
+- line: 2
+  content: "dim VALUES(2)"
+  variables: {}
+- line: 3
+  content: "VALUES(0) = 1"
+  variables:
+    VALUES: [0, 0]
+- line: 4
+  content: "VALUES(1) = 2"
+  variables:
+    VALUES: [1, 0]
+- line: 5
+  content: "VALUES(2) = 3"
+  variables:
+    VALUES: [1, 2]
