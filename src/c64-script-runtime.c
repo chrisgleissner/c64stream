@@ -7,15 +7,89 @@ See <https://www.gnu.org/licenses/> for details.
 */
 
 #include "c64-script.h"
+#include "c64-script-builtins.h"
 #include "c64-script-runtime.h"
 #include "c64-logging.h"
 
+#include <ctype.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
 
 #define MACRO_LOG_PREFIX "[c64script-runtime] "
+
+static bool name_has_suffix(const char *name, char suffix)
+{
+    if (!name) {
+        return false;
+    }
+
+    size_t len = strlen(name);
+    if (len == 0) {
+        return false;
+    }
+
+    return name[len - 1] == suffix;
+}
+
+static bool coerce_integer_value(c64script_runtime_t *runtime, c64script_value_t *value)
+{
+    if (!runtime || !value) {
+        return false;
+    }
+
+    if (value->type != VALUE_NUMBER) {
+        snprintf(runtime->error_msg, sizeof(runtime->error_msg), "TYPE MISMATCH");
+        return false;
+    }
+
+    double truncated = trunc(value->as.number);
+    if (!isfinite(truncated)) {
+        snprintf(runtime->error_msg, sizeof(runtime->error_msg), "ILLEGAL QUANTITY");
+        return false;
+    }
+
+    double mod = fmod(truncated, 4294967296.0);
+    if (mod < 0.0) {
+        mod += 4294967296.0;
+    }
+
+    int32_t wrapped = (int32_t)(uint32_t)mod;
+    value->as.number = (double)wrapped;
+    return true;
+}
+
+static bool coerce_string_value(c64script_runtime_t *runtime, c64script_value_t *value)
+{
+    if (!runtime || !value) {
+        return false;
+    }
+
+    if (value->type == VALUE_STRING) {
+        return true;
+    }
+
+    if (value->type != VALUE_NUMBER) {
+        snprintf(runtime->error_msg, sizeof(runtime->error_msg), "TYPE MISMATCH");
+        return false;
+    }
+
+    char buffer[64];
+    if (!c64script_builtin_str(value->as.number, buffer, sizeof(buffer))) {
+        snprintf(runtime->error_msg, sizeof(runtime->error_msg), "STR failed");
+        return false;
+    }
+
+    c64script_value_t string_value = c64script_value_string(buffer);
+    if (!string_value.as.string) {
+        snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Out of memory");
+        return false;
+    }
+
+    *value = string_value;
+    return true;
+}
 
 static void normalize_identifier(const char *name, char out_name[64])
 {
@@ -263,6 +337,68 @@ c64script_runtime_t *c64script_runtime_create(void)
     return runtime;
 }
 
+void c64script_runtime_set_script_path(c64script_runtime_t *runtime, const char *script_path)
+{
+    if (!runtime) {
+        return;
+    }
+
+    runtime->script_path[0] = '\0';
+    runtime->script_dir[0] = '\0';
+    runtime->script_basename[0] = '\0';
+
+    if (!script_path || script_path[0] == '\0') {
+        return;
+    }
+
+    snprintf(runtime->script_path, sizeof(runtime->script_path), "%s", script_path);
+
+    const char *last_sep = strrchr(script_path, '/');
+#ifdef _WIN32
+    const char *last_backslash = strrchr(script_path, '\\');
+    if (!last_sep || (last_backslash && last_backslash > last_sep)) {
+        last_sep = last_backslash;
+    }
+#endif
+
+    const char *filename = last_sep ? last_sep + 1 : script_path;
+
+    if (last_sep) {
+        size_t dir_len = (size_t)(last_sep - script_path);
+        if (dir_len == 0 && script_path[0] == '/') {
+            dir_len = 1;
+        }
+        if (dir_len >= sizeof(runtime->script_dir)) {
+            dir_len = sizeof(runtime->script_dir) - 1;
+        }
+        memcpy(runtime->script_dir, script_path, dir_len);
+        runtime->script_dir[dir_len] = '\0';
+    }
+
+    const char *ext = strrchr(filename, '.');
+    size_t base_len = ext ? (size_t)(ext - filename) : strlen(filename);
+    if (base_len >= sizeof(runtime->script_basename)) {
+        base_len = sizeof(runtime->script_basename) - 1;
+    }
+    memcpy(runtime->script_basename, filename, base_len);
+    runtime->script_basename[base_len] = '\0';
+
+    if (runtime->script_basename[0] != '\0') {
+        const char *sep = "";
+        size_t dir_len = strlen(runtime->script_dir);
+        if (dir_len > 0) {
+            char last = runtime->script_dir[dir_len - 1];
+            if (last != '/' && last != '\\') {
+                sep = "/";
+            }
+            snprintf(runtime->log_filename, sizeof(runtime->log_filename), "%s%s%s.log", runtime->script_dir, sep,
+                     runtime->script_basename);
+        } else {
+            snprintf(runtime->log_filename, sizeof(runtime->log_filename), "%s.log", runtime->script_basename);
+        }
+    }
+}
+
 void c64script_runtime_destroy(c64script_runtime_t *runtime)
 {
     if (!runtime)
@@ -372,6 +508,23 @@ bool c64script_runtime_set_var(c64script_runtime_t *runtime, const char *name, c
     if (stored_value.type == VALUE_STRING && !stored_value.as.string) {
         snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Out of memory");
         return false;
+    }
+
+    bool is_string_name = name_has_suffix(key, '$');
+    bool is_int_name = name_has_suffix(key, '%');
+
+    if (stored_value.type != VALUE_ARRAY && stored_value.type != VALUE_MAP) {
+        if (is_string_name) {
+            if (!coerce_string_value(runtime, &stored_value)) {
+                c64script_value_free(&stored_value);
+                return false;
+            }
+        } else if (is_int_name) {
+            if (!coerce_integer_value(runtime, &stored_value)) {
+                c64script_value_free(&stored_value);
+                return false;
+            }
+        }
     }
 
     // Check local scope first (if in function)

@@ -32,6 +32,16 @@ typedef struct c64_keyboard c64_keyboard_t;
 c64_rest_client_t *c64script_test_rest_create(void);
 void c64script_test_rest_destroy(c64_rest_client_t *client);
 void c64script_test_rest_set_byte(c64_rest_client_t *client, uint16_t address, uint8_t value);
+void c64script_test_rest_fail_next(c64_rest_client_t *client, const char *error);
+const char *c64script_test_rest_log(const c64_rest_client_t *client);
+const char *c64script_test_rest_last_action(const c64_rest_client_t *client);
+const char *c64script_test_rest_last_category(const c64_rest_client_t *client);
+const char *c64script_test_rest_last_item(const c64_rest_client_t *client);
+const char *c64script_test_rest_last_value(const c64_rest_client_t *client);
+const char *c64script_test_rest_last_drive(const c64_rest_client_t *client);
+const char *c64script_test_rest_last_path(const c64_rest_client_t *client);
+const char *c64script_test_rest_last_type(const c64_rest_client_t *client);
+const char *c64script_test_rest_last_mode(const c64_rest_client_t *client);
 
 c64_keyboard_t *c64script_test_keyboard_create(void);
 void c64script_test_keyboard_destroy(c64_keyboard_t *keyboard);
@@ -561,6 +571,345 @@ TEST(execute_peek_poke_and_keyboard)
     runtime->keyboard = NULL;
     runtime->rest_client = NULL;
 
+    c64script_runtime_destroy(runtime);
+    c64script_ast_free(ast);
+}
+
+TEST(execute_machine_control_rest_calls)
+{
+    const char *source = "PAUSE\nRESUME\nPOWEROFF\n";
+    char error[256];
+
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error, sizeof(error));
+    assert(ast != NULL);
+
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    assert(runtime != NULL);
+
+    runtime->rest_client = c64script_test_rest_create();
+    assert(runtime->rest_client != NULL);
+
+    bool success = c64script_compile(ast, runtime, error, sizeof(error));
+    assert(success);
+
+    success = c64script_execute(runtime);
+    assert(success);
+
+    const char *log = c64script_test_rest_log(runtime->rest_client);
+    assert(strstr(log, "pause\nresume\npoweroff\n") != NULL);
+
+    c64script_test_rest_destroy(runtime->rest_client);
+    runtime->rest_client = NULL;
+    c64script_runtime_destroy(runtime);
+    c64script_ast_free(ast);
+}
+
+TEST(execute_cfg_commands)
+{
+    const char *source = "DIM CATS$(3)\n"
+                         "DIM ITEMS$(3)\n"
+                         "DIM OPTS$(3)\n"
+                         "COUNT = CFG_ITEM$(CATS$())\n"
+                         "COUNT2 = CFG_ITEM$(\"Audio Mixer\", ITEMS$())\n"
+                         "COUNT3 = CFG_OPTIONS$(\"Audio Mixer\",\"Vol Sid Socket 1\", OPTS$())\n"
+                         "VAL$ = CFG$(\"Audio Mixer\",\"Vol Sid Socket 1\")\n"
+                         "CFG \"Audio Mixer\",\"Vol Sid Socket 1\",\"60\"\n"
+                         "CFGSAVE\n"
+                         "CFGLOAD\n"
+                         "CFGRESET\n";
+    char error[256];
+
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error, sizeof(error));
+    assert(ast != NULL);
+
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    assert(runtime != NULL);
+    runtime->rest_client = c64script_test_rest_create();
+    assert(runtime->rest_client != NULL);
+
+    bool success = c64script_compile(ast, runtime, error, sizeof(error));
+    assert(success);
+
+    success = c64script_execute(runtime);
+    assert(success);
+
+    c64script_value_t value;
+    bool got_var = c64script_runtime_get_var(runtime, "COUNT", &value);
+    assert(got_var);
+    assert(value.type == VALUE_NUMBER);
+    assert(value.as.number == 3.0);
+    c64script_value_free(&value);
+
+    got_var = c64script_runtime_get_var(runtime, "COUNT2", &value);
+    assert(got_var);
+    assert(value.as.number == 2.0);
+    c64script_value_free(&value);
+
+    got_var = c64script_runtime_get_var(runtime, "COUNT3", &value);
+    assert(got_var);
+    assert(value.as.number == 3.0);
+    c64script_value_free(&value);
+
+    got_var = c64script_runtime_get_var(runtime, "VAL$", &value);
+    assert(got_var);
+    assert(value.type == VALUE_STRING);
+    assert(strcmp(value.as.string, "80") == 0);
+    c64script_value_free(&value);
+
+    got_var = c64script_runtime_get_var(runtime, "CATS$", &value);
+    assert(got_var);
+    assert(value.type == VALUE_ARRAY);
+    c64script_value_t elem = {0};
+    assert(c64script_array_get(value.as.array, 0, &elem));
+    assert(strcmp(elem.as.string, "Audio Mixer") == 0);
+    c64script_value_free(&elem);
+    assert(c64script_array_get(value.as.array, 1, &elem));
+    assert(strcmp(elem.as.string, "U64 Specific Settings") == 0);
+    c64script_value_free(&elem);
+    c64script_value_free(&value);
+
+    got_var = c64script_runtime_get_var(runtime, "ITEMS$", &value);
+    assert(got_var);
+    assert(c64script_array_get(value.as.array, 0, &elem));
+    assert(strcmp(elem.as.string, "Vol Sid Socket 1") == 0);
+    c64script_value_free(&elem);
+    c64script_value_free(&value);
+
+    got_var = c64script_runtime_get_var(runtime, "OPTS$", &value);
+    assert(got_var);
+    assert(c64script_array_get(value.as.array, 0, &elem));
+    assert(strcmp(elem.as.string, "0") == 0);
+    c64script_value_free(&elem);
+    c64script_value_free(&value);
+
+    const char *log = c64script_test_rest_log(runtime->rest_client);
+    assert(strstr(log, "cfg_set") != NULL);
+
+    c64script_test_rest_destroy(runtime->rest_client);
+    runtime->rest_client = NULL;
+    c64script_runtime_destroy(runtime);
+    c64script_ast_free(ast);
+}
+
+TEST(execute_sid_vic_cpu_commands)
+{
+    const char *source = "SID_MODEL ULTI1, \"8580\"\n"
+                         "SID_ENABLE SOCKET1, 1\n"
+                         "SID_VOL ULTI1, \"80\"\n"
+                         "SID_FILTER_CURVE ULTI1, \"Flat\"\n"
+                         "SID_RESONANCE ULTI2, \"High\"\n"
+                         "SID_COMBINED ULTI1, \"Enabled\"\n"
+                         "SID_DIGIS ULTI2, \"Off\"\n"
+                         "VIC_MODE \"PAL\"\n"
+                         "CPU_SPEED \" 1\"\n";
+    char error[256];
+
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error, sizeof(error));
+    assert(ast != NULL);
+
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    assert(runtime != NULL);
+    runtime->rest_client = c64script_test_rest_create();
+    assert(runtime->rest_client != NULL);
+
+    bool success = c64script_compile(ast, runtime, error, sizeof(error));
+    assert(success);
+
+    success = c64script_execute(runtime);
+    assert(success);
+
+    assert(strcmp(c64script_test_rest_last_category(runtime->rest_client), "U64 Specific Settings") == 0);
+    assert(strcmp(c64script_test_rest_last_item(runtime->rest_client), "CPU Speed") == 0);
+    assert(strcmp(c64script_test_rest_last_value(runtime->rest_client), " 1") == 0);
+
+    c64script_test_rest_destroy(runtime->rest_client);
+    runtime->rest_client = NULL;
+    c64script_runtime_destroy(runtime);
+    c64script_ast_free(ast);
+}
+
+TEST(execute_sid_model_invalid_target_fails)
+{
+    const char *source = "SID_MODEL SOCKET1, \"6581\"\n";
+    char error[256];
+
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error, sizeof(error));
+    assert(ast != NULL);
+
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    runtime->rest_client = c64script_test_rest_create();
+
+    bool success = c64script_compile(ast, runtime, error, sizeof(error));
+    assert(success);
+
+    success = c64script_execute(runtime);
+    assert(!success);
+    assert(strstr(runtime->error_msg, "SID_MODEL target is read-only") != NULL);
+
+    c64script_test_rest_destroy(runtime->rest_client);
+    runtime->rest_client = NULL;
+    c64script_runtime_destroy(runtime);
+    c64script_ast_free(ast);
+}
+
+TEST(execute_drive_commands)
+{
+    const char *source = "X$ = DRIVE$(DRIVE_A, PROP_ENABLED)\n"
+                         "BUS$ = DRIVE$(DRIVE_A, PROP_BUS_ID)\n"
+                         "TYPE$ = DRIVE$(DRIVE_A, PROP_TYPE)\n"
+                         "ROM$ = DRIVE$(DRIVE_A, PROP_ROM)\n"
+                         "FILE$ = DRIVE$(DRIVE_A, PROP_IMAGE_FILE)\n"
+                         "PATH$ = DRIVE$(DRIVE_A, PROP_IMAGE_PATH)\n"
+                         "DRIVE_ON DRIVE_A\n"
+                         "DRIVE_OFF DRIVE_A\n"
+                         "DRIVE_RESET DRIVE_A\n"
+                         "DRIVE_UNMOUNT DRIVE_A\n"
+                         "DRIVE_MOUNT DRIVE_A, \"c64u:/Games/game.d64\", TYPE_D64, MODE_READONLY\n"
+                         "DRIVE_ROM DRIVE_B, \"c64u:/ROMs/1571.rom\"\n"
+                         "DRIVE_MODE DRIVE_B, MODE_1581\n"
+                         "DRIVE_BUS_ID DRIVE_A, 8\n";
+    char error[256];
+
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error, sizeof(error));
+    assert(ast != NULL);
+
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    runtime->rest_client = c64script_test_rest_create();
+    assert(runtime->rest_client != NULL);
+
+    bool success = c64script_compile(ast, runtime, error, sizeof(error));
+    assert(success);
+
+    success = c64script_execute(runtime);
+    assert(success);
+
+    c64script_value_t value;
+    bool got_var = c64script_runtime_get_var(runtime, "X$", &value);
+    assert(got_var);
+    assert(strcmp(value.as.string, "true") == 0);
+    c64script_value_free(&value);
+
+    got_var = c64script_runtime_get_var(runtime, "BUS$", &value);
+    assert(got_var);
+    assert(strcmp(value.as.string, "8") == 0);
+    c64script_value_free(&value);
+
+    got_var = c64script_runtime_get_var(runtime, "TYPE$", &value);
+    assert(got_var);
+    assert(strcmp(value.as.string, "1541") == 0);
+    c64script_value_free(&value);
+
+    got_var = c64script_runtime_get_var(runtime, "ROM$", &value);
+    assert(got_var);
+    assert(strcmp(value.as.string, "1541.rom") == 0);
+    c64script_value_free(&value);
+
+    got_var = c64script_runtime_get_var(runtime, "FILE$", &value);
+    assert(got_var);
+    assert(strcmp(value.as.string, "game.d64") == 0);
+    c64script_value_free(&value);
+
+    got_var = c64script_runtime_get_var(runtime, "PATH$", &value);
+    assert(got_var);
+    assert(strcmp(value.as.string, "c64u:/Games/game.d64") == 0);
+    c64script_value_free(&value);
+
+    const char *log = c64script_test_rest_log(runtime->rest_client);
+    assert(strstr(log, "drive_mount_image") != NULL);
+    assert(strstr(log, "drive_rom_image") != NULL);
+    assert(strstr(log, "drive_mode") != NULL);
+    assert(strstr(log, "cfg_set") != NULL);
+
+    c64script_test_rest_destroy(runtime->rest_client);
+    runtime->rest_client = NULL;
+    c64script_runtime_destroy(runtime);
+    c64script_ast_free(ast);
+}
+
+TEST(execute_drive_invalid_property_fails)
+{
+    const char *source = "X$ = DRIVE$(DRIVE_A, \"PROP_NOPE\")\n";
+    char error[256];
+
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error, sizeof(error));
+    assert(ast != NULL);
+
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    runtime->rest_client = c64script_test_rest_create();
+    assert(runtime->rest_client != NULL);
+
+    bool success = c64script_compile(ast, runtime, error, sizeof(error));
+    assert(success);
+
+    success = c64script_execute(runtime);
+    assert(!success);
+    assert(strstr(runtime->error_msg, "Invalid drive property") != NULL);
+
+    c64script_test_rest_destroy(runtime->rest_client);
+    runtime->rest_client = NULL;
+    c64script_runtime_destroy(runtime);
+    c64script_ast_free(ast);
+}
+
+TEST(execute_keyboard_buffer_commands)
+{
+    const char *source = "LOAD \"*\"\n"
+                         "LOAD \"GAME\", 9\n"
+                         "RUN\n"
+                         "RUN \"GAME\"\n"
+                         "RUN \"DEMO\", 9\n"
+                         "SYS 64738\n";
+    char error[256];
+
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error, sizeof(error));
+    assert(ast != NULL);
+
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    runtime->keyboard = c64script_test_keyboard_create();
+    assert(runtime->keyboard != NULL);
+
+    bool success = c64script_compile(ast, runtime, error, sizeof(error));
+    assert(success);
+
+    success = c64script_execute(runtime);
+    assert(success);
+
+    const char *log = c64script_test_keyboard_log(runtime->keyboard);
+    assert(strstr(log, "TEXT:LOAD\"*\",8,1\\r") != NULL);
+    assert(strstr(log, "TEXT:LOAD\"GAME\",9,1\\r") != NULL);
+    assert(strstr(log, "TEXT:RUN\\r") != NULL);
+    assert(strstr(log, "TEXT:LOAD\"GAME\",8,1\\rRUN\\r") != NULL);
+    assert(strstr(log, "TEXT:LOAD\"DEMO\",9,1\\rRUN\\r") != NULL);
+    assert(strstr(log, "TEXT:SYS 64738\\r") != NULL);
+
+    c64script_test_keyboard_destroy(runtime->keyboard);
+    runtime->keyboard = NULL;
+    c64script_runtime_destroy(runtime);
+    c64script_ast_free(ast);
+}
+
+TEST(execute_cfgsave_failure_propagates)
+{
+    const char *source = "CFGSAVE\n";
+    char error[256];
+
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error, sizeof(error));
+    assert(ast != NULL);
+
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    runtime->rest_client = c64script_test_rest_create();
+    assert(runtime->rest_client != NULL);
+    c64script_test_rest_fail_next(runtime->rest_client, "boom");
+
+    bool success = c64script_compile(ast, runtime, error, sizeof(error));
+    assert(success);
+
+    success = c64script_execute(runtime);
+    assert(!success);
+    assert(strstr(runtime->error_msg, "CFGSAVE failed") != NULL);
+
+    c64script_test_rest_destroy(runtime->rest_client);
+    runtime->rest_client = NULL;
     c64script_runtime_destroy(runtime);
     c64script_ast_free(ast);
 }

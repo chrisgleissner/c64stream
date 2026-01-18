@@ -1,0 +1,11 @@
+rem Test relative path resolution
+READFILE "relative-data.txt", CONTENT$
+if CONTENT$ <> "OK" then
+    LOG "Unexpected content: " + CONTENT$
+endif
+WRITEFILE "relative-output.txt", "OUT" TRUNCATE
+READFILE "relative-output.txt", OUT$
+if OUT$ <> "OUT" then
+    LOG "Unexpected write: " + OUT$
+endif
+stop

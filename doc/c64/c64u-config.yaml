@@ -1,0 +1,1835 @@
+config:
+  general:
+    base_url: http://c64u
+    rest_api_version: '0.1'
+    device_type: Ultimate 64 Elite
+    firmware_version: 3.12a
+    fetched_at: '2026-01-18T11:47:52.430762+00:00'
+  categories:
+    Audio Mixer:
+      items:
+        Vol UltiSid 1:
+          selected: 'OFF'
+          options:
+          - 'OFF'
+          - +6 dB
+          - +5 dB
+          - +4 dB
+          - +3 dB
+          - +2 dB
+          - +1 dB
+          - ' 0 dB'
+          - -1 dB
+          - -2 dB
+          - -3 dB
+          - -4 dB
+          - -5 dB
+          - -6 dB
+          - -7 dB
+          - -8 dB
+          - -9 dB
+          - -10 dB
+          - -11 dB
+          - -12 dB
+          - -13 dB
+          - -14 dB
+          - -15 dB
+          - -16 dB
+          - -17 dB
+          - -18 dB
+          - -24 dB
+          - -27 dB
+          - -30 dB
+          - -36 dB
+          - -42 dB
+        Vol UltiSid 2:
+          selected: 'OFF'
+          options:
+          - 'OFF'
+          - +6 dB
+          - +5 dB
+          - +4 dB
+          - +3 dB
+          - +2 dB
+          - +1 dB
+          - ' 0 dB'
+          - -1 dB
+          - -2 dB
+          - -3 dB
+          - -4 dB
+          - -5 dB
+          - -6 dB
+          - -7 dB
+          - -8 dB
+          - -9 dB
+          - -10 dB
+          - -11 dB
+          - -12 dB
+          - -13 dB
+          - -14 dB
+          - -15 dB
+          - -16 dB
+          - -17 dB
+          - -18 dB
+          - -24 dB
+          - -27 dB
+          - -30 dB
+          - -36 dB
+          - -42 dB
+        Vol Socket 1:
+          selected: 'OFF'
+          options:
+          - 'OFF'
+          - +6 dB
+          - +5 dB
+          - +4 dB
+          - +3 dB
+          - +2 dB
+          - +1 dB
+          - ' 0 dB'
+          - -1 dB
+          - -2 dB
+          - -3 dB
+          - -4 dB
+          - -5 dB
+          - -6 dB
+          - -7 dB
+          - -8 dB
+          - -9 dB
+          - -10 dB
+          - -11 dB
+          - -12 dB
+          - -13 dB
+          - -14 dB
+          - -15 dB
+          - -16 dB
+          - -17 dB
+          - -18 dB
+          - -24 dB
+          - -27 dB
+          - -30 dB
+          - -36 dB
+          - -42 dB
+        Vol Socket 2:
+          selected: 'OFF'
+          options:
+          - 'OFF'
+          - +6 dB
+          - +5 dB
+          - +4 dB
+          - +3 dB
+          - +2 dB
+          - +1 dB
+          - ' 0 dB'
+          - -1 dB
+          - -2 dB
+          - -3 dB
+          - -4 dB
+          - -5 dB
+          - -6 dB
+          - -7 dB
+          - -8 dB
+          - -9 dB
+          - -10 dB
+          - -11 dB
+          - -12 dB
+          - -13 dB
+          - -14 dB
+          - -15 dB
+          - -16 dB
+          - -17 dB
+          - -18 dB
+          - -24 dB
+          - -27 dB
+          - -30 dB
+          - -36 dB
+          - -42 dB
+        Vol Sampler L:
+          selected: 'OFF'
+          options:
+          - 'OFF'
+          - +6 dB
+          - +5 dB
+          - +4 dB
+          - +3 dB
+          - +2 dB
+          - +1 dB
+          - ' 0 dB'
+          - -1 dB
+          - -2 dB
+          - -3 dB
+          - -4 dB
+          - -5 dB
+          - -6 dB
+          - -7 dB
+          - -8 dB
+          - -9 dB
+          - -10 dB
+          - -11 dB
+          - -12 dB
+          - -13 dB
+          - -14 dB
+          - -15 dB
+          - -16 dB
+          - -17 dB
+          - -18 dB
+          - -24 dB
+          - -27 dB
+          - -30 dB
+          - -36 dB
+          - -42 dB
+        Vol Sampler R:
+          selected: 'OFF'
+          options:
+          - 'OFF'
+          - +6 dB
+          - +5 dB
+          - +4 dB
+          - +3 dB
+          - +2 dB
+          - +1 dB
+          - ' 0 dB'
+          - -1 dB
+          - -2 dB
+          - -3 dB
+          - -4 dB
+          - -5 dB
+          - -6 dB
+          - -7 dB
+          - -8 dB
+          - -9 dB
+          - -10 dB
+          - -11 dB
+          - -12 dB
+          - -13 dB
+          - -14 dB
+          - -15 dB
+          - -16 dB
+          - -17 dB
+          - -18 dB
+          - -24 dB
+          - -27 dB
+          - -30 dB
+          - -36 dB
+          - -42 dB
+        Vol Drive 1:
+          selected: 'OFF'
+          options:
+          - 'OFF'
+          - +6 dB
+          - +5 dB
+          - +4 dB
+          - +3 dB
+          - +2 dB
+          - +1 dB
+          - ' 0 dB'
+          - -1 dB
+          - -2 dB
+          - -3 dB
+          - -4 dB
+          - -5 dB
+          - -6 dB
+          - -7 dB
+          - -8 dB
+          - -9 dB
+          - -10 dB
+          - -11 dB
+          - -12 dB
+          - -13 dB
+          - -14 dB
+          - -15 dB
+          - -16 dB
+          - -17 dB
+          - -18 dB
+          - -24 dB
+          - -27 dB
+          - -30 dB
+          - -36 dB
+          - -42 dB
+        Vol Drive 2:
+          selected: 'OFF'
+          options:
+          - 'OFF'
+          - +6 dB
+          - +5 dB
+          - +4 dB
+          - +3 dB
+          - +2 dB
+          - +1 dB
+          - ' 0 dB'
+          - -1 dB
+          - -2 dB
+          - -3 dB
+          - -4 dB
+          - -5 dB
+          - -6 dB
+          - -7 dB
+          - -8 dB
+          - -9 dB
+          - -10 dB
+          - -11 dB
+          - -12 dB
+          - -13 dB
+          - -14 dB
+          - -15 dB
+          - -16 dB
+          - -17 dB
+          - -18 dB
+          - -24 dB
+          - -27 dB
+          - -30 dB
+          - -36 dB
+          - -42 dB
+        Vol Tape Read:
+          selected: 'OFF'
+          options:
+          - 'OFF'
+          - +6 dB
+          - +5 dB
+          - +4 dB
+          - +3 dB
+          - +2 dB
+          - +1 dB
+          - ' 0 dB'
+          - -1 dB
+          - -2 dB
+          - -3 dB
+          - -4 dB
+          - -5 dB
+          - -6 dB
+          - -7 dB
+          - -8 dB
+          - -9 dB
+          - -10 dB
+          - -11 dB
+          - -12 dB
+          - -13 dB
+          - -14 dB
+          - -15 dB
+          - -16 dB
+          - -17 dB
+          - -18 dB
+          - -24 dB
+          - -27 dB
+          - -30 dB
+          - -36 dB
+          - -42 dB
+        Vol Tape Write:
+          selected: 'OFF'
+          options:
+          - 'OFF'
+          - +6 dB
+          - +5 dB
+          - +4 dB
+          - +3 dB
+          - +2 dB
+          - +1 dB
+          - ' 0 dB'
+          - -1 dB
+          - -2 dB
+          - -3 dB
+          - -4 dB
+          - -5 dB
+          - -6 dB
+          - -7 dB
+          - -8 dB
+          - -9 dB
+          - -10 dB
+          - -11 dB
+          - -12 dB
+          - -13 dB
+          - -14 dB
+          - -15 dB
+          - -16 dB
+          - -17 dB
+          - -18 dB
+          - -24 dB
+          - -27 dB
+          - -30 dB
+          - -36 dB
+          - -42 dB
+        Pan UltiSID 1:
+          selected: Center
+          options:
+          - Left 5
+          - Left 4
+          - Left 3
+          - Left 2
+          - Left 1
+          - Center
+          - Right 1
+          - Right 2
+          - Right 3
+          - Right 4
+          - Right 5
+        Pan UltiSID 2:
+          selected: Center
+          options:
+          - Left 5
+          - Left 4
+          - Left 3
+          - Left 2
+          - Left 1
+          - Center
+          - Right 1
+          - Right 2
+          - Right 3
+          - Right 4
+          - Right 5
+        Pan Socket 1:
+          selected: Left 3
+          options:
+          - Left 5
+          - Left 4
+          - Left 3
+          - Left 2
+          - Left 1
+          - Center
+          - Right 1
+          - Right 2
+          - Right 3
+          - Right 4
+          - Right 5
+        Pan Socket 2:
+          selected: Right 3
+          options:
+          - Left 5
+          - Left 4
+          - Left 3
+          - Left 2
+          - Left 1
+          - Center
+          - Right 1
+          - Right 2
+          - Right 3
+          - Right 4
+          - Right 5
+        Pan Sampler L:
+          selected: Left 3
+          options:
+          - Left 5
+          - Left 4
+          - Left 3
+          - Left 2
+          - Left 1
+          - Center
+          - Right 1
+          - Right 2
+          - Right 3
+          - Right 4
+          - Right 5
+        Pan Sampler R:
+          selected: Right 3
+          options:
+          - Left 5
+          - Left 4
+          - Left 3
+          - Left 2
+          - Left 1
+          - Center
+          - Right 1
+          - Right 2
+          - Right 3
+          - Right 4
+          - Right 5
+        Pan Drive 1:
+          selected: Left 2
+          options:
+          - Left 5
+          - Left 4
+          - Left 3
+          - Left 2
+          - Left 1
+          - Center
+          - Right 1
+          - Right 2
+          - Right 3
+          - Right 4
+          - Right 5
+        Pan Drive 2:
+          selected: Right 2
+          options:
+          - Left 5
+          - Left 4
+          - Left 3
+          - Left 2
+          - Left 1
+          - Center
+          - Right 1
+          - Right 2
+          - Right 3
+          - Right 4
+          - Right 5
+        Pan Tape Read:
+          selected: Center
+          options:
+          - Left 5
+          - Left 4
+          - Left 3
+          - Left 2
+          - Left 1
+          - Center
+          - Right 1
+          - Right 2
+          - Right 3
+          - Right 4
+          - Right 5
+        Pan Tape Write:
+          selected: Center
+          options:
+          - Left 5
+          - Left 4
+          - Left 3
+          - Left 2
+          - Left 1
+          - Center
+          - Right 1
+          - Right 2
+          - Right 3
+          - Right 4
+          - Right 5
+    SID Sockets Configuration:
+      items:
+        SID Socket 1:
+          selected: Enabled
+          options:
+          - Disabled
+          - Enabled
+        SID Socket 2:
+          selected: Disabled
+          options:
+          - Disabled
+          - Enabled
+        SID Detected Socket 1:
+          selected: '6581'
+          options:
+          - None
+          - '6581'
+          - '8580'
+          - FPGASID
+          - SwinSID Ultimate
+          - ARMSID
+          - ARM2SID
+          - SidFx
+          - FPGASID Dukestah
+        SID Detected Socket 2:
+          selected: None
+          options:
+          - None
+          - '6581'
+          - '8580'
+          - FPGASID
+          - SwinSID Ultimate
+          - ARMSID
+          - ARM2SID
+          - SidFx
+          - FPGASID Dukestah
+        SID Socket 1 1K Ohm Resistor:
+          selected: 'On'
+          options:
+          - 'Off'
+          - 'On'
+        SID Socket 2 1K Ohm Resistor:
+          selected: 'Off'
+          options:
+          - 'Off'
+          - 'On'
+        SID Socket 1 Capacitors:
+          selected: 470 pF
+          options:
+          - 470 pF
+          - 22 nF
+        SID Socket 2 Capacitors:
+          selected: 470 pF
+          options:
+          - 470 pF
+          - 22 nF
+    UltiSID Configuration:
+      items:
+        UltiSID 1 Filter Curve:
+          selected: U2 High
+          options:
+          - 8580 Lo
+          - 8580 Hi
+          - '6581'
+          - 6581 Alt
+          - U2 Low
+          - U2 Mid
+          - U2 High
+        UltiSID 2 Filter Curve:
+          selected: 8580 Lo
+          options:
+          - 8580 Lo
+          - 8580 Hi
+          - '6581'
+          - 6581 Alt
+          - U2 Low
+          - U2 Mid
+          - U2 High
+        UltiSID 1 Filter Resonance:
+          selected: Low
+          options:
+          - Low
+          - High
+        UltiSID 2 Filter Resonance:
+          selected: Low
+          options:
+          - Low
+          - High
+        UltiSID 1 Combined Waveforms:
+          selected: '6581'
+          options:
+          - '6581'
+          - '8580'
+        UltiSID 2 Combined Waveforms:
+          selected: '6581'
+          options:
+          - '6581'
+          - '8580'
+        UltiSID 1 Digis Level:
+          selected: Medium
+          options:
+          - 'Off'
+          - Low
+          - Medium
+          - High
+        UltiSID 2 Digis Level:
+          selected: Medium
+          options:
+          - 'Off'
+          - Low
+          - Medium
+          - High
+    SID Addressing:
+      items:
+        SID Socket 1 Address:
+          selected: $DF20
+          options:
+          - Unmapped
+          - $D400
+          - $D420
+          - $D440
+          - $D460
+          - $D480
+          - $D4A0
+          - $D4C0
+          - $D4E0
+          - $D500
+          - $D520
+          - $D540
+          - $D560
+          - $D580
+          - $D5A0
+          - $D5C0
+          - $D5E0
+          - $D600
+          - $D620
+          - $D640
+          - $D660
+          - $D680
+          - $D6A0
+          - $D6C0
+          - $D6E0
+          - $D700
+          - $D720
+          - $D740
+          - $D760
+          - $D780
+          - $D7A0
+          - $D7C0
+          - $D7E0
+          - $DE00
+          - $DE20
+          - $DE40
+          - $DE60
+          - $DE80
+          - $DEA0
+          - $DEC0
+          - $DEE0
+          - $DF00
+          - $DF20
+          - $DF40
+          - $DF60
+          - $DF80
+          - $DFA0
+          - $DFC0
+          - $DFE0
+        SID Socket 2 Address:
+          selected: $D400
+          options:
+          - Unmapped
+          - $D400
+          - $D420
+          - $D440
+          - $D460
+          - $D480
+          - $D4A0
+          - $D4C0
+          - $D4E0
+          - $D500
+          - $D520
+          - $D540
+          - $D560
+          - $D580
+          - $D5A0
+          - $D5C0
+          - $D5E0
+          - $D600
+          - $D620
+          - $D640
+          - $D660
+          - $D680
+          - $D6A0
+          - $D6C0
+          - $D6E0
+          - $D700
+          - $D720
+          - $D740
+          - $D760
+          - $D780
+          - $D7A0
+          - $D7C0
+          - $D7E0
+          - $DE00
+          - $DE20
+          - $DE40
+          - $DE60
+          - $DE80
+          - $DEA0
+          - $DEC0
+          - $DEE0
+          - $DF00
+          - $DF20
+          - $DF40
+          - $DF60
+          - $DF80
+          - $DFA0
+          - $DFC0
+          - $DFE0
+        Ext DualSID Range Split:
+          selected: 'Off'
+          options:
+          - 'Off'
+          - A5
+          - A6
+          - A7
+          - A8
+          - A9
+        UltiSID 1 Address:
+          selected: $D400
+          options:
+          - Unmapped
+          - $D400
+          - $D420
+          - $D440
+          - $D460
+          - $D480
+          - $D4A0
+          - $D4C0
+          - $D4E0
+          - $D500
+          - $D520
+          - $D540
+          - $D560
+          - $D580
+          - $D5A0
+          - $D5C0
+          - $D5E0
+          - $D600
+          - $D620
+          - $D640
+          - $D660
+          - $D680
+          - $D6A0
+          - $D6C0
+          - $D6E0
+          - $D700
+          - $D720
+          - $D740
+          - $D760
+          - $D780
+          - $D7A0
+          - $D7C0
+          - $D7E0
+          - $DE00
+          - $DE20
+          - $DE40
+          - $DE60
+          - $DE80
+          - $DEA0
+          - $DEC0
+          - $DEE0
+          - $DF00
+          - $DF20
+          - $DF40
+          - $DF60
+          - $DF80
+          - $DFA0
+          - $DFC0
+          - $DFE0
+        UltiSID 2 Address:
+          selected: $D400
+          options:
+          - Unmapped
+          - $D400
+          - $D420
+          - $D440
+          - $D460
+          - $D480
+          - $D4A0
+          - $D4C0
+          - $D4E0
+          - $D500
+          - $D520
+          - $D540
+          - $D560
+          - $D580
+          - $D5A0
+          - $D5C0
+          - $D5E0
+          - $D600
+          - $D620
+          - $D640
+          - $D660
+          - $D680
+          - $D6A0
+          - $D6C0
+          - $D6E0
+          - $D700
+          - $D720
+          - $D740
+          - $D760
+          - $D780
+          - $D7A0
+          - $D7C0
+          - $D7E0
+          - $DE00
+          - $DE20
+          - $DE40
+          - $DE60
+          - $DE80
+          - $DEA0
+          - $DEC0
+          - $DEE0
+          - $DF00
+          - $DF20
+          - $DF40
+          - $DF60
+          - $DF80
+          - $DFA0
+          - $DFC0
+          - $DFE0
+        UltiSID Range Split:
+          selected: 'Off'
+          options:
+          - 'Off'
+          - 1/2 (A5)
+          - 1/2 (A6)
+          - 1/2 (A7)
+          - 1/2 (A8)
+          - 1/4 (A5,A6)
+          - 1/4 (A5,A8)
+          - 1/4 (A7,A8)
+        Paddle Override:
+          selected: Enabled
+          options:
+          - Disabled
+          - Enabled
+        Auto Address Mirroring:
+          selected: Enabled
+          options:
+          - Disabled
+          - Enabled
+    U64 Specific Settings:
+      items:
+        System Mode:
+          selected: PAL
+          options:
+          - PAL
+          - NTSC
+          - PAL-60
+          - NTSC-50
+          - PAL-60/L
+          - NTSC-50/L
+        Joystick Swapper:
+          selected: Normal
+          options:
+          - Normal
+          - Swapped
+        UserPort Power Enable:
+          selected: Enabled
+          options:
+          - Disabled
+          - Enabled
+        Palette Definition:
+          selected: ''
+          details:
+            presets:
+            - ''
+        Adjust Color Clock:
+          selected: 0
+          details:
+            min: -100
+            max: 100
+            format: '%d ppm'
+        Analog Video Mode:
+          selected: RGB
+          options:
+          - CVBS + SVideo
+          - RGB
+        Digital Video Mode:
+          selected: Auto
+          options:
+          - Auto
+          - HDMI
+          - DVI
+        HDMI Scan lines:
+          selected: Enabled
+          options:
+          - Disabled
+          - Enabled
+        Serial Bus Mode:
+          selected: C64<->Ultimate
+          options:
+          - All Connected
+          - C64<->Ultimate
+          - DIN<->Ultimate
+          - C64<->DIN
+        SpeedDOS Parallel Cable:
+          selected: Disabled
+          options:
+          - Disabled
+          - Enabled
+        Burst Mode Patch:
+          selected: 'Off'
+          options:
+          - 'Off'
+          - CIA1
+          - CIA2
+        LED Select Top:
+          selected: 'On'
+          options:
+          - 'On'
+          - 'Off'
+          - Drive A Pwr
+          - DrvAPwr + DrvBPwr
+          - Drive A Act
+          - DrvAAct + DrvBAct
+          - DrvAPwr ^ DrvAAct
+          - USB Activity
+          - Any Activity
+          - '!(DrvAAct)'
+          - '!(DrvAAct+DrvBAct)'
+          - '!(USB Act)'
+          - '!(Any Act)'
+          - IRQ Line
+          - '!(IRQ Line)'
+          - Drive B Act
+        LED Select Bot:
+          selected: 'On'
+          options:
+          - 'On'
+          - 'Off'
+          - Drive A Pwr
+          - DrvAPwr + DrvBPwr
+          - Drive A Act
+          - DrvAAct + DrvBAct
+          - DrvAPwr ^ DrvAAct
+          - USB Activity
+          - Any Activity
+          - '!(DrvAAct)'
+          - '!(DrvAAct+DrvBAct)'
+          - '!(USB Act)'
+          - '!(Any Act)'
+          - IRQ Line
+          - '!(IRQ Line)'
+          - Drive B Act
+        Speaker Volume (SpkDat):
+          selected: Disabled
+          options:
+          - Disabled
+          - Vol 1
+          - Vol 2
+          - Vol 3
+          - Vol 4
+          - Vol 5
+          - Vol 6
+          - Vol 7
+          - Vol 8
+          - Vol 9
+          - Vol 10
+        SID Player Autoconfig:
+          selected: Enabled
+          options:
+          - Disabled
+          - Enabled
+        Allow Autoconfig uses UltiSid:
+          selected: 'Yes'
+          options:
+          - 'No'
+          - 'Yes'
+        Turbo Control:
+          selected: Manual
+          options:
+          - 'Off'
+          - Manual
+          - U64 Turbo Registers
+          - TurboEnable Bit
+        CPU Speed:
+          selected: ' 1'
+          options:
+          - ' 1'
+          - ' 2'
+          - ' 3'
+          - ' 4'
+          - ' 5'
+          - ' 6'
+          - ' 8'
+          - '10'
+          - '12'
+          - '14'
+          - '16'
+          - '20'
+          - '24'
+          - '32'
+          - '40'
+          - '48'
+        Badline Timing:
+          selected: Enabled
+          options:
+          - Disabled
+          - Enabled
+        SuperCPU Detect (D0BC):
+          selected: Disabled
+          options:
+          - Disabled
+          - Enabled
+    C64 and Cartridge Settings:
+      items:
+        Cartridge:
+          selected: Final_Cartridge_3_1988-13.crt
+          details:
+            presets:
+            - ''
+            - action_replay_7.5.crt
+            - Final_Cartridge_3_1988-13.crt
+        Cartridge Preference:
+          selected: Auto
+          options:
+          - Auto
+          - Internal
+          - External
+          - Manual
+        Bus Operation Mode:
+          selected: Quiet
+          options:
+          - Quiet
+          - Writes
+          - Dynamic
+          - Dyn. & Writes
+        Bus Sharing - ROMs:
+          selected: Both
+          options:
+          - Internal
+          - External
+          - Both
+        Bus Sharing - I/O1:
+          selected: Both
+        Bus Sharing - I/O2:
+          selected: Both
+        Bus Sharing - Interrupts:
+          selected: Both
+          options:
+          - Internal
+          - External
+          - Both
+        Fast Reset:
+          selected: Disabled
+          options:
+          - Disabled
+          - Enabled
+        Kernal ROM:
+          selected: kernal.901227-03.bin
+          details:
+            presets:
+            - basic.901226-01.bin
+            - kernal.901227-03.bin
+        Basic ROM:
+          selected: basic.901226-01.bin
+          details:
+            presets:
+            - basic.901226-01.bin
+            - kernal.901227-03.bin
+        Char ROM:
+          selected: characters.901225-01.bin
+          details:
+            presets:
+            - characters.901225-01.bin
+        RAM Expansion Unit:
+          selected: Disabled
+          options:
+          - Disabled
+          - Enabled
+          - GeoRAM Mode
+        REU Size:
+          selected: 2 MB
+          options:
+          - 128 KB
+          - 256 KB
+          - 512 KB
+          - 1 MB
+          - 2 MB
+          - 4 MB
+          - 8 MB
+          - 16 MB
+        REU Preload:
+          selected: Disabled
+          options:
+          - Disabled
+          - Enabled
+        REU Preload Image:
+          selected: /Usb0/preload.reu
+        REU Preload Offset:
+          selected: 0 KB
+          options:
+          - 0 KB
+          - 128 KB
+          - 256 KB
+          - 512 KB
+          - 1 MB
+          - 2 MB
+          - 4 MB
+          - 8 MB
+          - 16 MB
+        Map Ultimate Audio $DF20-DFFF:
+          selected: Disabled
+          options:
+          - Disabled
+          - Enabled
+        'DMA Load Mimics ID:':
+          selected: 8
+          details:
+            min: 8
+            max: 31
+            format: '%d'
+        Command Interface:
+          selected: Disabled
+          options:
+          - Disabled
+          - Enabled
+        'UltiDOS: Allow SetDate':
+          selected: Disabled
+          options:
+          - Disabled
+          - Enabled
+    Clock Settings:
+      items:
+        Year:
+          selected: 2015
+          details:
+            min: 1980
+            max: 2079
+            format: '%d'
+        Month:
+          selected: October
+          options:
+          - ''
+          - January
+          - February
+          - March
+          - April
+          - May
+          - June
+          - July
+          - August
+          - September
+          - October
+          - November
+          - December
+        Day:
+          selected: 13
+          details:
+            min: 1
+            max: 31
+            format: '%d'
+        Hours:
+          selected: 16
+          details:
+            min: 0
+            max: 23
+            format: '%02d'
+        Minutes:
+          selected: 52
+          details:
+            min: 0
+            max: 59
+            format: '%02d'
+        Seconds:
+          selected: 55
+          details:
+            min: 0
+            max: 59
+            format: '%02d'
+        Correction:
+          selected: 0
+          details:
+            min: -200
+            max: 200
+            format: '%d ppm'
+    Network Settings:
+      items:
+        Host Name:
+          selected: Ultimate-64-Elite-F83C87
+        Network Password:
+          selected: ''
+        Unique ID:
+          selected: Default
+          details:
+            presets:
+            - ''
+            - Default
+        Ultimate Ident Service:
+          selected: Enabled
+          options:
+          - Disabled
+          - Enabled
+        Ultimate DMA Service:
+          selected: Enabled
+          options:
+          - Disabled
+          - Enabled
+        Telnet Remote Menu Service:
+          selected: Enabled
+          options:
+          - Disabled
+          - Enabled
+        FTP File Service:
+          selected: Enabled
+          options:
+          - Disabled
+          - Enabled
+        Web Remote Control Service:
+          selected: Enabled
+          options:
+          - Disabled
+          - Enabled
+        Log to Syslog Server:
+          selected: ''
+        SNTP Enable:
+          selected: Enabled
+          options:
+          - Disabled
+          - Enabled
+        TimeZone:
+          selected: Western Europe
+          options:
+          - US Baker Island
+          - America Samoa
+          - Hawaii
+          - French Polynesia
+          - Alaska
+          - Los Angeles
+          - Denver, Colorado
+          - Phoenix, Arizona
+          - Chicago, Illinois
+          - New York
+          - Argentina
+          - Newfoundland
+          - Greenland
+          - Cabo Verde
+          - Iceland
+          - UK
+          - Western Europe
+          - Greece
+          - Azerbaijan
+          - Iran
+          - Pakistan
+          - India
+          - Nepal
+          - Bangladesh
+          - Myanmar
+          - Indonesia
+          - China
+          - Western Australia
+          - Japan
+          - Central Australia
+          - Eastern Australia
+          - Lord Howe Island
+          - Solomon Islands
+          - New Zealand
+          - Chatham Islands
+          - Tonga
+          - Christmas Island
+        Time Server 1:
+          selected: time.windows.com
+        Time Server 2:
+          selected: time.google.com
+        Time Server 3:
+          selected: pool.ntp.org
+    Ethernet Settings:
+      items:
+        Use DHCP:
+          selected: Enabled
+          options:
+          - Disabled
+          - Enabled
+        Static IP:
+          selected: 192.168.1.13
+        Static Netmask:
+          selected: 255.255.255.0
+        Static Gateway:
+          selected: 192.168.1.1
+        Static DNS:
+          selected: 8.8.8.8
+    WiFi settings:
+      items:
+        WiFi Enabled:
+          selected: Enabled
+          options:
+          - Disabled
+          - Enabled
+        Use DHCP:
+          selected: Enabled
+          options:
+          - Disabled
+          - Enabled
+        Static IP:
+          selected: 192.168.2.64
+        Static Netmask:
+          selected: 255.255.255.0
+        Static Gateway:
+          selected: 192.168.2.1
+        Static DNS:
+          selected: ''
+    LED Strip Settings:
+      items:
+        LedStrip Mode:
+          selected: 'Off'
+          options:
+          - 'Off'
+          - Fixed Color
+          - SID Pulse
+          - SID Scroll 1
+          - SID Scroll 2
+        LedStrip SID Select:
+          selected: UltiSID1-A
+          options:
+          - UltiSID1-A
+          - UltiSID1-B
+          - UltiSID1-C
+          - UltiSID1-D
+          - UltiSID2-A
+          - UltiSID2-B
+          - UltiSID2-C
+          - UltiSID2-D
+        Strip Intensity:
+          selected: 16
+          details:
+            min: 0
+            max: 31
+            format: '%d'
+        Fixed Color Red:
+          selected: 128
+          details:
+            min: 0
+            max: 255
+            format: '%02x'
+        Fixed Color Green:
+          selected: 0
+          details:
+            min: 0
+            max: 255
+            format: '%02x'
+        Fixed Color Blue:
+          selected: 150
+          details:
+            min: 0
+            max: 255
+            format: '%02x'
+    Data Streams:
+      items:
+        Stream VIC to:
+          selected: 239.0.1.64:11000
+        Stream Audio to:
+          selected: 239.0.1.65:11001
+        Stream Debug to:
+          selected: 239.0.1.66:11002
+        Debug Stream Mode:
+          selected: 6510 Only
+          options:
+          - 6510 Only
+          - VIC Only
+          - 6510 & VIC
+          - 1541 Only
+          - 6510 & 1541
+          - 6510 w/IEC
+          - 6510 & VIC w/IEC
+    SoftIEC Drive Settings:
+      items:
+        IEC Drive:
+          selected: Disabled
+          options:
+          - Disabled
+          - Enabled
+        Soft Drive Bus ID:
+          selected: 11
+          details:
+            min: 8
+            max: 30
+            format: '%d'
+        Default Path:
+          selected: /Usb0/
+    Printer Settings:
+      items:
+        IEC printer:
+          selected: Disabled
+          options:
+          - Disabled
+          - Enabled
+        Bus ID:
+          selected: 4
+          details:
+            min: 4
+            max: 5
+            format: '%d'
+        Output file:
+          selected: /Usb0/printer
+        Output type:
+          selected: PNG B&W
+          options:
+          - RAW
+          - ASCII
+          - PNG B&W
+          - PNG COLOR
+        Ink density:
+          selected: Medium
+          options:
+          - Low
+          - Medium
+          - High
+          - Squares
+        Page top margin (default is 5):
+          selected: 5
+          details:
+            min: 0
+            max: 69
+            format: '%d'
+        Page height (default is 60):
+          selected: 60
+          details:
+            min: 1
+            max: 71
+            format: '%d'
+        Emulation:
+          selected: Commodore MPS
+          options:
+          - Commodore MPS
+          - Epson FX-80/JX-80
+          - IBM Graphics Printer
+          - IBM Proprinter
+        Commodore charset:
+          selected: USA/UK
+          options:
+          - USA/UK
+          - Denmark
+          - France/Italy
+          - Germany
+          - Spain
+          - Sweden
+          - Switzerland
+        Epson charset:
+          selected: Basic
+          options:
+          - Basic
+          - USA
+          - France
+          - Germany
+          - UK
+          - Denmark I
+          - Sweden
+          - Italy
+          - Spain
+          - Japan
+          - Norway
+          - Denmark II
+        IBM table 2:
+          selected: International 1
+          options:
+          - International 1
+          - International 2
+          - Israel
+          - Greece
+          - Portugal
+          - Spain
+    Modem Settings:
+      items:
+        Modem Interface:
+          selected: ACIA / SwiftLink
+          options:
+          - ACIA / SwiftLink
+        ACIA (6551) Mapping:
+          selected: 'Off'
+          options:
+          - 'Off'
+          - DE00/IRQ
+          - DE00/NMI
+          - DF00/IRQ
+          - DF00/NMI
+          - DF80/IRQ
+          - DF80/NMI
+        Hardware Mode:
+          selected: SwiftLink
+          options:
+          - SwiftLink
+          - Turbo232
+        Listening Port:
+          selected: '3000'
+        Do RING sequence (incoming):
+          selected: Enabled
+          options:
+          - Disabled
+          - Enabled
+        Drop connection on DTR low:
+          selected: Enabled
+          options:
+          - Disabled
+          - Enabled
+        RTS Handshake (Rx):
+          selected: Enabled
+          options:
+          - Disabled
+          - Enabled
+        CTS Behavior:
+          selected: Active (Low)
+          options:
+          - Active (Low)
+          - Active when connected
+          - Inactive when connected
+          - Inactive (High)
+          - Act. when connecting
+          - Inact. when connecting
+        DCD Behavior:
+          selected: Active (Low)
+          options:
+          - Active (Low)
+          - Active when connected
+          - Inactive when connected
+          - Inactive (High)
+          - Act. when connecting
+          - Inact. when connecting
+        DSR Behavior:
+          selected: Active when connected
+          options:
+          - Active (Low)
+          - Active when connected
+          - Inactive when connected
+          - Inactive (High)
+          - Act. when connecting
+          - Inact. when connecting
+        Modem Offline Text:
+          selected: /Usb0/offline.txt
+        Modem Connect Text:
+          selected: /Usb0/welcome.txt
+        Modem Busy Text:
+          selected: /Usb0/busy.txt
+        Set Socket Opt TCP_NODELAY:
+          selected: Disabled
+          options:
+          - Disabled
+          - Enabled
+        Loop Delay:
+          selected: 2
+          details:
+            min: 1
+            max: 20
+            format: '%d0 ms'
+    User Interface Settings:
+      items:
+        Interface Type:
+          selected: Freeze
+          options:
+          - Freeze
+          - Overlay on HDMI
+        Background color:
+          selected: Black
+          options:
+          - Black
+          - White
+          - Red
+          - Cyan
+          - Purple
+          - Green
+          - Blue
+          - Yellow
+          - Orange
+          - Brown
+          - Pink
+          - Dark Grey
+          - Mid Grey
+          - Light Green
+          - Light Blue
+          - Light Grey
+        Border color:
+          selected: Black
+          options:
+          - Black
+          - White
+          - Red
+          - Cyan
+          - Purple
+          - Green
+          - Blue
+          - Yellow
+          - Orange
+          - Brown
+          - Pink
+          - Dark Grey
+          - Mid Grey
+          - Light Green
+          - Light Blue
+          - Light Grey
+        Foreground color:
+          selected: Mid Grey
+          options:
+          - Black
+          - White
+          - Red
+          - Cyan
+          - Purple
+          - Green
+          - Blue
+          - Yellow
+          - Orange
+          - Brown
+          - Pink
+          - Dark Grey
+          - Mid Grey
+          - Light Green
+          - Light Blue
+          - Light Grey
+        Selected Item color:
+          selected: White
+          options:
+          - Black
+          - White
+          - Red
+          - Cyan
+          - Purple
+          - Green
+          - Blue
+          - Yellow
+          - Orange
+          - Brown
+          - Pink
+          - Dark Grey
+          - Mid Grey
+          - Light Green
+          - Light Blue
+          - Light Grey
+        Selected Backgr (Overlay):
+          selected: Blue
+          options:
+          - Black
+          - White
+          - Red
+          - Cyan
+          - Purple
+          - Green
+          - Blue
+          - Yellow
+          - Orange
+          - Brown
+          - Pink
+          - Dark Grey
+          - Mid Grey
+          - Light Green
+          - Light Blue
+          - Light Grey
+        Home Directory:
+          selected: ''
+        Enter Home on Startup:
+          selected: Disabled
+          options:
+          - Disabled
+          - Enabled
+        Auto Save Config:
+          selected: Ask
+          options:
+          - 'No'
+          - Ask
+          - 'Yes'
+        Ulticopy Uses disk name:
+          selected: Enabled
+          options:
+          - Disabled
+          - Enabled
+        Filename overflow squeeze:
+          selected: None
+          options:
+          - None
+          - Beginning
+          - Middle
+          - End
+    Tape Settings:
+      items:
+        Tape Playback Rate:
+          selected: 0.98 MHz (PAL)
+          options:
+          - 0.98 MHz (PAL)
+          - 1.02 MHz (NTSC)
+    Drive A Settings:
+      items:
+        Drive:
+          selected: Enabled
+          options:
+          - Disabled
+          - Enabled
+        Drive Type:
+          selected: '1541'
+          options:
+          - '1541'
+          - '1571'
+          - '1581'
+        Drive Bus ID:
+          selected: 8
+          details:
+            min: 8
+            max: 11
+            format: '%d'
+        ROM for 1541 mode:
+          selected: 1541.rom
+          details:
+            presets:
+            - 1541.rom
+            - 1571.rom
+            - 1581.rom
+        ROM for 1571 mode:
+          selected: 1571.rom
+          details:
+            presets:
+            - 1541.rom
+            - 1571.rom
+            - 1581.rom
+        ROM for 1581 mode:
+          selected: 1581.rom
+          details:
+            presets:
+            - 1541.rom
+            - 1571.rom
+            - 1581.rom
+        Extra RAM:
+          selected: Disabled
+          options:
+          - Disabled
+          - Enabled
+        Disk swap delay:
+          selected: 1
+          details:
+            min: 1
+            max: 10
+            format: '%d00 ms'
+        Resets when C64 resets:
+          selected: 'Yes'
+          options:
+          - 'No'
+          - 'Yes'
+        Freezes in menu:
+          selected: 'Yes'
+          options:
+          - 'No'
+          - 'Yes'
+        GCR Save Align Tracks:
+          selected: 'Yes'
+          options:
+          - 'No'
+          - 'Yes'
+        Leave Menu on Mount:
+          selected: 'Yes'
+          options:
+          - 'No'
+          - 'Yes'
+        D64 Geos Copy Protection:
+          selected: none
+          options:
+          - none
+          - Gaps
+          - Track 36
+          - Both
+    Drive B Settings:
+      items:
+        Drive:
+          selected: Disabled
+          options:
+          - Disabled
+          - Enabled
+        Drive Type:
+          selected: '1541'
+          options:
+          - '1541'
+          - '1571'
+          - '1581'
+        Drive Bus ID:
+          selected: 9
+          details:
+            min: 8
+            max: 11
+            format: '%d'
+        ROM for 1541 mode:
+          selected: 1541.rom
+          details:
+            presets:
+            - 1541.rom
+            - 1571.rom
+            - 1581.rom
+        ROM for 1571 mode:
+          selected: 1571.rom
+          details:
+            presets:
+            - 1541.rom
+            - 1571.rom
+            - 1581.rom
+        ROM for 1581 mode:
+          selected: 1581.rom
+          details:
+            presets:
+            - 1541.rom
+            - 1571.rom
+            - 1581.rom
+        Extra RAM:
+          selected: Disabled
+          options:
+          - Disabled
+          - Enabled
+        Disk swap delay:
+          selected: 1
+          details:
+            min: 1
+            max: 10
+            format: '%d00 ms'
+        Resets when C64 resets:
+          selected: 'Yes'
+          options:
+          - 'No'
+          - 'Yes'
+        Freezes in menu:
+          selected: 'Yes'
+          options:
+          - 'No'
+          - 'Yes'
+        GCR Save Align Tracks:
+          selected: 'Yes'
+          options:
+          - 'No'
+          - 'Yes'
+        Leave Menu on Mount:
+          selected: 'Yes'
+          options:
+          - 'No'
+          - 'Yes'
+        D64 Geos Copy Protection:
+          selected: none
+          options:
+          - none
+          - Gaps
+          - Track 36
+          - Both

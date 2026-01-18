@@ -111,6 +111,9 @@ typedef enum {
     TOKEN_AUTOSTART,
     TOKEN_RESET,
     TOKEN_REBOOT,
+    TOKEN_PAUSE,
+    TOKEN_RESUME,
+    TOKEN_POWEROFF,
     TOKEN_RECORDSTART,
     TOKEN_RECORDSTOP,
 
@@ -138,6 +141,64 @@ typedef enum {
     TOKEN_ARGS,
     TOKEN_STATUS,
     TOKEN_OUTPUT,
+
+    // Keywords - U64 config
+    TOKEN_CFG,
+    TOKEN_CFGSAVE,
+    TOKEN_CFGLOAD,
+    TOKEN_CFGRESET,
+
+    // Keywords - U64 drives
+    TOKEN_DRIVE_MOUNT,
+    TOKEN_DRIVE_UNMOUNT,
+    TOKEN_DRIVE_RESET,
+    TOKEN_DRIVE_ON,
+    TOKEN_DRIVE_OFF,
+    TOKEN_DRIVE_ROM,
+    TOKEN_DRIVE_MODE,
+    TOKEN_DRIVE_BUS_ID,
+
+    // Keywords - U64 drive selectors and properties
+    TOKEN_DRIVE_A,
+    TOKEN_DRIVE_B,
+    TOKEN_DRIVE_SOFTIEC,
+    TOKEN_MODE_1541,
+    TOKEN_MODE_1571,
+    TOKEN_MODE_1581,
+    TOKEN_TYPE_D64,
+    TOKEN_TYPE_G64,
+    TOKEN_TYPE_D71,
+    TOKEN_TYPE_G71,
+    TOKEN_TYPE_D81,
+    TOKEN_MODE_READWRITE,
+    TOKEN_MODE_READONLY,
+    TOKEN_MODE_UNLINKED,
+    TOKEN_PROP_ENABLED,
+    TOKEN_PROP_BUS_ID,
+    TOKEN_PROP_TYPE,
+    TOKEN_PROP_ROM,
+    TOKEN_PROP_IMAGE_FILE,
+    TOKEN_PROP_IMAGE_PATH,
+
+    // Keywords - U64 machine control + config helpers
+    TOKEN_SID_MODEL,
+    TOKEN_SID_ENABLE,
+    TOKEN_SID_VOL,
+    TOKEN_SID_FILTER_CURVE,
+    TOKEN_SID_RESONANCE,
+    TOKEN_SID_COMBINED,
+    TOKEN_SID_DIGIS,
+    TOKEN_VIC_MODE,
+    TOKEN_CPU_SPEED,
+    TOKEN_SOCKET1,
+    TOKEN_SOCKET2,
+    TOKEN_ULTI1,
+    TOKEN_ULTI2,
+
+    // Keywords - C64 keyboard buffer commands
+    TOKEN_LOAD,
+    TOKEN_RUN,
+    TOKEN_SYS,
 
     // Keywords - HTTP
     TOKEN_HTTP,
@@ -247,6 +308,33 @@ typedef enum {
     AST_STMT_AUTOSTART,
     AST_STMT_RESET,
     AST_STMT_REBOOT,
+    AST_STMT_PAUSE,
+    AST_STMT_RESUME,
+    AST_STMT_POWEROFF,
+    AST_STMT_CFG,
+    AST_STMT_CFGSAVE,
+    AST_STMT_CFGLOAD,
+    AST_STMT_CFGRESET,
+    AST_STMT_SID_MODEL,
+    AST_STMT_SID_ENABLE,
+    AST_STMT_SID_VOL,
+    AST_STMT_SID_FILTER_CURVE,
+    AST_STMT_SID_RESONANCE,
+    AST_STMT_SID_COMBINED,
+    AST_STMT_SID_DIGIS,
+    AST_STMT_VIC_MODE,
+    AST_STMT_CPU_SPEED,
+    AST_STMT_DRIVE_MOUNT,
+    AST_STMT_DRIVE_UNMOUNT,
+    AST_STMT_DRIVE_RESET,
+    AST_STMT_DRIVE_ON,
+    AST_STMT_DRIVE_OFF,
+    AST_STMT_DRIVE_ROM,
+    AST_STMT_DRIVE_MODE,
+    AST_STMT_DRIVE_BUS_ID,
+    AST_STMT_LOAD,
+    AST_STMT_RUN,
+    AST_STMT_SYS,
     AST_STMT_RECORDSTART,
     AST_STMT_RECORDSTOP,
     AST_STMT_TYPE,
@@ -502,9 +590,116 @@ struct c64script_ast_node {
             c64script_ast_expr_t *path;
         } mountdisk_stmt;
 
+        struct {
+            c64script_ast_expr_t *category;
+            c64script_ast_expr_t *item;
+            c64script_ast_expr_t *value;
+        } cfg_stmt;
+
+        struct {
+            const char *target;
+            c64script_ast_expr_t *model;
+        } sid_model_stmt;
+
+        struct {
+            const char *target;
+            c64script_ast_expr_t *enabled;
+        } sid_enable_stmt;
+
+        struct {
+            const char *target;
+            c64script_ast_expr_t *level;
+        } sid_vol_stmt;
+
+        struct {
+            const char *target;
+            c64script_ast_expr_t *curve;
+        } sid_filter_curve_stmt;
+
+        struct {
+            const char *target;
+            c64script_ast_expr_t *resonance;
+        } sid_resonance_stmt;
+
+        struct {
+            const char *target;
+            c64script_ast_expr_t *combined;
+        } sid_combined_stmt;
+
+        struct {
+            const char *target;
+            c64script_ast_expr_t *level;
+        } sid_digis_stmt;
+
+        struct {
+            c64script_ast_expr_t *mode;
+        } vic_mode_stmt;
+
+        struct {
+            c64script_ast_expr_t *speed;
+        } cpu_speed_stmt;
+
+        struct {
+            const char *drive;
+            c64script_ast_expr_t *image;
+            const char *type;
+            const char *mode;
+        } drive_mount_stmt;
+
+        struct {
+            const char *drive;
+        } drive_unmount_stmt;
+
+        struct {
+            const char *drive;
+        } drive_reset_stmt;
+
+        struct {
+            const char *drive;
+        } drive_on_stmt;
+
+        struct {
+            const char *drive;
+        } drive_off_stmt;
+
+        struct {
+            const char *drive;
+            c64script_ast_expr_t *file;
+        } drive_rom_stmt;
+
+        struct {
+            const char *drive;
+            const char *mode;
+        } drive_mode_stmt;
+
+        struct {
+            const char *drive;
+            c64script_ast_expr_t *bus_id;
+        } drive_bus_id_stmt;
+
+        struct {
+            c64script_ast_expr_t *filename;
+            c64script_ast_expr_t *device;
+        } load_stmt;
+
+        struct {
+            c64script_ast_expr_t *filename;
+            c64script_ast_expr_t *device;
+        } run_stmt;
+
+        struct {
+            c64script_ast_expr_t *address;
+        } sys_stmt;
+
         // autostart_stmt has no data
         // reset_stmt has no data
         // reboot_stmt has no data
+        // pause_stmt has no data
+        // resume_stmt has no data
+        // poweroff_stmt has no data
+        // cfgsave_stmt has no data
+        // cfgload_stmt has no data
+        // cfgreset_stmt has no data
         // recordstart_stmt has no data
         // recordstop_stmt has no data
 
@@ -644,6 +839,37 @@ typedef enum {
     OP_AUTOSTART,
     OP_RESET,
     OP_REBOOT,
+    OP_PAUSE,
+    OP_RESUME,
+    OP_POWEROFF,
+    OP_CFG_SET,
+    OP_CFG_SAVE,
+    OP_CFG_LOAD,
+    OP_CFG_RESET,
+    OP_CFG_GET,
+    OP_CFG_ITEM,
+    OP_CFG_OPTIONS,
+    OP_SID_MODEL,
+    OP_SID_ENABLE,
+    OP_SID_VOL,
+    OP_SID_FILTER_CURVE,
+    OP_SID_RESONANCE,
+    OP_SID_COMBINED,
+    OP_SID_DIGIS,
+    OP_VIC_MODE,
+    OP_CPU_SPEED,
+    OP_DRIVE_GET,
+    OP_DRIVE_MOUNT,
+    OP_DRIVE_UNMOUNT,
+    OP_DRIVE_RESET,
+    OP_DRIVE_ON,
+    OP_DRIVE_OFF,
+    OP_DRIVE_ROM,
+    OP_DRIVE_MODE,
+    OP_DRIVE_BUS_ID,
+    OP_LOAD,
+    OP_RUN,
+    OP_SYS,
     OP_RECORDSTART,
     OP_RECORDSTOP,
     OP_TYPE,
@@ -833,6 +1059,11 @@ typedef struct {
     char *source_text;
     size_t source_text_size;
 
+    // Script file metadata
+    char script_path[512];
+    char script_dir[512];
+    char script_basename[256];
+
     // Log file
     FILE *log_file;
     char log_filename[512];
@@ -854,7 +1085,7 @@ typedef struct {
     // Integration points (set by executor)
     void *source_data; // OBS source data
     void *obs_source;  // obs_source_t*
-    void *rest_client; // REST client for PEEK/POKE
+    void *rest_client; // REST client
     void *keyboard;    // Keyboard injection module
 
     // Test overrides

@@ -1,0 +1,47 @@
+# Execution trace
+script: "test_u64_sid_vic_cpu.c64script"
+status: success
+error: ~
+program: |
+  01: REM U64 SID/VIC/CPU config
+  02: SID_MODEL ULTI1, "8580"
+  03: SID_ENABLE SOCKET1, 1
+  04: SID_VOL ULTI1, "80"
+  05: SID_FILTER_CURVE ULTI1, "Flat"
+  06: SID_RESONANCE ULTI2, "High"
+  07: SID_COMBINED ULTI1, "Enabled"
+  08: SID_DIGIS ULTI2, "Off"
+  09: VIC_MODE "PAL"
+  10: CPU_SPEED " 1"
+  11: STOP
+trace:
+- line: 2
+  content: "SID_MODEL ULTI1, \"8580\""
+  variables: {}
+- line: 3
+  content: "SID_ENABLE SOCKET1, 1"
+  variables: {}
+- line: 4
+  content: "SID_VOL ULTI1, \"80\""
+  variables: {}
+- line: 5
+  content: "SID_FILTER_CURVE ULTI1, \"Flat\""
+  variables: {}
+- line: 6
+  content: "SID_RESONANCE ULTI2, \"High\""
+  variables: {}
+- line: 7
+  content: "SID_COMBINED ULTI1, \"Enabled\""
+  variables: {}
+- line: 8
+  content: "SID_DIGIS ULTI2, \"Off\""
+  variables: {}
+- line: 9
+  content: "VIC_MODE \"PAL\""
+  variables: {}
+- line: 10
+  content: "CPU_SPEED \" 1\""
+  variables: {}
+- line: 11
+  content: "STOP"
+  variables: {}

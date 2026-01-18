@@ -1,0 +1,8 @@
+rem Test default log file path
+WRITEFILE "test_log_default_path.log", "" TRUNCATE
+LOG "Default log entry"
+READFILE "test_log_default_path.log", CONTENT$
+if LEN(CONTENT$) = 0 then
+    LOG "Missing log content"
+endif
+stop

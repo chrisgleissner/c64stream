@@ -1,0 +1,61 @@
+# Execution trace
+script: "test_u64_drives.c64script"
+status: success
+error: ~
+program: |
+  01: REM U64 drives
+  02: X$ = DRIVE$(DRIVE_A, PROP_ENABLED)
+  03: WAIT 1ms
+  04: DRIVE_ON DRIVE_A
+  05: DRIVE_OFF DRIVE_A
+  06: DRIVE_RESET DRIVE_A
+  07: DRIVE_UNMOUNT DRIVE_A
+  08: DRIVE_MOUNT DRIVE_A, "c64u:/Games/game.d64", TYPE_D64, MODE_READONLY
+  09: DRIVE_ROM DRIVE_B, "c64u:/ROMs/1571.rom"
+  10: DRIVE_MODE DRIVE_B, MODE_1581
+  11: DRIVE_BUS_ID DRIVE_A, 8
+  12: STOP
+trace:
+- line: 2
+  content: "X$ = DRIVE$(DRIVE_A, PROP_ENABLED)"
+  variables: {}
+- line: 3
+  content: "WAIT 1ms"
+  variables:
+    X$: "true"
+- line: 4
+  content: "DRIVE_ON DRIVE_A"
+  variables:
+    X$: "true"
+- line: 5
+  content: "DRIVE_OFF DRIVE_A"
+  variables:
+    X$: "true"
+- line: 6
+  content: "DRIVE_RESET DRIVE_A"
+  variables:
+    X$: "true"
+- line: 7
+  content: "DRIVE_UNMOUNT DRIVE_A"
+  variables:
+    X$: "true"
+- line: 8
+  content: "DRIVE_MOUNT DRIVE_A, \"c64u:/Games/game.d64\", TYPE_D64, MODE_READONLY"
+  variables:
+    X$: "true"
+- line: 9
+  content: "DRIVE_ROM DRIVE_B, \"c64u:/ROMs/1571.rom\""
+  variables:
+    X$: "true"
+- line: 10
+  content: "DRIVE_MODE DRIVE_B, MODE_1581"
+  variables:
+    X$: "true"
+- line: 11
+  content: "DRIVE_BUS_ID DRIVE_A, 8"
+  variables:
+    X$: "true"
+- line: 12
+  content: "STOP"
+  variables:
+    X$: "true"

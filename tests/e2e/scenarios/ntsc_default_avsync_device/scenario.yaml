@@ -17,7 +17,7 @@ overrides:
   dns_server_ip: 192.168.1.1
   auto_detect_ip: true
   obs_ip_address: ""
-  record_av_sync: false
+  record_av_sync: true
   record_csv: true
   record_video: false
   record_frames: false

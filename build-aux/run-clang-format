@@ -119,6 +119,9 @@ main() {
 
     local num_failures=0
     for file in $files; do
+      if [[ $file == */libfuzzer/* ]]; then
+        continue
+      fi
       if [[ -f $file ]]; then
         if ! $formatter --dry-run --Werror -style=file -fallback-style=none "$file" &>/dev/null; then
           echo "❌ File $file is not correctly formatted" >&2
@@ -148,6 +151,9 @@ main() {
     fi
 
     for file in $files; do
+      if [[ $file == */libfuzzer/* ]]; then
+        continue
+      fi
       if [[ -f $file ]]; then
         echo "Formatting $file" >&2
         $formatter -style=file -fallback-style=none -i "$file"

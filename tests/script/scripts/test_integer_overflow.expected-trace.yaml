@@ -1,0 +1,33 @@
+# Execution trace
+script: "test_integer_overflow.c64script"
+status: success
+error: ~
+program: |
+  1: rem Test integer overflow behavior for % variables
+  2: I% = 3000000000
+  3: if I% = -1294967296 then
+  4:     palette "colodore"
+  5: else
+  6:     poke "bad", 1
+  7: endif
+  8: stop
+trace:
+- line: 2
+  content: "I% = 3000000000"
+  variables: {}
+- line: 3
+  content: "if I% = -1294967296 then"
+  variables:
+    I%: -1294967296
+- line: 4
+  content: "palette \"colodore\""
+  variables:
+    I%: -1294967296
+- line: 3
+  content: "if I% = -1294967296 then"
+  variables:
+    I%: -1294967296
+- line: 8
+  content: "stop"
+  variables:
+    I%: -1294967296

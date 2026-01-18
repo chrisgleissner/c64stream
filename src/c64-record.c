@@ -38,6 +38,181 @@ struct c64_rest_job {
     char prg_path[1024];
 };
 
+static const char *C64_AUDIO_MIXER_CATEGORY = "Audio Mixer";
+static const char *C64_AUDIO_MIXER_ZERO_DB_1 = " 0 dB";
+static const char *C64_AUDIO_MIXER_ZERO_DB_2 = "0 dB";
+
+static void c64_audio_mixer_snapshot_clear(struct c64_source *context)
+{
+    if (!context) {
+        return;
+    }
+
+    if (context->audio_mixer_snapshot_items || context->audio_mixer_snapshot_values) {
+        for (size_t i = 0; i < context->audio_mixer_snapshot_count; i++) {
+            free(context->audio_mixer_snapshot_items ? context->audio_mixer_snapshot_items[i] : NULL);
+            free(context->audio_mixer_snapshot_values ? context->audio_mixer_snapshot_values[i] : NULL);
+        }
+    }
+
+    free(context->audio_mixer_snapshot_items);
+    free(context->audio_mixer_snapshot_values);
+    context->audio_mixer_snapshot_items = NULL;
+    context->audio_mixer_snapshot_values = NULL;
+    context->audio_mixer_snapshot_count = 0;
+    context->audio_mixer_snapshot_active = false;
+}
+
+static const char *c64_audio_mixer_find_zero_db(char **options, size_t count)
+{
+    for (size_t i = 0; i < count; i++) {
+        if (!options[i]) {
+            continue;
+        }
+        if (strcmp(options[i], C64_AUDIO_MIXER_ZERO_DB_1) == 0) {
+            return C64_AUDIO_MIXER_ZERO_DB_1;
+        }
+        if (strcmp(options[i], C64_AUDIO_MIXER_ZERO_DB_2) == 0) {
+            return C64_AUDIO_MIXER_ZERO_DB_2;
+        }
+    }
+    return NULL;
+}
+
+static bool c64_audio_mixer_snapshot_apply_zero_db(struct c64_source *context)
+{
+    if (!context || !context->rest_client) {
+        return false;
+    }
+
+    if (context->audio_mixer_snapshot_active) {
+        return true;
+    }
+
+    char **items = NULL;
+    size_t item_count = 0;
+    if (!c64_rest_config_list(context->rest_client, C64_AUDIO_MIXER_CATEGORY, &items, &item_count)) {
+        C64_LOG_WARNING("" RECORD_LOG_PREFIX " Failed to list Audio Mixer items: %s",
+                        c64_rest_get_error(context->rest_client));
+        return false;
+    }
+
+    context->audio_mixer_snapshot_items = calloc(item_count, sizeof(char *));
+    context->audio_mixer_snapshot_values = calloc(item_count, sizeof(char *));
+    if (!context->audio_mixer_snapshot_items || !context->audio_mixer_snapshot_values) {
+        C64_LOG_WARNING("" RECORD_LOG_PREFIX " Failed to allocate Audio Mixer snapshot storage");
+        c64_rest_string_list_free(items, item_count);
+        c64_audio_mixer_snapshot_clear(context);
+        return false;
+    }
+
+    size_t stored = 0;
+    for (size_t i = 0; i < item_count; i++) {
+        if (!items[i] || items[i][0] == '\0') {
+            continue;
+        }
+
+        char **options = NULL;
+        size_t option_count = 0;
+        if (!c64_rest_config_list_options(context->rest_client, C64_AUDIO_MIXER_CATEGORY, items[i], &options,
+                                          &option_count)) {
+            continue;
+        }
+
+        const char *zero_db = c64_audio_mixer_find_zero_db(options, option_count);
+        if (!zero_db) {
+            c64_rest_string_list_free(options, option_count);
+            continue;
+        }
+
+        char current_value[128] = {0};
+        if (!c64_rest_config_get_value(context->rest_client, C64_AUDIO_MIXER_CATEGORY, items[i], current_value,
+                                       sizeof(current_value))) {
+            c64_rest_string_list_free(options, option_count);
+            continue;
+        }
+
+        context->audio_mixer_snapshot_items[stored] = strdup(items[i]);
+        context->audio_mixer_snapshot_values[stored] = strdup(current_value);
+        if (!context->audio_mixer_snapshot_items[stored] || !context->audio_mixer_snapshot_values[stored]) {
+            c64_rest_string_list_free(options, option_count);
+            c64_rest_string_list_free(items, item_count);
+            c64_audio_mixer_snapshot_clear(context);
+            return false;
+        }
+
+        stored++;
+
+        if (strcmp(current_value, zero_db) != 0) {
+            if (!c64_rest_config_set_value(context->rest_client, C64_AUDIO_MIXER_CATEGORY, items[i], zero_db)) {
+                C64_LOG_WARNING("" RECORD_LOG_PREFIX " Failed to set %s/%s to %s: %s", C64_AUDIO_MIXER_CATEGORY,
+                                items[i], zero_db, c64_rest_get_error(context->rest_client));
+            }
+        }
+
+        c64_rest_string_list_free(options, option_count);
+    }
+
+    c64_rest_string_list_free(items, item_count);
+
+    context->audio_mixer_snapshot_count = stored;
+    context->audio_mixer_snapshot_active = (stored > 0);
+    if (context->audio_mixer_snapshot_active) {
+        C64_LOG_INFO("" RECORD_LOG_PREFIX " Audio Mixer volumes forced to 0 dB (%zu entries)", stored);
+    }
+
+    if (!context->audio_mixer_snapshot_active) {
+        c64_audio_mixer_snapshot_clear(context);
+    }
+
+    return context->audio_mixer_snapshot_active;
+}
+
+static void c64_audio_mixer_snapshot_restore(struct c64_source *context)
+{
+    if (!context) {
+        return;
+    }
+
+    if (!context->audio_mixer_snapshot_active) {
+        c64_audio_mixer_snapshot_clear(context);
+        return;
+    }
+
+    if (!context->rest_client) {
+        c64_audio_mixer_snapshot_clear(context);
+        return;
+    }
+
+    for (size_t i = 0; i < context->audio_mixer_snapshot_count; i++) {
+        const char *item = context->audio_mixer_snapshot_items[i];
+        const char *value = context->audio_mixer_snapshot_values[i];
+        if (!item || !value) {
+            continue;
+        }
+        if (!c64_rest_config_set_value(context->rest_client, C64_AUDIO_MIXER_CATEGORY, item, value)) {
+            C64_LOG_WARNING("" RECORD_LOG_PREFIX " Failed to restore %s/%s to %s: %s", C64_AUDIO_MIXER_CATEGORY, item,
+                            value, c64_rest_get_error(context->rest_client));
+        }
+    }
+
+    C64_LOG_INFO("" RECORD_LOG_PREFIX " Audio Mixer volumes restored");
+    c64_audio_mixer_snapshot_clear(context);
+}
+
+void c64_record_on_rest_client_ready(struct c64_source *context)
+{
+    if (!context) {
+        return;
+    }
+
+    if (context->record_av_sync && !context->audio_mixer_snapshot_active) {
+        if (!c64_audio_mixer_snapshot_apply_zero_db(context)) {
+            C64_LOG_WARNING("" RECORD_LOG_PREFIX " Audio Mixer 0 dB enforcement skipped or failed");
+        }
+    }
+}
+
 static bool c64_rest_read_file_to_buffer(const char *path, uint8_t **out_data, size_t *out_size)
 {
     if (!path || !out_data || !out_size) {
@@ -677,6 +852,11 @@ void c64_record_init(struct c64_source *context)
     os_atomic_store_long(&context->recorded_frames, 0);
     os_atomic_store_long(&context->recorded_audio_samples, 0);
 
+    context->audio_mixer_snapshot_items = NULL;
+    context->audio_mixer_snapshot_values = NULL;
+    context->audio_mixer_snapshot_count = 0;
+    context->audio_mixer_snapshot_active = false;
+
     // Initialize recording mutex
     if (pthread_mutex_init(&context->recording_mutex, NULL) != 0) {
         C64_LOG_ERROR("" RECORD_LOG_PREFIX " Failed to initialize recording mutex");
@@ -689,6 +869,8 @@ void c64_record_init(struct c64_source *context)
  */
 void c64_record_cleanup(struct c64_source *context)
 {
+    c64_audio_mixer_snapshot_restore(context);
+
     if (pthread_mutex_lock(&context->recording_mutex) == 0) {
         if (context->video_file) {
             fclose(context->video_file);
@@ -780,6 +962,9 @@ void c64_record_update_settings(struct c64_source *context, void *settings_ptr)
         C64_LOG_INFO("" RECORD_LOG_PREFIX " record_av_sync changed from %d to %d", old_record_av_sync,
                      new_record_av_sync);
         if (new_record_av_sync) {
+            if (!c64_audio_mixer_snapshot_apply_zero_db(context)) {
+                C64_LOG_WARNING("" RECORD_LOG_PREFIX " Audio Mixer 0 dB enforcement skipped or failed");
+            }
             c64_start_av_sync_csv_recording(context);
 
             // Only enable recording after the file is created, to avoid FILE* races in background loggers.
@@ -805,6 +990,7 @@ void c64_record_update_settings(struct c64_source *context, void *settings_ptr)
                 }
             }
         } else {
+            c64_audio_mixer_snapshot_restore(context);
             // Disable first so background threads won't attempt to write while we close.
             pthread_mutex_lock(&context->recording_mutex);
             context->record_av_sync = false;

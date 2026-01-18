@@ -55,7 +55,7 @@ These settings work out-of-the-box with most C64 Ultimate setups. You can overri
 
 In the following instructions, replace `$VERSION` with the latest released version as shown on the [Releases](../../releases) page.
 
-#### Windows (X64) 
+#### Windows (X64)
 
 The following applies if you have an Intel or AMD CPU. It has been verified to work on Windows 11:
 

@@ -204,40 +204,35 @@ trace:
     MESSAGE$: "Test message from script"
     VALUE: 123.45
     I: 6
-    CONTENT$: "Hello World
-Line 2Test message from script"
+    CONTENT$: "Hello World\nLine 2Test message from script"
 - line: 33
   content: "LOG \"File content: \" + CONTENT$"
   variables:
     MESSAGE$: "Test message from script"
     VALUE: 123.45
     I: 6
-    CONTENT$: "Hello World
-Line 2Test message from script"
+    CONTENT$: "Hello World\nLine 2Test message from script"
 - line: 34
   content: "wait 100ms"
   variables:
     MESSAGE$: "Test message from script"
     VALUE: 123.45
     I: 6
-    CONTENT$: "Hello World
-Line 2Test message from script"
+    CONTENT$: "Hello World\nLine 2Test message from script"
 - line: 37
   content: "READFILE \"numbers.txt\", NUM_STR$"
   variables:
     MESSAGE$: "Test message from script"
     VALUE: 123.45
     I: 6
-    CONTENT$: "Hello World
-Line 2Test message from script"
+    CONTENT$: "Hello World\nLine 2Test message from script"
 - line: 38
   content: "NUM = VAL(NUM_STR$)"
   variables:
     MESSAGE$: "Test message from script"
     VALUE: 123.45
     I: 6
-    CONTENT$: "Hello World
-Line 2Test message from script"
+    CONTENT$: "Hello World\nLine 2Test message from script"
     NUM_STR$: "123.45"
 - line: 39
   content: "if NUM > 100 then"
@@ -245,8 +240,7 @@ Line 2Test message from script"
     MESSAGE$: "Test message from script"
     VALUE: 123.45
     I: 6
-    CONTENT$: "Hello World
-Line 2Test message from script"
+    CONTENT$: "Hello World\nLine 2Test message from script"
     NUM_STR$: "123.45"
     NUM: 123.45
 - line: 40
@@ -255,8 +249,7 @@ Line 2Test message from script"
     MESSAGE$: "Test message from script"
     VALUE: 123.45
     I: 6
-    CONTENT$: "Hello World
-Line 2Test message from script"
+    CONTENT$: "Hello World\nLine 2Test message from script"
     NUM_STR$: "123.45"
     NUM: 123.45
 - line: 39
@@ -265,8 +258,7 @@ Line 2Test message from script"
     MESSAGE$: "Test message from script"
     VALUE: 123.45
     I: 6
-    CONTENT$: "Hello World
-Line 2Test message from script"
+    CONTENT$: "Hello World\nLine 2Test message from script"
     NUM_STR$: "123.45"
     NUM: 123.45
 - line: 44
@@ -275,8 +267,7 @@ Line 2Test message from script"
     MESSAGE$: "Test message from script"
     VALUE: 123.45
     I: 6
-    CONTENT$: "Hello World
-Line 2Test message from script"
+    CONTENT$: "Hello World\nLine 2Test message from script"
     NUM_STR$: "123.45"
     NUM: 123.45
 - line: 47
@@ -285,8 +276,7 @@ Line 2Test message from script"
     MESSAGE$: "Test message from script"
     VALUE: 123.45
     I: 6
-    CONTENT$: "Hello World
-Line 2Test message from script"
+    CONTENT$: "Hello World\nLine 2Test message from script"
     NUM_STR$: "123.45"
     NUM: 123.45
 - line: 48
@@ -295,8 +285,7 @@ Line 2Test message from script"
     MESSAGE$: "Test message from script"
     VALUE: 123.45
     I: 6
-    CONTENT$: "Hello World
-Line 2Test message from script"
+    CONTENT$: "Hello World\nLine 2Test message from script"
     NUM_STR$: "123.45"
     NUM: 123.45
 - line: 49
@@ -305,8 +294,7 @@ Line 2Test message from script"
     MESSAGE$: "Test message from script"
     VALUE: 123.45
     I: 6
-    CONTENT$: "Hello World
-Line 2Test message from script"
+    CONTENT$: "Hello World\nLine 2Test message from script"
     NUM_STR$: "123.45"
     NUM: 123.45
 - line: 50
@@ -315,8 +303,7 @@ Line 2Test message from script"
     MESSAGE$: "Test message from script"
     VALUE: 123.45
     I: 6
-    CONTENT$: "Hello World
-Line 2Test message from script"
+    CONTENT$: "Hello World\nLine 2Test message from script"
     NUM_STR$: "123.45"
     NUM: 123.45
 - line: 53
@@ -325,8 +312,7 @@ Line 2Test message from script"
     MESSAGE$: "Test message from script"
     VALUE: 123.45
     I: 6
-    CONTENT$: "Hello World
-Line 2Test message from script"
+    CONTENT$: "Hello World\nLine 2Test message from script"
     NUM_STR$: "123.45"
     NUM: 123.45
 - line: 54
@@ -335,25 +321,17 @@ Line 2Test message from script"
     MESSAGE$: "Test message from script"
     VALUE: 123.45
     I: 6
-    CONTENT$: "Hello World
-Line 2Test message from script"
+    CONTENT$: "Hello World\nLine 2Test message from script"
     NUM_STR$: "123.45"
     NUM: 123.45
-    CONFIG$: "host=192.168.1.64
-port=8080
-timeout=5000
-"
+    CONFIG$: "host=192.168.1.64\nport=8080\ntimeout=5000\n"
 - line: 56
   content: "stop"
   variables:
     MESSAGE$: "Test message from script"
     VALUE: 123.45
     I: 6
-    CONTENT$: "Hello World
-Line 2Test message from script"
+    CONTENT$: "Hello World\nLine 2Test message from script"
     NUM_STR$: "123.45"
     NUM: 123.45
-    CONFIG$: "host=192.168.1.64
-port=8080
-timeout=5000
-"
+    CONFIG$: "host=192.168.1.64\nport=8080\ntimeout=5000\n"

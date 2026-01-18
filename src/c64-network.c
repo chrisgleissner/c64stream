@@ -267,6 +267,67 @@ bool c64_detect_local_ip(char *ip_buffer, size_t buffer_size)
 #endif
 }
 
+bool c64_detect_local_ip_for_host(const char *remote_host, const char *custom_dns_server, char *ip_buffer,
+                                  size_t buffer_size)
+{
+    if (!remote_host || remote_host[0] == '\0' || !ip_buffer || buffer_size < 16) {
+        return false;
+    }
+
+    char remote_ip[64];
+    if (!c64_resolve_hostname_with_dns(remote_host, custom_dns_server, remote_ip, sizeof(remote_ip))) {
+        C64_LOG_WARNING("" NETWORK_LOG_PREFIX " Failed to resolve %s for IP auto-detection", remote_host);
+        return false;
+    }
+
+    struct sockaddr_in remote_addr;
+    memset(&remote_addr, 0, sizeof(remote_addr));
+    remote_addr.sin_family = AF_INET;
+    remote_addr.sin_port = htons(9);
+    if (inet_pton(AF_INET, remote_ip, &remote_addr.sin_addr) != 1) {
+        C64_LOG_WARNING("" NETWORK_LOG_PREFIX " Invalid resolved IP for %s: %s", remote_host, remote_ip);
+        return false;
+    }
+
+    socket_t sock = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sock == INVALID_SOCKET_VALUE) {
+        int error = c64_get_socket_error();
+        C64_LOG_WARNING("" NETWORK_LOG_PREFIX " Failed to create UDP socket for IP auto-detection: %s",
+                        c64_get_socket_error_string(error));
+        return false;
+    }
+
+    if (connect(sock, (struct sockaddr *)&remote_addr, sizeof(remote_addr)) != 0) {
+        int error = c64_get_socket_error();
+        C64_LOG_WARNING("" NETWORK_LOG_PREFIX " Failed to connect UDP socket for IP auto-detection: %s",
+                        c64_get_socket_error_string(error));
+        close(sock);
+        return false;
+    }
+
+    struct sockaddr_in local_addr;
+    socklen_t local_len = sizeof(local_addr);
+    if (getsockname(sock, (struct sockaddr *)&local_addr, &local_len) != 0) {
+        int error = c64_get_socket_error();
+        C64_LOG_WARNING("" NETWORK_LOG_PREFIX " Failed to query local IP for %s: %s", remote_host,
+                        c64_get_socket_error_string(error));
+        close(sock);
+        return false;
+    }
+
+    if (inet_ntop(AF_INET, &local_addr.sin_addr, ip_buffer, (socklen_t)buffer_size) == NULL) {
+        int error = c64_get_socket_error();
+        C64_LOG_WARNING("" NETWORK_LOG_PREFIX " Failed to format local IP for %s: %s", remote_host,
+                        c64_get_socket_error_string(error));
+        close(sock);
+        return false;
+    }
+
+    close(sock);
+    C64_LOG_INFO("" NETWORK_LOG_PREFIX " Detected route-based OBS IP address: %s (target: %s)", ip_buffer, remote_host);
+    return true;
+}
+
 void c64_cleanup_networking(void)
 {
 #ifdef _WIN32

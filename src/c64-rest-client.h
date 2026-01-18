@@ -45,6 +45,24 @@ bool c64_rest_reset(c64_rest_client_t *client);
 bool c64_rest_reboot(c64_rest_client_t *client);
 
 /**
+ * Pause CPU execution
+ * PUT /v1/machine:pause
+ */
+bool c64_rest_pause(c64_rest_client_t *client);
+
+/**
+ * Resume CPU execution
+ * PUT /v1/machine:resume
+ */
+bool c64_rest_resume(c64_rest_client_t *client);
+
+/**
+ * Power off machine
+ * PUT /v1/machine:poweroff
+ */
+bool c64_rest_poweroff(c64_rest_client_t *client);
+
+/**
  * Read memory via DMA
  * GET /v1/machine:readmem?address=<hex>&length=<dec>
  * @param address Memory address (hex, e.g. 0x00C6)
@@ -147,6 +165,117 @@ bool c64_rest_mount_disk(c64_rest_client_t *client, char drive, const char *type
  * @param c64u_path Path to disk image on C64U filesystem
  */
 bool c64_rest_mount_disk_path(c64_rest_client_t *client, char drive, const char *c64u_path);
+
+/**
+ * Get drive property value from /v1/drives
+ */
+bool c64_rest_drive_get_property(c64_rest_client_t *client, const char *drive, const char *property, char *out_value,
+                                 size_t out_size);
+
+/**
+ * Mount an image from the C64U filesystem
+ * PUT /v1/drives/{drive}:mount?image=<path>&type=<type>&mode=<mode>
+ */
+bool c64_rest_drive_mount_image(c64_rest_client_t *client, const char *drive, const char *c64u_path, const char *type,
+                                const char *mode);
+
+/**
+ * Mount an uploaded image
+ * POST /v1/drives/{drive}:mount?type=<type>&mode=<mode>
+ */
+bool c64_rest_drive_mount_upload(c64_rest_client_t *client, const char *drive, const char *type, const char *mode,
+                                 const uint8_t *data, size_t size);
+
+/**
+ * Unmount drive image
+ * PUT /v1/drives/{drive}:remove
+ */
+bool c64_rest_drive_unmount(c64_rest_client_t *client, const char *drive);
+
+/**
+ * Reset drive
+ * PUT /v1/drives/{drive}:reset
+ */
+bool c64_rest_drive_reset(c64_rest_client_t *client, const char *drive);
+
+/**
+ * Turn drive on
+ * PUT /v1/drives/{drive}:on
+ */
+bool c64_rest_drive_on(c64_rest_client_t *client, const char *drive);
+
+/**
+ * Turn drive off
+ * PUT /v1/drives/{drive}:off
+ */
+bool c64_rest_drive_off(c64_rest_client_t *client, const char *drive);
+
+/**
+ * Load ROM from C64U filesystem
+ * PUT /v1/drives/{drive}:load_rom?file=<path>
+ */
+bool c64_rest_drive_load_rom_image(c64_rest_client_t *client, const char *drive, const char *c64u_path);
+
+/**
+ * Load uploaded ROM
+ * POST /v1/drives/{drive}:load_rom
+ */
+bool c64_rest_drive_load_rom_upload(c64_rest_client_t *client, const char *drive, const uint8_t *data, size_t size);
+
+/**
+ * Set drive mode
+ * PUT /v1/drives/{drive}:set_mode
+ */
+bool c64_rest_drive_set_mode(c64_rest_client_t *client, const char *drive, const char *mode);
+
+/**
+ * Read config item value
+ * GET /v1/configs/{category}/{item}
+ */
+bool c64_rest_config_get_value(c64_rest_client_t *client, const char *category, const char *item, char *out_value,
+                               size_t out_size);
+
+/**
+ * Set config item value
+ * PUT /v1/configs/{category}/{item}?value=<value>
+ */
+bool c64_rest_config_set_value(c64_rest_client_t *client, const char *category, const char *item, const char *value);
+
+/**
+ * List config categories or items in category
+ * GET /v1/configs or /v1/configs/{category}
+ */
+bool c64_rest_config_list(c64_rest_client_t *client, const char *category, char ***items, size_t *count);
+
+/**
+ * List config options for a specific item
+ * GET /v1/configs/{category}/{item}
+ */
+bool c64_rest_config_list_options(c64_rest_client_t *client, const char *category, const char *item, char ***options,
+                                  size_t *count);
+
+/**
+ * Save configuration to flash
+ * PUT /v1/configs:save_to_flash
+ */
+bool c64_rest_config_save(c64_rest_client_t *client);
+
+/**
+ * Load configuration from flash
+ * PUT /v1/configs:load_from_flash
+ */
+bool c64_rest_config_load(c64_rest_client_t *client);
+
+/**
+ * Reset configuration to defaults
+ * PUT /v1/configs:reset_to_default
+ */
+bool c64_rest_config_reset(c64_rest_client_t *client);
+
+/**
+ * Free a list returned by config list helpers.
+ */
+void c64_rest_string_list_free(char **items, size_t count);
 
 /**
  * Get last error message

@@ -25,6 +25,8 @@ NEED_E2E_DEPS=false
 E2E_NO_XVFB=false
 VERBOSE=false
 DEBUG_LOGS=false
+RUN_FUZZ=0
+FUZZ_TIME_SECONDS_OVERRIDE=""
 
 # Colors for output
 RED='\033[0;31m'
@@ -175,12 +177,13 @@ usage() {
     cat << EOF
 C64 Stream - Local Multi-Platform Build Script
 
-Usage: $0 <platform> [options]
+Usage: $0 [platform] [options]
 
 PLATFORMS:
     linux       Build for Linux (Ubuntu/Debian)
     macos       Build for macOS (requires Xcode)
     windows     Build for Windows (requires MinGW or native tools)
+    (omit)      Auto-detect platform
 
 OPTIONS:
     --config CONFIG     Build configuration: Debug, Release, RelWithDebInfo, MinSizeRel
@@ -198,6 +201,7 @@ OPTIONS:
     --no-xvfb           Run E2E tests without starting Xvfb (uses current DISPLAY)
     --verbose           Enable verbose output
     --debug-logs        Enable debug logging for C64Script tests
+    --fuzz[=SECONDS]    Run C64Script fuzzing (default: 60s; override with seconds)
     --help              Show this help message
 
 EXAMPLES:
@@ -208,6 +212,9 @@ EXAMPLES:
     $0 windows --clean --install-deps          # Clean build for Windows, install deps
     $0 linux --install-e2e-deps --e2e          # Install all deps including E2E and run E2E tests
     $0 linux --e2e-results                     # Regenerate the E2E results README
+    $0 --fuzz                                  # Build and run 60s fuzzing (default)
+    $0 --fuzz=600                              # Build and run 10-minute fuzzing
+    RUN_FUZZ=1 FUZZ_TIME_SECONDS=30 $0 linux   # Run fuzzing for 30 seconds
     $0 macos --verbose                          # Build for macOS with verbose output
 
 NOTES:
@@ -1485,6 +1492,24 @@ main() {
                 DEBUG_LOGS=true
                 shift
                 ;;
+            --fuzz)
+                RUN_FUZZ=1
+                shift
+                ;;
+            --fuzz=*)
+                RUN_FUZZ=1
+                FUZZ_TIME_SECONDS_OVERRIDE="${1#--fuzz=}"
+                if [[ -z "$FUZZ_TIME_SECONDS_OVERRIDE" || ! "$FUZZ_TIME_SECONDS_OVERRIDE" =~ ^[0-9]+$ ]]; then
+                    log_error "Invalid fuzz duration: $FUZZ_TIME_SECONDS_OVERRIDE"
+                    log_info "Use --fuzz=SECONDS with a positive integer value"
+                    exit 1
+                fi
+                if [[ "$FUZZ_TIME_SECONDS_OVERRIDE" -le 0 ]]; then
+                    log_error "Fuzz duration must be greater than zero"
+                    exit 1
+                fi
+                shift
+                ;;
             --verbose)
                 VERBOSE=true
                 DEBUG_LOGS=true
@@ -1621,6 +1646,15 @@ main() {
             fi
         else
             log_warning "Script tests not yet implemented for $PLATFORM"
+        fi
+    fi
+
+    if [ "${RUN_FUZZ:-0}" = "1" ]; then
+        log_info "Running C64Script fuzzing..."
+        if [[ -n "$FUZZ_TIME_SECONDS_OVERRIDE" ]]; then
+            FUZZ_TIME_SECONDS="$FUZZ_TIME_SECONDS_OVERRIDE" "$PROJECT_ROOT/tests/script/fuzz/fuzz.sh"
+        else
+            "$PROJECT_ROOT/tests/script/fuzz/fuzz.sh"
         fi
     fi
 

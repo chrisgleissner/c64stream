@@ -1,0 +1,16 @@
+REM U64 config commands
+DIM CATS$(3)
+DIM ITEMS$(3)
+DIM OPTS$(3)
+COUNT = CFG_ITEM$(CATS$())
+WAIT 1ms
+COUNT2 = CFG_ITEM$("Audio Mixer", ITEMS$())
+WAIT 1ms
+COUNT3 = CFG_OPTIONS$("Audio Mixer","Vol Sid Socket 1", OPTS$())
+WAIT 1ms
+VAL$ = CFG$("Audio Mixer","Vol Sid Socket 1")
+CFG "Audio Mixer","Vol Sid Socket 1","60"
+CFGSAVE
+CFGLOAD
+CFGRESET
+STOP

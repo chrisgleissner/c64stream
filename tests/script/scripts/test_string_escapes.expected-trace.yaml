@@ -48,84 +48,84 @@ trace:
 - line: 5
   content: "QUOTE_LEN = LEN(QUOTE$)"
   variables:
-    QUOTE$: "He said "RUN"."
+    QUOTE$: "He said \"RUN\"."
 - line: 6
   content: "QUOTE_MARK = ASC(MID$(QUOTE$, 9, 1))"
   variables:
-    QUOTE$: "He said "RUN"."
+    QUOTE$: "He said \"RUN\"."
     QUOTE_LEN: 14
 - line: 8
   content: "PATH$ = \"C:\\\\Temp\\\\file.txt\""
   variables:
-    QUOTE$: "He said "RUN"."
+    QUOTE$: "He said \"RUN\"."
     QUOTE_LEN: 14
     QUOTE_MARK: 34
 - line: 9
   content: "PATH_SLASH = ASC(MID$(PATH$, 3, 1))"
   variables:
-    QUOTE$: "He said "RUN"."
+    QUOTE$: "He said \"RUN\"."
     QUOTE_LEN: 14
     QUOTE_MARK: 34
-    PATH$: "C:\Temp\file.txt"
+    PATH$: "C:\\Temp\\file.txt"
 - line: 11
   content: "TAB$ = \"Tab:\\tX\""
   variables:
-    QUOTE$: "He said "RUN"."
+    QUOTE$: "He said \"RUN\"."
     QUOTE_LEN: 14
     QUOTE_MARK: 34
-    PATH$: "C:\Temp\file.txt"
+    PATH$: "C:\\Temp\\file.txt"
     PATH_SLASH: 92
 - line: 12
   content: "TAB_CODE = ASC(MID$(TAB$, 5, 1))"
   variables:
-    QUOTE$: "He said "RUN"."
+    QUOTE$: "He said \"RUN\"."
     QUOTE_LEN: 14
     QUOTE_MARK: 34
-    PATH$: "C:\Temp\file.txt"
+    PATH$: "C:\\Temp\\file.txt"
     PATH_SLASH: 92
-    TAB$: "Tab:	X"
+    TAB$: "Tab:\tX"
 - line: 13
   content: "TAB_LEN = LEN(TAB$)"
   variables:
-    QUOTE$: "He said "RUN"."
+    QUOTE$: "He said \"RUN\"."
     QUOTE_LEN: 14
     QUOTE_MARK: 34
-    PATH$: "C:\Temp\file.txt"
+    PATH$: "C:\\Temp\\file.txt"
     PATH_SLASH: 92
-    TAB$: "Tab:	X"
+    TAB$: "Tab:\tX"
     TAB_CODE: 9
 - line: 15
   content: "HEX$ = \"Hex:\\x41\\x42\""
   variables:
-    QUOTE$: "He said "RUN"."
+    QUOTE$: "He said \"RUN\"."
     QUOTE_LEN: 14
     QUOTE_MARK: 34
-    PATH$: "C:\Temp\file.txt"
+    PATH$: "C:\\Temp\\file.txt"
     PATH_SLASH: 92
-    TAB$: "Tab:	X"
+    TAB$: "Tab:\tX"
     TAB_CODE: 9
     TAB_LEN: 6
 - line: 16
   content: "HEX_A = ASC(MID$(HEX$, 5, 1))"
   variables:
-    QUOTE$: "He said "RUN"."
+    QUOTE$: "He said \"RUN\"."
     QUOTE_LEN: 14
     QUOTE_MARK: 34
-    PATH$: "C:\Temp\file.txt"
+    PATH$: "C:\\Temp\\file.txt"
     PATH_SLASH: 92
-    TAB$: "Tab:	X"
+    TAB$: "Tab:\tX"
     TAB_CODE: 9
     TAB_LEN: 6
     HEX$: "Hex:AB"
 - line: 17
   content: "HEX_B = ASC(MID$(HEX$, 6, 1))"
   variables:
-    QUOTE$: "He said "RUN"."
+    QUOTE$: "He said \"RUN\"."
     QUOTE_LEN: 14
     QUOTE_MARK: 34
-    PATH$: "C:\Temp\file.txt"
+    PATH$: "C:\\Temp\\file.txt"
     PATH_SLASH: 92
-    TAB$: "Tab:	X"
+    TAB$: "Tab:\tX"
     TAB_CODE: 9
     TAB_LEN: 6
     HEX$: "Hex:AB"
@@ -133,12 +133,12 @@ trace:
 - line: 19
   content: "WAIT 0.1 s"
   variables:
-    QUOTE$: "He said "RUN"."
+    QUOTE$: "He said \"RUN\"."
     QUOTE_LEN: 14
     QUOTE_MARK: 34
-    PATH$: "C:\Temp\file.txt"
+    PATH$: "C:\\Temp\\file.txt"
     PATH_SLASH: 92
-    TAB$: "Tab:	X"
+    TAB$: "Tab:\tX"
     TAB_CODE: 9
     TAB_LEN: 6
     HEX$: "Hex:AB"
@@ -147,12 +147,12 @@ trace:
 - line: 20
   content: "WAIT UNTIL 0"
   variables:
-    QUOTE$: "He said "RUN"."
+    QUOTE$: "He said \"RUN\"."
     QUOTE_LEN: 14
     QUOTE_MARK: 34
-    PATH$: "C:\Temp\file.txt"
+    PATH$: "C:\\Temp\\file.txt"
     PATH_SLASH: 92
-    TAB$: "Tab:	X"
+    TAB$: "Tab:\tX"
     TAB_CODE: 9
     TAB_LEN: 6
     HEX$: "Hex:AB"
@@ -161,12 +161,12 @@ trace:
 - line: 22
   content: "if QUOTE_LEN = 14 and QUOTE_MARK = 34 then"
   variables:
-    QUOTE$: "He said "RUN"."
+    QUOTE$: "He said \"RUN\"."
     QUOTE_LEN: 14
     QUOTE_MARK: 34
-    PATH$: "C:\Temp\file.txt"
+    PATH$: "C:\\Temp\\file.txt"
     PATH_SLASH: 92
-    TAB$: "Tab:	X"
+    TAB$: "Tab:\tX"
     TAB_CODE: 9
     TAB_LEN: 6
     HEX$: "Hex:AB"
@@ -175,12 +175,12 @@ trace:
 - line: 23
   content: "effect \"Sharp Pixels\""
   variables:
-    QUOTE$: "He said "RUN"."
+    QUOTE$: "He said \"RUN\"."
     QUOTE_LEN: 14
     QUOTE_MARK: 34
-    PATH$: "C:\Temp\file.txt"
+    PATH$: "C:\\Temp\\file.txt"
     PATH_SLASH: 92
-    TAB$: "Tab:	X"
+    TAB$: "Tab:\tX"
     TAB_CODE: 9
     TAB_LEN: 6
     HEX$: "Hex:AB"
@@ -189,12 +189,12 @@ trace:
 - line: 26
   content: "if PATH_SLASH = 92 then"
   variables:
-    QUOTE$: "He said "RUN"."
+    QUOTE$: "He said \"RUN\"."
     QUOTE_LEN: 14
     QUOTE_MARK: 34
-    PATH$: "C:\Temp\file.txt"
+    PATH$: "C:\\Temp\\file.txt"
     PATH_SLASH: 92
-    TAB$: "Tab:	X"
+    TAB$: "Tab:\tX"
     TAB_CODE: 9
     TAB_LEN: 6
     HEX$: "Hex:AB"
@@ -203,12 +203,12 @@ trace:
 - line: 27
   content: "palette \"colodore\""
   variables:
-    QUOTE$: "He said "RUN"."
+    QUOTE$: "He said \"RUN\"."
     QUOTE_LEN: 14
     QUOTE_MARK: 34
-    PATH$: "C:\Temp\file.txt"
+    PATH$: "C:\\Temp\\file.txt"
     PATH_SLASH: 92
-    TAB$: "Tab:	X"
+    TAB$: "Tab:\tX"
     TAB_CODE: 9
     TAB_LEN: 6
     HEX$: "Hex:AB"
@@ -217,12 +217,12 @@ trace:
 - line: 30
   content: "if TAB_CODE = 9 and TAB_LEN = 6 then"
   variables:
-    QUOTE$: "He said "RUN"."
+    QUOTE$: "He said \"RUN\"."
     QUOTE_LEN: 14
     QUOTE_MARK: 34
-    PATH$: "C:\Temp\file.txt"
+    PATH$: "C:\\Temp\\file.txt"
     PATH_SLASH: 92
-    TAB$: "Tab:	X"
+    TAB$: "Tab:\tX"
     TAB_CODE: 9
     TAB_LEN: 6
     HEX$: "Hex:AB"
@@ -231,12 +231,12 @@ trace:
 - line: 31
   content: "palette \"pepto_ntsc\""
   variables:
-    QUOTE$: "He said "RUN"."
+    QUOTE$: "He said \"RUN\"."
     QUOTE_LEN: 14
     QUOTE_MARK: 34
-    PATH$: "C:\Temp\file.txt"
+    PATH$: "C:\\Temp\\file.txt"
     PATH_SLASH: 92
-    TAB$: "Tab:	X"
+    TAB$: "Tab:\tX"
     TAB_CODE: 9
     TAB_LEN: 6
     HEX$: "Hex:AB"
@@ -245,12 +245,12 @@ trace:
 - line: 34
   content: "if HEX_A = 65 and HEX_B = 66 then"
   variables:
-    QUOTE$: "He said "RUN"."
+    QUOTE$: "He said \"RUN\"."
     QUOTE_LEN: 14
     QUOTE_MARK: 34
-    PATH$: "C:\Temp\file.txt"
+    PATH$: "C:\\Temp\\file.txt"
     PATH_SLASH: 92
-    TAB$: "Tab:	X"
+    TAB$: "Tab:\tX"
     TAB_CODE: 9
     TAB_LEN: 6
     HEX$: "Hex:AB"
@@ -259,12 +259,12 @@ trace:
 - line: 35
   content: "effect \"Soft CRT\""
   variables:
-    QUOTE$: "He said "RUN"."
+    QUOTE$: "He said \"RUN\"."
     QUOTE_LEN: 14
     QUOTE_MARK: 34
-    PATH$: "C:\Temp\file.txt"
+    PATH$: "C:\\Temp\\file.txt"
     PATH_SLASH: 92
-    TAB$: "Tab:	X"
+    TAB$: "Tab:\tX"
     TAB_CODE: 9
     TAB_LEN: 6
     HEX$: "Hex:AB"
@@ -273,12 +273,12 @@ trace:
 - line: 38
   content: "stop"
   variables:
-    QUOTE$: "He said "RUN"."
+    QUOTE$: "He said \"RUN\"."
     QUOTE_LEN: 14
     QUOTE_MARK: 34
-    PATH$: "C:\Temp\file.txt"
+    PATH$: "C:\\Temp\\file.txt"
     PATH_SLASH: 92
-    TAB$: "Tab:	X"
+    TAB$: "Tab:\tX"
     TAB_CODE: 9
     TAB_LEN: 6
     HEX$: "Hex:AB"

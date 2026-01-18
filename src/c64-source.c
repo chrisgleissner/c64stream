@@ -366,7 +366,9 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
         C64_LOG_INFO("" NETWORK_LOG_PREFIX " Using configured OBS IP address: %s", context->obs_ip_address);
     } else if (context->auto_detect_ip) {
         // Auto-detect local IP address only if auto-detection is enabled
-        if (c64_detect_local_ip(context->obs_ip_address, sizeof(context->obs_ip_address))) {
+        if (c64_detect_local_ip_for_host(context->hostname, context->dns_server_ip, context->obs_ip_address,
+                                         sizeof(context->obs_ip_address)) ||
+            c64_detect_local_ip(context->obs_ip_address, sizeof(context->obs_ip_address))) {
             C64_LOG_INFO("" NETWORK_LOG_PREFIX " Auto-detected OBS IP address: %s", context->obs_ip_address);
             context->initial_ip_detected = true;
             // Save the detected IP to settings for future use
@@ -712,6 +714,10 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
         context->rest_client = c64_rest_client_create(context->rest_base_url, context->c64_password);
     }
 
+    if (context->rest_client) {
+        c64_record_on_rest_client_ready(context);
+    }
+
     // Load keyboard settings and create keyboard module
     const char *keymap_name = obs_data_get_string(settings, "keyboard_keymap");
     if (keymap_name && keymap_name[0] != '\0') {
@@ -1042,7 +1048,9 @@ void c64_update(void *data, obs_data_t *settings)
     bool new_auto_detect = obs_data_get_bool(settings, "auto_detect_ip");
     if (new_auto_detect && !context->auto_detect_ip) {
         // Checkbox was just enabled - perform auto-detection
-        if (c64_detect_local_ip(context->obs_ip_address, sizeof(context->obs_ip_address))) {
+        if (c64_detect_local_ip_for_host(context->hostname, context->dns_server_ip, context->obs_ip_address,
+                                         sizeof(context->obs_ip_address)) ||
+            c64_detect_local_ip(context->obs_ip_address, sizeof(context->obs_ip_address))) {
             C64_LOG_INFO("" NETWORK_LOG_PREFIX " Auto-detected OBS IP address: %s", context->obs_ip_address);
             // Save the updated IP to settings
             obs_data_set_string(settings, "obs_ip_address", context->obs_ip_address);

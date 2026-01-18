@@ -33,6 +33,377 @@ typedef struct {
     size_t capacity;
 } response_buffer_t;
 
+static const char *skip_json_string(const char *p, const char *end)
+{
+    if (!p || p >= end || *p != '"') {
+        return p;
+    }
+
+    p++;
+    while (p < end) {
+        if (*p == '\\') {
+            p += (p + 1 < end) ? 2 : 1;
+            continue;
+        }
+        if (*p == '"') {
+            return p + 1;
+        }
+        p++;
+    }
+    return end;
+}
+
+static void json_copy_string(const char *start, const char *end, char *out, size_t out_size)
+{
+    if (!out || out_size == 0) {
+        return;
+    }
+    size_t len = (size_t)(end - start);
+    if (len >= out_size) {
+        len = out_size - 1;
+    }
+    memcpy(out, start, len);
+    out[len] = '\0';
+}
+
+static bool json_errors_empty(const char *json, size_t json_len, char *out_error, size_t out_error_size)
+{
+    if (!json) {
+        return true;
+    }
+
+    const char *errors_key = strstr(json, "\"errors\"");
+    if (!errors_key) {
+        return true;
+    }
+    const char *p = strchr(errors_key, '[');
+    if (!p) {
+        return true;
+    }
+    p++;
+    const char *end = json + json_len;
+    while (p < end && isspace((unsigned char)*p)) {
+        p++;
+    }
+    if (p >= end || *p == ']') {
+        return true;
+    }
+
+    if (out_error && out_error_size > 0) {
+        if (*p == '"') {
+            const char *str_start = p + 1;
+            const char *str_end = str_start;
+            while (str_end < end) {
+                if (*str_end == '\\') {
+                    str_end += (str_end + 1 < end) ? 2 : 1;
+                    continue;
+                }
+                if (*str_end == '"') {
+                    break;
+                }
+                str_end++;
+            }
+            json_copy_string(str_start, str_end, out_error, out_error_size);
+        } else {
+            snprintf(out_error, out_error_size, "REST response contained errors");
+        }
+    }
+
+    return false;
+}
+
+static bool parse_json_string_array(const char *json, size_t json_len, const char *key, char ***items, size_t *count)
+{
+    if (!json || !key || !items || !count) {
+        return false;
+    }
+
+    *items = NULL;
+    *count = 0;
+
+    char key_buf[256];
+    snprintf(key_buf, sizeof(key_buf), "\"%s\"", key);
+
+    const char *key_pos = strstr(json, key_buf);
+    if (!key_pos) {
+        return false;
+    }
+
+    const char *p = strchr(key_pos, '[');
+    if (!p) {
+        return false;
+    }
+    p++;
+
+    const char *end = json + json_len;
+    size_t capacity = 8;
+    char **list = calloc(capacity, sizeof(char *));
+    if (!list) {
+        return false;
+    }
+
+    while (p < end) {
+        while (p < end && isspace((unsigned char)*p)) {
+            p++;
+        }
+        if (p >= end || *p == ']') {
+            break;
+        }
+        if (*p != '"') {
+            p++;
+            continue;
+        }
+        const char *str_start = p + 1;
+        const char *str_end = str_start;
+        while (str_end < end) {
+            if (*str_end == '\\') {
+                str_end += (str_end + 1 < end) ? 2 : 1;
+                continue;
+            }
+            if (*str_end == '"') {
+                break;
+            }
+            str_end++;
+        }
+        size_t len = (size_t)(str_end - str_start);
+        char *value = malloc(len + 1);
+        if (!value) {
+            break;
+        }
+        memcpy(value, str_start, len);
+        value[len] = '\0';
+        if (*count >= capacity) {
+            capacity *= 2;
+            char **new_list = realloc(list, capacity * sizeof(char *));
+            if (!new_list) {
+                free(value);
+                break;
+            }
+            list = new_list;
+        }
+        list[*count] = value;
+        (*count)++;
+        p = (str_end < end) ? str_end + 1 : end;
+    }
+
+    if (*count == 0) {
+        free(list);
+        list = NULL;
+    }
+
+    *items = list;
+    return true;
+}
+
+static bool find_object_for_key(const char *json, const char *key, const char **out_start, const char **out_end)
+{
+    if (!json || !key || !out_start || !out_end) {
+        return false;
+    }
+
+    char key_buf[256];
+    snprintf(key_buf, sizeof(key_buf), "\"%s\"", key);
+    const char *key_pos = strstr(json, key_buf);
+    if (!key_pos) {
+        return false;
+    }
+
+    const char *p = strchr(key_pos, '{');
+    if (!p) {
+        return false;
+    }
+
+    const char *start = p;
+    int depth = 0;
+    const char *end = NULL;
+    const char *scan = p;
+    const char *json_end = json + strlen(json);
+
+    while (scan < json_end) {
+        if (*scan == '"') {
+            scan = skip_json_string(scan, json_end);
+            continue;
+        }
+        if (*scan == '{') {
+            depth++;
+        } else if (*scan == '}') {
+            depth--;
+            if (depth == 0) {
+                end = scan;
+                break;
+            }
+        }
+        scan++;
+    }
+
+    if (!end) {
+        return false;
+    }
+
+    *out_start = start;
+    *out_end = end;
+    return true;
+}
+
+static bool parse_object_keys(const char *object_start, const char *object_end, char ***items, size_t *count)
+{
+    if (!object_start || !object_end || !items || !count) {
+        return false;
+    }
+
+    *items = NULL;
+    *count = 0;
+
+    size_t capacity = 8;
+    char **list = calloc(capacity, sizeof(char *));
+    if (!list) {
+        return false;
+    }
+
+    const char *p = object_start;
+    int depth = 0;
+
+    while (p < object_end) {
+        if (*p == '"') {
+            const char *str_start = p + 1;
+            const char *str_end = str_start;
+            while (str_end < object_end) {
+                if (*str_end == '\\') {
+                    str_end += (str_end + 1 < object_end) ? 2 : 1;
+                    continue;
+                }
+                if (*str_end == '"') {
+                    break;
+                }
+                str_end++;
+            }
+
+            if (depth == 1) {
+                const char *after_str = str_end + 1;
+                while (after_str < object_end && isspace((unsigned char)*after_str)) {
+                    after_str++;
+                }
+                if (after_str < object_end && *after_str == ':') {
+                    size_t len = (size_t)(str_end - str_start);
+                    char *value = malloc(len + 1);
+                    if (!value) {
+                        break;
+                    }
+                    memcpy(value, str_start, len);
+                    value[len] = '\0';
+                    if (*count >= capacity) {
+                        capacity *= 2;
+                        char **new_list = realloc(list, capacity * sizeof(char *));
+                        if (!new_list) {
+                            free(value);
+                            break;
+                        }
+                        list = new_list;
+                    }
+                    list[*count] = value;
+                    (*count)++;
+                }
+            }
+
+            p = (str_end < object_end) ? str_end + 1 : object_end;
+            continue;
+        }
+
+        if (*p == '{') {
+            depth++;
+        } else if (*p == '}') {
+            depth--;
+            if (depth == 0) {
+                break;
+            }
+        }
+        p++;
+    }
+
+    if (*count == 0) {
+        free(list);
+        list = NULL;
+    }
+
+    *items = list;
+    return true;
+}
+
+static bool parse_json_token_string(const char *p, const char *end, char *out_value, size_t out_size,
+                                    const char **out_next)
+{
+    if (!p || !end || !out_value || out_size == 0) {
+        return false;
+    }
+
+    while (p < end && isspace((unsigned char)*p)) {
+        p++;
+    }
+    if (p >= end) {
+        return false;
+    }
+
+    if (*p == '"') {
+        const char *str_start = p + 1;
+        const char *str_end = str_start;
+        while (str_end < end) {
+            if (*str_end == '\\') {
+                str_end += (str_end + 1 < end) ? 2 : 1;
+                continue;
+            }
+            if (*str_end == '"') {
+                break;
+            }
+            str_end++;
+        }
+        json_copy_string(str_start, str_end, out_value, out_size);
+        if (out_next) {
+            *out_next = (str_end < end) ? str_end + 1 : end;
+        }
+        return true;
+    }
+
+    const char *token_start = p;
+    while (p < end && !isspace((unsigned char)*p) && *p != ',' && *p != '}' && *p != ']') {
+        p++;
+    }
+    json_copy_string(token_start, p, out_value, out_size);
+    if (out_next) {
+        *out_next = p;
+    }
+    return true;
+}
+
+static bool parse_drive_property(const char *json, const char *drive, const char *property, char *out_value,
+                                 size_t out_size)
+{
+    if (!json || !drive || !property || !out_value || out_size == 0) {
+        return false;
+    }
+
+    out_value[0] = '\0';
+
+    const char *obj_start = NULL;
+    const char *obj_end = NULL;
+    if (!find_object_for_key(json, drive, &obj_start, &obj_end)) {
+        return false;
+    }
+
+    char key_buf[256];
+    snprintf(key_buf, sizeof(key_buf), "\"%s\"", property);
+    const char *key_pos = strstr(obj_start, key_buf);
+    if (!key_pos || key_pos >= obj_end) {
+        return true;
+    }
+
+    const char *colon = strchr(key_pos, ':');
+    if (!colon || colon >= obj_end) {
+        return false;
+    }
+
+    return parse_json_token_string(colon + 1, obj_end, out_value, out_size, NULL);
+}
+
 static const char *c64_strip_c64u_prefix(const char *path)
 {
     if (!path) {
@@ -241,6 +612,39 @@ static bool http_request(c64_rest_client_t *client, const char *method, const ch
     return true;
 }
 
+static bool request_json(c64_rest_client_t *client, const char *method, const char *endpoint, const char *query_params,
+                         char **out_json, size_t *out_len)
+{
+    if (!out_json) {
+        return false;
+    }
+
+    response_buffer_t response = {0};
+    if (!http_request(client, method, endpoint, query_params, NULL, 0, &response)) {
+        free(response.data);
+        return false;
+    }
+
+    char *json = malloc(response.size + 1);
+    if (!json) {
+        free(response.data);
+        snprintf(client->error_msg, sizeof(client->error_msg), "Out of memory");
+        return false;
+    }
+
+    if (response.size > 0) {
+        memcpy(json, response.data, response.size);
+    }
+    json[response.size] = '\0';
+
+    free(response.data);
+    *out_json = json;
+    if (out_len) {
+        *out_len = response.size;
+    }
+    return true;
+}
+
 bool c64_rest_reset(c64_rest_client_t *client)
 {
     if (!client) {
@@ -259,6 +663,36 @@ bool c64_rest_reboot(c64_rest_client_t *client)
 
     C64_LOG_DEBUG(REST_LOG_PREFIX "Reboot machine");
     return http_request(client, "PUT", "/v1/machine:reboot", NULL, NULL, 0, NULL);
+}
+
+bool c64_rest_pause(c64_rest_client_t *client)
+{
+    if (!client) {
+        return false;
+    }
+
+    C64_LOG_DEBUG(REST_LOG_PREFIX "Pause machine");
+    return http_request(client, "PUT", "/v1/machine:pause", NULL, NULL, 0, NULL);
+}
+
+bool c64_rest_resume(c64_rest_client_t *client)
+{
+    if (!client) {
+        return false;
+    }
+
+    C64_LOG_DEBUG(REST_LOG_PREFIX "Resume machine");
+    return http_request(client, "PUT", "/v1/machine:resume", NULL, NULL, 0, NULL);
+}
+
+bool c64_rest_poweroff(c64_rest_client_t *client)
+{
+    if (!client) {
+        return false;
+    }
+
+    C64_LOG_DEBUG(REST_LOG_PREFIX "Power off machine");
+    return http_request(client, "PUT", "/v1/machine:poweroff", NULL, NULL, 0, NULL);
 }
 
 int c64_rest_read_memory(c64_rest_client_t *client, uint16_t address, size_t length, uint8_t *buffer,
@@ -995,6 +1429,844 @@ bool c64_rest_mount_disk_path(c64_rest_client_t *client, char drive, const char 
 
     C64_LOG_DEBUG(REST_LOG_PREFIX "Mounted disk from C64U: drive=%c path=%s", drive, c64u_path);
     return true;
+}
+
+bool c64_rest_drive_get_property(c64_rest_client_t *client, const char *drive, const char *property, char *out_value,
+                                 size_t out_size)
+{
+    if (!client || !drive || !property || !out_value || out_size == 0) {
+        if (client) {
+            snprintf(client->error_msg, sizeof(client->error_msg), "Invalid parameters");
+        }
+        return false;
+    }
+
+    char *json = NULL;
+    size_t json_len = 0;
+    if (!request_json(client, "GET", "/v1/drives", NULL, &json, &json_len)) {
+        return false;
+    }
+
+    char error_buf[256] = {0};
+    if (!json_errors_empty(json, json_len, error_buf, sizeof(error_buf))) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "%s", error_buf[0] ? error_buf : "REST errors");
+        free(json);
+        return false;
+    }
+
+    bool ok = parse_drive_property(json, drive, property, out_value, out_size);
+    if (!ok) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "Failed to parse drive property");
+    }
+
+    free(json);
+    return ok;
+}
+
+bool c64_rest_drive_mount_image(c64_rest_client_t *client, const char *drive, const char *c64u_path, const char *type,
+                                const char *mode)
+{
+    if (!client || !drive || !c64u_path) {
+        if (client) {
+            snprintf(client->error_msg, sizeof(client->error_msg), "Invalid parameters");
+        }
+        return false;
+    }
+
+    const char *device_path = c64_strip_c64u_prefix(c64u_path);
+    char *escaped_path = curl_easy_escape(client->curl, device_path, 0);
+    if (!escaped_path) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "Failed to escape path");
+        return false;
+    }
+
+    char *type_enc = type ? curl_easy_escape(client->curl, type, 0) : NULL;
+    char *mode_enc = mode ? curl_easy_escape(client->curl, mode, 0) : NULL;
+
+    char endpoint[256];
+    snprintf(endpoint, sizeof(endpoint), "/v1/drives/%s:mount", drive);
+
+    char query[512];
+    if (type_enc && mode_enc) {
+        snprintf(query, sizeof(query), "image=%s&type=%s&mode=%s", escaped_path, type_enc, mode_enc);
+    } else {
+        snprintf(query, sizeof(query), "image=%s", escaped_path);
+    }
+
+    curl_free(escaped_path);
+    if (type_enc) {
+        curl_free(type_enc);
+    }
+    if (mode_enc) {
+        curl_free(mode_enc);
+    }
+
+    return http_request(client, "PUT", endpoint, query, NULL, 0, NULL);
+}
+
+bool c64_rest_drive_mount_upload(c64_rest_client_t *client, const char *drive, const char *type, const char *mode,
+                                 const uint8_t *data, size_t size)
+{
+    if (!client || !drive || !data || size == 0) {
+        if (client) {
+            snprintf(client->error_msg, sizeof(client->error_msg), "Invalid parameters");
+        }
+        return false;
+    }
+
+    char endpoint[256];
+    snprintf(endpoint, sizeof(endpoint), "/v1/drives/%s:mount", drive);
+
+    char *type_enc = type ? curl_easy_escape(client->curl, type, 0) : NULL;
+    char *mode_enc = mode ? curl_easy_escape(client->curl, mode, 0) : NULL;
+
+    char url[512];
+    if (type_enc && mode_enc) {
+        snprintf(url, sizeof(url), "%s%s?type=%s&mode=%s", client->base_url, endpoint, type_enc, mode_enc);
+    } else {
+        snprintf(url, sizeof(url), "%s%s", client->base_url, endpoint);
+    }
+
+    if (type_enc) {
+        curl_free(type_enc);
+    }
+    if (mode_enc) {
+        curl_free(mode_enc);
+    }
+
+    curl_easy_reset(client->curl);
+    curl_easy_setopt(client->curl, CURLOPT_NOSIGNAL, 1L);
+
+    curl_mime *mime = curl_mime_init(client->curl);
+    curl_mimepart *part = curl_mime_addpart(mime);
+    curl_mime_name(part, "file");
+    curl_mime_filename(part, "disk.img");
+    curl_mime_data(part, (const char *)data, size);
+    curl_mime_type(part, "application/octet-stream");
+
+    curl_easy_setopt(client->curl, CURLOPT_URL, url);
+    curl_easy_setopt(client->curl, CURLOPT_MIMEPOST, mime);
+    curl_easy_setopt(client->curl, CURLOPT_TIMEOUT, HTTP_TIMEOUT_SECONDS);
+
+    struct curl_slist *headers = NULL;
+    if (client->password && client->password[0]) {
+        char auth_header[256];
+        snprintf(auth_header, sizeof(auth_header), "X-Password: %s", client->password);
+        headers = curl_slist_append(headers, auth_header);
+        curl_easy_setopt(client->curl, CURLOPT_HTTPHEADER, headers);
+    }
+
+    CURLcode res = curl_easy_perform(client->curl);
+
+    curl_mime_free(mime);
+    if (headers) {
+        curl_slist_free_all(headers);
+    }
+
+    if (res != CURLE_OK) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "CURL error: %s", curl_easy_strerror(res));
+        return false;
+    }
+
+    long http_code = 0;
+    curl_easy_getinfo(client->curl, CURLINFO_RESPONSE_CODE, &http_code);
+    if (http_code < 200 || http_code >= 300) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "HTTP error %ld", http_code);
+        return false;
+    }
+
+    return true;
+}
+
+bool c64_rest_drive_unmount(c64_rest_client_t *client, const char *drive)
+{
+    if (!client || !drive) {
+        if (client) {
+            snprintf(client->error_msg, sizeof(client->error_msg), "Invalid parameters");
+        }
+        return false;
+    }
+
+    char endpoint[256];
+    snprintf(endpoint, sizeof(endpoint), "/v1/drives/%s:remove", drive);
+    return http_request(client, "PUT", endpoint, NULL, NULL, 0, NULL);
+}
+
+bool c64_rest_drive_reset(c64_rest_client_t *client, const char *drive)
+{
+    if (!client || !drive) {
+        if (client) {
+            snprintf(client->error_msg, sizeof(client->error_msg), "Invalid parameters");
+        }
+        return false;
+    }
+
+    char endpoint[256];
+    snprintf(endpoint, sizeof(endpoint), "/v1/drives/%s:reset", drive);
+    return http_request(client, "PUT", endpoint, NULL, NULL, 0, NULL);
+}
+
+bool c64_rest_drive_on(c64_rest_client_t *client, const char *drive)
+{
+    if (!client || !drive) {
+        if (client) {
+            snprintf(client->error_msg, sizeof(client->error_msg), "Invalid parameters");
+        }
+        return false;
+    }
+
+    char endpoint[256];
+    snprintf(endpoint, sizeof(endpoint), "/v1/drives/%s:on", drive);
+    return http_request(client, "PUT", endpoint, NULL, NULL, 0, NULL);
+}
+
+bool c64_rest_drive_off(c64_rest_client_t *client, const char *drive)
+{
+    if (!client || !drive) {
+        if (client) {
+            snprintf(client->error_msg, sizeof(client->error_msg), "Invalid parameters");
+        }
+        return false;
+    }
+
+    char endpoint[256];
+    snprintf(endpoint, sizeof(endpoint), "/v1/drives/%s:off", drive);
+    return http_request(client, "PUT", endpoint, NULL, NULL, 0, NULL);
+}
+
+bool c64_rest_drive_load_rom_image(c64_rest_client_t *client, const char *drive, const char *c64u_path)
+{
+    if (!client || !drive || !c64u_path) {
+        if (client) {
+            snprintf(client->error_msg, sizeof(client->error_msg), "Invalid parameters");
+        }
+        return false;
+    }
+
+    const char *device_path = c64_strip_c64u_prefix(c64u_path);
+    char *escaped_path = curl_easy_escape(client->curl, device_path, 0);
+    if (!escaped_path) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "Failed to escape path");
+        return false;
+    }
+
+    char endpoint[256];
+    snprintf(endpoint, sizeof(endpoint), "/v1/drives/%s:load_rom", drive);
+
+    char query[512];
+    snprintf(query, sizeof(query), "file=%s", escaped_path);
+    curl_free(escaped_path);
+
+    return http_request(client, "PUT", endpoint, query, NULL, 0, NULL);
+}
+
+bool c64_rest_drive_load_rom_upload(c64_rest_client_t *client, const char *drive, const uint8_t *data, size_t size)
+{
+    if (!client || !drive || !data || size == 0) {
+        if (client) {
+            snprintf(client->error_msg, sizeof(client->error_msg), "Invalid parameters");
+        }
+        return false;
+    }
+
+    char endpoint[256];
+    snprintf(endpoint, sizeof(endpoint), "/v1/drives/%s:load_rom", drive);
+
+    char url[512];
+    snprintf(url, sizeof(url), "%s%s", client->base_url, endpoint);
+
+    curl_easy_reset(client->curl);
+    curl_easy_setopt(client->curl, CURLOPT_NOSIGNAL, 1L);
+
+    curl_mime *mime = curl_mime_init(client->curl);
+    curl_mimepart *part = curl_mime_addpart(mime);
+    curl_mime_name(part, "file");
+    curl_mime_filename(part, "drive.rom");
+    curl_mime_data(part, (const char *)data, size);
+    curl_mime_type(part, "application/octet-stream");
+
+    curl_easy_setopt(client->curl, CURLOPT_URL, url);
+    curl_easy_setopt(client->curl, CURLOPT_MIMEPOST, mime);
+    curl_easy_setopt(client->curl, CURLOPT_TIMEOUT, HTTP_TIMEOUT_SECONDS);
+
+    struct curl_slist *headers = NULL;
+    if (client->password && client->password[0]) {
+        char auth_header[256];
+        snprintf(auth_header, sizeof(auth_header), "X-Password: %s", client->password);
+        headers = curl_slist_append(headers, auth_header);
+        curl_easy_setopt(client->curl, CURLOPT_HTTPHEADER, headers);
+    }
+
+    CURLcode res = curl_easy_perform(client->curl);
+
+    curl_mime_free(mime);
+    if (headers) {
+        curl_slist_free_all(headers);
+    }
+
+    if (res != CURLE_OK) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "CURL error: %s", curl_easy_strerror(res));
+        return false;
+    }
+
+    long http_code = 0;
+    curl_easy_getinfo(client->curl, CURLINFO_RESPONSE_CODE, &http_code);
+    if (http_code < 200 || http_code >= 300) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "HTTP error %ld", http_code);
+        return false;
+    }
+
+    return true;
+}
+
+bool c64_rest_drive_set_mode(c64_rest_client_t *client, const char *drive, const char *mode)
+{
+    if (!client || !drive || !mode) {
+        if (client) {
+            snprintf(client->error_msg, sizeof(client->error_msg), "Invalid parameters");
+        }
+        return false;
+    }
+
+    char endpoint[256];
+    snprintf(endpoint, sizeof(endpoint), "/v1/drives/%s:set_mode", drive);
+
+    char *mode_enc = curl_easy_escape(client->curl, mode, 0);
+    if (!mode_enc) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "Failed to escape mode");
+        return false;
+    }
+
+    char query[256];
+    snprintf(query, sizeof(query), "mode=%s", mode_enc);
+    curl_free(mode_enc);
+
+    return http_request(client, "PUT", endpoint, query, NULL, 0, NULL);
+}
+
+static bool parse_config_item_value(const char *json, const char *category, const char *item, char *out_value,
+                                    size_t out_size)
+{
+    if (!json || !category || !item || !out_value || out_size == 0) {
+        return false;
+    }
+
+    const char *obj_start = NULL;
+    const char *obj_end = NULL;
+    if (!find_object_for_key(json, category, &obj_start, &obj_end)) {
+        return false;
+    }
+
+    const char *p = obj_start;
+    int depth = 0;
+    while (p < obj_end) {
+        if (*p == '"') {
+            const char *key_start = p + 1;
+            const char *key_end = key_start;
+            while (key_end < obj_end) {
+                if (*key_end == '\\') {
+                    key_end += (key_end + 1 < obj_end) ? 2 : 1;
+                    continue;
+                }
+                if (*key_end == '"') {
+                    break;
+                }
+                key_end++;
+            }
+
+            if (depth == 1 && key_end < obj_end) {
+                size_t key_len = (size_t)(key_end - key_start);
+                if (strlen(item) == key_len && strncmp(key_start, item, key_len) == 0) {
+                    const char *after_key = key_end + 1;
+                    while (after_key < obj_end && isspace((unsigned char)*after_key)) {
+                        after_key++;
+                    }
+                    if (after_key >= obj_end || *after_key != ':') {
+                        return false;
+                    }
+                    const char *val = after_key + 1;
+                    while (val < obj_end && isspace((unsigned char)*val)) {
+                        val++;
+                    }
+                    if (val >= obj_end) {
+                        return false;
+                    }
+
+                    if (*val == '"') {
+                        const char *val_start = val + 1;
+                        const char *val_end = val_start;
+                        while (val_end < obj_end) {
+                            if (*val_end == '\\') {
+                                val_end += (val_end + 1 < obj_end) ? 2 : 1;
+                                continue;
+                            }
+                            if (*val_end == '"') {
+                                break;
+                            }
+                            val_end++;
+                        }
+                        json_copy_string(val_start, val_end, out_value, out_size);
+                        return true;
+                    }
+
+                    if (*val == '{') {
+                        const char *nested_start = val;
+                        int nested_depth = 0;
+                        const char *nested_end = NULL;
+                        const char *scan = val;
+                        while (scan < obj_end) {
+                            if (*scan == '"') {
+                                scan = skip_json_string(scan, obj_end);
+                                continue;
+                            }
+                            if (*scan == '{') {
+                                nested_depth++;
+                            } else if (*scan == '}') {
+                                nested_depth--;
+                                if (nested_depth == 0) {
+                                    nested_end = scan;
+                                    break;
+                                }
+                            }
+                            scan++;
+                        }
+                        if (!nested_end) {
+                            return false;
+                        }
+
+                        const char *current_key = strstr(nested_start, "\"current\"");
+                        if (!current_key || current_key > nested_end) {
+                            return false;
+                        }
+                        const char *current_val = strchr(current_key, ':');
+                        if (!current_val || current_val > nested_end) {
+                            return false;
+                        }
+                        current_val++;
+                        while (current_val < nested_end && isspace((unsigned char)*current_val)) {
+                            current_val++;
+                        }
+                        if (current_val >= nested_end) {
+                            return false;
+                        }
+                        if (*current_val == '"') {
+                            const char *val_start = current_val + 1;
+                            const char *val_end = val_start;
+                            while (val_end < nested_end) {
+                                if (*val_end == '\\') {
+                                    val_end += (val_end + 1 < nested_end) ? 2 : 1;
+                                    continue;
+                                }
+                                if (*val_end == '"') {
+                                    break;
+                                }
+                                val_end++;
+                            }
+                            json_copy_string(val_start, val_end, out_value, out_size);
+                            return true;
+                        }
+                        const char *val_end = current_val;
+                        while (val_end < nested_end && !isspace((unsigned char)*val_end) && *val_end != ',' &&
+                               *val_end != '}') {
+                            val_end++;
+                        }
+                        json_copy_string(current_val, val_end, out_value, out_size);
+                        return true;
+                    }
+
+                    if (isdigit((unsigned char)*val) || *val == '-') {
+                        const char *val_end = val;
+                        while (val_end < obj_end && (isdigit((unsigned char)*val_end) || *val_end == '.' ||
+                                                     *val_end == '-' || *val_end == '+')) {
+                            val_end++;
+                        }
+                        json_copy_string(val, val_end, out_value, out_size);
+                        return true;
+                    }
+
+                    if (strncmp(val, "true", 4) == 0) {
+                        const char true_literal[] = "true";
+                        json_copy_string(true_literal, true_literal + (sizeof(true_literal) - 1), out_value, out_size);
+                        return true;
+                    }
+                    if (strncmp(val, "false", 5) == 0) {
+                        const char false_literal[] = "false";
+                        json_copy_string(false_literal, false_literal + (sizeof(false_literal) - 1), out_value,
+                                         out_size);
+                        return true;
+                    }
+
+                    return false;
+                }
+            }
+
+            p = (key_end < obj_end) ? key_end + 1 : obj_end;
+            continue;
+        }
+
+        if (*p == '{') {
+            depth++;
+        } else if (*p == '}') {
+            depth--;
+            if (depth == 0) {
+                break;
+            }
+        }
+        p++;
+    }
+
+    return false;
+}
+
+static bool parse_config_options(const char *json, const char *category, const char *item, char ***options,
+                                 size_t *count)
+{
+    if (!json || !category || !item || !options || !count) {
+        return false;
+    }
+
+    const char *obj_start = NULL;
+    const char *obj_end = NULL;
+    if (!find_object_for_key(json, category, &obj_start, &obj_end)) {
+        return false;
+    }
+
+    const char *p = obj_start;
+    int depth = 0;
+    while (p < obj_end) {
+        if (*p == '"') {
+            const char *key_start = p + 1;
+            const char *key_end = key_start;
+            while (key_end < obj_end) {
+                if (*key_end == '\\') {
+                    key_end += (key_end + 1 < obj_end) ? 2 : 1;
+                    continue;
+                }
+                if (*key_end == '"') {
+                    break;
+                }
+                key_end++;
+            }
+
+            if (depth == 1 && key_end < obj_end) {
+                size_t key_len = (size_t)(key_end - key_start);
+                if (strlen(item) == key_len && strncmp(key_start, item, key_len) == 0) {
+                    const char *after_key = key_end + 1;
+                    while (after_key < obj_end && isspace((unsigned char)*after_key)) {
+                        after_key++;
+                    }
+                    if (after_key >= obj_end || *after_key != ':') {
+                        return false;
+                    }
+                    const char *val = after_key + 1;
+                    while (val < obj_end && isspace((unsigned char)*val)) {
+                        val++;
+                    }
+                    if (val >= obj_end || *val != '{') {
+                        return false;
+                    }
+                    const char *nested_start = val;
+                    int nested_depth = 0;
+                    const char *nested_end = NULL;
+                    const char *scan = val;
+                    while (scan < obj_end) {
+                        if (*scan == '"') {
+                            scan = skip_json_string(scan, obj_end);
+                            continue;
+                        }
+                        if (*scan == '{') {
+                            nested_depth++;
+                        } else if (*scan == '}') {
+                            nested_depth--;
+                            if (nested_depth == 0) {
+                                nested_end = scan;
+                                break;
+                            }
+                        }
+                        scan++;
+                    }
+                    if (!nested_end) {
+                        return false;
+                    }
+
+                    size_t nested_len = (size_t)(nested_end - nested_start + 1);
+                    char *nested_json = malloc(nested_len + 1);
+                    if (!nested_json) {
+                        return false;
+                    }
+                    memcpy(nested_json, nested_start, nested_len);
+                    nested_json[nested_len] = '\0';
+
+                    bool ok = parse_json_string_array(nested_json, nested_len, "values", options, count);
+                    if (!ok) {
+                        ok = parse_json_string_array(nested_json, nested_len, "options", options, count);
+                    }
+                    free(nested_json);
+                    return ok;
+                }
+            }
+
+            p = (key_end < obj_end) ? key_end + 1 : obj_end;
+            continue;
+        }
+
+        if (*p == '{') {
+            depth++;
+        } else if (*p == '}') {
+            depth--;
+            if (depth == 0) {
+                break;
+            }
+        }
+        p++;
+    }
+
+    return false;
+}
+
+bool c64_rest_config_get_value(c64_rest_client_t *client, const char *category, const char *item, char *out_value,
+                               size_t out_size)
+{
+    if (!client || !category || !item || !out_value || out_size == 0) {
+        if (client) {
+            snprintf(client->error_msg, sizeof(client->error_msg), "Invalid parameters");
+        }
+        return false;
+    }
+
+    char *cat_enc = curl_easy_escape(client->curl, category, 0);
+    char *item_enc = curl_easy_escape(client->curl, item, 0);
+    if (!cat_enc || !item_enc) {
+        if (cat_enc) {
+            curl_free(cat_enc);
+        }
+        if (item_enc) {
+            curl_free(item_enc);
+        }
+        snprintf(client->error_msg, sizeof(client->error_msg), "Failed to escape config path");
+        return false;
+    }
+
+    char endpoint[512];
+    snprintf(endpoint, sizeof(endpoint), "/v1/configs/%s/%s", cat_enc, item_enc);
+    curl_free(cat_enc);
+    curl_free(item_enc);
+
+    char *json = NULL;
+    size_t json_len = 0;
+    if (!request_json(client, "GET", endpoint, NULL, &json, &json_len)) {
+        return false;
+    }
+
+    char error_buf[256] = {0};
+    if (!json_errors_empty(json, json_len, error_buf, sizeof(error_buf))) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "%s", error_buf[0] ? error_buf : "REST errors");
+        free(json);
+        return false;
+    }
+
+    bool ok = parse_config_item_value(json, category, item, out_value, out_size);
+    if (!ok) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "Failed to parse config value");
+    }
+    free(json);
+    return ok;
+}
+
+bool c64_rest_config_set_value(c64_rest_client_t *client, const char *category, const char *item, const char *value)
+{
+    if (!client || !category || !item || !value) {
+        if (client) {
+            snprintf(client->error_msg, sizeof(client->error_msg), "Invalid parameters");
+        }
+        return false;
+    }
+
+    char *cat_enc = curl_easy_escape(client->curl, category, 0);
+    char *item_enc = curl_easy_escape(client->curl, item, 0);
+    char *val_enc = curl_easy_escape(client->curl, value, 0);
+    if (!cat_enc || !item_enc || !val_enc) {
+        if (cat_enc) {
+            curl_free(cat_enc);
+        }
+        if (item_enc) {
+            curl_free(item_enc);
+        }
+        if (val_enc) {
+            curl_free(val_enc);
+        }
+        snprintf(client->error_msg, sizeof(client->error_msg), "Failed to escape config path");
+        return false;
+    }
+
+    char endpoint[512];
+    snprintf(endpoint, sizeof(endpoint), "/v1/configs/%s/%s", cat_enc, item_enc);
+    curl_free(cat_enc);
+    curl_free(item_enc);
+
+    char query[512];
+    snprintf(query, sizeof(query), "value=%s", val_enc);
+    curl_free(val_enc);
+
+    char *json = NULL;
+    size_t json_len = 0;
+    if (!request_json(client, "PUT", endpoint, query, &json, &json_len)) {
+        return false;
+    }
+
+    char error_buf[256] = {0};
+    bool ok = json_errors_empty(json, json_len, error_buf, sizeof(error_buf));
+    if (!ok) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "%s", error_buf[0] ? error_buf : "REST errors");
+    }
+    free(json);
+    return ok;
+}
+
+bool c64_rest_config_list(c64_rest_client_t *client, const char *category, char ***items, size_t *count)
+{
+    if (!client || !items || !count) {
+        if (client) {
+            snprintf(client->error_msg, sizeof(client->error_msg), "Invalid parameters");
+        }
+        return false;
+    }
+
+    char endpoint[512];
+    endpoint[0] = '\0';
+    if (category && category[0]) {
+        char *cat_enc = curl_easy_escape(client->curl, category, 0);
+        if (!cat_enc) {
+            snprintf(client->error_msg, sizeof(client->error_msg), "Failed to escape config path");
+            return false;
+        }
+        snprintf(endpoint, sizeof(endpoint), "/v1/configs/%s", cat_enc);
+        curl_free(cat_enc);
+    } else {
+        snprintf(endpoint, sizeof(endpoint), "/v1/configs");
+    }
+
+    char *json = NULL;
+    size_t json_len = 0;
+    if (!request_json(client, "GET", endpoint, NULL, &json, &json_len)) {
+        return false;
+    }
+
+    char error_buf[256] = {0};
+    if (!json_errors_empty(json, json_len, error_buf, sizeof(error_buf))) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "%s", error_buf[0] ? error_buf : "REST errors");
+        free(json);
+        return false;
+    }
+
+    bool ok = false;
+    if (!category || !category[0]) {
+        ok = parse_json_string_array(json, json_len, "categories", items, count);
+    } else {
+        const char *obj_start = NULL;
+        const char *obj_end = NULL;
+        if (find_object_for_key(json, category, &obj_start, &obj_end)) {
+            ok = parse_object_keys(obj_start, obj_end, items, count);
+        }
+    }
+
+    if (!ok) {
+        const char *cat_label = (category && category[0]) ? category : "<root>";
+        snprintf(client->error_msg, sizeof(client->error_msg), "Failed to parse config list (category=%s, json=%.200s)",
+                 cat_label, json ? json : "<null>");
+    }
+    free(json);
+    return ok;
+}
+
+bool c64_rest_config_list_options(c64_rest_client_t *client, const char *category, const char *item, char ***options,
+                                  size_t *count)
+{
+    if (!client || !category || !item || !options || !count) {
+        if (client) {
+            snprintf(client->error_msg, sizeof(client->error_msg), "Invalid parameters");
+        }
+        return false;
+    }
+
+    char *cat_enc = curl_easy_escape(client->curl, category, 0);
+    char *item_enc = curl_easy_escape(client->curl, item, 0);
+    if (!cat_enc || !item_enc) {
+        if (cat_enc) {
+            curl_free(cat_enc);
+        }
+        if (item_enc) {
+            curl_free(item_enc);
+        }
+        snprintf(client->error_msg, sizeof(client->error_msg), "Failed to escape config path");
+        return false;
+    }
+
+    char endpoint[512];
+    snprintf(endpoint, sizeof(endpoint), "/v1/configs/%s/%s", cat_enc, item_enc);
+    curl_free(cat_enc);
+    curl_free(item_enc);
+
+    char *json = NULL;
+    size_t json_len = 0;
+    if (!request_json(client, "GET", endpoint, NULL, &json, &json_len)) {
+        return false;
+    }
+
+    char error_buf[256] = {0};
+    if (!json_errors_empty(json, json_len, error_buf, sizeof(error_buf))) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "%s", error_buf[0] ? error_buf : "REST errors");
+        free(json);
+        return false;
+    }
+
+    bool ok = parse_config_options(json, category, item, options, count);
+    if (!ok) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "Failed to parse config options");
+    }
+    free(json);
+    return ok;
+}
+
+bool c64_rest_config_save(c64_rest_client_t *client)
+{
+    if (!client) {
+        return false;
+    }
+
+    C64_LOG_DEBUG(REST_LOG_PREFIX "Save config to flash");
+    return http_request(client, "PUT", "/v1/configs:save_to_flash", NULL, NULL, 0, NULL);
+}
+
+bool c64_rest_config_load(c64_rest_client_t *client)
+{
+    if (!client) {
+        return false;
+    }
+
+    C64_LOG_DEBUG(REST_LOG_PREFIX "Load config from flash");
+    return http_request(client, "PUT", "/v1/configs:load_from_flash", NULL, NULL, 0, NULL);
+}
+
+bool c64_rest_config_reset(c64_rest_client_t *client)
+{
+    if (!client) {
+        return false;
+    }
+
+    C64_LOG_DEBUG(REST_LOG_PREFIX "Reset config to defaults");
+    return http_request(client, "PUT", "/v1/configs:reset_to_default", NULL, NULL, 0, NULL);
+}
+
+void c64_rest_string_list_free(char **items, size_t count)
+{
+    if (!items) {
+        return;
+    }
+    for (size_t i = 0; i < count; i++) {
+        free(items[i]);
+    }
+    free(items);
 }
 
 const char *c64_rest_get_error(c64_rest_client_t *client)

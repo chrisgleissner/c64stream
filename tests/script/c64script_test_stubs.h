@@ -18,6 +18,16 @@ See <https://www.gnu.org/licenses/> for details.
 c64_rest_client_t *c64script_test_rest_create(void);
 void c64script_test_rest_destroy(c64_rest_client_t *client);
 void c64script_test_rest_set_byte(c64_rest_client_t *client, uint16_t address, uint8_t value);
+void c64script_test_rest_fail_next(c64_rest_client_t *client, const char *error);
+const char *c64script_test_rest_log(const c64_rest_client_t *client);
+const char *c64script_test_rest_last_action(const c64_rest_client_t *client);
+const char *c64script_test_rest_last_category(const c64_rest_client_t *client);
+const char *c64script_test_rest_last_item(const c64_rest_client_t *client);
+const char *c64script_test_rest_last_value(const c64_rest_client_t *client);
+const char *c64script_test_rest_last_drive(const c64_rest_client_t *client);
+const char *c64script_test_rest_last_path(const c64_rest_client_t *client);
+const char *c64script_test_rest_last_type(const c64_rest_client_t *client);
+const char *c64script_test_rest_last_mode(const c64_rest_client_t *client);
 
 c64_keyboard_t *c64script_test_keyboard_create(void);
 void c64script_test_keyboard_destroy(c64_keyboard_t *keyboard);

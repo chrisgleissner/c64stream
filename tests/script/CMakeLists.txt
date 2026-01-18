@@ -25,6 +25,18 @@ add_executable(
   ${CMAKE_SOURCE_DIR}/src/c64-script-ast.c
   ${CMAKE_SOURCE_DIR}/src/c64-script-bytecode.c
   ${CMAKE_SOURCE_DIR}/src/c64-script-vm.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-core.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-builtins.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-config.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-drives.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-effects.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-io.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-keyboard.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-machine.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-memory.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-trace.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-utils.c
   ${CMAKE_SOURCE_DIR}/src/c64-script-runtime.c
   ${CMAKE_SOURCE_DIR}/src/c64-script-builtins.c
 )
@@ -35,6 +47,42 @@ else()
   target_link_libraries(test_c64script_compiler PRIVATE OBS::libobs CURL::libcurl)
 endif()
 add_test(NAME c64script_compiler COMMAND test_c64script_compiler)
+
+# REST network integration tests (mock server)
+add_executable(
+  test_c64script_rest_network
+  test_c64script_rest_network.c
+  c64script_test_logging.c
+  c64script_keyboard_stub.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-parser.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-token.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-ast.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-bytecode.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-core.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-builtins.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-config.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-drives.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-effects.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-io.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-keyboard.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-machine.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-memory.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-trace.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-utils.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-runtime.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-builtins.c
+  ${CMAKE_SOURCE_DIR}/src/c64-rest-client.c
+)
+target_include_directories(test_c64script_rest_network PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_compile_definitions(test_c64script_rest_network PRIVATE C64STREAM_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+if(UNIX)
+  target_link_libraries(test_c64script_rest_network PRIVATE OBS::libobs CURL::libcurl m)
+else()
+  target_link_libraries(test_c64script_rest_network PRIVATE OBS::libobs CURL::libcurl)
+endif()
+add_test(NAME c64script_rest_network COMMAND test_c64script_rest_network)
 
 # Edge case unit tests
 add_executable(
@@ -47,6 +95,18 @@ add_executable(
   ${CMAKE_SOURCE_DIR}/src/c64-script-ast.c
   ${CMAKE_SOURCE_DIR}/src/c64-script-bytecode.c
   ${CMAKE_SOURCE_DIR}/src/c64-script-vm.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-core.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-builtins.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-config.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-drives.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-effects.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-io.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-keyboard.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-machine.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-memory.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-trace.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-utils.c
   ${CMAKE_SOURCE_DIR}/src/c64-script-runtime.c
   ${CMAKE_SOURCE_DIR}/src/c64-script-builtins.c
 )
@@ -69,6 +129,18 @@ add_executable(
   ${CMAKE_SOURCE_DIR}/src/c64-script-ast.c
   ${CMAKE_SOURCE_DIR}/src/c64-script-bytecode.c
   ${CMAKE_SOURCE_DIR}/src/c64-script-vm.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-core.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-builtins.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-config.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-drives.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-effects.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-io.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-keyboard.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-machine.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-memory.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-trace.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-utils.c
   ${CMAKE_SOURCE_DIR}/src/c64-script-runtime.c
   ${CMAKE_SOURCE_DIR}/src/c64-script-builtins.c
 )
@@ -112,6 +184,8 @@ else()
   message(WARNING "Python not found, skipping script validation tests")
 endif()
 
+add_subdirectory(fuzz)
+
 # Debug features unit tests
 add_executable(
   test_c64script_debug
@@ -123,6 +197,18 @@ add_executable(
   ${CMAKE_SOURCE_DIR}/src/c64-script-ast.c
   ${CMAKE_SOURCE_DIR}/src/c64-script-bytecode.c
   ${CMAKE_SOURCE_DIR}/src/c64-script-vm.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-core.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-builtins.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-config.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-drives.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-effects.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-io.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-keyboard.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-machine.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-memory.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-trace.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-utils.c
   ${CMAKE_SOURCE_DIR}/src/c64-script-runtime.c
   ${CMAKE_SOURCE_DIR}/src/c64-script-builtins.c
 )
@@ -145,6 +231,18 @@ add_executable(
   ${CMAKE_SOURCE_DIR}/src/c64-script-ast.c
   ${CMAKE_SOURCE_DIR}/src/c64-script-bytecode.c
   ${CMAKE_SOURCE_DIR}/src/c64-script-vm.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-core.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-builtins.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-config.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-drives.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-effects.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-io.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-keyboard.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-machine.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-dispatch-memory.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-trace.c
+  ${CMAKE_SOURCE_DIR}/src/c64-script-vm-utils.c
   ${CMAKE_SOURCE_DIR}/src/c64-script-runtime.c
   ${CMAKE_SOURCE_DIR}/src/c64-script-builtins.c
 )

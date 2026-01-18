@@ -1,0 +1,35 @@
+# Execution trace
+script: "test_u64_keyboard_buffer.c64script"
+status: success
+error: ~
+program: |
+  1: REM U64 keyboard buffer
+  2: LOAD "*"
+  3: LOAD "GAME", 9
+  4: RUN
+  5: RUN "GAME"
+  6: RUN "DEMO", 9
+  7: SYS 64738
+  8: STOP
+trace:
+- line: 2
+  content: "LOAD \"*\""
+  variables: {}
+- line: 3
+  content: "LOAD \"GAME\", 9"
+  variables: {}
+- line: 4
+  content: "RUN"
+  variables: {}
+- line: 5
+  content: "RUN \"GAME\""
+  variables: {}
+- line: 6
+  content: "RUN \"DEMO\", 9"
+  variables: {}
+- line: 7
+  content: "SYS 64738"
+  variables: {}
+- line: 8
+  content: "STOP"
+  variables: {}

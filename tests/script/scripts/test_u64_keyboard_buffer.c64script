@@ -1,0 +1,8 @@
+REM U64 keyboard buffer
+LOAD "*"
+LOAD "GAME", 9
+RUN
+RUN "GAME"
+RUN "DEMO", 9
+SYS 64738
+STOP

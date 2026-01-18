@@ -72,9 +72,36 @@ statement =
   | run_prg_stmt
   | run_local_stmt
   | mount_disk_stmt
+  | cfg_set_stmt
+  | cfg_save_stmt
+  | cfg_load_stmt
+  | cfg_reset_stmt
+  | drive_mount_stmt
+  | drive_unmount_stmt
+  | drive_reset_stmt
+  | drive_on_stmt
+  | drive_off_stmt
+  | drive_rom_stmt
+  | drive_mode_stmt
+  | drive_bus_id_stmt
+  | load_stmt
+  | run_stmt
+  | sys_stmt
+  | sid_model_stmt
+  | sid_enable_stmt
+  | sid_vol_stmt
+  | sid_filter_curve_stmt
+  | sid_resonance_stmt
+  | sid_combined_stmt
+  | sid_digis_stmt
+  | vic_mode_stmt
+  | cpu_speed_stmt
   | autostart_stmt
   | reset_stmt
   | reboot_stmt
+  | pause_stmt
+  | resume_stmt
+  | poweroff_stmt
   | record_start_stmt
   | record_stop_stmt
   | type_stmt
@@ -143,6 +170,69 @@ run_prg_stmt        = ("RUN_PRG" | "RUNPRG"), WS, path_expr ;
 run_local_stmt      = ("RUN_LOCAL" | "RUNLOCAL"), WS, path_expr, [WS, "ARGS", WS, expr], [WS, "STATUS", WS, identifier], [WS, "OUTPUT", WS, identifier] ;
 mount_disk_stmt     = ("MOUNT_DISK" | "MOUNTDISK"), WS, path_expr ;
 
+(* ========================================================================== *)
+(* U64 CONFIG (v0.2.0) *)
+(* ========================================================================== *)
+
+cfg_set_stmt        = "CFG", WS, expr, [WS], ",", [WS], expr, [WS], ",", [WS], expr ;
+cfg_save_stmt       = ("CFG_SAVE" | "CFGSAVE") ;
+cfg_load_stmt       = ("CFG_LOAD" | "CFGLOAD") ;
+cfg_reset_stmt      = ("CFG_RESET" | "CFGRESET") ;
+
+(* ========================================================================== *)
+(* U64 DRIVES (v0.2.0) *)
+(* ========================================================================== *)
+
+drive_selector      = "DRIVE_A" | "DRIVE_B" | "DRIVE_SOFTIEC" ;
+drive_ab_selector   = "DRIVE_A" | "DRIVE_B" ;
+
+drive_mount_stmt    =
+    "DRIVE_MOUNT", WS,
+      ( drive_selector, [WS], ",", [WS], expr
+      | expr
+      ),
+      [WS], [",", [WS], expr],
+      [WS], [",", [WS], expr]
+  ;
+
+drive_unmount_stmt  = "DRIVE_UNMOUNT", WS, drive_selector ;
+drive_reset_stmt    = "DRIVE_RESET", WS, drive_selector ;
+drive_on_stmt       = "DRIVE_ON", WS, drive_selector ;
+drive_off_stmt      = "DRIVE_OFF", WS, drive_selector ;
+
+drive_rom_stmt      =
+    "DRIVE_ROM", WS,
+      ( drive_ab_selector, [WS], ",", [WS], expr
+      | expr
+      )
+  ;
+
+drive_mode_stmt     = "DRIVE_MODE", WS, drive_ab_selector, [WS], ",", [WS], expr ;
+drive_bus_id_stmt   = "DRIVE_BUS_ID", WS, drive_ab_selector, [WS], ",", [WS], expr ;
+
+load_stmt           = "LOAD", WS, expr, [WS], [",", [WS], expr] ;
+run_stmt            = "RUN", [WS, expr, [WS], [",", [WS], expr]] ;
+sys_stmt            = "SYS", WS, expr ;
+
+(* ========================================================================== *)
+(* U64 SID / VIC / CPU (v0.2.0) *)
+(* ========================================================================== *)
+
+sid_target          = "SOCKET1" | "SOCKET2" | "ULTI1" | "ULTI2" ;
+sid_ulti_target     = "ULTI1" | "ULTI2" ;
+sid_socket_target   = "SOCKET1" | "SOCKET2" ;
+
+sid_model_stmt      = "SID_MODEL", WS, sid_target, [WS], ",", [WS], expr ;
+sid_enable_stmt     = "SID_ENABLE", WS, sid_socket_target, [WS], ",", [WS], expr ;
+sid_vol_stmt        = "SID_VOL", WS, sid_target, [WS], ",", [WS], expr ;
+sid_filter_curve_stmt = "SID_FILTER_CURVE", WS, sid_ulti_target, [WS], ",", [WS], expr ;
+sid_resonance_stmt  = "SID_RESONANCE", WS, sid_ulti_target, [WS], ",", [WS], expr ;
+sid_combined_stmt   = "SID_COMBINED", WS, sid_ulti_target, [WS], ",", [WS], expr ;
+sid_digis_stmt      = "SID_DIGIS", WS, sid_ulti_target, [WS], ",", [WS], expr ;
+
+vic_mode_stmt       = "VIC_MODE", WS, expr ;
+cpu_speed_stmt      = "CPU_SPEED", WS, expr ;
+
 http_stmt           = ("HTTP" | "CALL_HTTP" | "CALLHTTP"), WS, http_method, WS, expr,
                       [WS, "HEADERS", WS, expr],
                       [WS, "BODY", WS, expr],
@@ -153,6 +243,9 @@ http_method         = "GET" | "POST" | "PUT" | "DELETE" | "PATCH" ;
 autostart_stmt      = "AUTOSTART" ;
 reset_stmt          = "RESET" ;
 reboot_stmt         = "REBOOT" ;
+pause_stmt          = "PAUSE" ;
+resume_stmt         = "RESUME" ;
+poweroff_stmt       = "POWEROFF" ;
 
 record_start_stmt   = ("RECORD_START" | "RECORDSTART") ;
 record_stop_stmt    = ("RECORD_STOP" | "RECORDSTOP") ;

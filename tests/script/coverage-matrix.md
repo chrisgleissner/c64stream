@@ -53,12 +53,28 @@ It is a living checklist for `tests/script/` coverage.
 ## Builtins / I/O
 
 - PEEK/POKE: `tests/script/scripts/test_memory_access.c64script`
+- PEEK address range errors: `tests/script/scripts/test_error_peek_range.c64script`
 - String + math builtins: `tests/script/scripts/test_functions_builtin.c64script`
-- Logging / tracing: `tests/script/scripts/test_logging.c64script`
-- FILE IO: `tests/script/scripts/test_file_io.c64script`
+- Logging / tracing: `tests/script/scripts/test_logging.c64script`,
+  `tests/script/scripts/test_log_default_path.c64script`
+- FILE IO: `tests/script/scripts/test_file_io.c64script`,
+  `tests/script/scripts/test_relative_paths.c64script`
 - HTTP: `tests/script/scripts/test_http_rest.c64script`
 - RUNLOCAL: `tests/script/scripts/test_local_execution.c64script`
+- Recording (RECORDSTART/RECORDSTOP): `tests/script/scripts/test_recording.c64script`
 - TYPE/KEY: `tests/script/scripts/test_keyboard_injection.c64script`
 - EFFECT/PALLETTE/PALLETTECOLOR: `tests/script/scripts/test_effect_params.c64script`,
   `tests/script/scripts/test_palette_commands.c64script`
+- Config (CFG/CFG$/CFG_ITEM$/CFG_OPTIONS$/SAVE/LOAD/RESET):
+    `tests/script/test_c64script_compiler.c` (execute_config_commands),
+    `tests/script/scripts/test_u64_config.c64script`
+- Drive control (DRIVE$, DRIVE_*): `tests/script/test_c64script_compiler.c` (execute_drive_commands),
+    `tests/script/scripts/test_u64_drives.c64script`
+- LOAD/RUN/SYS (keyboard buffer commands): `tests/script/scripts/test_u64_keyboard_buffer.c64script`
+- Machine control (RESET/REBOOT/PAUSE/RESUME/POWEROFF):
+    `tests/script/test_c64script_compiler.c` (execute_machine_control_rest_calls),
+    `tests/script/test_c64script_rest_network.c`
+- C64 control (PLAYSID/RUNPRG/MOUNTDISK/AUTOSTART):
+    `tests/script/scripts/test_c64_control.c64script`,
+    `tests/script/test_c64script_rest_network.c`
 *** End Patch}]} commentaries to=functions.apply_patch only. abort? Wait. Use proper format. It's fine. but I used apply_patch with JSON incorrectly. Must call tool with string. Let's redo.

@@ -79,6 +79,15 @@ tests/CTestTestfile.cmake
 tests/Makefile
 tests/cmake_install.cmake
 
+# Script test artifacts
+tests/script/scripts/config.ini
+tests/script/scripts/execution_log.txt
+tests/script/scripts/loop_output.txt
+tests/script/scripts/numbers.txt
+tests/script/scripts/relative-output.txt
+tests/script/scripts/test_data.txt
+tests/script/scripts/test_log_default_path.log
+
 # Security - exclude secrets
 .secrets
 

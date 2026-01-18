@@ -1,0 +1,27 @@
+# Execution trace
+script: "test_u64_machine_control.c64script"
+status: success
+error: ~
+program: |
+  1: REM U64 machine control
+  2: PAUSE
+  3: RESUME
+  4: POWEROFF
+  5: WAIT 1ms
+  6: STOP
+trace:
+- line: 2
+  content: "PAUSE"
+  variables: {}
+- line: 3
+  content: "RESUME"
+  variables: {}
+- line: 4
+  content: "POWEROFF"
+  variables: {}
+- line: 5
+  content: "WAIT 1ms"
+  variables: {}
+- line: 6
+  content: "STOP"
+  variables: {}

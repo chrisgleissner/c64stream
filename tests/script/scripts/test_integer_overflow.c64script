@@ -1,0 +1,8 @@
+rem Test integer overflow behavior for % variables
+I% = 3000000000
+if I% = -1294967296 then
+    palette "colodore"
+else
+    poke "bad", 1
+endif
+stop
