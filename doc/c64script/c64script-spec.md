@@ -1850,9 +1850,9 @@ To discover available parameters for a specific effect at runtime:
 - Invalid parameter values: runtime warning, clamped to valid range
 - Type mismatches: "TYPE MISMATCH" error (parameters must be numeric)
 
-## 3 Examples
+## 5 Examples
 
-### 3.1 Label and line-number forms
+### 5.1 Label and line-number forms
 
 These are alternative forms; in a real script, label names must be unique.
 
@@ -1871,7 +1871,7 @@ REM Numeric labels (BASIC-style line numbers)
 I = 0
 ```
 
-### 3.2 BASIC-like sequence with quoted preset names
+### 5.2 BASIC-like sequence with quoted preset names
 
 ```basic
 REM Fade in, then run a demo
@@ -1883,7 +1883,7 @@ WAIT 60s
 END
 ```
 
-### 3.3 Label + IF + GOTO (no line numbers)
+### 5.3 Label + IF + GOTO (no line numbers)
 
 ```basic
 START:
@@ -1901,7 +1901,7 @@ EFFECT "Default"
 END
 ```
 
-### 3.4 FOR/NEXT
+### 5.4 FOR/NEXT
 
 ```basic
 FOR I = 1 TO 5
@@ -1913,7 +1913,7 @@ NEXT I
 END
 ```
 
-### 3.5 GOSUB/RETURN as “functions”
+### 5.5 GOSUB/RETURN as “functions”
 
 ```basic
 PATH$ = "c64u:/Temp/music/galway_collection.sid"
@@ -1931,7 +1931,7 @@ WAIT 20
 RETURN
 ```
 
-### 3.6 PEEK/POKE + typing an autostart sequence
+### 5.6 PEEK/POKE + typing an autostart sequence
 
 ```basic
 LOGFILE "run.log" TRUNCATE
@@ -1951,7 +1951,7 @@ WAIT 10s
 END
 ```
 
-### 3.7 TRON/TROFF for automatic progress logging
+### 5.7 TRON/TROFF for automatic progress logging
 
 ```basic
 LOGFILE "trace.log" TRUNCATE
@@ -1967,7 +1967,7 @@ LOG "Done"
 END
 ```
 
-### 3.8 Wait until a wall-clock time
+### 5.8 Wait until a wall-clock time
 
 ```basic
 LOGFILE "schedule.log" APPEND
@@ -1982,7 +1982,7 @@ RECORDSTOP
 END
 ```
 
-### 3.9 BASIC-style program with line numbers (optional)
+### 5.9 BASIC-style program with line numbers (optional)
 
 Line numbers are optional in C64Script; they behave exactly like labels and exist mainly for that classic BASIC feel.
 
@@ -2008,7 +2008,7 @@ Line numbers are optional in C64Script; they behave exactly like labels and exis
 1050 RETURN
 ```
 
-### 3.10 User-defined functions with parameters
+### 5.10 User-defined functions with parameters
 
 ```basic
 REM Define a function to apply effect and wait
@@ -2033,7 +2033,7 @@ LOG "Effect applied with delay: " + DELAY
 END
 ```
 
-### 3.11 GOSUB with parameters (BASIC-inspired)
+### 5.11 GOSUB with parameters (BASIC-inspired)
 
 ```basic
 REM Call subroutine with parameters
@@ -2048,7 +2048,7 @@ CONFIGURE:
     RETURN
 ```
 
-### 3.12 Arrays and maps
+### 5.12 Arrays and maps
 
 ```basic
 REM Arrays for storing palette sequence
@@ -2075,7 +2075,7 @@ LOG "Connecting to " + CONFIG${"host"} + ":" + CONFIG{"port"}
 END
 ```
 
-### 3.13 HTTP REST API integration
+### 5.13 HTTP REST API integration
 
 ```basic
 REM Configure API endpoint
@@ -2100,7 +2100,7 @@ ENDIF
 END
 ```
 
-### 3.14 Local file processing and program execution
+### 5.14 Local file processing and program execution
 
 ```basic
 REM Read configuration file
@@ -2125,7 +2125,7 @@ WAIT 30s
 END
 ```
 
-### 3.15 Custom palette colors
+### 5.15 Custom palette colors
 
 ```basic
 REM Start with a base palette
@@ -2146,7 +2146,7 @@ RECORDSTOP
 END
 ```
 
-### 3.16 Long-duration waits and scheduling
+### 5.16 Long-duration waits and scheduling
 
 ```basic
 REM Wait various durations
@@ -2167,7 +2167,7 @@ LOG "Nightly capture completed"
 END
 ```
 
-### 3.17 Complex automation with all features
+### 5.17 Complex automation with all features
 
 ```basic
 REM Complete automation example combining all features
@@ -2236,9 +2236,9 @@ LOG "All captures completed"
 END
 ```
 
-## 4. Implementation Notes
+## 6. Implementation Notes
 
-### 4.1 General
+### 6.1 General
 
 - `c64u:` filesystem paths are supported for `PLAYSID`, `RUNPRG`, and `MOUNTDISK` (path-based REST API).
 - Local file upload variants are fully supported (uploads file data via REST API for all three commands).
@@ -2247,7 +2247,7 @@ END
 - HTTP requests execute via libcurl in the VM and return real status/response values.
 - `RECORDSTART`/`RECORDSTOP` require builds with `ENABLE_FRONTEND_API` enabled (OBS frontend API).
 
-### 4.2 Limits
+### 6.2 Limits
 
 - Max script size: **1 MiB**
 - Max line length: **1024** bytes (parser line buffer)
@@ -2257,7 +2257,7 @@ END
 - Max variables: **512** (`C64SCRIPT_MAX_VARIABLES`)
 - Max bytecode size: **256 KiB** (`C64SCRIPT_MAX_BYTECODE_SIZE`)
 
-### 4.3 Differences from C64 BASIC V2
+### 6.3 Differences from C64 BASIC V2
 
 - **Execution model:** label-oriented scripts; line numbers are optional.
 - **Truth values:** relational operators return `1` for true (BASIC uses `-1`).
