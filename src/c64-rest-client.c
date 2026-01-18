@@ -1885,11 +1885,14 @@ static bool parse_config_item_value(const char *json, const char *category, cons
                     }
 
                     if (strncmp(val, "true", 4) == 0) {
-                        json_copy_string("true", "true" + 4, out_value, out_size);
+                        const char true_literal[] = "true";
+                        json_copy_string(true_literal, true_literal + (sizeof(true_literal) - 1), out_value, out_size);
                         return true;
                     }
                     if (strncmp(val, "false", 5) == 0) {
-                        json_copy_string("false", "false" + 5, out_value, out_size);
+                        const char false_literal[] = "false";
+                        json_copy_string(false_literal, false_literal + (sizeof(false_literal) - 1), out_value,
+                                         out_size);
                         return true;
                     }
 

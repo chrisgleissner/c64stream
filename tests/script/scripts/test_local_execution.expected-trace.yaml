@@ -83,770 +83,580 @@ trace:
   content: "wait 100ms"
   variables:
     EXIT_CODE: 0
-    OUT$: "Hello World
-"
+    OUT$: "Hello World\n"
 - line: 7
   content: "LOG \"Echo output: \" + OUT$"
   variables:
     EXIT_CODE: 0
-    OUT$: "Hello World
-"
+    OUT$: "Hello World\n"
 - line: 10
   content: "RUNLOCAL \"true\" STATUS SUCCESS_CODE"
   variables:
     EXIT_CODE: 0
-    OUT$: "Hello World
-"
+    OUT$: "Hello World\n"
 - line: 11
   content: "if SUCCESS_CODE = 0 then"
   variables:
     EXIT_CODE: 0
-    OUT$: "Hello World
-"
+    OUT$: "Hello World\n"
     SUCCESS_CODE: 0
 - line: 12
   content: "effect \"Sharp Pixels\""
   variables:
     EXIT_CODE: 0
-    OUT$: "Hello World
-"
+    OUT$: "Hello World\n"
     SUCCESS_CODE: 0
 - line: 14
   content: "wait 100ms"
   variables:
     EXIT_CODE: 0
-    OUT$: "Hello World
-"
+    OUT$: "Hello World\n"
     SUCCESS_CODE: 0
 - line: 17
   content: "RUNLOCAL \"false\" STATUS FAIL_CODE"
   variables:
     EXIT_CODE: 0
-    OUT$: "Hello World
-"
+    OUT$: "Hello World\n"
     SUCCESS_CODE: 0
 - line: 18
   content: "if FAIL_CODE <> 0 then"
   variables:
     EXIT_CODE: 0
-    OUT$: "Hello World
-"
+    OUT$: "Hello World\n"
     SUCCESS_CODE: 0
     FAIL_CODE: 1
 - line: 19
   content: "LOG \"Command failed as expected\""
   variables:
     EXIT_CODE: 0
-    OUT$: "Hello World
-"
+    OUT$: "Hello World\n"
     SUCCESS_CODE: 0
     FAIL_CODE: 1
 - line: 21
   content: "wait 100ms"
   variables:
     EXIT_CODE: 0
-    OUT$: "Hello World
-"
+    OUT$: "Hello World\n"
     SUCCESS_CODE: 0
     FAIL_CODE: 1
 - line: 24
   content: "RUNLOCAL \"echo\" ARGS \"test output\" STATUS LS_CODE OUTPUT LS_OUT$"
   variables:
     EXIT_CODE: 0
-    OUT$: "Hello World
-"
+    OUT$: "Hello World\n"
     SUCCESS_CODE: 0
     FAIL_CODE: 1
 - line: 25
   content: "wait 100ms"
   variables:
     EXIT_CODE: 0
-    OUT$: "Hello World
-"
+    OUT$: "Hello World\n"
     SUCCESS_CODE: 0
     FAIL_CODE: 1
     LS_CODE: 0
-    LS_OUT$: "test output
-"
+    LS_OUT$: "test output\n"
 - line: 26
   content: "LOG \"Command output: \" + LS_OUT$"
   variables:
     EXIT_CODE: 0
-    OUT$: "Hello World
-"
+    OUT$: "Hello World\n"
     SUCCESS_CODE: 0
     FAIL_CODE: 1
     LS_CODE: 0
-    LS_OUT$: "test output
-"
+    LS_OUT$: "test output\n"
 - line: 29
   content: "RUNLOCAL \"date\" ARGS \"+%Y\" STATUS D_CODE OUTPUT YEAR$"
   variables:
     EXIT_CODE: 0
-    OUT$: "Hello World
-"
+    OUT$: "Hello World\n"
     SUCCESS_CODE: 0
     FAIL_CODE: 1
     LS_CODE: 0
-    LS_OUT$: "test output
-"
+    LS_OUT$: "test output\n"
 - line: 30
   content: "if VAL(YEAR$) >= 2024 then"
   variables:
     EXIT_CODE: 0
-    OUT$: "Hello World
-"
+    OUT$: "Hello World\n"
     SUCCESS_CODE: 0
     FAIL_CODE: 1
     LS_CODE: 0
-    LS_OUT$: "test output
-"
+    LS_OUT$: "test output\n"
     D_CODE: 0
-    YEAR$: "2026
-"
+    YEAR$: "2026\n"
 - line: 31
   content: "palette \"colodore\""
   variables:
     EXIT_CODE: 0
-    OUT$: "Hello World
-"
+    OUT$: "Hello World\n"
     SUCCESS_CODE: 0
     FAIL_CODE: 1
     LS_CODE: 0
-    LS_OUT$: "test output
-"
+    LS_OUT$: "test output\n"
     D_CODE: 0
-    YEAR$: "2026
-"
+    YEAR$: "2026\n"
 - line: 33
   content: "wait 100ms"
   variables:
     EXIT_CODE: 0
-    OUT$: "Hello World
-"
+    OUT$: "Hello World\n"
     SUCCESS_CODE: 0
     FAIL_CODE: 1
     LS_CODE: 0
-    LS_OUT$: "test output
-"
+    LS_OUT$: "test output\n"
     D_CODE: 0
-    YEAR$: "2026
-"
+    YEAR$: "2026\n"
 - line: 36
   content: "RUNLOCAL \"/bin/sh\" ARGS \"-c 'echo test'\" STATUS SH_CODE OUTPUT SH_OUT$"
   variables:
     EXIT_CODE: 0
-    OUT$: "Hello World
-"
+    OUT$: "Hello World\n"
     SUCCESS_CODE: 0
     FAIL_CODE: 1
     LS_CODE: 0
-    LS_OUT$: "test output
-"
+    LS_OUT$: "test output\n"
     D_CODE: 0
-    YEAR$: "2026
-"
+    YEAR$: "2026\n"
 - line: 37
   content: "wait 100ms"
   variables:
     EXIT_CODE: 0
-    OUT$: "Hello World
-"
+    OUT$: "Hello World\n"
     SUCCESS_CODE: 0
     FAIL_CODE: 1
     LS_CODE: 0
-    LS_OUT$: "test output
-"
+    LS_OUT$: "test output\n"
     D_CODE: 0
-    YEAR$: "2026
-"
+    YEAR$: "2026\n"
     SH_CODE: 0
-    SH_OUT$: "test
-"
+    SH_OUT$: "test\n"
 - line: 40
   content: "RUNLOCAL \"nonexistent_command\" STATUS ERR_CODE OUTPUT ERR_OUT$"
   variables:
     EXIT_CODE: 0
-    OUT$: "Hello World
-"
+    OUT$: "Hello World\n"
     SUCCESS_CODE: 0
     FAIL_CODE: 1
     LS_CODE: 0
-    LS_OUT$: "test output
-"
+    LS_OUT$: "test output\n"
     D_CODE: 0
-    YEAR$: "2026
-"
+    YEAR$: "2026\n"
     SH_CODE: 0
-    SH_OUT$: "test
-"
+    SH_OUT$: "test\n"
 - line: 41
   content: "if ERR_CODE <> 0 then"
   variables:
     EXIT_CODE: 0
-    OUT$: "Hello World
-"
+    OUT$: "Hello World\n"
     SUCCESS_CODE: 0
     FAIL_CODE: 1
     LS_CODE: 0
-    LS_OUT$: "test output
-"
+    LS_OUT$: "test output\n"
     D_CODE: 0
-    YEAR$: "2026
-"
+    YEAR$: "2026\n"
     SH_CODE: 0
-    SH_OUT$: "test
-"
+    SH_OUT$: "test\n"
     ERR_CODE: 127
-    ERR_OUT$: "sh: 1: nonexistent_command: not found
-"
+    ERR_OUT$: "sh: 1: nonexistent_command: not found\n"
 - line: 42
   content: "LOG \"Error: \" + ERR_OUT$"
   variables:
     EXIT_CODE: 0
-    OUT$: "Hello World
-"
+    OUT$: "Hello World\n"
     SUCCESS_CODE: 0
     FAIL_CODE: 1
     LS_CODE: 0
-    LS_OUT$: "test output
-"
+    LS_OUT$: "test output\n"
     D_CODE: 0
-    YEAR$: "2026
-"
+    YEAR$: "2026\n"
     SH_CODE: 0
-    SH_OUT$: "test
-"
+    SH_OUT$: "test\n"
     ERR_CODE: 127
-    ERR_OUT$: "sh: 1: nonexistent_command: not found
-"
+    ERR_OUT$: "sh: 1: nonexistent_command: not found\n"
 - line: 43
   content: "effect \"Soft CRT\""
   variables:
     EXIT_CODE: 0
-    OUT$: "Hello World
-"
+    OUT$: "Hello World\n"
     SUCCESS_CODE: 0
     FAIL_CODE: 1
     LS_CODE: 0
-    LS_OUT$: "test output
-"
+    LS_OUT$: "test output\n"
     D_CODE: 0
-    YEAR$: "2026
-"
+    YEAR$: "2026\n"
     SH_CODE: 0
-    SH_OUT$: "test
-"
+    SH_OUT$: "test\n"
     ERR_CODE: 127
-    ERR_OUT$: "sh: 1: nonexistent_command: not found
-"
+    ERR_OUT$: "sh: 1: nonexistent_command: not found\n"
 - line: 45
   content: "wait 100ms"
   variables:
     EXIT_CODE: 0
-    OUT$: "Hello World
-"
+    OUT$: "Hello World\n"
     SUCCESS_CODE: 0
     FAIL_CODE: 1
     LS_CODE: 0
-    LS_OUT$: "test output
-"
+    LS_OUT$: "test output\n"
     D_CODE: 0
-    YEAR$: "2026
-"
+    YEAR$: "2026\n"
     SH_CODE: 0
-    SH_OUT$: "test
-"
+    SH_OUT$: "test\n"
     ERR_CODE: 127
-    ERR_OUT$: "sh: 1: nonexistent_command: not found
-"
+    ERR_OUT$: "sh: 1: nonexistent_command: not found\n"
 - line: 48
   content: "RUNLOCAL \"echo\" ARGS \"Step 1\" STATUS S1 OUTPUT O1$"
   variables:
     EXIT_CODE: 0
-    OUT$: "Hello World
-"
+    OUT$: "Hello World\n"
     SUCCESS_CODE: 0
     FAIL_CODE: 1
     LS_CODE: 0
-    LS_OUT$: "test output
-"
+    LS_OUT$: "test output\n"
     D_CODE: 0
-    YEAR$: "2026
-"
+    YEAR$: "2026\n"
     SH_CODE: 0
-    SH_OUT$: "test
-"
+    SH_OUT$: "test\n"
     ERR_CODE: 127
-    ERR_OUT$: "sh: 1: nonexistent_command: not found
-"
+    ERR_OUT$: "sh: 1: nonexistent_command: not found\n"
 - line: 49
   content: "LOG O1$"
   variables:
     EXIT_CODE: 0
-    OUT$: "Hello World
-"
+    OUT$: "Hello World\n"
     SUCCESS_CODE: 0
     FAIL_CODE: 1
     LS_CODE: 0
-    LS_OUT$: "test output
-"
+    LS_OUT$: "test output\n"
     D_CODE: 0
-    YEAR$: "2026
-"
+    YEAR$: "2026\n"
     SH_CODE: 0
-    SH_OUT$: "test
-"
+    SH_OUT$: "test\n"
     ERR_CODE: 127
-    ERR_OUT$: "sh: 1: nonexistent_command: not found
-"
+    ERR_OUT$: "sh: 1: nonexistent_command: not found\n"
     S1: 0
-    O1$: "Step 1
-"
+    O1$: "Step 1\n"
 - line: 50
   content: "wait 50ms"
   variables:
     EXIT_CODE: 0
-    OUT$: "Hello World
-"
+    OUT$: "Hello World\n"
     SUCCESS_CODE: 0
     FAIL_CODE: 1
     LS_CODE: 0
-    LS_OUT$: "test output
-"
+    LS_OUT$: "test output\n"
     D_CODE: 0
-    YEAR$: "2026
-"
+    YEAR$: "2026\n"
     SH_CODE: 0
-    SH_OUT$: "test
-"
+    SH_OUT$: "test\n"
     ERR_CODE: 127
-    ERR_OUT$: "sh: 1: nonexistent_command: not found
-"
+    ERR_OUT$: "sh: 1: nonexistent_command: not found\n"
     S1: 0
-    O1$: "Step 1
-"
+    O1$: "Step 1\n"
 - line: 52
   content: "RUNLOCAL \"echo\" ARGS \"Step 2\" STATUS S2 OUTPUT O2$"
   variables:
     EXIT_CODE: 0
-    OUT$: "Hello World
-"
+    OUT$: "Hello World\n"
     SUCCESS_CODE: 0
     FAIL_CODE: 1
     LS_CODE: 0
-    LS_OUT$: "test output
-"
+    LS_OUT$: "test output\n"
     D_CODE: 0
-    YEAR$: "2026
-"
+    YEAR$: "2026\n"
     SH_CODE: 0
-    SH_OUT$: "test
-"
+    SH_OUT$: "test\n"
     ERR_CODE: 127
-    ERR_OUT$: "sh: 1: nonexistent_command: not found
-"
+    ERR_OUT$: "sh: 1: nonexistent_command: not found\n"
     S1: 0
-    O1$: "Step 1
-"
+    O1$: "Step 1\n"
 - line: 53
   content: "LOG O2$"
   variables:
     EXIT_CODE: 0
-    OUT$: "Hello World
-"
+    OUT$: "Hello World\n"
     SUCCESS_CODE: 0
     FAIL_CODE: 1
     LS_CODE: 0
-    LS_OUT$: "test output
-"
+    LS_OUT$: "test output\n"
     D_CODE: 0
-    YEAR$: "2026
-"
+    YEAR$: "2026\n"
     SH_CODE: 0
-    SH_OUT$: "test
-"
+    SH_OUT$: "test\n"
     ERR_CODE: 127
-    ERR_OUT$: "sh: 1: nonexistent_command: not found
-"
+    ERR_OUT$: "sh: 1: nonexistent_command: not found\n"
     S1: 0
-    O1$: "Step 1
-"
+    O1$: "Step 1\n"
     S2: 0
-    O2$: "Step 2
-"
+    O2$: "Step 2\n"
 - line: 54
   content: "wait 50ms"
   variables:
     EXIT_CODE: 0
-    OUT$: "Hello World
-"
+    OUT$: "Hello World\n"
     SUCCESS_CODE: 0
     FAIL_CODE: 1
     LS_CODE: 0
-    LS_OUT$: "test output
-"
+    LS_OUT$: "test output\n"
     D_CODE: 0
-    YEAR$: "2026
-"
+    YEAR$: "2026\n"
     SH_CODE: 0
-    SH_OUT$: "test
-"
+    SH_OUT$: "test\n"
     ERR_CODE: 127
-    ERR_OUT$: "sh: 1: nonexistent_command: not found
-"
+    ERR_OUT$: "sh: 1: nonexistent_command: not found\n"
     S1: 0
-    O1$: "Step 1
-"
+    O1$: "Step 1\n"
     S2: 0
-    O2$: "Step 2
-"
+    O2$: "Step 2\n"
 - line: 56
   content: "RUNLOCAL \"echo\" ARGS \"Step 3\" STATUS S3 OUTPUT O3$"
   variables:
     EXIT_CODE: 0
-    OUT$: "Hello World
-"
+    OUT$: "Hello World\n"
     SUCCESS_CODE: 0
     FAIL_CODE: 1
     LS_CODE: 0
-    LS_OUT$: "test output
-"
+    LS_OUT$: "test output\n"
     D_CODE: 0
-    YEAR$: "2026
-"
+    YEAR$: "2026\n"
     SH_CODE: 0
-    SH_OUT$: "test
-"
+    SH_OUT$: "test\n"
     ERR_CODE: 127
-    ERR_OUT$: "sh: 1: nonexistent_command: not found
-"
+    ERR_OUT$: "sh: 1: nonexistent_command: not found\n"
     S1: 0
-    O1$: "Step 1
-"
+    O1$: "Step 1\n"
     S2: 0
-    O2$: "Step 2
-"
+    O2$: "Step 2\n"
 - line: 57
   content: "LOG O3$"
   variables:
     EXIT_CODE: 0
-    OUT$: "Hello World
-"
+    OUT$: "Hello World\n"
     SUCCESS_CODE: 0
     FAIL_CODE: 1
     LS_CODE: 0
-    LS_OUT$: "test output
-"
+    LS_OUT$: "test output\n"
     D_CODE: 0
-    YEAR$: "2026
-"
+    YEAR$: "2026\n"
     SH_CODE: 0
-    SH_OUT$: "test
-"
+    SH_OUT$: "test\n"
     ERR_CODE: 127
-    ERR_OUT$: "sh: 1: nonexistent_command: not found
-"
+    ERR_OUT$: "sh: 1: nonexistent_command: not found\n"
     S1: 0
-    O1$: "Step 1
-"
+    O1$: "Step 1\n"
     S2: 0
-    O2$: "Step 2
-"
+    O2$: "Step 2\n"
     S3: 0
-    O3$: "Step 3
-"
+    O3$: "Step 3\n"
 - line: 58
   content: "wait 50ms"
   variables:
     EXIT_CODE: 0
-    OUT$: "Hello World
-"
+    OUT$: "Hello World\n"
     SUCCESS_CODE: 0
     FAIL_CODE: 1
     LS_CODE: 0
-    LS_OUT$: "test output
-"
+    LS_OUT$: "test output\n"
     D_CODE: 0
-    YEAR$: "2026
-"
+    YEAR$: "2026\n"
     SH_CODE: 0
-    SH_OUT$: "test
-"
+    SH_OUT$: "test\n"
     ERR_CODE: 127
-    ERR_OUT$: "sh: 1: nonexistent_command: not found
-"
+    ERR_OUT$: "sh: 1: nonexistent_command: not found\n"
     S1: 0
-    O1$: "Step 1
-"
+    O1$: "Step 1\n"
     S2: 0
-    O2$: "Step 2
-"
+    O2$: "Step 2\n"
     S3: 0
-    O3$: "Step 3
-"
+    O3$: "Step 3\n"
 - line: 61
   content: "RUNLOCAL \"expr\" ARGS \"10 + 20\" STATUS EXPR_CODE OUTPUT RESULT$"
   variables:
     EXIT_CODE: 0
-    OUT$: "Hello World
-"
+    OUT$: "Hello World\n"
     SUCCESS_CODE: 0
     FAIL_CODE: 1
     LS_CODE: 0
-    LS_OUT$: "test output
-"
+    LS_OUT$: "test output\n"
     D_CODE: 0
-    YEAR$: "2026
-"
+    YEAR$: "2026\n"
     SH_CODE: 0
-    SH_OUT$: "test
-"
+    SH_OUT$: "test\n"
     ERR_CODE: 127
-    ERR_OUT$: "sh: 1: nonexistent_command: not found
-"
+    ERR_OUT$: "sh: 1: nonexistent_command: not found\n"
     S1: 0
-    O1$: "Step 1
-"
+    O1$: "Step 1\n"
     S2: 0
-    O2$: "Step 2
-"
+    O2$: "Step 2\n"
     S3: 0
-    O3$: "Step 3
-"
+    O3$: "Step 3\n"
 - line: 62
   content: "NUM = VAL(RESULT$)"
   variables:
     EXIT_CODE: 0
-    OUT$: "Hello World
-"
+    OUT$: "Hello World\n"
     SUCCESS_CODE: 0
     FAIL_CODE: 1
     LS_CODE: 0
-    LS_OUT$: "test output
-"
+    LS_OUT$: "test output\n"
     D_CODE: 0
-    YEAR$: "2026
-"
+    YEAR$: "2026\n"
     SH_CODE: 0
-    SH_OUT$: "test
-"
+    SH_OUT$: "test\n"
     ERR_CODE: 127
-    ERR_OUT$: "sh: 1: nonexistent_command: not found
-"
+    ERR_OUT$: "sh: 1: nonexistent_command: not found\n"
     S1: 0
-    O1$: "Step 1
-"
+    O1$: "Step 1\n"
     S2: 0
-    O2$: "Step 2
-"
+    O2$: "Step 2\n"
     S3: 0
-    O3$: "Step 3
-"
+    O3$: "Step 3\n"
     EXPR_CODE: 0
-    RESULT$: "30
-"
+    RESULT$: "30\n"
 - line: 63
   content: "if NUM = 30 then"
   variables:
     EXIT_CODE: 0
-    OUT$: "Hello World
-"
+    OUT$: "Hello World\n"
     SUCCESS_CODE: 0
     FAIL_CODE: 1
     LS_CODE: 0
-    LS_OUT$: "test output
-"
+    LS_OUT$: "test output\n"
     D_CODE: 0
-    YEAR$: "2026
-"
+    YEAR$: "2026\n"
     SH_CODE: 0
-    SH_OUT$: "test
-"
+    SH_OUT$: "test\n"
     ERR_CODE: 127
-    ERR_OUT$: "sh: 1: nonexistent_command: not found
-"
+    ERR_OUT$: "sh: 1: nonexistent_command: not found\n"
     S1: 0
-    O1$: "Step 1
-"
+    O1$: "Step 1\n"
     S2: 0
-    O2$: "Step 2
-"
+    O2$: "Step 2\n"
     S3: 0
-    O3$: "Step 3
-"
+    O3$: "Step 3\n"
     EXPR_CODE: 0
-    RESULT$: "30
-"
+    RESULT$: "30\n"
     NUM: 30
 - line: 64
   content: "LOG \"Calculation correct: \" + NUM"
   variables:
     EXIT_CODE: 0
-    OUT$: "Hello World
-"
+    OUT$: "Hello World\n"
     SUCCESS_CODE: 0
     FAIL_CODE: 1
     LS_CODE: 0
-    LS_OUT$: "test output
-"
+    LS_OUT$: "test output\n"
     D_CODE: 0
-    YEAR$: "2026
-"
+    YEAR$: "2026\n"
     SH_CODE: 0
-    SH_OUT$: "test
-"
+    SH_OUT$: "test\n"
     ERR_CODE: 127
-    ERR_OUT$: "sh: 1: nonexistent_command: not found
-"
+    ERR_OUT$: "sh: 1: nonexistent_command: not found\n"
     S1: 0
-    O1$: "Step 1
-"
+    O1$: "Step 1\n"
     S2: 0
-    O2$: "Step 2
-"
+    O2$: "Step 2\n"
     S3: 0
-    O3$: "Step 3
-"
+    O3$: "Step 3\n"
     EXPR_CODE: 0
-    RESULT$: "30
-"
+    RESULT$: "30\n"
     NUM: 30
 - line: 66
   content: "wait 100ms"
   variables:
     EXIT_CODE: 0
-    OUT$: "Hello World
-"
+    OUT$: "Hello World\n"
     SUCCESS_CODE: 0
     FAIL_CODE: 1
     LS_CODE: 0
-    LS_OUT$: "test output
-"
+    LS_OUT$: "test output\n"
     D_CODE: 0
-    YEAR$: "2026
-"
+    YEAR$: "2026\n"
     SH_CODE: 0
-    SH_OUT$: "test
-"
+    SH_OUT$: "test\n"
     ERR_CODE: 127
-    ERR_OUT$: "sh: 1: nonexistent_command: not found
-"
+    ERR_OUT$: "sh: 1: nonexistent_command: not found\n"
     S1: 0
-    O1$: "Step 1
-"
+    O1$: "Step 1\n"
     S2: 0
-    O2$: "Step 2
-"
+    O2$: "Step 2\n"
     S3: 0
-    O3$: "Step 3
-"
+    O3$: "Step 3\n"
     EXPR_CODE: 0
-    RESULT$: "30
-"
+    RESULT$: "30\n"
     NUM: 30
 - line: 69
   content: "RUNLOCAL \"echo\" ARGS \"1234567890\" STATUS T_CODE OUTPUT TIMESTAMP$"
   variables:
     EXIT_CODE: 0
-    OUT$: "Hello World
-"
+    OUT$: "Hello World\n"
     SUCCESS_CODE: 0
     FAIL_CODE: 1
     LS_CODE: 0
-    LS_OUT$: "test output
-"
+    LS_OUT$: "test output\n"
     D_CODE: 0
-    YEAR$: "2026
-"
+    YEAR$: "2026\n"
     SH_CODE: 0
-    SH_OUT$: "test
-"
+    SH_OUT$: "test\n"
     ERR_CODE: 127
-    ERR_OUT$: "sh: 1: nonexistent_command: not found
-"
+    ERR_OUT$: "sh: 1: nonexistent_command: not found\n"
     S1: 0
-    O1$: "Step 1
-"
+    O1$: "Step 1\n"
     S2: 0
-    O2$: "Step 2
-"
+    O2$: "Step 2\n"
     S3: 0
-    O3$: "Step 3
-"
+    O3$: "Step 3\n"
     EXPR_CODE: 0
-    RESULT$: "30
-"
+    RESULT$: "30\n"
     NUM: 30
 - line: 70
   content: "WRITEFILE \"execution_log.txt\", \"Executed at: \" + TIMESTAMP$ APPEND"
   variables:
     EXIT_CODE: 0
-    OUT$: "Hello World
-"
+    OUT$: "Hello World\n"
     SUCCESS_CODE: 0
     FAIL_CODE: 1
     LS_CODE: 0
-    LS_OUT$: "test output
-"
+    LS_OUT$: "test output\n"
     D_CODE: 0
-    YEAR$: "2026
-"
+    YEAR$: "2026\n"
     SH_CODE: 0
-    SH_OUT$: "test
-"
+    SH_OUT$: "test\n"
     ERR_CODE: 127
-    ERR_OUT$: "sh: 1: nonexistent_command: not found
-"
+    ERR_OUT$: "sh: 1: nonexistent_command: not found\n"
     S1: 0
-    O1$: "Step 1
-"
+    O1$: "Step 1\n"
     S2: 0
-    O2$: "Step 2
-"
+    O2$: "Step 2\n"
     S3: 0
-    O3$: "Step 3
-"
+    O3$: "Step 3\n"
     EXPR_CODE: 0
-    RESULT$: "30
-"
+    RESULT$: "30\n"
     NUM: 30
     T_CODE: 0
-    TIMESTAMP$: "1234567890
-"
+    TIMESTAMP$: "1234567890\n"
 - line: 72
   content: "stop"
   variables:
     EXIT_CODE: 0
-    OUT$: "Hello World
-"
+    OUT$: "Hello World\n"
     SUCCESS_CODE: 0
     FAIL_CODE: 1
     LS_CODE: 0
-    LS_OUT$: "test output
-"
+    LS_OUT$: "test output\n"
     D_CODE: 0
-    YEAR$: "2026
-"
+    YEAR$: "2026\n"
     SH_CODE: 0
-    SH_OUT$: "test
-"
+    SH_OUT$: "test\n"
     ERR_CODE: 127
-    ERR_OUT$: "sh: 1: nonexistent_command: not found
-"
+    ERR_OUT$: "sh: 1: nonexistent_command: not found\n"
     S1: 0
-    O1$: "Step 1
-"
+    O1$: "Step 1\n"
     S2: 0
-    O2$: "Step 2
-"
+    O2$: "Step 2\n"
     S3: 0
-    O3$: "Step 3
-"
+    O3$: "Step 3\n"
     EXPR_CODE: 0
-    RESULT$: "30
-"
+    RESULT$: "30\n"
     NUM: 30
     T_CODE: 0
-    TIMESTAMP$: "1234567890
-"
+    TIMESTAMP$: "1234567890\n"

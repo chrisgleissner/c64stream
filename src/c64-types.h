@@ -336,6 +336,12 @@ struct c64_source {
     char rest_base_url[256];       // REST API base URL
     char keyboard_keymap_name[64]; // Keymap name (e.g., "symbolic_us")
 
+    // Audio mixer snapshot for AV sync runs
+    char **audio_mixer_snapshot_items;  // Item names (Audio Mixer)
+    char **audio_mixer_snapshot_values; // Original values for each item
+    size_t audio_mixer_snapshot_count;  // Number of tracked items
+    bool audio_mixer_snapshot_active;   // Whether snapshot is valid
+
     // Script automation
     void *script_executor;          // c64_script_executor_t* (forward declaration to avoid circular dependency)
     void *current_script;           // c64_script_t* currently loaded script

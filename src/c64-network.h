@@ -77,6 +77,8 @@ void c64_cleanup_networking(void);
 
 // IP detection and hostname resolution
 bool c64_detect_local_ip(char *ip_buffer, size_t buffer_size);
+bool c64_detect_local_ip_for_host(const char *remote_host, const char *custom_dns_server, char *ip_buffer,
+                                  size_t buffer_size);
 bool c64_resolve_hostname(const char *hostname, char *ip_buffer, size_t buffer_size);
 bool c64_resolve_hostname_with_dns(const char *hostname, const char *custom_dns_server, char *ip_buffer,
                                    size_t buffer_size);

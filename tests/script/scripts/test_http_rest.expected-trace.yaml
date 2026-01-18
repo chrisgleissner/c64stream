@@ -115,14 +115,14 @@ trace:
     STATUS_CODE: 0
     RESP$: "Couldn't connect to server"
     CODE: 0
-    BODY$: "{"command":"reset"}"
+    BODY$: "{\"command\":\"reset\"}"
 - line: 19
   content: "wait 100ms"
   variables:
     STATUS_CODE: 0
     RESP$: "Couldn't connect to server"
     CODE: 0
-    BODY$: "{"command":"reset"}"
+    BODY$: "{\"command\":\"reset\"}"
     POST_STATUS: 0
 - line: 22
   content: "HEADERS${\"Content-Type\"} = \"application/json\""
@@ -130,7 +130,7 @@ trace:
     STATUS_CODE: 0
     RESP$: "Couldn't connect to server"
     CODE: 0
-    BODY$: "{"command":"reset"}"
+    BODY$: "{\"command\":\"reset\"}"
     POST_STATUS: 0
 - line: 23
   content: "DATA$ = \"{\\\"value\\\":42}\""
@@ -138,7 +138,7 @@ trace:
     STATUS_CODE: 0
     RESP$: "Couldn't connect to server"
     CODE: 0
-    BODY$: "{"command":"reset"}"
+    BODY$: "{\"command\":\"reset\"}"
     POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
 - line: 24
@@ -147,20 +147,20 @@ trace:
     STATUS_CODE: 0
     RESP$: "Couldn't connect to server"
     CODE: 0
-    BODY$: "{"command":"reset"}"
+    BODY$: "{\"command\":\"reset\"}"
     POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
-    DATA$: "{"value":42}"
+    DATA$: "{\"value\":42}"
 - line: 25
   content: "wait 100ms"
   variables:
     STATUS_CODE: 0
     RESP$: "Couldn't connect to server"
     CODE: 0
-    BODY$: "{"command":"reset"}"
+    BODY$: "{\"command\":\"reset\"}"
     POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
-    DATA$: "{"value":42}"
+    DATA$: "{\"value\":42}"
     S: 0
     R$: "Couldn't connect to server"
 - line: 26
@@ -169,10 +169,10 @@ trace:
     STATUS_CODE: 0
     RESP$: "Couldn't connect to server"
     CODE: 0
-    BODY$: "{"command":"reset"}"
+    BODY$: "{\"command\":\"reset\"}"
     POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
-    DATA$: "{"value":42}"
+    DATA$: "{\"value\":42}"
     S: 0
     R$: "Couldn't connect to server"
 - line: 29
@@ -181,10 +181,10 @@ trace:
     STATUS_CODE: 0
     RESP$: "Couldn't connect to server"
     CODE: 0
-    BODY$: "{"command":"reset"}"
+    BODY$: "{\"command\":\"reset\"}"
     POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
-    DATA$: "{"value":42}"
+    DATA$: "{\"value\":42}"
     S: 0
     R$: "Couldn't connect to server"
 - line: 30
@@ -193,10 +193,10 @@ trace:
     STATUS_CODE: 0
     RESP$: "Couldn't connect to server"
     CODE: 0
-    BODY$: "{"command":"reset"}"
+    BODY$: "{\"command\":\"reset\"}"
     POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
-    DATA$: "{"value":42}"
+    DATA$: "{\"value\":42}"
     S: 0
     R$: "Couldn't connect to server"
     PUT_CODE: 0
@@ -206,10 +206,10 @@ trace:
     STATUS_CODE: 0
     RESP$: "Couldn't connect to server"
     CODE: 0
-    BODY$: "{"command":"reset"}"
+    BODY$: "{\"command\":\"reset\"}"
     POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
-    DATA$: "{"value":42}"
+    DATA$: "{\"value\":42}"
     S: 0
     R$: "Couldn't connect to server"
     PUT_CODE: 0
@@ -219,10 +219,10 @@ trace:
     STATUS_CODE: 0
     RESP$: "Couldn't connect to server"
     CODE: 0
-    BODY$: "{"command":"reset"}"
+    BODY$: "{\"command\":\"reset\"}"
     POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
-    DATA$: "{"value":42}"
+    DATA$: "{\"value\":42}"
     S: 0
     R$: "Couldn't connect to server"
     PUT_CODE: 0
@@ -233,10 +233,10 @@ trace:
     STATUS_CODE: 0
     RESP$: "Couldn't connect to server"
     CODE: 0
-    BODY$: "{"command":"reset"}"
+    BODY$: "{\"command\":\"reset\"}"
     POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
-    DATA$: "{"value":42}"
+    DATA$: "{\"value\":42}"
     S: 0
     R$: "Couldn't connect to server"
     PUT_CODE: 0
@@ -247,30 +247,30 @@ trace:
     STATUS_CODE: 0
     RESP$: "Couldn't connect to server"
     CODE: 0
-    BODY$: "{"command":"reset"}"
+    BODY$: "{\"command\":\"reset\"}"
     POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
-    DATA$: "{"value":42}"
+    DATA$: "{\"value\":42}"
     S: 0
     R$: "Couldn't connect to server"
     PUT_CODE: 0
     DEL_CODE: 0
-    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_BODY$: "{\"field\":\"updated\"}"
 - line: 39
   content: "wait 100ms"
   variables:
     STATUS_CODE: 0
     RESP$: "Couldn't connect to server"
     CODE: 0
-    BODY$: "{"command":"reset"}"
+    BODY$: "{\"command\":\"reset\"}"
     POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
-    DATA$: "{"value":42}"
+    DATA$: "{\"value\":42}"
     S: 0
     R$: "Couldn't connect to server"
     PUT_CODE: 0
     DEL_CODE: 0
-    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_BODY$: "{\"field\":\"updated\"}"
     PATCH_CODE: 0
 - line: 42
   content: "HTTP GET \"http://localhost:8064/v1/status\" STATUS API_STATUS RESPONSE API_RESP$"
@@ -278,15 +278,15 @@ trace:
     STATUS_CODE: 0
     RESP$: "Couldn't connect to server"
     CODE: 0
-    BODY$: "{"command":"reset"}"
+    BODY$: "{\"command\":\"reset\"}"
     POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
-    DATA$: "{"value":42}"
+    DATA$: "{\"value\":42}"
     S: 0
     R$: "Couldn't connect to server"
     PUT_CODE: 0
     DEL_CODE: 0
-    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_BODY$: "{\"field\":\"updated\"}"
     PATCH_CODE: 0
 - line: 43
   content: "if API_STATUS = 200 then"
@@ -294,15 +294,15 @@ trace:
     STATUS_CODE: 0
     RESP$: "Couldn't connect to server"
     CODE: 0
-    BODY$: "{"command":"reset"}"
+    BODY$: "{\"command\":\"reset\"}"
     POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
-    DATA$: "{"value":42}"
+    DATA$: "{\"value\":42}"
     S: 0
     R$: "Couldn't connect to server"
     PUT_CODE: 0
     DEL_CODE: 0
-    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_BODY$: "{\"field\":\"updated\"}"
     PATCH_CODE: 0
     API_STATUS: 0
     API_RESP$: "Couldn't connect to server"
@@ -312,15 +312,15 @@ trace:
     STATUS_CODE: 0
     RESP$: "Couldn't connect to server"
     CODE: 0
-    BODY$: "{"command":"reset"}"
+    BODY$: "{\"command\":\"reset\"}"
     POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
-    DATA$: "{"value":42}"
+    DATA$: "{\"value\":42}"
     S: 0
     R$: "Couldn't connect to server"
     PUT_CODE: 0
     DEL_CODE: 0
-    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_BODY$: "{\"field\":\"updated\"}"
     PATCH_CODE: 0
     API_STATUS: 0
     API_RESP$: "Couldn't connect to server"
@@ -330,15 +330,15 @@ trace:
     STATUS_CODE: 0
     RESP$: "Couldn't connect to server"
     CODE: 0
-    BODY$: "{"command":"reset"}"
+    BODY$: "{\"command\":\"reset\"}"
     POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
-    DATA$: "{"value":42}"
+    DATA$: "{\"value\":42}"
     S: 0
     R$: "Couldn't connect to server"
     PUT_CODE: 0
     DEL_CODE: 0
-    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_BODY$: "{\"field\":\"updated\"}"
     PATCH_CODE: 0
     API_STATUS: 0
     API_RESP$: "Couldn't connect to server"
@@ -348,15 +348,15 @@ trace:
     STATUS_CODE: 0
     RESP$: "Couldn't connect to server"
     CODE: 0
-    BODY$: "{"command":"reset"}"
+    BODY$: "{\"command\":\"reset\"}"
     POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
-    DATA$: "{"value":42}"
+    DATA$: "{\"value\":42}"
     S: 0
     R$: "Couldn't connect to server"
     PUT_CODE: 0
     DEL_CODE: 0
-    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_BODY$: "{\"field\":\"updated\"}"
     PATCH_CODE: 0
     API_STATUS: 0
     API_RESP$: "Couldn't connect to server"
@@ -366,15 +366,15 @@ trace:
     STATUS_CODE: 0
     RESP$: "Couldn't connect to server"
     CODE: 0
-    BODY$: "{"command":"reset"}"
+    BODY$: "{\"command\":\"reset\"}"
     POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
-    DATA$: "{"value":42}"
+    DATA$: "{\"value\":42}"
     S: 0
     R$: "Couldn't connect to server"
     PUT_CODE: 0
     DEL_CODE: 0
-    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_BODY$: "{\"field\":\"updated\"}"
     PATCH_CODE: 0
     API_STATUS: 0
     API_RESP$: "Couldn't connect to server"
@@ -384,15 +384,15 @@ trace:
     STATUS_CODE: 0
     RESP$: "Couldn't connect to server"
     CODE: 0
-    BODY$: "{"command":"reset"}"
+    BODY$: "{\"command\":\"reset\"}"
     POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
-    DATA$: "{"value":42}"
+    DATA$: "{\"value\":42}"
     S: 0
     R$: "Couldn't connect to server"
     PUT_CODE: 0
     DEL_CODE: 0
-    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_BODY$: "{\"field\":\"updated\"}"
     PATCH_CODE: 0
     API_STATUS: 0
     API_RESP$: "Couldn't connect to server"
@@ -403,15 +403,15 @@ trace:
     STATUS_CODE: 0
     RESP$: "Couldn't connect to server"
     CODE: 0
-    BODY$: "{"command":"reset"}"
+    BODY$: "{\"command\":\"reset\"}"
     POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
-    DATA$: "{"value":42}"
+    DATA$: "{\"value\":42}"
     S: 0
     R$: "Couldn't connect to server"
     PUT_CODE: 0
     DEL_CODE: 0
-    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_BODY$: "{\"field\":\"updated\"}"
     PATCH_CODE: 0
     API_STATUS: 0
     API_RESP$: "Couldn't connect to server"
@@ -422,15 +422,15 @@ trace:
     STATUS_CODE: 0
     RESP$: "Couldn't connect to server"
     CODE: 0
-    BODY$: "{"command":"reset"}"
+    BODY$: "{\"command\":\"reset\"}"
     POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
-    DATA$: "{"value":42}"
+    DATA$: "{\"value\":42}"
     S: 0
     R$: "Couldn't connect to server"
     PUT_CODE: 0
     DEL_CODE: 0
-    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_BODY$: "{\"field\":\"updated\"}"
     PATCH_CODE: 0
     API_STATUS: 0
     API_RESP$: "Couldn't connect to server"
@@ -441,15 +441,15 @@ trace:
     STATUS_CODE: 0
     RESP$: "Couldn't connect to server"
     CODE: 0
-    BODY$: "{"command":"reset"}"
+    BODY$: "{\"command\":\"reset\"}"
     POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
-    DATA$: "{"value":42}"
+    DATA$: "{\"value\":42}"
     S: 0
     R$: "Couldn't connect to server"
     PUT_CODE: 0
     DEL_CODE: 0
-    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_BODY$: "{\"field\":\"updated\"}"
     PATCH_CODE: 0
     API_STATUS: 0
     API_RESP$: "Couldn't connect to server"
@@ -460,15 +460,15 @@ trace:
     STATUS_CODE: 0
     RESP$: "Couldn't connect to server"
     CODE: 0
-    BODY$: "{"command":"reset"}"
+    BODY$: "{\"command\":\"reset\"}"
     POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
-    DATA$: "{"value":42}"
+    DATA$: "{\"value\":42}"
     S: 0
     R$: "Couldn't connect to server"
     PUT_CODE: 0
     DEL_CODE: 0
-    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_BODY$: "{\"field\":\"updated\"}"
     PATCH_CODE: 0
     API_STATUS: 0
     API_RESP$: "Couldn't connect to server"
@@ -479,15 +479,15 @@ trace:
     STATUS_CODE: 0
     RESP$: "Couldn't connect to server"
     CODE: 0
-    BODY$: "{"command":"reset"}"
+    BODY$: "{\"command\":\"reset\"}"
     POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
-    DATA$: "{"value":42}"
+    DATA$: "{\"value\":42}"
     S: 0
     R$: "Couldn't connect to server"
     PUT_CODE: 0
     DEL_CODE: 0
-    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_BODY$: "{\"field\":\"updated\"}"
     PATCH_CODE: 0
     API_STATUS: 0
     API_RESP$: "Couldn't connect to server"
@@ -498,15 +498,15 @@ trace:
     STATUS_CODE: 0
     RESP$: "Couldn't connect to server"
     CODE: 0
-    BODY$: "{"command":"reset"}"
+    BODY$: "{\"command\":\"reset\"}"
     POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
-    DATA$: "{"value":42}"
+    DATA$: "{\"value\":42}"
     S: 0
     R$: "Couldn't connect to server"
     PUT_CODE: 0
     DEL_CODE: 0
-    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_BODY$: "{\"field\":\"updated\"}"
     PATCH_CODE: 0
     API_STATUS: 0
     API_RESP$: "Couldn't connect to server"
@@ -517,15 +517,15 @@ trace:
     STATUS_CODE: 0
     RESP$: "Couldn't connect to server"
     CODE: 0
-    BODY$: "{"command":"reset"}"
+    BODY$: "{\"command\":\"reset\"}"
     POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
-    DATA$: "{"value":42}"
+    DATA$: "{\"value\":42}"
     S: 0
     R$: "Couldn't connect to server"
     PUT_CODE: 0
     DEL_CODE: 0
-    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_BODY$: "{\"field\":\"updated\"}"
     PATCH_CODE: 0
     API_STATUS: 0
     API_RESP$: "Couldn't connect to server"
@@ -536,15 +536,15 @@ trace:
     STATUS_CODE: 0
     RESP$: "Couldn't connect to server"
     CODE: 0
-    BODY$: "{"command":"reset"}"
+    BODY$: "{\"command\":\"reset\"}"
     POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
-    DATA$: "{"value":42}"
+    DATA$: "{\"value\":42}"
     S: 0
     R$: "Couldn't connect to server"
     PUT_CODE: 0
     DEL_CODE: 0
-    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_BODY$: "{\"field\":\"updated\"}"
     PATCH_CODE: 0
     API_STATUS: 0
     API_RESP$: "Couldn't connect to server"
@@ -555,15 +555,15 @@ trace:
     STATUS_CODE: 0
     RESP$: "Couldn't connect to server"
     CODE: 0
-    BODY$: "{"command":"reset"}"
+    BODY$: "{\"command\":\"reset\"}"
     POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
-    DATA$: "{"value":42}"
+    DATA$: "{\"value\":42}"
     S: 0
     R$: "Couldn't connect to server"
     PUT_CODE: 0
     DEL_CODE: 0
-    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_BODY$: "{\"field\":\"updated\"}"
     PATCH_CODE: 0
     API_STATUS: 0
     API_RESP$: "Couldn't connect to server"
@@ -574,15 +574,15 @@ trace:
     STATUS_CODE: 0
     RESP$: "Couldn't connect to server"
     CODE: 0
-    BODY$: "{"command":"reset"}"
+    BODY$: "{\"command\":\"reset\"}"
     POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
-    DATA$: "{"value":42}"
+    DATA$: "{\"value\":42}"
     S: 0
     R$: "Couldn't connect to server"
     PUT_CODE: 0
     DEL_CODE: 0
-    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_BODY$: "{\"field\":\"updated\"}"
     PATCH_CODE: 0
     API_STATUS: 0
     API_RESP$: "Couldn't connect to server"
@@ -593,15 +593,15 @@ trace:
     STATUS_CODE: 0
     RESP$: "Couldn't connect to server"
     CODE: 0
-    BODY$: "{"command":"reset"}"
+    BODY$: "{\"command\":\"reset\"}"
     POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
-    DATA$: "{"value":42}"
+    DATA$: "{\"value\":42}"
     S: 0
     R$: "Couldn't connect to server"
     PUT_CODE: 0
     DEL_CODE: 0
-    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_BODY$: "{\"field\":\"updated\"}"
     PATCH_CODE: 0
     API_STATUS: 0
     API_RESP$: "Couldn't connect to server"
@@ -612,15 +612,15 @@ trace:
     STATUS_CODE: 0
     RESP$: "Couldn't connect to server"
     CODE: 0
-    BODY$: "{"command":"reset"}"
+    BODY$: "{\"command\":\"reset\"}"
     POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
-    DATA$: "{"value":42}"
+    DATA$: "{\"value\":42}"
     S: 0
     R$: "Couldn't connect to server"
     PUT_CODE: 0
     DEL_CODE: 0
-    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_BODY$: "{\"field\":\"updated\"}"
     PATCH_CODE: 0
     API_STATUS: 0
     API_RESP$: "Couldn't connect to server"
@@ -631,15 +631,15 @@ trace:
     STATUS_CODE: 0
     RESP$: "Couldn't connect to server"
     CODE: 0
-    BODY$: "{"command":"reset"}"
+    BODY$: "{\"command\":\"reset\"}"
     POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
-    DATA$: "{"value":42}"
+    DATA$: "{\"value\":42}"
     S: 0
     R$: "Couldn't connect to server"
     PUT_CODE: 0
     DEL_CODE: 0
-    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_BODY$: "{\"field\":\"updated\"}"
     PATCH_CODE: 0
     API_STATUS: 0
     API_RESP$: "Couldn't connect to server"
@@ -652,15 +652,15 @@ trace:
     STATUS_CODE: 0
     RESP$: "Couldn't connect to server"
     CODE: 0
-    BODY$: "{"command":"reset"}"
+    BODY$: "{\"command\":\"reset\"}"
     POST_STATUS: 0
     HEADERS$: {Content-Type: "application/json"}
-    DATA$: "{"value":42}"
+    DATA$: "{\"value\":42}"
     S: 0
     R$: "Couldn't connect to server"
     PUT_CODE: 0
     DEL_CODE: 0
-    PATCH_BODY$: "{"field":"updated"}"
+    PATCH_BODY$: "{\"field\":\"updated\"}"
     PATCH_CODE: 0
     API_STATUS: 0
     API_RESP$: "Couldn't connect to server"

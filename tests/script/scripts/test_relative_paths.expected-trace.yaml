@@ -21,32 +21,26 @@ trace:
 - line: 3
   content: "if CONTENT$ <> \"OK\" then"
   variables:
-    CONTENT$: "OK
-"
+    CONTENT$: "OK\n"
 - line: 4
   content: "LOG \"Unexpected content: \" + CONTENT$"
   variables:
-    CONTENT$: "OK
-"
+    CONTENT$: "OK\n"
 - line: 6
   content: "WRITEFILE \"relative-output.txt\", \"OUT\" TRUNCATE"
   variables:
-    CONTENT$: "OK
-"
+    CONTENT$: "OK\n"
 - line: 7
   content: "READFILE \"relative-output.txt\", OUT$"
   variables:
-    CONTENT$: "OK
-"
+    CONTENT$: "OK\n"
 - line: 8
   content: "if OUT$ <> \"OUT\" then"
   variables:
-    CONTENT$: "OK
-"
+    CONTENT$: "OK\n"
     OUT$: "OUT"
 - line: 11
   content: "stop"
   variables:
-    CONTENT$: "OK
-"
+    CONTENT$: "OK\n"
     OUT$: "OUT"

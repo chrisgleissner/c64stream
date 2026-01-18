@@ -52,5 +52,6 @@ void c64_stop_video_recording(struct c64_source *context);
 void c64_record_init(struct c64_source *context);
 void c64_record_cleanup(struct c64_source *context);
 void c64_record_update_settings(struct c64_source *context, void *settings);
+void c64_record_on_rest_client_ready(struct c64_source *context);
 
 #endif // C64_RECORD_H
