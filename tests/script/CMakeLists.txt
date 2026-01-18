@@ -184,6 +184,8 @@ else()
   message(WARNING "Python not found, skipping script validation tests")
 endif()
 
+add_subdirectory(fuzz)
+
 # Debug features unit tests
 add_executable(
   test_c64script_debug

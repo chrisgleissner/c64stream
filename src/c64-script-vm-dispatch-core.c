@@ -1349,6 +1349,14 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
         if (!c64script_runtime_pop(runtime, &message))
             return false;
 
+#ifdef C64SCRIPT_FUZZING
+        if (instr->opcode == OP_LOG) {
+            c64script_value_free(&message);
+            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "LOG disabled during fuzzing");
+            return false;
+        }
+#endif
+
         if (instr->opcode == OP_PRINT) {
             if (message.type == VALUE_STRING) {
                 blog(LOG_INFO, "[C64Script] %s", message.as.string);
@@ -1412,6 +1420,11 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
             return false;
         }
 
+#ifdef C64SCRIPT_FUZZING
+        c64script_value_free(&filename);
+        snprintf(runtime->error_msg, sizeof(runtime->error_msg), "LOGFILE disabled during fuzzing");
+        return false;
+#else
         // Close existing log file if open
         if (runtime->log_file) {
             fclose(runtime->log_file);
@@ -1441,9 +1454,14 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
         }
         c64script_value_free(&filename);
         break;
+#endif
     }
 
     case OP_TRON:
+#ifdef C64SCRIPT_FUZZING
+        snprintf(runtime->error_msg, sizeof(runtime->error_msg), "TRON disabled during fuzzing");
+        return false;
+#else
         if (!runtime->log_file) {
             char default_name[1024];
             const char *log_path = runtime->log_filename;
@@ -1478,6 +1496,7 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
         runtime->trace_enabled = true;
         blog(LOG_INFO, "TRON: Tracing enabled");
         break;
+#endif
 
     case OP_TROFF:
         runtime->trace_enabled = false;

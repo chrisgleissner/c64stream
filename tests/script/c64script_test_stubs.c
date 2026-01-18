@@ -848,7 +848,7 @@ void c64_keyboard_queue_output(c64_keyboard_t *keyboard, const c64_output_t *out
     char entry[512] = {0};
     switch (output->mode) {
     case C64_OUTPUT_TEXT: {
-        const char *text = output->data.text ? output->data.text : "";
+        const char *text = output->data.text[0] != '\0' ? output->data.text : "";
         char escaped[384];
         size_t out_len = 0;
         for (size_t i = 0; text[i] != '\0' && out_len + 1 < sizeof(escaped); i++) {

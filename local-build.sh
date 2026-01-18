@@ -1624,6 +1624,11 @@ main() {
         fi
     fi
 
+    if [ "${RUN_FUZZ:-0}" = "1" ]; then
+        log_info "Running C64Script fuzzing..."
+        "$PROJECT_ROOT/tests/script/fuzz/fuzz.sh"
+    fi
+
     if [[ "$RERECORD_TRACES" == "true" ]]; then
         log_info "Regenerating expected trace files for all c64script tests..."
 

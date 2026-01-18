@@ -203,7 +203,8 @@ static void find_c64script_files(const char *dir_path, char ***files, int *count
 
         if (find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
             // Skip build directories
-            if (strstr(path, "\\build") != NULL || strstr(path, "\\node_modules") != NULL) {
+            if (strstr(path, "\\build") != NULL || strstr(path, "\\node_modules") != NULL ||
+                strstr(path, "\\tests\\script\\fuzz") != NULL) {
                 continue;
             }
             find_c64script_files(path, files, count, capacity);
@@ -244,7 +245,8 @@ static void find_c64script_files(const char *dir_path, char ***files, int *count
 
         if (S_ISDIR(st.st_mode)) {
             // Skip build directories
-            if (strstr(path, "/build") != NULL || strstr(path, "/node_modules") != NULL) {
+            if (strstr(path, "/build") != NULL || strstr(path, "/node_modules") != NULL ||
+                strstr(path, "/tests/script/fuzz") != NULL) {
                 continue;
             }
             find_c64script_files(path, files, count, capacity);

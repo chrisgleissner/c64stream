@@ -1,0 +1,32 @@
+name: c64script-fuzz
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 2 * * 0"
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install clang/LLVM
+        run: sudo apt-get update -qq && sudo apt-get install -y clang-15 llvm-15
+
+      - name: Run fuzzing
+        continue-on-error: true
+        env:
+          RUN_FUZZ: "1"
+          FUZZ_TIME_SECONDS: "14400"
+          FUZZ_JOBS: "2"
+        run: ./local-build.sh linux
+
+      - name: Upload fuzz results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: c64script-fuzz-${{ github.run_id }}
+          path: tests/script/fuzz/results
+          if-no-files-found: warn

@@ -50,6 +50,13 @@ static size_t http_write_callback(char *ptr, size_t size, size_t nmemb, void *us
 
 bool c64script_dispatch_io(c64script_runtime_t *runtime, const c64script_instruction_t *instr)
 {
+#ifdef C64SCRIPT_FUZZING
+    if (runtime) {
+        snprintf(runtime->error_msg, sizeof(runtime->error_msg), "IO disabled during fuzzing");
+    }
+    (void)instr;
+    return false;
+#else
     switch (instr->opcode) {
     case OP_RUNLOCAL: {
         c64script_value_t output_var_val, status_var_val, args_val, path_val;
@@ -492,4 +499,5 @@ bool c64script_dispatch_io(c64script_runtime_t *runtime, const c64script_instruc
     }
 
     return true;
+#endif
 }
