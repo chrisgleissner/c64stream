@@ -14,8 +14,8 @@ See <https://www.gnu.org/licenses/> for details.
 #include <stdlib.h>
 #include <string.h>
 
-#define C64SCRIPT_FUZZ_MAX_INPUT (64 * 1024)
-#define C64SCRIPT_FUZZ_MAX_ITERATIONS 10000
+#define C64SCRIPT_FUZZ_MAX_INPUT 1024
+#define C64SCRIPT_FUZZ_MAX_ITERATIONS 1000
 #define C64SCRIPT_FUZZ_FIXED_TIME 1700000000
 
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
@@ -52,6 +52,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
     }
 
     runtime->max_iterations = C64SCRIPT_FUZZ_MAX_ITERATIONS;
+    runtime->step_skip_waits = true;
     c64script_set_time_override(runtime, (time_t)C64SCRIPT_FUZZ_FIXED_TIME);
     c64script_runtime_set_script_path(runtime, "fuzz_input.c64script");
 

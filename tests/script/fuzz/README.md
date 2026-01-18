@@ -1,24 +1,26 @@
 # C64Script fuzzing
 
 This directory contains the libFuzzer harness for the C64Script language engine, built with ASan/UBSan.
-The harness runs the parser, compiler, and VM in-process with deterministic stubs and no device or OBS
-requirements.
+
+The harness runs the parser, compiler, and VM in-process with deterministic stubs and no device or OBS requirements.
 
 ## Local run (opt-in)
 
 Fuzzing is disabled by default. Enable it explicitly:
 
 - Short run (default 60s):
-  - RUN_FUZZ=1 ./local-build.sh linux
+  - ./local-build.sh --fuzz
 - Custom duration, corpus, and workers:
-  - RUN_FUZZ=1 FUZZ_TIME_SECONDS=600 FUZZ_MAX_LEN=65536 FUZZ_JOBS=2 ./local-build.sh linux
-  - RUN_FUZZ=1 FUZZ_SEED_DIR=/path/to/seed ./local-build.sh linux
+  - ./local-build.sh --fuzz=600
+  - FUZZ_MAX_LEN=65536 FUZZ_JOBS=2 ./local-build.sh --fuzz=600
+  - FUZZ_SEED_DIR=/path/to/seed ./local-build.sh --fuzz
 
 ## Longer session
 
 Set a longer duration and more workers:
 
-- RUN_FUZZ=1 FUZZ_TIME_SECONDS=14400 FUZZ_JOBS=4 ./local-build.sh linux
+- ./local-build.sh --fuzz=14400
+- FUZZ_JOBS=4 ./local-build.sh --fuzz=14400
 
 ## Output locations
 
@@ -33,5 +35,6 @@ Results are written under:
 ## Notes
 
 - Builds use clang with ASan/UBSan and libFuzzer.
+- If libFuzzer with trace-pc-guard is not available, the runner fetches and builds LLVM 12's libFuzzer locally.
 - IO, HTTP, and log file writes are blocked during fuzz runs.
 - Expect slower execution with sanitizers enabled.

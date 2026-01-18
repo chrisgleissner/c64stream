@@ -4,6 +4,17 @@ if(NOT C64STREAM_ENABLE_FUZZING)
   return()
 endif()
 
+if(NOT LIBFUZZER_LIBRARY)
+  find_library(
+    LIBFUZZER_LIBRARY
+    NAMES Fuzzer libFuzzer
+    PATHS /usr/lib/llvm-14/lib /usr/lib/llvm-15/lib /usr/lib/llvm-17/lib /usr/lib/llvm-18/lib
+  )
+endif()
+if(NOT LIBFUZZER_LIBRARY)
+  message(FATAL_ERROR "libFuzzer library not found. Install libfuzzer-14-dev or adjust LIBFUZZER_LIBRARY.")
+endif()
+
 add_executable(
   c64script_fuzz
   fuzz_c64script.c
@@ -34,16 +45,16 @@ target_include_directories(c64script_fuzz PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAK
 
 target_compile_definitions(c64script_fuzz PRIVATE C64SCRIPT_FUZZING=1)
 
-set(FUZZ_SANITIZERS "-fsanitize=fuzzer,address,undefined")
-set(FUZZ_COVERAGE "-fsanitize-coverage=trace-pc-guard,trace-cmp")
+set(FUZZ_SANITIZERS "-fsanitize=fuzzer-no-link,address,undefined")
+set(FUZZ_COVERAGE "-fsanitize-coverage=inline-8bit-counters,trace-cmp,pc-table")
 
 target_compile_options(c64script_fuzz PRIVATE ${FUZZ_SANITIZERS} ${FUZZ_COVERAGE} -fno-omit-frame-pointer -g -O1)
 target_link_options(c64script_fuzz PRIVATE ${FUZZ_SANITIZERS})
 
 if(UNIX)
-  target_link_libraries(c64script_fuzz PRIVATE OBS::libobs CURL::libcurl m)
+  target_link_libraries(c64script_fuzz PRIVATE OBS::libobs CURL::libcurl m ${LIBFUZZER_LIBRARY} stdc++)
 else()
-  target_link_libraries(c64script_fuzz PRIVATE OBS::libobs CURL::libcurl)
+  target_link_libraries(c64script_fuzz PRIVATE OBS::libobs CURL::libcurl ${LIBFUZZER_LIBRARY})
 endif()
 
 set_target_properties(c64script_fuzz PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests/script/fuzz")
