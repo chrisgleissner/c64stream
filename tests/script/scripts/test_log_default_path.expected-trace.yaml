@@ -20,8 +20,8 @@ trace:
 - line: 4
   content: "if LEN(CONTENT$) = 0 then"
   variables:
-    CONTENT$: "\nDefault log entry\nDefault log entry\nDefault log entry\nDefault log entry\nDefault log entry\nDefault log entry\nDefault log entry\nDefault log entry\nDefault log entry\nDefault log entry\nDefault log entry\n"
+    CONTENT$: "\nDefault log entry\nDefault log entry\nDefault log entry\nDefault log entry\nDefault log entry\nDefault log entry\nDefault log entry\nDefault log entry\nDefault log entry\nDefault log entry\nDefault log entry\nDefault log entry\nDefault log entry\nDefault log entry\nDefault log entry\nDefault log entry\nDefault log entry\n"
 - line: 7
   content: "stop"
   variables:
-    CONTENT$: "\nDefault log entry\nDefault log entry\nDefault log entry\nDefault log entry\nDefault log entry\nDefault log entry\nDefault log entry\nDefault log entry\nDefault log entry\nDefault log entry\nDefault log entry\n"
+    CONTENT$: "\nDefault log entry\nDefault log entry\nDefault log entry\nDefault log entry\nDefault log entry\nDefault log entry\nDefault log entry\nDefault log entry\nDefault log entry\nDefault log entry\nDefault log entry\nDefault log entry\nDefault log entry\nDefault log entry\nDefault log entry\nDefault log entry\nDefault log entry\n"

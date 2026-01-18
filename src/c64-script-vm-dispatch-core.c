@@ -50,6 +50,20 @@ See <https://www.gnu.org/licenses/> for details.
 
 #define MACRO_LOG_PREFIX "[c64script-vm] "
 
+static bool c64script_name_is_string(const char *name)
+{
+    if (!name) {
+        return false;
+    }
+
+    size_t len = strlen(name);
+    if (len == 0) {
+        return false;
+    }
+
+    return name[len - 1] == '$';
+}
+
 static double wallclock_now_seconds(void)
 {
     struct timespec ts;
@@ -136,7 +150,8 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
             return false;
         }
 
-        c64script_value_t array = c64script_value_array(size, VALUE_NUMBER); // Default to number type
+        c64script_value_type_t element_type = c64script_name_is_string(arrayname) ? VALUE_STRING : VALUE_NUMBER;
+        c64script_value_t array = c64script_value_array(size, element_type);
         if (!c64script_runtime_set_var(runtime, arrayname, array)) {
             c64script_value_free(&array);
             return false;
@@ -235,6 +250,31 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
             return false;
         }
 
+        c64script_value_type_t element_type = array_var.as.array->element_type;
+        if (element_type == VALUE_STRING) {
+            if (value_val.type == VALUE_NUMBER) {
+                char str_buf[64];
+                if (!c64script_builtin_str(value_val.as.number, str_buf, sizeof(str_buf))) {
+                    snprintf(runtime->error_msg, sizeof(runtime->error_msg), "STR failed");
+                    c64script_value_free(&array_var);
+                    c64script_value_free(&value_val);
+                    return false;
+                }
+                c64script_value_free(&value_val);
+                value_val = c64script_value_string(str_buf);
+            } else if (value_val.type != VALUE_STRING) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "TYPE MISMATCH (ARRAY SET)");
+                c64script_value_free(&array_var);
+                c64script_value_free(&value_val);
+                return false;
+            }
+        } else if (element_type == VALUE_NUMBER && value_val.type != VALUE_NUMBER) {
+            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "TYPE MISMATCH (ARRAY SET)");
+            c64script_value_free(&array_var);
+            c64script_value_free(&value_val);
+            return false;
+        }
+
         if (!c64script_array_set(array_var.as.array, index, value_val)) {
             snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Array index out of bounds");
             c64script_value_free(&array_var);
@@ -274,7 +314,8 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
         c64script_value_t map_var;
         if (!c64script_runtime_get_var(runtime, mapname, &map_var)) {
             // Auto-create empty map if it doesn't exist
-            map_var = c64script_value_map(VALUE_NUMBER); // Default to number type
+            c64script_value_type_t map_value_type = c64script_name_is_string(mapname) ? VALUE_STRING : VALUE_NUMBER;
+            map_var = c64script_value_map(map_value_type);
             if (!c64script_runtime_set_var(runtime, mapname, map_var)) {
                 c64script_value_free(&map_var);
                 c64script_value_free(&key_val);
@@ -339,9 +380,9 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
         c64script_value_t map_var;
         bool var_exists = c64script_runtime_var_exists(runtime, mapname);
         if (!var_exists) {
-            // Auto-create map if it doesn't exist (use value type from first value)
-            blog(LOG_DEBUG, "[C64Script] Auto-creating map '%s' with value type %d", mapname, value_val.type);
-            map_var = c64script_value_map(value_val.type);
+            c64script_value_type_t map_value_type = c64script_name_is_string(mapname) ? VALUE_STRING : VALUE_NUMBER;
+            blog(LOG_DEBUG, "[C64Script] Auto-creating map '%s' with value type %d", mapname, map_value_type);
+            map_var = c64script_value_map(map_value_type);
             if (map_var.type != VALUE_MAP) {
                 snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Failed to create map (allocation failure)");
                 c64script_value_free(&map_var);
@@ -360,6 +401,33 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
         if (map_var.type != VALUE_MAP) {
             snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Variable '%s' is not a map (type=%d)", mapname,
                      map_var.type);
+            c64script_value_free(&map_var);
+            c64script_value_free(&key_val);
+            c64script_value_free(&value_val);
+            return false;
+        }
+
+        if (map_var.as.map->value_type == VALUE_STRING) {
+            if (value_val.type == VALUE_NUMBER) {
+                char str_buf[64];
+                if (!c64script_builtin_str(value_val.as.number, str_buf, sizeof(str_buf))) {
+                    snprintf(runtime->error_msg, sizeof(runtime->error_msg), "STR failed");
+                    c64script_value_free(&map_var);
+                    c64script_value_free(&key_val);
+                    c64script_value_free(&value_val);
+                    return false;
+                }
+                c64script_value_free(&value_val);
+                value_val = c64script_value_string(str_buf);
+            } else if (value_val.type != VALUE_STRING) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "TYPE MISMATCH (MAP SET)");
+                c64script_value_free(&map_var);
+                c64script_value_free(&key_val);
+                c64script_value_free(&value_val);
+                return false;
+            }
+        } else if (map_var.as.map->value_type == VALUE_NUMBER && value_val.type != VALUE_NUMBER) {
+            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "TYPE MISMATCH (MAP SET)");
             c64script_value_free(&map_var);
             c64script_value_free(&key_val);
             c64script_value_free(&value_val);

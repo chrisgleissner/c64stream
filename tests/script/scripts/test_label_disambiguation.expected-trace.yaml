@@ -1,0 +1,33 @@
+# Execution trace
+script: "test_label_disambiguation.c64script"
+status: success
+error: ~
+program: |
+  1: rem Test label disambiguation (label without colon + assignment)
+  2: START I = 7
+  3: if I = 7 then
+  4:     palette "pepto_ntsc"
+  5: else
+  6:     poke "bad", 1
+  7: endif
+  8: stop
+trace:
+- line: 2
+  content: "START I = 7"
+  variables: {}
+- line: 3
+  content: "if I = 7 then"
+  variables:
+    I: 7
+- line: 4
+  content: "palette \"pepto_ntsc\""
+  variables:
+    I: 7
+- line: 3
+  content: "if I = 7 then"
+  variables:
+    I: 7
+- line: 8
+  content: "stop"
+  variables:
+    I: 7

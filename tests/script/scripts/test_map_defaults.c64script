@@ -1,8 +1,8 @@
 rem Test map default values for missing keys
 CONFIG{"port"} = 8080
-CONFIG_STR{"host"} = "localhost"
+CONFIG${"host"} = "localhost"
 VALUE = CONFIG{"missing"}
-TEXT$ = CONFIG_STR{"missing"}
+TEXT$ = CONFIG${"missing"}
 if VALUE = 0 then
     palette "colodore"
 endif

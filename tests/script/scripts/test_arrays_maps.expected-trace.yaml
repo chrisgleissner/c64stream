@@ -50,20 +50,20 @@ program: |
   45: wait 100ms
   46: 
   47: rem Test 8: Map with string keys
-  48: CONFIG_STR{"host"} = "192.168.1.64"
-  49: CONFIG_STR{"path"} = "/v1/api"
-  50: CONFIG_NUM{"port"} = 8080
-  51: CONFIG_NUM{"timeout"} = 5000
+  48: CONFIG${"host"} = "192.168.1.64"
+  49: CONFIG${"path"} = "/v1/api"
+  50: CONFIG{"port"} = 8080
+  51: CONFIG{"timeout"} = 5000
   52: wait 50ms
   53: 
   54: rem Test 9: Read from map
-  55: HOST$ = CONFIG_STR{"host"}
-  56: PORT = CONFIG_NUM{"port"}
+  55: HOST$ = CONFIG${"host"}
+  56: PORT = CONFIG{"port"}
   57: rem Skip LOG to continue testing
   58: wait 100ms
   59: 
   60: rem Test 10: Map in conditional
-  61: if CONFIG_NUM{"port"} = 8080 then
+  61: if CONFIG{"port"} = 8080 then
   62:     palette "colodore"
   63: else
   64:     palette "pepto_ntsc"
@@ -428,7 +428,7 @@ trace:
     I: 6
     SUM: 150
     J: 6
-    NAMES$: [0, 0, 0, 0, 0]
+    NAMES$: ["", "", "", "", ""]
 - line: 38
   content: "NAMES$(1) = \"Bob\""
   variables:
@@ -437,7 +437,7 @@ trace:
     I: 6
     SUM: 150
     J: 6
-    NAMES$: ["Alice", 0, 0, 0, 0]
+    NAMES$: ["Alice", "", "", "", ""]
 - line: 39
   content: "NAMES$(2) = \"Charlie\""
   variables:
@@ -446,7 +446,7 @@ trace:
     I: 6
     SUM: 150
     J: 6
-    NAMES$: ["Alice", "Bob", 0, 0, 0]
+    NAMES$: ["Alice", "Bob", "", "", ""]
 - line: 40
   content: "wait 50ms"
   variables:
@@ -455,7 +455,7 @@ trace:
     I: 6
     SUM: 150
     J: 6
-    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    NAMES$: ["Alice", "Bob", "Charlie", "", ""]
 - line: 43
   content: "FIRST_NAME$ = NAMES$(0)"
   variables:
@@ -464,7 +464,7 @@ trace:
     I: 6
     SUM: 150
     J: 6
-    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    NAMES$: ["Alice", "Bob", "Charlie", "", ""]
 - line: 45
   content: "wait 100ms"
   variables:
@@ -473,52 +473,52 @@ trace:
     I: 6
     SUM: 150
     J: 6
-    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    NAMES$: ["Alice", "Bob", "Charlie", "", ""]
     FIRST_NAME$: "Alice"
 - line: 48
-  content: "CONFIG_STR{\"host\"} = \"192.168.1.64\""
+  content: "CONFIG${\"host\"} = \"192.168.1.64\""
   variables:
     VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
     FIRST: 100
     I: 6
     SUM: 150
     J: 6
-    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    NAMES$: ["Alice", "Bob", "Charlie", "", ""]
     FIRST_NAME$: "Alice"
 - line: 49
-  content: "CONFIG_STR{\"path\"} = \"/v1/api\""
+  content: "CONFIG${\"path\"} = \"/v1/api\""
   variables:
     VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
     FIRST: 100
     I: 6
     SUM: 150
     J: 6
-    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    NAMES$: ["Alice", "Bob", "Charlie", "", ""]
     FIRST_NAME$: "Alice"
-    CONFIG_STR: {host: "192.168.1.64"}
+    CONFIG$: {host: "192.168.1.64"}
 - line: 50
-  content: "CONFIG_NUM{\"port\"} = 8080"
+  content: "CONFIG{\"port\"} = 8080"
   variables:
     VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
     FIRST: 100
     I: 6
     SUM: 150
     J: 6
-    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    NAMES$: ["Alice", "Bob", "Charlie", "", ""]
     FIRST_NAME$: "Alice"
-    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG$: {host: "192.168.1.64", path: "/v1/api"}
 - line: 51
-  content: "CONFIG_NUM{\"timeout\"} = 5000"
+  content: "CONFIG{\"timeout\"} = 5000"
   variables:
     VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
     FIRST: 100
     I: 6
     SUM: 150
     J: 6
-    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    NAMES$: ["Alice", "Bob", "Charlie", "", ""]
     FIRST_NAME$: "Alice"
-    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
-    CONFIG_NUM: {port: 8080}
+    CONFIG$: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG: {port: 8080}
 - line: 52
   content: "wait 50ms"
   variables:
@@ -527,34 +527,34 @@ trace:
     I: 6
     SUM: 150
     J: 6
-    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    NAMES$: ["Alice", "Bob", "Charlie", "", ""]
     FIRST_NAME$: "Alice"
-    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
-    CONFIG_NUM: {port: 8080, timeout: 5000}
+    CONFIG$: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG: {port: 8080, timeout: 5000}
 - line: 55
-  content: "HOST$ = CONFIG_STR{\"host\"}"
+  content: "HOST$ = CONFIG${\"host\"}"
   variables:
     VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
     FIRST: 100
     I: 6
     SUM: 150
     J: 6
-    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    NAMES$: ["Alice", "Bob", "Charlie", "", ""]
     FIRST_NAME$: "Alice"
-    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
-    CONFIG_NUM: {port: 8080, timeout: 5000}
+    CONFIG$: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG: {port: 8080, timeout: 5000}
 - line: 56
-  content: "PORT = CONFIG_NUM{\"port\"}"
+  content: "PORT = CONFIG{\"port\"}"
   variables:
     VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
     FIRST: 100
     I: 6
     SUM: 150
     J: 6
-    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    NAMES$: ["Alice", "Bob", "Charlie", "", ""]
     FIRST_NAME$: "Alice"
-    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
-    CONFIG_NUM: {port: 8080, timeout: 5000}
+    CONFIG$: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG: {port: 8080, timeout: 5000}
     HOST$: "192.168.1.64"
 - line: 58
   content: "wait 100ms"
@@ -564,24 +564,24 @@ trace:
     I: 6
     SUM: 150
     J: 6
-    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    NAMES$: ["Alice", "Bob", "Charlie", "", ""]
     FIRST_NAME$: "Alice"
-    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
-    CONFIG_NUM: {port: 8080, timeout: 5000}
+    CONFIG$: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG: {port: 8080, timeout: 5000}
     HOST$: "192.168.1.64"
     PORT: 8080
 - line: 61
-  content: "if CONFIG_NUM{\"port\"} = 8080 then"
+  content: "if CONFIG{\"port\"} = 8080 then"
   variables:
     VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
     FIRST: 100
     I: 6
     SUM: 150
     J: 6
-    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    NAMES$: ["Alice", "Bob", "Charlie", "", ""]
     FIRST_NAME$: "Alice"
-    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
-    CONFIG_NUM: {port: 8080, timeout: 5000}
+    CONFIG$: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG: {port: 8080, timeout: 5000}
     HOST$: "192.168.1.64"
     PORT: 8080
 - line: 62
@@ -592,24 +592,24 @@ trace:
     I: 6
     SUM: 150
     J: 6
-    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    NAMES$: ["Alice", "Bob", "Charlie", "", ""]
     FIRST_NAME$: "Alice"
-    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
-    CONFIG_NUM: {port: 8080, timeout: 5000}
+    CONFIG$: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG: {port: 8080, timeout: 5000}
     HOST$: "192.168.1.64"
     PORT: 8080
 - line: 61
-  content: "if CONFIG_NUM{\"port\"} = 8080 then"
+  content: "if CONFIG{\"port\"} = 8080 then"
   variables:
     VALUES: [0, 10, 20, 30, 40, 50, 0, 0, 0, 0]
     FIRST: 100
     I: 6
     SUM: 150
     J: 6
-    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    NAMES$: ["Alice", "Bob", "Charlie", "", ""]
     FIRST_NAME$: "Alice"
-    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
-    CONFIG_NUM: {port: 8080, timeout: 5000}
+    CONFIG$: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG: {port: 8080, timeout: 5000}
     HOST$: "192.168.1.64"
     PORT: 8080
 - line: 66
@@ -620,10 +620,10 @@ trace:
     I: 6
     SUM: 150
     J: 6
-    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    NAMES$: ["Alice", "Bob", "Charlie", "", ""]
     FIRST_NAME$: "Alice"
-    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
-    CONFIG_NUM: {port: 8080, timeout: 5000}
+    CONFIG$: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG: {port: 8080, timeout: 5000}
     HOST$: "192.168.1.64"
     PORT: 8080
 - line: 69
@@ -634,10 +634,10 @@ trace:
     I: 6
     SUM: 150
     J: 6
-    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    NAMES$: ["Alice", "Bob", "Charlie", "", ""]
     FIRST_NAME$: "Alice"
-    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
-    CONFIG_NUM: {port: 8080, timeout: 5000}
+    CONFIG$: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG: {port: 8080, timeout: 5000}
     HOST$: "192.168.1.64"
     PORT: 8080
 - line: 70
@@ -648,13 +648,13 @@ trace:
     I: 6
     SUM: 150
     J: 6
-    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    NAMES$: ["Alice", "Bob", "Charlie", "", ""]
     FIRST_NAME$: "Alice"
-    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
-    CONFIG_NUM: {port: 8080, timeout: 5000}
+    CONFIG$: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG: {port: 8080, timeout: 5000}
     HOST$: "192.168.1.64"
     PORT: 8080
-    PALETTES$: [0, 0, 0]
+    PALETTES$: ["", "", ""]
 - line: 71
   content: "PALETTES$(1) = \"pepto_ntsc\""
   variables:
@@ -663,13 +663,13 @@ trace:
     I: 6
     SUM: 150
     J: 6
-    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    NAMES$: ["Alice", "Bob", "Charlie", "", ""]
     FIRST_NAME$: "Alice"
-    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
-    CONFIG_NUM: {port: 8080, timeout: 5000}
+    CONFIG$: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG: {port: 8080, timeout: 5000}
     HOST$: "192.168.1.64"
     PORT: 8080
-    PALETTES$: ["colodore", 0, 0]
+    PALETTES$: ["colodore", "", ""]
 - line: 72
   content: "PALETTES$(2) = \"vice_new\""
   variables:
@@ -678,13 +678,13 @@ trace:
     I: 6
     SUM: 150
     J: 6
-    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    NAMES$: ["Alice", "Bob", "Charlie", "", ""]
     FIRST_NAME$: "Alice"
-    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
-    CONFIG_NUM: {port: 8080, timeout: 5000}
+    CONFIG$: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG: {port: 8080, timeout: 5000}
     HOST$: "192.168.1.64"
     PORT: 8080
-    PALETTES$: ["colodore", "pepto_ntsc", 0]
+    PALETTES$: ["colodore", "pepto_ntsc", ""]
 - line: 74
   content: "for K = 0 to 2"
   variables:
@@ -693,10 +693,10 @@ trace:
     I: 6
     SUM: 150
     J: 6
-    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    NAMES$: ["Alice", "Bob", "Charlie", "", ""]
     FIRST_NAME$: "Alice"
-    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
-    CONFIG_NUM: {port: 8080, timeout: 5000}
+    CONFIG$: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG: {port: 8080, timeout: 5000}
     HOST$: "192.168.1.64"
     PORT: 8080
     PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
@@ -708,10 +708,10 @@ trace:
     I: 6
     SUM: 150
     J: 6
-    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    NAMES$: ["Alice", "Bob", "Charlie", "", ""]
     FIRST_NAME$: "Alice"
-    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
-    CONFIG_NUM: {port: 8080, timeout: 5000}
+    CONFIG$: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG: {port: 8080, timeout: 5000}
     HOST$: "192.168.1.64"
     PORT: 8080
     PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
@@ -724,10 +724,10 @@ trace:
     I: 6
     SUM: 150
     J: 6
-    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    NAMES$: ["Alice", "Bob", "Charlie", "", ""]
     FIRST_NAME$: "Alice"
-    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
-    CONFIG_NUM: {port: 8080, timeout: 5000}
+    CONFIG$: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG: {port: 8080, timeout: 5000}
     HOST$: "192.168.1.64"
     PORT: 8080
     PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
@@ -740,10 +740,10 @@ trace:
     I: 6
     SUM: 150
     J: 6
-    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    NAMES$: ["Alice", "Bob", "Charlie", "", ""]
     FIRST_NAME$: "Alice"
-    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
-    CONFIG_NUM: {port: 8080, timeout: 5000}
+    CONFIG$: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG: {port: 8080, timeout: 5000}
     HOST$: "192.168.1.64"
     PORT: 8080
     PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
@@ -756,10 +756,10 @@ trace:
     I: 6
     SUM: 150
     J: 6
-    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    NAMES$: ["Alice", "Bob", "Charlie", "", ""]
     FIRST_NAME$: "Alice"
-    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
-    CONFIG_NUM: {port: 8080, timeout: 5000}
+    CONFIG$: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG: {port: 8080, timeout: 5000}
     HOST$: "192.168.1.64"
     PORT: 8080
     PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
@@ -772,10 +772,10 @@ trace:
     I: 6
     SUM: 150
     J: 6
-    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    NAMES$: ["Alice", "Bob", "Charlie", "", ""]
     FIRST_NAME$: "Alice"
-    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
-    CONFIG_NUM: {port: 8080, timeout: 5000}
+    CONFIG$: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG: {port: 8080, timeout: 5000}
     HOST$: "192.168.1.64"
     PORT: 8080
     PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
@@ -788,10 +788,10 @@ trace:
     I: 6
     SUM: 150
     J: 6
-    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    NAMES$: ["Alice", "Bob", "Charlie", "", ""]
     FIRST_NAME$: "Alice"
-    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
-    CONFIG_NUM: {port: 8080, timeout: 5000}
+    CONFIG$: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG: {port: 8080, timeout: 5000}
     HOST$: "192.168.1.64"
     PORT: 8080
     PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
@@ -804,10 +804,10 @@ trace:
     I: 6
     SUM: 150
     J: 6
-    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    NAMES$: ["Alice", "Bob", "Charlie", "", ""]
     FIRST_NAME$: "Alice"
-    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
-    CONFIG_NUM: {port: 8080, timeout: 5000}
+    CONFIG$: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG: {port: 8080, timeout: 5000}
     HOST$: "192.168.1.64"
     PORT: 8080
     PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
@@ -820,10 +820,10 @@ trace:
     I: 6
     SUM: 150
     J: 6
-    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    NAMES$: ["Alice", "Bob", "Charlie", "", ""]
     FIRST_NAME$: "Alice"
-    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
-    CONFIG_NUM: {port: 8080, timeout: 5000}
+    CONFIG$: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG: {port: 8080, timeout: 5000}
     HOST$: "192.168.1.64"
     PORT: 8080
     PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
@@ -836,10 +836,10 @@ trace:
     I: 6
     SUM: 150
     J: 6
-    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    NAMES$: ["Alice", "Bob", "Charlie", "", ""]
     FIRST_NAME$: "Alice"
-    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
-    CONFIG_NUM: {port: 8080, timeout: 5000}
+    CONFIG$: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG: {port: 8080, timeout: 5000}
     HOST$: "192.168.1.64"
     PORT: 8080
     PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
@@ -852,10 +852,10 @@ trace:
     I: 6
     SUM: 150
     J: 6
-    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    NAMES$: ["Alice", "Bob", "Charlie", "", ""]
     FIRST_NAME$: "Alice"
-    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
-    CONFIG_NUM: {port: 8080, timeout: 5000}
+    CONFIG$: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG: {port: 8080, timeout: 5000}
     HOST$: "192.168.1.64"
     PORT: 8080
     PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
@@ -868,10 +868,10 @@ trace:
     I: 6
     SUM: 150
     J: 6
-    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    NAMES$: ["Alice", "Bob", "Charlie", "", ""]
     FIRST_NAME$: "Alice"
-    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
-    CONFIG_NUM: {port: 8080, timeout: 5000}
+    CONFIG$: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG: {port: 8080, timeout: 5000}
     HOST$: "192.168.1.64"
     PORT: 8080
     PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
@@ -885,10 +885,10 @@ trace:
     I: 6
     SUM: 150
     J: 6
-    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    NAMES$: ["Alice", "Bob", "Charlie", "", ""]
     FIRST_NAME$: "Alice"
-    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
-    CONFIG_NUM: {port: 8080, timeout: 5000}
+    CONFIG$: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG: {port: 8080, timeout: 5000}
     HOST$: "192.168.1.64"
     PORT: 8080
     PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
@@ -903,10 +903,10 @@ trace:
     I: 6
     SUM: 150
     J: 6
-    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    NAMES$: ["Alice", "Bob", "Charlie", "", ""]
     FIRST_NAME$: "Alice"
-    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
-    CONFIG_NUM: {port: 8080, timeout: 5000}
+    CONFIG$: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG: {port: 8080, timeout: 5000}
     HOST$: "192.168.1.64"
     PORT: 8080
     PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
@@ -921,10 +921,10 @@ trace:
     I: 6
     SUM: 150
     J: 6
-    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    NAMES$: ["Alice", "Bob", "Charlie", "", ""]
     FIRST_NAME$: "Alice"
-    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
-    CONFIG_NUM: {port: 8080, timeout: 5000}
+    CONFIG$: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG: {port: 8080, timeout: 5000}
     HOST$: "192.168.1.64"
     PORT: 8080
     PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
@@ -939,10 +939,10 @@ trace:
     I: 6
     SUM: 150
     J: 6
-    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    NAMES$: ["Alice", "Bob", "Charlie", "", ""]
     FIRST_NAME$: "Alice"
-    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
-    CONFIG_NUM: {port: 8080, timeout: 5000}
+    CONFIG$: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG: {port: 8080, timeout: 5000}
     HOST$: "192.168.1.64"
     PORT: 8080
     PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
@@ -957,10 +957,10 @@ trace:
     I: 6
     SUM: 150
     J: 6
-    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    NAMES$: ["Alice", "Bob", "Charlie", "", ""]
     FIRST_NAME$: "Alice"
-    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
-    CONFIG_NUM: {port: 8080, timeout: 5000}
+    CONFIG$: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG: {port: 8080, timeout: 5000}
     HOST$: "192.168.1.64"
     PORT: 8080
     PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
@@ -975,10 +975,10 @@ trace:
     I: 6
     SUM: 150
     J: 6
-    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    NAMES$: ["Alice", "Bob", "Charlie", "", ""]
     FIRST_NAME$: "Alice"
-    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
-    CONFIG_NUM: {port: 8080, timeout: 5000}
+    CONFIG$: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG: {port: 8080, timeout: 5000}
     HOST$: "192.168.1.64"
     PORT: 8080
     PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
@@ -993,10 +993,10 @@ trace:
     I: 6
     SUM: 150
     J: 6
-    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    NAMES$: ["Alice", "Bob", "Charlie", "", ""]
     FIRST_NAME$: "Alice"
-    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
-    CONFIG_NUM: {port: 8080, timeout: 5000}
+    CONFIG$: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG: {port: 8080, timeout: 5000}
     HOST$: "192.168.1.64"
     PORT: 8080
     PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
@@ -1012,10 +1012,10 @@ trace:
     I: 6
     SUM: 150
     J: 6
-    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    NAMES$: ["Alice", "Bob", "Charlie", "", ""]
     FIRST_NAME$: "Alice"
-    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
-    CONFIG_NUM: {port: 8080, timeout: 5000}
+    CONFIG$: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG: {port: 8080, timeout: 5000}
     HOST$: "192.168.1.64"
     PORT: 8080
     PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
@@ -1031,10 +1031,10 @@ trace:
     I: 6
     SUM: 150
     J: 6
-    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    NAMES$: ["Alice", "Bob", "Charlie", "", ""]
     FIRST_NAME$: "Alice"
-    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
-    CONFIG_NUM: {port: 8080, timeout: 5000}
+    CONFIG$: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG: {port: 8080, timeout: 5000}
     HOST$: "192.168.1.64"
     PORT: 8080
     PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
@@ -1050,10 +1050,10 @@ trace:
     I: 6
     SUM: 150
     J: 6
-    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    NAMES$: ["Alice", "Bob", "Charlie", "", ""]
     FIRST_NAME$: "Alice"
-    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
-    CONFIG_NUM: {port: 8080, timeout: 5000}
+    CONFIG$: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG: {port: 8080, timeout: 5000}
     HOST$: "192.168.1.64"
     PORT: 8080
     PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]
@@ -1069,10 +1069,10 @@ trace:
     I: 6
     SUM: 150
     J: 6
-    NAMES$: ["Alice", "Bob", "Charlie", 0, 0]
+    NAMES$: ["Alice", "Bob", "Charlie", "", ""]
     FIRST_NAME$: "Alice"
-    CONFIG_STR: {host: "192.168.1.64", path: "/v1/api"}
-    CONFIG_NUM: {port: 8080, timeout: 5000}
+    CONFIG$: {host: "192.168.1.64", path: "/v1/api"}
+    CONFIG: {port: 8080, timeout: 5000}
     HOST$: "192.168.1.64"
     PORT: 8080
     PALETTES$: ["colodore", "pepto_ntsc", "vice_new"]

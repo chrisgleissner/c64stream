@@ -1,0 +1,8 @@
+rem Test label disambiguation (label without colon + assignment)
+START I = 7
+if I = 7 then
+    palette "pepto_ntsc"
+else
+    poke "bad", 1
+endif
+stop

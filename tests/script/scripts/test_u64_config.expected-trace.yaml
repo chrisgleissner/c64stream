@@ -26,53 +26,53 @@ trace:
 - line: 3
   content: "DIM ITEMS$(3)"
   variables:
-    CATS$: [0, 0, 0]
+    CATS$: ["", "", ""]
 - line: 4
   content: "DIM OPTS$(3)"
   variables:
-    CATS$: [0, 0, 0]
-    ITEMS$: [0, 0, 0]
+    CATS$: ["", "", ""]
+    ITEMS$: ["", "", ""]
 - line: 5
   content: "COUNT = CFG_ITEM$(CATS$())"
   variables:
-    CATS$: [0, 0, 0]
-    ITEMS$: [0, 0, 0]
-    OPTS$: [0, 0, 0]
+    CATS$: ["", "", ""]
+    ITEMS$: ["", "", ""]
+    OPTS$: ["", "", ""]
 - line: 6
   content: "WAIT 1ms"
   variables:
     CATS$: ["Audio Mixer", "U64 Specific Settings", "SID Sockets Configuration"]
-    ITEMS$: [0, 0, 0]
-    OPTS$: [0, 0, 0]
+    ITEMS$: ["", "", ""]
+    OPTS$: ["", "", ""]
     COUNT: 3
 - line: 7
   content: "COUNT2 = CFG_ITEM$(\"Audio Mixer\", ITEMS$())"
   variables:
     CATS$: ["Audio Mixer", "U64 Specific Settings", "SID Sockets Configuration"]
-    ITEMS$: [0, 0, 0]
-    OPTS$: [0, 0, 0]
+    ITEMS$: ["", "", ""]
+    OPTS$: ["", "", ""]
     COUNT: 3
 - line: 8
   content: "WAIT 1ms"
   variables:
     CATS$: ["Audio Mixer", "U64 Specific Settings", "SID Sockets Configuration"]
-    ITEMS$: ["Vol Sid Socket 1", "Vol Sid Socket 2", 0]
-    OPTS$: [0, 0, 0]
+    ITEMS$: ["Vol Sid Socket 1", "Vol Sid Socket 2", ""]
+    OPTS$: ["", "", ""]
     COUNT: 3
     COUNT2: 2
 - line: 9
   content: "COUNT3 = CFG_OPTIONS$(\"Audio Mixer\",\"Vol Sid Socket 1\", OPTS$())"
   variables:
     CATS$: ["Audio Mixer", "U64 Specific Settings", "SID Sockets Configuration"]
-    ITEMS$: ["Vol Sid Socket 1", "Vol Sid Socket 2", 0]
-    OPTS$: [0, 0, 0]
+    ITEMS$: ["Vol Sid Socket 1", "Vol Sid Socket 2", ""]
+    OPTS$: ["", "", ""]
     COUNT: 3
     COUNT2: 2
 - line: 10
   content: "WAIT 1ms"
   variables:
     CATS$: ["Audio Mixer", "U64 Specific Settings", "SID Sockets Configuration"]
-    ITEMS$: ["Vol Sid Socket 1", "Vol Sid Socket 2", 0]
+    ITEMS$: ["Vol Sid Socket 1", "Vol Sid Socket 2", ""]
     OPTS$: ["0", "50", "100"]
     COUNT: 3
     COUNT2: 2
@@ -81,7 +81,7 @@ trace:
   content: "VAL$ = CFG$(\"Audio Mixer\",\"Vol Sid Socket 1\")"
   variables:
     CATS$: ["Audio Mixer", "U64 Specific Settings", "SID Sockets Configuration"]
-    ITEMS$: ["Vol Sid Socket 1", "Vol Sid Socket 2", 0]
+    ITEMS$: ["Vol Sid Socket 1", "Vol Sid Socket 2", ""]
     OPTS$: ["0", "50", "100"]
     COUNT: 3
     COUNT2: 2
@@ -90,7 +90,7 @@ trace:
   content: "CFG \"Audio Mixer\",\"Vol Sid Socket 1\",\"60\""
   variables:
     CATS$: ["Audio Mixer", "U64 Specific Settings", "SID Sockets Configuration"]
-    ITEMS$: ["Vol Sid Socket 1", "Vol Sid Socket 2", 0]
+    ITEMS$: ["Vol Sid Socket 1", "Vol Sid Socket 2", ""]
     OPTS$: ["0", "50", "100"]
     COUNT: 3
     COUNT2: 2
@@ -100,7 +100,7 @@ trace:
   content: "CFGSAVE"
   variables:
     CATS$: ["Audio Mixer", "U64 Specific Settings", "SID Sockets Configuration"]
-    ITEMS$: ["Vol Sid Socket 1", "Vol Sid Socket 2", 0]
+    ITEMS$: ["Vol Sid Socket 1", "Vol Sid Socket 2", ""]
     OPTS$: ["0", "50", "100"]
     COUNT: 3
     COUNT2: 2
@@ -110,7 +110,7 @@ trace:
   content: "CFGLOAD"
   variables:
     CATS$: ["Audio Mixer", "U64 Specific Settings", "SID Sockets Configuration"]
-    ITEMS$: ["Vol Sid Socket 1", "Vol Sid Socket 2", 0]
+    ITEMS$: ["Vol Sid Socket 1", "Vol Sid Socket 2", ""]
     OPTS$: ["0", "50", "100"]
     COUNT: 3
     COUNT2: 2
@@ -120,7 +120,7 @@ trace:
   content: "CFGRESET"
   variables:
     CATS$: ["Audio Mixer", "U64 Specific Settings", "SID Sockets Configuration"]
-    ITEMS$: ["Vol Sid Socket 1", "Vol Sid Socket 2", 0]
+    ITEMS$: ["Vol Sid Socket 1", "Vol Sid Socket 2", ""]
     OPTS$: ["0", "50", "100"]
     COUNT: 3
     COUNT2: 2
@@ -130,7 +130,7 @@ trace:
   content: "STOP"
   variables:
     CATS$: ["Audio Mixer", "U64 Specific Settings", "SID Sockets Configuration"]
-    ITEMS$: ["Vol Sid Socket 1", "Vol Sid Socket 2", 0]
+    ITEMS$: ["Vol Sid Socket 1", "Vol Sid Socket 2", ""]
     OPTS$: ["0", "50", "100"]
     COUNT: 3
     COUNT2: 2
