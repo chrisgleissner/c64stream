@@ -630,9 +630,9 @@ void c64_automation_configure(c64_automation_t *automation, const c64_automation
                strncmp(previous_songlengths, automation->config.songlengths_path, sizeof(previous_songlengths)) != 0) {
         c64_automation_clear_songlengths(automation);
     }
-    C64_LOG_INFO(AUTOMATION_LOG_PREFIX "Configured: mode=%d folder=%s shuffle=%d recursive=%d duration=%d",
-                 config->mode, config->folder_path, config->shuffle, config->include_subfolders,
-                 automation->config.duration_seconds);
+    C64_LOG_DEBUG(AUTOMATION_LOG_PREFIX "Configured: mode=%d folder=%s shuffle=%d recursive=%d duration=%d",
+                  config->mode, config->folder_path, config->shuffle, config->include_subfolders,
+                  automation->config.duration_seconds);
 }
 
 void c64_automation_update_runtime_config(c64_automation_t *automation, const c64_automation_config_t *config)

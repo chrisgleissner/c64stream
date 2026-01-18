@@ -258,6 +258,7 @@ add_test(NAME c64script_thread_safety COMMAND test_c64script_thread_safety)
 add_executable(
   test_automation_playlist
   test_automation_playlist.c
+  c64script_test_logging.c
   c64script_test_stubs.c
   ${CMAKE_SOURCE_DIR}/src/c64-automation.c
   ${CMAKE_SOURCE_DIR}/src/c64-automation-playlist.c

@@ -470,7 +470,7 @@ bool c64_automation_build_playlist(c64_automation_t *automation)
             added = c64_automation_scan_local(automation);
         }
         if (added <= 0 || automation->num_files == 0) {
-            C64_LOG_ERROR(AUTOMATION_LOG_PREFIX "No supported files found in: %s", automation->config.folder_path);
+            C64_LOG_DEBUG(AUTOMATION_LOG_PREFIX "No supported files found in: %s", automation->config.folder_path);
             c64_automation_clear_playlist_internal(automation);
             return false;
         }

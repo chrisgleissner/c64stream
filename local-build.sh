@@ -535,9 +535,9 @@ build_platform() {
     # Configure
     log_info "Configuring build..."
     if [[ "$VERBOSE" == "true" ]]; then
-        cmake --preset "$preset_name" -DCMAKE_BUILD_TYPE="$config" --log-level=VERBOSE
+        cmake --preset "$preset_name" -DCMAKE_BUILD_TYPE="$config" -DC64STREAM_ENABLE_FUZZING=OFF --log-level=VERBOSE
     else
-        cmake --preset "$preset_name" -DCMAKE_BUILD_TYPE="$config"
+        cmake --preset "$preset_name" -DCMAKE_BUILD_TYPE="$config" -DC64STREAM_ENABLE_FUZZING=OFF
     fi
 
     # Build
