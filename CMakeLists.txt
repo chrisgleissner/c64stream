@@ -225,6 +225,9 @@ target_sources(
     src/c64-script-ast.c
     src/c64-script-bytecode.c
     src/c64-script-vm.c
+    src/c64-script-vm-dispatch.c
+    src/c64-script-vm-trace.c
+    src/c64-script-vm-utils.c
     src/c64-script-runtime.c
     src/c64-script-builtins.c
 )

@@ -1,0 +1,138 @@
+# Execution trace
+script: "test_u64_config.c64script"
+status: success
+error: ~
+program: |
+  01: REM U64 config commands
+  02: DIM CATS$(3)
+  03: DIM ITEMS$(3)
+  04: DIM OPTS$(3)
+  05: COUNT = CFG_ITEM$(CATS$())
+  06: WAIT 1ms
+  07: COUNT2 = CFG_ITEM$("Audio Mixer", ITEMS$())
+  08: WAIT 1ms
+  09: COUNT3 = CFG_OPTIONS$("Audio Mixer","Vol Sid Socket 1", OPTS$())
+  10: WAIT 1ms
+  11: VAL$ = CFG$("Audio Mixer","Vol Sid Socket 1")
+  12: CFG "Audio Mixer","Vol Sid Socket 1","60"
+  13: CFGSAVE
+  14: CFGLOAD
+  15: CFGRESET
+  16: STOP
+trace:
+- line: 2
+  content: "DIM CATS$(3)"
+  variables: {}
+- line: 3
+  content: "DIM ITEMS$(3)"
+  variables:
+    CATS$: [0, 0, 0]
+- line: 4
+  content: "DIM OPTS$(3)"
+  variables:
+    CATS$: [0, 0, 0]
+    ITEMS$: [0, 0, 0]
+- line: 5
+  content: "COUNT = CFG_ITEM$(CATS$())"
+  variables:
+    CATS$: [0, 0, 0]
+    ITEMS$: [0, 0, 0]
+    OPTS$: [0, 0, 0]
+- line: 6
+  content: "WAIT 1ms"
+  variables:
+    CATS$: ["Audio Mixer", "U64 Specific Settings", "SID Sockets Configuration"]
+    ITEMS$: [0, 0, 0]
+    OPTS$: [0, 0, 0]
+    COUNT: 3
+- line: 7
+  content: "COUNT2 = CFG_ITEM$(\"Audio Mixer\", ITEMS$())"
+  variables:
+    CATS$: ["Audio Mixer", "U64 Specific Settings", "SID Sockets Configuration"]
+    ITEMS$: [0, 0, 0]
+    OPTS$: [0, 0, 0]
+    COUNT: 3
+- line: 8
+  content: "WAIT 1ms"
+  variables:
+    CATS$: ["Audio Mixer", "U64 Specific Settings", "SID Sockets Configuration"]
+    ITEMS$: ["Vol Sid Socket 1", "Vol Sid Socket 2", 0]
+    OPTS$: [0, 0, 0]
+    COUNT: 3
+    COUNT2: 2
+- line: 9
+  content: "COUNT3 = CFG_OPTIONS$(\"Audio Mixer\",\"Vol Sid Socket 1\", OPTS$())"
+  variables:
+    CATS$: ["Audio Mixer", "U64 Specific Settings", "SID Sockets Configuration"]
+    ITEMS$: ["Vol Sid Socket 1", "Vol Sid Socket 2", 0]
+    OPTS$: [0, 0, 0]
+    COUNT: 3
+    COUNT2: 2
+- line: 10
+  content: "WAIT 1ms"
+  variables:
+    CATS$: ["Audio Mixer", "U64 Specific Settings", "SID Sockets Configuration"]
+    ITEMS$: ["Vol Sid Socket 1", "Vol Sid Socket 2", 0]
+    OPTS$: ["0", "50", "100"]
+    COUNT: 3
+    COUNT2: 2
+    COUNT3: 3
+- line: 11
+  content: "VAL$ = CFG$(\"Audio Mixer\",\"Vol Sid Socket 1\")"
+  variables:
+    CATS$: ["Audio Mixer", "U64 Specific Settings", "SID Sockets Configuration"]
+    ITEMS$: ["Vol Sid Socket 1", "Vol Sid Socket 2", 0]
+    OPTS$: ["0", "50", "100"]
+    COUNT: 3
+    COUNT2: 2
+    COUNT3: 3
+- line: 12
+  content: "CFG \"Audio Mixer\",\"Vol Sid Socket 1\",\"60\""
+  variables:
+    CATS$: ["Audio Mixer", "U64 Specific Settings", "SID Sockets Configuration"]
+    ITEMS$: ["Vol Sid Socket 1", "Vol Sid Socket 2", 0]
+    OPTS$: ["0", "50", "100"]
+    COUNT: 3
+    COUNT2: 2
+    COUNT3: 3
+    VAL$: "80"
+- line: 13
+  content: "CFGSAVE"
+  variables:
+    CATS$: ["Audio Mixer", "U64 Specific Settings", "SID Sockets Configuration"]
+    ITEMS$: ["Vol Sid Socket 1", "Vol Sid Socket 2", 0]
+    OPTS$: ["0", "50", "100"]
+    COUNT: 3
+    COUNT2: 2
+    COUNT3: 3
+    VAL$: "80"
+- line: 14
+  content: "CFGLOAD"
+  variables:
+    CATS$: ["Audio Mixer", "U64 Specific Settings", "SID Sockets Configuration"]
+    ITEMS$: ["Vol Sid Socket 1", "Vol Sid Socket 2", 0]
+    OPTS$: ["0", "50", "100"]
+    COUNT: 3
+    COUNT2: 2
+    COUNT3: 3
+    VAL$: "80"
+- line: 15
+  content: "CFGRESET"
+  variables:
+    CATS$: ["Audio Mixer", "U64 Specific Settings", "SID Sockets Configuration"]
+    ITEMS$: ["Vol Sid Socket 1", "Vol Sid Socket 2", 0]
+    OPTS$: ["0", "50", "100"]
+    COUNT: 3
+    COUNT2: 2
+    COUNT3: 3
+    VAL$: "80"
+- line: 16
+  content: "STOP"
+  variables:
+    CATS$: ["Audio Mixer", "U64 Specific Settings", "SID Sockets Configuration"]
+    ITEMS$: ["Vol Sid Socket 1", "Vol Sid Socket 2", 0]
+    OPTS$: ["0", "50", "100"]
+    COUNT: 3
+    COUNT2: 2
+    COUNT3: 3
+    VAL$: "80"

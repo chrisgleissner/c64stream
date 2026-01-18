@@ -117,6 +117,68 @@ static const char *opcode_name(c64script_opcode_t opcode)
         return "RESET";
     case OP_REBOOT:
         return "REBOOT";
+    case OP_PAUSE:
+        return "PAUSE";
+    case OP_RESUME:
+        return "RESUME";
+    case OP_POWEROFF:
+        return "POWEROFF";
+    case OP_CFG_SET:
+        return "CFG";
+    case OP_CFG_SAVE:
+        return "CFGSAVE";
+    case OP_CFG_LOAD:
+        return "CFGLOAD";
+    case OP_CFG_RESET:
+        return "CFGRESET";
+    case OP_CFG_GET:
+        return "CFG$";
+    case OP_CFG_ITEM:
+        return "CFG_ITEM$";
+    case OP_CFG_OPTIONS:
+        return "CFG_OPTIONS$";
+    case OP_SID_MODEL:
+        return "SID_MODEL";
+    case OP_SID_ENABLE:
+        return "SID_ENABLE";
+    case OP_SID_VOL:
+        return "SID_VOL";
+    case OP_SID_FILTER_CURVE:
+        return "SID_FILTER_CURVE";
+    case OP_SID_RESONANCE:
+        return "SID_RESONANCE";
+    case OP_SID_COMBINED:
+        return "SID_COMBINED";
+    case OP_SID_DIGIS:
+        return "SID_DIGIS";
+    case OP_VIC_MODE:
+        return "VIC_MODE";
+    case OP_CPU_SPEED:
+        return "CPU_SPEED";
+    case OP_DRIVE_GET:
+        return "DRIVE$";
+    case OP_DRIVE_MOUNT:
+        return "DRIVE_MOUNT";
+    case OP_DRIVE_UNMOUNT:
+        return "DRIVE_UNMOUNT";
+    case OP_DRIVE_RESET:
+        return "DRIVE_RESET";
+    case OP_DRIVE_ON:
+        return "DRIVE_ON";
+    case OP_DRIVE_OFF:
+        return "DRIVE_OFF";
+    case OP_DRIVE_ROM:
+        return "DRIVE_ROM";
+    case OP_DRIVE_MODE:
+        return "DRIVE_MODE";
+    case OP_DRIVE_BUS_ID:
+        return "DRIVE_BUS_ID";
+    case OP_LOAD:
+        return "LOAD";
+    case OP_RUN:
+        return "RUN";
+    case OP_SYS:
+        return "SYS";
     case OP_RECORDSTART:
         return "RECORDSTART";
     case OP_RECORDSTOP:

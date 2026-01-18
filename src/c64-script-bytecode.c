@@ -363,6 +363,34 @@ static bool compile_var_name_expr(compiler_context_t *ctx, c64script_ast_expr_t 
     return false;
 }
 
+static bool compile_array_name_expr(compiler_context_t *ctx, c64script_ast_expr_t *expr, const char *what)
+{
+    if (!expr) {
+        return false;
+    }
+
+    const char *name = NULL;
+    if (expr->type == AST_EXPR_CALL && expr->as.call.arg_count == 0) {
+        name = expr->as.call.name;
+    } else if (expr->type == AST_EXPR_IDENTIFIER) {
+        name = expr->as.identifier;
+    }
+
+    if (!name) {
+        if (ctx->error_msg) {
+            snprintf(ctx->error_msg, ctx->error_msg_size, "Expected %s array name", what);
+        }
+        return false;
+    }
+
+    c64script_value_t arrayname = {.type = VALUE_STRING, .as.string = (char *)name};
+    uint32_t idx = (uint32_t)add_constant(ctx, arrayname);
+    if (idx == UINT32_MAX)
+        return false;
+    emit(ctx, OP_PUSH_CONST, idx, expr->line);
+    return true;
+}
+
 // ============================================================================
 // EXPRESSION COMPILATION
 // ============================================================================
@@ -498,6 +526,80 @@ static bool compile_expression(compiler_context_t *ctx, c64script_ast_expr_t *ex
                 snprintf(ctx->error_msg, ctx->error_msg_size, "Invalid function call");
             }
             return false;
+        }
+
+        if (strcmp(expr->as.call.name, "CFG$") == 0) {
+            if (expr->as.call.arg_count != 2) {
+                if (ctx->error_msg) {
+                    snprintf(ctx->error_msg, ctx->error_msg_size, "CFG$ expects 2 arguments");
+                }
+                return false;
+            }
+            if (!compile_expression(ctx, expr->as.call.args[0]))
+                return false;
+            if (!compile_expression(ctx, expr->as.call.args[1]))
+                return false;
+            emit(ctx, OP_CFG_GET, 0, expr->line);
+            return true;
+        }
+
+        if (strcmp(expr->as.call.name, "CFG_ITEM$") == 0 || strcmp(expr->as.call.name, "CFGITEM$") == 0) {
+            if (expr->as.call.arg_count != 1 && expr->as.call.arg_count != 2) {
+                if (ctx->error_msg) {
+                    snprintf(ctx->error_msg, ctx->error_msg_size, "CFG_ITEM$ expects 1 or 2 arguments");
+                }
+                return false;
+            }
+
+            if (expr->as.call.arg_count == 2) {
+                if (!compile_expression(ctx, expr->as.call.args[0]))
+                    return false;
+                if (!compile_array_name_expr(ctx, expr->as.call.args[1], "CFG_ITEM$"))
+                    return false;
+            } else {
+                c64script_value_t empty_val = {.type = VALUE_STRING, .as.string = (char *)""};
+                uint32_t empty_idx = (uint32_t)add_constant(ctx, empty_val);
+                if (empty_idx == UINT32_MAX)
+                    return false;
+                emit(ctx, OP_PUSH_CONST, empty_idx, expr->line);
+                if (!compile_array_name_expr(ctx, expr->as.call.args[0], "CFG_ITEM$"))
+                    return false;
+            }
+
+            emit(ctx, OP_CFG_ITEM, 0, expr->line);
+            return true;
+        }
+
+        if (strcmp(expr->as.call.name, "CFG_OPTIONS$") == 0 || strcmp(expr->as.call.name, "CFGOPTIONS$") == 0) {
+            if (expr->as.call.arg_count != 3) {
+                if (ctx->error_msg) {
+                    snprintf(ctx->error_msg, ctx->error_msg_size, "CFG_OPTIONS$ expects 3 arguments");
+                }
+                return false;
+            }
+            if (!compile_expression(ctx, expr->as.call.args[0]))
+                return false;
+            if (!compile_expression(ctx, expr->as.call.args[1]))
+                return false;
+            if (!compile_array_name_expr(ctx, expr->as.call.args[2], "CFG_OPTIONS$"))
+                return false;
+            emit(ctx, OP_CFG_OPTIONS, 0, expr->line);
+            return true;
+        }
+
+        if (strcmp(expr->as.call.name, "DRIVE$") == 0) {
+            if (expr->as.call.arg_count != 2) {
+                if (ctx->error_msg) {
+                    snprintf(ctx->error_msg, ctx->error_msg_size, "DRIVE$ expects 2 arguments");
+                }
+                return false;
+            }
+            if (!compile_expression(ctx, expr->as.call.args[0]))
+                return false;
+            if (!compile_expression(ctx, expr->as.call.args[1]))
+                return false;
+            emit(ctx, OP_DRIVE_GET, 0, expr->line);
+            return true;
         }
 
         // Handle built-in functions
@@ -1020,6 +1122,303 @@ static bool compile_statement(compiler_context_t *ctx, c64script_ast_node_t *stm
         return true;
     }
 
+    case AST_STMT_CFG: {
+        if (!compile_expression(ctx, stmt->as.cfg_stmt.category))
+            return false;
+        if (!compile_expression(ctx, stmt->as.cfg_stmt.item))
+            return false;
+        if (!compile_expression(ctx, stmt->as.cfg_stmt.value))
+            return false;
+        emit(ctx, OP_CFG_SET, 0, stmt->line);
+        return true;
+    }
+
+    case AST_STMT_CFGSAVE:
+        emit(ctx, OP_CFG_SAVE, 0, stmt->line);
+        return true;
+
+    case AST_STMT_CFGLOAD:
+        emit(ctx, OP_CFG_LOAD, 0, stmt->line);
+        return true;
+
+    case AST_STMT_CFGRESET:
+        emit(ctx, OP_CFG_RESET, 0, stmt->line);
+        return true;
+
+    case AST_STMT_SID_MODEL: {
+        c64script_value_t target = {.type = VALUE_STRING, .as.string = (char *)stmt->as.sid_model_stmt.target};
+        uint32_t idx = (uint32_t)add_constant(ctx, target);
+        if (idx == UINT32_MAX)
+            return false;
+        emit(ctx, OP_PUSH_CONST, idx, stmt->line);
+        if (!compile_expression(ctx, stmt->as.sid_model_stmt.model))
+            return false;
+        emit(ctx, OP_SID_MODEL, 0, stmt->line);
+        return true;
+    }
+
+    case AST_STMT_SID_ENABLE: {
+        c64script_value_t target = {.type = VALUE_STRING, .as.string = (char *)stmt->as.sid_enable_stmt.target};
+        uint32_t idx = (uint32_t)add_constant(ctx, target);
+        if (idx == UINT32_MAX)
+            return false;
+        emit(ctx, OP_PUSH_CONST, idx, stmt->line);
+        if (!compile_expression(ctx, stmt->as.sid_enable_stmt.enabled))
+            return false;
+        emit(ctx, OP_SID_ENABLE, 0, stmt->line);
+        return true;
+    }
+
+    case AST_STMT_SID_VOL: {
+        c64script_value_t target = {.type = VALUE_STRING, .as.string = (char *)stmt->as.sid_vol_stmt.target};
+        uint32_t idx = (uint32_t)add_constant(ctx, target);
+        if (idx == UINT32_MAX)
+            return false;
+        emit(ctx, OP_PUSH_CONST, idx, stmt->line);
+        if (!compile_expression(ctx, stmt->as.sid_vol_stmt.level))
+            return false;
+        emit(ctx, OP_SID_VOL, 0, stmt->line);
+        return true;
+    }
+
+    case AST_STMT_SID_FILTER_CURVE: {
+        c64script_value_t target = {.type = VALUE_STRING, .as.string = (char *)stmt->as.sid_filter_curve_stmt.target};
+        uint32_t idx = (uint32_t)add_constant(ctx, target);
+        if (idx == UINT32_MAX)
+            return false;
+        emit(ctx, OP_PUSH_CONST, idx, stmt->line);
+        if (!compile_expression(ctx, stmt->as.sid_filter_curve_stmt.curve))
+            return false;
+        emit(ctx, OP_SID_FILTER_CURVE, 0, stmt->line);
+        return true;
+    }
+
+    case AST_STMT_SID_RESONANCE: {
+        c64script_value_t target = {.type = VALUE_STRING, .as.string = (char *)stmt->as.sid_resonance_stmt.target};
+        uint32_t idx = (uint32_t)add_constant(ctx, target);
+        if (idx == UINT32_MAX)
+            return false;
+        emit(ctx, OP_PUSH_CONST, idx, stmt->line);
+        if (!compile_expression(ctx, stmt->as.sid_resonance_stmt.resonance))
+            return false;
+        emit(ctx, OP_SID_RESONANCE, 0, stmt->line);
+        return true;
+    }
+
+    case AST_STMT_SID_COMBINED: {
+        c64script_value_t target = {.type = VALUE_STRING, .as.string = (char *)stmt->as.sid_combined_stmt.target};
+        uint32_t idx = (uint32_t)add_constant(ctx, target);
+        if (idx == UINT32_MAX)
+            return false;
+        emit(ctx, OP_PUSH_CONST, idx, stmt->line);
+        if (!compile_expression(ctx, stmt->as.sid_combined_stmt.combined))
+            return false;
+        emit(ctx, OP_SID_COMBINED, 0, stmt->line);
+        return true;
+    }
+
+    case AST_STMT_SID_DIGIS: {
+        c64script_value_t target = {.type = VALUE_STRING, .as.string = (char *)stmt->as.sid_digis_stmt.target};
+        uint32_t idx = (uint32_t)add_constant(ctx, target);
+        if (idx == UINT32_MAX)
+            return false;
+        emit(ctx, OP_PUSH_CONST, idx, stmt->line);
+        if (!compile_expression(ctx, stmt->as.sid_digis_stmt.level))
+            return false;
+        emit(ctx, OP_SID_DIGIS, 0, stmt->line);
+        return true;
+    }
+
+    case AST_STMT_VIC_MODE: {
+        if (!compile_expression(ctx, stmt->as.vic_mode_stmt.mode))
+            return false;
+        emit(ctx, OP_VIC_MODE, 0, stmt->line);
+        return true;
+    }
+
+    case AST_STMT_CPU_SPEED: {
+        if (!compile_expression(ctx, stmt->as.cpu_speed_stmt.speed))
+            return false;
+        emit(ctx, OP_CPU_SPEED, 0, stmt->line);
+        return true;
+    }
+
+    case AST_STMT_DRIVE_MOUNT: {
+        c64script_value_t empty_val = {.type = VALUE_STRING, .as.string = (char *)""};
+        if (stmt->as.drive_mount_stmt.drive) {
+            c64script_value_t drive = {.type = VALUE_STRING, .as.string = (char *)stmt->as.drive_mount_stmt.drive};
+            uint32_t idx = (uint32_t)add_constant(ctx, drive);
+            if (idx == UINT32_MAX)
+                return false;
+            emit(ctx, OP_PUSH_CONST, idx, stmt->line);
+        } else {
+            uint32_t idx = (uint32_t)add_constant(ctx, empty_val);
+            if (idx == UINT32_MAX)
+                return false;
+            emit(ctx, OP_PUSH_CONST, idx, stmt->line);
+        }
+
+        if (!compile_expression(ctx, stmt->as.drive_mount_stmt.image))
+            return false;
+
+        if (stmt->as.drive_mount_stmt.type) {
+            c64script_value_t type = {.type = VALUE_STRING, .as.string = (char *)stmt->as.drive_mount_stmt.type};
+            uint32_t idx = (uint32_t)add_constant(ctx, type);
+            if (idx == UINT32_MAX)
+                return false;
+            emit(ctx, OP_PUSH_CONST, idx, stmt->line);
+        } else {
+            uint32_t idx = (uint32_t)add_constant(ctx, empty_val);
+            if (idx == UINT32_MAX)
+                return false;
+            emit(ctx, OP_PUSH_CONST, idx, stmt->line);
+        }
+
+        if (stmt->as.drive_mount_stmt.mode) {
+            c64script_value_t mode = {.type = VALUE_STRING, .as.string = (char *)stmt->as.drive_mount_stmt.mode};
+            uint32_t idx = (uint32_t)add_constant(ctx, mode);
+            if (idx == UINT32_MAX)
+                return false;
+            emit(ctx, OP_PUSH_CONST, idx, stmt->line);
+        } else {
+            uint32_t idx = (uint32_t)add_constant(ctx, empty_val);
+            if (idx == UINT32_MAX)
+                return false;
+            emit(ctx, OP_PUSH_CONST, idx, stmt->line);
+        }
+
+        emit(ctx, OP_DRIVE_MOUNT, 0, stmt->line);
+        return true;
+    }
+
+    case AST_STMT_DRIVE_UNMOUNT: {
+        c64script_value_t drive = {.type = VALUE_STRING, .as.string = (char *)stmt->as.drive_unmount_stmt.drive};
+        uint32_t idx = (uint32_t)add_constant(ctx, drive);
+        if (idx == UINT32_MAX)
+            return false;
+        emit(ctx, OP_PUSH_CONST, idx, stmt->line);
+        emit(ctx, OP_DRIVE_UNMOUNT, 0, stmt->line);
+        return true;
+    }
+
+    case AST_STMT_DRIVE_RESET: {
+        c64script_value_t drive = {.type = VALUE_STRING, .as.string = (char *)stmt->as.drive_reset_stmt.drive};
+        uint32_t idx = (uint32_t)add_constant(ctx, drive);
+        if (idx == UINT32_MAX)
+            return false;
+        emit(ctx, OP_PUSH_CONST, idx, stmt->line);
+        emit(ctx, OP_DRIVE_RESET, 0, stmt->line);
+        return true;
+    }
+
+    case AST_STMT_DRIVE_ON: {
+        c64script_value_t drive = {.type = VALUE_STRING, .as.string = (char *)stmt->as.drive_on_stmt.drive};
+        uint32_t idx = (uint32_t)add_constant(ctx, drive);
+        if (idx == UINT32_MAX)
+            return false;
+        emit(ctx, OP_PUSH_CONST, idx, stmt->line);
+        emit(ctx, OP_DRIVE_ON, 0, stmt->line);
+        return true;
+    }
+
+    case AST_STMT_DRIVE_OFF: {
+        c64script_value_t drive = {.type = VALUE_STRING, .as.string = (char *)stmt->as.drive_off_stmt.drive};
+        uint32_t idx = (uint32_t)add_constant(ctx, drive);
+        if (idx == UINT32_MAX)
+            return false;
+        emit(ctx, OP_PUSH_CONST, idx, stmt->line);
+        emit(ctx, OP_DRIVE_OFF, 0, stmt->line);
+        return true;
+    }
+
+    case AST_STMT_DRIVE_ROM: {
+        c64script_value_t empty_val = {.type = VALUE_STRING, .as.string = (char *)""};
+        if (stmt->as.drive_rom_stmt.drive) {
+            c64script_value_t drive = {.type = VALUE_STRING, .as.string = (char *)stmt->as.drive_rom_stmt.drive};
+            uint32_t idx = (uint32_t)add_constant(ctx, drive);
+            if (idx == UINT32_MAX)
+                return false;
+            emit(ctx, OP_PUSH_CONST, idx, stmt->line);
+        } else {
+            uint32_t idx = (uint32_t)add_constant(ctx, empty_val);
+            if (idx == UINT32_MAX)
+                return false;
+            emit(ctx, OP_PUSH_CONST, idx, stmt->line);
+        }
+
+        if (!compile_expression(ctx, stmt->as.drive_rom_stmt.file))
+            return false;
+
+        emit(ctx, OP_DRIVE_ROM, 0, stmt->line);
+        return true;
+    }
+
+    case AST_STMT_DRIVE_MODE: {
+        c64script_value_t drive = {.type = VALUE_STRING, .as.string = (char *)stmt->as.drive_mode_stmt.drive};
+        uint32_t drive_idx = (uint32_t)add_constant(ctx, drive);
+        if (drive_idx == UINT32_MAX)
+            return false;
+        emit(ctx, OP_PUSH_CONST, drive_idx, stmt->line);
+
+        c64script_value_t mode = {.type = VALUE_STRING, .as.string = (char *)stmt->as.drive_mode_stmt.mode};
+        uint32_t mode_idx = (uint32_t)add_constant(ctx, mode);
+        if (mode_idx == UINT32_MAX)
+            return false;
+        emit(ctx, OP_PUSH_CONST, mode_idx, stmt->line);
+
+        emit(ctx, OP_DRIVE_MODE, 0, stmt->line);
+        return true;
+    }
+
+    case AST_STMT_DRIVE_BUS_ID: {
+        c64script_value_t drive = {.type = VALUE_STRING, .as.string = (char *)stmt->as.drive_bus_id_stmt.drive};
+        uint32_t drive_idx = (uint32_t)add_constant(ctx, drive);
+        if (drive_idx == UINT32_MAX)
+            return false;
+        emit(ctx, OP_PUSH_CONST, drive_idx, stmt->line);
+
+        if (!compile_expression(ctx, stmt->as.drive_bus_id_stmt.bus_id))
+            return false;
+        emit(ctx, OP_DRIVE_BUS_ID, 0, stmt->line);
+        return true;
+    }
+
+    case AST_STMT_LOAD: {
+        if (!compile_expression(ctx, stmt->as.load_stmt.filename))
+            return false;
+        if (stmt->as.load_stmt.device) {
+            if (!compile_expression(ctx, stmt->as.load_stmt.device))
+                return false;
+            emit(ctx, OP_LOAD, 1, stmt->line);
+        } else {
+            emit(ctx, OP_LOAD, 0, stmt->line);
+        }
+        return true;
+    }
+
+    case AST_STMT_RUN: {
+        uint32_t flags = 0;
+        if (stmt->as.run_stmt.filename) {
+            if (!compile_expression(ctx, stmt->as.run_stmt.filename))
+                return false;
+            flags |= 1u;
+            if (stmt->as.run_stmt.device) {
+                if (!compile_expression(ctx, stmt->as.run_stmt.device))
+                    return false;
+                flags |= 2u;
+            }
+        }
+        emit(ctx, OP_RUN, flags, stmt->line);
+        return true;
+    }
+
+    case AST_STMT_SYS: {
+        if (!compile_expression(ctx, stmt->as.sys_stmt.address))
+            return false;
+        emit(ctx, OP_SYS, 0, stmt->line);
+        return true;
+    }
+
     case AST_STMT_AUTOSTART:
         emit(ctx, OP_AUTOSTART, 0, stmt->line);
         return true;
@@ -1030,6 +1429,18 @@ static bool compile_statement(compiler_context_t *ctx, c64script_ast_node_t *stm
 
     case AST_STMT_REBOOT:
         emit(ctx, OP_REBOOT, 0, stmt->line);
+        return true;
+
+    case AST_STMT_PAUSE:
+        emit(ctx, OP_PAUSE, 0, stmt->line);
+        return true;
+
+    case AST_STMT_RESUME:
+        emit(ctx, OP_RESUME, 0, stmt->line);
+        return true;
+
+    case AST_STMT_POWEROFF:
+        emit(ctx, OP_POWEROFF, 0, stmt->line);
         return true;
 
     case AST_STMT_RECORDSTART:

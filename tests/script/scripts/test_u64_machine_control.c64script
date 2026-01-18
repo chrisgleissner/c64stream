@@ -1,0 +1,6 @@
+REM U64 machine control
+PAUSE
+RESUME
+POWEROFF
+WAIT 1ms
+STOP

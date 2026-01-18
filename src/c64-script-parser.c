@@ -418,6 +418,24 @@ static c64script_ast_expr_t *string(parser_t *p, bool can_assign)
     return expr;
 }
 
+static c64script_ast_expr_t *keyword_string(parser_t *p, bool can_assign)
+{
+    (void)can_assign;
+
+    c64script_ast_expr_t *expr = calloc(1, sizeof(c64script_ast_expr_t));
+    if (!expr)
+        return NULL;
+    expr->type = AST_EXPR_STRING;
+    expr->line = p->previous.line;
+    expr->as.string = dup_upper(p->previous.start, p->previous.length);
+    if (!expr->as.string) {
+        error(p, "Out of memory");
+        free(expr);
+        return NULL;
+    }
+    return expr;
+}
+
 // Identifier or function name
 // Detects array assignment vs function call by peeking ahead
 static c64script_ast_expr_t *variable(parser_t *p, bool can_assign)
@@ -695,19 +713,56 @@ static c64script_ast_expr_t *call(parser_t *p, bool can_assign)
 
 // Parse rule table
 static parse_rule_t rules[] = {
-    [TOKEN_LPAREN] = {grouping, call, PREC_CALL},   [TOKEN_RPAREN] = {NULL, NULL, PREC_NONE},
-    [TOKEN_MINUS] = {unary, binary, PREC_TERM},     [TOKEN_PLUS] = {NULL, binary, PREC_TERM},
-    [TOKEN_MULTIPLY] = {NULL, binary, PREC_FACTOR}, [TOKEN_DIVIDE] = {NULL, binary, PREC_FACTOR},
-    [TOKEN_NOT] = {unary, NULL, PREC_NONE},         [TOKEN_AND] = {NULL, binary, PREC_AND},
-    [TOKEN_OR] = {NULL, binary, PREC_OR},           [TOKEN_XOR] = {NULL, binary, PREC_XOR},
-    [TOKEN_EQ] = {NULL, binary, PREC_EQUALITY},     [TOKEN_EQ_EQ] = {NULL, binary, PREC_EQUALITY},
-    [TOKEN_NE] = {NULL, binary, PREC_EQUALITY},     [TOKEN_NE_ALT] = {NULL, binary, PREC_EQUALITY},
-    [TOKEN_LT] = {NULL, binary, PREC_COMPARISON},   [TOKEN_LE] = {NULL, binary, PREC_COMPARISON},
-    [TOKEN_GT] = {NULL, binary, PREC_COMPARISON},   [TOKEN_GE] = {NULL, binary, PREC_COMPARISON},
-    [TOKEN_NUMBER] = {number, NULL, PREC_NONE},     [TOKEN_HEX_NUMBER] = {number, NULL, PREC_NONE},
-    [TOKEN_DURATION] = {number, NULL, PREC_NONE},   [TOKEN_STRING] = {string, NULL, PREC_NONE},
-    [TOKEN_C64U_PATH] = {string, NULL, PREC_NONE},  [TOKEN_IDENTIFIER] = {variable, NULL, PREC_NONE},
-    [TOKEN_PEEK] = {variable, NULL, PREC_NONE},     [TOKEN_LOG] = {variable, NULL, PREC_NONE},
+    [TOKEN_LPAREN] = {grouping, call, PREC_CALL},
+    [TOKEN_RPAREN] = {NULL, NULL, PREC_NONE},
+    [TOKEN_MINUS] = {unary, binary, PREC_TERM},
+    [TOKEN_PLUS] = {NULL, binary, PREC_TERM},
+    [TOKEN_MULTIPLY] = {NULL, binary, PREC_FACTOR},
+    [TOKEN_DIVIDE] = {NULL, binary, PREC_FACTOR},
+    [TOKEN_NOT] = {unary, NULL, PREC_NONE},
+    [TOKEN_AND] = {NULL, binary, PREC_AND},
+    [TOKEN_OR] = {NULL, binary, PREC_OR},
+    [TOKEN_XOR] = {NULL, binary, PREC_XOR},
+    [TOKEN_EQ] = {NULL, binary, PREC_EQUALITY},
+    [TOKEN_EQ_EQ] = {NULL, binary, PREC_EQUALITY},
+    [TOKEN_NE] = {NULL, binary, PREC_EQUALITY},
+    [TOKEN_NE_ALT] = {NULL, binary, PREC_EQUALITY},
+    [TOKEN_LT] = {NULL, binary, PREC_COMPARISON},
+    [TOKEN_LE] = {NULL, binary, PREC_COMPARISON},
+    [TOKEN_GT] = {NULL, binary, PREC_COMPARISON},
+    [TOKEN_GE] = {NULL, binary, PREC_COMPARISON},
+    [TOKEN_NUMBER] = {number, NULL, PREC_NONE},
+    [TOKEN_HEX_NUMBER] = {number, NULL, PREC_NONE},
+    [TOKEN_DURATION] = {number, NULL, PREC_NONE},
+    [TOKEN_STRING] = {string, NULL, PREC_NONE},
+    [TOKEN_C64U_PATH] = {string, NULL, PREC_NONE},
+    [TOKEN_IDENTIFIER] = {variable, NULL, PREC_NONE},
+    [TOKEN_PEEK] = {variable, NULL, PREC_NONE},
+    [TOKEN_LOG] = {variable, NULL, PREC_NONE},
+    [TOKEN_DRIVE_A] = {keyword_string, NULL, PREC_NONE},
+    [TOKEN_DRIVE_B] = {keyword_string, NULL, PREC_NONE},
+    [TOKEN_DRIVE_SOFTIEC] = {keyword_string, NULL, PREC_NONE},
+    [TOKEN_MODE_1541] = {keyword_string, NULL, PREC_NONE},
+    [TOKEN_MODE_1571] = {keyword_string, NULL, PREC_NONE},
+    [TOKEN_MODE_1581] = {keyword_string, NULL, PREC_NONE},
+    [TOKEN_TYPE_D64] = {keyword_string, NULL, PREC_NONE},
+    [TOKEN_TYPE_G64] = {keyword_string, NULL, PREC_NONE},
+    [TOKEN_TYPE_D71] = {keyword_string, NULL, PREC_NONE},
+    [TOKEN_TYPE_G71] = {keyword_string, NULL, PREC_NONE},
+    [TOKEN_TYPE_D81] = {keyword_string, NULL, PREC_NONE},
+    [TOKEN_MODE_READWRITE] = {keyword_string, NULL, PREC_NONE},
+    [TOKEN_MODE_READONLY] = {keyword_string, NULL, PREC_NONE},
+    [TOKEN_MODE_UNLINKED] = {keyword_string, NULL, PREC_NONE},
+    [TOKEN_PROP_ENABLED] = {keyword_string, NULL, PREC_NONE},
+    [TOKEN_PROP_BUS_ID] = {keyword_string, NULL, PREC_NONE},
+    [TOKEN_PROP_TYPE] = {keyword_string, NULL, PREC_NONE},
+    [TOKEN_PROP_ROM] = {keyword_string, NULL, PREC_NONE},
+    [TOKEN_PROP_IMAGE_FILE] = {keyword_string, NULL, PREC_NONE},
+    [TOKEN_PROP_IMAGE_PATH] = {keyword_string, NULL, PREC_NONE},
+    [TOKEN_SOCKET1] = {keyword_string, NULL, PREC_NONE},
+    [TOKEN_SOCKET2] = {keyword_string, NULL, PREC_NONE},
+    [TOKEN_ULTI1] = {keyword_string, NULL, PREC_NONE},
+    [TOKEN_ULTI2] = {keyword_string, NULL, PREC_NONE},
 };
 
 static parse_rule_t *get_rule(c64script_token_type_t type)
@@ -902,6 +957,30 @@ static c64script_ast_expr_t *expression(parser_t *p)
 // STATEMENT PARSING
 // ============================================================================
 
+static const char *parse_keyword_value(parser_t *p, const char *error_msg, const c64script_token_type_t *tokens,
+                                       size_t token_count)
+{
+    for (size_t i = 0; i < token_count; i++) {
+        if (match(p, tokens[i])) {
+            return dup_upper(p->previous.start, p->previous.length);
+        }
+    }
+
+    error(p, error_msg);
+    return NULL;
+}
+
+static const char *parse_optional_keyword_value(parser_t *p, const c64script_token_type_t *tokens, size_t token_count)
+{
+    for (size_t i = 0; i < token_count; i++) {
+        if (match(p, tokens[i])) {
+            return dup_upper(p->previous.start, p->previous.length);
+        }
+    }
+
+    return NULL;
+}
+
 static char *parse_label_ref(parser_t *p)
 {
     if (match(p, TOKEN_IDENTIFIER)) {
@@ -923,6 +1002,80 @@ static char *parse_label_ref(parser_t *p)
 
     error(p, "Expected label");
     return NULL;
+}
+
+static const char *parse_drive_selector(parser_t *p)
+{
+    static const c64script_token_type_t tokens[] = {TOKEN_DRIVE_A, TOKEN_DRIVE_B, TOKEN_DRIVE_SOFTIEC};
+    return parse_keyword_value(p, "Expected drive selector", tokens, sizeof(tokens) / sizeof(tokens[0]));
+}
+
+static const char *parse_drive_ab_selector(parser_t *p)
+{
+    static const c64script_token_type_t tokens[] = {TOKEN_DRIVE_A, TOKEN_DRIVE_B};
+    return parse_keyword_value(p, "Expected drive A or drive B selector", tokens, sizeof(tokens) / sizeof(tokens[0]));
+}
+
+static const char *parse_optional_drive_selector(parser_t *p)
+{
+    static const c64script_token_type_t tokens[] = {TOKEN_DRIVE_A, TOKEN_DRIVE_B, TOKEN_DRIVE_SOFTIEC};
+    return parse_optional_keyword_value(p, tokens, sizeof(tokens) / sizeof(tokens[0]));
+}
+
+static const char *parse_optional_drive_ab_selector(parser_t *p)
+{
+    static const c64script_token_type_t tokens[] = {TOKEN_DRIVE_A, TOKEN_DRIVE_B};
+    return parse_optional_keyword_value(p, tokens, sizeof(tokens) / sizeof(tokens[0]));
+}
+
+static const char *parse_drive_mode_keyword(parser_t *p)
+{
+    static const c64script_token_type_t tokens[] = {TOKEN_MODE_1541, TOKEN_MODE_1571, TOKEN_MODE_1581};
+    return parse_keyword_value(p, "Expected drive mode keyword", tokens, sizeof(tokens) / sizeof(tokens[0]));
+}
+
+static const char *parse_drive_type_keyword(parser_t *p)
+{
+    static const c64script_token_type_t tokens[] = {TOKEN_TYPE_D64, TOKEN_TYPE_G64, TOKEN_TYPE_D71, TOKEN_TYPE_G71,
+                                                    TOKEN_TYPE_D81};
+    return parse_keyword_value(p, "Expected drive image type keyword", tokens, sizeof(tokens) / sizeof(tokens[0]));
+}
+
+static const char *parse_mount_mode_keyword(parser_t *p)
+{
+    static const c64script_token_type_t tokens[] = {TOKEN_MODE_READWRITE, TOKEN_MODE_READONLY, TOKEN_MODE_UNLINKED};
+    return parse_keyword_value(p, "Expected drive mount mode keyword", tokens, sizeof(tokens) / sizeof(tokens[0]));
+}
+
+static const char *parse_optional_drive_type_keyword(parser_t *p)
+{
+    static const c64script_token_type_t tokens[] = {TOKEN_TYPE_D64, TOKEN_TYPE_G64, TOKEN_TYPE_D71, TOKEN_TYPE_G71,
+                                                    TOKEN_TYPE_D81};
+    return parse_optional_keyword_value(p, tokens, sizeof(tokens) / sizeof(tokens[0]));
+}
+
+static const char *parse_optional_mount_mode_keyword(parser_t *p)
+{
+    static const c64script_token_type_t tokens[] = {TOKEN_MODE_READWRITE, TOKEN_MODE_READONLY, TOKEN_MODE_UNLINKED};
+    return parse_optional_keyword_value(p, tokens, sizeof(tokens) / sizeof(tokens[0]));
+}
+
+static const char *parse_sid_target(parser_t *p)
+{
+    static const c64script_token_type_t tokens[] = {TOKEN_SOCKET1, TOKEN_SOCKET2, TOKEN_ULTI1, TOKEN_ULTI2};
+    return parse_keyword_value(p, "Expected SID target keyword", tokens, sizeof(tokens) / sizeof(tokens[0]));
+}
+
+static const char *parse_sid_socket_target(parser_t *p)
+{
+    static const c64script_token_type_t tokens[] = {TOKEN_SOCKET1, TOKEN_SOCKET2};
+    return parse_keyword_value(p, "Expected SID socket target keyword", tokens, sizeof(tokens) / sizeof(tokens[0]));
+}
+
+static const char *parse_sid_ulti_target(parser_t *p)
+{
+    static const c64script_token_type_t tokens[] = {TOKEN_ULTI1, TOKEN_ULTI2};
+    return parse_keyword_value(p, "Expected UltiSID target keyword", tokens, sizeof(tokens) / sizeof(tokens[0]));
 }
 
 // Assignment: [LET] variable = expression
@@ -1596,6 +1749,514 @@ static c64script_ast_node_t *mountdisk_statement(parser_t *p)
     return node;
 }
 
+// CFG category, item, value
+static c64script_ast_node_t *cfg_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_CFG;
+    node->line = p->previous.line;
+
+    node->as.cfg_stmt.category = expression(p);
+    if (!match(p, TOKEN_COMMA)) {
+        error(p, "Expected comma after CFG category");
+        c64script_ast_free(node);
+        return NULL;
+    }
+    node->as.cfg_stmt.item = expression(p);
+    if (!match(p, TOKEN_COMMA)) {
+        error(p, "Expected comma after CFG item");
+        c64script_ast_free(node);
+        return NULL;
+    }
+    node->as.cfg_stmt.value = expression(p);
+
+    return node;
+}
+
+// CFGSAVE
+static c64script_ast_node_t *cfgsave_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_CFGSAVE;
+    node->line = p->previous.line;
+    return node;
+}
+
+// CFGLOAD
+static c64script_ast_node_t *cfgload_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_CFGLOAD;
+    node->line = p->previous.line;
+    return node;
+}
+
+// CFGRESET
+static c64script_ast_node_t *cfgreset_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_CFGRESET;
+    node->line = p->previous.line;
+    return node;
+}
+
+// PAUSE
+static c64script_ast_node_t *pause_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_PAUSE;
+    node->line = p->previous.line;
+    return node;
+}
+
+// RESUME
+static c64script_ast_node_t *resume_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_RESUME;
+    node->line = p->previous.line;
+    return node;
+}
+
+// POWEROFF
+static c64script_ast_node_t *poweroff_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_POWEROFF;
+    node->line = p->previous.line;
+    return node;
+}
+
+// SID_MODEL target, model
+static c64script_ast_node_t *sid_model_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_SID_MODEL;
+    node->line = p->previous.line;
+
+    node->as.sid_model_stmt.target = parse_sid_target(p);
+    if (!node->as.sid_model_stmt.target) {
+        c64script_ast_free(node);
+        return NULL;
+    }
+    if (!match(p, TOKEN_COMMA)) {
+        error(p, "Expected comma after SID target");
+        c64script_ast_free(node);
+        return NULL;
+    }
+    node->as.sid_model_stmt.model = expression(p);
+
+    return node;
+}
+
+// SID_ENABLE target, enabled
+static c64script_ast_node_t *sid_enable_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_SID_ENABLE;
+    node->line = p->previous.line;
+
+    node->as.sid_enable_stmt.target = parse_sid_socket_target(p);
+    if (!node->as.sid_enable_stmt.target) {
+        c64script_ast_free(node);
+        return NULL;
+    }
+    if (!match(p, TOKEN_COMMA)) {
+        error(p, "Expected comma after SID target");
+        c64script_ast_free(node);
+        return NULL;
+    }
+    node->as.sid_enable_stmt.enabled = expression(p);
+
+    return node;
+}
+
+// SID_VOL target, level
+static c64script_ast_node_t *sid_vol_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_SID_VOL;
+    node->line = p->previous.line;
+
+    node->as.sid_vol_stmt.target = parse_sid_target(p);
+    if (!node->as.sid_vol_stmt.target) {
+        c64script_ast_free(node);
+        return NULL;
+    }
+    if (!match(p, TOKEN_COMMA)) {
+        error(p, "Expected comma after SID target");
+        c64script_ast_free(node);
+        return NULL;
+    }
+    node->as.sid_vol_stmt.level = expression(p);
+
+    return node;
+}
+
+// SID_FILTER_CURVE target, curve
+static c64script_ast_node_t *sid_filter_curve_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_SID_FILTER_CURVE;
+    node->line = p->previous.line;
+
+    node->as.sid_filter_curve_stmt.target = parse_sid_ulti_target(p);
+    if (!node->as.sid_filter_curve_stmt.target) {
+        c64script_ast_free(node);
+        return NULL;
+    }
+    if (!match(p, TOKEN_COMMA)) {
+        error(p, "Expected comma after SID target");
+        c64script_ast_free(node);
+        return NULL;
+    }
+    node->as.sid_filter_curve_stmt.curve = expression(p);
+
+    return node;
+}
+
+// SID_RESONANCE target, resonance
+static c64script_ast_node_t *sid_resonance_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_SID_RESONANCE;
+    node->line = p->previous.line;
+
+    node->as.sid_resonance_stmt.target = parse_sid_ulti_target(p);
+    if (!node->as.sid_resonance_stmt.target) {
+        c64script_ast_free(node);
+        return NULL;
+    }
+    if (!match(p, TOKEN_COMMA)) {
+        error(p, "Expected comma after SID target");
+        c64script_ast_free(node);
+        return NULL;
+    }
+    node->as.sid_resonance_stmt.resonance = expression(p);
+
+    return node;
+}
+
+// SID_COMBINED target, combined
+static c64script_ast_node_t *sid_combined_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_SID_COMBINED;
+    node->line = p->previous.line;
+
+    node->as.sid_combined_stmt.target = parse_sid_ulti_target(p);
+    if (!node->as.sid_combined_stmt.target) {
+        c64script_ast_free(node);
+        return NULL;
+    }
+    if (!match(p, TOKEN_COMMA)) {
+        error(p, "Expected comma after SID target");
+        c64script_ast_free(node);
+        return NULL;
+    }
+    node->as.sid_combined_stmt.combined = expression(p);
+
+    return node;
+}
+
+// SID_DIGIS target, level
+static c64script_ast_node_t *sid_digis_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_SID_DIGIS;
+    node->line = p->previous.line;
+
+    node->as.sid_digis_stmt.target = parse_sid_ulti_target(p);
+    if (!node->as.sid_digis_stmt.target) {
+        c64script_ast_free(node);
+        return NULL;
+    }
+    if (!match(p, TOKEN_COMMA)) {
+        error(p, "Expected comma after SID target");
+        c64script_ast_free(node);
+        return NULL;
+    }
+    node->as.sid_digis_stmt.level = expression(p);
+
+    return node;
+}
+
+// VIC_MODE mode
+static c64script_ast_node_t *vic_mode_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_VIC_MODE;
+    node->line = p->previous.line;
+    node->as.vic_mode_stmt.mode = expression(p);
+    return node;
+}
+
+// CPU_SPEED speed
+static c64script_ast_node_t *cpu_speed_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_CPU_SPEED;
+    node->line = p->previous.line;
+    node->as.cpu_speed_stmt.speed = expression(p);
+    return node;
+}
+
+// DRIVE_MOUNT [drive,] image [type] [mode]
+static c64script_ast_node_t *drive_mount_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_DRIVE_MOUNT;
+    node->line = p->previous.line;
+
+    node->as.drive_mount_stmt.drive = parse_optional_drive_selector(p);
+    if (node->as.drive_mount_stmt.drive) {
+        if (!match(p, TOKEN_COMMA)) {
+            error(p, "Expected comma after drive selector");
+            c64script_ast_free(node);
+            return NULL;
+        }
+    }
+
+    node->as.drive_mount_stmt.image = expression(p);
+
+    node->as.drive_mount_stmt.type = NULL;
+    node->as.drive_mount_stmt.mode = NULL;
+
+    if (match(p, TOKEN_COMMA)) {
+        node->as.drive_mount_stmt.type = parse_drive_type_keyword(p);
+        if (!node->as.drive_mount_stmt.type) {
+            c64script_ast_free(node);
+            return NULL;
+        }
+        if (match(p, TOKEN_COMMA)) {
+            node->as.drive_mount_stmt.mode = parse_mount_mode_keyword(p);
+            if (!node->as.drive_mount_stmt.mode) {
+                c64script_ast_free(node);
+                return NULL;
+            }
+        }
+    }
+
+    return node;
+}
+
+// DRIVE_UNMOUNT drive
+static c64script_ast_node_t *drive_unmount_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_DRIVE_UNMOUNT;
+    node->line = p->previous.line;
+    node->as.drive_unmount_stmt.drive = parse_drive_selector(p);
+    if (!node->as.drive_unmount_stmt.drive) {
+        c64script_ast_free(node);
+        return NULL;
+    }
+    return node;
+}
+
+// DRIVE_RESET drive
+static c64script_ast_node_t *drive_reset_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_DRIVE_RESET;
+    node->line = p->previous.line;
+    node->as.drive_reset_stmt.drive = parse_drive_selector(p);
+    if (!node->as.drive_reset_stmt.drive) {
+        c64script_ast_free(node);
+        return NULL;
+    }
+    return node;
+}
+
+// DRIVE_ON drive
+static c64script_ast_node_t *drive_on_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_DRIVE_ON;
+    node->line = p->previous.line;
+    node->as.drive_on_stmt.drive = parse_drive_selector(p);
+    if (!node->as.drive_on_stmt.drive) {
+        c64script_ast_free(node);
+        return NULL;
+    }
+    return node;
+}
+
+// DRIVE_OFF drive
+static c64script_ast_node_t *drive_off_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_DRIVE_OFF;
+    node->line = p->previous.line;
+    node->as.drive_off_stmt.drive = parse_drive_selector(p);
+    if (!node->as.drive_off_stmt.drive) {
+        c64script_ast_free(node);
+        return NULL;
+    }
+    return node;
+}
+
+// DRIVE_ROM [drive,] file
+static c64script_ast_node_t *drive_rom_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_DRIVE_ROM;
+    node->line = p->previous.line;
+
+    node->as.drive_rom_stmt.drive = parse_optional_drive_ab_selector(p);
+    if (node->as.drive_rom_stmt.drive) {
+        if (!match(p, TOKEN_COMMA)) {
+            error(p, "Expected comma after drive selector");
+            c64script_ast_free(node);
+            return NULL;
+        }
+    }
+
+    node->as.drive_rom_stmt.file = expression(p);
+    return node;
+}
+
+// DRIVE_MODE drive, mode
+static c64script_ast_node_t *drive_mode_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_DRIVE_MODE;
+    node->line = p->previous.line;
+    node->as.drive_mode_stmt.drive = parse_drive_ab_selector(p);
+    if (!node->as.drive_mode_stmt.drive) {
+        c64script_ast_free(node);
+        return NULL;
+    }
+    if (!match(p, TOKEN_COMMA)) {
+        error(p, "Expected comma after drive selector");
+        c64script_ast_free(node);
+        return NULL;
+    }
+    node->as.drive_mode_stmt.mode = parse_drive_mode_keyword(p);
+    if (!node->as.drive_mode_stmt.mode) {
+        c64script_ast_free(node);
+        return NULL;
+    }
+    return node;
+}
+
+// DRIVE_BUS_ID drive, bus_id
+static c64script_ast_node_t *drive_bus_id_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_DRIVE_BUS_ID;
+    node->line = p->previous.line;
+    node->as.drive_bus_id_stmt.drive = parse_drive_ab_selector(p);
+    if (!node->as.drive_bus_id_stmt.drive) {
+        c64script_ast_free(node);
+        return NULL;
+    }
+    if (!match(p, TOKEN_COMMA)) {
+        error(p, "Expected comma after drive selector");
+        c64script_ast_free(node);
+        return NULL;
+    }
+    node->as.drive_bus_id_stmt.bus_id = expression(p);
+    return node;
+}
+
+// LOAD "filename" [device]
+static c64script_ast_node_t *load_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_LOAD;
+    node->line = p->previous.line;
+    node->as.load_stmt.filename = expression(p);
+    node->as.load_stmt.device = NULL;
+    if (match(p, TOKEN_COMMA)) {
+        node->as.load_stmt.device = expression(p);
+    }
+    return node;
+}
+
+// RUN ["filename" [,device]]
+static c64script_ast_node_t *run_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_RUN;
+    node->line = p->previous.line;
+    node->as.run_stmt.filename = NULL;
+    node->as.run_stmt.device = NULL;
+
+    if (!check(p, TOKEN_EOF) && !check(p, TOKEN_NEWLINE)) {
+        node->as.run_stmt.filename = expression(p);
+        if (match(p, TOKEN_COMMA)) {
+            node->as.run_stmt.device = expression(p);
+        }
+    }
+
+    return node;
+}
+
+// SYS address
+static c64script_ast_node_t *sys_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_SYS;
+    node->line = p->previous.line;
+    node->as.sys_stmt.address = expression(p);
+    return node;
+}
+
 // AUTOSTART filename
 static c64script_ast_node_t *autostart_statement(parser_t *p)
 {
@@ -2094,12 +2755,66 @@ static c64script_ast_node_t *statement(parser_t *p)
         return runlocal_statement(p);
     if (match(p, TOKEN_MOUNTDISK))
         return mountdisk_statement(p);
+    if (match(p, TOKEN_CFG))
+        return cfg_statement(p);
+    if (match(p, TOKEN_CFGSAVE))
+        return cfgsave_statement(p);
+    if (match(p, TOKEN_CFGLOAD))
+        return cfgload_statement(p);
+    if (match(p, TOKEN_CFGRESET))
+        return cfgreset_statement(p);
+    if (match(p, TOKEN_DRIVE_MOUNT))
+        return drive_mount_statement(p);
+    if (match(p, TOKEN_DRIVE_UNMOUNT))
+        return drive_unmount_statement(p);
+    if (match(p, TOKEN_DRIVE_RESET))
+        return drive_reset_statement(p);
+    if (match(p, TOKEN_DRIVE_ON))
+        return drive_on_statement(p);
+    if (match(p, TOKEN_DRIVE_OFF))
+        return drive_off_statement(p);
+    if (match(p, TOKEN_DRIVE_ROM))
+        return drive_rom_statement(p);
+    if (match(p, TOKEN_DRIVE_MODE))
+        return drive_mode_statement(p);
+    if (match(p, TOKEN_DRIVE_BUS_ID))
+        return drive_bus_id_statement(p);
+    if (match(p, TOKEN_LOAD))
+        return load_statement(p);
+    if (match(p, TOKEN_RUN))
+        return run_statement(p);
+    if (match(p, TOKEN_SYS))
+        return sys_statement(p);
+    if (match(p, TOKEN_SID_MODEL))
+        return sid_model_statement(p);
+    if (match(p, TOKEN_SID_ENABLE))
+        return sid_enable_statement(p);
+    if (match(p, TOKEN_SID_VOL))
+        return sid_vol_statement(p);
+    if (match(p, TOKEN_SID_FILTER_CURVE))
+        return sid_filter_curve_statement(p);
+    if (match(p, TOKEN_SID_RESONANCE))
+        return sid_resonance_statement(p);
+    if (match(p, TOKEN_SID_COMBINED))
+        return sid_combined_statement(p);
+    if (match(p, TOKEN_SID_DIGIS))
+        return sid_digis_statement(p);
+    if (match(p, TOKEN_VIC_MODE))
+        return vic_mode_statement(p);
+    if (match(p, TOKEN_CPU_SPEED))
+        return cpu_speed_statement(p);
     if (match(p, TOKEN_AUTOSTART))
         return autostart_statement(p);
     if (match(p, TOKEN_RESET))
         return reset_statement(p);
     if (match(p, TOKEN_REBOOT))
         return reboot_statement(p);
+    if (match(p, TOKEN_PAUSE))
+        return pause_statement(p);
+    if (match(p, TOKEN_RESUME))
+        return resume_statement(p);
+    if (match(p, TOKEN_POWEROFF))
+        return poweroff_statement(p);
     if (match(p, TOKEN_RECORDSTART))
         return recordstart_statement(p);
     if (match(p, TOKEN_RECORDSTOP))

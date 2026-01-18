@@ -6,204 +6,23 @@ Licensed under the GNU General Public License v2.0 or later.
 See <https://www.gnu.org/licenses/> for details.
 */
 
-#include "c64-script.h"
-#include "c64-script-vm.h"
-#include "c64-script-vm-internal.h"
-#include "c64-script-runtime.h"
+#include "c64-keyboard.h"
 #include "c64-logging.h"
-
-#include <obs-module.h>
-#include <string.h>
-#include <util/platform.h>
-
-bool c64script_execute(c64script_runtime_t *runtime)
-{
-    bool result = c64script_vm_execute(runtime);
-
-    // Finalize trace recording with status and error (if any)
-    if (runtime && runtime->trace_recording_enabled) {
-        c64script_finalize_trace_recording(runtime, result, result ? NULL : runtime->error_msg);
-    }
-
-    return result;
-}
-
-bool c64script_vm_execute(c64script_runtime_t *runtime)
-{
-    if (!runtime) {
-        blog(LOG_ERROR, "NULL runtime provided");
-        return false;
-    }
-
-    if (!runtime->bytecode || runtime->bytecode_size == 0) {
-        blog(LOG_ERROR, "No bytecode to execute");
-        return false;
-    }
-
-    runtime->ip = 0;
-    runtime->should_stop = false;
-    runtime->last_executed_line = 0;
-    runtime->next_line_to_execute = runtime->bytecode_size > 0 ? runtime->bytecode[0].source_line : 0;
-    runtime->iteration_count = 0;
-
-    while (runtime->ip < runtime->bytecode_size && !runtime->should_stop) {
-        c64script_instruction_t *instr = &runtime->bytecode[runtime->ip];
-        int current_line = instr->source_line;
-
-        // Check iteration limit (for testing to prevent infinite loops)
-        if (runtime->max_iterations > 0 && ++runtime->iteration_count >= runtime->max_iterations) {
-            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Iteration limit exceeded (%llu iterations)",
-                     (unsigned long long)runtime->max_iterations);
-            runtime->should_stop = true;
-            return false;
-        }
-
-        // Check for pause at source line boundaries
-        // Only pause when the line number changes (new source line)
-        if (runtime->should_pause && current_line != runtime->last_executed_line && current_line > 0) {
-            runtime->is_paused = true;
-            runtime->should_pause = false; // Clear pause request
-            if (runtime->step_skip_waits) {
-                runtime->step_skip_waits = false;
-            }
-            // Wait until resumed or stopped
-            while (runtime->is_paused && !runtime->should_stop) {
-                os_sleep_ms(10); // Small sleep to avoid busy wait
-
-                // Check if step mode is activated
-                if (runtime->step_mode) {
-                    runtime->step_mode = false;
-                    runtime->step_skip_waits = true;
-                    runtime->is_paused = false;
-                    runtime->should_pause = true; // Pause again on next source line
-                    break;                        // Execute one line then pause again
-                }
-            }
-
-            if (runtime->should_stop) {
-                break;
-            }
-        }
-
-        runtime->error_line = instr->source_line;
-
-        // Record trace entry BEFORE instruction execution (to show pre-execution variable state)
-        if (runtime->trace_recording_enabled && current_line != runtime->last_executed_line && current_line > 0) {
-            c64script_vm_record_trace_entry(runtime, current_line);
-        }
-
-        if (runtime->trace_enabled) {
-            blog(LOG_INFO, "[TRACE] IP=%zu OP=%d line=%d", runtime->ip, instr->opcode, instr->source_line);
-        }
-
-        runtime->ip++; // Advance IP (jumps will override)
-
-        bool skip_line_update = false;
-        if (!c64script_vm_execute_instruction(runtime, instr, &skip_line_update))
-            return false;
-        if (skip_line_update) {
-            if (runtime->ip < runtime->bytecode_size) {
-                runtime->next_line_to_execute = runtime->bytecode[runtime->ip].source_line;
-            } else {
-                runtime->next_line_to_execute = 0;
-            }
-            continue;
-        }
-
-        // Update last executed line after instruction completes
-        if (current_line > 0 && current_line != runtime->last_executed_line) {
-            runtime->last_executed_line = current_line;
-        }
-
-        // Update next line to execute for the next iteration
-        if (runtime->ip < runtime->bytecode_size) {
-            runtime->next_line_to_execute = runtime->bytecode[runtime->ip].source_line;
-        } else {
-            runtime->next_line_to_execute = 0; // Script completed
-        }
-    }
-
-    // Note: trace finalization is handled by c64script_execute wrapper
-
-    return true;
-}
-
-bool c64script_vm_step(c64script_runtime_t *runtime)
-{
-    if (!runtime) {
-        blog(LOG_ERROR, "NULL runtime provided");
-        return false;
-    }
-
-    if (!runtime->bytecode || runtime->bytecode_size == 0) {
-        blog(LOG_ERROR, "No bytecode to execute");
-        return false;
-    }
-
-    if (runtime->ip >= runtime->bytecode_size || runtime->should_stop) {
-        return false;
-    }
-
-    c64script_instruction_t *instr = &runtime->bytecode[runtime->ip];
-    int current_line = instr->source_line;
-
-    if (runtime->max_iterations > 0 && ++runtime->iteration_count >= runtime->max_iterations) {
-        snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Iteration limit exceeded (%llu iterations)",
-                 (unsigned long long)runtime->max_iterations);
-        runtime->should_stop = true;
-        return false;
-    }
-
-    runtime->error_line = instr->source_line;
-
-    if (runtime->trace_recording_enabled && current_line != runtime->last_executed_line && current_line > 0) {
-        c64script_vm_record_trace_entry(runtime, current_line);
-    }
-
-    if (runtime->trace_enabled) {
-        blog(LOG_INFO, "[TRACE] IP=%zu OP=%d line=%d", runtime->ip, instr->opcode, instr->source_line);
-    }
-
-    runtime->ip++; // Advance IP (jumps will override)
-
-    bool skip_line_update = false;
-    if (!c64script_vm_execute_instruction(runtime, instr, &skip_line_update)) {
-        return false;
-    }
-
-    if (!skip_line_update && current_line > 0 && current_line != runtime->last_executed_line) {
-        runtime->last_executed_line = current_line;
-    }
-
-    if (runtime->ip < runtime->bytecode_size) {
-        runtime->next_line_to_execute = runtime->bytecode[runtime->ip].source_line;
-    } else {
-        runtime->next_line_to_execute = 0;
-    }
-
-    return true;
-}
-
-#if 0
-
-#include "c64-script.h"
-#include "c64-script-vm.h"
+#include "c64-rest-client.h"
 #include "c64-script-builtins.h"
 #include "c64-script-runtime.h"
-#include "c64-logging.h"
-#include "c64-keyboard.h"
-#include "c64-rest-client.h"
+#include "c64-script.h"
+#include "c64-script-vm-internal.h"
 
 #include <ctype.h>
+#include <limits.h>
 #include <obs-module.h>
 #ifdef ENABLE_FRONTEND_API
 #include <obs-frontend-api.h>
 #endif
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <limits.h>
 #ifdef _WIN32
 #define strcasecmp _stricmp
 #define strncasecmp _strnicmp
@@ -217,7 +36,6 @@ bool c64script_vm_step(c64script_runtime_t *runtime)
 #include <alloca.h>
 #endif
 #include <math.h>
-#include <ctype.h>
 #include <time.h>
 #include <util/platform.h>
 #include <curl/curl.h>
@@ -302,7 +120,6 @@ static bool c64_script_queue_source_update(obs_source_t *source, c64_script_upda
     }
 
     obs_queue_task(OBS_TASK_UI, c64_script_apply_source_update, update, false);
-
     return true;
 }
 
@@ -310,7 +127,6 @@ static size_t http_write_callback(char *ptr, size_t size, size_t nmemb, void *us
 {
     size_t total = size * nmemb;
     c64script_http_response_t *response = (c64script_http_response_t *)userdata;
-
     if (!response || total == 0) {
         return 0;
     }
@@ -325,395 +141,6 @@ static size_t http_write_callback(char *ptr, size_t size, size_t nmemb, void *us
     response->size += total;
     response->data[response->size] = '\0';
     return total;
-}
-
-static double wallclock_now_seconds(void)
-{
-    struct timespec ts;
-    timespec_get(&ts, TIME_UTC);
-    return (double)ts.tv_sec + ((double)ts.tv_nsec / 1000000000.0);
-}
-
-static bool parse_fixed_digits(const char *s, size_t len, int *out)
-{
-    int value = 0;
-    if (!s || !out || len == 0) {
-        return false;
-    }
-    for (size_t i = 0; i < len; i++) {
-        if (s[i] < '0' || s[i] > '9') {
-            return false;
-        }
-        value = value * 10 + (s[i] - '0');
-    }
-    *out = value;
-    return true;
-}
-
-#ifdef _WIN32
-static time_t timegm_compat(struct tm *tm_utc)
-{
-    return _mkgmtime(tm_utc);
-}
-#else
-static time_t timegm_compat(struct tm *tm_utc)
-{
-    return timegm(tm_utc);
-}
-#endif
-
-static bool parse_wallclock_target(const char *s, double *out_epoch_seconds)
-{
-    if (!s || !out_epoch_seconds) {
-        return false;
-    }
-
-    size_t n = strlen(s);
-
-    // "HH:MM" or "HH:MM:SS" (local time; tomorrow if already passed)
-    if (n == 5 || n == 8) {
-        int hh = 0, mm = 0, ss = 0;
-        if (!parse_fixed_digits(s + 0, 2, &hh) || s[2] != ':' || !parse_fixed_digits(s + 3, 2, &mm)) {
-            return false;
-        }
-        if (n == 8) {
-            if (s[5] != ':' || !parse_fixed_digits(s + 6, 2, &ss)) {
-                return false;
-            }
-        }
-        if (hh < 0 || hh > 23 || mm < 0 || mm > 59 || ss < 0 || ss > 59) {
-            return false;
-        }
-
-        time_t now_t = time(NULL);
-        struct tm local_tm;
-#ifdef _WIN32
-        localtime_s(&local_tm, &now_t);
-#else
-        localtime_r(&now_t, &local_tm);
-#endif
-        local_tm.tm_hour = hh;
-        local_tm.tm_min = mm;
-        local_tm.tm_sec = ss;
-        time_t target = mktime(&local_tm);
-        if (target == (time_t)-1) {
-            return false;
-        }
-
-        if ((double)target <= wallclock_now_seconds()) {
-            target += 24 * 60 * 60;
-        }
-
-        *out_epoch_seconds = (double)target;
-        return true;
-    }
-
-    // "YYYY-MM-DD HH:MM:SS" (local time)
-    if (n == 19 && s[4] == '-' && s[7] == '-' && s[10] == ' ' && s[13] == ':' && s[16] == ':') {
-        int year = 0, mon = 0, day = 0, hh = 0, mm = 0, ss = 0;
-        if (!parse_fixed_digits(s + 0, 4, &year) || !parse_fixed_digits(s + 5, 2, &mon) ||
-            !parse_fixed_digits(s + 8, 2, &day) || !parse_fixed_digits(s + 11, 2, &hh) ||
-            !parse_fixed_digits(s + 14, 2, &mm) || !parse_fixed_digits(s + 17, 2, &ss)) {
-            return false;
-        }
-
-        struct tm tm_local = {0};
-        tm_local.tm_year = year - 1900;
-        tm_local.tm_mon = mon - 1;
-        tm_local.tm_mday = day;
-        tm_local.tm_hour = hh;
-        tm_local.tm_min = mm;
-        tm_local.tm_sec = ss;
-        time_t target = mktime(&tm_local);
-        if (target == (time_t)-1) {
-            return false;
-        }
-        *out_epoch_seconds = (double)target;
-        return true;
-    }
-
-    // ISO-8601 "YYYY-MM-DDTHH:MM:SS[.fff][Z|±HH:MM]"
-    const char *t_pos = strchr(s, 'T');
-    if (!t_pos) {
-        return false;
-    }
-
-    if ((size_t)(t_pos - s) != 10 || s[4] != '-' || s[7] != '-') {
-        return false;
-    }
-
-    int year = 0, mon = 0, day = 0;
-    if (!parse_fixed_digits(s + 0, 4, &year) || !parse_fixed_digits(s + 5, 2, &mon) ||
-        !parse_fixed_digits(s + 8, 2, &day)) {
-        return false;
-    }
-
-    const char *time_part = t_pos + 1;
-    if (strlen(time_part) < 8 || time_part[2] != ':' || time_part[5] != ':') {
-        return false;
-    }
-
-    int hh = 0, mm = 0, ss = 0;
-    if (!parse_fixed_digits(time_part + 0, 2, &hh) || !parse_fixed_digits(time_part + 3, 2, &mm) ||
-        !parse_fixed_digits(time_part + 6, 2, &ss)) {
-        return false;
-    }
-
-    const char *rest = time_part + 8;
-
-    // Optional fractional seconds
-    if (*rest == '.') {
-        rest++;
-        while (*rest >= '0' && *rest <= '9') {
-            rest++;
-        }
-    }
-
-    bool has_tz = false;
-    int tz_sign = 1;
-    int tz_hh = 0, tz_mm = 0;
-    if (*rest == 'Z') {
-        has_tz = true;
-        tz_sign = 1;
-        tz_hh = 0;
-        tz_mm = 0;
-        rest++;
-    } else if (*rest == '+' || *rest == '-') {
-        has_tz = true;
-        tz_sign = (*rest == '-') ? -1 : 1;
-        rest++;
-        if (!parse_fixed_digits(rest + 0, 2, &tz_hh) || rest[2] != ':' || !parse_fixed_digits(rest + 3, 2, &tz_mm)) {
-            return false;
-        }
-        rest += 5;
-    }
-
-    if (*rest != '\0') {
-        return false;
-    }
-
-    struct tm tm_val = {0};
-    tm_val.tm_year = year - 1900;
-    tm_val.tm_mon = mon - 1;
-    tm_val.tm_mday = day;
-    tm_val.tm_hour = hh;
-    tm_val.tm_min = mm;
-    tm_val.tm_sec = ss;
-
-    time_t base;
-    if (has_tz) {
-        base = timegm_compat(&tm_val);
-        if (base == (time_t)-1) {
-            return false;
-        }
-        int offset_seconds = tz_sign * ((tz_hh * 60 + tz_mm) * 60);
-        *out_epoch_seconds = (double)base - (double)offset_seconds;
-        return true;
-    }
-
-    base = mktime(&tm_val);
-    if (base == (time_t)-1) {
-        return false;
-    }
-    *out_epoch_seconds = (double)base;
-    return true;
-}
-
-static bool format_current_time(c64script_runtime_t *runtime, char *out, size_t out_size)
-{
-    if (!out || out_size == 0) {
-        return false;
-    }
-
-    time_t now = runtime && runtime->override_time_enabled ? runtime->override_time : time(NULL);
-    struct tm local_tm;
-#ifdef _WIN32
-    localtime_s(&local_tm, &now);
-#else
-    localtime_r(&now, &local_tm);
-#endif
-    return strftime(out, out_size, "%Y-%m-%d %H:%M:%S", &local_tm) > 0;
-}
-
-static bool is_c64u_path(const char *path, const char **out_c64u_path)
-{
-    if (!path || !out_c64u_path) {
-        return false;
-    }
-
-    const char *prefix = "c64u:";
-    size_t prefix_len = strlen(prefix);
-    if (strlen(path) < prefix_len) {
-        return false;
-    }
-    if (strncasecmp(path, prefix, prefix_len) != 0) {
-        return false;
-    }
-
-    *out_c64u_path = path + prefix_len;
-    return true;
-}
-
-static bool load_binary_file(const char *path, uint8_t **out_data, size_t *out_size, char *error_msg, size_t error_size)
-{
-    if (!path || !out_data || !out_size) {
-        return false;
-    }
-
-    FILE *f = fopen(path, "rb");
-    if (!f) {
-        if (error_msg && error_size > 0) {
-            snprintf(error_msg, error_size, "Failed to open file: %s", path);
-        }
-        return false;
-    }
-
-    if (fseek(f, 0, SEEK_END) != 0) {
-        fclose(f);
-        if (error_msg && error_size > 0) {
-            snprintf(error_msg, error_size, "Failed to seek file");
-        }
-        return false;
-    }
-
-    long fsize = ftell(f);
-    if (fsize <= 0 || fsize > (long)(16 * 1024 * 1024)) {
-        fclose(f);
-        if (error_msg && error_size > 0) {
-            snprintf(error_msg, error_size, "File too large");
-        }
-        return false;
-    }
-
-    if (fseek(f, 0, SEEK_SET) != 0) {
-        fclose(f);
-        if (error_msg && error_size > 0) {
-            snprintf(error_msg, error_size, "Failed to seek file");
-        }
-        return false;
-    }
-
-    uint8_t *data = malloc((size_t)fsize);
-    if (!data) {
-        fclose(f);
-        if (error_msg && error_size > 0) {
-            snprintf(error_msg, error_size, "Out of memory");
-        }
-        return false;
-    }
-
-    size_t read_count = fread(data, 1, (size_t)fsize, f);
-    fclose(f);
-    if (read_count != (size_t)fsize) {
-        free(data);
-        if (error_msg && error_size > 0) {
-            snprintf(error_msg, error_size, "Failed to read file");
-        }
-        return false;
-    }
-
-    *out_data = data;
-    *out_size = (size_t)fsize;
-    return true;
-}
-
-// Helper: Load text file as string
-static bool load_text_file(const char *path, char **out_content, char *error_msg, size_t error_size)
-{
-    if (!path || !out_content) {
-        return false;
-    }
-
-    FILE *f = fopen(path, "r");
-    if (!f) {
-        if (error_msg && error_size > 0) {
-            snprintf(error_msg, error_size, "Failed to open file: %s", path);
-        }
-        return false;
-    }
-
-    if (fseek(f, 0, SEEK_END) != 0) {
-        fclose(f);
-        if (error_msg && error_size > 0) {
-            snprintf(error_msg, error_size, "Failed to seek file");
-        }
-        return false;
-    }
-
-    long fsize = ftell(f);
-    if (fsize < 0 || fsize > (long)(16 * 1024 * 1024)) {
-        fclose(f);
-        if (error_msg && error_size > 0) {
-            snprintf(error_msg, error_size, fsize < 0 ? "Failed to get file size" : "File too large");
-        }
-        return false;
-    }
-
-    if (fseek(f, 0, SEEK_SET) != 0) {
-        fclose(f);
-        if (error_msg && error_size > 0) {
-            snprintf(error_msg, error_size, "Failed to seek file");
-        }
-        return false;
-    }
-
-    char *content = malloc((size_t)fsize + 1);
-    if (!content) {
-        fclose(f);
-        if (error_msg && error_size > 0) {
-            snprintf(error_msg, error_size, "Out of memory");
-        }
-        return false;
-    }
-
-    size_t read_count = fread(content, 1, (size_t)fsize, f);
-    fclose(f);
-    content[read_count] = '\0';
-
-    *out_content = content;
-    return true;
-}
-
-// Helper: Write file
-static bool write_file(const char *path, const char *content, bool truncate, char *error_msg, size_t error_size)
-{
-    if (!path || !content) {
-        return false;
-    }
-
-    const char *mode = truncate ? "w" : "a";
-    FILE *f = fopen(path, mode);
-    if (!f) {
-        if (error_msg && error_size > 0) {
-            snprintf(error_msg, error_size, "Failed to open file: %s", path);
-        }
-        return false;
-    }
-
-    size_t len = strlen(content);
-    size_t written = fwrite(content, 1, len, f);
-    fclose(f);
-
-    if (written != len) {
-        if (error_msg && error_size > 0) {
-            snprintf(error_msg, error_size, "Failed to write to file");
-        }
-        return false;
-    }
-
-    return true;
-}
-
-static const char *file_extension_lower(const char *path)
-{
-    if (!path) {
-        return "";
-    }
-    const char *dot = strrchr(path, '.');
-    if (!dot || dot == path) {
-        return "";
-    }
-    return dot + 1;
 }
 
 typedef struct {
@@ -733,20 +160,16 @@ static const config_target_mapping_t sid_vol_map[] = {{"SOCKET1", "Audio Mixer",
                                                       {"ULTI1", "Audio Mixer", "Vol UltiSid 1"},
                                                       {"ULTI2", "Audio Mixer", "Vol UltiSid 2"}};
 
-static const config_target_mapping_t sid_filter_curve_map[] = {{"ULTI1", "UltiSID Configuration",
-                                                                "UltiSID 1 Filter Curve"},
-                                                               {"ULTI2", "UltiSID Configuration",
-                                                                "UltiSID 2 Filter Curve"}};
+static const config_target_mapping_t sid_filter_curve_map[] = {
+    {"ULTI1", "UltiSID Configuration", "UltiSID 1 Filter Curve"},
+    {"ULTI2", "UltiSID Configuration", "UltiSID 2 Filter Curve"}};
 
-static const config_target_mapping_t sid_resonance_map[] = {{"ULTI1", "UltiSID Configuration",
-                                                             "UltiSID 1 Resonance"},
-                                                            {"ULTI2", "UltiSID Configuration",
-                                                             "UltiSID 2 Resonance"}};
+static const config_target_mapping_t sid_resonance_map[] = {{"ULTI1", "UltiSID Configuration", "UltiSID 1 Resonance"},
+                                                            {"ULTI2", "UltiSID Configuration", "UltiSID 2 Resonance"}};
 
-static const config_target_mapping_t sid_combined_map[] = {{"ULTI1", "UltiSID Configuration",
-                                                            "UltiSID 1 Combined Waveforms"},
-                                                           {"ULTI2", "UltiSID Configuration",
-                                                            "UltiSID 2 Combined Waveforms"}};
+static const config_target_mapping_t sid_combined_map[] = {
+    {"ULTI1", "UltiSID Configuration", "UltiSID 1 Combined Waveforms"},
+    {"ULTI2", "UltiSID Configuration", "UltiSID 2 Combined Waveforms"}};
 
 static const config_target_mapping_t sid_digis_map[] = {{"ULTI1", "UltiSID Configuration", "UltiSID 1 Digis"},
                                                         {"ULTI2", "UltiSID Configuration", "UltiSID 2 Digis"}};
@@ -892,8 +315,8 @@ static const char *drive_property_keyword_to_key(c64script_runtime_t *runtime, c
     return NULL;
 }
 
-static bool set_config_value(c64script_runtime_t *runtime, const char *category, const char *item,
-                             const char *value, const char *what)
+static bool set_config_value(c64script_runtime_t *runtime, const char *category, const char *item, const char *value,
+                             const char *what)
 {
     if (!c64_rest_config_set_value((c64_rest_client_t *)runtime->rest_client, category, item, value)) {
         snprintf(runtime->error_msg, sizeof(runtime->error_msg), "%s failed: %s", what,
@@ -903,370 +326,11 @@ static bool set_config_value(c64script_runtime_t *runtime, const char *category,
     return true;
 }
 
-static bool require_number(c64script_runtime_t *runtime, const c64script_value_t *value, const char *what)
+static double wallclock_now_seconds(void)
 {
-    if (value->type == VALUE_NUMBER) {
-        return true;
-    }
-    snprintf(runtime->error_msg, sizeof(runtime->error_msg), "TYPE MISMATCH (%s)", what);
-    return false;
-}
-
-static bool require_string(c64script_runtime_t *runtime, const c64script_value_t *value, const char *what)
-{
-    if (value->type == VALUE_STRING) {
-        return true;
-    }
-    snprintf(runtime->error_msg, sizeof(runtime->error_msg), "TYPE MISMATCH (%s)", what);
-    return false;
-}
-
-static bool compare_values(c64script_runtime_t *runtime, const c64script_value_t *a, const c64script_value_t *b,
-                           int *out_cmp, const char *what)
-{
-    if (!out_cmp) {
-        snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Invalid comparison output");
-        return false;
-    }
-
-    if (a->type == VALUE_NUMBER && b->type == VALUE_NUMBER) {
-        if (a->as.number < b->as.number) {
-            *out_cmp = -1;
-        } else if (a->as.number > b->as.number) {
-            *out_cmp = 1;
-        } else {
-            *out_cmp = 0;
-        }
-        return true;
-    }
-
-    if (a->type == VALUE_STRING && b->type == VALUE_STRING) {
-        const char *a_str = a->as.string ? a->as.string : "";
-        const char *b_str = b->as.string ? b->as.string : "";
-        int cmp = strcmp(a_str, b_str);
-        *out_cmp = (cmp < 0) ? -1 : (cmp > 0 ? 1 : 0);
-        return true;
-    }
-
-    snprintf(runtime->error_msg, sizeof(runtime->error_msg), "TYPE MISMATCH (%s)", what);
-    return false;
-}
-
-static bool number_to_int(c64script_runtime_t *runtime, const c64script_value_t *value, int *out, const char *what)
-{
-    if (!require_number(runtime, value, what)) {
-        return false;
-    }
-
-    double truncated = trunc(value->as.number);
-    if (!isfinite(truncated) || truncated > INT_MAX || truncated < INT_MIN) {
-        snprintf(runtime->error_msg, sizeof(runtime->error_msg), "ILLEGAL QUANTITY");
-        return false;
-    }
-
-    *out = (int)truncated;
-    return true;
-}
-
-static bool number_to_uint16(c64script_runtime_t *runtime, const c64script_value_t *value, uint16_t *out,
-                             const char *what)
-{
-    int temp = 0;
-    if (!number_to_int(runtime, value, &temp, what)) {
-        return false;
-    }
-    if (temp < 0 || temp > 0xFFFF) {
-        snprintf(runtime->error_msg, sizeof(runtime->error_msg), "ILLEGAL QUANTITY");
-        return false;
-    }
-    *out = (uint16_t)temp;
-    return true;
-}
-
-static bool number_to_uint8(c64script_runtime_t *runtime, const c64script_value_t *value, uint8_t *out,
-                            const char *what)
-{
-    int temp = 0;
-    if (!number_to_int(runtime, value, &temp, what)) {
-        return false;
-    }
-    if (temp < 0 || temp > 0xFF) {
-        snprintf(runtime->error_msg, sizeof(runtime->error_msg), "ILLEGAL QUANTITY");
-        return false;
-    }
-    *out = (uint8_t)temp;
-    return true;
-}
-
-static double wait_unit_multiplier(c64script_wait_unit_t unit)
-{
-    switch (unit) {
-    case C64SCRIPT_WAIT_UNIT_MS:
-        return 1.0;
-    case C64SCRIPT_WAIT_UNIT_S:
-        return 1000.0;
-    case C64SCRIPT_WAIT_UNIT_M:
-        return 60000.0;
-    case C64SCRIPT_WAIT_UNIT_H:
-        return 3600000.0;
-    case C64SCRIPT_WAIT_UNIT_D:
-        return 86400000.0;
-    default:
-        return 1000.0;
-    }
-}
-
-// ============================================================================
-// VM EXECUTION
-// ============================================================================
-
-// Helper to escape YAML strings (only if needed)
-static void write_yaml_string(FILE *f, const char *str)
-{
-    // Check if we need quotes (contains special chars, starts with special chars, etc.)
-    bool needs_quotes = false;
-    if (!str || !*str) {
-        fprintf(f, "''");
-        return;
-    }
-
-    // Simple heuristic: quote if contains : or starts with special chars
-    if (strchr(str, ':') || strchr(str, '#') || strchr(str, '\n') || str[0] == '-' || str[0] == '[' || str[0] == '{') {
-        needs_quotes = true;
-    }
-
-    if (needs_quotes) {
-        fputc('\'', f);
-        while (*str) {
-            if (*str == '\'') {
-                fputs("''", f); // Escape single quotes by doubling
-            } else {
-                fputc(*str, f);
-            }
-            str++;
-        }
-        fputc('\'', f);
-    } else {
-        fputs(str, f);
-    }
-}
-
-// Helper to write a c64script value as YAML
-static void write_value_as_yaml(FILE *f, const c64script_value_t *val)
-{
-    switch (val->type) {
-    case VALUE_NUMBER:
-        fprintf(f, "%.17g", val->as.number);
-        break;
-    case VALUE_STRING:
-        write_yaml_string(f, val->as.string);
-        break;
-    case VALUE_ARRAY:
-        fprintf(f, "<array>");
-        break;
-    case VALUE_MAP:
-        fprintf(f, "<map>");
-        break;
-    default:
-        fprintf(f, "<unknown>");
-        break;
-    }
-}
-
-// Record trace entry for current line
-static void record_trace_entry(c64script_runtime_t *runtime, int line_num)
-{
-    if (!runtime->trace_recording_enabled || !runtime->trace_buffer || line_num <= 0) {
-        return;
-    }
-
-    // Enforce 1k trace step limit (prevents huge traces in repo)
-    if (runtime->trace_step_count >= 1000) {
-        snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Trace step limit exceeded (1000 steps max)");
-        runtime->should_stop = true;
-        return;
-    }
-    runtime->trace_step_count++;
-
-    char line_buffer[512];
-    const char *src = runtime->source_text;
-    if (!src) {
-        snprintf(line_buffer, sizeof(line_buffer), "<line %d>", line_num);
-    } else {
-        // Extract line content
-        int current_line = 1;
-        const char *line_start = src;
-
-        while (*src && current_line < line_num) {
-            if (*src == '\n') {
-                current_line++;
-                line_start = src + 1;
-            }
-            src++;
-        }
-
-        if (current_line == line_num) {
-            const char *line_end = line_start;
-            while (*line_end && *line_end != '\n' && *line_end != '\r') {
-                line_end++;
-            }
-
-            size_t len = line_end - line_start;
-            if (len >= sizeof(line_buffer)) {
-                len = sizeof(line_buffer) - 1;
-            }
-            memcpy(line_buffer, line_start, len);
-            line_buffer[len] = '\0';
-
-            // Trim
-            char *trimmed = line_buffer;
-            while (isspace((unsigned char)*trimmed))
-                trimmed++;
-            char *end = trimmed + strlen(trimmed) - 1;
-            while (end > trimmed && isspace((unsigned char)*end))
-                *end-- = '\0';
-            memmove(line_buffer, trimmed, strlen(trimmed) + 1);
-        } else {
-            snprintf(line_buffer, sizeof(line_buffer), "<line %d not found>", line_num);
-        }
-    }
-
-    // Write trace entry to buffer
-    char entry[2048];
-    int entry_len = 0;
-
-    entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "- line: %d\n", line_num);
-    entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "  content: ");
-
-    // Write YAML-escaped string
-    entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "\"");
-    for (const char *p = line_buffer; *p && entry_len < (int)sizeof(entry) - 10; p++) {
-        if (*p == '"') {
-            entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "\\\"");
-        } else if (*p == '\\') {
-            entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "\\\\");
-        } else if (*p == '\n') {
-            entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "\\n");
-        } else {
-            entry[entry_len++] = *p;
-        }
-    }
-    entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "\"\n");
-
-    if (runtime->variable_count > 0) {
-        entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "  variables:\n");
-        for (size_t i = 0; i < runtime->variable_count && entry_len < (int)sizeof(entry) - 100; i++) {
-            entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "    %s: ", runtime->variables[i].name);
-
-            // Write value as YAML
-            c64script_value_t *val = &runtime->variables[i].value;
-            if (val->type == VALUE_NUMBER) {
-                entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "%.10g\n", val->as.number);
-            } else if (val->type == VALUE_STRING) {
-                entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "\"%s\"\n",
-                                      val->as.string ? val->as.string : "");
-            } else if (val->type == VALUE_ARRAY) {
-                // Render array with first 10 elements
-                entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "[");
-                if (val->as.array) {
-                    size_t max_elements = val->as.array->size < 10 ? val->as.array->size : 10;
-                    for (size_t j = 0; j < max_elements && entry_len < (int)sizeof(entry) - 50; j++) {
-                        if (j > 0) {
-                            entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, ", ");
-                        }
-                        c64script_value_t *elem = &val->as.array->elements[j];
-                        if (elem->type == VALUE_NUMBER) {
-                            entry_len +=
-                                snprintf(entry + entry_len, sizeof(entry) - entry_len, "%.10g", elem->as.number);
-                        } else if (elem->type == VALUE_STRING) {
-                            entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "\"%s\"",
-                                                  elem->as.string ? elem->as.string : "");
-                        } else {
-                            entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "~");
-                        }
-                    }
-                    if (val->as.array->size > 10) {
-                        entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, ", ...");
-                    }
-                }
-                entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "]\n");
-            } else if (val->type == VALUE_MAP) {
-                // Render map with first 10 entries, sorted alphabetically by key
-                entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "{");
-                if (val->as.map && val->as.map->count > 0) {
-                    // Create sorted index array
-                    size_t *sorted_indices = alloca(val->as.map->count * sizeof(size_t));
-                    for (size_t j = 0; j < val->as.map->count; j++) {
-                        sorted_indices[j] = j;
-                    }
-                    // Simple bubble sort by key (good enough for small maps)
-                    for (size_t j = 0; j < val->as.map->count - 1; j++) {
-                        for (size_t k = j + 1; k < val->as.map->count; k++) {
-                            if (strcmp(val->as.map->entries[sorted_indices[j]].key,
-                                       val->as.map->entries[sorted_indices[k]].key) > 0) {
-                                size_t temp = sorted_indices[j];
-                                sorted_indices[j] = sorted_indices[k];
-                                sorted_indices[k] = temp;
-                            }
-                        }
-                    }
-                    size_t max_entries = val->as.map->count < 10 ? val->as.map->count : 10;
-                    for (size_t j = 0; j < max_entries && entry_len < (int)sizeof(entry) - 50; j++) {
-                        if (j > 0) {
-                            entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, ", ");
-                        }
-                        c64script_map_entry_t *entry_ptr = &val->as.map->entries[sorted_indices[j]];
-                        entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "%s: ", entry_ptr->key);
-                        if (entry_ptr->value.type == VALUE_NUMBER) {
-                            entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "%.10g",
-                                                  entry_ptr->value.as.number);
-                        } else if (entry_ptr->value.type == VALUE_STRING) {
-                            entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "\"%s\"",
-                                                  entry_ptr->value.as.string ? entry_ptr->value.as.string : "");
-                        } else {
-                            entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "~");
-                        }
-                    }
-                    if (val->as.map->count > 10) {
-                        entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, ", ...");
-                    }
-                }
-                entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "}\n");
-            } else {
-                entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "~\n");
-            }
-        }
-    } else {
-        entry_len += snprintf(entry + entry_len, sizeof(entry) - entry_len, "  variables: {}\n");
-    }
-
-    // Append to trace buffer (expand if needed)
-    while (runtime->trace_buffer_size + entry_len + 1 > runtime->trace_buffer_capacity) {
-        runtime->trace_buffer_capacity *= 2;
-        char *new_buffer = realloc(runtime->trace_buffer, runtime->trace_buffer_capacity);
-        if (!new_buffer) {
-            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Out of memory for trace buffer");
-            runtime->should_stop = true;
-            return;
-        }
-        runtime->trace_buffer = new_buffer;
-    }
-
-    memcpy(runtime->trace_buffer + runtime->trace_buffer_size, entry, entry_len);
-    runtime->trace_buffer_size += entry_len;
-    runtime->trace_buffer[runtime->trace_buffer_size] = '\0';
-}
-
-static bool c64script_debug_logging_enabled(void)
-{
-    if (c64_debug_logging) {
-        return true;
-    }
-    const char *env = getenv("C64SCRIPT_DEBUG_LOGS");
-    if (!env || env[0] == '\0' || strcmp(env, "0") == 0) {
-        return false;
-    }
-    return true;
+    struct timespec ts;
+    timespec_get(&ts, TIME_UTC);
+    return (double)ts.tv_sec + ((double)ts.tv_nsec / 1000000000.0);
 }
 
 #ifdef ENABLE_FRONTEND_API
@@ -1286,18 +350,6 @@ static void c64_script_recording_stop_task(void *data)
     }
 }
 #endif
-
-bool c64script_execute(c64script_runtime_t *runtime)
-{
-    bool result = c64script_vm_execute(runtime);
-
-    // Finalize trace recording with status and error (if any)
-    if (runtime && runtime->trace_recording_enabled) {
-        c64script_finalize_trace_recording(runtime, result, result ? NULL : runtime->error_msg);
-    }
-
-    return result;
-}
 
 static bool execute_instruction(c64script_runtime_t *runtime, const c64script_instruction_t *instr,
                                 bool *skip_line_update)
@@ -1360,7 +412,6 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
             return false;
         }
         const char *arrayname = runtime->constants[instr->operand].as.string;
-
         c64script_value_t size_val;
         if (!c64script_runtime_pop(runtime, &size_val))
             return false;
@@ -1396,7 +447,6 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
             return false;
         }
         const char *arrayname = runtime->constants[instr->operand].as.string;
-
         c64script_value_t index_val;
         if (!c64script_runtime_pop(runtime, &index_val))
             return false;
@@ -1445,7 +495,6 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
             return false;
         }
         const char *arrayname = runtime->constants[instr->operand].as.string;
-
         c64script_value_t index_val;
         if (!c64script_runtime_pop(runtime, &index_val))
             return false;
@@ -2030,12 +1079,10 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
     case OP_RETURN:
     case OP_RETURN_VALUE: {
         bool has_return_value = (instr->opcode == OP_RETURN_VALUE) || (instr->operand != 0);
-
         // Check if we're in a function scope or GOSUB
         if (runtime->scope_stack_size > 0) {
             // Function return
             c64script_scope_t *scope = &runtime->scope_stack[runtime->scope_stack_size - 1];
-
             // Get return value if present (operand = 1 means yes, 0 means no)
             c64script_value_t return_val = {.type = VALUE_NUMBER, .as.number = 0.0};
             if (has_return_value) {
@@ -2273,7 +1320,6 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
         bool has_value = (instr->operand & wait_mem_has_value) != 0;
         bool has_poll = (instr->operand & wait_mem_has_poll) != 0;
         c64script_wait_unit_t poll_unit = (c64script_wait_unit_t)(instr->operand & wait_mem_unit_mask);
-
         c64script_value_t poll_val = {0};
         c64script_value_t value_val = {0};
         c64script_value_t mask_val = {0};
@@ -3493,8 +2539,7 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
 
         c64script_value_t array_var;
         if (!c64script_runtime_get_var(runtime, array_name.as.string, &array_var)) {
-            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Variable '%s' not found",
-                     array_name.as.string);
+            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Variable '%s' not found", array_name.as.string);
             c64script_value_free(&array_name);
             c64script_value_free(&path);
             return false;
@@ -3577,8 +2622,7 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
 
         c64script_value_t array_var;
         if (!c64script_runtime_get_var(runtime, array_name.as.string, &array_var)) {
-            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Variable '%s' not found",
-                     array_name.as.string);
+            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Variable '%s' not found", array_name.as.string);
             c64script_value_free(&array_name);
             c64script_value_free(&item);
             c64script_value_free(&category);
@@ -3660,9 +2704,8 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
         }
 
         const char *item = NULL;
-        const char *category =
-            find_config_mapping(sid_model_map, sizeof(sid_model_map) / sizeof(sid_model_map[0]), target.as.string,
-                                &item);
+        const char *category = find_config_mapping(sid_model_map, sizeof(sid_model_map) / sizeof(sid_model_map[0]),
+                                                   target.as.string, &item);
         if (!category) {
             snprintf(runtime->error_msg, sizeof(runtime->error_msg), "SID_MODEL target is read-only");
             c64script_value_free(&model);
@@ -3698,9 +2741,8 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
         }
 
         const char *item = NULL;
-        const char *category =
-            find_config_mapping(sid_enable_map, sizeof(sid_enable_map) / sizeof(sid_enable_map[0]), target.as.string,
-                                &item);
+        const char *category = find_config_mapping(sid_enable_map, sizeof(sid_enable_map) / sizeof(sid_enable_map[0]),
+                                                   target.as.string, &item);
         if (!category) {
             snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Invalid SID target");
             c64script_value_free(&enabled);
@@ -3775,9 +2817,9 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
         }
 
         const char *item = NULL;
-        const char *category = find_config_mapping(
-            sid_filter_curve_map, sizeof(sid_filter_curve_map) / sizeof(sid_filter_curve_map[0]), target.as.string,
-            &item);
+        const char *category = find_config_mapping(sid_filter_curve_map,
+                                                   sizeof(sid_filter_curve_map) / sizeof(sid_filter_curve_map[0]),
+                                                   target.as.string, &item);
         if (!category) {
             snprintf(runtime->error_msg, sizeof(runtime->error_msg), "SID_FILTER_CURVE supports ULTI1/ULTI2 only");
             c64script_value_free(&curve);
@@ -3844,8 +2886,7 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
             snprintf(runtime->error_msg, sizeof(runtime->error_msg), "REST client not available");
             return false;
         }
-        if (!require_string(runtime, &target, "SID_COMBINED") ||
-            !require_string(runtime, &combined, "SID_COMBINED")) {
+        if (!require_string(runtime, &target, "SID_COMBINED") || !require_string(runtime, &combined, "SID_COMBINED")) {
             c64script_value_free(&combined);
             c64script_value_free(&target);
             return false;
@@ -3889,9 +2930,8 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
         }
 
         const char *item = NULL;
-        const char *category =
-            find_config_mapping(sid_digis_map, sizeof(sid_digis_map) / sizeof(sid_digis_map[0]), target.as.string,
-                                &item);
+        const char *category = find_config_mapping(sid_digis_map, sizeof(sid_digis_map) / sizeof(sid_digis_map[0]),
+                                                   target.as.string, &item);
         if (!category) {
             snprintf(runtime->error_msg, sizeof(runtime->error_msg), "SID_DIGIS supports ULTI1/ULTI2 only");
             c64script_value_free(&level);
@@ -4022,8 +3062,9 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
             snprintf(runtime->error_msg, sizeof(runtime->error_msg), "REST client not available");
             return false;
         }
-        if (!require_string(runtime, &drive_val, "DRIVE_MOUNT") || !require_string(runtime, &image_val, "DRIVE_MOUNT") ||
-            !require_string(runtime, &type_val, "DRIVE_MOUNT") || !require_string(runtime, &mode_val, "DRIVE_MOUNT")) {
+        if (!require_string(runtime, &drive_val, "DRIVE_MOUNT") ||
+            !require_string(runtime, &image_val, "DRIVE_MOUNT") || !require_string(runtime, &type_val, "DRIVE_MOUNT") ||
+            !require_string(runtime, &mode_val, "DRIVE_MOUNT")) {
             c64script_value_free(&mode_val);
             c64script_value_free(&type_val);
             c64script_value_free(&image_val);
@@ -4951,7 +3992,6 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
         // Compiler pushes: response_var, status_var, body, headers, url
         // Pop in reverse order (LIFO): url, headers, body, status_var, response_var
         c64script_value_t response_var_val, status_var_val, body_val, headers_val, url_val;
-
         if (!c64script_runtime_pop(runtime, &url_val))
             return false;
         if (!c64script_runtime_pop(runtime, &headers_val))
@@ -4977,7 +4017,6 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
             (status_var_val.type == VALUE_STRING && status_var_val.as.string && status_var_val.as.string[0]);
         const bool has_response_var =
             (response_var_val.type == VALUE_STRING && response_var_val.as.string && response_var_val.as.string[0]);
-
         const char *body_str = NULL;
         char body_buf[64];
         if (body_val.type == VALUE_STRING) {
@@ -5265,159 +4304,8 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
     return true;
 }
 
-bool c64script_vm_execute(c64script_runtime_t *runtime)
+bool c64script_vm_execute_instruction(c64script_runtime_t *runtime, const c64script_instruction_t *instr,
+                                      bool *skip_line_update)
 {
-    if (!runtime) {
-        blog(LOG_ERROR, "NULL runtime provided");
-        return false;
-    }
-
-    if (!runtime->bytecode || runtime->bytecode_size == 0) {
-        blog(LOG_ERROR, "No bytecode to execute");
-        return false;
-    }
-
-    runtime->ip = 0;
-    runtime->should_stop = false;
-    runtime->last_executed_line = 0;
-    runtime->next_line_to_execute = runtime->bytecode_size > 0 ? runtime->bytecode[0].source_line : 0;
-    runtime->iteration_count = 0;
-
-    while (runtime->ip < runtime->bytecode_size && !runtime->should_stop) {
-        c64script_instruction_t *instr = &runtime->bytecode[runtime->ip];
-        int current_line = instr->source_line;
-
-        // Check iteration limit (for testing to prevent infinite loops)
-        if (runtime->max_iterations > 0 && ++runtime->iteration_count >= runtime->max_iterations) {
-            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Iteration limit exceeded (%llu iterations)",
-                     (unsigned long long)runtime->max_iterations);
-            runtime->should_stop = true;
-            return false;
-        }
-
-        // Check for pause at source line boundaries
-        // Only pause when the line number changes (new source line)
-        if (runtime->should_pause && current_line != runtime->last_executed_line && current_line > 0) {
-            runtime->is_paused = true;
-            runtime->should_pause = false; // Clear pause request
-            if (runtime->step_skip_waits) {
-                runtime->step_skip_waits = false;
-            }
-            // Wait until resumed or stopped
-            while (runtime->is_paused && !runtime->should_stop) {
-                os_sleep_ms(10); // Small sleep to avoid busy wait
-
-                // Check if step mode is activated
-                if (runtime->step_mode) {
-                    runtime->step_mode = false;
-                    runtime->step_skip_waits = true;
-                    runtime->is_paused = false;
-                    runtime->should_pause = true; // Pause again on next source line
-                    break;                        // Execute one line then pause again
-                }
-            }
-
-            if (runtime->should_stop) {
-                break;
-            }
-        }
-
-        runtime->error_line = instr->source_line;
-
-        // Record trace entry BEFORE instruction execution (to show pre-execution variable state)
-        if (runtime->trace_recording_enabled && current_line != runtime->last_executed_line && current_line > 0) {
-            record_trace_entry(runtime, current_line);
-        }
-
-        if (runtime->trace_enabled) {
-            blog(LOG_INFO, "[TRACE] IP=%zu OP=%d line=%d", runtime->ip, instr->opcode, instr->source_line);
-        }
-
-        runtime->ip++; // Advance IP (jumps will override)
-
-        bool skip_line_update = false;
-        if (!execute_instruction(runtime, instr, &skip_line_update))
-            return false;
-        if (skip_line_update) {
-            if (runtime->ip < runtime->bytecode_size) {
-                runtime->next_line_to_execute = runtime->bytecode[runtime->ip].source_line;
-            } else {
-                runtime->next_line_to_execute = 0;
-            }
-            continue;
-        }
-
-        // Update last executed line after instruction completes
-        if (current_line > 0 && current_line != runtime->last_executed_line) {
-            runtime->last_executed_line = current_line;
-        }
-
-        // Update next line to execute for the next iteration
-        if (runtime->ip < runtime->bytecode_size) {
-            runtime->next_line_to_execute = runtime->bytecode[runtime->ip].source_line;
-        } else {
-            runtime->next_line_to_execute = 0; // Script completed
-        }
-    }
-
-    // Note: trace finalization is handled by c64script_execute wrapper
-
-    return true;
+    return execute_instruction(runtime, instr, skip_line_update);
 }
-
-bool c64script_vm_step(c64script_runtime_t *runtime)
-{
-    if (!runtime) {
-        blog(LOG_ERROR, "NULL runtime provided");
-        return false;
-    }
-
-    if (!runtime->bytecode || runtime->bytecode_size == 0) {
-        blog(LOG_ERROR, "No bytecode to execute");
-        return false;
-    }
-
-    if (runtime->ip >= runtime->bytecode_size || runtime->should_stop) {
-        return false;
-    }
-
-    c64script_instruction_t *instr = &runtime->bytecode[runtime->ip];
-    int current_line = instr->source_line;
-
-    if (runtime->max_iterations > 0 && ++runtime->iteration_count >= runtime->max_iterations) {
-        snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Iteration limit exceeded (%llu iterations)",
-                 (unsigned long long)runtime->max_iterations);
-        runtime->should_stop = true;
-        return false;
-    }
-
-    runtime->error_line = instr->source_line;
-
-    if (runtime->trace_recording_enabled && current_line != runtime->last_executed_line && current_line > 0) {
-        record_trace_entry(runtime, current_line);
-    }
-
-    if (runtime->trace_enabled) {
-        blog(LOG_INFO, "[TRACE] IP=%zu OP=%d line=%d", runtime->ip, instr->opcode, instr->source_line);
-    }
-
-    runtime->ip++; // Advance IP (jumps will override)
-
-    bool skip_line_update = false;
-    if (!execute_instruction(runtime, instr, &skip_line_update)) {
-        return false;
-    }
-
-    if (!skip_line_update && current_line > 0 && current_line != runtime->last_executed_line) {
-        runtime->last_executed_line = current_line;
-    }
-
-    if (runtime->ip < runtime->bytecode_size) {
-        runtime->next_line_to_execute = runtime->bytecode[runtime->ip].source_line;
-    } else {
-        runtime->next_line_to_execute = 0;
-    }
-
-    return true;
-}
-#endif

@@ -90,6 +90,12 @@ void c64script_ast_free(c64script_ast_node_t *node)
         case AST_STMT_TROFF:
         case AST_STMT_RESET:
         case AST_STMT_REBOOT:
+        case AST_STMT_PAUSE:
+        case AST_STMT_RESUME:
+        case AST_STMT_POWEROFF:
+        case AST_STMT_CFGSAVE:
+        case AST_STMT_CFGLOAD:
+        case AST_STMT_CFGRESET:
         case AST_STMT_RECORDSTART:
         case AST_STMT_RECORDSTOP:
         case AST_STMT_AUTOSTART:
@@ -221,6 +227,107 @@ void c64script_ast_free(c64script_ast_node_t *node)
 
         case AST_STMT_MOUNTDISK:
             free_expr(node->as.mountdisk_stmt.path);
+            break;
+
+        case AST_STMT_CFG:
+            free_expr(node->as.cfg_stmt.category);
+            free_expr(node->as.cfg_stmt.item);
+            free_expr(node->as.cfg_stmt.value);
+            break;
+
+        case AST_STMT_SID_MODEL:
+            free((char *)node->as.sid_model_stmt.target);
+            free_expr(node->as.sid_model_stmt.model);
+            break;
+
+        case AST_STMT_SID_ENABLE:
+            free((char *)node->as.sid_enable_stmt.target);
+            free_expr(node->as.sid_enable_stmt.enabled);
+            break;
+
+        case AST_STMT_SID_VOL:
+            free((char *)node->as.sid_vol_stmt.target);
+            free_expr(node->as.sid_vol_stmt.level);
+            break;
+
+        case AST_STMT_SID_FILTER_CURVE:
+            free((char *)node->as.sid_filter_curve_stmt.target);
+            free_expr(node->as.sid_filter_curve_stmt.curve);
+            break;
+
+        case AST_STMT_SID_RESONANCE:
+            free((char *)node->as.sid_resonance_stmt.target);
+            free_expr(node->as.sid_resonance_stmt.resonance);
+            break;
+
+        case AST_STMT_SID_COMBINED:
+            free((char *)node->as.sid_combined_stmt.target);
+            free_expr(node->as.sid_combined_stmt.combined);
+            break;
+
+        case AST_STMT_SID_DIGIS:
+            free((char *)node->as.sid_digis_stmt.target);
+            free_expr(node->as.sid_digis_stmt.level);
+            break;
+
+        case AST_STMT_VIC_MODE:
+            free_expr(node->as.vic_mode_stmt.mode);
+            break;
+
+        case AST_STMT_CPU_SPEED:
+            free_expr(node->as.cpu_speed_stmt.speed);
+            break;
+
+        case AST_STMT_DRIVE_MOUNT:
+            free((char *)node->as.drive_mount_stmt.drive);
+            free_expr(node->as.drive_mount_stmt.image);
+            free((char *)node->as.drive_mount_stmt.type);
+            free((char *)node->as.drive_mount_stmt.mode);
+            break;
+
+        case AST_STMT_DRIVE_UNMOUNT:
+            free((char *)node->as.drive_unmount_stmt.drive);
+            break;
+
+        case AST_STMT_DRIVE_RESET:
+            free((char *)node->as.drive_reset_stmt.drive);
+            break;
+
+        case AST_STMT_DRIVE_ON:
+            free((char *)node->as.drive_on_stmt.drive);
+            break;
+
+        case AST_STMT_DRIVE_OFF:
+            free((char *)node->as.drive_off_stmt.drive);
+            break;
+
+        case AST_STMT_DRIVE_ROM:
+            free((char *)node->as.drive_rom_stmt.drive);
+            free_expr(node->as.drive_rom_stmt.file);
+            break;
+
+        case AST_STMT_DRIVE_MODE:
+            free((char *)node->as.drive_mode_stmt.drive);
+            free((char *)node->as.drive_mode_stmt.mode);
+            break;
+
+        case AST_STMT_DRIVE_BUS_ID:
+            free((char *)node->as.drive_bus_id_stmt.drive);
+            free_expr(node->as.drive_bus_id_stmt.bus_id);
+            break;
+
+        case AST_STMT_LOAD:
+            free_expr(node->as.load_stmt.filename);
+            free_expr(node->as.load_stmt.device);
+            break;
+
+        case AST_STMT_RUN:
+            free_expr(node->as.run_stmt.filename);
+            free_expr(node->as.run_stmt.device);
+            break;
+
+        case AST_STMT_SYS:
+            free_expr(node->as.sys_stmt.address);
             break;
 
         case AST_STMT_TYPE:
