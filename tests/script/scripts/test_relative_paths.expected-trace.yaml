@@ -1,0 +1,52 @@
+# Execution trace
+script: "test_relative_paths.c64script"
+status: success
+error: ~
+program: |
+  01: rem Test relative path resolution
+  02: READFILE "relative-data.txt", CONTENT$
+  03: if CONTENT$ <> "OK" then
+  04:     LOG "Unexpected content: " + CONTENT$
+  05: endif
+  06: WRITEFILE "relative-output.txt", "OUT" TRUNCATE
+  07: READFILE "relative-output.txt", OUT$
+  08: if OUT$ <> "OUT" then
+  09:     LOG "Unexpected write: " + OUT$
+  10: endif
+  11: stop
+trace:
+- line: 2
+  content: "READFILE \"relative-data.txt\", CONTENT$"
+  variables: {}
+- line: 3
+  content: "if CONTENT$ <> \"OK\" then"
+  variables:
+    CONTENT$: "OK
+"
+- line: 4
+  content: "LOG \"Unexpected content: \" + CONTENT$"
+  variables:
+    CONTENT$: "OK
+"
+- line: 6
+  content: "WRITEFILE \"relative-output.txt\", \"OUT\" TRUNCATE"
+  variables:
+    CONTENT$: "OK
+"
+- line: 7
+  content: "READFILE \"relative-output.txt\", OUT$"
+  variables:
+    CONTENT$: "OK
+"
+- line: 8
+  content: "if OUT$ <> \"OUT\" then"
+  variables:
+    CONTENT$: "OK
+"
+    OUT$: "OUT"
+- line: 11
+  content: "stop"
+  variables:
+    CONTENT$: "OK
+"
+    OUT$: "OUT"

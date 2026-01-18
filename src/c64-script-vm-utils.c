@@ -423,6 +423,51 @@ const char *file_extension_lower(const char *path)
     return dot + 1;
 }
 
+static bool path_is_absolute(const char *path)
+{
+    if (!path || path[0] == '\0') {
+        return false;
+    }
+#ifdef _WIN32
+    if ((isalpha((unsigned char)path[0]) && path[1] == ':' && (path[2] == '\\' || path[2] == '/')) ||
+        (path[0] == '\\' && path[1] == '\\')) {
+        return true;
+    }
+    return false;
+#else
+    return path[0] == '/';
+#endif
+}
+
+bool c64script_resolve_script_path(c64script_runtime_t *runtime, const char *path, char *out, size_t out_size)
+{
+    if (!out || out_size == 0 || !path) {
+        return false;
+    }
+
+    out[0] = '\0';
+
+    if (path_is_absolute(path) || is_c64u_path(path, NULL) || !runtime || runtime->script_dir[0] == '\0') {
+        return snprintf(out, out_size, "%s", path) < (int)out_size;
+    }
+
+    const char *dir = runtime->script_dir;
+    size_t dir_len = strlen(dir);
+    bool dir_has_sep = dir_len > 0 && (dir[dir_len - 1] == '/' || dir[dir_len - 1] == '\\');
+    bool path_has_sep = (path[0] == '/' || path[0] == '\\');
+    const char *path_start = path;
+
+    if (dir_has_sep && path_has_sep) {
+        path_start++;
+    }
+
+    if (!dir_has_sep && !path_has_sep) {
+        return snprintf(out, out_size, "%s/%s", dir, path_start) < (int)out_size;
+    }
+
+    return snprintf(out, out_size, "%s%s", dir, path_start) < (int)out_size;
+}
+
 bool require_number(c64script_runtime_t *runtime, const c64script_value_t *value, const char *what)
 {
     if (value->type == VALUE_NUMBER) {

@@ -755,6 +755,11 @@ TEST(execute_sid_model_invalid_target_fails)
 TEST(execute_drive_commands)
 {
     const char *source = "X$ = DRIVE$(DRIVE_A, PROP_ENABLED)\n"
+                         "BUS$ = DRIVE$(DRIVE_A, PROP_BUS_ID)\n"
+                         "TYPE$ = DRIVE$(DRIVE_A, PROP_TYPE)\n"
+                         "ROM$ = DRIVE$(DRIVE_A, PROP_ROM)\n"
+                         "FILE$ = DRIVE$(DRIVE_A, PROP_IMAGE_FILE)\n"
+                         "PATH$ = DRIVE$(DRIVE_A, PROP_IMAGE_PATH)\n"
                          "DRIVE_ON DRIVE_A\n"
                          "DRIVE_OFF DRIVE_A\n"
                          "DRIVE_RESET DRIVE_A\n"
@@ -782,6 +787,31 @@ TEST(execute_drive_commands)
     bool got_var = c64script_runtime_get_var(runtime, "X$", &value);
     assert(got_var);
     assert(strcmp(value.as.string, "true") == 0);
+    c64script_value_free(&value);
+
+    got_var = c64script_runtime_get_var(runtime, "BUS$", &value);
+    assert(got_var);
+    assert(strcmp(value.as.string, "8") == 0);
+    c64script_value_free(&value);
+
+    got_var = c64script_runtime_get_var(runtime, "TYPE$", &value);
+    assert(got_var);
+    assert(strcmp(value.as.string, "1541") == 0);
+    c64script_value_free(&value);
+
+    got_var = c64script_runtime_get_var(runtime, "ROM$", &value);
+    assert(got_var);
+    assert(strcmp(value.as.string, "1541.rom") == 0);
+    c64script_value_free(&value);
+
+    got_var = c64script_runtime_get_var(runtime, "FILE$", &value);
+    assert(got_var);
+    assert(strcmp(value.as.string, "game.d64") == 0);
+    c64script_value_free(&value);
+
+    got_var = c64script_runtime_get_var(runtime, "PATH$", &value);
+    assert(got_var);
+    assert(strcmp(value.as.string, "c64u:/Games/game.d64") == 0);
     c64script_value_free(&value);
 
     const char *log = c64script_test_rest_log(runtime->rest_client);

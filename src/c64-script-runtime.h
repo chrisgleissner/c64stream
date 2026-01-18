@@ -27,6 +27,11 @@ c64script_runtime_t *c64script_runtime_create(void);
 void c64script_runtime_destroy(c64script_runtime_t *runtime);
 
 /**
+ * Set script file path metadata for the runtime (used for relative path resolution).
+ */
+void c64script_runtime_set_script_path(c64script_runtime_t *runtime, const char *script_path);
+
+/**
  * Variable operations
  */
 bool c64script_runtime_set_var(c64script_runtime_t *runtime, const char *name, c64script_value_t value);

@@ -1,0 +1,37 @@
+# Execution trace
+script: "test_log_default_path.c64script"
+status: success
+error: ~
+program: |
+  1: rem Test default log file path
+  2: LOG "Default log entry"
+  3: READFILE "test_log_default_path.log", CONTENT$
+  4: if LEN(CONTENT$) = 0 then
+  5:     LOG "Missing log content"
+  6: endif
+  7: stop
+trace:
+- line: 2
+  content: "LOG \"Default log entry\""
+  variables: {}
+- line: 3
+  content: "READFILE \"test_log_default_path.log\", CONTENT$"
+  variables: {}
+- line: 4
+  content: "if LEN(CONTENT$) = 0 then"
+  variables:
+    CONTENT$: "
+Default log entry
+Default log entry
+Default log entry
+Default log entry
+"
+- line: 7
+  content: "stop"
+  variables:
+    CONTENT$: "
+Default log entry
+Default log entry
+Default log entry
+Default log entry
+"

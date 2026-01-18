@@ -307,11 +307,15 @@ static bool compile_script(c64_script_executor_t *executor, const char *script_f
         return false;
     }
 
-    char *log_path = obs_module_config_path("c64script.log");
-    if (log_path) {
-        strncpy(runtime->log_filename, log_path, sizeof(runtime->log_filename) - 1);
-        runtime->log_filename[sizeof(runtime->log_filename) - 1] = '\0';
-        bfree(log_path);
+    c64script_runtime_set_script_path(runtime, script_file_path);
+
+    if (runtime->log_filename[0] == '\0') {
+        char *log_path = obs_module_config_path("c64script.log");
+        if (log_path) {
+            strncpy(runtime->log_filename, log_path, sizeof(runtime->log_filename) - 1);
+            runtime->log_filename[sizeof(runtime->log_filename) - 1] = '\0';
+            bfree(log_path);
+        }
     }
 
     // Store source text for line display

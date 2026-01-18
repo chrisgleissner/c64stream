@@ -120,6 +120,7 @@ static const char *EXPECTED_EXECUTION_FAILURES[] = {
     "test_error_wait_until_invalid.c64script", // Expected invalid wait-until failure
     "test_error_wait_mem_invalid.c64script",   // Expected invalid wait mem failure
     "test_error_illegal_quantity.c64script",   // Expected illegal quantity failure
+    "test_error_peek_range.c64script",         // Expected PEEK range failure
     NULL};
 
 static bool should_expect_parse_failure(const char *filename)
@@ -434,6 +435,8 @@ static void process_script(const char *file)
     // Compile
     c64script_runtime_t *runtime = c64script_runtime_create();
     assert(runtime != NULL);
+
+    c64script_runtime_set_script_path(runtime, file);
 
     // Set fixed time for TIME$() function (for stable expected traces)
     // Use January 1, 2024 00:00:00 UTC as a fixed test time

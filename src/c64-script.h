@@ -1059,6 +1059,11 @@ typedef struct {
     char *source_text;
     size_t source_text_size;
 
+    // Script file metadata
+    char script_path[512];
+    char script_dir[512];
+    char script_basename[256];
+
     // Log file
     FILE *log_file;
     char log_filename[512];
@@ -1080,7 +1085,7 @@ typedef struct {
     // Integration points (set by executor)
     void *source_data; // OBS source data
     void *obs_source;  // obs_source_t*
-    void *rest_client; // REST client for PEEK/POKE
+    void *rest_client; // REST client
     void *keyboard;    // Keyboard injection module
 
     // Test overrides

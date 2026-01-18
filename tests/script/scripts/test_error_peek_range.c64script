@@ -1,0 +1,3 @@
+rem Invalid PEEK address
+X = PEEK(-1)
+stop

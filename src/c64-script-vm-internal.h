@@ -40,6 +40,7 @@ bool load_binary_file(const char *path, uint8_t **out_data, size_t *out_size, ch
 bool load_text_file(const char *path, char **out_content, char *error_msg, size_t error_size);
 bool write_file(const char *path, const char *content, bool truncate, char *error_msg, size_t error_size);
 const char *file_extension_lower(const char *path);
+bool c64script_resolve_script_path(c64script_runtime_t *runtime, const char *path, char *out, size_t out_size);
 
 #ifdef __cplusplus
 }

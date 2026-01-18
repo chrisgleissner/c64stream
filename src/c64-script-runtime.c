@@ -263,6 +263,68 @@ c64script_runtime_t *c64script_runtime_create(void)
     return runtime;
 }
 
+void c64script_runtime_set_script_path(c64script_runtime_t *runtime, const char *script_path)
+{
+    if (!runtime) {
+        return;
+    }
+
+    runtime->script_path[0] = '\0';
+    runtime->script_dir[0] = '\0';
+    runtime->script_basename[0] = '\0';
+
+    if (!script_path || script_path[0] == '\0') {
+        return;
+    }
+
+    snprintf(runtime->script_path, sizeof(runtime->script_path), "%s", script_path);
+
+    const char *last_sep = strrchr(script_path, '/');
+#ifdef _WIN32
+    const char *last_backslash = strrchr(script_path, '\\');
+    if (!last_sep || (last_backslash && last_backslash > last_sep)) {
+        last_sep = last_backslash;
+    }
+#endif
+
+    const char *filename = last_sep ? last_sep + 1 : script_path;
+
+    if (last_sep) {
+        size_t dir_len = (size_t)(last_sep - script_path);
+        if (dir_len == 0 && script_path[0] == '/') {
+            dir_len = 1;
+        }
+        if (dir_len >= sizeof(runtime->script_dir)) {
+            dir_len = sizeof(runtime->script_dir) - 1;
+        }
+        memcpy(runtime->script_dir, script_path, dir_len);
+        runtime->script_dir[dir_len] = '\0';
+    }
+
+    const char *ext = strrchr(filename, '.');
+    size_t base_len = ext ? (size_t)(ext - filename) : strlen(filename);
+    if (base_len >= sizeof(runtime->script_basename)) {
+        base_len = sizeof(runtime->script_basename) - 1;
+    }
+    memcpy(runtime->script_basename, filename, base_len);
+    runtime->script_basename[base_len] = '\0';
+
+    if (runtime->script_basename[0] != '\0') {
+        const char *sep = "";
+        size_t dir_len = strlen(runtime->script_dir);
+        if (dir_len > 0) {
+            char last = runtime->script_dir[dir_len - 1];
+            if (last != '/' && last != '\\') {
+                sep = "/";
+            }
+            snprintf(runtime->log_filename, sizeof(runtime->log_filename), "%s%s%s.log", runtime->script_dir, sep,
+                     runtime->script_basename);
+        } else {
+            snprintf(runtime->log_filename, sizeof(runtime->log_filename), "%s.log", runtime->script_basename);
+        }
+    }
+}
+
 void c64script_runtime_destroy(c64script_runtime_t *runtime)
 {
     if (!runtime)
