@@ -609,12 +609,6 @@ RECORDSTOP
 
 <a id="cmd-u64-machine"></a>
 
-This section merges `doc/c64script/c64script-machine-control-spec.md` into the main language spec.
-
-**Status**: Final Specification
-**Date**: 2025-01-17
-**Device**: Ultimate 64 Elite (Firmware 3.12a)
-
 **Target**: C64U (REST)
 
 Commands:
