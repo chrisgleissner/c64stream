@@ -45,6 +45,12 @@ When keyboard capture is active (OBS interact mode), the Escape key provides spe
 
 **Use Case:** Fully reset the C64 to start fresh.
 
+#### Notes
+
+- The 40ms delay for BASIC warm start occurs in the keyboard worker thread and **does not** affect video/audio processing
+- Both Escape operations are safe to perform repeatedly
+- Original IRQ vector is always restored after warm start
+
 ### Keyboard Capture
 
 - Keyboard capture is automatically active when the source is in OBS interact mode
@@ -52,11 +58,6 @@ When keyboard capture is active (OBS interact mode), the Escape key provides spe
 - Focus the C64 source in OBS to enable keyboard capture
 - Unfocus or switch sources to disable keyboard capture
 
-### Implementation Notes
-
-- The 40ms delay for BASIC warm start occurs in the keyboard worker thread and **does not** affect video/audio processing
-- Both Escape operations are safe to perform repeatedly
-- Original IRQ vector is always restored after warm start
 
 ### Keyboard Injection (REST DMA)
 
@@ -84,7 +85,7 @@ When keyboard capture is active (OBS interact mode), the Escape key provides spe
 - Poll `$00C6` until it returns to `0`.
 - Optional verification: `GET /v1/machine:readmem?address=0277&length=<n>` to confirm staged bytes.
 
-### Disk Image Autostart (D64/G64/D71/G71/D81)
+## Disk Image Autostart (D64/G64/D71/G71/D81)
 
 **Mount + inject flow:**
 
