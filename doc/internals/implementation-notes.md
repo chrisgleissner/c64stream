@@ -57,3 +57,46 @@ When keyboard capture is active (OBS interact mode), the Escape key provides spe
 - The 40ms delay for BASIC warm start occurs in the keyboard worker thread and **does not** affect video/audio processing
 - Both Escape operations are safe to perform repeatedly
 - Original IRQ vector is always restored after warm start
+
+### Keyboard Injection (REST DMA)
+
+**Mechanism:** background worker polls the C64 KERNAL keyboard buffer length and injects bytes only when empty.
+
+**Memory locations:**
+
+- Keyboard buffer: $0277–$0280 (max 10 bytes)
+- Keyboard buffer length: $00C6
+
+**REST endpoints used:**
+
+- Read buffer length: `GET /v1/machine:readmem?address=00C6&length=1`
+- Write buffer bytes: `PUT /v1/machine:writemem?address=0277&data=<hex>`
+- Write buffer length: `PUT /v1/machine:writemem?address=00C6&data=<len>`
+
+**Timing/backpressure:**
+
+- Poll interval: 50 ms
+- Only inject when `$00C6 == 0`
+- Inject up to 10 bytes per write, then set `$00C6` to the injected byte count
+
+**Consumption check (keystrokes read):**
+
+- Poll `$00C6` until it returns to `0`.
+- Optional verification: `GET /v1/machine:readmem?address=0277&length=<n>` to confirm staged bytes.
+
+### Disk Image Autostart (D64/G64/D71/G71/D81)
+
+**Mount + inject flow:**
+
+- Optional reset before mount: `PUT /v1/machine:reset`, then wait 500 ms (RESET_DELAY_MS).
+- Mount disk image from Ultimate filesystem: `POST /v1/drives/a:mount?path=<url-encoded-path>`.
+- Inject autostart template via keyboard buffer (defaults to `LOAD"*",8,1\rRUN\r`).
+
+**Autostart bytes (hex) for `LOAD"*",8,1⏎RUN⏎`:**
+
+`4C 4F 41 44 22 2A 22 2C 38 2C 31 0D 52 55 4E 0D`
+
+**Notes:**
+
+- Bytes are written as raw PETSCII/ASCII; for this sequence, ASCII and PETSCII are identical.
+- The template is configurable via `d64_autostart_template`; `\r` maps to byte `0x0D` (RETURN).

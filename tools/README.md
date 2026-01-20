@@ -30,3 +30,28 @@ Notes:
 
 - Base URL is fixed to `http://c64u`.
 - The range is half-open (end is exclusive).
+
+## start-disk.py
+
+Upload and autostart a disk image via the Ultimate REST API.
+
+Supported volume types: .d64 .g64 .d71 .g71 .d81
+
+Examples:
+
+```bash
+tools/start-disk.py /path/to/demo.d64
+tools/start-disk.py /path/to/demo.d81 --base-url http://c64u --drive a
+```
+
+If your REST endpoint requires a password:
+
+```bash
+C64U_PASSWORD=yourpass tools/start-disk.py /path/to/demo.d64
+```
+
+Notes:
+
+- Default base URL: `http://c64u`
+- Autostart template default: `LOAD"*",8,1\rRUN\r`
+- Uses keyboard buffer DMA backpressure (polls $00C6 at 50 ms)
