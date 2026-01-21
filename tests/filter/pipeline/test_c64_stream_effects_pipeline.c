@@ -152,15 +152,21 @@ int main(int argc, char **argv)
 
     const uint32_t white = make_rgba(255, 255, 255);
     const uint32_t black = make_rgba(0, 0, 0);
+    const uint32_t scanline_base = make_rgba(40, 40, 40);
+    const uint32_t tail_row = opts.height / 2;
 
     for (uint32_t frame = 0; frame < opts.frames; frame++) {
         for (size_t i = 0; i < pixel_count; i++) {
-            input[i] = black;
+            input[i] = scanline_base;
+        }
+
+        const size_t row_offset = (size_t)tail_row * (size_t)opts.width;
+        for (uint32_t col = 0; col < opts.width; col++) {
+            input[row_offset + col] = black;
         }
 
         uint32_t x = frame % opts.width;
-        uint32_t y = opts.height / 2;
-        input[(size_t)y * (size_t)opts.width + x] = white;
+        input[row_offset + x] = white;
 
         uint64_t timestamp_ns = (uint64_t)((double)frame * (double)opts.dt_ms * 1000000.0);
         c64_stream_effects_process_frame(&state, input, opts.width, opts.height, timestamp_ns, output);
