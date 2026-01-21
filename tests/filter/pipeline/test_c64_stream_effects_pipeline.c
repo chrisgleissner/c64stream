@@ -18,6 +18,8 @@ See <https://www.gnu.org/licenses/> for details.
 #include <stdlib.h>
 #include <string.h>
 
+bool c64_debug_logging = false;
+
 struct pipeline_options {
     const char *output_path;
     uint32_t width;

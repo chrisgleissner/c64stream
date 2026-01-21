@@ -17,6 +17,8 @@ See <https://www.gnu.org/licenses/> for details.
 #include <stdio.h>
 #include <string.h>
 
+bool c64_debug_logging = false;
+
 #define TEST(name) static void test_##name(void)
 #define RUN_TEST(name)                                                                                                 \
     do {                                                                                                               \
