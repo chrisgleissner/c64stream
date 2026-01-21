@@ -11,24 +11,6 @@ See <https://www.gnu.org/licenses/> for details.
 #define _GNU_SOURCE
 #endif
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// SIMD INTRINSICS MUST BE INCLUDED BEFORE OBS HEADERS
-// ═══════════════════════════════════════════════════════════════════════════════
-// OBS uses SIMDE (SIMD Everywhere) for portability, which conflicts with native
-// intrinsics if included afterward. We include native intrinsics first and define
-// SIMDE_ENABLE_NATIVE_ALIASES=0 to prevent SIMDE from redefining them.
-#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
-#define C64_HAS_X86_SIMD 1
-// Prevent SIMDE from overriding native intrinsics
-#define SIMDE_ENABLE_NATIVE_ALIASES 0
-#include <immintrin.h>
-#ifdef _MSC_VER
-#include <intrin.h>
-#else
-#include <cpuid.h>
-#endif
-#endif
-
 #include <obs-module.h>
 #include <util/platform.h>
 #include <util/threading.h> // For atomic operations
@@ -36,8 +18,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include <inttypes.h>
 #include <pthread.h>
 #include <math.h>
-#include <stdlib.h> // For aligned_alloc and free
-#include <time.h>   // For localtime_r/localtime_s in AV SYNC logging
+#include <time.h> // For localtime_r/localtime_s in AV SYNC logging
 #include "c64-network.h"
 #include "c64-network-buffer.h"
 
@@ -53,6 +34,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-record.h"
 #include "c64-source.h"
 #include "c64-av-sync.h"
+#include "c64-effect-afterglow.h"
 
 #ifdef _WIN32
 #include <timeapi.h>
@@ -70,29 +52,10 @@ See <https://www.gnu.org/licenses/> for details.
 // ═══════════════════════════════════════════════════════════════════════════════
 // Cache-line aligned allocation improves SIMD performance (AVX2 benefits from 32/64-byte alignment)
 
-void *c64_alloc_aligned(size_t size, size_t alignment)
-{
-#ifdef _WIN32
-    return _aligned_malloc(size, alignment);
-#else
-    // aligned_alloc requires size to be multiple of alignment (C11)
-    const size_t aligned_size = ((size + alignment - 1) / alignment) * alignment;
-    return aligned_alloc(alignment, aligned_size);
-#endif
-}
-
-void c64_free_aligned(void *ptr)
-{
-#ifdef _WIN32
-    _aligned_free(ptr);
-#else
-    free(ptr);
-#endif
-}
-
 // ═══════════════════════════════════════════════════════════════════════════════
-// SIMD-OPTIMIZED AFTERGLOW IMPLEMENTATION
+// SIMD-OPTIMIZED AFTERGLOW IMPLEMENTATION (moved to c64-effect-afterglow.c)
 // ═══════════════════════════════════════════════════════════════════════════════
+#if 0
 // Processes 4/8 pixels at a time using SSE2/AVX2 intrinsics for ~3-4x speedup.
 // Runtime CPU detection selects the best available implementation.
 
@@ -458,6 +421,7 @@ __attribute__((target("avx2"))) static void c64_afterglow_avx2(uint32_t *acc, co
 #endif // __AVX2__ || _MSC_VER
 
 #endif // C64_HAS_X86_SIMD
+#endif // C64_AFTERGLOW_MOVED
 
 // Forward declarations
 static uint64_t c64_calculate_ideal_timestamp(struct c64_source *context, uint16_t frame_num);
@@ -468,21 +432,7 @@ static const uint32_t *c64_get_afterglow_output_pixels(struct c64_source *contex
     if (!context || !curr_pixels || pixel_count == 0)
         return curr_pixels;
 
-    if (!(context->afterglow_enable && context->afterglow_duration_ms > 0))
-        return curr_pixels;
-
-    const size_t frame_bytes = pixel_count * 4;
-    if (context->afterglow_cpu_bytes != frame_bytes) {
-        if (context->afterglow_cpu_accum) {
-            c64_free_aligned(context->afterglow_cpu_accum);
-        }
-        // Align to 64-byte cache line for optimal SIMD performance
-        context->afterglow_cpu_accum = (uint32_t *)c64_alloc_aligned(frame_bytes, 64);
-        context->afterglow_cpu_bytes = frame_bytes;
-        context->afterglow_cpu_valid = false; // Invalidate on resize (Medium #8)
-    }
-
-    if (!context->afterglow_cpu_accum)
+    if (!(context->afterglow_enable && context->afterglow.duration_ms > 0))
         return curr_pixels;
 
     // Use the detected frame interval (PAL/NTSC) for stable dt.
@@ -492,142 +442,7 @@ static const uint32_t *c64_get_afterglow_output_pixels(struct c64_source *contex
     } else if (context->expected_fps > 1.0) {
         dt_ms = (float)(1000.0 / context->expected_fps);
     }
-
-    // Clamp dt_ms to reasonable range (1-100ms) to handle frame rate variation (Medium #6)
-    // Prevents afterglow from decaying too fast on irregular frames or stuttering on pauses.
-    if (dt_ms < 1.0f)
-        dt_ms = 1.0f;
-    if (dt_ms > 100.0f)
-        dt_ms = 100.0f;
-
-    const float base_duration_ms = (float)((context->afterglow_duration_ms > 1) ? context->afterglow_duration_ms : 1);
-
-    // Curve mapping: 0=linear-ish, 1=faster fade, 2=normal, 3=long tail
-    float duration_ms = base_duration_ms;
-    switch (context->afterglow_curve) {
-    case 0:
-        break;
-    case 1:
-        duration_ms = base_duration_ms * 0.5f;
-        break;
-    case 3:
-        duration_ms = base_duration_ms * 2.0f;
-        break;
-    case 2:
-    default:
-        break;
-    }
-
-    // Per-channel time constants (blue fastest, green medium, red slowest).
-    const float tau_r = duration_ms * 1.35f;
-    const float tau_g = duration_ms * 1.00f;
-    const float tau_b = duration_ms * 0.75f;
-
-    // Optimize expf() calls by caching decay factors when parameters haven't changed
-    // This saves ~60-120 CPU cycles per frame (3 expf calls @ 20-40 cycles each)
-    float decay_r, decay_g, decay_b;
-    if (context->decay_cache_valid && context->cached_dt_ms == dt_ms &&
-        context->cached_duration_ms == context->afterglow_duration_ms &&
-        context->cached_curve == context->afterglow_curve) {
-        // Use cached values
-        decay_r = context->cached_decay_r;
-        decay_g = context->cached_decay_g;
-        decay_b = context->cached_decay_b;
-    } else {
-        // Recompute and cache
-        if (context->afterglow_curve == 0) {
-            decay_r = 1.0f - (dt_ms / tau_r);
-            decay_g = 1.0f - (dt_ms / tau_g);
-            decay_b = 1.0f - (dt_ms / tau_b);
-        } else {
-            decay_r = expf(-dt_ms / tau_r);
-            decay_g = expf(-dt_ms / tau_g);
-            decay_b = expf(-dt_ms / tau_b);
-        }
-
-        // Clamp to [0, 1]
-        if (decay_r < 0.0f)
-            decay_r = 0.0f;
-        if (decay_r > 1.0f)
-            decay_r = 1.0f;
-        if (decay_g < 0.0f)
-            decay_g = 0.0f;
-        if (decay_g > 1.0f)
-            decay_g = 1.0f;
-        if (decay_b < 0.0f)
-            decay_b = 0.0f;
-        if (decay_b > 1.0f)
-            decay_b = 1.0f;
-
-        // Update cache
-        context->cached_decay_r = decay_r;
-        context->cached_decay_g = decay_g;
-        context->cached_decay_b = decay_b;
-        context->cached_dt_ms = dt_ms;
-        context->cached_duration_ms = context->afterglow_duration_ms;
-        context->cached_curve = context->afterglow_curve;
-        context->decay_cache_valid = true;
-    }
-
-    uint32_t *acc = context->afterglow_cpu_accum;
-    if (!context->afterglow_cpu_valid) {
-        memcpy(acc, curr_pixels, frame_bytes);
-        context->afterglow_cpu_valid = true;
-        return acc;
-    }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SIMD-accelerated afterglow loop (3-4x faster than scalar)
-// Dispatch: AVX2 (8 pixels) > SSE2 (4 pixels) > Scalar fallback
-// ─────────────────────────────────────────────────────────────────────────────
-#ifdef C64_HAS_X86_SIMD
-    c64_detect_simd_support();
-
-    // Prefetch next cache lines to reduce memory stall cycles (typical L1 miss: ~4-7 cycles)
-    // Prefetch removed - was causing performance issues
-
-#if defined(__AVX2__) || defined(_MSC_VER)
-    if (c64_cpu_has_avx2) {
-        c64_afterglow_avx2(acc, curr_pixels, pixel_count, decay_r, decay_g, decay_b, false);
-        return acc;
-    }
-#endif
-    // SSE2 fallback (guaranteed on x86-64)
-    c64_afterglow_sse2(acc, curr_pixels, pixel_count, decay_r, decay_g, decay_b);
-#else
-    // Scalar fallback for non-x86 platforms (ARM, etc.)
-    for (size_t i = 0; i < pixel_count; i++) {
-        const uint32_t curr = curr_pixels[i];
-        const uint32_t prev = acc[i];
-
-        const float pr = (float)((prev >> 0) & 0xFF);
-        const float pg = (float)((prev >> 8) & 0xFF);
-        const float pb = (float)((prev >> 16) & 0xFF);
-
-        const float cr = (float)((curr >> 0) & 0xFF);
-        const float cg = (float)((curr >> 8) & 0xFF);
-        const float cb = (float)((curr >> 16) & 0xFF);
-
-        const float tr = pr * decay_r;
-        const float tg = pg * decay_g;
-        const float tb = pb * decay_b;
-
-        float or_ = (cr > tr) ? cr : tr;
-        float og_ = (cg > tg) ? cg : tg;
-        float ob_ = (cb > tb) ? cb : tb;
-
-        if (or_ > 255.0f)
-            or_ = 255.0f;
-        if (og_ > 255.0f)
-            og_ = 255.0f;
-        if (ob_ > 255.0f)
-            ob_ = 255.0f;
-
-        acc[i] = 0xFF000000 | ((uint32_t)ob_ << 16) | ((uint32_t)og_ << 8) | ((uint32_t)or_);
-    }
-#endif // C64_HAS_X86_SIMD
-
-    return acc;
+    return c64_afterglow_apply(&context->afterglow, curr_pixels, pixel_count, dt_ms);
 }
 
 // Helper functions for frame assembly (updated to use lock-free implementation)

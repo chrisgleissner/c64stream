@@ -14,3 +14,4 @@ find_package(CURL REQUIRED)
 
 add_subdirectory(script)
 add_subdirectory(e2e)
+add_subdirectory(filter)

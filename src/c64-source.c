@@ -624,6 +624,7 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     c64_record_update_settings(context, settings);
 
     // Initialize CRT effect state from settings
+    c64_afterglow_init(&context->afterglow);
     context->scan_line_distance = (float)obs_data_get_double(settings, "scan_line_distance");
     context->scan_line_strength = (float)obs_data_get_double(settings, "scan_line_strength");
     context->pixel_width = (float)obs_data_get_double(settings, "pixel_width");
@@ -631,9 +632,9 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->blur_strength = (float)obs_data_get_double(settings, "blur_strength");
     context->bloom_strength = (float)obs_data_get_double(settings, "bloom_strength");
     context->bloom_enable = context->bloom_strength > 0.0f;
-    context->afterglow_duration_ms = (int)obs_data_get_int(settings, "afterglow_duration_ms");
-    context->afterglow_curve = (int)obs_data_get_int(settings, "afterglow_curve");
-    context->afterglow_enable = (context->afterglow_duration_ms > 0);
+    context->afterglow.duration_ms = (int)obs_data_get_int(settings, "afterglow_duration_ms");
+    context->afterglow.curve = (int)obs_data_get_int(settings, "afterglow_curve");
+    context->afterglow_enable = (context->afterglow.duration_ms > 0);
     context->tint_mode = (int)obs_data_get_int(settings, "tint_mode");
     context->tint_strength = (float)obs_data_get_double(settings, "tint_strength");
     context->tint_enable = (context->tint_mode > 0 && context->tint_strength > 0.0f);
@@ -664,28 +665,20 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->last_frame_time_ns = 0;
     context->afterglow_dt_ms = 33.33f;
     context->afterglow_last_tick_ns = 0;
-    context->afterglow_cpu_accum = NULL;
-    context->afterglow_cpu_bytes = 0;
-    context->afterglow_cpu_valid = false;
-
-    // Initialize decay factor cache for expf() optimization
-    context->cached_decay_r = 0.0f;
-    context->cached_decay_g = 0.0f;
-    context->cached_decay_b = 0.0f;
-    context->cached_dt_ms = 0.0f;
-    context->cached_duration_ms = 0;
-    context->cached_curve = 0;
-    context->decay_cache_valid = false;
+    context->afterglow.accum = NULL;
+    context->afterglow.accum_bytes = 0;
+    context->afterglow.accum_valid = false;
+    context->afterglow.decay_cache_valid = false;
 
     // Pre-allocate afterglow CPU accumulator to avoid allocation in video hot path
     // Use PAL size (larger) to cover both PAL and NTSC; will be resized if needed.
     {
         const size_t initial_accum_bytes = C64_PAL_WIDTH * C64_PAL_HEIGHT * sizeof(uint32_t);
         // Use aligned allocation for optimal SIMD performance (declared in c64-video.h)
-        context->afterglow_cpu_accum = (uint32_t *)c64_alloc_aligned(initial_accum_bytes, 64);
-        if (context->afterglow_cpu_accum) {
-            memset(context->afterglow_cpu_accum, 0, initial_accum_bytes);
-            context->afterglow_cpu_bytes = initial_accum_bytes;
+        context->afterglow.accum = (uint32_t *)c64_alloc_aligned(initial_accum_bytes, 64);
+        if (context->afterglow.accum) {
+            memset(context->afterglow.accum, 0, initial_accum_bytes);
+            context->afterglow.accum_bytes = initial_accum_bytes;
         }
     }
 
@@ -884,12 +877,7 @@ void c64_destroy(void *data)
         context->audio_fifo_entries = NULL;
     }
 
-    if (context->afterglow_cpu_accum) {
-        c64_free_aligned(context->afterglow_cpu_accum);
-        context->afterglow_cpu_accum = NULL;
-        context->afterglow_cpu_bytes = 0;
-        context->afterglow_cpu_valid = false;
-    }
+    c64_afterglow_free(&context->afterglow);
 
     // Cleanup REST control and keyboard capture
     if (context->keyboard) {
@@ -1206,9 +1194,9 @@ void c64_update(void *data, obs_data_t *settings)
     context->blur_strength = (float)obs_data_get_double(settings, "blur_strength");
     context->bloom_strength = (float)obs_data_get_double(settings, "bloom_strength");
     context->bloom_enable = context->bloom_strength > 0.0f;
-    context->afterglow_duration_ms = (int)obs_data_get_int(settings, "afterglow_duration_ms");
-    context->afterglow_curve = (int)obs_data_get_int(settings, "afterglow_curve");
-    context->afterglow_enable = (context->afterglow_duration_ms > 0);
+    context->afterglow.duration_ms = (int)obs_data_get_int(settings, "afterglow_duration_ms");
+    context->afterglow.curve = (int)obs_data_get_int(settings, "afterglow_curve");
+    context->afterglow_enable = (context->afterglow.duration_ms > 0);
     context->tint_mode = (int)obs_data_get_int(settings, "tint_mode");
     context->tint_strength = (float)obs_data_get_double(settings, "tint_strength");
     context->tint_enable = (context->tint_mode > 0 && context->tint_strength > 0.0f);
@@ -1499,7 +1487,7 @@ void c64_video_tick(void *data, float seconds)
 
     const bool effects_enabled =
         (context->scan_line_distance > 0.0f) || (context->bloom_strength > 0.0f) ||
-        (context->afterglow_duration_ms > 0) || (context->tint_mode > 0 && context->tint_strength > 0.0f) ||
+        (context->afterglow.duration_ms > 0) || (context->tint_mode > 0 && context->tint_strength > 0.0f) ||
         (context->pixel_width != 1.0f || context->pixel_height != 1.0f) || (context->blur_strength > 0.0f);
 
     // Stable per-tick dt for afterglow.
@@ -1570,19 +1558,19 @@ void c64_video_tick(void *data, float seconds)
         }
 
         // Invalidate CPU afterglow accumulator on texture recreation (Medium #8: prevent visual glitch)
-        context->afterglow_cpu_valid = false;
+        context->afterglow.accum_valid = false;
         context->frame_dirty = false;
 
     } else {
         // Upload latest frame to the render texture.
-        // Note: afterglow is applied at frame delivery time (video thread) into `afterglow_cpu_accum`.
+        // Note: afterglow is applied at frame delivery time (video thread) into `afterglow.accum`.
         // We must NOT write afterglow back into `frame_buffer` here; that creates feedback and flicker when
         // packets drop or when video thread is concurrently writing the raw buffer.
         if (context->frame_buffer && context->width > 0 && context->height > 0) {
             const uint32_t *src_pixels = context->frame_buffer;
-            if (context->afterglow_enable && context->afterglow_cpu_accum && context->afterglow_cpu_valid &&
-                context->afterglow_duration_ms > 0) {
-                src_pixels = context->afterglow_cpu_accum;
+            if (context->afterglow_enable && context->afterglow.accum && context->afterglow.accum_valid &&
+                context->afterglow.duration_ms > 0) {
+                src_pixels = context->afterglow.accum;
             }
             obs_enter_graphics();
             gs_texture_set_image(context->render_texture, (const uint8_t *)src_pixels, context->width * 4, false);
@@ -1643,7 +1631,7 @@ void c64_video_render(void *data, gs_effect_t *effect)
     // Check if any CRT effects are enabled
     bool any_effects_enabled =
         (context->scan_line_distance > 0.0f) || (context->bloom_strength > 0.0f) ||
-        (context->afterglow_duration_ms > 0) || (context->tint_mode > 0 && context->tint_strength > 0.0f) ||
+        (context->afterglow.duration_ms > 0) || (context->tint_mode > 0 && context->tint_strength > 0.0f) ||
         (context->pixel_width != 1.0f || context->pixel_height != 1.0f) || context->blur_strength > 0.0f;
 
     // If no effects are enabled, use simple default rendering
@@ -1728,7 +1716,7 @@ void c64_video_render(void *data, gs_effect_t *effect)
     // Note: blur/bloom strengths are set below with scale adjustment
     // Afterglow accumulation is done in `video_tick`; disable it in this render pass to avoid double persistence.
     gs_effect_set_int(gs_effect_get_param_by_name(context->crt_effect, "afterglow_duration_ms"), 0);
-    gs_effect_set_int(gs_effect_get_param_by_name(context->crt_effect, "afterglow_curve"), context->afterglow_curve);
+    gs_effect_set_int(gs_effect_get_param_by_name(context->crt_effect, "afterglow_curve"), context->afterglow.curve);
     gs_effect_set_int(gs_effect_get_param_by_name(context->crt_effect, "tint_mode"), context->tint_mode);
     gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "tint_strength"), context->tint_strength);
 

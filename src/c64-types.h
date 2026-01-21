@@ -20,6 +20,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-network-buffer.h"
 #include "c64-protocol.h"
 #include "c64-network-fifo.h"
+#include "c64-effect-afterglow.h"
 
 // Forward declarations
 typedef struct c64_rest_client c64_rest_client_t;
@@ -291,8 +292,7 @@ struct c64_source {
     bool bloom_enable;                  // Bloom effect enable
     float bloom_strength;               // Bloom strength (0.0-1.0, internally scaled 7.5x)
     bool afterglow_enable;              // Afterglow effect enable
-    int afterglow_duration_ms;          // Afterglow duration in milliseconds
-    int afterglow_curve;                // Afterglow decay curve (0=linear, 1=exponential)
+    struct c64_afterglow afterglow;     // CPU afterglow state + decay cache
     bool tint_enable;                   // Screen tint effect enable
     int tint_mode;                      // Tint mode (0=none, 1=amber, 2=green, 3=monochrome)
     float tint_strength;                // Tint strength (0.0-1.0)
@@ -309,20 +309,6 @@ struct c64_source {
     uint64_t last_frame_time_ns;        // Last frame timestamp for afterglow delta calculation
     float afterglow_dt_ms;              // Stable per-tick delta time (ms) used by afterglow shader
     uint64_t afterglow_last_tick_ns;    // Timestamp of last video_tick (ns) for dt calculation
-
-    // CPU afterglow accumulation (fallback / deterministic path for E2E + headless)
-    uint32_t *afterglow_cpu_accum; // RGBA accumulator (same size as frame_buffer)
-    size_t afterglow_cpu_bytes;    // Allocated size in bytes for afterglow_cpu_accum
-    bool afterglow_cpu_valid;      // Whether accumulator contains valid prior state
-
-    // Cached decay factors for expf() optimization (avoid recomputation)
-    float cached_decay_r;
-    float cached_decay_g;
-    float cached_decay_b;
-    float cached_dt_ms;     // Delta time used for cached decay factors
-    int cached_duration_ms; // Duration used for cached decay factors
-    int cached_curve;       // Curve used for cached decay factors
-    bool decay_cache_valid; // Whether decay cache is valid
 
     // REST control and keyboard capture
     c64_rest_client_t *rest_client; // REST API client
