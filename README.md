@@ -62,12 +62,15 @@ The following applies if you have an Intel or AMD CPU. It has been verified to w
 1. Close OBS Studio
 2. [Download](../../releases) the plugin package with name `c64stream-$VERSION-windows-x64.zip`. It should now be in your `Downloads` folder (typically `C:\Users\<YourName>\Downloads`).
 3. Install the plugin to `C:\ProgramData\obs-studio\plugins` by either extracting the ZIP with a tool of your choice or by running the following in Powershell:
+
 ```powershell
 Expand-Archive -Path "$env:USERPROFILE\Downloads\c64stream-*-windows-x64.zip" -DestinationPath "C:\ProgramData\obs-studio\plugins" -Force
 ```
+
 4. Start OBS Studio
 
 If you are using Windows Firewall and block all incoming connections, you may have to setup an exclusion to allow for incoming UDP connections to port 11000 (Video) and 11001 (Audio) from the C64 Ultimate a follows. Be sure to adjust the `RemoteAddress` from `192.168.1.64` to the IP of your C64 Ultimate before you run this in Powershell:
+
 ```powershell
 New-NetFirewallRule -DisplayName "C64 Stream" -Direction Inbound -Protocol UDP -LocalPort 11000,11001 -RemoteAddress 192.168.1.64 -Action Allow
 ```
@@ -80,7 +83,7 @@ New-NetFirewallRule -DisplayName "C64 Stream" -Direction Inbound -Protocol UDP -
 > *Discussions* tab of this repository.
 
 1. Download and unzip the ARM64 build of OBS Studio:
-   https://github.com/obsproject/obs-studio/releases/download/32.0.4/OBS-Studio-32.0.4-Windows-arm64.zip
+   <https://github.com/obsproject/obs-studio/releases/download/32.0.4/OBS-Studio-32.0.4-Windows-arm64.zip>
 2. Ensure OBS Studio is closed.
 3. [Download](../../releases) the plugin package `c64stream-$VERSION-windows-arm64.zip` to your `Downloads` folder.
 4. Install the plugin exactly as described in **Windows (X64)** above.
@@ -95,7 +98,8 @@ In portable mode, OBS does **not** use `C:\ProgramData\obs-studio\plugins`. Inst
 
 1. Download the appropriate plugin ZIP (X64 or ARM64), as described above.
 2. Open PowerShell **in the root directory of your portable OBS installation**.
-4. Copy/paste the following command into the Powershell window and press **Enter**:
+3. Copy/paste the following command into the Powershell window and press **Enter**:
+
    ```powershell
    $zip=Get-ChildItem "$env:USERPROFILE\Downloads\c64stream-*-windows-*.zip" | Select-Object -First 1;
    Expand-Archive -Path $zip -DestinationPath "$env:TEMP\c64stream" -Force;
@@ -104,6 +108,7 @@ In portable mode, OBS does **not** use `C:\ProgramData\obs-studio\plugins`. Inst
    New-Item -ItemType Directory -Force ".\data\obs-plugins\c64stream" | Out-Null;
    Copy-Item "$env:TEMP\c64stream\c64stream\data\*" ".\data\obs-plugins\c64stream\" -Recurse -Force
    ```
+
 5. Start OBS Studio.
 
 #### macOS
@@ -113,8 +118,10 @@ Verified on macOS Sequoia 15.7 and Tahoe 26.0 with Apple Silicon M4 (Intel syste
 1. Close OBS Studio
 2. [Download](../../releases) the plugin package with name `c64stream-$VERSION-macos-universal.pkg`. It should now be in your `~/Downloads` directory.
 3. Install the plugin to `$HOME/Library/Application Support/obs-studio/plugins/c64stream.plugin` by running the following on the command line:
+
 > [!NOTE]
 > These commands are required due to platform packaging constraints on macOS and will be simplified in a future release.
+
 ```zsh
 cd ~/Downloads && \
 xattr -dr com.apple.quarantine c64stream-*-macos-universal.pkg && \
@@ -124,6 +131,7 @@ cp -R "/Library/Application Support/obs-studio/plugins/c64stream.plugin" \
       "$HOME/Library/Application Support/obs-studio/plugins/" && \
 chmod -R 755 "$HOME/Library/Application Support/obs-studio/plugins/c64stream.plugin"
 ```
+
 4. Start OBS Studio
 
 #### Linux (Ubuntu / Debian)
@@ -131,21 +139,27 @@ chmod -R 755 "$HOME/Library/Application Support/obs-studio/plugins/c64stream.plu
 1. Close OBS Studio
 2. Install OBS Studio (32.0.1+):
    - **Ubuntu 24.04:**
+
      ```bash
      sudo add-apt-repository --yes ppa:obsproject/obs-studio
      sudo apt update
      sudo apt install -y obs-studio
      ```
+
    - **Debian 12:**
+
      ```bash
      sudo apt update
      sudo apt install -y -t bookworm-backports obs-studio
      ```
+
 3. [Download](../../releases) the plugin: `c64stream-$VERSION-x86_64-linux-gnu.deb`
 4. Install the plugin:
+
    ```bash
    sudo dpkg -i ~/Downloads/c64stream-*-x86_64-linux-gnu.deb
    ```
+
 5. Start OBS Studio
 
 #### Linux (Fedora, Arch, etc.)
@@ -156,11 +170,13 @@ For non-Debian-based distributions, you can extract the `.deb` package manually:
 2. Install OBS Studio using your distro's package manager
 3. [Download](../../releases) the plugin: `c64stream-$VERSION-x86_64-linux-gnu.deb`
 4. Extract and install manually:
+
    ```bash
    cd /tmp && ar x ~/Downloads/c64stream-*-x86_64-linux-gnu.deb && tar -xf data.tar.* && \
    sudo cp -r usr/share/obs/obs-plugins/c64stream /usr/share/obs/obs-plugins/ && \
    sudo cp -r usr/lib/obs-plugins/c64stream.so /usr/lib/obs-plugins/ && rm -rf data.tar.* control.tar.* debian-binary usr
    ```
+
 5. Start OBS Studio
 
 > [!NOTE]
@@ -181,11 +197,11 @@ A new window opens. Keep the default settings and click "OK":
 
    ![Create Source](./docs/images/create-source.png "Create C64 Stream Source")
 
-2. **Open Properties:** Select the "C64 Stream" source in your sources list, then click the "Properties" button to open the configuration dialog
+1. **Open Properties:** Select the "C64 Stream" source in your sources list, then click the "Properties" button to open the configuration dialog
 
 ![C64 Stream Configuration](./docs/images/properties.png "C64 Stream Configuration")
 
-3. **Configure IPs / Host Names:** Configure the host name or IP address of your C64 Ultimate and click "OK".
+1. **Configure IPs / Host Names:** Configure the host name or IP address of your C64 Ultimate and click "OK".
 
 🎉 **DONE!** Enjoy streaming from your C64 Ultimate.
 
@@ -200,6 +216,7 @@ The C64 Stream source already includes these effects, so you do not need this fi
 **Install:** Included with the plugin package above.
 
 **Use (capture cards / other sources):**
+
 1. Select your source (HDMI capture card, Media Source, etc.) in OBS.
 2. Click **Filters** → **+** → **C64 Stream Effects**.
 3. Pick a preset (Classic CRT, Green Monitor, Sharp Pixels) or tweak individual settings.
@@ -298,6 +315,7 @@ When **"Network and Streaming Events (CSV)"** recording is enabled, the plugin g
 - `network.csv` - UDP packet reception log with network timing analysis
 
 Examples from recent automated E2E runs against a 'mocked' (i.e. simulated) Ultimate 64:
+
 - PAL: [`obs.csv`](tests/e2e/results/pal_default/obs.csv), [`network.csv`](tests/e2e/results/pal_default/network.csv)
 - NTSC: [`obs.csv`](tests/e2e/results/ntsc_default/obs.csv), [`network.csv`](tests/e2e/results/ntsc_default/network.csv)
 
@@ -655,6 +673,7 @@ Here's another one from the `ntsc_green_monitor` scenario. You see how the frame
 ![E2E screenshot for ntsc_green_monitor](./tests/e2e/results/ntsc_green_monitor/c64_recording_still.png)
 
 Many recent reports (without videos) are checked into this GitHub repository:
+
 - [Main E2E results](tests/e2e/results/README.md)
 - [PAL results](tests/e2e/results/pal_default/README.md)
 - [NTSC results](tests/e2e/results/ntsc_default/README.md)

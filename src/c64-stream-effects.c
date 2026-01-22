@@ -577,15 +577,7 @@ void c64_stream_effects_video_render(void *data, gs_effect_t *effect)
     const uint64_t frame_time_ns = obs_get_video_frame_time();
     const uint64_t wall_time_ns = os_gettime_ns();
     const bool size_changed = (state->input_width != width) || (state->input_height != height);
-    const bool frame_changed = (frame_time_ns == 0 || frame_time_ns != state->last_processed_frame_time_ns);
-    bool tick_due = size_changed || frame_changed;
-
-    if (!tick_due && state->frame_interval_ns > 0 && wall_time_ns > 0) {
-        if (state->last_processed_wall_time_ns == 0 ||
-            wall_time_ns - state->last_processed_wall_time_ns >= state->frame_interval_ns) {
-            tick_due = true;
-        }
-    }
+    const bool afterglow_active = state->afterglow_enable && state->afterglow.duration_ms > 0;
 
     if (size_changed) {
         state->input_width = width;
@@ -599,32 +591,50 @@ void c64_stream_effects_video_render(void *data, gs_effect_t *effect)
         state->afterglow_dt_ms = 0.0f;
     }
 
-    if (tick_due) {
-        const uint64_t now_ns = os_gettime_ns();
-        if (state->afterglow_last_tick_ns != 0 && now_ns > state->afterglow_last_tick_ns) {
-            state->afterglow_dt_ms = (float)(now_ns - state->afterglow_last_tick_ns) / 1000000.0f;
-        } else {
-            float fallback = 33.33f;
-            if (state->frame_interval_ns > 0) {
-                fallback = (float)state->frame_interval_ns / 1000000.0f;
-            } else if (state->expected_fps > 1.0f) {
-                fallback = (float)(1000.0 / state->expected_fps);
-            }
-            state->afterglow_dt_ms = fallback;
-        }
-        state->afterglow_last_tick_ns = now_ns;
+    uint64_t interval_ns = state->frame_interval_ns;
+    if (interval_ns == 0 && state->expected_fps > 1.0f) {
+        interval_ns = (uint64_t)(1000000000.0 / (double)state->expected_fps);
+    }
+    if (interval_ns == 0) {
+        interval_ns = 33333333ull;
+    }
 
-        if (!c64_stream_effects_capture_input(state, target, width, height)) {
+    bool should_process = size_changed || !state->output_texture || afterglow_active;
+    if (!should_process) {
+        if (frame_time_ns != 0) {
+            should_process = frame_time_ns != state->last_processed_frame_time_ns;
+        } else if (state->last_processed_wall_time_ns == 0) {
+            should_process = true;
+        } else if (wall_time_ns > state->last_processed_wall_time_ns) {
+            should_process = (wall_time_ns - state->last_processed_wall_time_ns) >= interval_ns;
+        }
+    }
+
+    if (should_process) {
+        float dt_ms = 33.33f;
+        if (state->last_processed_wall_time_ns != 0 && wall_time_ns > state->last_processed_wall_time_ns) {
+            dt_ms = (float)(wall_time_ns - state->last_processed_wall_time_ns) / 1000000.0f;
+        } else if (frame_time_ns > 0 && state->last_processed_frame_time_ns > 0 &&
+                   frame_time_ns > state->last_processed_frame_time_ns) {
+            dt_ms = (float)(frame_time_ns - state->last_processed_frame_time_ns) / 1000000.0f;
+        } else {
+            dt_ms = (float)interval_ns / 1000000.0f;
+        }
+        state->afterglow_dt_ms = dt_ms;
+        state->afterglow_last_tick_ns = wall_time_ns;
+
+        const bool captured = c64_stream_effects_capture_input(state, target, width, height);
+        if (!captured && !state->cpu_input) {
             obs_source_skip_video_filter(state->source);
             return;
         }
 
         uint64_t timestamp_ns = frame_time_ns;
-        if (timestamp_ns == 0 || !frame_changed) {
+        if (timestamp_ns == 0) {
             if (state->synthetic_frame_time_ns == 0) {
                 state->synthetic_frame_time_ns = wall_time_ns;
-            } else if (state->frame_interval_ns > 0) {
-                state->synthetic_frame_time_ns += state->frame_interval_ns;
+            } else {
+                state->synthetic_frame_time_ns += interval_ns;
             }
             timestamp_ns = state->synthetic_frame_time_ns;
         } else {

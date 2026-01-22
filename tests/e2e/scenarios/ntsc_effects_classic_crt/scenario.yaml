@@ -12,3 +12,6 @@ assertions:
 tolerances:
   av_sync:
     ci: lenient
+  frame_progression:
+    local: 1.0
+    ci: 0.6

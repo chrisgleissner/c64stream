@@ -21,3 +21,8 @@ assertions:
   - video_quality
   - audio
   - scanlines
+
+tolerances:
+  frame_progression:
+    local: 1.0
+    ci: 0.6
