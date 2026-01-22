@@ -11,8 +11,8 @@ assertions:
   - frame_progression
 tolerances:
   frame_progression:
-    local: 0.6
+    local: 1.0
     ci: 0.6
-tolerances:
-  frame_progression:
-    local: 1.3
+  video_quality:
+    local: 1.0
+    ci: 0.65

@@ -436,12 +436,7 @@ static const uint32_t *c64_get_afterglow_output_pixels(struct c64_source *contex
         return curr_pixels;
 
     // Use the detected frame interval (PAL/NTSC) for stable dt.
-    float dt_ms = 33.33f;
-    if (context->frame_interval_ns > 0) {
-        dt_ms = (float)context->frame_interval_ns / 1000000.0f;
-    } else if (context->expected_fps > 1.0) {
-        dt_ms = (float)(1000.0 / context->expected_fps);
-    }
+    float dt_ms = c64_afterglow_nominal_dt_ms(context->frame_interval_ns, context->expected_fps);
     return c64_afterglow_apply(&context->afterglow, curr_pixels, pixel_count, dt_ms);
 }
 

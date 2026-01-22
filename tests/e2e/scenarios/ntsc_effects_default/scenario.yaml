@@ -6,3 +6,8 @@ assertions:
   - video_quality
   - audio
   - frame_progression
+
+tolerances:
+  video_quality:
+    local: 1.0
+    ci: 0.65

@@ -33,6 +33,8 @@ void c64_afterglow_init(struct c64_afterglow *ag);
 void c64_afterglow_reset(struct c64_afterglow *ag);
 void c64_afterglow_free(struct c64_afterglow *ag);
 
+float c64_afterglow_nominal_dt_ms(uint64_t frame_interval_ns, double expected_fps);
+
 const uint32_t *c64_afterglow_apply(struct c64_afterglow *ag, const uint32_t *curr_pixels, size_t pixel_count,
                                     float dt_ms);
 

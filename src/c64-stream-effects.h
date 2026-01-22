@@ -34,6 +34,7 @@ struct c64_stream_effects {
 
     bool cpu_scanlines_enabled;
     uint64_t last_frame_timestamp_ns;
+    uint64_t last_input_frame_timestamp_ns;
     uint64_t last_processed_frame_time_ns;
     uint64_t last_processed_wall_time_ns;
     uint64_t synthetic_frame_time_ns;

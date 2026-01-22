@@ -453,6 +453,17 @@ void c64_afterglow_free(struct c64_afterglow *ag)
     ag->decay_cache_valid = false;
 }
 
+float c64_afterglow_nominal_dt_ms(uint64_t frame_interval_ns, double expected_fps)
+{
+    if (frame_interval_ns > 0) {
+        return (float)frame_interval_ns / 1000000.0f;
+    }
+    if (expected_fps > 1.0) {
+        return (float)(1000.0 / expected_fps);
+    }
+    return 33.33f;
+}
+
 const uint32_t *c64_afterglow_apply(struct c64_afterglow *ag, const uint32_t *curr_pixels, size_t pixel_count,
                                     float dt_ms)
 {

@@ -14,6 +14,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-effect-afterglow.h"
 
 #include <assert.h>
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -38,6 +39,11 @@ static void assert_rgb(uint32_t pixel, uint8_t r, uint8_t g, uint8_t b)
     assert((pixel & 0xFF) == r);
     assert(((pixel >> 8) & 0xFF) == g);
     assert(((pixel >> 16) & 0xFF) == b);
+}
+
+static void assert_float_near(float actual, float expected, float epsilon)
+{
+    assert(fabsf(actual - expected) <= epsilon);
 }
 
 static void run_impulse_curve_test(int curve, uint8_t exp_r, uint8_t exp_g, uint8_t exp_b)
@@ -181,6 +187,13 @@ TEST(determinism_across_frames)
     c64_afterglow_free(&ag_b);
 }
 
+TEST(nominal_dt)
+{
+    assert_float_near(c64_afterglow_nominal_dt_ms(20000000ull, 0.0), 20.0f, 0.02f);
+    assert_float_near(c64_afterglow_nominal_dt_ms(0, 50.0), 20.0f, 0.02f);
+    assert_float_near(c64_afterglow_nominal_dt_ms(0, 0.0), 33.33f, 0.05f);
+}
+
 int main(void)
 {
     RUN_TEST(impulse_decay);
@@ -189,5 +202,6 @@ int main(void)
     RUN_TEST(dt_clamping_behavior);
     RUN_TEST(resize_invalidation);
     RUN_TEST(determinism_across_frames);
+    RUN_TEST(nominal_dt);
     return 0;
 }
