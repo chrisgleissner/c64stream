@@ -22,7 +22,9 @@ static bool c64_stream_effects_settings_have_effect_overrides(obs_data_t *settin
            obs_data_has_user_value(settings, "scan_line_strength") ||
            obs_data_has_user_value(settings, "pixel_width") || obs_data_has_user_value(settings, "pixel_height") ||
            obs_data_has_user_value(settings, "blur_strength") || obs_data_has_user_value(settings, "bloom_strength") ||
-           obs_data_has_user_value(settings, "tint_mode") || obs_data_has_user_value(settings, "tint_strength");
+           obs_data_has_user_value(settings, "tint_mode") || obs_data_has_user_value(settings, "tint_strength") ||
+           obs_data_has_user_value(settings, "afterglow_duration_ms") ||
+           obs_data_has_user_value(settings, "afterglow_curve");
 }
 
 static void c64_stream_effects_get_scanline_scaling_info(float scan_line_distance, uint32_t *total_pixels,

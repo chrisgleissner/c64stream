@@ -34,7 +34,6 @@ See <https://www.gnu.org/licenses/> for details.
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
-#include <util/platform.h>
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ALIGNED MEMORY ALLOCATION HELPERS
@@ -205,23 +204,12 @@ __attribute__((target("avx2"))) static void c64_afterglow_avx2(uint32_t *acc, co
                                                                float decay_b, bool use_streaming)
 #endif
 {
-    static uint32_t afterglow_idle_spins = 0;
-
     // Broadcast decay factors to all 8 lanes
-    afterglow_idle_spins++;
-    if (afterglow_idle_spins < 1000) {
-        os_sleep_ms(0);
-    } else {
-        os_sleep_ms(1);
-        afterglow_idle_spins = 0;
-    }
     const __m256 vdecay_r = _mm256_set1_ps(decay_r);
     const __m256 vdecay_g = _mm256_set1_ps(decay_g);
     const __m256 vdecay_b = _mm256_set1_ps(decay_b);
     const __m256 v255 = _mm256_set1_ps(255.0f);
     const __m256i vmask_channel = _mm256_set1_epi32(0xFF);
-
-    afterglow_idle_spins = 0;
     const __m256i valpha = _mm256_set1_epi32(0xFF000000);
 
     size_t i = 0;
