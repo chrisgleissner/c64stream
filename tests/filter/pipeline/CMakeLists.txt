@@ -16,10 +16,9 @@ find_program(PYTHON_EXECUTABLE NAMES python3 python)
 if(PYTHON_EXECUTABLE)
   add_test(
     NAME c64_stream_effects_pipeline_analysis
-    COMMAND ${PYTHON_EXECUTABLE}
-            ${CMAKE_CURRENT_SOURCE_DIR}/analyze/run_pipeline_analysis.py
-            --binary $<TARGET_FILE:test_c64_stream_effects_pipeline>
-            --output-dir ${CMAKE_CURRENT_BINARY_DIR}/analysis_output
+    COMMAND
+      ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/analyze/run_pipeline_analysis.py --binary
+      $<TARGET_FILE:test_c64_stream_effects_pipeline> --output-dir ${CMAKE_CURRENT_BINARY_DIR}/analysis_output
   )
 else()
   message(WARNING "Python not found, skipping filter pipeline analysis test")

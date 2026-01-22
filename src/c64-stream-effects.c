@@ -575,11 +575,15 @@ void c64_stream_effects_video_render(void *data, gs_effect_t *effect)
 
     uint64_t input_frame_ts_ns = 0;
     bool input_frame_has_ts = false;
+    bool input_frame_new = false;
     struct obs_source_frame *input_frame = obs_source_get_frame(target);
     if (input_frame) {
         if (input_frame->timestamp != 0) {
             input_frame_has_ts = true;
             input_frame_ts_ns = input_frame->timestamp;
+        }
+        if (input_frame_has_ts) {
+            input_frame_new = input_frame_ts_ns != state->last_input_frame_timestamp_ns;
         }
         obs_source_release_frame(target, input_frame);
         input_frame = NULL;
@@ -606,16 +610,38 @@ void c64_stream_effects_video_render(void *data, gs_effect_t *effect)
         interval_ns = 33333333ull;
     }
 
+    uint32_t skipped_frames = 0;
+    if (input_frame_new && input_frame_has_ts && state->last_input_frame_timestamp_ns > 0 &&
+        input_frame_ts_ns > state->last_input_frame_timestamp_ns && interval_ns > 0) {
+        const uint64_t delta_ns = input_frame_ts_ns - state->last_input_frame_timestamp_ns;
+        const uint64_t steps = delta_ns / interval_ns;
+        if (steps > 1) {
+            skipped_frames = (uint32_t)(steps - 1);
+            if (skipped_frames > 8) {
+                // Clamp catch-up work to avoid long stalls after large timestamp jumps.
+                skipped_frames = 8;
+            }
+        }
+    }
+
     bool should_process = size_changed || !state->output_texture;
+    bool should_capture = size_changed || !state->output_texture || input_frame_new;
     if (!should_process) {
         if (input_frame_has_ts) {
-            should_process = input_frame_ts_ns != state->last_input_frame_timestamp_ns;
+            should_process = input_frame_new;
         } else if (frame_time_ns != 0) {
             should_process = frame_time_ns != state->last_processed_frame_time_ns;
+            if (should_process) {
+                should_capture = true;
+            }
         } else if (state->last_processed_wall_time_ns == 0) {
             should_process = true;
+            should_capture = true;
         } else if (wall_time_ns > state->last_processed_wall_time_ns) {
             should_process = (wall_time_ns - state->last_processed_wall_time_ns) >= interval_ns;
+            if (should_process) {
+                should_capture = true;
+            }
         }
     }
 
@@ -623,7 +649,18 @@ void c64_stream_effects_video_render(void *data, gs_effect_t *effect)
         state->afterglow_dt_ms = c64_afterglow_nominal_dt_ms(state->frame_interval_ns, state->expected_fps);
         state->afterglow_last_tick_ns = wall_time_ns;
 
-        const bool captured = c64_stream_effects_capture_input(state, target, width, height);
+        if (skipped_frames > 0 && state->afterglow_enable && state->afterglow.duration_ms > 0 && state->cpu_input) {
+            const size_t pixel_count = (size_t)width * (size_t)height;
+            const float dt_ms = state->afterglow_dt_ms;
+            for (uint32_t i = 0; i < skipped_frames; i++) {
+                (void)c64_afterglow_apply(&state->afterglow, state->cpu_input, pixel_count, dt_ms);
+            }
+        }
+
+        bool captured = true;
+        if (should_capture) {
+            captured = c64_stream_effects_capture_input(state, target, width, height);
+        }
         if (captured && state->cpu_input) {
             uint64_t timestamp_ns = frame_time_ns;
             if (timestamp_ns == 0) {
@@ -647,7 +684,7 @@ void c64_stream_effects_video_render(void *data, gs_effect_t *effect)
             gs_texture_set_image(state->output_texture, (const uint8_t *)state->cpu_output, width * 4, false);
             state->last_processed_frame_time_ns = frame_time_ns;
             state->last_processed_wall_time_ns = wall_time_ns;
-            if (input_frame_has_ts) {
+            if (input_frame_has_ts && input_frame_new) {
                 state->last_input_frame_timestamp_ns = input_frame_ts_ns;
             }
         }
