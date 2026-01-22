@@ -9,6 +9,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-effect.h"
 #include "c64-logging.h"
 #include <string.h>
+#include <util/platform.h>
 
 static const char *C64_PRESET_LAST_APPLIED_KEY = "crt_preset_last_applied";
 
@@ -96,6 +97,25 @@ static void c64_stream_effects_apply_scanlines_cpu(struct c64_stream_effects *st
     }
 }
 
+static void c64_stream_effects_update_frame_timing(struct c64_stream_effects *state)
+{
+    if (!state) {
+        return;
+    }
+
+    struct obs_video_info ovi;
+    if (obs_get_video_info(&ovi) && ovi.fps_den > 0) {
+        state->expected_fps = (float)ovi.fps_num / (float)ovi.fps_den;
+        if (state->expected_fps > 1.0f) {
+            state->frame_interval_ns = (uint64_t)(1000000000.0 / (double)state->expected_fps);
+            return;
+        }
+    }
+
+    state->expected_fps = 0.0f;
+    state->frame_interval_ns = 0;
+}
+
 void c64_stream_effects_process_frame(struct c64_stream_effects *state, const uint32_t *input_rgba, uint32_t width,
                                       uint32_t height, uint64_t timestamp_ns, uint32_t *output_rgba)
 {
@@ -103,9 +123,17 @@ void c64_stream_effects_process_frame(struct c64_stream_effects *state, const ui
         return;
     }
 
-    float dt_ms = 33.33f;
-    if (timestamp_ns > 0 && state->last_frame_timestamp_ns > 0 && timestamp_ns > state->last_frame_timestamp_ns) {
-        dt_ms = (float)(timestamp_ns - state->last_frame_timestamp_ns) / 1000000.0f;
+    float dt_ms = state->afterglow_dt_ms;
+    if (dt_ms <= 0.001f) {
+        dt_ms = 33.33f;
+        if (state->frame_interval_ns > 0) {
+            dt_ms = (float)state->frame_interval_ns / 1000000.0f;
+        } else if (state->expected_fps > 1.0f) {
+            dt_ms = (float)(1000.0 / state->expected_fps);
+        } else if (timestamp_ns > 0 && state->last_frame_timestamp_ns > 0 &&
+                   timestamp_ns > state->last_frame_timestamp_ns) {
+            dt_ms = (float)(timestamp_ns - state->last_frame_timestamp_ns) / 1000000.0f;
+        }
     }
     state->last_frame_timestamp_ns = timestamp_ns;
 
@@ -259,6 +287,7 @@ void *c64_stream_effects_create(obs_data_t *settings, obs_source_t *source)
     state->source = source;
     c64_afterglow_init(&state->afterglow);
     state->cpu_scanlines_enabled = false;
+    c64_stream_effects_update_frame_timing(state);
 
     bool has_effect_overrides = c64_stream_effects_settings_have_effect_overrides(settings);
     const char *initial_preset = obs_data_get_string(settings, "crt_preset");
@@ -352,6 +381,8 @@ void c64_stream_effects_update(void *data, obs_data_t *settings)
     state->tint_mode = (int)obs_data_get_int(settings, "tint_mode");
     state->tint_strength = (float)obs_data_get_double(settings, "tint_strength");
     state->tint_enable = (state->tint_mode > 0 && state->tint_strength > 0.0f);
+
+    c64_stream_effects_update_frame_timing(state);
 }
 
 static bool c64_stream_effects_ensure_cpu_buffers(struct c64_stream_effects *state, size_t frame_bytes)
@@ -544,23 +575,68 @@ void c64_stream_effects_video_render(void *data, gs_effect_t *effect)
     }
 
     const uint64_t frame_time_ns = obs_get_video_frame_time();
+    const uint64_t wall_time_ns = os_gettime_ns();
     const bool size_changed = (state->input_width != width) || (state->input_height != height);
     const bool frame_changed = (frame_time_ns == 0 || frame_time_ns != state->last_processed_frame_time_ns);
+    bool tick_due = size_changed || frame_changed;
+
+    if (!tick_due && state->frame_interval_ns > 0 && wall_time_ns > 0) {
+        if (state->last_processed_wall_time_ns == 0 ||
+            wall_time_ns - state->last_processed_wall_time_ns >= state->frame_interval_ns) {
+            tick_due = true;
+        }
+    }
 
     if (size_changed) {
         state->input_width = width;
         state->input_height = height;
         c64_afterglow_reset(&state->afterglow);
         state->last_frame_timestamp_ns = 0;
+        state->synthetic_frame_time_ns = 0;
+        state->last_processed_frame_time_ns = 0;
+        state->last_processed_wall_time_ns = 0;
+        state->afterglow_last_tick_ns = 0;
+        state->afterglow_dt_ms = 0.0f;
     }
 
-    if (size_changed || frame_changed) {
+    if (tick_due) {
+        const uint64_t now_ns = os_gettime_ns();
+        if (state->afterglow_last_tick_ns != 0 && now_ns > state->afterglow_last_tick_ns) {
+            state->afterglow_dt_ms = (float)(now_ns - state->afterglow_last_tick_ns) / 1000000.0f;
+        } else {
+            float fallback = 33.33f;
+            if (state->frame_interval_ns > 0) {
+                fallback = (float)state->frame_interval_ns / 1000000.0f;
+            } else if (state->expected_fps > 1.0f) {
+                fallback = (float)(1000.0 / state->expected_fps);
+            }
+            state->afterglow_dt_ms = fallback;
+        }
+        state->afterglow_last_tick_ns = now_ns;
+
         if (!c64_stream_effects_capture_input(state, target, width, height)) {
             obs_source_skip_video_filter(state->source);
             return;
         }
 
-        c64_stream_effects_process_frame(state, state->cpu_input, width, height, frame_time_ns, state->cpu_output);
+        uint64_t timestamp_ns = frame_time_ns;
+        if (timestamp_ns == 0 || !frame_changed) {
+            if (state->synthetic_frame_time_ns == 0) {
+                state->synthetic_frame_time_ns = wall_time_ns;
+            } else if (state->frame_interval_ns > 0) {
+                state->synthetic_frame_time_ns += state->frame_interval_ns;
+            }
+            timestamp_ns = state->synthetic_frame_time_ns;
+        } else {
+            state->synthetic_frame_time_ns = frame_time_ns;
+        }
+
+        if (!state->cpu_input) {
+            obs_source_skip_video_filter(state->source);
+            return;
+        }
+
+        c64_stream_effects_process_frame(state, state->cpu_input, width, height, timestamp_ns, state->cpu_output);
 
         if (!c64_stream_effects_ensure_output_texture(state, width, height)) {
             obs_source_skip_video_filter(state->source);
@@ -569,6 +645,7 @@ void c64_stream_effects_video_render(void *data, gs_effect_t *effect)
 
         gs_texture_set_image(state->output_texture, (const uint8_t *)state->cpu_output, width * 4, false);
         state->last_processed_frame_time_ns = frame_time_ns;
+        state->last_processed_wall_time_ns = wall_time_ns;
     }
 
     if (!state->output_texture) {

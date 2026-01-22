@@ -1,0 +1,18 @@
+name: NTSC Effects Green Monitor
+format: NTSC
+preset: Green Monitor
+packet_source: media
+assertions:
+  - video_quality
+  - audio
+  - tint
+  - afterglow
+  - scanlines
+  - frame_progression
+tolerances:
+  frame_progression:
+    local: 0.6
+    ci: 0.6
+tolerances:
+  frame_progression:
+    local: 1.3

@@ -1,0 +1,10 @@
+name: NTSC Effects Sharp Pixels
+format: NTSC
+preset: Sharp Pixels
+packet_source: media
+pattern: dots
+assertions:
+  - frame_progression
+  - video_quality
+  - audio
+  - sharp_pixels

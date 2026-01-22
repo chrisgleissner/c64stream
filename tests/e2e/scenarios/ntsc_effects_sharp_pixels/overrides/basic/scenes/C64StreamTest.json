@@ -19,17 +19,17 @@
                 "custom_size": false,
                 "items": [
                     {
-                        "name": "C64 Stream",
-                        "source_uuid": "e4232553-c3cc-4d08-bbf9-9fce742c85c1",
+                        "name": "C64 Media",
+                        "source_uuid": "d8e1e6f7-3c6d-4f9a-9f6b-2e8f2e5f4e6d",
                         "visible": true,
                         "locked": false,
                         "rot": 0.0,
                         "scale_ref": {
-                            "x": 1920.0,
+                            "x": 1536.0,
                             "y": 1080.0
                         },
-                        "align": 5,
-                        "bounds_type": 0,
+                        "align": 0,
+                        "bounds_type": 2,
                         "bounds_align": 0,
                         "bounds_crop": false,
                         "crop_left": 0,
@@ -39,30 +39,30 @@
                         "id": 1,
                         "group_item_backup": false,
                         "pos": {
-                            "x": 198.0,
-                            "y": 0.0
+                            "x": 960.0,
+                            "y": 540.0
                         },
                         "pos_rel": {
-                            "x": -1.4111111164093018,
-                            "y": -1.0
+                            "x": 0.0,
+                            "y": 0.0
                         },
                         "scale": {
-                            "x": 3.9661457538604736,
-                            "y": 3.966911792755127
+                            "x": 1.0,
+                            "y": 1.0
                         },
                         "scale_rel": {
-                            "x": 3.9661457538604736,
-                            "y": 3.966911792755127
+                            "x": 1.0,
+                            "y": 1.0
                         },
                         "bounds": {
-                            "x": 0.0,
-                            "y": 0.0
+                            "x": 1536.0,
+                            "y": 1080.0
                         },
                         "bounds_rel": {
-                            "x": 0.0,
-                            "y": 0.0
+                            "x": 1536.0,
+                            "y": 1080.0
                         },
-                        "scale_filter": "disable",
+                        "scale_filter": "point",
                         "blend_method": "default",
                         "blend_type": "normal",
                         "show_transition": {
@@ -99,45 +99,26 @@
         },
         {
             "prev_ver": 0,
-            "name": "C64 Stream",
-            "uuid": "e4232553-c3cc-4d08-bbf9-9fce742c85c1",
-            "id": "c64_source",
-            "versioned_id": "c64_source",
+            "name": "C64 Media",
+            "uuid": "d8e1e6f7-3c6d-4f9a-9f6b-2e8f2e5f4e6d",
+            "id": "ffmpeg_source",
+            "versioned_id": "ffmpeg_source",
             "settings": {
-                "c64_host": "127.0.0.1",
-                "control_port": 6400,
-                "video_port": 21000,
-                "audio_port": 21001,
-                "obs_ip_address": "127.0.0.1",
-                "auto_detect_ip": false,
-                "scan_line_distance": 0.0,
-                "scan_line_strength": 0.0,
-                "pixel_width": 1.0,
-                "pixel_height": 1.0,
-                "blur_strength": 0.0,
-                "bloom_strength": 0.0,
-                "afterglow_duration_ms": 0,
-                "afterglow_curve": 2,
-                "tint_mode": 0,
-                "tint_strength": 0.0
+                "is_local_file": true,
+                "local_file": "__C64_E2E_MEDIA_PATH__",
+                "looping": true,
+                "restart_on_activate": true,
+                "clear_on_media_end": true,
+                "close_when_inactive": false
             },
             "filters": [
                 {
                     "name": "C64 Stream Effects",
-                    "uuid": "5a3e0a7a-7f9f-4f2b-9b5c-0d468c1342f4",
+                    "uuid": "b0b71e6f-5f54-44c8-8a80-3d3f4e936f3e",
                     "id": "c64_stream_effects",
                     "versioned_id": "c64_stream_effects",
                     "settings": {
-                        "scan_line_distance": 0.5,
-                        "scan_line_strength": 0.6,
-                        "pixel_width": 1.0,
-                        "pixel_height": 1.0,
-                        "blur_strength": 0.0,
-                        "bloom_strength": 0.0,
-                        "afterglow_duration_ms": 80,
-                        "afterglow_curve": 2,
-                        "tint_mode": 0,
-                        "tint_strength": 0.0
+                        "crt_preset": "Sharp Pixels"
                     },
                     "enabled": true,
                     "muted": false,

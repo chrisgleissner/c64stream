@@ -130,6 +130,10 @@ class ResultValidator:
         return success, results
 
     def _check_cross_pollution(self, results, errors):
+        if self.packet_source == 'media':
+            results['packet_integrity'] = {'status': 'skipped', 'details': 'Media source (no UDP)'}
+            return
+
         results['packet_integrity'] = {'status': 'pass', 'details': 'Verified'}
         network_csv = self.env.output_dir / 'network.csv'
         if network_csv.exists() and self.packet_source == 'mock':
@@ -151,6 +155,10 @@ class ResultValidator:
                 pass
 
     def _check_udp_counts(self, counts, results, errors):
+        if self.packet_source == 'media':
+            results['udp_reception'] = {'status': 'skipped', 'details': 'Media source (no UDP)'}
+            return
+
         # counts comes from parsing CSVs earlier
         received = counts.get('network_packets', 0)
         video = counts.get('video_packets', 0)

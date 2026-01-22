@@ -35,6 +35,12 @@ struct c64_stream_effects {
     bool cpu_scanlines_enabled;
     uint64_t last_frame_timestamp_ns;
     uint64_t last_processed_frame_time_ns;
+    uint64_t last_processed_wall_time_ns;
+    uint64_t synthetic_frame_time_ns;
+    uint64_t afterglow_last_tick_ns;
+    float afterglow_dt_ms;
+    uint64_t frame_interval_ns;
+    float expected_fps;
     uint32_t input_width;
     uint32_t input_height;
 

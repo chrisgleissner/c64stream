@@ -88,8 +88,8 @@ def main():
                         help='Video format (PAL/NTSC)')
     parser.add_argument('--frames', type=int, default=100,
                         help='Number of frames to record')
-    parser.add_argument('--packet-source', choices=['mock', 'device'], default='mock',
-                        help='Source of packets (mock=generate/replay, device=wait for external)')
+    parser.add_argument('--packet-source', choices=['mock', 'device', 'media'], default='mock',
+                        help='Source of packets (mock=generate/replay, device=wait for external, media=media source)')
 
     # Network / Simulation
     parser.add_argument('--video-port', type=int, default=21000,

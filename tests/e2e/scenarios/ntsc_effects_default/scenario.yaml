@@ -1,0 +1,8 @@
+name: NTSC Effects Default
+format: NTSC
+preset: Default
+packet_source: media
+assertions:
+  - video_quality
+  - audio
+  - frame_progression

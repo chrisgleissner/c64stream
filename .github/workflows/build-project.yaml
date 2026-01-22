@@ -1012,6 +1012,8 @@ jobs:
           # Theory: Related to 1MiB UDP buffer limit compared with 8MiB locally.
           # - ntsc_delay_buffer500_jitter10
           # - ntsc_delay_buffer500_jitter100
+          - ntsc_effects_default
+          - ntsc_effects_green_monitor
           - ntsc_green_monitor
           - ntsc_palette_muted
           - ntsc_palette_vibrant

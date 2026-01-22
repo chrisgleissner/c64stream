@@ -25,6 +25,9 @@ class NetworkTimingValidator:
         if network_simulation is None:
             network_simulation = {}
 
+        if str(packet_source or '').strip().lower() == 'media':
+            return 'skipped', 'Media source (no UDP)', [], []
+
         if not network_json_path.exists():
             return 'unknown', 'network.json not found', [], []
 
