@@ -1,16 +1,16 @@
 {
     "udp_reception": {
         "status": "pass",
-        "details": "30767/30803 packets (28766 video, 2001 audio)",
+        "details": "30792/30803 packets (28789 video, 2003 audio)",
         "metrics": {
             "expected_total": 30803,
-            "received_total": 30767,
-            "missing_total": 36,
-            "missing_pct": 0.11687173327273317,
+            "received_total": 30792,
+            "missing_total": 11,
+            "missing_pct": 0.03571080738889069,
             "expected_video": 28800,
             "expected_audio": 2003,
-            "received_video": 28766,
-            "received_audio": 2001
+            "received_video": 28789,
+            "received_audio": 2003
         }
     },
     "frame_processing": {
@@ -19,7 +19,7 @@
     },
     "video_recording": {
         "status": "pass",
-        "details": "10.5 MB"
+        "details": "10.7 MB"
     },
     "packet_integrity": {
         "status": "pass",
@@ -27,25 +27,25 @@
     },
     "network_timing": {
         "status": "pass",
-        "details": "span=8013.5ms, video_mean=338.8us, audio_mean=4005.0us"
+        "details": "span=8021.3ms, video_mean=376.8us, audio_mean=4005.0us"
     },
     "video_brightness": {
         "status": "pass",
         "details": "Normal (best_mean_luma=26.4)",
         "metrics": {
-            "best_offset_s": 5.281984421488985,
-            "best_mean_luma": 26.405269097222224,
+            "best_offset_s": 5.39899040550931,
+            "best_mean_luma": 26.405289351851852,
             "samples": [
                 {
-                    "t": 5.281984421488985,
-                    "mean_luma": 26.405269097222224
+                    "t": 5.39899040550931,
+                    "mean_luma": 26.405289351851852
                 },
                 {
-                    "t": 10.580683983552301,
+                    "t": 10.79798081101862,
                     "mean_luma": 0.0
                 },
                 {
-                    "t": 15.87938354561562,
+                    "t": 16.19697121652793,
                     "mean_luma": 0.0
                 }
             ]
@@ -59,15 +59,15 @@
         "total_audio_pops": 9,
         "total_analyzed": 9,
         "total_video_pops": 9,
-        "perfect_sync_count": 9,
-        "sync_accuracy_percent": 100.0,
+        "perfect_sync_count": 8,
+        "sync_accuracy_percent": 88.88888888888889,
         "tolerance_ms": 30,
         "sync_details": [
             {
-                "audio_pop_time_ms": 9742,
-                "closest_video_pop_ms": 9728.211814261356,
-                "closest_video_pop_frame": 582,
-                "difference_ms": 13.788185738643733,
+                "audio_pop_time_ms": 10126,
+                "closest_video_pop_ms": 10112.660047471,
+                "closest_video_pop_frame": 605,
+                "difference_ms": 13.339952529000584,
                 "is_synced": true,
                 "included_in_analysis": true,
                 "ignore_reason": null,
@@ -77,36 +77,10 @@
                 "traffic": "green"
             },
             {
-                "audio_pop_time_ms": 10543,
-                "closest_video_pop_ms": 10530.538561829304,
-                "closest_video_pop_frame": 630,
-                "difference_ms": 12.461438170696056,
-                "is_synced": true,
-                "included_in_analysis": true,
-                "ignore_reason": null,
-                "audio_channel": "R",
-                "video_channel": "L",
-                "channels_match": false,
-                "traffic": "green"
-            },
-            {
-                "audio_pop_time_ms": 11348,
-                "closest_video_pop_ms": 11332.865309397252,
-                "closest_video_pop_frame": 678,
-                "difference_ms": 15.134690602748378,
-                "is_synced": true,
-                "included_in_analysis": true,
-                "ignore_reason": null,
-                "audio_channel": "R",
-                "video_channel": "L",
-                "channels_match": false,
-                "traffic": "green"
-            },
-            {
-                "audio_pop_time_ms": 12149,
-                "closest_video_pop_ms": 12135.1920569652,
-                "closest_video_pop_frame": 726,
-                "difference_ms": 13.8079430348007,
+                "audio_pop_time_ms": 10927,
+                "closest_video_pop_ms": 10914.986795038945,
+                "closest_video_pop_frame": 653,
+                "difference_ms": 12.013204961054726,
                 "is_synced": true,
                 "included_in_analysis": true,
                 "ignore_reason": null,
@@ -116,10 +90,10 @@
                 "traffic": "green"
             },
             {
-                "audio_pop_time_ms": 12950,
-                "closest_video_pop_ms": 12937.518804533145,
-                "closest_video_pop_frame": 774,
-                "difference_ms": 12.481195466854842,
+                "audio_pop_time_ms": 11732,
+                "closest_video_pop_ms": 11717.313542606893,
+                "closest_video_pop_frame": 701,
+                "difference_ms": 14.686457393107048,
                 "is_synced": true,
                 "included_in_analysis": true,
                 "ignore_reason": null,
@@ -129,10 +103,10 @@
                 "traffic": "green"
             },
             {
-                "audio_pop_time_ms": 13755,
-                "closest_video_pop_ms": 13739.845552101093,
-                "closest_video_pop_frame": 822,
-                "difference_ms": 15.154447898907165,
+                "audio_pop_time_ms": 12533,
+                "closest_video_pop_ms": 12519.640290174839,
+                "closest_video_pop_frame": 749,
+                "difference_ms": 13.35970982516119,
                 "is_synced": true,
                 "included_in_analysis": true,
                 "ignore_reason": null,
@@ -142,10 +116,10 @@
                 "traffic": "green"
             },
             {
-                "audio_pop_time_ms": 14556,
-                "closest_video_pop_ms": 14542.172299669039,
-                "closest_video_pop_frame": 870,
-                "difference_ms": 13.827700330961306,
+                "audio_pop_time_ms": 13334,
+                "closest_video_pop_ms": 13305.251897168455,
+                "closest_video_pop_frame": 796,
+                "difference_ms": 28.74810283154511,
                 "is_synced": true,
                 "included_in_analysis": true,
                 "ignore_reason": null,
@@ -155,23 +129,49 @@
                 "traffic": "green"
             },
             {
-                "audio_pop_time_ms": 15357,
-                "closest_video_pop_ms": 15344.499047236986,
-                "closest_video_pop_frame": 918,
-                "difference_ms": 12.500952763013629,
-                "is_synced": true,
+                "audio_pop_time_ms": 14139,
+                "closest_video_pop_ms": 14107.5786447364,
+                "closest_video_pop_frame": 844,
+                "difference_ms": 31.421355263599253,
+                "is_synced": false,
                 "included_in_analysis": true,
                 "ignore_reason": null,
-                "audio_channel": "L",
+                "audio_channel": "R",
                 "video_channel": "L",
-                "channels_match": true,
+                "channels_match": false,
                 "traffic": "green"
             },
             {
-                "audio_pop_time_ms": 16162,
-                "closest_video_pop_ms": 16146.825794804932,
-                "closest_video_pop_frame": 966,
-                "difference_ms": 15.17420519506777,
+                "audio_pop_time_ms": 14940,
+                "closest_video_pop_ms": 14926.620532878682,
+                "closest_video_pop_frame": 893,
+                "difference_ms": 13.379467121318157,
+                "is_synced": true,
+                "included_in_analysis": true,
+                "ignore_reason": null,
+                "audio_channel": "R",
+                "video_channel": "L",
+                "channels_match": false,
+                "traffic": "green"
+            },
+            {
+                "audio_pop_time_ms": 15741,
+                "closest_video_pop_ms": 15728.947280446628,
+                "closest_video_pop_frame": 941,
+                "difference_ms": 12.052719553372299,
+                "is_synced": true,
+                "included_in_analysis": true,
+                "ignore_reason": null,
+                "audio_channel": "R",
+                "video_channel": "L",
+                "channels_match": false,
+                "traffic": "green"
+            },
+            {
+                "audio_pop_time_ms": 16546,
+                "closest_video_pop_ms": 16531.274028014574,
+                "closest_video_pop_frame": 989,
+                "difference_ms": 14.72597198542644,
                 "is_synced": true,
                 "included_in_analysis": true,
                 "ignore_reason": null,
@@ -181,30 +181,30 @@
                 "traffic": "green"
             }
         ],
-        "is_perfectly_synced": true,
+        "is_perfectly_synced": false,
         "last_event_within_limit": true,
-        "duration_ms": 21178.083000000002,
+        "duration_ms": 21612.677,
         "video_pop_times_ms": [
-            9728.211814261356,
-            10530.538561829304,
-            11332.865309397252,
-            12135.1920569652,
-            12937.518804533145,
-            13739.845552101093,
-            14542.172299669039,
-            15344.499047236986,
-            16146.825794804932
+            10112.660047471,
+            10914.986795038945,
+            11717.313542606893,
+            12519.640290174839,
+            13305.251897168455,
+            14107.5786447364,
+            14926.620532878682,
+            15728.947280446628,
+            16531.274028014574
         ],
         "video_pop_frame_indices": [
-            582,
-            630,
-            678,
-            726,
-            774,
-            822,
-            870,
-            918,
-            966
+            605,
+            653,
+            701,
+            749,
+            796,
+            844,
+            893,
+            941,
+            989
         ],
         "traffic": [
             "green",
@@ -217,8 +217,8 @@
             "green",
             "green"
         ],
-        "channel_match_count": 2,
-        "channel_mismatch_count": 7,
+        "channel_match_count": 1,
+        "channel_mismatch_count": 8,
         "channels_all_match": false
     },
     "scanlines": {

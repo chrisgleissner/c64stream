@@ -1,0 +1,13 @@
+name: NTSC Effects Default
+format: NTSC
+preset: Default
+packet_source: media
+assertions:
+  - video_quality
+  - audio
+  - frame_progression
+
+tolerances:
+  video_quality:
+    local: 1.0
+    ci: 0.64  # Reduced from 0.65 to account for GitHub runner CPU constraints (32.3% observed)

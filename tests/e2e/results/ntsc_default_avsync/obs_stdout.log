@@ -13,7 +13,7 @@ info: Using EGL/X11
 info: CPU Name: Intel(R) Core(TM) i7-6700K CPU @ 4.00GHz
 info: CPU Speed: 4200.000MHz
 info: Physical Cores: 4, Logical Cores: 8
-info: Physical Memory: 31963MB Total, 19708MB Free
+info: Physical Memory: 31963MB Total, 16300MB Free
 info: Kernel Version: Linux 6.14.0-37-generic
 info: Distribution: "Ubuntu" "24.04"
 info: Desktop Environment: XFCE (KDE)
@@ -29,7 +29,7 @@ debug: found alternate keycode 215 for OBS_KEY_VK_MEDIA_PLAY_PAUSE which already
 debug: found alternate keycode 218 for OBS_KEY_PRINT which already has keycode 107
 debug: found alternate keycode 231 for OBS_KEY_CANCEL which already has keycode 136
 debug: canvas 'Main' (6c69626f-6273-4c00-9d88-c5136d61696e) created
-info: Current Date/Time: 2026-01-18, 15:34:44
+info: Current Date/Time: 2026-01-22, 22:41:52
 info: Browser Hardware Acceleration: true
 info: Qt Version: 6.4.2 (runtime), 6.4.2 (compiled)
 info: Portable mode: false
@@ -43,7 +43,7 @@ info: audio settings reset:
 	buffering type:  dynamically increasing
 info: ---------------------------------
 info: Initializing OpenGL...
-debug: Created EGLDisplay 0x650df5efea50
+debug: Created EGLDisplay 0x55e5ba041720
 warning: Unable to open DRM render node.
 info: Loading up OpenGL on adapter Mesa llvmpipe (LLVM 20.1.2, 256 bits)
 info: OpenGL loaded successfully, version 4.5 (Core Profile) Mesa 25.0.7-0ubuntu0.24.04.2, shading language 4.50
@@ -193,8 +193,8 @@ debug: Loading module: vlc-video.so
 info: [vlc-video]: VLC 3.0.20 Vetinari found, VLC video source enabled
 debug: ---------------------------------
 debug: Loading module: c64stream.so
-info: [c64stream] Loading C64 Stream Plugin 1.1.0-beta1-16-g3ad75ae-dirty (3ad75ae)
-info: [c64stream] Build info: 1.1.0-beta1-16-g3ad75ae-dirty (Git ID: 3ad75ae, Built: 2026-01-18 15:32:32 UTC)
+info: [c64stream] Loading C64 Stream Plugin 1.1.0-beta1-24-g912712e-dirty (912712e)
+info: [c64stream] Build info: 1.1.0-beta1-24-g912712e-dirty (Git ID: 912712e, Built: 2026-01-22 22:28:52 UTC)
 info: [c64stream] ✨ EFFECT: Loaded preset: Default
 info: [c64stream] ✨ EFFECT: Loaded preset: Classic CRT
 info: [c64stream] ✨ EFFECT: Loaded preset: Amber Monitor
@@ -642,23 +642,23 @@ info: [c64stream] 🔷 Pre-rendered C64 display with PNG logo: 224x149 (70% of s
 info: [c64stream] 🔷 Pre-rendered C64 display with PNG logo: 224x149 (70% of screen) at (80,45) in 384x240 NTSC frame
 info: [c64stream] ✅ Logo system initialized successfully (PAL: 417792 bytes, NTSC: 368640 bytes, PNG pixels: loaded, texture: fallback)
 info: [c64stream] Logo format preference updated: NTSC
-info: [c64stream] 🔷 LOGO SPOT CHECK: 384x240 RGBA, timestamp=73239980404796 (total count: 1)
+info: [c64stream] 🔷 LOGO SPOT CHECK: 384x240 RGBA, timestamp=20073135482658 (total count: 1)
 info: [c64stream] Logo rendered immediately on source creation
 info: [c64stream] 💾 RECORD: Frame save folder updated: /home/chris/Documents/obs-studio/c64stream/recordings
 info: [c64stream] 💾 RECORD: Creating CSV recording session...
-info: [c64stream] 💾 RECORD: Attempting to create session directory: /home/chris/Documents/obs-studio/c64stream/recordings/session_20260118_153445
-info: [c64stream] 💾 RECORD: Successfully created recording session: /home/chris/Documents/obs-studio/c64stream/recordings/session_20260118_153445
-info: [c64stream] 💾 RECORD: Session folder created: /home/chris/Documents/obs-studio/c64stream/recordings/session_20260118_153445
+info: [c64stream] 💾 RECORD: Attempting to create session directory: /home/chris/Documents/obs-studio/c64stream/recordings/session_20260122_224153
+info: [c64stream] 💾 RECORD: Successfully created recording session: /home/chris/Documents/obs-studio/c64stream/recordings/session_20260122_224153
+info: [c64stream] 💾 RECORD: Session folder created: /home/chris/Documents/obs-studio/c64stream/recordings/session_20260122_224153
 info: [c64stream] 💾 RECORD: OBS timing CSV header written successfully
-info: [c64stream] 💾 RECORD: Started CSV timing recording: /home/chris/Documents/obs-studio/c64stream/recordings/session_20260118_153445/obs.csv
+info: [c64stream] 💾 RECORD: Started CSV timing recording: /home/chris/Documents/obs-studio/c64stream/recordings/session_20260122_224153/obs.csv
 info: [c64stream] 💾 RECORD: Creating network recording session...
-info: [c64stream] 💾 RECORD: Network session folder: /home/chris/Documents/obs-studio/c64stream/recordings/session_20260118_153445
+info: [c64stream] 💾 RECORD: Network session folder: /home/chris/Documents/obs-studio/c64stream/recordings/session_20260122_224153
 info: [c64stream] 💾 RECORD: Network packet CSV header written successfully
-info: [c64stream] 💾 RECORD: Started network packet recording: /home/chris/Documents/obs-studio/c64stream/recordings/session_20260118_153445/network.csv
+info: [c64stream] 💾 RECORD: Started network packet recording: /home/chris/Documents/obs-studio/c64stream/recordings/session_20260122_224153/network.csv
 info: [c64stream] 💾 RECORD: CSV recording started
 info: [c64stream] 💾 RECORD: record_av_sync changed from 0 to 1
 warning: [c64stream] 💾 RECORD: Audio Mixer 0 dB enforcement skipped or failed
-info: [c64stream] 💾 RECORD: Started av-sync CSV recording: /home/chris/Documents/obs-studio/c64stream/recordings/session_20260118_153445/av-sync.csv
+info: [c64stream] 💾 RECORD: Started av-sync CSV recording: /home/chris/Documents/obs-studio/c64stream/recordings/session_20260122_224153/av-sync.csv
 info: [c64stream] 💾 RECORD: av-sync PRG async call initiated
 info: [c64stream] 🎨 PALETTE: 🔄 Color LUT rebuilt with palette colors (256 lookup entries updated)
 info: [c64stream] 🎨 PALETTE: ✓ Activated palette: 'Default' (source: build-time generated from data/palettes/default.vpl)
@@ -668,13 +668,13 @@ info: [c64stream] 📡 REST: Created REST client for http://localhost
 info: [c64stream] C64 Stream source created successfully - scheduling background initial connection
 info: [c64stream] Scheduled background retry (initial connection)
 info: [c64stream] 📡 REST: Creating REST client for http://localhost
-info: [c64stream] 📡 REST: Initializing CURL handle
-info: [c64stream] 📡 REST: Created REST client for http://localhost
-error: [c64stream] 📡 REST: CURL error: Couldn't connect to server
 info: [c64stream] 📡 NETWORK: Async retry attempt 0 - starting streaming
-info: [c64stream] 📡 REST: HTTP GET /v1/configs/Audio%20Mixer
-warning: [c64stream] REST: request failed: CURL error: Couldn't connect to server
+info: [c64stream] 📡 REST: Initializing CURL handle
+error: [c64stream] 📡 REST: CURL error: Couldn't connect to server
 info: [c64stream] 📡 NETWORK: Attempting to resolve hostname: localhost
+warning: [c64stream] REST: request failed: CURL error: Couldn't connect to server
+info: [c64stream] 📡 REST: Created REST client for http://localhost
+info: [c64stream] 📡 REST: HTTP GET /v1/configs/Audio%20Mixer
 info: [c64stream] 📡 REST: Performing CURL request
 info: [c64stream] 📡 REST: Destroying REST client
 info: [c64stream] 📡 REST: CURL handle cleaned up
@@ -690,14 +690,14 @@ warning: [c64stream] 💾 RECORD: Audio Mixer 0 dB enforcement skipped or failed
 info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
 info: [c64stream] 📡 NETWORK: Sending stop command for stream 0 to C64 127.0.0.1
 info: [c64stream] 📡 NETWORK: Stop control command sent successfully
-info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
-info: [c64stream] 📡 NETWORK: Sending stop command for stream 1 to C64 127.0.0.1
-info: [c64stream] 📡 NETWORK: Stop control command sent successfully
 info: [c64stream] 🕹 KEYBOARD: Loaded keymap: Symbolic US (187 entries)
 info: [c64stream] 🕹 KEYBOARD: Loaded keymap: symbolic_us
+info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
 info: [c64stream] 🕹 KEYBOARD: Created keyboard controller
+info: [c64stream] 📡 NETWORK: Sending stop command for stream 1 to C64 127.0.0.1
 debug: source 'C64 Stream' (c64_source) created
 info: [c64stream] 🕹 KEYBOARD: Injection worker started
+info: [c64stream] 📡 NETWORK: Stop control command sent successfully
 info: [c64stream] 📡 NETWORK: Detected Linux IP address: 192.168.1.185 (interface: enp0s31f6)
 info: [c64stream] 💾 FILE: Retrieved Linux Documents path: /home/chris/Documents
 info: [c64stream] 💾 FILE: Retrieved Linux Documents path: /home/chris/Documents
@@ -764,12 +764,12 @@ info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
 info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
 info: [c64stream] 📡 NETWORK: Sending start command for stream 1 to 127.0.0.1 with client destination: 127.0.0.1:21001
 info: [c64stream] 📡 NETWORK: Start control command sent successfully
-info: [c64stream] 📺 VIDEO: Video receiver thread started on port 21000
-info: [c64stream] C64 Stream streaming started successfully
-info: [c64stream] 🔊 AUDIO: Audio receiver thread started on port 21001
-info: [c64stream] 📺 VIDEO: Video thread function started with optimized scheduling
 info: [c64stream] 📺 VIDEO: Video processor thread started
+info: [c64stream] C64 Stream streaming started successfully
 info: [c64stream] 📡 NETWORK: 📦 BUFFER EMPTY SPOT CHECK: No video packets available
+info: [c64stream] 🔊 AUDIO: Audio receiver thread started on port 21001
+info: [c64stream] 📺 VIDEO: Video receiver thread started on port 21000
+info: [c64stream] 📺 VIDEO: Video thread function started with optimized scheduling
 info: [c64stream] 📺 VIDEO: Linux batch recv enabled (recvmmsg with up to 64 packets per syscall)
 info: ---------------------------------
 info: [x264 encoder: 'simple_video_stream'] preset: superfast
@@ -788,10 +788,11 @@ info: libfdk_aac encoder created
 info: libfdk_aac bitrate: 160, channels: 2
 debug: Maximum interleaver batch size for 'simple_file_output' calculated to be 4 packets
 info: ==== Recording Start ===============================================
-info: [ffmpeg muxer: 'simple_file_output'] Writing file '/home/chris/dev/c64/c64stream/tests/e2e/results/ntsc_default_avsync/2026-01-18 15-34-45.mp4'...
-debug: Attempted path: /usr/bin/../share/obs/obs-studio/OBSPublicRSAKey.pem
+info: [ffmpeg muxer: 'simple_file_output'] Writing file '/home/chris/dev/c64/c64stream/tests/e2e/results/ntsc_default_avsync/2026-01-22 22-41-53.mp4'...
 debug: Attempted path: /usr/bin/../share/obs/obs-studio/images/overflow.png
+debug: Attempted path: /usr/bin/../share/obs/obs-studio/OBSPublicRSAKey.pem
 info: [c64stream] No video packets for 2.0s (audio: 2.0s), retrying TCP commands and recreating UDP sockets
+info: [c64stream] Scheduled background retry (no video packets)
 info: [c64stream] 📡 NETWORK: Async retry attempt 1 - sending start commands
 info: [c64stream] 📡 NETWORK: Attempting to resolve hostname: localhost
 info: [c64stream] 📡 NETWORK: System DNS resolved 'localhost' to IP: 127.0.0.1
@@ -804,7 +805,6 @@ info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
 info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
 info: [c64stream] 📡 NETWORK: Sending start command for stream 1 to 127.0.0.1 with client destination: 127.0.0.1:21001
 info: [c64stream] 📡 NETWORK: Start control command sent successfully
-info: [c64stream] Scheduled background retry (no video packets)
 info: [c64stream] No video packets for 3.0s (audio: 3.0s), retrying TCP commands and recreating UDP sockets
 info: [c64stream] Scheduled background retry (no video packets)
 info: [c64stream] 📡 NETWORK: Async retry attempt 2 - sending start commands
@@ -903,7 +903,7 @@ info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
 info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
 info: [c64stream] 📡 NETWORK: Sending start command for stream 1 to 127.0.0.1 with client destination: 127.0.0.1:21001
 info: [c64stream] 📡 NETWORK: Start control command sent successfully
-info: [c64stream] STREAM START: stream_start_ns=73249436740410 trigger=audio packet recv buffer_delay_ms=10
+info: [c64stream] STREAM START: stream_start_ns=20082941767653 trigger=video packet recv buffer_delay_ms=10
 info: [c64stream] 📺 VIDEO: 0.0 fps | 0.00 Mbps | 0 pps | Frames: 0 | current_video_ts_ns=0 video_ts_minus_stream_start_ns=0 video_buf_depth_ms=0.0
 info: [c64stream] 📺 VIDEO: Expected 50 fps | Captured 0.0 fps | Delivered 0.0 fps | Completed 0.0 fps
 info: [c64stream] 📺 VIDEO: Capture drops 0.0% | Delivery drops 0.0% | Avg latency 0.0 ms
@@ -911,42 +911,42 @@ info: [c64stream] 📡 NETWORK: Network buffer push video: packet 1 (len=780)
 info: [c64stream] 📡 NETWORK: Video buffer: initialized with sequence 0
 info: [c64stream] 🔊 AUDIO: 0.00 Mbps | 0 pps | Packets: 1 | current_audio_ts_ns=0 audio_ts_minus_stream_start_ns=0 audio_minus_video_delta_ns=0 audio_buf_depth_ms=0.0
 info: [c64stream] 📡 NETWORK: Audio buffer: initialized with sequence 0
-info: [c64stream] 📡 NETWORK: ⏰ DELAY WAIT SPOT CHECK: Oldest packet age=601 us, need=10000 us
+info: [c64stream] 📡 NETWORK: ⏰ DELAY WAIT SPOT CHECK: Oldest packet age=1092 us, need=10000 us
 info: [c64stream] 📡 NETWORK: Network buffer pop SPOT CHECK: video=yes, audio=yes (total count: 1)
 info: [c64stream] 📺 VIDEO: Video stream restored, resetting retry count (was 9)
 info: [c64stream] 🔊 AUDIO: Audio packet interval: 4004977 ns (rate=47940.3408 Hz)
-info: [c64stream] 🔊 AUDIO: FIRST AUDIO SUBMIT: stream_start_ns=73249436740410 first_audio_ts_ns=73249436740410 first_video_ts_ns=0 initial_audio_minus_video_delta_ns=0
-info: [c64stream] 🔊 AUDIO: 🎵 AUDIO SPOT CHECK: audio_ts=73249436740410, packet_ts=73249426740000, delivery_delay=2ms (processed: 1)
+info: [c64stream] 🔊 AUDIO: FIRST AUDIO SUBMIT: stream_start_ns=20082941767653 first_audio_ts_ns=20082941767653 first_video_ts_ns=0 initial_audio_minus_video_delta_ns=0
+info: [c64stream] 🔊 AUDIO: 🎵 AUDIO SPOT CHECK: audio_ts=20082941767653, packet_ts=20082931767000, delivery_delay=1ms (processed: 1)
 info: [c64stream] 📺 VIDEO: 🎥 Detected NTSC format: 384x240 @ 59.826 Hz (audio: 47940.3 Hz)
 info: [c64stream] 📺 VIDEO: 🎬 Frame COMPLETION SPOT CHECK: frame 0 with 60/60 packets! (total count: 1)
 info: [c64stream] 📺 VIDEO: 🎬 Frame completion check: frame 1 has 60/60 packets (complete=1)
 info: [c64stream] 📺 VIDEO: 🎬 ASSEMBLY SPOT CHECK: frame 1 with 60/60 packets (count: 1)
-info: [c64stream] 📺 VIDEO: 📐 Ideal timestamp: frame 1 -> index=0 ts=73249436740410
-info: [c64stream] 📺 VIDEO: FIRST VIDEO SUBMIT: stream_start_ns=73249436740410 first_video_ts_ns=73249436740410 first_audio_ts_ns=73249436740410 initial_audio_minus_video_delta_ns=0
-info: [c64stream] 📺 VIDEO: 🎬 MONOTONIC SPOT CHECK: frame=1, monotonic_ts=73249436740410, packet_ts=73249459876000, delta=-23135590, packets=60/60 (count: 1)
+info: [c64stream] 📺 VIDEO: 📐 Ideal timestamp: frame 1 -> index=0 ts=20082941767653
+info: [c64stream] 📺 VIDEO: FIRST VIDEO SUBMIT: stream_start_ns=20082941767653 first_video_ts_ns=20082941767653 first_audio_ts_ns=20082941767653 initial_audio_minus_video_delta_ns=0
+info: [c64stream] 📺 VIDEO: 🎬 MONOTONIC SPOT CHECK: frame=1, monotonic_ts=20082941767653, packet_ts=20082964808000, delta=-23040347, packets=60/60 (count: 1)
 info: [c64stream] 📺 VIDEO: 🎬 Frame completion check: frame 61 has 60/60 packets (complete=1)
-info: [c64stream] 📺 VIDEO: AV SYNC (OBS): offset=-19.3ms video=#2 audio=#1 detected=2026-01-18_15:34:56.189 video_frame=72 video_ts=73250657924360 audio_ts=73250638666256 | AV SYNC (Network): offset=-2.0ms video=#2 audio=#2 video_ts=73250630182832 audio_ts=73250628190022 net_to_obs_video=+27.7ms net_to_obs_audio=+10.5ms
+info: [c64stream] 📺 VIDEO: AV SYNC (OBS): offset=-17.9ms video=#2 audio=#1 detected=2026-01-22_22:42:04.903 video_frame=72 video_ts=20084162040808 audio_ts=20084144160118 | AV SYNC (Network): offset=-2.4ms video=#2 audio=#2 video_ts=20084135499480 audio_ts=20084133124809 net_to_obs_video=+26.5ms net_to_obs_audio=+11.0ms
 info: [c64stream] 📡 NETWORK: Network buffer push video: packet 5001 (len=780)
-info: [c64stream] 📺 VIDEO: AV SYNC (OBS): offset=-13.7ms video=#3 audio=#2 detected=2026-01-18_15:34:56.991 video_frame=120 video_ts=73251460149614 audio_ts=73251446405199 | AV SYNC (Network): offset=0.7ms video=#3 audio=#3 video_ts=73251432515826 audio_ts=73251433176921 net_to_obs_video=+27.6ms net_to_obs_audio=+13.2ms
+info: [c64stream] 📺 VIDEO: AV SYNC (OBS): offset=-15.6ms video=#3 audio=#2 detected=2026-01-22_22:42:05.706 video_frame=120 video_ts=20084965314241 audio_ts=20084949756205 | AV SYNC (Network): offset=0.7ms video=#3 audio=#3 video_ts=20084937414721 audio_ts=20084938124602 net_to_obs_video=+27.9ms net_to_obs_audio=+11.6ms
 info: [c64stream] 📺 VIDEO: 🎬 Frame completion check: frame 121 has 60/60 packets (complete=1)
 info: [c64stream] 📡 NETWORK: Network buffer push video: packet 10001 (len=780)
-info: [c64stream] 📺 VIDEO: AV SYNC (OBS): offset=-18.1ms video=#4 audio=#3 detected=2026-01-18_15:34:57.794 video_frame=168 video_ts=73252263014821 audio_ts=73252244875698 | AV SYNC (Network): offset=-0.6ms video=#4 audio=#4 video_ts=73252234827663 audio_ts=73252234242770 net_to_obs_video=+28.2ms net_to_obs_audio=+10.6ms
+info: [c64stream] 📺 VIDEO: AV SYNC (OBS): offset=-17.4ms video=#4 audio=#3 detected=2026-01-22_22:42:06.508 video_frame=168 video_ts=20085767232257 audio_ts=20085749832514 | AV SYNC (Network): offset=-0.7ms video=#4 audio=#4 video_ts=20085739833952 audio_ts=20085739132629 net_to_obs_video=+27.4ms net_to_obs_audio=+10.7ms
 info: [c64stream] 📺 VIDEO: 🎬 Frame completion check: frame 181 has 60/60 packets (complete=1)
-info: [c64stream] 📺 VIDEO: AV SYNC (OBS): offset=-18.0ms video=#5 audio=#4 detected=2026-01-18_15:34:58.595 video_frame=216 video_ts=73253064087262 audio_ts=73253046129177 | AV SYNC (Network): offset=-1.9ms video=#5 audio=#5 video_ts=73253037176539 audio_ts=73253035240601 net_to_obs_video=+26.9ms net_to_obs_audio=+10.9ms
+info: [c64stream] 📺 VIDEO: AV SYNC (OBS): offset=-19.7ms video=#5 audio=#4 detected=2026-01-22_22:42:07.311 video_frame=216 video_ts=20086570299907 audio_ts=20086550556310 | AV SYNC (Network): offset=-1.9ms video=#5 audio=#5 video_ts=20086542132200 audio_ts=20086540230567 net_to_obs_video=+28.2ms net_to_obs_audio=+10.3ms
 info: [c64stream] 📺 VIDEO: 🎬 Frame completion check: frame 241 has 60/60 packets (complete=1)
 info: [c64stream] 📡 NETWORK: Network buffer push video: packet 15001 (len=780)
-info: [c64stream] 📺 VIDEO: 📐 Ideal timestamp: frame 251 -> index=250 ts=73253615525660
-info: [c64stream] 📺 VIDEO: AV SYNC (OBS): offset=-16.8ms video=#6 audio=#5 detected=2026-01-18_15:34:59.398 video_frame=264 video_ts=73253867218489 audio_ts=73253850449840 | AV SYNC (Network): offset=0.7ms video=#6 audio=#6 video_ts=73253839526626 audio_ts=73253840236447 net_to_obs_video=+27.7ms net_to_obs_audio=+10.2ms
-info: [c64stream] 🔊 AUDIO: 1.54 Mbps | 250 pps | Packets: 1249 | current_audio_ts_ns=73254426941752 audio_ts_minus_stream_start_ns=4990201342 audio_minus_video_delta_ns=42519606 audio_buf_depth_ms=8.0
-info: [c64stream] 📺 VIDEO: 59.4 fps | 22.40 Mbps | 3589 pps | Frames: 298 | current_video_ts_ns=73254401137287 video_ts_minus_stream_start_ns=4964396877 video_buf_depth_ms=10.6
-info: [c64stream] 📺 VIDEO: Expected 60 fps | Captured 59.6 fps | Delivered 59.4 fps | Completed 59.4 fps
-info: [c64stream] 📺 VIDEO: Capture drops 1441264193.0% | Delivery drops 0.0% | Avg latency 10.8 ms
+info: [c64stream] 📺 VIDEO: 📐 Ideal timestamp: frame 251 -> index=250 ts=20087120552903
+info: [c64stream] 📺 VIDEO: AV SYNC (OBS): offset=-12.3ms video=#6 audio=#5 detected=2026-01-22_22:42:08.113 video_frame=264 video_ts=20087371487375 audio_ts=20087359191113 | AV SYNC (Network): offset=-0.9ms video=#6 audio=#6 video_ts=20087348260048 audio_ts=20087347392251 net_to_obs_video=+23.2ms net_to_obs_audio=+11.8ms
+info: [c64stream] 🔊 AUDIO: 1.54 Mbps | 250 pps | Packets: 1249 | current_audio_ts_ns=20087931968995 audio_ts_minus_stream_start_ns=4990201342 audio_minus_video_delta_ns=42519606 audio_buf_depth_ms=8.0
+info: [c64stream] 📺 VIDEO: 59.5 fps | 22.40 Mbps | 3589 pps | Frames: 299 | current_video_ts_ns=20087922879671 video_ts_minus_stream_start_ns=4981112018 video_buf_depth_ms=10.0
+info: [c64stream] 📺 VIDEO: Expected 60 fps | Captured 59.7 fps | Delivered 59.5 fps | Completed 59.5 fps
+info: [c64stream] 📺 VIDEO: Capture drops 1436443911.4% | Delivery drops 0.0% | Avg latency 11.0 ms
 info: [c64stream] 📺 VIDEO: 🎬 Frame completion check: frame 301 has 60/60 packets (complete=1)
-info: [c64stream] 📺 VIDEO: AV SYNC (OBS): offset=-17.2ms video=#7 audio=#6 detected=2026-01-18_15:35:00.200 video_frame=312 video_ts=73254669229128 audio_ts=73254651985526 | AV SYNC (Network): offset=-0.6ms video=#7 audio=#7 video_ts=73254641849749 audio_ts=73254641229741 net_to_obs_video=+27.4ms net_to_obs_audio=+10.8ms
+info: [c64stream] 📺 VIDEO: AV SYNC (OBS): offset=-17.8ms video=#7 audio=#6 detected=2026-01-22_22:42:08.916 video_frame=312 video_ts=20088174439214 audio_ts=20088156639144 | AV SYNC (Network): offset=-0.6ms video=#7 audio=#7 video_ts=20088146734829 audio_ts=20088146128637 net_to_obs_video=+27.7ms net_to_obs_audio=+10.5ms
 info: [c64stream] 📡 NETWORK: Network buffer push video: packet 20001 (len=780)
-info: [c64stream] 📺 VIDEO: AV SYNC (OBS): offset=-18.0ms video=#8 audio=#7 detected=2026-01-18_15:35:01.002 video_frame=360 video_ts=73255471093101 audio_ts=73255453122358 | AV SYNC (Network): offset=-1.9ms video=#8 audio=#8 video_ts=73255444180713 audio_ts=73255442238263 net_to_obs_video=+26.9ms net_to_obs_audio=+10.9ms
+info: [c64stream] 📺 VIDEO: AV SYNC (OBS): offset=-18.7ms video=#8 audio=#7 detected=2026-01-22_22:42:09.717 video_frame=360 video_ts=20088976118911 audio_ts=20088957460053 | AV SYNC (Network): offset=-2.0ms video=#8 audio=#8 video_ts=20088949263808 audio_ts=20088947226990 net_to_obs_video=+26.9ms net_to_obs_audio=+10.2ms
 info: [c64stream] 📺 VIDEO: 🎬 Frame completion check: frame 361 has 60/60 packets (complete=1)
-info: [c64stream] 📺 VIDEO: AV SYNC (OBS): offset=-15.4ms video=#9 audio=#8 detected=2026-01-18_15:35:01.805 video_frame=408 video_ts=73256274145065 audio_ts=73256258770978 | AV SYNC (Network): offset=0.8ms video=#9 audio=#9 video_ts=73256246467892 audio_ts=73256247223945 net_to_obs_video=+27.7ms net_to_obs_audio=+11.5ms
+info: [c64stream] 📺 VIDEO: AV SYNC (OBS): offset=-15.7ms video=#9 audio=#8 detected=2026-01-22_22:42:10.520 video_frame=408 video_ts=20089779075509 audio_ts=20089763382611 | AV SYNC (Network): offset=0.8ms video=#9 audio=#9 video_ts=20089751417465 audio_ts=20089752182948 net_to_obs_video=+27.7ms net_to_obs_audio=+11.2ms
 info: [c64stream] 📡 NETWORK: Network buffer push video: packet 25001 (len=780)
 info: [c64stream] 📺 VIDEO: 🎬 Frame completion check: frame 421 has 60/60 packets (complete=1)
 info: [c64stream] No video packets for 1.0s (audio: 1.0s), retrying TCP commands and recreating UDP sockets
@@ -977,14 +977,14 @@ info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
 info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
 info: [c64stream] 📡 NETWORK: Sending start command for stream 1 to 127.0.0.1 with client destination: 127.0.0.1:21001
 info: [c64stream] 📡 NETWORK: Start control command sent successfully
-info: [obs-websocket] [WebSocketServer::onOpen] New WebSocket client has connected from [::ffff:127.0.0.1]:43238
-info: [obs-websocket] [WebSocketServer::onClose] WebSocket client `[::ffff:127.0.0.1]:43238` has disconnected with code `1000` and reason: 
+info: [obs-websocket] [WebSocketServer::onOpen] New WebSocket client has connected from [::ffff:127.0.0.1]:58830
+info: [obs-websocket] [WebSocketServer::onClose] WebSocket client `[::ffff:127.0.0.1]:58830` has disconnected with code `1000` and reason: 
 info: [c64stream] No video packets for 3.0s (audio: 3.0s), retrying TCP commands and recreating UDP sockets
-info: [c64stream] Scheduled background retry (no video packets)
 info: [c64stream] 📡 NETWORK: Async retry attempt 2 - sending start commands
 info: [c64stream] 📡 NETWORK: Attempting to resolve hostname: localhost
 info: [c64stream] 📡 NETWORK: System DNS resolved 'localhost' to IP: 127.0.0.1
 info: [c64stream] 📡 NETWORK: Expected peer IP set to 127.0.0.1
+info: [c64stream] Scheduled background retry (no video packets)
 info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
 info: [c64stream] 📡 NETWORK: Connected to C64 Ultimate at 127.0.0.1:6400
 info: [c64stream] 📡 NETWORK: Sending start command for stream 0 to 127.0.0.1 with client destination: 127.0.0.1:21000

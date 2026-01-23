@@ -1,0 +1,31 @@
+# C64 Stream - E2E Scenario: NTSC Effects Sharp Scanlines
+#
+# Purpose: validate pixel-perfect scanline rendering without any intentional blur/bloom/afterglow.
+# This scenario is intended to catch OBS scaling/interpolation issues.
+#
+# Note: scan_line_strength is set to 0.5 (not 1.0) to ensure sufficient visible content
+# for video quality validation. With 1.0, the scanlines make ~50% of rows completely black,
+# leaving insufficient content for the assertions to verify.
+#
+# Uses 'solid' pattern (light blue fill) for clearer scanline visibility compared to
+# 'diagonal' which has mostly black areas between thin colored stripes.
+
+name: NTSC Effects Sharp Scanlines
+format: NTSC
+preset: Default
+packet_source: media
+pattern: solid
+
+assertions:
+  - frame_progression
+  - video_quality
+  - audio
+  - scanlines
+
+tolerances:
+  frame_progression:
+    local: 1.0
+    ci: 0.6
+  video_quality:
+    local: 1.0
+    ci: 0.65

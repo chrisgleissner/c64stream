@@ -2,9 +2,9 @@
 
 ## Scenario: NTSC Green Monitor
 
-- Generated: 2026-01-17 17:10:53 UTC
-- Git Branch: fix/improve-keyboard-mappings
-- Git ID: 5886543
+- Generated: 2026-01-22 23:02:21 UTC
+- Git Branch: cursor/c64-stream-effects-filter-4ac5
+- Git ID: 912712e
 - Environment: local
 
 ## Test configuration
@@ -26,28 +26,28 @@
 - OS: Ubuntu 24.04.3 LTS (kernel 6.14.0-37-generic)
 - OBS: 32.0.2
 - CPU: Intel(R) Core(TM) i7-6700K CPU @ 4.00GHz (8 cores)
-- RAM: 31Gi total, 24Gi available
-- Disk (/): 1.8T total, 1022G available
+- RAM: 31Gi total, 19Gi available
+- Disk (/): 1.8T total, 964G available
 
 ## Test results
 
 ### Validation Summary
 
-- ✅ UDP Packet Reception: Expected 30803, Received 30742, Missing 61 (0.2%)
-- ✅ Network Timing: span=8010.0ms, video_mean=444.9us, audio_mean=4005.2us
+- ✅ UDP Packet Reception: Expected 30803, Received 30793, Missing 10 (0.03%)
+- ✅ Network Timing: span=8020.2ms, video_mean=479.3us, audio_mean=4004.7us
 - ✅ Frame Processing: 478 frames processed
-- ✅ Video Recording: 10.7 MB
+- ✅ Video Recording: 10.6 MB
 - ✅ Content Integrity: Verified
 
 ### Resource Usage
 
-During the test's processing window (18.4s, 34 samples) (8 cores):
+During the test's processing window (18.3s, 34 samples) (8 cores):
 
 | Metric | Min | Median | Mean | Max |
 |--------|-----|--------|------|-----|
-| CPU | 92.1% | 93.75% | 93.8% | 97.4% |
-| RAM | 6957.96 MB | 7033.08 MB | 7033.3 MB | 7093.91 MB |
-| GPU | 15% | 19% | 25.5% | 43% |
+| CPU | 93.2% | 95.45% | 95.64% | 99.4% |
+| RAM | 10653.83 MB | 10834.97 MB | 10962.88 MB | 11432.85 MB |
+| GPU | 0% | 29.5% | 25.26% | 53% |
 
 Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
@@ -59,37 +59,37 @@ Details: [resource.csv](resource.csv) | [resource.json](resource.json)
 
 #### Network Quality (Measured)
 
-- Packet span (first→last): 8009.987 ms
-- Total packets analyzed: 20004
+- Packet span (first→last): 8020.159 ms
+- Total packets analyzed: 18734
 
 | Stream | Packets | Spacing (min) | Spacing (mean) | Spacing (max) | CV | Burst <0.5×P50 | Gaps >2×P50 | P99/P50 |
 |--------|---------|---------------|----------------|---------------|----|--------------|------------|--------|
-| All | 20004 | 0.001 ms | 0.801 ms | 37.767 ms | 204.05% | 28.17% | 21.95% | 24.585 |
-| Video | 18005 | 0.001 ms | 0.445 ms | 27.811 ms | 217.44% | 29.89% | 14.95% | 16.061 |
-| Audio | 1999 | 0.001 ms | 4.005 ms | 37.767 ms | 65.45% | 14.66% | 5.10% | 3.450 |
+| All | 18734 | 0.001 ms | 0.856 ms | 36.689 ms | 212.01% | 29.55% | 21.85% | 31.330 |
+| Video | 16732 | 0.001 ms | 0.479 ms | 36.689 ms | 244.83% | 31.27% | 14.68% | 20.791 |
+| Audio | 2002 | 0.001 ms | 4.005 ms | 25.548 ms | 71.57% | 17.83% | 6.84% | 3.783 |
 
 | Stream | Packets | Jitter (median) | Jitter (max) | Out-of-Order |
 |--------|---------|-----------------|--------------|--------------|
-| Video | 18005 | 0.103 ms | 27.547 ms | 0 |
-| Audio | 1999 | 0.756 ms | 33.772 ms | 0 |
+| Video | 16732 | 0.109 ms | 36.431 ms | 0 |
+| Audio | 2002 | 0.935 ms | 21.558 ms | 0 |
 
 Details: [network.json](network.json)
 
 ### A/V Sync
 
-- ✅ Acceptable synchronization (87.5%): avg offset 102.7ms, max 781.9ms
+- ✅ Good synchronization (100.0%): avg offset 97.5ms, max 787.4ms
 
 #### Sync Details
 
-- 🟢 Pop #1 [L]: audio=9983.0ms, video=9978.9ms (frame 597), diff=4.1ms
-- 🟢 Pop #2 [R]: audio=10783.0ms, video=10764.6ms (frame 644), diff=18.4ms
-- 🟢 Pop #3 [L]: audio=11589.0ms, video=11566.9ms (frame 692), diff=22.1ms
-- 🟢 Pop #4 [R]: audio=12391.0ms, video=12369.2ms (frame 740), diff=21.8ms
-- • Pop #5 [L]: audio=13192.0ms, video=13973.9ms (frame 836), diff=781.9ms
-- 🟢 Pop #6 [R]: audio=13996.0ms, video=13990.6ms (frame 837), diff=5.4ms
-- 🟢 Pop #7 [L]: audio=14797.0ms, video=14776.2ms (frame 884), diff=20.8ms
-- 🟢 Pop #8 [R]: audio=15599.0ms, video=15595.2ms (frame 933), diff=3.8ms
-- 🟡 Pop #9 [L]: audio=16427.0ms, video=16380.8ms (frame 980), diff=46.2ms
+- 🟢 Pop #1 [L]: audio=9945.0ms, video=9945.5ms (frame 595), diff=0.5ms
+- • Pop #2 [R]: audio=10746.0ms, video=11533.4ms (frame 690), diff=787.4ms
+- 🟢 Pop #3 [L]: audio=11551.0ms, video=11550.2ms (frame 691), diff=0.8ms
+- 🟢 Pop #4 [R]: audio=12353.0ms, video=12335.8ms (frame 738), diff=17.2ms
+- 🟢 Pop #5 [L]: audio=13154.0ms, video=13154.8ms (frame 787), diff=0.8ms
+- 🟢 Pop #6 [R]: audio=13959.0ms, video=13940.4ms (frame 834), diff=18.6ms
+- 🟢 Pop #7 [L]: audio=14759.0ms, video=14742.8ms (frame 882), diff=16.2ms
+- 🟢 Pop #8 [R]: audio=15561.0ms, video=15528.4ms (frame 929), diff=32.6ms
+- 🟢 Pop #9 [L]: audio=16367.0ms, video=16364.1ms (frame 979), diff=2.9ms
 
 - Channels: LRLRLRLRL
 - 🔁 Channel alternation: OK (alternating, starts with L)
@@ -102,7 +102,7 @@ Details: [network.json](network.json)
 
 | Window | Stuck runs (count/min/med/max) | Skips (count/min/med/max) | Back steps | Severe steps |
 |--------|------------------------------:|--------------------------:|-----------:|-------------:|
-| During settling | 5/6/17/422 | 6/1/5/5 | 0 | 0 |
+| During settling | 7/4/6/431 | 6/1/5/5 | 1 | 0 |
 | After settling | 0/0/0/0 | 0/0/0/0 | 0 | 0 |
 
 See [playback.csv](playback.csv) for frame-by-frame playback timeline with anomaly markers.
@@ -114,7 +114,7 @@ See [playback.csv](playback.csv) for frame-by-frame playback timeline with anoma
 ### Video
 
 - Download: [c64_recording.mp4](c64_recording.mp4) (Available from local runs or CI build artifacts.)
-- Duration: 21.5 s
+- Duration: 21.4 s
 
 
 ### Sample Frame
@@ -126,4 +126,4 @@ See [playback.csv](playback.csv) for frame-by-frame playback timeline with anoma
 - **Center**: Diagonal pattern cycling through all C64 colors
 - **Bottom-left**: Frame progression indicator (8-slot moving bar, cycles every 8 frames)
 - **Bottom-right**: A/V pop indicator (pops every 48 frames, split left/right for audio channels)
-- Taken from frame 597 at 00:10.0 of the 21.5 s video above.
+- Taken from frame 595 at 00:09.9 of the 21.4 s video above.

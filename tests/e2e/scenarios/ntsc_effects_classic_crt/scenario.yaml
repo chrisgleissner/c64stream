@@ -1,0 +1,20 @@
+name: NTSC Effects Classic CRT
+format: NTSC
+preset: Classic CRT
+packet_source: media
+assertions:
+  - frame_progression
+  - video_quality
+  - audio
+  - afterglow
+  - scanlines
+
+tolerances:
+  av_sync:
+    ci: lenient
+  frame_progression:
+    local: 1.0
+    ci: 0.6
+  video_quality:
+    local: 1.0
+    ci: 0.65

@@ -199,9 +199,11 @@ target_sources(
     src/c64-network-buffer.c
     src/c64-protocol.c
     src/c64-video.c
+    src/c64-effect-afterglow.c
     src/c64-color.c
     src/c64-audio.c
     src/c64-source.c
+    src/c64-stream-effects.c
     src/c64-record.c
     src/c64-record-obs.c
     src/c64-record-network.c

@@ -253,7 +253,7 @@ Available scenarios include:
 | ntsc_palette_vibrant           | NTSC   | Default preset with 'Vibrant' palette (no effects) |
 | ntsc_phosphor_glow             | NTSC   | Afterglow and bloom effects                        |
 | ntsc_sharp_pixels              | NTSC   | Sharp pixel scaling                                |
-| ntsc_sharp_scan_lines          | NTSC   | Pixel-perfect scanline rendering                   |
+| ntsc_sharp_scanlines           | NTSC   | Pixel-perfect scanline rendering                   |
 | ntsc_vintage_tv                | NTSC   | Vintage TV simulation                              |
 | pal_default                    | PAL    | Default preset (no effects)                        |
 | pal_default_720p               | PAL    | 720p, 50.125 Hz (standard HD)                      |

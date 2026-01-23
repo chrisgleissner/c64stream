@@ -27,6 +27,7 @@ class AfterglowAssertion(EffectAssertion):
             "bright_thresh": 140.0,  # Threshold for pop detection
             "max_frames": 360,
             "min_tail_luma": 2.5,  # Minimum luma for first tail frame
+            "max_tail_increase": 2.5,  # Maximum allowed per-frame increase in tail luma
         }
         super().__init__("Afterglow", {**defaults, **(thresholds or {})})
 
@@ -43,11 +44,14 @@ class AfterglowAssertion(EffectAssertion):
         self.log(f"Verifying afterglow (duration={preset.afterglow_duration_ms}ms)", verbose)
 
         try:
+            from .base import is_ci
+            scale_factor = 0.5 if is_ci() else 1.0
+
             frames = self._read_frames_rgb24(mp4_path, int(self.thresholds["max_frames"]))
             luma = self._luma_u8(frames)
 
             # Find pop ROI
-            roi = self._find_pop_roi(luma, self.thresholds["bright_thresh"])
+            roi = self._find_pop_roi(luma, self.thresholds["bright_thresh"], scale_factor)
             self.log(f"Found pop ROI: {roi}", verbose)
 
             # Verify afterglow decay
@@ -79,8 +83,18 @@ class AfterglowAssertion(EffectAssertion):
             )
 
     def _read_frames_rgb24(self, mp4_path: Path, max_frames: int) -> np.ndarray:
-        """Decode video to RGB24 frames. Returns array [N,H,W,3] uint8."""
+        """Decode video to RGB24 frames. Returns array [N,H,W,3] uint8.
+        In CI, scales down to 960x540 to reduce memory usage."""
+        from .base import is_ci
+
         w, h = self._ffprobe_size(mp4_path)
+
+        # Scale down by 2x in CI to reduce memory usage (2.1GB -> 525MB)
+        scale_filter = ""
+        if is_ci():
+            w, h = w // 2, h // 2
+            scale_filter = f"scale={w}:{h},"
+
         cmd = [
             "ffmpeg",
             "-v",
@@ -89,12 +103,19 @@ class AfterglowAssertion(EffectAssertion):
             str(mp4_path),
             "-frames:v",
             str(max_frames),
+        ]
+
+        if scale_filter:
+            cmd.extend(["-vf", scale_filter.rstrip(",")])
+
+        cmd.extend([
             "-f",
             "rawvideo",
             "-pix_fmt",
             "rgb24",
             "-",
-        ]
+        ])
+
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
         frame_bytes = w * h * 3
         frames = []
@@ -140,8 +161,9 @@ class AfterglowAssertion(EffectAssertion):
         f = frames_rgb.astype(np.float32)
         return 0.2126 * f[..., 0] + 0.7152 * f[..., 1] + 0.0722 * f[..., 2]
 
-    def _find_pop_roi(self, luma_frames: np.ndarray, bright_thresh: float) -> tuple[int, int, int, int]:
-        """Auto-locate the A/V pop ROI by selecting the cluster around the brightest pixel."""
+    def _find_pop_roi(self, luma_frames: np.ndarray, bright_thresh: float, scale_factor: float = 1.0) -> tuple[int, int, int, int]:
+        """Auto-locate the A/V pop ROI by selecting the cluster around the brightest pixel.
+        scale_factor: 0.5 for half-resolution, 1.0 for full resolution"""
         p = np.percentile(luma_frames.reshape((luma_frames.shape[0], -1)), 99.95, axis=1)
         peak_idx = int(np.argmax(p))
 
@@ -150,16 +172,21 @@ class AfterglowAssertion(EffectAssertion):
 
         mask = luma_frames[peak_idx] > thr
         ys, xs = np.where(mask)
-        if xs.size < 40:
-            raise RuntimeError(f"Could not locate pop ROI (thr={thr:.2f}, peak={frame_peak:.2f})")
+
+        # Scale pixel count threshold (40 @ 1080p -> 10 @ 540p)
+        min_pixels = int(40 * scale_factor * scale_factor)
+        if xs.size < min_pixels:
+            raise RuntimeError(f"Could not locate pop ROI (thr={thr:.2f}, peak={frame_peak:.2f}, pixels={xs.size}, min={min_pixels})")
 
         peak_xy = np.unravel_index(int(np.argmax(luma_frames[peak_idx])), luma_frames[peak_idx].shape)
         cy, cx = int(peak_xy[0]), int(peak_xy[1])
 
-        radius = 160
+        # Scale radius (160 @ 1080p -> 80 @ 540p)
+        radius = int(160 * scale_factor)
         near = (np.abs(xs - cx) <= radius) & (np.abs(ys - cy) <= radius)
         xs_r, ys_r = xs[near], ys[near]
-        if xs_r.size < 40:  # Reduced from 80 for CI compatibility
+        if xs_r.size < min_pixels:
+            raise RuntimeError(f"Could not isolate pop cluster near brightest pixel (pixels={xs_r.size}, min={min_pixels})")
             raise RuntimeError("Could not isolate pop cluster near brightest pixel")
 
         x0, x1 = int(xs_r.min()), int(xs_r.max())
@@ -198,7 +225,8 @@ class AfterglowAssertion(EffectAssertion):
         if float(tail[0]) < min_tail:
             return False, f"Afterglow tail missing: first tail frame luma={float(tail[0]):.2f} (peak={float(roi_luma[e]):.2f})"
 
-        if not np.all(np.diff(tail) <= 2.5):
+        max_tail_increase = float(self.thresholds["max_tail_increase"])
+        if not np.all(np.diff(tail) <= max_tail_increase):
             return False, "Afterglow tail is not decaying (unexpected brightness increase)"
 
         if float(np.mean(tail[2:6])) < 4.0:

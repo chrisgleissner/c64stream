@@ -65,22 +65,30 @@ class AssertionRunner:
         if not self.assertions:
             return []
 
-        max_workers = min(len(self.assertions), _get_max_workers_for_assertions())
         results: list[Optional[AssertionResult]] = [None] * len(self.assertions)
         logs: list[str] = [""] * len(self.assertions)
 
-        with ProcessPoolExecutor(max_workers=max_workers) as executor:
-            futures = {
-                executor.submit(
-                    _run_assertion_worker, assertion, mp4_path, properties, preset, self.verbose
-                ): index
-                for index, assertion in enumerate(self.assertions)
-            }
-
-            for future, index in futures.items():
-                result, output = future.result()
+        # In CI, run sequentially to minimize memory usage
+        if is_ci():
+            for index, assertion in enumerate(self.assertions):
+                result, output = _run_assertion_worker(assertion, mp4_path, properties, preset, self.verbose)
                 results[index] = result
                 logs[index] = output
+        else:
+            # Local: use parallel execution
+            max_workers = min(len(self.assertions), _get_max_workers_for_assertions())
+            with ProcessPoolExecutor(max_workers=max_workers) as executor:
+                futures = {
+                    executor.submit(
+                        _run_assertion_worker, assertion, mp4_path, properties, preset, self.verbose
+                    ): index
+                    for index, assertion in enumerate(self.assertions)
+                }
+
+                for future, index in futures.items():
+                    result, output = future.result()
+                    results[index] = result
+                    logs[index] = output
 
         if self.verbose:
             for assertion, result, output in zip(self.assertions, results, logs):

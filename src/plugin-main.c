@@ -22,6 +22,7 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #include "c64-logging.h"
 #include "c64-protocol.h"
 #include "c64-source.h"
+#include "c64-stream-effects.h"
 #include "c64-version.h"
 #include "c64-effect.h"
 #include "c64-palette.h"
@@ -247,6 +248,23 @@ bool obs_module_load(void)
                                        .audio_render = NULL}; // Audio pushed via obs_source_output_audio
 
     obs_register_source(&c64_info);
+
+    struct obs_source_info effects_info = {
+        .id = "c64_stream_effects",
+        .type = OBS_SOURCE_TYPE_FILTER,
+        .output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_SRGB,
+        .get_name = c64_stream_effects_get_name,
+        .create = c64_stream_effects_create,
+        .destroy = c64_stream_effects_destroy,
+        .update = c64_stream_effects_update,
+        .get_defaults = c64_stream_effects_defaults,
+        .get_properties = c64_stream_effects_properties,
+        .video_render = c64_stream_effects_video_render,
+        .get_width = c64_stream_effects_get_width,
+        .get_height = c64_stream_effects_get_height,
+    };
+
+    obs_register_source(&effects_info);
     C64_LOG_INFO("C64 Stream plugin loaded successfully");
     return true;
 }
