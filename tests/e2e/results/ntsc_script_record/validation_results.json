@@ -1,0 +1,106 @@
+{
+    "udp_reception": {
+        "status": "pass",
+        "details": "30750/30803 packets (28750 video, 2000 audio)",
+        "metrics": {
+            "expected_total": 30803,
+            "received_total": 30750,
+            "missing_total": 53,
+            "missing_pct": 0.17206116287374607,
+            "expected_video": 28800,
+            "expected_audio": 2003,
+            "received_video": 28750,
+            "received_audio": 2000
+        }
+    },
+    "frame_processing": {
+        "status": "pass",
+        "details": "479 frames processed"
+    },
+    "video_recording": {
+        "status": "pass",
+        "details": "0.3 MB"
+    },
+    "packet_integrity": {
+        "status": "pass",
+        "details": "Verified"
+    },
+    "network_timing": {
+        "status": "pass",
+        "details": "span=8009.0ms, video_mean=326.7us, audio_mean=4005.3us"
+    },
+    "video_brightness": {
+        "status": "pass",
+        "details": "Normal (best_mean_luma=26.4)",
+        "metrics": {
+            "best_offset_s": 0.18386654631765453,
+            "best_mean_luma": 26.43974247685185,
+            "samples": [
+                {
+                    "t": 0.18386654631765453,
+                    "mean_luma": 26.43974247685185
+                },
+                {
+                    "t": 0.3844482332096413,
+                    "mean_luma": 26.436070601851853
+                },
+                {
+                    "t": 0.585029920101628,
+                    "mean_luma": 26.416344039351852
+                }
+            ]
+        }
+    },
+    "av_sync": {
+        "status": "skipped",
+        "details": "Skipped (full-frame-pop scenario)"
+    },
+    "av_sync_details": {
+        "total_audio_pops": 0,
+        "total_analyzed": 0,
+        "total_video_pops": 0,
+        "perfect_sync_count": 0,
+        "sync_accuracy_percent": 0,
+        "tolerance_ms": 30,
+        "sync_details": [],
+        "is_perfectly_synced": false,
+        "last_event_within_limit": true,
+        "duration_ms": 785.612,
+        "video_pop_times_ms": [],
+        "video_pop_frame_indices": [],
+        "traffic": [],
+        "channel_match_count": 0,
+        "channel_mismatch_count": 0,
+        "channels_all_match": true
+    },
+    "scanlines": {
+        "status": "pass",
+        "details": "Checked"
+    },
+    "frame_sequence_box": null,
+    "recording": {
+        "record_audio": {
+            "status": "skipped",
+            "message": "Skipped (not enabled)"
+        },
+        "record_video": {
+            "status": "skipped",
+            "message": "Skipped (not enabled)"
+        },
+        "record_obs": {
+            "status": "skipped",
+            "message": "Skipped (not enabled)"
+        },
+        "record_network": {
+            "status": "skipped",
+            "message": "Skipped (not enabled)"
+        },
+        "record_frames": {
+            "status": "skipped",
+            "message": "Skipped (not enabled)"
+        }
+    },
+    "success": true,
+    "errors": [],
+    "warnings": []
+}
