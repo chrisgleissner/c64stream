@@ -24,7 +24,7 @@ _Auto-discovered result folders (links prefer README.md when present)._
 - [NTSC Effects Default](./ntsc_effects_default/README.md)
 - [NTSC Effects Green Monitor](./ntsc_effects_green_monitor/README.md)
 - [NTSC Effects Sharp Pixels](./ntsc_effects_sharp_pixels/README.md)
-- [NTSC Effects Sharp Scan Lines](./ntsc_effects_sharp_scan_lines/README.md)
+- [NTSC Effects Sharp Scanlines](./ntsc_effects_sharp_scanlines/README.md)
 - [NTSC Green Monitor](./ntsc_green_monitor/README.md)
 - [NTSC Palette Muted](./ntsc_palette_muted/README.md)
 - [NTSC Palette Vibrant](./ntsc_palette_vibrant/README.md)
@@ -33,7 +33,7 @@ _Auto-discovered result folders (links prefer README.md when present)._
 - [NTSC Script Record](./ntsc_script_record/README.md)
 - [NTSC Script Recording](./ntsc_script_recording/README.md)
 - [NTSC Sharp Pixels](./ntsc_sharp_pixels/README.md)
-- [NTSC Sharp Scan Lines](./ntsc_sharp_scan_lines/README.md)
+- [NTSC Sharp Scanlines](./ntsc_sharp_scanlines/README.md)
 - [NTSC Vintage TV](./ntsc_vintage_tv/README.md)
 - [PAL Default](./pal_default/README.md)
 - [PAL Default 720p](./pal_default_720p/README.md)
@@ -65,9 +65,9 @@ Artifacts vary by scenario and run flags. The sections below group the common ou
 
 Manifests use the same structure:
 
-| Column | Description |
-|--------|-------------|
-| `filename` | Packet filename to send |
+| Column     | Description                        |
+| ---------- | ---------------------------------- |
+| `filename` | Packet filename to send            |
 | `delay_us` | Inter-packet delay in microseconds |
 
 ### Event Timeline CSVs
@@ -80,59 +80,59 @@ These CSVs capture the streaming pipeline as it runs:
 
 #### network.csv Columns
 
-| Column | Description |
-|--------|-------------|
-| `packet_type` | `video` or `audio` packet |
-| `elapsed_us` | Microseconds since recording started |
-| `sequence_num` | Packet sequence counter |
-| `frame_num` | Video frame number (video packets only) |
-| `line_num` | Video line number (video packets only) |
-| `last_packet` | Flag indicating end of frame/audio chunk |
-| `packet_size` | Payload size in bytes |
-| `data_payload` | Payload summary (debug fields) |
-| `jitter_us` | Jitter relative to expected packet cadence |
-| `packet_interval_us` | Delta since previous packet of the same type |
-| `total_video_packets` | Cumulative video packet count |
-| `total_audio_packets` | Cumulative audio packet count |
-| `sequence_errors` | Cumulative sequence errors detected |
-| `is_all_white` | Video pop marker (video packets) |
-| `has_signal` | Audio pop marker (audio packets) |
+| Column                | Description                                  |
+| --------------------- | -------------------------------------------- |
+| `packet_type`         | `video` or `audio` packet                    |
+| `elapsed_us`          | Microseconds since recording started         |
+| `sequence_num`        | Packet sequence counter                      |
+| `frame_num`           | Video frame number (video packets only)      |
+| `line_num`            | Video line number (video packets only)       |
+| `last_packet`         | Flag indicating end of frame/audio chunk     |
+| `packet_size`         | Payload size in bytes                        |
+| `data_payload`        | Payload summary (debug fields)               |
+| `jitter_us`           | Jitter relative to expected packet cadence   |
+| `packet_interval_us`  | Delta since previous packet of the same type |
+| `total_video_packets` | Cumulative video packet count                |
+| `total_audio_packets` | Cumulative audio packet count                |
+| `sequence_errors`     | Cumulative sequence errors detected          |
+| `is_all_white`        | Video pop marker (video packets)             |
+| `has_signal`          | Audio pop marker (audio packets)             |
 
 #### obs.csv Columns
 
-| Column | Description |
-|--------|-------------|
-| `event_type` | "video" or "audio" |
-| `frame_num` | Frame counter from the stream |
-| `elapsed_us` | Microseconds since recording started |
-| `data_size_bytes` | Size of the frame/audio data |
-| `fps` | Current measured FPS |
-| `audio_samples_total` | Cumulative audio samples processed |
-| `video_packets_received` | Cumulative video packets received |
-| `audio_packets_received` | Cumulative audio packets received |
-| `sequence_errors` | Cumulative sequence errors detected |
-| `is_all_white` | Video pop marker |
-| `has_signal` | Audio pop marker |
+| Column                   | Description                          |
+| ------------------------ | ------------------------------------ |
+| `event_type`             | "video" or "audio"                   |
+| `frame_num`              | Frame counter from the stream        |
+| `elapsed_us`             | Microseconds since recording started |
+| `data_size_bytes`        | Size of the frame/audio data         |
+| `fps`                    | Current measured FPS                 |
+| `audio_samples_total`    | Cumulative audio samples processed   |
+| `video_packets_received` | Cumulative video packets received    |
+| `audio_packets_received` | Cumulative audio packets received    |
+| `sequence_errors`        | Cumulative sequence errors detected  |
+| `is_all_white`           | Video pop marker                     |
+| `has_signal`             | Audio pop marker                     |
 
 #### av-sync.csv Columns
 
-| Column | Description |
-|--------|-------------|
-| `trigger` | Pop trigger identifier |
-| `detected` | Timestamp when the pop was detected |
-| `obs_offset_ms` | OBS-side A/V offset in ms |
-| `obs_video_seq` | OBS video sequence number |
-| `obs_audio_seq` | OBS audio sequence number |
-| `obs_video_frame` | OBS video frame number |
-| `obs_video_ts_ns` | OBS video timestamp (ns) |
-| `obs_audio_ts_ns` | OBS audio timestamp (ns) |
-| `has_network_match` | 1 if a network-side pop matched |
-| `net_offset_ms` | Network-side A/V offset in ms |
-| `net_video_seq` | Network video sequence number |
-| `net_audio_seq` | Network audio sequence number |
-| `net_video_frame` | Network video frame number |
-| `net_video_ts_ns` | Network video timestamp (ns) |
-| `net_audio_ts_ns` | Network audio timestamp (ns) |
+| Column                | Description                         |
+| --------------------- | ----------------------------------- |
+| `trigger`             | Pop trigger identifier              |
+| `detected`            | Timestamp when the pop was detected |
+| `obs_offset_ms`       | OBS-side A/V offset in ms           |
+| `obs_video_seq`       | OBS video sequence number           |
+| `obs_audio_seq`       | OBS audio sequence number           |
+| `obs_video_frame`     | OBS video frame number              |
+| `obs_video_ts_ns`     | OBS video timestamp (ns)            |
+| `obs_audio_ts_ns`     | OBS audio timestamp (ns)            |
+| `has_network_match`   | 1 if a network-side pop matched     |
+| `net_offset_ms`       | Network-side A/V offset in ms       |
+| `net_video_seq`       | Network video sequence number       |
+| `net_audio_seq`       | Network audio sequence number       |
+| `net_video_frame`     | Network video frame number          |
+| `net_video_ts_ns`     | Network video timestamp (ns)        |
+| `net_audio_ts_ns`     | Network audio timestamp (ns)        |
 | `net_to_obs_video_ms` | Network-to-OBS delta for video (ms) |
 | `net_to_obs_audio_ms` | Network-to-OBS delta for audio (ms) |
 
@@ -143,19 +143,19 @@ These CSVs capture the streaming pipeline as it runs:
 `playback.csv` is the authoritative source for skipped/repeated frame analysis.
 Each row represents one displayed frame in the recording (1:1 mapping with `playback_frame_index`).
 
-| Column | Description |
-|--------|-------------|
-| `playback_frame_index` | Absolute frame index in the recording (0-based) |
-| `frame_num` | C64U stream frame number from obs.csv (empty for logo frames) |
-| `frame_slot` | Detected slot (0-7) from bottom-left progress bar (empty if not detected) |
-| `video_s` | Position in video file (seconds since recording start) |
-| `video_ssff` | Position in SS:FF format (seconds:frames) for tools like Shotcut |
-| `content_s` | Time since C64U content started streaming (empty for logo/post-stream) |
-| `repeated` | If start of repeated run: total times shown; empty otherwise |
-| `skipped` | Frames permanently lost before this one; empty if none |
-| `event` | Human-readable summary (see below) |
-| `video_pop` | "video_pop" if video pop (frame sync marker) detected at this frame |
-| `audio_pop` | "audio_pop" if audio pop detected within this frame's time window |
+| Column                 | Description                                                               |
+| ---------------------- | ------------------------------------------------------------------------- |
+| `playback_frame_index` | Absolute frame index in the recording (0-based)                           |
+| `frame_num`            | C64U stream frame number from obs.csv (empty for logo frames)             |
+| `frame_slot`           | Detected slot (0-7) from bottom-left progress bar (empty if not detected) |
+| `video_s`              | Position in video file (seconds since recording start)                    |
+| `video_ssff`           | Position in SS:FF format (seconds:frames) for tools like Shotcut          |
+| `content_s`            | Time since C64U content started streaming (empty for logo/post-stream)    |
+| `repeated`             | If start of repeated run: total times shown; empty otherwise              |
+| `skipped`              | Frames permanently lost before this one; empty if none                    |
+| `event`                | Human-readable summary (see below)                                        |
+| `video_pop`            | "video_pop" if video pop (frame sync marker) detected at this frame       |
+| `audio_pop`            | "audio_pop" if audio pop detected within this frame's time window         |
 
 **Frame Number Mapping:**
 
@@ -170,12 +170,12 @@ skipped and playback.csv falls back to frame sequencing without frame_num mappin
 
 **Event Values:**
 
-| Event | Meaning |
-|-------|---------|
-| `repeated` | Start of a run where same content is displayed multiple times |
-| `skipped` | Source frames were permanently lost before this frame |
-| `repeated+skipped` | Both anomalies on same frame (rare) |
-| _(empty)_ | Normal frame, no anomaly |
+| Event              | Meaning                                                       |
+| ------------------ | ------------------------------------------------------------- |
+| `repeated`         | Start of a run where same content is displayed multiple times |
+| `skipped`          | Source frames were permanently lost before this frame         |
+| `repeated+skipped` | Both anomalies on same frame (rare)                           |
+| _(empty)_          | Normal frame, no anomaly                                      |
 
 **Time Columns:**
 
@@ -228,16 +228,16 @@ Top-level keys: `all`, `video`, `audio`, `summary`.
 
 #### resource_usage.csv Columns
 
-| Column | Description |
-|--------|-------------|
-| `timestamp_ms` | Milliseconds since sampling began |
-| `cpu_percent` | System-wide CPU usage (%) |
-| `ram_percent` | System RAM usage (%) |
-| `ram_mb` | System RAM usage (MiB) |
-| `proc_cpu_*` | Per-process CPU usage when tracked (e.g., `proc_cpu_obs`) |
-| `gpu_percent` | GPU usage (%) when available |
-| `gpu_mem_percent` | GPU memory usage (%) when available |
-| `gpu_mem_mb` | GPU memory usage (MiB) when available |
+| Column            | Description                                               |
+| ----------------- | --------------------------------------------------------- |
+| `timestamp_ms`    | Milliseconds since sampling began                         |
+| `cpu_percent`     | System-wide CPU usage (%)                                 |
+| `ram_percent`     | System RAM usage (%)                                      |
+| `ram_mb`          | System RAM usage (MiB)                                    |
+| `proc_cpu_*`      | Per-process CPU usage when tracked (e.g., `proc_cpu_obs`) |
+| `gpu_percent`     | GPU usage (%) when available                              |
+| `gpu_mem_percent` | GPU memory usage (%) when available                       |
+| `gpu_mem_mb`      | GPU memory usage (MiB) when available                     |
 
 #### resource.json Structure
 

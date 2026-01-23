@@ -200,22 +200,10 @@
     "scaling_level": -5,
     "scaling_off_x": 0.0,
     "scaling_off_y": 0.0,
-    "virtual-camera": {
-        "type2": 3
-    },
-    "modules": {
-        "scripts-tool": [],
-        "output-timer": {
-            "streamTimerHours": 0,
-            "streamTimerMinutes": 0,
-            "streamTimerSeconds": 30,
-            "recordTimerHours": 0,
-            "recordTimerMinutes": 0,
-            "recordTimerSeconds": 30,
-            "autoStartStreamTimer": false,
-            "autoStartRecordTimer": false,
-            "pauseRecordTimer": true
-        }
-    },
-    "version": 1
+    "scaling_pitch": 0.0,
+    "scaling_multiplier": 0.0,
+    "scaling_mouse_pos": {
+        "x": 0.0,
+        "y": 0.0
+    }
 }

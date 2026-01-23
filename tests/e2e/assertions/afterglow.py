@@ -27,6 +27,7 @@ class AfterglowAssertion(EffectAssertion):
             "bright_thresh": 140.0,  # Threshold for pop detection
             "max_frames": 360,
             "min_tail_luma": 2.5,  # Minimum luma for first tail frame
+            "max_tail_increase": 2.5,  # Maximum allowed per-frame increase in tail luma
         }
         super().__init__("Afterglow", {**defaults, **(thresholds or {})})
 
@@ -198,7 +199,8 @@ class AfterglowAssertion(EffectAssertion):
         if float(tail[0]) < min_tail:
             return False, f"Afterglow tail missing: first tail frame luma={float(tail[0]):.2f} (peak={float(roi_luma[e]):.2f})"
 
-        if not np.all(np.diff(tail) <= 2.5):
+        max_tail_increase = float(self.thresholds["max_tail_increase"])
+        if not np.all(np.diff(tail) <= max_tail_increase):
             return False, "Afterglow tail is not decaying (unexpected brightness increase)"
 
         if float(np.mean(tail[2:6])) < 4.0:

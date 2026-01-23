@@ -1014,13 +1014,15 @@ jobs:
           # - ntsc_delay_buffer500_jitter100
           - ntsc_effects_default
           - ntsc_effects_green_monitor
+          - ntsc_effects_sharp_pixels
+          - ntsc_effects_sharp_scanlines
           - ntsc_green_monitor
           - ntsc_palette_muted
           - ntsc_palette_vibrant
           - ntsc_phosphor_glow
           - ntsc_script
           - ntsc_sharp_pixels
-          - ntsc_sharp_scan_lines
+          - ntsc_sharp_scanlines
           - ntsc_vintage_tv
           - pal_default
           - pal_default_720p

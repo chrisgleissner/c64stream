@@ -77,26 +77,26 @@ tolerances:
 
 ## Available Scenarios
 
-| Scenario                      | Format | Preset         | Key Assertions                                   |
-| ----------------------------- | ------ | -------------- | ------------------------------------------------ |
-| ntsc_default                  | NTSC   | Default        | video_quality, audio                             |
-| ntsc_effects_default          | NTSC   | Default        | video_quality, audio, frame_progression          |
-| ntsc_classic_crt              | NTSC   | Classic CRT    | video_quality, audio, afterglow, scanlines       |
-| ntsc_effects_classic_crt      | NTSC   | Classic CRT    | video_quality, audio, afterglow, scanlines       |
-| ntsc_amber_monitor            | NTSC   | Amber Monitor  | video_quality, audio, tint, afterglow, scanlines |
-| ntsc_green_monitor            | NTSC   | Green Monitor  | video_quality, audio, tint, afterglow, scanlines |
-| ntsc_effects_green_monitor    | NTSC   | Green Monitor  | video_quality, audio, tint, afterglow, scanlines |
-| ntsc_sharp_pixels             | NTSC   | Sharp Pixels   | video_quality, audio                             |
-| ntsc_effects_sharp_pixels     | NTSC   | Sharp Pixels   | video_quality, audio                             |
-| ntsc_sharp_scan_lines         | NTSC   | Default        | video_quality, audio, scanlines                  |
-| ntsc_effects_sharp_scan_lines | NTSC   | Default        | video_quality, audio, scanlines                  |
-| ntsc_phosphor_glow            | NTSC   | Phosphor Glow  | video_quality, audio, afterglow, scanlines       |
-| ntsc_vintage_tv               | NTSC   | Vintage TV     | video_quality, audio, afterglow, scanlines       |
-| ntsc_arcade_cabinet           | NTSC   | Arcade Cabinet | video_quality, audio, scanlines                  |
-| ntsc_palette_vibrant          | NTSC   | Default        | video_quality, audio, palette_mapping            |
-| ntsc_palette_muted            | NTSC   | Default        | video_quality, audio, palette_mapping            |
-| ntsc_delay_buffer500ms        | NTSC   | Default        | video_quality, audio (buffer test)               |
-| pal_default                   | PAL    | Default        | video_quality, audio                             |
+| Scenario                     | Format | Preset         | Key Assertions                                   |
+| ---------------------------- | ------ | -------------- | ------------------------------------------------ |
+| ntsc_default                 | NTSC   | Default        | video_quality, audio                             |
+| ntsc_effects_default         | NTSC   | Default        | video_quality, audio, frame_progression          |
+| ntsc_classic_crt             | NTSC   | Classic CRT    | video_quality, audio, afterglow, scanlines       |
+| ntsc_effects_classic_crt     | NTSC   | Classic CRT    | video_quality, audio, afterglow, scanlines       |
+| ntsc_amber_monitor           | NTSC   | Amber Monitor  | video_quality, audio, tint, afterglow, scanlines |
+| ntsc_green_monitor           | NTSC   | Green Monitor  | video_quality, audio, tint, afterglow, scanlines |
+| ntsc_effects_green_monitor   | NTSC   | Green Monitor  | video_quality, audio, tint, afterglow, scanlines |
+| ntsc_sharp_pixels            | NTSC   | Sharp Pixels   | video_quality, audio                             |
+| ntsc_effects_sharp_pixels    | NTSC   | Sharp Pixels   | video_quality, audio                             |
+| ntsc_sharp_scanlines         | NTSC   | Default        | video_quality, audio, scanlines                  |
+| ntsc_effects_sharp_scanlines | NTSC   | Default        | video_quality, audio, scanlines                  |
+| ntsc_phosphor_glow           | NTSC   | Phosphor Glow  | video_quality, audio, afterglow, scanlines       |
+| ntsc_vintage_tv              | NTSC   | Vintage TV     | video_quality, audio, afterglow, scanlines       |
+| ntsc_arcade_cabinet          | NTSC   | Arcade Cabinet | video_quality, audio, scanlines                  |
+| ntsc_palette_vibrant         | NTSC   | Default        | video_quality, audio, palette_mapping            |
+| ntsc_palette_muted           | NTSC   | Default        | video_quality, audio, palette_mapping            |
+| ntsc_delay_buffer500ms       | NTSC   | Default        | video_quality, audio (buffer test)               |
+| pal_default                  | PAL    | Default        | video_quality, audio                             |
 
 ## Adding New Scenarios
 

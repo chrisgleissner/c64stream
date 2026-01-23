@@ -1,4 +1,4 @@
-# C64 Stream - E2E Scenario: NTSC Effects Sharp Scan Lines
+# C64 Stream - E2E Scenario: NTSC Effects Sharp Scanlines
 #
 # Purpose: validate pixel-perfect scanline rendering without any intentional blur/bloom/afterglow.
 # This scenario is intended to catch OBS scaling/interpolation issues.
@@ -10,7 +10,7 @@
 # Uses 'solid' pattern (light blue fill) for clearer scanline visibility compared to
 # 'diagonal' which has mostly black areas between thin colored stripes.
 
-name: NTSC Effects Sharp Scan Lines
+name: NTSC Effects Sharp Scanlines
 format: NTSC
 preset: Default
 packet_source: media

@@ -15,4 +15,7 @@ tolerances:
     ci: 0.6
   video_quality:
     local: 1.0
-    ci: 0.65
+    ci: 0.6
+  afterglow:
+    local: 1.0
+    ci: 0.6
