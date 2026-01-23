@@ -1266,17 +1266,17 @@ run_e2e_tests() {
     fi
 
     if [[ "$has_test_output" == "true" ]]; then
-        # Create results directory if it doesn't exist (don't delete to preserve other test results)
+        # Create results directory if it doesn't exist
         mkdir -p "$results_root_dir"
 
-        # Remove stop recording marker before copying
+        # Remove stop recording marker before syncing
         local marker_file="$test_output_dir/stop_recording.marker"
         if [[ -f "$marker_file" ]]; then
             rm -f "$marker_file" || true
         fi
 
-        # Copy test output, overwriting only the files that were generated
-        cp -a "$test_output_dir/." "$results_root_dir/"
+        # Sync test output so that obsolete files from previous runs are removed
+        rsync -a --delete "$test_output_dir/" "$results_root_dir/"
     else
         mkdir -p "$results_root_dir"
     fi

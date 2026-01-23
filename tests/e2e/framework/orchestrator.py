@@ -24,9 +24,11 @@ from .validation.results import ResultValidator
 from .validation.network import NetworkTimingValidator # Import purely for logging/checking? ResultValidator uses it.
 try:
     from util.network_analysis import analyze_network_jitter
+    from util.constants import MEDIA_PREAMBLE_DURATION_S
 except ImportError:
     # Fallback to absolute if needed (should not be needed if e2e.py adds tests/e2e to path)
     from util.network_analysis import analyze_network_jitter
+    from util.constants import MEDIA_PREAMBLE_DURATION_S
 
 logger = logging.getLogger(__name__)
 
@@ -149,8 +151,8 @@ class E2EOrchestrator:
                 logger.info("🎞️ Media mode: Waiting for OBS media playback...")
                 frame_rate = 50.125 if self.format == 'PAL' else 59.826
                 duration = self.frames / frame_rate
-                # Media files have a 3s preamble, so wait for preamble + content + buffer
-                time.sleep(3.0 + duration + 2)
+                # Media files have a preamble, so wait for preamble + content + buffer
+                time.sleep(MEDIA_PREAMBLE_DURATION_S + duration + 2)
                 replay_success = True
 
             # 8. Post-Run Wait (Allow flushing)

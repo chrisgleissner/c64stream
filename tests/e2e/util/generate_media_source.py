@@ -12,6 +12,7 @@ Generates deterministic media files from the existing packet generator output.
 from __future__ import annotations
 
 import argparse
+import math
 import shutil
 import struct
 import subprocess
@@ -22,6 +23,7 @@ from typing import Iterable
 
 import numpy as np
 
+from constants import MEDIA_PREAMBLE_DURATION_S
 from generate_packets import (
     AUDIO_HEADER_SIZE,
     BITS_PER_PIXEL,
@@ -150,15 +152,15 @@ def _add_preamble(
     audio_samples: np.ndarray,
     fps: float,
     sample_rate: int,
-    preamble_duration_s: float = 3.0,
+    preamble_duration_s: float = MEDIA_PREAMBLE_DURATION_S,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Add black video frames and silent audio to the beginning to match UDP preamble.
+    """Add black video frames and silent audio as a preroll to account for OBS start/recording delays.
 
     In UDP mode, there's a ~9-10s preamble showing the C64 logo while waiting for packets.
     For media mode, OBS starts recording ~3-4s after playback starts (natural delay).
-    Use 3s preamble so the natural recording delay skips most black frames.
+    This black preroll ensures recordings start at approximately the same point in content.
     """
-    preamble_frames = int(preamble_duration_s * fps)
+    preamble_frames = math.ceil(preamble_duration_s * fps)
     height, width, channels = frames_rgb.shape[1], frames_rgb.shape[2], frames_rgb.shape[3]
     black_frames = np.zeros((preamble_frames, height, width, channels), dtype=np.uint8)
     frames_with_preamble = np.concatenate([black_frames, frames_rgb], axis=0)
