@@ -33,8 +33,8 @@ The plugin connects directly to the Ultimate's network interface, eliminating th
 - [Configuration](#configuration)
 - [Quick Start](#quick-start)
   - [Installation](#installation-)
-  - [Configuration](#configuration-)
-  - [Applying C64 Stream Effects to Other Sources (Filter)](#applying-c64-stream-effects-to-other-sources-filter)
+  - [C64 Stream source](#c64-stream-source)
+  - [C64 Stream Effects filter](#c64-stream-effects-filter)
 - [Plugin Setup](#plugin-setup)
 - [File System Structure](#file-system-structure-)
 - [End-to-end tests](#end-to-end-tests-)
@@ -205,7 +205,7 @@ See the [OBS Plugins Guide](https://obsproject.com/kb/plugins-guide).
 
 ---
 
-### Configuration ⚙️
+### C64 Stream source
 
 **Getting Your C64 on Stream:**
 
@@ -227,7 +227,7 @@ See the [OBS Plugins Guide](https://obsproject.com/kb/plugins-guide).
 
 ---
 
-### Applying C64 Stream Effects to Other Sources (Filter)
+### C64 Stream Effects filter
 
 > [!NOTE]
 > **Experimental (since version 1.1):** This feature is still evolving. If you run into sharp edges, please report them.
@@ -258,7 +258,7 @@ The filter is included automatically with the plugin package.
 
 1. Select your source (HDMI capture card, Media Source, emulator, etc.) in OBS.
 2. Click **Filters** → **+** → **C64 Stream Effects**.
-3. Configure presets and effect parameters as described in the **Effects ✨** section below.
+3. Configure presets and effect parameters as described in the **Effect settings ✨** section below.
 
 ---
 
@@ -389,7 +389,7 @@ audio,2341,847,0,0,192,125
 
 ---
 
-### Effects ✨
+### Effect settings ✨
 
 Recreate the authentic look and feel of classic CRT monitors and TVs with configurable visual effects that simulate the characteristics of vintage displays.
 
