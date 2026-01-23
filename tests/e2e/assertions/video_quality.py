@@ -118,7 +118,7 @@ class VideoQualityAssertion(EffectAssertion):
 
     def _check_nonblack_frames(self, mp4_path: Path, width: int, height: int, verbose: bool) -> float:
         """Sample frames and count non-black ones.
-        
+
         Skips the media preamble (black frames) to avoid counting them in the ratio.
         """
         frame_bytes = width * height * 3
