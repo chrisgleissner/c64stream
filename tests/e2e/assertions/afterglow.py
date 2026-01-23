@@ -25,7 +25,7 @@ class AfterglowAssertion(EffectAssertion):
     def __init__(self, thresholds: Optional[dict[str, float]] = None):
         defaults = {
             "bright_thresh": 140.0,  # Threshold for pop detection
-            "max_frames": 180,  # Reduced from 360 to limit memory usage in CI
+            "max_frames": 360,
             "min_tail_luma": 2.5,  # Minimum luma for first tail frame
             "max_tail_increase": 2.5,  # Maximum allowed per-frame increase in tail luma
         }
@@ -80,8 +80,18 @@ class AfterglowAssertion(EffectAssertion):
             )
 
     def _read_frames_rgb24(self, mp4_path: Path, max_frames: int) -> np.ndarray:
-        """Decode video to RGB24 frames. Returns array [N,H,W,3] uint8."""
+        """Decode video to RGB24 frames. Returns array [N,H,W,3] uint8.
+        In CI, scales down to 960x540 to reduce memory usage."""
+        from .base import is_ci
+        
         w, h = self._ffprobe_size(mp4_path)
+        
+        # Scale down by 2x in CI to reduce memory usage (2.1GB -> 525MB)
+        scale_filter = ""
+        if is_ci():
+            w, h = w // 2, h // 2
+            scale_filter = f"scale={w}:{h},"
+        
         cmd = [
             "ffmpeg",
             "-v",
@@ -90,12 +100,19 @@ class AfterglowAssertion(EffectAssertion):
             str(mp4_path),
             "-frames:v",
             str(max_frames),
+        ]
+        
+        if scale_filter:
+            cmd.extend(["-vf", scale_filter.rstrip(",")])
+        
+        cmd.extend([
             "-f",
             "rawvideo",
             "-pix_fmt",
             "rgb24",
             "-",
-        ]
+        ])
+        
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
         frame_bytes = w * h * 3
         frames = []
