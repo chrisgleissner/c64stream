@@ -224,7 +224,7 @@ In these cases, the filter acts purely as an **alternative attachment point** fo
 > **Important:**
 > If you are using the **C64 Stream input source**, do **not** add this filter. Effects would otherwise be applied twice.
 
-The screenshot below shows the **C64 Stream Effects** filter applied to an OBS *Media Source*:
+The screenshot below shows the **C64 Stream Effects** filter applied to an OBS *Media Source* whilst it is playing a test video:
 
 ![C64 Stream Effects](./docs/images/c64stream-effects.png "C64 Stream Effects")
 

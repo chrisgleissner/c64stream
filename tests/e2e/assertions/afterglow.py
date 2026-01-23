@@ -46,7 +46,7 @@ class AfterglowAssertion(EffectAssertion):
         try:
             from .base import is_ci
             scale_factor = 0.5 if is_ci() else 1.0
-            
+
             frames = self._read_frames_rgb24(mp4_path, int(self.thresholds["max_frames"]))
             luma = self._luma_u8(frames)
 
@@ -86,15 +86,15 @@ class AfterglowAssertion(EffectAssertion):
         """Decode video to RGB24 frames. Returns array [N,H,W,3] uint8.
         In CI, scales down to 960x540 to reduce memory usage."""
         from .base import is_ci
-        
+
         w, h = self._ffprobe_size(mp4_path)
-        
+
         # Scale down by 2x in CI to reduce memory usage (2.1GB -> 525MB)
         scale_filter = ""
         if is_ci():
             w, h = w // 2, h // 2
             scale_filter = f"scale={w}:{h},"
-        
+
         cmd = [
             "ffmpeg",
             "-v",
@@ -104,10 +104,10 @@ class AfterglowAssertion(EffectAssertion):
             "-frames:v",
             str(max_frames),
         ]
-        
+
         if scale_filter:
             cmd.extend(["-vf", scale_filter.rstrip(",")])
-        
+
         cmd.extend([
             "-f",
             "rawvideo",
@@ -115,7 +115,7 @@ class AfterglowAssertion(EffectAssertion):
             "rgb24",
             "-",
         ])
-        
+
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
         frame_bytes = w * h * 3
         frames = []
@@ -172,7 +172,7 @@ class AfterglowAssertion(EffectAssertion):
 
         mask = luma_frames[peak_idx] > thr
         ys, xs = np.where(mask)
-        
+
         # Scale pixel count threshold (40 @ 1080p -> 10 @ 540p)
         min_pixels = int(40 * scale_factor * scale_factor)
         if xs.size < min_pixels:
