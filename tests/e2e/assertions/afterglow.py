@@ -44,11 +44,14 @@ class AfterglowAssertion(EffectAssertion):
         self.log(f"Verifying afterglow (duration={preset.afterglow_duration_ms}ms)", verbose)
 
         try:
+            from .base import is_ci
+            scale_factor = 0.5 if is_ci() else 1.0
+            
             frames = self._read_frames_rgb24(mp4_path, int(self.thresholds["max_frames"]))
             luma = self._luma_u8(frames)
 
             # Find pop ROI
-            roi = self._find_pop_roi(luma, self.thresholds["bright_thresh"])
+            roi = self._find_pop_roi(luma, self.thresholds["bright_thresh"], scale_factor)
             self.log(f"Found pop ROI: {roi}", verbose)
 
             # Verify afterglow decay
@@ -158,8 +161,9 @@ class AfterglowAssertion(EffectAssertion):
         f = frames_rgb.astype(np.float32)
         return 0.2126 * f[..., 0] + 0.7152 * f[..., 1] + 0.0722 * f[..., 2]
 
-    def _find_pop_roi(self, luma_frames: np.ndarray, bright_thresh: float) -> tuple[int, int, int, int]:
-        """Auto-locate the A/V pop ROI by selecting the cluster around the brightest pixel."""
+    def _find_pop_roi(self, luma_frames: np.ndarray, bright_thresh: float, scale_factor: float = 1.0) -> tuple[int, int, int, int]:
+        """Auto-locate the A/V pop ROI by selecting the cluster around the brightest pixel.
+        scale_factor: 0.5 for half-resolution, 1.0 for full resolution"""
         p = np.percentile(luma_frames.reshape((luma_frames.shape[0], -1)), 99.95, axis=1)
         peak_idx = int(np.argmax(p))
 
@@ -168,16 +172,21 @@ class AfterglowAssertion(EffectAssertion):
 
         mask = luma_frames[peak_idx] > thr
         ys, xs = np.where(mask)
-        if xs.size < 40:
-            raise RuntimeError(f"Could not locate pop ROI (thr={thr:.2f}, peak={frame_peak:.2f})")
+        
+        # Scale pixel count threshold (40 @ 1080p -> 10 @ 540p)
+        min_pixels = int(40 * scale_factor * scale_factor)
+        if xs.size < min_pixels:
+            raise RuntimeError(f"Could not locate pop ROI (thr={thr:.2f}, peak={frame_peak:.2f}, pixels={xs.size}, min={min_pixels})")
 
         peak_xy = np.unravel_index(int(np.argmax(luma_frames[peak_idx])), luma_frames[peak_idx].shape)
         cy, cx = int(peak_xy[0]), int(peak_xy[1])
 
-        radius = 160
+        # Scale radius (160 @ 1080p -> 80 @ 540p)
+        radius = int(160 * scale_factor)
         near = (np.abs(xs - cx) <= radius) & (np.abs(ys - cy) <= radius)
         xs_r, ys_r = xs[near], ys[near]
-        if xs_r.size < 40:  # Reduced from 80 for CI compatibility
+        if xs_r.size < min_pixels:
+            raise RuntimeError(f"Could not isolate pop cluster near brightest pixel (pixels={xs_r.size}, min={min_pixels})")
             raise RuntimeError("Could not isolate pop cluster near brightest pixel")
 
         x0, x1 = int(xs_r.min()), int(xs_r.max())
