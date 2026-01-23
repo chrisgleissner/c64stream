@@ -17,6 +17,7 @@ import numpy as np
 
 from .base import AssertionResult, AssertionStatus, EffectAssertion
 from .config import PresetConfig
+from util.constants import MEDIA_PREAMBLE_DURATION_S
 
 
 class VideoQualityAssertion(EffectAssertion):
@@ -116,7 +117,10 @@ class VideoQualityAssertion(EffectAssertion):
         }
 
     def _check_nonblack_frames(self, mp4_path: Path, width: int, height: int, verbose: bool) -> float:
-        """Sample frames and count non-black ones."""
+        """Sample frames and count non-black ones.
+        
+        Skips the media preamble (black frames) to avoid counting them in the ratio.
+        """
         frame_bytes = width * height * 3
         black_thresh = self.thresholds["black_threshold"]
 
@@ -124,6 +128,8 @@ class VideoQualityAssertion(EffectAssertion):
             "ffmpeg",
             "-v",
             "error",
+            "-ss",
+            str(MEDIA_PREAMBLE_DURATION_S),  # Skip preamble duration
             "-i",
             str(mp4_path),
             "-vf",
