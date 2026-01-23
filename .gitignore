@@ -1,7 +1,9 @@
-# Exclude everything
+# ----------------------------------------
+# Global default - ignore everything, whitelist essential project files
+# ----------------------------------------
 /*
 
-# Except for default project files
+# Whitelisted project files and directories required in repo
 !/.github
 !/build-aux
 !/cmake
@@ -16,54 +18,55 @@
 !.clang-format
 !.gersemirc
 !.gitignore
-!buildspec.json
-!CMakeLists.txt
-!CMakePresets.json
-!local-build.bat
-!local-build.sh
-!LICENSE
-!README.md
-!AGENTS.md
+buildspec.json
+CMakeLists.txt
+CMakePresets.json
+local-build.bat
+local-build.sh
+LICENSE
+README.md
+AGENTS.md
 
-# Include private folder (for private repo only - excluded in public sync)
+# Optional private folder (not present in public sync)
 !private
 
-# Exclude Visual Code settings
-!.vscode
+# ----------------------------------------
+# Editor, environment and lock files
+# ----------------------------------------
+# Exclude Visual Studio Code settings directory
+.vscode
 
-# Exclude lock files
+# Lock and machine-specific files
 *.lock.json
-
-# Exclude compile commands (machine-specific paths)
 compile_commands.json
 
-# Exclude macOS legacy resource forks
+# macOS metadata
 .DS_Store
 
-# Exclude backup files and logs
+# Backup and transient files
 *.backup
 *.log
 *.tmp
 obs_log.txt
 
+# ----------------------------------------
+# Build outputs and artifacts
+# ----------------------------------------
 # C64 build outputs
 *.prg
 *.lst
 
-# Prebuilt PRGs shipped with the plugin (needed for packaging on platforms without 64tass)
+# Prebuilt PRGs that must remain tracked for packaging
 !data/prg/*.prg
 
-# Exclude CMake build number cache
+# CMake build number cache
 /cmake/.CMakeBuildNumber
 
-# Build directories and artifacts
+# Build directories and generic build artifacts
 build_*/
 tests/build*
 
-# Tools
-tools/__pycache__/
-
-# CMake generated files (everywhere)
+# CMake generated files (global)
 CMakeFiles/
 CMakeCache.txt
 CTestTestfile.cmake
@@ -71,7 +74,7 @@ Makefile
 cmake_install.cmake
 Testing/
 
-# Test executables and build artifacts
+# Test build artifacts
 tests/CMakeFiles/
 tests/Testing/
 tests/CMakeCache.txt
@@ -79,6 +82,9 @@ tests/CTestTestfile.cmake
 tests/Makefile
 tests/cmake_install.cmake
 
+# ----------------------------------------
+# Test-related generated files and outputs
+# ----------------------------------------
 # Script test artifacts
 tests/script/scripts/config.ini
 tests/script/scripts/execution_log.txt
@@ -88,22 +94,17 @@ tests/script/scripts/relative-output.txt
 tests/script/scripts/test_data.txt
 tests/script/scripts/test_log_default_path.log
 
-# Security - exclude secrets
-.secrets
-
-# Only track source files in tests
+# Keep only source files under tests tracked
 !/tests/*.c
 !/tests/*.h
 !/tests/CMakeLists.txt
 
-# E2E scenario generated files
+# E2E scenario generated artifacts and packet outputs
 tests/e2e/scenarios/*/generated/
-
-# E2E packet generator outputs
 tests/e2e/test_output_*/
 tests/e2e/test_packets_*/
 
-# E2E artifacts (generated)
+# E2E run artifacts (recordings, perf, logs)
 tests/e2e/results/**/flamegraph.svg
 tests/e2e/results/**/perf.data
 tests/e2e/results/**/perf.folded
@@ -121,5 +122,17 @@ tests/e2e/results/**/audio_manifest.csv
 # Local-only archived E2E snapshots (baseline comparisons)
 tests/e2e/results-archive/
 
-# FlameGraph scripts (cloned via build-aux/install-flamegraph.sh)
+# ----------------------------------------
+# Tools and third-party utilities
+# ----------------------------------------
+# Python cache for tools
+tools/__pycache__/
+
+# FlameGraph and test-patterns installed by helper scripts
 tools/FlameGraph/
+tools/test-patterns
+
+# ----------------------------------------
+# Security and secrets
+# ----------------------------------------
+.secrets
