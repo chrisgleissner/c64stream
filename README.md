@@ -205,21 +205,39 @@ A new window opens. Keep the default settings and click "OK":
 
 🎉 **DONE!** Enjoy streaming from your C64 Ultimate.
 
-### C64 Stream Effects (Filter)
+---
 
-**EXPERIMENTAL - since version 1.1**
+### Applying C64 Stream Effects to Other Sources (Filter)
 
-The **C64 Stream Effects** filter is primarily for setups that use another device (e.g., real C64 + HDMI capture card). It applies CRT-style visuals (scan lines, bloom, tint, pixel geometry, afterglow) to any OBS source.
+By default, **C64 Stream effects are applied internally by the C64 Stream input source** when streaming directly from a C64 Ultimate or Ultimate 64.
+In this common setup, **no additional filter is required**.
 
-The C64 Stream source already includes these effects, so you do not need this filter when using the C64 Stream plugin.
+However, the same visual effects engine can also be applied to *any* OBS source using the **C64 Stream Effects** filter. This is useful if:
 
-**Install:** Included with the plugin package above.
+- You do not own a C64 Ultimate or Ultimate 64
+- You use a real C64 with an HDMI capture card
+- You work with emulators, media files, or test patterns
+- You want identical CRT effects applied consistently across multiple sources
 
-**Use (capture cards / other sources):**
+In these cases, the filter acts purely as an **alternative attachment point** for the same effects pipeline.
 
-1. Select your source (HDMI capture card, Media Source, etc.) in OBS.
+> **Important:**
+> If you are using the **C64 Stream input source**, do **not** add this filter. Effects would otherwise be applied twice.
+
+The screenshot below shows the **C64 Stream Effects** filter applied to an OBS *Media Source*:
+
+![C64 Stream Effects](./docs/images/c64stream-effects.png "C64 Stream Effects")
+
+**Installation:**
+The filter is included automatically with the plugin package.
+
+**Usage (non-C64 Stream sources):**
+
+1. Select your source (HDMI capture card, Media Source, emulator, etc.) in OBS.
 2. Click **Filters** → **+** → **C64 Stream Effects**.
-3. Pick a preset (Classic CRT, Green Monitor, Sharp Pixels) or tweak individual settings.
+3. Configure presets and effect parameters as described in the **Effects ✨** section below.
+
+---
 
 ## Plugin Setup
 
