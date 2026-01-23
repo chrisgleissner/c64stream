@@ -25,7 +25,7 @@ class AfterglowAssertion(EffectAssertion):
     def __init__(self, thresholds: Optional[dict[str, float]] = None):
         defaults = {
             "bright_thresh": 140.0,  # Threshold for pop detection
-            "max_frames": 360,
+            "max_frames": 180,  # Reduced from 360 to limit memory usage in CI
             "min_tail_luma": 2.5,  # Minimum luma for first tail frame
             "max_tail_increase": 2.5,  # Maximum allowed per-frame increase in tail luma
         }
