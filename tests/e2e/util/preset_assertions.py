@@ -79,6 +79,9 @@ PRESET_CONFIGS: dict[str, PresetAssertionConfig] = {
             "min_tint_ratio": 1.20,  # Strong green
             "min_nonblack_sum": 400_000,
         },
+        afterglow_thresholds={
+            "max_tail_increase": 5.0,  # Green tint causes more brightness variation
+        },
     ),
     # Sharp Pixels - No effects, similar to Default
     "sharp_pixels": PresetAssertionConfig(

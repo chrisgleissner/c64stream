@@ -149,7 +149,8 @@ class E2EOrchestrator:
                 logger.info("🎞️ Media mode: Waiting for OBS media playback...")
                 frame_rate = 50.125 if self.format == 'PAL' else 59.826
                 duration = self.frames / frame_rate
-                time.sleep(duration + 2)
+                # Media files have a 3s preamble, so wait for preamble + content + buffer
+                time.sleep(3.0 + duration + 2)
                 replay_success = True
 
             # 8. Post-Run Wait (Allow flushing)

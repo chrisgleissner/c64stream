@@ -1266,7 +1266,7 @@ run_e2e_tests() {
     fi
 
     if [[ "$has_test_output" == "true" ]]; then
-        rm -rf "$results_root_dir"
+        # Create results directory if it doesn't exist (don't delete to preserve other test results)
         mkdir -p "$results_root_dir"
 
         # Remove stop recording marker before copying
@@ -1275,6 +1275,7 @@ run_e2e_tests() {
             rm -f "$marker_file" || true
         fi
 
+        # Copy test output, overwriting only the files that were generated
         cp -a "$test_output_dir/." "$results_root_dir/"
     else
         mkdir -p "$results_root_dir"
