@@ -23,8 +23,7 @@ The plugin connects directly to the Ultimate's network interface, eliminating th
 - **CRT effects + palettes**: GPU-accelerated CRT effects with configurable presets (scan lines, bloom, tint, pixel geometry) and automatic VIC-II color space conversion.
 - **Built-in recording + diagnostics**: Record BMP frames, AVI video, and WAV audio, plus optional CSV timing logs (`obs.csv` / `network.csv`) for debugging.
 - **Keyboard capture**: Click the `Interact` button below the preview to type directly into the C64.
-- **Script-based automation**: C64Script, a BASIC-inspired language for programmatic control of your stream ([`doc/c64script/c64script-spec.md`](doc/c64script/c64script-spec.md)).
-- **Source-level debugging**: Pause, step, and inspect scripts with minimal debug controls.
+- **Script-based automation**: C64Script, a BASIC-inspired language for programmatic control of your stream ([spec](doc/c64script/c64script-spec.md)).
 
 ## Contents
 
