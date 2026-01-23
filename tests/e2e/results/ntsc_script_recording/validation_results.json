@@ -1,0 +1,73 @@
+{
+    "udp_reception": {
+        "status": "pass",
+        "details": "30768/30803 packets (28767 video, 2001 audio)",
+        "metrics": {
+            "expected_total": 30803,
+            "received_total": 30768,
+            "missing_total": 35,
+            "missing_pct": 0.11362529623737948,
+            "expected_video": 28800,
+            "expected_audio": 2003,
+            "received_video": 28767,
+            "received_audio": 2001
+        }
+    },
+    "frame_processing": {
+        "status": "unknown",
+        "details": ""
+    },
+    "video_recording": {
+        "status": "fail",
+        "details": "Missing recording"
+    },
+    "packet_integrity": {
+        "status": "pass",
+        "details": "Verified"
+    },
+    "network_timing": {
+        "status": "pass",
+        "details": "span=8013.8ms, video_mean=333.4us, audio_mean=4005.0us"
+    },
+    "video_brightness": {
+        "status": "unknown",
+        "details": ""
+    },
+    "av_sync": {
+        "status": "unknown",
+        "details": ""
+    },
+    "av_sync_details": {},
+    "scanlines": {
+        "status": "pass",
+        "details": "Checked"
+    },
+    "frame_sequence_box": {},
+    "recording": {
+        "record_audio": {
+            "status": "skipped",
+            "message": "Skipped (not enabled)"
+        },
+        "record_video": {
+            "status": "skipped",
+            "message": "Skipped (not enabled)"
+        },
+        "record_obs": {
+            "status": "skipped",
+            "message": "Skipped (not enabled)"
+        },
+        "record_network": {
+            "status": "skipped",
+            "message": "Skipped (not enabled)"
+        },
+        "record_frames": {
+            "status": "skipped",
+            "message": "Skipped (not enabled)"
+        }
+    },
+    "success": false,
+    "errors": [
+        "No recording file produced"
+    ],
+    "warnings": []
+}

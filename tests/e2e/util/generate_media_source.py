@@ -12,6 +12,7 @@ Generates deterministic media files from the existing packet generator output.
 from __future__ import annotations
 
 import argparse
+import math
 import shutil
 import struct
 import subprocess
@@ -22,6 +23,7 @@ from typing import Iterable
 
 import numpy as np
 
+from constants import MEDIA_PREAMBLE_DURATION_S
 from generate_packets import (
     AUDIO_HEADER_SIZE,
     BITS_PER_PIXEL,
@@ -145,6 +147,32 @@ def _decode_audio_packets(audio_dir: Path) -> np.ndarray:
     return np.concatenate(chunks)
 
 
+def _add_preamble(
+    frames_rgb: np.ndarray,
+    audio_samples: np.ndarray,
+    fps: float,
+    sample_rate: int,
+    preamble_duration_s: float = MEDIA_PREAMBLE_DURATION_S,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Add black video frames and silent audio as a preroll to account for OBS start/recording delays.
+
+    In UDP mode, there's a ~9-10s preamble showing the C64 logo while waiting for packets.
+    For media mode, OBS starts recording ~3-4s after playback starts (natural delay).
+    This black preroll ensures recordings start at approximately the same point in content.
+    """
+    preamble_frames = math.ceil(preamble_duration_s * fps)
+    height, width, channels = frames_rgb.shape[1], frames_rgb.shape[2], frames_rgb.shape[3]
+    black_frames = np.zeros((preamble_frames, height, width, channels), dtype=np.uint8)
+    frames_with_preamble = np.concatenate([black_frames, frames_rgb], axis=0)
+
+    # Add silent audio (2 channels, interleaved)
+    preamble_samples = int(preamble_duration_s * sample_rate) * 2
+    silence = np.zeros((preamble_samples,), dtype=np.int16)
+    audio_with_preamble = np.concatenate([silence, audio_samples])
+
+    return frames_with_preamble, audio_with_preamble
+
+
 def _write_media_file(
     output_path: Path,
     frames_indexed: np.ndarray,
@@ -160,6 +188,9 @@ def _write_media_file(
     if audio_samples.size == 0 and duration_s > 0:
         total_samples = int(duration_s * sample_rate)
         audio_samples = np.zeros((total_samples * 2,), dtype=np.int16)
+
+    # Add 3-second preamble (natural recording delay skips most of it)
+    frames_rgb, audio_samples = _add_preamble(frames_rgb, audio_samples, fps, sample_rate)
 
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
