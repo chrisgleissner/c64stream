@@ -17,29 +17,121 @@ The plugin connects directly to the Ultimate's network interface, eliminating th
 
 **Features:**
 
-- Native OBS integration as a standard video source
-- Real-time video streaming (PAL 384x272, NTSC 384x240)
-- Synchronized audio streaming (16-bit stereo, ~48kHz)
-- Network-based connection (UDP/TCP)
-- Automatic VIC-II color space conversion
-- **Authentic CRT effects** with configurable presets (scan lines, bloom, tint, pixel geometry)
-- Built-in recording capabilities (BMP frames, AVI video, WAV audio)
-- **Keyboard capture** - click "Interact" button below preview to type directly into C64
-- **C64Script automation** - BASIC-like scripting language for controlling your stream
-- **Source-level debugging** - pause, step, and inspect scripts with minimal debug controls
+- **Direct C64U → OBS streaming**: Video/audio streams received directly from a Commodore 64 Ultimate or Ultimate 64 over UDP/TCP (no capture card).
+- **Two native OBS plugins**: A **C64 Stream** input source plus a **C64 Stream Effects** filter (they share the same effects engine; most setups use one or the other).
+- **Real-time video + audio**: PAL 384x272 and NTSC 384x240 video, plus synchronized 16-bit stereo audio at ~48kHz.
+- **CRT effects + palettes**: GPU-accelerated CRT effects with configurable presets (scan lines, bloom, tint, pixel geometry) and automatic VIC-II color space conversion.
+- **Built-in recording + diagnostics**: Record BMP frames, AVI video, and WAV audio, plus optional CSV timing logs (`obs.csv` / `network.csv`) for debugging.
+- **Keyboard capture**: Click the `Interact` button below the preview to type directly into the C64.
+- **Script-based automation**: C64Script, a BASIC-inspired language for programmatic control of your stream ([spec](doc/c64script/c64script-spec.md)).
 
-## Configuration
+## Contents
 
-The plugin uses a `properties.ini` file to provide default settings for connecting to your C64 Ultimate device. This file is automatically installed with the plugin and contains the standard C64 Ultimate network settings:
+- [🚀 Quick Start][toc-quick-start]
+  - [What You'll Need][toc-what-youll-need]
+  - [Installation][toc-installation]
+    - [Windows (X64)][toc-windows-x64]
+    - [Windows (ARM64)][toc-windows-arm64]
+    - [Windows (Portable Mode)][toc-windows-portable-mode]
+    - [macOS][toc-macos]
+    - [Linux (Ubuntu / Debian)][toc-linux-ubuntu-debian]
+    - [Linux (Fedora, Arch, etc.)][toc-linux-fedora-arch-etc]
+  - [C64 Stream source][toc-c64-stream-source]
+  - [C64 Stream Effects filter][toc-c64-stream-effects-filter]
+- [🧩 Plugin Setup][toc-plugin-setup]
+  - [General][toc-general]
+  - [Network][toc-network]
+  - [Recording][toc-recording]
+  - [Recording Options][toc-recording-options]
+    - [File Organization][toc-file-organization]
+    - [Usage Notes][toc-usage-notes]
+    - [Debug & Analysis CSV Logs][toc-debug-analysis-csv-logs]
+  - [Effect settings][toc-effect-settings]
+    - [Perfect Scan Lines][toc-perfect-scan-lines]
+  - [Color Palettes][toc-color-palettes]
+  - [Import/Export Configuration][toc-importexport-configuration]
+  - [Remote Control][toc-remote-control]
+    - [How Keyboard Capture Works][toc-how-keyboard-capture-works]
+  - [C64Script Automation][toc-c64script-automation]
+- [🛟 Troubleshooting][toc-troubleshooting]
+  - [Plugin missing from OBS?][toc-plugin-missing-from-obs]
+  - [No video stream?][toc-no-video-stream]
+  - [Lost / Repeated Frames?][toc-lost-repeated-frames]
+  - [Effects not working?][toc-effects-not-working]
+  - [Audio sync issues?][toc-audio-sync-issues]
+  - [Connection acting up?][toc-connection-acting-up]
+  - [Hostname not resolving?][toc-hostname-not-resolving]
+  - [Recording troubles?][toc-recording-troubles]
+- [📚 Reference][toc-reference]
+  - [Default settings][toc-default-settings]
+  - [File System Structure][toc-file-system-structure]
+    - [1. Plugin][toc-1-plugin]
+    - [2. Shipped Data][toc-2-shipped-data]
+    - [3. User Data][toc-3-user-data]
+  - [Network Details][toc-network-details]
+    - [Hostname vs IP Address][toc-hostname-vs-ip-address]
+    - [DNS Resolution][toc-dns-resolution]
+    - [C64 Ultimate Setup][toc-c64-ultimate-setup]
+  - [Technical Details][toc-technical-details]
+- [🛠️ For Developers][toc-for-developers]
+  - [End-to-end tests][toc-end-to-end-tests]
+- [⚖️ License][toc-license]
 
-- **Hostname**: `c64u` (the default C64 Ultimate hostname)
-- **Control Port**: `64` (the standard C64 Ultimate control port)
-- **DNS Server**: `192.168.1.1` (common router DNS)
-- **Video/Audio Ports**: `11000`/`11001` (C64 Ultimate streaming ports)
+[toc-quick-start]: #-quick-start
+[toc-what-youll-need]: #what-youll-need
+[toc-installation]: #installation
+[toc-windows-x64]: #windows-x64
+[toc-windows-arm64]: #windows-arm64
+[toc-windows-portable-mode]: #windows-portable-mode
+[toc-macos]: #macos
+[toc-linux-ubuntu-debian]: #linux-ubuntu--debian
+[toc-linux-fedora-arch-etc]: #linux-fedora-arch-etc
+[toc-c64-stream-source]: #c64-stream-source
+[toc-c64-stream-effects-filter]: #c64-stream-effects-filter
 
-These settings work out-of-the-box with most C64 Ultimate setups. You can override any of these settings directly in the OBS source properties if your setup differs.
+[toc-plugin-setup]: #-plugin-setup
+[toc-general]: #general
+[toc-network]: #network
+[toc-recording]: #recording
+[toc-recording-options]: #recording-options
+[toc-file-organization]: #file-organization
+[toc-usage-notes]: #usage-notes
+[toc-debug-analysis-csv-logs]: #debug--analysis-csv-logs
+[toc-effect-settings]: #effect-settings
+[toc-perfect-scan-lines]: #perfect-scan-lines
+[toc-color-palettes]: #color-palettes
+[toc-importexport-configuration]: #importexport-configuration
+[toc-remote-control]: #remote-control
+[toc-how-keyboard-capture-works]: #how-keyboard-capture-works
+[toc-c64script-automation]: #c64script-automation
 
-## Quick Start
+[toc-troubleshooting]: #-troubleshooting
+[toc-plugin-missing-from-obs]: #plugin-missing-from-obs
+[toc-no-video-stream]: #no-video-stream
+[toc-lost-repeated-frames]: #lost--repeated-frames
+[toc-effects-not-working]: #effects-not-working
+[toc-audio-sync-issues]: #audio-sync-issues
+[toc-connection-acting-up]: #connection-acting-up
+[toc-hostname-not-resolving]: #hostname-not-resolving
+[toc-recording-troubles]: #recording-troubles
+
+[toc-reference]: #-reference
+[toc-default-settings]: #default-settings
+[toc-file-system-structure]: #file-system-structure
+[toc-1-plugin]: #1-plugin
+[toc-2-shipped-data]: #2-shipped-data
+[toc-3-user-data]: #3-user-data
+[toc-network-details]: #network-details
+[toc-hostname-vs-ip-address]: #hostname-vs-ip-address
+[toc-dns-resolution]: #dns-resolution
+[toc-c64-ultimate-setup]: #c64-ultimate-setup
+[toc-technical-details]: #technical-details
+
+[toc-for-developers]: #%EF%B8%8F-for-developers
+[toc-end-to-end-tests]: #end-to-end-tests
+[toc-license]: #%EF%B8%8F-license
+
+## 🚀 Quick Start
 
 ### What You'll Need
 
@@ -51,7 +143,9 @@ These settings work out-of-the-box with most C64 Ultimate setups. You can overri
 > [!NOTE]
 > The plugin has been **verified to work** on the systems listed below. Other environments have not been verified and are not supported explicitly, but community contributions are always welcome.
 
-### Installation 📦
+---
+
+### Installation
 
 In the following instructions, replace `$VERSION` with the latest released version as shown on the [Releases](../../releases) page.
 
@@ -61,7 +155,7 @@ The following applies if you have an Intel or AMD CPU. It has been verified to w
 
 1. Close OBS Studio
 2. [Download](../../releases) the plugin package with name `c64stream-$VERSION-windows-x64.zip`. It should now be in your `Downloads` folder (typically `C:\Users\<YourName>\Downloads`).
-3. Install the plugin to `C:\ProgramData\obs-studio\plugins` by either extracting the ZIP with a tool of your choice or by running the following in Powershell:
+3. Install the plugin to `C:\ProgramData\obs-studio\plugins` by either extracting the ZIP with a tool of your choice or by running the following in PowerShell:
 
 ```powershell
 Expand-Archive -Path "$env:USERPROFILE\Downloads\c64stream-*-windows-x64.zip" -DestinationPath "C:\ProgramData\obs-studio\plugins" -Force
@@ -69,7 +163,7 @@ Expand-Archive -Path "$env:USERPROFILE\Downloads\c64stream-*-windows-x64.zip" -D
 
 4. Start OBS Studio
 
-If you are using Windows Firewall and block all incoming connections, you may have to setup an exclusion to allow for incoming UDP connections to port 11000 (Video) and 11001 (Audio) from the C64 Ultimate a follows. Be sure to adjust the `RemoteAddress` from `192.168.1.64` to the IP of your C64 Ultimate before you run this in Powershell:
+If you are using Windows Firewall and block all incoming connections, you may have to set up an exception to allow incoming UDP connections to port 11000 (Video) and 11001 (Audio) from the C64 Ultimate, as follows. Be sure to adjust the `RemoteAddress` from `192.168.1.64` to the IP of your C64 Ultimate before you run this in PowerShell:
 
 ```powershell
 New-NetFirewallRule -DisplayName "C64 Stream" -Direction Inbound -Protocol UDP -LocalPort 11000,11001 -RemoteAddress 192.168.1.64 -Action Allow
@@ -98,7 +192,7 @@ In portable mode, OBS does **not** use `C:\ProgramData\obs-studio\plugins`. Inst
 
 1. Download the appropriate plugin ZIP (X64 or ARM64), as described above.
 2. Open PowerShell **in the root directory of your portable OBS installation**.
-3. Copy/paste the following command into the Powershell window and press **Enter**:
+3. Copy/paste the following command into the PowerShell window and press **Enter**:
 
    ```powershell
    $zip=Get-ChildItem "$env:USERPROFILE\Downloads\c64stream-*-windows-*.zip" | Select-Object -First 1;
@@ -109,7 +203,7 @@ In portable mode, OBS does **not** use `C:\ProgramData\obs-studio\plugins`. Inst
    Copy-Item "$env:TEMP\c64stream\c64stream\data\*" ".\data\obs-plugins\c64stream\" -Recurse -Force
    ```
 
-5. Start OBS Studio.
+4. Start OBS Studio.
 
 #### macOS
 
@@ -180,12 +274,14 @@ For non-Debian-based distributions, you can extract the `.deb` package manually:
 5. Start OBS Studio
 
 > [!NOTE]
-> The plugin is built and [E2E tested](#end-to-end-tests-) on Ubuntu 24.04, Debian 12, Fedora 40, and Arch Linux.
+> The plugin is built and [E2E tested](#end-to-end-tests) on Ubuntu 24.04, Debian 12, Fedora 40, and Arch Linux.
 
 **Further Details:**
 See the [OBS Plugins Guide](https://obsproject.com/kb/plugins-guide).
 
-### Configuration ⚙️
+---
+
+### C64 Stream source
 
 **Getting Your C64 on Stream:**
 
@@ -193,21 +289,24 @@ See the [OBS Plugins Guide](https://obsproject.com/kb/plugins-guide).
 
    ![Select Plugin](./docs/images/select-plugin.png "Select C64 Stream Plugin")
 
-A new window opens. Keep the default settings and click "OK":
+   A new window opens. Keep the default settings and click "OK":
 
    ![Create Source](./docs/images/create-source.png "Create C64 Stream Source")
 
-1. **Open Properties:** Select the "C64 Stream" source in your sources list, then click the "Properties" button to open the configuration dialog
+2. **Open Properties:** Select the "C64 Stream" source in your sources list, then click the "Properties" button to open the configuration dialog.
 
-![C64 Stream Configuration](./docs/images/properties.png "C64 Stream Configuration")
+   ![C64 Stream Configuration](./docs/images/properties.png "C64 Stream Configuration")
 
-1. **Configure IPs / Host Names:** Configure the host name or IP address of your C64 Ultimate and click "OK".
+3. **Configure hostnames / IPs:** Set the hostname or IP address of your C64 Ultimate and click "OK".
 
 🎉 **DONE!** Enjoy streaming from your C64 Ultimate.
 
 ---
 
-### Applying C64 Stream Effects to Other Sources (Filter)
+### C64 Stream Effects filter
+
+> [!NOTE]
+> **Experimental (since version 1.1):** This feature is still evolving. If you run into sharp edges, please report them.
 
 By default, **C64 Stream effects are applied internally by the C64 Stream input source** when streaming directly from a C64 Ultimate or Ultimate 64.
 In this common setup, **no additional filter is required**.
@@ -235,36 +334,36 @@ The filter is included automatically with the plugin package.
 
 1. Select your source (HDMI capture card, Media Source, emulator, etc.) in OBS.
 2. Click **Filters** → **+** → **C64 Stream Effects**.
-3. Configure presets and effect parameters as described in the **Effects ✨** section below.
+3. Configure presets and effect parameters as described in the **Effect settings** section below.
 
 ---
 
-## Plugin Setup
+## 🧩 Plugin Setup
 
 ### General
 
 - **Version:** Information about release version, Git ID, and build time
-- **Debug Logging:** Check this to see debug logs
 
-### Network 📡
+### Network
 
-- **DNS Resolution Details:**
-
-- **Default:** `192.168.1.1` (most common home router DNS server)
-- **Fallback:** If router DNS fails, the plugin tries standard DNS servers
-- **Enhanced Resolution:** The plugin uses multiple resolution strategies for maximum compatibility
+- **DNS resolution details:**
+  - **Default:** `192.168.1.1` (most common home router DNS server)
+  - **Fallback:** If router DNS fails, the plugin tries standard DNS servers
+  - **Enhanced resolution:** The plugin uses multiple resolution strategies for maximum compatibility
 - **C64 Ultimate Host:** Enter your Ultimate device's hostname (default: `c64u`) or IP address to enable automatic streaming control from OBS (recommended for convenience), or set to `0.0.0.0` to accept streams from any C64 Ultimate on your network (requires manual control from the device)
 - **C64 Ultimate Password:** C64 Ultimate network password for REST `X-Password` header authentication. Leave empty if authentication is disabled
 - **OBS Server IP:** IP address where C64 Ultimate sends streams (auto-detected by default)
 - **Auto-detect OBS IP:** Automatically detect and use OBS server IP in streaming commands (recommended)
-- **Configure Ports** Use the default ports (video: 11000, audio: 11001) unless network conflicts require different values
+- **Configure Ports:** Use the default ports (video: 11000, audio: 11001) unless network conflicts require different values
 - **Buffer Delay:** Sets the network buffer for incoming UDP packets arriving from the C64 Ultimate (0–500 ms, default 10 ms). The buffer size is expressed in milliseconds to represent the time-based delay it introduces, compensating for packet loss, reordering, and variable network latency. Larger buffers improve stability under high-latency or congested conditions but increase end-to-end delay.
 
 ---
 
-### Recording 💾
+### Recording
 
 The plugin includes built-in recording capabilities that work independently of OBS Studio's recording system, letting you save raw C64 Ultimate data streams directly to disk.
+
+**Debug Logging:** The **Debug Logging** option lives in this section of the source properties. Enable it when troubleshooting, then check the OBS log via **Help → Log Files → Show Current Log**.
 
 ### Recording Options
 
@@ -297,7 +396,7 @@ The plugin offers three independent recording options that can be enabled separa
 
 #### File Organization
 
-All recording files are organized into timestamped session folders in the [recordings directory](#file-system-structure-):
+All recording files are organized into timestamped session folders in the [recordings directory](#file-system-structure):
 
 ```text
 recordings/
@@ -323,7 +422,7 @@ recordings/
 - **Auto-Organization:** Session folders are created automatically with proper directory structure
 - **Recommended:** Enable **CSV recording** for debugging and **disable** BMP/AVI recording for normal streaming
 
-#### Debug & Analysis CSV Logs 📊
+#### Debug & Analysis CSV Logs
 
 When **"Network and Streaming Events (CSV)"** recording is enabled, the plugin generates detailed CSV logs for debugging OBS performance and analyzing C64 Ultimate network streams. These logs enable bit-accurate recording analysis and precise frame timing measurements.
 
@@ -366,7 +465,7 @@ audio,2341,847,0,0,192,125
 
 ---
 
-### Effects ✨
+### Effect settings
 
 Recreate the authentic look and feel of classic CRT monitors and TVs with configurable visual effects that simulate the characteristics of vintage displays.
 
@@ -421,7 +520,7 @@ The following screenshot assumes you select "Wide" scan line mode, again assumin
 
 ---
 
-### Color Palettes 🎨
+### Color Palettes
 
 Customize the VIC-II color palette to match different C64 hardware variants, personal preferences, or artistic styles. The palette system supports both shipped (preset) and user-defined (custom) palettes.
 
@@ -478,7 +577,7 @@ FF FF FF
 - First 16 non-comment lines are RGB hex values in `RR GG BB` format (space-separated)
 - Files must have exactly 16 color entries
 
-**Storage:** Custom palettes are saved to the [palettes directory](#file-system-structure-). Shipped palettes are bundled with the plugin as read-only defaults.
+**Storage:** Custom palettes are saved to the [palettes directory](#file-system-structure). Shipped palettes are bundled with the plugin as read-only defaults.
 
 ### Import/Export Configuration
 
@@ -487,13 +586,14 @@ Import and export your complete plugin settings:
 - **Import settings:** Click to load settings from a previously exported `.ini` file. All current settings will be replaced
 - **Export settings:** Click to save all current settings to a `.ini` file. Use this to backup configurations, share setups, or attach to bug reports
 
-Exported configurations are saved to the [settings directory](#file-system-structure-).
+Exported configurations are saved to the [settings directory](#file-system-structure).
 
 ---
 
-### Remote Control 🎮
+### Remote Control
 
-**EXPERIMENTAL - since version 1.1**
+> [!NOTE]
+> **Experimental (since version 1.1):** This feature is still evolving. If you run into sharp edges, please report them.
 
 Control your Ultimate 64 remotely from within OBS Studio, enabling keyboard input capture and automated content playback.
 
@@ -541,9 +641,10 @@ Control your Ultimate 64 remotely from within OBS Studio, enabling keyboard inpu
 
 ---
 
-### C64Script Automation 🤖
+### C64Script Automation
 
-**EXPERIMENTAL - since version 1.1**
+> [!NOTE]
+> **Experimental (since version 1.1):** This feature is still evolving. If you run into sharp edges, please report them.
 
 Automate your C64 stream with C64Script - a modernized BASIC-like language designed specifically for stream control.
 
@@ -569,7 +670,7 @@ C64Script is like a simplified, modernized version of Commodore BASIC. If you've
 
 **Quick Start Example - Color Palette Cycle:**
 
-Let's run the demo program [demo_color_cycle.c64script](./data/scripts/demo_palette_cycle.c64script) that ships with the plugin in the `scripts` folder:
+Let's run the demo program [demo_palette_cycle.c64script](./data/scripts/demo_palette_cycle.c64script) that ships with the plugin in the `scripts` folder:
 
 1. Click on **Browse** to the right of **Script File** and select the script.
 2. Click **Start Script**.
@@ -613,11 +714,115 @@ Then reload VS Code (`Ctrl+Shift+P` → "Reload Window"). The language mode shou
 - **Debugging Guide:** [`doc/c64script/c64script-debugging.md`](doc/c64script/c64script-debugging.md) - Detailed debugging workflows and tips
 - **Example Scripts:** [`data/scripts/`](data/scripts/) - Demo scripts showing effects, palettes, and automation
 
-## File System Structure 📁
+## 🛟 Troubleshooting
+
+### Plugin missing from OBS?
+
+- Confirm OBS Studio version 32.0.1+
+- Verify plugin installed to correct directory
+- Check OBS logs for plugin loading errors
+- Restart OBS completely after installation
+
+### No video stream?
+
+- Verify that both IP addresses are correct
+- Check Ultimate device has data streaming enabled
+- Confirm firewall allows UDP traffic on configured ports
+
+### Lost / Repeated Frames?
+
+- May occur when OBS cannot keep up, typically during high CPU or GPU load.
+- Reduce or disable filters. The afterglow effect is particularly CPU-intensive. Test the **Default** preset with all filters disabled.
+- Lower the output resolution to 1280×720.
+- Disable OBS recording and any plugin-side recording.
+
+### Effects not working?
+
+- **No visual change:** Ensure source is active and receiving video data
+- **Performance drops:** Complex effects (high bloom/blur) may impact frame rate on older hardware
+- **Preset not applying:** Try manually adjusting individual effect settings
+
+### Audio sync issues?
+
+- Check audio port configuration (default 11001)
+- Verify OBS audio monitoring settings
+- **Buffer delay changes:** If you first increase the network buffer delay (e.g., to 500ms) and then decrease it (e.g., to 200ms), audio may become delayed relative to video. **Workaround:** Remove and re-add the C64 Stream source, or restart OBS Studio to reset the audio timing reference. For best results, set your desired buffer delay when initially configuring the source.
+
+### Connection acting up?
+
+- Network latency should be <100ms for optimal performance
+- Check for network congestion or Wi-Fi interference
+- Consider wired Ethernet connection for stability
+
+### Hostname not resolving?
+
+If the plugin can't resolve your C64 Ultimate hostname (e.g., `c64u`), try these solutions:
+
+*Quick Fix:*
+
+1. **Use IP Address:** Instead of `c64u`, enter the device's IP address directly (e.g., `192.168.1.64`)
+2. **Check DNS Server IP:** Verify the DNS Server IP setting matches your router's IP address
+   - Common router IPs: `192.168.1.1`, `192.168.0.1`, `10.0.0.1`
+   - Find your router IP: Run `ip route | grep default` (Linux) or `ipconfig` (Windows)
+
+*Advanced Troubleshooting:*
+
+1. **Test DNS Resolution Manually:**
+
+   ```bash
+   # Linux/macOS - Test if router can resolve the hostname
+   dig @192.168.1.1 c64u
+
+   # Windows - Test DNS resolution
+   nslookup c64u 192.168.1.1
+   ```
+
+2. **Platform-Specific Issues:**
+   - **Linux:** systemd-resolved may not forward local hostnames to router DNS
+   - **macOS:** Similar DNS forwarding issues with local device names
+   - **Windows:** System DNS typically works without issues
+
+3. **Configure Custom DNS Server:**
+   - Set **DNS Server IP** to your router's IP address (usually `192.168.1.1`)
+   - Try alternative common router IPs: `192.168.0.1`, `10.0.0.1`
+   - Check your router's DHCP settings for the correct DNS server IP
+
+4. **Enable Debug Logging:**
+   - In the source properties, open the **Recording** section and enable **Debug Logging**
+   - Look for DNS resolution messages in OBS logs
+   - Messages show which DNS resolution method succeeded
+
+*Alternative Solutions:*
+
+- **Static DNS Entry:** Add `192.168.1.64 c64u` to your system's hosts file
+- **mDNS/Bonjour:** Use `.local` suffix (e.g., `c64u.local`) if your network supports it
+- **Router Configuration:** Ensure your router's DNS server has the device hostname registered
+
+### Recording troubles?
+
+- **Files not created:** Verify output folder path exists and is writable
+- **Performance drops with BMP saving:** Frame saving impacts performance significantly; disable if not needed
+- **Large disk usage:** AVI recording creates uncompressed files (~50MB/minute); monitor disk space
+- **Recording stops unexpectedly:** Check disk space and folder permissions
+
+## 📚 Reference
+
+### Default settings
+
+The plugin uses a `properties.ini` file to provide default settings for connecting to your C64 Ultimate device. This file is automatically installed with the plugin and contains the standard C64 Ultimate network settings:
+
+- **Hostname**: `c64u` (the default C64 Ultimate hostname)
+- **Control Port**: `64` (the standard C64 Ultimate control port)
+- **DNS Server**: `192.168.1.1` (common router DNS)
+- **Video/Audio Ports**: `11000`/`11001` (C64 Ultimate streaming ports)
+
+These settings work out-of-the-box with most C64 Ultimate setups. You can override any of these settings directly in the OBS source properties if your setup differs.
+
+### File System Structure
 
 The plugin uses three distinct filesystem locations:
 
-### 1. Plugin
+#### 1. Plugin
 
 This folder contains OBS plugin binary and loader files.
 
@@ -629,7 +834,7 @@ OBS Studio searches for plugins in multiple locations. The installation location
 | **macOS**   | `/Library/Application Support/obs-studio/plugins/c64stream.plugin/` | `~/Library/Application Support/obs-studio/plugins/c64stream.plugin/` |
 | **Linux**   | `/usr/lib/obs-plugins/c64stream.so`                                 | `~/.config/obs-studio/plugins/c64stream/bin/64bit/c64stream.so`      |
 
-### 2. Shipped Data
+#### 2. Shipped Data
 
 This folder contains read-only defaults bundled with the plugin.
 
@@ -658,7 +863,7 @@ The data directory contains:
 >
 > **User Install** is for local development using VSCode build tasks or `local-build.sh --install`. The E2E tests also use these user install paths.
 
-### 3. User Data
+#### 3. User Data
 
 This folder contains your custom content.
 
@@ -678,31 +883,9 @@ For easy access, simple backups, and visibility, it is always stored in `<Docume
 - **macOS:** `~/Documents/obs-studio/c64stream/` (e.g., `/Users/yourname/Documents/obs-studio/c64stream/`)
 - **Linux:** `~/Documents/obs-studio/c64stream/` (e.g., `/home/yourname/Documents/obs-studio/c64stream/`)
 
-## End-to-end tests 🧪
+### Network Details
 
-This project is continuously validated with automated end-to-end (E2E) tests that simulate a C64 Ultimate, drive OBS, and verify the full pipeline from UDP packets to recorded video/audio.
-
-Each test scenario produces a short, self-contained report with packet stats, frame progression information, A/V synch details, as well as the recorded video and a sample frame from that video. Here's an example from the `ntsc_default` scenario with no effects applied:
-
-![E2E screenshot for ntsc_default](./tests/e2e/results/ntsc_default/c64_recording_still.png)
-
-Here's another one from the `ntsc_green_monitor` scenario. You see how the frame progress counter on the bottom left and the central diagonal moving lines both left behind afterglow trails:
-
-![E2E screenshot for ntsc_green_monitor](./tests/e2e/results/ntsc_green_monitor/c64_recording_still.png)
-
-Many recent reports (without videos) are checked into this GitHub repository:
-
-- [Main E2E results](tests/e2e/results/README.md)
-- [PAL results](tests/e2e/results/pal_default/README.md)
-- [NTSC results](tests/e2e/results/ntsc_default/README.md)
-
-You can download all [Latest E2E results](https://github.com/chrisgleissner/c64stream/actions/workflows/build-project.yaml?query=branch%3Amain+is%3Asuccess) (with videos) as GitHub CI build artifact ZIP.
-
-For more information, see [`doc/testing/e2e.md`](doc/testing/e2e.md).
-
-## Network Details
-
-### Hostname vs IP Address 🌐
+#### Hostname vs IP Address
 
 The plugin supports both **hostnames** and **IP addresses** for the C64 Ultimate Host field with enhanced DNS resolution that works reliably across all platforms:
 
@@ -717,7 +900,7 @@ The plugin supports both **hostnames** and **IP addresses** for the C64 Ultimate
 - **Direct IP:** `192.168.1.64` - Standard IPv4 address format
 - **Fallback:** `0.0.0.0` - Accept streams from any C64 Ultimate (no automatic control)
 
-### DNS Resolution
+#### DNS Resolution
 
 The plugin offers hostname resolution that works reliably on Linux and macOS where system DNS may fail for local device names:
 
@@ -727,7 +910,7 @@ The plugin offers hostname resolution that works reliably on Linux and macOS whe
    - Uses configured **DNS Server IP** (default: `192.168.1.1`)
    - Falls back to common router IPs: `192.168.0.1`, `10.0.0.1`, `172.16.0.1`
 
-### C64 Ultimate Setup 🎛️
+#### C64 Ultimate Setup
 
 **Automatic Configuration (Recommended):** The OBS plugin automatically controls streaming on the Ultimate device. When you configure the Ultimate's hostname or IP address in the OBS plugin settings, the plugin tells the Ultimate device where to send streams and sends start commands automatically. Thus, no manual streaming adjustments are needed on the Ultimate device.
 
@@ -742,7 +925,7 @@ The plugin offers hostname resolution that works reliably on Linux and macOS whe
 
 For comprehensive configuration details, refer to the [official C64 Ultimate documentation](https://1541u-documentation.readthedocs.io/en/latest/data_streams.html).
 
-## Technical Details 🔧
+### Technical Details
 
 This plugin implements the [C64 Ultimate Data Streams specification](./doc/c64/c64u-stream-spec.md) to receive video and audio streams from Ultimate devices via UDP/TCP network protocols.
 
@@ -790,101 +973,32 @@ One of:
 - WAV audio: 16-bit stereo PCM, sample rate matches C64 Ultimate output
 - Session organization: Automatic timestamped folder creation
 
-## Troubleshooting 🔍
+## 🛠️ For Developers
 
-### Plugin missing from OBS?
+### End-to-end tests
 
-- Confirm OBS Studio version 32.0.1+
-- Verify plugin installed to correct directory
-- Check OBS logs for plugin loading errors
-- Restart OBS completely after installation
+This project is continuously validated with automated end-to-end (E2E) tests that simulate a C64 Ultimate, drive OBS, and verify the full pipeline from UDP packets to recorded video/audio.
 
-### No video stream? 📺
+Each test scenario produces a short, self-contained report with packet stats, frame progression information, A/V synch details, as well as the recorded video and a sample frame from that video. Here's an example from the `ntsc_default` scenario with no effects applied:
 
-- Verify that both IP addresses are correct
-- Check Ultimate device has data streaming enabled
-- Confirm firewall allows UDP traffic on configured ports
+![E2E screenshot for ntsc_default](./tests/e2e/results/ntsc_default/c64_recording_still.png)
 
-### Lost / Repeated Frames? 📺
+Here's another one from the `ntsc_green_monitor` scenario. You see how the frame progress counter on the bottom left and the central diagonal moving lines both left behind afterglow trails:
 
-- May occur when OBS cannot keep up, typically during high CPU or GPU load.
-- Reduce or disable filters. The afterglow effect is particularly CPU-intensive. Test the **Default** preset with all filters disabled.
-- Lower the output resolution to 1280×720.
-- Disable OBS recording and any plugin-side recording.
+![E2E screenshot for ntsc_green_monitor](./tests/e2e/results/ntsc_green_monitor/c64_recording_still.png)
 
-### Effects not working? 📺
+Many recent reports (without videos) are checked into this GitHub repository:
 
-- **No visual change:** Ensure source is active and receiving video data
-- **Performance drops:** Complex effects (high bloom/blur) may impact frame rate on older hardware
-- **Preset not applying:** Try manually adjusting individual effect settings
+- [Main E2E results](tests/e2e/results/README.md)
+- [PAL results](tests/e2e/results/pal_default/README.md)
+- [NTSC results](tests/e2e/results/ntsc_default/README.md)
 
-### Audio sync issues? 🔊
+You can download all [Latest E2E results](https://github.com/chrisgleissner/c64stream/actions/workflows/build-project.yaml?query=branch%3Amain+is%3Asuccess) (with videos) as GitHub CI build artifact ZIP.
 
-- Check audio port configuration (default 11001)
-- Verify OBS audio monitoring settings
-- **Buffer delay changes:** If you first increase the network buffer delay (e.g., to 500ms) and then decrease it (e.g., to 200ms), audio may become delayed relative to video. **Workaround:** Remove and re-add the C64 Stream source, or restart OBS Studio to reset the audio timing reference. For best results, set your desired buffer delay when initially configuring the source.
-
-### Connection acting up? 📡
-
-- Network latency should be <100ms for optimal performance
-- Check for network congestion or WiFi interference
-- Consider wired Ethernet connection for stability
-
-### Hostname not resolving? 🌐
-
-If the plugin can't resolve your C64 Ultimate hostname (e.g., `c64u`), try these solutions:
-
-*Quick Fix:*
-
-1. **Use IP Address:** Instead of `c64u`, enter the device's IP address directly (e.g., `192.168.1.64`)
-2. **Check DNS Server IP:** Verify the DNS Server IP setting matches your router's IP address
-   - Common router IPs: `192.168.1.1`, `192.168.0.1`, `10.0.0.1`
-   - Find your router IP: Run `ip route | grep default` (Linux) or `ipconfig` (Windows)
-
-*Advanced Troubleshooting:*
-
-1. **Test DNS Resolution Manually:**
-
-   ```bash
-   # Linux/macOS - Test if router can resolve the hostname
-   dig @192.168.1.1 c64u
-
-   # Windows - Test DNS resolution
-   nslookup c64u 192.168.1.1
-   ```
-
-2. **Platform-Specific Issues:**
-   - **Linux:** systemd-resolved may not forward local hostnames to router DNS
-   - **macOS:** Similar DNS forwarding issues with local device names
-   - **Windows:** System DNS typically works without issues
-
-3. **Configure Custom DNS Server:**
-   - Set **DNS Server IP** to your router's IP address (usually `192.168.1.1`)
-   - Try alternative common router IPs: `192.168.0.1`, `10.0.0.1`
-   - Check your router's DHCP settings for the correct DNS server IP
-
-4. **Enable Debug Logging:**
-   - Check "Debug Logging" in plugin properties
-   - Look for DNS resolution messages in OBS logs
-   - Messages show which DNS resolution method succeeded
-
-*Alternative Solutions:*
-
-- **Static DNS Entry:** Add `192.168.1.64 c64u` to your system's hosts file
-- **mDNS/Bonjour:** Use `.local` suffix (e.g., `c64u.local`) if your network supports it
-- **Router Configuration:** Ensure your router's DNS server has the device hostname registered
-
-### Recording troubles? 💾
-
-- **Files not created:** Verify output folder path exists and is writable
-- **Performance drops with BMP saving:** Frame saving impacts performance significantly; disable if not needed
-- **Large disk usage:** AVI recording creates uncompressed files (~50MB/minute); monitor disk space
-- **Recording stops unexpectedly:** Check disk space and folder permissions
-
-## For Developers 🔧
+For more information, see [`doc/testing/e2e.md`](doc/testing/e2e.md).
 
 See the [Developer Documentation](doc/developer.md) for build instructions, testing procedures, and contribution guidelines.
 
-## License
+## ⚖️ License
 
 This project is licensed under the GPL v2 License - see the [LICENSE](LICENSE) file for details.
