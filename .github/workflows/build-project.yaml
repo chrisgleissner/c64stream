@@ -738,7 +738,7 @@ jobs:
       - name: Install GStreamer Plugins (Arch) 🎞️
         if: ${{ matrix.distro == 'arch' }}
         run: |
-          : Install GStreamer Plugins (Arch) 🎞️
+          : "Install GStreamer Plugins (Arch) 🎞️"
           pacman -Sy --noconfirm
           pacman -S --noconfirm gstreamer gst-plugins-good gst-plugins-bad gst-plugins-ugly gst-libav
 
