@@ -142,12 +142,23 @@ class OBSWebsocketClient:
                 return True
         return False
 
-    def request_exit(self) -> bool:
-        """Request OBS to exit via WebSocket."""
-        resp = self.send_request("Exit")
+    def stop_recording(self) -> bool:
+        """Stop recording via WebSocket."""
+        resp = self.send_request("StopRecord")
         if resp:
             status = resp.get("requestStatus") or {}
             if status.get("result", False):
-                logger.info("✅ Requested OBS exit via WebSocket API")
+                logger.info("✅ Recording stopped via WebSocket API")
                 return True
+        return False
+
+    def request_exit(self) -> bool:
+        """Request OBS to exit via WebSocket."""
+        for request_type in ("Exit", "Shutdown"):
+            resp = self.send_request(request_type)
+            if resp:
+                status = resp.get("requestStatus") or {}
+                if status.get("result", False):
+                    logger.info(f"✅ Requested OBS exit via WebSocket API ({request_type})")
+                    return True
         return False

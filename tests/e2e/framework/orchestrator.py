@@ -164,6 +164,8 @@ class E2EOrchestrator:
 
             self.resource_monitor.stop()
             if self.enable_websocket and self.obs_ws.enabled:
+                self.obs_ws.stop_recording()
+                time.sleep(2.0)
                 self.obs_ws.request_exit()
                 time.sleep(2.0)
             self.obs_process.stop()
@@ -202,6 +204,8 @@ class E2EOrchestrator:
             try:
                 if self.enable_resource_monitoring: self.resource_monitor.stop()
                 if self.enable_websocket and self.obs_ws.enabled:
+                    self.obs_ws.stop_recording()
+                    time.sleep(2.0)
                     self.obs_ws.request_exit()
                     time.sleep(2.0)
                 self.obs_process.stop()

@@ -45,6 +45,11 @@ RUN pacman -S --noconfirm \
         qt6-base \
         qt6-svg \
         qt6-wayland \
+        gstreamer \
+        gst-plugins-good \
+        gst-plugins-bad \
+        gst-plugins-ugly \
+        gst-libav \
         ffmpeg \
         x264 \
         curl \
