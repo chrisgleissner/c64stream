@@ -22,23 +22,31 @@ LIBFUZZER_LIB_DEFAULT="$LIBFUZZER_DIR/libFuzzer.a"
 rm -rf "$CRASH_DIR"
 mkdir -p "$CRASH_DIR" "$LOG_DIR" "$OUTPUT_CORPUS" "$SEED_CORPUS"
 
-if command -v clang-13 >/dev/null 2>&1; then
-    FUZZ_CC=clang-13
-    FUZZ_CXX=clang++-13
-elif command -v clang-14 >/dev/null 2>&1; then
-    FUZZ_CC=clang-14
-    FUZZ_CXX=clang++-14
-elif command -v clang-15 >/dev/null 2>&1; then
-    FUZZ_CC=clang-15
-    FUZZ_CXX=clang++-15
+if [ -n "${FUZZ_CC:-}" ] && [ -n "${FUZZ_CXX:-}" ]; then
+    :
+elif command -v clang-18 >/dev/null 2>&1; then
+    FUZZ_CC=clang-18
+    FUZZ_CXX=clang++-18
 elif command -v clang-17 >/dev/null 2>&1; then
     FUZZ_CC=clang-17
     FUZZ_CXX=clang++-17
+elif command -v clang-16 >/dev/null 2>&1; then
+    FUZZ_CC=clang-16
+    FUZZ_CXX=clang++-16
+elif command -v clang-15 >/dev/null 2>&1; then
+    FUZZ_CC=clang-15
+    FUZZ_CXX=clang++-15
+elif command -v clang-14 >/dev/null 2>&1; then
+    FUZZ_CC=clang-14
+    FUZZ_CXX=clang++-14
+elif command -v clang-13 >/dev/null 2>&1; then
+    FUZZ_CC=clang-13
+    FUZZ_CXX=clang++-13
 elif command -v clang >/dev/null 2>&1; then
     FUZZ_CC=clang
     FUZZ_CXX=clang++
 else
-    echo "clang not found; install clang-17 or clang." >&2
+    echo "clang not found; install clang (or set FUZZ_CC/FUZZ_CXX)." >&2
     exit 1
 fi
 
