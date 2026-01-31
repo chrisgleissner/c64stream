@@ -23,7 +23,7 @@ The plugin uses a multi-tier configuration system to handle different environmen
 
 **Problem**: E2E tests temporarily copy test-specific properties to the plugin directory, but OBS also caches source settings in its scene collections. This means that even after restoring correct properties.ini, OBS still has cached test settings.
 
-**Solution**: The `local-build.sh --install` command performs comprehensive cleanup:
+**Solution**: The `build --install` command performs comprehensive cleanup:
 
 1. **Properties File Reset**: Restores `data/properties.ini` with real C64 Ultimate settings
 2. **OBS Scene Reset**: Clears all cached C64 Stream source settings in scene collections
@@ -41,26 +41,26 @@ This ensures that after E2E tests, subsequent OBS launches load fresh settings f
 **Clean Installation**:
 
 ```bash
-./local-build.sh linux --install --clean
+./build linux --install --clean
 ```
 
 **E2E Testing**:
 
 ```bash
-./local-build.sh linux --e2e --install
+./build --e2e-scenarios --install
 ```
 
-**Unit tests** (run by default in `local-build.sh`):
+**Unit tests** (run by default in `build`):
 
 ```bash
 # Run only build + unit tests
-./local-build.sh linux
+./build
 
 # Explicitly run tests (same as default)
-./local-build.sh linux --tests
+./build --tests
 
 # Skip tests (not recommended)
-./local-build.sh linux --no-tests
+./build --no-tests
 ```
 
 **Post-E2E Cleanup** (automatic during install):
@@ -124,7 +124,7 @@ Copy-Item 'build_x64\Debug\c64stream.dll' -Destination 'C:\ProgramData\obs-studi
 **Option 2: Convenience script (requires Git Bash)**
 
 ```cmd
-local-build.bat windows --install
+build.bat windows --install
 ```
 
 ### Linux
@@ -151,8 +151,8 @@ cp build_x86_64/c64stream.so ~/.config/obs-studio/plugins/c64stream/bin/64bit/
 **Convenience script with E2E testing:**
 
 ```bash
-./local-build.sh linux --install          # Build and install
-./local-build.sh linux --e2e --install    # Build, install, and run E2E tests
+./build --install          # Build and install
+./build --e2e-scenarios --install    # Build, install, and run E2E tests
 ```
 
 ### macOS
@@ -207,14 +207,14 @@ clang-format --version
 
 ### Automatic Formatting
 
-The `local-build.bat` / `local-build.sh` scripts **automatically format code** before every build:
+The `build.bat` / `build` scripts **automatically format code** before every build:
 
 ```bash
 # Linux/macOS
-./local-build.sh linux
+./build
 
 # Windows
-local-build.bat windows
+build.bat
 ```
 
 ### Manual Formatting
@@ -260,6 +260,7 @@ The c64stream plugin employs a multi-layered testing approach to ensure correctn
 **Location:** `tests/test_*.c`
 
 **Examples:**
+
 - `tests/test_properties_ini_defaults.c` - Validates properties configuration system
 - Tests for protocol parsing, packet handling, color conversion
 
@@ -274,6 +275,7 @@ ctest --test-dir build_x86_64 --output-on-failure
 ```
 
 **Coverage:**
+
 - Properties system configuration and defaults
 - Data structure initialization and cleanup
 - Error handling and edge cases
@@ -285,6 +287,7 @@ ctest --test-dir build_x86_64 --output-on-failure
 **Location:** `tests/e2e/test_*.py`
 
 **Examples:**
+
 - `test_script_executor.py` - Tests C64 script parser and executor (mock-based)
 - `test_network_simulation.py` - Network packet replay validation
 - `test_network_timing_validation.py` - UDP timing accuracy tests
@@ -297,6 +300,7 @@ python3 -m pytest test_*.py -v --tb=short
 ```
 
 **Coverage:**
+
 - Script command parsing and validation
 - Executor state machine behavior
 - REST API call sequencing
@@ -310,6 +314,7 @@ python3 -m pytest test_*.py -v --tb=short
 **Location:** `tests/script/scripts/*.c64script`
 
 **Test scripts:**
+
 - `basic_automation.c64script` - Simple command sequence
 - `palette_cycling.c64script` - Palette changes during execution
 - `effect_showcase.c64script` - Effect transitions
@@ -329,6 +334,7 @@ done
 ```
 
 **Coverage:**
+
 - Script command execution in real OBS environment
 - REST API integration with C64U device
 - Keyboard injection and automation
@@ -340,11 +346,13 @@ done
 **Purpose:** Validate interaction between components (network → protocol → rendering).
 
 **Approach:**
+
 - Packet replay with deterministic inputs
 - Validation of rendering output against expected baselines
 - Frame progression marker detection
 
 **Tools:**
+
 - `udp_replay` - Precise packet replay tool (built from `udp_replay/udp_replay.c`)
 - `generate_packets.py` - Creates deterministic test packets with visual markers
 
@@ -361,7 +369,7 @@ cd tests/e2e
 **Integrated build + E2E testing (Linux only):**
 
 ```bash
-./local-build.sh linux --e2e --install    # Build, install, and run E2E tests
+./build --e2e-scenarios --install    # Build, install, and run E2E tests
 ```
 
 See [`doc/testing/e2e.md`](testing/e2e.md) for comprehensive E2E testing documentation.
@@ -401,7 +409,7 @@ Output locations:
 Running locally (Linux):
 
 ```bash
-./local-build.sh linux --e2e --install
+./build --e2e-scenarios --install
 ```
 
 More details and CI usage in [`doc/testing/e2e.md`](e2e.md).
@@ -554,17 +562,20 @@ The project uses GitHub Actions for:
 ### CI Test Coverage
 
 **What CI validates:**
+
 1. **Build integrity** - All platforms compile without errors/warnings
 2. **Code formatting** - clang-format 21+ compliance on all source files
 3. **Python unit tests** - Mock-based testing of script executor and network simulation
 4. **Cross-platform compatibility** - Windows (MSVC), Linux (GCC/Clang), macOS (Clang)
 
 **What CI does NOT validate (local testing only):**
+
 - E2E tests with real OBS (requires GUI/X11, unstable in cloud environments)
 - Manual testing scenarios (keyboard capture, script execution)
 - Performance testing and profiling
 
 **Before pushing:**
+
 ```bash
 # Run formatting check
 ./build-aux/run-clang-format --check
@@ -573,7 +584,7 @@ The project uses GitHub Actions for:
 cd tests/e2e && python3 -m pytest test_*.py -v
 
 # Run local E2E (if making plugin behavior changes)
-./local-build.sh linux --e2e --install
+./build --e2e-scenarios --install
 ```
 
 ### Test Coverage Summary
@@ -588,6 +599,7 @@ cd tests/e2e && python3 -m pytest test_*.py -v
 | Cross-platform Builds | CI matrix                          | ✅   | ⚠️     | Platform compatibility              |
 
 **Coverage philosophy:**
+
 - **CI:** Fast, deterministic tests that validate core logic and cross-platform builds
 - **Local:** Full validation including GUI, rendering, and real-world scenarios
 - **Both required:** CI must pass before merge, local E2E required for behavior changes
@@ -610,17 +622,20 @@ C64Script is a BASIC-inspired scripting language with modern control flow. The i
 The debugging system provides source-level debugging without exposing VM internals:
 
 **Controls** (in `c64-properties.c`):
+
 - Start/Stop - Unified button with state-aware labels
 - Pause/Resume - Pauses at source-line boundaries
 - Step - Executes one source line when paused
 - Log variables - Dumps all variables to OBS log
 
 **Line Tracking** (in `c64-script-vm.c`):
+
 - `last_executed_line` - Updated after each instruction completes
 - `next_line_to_execute` - Set before executing next instruction
 - `source_line` field in bytecode tracks original line numbers
 
 **Pause Implementation**:
+
 ```c
 // VM checks for pause at source-line boundaries
 if (runtime->should_pause && current_line != runtime->last_executed_line) {
@@ -636,6 +651,7 @@ if (runtime->should_pause && current_line != runtime->last_executed_line) {
 ```
 
 **Wait Command Handling**:
+
 - `WAIT` and `WAIT UNTIL` commands check `step_mode` and `is_paused`
 - In debug mode, waits return immediately to avoid blocking
 - Normal wait behavior resumes when script continues running
@@ -643,6 +659,7 @@ if (runtime->should_pause && current_line != runtime->last_executed_line) {
 ### Testing Scripts
 
 Unit tests in `tests/script/test_c64script_debug.c` validate:
+
 - Pause/resume state transitions
 - Step mode execution
 - Line tracking accuracy
@@ -650,6 +667,7 @@ Unit tests in `tests/script/test_c64script_debug.c` validate:
 - Wait command behavior in debug mode
 
 Example test:
+
 ```c
 TEST(pause_and_resume) {
     c64script_runtime_t *runtime = c64script_runtime_create();

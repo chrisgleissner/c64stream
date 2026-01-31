@@ -55,9 +55,10 @@ class AfterglowAssertion(EffectAssertion):
             self.log(f"Found pop ROI: {roi}", verbose)
 
             # Verify afterglow decay
-            ok, details = self._verify_afterglow_decay(luma, roi)
+            ok, details, debug = self._verify_afterglow_decay(luma, roi, verbose)
 
             if not ok:
+                self._write_debug_dump(mp4_path, debug)
                 return AssertionResult(
                     status=AssertionStatus.FAIL,
                     name=self.name,
@@ -76,11 +77,19 @@ class AfterglowAssertion(EffectAssertion):
             )
 
         except RuntimeError as e:
+            self._write_debug_dump(mp4_path, {"error": str(e)})
             return AssertionResult(
                 status=AssertionStatus.FAIL,
                 name=self.name,
                 message=f"Afterglow verification failed: {e}",
             )
+
+    def _write_debug_dump(self, mp4_path: Path, debug: dict[str, Any]) -> None:
+        try:
+            debug_path = mp4_path.with_suffix(".afterglow_debug.json")
+            debug_path.write_text(json.dumps(debug, indent=2))
+        except Exception:
+            pass
 
     def _read_frames_rgb24(self, mp4_path: Path, max_frames: int) -> np.ndarray:
         """Decode video to RGB24 frames. Returns array [N,H,W,3] uint8.
@@ -196,7 +205,12 @@ class AfterglowAssertion(EffectAssertion):
         h, w = luma_frames.shape[1], luma_frames.shape[2]
         return max(0, x0 - pad), max(0, y0 - pad), min(w - 1, x1 + pad), min(h - 1, y1 + pad)
 
-    def _verify_afterglow_decay(self, luma_frames: np.ndarray, roi: tuple[int, int, int, int]) -> tuple[bool, str]:
+    def _verify_afterglow_decay(
+        self,
+        luma_frames: np.ndarray,
+        roi: tuple[int, int, int, int],
+        verbose: bool = False,
+    ) -> tuple[bool, str, dict[str, Any]]:
         x0, y0, x1, y1 = roi
         roi_luma = luma_frames[:, y0 : y1 + 1, x0 : x1 + 1].mean(axis=(1, 2))
 
@@ -205,31 +219,119 @@ class AfterglowAssertion(EffectAssertion):
         high_thresh = max(20.0, (p90 + p99) / 2.0)
         idx = np.where(roi_luma > high_thresh)[0]
         if idx.size == 0:
-            return False, f"No pop frames detected in ROI (threshold={high_thresh:.2f})"
+            return (
+                False,
+                f"No pop frames detected in ROI (threshold={high_thresh:.2f})",
+                {
+                    "roi": roi,
+                    "high_thresh": float(high_thresh),
+                    "pop_segments": [],
+                },
+            )
 
-        # First contiguous pop event
-        s = int(idx[0])
-        e = s
+        # Build contiguous pop segments for diagnostics.
+        segments = []
+        seg_start = int(idx[0])
+        seg_end = seg_start
         for i in idx[1:]:
-            if int(i) == e + 1:
-                e = int(i)
+            i = int(i)
+            if i == seg_end + 1:
+                seg_end = i
             else:
-                break
+                segments.append((seg_start, seg_end))
+                seg_start = i
+                seg_end = i
+        segments.append((seg_start, seg_end))
+
+        # Use the contiguous pop run that contains the peak ROI frame.
+        # This avoids selecting a short pre-peak spike that can cause false tail increases.
+        peak = int(np.argmax(roi_luma))
+        if roi_luma[peak] <= high_thresh:
+            peak = int(idx[0])
+
+        s = peak
+        while s - 1 >= 0 and roi_luma[s - 1] > high_thresh:
+            s -= 1
+
+        e = peak
+        while e + 1 < len(roi_luma) and roi_luma[e + 1] > high_thresh:
+            e += 1
+
+        self.log(f"Pop window: peak={peak}, range=[{s},{e}], high_thresh={high_thresh:.2f}", verbose)
 
         if e + 10 >= len(roi_luma):
-            return False, "Recording too short to evaluate afterglow tail"
+            return (
+                False,
+                "Recording too short to evaluate afterglow tail",
+                {
+                    "roi": roi,
+                    "high_thresh": float(high_thresh),
+                    "peak_frame": int(peak),
+                    "pop_window": {"start": int(s), "end": int(e)},
+                    "pop_segments": [{"start": int(a), "end": int(b)} for a, b in segments],
+                },
+            )
 
         tail = roi_luma[e + 1 : e + 11]
         min_tail = self.thresholds["min_tail_luma"]
 
         if float(tail[0]) < min_tail:
-            return False, f"Afterglow tail missing: first tail frame luma={float(tail[0]):.2f} (peak={float(roi_luma[e]):.2f})"
+            return (
+                False,
+                f"Afterglow tail missing: first tail frame luma={float(tail[0]):.2f} (peak={float(roi_luma[e]):.2f})",
+                {
+                    "roi": roi,
+                    "high_thresh": float(high_thresh),
+                    "peak_frame": int(peak),
+                    "pop_window": {"start": int(s), "end": int(e)},
+                    "pop_segments": [{"start": int(a), "end": int(b)} for a, b in segments],
+                    "tail": [float(v) for v in tail],
+                },
+            )
 
         max_tail_increase = float(self.thresholds["max_tail_increase"])
-        if not np.all(np.diff(tail) <= max_tail_increase):
-            return False, "Afterglow tail is not decaying (unexpected brightness increase)"
+        tail_diffs = np.diff(tail)
+        if tail_diffs.size and float(np.max(tail_diffs)) > max_tail_increase:
+            return (
+                False,
+                "Afterglow tail is not decaying (unexpected brightness increase)",
+                {
+                    "roi": roi,
+                    "high_thresh": float(high_thresh),
+                    "peak_frame": int(peak),
+                    "pop_window": {"start": int(s), "end": int(e)},
+                    "pop_segments": [{"start": int(a), "end": int(b)} for a, b in segments],
+                    "tail": [float(v) for v in tail],
+                    "tail_diffs": [float(v) for v in tail_diffs],
+                    "max_tail_increase": float(max_tail_increase),
+                },
+            )
 
         if float(np.mean(tail[2:6])) < 4.0:
-            return False, "Afterglow tail fades too quickly (mean tail too low)"
+            return (
+                False,
+                "Afterglow tail fades too quickly (mean tail too low)",
+                {
+                    "roi": roi,
+                    "high_thresh": float(high_thresh),
+                    "peak_frame": int(peak),
+                    "pop_window": {"start": int(s), "end": int(e)},
+                    "pop_segments": [{"start": int(a), "end": int(b)} for a, b in segments],
+                    "tail": [float(v) for v in tail],
+                },
+            )
 
-        return True, "Afterglow persistence detected (tail decays across frames)"
+        return (
+            True,
+            "Afterglow persistence detected (tail decays across frames)",
+            {
+                "roi": roi,
+                "high_thresh": float(high_thresh),
+                "peak_frame": int(peak),
+                "pop_window": {"start": int(s), "end": int(e)},
+                "pop_segments": [{"start": int(a), "end": int(b)} for a, b in segments],
+                "tail": [float(v) for v in tail],
+                "tail_diffs": [float(v) for v in tail_diffs] if tail_diffs.size else [],
+                "max_tail_increase": float(max_tail_increase),
+            },
+        )

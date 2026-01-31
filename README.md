@@ -27,55 +27,57 @@ The plugin connects directly to the Ultimate's network interface, eliminating th
 
 ## Contents
 
-- [🚀 Quick Start][toc-quick-start]
-  - [What You'll Need][toc-what-youll-need]
-  - [Installation][toc-installation]
-    - [Windows (X64)][toc-windows-x64]
-    - [Windows (ARM64)][toc-windows-arm64]
-    - [Windows (Portable Mode)][toc-windows-portable-mode]
-    - [macOS][toc-macos]
-    - [Linux (Ubuntu / Debian)][toc-linux-ubuntu-debian]
-    - [Linux (Fedora, Arch, etc.)][toc-linux-fedora-arch-etc]
-  - [C64 Stream source][toc-c64-stream-source]
-  - [C64 Stream Effects filter][toc-c64-stream-effects-filter]
-- [🧩 Plugin Setup][toc-plugin-setup]
-  - [General][toc-general]
-  - [Network][toc-network]
-  - [Recording][toc-recording]
-  - [Recording Options][toc-recording-options]
-    - [File Organization][toc-file-organization]
-    - [Usage Notes][toc-usage-notes]
-    - [Debug & Analysis CSV Logs][toc-debug-analysis-csv-logs]
-  - [Effect settings][toc-effect-settings]
-    - [Perfect Scan Lines][toc-perfect-scan-lines]
-  - [Color Palettes][toc-color-palettes]
-  - [Import/Export Configuration][toc-importexport-configuration]
-  - [Remote Control][toc-remote-control]
-    - [How Keyboard Capture Works][toc-how-keyboard-capture-works]
-  - [C64Script Automation][toc-c64script-automation]
-- [🛟 Troubleshooting][toc-troubleshooting]
-  - [Plugin missing from OBS?][toc-plugin-missing-from-obs]
-  - [No video stream?][toc-no-video-stream]
-  - [Lost / Repeated Frames?][toc-lost-repeated-frames]
-  - [Effects not working?][toc-effects-not-working]
-  - [Audio sync issues?][toc-audio-sync-issues]
-  - [Connection acting up?][toc-connection-acting-up]
-  - [Hostname not resolving?][toc-hostname-not-resolving]
-  - [Recording troubles?][toc-recording-troubles]
-- [📚 Reference][toc-reference]
-  - [Default settings][toc-default-settings]
-  - [File System Structure][toc-file-system-structure]
-    - [1. Plugin][toc-1-plugin]
-    - [2. Shipped Data][toc-2-shipped-data]
-    - [3. User Data][toc-3-user-data]
-  - [Network Details][toc-network-details]
-    - [Hostname vs IP Address][toc-hostname-vs-ip-address]
-    - [DNS Resolution][toc-dns-resolution]
-    - [C64 Ultimate Setup][toc-c64-ultimate-setup]
-  - [Technical Details][toc-technical-details]
-- [🛠️ For Developers][toc-for-developers]
-  - [End-to-end tests][toc-end-to-end-tests]
-- [⚖️ License][toc-license]
+- [C64 Stream](#c64-stream)
+  - [Contents](#contents)
+  - [🚀 Quick Start](#-quick-start)
+    - [What You'll Need](#what-youll-need)
+    - [Installation](#installation)
+      - [Windows (X64)](#windows-x64)
+      - [Windows (ARM64)](#windows-arm64)
+      - [Windows (Portable Mode)](#windows-portable-mode)
+      - [macOS](#macos)
+      - [Linux (Ubuntu / Debian)](#linux-ubuntu--debian)
+      - [Linux (Fedora, Arch, etc.)](#linux-fedora-arch-etc)
+    - [C64 Stream source](#c64-stream-source)
+    - [C64 Stream Effects filter](#c64-stream-effects-filter)
+  - [🧩 Plugin Setup](#-plugin-setup)
+    - [General](#general)
+    - [Network](#network)
+    - [Recording](#recording)
+    - [Recording Options](#recording-options)
+      - [File Organization](#file-organization)
+      - [Usage Notes](#usage-notes)
+      - [Debug \& Analysis CSV Logs](#debug--analysis-csv-logs)
+    - [Effect settings](#effect-settings)
+      - [Perfect Scan Lines](#perfect-scan-lines)
+    - [Color Palettes](#color-palettes)
+    - [Import/Export Configuration](#importexport-configuration)
+    - [Remote Control](#remote-control)
+    - [How Keyboard Capture Works](#how-keyboard-capture-works)
+    - [C64Script Automation](#c64script-automation)
+  - [🛟 Troubleshooting](#-troubleshooting)
+    - [Plugin missing from OBS?](#plugin-missing-from-obs)
+    - [No video stream?](#no-video-stream)
+    - [Lost / Repeated Frames?](#lost--repeated-frames)
+    - [Effects not working?](#effects-not-working)
+    - [Audio sync issues?](#audio-sync-issues)
+    - [Connection acting up?](#connection-acting-up)
+    - [Hostname not resolving?](#hostname-not-resolving)
+    - [Recording troubles?](#recording-troubles)
+  - [📚 Reference](#-reference)
+    - [Default settings](#default-settings)
+    - [File System Structure](#file-system-structure)
+      - [1. Plugin](#1-plugin)
+      - [2. Shipped Data](#2-shipped-data)
+      - [3. User Data](#3-user-data)
+    - [Network Details](#network-details)
+      - [Hostname vs IP Address](#hostname-vs-ip-address)
+      - [DNS Resolution](#dns-resolution)
+      - [C64 Ultimate Setup](#c64-ultimate-setup)
+    - [Technical Details](#technical-details)
+  - [🛠️ For Developers](#️-for-developers)
+    - [End-to-end tests](#end-to-end-tests)
+  - [⚖️ License](#️-license)
 
 [toc-quick-start]: #-quick-start
 [toc-what-youll-need]: #what-youll-need
@@ -861,7 +863,7 @@ The data directory contains:
 > [!NOTE]
 > **Package Install** is for end users who install via `.deb` packages, `.pkg` installers, or `.zip` extraction to system directories.
 >
-> **User Install** is for local development using VSCode build tasks or `local-build.sh --install`. The E2E tests also use these user install paths.
+> **User Install** is for local development using VSCode build tasks or `./build --install`. The E2E tests also use these user install paths.
 
 #### 3. User Data
 
