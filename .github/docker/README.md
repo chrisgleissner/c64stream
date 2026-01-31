@@ -27,7 +27,7 @@ This directory contains Docker-based build configurations optimized for differen
 ```bash
 docker build -f .github/docker/Dockerfile.copilot-build -t c64stream-copilot:latest .
 docker run -it --rm -v "$(pwd)":/workspace c64stream-copilot:latest bash
-./local-build.sh linux
+./build linux
 ```
 
 ### 2. Full CI Builds - `Dockerfile.ubuntu-build`
@@ -49,7 +49,7 @@ docker run -it --rm -v "$(pwd)":/workspace c64stream-copilot:latest bash
 ```bash
 docker build -f .github/docker/Dockerfile.ubuntu-build -t c64stream-ci:latest .
 docker run -it --rm -v "$(pwd)":/workspace c64stream-ci:latest bash
-./local-build.sh linux --e2e --install
+./build linux --e2e --install
 ```
 
 ## Performance Comparison
@@ -122,7 +122,7 @@ jobs:
 ```bash
 docker run --rm -v $(pwd):/workspace \
   ghcr.io/chrisgleissner/c64stream/copilot-build:latest \
-  bash -c "cd /workspace && ./local-build.sh linux"
+  bash -c "cd /workspace && ./build linux"
 ```
 
 ### Full Build with CI Image
@@ -175,5 +175,5 @@ For Copilot sessions, see `.github/COPILOT_DEPENDENCIES.md` for caching strategi
 
 - `.github/COPILOT_DEPENDENCIES.md` - Dependency documentation and caching
 - `.github/scripts/install-copilot-deps.sh` - Automated installation for non-Docker builds
-- `local-build.sh` - Local build script
+- `build` - Local build script
 - `.github/workflows/` - CI workflows using these images

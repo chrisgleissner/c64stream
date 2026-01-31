@@ -175,54 +175,43 @@ ensure_linux_build_prereqs() {
 
 usage() {
     cat << EOF
-C64 Stream - Local Multi-Platform Build Script
+C64 Stream - Multi-Platform Build Script
 
-Usage: $0 [platform] [options]
+Usage: $0 [OPTIONS]
 
-PLATFORMS:
-    linux       Build for Linux (Ubuntu/Debian)
-    macos       Build for macOS (requires Xcode)
-    windows     Build for Windows (requires MinGW or native tools)
-    (omit)      Auto-detect platform
+Options:
+  -p, --platform PLAT        Target platform (linux, macos, windows; default: linux)
+      --config CONFIG        Build configuration (Debug, Release, RelWithDebInfo, MinSizeRel)
+  -C, --clean                Clean build directory before building
+  -t, --tests                Run tests after building (default)
+  -T, --no-tests             Skip tests after building
+  -s, --script-tests         Run c64script validation tests
+  -r, --rerecord-traces      Regenerate expected trace files for c64script tests
+  -d, --install-deps         Install build dependencies
+  -D, --install-e2e-deps     Install E2E dependencies (OBS, xvfb, etc.)
+  -i, --install              Install plugin to OBS after building
+  -e, --e2e[=SCENARIO]       Run E2E tests after build and install (default: ntsc_default)
+  -E, --e2e-scenarios        Run all E2E scenarios
+  -R, --e2e-results          Regenerate E2E results README only
+  -X, --no-xvfb              Run E2E tests without starting Xvfb
+  -f, --fuzz[=SECONDS]       Run C64Script fuzzing (default: 60s)
+  -v, --verbose              Enable verbose output
+  -g, --debug-logs           Enable debug logging for C64Script tests
+  -h, --help                 Show this help message
 
-OPTIONS:
-    --config CONFIG     Build configuration: Debug, Release, RelWithDebInfo, MinSizeRel
-    --clean             Clean build directory before building
-    --tests             Run tests after building (default: on)
-    --no-tests          Skip tests after building
-    --script-tests      Run c64script validation tests (all .c64script files)
-    --rerecord-traces   Regenerate all expected trace files for c64script tests
-    --install-deps      Install build dependencies
-    --install-e2e-deps  Also install E2E testing dependencies (OBS, xvfb, etc.)
-    --install           Install plugin to OBS after building
-    --e2e[=SCENARIO]    Run E2E tests after building and installing (default scenario: ntsc_default)
-    --e2e-scenarios     Run all scenarios in tests/e2e/scenarios/* and write results to tests/e2e/results/<scenario>
-    --e2e-results       Regenerate tests/e2e/results/README.md from discovered result folders (no tests)
-    --no-xvfb           Run E2E tests without starting Xvfb (uses current DISPLAY)
-    --verbose           Enable verbose output
-    --debug-logs        Enable debug logging for C64Script tests
-    --fuzz[=SECONDS]    Run C64Script fuzzing (default: 60s; override with seconds)
-    --help              Show this help message
-
-EXAMPLES:
-    $0 linux                                    # Build for Linux with RelWithDebInfo
-    $0 linux --config Release --tests          # Build Release for Linux and run tests
-    $0 linux --install                         # Build and install to OBS
-    $0 linux --e2e --install                   # Build, install and run E2E tests
-    $0 windows --clean --install-deps          # Clean build for Windows, install deps
-    $0 linux --install-e2e-deps --e2e          # Install all deps including E2E and run E2E tests
-    $0 linux --e2e-results                     # Regenerate the E2E results README
-    $0 --fuzz                                  # Build and run 60s fuzzing (default)
-    $0 --fuzz=600                              # Build and run 10-minute fuzzing
-    RUN_FUZZ=1 FUZZ_TIME_SECONDS=30 $0 linux   # Run fuzzing for 30 seconds
-    $0 macos --verbose                          # Build for macOS with verbose output
-
-NOTES:
-    - This script replicates CI build behavior locally
-    - Dependencies are automatically downloaded where possible
-    - Cross-compilation is supported for Windows on Linux (MinGW)
-    - E2E tests require OBS Studio, Python3, xvfb, and additional dependencies (auto-installed)
-    - Each platform may have specific prerequisites (see README.md)
+Examples:
+  $0                                Build for default platform (linux) with defaults
+  $0 --config Release --tests        Build Release and run tests
+  $0 -p windows -C -d                Clean build for Windows and install build dependencies
+  $0 -p linux -D -e                  Install E2E deps, then build, install, and run default E2E scenario
+  $0 -i -e                           Build, install to OBS, and run default E2E scenario
+  $0 -i -e=pal_default               Build, install to OBS, and run E2E scenario "pal_default"
+  $0 -E                              Build/install as needed and run all E2E scenarios
+  $0 -R                              Regenerate tests/e2e/results/README.md only (no tests)
+  $0 -f                              Build and run fuzzing for the default duration (60s)
+  $0 -f=600                          Build and run fuzzing for 600 seconds
+  RUN_FUZZ=1 FUZZ_TIME_SECONDS=30 $0 Build and run fuzzing for 30 seconds via env vars
+  $0 -p macos -v                     Build for macOS with verbose output
 EOF
 }
 
@@ -999,7 +988,7 @@ install_plugin_for_e2e() {
         linux)
             if [[ ! -f "$build_dir/c64stream.so" ]]; then
                 log_error "Plugin file not found: $build_dir/c64stream.so"
-                log_error "Please build the plugin first with: $0 $platform"
+                log_error "Please build the plugin first with: $0 --platform $platform"
                 return 1
             fi
             log_success "Copied c64stream.so to $install_dir/bin/64bit"
@@ -1008,7 +997,7 @@ install_plugin_for_e2e() {
         macos)
             if [[ ! -f "$build_dir/c64stream.so" ]]; then
                 log_error "Plugin file not found: $build_dir/c64stream.so"
-                log_error "Please build the plugin first with: $0 $platform"
+                log_error "Please build the plugin first with: $0 --platform $platform"
                 return 1
             fi
             cp "$build_dir/c64stream.so" "$install_dir/bin/64bit/"
@@ -1017,7 +1006,7 @@ install_plugin_for_e2e() {
         windows)
             if [[ ! -f "$build_dir/c64stream.dll" ]]; then
                 log_error "Plugin file not found: $build_dir/c64stream.dll"
-                log_error "Please build the plugin first with: $0 $platform"
+                log_error "Please build the plugin first with: $0 --platform $platform"
                 return 1
             fi
             cp "$build_dir/c64stream.dll" "$install_dir/bin/64bit/"
@@ -1393,113 +1382,112 @@ run_e2e_scenarios() {
 
 main() {
     # Parse arguments
-    if [[ $# -eq 0 ]]; then
-        usage
-        exit 1
-    fi
-
-    # First argument is platform, but allow auto-detection
-    if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+    if [[ $# -gt 0 && ( "$1" == "--help" || "$1" == "-h" ) ]]; then
         usage
         exit 0
     fi
 
-    if [[ "$1" != --* ]]; then
-        PLATFORM="$1"
-        shift
-    else
-        PLATFORM=$(detect_platform)
-        log_info "Auto-detected platform: $PLATFORM"
-    fi
-
-    # Validate platform
-    case $PLATFORM in
-        linux|macos|windows) ;;
-        *)
-            log_error "Invalid platform: $PLATFORM"
-            usage
-            exit 1
-            ;;
-    esac
-
     # Parse options
     while [[ $# -gt 0 ]]; do
         case $1 in
-            --config)
-                BUILD_CONFIG="$2"
+            -p|--platform)
+                if [[ $# -lt 2 || "$2" == --* ]]; then
+                    log_error "Missing platform value for $1"
+                    usage
+                    exit 1
+                fi
+                PLATFORM="$2"
                 shift 2
                 ;;
-            --clean)
+            --platform=*)
+                PLATFORM="${1#--platform=}"
+                if [[ -z "$PLATFORM" ]]; then
+                    log_error "Missing platform value for --platform"
+                    usage
+                    exit 1
+                fi
+                shift
+                ;;
+            -C|--clean)
                 CLEAN_BUILD=true
                 shift
                 ;;
-            --tests)
+            -t|--tests)
                 RUN_TESTS=true
                 shift
                 ;;
-            --no-tests)
+            -T|--no-tests)
                 RUN_TESTS=false
                 shift
                 ;;
-            --script-tests)
+            -s|--script-tests)
                 RUN_SCRIPT_TESTS=true
                 shift
                 ;;
-            --rerecord-traces)
+            -r|--rerecord-traces)
                 RERECORD_TRACES=true
                 shift
                 ;;
-            --install-deps)
+            -d|--install-deps)
                 INSTALL_DEPS=true
                 shift
                 ;;
-            --install-e2e-deps)
+            -D|--install-e2e-deps)
                 INSTALL_DEPS=true
                 INSTALL_E2E_DEPS=true
                 shift
                 ;;
-            --install)
+            -i|--install)
                 INSTALL_PLUGIN=true
                 shift
                 ;;
-            --e2e=*)
+            -e|--e2e)
                 RUN_E2E=true
-                E2E_SCENARIO="${1#--e2e=}"
-                shift
-                ;;
-            --e2e)
-                RUN_E2E=true
-                if [[ $# -gt 1 && "$2" != --* ]]; then
+                if [[ $# -gt 1 && "$2" != --* && "$2" != -* ]]; then
                     E2E_SCENARIO="$2"
                     shift 2
                 else
                     shift
                 fi
                 ;;
-            --e2e-scenarios)
+            -e=*|--e2e=*)
+                RUN_E2E=true
+                E2E_SCENARIO="${1#*=}"
+                shift
+                ;;
+            -E|--e2e-scenarios)
                 GENERATE_E2E_SCENARIOS=true
                 shift
                 ;;
-            --e2e-report)
-                log_warning "--e2e-report has been renamed to --e2e-scenarios and the timestamped folder was removed"
-                GENERATE_E2E_SCENARIOS=true
-                shift
-                ;;
-            --e2e-results)
+            -R|--e2e-results)
                 E2E_RESULTS_ONLY=true
                 shift
                 ;;
-            --debug-logs)
-                DEBUG_LOGS=true
+            -X|--no-xvfb)
+                E2E_NO_XVFB=true
                 shift
                 ;;
-            --fuzz)
+            -f|--fuzz)
                 RUN_FUZZ=1
-                shift
+                if [[ $# -gt 1 && "$2" != --* && "$2" != -* ]]; then
+                    FUZZ_TIME_SECONDS_OVERRIDE="$2"
+                    if [[ -z "$FUZZ_TIME_SECONDS_OVERRIDE" || ! "$FUZZ_TIME_SECONDS_OVERRIDE" =~ ^[0-9]+$ ]]; then
+                        log_error "Invalid fuzz duration: $FUZZ_TIME_SECONDS_OVERRIDE"
+                        log_info "Use --fuzz=SECONDS with a positive integer value"
+                        exit 1
+                    fi
+                    if [[ "$FUZZ_TIME_SECONDS_OVERRIDE" -le 0 ]]; then
+                        log_error "Fuzz duration must be greater than zero"
+                        exit 1
+                    fi
+                    shift 2
+                else
+                    shift
+                fi
                 ;;
-            --fuzz=*)
+            -f=*|--fuzz=*)
                 RUN_FUZZ=1
-                FUZZ_TIME_SECONDS_OVERRIDE="${1#--fuzz=}"
+                FUZZ_TIME_SECONDS_OVERRIDE="${1#*=}"
                 if [[ -z "$FUZZ_TIME_SECONDS_OVERRIDE" || ! "$FUZZ_TIME_SECONDS_OVERRIDE" =~ ^[0-9]+$ ]]; then
                     log_error "Invalid fuzz duration: $FUZZ_TIME_SECONDS_OVERRIDE"
                     log_info "Use --fuzz=SECONDS with a positive integer value"
@@ -1511,18 +1499,27 @@ main() {
                 fi
                 shift
                 ;;
-            --verbose)
+            -v|--verbose)
                 VERBOSE=true
                 DEBUG_LOGS=true
                 shift
                 ;;
-            --no-xvfb)
-                E2E_NO_XVFB=true
+            -g|--debug-logs)
+                DEBUG_LOGS=true
                 shift
                 ;;
-            --help|-h)
+            -h|--help)
                 usage
                 exit 0
+                ;;
+            --config)
+                BUILD_CONFIG="$2"
+                shift 2
+                ;;
+            --e2e-report)
+                log_warning "--e2e-report has been renamed to --e2e-scenarios and the timestamped folder was removed"
+                GENERATE_E2E_SCENARIOS=true
+                shift
                 ;;
             *)
                 log_error "Unknown option: $1"
@@ -1531,6 +1528,21 @@ main() {
                 ;;
         esac
     done
+
+    if [[ -z "$PLATFORM" ]]; then
+        PLATFORM="linux"
+        log_info "Defaulting platform to linux"
+    fi
+
+    # Validate platform
+    case $PLATFORM in
+        linux|macos|windows) ;;
+        *)
+            log_error "Invalid platform: $PLATFORM"
+            usage
+            exit 1
+            ;;
+    esac
 
     # If scenarios requested, imply E2E
     if [[ "$GENERATE_E2E_SCENARIOS" == "true" ]]; then
@@ -1727,10 +1739,10 @@ main() {
     log_info ""
     log_info "Next steps:"
     if [[ "$INSTALL_PLUGIN" != "true" ]]; then
-        log_info "  - Install plugin: $0 $PLATFORM --install"
+        log_info "  - Install plugin: $0 --platform $PLATFORM --install"
     fi
     if [[ "$RUN_E2E" != "true" ]]; then
-        log_info "  - Run E2E tests: $0 $PLATFORM --e2e --install"
+        log_info "  - Run E2E tests: $0 --platform $PLATFORM --install --e2e-scenarios"
     else
         log_info "  - View E2E report: tests/e2e/test_output/README.md"
         if [[ "$GENERATE_E2E_SCENARIOS" == "true" ]]; then

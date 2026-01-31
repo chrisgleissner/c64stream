@@ -9,18 +9,18 @@ The harness runs the parser, compiler, and VM in-process with deterministic stub
 Fuzzing is disabled by default. Enable it explicitly:
 
 - Short run (default 60s):
-  - ./local-build.sh --fuzz
+  - ./build --fuzz
 - Custom duration, corpus, and workers:
-  - ./local-build.sh --fuzz=600
-  - FUZZ_MAX_LEN=65536 FUZZ_JOBS=2 ./local-build.sh --fuzz=600
-  - FUZZ_SEED_DIR=/path/to/seed ./local-build.sh --fuzz
+  - ./build --fuzz=600
+  - FUZZ_MAX_LEN=65536 FUZZ_JOBS=2 ./build --fuzz=600
+  - FUZZ_SEED_DIR=/path/to/seed ./build --fuzz
 
 ## Longer session
 
 Set a longer duration and more workers:
 
-- ./local-build.sh --fuzz=14400
-- FUZZ_JOBS=4 ./local-build.sh --fuzz=14400
+- ./build --fuzz=14400
+- FUZZ_JOBS=4 ./build --fuzz=14400
 
 ## Output locations
 

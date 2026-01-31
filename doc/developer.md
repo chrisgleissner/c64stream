@@ -23,7 +23,7 @@ The plugin uses a multi-tier configuration system to handle different environmen
 
 **Problem**: E2E tests temporarily copy test-specific properties to the plugin directory, but OBS also caches source settings in its scene collections. This means that even after restoring correct properties.ini, OBS still has cached test settings.
 
-**Solution**: The `local-build.sh --install` command performs comprehensive cleanup:
+**Solution**: The `build --install` command performs comprehensive cleanup:
 
 1. **Properties File Reset**: Restores `data/properties.ini` with real C64 Ultimate settings
 2. **OBS Scene Reset**: Clears all cached C64 Stream source settings in scene collections
@@ -41,26 +41,26 @@ This ensures that after E2E tests, subsequent OBS launches load fresh settings f
 **Clean Installation**:
 
 ```bash
-./local-build.sh linux --install --clean
+./build linux --install --clean
 ```
 
 **E2E Testing**:
 
 ```bash
-./local-build.sh linux --e2e --install
+./build linux --e2e --install
 ```
 
-**Unit tests** (run by default in `local-build.sh`):
+**Unit tests** (run by default in `build`):
 
 ```bash
 # Run only build + unit tests
-./local-build.sh linux
+./build linux
 
 # Explicitly run tests (same as default)
-./local-build.sh linux --tests
+./build linux --tests
 
 # Skip tests (not recommended)
-./local-build.sh linux --no-tests
+./build linux --no-tests
 ```
 
 **Post-E2E Cleanup** (automatic during install):
@@ -124,7 +124,7 @@ Copy-Item 'build_x64\Debug\c64stream.dll' -Destination 'C:\ProgramData\obs-studi
 **Option 2: Convenience script (requires Git Bash)**
 
 ```cmd
-local-build.bat windows --install
+build.bat windows --install
 ```
 
 ### Linux
@@ -151,8 +151,8 @@ cp build_x86_64/c64stream.so ~/.config/obs-studio/plugins/c64stream/bin/64bit/
 **Convenience script with E2E testing:**
 
 ```bash
-./local-build.sh linux --install          # Build and install
-./local-build.sh linux --e2e --install    # Build, install, and run E2E tests
+./build linux --install          # Build and install
+./build linux --e2e --install    # Build, install, and run E2E tests
 ```
 
 ### macOS
@@ -207,14 +207,14 @@ clang-format --version
 
 ### Automatic Formatting
 
-The `local-build.bat` / `local-build.sh` scripts **automatically format code** before every build:
+The `build.bat` / `build` scripts **automatically format code** before every build:
 
 ```bash
 # Linux/macOS
-./local-build.sh linux
+./build linux
 
 # Windows
-local-build.bat windows
+build.bat windows
 ```
 
 ### Manual Formatting
@@ -361,7 +361,7 @@ cd tests/e2e
 **Integrated build + E2E testing (Linux only):**
 
 ```bash
-./local-build.sh linux --e2e --install    # Build, install, and run E2E tests
+./build linux --e2e --install    # Build, install, and run E2E tests
 ```
 
 See [`doc/testing/e2e.md`](testing/e2e.md) for comprehensive E2E testing documentation.
@@ -401,7 +401,7 @@ Output locations:
 Running locally (Linux):
 
 ```bash
-./local-build.sh linux --e2e --install
+./build linux --e2e --install
 ```
 
 More details and CI usage in [`doc/testing/e2e.md`](e2e.md).
@@ -573,7 +573,7 @@ The project uses GitHub Actions for:
 cd tests/e2e && python3 -m pytest test_*.py -v
 
 # Run local E2E (if making plugin behavior changes)
-./local-build.sh linux --e2e --install
+./build linux --e2e --install
 ```
 
 ### Test Coverage Summary

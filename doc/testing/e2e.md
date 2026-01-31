@@ -19,8 +19,8 @@ cd tests/e2e
 Or via convenience script (Linux):
 
 ```bash
-./local-build.sh linux --e2e --install           # Single scenario (ntsc_default)
-./local-build.sh linux --e2e-scenarios --install  # ALL scenarios
+./build linux --e2e --install           # Single scenario (ntsc_default)
+./build linux --e2e-scenarios --install  # ALL scenarios
 ```
 
 ## Real Device A/V Sync Test (LOCAL ONLY)

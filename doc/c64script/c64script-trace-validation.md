@@ -69,7 +69,7 @@ trace:
 #### Local (via build script)
 
 ```bash
-./local-build.sh linux --script-tests
+./build --script-tests
 ```
 
 #### CI/GitHub Actions
@@ -140,7 +140,7 @@ add_test(NAME c64script_all_scripts
 ### Local Build Script
 
 ```bash
-./local-build.sh linux --script-tests
+./build --script-tests
 ```
 
 ## Best Practices

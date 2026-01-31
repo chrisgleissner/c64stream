@@ -40,7 +40,7 @@ Important: E2E tests are **LOCAL ONLY** (require GUI and OBS). Do not run in CI.
    - `cmake --build build_x86_64`
 
 2) **Unit/validation tests**
-   - `./local-build.sh linux --tests --script-tests`
+   - `./build linux --tests --script-tests`
 
 3) **E2E (local only)**
    - `cd tests/e2e`
