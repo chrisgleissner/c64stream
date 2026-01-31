@@ -23,7 +23,7 @@ Common targets:
 
 ```bash
 ./build --install
-./build --install --e2e
+./build --install --e2e ntsc_default
 ```
 
 Formatting:
