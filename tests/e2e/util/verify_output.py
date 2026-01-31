@@ -300,15 +300,19 @@ class OutputVerifier:
         if idx.size == 0:
             return False, f"No pop frames detected in ROI (threshold={high_thresh:.2f})"
 
-        # First contiguous pop event
-        s = int(idx[0])
-        e = s
-        for i in idx[1:]:
-            i = int(i)
-            if i == e + 1:
-                e = i
-            else:
-                break
+        # Use the contiguous pop run that contains the peak ROI frame.
+        # This avoids selecting a short pre-peak spike that can cause false tail increases.
+        peak = int(np.argmax(roi_luma))
+        if roi_luma[peak] <= high_thresh:
+            peak = int(idx[0])
+
+        s = peak
+        while s - 1 >= 0 and roi_luma[s - 1] > high_thresh:
+            s -= 1
+
+        e = peak
+        while e + 1 < len(roi_luma) and roi_luma[e + 1] > high_thresh:
+            e += 1
 
         if e + 10 >= len(roi_luma):
             return False, "Recording too short to evaluate afterglow tail"
@@ -317,7 +321,8 @@ class OutputVerifier:
         if float(tail[0]) < 2.5:
             return False, f"Afterglow tail missing: first tail frame luma={float(tail[0]):.2f} (peak={float(roi_luma[e]):.2f})"
 
-        if not np.all(np.diff(tail) <= 2.5):
+        tail_diffs = np.diff(tail)
+        if tail_diffs.size and float(np.max(tail_diffs)) > 2.5:
             return False, "Afterglow tail is not decaying (unexpected brightness increase)"
 
         if float(np.mean(tail[2:6])) < 4.0:
