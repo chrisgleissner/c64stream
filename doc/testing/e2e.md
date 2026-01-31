@@ -19,15 +19,15 @@ cd tests/e2e
 Or via convenience script (Linux):
 
 ```bash
-./build linux --e2e --install           # Single scenario (ntsc_default)
-./build linux --e2e-scenarios --install  # ALL scenarios
+./build --e2e ntsc-default --install  # Single scenario
+./build --e2e-scenarios --install     # ALL scenarios
 ```
 
 ## Real Device A/V Sync Test (LOCAL ONLY)
 
 This is the same E2E harness as the mocked scenarios, but it uses real packets from a physical C64 Ultimate.
 
-Recommended (enforces the required ordering: mock  device  mock):
+Recommended (enforces the required ordering: mock -> device -> mock):
 
 ```bash
 cd tests/e2e

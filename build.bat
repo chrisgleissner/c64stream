@@ -50,7 +50,7 @@ set SCRIPT_DIR=%~dp0
 REM Remove trailing backslash
 if "%SCRIPT_DIR:~-1%"=="\" set SCRIPT_DIR=%SCRIPT_DIR:~0,-1%
 
-REM Call the bash script with all arguments, let bash handle the path
-"%BASH_EXE%" "%SCRIPT_DIR%\local-build.sh" %*
+REM Call the bash script with -p windows and all other arguments
+"%BASH_EXE%" "%SCRIPT_DIR%\build" -p windows %*
 
 exit /b %ERRORLEVEL%

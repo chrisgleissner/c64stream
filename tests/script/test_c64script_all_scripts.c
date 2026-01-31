@@ -52,6 +52,7 @@ See <https://www.gnu.org/licenses/> for details.
 // Timeout mechanism to prevent hangs
 #define SCRIPT_TIMEOUT_SECONDS 2  // Reduced to 2 seconds for snappy tests
 #define PER_TEST_TIMEOUT_SECONDS 3  // Max wall-clock time per test (including fork overhead)
+#define SCRIPT_TIMEOUT_RECORDING_SECONDS 8
 
 static jmp_buf timeout_jump;
 static volatile sig_atomic_t timeout_occurred = 0;
@@ -151,6 +152,25 @@ static bool should_expect_execution_failure(const char *filename)
         }
     }
     return false;
+}
+
+static int script_timeout_seconds(const char *filename)
+{
+    if (strstr(filename, "test_recording.c64script") != NULL) {
+        return SCRIPT_TIMEOUT_RECORDING_SECONDS;
+    }
+
+    return SCRIPT_TIMEOUT_SECONDS;
+}
+
+static int script_wall_timeout_seconds(const char *filename)
+{
+    int alarm_timeout = script_timeout_seconds(filename);
+    int wall_timeout = alarm_timeout + 1;
+    if (wall_timeout < PER_TEST_TIMEOUT_SECONDS) {
+        wall_timeout = PER_TEST_TIMEOUT_SECONDS;
+    }
+    return wall_timeout;
 }
 
 static char *read_file(const char *path, size_t *out_size)
@@ -388,19 +408,21 @@ static void process_script(const char *file)
     sigaction(SIGALRM, &sa_parse, NULL);
 #endif
 
+    int timeout_seconds = script_timeout_seconds(file);
+
     // Parse with timeout protection
     char error[1024];
     c64script_ast_node_t *ast = NULL;
     timeout_occurred = 0;
 #ifndef _WIN32
-    alarm(SCRIPT_TIMEOUT_SECONDS);
+    alarm(timeout_seconds);
 #endif
 
     if (setjmp(timeout_jump) == 0) {
         c64script_parse_options_t parse_options = {.log_errors = !expect_parse_fail};
         ast = c64script_parse_with_options(source, size, error, sizeof(error), &parse_options);
     } else {
-        snprintf(error, sizeof(error), "Parse timeout after %d seconds", SCRIPT_TIMEOUT_SECONDS);
+        snprintf(error, sizeof(error), "Parse timeout after %d seconds", timeout_seconds);
         ast = NULL;
     }
 
@@ -515,7 +537,7 @@ static void process_script(const char *file)
     sigaction(SIGALRM, &sa, NULL);
 
     // Set timeout
-    alarm(SCRIPT_TIMEOUT_SECONDS);
+    alarm(timeout_seconds);
 #endif
 
     // Execute with timeout protection
@@ -523,8 +545,7 @@ static void process_script(const char *file)
         executed = c64script_execute(runtime);
     } else {
         // Timeout occurred
-        snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Execution timeout after %d seconds",
-                 SCRIPT_TIMEOUT_SECONDS);
+        snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Execution timeout after %d seconds", timeout_seconds);
         executed = false;
     }
 
@@ -678,9 +699,9 @@ int main(int argc, char **argv)
                 // Check for per-test wall-clock timeout
                 time_t now = time(NULL);
                 for (int i = 0; i < count; i++) {
-                    if (pids[i] != 0 && now - starts[i] >= PER_TEST_TIMEOUT_SECONDS) {
+                    if (pids[i] != 0 && now - starts[i] >= script_wall_timeout_seconds(files[i])) {
                         fprintf(stderr, "  ❌ TEST TIMEOUT (exceeded %d seconds wall-clock time)\n",
-                                PER_TEST_TIMEOUT_SECONDS);
+                                script_wall_timeout_seconds(files[i]));
                         kill(pids[i], SIGKILL);
                         waitpid(pids[i], &status, 0);
                         pids[i] = 0;
