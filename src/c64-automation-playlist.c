@@ -388,11 +388,19 @@ static int c64_automation_scan_local(c64_automation_t *automation)
             bool is_dir = entry->directory;
             bool is_file = !entry->directory;
             if (!is_dir && !is_file) {
+#ifdef _WIN32
+                DWORD attrs = GetFileAttributesA(full_path);
+                if (attrs != INVALID_FILE_ATTRIBUTES) {
+                    is_dir = (attrs & FILE_ATTRIBUTE_DIRECTORY) != 0;
+                    is_file = !is_dir;
+                }
+#else
                 struct stat st;
                 if (stat(full_path, &st) == 0) {
                     is_dir = S_ISDIR(st.st_mode);
                     is_file = S_ISREG(st.st_mode);
                 }
+#endif
             }
 
             if (is_dir) {
