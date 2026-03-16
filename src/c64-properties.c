@@ -18,6 +18,8 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-palette.h"
 #include "c64-color.h"
 #include "c64-keyboard.h"
+#include "c64-playlist-window.h"
+#include "c64-properties-refresh.h"
 #include "c64-rest-client.h"
 #include "c64-script-executor.h"
 #include "c64-automation.h"
@@ -43,14 +45,14 @@ See <https://www.gnu.org/licenses/> for details.
 #include <limits.h>
 
 #define PROPS_LOG_PREFIX "[props] "
-#define PLAYLIST_UI_LIMIT 300
+#define PLAYLIST_UI_LIMIT 50
 
 typedef struct {
     int file_system;
     int playback_source;
     bool shuffle;
     bool include_subfolders;
-    char path[512];
+    char path[C64_AUTOMATION_PATH_MAX];
     bool valid;
 } c64_playlist_fingerprint_t;
 
@@ -376,7 +378,7 @@ static bool script_start_stop_clicked(obs_properties_t *props, obs_property_t *p
             context->script_end_time = os_gettime_ns();
             context->script_ended_successfully = false; // User stopped it
             C64_LOG_INFO("Script stopped by user");
-            context->force_ui_update = true; // Force immediate UI update
+            c64_properties_mark_script_ui_refresh(context);
         } else {
             C64_LOG_ERROR("Script executor is null, cannot stop");
         }
@@ -408,13 +410,13 @@ static bool script_start_stop_clicked(obs_properties_t *props, obs_property_t *p
         if (c64_script_executor_start(context->script_executor, context->script_file_path)) {
             C64_LOG_INFO("Script started: %s", context->script_file_path);
             context->last_script_status = C64_SCRIPT_STATUS_RUNNING;
-            context->force_ui_update = true; // Force immediate UI update
+            c64_properties_mark_script_ui_refresh(context);
         } else {
             const char *err = c64_script_executor_get_error(context->script_executor);
             C64_LOG_ERROR("Failed to start script: %s", err ? err : "unknown error");
             context->script_end_time = os_gettime_ns();
             context->script_ended_successfully = false;
-            context->force_ui_update = true; // Force immediate UI update
+            c64_properties_mark_script_ui_refresh(context);
         }
     }
 
@@ -441,11 +443,11 @@ static bool script_pause_resume_clicked(obs_properties_t *props, obs_property_t 
     if (status == C64_SCRIPT_STATUS_RUNNING || status == C64_SCRIPT_STATUS_WAITING) {
         c64_script_executor_pause(context->script_executor);
         C64_LOG_INFO("Script paused");
-        context->force_ui_update = true;
+        c64_properties_mark_script_ui_refresh(context);
     } else if (status == C64_SCRIPT_STATUS_PAUSED) {
         c64_script_executor_resume(context->script_executor);
         C64_LOG_INFO("Script resumed");
-        context->force_ui_update = true;
+        c64_properties_mark_script_ui_refresh(context);
     } else {
         if (context->script_file_path[0] == '\0') {
             C64_LOG_WARNING("No script file selected");
@@ -466,13 +468,13 @@ static bool script_pause_resume_clicked(obs_properties_t *props, obs_property_t 
         if (c64_script_executor_start_debug(context->script_executor, context->script_file_path)) {
             C64_LOG_INFO("Script started in debug mode: %s", context->script_file_path);
             context->last_script_status = C64_SCRIPT_STATUS_PAUSED;
-            context->force_ui_update = true;
+            c64_properties_mark_script_ui_refresh(context);
         } else {
             const char *err = c64_script_executor_get_error(context->script_executor);
             C64_LOG_ERROR("Failed to start script in debug mode: %s", err ? err : "unknown error");
             context->script_end_time = os_gettime_ns();
             context->script_ended_successfully = false;
-            context->force_ui_update = true;
+            c64_properties_mark_script_ui_refresh(context);
         }
     }
 
@@ -492,7 +494,7 @@ static bool script_step_clicked(obs_properties_t *props, obs_property_t *propert
 
     if (c64_script_executor_step(context->script_executor)) {
         C64_LOG_INFO("Stepping to next line");
-        context->force_ui_update = true; // Force immediate UI update
+        c64_properties_mark_script_ui_refresh(context);
     }
 
     c64_queue_properties_refresh(context);
@@ -880,7 +882,7 @@ static bool refresh_playlist_from_settings(obs_properties_t *props, obs_data_t *
     playlist_fingerprint_from_settings(settings, &fingerprint);
 
     int previous_selected_index = (int)obs_data_get_int(settings, "playlist");
-    char previous_selected_path[512] = {0};
+    char previous_selected_path[C64_AUTOMATION_PATH_MAX] = {0};
     bool has_previous_path =
         playlist_copy_selected_path(context, settings, previous_selected_path, sizeof(previous_selected_path));
     int previous_playlist_count = context->automation ? c64_automation_get_playlist_count(context->automation) : 0;
@@ -1390,16 +1392,7 @@ static void update_playlist_property(obs_property_t *prop, struct c64_source *co
 
     int window_start = 0;
     int window_count = playlist_count;
-    if (playlist_count > PLAYLIST_UI_LIMIT) {
-        window_count = PLAYLIST_UI_LIMIT;
-        window_start = focus_index - (PLAYLIST_UI_LIMIT / 2);
-        if (window_start < 0) {
-            window_start = 0;
-        }
-        if (window_start + window_count > playlist_count) {
-            window_start = playlist_count - window_count;
-        }
-    }
+    c64_playlist_compute_window(playlist_count, focus_index, PLAYLIST_UI_LIMIT, &window_start, &window_count);
 
     for (int i = window_start; i < window_start + window_count; i++) {
         const char *path = c64_automation_get_playlist_item(context->automation, i);
@@ -2044,7 +2037,9 @@ obs_properties_t *c64_create_properties(void *data)
     // Get current settings to populate playlist
     obs_data_t *current_settings_for_playlist = obs_source_get_settings(context->source);
     update_playlist_property(playlist_prop, context, current_settings_for_playlist);
-    (void)request_playlist_rebuild(props, current_settings_for_playlist, "properties_open", playlist_prop, false);
+    if (c64_properties_should_request_playlist_rebuild(context)) {
+        (void)request_playlist_rebuild(props, current_settings_for_playlist, "properties_open", playlist_prop, false);
+    }
     obs_data_release(current_settings_for_playlist);
 
     // Refresh playlist button (directly below playlist dropdown)

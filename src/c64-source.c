@@ -25,6 +25,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-video.h"
 #include "c64-color.h"
 #include "c64-audio.h"
+#include "c64-interact-key.h"
 #include "c64-logo.h"
 #include "c64-record.h"
 #include "c64-version.h"
@@ -2024,57 +2025,16 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
         // Build key code from event
         char key_code[64] = "";
 
-        const bool has_text = (event->text && event->text[0] != '\0');
-        const bool single_char = (has_text && event->text[1] == '\0');
-        const bool text_is_space = (single_char && event->text[0] == ' ');
-        const bool text_is_printable = (single_char && isprint((unsigned char)event->text[0]) && !text_is_space);
-
-        // Prefer printable text over native_vkey for printable characters to avoid
-        // ambiguous vkeys (e.g. '$' shares 0x24 with VK_HOME).
-        if (text_is_printable) {
-            snprintf(key_code, sizeof(key_code), "%s", event->text);
-        } else if (event->native_vkey == 0x0D || event->native_vkey == 0xFF0D) { // Return/Enter (Linux: 0xFF0D)
-            snprintf(key_code, sizeof(key_code), "return");
-        } else if (event->native_vkey == 0x08 || event->native_vkey == 0xFF08) { // Backspace (Linux: 0xFF08)
-            snprintf(key_code, sizeof(key_code), "backspace");
-        } else if ((event->native_vkey == 0x2E || event->native_vkey == 0xFFFF) &&
-                   (!event->text || event->text[0] == '\0')) { // Delete (Linux: 0xFFFF)
-            snprintf(key_code, sizeof(key_code), "delete");
-        } else if (event->native_vkey == 0x20) { // Space
-            snprintf(key_code, sizeof(key_code), "space");
-        } else if (event->native_vkey == 0x09 || event->native_vkey == 0xFF09) { // Tab (Linux: 0xFF09)
-            snprintf(key_code, sizeof(key_code), "tab");
-        } else if (event->native_vkey == 0x1B || event->native_vkey == 0xFF1B) { // Escape (Linux: 0xFF1B)
-            // Escape performs BASIC warm start (abort running program)
+        c64_interact_key_result_t key_result =
+            c64_interact_translate_key_code(event->native_vkey, event->text, key_code);
+        if (key_result == C64_INTERACT_KEY_WARM_START) {
             if (context->keyboard) {
                 c64_keyboard_basic_warm_start(context->keyboard);
             }
-            return;                                                              // Don't pass through to keymap
-        } else if (event->native_vkey == 0x24 || event->native_vkey == 0xFF50) { // Home (Linux: 0xFF50)
-            snprintf(key_code, sizeof(key_code), "home");
-        } else if (event->native_vkey == 0x2D || event->native_vkey == 0xFF63) { // Insert (Linux: 0xFF63)
-            snprintf(key_code, sizeof(key_code), "insert");
-        } else if (event->native_vkey == 0xFF52) { // Arrow Up (Linux X11)
-            snprintf(key_code, sizeof(key_code), "up");
-        } else if (event->native_vkey == 0xFF54) { // Arrow Down (Linux X11)
-            snprintf(key_code, sizeof(key_code), "down");
-        } else if (event->native_vkey == 0xFF51) { // Arrow Left (Linux X11)
-            snprintf(key_code, sizeof(key_code), "left");
-        } else if (event->native_vkey == 0xFF53) { // Arrow Right (Linux X11)
-            snprintf(key_code, sizeof(key_code), "right");
-        } else if (has_text) {
-            // Use text for remaining characters (including non-printables we didn't special-case)
-            snprintf(key_code, sizeof(key_code), "%s", event->text);
+            return;
         }
-
-        // Some key combinations (e.g. Ctrl/Alt + digit) may not provide text.
-        // Fall back to ASCII-ish native key values for common alphanumerics.
-        if (key_code[0] == '\0') {
-            const int vkey = (int)event->native_vkey;
-            if ((vkey >= '0' && vkey <= '9') || (vkey >= 'A' && vkey <= 'Z') || (vkey >= 'a' && vkey <= 'z')) {
-                key_code[0] = (char)vkey;
-                key_code[1] = '\0';
-            }
+        if (key_result == C64_INTERACT_KEY_NONE) {
+            key_code[0] = '\0';
         }
 
         // Build modifiers bitmask

@@ -15,6 +15,7 @@ See <https://www.gnu.org/licenses/> for details.
 #ifdef _WIN32
 #include <direct.h>
 #include <windows.h>
+#include <sys/stat.h>
 #define strcasecmp _stricmp
 #else
 #include <dirent.h>
@@ -94,6 +95,66 @@ static bool is_playable_path(const char *path)
     }
 
     return get_file_type(filename) >= 0;
+}
+
+static bool local_path_is_directory(const char *path)
+{
+    if (!path || path[0] == '\0') {
+        return false;
+    }
+
+#ifdef _WIN32
+    DWORD attrs = GetFileAttributesA(path);
+    if (attrs == INVALID_FILE_ATTRIBUTES) {
+        return false;
+    }
+    return (attrs & FILE_ATTRIBUTE_DIRECTORY) != 0;
+#else
+    struct stat st;
+    if (stat(path, &st) != 0) {
+        return false;
+    }
+    return S_ISDIR(st.st_mode);
+#endif
+}
+
+static bool path_is_root_directory(const char *path)
+{
+    if (!path || path[0] == '\0') {
+        return false;
+    }
+
+#ifdef _WIN32
+    if (((path[0] >= 'A' && path[0] <= 'Z') || (path[0] >= 'a' && path[0] <= 'z')) && path[1] == ':' &&
+        (path[2] == '\\' || path[2] == '/') && path[3] == '\0') {
+        return true;
+    }
+    if ((path[0] == '\\' || path[0] == '/') && (path[1] == '\\' || path[1] == '/') && path[2] == '\0') {
+        return true;
+    }
+    return false;
+#else
+    return strcmp(path, "/") == 0;
+#endif
+}
+
+static bool local_scan_path_is_safe(const char *path)
+{
+    if (!path || path[0] == '\0') {
+        return false;
+    }
+
+    if (path_is_root_directory(path)) {
+        C64_LOG_ERROR(AUTOMATION_LOG_PREFIX "Refusing to scan filesystem root: %s", path);
+        return false;
+    }
+
+    if (!local_path_is_directory(path)) {
+        C64_LOG_ERROR(AUTOMATION_LOG_PREFIX "Refusing to scan non-directory path: %s", path);
+        return false;
+    }
+
+    return true;
 }
 
 static uint32_t shuffle_next(uint32_t *seed)
@@ -266,17 +327,17 @@ static int c64_automation_scan_local(c64_automation_t *automation)
         return 0;
     }
 
-#ifdef _WIN32
+    if (!local_scan_path_is_safe(automation->config.folder_path)) {
+        return 0;
+    }
+
     typedef struct {
-        char path[MAX_PATH];
+        char path[C64_AUTOMATION_PATH_MAX];
     } dir_entry_t;
-#else
-    typedef struct {
-        char path[512];
-    } dir_entry_t;
-#endif
 
     int added = 0;
+    int open_failures = 0;
+    char first_failed_path[C64_AUTOMATION_PATH_MAX] = {0};
     int dir_count = 0;
     int dir_capacity = 64;
     dir_entry_t *dir_stack = calloc((size_t)dir_capacity, sizeof(*dir_stack));
@@ -284,44 +345,57 @@ static int c64_automation_scan_local(c64_automation_t *automation)
         return 0;
     }
 
-#ifdef _WIN32
-    strncpy_s(dir_stack[0].path, sizeof(dir_stack[0].path), automation->config.folder_path, _TRUNCATE);
-#else
     strncpy(dir_stack[0].path, automation->config.folder_path, sizeof(dir_stack[0].path) - 1);
     dir_stack[0].path[sizeof(dir_stack[0].path) - 1] = '\0';
-#endif
     dir_count = 1;
 
     while (dir_count > 0 && automation->num_files < C64_AUTOMATION_PLAYLIST_MAX_FILES) {
         dir_count--;
-        const char *current_dir = dir_stack[dir_count].path;
+        char current_dir[C64_AUTOMATION_PATH_MAX];
+        strncpy(current_dir, dir_stack[dir_count].path, sizeof(current_dir) - 1);
+        current_dir[sizeof(current_dir) - 1] = '\0';
 
 #ifdef _WIN32
-        WIN32_FIND_DATAA find_data;
-        char search_path[MAX_PATH];
-        int written = snprintf(search_path, sizeof(search_path), "%s\\*", current_dir);
-        if (written < 0 || (size_t)written >= sizeof(search_path)) {
+
+        os_dir_t *dir = os_opendir(current_dir);
+        if (!dir) {
+            open_failures++;
+            if (first_failed_path[0] == '\0') {
+                strncpy(first_failed_path, current_dir, sizeof(first_failed_path) - 1);
+                first_failed_path[sizeof(first_failed_path) - 1] = '\0';
+            }
             continue;
         }
 
-        HANDLE h_find = FindFirstFileA(search_path, &find_data);
-        if (h_find == INVALID_HANDLE_VALUE) {
-            C64_LOG_WARNING(AUTOMATION_LOG_PREFIX "Failed to open folder: %s", current_dir);
-            continue;
-        }
-
-        do {
-            if (strcmp(find_data.cFileName, ".") == 0 || strcmp(find_data.cFileName, "..") == 0) {
+        struct os_dirent *entry = NULL;
+        while ((entry = os_readdir(dir)) != NULL && automation->num_files < C64_AUTOMATION_PLAYLIST_MAX_FILES) {
+            if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
                 continue;
             }
 
-            char full_path[MAX_PATH];
-            written = snprintf(full_path, sizeof(full_path), "%s\\%s", current_dir, find_data.cFileName);
+#ifdef _WIN32
+            const char separator = '\\';
+#else
+            const char separator = '/';
+#endif
+
+            char full_path[C64_AUTOMATION_PATH_MAX];
+            int written = snprintf(full_path, sizeof(full_path), "%s%c%s", current_dir, separator, entry->d_name);
             if (written < 0 || (size_t)written >= sizeof(full_path)) {
                 continue;
             }
 
-            if (find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+            bool is_dir = entry->directory;
+            bool is_file = !entry->directory;
+            if (!is_dir && !is_file) {
+                struct stat st;
+                if (stat(full_path, &st) == 0) {
+                    is_dir = S_ISDIR(st.st_mode);
+                    is_file = S_ISREG(st.st_mode);
+                }
+            }
+
+            if (is_dir) {
                 if (!automation->config.include_subfolders) {
                     continue;
                 }
@@ -334,12 +408,13 @@ static int c64_automation_scan_local(c64_automation_t *automation)
                     dir_stack = new_stack;
                     dir_capacity = new_capacity;
                 }
-                strncpy_s(dir_stack[dir_count].path, sizeof(dir_stack[dir_count].path), full_path, _TRUNCATE);
+                strncpy(dir_stack[dir_count].path, full_path, sizeof(dir_stack[dir_count].path) - 1);
+                dir_stack[dir_count].path[sizeof(dir_stack[dir_count].path) - 1] = '\0';
                 dir_count++;
                 continue;
             }
 
-            if (!is_playable_path(full_path)) {
+            if (!is_file || !is_playable_path(full_path)) {
                 continue;
             }
 
@@ -354,13 +429,17 @@ static int c64_automation_scan_local(c64_automation_t *automation)
             automation->files[automation->num_files].type = get_file_type(full_path);
             automation->num_files++;
             added++;
-        } while (FindNextFileA(h_find, &find_data) && automation->num_files < C64_AUTOMATION_PLAYLIST_MAX_FILES);
+        }
 
-        FindClose(h_find);
+        os_closedir(dir);
 #else
         DIR *dir = opendir(current_dir);
         if (!dir) {
-            C64_LOG_WARNING(AUTOMATION_LOG_PREFIX "Failed to open folder: %s", current_dir);
+            open_failures++;
+            if (first_failed_path[0] == '\0') {
+                strncpy(first_failed_path, current_dir, sizeof(first_failed_path) - 1);
+                first_failed_path[sizeof(first_failed_path) - 1] = '\0';
+            }
             continue;
         }
 
@@ -370,7 +449,7 @@ static int c64_automation_scan_local(c64_automation_t *automation)
                 continue;
             }
 
-            char full_path[512];
+            char full_path[C64_AUTOMATION_PATH_MAX];
             int written = snprintf(full_path, sizeof(full_path), "%s/%s", current_dir, entry->d_name);
             if (written < 0 || (size_t)written >= sizeof(full_path)) {
                 continue;
@@ -403,11 +482,7 @@ static int c64_automation_scan_local(c64_automation_t *automation)
                 continue;
             }
 
-            if (!is_file) {
-                continue;
-            }
-
-            if (!is_playable_path(full_path)) {
+            if (!is_file || !is_playable_path(full_path)) {
                 continue;
             }
 
@@ -429,6 +504,12 @@ static int c64_automation_scan_local(c64_automation_t *automation)
     }
 
     free(dir_stack);
+
+    if (open_failures > 0) {
+        C64_LOG_WARNING(AUTOMATION_LOG_PREFIX "Skipped %d unreadable folders while scanning %s (first failure: %s)",
+                        open_failures, automation->config.folder_path,
+                        first_failed_path[0] ? first_failed_path : "(unknown)");
+    }
 
     if (automation->num_files >= C64_AUTOMATION_PLAYLIST_MAX_FILES) {
         C64_LOG_WARNING(AUTOMATION_LOG_PREFIX "Playlist capped at %d files (local)", C64_AUTOMATION_PLAYLIST_MAX_FILES);

@@ -346,6 +346,7 @@ struct c64_source {
     void *automation;                      // c64_automation_t* automation engine
     char automation_status[256];           // Current automation status for UI display
     bool playlist_ui_update_in_progress;   // Guard for properties playlist UI updates
+    bool playlist_refresh_suppressed_once; // Skip one playlist rebuild during script-only UI refresh
     bool playlist_fingerprint_valid;       // Whether playlist fingerprint is initialized
     int playlist_last_selected_index;      // Last selected playlist index
     bool playlist_last_selected_valid;     // Whether last selected index is valid

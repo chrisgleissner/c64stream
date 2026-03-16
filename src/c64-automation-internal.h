@@ -18,7 +18,7 @@ See <https://www.gnu.org/licenses/> for details.
 #define C64_AUTOMATION_PLAYLIST_INITIAL_CAPACITY 1024
 
 typedef struct {
-    char path[512];
+    char path[C64_AUTOMATION_PATH_MAX];
     c64_file_type_t type;
 } file_entry_t;
 
@@ -33,7 +33,7 @@ struct c64_automation {
     bool should_stop;
     bool skip_requested;
     char status[128];
-    char current_file_path[512];
+    char current_file_path[C64_AUTOMATION_PATH_MAX];
     bool playlist_ready;
 
     file_entry_t *files;

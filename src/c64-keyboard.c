@@ -349,6 +349,58 @@ static uint8_t keymap_entry_next_value(keymap_entry_t *entry)
     return value;
 }
 
+static const char *keymap_arrow_alias(const char *key_code)
+{
+    if (!key_code) {
+        return NULL;
+    }
+
+    if (strcmp(key_code, "ArrowUp") == 0) {
+        return "up";
+    }
+    if (strcmp(key_code, "ArrowDown") == 0) {
+        return "down";
+    }
+    if (strcmp(key_code, "ArrowLeft") == 0) {
+        return "left";
+    }
+    if (strcmp(key_code, "ArrowRight") == 0) {
+        return "right";
+    }
+    if (strcmp(key_code, "up") == 0) {
+        return "ArrowUp";
+    }
+    if (strcmp(key_code, "down") == 0) {
+        return "ArrowDown";
+    }
+    if (strcmp(key_code, "left") == 0) {
+        return "ArrowLeft";
+    }
+    if (strcmp(key_code, "right") == 0) {
+        return "ArrowRight";
+    }
+
+    return NULL;
+}
+
+static bool keymap_emit_entry(keymap_entry_t *entry, c64_output_t *output)
+{
+    if (!entry || !output) {
+        return false;
+    }
+
+    if (entry->is_symbolic) {
+        output->mode = C64_OUTPUT_SYMBOLIC;
+        strncpy(output->data.symbol, entry->symbol, sizeof(output->data.symbol) - 1);
+        output->data.symbol[sizeof(output->data.symbol) - 1] = '\0';
+    } else {
+        output->mode = C64_OUTPUT_PETSCII;
+        output->data.petscii = keymap_entry_next_value(entry);
+    }
+
+    return true;
+}
+
 bool c64_keymap_convert(c64_keymap_t *keymap, const char *key_code, int modifiers, c64_output_t *output)
 {
     if (!keymap || !key_code || !output) {
@@ -374,35 +426,23 @@ bool c64_keymap_convert(c64_keymap_t *keymap, const char *key_code, int modifier
     // Try exact match first (with modifiers)
     for (int i = 0; i < keymap->num_entries; i++) {
         if (strcmp(keymap->entries[i].key, key_with_mods) == 0) {
-            if (keymap->entries[i].is_symbolic) {
-                // Symbolic output
-                output->mode = C64_OUTPUT_SYMBOLIC;
-                strncpy(output->data.symbol, keymap->entries[i].symbol, sizeof(output->data.symbol) - 1);
-                output->data.symbol[sizeof(output->data.symbol) - 1] = '\0';
-            } else {
-                // PETSCII output
-                output->mode = C64_OUTPUT_PETSCII;
-                output->data.petscii = keymap_entry_next_value(&keymap->entries[i]);
-            }
-            return true;
+            return keymap_emit_entry(&keymap->entries[i], output);
         }
     }
 
     // If no match with modifiers, try plain key (ignoring modifiers)
     for (int i = 0; i < keymap->num_entries; i++) {
         if (strcmp(keymap->entries[i].key, key_code) == 0) {
-            if (keymap->entries[i].is_symbolic) {
-                // Symbolic output
-                output->mode = C64_OUTPUT_SYMBOLIC;
-                strncpy(output->data.symbol, keymap->entries[i].symbol, sizeof(output->data.symbol) - 1);
-                output->data.symbol[sizeof(output->data.symbol) - 1] = '\0';
-            } else {
-                // PETSCII output
-                output->mode = C64_OUTPUT_PETSCII;
-                output->data.petscii = keymap_entry_next_value(&keymap->entries[i]);
-            }
+            return keymap_emit_entry(&keymap->entries[i], output);
+        }
+    }
 
-            return true;
+    const char *alias = keymap_arrow_alias(key_code);
+    if (alias) {
+        for (int i = 0; i < keymap->num_entries; i++) {
+            if (strcmp(keymap->entries[i].key, alias) == 0) {
+                return keymap_emit_entry(&keymap->entries[i], output);
+            }
         }
     }
 

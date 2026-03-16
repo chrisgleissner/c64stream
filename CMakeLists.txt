@@ -211,7 +211,10 @@ target_sources(
     src/c64-record-audio.c
     src/c64-record-frames.c
     src/c64-version.c
+    src/c64-interact-key.c
     src/c64-properties.c
+    src/c64-properties-refresh.c
+    src/c64-playlist-window.c
     src/c64-logo.c
     src/c64-file.c
     src/c64-effect.c

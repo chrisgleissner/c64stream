@@ -73,7 +73,7 @@ static bool c64_automation_ensure_songlengths_loaded(c64_automation_t *automatio
                         automation->config.songlengths_path);
     }
 
-    char root_path[512];
+    char root_path[C64_AUTOMATION_PATH_MAX];
     if (automation->config.mode == C64_AUTO_MODE_FOLDER) {
         strncpy(root_path, automation->config.folder_path, sizeof(root_path) - 1);
         root_path[sizeof(root_path) - 1] = '\0';
@@ -96,9 +96,12 @@ static bool c64_automation_ensure_songlengths_loaded(c64_automation_t *automatio
         }
     }
 
-    char songlengths_path[512];
+    char songlengths_path[C64_AUTOMATION_PATH_MAX];
     if (c64_hvsc_find_songlengths_file_local(root_path, songlengths_path, sizeof(songlengths_path))) {
         if (c64_hvsc_songlength_db_load(&automation->songlength_db, songlengths_path)) {
+            strncpy(automation->config.songlengths_path, songlengths_path,
+                    sizeof(automation->config.songlengths_path) - 1);
+            automation->config.songlengths_path[sizeof(automation->config.songlengths_path) - 1] = '\0';
             C64_LOG_INFO(AUTOMATION_LOG_PREFIX "Using songlengths file: %s", automation->songlength_db.source_path);
             return true;
         }
@@ -604,8 +607,8 @@ void c64_automation_configure(c64_automation_t *automation, const c64_automation
 
     bool previous_use_songlengths = automation->use_songlengths;
     c64_file_source_t previous_source = automation->config.file_source;
-    char previous_folder[512];
-    char previous_songlengths[512];
+    char previous_folder[C64_AUTOMATION_PATH_MAX];
+    char previous_songlengths[C64_AUTOMATION_PATH_MAX];
     strncpy(previous_folder, automation->config.folder_path, sizeof(previous_folder) - 1);
     previous_folder[sizeof(previous_folder) - 1] = '\0';
     strncpy(previous_songlengths, automation->config.songlengths_path, sizeof(previous_songlengths) - 1);
@@ -641,7 +644,7 @@ void c64_automation_update_runtime_config(c64_automation_t *automation, const c6
         return;
     }
 
-    char previous_songlengths[512];
+    char previous_songlengths[C64_AUTOMATION_PATH_MAX];
     strncpy(previous_songlengths, automation->config.songlengths_path, sizeof(previous_songlengths) - 1);
     previous_songlengths[sizeof(previous_songlengths) - 1] = '\0';
 
@@ -995,7 +998,7 @@ const char *c64_automation_get_current_file(c64_automation_t *automation)
         return NULL;
     }
 
-    static char file_path_copy[512];
+    static char file_path_copy[C64_AUTOMATION_PATH_MAX];
     pthread_mutex_lock(&automation->status_mutex);
     strncpy(file_path_copy, automation->current_file_path, sizeof(file_path_copy) - 1);
     pthread_mutex_unlock(&automation->status_mutex);

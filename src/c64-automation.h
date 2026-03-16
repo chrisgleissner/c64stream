@@ -36,14 +36,18 @@ typedef enum {
 
 typedef enum { C64_FILE_SOURCE_LOCAL, C64_FILE_SOURCE_C64U } c64_file_source_t;
 
+#ifndef C64_AUTOMATION_PATH_MAX
+#define C64_AUTOMATION_PATH_MAX 4096
+#endif
+
 /**
  * Automation configuration
  */
 typedef struct {
     c64_automation_mode_t mode;
     c64_file_source_t file_source;
-    char folder_path[512];
-    char songlengths_path[512];
+    char folder_path[C64_AUTOMATION_PATH_MAX];
+    char songlengths_path[C64_AUTOMATION_PATH_MAX];
     bool shuffle;
     bool include_subfolders;
     int duration_seconds;
