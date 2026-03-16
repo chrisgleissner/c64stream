@@ -979,7 +979,7 @@ static bool refresh_playlist_from_settings(obs_properties_t *props, obs_data_t *
         if (selected_index != previous_selected_index) {
             obs_data_set_int(settings, "playlist", selected_index);
         }
-        (void)c64_automation_jump_to_index(context->automation, selected_index);
+        (void)c64_automation_set_current_index(context->automation, selected_index);
     }
 
     obs_property_t *playlist_prop = obs_properties_get(props, "playlist");

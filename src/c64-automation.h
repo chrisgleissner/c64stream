@@ -114,6 +114,14 @@ const char *c64_automation_get_current_file(c64_automation_t *automation);
 int c64_automation_get_current_index(c64_automation_t *automation);
 
 /**
+ * Update the selected playlist index without requesting playback skip or emitting
+ * a user-visible jump event.
+ * @param index Target index (0-based)
+ * @return true if the selected index changed
+ */
+bool c64_automation_set_current_index(c64_automation_t *automation, int index);
+
+/**
  * Get songlengths database path if loaded (may trigger discovery)
  * @return Fully qualified path or NULL if unavailable
  */

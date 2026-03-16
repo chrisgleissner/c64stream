@@ -1019,6 +1019,33 @@ int c64_automation_get_current_index(c64_automation_t *automation)
     return index;
 }
 
+static bool c64_automation_update_current_index(c64_automation_t *automation, int target_index, bool request_skip)
+{
+    if (!automation || target_index < 0) {
+        return false;
+    }
+
+    pthread_mutex_lock(&automation->status_mutex);
+    if (target_index >= automation->num_files) {
+        pthread_mutex_unlock(&automation->status_mutex);
+        return false;
+    }
+
+    bool changed = automation->current_index != target_index;
+    automation->current_index = target_index;
+    if (request_skip && changed && automation->running) {
+        automation->skip_requested = true;
+    }
+    pthread_mutex_unlock(&automation->status_mutex);
+
+    return changed;
+}
+
+bool c64_automation_set_current_index(c64_automation_t *automation, int target_index)
+{
+    return c64_automation_update_current_index(automation, target_index, false);
+}
+
 bool c64_automation_skip_next(c64_automation_t *automation)
 {
     if (!automation) {
@@ -1043,22 +1070,5 @@ bool c64_automation_skip_next(c64_automation_t *automation)
 
 bool c64_automation_jump_to_index(c64_automation_t *automation, int target_index)
 {
-    if (!automation || target_index < 0) {
-        return false;
-    }
-
-    pthread_mutex_lock(&automation->status_mutex);
-    if (target_index >= automation->num_files) {
-        pthread_mutex_unlock(&automation->status_mutex);
-        return false;
-    }
-
-    automation->current_index = target_index;
-    if (automation->running) {
-        automation->skip_requested = true; // Skip current playback
-    }
-    pthread_mutex_unlock(&automation->status_mutex);
-
-    C64_LOG_INFO(AUTOMATION_LOG_PREFIX "Jumping to index %d", target_index);
-    return true;
+    return c64_automation_update_current_index(automation, target_index, true);
 }

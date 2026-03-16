@@ -200,7 +200,7 @@ Options:
   -h, --help                 Show this help message
 
 Examples:
-  $0                                Build for default platform (linux) with defaults
+  $0                                 Build for default platform (linux) with defaults
   $0 --config Release --tests        Build Release and run tests
   $0 -p windows -C -d                Clean build for Windows and install build dependencies
   $0 -p linux -D -e                  Install E2E deps, then build, install, and run default E2E scenario

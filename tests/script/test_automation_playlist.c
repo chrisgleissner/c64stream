@@ -128,6 +128,25 @@ static void cleanup_file_range(const char *base_dir, int dir_count, int files_pe
     }
 }
 
+static void cleanup_file(const char *path)
+{
+    if (path && path[0] != '\0') {
+        remove(path);
+    }
+}
+
+static void cleanup_empty_dir(const char *path)
+{
+    if (!path || path[0] == '\0') {
+        return;
+    }
+#ifdef _WIN32
+    _rmdir(path);
+#else
+    rmdir(path);
+#endif
+}
+
 static void cleanup_dir(const char *dir, const char *file1, const char *file2)
 {
     if (file1) {
@@ -182,6 +201,7 @@ int main(void)
 
     CHECK(c64_automation_refresh_playlist(automation, &config, 5));
     CHECK(c64_automation_get_current_index(automation) == 0);
+    CHECK(!c64_automation_jump_to_index(automation, 0));
 
     c64_automation_config_t root_config = config;
     root_config.include_subfolders = true;
@@ -193,14 +213,23 @@ int main(void)
     CHECK(!c64_automation_refresh_playlist(automation, &root_config, 0));
 
     char hvsc_root[C64_AUTOMATION_PATH_MAX];
+    char c64music_root[C64_AUTOMATION_PATH_MAX];
+    char demos_root[C64_AUTOMATION_PATH_MAX];
     char docs_dir[C64_AUTOMATION_PATH_MAX];
     char songlengths_path[C64_AUTOMATION_PATH_MAX];
+    char hvsc_song[C64_AUTOMATION_PATH_MAX];
     CHECK(build_path(hvsc_root, sizeof(hvsc_root), temp_dir, "/hvsc"));
+    CHECK(build_path(c64music_root, sizeof(c64music_root), hvsc_root, "/C64Music"));
+    CHECK(build_path(demos_root, sizeof(demos_root), c64music_root, "/DEMOS"));
     CHECK(build_path(docs_dir, sizeof(docs_dir), hvsc_root, "/DOCUMENTS"));
-    CHECK(build_path(songlengths_path, sizeof(songlengths_path), docs_dir, "/Songlengths.txt"));
+    CHECK(build_path(songlengths_path, sizeof(songlengths_path), docs_dir, "/Songlengths.md5"));
+    CHECK(build_path(hvsc_song, sizeof(hvsc_song), demos_root, "/demo.sid"));
     CHECK(make_dir(hvsc_root));
+    CHECK(make_dir(c64music_root));
+    CHECK(make_dir(demos_root));
     CHECK(make_dir(docs_dir));
     CHECK(write_file(songlengths_path, "0123456789abcdef0123456789abcdef=1:23\n"));
+    CHECK(write_file(hvsc_song, "SID"));
 
     c64_automation_config_t songlength_config = config;
     strncpy(songlength_config.folder_path, hvsc_root, sizeof(songlength_config.folder_path) - 1);
@@ -210,15 +239,24 @@ int main(void)
     c64_automation_configure(automation, &songlength_config);
     CHECK(strcmp(c64_automation_get_songlengths_path(automation), songlengths_path) == 0);
 
+    c64_automation_config_t nested_songlength_config = songlength_config;
+    strncpy(nested_songlength_config.folder_path, c64music_root, sizeof(nested_songlength_config.folder_path) - 1);
+    nested_songlength_config.songlengths_path[0] = '\0';
+    c64_automation_configure(automation, &nested_songlength_config);
+    CHECK(strcmp(c64_automation_get_songlengths_path(automation), songlengths_path) == 0);
+
     const int dir_count = 100;
     const int files_per_dir = 101;
+    char large_root[C64_AUTOMATION_PATH_MAX];
+    CHECK(build_path(large_root, sizeof(large_root), temp_dir, "/large_root"));
+    CHECK(make_dir(large_root));
     for (int dir_index = 0; dir_index < dir_count; dir_index++) {
         char subdir[C64_AUTOMATION_PATH_MAX];
         char suffix[32];
         if (!build_indexed_suffix(suffix, sizeof(suffix), "/library_%03d", dir_index)) {
             return 1;
         }
-        CHECK(build_path(subdir, sizeof(subdir), temp_dir, suffix));
+        CHECK(build_path(subdir, sizeof(subdir), large_root, suffix));
         CHECK(make_dir(subdir));
         for (int file_index = 0; file_index < files_per_dir; file_index++) {
             char name[32];
@@ -232,11 +270,12 @@ int main(void)
     }
 
     c64_automation_config_t large_config = config;
+    strncpy(large_config.folder_path, large_root, sizeof(large_config.folder_path) - 1);
     large_config.include_subfolders = true;
     large_config.use_songlengths = false;
     CHECK(c64_automation_refresh_playlist(automation, &large_config, 0));
     int actual_playlist_count = c64_automation_get_playlist_count(automation);
-    int expected_playlist_count = dir_count * files_per_dir + 2;
+    int expected_playlist_count = dir_count * files_per_dir;
     if (actual_playlist_count < expected_playlist_count) {
         fprintf(stderr, "Expected playlist count at least %d, got %d\n", expected_playlist_count,
                 actual_playlist_count);
@@ -247,15 +286,14 @@ int main(void)
     c64script_test_keyboard_destroy(keyboard);
     c64script_test_rest_destroy(rest_client);
 
-    cleanup_file_range(temp_dir, dir_count, files_per_dir);
-    remove(songlengths_path);
-#ifdef _WIN32
-    _rmdir(docs_dir);
-    _rmdir(hvsc_root);
-#else
-    rmdir(docs_dir);
-    rmdir(hvsc_root);
-#endif
+    cleanup_file_range(large_root, dir_count, files_per_dir);
+    cleanup_empty_dir(large_root);
+    cleanup_file(hvsc_song);
+    cleanup_file(songlengths_path);
+    cleanup_empty_dir(demos_root);
+    cleanup_empty_dir(c64music_root);
+    cleanup_empty_dir(docs_dir);
+    cleanup_empty_dir(hvsc_root);
 
     cleanup_dir(temp_dir, file_sid, file_prg);
     return 0;
