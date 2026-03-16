@@ -192,14 +192,14 @@ int main(void)
     config.reset_between_items = false;
     strncpy(config.d64_autostart_template, "LOAD\"*\",8,1\rRUN\r", sizeof(config.d64_autostart_template) - 1);
 
-    CHECK(c64_automation_refresh_playlist(automation, &config, 1));
+    CHECK(c64_automation_refresh_playlist(automation, &config, 1, false));
     CHECK(c64_automation_get_playlist_count(automation) == 2);
     CHECK(c64_automation_get_current_index(automation) == 1);
 
     CHECK(c64_automation_jump_to_index(automation, 0));
     CHECK(c64_automation_get_current_index(automation) == 0);
 
-    CHECK(c64_automation_refresh_playlist(automation, &config, 5));
+    CHECK(c64_automation_refresh_playlist(automation, &config, 5, false));
     CHECK(c64_automation_get_current_index(automation) == 0);
     CHECK(!c64_automation_jump_to_index(automation, 0));
 
@@ -210,7 +210,36 @@ int main(void)
 #else
     snprintf(root_config.folder_path, sizeof(root_config.folder_path), "/");
 #endif
-    CHECK(!c64_automation_refresh_playlist(automation, &root_config, 0));
+    CHECK(!c64_automation_refresh_playlist(automation, &root_config, 0, false));
+
+    char nested_root[C64_AUTOMATION_PATH_MAX];
+    char nested_level_one[C64_AUTOMATION_PATH_MAX];
+    char nested_level_two[C64_AUTOMATION_PATH_MAX];
+    char nested_song_one[C64_AUTOMATION_PATH_MAX];
+    char nested_song_two[C64_AUTOMATION_PATH_MAX];
+    CHECK(build_path(nested_root, sizeof(nested_root), temp_dir, "/nested_only_root"));
+    CHECK(build_path(nested_level_one, sizeof(nested_level_one), nested_root, "/level1"));
+    CHECK(build_path(nested_level_two, sizeof(nested_level_two), nested_level_one, "/level2"));
+    CHECK(build_path(nested_song_one, sizeof(nested_song_one), nested_level_two, "/deep.sid"));
+    CHECK(build_path(nested_song_two, sizeof(nested_song_two), nested_level_two, "/deeper.sid"));
+    CHECK(make_dir(nested_root));
+    CHECK(make_dir(nested_level_one));
+    CHECK(make_dir(nested_level_two));
+    CHECK(write_file(nested_song_one, "SID"));
+
+    c64_automation_config_t nested_config = config;
+    nested_config.include_subfolders = true;
+    strncpy(nested_config.folder_path, nested_root, sizeof(nested_config.folder_path) - 1);
+    CHECK(c64_automation_refresh_playlist(automation, &nested_config, 0, false));
+    CHECK(c64_automation_get_playlist_count(automation) == 1);
+    CHECK(c64_automation_get_playlist_item(automation, 0) != NULL);
+    CHECK(strstr(c64_automation_get_playlist_item(automation, 0), "deep.sid") != NULL);
+
+    CHECK(write_file(nested_song_two, "SID"));
+    CHECK(c64_automation_refresh_playlist(automation, &nested_config, 0, false));
+    CHECK(c64_automation_get_playlist_count(automation) == 1);
+    CHECK(c64_automation_refresh_playlist(automation, &nested_config, 0, true));
+    CHECK(c64_automation_get_playlist_count(automation) == 2);
 
     char hvsc_root[C64_AUTOMATION_PATH_MAX];
     char c64music_root[C64_AUTOMATION_PATH_MAX];
@@ -273,7 +302,7 @@ int main(void)
     strncpy(large_config.folder_path, large_root, sizeof(large_config.folder_path) - 1);
     large_config.include_subfolders = true;
     large_config.use_songlengths = false;
-    CHECK(c64_automation_refresh_playlist(automation, &large_config, 0));
+    CHECK(c64_automation_refresh_playlist(automation, &large_config, 0, false));
     int actual_playlist_count = c64_automation_get_playlist_count(automation);
     int expected_playlist_count = dir_count * files_per_dir;
     if (actual_playlist_count < expected_playlist_count) {
@@ -290,6 +319,11 @@ int main(void)
     cleanup_empty_dir(large_root);
     cleanup_file(hvsc_song);
     cleanup_file(songlengths_path);
+    cleanup_file(nested_song_two);
+    cleanup_file(nested_song_one);
+    cleanup_empty_dir(nested_level_two);
+    cleanup_empty_dir(nested_level_one);
+    cleanup_empty_dir(nested_root);
     cleanup_empty_dir(demos_root);
     cleanup_empty_dir(c64music_root);
     cleanup_empty_dir(docs_dir);

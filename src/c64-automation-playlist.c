@@ -585,7 +585,7 @@ void c64_automation_clear_playlist(c64_automation_t *automation)
 }
 
 bool c64_automation_refresh_playlist(c64_automation_t *automation, const c64_automation_config_t *config,
-                                     int selected_index)
+                                     int selected_index, bool force_rebuild)
 {
     if (!automation || !config) {
         return false;
@@ -600,8 +600,8 @@ bool c64_automation_refresh_playlist(c64_automation_t *automation, const c64_aut
 
     c64_automation_configure(automation, config);
 
-    bool needs_rebuild = !automation->playlist_ready || !automation->files || automation->num_files == 0 ||
-                         !automation->playlist_config_valid ||
+    bool needs_rebuild = force_rebuild || !automation->playlist_ready || !automation->files ||
+                         automation->num_files == 0 || !automation->playlist_config_valid ||
                          !playlist_config_equals(config, &automation->playlist_config) || config->shuffle;
     if (needs_rebuild) {
         if (!c64_automation_build_playlist(automation)) {

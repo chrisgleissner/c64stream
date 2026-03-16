@@ -4,11 +4,16 @@
 #include "../../src/c64-rest-client.h"
 
 #include <obs-module.h>
+#include <util/platform.h>
 
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+typedef struct {
+    uint8_t memory[65536];
+} interact_test_rest_client_t;
 
 #define CHECK(expr)                                                                                                       \
     do {                                                                                                                  \
@@ -42,21 +47,24 @@ bool c64_get_user_dir(c64_user_dir_type type, char *path_buffer, size_t buffer_s
 int c64_rest_read_memory(c64_rest_client_t *client, uint16_t address, size_t length, uint8_t *buffer,
                          size_t buffer_size)
 {
-    (void)client;
-    (void)address;
-    (void)length;
-    (void)buffer;
-    (void)buffer_size;
-    return -1;
+    interact_test_rest_client_t *rest_client = (interact_test_rest_client_t *)client;
+    if (!rest_client || !buffer || buffer_size < length || ((size_t)address + length) > sizeof(rest_client->memory)) {
+        return -1;
+    }
+
+    memcpy(buffer, &rest_client->memory[address], length);
+    return (int)length;
 }
 
 bool c64_rest_write_memory(c64_rest_client_t *client, uint16_t address, const uint8_t *data, size_t length)
 {
-    (void)client;
-    (void)address;
-    (void)data;
-    (void)length;
-    return false;
+    interact_test_rest_client_t *rest_client = (interact_test_rest_client_t *)client;
+    if (!rest_client || !data || ((size_t)address + length) > sizeof(rest_client->memory)) {
+        return false;
+    }
+
+    memcpy(&rest_client->memory[address], data, length);
+    return true;
 }
 
 static const char *keymap_paths[] = {
@@ -106,6 +114,56 @@ static void expect_petscii(c64_keymap_t *keymap, const char *key_code, const cha
     CHECK_VOID(c64_keymap_convert(keymap, key_code, key_text, modifiers, &output));
     CHECK_VOID(output.mode == C64_OUTPUT_PETSCII);
     CHECK_VOID(output.data.petscii == expected_petscii);
+}
+
+static void reset_keyboard_buffer(interact_test_rest_client_t *rest_client)
+{
+    CHECK_VOID(rest_client != NULL);
+    rest_client->memory[0x00C6] = 0x00;
+    for (int index = 0; index < 10; index++) {
+        rest_client->memory[0x0277 + index] = 0x00;
+    }
+}
+
+static void expect_injected_bytes(c64_keymap_t *keymap, c64_keyboard_t *keyboard,
+                                  interact_test_rest_client_t *rest_client, uint32_t native_vkey, const char *text,
+                                  int modifiers, const char *expected_code, const char *expected_text,
+                                  const uint8_t *expected_bytes, size_t expected_count)
+{
+    CHECK_VOID(keymap != NULL);
+    CHECK_VOID(keyboard != NULL);
+    CHECK_VOID(rest_client != NULL);
+    CHECK_VOID(expected_bytes != NULL);
+
+    c64_interact_key_t key = {{0}};
+    CHECK_VOID(c64_interact_translate_key_event(native_vkey, text, &key) == C64_INTERACT_KEY_TRANSLATED);
+    CHECK_VOID(strcmp(key.code, expected_code ? expected_code : "") == 0);
+    CHECK_VOID(strcmp(key.text, expected_text ? expected_text : "") == 0);
+
+    c64_output_t output = {0};
+    CHECK_VOID(c64_keymap_convert(keymap, key.code, key.text, modifiers, &output));
+    CHECK_VOID(output.mode == C64_OUTPUT_PETSCII);
+    CHECK_VOID(output.data.petscii == expected_bytes[0]);
+
+    reset_keyboard_buffer(rest_client);
+    c64_keyboard_queue_output(keyboard, &output);
+
+    uint8_t buffer_length = 0;
+    for (int attempt = 0; attempt < 20; attempt++) {
+        CHECK_VOID(c64_rest_read_memory((c64_rest_client_t *)rest_client, 0x00C6, 1, &buffer_length,
+                                        sizeof(buffer_length)) == 1);
+        if (buffer_length == expected_count) {
+            break;
+        }
+        os_sleep_ms(25);
+    }
+
+    CHECK_VOID(buffer_length == expected_count);
+
+    uint8_t actual_bytes[10] = {0};
+    CHECK_VOID(c64_rest_read_memory((c64_rest_client_t *)rest_client, 0x0277, expected_count, actual_bytes,
+                                    sizeof(actual_bytes)) == (int)expected_count);
+    CHECK_VOID(memcmp(actual_bytes, expected_bytes, expected_count) == 0);
 }
 
 static void expect_normalized(const char *input, const char *expected)
@@ -171,6 +229,12 @@ int main(void)
     expect_translation(0x33, "\x1C", C64_INTERACT_KEY_TRANSLATED, "Digit3", "");
     expect_translation(0x31, "1", C64_INTERACT_KEY_TRANSLATED, "Digit1", "1");
     expect_translation(0x41, "a", C64_INTERACT_KEY_TRANSLATED, "KeyA", "a");
+    expect_translation(0x24, "$", C64_INTERACT_KEY_TRANSLATED, "Digit4", "$");
+    expect_translation(0x26, "&", C64_INTERACT_KEY_TRANSLATED, "Digit7", "&");
+    expect_translation(0x28, "(", C64_INTERACT_KEY_TRANSLATED, "Digit9", "(");
+    expect_translation(0x2D, "-", C64_INTERACT_KEY_TRANSLATED, "Minus", "-");
+    expect_translation(0x5B, "[", C64_INTERACT_KEY_TRANSLATED, "BracketLeft", "[");
+    expect_translation(0x2E, ".", C64_INTERACT_KEY_TRANSLATED, "Period", ".");
     expect_translation(0x0D, NULL, C64_INTERACT_KEY_TRANSLATED, "Enter", "");
     expect_translation(0x1B, NULL, C64_INTERACT_KEY_WARM_START, NULL, NULL);
 
@@ -201,6 +265,13 @@ int main(void)
     expect_petscii(symbolic_us, "KeyA", "a", 0, 0x41);
     expect_petscii(symbolic_us, "KeyA", "A", 0, 0xC1);
     expect_petscii(symbolic_us, "Backquote", "`", 0, 0x5F);
+    expect_petscii(symbolic_us, "Digit4", "$", 0x01, 0x24);
+    expect_petscii(symbolic_us, "Digit7", "&", 0x01, 0x26);
+    expect_petscii(symbolic_us, "Digit9", "(", 0x01, 0x28);
+    expect_petscii(symbolic_us, "Minus", "-", 0, 0x2D);
+    expect_petscii(symbolic_us, "BracketLeft", "[", 0, 0x5B);
+    expect_petscii(symbolic_us, "Period", ".", 0, 0x2E);
+    expect_petscii(symbolic_us, "Enter", NULL, 0, 0x0D);
     expect_petscii(symbolic_us, "Digit3", "\x1C", 0x02, 0x1C);
     expect_petscii(symbolic_us, "Digit8", "\x7F", 0x02, 0x9E);
     expect_petscii(symbolic_us, "Digit1", NULL, 0x04, 0x81);
@@ -232,6 +303,22 @@ int main(void)
     expect_petscii(symbolic_nl, "Digit3", "\x1C", 0x02, 0x1C);
     expect_petscii(symbolic_nl, "Digit1", NULL, 0x04, 0x81);
 
+    interact_test_rest_client_t rest_client = {{0}};
+    c64_keyboard_t *keyboard = c64_keyboard_create(&rest_client);
+    CHECK(keyboard != NULL);
+
+    expect_injected_bytes(symbolic_us, keyboard, &rest_client, 0x24, "$", 0x01, "Digit4", "$", (const uint8_t[]){0x24},
+                          1);
+    expect_injected_bytes(symbolic_us, keyboard, &rest_client, 0x26, "&", 0x01, "Digit7", "&", (const uint8_t[]){0x26},
+                          1);
+    expect_injected_bytes(symbolic_us, keyboard, &rest_client, 0x28, "(", 0x01, "Digit9", "(", (const uint8_t[]){0x28},
+                          1);
+    expect_injected_bytes(symbolic_us, keyboard, &rest_client, 0x2D, "-", 0, "Minus", "-", (const uint8_t[]){0x2D}, 1);
+    expect_injected_bytes(symbolic_us, keyboard, &rest_client, 0x5B, "[", 0, "BracketLeft", "[",
+                          (const uint8_t[]){0x5B}, 1);
+    expect_injected_bytes(symbolic_us, keyboard, &rest_client, 0x2E, ".", 0, "Period", ".", (const uint8_t[]){0x2E}, 1);
+    expect_injected_bytes(symbolic_us, keyboard, &rest_client, 0x0D, NULL, 0, "Enter", "", (const uint8_t[]){0x0D}, 1);
+
     for (size_t i = 0; i < sizeof(keymap_paths) / sizeof(keymap_paths[0]); i++) {
         c64_keymap_t *keymap = c64_keymap_load(keymap_paths[i]);
         CHECK(keymap != NULL);
@@ -248,6 +335,7 @@ int main(void)
     c64_keymap_destroy(symbolic_fr);
     c64_keymap_destroy(symbolic_it);
     c64_keymap_destroy(symbolic_nl);
+    c64_keyboard_destroy(keyboard);
 
     return 0;
 }

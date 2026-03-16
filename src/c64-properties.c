@@ -954,7 +954,7 @@ static bool refresh_playlist_from_settings(obs_properties_t *props, obs_data_t *
     bool should_rebuild = force_rebuild || !context->playlist_fingerprint_valid || !fingerprint_same ||
                           previous_playlist_count == 0;
 
-    bool refreshed = c64_automation_refresh_playlist(context->automation, &config, selected_index);
+    bool refreshed = c64_automation_refresh_playlist(context->automation, &config, selected_index, should_rebuild);
     if (!refreshed) {
         c64_automation_clear_playlist(context->automation);
     } else {

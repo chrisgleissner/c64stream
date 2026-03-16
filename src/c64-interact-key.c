@@ -38,6 +38,11 @@ static bool copy_identifier(char identifier[64], const char *value)
     return true;
 }
 
+static bool is_single_printable_text(const char *text)
+{
+    return text && text[0] != '\0' && text[1] == '\0' && isprint((unsigned char)text[0]) && text[0] != ' ';
+}
+
 static bool lookup_key_code_from_vkey(uint32_t native_vkey, char key_code[64])
 {
     if (!key_code) {
@@ -184,6 +189,52 @@ static bool lookup_key_code_from_vkey(uint32_t native_vkey, char key_code[64])
 static bool lookup_key_code_from_text_char(char ch, char key_code[64])
 {
     switch (ch) {
+    case '!':
+        return copy_identifier(key_code, "Digit1");
+    case '"':
+        return copy_identifier(key_code, "Quote");
+    case '#':
+        return copy_identifier(key_code, "Digit3");
+    case '$':
+        return copy_identifier(key_code, "Digit4");
+    case '%':
+        return copy_identifier(key_code, "Digit5");
+    case '&':
+        return copy_identifier(key_code, "Digit7");
+    case '(':
+        return copy_identifier(key_code, "Digit9");
+    case ')':
+        return copy_identifier(key_code, "Digit0");
+    case '*':
+        return copy_identifier(key_code, "Digit8");
+    case '+':
+        return copy_identifier(key_code, "Equal");
+    case ':':
+        return copy_identifier(key_code, "Semicolon");
+    case '<':
+        return copy_identifier(key_code, "Comma");
+    case '>':
+        return copy_identifier(key_code, "Period");
+    case '?':
+        return copy_identifier(key_code, "Slash");
+    case '@':
+        return copy_identifier(key_code, "Digit2");
+    case '^':
+        return copy_identifier(key_code, "Digit6");
+    case '_':
+        return copy_identifier(key_code, "Minus");
+    case '[':
+        return copy_identifier(key_code, "BracketLeft");
+    case ']':
+        return copy_identifier(key_code, "BracketRight");
+    case '{':
+        return copy_identifier(key_code, "BracketLeft");
+    case '|':
+        return copy_identifier(key_code, "Backslash");
+    case '}':
+        return copy_identifier(key_code, "BracketRight");
+    case '~':
+        return copy_identifier(key_code, "Backquote");
     case '-':
         return copy_identifier(key_code, "Minus");
     case '.':
@@ -210,7 +261,7 @@ c64_interact_key_result_t c64_interact_translate_key_event(uint32_t native_vkey,
     const bool has_text = (text && text[0] != '\0');
     const bool single_char = (has_text && text[1] == '\0');
     const bool text_is_space = (single_char && text[0] == ' ');
-    const bool text_is_printable = (single_char && isprint((unsigned char)text[0]) && !text_is_space);
+    const bool text_is_printable = (is_single_printable_text(text) && !text_is_space);
 
     lookup_key_code_from_vkey(native_vkey, key->code);
 
@@ -219,8 +270,9 @@ c64_interact_key_result_t c64_interact_translate_key_event(uint32_t native_vkey,
     }
 
     if (text_is_printable) {
-        if (key->code[0] == '\0') {
-            lookup_key_code_from_text_char(text[0], key->code);
+        char text_code[64] = {0};
+        if (lookup_key_code_from_text_char(text[0], text_code)) {
+            copy_identifier(key->code, text_code);
         }
         copy_identifier(key->text, text);
     } else if (!has_text && strcmp(key->code, "Space") == 0) {

@@ -1957,10 +1957,13 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
     C64_LOG_INFO("🕹 KEYBOARD: key_up=%d vkey=0x%04X scan=0x%02X mods=0x%02X text='%s'", key_up, event->native_vkey,
                  event->native_scancode, event->modifiers, event->text ? event->text : "");
 
+    const bool has_printable_text = (event->text && event->text[0] != '\0' && event->text[1] == '\0' &&
+                                     isprint((unsigned char)event->text[0]) && event->text[0] != ' ');
+
     const bool is_ctrl_key =
         (event->native_vkey == 0xFFE3 || event->native_vkey == 0xFFE4 || event->native_vkey == 0x11);
     const bool is_meta_key = (event->native_vkey == 0xFFEB || event->native_vkey == 0xFFEC ||
-                              event->native_vkey == 0x5B || event->native_vkey == 0x5C);
+                              ((!has_printable_text) && (event->native_vkey == 0x5B || event->native_vkey == 0x5C)));
     const bool is_shift_key =
         (event->native_vkey == 0xFFE1 || event->native_vkey == 0xFFE2 || event->native_vkey == 0x10);
     const bool is_alt_key =
