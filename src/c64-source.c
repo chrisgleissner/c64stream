@@ -1980,7 +1980,7 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
             context->keyboard_ctrl_meta_armed = true;
             if (context->keymap && context->keyboard) {
                 c64_output_t output;
-                if (c64_keymap_convert(context->keymap, "Ctrl+Meta", 0, &output)) {
+                if (c64_keymap_convert(context->keymap, "Ctrl+Meta", NULL, 0, &output)) {
                     c64_keyboard_queue_output(context->keyboard, &output);
                 }
             }
@@ -2022,19 +2022,13 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
             context->keyboard_ctrl_meta_consumed = true;
         }
 
-        // Build key code from event
-        char key_code[64] = "";
-
-        c64_interact_key_result_t key_result =
-            c64_interact_translate_key_code(event->native_vkey, event->text, key_code);
+        c64_interact_key_t key = {{0}};
+        c64_interact_key_result_t key_result = c64_interact_translate_key_event(event->native_vkey, event->text, &key);
         if (key_result == C64_INTERACT_KEY_WARM_START) {
             if (context->keyboard) {
                 c64_keyboard_basic_warm_start(context->keyboard);
             }
             return;
-        }
-        if (key_result == C64_INTERACT_KEY_NONE) {
-            key_code[0] = '\0';
         }
 
         // Build modifiers bitmask
@@ -2052,9 +2046,12 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
             modifiers |= 0x08;
         }
 
+        C64_LOG_DEBUG("🕹 KEYBOARD: normalized code=%s text=%s mods=0x%02X", key.code[0] ? key.code : "<none>",
+                      key.text[0] ? key.text : "<none>", modifiers);
+
         // Convert key to C64 output
         c64_output_t output;
-        if (c64_keymap_convert(context->keymap, key_code, modifiers, &output)) {
+        if (c64_keymap_convert(context->keymap, key.code, key.text, modifiers, &output)) {
             // Queue the keystroke for injection (logging happens in queue function)
             c64_keyboard_queue_output(context->keyboard, &output);
         }

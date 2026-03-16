@@ -150,6 +150,372 @@ static uint8_t lookup_symbolic_key(const char *name)
     return 0;
 }
 
+static int ascii_tolower(int ch)
+{
+    return tolower((unsigned char)ch);
+}
+
+static bool string_ieq(const char *lhs, const char *rhs)
+{
+    if (!lhs || !rhs) {
+        return false;
+    }
+
+    while (*lhs && *rhs) {
+        if (ascii_tolower(*lhs) != ascii_tolower(*rhs)) {
+            return false;
+        }
+        lhs++;
+        rhs++;
+    }
+
+    return *lhs == '\0' && *rhs == '\0';
+}
+
+static bool string_starts_with_i(const char *value, const char *prefix)
+{
+    if (!value || !prefix) {
+        return false;
+    }
+
+    while (*prefix) {
+        if (*value == '\0' || ascii_tolower(*value) != ascii_tolower(*prefix)) {
+            return false;
+        }
+        value++;
+        prefix++;
+    }
+
+    return true;
+}
+
+static bool append_modifier_prefixes(int modifiers, char normalized[64])
+{
+    normalized[0] = '\0';
+
+    if (modifiers & 0x01) {
+        strncat(normalized, "Shift+", 63 - strlen(normalized));
+    }
+    if (modifiers & 0x02) {
+        strncat(normalized, "Ctrl+", 63 - strlen(normalized));
+    }
+    if (modifiers & 0x04) {
+        strncat(normalized, "Alt+", 63 - strlen(normalized));
+    }
+    if (modifiers & 0x08) {
+        strncat(normalized, "Meta+", 63 - strlen(normalized));
+    }
+
+    return true;
+}
+
+static bool normalize_function_key(const char *token, char normalized[64])
+{
+    if (!token || ascii_tolower(token[0]) != 'f') {
+        return false;
+    }
+
+    const char *digits = token + 1;
+    if (!isdigit((unsigned char)digits[0])) {
+        return false;
+    }
+
+    const long value = strtol(digits, NULL, 10);
+    if (value < 1 || value > 24) {
+        return false;
+    }
+
+    snprintf(normalized, 64, "F%ld", value);
+    return true;
+}
+
+static bool normalize_known_base_token(const char *token, char normalized[64])
+{
+    if (!token || token[0] == '\0') {
+        return false;
+    }
+
+    if (normalize_function_key(token, normalized)) {
+        return true;
+    }
+
+    if (string_ieq(token, "space")) {
+        return snprintf(normalized, 64, "Space") > 0;
+    }
+    if (string_ieq(token, "enter") || string_ieq(token, "return")) {
+        return snprintf(normalized, 64, "Enter") > 0;
+    }
+    if (string_ieq(token, "backspace")) {
+        return snprintf(normalized, 64, "Backspace") > 0;
+    }
+    if (string_ieq(token, "delete")) {
+        return snprintf(normalized, 64, "Delete") > 0;
+    }
+    if (string_ieq(token, "insert")) {
+        return snprintf(normalized, 64, "Insert") > 0;
+    }
+    if (string_ieq(token, "home")) {
+        return snprintf(normalized, 64, "Home") > 0;
+    }
+    if (string_ieq(token, "end")) {
+        return snprintf(normalized, 64, "End") > 0;
+    }
+    if (string_ieq(token, "pageup") || string_ieq(token, "page_up") || string_ieq(token, "prior")) {
+        return snprintf(normalized, 64, "PageUp") > 0;
+    }
+    if (string_ieq(token, "pagedown") || string_ieq(token, "page_down") || string_ieq(token, "next")) {
+        return snprintf(normalized, 64, "PageDown") > 0;
+    }
+    if (string_ieq(token, "capslock") || string_ieq(token, "caps_lock")) {
+        return snprintf(normalized, 64, "CapsLock") > 0;
+    }
+    if (string_ieq(token, "escape") || string_ieq(token, "esc")) {
+        return snprintf(normalized, 64, "Escape") > 0;
+    }
+    if (string_ieq(token, "tab")) {
+        return snprintf(normalized, 64, "Tab") > 0;
+    }
+    if (string_ieq(token, "pause")) {
+        return snprintf(normalized, 64, "Pause") > 0;
+    }
+    if (string_ieq(token, "arrowup") || string_ieq(token, "up")) {
+        return snprintf(normalized, 64, "ArrowUp") > 0;
+    }
+    if (string_ieq(token, "arrowdown") || string_ieq(token, "down")) {
+        return snprintf(normalized, 64, "ArrowDown") > 0;
+    }
+    if (string_ieq(token, "arrowleft") || string_ieq(token, "left")) {
+        return snprintf(normalized, 64, "ArrowLeft") > 0;
+    }
+    if (string_ieq(token, "arrowright") || string_ieq(token, "right")) {
+        return snprintf(normalized, 64, "ArrowRight") > 0;
+    }
+    if (string_ieq(token, "minus")) {
+        return snprintf(normalized, 64, "Minus") > 0;
+    }
+    if (string_ieq(token, "equal")) {
+        return snprintf(normalized, 64, "Equal") > 0;
+    }
+    if (string_ieq(token, "backquote")) {
+        return snprintf(normalized, 64, "Backquote") > 0;
+    }
+    if (string_ieq(token, "bracketleft")) {
+        return snprintf(normalized, 64, "BracketLeft") > 0;
+    }
+    if (string_ieq(token, "bracketright")) {
+        return snprintf(normalized, 64, "BracketRight") > 0;
+    }
+    if (string_ieq(token, "backslash")) {
+        return snprintf(normalized, 64, "Backslash") > 0;
+    }
+    if (string_ieq(token, "semicolon")) {
+        return snprintf(normalized, 64, "Semicolon") > 0;
+    }
+    if (string_ieq(token, "quote")) {
+        return snprintf(normalized, 64, "Quote") > 0;
+    }
+    if (string_ieq(token, "comma")) {
+        return snprintf(normalized, 64, "Comma") > 0;
+    }
+    if (string_ieq(token, "period")) {
+        return snprintf(normalized, 64, "Period") > 0;
+    }
+    if (string_ieq(token, "slash")) {
+        return snprintf(normalized, 64, "Slash") > 0;
+    }
+    if (string_ieq(token, "meta")) {
+        return snprintf(normalized, 64, "Meta") > 0;
+    }
+
+    if (strlen(token) == 4 && string_starts_with_i(token, "Key") && isalpha((unsigned char)token[3])) {
+        return snprintf(normalized, 64, "Key%c", (char)toupper((unsigned char)token[3])) > 0;
+    }
+    if (strlen(token) == 6 && string_starts_with_i(token, "Digit") && isdigit((unsigned char)token[5])) {
+        return snprintf(normalized, 64, "Digit%c", token[5]) > 0;
+    }
+
+    return false;
+}
+
+static bool normalize_single_char_token(char token, bool has_modifiers, char normalized[64])
+{
+    if (!has_modifiers) {
+        normalized[0] = token;
+        normalized[1] = '\0';
+        return true;
+    }
+
+    if (isalpha((unsigned char)token)) {
+        return snprintf(normalized, 64, "Key%c", (char)toupper((unsigned char)token)) > 0;
+    }
+    if (isdigit((unsigned char)token)) {
+        return snprintf(normalized, 64, "Digit%c", token) > 0;
+    }
+
+    switch (token) {
+    case '-':
+        return snprintf(normalized, 64, "Minus") > 0;
+    case '=':
+    case '+':
+        return snprintf(normalized, 64, "Equal") > 0;
+    case '`':
+        return snprintf(normalized, 64, "Backquote") > 0;
+    case '[':
+        return snprintf(normalized, 64, "BracketLeft") > 0;
+    case ']':
+        return snprintf(normalized, 64, "BracketRight") > 0;
+    case '\\':
+        return snprintf(normalized, 64, "Backslash") > 0;
+    case ';':
+        return snprintf(normalized, 64, "Semicolon") > 0;
+    case '\'':
+        return snprintf(normalized, 64, "Quote") > 0;
+    case ',':
+        return snprintf(normalized, 64, "Comma") > 0;
+    case '.':
+        return snprintf(normalized, 64, "Period") > 0;
+    case '/':
+        return snprintf(normalized, 64, "Slash") > 0;
+    case '@':
+        return snprintf(normalized, 64, "Digit2") > 0;
+    case '*':
+        return snprintf(normalized, 64, "Digit8") > 0;
+    default:
+        normalized[0] = token;
+        normalized[1] = '\0';
+        return true;
+    }
+}
+
+bool c64_keymap_normalize_identifier(const char *input, char normalized[64])
+{
+    if (!input || !normalized || input[0] == '\0') {
+        return false;
+    }
+
+    int modifiers = 0;
+    const char *base = input;
+    bool consumed = false;
+
+    do {
+        consumed = false;
+        if (string_starts_with_i(base, "Shift+")) {
+            modifiers |= 0x01;
+            base += 6;
+            consumed = true;
+        } else if (string_starts_with_i(base, "Ctrl+")) {
+            modifiers |= 0x02;
+            base += 5;
+            consumed = true;
+        } else if (string_starts_with_i(base, "Control+")) {
+            modifiers |= 0x02;
+            base += 8;
+            consumed = true;
+        } else if (string_starts_with_i(base, "Alt+")) {
+            modifiers |= 0x04;
+            base += 4;
+            consumed = true;
+        } else if (string_starts_with_i(base, "Meta+")) {
+            modifiers |= 0x08;
+            base += 5;
+            consumed = true;
+        } else if (string_starts_with_i(base, "Cmd+")) {
+            modifiers |= 0x08;
+            base += 4;
+            consumed = true;
+        } else if (string_starts_with_i(base, "Command+")) {
+            modifiers |= 0x08;
+            base += 8;
+            consumed = true;
+        }
+    } while (consumed);
+
+    if (base[0] == '\0') {
+        return false;
+    }
+
+    char normalized_base[64] = "";
+    if (!normalize_known_base_token(base, normalized_base)) {
+        if (base[0] != '\0' && base[1] == '\0') {
+            if (!normalize_single_char_token(base[0], modifiers != 0, normalized_base)) {
+                return false;
+            }
+        } else {
+            snprintf(normalized_base, sizeof(normalized_base), "%s", base);
+        }
+    }
+
+    append_modifier_prefixes(modifiers, normalized);
+    strncat(normalized, normalized_base, 63 - strlen(normalized));
+    normalized[63] = '\0';
+    return true;
+}
+
+static bool is_supported_base_identifier(const char *identifier)
+{
+    if (!identifier || identifier[0] == '\0') {
+        return false;
+    }
+
+    if (identifier[0] != '\0' && identifier[1] == '\0' && isprint((unsigned char)identifier[0])) {
+        return true;
+    }
+
+    if (normalize_known_base_token(identifier, (char[64]){0})) {
+        return true;
+    }
+
+    if (strlen(identifier) == 4 && strncmp(identifier, "Key", 3) == 0 && isalpha((unsigned char)identifier[3])) {
+        return true;
+    }
+    if (strlen(identifier) == 6 && strncmp(identifier, "Digit", 5) == 0 && isdigit((unsigned char)identifier[5])) {
+        return true;
+    }
+
+    return false;
+}
+
+bool c64_keymap_identifier_is_runtime_supported(const char *identifier)
+{
+    char normalized[64] = "";
+    if (!c64_keymap_normalize_identifier(identifier, normalized)) {
+        return false;
+    }
+
+    int modifiers = 0;
+    const char *base = normalized;
+
+    while (true) {
+        if (string_starts_with_i(base, "Shift+")) {
+            modifiers |= 0x01;
+            base += 6;
+            continue;
+        }
+        if (string_starts_with_i(base, "Ctrl+")) {
+            modifiers |= 0x02;
+            base += 5;
+            continue;
+        }
+        if (string_starts_with_i(base, "Alt+")) {
+            modifiers |= 0x04;
+            base += 4;
+            continue;
+        }
+        if (string_starts_with_i(base, "Meta+")) {
+            modifiers |= 0x08;
+            base += 5;
+            continue;
+        }
+        break;
+    }
+
+    if (modifiers == 0x02 && strcmp(base, "Meta") == 0) {
+        return true;
+    }
+
+    return is_supported_base_identifier(base);
+}
+
 static void trim(char *str)
 {
     // Trim leading whitespace
@@ -249,7 +615,10 @@ c64_keymap_t *c64_keymap_load(const char *path)
             }
 
             keymap_entry_t *entry = &keymap->entries[keymap->num_entries];
-            strncpy(entry->key, parsed_key, sizeof(entry->key) - 1);
+            if (!c64_keymap_normalize_identifier(parsed_key, entry->key)) {
+                C64_LOG_WARNING(KEYBOARD_LOG_PREFIX "Invalid key identifier: %s", parsed_key);
+                continue;
+            }
 
             // Parse value
             entry->value = 0;
@@ -349,38 +718,29 @@ static uint8_t keymap_entry_next_value(keymap_entry_t *entry)
     return value;
 }
 
-static const char *keymap_arrow_alias(const char *key_code)
+static bool keymap_emit_special_ctrl_digit(const char *key_code, int modifiers, c64_output_t *output)
 {
-    if (!key_code) {
-        return NULL;
+    if (!key_code || !output || modifiers != 0x02) {
+        return false;
     }
 
-    if (strcmp(key_code, "ArrowUp") == 0) {
-        return "up";
-    }
-    if (strcmp(key_code, "ArrowDown") == 0) {
-        return "down";
-    }
-    if (strcmp(key_code, "ArrowLeft") == 0) {
-        return "left";
-    }
-    if (strcmp(key_code, "ArrowRight") == 0) {
-        return "right";
-    }
-    if (strcmp(key_code, "up") == 0) {
-        return "ArrowUp";
-    }
-    if (strcmp(key_code, "down") == 0) {
-        return "ArrowDown";
-    }
-    if (strcmp(key_code, "left") == 0) {
-        return "ArrowLeft";
-    }
-    if (strcmp(key_code, "right") == 0) {
-        return "ArrowRight";
+    static const struct {
+        const char *key_code;
+        uint8_t petscii;
+    } ctrl_digit_map[] = {{"Digit1", 0x90}, {"Digit2", 0x05}, {"Digit3", 0x1C}, {"Digit4", 0x9F}, {"Digit5", 0x9C},
+                          {"Digit6", 0x1E}, {"Digit7", 0x1F}, {"Digit8", 0x9E}, {"Digit9", 0x12}, {"Digit0", 0x92}};
+
+    for (size_t i = 0; i < sizeof(ctrl_digit_map) / sizeof(ctrl_digit_map[0]); i++) {
+        if (strcmp(key_code, ctrl_digit_map[i].key_code) == 0) {
+            output->mode = C64_OUTPUT_PETSCII;
+            output->data.petscii = ctrl_digit_map[i].petscii;
+            C64_LOG_DEBUG(KEYBOARD_LOG_PREFIX "Matched special key: %s -> PETSCII 0x%02X", key_code,
+                          output->data.petscii);
+            return true;
+        }
     }
 
-    return NULL;
+    return false;
 }
 
 static bool keymap_emit_entry(keymap_entry_t *entry, c64_output_t *output)
@@ -401,53 +761,86 @@ static bool keymap_emit_entry(keymap_entry_t *entry, c64_output_t *output)
     return true;
 }
 
-bool c64_keymap_convert(c64_keymap_t *keymap, const char *key_code, int modifiers, c64_output_t *output)
+static bool keymap_lookup_identifier(c64_keymap_t *keymap, const char *candidate, c64_output_t *output)
 {
-    if (!keymap || !key_code || !output) {
+    if (!keymap || !candidate || candidate[0] == '\0' || !output) {
         return false;
     }
 
-    // Build key string with modifiers (e.g., "Shift+KeyA")
-    char key_with_mods[128] = "";
-    if (modifiers & 0x01) { // Shift
-        strcat(key_with_mods, "Shift+");
+    char normalized[64] = "";
+    if (!c64_keymap_normalize_identifier(candidate, normalized)) {
+        return false;
     }
-    if (modifiers & 0x02) { // Ctrl
-        strcat(key_with_mods, "Ctrl+");
-    }
-    if (modifiers & 0x04) { // Alt
-        strcat(key_with_mods, "Alt+");
-    }
-    if (modifiers & 0x08) { // Meta
-        strcat(key_with_mods, "Meta+");
-    }
-    strcat(key_with_mods, key_code);
 
-    // Try exact match first (with modifiers)
     for (int i = 0; i < keymap->num_entries; i++) {
-        if (strcmp(keymap->entries[i].key, key_with_mods) == 0) {
-            return keymap_emit_entry(&keymap->entries[i], output);
-        }
-    }
-
-    // If no match with modifiers, try plain key (ignoring modifiers)
-    for (int i = 0; i < keymap->num_entries; i++) {
-        if (strcmp(keymap->entries[i].key, key_code) == 0) {
-            return keymap_emit_entry(&keymap->entries[i], output);
-        }
-    }
-
-    const char *alias = keymap_arrow_alias(key_code);
-    if (alias) {
-        for (int i = 0; i < keymap->num_entries; i++) {
-            if (strcmp(keymap->entries[i].key, alias) == 0) {
-                return keymap_emit_entry(&keymap->entries[i], output);
+        if (strcmp(keymap->entries[i].key, normalized) == 0) {
+            if (!keymap_emit_entry(&keymap->entries[i], output)) {
+                return false;
             }
+
+            if (output->mode == C64_OUTPUT_PETSCII) {
+                C64_LOG_DEBUG(KEYBOARD_LOG_PREFIX "Matched keymap entry: %s -> PETSCII 0x%02X", normalized,
+                              output->data.petscii);
+            } else if (output->mode == C64_OUTPUT_SYMBOLIC) {
+                C64_LOG_DEBUG(KEYBOARD_LOG_PREFIX "Matched keymap entry: %s -> %s", normalized, output->data.symbol);
+            }
+            return true;
         }
     }
 
-    // No mapping found
-    C64_LOG_DEBUG(KEYBOARD_LOG_PREFIX "No mapping for key: %s (mods=0x%02X)", key_code, modifiers);
+    return false;
+}
+
+static bool keymap_lookup_with_modifiers(c64_keymap_t *keymap, const char *identifier, int modifiers,
+                                         c64_output_t *output)
+{
+    if (!identifier || identifier[0] == '\0') {
+        return false;
+    }
+
+    char candidate[128] = "";
+    append_modifier_prefixes(modifiers, candidate);
+    strncat(candidate, identifier, sizeof(candidate) - strlen(candidate) - 1);
+    return keymap_lookup_identifier(keymap, candidate, output);
+}
+
+bool c64_keymap_convert(c64_keymap_t *keymap, const char *key_code, const char *key_text, int modifiers,
+                        c64_output_t *output)
+{
+    if (!keymap || !output) {
+        return false;
+    }
+
+    char normalized_code[64] = "";
+    char normalized_text[64] = "";
+
+    if (key_code && key_code[0] != '\0') {
+        c64_keymap_normalize_identifier(key_code, normalized_code);
+    }
+    if (key_text && key_text[0] != '\0') {
+        c64_keymap_normalize_identifier(key_text, normalized_text);
+    }
+
+    if (normalized_code[0] != '\0' && keymap_emit_special_ctrl_digit(normalized_code, modifiers, output)) {
+        return true;
+    }
+
+    if (normalized_code[0] != '\0' && keymap_lookup_with_modifiers(keymap, normalized_code, modifiers, output)) {
+        return true;
+    }
+    if (normalized_code[0] != '\0' && keymap_lookup_identifier(keymap, normalized_code, output)) {
+        return true;
+    }
+    if (normalized_text[0] != '\0' && keymap_lookup_with_modifiers(keymap, normalized_text, modifiers, output)) {
+        return true;
+    }
+    if (normalized_text[0] != '\0' && keymap_lookup_identifier(keymap, normalized_text, output)) {
+        return true;
+    }
+
+    C64_LOG_DEBUG(KEYBOARD_LOG_PREFIX "No mapping for key: code=%s text=%s mods=0x%02X",
+                  normalized_code[0] ? normalized_code : "<none>", normalized_text[0] ? normalized_text : "<none>",
+                  modifiers);
     return false;
 }
 
