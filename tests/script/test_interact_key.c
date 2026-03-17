@@ -12,6 +12,18 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef _WIN32
+static char *test_strtok_r(char *str, const char *delim, char **saveptr)
+{
+    return strtok_s(str, delim, saveptr);
+}
+#else
+static char *test_strtok_r(char *str, const char *delim, char **saveptr)
+{
+    return strtok_r(str, delim, saveptr);
+}
+#endif
+
 typedef struct {
     uint8_t memory[65536];
     char error[128];
@@ -283,7 +295,7 @@ static int collect_reachable_petscii(const char *path, bool reachable[256])
         val_copy[sizeof(val_copy) - 1] = '\0';
 
         char *saveptr = NULL;
-        for (char *tok = strtok_r(val_copy, ",", &saveptr); tok; tok = strtok_r(NULL, ",", &saveptr)) {
+        for (char *tok = test_strtok_r(val_copy, ",", &saveptr); tok; tok = test_strtok_r(NULL, ",", &saveptr)) {
             while (*tok == ' ') {
                 tok++;
             }
