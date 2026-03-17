@@ -41,6 +41,109 @@ static void c64_automation_queue_ui_update(c64_automation_t *automation);
 static const char *c64_strip_c64u_prefix(const char *path);
 static bool automation_should_stop(c64_automation_t *automation);
 
+typedef struct {
+    c64_automation_t *automation;
+    c64_automation_config_t config;
+    int selected_index;
+} c64_automation_preload_task_t;
+
+static bool automation_playlist_config_matches(const c64_automation_config_t *left,
+                                               const c64_automation_config_t *right)
+{
+    if (!left || !right) {
+        return false;
+    }
+
+    if (left->mode != right->mode || left->file_source != right->file_source || left->shuffle != right->shuffle ||
+        left->include_subfolders != right->include_subfolders || left->duration_seconds != right->duration_seconds ||
+        left->reset_between_items != right->reset_between_items || left->use_songlengths != right->use_songlengths) {
+        return false;
+    }
+
+    if (strncmp(left->folder_path, right->folder_path, sizeof(left->folder_path)) != 0 ||
+        strncmp(left->songlengths_path, right->songlengths_path, sizeof(left->songlengths_path)) != 0 ||
+        strncmp(left->d64_autostart_template, right->d64_autostart_template, sizeof(left->d64_autostart_template)) !=
+            0) {
+        return false;
+    }
+
+    return true;
+}
+
+static void c64_automation_join_preload_thread(c64_automation_t *automation)
+{
+    if (!automation) {
+        return;
+    }
+
+    pthread_t preload_thread;
+    bool join_thread = false;
+
+    pthread_mutex_lock(&automation->status_mutex);
+    if (automation->preload_thread_valid) {
+        preload_thread = automation->preload_thread;
+        automation->preload_thread_valid = false;
+        join_thread = true;
+    }
+    pthread_mutex_unlock(&automation->status_mutex);
+
+    if (join_thread) {
+        pthread_join(preload_thread, NULL);
+    }
+}
+
+static void *c64_automation_preload_worker(void *data)
+{
+    c64_automation_preload_task_t *task = (c64_automation_preload_task_t *)data;
+    if (!task || !task->automation) {
+        free(task);
+        return NULL;
+    }
+
+    c64_automation_t *automation = task->automation;
+    c64_automation_t preload = {0};
+    preload.rest_client = automation->rest_client;
+    preload.keyboard = automation->keyboard;
+    preload.source = automation->source;
+    preload.config = task->config;
+    preload.use_songlengths = task->config.use_songlengths;
+
+    bool success = c64_automation_build_playlist(&preload);
+
+    pthread_mutex_lock(&automation->status_mutex);
+    if (success) {
+        if (automation->files) {
+            free(automation->files);
+        }
+        automation->files = preload.files;
+        automation->num_files = preload.num_files;
+        automation->files_capacity = preload.files_capacity;
+        automation->playlist_ready = preload.playlist_ready;
+        automation->playlist_config = task->config;
+        automation->playlist_config_valid = true;
+        if (automation->num_files <= 0) {
+            automation->current_index = -1;
+        } else if (task->selected_index >= 0 && task->selected_index < automation->num_files) {
+            automation->current_index = task->selected_index;
+        } else {
+            automation->current_index = 0;
+        }
+        preload.files = NULL;
+        preload.num_files = 0;
+        preload.files_capacity = 0;
+    }
+    automation->preload_running = false;
+    pthread_mutex_unlock(&automation->status_mutex);
+
+    if (success) {
+        c64_automation_queue_ui_update(automation);
+    }
+
+    c64_automation_clear_playlist_internal(&preload);
+    free(task);
+    return NULL;
+}
+
 static void c64_automation_clear_songlengths(c64_automation_t *automation)
 {
     if (!automation) {
@@ -557,6 +660,8 @@ c64_automation_t *c64_automation_create(void *rest_client, void *keyboard, obs_s
     automation->running = false;
     automation->should_stop = false;
     automation->skip_requested = false;
+    automation->preload_thread_valid = false;
+    automation->preload_running = false;
     automation->files = NULL;
     automation->num_files = 0;
     automation->files_capacity = 0;
@@ -586,6 +691,8 @@ void c64_automation_destroy(c64_automation_t *automation)
     if (!automation) {
         return;
     }
+
+    c64_automation_join_preload_thread(automation);
 
     // Stop if running
     if (c64_automation_is_running(automation)) {
@@ -638,6 +745,72 @@ void c64_automation_configure(c64_automation_t *automation, const c64_automation
                   automation->config.duration_seconds);
 }
 
+bool c64_automation_preload_playlist_async(c64_automation_t *automation, const c64_automation_config_t *config,
+                                           int selected_index)
+{
+    if (!automation || !config) {
+        return false;
+    }
+
+    pthread_mutex_lock(&automation->status_mutex);
+    bool already_ready = automation->playlist_ready && automation->playlist_config_valid &&
+                         automation_playlist_config_matches(&automation->playlist_config, config);
+    bool already_running = automation->running;
+    bool preload_running = automation->preload_running;
+    bool join_completed_thread = automation->preload_thread_valid && !automation->preload_running;
+    pthread_mutex_unlock(&automation->status_mutex);
+
+    if (preload_running) {
+        return true;
+    }
+
+    if (join_completed_thread) {
+        c64_automation_join_preload_thread(automation);
+    }
+
+    if (already_ready || already_running) {
+        return already_ready;
+    }
+
+    c64_automation_preload_task_t *task = calloc(1, sizeof(*task));
+    if (!task) {
+        return false;
+    }
+
+    task->automation = automation;
+    task->config = *config;
+    task->selected_index = selected_index;
+
+    pthread_mutex_lock(&automation->status_mutex);
+    automation->preload_running = true;
+    pthread_mutex_unlock(&automation->status_mutex);
+
+    if (pthread_create(&automation->preload_thread, NULL, c64_automation_preload_worker, task) != 0) {
+        pthread_mutex_lock(&automation->status_mutex);
+        automation->preload_running = false;
+        pthread_mutex_unlock(&automation->status_mutex);
+        free(task);
+        return false;
+    }
+
+    pthread_mutex_lock(&automation->status_mutex);
+    automation->preload_thread_valid = true;
+    pthread_mutex_unlock(&automation->status_mutex);
+    return true;
+}
+
+bool c64_automation_is_preloading(c64_automation_t *automation)
+{
+    if (!automation) {
+        return false;
+    }
+
+    pthread_mutex_lock(&automation->status_mutex);
+    bool preloading = automation->preload_running;
+    pthread_mutex_unlock(&automation->status_mutex);
+    return preloading;
+}
+
 void c64_automation_update_runtime_config(c64_automation_t *automation, const c64_automation_config_t *config)
 {
     if (!automation || !config) {
@@ -682,6 +855,20 @@ bool c64_automation_start(c64_automation_t *automation, int start_index)
     if (!automation) {
         return false;
     }
+
+    // Never block the UI thread by joining a still-running preload.  The Play button is
+    // disabled while preloading (get_properties sets it non-enabled), so this path should
+    // only be reached once the preload thread has already exited.  The join below is then
+    // instant because the thread has already returned.
+    pthread_mutex_lock(&automation->status_mutex);
+    bool preload_still_running = automation->preload_running;
+    pthread_mutex_unlock(&automation->status_mutex);
+    if (preload_still_running) {
+        C64_LOG_WARNING(AUTOMATION_LOG_PREFIX "Cannot start: playlist preload still in progress");
+        return false;
+    }
+
+    c64_automation_join_preload_thread(automation); // instant: thread already exited
 
     pthread_mutex_lock(&automation->status_mutex);
     bool already_running = automation->running;

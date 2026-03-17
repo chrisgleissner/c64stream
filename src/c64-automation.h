@@ -80,6 +80,18 @@ void c64_automation_configure(c64_automation_t *automation, const c64_automation
 void c64_automation_update_runtime_config(c64_automation_t *automation, const c64_automation_config_t *config);
 
 /**
+ * Start a background playlist preload for the given configuration.
+ * Returns quickly so UI callers can avoid synchronous directory scans.
+ */
+bool c64_automation_preload_playlist_async(c64_automation_t *automation, const c64_automation_config_t *config,
+                                           int selected_index);
+
+/**
+ * Return whether a background playlist preload is in progress.
+ */
+bool c64_automation_is_preloading(c64_automation_t *automation);
+
+/**
  * Start automation
  * @return true if started successfully
  */

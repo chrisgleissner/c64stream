@@ -228,6 +228,14 @@ static void expect_normalized(const char *input, const char *expected)
     CHECK_VOID(c64_keymap_identifier_is_runtime_supported(normalized));
 }
 
+static void expect_reboot_chord(uint32_t native_vkey, uint32_t native_scancode, bool key_up, bool shift_down,
+                                bool ctrl_down, bool alt_down, bool meta_down, bool escape_down, bool tab_down,
+                                bool expected)
+{
+    CHECK_VOID(c64_interact_should_reboot_chord(native_vkey, native_scancode, key_up, shift_down, ctrl_down, alt_down,
+                                                meta_down, escape_down, tab_down) == expected);
+}
+
 // Verify a CBM entry (Alt+code) against the corresponding base entry.
 // cbm_code is the unmodified base key identifier; expected_petscii is the CBM PETSCII.
 static void check_positional_cbm_entry(c64_keymap_t *keymap, const char *cbm_code, uint8_t expected_cbm_petscii)
@@ -469,6 +477,21 @@ int main(void)
     expect_normalized("Shift+Alt++", "Shift+Alt+Equal");
     expect_normalized("up", "ArrowUp");
     expect_normalized("f1", "F1");
+
+    CHECK(c64_interact_key_is_escape(0x1B, 0x01));
+    CHECK(c64_interact_key_is_tab(0x09, 0x0F));
+    CHECK(c64_interact_key_is_escape(0xFF1B, 0));
+    CHECK(c64_interact_key_is_tab(0xFF09, 0));
+    expect_reboot_chord(0x1B, 0x01, false, false, false, false, false, true, true, true);
+    expect_reboot_chord(0x09, 0x0F, false, false, false, false, false, true, true, true);
+    expect_reboot_chord(0xFF1B, 0, false, false, false, false, false, true, true, true);
+    expect_reboot_chord(0xFF09, 0, false, false, false, false, false, true, true, true);
+    expect_reboot_chord(0x1B, 0x01, false, true, false, false, false, true, true, true);
+    expect_reboot_chord(0x1B, 0x01, false, true, false, false, false, true, false, false);
+    expect_reboot_chord(0x1B, 0x01, false, true, false, false, false, false, true, false);
+    expect_reboot_chord(0x1B, 0x01, false, true, false, true, false, true, true, false);
+    expect_reboot_chord(0x41, 0x1E, false, true, false, false, false, true, true, false);
+    expect_reboot_chord(0x1B, 0x01, true, true, false, false, false, true, true, false);
 
     c64_keymap_t *symbolic_us = c64_keymap_load(C64STREAM_SOURCE_DIR "/data/keymaps/symbolic_us.c64keymap.ini");
     c64_keymap_t *positional_us = c64_keymap_load(C64STREAM_SOURCE_DIR "/data/keymaps/positional_us.c64keymap.ini");

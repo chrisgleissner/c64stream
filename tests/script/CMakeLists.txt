@@ -273,6 +273,26 @@ target_include_directories(test_properties_refresh PRIVATE ${CMAKE_SOURCE_DIR}/s
 target_link_libraries(test_properties_refresh PRIVATE OBS::libobs)
 add_test(NAME properties_refresh COMMAND test_properties_refresh)
 
+add_executable(
+  test_file_paths
+  test_file_paths.c
+  c64script_test_logging.c
+  ${CMAKE_SOURCE_DIR}/src/c64-file.c
+)
+target_include_directories(test_file_paths PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(test_file_paths PRIVATE OBS::libobs)
+add_test(NAME file_paths COMMAND test_file_paths)
+
+add_executable(
+  test_keyboard_worker
+  test_keyboard_worker.c
+  c64script_test_logging.c
+  ${CMAKE_SOURCE_DIR}/src/c64-keyboard.c
+)
+target_include_directories(test_keyboard_worker PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(test_keyboard_worker PRIVATE OBS::libobs)
+add_test(NAME keyboard_worker COMMAND test_keyboard_worker)
+
 add_executable(test_playlist_window test_playlist_window.c ${CMAKE_SOURCE_DIR}/src/c64-playlist-window.c)
 target_include_directories(test_playlist_window PRIVATE ${CMAKE_SOURCE_DIR}/src)
 add_test(NAME playlist_window COMMAND test_playlist_window)

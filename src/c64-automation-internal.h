@@ -45,7 +45,10 @@ struct c64_automation {
     c64_hvsc_songlength_db_t songlength_db;
 
     pthread_t worker_thread;
+    pthread_t preload_thread;
     pthread_mutex_t status_mutex;
+    bool preload_thread_valid;
+    bool preload_running;
 };
 
 void c64_automation_clear_playlist_internal(c64_automation_t *automation);

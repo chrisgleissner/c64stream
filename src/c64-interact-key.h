@@ -8,6 +8,7 @@ See <https://www.gnu.org/licenses/> for details.
 
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 
 typedef enum {
@@ -24,3 +25,8 @@ typedef struct {
 c64_interact_key_result_t c64_interact_translate_key_event(uint32_t native_vkey, const char *text,
                                                            c64_interact_key_t *key);
 c64_interact_key_result_t c64_interact_translate_key_code(uint32_t native_vkey, const char *text, char key_code[64]);
+
+bool c64_interact_key_is_escape(uint32_t native_vkey, uint32_t native_scancode);
+bool c64_interact_key_is_tab(uint32_t native_vkey, uint32_t native_scancode);
+bool c64_interact_should_reboot_chord(uint32_t native_vkey, uint32_t native_scancode, bool key_up, bool shift_down,
+                                      bool ctrl_down, bool alt_down, bool meta_down, bool escape_down, bool tab_down);
