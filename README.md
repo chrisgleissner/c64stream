@@ -654,13 +654,13 @@ Many programs (especially games) read key state directly from **CIA1**. Since th
 
 #### Special Key Mappings
 
-| OBS                | C64 Function         |
-| ------------------ | -------------------- |
-| CTRL+META          | Toggle Character Set |
-| ALT                | CBM                  |
-| ESC                | RUN/STOP             |
-| ESC + SHIFT        | Reset                |
-| ESC + SHIFT + META | Reboot               |
+| OBS         | C64 Function         |
+| ----------- | -------------------- |
+| CTRL+META   | Toggle Character Set |
+| ALT         | CBM                  |
+| ESC         | RUN/STOP             |
+| ESC + SHIFT | Reset                |
+| ESC + TAB   | Reboot               |
 
 On many keyboards, the **META** key corresponds to the **Windows key**.
 
