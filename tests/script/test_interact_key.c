@@ -482,13 +482,13 @@ int main(void)
     CHECK(c64_interact_key_is_tab(0x09, 0x0F));
     CHECK(c64_interact_key_is_escape(0xFF1B, 0));
     CHECK(c64_interact_key_is_tab(0xFF09, 0));
+    expect_reboot_chord(0x1B, 0x01, false, false, false, false, false, true, true, true);
+    expect_reboot_chord(0x09, 0x0F, false, false, false, false, false, true, true, true);
+    expect_reboot_chord(0xFF1B, 0, false, false, false, false, false, true, true, true);
+    expect_reboot_chord(0xFF09, 0, false, false, false, false, false, true, true, true);
     expect_reboot_chord(0x1B, 0x01, false, true, false, false, false, true, true, true);
-    expect_reboot_chord(0x09, 0x0F, false, true, false, false, false, true, true, true);
-    expect_reboot_chord(0xFF1B, 0, false, true, false, false, false, true, true, true);
-    expect_reboot_chord(0xFF09, 0, false, true, false, false, false, true, true, true);
     expect_reboot_chord(0x1B, 0x01, false, true, false, false, false, true, false, false);
     expect_reboot_chord(0x1B, 0x01, false, true, false, false, false, false, true, false);
-    expect_reboot_chord(0x1B, 0x01, false, false, false, false, false, true, true, false);
     expect_reboot_chord(0x1B, 0x01, false, true, false, true, false, true, true, false);
     expect_reboot_chord(0x41, 0x1E, false, true, false, false, false, true, true, false);
     expect_reboot_chord(0x1B, 0x01, true, true, false, false, false, true, true, false);

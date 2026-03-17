@@ -1971,22 +1971,6 @@ void c64_focus(void *data, bool focus)
     }
 }
 
-static void c64_log_keyboard_submission(struct c64_source *context, const c64_output_t *output)
-{
-    if (!context || !output || c64_debug_logging) {
-        return;
-    }
-
-    const unsigned long long submission_count = (unsigned long long)++context->keyboard_submission_log_count;
-    if (output->mode == C64_OUTPUT_PETSCII) {
-        C64_LOG_INFO("🕹 KEYBOARD: Queued #%llu PETSCII 0x%02X", submission_count, output->data.petscii);
-    } else if (output->mode == C64_OUTPUT_SYMBOLIC) {
-        C64_LOG_INFO("🕹 KEYBOARD: Queued #%llu %s", submission_count, output->data.symbol);
-    } else if (output->mode == C64_OUTPUT_TEXT) {
-        C64_LOG_INFO("🕹 KEYBOARD: Queued #%llu text '%s'", submission_count, output->data.text);
-    }
-}
-
 void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
 {
     struct c64_source *context = (struct c64_source *)data;
@@ -2039,8 +2023,7 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
         context->keyboard_escape_down = !key_up;
     }
 
-    if (!shift_down || ctrl_down || alt_down || meta_down || key_up || !context->keyboard_tab_down ||
-        !context->keyboard_escape_down) {
+    if (ctrl_down || alt_down || meta_down || key_up || !context->keyboard_tab_down || !context->keyboard_escape_down) {
         context->keyboard_reboot_consumed = false;
     }
 
@@ -2051,7 +2034,6 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
             if (context->keymap && context->keyboard) {
                 c64_output_t output;
                 if (c64_keymap_convert(context->keymap, "Ctrl+Meta", NULL, 0, &output)) {
-                    c64_log_keyboard_submission(context, &output);
                     c64_keyboard_queue_output(context->keyboard, &output);
                 }
             }
@@ -2085,7 +2067,7 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
                                          alt_down, meta_down, context->keyboard_escape_down,
                                          context->keyboard_tab_down)) {
         context->keyboard_reboot_consumed = true;
-        C64_LOG_INFO("Keyboard: ESC+TAB+SHIFT pressed - performing C64 reboot");
+        C64_LOG_INFO("Keyboard: ESC+TAB pressed - performing C64 reboot");
         if (context->rest_client) {
             c64_rest_reboot(context->rest_client);
         }
@@ -2144,7 +2126,6 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
         // Convert key to C64 output
         c64_output_t output;
         if (c64_keymap_convert(context->keymap, key.code, key.text, modifiers, &output)) {
-            c64_log_keyboard_submission(context, &output);
             c64_keyboard_queue_output(context->keyboard, &output);
         }
     }

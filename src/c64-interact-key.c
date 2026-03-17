@@ -73,7 +73,9 @@ bool c64_interact_key_is_tab(uint32_t native_vkey, uint32_t native_scancode)
 bool c64_interact_should_reboot_chord(uint32_t native_vkey, uint32_t native_scancode, bool key_up, bool shift_down,
                                       bool ctrl_down, bool alt_down, bool meta_down, bool escape_down, bool tab_down)
 {
-    if (key_up || !shift_down || ctrl_down || alt_down || meta_down || !escape_down || !tab_down) {
+    (void)shift_down;
+
+    if (key_up || ctrl_down || alt_down || meta_down || !escape_down || !tab_down) {
         return false;
     }
 

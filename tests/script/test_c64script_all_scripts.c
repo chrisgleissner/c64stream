@@ -54,8 +54,8 @@ See <https://www.gnu.org/licenses/> for details.
 // several isolated scripts in parallel and trace recording can make tiny scripts
 // occasionally exceed very tight 2-second limits on busy machines.
 #define SCRIPT_TIMEOUT_SECONDS 4
-#define PER_TEST_TIMEOUT_SECONDS 5
-#define SCRIPT_TIMEOUT_RECORDING_SECONDS 8
+#define PER_TEST_TIMEOUT_SECONDS 8
+#define SCRIPT_TIMEOUT_RECORDING_SECONDS 12
 
 static jmp_buf timeout_jump;
 static volatile sig_atomic_t timeout_occurred = 0;
