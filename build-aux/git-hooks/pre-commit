@@ -1,29 +1,25 @@
 #!/bin/bash
-# Pre-commit hook to enforce clang-format on staged files
+# Pre-commit hook to auto-format staged clang-managed source files.
 
-echo "🔍 Running clang-format check on staged files..."
+set -euo pipefail
 
-# Get list of staged C/C++ files
-STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(c|cpp|h|hpp)$')
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
 
-if [ -z "$STAGED_FILES" ]; then
-    echo "✅ No C/C++ files staged"
+staged_files=()
+while IFS= read -r -d '' path; do
+    staged_files+=("$path")
+done < <(git diff --cached --name-only --diff-filter=ACM -z -- '*.c' '*.cpp' '*.h' '*.hpp' '*.m' '*.mm')
+
+if [ ${#staged_files[@]} -eq 0 ]; then
+    echo "✅ No clang-formatted source files staged"
     exit 0
 fi
 
-# Run clang-format check
-./build-aux/run-clang-format --check
+echo "🔧 Auto-formatting staged source files with clang-format..."
+"$repo_root/build-aux/run-clang-format" "${staged_files[@]}"
 
-if [ $? -ne 0 ]; then
-    echo ""
-    echo "❌ Commit blocked: Code formatting check failed"
-    echo ""
-    echo "To fix, run:"
-    echo "  ./build-aux/run-clang-format $STAGED_FILES"
-    echo ""
-    echo "Then stage the changes and commit again"
-    exit 1
-fi
+git add -- "${staged_files[@]}"
 
-echo "✅ Code formatting check passed"
+echo "✅ Formatted and re-staged staged source files"
 exit 0
