@@ -612,9 +612,9 @@ Control your Ultimate 64 remotely from within OBS Studio, enabling keyboard inpu
 
 **Configuration:**
 
-- **Keymap:** Select keyboard mapping for converting PC keystrokes to C64 PETSCII codes
-  - **Symbolic keymaps:** Match key labels (e.g., PC Q → C64 Q)
-  - **Positional keymaps:** Match physical locations (e.g., PC Q → C64 Q on QWERTY, but C64 A on AZERTY)
+- **Keymap:** Select keyboard mapping for converting PC keystrokes to C64 PETSCII codes:
+  - **Symbolic keymaps:** Match key labels. For example press the `[` key on a US PC keyboard and see the `[` character on the C64U.
+  - **Positional keymaps:** Match physical location of keys. For example press the `[` key on US PC keyboard and see the `@` character on the C64U. This is because the PC `[` key is in the same physical location as the C64 `@` key, to the right of the `P` key.
   - Supports built-in and custom user keymaps (`.c64keymap.ini` format)
 - **File System:** Choose between local files or C64 Ultimate storage
 - **Playback Source:** Pick **Single File** or **Folder**
@@ -634,8 +634,7 @@ Control your Ultimate 64 remotely from within OBS Studio, enabling keyboard inpu
 
 ### Keyboard Capture
 
-Keyboard input can be sent to the C64 through the OBS **Interact** window.
-Keystrokes are translated to **PETSCII** and injected into the **KERNAL keyboard buffer**.
+Keyboard input can be sent to the C64 through the OBS **Interact** window. Keystrokes are translated to **PETSCII** and injected into the **KERNAL keyboard buffer**.
 
 #### Activating Keyboard Capture
 
