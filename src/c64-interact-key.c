@@ -268,7 +268,7 @@ c64_interact_key_result_t c64_interact_translate_key_event(uint32_t native_vkey,
     const bool single_char = (has_text && text[1] == '\0');
     const bool text_is_space = (single_char && text[0] == ' ');
     const bool text_is_printable = (is_single_printable_text(text) && !text_is_space);
-    const bool text_is_visible = (has_visible_text(text) && !(single_char && (text[0] == '\r' || text[0] == '\n')));
+    const bool text_is_visible = has_visible_text(text);
 
     lookup_key_code_from_vkey(native_vkey, key->code);
 
