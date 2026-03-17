@@ -513,9 +513,9 @@ int main(void)
     expect_petscii(positional_us, "KeyA", "A", 0x01, 0xC1);
     expect_petscii(positional_us, "Digit3", "\x1C", 0x02, 0x1C);
     expect_petscii(positional_us, "Digit1", NULL, 0x04, 0x81);
-    expect_petscii(positional_us, "Home", NULL, 0x01, 0x93);
+    expect_petscii(positional_us, "Home", NULL, 0x01, 0x94);
     expect_petscii(positional_us, "Minus", NULL, 0x01, 0xDB);
-    expect_petscii(positional_us, "Equal", NULL, 0x01, 0xDD);
+    expect_petscii(positional_us, "Equal", NULL, 0x01, 0x3D);
     expect_petscii(positional_us, "BracketLeft", NULL, 0x01, 0xBA);
     expect_petscii(positional_us, "Backslash", NULL, 0x01, 0xDE);
     expect_petscii(positional_us, "Backspace", NULL, 0x01, 0xA9);

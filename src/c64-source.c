@@ -1210,6 +1210,32 @@ void c64_update(void *data, obs_data_t *settings)
     (void)prev_dimension_effects;
     (void)new_dimension_effects;
 
+    // Reload keymap if the selection changed
+    const char *new_keymap_name = obs_data_get_string(settings, "keyboard_keymap");
+    if (new_keymap_name && new_keymap_name[0] != '\0' && strcmp(context->keyboard_keymap_name, new_keymap_name) != 0) {
+        // Record the attempted name now to prevent repeated retries on persistent failure.
+        snprintf(context->keyboard_keymap_name, sizeof(context->keyboard_keymap_name), "%s", new_keymap_name);
+        char keymap_filename[128];
+        snprintf(keymap_filename, sizeof(keymap_filename), "keymaps/%s.c64keymap.ini", new_keymap_name);
+        char *keymap_path = obs_module_file(keymap_filename);
+        if (keymap_path) {
+            c64_keymap_t *new_keymap = c64_keymap_load(keymap_path);
+            bfree(keymap_path);
+            if (new_keymap) {
+                c64_keymap_t *old_keymap = context->keymap;
+                context->keymap = new_keymap;
+                C64_LOG_INFO("🕹 KEYBOARD: Reloaded keymap: %s", new_keymap_name);
+                if (old_keymap) {
+                    c64_keymap_destroy(old_keymap);
+                }
+            } else {
+                C64_LOG_WARNING("Failed to load keymap on update: %s", new_keymap_name);
+            }
+        } else {
+            C64_LOG_WARNING("Failed to resolve keymap path for: %s", new_keymap_name);
+        }
+    }
+
     // Only schedule a background retry when network-related settings changed or streaming is stopped.
     const bool should_schedule_retry = (!context->streaming) || ports_changed || host_changed || obs_ip_changed ||
                                        dns_changed;
