@@ -1957,8 +1957,11 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
     C64_LOG_INFO("🕹 KEYBOARD: key_up=%d vkey=0x%04X scan=0x%02X mods=0x%02X text='%s'", key_up, event->native_vkey,
                  event->native_scancode, event->modifiers, event->text ? event->text : "");
 
-    const bool has_printable_text = (event->text && event->text[0] != '\0' && event->text[1] == '\0' &&
-                                     isprint((unsigned char)event->text[0]) && event->text[0] != ' ');
+    // UTF-8-aware printability: text is printable if it is non-empty, the first byte
+    // is not a C0 control character (0x00-0x1F) or DEL (0x7F), and not a space.
+    // This correctly handles multi-byte UTF-8 characters (e.g. £, ä, @-via-AltGr).
+    const bool has_printable_text = (event->text && event->text[0] != '\0' && (unsigned char)event->text[0] > 0x20 &&
+                                     (unsigned char)event->text[0] != 0x7F);
 
     const bool is_ctrl_key =
         (event->native_vkey == 0xFFE3 || event->native_vkey == 0xFFE4 || event->native_vkey == 0x11);
@@ -1966,6 +1969,10 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
                               ((!has_printable_text) && (event->native_vkey == 0x5B || event->native_vkey == 0x5C)));
     const bool is_shift_key =
         (event->native_vkey == 0xFFE1 || event->native_vkey == 0xFFE2 || event->native_vkey == 0x10);
+    // Linux/X11: AltGr sends XK_ISO_Level3_Shift (0xFE03), not in this list, so it
+    // correctly does not set the CBM modifier bit.
+    // Windows: AltGr generates VK_MENU (0x12). It is treated the same as left Alt here;
+    // the synthetic Ctrl+Alt pattern is cleared at the point of keymap lookup below.
     const bool is_alt_key =
         (event->native_vkey == 0xFFE9 || event->native_vkey == 0xFFEA || event->native_vkey == 0x12);
     const bool is_modifier_key = (is_shift_key || is_ctrl_key || is_alt_key || is_meta_key);
@@ -2057,6 +2064,14 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
         }
         if (event->modifiers & INTERACT_COMMAND_KEY) {
             modifiers |= 0x08;
+        }
+
+        // AltGr separation: on Windows, AltGr is delivered as Ctrl+Alt (synthetic Ctrl
+        // precedes right-Alt). If both Ctrl and Alt are set and the key produced printable
+        // text, this is AltGr acting as a Level 3 shift — not a CBM modifier. Clear both
+        // bits so the text-based lookup path handles the character instead.
+        if ((modifiers & 0x06) == 0x06 && has_printable_text) {
+            modifiers &= ~0x06;
         }
 
         C64_LOG_DEBUG("🕹 KEYBOARD: normalized code=%s text=%s mods=0x%02X", key.code[0] ? key.code : "<none>",

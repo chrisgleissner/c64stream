@@ -308,6 +308,9 @@ static bool normalize_known_base_token(const char *token, char normalized[64])
     if (string_ieq(token, "backslash")) {
         return snprintf(normalized, 64, "Backslash") > 0;
     }
+    if (string_ieq(token, "intlbackslash")) {
+        return snprintf(normalized, 64, "IntlBackslash") > 0;
+    }
     if (string_ieq(token, "semicolon")) {
         return snprintf(normalized, 64, "Semicolon") > 0;
     }
@@ -457,7 +460,14 @@ static bool is_supported_base_identifier(const char *identifier)
         return false;
     }
 
-    if (identifier[0] != '\0' && identifier[1] == '\0' && isprint((unsigned char)identifier[0])) {
+    // Single-byte ASCII printable (0x21-0x7E).
+    if (identifier[1] == '\0') {
+        return (unsigned char)identifier[0] > 0x20 && (unsigned char)identifier[0] != 0x7F;
+    }
+
+    // Multi-byte UTF-8: lead byte 0xC0+ indicates a valid non-ASCII character.
+    // These are accented letters and locale-specific symbols (e.g. ä, £, ñ).
+    if ((unsigned char)identifier[0] >= 0xC0) {
         return true;
     }
 

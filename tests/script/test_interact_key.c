@@ -7,6 +7,7 @@
 #include <util/platform.h>
 
 #include <ctype.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -215,6 +216,169 @@ static void expect_normalized(const char *input, const char *expected)
     CHECK_VOID(c64_keymap_identifier_is_runtime_supported(normalized));
 }
 
+// Verify a CBM entry (Alt+code) against the corresponding base entry.
+// cbm_code is the unmodified base key identifier; expected_petscii is the CBM PETSCII.
+static void check_positional_cbm_entry(c64_keymap_t *keymap, const char *cbm_code, uint8_t expected_cbm_petscii)
+{
+    c64_output_t output = {0};
+    // Verify the CBM (Alt) modifier entry exists and produces the expected value.
+    CHECK_VOID(c64_keymap_convert(keymap, cbm_code, NULL, 0x04, &output));
+    CHECK_VOID(output.mode == C64_OUTPUT_PETSCII);
+    CHECK_VOID(output.data.petscii == expected_cbm_petscii);
+}
+
+// Collect all reachable PETSCII values from a keymap INI file.
+// Returns the number of distinct PETSCII values found.
+static int collect_reachable_petscii(const char *path, bool reachable[256])
+{
+    FILE *file = fopen(path, "r");
+    if (!file) {
+        return -1;
+    }
+
+    memset(reachable, 0, 256 * sizeof(bool));
+    char section[32] = "";
+    char line[512];
+
+    while (fgets(line, sizeof(line), file)) {
+        // Trim
+        char *p = line + strlen(line) - 1;
+        while (p >= line && (*p == '\n' || *p == '\r' || *p == ' ' || *p == '\t')) {
+            *p-- = '\0';
+        }
+
+        if (line[0] == '\0') {
+            continue;
+        }
+        if (line[0] == '#' && strchr(line, '=') == NULL) {
+            continue;
+        }
+        // Section headers end with ']'. Entries like '[=0x5B' start with '[' but
+        // are NOT section headers (they don't end with ']').
+        size_t line_len = strlen(line);
+        if (line[0] == '[' && line[line_len - 1] == ']') {
+            strncpy(section, line, sizeof(section) - 1);
+            section[sizeof(section) - 1] = '\0';
+            continue;
+        }
+        if (strcmp(section, "[map]") != 0) {
+            continue;
+        }
+
+        char *equals = strchr(line, '=');
+        if (!equals) {
+            continue;
+        }
+        char *value = equals + 1;
+
+        // Handle the literal '=' key: stored as '==<value>' in the INI file.
+        // After splitting on the first '=', key is empty and value starts with '='.
+        if (equals == line && value[0] == '=') {
+            value++;
+        }
+
+        // Parse comma-separated values
+        char val_copy[128];
+        strncpy(val_copy, value, sizeof(val_copy) - 1);
+        val_copy[sizeof(val_copy) - 1] = '\0';
+
+        char *saveptr = NULL;
+        for (char *tok = strtok_r(val_copy, ",", &saveptr); tok; tok = strtok_r(NULL, ",", &saveptr)) {
+            while (*tok == ' ') {
+                tok++;
+            }
+            if (strncmp(tok, "0x", 2) == 0 || strncmp(tok, "0X", 2) == 0) {
+                long v = strtol(tok, NULL, 16);
+                if (v >= 0 && v <= 255) {
+                    reachable[(int)v] = true;
+                }
+            } else if (isdigit((unsigned char)tok[0])) {
+                long v = strtol(tok, NULL, 10);
+                if (v >= 0 && v <= 255) {
+                    reachable[(int)v] = true;
+                }
+            }
+        }
+    }
+
+    fclose(file);
+
+    int count = 0;
+    for (int i = 0; i < 256; i++) {
+        if (reachable[i]) {
+            count++;
+        }
+    }
+    return count;
+}
+
+static void check_full_reachability(const char *path)
+{
+    bool reachable[256];
+    int count = collect_reachable_petscii(path, reachable);
+    CHECK_VOID(count > 0);
+
+    // Keyboard-accessible printable range 0x20-0x5F.
+    // PETSCII 0x60-0x7E are C64 graphics characters accessible only via screen codes,
+    // not through normal keyboard input — they are excluded from this check.
+    for (int i = 0x20; i <= 0x5F; i++) {
+        if (!reachable[i]) {
+            fprintf(stderr, "REACHABILITY: %s missing PETSCII 0x%02X (printable range)\n", path, i);
+            CHECK_VOID(reachable[i]);
+        }
+    }
+
+    // Shifted letters 0xC1-0xDA
+    for (int i = 0xC1; i <= 0xDA; i++) {
+        if (!reachable[i]) {
+            fprintf(stderr, "REACHABILITY: %s missing PETSCII 0x%02X (shifted letter)\n", path, i);
+            CHECK_VOID(reachable[i]);
+        }
+    }
+
+    // Shifted C64 punctuation codes (0xA9, 0xBA, 0xDB, 0xDD, 0xDE) are intentionally not
+    // checked here. These require C64 Shift+special-key combinations that are only
+    // naturally expressible via positional maps. Symbolic maps provide text-based input
+    // and cannot reach them without conflicting with standard printable character lookups.
+
+    // CBM graphics ranges
+    for (int i = 0xA1; i <= 0xA8; i++) {
+        if (!reachable[i]) {
+            fprintf(stderr, "REACHABILITY: %s missing PETSCII 0x%02X (CBM graphics)\n", path, i);
+            CHECK_VOID(reachable[i]);
+        }
+    }
+    for (int i = 0xAB; i <= 0xAF; i++) {
+        if (!reachable[i]) {
+            fprintf(stderr, "REACHABILITY: %s missing PETSCII 0x%02X (CBM graphics)\n", path, i);
+            CHECK_VOID(reachable[i]);
+        }
+    }
+    for (int i = 0xB1; i <= 0xB9; i++) {
+        // 0xB4 is an alternate PETSCII code for CBM+G (primary: 0xA5) — deliberately skipped.
+        if (i == 0xB4) {
+            continue;
+        }
+        if (!reachable[i]) {
+            fprintf(stderr, "REACHABILITY: %s missing PETSCII 0x%02X (CBM graphics)\n", path, i);
+            CHECK_VOID(reachable[i]);
+        }
+    }
+    for (int i = 0xBB; i <= 0xBF; i++) {
+        if (!reachable[i]) {
+            fprintf(stderr, "REACHABILITY: %s missing PETSCII 0x%02X (CBM graphics)\n", path, i);
+            CHECK_VOID(reachable[i]);
+        }
+    }
+    static const uint8_t cbm_singles[] = {0xDC, 0xDF, 0xE2, 0xE5};
+    for (size_t i = 0; i < sizeof(cbm_singles); i++) {
+        if (!reachable[cbm_singles[i]]) {
+            fprintf(stderr, "REACHABILITY: %s missing PETSCII 0x%02X (CBM graphics)\n", path, cbm_singles[i]);
+            CHECK_VOID(reachable[cbm_singles[i]]);
+        }
+    }
+}
+
 static void validate_keymap_identifiers(const char *path)
 {
     FILE *file = fopen(path, "r");
@@ -254,6 +418,9 @@ static void validate_keymap_identifiers(const char *path)
 
         char normalized[64] = {0};
         CHECK_VOID(c64_keymap_normalize_identifier(key, normalized));
+        if (!c64_keymap_identifier_is_runtime_supported(normalized)) {
+            fprintf(stderr, "INVALID IDENTIFIER in %s: '%s'\n", path, normalized);
+        }
         CHECK_VOID(c64_keymap_identifier_is_runtime_supported(normalized));
     }
 
@@ -389,6 +556,129 @@ int main(void)
         validate_keymap_identifiers(keymap_paths[i]);
         c64_keymap_destroy(keymap);
     }
+
+    // UTF-8 runtime regression tests.
+    // Verify multi-byte event->text values reach c64_keymap_convert correctly.
+    expect_translation(0, "ä", C64_INTERACT_KEY_TRANSLATED, "", "ä");
+    expect_translation(0, "ö", C64_INTERACT_KEY_TRANSLATED, "", "ö");
+    expect_translation(0, "ü", C64_INTERACT_KEY_TRANSLATED, "", "ü");
+    expect_translation(0, "é", C64_INTERACT_KEY_TRANSLATED, "", "é");
+    expect_translation(0, "è", C64_INTERACT_KEY_TRANSLATED, "", "è");
+    expect_translation(0, "à", C64_INTERACT_KEY_TRANSLATED, "", "à");
+    expect_translation(0, "ù", C64_INTERACT_KEY_TRANSLATED, "", "ù");
+    expect_translation(0, "ç", C64_INTERACT_KEY_TRANSLATED, "", "ç");
+    expect_translation(0, "ì", C64_INTERACT_KEY_TRANSLATED, "", "ì");
+    expect_translation(0, "ò", C64_INTERACT_KEY_TRANSLATED, "", "ò");
+    expect_translation(0, "£", C64_INTERACT_KEY_TRANSLATED, "", "£");
+    expect_translation(0, "ñ", C64_INTERACT_KEY_TRANSLATED, "", "ñ");
+    expect_translation(0, "ë", C64_INTERACT_KEY_TRANSLATED, "", "ë");
+    expect_translation(0, "ï", C64_INTERACT_KEY_TRANSLATED, "", "ï");
+
+    // Verify each multi-byte char produces the expected PETSCII via a locale keymap.
+    expect_petscii(symbolic_de, NULL, "ä", 0, 0x41);
+    expect_petscii(symbolic_de, NULL, "ö", 0, 0x4F);
+    expect_petscii(symbolic_de, NULL, "ü", 0, 0x55);
+    expect_petscii(symbolic_fr, NULL, "é", 0, 0x45);
+    expect_petscii(symbolic_fr, NULL, "è", 0, 0x45);
+    expect_petscii(symbolic_fr, NULL, "à", 0, 0x41);
+    expect_petscii(symbolic_fr, NULL, "ù", 0, 0x55);
+    expect_petscii(symbolic_fr, NULL, "ç", 0, 0x43);
+    expect_petscii(symbolic_it, NULL, "ì", 0, 0x49);
+    expect_petscii(symbolic_it, NULL, "ò", 0, 0x4F);
+    expect_petscii(symbolic_uk, NULL, "£", 0, 0x5C);
+    expect_petscii(symbolic_nl, NULL, "ñ", 0, 0x4E);
+    expect_petscii(symbolic_fr, NULL, "ë", 0, 0x45);
+    expect_petscii(symbolic_fr, NULL, "ï", 0, 0x49);
+
+    // Dead-key normalization tests (FR entries).
+    expect_petscii(symbolic_fr, NULL, "â", 0, 0x41);
+    expect_petscii(symbolic_fr, NULL, "î", 0, 0x49);
+    expect_petscii(symbolic_fr, NULL, "ô", 0, 0x4F);
+    expect_petscii(symbolic_fr, NULL, "û", 0, 0x55);
+    expect_petscii(symbolic_fr, NULL, "Â", 0, 0xC1);
+    expect_petscii(symbolic_fr, NULL, "Î", 0, 0xC9);
+    expect_petscii(symbolic_fr, NULL, "Ô", 0, 0xCF);
+    expect_petscii(symbolic_fr, NULL, "Û", 0, 0xD5);
+    expect_petscii(symbolic_fr, NULL, "ä", 0, 0x41);
+    expect_petscii(symbolic_fr, NULL, "ö", 0, 0x4F);
+    expect_petscii(symbolic_fr, NULL, "ü", 0, 0x55);
+    expect_petscii(symbolic_fr, NULL, "ÿ", 0, 0x59);
+    expect_petscii(symbolic_fr, NULL, "Ä", 0, 0xC1);
+    expect_petscii(symbolic_fr, NULL, "Ë", 0, 0xC5);
+    expect_petscii(symbolic_fr, NULL, "Ï", 0, 0xC9);
+    expect_petscii(symbolic_fr, NULL, "Ö", 0, 0xCF);
+    expect_petscii(symbolic_fr, NULL, "Ü", 0, 0xD5);
+    expect_petscii(symbolic_fr, NULL, "Ÿ", 0, 0xD9);
+    expect_petscii(symbolic_fr, NULL, "á", 0, 0x41);
+    expect_petscii(symbolic_fr, NULL, "í", 0, 0x49);
+    expect_petscii(symbolic_fr, NULL, "ó", 0, 0x4F);
+    expect_petscii(symbolic_fr, NULL, "ú", 0, 0x55);
+    expect_petscii(symbolic_fr, NULL, "ì", 0, 0x49);
+    expect_petscii(symbolic_fr, NULL, "ò", 0, 0x4F);
+
+    // Dead-key normalization tests (IT entries).
+    expect_petscii(symbolic_it, NULL, "ç", 0, 0x43);
+    expect_petscii(symbolic_it, NULL, "Ç", 0, 0xC3);
+    expect_petscii(symbolic_it, NULL, "â", 0, 0x41);
+    expect_petscii(symbolic_it, NULL, "î", 0, 0x49);
+    expect_petscii(symbolic_it, NULL, "ô", 0, 0x4F);
+    expect_petscii(symbolic_it, NULL, "û", 0, 0x55);
+    expect_petscii(symbolic_it, NULL, "ä", 0, 0x41);
+    expect_petscii(symbolic_it, NULL, "ë", 0, 0x45);
+    expect_petscii(symbolic_it, NULL, "ï", 0, 0x49);
+    expect_petscii(symbolic_it, NULL, "ö", 0, 0x4F);
+    expect_petscii(symbolic_it, NULL, "ü", 0, 0x55);
+    expect_petscii(symbolic_it, NULL, "á", 0, 0x41);
+    expect_petscii(symbolic_it, NULL, "í", 0, 0x49);
+    expect_petscii(symbolic_it, NULL, "ó", 0, 0x4F);
+    expect_petscii(symbolic_it, NULL, "ú", 0, 0x55);
+
+    // Dead-key normalization tests (NL entries).
+    expect_petscii(symbolic_nl, NULL, "ä", 0, 0x41);
+    expect_petscii(symbolic_nl, NULL, "ë", 0, 0x45);
+    expect_petscii(symbolic_nl, NULL, "ï", 0, 0x49);
+    expect_petscii(symbolic_nl, NULL, "ö", 0, 0x4F);
+    expect_petscii(symbolic_nl, NULL, "ü", 0, 0x55);
+    expect_petscii(symbolic_nl, NULL, "â", 0, 0x41);
+    expect_petscii(symbolic_nl, NULL, "ê", 0, 0x45);
+    expect_petscii(symbolic_nl, NULL, "î", 0, 0x49);
+    expect_petscii(symbolic_nl, NULL, "ô", 0, 0x4F);
+    expect_petscii(symbolic_nl, NULL, "û", 0, 0x55);
+    expect_petscii(symbolic_nl, NULL, "é", 0, 0x45);
+    expect_petscii(symbolic_nl, NULL, "á", 0, 0x41);
+    expect_petscii(symbolic_nl, NULL, "à", 0, 0x41);
+    expect_petscii(symbolic_nl, NULL, "è", 0, 0x45);
+    expect_petscii(symbolic_nl, NULL, "ù", 0, 0x55);
+    expect_petscii(symbolic_nl, NULL, "ã", 0, 0x41);
+    expect_petscii(symbolic_nl, NULL, "ñ", 0, 0x4E);
+    expect_petscii(symbolic_nl, NULL, "ç", 0, 0x43);
+    expect_petscii(symbolic_nl, NULL, "ÿ", 0, 0x59);
+
+    // Positional CBM consistency check.
+    // Verify corrected entries: Alt+<code> produces the CBM PETSCII for the C64 key
+    // at that physical position.
+    // BracketLeft=0x40 (C64 @) → CBM+@ = 0xA4
+    check_positional_cbm_entry(positional_us, "BracketLeft", 0xA4);
+    // Minus=0x2B (C64 +) → CBM++ = 0xA6 (via Shift+Alt+Minus)
+    expect_petscii(positional_us, "Minus", NULL, 0x05, 0xA6);
+    // Backspace=0x5C (C64 £) → CBM+£ = 0xA8
+    check_positional_cbm_entry(positional_us, "Backspace", 0xA8);
+    // Equal=0x2D (C64 -) → CBM+- = 0xDC
+    check_positional_cbm_entry(positional_us, "Equal", 0xDC);
+    // BracketRight=0x2A (C64 *) → CBM+* = 0xDF
+    check_positional_cbm_entry(positional_us, "BracketRight", 0xDF);
+    // CBM+H and CBM+I
+    check_positional_cbm_entry(positional_us, "KeyH", 0xE5);
+    check_positional_cbm_entry(positional_us, "KeyI", 0xE2);
+
+    // Full reachability test: every required PETSCII code must be present
+    // in at least one entry of each keymap file.
+    check_full_reachability(C64STREAM_SOURCE_DIR "/data/keymaps/positional_us.c64keymap.ini");
+    check_full_reachability(C64STREAM_SOURCE_DIR "/data/keymaps/symbolic_uk.c64keymap.ini");
+    check_full_reachability(C64STREAM_SOURCE_DIR "/data/keymaps/symbolic_de.c64keymap.ini");
+    check_full_reachability(C64STREAM_SOURCE_DIR "/data/keymaps/symbolic_fr.c64keymap.ini");
+    check_full_reachability(C64STREAM_SOURCE_DIR "/data/keymaps/symbolic_it.c64keymap.ini");
+    check_full_reachability(C64STREAM_SOURCE_DIR "/data/keymaps/symbolic_nl.c64keymap.ini");
 
     c64_keymap_destroy(symbolic_us);
     c64_keymap_destroy(positional_us);

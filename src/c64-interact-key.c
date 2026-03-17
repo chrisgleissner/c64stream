@@ -40,12 +40,24 @@ static bool copy_identifier(char identifier[64], const char *value)
 
 static bool is_single_printable_text(const char *text)
 {
-    return text && text[0] != '\0' && text[1] == '\0' && isprint((unsigned char)text[0]) && text[0] != ' ';
+    if (!text || text[0] == '\0' || text[0] == ' ') {
+        return false;
+    }
+    // Single-byte ASCII printable (0x21-0x7E).
+    if (text[1] == '\0') {
+        return (unsigned char)text[0] > 0x20 && (unsigned char)text[0] != 0x7F;
+    }
+    return false;
 }
 
 static bool has_visible_text(const char *text)
 {
-    return text && text[0] != '\0' && !iscntrl((unsigned char)text[0]);
+    if (!text || text[0] == '\0') {
+        return false;
+    }
+    // UTF-8-aware: printable if first byte is not a C0 control (0x00-0x1F) or DEL (0x7F).
+    // Multi-byte UTF-8 lead bytes (0x80+) are always non-control and thus visible.
+    return (unsigned char)text[0] > 0x1F && (unsigned char)text[0] != 0x7F;
 }
 
 static bool lookup_key_code_from_vkey(uint32_t native_vkey, char key_code[64])
