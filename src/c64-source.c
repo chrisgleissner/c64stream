@@ -1213,6 +1213,8 @@ void c64_update(void *data, obs_data_t *settings)
     // Reload keymap if the selection changed
     const char *new_keymap_name = obs_data_get_string(settings, "keyboard_keymap");
     if (new_keymap_name && new_keymap_name[0] != '\0' && strcmp(context->keyboard_keymap_name, new_keymap_name) != 0) {
+        // Record the attempted name now to prevent repeated retries on persistent failure.
+        snprintf(context->keyboard_keymap_name, sizeof(context->keyboard_keymap_name), "%s", new_keymap_name);
         char keymap_filename[128];
         snprintf(keymap_filename, sizeof(keymap_filename), "keymaps/%s.c64keymap.ini", new_keymap_name);
         char *keymap_path = obs_module_file(keymap_filename);
@@ -1222,7 +1224,6 @@ void c64_update(void *data, obs_data_t *settings)
             if (new_keymap) {
                 c64_keymap_t *old_keymap = context->keymap;
                 context->keymap = new_keymap;
-                strncpy(context->keyboard_keymap_name, new_keymap_name, sizeof(context->keyboard_keymap_name) - 1);
                 C64_LOG_INFO("🕹 KEYBOARD: Reloaded keymap: %s", new_keymap_name);
                 if (old_keymap) {
                     c64_keymap_destroy(old_keymap);
