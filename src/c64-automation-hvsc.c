@@ -494,6 +494,27 @@ static bool path_is_directory(const char *path)
 #endif
 }
 
+static bool path_is_regular_file(const char *path)
+{
+    if (!path || path[0] == '\0') {
+        return false;
+    }
+
+#ifdef _WIN32
+    DWORD attrs = GetFileAttributesA(path);
+    if (attrs == INVALID_FILE_ATTRIBUTES) {
+        return false;
+    }
+    return (attrs & FILE_ATTRIBUTE_DIRECTORY) == 0;
+#else
+    struct stat st;
+    if (stat(path, &st) != 0) {
+        return false;
+    }
+    return S_ISREG(st.st_mode);
+#endif
+}
+
 static bool strip_trailing_separators(char *path)
 {
     if (!path || path[0] == '\0') {
@@ -513,13 +534,32 @@ static bool strip_trailing_separators(char *path)
     return len > 0;
 }
 
+static bool build_path_join(char *buffer, size_t buffer_size, const char *left, const char *right)
+{
+    if (!buffer || buffer_size == 0 || !left || !right || left[0] == '\0' || right[0] == '\0') {
+        return false;
+    }
+
+#ifdef _WIN32
+    const char separator = '\\';
+#else
+    const char separator = '/';
+#endif
+
+    size_t left_len = strlen(left);
+    bool has_separator = left_len > 0 && (left[left_len - 1] == '/' || left[left_len - 1] == '\\');
+    int written = has_separator ? snprintf(buffer, buffer_size, "%s%s", left, right)
+                                : snprintf(buffer, buffer_size, "%s%c%s", left, separator, right);
+    return written >= 0 && (size_t)written < buffer_size;
+}
+
 static bool get_parent_dir(const char *path, char *out_parent, size_t out_size)
 {
     if (!path || !out_parent || out_size == 0) {
         return false;
     }
 
-    char temp[512];
+    char temp[C64_AUTOMATION_PATH_MAX];
     strncpy(temp, path, sizeof(temp) - 1);
     temp[sizeof(temp) - 1] = '\0';
     if (!strip_trailing_separators(temp)) {
@@ -531,11 +571,9 @@ static bool get_parent_dir(const char *path, char *out_parent, size_t out_size)
     if (last_backslash && (!last_sep || last_backslash > last_sep)) {
         last_sep = last_backslash;
     }
-
     if (!last_sep) {
         return false;
     }
-
     if (last_sep == temp) {
         return false;
     }
@@ -555,136 +593,73 @@ static bool get_parent_dir(const char *path, char *out_parent, size_t out_size)
     return true;
 }
 
-static bool find_songlengths_in_dir(const char *dir_path, char *out_path, size_t out_size, char *out_docs,
-                                    size_t docs_size)
+static bool find_songlengths_file_in_documents_dir(const char *documents_dir, char *out_path, size_t out_size)
 {
-    if (!dir_path || !out_path || out_size == 0) {
+    static const char *candidates[] = {
+        "Songlengths.md5",
+        "Songlengths.txt",
+    };
+
+    if (!documents_dir || !out_path || out_size == 0 || !path_is_directory(documents_dir)) {
         return false;
     }
 
-    if (out_docs && docs_size > 0) {
-        out_docs[0] = '\0';
-    }
-
-#ifdef _WIN32
-    char search_path[MAX_PATH];
-    int written = snprintf(search_path, sizeof(search_path), "%s\\*", dir_path);
-    if (written < 0 || (size_t)written >= sizeof(search_path)) {
-        return false;
-    }
-
-    WIN32_FIND_DATAA find_data;
-    HANDLE h_find = FindFirstFileA(search_path, &find_data);
-    if (h_find == INVALID_HANDLE_VALUE) {
-        return false;
-    }
-
-    do {
-        if (strcmp(find_data.cFileName, ".") == 0 || strcmp(find_data.cFileName, "..") == 0) {
+    for (size_t i = 0; i < (sizeof(candidates) / sizeof(candidates[0])); i++) {
+        char candidate[C64_AUTOMATION_PATH_MAX];
+        if (!build_path_join(candidate, sizeof(candidate), documents_dir, candidates[i])) {
             continue;
         }
-
-        if (!(find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
-            if (songlengths_filename_matches(find_data.cFileName)) {
-                char full_path[MAX_PATH];
-                written = snprintf(full_path, sizeof(full_path), "%s\\%s", dir_path, find_data.cFileName);
-                if (written < 0 || (size_t)written >= sizeof(full_path)) {
-                    continue;
-                }
-                strncpy(out_path, full_path, out_size - 1);
-                out_path[out_size - 1] = '\0';
-                FindClose(h_find);
-                return true;
-            }
-            continue;
+        if (path_is_regular_file(candidate)) {
+            strncpy(out_path, candidate, out_size - 1);
+            out_path[out_size - 1] = '\0';
+            return true;
         }
+    }
 
-        if (out_docs && docs_size > 0 && strcasecmp(find_data.cFileName, "documents") == 0) {
-            char docs_path[MAX_PATH];
-            written = snprintf(docs_path, sizeof(docs_path), "%s\\%s", dir_path, find_data.cFileName);
-            if (written < 0 || (size_t)written >= sizeof(docs_path)) {
-                continue;
-            }
-            strncpy(out_docs, docs_path, docs_size - 1);
-            out_docs[docs_size - 1] = '\0';
-        }
-    } while (FindNextFileA(h_find, &find_data));
-
-    FindClose(h_find);
     return false;
-#else
-    DIR *dir = opendir(dir_path);
-    if (!dir) {
-        return false;
-    }
-
-    struct dirent *entry = NULL;
-    while ((entry = readdir(dir)) != NULL) {
-        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
-            continue;
-        }
-
-        char full_path[512];
-        int written = snprintf(full_path, sizeof(full_path), "%s/%s", dir_path, entry->d_name);
-        if (written < 0 || (size_t)written >= sizeof(full_path)) {
-            continue;
-        }
-
-        bool is_dir = false;
-        if (entry->d_type == DT_DIR) {
-            is_dir = true;
-        } else if (entry->d_type == DT_UNKNOWN) {
-            is_dir = path_is_directory(full_path);
-        }
-
-        if (!is_dir) {
-            if (songlengths_filename_matches(entry->d_name)) {
-                strncpy(out_path, full_path, out_size - 1);
-                out_path[out_size - 1] = '\0';
-                closedir(dir);
-                return true;
-            }
-            continue;
-        }
-
-        if (out_docs && docs_size > 0 && strcasecmp(entry->d_name, "documents") == 0) {
-            strncpy(out_docs, full_path, docs_size - 1);
-            out_docs[docs_size - 1] = '\0';
-        }
-    }
-
-    closedir(dir);
-    return false;
-#endif
 }
 
 static bool find_songlengths_file_recursive(const char *root_path, char *out_path, size_t out_size)
 {
+    typedef struct {
+        char path[C64_AUTOMATION_PATH_MAX];
+    } dir_entry_t;
+
     if (!root_path || !out_path || out_size == 0) {
         return false;
     }
 
-#ifdef _WIN32
-    typedef struct {
-        char path[MAX_PATH];
-    } dir_entry_t;
-
-    dir_entry_t *dir_stack = NULL;
-    int dir_count = 0;
-    int dir_capacity = 64;
-    dir_stack = calloc(dir_capacity, sizeof(dir_entry_t));
+    dir_entry_t *dir_stack = calloc(64, sizeof(*dir_stack));
     if (!dir_stack) {
         return false;
     }
-    strncpy_s(dir_stack[0].path, sizeof(dir_stack[0].path), root_path, _TRUNCATE);
-    dir_count = 1;
+
+    int dir_capacity = 64;
+    int dir_count = 1;
+    strncpy(dir_stack[0].path, root_path, sizeof(dir_stack[0].path) - 1);
+    dir_stack[0].path[sizeof(dir_stack[0].path) - 1] = '\0';
 
     while (dir_count > 0) {
         dir_count--;
-        const char *current_dir = dir_stack[dir_count].path;
-        char search_path[MAX_PATH];
-        int written = snprintf(search_path, sizeof(search_path), "%s\\*", current_dir);
-        if (written < 0 || (size_t)written >= sizeof(search_path)) {
+        char current_dir[C64_AUTOMATION_PATH_MAX];
+        strncpy(current_dir, dir_stack[dir_count].path, sizeof(current_dir) - 1);
+        current_dir[sizeof(current_dir) - 1] = '\0';
+
+        const char *dir_name = strrchr(current_dir, '/');
+        const char *backslash_name = strrchr(current_dir, '\\');
+        if (backslash_name && (!dir_name || backslash_name > dir_name)) {
+            dir_name = backslash_name;
+        }
+        dir_name = dir_name ? dir_name + 1 : current_dir;
+        if (strcasecmp(dir_name, "DOCUMENTS") == 0 &&
+            find_songlengths_file_in_documents_dir(current_dir, out_path, out_size)) {
+            free(dir_stack);
+            return true;
+        }
+
+#ifdef _WIN32
+        char search_path[C64_AUTOMATION_PATH_MAX];
+        if (!build_path_join(search_path, sizeof(search_path), current_dir, "*")) {
             continue;
         }
 
@@ -698,61 +673,34 @@ static bool find_songlengths_file_recursive(const char *root_path, char *out_pat
             if (strcmp(find_data.cFileName, ".") == 0 || strcmp(find_data.cFileName, "..") == 0) {
                 continue;
             }
-
-            char full_path[MAX_PATH];
-            written = snprintf(full_path, sizeof(full_path), "%s\\%s", current_dir, find_data.cFileName);
-            if (written < 0 || (size_t)written >= sizeof(full_path)) {
+            if (!(find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
                 continue;
             }
 
-            if (find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-                if (dir_count >= dir_capacity) {
-                    int new_capacity = dir_capacity * 2;
-                    dir_entry_t *new_stack = realloc(dir_stack, new_capacity * sizeof(dir_entry_t));
-                    if (!new_stack) {
-                        break;
-                    }
-                    dir_stack = new_stack;
-                    dir_capacity = new_capacity;
+            char subdir[C64_AUTOMATION_PATH_MAX];
+            if (!build_path_join(subdir, sizeof(subdir), current_dir, find_data.cFileName)) {
+                continue;
+            }
+
+            if (dir_count >= dir_capacity) {
+                int new_capacity = dir_capacity * 2;
+                dir_entry_t *new_stack = realloc(dir_stack, sizeof(*dir_stack) * (size_t)new_capacity);
+                if (!new_stack) {
+                    FindClose(h_find);
+                    free(dir_stack);
+                    return false;
                 }
-                strncpy_s(dir_stack[dir_count].path, sizeof(dir_stack[dir_count].path), full_path, _TRUNCATE);
-                dir_count++;
-                continue;
+                dir_stack = new_stack;
+                dir_capacity = new_capacity;
             }
 
-            if (songlengths_filename_matches(find_data.cFileName)) {
-                strncpy(out_path, full_path, out_size - 1);
-                out_path[out_size - 1] = '\0';
-                FindClose(h_find);
-                free(dir_stack);
-                return true;
-            }
+            strncpy(dir_stack[dir_count].path, subdir, sizeof(dir_stack[dir_count].path) - 1);
+            dir_stack[dir_count].path[sizeof(dir_stack[dir_count].path) - 1] = '\0';
+            dir_count++;
         } while (FindNextFileA(h_find, &find_data));
 
         FindClose(h_find);
-    }
-
-    free(dir_stack);
-    return false;
 #else
-    typedef struct {
-        char path[512];
-    } dir_entry_t;
-
-    dir_entry_t *dir_stack = NULL;
-    int dir_count = 0;
-    int dir_capacity = 64;
-    dir_stack = calloc(dir_capacity, sizeof(dir_entry_t));
-    if (!dir_stack) {
-        return false;
-    }
-    strncpy(dir_stack[0].path, root_path, sizeof(dir_stack[0].path) - 1);
-    dir_stack[0].path[sizeof(dir_stack[0].path) - 1] = '\0';
-    dir_count = 1;
-
-    while (dir_count > 0) {
-        dir_count--;
-        const char *current_dir = dir_stack[dir_count].path;
         DIR *dir = opendir(current_dir);
         if (!dir) {
             continue;
@@ -764,50 +712,34 @@ static bool find_songlengths_file_recursive(const char *root_path, char *out_pat
                 continue;
             }
 
-            char full_path[512];
-            int written = snprintf(full_path, sizeof(full_path), "%s/%s", current_dir, entry->d_name);
-            if (written < 0 || (size_t)written >= sizeof(full_path)) {
+            char subdir[C64_AUTOMATION_PATH_MAX];
+            if (!build_path_join(subdir, sizeof(subdir), current_dir, entry->d_name) || !path_is_directory(subdir)) {
                 continue;
             }
 
-            bool is_dir = false;
-            if (entry->d_type == DT_DIR) {
-                is_dir = true;
-            } else if (entry->d_type == DT_UNKNOWN) {
-                is_dir = path_is_directory(full_path);
-            }
-
-            if (is_dir) {
-                if (dir_count >= dir_capacity) {
-                    int new_capacity = dir_capacity * 2;
-                    dir_entry_t *new_stack = realloc(dir_stack, new_capacity * sizeof(dir_entry_t));
-                    if (!new_stack) {
-                        break;
-                    }
-                    dir_stack = new_stack;
-                    dir_capacity = new_capacity;
+            if (dir_count >= dir_capacity) {
+                int new_capacity = dir_capacity * 2;
+                dir_entry_t *new_stack = realloc(dir_stack, sizeof(*dir_stack) * (size_t)new_capacity);
+                if (!new_stack) {
+                    closedir(dir);
+                    free(dir_stack);
+                    return false;
                 }
-                strncpy(dir_stack[dir_count].path, full_path, sizeof(dir_stack[dir_count].path) - 1);
-                dir_stack[dir_count].path[sizeof(dir_stack[dir_count].path) - 1] = '\0';
-                dir_count++;
-                continue;
+                dir_stack = new_stack;
+                dir_capacity = new_capacity;
             }
 
-            if (songlengths_filename_matches(entry->d_name)) {
-                strncpy(out_path, full_path, out_size - 1);
-                out_path[out_size - 1] = '\0';
-                closedir(dir);
-                free(dir_stack);
-                return true;
-            }
+            strncpy(dir_stack[dir_count].path, subdir, sizeof(dir_stack[dir_count].path) - 1);
+            dir_stack[dir_count].path[sizeof(dir_stack[dir_count].path) - 1] = '\0';
+            dir_count++;
         }
 
         closedir(dir);
+#endif
     }
 
     free(dir_stack);
     return false;
-#endif
 }
 
 bool c64_hvsc_find_songlengths_file_local(const char *root_path, char *out_path, size_t out_size)
@@ -816,33 +748,28 @@ bool c64_hvsc_find_songlengths_file_local(const char *root_path, char *out_path,
         return false;
     }
 
-    if (find_songlengths_file_recursive(root_path, out_path, out_size)) {
+    char normalized_root[C64_AUTOMATION_PATH_MAX];
+    strncpy(normalized_root, root_path, sizeof(normalized_root) - 1);
+    normalized_root[sizeof(normalized_root) - 1] = '\0';
+    if (!strip_trailing_separators(normalized_root) || !path_is_directory(normalized_root)) {
+        return false;
+    }
+
+    if (find_songlengths_file_recursive(normalized_root, out_path, out_size)) {
         C64_LOG_INFO(HVSC_LOG_PREFIX "Found songlengths: %s", out_path);
         return true;
     }
 
-    char current_path[512];
-    strncpy(current_path, root_path, sizeof(current_path) - 1);
+    char current_path[C64_AUTOMATION_PATH_MAX];
+    strncpy(current_path, normalized_root, sizeof(current_path) - 1);
     current_path[sizeof(current_path) - 1] = '\0';
-
-    for (int step = 0; step < 20; step++) {
-        char parent_path[512];
-        if (!get_parent_dir(current_path, parent_path, sizeof(parent_path))) {
-            break;
-        }
-
-        char documents_path[512];
-        if (find_songlengths_in_dir(parent_path, out_path, out_size, documents_path, sizeof(documents_path))) {
+    char parent_path[C64_AUTOMATION_PATH_MAX];
+    while (get_parent_dir(current_path, parent_path, sizeof(parent_path))) {
+        char documents_dir[C64_AUTOMATION_PATH_MAX];
+        if (build_path_join(documents_dir, sizeof(documents_dir), parent_path, "DOCUMENTS") &&
+            find_songlengths_file_in_documents_dir(documents_dir, out_path, out_size)) {
             C64_LOG_INFO(HVSC_LOG_PREFIX "Found songlengths: %s", out_path);
             return true;
-        }
-
-        if (documents_path[0] != '\0') {
-            char unused_docs[1] = {0};
-            if (find_songlengths_in_dir(documents_path, out_path, out_size, unused_docs, sizeof(unused_docs))) {
-                C64_LOG_INFO(HVSC_LOG_PREFIX "Found songlengths: %s", out_path);
-                return true;
-            }
         }
 
         strncpy(current_path, parent_path, sizeof(current_path) - 1);

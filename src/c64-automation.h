@@ -36,14 +36,18 @@ typedef enum {
 
 typedef enum { C64_FILE_SOURCE_LOCAL, C64_FILE_SOURCE_C64U } c64_file_source_t;
 
+#ifndef C64_AUTOMATION_PATH_MAX
+#define C64_AUTOMATION_PATH_MAX 4096
+#endif
+
 /**
  * Automation configuration
  */
 typedef struct {
     c64_automation_mode_t mode;
     c64_file_source_t file_source;
-    char folder_path[512];
-    char songlengths_path[512];
+    char folder_path[C64_AUTOMATION_PATH_MAX];
+    char songlengths_path[C64_AUTOMATION_PATH_MAX];
     bool shuffle;
     bool include_subfolders;
     int duration_seconds;
@@ -108,6 +112,14 @@ const char *c64_automation_get_current_file(c64_automation_t *automation);
  * @return Current index (0-based), or -1 if not running
  */
 int c64_automation_get_current_index(c64_automation_t *automation);
+
+/**
+ * Update the selected playlist index without requesting playback skip or emitting
+ * a user-visible jump event.
+ * @param index Target index (0-based)
+ * @return true if the selected index changed
+ */
+bool c64_automation_set_current_index(c64_automation_t *automation, int index);
 
 /**
  * Get songlengths database path if loaded (may trigger discovery)

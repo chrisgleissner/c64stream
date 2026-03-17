@@ -346,12 +346,16 @@ struct c64_source {
     void *automation;                      // c64_automation_t* automation engine
     char automation_status[256];           // Current automation status for UI display
     bool playlist_ui_update_in_progress;   // Guard for properties playlist UI updates
+    bool playlist_properties_initializing; // Suppress playlist rebuild side effects during properties creation
+    bool playlist_refresh_suppressed_once; // Skip one playlist rebuild during script-only UI refresh
     bool playlist_fingerprint_valid;       // Whether playlist fingerprint is initialized
     int playlist_last_selected_index;      // Last selected playlist index
     bool playlist_last_selected_valid;     // Whether last selected index is valid
     bool playlist_pending_active;          // Whether a user selection is pending while running
     int playlist_pending_index;            // Pending selection index while running
     int playlist_ignore_changes;           // Count of programmatic selection changes to ignore
+    int playlist_window_start;             // First playlist index currently shown in the UI window
+    bool playlist_window_follow_selection; // Center the UI window around the selected/current item
     int playlist_last_file_system;         // Last file system (0=local,1=C64U)
     int playlist_last_playback_source;     // Last playback source (0=single,1=folder)
     bool playlist_last_shuffle;            // Last shuffle flag

@@ -58,14 +58,26 @@ void c64_keymap_destroy(c64_keymap_t *keymap);
 const char *c64_keymap_get_name(c64_keymap_t *keymap);
 
 /**
+ * Normalize a keymap identifier into the canonical runtime form.
+ */
+bool c64_keymap_normalize_identifier(const char *input, char normalized[64]);
+
+/**
+ * Return whether the normalized identifier can be produced by the runtime.
+ */
+bool c64_keymap_identifier_is_runtime_supported(const char *identifier);
+
+/**
  * Convert keyboard input to C64 output
  * @param keymap Keymap to use
- * @param key_code W3C KeyboardEvent.code (e.g. "KeyA", "Enter")
+ * @param key_code Code-oriented identifier (e.g. "KeyA", "Enter")
+ * @param key_text Text-oriented identifier for symbolic fallback (e.g. "a", "@")
  * @param modifiers Bitmask of modifiers (Ctrl=1, Shift=2, Alt=4, etc.)
  * @param output Output descriptor (filled on success)
  * @return true if mapping found
  */
-bool c64_keymap_convert(c64_keymap_t *keymap, const char *key_code, int modifiers, c64_output_t *output);
+bool c64_keymap_convert(c64_keymap_t *keymap, const char *key_code, const char *key_text, int modifiers,
+                        c64_output_t *output);
 
 /**
  * Create keyboard controller

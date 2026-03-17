@@ -18,6 +18,8 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-palette.h"
 #include "c64-color.h"
 #include "c64-keyboard.h"
+#include "c64-playlist-window.h"
+#include "c64-properties-refresh.h"
 #include "c64-rest-client.h"
 #include "c64-script-executor.h"
 #include "c64-automation.h"
@@ -43,14 +45,16 @@ See <https://www.gnu.org/licenses/> for details.
 #include <limits.h>
 
 #define PROPS_LOG_PREFIX "[props] "
-#define PLAYLIST_UI_LIMIT 300
+#define PLAYLIST_UI_LIMIT 50
+#define PLAYLIST_WINDOW_PREV_VALUE -2
+#define PLAYLIST_WINDOW_NEXT_VALUE -3
 
 typedef struct {
     int file_system;
     int playback_source;
     bool shuffle;
     bool include_subfolders;
-    char path[512];
+    char path[C64_AUTOMATION_PATH_MAX];
     bool valid;
 } c64_playlist_fingerprint_t;
 
@@ -63,7 +67,6 @@ static void trim_config_string(char *str);
 // Forward declaration of path helper functions
 static void c64_default_palette_import_path(char *path, size_t path_size);
 static void c64_default_palette_export_path(char *path, size_t path_size);
-static void c64_default_home_path(char *path, size_t path_size);
 
 // Palette callbacks
 static bool palette_changed(void *priv, obs_properties_t *props, obs_property_t *property, obs_data_t *settings);
@@ -376,7 +379,7 @@ static bool script_start_stop_clicked(obs_properties_t *props, obs_property_t *p
             context->script_end_time = os_gettime_ns();
             context->script_ended_successfully = false; // User stopped it
             C64_LOG_INFO("Script stopped by user");
-            context->force_ui_update = true; // Force immediate UI update
+            c64_properties_mark_script_ui_refresh(context);
         } else {
             C64_LOG_ERROR("Script executor is null, cannot stop");
         }
@@ -408,13 +411,13 @@ static bool script_start_stop_clicked(obs_properties_t *props, obs_property_t *p
         if (c64_script_executor_start(context->script_executor, context->script_file_path)) {
             C64_LOG_INFO("Script started: %s", context->script_file_path);
             context->last_script_status = C64_SCRIPT_STATUS_RUNNING;
-            context->force_ui_update = true; // Force immediate UI update
+            c64_properties_mark_script_ui_refresh(context);
         } else {
             const char *err = c64_script_executor_get_error(context->script_executor);
             C64_LOG_ERROR("Failed to start script: %s", err ? err : "unknown error");
             context->script_end_time = os_gettime_ns();
             context->script_ended_successfully = false;
-            context->force_ui_update = true; // Force immediate UI update
+            c64_properties_mark_script_ui_refresh(context);
         }
     }
 
@@ -441,11 +444,11 @@ static bool script_pause_resume_clicked(obs_properties_t *props, obs_property_t 
     if (status == C64_SCRIPT_STATUS_RUNNING || status == C64_SCRIPT_STATUS_WAITING) {
         c64_script_executor_pause(context->script_executor);
         C64_LOG_INFO("Script paused");
-        context->force_ui_update = true;
+        c64_properties_mark_script_ui_refresh(context);
     } else if (status == C64_SCRIPT_STATUS_PAUSED) {
         c64_script_executor_resume(context->script_executor);
         C64_LOG_INFO("Script resumed");
-        context->force_ui_update = true;
+        c64_properties_mark_script_ui_refresh(context);
     } else {
         if (context->script_file_path[0] == '\0') {
             C64_LOG_WARNING("No script file selected");
@@ -466,13 +469,13 @@ static bool script_pause_resume_clicked(obs_properties_t *props, obs_property_t 
         if (c64_script_executor_start_debug(context->script_executor, context->script_file_path)) {
             C64_LOG_INFO("Script started in debug mode: %s", context->script_file_path);
             context->last_script_status = C64_SCRIPT_STATUS_PAUSED;
-            context->force_ui_update = true;
+            c64_properties_mark_script_ui_refresh(context);
         } else {
             const char *err = c64_script_executor_get_error(context->script_executor);
             C64_LOG_ERROR("Failed to start script in debug mode: %s", err ? err : "unknown error");
             context->script_end_time = os_gettime_ns();
             context->script_ended_successfully = false;
-            context->force_ui_update = true;
+            c64_properties_mark_script_ui_refresh(context);
         }
     }
 
@@ -492,7 +495,7 @@ static bool script_step_clicked(obs_properties_t *props, obs_property_t *propert
 
     if (c64_script_executor_step(context->script_executor)) {
         C64_LOG_INFO("Stepping to next line");
-        context->force_ui_update = true; // Force immediate UI update
+        c64_properties_mark_script_ui_refresh(context);
     }
 
     c64_queue_properties_refresh(context);
@@ -662,8 +665,16 @@ static bool file_source_changed(obs_properties_t *props, obs_property_t *propert
         obs_property_set_visible(songlengths_path_prop, file_system == 0 && use_songlengths);
     }
 
-    request_playlist_rebuild(props, settings, "file_source_changed", property, true);
-    return true;
+    struct c64_source *context = obs_properties_get_param(props);
+    if (context && context->playlist_properties_initializing) {
+        return true;
+    }
+
+    if (context && !c64_properties_should_request_playlist_rebuild(context)) {
+        return true;
+    }
+
+    return request_playlist_rebuild(props, settings, "file_source_changed", property, false);
 }
 
 // Playback source changed callback - update path property visibility and folder options
@@ -880,7 +891,7 @@ static bool refresh_playlist_from_settings(obs_properties_t *props, obs_data_t *
     playlist_fingerprint_from_settings(settings, &fingerprint);
 
     int previous_selected_index = (int)obs_data_get_int(settings, "playlist");
-    char previous_selected_path[512] = {0};
+    char previous_selected_path[C64_AUTOMATION_PATH_MAX] = {0};
     bool has_previous_path =
         playlist_copy_selected_path(context, settings, previous_selected_path, sizeof(previous_selected_path));
     int previous_playlist_count = context->automation ? c64_automation_get_playlist_count(context->automation) : 0;
@@ -940,6 +951,8 @@ static bool refresh_playlist_from_settings(obs_properties_t *props, obs_data_t *
             update_playlist_property(playlist_prop, context, settings);
         }
 
+        context->playlist_window_start = 0;
+        context->playlist_window_follow_selection = true;
         context->playlist_fingerprint_valid = false;
         C64_LOG_DEBUG(PROPS_LOG_PREFIX "Playlist rebuild skipped (invalid config): reason=%s property=%s path=%s",
                       reason ? reason : "unknown", property_name, fingerprint.path[0] ? fingerprint.path : "(empty)");
@@ -952,7 +965,7 @@ static bool refresh_playlist_from_settings(obs_properties_t *props, obs_data_t *
     bool should_rebuild = force_rebuild || !context->playlist_fingerprint_valid || !fingerprint_same ||
                           previous_playlist_count == 0;
 
-    bool refreshed = c64_automation_refresh_playlist(context->automation, &config, selected_index);
+    bool refreshed = c64_automation_refresh_playlist(context->automation, &config, selected_index, should_rebuild);
     if (!refreshed) {
         c64_automation_clear_playlist(context->automation);
     } else {
@@ -974,10 +987,16 @@ static bool refresh_playlist_from_settings(obs_properties_t *props, obs_data_t *
             selected_index = 0;
             selection_preserved = false;
         }
+        context->playlist_window_start =
+            c64_playlist_clamp_window_start(playlist_count, PLAYLIST_UI_LIMIT, selected_index);
+        context->playlist_window_follow_selection = true;
         if (selected_index != previous_selected_index) {
             obs_data_set_int(settings, "playlist", selected_index);
         }
-        (void)c64_automation_jump_to_index(context->automation, selected_index);
+        (void)c64_automation_set_current_index(context->automation, selected_index);
+    } else {
+        context->playlist_window_start = 0;
+        context->playlist_window_follow_selection = true;
     }
 
     obs_property_t *playlist_prop = obs_properties_get(props, "playlist");
@@ -1160,14 +1179,22 @@ static bool automation_settings_changed(obs_properties_t *props, obs_property_t 
     const char *property_name = property ? obs_property_name(property) : "(none)";
     C64_LOG_DEBUG(PROPS_LOG_PREFIX "Automation settings changed: property=%s", property_name);
 
+    struct c64_source *context = obs_properties_get_param(props);
+    if (context && context->playlist_properties_initializing) {
+        return false;
+    }
+
+    if (context && !c64_properties_should_request_playlist_rebuild(context)) {
+        return false;
+    }
+
     int file_system = (int)obs_data_get_int(settings, "file_system");
     if (file_system == 1 &&
         (strcmp(property_name, "c64u_file_path") == 0 || strcmp(property_name, "c64u_folder_path") == 0)) {
         return false;
     }
 
-    // Force rebuild when any playlist-affecting property changes
-    return request_playlist_rebuild(props, settings, "automation_setting_changed", property, true);
+    return request_playlist_rebuild(props, settings, "automation_setting_changed", property, false);
 }
 
 static bool automation_runtime_settings_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings)
@@ -1288,6 +1315,36 @@ static bool playlist_changed(obs_properties_t *props, obs_property_t *property, 
         previous_index = c64_automation_get_current_index(context->automation);
     }
 
+    int playlist_count = context->automation ? c64_automation_get_playlist_count(context->automation) : 0;
+    if (!context->automation || playlist_count <= 0) {
+        return false;
+    }
+
+    if (selected_index == PLAYLIST_WINDOW_PREV_VALUE || selected_index == PLAYLIST_WINDOW_NEXT_VALUE) {
+        int window_delta = (selected_index == PLAYLIST_WINDOW_PREV_VALUE) ? -PLAYLIST_UI_LIMIT : PLAYLIST_UI_LIMIT;
+        context->playlist_window_start = c64_playlist_clamp_window_start(playlist_count, PLAYLIST_UI_LIMIT,
+                                                                         context->playlist_window_start + window_delta);
+        context->playlist_window_follow_selection = false;
+
+        int restored_index = previous_index;
+        if (restored_index < 0 || restored_index >= playlist_count) {
+            restored_index = 0;
+        }
+        if (context->playlist_ignore_changes < INT_MAX) {
+            context->playlist_ignore_changes++;
+        }
+        obs_data_set_int(settings, "playlist", restored_index);
+
+        obs_property_t *playlist_prop = obs_properties_get(props, "playlist");
+        if (playlist_prop) {
+            update_playlist_property(playlist_prop, context, settings);
+        }
+
+        C64_LOG_DEBUG(PROPS_LOG_PREFIX "Playlist window moved: start=%d count=%d", context->playlist_window_start,
+                      playlist_count);
+        return true;
+    }
+
     bool is_running = context->automation && c64_automation_is_running(context->automation);
     int current_index = context->automation ? c64_automation_get_current_index(context->automation) : -1;
     int file_system = settings ? (int)obs_data_get_int(settings, "file_system") : 0;
@@ -1321,6 +1378,8 @@ static bool playlist_changed(obs_properties_t *props, obs_property_t *property, 
         }
     }
 
+    context->playlist_window_follow_selection = true;
+
     context->playlist_last_selected_index = selected_index;
     context->playlist_last_selected_valid = (selected_index >= 0);
 
@@ -1335,7 +1394,21 @@ static bool playlist_changed(obs_properties_t *props, obs_property_t *property, 
 
 static void update_playlist_property(obs_property_t *prop, struct c64_source *context, obs_data_t *settings)
 {
-    if (!prop || !context || !context->automation) {
+    if (!prop || !context) {
+        return;
+    }
+
+    if (!context->automation) {
+        obs_property_list_clear(prop);
+        obs_property_list_add_int(prop, "(No files)", -1);
+        obs_property_set_enabled(prop, false);
+        if (settings) {
+            obs_data_set_int(settings, "playlist", -1);
+        }
+        context->playlist_window_start = 0;
+        context->playlist_window_follow_selection = true;
+        context->playlist_last_selected_index = -1;
+        context->playlist_last_selected_valid = false;
         return;
     }
 
@@ -1390,15 +1463,24 @@ static void update_playlist_property(obs_property_t *prop, struct c64_source *co
 
     int window_start = 0;
     int window_count = playlist_count;
-    if (playlist_count > PLAYLIST_UI_LIMIT) {
+    bool use_paged_window = !is_running && playlist_count > PLAYLIST_UI_LIMIT;
+    if (use_paged_window && !context->playlist_window_follow_selection) {
+        window_start =
+            c64_playlist_clamp_window_start(playlist_count, PLAYLIST_UI_LIMIT, context->playlist_window_start);
         window_count = PLAYLIST_UI_LIMIT;
-        window_start = focus_index - (PLAYLIST_UI_LIMIT / 2);
-        if (window_start < 0) {
-            window_start = 0;
-        }
         if (window_start + window_count > playlist_count) {
-            window_start = playlist_count - window_count;
+            window_count = playlist_count - window_start;
         }
+    } else {
+        c64_playlist_compute_window(playlist_count, focus_index, PLAYLIST_UI_LIMIT, &window_start, &window_count);
+    }
+    context->playlist_window_start = window_start;
+
+    if (use_paged_window && window_start > 0) {
+        char label[96];
+        snprintf(label, sizeof(label), "... show earlier files (%d-%d of %d)", window_start + 1,
+                 window_start + window_count, playlist_count);
+        obs_property_list_add_int(prop, label, PLAYLIST_WINDOW_PREV_VALUE);
     }
 
     for (int i = window_start; i < window_start + window_count; i++) {
@@ -1445,6 +1527,13 @@ static void update_playlist_property(obs_property_t *prop, struct c64_source *co
         }
     }
 
+    if (use_paged_window && (window_start + window_count) < playlist_count) {
+        char label[96];
+        snprintf(label, sizeof(label), "... show later files (%d-%d of %d)", window_start + 1,
+                 window_start + window_count, playlist_count);
+        obs_property_list_add_int(prop, label, PLAYLIST_WINDOW_NEXT_VALUE);
+    }
+
     // Set the dropdown to show the currently playing file as selected
     if (settings) {
         int desired_index = has_pending_selection ? pending_index : selected_index;
@@ -1473,6 +1562,9 @@ obs_properties_t *c64_create_properties(void *data)
     struct c64_source *context = (struct c64_source *)data;
     obs_properties_t *props = obs_properties_create();
     obs_properties_set_param(props, context, NULL);
+    if (context) {
+        context->playlist_properties_initializing = true;
+    }
 
     // General Group
     obs_property_t *info_group = obs_properties_add_group(props, "info_group", obs_module_text("PluginInformation"),
@@ -1963,6 +2055,7 @@ obs_properties_t *c64_create_properties(void *data)
     obs_data_t *current_settings = obs_source_get_settings(context->source);
     int file_system = (int)obs_data_get_int(current_settings, "file_system");
     int playback_source = (int)obs_data_get_int(current_settings, "playback_source");
+    bool use_songlengths = obs_data_get_bool(current_settings, "automation_use_songlengths");
 
     // Local file path (file_system=0, playback_source=0)
     obs_property_t *local_file_prop =
@@ -2027,8 +2120,7 @@ obs_properties_t *c64_create_properties(void *data)
                                                                     "Songlengths (*.md5 *.txt);;All Files (*.*)", NULL);
     obs_property_set_long_description(songlengths_path_prop, obs_module_text("SonglengthsPath.Description"));
     obs_property_set_modified_callback(songlengths_path_prop, automation_runtime_settings_changed);
-    obs_property_set_visible(songlengths_path_prop,
-                             file_system == 0 && obs_data_get_bool(current_settings, "automation_use_songlengths"));
+    obs_property_set_visible(songlengths_path_prop, file_system == 0 && use_songlengths);
 
     // Automation reset between items
     obs_property_t *auto_reset_prop =
@@ -2041,10 +2133,9 @@ obs_properties_t *c64_create_properties(void *data)
                                                             OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
     obs_property_set_long_description(playlist_prop, obs_module_text("Playing.Description"));
     obs_property_set_modified_callback(playlist_prop, playlist_changed);
-    // Get current settings to populate playlist
+    // Get current settings to populate playlist from any existing cached automation state.
     obs_data_t *current_settings_for_playlist = obs_source_get_settings(context->source);
     update_playlist_property(playlist_prop, context, current_settings_for_playlist);
-    (void)request_playlist_rebuild(props, current_settings_for_playlist, "properties_open", playlist_prop, false);
     obs_data_release(current_settings_for_playlist);
 
     // Refresh playlist button (directly below playlist dropdown)
@@ -2269,6 +2360,11 @@ obs_properties_t *c64_create_properties(void *data)
         }
     }
 
+    if (context) {
+        context->playlist_refresh_suppressed_once = true;
+        context->playlist_properties_initializing = false;
+    }
+
     return props;
 }
 
@@ -2300,28 +2396,6 @@ static void c64_default_palette_export_path(char *path, size_t path_size)
 
     // Fallback: current directory
     path[0] = '\0';
-}
-
-static void c64_default_home_path(char *path, size_t path_size)
-{
-    if (!path || path_size < 2) {
-        return;
-    }
-
-#ifdef _WIN32
-    const char *home = getenv("USERPROFILE");
-#else
-    const char *home = getenv("HOME");
-#endif
-
-    if (home && home[0] != '\0') {
-        strncpy(path, home, path_size - 1);
-        path[path_size - 1] = '\0';
-        return;
-    }
-
-    strncpy(path, ".", path_size - 1);
-    path[path_size - 1] = '\0';
 }
 
 static bool c64_ensure_parent_dir_exists(const char *file_path)
@@ -2802,9 +2876,7 @@ void c64_set_property_defaults(obs_data_t *settings)
     obs_data_set_default_bool(settings, "automation_reset", true);
     obs_data_set_default_bool(settings, "automation_use_songlengths", true);
 
-    char home_path[512];
-    c64_default_home_path(home_path, sizeof(home_path));
-    obs_data_set_default_string(settings, "local_folder_path", home_path);
+    obs_data_set_default_string(settings, "local_folder_path", "");
 
     // Legacy defaults for older settings keys (kept for compatibility)
     obs_data_set_default_int(settings, "file_source", 0);

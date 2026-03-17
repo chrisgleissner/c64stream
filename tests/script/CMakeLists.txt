@@ -267,3 +267,24 @@ add_executable(
 target_include_directories(test_automation_playlist PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_link_libraries(test_automation_playlist PRIVATE OBS::libobs)
 add_test(NAME automation_playlist COMMAND test_automation_playlist)
+
+add_executable(test_properties_refresh test_properties_refresh.c ${CMAKE_SOURCE_DIR}/src/c64-properties-refresh.c)
+target_include_directories(test_properties_refresh PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(test_properties_refresh PRIVATE OBS::libobs)
+add_test(NAME properties_refresh COMMAND test_properties_refresh)
+
+add_executable(test_playlist_window test_playlist_window.c ${CMAKE_SOURCE_DIR}/src/c64-playlist-window.c)
+target_include_directories(test_playlist_window PRIVATE ${CMAKE_SOURCE_DIR}/src)
+add_test(NAME playlist_window COMMAND test_playlist_window)
+
+add_executable(
+  test_interact_key
+  test_interact_key.c
+  c64script_test_logging.c
+  ${CMAKE_SOURCE_DIR}/src/c64-interact-key.c
+  ${CMAKE_SOURCE_DIR}/src/c64-keyboard.c
+)
+target_include_directories(test_interact_key PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_compile_definitions(test_interact_key PRIVATE C64STREAM_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+target_link_libraries(test_interact_key PRIVATE OBS::libobs)
+add_test(NAME interact_key COMMAND test_interact_key)

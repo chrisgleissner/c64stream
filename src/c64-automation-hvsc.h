@@ -11,6 +11,10 @@ See <https://www.gnu.org/licenses/> for details.
 #include <stdbool.h>
 #include <stddef.h>
 
+#ifndef C64_AUTOMATION_PATH_MAX
+#define C64_AUTOMATION_PATH_MAX 4096
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -22,7 +26,7 @@ typedef struct {
 
 typedef struct {
     bool loaded;
-    char source_path[512];
+    char source_path[C64_AUTOMATION_PATH_MAX];
     c64_hvsc_songlength_entry_t *entries;
     size_t count;
 } c64_hvsc_songlength_db_t;

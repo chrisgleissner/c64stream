@@ -53,7 +53,10 @@ The plugin connects directly to the Ultimate's network interface, eliminating th
     - [Color Palettes](#color-palettes)
     - [Import/Export Configuration](#importexport-configuration)
     - [Remote Control](#remote-control)
-    - [How Keyboard Capture Works](#how-keyboard-capture-works)
+    - [Keyboard Capture](#keyboard-capture)
+      - [Activating Keyboard Capture](#activating-keyboard-capture)
+      - [Compatibility](#compatibility)
+      - [Special Key Mappings](#special-key-mappings)
     - [C64Script Automation](#c64script-automation)
   - [🛟 Troubleshooting](#-troubleshooting)
     - [Plugin missing from OBS?](#plugin-missing-from-obs)
@@ -629,17 +632,38 @@ Control your Ultimate 64 remotely from within OBS Studio, enabling keyboard inpu
 - **Reset Plugin:** Restarts the plugin state (no OBS restart needed)
 - **Reset C64U:** Sends a C64 Ultimate reset
 
-### How Keyboard Capture Works
+### Keyboard Capture
 
-1. Click inside the OBS preview to give it focus.
-2. Click **Interact** (below the preview) to route keyboard input to the source.
-3. Type as usual. Keystrokes are converted to PETSCII and injected into the C64 KERNAL keyboard buffer.
-4. The plugin polls the C64 keyboard buffer counter at `$00C6` every 50 ms and only injects a new key when the buffer is empty, providing backpressure and preventing overfilling.
-5. Press **ESC** to send **RUN/STOP** to the C64, for example to abort a running BASIC program. The **CBM** key is available via the **ALT** key.
-6. To return keyboard control to OBS, click anywhere outside the Interact window so it loses focus, then close the Interact window.
+Keyboard input can be sent to the C64 through the OBS **Interact** window.
+Keystrokes are translated to **PETSCII** and injected into the **KERNAL keyboard buffer**.
 
-> [!NOTE]
-> Keyboard capture only works with software that reads input via the KERNAL keyboard buffer. Many programs, especially games, bypass this buffer and read key state directly from CIA1. Because the C64 Ultimate does not allow writing to the CIA1 registers, keyboard input will not work for those programs.
+#### Activating Keyboard Capture
+
+1. Click inside the **OBS preview**.
+2. Click **Interact** below the preview.
+3. Type normally. Keystrokes are translated to PETSCII and injected into the C64.
+
+To return keyboard control to OBS, click outside the Interact window and close it.
+
+#### Compatibility
+
+Keyboard capture only works with programs that read input via the **KERNAL keyboard buffer**.
+
+Many programs (especially games) read key state directly from **CIA1**. Since the **C64 Ultimate** does not allow writing to CIA1 registers, keyboard input will not work for those programs.
+
+**Reset** and **Reboot** are exceptions because they use the **C64U REST API** and do not rely on keyboard injection.
+
+#### Special Key Mappings
+
+| OBS                | C64 Function         |
+| ------------------ | -------------------- |
+| CTRL+META          | Toggle Character Set |
+| ALT                | CBM                  |
+| ESC                | RUN/STOP             |
+| ESC + SHIFT        | Reset                |
+| ESC + SHIFT + META | Reboot               |
+
+On many keyboards, the **META** key corresponds to the **Windows key**.
 
 ---
 

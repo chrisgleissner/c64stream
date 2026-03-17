@@ -13,10 +13,11 @@ See <https://www.gnu.org/licenses/> for details.
 /**
  * Refresh the playlist without starting playback
  * @param selected_index Preferred selected index for display/start
+ * @param force_rebuild True to invalidate and rebuild the cached playlist even when the config is unchanged
  * @return true if refreshed successfully
  */
 bool c64_automation_refresh_playlist(c64_automation_t *automation, const c64_automation_config_t *config,
-                                     int selected_index);
+                                     int selected_index, bool force_rebuild);
 
 /**
  * Clear any cached playlist entries
