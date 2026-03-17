@@ -279,6 +279,10 @@ int main(void)
     expect_translation(0x5B, "[", C64_INTERACT_KEY_TRANSLATED, "BracketLeft", "[");
     expect_translation(0x2E, ".", C64_INTERACT_KEY_TRANSLATED, "Period", ".");
     expect_translation(0x0D, NULL, C64_INTERACT_KEY_TRANSLATED, "Enter", "");
+    expect_translation(0, "£", C64_INTERACT_KEY_TRANSLATED, "", "£");
+    expect_translation(0, "ä", C64_INTERACT_KEY_TRANSLATED, "", "ä");
+    expect_translation(0, "É", C64_INTERACT_KEY_TRANSLATED, "", "É");
+    expect_translation(0, "Ù", C64_INTERACT_KEY_TRANSLATED, "", "Ù");
     expect_translation(0x1B, NULL, C64_INTERACT_KEY_WARM_START, NULL, NULL);
 
     expect_normalized("Ctrl+a", "Ctrl+KeyA");
@@ -331,18 +335,32 @@ int main(void)
     expect_petscii(positional_us, "Digit3", "\x1C", 0x02, 0x1C);
     expect_petscii(positional_us, "Digit1", NULL, 0x04, 0x81);
     expect_petscii(positional_us, "Home", NULL, 0x01, 0x93);
+    expect_petscii(positional_us, "Minus", NULL, 0x01, 0xDB);
+    expect_petscii(positional_us, "Equal", NULL, 0x01, 0xDD);
+    expect_petscii(positional_us, "BracketLeft", NULL, 0x01, 0xBA);
+    expect_petscii(positional_us, "Backslash", NULL, 0x01, 0xDE);
+    expect_petscii(positional_us, "Backspace", NULL, 0x01, 0xA9);
 
     expect_petscii(symbolic_uk, NULL, "£", 0, 0x5C);
-    expect_petscii(symbolic_de, NULL, "ä", 0, 0x5C);
-    expect_petscii(symbolic_de, NULL, "ö", 0, 0x5D);
-    expect_petscii(symbolic_de, NULL, "ü", 0, 0x5B);
-    expect_petscii(symbolic_de, NULL, "ß", 0, 0x5F);
+    expect_petscii(symbolic_de, NULL, "ä", 0, 0x41);
+    expect_petscii(symbolic_de, NULL, "ö", 0, 0x4F);
+    expect_petscii(symbolic_de, NULL, "ü", 0, 0x55);
+    expect_petscii(symbolic_de, NULL, "Ä", 0, 0xC1);
+    expect_petscii(symbolic_de, NULL, "Ö", 0, 0xCF);
+    expect_petscii(symbolic_de, NULL, "Ü", 0, 0xD5);
+    expect_petscii(symbolic_de, NULL, "ß", 0, 0x53);
     expect_petscii(symbolic_fr, NULL, "é", 0, 0x45);
     expect_petscii(symbolic_fr, NULL, "à", 0, 0x41);
     expect_petscii(symbolic_fr, NULL, "ç", 0, 0x43);
+    expect_petscii(symbolic_fr, NULL, "É", 0, 0xC5);
+    expect_petscii(symbolic_fr, NULL, "À", 0, 0xC1);
+    expect_petscii(symbolic_fr, NULL, "Ç", 0, 0xC3);
     expect_petscii(symbolic_it, NULL, "à", 0, 0x41);
     expect_petscii(symbolic_it, NULL, "ì", 0, 0x49);
     expect_petscii(symbolic_it, NULL, "ù", 0, 0x55);
+    expect_petscii(symbolic_it, NULL, "À", 0, 0xC1);
+    expect_petscii(symbolic_it, NULL, "Ì", 0, 0xC9);
+    expect_petscii(symbolic_it, NULL, "Ù", 0, 0xD5);
     expect_petscii(symbolic_nl, "Digit3", "\x1C", 0x02, 0x1C);
     expect_petscii(symbolic_nl, "Digit1", NULL, 0x04, 0x81);
 

@@ -43,6 +43,11 @@ static bool is_single_printable_text(const char *text)
     return text && text[0] != '\0' && text[1] == '\0' && isprint((unsigned char)text[0]) && text[0] != ' ';
 }
 
+static bool has_visible_text(const char *text)
+{
+    return text && text[0] != '\0' && !iscntrl((unsigned char)text[0]);
+}
+
 static bool lookup_key_code_from_vkey(uint32_t native_vkey, char key_code[64])
 {
     if (!key_code) {
@@ -263,6 +268,7 @@ c64_interact_key_result_t c64_interact_translate_key_event(uint32_t native_vkey,
     const bool single_char = (has_text && text[1] == '\0');
     const bool text_is_space = (single_char && text[0] == ' ');
     const bool text_is_printable = (is_single_printable_text(text) && !text_is_space);
+    const bool text_is_visible = (has_visible_text(text) && !(single_char && (text[0] == '\r' || text[0] == '\n')));
 
     lookup_key_code_from_vkey(native_vkey, key->code);
 
@@ -279,6 +285,8 @@ c64_interact_key_result_t c64_interact_translate_key_event(uint32_t native_vkey,
         if (lookup_key_code_from_text_char(text[0], text_code)) {
             copy_identifier(key->code, text_code);
         }
+        copy_identifier(key->text, text);
+    } else if (text_is_visible) {
         copy_identifier(key->text, text);
     } else if (!has_text && strcmp(key->code, "Space") == 0) {
         copy_identifier(key->text, " ");
