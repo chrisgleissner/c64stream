@@ -4,9 +4,9 @@ on:
   push:
     branches:
       - main
-      - 'release/**'
+      - "release/**"
     tags:
-      - '*'
+      - "*"
   workflow_dispatch:
 permissions:
   contents: write
@@ -22,8 +22,8 @@ jobs:
     uses: ./.github/workflows/build-project.yaml
     with:
       run_e2e: true
-      e2e_format: 'PAL'
-      e2e_frames: '300'
+      e2e_format: "PAL"
+      e2e_frames: "300"
       build_linux_variants: ${{ github.ref_type == 'tag' }}
     secrets: inherit
 
