@@ -8,6 +8,23 @@ See <https://www.gnu.org/licenses/> for details.
 
 #include "c64-playlist-window.h"
 
+int c64_playlist_clamp_window_start(int playlist_count, int window_limit, int requested_start)
+{
+    if (playlist_count <= 0 || window_limit <= 0 || playlist_count <= window_limit) {
+        return 0;
+    }
+
+    int max_start = playlist_count - window_limit;
+    if (requested_start < 0) {
+        return 0;
+    }
+    if (requested_start > max_start) {
+        return max_start;
+    }
+
+    return requested_start;
+}
+
 void c64_playlist_compute_window(int playlist_count, int focus_index, int window_limit, int *window_start,
                                  int *window_count)
 {
@@ -17,12 +34,7 @@ void c64_playlist_compute_window(int playlist_count, int focus_index, int window
     if (playlist_count > 0 && window_limit > 0 && playlist_count > window_limit) {
         count = window_limit;
         start = focus_index - (window_limit / 2);
-        if (start < 0) {
-            start = 0;
-        }
-        if (start + count > playlist_count) {
-            start = playlist_count - count;
-        }
+        start = c64_playlist_clamp_window_start(playlist_count, window_limit, start);
     }
 
     if (window_start) {

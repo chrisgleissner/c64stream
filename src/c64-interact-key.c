@@ -70,6 +70,7 @@ static bool lookup_key_code_from_vkey(uint32_t native_vkey, char key_code[64])
         return copy_identifier(key_code, "Tab");
     case 0x0D:
     case 0xFF0D:
+    case 0xFF8D:
         return copy_identifier(key_code, "Enter");
     case 0x1B:
     case 0xFF1B:
@@ -267,6 +268,10 @@ c64_interact_key_result_t c64_interact_translate_key_event(uint32_t native_vkey,
 
     if (native_vkey == 0x1B || native_vkey == 0xFF1B) {
         return C64_INTERACT_KEY_WARM_START;
+    }
+
+    if (single_char && (text[0] == '\r' || text[0] == '\n')) {
+        copy_identifier(key->code, "Enter");
     }
 
     if (text_is_printable) {

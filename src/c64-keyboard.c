@@ -933,6 +933,13 @@ static void *injection_worker(void *arg)
             }
 
             if (inject_count > 0) {
+                // Clear any stale RUN/STOP latch before injecting buffered keys.
+                uint8_t stop_flag = 0;
+                if (!c64_rest_write_memory(keyboard->rest_client, C64_STOP_FLAG, &stop_flag, 1)) {
+                    C64_LOG_ERROR(KEYBOARD_LOG_PREFIX "Failed to clear RUN/STOP flag");
+                    continue;
+                }
+
                 // Write bytes to keyboard buffer ($0277-$0280)
                 if (!c64_rest_write_memory(keyboard->rest_client, C64_KEYBOARD_BUFFER, inject_buffer, inject_count)) {
                     C64_LOG_ERROR(KEYBOARD_LOG_PREFIX "Failed to write keyboard buffer");

@@ -2009,10 +2009,20 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
         return;
     }
 
-    // Ctrl+ESC performs C64 reset via REST API
-    // User holds Ctrl key and presses Escape to reset the machine
-    if (event->native_vkey == 0x1B && event->modifiers & INTERACT_CONTROL_KEY) { // VK_ESCAPE + Ctrl
-        C64_LOG_INFO("Keyboard: Ctrl+ESC pressed - performing C64 reset");
+    // REST-backed machine control shortcuts.
+    if ((event->native_vkey == 0x1B || event->native_vkey == 0xFF1B) && (event->modifiers & INTERACT_SHIFT_KEY) &&
+        (event->modifiers & INTERACT_COMMAND_KEY)) {
+        C64_LOG_INFO("Keyboard: Win+Shift+ESC pressed - performing C64 reboot");
+        if (context->rest_client) {
+            c64_rest_reboot(context->rest_client);
+        }
+        return;
+    }
+
+    if ((event->native_vkey == 0x1B || event->native_vkey == 0xFF1B) &&
+        ((event->modifiers & INTERACT_CONTROL_KEY) || (event->modifiers & INTERACT_SHIFT_KEY))) {
+        C64_LOG_INFO("Keyboard: %s+ESC pressed - performing C64 reset",
+                     (event->modifiers & INTERACT_CONTROL_KEY) ? "Ctrl" : "Shift");
         if (context->rest_client) {
             c64_rest_reset(context->rest_client);
         }

@@ -178,6 +178,22 @@ static void shuffle_files(file_entry_t *files, int count)
     }
 }
 
+static int compare_file_entries_by_path(const void *left, const void *right)
+{
+    const file_entry_t *left_entry = (const file_entry_t *)left;
+    const file_entry_t *right_entry = (const file_entry_t *)right;
+    return strcasecmp(left_entry->path, right_entry->path);
+}
+
+static void sort_files(file_entry_t *files, int count)
+{
+    if (!files || count <= 1) {
+        return;
+    }
+
+    qsort(files, (size_t)count, sizeof(*files), compare_file_entries_by_path);
+}
+
 static bool ensure_files_capacity(c64_automation_t *automation, int additional)
 {
     if (!automation || additional <= 0) {
@@ -566,6 +582,8 @@ bool c64_automation_build_playlist(c64_automation_t *automation)
 
         if (automation->config.shuffle) {
             shuffle_files(automation->files, automation->num_files);
+        } else {
+            sort_files(automation->files, automation->num_files);
         }
     } else {
         C64_LOG_ERROR(AUTOMATION_LOG_PREFIX "Invalid mode: %d", automation->config.mode);

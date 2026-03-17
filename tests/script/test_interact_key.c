@@ -13,6 +13,7 @@
 
 typedef struct {
     uint8_t memory[65536];
+    char error[128];
 } interact_test_rest_client_t;
 
 #define CHECK(expr)                                                                                                       \
@@ -49,9 +50,13 @@ int c64_rest_read_memory(c64_rest_client_t *client, uint16_t address, size_t len
 {
     interact_test_rest_client_t *rest_client = (interact_test_rest_client_t *)client;
     if (!rest_client || !buffer || buffer_size < length || ((size_t)address + length) > sizeof(rest_client->memory)) {
+        if (rest_client) {
+            snprintf(rest_client->error, sizeof(rest_client->error), "read out of range");
+        }
         return -1;
     }
 
+    rest_client->error[0] = '\0';
     memcpy(buffer, &rest_client->memory[address], length);
     return (int)length;
 }
@@ -60,11 +65,35 @@ bool c64_rest_write_memory(c64_rest_client_t *client, uint16_t address, const ui
 {
     interact_test_rest_client_t *rest_client = (interact_test_rest_client_t *)client;
     if (!rest_client || !data || ((size_t)address + length) > sizeof(rest_client->memory)) {
+        if (rest_client) {
+            snprintf(rest_client->error, sizeof(rest_client->error), "write out of range");
+        }
         return false;
     }
 
+    rest_client->error[0] = '\0';
     memcpy(&rest_client->memory[address], data, length);
     return true;
+}
+
+int c64_rest_read_memory_quiet(c64_rest_client_t *client, uint16_t address, size_t length, uint8_t *buffer,
+                               size_t buffer_size)
+{
+    return c64_rest_read_memory(client, address, length, buffer, buffer_size);
+}
+
+bool c64_rest_write_memory_quiet(c64_rest_client_t *client, uint16_t address, const uint8_t *data, size_t length)
+{
+    return c64_rest_write_memory(client, address, data, length);
+}
+
+const char *c64_rest_get_error(c64_rest_client_t *client)
+{
+    interact_test_rest_client_t *rest_client = (interact_test_rest_client_t *)client;
+    if (!rest_client || rest_client->error[0] == '\0') {
+        return "";
+    }
+    return rest_client->error;
 }
 
 static const char *keymap_paths[] = {
@@ -166,6 +195,18 @@ static void expect_injected_bytes(c64_keymap_t *keymap, c64_keyboard_t *keyboard
     CHECK_VOID(memcmp(actual_bytes, expected_bytes, expected_count) == 0);
 }
 
+static void expect_stop_flag_cleared(c64_keymap_t *keymap, c64_keyboard_t *keyboard,
+                                     interact_test_rest_client_t *rest_client, uint32_t native_vkey, const char *text,
+                                     int modifiers, const char *expected_code, const char *expected_text,
+                                     const uint8_t *expected_bytes, size_t expected_count)
+{
+    CHECK_VOID(rest_client != NULL);
+    rest_client->memory[0x0091] = 0x80;
+    expect_injected_bytes(keymap, keyboard, rest_client, native_vkey, text, modifiers, expected_code, expected_text,
+                          expected_bytes, expected_count);
+    CHECK_VOID(rest_client->memory[0x0091] == 0x00);
+}
+
 static void expect_normalized(const char *input, const char *expected)
 {
     char normalized[64] = {0};
@@ -226,9 +267,11 @@ int main(void)
     expect_translation(0x25, NULL, C64_INTERACT_KEY_TRANSLATED, "ArrowLeft", "");
     expect_translation(0x27, NULL, C64_INTERACT_KEY_TRANSLATED, "ArrowRight", "");
     expect_translation(0xFF52, NULL, C64_INTERACT_KEY_TRANSLATED, "ArrowUp", "");
+    expect_translation(0xFF8D, NULL, C64_INTERACT_KEY_TRANSLATED, "Enter", "");
     expect_translation(0x33, "\x1C", C64_INTERACT_KEY_TRANSLATED, "Digit3", "");
     expect_translation(0x31, "1", C64_INTERACT_KEY_TRANSLATED, "Digit1", "1");
     expect_translation(0x41, "a", C64_INTERACT_KEY_TRANSLATED, "KeyA", "a");
+    expect_translation(0, "\r", C64_INTERACT_KEY_TRANSLATED, "Enter", "");
     expect_translation(0x24, "$", C64_INTERACT_KEY_TRANSLATED, "Digit4", "$");
     expect_translation(0x26, "&", C64_INTERACT_KEY_TRANSLATED, "Digit7", "&");
     expect_translation(0x28, "(", C64_INTERACT_KEY_TRANSLATED, "Digit9", "(");
@@ -317,7 +360,8 @@ int main(void)
     expect_injected_bytes(symbolic_us, keyboard, &rest_client, 0x5B, "[", 0, "BracketLeft", "[",
                           (const uint8_t[]){0x5B}, 1);
     expect_injected_bytes(symbolic_us, keyboard, &rest_client, 0x2E, ".", 0, "Period", ".", (const uint8_t[]){0x2E}, 1);
-    expect_injected_bytes(symbolic_us, keyboard, &rest_client, 0x0D, NULL, 0, "Enter", "", (const uint8_t[]){0x0D}, 1);
+    expect_stop_flag_cleared(symbolic_us, keyboard, &rest_client, 0x0D, NULL, 0, "Enter", "", (const uint8_t[]){0x0D},
+                             1);
 
     for (size_t i = 0; i < sizeof(keymap_paths) / sizeof(keymap_paths[0]); i++) {
         c64_keymap_t *keymap = c64_keymap_load(keymap_paths[i]);

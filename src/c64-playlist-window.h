@@ -10,3 +10,5 @@ See <https://www.gnu.org/licenses/> for details.
 
 void c64_playlist_compute_window(int playlist_count, int focus_index, int window_limit, int *window_start,
                                  int *window_count);
+
+int c64_playlist_clamp_window_start(int playlist_count, int window_limit, int requested_start);

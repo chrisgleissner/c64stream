@@ -240,6 +240,8 @@ int main(void)
     CHECK(c64_automation_get_playlist_count(automation) == 1);
     CHECK(c64_automation_refresh_playlist(automation, &nested_config, 0, true));
     CHECK(c64_automation_get_playlist_count(automation) == 2);
+    CHECK(strcmp(c64_automation_get_playlist_item(automation, 0), nested_song_one) == 0);
+    CHECK(strcmp(c64_automation_get_playlist_item(automation, 1), nested_song_two) == 0);
 
     char hvsc_root[C64_AUTOMATION_PATH_MAX];
     char c64music_root[C64_AUTOMATION_PATH_MAX];

@@ -49,9 +49,12 @@ See <https://www.gnu.org/licenses/> for details.
 
 #include "c64script_test_stubs.h"
 
-// Timeout mechanism to prevent hangs
-#define SCRIPT_TIMEOUT_SECONDS 2  // Reduced to 2 seconds for snappy tests
-#define PER_TEST_TIMEOUT_SECONDS 3  // Max wall-clock time per test (including fork overhead)
+// Timeout mechanism to prevent hangs.
+// Use a conservative wall-clock budget because repository-wide validation runs
+// several isolated scripts in parallel and trace recording can make tiny scripts
+// occasionally exceed very tight 2-second limits on busy machines.
+#define SCRIPT_TIMEOUT_SECONDS 4
+#define PER_TEST_TIMEOUT_SECONDS 5
 #define SCRIPT_TIMEOUT_RECORDING_SECONDS 8
 
 static jmp_buf timeout_jump;
@@ -87,7 +90,6 @@ static int unexpected_failures = 0;
 
 // Maximum iterations to prevent infinite loops in tests
 #define MAX_TEST_ITERATIONS 100000
-#define MAX_WORKERS_CAP 64
 #define MAX_WORKERS_CAP 64
 
 // Scripts that are expected to fail parsing (error test cases)

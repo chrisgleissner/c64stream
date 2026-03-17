@@ -15,6 +15,12 @@ int main(void)
     int start = -1;
     int count = -1;
 
+    CHECK(c64_playlist_clamp_window_start(0, 50, 25) == 0);
+    CHECK(c64_playlist_clamp_window_start(10, 50, 25) == 0);
+    CHECK(c64_playlist_clamp_window_start(50000, 50, -1) == 0);
+    CHECK(c64_playlist_clamp_window_start(50000, 50, 25) == 25);
+    CHECK(c64_playlist_clamp_window_start(50000, 50, 60000) == 49950);
+
     c64_playlist_compute_window(10, 4, 50, &start, &count);
     CHECK(start == 0);
     CHECK(count == 10);
