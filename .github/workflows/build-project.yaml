@@ -844,7 +844,7 @@ jobs:
           timeout_minutes: 30
           max_attempts: 3
           retry_on: error
-          on_retry_command: echo "⚠️ E2E basic test failed on attempt ${{ github.run_attempt }} — retrying..." >> $GITHUB_STEP_SUMMARY
+          on_retry_command: echo "⚠️ E2E basic test failed — retrying..." >> "$GITHUB_STEP_SUMMARY"
           command: |
             cd tests/e2e
 
