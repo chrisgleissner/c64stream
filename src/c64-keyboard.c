@@ -56,6 +56,10 @@ static char *c64_strtok_r(char *str, const char *delim, char **saveptr)
 #define C64_KEYBOARD_MAX_RETRIES 20
 #endif
 
+#ifndef C64_KEYBOARD_NONVERBOSE_BLOCK_SIZE
+#define C64_KEYBOARD_NONVERBOSE_BLOCK_SIZE 8
+#endif
+
 // C64 memory locations
 #define C64_KEYBOARD_BUFFER 0x0277
 #define C64_KEYBOARD_LENGTH 0x00C6
@@ -147,6 +151,11 @@ struct c64_keyboard {
     c64_keymap_t *keymap;
     bool capturing;
     char status[64];
+    uint64_t queued_submission_count;
+    char nonverbose_streak_label[128];
+    uint64_t nonverbose_streak_first_submission;
+    uint64_t nonverbose_streak_last_submission;
+    uint64_t nonverbose_streak_logged_submission;
 
     // FIFO queue for keystroke bytes
     uint8_t queue[QUEUE_SIZE];
@@ -966,6 +975,97 @@ static void keyboard_set_status(c64_keyboard_t *keyboard, const char *status)
     pthread_mutex_unlock(&keyboard->queue_mutex);
 }
 
+static uint64_t keyboard_next_submission_count(c64_keyboard_t *keyboard)
+{
+    if (!keyboard) {
+        return 0;
+    }
+
+    pthread_mutex_lock(&keyboard->queue_mutex);
+    const uint64_t submission_count = ++keyboard->queued_submission_count;
+    pthread_mutex_unlock(&keyboard->queue_mutex);
+    return submission_count;
+}
+
+static bool keyboard_build_submission_log_line(char *buffer, size_t buffer_size, uint64_t start_submission,
+                                               uint64_t end_submission, const char *label)
+{
+    if (!buffer || buffer_size == 0 || !label || label[0] == '\0' || start_submission == 0 ||
+        end_submission < start_submission) {
+        return false;
+    }
+
+    if (start_submission == end_submission) {
+        return snprintf(buffer, buffer_size, "Queued #%llu %s", (unsigned long long)start_submission, label) > 0;
+    }
+
+    return snprintf(buffer, buffer_size, "Queued #%llu-#%llu %s x%llu", (unsigned long long)start_submission,
+                    (unsigned long long)end_submission, label,
+                    (unsigned long long)(end_submission - start_submission + 1)) > 0;
+}
+
+static void keyboard_emit_nonverbose_line(const char *line)
+{
+    if (!line || line[0] == '\0') {
+        return;
+    }
+
+    C64_LOG_INFO(KEYBOARD_LOG_PREFIX "%s", line);
+}
+
+static bool keyboard_flush_nonverbose_streak_locked(c64_keyboard_t *keyboard, char *line, size_t line_size)
+{
+    if (!keyboard || !line || line_size == 0) {
+        return false;
+    }
+
+    line[0] = '\0';
+
+    const uint64_t start_submission = keyboard->nonverbose_streak_logged_submission + 1;
+    const uint64_t end_submission = keyboard->nonverbose_streak_last_submission;
+    if (keyboard->nonverbose_streak_label[0] == '\0' || start_submission == 0 || start_submission > end_submission) {
+        return false;
+    }
+
+    if (!keyboard_build_submission_log_line(line, line_size, start_submission, end_submission,
+                                            keyboard->nonverbose_streak_label)) {
+        return false;
+    }
+
+    keyboard->nonverbose_streak_logged_submission = end_submission;
+    return true;
+}
+
+static void keyboard_reset_nonverbose_streak_locked(c64_keyboard_t *keyboard)
+{
+    if (!keyboard) {
+        return;
+    }
+
+    keyboard->nonverbose_streak_label[0] = '\0';
+    keyboard->nonverbose_streak_first_submission = 0;
+    keyboard->nonverbose_streak_last_submission = 0;
+    keyboard->nonverbose_streak_logged_submission = 0;
+}
+
+void c64_keyboard_flush_nonverbose_log(c64_keyboard_t *keyboard)
+{
+    (void)keyboard;
+}
+
+static void keyboard_log_queued_submission(c64_keyboard_t *keyboard, uint64_t submission_count, const char *label,
+                                           int queue_depth)
+{
+    if (!keyboard || !label || label[0] == '\0') {
+        return;
+    }
+
+    if (c64_debug_logging) {
+        C64_LOG_DEBUG(KEYBOARD_LOG_PREFIX "Queued #%llu %s | Queue: %d", (unsigned long long)submission_count, label,
+                      queue_depth);
+    }
+}
+
 static uint32_t keyboard_next_backoff_ms(uint32_t current_ms)
 {
     if (current_ms >= C64_KEYBOARD_POLL_MAX_MS) {
@@ -1174,6 +1274,8 @@ void c64_keyboard_destroy(c64_keyboard_t *keyboard)
         return;
     }
 
+    c64_keyboard_flush_nonverbose_log(keyboard);
+
     // Stop worker thread
     keyboard->worker_running = false;
     pthread_mutex_lock(&keyboard->queue_mutex);
@@ -1204,6 +1306,7 @@ void c64_keyboard_set_capture(c64_keyboard_t *keyboard, bool enabled)
     keyboard->capturing = enabled;
     if (!enabled) {
         // Flush queue when capture disabled
+        c64_keyboard_flush_nonverbose_log(keyboard);
         queue_flush(keyboard);
         C64_LOG_DEBUG(KEYBOARD_LOG_PREFIX "Capture disabled, flushing queue");
     } else {
@@ -1225,18 +1328,32 @@ void c64_keyboard_queue_output(c64_keyboard_t *keyboard, const c64_output_t *out
         return;
     }
 
+    const uint64_t submission_count = keyboard_next_submission_count(keyboard);
+
     // Convert output to PETSCII bytes and queue them
     if (output->mode == C64_OUTPUT_PETSCII) {
-        queue_push(keyboard, output->data.petscii);
-        C64_LOG_DEBUG(KEYBOARD_LOG_PREFIX "Key → PETSCII 0x%02X | Queue: %d", output->data.petscii,
-                      queue_available(keyboard));
+        if (!queue_push(keyboard, output->data.petscii)) {
+            C64_LOG_WARNING(KEYBOARD_LOG_PREFIX "Failed to queue #%llu PETSCII 0x%02X: queue full",
+                            (unsigned long long)submission_count, output->data.petscii);
+            return;
+        }
+
+        char label[64];
+        snprintf(label, sizeof(label), "PETSCII 0x%02X", output->data.petscii);
+        keyboard_log_queued_submission(keyboard, submission_count, label, queue_available(keyboard));
     } else if (output->mode == C64_OUTPUT_SYMBOLIC) {
         // Symbolic keys map to single PETSCII codes
         uint8_t code = lookup_symbolic_key(output->data.symbol);
         if (code != 0) {
-            queue_push(keyboard, code);
-            C64_LOG_DEBUG(KEYBOARD_LOG_PREFIX "Key → %s (0x%02X) | Queue: %d", output->data.symbol, code,
-                          queue_available(keyboard));
+            if (!queue_push(keyboard, code)) {
+                C64_LOG_WARNING(KEYBOARD_LOG_PREFIX "Failed to queue #%llu %s (0x%02X): queue full",
+                                (unsigned long long)submission_count, output->data.symbol, code);
+                return;
+            }
+
+            char label[96];
+            snprintf(label, sizeof(label), "%s (0x%02X)", output->data.symbol, code);
+            keyboard_log_queued_submission(keyboard, submission_count, label, queue_available(keyboard));
         } else {
             C64_LOG_WARNING(KEYBOARD_LOG_PREFIX "Unknown symbolic key: %s", output->data.symbol);
         }
@@ -1244,20 +1361,37 @@ void c64_keyboard_queue_output(c64_keyboard_t *keyboard, const c64_output_t *out
         // Queue each character in the text
         size_t len = 0;
         for (size_t i = 0; i < sizeof(output->data.text) && output->data.text[i] != '\0'; i++) {
-            queue_push(keyboard, (uint8_t)output->data.text[i]);
+            if (!queue_push(keyboard, (uint8_t)output->data.text[i])) {
+                C64_LOG_WARNING(KEYBOARD_LOG_PREFIX "Failed to queue #%llu text '%s': queue full after %zu chars",
+                                (unsigned long long)submission_count, output->data.text, len);
+                return;
+            }
             len++;
         }
-        C64_LOG_DEBUG(KEYBOARD_LOG_PREFIX "Text → '%s' (%zu chars) | Queue: %d", output->data.text, len,
-                      queue_available(keyboard));
+
+        char label[288];
+        snprintf(label, sizeof(label), "text '%s' (%zu chars)", output->data.text, len);
+        keyboard_log_queued_submission(keyboard, submission_count, label, queue_available(keyboard));
     }
 }
 
 const char *c64_keyboard_get_status(c64_keyboard_t *keyboard)
 {
+#ifdef _MSC_VER
+    static __declspec(thread) char status_copy[64];
+#else
+    static __thread char status_copy[64];
+#endif
+
     if (!keyboard) {
         return "invalid";
     }
-    return keyboard->status;
+
+    pthread_mutex_lock(&keyboard->queue_mutex);
+    snprintf(status_copy, sizeof(status_copy), "%s", keyboard->status);
+    pthread_mutex_unlock(&keyboard->queue_mutex);
+
+    return status_copy;
 }
 
 bool c64_keyboard_basic_warm_start(c64_keyboard_t *keyboard)

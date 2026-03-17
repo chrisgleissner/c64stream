@@ -752,17 +752,24 @@ bool c64_automation_preload_playlist_async(c64_automation_t *automation, const c
         return false;
     }
 
-    c64_automation_join_preload_thread(automation);
-
     pthread_mutex_lock(&automation->status_mutex);
     bool already_ready = automation->playlist_ready && automation->playlist_config_valid &&
                          automation_playlist_config_matches(&automation->playlist_config, config);
     bool already_running = automation->running;
     bool preload_running = automation->preload_running;
+    bool join_completed_thread = automation->preload_thread_valid && !automation->preload_running;
     pthread_mutex_unlock(&automation->status_mutex);
 
-    if (already_ready || already_running || preload_running) {
-        return already_ready || preload_running;
+    if (preload_running) {
+        return true;
+    }
+
+    if (join_completed_thread) {
+        c64_automation_join_preload_thread(automation);
+    }
+
+    if (already_ready || already_running) {
+        return already_ready;
     }
 
     c64_automation_preload_task_t *task = calloc(1, sizeof(*task));

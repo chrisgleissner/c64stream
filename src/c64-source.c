@@ -1971,6 +1971,22 @@ void c64_focus(void *data, bool focus)
     }
 }
 
+static void c64_log_keyboard_submission(struct c64_source *context, const c64_output_t *output)
+{
+    if (!context || !output || c64_debug_logging) {
+        return;
+    }
+
+    const unsigned long long submission_count = (unsigned long long)++context->keyboard_submission_log_count;
+    if (output->mode == C64_OUTPUT_PETSCII) {
+        C64_LOG_INFO("🕹 KEYBOARD: Queued #%llu PETSCII 0x%02X", submission_count, output->data.petscii);
+    } else if (output->mode == C64_OUTPUT_SYMBOLIC) {
+        C64_LOG_INFO("🕹 KEYBOARD: Queued #%llu %s", submission_count, output->data.symbol);
+    } else if (output->mode == C64_OUTPUT_TEXT) {
+        C64_LOG_INFO("🕹 KEYBOARD: Queued #%llu text '%s'", submission_count, output->data.text);
+    }
+}
+
 void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
 {
     struct c64_source *context = (struct c64_source *)data;
@@ -1979,9 +1995,10 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
         return;
     }
 
-    // Log key event with full details
-    C64_LOG_INFO("🕹 KEYBOARD: key_up=%d vkey=0x%04X scan=0x%02X mods=0x%02X text='%s'", key_up, event->native_vkey,
-                 event->native_scancode, event->modifiers, event->text ? event->text : "");
+    // Raw OBS key events are only useful in verbose mode; non-verbose logging happens
+    // when the key is actually queued for C64 injection.
+    C64_LOG_DEBUG("🕹 KEYBOARD: key_up=%d vkey=0x%04X scan=0x%02X mods=0x%02X text='%s'", key_up, event->native_vkey,
+                  event->native_scancode, event->modifiers, event->text ? event->text : "");
 
     // UTF-8-aware printability: text is printable if it is non-empty, the first byte
     // is not a C0 control character (0x00-0x1F) or DEL (0x7F), and not a space.
@@ -2034,6 +2051,7 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
             if (context->keymap && context->keyboard) {
                 c64_output_t output;
                 if (c64_keymap_convert(context->keymap, "Ctrl+Meta", NULL, 0, &output)) {
+                    c64_log_keyboard_submission(context, &output);
                     c64_keyboard_queue_output(context->keyboard, &output);
                 }
             }
@@ -2048,7 +2066,9 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
         return;
     }
 
-    // Only process key press events (not key up)
+    // Only process key press events (not key up). Key-repeat on some platforms
+    // can synthesize transient key-up events between repeats, so do not flush
+    // non-verbose logging state here.
     if (key_up) {
         return;
     }
@@ -2124,7 +2144,7 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
         // Convert key to C64 output
         c64_output_t output;
         if (c64_keymap_convert(context->keymap, key.code, key.text, modifiers, &output)) {
-            // Queue the keystroke for injection (logging happens in queue function)
+            c64_log_keyboard_submission(context, &output);
             c64_keyboard_queue_output(context->keyboard, &output);
         }
     }

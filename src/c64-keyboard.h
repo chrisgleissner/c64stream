@@ -114,6 +114,11 @@ bool c64_keyboard_is_capturing(c64_keyboard_t *keyboard);
 void c64_keyboard_queue_output(c64_keyboard_t *keyboard, const c64_output_t *output);
 
 /**
+ * Flush any pending non-verbose keyboard submission summary.
+ */
+void c64_keyboard_flush_nonverbose_log(c64_keyboard_t *keyboard);
+
+/**
  * Get injection worker status
  * @return Status string (e.g. "idle", "injecting", "timeout")
  */

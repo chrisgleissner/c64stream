@@ -65,29 +65,24 @@ int main(void)
     char temp_dir[1024] = {0};
     CHECK(make_temp_dir(temp_dir, sizeof(temp_dir)));
 
+#ifdef _WIN32
+    const char path_separator = '\\';
+#else
+    const char path_separator = '/';
+#endif
+
     c64_path_kind_t kind = C64_PATH_KIND_OTHER;
     CHECK(c64_get_path_kind(temp_dir, &kind));
     CHECK(kind == C64_PATH_KIND_DIRECTORY);
 
     char with_trailing_separator[1024] = {0};
-    CHECK(snprintf(with_trailing_separator, sizeof(with_trailing_separator), "%s%c", temp_dir,
-#ifdef _WIN32
-                   '\\'
-#else
-                   '/'
-#endif
-                   ) > 0);
+    CHECK(snprintf(with_trailing_separator, sizeof(with_trailing_separator), "%s%c", temp_dir, path_separator) > 0);
     CHECK(c64_get_path_kind(with_trailing_separator, &kind));
     CHECK(kind == C64_PATH_KIND_DIRECTORY);
 
     char missing_dir[1024] = {0};
-    CHECK(snprintf(missing_dir, sizeof(missing_dir), "%s%cdoes_not_exist%c", temp_dir,
-#ifdef _WIN32
-                   '\\', '\\'
-#else
-                   '/', '/'
-#endif
-                   ) > 0);
+    CHECK(snprintf(missing_dir, sizeof(missing_dir), "%s%cdoes_not_exist%c", temp_dir, path_separator, path_separator) >
+          0);
     CHECK(c64_get_path_kind(missing_dir, &kind));
     CHECK(kind == C64_PATH_KIND_MISSING);
 

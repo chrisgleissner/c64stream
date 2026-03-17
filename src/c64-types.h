@@ -321,9 +321,10 @@ struct c64_source {
     bool keyboard_escape_down;      // Escape key pressed state
     bool keyboard_ctrl_meta_armed;  // Ctrl+Meta chord armed (no non-mod key pressed)
     bool keyboard_ctrl_meta_consumed;
-    bool keyboard_reboot_consumed; // ESC+TAB+SHIFT chord already handled for current press cycle
-    char rest_base_url[256];       // REST API base URL
-    char keyboard_keymap_name[64]; // Keymap name (e.g., "symbolic_us")
+    bool keyboard_reboot_consumed;          // ESC+TAB+SHIFT chord already handled for current press cycle
+    uint64_t keyboard_submission_log_count; // Non-verbose per-submission log counter
+    char rest_base_url[256];                // REST API base URL
+    char keyboard_keymap_name[64];          // Keymap name (e.g., "symbolic_us")
 
     // Audio mixer snapshot for AV sync runs
     char **audio_mixer_snapshot_items;  // Item names (Audio Mixer)

@@ -2988,7 +2988,12 @@ static bool config_export_path_changed(obs_properties_t *props, obs_property_t *
 
     // Don't export if the path is a directory (not an .ini file)
     c64_path_kind_t path_kind = C64_PATH_KIND_OTHER;
-    if (c64_get_path_kind(path, &path_kind) && path_kind == C64_PATH_KIND_DIRECTORY) {
+    if (!c64_get_path_kind(path, &path_kind)) {
+        C64_LOG_WARNING("Export: unable to access path: %s", path);
+        return false;
+    }
+
+    if (path_kind == C64_PATH_KIND_DIRECTORY) {
         return false;
     }
     if (path_kind == C64_PATH_KIND_MISSING && c64_path_looks_like_directory(path)) {
@@ -3260,7 +3265,12 @@ static bool palette_export_path_changed(obs_properties_t *props, obs_property_t 
 
     // Don't export if the path is a directory (not a .vpl file)
     c64_path_kind_t path_kind = C64_PATH_KIND_OTHER;
-    if (c64_get_path_kind(path, &path_kind) && path_kind == C64_PATH_KIND_DIRECTORY) {
+    if (!c64_get_path_kind(path, &path_kind)) {
+        C64_LOG_WARNING("Palette export: unable to access path: %s", path);
+        return false;
+    }
+
+    if (path_kind == C64_PATH_KIND_DIRECTORY) {
         return false;
     }
     if (path_kind == C64_PATH_KIND_MISSING && c64_path_looks_like_directory(path)) {
