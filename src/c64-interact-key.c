@@ -60,6 +60,27 @@ static bool has_visible_text(const char *text)
     return (unsigned char)text[0] > 0x1F && (unsigned char)text[0] != 0x7F;
 }
 
+bool c64_interact_key_is_escape(uint32_t native_vkey, uint32_t native_scancode)
+{
+    return native_scancode == 0x01 || native_vkey == 0x1B || native_vkey == 0xFF1B;
+}
+
+bool c64_interact_key_is_tab(uint32_t native_vkey, uint32_t native_scancode)
+{
+    return native_scancode == 0x0F || native_vkey == 0x09 || native_vkey == 0xFF09;
+}
+
+bool c64_interact_should_reboot_chord(uint32_t native_vkey, uint32_t native_scancode, bool key_up, bool shift_down,
+                                      bool ctrl_down, bool alt_down, bool meta_down, bool escape_down, bool tab_down)
+{
+    if (key_up || !shift_down || ctrl_down || alt_down || meta_down || !escape_down || !tab_down) {
+        return false;
+    }
+
+    return c64_interact_key_is_escape(native_vkey, native_scancode) ||
+           c64_interact_key_is_tab(native_vkey, native_scancode);
+}
+
 static bool lookup_key_code_from_vkey(uint32_t native_vkey, char key_code[64])
 {
     if (!key_code) {

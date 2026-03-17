@@ -2002,12 +2002,29 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
     const bool is_alt_key =
         (event->native_vkey == 0xFFE9 || event->native_vkey == 0xFFEA || event->native_vkey == 0x12);
     const bool is_modifier_key = (is_shift_key || is_ctrl_key || is_alt_key || is_meta_key);
+    const bool is_escape_key = c64_interact_key_is_escape(event->native_vkey, event->native_scancode);
+    const bool is_tab_key = c64_interact_key_is_tab(event->native_vkey, event->native_scancode);
+    const bool shift_down = (event->modifiers & INTERACT_SHIFT_KEY) != 0;
+    const bool ctrl_down = (event->modifiers & INTERACT_CONTROL_KEY) != 0;
+    const bool alt_down = (event->modifiers & INTERACT_ALT_KEY) != 0;
+    const bool meta_down = (event->modifiers & INTERACT_COMMAND_KEY) != 0;
 
     if (is_ctrl_key) {
         context->keyboard_ctrl_down = !key_up;
     }
     if (is_meta_key) {
         context->keyboard_meta_down = !key_up;
+    }
+    if (is_tab_key) {
+        context->keyboard_tab_down = !key_up;
+    }
+    if (is_escape_key) {
+        context->keyboard_escape_down = !key_up;
+    }
+
+    if (!shift_down || ctrl_down || alt_down || meta_down || key_up || !context->keyboard_tab_down ||
+        !context->keyboard_escape_down) {
+        context->keyboard_reboot_consumed = false;
     }
 
     if (is_modifier_key) {
@@ -2043,19 +2060,20 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
     }
 
     // REST-backed machine control shortcuts.
-    if ((event->native_vkey == 0x1B || event->native_vkey == 0xFF1B) && (event->modifiers & INTERACT_SHIFT_KEY) &&
-        (event->modifiers & INTERACT_COMMAND_KEY)) {
-        C64_LOG_INFO("Keyboard: Win+Shift+ESC pressed - performing C64 reboot");
+    if (!context->keyboard_reboot_consumed &&
+        c64_interact_should_reboot_chord(event->native_vkey, event->native_scancode, key_up, shift_down, ctrl_down,
+                                         alt_down, meta_down, context->keyboard_escape_down,
+                                         context->keyboard_tab_down)) {
+        context->keyboard_reboot_consumed = true;
+        C64_LOG_INFO("Keyboard: ESC+TAB+SHIFT pressed - performing C64 reboot");
         if (context->rest_client) {
             c64_rest_reboot(context->rest_client);
         }
         return;
     }
 
-    if ((event->native_vkey == 0x1B || event->native_vkey == 0xFF1B) &&
-        ((event->modifiers & INTERACT_CONTROL_KEY) || (event->modifiers & INTERACT_SHIFT_KEY))) {
-        C64_LOG_INFO("Keyboard: %s+ESC pressed - performing C64 reset",
-                     (event->modifiers & INTERACT_CONTROL_KEY) ? "Ctrl" : "Shift");
+    if (is_escape_key && (ctrl_down || shift_down)) {
+        C64_LOG_INFO("Keyboard: %s+ESC pressed - performing C64 reset", ctrl_down ? "Ctrl" : "Shift");
         if (context->rest_client) {
             c64_rest_reset(context->rest_client);
         }

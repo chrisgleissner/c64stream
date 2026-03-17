@@ -1419,6 +1419,7 @@ static void update_playlist_property(obs_property_t *prop, struct c64_source *co
     obs_property_list_clear(prop);
 
     bool is_running = c64_automation_is_running(context->automation);
+    bool is_preloading = c64_automation_is_preloading(context->automation);
     int playlist_count = c64_automation_get_playlist_count(context->automation);
     int current_index = c64_automation_get_current_index(context->automation);
     int selected_index = settings ? (int)obs_data_get_int(settings, "playlist") : -1;
@@ -1443,7 +1444,7 @@ static void update_playlist_property(obs_property_t *prop, struct c64_source *co
     bool has_pending_selection = pending_active;
 
     if (playlist_count == 0) {
-        obs_property_list_add_int(prop, "(No files)", -1);
+        obs_property_list_add_int(prop, is_preloading ? "(Loading playlist...)" : "(No files)", -1);
         obs_property_set_enabled(prop, false);
         if (settings) {
             obs_data_set_int(settings, "playlist", -1);
@@ -1595,13 +1596,6 @@ obs_properties_t *c64_create_properties(void *data)
     {
         char settings_dir[512];
         if (c64_get_user_dir(C64_USER_DIR_SETTINGS, settings_dir, sizeof(settings_dir))) {
-            // Ensure trailing slash to clearly indicate directory
-            size_t len = strlen(settings_dir);
-            if (len > 0 && len < sizeof(settings_dir) - 2 && settings_dir[len - 1] != '/' &&
-                settings_dir[len - 1] != '\\') {
-                settings_dir[len] = '/';
-                settings_dir[len + 1] = '\0';
-            }
             obs_data_t *path_settings = obs_source_get_settings(context->source);
             obs_data_set_default_string(path_settings, C64_CONFIG_IMPORT_PATH_KEY, settings_dir);
             obs_data_release(path_settings);
@@ -1622,13 +1616,6 @@ obs_properties_t *c64_create_properties(void *data)
     {
         char settings_dir[512];
         if (c64_get_user_dir(C64_USER_DIR_SETTINGS, settings_dir, sizeof(settings_dir))) {
-            // Ensure trailing slash to clearly indicate directory
-            size_t len = strlen(settings_dir);
-            if (len > 0 && len < sizeof(settings_dir) - 2 && settings_dir[len - 1] != '/' &&
-                settings_dir[len - 1] != '\\') {
-                settings_dir[len] = '/';
-                settings_dir[len + 1] = '\0';
-            }
             obs_data_t *path_settings = obs_source_get_settings(context->source);
             obs_data_set_default_string(path_settings, C64_CONFIG_EXPORT_PATH_KEY, settings_dir);
             obs_data_release(path_settings);
@@ -2135,6 +2122,17 @@ obs_properties_t *c64_create_properties(void *data)
     obs_property_set_modified_callback(playlist_prop, playlist_changed);
     // Get current settings to populate playlist from any existing cached automation state.
     obs_data_t *current_settings_for_playlist = obs_source_get_settings(context->source);
+    c64_automation_config_t preload_config = {0};
+    if (build_automation_config_from_settings(current_settings_for_playlist, &preload_config, NULL)) {
+        if (!context->automation && context->rest_client) {
+            context->automation = c64_automation_create(context->rest_client, context->keyboard, context->source);
+        }
+        if (context->automation && !c64_automation_is_running(context->automation)) {
+            c64_automation_configure(context->automation, &preload_config);
+            (void)c64_automation_preload_playlist_async(
+                context->automation, &preload_config, (int)obs_data_get_int(current_settings_for_playlist, "playlist"));
+        }
+    }
     update_playlist_property(playlist_prop, context, current_settings_for_playlist);
     obs_data_release(current_settings_for_playlist);
 
@@ -2146,11 +2144,13 @@ obs_properties_t *c64_create_properties(void *data)
 
     // Get automation status to determine button state
     bool automation_running = false;
+    bool automation_preloading = false;
     if (context->automation) {
         automation_running = c64_automation_is_running((c64_automation_t *)context->automation);
+        automation_preloading = c64_automation_is_preloading((c64_automation_t *)context->automation);
     }
 
-    obs_property_set_enabled(refresh_playlist_prop, !automation_running);
+    obs_property_set_enabled(refresh_playlist_prop, !automation_running && !automation_preloading);
 
     // Play/Stop Content button - label changes based on state
     const char *button_label = automation_running ? obs_module_text("AutomationStopContent")
@@ -2934,9 +2934,8 @@ static void c64_ensure_vpl_extension(char *path, size_t path_size)
     c64_ensure_file_extension(path, path_size, "vpl");
 }
 
-// Helper function to detect if a path appears to be a directory (not a file)
-// Returns true if path is likely a directory, false if it appears to be a file path
-static bool c64_path_is_directory(const char *path)
+// Heuristic fallback for export targets that do not exist yet.
+static bool c64_path_looks_like_directory(const char *path)
 {
     if (!path || !path[0])
         return true; // Empty path treated as directory
@@ -2988,7 +2987,11 @@ static bool config_export_path_changed(obs_properties_t *props, obs_property_t *
     }
 
     // Don't export if the path is a directory (not an .ini file)
-    if (c64_path_is_directory(path)) {
+    c64_path_kind_t path_kind = C64_PATH_KIND_OTHER;
+    if (c64_get_path_kind(path, &path_kind) && path_kind == C64_PATH_KIND_DIRECTORY) {
+        return false;
+    }
+    if (path_kind == C64_PATH_KIND_MISSING && c64_path_looks_like_directory(path)) {
         return false;
     }
 
@@ -3041,9 +3044,22 @@ static bool config_import_path_changed(obs_properties_t *props, obs_property_t *
         return false; // Already processed
     }
 
-    // Check if this is a file (not just a directory)
-    if (!os_file_exists(path)) {
+    c64_path_kind_t path_kind = C64_PATH_KIND_OTHER;
+    if (!c64_get_path_kind(path, &path_kind)) {
+        return false;
+    }
+
+    if (path_kind == C64_PATH_KIND_DIRECTORY) {
+        return false;
+    }
+
+    if (path_kind == C64_PATH_KIND_MISSING) {
         C64_LOG_WARNING("Import: file does not exist: %s", path);
+        return false;
+    }
+
+    if (path_kind != C64_PATH_KIND_FILE) {
+        C64_LOG_WARNING("Import: unable to access file path: %s", path);
         return false;
     }
 
@@ -3177,14 +3193,12 @@ static bool palette_import_path_changed(obs_properties_t *props, obs_property_t 
         return false; // Already processed
     }
 
-    // Check if this is a file (not just a directory)
-    if (!os_file_exists(path)) {
+    c64_path_kind_t path_kind = C64_PATH_KIND_OTHER;
+    if (!c64_get_path_kind(path, &path_kind)) {
         return false;
     }
 
-    // Skip directories silently (e.g., when user browses to palette folder)
-    struct stat st;
-    if (os_stat(path, &st) == 0 && S_ISDIR(st.st_mode)) {
+    if (path_kind != C64_PATH_KIND_FILE) {
         return false;
     }
 
@@ -3245,7 +3259,11 @@ static bool palette_export_path_changed(obs_properties_t *props, obs_property_t 
     }
 
     // Don't export if the path is a directory (not a .vpl file)
-    if (c64_path_is_directory(path)) {
+    c64_path_kind_t path_kind = C64_PATH_KIND_OTHER;
+    if (c64_get_path_kind(path, &path_kind) && path_kind == C64_PATH_KIND_DIRECTORY) {
+        return false;
+    }
+    if (path_kind == C64_PATH_KIND_MISSING && c64_path_looks_like_directory(path)) {
         return false;
     }
 

@@ -317,8 +317,11 @@ struct c64_source {
     bool keyboard_capture_active;   // Runtime state: capture is currently active
     bool keyboard_ctrl_down;        // Ctrl key pressed state
     bool keyboard_meta_down;        // Meta/Super key pressed state
+    bool keyboard_tab_down;         // Tab key pressed state
+    bool keyboard_escape_down;      // Escape key pressed state
     bool keyboard_ctrl_meta_armed;  // Ctrl+Meta chord armed (no non-mod key pressed)
     bool keyboard_ctrl_meta_consumed;
+    bool keyboard_reboot_consumed; // ESC+TAB+SHIFT chord already handled for current press cycle
     char rest_base_url[256];       // REST API base URL
     char keyboard_keymap_name[64]; // Keymap name (e.g., "symbolic_us")
 

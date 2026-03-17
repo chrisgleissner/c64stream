@@ -43,7 +43,18 @@ static char *c64_strtok_r(char *str, const char *delim, char **saveptr)
 #define MAX_KEYMAP_ENTRIES 512
 #define KEYMAP_VALUE_SEQUENCE_MAX 8
 #define QUEUE_SIZE 1024
-#define POLL_INTERVAL_MS 50
+
+#ifndef C64_KEYBOARD_POLL_INITIAL_MS
+#define C64_KEYBOARD_POLL_INITIAL_MS 50
+#endif
+
+#ifndef C64_KEYBOARD_POLL_MAX_MS
+#define C64_KEYBOARD_POLL_MAX_MS 500
+#endif
+
+#ifndef C64_KEYBOARD_MAX_RETRIES
+#define C64_KEYBOARD_MAX_RETRIES 20
+#endif
 
 // C64 memory locations
 #define C64_KEYBOARD_BUFFER 0x0277
@@ -71,6 +82,15 @@ typedef struct {
     const char *name;
     uint8_t code;
 } symbolic_key_t;
+
+typedef enum {
+    C64_KEYBOARD_STATE_IDLE = 0,
+    C64_KEYBOARD_STATE_WAIT_BUFFER_EMPTY,
+    C64_KEYBOARD_STATE_WRITE,
+    C64_KEYBOARD_STATE_VERIFY,
+    C64_KEYBOARD_STATE_COMPLETE,
+    C64_KEYBOARD_STATE_FAILED,
+} c64_keyboard_state_t;
 
 static const symbolic_key_t symbolic_keys[] = {{"c64:RETURN", 0x0D},
                                                {"c64:RUNSTOP", 0x03},
@@ -134,6 +154,7 @@ struct c64_keyboard {
     int queue_tail;
     int queue_count;
     pthread_mutex_t queue_mutex;
+    pthread_cond_t queue_cond;
 
     // Worker thread
     pthread_t worker_thread;
@@ -867,26 +888,53 @@ static bool queue_push(c64_keyboard_t *keyboard, uint8_t byte)
     keyboard->queue[keyboard->queue_tail] = byte;
     keyboard->queue_tail = (keyboard->queue_tail + 1) % QUEUE_SIZE;
     keyboard->queue_count++;
+    pthread_cond_signal(&keyboard->queue_cond);
 
     pthread_mutex_unlock(&keyboard->queue_mutex);
     return true;
 }
 
-static bool queue_pop(c64_keyboard_t *keyboard, uint8_t *byte)
+static int queue_peek_batch(c64_keyboard_t *keyboard, uint8_t *buffer, int max_count)
 {
     pthread_mutex_lock(&keyboard->queue_mutex);
 
-    if (keyboard->queue_count == 0) {
+    if (!buffer || max_count <= 0 || keyboard->queue_count == 0) {
         pthread_mutex_unlock(&keyboard->queue_mutex);
-        return false; // Queue empty
+        return 0;
     }
 
-    *byte = keyboard->queue[keyboard->queue_head];
-    keyboard->queue_head = (keyboard->queue_head + 1) % QUEUE_SIZE;
-    keyboard->queue_count--;
+    int count = keyboard->queue_count;
+    if (count > max_count) {
+        count = max_count;
+    }
+
+    int index = keyboard->queue_head;
+    for (int i = 0; i < count; i++) {
+        buffer[i] = keyboard->queue[index];
+        index = (index + 1) % QUEUE_SIZE;
+    }
 
     pthread_mutex_unlock(&keyboard->queue_mutex);
-    return true;
+    return count;
+}
+
+static void queue_discard_many(c64_keyboard_t *keyboard, int count)
+{
+    pthread_mutex_lock(&keyboard->queue_mutex);
+
+    if (count <= 0) {
+        pthread_mutex_unlock(&keyboard->queue_mutex);
+        return;
+    }
+
+    if (count > keyboard->queue_count) {
+        count = keyboard->queue_count;
+    }
+
+    keyboard->queue_head = (keyboard->queue_head + count) % QUEUE_SIZE;
+    keyboard->queue_count -= count;
+
+    pthread_mutex_unlock(&keyboard->queue_mutex);
 }
 
 static int queue_available(c64_keyboard_t *keyboard)
@@ -903,73 +951,183 @@ static void queue_flush(c64_keyboard_t *keyboard)
     keyboard->queue_head = 0;
     keyboard->queue_tail = 0;
     keyboard->queue_count = 0;
+    pthread_cond_broadcast(&keyboard->queue_cond);
     pthread_mutex_unlock(&keyboard->queue_mutex);
+}
+
+static void keyboard_set_status(c64_keyboard_t *keyboard, const char *status)
+{
+    if (!keyboard || !status) {
+        return;
+    }
+
+    pthread_mutex_lock(&keyboard->queue_mutex);
+    snprintf(keyboard->status, sizeof(keyboard->status), "%s", status);
+    pthread_mutex_unlock(&keyboard->queue_mutex);
+}
+
+static uint32_t keyboard_next_backoff_ms(uint32_t current_ms)
+{
+    if (current_ms >= C64_KEYBOARD_POLL_MAX_MS) {
+        return C64_KEYBOARD_POLL_MAX_MS;
+    }
+
+    uint32_t next_ms = current_ms * 2;
+    if (next_ms > C64_KEYBOARD_POLL_MAX_MS) {
+        next_ms = C64_KEYBOARD_POLL_MAX_MS;
+    }
+    return next_ms;
+}
+
+static bool keyboard_wait_for_work(c64_keyboard_t *keyboard)
+{
+    pthread_mutex_lock(&keyboard->queue_mutex);
+    while (keyboard->worker_running && keyboard->queue_count == 0) {
+        pthread_cond_wait(&keyboard->queue_cond, &keyboard->queue_mutex);
+    }
+    bool has_work = keyboard->worker_running && keyboard->queue_count > 0;
+    pthread_mutex_unlock(&keyboard->queue_mutex);
+    return has_work;
 }
 
 // Worker thread function
 static void *injection_worker(void *arg)
 {
     c64_keyboard_t *keyboard = (c64_keyboard_t *)arg;
+    uint8_t pending_buffer[C64_KEYBOARD_BUFFER_SIZE] = {0};
+    int pending_count = 0;
+    c64_keyboard_state_t state = C64_KEYBOARD_STATE_IDLE;
+    uint32_t retry_count = 0;
+    uint32_t backoff_ms = C64_KEYBOARD_POLL_INITIAL_MS;
+    bool last_batch_failed = false;
 
     C64_LOG_DEBUG(KEYBOARD_LOG_PREFIX "Injection worker started");
 
     while (keyboard->worker_running) {
-        // Check if there are bytes to inject
-        int pending = queue_available(keyboard);
-        if (pending == 0) {
-            os_sleep_ms(POLL_INTERVAL_MS);
-            continue;
-        }
-
-        // Read C64 keyboard buffer length ($00C6)
-        uint8_t buffer_length = 0;
-        int bytes_read =
-            c64_rest_read_memory(keyboard->rest_client, C64_KEYBOARD_LENGTH, 1, &buffer_length, sizeof(buffer_length));
-
-        if (bytes_read < 0) {
-            C64_LOG_ERROR(KEYBOARD_LOG_PREFIX "Failed to read keyboard buffer length");
-            os_sleep_ms(POLL_INTERVAL_MS);
-            continue;
-        }
-
-        // Inject bytes only if buffer is empty
-        if (buffer_length == 0) {
-            // Inject up to 10 bytes (C64 keyboard buffer size)
-            uint8_t inject_buffer[C64_KEYBOARD_BUFFER_SIZE];
-            int inject_count = 0;
-
-            while (inject_count < C64_KEYBOARD_BUFFER_SIZE && queue_pop(keyboard, &inject_buffer[inject_count])) {
-                inject_count++;
+        switch (state) {
+        case C64_KEYBOARD_STATE_IDLE:
+            if (!last_batch_failed) {
+                keyboard_set_status(keyboard, "idle");
+            }
+            pending_count = queue_peek_batch(keyboard, pending_buffer, C64_KEYBOARD_BUFFER_SIZE);
+            if (pending_count == 0) {
+                if (!keyboard_wait_for_work(keyboard)) {
+                    continue;
+                }
+                pending_count = queue_peek_batch(keyboard, pending_buffer, C64_KEYBOARD_BUFFER_SIZE);
+                if (pending_count == 0) {
+                    continue;
+                }
             }
 
-            if (inject_count > 0) {
-                // Clear any stale RUN/STOP latch before injecting buffered keys.
-                uint8_t stop_flag = 0;
-                if (!c64_rest_write_memory(keyboard->rest_client, C64_STOP_FLAG, &stop_flag, 1)) {
-                    C64_LOG_ERROR(KEYBOARD_LOG_PREFIX "Failed to clear RUN/STOP flag");
-                    continue;
-                }
+            last_batch_failed = false;
+            retry_count = 0;
+            backoff_ms = C64_KEYBOARD_POLL_INITIAL_MS;
+            state = C64_KEYBOARD_STATE_WAIT_BUFFER_EMPTY;
+            keyboard_set_status(keyboard, "waiting-buffer-empty");
+            break;
 
-                // Write bytes to keyboard buffer ($0277-$0280)
-                if (!c64_rest_write_memory(keyboard->rest_client, C64_KEYBOARD_BUFFER, inject_buffer, inject_count)) {
-                    C64_LOG_ERROR(KEYBOARD_LOG_PREFIX "Failed to write keyboard buffer");
-                    continue;
-                }
-
-                // Update buffer length ($00C6)
-                buffer_length = (uint8_t)inject_count;
-                if (!c64_rest_write_memory(keyboard->rest_client, C64_KEYBOARD_LENGTH, &buffer_length, 1)) {
-                    C64_LOG_ERROR(KEYBOARD_LOG_PREFIX "Failed to write buffer length");
-                    continue;
-                }
-
-                C64_LOG_DEBUG(KEYBOARD_LOG_PREFIX "Injected %d bytes", inject_count);
+        case C64_KEYBOARD_STATE_WAIT_BUFFER_EMPTY: {
+            uint8_t buffer_length = 0;
+            int bytes_read = c64_rest_read_memory(keyboard->rest_client, C64_KEYBOARD_LENGTH, 1, &buffer_length,
+                                                  sizeof(buffer_length));
+            if (bytes_read == 1 && buffer_length == 0) {
+                retry_count = 0;
+                backoff_ms = C64_KEYBOARD_POLL_INITIAL_MS;
+                state = C64_KEYBOARD_STATE_WRITE;
+                keyboard_set_status(keyboard, "writing");
+                break;
             }
+
+            retry_count++;
+            if (retry_count >= C64_KEYBOARD_MAX_RETRIES) {
+                C64_LOG_ERROR(KEYBOARD_LOG_PREFIX
+                              "Keyboard buffer did not empty after %u retries, aborting %d-byte batch",
+                              retry_count, pending_count);
+                state = C64_KEYBOARD_STATE_FAILED;
+                keyboard_set_status(keyboard, "timeout");
+                break;
+            }
+
+            os_sleep_ms(backoff_ms);
+            backoff_ms = keyboard_next_backoff_ms(backoff_ms);
+            break;
         }
 
-        os_sleep_ms(POLL_INTERVAL_MS);
+        case C64_KEYBOARD_STATE_WRITE: {
+            uint8_t stop_flag = 0;
+            uint8_t buffer_length = (uint8_t)pending_count;
+
+            if (!c64_rest_write_memory(keyboard->rest_client, C64_STOP_FLAG, &stop_flag, 1) ||
+                !c64_rest_write_memory(keyboard->rest_client, C64_KEYBOARD_BUFFER, pending_buffer,
+                                       (size_t)pending_count) ||
+                !c64_rest_write_memory(keyboard->rest_client, C64_KEYBOARD_LENGTH, &buffer_length, 1)) {
+                retry_count++;
+                if (retry_count >= C64_KEYBOARD_MAX_RETRIES) {
+                    C64_LOG_ERROR(KEYBOARD_LOG_PREFIX "Failed to write %d-byte keyboard batch after %u retries",
+                                  pending_count, retry_count);
+                    state = C64_KEYBOARD_STATE_FAILED;
+                    keyboard_set_status(keyboard, "timeout");
+                    break;
+                }
+
+                os_sleep_ms(backoff_ms);
+                backoff_ms = keyboard_next_backoff_ms(backoff_ms);
+                break;
+            }
+
+            retry_count = 0;
+            backoff_ms = C64_KEYBOARD_POLL_INITIAL_MS;
+            state = C64_KEYBOARD_STATE_VERIFY;
+            keyboard_set_status(keyboard, "verifying");
+            break;
+        }
+
+        case C64_KEYBOARD_STATE_VERIFY: {
+            uint8_t buffer_length = 0;
+            int bytes_read = c64_rest_read_memory(keyboard->rest_client, C64_KEYBOARD_LENGTH, 1, &buffer_length,
+                                                  sizeof(buffer_length));
+            if (bytes_read == 1 && (buffer_length == (uint8_t)pending_count || buffer_length == 0)) {
+                state = C64_KEYBOARD_STATE_COMPLETE;
+                keyboard_set_status(keyboard, "complete");
+                break;
+            }
+
+            retry_count++;
+            if (retry_count >= C64_KEYBOARD_MAX_RETRIES) {
+                C64_LOG_ERROR(KEYBOARD_LOG_PREFIX "Keyboard batch verification failed after %u retries", retry_count);
+                state = C64_KEYBOARD_STATE_FAILED;
+                keyboard_set_status(keyboard, "timeout");
+                break;
+            }
+
+            os_sleep_ms(backoff_ms);
+            backoff_ms = keyboard_next_backoff_ms(backoff_ms);
+            break;
+        }
+
+        case C64_KEYBOARD_STATE_COMPLETE:
+            queue_discard_many(keyboard, pending_count);
+            C64_LOG_DEBUG(KEYBOARD_LOG_PREFIX "Injected %d bytes with verification", pending_count);
+            pending_count = 0;
+            retry_count = 0;
+            backoff_ms = C64_KEYBOARD_POLL_INITIAL_MS;
+            last_batch_failed = false;
+            state = C64_KEYBOARD_STATE_IDLE;
+            break;
+
+        case C64_KEYBOARD_STATE_FAILED:
+            queue_discard_many(keyboard, pending_count);
+            pending_count = 0;
+            retry_count = 0;
+            backoff_ms = C64_KEYBOARD_POLL_INITIAL_MS;
+            last_batch_failed = true;
+            state = C64_KEYBOARD_STATE_IDLE;
+            break;
+        }
     }
 
+    keyboard_set_status(keyboard, "idle");
     C64_LOG_DEBUG(KEYBOARD_LOG_PREFIX "Injection worker stopped");
     return NULL;
 }
@@ -994,11 +1152,13 @@ c64_keyboard_t *c64_keyboard_create(void *rest_client)
     keyboard->queue_tail = 0;
     keyboard->queue_count = 0;
     pthread_mutex_init(&keyboard->queue_mutex, NULL);
+    pthread_cond_init(&keyboard->queue_cond, NULL);
 
     // Start worker thread
     keyboard->worker_running = true;
     if (pthread_create(&keyboard->worker_thread, NULL, injection_worker, keyboard) != 0) {
         C64_LOG_ERROR(KEYBOARD_LOG_PREFIX "Failed to create worker thread");
+        pthread_cond_destroy(&keyboard->queue_cond);
         pthread_mutex_destroy(&keyboard->queue_mutex);
         free(keyboard);
         return NULL;
@@ -1016,9 +1176,13 @@ void c64_keyboard_destroy(c64_keyboard_t *keyboard)
 
     // Stop worker thread
     keyboard->worker_running = false;
+    pthread_mutex_lock(&keyboard->queue_mutex);
+    pthread_cond_broadcast(&keyboard->queue_cond);
+    pthread_mutex_unlock(&keyboard->queue_mutex);
     pthread_join(keyboard->worker_thread, NULL);
 
     // Cleanup
+    pthread_cond_destroy(&keyboard->queue_cond);
     pthread_mutex_destroy(&keyboard->queue_mutex);
     free(keyboard);
 }

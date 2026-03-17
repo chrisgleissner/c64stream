@@ -11,6 +11,8 @@ See <https://www.gnu.org/licenses/> for details.
 
 #include <sys/stat.h>
 #include <util/platform.h>
+#include <errno.h>
+#include <ctype.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,6 +25,88 @@ See <https://www.gnu.org/licenses/> for details.
 #endif
 #endif
 
+static bool c64_is_path_separator(char ch)
+{
+    return ch == '/' || ch == '\\';
+}
+
+#ifdef _WIN32
+static bool c64_is_drive_root_prefix(const char *path, size_t length)
+{
+    return length == 3 && isalpha((unsigned char)path[0]) && path[1] == ':' && c64_is_path_separator(path[2]);
+}
+
+static size_t c64_unc_root_length(const char *path)
+{
+    if (!path || !c64_is_path_separator(path[0]) || !c64_is_path_separator(path[1])) {
+        return 0;
+    }
+
+    size_t index = 2;
+    while (path[index] != '\0' && !c64_is_path_separator(path[index])) {
+        index++;
+    }
+    if (index == 2 || !c64_is_path_separator(path[index])) {
+        return 0;
+    }
+
+    index++;
+    const size_t share_start = index;
+    while (path[index] != '\0' && !c64_is_path_separator(path[index])) {
+        index++;
+    }
+    if (index == share_start) {
+        return 0;
+    }
+
+    return index;
+}
+#endif
+
+static bool c64_is_root_path_prefix(const char *path, size_t length)
+{
+    if (!path || length == 0) {
+        return false;
+    }
+
+#ifdef _WIN32
+    if (c64_is_drive_root_prefix(path, length)) {
+        return true;
+    }
+
+    const size_t unc_root_length = c64_unc_root_length(path);
+    if (unc_root_length > 0 && length == unc_root_length) {
+        return true;
+    }
+
+    return length == 2 && c64_is_path_separator(path[0]) && c64_is_path_separator(path[1]);
+#else
+    return length == 1 && path[0] == '/';
+#endif
+}
+
+static bool c64_normalize_path_for_query(const char *path, char *buffer, size_t buffer_size)
+{
+    if (!path || !buffer || buffer_size == 0) {
+        return false;
+    }
+
+    size_t length = strnlen(path, buffer_size);
+    if (length == 0 || length >= buffer_size) {
+        return false;
+    }
+
+    memcpy(buffer, path, length);
+    buffer[length] = '\0';
+
+    while (length > 0 && c64_is_path_separator(buffer[length - 1]) && !c64_is_root_path_prefix(buffer, length)) {
+        buffer[length - 1] = '\0';
+        length--;
+    }
+
+    return length > 0;
+}
+
 /**
  * Create directory recursively (equivalent to mkdir -p)
  * @param path Directory path to create
@@ -34,10 +118,11 @@ bool c64_create_directory_recursive(const char *path)
     char *p = NULL;
     size_t len;
 
-    snprintf(tmp, sizeof(tmp), "%s", path);
+    if (!c64_normalize_path_for_query(path, tmp, sizeof(tmp))) {
+        return false;
+    }
+
     len = strlen(tmp);
-    if (tmp[len - 1] == '/' || tmp[len - 1] == '\\')
-        tmp[len - 1] = 0;
 
     // Start from the beginning, but skip drive letters on Windows (e.g., "C:")
     p = tmp;
@@ -73,6 +158,70 @@ bool c64_create_directory_recursive(const char *path)
     }
 
     return true;
+}
+
+bool c64_get_path_kind(const char *path, c64_path_kind_t *kind)
+{
+    if (!path || !kind) {
+        return false;
+    }
+
+    char normalized[1024];
+    if (!c64_normalize_path_for_query(path, normalized, sizeof(normalized))) {
+        return false;
+    }
+
+#ifdef _WIN32
+    int wide_length = MultiByteToWideChar(CP_UTF8, 0, normalized, -1, NULL, 0);
+    if (wide_length <= 0) {
+        return false;
+    }
+
+    WCHAR *normalized_wide = calloc((size_t)wide_length, sizeof(WCHAR));
+    if (!normalized_wide) {
+        return false;
+    }
+
+    if (MultiByteToWideChar(CP_UTF8, 0, normalized, -1, normalized_wide, wide_length) <= 0) {
+        free(normalized_wide);
+        return false;
+    }
+
+    DWORD attributes = GetFileAttributesW(normalized_wide);
+    free(normalized_wide);
+
+    if (attributes == INVALID_FILE_ATTRIBUTES) {
+        DWORD error = GetLastError();
+        if (error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND || error == ERROR_INVALID_NAME) {
+            *kind = C64_PATH_KIND_MISSING;
+        } else {
+            *kind = C64_PATH_KIND_OTHER;
+        }
+        return true;
+    }
+
+    *kind = (attributes & FILE_ATTRIBUTE_DIRECTORY) ? C64_PATH_KIND_DIRECTORY : C64_PATH_KIND_FILE;
+    return true;
+#else
+    struct stat st;
+    if (stat(normalized, &st) != 0) {
+        if (errno == ENOENT || errno == ENOTDIR) {
+            *kind = C64_PATH_KIND_MISSING;
+        } else {
+            *kind = C64_PATH_KIND_OTHER;
+        }
+        return true;
+    }
+
+    if (S_ISDIR(st.st_mode)) {
+        *kind = C64_PATH_KIND_DIRECTORY;
+    } else if (S_ISREG(st.st_mode)) {
+        *kind = C64_PATH_KIND_FILE;
+    } else {
+        *kind = C64_PATH_KIND_OTHER;
+    }
+    return true;
+#endif
 }
 
 /**

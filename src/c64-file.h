@@ -41,6 +41,13 @@ typedef enum {
     C64_USER_DIR_SCRIPTS     // ~/Documents/obs-studio/c64stream/scripts/
 } c64_user_dir_type;
 
+typedef enum {
+    C64_PATH_KIND_MISSING = 0,
+    C64_PATH_KIND_FILE,
+    C64_PATH_KIND_DIRECTORY,
+    C64_PATH_KIND_OTHER,
+} c64_path_kind_t;
+
 /**
  * Get a user data directory path with automatic creation
  * @param type Directory type to retrieve
@@ -49,3 +56,13 @@ typedef enum {
  * @return true if successful and directory exists/created, false on error
  */
 bool c64_get_user_dir(c64_user_dir_type type, char *path_buffer, size_t buffer_size);
+
+/**
+ * Query the normalized kind of a local filesystem path.
+ * Trailing separators are ignored for non-root paths.
+ * On Windows this uses wide-character Win32 APIs to avoid UTF-8/ANSI mismatches.
+ * @param path Input path in UTF-8
+ * @param kind Output path kind
+ * @return true on successful classification, false on invalid input or normalization failure
+ */
+bool c64_get_path_kind(const char *path, c64_path_kind_t *kind);
