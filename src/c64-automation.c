@@ -856,7 +856,19 @@ bool c64_automation_start(c64_automation_t *automation, int start_index)
         return false;
     }
 
-    c64_automation_join_preload_thread(automation);
+    // Never block the UI thread by joining a still-running preload.  The Play button is
+    // disabled while preloading (get_properties sets it non-enabled), so this path should
+    // only be reached once the preload thread has already exited.  The join below is then
+    // instant because the thread has already returned.
+    pthread_mutex_lock(&automation->status_mutex);
+    bool preload_still_running = automation->preload_running;
+    pthread_mutex_unlock(&automation->status_mutex);
+    if (preload_still_running) {
+        C64_LOG_WARNING(AUTOMATION_LOG_PREFIX "Cannot start: playlist preload still in progress");
+        return false;
+    }
+
+    c64_automation_join_preload_thread(automation); // instant: thread already exited
 
     pthread_mutex_lock(&automation->status_mutex);
     bool already_running = automation->running;

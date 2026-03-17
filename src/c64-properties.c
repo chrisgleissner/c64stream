@@ -960,12 +960,31 @@ static bool refresh_playlist_from_settings(obs_properties_t *props, obs_data_t *
         return true;
     }
 
+    // If an async preload is already in progress, never block the UI thread with a synchronous
+    // filesystem scan.  Show whatever the cache already holds and let the preload completion
+    // trigger a UI refresh via c64_automation_queue_ui_update.
+    if (c64_automation_is_preloading(context->automation)) {
+        obs_property_t *playlist_prop = obs_properties_get(props, "playlist");
+        if (playlist_prop) {
+            update_playlist_property(playlist_prop, context, settings);
+        }
+        C64_LOG_DEBUG(PROPS_LOG_PREFIX "Playlist rebuild deferred (preload in progress): reason=%s",
+                      reason ? reason : "unknown");
+        context->playlist_ui_update_in_progress = was_in_progress;
+        return true;
+    }
+
     int selected_index = previous_selected_index;
     bool fingerprint_same = playlist_fingerprint_matches_context(context, &fingerprint);
     bool should_rebuild = force_rebuild || !context->playlist_fingerprint_valid || !fingerprint_same ||
                           previous_playlist_count == 0;
 
-    bool refreshed = c64_automation_refresh_playlist(context->automation, &config, selected_index, should_rebuild);
+    // Pass the caller's force_rebuild flag rather than the derived should_rebuild flag.
+    // The automation layer has its own rebuild logic (playlist_config_equals, playlist_ready,
+    // etc.) that avoids a redundant filesystem scan when an async preload already built a
+    // matching list.  Escalating fingerprint-staleness into force_rebuild=true would re-scan
+    // thousands of files on the UI thread unnecessarily.
+    bool refreshed = c64_automation_refresh_playlist(context->automation, &config, selected_index, force_rebuild);
     if (!refreshed) {
         c64_automation_clear_playlist(context->automation);
     } else {
@@ -2160,6 +2179,11 @@ obs_properties_t *c64_create_properties(void *data)
     obs_property_set_long_description(auto_start_stop_prop, automation_running
                                                                 ? obs_module_text("AutomationStopContent.Description")
                                                                 : obs_module_text("AutomationPlayContent.Description"));
+    // Disable Play while an async preload is scanning the filesystem so the user cannot
+    // trigger a blocking join of the preload thread from the UI thread.
+    if (!automation_running && automation_preloading) {
+        obs_property_set_enabled(auto_start_stop_prop, false);
+    }
 
     // Next button (only enabled when playing)
     obs_property_t *auto_next_prop = obs_properties_add_button(
