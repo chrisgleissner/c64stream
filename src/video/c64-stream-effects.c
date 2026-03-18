@@ -284,9 +284,10 @@ void *c64_stream_effects_create(obs_data_t *settings, obs_source_t *source)
     state->cpu_scanlines_enabled = false;
     c64_stream_effects_update_frame_timing(state);
 
-    bool has_effect_overrides = c64_stream_effects_settings_have_effect_overrides(settings);
+    // Always apply preset unconditionally so that subsequent EFFECT commands
+    // override previous preset settings without being blocked by residual user values.
     const char *initial_preset = obs_data_get_string(settings, "crt_preset");
-    if (!has_effect_overrides && initial_preset && initial_preset[0] != '\0') {
+    if (initial_preset && initial_preset[0] != '\0') {
         if (c64_effect_apply(settings, initial_preset)) {
             C64_LOG_INFO("Applied CRT preset from settings: %s", initial_preset);
         } else {
@@ -351,16 +352,15 @@ void c64_stream_effects_update(void *data, obs_data_t *settings)
         return;
     }
 
-    bool has_effect_overrides = c64_stream_effects_settings_have_effect_overrides(settings);
+    // Always apply preset unconditionally so that EFFECT commands issued by scripts
+    // take effect even after effect values have been written to settings.
     const char *preset_name = obs_data_get_string(settings, "crt_preset");
-    if (!has_effect_overrides && preset_name && preset_name[0] != '\0') {
+    if (preset_name && preset_name[0] != '\0') {
         if (c64_effect_apply(settings, preset_name)) {
             C64_LOG_INFO("Applied CRT preset on update: %s", preset_name);
         } else {
             C64_LOG_WARNING("" EFFECT_LOG_PREFIX " CRT preset in update not found: %s", preset_name);
         }
-    } else if (has_effect_overrides) {
-        C64_LOG_DEBUG("" EFFECT_LOG_PREFIX " Preset update skipped; manual effect overrides present");
     }
 
     state->scan_line_distance = (float)obs_data_get_double(settings, "scan_line_distance");

@@ -24,6 +24,7 @@ from .config import (
     load_properties,
     load_settings_from_obs_scene,
 )
+from .effect_transition import EffectTransitionAssertion
 from .frame_progression import FrameProgressionAssertion
 from .palette_mapping import PaletteMappingAssertion
 from .palette_stability import PaletteStabilityAssertion
@@ -62,6 +63,7 @@ __all__ = [
     "DebugLogPresenceAssertion",
     "TintAssertion",
     "TintTransitionAssertion",
+    "EffectTransitionAssertion",
     "PaletteMappingAssertion",
     "PaletteStabilityAssertion",
     "AfterglowAssertion",

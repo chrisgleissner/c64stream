@@ -10,8 +10,7 @@ ELSE
 ENDIF
 
 REM Test 2: Standard env var PATH is set in all environments
-PATH_VAL$ = ENV("PATH")
-IF LEN(PATH_VAL$) > 0 THEN
+IF LEN(ENV("PATH")) > 0 THEN
     LOG "Test 2 passed: PATH is set"
 ELSE
     LOG "Test 2 FAILED: PATH was empty"
@@ -34,11 +33,10 @@ ELSE
 ENDIF
 
 REM Test 5: Two-arg form ignores default when var is set
-PATH_WITH_DEF$ = ENV("PATH", "no-path")
-IF LEN(PATH_WITH_DEF$) > 0 AND PATH_WITH_DEF$ <> "no-path" THEN
+IF LEN(ENV("PATH", "no-path")) > 0 AND ENV("PATH", "no-path") <> "no-path" THEN
     LOG "Test 5 passed: default not used when var is set"
 ELSE
-    LOG "Test 5 FAILED: PATH_WITH_DEF$ = " + PATH_WITH_DEF$
+    LOG "Test 5 FAILED: PATH via two-arg form was empty or returned default"
 ENDIF
 
 STOP
