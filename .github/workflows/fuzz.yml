@@ -35,8 +35,15 @@ jobs:
         run: |
           : Validate fuzz script exists
           echo "PWD: $(pwd)"
+          if [ ! -e tests/script/fuzz/fuzz.sh ]; then
+            echo "ERROR: fuzz.sh is missing"
+            exit 1
+          fi
+          if [ ! -x tests/script/fuzz/fuzz.sh ]; then
+            echo "ERROR: fuzz.sh is not executable"
+            exit 1
+          fi
           ls -la tests/script/fuzz/fuzz.sh
-          test -x tests/script/fuzz/fuzz.sh || { echo "ERROR: fuzz.sh is not executable"; exit 1; }
 
       - name: Run fuzzing
         env:
