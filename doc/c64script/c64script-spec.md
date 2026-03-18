@@ -483,6 +483,15 @@ The language provides several built-in functions callable in expression context:
 - `EXP(<power>)` - e raised to power
   - Example: `E = EXP(1)` → `2.71828`
 
+- `ENV(<name>)` / `ENV(<name>, <default>)` - Read OS environment variable
+  - Returns: value of the named environment variable as a string
+  - If the variable is not set, returns `<default>` (second argument) when provided, or `""` otherwise
+  - `<name>`: string expression naming the environment variable
+  - `<default>`: optional string expression used as fallback when the variable is unset
+  - Example: `COUNT = VAL(ENV("EFFECT_COUNT", "3"))` - read numeric setting with default
+  - Example: `COUNT = VAL(ENV("EFFECT_COUNT"))` - read numeric setting from environment
+  - Example: `IF LEN(ENV("DEBUG")) > 0 THEN LOG "Debug mode active"`
+
 #### 3.6.1 Error handling for built-in functions
 
 - Unknown function names raise "UNDEF'D FUNCTION" error

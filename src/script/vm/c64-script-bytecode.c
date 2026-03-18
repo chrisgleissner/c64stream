@@ -315,23 +315,48 @@ static bool compile_named_builtin(compiler_context_t *ctx, c64script_ast_expr_t 
     }
 
     static const builtin_entry_t builtins[] = {
-        {"LEN", C64SCRIPT_BUILTIN_LEN, 1},      {"LEFT$", C64SCRIPT_BUILTIN_LEFT, 2},
-        {"RIGHT$", C64SCRIPT_BUILTIN_RIGHT, 2}, {"MID$", C64SCRIPT_BUILTIN_MID, 3},
-        {"CHR$", C64SCRIPT_BUILTIN_CHR, 1},     {"ASC", C64SCRIPT_BUILTIN_ASC, 1},
-        {"VAL", C64SCRIPT_BUILTIN_VAL, 1},      {"ABS", C64SCRIPT_BUILTIN_ABS, 1},
-        {"INT", C64SCRIPT_BUILTIN_INT, 1},      {"RND", C64SCRIPT_BUILTIN_RND, 1},
-        {"SIN", C64SCRIPT_BUILTIN_SIN, 1},      {"COS", C64SCRIPT_BUILTIN_COS, 1},
-        {"TAN", C64SCRIPT_BUILTIN_TAN, 1},      {"SQRT", C64SCRIPT_BUILTIN_SQRT, 1},
-        {"LOG", C64SCRIPT_BUILTIN_LOG, 1},      {"EXP", C64SCRIPT_BUILTIN_EXP, 1},
+        {"LEN", C64SCRIPT_BUILTIN_LEN, 1},
+        {"LEFT$", C64SCRIPT_BUILTIN_LEFT, 2},
+        {"RIGHT$", C64SCRIPT_BUILTIN_RIGHT, 2},
+        {"MID$", C64SCRIPT_BUILTIN_MID, 3},
+        {"CHR$", C64SCRIPT_BUILTIN_CHR, 1},
+        {"ASC", C64SCRIPT_BUILTIN_ASC, 1},
+        {"VAL", C64SCRIPT_BUILTIN_VAL, 1},
+        {"ABS", C64SCRIPT_BUILTIN_ABS, 1},
+        {"INT", C64SCRIPT_BUILTIN_INT, 1},
+        {"RND", C64SCRIPT_BUILTIN_RND, 1},
+        {"SIN", C64SCRIPT_BUILTIN_SIN, 1},
+        {"COS", C64SCRIPT_BUILTIN_COS, 1},
+        {"TAN", C64SCRIPT_BUILTIN_TAN, 1},
+        {"SQRT", C64SCRIPT_BUILTIN_SQRT, 1},
+        {"LOG", C64SCRIPT_BUILTIN_LOG, 1},
+        {"EXP", C64SCRIPT_BUILTIN_EXP, 1},
         {"TIME$", C64SCRIPT_BUILTIN_TIME, 0},
+        // ENV supports 1 arg (name only) or 2 args (name + default value)
+        {"ENV", C64SCRIPT_BUILTIN_ENV, 1},
+        {"ENV", C64SCRIPT_BUILTIN_ENV, 2},
     };
 
+    // First pass: exact name + arg_count match
+    for (size_t i = 0; i < sizeof(builtins) / sizeof(builtins[0]); i++) {
+        if (strcmp(expr->as.call.name, builtins[i].name) == 0 && expr->as.call.arg_count == builtins[i].arg_count) {
+            if (handled) {
+                *handled = true;
+            }
+            return compile_builtin_call(ctx, expr, &builtins[i]);
+        }
+    }
+
+    // Second pass: name matched but wrong arg count - report error
     for (size_t i = 0; i < sizeof(builtins) / sizeof(builtins[0]); i++) {
         if (strcmp(expr->as.call.name, builtins[i].name) == 0) {
             if (handled) {
                 *handled = true;
             }
-            return compile_builtin_call(ctx, expr, &builtins[i]);
+            if (ctx->error_msg) {
+                snprintf(ctx->error_msg, ctx->error_msg_size, "Wrong number of arguments for %s", expr->as.call.name);
+            }
+            return false;
         }
     }
 

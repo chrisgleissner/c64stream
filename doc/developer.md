@@ -379,11 +379,11 @@ See [`doc/testing/e2e.md`](testing/e2e.md) for comprehensive E2E testing documen
 The E2E harness validates the full path: deterministic packet generation → UDP replay → OBS + plugin processing → recording → result validation.
 
 - Orchestrators:
-  - `tests/e2e/e2e.sh` — shell wrapper for deps/build/run/report (generates `tests/e2e/test_output/README.md`)
-  - `tests/e2e/e2e.py` — launches Xvfb/OBS, starts packet replay, validates results, writes `validation_results.json`
+  - `tests/e2e/e2e.sh` - shell wrapper for deps/build/run/report (generates `tests/e2e/test_output/README.md`)
+  - `tests/e2e/e2e.py` - launches Xvfb/OBS, starts packet replay, validates results, writes `validation_results.json`
 - Generators/Tools:
-  - `tests/e2e/util/generate_packets.py` — PAL/NTSC packets with visual and audio pop markers
-  - `build_x86_64/tests/e2e/udp_replay` — precise UDP timing sender
+  - `tests/e2e/util/generate_packets.py` - PAL/NTSC packets with visual and audio pop markers
+  - `build_x86_64/tests/e2e/udp_replay` - precise UDP timing sender
 
 Key behaviors and correctness guards:
 
@@ -392,8 +392,8 @@ Key behaviors and correctness guards:
   - NTSC: `FPSCommon="60"`
 - CFR enforcement during compression: final MP4 is normalized to constant frame rate (50/60) to avoid 30 fps artifacts from VFR containers.
 - Validation artifacts:
-  - `validation_results.json` — statuses for UDP reception, frame processing, recording, duration/integrity, and `av_sync_details`
-  - Recording file (mkv/mp4) — linked from the generated `README.md`
+  - `validation_results.json` - statuses for UDP reception, frame processing, recording, duration/integrity, and `av_sync_details`
+  - Recording file (mkv/mp4) - linked from the generated `README.md`
   - CSVs: `network.csv`, `obs.csv` when recorded
 - A/V sync analysis (Pop synchronization):
   - Detects video and audio pops, pairs closest matches, and assigns a traffic light (green/yellow/red)

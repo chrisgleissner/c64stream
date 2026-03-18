@@ -1,0 +1,21 @@
+REM Effect Cycle: Green Monitor <-> Amber Monitor
+REM Cycles between Green Monitor and Amber Monitor effects.
+REM Number of full cycles (each cycle = Green + Amber) is controlled by
+REM the EFFECT_COUNT environment variable (default: 3).
+
+EFFECT_COUNT_VAL = VAL(ENV("EFFECT_COUNT", "3"))
+IF EFFECT_COUNT_VAL < 1 THEN EFFECT_COUNT_VAL = 1
+
+LOG "Starting effect cycle: " + STR$(EFFECT_COUNT_VAL) + " cycles"
+
+FOR CYCLE = 1 TO EFFECT_COUNT_VAL
+    LOG "Cycle " + STR$(CYCLE) + "/" + STR$(EFFECT_COUNT_VAL) + ": Green Monitor"
+    EFFECT "Green Monitor"
+    WAIT 1s
+
+    LOG "Cycle " + STR$(CYCLE) + "/" + STR$(EFFECT_COUNT_VAL) + ": Amber Monitor"
+    EFFECT "Amber Monitor"
+    WAIT 1s
+NEXT CYCLE
+
+LOG "Effect cycle complete"

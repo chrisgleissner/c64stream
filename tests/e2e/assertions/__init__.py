@@ -41,6 +41,7 @@ from .runner import (
 from .scanlines import ScanlineAssertion
 from .sharp_pixels import SharpPixelsAssertion
 from .tint import TintAssertion
+from .tint_transition import TintTransitionAssertion
 from .video_quality import VideoQualityAssertion
 from .script_log import ScriptLogAssertion
 
@@ -60,6 +61,7 @@ __all__ = [
     "AvPopOffsetAssertion",
     "DebugLogPresenceAssertion",
     "TintAssertion",
+    "TintTransitionAssertion",
     "PaletteMappingAssertion",
     "PaletteStabilityAssertion",
     "AfterglowAssertion",

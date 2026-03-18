@@ -188,12 +188,12 @@ if [ "$EXIT_CODE" -eq 124 ]; then
     EXIT_CODE=0
 fi
 
-# Guard: fail if the log is empty — the fuzz binary produced no output.
+# Guard: fail if the log is empty - the fuzz binary produced no output.
 LOG_EMPTY=0
 if [ ! -s "$LOG_FILE" ]; then
     LOG_EMPTY=1
     EXIT_CODE=1
-    echo "FATAL: Fuzz log is empty — binary produced no output." >&2
+    echo "FATAL: Fuzz log is empty - binary produced no output." >&2
 fi
 
 # Guard: fail if the log contains no libFuzzer output markers.

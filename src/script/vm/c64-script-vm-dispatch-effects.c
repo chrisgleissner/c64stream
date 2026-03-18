@@ -49,6 +49,10 @@ static void c64_script_apply_source_update(void *data)
             break;
         }
         obs_source_update(update->source, settings);
+        if (c64script_debug_logging_enabled()) {
+            blog(LOG_DEBUG, "[c64script] EFFECT apply: key=%s value=%s (OBS UI thread)", update->key,
+                 update->type == C64_SCRIPT_UPDATE_STRING ? update->string_value : "<numeric>");
+        }
         obs_data_release(settings);
     }
 
@@ -112,6 +116,9 @@ bool c64script_dispatch_effects(c64script_runtime_t *runtime, const c64script_in
         }
 
         obs_source_t *source = (obs_source_t *)runtime->obs_source;
+        if (c64script_debug_logging_enabled()) {
+            blog(LOG_DEBUG, "[c64script] EFFECT queue: preset=%s", preset.as.string ? preset.as.string : "");
+        }
         if (!c64_script_queue_source_update(source, C64_SCRIPT_UPDATE_STRING, "crt_preset",
                                             preset.as.string ? preset.as.string : "", 0.0, 0)) {
             c64script_value_free(&preset);

@@ -340,7 +340,7 @@ static void check_full_reachability(const char *path)
 
     // Keyboard-accessible printable range 0x20-0x5F.
     // PETSCII 0x60-0x7E are C64 graphics characters accessible only via screen codes,
-    // not through normal keyboard input — they are excluded from this check.
+    // not through normal keyboard input - they are excluded from this check.
     for (int i = 0x20; i <= 0x5F; i++) {
         if (!reachable[i]) {
             fprintf(stderr, "REACHABILITY: %s missing PETSCII 0x%02X (printable range)\n", path, i);
@@ -375,7 +375,7 @@ static void check_full_reachability(const char *path)
         }
     }
     for (int i = 0xB1; i <= 0xB9; i++) {
-        // 0xB4 is an alternate PETSCII code for CBM+G (primary: 0xA5) — deliberately skipped.
+        // 0xB4 is an alternate PETSCII code for CBM+G (primary: 0xA5) - deliberately skipped.
         if (i == 0xB4) {
             continue;
         }

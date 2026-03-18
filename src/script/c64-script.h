@@ -387,6 +387,7 @@ typedef enum {
     C64SCRIPT_BUILTIN_LOG,
     C64SCRIPT_BUILTIN_EXP,
     C64SCRIPT_BUILTIN_TIME,
+    C64SCRIPT_BUILTIN_ENV,
 } c64script_builtin_id_t;
 
 // Forward declarations

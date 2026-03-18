@@ -290,5 +290,41 @@ primary         = number | hex_number | string_literal | function_call | array_a
 
 function_call   = identifier, [WS], "(", [WS], [expr, { [WS], ",", [WS], expr }], [WS], ")" ;
 
+(* Built-in functions resolved at compile time. The grammar treats them as
+   ordinary function_call productions; the compiler recognises the names below
+   and emits OP_CALL_BUILTIN / OP_CALL_STR instructions.
+
+   Zero-argument builtins:
+     TIME$()                       -- current wall-clock time as "YYYY-MM-DD HH:MM:SS"
+
+   One-argument builtins (string):
+     LEN( string )                 -- length of string
+     CHR$( number )                -- character from ASCII code
+     ASC( string )                 -- ASCII code of first character
+     VAL( string )                 -- string to number
+     STR$( number )                -- number to string
+     ENV( string )                 -- value of OS environment variable; "" if unset
+     ENV( string, string )         -- value of OS environment variable; returns second arg (default) if unset
+
+   One-argument builtins (number):
+     ABS( number )                 -- absolute value
+     INT( number )                 -- truncate toward zero
+     RND( number )                 -- random in [0, number)
+     SIN( number )                 -- sine (radians)
+     COS( number )                 -- cosine (radians)
+     TAN( number )                 -- tangent (radians)
+     SQRT( number )                -- square root
+     LOG( number )                 -- natural logarithm
+     EXP( number )                 -- e^number
+     PEEK( address )               -- read byte from C64 memory
+
+   Two-argument builtins:
+     LEFT$( string, count )        -- leftmost count characters
+     RIGHT$( string, count )       -- rightmost count characters
+
+   Three-argument builtins:
+     MID$( string, start, count )  -- substring (1-based start)
+*)
+
 string_or_word  = string_literal | identifier | word ;
 path_expr       = string_literal | identifier | word ;

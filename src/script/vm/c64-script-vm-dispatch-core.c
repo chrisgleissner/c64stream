@@ -1077,11 +1077,19 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
         }
 
         double multiplier = wait_unit_multiplier((c64script_wait_unit_t)instr->operand);
-        uint64_t remaining_ms = (uint64_t)(v * multiplier);
+        uint64_t total_ms = (uint64_t)(v * multiplier);
+        uint64_t remaining_ms = total_ms;
+        if (c64script_debug_logging_enabled()) {
+            blog(LOG_DEBUG, "[c64script] WAIT: entering %.3fs (%llu ms)", v * multiplier / 1000.0,
+                 (unsigned long long)total_ms);
+        }
         while (remaining_ms > 0 && !runtime->should_stop) {
             uint64_t step = remaining_ms > 50 ? 50 : remaining_ms;
             os_sleep_ms((uint32_t)step);
             remaining_ms -= step;
+        }
+        if (c64script_debug_logging_enabled()) {
+            blog(LOG_DEBUG, "[c64script] WAIT: completed (%llu ms)", (unsigned long long)total_ms);
         }
         break;
     }

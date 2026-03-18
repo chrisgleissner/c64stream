@@ -35,6 +35,7 @@ from .record_video import RecordVideoAssertion
 from .scanlines import ScanlineAssertion
 from .sharp_pixels import SharpPixelsAssertion
 from .tint import TintAssertion
+from .tint_transition import TintTransitionAssertion
 from .video_quality import VideoQualityAssertion
 from .script_log import ScriptLogAssertion
 from .script_record import ScriptRecordAssertion
@@ -192,6 +193,7 @@ def create_assertions_from_list(
         "av_sync_log_validation": AvSyncLogValidationAssertion,
         "debug_log_presence": DebugLogPresenceAssertion,
         "tint": TintAssertion,
+        "tint_transition": TintTransitionAssertion,
         "palette_stability": PaletteStabilityAssertion,
         "palette_mapping": PaletteMappingAssertion,
         "afterglow": AfterglowAssertion,

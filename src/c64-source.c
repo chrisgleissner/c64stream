@@ -92,18 +92,6 @@ static void c64_update_format_hint_if_needed(struct c64_source *context)
     context->format_hint_set = true;
 }
 
-static bool settings_have_effect_overrides(obs_data_t *settings)
-{
-    if (!settings)
-        return false;
-
-    return obs_data_has_user_value(settings, "scan_line_distance") ||
-           obs_data_has_user_value(settings, "scan_line_strength") ||
-           obs_data_has_user_value(settings, "pixel_width") || obs_data_has_user_value(settings, "pixel_height") ||
-           obs_data_has_user_value(settings, "blur_strength") || obs_data_has_user_value(settings, "bloom_strength") ||
-           obs_data_has_user_value(settings, "tint_mode") || obs_data_has_user_value(settings, "tint_strength");
-}
-
 // Async retry task - runs in OBS thread pool (NOT render thread)
 void c64_async_retry_task(void *data)
 {
@@ -302,18 +290,16 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     // Load configuration file before initializing settings-dependent values
     c64_load_configuration(settings);
 
-    // Apply CRT preset from settings (if present) so effects activate on load
-    // This is essential for E2E scenarios that embed effect settings in OBS scene JSON
-    bool has_effect_overrides = settings_have_effect_overrides(settings);
+    // Apply CRT preset from settings (if present) so effects activate on load.
+    // Always apply when a preset name is present; do not suppress based on per-property overrides,
+    // as EFFECT commands and E2E scenarios both rely on this path executing unconditionally.
     const char *initial_preset = obs_data_get_string(settings, "crt_preset");
-    if (!has_effect_overrides && initial_preset && initial_preset[0] != '\0') {
+    if (initial_preset && initial_preset[0] != '\0') {
         if (c64_effect_apply(settings, initial_preset)) {
             C64_LOG_INFO("Applied CRT preset from settings: %s", initial_preset);
         } else {
             C64_LOG_WARNING("" EFFECT_LOG_PREFIX " CRT preset not found: %s", initial_preset);
         }
-    } else if (has_effect_overrides) {
-        C64_LOG_INFO("" EFFECT_LOG_PREFIX " Skipping preset auto-apply; custom effect overrides detected");
     }
 
     context->source = source;
@@ -1012,18 +998,15 @@ void c64_update(void *data, obs_data_t *settings)
 
     c64_attempt_script_autostart(context, settings);
 
-    // If a preset is specified and no manual overrides exist, apply it before reading effect values
-    // This supports E2E scenarios that set effects via OBS scene JSON source settings
-    bool has_effect_overrides = settings_have_effect_overrides(settings);
+    // Apply CRT preset when present. Always apply unconditionally so that EFFECT commands
+    // issued by scripts take effect even after effect values have been written to settings.
     const char *preset_name = obs_data_get_string(settings, "crt_preset");
-    if (!has_effect_overrides && preset_name && preset_name[0] != '\0') {
+    if (preset_name && preset_name[0] != '\0') {
         if (c64_effect_apply(settings, preset_name)) {
             C64_LOG_INFO("Applied CRT preset on update: %s", preset_name);
         } else {
             C64_LOG_WARNING("" EFFECT_LOG_PREFIX " CRT preset in update not found: %s", preset_name);
         }
-    } else if (has_effect_overrides) {
-        C64_LOG_DEBUG("" EFFECT_LOG_PREFIX " Preset update skipped; manual effect overrides present");
     }
 
     // Update debug logging setting
@@ -2114,7 +2097,7 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
 
         // AltGr separation: on Windows, AltGr is delivered as Ctrl+Alt (synthetic Ctrl
         // precedes right-Alt). If both Ctrl and Alt are set and the key produced printable
-        // text, this is AltGr acting as a Level 3 shift — not a CBM modifier. Clear both
+        // text, this is AltGr acting as a Level 3 shift - not a CBM modifier. Clear both
         // bits so the text-based lookup path handles the character instead.
         if ((modifiers & 0x06) == 0x06 && has_printable_text) {
             modifiers &= ~0x06;

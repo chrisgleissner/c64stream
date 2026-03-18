@@ -31,7 +31,7 @@ Continue iterating until this state is reached.
 
 ---
 
-# Step 1 — Review Comments
+# Step 1 - Review Comments
 
 Using the gh tool:
 
@@ -56,7 +56,7 @@ For each comment:
 
 ---
 
-# Step 2 — Implement Fixes
+# Step 2 - Implement Fixes
 
 If the comment identifies a real issue:
 
@@ -76,7 +76,7 @@ Example response:
 
 ---
 
-# Step 3 — Handle Non-Applicable Comments
+# Step 3 - Handle Non-Applicable Comments
 
 If the comment is not applicable:
 
@@ -95,7 +95,7 @@ Never resolve a comment without explanation.
 
 ---
 
-# Step 4 — Validate the Repository
+# Step 4 - Validate the Repository
 
 After addressing comments:
 
@@ -116,7 +116,7 @@ Add additional validation if relevant to the touched components.
 
 ---
 
-# Step 5 — Push Fixes
+# Step 5 - Push Fixes
 
 If changes were made:
 
@@ -127,7 +127,7 @@ Use the gh tool where appropriate.
 
 ---
 
-# Step 6 — Check CI Status
+# Step 6 - Check CI Status
 
 Using the gh tool:
 
@@ -145,7 +145,7 @@ Repeat the process.
 
 ---
 
-# Step 7 — Wait for CI
+# Step 7 - Wait for CI
 
 After pushing fixes:
 

@@ -5,27 +5,27 @@ on:
   workflow_call:
     inputs:
       run_e2e:
-        description: 'Run E2E tests after build (non-blocking - failures will not fail the build)'
+        description: "Run E2E tests after build (non-blocking - failures will not fail the build)"
         required: false
         default: true
         type: boolean
       e2e_format:
-        description: 'E2E video format (PAL or NTSC)'
+        description: "E2E video format (PAL or NTSC)"
         required: false
-        default: 'PAL'
+        default: "PAL"
         type: string
       e2e_frames:
-        description: 'Number of E2E frames to test'
+        description: "Number of E2E frames to test"
         required: false
-        default: '250'
+        default: "250"
         type: string
       e2e_scenario:
         description: 'E2E scenario to run (e.g., ntsc_amber_monitor, pal_sharp_pixels, or "all" for matrix)'
         required: false
-        default: ''
+        default: ""
         type: string
       build_linux_variants:
-        description: 'Build for multiple Linux distributions (Ubuntu 22.04 and 24.04)'
+        description: "Build for multiple Linux distributions (Ubuntu 22.04 and 24.04)"
         required: false
         default: false
         type: boolean
@@ -499,7 +499,7 @@ jobs:
       - name: Set up Python 🐍
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.12"
 
       - name: Install Dependencies 📦
         run: |
@@ -637,19 +637,18 @@ jobs:
     needs: [windows-build]
     with:
       arch: x64
-      artifact-pattern: '*-windows-x64-*'
+      artifact-pattern: "*-windows-x64-*"
       runner: windows-2022
-      obs-version: '32.0.4'
+      obs-version: "32.0.4"
 
   windows-arm64-smoke-test:
     uses: ./.github/workflows/windows-smoke-test.yaml
     needs: [windows-arm64-build]
     with:
       arch: arm64
-      artifact-pattern: '*-windows-arm64-*'
+      artifact-pattern: "*-windows-arm64-*"
       runner: windows-11-arm
-      obs-version: '32.0.4'
-
+      obs-version: "32.0.4"
 
   # E2E Basic Test (Multi-Distro) - runs basic E2E scenario on all Linux distributions
   e2e-basic:
@@ -844,7 +843,7 @@ jobs:
           timeout_minutes: 30
           max_attempts: 3
           retry_on: error
-          on_retry_command: echo "⚠️ E2E basic test failed — retrying..." >> "$GITHUB_STEP_SUMMARY"
+          on_retry_command: echo "⚠️ E2E basic test failed - retrying..." >> "$GITHUB_STEP_SUMMARY"
           command: |
             cd tests/e2e
 
@@ -918,7 +917,6 @@ jobs:
             echo "❌ **E2E Basic Test FAILED on ${{ matrix.display_name }} (all 3 attempts exhausted)**" >> $GITHUB_STEP_SUMMARY
             echo "📦 Check E2E artifacts for debugging info." >> $GITHUB_STEP_SUMMARY
           fi
-
 
   # E2E Full Test (Ubuntu, Matrix) - runs all scenarios in parallel
   # Runs concurrently with e2e-basic for faster CI
@@ -1122,7 +1120,7 @@ jobs:
           timeout_minutes: 30
           max_attempts: 3
           retry_on: error
-          on_retry_command: echo "⚠️ E2E scenario '${{ matrix.scenario }}' failed — retrying..." >> "$GITHUB_STEP_SUMMARY"
+          on_retry_command: echo "⚠️ E2E scenario '${{ matrix.scenario }}' failed - retrying..." >> "$GITHUB_STEP_SUMMARY"
           command: |
             cd tests/e2e
 

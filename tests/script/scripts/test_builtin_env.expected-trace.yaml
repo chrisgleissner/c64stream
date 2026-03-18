@@ -1,0 +1,173 @@
+# Execution trace
+script: "test_builtin_env.c64script"
+status: success
+error: ~
+program: |
+  01: REM Test ENV() built-in function
+  02: REM Validates reading OS environment variables
+  03: 
+  04: REM Test 1: Absent variable returns empty string
+  05: ABSENT$ = ENV("C64SCRIPT_TEST_ABSENT_VAR_XYZ")
+  06: IF ABSENT$ = "" THEN
+  07:     LOG "Test 1 passed: absent env var returns empty string"
+  08: ELSE
+  09:     LOG "Test 1 FAILED: expected empty string, got: " + ABSENT$
+  10: ENDIF
+  11: 
+  12: REM Test 2: Standard env var PATH is set in all environments
+  13: PATH_VAL$ = ENV("PATH")
+  14: IF LEN(PATH_VAL$) > 0 THEN
+  15:     LOG "Test 2 passed: PATH is set"
+  16: ELSE
+  17:     LOG "Test 2 FAILED: PATH was empty"
+  18: ENDIF
+  19: 
+  20: REM Test 3: VAL() on absent var yields 0
+  21: NUM_VAL = VAL(ENV("C64SCRIPT_TEST_ABSENT_VAR_XYZ"))
+  22: IF NUM_VAL = 0 THEN
+  23:     LOG "Test 3 passed: VAL of absent env var is 0"
+  24: ELSE
+  25:     LOG "Test 3 FAILED: expected 0, got: " + STR$(NUM_VAL)
+  26: ENDIF
+  27: 
+  28: REM Test 4: Two-arg form returns default when var is absent
+  29: DEFAULTED$ = ENV("C64SCRIPT_TEST_ABSENT_VAR_XYZ", "fallback")
+  30: IF DEFAULTED$ = "fallback" THEN
+  31:     LOG "Test 4 passed: default value used when var absent"
+  32: ELSE
+  33:     LOG "Test 4 FAILED: expected 'fallback', got: " + DEFAULTED$
+  34: ENDIF
+  35: 
+  36: REM Test 5: Two-arg form ignores default when var is set
+  37: PATH_WITH_DEF$ = ENV("PATH", "no-path")
+  38: IF LEN(PATH_WITH_DEF$) > 0 AND PATH_WITH_DEF$ <> "no-path" THEN
+  39:     LOG "Test 5 passed: default not used when var is set"
+  40: ELSE
+  41:     LOG "Test 5 FAILED: PATH_WITH_DEF$ = " + PATH_WITH_DEF$
+  42: ENDIF
+  43: 
+  44: STOP
+trace:
+- line: 5
+  content: "ABSENT$ = ENV(\"C64SCRIPT_TEST_ABSENT_VAR_XYZ\")"
+  variables: {}
+- line: 6
+  content: "IF ABSENT$ = \"\" THEN"
+  variables:
+    ABSENT$: ""
+- line: 7
+  content: "LOG \"Test 1 passed: absent env var returns empty string\""
+  variables:
+    ABSENT$: ""
+- line: 6
+  content: "IF ABSENT$ = \"\" THEN"
+  variables:
+    ABSENT$: ""
+- line: 13
+  content: "PATH_VAL$ = ENV(\"PATH\")"
+  variables:
+    ABSENT$: ""
+- line: 14
+  content: "IF LEN(PATH_VAL$) > 0 THEN"
+  variables:
+    ABSENT$: ""
+    PATH_VAL$: "/home/chris/.opencode/bin:/home/chris/.fly/bin:/home/chris/.bun/bin:/home/chris/.config/Code/User/globalStorage/github.copilot-chat/debugCommand:/home/chris/.config/Code/User/globalStorage/github.copilot-chat/copilotCli:/home/chris/platform-tools:/usr/lib/dotnet/dotnet:/home/chris/.local/bin:/home/chris/bin:/home/chris/.sdkman/candidates/java/current/bin:/home/chris/.opencode/bin:/home/chris/.fly/bin:/home/chris/.bun/bin:/home/chris/.nvm/versions/node/v24.11.0/bin:/home/chris/platform-tools:/usr/lib/dotnet/dotnet:/home/chris/.cargo/bin:/home/chris/.local/bin:/home/chris/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/home/chris/.dotnet/tools:/home/chris/.maestro/bin:/home/chris/.vscode/extensions/ms-python.debugpy-2025.18.0-linux-x64/bundled/scripts/noConfigScripts:/home/chris/.maestro/bin"
+- line: 15
+  content: "LOG \"Test 2 passed: PATH is set\""
+  variables:
+    ABSENT$: ""
+    PATH_VAL$: "/home/chris/.opencode/bin:/home/chris/.fly/bin:/home/chris/.bun/bin:/home/chris/.config/Code/User/globalStorage/github.copilot-chat/debugCommand:/home/chris/.config/Code/User/globalStorage/github.copilot-chat/copilotCli:/home/chris/platform-tools:/usr/lib/dotnet/dotnet:/home/chris/.local/bin:/home/chris/bin:/home/chris/.sdkman/candidates/java/current/bin:/home/chris/.opencode/bin:/home/chris/.fly/bin:/home/chris/.bun/bin:/home/chris/.nvm/versions/node/v24.11.0/bin:/home/chris/platform-tools:/usr/lib/dotnet/dotnet:/home/chris/.cargo/bin:/home/chris/.local/bin:/home/chris/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/home/chris/.dotnet/tools:/home/chris/.maestro/bin:/home/chris/.vscode/extensions/ms-python.debugpy-2025.18.0-linux-x64/bundled/scripts/noConfigScripts:/home/chris/.maestro/bin"
+- line: 14
+  content: "IF LEN(PATH_VAL$) > 0 THEN"
+  variables:
+    ABSENT$: ""
+    PATH_VAL$: "/home/chris/.opencode/bin:/home/chris/.fly/bin:/home/chris/.bun/bin:/home/chris/.config/Code/User/globalStorage/github.copilot-chat/debugCommand:/home/chris/.config/Code/User/globalStorage/github.copilot-chat/copilotCli:/home/chris/platform-tools:/usr/lib/dotnet/dotnet:/home/chris/.local/bin:/home/chris/bin:/home/chris/.sdkman/candidates/java/current/bin:/home/chris/.opencode/bin:/home/chris/.fly/bin:/home/chris/.bun/bin:/home/chris/.nvm/versions/node/v24.11.0/bin:/home/chris/platform-tools:/usr/lib/dotnet/dotnet:/home/chris/.cargo/bin:/home/chris/.local/bin:/home/chris/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/home/chris/.dotnet/tools:/home/chris/.maestro/bin:/home/chris/.vscode/extensions/ms-python.debugpy-2025.18.0-linux-x64/bundled/scripts/noConfigScripts:/home/chris/.maestro/bin"
+- line: 21
+  content: "NUM_VAL = VAL(ENV(\"C64SCRIPT_TEST_ABSENT_VAR_XYZ\"))"
+  variables:
+    ABSENT$: ""
+    PATH_VAL$: "/home/chris/.opencode/bin:/home/chris/.fly/bin:/home/chris/.bun/bin:/home/chris/.config/Code/User/globalStorage/github.copilot-chat/debugCommand:/home/chris/.config/Code/User/globalStorage/github.copilot-chat/copilotCli:/home/chris/platform-tools:/usr/lib/dotnet/dotnet:/home/chris/.local/bin:/home/chris/bin:/home/chris/.sdkman/candidates/java/current/bin:/home/chris/.opencode/bin:/home/chris/.fly/bin:/home/chris/.bun/bin:/home/chris/.nvm/versions/node/v24.11.0/bin:/home/chris/platform-tools:/usr/lib/dotnet/dotnet:/home/chris/.cargo/bin:/home/chris/.local/bin:/home/chris/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/home/chris/.dotnet/tools:/home/chris/.maestro/bin:/home/chris/.vscode/extensions/ms-python.debugpy-2025.18.0-linux-x64/bundled/scripts/noConfigScripts:/home/chris/.maestro/bin"
+- line: 22
+  content: "IF NUM_VAL = 0 THEN"
+  variables:
+    ABSENT$: ""
+    PATH_VAL$: "/home/chris/.opencode/bin:/home/chris/.fly/bin:/home/chris/.bun/bin:/home/chris/.config/Code/User/globalStorage/github.copilot-chat/debugCommand:/home/chris/.config/Code/User/globalStorage/github.copilot-chat/copilotCli:/home/chris/platform-tools:/usr/lib/dotnet/dotnet:/home/chris/.local/bin:/home/chris/bin:/home/chris/.sdkman/candidates/java/current/bin:/home/chris/.opencode/bin:/home/chris/.fly/bin:/home/chris/.bun/bin:/home/chris/.nvm/versions/node/v24.11.0/bin:/home/chris/platform-tools:/usr/lib/dotnet/dotnet:/home/chris/.cargo/bin:/home/chris/.local/bin:/home/chris/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/home/chris/.dotnet/tools:/home/chris/.maestro/bin:/home/chris/.vscode/extensions/ms-python.debugpy-2025.18.0-linux-x64/bundled/scripts/noConfigScripts:/home/chris/.maestro/bin"
+    NUM_VAL: 0
+- line: 23
+  content: "LOG \"Test 3 passed: VAL of absent env var is 0\""
+  variables:
+    ABSENT$: ""
+    PATH_VAL$: "/home/chris/.opencode/bin:/home/chris/.fly/bin:/home/chris/.bun/bin:/home/chris/.config/Code/User/globalStorage/github.copilot-chat/debugCommand:/home/chris/.config/Code/User/globalStorage/github.copilot-chat/copilotCli:/home/chris/platform-tools:/usr/lib/dotnet/dotnet:/home/chris/.local/bin:/home/chris/bin:/home/chris/.sdkman/candidates/java/current/bin:/home/chris/.opencode/bin:/home/chris/.fly/bin:/home/chris/.bun/bin:/home/chris/.nvm/versions/node/v24.11.0/bin:/home/chris/platform-tools:/usr/lib/dotnet/dotnet:/home/chris/.cargo/bin:/home/chris/.local/bin:/home/chris/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/home/chris/.dotnet/tools:/home/chris/.maestro/bin:/home/chris/.vscode/extensions/ms-python.debugpy-2025.18.0-linux-x64/bundled/scripts/noConfigScripts:/home/chris/.maestro/bin"
+    NUM_VAL: 0
+- line: 22
+  content: "IF NUM_VAL = 0 THEN"
+  variables:
+    ABSENT$: ""
+    PATH_VAL$: "/home/chris/.opencode/bin:/home/chris/.fly/bin:/home/chris/.bun/bin:/home/chris/.config/Code/User/globalStorage/github.copilot-chat/debugCommand:/home/chris/.config/Code/User/globalStorage/github.copilot-chat/copilotCli:/home/chris/platform-tools:/usr/lib/dotnet/dotnet:/home/chris/.local/bin:/home/chris/bin:/home/chris/.sdkman/candidates/java/current/bin:/home/chris/.opencode/bin:/home/chris/.fly/bin:/home/chris/.bun/bin:/home/chris/.nvm/versions/node/v24.11.0/bin:/home/chris/platform-tools:/usr/lib/dotnet/dotnet:/home/chris/.cargo/bin:/home/chris/.local/bin:/home/chris/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/home/chris/.dotnet/tools:/home/chris/.maestro/bin:/home/chris/.vscode/extensions/ms-python.debugpy-2025.18.0-linux-x64/bundled/scripts/noConfigScripts:/home/chris/.maestro/bin"
+    NUM_VAL: 0
+- line: 29
+  content: "DEFAULTED$ = ENV(\"C64SCRIPT_TEST_ABSENT_VAR_XYZ\", \"fallback\")"
+  variables:
+    ABSENT$: ""
+    PATH_VAL$: "/home/chris/.opencode/bin:/home/chris/.fly/bin:/home/chris/.bun/bin:/home/chris/.config/Code/User/globalStorage/github.copilot-chat/debugCommand:/home/chris/.config/Code/User/globalStorage/github.copilot-chat/copilotCli:/home/chris/platform-tools:/usr/lib/dotnet/dotnet:/home/chris/.local/bin:/home/chris/bin:/home/chris/.sdkman/candidates/java/current/bin:/home/chris/.opencode/bin:/home/chris/.fly/bin:/home/chris/.bun/bin:/home/chris/.nvm/versions/node/v24.11.0/bin:/home/chris/platform-tools:/usr/lib/dotnet/dotnet:/home/chris/.cargo/bin:/home/chris/.local/bin:/home/chris/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/home/chris/.dotnet/tools:/home/chris/.maestro/bin:/home/chris/.vscode/extensions/ms-python.debugpy-2025.18.0-linux-x64/bundled/scripts/noConfigScripts:/home/chris/.maestro/bin"
+    NUM_VAL: 0
+- line: 30
+  content: "IF DEFAULTED$ = \"fallback\" THEN"
+  variables:
+    ABSENT$: ""
+    PATH_VAL$: "/home/chris/.opencode/bin:/home/chris/.fly/bin:/home/chris/.bun/bin:/home/chris/.config/Code/User/globalStorage/github.copilot-chat/debugCommand:/home/chris/.config/Code/User/globalStorage/github.copilot-chat/copilotCli:/home/chris/platform-tools:/usr/lib/dotnet/dotnet:/home/chris/.local/bin:/home/chris/bin:/home/chris/.sdkman/candidates/java/current/bin:/home/chris/.opencode/bin:/home/chris/.fly/bin:/home/chris/.bun/bin:/home/chris/.nvm/versions/node/v24.11.0/bin:/home/chris/platform-tools:/usr/lib/dotnet/dotnet:/home/chris/.cargo/bin:/home/chris/.local/bin:/home/chris/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/home/chris/.dotnet/tools:/home/chris/.maestro/bin:/home/chris/.vscode/extensions/ms-python.debugpy-2025.18.0-linux-x64/bundled/scripts/noConfigScripts:/home/chris/.maestro/bin"
+    NUM_VAL: 0
+    DEFAULTED$: "fallback"
+- line: 31
+  content: "LOG \"Test 4 passed: default value used when var absent\""
+  variables:
+    ABSENT$: ""
+    PATH_VAL$: "/home/chris/.opencode/bin:/home/chris/.fly/bin:/home/chris/.bun/bin:/home/chris/.config/Code/User/globalStorage/github.copilot-chat/debugCommand:/home/chris/.config/Code/User/globalStorage/github.copilot-chat/copilotCli:/home/chris/platform-tools:/usr/lib/dotnet/dotnet:/home/chris/.local/bin:/home/chris/bin:/home/chris/.sdkman/candidates/java/current/bin:/home/chris/.opencode/bin:/home/chris/.fly/bin:/home/chris/.bun/bin:/home/chris/.nvm/versions/node/v24.11.0/bin:/home/chris/platform-tools:/usr/lib/dotnet/dotnet:/home/chris/.cargo/bin:/home/chris/.local/bin:/home/chris/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/home/chris/.dotnet/tools:/home/chris/.maestro/bin:/home/chris/.vscode/extensions/ms-python.debugpy-2025.18.0-linux-x64/bundled/scripts/noConfigScripts:/home/chris/.maestro/bin"
+    NUM_VAL: 0
+    DEFAULTED$: "fallback"
+- line: 30
+  content: "IF DEFAULTED$ = \"fallback\" THEN"
+  variables:
+    ABSENT$: ""
+    PATH_VAL$: "/home/chris/.opencode/bin:/home/chris/.fly/bin:/home/chris/.bun/bin:/home/chris/.config/Code/User/globalStorage/github.copilot-chat/debugCommand:/home/chris/.config/Code/User/globalStorage/github.copilot-chat/copilotCli:/home/chris/platform-tools:/usr/lib/dotnet/dotnet:/home/chris/.local/bin:/home/chris/bin:/home/chris/.sdkman/candidates/java/current/bin:/home/chris/.opencode/bin:/home/chris/.fly/bin:/home/chris/.bun/bin:/home/chris/.nvm/versions/node/v24.11.0/bin:/home/chris/platform-tools:/usr/lib/dotnet/dotnet:/home/chris/.cargo/bin:/home/chris/.local/bin:/home/chris/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/home/chris/.dotnet/tools:/home/chris/.maestro/bin:/home/chris/.vscode/extensions/ms-python.debugpy-2025.18.0-linux-x64/bundled/scripts/noConfigScripts:/home/chris/.maestro/bin"
+    NUM_VAL: 0
+    DEFAULTED$: "fallback"
+- line: 37
+  content: "PATH_WITH_DEF$ = ENV(\"PATH\", \"no-path\")"
+  variables:
+    ABSENT$: ""
+    PATH_VAL$: "/home/chris/.opencode/bin:/home/chris/.fly/bin:/home/chris/.bun/bin:/home/chris/.config/Code/User/globalStorage/github.copilot-chat/debugCommand:/home/chris/.config/Code/User/globalStorage/github.copilot-chat/copilotCli:/home/chris/platform-tools:/usr/lib/dotnet/dotnet:/home/chris/.local/bin:/home/chris/bin:/home/chris/.sdkman/candidates/java/current/bin:/home/chris/.opencode/bin:/home/chris/.fly/bin:/home/chris/.bun/bin:/home/chris/.nvm/versions/node/v24.11.0/bin:/home/chris/platform-tools:/usr/lib/dotnet/dotnet:/home/chris/.cargo/bin:/home/chris/.local/bin:/home/chris/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/home/chris/.dotnet/tools:/home/chris/.maestro/bin:/home/chris/.vscode/extensions/ms-python.debugpy-2025.18.0-linux-x64/bundled/scripts/noConfigScripts:/home/chris/.maestro/bin"
+    NUM_VAL: 0
+    DEFAULTED$: "fallback"
+- line: 38
+  content: "IF LEN(PATH_WITH_DEF$) > 0 AND PATH_WITH_DEF$ <> \"no-path\" THEN"
+  variables:
+    ABSENT$: ""
+    PATH_VAL$: "/home/chris/.opencode/bin:/home/chris/.fly/bin:/home/chris/.bun/bin:/home/chris/.config/Code/User/globalStorage/github.copilot-chat/debugCommand:/home/chris/.config/Code/User/globalStorage/github.copilot-chat/copilotCli:/home/chris/platform-tools:/usr/lib/dotnet/dotnet:/home/chris/.local/bin:/home/chris/bin:/home/chris/.sdkman/candidates/java/current/bin:/home/chris/.opencode/bin:/home/chris/.fly/bin:/home/chris/.bun/bin:/home/chris/.nvm/versions/node/v24.11.0/bin:/home/chris/platform-tools:/usr/lib/dotnet/dotnet:/home/chris/.cargo/bin:/home/chris/.local/bin:/home/chris/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/home/chris/.dotnet/tools:/home/chris/.maestro/bin:/home/chris/.vscode/extensions/ms-python.debugpy-2025.18.0-linux-x64/bundled/scripts/noConfigScripts:/home/chris/.maestro/bin"
+    NUM_VAL: 0
+    DEFAULTED$: "fallback"
+    PATH_WITH_DEF$: "/home/chris/.opencode/bin:/home/chris/.fly/bin:/home/chris/.bun/bin:/home/chris/.config/Code/User/globalStorage/github.copilot-chat/debugCommand:/home/chris/.config/Code/User/globalStorage/github.copilot-chat/copilotCli:/home/chris/platform-tools:/usr/lib/dotnet/dotnet:/home/chris/.local/bin:/home/chris/bin:/home/chris/.sdkman/candidates/java/current/bin:/home/chris/.opencode/bin:/home/chris/.fly/bin:/home/chris/.bun/bin:/home/chris/.nvm/versions/node/v24.11.0/bin:/home/chris/platform-tools:/usr/lib/dotnet/dotnet:/home/chris/.cargo/bin:/home/chris/.local/bin:/home/chris/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/home/chris/.dotnet/tools:/home/chris/.maestro/bin:/home/chris/.vscode/extensions/ms-python.debugpy-2025.18.0-linux-x64/bundled/scripts/noConfigScripts:/home/chris/.maestro/bin"
+- line: 39
+  content: "LOG \"Test 5 passed: default not used when var is set\""
+  variables:
+    ABSENT$: ""
+    PATH_VAL$: "/home/chris/.opencode/bin:/home/chris/.fly/bin:/home/chris/.bun/bin:/home/chris/.config/Code/User/globalStorage/github.copilot-chat/debugCommand:/home/chris/.config/Code/User/globalStorage/github.copilot-chat/copilotCli:/home/chris/platform-tools:/usr/lib/dotnet/dotnet:/home/chris/.local/bin:/home/chris/bin:/home/chris/.sdkman/candidates/java/current/bin:/home/chris/.opencode/bin:/home/chris/.fly/bin:/home/chris/.bun/bin:/home/chris/.nvm/versions/node/v24.11.0/bin:/home/chris/platform-tools:/usr/lib/dotnet/dotnet:/home/chris/.cargo/bin:/home/chris/.local/bin:/home/chris/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/home/chris/.dotnet/tools:/home/chris/.maestro/bin:/home/chris/.vscode/extensions/ms-python.debugpy-2025.18.0-linux-x64/bundled/scripts/noConfigScripts:/home/chris/.maestro/bin"
+    NUM_VAL: 0
+    DEFAULTED$: "fallback"
+    PATH_WITH_DEF$: "/home/chris/.opencode/bin:/home/chris/.fly/bin:/home/chris/.bun/bin:/home/chris/.config/Code/User/globalStorage/github.copilot-chat/debugCommand:/home/chris/.config/Code/User/globalStorage/github.copilot-chat/copilotCli:/home/chris/platform-tools:/usr/lib/dotnet/dotnet:/home/chris/.local/bin:/home/chris/bin:/home/chris/.sdkman/candidates/java/current/bin:/home/chris/.opencode/bin:/home/chris/.fly/bin:/home/chris/.bun/bin:/home/chris/.nvm/versions/node/v24.11.0/bin:/home/chris/platform-tools:/usr/lib/dotnet/dotnet:/home/chris/.cargo/bin:/home/chris/.local/bin:/home/chris/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/home/chris/.dotnet/tools:/home/chris/.maestro/bin:/home/chris/.vscode/extensions/ms-python.debugpy-2025.18.0-linux-x64/bundled/scripts/noConfigScripts:/home/chris/.maestro/bin"
+- line: 38
+  content: "IF LEN(PATH_WITH_DEF$) > 0 AND PATH_WITH_DEF$ <> \"no-path\" THEN"
+  variables:
+    ABSENT$: ""
+    PATH_VAL$: "/home/chris/.opencode/bin:/home/chris/.fly/bin:/home/chris/.bun/bin:/home/chris/.config/Code/User/globalStorage/github.copilot-chat/debugCommand:/home/chris/.config/Code/User/globalStorage/github.copilot-chat/copilotCli:/home/chris/platform-tools:/usr/lib/dotnet/dotnet:/home/chris/.local/bin:/home/chris/bin:/home/chris/.sdkman/candidates/java/current/bin:/home/chris/.opencode/bin:/home/chris/.fly/bin:/home/chris/.bun/bin:/home/chris/.nvm/versions/node/v24.11.0/bin:/home/chris/platform-tools:/usr/lib/dotnet/dotnet:/home/chris/.cargo/bin:/home/chris/.local/bin:/home/chris/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/home/chris/.dotnet/tools:/home/chris/.maestro/bin:/home/chris/.vscode/extensions/ms-python.debugpy-2025.18.0-linux-x64/bundled/scripts/noConfigScripts:/home/chris/.maestro/bin"
+    NUM_VAL: 0
+    DEFAULTED$: "fallback"
+    PATH_WITH_DEF$: "/home/chris/.opencode/bin:/home/chris/.fly/bin:/home/chris/.bun/bin:/home/chris/.config/Code/User/globalStorage/github.copilot-chat/debugCommand:/home/chris/.config/Code/User/globalStorage/github.copilot-chat/copilotCli:/home/chris/platform-tools:/usr/lib/dotnet/dotnet:/home/chris/.local/bin:/home/chris/bin:/home/chris/.sdkman/candidates/java/current/bin:/home/chris/.opencode/bin:/home/chris/.fly/bin:/home/chris/.bun/bin:/home/chris/.nvm/versions/node/v24.11.0/bin:/home/chris/platform-tools:/usr/lib/dotnet/dotnet:/home/chris/.cargo/bin:/home/chris/.local/bin:/home/chris/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/home/chris/.dotnet/tools:/home/chris/.maestro/bin:/home/chris/.vscode/extensions/ms-python.debugpy-2025.18.0-linux-x64/bundled/scripts/noConfigScripts:/home/chris/.maestro/bin"
+- line: 44
+  content: "STOP"
+  variables:
+    ABSENT$: ""
+    PATH_VAL$: "/home/chris/.opencode/bin:/home/chris/.fly/bin:/home/chris/.bun/bin:/home/chris/.config/Code/User/globalStorage/github.copilot-chat/debugCommand:/home/chris/.config/Code/User/globalStorage/github.copilot-chat/copilotCli:/home/chris/platform-tools:/usr/lib/dotnet/dotnet:/home/chris/.local/bin:/home/chris/bin:/home/chris/.sdkman/candidates/java/current/bin:/home/chris/.opencode/bin:/home/chris/.fly/bin:/home/chris/.bun/bin:/home/chris/.nvm/versions/node/v24.11.0/bin:/home/chris/platform-tools:/usr/lib/dotnet/dotnet:/home/chris/.cargo/bin:/home/chris/.local/bin:/home/chris/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/home/chris/.dotnet/tools:/home/chris/.maestro/bin:/home/chris/.vscode/extensions/ms-python.debugpy-2025.18.0-linux-x64/bundled/scripts/noConfigScripts:/home/chris/.maestro/bin"
+    NUM_VAL: 0
+    DEFAULTED$: "fallback"
+    PATH_WITH_DEF$: "/home/chris/.opencode/bin:/home/chris/.fly/bin:/home/chris/.bun/bin:/home/chris/.config/Code/User/globalStorage/github.copilot-chat/debugCommand:/home/chris/.config/Code/User/globalStorage/github.copilot-chat/copilotCli:/home/chris/platform-tools:/usr/lib/dotnet/dotnet:/home/chris/.local/bin:/home/chris/bin:/home/chris/.sdkman/candidates/java/current/bin:/home/chris/.opencode/bin:/home/chris/.fly/bin:/home/chris/.bun/bin:/home/chris/.nvm/versions/node/v24.11.0/bin:/home/chris/platform-tools:/usr/lib/dotnet/dotnet:/home/chris/.cargo/bin:/home/chris/.local/bin:/home/chris/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/home/chris/.dotnet/tools:/home/chris/.maestro/bin:/home/chris/.vscode/extensions/ms-python.debugpy-2025.18.0-linux-x64/bundled/scripts/noConfigScripts:/home/chris/.maestro/bin"

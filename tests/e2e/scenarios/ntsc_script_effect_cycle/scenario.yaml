@@ -1,0 +1,10 @@
+name: NTSC Script Effect Cycle
+format: NTSC
+preset: Default
+overrides:
+  script_file: "${repo_root}/data/scripts/effect_cycle_green_amber.c64script"
+  script_auto_start: true
+assertions:
+  - video_quality
+  - audio
+  - tint_transition
