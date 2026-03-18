@@ -1,4 +1,4 @@
-#include "../../src/c64-file.h"
+#include "c64-file.h"
 
 #include <stdbool.h>
 #include <stdio.h>

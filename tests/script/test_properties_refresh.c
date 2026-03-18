@@ -1,5 +1,5 @@
-#include "../../src/c64-properties-refresh.h"
-#include "../../src/c64-types.h"
+#include "c64-properties-refresh.h"
+#include "c64-types.h"
 
 #include <stdio.h>
 #include <string.h>

@@ -10,7 +10,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include <stdlib.h>
 #include <string.h>
 
-#include "../../src/c64-script.h"
+#include "c64-script.h"
 
 int main(void)
 {

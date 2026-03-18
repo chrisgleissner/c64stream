@@ -6,12 +6,12 @@ Licensed under the GNU General Public License v2.0 or later.
 See <https://www.gnu.org/licenses/> for details.
 */
 
-#include "../../src/c64-script-ast.h"
-#include "../../src/c64-script-bytecode.h"
-#include "../../src/c64-script-parser.h"
-#include "../../src/c64-script-runtime.h"
-#include "../../src/c64-script-token.h"
-#include "../../src/c64-script-vm.h"
+#include "c64-script-ast.h"
+#include "c64-script-bytecode.h"
+#include "c64-script-parser.h"
+#include "c64-script-runtime.h"
+#include "c64-script-token.h"
+#include "c64-script-vm.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>

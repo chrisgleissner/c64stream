@@ -6,8 +6,8 @@ Licensed under the GNU General Public License v2.0 or later.
 See <https://www.gnu.org/licenses/> for details.
 */
 
-#include "../../src/c64-automation.h"
-#include "../../src/c64-automation-playlist.h"
+#include "c64-automation.h"
+#include "c64-automation-playlist.h"
 #include "c64script_test_stubs.h"
 
 #include <stdbool.h>
