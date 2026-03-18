@@ -5,6 +5,12 @@ set -eu
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 PROJECT_ROOT=$(cd "$SCRIPT_DIR/../../.." && pwd)
 
+# Accept optional positional argument: ./fuzz.sh [seconds]
+# This overrides FUZZ_TIME_SECONDS env var.
+if [ "${1:-}" != "" ]; then
+    FUZZ_TIME_SECONDS="$1"
+fi
+
 BUILD_DIR=${FUZZ_BUILD_DIR:-"$PROJECT_ROOT/build_fuzz_c64script"}
 RESULTS_DIR="$SCRIPT_DIR/results"
 CRASH_DIR="$RESULTS_DIR/crashes"
@@ -143,32 +149,69 @@ FUZZ_CMD="$CMD_PREFIX \"$FUZZ_BIN\" -artifact_prefix=\"$CRASH_DIR/\" -max_len=\"
 
 ASAN_OPTIONS="detect_leaks=0${ASAN_OPTIONS:+:$ASAN_OPTIONS}"; export ASAN_OPTIONS
 
+echo "=== Starting fuzzing for ${MAX_TIME}s (run ${RUN_ID}) ==="
+echo "  Binary:  $FUZZ_BIN"
+echo "  Corpus:  $OUTPUT_CORPUS"
+echo "  Crashes: $CRASH_DIR"
+echo "  Log:     $LOG_FILE"
+
+# Temp file to capture fuzz binary exit code; POSIX sh lacks PIPESTATUS.
+FUZZ_EXIT_FILE="$RESULTS_DIR/.fuzz_exit_${RUN_ID}.tmp"
+
 set +e
 START_TS=$(date +%s)
-if command -v timeout >/dev/null 2>&1; then
-    timeout -s INT "$((MAX_TIME + TIMEOUT_GRACE))" sh -c "$FUZZ_CMD" >"$LOG_FILE" 2>&1
-    EXIT_CODE=$?
-else
-    sh -c "$FUZZ_CMD" >"$LOG_FILE" 2>&1
-    EXIT_CODE=$?
-fi
+{
+    if command -v timeout >/dev/null 2>&1; then
+        timeout -s INT "$((MAX_TIME + TIMEOUT_GRACE))" sh -c "$FUZZ_CMD"
+    else
+        sh -c "$FUZZ_CMD"
+    fi
+    printf '%s' "$?" >"$FUZZ_EXIT_FILE"
+} 2>&1 | tee "$LOG_FILE"
 END_TS=$(date +%s)
 set -e
 
+if [ -f "$FUZZ_EXIT_FILE" ]; then
+    EXIT_CODE=$(cat "$FUZZ_EXIT_FILE")
+    rm -f "$FUZZ_EXIT_FILE"
+else
+    EXIT_CODE=1
+fi
+
+DURATION=$((END_TS - START_TS))
+echo "=== Fuzzing completed after ${DURATION}s (expected ${MAX_TIME}s) ==="
+
+# Detect wrapper timeout (exit 124 from GNU timeout).
 WRAPPER_TIMEOUT=0
 if [ "$EXIT_CODE" -eq 124 ]; then
     WRAPPER_TIMEOUT=1
     EXIT_CODE=0
 fi
 
+# Guard: fail if the log is empty — the fuzz binary produced no output.
 LOG_EMPTY=0
 if [ ! -s "$LOG_FILE" ]; then
     LOG_EMPTY=1
     EXIT_CODE=1
+    echo "FATAL: Fuzz log is empty — binary produced no output." >&2
 fi
 
-DURATION=$((END_TS - START_TS))
+# Guard: fail if the log contains no libFuzzer output markers.
+if [ "$LOG_EMPTY" -eq 0 ] && ! grep -qE "^#[0-9]|exec/s:|INFO:" "$LOG_FILE"; then
+    echo "FATAL: Fuzz log contains no libFuzzer output markers (no #N lines, no exec/s, no INFO:)." >&2
+    EXIT_CODE=1
+fi
+
+# Guard: fail if actual runtime is under 50% of expected when no crash was found.
+# This catches silent exits where the binary quit immediately without fuzzing.
 CRASH_COUNT=$(ls -1 "$CRASH_DIR" 2>/dev/null | wc -l | tr -d ' ')
+MIN_EXPECTED=$((MAX_TIME / 2))
+if [ "$EXIT_CODE" -eq 0 ] && [ "$CRASH_COUNT" -eq 0 ] && [ "$WRAPPER_TIMEOUT" -eq 0 ] \
+   && [ "$DURATION" -lt "$MIN_EXPECTED" ] && [ "$MAX_TIME" -gt 10 ]; then
+    echo "FATAL: Actual runtime ${DURATION}s is less than 50% of expected ${MAX_TIME}s with no crashes; binary may have exited silently." >&2
+    EXIT_CODE=1
+fi
+
 SEED_COUNT=$(ls -1 "$SEED_CORPUS" 2>/dev/null | wc -l | tr -d ' ')
 CORPUS_COUNT=$(ls -1 "$OUTPUT_CORPUS" 2>/dev/null | wc -l | tr -d ' ')
 ITERATIONS=$(grep -E "stat::number_of_executed_units" "$LOG_FILE" | tail -1 | awk '{print $2}')
@@ -220,6 +263,7 @@ cat >"$RUN_REPORT" <<EOF
 - Run ID: $RUN_ID
 - Status: $STATUS
 - Duration: ${DURATION}s
+- Expected duration: ${MAX_TIME}s
 - Seed inputs: $SEED_COUNT
 - Corpus inputs: $CORPUS_COUNT
 - Crash inputs: $CRASH_COUNT
