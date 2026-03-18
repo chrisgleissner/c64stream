@@ -24,6 +24,7 @@ from .config import (
     load_properties,
     load_settings_from_obs_scene,
 )
+from .effect_transition import EffectTransitionAssertion
 from .frame_progression import FrameProgressionAssertion
 from .palette_mapping import PaletteMappingAssertion
 from .palette_stability import PaletteStabilityAssertion
@@ -41,6 +42,7 @@ from .runner import (
 from .scanlines import ScanlineAssertion
 from .sharp_pixels import SharpPixelsAssertion
 from .tint import TintAssertion
+from .tint_transition import TintTransitionAssertion
 from .video_quality import VideoQualityAssertion
 from .script_log import ScriptLogAssertion
 
@@ -60,6 +62,8 @@ __all__ = [
     "AvPopOffsetAssertion",
     "DebugLogPresenceAssertion",
     "TintAssertion",
+    "TintTransitionAssertion",
+    "EffectTransitionAssertion",
     "PaletteMappingAssertion",
     "PaletteStabilityAssertion",
     "AfterglowAssertion",

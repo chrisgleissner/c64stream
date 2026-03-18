@@ -399,6 +399,29 @@ bool c64script_dispatch_builtins(c64script_runtime_t *runtime, const c64script_i
             break;
         }
 
+        case C64SCRIPT_BUILTIN_ENV: {
+            if (arg_count != 1 && arg_count != 2) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "ENV expects 1 or 2 string arguments");
+                goto builtin_fail;
+            }
+            if (args[0].type != VALUE_STRING || (arg_count == 2 && args[1].type != VALUE_STRING)) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "ENV expects 1 or 2 string arguments");
+                goto builtin_fail;
+            }
+            const char *env_name = args[0].as.string;
+            const char *env_val = env_name ? getenv(env_name) : NULL;
+            if (env_val != NULL) {
+                result_val = c64script_value_string(env_val);
+            } else if (arg_count == 2) {
+                const char *default_val = args[1].as.string ? args[1].as.string : "";
+                result_val = c64script_value_string(default_val);
+            } else {
+                result_val = c64script_value_string("");
+            }
+            has_result = true;
+            break;
+        }
+
         default:
             snprintf(runtime->error_msg, sizeof(runtime->error_msg), "UNDEF'D FUNCTION");
             goto builtin_fail;

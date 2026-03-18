@@ -62,6 +62,15 @@ static void make_temp_log_path(char *out_path, size_t out_size)
 #endif
 }
 
+static void unset_test_env_or_die(const char *name)
+{
+#ifdef _WIN32
+    assert(_putenv_s(name, "") == 0);
+#else
+    assert(unsetenv(name) == 0);
+#endif
+}
+
 // Test helper macros
 #define TEST(name) static void name(void)
 #define RUN_TEST(name)                                                                                                 \
@@ -1005,6 +1014,49 @@ TEST(compile_duplicate_label_fails)
     c64script_ast_free(ast);
 }
 
+TEST(compile_builtin_env_wrong_arg_count_reports_allowed_arities)
+{
+    const char *source = "X$ = ENV()\n";
+    char error[256];
+
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error, sizeof(error));
+    assert(ast != NULL);
+
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    assert(runtime != NULL);
+
+    bool success = c64script_compile(ast, runtime, error, sizeof(error));
+    assert(!success);
+    assert(strstr(error, "ENV expects 1 or 2 arguments") != NULL);
+
+    c64script_runtime_destroy(runtime);
+    c64script_ast_free(ast);
+}
+
+TEST(execute_builtin_env_default_requires_string)
+{
+    const char *source = "X$ = ENV(\"C64SCRIPT_TEST_ABSENT_VAR_XYZ\", 123)\n";
+    char error[256];
+
+    unset_test_env_or_die("C64SCRIPT_TEST_ABSENT_VAR_XYZ");
+
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error, sizeof(error));
+    assert(ast != NULL);
+
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    assert(runtime != NULL);
+
+    bool success = c64script_compile(ast, runtime, error, sizeof(error));
+    assert(success);
+
+    success = c64script_execute(runtime);
+    assert(!success);
+    assert(strstr(runtime->error_msg, "ENV expects 1 or 2 string arguments") != NULL);
+
+    c64script_runtime_destroy(runtime);
+    c64script_ast_free(ast);
+}
+
 // ============================================================================
 // INTEGRATION TESTS FROM SPEC EXAMPLES
 // ============================================================================
@@ -1234,6 +1286,7 @@ int main(void)
     RUN_TEST(compile_arithmetic_expression);
     RUN_TEST(compile_if_statement);
     RUN_TEST(compile_goto_label);
+    RUN_TEST(compile_builtin_env_wrong_arg_count_reports_allowed_arities);
 
     printf("\n--- VM Execution Tests ---\n");
     RUN_TEST(execute_simple_assignment);
@@ -1255,6 +1308,7 @@ int main(void)
     RUN_TEST(execute_boolean_operator_precedence);
     RUN_TEST(execute_logfile_and_log);
     RUN_TEST(compile_duplicate_label_fails);
+    RUN_TEST(execute_builtin_env_default_requires_string);
 
     printf("\n--- Integration Tests from Spec Examples ---\n");
     RUN_TEST(integration_example_c_for_loop);

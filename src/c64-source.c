@@ -48,6 +48,62 @@ static void c64_set_expected_peer_ip(struct c64_source *context, const char *ip_
 static void c64_attempt_script_autostart(struct c64_source *context, obs_data_t *settings);
 static void c64_queue_properties_refresh(struct c64_source *context);
 
+static const char *C64_PRESET_LAST_APPLIED_KEY = "crt_preset_last_applied";
+
+static bool c64_source_settings_have_effect_overrides(obs_data_t *settings)
+{
+    if (!settings) {
+        return false;
+    }
+
+    return obs_data_has_user_value(settings, "scan_line_distance") ||
+           obs_data_has_user_value(settings, "scan_line_strength") ||
+           obs_data_has_user_value(settings, "pixel_width") || obs_data_has_user_value(settings, "pixel_height") ||
+           obs_data_has_user_value(settings, "blur_strength") || obs_data_has_user_value(settings, "bloom_strength") ||
+           obs_data_has_user_value(settings, "tint_mode") || obs_data_has_user_value(settings, "tint_strength") ||
+           obs_data_has_user_value(settings, "afterglow_duration_ms") ||
+           obs_data_has_user_value(settings, "afterglow_curve");
+}
+
+static bool c64_source_apply_crt_preset_if_needed(obs_data_t *settings, const char *preset_name, bool is_update)
+{
+    if (!settings || !preset_name || preset_name[0] == '\0') {
+        return false;
+    }
+
+    const char *last_applied = obs_data_get_string(settings, C64_PRESET_LAST_APPLIED_KEY);
+    const bool preset_changed = !last_applied || last_applied[0] == '\0' || strcmp(last_applied, preset_name) != 0;
+    if (!preset_changed) {
+        return false;
+    }
+
+    if ((!last_applied || last_applied[0] == '\0') && c64_source_settings_have_effect_overrides(settings)) {
+        if (is_update) {
+            C64_LOG_DEBUG("" EFFECT_LOG_PREFIX " Preset update skipped; manual effect overrides present");
+        } else {
+            C64_LOG_INFO("" EFFECT_LOG_PREFIX " Skipping preset auto-apply; custom effect overrides detected");
+        }
+        return false;
+    }
+
+    if (!c64_effect_apply(settings, preset_name)) {
+        if (is_update) {
+            C64_LOG_WARNING("" EFFECT_LOG_PREFIX " CRT preset in update not found: %s", preset_name);
+        } else {
+            C64_LOG_WARNING("" EFFECT_LOG_PREFIX " CRT preset not found: %s", preset_name);
+        }
+        return false;
+    }
+
+    obs_data_set_string(settings, C64_PRESET_LAST_APPLIED_KEY, preset_name);
+    if (is_update) {
+        C64_LOG_INFO("Applied CRT preset on update: %s", preset_name);
+    } else {
+        C64_LOG_INFO("Applied CRT preset from settings: %s", preset_name);
+    }
+    return true;
+}
+
 static bool c64_try_get_prefer_pal_from_obs_fps(bool *prefer_pal)
 {
     struct obs_video_info ovi;
@@ -90,18 +146,6 @@ static void c64_update_format_hint_if_needed(struct c64_source *context)
     }
     c64_apply_format_hint(context, prefer_pal);
     context->format_hint_set = true;
-}
-
-static bool settings_have_effect_overrides(obs_data_t *settings)
-{
-    if (!settings)
-        return false;
-
-    return obs_data_has_user_value(settings, "scan_line_distance") ||
-           obs_data_has_user_value(settings, "scan_line_strength") ||
-           obs_data_has_user_value(settings, "pixel_width") || obs_data_has_user_value(settings, "pixel_height") ||
-           obs_data_has_user_value(settings, "blur_strength") || obs_data_has_user_value(settings, "bloom_strength") ||
-           obs_data_has_user_value(settings, "tint_mode") || obs_data_has_user_value(settings, "tint_strength");
 }
 
 // Async retry task - runs in OBS thread pool (NOT render thread)
@@ -302,19 +346,8 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     // Load configuration file before initializing settings-dependent values
     c64_load_configuration(settings);
 
-    // Apply CRT preset from settings (if present) so effects activate on load
-    // This is essential for E2E scenarios that embed effect settings in OBS scene JSON
-    bool has_effect_overrides = settings_have_effect_overrides(settings);
     const char *initial_preset = obs_data_get_string(settings, "crt_preset");
-    if (!has_effect_overrides && initial_preset && initial_preset[0] != '\0') {
-        if (c64_effect_apply(settings, initial_preset)) {
-            C64_LOG_INFO("Applied CRT preset from settings: %s", initial_preset);
-        } else {
-            C64_LOG_WARNING("" EFFECT_LOG_PREFIX " CRT preset not found: %s", initial_preset);
-        }
-    } else if (has_effect_overrides) {
-        C64_LOG_INFO("" EFFECT_LOG_PREFIX " Skipping preset auto-apply; custom effect overrides detected");
-    }
+    c64_source_apply_crt_preset_if_needed(settings, initial_preset, false);
 
     context->source = source;
 
@@ -1012,19 +1045,8 @@ void c64_update(void *data, obs_data_t *settings)
 
     c64_attempt_script_autostart(context, settings);
 
-    // If a preset is specified and no manual overrides exist, apply it before reading effect values
-    // This supports E2E scenarios that set effects via OBS scene JSON source settings
-    bool has_effect_overrides = settings_have_effect_overrides(settings);
     const char *preset_name = obs_data_get_string(settings, "crt_preset");
-    if (!has_effect_overrides && preset_name && preset_name[0] != '\0') {
-        if (c64_effect_apply(settings, preset_name)) {
-            C64_LOG_INFO("Applied CRT preset on update: %s", preset_name);
-        } else {
-            C64_LOG_WARNING("" EFFECT_LOG_PREFIX " CRT preset in update not found: %s", preset_name);
-        }
-    } else if (has_effect_overrides) {
-        C64_LOG_DEBUG("" EFFECT_LOG_PREFIX " Preset update skipped; manual effect overrides present");
-    }
+    c64_source_apply_crt_preset_if_needed(settings, preset_name, true);
 
     // Update debug logging setting
     bool previous_debug_logging = c64_debug_logging;
@@ -2114,7 +2136,7 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
 
         // AltGr separation: on Windows, AltGr is delivered as Ctrl+Alt (synthetic Ctrl
         // precedes right-Alt). If both Ctrl and Alt are set and the key produced printable
-        // text, this is AltGr acting as a Level 3 shift — not a CBM modifier. Clear both
+        // text, this is AltGr acting as a Level 3 shift - not a CBM modifier. Clear both
         // bits so the text-based lookup path handles the character instead.
         if ((modifiers & 0x06) == 0x06 && has_printable_text) {
             modifiers &= ~0x06;

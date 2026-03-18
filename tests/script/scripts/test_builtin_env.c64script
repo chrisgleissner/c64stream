@@ -1,0 +1,44 @@
+REM Test ENV() built-in function
+REM Validates reading OS environment variables
+
+REM Test 1: Absent variable returns empty string
+ABSENT$ = ENV("C64SCRIPT_TEST_ABSENT_VAR_XYZ")
+IF ABSENT$ = "" THEN
+    LOG "Test 1 passed: absent env var returns empty string"
+ELSE
+    LOG "Test 1 FAILED: expected empty string, got: " + ABSENT$
+ENDIF
+
+REM Test 2: Dedicated test env var returns the fixed harness value
+PRESENT$ = ENV("C64SCRIPT_TEST_PRESENT_VAR")
+IF PRESENT$ = "stable-present-value" THEN
+    LOG "Test 2 passed: fixed env var returned expected value"
+ELSE
+    LOG "Test 2 FAILED: unexpected fixed env var value: " + PRESENT$
+ENDIF
+
+REM Test 3: VAL() on absent var yields 0
+NUM_VAL = VAL(ENV("C64SCRIPT_TEST_ABSENT_VAR_XYZ"))
+IF NUM_VAL = 0 THEN
+    LOG "Test 3 passed: VAL of absent env var is 0"
+ELSE
+    LOG "Test 3 FAILED: expected 0, got: " + STR$(NUM_VAL)
+ENDIF
+
+REM Test 4: Two-arg form returns default when var is absent
+DEFAULTED$ = ENV("C64SCRIPT_TEST_ABSENT_VAR_XYZ", "fallback")
+IF DEFAULTED$ = "fallback" THEN
+    LOG "Test 4 passed: default value used when var absent"
+ELSE
+    LOG "Test 4 FAILED: expected 'fallback', got: " + DEFAULTED$
+ENDIF
+
+REM Test 5: Two-arg form ignores default when var is set
+DEFAULTED_PRESENT$ = ENV("C64SCRIPT_TEST_PRESENT_VAR", "fallback")
+IF DEFAULTED_PRESENT$ = "stable-present-value" THEN
+    LOG "Test 5 passed: default not used when var is set"
+ELSE
+    LOG "Test 5 FAILED: fixed env var via two-arg form returned: " + DEFAULTED_PRESENT$
+ENDIF
+
+STOP
