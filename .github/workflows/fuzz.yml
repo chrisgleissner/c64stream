@@ -12,16 +12,32 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install clang/LLVM
-        run: sudo apt-get update -qq && sudo apt-get install -y clang llvm
+      - name: Install dependencies
+        run: |
+          : Install dependencies
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            clang \
+            llvm \
+            cmake \
+            ninja-build \
+            libobs-dev \
+            libcurl4-openssl-dev \
+            libsimde-dev
+
+      - name: Validate script exists
+        run: |
+          : Validate fuzz script exists
+          echo "PWD: $(pwd)"
+          ls -la tests/script/fuzz/fuzz.sh
+          test -x tests/script/fuzz/fuzz.sh || { echo "ERROR: fuzz.sh is not executable"; exit 1; }
 
       - name: Run fuzzing
         continue-on-error: true
         env:
-          RUN_FUZZ: "1"
           FUZZ_TIME_SECONDS: "14400"
           FUZZ_JOBS: "2"
-        run: ./local-build.sh linux
+        run: ./tests/script/fuzz/fuzz.sh
 
       - name: Upload fuzz results
         if: always()
