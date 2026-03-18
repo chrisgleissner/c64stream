@@ -400,7 +400,11 @@ bool c64script_dispatch_builtins(c64script_runtime_t *runtime, const c64script_i
         }
 
         case C64SCRIPT_BUILTIN_ENV: {
-            if ((arg_count != 1 && arg_count != 2) || args[0].type != VALUE_STRING) {
+            if (arg_count != 1 && arg_count != 2) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg), "ENV expects 1 or 2 string arguments");
+                goto builtin_fail;
+            }
+            if (args[0].type != VALUE_STRING || (arg_count == 2 && args[1].type != VALUE_STRING)) {
                 snprintf(runtime->error_msg, sizeof(runtime->error_msg), "ENV expects 1 or 2 string arguments");
                 goto builtin_fail;
             }
@@ -409,8 +413,7 @@ bool c64script_dispatch_builtins(c64script_runtime_t *runtime, const c64script_i
             if (env_val != NULL) {
                 result_val = c64script_value_string(env_val);
             } else if (arg_count == 2) {
-                // Use caller-supplied default value
-                const char *default_val = (args[1].type == VALUE_STRING && args[1].as.string) ? args[1].as.string : "";
+                const char *default_val = args[1].as.string ? args[1].as.string : "";
                 result_val = c64script_value_string(default_val);
             } else {
                 result_val = c64script_value_string("");

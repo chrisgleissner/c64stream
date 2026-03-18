@@ -347,17 +347,41 @@ static bool compile_named_builtin(compiler_context_t *ctx, c64script_ast_expr_t 
         }
     }
 
-    // Second pass: name matched but wrong arg count - report error
+    // Second pass: name matched but wrong arg count - report allowed arities
+    size_t allowed_counts[8];
+    size_t allowed_count_count = 0;
     for (size_t i = 0; i < sizeof(builtins) / sizeof(builtins[0]); i++) {
         if (strcmp(expr->as.call.name, builtins[i].name) == 0) {
-            if (handled) {
-                *handled = true;
+            bool already_recorded = false;
+            for (size_t j = 0; j < allowed_count_count; j++) {
+                if (allowed_counts[j] == builtins[i].arg_count) {
+                    already_recorded = true;
+                    break;
+                }
             }
-            if (ctx->error_msg) {
-                snprintf(ctx->error_msg, ctx->error_msg_size, "Wrong number of arguments for %s", expr->as.call.name);
+            if (!already_recorded && allowed_count_count < sizeof(allowed_counts) / sizeof(allowed_counts[0])) {
+                allowed_counts[allowed_count_count++] = builtins[i].arg_count;
             }
-            return false;
         }
+    }
+
+    if (allowed_count_count > 0) {
+        if (handled) {
+            *handled = true;
+        }
+        if (ctx->error_msg) {
+            if (allowed_count_count == 1) {
+                snprintf(ctx->error_msg, ctx->error_msg_size, "%s expects %zu argument%s", expr->as.call.name,
+                         allowed_counts[0], allowed_counts[0] == 1 ? "" : "s");
+            } else if (allowed_count_count == 2) {
+                snprintf(ctx->error_msg, ctx->error_msg_size, "%s expects %zu or %zu arguments", expr->as.call.name,
+                         allowed_counts[0], allowed_counts[1]);
+            } else {
+                snprintf(ctx->error_msg, ctx->error_msg_size, "%s received an unsupported number of arguments",
+                         expr->as.call.name);
+            }
+        }
+        return false;
     }
 
     return false;

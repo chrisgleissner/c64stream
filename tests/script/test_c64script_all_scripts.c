@@ -79,6 +79,28 @@ c64_keyboard_t *c64script_test_keyboard_create(void);
 void c64script_test_keyboard_destroy(c64_keyboard_t *keyboard);
 const char *c64script_test_keyboard_log(const c64_keyboard_t *keyboard);
 
+static const char *C64SCRIPT_TEST_PRESENT_ENV_NAME = "C64SCRIPT_TEST_PRESENT_VAR";
+static const char *C64SCRIPT_TEST_PRESENT_ENV_VALUE = "stable-present-value";
+static const char *C64SCRIPT_TEST_ABSENT_ENV_NAME = "C64SCRIPT_TEST_ABSENT_VAR_XYZ";
+
+static void c64script_set_test_env_or_die(const char *name, const char *value)
+{
+#ifdef _WIN32
+    assert(_putenv_s(name, value) == 0);
+#else
+    assert(setenv(name, value, 1) == 0);
+#endif
+}
+
+static void c64script_unset_test_env_or_die(const char *name)
+{
+#ifdef _WIN32
+    assert(_putenv_s(name, "") == 0);
+#else
+    assert(unsetenv(name) == 0);
+#endif
+}
+
 // Global counters
 static int parse_success = 0;
 static int parse_expected_fail = 0;
@@ -599,6 +621,9 @@ int main(int argc, char **argv)
 {
     printf("=== C64Script Repository-Wide Validation ===\n\n");
 
+    c64script_set_test_env_or_die(C64SCRIPT_TEST_PRESENT_ENV_NAME, C64SCRIPT_TEST_PRESENT_ENV_VALUE);
+    c64script_unset_test_env_or_die(C64SCRIPT_TEST_ABSENT_ENV_NAME);
+
     // Find all .c64script files in tests/script directory
     char **files = malloc(100 * sizeof(char *));
     int count = 0;
@@ -742,10 +767,12 @@ int main(int argc, char **argv)
     free(files);
 
     if (unexpected_failures > 0) {
+        c64script_unset_test_env_or_die(C64SCRIPT_TEST_PRESENT_ENV_NAME);
         fprintf(stderr, "\n❌ FAILED: %d unexpected failures\n", unexpected_failures);
         return 1;
     }
 
+    c64script_unset_test_env_or_die(C64SCRIPT_TEST_PRESENT_ENV_NAME);
     printf("\n✅ All repository scripts validated successfully!\n");
     return 0;
 }

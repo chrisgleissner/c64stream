@@ -9,11 +9,12 @@ ELSE
     LOG "Test 1 FAILED: expected empty string, got: " + ABSENT$
 ENDIF
 
-REM Test 2: Standard env var PATH is set in all environments
-IF LEN(ENV("PATH")) > 0 THEN
-    LOG "Test 2 passed: PATH is set"
+REM Test 2: Dedicated test env var returns the fixed harness value
+PRESENT$ = ENV("C64SCRIPT_TEST_PRESENT_VAR")
+IF PRESENT$ = "stable-present-value" THEN
+    LOG "Test 2 passed: fixed env var returned expected value"
 ELSE
-    LOG "Test 2 FAILED: PATH was empty"
+    LOG "Test 2 FAILED: unexpected fixed env var value: " + PRESENT$
 ENDIF
 
 REM Test 3: VAL() on absent var yields 0
@@ -33,10 +34,11 @@ ELSE
 ENDIF
 
 REM Test 5: Two-arg form ignores default when var is set
-IF LEN(ENV("PATH", "no-path")) > 0 AND ENV("PATH", "no-path") <> "no-path" THEN
+DEFAULTED_PRESENT$ = ENV("C64SCRIPT_TEST_PRESENT_VAR", "fallback")
+IF DEFAULTED_PRESENT$ = "stable-present-value" THEN
     LOG "Test 5 passed: default not used when var is set"
 ELSE
-    LOG "Test 5 FAILED: PATH via two-arg form was empty or returned default"
+    LOG "Test 5 FAILED: fixed env var via two-arg form returned: " + DEFAULTED_PRESENT$
 ENDIF
 
 STOP
