@@ -1,4 +1,4 @@
-#include "../../src/c64-playlist-window.h"
+#include "c64-playlist-window.h"
 
 #include <stdio.h>
 

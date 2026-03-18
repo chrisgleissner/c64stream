@@ -2,10 +2,10 @@ add_executable(
   test_c64_stream_effects_pipeline
   test_c64_stream_effects_pipeline.c
   obs_stubs.c
-  ${CMAKE_SOURCE_DIR}/src/c64-stream-effects.c
-  ${CMAKE_SOURCE_DIR}/src/c64-effect-afterglow.c
+  ${CMAKE_SOURCE_DIR}/src/video/c64-stream-effects.c
+  ${CMAKE_SOURCE_DIR}/src/video/c64-effect-afterglow.c
 )
-target_include_directories(test_c64_stream_effects_pipeline PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(test_c64_stream_effects_pipeline PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/util ${CMAKE_SOURCE_DIR}/src/video)
 if(UNIX)
   target_link_libraries(test_c64_stream_effects_pipeline PRIVATE OBS::libobs m)
 else()

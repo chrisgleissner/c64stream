@@ -9,8 +9,8 @@ See <https://www.gnu.org/licenses/> for details.
 #ifndef C64SCRIPT_TEST_STUBS_H
 #define C64SCRIPT_TEST_STUBS_H
 
-#include "../../src/c64-keyboard.h"
-#include "../../src/c64-rest-client.h"
+#include "c64-keyboard.h"
+#include "c64-rest-client.h"
 
 #include <stdint.h>
 

@@ -1,7 +1,7 @@
-#include "../../src/c64-interact-key.h"
-#include "../../src/c64-file.h"
-#include "../../src/c64-keyboard.h"
-#include "../../src/c64-rest-client.h"
+#include "c64-interact-key.h"
+#include "c64-file.h"
+#include "c64-keyboard.h"
+#include "c64-rest-client.h"
 
 #include <obs-module.h>
 #include <util/platform.h>
