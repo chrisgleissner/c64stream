@@ -2,6 +2,11 @@ name: c64script-fuzz
 
 on:
   workflow_dispatch:
+    inputs:
+      fuzz_time_seconds:
+        description: "Fuzz duration in seconds (default: 120 for dispatch, 14400 for nightly)"
+        required: false
+        default: "120"
   schedule:
     - cron: "0 2 * * 0"
 
@@ -33,11 +38,13 @@ jobs:
           test -x tests/script/fuzz/fuzz.sh || { echo "ERROR: fuzz.sh is not executable"; exit 1; }
 
       - name: Run fuzzing
-        continue-on-error: true
         env:
-          FUZZ_TIME_SECONDS: "14400"
+          FUZZ_DURATION: ${{ github.event_name == 'schedule' && '14400' || github.event.inputs.fuzz_time_seconds || '120' }}
           FUZZ_JOBS: "2"
-        run: ./tests/script/fuzz/fuzz.sh
+        run: |
+          : Run fuzzing
+          echo "Configured fuzz duration: ${FUZZ_DURATION}s (event: ${{ github.event_name }})"
+          ./tests/script/fuzz/fuzz.sh "${FUZZ_DURATION}"
 
       - name: Upload fuzz results
         if: always()
@@ -46,3 +53,40 @@ jobs:
           name: c64script-fuzz-${{ github.run_id }}
           path: tests/script/fuzz/results
           if-no-files-found: warn
+
+      - name: Inspect fuzz artifacts
+        if: always()
+        run: |
+          : Inspect fuzz artifacts
+          RESULTS_DIR="tests/script/fuzz/results"
+          echo "=== Fuzz results directory ==="
+          ls -la "${RESULTS_DIR}" 2>/dev/null || echo "(results directory not found)"
+          echo ""
+          echo "=== Corpus size ==="
+          CORPUS_COUNT=$(ls -1 "${RESULTS_DIR}/corpus" 2>/dev/null | wc -l)
+          echo "Corpus entries: ${CORPUS_COUNT}"
+          echo ""
+          echo "=== Crash inputs ==="
+          CRASH_COUNT=$(ls -1 "${RESULTS_DIR}/crashes" 2>/dev/null | wc -l)
+          echo "Crash entries: ${CRASH_COUNT}"
+          if [ "${CRASH_COUNT}" -gt 0 ]; then
+            echo "CRASH FILES:"
+            ls -la "${RESULTS_DIR}/crashes"
+          fi
+          echo ""
+          echo "=== Latest fuzz log (last 50 lines) ==="
+          LATEST_LOG=$(ls -t "${RESULTS_DIR}/logs"/fuzz-*.log 2>/dev/null | head -1)
+          if [ -n "${LATEST_LOG}" ]; then
+            echo "Log: ${LATEST_LOG}"
+            tail -50 "${LATEST_LOG}"
+          else
+            echo "(no log files found)"
+          fi
+          echo ""
+          echo "=== Run report ==="
+          LATEST_REPORT=$(ls -t "${RESULTS_DIR}"/run-*.md 2>/dev/null | head -1)
+          if [ -n "${LATEST_REPORT}" ]; then
+            cat "${LATEST_REPORT}"
+          else
+            echo "(no run report found)"
+          fi
