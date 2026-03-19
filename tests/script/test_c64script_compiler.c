@@ -16,7 +16,9 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64script_test_stubs.h"
 
 #include <assert.h>
+#ifdef C64_HAVE_PNG
 #include <png.h>
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -96,6 +98,7 @@ static void remove_temp_dir(const char *path)
 #endif
 }
 
+#ifdef C64_HAVE_PNG
 static void write_test_png_rgba(const char *path, uint32_t width, uint32_t height, const uint8_t *pixels)
 {
     FILE *fp = fopen(path, "wb");
@@ -128,6 +131,7 @@ static void write_test_png_rgba(const char *path, uint32_t width, uint32_t heigh
     png_destroy_write_struct(&png_ptr, &info_ptr);
     fclose(fp);
 }
+#endif /* C64_HAVE_PNG */
 
 static void unset_test_env_or_die(const char *name)
 {
@@ -1254,6 +1258,7 @@ TEST(execute_obs_screenshot_propagates_stub_failure)
     remove_temp_dir(test_dir);
 }
 
+#ifdef C64_HAVE_PNG
 TEST(execute_assert_image_equals_succeeds_for_identical_pngs)
 {
     const char *source = "ASSERT IMAGE_EQUALS \"actual.png\", \"expected.png\" TOLERANCE 0\nSTOP\n";
@@ -1394,6 +1399,7 @@ TEST(execute_assert_image_equals_detects_dimension_mismatch)
     cleanup_temp_path(diff_path);
     remove_temp_dir(test_dir);
 }
+#endif /* C64_HAVE_PNG */
 
 // ============================================================================
 // INTEGRATION TESTS FROM SPEC EXAMPLES
@@ -1651,9 +1657,11 @@ int main(void)
     RUN_TEST(execute_obs_wait_frames_propagates_stub_failure);
     RUN_TEST(execute_obs_screenshot_resolves_relative_path);
     RUN_TEST(execute_obs_screenshot_propagates_stub_failure);
+#ifdef C64_HAVE_PNG
     RUN_TEST(execute_assert_image_equals_succeeds_for_identical_pngs);
     RUN_TEST(execute_assert_image_equals_writes_diff_on_mismatch);
     RUN_TEST(execute_assert_image_equals_detects_dimension_mismatch);
+#endif /* C64_HAVE_PNG */
 
     printf("\n--- Integration Tests from Spec Examples ---\n");
     RUN_TEST(integration_example_c_for_loop);
