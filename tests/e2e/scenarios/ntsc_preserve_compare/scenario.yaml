@@ -19,3 +19,8 @@ assertions:
   - audio
   - script_status
   - preserve_size_canvas_match
+  - scanlines
+thresholds:
+  scanlines:
+    mode: quantitative
+    scan_line_distance_override: 0.5
