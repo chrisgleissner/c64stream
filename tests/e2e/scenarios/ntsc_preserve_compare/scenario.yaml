@@ -18,3 +18,4 @@ assertions:
   - video_quality
   - audio
   - script_status
+  - preserve_size_canvas_match

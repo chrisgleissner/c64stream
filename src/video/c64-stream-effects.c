@@ -796,9 +796,9 @@ void c64_stream_effects_video_render(void *data, gs_effect_t *effect)
     gs_effect_set_texture(gs_effect_get_param_by_name(state->crt_effect, "texture_accum_prev"), state->output_texture);
 
     gs_effect_set_float(gs_effect_get_param_by_name(state->crt_effect, "virtual_output_width"),
-                        (float)geometry.virtual_width);
+                        (float)geometry.draw_width);
     gs_effect_set_float(gs_effect_get_param_by_name(state->crt_effect, "virtual_output_height"),
-                        (float)geometry.virtual_height);
+                        (float)geometry.draw_height);
     gs_effect_set_float(gs_effect_get_param_by_name(state->crt_effect, "blur_strength"), state->blur_strength);
     gs_effect_set_float(gs_effect_get_param_by_name(state->crt_effect, "bloom_strength"), state->bloom_strength);
     gs_effect_set_float(gs_effect_get_param_by_name(state->crt_effect, "source_width"), (float)width);

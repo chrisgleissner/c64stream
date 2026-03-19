@@ -193,7 +193,7 @@ static void c64_source_get_effect_geometry(const struct c64_source *context, str
 {
     c64_effect_geometry_init(geometry, context ? context->width : 0, context ? context->height : 0,
                              context ? context->pixel_width : 1.0f, context ? context->pixel_height : 1.0f,
-                             context ? context->scan_line_distance : 0.0f, false);
+                             context ? context->scan_line_distance : 0.0f, context ? context->preserve_size : false);
 }
 
 static void c64_apply_format_hint(struct c64_source *context, bool prefer_pal)
@@ -2124,9 +2124,9 @@ void c64_video_render(void *data, gs_effect_t *effect)
     c64_source_get_effect_geometry(context, &geometry);
 
     gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "virtual_output_width"),
-                        (float)geometry.virtual_width);
+                        (float)geometry.draw_width);
     gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "virtual_output_height"),
-                        (float)geometry.virtual_height);
+                        (float)geometry.draw_height);
 
     // Set blur/bloom strengths directly - no scaling needed since we render at correct size
     gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "blur_strength"), context->blur_strength);

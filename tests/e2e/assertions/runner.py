@@ -41,6 +41,7 @@ from .tint import TintAssertion
 from .effect_transition import EffectTransitionAssertion
 from .tint_transition import TintTransitionAssertion
 from .video_quality import VideoQualityAssertion
+from .preserve_size_canvas_match import PreserveSizeCanvasMatchAssertion
 from .script_log import ScriptLogAssertion
 from .script_record import ScriptRecordAssertion
 from .script_status import ScriptStatusAssertion
@@ -217,6 +218,7 @@ def create_assertions_from_list(
         "record_obs": RecordObsAssertion,
         "record_network": RecordNetworkAssertion,
         "record_frames": RecordFramesAssertion,
+        "preserve_size_canvas_match": PreserveSizeCanvasMatchAssertion,
         "script_log": ScriptLogAssertion,
         "script_record": ScriptRecordAssertion,
         "script_status": ScriptStatusAssertion,

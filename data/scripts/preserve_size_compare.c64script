@@ -1,7 +1,19 @@
-REM Preserve-size preview comparison
-REM Proves deterministic SOURCE and PREVIEW capture independently, then compares preserve_size off/on
+REM Preserve-size comparison
+REM
+REM Phase 1 (PREFLIGHT): proves SOURCE and PREVIEW capture are deterministic at
+REM legacy settings (preserve_size=0, Default effect).
+REM
+REM Phase 2 (COMPARE_DEFAULT): Default has virtual==logical so preserve_size=0
+REM and preserve_size=1 produce identical screenshots; equality is asserted.
+REM
+REM Phase 3 (COMPARE_*): for effects with virtual != logical dimensions,
+REM preserve_size=1 keeps SOURCE at logical size while preserve_size=0 is virtual.
+REM Cross-mode equality is NOT asserted (they differ by design after the fix).
+REM Instead we assert SOURCE determinism: two consecutive preserve_size=1 shots
+REM must be equal.  Footprint invariance across the effect matrix is validated by
+REM the bounds_stability assertion on the ntsc_preserve_effect_cycle recording.
 
-LOG "Starting preserve-size preview comparison"
+LOG "Starting preserve-size comparison"
 WAIT 14s
 
 PREFLIGHT_DEFAULT:
@@ -35,6 +47,9 @@ ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/default_sour
 ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/default_preview_preserve.png", "../../tests/e2e/artifacts/effect_preserve_size/default_preview_legacy.png" TOLERANCE 0
 
 COMPARE_CLASSIC:
+REM Classic CRT: virtual_height = logical_height * scanline_period (typically 3x).
+REM preserve_size=1 SOURCE is at logical dims; preserve_size=0 is virtual (larger).
+REM Cross-mode equality is intentionally NOT asserted; assert determinism instead.
 EFFECTPARAM "preserve_size" 0
 EFFECT "Classic CRT"
 OBS WAIT FRAMES 10
@@ -44,8 +59,9 @@ EFFECTPARAM "preserve_size" 1
 OBS WAIT FRAMES 10
 OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/classic_source_preserve.png"
 OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/classic_preview_preserve.png"
-ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/classic_source_preserve.png", "../../tests/e2e/artifacts/effect_preserve_size/classic_source_legacy.png" TOLERANCE 0
-ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/classic_preview_preserve.png", "../../tests/e2e/artifacts/effect_preserve_size/classic_preview_legacy.png" TOLERANCE 0
+OBS WAIT FRAMES 1
+OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/classic_source_preserve_2.png"
+ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/classic_source_preserve.png", "../../tests/e2e/artifacts/effect_preserve_size/classic_source_preserve_2.png" TOLERANCE 0
 
 COMPARE_SHARP:
 EFFECTPARAM "preserve_size" 0
@@ -57,8 +73,9 @@ EFFECTPARAM "preserve_size" 1
 OBS WAIT FRAMES 10
 OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/sharp_source_preserve.png"
 OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/sharp_preview_preserve.png"
-ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/sharp_source_preserve.png", "../../tests/e2e/artifacts/effect_preserve_size/sharp_source_legacy.png" TOLERANCE 0
-ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/sharp_preview_preserve.png", "../../tests/e2e/artifacts/effect_preserve_size/sharp_preview_legacy.png" TOLERANCE 0
+OBS WAIT FRAMES 1
+OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/sharp_source_preserve_2.png"
+ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/sharp_source_preserve.png", "../../tests/e2e/artifacts/effect_preserve_size/sharp_source_preserve_2.png" TOLERANCE 0
 
 COMPARE_VINTAGE:
 EFFECTPARAM "preserve_size" 0
@@ -70,8 +87,9 @@ EFFECTPARAM "preserve_size" 1
 OBS WAIT FRAMES 10
 OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/vintage_source_preserve.png"
 OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/vintage_preview_preserve.png"
-ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/vintage_source_preserve.png", "../../tests/e2e/artifacts/effect_preserve_size/vintage_source_legacy.png" TOLERANCE 0
-ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/vintage_preview_preserve.png", "../../tests/e2e/artifacts/effect_preserve_size/vintage_preview_legacy.png" TOLERANCE 0
+OBS WAIT FRAMES 1
+OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/vintage_source_preserve_2.png"
+ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/vintage_source_preserve.png", "../../tests/e2e/artifacts/effect_preserve_size/vintage_source_preserve_2.png" TOLERANCE 0
 
 COMPARE_ARCADE:
 EFFECTPARAM "preserve_size" 0
@@ -83,8 +101,9 @@ EFFECTPARAM "preserve_size" 1
 OBS WAIT FRAMES 10
 OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/arcade_source_preserve.png"
 OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/arcade_preview_preserve.png"
-ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/arcade_source_preserve.png", "../../tests/e2e/artifacts/effect_preserve_size/arcade_source_legacy.png" TOLERANCE 0
-ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/arcade_preview_preserve.png", "../../tests/e2e/artifacts/effect_preserve_size/arcade_preview_legacy.png" TOLERANCE 0
+OBS WAIT FRAMES 1
+OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/arcade_source_preserve_2.png"
+ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/arcade_source_preserve.png", "../../tests/e2e/artifacts/effect_preserve_size/arcade_source_preserve_2.png" TOLERANCE 0
 
-LOG "Preserve-size preview comparison completed"
+LOG "Preserve-size comparison completed"
 STOP
