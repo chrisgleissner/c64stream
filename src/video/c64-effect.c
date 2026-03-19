@@ -7,6 +7,7 @@ See <https://www.gnu.org/licenses/> for details.
 */
 #include "c64-effect.h"
 #include "c64-logging.h"
+#include <math.h>
 #include <obs-module.h>
 #include <util/dstr.h>
 #include <stdio.h>
