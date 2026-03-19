@@ -17,7 +17,7 @@ import unittest
 from pathlib import Path
 from typing import Any
 
-from tests.e2e.util.generate_packets import VIDEO_FORMATS, generate_audio_packet, generate_video_packet
+from util.generate_packets import VIDEO_FORMATS, generate_audio_packet, generate_video_packet
 
 
 def create_packet_timeline(
