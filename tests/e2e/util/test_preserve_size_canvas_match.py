@@ -168,6 +168,8 @@ class TestSourceDimensionValidation(unittest.TestCase):
             result = self.mod.validate_source_dimensions(
                 png_path, expected_w=384, expected_h=240
             )
+            if result.status == "skip":
+                self.skipTest(result.message)
             self.assertTrue(result.ok, f"Expected pass but got: {result.message}")
 
     def test_virtual_crt_size_fails(self):
@@ -178,6 +180,8 @@ class TestSourceDimensionValidation(unittest.TestCase):
             result = self.mod.validate_source_dimensions(
                 png_path, expected_w=384, expected_h=240
             )
+            if result.status == "skip":
+                self.skipTest(result.message)
             self.assertFalse(result.ok, "Expected FAIL for wrong source dimensions")
             self.assertIn("384", result.message)
             self.assertIn("720", result.message)
@@ -201,6 +205,8 @@ class TestSourceDimensionValidation(unittest.TestCase):
                 expected_h=240,
                 checkpoint_name="classic_preserve",
             )
+            if result.status == "skip":
+                self.skipTest(result.message)
             self.assertIn("classic_preserve", result.message)
 
 

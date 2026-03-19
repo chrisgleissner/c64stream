@@ -3,6 +3,7 @@
 
 numpy>=1.24.0
 opencv-python>=4.8.0
+Pillow>=10.0.0
 scipy>=1.11.0
 requests>=2.31.0
 PyYAML>=6.0
