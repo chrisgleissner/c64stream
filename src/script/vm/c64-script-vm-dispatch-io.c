@@ -14,7 +14,9 @@ See <https://www.gnu.org/licenses/> for details.
 
 #include <curl/curl.h>
 #include <math.h>
+#ifdef C64_HAVE_PNG
 #include <png.h>
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -30,6 +32,8 @@ typedef struct {
     char *data;
     size_t size;
 } c64script_http_response_t;
+
+#ifdef C64_HAVE_PNG
 
 typedef struct {
     uint32_t width;
@@ -353,6 +357,8 @@ static bool c64script_compare_images(const c64script_image_rgba_t *actual, const
     return true;
 }
 
+#endif /* C64_HAVE_PNG */
+
 static size_t http_write_callback(char *ptr, size_t size, size_t nmemb, void *userdata)
 {
     size_t total = size * nmemb;
@@ -384,6 +390,7 @@ bool c64script_dispatch_io(c64script_runtime_t *runtime, const c64script_instruc
 #else
     switch (instr->opcode) {
     case OP_ASSERT_IMAGE_EQUALS: {
+#ifdef C64_HAVE_PNG
         c64script_value_t tolerance_val;
         c64script_value_t expected_path_val;
         c64script_value_t actual_path_val;
@@ -485,6 +492,10 @@ bool c64script_dispatch_io(c64script_runtime_t *runtime, const c64script_instruc
         c64script_free_image(&actual);
         c64script_free_image(&expected);
         break;
+#else
+        snprintf(runtime->error_msg, sizeof(runtime->error_msg), "PNG support not available");
+        return false;
+#endif
     }
 
     case OP_RUNLOCAL: {

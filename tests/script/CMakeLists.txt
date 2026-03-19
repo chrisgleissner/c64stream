@@ -27,6 +27,7 @@ else()
 endif()
 if(PNG_FOUND)
   target_link_libraries(c64script_vm_test_deps INTERFACE PNG::PNG)
+  target_compile_definitions(c64script_vm_test_deps INTERFACE C64_HAVE_PNG)
 endif()
 
 # Parser unit tests require libobs headers for logging utilities

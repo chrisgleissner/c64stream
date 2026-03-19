@@ -172,6 +172,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE OBS::libobs)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE CURL::libcurl)
 if(PNG_FOUND)
   target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE PNG::PNG)
+  target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE C64_HAVE_PNG)
 endif()
 
 if(ENABLE_FRONTEND_API)
