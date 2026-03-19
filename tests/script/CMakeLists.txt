@@ -17,13 +17,16 @@ set(C64_ALL_INCLUDE_DIRS
   ${CMAKE_SOURCE_DIR}/src/video
 )
 
-find_package(PNG REQUIRED)
+find_package(PNG)
 
 add_library(c64script_vm_test_deps INTERFACE)
 if(UNIX)
-  target_link_libraries(c64script_vm_test_deps INTERFACE OBS::libobs CURL::libcurl PNG::PNG m)
+  target_link_libraries(c64script_vm_test_deps INTERFACE OBS::libobs CURL::libcurl m)
 else()
-  target_link_libraries(c64script_vm_test_deps INTERFACE OBS::libobs CURL::libcurl PNG::PNG)
+  target_link_libraries(c64script_vm_test_deps INTERFACE OBS::libobs CURL::libcurl)
+endif()
+if(PNG_FOUND)
+  target_link_libraries(c64script_vm_test_deps INTERFACE PNG::PNG)
 endif()
 
 # Parser unit tests require libobs headers for logging utilities
