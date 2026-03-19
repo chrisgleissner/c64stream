@@ -1124,6 +1124,277 @@ TEST(execute_builtin_env_default_requires_string)
     c64script_ast_free(ast);
 }
 
+TEST(execute_obs_wait_frames_uses_render_counter_stub)
+{
+    const char *source = "OBS WAIT FRAMES 3\nSTOP\n";
+    char error[256];
+    char test_dir[512];
+    char script_path[640];
+
+    make_temp_test_dir(test_dir, sizeof(test_dir));
+    snprintf(script_path, sizeof(script_path), "%s/script.c64script", test_dir);
+
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error, sizeof(error));
+    assert(ast != NULL);
+
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    assert(runtime != NULL);
+    runtime->source_data = (void *)0x1;
+    c64script_runtime_set_script_path(runtime, script_path);
+    c64script_test_source_stub_reset();
+
+    bool success = c64script_compile(ast, runtime, error, sizeof(error));
+    assert(success);
+    success = c64script_execute(runtime);
+    assert(success);
+    assert(c64script_test_source_wait_call_count() == 1);
+    assert(c64script_test_source_last_wait_frame_count() == 3);
+
+    c64script_runtime_destroy(runtime);
+    c64script_ast_free(ast);
+    remove_temp_dir(test_dir);
+}
+
+TEST(execute_obs_wait_frames_propagates_stub_failure)
+{
+    const char *source = "OBS WAIT FRAMES 2\nSTOP\n";
+    char error[256];
+    char test_dir[512];
+    char script_path[640];
+
+    make_temp_test_dir(test_dir, sizeof(test_dir));
+    snprintf(script_path, sizeof(script_path), "%s/script.c64script", test_dir);
+
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error, sizeof(error));
+    assert(ast != NULL);
+
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    assert(runtime != NULL);
+    runtime->source_data = (void *)0x1;
+    c64script_runtime_set_script_path(runtime, script_path);
+    c64script_test_source_stub_reset();
+    c64script_test_source_wait_fail_next("wait failed in stub");
+
+    bool success = c64script_compile(ast, runtime, error, sizeof(error));
+    assert(success);
+    success = c64script_execute(runtime);
+    assert(!success);
+    assert(strcmp(runtime->error_msg, "wait failed in stub") == 0);
+    assert(c64script_test_source_wait_call_count() == 1);
+
+    c64script_runtime_destroy(runtime);
+    c64script_ast_free(ast);
+    remove_temp_dir(test_dir);
+}
+
+TEST(execute_obs_screenshot_resolves_relative_path)
+{
+    const char *source = "OBS SCREENSHOT TARGET PREVIEW PATH \"capture.png\"\nSTOP\n";
+    char error[256];
+    char test_dir[512];
+    char script_path[640];
+    char expected_path[640];
+
+    make_temp_test_dir(test_dir, sizeof(test_dir));
+    snprintf(script_path, sizeof(script_path), "%s/script.c64script", test_dir);
+    snprintf(expected_path, sizeof(expected_path), "%s/capture.png", test_dir);
+
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error, sizeof(error));
+    assert(ast != NULL);
+
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    assert(runtime != NULL);
+    runtime->source_data = (void *)0x1;
+    c64script_runtime_set_script_path(runtime, script_path);
+    c64script_test_source_stub_reset();
+
+    bool success = c64script_compile(ast, runtime, error, sizeof(error));
+    assert(success);
+    success = c64script_execute(runtime);
+    assert(success);
+    assert(c64script_test_source_screenshot_call_count() == 1);
+    assert(c64script_test_source_last_screenshot_preview());
+    assert(strcmp(c64script_test_source_last_screenshot_path(), expected_path) == 0);
+
+    c64script_runtime_destroy(runtime);
+    c64script_ast_free(ast);
+    remove_temp_dir(test_dir);
+}
+
+TEST(execute_obs_screenshot_propagates_stub_failure)
+{
+    const char *source = "OBS SCREENSHOT TARGET SOURCE PATH \"capture.png\"\nSTOP\n";
+    char error[256];
+    char test_dir[512];
+    char script_path[640];
+
+    make_temp_test_dir(test_dir, sizeof(test_dir));
+    snprintf(script_path, sizeof(script_path), "%s/script.c64script", test_dir);
+
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error, sizeof(error));
+    assert(ast != NULL);
+
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    assert(runtime != NULL);
+    runtime->source_data = (void *)0x1;
+    c64script_runtime_set_script_path(runtime, script_path);
+    c64script_test_source_stub_reset();
+    c64script_test_source_screenshot_fail_next("screenshot failed in stub");
+
+    bool success = c64script_compile(ast, runtime, error, sizeof(error));
+    assert(success);
+    success = c64script_execute(runtime);
+    assert(!success);
+    assert(strcmp(runtime->error_msg, "screenshot failed in stub") == 0);
+    assert(c64script_test_source_screenshot_call_count() == 1);
+    assert(!c64script_test_source_last_screenshot_preview());
+
+    c64script_runtime_destroy(runtime);
+    c64script_ast_free(ast);
+    remove_temp_dir(test_dir);
+}
+
+TEST(execute_assert_image_equals_succeeds_for_identical_pngs)
+{
+    const char *source = "ASSERT IMAGE_EQUALS \"actual.png\", \"expected.png\" TOLERANCE 0\nSTOP\n";
+    static const uint8_t pixels[] = {
+        0x10, 0x20, 0x30, 0xFF, 0x40, 0x50, 0x60, 0xFF, 0x70, 0x80, 0x90, 0xFF, 0xA0, 0xB0, 0xC0, 0xFF,
+    };
+    char error[256];
+    char test_dir[512];
+    char script_path[640];
+    char actual_path[640];
+    char expected_path[640];
+    char diff_path[640];
+
+    make_temp_test_dir(test_dir, sizeof(test_dir));
+    snprintf(script_path, sizeof(script_path), "%s/script.c64script", test_dir);
+    snprintf(actual_path, sizeof(actual_path), "%s/actual.png", test_dir);
+    snprintf(expected_path, sizeof(expected_path), "%s/expected.png", test_dir);
+    snprintf(diff_path, sizeof(diff_path), "%s/actual.diff.png", test_dir);
+
+    write_test_png_rgba(actual_path, 2, 2, pixels);
+    write_test_png_rgba(expected_path, 2, 2, pixels);
+
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error, sizeof(error));
+    assert(ast != NULL);
+
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    assert(runtime != NULL);
+    c64script_runtime_set_script_path(runtime, script_path);
+
+    bool success = c64script_compile(ast, runtime, error, sizeof(error));
+    assert(success);
+    success = c64script_execute(runtime);
+    assert(success);
+    assert(!file_exists(diff_path));
+
+    c64script_runtime_destroy(runtime);
+    c64script_ast_free(ast);
+    cleanup_temp_path(actual_path);
+    cleanup_temp_path(expected_path);
+    cleanup_temp_path(diff_path);
+    remove_temp_dir(test_dir);
+}
+
+TEST(execute_assert_image_equals_writes_diff_on_mismatch)
+{
+    const char *source = "ASSERT IMAGE_EQUALS \"actual.png\", \"expected.png\" TOLERANCE 0\nSTOP\n";
+    static const uint8_t actual_pixels[] = {
+        0x10, 0x20, 0x30, 0xFF, 0x40, 0x50, 0x60, 0xFF, 0x70, 0x80, 0x90, 0xFF, 0xAA, 0xBB, 0xCC, 0xFF,
+    };
+    static const uint8_t expected_pixels[] = {
+        0x10, 0x20, 0x30, 0xFF, 0x40, 0x50, 0x60, 0xFF, 0x70, 0x80, 0x90, 0xFF, 0x00, 0x00, 0x00, 0xFF,
+    };
+    char error[256];
+    char test_dir[512];
+    char script_path[640];
+    char actual_path[640];
+    char expected_path[640];
+    char diff_path[640];
+
+    make_temp_test_dir(test_dir, sizeof(test_dir));
+    snprintf(script_path, sizeof(script_path), "%s/script.c64script", test_dir);
+    snprintf(actual_path, sizeof(actual_path), "%s/actual.png", test_dir);
+    snprintf(expected_path, sizeof(expected_path), "%s/expected.png", test_dir);
+    snprintf(diff_path, sizeof(diff_path), "%s/actual.diff.png", test_dir);
+
+    write_test_png_rgba(actual_path, 2, 2, actual_pixels);
+    write_test_png_rgba(expected_path, 2, 2, expected_pixels);
+
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error, sizeof(error));
+    assert(ast != NULL);
+
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    assert(runtime != NULL);
+    c64script_runtime_set_script_path(runtime, script_path);
+
+    bool success = c64script_compile(ast, runtime, error, sizeof(error));
+    assert(success);
+    success = c64script_execute(runtime);
+    assert(!success);
+    assert(strstr(runtime->error_msg, "ASSERT IMAGE_EQUALS failed:") != NULL);
+    assert(strstr(runtime->error_msg, "actual.diff.png") != NULL);
+    assert(file_exists(diff_path));
+
+    c64script_runtime_destroy(runtime);
+    c64script_ast_free(ast);
+    cleanup_temp_path(actual_path);
+    cleanup_temp_path(expected_path);
+    cleanup_temp_path(diff_path);
+    remove_temp_dir(test_dir);
+}
+
+TEST(execute_assert_image_equals_detects_dimension_mismatch)
+{
+    const char *source = "ASSERT IMAGE_EQUALS \"actual.png\", \"expected.png\" TOLERANCE 0\nSTOP\n";
+    static const uint8_t actual_pixels[] = {
+        0x10,
+        0x20,
+        0x30,
+        0xFF,
+    };
+    static const uint8_t expected_pixels[] = {
+        0x10, 0x20, 0x30, 0xFF, 0x40, 0x50, 0x60, 0xFF,
+    };
+    char error[256];
+    char test_dir[512];
+    char script_path[640];
+    char actual_path[640];
+    char expected_path[640];
+    char diff_path[640];
+
+    make_temp_test_dir(test_dir, sizeof(test_dir));
+    snprintf(script_path, sizeof(script_path), "%s/script.c64script", test_dir);
+    snprintf(actual_path, sizeof(actual_path), "%s/actual.png", test_dir);
+    snprintf(expected_path, sizeof(expected_path), "%s/expected.png", test_dir);
+    snprintf(diff_path, sizeof(diff_path), "%s/actual.diff.png", test_dir);
+
+    write_test_png_rgba(actual_path, 1, 1, actual_pixels);
+    write_test_png_rgba(expected_path, 2, 1, expected_pixels);
+
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error, sizeof(error));
+    assert(ast != NULL);
+
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    assert(runtime != NULL);
+    c64script_runtime_set_script_path(runtime, script_path);
+
+    bool success = c64script_compile(ast, runtime, error, sizeof(error));
+    assert(success);
+    success = c64script_execute(runtime);
+    assert(!success);
+    assert(strstr(runtime->error_msg, "ASSERT IMAGE_EQUALS failed:") != NULL);
+    assert(file_exists(diff_path));
+
+    c64script_runtime_destroy(runtime);
+    c64script_ast_free(ast);
+    cleanup_temp_path(actual_path);
+    cleanup_temp_path(expected_path);
+    cleanup_temp_path(diff_path);
+    remove_temp_dir(test_dir);
+}
+
 // ============================================================================
 // INTEGRATION TESTS FROM SPEC EXAMPLES
 // ============================================================================
@@ -1376,6 +1647,13 @@ int main(void)
     RUN_TEST(execute_logfile_and_log);
     RUN_TEST(compile_duplicate_label_fails);
     RUN_TEST(execute_builtin_env_default_requires_string);
+    RUN_TEST(execute_obs_wait_frames_uses_render_counter_stub);
+    RUN_TEST(execute_obs_wait_frames_propagates_stub_failure);
+    RUN_TEST(execute_obs_screenshot_resolves_relative_path);
+    RUN_TEST(execute_obs_screenshot_propagates_stub_failure);
+    RUN_TEST(execute_assert_image_equals_succeeds_for_identical_pngs);
+    RUN_TEST(execute_assert_image_equals_writes_diff_on_mismatch);
+    RUN_TEST(execute_assert_image_equals_detects_dimension_mismatch);
 
     printf("\n--- Integration Tests from Spec Examples ---\n");
     RUN_TEST(integration_example_c_for_loop);

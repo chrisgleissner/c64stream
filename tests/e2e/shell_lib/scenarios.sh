@@ -19,9 +19,10 @@ load_scenario() {
     log_info "Loading scenario: ${scenario_name}"
 
     # Parse scenario.yaml (new concise format)
-    local name format preset pattern full_frame_pop csv_max_rows packet_source disable_pops
+    local name format preset pattern duration preset full_frame_pop csv_max_rows packet_source disable_pops
     name=$(grep -m1 "^name:" "${scenario_yaml}" | sed 's/^name: *//' || true)
     format=$(grep -m1 "^format:" "${scenario_yaml}" | sed 's/^format: *//' || true)
+    duration=$(grep -m1 "^duration:" "${scenario_yaml}" | sed 's/^duration: *//' || true)
     preset=$(grep -m1 "^preset:" "${scenario_yaml}" | sed 's/^preset: *//' || true)
     pattern=$(grep -m1 "^pattern:" "${scenario_yaml}" | sed 's/^pattern: *//' || true)
     full_frame_pop=$(grep -m1 "^full_frame_pop:" "${scenario_yaml}" | sed 's/^full_frame_pop: *//' || true)
@@ -100,6 +101,10 @@ PY
     if [[ -n "${pattern}" ]]; then
         PACKET_PATTERN="${pattern}"
         log_info "  Packet pattern: ${PACKET_PATTERN}"
+    fi
+    if [[ -n "${duration}" && "${DURATION}" == "${DEFAULT_DURATION}" && "${FRAMES}" == "${DEFAULT_FRAMES}" ]]; then
+        DURATION="${duration}"
+        log_info "  Duration: ${DURATION}s (from scenario)"
     fi
     if [[ -n "${packet_source}" ]]; then
         PACKET_SOURCE="${packet_source}"

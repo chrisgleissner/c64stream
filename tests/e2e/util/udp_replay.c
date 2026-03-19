@@ -97,8 +97,6 @@ static void sleep_until_us(uint64_t target_time_us)
 
 #define MAX_PACKET_SIZE 1024
 #define MAX_PATH_LEN 512
-#define MAX_MANIFEST_ENTRIES 50000
-
 struct packet_entry {
     char filename[256];
     long delay_us;
@@ -119,7 +117,8 @@ static int load_manifest(const char *path, struct packet_entry **entries, int *c
     if (!f)
         return -1;
 
-    *entries = malloc(MAX_MANIFEST_ENTRIES * sizeof(struct packet_entry));
+    int capacity = 1024;
+    *entries = malloc((size_t)capacity * sizeof(struct packet_entry));
     if (!*entries) {
         fclose(f);
         return -1;
@@ -132,7 +131,7 @@ static int load_manifest(const char *path, struct packet_entry **entries, int *c
     if (fgets(line, sizeof(line), f) && !(strstr(line, "filename") && strstr(line, "delay")))
         rewind(f);
 
-    while (fgets(line, sizeof(line), f) && *count < MAX_MANIFEST_ENTRIES) {
+    while (fgets(line, sizeof(line), f)) {
         char *comma = strchr(line, ',');
         if (!comma)
             continue;
@@ -164,6 +163,18 @@ static int load_manifest(const char *path, struct packet_entry **entries, int *c
         while (len > 0 &&
                (fname[len - 1] == ' ' || fname[len - 1] == '\t' || fname[len - 1] == '\r' || fname[len - 1] == '\n')) {
             fname[--len] = '\0';
+        }
+
+        if (*count == capacity) {
+            int new_capacity = capacity * 2;
+            struct packet_entry *new_entries = realloc(*entries, (size_t)new_capacity * sizeof(struct packet_entry));
+            if (!new_entries) {
+                fclose(f);
+                free(*entries);
+                return -1;
+            }
+            *entries = new_entries;
+            capacity = new_capacity;
         }
 
         // Use snprintf for safe copying

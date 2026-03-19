@@ -778,7 +778,10 @@ def generate_audio_packet(audio_packet_num, sample_rate, total_frames, format_na
     current_frame = int(packet_midpoint_ms / frame_duration_ms)
 
     # Check if we're in a sync pop period using the same frame-based logic as video
-    if current_frame < pop_offset:
+    if disable_pops:
+        is_sync_pop = False
+        pop_index = -1
+    elif current_frame < pop_offset:
         is_sync_pop = False
         pop_index = -1
     else:

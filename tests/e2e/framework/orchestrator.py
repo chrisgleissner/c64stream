@@ -54,7 +54,9 @@ class E2EOrchestrator:
                  full_frame_pop: bool = False,
                  av_sync_tolerance_mode = None,
                  skip_frame_logic_validation: bool = False,
-                 disable_pops: bool = False):
+                 disable_pops: bool = False,
+                 wait_for_script_completion: bool = False,
+                 script_completion_timeout_s: float = 30.0):
 
         # 1. Environment Setup
         self.env = Environment(test_dir, output_dir, csv_max_rows=csv_max_rows)
@@ -73,6 +75,8 @@ class E2EOrchestrator:
         self.full_frame_pop = full_frame_pop
         self.skip_frame_logic_validation = skip_frame_logic_validation
         self.disable_pops = disable_pops
+        self.wait_for_script_completion = wait_for_script_completion
+        self.script_completion_timeout_s = script_completion_timeout_s
 
         # 2. Components
         # Use display from environment if set, otherwise default to :99
@@ -161,6 +165,12 @@ class E2EOrchestrator:
 
             # 8. Post-Run Wait (Allow flushing)
             time.sleep(2.0)
+
+            if self.wait_for_script_completion:
+                self.obs_logs.wait_for_script_completion(
+                    timeout=self.script_completion_timeout_s,
+                    start_time=self.obs_process._start_time,
+                )
 
             # 9. Stop Recording/OBS
             # If we used websocket to start recording (not yet implemented in start_obs but flag checks it)

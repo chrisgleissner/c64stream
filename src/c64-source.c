@@ -15,6 +15,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include <string.h>
 #include <inttypes.h>
 #include <pthread.h>
+#include <sys/stat.h>
 #include <ctype.h>
 #include "c64-network.h"
 #include "c64-network-buffer.h"
@@ -405,6 +406,51 @@ static bool c64_source_copy_file(const char *src_path, const char *dst_path)
     return ok;
 }
 
+static bool c64_source_wait_for_stable_file(const char *path, uint64_t deadline_ns, char *error_msg, size_t error_size)
+{
+    if (!path || path[0] == '\0') {
+        if (error_msg && error_size > 0) {
+            snprintf(error_msg, error_size, "Invalid screenshot path");
+        }
+        return false;
+    }
+
+    int stable_polls = 0;
+    int64_t last_size = -1;
+    time_t last_mtime = (time_t)0;
+
+    while (os_gettime_ns() < deadline_ns) {
+        struct stat st;
+        if (os_stat(path, &st) == 0 && S_ISREG(st.st_mode) && st.st_size > 0) {
+            const int64_t current_size = (int64_t)st.st_size;
+            const time_t current_mtime = st.st_mtime;
+
+            if (current_size == last_size && current_mtime == last_mtime) {
+                stable_polls++;
+            } else {
+                stable_polls = 1;
+                last_size = current_size;
+                last_mtime = current_mtime;
+            }
+
+            if (stable_polls >= 3) {
+                return true;
+            }
+        } else {
+            stable_polls = 0;
+            last_size = -1;
+            last_mtime = (time_t)0;
+        }
+
+        os_sleep_ms(20);
+    }
+
+    if (error_msg && error_size > 0) {
+        snprintf(error_msg, error_size, "Timed out waiting for OBS screenshot file to stabilize");
+    }
+    return false;
+}
+
 static bool c64_source_ensure_parent_directory(const char *path)
 {
     if (!path || path[0] == '\0') {
@@ -501,6 +547,10 @@ bool c64_source_script_take_frontend_screenshot(struct c64_source *context, bool
         if (changed) {
             c64_path_kind_t kind = C64_PATH_KIND_MISSING;
             if (c64_get_path_kind(after.path, &kind) && kind == C64_PATH_KIND_FILE) {
+                if (!c64_source_wait_for_stable_file(after.path, deadline_ns, error_msg, error_size)) {
+                    return false;
+                }
+
                 if (!c64_source_ensure_parent_directory(output_path)) {
                     if (error_msg && error_size > 0) {
                         snprintf(error_msg, error_size, "Failed to create screenshot directory: %s", output_path);

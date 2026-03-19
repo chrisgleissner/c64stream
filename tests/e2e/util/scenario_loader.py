@@ -40,6 +40,27 @@ def validate_scenario_name(name: str) -> None:
             )
 
 
+def validate_scenario_prefix(name: str, display_name: str, overrides: dict[str, Any]) -> None:
+    scripted_prefixes = ("ntsc_script", "pal_script")
+    has_script_prefix = name.startswith(scripted_prefixes)
+    display_has_script = "script" in display_name.lower().split()
+    has_script_file = bool(overrides.get("script_file"))
+    auto_start = bool(overrides.get("script_auto_start"))
+
+    if has_script_prefix:
+        if not display_has_script:
+            raise ValueError(f"Scenario '{name}' must include 'Script' in its display name")
+        if not has_script_file or not auto_start:
+            raise ValueError(
+                f"Scenario '{name}' must define script_file and script_auto_start when using a script prefix"
+            )
+
+    if display_has_script and not has_script_prefix:
+        raise ValueError(
+            f"Scenario '{name}' uses a script-centric display name and must use an ntsc_script_/pal_script_ prefix"
+        )
+
+
 def _e2e_dir() -> Path:
     # tests/e2e/util/scenario_loader.py -> parents[1] == tests/e2e
     return Path(__file__).resolve().parents[1]
@@ -130,6 +151,12 @@ def load_scenario(scenario_path: Path) -> ScenarioConfig:
 
     with open(scenario_path, "r") as f:
         data = yaml.safe_load(f)
+
+    validate_scenario_prefix(
+        scenario_path.parent.name,
+        data.get("name", ""),
+        data.get("overrides", {}),
+    )
 
     return ScenarioConfig(
         name=data.get("name", ""),
@@ -473,6 +500,7 @@ def list_scenarios(scenarios_dir: Optional[Path] = None) -> list[str]:
         if entry.is_dir():
             scenario_yaml = entry / "scenario.yaml"
             if scenario_yaml.exists():
+                validate_scenario_name(entry.name)
                 scenarios.append(entry.name)
 
     return scenarios
