@@ -22,6 +22,7 @@ See <https://www.gnu.org/licenses/> for details.
 
 struct c64_script_executor {
     obs_source_t *source;
+    void *source_data;
 
     pthread_t thread;
     bool thread_running;
@@ -30,6 +31,7 @@ struct c64_script_executor {
 
     c64_script_status_t status;
     char error_msg[512];
+    bool stop_requested;
 
     c64script_runtime_t *runtime;
 };
@@ -97,6 +99,16 @@ static const char *opcode_name(c64script_opcode_t opcode)
         return "WAIT_MEM";
     case OP_WAIT_UNTIL:
         return "WAIT_UNTIL";
+    case OP_OBS_SCREENSHOT:
+        return "OBS_SCREENSHOT";
+    case OP_OBS_RECORDING_START:
+        return "OBS_RECORDING_START";
+    case OP_OBS_RECORDING_STOP:
+        return "OBS_RECORDING_STOP";
+    case OP_OBS_WAIT_FRAMES:
+        return "OBS_WAIT_FRAMES";
+    case OP_ASSERT_IMAGE_EQUALS:
+        return "ASSERT_IMAGE_EQUALS";
     case OP_CALL_PEEK:
         return "PEEK";
     case OP_EFFECT:
@@ -179,10 +191,6 @@ static const char *opcode_name(c64script_opcode_t opcode)
         return "RUN";
     case OP_SYS:
         return "SYS";
-    case OP_RECORDSTART:
-        return "RECORDSTART";
-    case OP_RECORDSTOP:
-        return "RECORDSTOP";
     case OP_TYPE:
         return "TYPE";
     case OP_KEY:
@@ -323,7 +331,7 @@ static bool compile_script(c64_script_executor_t *executor, const char *script_f
     runtime->source_text_size = source_size;
 
     // Integration pointers
-    void *source_data = obs_obj_get_data(executor->source);
+    void *source_data = executor->source_data;
     runtime->source_data = source_data;
     runtime->obs_source = executor->source;
     runtime->rest_client = c64_source_get_rest_client(source_data);
@@ -353,7 +361,7 @@ static void *script_thread_main(void *data)
 
     pthread_mutex_lock(&executor->mutex);
     executor->thread_running = false;
-    if (executor->runtime && executor->runtime->should_stop) {
+    if (executor->stop_requested) {
         executor->status = C64_SCRIPT_STATUS_IDLE;
         executor->error_msg[0] = '\0';
     } else if (!ok) {
@@ -364,13 +372,14 @@ static void *script_thread_main(void *data)
     } else {
         executor->status = C64_SCRIPT_STATUS_COMPLETED;
         executor->error_msg[0] = '\0';
+        C64_LOG_INFO("Script completed successfully");
     }
     pthread_mutex_unlock(&executor->mutex);
 
     return NULL;
 }
 
-c64_script_executor_t *c64_script_executor_create(obs_source_t *source)
+c64_script_executor_t *c64_script_executor_create(obs_source_t *source, void *source_data)
 {
     if (!source) {
         return NULL;
@@ -382,9 +391,11 @@ c64_script_executor_t *c64_script_executor_create(obs_source_t *source)
     }
 
     executor->source = source;
+    executor->source_data = source_data;
     executor->thread_running = false;
     executor->status = C64_SCRIPT_STATUS_IDLE;
     executor->error_msg[0] = '\0';
+    executor->stop_requested = false;
     executor->runtime = NULL;
     pthread_mutex_init(&executor->mutex, NULL);
 
@@ -475,6 +486,7 @@ static bool c64_script_executor_start_internal(c64_script_executor_t *executor, 
     executor->status = start_paused ? C64_SCRIPT_STATUS_PAUSED : C64_SCRIPT_STATUS_RUNNING;
     executor->error_msg[0] = '\0';
     executor->thread_running = true;
+    executor->stop_requested = false;
     pthread_mutex_unlock(&executor->mutex);
 
     int rc = pthread_create(&executor->thread, NULL, script_thread_main, executor);
@@ -513,6 +525,7 @@ void c64_script_executor_stop(c64_script_executor_t *executor)
 
     pthread_mutex_lock(&executor->mutex);
     bool running = executor->thread_running;
+    executor->stop_requested = running;
     pthread_mutex_unlock(&executor->mutex);
 
     if (!running) {

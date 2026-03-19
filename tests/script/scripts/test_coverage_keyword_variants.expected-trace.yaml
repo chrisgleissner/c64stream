@@ -33,12 +33,6 @@ trace:
 - line: 6
   content: "MOUNT_DISK \"c64u:/Disks/demo.d64\""
   variables: {}
-- line: 7
-  content: "RECORD_START"
-  variables: {}
-- line: 8
-  content: "RECORD_STOP"
-  variables: {}
 - line: 9
   content: "WRITE_FILE \"/tmp/c64script_coverage_io.txt\", \"ok\" TRUNCATE"
   variables: {}

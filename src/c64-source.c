@@ -30,6 +30,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-record.h"
 #include "c64-version.h"
 #include "c64-properties.h"
+#include "c64-file.h"
 #include "c64-palette.h"
 #include "c64-keyboard.h"
 #include "c64-rest-client.h"
@@ -152,6 +153,24 @@ static bool c64_source_apply_crt_preset_if_needed(obs_data_t *settings, const ch
     return true;
 }
 
+static float c64_obs_data_get_double_or_current(obs_data_t *settings, const char *key, float current_value)
+{
+    if (!settings || !key) {
+        return current_value;
+    }
+
+    return obs_data_has_user_value(settings, key) ? (float)obs_data_get_double(settings, key) : current_value;
+}
+
+static int c64_obs_data_get_int_or_current(obs_data_t *settings, const char *key, int current_value)
+{
+    if (!settings || !key) {
+        return current_value;
+    }
+
+    return obs_data_has_user_value(settings, key) ? (int)obs_data_get_int(settings, key) : current_value;
+}
+
 static bool c64_try_get_prefer_pal_from_obs_fps(bool *prefer_pal)
 {
     struct obs_video_info ovi;
@@ -170,7 +189,7 @@ static void c64_source_get_effect_geometry(const struct c64_source *context, str
 {
     c64_effect_geometry_init(geometry, context ? context->width : 0, context ? context->height : 0,
                              context ? context->pixel_width : 1.0f, context ? context->pixel_height : 1.0f,
-                             context ? context->scan_line_distance : 0.0f, context ? context->preserve_size : true);
+                             context ? context->scan_line_distance : 0.0f, false);
 }
 
 static void c64_apply_format_hint(struct c64_source *context, bool prefer_pal)
@@ -308,6 +327,201 @@ void *c64_source_get_keyboard(struct c64_source *context)
         return NULL;
     }
     return context->keyboard;
+}
+
+typedef struct {
+    char path[512];
+} c64_last_screenshot_query_t;
+
+typedef struct {
+    obs_source_t *source;
+    bool preview;
+} c64_take_screenshot_request_t;
+
+#ifdef ENABLE_FRONTEND_API
+static void c64_source_ui_get_last_screenshot(void *data)
+{
+    c64_last_screenshot_query_t *query = (c64_last_screenshot_query_t *)data;
+    if (!query) {
+        return;
+    }
+
+    query->path[0] = '\0';
+    char *last = obs_frontend_get_last_screenshot();
+    if (last) {
+        snprintf(query->path, sizeof(query->path), "%s", last);
+        bfree(last);
+    }
+}
+
+static void c64_source_ui_take_frontend_screenshot(void *data)
+{
+    c64_take_screenshot_request_t *request = (c64_take_screenshot_request_t *)data;
+    if (!request) {
+        return;
+    }
+
+    if (request->preview) {
+        obs_frontend_take_screenshot();
+    } else if (request->source) {
+        obs_frontend_take_source_screenshot(request->source);
+    }
+}
+#endif
+
+static bool c64_source_copy_file(const char *src_path, const char *dst_path)
+{
+    if (!src_path || !dst_path) {
+        return false;
+    }
+
+    FILE *src = fopen(src_path, "rb");
+    if (!src) {
+        return false;
+    }
+
+    FILE *dst = fopen(dst_path, "wb");
+    if (!dst) {
+        fclose(src);
+        return false;
+    }
+
+    char buffer[64 * 1024];
+    bool ok = true;
+    while (!feof(src)) {
+        size_t read_count = fread(buffer, 1, sizeof(buffer), src);
+        if (read_count > 0 && fwrite(buffer, 1, read_count, dst) != read_count) {
+            ok = false;
+            break;
+        }
+        if (ferror(src)) {
+            ok = false;
+            break;
+        }
+    }
+
+    fclose(dst);
+    fclose(src);
+    return ok;
+}
+
+static bool c64_source_ensure_parent_directory(const char *path)
+{
+    if (!path || path[0] == '\0') {
+        return false;
+    }
+
+    char directory[1024];
+    snprintf(directory, sizeof(directory), "%s", path);
+
+    char *last_slash = strrchr(directory, '/');
+#ifdef _WIN32
+    char *last_backslash = strrchr(directory, '\\');
+    if (!last_slash || (last_backslash && last_backslash > last_slash)) {
+        last_slash = last_backslash;
+    }
+#endif
+    if (!last_slash) {
+        return true;
+    }
+
+    *last_slash = '\0';
+    if (directory[0] == '\0') {
+        return true;
+    }
+
+    return c64_create_directory_recursive(directory);
+}
+
+bool c64_source_script_wait_rendered_frames(struct c64_source *context, uint32_t frame_count, char *error_msg,
+                                            size_t error_size)
+{
+    if (!context) {
+        if (error_msg && error_size > 0) {
+            snprintf(error_msg, error_size, "Source context not available");
+        }
+        return false;
+    }
+
+    if (frame_count == 0) {
+        return true;
+    }
+
+    const long start_count = os_atomic_load_long(&context->script_render_count);
+    const long target_count = start_count + (long)frame_count;
+    const uint64_t deadline_ns = os_gettime_ns() + 10000000000ull;
+
+    while (os_gettime_ns() < deadline_ns) {
+        if (os_atomic_load_long(&context->script_render_count) >= target_count) {
+            return true;
+        }
+        os_sleep_ms(5);
+    }
+
+    if (error_msg && error_size > 0) {
+        snprintf(error_msg, error_size, "Timed out waiting for %u rendered frame(s)", frame_count);
+    }
+    return false;
+}
+
+bool c64_source_script_take_frontend_screenshot(struct c64_source *context, bool preview, const char *output_path,
+                                                char *error_msg, size_t error_size)
+{
+#ifndef ENABLE_FRONTEND_API
+    UNUSED_PARAMETER(context);
+    UNUSED_PARAMETER(preview);
+    UNUSED_PARAMETER(output_path);
+    if (error_msg && error_size > 0) {
+        snprintf(error_msg, error_size, "OBS frontend API not enabled");
+    }
+    return false;
+#else
+    if (!context || !output_path || output_path[0] == '\0') {
+        if (error_msg && error_size > 0) {
+            snprintf(error_msg, error_size, "Invalid screenshot request");
+        }
+        return false;
+    }
+
+    c64_last_screenshot_query_t before = {0};
+    obs_queue_task(OBS_TASK_UI, c64_source_ui_get_last_screenshot, &before, true);
+
+    c64_take_screenshot_request_t request = {
+        .source = context->source,
+        .preview = preview,
+    };
+    obs_queue_task(OBS_TASK_UI, c64_source_ui_take_frontend_screenshot, &request, true);
+
+    const uint64_t deadline_ns = os_gettime_ns() + 10000000000ull;
+    while (os_gettime_ns() < deadline_ns) {
+        c64_last_screenshot_query_t after = {0};
+        obs_queue_task(OBS_TASK_UI, c64_source_ui_get_last_screenshot, &after, true);
+
+        const bool changed = after.path[0] != '\0' && (before.path[0] == '\0' || strcmp(before.path, after.path) != 0);
+        if (changed) {
+            c64_path_kind_t kind = C64_PATH_KIND_MISSING;
+            if (c64_get_path_kind(after.path, &kind) && kind == C64_PATH_KIND_FILE) {
+                if (!c64_source_ensure_parent_directory(output_path)) {
+                    if (error_msg && error_size > 0) {
+                        snprintf(error_msg, error_size, "Failed to create screenshot directory: %s", output_path);
+                    }
+                    return false;
+                }
+
+                if (c64_source_copy_file(after.path, output_path)) {
+                    return true;
+                }
+            }
+        }
+
+        os_sleep_ms(20);
+    }
+
+    if (error_msg && error_size > 0) {
+        snprintf(error_msg, error_size, "Timed out waiting for OBS screenshot output");
+    }
+    return false;
+#endif
 }
 
 static void c64_refresh_resolved_ip(struct c64_source *context)
@@ -692,6 +906,7 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->video_frame_index = 0;
     context->frame_interval_ns = prefer_pal ? C64_PAL_FRAME_INTERVAL_NS
                                             : C64_NTSC_FRAME_INTERVAL_NS; // Default to OBS FPS
+    os_atomic_set_long(&context->script_render_count, 0);
 
     // Initialize debug logging from settings (must be done before any debug logs)
     c64_debug_logging = obs_data_get_bool(settings, "debug_logging");
@@ -718,19 +933,23 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
 
     // Initialize CRT effect state from settings
     c64_afterglow_init(&context->afterglow);
-    context->scan_line_distance = (float)obs_data_get_double(settings, "scan_line_distance");
-    context->scan_line_strength = (float)obs_data_get_double(settings, "scan_line_strength");
-    context->pixel_width = (float)obs_data_get_double(settings, "pixel_width");
-    context->pixel_height = (float)obs_data_get_double(settings, "pixel_height");
-    context->blur_strength = (float)obs_data_get_double(settings, "blur_strength");
-    context->bloom_strength = (float)obs_data_get_double(settings, "bloom_strength");
+    context->scan_line_distance =
+        c64_obs_data_get_double_or_current(settings, "scan_line_distance", context->scan_line_distance);
+    context->scan_line_strength =
+        c64_obs_data_get_double_or_current(settings, "scan_line_strength", context->scan_line_strength);
+    context->pixel_width = c64_obs_data_get_double_or_current(settings, "pixel_width", context->pixel_width);
+    context->pixel_height = c64_obs_data_get_double_or_current(settings, "pixel_height", context->pixel_height);
+    context->blur_strength = c64_obs_data_get_double_or_current(settings, "blur_strength", context->blur_strength);
+    context->bloom_strength = c64_obs_data_get_double_or_current(settings, "bloom_strength", context->bloom_strength);
     context->bloom_enable = context->bloom_strength > 0.0f;
-    context->afterglow.duration_ms = (int)obs_data_get_int(settings, "afterglow_duration_ms");
-    context->afterglow.curve = (int)obs_data_get_int(settings, "afterglow_curve");
+    context->afterglow.duration_ms =
+        c64_obs_data_get_int_or_current(settings, "afterglow_duration_ms", context->afterglow.duration_ms);
+    context->afterglow.curve = c64_obs_data_get_int_or_current(settings, "afterglow_curve", context->afterglow.curve);
     context->afterglow_enable = (context->afterglow.duration_ms > 0);
-    context->tint_mode = (int)obs_data_get_int(settings, "tint_mode");
-    context->tint_strength = (float)obs_data_get_double(settings, "tint_strength");
+    context->tint_mode = c64_obs_data_get_int_or_current(settings, "tint_mode", context->tint_mode);
+    context->tint_strength = c64_obs_data_get_double_or_current(settings, "tint_strength", context->tint_strength);
     context->tint_enable = (context->tint_mode > 0 && context->tint_strength > 0.0f);
+
     context->frame_dirty = false;
 
     // Initialize palette from settings (must be done after palette system init)
@@ -752,6 +971,7 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->render_texture_width = 0;
     context->render_texture_height = 0;
     context->intermediate_texture = NULL;
+    context->effect_texrender = NULL;
     context->crt_effect = NULL;
     context->afterglow_accum_prev = NULL;
     context->afterglow_accum_next = NULL;
@@ -925,6 +1145,10 @@ void c64_destroy(void *data)
         gs_texture_destroy(context->intermediate_texture);
         context->intermediate_texture = NULL;
     }
+    if (context->effect_texrender) {
+        gs_texrender_destroy(context->effect_texrender);
+        context->effect_texrender = NULL;
+    }
     if (context->afterglow_accum_prev) {
         gs_texture_destroy(context->afterglow_accum_prev);
         context->afterglow_accum_prev = NULL;
@@ -1017,7 +1241,7 @@ static void c64_attempt_script_autostart(struct c64_source *context, obs_data_t 
     }
 
     if (!context->script_executor) {
-        context->script_executor = c64_script_executor_create(context->source);
+        context->script_executor = c64_script_executor_create(context->source, context);
     }
 
     if (context->script_executor) {
@@ -1273,18 +1497,21 @@ void c64_update(void *data, obs_data_t *settings)
                                   (context->pixel_height != 1.0f);
 
     // Update CRT effect settings
-    context->scan_line_distance = (float)obs_data_get_double(settings, "scan_line_distance");
-    context->scan_line_strength = (float)obs_data_get_double(settings, "scan_line_strength");
-    context->pixel_width = (float)obs_data_get_double(settings, "pixel_width");
-    context->pixel_height = (float)obs_data_get_double(settings, "pixel_height");
-    context->blur_strength = (float)obs_data_get_double(settings, "blur_strength");
-    context->bloom_strength = (float)obs_data_get_double(settings, "bloom_strength");
+    context->scan_line_distance =
+        c64_obs_data_get_double_or_current(settings, "scan_line_distance", context->scan_line_distance);
+    context->scan_line_strength =
+        c64_obs_data_get_double_or_current(settings, "scan_line_strength", context->scan_line_strength);
+    context->pixel_width = c64_obs_data_get_double_or_current(settings, "pixel_width", context->pixel_width);
+    context->pixel_height = c64_obs_data_get_double_or_current(settings, "pixel_height", context->pixel_height);
+    context->blur_strength = c64_obs_data_get_double_or_current(settings, "blur_strength", context->blur_strength);
+    context->bloom_strength = c64_obs_data_get_double_or_current(settings, "bloom_strength", context->bloom_strength);
     context->bloom_enable = context->bloom_strength > 0.0f;
-    context->afterglow.duration_ms = (int)obs_data_get_int(settings, "afterglow_duration_ms");
-    context->afterglow.curve = (int)obs_data_get_int(settings, "afterglow_curve");
+    context->afterglow.duration_ms =
+        c64_obs_data_get_int_or_current(settings, "afterglow_duration_ms", context->afterglow.duration_ms);
+    context->afterglow.curve = c64_obs_data_get_int_or_current(settings, "afterglow_curve", context->afterglow.curve);
     context->afterglow_enable = (context->afterglow.duration_ms > 0);
-    context->tint_mode = (int)obs_data_get_int(settings, "tint_mode");
-    context->tint_strength = (float)obs_data_get_double(settings, "tint_strength");
+    context->tint_mode = c64_obs_data_get_int_or_current(settings, "tint_mode", context->tint_mode);
+    context->tint_strength = c64_obs_data_get_double_or_current(settings, "tint_strength", context->tint_strength);
     context->tint_enable = (context->tint_mode > 0 && context->tint_strength > 0.0f);
 
     // Check if dimension-affecting effects are now enabled
@@ -1754,6 +1981,7 @@ void c64_video_render(void *data, gs_effect_t *effect)
             while (gs_effect_loop(default_effect, "Draw")) {
                 gs_draw_sprite(input_tex, 0, context->width, context->height);
             }
+            os_atomic_inc_long(&context->script_render_count);
         }
         return;
     }
@@ -1781,6 +2009,7 @@ void c64_video_render(void *data, gs_effect_t *effect)
                     while (gs_effect_loop(default_effect, "Draw")) {
                         gs_draw_sprite(context->render_texture, 0, context->width, context->height);
                     }
+                    os_atomic_inc_long(&context->script_render_count);
                 }
                 return;
             }
@@ -1793,6 +2022,7 @@ void c64_video_render(void *data, gs_effect_t *effect)
                 while (gs_effect_loop(default_effect, "Draw")) {
                     gs_draw_sprite(context->render_texture, 0, context->width, context->height);
                 }
+                os_atomic_inc_long(&context->script_render_count);
             }
             return;
         }
@@ -1840,6 +2070,8 @@ void c64_video_render(void *data, gs_effect_t *effect)
     struct c64_effect_geometry geometry;
     c64_source_get_effect_geometry(context, &geometry);
 
+    gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "virtual_output_width"),
+                        (float)geometry.virtual_width);
     gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "virtual_output_height"),
                         (float)geometry.virtual_height);
 
@@ -1852,10 +2084,10 @@ void c64_video_render(void *data, gs_effect_t *effect)
     gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "source_width"), (float)context->width);
     gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "source_height"), (float)context->height);
 
-    // Single-pass optimized rendering with lightweight shader operations
     while (gs_effect_loop(context->crt_effect, "Draw")) {
         gs_draw_sprite(input_tex, 0, geometry.draw_width, geometry.draw_height);
     }
+    os_atomic_inc_long(&context->script_render_count);
 }
 
 void c64_try_init_stream_start_ns(struct c64_source *context, uint64_t packet_time_ns, const char *trigger)

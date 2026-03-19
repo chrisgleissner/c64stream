@@ -24,9 +24,9 @@ typedef enum {
 } c64_script_status_t;
 
 /**
- * Create a new script executor for the given source
+ * Create a new script executor for the given source and source context
  */
-c64_script_executor_t *c64_script_executor_create(obs_source_t *source);
+c64_script_executor_t *c64_script_executor_create(obs_source_t *source, void *source_data);
 
 /**
  * Destroy a script executor and free resources

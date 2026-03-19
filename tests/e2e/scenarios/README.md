@@ -106,6 +106,7 @@ skip_frame_logic_validation: true
 | ntsc_palette_vibrant         | NTSC   | Default        | video_quality, audio, palette_mapping            |
 | ntsc_palette_muted           | NTSC   | Default        | video_quality, audio, palette_mapping            |
 | ntsc_delay_buffer500ms       | NTSC   | Default        | video_quality, audio (buffer test)               |
+| ntsc_preserve_compare        | NTSC   | Default        | video_quality, audio, script_status              |
 | pal_default                  | PAL    | Default        | video_quality, audio                             |
 
 ## Adding New Scenarios

@@ -395,7 +395,7 @@ static bool script_start_stop_clicked(obs_properties_t *props, obs_property_t *p
         // Create executor if needed
         if (!context->script_executor) {
             C64_LOG_INFO("Creating script executor...");
-            context->script_executor = c64_script_executor_create(context->source);
+            context->script_executor = c64_script_executor_create(context->source, context);
             if (!context->script_executor) {
                 C64_LOG_ERROR("Failed to create script executor");
                 return false;
@@ -456,7 +456,7 @@ static bool script_pause_resume_clicked(obs_properties_t *props, obs_property_t 
         }
 
         if (!context->script_executor) {
-            context->script_executor = c64_script_executor_create(context->source);
+            context->script_executor = c64_script_executor_create(context->source, context);
             if (!context->script_executor) {
                 C64_LOG_ERROR("Failed to create script executor");
                 return false;
@@ -533,7 +533,7 @@ static bool script_reload_clicked(obs_properties_t *props, obs_property_t *prope
     }
 
     if (!context->script_executor) {
-        context->script_executor = c64_script_executor_create(context->source);
+        context->script_executor = c64_script_executor_create(context->source, context);
         if (!context->script_executor) {
             C64_LOG_ERROR("Failed to create script executor");
             return false;

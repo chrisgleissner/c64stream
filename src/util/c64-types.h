@@ -175,6 +175,7 @@ struct c64_source {
     // Frame timing
     uint64_t last_frame_time;
     uint64_t frame_interval_ns; // Target frame interval (20ms for 50Hz PAL)
+    volatile long script_render_count;
 
     // Synthetic timestamp generation (monotonic, packet-index based)
     uint64_t audio_packet_count;              // Total audio packets processed since stream start
@@ -301,6 +302,7 @@ struct c64_source {
     uint32_t render_texture_width;      // Cached render_texture width (avoid gs_texture_get_width outside graphics)
     uint32_t render_texture_height;     // Cached render_texture height
     gs_texture_t *intermediate_texture; // Intermediate texture for blur/bloom/tint at native resolution
+    gs_texrender_t *effect_texrender;   // Offscreen render target for virtual-size preserve rendering
     gs_effect_t *crt_effect;            // CRT shader effect
     gs_samplerstate_t *point_sampler;   // Point (nearest-neighbor) sampler for sharp pixel rendering
 

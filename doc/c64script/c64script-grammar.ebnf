@@ -102,8 +102,8 @@ statement =
   | pause_stmt
   | resume_stmt
   | poweroff_stmt
-  | record_start_stmt
-  | record_stop_stmt
+  | obs_stmt
+  | assert_stmt
   | type_stmt
   | key_stmt
   | http_stmt
@@ -165,7 +165,7 @@ effect_param_stmt   = ("EFFECT_PARAM" | "EFFECTPARAM"), WS, identifier, WS, expr
 palette_stmt        = "PALETTE", WS, string_or_word ;
 palette_color_stmt  = ("PALETTE_COLOR" | "PALETTECOLOR"), WS, expr, [WS], ",", [WS], expr, [WS], ",", [WS], expr, [WS], ",", [WS], expr ;
 
-play_sid_stmt       = ("PLAY_SID" | "PLAYSID"), WS, path_expr, [WS, "SONGNR", [WS], "=", [WS], expr] ;
+play_sid_stmt       = ("PLAY_SID" | "PLAYSID"), WS, path_expr, [WS, "SONGNR", WS, expr] ;
 run_prg_stmt        = ("RUN_PRG" | "RUNPRG"), WS, path_expr ;
 run_local_stmt      = ("RUN_LOCAL" | "RUNLOCAL"), WS, path_expr, [WS, "ARGS", WS, expr], [WS, "STATUS", WS, identifier], [WS, "OUTPUT", WS, identifier] ;
 mount_disk_stmt     = ("MOUNT_DISK" | "MOUNTDISK"), WS, path_expr ;
@@ -247,8 +247,13 @@ pause_stmt          = "PAUSE" ;
 resume_stmt         = "RESUME" ;
 poweroff_stmt       = "POWEROFF" ;
 
-record_start_stmt   = ("RECORD_START" | "RECORDSTART") ;
-record_stop_stmt    = ("RECORD_STOP" | "RECORDSTOP") ;
+obs_stmt            = "OBS", WS, (obs_screenshot_stmt | obs_recording_stmt | obs_wait_stmt) ;
+obs_screenshot_stmt = "SCREENSHOT", WS, "TARGET", WS, ("SOURCE" | "PREVIEW"), WS, "PATH", WS, expr ;
+obs_recording_stmt  = "RECORDING", WS, ("START" | "STOP") ;
+obs_wait_stmt       = "WAIT", WS, "FRAMES", WS, expr ;
+
+assert_stmt         = "ASSERT", WS, assert_image_equals_stmt ;
+assert_image_equals_stmt = "IMAGE_EQUALS", WS, expr, [WS], ",", [WS], expr, [WS, "TOLERANCE", WS, expr] ;
 
 type_stmt           = "TYPE", WS, expr ;
 key_stmt            = "KEY", WS, (string_or_word | number | hex_number) ;

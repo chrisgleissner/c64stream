@@ -1,0 +1,16 @@
+name: NTSC Preserve Compare
+format: NTSC
+preset: Default
+pattern: still
+disable_pops: true
+fixed_canvas_bounds: true
+ci_skip: true
+ci_skip_reason: "Requires a local GUI render path for deterministic screenshot equality"
+overrides:
+  preserve_size: true
+  script_file: "${repo_root}/data/scripts/preserve_size_compare.c64script"
+  script_auto_start: true
+assertions:
+  - video_quality
+  - audio
+  - script_status

@@ -142,6 +142,7 @@ def main():
     # Load Network Simulation and Tolerances
     network_simulation = {}
     av_sync_tolerance_mode = None  # None, 'lenient', or numeric value
+    disable_pops = False
     obs_start_recording = True
     skip_frame_logic_validation = False
     if args.scenario_yaml:
@@ -153,6 +154,8 @@ def main():
                     obs_start_recording = bool(scenario_data['obs_start_recording'])
                 if 'skip_frame_logic_validation' in scenario_data:
                     skip_frame_logic_validation = bool(scenario_data['skip_frame_logic_validation'])
+                if 'disable_pops' in scenario_data:
+                    disable_pops = bool(scenario_data['disable_pops'])
 
                 # Support both old and new tolerance formats
                 # Old: av_sync_tolerance_ms: 40
@@ -206,7 +209,8 @@ def main():
         verbose=args.verbose,
         full_frame_pop=args.full_frame_pop,
         av_sync_tolerance_mode=av_sync_tolerance_mode,
-        skip_frame_logic_validation=skip_frame_logic_validation
+        skip_frame_logic_validation=skip_frame_logic_validation,
+        disable_pops=disable_pops,
     )
 
     return 0 if orchestrator.run() else 1

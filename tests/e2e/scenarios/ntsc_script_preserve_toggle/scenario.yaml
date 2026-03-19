@@ -1,0 +1,15 @@
+name: NTSC Script Preserve Toggle
+format: NTSC
+preset: Default
+overrides:
+  preserve_size: true
+  script_file: "${repo_root}/data/scripts/preserve_size_toggle_cycle.c64script"
+  script_auto_start: true
+skip_frame_logic_validation: true
+assertions:
+  - video_quality
+  - audio
+  - bounds_variation
+thresholds:
+  bounds_variation:
+    max_center_drift_px: 128.0

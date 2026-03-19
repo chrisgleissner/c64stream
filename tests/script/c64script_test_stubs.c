@@ -8,6 +8,8 @@ See <https://www.gnu.org/licenses/> for details.
 
 #include "c64-keyboard.h"
 #include "c64-rest-client.h"
+#include "c64-file.h"
+#include "c64-source.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -422,6 +424,35 @@ bool c64_rest_run_crt_path(c64_rest_client_t *client, const char *c64u_path)
     if (rest_should_fail(stub)) {
         return false;
     }
+    return true;
+}
+
+bool c64_source_script_wait_rendered_frames(struct c64_source *context, uint32_t frame_count, char *error_msg,
+                                            size_t error_size)
+{
+    (void)context;
+    (void)frame_count;
+    if (error_msg && error_size > 0) {
+        error_msg[0] = '\0';
+    }
+    return true;
+}
+
+bool c64_source_script_take_frontend_screenshot(struct c64_source *context, bool preview, const char *output_path,
+                                                char *error_msg, size_t error_size)
+{
+    (void)context;
+    (void)preview;
+    (void)output_path;
+    if (error_msg && error_size > 0) {
+        snprintf(error_msg, error_size, "Screenshot capture not available in unit-test stubs");
+    }
+    return false;
+}
+
+bool c64_create_directory_recursive(const char *path)
+{
+    (void)path;
     return true;
 }
 

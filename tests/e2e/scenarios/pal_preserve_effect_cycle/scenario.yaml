@@ -1,5 +1,5 @@
-name: NTSC Preserve Size Effect Cycle
-format: NTSC
+name: PAL Preserve Effect Cycle
+format: PAL
 preset: Default
 overrides:
   preserve_size: true

@@ -1,0 +1,68 @@
+REM Preserve-size preview comparison
+REM Captures preview artifacts for preserve_size off/on across representative presets
+
+LOG "Starting preserve-size preview comparison"
+WAIT 10s
+
+COMPARE_DEFAULT:
+EFFECTPARAM "preserve_size" 0
+EFFECT "Default"
+OBS WAIT FRAMES 10
+OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/default_source_legacy.png"
+OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/default_preview_legacy.png"
+EFFECTPARAM "preserve_size" 1
+OBS WAIT FRAMES 10
+OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/default_source_preserve.png"
+OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/default_preview_preserve.png"
+ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/default_preview_preserve.png", "../../tests/e2e/artifacts/effect_preserve_size/default_preview_legacy.png" TOLERANCE 0
+
+COMPARE_CLASSIC:
+EFFECTPARAM "preserve_size" 0
+EFFECT "Classic CRT"
+OBS WAIT FRAMES 10
+OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/classic_source_legacy.png"
+OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/classic_preview_legacy.png"
+EFFECTPARAM "preserve_size" 1
+OBS WAIT FRAMES 10
+OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/classic_source_preserve.png"
+OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/classic_preview_preserve.png"
+ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/classic_preview_preserve.png", "../../tests/e2e/artifacts/effect_preserve_size/classic_preview_legacy.png" TOLERANCE 0
+
+COMPARE_SHARP:
+EFFECTPARAM "preserve_size" 0
+EFFECT "Sharp Pixels"
+OBS WAIT FRAMES 10
+OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/sharp_source_legacy.png"
+OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/sharp_preview_legacy.png"
+EFFECTPARAM "preserve_size" 1
+OBS WAIT FRAMES 10
+OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/sharp_source_preserve.png"
+OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/sharp_preview_preserve.png"
+ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/sharp_preview_preserve.png", "../../tests/e2e/artifacts/effect_preserve_size/sharp_preview_legacy.png" TOLERANCE 0
+
+COMPARE_VINTAGE:
+EFFECTPARAM "preserve_size" 0
+EFFECT "Vintage TV"
+OBS WAIT FRAMES 10
+OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/vintage_source_legacy.png"
+OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/vintage_preview_legacy.png"
+EFFECTPARAM "preserve_size" 1
+OBS WAIT FRAMES 10
+OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/vintage_source_preserve.png"
+OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/vintage_preview_preserve.png"
+ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/vintage_preview_preserve.png", "../../tests/e2e/artifacts/effect_preserve_size/vintage_preview_legacy.png" TOLERANCE 0
+
+COMPARE_ARCADE:
+EFFECTPARAM "preserve_size" 0
+EFFECT "Arcade Cabinet"
+OBS WAIT FRAMES 10
+OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/arcade_source_legacy.png"
+OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/arcade_preview_legacy.png"
+EFFECTPARAM "preserve_size" 1
+OBS WAIT FRAMES 10
+OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/arcade_source_preserve.png"
+OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/arcade_preview_preserve.png"
+ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/arcade_preview_preserve.png", "../../tests/e2e/artifacts/effect_preserve_size/arcade_preview_legacy.png" TOLERANCE 0
+
+LOG "Preserve-size preview comparison completed"
+STOP

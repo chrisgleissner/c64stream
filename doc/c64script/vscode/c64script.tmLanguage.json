@@ -128,7 +128,7 @@
         },
         {
           "name": "support.function.recording.c64script",
-          "match": "(?i)\\b(RECORD_START|RECORDSTART|RECORD_STOP|RECORDSTOP)\\b"
+          "match": "(?i)\\b(OBS|SCREENSHOT|TARGET|SOURCE|PREVIEW|PATH|RECORDING|START|STOP|FRAMES|ASSERT|IMAGE_EQUALS|TOLERANCE)\\b"
         },
         {
           "name": "support.function.keyboard.c64script",

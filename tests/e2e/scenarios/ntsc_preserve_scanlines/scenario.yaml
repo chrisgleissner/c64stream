@@ -1,4 +1,4 @@
-name: NTSC Preserve Size Sharp Scanlines
+name: NTSC Preserve Scanlines
 format: NTSC
 preset: Default
 pattern: solid

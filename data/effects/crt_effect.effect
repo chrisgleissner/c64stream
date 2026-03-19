@@ -26,6 +26,7 @@ uniform int tint_mode;
 uniform float tint_strength;
 uniform float dt_ms;
 uniform texture2d texture_accum_prev;
+uniform float virtual_output_width; // Internal effect-space width used for virtual sizing math
 uniform float virtual_output_height; // Internal effect-space height used for scanline row selection
 uniform float canvas_height; // OBS canvas height (final output) for canvas-space scanlines
 uniform float source_width;  // Original C64 source width (e.g., 384)

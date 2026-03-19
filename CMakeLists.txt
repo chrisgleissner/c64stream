@@ -167,8 +167,10 @@ target_compile_definitions(
 find_package(Python3 COMPONENTS Interpreter)
 find_package(libobs REQUIRED)
 find_package(CURL REQUIRED)
+find_package(PNG REQUIRED)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE OBS::libobs)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE CURL::libcurl)
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE PNG::PNG)
 
 if(ENABLE_FRONTEND_API)
   find_package(obs-frontend-api REQUIRED)

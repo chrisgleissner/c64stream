@@ -1,16 +1,12 @@
-name: NTSC Legacy Size Effect Cycle
+name: NTSC Preserve Effect Cycle
 format: NTSC
 preset: Default
 overrides:
-  preserve_size: false
+  preserve_size: true
   script_file: "${repo_root}/data/scripts/demo_effect_preset_cycle.c64script"
   script_auto_start: true
-skip_frame_logic_validation: true
 assertions:
   - video_quality
   - audio
   - effect_change
-  - bounds_variation
-thresholds:
-  bounds_variation:
-    max_center_drift_px: 128.0
+  - bounds_stability

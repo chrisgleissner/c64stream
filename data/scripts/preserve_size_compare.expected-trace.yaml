@@ -1,0 +1,236 @@
+# Execution trace
+script: "preserve_size_compare.c64script"
+status: success
+error: ~
+program: |
+  01: REM Preserve-size preview comparison
+  02: REM Captures preview artifacts for preserve_size off/on across representative presets
+  03:
+  04: LOG "Starting preserve-size preview comparison"
+  05: WAIT 10s
+  06:
+  07: COMPARE_DEFAULT:
+  08: EFFECTPARAM "preserve_size" 0
+  09: EFFECT "Default"
+  10: OBS WAIT FRAMES 10
+  11: OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/default_source_legacy.png"
+  12: OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/default_preview_legacy.png"
+  13: EFFECTPARAM "preserve_size" 1
+  14: OBS WAIT FRAMES 10
+  15: OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/default_source_preserve.png"
+  16: OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/default_preview_preserve.png"
+  17: ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/default_preview_preserve.png", "../../tests/e2e/artifacts/effect_preserve_size/default_preview_legacy.png" TOLERANCE 0
+  18:
+  19: COMPARE_CLASSIC:
+  20: EFFECTPARAM "preserve_size" 0
+  21: EFFECT "Classic CRT"
+  22: OBS WAIT FRAMES 10
+  23: OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/classic_source_legacy.png"
+  24: OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/classic_preview_legacy.png"
+  25: EFFECTPARAM "preserve_size" 1
+  26: OBS WAIT FRAMES 10
+  27: OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/classic_source_preserve.png"
+  28: OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/classic_preview_preserve.png"
+  29: ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/classic_preview_preserve.png", "../../tests/e2e/artifacts/effect_preserve_size/classic_preview_legacy.png" TOLERANCE 0
+  30:
+  31: COMPARE_SHARP:
+  32: EFFECTPARAM "preserve_size" 0
+  33: EFFECT "Sharp Pixels"
+  34: OBS WAIT FRAMES 10
+  35: OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/sharp_source_legacy.png"
+  36: OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/sharp_preview_legacy.png"
+  37: EFFECTPARAM "preserve_size" 1
+  38: OBS WAIT FRAMES 10
+  39: OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/sharp_source_preserve.png"
+  40: OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/sharp_preview_preserve.png"
+  41: ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/sharp_preview_preserve.png", "../../tests/e2e/artifacts/effect_preserve_size/sharp_preview_legacy.png" TOLERANCE 0
+  42:
+  43: COMPARE_VINTAGE:
+  44: EFFECTPARAM "preserve_size" 0
+  45: EFFECT "Vintage TV"
+  46: OBS WAIT FRAMES 10
+  47: OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/vintage_source_legacy.png"
+  48: OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/vintage_preview_legacy.png"
+  49: EFFECTPARAM "preserve_size" 1
+  50: OBS WAIT FRAMES 10
+  51: OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/vintage_source_preserve.png"
+  52: OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/vintage_preview_preserve.png"
+  53: ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/vintage_preview_preserve.png", "../../tests/e2e/artifacts/effect_preserve_size/vintage_preview_legacy.png" TOLERANCE 0
+  54:
+  55: COMPARE_ARCADE:
+  56: EFFECTPARAM "preserve_size" 0
+  57: EFFECT "Arcade Cabinet"
+  58: OBS WAIT FRAMES 10
+  59: OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/arcade_source_legacy.png"
+  60: OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/arcade_preview_legacy.png"
+  61: EFFECTPARAM "preserve_size" 1
+  62: OBS WAIT FRAMES 10
+  63: OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/arcade_source_preserve.png"
+  64: OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/arcade_preview_preserve.png"
+  65: ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/arcade_preview_preserve.png", "../../tests/e2e/artifacts/effect_preserve_size/arcade_preview_legacy.png" TOLERANCE 0
+  66:
+  67: LOG "Preserve-size preview comparison completed"
+  68: STOP
+trace:
+  - line: 4
+    content: 'LOG "Starting preserve-size preview comparison"'
+    variables: {}
+  - line: 5
+    content: "WAIT 10s"
+    variables: {}
+  - line: 8
+    content: 'EFFECTPARAM "preserve_size" 0'
+    variables: {}
+  - line: 9
+    content: 'EFFECT "Default"'
+    variables: {}
+  - line: 10
+    content: "OBS WAIT FRAMES 10"
+    variables: {}
+  - line: 11
+    content: 'OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/default_source_legacy.png"'
+    variables: {}
+  - line: 12
+    content: 'OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/default_preview_legacy.png"'
+    variables: {}
+  - line: 13
+    content: 'EFFECTPARAM "preserve_size" 1'
+    variables: {}
+  - line: 14
+    content: "OBS WAIT FRAMES 10"
+    variables: {}
+  - line: 15
+    content: 'OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/default_source_preserve.png"'
+    variables: {}
+  - line: 16
+    content: 'OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/default_preview_preserve.png"'
+    variables: {}
+  - line: 17
+    content: 'ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/default_preview_preserve.png", "../../tests/e2e/artifacts/effect_preserve_size/default_preview_legacy.png" TOLERANCE 0'
+    variables: {}
+  - line: 20
+    content: 'EFFECTPARAM "preserve_size" 0'
+    variables: {}
+  - line: 21
+    content: 'EFFECT "Classic CRT"'
+    variables: {}
+  - line: 22
+    content: "OBS WAIT FRAMES 10"
+    variables: {}
+  - line: 23
+    content: 'OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/classic_source_legacy.png"'
+    variables: {}
+  - line: 24
+    content: 'OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/classic_preview_legacy.png"'
+    variables: {}
+  - line: 25
+    content: 'EFFECTPARAM "preserve_size" 1'
+    variables: {}
+  - line: 26
+    content: "OBS WAIT FRAMES 10"
+    variables: {}
+  - line: 27
+    content: 'OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/classic_source_preserve.png"'
+    variables: {}
+  - line: 28
+    content: 'OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/classic_preview_preserve.png"'
+    variables: {}
+  - line: 29
+    content: 'ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/classic_preview_preserve.png", "../../tests/e2e/artifacts/effect_preserve_size/classic_preview_legacy.png" TOLERANCE 0'
+    variables: {}
+  - line: 32
+    content: 'EFFECTPARAM "preserve_size" 0'
+    variables: {}
+  - line: 33
+    content: 'EFFECT "Sharp Pixels"'
+    variables: {}
+  - line: 34
+    content: "OBS WAIT FRAMES 10"
+    variables: {}
+  - line: 35
+    content: 'OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/sharp_source_legacy.png"'
+    variables: {}
+  - line: 36
+    content: 'OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/sharp_preview_legacy.png"'
+    variables: {}
+  - line: 37
+    content: 'EFFECTPARAM "preserve_size" 1'
+    variables: {}
+  - line: 38
+    content: "OBS WAIT FRAMES 10"
+    variables: {}
+  - line: 39
+    content: 'OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/sharp_source_preserve.png"'
+    variables: {}
+  - line: 40
+    content: 'OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/sharp_preview_preserve.png"'
+    variables: {}
+  - line: 41
+    content: 'ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/sharp_preview_preserve.png", "../../tests/e2e/artifacts/effect_preserve_size/sharp_preview_legacy.png" TOLERANCE 0'
+    variables: {}
+  - line: 44
+    content: 'EFFECTPARAM "preserve_size" 0'
+    variables: {}
+  - line: 45
+    content: 'EFFECT "Vintage TV"'
+    variables: {}
+  - line: 46
+    content: "OBS WAIT FRAMES 10"
+    variables: {}
+  - line: 47
+    content: 'OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/vintage_source_legacy.png"'
+    variables: {}
+  - line: 48
+    content: 'OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/vintage_preview_legacy.png"'
+    variables: {}
+  - line: 49
+    content: 'EFFECTPARAM "preserve_size" 1'
+    variables: {}
+  - line: 50
+    content: "OBS WAIT FRAMES 10"
+    variables: {}
+  - line: 51
+    content: 'OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/vintage_source_preserve.png"'
+    variables: {}
+  - line: 52
+    content: 'OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/vintage_preview_preserve.png"'
+    variables: {}
+  - line: 53
+    content: 'ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/vintage_preview_preserve.png", "../../tests/e2e/artifacts/effect_preserve_size/vintage_preview_legacy.png" TOLERANCE 0'
+    variables: {}
+  - line: 56
+    content: 'EFFECTPARAM "preserve_size" 0'
+    variables: {}
+  - line: 57
+    content: 'EFFECT "Arcade Cabinet"'
+    variables: {}
+  - line: 58
+    content: "OBS WAIT FRAMES 10"
+    variables: {}
+  - line: 59
+    content: 'OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/arcade_source_legacy.png"'
+    variables: {}
+  - line: 60
+    content: 'OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/arcade_preview_legacy.png"'
+    variables: {}
+  - line: 61
+    content: 'EFFECTPARAM "preserve_size" 1'
+    variables: {}
+  - line: 62
+    content: "OBS WAIT FRAMES 10"
+    variables: {}
+  - line: 63
+    content: 'OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/arcade_source_preserve.png"'
+    variables: {}
+  - line: 64
+    content: 'OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/arcade_preview_preserve.png"'
+    variables: {}
+  - line: 65
+    content: 'ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/arcade_preview_preserve.png", "../../tests/e2e/artifacts/effect_preserve_size/arcade_preview_legacy.png" TOLERANCE 0'
+    variables: {}
+  - line: 67
+    content: 'LOG "Preserve-size preview comparison completed"'
+    variables: {}
+  - line: 68
+    content: "STOP"
+    variables: {}

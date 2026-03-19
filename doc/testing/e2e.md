@@ -237,30 +237,31 @@ flowchart TB
 
 Available scenarios include:
 
-| Scenario                       | Format | Description                                        |
-| ------------------------------ | ------ | -------------------------------------------------- |
-| ntsc_amber_monitor             | NTSC   | Amber monochrome tint                              |
-| ntsc_arcade_cabinet            | NTSC   | Strong scanlines for arcade look                   |
-| ntsc_classic_crt               | NTSC   | Classic CRT with scanlines and blur                |
-| ntsc_default                   | NTSC   | Default preset (no effects)                        |
-| ntsc_default_720p              | NTSC   | 720p, 59.826 Hz (standard HD)                      |
-| ntsc_default_record            | NTSC   | Default preset + recording enabled                 |
-| ntsc_delay_buffer500           | NTSC   | 500ms buffer delay test                            |
-| ntsc_delay_buffer500_jitter10  | NTSC   | 500ms buffer + jitter simulation (10ms)            |
-| ntsc_delay_buffer500_jitter100 | NTSC   | 500ms buffer + jitter simulation (see scenario)    |
-| ntsc_green_monitor             | NTSC   | Green monochrome tint                              |
-| ntsc_palette_muted             | NTSC   | Default preset with 'Muted' palette (no effects)   |
-| ntsc_palette_vibrant           | NTSC   | Default preset with 'Vibrant' palette (no effects) |
-| ntsc_preserve_size_effect_cycle | NTSC  | Source effect cycle with stable OBS footprint      |
-| ntsc_preserve_size_sharp_scanlines | NTSC | Manual OBS sizing with preserve-size enabled    |
-| ntsc_phosphor_glow             | NTSC   | Afterglow and bloom effects                        |
-| ntsc_script_preserve_size_toggle | NTSC | Script toggles preserve-size into legacy mode     |
-| ntsc_sharp_pixels              | NTSC   | Sharp pixel scaling                                |
-| ntsc_sharp_scanlines           | NTSC   | Pixel-perfect scanline rendering                   |
-| ntsc_vintage_tv                | NTSC   | Vintage TV simulation                              |
-| pal_default                    | PAL    | Default preset (no effects)                        |
-| pal_default_720p               | PAL    | 720p, 50.125 Hz (standard HD)                      |
-| pal_preserve_size_effect_cycle | PAL    | Source effect cycle with stable OBS footprint      |
+| Scenario                       | Format | Description                                           |
+| ------------------------------ | ------ | ----------------------------------------------------- |
+| ntsc_amber_monitor             | NTSC   | Amber monochrome tint                                 |
+| ntsc_arcade_cabinet            | NTSC   | Strong scanlines for arcade look                      |
+| ntsc_classic_crt               | NTSC   | Classic CRT with scanlines and blur                   |
+| ntsc_default                   | NTSC   | Default preset (no effects)                           |
+| ntsc_default_720p              | NTSC   | 720p, 59.826 Hz (standard HD)                         |
+| ntsc_default_record            | NTSC   | Default preset + recording enabled                    |
+| ntsc_delay_buffer500           | NTSC   | 500ms buffer delay test                               |
+| ntsc_delay_buffer500_jitter10  | NTSC   | 500ms buffer + jitter simulation (10ms)               |
+| ntsc_delay_buffer500_jitter100 | NTSC   | 500ms buffer + jitter simulation (see scenario)       |
+| ntsc_green_monitor             | NTSC   | Green monochrome tint                                 |
+| ntsc_palette_muted             | NTSC   | Default preset with 'Muted' palette (no effects)      |
+| ntsc_palette_vibrant           | NTSC   | Default preset with 'Vibrant' palette (no effects)    |
+| ntsc_preserve_compare          | NTSC   | Strict preview equality across preserve-size captures |
+| ntsc_preserve_effect_cycle     | NTSC   | Source effect cycle with stable OBS footprint         |
+| ntsc_preserve_scanlines        | NTSC   | Manual OBS sizing with preserve-size enabled          |
+| ntsc_phosphor_glow             | NTSC   | Afterglow and bloom effects                           |
+| ntsc_script_preserve_toggle    | NTSC   | Script toggles preserve-size into legacy mode         |
+| ntsc_sharp_pixels              | NTSC   | Sharp pixel scaling                                   |
+| ntsc_sharp_scanlines           | NTSC   | Pixel-perfect scanline rendering                      |
+| ntsc_vintage_tv                | NTSC   | Vintage TV simulation                                 |
+| pal_default                    | PAL    | Default preset (no effects)                           |
+| pal_default_720p               | PAL    | 720p, 50.125 Hz (standard HD)                         |
+| pal_preserve_effect_cycle      | PAL    | Source effect cycle with stable OBS footprint         |
 
 ### Running a Scenario
 
@@ -404,15 +405,15 @@ python3 -m assertions --list-presets
 
 ### Assertion Types
 
-| Assertion       | Description                                                       |
-| --------------- | ----------------------------------------------------------------- |
-| `video_quality` | Resolution (1920×1080), duration, non-black frame ratio (≥50%)    |
-| `audio`         | Sample rate (48kHz), channel count                                |
-| `tint`          | Amber/Green color verification via dominant channel ratio (≥1.2×) |
-| `afterglow`     | Persistence decay detection using A/V pop ROI analysis            |
-| `scanlines`     | Line uniformity analysis (variance <0.5%)                         |
-| `bounds_stability` | Visible content width/height and center stay within 1 px       |
-| `bounds_variation` | Visible content size changes materially without center drift   |
+| Assertion          | Description                                                       |
+| ------------------ | ----------------------------------------------------------------- |
+| `video_quality`    | Resolution (1920×1080), duration, non-black frame ratio (≥50%)    |
+| `audio`            | Sample rate (48kHz), channel count                                |
+| `tint`             | Amber/Green color verification via dominant channel ratio (≥1.2×) |
+| `afterglow`        | Persistence decay detection using A/V pop ROI analysis            |
+| `scanlines`        | Line uniformity analysis (variance <0.5%)                         |
+| `bounds_stability` | Visible content width/height and center stay within 1 px          |
+| `bounds_variation` | Visible content size changes materially without center drift      |
 
 ### Assertion Flow
 

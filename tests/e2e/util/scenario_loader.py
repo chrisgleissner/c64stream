@@ -27,6 +27,19 @@ from typing import Any, Optional
 import yaml
 
 
+def validate_scenario_name(name: str) -> None:
+    parts = name.split("_")
+    if not name or name.lower() != name:
+        raise ValueError(f"Scenario '{name}' must be lowercase")
+    if len(parts) > 4:
+        raise ValueError(f"Scenario '{name}' has {len(parts)} segments; max is 4")
+    for part in parts:
+        if not part or len(part) > 9:
+            raise ValueError(
+                f"Scenario '{name}' has invalid segment '{part}' (segments must be 1-9 chars)"
+            )
+
+
 def _e2e_dir() -> Path:
     # tests/e2e/util/scenario_loader.py -> parents[1] == tests/e2e
     return Path(__file__).resolve().parents[1]
@@ -49,6 +62,7 @@ class ScenarioConfig:
     assertions: list[str] = field(default_factory=list)
     thresholds: dict[str, dict[str, float]] = field(default_factory=dict)
     tolerances: dict[str, Any] = field(default_factory=dict)
+    fixed_canvas_bounds: bool = False
     scenario_dir: Path = field(default_factory=Path)
 
 
@@ -112,6 +126,8 @@ def load_scenario(scenario_path: Path) -> ScenarioConfig:
     if not scenario_path.exists():
         raise FileNotFoundError(f"Scenario file not found: {scenario_path}")
 
+    validate_scenario_name(scenario_path.parent.name)
+
     with open(scenario_path, "r") as f:
         data = yaml.safe_load(f)
 
@@ -124,6 +140,7 @@ def load_scenario(scenario_path: Path) -> ScenarioConfig:
         assertions=data.get("assertions", ["video_quality", "audio"]),
         thresholds=data.get("thresholds", {}),
         tolerances=data.get("tolerances", {}),
+        fixed_canvas_bounds=bool(data.get("fixed_canvas_bounds", False)),
         scenario_dir=scenario_path.parent,
     )
 
@@ -278,8 +295,37 @@ def generate_scene_json(
         # Fallback: keep integer scale (avoid non-integer scaling in OBS).
         return 4
 
-    def _apply_pixel_perfect_scene_item(scene_json: dict, *, fmt: str, settings: dict[str, Any], canvas_w: float, canvas_h: float) -> None:
+    def _apply_pixel_perfect_scene_item(
+        scene_json: dict,
+        *,
+        fmt: str,
+        settings: dict[str, Any],
+        canvas_w: float,
+        canvas_h: float,
+        fixed_canvas_bounds: bool,
+    ) -> None:
         """Update the scene item transform so OBS doesn't introduce interpolation blur."""
+        if fixed_canvas_bounds:
+            for src in scene_json.get('sources', []):
+                if src.get('id') != 'scene':
+                    continue
+                items = (((src.get('settings') or {}).get('items')) or [])
+                for item in items:
+                    if item.get('name') != 'C64 Stream':
+                        continue
+                    item['align'] = 0
+                    item['pos'] = {'x': float(canvas_w / 2.0), 'y': float(canvas_h / 2.0)}
+                    item['scale'] = {'x': 1.0, 'y': 1.0}
+                    item['bounds_type'] = 2
+                    item['bounds_align'] = 0
+                    item['bounds'] = {'x': float(canvas_w), 'y': float(canvas_h)}
+                    item['scale_filter'] = 'point'
+                    item['crop_left'] = 0
+                    item['crop_right'] = 0
+                    item['crop_top'] = 0
+                    item['crop_bottom'] = 0
+                    return
+
         # The plugin itself can change its reported base dimensions via effect settings:
         # - pixel_width / pixel_height
         # - scan_line_distance (adds integer upscaling to create scanline/gap structure)
@@ -292,6 +338,7 @@ def generate_scene_json(
         pixel_w = float(settings.get('pixel_width', 1.0) or 1.0)
         pixel_h = float(settings.get('pixel_height', 1.0) or 1.0)
         scan_line_distance = float(settings.get('scan_line_distance', 0.0) or 0.0)
+        preserve_size = bool(settings.get('preserve_size', True))
 
         scanline_unit = 1.0
         if scan_line_distance > 0.0:
@@ -305,8 +352,10 @@ def generate_scene_json(
             else:
                 scanline_unit = 3.0
 
-        source_w = base_w * pixel_w * scanline_unit
-        source_h = base_h * pixel_h * scanline_unit
+        virtual_w = base_w * pixel_w * scanline_unit
+        virtual_h = base_h * pixel_h * scanline_unit
+        source_w = base_w if preserve_size else virtual_w
+        source_h = base_h if preserve_size else virtual_h
 
         # Choose the largest integer scale that fits without requiring crop.
         # (Crop is still supported for small overflows caused by rounding.)
@@ -365,7 +414,14 @@ def generate_scene_json(
             break
 
     # Ensure the scene item transform uses integer scaling and point filtering
-    _apply_pixel_perfect_scene_item(scene, fmt=scenario.format, settings=source_settings, canvas_w=canvas_w, canvas_h=canvas_h)
+    _apply_pixel_perfect_scene_item(
+        scene,
+        fmt=scenario.format,
+        settings=source_settings,
+        canvas_w=canvas_w,
+        canvas_h=canvas_h,
+        fixed_canvas_bounds=scenario.fixed_canvas_bounds,
+    )
 
     return scene
 

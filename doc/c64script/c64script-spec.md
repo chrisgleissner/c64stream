@@ -355,17 +355,18 @@ This table lists **all plugin-provided commands/functions** (not BASIC control-f
 | `HTTP`                                                                                                                        |      stmt | Network | [`3.8 HTTP REST calls`](#cmd-http)             |
 | `EFFECT`, `EFFECTPARAM`                                                                                                       |      stmt | Plugin  | [`3.2 Effects / palettes`](#cmd-effects)       |
 | `PALETTE`, `PALETTECOLOR`                                                                                                     |      stmt | Plugin  | [`3.2 Effects / palettes`](#cmd-effects)       |
-| `RECORDSTART`, `RECORDSTOP`                                                                                                   |      stmt | OBS     | [`3.12 Recording control`](#cmd-recording)     |
+| `OBS SCREENSHOT`, `OBS RECORDING START`, `OBS RECORDING STOP`, `OBS WAIT FRAMES`                                              |      stmt | OBS     | [`3.12 OBS control`](#cmd-recording)           |
+| `ASSERT IMAGE_EQUALS`                                                                                                         |      stmt | Plugin  | [`3.13 Image assertions`](#cmd-assert-image)   |
 | `TYPE`, `KEY`                                                                                                                 |      stmt | C64     | [`3.5 Keyboard injection`](#cmd-keyboard)      |
 | `POKE`, `PEEK()`                                                                                                              | stmt / fn | C64     | [`3.4 Memory access`](#cmd-memory)             |
 | `PLAYSID`, `RUNPRG`, `MOUNTDISK`, `AUTOSTART`                                                                                 |      stmt | C64U    | [`3.3 C64U runners`](#cmd-runners)             |
-| `RESET`, `REBOOT`                                                                                                             |      stmt | C64U    | [`3.13 U64 machine control`](#cmd-u64-machine) |
-| `PAUSE`, `RESUME`, `POWEROFF`                                                                                                 |      stmt | C64U    | [`3.13 U64 machine control`](#cmd-u64-machine) |
-| `CFG$()`, `CFG`, `CFG_ITEM$()`, `CFG_OPTIONS$()`, `CFGSAVE`, `CFGLOAD`, `CFGRESET`                                            | fn / stmt | C64U    | [`3.14 U64 configuration`](#cmd-u64-config)    |
-| `SID_MODEL`, `SID_ENABLE`, `SID_VOL`, `SID_FILTER_CURVE`, `SID_RESONANCE`, `SID_COMBINED`, `SID_DIGIS`                        |      stmt | C64U    | [`3.14 U64 configuration`](#cmd-u64-config)    |
-| `VIC_MODE`, `CPU_SPEED`                                                                                                       |      stmt | C64U    | [`3.14 U64 configuration`](#cmd-u64-config)    |
-| `DRIVE$()`, `DRIVE_MOUNT`, `DRIVE_UNMOUNT`, `DRIVE_RESET`, `DRIVE_ON`, `DRIVE_OFF`, `DRIVE_ROM`, `DRIVE_MODE`, `DRIVE_BUS_ID` | fn / stmt | C64U    | [`3.15 U64 drives`](#cmd-u64-drives)           |
-| `LOAD`, `RUN`, `SYS`                                                                                                          |      stmt | C64     | [`3.15 U64 drives`](#cmd-u64-drives)           |
+| `RESET`, `REBOOT`                                                                                                             |      stmt | C64U    | [`3.14 U64 machine control`](#cmd-u64-machine) |
+| `PAUSE`, `RESUME`, `POWEROFF`                                                                                                 |      stmt | C64U    | [`3.14 U64 machine control`](#cmd-u64-machine) |
+| `CFG$()`, `CFG`, `CFG_ITEM$()`, `CFG_OPTIONS$()`, `CFGSAVE`, `CFGLOAD`, `CFGRESET`                                            | fn / stmt | C64U    | [`3.15 U64 configuration`](#cmd-u64-config)    |
+| `SID_MODEL`, `SID_ENABLE`, `SID_VOL`, `SID_FILTER_CURVE`, `SID_RESONANCE`, `SID_COMBINED`, `SID_DIGIS`                        |      stmt | C64U    | [`3.15 U64 configuration`](#cmd-u64-config)    |
+| `VIC_MODE`, `CPU_SPEED`                                                                                                       |      stmt | C64U    | [`3.15 U64 configuration`](#cmd-u64-config)    |
+| `DRIVE$()`, `DRIVE_MOUNT`, `DRIVE_UNMOUNT`, `DRIVE_RESET`, `DRIVE_ON`, `DRIVE_OFF`, `DRIVE_ROM`, `DRIVE_MODE`, `DRIVE_BUS_ID` | fn / stmt | C64U    | [`3.16 U64 drives`](#cmd-u64-drives)           |
+| `LOAD`, `RUN`, `SYS`                                                                                                          |      stmt | C64     | [`3.16 U64 drives`](#cmd-u64-drives)           |
 
 <a id="cmd-effects"></a>
 
@@ -593,28 +594,53 @@ The language provides several built-in functions callable in expression context:
 - `TROFF` disables tracing.
 - `PRINT <expr>` writes to the OBS log (not the script log file).
 
-### 3.12 Recording control (`RECORDSTART`, `RECORDSTOP`)
+### 3.12 OBS control (`OBS ...`)
 
 <a id="cmd-recording"></a>
 
 **Target**: OBS
 
-- `RECORDSTART` starts OBS recording.
-- `RECORDSTOP` stops OBS recording.
+- `OBS RECORDING START` starts OBS recording.
+- `OBS RECORDING STOP` stops OBS recording.
+- `OBS SCREENSHOT TARGET SOURCE PATH <expr>` captures the source output and copies it to the requested path.
+- `OBS SCREENSHOT TARGET PREVIEW PATH <expr>` captures the OBS preview output and copies it to the requested path.
+- `OBS WAIT FRAMES <expr>` blocks until the source has rendered the requested number of frames.
+
+Clause syntax is whitespace-separated. Clause keywords such as `TARGET`, `PATH`, and `FRAMES` do not accept `=`.
 
 Notes:
 
-- `RECORDSTART`/`RECORDSTOP` require builds with `ENABLE_FRONTEND_API` enabled (OBS frontend API).
+- Screenshot and recording commands require builds with `ENABLE_FRONTEND_API` enabled (OBS frontend API).
+- `OBS WAIT FRAMES` requires an active source context.
 
 Example:
 
 ```basic
-RECORDSTART
+OBS RECORDING START
 WAIT 10s
-RECORDSTOP
+OBS SCREENSHOT TARGET SOURCE PATH "captures/final-frame.png"
+OBS RECORDING STOP
 ```
 
-### 3.13 Ultimate 64 machine control
+### 3.13 Image assertions (`ASSERT IMAGE_EQUALS`)
+
+<a id="cmd-assert-image"></a>
+
+**Target**: Plugin/runtime validation
+
+- `ASSERT IMAGE_EQUALS <actual_path_expr>, <expected_path_expr> [TOLERANCE <expr>]`
+- Loads both PNG files, compares them pixel-by-pixel, and stops execution on mismatch.
+- `TOLERANCE` is optional and defaults to `0`.
+- When the assertion fails, the runtime writes a `.diff.png` artifact beside the actual image.
+
+Example:
+
+```basic
+OBS SCREENSHOT TARGET SOURCE PATH "artifacts/frame.png"
+ASSERT IMAGE_EQUALS "artifacts/frame.png", "goldens/frame.png" TOLERANCE 0
+```
+
+### 3.14 Ultimate 64 machine control
 
 <a id="cmd-u64-machine"></a>
 
@@ -748,7 +774,7 @@ LOG "Powering off"
 POWEROFF
 ```
 
-### 3.14 Ultimate 64 configuration
+### 3.15 Ultimate 64 configuration
 
 <a id="cmd-u64-config"></a>
 
@@ -1181,7 +1207,7 @@ REM Save to flash
 CFGSAVE
 ```
 
-### 3.15 Ultimate 64 drives
+### 3.16 Ultimate 64 drives
 
 <a id="cmd-u64-drives"></a>
 
@@ -1950,7 +1976,7 @@ GOSUB PLAYTRACK
 END
 
 PLAYTRACK:
-PLAYSID PATH$ SONGNR=TRACK
+PLAYSID PATH$ SONGNR TRACK
 WAIT 20
 RETURN
 ```
@@ -2000,9 +2026,9 @@ LOG "Waiting for 20:00..."
 WAIT UNTIL "20:00:00"
 LOG "Starting now"
 
-RECORDSTART
+OBS RECORDING START
 WAIT 60s
-RECORDSTOP
+OBS RECORDING STOP
 END
 ```
 
@@ -2164,9 +2190,9 @@ PALETTECOLOR 14, 128, 192, 255   REM Light blue
 REM Apply effect and capture
 EFFECT "Classic CRT"
 WAIT 2s
-RECORDSTART
+OBS RECORDING START
 WAIT 60s
-RECORDSTOP
+OBS RECORDING STOP
 END
 ```
 
@@ -2183,10 +2209,10 @@ WAIT 0.5d           REM Half a day (12 hours)
 REM Schedule for specific time
 WAIT UNTIL "22:30:00"
 LOG "Starting nightly demo capture"
-RECORDSTART
+OBS RECORDING START
 RUNPRG "c64u:/Demos/nightly_demo.prg"
 WAIT 2h
-RECORDSTOP
+OBS RECORDING STOP
 LOG "Nightly capture completed"
 END
 ```
@@ -2220,9 +2246,9 @@ FUNCTION CAPTURE_DEMO(DEMO_PATH$, DURATION)
     WAIT 5s
 
     REM Record
-    RECORDSTART
+    OBS RECORDING START
     WAIT DURATION
-    RECORDSTOP
+    OBS RECORDING STOP
 
     RETURN 1
 ENDFUNCTION
@@ -2269,7 +2295,7 @@ END
 - `AUTOSTART` injects the default template `LOAD"*",8,1\rRUN\r` via keyboard buffer.
 - D64 autostart template is customizable via automation configuration (see `c64-automation.h`).
 - HTTP requests execute via libcurl in the VM and return real status/response values.
-- `RECORDSTART`/`RECORDSTOP` require builds with `ENABLE_FRONTEND_API` enabled (OBS frontend API).
+- `OBS SCREENSHOT` and `OBS RECORDING START`/`STOP` require builds with `ENABLE_FRONTEND_API` enabled (OBS frontend API).
 
 ### 6.2 Limits
 

@@ -53,7 +53,8 @@ class E2EOrchestrator:
                  verbose: bool = False,
                  full_frame_pop: bool = False,
                  av_sync_tolerance_mode = None,
-                 skip_frame_logic_validation: bool = False):
+                 skip_frame_logic_validation: bool = False,
+                 disable_pops: bool = False):
 
         # 1. Environment Setup
         self.env = Environment(test_dir, output_dir, csv_max_rows=csv_max_rows)
@@ -71,6 +72,7 @@ class E2EOrchestrator:
         self.verbose = verbose
         self.full_frame_pop = full_frame_pop
         self.skip_frame_logic_validation = skip_frame_logic_validation
+        self.disable_pops = disable_pops
 
         # 2. Components
         # Use display from environment if set, otherwise default to :99
@@ -192,6 +194,7 @@ class E2EOrchestrator:
                 self.full_frame_pop,
                 self.av_sync_tolerance_mode,
                 self.skip_frame_logic_validation,
+                self.disable_pops,
             )
             success, results = validator.validate(replay_success, recording_path, counts)
 

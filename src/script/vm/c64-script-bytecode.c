@@ -1057,6 +1057,47 @@ static bool compile_statement(compiler_context_t *ctx, c64script_ast_node_t *stm
         return true;
     }
 
+    case AST_STMT_OBS_SCREENSHOT: {
+        if (!compile_expression(ctx, stmt->as.obs_screenshot_stmt.path))
+            return false;
+        emit(ctx, OP_OBS_SCREENSHOT, (uint32_t)stmt->as.obs_screenshot_stmt.target, stmt->line);
+        return true;
+    }
+
+    case AST_STMT_OBS_RECORDING_START:
+        emit(ctx, OP_OBS_RECORDING_START, 0, stmt->line);
+        return true;
+
+    case AST_STMT_OBS_RECORDING_STOP:
+        emit(ctx, OP_OBS_RECORDING_STOP, 0, stmt->line);
+        return true;
+
+    case AST_STMT_OBS_WAIT_FRAMES: {
+        if (!compile_expression(ctx, stmt->as.obs_wait_frames_stmt.frame_count))
+            return false;
+        emit(ctx, OP_OBS_WAIT_FRAMES, 0, stmt->line);
+        return true;
+    }
+
+    case AST_STMT_ASSERT_IMAGE_EQUALS: {
+        if (!compile_expression(ctx, stmt->as.assert_image_equals_stmt.actual_path))
+            return false;
+        if (!compile_expression(ctx, stmt->as.assert_image_equals_stmt.expected_path))
+            return false;
+        if (stmt->as.assert_image_equals_stmt.tolerance) {
+            if (!compile_expression(ctx, stmt->as.assert_image_equals_stmt.tolerance))
+                return false;
+        } else {
+            c64script_value_t tolerance_zero = {.type = VALUE_NUMBER, .as.number = 0.0};
+            uint32_t idx = (uint32_t)add_constant(ctx, tolerance_zero);
+            if (idx == UINT32_MAX)
+                return false;
+            emit(ctx, OP_PUSH_CONST, idx, stmt->line);
+        }
+        emit(ctx, OP_ASSERT_IMAGE_EQUALS, 0, stmt->line);
+        return true;
+    }
+
     // Plugin action statements
     case AST_STMT_EFFECT: {
         if (!compile_expression(ctx, stmt->as.effect_stmt.preset_name))
@@ -1490,14 +1531,6 @@ static bool compile_statement(compiler_context_t *ctx, c64script_ast_node_t *stm
 
     case AST_STMT_POWEROFF:
         emit(ctx, OP_POWEROFF, 0, stmt->line);
-        return true;
-
-    case AST_STMT_RECORDSTART:
-        emit(ctx, OP_RECORDSTART, 0, stmt->line);
-        return true;
-
-    case AST_STMT_RECORDSTOP:
-        emit(ctx, OP_RECORDSTOP, 0, stmt->line);
         return true;
 
     case AST_STMT_TYPE: {

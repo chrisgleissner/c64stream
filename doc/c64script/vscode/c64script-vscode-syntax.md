@@ -106,7 +106,7 @@ The TextMate grammar provides comprehensive syntax highlighting for:
 
 - **Effects:** `EFFECT`, `EFFECT_PARAM`/`EFFECTPARAM`, `PALETTE`, `PALETTE_COLOR`/`PALETTECOLOR`
 - **C64 Control:** `PLAY_SID`/`PLAYSID`, `RUN_PRG`/`RUNPRG`, `MOUNT_DISK`/`MOUNTDISK`, `RESET`, `REBOOT`
-- **Recording:** `RECORD_START`/`RECORDSTART`, `RECORD_STOP`/`RECORDSTOP`
+- **OBS / Assertions:** `OBS`, `SCREENSHOT`, `TARGET`, `SOURCE`, `PREVIEW`, `PATH`, `RECORDING`, `START`, `FRAMES`, `ASSERT`, `IMAGE_EQUALS`, `TOLERANCE`
 - **Keyboard:** `TYPE`, `KEY`
 - **HTTP:** `HTTP`/`CALL_HTTP`/`CALLHTTP`, `GET`, `POST`, `PUT`, `DELETE`, `PATCH`
 - **File I/O:** `READ_FILE`/`READFILE`, `WRITE_FILE`/`WRITEFILE`, `APPEND`, `TRUNCATE`

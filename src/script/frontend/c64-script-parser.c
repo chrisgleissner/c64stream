@@ -113,6 +113,21 @@ static bool parse_uint32_decimal_token(const c64script_token_t *tok, uint32_t *o
     return true;
 }
 
+static bool token_can_be_bare_label(const c64script_token_t *tok)
+{
+    if (!tok || !tok->start || tok->length == 0) {
+        return false;
+    }
+
+    unsigned char first = (unsigned char)tok->start[0];
+    return isalpha(first) || first == '_';
+}
+
+static bool token_can_be_implicit_keyword_label(const c64script_token_t *tok)
+{
+    return tok && tok->type == TOKEN_START;
+}
+
 static char *dup_normalized_label_from_number(const c64script_token_t *tok)
 {
     uint32_t value = 0;
@@ -981,6 +996,18 @@ static const char *parse_optional_keyword_value(parser_t *p, const c64script_tok
     return NULL;
 }
 
+static bool reject_clause_equals(parser_t *p, const char *clause_name)
+{
+    if (!match(p, TOKEN_EQ)) {
+        return true;
+    }
+
+    char message[128];
+    snprintf(message, sizeof(message), "%s clause uses whitespace-separated syntax; '=' is not allowed", clause_name);
+    error(p, message);
+    return false;
+}
+
 static char *parse_label_ref(parser_t *p)
 {
     if (match(p, TOKEN_IDENTIFIER)) {
@@ -998,6 +1025,11 @@ static char *parse_label_ref(parser_t *p)
             return NULL;
         }
         return normalized;
+    }
+
+    if (token_can_be_bare_label(&p->current)) {
+        advance(p);
+        return dup_upper(p->previous.start, p->previous.length);
     }
 
     error(p, "Expected label");
@@ -1684,8 +1716,139 @@ static c64script_ast_node_t *playsid_statement(parser_t *p)
     node->as.playsid_stmt.songnr = NULL;
 
     if (match(p, TOKEN_SONGNR)) {
-        match(p, TOKEN_EQ);
+        if (!reject_clause_equals(p, "SONGNR")) {
+            c64script_ast_free(node);
+            return NULL;
+        }
         node->as.playsid_stmt.songnr = expression(p);
+    }
+
+    return node;
+}
+
+static c64script_ast_node_t *obs_statement(parser_t *p)
+{
+    if (match(p, TOKEN_SCREENSHOT)) {
+        c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+        if (!node) {
+            return NULL;
+        }
+
+        node->type = AST_STMT_OBS_SCREENSHOT;
+        node->line = p->previous.line;
+
+        consume(p, TOKEN_TARGET, "Expected TARGET after OBS SCREENSHOT");
+        if (p->panic_mode) {
+            c64script_ast_free(node);
+            return NULL;
+        }
+        if (!reject_clause_equals(p, "TARGET")) {
+            c64script_ast_free(node);
+            return NULL;
+        }
+
+        if (match(p, TOKEN_SOURCE_KW)) {
+            node->as.obs_screenshot_stmt.target = C64SCRIPT_OBS_TARGET_SOURCE;
+        } else if (match(p, TOKEN_PREVIEW)) {
+            node->as.obs_screenshot_stmt.target = C64SCRIPT_OBS_TARGET_PREVIEW;
+        } else {
+            error(p, "Expected SOURCE or PREVIEW after TARGET");
+            c64script_ast_free(node);
+            return NULL;
+        }
+
+        consume(p, TOKEN_PATH_KW, "Expected PATH after OBS SCREENSHOT TARGET <target>");
+        if (p->panic_mode) {
+            c64script_ast_free(node);
+            return NULL;
+        }
+        if (!reject_clause_equals(p, "PATH")) {
+            c64script_ast_free(node);
+            return NULL;
+        }
+
+        node->as.obs_screenshot_stmt.path = expression(p);
+        return node;
+    }
+
+    if (match(p, TOKEN_RECORDING)) {
+        c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+        if (!node) {
+            return NULL;
+        }
+
+        if (match(p, TOKEN_START)) {
+            node->type = AST_STMT_OBS_RECORDING_START;
+        } else if (match(p, TOKEN_STOP)) {
+            node->type = AST_STMT_OBS_RECORDING_STOP;
+        } else {
+            error(p, "Expected START or STOP after OBS RECORDING");
+            free(node);
+            return NULL;
+        }
+
+        node->line = p->previous.line;
+        return node;
+    }
+
+    if (match(p, TOKEN_WAIT)) {
+        c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+        if (!node) {
+            return NULL;
+        }
+
+        node->type = AST_STMT_OBS_WAIT_FRAMES;
+        node->line = p->previous.line;
+
+        consume(p, TOKEN_FRAMES, "Expected FRAMES after OBS WAIT");
+        if (p->panic_mode) {
+            c64script_ast_free(node);
+            return NULL;
+        }
+        if (!reject_clause_equals(p, "FRAMES")) {
+            c64script_ast_free(node);
+            return NULL;
+        }
+
+        node->as.obs_wait_frames_stmt.frame_count = expression(p);
+        return node;
+    }
+
+    error(p, "Expected SCREENSHOT, RECORDING, or WAIT after OBS");
+    return NULL;
+}
+
+static c64script_ast_node_t *assert_statement(parser_t *p)
+{
+    consume(p, TOKEN_IMAGE_EQUALS, "Expected IMAGE_EQUALS after ASSERT");
+    if (p->panic_mode) {
+        return NULL;
+    }
+
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node) {
+        return NULL;
+    }
+
+    node->type = AST_STMT_ASSERT_IMAGE_EQUALS;
+    node->line = p->previous.line;
+
+    node->as.assert_image_equals_stmt.actual_path = expression(p);
+    if (!match(p, TOKEN_COMMA)) {
+        error(p, "Expected comma between ASSERT IMAGE_EQUALS paths");
+        c64script_ast_free(node);
+        return NULL;
+    }
+
+    node->as.assert_image_equals_stmt.expected_path = expression(p);
+    node->as.assert_image_equals_stmt.tolerance = NULL;
+
+    if (match(p, TOKEN_TOLERANCE)) {
+        if (!reject_clause_equals(p, "TOLERANCE")) {
+            c64script_ast_free(node);
+            return NULL;
+        }
+        node->as.assert_image_equals_stmt.tolerance = expression(p);
     }
 
     return node;
@@ -2295,30 +2458,6 @@ static c64script_ast_node_t *reboot_statement(parser_t *p)
     return node;
 }
 
-// RECORDSTART
-static c64script_ast_node_t *recordstart_statement(parser_t *p)
-{
-    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
-    if (!node)
-        return NULL;
-    node->type = AST_STMT_RECORDSTART;
-    node->line = p->previous.line;
-
-    return node;
-}
-
-// RECORDSTOP
-static c64script_ast_node_t *recordstop_statement(parser_t *p)
-{
-    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
-    if (!node)
-        return NULL;
-    node->type = AST_STMT_RECORDSTOP;
-    node->line = p->previous.line;
-
-    return node;
-}
-
 // TYPE text
 static c64script_ast_node_t *type_statement(parser_t *p)
 {
@@ -2602,23 +2741,25 @@ static c64script_ast_node_t *statement(parser_t *p)
     }
 
     // Optional line prefix label/line-number, possibly followed by a statement on the same line.
-    if (allow_line_label && (check(p, TOKEN_IDENTIFIER) || check(p, TOKEN_NUMBER))) {
+    if (allow_line_label &&
+        (check(p, TOKEN_IDENTIFIER) || check(p, TOKEN_NUMBER) || token_can_be_implicit_keyword_label(&p->current))) {
         c64script_token_t first = p->current;
         c64script_token_t second = peek_token(p);
 
         bool is_label = false;
         if (first.type == TOKEN_NUMBER) {
             is_label = memchr(first.start, '.', first.length) == NULL;
-        } else if (first.type == TOKEN_IDENTIFIER) {
+        } else if (first.type == TOKEN_IDENTIFIER || token_can_be_implicit_keyword_label(&first)) {
             // Check if this is a label or an assignment
             // It's a label if followed by : or not followed by = or (
             // It's an assignment if followed by = or (
             if (second.type == TOKEN_COLON) {
                 is_label = true;
-            } else if (second.type == TOKEN_EQ || second.type == TOKEN_LPAREN || second.type == TOKEN_LBRACE) {
+            } else if (first.type == TOKEN_IDENTIFIER &&
+                       (second.type == TOKEN_EQ || second.type == TOKEN_LPAREN || second.type == TOKEN_LBRACE)) {
                 // Could be assignment: x = val, arr(i) = val, map{k} = val
                 is_label = false;
-            } else {
+            } else if (first.type == TOKEN_IDENTIFIER || token_can_be_implicit_keyword_label(&first)) {
                 // Otherwise assume it's a label
                 is_label = true;
             }
@@ -2739,6 +2880,10 @@ static c64script_ast_node_t *statement(parser_t *p)
         return wait_statement(p);
 
     // Plugin actions
+    if (match(p, TOKEN_OBS))
+        return obs_statement(p);
+    if (match(p, TOKEN_ASSERT))
+        return assert_statement(p);
     if (match(p, TOKEN_EFFECT))
         return effect_statement(p);
     if (match(p, TOKEN_EFFECTPARAM))
@@ -2815,10 +2960,6 @@ static c64script_ast_node_t *statement(parser_t *p)
         return resume_statement(p);
     if (match(p, TOKEN_POWEROFF))
         return poweroff_statement(p);
-    if (match(p, TOKEN_RECORDSTART))
-        return recordstart_statement(p);
-    if (match(p, TOKEN_RECORDSTOP))
-        return recordstop_statement(p);
     if (match(p, TOKEN_TYPE_KEYWORD))
         return type_statement(p);
     if (match(p, TOKEN_KEY))
