@@ -1,0 +1,8 @@
+name: NTSC Filter Preserve Size
+format: NTSC
+preset: Default
+packet_source: media
+assertions:
+  - video_quality
+  - audio
+  - bounds_stability

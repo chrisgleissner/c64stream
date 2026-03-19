@@ -489,27 +489,36 @@ Recreate the authentic look and feel of classic CRT monitors and TVs with config
 **Customizable Effects:**
 
 - **Scan Lines:** CRT raster line simulation with precise control (see table below). The "Scan Line Strength" slider (0.0–1.0) controls how dark the gaps appear. At 0.0, gaps are invisible; at 1.0, they are completely black.
-
 - **Bloom:** Glow effect that makes bright pixels bleed into darker areas
 - **Pixel Geometry:** Independent width/height scaling for authentic pixel aspect ratios
 - **Blur Control:** Fine-tune between crisp pixels and soft scaling
 - **Afterglow**: CRT phosphor persistence effect (0-250ms) with configurable decay curves
 - **Screen Tint:** Amber, green, or monochrome overlays for period-accurate monitor simulation
+- **Preserve preview size:** Keeps the OBS-facing source or filter footprint stable when scanline and pixel-geometry settings change the internal virtual effect size
 
 **Reset:** To reset to default values, simply select the "Default" preset. If you have changed individual effects whilst the "Default" preset was active, select any other preset first and then re-select the "Default" preset.
+
+**Preserve preview size:**
+
+- New source and filter instances enable **Preserve preview size** by default.
+- Existing saved scenes keep their previous size-changing behavior until you enable the option explicitly.
+- Presets do not override this flag. Use it as a layout behavior toggle, not as part of a preset.
+- C64Script can toggle it at runtime with `EFFECTPARAM "preserve_size" 1` or `EFFECTPARAM "preserve_size" 0`.
 
 #### Perfect Scan Lines
 
 > [!TIP]
 > This section is for users seeking perfect display quality. The techniques described here are mostly required when using effects that include scan lines and/or pixel scaling.
 
-The **Scan Line Distance** setting controls the gap between each pair of adjacent C64 pixel rows, simulating the dark lines between phosphor rows on a CRT monitor. Each mode uses a specific integer scaling factor to ensure perfectly uniform scanlines with zero variance.
+The **Scan Line Distance** setting controls the gap between each pair of adjacent C64 pixel rows, simulating the dark lines between phosphor rows on a CRT monitor. Each mode uses a specific integer scaling factor internally to ensure perfectly uniform scanlines with zero variance.
 
-To achieve **pixel-perfect scanlines** without any scaling-induced artifacts such as slight blurriness, the source must be scaled to exact dimensions in OBS. Because OBS does not lock aspect ratio for numeric transforms, **both height and width must be set explicitly**.
+With **Preserve preview size** enabled, changing presets no longer forces you to resize the scene item just to keep it in the same place. The effect still uses its own internal virtual geometry, but the OBS-facing footprint stays stable.
+
+To achieve **pixel-perfect scanlines** without scaling artifacts such as slight blurriness, the final displayed size in OBS still matters. Because OBS does not lock aspect ratio for numeric transforms, **both height and width must be set explicitly**.
 
 First, right-click on the C64 Stream source → **Scale Filtering → Point**. This is a one-time setting that tells OBS to use nearest-neighbor scaling.
 
-Then, right-click the C64 Stream source in OBS → **Transform** → **Edit Transform**, then enter the exact values from the table below, assuming you are using a 1920 x 1080 ("Full HD") screen. Adjust the width/height settings as needed if you use a different screen:
+Then, right-click the C64 Stream source in OBS → **Transform** → **Edit Transform**, then enter the exact values from the table below, assuming you are using a 1920 x 1080 ("Full HD") screen. Adjust the width/height settings as needed if you use a different screen. These target display sizes remain valid whether or not **Preserve preview size** is enabled:
 
 | Mode       | Distance | Scale | Pattern           | Output Width | Output Height | Canvas Fit                |
 | ---------- | -------- | ----- | ----------------- | ------------ | ------------- | ------------------------- |
@@ -738,6 +747,11 @@ Then reload VS Code (`Ctrl+Shift+P` → "Reload Window"). The language mode shou
 - **Full Language Reference:** [`doc/c64script/c64script-spec.md`](doc/c64script/c64script-spec.md) - Complete C64Script language documentation
 - **Debugging Guide:** [`doc/c64script/c64script-debugging.md`](doc/c64script/c64script-debugging.md) - Detailed debugging workflows and tips
 - **Example Scripts:** [`data/scripts/`](data/scripts/) - Demo scripts showing effects, palettes, and automation
+
+Common effect-layout automation examples:
+
+- `EFFECTPARAM "preserve_size" 1` keeps the OBS footprint stable while you cycle effects.
+- `EFFECTPARAM "preserve_size" 0` restores the legacy behavior where effect scaling changes the source or filter size.
 
 ## 🛟 Troubleshooting
 

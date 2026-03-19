@@ -36,6 +36,47 @@ struct preset {
 static struct preset presets[MAX_PRESETS];
 static int preset_count = 0;
 
+static struct preset *find_preset(const char *preset_name)
+{
+    if (!preset_name) {
+        return NULL;
+    }
+
+    for (int i = 0; i < preset_count; i++) {
+        if (strcmp(presets[i].name, preset_name) == 0) {
+            return &presets[i];
+        }
+    }
+
+    return NULL;
+}
+
+static bool preset_setting_matches(obs_data_t *settings, const char *key, const char *value)
+{
+    if (!settings || !key || !value) {
+        return false;
+    }
+
+    if (strcmp(key, "preserve_size") == 0) {
+        return true;
+    }
+
+    if (strchr(value, '.') != NULL) {
+        const double expected = atof(value);
+        const double actual = obs_data_get_double(settings, key);
+        return fabs(actual - expected) < 0.0001;
+    }
+
+    if (value[0] == '-' || (value[0] >= '0' && value[0] <= '9')) {
+        const long long expected = atoll(value);
+        const long long actual = obs_data_get_int(settings, key);
+        return actual == expected;
+    }
+
+    const char *actual = obs_data_get_string(settings, key);
+    return strcmp(actual ? actual : "", value) == 0;
+}
+
 // Helper function to trim whitespace from both ends of a string
 static void trim_string(char *str)
 {
@@ -161,25 +202,20 @@ bool c64_effect_apply(obs_data_t *settings, const char *preset_name)
     if (!settings || !preset_name)
         return false;
 
-    // Find the preset by name
-    int preset_idx = -1;
-    for (int i = 0; i < preset_count; i++) {
-        if (strcmp(presets[i].name, preset_name) == 0) {
-            preset_idx = i;
-            break;
-        }
-    }
-
-    if (preset_idx < 0) {
+    struct preset *p = find_preset(preset_name);
+    if (!p) {
         C64_LOG_WARNING("" EFFECT_LOG_PREFIX " Preset '%s' not found", preset_name);
         return false;
     }
 
     // Apply all settings from the preset
-    struct preset *p = &presets[preset_idx];
     for (int i = 0; i < p->setting_count; i++) {
         const char *key = p->settings[i].key;
         const char *value = p->settings[i].value;
+
+        if (strcmp(key, "preserve_size") == 0) {
+            continue;
+        }
 
         // Try to parse the value and set it appropriately
         // Check if it's a floating point number
@@ -199,6 +235,26 @@ bool c64_effect_apply(obs_data_t *settings, const char *preset_name)
     }
 
     C64_LOG_INFO("" EFFECT_LOG_PREFIX " Applied preset: %s (%d settings)", preset_name, p->setting_count);
+    return true;
+}
+
+bool c64_effect_matches_preset(obs_data_t *settings, const char *preset_name)
+{
+    if (!settings || !preset_name) {
+        return false;
+    }
+
+    struct preset *p = find_preset(preset_name);
+    if (!p) {
+        return false;
+    }
+
+    for (int i = 0; i < p->setting_count; i++) {
+        if (!preset_setting_matches(settings, p->settings[i].key, p->settings[i].value)) {
+            return false;
+        }
+    }
+
     return true;
 }
 

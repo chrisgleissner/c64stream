@@ -204,6 +204,7 @@ target_sources(
     src/network/c64-protocol.c
     src/video/c64-video.c
     src/video/c64-effect-afterglow.c
+    src/video/c64-effect-geometry.c
     src/video/c64-color.c
     src/video/c64-stream-effects.c
     src/video/c64-logo.c

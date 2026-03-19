@@ -22,8 +22,11 @@ from .av_sync_csv_validation import AvSyncCsvValidationAssertion
 from .av_sync_offset import AvSyncOffsetAssertion
 from .av_sync_log_validation import AvSyncLogValidationAssertion
 from .base import AssertionResult, AssertionStatus, EffectAssertion, is_ci
+from .bounds import BoundsStabilityAssertion, BoundsVariationAssertion
 from .debug_log_presence import DebugLogPresenceAssertion
 from .config import PresetConfig
+from .effect_change import EffectChangeAssertion
+from .effect_cycle_log import EffectCycleLogAssertion
 from .frame_progression import FrameProgressionAssertion
 from .palette_mapping import PaletteMappingAssertion
 from .palette_stability import PaletteStabilityAssertion
@@ -193,6 +196,10 @@ def create_assertions_from_list(
         "av_sync_csv_validation": AvSyncCsvValidationAssertion,
         "av_sync_log_validation": AvSyncLogValidationAssertion,
         "debug_log_presence": DebugLogPresenceAssertion,
+        "bounds_stability": BoundsStabilityAssertion,
+        "bounds_variation": BoundsVariationAssertion,
+        "effect_change": EffectChangeAssertion,
+        "effect_cycle_log": EffectCycleLogAssertion,
         "tint": TintAssertion,
         "tint_transition": TintTransitionAssertion,
         "effect_transition": EffectTransitionAssertion,

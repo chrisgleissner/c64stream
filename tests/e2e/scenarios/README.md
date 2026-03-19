@@ -54,11 +54,21 @@ assertions:
   - afterglow
   - scanlines
 
+# Optional: per-assertion threshold overrides when a scenario intentionally
+# deviates from the default assertion contract.
+thresholds:
+  bounds_variation:
+    max_center_drift_px: 128.0
+
 # Optional: per-assertion tolerance scaling (1.0 = default). Values <1.0 are more lenient.
 tolerances:
   frame_progression:
     local: 1.0
     ci: 0.6
+
+# Optional: skip the shared frame-sequence validator when the scenario intentionally
+# changes the marker footprint/placement and uses targeted assertions instead.
+skip_frame_logic_validation: true
 ```
 
 ### Available Assertions

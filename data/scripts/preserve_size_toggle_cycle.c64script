@@ -1,0 +1,21 @@
+REM Preserve Preview Size Toggle Demo
+REM Starts in preserve-size mode, then switches to legacy sizing.
+
+LOG "Starting preserve_size toggle demo"
+
+EFFECTPARAM "preserve_size" 1
+LOG "preserve_size=1"
+EFFECT "Classic CRT"
+WAIT 2s
+EFFECT "Arcade Cabinet"
+WAIT 2s
+
+EFFECTPARAM "preserve_size" 0
+LOG "preserve_size=0"
+EFFECT "Classic CRT"
+WAIT 2s
+EFFECT "Arcade Cabinet"
+WAIT 2s
+
+LOG "Preserve_size toggle demo completed"
+STOP

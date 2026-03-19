@@ -21,7 +21,8 @@ class ResultValidator:
                  packet_source: str = 'mock',
                  network_simulation: Optional[Dict] = None,
                  full_frame_pop: bool = False,
-                 av_sync_tolerance_mode = None):
+                 av_sync_tolerance_mode = None,
+                 skip_frame_logic_validation: bool = False):
         self.env = env
         self.format = video_format
         self.frames = frames
@@ -29,6 +30,7 @@ class ResultValidator:
         self.network_simulation = network_simulation or {}
         self.full_frame_pop = full_frame_pop
         self.av_sync_tolerance_mode = av_sync_tolerance_mode
+        self.skip_frame_logic_validation = skip_frame_logic_validation
 
     def validate(self,
                  replay_success: bool,
@@ -406,6 +408,12 @@ class ResultValidator:
         if self.full_frame_pop:
             results['frame_sequence_box'] = None
             logger.info("⏭️  Frame Logic: Skipped (full-frame-pop scenario)")
+            return
+
+        if self.skip_frame_logic_validation:
+            results['frame_sequence_box'] = None
+            results['frame_processing'] = {'status': 'skipped', 'details': 'Skipped (scenario-managed validation)'}
+            logger.info("⏭️  Frame Logic: Skipped (scenario-managed validation)")
             return
 
         # Get settling seconds from environment or use default

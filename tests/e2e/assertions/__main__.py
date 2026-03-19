@@ -100,6 +100,7 @@ Examples:
     preset = None
     properties = {}
     scenario_assertions = None
+    scenario_thresholds = {}
     scenario_tolerances = {}
 
     if args.scenario:
@@ -126,6 +127,7 @@ Examples:
         preset = PresetConfig.from_obs_settings(settings)
         properties = settings
         scenario_assertions = scenario_cfg.assertions
+        scenario_thresholds = scenario_cfg.thresholds or {}
         scenario_tolerances = scenario_cfg.tolerances or {}
 
         # Add expected resolution from scenario
@@ -186,7 +188,11 @@ Examples:
             except (TypeError, ValueError):
                 continue
             selected_tolerances[name.lower()] = tol_val
-        assertions = create_assertions_from_list(scenario_assertions, tolerances=selected_tolerances)
+        assertions = create_assertions_from_list(
+            scenario_assertions,
+            thresholds=scenario_thresholds,
+            tolerances=selected_tolerances,
+        )
     else:
         assertions = create_preset_assertions(preset)
 

@@ -29,3 +29,10 @@ bool c64_effect_apply(obs_data_t *settings, const char *preset_name)
     (void)preset_name;
     return false;
 }
+
+bool c64_effect_matches_preset(obs_data_t *settings, const char *preset_name)
+{
+    (void)settings;
+    (void)preset_name;
+    return false;
+}

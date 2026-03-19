@@ -37,6 +37,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-automation.h"
 #include "plugin-support.h"
 #include "c64-effect.h"
+#include "c64-effect-geometry.h"
 #include "c64-av-sync.h"
 #include "c64-network-fifo.h"
 
@@ -49,6 +50,49 @@ static void c64_attempt_script_autostart(struct c64_source *context, obs_data_t 
 static void c64_queue_properties_refresh(struct c64_source *context);
 
 static const char *C64_PRESET_LAST_APPLIED_KEY = "crt_preset_last_applied";
+static const char *const C64_SOURCE_SAVED_SETTING_KEYS[] = {
+    "debug_logging",
+    "auto_detect_ip",
+    "dns_server_ip",
+    "c64_host",
+    "c64_password",
+    "obs_ip_address",
+    "video_port",
+    "audio_port",
+    "control_port",
+    "buffer_delay_ms",
+    "script_auto_start",
+    "script_file",
+    "record_frames",
+    "save_folder",
+    "record_video",
+    "record_csv",
+    "record_av_sync",
+    "crt_preset",
+    "scan_line_distance",
+    "scan_line_strength",
+    "pixel_width",
+    "pixel_height",
+    "blur_strength",
+    "bloom_strength",
+    "afterglow_duration_ms",
+    "afterglow_curve",
+    "tint_mode",
+    "tint_strength",
+    "palette",
+    "keyboard_keymap",
+    "file_system",
+    "playback_source",
+    "include_subfolders",
+    "shuffle_playback",
+    "automation_duration",
+    "automation_reset",
+    "automation_use_songlengths",
+    "local_folder_path",
+    "file_source",
+    "automation_path",
+    "automation_shuffle",
+};
 
 static bool c64_source_settings_have_effect_overrides(obs_data_t *settings)
 {
@@ -77,12 +121,16 @@ static bool c64_source_apply_crt_preset_if_needed(obs_data_t *settings, const ch
         return false;
     }
 
-    if ((!last_applied || last_applied[0] == '\0') && c64_source_settings_have_effect_overrides(settings)) {
-        if (is_update) {
-            C64_LOG_DEBUG("" EFFECT_LOG_PREFIX " Preset update skipped; manual effect overrides present");
-        } else {
-            C64_LOG_INFO("" EFFECT_LOG_PREFIX " Skipping preset auto-apply; custom effect overrides detected");
+    if (!last_applied || last_applied[0] == '\0') {
+        if (c64_effect_matches_preset(settings, preset_name)) {
+            obs_data_set_string(settings, C64_PRESET_LAST_APPLIED_KEY, preset_name);
+            return false;
         }
+    }
+
+    if (!is_update && (!last_applied || last_applied[0] == '\0') &&
+        c64_source_settings_have_effect_overrides(settings)) {
+        C64_LOG_INFO("" EFFECT_LOG_PREFIX " Skipping preset auto-apply; custom effect overrides detected");
         return false;
     }
 
@@ -116,6 +164,13 @@ static bool c64_try_get_prefer_pal_from_obs_fps(bool *prefer_pal)
     double fps = (double)ovi.fps_num / (double)ovi.fps_den;
     *prefer_pal = (fps < 55.0);
     return true;
+}
+
+static void c64_source_get_effect_geometry(const struct c64_source *context, struct c64_effect_geometry *geometry)
+{
+    c64_effect_geometry_init(geometry, context ? context->width : 0, context ? context->height : 0,
+                             context ? context->pixel_width : 1.0f, context ? context->pixel_height : 1.0f,
+                             context ? context->scan_line_distance : 0.0f, context ? context->preserve_size : true);
 }
 
 static void c64_apply_format_hint(struct c64_source *context, bool prefer_pal)
@@ -342,6 +397,10 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
         C64_LOG_ERROR("Failed to allocate memory for source context");
         return NULL;
     }
+
+    context->preserve_size = c64_effect_settings_resolve_preserve_size(settings, C64_SOURCE_SAVED_SETTING_KEYS,
+                                                                       sizeof(C64_SOURCE_SAVED_SETTING_KEYS) /
+                                                                           sizeof(C64_SOURCE_SAVED_SETTING_KEYS[0]));
 
     // Load configuration file before initializing settings-dependent values
     c64_load_configuration(settings);
@@ -1026,6 +1085,10 @@ void c64_update(void *data, obs_data_t *settings)
     if (!context)
         return;
 
+    context->preserve_size = c64_effect_settings_resolve_preserve_size(settings, C64_SOURCE_SAVED_SETTING_KEYS,
+                                                                       sizeof(C64_SOURCE_SAVED_SETTING_KEYS) /
+                                                                           sizeof(C64_SOURCE_SAVED_SETTING_KEYS[0]));
+
     char old_script_path[512];
     strncpy(old_script_path, context->script_file_path, sizeof(old_script_path) - 1);
     old_script_path[sizeof(old_script_path) - 1] = '\0';
@@ -1572,8 +1635,8 @@ void c64_video_tick(void *data, float seconds)
 
         // Create afterglow accumulation textures only when effects are enabled
         if (effects_enabled) {
-            uint32_t render_width = c64_get_width(context);
-            uint32_t render_height = c64_get_height(context);
+            struct c64_effect_geometry geometry;
+            c64_source_get_effect_geometry(context, &geometry);
 
             if (context->afterglow_accum_prev) {
                 gs_texture_destroy(context->afterglow_accum_prev);
@@ -1582,9 +1645,9 @@ void c64_video_tick(void *data, float seconds)
                 gs_texture_destroy(context->afterglow_accum_next);
             }
             context->afterglow_accum_prev =
-                gs_texture_create(render_width, render_height, GS_RGBA, 1, NULL, GS_RENDER_TARGET);
+                gs_texture_create(geometry.virtual_width, geometry.virtual_height, GS_RGBA, 1, NULL, GS_RENDER_TARGET);
             context->afterglow_accum_next =
-                gs_texture_create(render_width, render_height, GS_RGBA, 1, NULL, GS_RENDER_TARGET);
+                gs_texture_create(geometry.virtual_width, geometry.virtual_height, GS_RGBA, 1, NULL, GS_RENDER_TARGET);
         } else {
             if (context->afterglow_accum_prev) {
                 gs_texture_destroy(context->afterglow_accum_prev);
@@ -1774,13 +1837,11 @@ void c64_video_render(void *data, gs_effect_t *effect)
     // Still bind something valid for safety, even though afterglow is disabled in this pass.
     gs_effect_set_texture(gs_effect_get_param_by_name(context->crt_effect, "texture_accum_prev"), input_tex);
 
-    // Calculate render dimensions (may be scaled by pixel_width/height and scanlines)
-    uint32_t render_width = c64_get_width(context);
-    uint32_t render_height = c64_get_height(context);
+    struct c64_effect_geometry geometry;
+    c64_source_get_effect_geometry(context, &geometry);
 
-    // Set output_height for scanline calculation
-    // The shader uses this to determine scanline row: output_row = int(uv.y * output_height)
-    gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "output_height"), (float)render_height);
+    gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "virtual_output_height"),
+                        (float)geometry.virtual_height);
 
     // Set blur/bloom strengths directly - no scaling needed since we render at correct size
     gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "blur_strength"), context->blur_strength);
@@ -1793,7 +1854,7 @@ void c64_video_render(void *data, gs_effect_t *effect)
 
     // Single-pass optimized rendering with lightweight shader operations
     while (gs_effect_loop(context->crt_effect, "Draw")) {
-        gs_draw_sprite(input_tex, 0, render_width, render_height);
+        gs_draw_sprite(input_tex, 0, geometry.draw_width, geometry.draw_height);
     }
 }
 
@@ -1846,24 +1907,6 @@ void c64_try_init_stream_start_ns(struct c64_source *context, uint64_t packet_ti
     pthread_mutex_unlock(&context->stream_start_mutex);
 }
 
-// Helper function to get scanline scaling parameters based on distance setting
-static void get_scanline_scaling_info(float scan_line_distance, uint32_t *total_pixels, uint32_t *scanline_pixels)
-{
-    if (scan_line_distance <= 0.25f) { // Tight
-        *total_pixels = 5;             // spacing (Scanline, Gap): S1S1S1S1G1 S2S2S2S2G2 ...
-        *scanline_pixels = 4;
-    } else if (scan_line_distance <= 0.5f) { // Normal
-        *total_pixels = 3;                   // spacing (Scanline, Gap): S1S1G1 S2S2G2 ...
-        *scanline_pixels = 2;
-    } else if (scan_line_distance <= 1.0f) { // Wide
-        *total_pixels = 4;                   // spacing (Scanline, Gap): S1S1G1G1 S2S2G2G2 ...
-        *scanline_pixels = 2;
-    } else {               // Extra Wide (2.0f)
-        *total_pixels = 3; // spacing (Scanline, Gap, Gap): S1G1G1 S2G2G2 ...
-        *scanline_pixels = 1;
-    }
-}
-
 uint32_t c64_get_width(void *data)
 {
     struct c64_source *context = data;
@@ -1871,27 +1914,9 @@ uint32_t c64_get_width(void *data)
         return 0;
 
     c64_update_format_hint_if_needed(context);
-
-    // Check if any effects that change dimensions are enabled
-    bool dimension_effects_enabled = (context->scan_line_distance > 0.0f) || context->pixel_width != 1.0f;
-
-    if (!dimension_effects_enabled) {
-        return context->width;
-    }
-
-    // Apply pixel geometry scaling for CRT effects
-    float width_scale = context->pixel_width;
-
-    // Scanlines require upscaling to accommodate gaps with integer pixel alignment
-    // Each C64 pixel column needs an integer number of output pixels for crisp rendering
-    if (context->scan_line_distance > 0.0f) {
-        uint32_t total_pixels_per_unit, scanline_pixels_per_unit;
-        get_scanline_scaling_info(context->scan_line_distance, &total_pixels_per_unit, &scanline_pixels_per_unit);
-        // Total width = original_pixels * total_pixels_per_unit
-        width_scale *= (float)total_pixels_per_unit;
-    }
-
-    return (uint32_t)((float)context->width * width_scale);
+    struct c64_effect_geometry geometry;
+    c64_source_get_effect_geometry(context, &geometry);
+    return geometry.reported_width;
 }
 
 uint32_t c64_get_height(void *data)
@@ -1901,25 +1926,9 @@ uint32_t c64_get_height(void *data)
         return 0;
 
     c64_update_format_hint_if_needed(context);
-
-    // Check if any effects that change dimensions are enabled
-    bool dimension_effects_enabled = (context->scan_line_distance > 0.0f) || context->pixel_height != 1.0f;
-
-    if (!dimension_effects_enabled) {
-        return context->height;
-    }
-
-    // Apply pixel geometry scaling for CRT effects
-    float height_scale = context->pixel_height;
-
-    // Scanlines require upscaling to accommodate gaps with integer pixel alignment
-    if (context->scan_line_distance > 0.0f) {
-        uint32_t total_pixels_per_unit, scanline_pixels_per_unit;
-        get_scanline_scaling_info(context->scan_line_distance, &total_pixels_per_unit, &scanline_pixels_per_unit);
-        height_scale *= (float)total_pixels_per_unit;
-    }
-
-    return (uint32_t)((float)context->height * height_scale);
+    struct c64_effect_geometry geometry;
+    c64_source_get_effect_geometry(context, &geometry);
+    return geometry.reported_height;
 }
 
 // Synchronous render callback removed - now using async video output via obs_source_output_video()

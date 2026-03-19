@@ -7,11 +7,16 @@ See <https://www.gnu.org/licenses/> for details.
 */
 #include "c64-stream-effects.h"
 #include "c64-effect.h"
+#include "c64-effect-geometry.h"
 #include "c64-logging.h"
 #include <string.h>
 #include <util/platform.h>
 
 static const char *C64_PRESET_LAST_APPLIED_KEY = "crt_preset_last_applied";
+static const char *const C64_STREAM_EFFECTS_SAVED_SETTING_KEYS[] = {
+    "crt_preset",     "scan_line_distance",    "scan_line_strength", "pixel_width", "pixel_height",  "blur_strength",
+    "bloom_strength", "afterglow_duration_ms", "afterglow_curve",    "tint_mode",   "tint_strength",
+};
 
 static bool c64_stream_effects_settings_have_effect_overrides(obs_data_t *settings)
 {
@@ -40,12 +45,16 @@ static bool c64_stream_effects_apply_crt_preset_if_needed(obs_data_t *settings, 
         return false;
     }
 
-    if ((!last_applied || last_applied[0] == '\0') && c64_stream_effects_settings_have_effect_overrides(settings)) {
-        if (is_update) {
-            C64_LOG_DEBUG("" EFFECT_LOG_PREFIX " Preset update skipped; manual effect overrides present");
-        } else {
-            C64_LOG_INFO("" EFFECT_LOG_PREFIX " Skipping preset auto-apply; custom effect overrides detected");
+    if (!last_applied || last_applied[0] == '\0') {
+        if (c64_effect_matches_preset(settings, preset_name)) {
+            obs_data_set_string(settings, C64_PRESET_LAST_APPLIED_KEY, preset_name);
+            return false;
         }
+    }
+
+    if (!is_update && (!last_applied || last_applied[0] == '\0') &&
+        c64_stream_effects_settings_have_effect_overrides(settings)) {
+        C64_LOG_INFO("" EFFECT_LOG_PREFIX " Skipping preset auto-apply; custom effect overrides detected");
         return false;
     }
 
@@ -67,37 +76,6 @@ static bool c64_stream_effects_apply_crt_preset_if_needed(obs_data_t *settings, 
     return true;
 }
 
-static void c64_stream_effects_get_scanline_scaling_info(float scan_line_distance, uint32_t *total_pixels,
-                                                         uint32_t *scanline_pixels)
-{
-    if (scan_line_distance <= 0.25f) { // Tight
-        *total_pixels = 5;             // spacing (Scanline, Gap): S1S1S1S1G1 S2S2S2S2G2 ...
-        *scanline_pixels = 4;
-    } else if (scan_line_distance <= 0.5f) { // Normal
-        *total_pixels = 3;                   // spacing (Scanline, Gap): S1S1G1 S2S2G2 ...
-        *scanline_pixels = 2;
-    } else if (scan_line_distance <= 1.0f) { // Wide
-        *total_pixels = 4;                   // spacing (Scanline, Gap): S1S1G1G1 S2S2G2G2 ...
-        *scanline_pixels = 2;
-    } else {               // Extra Wide (2.0f)
-        *total_pixels = 3; // spacing (Scanline, Gap, Gap): S1G1G1 S2G2G2 ...
-        *scanline_pixels = 1;
-    }
-}
-
-static uint32_t c64_stream_effects_scale_dimension(uint32_t base, float pixel_scale, float scan_line_distance)
-{
-    float scale = pixel_scale;
-    if (scan_line_distance > 0.0f) {
-        uint32_t total_pixels = 0;
-        uint32_t scanline_pixels = 0;
-        c64_stream_effects_get_scanline_scaling_info(scan_line_distance, &total_pixels, &scanline_pixels);
-        scale *= (float)total_pixels;
-    }
-
-    return (uint32_t)((float)base * scale);
-}
-
 static void c64_stream_effects_apply_scanlines_cpu(struct c64_stream_effects *state, uint32_t *pixels, uint32_t width,
                                                    uint32_t height)
 {
@@ -108,7 +86,7 @@ static void c64_stream_effects_apply_scanlines_cpu(struct c64_stream_effects *st
 
     uint32_t total_pixels = 0;
     uint32_t scanline_pixels = 0;
-    c64_stream_effects_get_scanline_scaling_info(state->scan_line_distance, &total_pixels, &scanline_pixels);
+    c64_effect_get_scanline_scaling_info(state->scan_line_distance, &total_pixels, &scanline_pixels);
     if (total_pixels == 0) {
         return;
     }
@@ -221,6 +199,14 @@ const char *c64_stream_effects_get_name(void *unused)
     return obs_module_text("C64StreamEffects");
 }
 
+static void c64_stream_effects_get_geometry(struct c64_stream_effects *state, uint32_t logical_width,
+                                            uint32_t logical_height, struct c64_effect_geometry *geometry)
+{
+    c64_effect_geometry_init(geometry, logical_width, logical_height, state ? state->pixel_width : 1.0f,
+                             state ? state->pixel_height : 1.0f, state ? state->scan_line_distance : 0.0f,
+                             state ? state->preserve_size : true);
+}
+
 void c64_stream_effects_defaults(obs_data_t *settings)
 {
     obs_data_set_default_double(settings, "scan_line_distance", 0.0);
@@ -233,6 +219,7 @@ void c64_stream_effects_defaults(obs_data_t *settings)
     obs_data_set_default_int(settings, "afterglow_curve", 2);
     obs_data_set_default_int(settings, "tint_mode", 0);
     obs_data_set_default_double(settings, "tint_strength", 0.0);
+    obs_data_set_default_bool(settings, "preserve_size", true);
 }
 
 obs_properties_t *c64_stream_effects_properties(void *data)
@@ -249,6 +236,10 @@ obs_properties_t *c64_stream_effects_properties(void *data)
     obs_property_set_long_description(preset_prop, obs_module_text("Presets.Description"));
     c64_effect_populate_list(preset_prop);
     obs_property_set_modified_callback(preset_prop, c64_stream_effects_preset_changed);
+
+    obs_property_t *preserve_size_prop =
+        obs_properties_add_bool(effects_props, "preserve_size", obs_module_text("PreservePreviewSize"));
+    obs_property_set_long_description(preserve_size_prop, obs_module_text("PreservePreviewSize.Description"));
 
     obs_property_t *scanline_distance_prop = obs_properties_add_list(effects_props, "scan_line_distance",
                                                                      obs_module_text("ScanLineDistance"),
@@ -322,6 +313,9 @@ void *c64_stream_effects_create(obs_data_t *settings, obs_source_t *source)
     c64_afterglow_init(&state->afterglow);
     state->cpu_scanlines_enabled = false;
     c64_stream_effects_update_frame_timing(state);
+    state->preserve_size = c64_effect_settings_resolve_preserve_size(
+        settings, C64_STREAM_EFFECTS_SAVED_SETTING_KEYS,
+        sizeof(C64_STREAM_EFFECTS_SAVED_SETTING_KEYS) / sizeof(C64_STREAM_EFFECTS_SAVED_SETTING_KEYS[0]));
 
     const char *initial_preset = obs_data_get_string(settings, "crt_preset");
     c64_stream_effects_apply_crt_preset_if_needed(settings, initial_preset, false);
@@ -382,6 +376,10 @@ void c64_stream_effects_update(void *data, obs_data_t *settings)
     if (!state || !settings) {
         return;
     }
+
+    state->preserve_size = c64_effect_settings_resolve_preserve_size(
+        settings, C64_STREAM_EFFECTS_SAVED_SETTING_KEYS,
+        sizeof(C64_STREAM_EFFECTS_SAVED_SETTING_KEYS) / sizeof(C64_STREAM_EFFECTS_SAVED_SETTING_KEYS[0]));
 
     const char *preset_name = obs_data_get_string(settings, "crt_preset");
     c64_stream_effects_apply_crt_preset_if_needed(settings, preset_name, true);
@@ -542,7 +540,10 @@ uint32_t c64_stream_effects_get_width(void *data)
         return 0;
     }
 
-    return c64_stream_effects_scale_dimension(width, state->pixel_width, state->scan_line_distance);
+    const uint32_t height = obs_source_get_base_height(target);
+    struct c64_effect_geometry geometry;
+    c64_stream_effects_get_geometry(state, width, height, &geometry);
+    return geometry.reported_width;
 }
 
 uint32_t c64_stream_effects_get_height(void *data)
@@ -562,7 +563,10 @@ uint32_t c64_stream_effects_get_height(void *data)
         return 0;
     }
 
-    return c64_stream_effects_scale_dimension(height, state->pixel_height, state->scan_line_distance);
+    const uint32_t width = obs_source_get_base_width(target);
+    struct c64_effect_geometry geometry;
+    c64_stream_effects_get_geometry(state, width, height, &geometry);
+    return geometry.reported_height;
 }
 
 void c64_stream_effects_video_render(void *data, gs_effect_t *effect)
@@ -585,6 +589,9 @@ void c64_stream_effects_video_render(void *data, gs_effect_t *effect)
         obs_source_skip_video_filter(state->source);
         return;
     }
+
+    struct c64_effect_geometry geometry;
+    c64_stream_effects_get_geometry(state, width, height, &geometry);
 
     const size_t frame_bytes = (size_t)width * (size_t)height * sizeof(uint32_t);
     if (!c64_stream_effects_ensure_cpu_buffers(state, frame_bytes)) {
@@ -788,16 +795,14 @@ void c64_stream_effects_video_render(void *data, gs_effect_t *effect)
     gs_effect_set_float(gs_effect_get_param_by_name(state->crt_effect, "dt_ms"), 33.33f);
     gs_effect_set_texture(gs_effect_get_param_by_name(state->crt_effect, "texture_accum_prev"), state->output_texture);
 
-    uint32_t render_width = c64_stream_effects_scale_dimension(width, state->pixel_width, state->scan_line_distance);
-    uint32_t render_height = c64_stream_effects_scale_dimension(height, state->pixel_height, state->scan_line_distance);
-
-    gs_effect_set_float(gs_effect_get_param_by_name(state->crt_effect, "output_height"), (float)render_height);
+    gs_effect_set_float(gs_effect_get_param_by_name(state->crt_effect, "virtual_output_height"),
+                        (float)geometry.virtual_height);
     gs_effect_set_float(gs_effect_get_param_by_name(state->crt_effect, "blur_strength"), state->blur_strength);
     gs_effect_set_float(gs_effect_get_param_by_name(state->crt_effect, "bloom_strength"), state->bloom_strength);
     gs_effect_set_float(gs_effect_get_param_by_name(state->crt_effect, "source_width"), (float)width);
     gs_effect_set_float(gs_effect_get_param_by_name(state->crt_effect, "source_height"), (float)height);
 
     while (gs_effect_loop(state->crt_effect, "Draw")) {
-        gs_draw_sprite(state->output_texture, 0, render_width, render_height);
+        gs_draw_sprite(state->output_texture, 0, geometry.draw_width, geometry.draw_height);
     }
 }

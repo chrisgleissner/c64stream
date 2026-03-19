@@ -4,6 +4,7 @@ add_executable(
   obs_stubs.c
   ${CMAKE_SOURCE_DIR}/src/video/c64-stream-effects.c
   ${CMAKE_SOURCE_DIR}/src/video/c64-effect-afterglow.c
+  ${CMAKE_SOURCE_DIR}/src/video/c64-effect-geometry.c
 )
 target_include_directories(test_c64_stream_effects_pipeline PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/util ${CMAKE_SOURCE_DIR}/src/video)
 if(UNIX)

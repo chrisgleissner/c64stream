@@ -40,6 +40,14 @@ void c64_effect_populate_list(obs_property_t *preset_prop);
 bool c64_effect_apply(obs_data_t *settings, const char *preset_name);
 
 /**
+ * Check whether the current settings already match a preset's visual parameters.
+ * @param settings The settings object to inspect
+ * @param preset_name The name of the preset to compare against
+ * @return true if all preset-controlled effect parameters already match
+ */
+bool c64_effect_matches_preset(obs_data_t *settings, const char *preset_name);
+
+/**
  * Get the count of available presets
  * @return Number of loaded presets
  */

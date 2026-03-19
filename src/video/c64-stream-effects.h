@@ -44,6 +44,7 @@ struct c64_stream_effects {
     float expected_fps;
     uint32_t input_width;
     uint32_t input_height;
+    bool preserve_size;
 
     uint32_t *cpu_input;
     uint32_t *cpu_output;

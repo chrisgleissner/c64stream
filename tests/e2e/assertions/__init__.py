@@ -17,6 +17,7 @@ from .av_sync_csv_validation import AvSyncCsvValidationAssertion
 from .av_sync_offset import AvSyncOffsetAssertion
 from .av_sync_log_validation import AvSyncLogValidationAssertion
 from .base import AssertionResult, AssertionStatus, EffectAssertion
+from .bounds import BoundsStabilityAssertion, BoundsVariationAssertion
 from .debug_log_presence import DebugLogPresenceAssertion
 from .config import (
     PresetConfig,
@@ -24,6 +25,8 @@ from .config import (
     load_properties,
     load_settings_from_obs_scene,
 )
+from .effect_change import EffectChangeAssertion
+from .effect_cycle_log import EffectCycleLogAssertion
 from .effect_transition import EffectTransitionAssertion
 from .frame_progression import FrameProgressionAssertion
 from .palette_mapping import PaletteMappingAssertion
@@ -61,6 +64,10 @@ __all__ = [
     "AudioAssertion",
     "AvPopOffsetAssertion",
     "DebugLogPresenceAssertion",
+    "BoundsStabilityAssertion",
+    "BoundsVariationAssertion",
+    "EffectChangeAssertion",
+    "EffectCycleLogAssertion",
     "TintAssertion",
     "TintTransitionAssertion",
     "EffectTransitionAssertion",

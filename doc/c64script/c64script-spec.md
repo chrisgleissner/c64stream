@@ -1735,7 +1735,14 @@ The `EFFECTPARAM` statement allows fine-grained control of visual effects beyond
 EFFECT "Classic CRT"
 EFFECTPARAM "scanline_intensity" 0.7
 EFFECTPARAM "phosphor_persistence" 0.3
+EFFECTPARAM "preserve_size" 1
 ```
+
+`preserve_size` is a source/filter layout flag rather than a preset attribute:
+
+- `EFFECTPARAM "preserve_size" 1` keeps the OBS-facing preview footprint stable while effect scaling changes only the internal virtual geometry.
+- `EFFECTPARAM "preserve_size" 0` restores the legacy behavior where effect scaling changes the visible source/filter size.
+- Presets do not override `preserve_size`.
 
 ### 4.2 Common effect types and their parameters
 
@@ -1852,7 +1859,15 @@ To discover available parameters for a specific effect at runtime:
 3. Check effect shader source code in `data/effects/` directory
 4. Parameters not listed here are implementation-specific and may vary
 
-### 4.4 Error handling
+### 4.4 Layout behavior
+
+`preserve_size` applies to both the `c64_source` input source and the `c64_stream_effects` filter:
+
+- New instances default to `preserve_size = 1`
+- Existing saved scenes that predate the setting keep their legacy size-changing behavior until you enable it
+- Perfect scanlines still depend on the final displayed OBS transform size, not only on the internal effect preset
+
+### 4.5 Error handling
 
 - Unknown effect names: runtime warning, effect unchanged
 - Unknown parameter names: runtime warning, parameter unchanged

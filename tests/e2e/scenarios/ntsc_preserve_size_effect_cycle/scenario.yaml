@@ -1,0 +1,12 @@
+name: NTSC Preserve Size Effect Cycle
+format: NTSC
+preset: Default
+overrides:
+  preserve_size: true
+  script_file: "${repo_root}/data/scripts/demo_effect_preset_cycle.c64script"
+  script_auto_start: true
+assertions:
+  - video_quality
+  - audio
+  - effect_change
+  - bounds_stability
