@@ -16,6 +16,9 @@ See <https://www.gnu.org/licenses/> for details.
 #include <inttypes.h>
 #include <pthread.h>
 #include <sys/stat.h>
+#ifndef S_ISREG
+#define S_ISREG(m) (((m) & _S_IFMT) == _S_IFREG)
+#endif
 #include <ctype.h>
 #include "c64-network.h"
 #include "c64-network-buffer.h"
