@@ -5,26 +5,26 @@ error: ~
 program: |
   01: rem Test recording control commands
   02: rem Validates OBS RECORDING START and OBS RECORDING STOP
-  03:
+  03: 
   04: rem Test 1: Start recording
   05: OBS RECORDING START
   06: wait 1ms
-  07:
+  07: 
   08: rem Test 2: Stop recording
   09: OBS RECORDING STOP
   10: wait 1ms
-  11:
+  11: 
   12: rem Test 3: Start and stop multiple times
   13: OBS RECORDING START
   14: wait 1ms
   15: OBS RECORDING STOP
   16: wait 1ms
-  17:
+  17: 
   18: OBS RECORDING START
   19: wait 1ms
   20: OBS RECORDING STOP
   21: wait 1ms
-  22:
+  22: 
   23: rem Test 4: Recording with effects
   24: OBS RECORDING START
   25: effect "Sharp Pixels"
@@ -33,66 +33,66 @@ program: |
   28: wait 1ms
   29: OBS RECORDING STOP
   30: wait 1ms
-  31:
+  31: 
   32: stop
 trace:
-  - line: 5
-    content: "OBS RECORDING START"
-    variables: {}
-  - line: 6
-    content: "wait 1ms"
-    variables: {}
-  - line: 9
-    content: "OBS RECORDING STOP"
-    variables: {}
-  - line: 10
-    content: "wait 1ms"
-    variables: {}
-  - line: 13
-    content: "OBS RECORDING START"
-    variables: {}
-  - line: 14
-    content: "wait 1ms"
-    variables: {}
-  - line: 15
-    content: "OBS RECORDING STOP"
-    variables: {}
-  - line: 16
-    content: "wait 1ms"
-    variables: {}
-  - line: 18
-    content: "OBS RECORDING START"
-    variables: {}
-  - line: 19
-    content: "wait 1ms"
-    variables: {}
-  - line: 20
-    content: "OBS RECORDING STOP"
-    variables: {}
-  - line: 21
-    content: "wait 1ms"
-    variables: {}
-  - line: 24
-    content: "OBS RECORDING START"
-    variables: {}
-  - line: 25
-    content: 'effect "Sharp Pixels"'
-    variables: {}
-  - line: 26
-    content: "wait 1ms"
-    variables: {}
-  - line: 27
-    content: 'effect "Soft CRT"'
-    variables: {}
-  - line: 28
-    content: "wait 1ms"
-    variables: {}
-  - line: 29
-    content: "OBS RECORDING STOP"
-    variables: {}
-  - line: 30
-    content: "wait 1ms"
-    variables: {}
-  - line: 32
-    content: "stop"
-    variables: {}
+- line: 5
+  content: "OBS RECORDING START"
+  variables: {}
+- line: 6
+  content: "wait 1ms"
+  variables: {}
+- line: 9
+  content: "OBS RECORDING STOP"
+  variables: {}
+- line: 10
+  content: "wait 1ms"
+  variables: {}
+- line: 13
+  content: "OBS RECORDING START"
+  variables: {}
+- line: 14
+  content: "wait 1ms"
+  variables: {}
+- line: 15
+  content: "OBS RECORDING STOP"
+  variables: {}
+- line: 16
+  content: "wait 1ms"
+  variables: {}
+- line: 18
+  content: "OBS RECORDING START"
+  variables: {}
+- line: 19
+  content: "wait 1ms"
+  variables: {}
+- line: 20
+  content: "OBS RECORDING STOP"
+  variables: {}
+- line: 21
+  content: "wait 1ms"
+  variables: {}
+- line: 24
+  content: "OBS RECORDING START"
+  variables: {}
+- line: 25
+  content: "effect \"Sharp Pixels\""
+  variables: {}
+- line: 26
+  content: "wait 1ms"
+  variables: {}
+- line: 27
+  content: "effect \"Soft CRT\""
+  variables: {}
+- line: 28
+  content: "wait 1ms"
+  variables: {}
+- line: 29
+  content: "OBS RECORDING STOP"
+  variables: {}
+- line: 30
+  content: "wait 1ms"
+  variables: {}
+- line: 32
+  content: "stop"
+  variables: {}

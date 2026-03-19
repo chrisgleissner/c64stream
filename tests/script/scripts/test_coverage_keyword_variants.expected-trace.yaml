@@ -9,8 +9,8 @@ program: |
   04: RUN_PRG "c64u:/Programs/demo.prg"
   05: RUN_LOCAL "/bin/true"
   06: MOUNT_DISK "c64u:/Disks/demo.d64"
-  07: RECORD_START
-  08: RECORD_STOP
+  07: OBS RECORDING START
+  08: OBS RECORDING STOP
   09: WRITE_FILE "/tmp/c64script_coverage_io.txt", "ok" TRUNCATE
   10: READ_FILE "/tmp/c64script_coverage_io.txt", CONTENT$
   11: CALL_HTTP GET "http://example.com"
@@ -32,6 +32,12 @@ trace:
   variables: {}
 - line: 6
   content: "MOUNT_DISK \"c64u:/Disks/demo.d64\""
+  variables: {}
+- line: 7
+  content: "OBS RECORDING START"
+  variables: {}
+- line: 8
+  content: "OBS RECORDING STOP"
   variables: {}
 - line: 9
   content: "WRITE_FILE \"/tmp/c64script_coverage_io.txt\", \"ok\" TRUNCATE"

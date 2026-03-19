@@ -712,6 +712,24 @@ TEST(parse_obs_screenshot)
     c64script_ast_free(ast);
 }
 
+TEST(parse_obs_screenshot_rejects_target_equals)
+{
+    const char *source = "OBS SCREENSHOT TARGET=SOURCE PATH \"out.png\"";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast == NULL);
+    assert(strstr(error_msg, "TARGET clause uses whitespace-separated syntax") != NULL);
+}
+
+TEST(parse_obs_screenshot_rejects_path_equals)
+{
+    const char *source = "OBS SCREENSHOT TARGET SOURCE PATH=\"out.png\"";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast == NULL);
+    assert(strstr(error_msg, "PATH clause uses whitespace-separated syntax") != NULL);
+}
+
 TEST(parse_obs_wait_frames)
 {
     const char *source = "OBS WAIT FRAMES 3";
@@ -721,6 +739,15 @@ TEST(parse_obs_wait_frames)
     assert(ast->type == AST_STMT_OBS_WAIT_FRAMES);
     assert(ast->as.obs_wait_frames_stmt.frame_count != NULL);
     c64script_ast_free(ast);
+}
+
+TEST(parse_obs_wait_frames_rejects_equals)
+{
+    const char *source = "OBS WAIT FRAMES=3";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast == NULL);
+    assert(strstr(error_msg, "FRAMES clause uses whitespace-separated syntax") != NULL);
 }
 
 TEST(parse_assert_image_equals)
@@ -734,6 +761,15 @@ TEST(parse_assert_image_equals)
     assert(ast->as.assert_image_equals_stmt.expected_path != NULL);
     assert(ast->as.assert_image_equals_stmt.tolerance != NULL);
     c64script_ast_free(ast);
+}
+
+TEST(parse_assert_image_equals_rejects_tolerance_equals)
+{
+    const char *source = "ASSERT IMAGE_EQUALS \"actual.png\", \"expected.png\" TOLERANCE=4";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast == NULL);
+    assert(strstr(error_msg, "TOLERANCE clause uses whitespace-separated syntax") != NULL);
 }
 
 TEST(parse_type)
@@ -1479,8 +1515,12 @@ int main(int argc, char **argv)
     RUN_TEST(parse_obs_recording_start);
     RUN_TEST(parse_obs_recording_stop);
     RUN_TEST(parse_obs_screenshot);
+    RUN_TEST(parse_obs_screenshot_rejects_target_equals);
+    RUN_TEST(parse_obs_screenshot_rejects_path_equals);
     RUN_TEST(parse_obs_wait_frames);
+    RUN_TEST(parse_obs_wait_frames_rejects_equals);
     RUN_TEST(parse_assert_image_equals);
+    RUN_TEST(parse_assert_image_equals_rejects_tolerance_equals);
     RUN_TEST(parse_type);
     RUN_TEST(parse_key);
     RUN_TEST(parse_poke);

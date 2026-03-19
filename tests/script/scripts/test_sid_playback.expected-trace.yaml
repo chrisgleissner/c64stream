@@ -5,17 +5,17 @@ error: ~
 program: |
   1: rem SID playback test script
   2: rem Tests C64U path handling and audio playback
-  3:
+  3: 
   4: play_sid c64u:/Commodore/HVSC/MUSICIANS/H/Hubbard_Rob/Commando.sid songnr 1
   5: wait 30s
   6: stop
 trace:
-  - line: 4
-    content: "play_sid c64u:/Commodore/HVSC/MUSICIANS/H/Hubbard_Rob/Commando.sid songnr 1"
-    variables: {}
-  - line: 5
-    content: "wait 30s"
-    variables: {}
-  - line: 6
-    content: "stop"
-    variables: {}
+- line: 4
+  content: "play_sid c64u:/Commodore/HVSC/MUSICIANS/H/Hubbard_Rob/Commando.sid songnr 1"
+  variables: {}
+- line: 5
+  content: "wait 30s"
+  variables: {}
+- line: 6
+  content: "stop"
+  variables: {}

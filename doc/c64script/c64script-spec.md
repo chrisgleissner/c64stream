@@ -602,22 +602,33 @@ The language provides several built-in functions callable in expression context:
 
 - `OBS RECORDING START` starts OBS recording.
 - `OBS RECORDING STOP` stops OBS recording.
-- `OBS SCREENSHOT TARGET SOURCE PATH <expr>` captures the source output and copies it to the requested path.
-- `OBS SCREENSHOT TARGET PREVIEW PATH <expr>` captures the OBS preview output and copies it to the requested path.
-- `OBS WAIT FRAMES <expr>` blocks until the source has rendered the requested number of frames.
+- `OBS SCREENSHOT TARGET SOURCE PATH <expr>` captures the C64 source output to the given PNG file path.
+- `OBS SCREENSHOT TARGET PREVIEW PATH <expr>` captures the OBS program/preview output to the given PNG file path.
+- `OBS WAIT FRAMES <expr>` blocks until the C64 source has rendered the given number of additional frames.
 
 Clause syntax is whitespace-separated. Clause keywords such as `TARGET`, `PATH`, and `FRAMES` do not accept `=`.
 
-Notes:
+#### Recording behavior
 
-- Screenshot and recording commands require builds with `ENABLE_FRONTEND_API` enabled (OBS frontend API).
-- `OBS WAIT FRAMES` requires an active source context.
+- **Storage location and filename**: Recordings are saved to the path and filename format configured in OBS under *Settings > Output > Recording*. C64Script has no control over where recordings go or what they are named.
+- **Repeated START/STOP**: Calling `OBS RECORDING START` while already recording is a no-op — no new file is started. Each `STOP`/`START` cycle produces one new recording file.
+- **Forgetting STOP**: If the script ends without calling `OBS RECORDING STOP`, recording continues until stopped manually in OBS or OBS is closed. Always pair `START` with `STOP`.
+
+#### Screenshots
+
+- Screenshots are independent of recording state. `OBS SCREENSHOT` works whether recording is active or not.
+- The file path in the `PATH` clause is always required. The parent directory must exist; the file is created or overwritten.
+
+#### OBS WAIT FRAMES
+
+`OBS WAIT FRAMES <n>` waits until the C64 source has rendered `<n>` more frames before the script continues. Use it before a screenshot to guarantee the captured frame is fresh, not a stale cached frame from a previous render cycle.
 
 Example:
 
 ```basic
 OBS RECORDING START
 WAIT 10s
+OBS WAIT FRAMES 2
 OBS SCREENSHOT TARGET SOURCE PATH "captures/final-frame.png"
 OBS RECORDING STOP
 ```
@@ -2295,7 +2306,6 @@ END
 - `AUTOSTART` injects the default template `LOAD"*",8,1\rRUN\r` via keyboard buffer.
 - D64 autostart template is customizable via automation configuration (see `c64-automation.h`).
 - HTTP requests execute via libcurl in the VM and return real status/response values.
-- `OBS SCREENSHOT` and `OBS RECORDING START`/`STOP` require builds with `ENABLE_FRONTEND_API` enabled (OBS frontend API).
 
 ### 6.2 Limits
 

@@ -33,4 +33,13 @@ c64_keyboard_t *c64script_test_keyboard_create(void);
 void c64script_test_keyboard_destroy(c64_keyboard_t *keyboard);
 const char *c64script_test_keyboard_log(const c64_keyboard_t *keyboard);
 
+void c64script_test_source_stub_reset(void);
+void c64script_test_source_wait_fail_next(const char *error);
+void c64script_test_source_screenshot_fail_next(const char *error);
+uint32_t c64script_test_source_last_wait_frame_count(void);
+int c64script_test_source_wait_call_count(void);
+bool c64script_test_source_last_screenshot_preview(void);
+const char *c64script_test_source_last_screenshot_path(void);
+int c64script_test_source_screenshot_call_count(void);
+
 #endif // C64SCRIPT_TEST_STUBS_H

@@ -39,6 +39,20 @@ struct c64_keyboard {
     size_t log_len;
 };
 
+struct c64_source_stub_state {
+    bool wait_should_fail;
+    char wait_error[256];
+    uint32_t last_wait_frame_count;
+    int wait_call_count;
+    bool screenshot_should_fail;
+    char screenshot_error[256];
+    bool last_screenshot_preview;
+    char last_screenshot_path[1024];
+    int screenshot_call_count;
+};
+
+static struct c64_source_stub_state g_source_stub_state;
+
 c64_rest_client_t *c64script_test_rest_create(void)
 {
     c64_rest_client_t *client = calloc(1, sizeof(struct c64_rest_client));
@@ -166,6 +180,50 @@ const char *c64script_test_keyboard_log(const c64_keyboard_t *keyboard)
         return "";
     }
     return ((const struct c64_keyboard *)keyboard)->log;
+}
+
+void c64script_test_source_stub_reset(void)
+{
+    memset(&g_source_stub_state, 0, sizeof(g_source_stub_state));
+}
+
+void c64script_test_source_wait_fail_next(const char *error)
+{
+    g_source_stub_state.wait_should_fail = true;
+    snprintf(g_source_stub_state.wait_error, sizeof(g_source_stub_state.wait_error), "%s",
+             (error && error[0]) ? error : "wait failed");
+}
+
+void c64script_test_source_screenshot_fail_next(const char *error)
+{
+    g_source_stub_state.screenshot_should_fail = true;
+    snprintf(g_source_stub_state.screenshot_error, sizeof(g_source_stub_state.screenshot_error), "%s",
+             (error && error[0]) ? error : "screenshot failed");
+}
+
+uint32_t c64script_test_source_last_wait_frame_count(void)
+{
+    return g_source_stub_state.last_wait_frame_count;
+}
+
+int c64script_test_source_wait_call_count(void)
+{
+    return g_source_stub_state.wait_call_count;
+}
+
+bool c64script_test_source_last_screenshot_preview(void)
+{
+    return g_source_stub_state.last_screenshot_preview;
+}
+
+const char *c64script_test_source_last_screenshot_path(void)
+{
+    return g_source_stub_state.last_screenshot_path;
+}
+
+int c64script_test_source_screenshot_call_count(void)
+{
+    return g_source_stub_state.screenshot_call_count;
 }
 
 // ----------------------------------------------------------------------------
@@ -431,7 +489,16 @@ bool c64_source_script_wait_rendered_frames(struct c64_source *context, uint32_t
                                             size_t error_size)
 {
     (void)context;
-    (void)frame_count;
+    g_source_stub_state.last_wait_frame_count = frame_count;
+    g_source_stub_state.wait_call_count++;
+    if (g_source_stub_state.wait_should_fail) {
+        g_source_stub_state.wait_should_fail = false;
+        if (error_msg && error_size > 0) {
+            snprintf(error_msg, error_size, "%s",
+                     g_source_stub_state.wait_error[0] ? g_source_stub_state.wait_error : "wait failed");
+        }
+        return false;
+    }
     if (error_msg && error_size > 0) {
         error_msg[0] = '\0';
     }
@@ -442,12 +509,23 @@ bool c64_source_script_take_frontend_screenshot(struct c64_source *context, bool
                                                 char *error_msg, size_t error_size)
 {
     (void)context;
-    (void)preview;
-    (void)output_path;
-    if (error_msg && error_size > 0) {
-        snprintf(error_msg, error_size, "Screenshot capture not available in unit-test stubs");
+    g_source_stub_state.last_screenshot_preview = preview;
+    g_source_stub_state.screenshot_call_count++;
+    snprintf(g_source_stub_state.last_screenshot_path, sizeof(g_source_stub_state.last_screenshot_path), "%s",
+             output_path ? output_path : "");
+    if (g_source_stub_state.screenshot_should_fail) {
+        g_source_stub_state.screenshot_should_fail = false;
+        if (error_msg && error_size > 0) {
+            snprintf(error_msg, error_size, "%s",
+                     g_source_stub_state.screenshot_error[0] ? g_source_stub_state.screenshot_error
+                                                             : "screenshot failed");
+        }
+        return false;
     }
-    return false;
+    if (error_msg && error_size > 0) {
+        error_msg[0] = '\0';
+    }
+    return true;
 }
 
 bool c64_create_directory_recursive(const char *path)
