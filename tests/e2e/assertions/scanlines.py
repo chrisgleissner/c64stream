@@ -152,7 +152,9 @@ class ScanlineAssertion(EffectAssertion):
           2. Period detection: BLACK-row groups recur at a consistent period.
           3. Periodicity: all inter-group gaps are identical (±1 px for OBS rounding).
           4. Count: observed BLACK rows match expected count for the period.
-          5. Distribution: the pattern is uniform across the full frame height.
+          5. Gap group count: if expected_gap_groups is set, observed groups must match.
+          6. Gap width uniformity: all gap bands have the same width (±1 px for rounding).
+          7. Distribution: the pattern is uniform across the full frame height.
         """
         # Resolve scan_line_distance: explicit override, or preset value.
         scan_line_distance = float(self.thresholds.get("scan_line_distance_override", 0.0))
@@ -363,6 +365,59 @@ class ScanlineAssertion(EffectAssertion):
                 },
             )
 
+        # --- Phase 5b: Gap group count validation ---
+        expected_gap_groups = self.thresholds.get("expected_gap_groups")
+        if expected_gap_groups is not None:
+            expected_gap_groups = int(expected_gap_groups)
+            max_group_dev = int(self.thresholds.get("max_gap_group_deviation", 2))
+            observed_groups = len(black_groups)
+            if abs(observed_groups - expected_gap_groups) > max_group_dev:
+                return AssertionResult(
+                    status=AssertionStatus.FAIL,
+                    name=self.name,
+                    message=(
+                        f"Scanline gap group count mismatch: observed={observed_groups}, "
+                        f"expected={expected_gap_groups} (±{max_group_dev})"
+                    ),
+                    details={
+                        "detected_period": detected_period,
+                        "observed_gap_groups": observed_groups,
+                        "expected_gap_groups": expected_gap_groups,
+                        "observed_black_rows": observed_black_rows,
+                        "first_30_classifications": first_30,
+                        "sample_gaps": gaps[:15],
+                        "total_rows": total_rows,
+                        "observed_gap_width": observed_gap_width,
+                        "frame_time_offset_s": float(chosen_t),
+                        "content_region": {"x": (x_start, x_end), "y": (y_start, y_end)},
+                    },
+                )
+
+        # --- Phase 5c: Gap width uniformity ---
+        # All gap bands must have the same width (±1 px for OBS rounding).
+        max_width_dev = max(1, int(self.thresholds.get("max_gap_width_deviation_px", 1)))
+        bad_widths = [w for w in band_widths if abs(w - observed_gap_width) > max_width_dev]
+        if bad_widths:
+            return AssertionResult(
+                status=AssertionStatus.FAIL,
+                name=self.name,
+                message=(
+                    f"Scanline gap widths not uniform: {len(bad_widths)} band(s) deviate "
+                    f"from dominant width {observed_gap_width} (±{max_width_dev} px)"
+                ),
+                details={
+                    "detected_period": detected_period,
+                    "observed_gap_width": observed_gap_width,
+                    "bad_widths": bad_widths[:10],
+                    "band_width_distribution": dict(band_width_counts.most_common(5)),
+                    "observed_black_rows": observed_black_rows,
+                    "first_30_classifications": first_30,
+                    "total_rows": total_rows,
+                    "frame_time_offset_s": float(chosen_t),
+                    "content_region": {"x": (x_start, x_end), "y": (y_start, y_end)},
+                },
+            )
+
         # --- Phase 6: Distribution validation ---
         # The scanline pattern must be present across the full frame, not clustered.
         region_size = max(detected_period * 3, total_rows // 10)
@@ -440,8 +495,9 @@ class ScanlineAssertion(EffectAssertion):
         """Extract the best frame for quantitative scanline analysis.
 
         Tries a broad range of time offsets and picks the frame with the
-        strongest scanline signal (most periodic BLACK rows within the
-        content region).
+        most scanline gap groups.  This naturally selects frames rendered at
+        virtual resolution (preserve_size=false) over those rendered at
+        logical resolution, giving the full one-gap-per-C64-pixel-row count.
         """
         # Include later offsets (15-25s) to reach CRT-effect sections in
         # preserve_size_compare recordings where Default (no scanlines)
@@ -456,7 +512,7 @@ class ScanlineAssertion(EffectAssertion):
             frame = self._extract_frame(mp4_path, time_offset=float(t))
             if frame is None:
                 continue
-            score = self._scanline_signal_score(frame)
+            score = self._scanline_group_count(frame)
             if score > best_score:
                 best_score = score
                 best_frame = frame
@@ -465,11 +521,11 @@ class ScanlineAssertion(EffectAssertion):
         return best_frame, best_t
 
     @staticmethod
-    def _scanline_signal_score(frame: np.ndarray) -> int:
-        """Score a frame by how many BLACK rows exist within its content region.
+    def _scanline_group_count(frame: np.ndarray) -> int:
+        """Count scanline gap groups in a frame's content region.
 
-        A frame with well-formed scanlines will have many periodic BLACK rows;
-        a frame without scanlines scores 0.
+        Frames with more gap groups (e.g. 239 at virtual resolution) score
+        higher than those with fewer (e.g. 80 at logical resolution).
         """
         gray = 0.2126 * frame[..., 0] + 0.7152 * frame[..., 1] + 0.0722 * frame[..., 2]
         col_max = np.max(gray, axis=0)
@@ -483,7 +539,12 @@ class ScanlineAssertion(EffectAssertion):
             return 0
         y_start, y_end = int(content_rows[0]), int(content_rows[-1])
         region = row_max[y_start : y_end + 1]
-        return int(np.sum(region < _BLACK_THRESHOLD))
+        black_mask = region < _BLACK_THRESHOLD
+        if not np.any(black_mask):
+            return 0
+        # Count transitions from non-black to black (each = start of a gap group)
+        padded = np.concatenate(([False], black_mask, [False]))
+        return int(np.sum(padded[1:] & ~padded[:-1]))
 
     def _extract_frame(self, mp4_path: Path, time_offset: float) -> Optional[np.ndarray]:
         """Extract a single frame at the given time offset."""

@@ -277,19 +277,19 @@ class TestQuantitativeNoFrame(unittest.TestCase):
         self.assertEqual(result.status, AssertionStatus.SKIP)
 
 
-class TestScanlineSignalScore(unittest.TestCase):
-    """Verify _scanline_signal_score picks scanlined frames over plain ones."""
+class TestScanlineGroupCount(unittest.TestCase):
+    """Verify _scanline_group_count picks scanlined frames over plain ones."""
 
     def test_scanlined_frame_scores_higher(self):
         plain = _make_frame_no_scanlines()
         scanlined = _make_frame_with_scanlines(period=14, gap_width=4)
-        score_plain = ScanlineAssertion._scanline_signal_score(plain)
-        score_scanlined = ScanlineAssertion._scanline_signal_score(scanlined)
+        score_plain = ScanlineAssertion._scanline_group_count(plain)
+        score_scanlined = ScanlineAssertion._scanline_group_count(scanlined)
         self.assertGreater(score_scanlined, score_plain)
 
     def test_black_frame_scores_zero(self):
         frame = np.zeros((1080, 1920, 3), dtype=np.uint8)
-        score = ScanlineAssertion._scanline_signal_score(frame)
+        score = ScanlineAssertion._scanline_group_count(frame)
         self.assertEqual(score, 0)
 
 
@@ -329,6 +329,122 @@ class TestQuantitativeRoundingTolerance(unittest.TestCase):
                 verbose=False,
             )
         self.assertEqual(result.status, AssertionStatus.PASS, result.message)
+
+
+class TestQuantitativeExpectedGapGroups(unittest.TestCase):
+    """Validate the expected_gap_groups threshold."""
+
+    def _make_assertion(self, expected_groups, max_deviation=2):
+        return ScanlineAssertion({
+            "mode": "quantitative",
+            "scan_line_distance_override": 0.5,
+            "expected_gap_groups": expected_groups,
+            "max_gap_group_deviation": max_deviation,
+        })
+
+    def test_exact_match_pass(self):
+        """Frame with exactly the expected number of gap groups → PASS."""
+        # period=14, gap=4: content region 1080 rows → 1080/14 ≈ 77 groups
+        frame = _make_frame_with_scanlines(period=14, gap_width=4)
+        # Count actual groups to set expected
+        groups = ScanlineAssertion._scanline_group_count(frame)
+        assertion = self._make_assertion(expected_groups=groups)
+        with patch.object(assertion, "_extract_quantitative_frame", return_value=(frame, 16.0)):
+            result = assertion.verify(
+                mp4_path=Path("/dev/null"),
+                properties={},
+                preset=_classic_crt_preset(),
+                verbose=False,
+            )
+        self.assertEqual(result.status, AssertionStatus.PASS, result.message)
+
+    def test_within_tolerance_pass(self):
+        """Gap groups within ±deviation → PASS."""
+        frame = _make_frame_with_scanlines(period=14, gap_width=4)
+        groups = ScanlineAssertion._scanline_group_count(frame)
+        assertion = self._make_assertion(expected_groups=groups + 1, max_deviation=2)
+        with patch.object(assertion, "_extract_quantitative_frame", return_value=(frame, 16.0)):
+            result = assertion.verify(
+                mp4_path=Path("/dev/null"),
+                properties={},
+                preset=_classic_crt_preset(),
+                verbose=False,
+            )
+        self.assertEqual(result.status, AssertionStatus.PASS, result.message)
+
+    def test_too_few_groups_fail(self):
+        """Far fewer gap groups than expected → FAIL."""
+        frame = _make_frame_with_scanlines(period=14, gap_width=4)
+        assertion = self._make_assertion(expected_groups=239, max_deviation=2)
+        with patch.object(assertion, "_extract_quantitative_frame", return_value=(frame, 16.0)):
+            result = assertion.verify(
+                mp4_path=Path("/dev/null"),
+                properties={},
+                preset=_classic_crt_preset(),
+                verbose=False,
+            )
+        self.assertEqual(result.status, AssertionStatus.FAIL)
+        self.assertIn("gap group count mismatch", result.message.lower())
+
+    def test_too_many_groups_fail(self):
+        """Far more gap groups than expected → FAIL."""
+        frame = _make_frame_with_scanlines(period=5, gap_width=1)
+        assertion = self._make_assertion(expected_groups=10, max_deviation=2)
+        with patch.object(assertion, "_extract_quantitative_frame", return_value=(frame, 16.0)):
+            result = assertion.verify(
+                mp4_path=Path("/dev/null"),
+                properties={},
+                preset=_classic_crt_preset(),
+                verbose=False,
+            )
+        self.assertEqual(result.status, AssertionStatus.FAIL)
+        self.assertIn("gap group count mismatch", result.message.lower())
+
+
+class TestQuantitativeGapWidthUniformity(unittest.TestCase):
+    """Validate that non-uniform gap widths are caught."""
+
+    def test_uniform_widths_pass(self):
+        """All gap bands same width → PASS."""
+        frame = _make_frame_with_scanlines(period=14, gap_width=4)
+        assertion = ScanlineAssertion({
+            "mode": "quantitative",
+            "scan_line_distance_override": 0.5,
+        })
+        with patch.object(assertion, "_extract_quantitative_frame", return_value=(frame, 16.0)):
+            result = assertion.verify(
+                mp4_path=Path("/dev/null"),
+                properties={},
+                preset=_classic_crt_preset(),
+                verbose=False,
+            )
+        self.assertEqual(result.status, AssertionStatus.PASS, result.message)
+
+    def test_mixed_gap_widths_fail(self):
+        """Gap bands with wildly different widths → FAIL."""
+        frame = _make_frame_no_scanlines(content_lum=120)
+        # Create gap bands with inconsistent widths: 3, 3, 3, 8, 3
+        y = 0
+        gap_widths = [3, 3, 3, 8, 3, 3, 3, 3, 8, 3, 3, 3, 3, 8]
+        for gw in gap_widths:
+            y += 10  # content rows
+            for r in range(gw):
+                if y + r < 1080:
+                    frame[y + r, 96:1824, :] = 0
+            y += gw
+        assertion = ScanlineAssertion({
+            "mode": "quantitative",
+            "scan_line_distance_override": 0.5,
+        })
+        with patch.object(assertion, "_extract_quantitative_frame", return_value=(frame, 16.0)):
+            result = assertion.verify(
+                mp4_path=Path("/dev/null"),
+                properties={},
+                preset=_classic_crt_preset(),
+                verbose=False,
+            )
+        # Should fail on either gap width uniformity or spacing inconsistency
+        self.assertEqual(result.status, AssertionStatus.FAIL, result.message)
 
 
 if __name__ == "__main__":

@@ -24,3 +24,4 @@ thresholds:
   scanlines:
     mode: quantitative
     scan_line_distance_override: 0.5
+    expected_gap_groups: 239
