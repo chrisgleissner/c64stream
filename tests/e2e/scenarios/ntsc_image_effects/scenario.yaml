@@ -1,0 +1,10 @@
+name: NTSC Image Effects
+format: NTSC
+preset: Green Monitor
+packet_source: media
+disable_pops: true
+skip_frame_logic_validation: true
+assertions:
+  - video_quality
+  - tint
+  - render_log_clean

@@ -492,7 +492,11 @@ static bool c64_stream_effects_capture_input(struct c64_stream_effects *state, o
 
     gs_blend_state_push();
     gs_blend_function_separate(GS_BLEND_SRCALPHA, GS_BLEND_INVSRCALPHA, GS_BLEND_ONE, GS_BLEND_INVSRCALPHA);
-    obs_source_video_render(target);
+    if ((obs_source_get_output_flags(target) & OBS_SOURCE_CUSTOM_DRAW) != 0) {
+        obs_source_video_render(target);
+    } else {
+        obs_source_default_render(target);
+    }
     gs_blend_state_pop();
 
     gs_texrender_end(state->input_texrender);

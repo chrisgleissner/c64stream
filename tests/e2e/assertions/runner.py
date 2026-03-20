@@ -35,6 +35,7 @@ from .record_frames import RecordFramesAssertion
 from .record_network import RecordNetworkAssertion
 from .record_obs import RecordObsAssertion
 from .record_video import RecordVideoAssertion
+from .render_log_clean import RenderLogCleanAssertion
 from .scanlines import ScanlineAssertion
 from .sharp_pixels import SharpPixelsAssertion
 from .tint import TintAssertion
@@ -218,6 +219,7 @@ def create_assertions_from_list(
         "record_obs": RecordObsAssertion,
         "record_network": RecordNetworkAssertion,
         "record_frames": RecordFramesAssertion,
+        "render_log_clean": RenderLogCleanAssertion,
         "preserve_size_canvas_match": PreserveSizeCanvasMatchAssertion,
         "script_log": ScriptLogAssertion,
         "script_record": ScriptRecordAssertion,

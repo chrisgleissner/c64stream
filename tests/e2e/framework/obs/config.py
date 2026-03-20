@@ -237,15 +237,42 @@ class OBSConfigManager:
                 try:
                     if src.suffix.lower() == ".ini" and dst.exists():
                         if self._merge_ini_override(dst, src):
+                            self._replace_override_variables(dst)
                             logger.info(f"  ↳ Override (merged): {rel / fname}")
                         else:
                             shutil.copy2(src, dst)
+                            self._replace_override_variables(dst)
                             logger.info(f"  ↳ Override: {rel / fname}")
                     else:
                         shutil.copy2(src, dst)
+                        self._replace_override_variables(dst)
                         logger.info(f"  ↳ Override: {rel / fname}")
                 except Exception as e:
                     logger.warning(f"  ⚠️ Could not copy override {src}: {e}")
+
+    def _replace_override_variables(self, path: Path):
+        """Expand common placeholders in text-based scenario override files."""
+        if path.suffix.lower() not in {".json", ".ini", ".txt", ".yaml", ".yml"}:
+            return
+
+        repo_root = self.env.test_dir.parent.parent.resolve()
+        replacements = {
+            "${repo_root}": str(repo_root),
+            "${REPO_ROOT}": str(repo_root),
+            "${HOME}": str(Path.home()),
+        }
+
+        try:
+            content = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            return
+
+        updated = content
+        for old, new in replacements.items():
+            updated = updated.replace(old, new)
+
+        if updated != content:
+            path.write_text(updated, encoding="utf-8")
 
     def _merge_ini_override(self, dst: Path, src: Path) -> bool:
         """Merge INI override entries."""
