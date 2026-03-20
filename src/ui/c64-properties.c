@@ -2879,7 +2879,7 @@ void c64_set_property_defaults(obs_data_t *settings)
     obs_data_set_default_int(settings, "afterglow_curve", 2);
     obs_data_set_default_int(settings, "tint_mode", 0);
     obs_data_set_default_double(settings, "tint_strength", 0.0);
-    obs_data_set_default_bool(settings, "preserve_size", true);
+    obs_data_set_default_bool(settings, "preserve_size", false);
 
     // Palette defaults
     obs_data_set_default_string(settings, C64_PALETTE_KEY, "Default");

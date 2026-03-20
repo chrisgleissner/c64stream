@@ -494,16 +494,10 @@ Recreate the authentic look and feel of classic CRT monitors and TVs with config
 - **Blur Control:** Fine-tune between crisp pixels and soft scaling
 - **Afterglow**: CRT phosphor persistence effect (0-250ms) with configurable decay curves
 - **Screen Tint:** Amber, green, or monochrome overlays for period-accurate monitor simulation
-- **Preserve preview size:** Keeps the OBS-facing source or filter footprint stable when scanline and pixel-geometry settings change the internal virtual effect size
+- **Preserve preview size:** Keeps the OBS source or filter size stable when scanline and pixel settings change the internal effect size. Enabling may reduce scanline accuracy.
 
 **Reset:** To reset to default values, simply select the "Default" preset. If you have changed individual effects whilst the "Default" preset was active, select any other preset first and then re-select the "Default" preset.
 
-**Preserve preview size:**
-
-- New source and filter instances enable **Preserve preview size** by default.
-- Existing saved scenes keep their previous size-changing behavior until you enable the option explicitly.
-- Presets do not override this flag. Use it as a layout behavior toggle, not as part of a preset.
-- C64Script can toggle it at runtime with `EFFECTPARAM "preserve_size" 1` or `EFFECTPARAM "preserve_size" 0`.
 
 #### Perfect Scan Lines
 
@@ -753,7 +747,7 @@ Then reload VS Code (`Ctrl+Shift+P` → "Reload Window"). The language mode shou
 Common effect-layout automation examples:
 
 - `EFFECTPARAM "preserve_size" 1` keeps the OBS footprint stable while you cycle effects.
-- `EFFECTPARAM "preserve_size" 0` restores the legacy behavior where effect scaling changes the source or filter size.
+- `EFFECTPARAM "preserve_size" 0` keeps scan lines accurate by letting effect scaling change the source or filter size.
 
 ## 🛟 Troubleshooting
 

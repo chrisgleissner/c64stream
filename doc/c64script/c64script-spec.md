@@ -1777,8 +1777,9 @@ EFFECTPARAM "preserve_size" 1
 
 `preserve_size` is a source/filter layout flag rather than a preset attribute:
 
+- `EFFECTPARAM "preserve_size" 0` is the default behavior and keeps scan line sizing accurate.
 - `EFFECTPARAM "preserve_size" 1` keeps the OBS-facing preview footprint stable while effect scaling changes only the internal virtual geometry.
-- `EFFECTPARAM "preserve_size" 0` restores the legacy behavior where effect scaling changes the visible source/filter size.
+- `EFFECTPARAM "preserve_size" 0` lets effect scaling change the visible source/filter size.
 - Presets do not override `preserve_size`.
 
 ### 4.2 Common effect types and their parameters
@@ -1900,8 +1901,7 @@ To discover available parameters for a specific effect at runtime:
 
 `preserve_size` applies to both the `c64_source` input source and the `c64_stream_effects` filter:
 
-- New instances default to `preserve_size = 1`
-- Existing saved scenes that predate the setting keep their legacy size-changing behavior until you enable it
+- New instances default to `preserve_size = 0`
 - Perfect scanlines still depend on the final displayed OBS transform size, not only on the internal effect preset
 
 ### 4.5 Error handling

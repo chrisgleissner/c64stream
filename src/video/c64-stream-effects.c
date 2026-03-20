@@ -204,7 +204,7 @@ static void c64_stream_effects_get_geometry(struct c64_stream_effects *state, ui
 {
     c64_effect_geometry_init(geometry, logical_width, logical_height, state ? state->pixel_width : 1.0f,
                              state ? state->pixel_height : 1.0f, state ? state->scan_line_distance : 0.0f,
-                             state ? state->preserve_size : true);
+                             state ? state->preserve_size : false);
 }
 
 void c64_stream_effects_defaults(obs_data_t *settings)
@@ -219,7 +219,7 @@ void c64_stream_effects_defaults(obs_data_t *settings)
     obs_data_set_default_int(settings, "afterglow_curve", 2);
     obs_data_set_default_int(settings, "tint_mode", 0);
     obs_data_set_default_double(settings, "tint_strength", 0.0);
-    obs_data_set_default_bool(settings, "preserve_size", true);
+    obs_data_set_default_bool(settings, "preserve_size", false);
 }
 
 obs_properties_t *c64_stream_effects_properties(void *data)
