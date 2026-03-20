@@ -19,7 +19,7 @@ load_scenario() {
     log_info "Loading scenario: ${scenario_name}"
 
     # Parse scenario.yaml (new concise format)
-    local name format preset pattern duration preset full_frame_pop csv_max_rows packet_source disable_pops
+    local name format preset pattern duration full_frame_pop csv_max_rows packet_source disable_pops
     name=$(grep -m1 "^name:" "${scenario_yaml}" | sed 's/^name: *//' || true)
     format=$(grep -m1 "^format:" "${scenario_yaml}" | sed 's/^format: *//' || true)
     duration=$(grep -m1 "^duration:" "${scenario_yaml}" | sed 's/^duration: *//' || true)

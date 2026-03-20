@@ -4,12 +4,6 @@ Copyright (C) 2025 Christian Gleissner
 
 Licensed under the GNU General Public License v2.0 or later.
 See <https://www.gnu.org/licenses/> for details.
-    case OP_OBS_SCREENSHOT:
-    case OP_OBS_RECORDING_START:
-    case OP_OBS_RECORDING_STOP:
-    case OP_OBS_WAIT_FRAMES:
-        return c64script_dispatch_machine(runtime, instr);
-
 */
 
 #include "c64-keyboard.h"
