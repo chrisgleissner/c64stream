@@ -198,10 +198,11 @@ float4 PSDefault(VertDataOut v_in) : TARGET
     // The snapped UV quantizes to source texels, causing all output rows mapping to the
     // same source row to get identical UV values - breaking the scanline pattern.
     if (scan_line_distance > 0.0f && scan_line_strength > 0.0f) {
-        // Use ORIGINAL UV Y coordinate (before snapping) multiplied by OUTPUT height
-        // virtual_output_height is the internal effect-space render height.
-        // This gives us the exact rendered pixel row
-        int output_row = int(original_uv.y * max(virtual_output_height, 1.0f));
+        // When preserve_size keeps the logical source footprint stable, the source can still
+        // be rasterized onto a larger OBS canvas. Use the final canvas-space row count when
+        // available so the virtual scanline topology survives scene scaling in recordings.
+        float raster_height = (canvas_height > 0.0f) ? canvas_height : max(virtual_output_height, 1.0f);
+        int output_row = int(v_in.pos.y * max(virtual_output_height, 1.0f) / raster_height);
 
         // Determine scanline pattern based on distance setting
         // Pattern repeats every N pixels for consistent appearance

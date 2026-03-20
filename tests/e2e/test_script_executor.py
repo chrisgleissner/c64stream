@@ -18,10 +18,12 @@ import pytest
 # Add tests directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-# Skip all tests in this file until ctypes bindings are implemented
+# Skip all tests in this file until ctypes bindings are implemented.
+# unittest discovery does not honor pytest-only skip markers.
 pytestmark = pytest.mark.skip(reason="Requires ctypes bindings to C library (WIP)")
 
 
+@unittest.skip("Requires ctypes bindings to C library (WIP)")
 class TestScriptExecutor(unittest.TestCase):
     """Test cases for script executor functionality"""
 

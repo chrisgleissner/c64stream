@@ -16,10 +16,20 @@ import numpy as np
 
 from .base import AssertionResult, AssertionStatus, EffectAssertion
 from .config import PresetConfig
+from .preserve_size_canvas_match import NTSC_FPS, PAL_FPS, compute_checkpoint_frames
 
 # Fixed luminance threshold for BLACK row classification in quantitative mode.
 # Must be deterministic — no tolerance drift.
 _BLACK_THRESHOLD = 10
+_PRESERVE_COMPARE_SCRIPT = "preserve_size_compare.c64script"
+_PRESERVE_COMPARE_SECTION_SAMPLE_COUNT = 3
+_PRESERVE_COMPARE_SECTION_PADDING_FRAMES = 10
+_GENERIC_QUANTITATIVE_OFFSETS_S = (16.0, 18.0, 20.0)
+_PRESERVE_COMPARE_PREVIEW_CHECKPOINTS = (
+    ("classic_preserve", "classic_preview_preserve.png", PresetConfig("Classic CRT", 0.5, 0.6)),
+    ("vintage_preserve", "vintage_preview_preserve.png", PresetConfig("Vintage TV", 1.0, 0.5)),
+    ("arcade_preserve", "arcade_preview_preserve.png", PresetConfig("Arcade Cabinet", 0.5, 0.6)),
+)
 
 
 class ScanlineAssertion(EffectAssertion):
@@ -179,8 +189,18 @@ class ScanlineAssertion(EffectAssertion):
             verbose,
         )
 
+        expected_gap_groups = self.thresholds.get("expected_gap_groups")
+        if expected_gap_groups is not None:
+            expected_gap_groups = int(expected_gap_groups)
+
+        script_name = Path(str(properties.get("script_file") or "")).name.lower()
+        if script_name == _PRESERVE_COMPARE_SCRIPT:
+            screenshot_result = self._verify_preserve_compare_preview_screenshots(verbose)
+            if screenshot_result is not None:
+                return screenshot_result
+
         try:
-            frame, chosen_t = self._extract_quantitative_frame(mp4_path, total_pixels)
+            frames_to_check = self._iter_quantitative_frames(mp4_path, properties, verbose)
         except Exception as e:
             return AssertionResult(
                 status=AssertionStatus.FAIL,
@@ -188,29 +208,163 @@ class ScanlineAssertion(EffectAssertion):
                 message=f"Frame extraction failed: {e}",
             )
 
-        if frame is None:
+        if not frames_to_check:
             return AssertionResult(
                 status=AssertionStatus.SKIP,
                 name=self.name,
-                message="Could not extract frame for quantitative scanline analysis",
+                message="Could not extract frames for quantitative scanline analysis",
             )
 
-        # --- Phase 2: Row classification ---
-        gray = (0.2126 * frame[..., 0] + 0.7152 * frame[..., 1] + 0.0722 * frame[..., 2])
+        validated_frames: list[dict[str, Any]] = []
+        for frame_info in frames_to_check:
+            result = self._analyze_quantitative_frame(
+                frame=frame_info["frame"],
+                total_pixels=total_pixels,
+                gap_pixels=gap_pixels,
+                expected_gap_groups=expected_gap_groups,
+                frame_label=frame_info.get("label"),
+                frame_index=frame_info.get("frame_index"),
+                frame_time_offset_s=frame_info.get("frame_time_offset_s"),
+                verbose=verbose,
+            )
+            if result.status != AssertionStatus.PASS:
+                return result
 
-        # Identify content column range (exclude vertical letterbox bars).
+            validated_frames.append(
+                {
+                    "label": result.details.get("frame_label"),
+                    "frame_index": result.details.get("frame_index"),
+                    "frame_time_offset_s": result.details.get("frame_time_offset_s"),
+                    "observed_gap_groups": result.details.get("observed_gap_groups"),
+                    "pattern_summary": result.details.get("pattern_summary"),
+                }
+            )
+
+        return AssertionResult(
+            status=AssertionStatus.PASS,
+            name=self.name,
+            message=(
+                f"Scanline topology correct across {len(validated_frames)} frame(s): "
+                f"all relevant frames matched expected gap_groups={expected_gap_groups}"
+                if expected_gap_groups is not None
+                else f"Scanline topology correct across {len(validated_frames)} frame(s)"
+            ),
+            details={
+                "validated_frames": validated_frames,
+                "expected_gap_groups": expected_gap_groups,
+            },
+            metrics={"validated_frames": float(len(validated_frames))},
+        )
+
+    def _verify_preserve_compare_preview_screenshots(self, verbose: bool) -> Optional[AssertionResult]:
+        artifacts_dir = self._repo_root() / "tests" / "e2e" / "artifacts" / "effect_preserve_size"
+        if not artifacts_dir.exists():
+            return None
+
+        try:
+            from PIL import Image  # type: ignore
+        except ImportError:
+            return None
+
+        validated_frames: list[dict[str, Any]] = []
+        for checkpoint_name, artifact_name, checkpoint_preset in _PRESERVE_COMPARE_PREVIEW_CHECKPOINTS:
+            png_path = artifacts_dir / artifact_name
+            if not png_path.exists():
+                return None
+
+            try:
+                with Image.open(png_path) as img:
+                    frame = np.array(img.convert("RGB"))
+            except Exception as exc:
+                return AssertionResult(
+                    status=AssertionStatus.FAIL,
+                    name=self.name,
+                    message=f"{checkpoint_name}: failed to read preview screenshot {png_path.name}: {exc}",
+                )
+
+            ok, variance, details = self._analyze_scanlines(frame, checkpoint_preset, verbose)
+            if not ok:
+                return AssertionResult(
+                    status=AssertionStatus.FAIL,
+                    name=self.name,
+                    message=f"{checkpoint_name}: {details.get('error', 'scanline analysis failed')}",
+                    details={"artifact": str(png_path), **details},
+                )
+
+            total_pixels, _ = self._scanline_scaling_info(checkpoint_preset.scan_line_distance)
+            expected_scanline_count = frame.shape[0] // total_pixels
+            observed_scanline_count = int(details.get("scanline_count", 0))
+            if observed_scanline_count != expected_scanline_count:
+                return AssertionResult(
+                    status=AssertionStatus.FAIL,
+                    name=self.name,
+                    message=(
+                        f"{checkpoint_name}: scanline count mismatch in {png_path.name}: "
+                        f"observed={observed_scanline_count}, expected={expected_scanline_count}"
+                    ),
+                    details={
+                        "artifact": str(png_path),
+                        "checkpoint": checkpoint_name,
+                        "observed_scanline_count": observed_scanline_count,
+                        "expected_scanline_count": expected_scanline_count,
+                        **details,
+                    },
+                    metrics={
+                        "observed_scanline_count": float(observed_scanline_count),
+                        "expected_scanline_count": float(expected_scanline_count),
+                        "variance_percent": float(variance),
+                    },
+                )
+
+            validated_frames.append(
+                {
+                    "checkpoint": checkpoint_name,
+                    "artifact": str(png_path),
+                    "observed_scanline_count": observed_scanline_count,
+                    "expected_scanline_count": expected_scanline_count,
+                    "expected_period_px": int(details.get("expected_period_px", total_pixels)),
+                }
+            )
+
+        return AssertionResult(
+            status=AssertionStatus.PASS,
+            name=self.name,
+            message=(
+                "Scanline counts correct across preserve preview checkpoints: "
+                + ", ".join(
+                    f"{frame['checkpoint']}={frame['observed_scanline_count']}"
+                    for frame in validated_frames
+                )
+            ),
+            details={"validated_frames": validated_frames},
+            metrics={"validated_frames": float(len(validated_frames))},
+        )
+
+    def _analyze_quantitative_frame(
+        self,
+        frame: np.ndarray,
+        total_pixels: int,
+        gap_pixels: int,
+        expected_gap_groups: Optional[int],
+        frame_label: Optional[str],
+        frame_index: Optional[int],
+        frame_time_offset_s: Optional[float],
+        verbose: bool,
+    ) -> AssertionResult:
+        frame_reference = self._format_frame_reference(frame_label, frame_index, frame_time_offset_s)
+
+        gray = 0.2126 * frame[..., 0] + 0.7152 * frame[..., 1] + 0.0722 * frame[..., 2]
         col_max = np.max(gray, axis=0)
         content_cols = np.where(col_max > _BLACK_THRESHOLD)[0]
         if len(content_cols) < 10:
             return AssertionResult(
                 status=AssertionStatus.FAIL,
                 name=self.name,
-                message="No content columns detected in frame",
-                details={"frame_time_offset_s": float(chosen_t)},
+                message=f"{frame_reference}: no content columns detected in frame",
+                details=self._frame_details(frame_label, frame_index, frame_time_offset_s),
             )
         x_start, x_end = int(content_cols[0]), int(content_cols[-1])
 
-        # Identify content row range (exclude horizontal letterbox bars).
         content_region = gray[:, x_start : x_end + 1]
         row_max = np.max(content_region, axis=1)
         content_row_indices = np.where(row_max > _BLACK_THRESHOLD)[0]
@@ -218,43 +372,46 @@ class ScanlineAssertion(EffectAssertion):
             return AssertionResult(
                 status=AssertionStatus.FAIL,
                 name=self.name,
-                message=f"Content region too small: only {len(content_row_indices)} content rows",
-                details={"frame_time_offset_s": float(chosen_t)},
+                message=(
+                    f"{frame_reference}: content region too small: "
+                    f"only {len(content_row_indices)} content rows"
+                ),
+                details=self._frame_details(frame_label, frame_index, frame_time_offset_s),
             )
 
         y_start, y_end = int(content_row_indices[0]), int(content_row_indices[-1])
-
-        # Classify every row within the content span.
         region_row_max = row_max[y_start : y_end + 1]
-        # 0 = BLACK, 1 = CONTENT
         row_classes = np.where(region_row_max < _BLACK_THRESHOLD, 0, 1)
         total_rows = len(row_classes)
 
         black_positions = np.where(row_classes == 0)[0]
         observed_black_rows = int(len(black_positions))
-
-        first_30 = "".join("C" if c else "B" for c in row_classes[:30])
+        first_20 = "".join("C" if c else "B" for c in row_classes[:20])
 
         if observed_black_rows == 0:
             return AssertionResult(
                 status=AssertionStatus.FAIL,
                 name=self.name,
-                message="No scanline gaps (BLACK rows) detected — scanlines are collapsed or missing",
+                message=(
+                    f"{frame_reference}: no scanline gaps (BLACK rows) detected — "
+                    "scanlines are collapsed or missing"
+                ),
                 details={
                     "detected_period": None,
+                    "observed_gap_groups": 0,
                     "observed_black_rows": 0,
+                    "expected_gap_groups": expected_gap_groups,
                     "expected_black_rows": None,
-                    "first_30_classifications": first_30,
+                    "first_20_classifications": first_20,
                     "sample_gaps": [],
                     "total_rows": total_rows,
                     "expected_pattern": f"period={total_pixels}, gap={gap_pixels}",
-                    "frame_time_offset_s": float(chosen_t),
+                    **self._frame_details(frame_label, frame_index, frame_time_offset_s),
                     "content_region": {"x": (x_start, x_end), "y": (y_start, y_end)},
+                    "pattern_summary": "groups=0, detected_period=None, gap_width=None",
                 },
             )
 
-        # --- Phase 3: Period detection ---
-        # Group consecutive BLACK rows into bands.
         black_groups: list[tuple[int, int]] = []
         group_start = int(black_positions[0])
         group_end = group_start
@@ -267,284 +424,395 @@ class ScanlineAssertion(EffectAssertion):
                 group_end = group_start
         black_groups.append((group_start, group_end))
 
-        if len(black_groups) < 3:
+        observed_groups = len(black_groups)
+        if observed_groups < 3:
             return AssertionResult(
                 status=AssertionStatus.FAIL,
                 name=self.name,
                 message=(
-                    f"Only {len(black_groups)} black band(s) detected — "
+                    f"{frame_reference}: only {observed_groups} black band(s) detected — "
                     "insufficient for periodicity validation (need ≥3)"
                 ),
                 details={
                     "detected_period": None,
+                    "observed_gap_groups": observed_groups,
                     "observed_black_rows": observed_black_rows,
+                    "expected_gap_groups": expected_gap_groups,
                     "expected_black_rows": None,
-                    "first_30_classifications": first_30,
+                    "first_20_classifications": first_20,
                     "sample_gaps": [],
                     "total_rows": total_rows,
-                    "black_groups": len(black_groups),
-                    "frame_time_offset_s": float(chosen_t),
+                    **self._frame_details(frame_label, frame_index, frame_time_offset_s),
                     "content_region": {"x": (x_start, x_end), "y": (y_start, y_end)},
+                    "pattern_summary": (
+                        f"groups={observed_groups}, detected_period=None, gap_width=None"
+                    ),
                 },
             )
 
-        # Distance between starts of consecutive BLACK-row groups = period in canvas pixels.
-        group_starts = [g[0] for g in black_groups]
-        gaps = [group_starts[i + 1] - group_starts[i] for i in range(len(group_starts) - 1)]
-
+        group_starts = [group[0] for group in black_groups]
+        gaps = [group_starts[index + 1] - group_starts[index] for index in range(len(group_starts) - 1)]
         gap_counts = Counter(gaps)
         detected_period = gap_counts.most_common(1)[0][0]
 
+        band_widths = [group[1] - group[0] + 1 for group in black_groups]
+        band_width_counts = Counter(band_widths)
+        observed_gap_width = band_width_counts.most_common(1)[0][0]
+        pattern_summary = (
+            f"groups={observed_groups}, detected_period={detected_period}, "
+            f"gap_width={observed_gap_width}, black_rows={observed_black_rows}/{total_rows}"
+        )
+
         self.log(
-            f"Detected period={detected_period} px, "
-            f"gap distribution={dict(gap_counts.most_common(5))}, "
-            f"black_rows={observed_black_rows}/{total_rows}",
+            f"{frame_reference}: {pattern_summary}, gap_distribution={dict(gap_counts.most_common(5))}",
             verbose,
         )
 
-        # --- Phase 4: Periodicity validation ---
-        # Allow ±1 px for non-integer OBS scaling (e.g. 4.5× produces alternating periods).
         max_gap_dev = max(1, int(self.thresholds.get("max_gap_deviation_px", 1)))
-        bad_gaps = [g for g in gaps if abs(g - detected_period) > max_gap_dev]
-
+        bad_gaps = [gap for gap in gaps if abs(gap - detected_period) > max_gap_dev]
         if bad_gaps:
             return AssertionResult(
                 status=AssertionStatus.FAIL,
                 name=self.name,
                 message=(
-                    f"Scanline spacing inconsistent: {len(bad_gaps)} gap(s) deviate "
+                    f"{frame_reference}: scanline spacing inconsistent: {len(bad_gaps)} gap(s) deviate "
                     f"from period {detected_period} (±{max_gap_dev} px)"
                 ),
                 details={
                     "detected_period": detected_period,
+                    "observed_gap_groups": observed_groups,
                     "observed_black_rows": observed_black_rows,
+                    "expected_gap_groups": expected_gap_groups,
                     "expected_black_rows": None,
-                    "first_30_classifications": first_30,
+                    "first_20_classifications": first_20,
                     "sample_gaps": gaps[:15],
                     "bad_gaps": bad_gaps[:10],
                     "gap_distribution": dict(gap_counts.most_common(5)),
                     "total_rows": total_rows,
-                    "frame_time_offset_s": float(chosen_t),
+                    **self._frame_details(frame_label, frame_index, frame_time_offset_s),
                     "content_region": {"x": (x_start, x_end), "y": (y_start, y_end)},
+                    "pattern_summary": pattern_summary,
                 },
             )
 
-        # --- Phase 5: Count validation ---
-        # Observed black-band width (most common).
-        band_widths = [g[1] - g[0] + 1 for g in black_groups]
-        band_width_counts = Counter(band_widths)
-        observed_gap_width = band_width_counts.most_common(1)[0][0]
-
-        # Expected fraction of BLACK rows = gap_width / period.
         expected_fraction = observed_gap_width / detected_period
         expected_black_rows = round(total_rows * expected_fraction)
-
-        # Tolerance: edge rounding + ±1 px period alternation across all periods.
         n_periods = max(1, total_rows // detected_period)
         base_dev = observed_gap_width * 3
-        rounding_dev = n_periods // 4  # ±1 px per period compounds
+        rounding_dev = n_periods // 4
         max_count_dev = int(self.thresholds.get("max_count_deviation", max(base_dev, rounding_dev)))
         if abs(observed_black_rows - expected_black_rows) > max_count_dev:
             return AssertionResult(
                 status=AssertionStatus.FAIL,
                 name=self.name,
                 message=(
-                    f"Scanline count mismatch: observed={observed_black_rows}, "
+                    f"{frame_reference}: scanline count mismatch: observed={observed_black_rows}, "
                     f"expected≈{expected_black_rows} (±{max_count_dev})"
                 ),
                 details={
                     "detected_period": detected_period,
+                    "observed_gap_groups": observed_groups,
                     "observed_black_rows": observed_black_rows,
+                    "expected_gap_groups": expected_gap_groups,
                     "expected_black_rows": expected_black_rows,
-                    "first_30_classifications": first_30,
+                    "first_20_classifications": first_20,
                     "sample_gaps": gaps[:15],
                     "total_rows": total_rows,
                     "observed_gap_width": observed_gap_width,
-                    "frame_time_offset_s": float(chosen_t),
+                    **self._frame_details(frame_label, frame_index, frame_time_offset_s),
                     "content_region": {"x": (x_start, x_end), "y": (y_start, y_end)},
+                    "pattern_summary": pattern_summary,
                 },
             )
 
-        # --- Phase 5b: Gap group count validation ---
-        expected_gap_groups = self.thresholds.get("expected_gap_groups")
-        if expected_gap_groups is not None:
-            expected_gap_groups = int(expected_gap_groups)
-            max_group_dev = int(self.thresholds.get("max_gap_group_deviation", 2))
-            observed_groups = len(black_groups)
-            if abs(observed_groups - expected_gap_groups) > max_group_dev:
-                return AssertionResult(
-                    status=AssertionStatus.FAIL,
-                    name=self.name,
-                    message=(
-                        f"Scanline gap group count mismatch: observed={observed_groups}, "
-                        f"expected={expected_gap_groups} (±{max_group_dev})"
-                    ),
-                    details={
-                        "detected_period": detected_period,
-                        "observed_gap_groups": observed_groups,
-                        "expected_gap_groups": expected_gap_groups,
-                        "observed_black_rows": observed_black_rows,
-                        "first_30_classifications": first_30,
-                        "sample_gaps": gaps[:15],
-                        "total_rows": total_rows,
-                        "observed_gap_width": observed_gap_width,
-                        "frame_time_offset_s": float(chosen_t),
-                        "content_region": {"x": (x_start, x_end), "y": (y_start, y_end)},
-                    },
-                )
+        if expected_gap_groups is not None and observed_groups != expected_gap_groups:
+            return AssertionResult(
+                status=AssertionStatus.FAIL,
+                name=self.name,
+                message=(
+                    f"{frame_reference}: scanline gap group count mismatch: "
+                    f"observed={observed_groups}, expected={expected_gap_groups}"
+                ),
+                details={
+                    "detected_period": detected_period,
+                    "observed_gap_groups": observed_groups,
+                    "observed_black_rows": observed_black_rows,
+                    "expected_gap_groups": expected_gap_groups,
+                    "expected_black_rows": expected_black_rows,
+                    "first_20_classifications": first_20,
+                    "sample_gaps": gaps[:15],
+                    "total_rows": total_rows,
+                    "observed_gap_width": observed_gap_width,
+                    **self._frame_details(frame_label, frame_index, frame_time_offset_s),
+                    "content_region": {"x": (x_start, x_end), "y": (y_start, y_end)},
+                    "pattern_summary": pattern_summary,
+                },
+            )
 
-        # --- Phase 5c: Gap width uniformity ---
-        # All gap bands must have the same width (±1 px for OBS rounding).
         max_width_dev = max(1, int(self.thresholds.get("max_gap_width_deviation_px", 1)))
-        bad_widths = [w for w in band_widths if abs(w - observed_gap_width) > max_width_dev]
+        bad_widths = [width for width in band_widths if abs(width - observed_gap_width) > max_width_dev]
         if bad_widths:
             return AssertionResult(
                 status=AssertionStatus.FAIL,
                 name=self.name,
                 message=(
-                    f"Scanline gap widths not uniform: {len(bad_widths)} band(s) deviate "
+                    f"{frame_reference}: scanline gap widths not uniform: {len(bad_widths)} band(s) deviate "
                     f"from dominant width {observed_gap_width} (±{max_width_dev} px)"
                 ),
                 details={
                     "detected_period": detected_period,
+                    "observed_gap_groups": observed_groups,
                     "observed_gap_width": observed_gap_width,
                     "bad_widths": bad_widths[:10],
                     "band_width_distribution": dict(band_width_counts.most_common(5)),
                     "observed_black_rows": observed_black_rows,
-                    "first_30_classifications": first_30,
+                    "expected_gap_groups": expected_gap_groups,
+                    "first_20_classifications": first_20,
                     "total_rows": total_rows,
-                    "frame_time_offset_s": float(chosen_t),
+                    **self._frame_details(frame_label, frame_index, frame_time_offset_s),
                     "content_region": {"x": (x_start, x_end), "y": (y_start, y_end)},
+                    "pattern_summary": pattern_summary,
                 },
             )
 
-        # --- Phase 6: Distribution validation ---
-        # The scanline pattern must be present across the full frame, not clustered.
         region_size = max(detected_period * 3, total_rows // 10)
         regions = [
             ("top_10%", 0, min(region_size, total_rows)),
-            ("middle", max(0, total_rows // 2 - region_size // 2),
-             min(total_rows, total_rows // 2 + region_size // 2)),
+            (
+                "middle",
+                max(0, total_rows // 2 - region_size // 2),
+                min(total_rows, total_rows // 2 + region_size // 2),
+            ),
             ("bottom_10%", max(0, total_rows - region_size), total_rows),
         ]
-        for region_name, rstart, rend in regions:
-            rgn = row_classes[rstart:rend]
-            rgn_total = len(rgn)
-            if rgn_total == 0:
+        for region_name, region_start, region_end in regions:
+            region = row_classes[region_start:region_end]
+            region_total = len(region)
+            if region_total == 0:
                 continue
-            rgn_black = int(np.sum(rgn == 0))
-            rgn_frac = rgn_black / rgn_total
-
-            # Each region must have at least half the expected fraction of BLACK rows.
-            if rgn_frac < expected_fraction * 0.5:
+            region_black = int(np.sum(region == 0))
+            region_fraction = region_black / region_total
+            if region_fraction < expected_fraction * 0.5:
                 return AssertionResult(
                     status=AssertionStatus.FAIL,
                     name=self.name,
                     message=(
-                        f"Scanline distribution uneven in {region_name}: "
-                        f"{rgn_frac:.1%} black rows (expected ~{expected_fraction:.1%})"
+                        f"{frame_reference}: scanline distribution uneven in {region_name}: "
+                        f"{region_fraction:.1%} black rows (expected ~{expected_fraction:.1%})"
                     ),
                     details={
                         "detected_period": detected_period,
+                        "observed_gap_groups": observed_groups,
                         "observed_black_rows": observed_black_rows,
+                        "expected_gap_groups": expected_gap_groups,
                         "expected_black_rows": expected_black_rows,
-                        "first_30_classifications": first_30,
+                        "first_20_classifications": first_20,
                         "sample_gaps": gaps[:15],
                         "total_rows": total_rows,
                         "region": region_name,
-                        "region_black_fraction": rgn_frac,
+                        "region_black_fraction": region_fraction,
                         "expected_fraction": expected_fraction,
-                        "frame_time_offset_s": float(chosen_t),
+                        **self._frame_details(frame_label, frame_index, frame_time_offset_s),
                         "content_region": {"x": (x_start, x_end), "y": (y_start, y_end)},
+                        "pattern_summary": pattern_summary,
                     },
                 )
 
-        # --- All checks passed ---
         return AssertionResult(
             status=AssertionStatus.PASS,
             name=self.name,
             message=(
-                f"Scanline topology correct: period={detected_period}px, "
-                f"black_rows={observed_black_rows}/{total_rows}, "
-                f"groups={len(black_groups)}, gap_width={observed_gap_width}px"
+                f"{frame_reference}: scanline topology correct: period={detected_period}px, "
+                f"black_rows={observed_black_rows}/{total_rows}, groups={observed_groups}, "
+                f"gap_width={observed_gap_width}px"
             ),
             details={
                 "detected_period": detected_period,
+                "observed_gap_groups": observed_groups,
                 "observed_black_rows": observed_black_rows,
+                "expected_gap_groups": expected_gap_groups,
                 "expected_black_rows": expected_black_rows,
-                "first_30_classifications": first_30,
+                "first_20_classifications": first_20,
                 "sample_gaps": gaps[:15],
                 "total_rows": total_rows,
-                "black_groups": len(black_groups),
+                "black_groups": observed_groups,
                 "observed_gap_width": observed_gap_width,
                 "expected_fraction": expected_fraction,
                 "gap_distribution": dict(gap_counts.most_common(5)),
-                "frame_time_offset_s": float(chosen_t),
+                **self._frame_details(frame_label, frame_index, frame_time_offset_s),
                 "content_region": {"x": (x_start, x_end), "y": (y_start, y_end)},
+                "pattern_summary": pattern_summary,
             },
             metrics={
                 "detected_period": float(detected_period),
+                "observed_gap_groups": float(observed_groups),
                 "observed_black_rows": float(observed_black_rows),
                 "expected_black_rows": float(expected_black_rows),
             },
         )
 
-    def _extract_quantitative_frame(
-        self, mp4_path: Path, total_pixels: int
-    ) -> tuple[Optional[np.ndarray], float]:
-        """Extract the best frame for quantitative scanline analysis.
+    def _iter_quantitative_frames(
+        self, mp4_path: Path, properties: dict[str, Any], verbose: bool
+    ) -> list[dict[str, Any]]:
+        script_name = Path(str(properties.get("script_file") or "")).name.lower()
+        if script_name == _PRESERVE_COMPARE_SCRIPT:
+            return self._iter_preserve_compare_frames(mp4_path, properties, verbose)
+        return self._iter_fixed_offset_frames(mp4_path, verbose)
 
-        Tries a broad range of time offsets and picks the frame with the
-        most scanline gap groups.  This naturally selects frames rendered at
-        virtual resolution (preserve_size=false) over those rendered at
-        logical resolution, giving the full one-gap-per-C64-pixel-row count.
-        """
-        # Include later offsets (15-25s) to reach CRT-effect sections in
-        # preserve_size_compare recordings where Default (no scanlines)
-        # occupies the first ~14.5s.
-        offsets = [16.0, 18.0, 20.0, 15.0, 22.0, 25.0, 14.0, 12.0, 10.0, 8.0]
+    def _iter_preserve_compare_frames(
+        self, mp4_path: Path, properties: dict[str, Any], verbose: bool
+    ) -> list[dict[str, Any]]:
+        fmt = str(properties.get("video_format") or "NTSC").upper()
+        fps = PAL_FPS if fmt == "PAL" else NTSC_FPS
+        checkpoint_frames = compute_checkpoint_frames(fps=fps)
+        expected_width = int(properties.get("expected_width", 1920))
+        expected_height = int(properties.get("expected_height", 1080))
+        arcade_end = max(
+            checkpoint_frames["arcade_preserve_2"] + _PRESERVE_COMPARE_SECTION_PADDING_FRAMES,
+            checkpoint_frames["arcade_preserve"] + 2,
+        )
+        section_windows = [
+            ("classic_preserve", checkpoint_frames["classic_preserve"], checkpoint_frames["sharp_legacy"] - 1),
+            ("sharp_preserve", checkpoint_frames["sharp_preserve"], checkpoint_frames["vintage_legacy"] - 1),
+            ("vintage_preserve", checkpoint_frames["vintage_preserve"], checkpoint_frames["arcade_legacy"] - 1),
+            ("arcade_preserve", checkpoint_frames["arcade_preserve"], arcade_end),
+        ]
 
-        best_frame: Optional[np.ndarray] = None
-        best_t = 0.0
-        best_score = -1
+        frames: list[dict[str, Any]] = []
+        for section_name, start_frame, end_frame in section_windows:
+            sample_indices = self._sample_frame_indices(
+                start_frame,
+                end_frame,
+                sample_count=_PRESERVE_COMPARE_SECTION_SAMPLE_COUNT,
+            )
+            self.log(f"{section_name}: validating preserve-size frames {sample_indices}", verbose)
+            for sample_number, frame_index in enumerate(sample_indices, start=1):
+                frame = self._extract_frame_by_index(
+                    mp4_path,
+                    frame_index=frame_index,
+                    width=expected_width,
+                    height=expected_height,
+                )
+                if frame is None:
+                    raise RuntimeError(
+                        f"Could not extract preserve compare frame {frame_index} for {section_name}"
+                    )
+                frames.append(
+                    {
+                        "label": f"{section_name}:sample_{sample_number}",
+                        "frame_index": frame_index,
+                        "frame_time_offset_s": frame_index / fps,
+                        "frame": frame,
+                    }
+                )
 
-        for t in offsets:
-            frame = self._extract_frame(mp4_path, time_offset=float(t))
+        return frames
+
+    def _iter_fixed_offset_frames(self, mp4_path: Path, verbose: bool) -> list[dict[str, Any]]:
+        frames: list[dict[str, Any]] = []
+        for offset_s in _GENERIC_QUANTITATIVE_OFFSETS_S:
+            frame = self._extract_frame(mp4_path, time_offset=float(offset_s))
             if frame is None:
                 continue
-            score = self._scanline_group_count(frame)
-            if score > best_score:
-                best_score = score
-                best_frame = frame
-                best_t = float(t)
-
-        return best_frame, best_t
+            self.log(f"Validating quantitative frame at {offset_s:.1f}s", verbose)
+            frames.append(
+                {
+                    "label": f"offset_{offset_s:.1f}s",
+                    "frame_index": None,
+                    "frame_time_offset_s": float(offset_s),
+                    "frame": frame,
+                }
+            )
+        return frames
 
     @staticmethod
-    def _scanline_group_count(frame: np.ndarray) -> int:
-        """Count scanline gap groups in a frame's content region.
+    def _sample_frame_indices(start_frame: int, end_frame: int, sample_count: int) -> list[int]:
+        if end_frame < start_frame:
+            raise ValueError(f"Invalid frame window: start={start_frame}, end={end_frame}")
 
-        Frames with more gap groups (e.g. 239 at virtual resolution) score
-        higher than those with fewer (e.g. 80 at logical resolution).
-        """
-        gray = 0.2126 * frame[..., 0] + 0.7152 * frame[..., 1] + 0.0722 * frame[..., 2]
-        col_max = np.max(gray, axis=0)
-        content_cols = np.where(col_max > _BLACK_THRESHOLD)[0]
-        if len(content_cols) < 10:
-            return 0
-        x_start, x_end = int(content_cols[0]), int(content_cols[-1])
-        row_max = np.max(gray[:, x_start : x_end + 1], axis=1)
-        content_rows = np.where(row_max > _BLACK_THRESHOLD)[0]
-        if len(content_rows) < 20:
-            return 0
-        y_start, y_end = int(content_rows[0]), int(content_rows[-1])
-        region = row_max[y_start : y_end + 1]
-        black_mask = region < _BLACK_THRESHOLD
-        if not np.any(black_mask):
-            return 0
-        # Count transitions from non-black to black (each = start of a gap group)
-        padded = np.concatenate(([False], black_mask, [False]))
-        return int(np.sum(padded[1:] & ~padded[:-1]))
+        samples: list[int] = []
+        for candidate in [start_frame, (start_frame + end_frame) // 2, end_frame]:
+            if candidate not in samples:
+                samples.append(candidate)
+
+        next_frame = start_frame
+        while len(samples) < sample_count and next_frame <= end_frame:
+            if next_frame not in samples:
+                samples.append(next_frame)
+            next_frame += 1
+
+        if len(samples) < sample_count:
+            raise ValueError(
+                f"Need at least {sample_count} frames in window {start_frame}-{end_frame}, got {samples}"
+            )
+
+        return sorted(samples[:sample_count])
+
+    def _extract_frame_by_index(
+        self, mp4_path: Path, frame_index: int, width: int, height: int
+    ) -> Optional[np.ndarray]:
+        cmd = [
+            "ffmpeg",
+            "-v",
+            "error",
+            "-i",
+            str(mp4_path),
+            "-vf",
+            f"select=eq(n\\,{frame_index})",
+            "-frames:v",
+            "1",
+            "-f",
+            "rawvideo",
+            "-pix_fmt",
+            "rgb24",
+            "-",
+        ]
+        try:
+            result = subprocess.run(cmd, capture_output=True, check=True)
+            expected_bytes = width * height * 3
+            if len(result.stdout) == expected_bytes:
+                return np.frombuffer(result.stdout, dtype=np.uint8).reshape((height, width, 3))
+        except subprocess.CalledProcessError:
+            pass
+
+        try:
+            import cv2  # type: ignore
+        except ImportError:
+            return None
+
+        cap = cv2.VideoCapture(str(mp4_path))
+        try:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, float(frame_index))
+            ok, frame = cap.read()
+            if not ok or frame is None:
+                return None
+            return cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        finally:
+            cap.release()
+
+    @staticmethod
+    def _frame_details(
+        frame_label: Optional[str], frame_index: Optional[int], frame_time_offset_s: Optional[float]
+    ) -> dict[str, Any]:
+        return {
+            "frame_label": frame_label,
+            "frame_index": frame_index,
+            "frame_time_offset_s": float(frame_time_offset_s) if frame_time_offset_s is not None else None,
+        }
+
+    @staticmethod
+    def _format_frame_reference(
+        frame_label: Optional[str], frame_index: Optional[int], frame_time_offset_s: Optional[float]
+    ) -> str:
+        if frame_index is not None and frame_label:
+            return f"Frame {frame_index} ({frame_label})"
+        if frame_index is not None:
+            return f"Frame {frame_index}"
+        if frame_label:
+            return f"Frame {frame_label}"
+        if frame_time_offset_s is not None:
+            return f"Frame at {frame_time_offset_s:.3f}s"
+        return "Frame"
 
     def _extract_frame(self, mp4_path: Path, time_offset: float) -> Optional[np.ndarray]:
         """Extract a single frame at the given time offset."""
@@ -571,6 +839,10 @@ class ScanlineAssertion(EffectAssertion):
         except subprocess.CalledProcessError:
             pass
         return None
+
+    @staticmethod
+    def _repo_root() -> Path:
+        return Path(__file__).resolve().parents[3]
 
     def _extract_best_frame(self, mp4_path: Path) -> tuple[Optional[np.ndarray], float]:
         """Extract a stable frame by sampling multiple offsets and picking the one with the largest

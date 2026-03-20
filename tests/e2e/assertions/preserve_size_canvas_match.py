@@ -585,10 +585,32 @@ _PRESERVE_CHECKPOINTS: list[tuple[str, str]] = [
     ("arcade_preserve", "arcade_source_preserve.png"),
 ]
 
+_PRESERVE_PREVIEW_CHECKPOINTS: dict[str, str] = {
+    "default_preserve": "default_preview_preserve.png",
+    "classic_preserve": "classic_preview_preserve.png",
+    "sharp_preserve": "sharp_preview_preserve.png",
+    "vintage_preserve": "vintage_preview_preserve.png",
+    "arcade_preserve": "arcade_preview_preserve.png",
+}
+
 
 def _repo_root() -> Path:
     # assertions/preserve_size_canvas_match.py → assertions → e2e → tests → repo
     return Path(__file__).resolve().parents[3]
+
+
+def _load_rgb_png(png_path: Path) -> Optional["np.ndarray"]:  # type: ignore[name-defined]
+    try:
+        import numpy as np
+        from PIL import Image  # type: ignore
+    except ImportError:
+        return None
+
+    try:
+        with Image.open(png_path) as img:
+            return np.array(img.convert("RGB"))
+    except Exception:
+        return None
 
 
 class PreserveSizeCanvasMatchAssertion(EffectAssertion):
@@ -676,30 +698,43 @@ class PreserveSizeCanvasMatchAssertion(EffectAssertion):
 
             checked.append(f"{checkpoint_name}:source_dim")
 
-            # --- step 2+3: canvas frame extraction and geometry ---
-            frame_index = checkpoint_frames.get(checkpoint_name)
-            if frame_index is None:
-                skips.append(f"no frame index for {checkpoint_name}")
-                continue
+            # --- step 2+3: canvas validation ---
+            # The scenario already captures deterministic PREVIEW screenshots at the
+            # preserve checkpoints. Prefer those lossless checkpoint artifacts over
+            # trying to reconstruct the same moment from the recording timeline.
+            preview_png = artifacts_dir / _PRESERVE_PREVIEW_CHECKPOINTS[checkpoint_name]
+            preview_frame = _load_rgb_png(preview_png)
+            if preview_frame is not None:
+                canvas_result = validate_canvas_letterbox(
+                    frame=preview_frame,
+                    canvas_w=canvas_w,
+                    canvas_h=canvas_h,
+                    source_w=logical_w,
+                    source_h=logical_h,
+                    checkpoint_name=checkpoint_name,
+                )
+            else:
+                frame_index = checkpoint_frames.get(checkpoint_name)
+                if frame_index is None:
+                    skips.append(f"no frame index for {checkpoint_name}")
+                    continue
 
-            canvas_result = extract_and_validate_canvas_frame(
-                mp4_path=mp4_path,
-                frame_index=frame_index,
-                canvas_w=canvas_w,
-                canvas_h=canvas_h,
-                source_w=logical_w,
-                source_h=logical_h,
-                checkpoint_name=checkpoint_name,
-                frame_dir=frame_dir,
-            )
+                canvas_result = extract_and_validate_canvas_frame(
+                    mp4_path=mp4_path,
+                    frame_index=frame_index,
+                    canvas_w=canvas_w,
+                    canvas_h=canvas_h,
+                    source_w=logical_w,
+                    source_h=logical_h,
+                    checkpoint_name=checkpoint_name,
+                    frame_dir=frame_dir,
+                )
             self.log(canvas_result.message, verbose)
 
             if canvas_result.status == "skip":
                 skips.append(f"skip:{checkpoint_name}:canvas:{canvas_result.message}")
             elif not canvas_result.ok:
-                failures.append(
-                    f"{checkpoint_name} – canvas frame {frame_index}: {canvas_result.message}"
-                )
+                failures.append(f"{checkpoint_name} – canvas: {canvas_result.message}")
             else:
                 checked.append(f"{checkpoint_name}:canvas")
 

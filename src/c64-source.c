@@ -2123,10 +2123,14 @@ void c64_video_render(void *data, gs_effect_t *effect)
     struct c64_effect_geometry geometry;
     c64_source_get_effect_geometry(context, &geometry);
 
+    struct obs_video_info ovi;
+    const float canvas_height = (obs_get_video_info(&ovi) && ovi.base_height > 0) ? (float)ovi.base_height : 0.0f;
+
     gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "virtual_output_width"),
-                        (float)geometry.draw_width);
+                        (float)geometry.virtual_width);
     gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "virtual_output_height"),
-                        (float)geometry.draw_height);
+                        (float)geometry.virtual_height);
+    gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "canvas_height"), canvas_height);
 
     // Set blur/bloom strengths directly - no scaling needed since we render at correct size
     gs_effect_set_float(gs_effect_get_param_by_name(context->crt_effect, "blur_strength"), context->blur_strength);

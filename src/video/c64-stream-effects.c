@@ -795,10 +795,14 @@ void c64_stream_effects_video_render(void *data, gs_effect_t *effect)
     gs_effect_set_float(gs_effect_get_param_by_name(state->crt_effect, "dt_ms"), 33.33f);
     gs_effect_set_texture(gs_effect_get_param_by_name(state->crt_effect, "texture_accum_prev"), state->output_texture);
 
+    struct obs_video_info ovi;
+    const float canvas_height = (obs_get_video_info(&ovi) && ovi.base_height > 0) ? (float)ovi.base_height : 0.0f;
+
     gs_effect_set_float(gs_effect_get_param_by_name(state->crt_effect, "virtual_output_width"),
-                        (float)geometry.draw_width);
+                        (float)geometry.virtual_width);
     gs_effect_set_float(gs_effect_get_param_by_name(state->crt_effect, "virtual_output_height"),
-                        (float)geometry.draw_height);
+                        (float)geometry.virtual_height);
+    gs_effect_set_float(gs_effect_get_param_by_name(state->crt_effect, "canvas_height"), canvas_height);
     gs_effect_set_float(gs_effect_get_param_by_name(state->crt_effect, "blur_strength"), state->blur_strength);
     gs_effect_set_float(gs_effect_get_param_by_name(state->crt_effect, "bloom_strength"), state->bloom_strength);
     gs_effect_set_float(gs_effect_get_param_by_name(state->crt_effect, "source_width"), (float)width);
