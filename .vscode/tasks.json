@@ -39,7 +39,7 @@
             "args": [
                 "-NoProfile",
                 "-Command",
-                "cmake --build build_x64 --config Debug --target c64stream; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; New-Item -ItemType Directory -Path 'C:/ProgramData/obs-studio/plugins/c64stream/bin/64bit' -Force | Out-Null; New-Item -ItemType Directory -Path 'C:/ProgramData/obs-studio/plugins/c64stream/data' -Force | Out-Null; Copy-Item '${workspaceFolder}/build_x64/Debug/c64stream.dll' -Destination 'C:/ProgramData/obs-studio/plugins/c64stream/bin/64bit/' -Force; Copy-Item '${workspaceFolder}/data/*' -Destination 'C:/ProgramData/obs-studio/plugins/c64stream/data/' -Recurse -Force; Write-Host 'Plugin installed to C:/ProgramData/obs-studio/plugins/c64stream'"
+                "cmake --build build_x64 --config Debug --target c64stream; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; New-Item -ItemType Directory -Path 'C:/ProgramData/obs-studio/plugins/c64stream/bin/64bit' -Force | Out-Null; New-Item -ItemType Directory -Path 'C:/ProgramData/obs-studio/plugins/c64stream/data' -Force | Out-Null; Copy-Item '${workspaceFolder}/build_x64/Debug/c64stream.dll' -Destination 'C:/ProgramData/obs-studio/plugins/c64stream/bin/64bit/' -Force; Copy-Item '${workspaceFolder}/data/*' -Destination 'C:/ProgramData/obs-studio/plugins/c64stream/data/' -Recurse -Force; Copy-Item '${workspaceFolder}/README.md' -Destination 'C:/ProgramData/obs-studio/plugins/c64stream/data/README.md' -Force; Write-Host 'Plugin installed to C:/ProgramData/obs-studio/plugins/c64stream'"
             ],
             "group": {
                 "kind": "build",
@@ -126,7 +126,7 @@
             "command": "powershell",
             "args": [
                 "-Command",
-                "New-Item -ItemType Directory -Path 'C:\\ProgramData\\obs-studio\\plugins\\c64stream\\bin\\64bit' -Force | Out-Null; New-Item -ItemType Directory -Path 'C:\\ProgramData\\obs-studio\\plugins\\c64stream\\data' -Force | Out-Null; Copy-Item '${workspaceFolder}\\build_x64\\Debug\\c64stream.dll' -Destination 'C:\\ProgramData\\obs-studio\\plugins\\c64stream\\bin\\64bit\\' -Force; Copy-Item '${workspaceFolder}\\data\\*' -Destination 'C:\\ProgramData\\obs-studio\\plugins\\c64stream\\data\\' -Recurse -Force; Write-Host 'Plugin installed to C:\\ProgramData\\obs-studio\\plugins\\c64stream'"
+                "New-Item -ItemType Directory -Path 'C:\\ProgramData\\obs-studio\\plugins\\c64stream\\bin\\64bit' -Force | Out-Null; New-Item -ItemType Directory -Path 'C:\\ProgramData\\obs-studio\\plugins\\c64stream\\data' -Force | Out-Null; Copy-Item '${workspaceFolder}\\build_x64\\Debug\\c64stream.dll' -Destination 'C:\\ProgramData\\obs-studio\\plugins\\c64stream\\bin\\64bit\\' -Force; Copy-Item '${workspaceFolder}\\data\\*' -Destination 'C:\\ProgramData\\obs-studio\\plugins\\c64stream\\data\\' -Recurse -Force; Copy-Item '${workspaceFolder}\\README.md' -Destination 'C:\\ProgramData\\obs-studio\\plugins\\c64stream\\data\\README.md' -Force; Write-Host 'Plugin installed to C:\\ProgramData\\obs-studio\\plugins\\c64stream'"
             ],
             "group": "build",
             "presentation": {
@@ -157,7 +157,7 @@
             "command": "bash",
             "args": [
                 "-c",
-                "mkdir -p \"$HOME/.config/obs-studio/plugins/c64stream/bin/64bit\" && mkdir -p \"$HOME/.config/obs-studio/plugins/c64stream/data\" && cp \"build_x86_64/c64stream.so\" \"$HOME/.config/obs-studio/plugins/c64stream/bin/64bit/\" && cp -r \"data\"/* \"$HOME/.config/obs-studio/plugins/c64stream/data/\" && if [ -f \"build_x86_64/generated/prg/av-sync-auto.prg\" ]; then mkdir -p \"$HOME/.config/obs-studio/plugins/c64stream/data/prg\" && cp \"build_x86_64/generated/prg/av-sync-auto.prg\" \"$HOME/.config/obs-studio/plugins/c64stream/data/prg/\"; fi && echo 'Plugin installed successfully'"
+                "mkdir -p \"$HOME/.config/obs-studio/plugins/c64stream/bin/64bit\" && mkdir -p \"$HOME/.config/obs-studio/plugins/c64stream/data\" && cp \"build_x86_64/c64stream.so\" \"$HOME/.config/obs-studio/plugins/c64stream/bin/64bit/\" && cp -r \"data\"/* \"$HOME/.config/obs-studio/plugins/c64stream/data/\" && cp \"README.md\" \"$HOME/.config/obs-studio/plugins/c64stream/data/README.md\" && if [ -f \"build_x86_64/generated/prg/av-sync-auto.prg\" ]; then mkdir -p \"$HOME/.config/obs-studio/plugins/c64stream/data/prg\" && cp \"build_x86_64/generated/prg/av-sync-auto.prg\" \"$HOME/.config/obs-studio/plugins/c64stream/data/prg/\"; fi && echo 'Plugin installed successfully'"
             ],
             "group": "build",
             "presentation": {

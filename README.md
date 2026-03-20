@@ -507,6 +507,8 @@ Recreate the authentic look and feel of classic CRT monitors and TVs with config
 
 #### Perfect Scan Lines
 
+![Perfect Scan Lines](./docs/images/perfect-scan-lines.png "Perfect Scan Lines")
+
 > [!TIP]
 > This section is for users seeking perfect display quality. The techniques described here are mostly required when using effects that include scan lines and/or pixel scaling.
 
