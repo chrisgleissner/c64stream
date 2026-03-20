@@ -52,16 +52,6 @@ void c64_effect_geometry_init(struct c64_effect_geometry *geometry, uint32_t log
     geometry->logical_height = logical_height;
     geometry->preserve_size = preserve_size;
 
-    geometry->scale_x = pixel_width;
-    geometry->scale_y = pixel_height;
-    if (scan_line_distance > 0.0f) {
-        uint32_t total_pixels = 0;
-        uint32_t scanline_pixels = 0;
-        c64_effect_get_scanline_scaling_info(scan_line_distance, &total_pixels, &scanline_pixels);
-        geometry->scale_x *= (float)total_pixels;
-        geometry->scale_y *= (float)total_pixels;
-    }
-
     geometry->virtual_width = c64_effect_scale_dimension(logical_width, pixel_width, scan_line_distance);
     geometry->virtual_height = c64_effect_scale_dimension(logical_height, pixel_height, scan_line_distance);
 

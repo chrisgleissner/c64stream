@@ -13,7 +13,6 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-effect-geometry.h"
 
 #include <assert.h>
-#include <math.h>
 #include <stdio.h>
 
 #define TEST(name) static void name(void)
@@ -24,11 +23,6 @@ See <https://www.gnu.org/licenses/> for details.
         printf("OK\n");                                                                                                \
     } while (0)
 
-static void assert_float_eq(float actual, float expected)
-{
-    assert(fabsf(actual - expected) < 0.0001f);
-}
-
 TEST(geometry_preserve_size_ntsc)
 {
     struct c64_effect_geometry geometry;
@@ -36,8 +30,6 @@ TEST(geometry_preserve_size_ntsc)
 
     assert(geometry.logical_width == 384);
     assert(geometry.logical_height == 240);
-    assert_float_eq(geometry.scale_x, 4.8f);
-    assert_float_eq(geometry.scale_y, 4.4f);
     assert(geometry.virtual_width == 1843);
     assert(geometry.virtual_height == 1056);
     assert(geometry.reported_width == 384);
@@ -52,8 +44,6 @@ TEST(geometry_legacy_mode_pal)
     struct c64_effect_geometry geometry;
     c64_effect_geometry_init(&geometry, 384, 272, 1.0f, 1.0f, 0.5f, false);
 
-    assert_float_eq(geometry.scale_x, 3.0f);
-    assert_float_eq(geometry.scale_y, 3.0f);
     assert(geometry.virtual_width == 1152);
     assert(geometry.virtual_height == 816);
     assert(geometry.reported_width == 1152);
@@ -68,8 +58,6 @@ TEST(geometry_non_integer_scale)
     struct c64_effect_geometry geometry;
     c64_effect_geometry_init(&geometry, 384, 240, 1.25f, 1.75f, 0.0f, false);
 
-    assert_float_eq(geometry.scale_x, 1.25f);
-    assert_float_eq(geometry.scale_y, 1.75f);
     assert(geometry.virtual_width == 480);
     assert(geometry.virtual_height == 420);
     assert(geometry.reported_width == 480);

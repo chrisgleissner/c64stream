@@ -16,8 +16,6 @@ See <https://www.gnu.org/licenses/> for details.
 struct c64_effect_geometry {
     uint32_t logical_width;
     uint32_t logical_height;
-    float scale_x;
-    float scale_y;
     uint32_t virtual_width;
     uint32_t virtual_height;
     uint32_t reported_width;
