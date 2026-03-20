@@ -863,6 +863,13 @@ install_plugin() {
         cp -r data/* "$install_dir/data/"
         log_success "Copied data files to $install_dir/data/"
 
+        if [[ -f "README.md" ]]; then
+            cp "README.md" "$install_dir/data/README.md"
+            log_success "Copied README.md to $install_dir/data/README.md"
+        else
+            log_warning "README.md not found in project root"
+        fi
+
         # Copy generated PRGs if available (built via CMake + 64tass)
         local prg_src="$build_dir/generated/prg/av-sync-auto.prg"
         if [[ -f "$prg_src" ]]; then
@@ -1019,6 +1026,13 @@ install_plugin_for_e2e() {
     if [[ -d "data" ]]; then
         cp -r data/* "$install_dir/data/"
         log_success "Copied data files to $install_dir/data/"
+
+        if [[ -f "README.md" ]]; then
+            cp "README.md" "$install_dir/data/README.md"
+            log_success "Copied README.md to $install_dir/data/README.md"
+        else
+            log_warning "README.md not found in project root"
+        fi
 
         # Copy generated PRGs if available (keeps runtime paths consistent even in E2E installs)
         local prg_src="$build_dir/generated/prg/av-sync-auto.prg"

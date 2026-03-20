@@ -13,7 +13,7 @@ This plugin implements a native OBS source that receives video and audio streams
 
 The plugin connects directly to the Ultimate's network interface, eliminating the need for capture cards or composite video connections.
 
-![C64 Stream Main Screen](./docs/images/main-screen.png "C64 Stream Main Screen")
+![C64 Stream Main Screen](https://raw.githubusercontent.com/chrisgleissner/c64stream/main/docs/images/main-screen.png "C64 Stream Main Screen")
 
 **Features:**
 
@@ -292,15 +292,15 @@ See the [OBS Plugins Guide](https://obsproject.com/kb/plugins-guide).
 
 1. **Add Source:** In OBS, click the "+" icon in the Sources tab. A window of all sources appears. Select "C64 Source":
 
-   ![Select Plugin](./docs/images/select-plugin.png "Select C64 Stream Plugin")
+  ![Select Plugin](https://raw.githubusercontent.com/chrisgleissner/c64stream/main/docs/images/select-plugin.png "Select C64 Stream Plugin")
 
    A new window opens. Keep the default settings and click "OK":
 
-   ![Create Source](./docs/images/create-source.png "Create C64 Stream Source")
+  ![Create Source](https://raw.githubusercontent.com/chrisgleissner/c64stream/main/docs/images/create-source.png "Create C64 Stream Source")
 
 2. **Open Properties:** Select the "C64 Stream" source in your sources list, then click the "Properties" button to open the configuration dialog.
 
-   ![C64 Stream Configuration](./docs/images/properties.png "C64 Stream Configuration")
+  ![C64 Stream Configuration](https://raw.githubusercontent.com/chrisgleissner/c64stream/main/docs/images/properties.png "C64 Stream Configuration")
 
 3. **Configure hostnames / IPs:** Set the hostname or IP address of your C64 Ultimate and click "OK".
 
@@ -330,7 +330,7 @@ In these cases, the filter acts purely as an **alternative attachment point** fo
 
 The screenshot below shows the **C64 Stream Effects** filter applied to an OBS *Media Source* whilst it is playing a test video:
 
-![C64 Stream Effects](./docs/images/c64stream-effects.png "C64 Stream Effects")
+![C64 Stream Effects](https://raw.githubusercontent.com/chrisgleissner/c64stream/main/docs/images/c64stream-effects.png "C64 Stream Effects")
 
 **Installation:**
 The filter is included automatically with the plugin package.
@@ -474,17 +474,17 @@ audio,2341,847,0,0,192,125
 
 Recreate the authentic look and feel of classic CRT monitors and TVs with configurable visual effects that simulate the characteristics of vintage displays.
 
-![C64 Stream Effects](./docs/images/properties-effects.png "C64 Stream Effects")
+![C64 Stream Effects](https://raw.githubusercontent.com/chrisgleissner/c64stream/main/docs/images/properties-effects.png "C64 Stream Effects")
 
 **Presets:** One-click configurations for different display types
 
-- **[Classic CRT](./docs/images/effects/classic-crt.png)** - Balanced scan lines and bloom for general retro appeal
-- **[Amber Monitor](./docs/images/effects/amber-monitor.png)** - Warm amber tint reminiscent of early computer monitors
-- **[Green Monitor](./docs/images/effects/green-monitor.png)** - Classic green phosphor terminal look
-- **[Sharp Pixels](./docs/images/effects/sharp-pixels.png)** - Crisp pixel doubling for arcade-style clarity
-- **[Phosphor Glow](./docs/images/effects/phosphor-glow.png)** - Dramatic phosphor persistence trails with extended afterglow. The sample image here was taken from the automated E2E test which shows an afterglow for each moving diagonal line.
-- **[Vintage TV](./docs/images/effects/vintage-tv.png)** - Softer look with prominent scan lines for old television feel
-- **[Arcade Cabinet](./docs/images/effects/arcade-cabinet.png)** - High-contrast effects for authentic arcade experience
+- **[Classic CRT](https://raw.githubusercontent.com/chrisgleissner/c64stream/main/docs/images/effects/classic-crt.png)** - Balanced scan lines and bloom for general retro appeal
+- **[Amber Monitor](https://raw.githubusercontent.com/chrisgleissner/c64stream/main/docs/images/effects/amber-monitor.png)** - Warm amber tint reminiscent of early computer monitors
+- **[Green Monitor](https://raw.githubusercontent.com/chrisgleissner/c64stream/main/docs/images/effects/green-monitor.png)** - Classic green phosphor terminal look
+- **[Sharp Pixels](https://raw.githubusercontent.com/chrisgleissner/c64stream/main/docs/images/effects/sharp-pixels.png)** - Crisp pixel doubling for arcade-style clarity
+- **[Phosphor Glow](https://raw.githubusercontent.com/chrisgleissner/c64stream/main/docs/images/effects/phosphor-glow.png)** - Dramatic phosphor persistence trails with extended afterglow. The sample image here was taken from the automated E2E test which shows an afterglow for each moving diagonal line.
+- **[Vintage TV](https://raw.githubusercontent.com/chrisgleissner/c64stream/main/docs/images/effects/vintage-tv.png)** - Softer look with prominent scan lines for old television feel
+- **[Arcade Cabinet](https://raw.githubusercontent.com/chrisgleissner/c64stream/main/docs/images/effects/arcade-cabinet.png)** - High-contrast effects for authentic arcade experience
 
 **Customizable Effects:**
 
@@ -494,18 +494,14 @@ Recreate the authentic look and feel of classic CRT monitors and TVs with config
 - **Blur Control:** Fine-tune between crisp pixels and soft scaling
 - **Afterglow**: CRT phosphor persistence effect (0-250ms) with configurable decay curves
 - **Screen Tint:** Amber, green, or monochrome overlays for period-accurate monitor simulation
-- **Preserve preview size:** Keeps the OBS-facing source or filter footprint stable when scanline and pixel-geometry settings change the internal virtual effect size
+- **Preserve preview size:** Keeps the OBS source or filter size stable when scanline and pixel settings change the internal effect size. Enabling may reduce scanline accuracy.
 
 **Reset:** To reset to default values, simply select the "Default" preset. If you have changed individual effects whilst the "Default" preset was active, select any other preset first and then re-select the "Default" preset.
 
-**Preserve preview size:**
-
-- New source and filter instances enable **Preserve preview size** by default.
-- Existing saved scenes keep their previous size-changing behavior until you enable the option explicitly.
-- Presets do not override this flag. Use it as a layout behavior toggle, not as part of a preset.
-- C64Script can toggle it at runtime with `EFFECTPARAM "preserve_size" 1` or `EFFECTPARAM "preserve_size" 0`.
 
 #### Perfect Scan Lines
+
+![Perfect Scan Lines](https://raw.githubusercontent.com/chrisgleissner/c64stream/main/docs/images/perfect-scan-lines.png "Perfect Scan Lines")
 
 > [!TIP]
 > This section is for users seeking perfect display quality. The techniques described here are mostly required when using effects that include scan lines and/or pixel scaling.
@@ -530,7 +526,7 @@ Then, right-click the C64 Stream source in OBS → **Transform** → **Edit Tran
 
 The following screenshot assumes you select "Wide" scan line mode, again assuming you use a 1920 x 1080 screen:
 
-![Edit Source Transform](./docs/images/source-transform-edit.png "Edit Source Transform in OBS")
+![Edit Source Transform](https://raw.githubusercontent.com/chrisgleissner/c64stream/main/docs/images/source-transform-edit.png "Edit Source Transform in OBS")
 
 ---
 
@@ -538,7 +534,7 @@ The following screenshot assumes you select "Wide" scan line mode, again assumin
 
 Customize the VIC-II color palette to match different C64 hardware variants, personal preferences, or artistic styles. The palette system supports both shipped (preset) and user-defined (custom) palettes.
 
-![C64 Stream Palettes](./docs/images/properties-palettes.png "C64 Stream Palettes")
+![C64 Stream Palettes](https://raw.githubusercontent.com/chrisgleissner/c64stream/main/docs/images/properties-palettes.png "C64 Stream Palettes")
 
 **Shipped Palettes:** The plugin includes the following preset palettes:
 
@@ -611,7 +607,7 @@ Exported configurations are saved to the [settings directory](#file-system-struc
 
 Control your Ultimate 64 remotely from within OBS Studio, enabling keyboard input capture and automated content playback.
 
-![C64 Stream Remote Control](./docs/images/properties-remote-control.png "C64 Stream Remote Control")
+![C64 Stream Remote Control](https://raw.githubusercontent.com/chrisgleissner/c64stream/main/docs/images/properties-remote-control.png "C64 Stream Remote Control")
 
 **Features:**
 
@@ -682,7 +678,7 @@ On many keyboards, the **META** key corresponds to the **Windows key**.
 
 Automate your C64 stream with C64Script - a modernized BASIC-like language designed specifically for stream control.
 
-![C64 Script](./docs/images/properties-script.png "C64 Script")
+![C64 Script](https://raw.githubusercontent.com/chrisgleissner/c64stream/main/docs/images/properties-script.png "C64 Script")
 
 **What is C64Script?**
 
@@ -751,7 +747,7 @@ Then reload VS Code (`Ctrl+Shift+P` → "Reload Window"). The language mode shou
 Common effect-layout automation examples:
 
 - `EFFECTPARAM "preserve_size" 1` keeps the OBS footprint stable while you cycle effects.
-- `EFFECTPARAM "preserve_size" 0` restores the legacy behavior where effect scaling changes the source or filter size.
+- `EFFECTPARAM "preserve_size" 0` keeps scan lines accurate by letting effect scaling change the source or filter size.
 
 ## 🛟 Troubleshooting
 

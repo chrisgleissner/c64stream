@@ -68,27 +68,10 @@ void c64_effect_geometry_init(struct c64_effect_geometry *geometry, uint32_t log
     }
 }
 
-static bool c64_effect_settings_have_saved_values(obs_data_t *settings, const char *const *saved_setting_keys,
-                                                  size_t saved_setting_key_count)
-{
-    if (!settings || !saved_setting_keys) {
-        return false;
-    }
-
-    for (size_t i = 0; i < saved_setting_key_count; i++) {
-        const char *key = saved_setting_keys[i];
-        if (key && key[0] != '\0' && obs_data_has_user_value(settings, key)) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
 bool c64_effect_settings_resolve_preserve_size(obs_data_t *settings, const char *const *saved_setting_keys,
                                                size_t saved_setting_key_count)
 {
-    bool preserve_size = true;
+    bool preserve_size = false;
 
     if (!settings) {
         return preserve_size;
@@ -96,10 +79,9 @@ bool c64_effect_settings_resolve_preserve_size(obs_data_t *settings, const char 
 
     if (obs_data_has_user_value(settings, "preserve_size")) {
         preserve_size = obs_data_get_bool(settings, "preserve_size");
-    } else {
-        preserve_size = !c64_effect_settings_have_saved_values(settings, saved_setting_keys, saved_setting_key_count);
-        obs_data_set_bool(settings, "preserve_size", preserve_size);
     }
 
+    UNUSED_PARAMETER(saved_setting_keys);
+    UNUSED_PARAMETER(saved_setting_key_count);
     return preserve_size;
 }

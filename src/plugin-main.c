@@ -252,7 +252,7 @@ bool obs_module_load(void)
     struct obs_source_info effects_info = {
         .id = "c64_stream_effects",
         .type = OBS_SOURCE_TYPE_FILTER,
-        .output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_SRGB,
+        .output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_SRGB | OBS_SOURCE_CUSTOM_DRAW,
         .get_name = c64_stream_effects_get_name,
         .create = c64_stream_effects_create,
         .destroy = c64_stream_effects_destroy,

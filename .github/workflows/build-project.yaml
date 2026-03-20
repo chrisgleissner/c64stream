@@ -947,6 +947,7 @@ jobs:
           - ntsc_effects_sharp_pixels
           - ntsc_effects_sharp_scanlines
           - ntsc_green_monitor
+          - ntsc_image_effects
           - ntsc_palette_muted
           - ntsc_palette_vibrant
           - ntsc_phosphor_glow

@@ -64,7 +64,7 @@ TEST(geometry_non_integer_scale)
     assert(geometry.reported_height == 420);
 }
 
-TEST(migration_new_instance_defaults_on)
+TEST(missing_key_defaults_off)
 {
     const char *const saved_keys[] = {"c64_host"};
     obs_data_t *settings = obs_data_create();
@@ -73,13 +73,12 @@ TEST(migration_new_instance_defaults_on)
     const bool preserve_size =
         c64_effect_settings_resolve_preserve_size(settings, saved_keys, sizeof(saved_keys) / sizeof(saved_keys[0]));
 
-    assert(preserve_size);
-    assert(obs_data_has_user_value(settings, "preserve_size"));
-    assert(obs_data_get_bool(settings, "preserve_size"));
+    assert(!preserve_size);
+    assert(!obs_data_has_user_value(settings, "preserve_size"));
     obs_data_release(settings);
 }
 
-TEST(migration_existing_instance_missing_key_defaults_off)
+TEST(missing_key_with_other_settings_still_defaults_off)
 {
     const char *const saved_keys[] = {"c64_host"};
     obs_data_t *settings = obs_data_create();
@@ -90,8 +89,7 @@ TEST(migration_existing_instance_missing_key_defaults_off)
         c64_effect_settings_resolve_preserve_size(settings, saved_keys, sizeof(saved_keys) / sizeof(saved_keys[0]));
 
     assert(!preserve_size);
-    assert(obs_data_has_user_value(settings, "preserve_size"));
-    assert(!obs_data_get_bool(settings, "preserve_size"));
+    assert(!obs_data_has_user_value(settings, "preserve_size"));
     obs_data_release(settings);
 }
 
@@ -126,8 +124,8 @@ int main(void)
     RUN_TEST(geometry_preserve_size_ntsc);
     RUN_TEST(geometry_legacy_mode_pal);
     RUN_TEST(geometry_non_integer_scale);
-    RUN_TEST(migration_new_instance_defaults_on);
-    RUN_TEST(migration_existing_instance_missing_key_defaults_off);
+    RUN_TEST(missing_key_defaults_off);
+    RUN_TEST(missing_key_with_other_settings_still_defaults_off);
     RUN_TEST(migration_explicit_true);
     RUN_TEST(migration_explicit_false);
     return 0;
