@@ -22,8 +22,11 @@ from .av_sync_csv_validation import AvSyncCsvValidationAssertion
 from .av_sync_offset import AvSyncOffsetAssertion
 from .av_sync_log_validation import AvSyncLogValidationAssertion
 from .base import AssertionResult, AssertionStatus, EffectAssertion, is_ci
+from .bounds import BoundsStabilityAssertion, BoundsVariationAssertion
 from .debug_log_presence import DebugLogPresenceAssertion
 from .config import PresetConfig
+from .effect_change import EffectChangeAssertion
+from .effect_cycle_log import EffectCycleLogAssertion
 from .frame_progression import FrameProgressionAssertion
 from .palette_mapping import PaletteMappingAssertion
 from .palette_stability import PaletteStabilityAssertion
@@ -38,8 +41,10 @@ from .tint import TintAssertion
 from .effect_transition import EffectTransitionAssertion
 from .tint_transition import TintTransitionAssertion
 from .video_quality import VideoQualityAssertion
+from .preserve_size_canvas_match import PreserveSizeCanvasMatchAssertion
 from .script_log import ScriptLogAssertion
 from .script_record import ScriptRecordAssertion
+from .script_status import ScriptStatusAssertion
 
 
 def _get_max_workers_for_assertions() -> int:
@@ -193,6 +198,10 @@ def create_assertions_from_list(
         "av_sync_csv_validation": AvSyncCsvValidationAssertion,
         "av_sync_log_validation": AvSyncLogValidationAssertion,
         "debug_log_presence": DebugLogPresenceAssertion,
+        "bounds_stability": BoundsStabilityAssertion,
+        "bounds_variation": BoundsVariationAssertion,
+        "effect_change": EffectChangeAssertion,
+        "effect_cycle_log": EffectCycleLogAssertion,
         "tint": TintAssertion,
         "tint_transition": TintTransitionAssertion,
         "effect_transition": EffectTransitionAssertion,
@@ -209,8 +218,10 @@ def create_assertions_from_list(
         "record_obs": RecordObsAssertion,
         "record_network": RecordNetworkAssertion,
         "record_frames": RecordFramesAssertion,
+        "preserve_size_canvas_match": PreserveSizeCanvasMatchAssertion,
         "script_log": ScriptLogAssertion,
         "script_record": ScriptRecordAssertion,
+        "script_status": ScriptStatusAssertion,
     }
 
     thresholds = thresholds or {}

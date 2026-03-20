@@ -12,9 +12,12 @@ Tests verify that jitter is applied correctly to packet timelines.
 
 import random
 import statistics
+import struct
 import unittest
 from pathlib import Path
 from typing import Any
+
+from util.generate_packets import VIDEO_FORMATS, generate_audio_packet, generate_video_packet
 
 
 def create_packet_timeline(
@@ -141,6 +144,7 @@ class TestNetworkJitterSimulation(unittest.TestCase):
     # NTSC timing constants
     NTSC_VIDEO_INTERVAL_US = 1_000_000 / 3590  # ~278.55 us
     NTSC_AUDIO_INTERVAL_US = 1_000_000 / 250   # 4000 us
+    VIDEO_HEADER_SIZE = struct.calcsize('<HHHHBBH')
 
     def test_no_jitter_preserves_order(self):
         """With no jitter, packets should remain in original order."""
@@ -240,6 +244,49 @@ class TestNetworkJitterSimulation(unittest.TestCase):
         # Mean should be roughly half of max for uniform distribution
         self.assertGreater(stats['mean_ms'], max_jitter_ms * 0.3, "Mean jitter too low")
         self.assertLess(stats['mean_ms'], max_jitter_ms * 0.7, "Mean jitter too high")
+
+    def test_still_pattern_video_payload_is_frame_invariant(self):
+        """The 'still' pattern must generate identical pixel payloads across frames."""
+        fmt = VIDEO_FORMATS['NTSC']
+
+        for packet_num in range(fmt['packets_per_frame']):
+            payloads = []
+            for frame_num in (0, 1, 2):
+                packet = generate_video_packet(
+                    frame_num=frame_num,
+                    packet_num=packet_num,
+                    width=fmt['width'],
+                    height=fmt['height'],
+                    packets_per_frame=fmt['packets_per_frame'],
+                    format_name='NTSC',
+                    total_frames=300,
+                    pattern='still',
+                    disable_pops=True,
+                    full_frame_pop=False,
+                )
+                payloads.append(packet[self.VIDEO_HEADER_SIZE:])
+
+            self.assertEqual(payloads[0], payloads[1], f"Packet {packet_num} payload changed between frames 0 and 1")
+            self.assertEqual(payloads[1], payloads[2], f"Packet {packet_num} payload changed between frames 1 and 2")
+
+    def test_disable_pops_silences_audio_pop_packets(self):
+        """disable_pops must suppress audio pop payloads as well as video markers."""
+        active_packet_num = None
+        sample_rate = VIDEO_FORMATS['NTSC']['audio_sample_rate']
+
+        for packet_num in range(200):
+            packet = generate_audio_packet(packet_num, sample_rate, 300, 'NTSC', disable_pops=False)
+            if any(byte != 0 for byte in packet[2:]):
+                active_packet_num = packet_num
+                break
+
+        self.assertIsNotNone(active_packet_num, "Failed to locate an active audio pop packet for the test")
+
+        enabled_packet = generate_audio_packet(active_packet_num, sample_rate, 300, 'NTSC', disable_pops=False)
+        disabled_packet = generate_audio_packet(active_packet_num, sample_rate, 300, 'NTSC', disable_pops=True)
+
+        self.assertTrue(any(byte != 0 for byte in enabled_packet[2:]), "Control packet should contain a pop payload")
+        self.assertFalse(any(byte != 0 for byte in disabled_packet[2:]), "disable_pops should force silence")
 
     def test_second_packet_can_arrive_before_first(self):
         """Test that jitter can cause seq=1 to arrive before seq=0 (after baseline packet)."""

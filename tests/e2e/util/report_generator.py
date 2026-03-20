@@ -723,7 +723,15 @@ class ReportGenerator:
              md.append("Details: [network.json](network.json)")
 
         # A/V Sync
-        if 'av_sync_details' in self.validation_data:
+        av_status = self.validation_data.get('av_sync', {})
+        av_status_value = av_status.get('status')
+        av_status_details = av_status.get('details', '')
+        if av_status_value == 'skipped':
+             md.append("")
+             md.append("### A/V Sync")
+             md.append("")
+             md.append(f"- ⏭️ {av_status_details or 'Skipped'}")
+        elif 'av_sync_details' in self.validation_data:
              av = self.validation_data['av_sync_details']
              md.append("")
              md.append("### A/V Sync")
@@ -1007,7 +1015,10 @@ class ReportGenerator:
                 md.append("- **Top-right**: VIC-II palette reference grid of all C64 colors")
                 md.append("- **Center**: Diagonal pattern cycling through all C64 colors")
                 md.append("- **Bottom-left**: Frame progression indicator (8-slot moving bar, cycles every 8 frames)")
-                md.append("- **Bottom-right**: A/V pop indicator (pops every 48 frames, split left/right for audio channels)")
+                if av_status_value == 'skipped':
+                    md.append("- **Bottom-right**: A/V pop indicator disabled for this scenario")
+                else:
+                    md.append("- **Bottom-right**: A/V pop indicator (pops every 48 frames, split left/right for audio channels)")
 
                 # Add frame context
                 av_details = self.validation_data.get('av_sync_details', {})

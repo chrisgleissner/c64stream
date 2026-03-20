@@ -1,0 +1,330 @@
+# Execution trace
+script: "preserve_size_compare.c64script"
+status: success
+error: ~
+program: |
+  01: REM Preserve-size preview comparison
+  02: REM Proves deterministic SOURCE/PREVIEW capture first, then compares preserve_size off/on
+  03: 
+  04: LOG "Starting preserve-size preview comparison"
+  05: WAIT 10s
+  06: 
+  07: PREFLIGHT_DEFAULT:
+  08: EFFECTPARAM "preserve_size" 0
+  09: EFFECT "Default"
+  10: OBS WAIT FRAMES 10
+  11: OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/pre_source_0.png"
+  12: OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/pre_preview_0.png"
+  13: OBS WAIT FRAMES 1
+  14: OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/pre_source_1.png"
+  15: OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/pre_preview_1.png"
+  16: OBS WAIT FRAMES 1
+  17: OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/pre_source_2.png"
+  18: OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/pre_preview_2.png"
+  19: ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/pre_source_0.png", "../../tests/e2e/artifacts/effect_preserve_size/pre_source_1.png" TOLERANCE 0
+  20: ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/pre_source_1.png", "../../tests/e2e/artifacts/effect_preserve_size/pre_source_2.png" TOLERANCE 0
+  21: ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/pre_preview_0.png", "../../tests/e2e/artifacts/effect_preserve_size/pre_preview_1.png" TOLERANCE 0
+  22: ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/pre_preview_1.png", "../../tests/e2e/artifacts/effect_preserve_size/pre_preview_2.png" TOLERANCE 0
+  23: ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/pre_source_0.png", "../../tests/e2e/artifacts/effect_preserve_size/pre_preview_0.png" TOLERANCE 0
+  24: ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/pre_source_1.png", "../../tests/e2e/artifacts/effect_preserve_size/pre_preview_1.png" TOLERANCE 0
+  25: ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/pre_source_2.png", "../../tests/e2e/artifacts/effect_preserve_size/pre_preview_2.png" TOLERANCE 0
+  26: 
+  27: COMPARE_DEFAULT:
+  28: EFFECTPARAM "preserve_size" 0
+  29: EFFECT "Default"
+  30: OBS WAIT FRAMES 10
+  31: OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/default_source_legacy.png"
+  32: OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/default_preview_legacy.png"
+  33: EFFECTPARAM "preserve_size" 1
+  34: OBS WAIT FRAMES 10
+  35: OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/default_source_preserve.png"
+  36: OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/default_preview_preserve.png"
+  37: ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/default_source_preserve.png", "../../tests/e2e/artifacts/effect_preserve_size/default_source_legacy.png" TOLERANCE 0
+  38: ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/default_preview_preserve.png", "../../tests/e2e/artifacts/effect_preserve_size/default_preview_legacy.png" TOLERANCE 0
+  39: 
+  40: COMPARE_CLASSIC:
+  41: EFFECTPARAM "preserve_size" 0
+  42: EFFECT "Classic CRT"
+  43: OBS WAIT FRAMES 10
+  44: OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/classic_source_legacy.png"
+  45: OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/classic_preview_legacy.png"
+  46: EFFECTPARAM "preserve_size" 1
+  47: OBS WAIT FRAMES 10
+  48: OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/classic_source_preserve.png"
+  49: OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/classic_preview_preserve.png"
+  50: ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/classic_source_preserve.png", "../../tests/e2e/artifacts/effect_preserve_size/classic_source_legacy.png" TOLERANCE 0
+  51: ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/classic_preview_preserve.png", "../../tests/e2e/artifacts/effect_preserve_size/classic_preview_legacy.png" TOLERANCE 0
+  52: 
+  53: COMPARE_SHARP:
+  54: EFFECTPARAM "preserve_size" 0
+  55: EFFECT "Sharp Pixels"
+  56: OBS WAIT FRAMES 10
+  57: OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/sharp_source_legacy.png"
+  58: OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/sharp_preview_legacy.png"
+  59: EFFECTPARAM "preserve_size" 1
+  60: OBS WAIT FRAMES 10
+  61: OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/sharp_source_preserve.png"
+  62: OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/sharp_preview_preserve.png"
+  63: ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/sharp_source_preserve.png", "../../tests/e2e/artifacts/effect_preserve_size/sharp_source_legacy.png" TOLERANCE 0
+  64: ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/sharp_preview_preserve.png", "../../tests/e2e/artifacts/effect_preserve_size/sharp_preview_legacy.png" TOLERANCE 0
+  65: 
+  66: COMPARE_VINTAGE:
+  67: EFFECTPARAM "preserve_size" 0
+  68: EFFECT "Vintage TV"
+  69: OBS WAIT FRAMES 10
+  70: OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/vintage_source_legacy.png"
+  71: OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/vintage_preview_legacy.png"
+  72: EFFECTPARAM "preserve_size" 1
+  73: OBS WAIT FRAMES 10
+  74: OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/vintage_source_preserve.png"
+  75: OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/vintage_preview_preserve.png"
+  76: ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/vintage_source_preserve.png", "../../tests/e2e/artifacts/effect_preserve_size/vintage_source_legacy.png" TOLERANCE 0
+  77: ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/vintage_preview_preserve.png", "../../tests/e2e/artifacts/effect_preserve_size/vintage_preview_legacy.png" TOLERANCE 0
+  78: 
+  79: COMPARE_ARCADE:
+  80: EFFECTPARAM "preserve_size" 0
+  81: EFFECT "Arcade Cabinet"
+  82: OBS WAIT FRAMES 10
+  83: OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/arcade_source_legacy.png"
+  84: OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/arcade_preview_legacy.png"
+  85: EFFECTPARAM "preserve_size" 1
+  86: OBS WAIT FRAMES 10
+  87: OBS SCREENSHOT TARGET SOURCE PATH "../../tests/e2e/artifacts/effect_preserve_size/arcade_source_preserve.png"
+  88: OBS SCREENSHOT TARGET PREVIEW PATH "../../tests/e2e/artifacts/effect_preserve_size/arcade_preview_preserve.png"
+  89: ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/arcade_source_preserve.png", "../../tests/e2e/artifacts/effect_preserve_size/arcade_source_legacy.png" TOLERANCE 0
+  90: ASSERT IMAGE_EQUALS "../../tests/e2e/artifacts/effect_preserve_size/arcade_preview_preserve.png", "../../tests/e2e/artifacts/effect_preserve_size/arcade_preview_legacy.png" TOLERANCE 0
+  91: 
+  92: LOG "Preserve-size preview comparison completed"
+  93: STOP
+trace:
+  - line: 4
+    content: "LOG \"Starting preserve-size preview comparison\""
+    variables: {}
+  - line: 5
+    content: "WAIT 10s"
+    variables: {}
+  - line: 8
+    content: "EFFECTPARAM \"preserve_size\" 0"
+    variables: {}
+  - line: 9
+    content: "EFFECT \"Default\""
+    variables: {}
+  - line: 10
+    content: "OBS WAIT FRAMES 10"
+    variables: {}
+  - line: 11
+    content: "OBS SCREENSHOT TARGET SOURCE PATH \"../../tests/e2e/artifacts/effect_preserve_size/pre_source_0.png\""
+    variables: {}
+  - line: 12
+    content: "OBS SCREENSHOT TARGET PREVIEW PATH \"../../tests/e2e/artifacts/effect_preserve_size/pre_preview_0.png\""
+    variables: {}
+  - line: 13
+    content: "OBS WAIT FRAMES 1"
+    variables: {}
+  - line: 14
+    content: "OBS SCREENSHOT TARGET SOURCE PATH \"../../tests/e2e/artifacts/effect_preserve_size/pre_source_1.png\""
+    variables: {}
+  - line: 15
+    content: "OBS SCREENSHOT TARGET PREVIEW PATH \"../../tests/e2e/artifacts/effect_preserve_size/pre_preview_1.png\""
+    variables: {}
+  - line: 16
+    content: "OBS WAIT FRAMES 1"
+    variables: {}
+  - line: 17
+    content: "OBS SCREENSHOT TARGET SOURCE PATH \"../../tests/e2e/artifacts/effect_preserve_size/pre_source_2.png\""
+    variables: {}
+  - line: 18
+    content: "OBS SCREENSHOT TARGET PREVIEW PATH \"../../tests/e2e/artifacts/effect_preserve_size/pre_preview_2.png\""
+    variables: {}
+  - line: 19
+    content: "ASSERT IMAGE_EQUALS \"../../tests/e2e/artifacts/effect_preserve_size/pre_source_0.png\", \"../../tests/e2e/artifacts/effect_preserve_size/pre_source_1.png\" TOLERANCE 0"
+    variables: {}
+  - line: 20
+    content: "ASSERT IMAGE_EQUALS \"../../tests/e2e/artifacts/effect_preserve_size/pre_source_1.png\", \"../../tests/e2e/artifacts/effect_preserve_size/pre_source_2.png\" TOLERANCE 0"
+    variables: {}
+  - line: 21
+    content: "ASSERT IMAGE_EQUALS \"../../tests/e2e/artifacts/effect_preserve_size/pre_preview_0.png\", \"../../tests/e2e/artifacts/effect_preserve_size/pre_preview_1.png\" TOLERANCE 0"
+    variables: {}
+  - line: 22
+    content: "ASSERT IMAGE_EQUALS \"../../tests/e2e/artifacts/effect_preserve_size/pre_preview_1.png\", \"../../tests/e2e/artifacts/effect_preserve_size/pre_preview_2.png\" TOLERANCE 0"
+    variables: {}
+  - line: 23
+    content: "ASSERT IMAGE_EQUALS \"../../tests/e2e/artifacts/effect_preserve_size/pre_source_0.png\", \"../../tests/e2e/artifacts/effect_preserve_size/pre_preview_0.png\" TOLERANCE 0"
+    variables: {}
+  - line: 24
+    content: "ASSERT IMAGE_EQUALS \"../../tests/e2e/artifacts/effect_preserve_size/pre_source_1.png\", \"../../tests/e2e/artifacts/effect_preserve_size/pre_preview_1.png\" TOLERANCE 0"
+    variables: {}
+  - line: 25
+    content: "ASSERT IMAGE_EQUALS \"../../tests/e2e/artifacts/effect_preserve_size/pre_source_2.png\", \"../../tests/e2e/artifacts/effect_preserve_size/pre_preview_2.png\" TOLERANCE 0"
+    variables: {}
+  - line: 28
+    content: "EFFECTPARAM \"preserve_size\" 0"
+    variables: {}
+  - line: 29
+    content: "EFFECT \"Default\""
+    variables: {}
+  - line: 30
+    content: "OBS WAIT FRAMES 10"
+    variables: {}
+  - line: 31
+    content: "OBS SCREENSHOT TARGET SOURCE PATH \"../../tests/e2e/artifacts/effect_preserve_size/default_source_legacy.png\""
+    variables: {}
+  - line: 32
+    content: "OBS SCREENSHOT TARGET PREVIEW PATH \"../../tests/e2e/artifacts/effect_preserve_size/default_preview_legacy.png\""
+    variables: {}
+  - line: 33
+    content: "EFFECTPARAM \"preserve_size\" 1"
+    variables: {}
+  - line: 34
+    content: "OBS WAIT FRAMES 10"
+    variables: {}
+  - line: 35
+    content: "OBS SCREENSHOT TARGET SOURCE PATH \"../../tests/e2e/artifacts/effect_preserve_size/default_source_preserve.png\""
+    variables: {}
+  - line: 36
+    content: "OBS SCREENSHOT TARGET PREVIEW PATH \"../../tests/e2e/artifacts/effect_preserve_size/default_preview_preserve.png\""
+    variables: {}
+  - line: 37
+    content: "ASSERT IMAGE_EQUALS \"../../tests/e2e/artifacts/effect_preserve_size/default_source_preserve.png\", \"../../tests/e2e/artifacts/effect_preserve_size/default_source_legacy.png\" TOLERANCE 0"
+    variables: {}
+  - line: 38
+    content: "ASSERT IMAGE_EQUALS \"../../tests/e2e/artifacts/effect_preserve_size/default_preview_preserve.png\", \"../../tests/e2e/artifacts/effect_preserve_size/default_preview_legacy.png\" TOLERANCE 0"
+    variables: {}
+  - line: 41
+    content: "EFFECTPARAM \"preserve_size\" 0"
+    variables: {}
+  - line: 42
+    content: "EFFECT \"Classic CRT\""
+    variables: {}
+  - line: 43
+    content: "OBS WAIT FRAMES 10"
+    variables: {}
+  - line: 44
+    content: "OBS SCREENSHOT TARGET SOURCE PATH \"../../tests/e2e/artifacts/effect_preserve_size/classic_source_legacy.png\""
+    variables: {}
+  - line: 45
+    content: "OBS SCREENSHOT TARGET PREVIEW PATH \"../../tests/e2e/artifacts/effect_preserve_size/classic_preview_legacy.png\""
+    variables: {}
+  - line: 46
+    content: "EFFECTPARAM \"preserve_size\" 1"
+    variables: {}
+  - line: 47
+    content: "OBS WAIT FRAMES 10"
+    variables: {}
+  - line: 48
+    content: "OBS SCREENSHOT TARGET SOURCE PATH \"../../tests/e2e/artifacts/effect_preserve_size/classic_source_preserve.png\""
+    variables: {}
+  - line: 49
+    content: "OBS SCREENSHOT TARGET PREVIEW PATH \"../../tests/e2e/artifacts/effect_preserve_size/classic_preview_preserve.png\""
+    variables: {}
+  - line: 50
+    content: "ASSERT IMAGE_EQUALS \"../../tests/e2e/artifacts/effect_preserve_size/classic_source_preserve.png\", \"../../tests/e2e/artifacts/effect_preserve_size/classic_source_legacy.png\" TOLERANCE 0"
+    variables: {}
+  - line: 51
+    content: "ASSERT IMAGE_EQUALS \"../../tests/e2e/artifacts/effect_preserve_size/classic_preview_preserve.png\", \"../../tests/e2e/artifacts/effect_preserve_size/classic_preview_legacy.png\" TOLERANCE 0"
+    variables: {}
+  - line: 54
+    content: "EFFECTPARAM \"preserve_size\" 0"
+    variables: {}
+  - line: 55
+    content: "EFFECT \"Sharp Pixels\""
+    variables: {}
+  - line: 56
+    content: "OBS WAIT FRAMES 10"
+    variables: {}
+  - line: 57
+    content: "OBS SCREENSHOT TARGET SOURCE PATH \"../../tests/e2e/artifacts/effect_preserve_size/sharp_source_legacy.png\""
+    variables: {}
+  - line: 58
+    content: "OBS SCREENSHOT TARGET PREVIEW PATH \"../../tests/e2e/artifacts/effect_preserve_size/sharp_preview_legacy.png\""
+    variables: {}
+  - line: 59
+    content: "EFFECTPARAM \"preserve_size\" 1"
+    variables: {}
+  - line: 60
+    content: "OBS WAIT FRAMES 10"
+    variables: {}
+  - line: 61
+    content: "OBS SCREENSHOT TARGET SOURCE PATH \"../../tests/e2e/artifacts/effect_preserve_size/sharp_source_preserve.png\""
+    variables: {}
+  - line: 62
+    content: "OBS SCREENSHOT TARGET PREVIEW PATH \"../../tests/e2e/artifacts/effect_preserve_size/sharp_preview_preserve.png\""
+    variables: {}
+  - line: 63
+    content: "ASSERT IMAGE_EQUALS \"../../tests/e2e/artifacts/effect_preserve_size/sharp_source_preserve.png\", \"../../tests/e2e/artifacts/effect_preserve_size/sharp_source_legacy.png\" TOLERANCE 0"
+    variables: {}
+  - line: 64
+    content: "ASSERT IMAGE_EQUALS \"../../tests/e2e/artifacts/effect_preserve_size/sharp_preview_preserve.png\", \"../../tests/e2e/artifacts/effect_preserve_size/sharp_preview_legacy.png\" TOLERANCE 0"
+    variables: {}
+  - line: 67
+    content: "EFFECTPARAM \"preserve_size\" 0"
+    variables: {}
+  - line: 68
+    content: "EFFECT \"Vintage TV\""
+    variables: {}
+  - line: 69
+    content: "OBS WAIT FRAMES 10"
+    variables: {}
+  - line: 70
+    content: "OBS SCREENSHOT TARGET SOURCE PATH \"../../tests/e2e/artifacts/effect_preserve_size/vintage_source_legacy.png\""
+    variables: {}
+  - line: 71
+    content: "OBS SCREENSHOT TARGET PREVIEW PATH \"../../tests/e2e/artifacts/effect_preserve_size/vintage_preview_legacy.png\""
+    variables: {}
+  - line: 72
+    content: "EFFECTPARAM \"preserve_size\" 1"
+    variables: {}
+  - line: 73
+    content: "OBS WAIT FRAMES 10"
+    variables: {}
+  - line: 74
+    content: "OBS SCREENSHOT TARGET SOURCE PATH \"../../tests/e2e/artifacts/effect_preserve_size/vintage_source_preserve.png\""
+    variables: {}
+  - line: 75
+    content: "OBS SCREENSHOT TARGET PREVIEW PATH \"../../tests/e2e/artifacts/effect_preserve_size/vintage_preview_preserve.png\""
+    variables: {}
+  - line: 76
+    content: "ASSERT IMAGE_EQUALS \"../../tests/e2e/artifacts/effect_preserve_size/vintage_source_preserve.png\", \"../../tests/e2e/artifacts/effect_preserve_size/vintage_source_legacy.png\" TOLERANCE 0"
+    variables: {}
+  - line: 77
+    content: "ASSERT IMAGE_EQUALS \"../../tests/e2e/artifacts/effect_preserve_size/vintage_preview_preserve.png\", \"../../tests/e2e/artifacts/effect_preserve_size/vintage_preview_legacy.png\" TOLERANCE 0"
+    variables: {}
+  - line: 80
+    content: "EFFECTPARAM \"preserve_size\" 0"
+    variables: {}
+  - line: 81
+    content: "EFFECT \"Arcade Cabinet\""
+    variables: {}
+  - line: 82
+    content: "OBS WAIT FRAMES 10"
+    variables: {}
+  - line: 83
+    content: "OBS SCREENSHOT TARGET SOURCE PATH \"../../tests/e2e/artifacts/effect_preserve_size/arcade_source_legacy.png\""
+    variables: {}
+  - line: 84
+    content: "OBS SCREENSHOT TARGET PREVIEW PATH \"../../tests/e2e/artifacts/effect_preserve_size/arcade_preview_legacy.png\""
+    variables: {}
+  - line: 85
+    content: "EFFECTPARAM \"preserve_size\" 1"
+    variables: {}
+  - line: 86
+    content: "OBS WAIT FRAMES 10"
+    variables: {}
+  - line: 87
+    content: "OBS SCREENSHOT TARGET SOURCE PATH \"../../tests/e2e/artifacts/effect_preserve_size/arcade_source_preserve.png\""
+    variables: {}
+  - line: 88
+    content: "OBS SCREENSHOT TARGET PREVIEW PATH \"../../tests/e2e/artifacts/effect_preserve_size/arcade_preview_preserve.png\""
+    variables: {}
+  - line: 89
+    content: "ASSERT IMAGE_EQUALS \"../../tests/e2e/artifacts/effect_preserve_size/arcade_source_preserve.png\", \"../../tests/e2e/artifacts/effect_preserve_size/arcade_source_legacy.png\" TOLERANCE 0"
+    variables: {}
+  - line: 90
+    content: "ASSERT IMAGE_EQUALS \"../../tests/e2e/artifacts/effect_preserve_size/arcade_preview_preserve.png\", \"../../tests/e2e/artifacts/effect_preserve_size/arcade_preview_legacy.png\" TOLERANCE 0"
+    variables: {}
+  - line: 92
+    content: "LOG \"Preserve-size preview comparison completed\""
+    variables: {}
+  - line: 93
+    content: "STOP"
+    variables: {}

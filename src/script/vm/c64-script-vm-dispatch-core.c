@@ -1273,13 +1273,12 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
     case OP_CALL_BUILTIN:
         return c64script_dispatch_builtins(runtime, instr);
 
-    // Plugin actions - these will be connected to REST API in Phase 6
     case OP_PUSH_NUM:
-        // Push immediate number onto stack (used by some plugin actions)
         result.type = VALUE_NUMBER;
         result.as.number = (double)instr->operand;
-        if (!c64script_runtime_push(runtime, result))
+        if (!c64script_runtime_push(runtime, result)) {
             return false;
+        }
         break;
 
     case OP_EFFECT:
@@ -1337,8 +1336,10 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
     case OP_SYS:
         return c64script_dispatch_drives(runtime, instr);
 
-    case OP_RECORDSTART:
-    case OP_RECORDSTOP:
+    case OP_OBS_SCREENSHOT:
+    case OP_OBS_RECORDING_START:
+    case OP_OBS_RECORDING_STOP:
+    case OP_OBS_WAIT_FRAMES:
         return c64script_dispatch_machine(runtime, instr);
 
     case OP_TYPE:
@@ -1512,6 +1513,7 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
         break;
 
     case OP_READFILE:
+    case OP_ASSERT_IMAGE_EQUALS:
     case OP_WRITEFILE_APPEND:
     case OP_WRITEFILE_TRUNCATE:
     case OP_HTTP:

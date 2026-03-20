@@ -19,14 +19,16 @@ load_scenario() {
     log_info "Loading scenario: ${scenario_name}"
 
     # Parse scenario.yaml (new concise format)
-    local name format preset pattern full_frame_pop csv_max_rows packet_source
+    local name format preset pattern duration full_frame_pop csv_max_rows packet_source disable_pops
     name=$(grep -m1 "^name:" "${scenario_yaml}" | sed 's/^name: *//' || true)
     format=$(grep -m1 "^format:" "${scenario_yaml}" | sed 's/^format: *//' || true)
+    duration=$(grep -m1 "^duration:" "${scenario_yaml}" | sed 's/^duration: *//' || true)
     preset=$(grep -m1 "^preset:" "${scenario_yaml}" | sed 's/^preset: *//' || true)
     pattern=$(grep -m1 "^pattern:" "${scenario_yaml}" | sed 's/^pattern: *//' || true)
     full_frame_pop=$(grep -m1 "^full_frame_pop:" "${scenario_yaml}" | sed 's/^full_frame_pop: *//' || true)
     csv_max_rows=$(grep -m1 "^csv_max_rows:" "${scenario_yaml}" | sed 's/^csv_max_rows: *//' || true)
     packet_source=$(grep -m1 "^packet_source:" "${scenario_yaml}" | sed 's/^packet_source: *//' || true)
+    disable_pops=$(grep -m1 "^disable_pops:" "${scenario_yaml}" | sed 's/^disable_pops: *//' || true)
 
     if [[ -z "${name}" || -z "${format}" ]]; then
         log_error "Invalid scenario.yaml (missing required fields)"
@@ -100,6 +102,10 @@ PY
         PACKET_PATTERN="${pattern}"
         log_info "  Packet pattern: ${PACKET_PATTERN}"
     fi
+    if [[ -n "${duration}" && "${DURATION}" == "${DEFAULT_DURATION}" && "${FRAMES}" == "${DEFAULT_FRAMES}" ]]; then
+        DURATION="${duration}"
+        log_info "  Duration: ${DURATION}s (from scenario)"
+    fi
     if [[ -n "${packet_source}" ]]; then
         PACKET_SOURCE="${packet_source}"
         log_info "  Packet source: ${PACKET_SOURCE}"
@@ -107,6 +113,10 @@ PY
     if [[ "${full_frame_pop}" == "true" ]]; then
         FULL_FRAME_POP=true
         log_info "  Packet mode: full-frame-pop"
+    fi
+    if [[ "${disable_pops}" == "true" ]]; then
+        DISABLE_POPS=true
+        log_info "  Packet pops: disabled"
     fi
     if [[ -n "${csv_max_rows}" ]]; then
         CSV_MAX_ROWS="${csv_max_rows}"

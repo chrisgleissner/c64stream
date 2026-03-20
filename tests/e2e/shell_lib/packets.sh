@@ -27,8 +27,8 @@ generate_packets() {
         )
 
         if [[ -n "${PACKET_PATTERN}" ]]; then
-            if [[ "${PACKET_PATTERN}" != "diagonal" && "${PACKET_PATTERN}" != "solid" && "${PACKET_PATTERN}" != "dots" ]]; then
-                log_error "Invalid packet pattern: ${PACKET_PATTERN} (expected: diagonal|solid|dots)"
+            if [[ "${PACKET_PATTERN}" != "diagonal" && "${PACKET_PATTERN}" != "solid" && "${PACKET_PATTERN}" != "dots" && "${PACKET_PATTERN}" != "still" ]]; then
+                log_error "Invalid packet pattern: ${PACKET_PATTERN} (expected: diagonal|solid|dots|still)"
                 exit 1
             fi
             cmd+=("--pattern" "${PACKET_PATTERN}")
@@ -94,11 +94,11 @@ PY
         "--scenario" "${SCENARIO_ID:-DEFAULT}"
     )
 
-    # Optional pattern selection (useful for scanline and sharp pixel assertions).
-    # Supported by our packet generator: diagonal (default), solid (uniform field), or dots (sparse white dots).
+    # Optional pattern selection (useful for scanline, sharp pixel, and static screenshot assertions).
+    # Supported by our packet generator: diagonal (default), solid (uniform field), dots (sparse white dots), or still.
     if [[ -n "${PACKET_PATTERN}" ]]; then
-        if [[ "${PACKET_PATTERN}" != "diagonal" && "${PACKET_PATTERN}" != "solid" && "${PACKET_PATTERN}" != "dots" ]]; then
-            log_error "Invalid packet pattern: ${PACKET_PATTERN} (expected: diagonal|solid|dots)"
+        if [[ "${PACKET_PATTERN}" != "diagonal" && "${PACKET_PATTERN}" != "solid" && "${PACKET_PATTERN}" != "dots" && "${PACKET_PATTERN}" != "still" ]]; then
+            log_error "Invalid packet pattern: ${PACKET_PATTERN} (expected: diagonal|solid|dots|still)"
             exit 1
         fi
         cmd+=("--pattern" "${PACKET_PATTERN}")

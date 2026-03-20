@@ -175,6 +175,7 @@ struct c64_source {
     // Frame timing
     uint64_t last_frame_time;
     uint64_t frame_interval_ns; // Target frame interval (20ms for 50Hz PAL)
+    volatile long script_render_count;
 
     // Synthetic timestamp generation (monotonic, packet-index based)
     uint64_t audio_packet_count;              // Total audio packets processed since stream start
@@ -296,6 +297,7 @@ struct c64_source {
     bool tint_enable;                   // Screen tint effect enable
     int tint_mode;                      // Tint mode (0=none, 1=amber, 2=green, 3=monochrome)
     float tint_strength;                // Tint strength (0.0-1.0)
+    bool preserve_size;                 // Preserve OBS-facing footprint when effects change virtual size
     gs_texture_t *render_texture;       // GPU texture for rendering with effects
     uint32_t render_texture_width;      // Cached render_texture width (avoid gs_texture_get_width outside graphics)
     uint32_t render_texture_height;     // Cached render_texture height

@@ -21,7 +21,9 @@ class ResultValidator:
                  packet_source: str = 'mock',
                  network_simulation: Optional[Dict] = None,
                  full_frame_pop: bool = False,
-                 av_sync_tolerance_mode = None):
+                 av_sync_tolerance_mode = None,
+                 skip_frame_logic_validation: bool = False,
+                 disable_pops: bool = False):
         self.env = env
         self.format = video_format
         self.frames = frames
@@ -29,6 +31,8 @@ class ResultValidator:
         self.network_simulation = network_simulation or {}
         self.full_frame_pop = full_frame_pop
         self.av_sync_tolerance_mode = av_sync_tolerance_mode
+        self.skip_frame_logic_validation = skip_frame_logic_validation
+        self.disable_pops = disable_pops
 
     def validate(self,
                  replay_success: bool,
@@ -313,6 +317,12 @@ class ResultValidator:
         }
 
     def _check_av_sync(self, recording_path, results, errors, warnings):
+        if self.disable_pops:
+            results['av_sync'] = {'status': 'skipped', 'details': 'Skipped (sync pops disabled for scenario)'}
+            results['av_sync_details'] = {}
+            logger.info("⏭️  A/V Sync: Skipped (sync pops disabled for scenario)")
+            return
+
         # For full-frame-pop scenarios, we still want to run post-analysis on the MP4
         # to populate av_sync_details for the README, but we skip the av-sync.csv validation
         # (since those scenarios test the plugin's runtime AV sync detection separately)
@@ -406,6 +416,12 @@ class ResultValidator:
         if self.full_frame_pop:
             results['frame_sequence_box'] = None
             logger.info("⏭️  Frame Logic: Skipped (full-frame-pop scenario)")
+            return
+
+        if self.skip_frame_logic_validation:
+            results['frame_sequence_box'] = None
+            results['frame_processing'] = {'status': 'skipped', 'details': 'Skipped (scenario-managed validation)'}
+            logger.info("⏭️  Frame Logic: Skipped (scenario-managed validation)")
             return
 
         # Get settling seconds from environment or use default

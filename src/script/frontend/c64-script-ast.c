@@ -96,8 +96,8 @@ void c64script_ast_free(c64script_ast_node_t *node)
         case AST_STMT_CFGSAVE:
         case AST_STMT_CFGLOAD:
         case AST_STMT_CFGRESET:
-        case AST_STMT_RECORDSTART:
-        case AST_STMT_RECORDSTOP:
+        case AST_STMT_OBS_RECORDING_START:
+        case AST_STMT_OBS_RECORDING_STOP:
         case AST_STMT_AUTOSTART:
             // No sub-structures to free
             break;
@@ -187,6 +187,20 @@ void c64script_ast_free(c64script_ast_node_t *node)
 
         case AST_STMT_WAIT_UNTIL:
             free_expr(node->as.wait_until_stmt.time_expr);
+            break;
+
+        case AST_STMT_OBS_SCREENSHOT:
+            free_expr(node->as.obs_screenshot_stmt.path);
+            break;
+
+        case AST_STMT_OBS_WAIT_FRAMES:
+            free_expr(node->as.obs_wait_frames_stmt.frame_count);
+            break;
+
+        case AST_STMT_ASSERT_IMAGE_EQUALS:
+            free_expr(node->as.assert_image_equals_stmt.actual_path);
+            free_expr(node->as.assert_image_equals_stmt.expected_path);
+            free_expr(node->as.assert_image_equals_stmt.tolerance);
             break;
 
         case AST_STMT_EFFECT:

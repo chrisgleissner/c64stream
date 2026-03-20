@@ -167,8 +167,13 @@ target_compile_definitions(
 find_package(Python3 COMPONENTS Interpreter)
 find_package(libobs REQUIRED)
 find_package(CURL REQUIRED)
+find_package(PNG)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE OBS::libobs)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE CURL::libcurl)
+if(PNG_FOUND)
+  target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE PNG::PNG)
+  target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE C64_HAVE_PNG)
+endif()
 
 if(ENABLE_FRONTEND_API)
   find_package(obs-frontend-api REQUIRED)
@@ -204,6 +209,7 @@ target_sources(
     src/network/c64-protocol.c
     src/video/c64-video.c
     src/video/c64-effect-afterglow.c
+    src/video/c64-effect-geometry.c
     src/video/c64-color.c
     src/video/c64-stream-effects.c
     src/video/c64-logo.c

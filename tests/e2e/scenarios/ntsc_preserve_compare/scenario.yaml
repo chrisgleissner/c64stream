@@ -1,0 +1,27 @@
+name: NTSC Preserve Compare
+format: NTSC
+duration: 36
+preset: Default
+pattern: still
+disable_pops: true
+fixed_canvas_bounds: true
+skip_frame_logic_validation: true
+ci_skip: true
+ci_skip_reason: "Requires a local GUI render path for deterministic screenshot equality"
+cleanup_paths:
+  - "${repo_root}/tests/e2e/artifacts/effect_preserve_size"
+overrides:
+  preserve_size: true
+  script_file: "${repo_root}/data/scripts/preserve_size_compare.c64script"
+  script_auto_start: true
+assertions:
+  - video_quality
+  - audio
+  - script_status
+  - preserve_size_canvas_match
+  - scanlines
+thresholds:
+  scanlines:
+    mode: quantitative
+    scan_line_distance_override: 0.5
+    expected_gap_groups: 239

@@ -1,10 +1,10 @@
 REM SID Playback Demo (C64U paths)
 REM Requires C64 Ultimate with SID files
 
-PLAY_SID "c64u:/Usb2/SID/HVSC/C64Music/DEMOS/0-9/10_Orbyte.sid" SONGNR=0
+PLAY_SID "c64u:/Usb2/SID/HVSC/C64Music/DEMOS/0-9/10_Orbyte.sid" SONGNR 0
 WAIT 5s
 
-PLAY_SID "c64u:/Usb2/SID/HVSC/C64Music/DEMOS/0-9/3_Days.sid" SONGNR=0
+PLAY_SID "c64u:/Usb2/SID/HVSC/C64Music/DEMOS/0-9/3_Days.sid" SONGNR 0
 WAIT 5s
 
 RESET

@@ -7,11 +7,11 @@ program: |
   02: rem Validates playsid, runprg, mountdisk, autostart, reset, reboot
   03: 
   04: rem Test 1: Play SID file with song number
-  05: playsid c64u:/Commodore/SID/tune1.sid songnr=1
+  05: playsid c64u:/Commodore/SID/tune1.sid songnr 1
   06: wait 500ms
   07: 
   08: rem Test 2: Play different SID file
-  09: playsid c64u:/Commodore/SID/tune2.sid songnr=2
+  09: playsid c64u:/Commodore/SID/tune2.sid songnr 2
   10: wait 500ms
   11: 
   12: rem Test 3: Play SID without explicit song number (defaults to 0)
@@ -49,13 +49,13 @@ program: |
   44: stop
 trace:
 - line: 5
-  content: "playsid c64u:/Commodore/SID/tune1.sid songnr=1"
+  content: "playsid c64u:/Commodore/SID/tune1.sid songnr 1"
   variables: {}
 - line: 6
   content: "wait 500ms"
   variables: {}
 - line: 9
-  content: "playsid c64u:/Commodore/SID/tune2.sid songnr=2"
+  content: "playsid c64u:/Commodore/SID/tune2.sid songnr 2"
   variables: {}
 - line: 10
   content: "wait 500ms"

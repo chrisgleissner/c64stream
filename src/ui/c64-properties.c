@@ -395,7 +395,7 @@ static bool script_start_stop_clicked(obs_properties_t *props, obs_property_t *p
         // Create executor if needed
         if (!context->script_executor) {
             C64_LOG_INFO("Creating script executor...");
-            context->script_executor = c64_script_executor_create(context->source);
+            context->script_executor = c64_script_executor_create(context->source, context);
             if (!context->script_executor) {
                 C64_LOG_ERROR("Failed to create script executor");
                 return false;
@@ -456,7 +456,7 @@ static bool script_pause_resume_clicked(obs_properties_t *props, obs_property_t 
         }
 
         if (!context->script_executor) {
-            context->script_executor = c64_script_executor_create(context->source);
+            context->script_executor = c64_script_executor_create(context->source, context);
             if (!context->script_executor) {
                 C64_LOG_ERROR("Failed to create script executor");
                 return false;
@@ -533,7 +533,7 @@ static bool script_reload_clicked(obs_properties_t *props, obs_property_t *prope
     }
 
     if (!context->script_executor) {
-        context->script_executor = c64_script_executor_create(context->source);
+        context->script_executor = c64_script_executor_create(context->source, context);
         if (!context->script_executor) {
             C64_LOG_ERROR("Failed to create script executor");
             return false;
@@ -1752,6 +1752,10 @@ obs_properties_t *c64_create_properties(void *data)
     // Add modified callback to apply preset when selected
     obs_property_set_modified_callback(preset_prop, crt_preset_changed);
 
+    obs_property_t *preserve_size_prop =
+        obs_properties_add_bool(effects_props, "preserve_size", obs_module_text("PreservePreviewSize"));
+    obs_property_set_long_description(preserve_size_prop, obs_module_text("PreservePreviewSize.Description"));
+
     // Scanlines
     obs_property_t *scanline_distance_prop = obs_properties_add_list(effects_props, "scan_line_distance",
                                                                      obs_module_text("ScanLineDistance"),
@@ -2493,6 +2497,7 @@ static bool c64_export_settings_to_ini(obs_data_t *settings, const char *path)
     const int afterglow_curve = (int)obs_data_get_int(settings, "afterglow_curve");
     const int tint_mode = (int)obs_data_get_int(settings, "tint_mode");
     const double tint_strength = obs_data_get_double(settings, "tint_strength");
+    const bool preserve_size = obs_data_get_bool(settings, "preserve_size");
 
     // Palette settings
     const char *palette_id = obs_data_get_string(settings, C64_PALETTE_KEY);
@@ -2571,6 +2576,7 @@ static bool c64_export_settings_to_ini(obs_data_t *settings, const char *path)
     fprintf(f, "afterglow_curve=%d\n", afterglow_curve);
     fprintf(f, "tint_mode=%d\n", tint_mode);
     fprintf(f, "tint_strength=%.6f\n", tint_strength);
+    fprintf(f, "preserve_size=%s\n", preserve_size ? "true" : "false");
     fprintf(f, "\n");
 
     fprintf(f, "[palette]\n");
@@ -2731,6 +2737,8 @@ static bool c64_apply_ini_to_settings(obs_data_t *settings, const char *path)
             double v = os_strtod(value);
             if (v >= 0.0 && v <= 1.0)
                 obs_data_set_double(settings, "tint_strength", v);
+        } else if (strcmp(key, "preserve_size") == 0) {
+            obs_data_set_bool(settings, "preserve_size", c64_parse_bool(value, true));
         } else if (strcmp(key, "palette") == 0) {
             // Import palette selection
             if (value && value[0] != '\0') {
@@ -2871,6 +2879,7 @@ void c64_set_property_defaults(obs_data_t *settings)
     obs_data_set_default_int(settings, "afterglow_curve", 2);
     obs_data_set_default_int(settings, "tint_mode", 0);
     obs_data_set_default_double(settings, "tint_strength", 0.0);
+    obs_data_set_default_bool(settings, "preserve_size", true);
 
     // Palette defaults
     obs_data_set_default_string(settings, C64_PALETTE_KEY, "Default");

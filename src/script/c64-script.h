@@ -98,8 +98,20 @@ typedef enum {
     TOKEN_WAIT,
     TOKEN_UNTIL,
     TOKEN_EVERY,
+    TOKEN_FRAMES,
 
     // Keywords - plugin actions
+    TOKEN_OBS,
+    TOKEN_SCREENSHOT,
+    TOKEN_TARGET,
+    TOKEN_SOURCE_KW,
+    TOKEN_PREVIEW,
+    TOKEN_PATH_KW,
+    TOKEN_RECORDING,
+    TOKEN_START,
+    TOKEN_ASSERT,
+    TOKEN_IMAGE_EQUALS,
+    TOKEN_TOLERANCE,
     TOKEN_EFFECT,
     TOKEN_EFFECTPARAM,
     TOKEN_PALETTE,
@@ -114,8 +126,6 @@ typedef enum {
     TOKEN_PAUSE,
     TOKEN_RESUME,
     TOKEN_POWEROFF,
-    TOKEN_RECORDSTART,
-    TOKEN_RECORDSTOP,
 
     // Keywords - I/O
     TOKEN_TYPE_KEYWORD,
@@ -297,6 +307,11 @@ typedef enum {
     AST_STMT_WAIT,
     AST_STMT_WAIT_MEM,
     AST_STMT_WAIT_UNTIL,
+    AST_STMT_OBS_SCREENSHOT,
+    AST_STMT_OBS_RECORDING_START,
+    AST_STMT_OBS_RECORDING_STOP,
+    AST_STMT_OBS_WAIT_FRAMES,
+    AST_STMT_ASSERT_IMAGE_EQUALS,
     AST_STMT_EFFECT,
     AST_STMT_EFFECTPARAM,
     AST_STMT_PALETTE,
@@ -335,8 +350,6 @@ typedef enum {
     AST_STMT_LOAD,
     AST_STMT_RUN,
     AST_STMT_SYS,
-    AST_STMT_RECORDSTART,
-    AST_STMT_RECORDSTOP,
     AST_STMT_TYPE,
     AST_STMT_KEY,
     AST_STMT_POKE,
@@ -368,6 +381,11 @@ typedef enum {
     C64SCRIPT_WAIT_UNIT_H,
     C64SCRIPT_WAIT_UNIT_D,
 } c64script_wait_unit_t;
+
+typedef enum {
+    C64SCRIPT_OBS_TARGET_SOURCE = 0,
+    C64SCRIPT_OBS_TARGET_PREVIEW = 1,
+} c64script_obs_target_t;
 
 typedef enum {
     C64SCRIPT_BUILTIN_LEN,
@@ -552,6 +570,21 @@ struct c64script_ast_node {
         } wait_until_stmt;
 
         struct {
+            c64script_obs_target_t target;
+            c64script_ast_expr_t *path;
+        } obs_screenshot_stmt;
+
+        struct {
+            c64script_ast_expr_t *frame_count;
+        } obs_wait_frames_stmt;
+
+        struct {
+            c64script_ast_expr_t *actual_path;
+            c64script_ast_expr_t *expected_path;
+            c64script_ast_expr_t *tolerance;
+        } assert_image_equals_stmt;
+
+        struct {
             c64script_ast_expr_t *preset_name;
         } effect_stmt;
 
@@ -701,8 +734,8 @@ struct c64script_ast_node {
         // cfgsave_stmt has no data
         // cfgload_stmt has no data
         // cfgreset_stmt has no data
-        // recordstart_stmt has no data
-        // recordstop_stmt has no data
+        // obs_recording_start_stmt has no data
+        // obs_recording_stop_stmt has no data
 
         struct {
             c64script_ast_expr_t *text;
@@ -822,6 +855,11 @@ typedef enum {
     OP_WAIT,       // Wait for duration (operand = c64script_wait_unit_t)
     OP_WAIT_MEM,   // Wait for memory value (operand encodes poll unit + flags)
     OP_WAIT_UNTIL, // Wait until wall-clock target
+    OP_OBS_SCREENSHOT,
+    OP_OBS_RECORDING_START,
+    OP_OBS_RECORDING_STOP,
+    OP_OBS_WAIT_FRAMES,
+    OP_ASSERT_IMAGE_EQUALS,
 
     // Built-in functions
     OP_CALL_PEEK,    // PEEK(address) - REST DMA read
@@ -871,8 +909,6 @@ typedef enum {
     OP_LOAD,
     OP_RUN,
     OP_SYS,
-    OP_RECORDSTART,
-    OP_RECORDSTOP,
     OP_TYPE,
     OP_KEY,
     OP_POKE_SINGLE,

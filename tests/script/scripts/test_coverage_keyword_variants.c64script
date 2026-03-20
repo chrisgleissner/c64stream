@@ -4,8 +4,8 @@ PALETTE_COLOR 0, 0, 0, 0
 RUN_PRG "c64u:/Programs/demo.prg"
 RUN_LOCAL "/bin/true"
 MOUNT_DISK "c64u:/Disks/demo.d64"
-RECORD_START
-RECORD_STOP
+OBS RECORDING START
+OBS RECORDING STOP
 WRITE_FILE "/tmp/c64script_coverage_io.txt", "ok" TRUNCATE
 READ_FILE "/tmp/c64script_coverage_io.txt", CONTENT$
 CALL_HTTP GET "http://example.com"

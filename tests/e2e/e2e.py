@@ -15,6 +15,7 @@ import sys
 import argparse
 import subprocess
 import logging
+import shutil
 import yaml
 from pathlib import Path
 
@@ -142,14 +143,33 @@ def main():
     # Load Network Simulation and Tolerances
     network_simulation = {}
     av_sync_tolerance_mode = None  # None, 'lenient', or numeric value
+    disable_pops = False
     obs_start_recording = True
+    skip_frame_logic_validation = False
+    packet_pattern = None
+    scenario_cleanup_paths = []
+    wait_for_script_completion = False
+    script_completion_timeout_s = 30.0
+    repo_root = Path(args.test_dir).resolve().parent.parent
     if args.scenario_yaml:
         try:
             with open(args.scenario_yaml, 'r') as f:
                 scenario_data = yaml.safe_load(f)
                 network_simulation = scenario_data.get('network_simulation', {})
+                overrides = scenario_data.get('overrides', {}) or {}
+                assertions = scenario_data.get('assertions', []) or []
                 if 'obs_start_recording' in scenario_data:
                     obs_start_recording = bool(scenario_data['obs_start_recording'])
+                if 'skip_frame_logic_validation' in scenario_data:
+                    skip_frame_logic_validation = bool(scenario_data['skip_frame_logic_validation'])
+                if 'disable_pops' in scenario_data:
+                    disable_pops = bool(scenario_data['disable_pops'])
+                packet_pattern = scenario_data.get('pattern')
+                scenario_cleanup_paths = list(scenario_data.get('cleanup_paths', []) or [])
+                if overrides.get('script_auto_start') or 'script_status' in assertions:
+                    wait_for_script_completion = True
+                if 'script_completion_timeout' in scenario_data:
+                    script_completion_timeout_s = float(scenario_data['script_completion_timeout'])
 
                 # Support both old and new tolerance formats
                 # Old: av_sync_tolerance_ms: 40
@@ -170,6 +190,30 @@ def main():
                 print(f"📡 Loaded scenario config from {Path(args.scenario_yaml).name}")
         except Exception as e:
             print(f"⚠️  Failed to load scenario YAML: {e}")
+
+    if packet_pattern == 'still':
+        skip_frame_logic_validation = True
+        print("🖼️  Static still pattern detected; skipping frame logic validation")
+
+    for raw_path in scenario_cleanup_paths:
+        expanded = str(raw_path).replace("${repo_root}", str(repo_root))
+        cleanup_path = Path(expanded)
+        if not cleanup_path.is_absolute():
+            cleanup_path = (repo_root / cleanup_path).resolve()
+
+        try:
+            if cleanup_path.exists() and cleanup_path.is_dir():
+                shutil.rmtree(cleanup_path)
+            elif cleanup_path.exists():
+                cleanup_path.unlink()
+
+            if cleanup_path.suffix:
+                cleanup_path.parent.mkdir(parents=True, exist_ok=True)
+            else:
+                cleanup_path.mkdir(parents=True, exist_ok=True)
+            print(f"🧹 Cleaned scenario path: {cleanup_path}")
+        except Exception as e:
+            print(f"⚠️  Failed to clean scenario path {cleanup_path}: {e}")
 
     # Build udp_replay
     is_ci = os.environ.get('CI', '').lower() in ('1', 'true', 'yes')
@@ -202,7 +246,11 @@ def main():
         csv_max_rows=args.csv_max_rows if args.csv_max_rows > 0 else None,
         verbose=args.verbose,
         full_frame_pop=args.full_frame_pop,
-        av_sync_tolerance_mode=av_sync_tolerance_mode
+        av_sync_tolerance_mode=av_sync_tolerance_mode,
+        skip_frame_logic_validation=skip_frame_logic_validation,
+        disable_pops=disable_pops,
+        wait_for_script_completion=wait_for_script_completion,
+        script_completion_timeout_s=script_completion_timeout_s,
     )
 
     return 0 if orchestrator.run() else 1

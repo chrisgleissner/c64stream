@@ -583,7 +583,8 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                                     slot_pitch = slot_width + gap_width  # 8px per slot position
                                     slot_index = bar_area_x // slot_pitch
                                     pos_in_slot = bar_area_x % slot_pitch
-                                    if pos_in_slot < slot_width and slot_index == (frame_num % 8):
+                                    active_slot = 0 if pattern == 'still' else (frame_num % 8)
+                                    if pos_in_slot < slot_width and slot_index == active_slot:
                                         return VIC_WHITE
                         return VIC_BLACK
                     # Inner content: black background with moving white bar
@@ -607,7 +608,8 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                                 if pos_in_slot >= slot_width:
                                     return 0  # Black gap
                                 # Active slot is white, inactive slots are black (max contrast for heavy effects)
-                                if slot_index == (frame_num % 8):
+                                active_slot = 0 if pattern == 'still' else (frame_num % 8)
+                                if slot_index == active_slot:
                                     return VIC_WHITE
                                 return VIC_BLACK
                         return 0  # Black background (outside bar area)
@@ -673,7 +675,7 @@ def generate_video_packet(frame_num, packet_num, width, height, packets_per_fram
                 # ═══════════════════════════════════════════════════════════════
                 # CENTRAL FIELD: Diagonal Pattern (behind corner elements)
                 # ═══════════════════════════════════════════════════════════════
-                if pattern == 'solid':
+                if pattern == 'solid' or pattern == 'still':
                     return VIC_LIGHT_BLUE
 
                 if pattern == 'dots':
@@ -776,7 +778,10 @@ def generate_audio_packet(audio_packet_num, sample_rate, total_frames, format_na
     current_frame = int(packet_midpoint_ms / frame_duration_ms)
 
     # Check if we're in a sync pop period using the same frame-based logic as video
-    if current_frame < pop_offset:
+    if disable_pops:
+        is_sync_pop = False
+        pop_index = -1
+    elif current_frame < pop_offset:
         is_sync_pop = False
         pop_index = -1
     else:
@@ -906,7 +911,7 @@ def generate_packets(output_dir, num_frames=30, formats=None, pattern='diagonal'
         output_dir: Directory to write packet files
         num_frames: Number of video frames to generate
         formats: List of formats ('PAL', 'NTSC') or None for both
-        pattern: Video pattern - 'diagonal' (moving lines) or 'solid' (uniform color)
+        pattern: Video pattern - 'diagonal', 'solid', 'dots', or 'still' (fully static solid field + frozen progress bar)
         parallel: Use multiprocessing for faster generation (default: True)
     """
     if full_frame_pop:
@@ -1044,8 +1049,8 @@ Examples:
     parser.add_argument('--format', choices=['PAL', 'NTSC'], action='append',
                         dest='formats',
                         help='Format(s) to generate (can specify multiple times, default: both)')
-    parser.add_argument('--pattern', '-p', choices=['diagonal', 'solid', 'dots'], default='diagonal',
-                        help='Video pattern: diagonal (moving lines), solid (uniform color for scanline tests), or dots (single-pixel dots for sharp pixel tests)')
+    parser.add_argument('--pattern', '-p', choices=['diagonal', 'solid', 'dots', 'still'], default='diagonal',
+                        help='Video pattern: diagonal (moving lines), solid (uniform color), dots (single-pixel dots), or still (solid field with frozen progress marker)')
     parser.add_argument('--scenario', '-s', default='DEFAULT',
                         help='Scenario name to display in top-left text box (underscores become newlines)')
     parser.add_argument('--disable-pops', action='store_true',

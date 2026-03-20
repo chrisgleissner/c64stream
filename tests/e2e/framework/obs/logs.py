@@ -22,19 +22,9 @@ class OBSLogManager:
     def collect_latest_log(self, start_time: Optional[float] = None) -> Optional[Path]:
         """Copy the most relevant OBS log to output_dir."""
         try:
-            if not self.logs_dir.exists():
-                return None
-
-            log_files = [p for p in self.logs_dir.glob('*.txt') if p.is_file()]
+            log_files = self._get_log_candidates(start_time)
             if not log_files:
                 return None
-
-            # Prefer logs written after we started OBS (with a little slack).
-            if start_time is not None:
-                cutoff = start_time - 5.0
-                candidates = [p for p in log_files if p.stat().st_mtime >= cutoff]
-                if candidates:
-                    log_files = candidates
 
             log_files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
             latest = log_files[0]
@@ -43,6 +33,57 @@ class OBSLogManager:
             return dest
         except Exception:
             return None
+
+    def wait_for_script_completion(self, timeout: float, start_time: Optional[float] = None) -> Optional[bool]:
+        """Wait for a script to report completion or failure in the live OBS log."""
+        logger.info(f"⏳ Waiting for script completion in OBS log (timeout: {timeout:.1f}s)...")
+
+        start = time.time()
+        while time.time() - start < timeout:
+            log_files = self._get_log_candidates(start_time)
+            if log_files:
+                log_files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+                latest = log_files[0]
+                try:
+                    text = latest.read_text(errors='ignore')
+                except Exception:
+                    text = ""
+
+                status = self._script_status_from_text(text)
+                if status is not None:
+                    if status:
+                        logger.info("✅ Script completed before OBS shutdown")
+                    else:
+                        logger.error("❌ Script reported failure before OBS shutdown")
+                    return status
+
+            time.sleep(0.2)
+
+        logger.warning("⌛ Timed out waiting for script completion before OBS shutdown")
+        return None
+
+    @staticmethod
+    def _script_status_from_text(text: str) -> Optional[bool]:
+        if "Auto-start script failed:" in text or "Script failed:" in text:
+            return False
+        if "Script completed successfully" in text:
+            return True
+        return None
+
+    def _get_log_candidates(self, start_time: Optional[float] = None) -> list[Path]:
+        if not self.logs_dir.exists():
+            return []
+
+        log_files = [p for p in self.logs_dir.glob('*.txt') if p.is_file()]
+        if not log_files:
+            return []
+
+        if start_time is None:
+            return log_files
+
+        cutoff = start_time - 5.0
+        candidates = [p for p in log_files if p.stat().st_mtime >= cutoff]
+        return candidates or log_files
 
     def summarize_log(self, log_path: Path) -> Optional[Dict[str, Any]]:
         """Extract basic signals from an OBS log."""

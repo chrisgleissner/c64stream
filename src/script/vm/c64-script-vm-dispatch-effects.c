@@ -14,7 +14,12 @@ See <https://www.gnu.org/licenses/> for details.
 #include <stdint.h>
 #include <string.h>
 
-typedef enum { C64_SCRIPT_UPDATE_STRING, C64_SCRIPT_UPDATE_DOUBLE, C64_SCRIPT_UPDATE_INT } c64_script_update_type_t;
+typedef enum {
+    C64_SCRIPT_UPDATE_STRING,
+    C64_SCRIPT_UPDATE_DOUBLE,
+    C64_SCRIPT_UPDATE_INT,
+    C64_SCRIPT_UPDATE_BOOL,
+} c64_script_update_type_t;
 
 typedef struct {
     obs_source_t *source;
@@ -23,6 +28,7 @@ typedef struct {
     char string_value[256];
     double number_value;
     int64_t int_value;
+    bool bool_value;
 } c64_script_source_update_t;
 
 static void c64_script_apply_source_update(void *data)
@@ -47,6 +53,9 @@ static void c64_script_apply_source_update(void *data)
         case C64_SCRIPT_UPDATE_INT:
             obs_data_set_int(settings, update->key, update->int_value);
             break;
+        case C64_SCRIPT_UPDATE_BOOL:
+            obs_data_set_bool(settings, update->key, update->bool_value);
+            break;
         }
         obs_source_update(update->source, settings);
         if (c64script_debug_logging_enabled()) {
@@ -61,7 +70,8 @@ static void c64_script_apply_source_update(void *data)
 }
 
 static bool c64_script_queue_source_update(obs_source_t *source, c64_script_update_type_t type, const char *key,
-                                           const char *string_value, double number_value, int64_t int_value)
+                                           const char *string_value, double number_value, int64_t int_value,
+                                           bool bool_value)
 {
     if (!source || !key || key[0] == '\0') {
         return false;
@@ -83,6 +93,7 @@ static bool c64_script_queue_source_update(obs_source_t *source, c64_script_upda
     }
     update->number_value = number_value;
     update->int_value = int_value;
+    update->bool_value = bool_value;
 
     update->source = obs_source_get_ref(source);
     if (!update->source) {
@@ -120,7 +131,7 @@ bool c64script_dispatch_effects(c64script_runtime_t *runtime, const c64script_in
             blog(LOG_DEBUG, "[c64script] EFFECT queue: preset=%s", preset.as.string ? preset.as.string : "");
         }
         if (!c64_script_queue_source_update(source, C64_SCRIPT_UPDATE_STRING, "crt_preset",
-                                            preset.as.string ? preset.as.string : "", 0.0, 0)) {
+                                            preset.as.string ? preset.as.string : "", 0.0, 0, false)) {
             c64script_value_free(&preset);
             snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Failed to queue OBS update");
             return false;
@@ -150,8 +161,12 @@ bool c64script_dispatch_effects(c64script_runtime_t *runtime, const c64script_in
         }
 
         obs_source_t *source = (obs_source_t *)runtime->obs_source;
-        if (!c64_script_queue_source_update(source, C64_SCRIPT_UPDATE_DOUBLE, param.as.string ? param.as.string : "",
-                                            NULL, value.as.number, 0)) {
+        const char *param_name = param.as.string ? param.as.string : "";
+        const bool is_preserve_size = strcmp(param_name, "preserve_size") == 0;
+        const c64_script_update_type_t update_type = is_preserve_size ? C64_SCRIPT_UPDATE_BOOL
+                                                                      : C64_SCRIPT_UPDATE_DOUBLE;
+        if (!c64_script_queue_source_update(source, update_type, param_name, NULL, value.as.number, 0,
+                                            value.as.number != 0.0)) {
             c64script_value_free(&param);
             c64script_value_free(&value);
             snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Failed to queue OBS update");
@@ -182,7 +197,7 @@ bool c64script_dispatch_effects(c64script_runtime_t *runtime, const c64script_in
 
         obs_source_t *source = (obs_source_t *)runtime->obs_source;
         if (!c64_script_queue_source_update(source, C64_SCRIPT_UPDATE_STRING, "palette",
-                                            palette.as.string ? palette.as.string : "", 0.0, 0)) {
+                                            palette.as.string ? palette.as.string : "", 0.0, 0, false)) {
             c64script_value_free(&palette);
             snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Failed to queue OBS update");
             return false;
@@ -252,7 +267,7 @@ bool c64script_dispatch_effects(c64script_runtime_t *runtime, const c64script_in
         char color_key[32];
         snprintf(color_key, sizeof(color_key), "custom_color_%d", index);
         uint32_t rgb = ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b;
-        if (!c64_script_queue_source_update(source, C64_SCRIPT_UPDATE_INT, color_key, NULL, 0.0, (int64_t)rgb)) {
+        if (!c64_script_queue_source_update(source, C64_SCRIPT_UPDATE_INT, color_key, NULL, 0.0, (int64_t)rgb, false)) {
             snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Failed to queue OBS update");
             return false;
         }

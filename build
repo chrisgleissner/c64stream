@@ -582,7 +582,8 @@ run_tests() {
     if command -v python3 >/dev/null 2>&1; then
         log_info "Running Python unit tests..."
         # Run unittest-based tests
-        python3 -m unittest \
+        # PYTHONPATH must include tests/e2e so that 'util' is found as a package
+        PYTHONPATH="$PROJECT_ROOT/tests/e2e${PYTHONPATH:+:$PYTHONPATH}" python3 -m unittest \
             tests/e2e/util/test_network_simulation.py \
             tests/e2e/util/test_network_timing_validation.py
 

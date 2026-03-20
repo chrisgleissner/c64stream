@@ -599,13 +599,22 @@ TEST(parse_playsid)
 
 TEST(parse_playsid_songnr)
 {
-    const char *source = "PLAYSID \"music.sid\" SONGNR=2";
+    const char *source = "PLAYSID \"music.sid\" SONGNR 2";
     char error_msg[1024];
     c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
     assert(ast != NULL);
     assert(ast->type == AST_STMT_PLAYSID);
     assert(ast->as.playsid_stmt.songnr != NULL);
     c64script_ast_free(ast);
+}
+
+TEST(parse_playsid_songnr_rejects_equals)
+{
+    const char *source = "PLAYSID \"music.sid\" SONGNR=2";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast == NULL);
+    assert(strstr(error_msg, "SONGNR clause uses whitespace-separated syntax") != NULL);
 }
 
 TEST(parse_runprg)
@@ -671,22 +680,96 @@ TEST(parse_reboot)
     assert(ast->type == AST_STMT_REBOOT);
 }
 
-TEST(parse_recordstart)
+TEST(parse_obs_recording_start)
 {
-    const char *source = "RECORDSTART";
+    const char *source = "OBS RECORDING START";
     char error_msg[1024];
     c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
-    assert(ast != NULL && "Failed to parse RECORDSTART");
-    assert(ast->type == AST_STMT_RECORDSTART);
+    assert(ast != NULL && "Failed to parse OBS RECORDING START");
+    assert(ast->type == AST_STMT_OBS_RECORDING_START);
+    c64script_ast_free(ast);
 }
 
-TEST(parse_recordstop)
+TEST(parse_obs_recording_stop)
 {
-    const char *source = "RECORDSTOP";
+    const char *source = "OBS RECORDING STOP";
     char error_msg[1024];
     c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
-    assert(ast != NULL && "Failed to parse RECORDSTOP");
-    assert(ast->type == AST_STMT_RECORDSTOP);
+    assert(ast != NULL && "Failed to parse OBS RECORDING STOP");
+    assert(ast->type == AST_STMT_OBS_RECORDING_STOP);
+    c64script_ast_free(ast);
+}
+
+TEST(parse_obs_screenshot)
+{
+    const char *source = "OBS SCREENSHOT TARGET SOURCE PATH \"out.png\"";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse OBS SCREENSHOT");
+    assert(ast->type == AST_STMT_OBS_SCREENSHOT);
+    assert(ast->as.obs_screenshot_stmt.target == C64SCRIPT_OBS_TARGET_SOURCE);
+    assert(ast->as.obs_screenshot_stmt.path != NULL);
+    c64script_ast_free(ast);
+}
+
+TEST(parse_obs_screenshot_rejects_target_equals)
+{
+    const char *source = "OBS SCREENSHOT TARGET=SOURCE PATH \"out.png\"";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast == NULL);
+    assert(strstr(error_msg, "TARGET clause uses whitespace-separated syntax") != NULL);
+}
+
+TEST(parse_obs_screenshot_rejects_path_equals)
+{
+    const char *source = "OBS SCREENSHOT TARGET SOURCE PATH=\"out.png\"";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast == NULL);
+    assert(strstr(error_msg, "PATH clause uses whitespace-separated syntax") != NULL);
+}
+
+TEST(parse_obs_wait_frames)
+{
+    const char *source = "OBS WAIT FRAMES 3";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse OBS WAIT FRAMES");
+    assert(ast->type == AST_STMT_OBS_WAIT_FRAMES);
+    assert(ast->as.obs_wait_frames_stmt.frame_count != NULL);
+    c64script_ast_free(ast);
+}
+
+TEST(parse_obs_wait_frames_rejects_equals)
+{
+    const char *source = "OBS WAIT FRAMES=3";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast == NULL);
+    assert(strstr(error_msg, "FRAMES clause uses whitespace-separated syntax") != NULL);
+}
+
+TEST(parse_assert_image_equals)
+{
+    const char *source = "ASSERT IMAGE_EQUALS \"actual.png\", \"expected.png\" TOLERANCE 4";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse ASSERT IMAGE_EQUALS");
+    assert(ast->type == AST_STMT_ASSERT_IMAGE_EQUALS);
+    assert(ast->as.assert_image_equals_stmt.actual_path != NULL);
+    assert(ast->as.assert_image_equals_stmt.expected_path != NULL);
+    assert(ast->as.assert_image_equals_stmt.tolerance != NULL);
+    c64script_ast_free(ast);
+}
+
+TEST(parse_assert_image_equals_rejects_tolerance_equals)
+{
+    const char *source = "ASSERT IMAGE_EQUALS \"actual.png\", \"expected.png\" TOLERANCE=4";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast == NULL);
+    assert(strstr(error_msg, "TOLERANCE clause uses whitespace-separated syntax") != NULL);
 }
 
 TEST(parse_type)
@@ -1429,8 +1512,15 @@ int main(int argc, char **argv)
     RUN_TEST(parse_autostart);
     RUN_TEST(parse_reset);
     RUN_TEST(parse_reboot);
-    RUN_TEST(parse_recordstart);
-    RUN_TEST(parse_recordstop);
+    RUN_TEST(parse_obs_recording_start);
+    RUN_TEST(parse_obs_recording_stop);
+    RUN_TEST(parse_obs_screenshot);
+    RUN_TEST(parse_obs_screenshot_rejects_target_equals);
+    RUN_TEST(parse_obs_screenshot_rejects_path_equals);
+    RUN_TEST(parse_obs_wait_frames);
+    RUN_TEST(parse_obs_wait_frames_rejects_equals);
+    RUN_TEST(parse_assert_image_equals);
+    RUN_TEST(parse_assert_image_equals_rejects_tolerance_equals);
     RUN_TEST(parse_type);
     RUN_TEST(parse_key);
     RUN_TEST(parse_poke);
@@ -1475,6 +1565,7 @@ int main(int argc, char **argv)
     RUN_TEST(parse_line_number_goto);
     RUN_TEST(parse_while_end_while);
     RUN_TEST(parse_playsid_songnr);
+    RUN_TEST(parse_playsid_songnr_rejects_equals);
 
     printf("\n--- Array Tests ---\n");
     RUN_TEST(parse_dim_array);

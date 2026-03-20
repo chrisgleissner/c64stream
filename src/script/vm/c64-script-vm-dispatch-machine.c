@@ -11,10 +11,13 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-keyboard.h"
 #include "c64-logging.h"
 #include "c64-rest-client.h"
+#include "c64-script-vm-internal.h"
+#include "c64-source.h"
 
 #include <obs-module.h>
 #include <stdint.h>
 #include <string.h>
+#include <util/platform.h>
 #ifdef ENABLE_FRONTEND_API
 #include <obs-frontend-api.h>
 #endif
@@ -40,6 +43,34 @@ static void c64_script_recording_stop_task(void *data)
     if (obs_frontend_recording_active()) {
         obs_frontend_recording_stop();
     }
+}
+
+static void c64_script_recording_query_task(void *data)
+{
+    bool *active = (bool *)data;
+    if (!active) {
+        return;
+    }
+
+    *active = obs_frontend_recording_active();
+}
+
+static bool c64_script_wait_for_recording_state(bool expected_active, char *error_msg, size_t error_size)
+{
+    const uint64_t deadline_ns = os_gettime_ns() + 10000000000ull;
+    while (os_gettime_ns() < deadline_ns) {
+        bool active = false;
+        obs_queue_task(OBS_TASK_UI, c64_script_recording_query_task, &active, true);
+        if (active == expected_active) {
+            return true;
+        }
+        os_sleep_ms(20);
+    }
+
+    if (error_msg && error_size > 0) {
+        snprintf(error_msg, error_size, "Timed out waiting for OBS recording state");
+    }
+    return false;
 }
 #endif
 
@@ -247,23 +278,94 @@ bool c64script_dispatch_machine(c64script_runtime_t *runtime, const c64script_in
         }
         break;
 
-    case OP_RECORDSTART:
-#ifdef ENABLE_FRONTEND_API
-        obs_queue_task(OBS_TASK_UI, c64_script_recording_start_task, NULL, false);
-#else
-        if (c64script_debug_logging_enabled()) {
-            blog(LOG_DEBUG, "[c64script] RECORDSTART: OBS frontend API not enabled, skipping");
+    case OP_OBS_SCREENSHOT: {
+        c64script_value_t output_path;
+        if (!c64script_runtime_pop(runtime, &output_path)) {
+            return false;
         }
+        if (output_path.type != VALUE_STRING) {
+            c64script_value_free(&output_path);
+            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "TYPE MISMATCH (OBS SCREENSHOT PATH)");
+            return false;
+        }
+        if (!runtime->source_data) {
+            c64script_value_free(&output_path);
+            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "OBS source context not available");
+            return false;
+        }
+
+        char resolved_path[1024];
+        if (!c64script_resolve_script_path(runtime, output_path.as.string, resolved_path, sizeof(resolved_path))) {
+            c64script_value_free(&output_path);
+            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Screenshot path too long");
+            return false;
+        }
+
+        const bool preview = instr->operand == (uint32_t)C64SCRIPT_OBS_TARGET_PREVIEW;
+        bool ok = c64_source_script_take_frontend_screenshot((struct c64_source *)runtime->source_data, preview,
+                                                             resolved_path, runtime->error_msg,
+                                                             sizeof(runtime->error_msg));
+        c64script_value_free(&output_path);
+        if (!ok) {
+            return false;
+        }
+        break;
+    }
+
+    case OP_OBS_WAIT_FRAMES: {
+        c64script_value_t frame_count;
+        if (!c64script_runtime_pop(runtime, &frame_count)) {
+            return false;
+        }
+        if (!require_number(runtime, &frame_count, "OBS WAIT FRAMES")) {
+            c64script_value_free(&frame_count);
+            return false;
+        }
+
+        int frames = 0;
+        if (!number_to_int(runtime, &frame_count, &frames, "OBS WAIT FRAMES")) {
+            c64script_value_free(&frame_count);
+            return false;
+        }
+        c64script_value_free(&frame_count);
+
+        if (frames < 0) {
+            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "ILLEGAL QUANTITY (OBS WAIT FRAMES)");
+            return false;
+        }
+        if (!runtime->source_data) {
+            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "OBS source context not available");
+            return false;
+        }
+
+        if (!c64_source_script_wait_rendered_frames((struct c64_source *)runtime->source_data, (uint32_t)frames,
+                                                    runtime->error_msg, sizeof(runtime->error_msg))) {
+            return false;
+        }
+        break;
+    }
+
+    case OP_OBS_RECORDING_START:
+#ifdef ENABLE_FRONTEND_API
+        obs_queue_task(OBS_TASK_UI, c64_script_recording_start_task, NULL, true);
+        if (!c64_script_wait_for_recording_state(true, runtime->error_msg, sizeof(runtime->error_msg))) {
+            return false;
+        }
+#else
+        // Non-frontend test builds still need to execute script fixtures that exercise recording control.
+        // Treat recording state changes as successful no-ops when frontend APIs are unavailable.
+        (void)runtime;
 #endif
         break;
 
-    case OP_RECORDSTOP:
+    case OP_OBS_RECORDING_STOP:
 #ifdef ENABLE_FRONTEND_API
-        obs_queue_task(OBS_TASK_UI, c64_script_recording_stop_task, NULL, false);
-#else
-        if (c64script_debug_logging_enabled()) {
-            blog(LOG_DEBUG, "[c64script] RECORDSTOP: OBS frontend API not enabled, skipping");
+        obs_queue_task(OBS_TASK_UI, c64_script_recording_stop_task, NULL, true);
+        if (!c64_script_wait_for_recording_state(false, runtime->error_msg, sizeof(runtime->error_msg))) {
+            return false;
         }
+#else
+        (void)runtime;
 #endif
         break;
 

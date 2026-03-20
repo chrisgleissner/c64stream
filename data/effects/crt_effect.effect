@@ -26,8 +26,7 @@ uniform int tint_mode;
 uniform float tint_strength;
 uniform float dt_ms;
 uniform texture2d texture_accum_prev;
-uniform float output_height; // Source render height (plugin output)
-uniform float canvas_height; // OBS canvas height (final output) for canvas-space scanlines
+uniform float virtual_output_height; // Internal effect-space height used for local scanline row selection
 uniform float source_width;  // Original C64 source width (e.g., 384)
 uniform float source_height; // Original C64 source height (e.g., 270/272)
 
@@ -193,14 +192,14 @@ float4 PSDefault(VertDataOut v_in) : TARGET
     // we compute which output row we're in and apply the pattern directly.
     // scan_line_distance: controls gap size (0.0-2.0)
     // scan_line_strength: darkness of gaps (0.0=no effect, 1.0=completely black)
-    // IMPORTANT: Use original_uv (pre-snapping) for scanline calculation!
+    // IMPORTANT: Use original_uv (pre-snapping) for scanline calculation.
     // The snapped UV quantizes to source texels, causing all output rows mapping to the
-    // same source row to get identical UV values - breaking the scanline pattern.
+    // same source row to get identical UV values and collapsing the scanline pattern.
     if (scan_line_distance > 0.0f && scan_line_strength > 0.0f) {
-        // Use ORIGINAL UV Y coordinate (before snapping) multiplied by OUTPUT height
-        // output_height is the plugin's scaled render height (e.g., 240*4=960 for NTSC Wide)
-        // This gives us the exact rendered pixel row
-        int output_row = int(original_uv.y * max(output_height, 1.0f));
+        // Keep scanlines in source-local space so they scale with the source itself.
+        // Using canvas-space fragment coordinates anchors the pattern to the OBS canvas,
+        // which makes the dark rows appear to slide underneath the preview when resized.
+        int output_row = int(original_uv.y * max(virtual_output_height, 1.0f));
 
         // Determine scanline pattern based on distance setting
         // Pattern repeats every N pixels for consistent appearance

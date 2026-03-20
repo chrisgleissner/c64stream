@@ -17,6 +17,19 @@ set(C64_ALL_INCLUDE_DIRS
   ${CMAKE_SOURCE_DIR}/src/video
 )
 
+find_package(PNG)
+
+add_library(c64script_vm_test_deps INTERFACE)
+if(UNIX)
+  target_link_libraries(c64script_vm_test_deps INTERFACE OBS::libobs CURL::libcurl m)
+else()
+  target_link_libraries(c64script_vm_test_deps INTERFACE OBS::libobs CURL::libcurl)
+endif()
+if(PNG_FOUND)
+  target_link_libraries(c64script_vm_test_deps INTERFACE PNG::PNG)
+  target_compile_definitions(c64script_vm_test_deps INTERFACE C64_HAVE_PNG)
+endif()
+
 # Parser unit tests require libobs headers for logging utilities
 add_executable(
   test_c64script_parser
@@ -57,11 +70,7 @@ add_executable(
   ${CMAKE_SOURCE_DIR}/src/script/runtime/c64-script-builtins.c
 )
 target_include_directories(test_c64script_compiler PRIVATE ${C64_ALL_INCLUDE_DIRS})
-if(UNIX)
-  target_link_libraries(test_c64script_compiler PRIVATE OBS::libobs CURL::libcurl m)
-else()
-  target_link_libraries(test_c64script_compiler PRIVATE OBS::libobs CURL::libcurl)
-endif()
+target_link_libraries(test_c64script_compiler PRIVATE c64script_vm_test_deps)
 add_test(NAME c64script_compiler COMMAND test_c64script_compiler)
 
 # REST network integration tests (mock server)
@@ -69,6 +78,7 @@ add_executable(
   test_c64script_rest_network
   test_c64script_rest_network.c
   c64script_test_logging.c
+  c64script_runtime_support_stubs.c
   c64script_keyboard_stub.c
   ${CMAKE_SOURCE_DIR}/src/script/frontend/c64-script-parser.c
   ${CMAKE_SOURCE_DIR}/src/script/frontend/c64-script-token.c
@@ -93,11 +103,7 @@ add_executable(
 )
 target_include_directories(test_c64script_rest_network PRIVATE ${C64_ALL_INCLUDE_DIRS})
 target_compile_definitions(test_c64script_rest_network PRIVATE C64STREAM_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
-if(UNIX)
-  target_link_libraries(test_c64script_rest_network PRIVATE OBS::libobs CURL::libcurl m)
-else()
-  target_link_libraries(test_c64script_rest_network PRIVATE OBS::libobs CURL::libcurl)
-endif()
+target_link_libraries(test_c64script_rest_network PRIVATE c64script_vm_test_deps)
 add_test(NAME c64script_rest_network COMMAND test_c64script_rest_network)
 
 # Edge case unit tests
@@ -127,11 +133,7 @@ add_executable(
   ${CMAKE_SOURCE_DIR}/src/script/runtime/c64-script-builtins.c
 )
 target_include_directories(test_c64script_edge_cases PRIVATE ${C64_ALL_INCLUDE_DIRS})
-if(UNIX)
-  target_link_libraries(test_c64script_edge_cases PRIVATE OBS::libobs CURL::libcurl m)
-else()
-  target_link_libraries(test_c64script_edge_cases PRIVATE OBS::libobs CURL::libcurl)
-endif()
+target_link_libraries(test_c64script_edge_cases PRIVATE c64script_vm_test_deps)
 add_test(NAME c64script_edge_cases COMMAND test_c64script_edge_cases)
 
 # Repository-wide script validation - validates ALL .c64script files
@@ -161,11 +163,7 @@ add_executable(
   ${CMAKE_SOURCE_DIR}/src/script/runtime/c64-script-builtins.c
 )
 target_include_directories(test_c64script_all_scripts PRIVATE ${C64_ALL_INCLUDE_DIRS})
-if(UNIX)
-  target_link_libraries(test_c64script_all_scripts PRIVATE OBS::libobs CURL::libcurl m)
-else()
-  target_link_libraries(test_c64script_all_scripts PRIVATE OBS::libobs CURL::libcurl)
-endif()
+target_link_libraries(test_c64script_all_scripts PRIVATE c64script_vm_test_deps)
 add_test(
   NAME c64script_all_scripts
   COMMAND test_c64script_all_scripts ${CMAKE_SOURCE_DIR}
@@ -229,11 +227,7 @@ add_executable(
   ${CMAKE_SOURCE_DIR}/src/script/runtime/c64-script-builtins.c
 )
 target_include_directories(test_c64script_debug PRIVATE ${C64_ALL_INCLUDE_DIRS})
-if(UNIX)
-  target_link_libraries(test_c64script_debug PRIVATE OBS::libobs CURL::libcurl m)
-else()
-  target_link_libraries(test_c64script_debug PRIVATE OBS::libobs CURL::libcurl)
-endif()
+target_link_libraries(test_c64script_debug PRIVATE c64script_vm_test_deps)
 add_test(NAME c64script_debug COMMAND test_c64script_debug)
 
 # Script executor thread-safety test (no OBS UI thread)
@@ -263,11 +257,7 @@ add_executable(
   ${CMAKE_SOURCE_DIR}/src/script/runtime/c64-script-builtins.c
 )
 target_include_directories(test_c64script_thread_safety PRIVATE ${C64_ALL_INCLUDE_DIRS})
-if(UNIX)
-  target_link_libraries(test_c64script_thread_safety PRIVATE OBS::libobs CURL::libcurl m)
-else()
-  target_link_libraries(test_c64script_thread_safety PRIVATE OBS::libobs CURL::libcurl)
-endif()
+target_link_libraries(test_c64script_thread_safety PRIVATE c64script_vm_test_deps)
 add_test(NAME c64script_thread_safety COMMAND test_c64script_thread_safety)
 
 # Automation playlist selection test (headless)

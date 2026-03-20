@@ -52,7 +52,11 @@ class E2EOrchestrator:
                  csv_max_rows: Optional[int] = None,
                  verbose: bool = False,
                  full_frame_pop: bool = False,
-                 av_sync_tolerance_mode = None):
+                 av_sync_tolerance_mode = None,
+                 skip_frame_logic_validation: bool = False,
+                 disable_pops: bool = False,
+                 wait_for_script_completion: bool = False,
+                 script_completion_timeout_s: float = 30.0):
 
         # 1. Environment Setup
         self.env = Environment(test_dir, output_dir, csv_max_rows=csv_max_rows)
@@ -69,6 +73,10 @@ class E2EOrchestrator:
         self.monitor_resource_interval_ms = monitor_resource_interval_ms
         self.verbose = verbose
         self.full_frame_pop = full_frame_pop
+        self.skip_frame_logic_validation = skip_frame_logic_validation
+        self.disable_pops = disable_pops
+        self.wait_for_script_completion = wait_for_script_completion
+        self.script_completion_timeout_s = script_completion_timeout_s
 
         # 2. Components
         # Use display from environment if set, otherwise default to :99
@@ -158,6 +166,12 @@ class E2EOrchestrator:
             # 8. Post-Run Wait (Allow flushing)
             time.sleep(2.0)
 
+            if self.wait_for_script_completion:
+                self.obs_logs.wait_for_script_completion(
+                    timeout=self.script_completion_timeout_s,
+                    start_time=self.obs_process._start_time,
+                )
+
             # 9. Stop Recording/OBS
             # If we used websocket to start recording (not yet implemented in start_obs but flag checks it)
             # obs_process auto-starts recording via --startrecording argument? Yes.
@@ -181,7 +195,17 @@ class E2EOrchestrator:
             # Find and process CSVs from the session folder
             counts = self._process_csvs()
 
-            validator = ResultValidator(self.env, self.format, self.frames, self.packet_source, self.network_simulation, self.full_frame_pop, self.av_sync_tolerance_mode)
+            validator = ResultValidator(
+                self.env,
+                self.format,
+                self.frames,
+                self.packet_source,
+                self.network_simulation,
+                self.full_frame_pop,
+                self.av_sync_tolerance_mode,
+                self.skip_frame_logic_validation,
+                self.disable_pops,
+            )
             success, results = validator.validate(replay_success, recording_path, counts)
 
             # Save validation results for report generation

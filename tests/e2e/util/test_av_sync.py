@@ -131,6 +131,11 @@ def detect_video_pop_events(video_path, frame_rate=30.0):
     max_brightness: list[float] = []
     full_p95: list[float] = []
 
+    def _logical_c64_dimensions():
+        logical_width = 384.0
+        logical_height = 240.0 if frame_rate >= 55.0 else 272.0
+        return logical_width, logical_height
+
     def _find_pop_box_in_frame(gray_frame, content_bounds):
         """Calculate the A/V pop box position from content bounds.
         The pop box is at a fixed position in the bottom-right corner.
@@ -139,16 +144,18 @@ def detect_video_pop_events(video_path, frame_rate=30.0):
         content_w = right - left
         content_h = bottom - top
 
-        # C64 resolution is 384x272, corner elements are 88x56
-        # Inner area (excluding 8px border) is 72x40
-        # Pop box is positioned at (384-88, 272-56) = (296, 216) in C64 coords
+        logical_width, logical_height = _logical_c64_dimensions()
 
-        scale_x = content_w / 384.0
-        scale_y = content_h / 272.0
+        # Corner elements are 88x56 in logical C64 pixels.
+        # Inner area (excluding 8px border) is 72x40
+        # Pop box is positioned at (width-88, height-56) in logical C64 coords.
+
+        scale_x = content_w / logical_width
+        scale_y = content_h / logical_height
 
         # Pop box outer bounds (top-left corner of the 88x56 box)
-        pop_outer_x0 = left + int((384 - 88) * scale_x)
-        pop_outer_y0 = top + int((272 - 56) * scale_y)
+        pop_outer_x0 = left + int((logical_width - 88.0) * scale_x)
+        pop_outer_y0 = top + int((logical_height - 56.0) * scale_y)
 
         # Inner content area (8px border on each side in C64 units)
         border_px_x = int(8 * scale_x)
@@ -196,7 +203,7 @@ def detect_video_pop_events(video_path, frame_rate=30.0):
 
         # Calculate left/right half regions (avoiding 2px center divider)
         # The pop box inner area is 72px wide: [35px left][2px divider][35px right]
-        # At 1920x1080 output, the scaling factor is ~1080/272 ≈ 3.97
+        # At 1920x1080 PAL output, the scaling factor is ~1080/272 ≈ 3.97.
         # So 35px -> ~139px, 2px divider -> ~8px
         half_w = inner_w // 2
         divider_w = max(2, inner_w // 36)  # ~2px at source, scales with resolution

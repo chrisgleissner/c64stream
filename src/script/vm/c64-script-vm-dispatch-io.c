@@ -10,8 +10,13 @@ See <https://www.gnu.org/licenses/> for details.
 
 #include "c64-script-builtins.h"
 #include "c64-script-vm-internal.h"
+#include "c64-file.h"
 
 #include <curl/curl.h>
+#include <math.h>
+#ifdef C64_HAVE_PNG
+#include <png.h>
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -27,6 +32,332 @@ typedef struct {
     char *data;
     size_t size;
 } c64script_http_response_t;
+
+#ifdef C64_HAVE_PNG
+
+typedef struct {
+    uint32_t width;
+    uint32_t height;
+    uint8_t *pixels;
+} c64script_image_rgba_t;
+
+static void c64script_free_image(c64script_image_rgba_t *image)
+{
+    if (!image) {
+        return;
+    }
+
+    free(image->pixels);
+    image->pixels = NULL;
+    image->width = 0;
+    image->height = 0;
+}
+
+static bool c64script_ensure_parent_directory(const char *path, char *error_msg, size_t error_size)
+{
+    if (!path || path[0] == '\0') {
+        if (error_msg && error_size > 0) {
+            snprintf(error_msg, error_size, "Invalid path");
+        }
+        return false;
+    }
+
+    char directory[1024];
+    snprintf(directory, sizeof(directory), "%s", path);
+
+    char *last_slash = strrchr(directory, '/');
+#ifdef _WIN32
+    char *last_backslash = strrchr(directory, '\\');
+    if (!last_slash || (last_backslash && last_backslash > last_slash)) {
+        last_slash = last_backslash;
+    }
+#endif
+    if (!last_slash) {
+        return true;
+    }
+
+    *last_slash = '\0';
+    if (directory[0] == '\0') {
+        return true;
+    }
+
+    if (!c64_create_directory_recursive(directory)) {
+        if (error_msg && error_size > 0) {
+            snprintf(error_msg, error_size, "Failed to create output directory");
+        }
+        return false;
+    }
+
+    return true;
+}
+
+static bool c64script_load_png_rgba(const char *path, c64script_image_rgba_t *image, char *error_msg, size_t error_size)
+{
+    if (!path || !image) {
+        if (error_msg && error_size > 0) {
+            snprintf(error_msg, error_size, "Invalid PNG load arguments");
+        }
+        return false;
+    }
+
+    FILE *fp = fopen(path, "rb");
+    if (!fp) {
+        if (error_msg && error_size > 0) {
+            snprintf(error_msg, error_size, "Failed to open PNG: %s", path);
+        }
+        return false;
+    }
+
+    uint8_t signature[8];
+    if (fread(signature, 1, sizeof(signature), fp) != sizeof(signature) || png_sig_cmp(signature, 0, 8) != 0) {
+        fclose(fp);
+        if (error_msg && error_size > 0) {
+            snprintf(error_msg, error_size, "Not a PNG file: %s", path);
+        }
+        return false;
+    }
+
+    png_structp png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+    png_infop info_ptr = png_create_info_struct(png_ptr);
+    if (!png_ptr || !info_ptr) {
+        if (png_ptr) {
+            png_destroy_read_struct(&png_ptr, NULL, NULL);
+        }
+        fclose(fp);
+        if (error_msg && error_size > 0) {
+            snprintf(error_msg, error_size, "Failed to initialize PNG reader");
+        }
+        return false;
+    }
+
+    if (setjmp(png_jmpbuf(png_ptr))) {
+        png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
+        fclose(fp);
+        c64script_free_image(image);
+        if (error_msg && error_size > 0) {
+            snprintf(error_msg, error_size, "Failed to decode PNG: %s", path);
+        }
+        return false;
+    }
+
+    png_init_io(png_ptr, fp);
+    png_set_sig_bytes(png_ptr, 8);
+    png_read_info(png_ptr, info_ptr);
+
+    png_uint_32 width = 0;
+    png_uint_32 height = 0;
+    int bit_depth = 0;
+    int color_type = 0;
+    png_get_IHDR(png_ptr, info_ptr, &width, &height, &bit_depth, &color_type, NULL, NULL, NULL);
+
+    if (bit_depth == 16) {
+        png_set_strip_16(png_ptr);
+    }
+    if (color_type == PNG_COLOR_TYPE_PALETTE) {
+        png_set_palette_to_rgb(png_ptr);
+    }
+    if (color_type == PNG_COLOR_TYPE_GRAY && bit_depth < 8) {
+        png_set_expand_gray_1_2_4_to_8(png_ptr);
+    }
+    if (png_get_valid(png_ptr, info_ptr, PNG_INFO_tRNS)) {
+        png_set_tRNS_to_alpha(png_ptr);
+    }
+    if (color_type == PNG_COLOR_TYPE_GRAY || color_type == PNG_COLOR_TYPE_GRAY_ALPHA) {
+        png_set_gray_to_rgb(png_ptr);
+    }
+    if (!(color_type & PNG_COLOR_MASK_ALPHA)) {
+        png_set_filler(png_ptr, 0xFF, PNG_FILLER_AFTER);
+    }
+
+    png_read_update_info(png_ptr, info_ptr);
+
+    image->width = (uint32_t)width;
+    image->height = (uint32_t)height;
+    image->pixels = malloc((size_t)width * (size_t)height * 4u);
+    if (!image->pixels) {
+        png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
+        fclose(fp);
+        if (error_msg && error_size > 0) {
+            snprintf(error_msg, error_size, "Out of memory loading PNG");
+        }
+        return false;
+    }
+
+    png_bytep *rows = malloc(sizeof(png_bytep) * (size_t)height);
+    if (!rows) {
+        png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
+        fclose(fp);
+        c64script_free_image(image);
+        if (error_msg && error_size > 0) {
+            snprintf(error_msg, error_size, "Out of memory loading PNG rows");
+        }
+        return false;
+    }
+
+    for (size_t y = 0; y < (size_t)height; y++) {
+        rows[y] = image->pixels + (y * (size_t)width * 4u);
+    }
+    png_read_image(png_ptr, rows);
+    png_read_end(png_ptr, NULL);
+
+    free(rows);
+    png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
+    fclose(fp);
+    return true;
+}
+
+static bool c64script_write_png_rgba(const char *path, uint32_t width, uint32_t height, const uint8_t *pixels,
+                                     char *error_msg, size_t error_size)
+{
+    if (!path || !pixels || width == 0 || height == 0) {
+        if (error_msg && error_size > 0) {
+            snprintf(error_msg, error_size, "Invalid PNG write arguments");
+        }
+        return false;
+    }
+
+    if (!c64script_ensure_parent_directory(path, error_msg, error_size)) {
+        return false;
+    }
+
+    FILE *fp = fopen(path, "wb");
+    if (!fp) {
+        if (error_msg && error_size > 0) {
+            snprintf(error_msg, error_size, "Failed to open PNG for writing: %s", path);
+        }
+        return false;
+    }
+
+    png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+    png_infop info_ptr = png_create_info_struct(png_ptr);
+    if (!png_ptr || !info_ptr) {
+        if (png_ptr) {
+            png_destroy_write_struct(&png_ptr, NULL);
+        }
+        fclose(fp);
+        if (error_msg && error_size > 0) {
+            snprintf(error_msg, error_size, "Failed to initialize PNG writer");
+        }
+        return false;
+    }
+
+    if (setjmp(png_jmpbuf(png_ptr))) {
+        png_destroy_write_struct(&png_ptr, &info_ptr);
+        fclose(fp);
+        if (error_msg && error_size > 0) {
+            snprintf(error_msg, error_size, "Failed to write PNG: %s", path);
+        }
+        return false;
+    }
+
+    png_init_io(png_ptr, fp);
+    png_set_IHDR(png_ptr, info_ptr, width, height, 8, PNG_COLOR_TYPE_RGBA, PNG_INTERLACE_NONE,
+                 PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+    png_write_info(png_ptr, info_ptr);
+
+    png_bytep *rows = malloc(sizeof(png_bytep) * (size_t)height);
+    if (!rows) {
+        png_destroy_write_struct(&png_ptr, &info_ptr);
+        fclose(fp);
+        if (error_msg && error_size > 0) {
+            snprintf(error_msg, error_size, "Out of memory writing PNG rows");
+        }
+        return false;
+    }
+
+    for (size_t y = 0; y < (size_t)height; y++) {
+        rows[y] = (png_bytep)(pixels + (y * (size_t)width * 4u));
+    }
+    png_write_image(png_ptr, rows);
+    png_write_end(png_ptr, NULL);
+
+    free(rows);
+    png_destroy_write_struct(&png_ptr, &info_ptr);
+    fclose(fp);
+    return true;
+}
+
+static void c64script_build_diff_path(const char *actual_path, char *diff_path, size_t diff_path_size)
+{
+    if (!actual_path || !diff_path || diff_path_size == 0) {
+        return;
+    }
+
+    diff_path[0] = '\0';
+
+    const char *ext = strrchr(actual_path, '.');
+    int written = 0;
+    if (ext && strcmp(ext, ".png") == 0) {
+        written = snprintf(diff_path, diff_path_size, "%.*s.diff.png", (int)(ext - actual_path), actual_path);
+    } else {
+        written = snprintf(diff_path, diff_path_size, "%s.diff.png", actual_path);
+    }
+
+    if (written < 0 || (size_t)written >= diff_path_size) {
+        diff_path[0] = '\0';
+    }
+}
+
+static bool c64script_compare_images(const c64script_image_rgba_t *actual, const c64script_image_rgba_t *expected,
+                                     int tolerance, size_t *out_mismatch_count, uint8_t **out_diff_pixels,
+                                     uint32_t *out_diff_width, uint32_t *out_diff_height)
+{
+    if (!actual || !expected || !out_mismatch_count || !out_diff_pixels || !out_diff_width || !out_diff_height) {
+        return false;
+    }
+
+    const uint32_t diff_width = actual->width > expected->width ? actual->width : expected->width;
+    const uint32_t diff_height = actual->height > expected->height ? actual->height : expected->height;
+    uint8_t *diff_pixels = calloc((size_t)diff_width * (size_t)diff_height * 4u, 1);
+    if (!diff_pixels) {
+        return false;
+    }
+
+    size_t mismatch_count = 0;
+    for (uint32_t y = 0; y < diff_height; y++) {
+        for (uint32_t x = 0; x < diff_width; x++) {
+            const bool actual_in_bounds = x < actual->width && y < actual->height;
+            const bool expected_in_bounds = x < expected->width && y < expected->height;
+            uint8_t *diff = diff_pixels + (((size_t)y * (size_t)diff_width + (size_t)x) * 4u);
+
+            if (!actual_in_bounds || !expected_in_bounds) {
+                diff[0] = 255;
+                diff[1] = 0;
+                diff[2] = 255;
+                diff[3] = 255;
+                mismatch_count++;
+                continue;
+            }
+
+            const uint8_t *actual_px = actual->pixels + (((size_t)y * (size_t)actual->width + (size_t)x) * 4u);
+            const uint8_t *expected_px = expected->pixels + (((size_t)y * (size_t)expected->width + (size_t)x) * 4u);
+
+            int max_diff = 0;
+            for (size_t channel = 0; channel < 4; channel++) {
+                int channel_diff = abs((int)actual_px[channel] - (int)expected_px[channel]);
+                if (channel_diff > max_diff) {
+                    max_diff = channel_diff;
+                }
+            }
+
+            if (max_diff > tolerance) {
+                diff[0] = (uint8_t)abs((int)actual_px[0] - (int)expected_px[0]);
+                diff[1] = (uint8_t)abs((int)actual_px[1] - (int)expected_px[1]);
+                diff[2] = (uint8_t)abs((int)actual_px[2] - (int)expected_px[2]);
+                diff[3] = 255;
+                mismatch_count++;
+            }
+        }
+    }
+
+    *out_mismatch_count = mismatch_count;
+    *out_diff_pixels = diff_pixels;
+    *out_diff_width = diff_width;
+    *out_diff_height = diff_height;
+    return true;
+}
+
+#endif /* C64_HAVE_PNG */
 
 static size_t http_write_callback(char *ptr, size_t size, size_t nmemb, void *userdata)
 {
@@ -58,6 +389,115 @@ bool c64script_dispatch_io(c64script_runtime_t *runtime, const c64script_instruc
     return false;
 #else
     switch (instr->opcode) {
+    case OP_ASSERT_IMAGE_EQUALS: {
+#ifdef C64_HAVE_PNG
+        c64script_value_t tolerance_val;
+        c64script_value_t expected_path_val;
+        c64script_value_t actual_path_val;
+        if (!c64script_runtime_pop(runtime, &tolerance_val))
+            return false;
+        if (!c64script_runtime_pop(runtime, &expected_path_val)) {
+            c64script_value_free(&tolerance_val);
+            return false;
+        }
+        if (!c64script_runtime_pop(runtime, &actual_path_val)) {
+            c64script_value_free(&tolerance_val);
+            c64script_value_free(&expected_path_val);
+            return false;
+        }
+
+        if (actual_path_val.type != VALUE_STRING || expected_path_val.type != VALUE_STRING ||
+            tolerance_val.type != VALUE_NUMBER) {
+            c64script_value_free(&actual_path_val);
+            c64script_value_free(&expected_path_val);
+            c64script_value_free(&tolerance_val);
+            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "TYPE MISMATCH (ASSERT IMAGE_EQUALS)");
+            return false;
+        }
+
+        int tolerance = 0;
+        if (!number_to_int(runtime, &tolerance_val, &tolerance, "ASSERT IMAGE_EQUALS TOLERANCE")) {
+            c64script_value_free(&actual_path_val);
+            c64script_value_free(&expected_path_val);
+            c64script_value_free(&tolerance_val);
+            return false;
+        }
+        if (tolerance < 0) {
+            c64script_value_free(&actual_path_val);
+            c64script_value_free(&expected_path_val);
+            c64script_value_free(&tolerance_val);
+            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "ILLEGAL QUANTITY (ASSERT IMAGE_EQUALS)");
+            return false;
+        }
+
+        char actual_path[1024];
+        char expected_path[1024];
+        if (!c64script_resolve_script_path(runtime, actual_path_val.as.string, actual_path, sizeof(actual_path)) ||
+            !c64script_resolve_script_path(runtime, expected_path_val.as.string, expected_path,
+                                           sizeof(expected_path))) {
+            c64script_value_free(&actual_path_val);
+            c64script_value_free(&expected_path_val);
+            c64script_value_free(&tolerance_val);
+            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "ASSERT IMAGE_EQUALS path too long");
+            return false;
+        }
+
+        c64script_image_rgba_t actual = {0};
+        c64script_image_rgba_t expected = {0};
+        char io_error[256] = {0};
+        bool ok = c64script_load_png_rgba(actual_path, &actual, io_error, sizeof(io_error)) &&
+                  c64script_load_png_rgba(expected_path, &expected, io_error, sizeof(io_error));
+        c64script_value_free(&actual_path_val);
+        c64script_value_free(&expected_path_val);
+        c64script_value_free(&tolerance_val);
+        if (!ok) {
+            c64script_free_image(&actual);
+            c64script_free_image(&expected);
+            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "%s", io_error[0] ? io_error : "PNG load failed");
+            return false;
+        }
+
+        size_t mismatch_count = 0;
+        uint8_t *diff_pixels = NULL;
+        uint32_t diff_width = 0;
+        uint32_t diff_height = 0;
+        if (!c64script_compare_images(&actual, &expected, tolerance, &mismatch_count, &diff_pixels, &diff_width,
+                                      &diff_height)) {
+            c64script_free_image(&actual);
+            c64script_free_image(&expected);
+            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Out of memory comparing images");
+            return false;
+        }
+
+        if (mismatch_count > 0) {
+            char diff_path[1024] = {0};
+            c64script_build_diff_path(actual_path, diff_path, sizeof(diff_path));
+            if (!c64script_write_png_rgba(diff_path, diff_width, diff_height, diff_pixels, io_error,
+                                          sizeof(io_error))) {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg),
+                         "ASSERT IMAGE_EQUALS failed with %zu mismatched pixel(s) but diff write failed: %s",
+                         mismatch_count, io_error[0] ? io_error : "unknown error");
+            } else {
+                snprintf(runtime->error_msg, sizeof(runtime->error_msg),
+                         "ASSERT IMAGE_EQUALS failed: %zu mismatched pixel(s), tolerance=%d, diff=%s", mismatch_count,
+                         tolerance, diff_path);
+            }
+            free(diff_pixels);
+            c64script_free_image(&actual);
+            c64script_free_image(&expected);
+            return false;
+        }
+
+        free(diff_pixels);
+        c64script_free_image(&actual);
+        c64script_free_image(&expected);
+        break;
+#else
+        snprintf(runtime->error_msg, sizeof(runtime->error_msg), "PNG support not available");
+        return false;
+#endif
+    }
+
     case OP_RUNLOCAL: {
         c64script_value_t output_var_val, status_var_val, args_val, path_val;
         if (!c64script_runtime_pop(runtime, &output_var_val))

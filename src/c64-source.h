@@ -8,6 +8,8 @@ See <https://www.gnu.org/licenses/> for details.
 #ifndef C64_SOURCE_H
 #define C64_SOURCE_H
 
+#include <stdbool.h>
+#include <stddef.h>
 #include <obs-module.h>
 
 // Forward declarations
@@ -42,6 +44,10 @@ void c64_schedule_retry_task(struct c64_source *context, const char *reason);
 // Access functions for internal state (used by macro executor)
 void *c64_source_get_rest_client(struct c64_source *context);
 void *c64_source_get_keyboard(struct c64_source *context);
+bool c64_source_script_wait_rendered_frames(struct c64_source *context, uint32_t frame_count, char *error_msg,
+                                            size_t error_size);
+bool c64_source_script_take_frontend_screenshot(struct c64_source *context, bool preview, const char *output_path,
+                                                char *error_msg, size_t error_size);
 
 // Timing: initialize shared synthetic stream start time on first packet receipt (audio or video).
 void c64_try_init_stream_start_ns(struct c64_source *context, uint64_t packet_time_ns, const char *trigger);

@@ -98,6 +98,7 @@ tests/script/scripts/test_log_default_path.log
 !/tests/*.c
 !/tests/*.h
 !/tests/CMakeLists.txt
+!/tests/**/CMakeLists.txt
 
 # E2E scenario generated artifacts and packet outputs
 tests/e2e/scenarios/*/generated/

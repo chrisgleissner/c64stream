@@ -21,15 +21,13 @@ typedef enum {
     C64_SCRIPT_CMD_EFFECT,       // effect <preset_name>
     C64_SCRIPT_CMD_EFFECT_PARAM, // effect_param <name> <value>
     C64_SCRIPT_CMD_PALETTE,      // palette <palette_name>
-    C64_SCRIPT_CMD_PLAY_SID,     // play_sid <path> [songnr=N]
+    C64_SCRIPT_CMD_PLAY_SID,     // play_sid <path> [songnr <N>]
     C64_SCRIPT_CMD_RUN_PRG,      // run_prg <path>
     C64_SCRIPT_CMD_MOUNT_DISK,   // mount_disk <path>
     C64_SCRIPT_CMD_AUTOSTART,    // autostart
     C64_SCRIPT_CMD_RESET,        // reset
     C64_SCRIPT_CMD_REBOOT,       // reboot
     C64_SCRIPT_CMD_WAIT,         // wait <duration>
-    C64_SCRIPT_CMD_RECORD_START, // record_start
-    C64_SCRIPT_CMD_RECORD_STOP,  // record_stop
     C64_SCRIPT_CMD_STOP,         // stop
     C64_SCRIPT_CMD_LOOP,         // loop [count]
     C64_SCRIPT_CMD_LABEL,        // label <name>

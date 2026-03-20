@@ -62,8 +62,20 @@ static const keyword_entry_t keywords[] = {
     {"WAIT", TOKEN_WAIT},
     {"UNTIL", TOKEN_UNTIL},
     {"EVERY", TOKEN_EVERY},
+    {"FRAMES", TOKEN_FRAMES},
 
     // Plugin actions
+    {"OBS", TOKEN_OBS},
+    {"SCREENSHOT", TOKEN_SCREENSHOT},
+    {"TARGET", TOKEN_TARGET},
+    {"SOURCE", TOKEN_SOURCE_KW},
+    {"PREVIEW", TOKEN_PREVIEW},
+    {"PATH", TOKEN_PATH_KW},
+    {"RECORDING", TOKEN_RECORDING},
+    {"START", TOKEN_START},
+    {"ASSERT", TOKEN_ASSERT},
+    {"IMAGE_EQUALS", TOKEN_IMAGE_EQUALS},
+    {"TOLERANCE", TOKEN_TOLERANCE},
     {"EFFECT", TOKEN_EFFECT},
     {"EFFECTPARAM", TOKEN_EFFECTPARAM},
     {"EFFECT_PARAM", TOKEN_EFFECTPARAM}, // Alias
@@ -84,10 +96,6 @@ static const keyword_entry_t keywords[] = {
     {"PAUSE", TOKEN_PAUSE},
     {"RESUME", TOKEN_RESUME},
     {"POWEROFF", TOKEN_POWEROFF},
-    {"RECORDSTART", TOKEN_RECORDSTART},
-    {"RECORD_START", TOKEN_RECORDSTART}, // Alias
-    {"RECORDSTOP", TOKEN_RECORDSTOP},
-    {"RECORD_STOP", TOKEN_RECORDSTOP}, // Alias
 
     // I/O
     {"TYPE", TOKEN_TYPE_KEYWORD},
