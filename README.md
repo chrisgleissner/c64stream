@@ -603,7 +603,7 @@ Exported configurations are saved to the [settings directory](#file-system-struc
 ### Remote Control
 
 > [!NOTE]
-> **Experimental (since version 1.1):** This feature is still evolving. If you run into sharp edges, please report them.
+> **New in version 1.1:** Please share feedback or open an issue if you notice anything that could be improved.
 
 Control your Ultimate 64 remotely from within OBS Studio, enabling keyboard input capture and automated content playback.
 
@@ -674,7 +674,7 @@ On many keyboards, the **META** key corresponds to the **Windows key**.
 ### C64Script Automation
 
 > [!NOTE]
-> **Experimental (since version 1.1):** This feature is still evolving. If you run into sharp edges, please report them.
+> **New in version 1.1:** Please share feedback or open an issue if you notice anything that could be improved.
 
 Automate your C64 stream with C64Script - a modernized BASIC-like language designed specifically for stream control.
 
