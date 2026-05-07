@@ -311,7 +311,7 @@ See the [OBS Plugins Guide](https://obsproject.com/kb/plugins-guide).
 ### C64 Stream Effects filter
 
 > [!NOTE]
-> **Experimental (since version 1.1):** This feature is still evolving. If you run into sharp edges, please report them.
+> **New in version 1.1:** Please share feedback or open an issue if you notice anything that could be improved.
 
 By default, **C64 Stream effects are applied internally by the C64 Stream input source** when streaming directly from a C64 Ultimate or Ultimate 64.
 In this common setup, **no additional filter is required**.
