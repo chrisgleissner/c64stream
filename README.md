@@ -1010,7 +1010,7 @@ One of:
 
 ## 🛠️ For Developers
 
-For a an architectural and design overview, please have a look at the [DeepWiki](https://deepwiki.com/chrisgleissner/c64bridge) pages for this repository.
+For a an architectural and design overview, please see [DeepWiki](https://deepwiki.com/chrisgleissner/c64stream) pages for this repository.
 
 See the [Developer Documentation](doc/developer.md) for build instructions, testing procedures, and contribution guidelines.
 
