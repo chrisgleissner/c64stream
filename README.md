@@ -78,63 +78,9 @@ The plugin connects directly to the Ultimate's network interface, eliminating th
       - [DNS Resolution](#dns-resolution)
       - [C64 Ultimate Setup](#c64-ultimate-setup)
     - [Technical Details](#technical-details)
-  - [🛠️ For Developers](#️-for-developers)
-    - [End-to-end tests](#end-to-end-tests)
-  - [⚖️ License](#️-license)
-
-[toc-quick-start]: #-quick-start
-[toc-what-youll-need]: #what-youll-need
-[toc-installation]: #installation
-[toc-windows-x64]: #windows-x64
-[toc-windows-arm64]: #windows-arm64
-[toc-windows-portable-mode]: #windows-portable-mode
-[toc-macos]: #macos
-[toc-linux-ubuntu-debian]: #linux-ubuntu--debian
-[toc-linux-fedora-arch-etc]: #linux-fedora-arch-etc
-[toc-c64-stream-source]: #c64-stream-source
-[toc-c64-stream-effects-filter]: #c64-stream-effects-filter
-
-[toc-plugin-setup]: #-plugin-setup
-[toc-general]: #general
-[toc-network]: #network
-[toc-recording]: #recording
-[toc-recording-options]: #recording-options
-[toc-file-organization]: #file-organization
-[toc-usage-notes]: #usage-notes
-[toc-debug-analysis-csv-logs]: #debug--analysis-csv-logs
-[toc-effect-settings]: #effect-settings
-[toc-perfect-scan-lines]: #perfect-scan-lines
-[toc-color-palettes]: #color-palettes
-[toc-importexport-configuration]: #importexport-configuration
-[toc-remote-control]: #remote-control
-[toc-how-keyboard-capture-works]: #how-keyboard-capture-works
-[toc-c64script-automation]: #c64script-automation
-
-[toc-troubleshooting]: #-troubleshooting
-[toc-plugin-missing-from-obs]: #plugin-missing-from-obs
-[toc-no-video-stream]: #no-video-stream
-[toc-lost-repeated-frames]: #lost--repeated-frames
-[toc-effects-not-working]: #effects-not-working
-[toc-audio-sync-issues]: #audio-sync-issues
-[toc-connection-acting-up]: #connection-acting-up
-[toc-hostname-not-resolving]: #hostname-not-resolving
-[toc-recording-troubles]: #recording-troubles
-
-[toc-reference]: #-reference
-[toc-default-settings]: #default-settings
-[toc-file-system-structure]: #file-system-structure
-[toc-1-plugin]: #1-plugin
-[toc-2-shipped-data]: #2-shipped-data
-[toc-3-user-data]: #3-user-data
-[toc-network-details]: #network-details
-[toc-hostname-vs-ip-address]: #hostname-vs-ip-address
-[toc-dns-resolution]: #dns-resolution
-[toc-c64-ultimate-setup]: #c64-ultimate-setup
-[toc-technical-details]: #technical-details
-
-[toc-for-developers]: #%EF%B8%8F-for-developers
-[toc-end-to-end-tests]: #end-to-end-tests
-[toc-license]: #%EF%B8%8F-license
+  - [📹 End-to-end tests](#-end-to-end-tests)
+  - [🛠️ For Developers](#%EF%B8%8F-for-developers)
+  - [⚖️ License](#%EF%B8%8F-license)
 
 ## 🚀 Quick Start
 
@@ -1008,13 +954,7 @@ One of:
 - WAV audio: 16-bit stereo PCM, sample rate matches C64 Ultimate output
 - Session organization: Automatic timestamped folder creation
 
-## 🛠️ For Developers
-
-For an architectural and design overview, please see the [DeepWiki](https://deepwiki.com/chrisgleissner/c64stream) pages for this repository.
-
-See the [Developer Documentation](doc/developer.md) for build instructions, testing procedures, and contribution guidelines.
-
-### End-to-end tests
+## 📹 End-to-end tests
 
 This project is continuously validated with automated end-to-end (E2E) tests that simulate a C64 Ultimate, drive OBS, and verify the full pipeline from UDP packets to recorded video/audio.
 
@@ -1035,6 +975,10 @@ Many recent reports (without videos) are checked into this GitHub repository:
 You can download all [Latest E2E results](https://github.com/chrisgleissner/c64stream/actions/workflows/build-project.yaml?query=branch%3Amain+is%3Asuccess) (with videos) as GitHub CI build artifact ZIP.
 
 For more information, see [`doc/testing/e2e.md`](doc/testing/e2e.md).
+
+## 🛠️ For Developers
+
+See the [Developer Documentation](doc/developer.md) for build instructions, testing procedures, and contribution guidelines.
 
 ## ⚖️ License
 
