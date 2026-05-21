@@ -1010,6 +1010,10 @@ One of:
 
 ## 🛠️ For Developers
 
+For a an architectural and design overview, please have a look at the [DeepWiki](https://deepwiki.com/chrisgleissner/c64bridge) pages for this repository.
+
+See the [Developer Documentation](doc/developer.md) for build instructions, testing procedures, and contribution guidelines.
+
 ### End-to-end tests
 
 This project is continuously validated with automated end-to-end (E2E) tests that simulate a C64 Ultimate, drive OBS, and verify the full pipeline from UDP packets to recorded video/audio.
@@ -1031,8 +1035,6 @@ Many recent reports (without videos) are checked into this GitHub repository:
 You can download all [Latest E2E results](https://github.com/chrisgleissner/c64stream/actions/workflows/build-project.yaml?query=branch%3Amain+is%3Asuccess) (with videos) as GitHub CI build artifact ZIP.
 
 For more information, see [`doc/testing/e2e.md`](doc/testing/e2e.md).
-
-See the [Developer Documentation](doc/developer.md) for build instructions, testing procedures, and contribution guidelines.
 
 ## ⚖️ License
 
