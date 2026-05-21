@@ -79,7 +79,7 @@ The plugin connects directly to the Ultimate's network interface, eliminating th
       - [C64 Ultimate Setup](#c64-ultimate-setup)
     - [Technical Details](#technical-details)
   - [📹 End-to-end tests](#-end-to-end-tests)
-  - [🛠️ For Developers]([#%EF%B8%8F-for-developers))
+  - [🛠️ For Developers]([#%EF%B8%8F-for-developers)
   - [⚖️ License](#-license)
 
 ## 🚀 Quick Start
