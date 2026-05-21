@@ -972,7 +972,12 @@ Many recent reports (without videos) are checked into this GitHub repository:
 - [PAL results](tests/e2e/results/pal_default/README.md)
 - [NTSC results](tests/e2e/results/ntsc_default/README.md)
 
-You can download all [Latest E2E results](https://github.com/chrisgleissner/c64stream/actions/workflows/build-project.yaml?query=branch%3Amain+is%3Asuccess) (with videos) as GitHub CI build artifact ZIP.
+You can download the latest E2E results (with videos) from GitHub:
+
+1. Open the overview of all [recent builds](https://github.com/chrisgleissner/c64stream/actions/workflows/push.yaml?query=branch%3Amain+is%3Asuccess).
+2. Click on the latest (i.e. top-most) build titled `main push run`, then scroll down to its build artifacts.
+3. Download the ZIP file titled `e2e-all-results-$gitId`, e.g. [https://github.com/chrisgleissner/c64stream/actions/runs/26213806030/artifacts/7131040647](https://github.com/chrisgleissner/c64stream/actions/runs/26213806030/artifacts/7131040647)
+4. Unzip it to see the test result folders, one per E2E test.
 
 For more information, see [`doc/testing/e2e.md`](doc/testing/e2e.md).
 
