@@ -17,18 +17,14 @@ set(C64_ALL_INCLUDE_DIRS
   ${CMAKE_SOURCE_DIR}/src/video
 )
 
-find_package(PNG)
-
 add_library(c64script_vm_test_deps INTERFACE)
 if(UNIX)
   target_link_libraries(c64script_vm_test_deps INTERFACE OBS::libobs CURL::libcurl m)
 else()
   target_link_libraries(c64script_vm_test_deps INTERFACE OBS::libobs CURL::libcurl)
 endif()
-if(PNG_FOUND)
-  target_link_libraries(c64script_vm_test_deps INTERFACE PNG::PNG)
-  target_compile_definitions(c64script_vm_test_deps INTERFACE C64_HAVE_PNG)
-endif()
+# PNG read/write for ASSERT IMAGE_EQUALS uses the vendored stb_image headers
+# (see CMakeLists.txt rationale). No external libpng linkage required.
 
 # Parser unit tests require libobs headers for logging utilities
 add_executable(

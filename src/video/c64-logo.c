@@ -10,8 +10,9 @@ See <https://www.gnu.org/licenses/> for details.
 #include <obs-module.h>
 #include <util/platform.h>
 
-// STB Image library for PNG loading
-#define STB_IMAGE_IMPLEMENTATION
+// STB Image library for PNG loading. STB_IMAGE_IMPLEMENTATION is defined in
+// c64-script-vm-dispatch-io.c so the implementation lives in exactly one TU
+// that both the plugin and the test binaries link against.
 #include "stb_image.h"
 
 #include "c64-logo.h"

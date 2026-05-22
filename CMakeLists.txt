@@ -167,13 +167,15 @@ target_compile_definitions(
 find_package(Python3 COMPONENTS Interpreter)
 find_package(libobs REQUIRED)
 find_package(CURL REQUIRED)
-find_package(PNG)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE OBS::libobs)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE CURL::libcurl)
-if(PNG_FOUND)
-  target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE PNG::PNG)
-  target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE C64_HAVE_PNG)
-endif()
+
+# PNG read/write for ASSERT IMAGE_EQUALS is provided by the vendored stb_image
+# and stb_image_write headers in src/video/. We deliberately do NOT link
+# libpng/png.framework here — on macOS the obs-deps prebuilt ships libpng as
+# png.framework, which gets baked into the plugin's install names but is not
+# present in the OBS app bundle end users install, breaking plugin loading
+# (issue #116).
 
 if(ENABLE_FRONTEND_API)
   find_package(obs-frontend-api REQUIRED)

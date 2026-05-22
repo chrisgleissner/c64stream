@@ -632,23 +632,47 @@ jobs:
           name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-windows-arm64-${{ needs.check-event.outputs.commitHash }}
           path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-windows-arm64*.*
 
+  macos-smoke-test:
+    name: macOS Smoke Test (OBS ${{ matrix.obs-version }}) 💨
+    uses: ./.github/workflows/macos-smoke-test.yaml
+    needs: [macos-build]
+    strategy:
+      fail-fast: false
+      matrix:
+        # Validate against the OBS version we build against (buildspec.json) and
+        # the latest stable release
+        obs-version: ["32.0.4", "32.1.2"]
+    with:
+      artifact-pattern: "*-macos-universal-*"
+      obs-version: ${{ matrix.obs-version }}
+
   windows-x64-smoke-test:
+    name: Windows x64 Smoke Test (OBS ${{ matrix.obs-version }}) 💨
     uses: ./.github/workflows/windows-smoke-test.yaml
     needs: [windows-build]
+    strategy:
+      fail-fast: false
+      matrix:
+        obs-version: ["32.0.4", "32.1.2"]
     with:
       arch: x64
       artifact-pattern: "*-windows-x64-*"
       runner: windows-2022
-      obs-version: "32.0.4"
+      obs-version: ${{ matrix.obs-version }}
 
   windows-arm64-smoke-test:
+    name: Windows ARM64 Smoke Test (OBS ${{ matrix.obs-version }}) 💨
     uses: ./.github/workflows/windows-smoke-test.yaml
     needs: [windows-arm64-build]
+    strategy:
+      fail-fast: false
+      matrix:
+        obs-version: ["32.0.4", "32.1.2"]
     with:
       arch: arm64
       artifact-pattern: "*-windows-arm64-*"
       runner: windows-11-arm
-      obs-version: "32.0.4"
+      obs-version: ${{ matrix.obs-version }}
 
   # E2E Basic Test (Multi-Distro) - runs basic E2E scenario on all Linux distributions
   e2e-basic:
