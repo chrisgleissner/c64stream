@@ -22,7 +22,7 @@ on:
 
 jobs:
   smoke-test:
-    name: Windows ${{ inputs.arch }} Smoke Test 💨
+    name: Windows ${{ inputs.arch }} Smoke Test (OBS ${{ inputs.obs-version }}) 💨
     runs-on: ${{ inputs.runner }}
     defaults:
       run:
