@@ -173,8 +173,7 @@ xattr -dr com.apple.quarantine c64stream-*-macos-universal.pkg && \
 sudo installer -pkg c64stream-*-macos-universal.pkg -target / && \
 mkdir -p "$HOME/Library/Application Support/obs-studio/plugins" && \
 cp -R "/Library/Application Support/obs-studio/plugins/c64stream.plugin" \
-      "$HOME/Library/Application Support/obs-studio/plugins/" && \
-chmod -R 755 "$HOME/Library/Application Support/obs-studio/plugins/c64stream.plugin"
+  "$HOME/Library/Application Support/obs-studio/plugins/"
 ```
 
 4. Start OBS Studio

@@ -93,15 +93,15 @@ jobs:
             xattr -dr com.apple.quarantine "${PACKAGE}" || true
             sudo installer -pkg "${PACKAGE}" -target /
             # The .pkg drops c64stream.plugin under /Library/Application Support;
-            # copy it to the user scope (same as the README instructions).
-            sudo cp -R "/Library/Application Support/obs-studio/plugins/c64stream.plugin" \
+            # copy it to the user scope as the current user so subsequent smoke
+            # test steps can access the bundle without mutating a root-owned copy.
+            cp -R "/Library/Application Support/obs-studio/plugins/c64stream.plugin" \
               "${user_plugins}/"
           else
             # PR/tarball flow: extract directly to user plugins dir.
             tar -xJf "${PACKAGE}" -C "${user_plugins}"
           fi
 
-          chmod -R 755 "${user_plugins}/c64stream.plugin"
           echo "Installed plugin at:"
           ls -la "${user_plugins}/c64stream.plugin/Contents/MacOS/"
 
