@@ -16,6 +16,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64script_test_stubs.h"
 
 #include <assert.h>
+#include <limits.h>
 // stb_image_write is vendored at src/video/. The implementation lives in
 // c64-script-vm-dispatch-io.c (linked into this test binary), so here we only
 // pull in the declarations.
@@ -101,8 +102,12 @@ static void remove_temp_dir(const char *path)
 
 static void write_test_png_rgba(const char *path, uint32_t width, uint32_t height, const uint8_t *pixels)
 {
-    const int stride = (int)width * 4;
-    int ok = stbi_write_png(path, (int)width, (int)height, 4, pixels, stride);
+    assert(width > 0 && width <= (uint32_t)(INT_MAX / 4));
+    assert(height > 0 && height <= (uint32_t)INT_MAX);
+    const int width_int = (int)width;
+    const int height_int = (int)height;
+    const int stride = width_int * 4;
+    int ok = stbi_write_png(path, width_int, height_int, 4, pixels, stride);
     assert(ok && "Failed to write test PNG");
 }
 

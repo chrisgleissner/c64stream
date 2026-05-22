@@ -13,6 +13,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-file.h"
 
 #include <curl/curl.h>
+#include <limits.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -45,6 +46,14 @@ typedef struct {
     uint32_t height;
     uint8_t *pixels;
 } c64script_image_rgba_t;
+
+static bool c64script_rgba_buffer_size_fits(size_t width, size_t height)
+{
+    if (width == 0 || height == 0 || width > SIZE_MAX / 4u) {
+        return false;
+    }
+    return height <= SIZE_MAX / (width * 4u);
+}
 
 static void c64script_free_image(c64script_image_rgba_t *image)
 {
@@ -125,6 +134,15 @@ static bool c64script_load_png_rgba(const char *path, c64script_image_rgba_t *im
         return false;
     }
 
+    if (width <= 0 || height <= 0 || (uint64_t)width > UINT32_MAX || (uint64_t)height > UINT32_MAX ||
+        !c64script_rgba_buffer_size_fits((size_t)width, (size_t)height)) {
+        stbi_image_free(pixels);
+        if (error_msg && error_size > 0) {
+            snprintf(error_msg, error_size, "PNG dimensions out of range for '%s': %d x %d", path, width, height);
+        }
+        return false;
+    }
+
     image->width = (uint32_t)width;
     image->height = (uint32_t)height;
     image->pixels = pixels;
@@ -145,8 +163,18 @@ static bool c64script_write_png_rgba(const char *path, uint32_t width, uint32_t 
         return false;
     }
 
-    const int stride = (int)width * 4;
-    if (!stbi_write_png(path, (int)width, (int)height, 4, pixels, stride)) {
+    if (width > (uint32_t)INT_MAX || height > (uint32_t)INT_MAX || width > (uint32_t)(INT_MAX / 4) ||
+        !c64script_rgba_buffer_size_fits((size_t)width, (size_t)height)) {
+        if (error_msg && error_size > 0) {
+            snprintf(error_msg, error_size, "PNG dimensions out of range for '%s': %u x %u", path, width, height);
+        }
+        return false;
+    }
+
+    const int width_int = (int)width;
+    const int height_int = (int)height;
+    const int stride = width_int * 4;
+    if (!stbi_write_png(path, width_int, height_int, 4, pixels, stride)) {
         if (error_msg && error_size > 0) {
             snprintf(error_msg, error_size, "Failed to write PNG: %s", path);
         }

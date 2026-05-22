@@ -292,8 +292,8 @@ static void stbi__stdio_write(void *context, void *data, int size)
 #define STBIW_EXTERN extern
 #endif
 STBIW_EXTERN
-    __declspec(dllimport) int __stdcall MultiByteToWideChar(unsigned int cp, unsigned long flags, const char *str,
-                                                            int cbmb, wchar_t *widestr, int cchwide);
+__declspec(dllimport) int __stdcall MultiByteToWideChar(unsigned int cp, unsigned long flags, const char *str, int cbmb,
+                                                        wchar_t *widestr, int cchwide);
 STBIW_EXTERN __declspec(dllimport) int __stdcall WideCharToMultiByte(unsigned int cp, unsigned long flags,
                                                                      const wchar_t *widestr, int cchwide, char *str,
                                                                      int cbmb, const char *defchar, int *used_default);
