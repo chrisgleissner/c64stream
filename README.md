@@ -158,7 +158,7 @@ In portable mode, OBS does **not** use `C:\ProgramData\obs-studio\plugins`. Inst
 
 #### macOS
 
-Verified on macOS Sequoia 15.7 and Tahoe 26.0 with Apple Silicon M4 (Intel systems should also work):
+Verified on macOS Sequoia 15.7 and Tahoe 26.4 with Apple Silicon M4 (Intel systems should also work):
 
 1. Close OBS Studio
 2. [Download](../../releases) the plugin package with name `c64stream-$VERSION-macos-universal.pkg`. It should now be in your `~/Downloads` directory.
@@ -913,7 +913,7 @@ This plugin implements the [C64 Ultimate Data Streams specification](./doc/c64/c
 
 - Windows 10/11 (x64) - verified on Windows 11
 - Linux with X window system or Wayland - verified on Kubuntu 24.04
-- macOS 11+ (Intel/Apple Silicon) - verified on macOS Sequoia 15.7 and Tahoe 26.0
+- macOS 11+ (Intel/Apple Silicon) - verified on macOS Sequoia 15.7 and Tahoe 26.4
 
 **Software Requirements:**
 
