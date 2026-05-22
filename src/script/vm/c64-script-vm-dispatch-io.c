@@ -14,12 +14,19 @@ See <https://www.gnu.org/licenses/> for details.
 
 #include <curl/curl.h>
 #include <math.h>
-#ifdef C64_HAVE_PNG
-#include <png.h>
-#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+// stb_image / stb_image_write are vendored at src/video/. We use them for the
+// ASSERT IMAGE_EQUALS feature so the plugin has no external libpng dependency
+// (an external libpng caused macOS load failures via @rpath/png.framework — see
+// issue #116). This file owns the implementations; c64-logo.c only consumes
+// declarations.
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
 
 #ifdef _WIN32
 #define popen _popen
@@ -33,8 +40,6 @@ typedef struct {
     size_t size;
 } c64script_http_response_t;
 
-#ifdef C64_HAVE_PNG
-
 typedef struct {
     uint32_t width;
     uint32_t height;
@@ -47,8 +52,13 @@ static void c64script_free_image(c64script_image_rgba_t *image)
         return;
     }
 
-    free(image->pixels);
-    image->pixels = NULL;
+    // stbi_load uses its own allocator; release via stbi_image_free for any
+    // image we loaded ourselves. For our own malloc'd diff buffers we still
+    // need plain free, so callers handle those separately.
+    if (image->pixels) {
+        stbi_image_free(image->pixels);
+        image->pixels = NULL;
+    }
     image->width = 0;
     image->height = 0;
 }
@@ -100,109 +110,24 @@ static bool c64script_load_png_rgba(const char *path, c64script_image_rgba_t *im
         return false;
     }
 
-    FILE *fp = fopen(path, "rb");
-    if (!fp) {
+    int width = 0;
+    int height = 0;
+    int channels = 0;
+    // Force 4-channel RGBA so the byte layout matches the writer and the
+    // comparison loop below — stb_image handles palette, grayscale, 16-bit, and
+    // tRNS expansion internally.
+    uint8_t *pixels = stbi_load(path, &width, &height, &channels, 4);
+    if (!pixels) {
+        const char *reason = stbi_failure_reason();
         if (error_msg && error_size > 0) {
-            snprintf(error_msg, error_size, "Failed to open PNG: %s", path);
+            snprintf(error_msg, error_size, "Failed to load PNG '%s': %s", path, reason ? reason : "unknown error");
         }
         return false;
     }
-
-    uint8_t signature[8];
-    if (fread(signature, 1, sizeof(signature), fp) != sizeof(signature) || png_sig_cmp(signature, 0, 8) != 0) {
-        fclose(fp);
-        if (error_msg && error_size > 0) {
-            snprintf(error_msg, error_size, "Not a PNG file: %s", path);
-        }
-        return false;
-    }
-
-    png_structp png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
-    png_infop info_ptr = png_create_info_struct(png_ptr);
-    if (!png_ptr || !info_ptr) {
-        if (png_ptr) {
-            png_destroy_read_struct(&png_ptr, NULL, NULL);
-        }
-        fclose(fp);
-        if (error_msg && error_size > 0) {
-            snprintf(error_msg, error_size, "Failed to initialize PNG reader");
-        }
-        return false;
-    }
-
-    if (setjmp(png_jmpbuf(png_ptr))) {
-        png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
-        fclose(fp);
-        c64script_free_image(image);
-        if (error_msg && error_size > 0) {
-            snprintf(error_msg, error_size, "Failed to decode PNG: %s", path);
-        }
-        return false;
-    }
-
-    png_init_io(png_ptr, fp);
-    png_set_sig_bytes(png_ptr, 8);
-    png_read_info(png_ptr, info_ptr);
-
-    png_uint_32 width = 0;
-    png_uint_32 height = 0;
-    int bit_depth = 0;
-    int color_type = 0;
-    png_get_IHDR(png_ptr, info_ptr, &width, &height, &bit_depth, &color_type, NULL, NULL, NULL);
-
-    if (bit_depth == 16) {
-        png_set_strip_16(png_ptr);
-    }
-    if (color_type == PNG_COLOR_TYPE_PALETTE) {
-        png_set_palette_to_rgb(png_ptr);
-    }
-    if (color_type == PNG_COLOR_TYPE_GRAY && bit_depth < 8) {
-        png_set_expand_gray_1_2_4_to_8(png_ptr);
-    }
-    if (png_get_valid(png_ptr, info_ptr, PNG_INFO_tRNS)) {
-        png_set_tRNS_to_alpha(png_ptr);
-    }
-    if (color_type == PNG_COLOR_TYPE_GRAY || color_type == PNG_COLOR_TYPE_GRAY_ALPHA) {
-        png_set_gray_to_rgb(png_ptr);
-    }
-    if (!(color_type & PNG_COLOR_MASK_ALPHA)) {
-        png_set_filler(png_ptr, 0xFF, PNG_FILLER_AFTER);
-    }
-
-    png_read_update_info(png_ptr, info_ptr);
 
     image->width = (uint32_t)width;
     image->height = (uint32_t)height;
-    image->pixels = malloc((size_t)width * (size_t)height * 4u);
-    if (!image->pixels) {
-        png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
-        fclose(fp);
-        if (error_msg && error_size > 0) {
-            snprintf(error_msg, error_size, "Out of memory loading PNG");
-        }
-        return false;
-    }
-
-    png_bytep *rows = malloc(sizeof(png_bytep) * (size_t)height);
-    if (!rows) {
-        png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
-        fclose(fp);
-        c64script_free_image(image);
-        if (error_msg && error_size > 0) {
-            snprintf(error_msg, error_size, "Out of memory loading PNG rows");
-        }
-        return false;
-    }
-
-    for (size_t y = 0; y < (size_t)height; y++) {
-        rows[y] = image->pixels + (y * (size_t)width * 4u);
-    }
-    png_read_image(png_ptr, rows);
-    png_read_end(png_ptr, NULL);
-
-    free(rows);
-    png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
-    fclose(fp);
+    image->pixels = pixels;
     return true;
 }
 
@@ -220,60 +145,13 @@ static bool c64script_write_png_rgba(const char *path, uint32_t width, uint32_t 
         return false;
     }
 
-    FILE *fp = fopen(path, "wb");
-    if (!fp) {
-        if (error_msg && error_size > 0) {
-            snprintf(error_msg, error_size, "Failed to open PNG for writing: %s", path);
-        }
-        return false;
-    }
-
-    png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
-    png_infop info_ptr = png_create_info_struct(png_ptr);
-    if (!png_ptr || !info_ptr) {
-        if (png_ptr) {
-            png_destroy_write_struct(&png_ptr, NULL);
-        }
-        fclose(fp);
-        if (error_msg && error_size > 0) {
-            snprintf(error_msg, error_size, "Failed to initialize PNG writer");
-        }
-        return false;
-    }
-
-    if (setjmp(png_jmpbuf(png_ptr))) {
-        png_destroy_write_struct(&png_ptr, &info_ptr);
-        fclose(fp);
+    const int stride = (int)width * 4;
+    if (!stbi_write_png(path, (int)width, (int)height, 4, pixels, stride)) {
         if (error_msg && error_size > 0) {
             snprintf(error_msg, error_size, "Failed to write PNG: %s", path);
         }
         return false;
     }
-
-    png_init_io(png_ptr, fp);
-    png_set_IHDR(png_ptr, info_ptr, width, height, 8, PNG_COLOR_TYPE_RGBA, PNG_INTERLACE_NONE,
-                 PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
-    png_write_info(png_ptr, info_ptr);
-
-    png_bytep *rows = malloc(sizeof(png_bytep) * (size_t)height);
-    if (!rows) {
-        png_destroy_write_struct(&png_ptr, &info_ptr);
-        fclose(fp);
-        if (error_msg && error_size > 0) {
-            snprintf(error_msg, error_size, "Out of memory writing PNG rows");
-        }
-        return false;
-    }
-
-    for (size_t y = 0; y < (size_t)height; y++) {
-        rows[y] = (png_bytep)(pixels + (y * (size_t)width * 4u));
-    }
-    png_write_image(png_ptr, rows);
-    png_write_end(png_ptr, NULL);
-
-    free(rows);
-    png_destroy_write_struct(&png_ptr, &info_ptr);
-    fclose(fp);
     return true;
 }
 
@@ -357,8 +235,6 @@ static bool c64script_compare_images(const c64script_image_rgba_t *actual, const
     return true;
 }
 
-#endif /* C64_HAVE_PNG */
-
 static size_t http_write_callback(char *ptr, size_t size, size_t nmemb, void *userdata)
 {
     size_t total = size * nmemb;
@@ -390,7 +266,6 @@ bool c64script_dispatch_io(c64script_runtime_t *runtime, const c64script_instruc
 #else
     switch (instr->opcode) {
     case OP_ASSERT_IMAGE_EQUALS: {
-#ifdef C64_HAVE_PNG
         c64script_value_t tolerance_val;
         c64script_value_t expected_path_val;
         c64script_value_t actual_path_val;
@@ -492,10 +367,6 @@ bool c64script_dispatch_io(c64script_runtime_t *runtime, const c64script_instruc
         c64script_free_image(&actual);
         c64script_free_image(&expected);
         break;
-#else
-        snprintf(runtime->error_msg, sizeof(runtime->error_msg), "PNG support not available");
-        return false;
-#endif
     }
 
     case OP_RUNLOCAL: {

@@ -16,9 +16,10 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64script_test_stubs.h"
 
 #include <assert.h>
-#ifdef C64_HAVE_PNG
-#include <png.h>
-#endif
+// stb_image_write is vendored at src/video/. The implementation lives in
+// c64-script-vm-dispatch-io.c (linked into this test binary), so here we only
+// pull in the declarations.
+#include "stb_image_write.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -98,40 +99,12 @@ static void remove_temp_dir(const char *path)
 #endif
 }
 
-#ifdef C64_HAVE_PNG
 static void write_test_png_rgba(const char *path, uint32_t width, uint32_t height, const uint8_t *pixels)
 {
-    FILE *fp = fopen(path, "wb");
-    assert(fp != NULL);
-
-    png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
-    assert(png_ptr != NULL);
-    png_infop info_ptr = png_create_info_struct(png_ptr);
-    assert(info_ptr != NULL);
-
-    if (setjmp(png_jmpbuf(png_ptr))) {
-        assert(!"Failed to write test PNG");
-    }
-
-    png_init_io(png_ptr, fp);
-    png_set_IHDR(png_ptr, info_ptr, width, height, 8, PNG_COLOR_TYPE_RGBA, PNG_INTERLACE_NONE,
-                 PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
-    png_write_info(png_ptr, info_ptr);
-
-    png_bytep *rows = calloc((size_t)height, sizeof(png_bytep));
-    assert(rows != NULL);
-    for (uint32_t y = 0; y < height; y++) {
-        rows[y] = (png_bytep)(pixels + ((size_t)y * (size_t)width * 4u));
-    }
-
-    png_write_image(png_ptr, rows);
-    png_write_end(png_ptr, NULL);
-
-    free(rows);
-    png_destroy_write_struct(&png_ptr, &info_ptr);
-    fclose(fp);
+    const int stride = (int)width * 4;
+    int ok = stbi_write_png(path, (int)width, (int)height, 4, pixels, stride);
+    assert(ok && "Failed to write test PNG");
 }
-#endif /* C64_HAVE_PNG */
 
 static void unset_test_env_or_die(const char *name)
 {
@@ -1258,7 +1231,6 @@ TEST(execute_obs_screenshot_propagates_stub_failure)
     remove_temp_dir(test_dir);
 }
 
-#ifdef C64_HAVE_PNG
 TEST(execute_assert_image_equals_succeeds_for_identical_pngs)
 {
     const char *source = "ASSERT IMAGE_EQUALS \"actual.png\", \"expected.png\" TOLERANCE 0\nSTOP\n";
@@ -1399,7 +1371,6 @@ TEST(execute_assert_image_equals_detects_dimension_mismatch)
     cleanup_temp_path(diff_path);
     remove_temp_dir(test_dir);
 }
-#endif /* C64_HAVE_PNG */
 
 // ============================================================================
 // INTEGRATION TESTS FROM SPEC EXAMPLES
@@ -1657,11 +1628,9 @@ int main(void)
     RUN_TEST(execute_obs_wait_frames_propagates_stub_failure);
     RUN_TEST(execute_obs_screenshot_resolves_relative_path);
     RUN_TEST(execute_obs_screenshot_propagates_stub_failure);
-#ifdef C64_HAVE_PNG
     RUN_TEST(execute_assert_image_equals_succeeds_for_identical_pngs);
     RUN_TEST(execute_assert_image_equals_writes_diff_on_mismatch);
     RUN_TEST(execute_assert_image_equals_detects_dimension_mismatch);
-#endif /* C64_HAVE_PNG */
 
     printf("\n--- Integration Tests from Spec Examples ---\n");
     RUN_TEST(integration_example_c_for_loop);

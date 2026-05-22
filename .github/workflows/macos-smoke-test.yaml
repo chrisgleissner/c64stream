@@ -1,0 +1,199 @@
+name: macOS Smoke Test (Reusable)
+
+# Validates the macOS plugin package against a clean OBS Studio install.
+# Catches missing transitive frameworks (e.g. @rpath/png.framework — see
+# issue #116) that don't show up in the build job because obs-deps prebuilts
+# fulfil dependencies the end-user's OBS install does not ship.
+
+on:
+  workflow_call:
+    inputs:
+      artifact-pattern:
+        description: 'Artifact pattern to download'
+        required: true
+        type: string
+      obs-version:
+        description: 'OBS Studio version (must match a GitHub release tag)'
+        required: true
+        type: string
+
+jobs:
+  smoke-test:
+    name: macOS Smoke Test 💨
+    runs-on: macos-15
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Download Plugin Artifact 📥
+        uses: actions/download-artifact@v4
+        with:
+          pattern: ${{ inputs.artifact-pattern }}
+          path: artifacts
+
+      - name: Locate Plugin Package 📦
+        id: locate
+        run: |
+          set -euo pipefail
+          pkg=$(find artifacts -type f -name "*-macos-universal.pkg" | head -n 1)
+          tarball=$(find artifacts -type f -name "*-macos-universal.tar.xz" | head -n 1)
+          if [[ -n "${pkg}" ]]; then
+            echo "Using .pkg installer: ${pkg}"
+            echo "package=${pkg}" >> "$GITHUB_OUTPUT"
+            echo "kind=pkg" >> "$GITHUB_OUTPUT"
+          elif [[ -n "${tarball}" ]]; then
+            echo "Using .tar.xz bundle: ${tarball} (PR build, no .pkg)"
+            echo "package=${tarball}" >> "$GITHUB_OUTPUT"
+            echo "kind=tarball" >> "$GITHUB_OUTPUT"
+          else
+            echo "❌ No macOS package found under artifacts/"
+            find artifacts -type f -print
+            exit 1
+          fi
+
+      - name: Install OBS Studio 🎥
+        env:
+          OBS_VERSION: ${{ inputs.obs-version }}
+        run: |
+          set -euo pipefail
+          arch="$(uname -m)"
+          case "${arch}" in
+            arm64)  obs_variant="macOS-Apple" ;;
+            x86_64) obs_variant="macOS-Intel" ;;
+            *) echo "❌ Unsupported runner arch: ${arch}"; exit 1 ;;
+          esac
+
+          dmg_url="https://github.com/obsproject/obs-studio/releases/download/${OBS_VERSION}/OBS-Studio-${OBS_VERSION}-${obs_variant}.dmg"
+          echo "Downloading OBS from ${dmg_url}"
+          curl -L --fail --silent --show-error -o obs.dmg "${dmg_url}"
+
+          mountpoint="/Volumes/OBS-smoke-test"
+          hdiutil attach -nobrowse -readonly -mountpoint "${mountpoint}" obs.dmg
+
+          # OBS .dmg layout is just "OBS.app" at the root.
+          rm -rf "/Applications/OBS.app"
+          cp -R "${mountpoint}/OBS.app" "/Applications/OBS.app"
+
+          hdiutil detach "${mountpoint}" -force
+
+          echo "OBS install contents:"
+          ls "/Applications/OBS.app/Contents/Frameworks" | head -40
+
+      - name: Install Plugin 🔌
+        env:
+          PACKAGE: ${{ steps.locate.outputs.package }}
+          KIND: ${{ steps.locate.outputs.kind }}
+        run: |
+          set -euo pipefail
+          user_plugins="${HOME}/Library/Application Support/obs-studio/plugins"
+          mkdir -p "${user_plugins}"
+
+          if [[ "${KIND}" == "pkg" ]]; then
+            # Mirror the README install flow: drop quarantine + sudo installer.
+            xattr -dr com.apple.quarantine "${PACKAGE}" || true
+            sudo installer -pkg "${PACKAGE}" -target /
+            # The .pkg drops c64stream.plugin under /Library/Application Support;
+            # copy it to the user scope (same as the README instructions).
+            sudo cp -R "/Library/Application Support/obs-studio/plugins/c64stream.plugin" \
+              "${user_plugins}/"
+          else
+            # PR/tarball flow: extract directly to user plugins dir.
+            tar -xJf "${PACKAGE}" -C "${user_plugins}"
+          fi
+
+          chmod -R 755 "${user_plugins}/c64stream.plugin"
+          echo "Installed plugin at:"
+          ls -la "${user_plugins}/c64stream.plugin/Contents/MacOS/"
+
+      - name: Inspect Dynamic Linkage 🔍
+        id: inspect
+        run: |
+          set -euo pipefail
+          plugin_binary="${HOME}/Library/Application Support/obs-studio/plugins/c64stream.plugin/Contents/MacOS/c64stream"
+          if [[ ! -f "${plugin_binary}" ]]; then
+            echo "❌ Plugin binary not found at: ${plugin_binary}"
+            exit 1
+          fi
+
+          echo "=== otool -L ==="
+          otool -L "${plugin_binary}"
+          echo
+
+          # Every @rpath/*.framework reference must be resolvable inside the
+          # OBS app bundle. Anything pointing at a framework that isn't shipped
+          # with OBS would cause the @rpath dlopen failure from issue #116.
+          obs_frameworks="/Applications/OBS.app/Contents/Frameworks"
+          missing=0
+          while IFS= read -r line; do
+            ref="$(echo "${line}" | awk '{print $1}')"
+            case "${ref}" in
+              @rpath/*.framework/*)
+                framework="${ref#@rpath/}"
+                framework="${framework%%/*}"
+                if [[ ! -d "${obs_frameworks}/${framework}" ]]; then
+                  echo "❌ Missing dependency: ${ref}"
+                  echo "   Framework '${framework}' is not in ${obs_frameworks}"
+                  missing=1
+                fi
+                ;;
+            esac
+          done < <(otool -L "${plugin_binary}" | tail -n +2)
+
+          if [[ "${missing}" -ne 0 ]]; then
+            echo
+            echo "❌ Plugin references one or more @rpath frameworks that OBS does not ship."
+            echo "   These would manifest as 'Library not loaded' errors for end users."
+            exit 1
+          fi
+          echo "✅ All @rpath/*.framework references are present in OBS"
+
+      - name: Test Plugin dlopen 🧪
+        run: |
+          set -euo pipefail
+          plugin_binary="${HOME}/Library/Application Support/obs-studio/plugins/c64stream.plugin/Contents/MacOS/c64stream"
+
+          cat > /tmp/dlopen_test.c <<'EOF'
+          #include <dlfcn.h>
+          #include <stdio.h>
+          #include <stdlib.h>
+
+          int main(int argc, char **argv) {
+              if (argc < 2) {
+                  fprintf(stderr, "usage: %s <dylib>\n", argv[0]);
+                  return 2;
+              }
+              void *handle = dlopen(argv[1], RTLD_NOW | RTLD_LOCAL);
+              if (!handle) {
+                  fprintf(stderr, "dlopen failed: %s\n", dlerror());
+                  return 1;
+              }
+              fprintf(stdout, "dlopen succeeded for %s\n", argv[1]);
+              dlclose(handle);
+              return 0;
+          }
+          EOF
+
+          clang -o /tmp/dlopen_test /tmp/dlopen_test.c
+
+          # Mirror how OBS itself resolves dependencies: it adds its own
+          # Frameworks directory to the loader rpath. We do the same so libobs
+          # and friends are discoverable.
+          export DYLD_FRAMEWORK_PATH="/Applications/OBS.app/Contents/Frameworks"
+          export DYLD_LIBRARY_PATH="/Applications/OBS.app/Contents/Frameworks"
+          export DYLD_PRINT_LIBRARIES=1
+
+          if ! /tmp/dlopen_test "${plugin_binary}" 2> dlopen.log; then
+            echo "❌ Plugin dlopen failed:"
+            cat dlopen.log
+            exit 1
+          fi
+
+          echo "✅ Plugin loaded successfully via dlopen"
+
+      - name: Smoke Test Summary 📊
+        if: always()
+        run: |
+          echo "### macOS Smoke Test" >> $GITHUB_STEP_SUMMARY
+          echo "- OBS version: ${{ inputs.obs-version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Runner arch: $(uname -m)" >> $GITHUB_STEP_SUMMARY
+          echo "- Result: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
