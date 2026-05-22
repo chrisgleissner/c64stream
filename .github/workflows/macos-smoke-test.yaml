@@ -9,17 +9,17 @@ on:
   workflow_call:
     inputs:
       artifact-pattern:
-        description: 'Artifact pattern to download'
+        description: "Artifact pattern to download"
         required: true
         type: string
       obs-version:
-        description: 'OBS Studio version (must match a GitHub release tag)'
+        description: "OBS Studio version (must match a GitHub release tag)"
         required: true
         type: string
 
 jobs:
   smoke-test:
-    name: macOS Smoke Test 💨
+    name: macOS Smoke Test (OBS ${{ inputs.obs-version }}) 💨
     runs-on: macos-15
     defaults:
       run:
