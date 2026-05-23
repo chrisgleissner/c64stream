@@ -82,7 +82,7 @@ format_seconds_to_timestamp() {
 
 # Stop real C64 Ultimate device from streaming to prevent cross-pollution
 stop_real_c64_streaming() {
-    local c64_host="c64u"
+    local c64_host="${C64_DEVICE_HOST:-c64u}"
     local reset_endpoint="/v1/machine:reset"
     local reset_method="PUT"
 

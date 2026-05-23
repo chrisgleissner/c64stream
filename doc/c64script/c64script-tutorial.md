@@ -240,7 +240,7 @@ sequences:
 LOG "Resetting and typing a tiny BASIC program"
 
 RESET
-WAIT 3s
+WAIT 5s
 
 TYPE "10 PRINT \"HELLO FROM C64SCRIPT\""
 KEY 13
@@ -316,9 +316,9 @@ already exist.
 
 ## A small image-based test
 
-This is where C64Script becomes more than a stream toy. This small smoke test
-captures a frame and compares the PNG with itself, proving that screenshots and
-image assertions are wired up:
+Sometimes you want to check the video output of the C64 and compare it with a known expected state, e.g. as part of writing tests.
+
+The following script captures a frame and compares the PNG with itself, proving that screenshots and image assertions are wired up:
 
 ```basic
 LOG "Preparing image check"
@@ -396,7 +396,7 @@ For more detail, see the [C64Script debugging guide](c64script-debugging.md).
 
 ## Habits that make scripts reliable
 
-Small pauses and explicit checks make automation feel calm rather than spooky:
+Small pauses and explicit checks improve the reliability of your scripts:
 
 - After `RESET`, wait a few seconds before typing.
 - After mounting a disk, wait briefly before `LOAD`, `RUN`, or `AUTOSTART`.
@@ -410,8 +410,10 @@ Small pauses and explicit checks make automation feel calm rather than spooky:
 
 ## A complete starter script
 
-Here is a compact show-opener that resets the machine, types a tiny BASIC
-program, changes the stream look, records for a short period, and then tidies up:
+Let's put some of what we've learned to use.
+
+Here is a script that resets the machine, types a tiny BASIC program, changes the stream look, records for a short period, and then leaves
+the C64 in a known reset state:
 
 ```basic
 REM show-opener.c64script
@@ -420,7 +422,7 @@ LOGFILE "show-opener.log" TRUNCATE
 LOG "Show opener started at " + TIME$()
 
 RESET
-WAIT 3s
+WAIT 5s
 
 TYPE "10 PRINT \"C64 STREAM IS LIVE\""
 KEY 13
@@ -439,11 +441,9 @@ WAIT 5s
 OBS RECORDING STOP
 
 EFFECT "Default"
-LOG "Show opener finished"
+LOG "Show opener finished; resetting machine"
+RESET
 ```
-
-It is not magic. It is just a patient operator who never forgets the next step.
-That is exactly what automation is good at.
 
 ## Where to go next
 
@@ -451,8 +451,7 @@ Congratulations! You've reached the end of this tutorial.
 
 Here are a few ideas on how to continue your journey:
 
-- You may want to read the shipped scripts in [`data/scripts/`](../../data/scripts/) and adapt one
-small thing at a time.
+- You may want to read the shipped scripts in [`data/scripts/`](../../data/scripts/) and adapt one small thing at a time.
 - The runnable examples in this tutorial are also covered by
 the local hardware E2E scenario [`ntsc_script_tutorial`](../../tests/e2e/scenarios/ntsc_script_tutorial/scenario.yaml).
 - Finally, when you need the exact grammar, command list, limits, or full reference

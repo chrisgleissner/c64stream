@@ -22,7 +22,7 @@ See <https://www.gnu.org/licenses/> for details.
 struct c64_rest_client {
     char *base_url;
     char *password;
-    char error_msg[512];
+    char error_msg[2048];
     CURL *curl;
 };
 
@@ -523,8 +523,9 @@ void c64_rest_client_destroy(c64_rest_client_t *client)
 }
 
 // Perform HTTP request
-static bool http_request(c64_rest_client_t *client, const char *method, const char *endpoint, const char *query_params,
-                         const uint8_t *body_data, size_t body_size, response_buffer_t *response)
+static bool http_request_ex(c64_rest_client_t *client, const char *method, const char *endpoint,
+                            const char *query_params, const uint8_t *body_data, size_t body_size,
+                            response_buffer_t *response, bool accept_reset_close)
 {
     if (!client || !client->curl || !method || !endpoint) {
         C64_LOG_ERROR(REST_LOG_PREFIX "http_request called with invalid parameters");
@@ -593,7 +594,14 @@ static bool http_request(c64_rest_client_t *client, const char *method, const ch
     }
 
     if (res != CURLE_OK) {
-        snprintf(client->error_msg, sizeof(client->error_msg), "HTTP request failed: %s", curl_easy_strerror(res));
+        if (accept_reset_close && (res == CURLE_RECV_ERROR || res == CURLE_GOT_NOTHING)) {
+            C64_LOG_WARNING(REST_LOG_PREFIX "HTTP %s %s closed the connection during reset (curl %d): %s", method, url,
+                            (int)res, curl_easy_strerror(res));
+            client->error_msg[0] = '\0';
+            return true;
+        }
+        snprintf(client->error_msg, sizeof(client->error_msg), "HTTP %s %s failed (curl %d): %s", method, url, (int)res,
+                 curl_easy_strerror(res));
         C64_LOG_ERROR(REST_LOG_PREFIX "%s", client->error_msg);
         return false;
     }
@@ -604,12 +612,19 @@ static bool http_request(c64_rest_client_t *client, const char *method, const ch
     C64_LOG_DEBUG(REST_LOG_PREFIX "HTTP response code: %ld", http_code);
 
     if (http_code < 200 || http_code >= 300) {
-        snprintf(client->error_msg, sizeof(client->error_msg), "HTTP error %ld", http_code);
+        snprintf(client->error_msg, sizeof(client->error_msg), "HTTP %s %s returned status %ld", method, url,
+                 http_code);
         C64_LOG_ERROR(REST_LOG_PREFIX "%s", client->error_msg);
         return false;
     }
 
     return true;
+}
+
+static bool http_request(c64_rest_client_t *client, const char *method, const char *endpoint, const char *query_params,
+                         const uint8_t *body_data, size_t body_size, response_buffer_t *response)
+{
+    return http_request_ex(client, method, endpoint, query_params, body_data, body_size, response, false);
 }
 
 static bool request_json(c64_rest_client_t *client, const char *method, const char *endpoint, const char *query_params,
@@ -652,7 +667,7 @@ bool c64_rest_reset(c64_rest_client_t *client)
     }
 
     C64_LOG_DEBUG(REST_LOG_PREFIX "Reset machine");
-    return http_request(client, "PUT", "/v1/machine:reset", NULL, NULL, 0, NULL);
+    return http_request_ex(client, "PUT", "/v1/machine:reset", NULL, NULL, 0, NULL, true);
 }
 
 bool c64_rest_reboot(c64_rest_client_t *client)

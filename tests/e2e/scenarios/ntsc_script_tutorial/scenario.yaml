@@ -8,6 +8,7 @@ ci_skip_reason: "Requires a real C64 Ultimate device (hostname: c64u)"
 csv_max_rows: 6000
 obs_start_recording: false
 skip_frame_logic_validation: true
+disable_pops: true
 script_completion_timeout: 120
 cleanup_paths:
   - /tmp/c64stream-tutorial-current-frame.png

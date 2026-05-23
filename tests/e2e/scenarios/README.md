@@ -69,6 +69,11 @@ tolerances:
 # Optional: skip the shared frame-sequence validator when the scenario intentionally
 # changes the marker footprint/placement and uses targeted assertions instead.
 skip_frame_logic_validation: true
+
+# Optional: disable generated A/V sync pops and skip pop validation. For device
+# scenarios, the runner also stops streams and resets the C64U before/after the run
+# so stale av-sync PRGs from previous scenarios cannot pollute the stream.
+disable_pops: true
 ```
 
 ### Available Assertions

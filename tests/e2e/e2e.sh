@@ -105,8 +105,9 @@ main() {
 
     setup_process_priority
 
-    # CRITICAL: Stop real C64 device from streaming to prevent cross-pollution
-    # Only send reset for the device test to avoid disrupting the real C64U unnecessarily
+    # CRITICAL: stop real C64 device before the dedicated av-sync device test.
+    # disable_pops device cleanup is handled inside e2e.py so direct Python runs
+    # get the same stale-pop protection.
     if [[ "${SCENARIO}" == "ntsc_default_avsync_device" ]]; then
         stop_real_c64_streaming
     fi
@@ -137,7 +138,7 @@ main() {
     # Stop resource monitoring before generating final outputs
     stop_resource_monitoring
 
-    # Clean up real C64 device after device test
+    # Clean up real C64 device after the dedicated av-sync device test.
     if [[ "${SCENARIO}" == "ntsc_default_avsync_device" ]]; then
         stop_real_c64_streaming
     fi

@@ -75,7 +75,7 @@ PALETTECOLOR 6, 0, 0, 170
 REM Keyboard injection. Requires the local C64 Ultimate device.
 LOG "Resetting and typing a tiny BASIC program"
 RESET
-WAIT 3s
+WAIT 5s
 TYPE "10 PRINT \"HELLO FROM C64SCRIPT\""
 KEY 13
 WAIT 500ms
@@ -128,7 +128,7 @@ WRITEFILE "/tmp/c64stream-tutorial-last-run.txt", RUN_AT$ TRUNCATE
 REM Complete starter script flow.
 LOG "Show opener started at " + TIME$()
 RESET
-WAIT 3s
+WAIT 5s
 TYPE "10 PRINT \"C64 STREAM IS LIVE\""
 KEY 13
 WAIT 500ms
@@ -143,7 +143,8 @@ OBS RECORDING START
 WAIT 5s
 OBS RECORDING STOP
 EFFECT "Default"
-LOG "Show opener finished"
+LOG "Show opener finished; resetting machine"
+RESET
 
 LOG "Tutorial walkthrough completed"
 STOP
