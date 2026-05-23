@@ -276,7 +276,7 @@ for repeatable show setups:
 "c64u:/your/path/tune.sid" SONGNR 0` plays a SID.
 
 Use paths that really exist on your device, or use local files from
-the OBS computer when that suits your workflow better.
+the OBS computer if you prefer.
 
 Some commands also have underscore aliases, such as `PLAY_SID`, `RUN_PRG`,
 `MOUNT_DISK`, `RUN_LOCAL`, and `PALETTE_COLOR`. The compact forms above match the
@@ -394,14 +394,14 @@ For a first debugging pass:
 
 For more detail, see the [C64Script debugging guide](c64script-debugging.md).
 
-## Habits that make scripts reliable
+## Creating reliable scripts
 
 Small pauses and explicit checks improve the reliability of your scripts:
 
 - After `RESET`, wait a few seconds before typing.
 - After mounting a disk, wait briefly before `LOAD`, `RUN`, or `AUTOSTART`.
 - Before screenshots, use `OBS WAIT FRAMES`.
-- Keep network-heavy scripts deliberate; REST calls can fail or time out.
+- REST calls can fail or time out. Retry if needed and don't assume success.
 - Use `LOG` before commands that change machine state.
 - Avoid `POWEROFF` in experiments unless you really mean it.
 - Put recordings in a clear `START` / `STOP` pair.
