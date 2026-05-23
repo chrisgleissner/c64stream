@@ -31,6 +31,7 @@ COUNT = VAL(ENV("EFFECT_COUNT", "3"))
 LOG "Running " + STR$(COUNT) + " effect cycles"
 
 REM Labels and GOTO.
+TARGET_COUNT = COUNT
 COUNT = 0
 AGAIN:
     COUNT = COUNT + 1
@@ -39,7 +40,7 @@ AGAIN:
     WAIT 1s
     EFFECT "Green Monitor"
     WAIT 1s
-    IF COUNT < 3 THEN GOTO AGAIN
+    IF COUNT < TARGET_COUNT THEN GOTO AGAIN
 EFFECT "Default"
 
 REM FOR/NEXT.

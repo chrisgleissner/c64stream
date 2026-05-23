@@ -269,9 +269,14 @@ Ultimate commands can use paths on the device with the `c64u:` prefix, or local
 files from the OBS computer where supported. Device paths are especially useful
 for repeatable show setups:
 
-`DRIVE_MOUNT "c64u:/your/path/demo.d64"` mounts a disk image, `RUNPRG
-"c64u:/your/path/intro.prg"` runs a PRG, and `PLAYSID
-"c64u:/your/path/tune.sid" SONGNR 0` plays a SID.
+```basic
+DRIVE_MOUNT "c64u:/your/path/demo.d64"
+RUNPRG "c64u:/your/path/intro.prg"
+PLAYSID "c64u:/your/path/tune.sid" SONGNR 0
+```
+
+`DRIVE_MOUNT` mounts a disk image, `RUNPRG` runs a PRG, and `PLAYSID` plays a
+SID.
 
 Use paths that really exist on your device, or use local files from
 the OBS computer if you prefer.
