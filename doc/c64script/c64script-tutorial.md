@@ -95,11 +95,9 @@ The important ideas are:
 - A script normally finishes when it reaches the end. You can use `STOP` or `END`
   when you want to be explicit.
 
-## Logging: leave breadcrumbs for future you
+## Logging
 
-When you are automating a live stream, clear logging is not decoration. It is how
-you know what happened while your attention was on the machine, chat, audio, or
-that one disk image that always loads slowly.
+You can use logging to better understand what's going on whilst a script runs. This is also helpful for debugging if something goes wrong.
 
 ```basic
 LOGFILE "my-session.log" TRUNCATE
@@ -153,7 +151,7 @@ LOG "Running " + STR$(COUNT) + " effect cycles"
 That `ENV()` example is handy when you want the same script to run with different
 settings from a test runner or shell.
 
-## Loops without line-number soup
+## Loops without line-numbers
 
 Line numbers are supported, but you do not need them. Labels are usually easier
 to read:
@@ -374,9 +372,9 @@ WRITEFILE "last-run.txt", RUN_AT$ TRUNCATE
 These features are powerful. Treat scripts as code: only run scripts you trust,
 and be careful with paths, HTTP endpoints, and local commands.
 
-## Debugging without losing the plot
+## Debugging your scripts
 
-The plugin properties include script controls:
+The built in small debugger allows you to troubleshoot common script issues:
 
 - **Start / Stop** to run or halt a script;
 - **Pause / Resume** to inspect what is happening;
