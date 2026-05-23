@@ -458,4 +458,4 @@ the local hardware E2E scenario [`ntsc_script_tutorial`](../../tests/e2e/scenari
 - Finally, when you need the exact grammar, command list, limits, or full reference
 examples, use the [C64Script language specification](c64script-spec.md).
 
-Above all, have fun with C64 Script!
+Above all, have fun with C64Script!
