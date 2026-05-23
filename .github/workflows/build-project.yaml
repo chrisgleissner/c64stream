@@ -279,8 +279,10 @@ jobs:
 
           dockerfile_path=".github/docker/${{ matrix.dockerfile }}"
           image_tag="ghcr.io/${{ github.repository }}/${{ matrix.image_name }}:latest"
+          echo "fallback_allowed=false" >> $GITHUB_OUTPUT
 
           if docker manifest inspect "${image_tag}" >/dev/null 2>&1; then
+            echo "image_exists=true" >> $GITHUB_OUTPUT
             docker pull "${image_tag}" >/dev/null 2>&1 || true
 
             created_timestamp=$(docker inspect "${image_tag}" --format='{{.Created}}' 2>/dev/null || echo "")
@@ -318,12 +320,14 @@ jobs:
                 exit 0
               else
                 echo "needs_build=true" >> $GITHUB_OUTPUT
+                echo "fallback_allowed=true" >> $GITHUB_OUTPUT
                 echo "🔄 Image is ${age_days}d ${age_hours}h old - rebuilding for freshness"
                 exit 0
               fi
             fi
           fi
 
+          echo "image_exists=false" >> $GITHUB_OUTPUT
           echo "needs_build=true" >> $GITHUB_OUTPUT
           echo "🔨 Image not found - will build new image"
 
@@ -340,7 +344,9 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and Push Docker Image 🚀
+        id: build
         if: steps.check.outputs.needs_build == 'true'
+        continue-on-error: ${{ steps.check.outputs.fallback_allowed == 'true' }}
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -350,6 +356,24 @@ jobs:
           tags: ghcr.io/${{ github.repository }}/${{ matrix.image_name }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Verify Docker Image Availability ✅
+        if: always()
+        run: |
+          : Verify Docker Image Availability for ${{ matrix.display_name }} ✅
+
+          image_tag="ghcr.io/${{ github.repository }}/${{ matrix.image_name }}:latest"
+
+          if [[ "${{ steps.build.outcome }}" == "failure" ]]; then
+            if [[ "${{ steps.check.outputs.fallback_allowed }}" == "true" ]] && docker manifest inspect "${image_tag}" >/dev/null 2>&1; then
+              echo "⚠️ Rebuild failed for ${{ matrix.display_name }}, using the previously published image instead."
+              echo "⚠️ Rebuild failed for ${{ matrix.display_name }}, using the previously published image instead." >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+
+            echo "❌ Failed to publish ${image_tag} and no safe fallback image is available."
+            exit 1
+          fi
 
   # Step 2: Ubuntu Build (uses Docker image)
   ubuntu-build:
