@@ -1,18 +1,12 @@
 # C64Script Tutorial
 
-C64Script is the automation language built into C64 Stream. It lets you control C64 Stream, apply effects, type into the C64, start recordings, run Ultimate 64 programs, and even make simple image-based checks.
+C64Script is the scripting language built into C64 Stream.
 
-If you remember typing something like this:
+It is used to automate the parts of a C64 streaming or capture setup that are otherwise repetitive: changing effects, typing commands into the C64, starting recordings, launching programs on the Ultimate 64, waiting for specific timing points, and checking captured output. 
 
-```text
-10 PRINT "HELLO"
-20 GOTO 10
-```
+The language uses a line-oriented style that will feel natural to anyone who has used C64 BASIC.
 
-you already know the spirit of C64Script. It feels familiar, but it is aimed at a
-modern task: making your C64 Ultimate behave like you want while OBS records or streams it.
-
-This tutorial is a getting started guide. If you want to know more, then the complete language rules are described by the [C64Script language specification](c64script-spec.md), which is the source of truth when you need exact syntax, limits, or edge-case behavior.
+This tutorial introduces the practical parts of the language by building from simple scripts to more useful automation examples. For full language rules, please see the [C64Script language specification](c64script-spec.md).
 
 ## What you can automate
 
