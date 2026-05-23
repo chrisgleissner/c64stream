@@ -133,7 +133,7 @@ LOG TITLE$
 LOG "Count is " + STR$(COUNT)
 ```
 
-The traditional BASIC suffixes still mean something:
+Some examples:
 
 | Form        | Meaning                | Example                            |
 | ----------- | ---------------------- | ---------------------------------- |
@@ -273,9 +273,9 @@ for repeatable show setups:
 
 `DRIVE_MOUNT "c64u:/your/path/demo.d64"` mounts a disk image, `RUNPRG
 "c64u:/your/path/intro.prg"` runs a PRG, and `PLAYSID
-"c64u:/your/path/tune.sid" SONGNR 0` plays a SID. Those examples are deliberately
-shown as patterns, not ready-made scripts, because every Ultimate filesystem is
-different. Use paths that really exist on your device, or use local files from
+"c64u:/your/path/tune.sid" SONGNR 0` plays a SID.
+
+Use paths that really exist on your device, or use local files from
 the OBS computer when that suits your workflow better.
 
 Some commands also have underscore aliases, such as `PLAY_SID`, `RUN_PRG`,
