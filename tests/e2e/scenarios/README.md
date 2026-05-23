@@ -84,6 +84,7 @@ skip_frame_logic_validation: true
 | `palette_mapping`   | Verify palette colors match expected VPL (16-color watch region) |
 | `palette_stability` | Verify palette colors don't drift over time                      |
 | `sharp_pixels`      | Verify pixel sharpness when effects disabled                     |
+| `script_status`     | Verify an auto-started C64Script completed successfully          |
 
 ## Available Scenarios
 
@@ -107,6 +108,7 @@ skip_frame_logic_validation: true
 | ntsc_palette_muted           | NTSC   | Default        | video_quality, audio, palette_mapping            |
 | ntsc_delay_buffer500ms       | NTSC   | Default        | video_quality, audio (buffer test)               |
 | ntsc_preserve_compare        | NTSC   | Default        | video_quality, audio, script_status              |
+| ntsc_script_tutorial         | NTSC   | Default        | script_status (local C64 Ultimate required)      |
 | pal_default                  | PAL    | Default        | video_quality, audio                             |
 
 ## Adding New Scenarios
