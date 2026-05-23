@@ -150,6 +150,7 @@ def main():
     scenario_cleanup_paths = []
     wait_for_script_completion = False
     script_completion_timeout_s = 30.0
+    cleanup_device_host = None
     repo_root = Path(args.test_dir).resolve().parent.parent
     if args.scenario_yaml:
         try:
@@ -158,6 +159,7 @@ def main():
                 network_simulation = scenario_data.get('network_simulation', {})
                 overrides = scenario_data.get('overrides', {}) or {}
                 assertions = scenario_data.get('assertions', []) or []
+                cleanup_device_host = overrides.get('c64_host')
                 if 'obs_start_recording' in scenario_data:
                     obs_start_recording = bool(scenario_data['obs_start_recording'])
                 if 'skip_frame_logic_validation' in scenario_data:
@@ -249,6 +251,7 @@ def main():
         av_sync_tolerance_mode=av_sync_tolerance_mode,
         skip_frame_logic_validation=skip_frame_logic_validation,
         disable_pops=disable_pops,
+        cleanup_device_host=cleanup_device_host,
         wait_for_script_completion=wait_for_script_completion,
         script_completion_timeout_s=script_completion_timeout_s,
     )

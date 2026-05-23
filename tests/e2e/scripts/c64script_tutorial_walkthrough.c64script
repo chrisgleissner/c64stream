@@ -1,0 +1,151 @@
+REM C64Script tutorial walkthrough E2E script
+REM Exercises the runnable examples from doc/c64script/c64script-tutorial.md.
+
+LOGFILE "/tmp/c64stream-tutorial-e2e.log" TRUNCATE
+LOG "Tutorial walkthrough started at " + TIME$()
+
+REM First small script: effects and waits.
+LOG "Starting my first script"
+EFFECT "Classic CRT"
+WAIT 2s
+EFFECT "Green Monitor"
+WAIT 2s
+EFFECT "Default"
+LOG "All done"
+
+REM Logging and tracing.
+LOG "Session started at " + TIME$()
+TRON
+EFFECT "Vintage TV"
+WAIT 2s
+EFFECT "Default"
+TROFF
+LOG "Session finished"
+
+REM Variables, strings, numbers, and ENV.
+COUNT = 3
+TITLE$ = "Welcome back to the breadbin"
+LOG TITLE$
+LOG "Count is " + STR$(COUNT)
+COUNT = VAL(ENV("EFFECT_COUNT", "3"))
+LOG "Running " + STR$(COUNT) + " effect cycles"
+
+REM Labels and GOTO.
+TARGET_COUNT = COUNT
+COUNT = 0
+AGAIN:
+    COUNT = COUNT + 1
+    LOG "Cycle " + STR$(COUNT)
+    EFFECT "Amber Monitor"
+    WAIT 1s
+    EFFECT "Green Monitor"
+    WAIT 1s
+    IF COUNT < TARGET_COUNT THEN GOTO AGAIN
+EFFECT "Default"
+
+REM FOR/NEXT.
+FOR I = 1 TO 3
+    LOG "Pass " + STR$(I)
+    WAIT 500ms
+NEXT I
+
+REM Arrays.
+DIM EFFECTS$(4)
+EFFECTS$(0) = "Default"
+EFFECTS$(1) = "Classic CRT"
+EFFECTS$(2) = "Amber Monitor"
+EFFECTS$(3) = "Green Monitor"
+FOR I = 0 TO 3
+    EFFECT EFFECTS$(I)
+    WAIT 2s
+NEXT I
+
+REM Effects, parameters, palettes, and palette colors.
+PALETTE "Default"
+EFFECT "Classic CRT"
+WAIT 3s
+EFFECTPARAM "preserve_size" 1
+EFFECT "Arcade Cabinet"
+WAIT 3s
+EFFECT "Default"
+PALETTE "Default"
+PALETTECOLOR 0, 0, 0, 0
+PALETTECOLOR 1, 255, 255, 255
+PALETTECOLOR 6, 0, 0, 170
+
+REM Keyboard injection. Requires the local C64 Ultimate device.
+LOG "Resetting and typing a tiny BASIC program"
+RESET
+WAIT 5s
+TYPE "10 PRINT \"HELLO FROM C64SCRIPT\""
+KEY 13
+WAIT 500ms
+TYPE "20 GOTO 10"
+KEY 13
+WAIT 500ms
+TYPE "RUN"
+KEY 13
+
+REM OBS recording control.
+LOG "Starting recording"
+OBS RECORDING START
+EFFECT "Classic CRT"
+WAIT 5s
+OBS RECORDING STOP
+LOG "Recording stopped"
+
+REM Screenshots and image assertions.
+EFFECT "Default"
+OBS WAIT FRAMES 2
+OBS SCREENSHOT TARGET SOURCE PATH "/tmp/c64stream-tutorial-current-frame.png"
+LOG "Preparing image check"
+OBS WAIT FRAMES 10
+OBS SCREENSHOT TARGET SOURCE PATH "/tmp/c64stream-tutorial-current.png"
+ASSERT IMAGE_EQUALS "/tmp/c64stream-tutorial-current.png", "/tmp/c64stream-tutorial-current.png" TOLERANCE 0
+LOG "Image matched"
+
+REM HTTP, local execution, and file I/O.
+HTTP GET "http://c64u/v1/version" STATUS CODE RESPONSE BODY$
+IF CODE <> 200 THEN
+    LOG "Ultimate REST error: " + STR$(CODE)
+    STOP
+ENDIF
+LOG "Ultimate replied: " + BODY$
+
+RUNLOCAL "echo" ARGS "Hello from the host" STATUS EXIT_CODE OUTPUT OUT$
+IF EXIT_CODE <> 0 THEN
+    LOG "RUNLOCAL failed: " + STR$(EXIT_CODE)
+    STOP
+ENDIF
+LOG "Exit code: " + STR$(EXIT_CODE)
+LOG OUT$
+
+WRITEFILE "/tmp/c64stream-tutorial-show-title.txt", "Welcome back to the breadbin" TRUNCATE
+READFILE "/tmp/c64stream-tutorial-show-title.txt", TITLE$
+LOG "Title: " + TITLE$
+RUN_AT$ = "Ran at " + TIME$()
+WRITEFILE "/tmp/c64stream-tutorial-last-run.txt", RUN_AT$ TRUNCATE
+
+REM Complete starter script flow.
+LOG "Show opener started at " + TIME$()
+RESET
+WAIT 5s
+TYPE "10 PRINT \"C64 STREAM IS LIVE\""
+KEY 13
+WAIT 500ms
+TYPE "20 GOTO 10"
+KEY 13
+WAIT 500ms
+TYPE "RUN"
+KEY 13
+EFFECTPARAM "preserve_size" 1
+EFFECT "Classic CRT"
+OBS RECORDING START
+WAIT 5s
+OBS RECORDING STOP
+EFFECT "Default"
+LOG "Show opener finished; resetting machine"
+RESET
+
+LOG "Tutorial walkthrough completed"
+STOP

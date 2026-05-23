@@ -57,6 +57,7 @@ load_scenario() {
         local c64_host
         c64_host=$(grep -m1 "^[[:space:]]*c64_host:" "${scenario_yaml}" | sed 's/^[[:space:]]*c64_host: *//' || true)
         c64_host="${c64_host:-c64u}"
+        C64_DEVICE_HOST="${c64_host}"
         local c64_port
         c64_port=$(grep -m1 "^[[:space:]]*control_port:" "${scenario_yaml}" | sed 's/^[[:space:]]*control_port: *//' || true)
         c64_port="${c64_port:-64}"

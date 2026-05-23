@@ -6,6 +6,7 @@ import sys
 import shutil
 import csv
 import json
+import urllib.request
 from pathlib import Path
 from typing import Optional, Dict
 
@@ -55,6 +56,7 @@ class E2EOrchestrator:
                  av_sync_tolerance_mode = None,
                  skip_frame_logic_validation: bool = False,
                  disable_pops: bool = False,
+                 cleanup_device_host: Optional[str] = None,
                  wait_for_script_completion: bool = False,
                  script_completion_timeout_s: float = 30.0):
 
@@ -75,6 +77,7 @@ class E2EOrchestrator:
         self.full_frame_pop = full_frame_pop
         self.skip_frame_logic_validation = skip_frame_logic_validation
         self.disable_pops = disable_pops
+        self.cleanup_device_host = cleanup_device_host
         self.wait_for_script_completion = wait_for_script_completion
         self.script_completion_timeout_s = script_completion_timeout_s
 
@@ -101,6 +104,7 @@ class E2EOrchestrator:
         try:
             # 1. Prepare Environment
             self.env.prepare()
+            self._cleanup_disabled_pop_device_state()
 
             # 2. Configure OBS
             # Copy E2E properties (record_av_sync=true by default in properties_e2e_*.ini)
@@ -235,10 +239,35 @@ class E2EOrchestrator:
                 self.obs_process.stop()
                 if self.mock_server: self.mock_server.stop()
                 self.xvfb.stop()
+                self._cleanup_disabled_pop_device_state()
             except Exception:
                 pass
 
             self.obs_config.restore_backup()
+
+    def _cleanup_disabled_pop_device_state(self) -> None:
+        """Stop stale A/V pop generators when a real-device scenario disables pops."""
+        if self.packet_source != 'device' or not self.disable_pops:
+            return
+
+        host = self.cleanup_device_host or 'c64u'
+        logger.info("🧹 Resetting real C64 device to clear stale A/V pop generator state")
+
+        for endpoint in (
+            "/v1/streams/video:stop",
+            "/v1/streams/audio:stop",
+            "/v1/streams/debug:stop",
+            "/v1/machine:reset",
+        ):
+            url = f"http://{host}{endpoint}"
+            req = urllib.request.Request(url, method="PUT")
+            try:
+                with urllib.request.urlopen(req, timeout=2.0):
+                    pass
+            except Exception as exc:
+                logger.debug("Device cleanup request failed for %s: %s", endpoint, exc)
+
+        time.sleep(1.0)
 
     def _process_csvs(self) -> Dict[str, int]:
         """Find session folder, process network.csv, and return counts."""

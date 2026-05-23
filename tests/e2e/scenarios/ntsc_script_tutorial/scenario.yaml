@@ -1,0 +1,35 @@
+name: NTSC Script Tutorial
+format: NTSC
+preset: Default
+duration: 70
+packet_source: device
+ci_skip: true
+ci_skip_reason: "Requires a real C64 Ultimate device (hostname: c64u)"
+csv_max_rows: 6000
+obs_start_recording: false
+skip_frame_logic_validation: true
+disable_pops: true
+script_completion_timeout: 120
+cleanup_paths:
+  - /tmp/c64stream-tutorial-current-frame.png
+  - /tmp/c64stream-tutorial-current.png
+  - /tmp/c64stream-tutorial-show-title.txt
+  - /tmp/c64stream-tutorial-last-run.txt
+  - /tmp/c64stream-tutorial-e2e.log
+overrides:
+  c64_host: c64u
+  control_port: 64
+  video_port: 11000
+  audio_port: 11001
+  dns_server_ip: 192.168.1.1
+  auto_detect_ip: true
+  obs_ip_address: ""
+  record_av_sync: false
+  record_csv: true
+  record_video: false
+  record_frames: false
+  debug_logging: true
+  script_file: "${repo_root}/tests/e2e/scripts/c64script_tutorial_walkthrough.c64script"
+  script_auto_start: true
+assertions:
+  - script_status

@@ -23,7 +23,7 @@ The plugin connects directly to the Ultimate's network interface, eliminating th
 - **CRT effects + palettes**: GPU-accelerated CRT effects with configurable presets (scan lines, bloom, tint, pixel geometry) and automatic VIC-II color space conversion.
 - **Built-in recording + diagnostics**: Record BMP frames, AVI video, and WAV audio, plus optional CSV timing logs (`obs.csv` / `network.csv`) for debugging.
 - **Keyboard capture**: Click the `Interact` button below the preview to type directly into the C64.
-- **Script-based automation**: C64Script, a BASIC-inspired language for programmatic control of your stream ([spec](doc/c64script/c64script-spec.md)).
+- **Script-based automation**: C64Script, a BASIC-inspired language for programmatic control of your stream ([tutorial](doc/c64script/c64script-tutorial.md)).
 
 ## Contents
 
@@ -685,6 +685,7 @@ Then reload VS Code (`Ctrl+Shift+P` → "Reload Window"). The language mode shou
 
 **Learn More:**
 
+- **Getting Started:** [`doc/c64script/c64script-tutorial.md`](doc/c64script/c64script-tutorial.md) - A gentle C64Script tutorial with practical starter examples
 - **Full Language Reference:** [`doc/c64script/c64script-spec.md`](doc/c64script/c64script-spec.md) - Complete C64Script language documentation
 - **Debugging Guide:** [`doc/c64script/c64script-debugging.md`](doc/c64script/c64script-debugging.md) - Detailed debugging workflows and tips
 - **Example Scripts:** [`data/scripts/`](data/scripts/) - Demo scripts showing effects, palettes, and automation
