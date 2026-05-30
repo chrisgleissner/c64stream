@@ -31,15 +31,16 @@ The plugin connects directly to the Ultimate's network interface, eliminating th
   - [Contents](#contents)
   - [🚀 Quick Start](#-quick-start)
     - [What You'll Need](#what-youll-need)
-    - [Installation](#installation)
+    - [1. Configure the C64U](#1-configure-the-c64u)
+    - [2. Install the Plugin](#2-install-the-plugin)
       - [Windows (X64)](#windows-x64)
       - [Windows (ARM64)](#windows-arm64)
       - [Windows (Portable Mode)](#windows-portable-mode)
       - [macOS](#macos)
       - [Linux (Ubuntu / Debian)](#linux-ubuntu--debian)
       - [Linux (Fedora, Arch, etc.)](#linux-fedora-arch-etc)
-    - [C64 Stream source](#c64-stream-source)
-    - [C64 Stream Effects filter](#c64-stream-effects-filter)
+    - [3. Configure the C64 Stream Plugin](#3-configure-the-c64-stream-plugin)
+    - [Configure C64 Stream Effects Filter (OPTIONAL)](#configure-c64-stream-effects-filter-optional)
   - [🧩 Plugin Setup](#-plugin-setup)
     - [General](#general)
     - [Network](#network)
@@ -79,24 +80,53 @@ The plugin connects directly to the Ultimate's network interface, eliminating th
       - [C64 Ultimate Setup](#c64-ultimate-setup)
     - [Technical Details](#technical-details)
   - [📹 End-to-end tests](#-end-to-end-tests)
-  - [🛠️ For Developers](#%EF%B8%8F-for-developers)
-  - [⚖️ License](#%EF%B8%8F-license)
+  - [🛠️ For Developers](#️-for-developers)
+  - [⚖️ License](#️-license)
 
 ## 🚀 Quick Start
 
 ### What You'll Need
 
-- [OBS Studio 32.0.1](https://obsproject.com/download) or above
-- [Commodore 64 Ultimate](https://www.commodore.net/) or [Ultimate 64](https://ultimate64.com/)
-- The Ultimate device must be connected via its [Ethernet port](https://1541u-documentation.readthedocs.io/en/latest/howto/wifi.html#functionality-available-on-wifi). The OBS computer may connect via Wi-Fi if both are on the same network, but using Ethernet all the way to OBS is recommended for the most stable connection.
-- For complete and up-to-date hardware and software requirements, please refer to the [OBS Studio System Requirements](https://obsproject.com/kb/system-requirements).
+- [OBS Studio 32.0.1](https://obsproject.com/download) or above.
+- A computer that meets the [OBS system requirements](https://obsproject.com/kb/system-requirements).
+- A [Commodore 64 Ultimate](https://www.commodore.net/) or [Ultimate 64](https://ultimate64.com/) from which you will stream.
+- An Ethernet cable. The Ultimate device must be connected via its [Ethernet port](https://1541u-documentation.readthedocs.io/en/latest/howto/wifi.html#functionality-available-on-wifi). The OBS computer may connect via Wi-Fi if both are on the same network, but using Ethernet all the way to OBS is recommended for the most stable connection.
 
 > [!NOTE]
 > The plugin has been **verified to work** on the systems listed below. Other environments have not been verified and are not supported explicitly, but community contributions are always welcome.
 
+The following sections will walk you through the entire setup. It should not take more than 5 minutes and consists of these steps:
+
+1. Configure the C64U
+2. Install the Plugin
+3. Configure the Plugin
+
 ---
 
-### Installation
+### 1. Configure the C64U
+
+First let's ensure the C64U is assigned an IP address:
+
+1. Turn off your C64U.
+2. Connect an Ethernet cable to the back of your C64U and the other side to your router.
+3. Turn on your C64U.
+4. Enter its menu by holding the **Commodore** (C=) key on the lower right-hand side whilst pressing the **RESTORE** key.
+5. Press **F1** to enter the configuration section.
+6. Use the cursor keys to navigate to **WIRED NETWORK SETUP** and press **RETURN**.
+7. Take a note of the address shown to the right of **Active IP address**. It should be something like **192.168.x.y**. This is the IP address you will want to configure in the C64 Stream plugin later on.
+
+Now let's activate the network services that C64 Stream requires:
+
+1. Press the **Arrow Left** key on the top left of your keyboard.
+2. Use to cursor keys to navigate to **NETWORK SERVICES & TIMEZONE** and press **RETURN**.
+3. Ensure that both **Ultimate DMA Service** and **Web Remote Control Service** are set to **Enabled**. The first is needed for audio/video streaming, the latter for remote control, e.g. keyboard control or playback of programs or songs from OBS. You should see something like this once done: ![C64U Config Network Services](./docs/images/c64u-config-network-services.png)
+4. Press the **Arrow Left** key until a confirmation appears that says **Save changes to Flash? Yes No**. Select **Yes** and press **RETURN**.
+
+Well done. In the next section, we'll install the C64 Stream plugin in OBS.
+
+---
+
+### 2. Install the Plugin
 
 In the following instructions, replace `$VERSION` with the latest released version as shown on the [Releases](../../releases) page.
 
@@ -231,7 +261,7 @@ See the [OBS Plugins Guide](https://obsproject.com/kb/plugins-guide).
 
 ---
 
-### C64 Stream source
+### 3. Configure the C64 Stream Plugin
 
 **Getting Your C64 on Stream:**
 
@@ -253,13 +283,12 @@ See the [OBS Plugins Guide](https://obsproject.com/kb/plugins-guide).
 
 ---
 
-### C64 Stream Effects filter
+### Configure C64 Stream Effects Filter (OPTIONAL)
 
 > [!NOTE]
 > **New in version 1.1:** Please share feedback or open an issue if you notice anything that could be improved.
 
-By default, **C64 Stream effects are applied internally by the C64 Stream input source** when streaming directly from a C64 Ultimate or Ultimate 64.
-In this common setup, **no additional filter is required**.
+By default, **C64 Stream effects are applied internally by the C64 Stream input source** when streaming directly from a C64 Ultimate or Ultimate 64. In this common setup, **no additional filter is required**.
 
 However, the same visual effects engine can also be applied to *any* OBS source using the **C64 Stream Effects** filter. This is useful if:
 
