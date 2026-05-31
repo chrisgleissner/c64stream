@@ -110,16 +110,16 @@ First let's ensure the C64U is assigned an IP address:
 1. Turn off your C64U.
 2. Connect an Ethernet cable to the back of your C64U and the other side to your router.
 3. Turn on your C64U.
-4. Enter its menu by holding the **Commodore** (C=) key on the lower right-hand side whilst pressing the **RESTORE** key.
+4. Enter its menu by holding the **Commodore** (C=) key whilst pressing **RESTORE**.
 5. Press **F1** to enter the configuration section.
 6. Use the cursor keys to navigate to **WIRED NETWORK SETUP** and press **RETURN**.
-7. Take a note of the address shown to the right of **Active IP address**. It should be something like **192.168.x.y**. This is the IP address you will want to configure in the C64 Stream plugin later on.
+7. Take a note of the address shown to the right of **Active IP address**. It should be something like **192.168.x.y**. This is the IP address you'll want to configure in the C64 Stream plugin later on.
 
-Now let's activate the network services that C64 Stream requires:
+Now let's activate the network services that C64 Stream requires so it can connect to your C64U:
 
 1. Press the **Arrow Left** key on the top left of your keyboard.
 2. Use to cursor keys to navigate to **NETWORK SERVICES & TIMEZONE** and press **RETURN**.
-3. Ensure that both **Ultimate DMA Service** and **Web Remote Control Service** are set to **Enabled**. The first is needed for audio/video streaming, the latter for remote control, e.g. keyboard control or playback of programs or songs from OBS. You should see something like this once done: ![C64U Config Network Services](./docs/images/c64u-config-network-services.png)
+3. Set both **Ultimate DMA Service** and **Web Remote Control Service** to **Enabled**. The first setting is needed for audio/video streaming, the latter for remote control, e.g. keyboard control or remote playback of programs/songs. You should see something like this once done: ![C64U Config Network Services](./docs/images/c64u-config-network-services.png)
 4. Press the **Arrow Left** key until a confirmation appears that says **Save changes to Flash? Yes No**. Select **Yes** and press **RETURN**.
 
 Well done. In the next section, we'll install the C64 Stream plugin in OBS.
