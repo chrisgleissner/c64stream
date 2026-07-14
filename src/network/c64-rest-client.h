@@ -20,6 +20,35 @@ See <https://www.gnu.org/licenses/> for details.
 typedef struct c64_rest_client c64_rest_client_t;
 
 /**
+ * Outcome of the most recent REST request, classified from the HTTP status code.
+ *
+ * Callers use this to decide how to react when a request fails. The critical
+ * rule (constraint from seamless-device-transition research): a FORBIDDEN result
+ * must NEVER trigger a fallback to the unauthenticated legacy transport (TCP
+ * port 64), because that would bypass authentication.
+ */
+typedef enum {
+    C64_REST_OK,            /**< 2xx — success */
+    C64_REST_NOT_SUPPORTED, /**< 404, 501 and other unexpected non-auth errors — fall back to legacy */
+    C64_REST_FORBIDDEN,     /**< 401, 403 — authentication refusal. DO NOT fall back */
+    C64_REST_BAD_REQUEST,   /**< 400 — our payload is invalid. Log loudly, do not fall back */
+    C64_REST_UNREACHABLE,   /**< transport error (no HTTP response) — device down; fallback will also fail */
+} c64_rest_outcome_t;
+
+/**
+ * Classify an HTTP status code into a coarse outcome.
+ *
+ * Status 0 means no HTTP response was received (transport failure) and maps to
+ * C64_REST_UNREACHABLE. 2xx maps to C64_REST_OK. 400 maps to BAD_REQUEST.
+ * 401/403 map to FORBIDDEN. Every other code (including 404, 500, 501) maps to
+ * NOT_SUPPORTED, i.e. fallback-eligible: it is neither an auth refusal nor a
+ * payload bug, so falling back to the legacy transport is the robust choice.
+ *
+ * Exposed so the classification is unit-testable without a network.
+ */
+c64_rest_outcome_t c64_rest_classify_status(long status);
+
+/**
  * Create a new REST client
  * @param base_url Base URL (e.g. "http://192.168.1.64" or "http://c64u")
  * @param password Optional password for X-Password header (NULL if none)
@@ -282,6 +311,22 @@ void c64_rest_string_list_free(char **items, size_t count);
  * @return Error string (valid until next operation)
  */
 const char *c64_rest_get_error(c64_rest_client_t *client);
+
+/**
+ * Get the raw HTTP status code of the most recent request.
+ * @return HTTP status code, or 0 if no response was received (transport error)
+ */
+long c64_rest_get_last_status(const c64_rest_client_t *client);
+
+/**
+ * Get the classified outcome of the most recent request.
+ *
+ * Reflects the result of the last call through the client. Read this after a
+ * request returns false to decide whether to fall back, surface an auth error,
+ * or retry. See c64_rest_outcome_t for the reaction each value implies.
+ * @return Outcome of the last request (C64_REST_UNREACHABLE if none yet)
+ */
+c64_rest_outcome_t c64_rest_get_last_outcome(const c64_rest_client_t *client);
 
 /**
  * File entry from C64U filesystem

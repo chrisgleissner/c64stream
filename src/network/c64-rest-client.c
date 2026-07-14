@@ -23,8 +23,33 @@ struct c64_rest_client {
     char *base_url;
     char *password;
     char error_msg[2048];
+    long last_status;
+    c64_rest_outcome_t last_outcome;
     CURL *curl;
 };
+
+c64_rest_outcome_t c64_rest_classify_status(long status)
+{
+    if (status >= 200 && status < 300) {
+        return C64_REST_OK;
+    }
+    if (status == 0) {
+        return C64_REST_UNREACHABLE;
+    }
+    switch (status) {
+    case 400:
+        return C64_REST_BAD_REQUEST;
+    case 401:
+    case 403:
+        return C64_REST_FORBIDDEN;
+    default:
+        break;
+    }
+    // 404, 500, 501 and any other code: not an auth refusal (401/403) and not a
+    // payload bug (400). Falling back to the legacy transport is the robust
+    // choice and never bypasses authentication.
+    return C64_REST_NOT_SUPPORTED;
+}
 
 // Callback for capturing HTTP response data
 typedef struct {
@@ -532,6 +557,11 @@ static bool http_request_ex(c64_rest_client_t *client, const char *method, const
         return false;
     }
 
+    // Default outcome for this request until a real HTTP response is observed.
+    // status 0 / UNREACHABLE is overwritten below if we get an HTTP code back.
+    client->last_status = 0;
+    client->last_outcome = C64_REST_UNREACHABLE;
+
     C64_LOG_DEBUG(REST_LOG_PREFIX "HTTP %s %s%s", method, endpoint, query_params ? query_params : "");
 
     char url[1024];
@@ -574,6 +604,12 @@ static bool http_request_ex(c64_rest_client_t *client, const char *method, const
         }
     }
 
+    // A request body is always JSON (e.g. machine:input). The device requires
+    // Content-Type: application/json on such writes and returns 400 otherwise.
+    if (body_data && body_size > 0) {
+        headers = curl_slist_append(headers, "Content-Type: application/json");
+    }
+
     if (headers) {
         curl_easy_setopt(client->curl, CURLOPT_HTTPHEADER, headers);
     }
@@ -598,8 +634,12 @@ static bool http_request_ex(c64_rest_client_t *client, const char *method, const
             C64_LOG_WARNING(REST_LOG_PREFIX "HTTP %s %s closed the connection during reset (curl %d): %s", method, url,
                             (int)res, curl_easy_strerror(res));
             client->error_msg[0] = '\0';
+            // The reset was accepted; the abrupt close is expected device behaviour.
+            client->last_status = 0;
+            client->last_outcome = C64_REST_OK;
             return true;
         }
+        // Transport failure — no HTTP response. last_status stays 0 / UNREACHABLE.
         snprintf(client->error_msg, sizeof(client->error_msg), "HTTP %s %s failed (curl %d): %s", method, url, (int)res,
                  curl_easy_strerror(res));
         C64_LOG_ERROR(REST_LOG_PREFIX "%s", client->error_msg);
@@ -610,6 +650,10 @@ static bool http_request_ex(c64_rest_client_t *client, const char *method, const
     long http_code = 0;
     curl_easy_getinfo(client->curl, CURLINFO_RESPONSE_CODE, &http_code);
     C64_LOG_DEBUG(REST_LOG_PREFIX "HTTP response code: %ld", http_code);
+
+    // Record the classified outcome of this response so callers can react.
+    client->last_status = http_code;
+    client->last_outcome = c64_rest_classify_status(http_code);
 
     if (http_code < 200 || http_code >= 300) {
         snprintf(client->error_msg, sizeof(client->error_msg), "HTTP %s %s returned status %ld", method, url,
@@ -2290,6 +2334,22 @@ const char *c64_rest_get_error(c64_rest_client_t *client)
         return "Invalid client";
     }
     return client->error_msg;
+}
+
+long c64_rest_get_last_status(const c64_rest_client_t *client)
+{
+    if (!client) {
+        return 0;
+    }
+    return client->last_status;
+}
+
+c64_rest_outcome_t c64_rest_get_last_outcome(const c64_rest_client_t *client)
+{
+    if (!client) {
+        return C64_REST_UNREACHABLE;
+    }
+    return client->last_outcome;
 }
 
 // Simple JSON parser for file list response
