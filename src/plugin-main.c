@@ -26,6 +26,7 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #include "c64-version.h"
 #include "c64-effect.h"
 #include "c64-palette.h"
+#include "device/c64-device.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -222,6 +223,9 @@ bool obs_module_load(void)
     if (!c64_palette_init()) {
         C64_LOG_WARNING("Failed to initialize palette system - using default palette");
     }
+    if (!c64_device_registry_init()) {
+        C64_LOG_WARNING("Failed to initialize device registry");
+    }
 
     // Copy demo scripts to user's documents folder
     copy_demo_scripts();
@@ -273,6 +277,7 @@ void obs_module_unload(void)
 {
     C64_LOG_INFO("Unloading C64 Stream plugin");
     c64_palette_cleanup();
+    c64_device_registry_cleanup();
     c64_effect_cleanup();
     c64_cleanup_networking();
 }

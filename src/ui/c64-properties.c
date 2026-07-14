@@ -16,6 +16,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-effect.h"
 #include "c64-source.h"
 #include "c64-palette.h"
+#include "device/c64-device.h"
 #include "c64-color.h"
 #include "c64-keyboard.h"
 #include "c64-playlist-window.h"
@@ -1656,6 +1657,10 @@ obs_properties_t *c64_create_properties(void *data)
     obs_property_t *network_group = obs_properties_add_group(
         props, "network_group", obs_module_text("NetworkConfiguration"), OBS_GROUP_NORMAL, obs_properties_create());
     obs_properties_t *network_props = obs_property_group_content(network_group);
+
+    obs_property_t *device_prop =
+        obs_properties_add_list(network_props, "c64_device", "Device", OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+    c64_device_registry_populate_list(device_prop);
 
     // DNS Server IP
     obs_property_t *dns_prop =

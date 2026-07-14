@@ -201,6 +201,7 @@ target_sources(
   PRIVATE
     src/plugin-main.c
     src/c64-source.c
+    src/device/c64-device.c
     src/util/c64-av-sync.c
     src/util/c64-file.c
     src/util/c64-version.c

@@ -36,6 +36,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-properties.h"
 #include "c64-file.h"
 #include "c64-palette.h"
+#include "device/c64-device.h"
 #include "c64-keyboard.h"
 #include "c64-rest-client.h"
 #include "c64-script-executor.h"
@@ -671,6 +672,8 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
 
     // Load configuration file before initializing settings-dependent values
     c64_load_configuration(settings);
+    c64_device_registry_migrate_legacy(settings);
+    c64_device_registry_apply_selected(settings);
 
     const char *initial_preset = obs_data_get_string(settings, "crt_preset");
     c64_source_apply_crt_preset_if_needed(settings, initial_preset, false);
@@ -1354,6 +1357,8 @@ static void c64_queue_properties_refresh(struct c64_source *context)
 void c64_update(void *data, obs_data_t *settings)
 {
     struct c64_source *context = data;
+    c64_device_registry_migrate_legacy(settings);
+    c64_device_registry_apply_selected(settings);
     if (!context)
         return;
 
