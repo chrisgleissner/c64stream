@@ -27,8 +27,10 @@ The plugin connects directly to the Ultimate's network interface, eliminating th
 - **Saved devices**: Save network-only device profiles and switch from the Device list without retyping a host. Passwords stay in OBS source settings per device and are never written to profile `.ini` files.
 
 Saved-device stream control defaults to Auto: REST is used when the device supports the endpoint and legacy port 64 is
-used only after an explicit `404` or `501` capability response. Authentication failures never fall back. Keyboard
-input uses the REST matrix endpoint when available and sends `release_all` when a source stops or is destroyed.
+used only after an explicit `404` or `501` capability response. Authentication failures never fall back. The same
+transport choice controls keyboard input: Auto uses the REST matrix endpoint when available, Force REST never demotes,
+and Force Legacy retains the KERNAL-buffer path. Teardown still uses REST `release_all` as a device-safety command when
+the endpoint is available.
 
 ## Contents
 

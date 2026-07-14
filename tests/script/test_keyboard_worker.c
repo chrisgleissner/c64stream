@@ -1,6 +1,7 @@
 #include "c64-file.h"
 #include "c64-keyboard.h"
 #include "c64-rest-client.h"
+#include "c64-stream-control.h"
 
 #include <obs-module.h>
 #include <util/platform.h>
@@ -30,6 +31,8 @@ typedef struct {
     int write_buffer_calls;
     int write_length_calls;
     int write_stop_calls;
+    int machine_input_calls;
+    int release_all_calls;
     bool stall_buffer;
     int consume_after_reads;
     int consume_reads_remaining;
@@ -125,15 +128,21 @@ const char *c64_rest_get_error(c64_rest_client_t *client)
 
 bool c64_rest_machine_input(c64_rest_client_t *client, const char *json)
 {
-    (void)client;
+    worker_test_rest_client_t *rest_client = (worker_test_rest_client_t *)client;
+    if (rest_client) {
+        rest_client->machine_input_calls++;
+    }
     (void)json;
     return false;
 }
 
 bool c64_rest_release_all(c64_rest_client_t *client)
 {
-    (void)client;
-    return false;
+    worker_test_rest_client_t *rest_client = (worker_test_rest_client_t *)client;
+    if (rest_client) {
+        rest_client->release_all_calls++;
+    }
+    return true;
 }
 
 long c64_rest_get_last_status(const c64_rest_client_t *client)
@@ -216,6 +225,29 @@ int main(void)
     CHECK(stall_client.write_length_calls == 0);
     CHECK(stall_client.consumed_count == 0);
     c64_keyboard_destroy(stall_keyboard);
+
+    worker_test_rest_client_t legacy_client = {0};
+    c64_keyboard_t *legacy_keyboard = c64_keyboard_create(&legacy_client);
+    CHECK(legacy_keyboard != NULL);
+    c64_keyboard_set_transport(legacy_keyboard, C64_STREAM_TRANSPORT_LEGACY);
+    c64_output_t legacy_output = {.mode = C64_OUTPUT_PETSCII, .data.petscii = 'A'};
+    c64_keyboard_queue_output(legacy_keyboard, &legacy_output);
+    CHECK(wait_for_consumed_count(&legacy_client, 1, 1000));
+    CHECK(legacy_client.machine_input_calls == 0);
+    CHECK(c64_keyboard_release_all(legacy_keyboard));
+    CHECK(legacy_client.release_all_calls == 1);
+    c64_keyboard_destroy(legacy_keyboard);
+
+    worker_test_rest_client_t force_rest_client = {0};
+    c64_keyboard_t *force_rest_keyboard = c64_keyboard_create(&force_rest_client);
+    CHECK(force_rest_keyboard != NULL);
+    c64_keyboard_set_transport(force_rest_keyboard, C64_STREAM_TRANSPORT_REST);
+    c64_output_t force_rest_output = {.mode = C64_OUTPUT_PETSCII, .data.petscii = 'A'};
+    c64_keyboard_queue_output(force_rest_keyboard, &force_rest_output);
+    CHECK(wait_for_status(force_rest_keyboard, "failed", 1000));
+    CHECK(force_rest_client.machine_input_calls == 1);
+    CHECK(force_rest_client.write_buffer_calls == 0);
+    c64_keyboard_destroy(force_rest_keyboard);
 
     return 0;
 }

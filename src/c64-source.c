@@ -84,6 +84,7 @@ static void c64_rebuild_rest_client(struct c64_source *context)
         context->keyboard = c64_keyboard_create(context->rest_client);
         if (context->keyboard) {
             c64_keyboard_set_keymap(context->keyboard, context->keymap);
+            c64_keyboard_set_transport(context->keyboard, context->stream_control_transport);
         }
         c64_record_on_rest_client_ready(context);
     }
@@ -1431,6 +1432,9 @@ void c64_update(void *data, obs_data_t *settings)
     uint32_t new_audio_port = (uint32_t)obs_data_get_int(settings, "audio_port");
     uint32_t new_control_port = (uint32_t)obs_data_get_int(settings, "control_port");
     context->stream_control_transport = (int)obs_data_get_int(settings, "stream_control_transport");
+    if (context->keyboard) {
+        c64_keyboard_set_transport(context->keyboard, context->stream_control_transport);
+    }
 
     // Set defaults
     if (!new_host)

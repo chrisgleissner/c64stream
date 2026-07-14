@@ -9,6 +9,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-keyboard.h"
 #include "c64-logging.h"
 #include "c64-rest-client.h"
+#include "c64-stream-control.h"
 #include "c64-file.h"
 
 #include <obs-module.h>
@@ -147,6 +148,7 @@ struct c64_keyboard {
     c64_rest_client_t *rest_client;
     c64_keymap_t *keymap;
     bool capturing;
+    int transport;
     char status[64];
     uint64_t queued_submission_count;
 
@@ -1037,6 +1039,15 @@ static bool keyboard_wait_for_work(c64_keyboard_t *keyboard)
     return has_work;
 }
 
+static int keyboard_get_transport(c64_keyboard_t *keyboard)
+{
+    int transport;
+    pthread_mutex_lock(&keyboard->queue_mutex);
+    transport = keyboard->transport;
+    pthread_mutex_unlock(&keyboard->queue_mutex);
+    return transport;
+}
+
 /* PETSCII and text both enter the queue as bytes. Keep their matrix mapping in
  * one place so a shifted character is sent as a single hardware chord. */
 static bool petscii_to_matrix(uint8_t value, const char **key, bool *shift)
@@ -1129,22 +1140,34 @@ static void *injection_worker(void *arg)
             }
 
             char json[8192];
-            if (build_rest_input_batch(pending_buffer, pending_count, json, sizeof(json))) {
+            const int transport = keyboard_get_transport(keyboard);
+            if (transport != C64_STREAM_TRANSPORT_LEGACY &&
+                build_rest_input_batch(pending_buffer, pending_count, json, sizeof(json))) {
                 if (c64_rest_machine_input(keyboard->rest_client, json)) {
                     queue_discard_many(keyboard, pending_count);
                     pending_count = 0;
+                    last_batch_failed = false;
                     keyboard_set_status(keyboard, "complete");
                     continue;
                 }
-                if (c64_rest_get_last_outcome(keyboard->rest_client) != C64_REST_NOT_SUPPORTED) {
+                if (transport == C64_STREAM_TRANSPORT_REST ||
+                    c64_rest_get_last_outcome(keyboard->rest_client) != C64_REST_NOT_SUPPORTED) {
                     C64_LOG_ERROR(KEYBOARD_LOG_PREFIX "machine:input refused batch (HTTP %ld); no legacy fallback",
                                   c64_rest_get_last_status(keyboard->rest_client));
                     queue_discard_many(keyboard, pending_count);
                     pending_count = 0;
+                    last_batch_failed = true;
                     keyboard_set_status(keyboard, "failed");
                     continue;
                 }
                 C64_LOG_INFO(KEYBOARD_LOG_PREFIX "machine:input unavailable; retrying batch via legacy input");
+            } else if (transport == C64_STREAM_TRANSPORT_REST) {
+                C64_LOG_ERROR(KEYBOARD_LOG_PREFIX "input cannot be represented by machine:input; no legacy fallback");
+                queue_discard_many(keyboard, pending_count);
+                pending_count = 0;
+                last_batch_failed = true;
+                keyboard_set_status(keyboard, "failed");
+                continue;
             }
             /* Legacy KERNAL input is constrained to ten bytes. On REST
              * demotion the queue remains ordered and subsequent chunks retry. */
@@ -1276,6 +1299,7 @@ c64_keyboard_t *c64_keyboard_create(void *rest_client)
 
     keyboard->rest_client = (c64_rest_client_t *)rest_client;
     keyboard->capturing = false;
+    keyboard->transport = C64_STREAM_TRANSPORT_AUTO;
     strncpy(keyboard->status, "idle", sizeof(keyboard->status) - 1);
 
     // Initialize queue
@@ -1324,6 +1348,16 @@ void c64_keyboard_set_keymap(c64_keyboard_t *keyboard, c64_keymap_t *keymap)
         return;
     }
     keyboard->keymap = keymap;
+}
+
+void c64_keyboard_set_transport(c64_keyboard_t *keyboard, int transport)
+{
+    if (!keyboard || transport < C64_STREAM_TRANSPORT_AUTO || transport > C64_STREAM_TRANSPORT_LEGACY) {
+        return;
+    }
+    pthread_mutex_lock(&keyboard->queue_mutex);
+    keyboard->transport = transport;
+    pthread_mutex_unlock(&keyboard->queue_mutex);
 }
 
 void c64_keyboard_set_capture(c64_keyboard_t *keyboard, bool enabled)

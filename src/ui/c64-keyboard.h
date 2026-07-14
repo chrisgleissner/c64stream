@@ -95,6 +95,7 @@ void c64_keyboard_destroy(c64_keyboard_t *keyboard);
  * Set active keymap
  */
 void c64_keyboard_set_keymap(c64_keyboard_t *keyboard, c64_keymap_t *keymap);
+void c64_keyboard_set_transport(c64_keyboard_t *keyboard, int transport);
 
 /**
  * Enable/disable keyboard capture
