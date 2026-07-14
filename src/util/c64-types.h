@@ -230,6 +230,7 @@ struct c64_source {
     volatile long debug_recvfrom_eagain;      // Total EAGAIN/EWOULDBLOCK results
     volatile long debug_recvfrom_bytes_total; // Sum of all bytes from recvfrom (including partial/headers)
     volatile long debug_packets_dropped_size; // Packets dropped due to wrong size
+    volatile long debug_packets_dropped_peer; // Packets dropped: sender != expected peer (ingest ownership filter)
 
     // Stage-1 UDP network FIFOs (decouple socket recv from buffering/order work)
     struct c64_network_fifo video_fifo;

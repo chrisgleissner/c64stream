@@ -29,6 +29,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-color.h"
 #include "c64-types.h"
 #include "c64-protocol.h"
+#include "c64-ingest-filter.h"
 #include "c64-record-network.h"
 #include "c64-protocol.h"
 #include "c64-record.h"
@@ -988,6 +989,17 @@ void *c64_video_thread_func(void *data)
         for (int i = 0; i < num_msgs; i++) {
             ssize_t received = msgs[i].msg_len;
             uint8_t *packet = packet_batch[i];
+
+            // Ingest ownership filter: drop packets from a sender that is not
+            // the expected peer (e.g. an abandoned device still streaming).
+            if (!c64_packet_from_expected_peer(context, &addrs[i])) {
+                os_atomic_inc_long(&context->debug_packets_dropped_peer);
+                if ((os_atomic_load_long(&context->debug_packets_dropped_peer) & 0x3FF) == 0) {
+                    C64_LOG_DEBUG("" VIDEO_LOG_PREFIX " dropped packet: sender != expected peer (%ld total dropped)",
+                                  os_atomic_load_long(&context->debug_packets_dropped_peer));
+                }
+                continue;
+            }
 #else
         // Non-Linux: fallback to single recvfrom
         uint8_t packet[C64_VIDEO_PACKET_SIZE];
@@ -1049,6 +1061,18 @@ void *c64_video_thread_func(void *data)
         }
 
         wouldblock_spins = 0;
+
+        // Ingest ownership filter: drop packets from a sender that is not the
+        // expected peer (e.g. an abandoned device still streaming).
+        if (received > 0 && !c64_packet_from_expected_peer(context, &sender_addr)) {
+            os_atomic_inc_long(&context->debug_packets_dropped_peer);
+            if ((os_atomic_load_long(&context->debug_packets_dropped_peer) & 0x3FF) == 0) {
+                C64_LOG_DEBUG("" VIDEO_LOG_PREFIX " dropped packet: sender != expected peer (%ld total dropped)",
+                              os_atomic_load_long(&context->debug_packets_dropped_peer));
+            }
+            continue;
+        }
+
         { // Scope block for shared packet processing code
 #endif
             if (received > 0) {

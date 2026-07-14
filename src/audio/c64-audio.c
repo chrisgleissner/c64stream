@@ -16,6 +16,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-audio.h"
 #include "c64-types.h"
 #include "c64-protocol.h"
+#include "c64-ingest-filter.h"
 #include "c64-video.h"
 #include "c64-record.h"
 #include "c64-record-network.h"
@@ -96,6 +97,17 @@ void *audio_thread_func(void *data)
         // Keep the socket receive path minimal to avoid receiver-side backpressure.
         // No parsing, no sorting, no per-packet logging, no blocking.
         if (received != C64_AUDIO_PACKET_SIZE) {
+            continue;
+        }
+
+        // Ingest ownership filter: drop packets from a sender that is not the
+        // expected peer (e.g. an abandoned device still streaming).
+        if (!c64_packet_from_expected_peer(context, &sender_addr)) {
+            os_atomic_inc_long(&context->debug_packets_dropped_peer);
+            if ((os_atomic_load_long(&context->debug_packets_dropped_peer) & 0x3FF) == 0) {
+                C64_LOG_DEBUG("" AUDIO_LOG_PREFIX " dropped packet: sender != expected peer (%ld total dropped)",
+                              os_atomic_load_long(&context->debug_packets_dropped_peer));
+            }
             continue;
         }
 
