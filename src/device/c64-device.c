@@ -2,8 +2,8 @@
 #include "c64-file.h"
 #include "c64-logging.h"
 
+#include <util/platform.h>
 #include <ctype.h>
-#include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -111,18 +111,20 @@ bool c64_device_registry_init(void)
     if (!c64_get_user_dir(C64_USER_DIR_SETTINGS, directory, sizeof(directory)))
         return false;
     initialized = true;
-    DIR *dir = opendir(directory);
+    os_dir_t *dir = os_opendir(directory);
     if (!dir)
         return true;
-    struct dirent *entry;
-    while ((entry = readdir(dir)) != NULL) {
+    struct os_dirent *entry;
+    while ((entry = os_readdir(dir)) != NULL) {
+        if (entry->directory)
+            continue;
         if (strncmp(entry->d_name, "device-", 7) || !strstr(entry->d_name, ".ini"))
             continue;
         char path[640];
         if (snprintf(path, sizeof(path), "%s/%s", directory, entry->d_name) > 0)
             load_device_file(path);
     }
-    closedir(dir);
+    os_closedir(dir);
     return true;
 }
 void c64_device_registry_cleanup(void)
