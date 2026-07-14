@@ -1903,7 +1903,10 @@ void c64_stop_streaming(struct c64_source *context)
     }
 
     C64_LOG_INFO("Stopping C64 Stream streaming...");
-    c64_stop_streaming_to(context, context->ip_address, context->control_port);
+    const char *host = context->device_transition_pending ? context->device_transition_host : context->ip_address;
+    const uint32_t control_port = context->device_transition_pending ? context->device_transition_control_port
+                                                                     : context->control_port;
+    c64_stop_streaming_to(context, host, control_port);
     c64_stop_streaming_local(context);
 }
 
