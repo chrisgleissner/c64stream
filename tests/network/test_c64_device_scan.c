@@ -1,7 +1,7 @@
 #include "c64-device-scan.h"
+#include "c64-network.h"
 
 #include <assert.h>
-#include <arpa/inet.h>
 #include <stdio.h>
 
 bool c64_debug_logging = false;

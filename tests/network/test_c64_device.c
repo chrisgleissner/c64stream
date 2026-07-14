@@ -1,10 +1,15 @@
 #include "c64-device.h"
 #include "c64-file.h"
-#include <dirent.h>
+#include <util/platform.h>
+#ifdef _WIN32
+#include <windows.h>
+#else
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 #include <unistd.h>
+#endif
+
+#include <string.h>
 
 bool c64_debug_logging = false;
 
@@ -16,39 +21,43 @@ bool c64_debug_logging = false;
 
 static bool no_password_in_settings(const char *directory)
 {
-    DIR *dir = opendir(directory);
+    os_dir_t *dir = os_opendir(directory);
     if (!dir)
         return false;
-    struct dirent *entry;
-    while ((entry = readdir(dir)) != NULL) {
+    struct os_dirent *entry;
+    while ((entry = os_readdir(dir)) != NULL) {
+        if (entry->directory)
+            continue;
         if (!strstr(entry->d_name, ".ini"))
             continue;
         char path[1024];
         snprintf(path, sizeof(path), "%s/%s", directory, entry->d_name);
         FILE *file = fopen(path, "r");
         if (!file) {
-            closedir(dir);
+            os_closedir(dir);
             return false;
         }
         char line[512];
         while (fgets(line, sizeof(line), file)) {
             if (strstr(line, "password")) {
                 fclose(file);
-                closedir(dir);
+                os_closedir(dir);
                 return false;
             }
         }
         fclose(file);
     }
-    closedir(dir);
+    os_closedir(dir);
     return true;
 }
 
 int main(void)
 {
+#ifndef _WIN32
     char root[] = "/tmp/c64-device-test-XXXXXX";
     CHECK(mkdtemp(root));
     CHECK(setenv("XDG_DOCUMENTS_DIR", root, 1) == 0);
+#endif
     CHECK(c64_device_registry_init());
     char id[64];
     CHECK(c64_device_id_from_host(id, sizeof(id), "5D4E12", "ignored"));
