@@ -62,9 +62,41 @@ struct c64_source;
  * c64-protocol.c dependency chain.
  * @return true on success, false if obs_ip is empty/NULL or the result would not fit
  */
+static inline bool c64_stream_dest_is_ipv4(const char *ip)
+{
+    if (!ip || !ip[0]) {
+        return false;
+    }
+
+    unsigned int octets = 0;
+    unsigned int value = 0;
+    bool have_digit = false;
+    for (const char *cursor = ip;; cursor++) {
+        const char ch = *cursor;
+        if (ch >= '0' && ch <= '9') {
+            have_digit = true;
+            value = value * 10U + (unsigned int)(ch - '0');
+            if (value > 255U) {
+                return false;
+            }
+            continue;
+        }
+        if ((ch == '.' || ch == '\0') && have_digit) {
+            octets++;
+            if (ch == '\0') {
+                return octets == 4;
+            }
+            value = 0;
+            have_digit = false;
+            continue;
+        }
+        return false;
+    }
+}
+
 static inline bool c64_build_stream_dest(char *out, size_t out_size, const char *obs_ip, uint16_t port)
 {
-    if (!out || out_size == 0 || !obs_ip || obs_ip[0] == '\0') {
+    if (!out || out_size == 0 || !c64_stream_dest_is_ipv4(obs_ip)) {
         return false;
     }
     const int n = snprintf(out, out_size, "%s:%u", obs_ip, (unsigned)port);

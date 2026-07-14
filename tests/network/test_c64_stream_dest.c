@@ -49,6 +49,15 @@ TEST(rejects_empty_and_null)
     assert(!c64_build_stream_dest(out, 0, "1.2.3.4", 21000));
 }
 
+TEST(rejects_hostnames_and_invalid_ipv4)
+{
+    char out[64];
+    assert(!c64_build_stream_dest(out, sizeof(out), "studio.local", 21000));
+    assert(!c64_build_stream_dest(out, sizeof(out), "192.168.1.256", 21000));
+    assert(!c64_build_stream_dest(out, sizeof(out), "192.168.1", 21000));
+    assert(!c64_build_stream_dest(out, sizeof(out), "192.168.1.1.", 21000));
+}
+
 TEST(rejects_truncation)
 {
     // Buffer too small to hold the full "255.255.255.255:65535" result.
@@ -67,6 +76,7 @@ int main(void)
     RUN_TEST(builds_ip_port_string);
     RUN_TEST(port_boundaries);
     RUN_TEST(rejects_empty_and_null);
+    RUN_TEST(rejects_hostnames_and_invalid_ipv4);
     RUN_TEST(rejects_truncation);
     return 0;
 }

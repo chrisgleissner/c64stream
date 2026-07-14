@@ -329,6 +329,9 @@ struct c64_source {
     char keyboard_keymap_name[64]; // Keymap name (e.g., "symbolic_us")
     int stream_control_transport;  // 0 auto, 1 REST, 2 legacy
     uint64_t stream_rest_demoted_until_ns;
+    bool device_transition_pending;
+    char device_transition_host[64];
+    uint32_t device_transition_control_port;
 
     // Audio mixer snapshot for AV sync runs
     char **audio_mixer_snapshot_items;  // Item names (Audio Mixer)

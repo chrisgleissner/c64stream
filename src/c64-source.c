@@ -52,7 +52,11 @@ See <https://www.gnu.org/licenses/> for details.
 static void close_and_reset_sockets(struct c64_source *context);
 static void c64_schedule_retry(struct c64_source *context, const char *reason);
 static void c64_refresh_resolved_ip(struct c64_source *context);
+static void c64_refresh_obs_ip(struct c64_source *context);
 static void c64_set_expected_peer_ip(struct c64_source *context, const char *ip_string);
+static void c64_stop_streaming_to(struct c64_source *context, const char *host, uint32_t control_port);
+static void c64_complete_pending_device_transition(struct c64_source *context);
+static void *c64_stop_streaming_thread(void *data);
 static void c64_attempt_script_autostart(struct c64_source *context, obs_data_t *settings);
 static void c64_queue_properties_refresh(struct c64_source *context);
 static void c64_rebuild_rest_client(struct c64_source *context);
@@ -252,6 +256,8 @@ void c64_async_retry_task(void *data)
 
     // Resolve hostname -> IP in the background (never do DNS on the OBS UI thread).
     c64_refresh_resolved_ip(context);
+    c64_refresh_obs_ip(context);
+    c64_complete_pending_device_transition(context);
 
     bool tcp_success = false;
 
@@ -637,6 +643,37 @@ static void c64_refresh_resolved_ip(struct c64_source *context)
     }
 }
 
+/* Ultimate firmware needs a routable numeric address for its UDP destination;
+ * discover it only from the background retry task. */
+static void c64_refresh_obs_ip(struct c64_source *context)
+{
+    if (!context) {
+        return;
+    }
+
+    char current_ip[64];
+    char remote_ip[64];
+    pthread_mutex_lock(&context->config_mutex);
+    snprintf(current_ip, sizeof(current_ip), "%s", context->obs_ip_address);
+    snprintf(remote_ip, sizeof(remote_ip), "%s", context->ip_address);
+    pthread_mutex_unlock(&context->config_mutex);
+    if (c64_stream_dest_is_ipv4(current_ip)) {
+        return;
+    }
+
+    char detected_ip[64] = {0};
+    if (!c64_detect_local_ip_for_host(remote_ip, NULL, detected_ip, sizeof(detected_ip)) &&
+        !c64_detect_local_ip(detected_ip, sizeof(detected_ip))) {
+        C64_LOG_ERROR(NETWORK_LOG_PREFIX " Unable to determine a numeric OBS IP address for stream destination");
+        return;
+    }
+
+    pthread_mutex_lock(&context->config_mutex);
+    snprintf(context->obs_ip_address, sizeof(context->obs_ip_address), "%s", detected_ip);
+    pthread_mutex_unlock(&context->config_mutex);
+    C64_LOG_INFO(NETWORK_LOG_PREFIX " Using numeric OBS IP address for Ultimate stream destination: %s", detected_ip);
+}
+
 // Helper function to safely close and reset sockets
 static void close_and_reset_sockets(struct c64_source *context)
 {
@@ -735,39 +772,16 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->control_port = (uint32_t)obs_data_get_int(settings, "control_port");
     context->streaming = false;
 
-    // Initialize OBS IP address from settings or auto-detect if enabled
+    // Read the configured OBS IP. Numeric route detection occurs in the
+    // background retry task, never during source creation on the OBS UI thread.
     memset(context->obs_ip_address, 0, sizeof(context->obs_ip_address));
     const char *saved_obs_ip = obs_data_get_string(settings, "obs_ip_address");
 
     if (saved_obs_ip && strlen(saved_obs_ip) > 0) {
-        // Use previously saved/configured OBS IP address
         strncpy(context->obs_ip_address, saved_obs_ip, sizeof(context->obs_ip_address) - 1);
-        context->initial_ip_detected = true;
         C64_LOG_INFO("" NETWORK_LOG_PREFIX " Using configured OBS IP address: %s", context->obs_ip_address);
-    } else if (context->auto_detect_ip) {
-        // Auto-detect local IP address only if auto-detection is enabled
-        if (c64_detect_local_ip_for_host(context->hostname, context->dns_server_ip, context->obs_ip_address,
-                                         sizeof(context->obs_ip_address)) ||
-            c64_detect_local_ip(context->obs_ip_address, sizeof(context->obs_ip_address))) {
-            C64_LOG_INFO("" NETWORK_LOG_PREFIX " Auto-detected OBS IP address: %s", context->obs_ip_address);
-            context->initial_ip_detected = true;
-            // Save the detected IP to settings for future use
-            obs_data_set_string(settings, "obs_ip_address", context->obs_ip_address);
-        } else {
-            C64_LOG_WARNING("" NETWORK_LOG_PREFIX " Failed to auto-detect OBS IP address, will use localhost fallback");
-            context->initial_ip_detected = false;
-        }
-    } else {
-        C64_LOG_INFO("" NETWORK_LOG_PREFIX " Auto-detection disabled, will use localhost fallback");
-        context->initial_ip_detected = false;
     }
-
-    // Ensure we have a valid OBS IP address - use localhost as last resort
-    if (strlen(context->obs_ip_address) == 0) {
-        C64_LOG_INFO("" NETWORK_LOG_PREFIX " No OBS IP configured, using localhost as fallback");
-        strncpy(context->obs_ip_address, "127.0.0.1", sizeof(context->obs_ip_address) - 1);
-        obs_data_set_string(settings, "obs_ip_address", context->obs_ip_address);
-    }
+    context->initial_ip_detected = c64_stream_dest_is_ipv4(context->obs_ip_address);
 
     // Set default ports if not configured
     if (context->video_port == 0)
@@ -1171,7 +1185,13 @@ void c64_destroy(void *data)
     // stream stops before closing local sockets.
     if (context->streaming) {
         C64_LOG_DEBUG("Stopping active streaming during destruction");
-        c64_stop_streaming(context);
+        pthread_t stop_thread;
+        if (pthread_create(&stop_thread, NULL, c64_stop_streaming_thread, context) == 0) {
+            pthread_join(stop_thread, NULL);
+        } else {
+            C64_LOG_ERROR("Failed to start background teardown thread; stopping source directly");
+            c64_stop_streaming(context);
+        }
     }
 
     c64_record_cleanup(context);
@@ -1398,20 +1418,9 @@ void c64_update(void *data, obs_data_t *settings)
         C64_LOG_INFO("Debug logging %s", c64_debug_logging ? "enabled" : "disabled");
     }
 
-    // Update IP detection setting - only auto-detect when checkbox state changes from off to on
+    // Route discovery is deferred to the background retry task.
     bool new_auto_detect = obs_data_get_bool(settings, "auto_detect_ip");
-    if (new_auto_detect && !context->auto_detect_ip) {
-        // Checkbox was just enabled - perform auto-detection
-        if (c64_detect_local_ip_for_host(context->hostname, context->dns_server_ip, context->obs_ip_address,
-                                         sizeof(context->obs_ip_address)) ||
-            c64_detect_local_ip(context->obs_ip_address, sizeof(context->obs_ip_address))) {
-            C64_LOG_INFO("" NETWORK_LOG_PREFIX " Auto-detected OBS IP address: %s", context->obs_ip_address);
-            // Save the updated IP to settings
-            obs_data_set_string(settings, "obs_ip_address", context->obs_ip_address);
-        } else {
-            C64_LOG_WARNING("" NETWORK_LOG_PREFIX " Failed to auto-detect OBS IP address");
-        }
-    }
+    const bool auto_detect_changed = new_auto_detect != context->auto_detect_ip;
     context->auto_detect_ip = new_auto_detect;
 
     // Update configuration
@@ -1435,12 +1444,15 @@ void c64_update(void *data, obs_data_t *settings)
 
     // Snapshot existing network-related settings so we can avoid unnecessary retries/restarts.
     char old_hostname[64];
+    char old_ip_address[64];
     char old_dns_server_ip[64];
     pthread_mutex_lock(&context->config_mutex);
     strncpy(old_hostname, context->hostname, sizeof(old_hostname) - 1);
     old_hostname[sizeof(old_hostname) - 1] = '\0';
     strncpy(old_dns_server_ip, context->dns_server_ip, sizeof(old_dns_server_ip) - 1);
     old_dns_server_ip[sizeof(old_dns_server_ip) - 1] = '\0';
+    strncpy(old_ip_address, context->ip_address, sizeof(old_ip_address) - 1);
+    old_ip_address[sizeof(old_ip_address) - 1] = '\0';
     pthread_mutex_unlock(&context->config_mutex);
 
     char old_obs_ip[64];
@@ -1460,7 +1472,8 @@ void c64_update(void *data, obs_data_t *settings)
     bool ports_changed = (new_video_port != context->video_port) || (new_audio_port != context->audio_port) ||
                          (new_control_port != context->control_port);
 
-    if ((ports_changed || host_changed) && context->streaming) {
+    const bool needs_device_transition = (ports_changed || host_changed) && context->streaming;
+    if (needs_device_transition) {
         if (ports_changed) {
             C64_LOG_INFO(
                 "Port configuration changed (video: %u->%u, audio: %u->%u, control: %u->%u), recreating sockets",
@@ -1471,11 +1484,14 @@ void c64_update(void *data, obs_data_t *settings)
             C64_LOG_INFO("C64 host changed (%s->%s), restarting streaming", old_hostname, new_host);
         }
 
-        // Stop streaming and close existing sockets
-        c64_stop_streaming(context);
-
-        // Give the C64 Ultimate device time to process stop commands
-        os_sleep_ms(100);
+        /* The retry worker owns remote teardown so no network I/O runs on
+         * OBS's UI thread. Keep the existing REST client alive until it has
+         * released keys and stopped this explicit old endpoint. */
+        if (!context->device_transition_pending) {
+            snprintf(context->device_transition_host, sizeof(context->device_transition_host), "%s", old_ip_address);
+            context->device_transition_control_port = context->control_port;
+            context->device_transition_pending = true;
+        }
     }
 
     // Update configuration - hostname and IP resolution (thread-safe)
@@ -1511,11 +1527,14 @@ void c64_update(void *data, obs_data_t *settings)
         strncpy(context->obs_ip_address, new_obs_ip, sizeof(context->obs_ip_address) - 1);
         context->obs_ip_address[sizeof(context->obs_ip_address) - 1] = '\0';
     }
+    if (new_auto_detect && auto_detect_changed) {
+        context->obs_ip_address[0] = '\0';
+    }
     context->video_port = new_video_port;
     context->audio_port = new_audio_port;
     context->control_port = new_control_port;
 
-    if (host_changed || strcmp(old_password, context->c64_password) != 0) {
+    if ((host_changed || strcmp(old_password, context->c64_password) != 0) && !needs_device_transition) {
         context->stream_rest_demoted_until_ns = 0;
         c64_rebuild_rest_client(context);
     }
@@ -1614,7 +1633,7 @@ void c64_update(void *data, obs_data_t *settings)
 
     // Only schedule a background retry when network-related settings changed or streaming is stopped.
     const bool should_schedule_retry = (!context->streaming) || ports_changed || host_changed || obs_ip_changed ||
-                                       dns_changed;
+                                       dns_changed || auto_detect_changed;
     if (should_schedule_retry) {
         const char *reason = !context->streaming ? "update (not streaming)"
                              : host_changed      ? "update (host changed)"
@@ -1805,14 +1824,11 @@ void c64_start_streaming(struct c64_source *context)
     C64_LOG_INFO("C64 Stream streaming started successfully");
 }
 
-void c64_stop_streaming(struct c64_source *context)
+static void c64_stop_streaming_to(struct c64_source *context, const char *host, uint32_t control_port)
 {
-    if (!context || !context->streaming) {
-        C64_LOG_WARNING("Cannot stop streaming - invalid context or not streaming");
+    if (!context || !host || !host[0]) {
         return;
     }
-
-    C64_LOG_INFO("Stopping C64 Stream streaming...");
 
     /* Remote teardown precedes socket teardown so the old device is never left
      * streaming after a switch. release_all is deliberately attempted even if
@@ -1822,8 +1838,16 @@ void c64_stop_streaming(struct c64_source *context)
     } else if (context->rest_client) {
         c64_rest_release_all(context->rest_client);
     }
-    if (!c64_stream_control(context, false, 0, NULL) || !c64_stream_control(context, false, 1, NULL)) {
-        C64_LOG_WARNING("Remote stream stop failed for %s", context->ip_address);
+    if (!c64_stream_control_to(context, host, control_port, false, 0, NULL) ||
+        !c64_stream_control_to(context, host, control_port, false, 1, NULL)) {
+        C64_LOG_WARNING("Remote stream stop failed for %s", host);
+    }
+}
+
+static void c64_stop_streaming_local(struct c64_source *context)
+{
+    if (!context || !context->streaming) {
+        return;
     }
 
     context->streaming = false;
@@ -1870,6 +1894,44 @@ void c64_stop_streaming(struct c64_source *context)
     }
 
     C64_LOG_INFO("C64 Stream streaming stopped");
+}
+
+void c64_stop_streaming(struct c64_source *context)
+{
+    if (!context) {
+        return;
+    }
+
+    C64_LOG_INFO("Stopping C64 Stream streaming...");
+    c64_stop_streaming_to(context, context->ip_address, context->control_port);
+    c64_stop_streaming_local(context);
+}
+
+static void *c64_stop_streaming_thread(void *data)
+{
+    c64_stop_streaming(data);
+    return NULL;
+}
+
+static void c64_complete_pending_device_transition(struct c64_source *context)
+{
+    if (!context || !context->device_transition_pending) {
+        return;
+    }
+
+    char old_host[64];
+    snprintf(old_host, sizeof(old_host), "%s", context->device_transition_host);
+    const uint32_t old_control_port = context->device_transition_control_port;
+    context->device_transition_pending = false;
+    context->device_transition_host[0] = '\0';
+    context->device_transition_control_port = 0;
+
+    C64_LOG_INFO("Completing asynchronous device transition: stopping %s before starting %s", old_host,
+                 context->ip_address);
+    c64_stop_streaming_to(context, old_host, old_control_port);
+    c64_stop_streaming_local(context);
+    context->stream_rest_demoted_until_ns = 0;
+    c64_rebuild_rest_client(context);
 }
 
 // Video tick callback - updates texture from async frame buffer when CRT effects are enabled
