@@ -1,11 +1,16 @@
 #include "c64-device-scan.h"
 #include "c64-device.h"
+#include "c64-network.h"
 
 #include <curl/curl.h>
+#ifndef _WIN32
 #include <arpa/inet.h>
+#endif
 #include <ctype.h>
+#ifndef _WIN32
 #include <ifaddrs.h>
 #include <net/if.h>
+#endif
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -223,11 +228,6 @@ bool c64_device_scan_async(obs_source_t *source)
     if (!job) {
         return false;
     }
-    struct ifaddrs *interfaces = NULL;
-    if (getifaddrs(&interfaces) != 0) {
-        free(job);
-        return false;
-    }
     /* Scan saved and manually configured hosts as well as local subnets. */
     for (size_t i = 0; i < c64_device_registry_count() && job->count < C64_SCAN_MAX_HOSTS; i++) {
         const c64_device_t *device = c64_device_registry_get_at(i);
@@ -237,8 +237,16 @@ bool c64_device_scan_async(obs_source_t *source)
     }
     if (source) {
         obs_data_t *settings = obs_source_get_settings(source);
-        scan_add_host(job, obs_data_get_string(settings, "c64_host"));
-        obs_data_release(settings);
+        if (settings) {
+            scan_add_host(job, obs_data_get_string(settings, "c64_host"));
+            obs_data_release(settings);
+        }
+    }
+#ifndef _WIN32
+    struct ifaddrs *interfaces = NULL;
+    if (getifaddrs(&interfaces) != 0) {
+        free(job);
+        return false;
     }
     for (struct ifaddrs *entry = interfaces; entry && job->count < C64_SCAN_MAX_HOSTS; entry = entry->ifa_next) {
         if (!entry->ifa_addr || entry->ifa_addr->sa_family != AF_INET || !(entry->ifa_flags & IFF_UP) ||
@@ -264,6 +272,7 @@ bool c64_device_scan_async(obs_source_t *source)
         }
     }
     freeifaddrs(interfaces);
+#endif
     pthread_mutex_init(&job->mutex, NULL);
     job->deadline_ns = os_gettime_ns() + C64_SCAN_OVERALL_TIMEOUT_NS;
     job->source = source ? obs_source_get_ref(source) : NULL;
