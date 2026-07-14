@@ -26,6 +26,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-source.h"
 #include "c64-types.h"
 #include "c64-protocol.h"
+#include "c64-stream-control.h"
 #include "c64-video.h"
 #include "c64-color.h"
 #include "c64-audio.h"
@@ -54,50 +55,59 @@ static void c64_refresh_resolved_ip(struct c64_source *context);
 static void c64_set_expected_peer_ip(struct c64_source *context, const char *ip_string);
 static void c64_attempt_script_autostart(struct c64_source *context, obs_data_t *settings);
 static void c64_queue_properties_refresh(struct c64_source *context);
+static void c64_rebuild_rest_client(struct c64_source *context);
+
+static void c64_rebuild_rest_client(struct c64_source *context)
+{
+    if (!context) {
+        return;
+    }
+    if (context->keyboard) {
+        c64_keyboard_destroy(context->keyboard);
+        context->keyboard = NULL;
+    }
+    if (context->rest_client) {
+        c64_rest_client_destroy(context->rest_client);
+        context->rest_client = NULL;
+    }
+    context->rest_base_url[0] = '\0';
+    if (!context->ip_address[0] || !strcmp(context->ip_address, "0.0.0.0")) {
+        return;
+    }
+    snprintf(context->rest_base_url, sizeof(context->rest_base_url), "http://%s", context->ip_address);
+    context->rest_client = c64_rest_client_create(context->rest_base_url, context->c64_password);
+    if (context->rest_client) {
+        context->keyboard = c64_keyboard_create(context->rest_client);
+        if (context->keyboard) {
+            c64_keyboard_set_keymap(context->keyboard, context->keymap);
+        }
+        c64_record_on_rest_client_ready(context);
+    }
+}
 
 static const char *C64_PRESET_LAST_APPLIED_KEY = "crt_preset_last_applied";
 static const char *const C64_SOURCE_SAVED_SETTING_KEYS[] = {
-    "debug_logging",
-    "auto_detect_ip",
-    "dns_server_ip",
-    "c64_host",
-    "c64_password",
-    "obs_ip_address",
-    "video_port",
-    "audio_port",
-    "control_port",
-    "buffer_delay_ms",
-    "script_auto_start",
-    "script_file",
-    "record_frames",
-    "save_folder",
-    "record_video",
-    "record_csv",
-    "record_av_sync",
-    "crt_preset",
-    "scan_line_distance",
-    "scan_line_strength",
-    "pixel_width",
-    "pixel_height",
-    "blur_strength",
-    "bloom_strength",
-    "afterglow_duration_ms",
-    "afterglow_curve",
-    "tint_mode",
-    "tint_strength",
-    "palette",
-    "keyboard_keymap",
-    "file_system",
-    "playback_source",
-    "include_subfolders",
-    "shuffle_playback",
-    "automation_duration",
-    "automation_reset",
-    "automation_use_songlengths",
-    "local_folder_path",
-    "file_source",
-    "automation_path",
-    "automation_shuffle",
+    "debug_logging",      "auto_detect_ip",
+    "dns_server_ip",      "c64_host",
+    "c64_password",       "stream_control_transport",
+    "obs_ip_address",     "video_port",
+    "audio_port",         "control_port",
+    "buffer_delay_ms",    "script_auto_start",
+    "script_file",        "record_frames",
+    "save_folder",        "record_video",
+    "record_csv",         "record_av_sync",
+    "crt_preset",         "scan_line_distance",
+    "scan_line_strength", "pixel_width",
+    "pixel_height",       "blur_strength",
+    "bloom_strength",     "afterglow_duration_ms",
+    "afterglow_curve",    "tint_mode",
+    "tint_strength",      "palette",
+    "keyboard_keymap",    "file_system",
+    "playback_source",    "include_subfolders",
+    "shuffle_playback",   "automation_duration",
+    "automation_reset",   "automation_use_songlengths",
+    "local_folder_path",  "file_source",
+    "automation_path",    "automation_shuffle",
 };
 
 static bool c64_source_settings_have_effect_overrides(obs_data_t *settings)
@@ -255,10 +265,17 @@ void c64_async_retry_task(void *data)
         if (c64_test_connectivity(context->ip_address, context->control_port)) {
             // We are explicitly requesting the peer to (re)start streaming now.
             context->last_start_command_time_ns = os_gettime_ns();
-            c64_send_control_command(context, true, 0); // Video
-            c64_send_control_command(context, true, 1); // Audio
-            tcp_success = true;
-            context->consecutive_failures = 0; // Reset failure counter on success
+            char video_dest[C64_STREAM_DEST_MAX];
+            char audio_dest[C64_STREAM_DEST_MAX];
+            if (c64_build_stream_dest(video_dest, sizeof(video_dest), context->obs_ip_address, context->video_port) &&
+                c64_build_stream_dest(audio_dest, sizeof(audio_dest), context->obs_ip_address, context->audio_port) &&
+                c64_stream_control(context, true, 0, video_dest) && c64_stream_control(context, true, 1, audio_dest)) {
+                tcp_success = true;
+                context->consecutive_failures = 0; // Reset failure counter on success
+            } else {
+                tcp_success = false;
+                context->consecutive_failures++;
+            }
         } else {
             tcp_success = false;
             context->consecutive_failures++;
@@ -1150,25 +1167,11 @@ void c64_destroy(void *data)
         os_atomic_set_long(&context->retry_in_progress, 0);
     }
 
-    // Stop streaming if active
+    // Stop streaming if active. This sends release_all and explicit remote
+    // stream stops before closing local sockets.
     if (context->streaming) {
         C64_LOG_DEBUG("Stopping active streaming during destruction");
-        context->streaming = false;
-        os_atomic_set_bool(&context->thread_active, false);
-
-        close_and_reset_sockets(context);
-        if (os_atomic_load_bool(&context->video_thread_active)) {
-            pthread_join(context->video_thread, NULL);
-            os_atomic_set_bool(&context->video_thread_active, false);
-        }
-        if (os_atomic_load_bool(&context->video_processor_thread_active)) {
-            pthread_join(context->video_processor_thread, NULL);
-            os_atomic_set_bool(&context->video_processor_thread_active, false);
-        }
-        if (os_atomic_load_bool(&context->audio_thread_active)) {
-            pthread_join(context->audio_thread, NULL);
-            os_atomic_set_bool(&context->audio_thread_active, false);
-        }
+        c64_stop_streaming(context);
     }
 
     c64_record_cleanup(context);
@@ -1418,6 +1421,7 @@ void c64_update(void *data, obs_data_t *settings)
     uint32_t new_video_port = (uint32_t)obs_data_get_int(settings, "video_port");
     uint32_t new_audio_port = (uint32_t)obs_data_get_int(settings, "audio_port");
     uint32_t new_control_port = (uint32_t)obs_data_get_int(settings, "control_port");
+    context->stream_control_transport = (int)obs_data_get_int(settings, "stream_control_transport");
 
     // Set defaults
     if (!new_host)
@@ -1440,8 +1444,10 @@ void c64_update(void *data, obs_data_t *settings)
     pthread_mutex_unlock(&context->config_mutex);
 
     char old_obs_ip[64];
+    char old_password[sizeof(context->c64_password)];
     strncpy(old_obs_ip, context->obs_ip_address, sizeof(old_obs_ip) - 1);
     old_obs_ip[sizeof(old_obs_ip) - 1] = '\0';
+    snprintf(old_password, sizeof(old_password), "%s", context->c64_password);
 
     const bool host_changed = (strcmp(old_hostname, new_host) != 0);
     const char *dns_server_ip = obs_data_get_string(settings, "dns_server_ip");
@@ -1508,6 +1514,11 @@ void c64_update(void *data, obs_data_t *settings)
     context->video_port = new_video_port;
     context->audio_port = new_audio_port;
     context->control_port = new_control_port;
+
+    if (host_changed || strcmp(old_password, context->c64_password) != 0) {
+        context->stream_rest_demoted_until_ns = 0;
+        c64_rebuild_rest_client(context);
+    }
 
     // Update buffer delay setting with debouncing to prevent timestamp reset storms
     uint32_t new_buffer_delay_ms = (uint32_t)obs_data_get_int(settings, "buffer_delay_ms");
@@ -1649,8 +1660,8 @@ void c64_start_streaming(struct c64_source *context)
     // This prevents stale streaming state on the C64U from previous sessions
     if (strcmp(context->ip_address, "0.0.0.0") != 0) {
         C64_LOG_DEBUG("Sending proactive disconnect for all streams before starting");
-        c64_send_control_command(context, false, 0); // Stop video
-        c64_send_control_command(context, false, 1); // Stop audio
+        c64_stream_control(context, false, 0, NULL); // Stop video
+        c64_stream_control(context, false, 1, NULL); // Stop audio
         // Brief delay to ensure stop commands are processed before start commands
         os_sleep_ms(50);
     }
@@ -1724,8 +1735,24 @@ void c64_start_streaming(struct c64_source *context)
 
     // Send start commands to C64 Ultimate
     context->last_start_command_time_ns = os_gettime_ns();
-    c64_send_control_command(context, true, 0); // Start video
-    c64_send_control_command(context, true, 1); // Start audio
+    char video_dest[C64_STREAM_DEST_MAX];
+    char audio_dest[C64_STREAM_DEST_MAX];
+    if (!c64_build_stream_dest(video_dest, sizeof(video_dest), context->obs_ip_address, context->video_port) ||
+        !c64_build_stream_dest(audio_dest, sizeof(audio_dest), context->obs_ip_address, context->audio_port)) {
+        C64_LOG_ERROR("" NETWORK_LOG_PREFIX " Failed to build stream destination for start command");
+        close_and_reset_sockets(context);
+        return;
+    }
+    if (!c64_stream_control(context, true, 0, video_dest) || !c64_stream_control(context, true, 1, audio_dest)) {
+        C64_LOG_ERROR("" NETWORK_LOG_PREFIX " Failed to start C64 stream control");
+        if (context->keyboard) {
+            c64_keyboard_release_all(context->keyboard);
+        }
+        c64_stream_control(context, false, 0, NULL);
+        c64_stream_control(context, false, 1, NULL);
+        close_and_reset_sockets(context);
+        return;
+    }
 
     // Start fresh worker threads
     os_atomic_set_bool(&context->thread_active, true);
@@ -1786,6 +1813,18 @@ void c64_stop_streaming(struct c64_source *context)
     }
 
     C64_LOG_INFO("Stopping C64 Stream streaming...");
+
+    /* Remote teardown precedes socket teardown so the old device is never left
+     * streaming after a switch. release_all is deliberately attempted even if
+     * stream control fails. */
+    if (context->keyboard) {
+        c64_keyboard_release_all(context->keyboard);
+    } else if (context->rest_client) {
+        c64_rest_release_all(context->rest_client);
+    }
+    if (!c64_stream_control(context, false, 0, NULL) || !c64_stream_control(context, false, 1, NULL)) {
+        C64_LOG_WARNING("Remote stream stop failed for %s", context->ip_address);
+    }
 
     context->streaming = false;
     os_atomic_set_bool(&context->thread_active, false);

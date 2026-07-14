@@ -10,6 +10,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-version.h"
 #include "c64-network.h"
 #include "c64-protocol.h"
+#include "c64-stream-control.h"
 #include "c64-video.h"
 #include "c64-logging.h"
 #include "c64-file.h"
@@ -17,6 +18,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-source.h"
 #include "c64-palette.h"
 #include "device/c64-device.h"
+#include "device/c64-device-scan.h"
 #include "c64-color.h"
 #include "c64-keyboard.h"
 #include "c64-playlist-window.h"
@@ -104,6 +106,9 @@ static bool playback_source_changed(obs_properties_t *props, obs_property_t *pro
 // Reset controls
 static bool reset_plugin_clicked(obs_properties_t *props, obs_property_t *property, void *data);
 static bool reset_c64u_clicked(obs_properties_t *props, obs_property_t *property, void *data);
+static bool device_save_clicked(obs_properties_t *props, obs_property_t *property, void *data);
+static bool device_delete_clicked(obs_properties_t *props, obs_property_t *property, void *data);
+static bool device_scan_clicked(obs_properties_t *props, obs_property_t *property, void *data);
 
 static const char *script_status_to_text(c64_script_status_t status)
 {
@@ -610,6 +615,78 @@ static bool reset_c64u_clicked(obs_properties_t *props, obs_property_t *property
     }
 
     return false; // No UI refresh needed
+}
+
+static bool device_save_clicked(obs_properties_t *props, obs_property_t *property, void *data)
+{
+    UNUSED_PARAMETER(props);
+    UNUSED_PARAMETER(property);
+    struct c64_source *context = data;
+    if (!context) {
+        return false;
+    }
+    obs_data_t *settings = obs_source_get_settings(context->source);
+    if (!settings) {
+        return false;
+    }
+    c64_device_t device = {0};
+    const char *selected = obs_data_get_string(settings, "c64_device");
+    const char *host = obs_data_get_string(settings, "c64_host");
+    if (selected && c64_device_registry_get(selected)) {
+        snprintf(device.id, sizeof(device.id), "%s", selected);
+    } else if (!c64_device_id_from_host(device.id, sizeof(device.id), NULL, host)) {
+        obs_data_release(settings);
+        return false;
+    }
+    snprintf(device.name, sizeof(device.name), "%s", obs_data_get_string(settings, "device_name"));
+    snprintf(device.host, sizeof(device.host), "%s", host ? host : "");
+    snprintf(device.dns_server_ip, sizeof(device.dns_server_ip), "%s", obs_data_get_string(settings, "dns_server_ip"));
+    device.video_port = (uint32_t)obs_data_get_int(settings, "video_port");
+    device.audio_port = (uint32_t)obs_data_get_int(settings, "audio_port");
+    device.control_port = (uint32_t)obs_data_get_int(settings, "control_port");
+    if (device.name[0] == '\0') {
+        snprintf(device.name, sizeof(device.name), "%s", device.host);
+    }
+    if (!c64_device_registry_upsert(&device)) {
+        obs_data_release(settings);
+        return false;
+    }
+    char password_key[96];
+    c64_device_password_key(password_key, sizeof(password_key), device.id);
+    obs_data_set_string(settings, password_key, obs_data_get_string(settings, "c64_password"));
+    obs_data_set_string(settings, "c64_device", device.id);
+    obs_source_update(context->source, settings);
+    obs_data_release(settings);
+    return true;
+}
+
+static bool device_delete_clicked(obs_properties_t *props, obs_property_t *property, void *data)
+{
+    UNUSED_PARAMETER(props);
+    UNUSED_PARAMETER(property);
+    struct c64_source *context = data;
+    if (!context) {
+        return false;
+    }
+    obs_data_t *settings = obs_source_get_settings(context->source);
+    const char *selected = settings ? obs_data_get_string(settings, "c64_device") : NULL;
+    const bool deleted = selected && selected[0] && c64_device_registry_delete(selected);
+    if (deleted) {
+        obs_data_set_string(settings, "c64_device", "");
+        obs_source_update(context->source, settings);
+    }
+    if (settings) {
+        obs_data_release(settings);
+    }
+    return deleted;
+}
+
+static bool device_scan_clicked(obs_properties_t *props, obs_property_t *property, void *data)
+{
+    UNUSED_PARAMETER(props);
+    UNUSED_PARAMETER(property);
+    struct c64_source *context = data;
+    return context && c64_device_scan_async(context->source);
 }
 
 // File system changed callback - update path property visibility
@@ -1661,6 +1738,10 @@ obs_properties_t *c64_create_properties(void *data)
     obs_property_t *device_prop =
         obs_properties_add_list(network_props, "c64_device", "Device", OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
     c64_device_registry_populate_list(device_prop);
+    obs_properties_add_text(network_props, "device_name", "Device name", OBS_TEXT_DEFAULT);
+    obs_properties_add_button2(network_props, "device_save", "Save / Rename", device_save_clicked, data);
+    obs_properties_add_button2(network_props, "device_delete", "Delete", device_delete_clicked, data);
+    obs_properties_add_button2(network_props, "device_scan", "Scan", device_scan_clicked, data);
 
     // DNS Server IP
     obs_property_t *dns_prop =
@@ -1676,6 +1757,13 @@ obs_properties_t *c64_create_properties(void *data)
     obs_property_t *password_prop =
         obs_properties_add_text(network_props, "c64_password", obs_module_text("C64UPassword"), OBS_TEXT_PASSWORD);
     obs_property_set_long_description(password_prop, obs_module_text("C64UPassword.Description"));
+
+    obs_property_t *stream_transport = obs_properties_add_list(network_props, "stream_control_transport",
+                                                               "Stream control transport", OBS_COMBO_TYPE_LIST,
+                                                               OBS_COMBO_FORMAT_INT);
+    obs_property_list_add_int(stream_transport, "Auto", C64_STREAM_TRANSPORT_AUTO);
+    obs_property_list_add_int(stream_transport, "Force REST", C64_STREAM_TRANSPORT_REST);
+    obs_property_list_add_int(stream_transport, "Force Legacy", C64_STREAM_TRANSPORT_LEGACY);
 
     // OBS IP Address
     obs_property_t *obs_ip_prop =
@@ -2810,6 +2898,7 @@ void c64_set_property_defaults(obs_data_t *settings)
     obs_data_set_default_string(settings, "dns_server_ip", "192.168.1.1");
     obs_data_set_default_string(settings, "c64_host", C64_DEFAULT_HOST);
     obs_data_set_default_string(settings, "c64_password", "");
+    obs_data_set_default_int(settings, "stream_control_transport", C64_STREAM_TRANSPORT_AUTO);
     // Default OBS IP should be the dynamically detected local IP so OBS "Defaults" fills it in immediately.
     // If detection fails, fall back to empty and the runtime code will use localhost.
     {

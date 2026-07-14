@@ -118,61 +118,30 @@ static inline bool c64_audio_pop_fast_i16_le(const uint8_t *samples, size_t samp
     return max_abs >= 8000;
 }
 
-void c64_send_control_command(struct c64_source *context, bool enable, uint8_t stream_id)
+void c64_send_control_command_to(const char *host, uint32_t control_port, bool enable, uint8_t stream_id,
+                                 const char *dest)
 {
-    if (strcmp(context->ip_address, "0.0.0.0") == 0) {
-        C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Skipping control command - no IP configured (0.0.0.0)");
+    if (!host || strcmp(host, "0.0.0.0") == 0) {
+        C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Skipping control command - no host configured (0.0.0.0)");
         return;
     }
 
     if (enable) {
-        // Get the OBS IP to send as destination
-        const char *client_ip = context->obs_ip_address;
-
-        // Ensure we have a valid OBS IP address
-        if (!client_ip || strlen(client_ip) == 0) {
-            C64_LOG_WARNING("" NETWORK_LOG_PREFIX " No OBS IP address configured, cannot send stream start command");
+        // Destination string for the control protocol.
+        // The C64U expects/accepts "IP:PORT" and streams to that UDP port.
+        if (!dest) {
+            C64_LOG_WARNING("" NETWORK_LOG_PREFIX " Cannot start stream %u: no destination configured", stream_id);
             return;
         }
 
-        // Destination string for the control protocol.
-        // In practice, the C64U expects/accepts "IP:PORT" and will stream to that UDP port.
-        // This must match the local UDP ports we bind for the selected stream.
-        const uint16_t client_port = (stream_id == 0) ? context->video_port : context->audio_port;
-
-        char dest_str[64];
-        size_t dest_len = 0;
-        {
-            const size_t ip_len = strlen(client_ip);
-            const size_t max_port_chars = 5; // "65535"
-
-            // Ensure there is room for: <ip> ':' <port> '\0'
-            if (ip_len == 0 || ip_len > (sizeof(dest_str) - (1 + max_port_chars + 1))) {
-                C64_LOG_ERROR("" NETWORK_LOG_PREFIX " OBS IP address too long for control destination string: '%s'",
-                              client_ip);
-                return;
-            }
-
-            memcpy(dest_str, client_ip, ip_len);
-            dest_len = ip_len;
-            dest_str[dest_len++] = ':';
-
-            const int n = snprintf(dest_str + dest_len, sizeof(dest_str) - dest_len, "%u", (unsigned)client_port);
-            if (n < 0 || (size_t)n >= (sizeof(dest_str) - dest_len)) {
-                C64_LOG_ERROR("" NETWORK_LOG_PREFIX " Failed to format control destination port: %u",
-                              (unsigned)client_port);
-                return;
-            }
-
-            dest_len += (size_t)n;
-        }
+        const size_t dest_len = strlen(dest);
 
         // The C64U may keep its streaming state/destination unless the stream is explicitly stopped first.
         // Send stop right before enabling.
         // IMPORTANT: send stop and start on separate TCP connections to avoid coalescing both commands into
         // a single TCP read on the receiver side (our synthetic E2E mock server reads only one command).
         {
-            socket_t stop_sock = c64_create_tcp_socket(context->ip_address, context->control_port);
+            socket_t stop_sock = c64_create_tcp_socket(host, control_port);
             if (stop_sock != INVALID_SOCKET_VALUE) {
                 uint8_t stop_cmd[4];
                 stop_cmd[0] = 0x30 + stream_id; // FF3n (disable stream)
@@ -184,7 +153,7 @@ void c64_send_control_command(struct c64_source *context, bool enable, uint8_t s
             }
         }
 
-        socket_t sock = c64_create_tcp_socket(context->ip_address, context->control_port);
+        socket_t sock = c64_create_tcp_socket(host, control_port);
         if (sock == INVALID_SOCKET_VALUE) {
             return; // Error already logged in c64_create_tcp_socket
         }
@@ -192,18 +161,23 @@ void c64_send_control_command(struct c64_source *context, bool enable, uint8_t s
         // Enable stream command with destination string
         // Command structure: <command word LE> <param length LE> <duration LE> <destination string>
         // According to docs: FF2n where n is stream ID (0=video, 1=audio)
-        uint8_t cmd[140];          // Large enough buffer for destination string + header bytes
+        uint8_t cmd[140]; // Large enough buffer for destination string + header bytes
+        if (dest_len > sizeof(cmd) - 6) {
+            C64_LOG_ERROR("" NETWORK_LOG_PREFIX " Destination string too long for control command: '%s'", dest);
+            close(sock);
+            return;
+        }
         cmd[0] = 0x20 + stream_id; // 0x20 for video (stream 0), 0x21 for audio (stream 1)
         cmd[1] = 0xFF;
         cmd[2] = (uint8_t)(2 + dest_len); // Parameter length: 2 bytes duration + destination string length
         cmd[3] = 0x00;
         cmd[4] = 0x00; // Duration: 0 = forever (little endian)
         cmd[5] = 0x00;
-        memcpy(&cmd[6], dest_str, dest_len);
+        memcpy(&cmd[6], dest, dest_len);
 
         int cmd_len = 6 + (int)dest_len;
         C64_LOG_INFO("" NETWORK_LOG_PREFIX " Sending start command for stream %u to %s with client destination: %s",
-                     stream_id, context->ip_address, dest_str);
+                     stream_id, host, dest);
 
         ssize_t sent = send(sock, (const char *)cmd, cmd_len, 0);
         if (sent != (ssize_t)cmd_len) {
@@ -216,7 +190,7 @@ void c64_send_control_command(struct c64_source *context, bool enable, uint8_t s
 
         close(sock);
     } else {
-        socket_t sock = c64_create_tcp_socket(context->ip_address, context->control_port);
+        socket_t sock = c64_create_tcp_socket(host, control_port);
         if (sock == INVALID_SOCKET_VALUE) {
             return; // Error already logged in c64_create_tcp_socket
         }
@@ -228,8 +202,7 @@ void c64_send_control_command(struct c64_source *context, bool enable, uint8_t s
         cmd[2] = 0x00; // No parameters
         cmd[3] = 0x00;
         int cmd_len = 4;
-        C64_LOG_INFO("" NETWORK_LOG_PREFIX " Sending stop command for stream %u to C64 %s", stream_id,
-                     context->ip_address);
+        C64_LOG_INFO("" NETWORK_LOG_PREFIX " Sending stop command for stream %u to C64 %s", stream_id, host);
 
         ssize_t sent = send(sock, (const char *)cmd, cmd_len, 0);
         if (sent != (ssize_t)cmd_len) {
@@ -242,6 +215,38 @@ void c64_send_control_command(struct c64_source *context, bool enable, uint8_t s
 
         close(sock);
     }
+}
+
+// Thin wrapper: the single permitted ambient-state read of context->ip_address.
+// Every other call site passes an explicit endpoint via c64_send_control_command_to.
+void c64_send_control_command(struct c64_source *context, bool enable, uint8_t stream_id)
+{
+    if (!context) {
+        return;
+    }
+    if (strcmp(context->ip_address, "0.0.0.0") == 0) {
+        C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Skipping control command - no IP configured (0.0.0.0)");
+        return;
+    }
+
+    const char *dest_arg = NULL;
+    char dest[C64_STREAM_DEST_MAX];
+    if (enable) {
+        const char *client_ip = context->obs_ip_address;
+        if (!client_ip || strlen(client_ip) == 0) {
+            C64_LOG_WARNING("" NETWORK_LOG_PREFIX " No OBS IP address configured, cannot send stream start command");
+            return;
+        }
+        const uint16_t client_port = (stream_id == 0) ? (uint16_t)context->video_port : (uint16_t)context->audio_port;
+        if (!c64_build_stream_dest(dest, sizeof(dest), client_ip, client_port)) {
+            C64_LOG_ERROR("" NETWORK_LOG_PREFIX " OBS IP address too long for control destination string: '%s'",
+                          client_ip);
+            return;
+        }
+        dest_arg = dest;
+    }
+
+    c64_send_control_command_to(context->ip_address, context->control_port, enable, stream_id, dest_arg);
 }
 
 /**

@@ -327,6 +327,8 @@ struct c64_source {
     bool keyboard_reboot_consumed; // ESC+TAB chord already handled for current press cycle
     char rest_base_url[256];       // REST API base URL
     char keyboard_keymap_name[64]; // Keymap name (e.g., "symbolic_us")
+    int stream_control_transport;  // 0 auto, 1 REST, 2 legacy
+    uint64_t stream_rest_demoted_until_ns;
 
     // Audio mixer snapshot for AV sync runs
     char **audio_mixer_snapshot_items;  // Item names (Audio Mixer)

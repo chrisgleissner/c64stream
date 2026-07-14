@@ -60,6 +60,7 @@ static char *c64_strtok_r(char *str, const char *delim, char **saveptr)
 #define C64_KEYBOARD_BUFFER 0x0277
 #define C64_KEYBOARD_LENGTH 0x00C6
 #define C64_KEYBOARD_BUFFER_SIZE 10
+#define C64_REST_INPUT_BATCH_SIZE 64
 #define C64_STOP_FLAG 0x0091        // RUN/STOP flag (bit 7)
 #define C64_IRQ_VECTOR_LOW 0x0314   // IRQ vector low byte
 #define C64_IRQ_VECTOR_HIGH 0x0315  // IRQ vector high byte
@@ -1036,11 +1037,72 @@ static bool keyboard_wait_for_work(c64_keyboard_t *keyboard)
     return has_work;
 }
 
+/* PETSCII and text both enter the queue as bytes. Keep their matrix mapping in
+ * one place so a shifted character is sent as a single hardware chord. */
+static bool petscii_to_matrix(uint8_t value, const char **key, bool *shift)
+{
+    static const char *const letters[] = {"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
+                                          "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"};
+    static const char *const digits[] = {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9"};
+    static const char *const punctuation[128] = {
+        [' '] = "space",    ['!'] = "1",         ['\"'] = "2",        ['#'] = "3",     ['$'] = "4",
+        ['%'] = "5",        ['&'] = "6",         ['\''] = "7",        ['('] = "8",     [')'] = "9",
+        ['*'] = "8",        ['+'] = "plus",      [','] = "comma",     ['-'] = "minus", ['.'] = "period",
+        ['/'] = "slash",    [':'] = "colon",     [';'] = "semicolon", ['<'] = "comma", ['='] = "equals",
+        ['>'] = "period",   ['?'] = "slash",     ['@'] = "at",        ['['] = "colon", ['\\'] = "semicolon",
+        [']'] = "minus",    ['^'] = "arrow_up",  ['_'] = "plus",      ['`'] = "pound", ['{'] = "at",
+        ['|'] = "asterisk", ['}'] = "semicolon", ['~'] = "clear"};
+    if (!key || !shift || value < 32 || value > 126) {
+        return false;
+    }
+    if (value >= 'A' && value <= 'Z') {
+        *key = letters[value - 'A'];
+        *shift = true;
+        return true;
+    }
+    if (value >= 'a' && value <= 'z') {
+        *key = letters[value - 'a'];
+        *shift = false;
+        return true;
+    }
+    if (value >= '0' && value <= '9') {
+        *key = digits[value - '0'];
+        *shift = false;
+        return true;
+    }
+    *key = punctuation[value];
+    *shift = strchr("!\"#$%&()*,<>?", value) != NULL;
+    return *key != NULL;
+}
+
+static bool build_rest_input_batch(const uint8_t *bytes, int count, char *json, size_t json_size)
+{
+    if (!bytes || count <= 0 || count > C64_REST_INPUT_BATCH_SIZE || !json || json_size < 32) {
+        return false;
+    }
+    size_t used = (size_t)snprintf(json, json_size, "{\"events\":[");
+    for (int i = 0; i < count; i++) {
+        const char *key = NULL;
+        bool shift = false;
+        if (!petscii_to_matrix(bytes[i], &key, &shift)) {
+            return false;
+        }
+        int written = snprintf(json + used, json_size - used,
+                               "%s{\"kind\":\"keyboard\",\"inputs\":[%s\"%s\"],\"transition\":\"tap\"}", i ? "," : "",
+                               shift ? "\"left_shift\",\"" : "", key);
+        if (written < 0 || (size_t)written >= json_size - used) {
+            return false;
+        }
+        used += (size_t)written;
+    }
+    return snprintf(json + used, json_size - used, "]}") > 0;
+}
+
 // Worker thread function
 static void *injection_worker(void *arg)
 {
     c64_keyboard_t *keyboard = (c64_keyboard_t *)arg;
-    uint8_t pending_buffer[C64_KEYBOARD_BUFFER_SIZE] = {0};
+    uint8_t pending_buffer[C64_REST_INPUT_BATCH_SIZE] = {0};
     int pending_count = 0;
     c64_keyboard_state_t state = C64_KEYBOARD_STATE_IDLE;
     uint32_t retry_count = 0;
@@ -1055,17 +1117,40 @@ static void *injection_worker(void *arg)
             if (!last_batch_failed) {
                 keyboard_set_status(keyboard, "idle");
             }
-            pending_count = queue_peek_batch(keyboard, pending_buffer, C64_KEYBOARD_BUFFER_SIZE);
+            pending_count = queue_peek_batch(keyboard, pending_buffer, C64_REST_INPUT_BATCH_SIZE);
             if (pending_count == 0) {
                 if (!keyboard_wait_for_work(keyboard)) {
                     continue;
                 }
-                pending_count = queue_peek_batch(keyboard, pending_buffer, C64_KEYBOARD_BUFFER_SIZE);
+                pending_count = queue_peek_batch(keyboard, pending_buffer, C64_REST_INPUT_BATCH_SIZE);
                 if (pending_count == 0) {
                     continue;
                 }
             }
 
+            char json[8192];
+            if (build_rest_input_batch(pending_buffer, pending_count, json, sizeof(json))) {
+                if (c64_rest_machine_input(keyboard->rest_client, json)) {
+                    queue_discard_many(keyboard, pending_count);
+                    pending_count = 0;
+                    keyboard_set_status(keyboard, "complete");
+                    continue;
+                }
+                if (c64_rest_get_last_outcome(keyboard->rest_client) != C64_REST_NOT_SUPPORTED) {
+                    C64_LOG_ERROR(KEYBOARD_LOG_PREFIX "machine:input refused batch (HTTP %ld); no legacy fallback",
+                                  c64_rest_get_last_status(keyboard->rest_client));
+                    queue_discard_many(keyboard, pending_count);
+                    pending_count = 0;
+                    keyboard_set_status(keyboard, "failed");
+                    continue;
+                }
+                C64_LOG_INFO(KEYBOARD_LOG_PREFIX "machine:input unavailable; retrying batch via legacy input");
+            }
+            /* Legacy KERNAL input is constrained to ten bytes. On REST
+             * demotion the queue remains ordered and subsequent chunks retry. */
+            if (pending_count > C64_KEYBOARD_BUFFER_SIZE) {
+                pending_count = C64_KEYBOARD_BUFFER_SIZE;
+            }
             last_batch_failed = false;
             retry_count = 0;
             backoff_ms = C64_KEYBOARD_POLL_INITIAL_MS;
@@ -1263,6 +1348,19 @@ bool c64_keyboard_is_capturing(c64_keyboard_t *keyboard)
         return false;
     }
     return keyboard->capturing;
+}
+
+bool c64_keyboard_release_all(c64_keyboard_t *keyboard)
+{
+    if (!keyboard || !keyboard->rest_client) {
+        return false;
+    }
+    const bool ok = c64_rest_release_all(keyboard->rest_client);
+    if (!ok) {
+        C64_LOG_WARNING(KEYBOARD_LOG_PREFIX "release_all failed (HTTP %ld)",
+                        c64_rest_get_last_status(keyboard->rest_client));
+    }
+    return ok;
 }
 
 void c64_keyboard_queue_output(c64_keyboard_t *keyboard, const c64_output_t *output)

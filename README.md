@@ -24,6 +24,11 @@ The plugin connects directly to the Ultimate's network interface, eliminating th
 - **Built-in recording + diagnostics**: Record BMP frames, AVI video, and WAV audio, plus optional CSV timing logs (`obs.csv` / `network.csv`) for debugging.
 - **Keyboard capture**: Click the `Interact` button below the preview to type directly into the C64.
 - **Script-based automation**: C64Script, a BASIC-inspired language for programmatic control of your stream ([tutorial](doc/c64script/c64script-tutorial.md)).
+- **Saved devices**: Save network-only device profiles and switch from the Device list without retyping a host. Passwords stay in OBS source settings per device and are never written to profile `.ini` files.
+
+Saved-device stream control defaults to Auto: REST is used when the device supports the endpoint and legacy port 64 is
+used only after an explicit `404` or `501` capability response. Authentication failures never fall back. Keyboard
+input uses the REST matrix endpoint when available and sends `release_all` when a source stops or is destroyed.
 
 ## Contents
 

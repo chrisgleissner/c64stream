@@ -1,0 +1,11 @@
+#pragma once
+
+#include <obs-module.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+
+bool c64_device_scan_product_matches(const char *product);
+bool c64_device_scan_is_ultimate_error(const char *body);
+size_t c64_device_scan_enumerate_subnet(uint32_t address, uint8_t prefix, uint32_t *out, size_t out_count);
+bool c64_device_scan_async(obs_source_t *source);

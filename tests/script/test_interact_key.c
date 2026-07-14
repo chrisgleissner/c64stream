@@ -89,6 +89,31 @@ bool c64_rest_write_memory(c64_rest_client_t *client, uint16_t address, const ui
     return true;
 }
 
+bool c64_rest_machine_input(c64_rest_client_t *client, const char *json)
+{
+    (void)client;
+    (void)json;
+    return false;
+}
+
+bool c64_rest_release_all(c64_rest_client_t *client)
+{
+    (void)client;
+    return false;
+}
+
+long c64_rest_get_last_status(const c64_rest_client_t *client)
+{
+    (void)client;
+    return 501;
+}
+
+c64_rest_outcome_t c64_rest_get_last_outcome(const c64_rest_client_t *client)
+{
+    (void)client;
+    return C64_REST_NOT_SUPPORTED;
+}
+
 int c64_rest_read_memory_quiet(c64_rest_client_t *client, uint16_t address, size_t length, uint8_t *buffer,
                                size_t buffer_size)
 {

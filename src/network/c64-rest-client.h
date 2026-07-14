@@ -29,10 +29,11 @@ typedef struct c64_rest_client c64_rest_client_t;
  */
 typedef enum {
     C64_REST_OK,            /**< 2xx — success */
-    C64_REST_NOT_SUPPORTED, /**< 404, 501 and other unexpected non-auth errors — fall back to legacy */
+    C64_REST_NOT_SUPPORTED, /**< 404, 501 — fall back to legacy where it is safe */
     C64_REST_FORBIDDEN,     /**< 401, 403 — authentication refusal. DO NOT fall back */
     C64_REST_BAD_REQUEST,   /**< 400 — our payload is invalid. Log loudly, do not fall back */
     C64_REST_UNREACHABLE,   /**< transport error (no HTTP response) — device down; fallback will also fail */
+    C64_REST_SERVER_ERROR,  /**< 5xx other than 501 — surface, do not fall back */
 } c64_rest_outcome_t;
 
 /**
@@ -47,6 +48,8 @@ typedef enum {
  * Exposed so the classification is unit-testable without a network.
  */
 c64_rest_outcome_t c64_rest_classify_status(long status);
+long c64_rest_get_last_status(const c64_rest_client_t *client);
+c64_rest_outcome_t c64_rest_get_last_outcome(const c64_rest_client_t *client);
 
 /**
  * Create a new REST client
@@ -60,6 +63,10 @@ c64_rest_client_t *c64_rest_client_create(const char *base_url, const char *pass
  * Destroy REST client and free resources
  */
 void c64_rest_client_destroy(c64_rest_client_t *client);
+bool c64_rest_stream_start(c64_rest_client_t *client, bool audio, const char *destination);
+bool c64_rest_stream_stop(c64_rest_client_t *client, bool audio);
+bool c64_rest_machine_input(c64_rest_client_t *client, const char *json);
+bool c64_rest_release_all(c64_rest_client_t *client);
 
 /**
  * Machine reset (soft)

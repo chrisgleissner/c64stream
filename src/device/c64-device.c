@@ -140,6 +140,16 @@ const c64_device_t *c64_device_registry_get(const char *id)
     return NULL;
 }
 
+const c64_device_t *c64_device_registry_get_at(size_t index)
+{
+    return index < device_count ? &devices[index] : NULL;
+}
+
+size_t c64_device_registry_count(void)
+{
+    return device_count;
+}
+
 bool c64_device_registry_upsert(const c64_device_t *device)
 {
     if (!initialized)
@@ -211,7 +221,8 @@ bool c64_device_registry_migrate_legacy(obs_data_t *settings)
     c64_device_password_key(password_key, sizeof(password_key), device.id);
     obs_data_set_string(settings, password_key, obs_data_get_string(settings, "c64_password"));
     obs_data_set_string(settings, "c64_device", device.id);
-    obs_data_erase(settings, "c64_password");
+    /* Keep the legacy key for a compatibility release. The selected-device
+     * password is authoritative; no registry file receives either value. */
     C64_LOG_INFO("%s migrated legacy host to device '%s'", DEVICE_LOG_PREFIX, device.id);
     return true;
 }

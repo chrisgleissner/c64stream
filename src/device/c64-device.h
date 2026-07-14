@@ -24,6 +24,8 @@ typedef struct c64_device {
 bool c64_device_registry_init(void);
 void c64_device_registry_cleanup(void);
 const c64_device_t *c64_device_registry_get(const char *id);
+const c64_device_t *c64_device_registry_get_at(size_t index);
+size_t c64_device_registry_count(void);
 bool c64_device_registry_upsert(const c64_device_t *device);
 bool c64_device_registry_delete(const char *id);
 void c64_device_registry_populate_list(obs_property_t *property);

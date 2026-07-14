@@ -106,6 +106,7 @@ void c64_keyboard_set_capture(c64_keyboard_t *keyboard, bool enabled);
  * Check if capture is currently active
  */
 bool c64_keyboard_is_capturing(c64_keyboard_t *keyboard);
+bool c64_keyboard_release_all(c64_keyboard_t *keyboard);
 
 /**
  * Queue keystroke for injection

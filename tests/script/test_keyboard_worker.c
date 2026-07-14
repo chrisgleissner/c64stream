@@ -123,6 +123,31 @@ const char *c64_rest_get_error(c64_rest_client_t *client)
     return rest_client->error;
 }
 
+bool c64_rest_machine_input(c64_rest_client_t *client, const char *json)
+{
+    (void)client;
+    (void)json;
+    return false;
+}
+
+bool c64_rest_release_all(c64_rest_client_t *client)
+{
+    (void)client;
+    return false;
+}
+
+long c64_rest_get_last_status(const c64_rest_client_t *client)
+{
+    (void)client;
+    return 501;
+}
+
+c64_rest_outcome_t c64_rest_get_last_outcome(const c64_rest_client_t *client)
+{
+    (void)client;
+    return C64_REST_NOT_SUPPORTED;
+}
+
 static bool wait_for_consumed_count(worker_test_rest_client_t *client, size_t expected_count, uint32_t timeout_ms)
 {
     const uint64_t deadline = os_gettime_ns() + ((uint64_t)timeout_ms * 1000000ULL);

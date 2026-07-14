@@ -53,14 +53,12 @@ TEST(classify_not_supported_codes)
     assert(c64_rest_classify_status(501) == C64_REST_NOT_SUPPORTED);
 }
 
-TEST(classify_other_server_errors_fallback)
+TEST(classify_other_server_errors_are_surfaced)
 {
-    // 500 and other unexpected codes are neither auth refusals nor payload bugs,
-    // so they are fallback-eligible (NOT_SUPPORTED) for robustness.
-    assert(c64_rest_classify_status(500) == C64_REST_NOT_SUPPORTED);
-    assert(c64_rest_classify_status(502) == C64_REST_NOT_SUPPORTED);
-    assert(c64_rest_classify_status(405) == C64_REST_NOT_SUPPORTED);
-    assert(c64_rest_classify_status(429) == C64_REST_NOT_SUPPORTED);
+    assert(c64_rest_classify_status(500) == C64_REST_SERVER_ERROR);
+    assert(c64_rest_classify_status(502) == C64_REST_SERVER_ERROR);
+    assert(c64_rest_classify_status(405) == C64_REST_SERVER_ERROR);
+    assert(c64_rest_classify_status(429) == C64_REST_SERVER_ERROR);
 }
 
 TEST(classify_transport_failure)
@@ -81,7 +79,7 @@ int main(void)
     RUN_TEST(classify_bad_request);
     RUN_TEST(classify_auth_refusals_never_fallback);
     RUN_TEST(classify_not_supported_codes);
-    RUN_TEST(classify_other_server_errors_fallback);
+    RUN_TEST(classify_other_server_errors_are_surfaced);
     RUN_TEST(classify_transport_failure);
     RUN_TEST(accessors_null_safe);
     return 0;

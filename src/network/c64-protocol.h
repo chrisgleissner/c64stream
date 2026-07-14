@@ -10,9 +10,11 @@ See <https://www.gnu.org/licenses/> for details.
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdio.h>
 
 // C64 Stream constants
 #define C64_VIDEO_PACKET_SIZE 780
+#define C64_STREAM_DEST_MAX 80
 #define C64_AUDIO_PACKET_SIZE 770
 #define C64_VIDEO_HEADER_SIZE 12
 #define C64_AUDIO_HEADER_SIZE 2
@@ -49,6 +51,42 @@ See <https://www.gnu.org/licenses/> for details.
 
 // Forward declaration
 struct c64_source;
+
+/**
+ * Build the stream destination string "IP:PORT" used by the control protocol
+ * (FF2n) and reusable verbatim as the REST `ip=` query parameter.
+ *
+ * This is the single source of truth for the destination string: the
+ * legacy TCP command path and the REST stream-control path both consume it.
+ * Defined inline so it is unit-testable without dragging in the heavy
+ * c64-protocol.c dependency chain.
+ * @return true on success, false if obs_ip is empty/NULL or the result would not fit
+ */
+static inline bool c64_build_stream_dest(char *out, size_t out_size, const char *obs_ip, uint16_t port)
+{
+    if (!out || out_size == 0 || !obs_ip || obs_ip[0] == '\0') {
+        return false;
+    }
+    const int n = snprintf(out, out_size, "%s:%u", obs_ip, (unsigned)port);
+    return (n > 0 && (size_t)n < out_size);
+}
+
+/**
+ * Send a legacy control command (TCP port 64) to an EXPLICIT target.
+ *
+ * Approach A's parameterised send: the destination device is a parameter, not
+ * ambient context->ip_address state. c64_send_control_command() is a thin
+ * wrapper around this that reads context->ip_address — the one permitted
+ * ambient-state read (see the seamless-device-transition DRY ledger).
+ *
+ * @param host         Target device host/IP (must not be "0.0.0.0")
+ * @param control_port Target device control port (default 64)
+ * @param enable       true = start stream, false = stop stream
+ * @param stream_id    0 = video, 1 = audio
+ * @param dest         "IP:PORT" destination for start commands (NULL for stop)
+ */
+void c64_send_control_command_to(const char *host, uint32_t control_port, bool enable, uint8_t stream_id,
+                                 const char *dest);
 
 // Protocol operations
 void c64_send_control_command(struct c64_source *context, bool enable, uint8_t stream_id);

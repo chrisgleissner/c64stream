@@ -48,7 +48,10 @@ c64_rest_outcome_t c64_rest_classify_status(long status)
     // 404, 500, 501 and any other code: not an auth refusal (401/403) and not a
     // payload bug (400). Falling back to the legacy transport is the robust
     // choice and never bypasses authentication.
-    return C64_REST_NOT_SUPPORTED;
+    if (status == 404 || status == 501) {
+        return C64_REST_NOT_SUPPORTED;
+    }
+    return C64_REST_SERVER_ERROR;
 }
 
 // Callback for capturing HTTP response data
@@ -669,6 +672,46 @@ static bool http_request(c64_rest_client_t *client, const char *method, const ch
                          const uint8_t *body_data, size_t body_size, response_buffer_t *response)
 {
     return http_request_ex(client, method, endpoint, query_params, body_data, body_size, response, false);
+}
+
+bool c64_rest_stream_start(c64_rest_client_t *client, bool audio, const char *destination)
+{
+    if (!client || !destination || !destination[0]) {
+        return false;
+    }
+
+    char *escaped_destination = curl_easy_escape(client->curl, destination, 0);
+    if (!escaped_destination) {
+        snprintf(client->error_msg, sizeof(client->error_msg), "Failed to URL-escape stream destination");
+        client->last_status = 0;
+        client->last_outcome = C64_REST_UNREACHABLE;
+        return false;
+    }
+
+    char query[160];
+    snprintf(query, sizeof(query), "ip=%s", escaped_destination);
+    curl_free(escaped_destination);
+    return http_request(client, "PUT", audio ? "/v1/streams/audio:start" : "/v1/streams/video:start", query, NULL, 0,
+                        NULL);
+}
+
+bool c64_rest_stream_stop(c64_rest_client_t *client, bool audio)
+{
+    return http_request(client, "PUT", audio ? "/v1/streams/audio:stop" : "/v1/streams/video:stop", NULL, NULL, 0,
+                        NULL);
+}
+
+bool c64_rest_machine_input(c64_rest_client_t *client, const char *json)
+{
+    if (!client || !json || !json[0]) {
+        return false;
+    }
+    return http_request(client, "POST", "/v1/machine:input", NULL, (const uint8_t *)json, strlen(json), NULL);
+}
+
+bool c64_rest_release_all(c64_rest_client_t *client)
+{
+    return c64_rest_machine_input(client, "{\"events\":[{\"kind\":\"release_all\"}]}");
 }
 
 static bool request_json(c64_rest_client_t *client, const char *method, const char *endpoint, const char *query_params,

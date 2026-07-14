@@ -202,6 +202,7 @@ target_sources(
     src/plugin-main.c
     src/c64-source.c
     src/device/c64-device.c
+    src/device/c64-device-scan.c
     src/util/c64-av-sync.c
     src/util/c64-file.c
     src/util/c64-version.c
@@ -210,6 +211,7 @@ target_sources(
     src/network/c64-network.c
     src/network/c64-network-buffer.c
     src/network/c64-protocol.c
+    src/network/c64-stream-control.c
     src/video/c64-video.c
     src/video/c64-effect-afterglow.c
     src/video/c64-effect-geometry.c

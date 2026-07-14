@@ -69,7 +69,7 @@ int main(void)
     char password_key[96];
     c64_device_password_key(password_key, sizeof(password_key), selected);
     CHECK(strcmp(obs_data_get_string(settings, password_key), "secret") == 0);
-    CHECK(strcmp(obs_data_get_string(settings, "c64_password"), "") == 0);
+    CHECK(strcmp(obs_data_get_string(settings, "c64_password"), "secret") == 0);
     CHECK(c64_device_registry_get(selected));
     CHECK(c64_device_registry_apply_selected(settings));
     CHECK(strcmp(obs_data_get_string(settings, "c64_password"), "secret") == 0);
