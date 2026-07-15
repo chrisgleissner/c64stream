@@ -2,7 +2,8 @@
 # Located in tests/script to keep C64Script-specific helpers together.
 
 # Include paths covering all src module subdirectories (headers use flat names)
-set(C64_ALL_INCLUDE_DIRS
+set(
+  C64_ALL_INCLUDE_DIRS
   ${CMAKE_SOURCE_DIR}/src
   ${CMAKE_SOURCE_DIR}/src/audio
   ${CMAKE_SOURCE_DIR}/src/automation
@@ -287,12 +288,7 @@ target_include_directories(test_properties_refresh PRIVATE ${C64_ALL_INCLUDE_DIR
 target_link_libraries(test_properties_refresh PRIVATE OBS::libobs)
 add_test(NAME properties_refresh COMMAND test_properties_refresh)
 
-add_executable(
-  test_file_paths
-  test_file_paths.c
-  c64script_test_logging.c
-  ${CMAKE_SOURCE_DIR}/src/util/c64-file.c
-)
+add_executable(test_file_paths test_file_paths.c c64script_test_logging.c ${CMAKE_SOURCE_DIR}/src/util/c64-file.c)
 target_include_directories(test_file_paths PRIVATE ${C64_ALL_INCLUDE_DIRS})
 target_link_libraries(test_file_paths PRIVATE OBS::libobs)
 add_test(NAME file_paths COMMAND test_file_paths)
