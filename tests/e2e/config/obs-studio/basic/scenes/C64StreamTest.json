@@ -104,7 +104,8 @@
             "id": "c64_source",
             "versioned_id": "c64_source",
             "settings": {
-                "c64_host": "127.0.0.1"
+                "c64_host": "127.0.0.1",
+                "stream_control_transport": 2
             },
             "mixers": 255,
             "sync": 0,
