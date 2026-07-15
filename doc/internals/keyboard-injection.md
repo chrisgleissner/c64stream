@@ -89,3 +89,8 @@ teardown — a device that can't confirm release is still torn down locally.
 - `tests/script/test_c64script_keyboard_injection.c` — keyboard injection driven through
   C64Script automation.
 - `tests/script/test_interact_key.c` — interactive key handling through OBS's interact mode.
+- `tests/e2e/scenarios/ntsc_transport_legacy` / `ntsc_transport_rest` — OBS-driven, run
+  automatically in CI: a `TYPE`/`KEY` script against the mock device
+  (`framework/c64u_mock/server.py`), which serves both `machine:readmem`/`writemem` (KERNAL-buffer
+  polling) and `machine:input` (matrix) on port 80, forced one way per scenario via
+  `stream_control_transport`.

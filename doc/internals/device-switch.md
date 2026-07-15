@@ -179,8 +179,9 @@ Both commands are no-ops (not errors) when the script runs without an attached O
 same convention `PALETTE`/`EFFECT` already use — so they don't break script tests that exercise the
 VM without full plugin context.
 
-See `doc/testing/device-switch-soak.md` for the real-hardware soak test built on these commands,
-and `tests/e2e/test_device_switch_e2e.py` for the CI-safe two-mock-device equivalent.
+See `doc/testing/device-switch-soak.md`: `ntsc_device_switch_soak` runs automatically in CI against
+two mock devices; `ntsc_device_switch_soak_real` is the explicit-only, real-hardware, long-duration
+variant.
 
 ## Testing
 
@@ -194,5 +195,11 @@ and `tests/e2e/test_device_switch_e2e.py` for the CI-safe two-mock-device equiva
 - `tests/script/test_c64script_parser.c` / `test_c64script_compiler.c` — parsing and execution of
   `SWITCH_DEVICE`/`DISCOVER_DEVICES`, including the no-obs-source no-op path and type-mismatch
   errors.
-- `tests/e2e/test_device_switch_e2e.py` — OBS-driven E2E test with two independent mock devices;
-  switches twice and asserts each mock saw exactly the start/stop commands its active phase implies.
+- `tests/e2e/scenarios/ntsc_device_switch_soak` — OBS-driven E2E scenario, run automatically in CI,
+  with two independent mock devices; switches twice and asserts (via
+  `assertions/device_switch_log.py`) that the plugin logged the expected number of device
+  transitions.
+- `tests/e2e/scenarios/ntsc_transport_legacy` / `ntsc_transport_rest` — dedicated scenarios forcing
+  each stream-control transport against the mock (which now speaks both port 64 and REST port 80;
+  see `framework/c64u_mock/server.py`), asserting on transport-specific log evidence
+  (`assertions/transport_log.py`).

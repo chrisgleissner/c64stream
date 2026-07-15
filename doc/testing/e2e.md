@@ -245,7 +245,9 @@ Available scenarios include:
 | ntsc_default                   | NTSC   | Default preset (no effects)                           |
 | ntsc_default_720p              | NTSC   | 720p, 59.826 Hz (standard HD)                         |
 | ntsc_default_record            | NTSC   | Default preset + recording enabled                    |
-| ntsc_device_switch_soak        | NTSC   | Real-device only: repeated device-switch soak (see `doc/testing/device-switch-soak.md`) |
+| ntsc_device_switch_soak        | NTSC   | Two mock devices; switches twice via SWITCH_DEVICE (see `doc/testing/device-switch-soak.md`) |
+| ntsc_transport_legacy          | NTSC   | Forces legacy transport; stream start/stop over port 64, keyboard via KERNAL-buffer polling |
+| ntsc_transport_rest            | NTSC   | Forces REST transport; stream start/stop + keyboard via `machine:input` over port 80 |
 | ntsc_delay_buffer500           | NTSC   | 500ms buffer delay test                               |
 | ntsc_delay_buffer500_jitter10  | NTSC   | 500ms buffer + jitter simulation (10ms)               |
 | ntsc_delay_buffer500_jitter100 | NTSC   | 500ms buffer + jitter simulation (see scenario)       |

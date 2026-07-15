@@ -1,4 +1,4 @@
-name: NTSC Device Switch Soak (Real Devices)
+name: NTSC Device Switch Soak (Real Devices, explicit-only)
 format: NTSC
 preset: Default
 # Use real C64 Ultimate device packets rather than the synthetic UDP sender.

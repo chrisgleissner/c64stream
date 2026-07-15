@@ -1,0 +1,14 @@
+REM ================================================
+REM Keyboard Injection - types a short BASIC line and
+REM presses RETURN, exercising whichever keyboard
+REM transport stream_control_transport selects (legacy
+REM KERNAL-buffer-via-REST, or REST machine:input).
+REM ================================================
+
+PRINT "=== Keyboard Injection Test Started ==="
+TYPE "10 PRINT \"HELLO\""
+WAIT 500ms
+KEY 13
+WAIT 500ms
+PRINT "=== Keyboard Injection Test Complete ==="
+STOP

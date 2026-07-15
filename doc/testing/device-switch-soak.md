@@ -1,12 +1,15 @@
-# Device Switch Soak Test (Real Devices)
+# Device Switch Soak Test
 
-How to run a long-duration, repeated device-switch soak against two real C64 Ultimate devices
-using OBS + the `c64stream` plugin.
+How to run a repeated device-switch soak using OBS + the `c64stream` plugin, either against the
+CI-safe mock scenario or a long-duration run against two real C64 Ultimate devices.
 
-This is **LOCAL ONLY** (requires two physical devices and a working GUI for OBS). Do not run
-this in CI/cloud — see `doc/testing/e2e.md` for the CI-safe, mock-backed equivalent
-(`tests/e2e/test_device_switch_e2e.py`), which exercises the same switching mechanism against two
-mock devices and performs two switches by default.
+**`ntsc_device_switch_soak`** runs automatically in CI (and locally via `./e2e.sh --scenario
+ntsc_device_switch_soak`) against two independent mock devices, switching twice by default — this
+is the scenario described in `doc/testing/e2e.md`.
+
+**`ntsc_device_switch_soak_real`** is the real-hardware, long-duration variant described in this
+document. It is marked `ci_skip: true` and is **never run automatically** — it requires two
+physical devices and a working GUI for OBS, and must always be invoked explicitly by name.
 
 ## Purpose
 
@@ -43,7 +46,7 @@ export C64_DEVICE_SWITCH_DEVICE_B=c64u
 export C64_DEVICE_SWITCH_DISCOVER=0         # devices are already registered; see below
 
 cd tests/e2e
-./e2e.sh --scenario ntsc_device_switch_soak --duration 660 --verbose
+./e2e.sh --scenario ntsc_device_switch_soak_real --duration 660 --verbose
 ```
 
 `--duration` bounds how long OBS records/runs; it does not control the script's own pacing. Size
@@ -56,7 +59,7 @@ For a **quick smoke check** before committing to a long run, lower the count and
 ```bash
 export C64_DEVICE_SWITCH_COUNT=4
 export C64_DEVICE_SWITCH_INTERVAL_MS=1000
-./e2e.sh --scenario ntsc_device_switch_soak --duration 30 --verbose
+./e2e.sh --scenario ntsc_device_switch_soak_real --duration 30 --verbose
 ```
 
 ### Using discovery instead of manual registration
