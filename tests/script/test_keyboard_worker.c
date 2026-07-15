@@ -32,7 +32,10 @@ typedef struct {
     int write_length_calls;
     int write_stop_calls;
     int machine_input_calls;
+    int machine_input_events;
     int release_all_calls;
+    bool machine_input_success;
+    char last_machine_input[8192];
     bool stall_buffer;
     int consume_after_reads;
     int consume_reads_remaining;
@@ -131,8 +134,12 @@ bool c64_rest_machine_input(c64_rest_client_t *client, const char *json)
     worker_test_rest_client_t *rest_client = (worker_test_rest_client_t *)client;
     if (rest_client) {
         rest_client->machine_input_calls++;
+        snprintf(rest_client->last_machine_input, sizeof(rest_client->last_machine_input), "%s", json);
+        for (const char *event = json; (event = strstr(event, "\"kind\"")) != NULL; event += sizeof("\"kind\"") - 1) {
+            rest_client->machine_input_events++;
+        }
+        return rest_client->machine_input_success;
     }
-    (void)json;
     return false;
 }
 
@@ -179,6 +186,18 @@ static bool wait_for_status(c64_keyboard_t *keyboard, const char *expected_statu
         os_sleep_ms(10);
     }
     return strcmp(c64_keyboard_get_status(keyboard), expected_status) == 0;
+}
+
+static bool wait_for_matrix_events(worker_test_rest_client_t *client, int expected_count, uint32_t timeout_ms)
+{
+    const uint64_t deadline = os_gettime_ns() + ((uint64_t)timeout_ms * 1000000ULL);
+    while (os_gettime_ns() < deadline) {
+        if (client->machine_input_events >= expected_count) {
+            return true;
+        }
+        os_sleep_ms(10);
+    }
+    return client->machine_input_events >= expected_count;
 }
 
 int main(void)
@@ -248,6 +267,28 @@ int main(void)
     CHECK(force_rest_client.machine_input_calls == 1);
     CHECK(force_rest_client.write_buffer_calls == 0);
     c64_keyboard_destroy(force_rest_keyboard);
+
+    worker_test_rest_client_t punctuation_client = {.machine_input_success = true};
+    c64_keyboard_t *punctuation_keyboard = c64_keyboard_create(&punctuation_client);
+    CHECK(punctuation_keyboard != NULL);
+    c64_keyboard_set_transport(punctuation_keyboard, C64_STREAM_TRANSPORT_REST);
+    c64_output_t punctuation_output = {.mode = C64_OUTPUT_PETSCII, .data.petscii = '('};
+    c64_keyboard_queue_output(punctuation_keyboard, &punctuation_output);
+    CHECK(wait_for_matrix_events(&punctuation_client, 1, 1000));
+    CHECK(strstr(punctuation_client.last_machine_input, "\"inputs\":[\"8\"]") != NULL);
+    CHECK(strstr(punctuation_client.last_machine_input, "left_shift") == NULL);
+    c64_keyboard_destroy(punctuation_keyboard);
+
+    worker_test_rest_client_t printable_client = {.machine_input_success = true};
+    c64_keyboard_t *printable_keyboard = c64_keyboard_create(&printable_client);
+    CHECK(printable_keyboard != NULL);
+    c64_keyboard_set_transport(printable_keyboard, C64_STREAM_TRANSPORT_REST);
+    for (uint8_t ch = 32; ch <= 126; ch++) {
+        c64_output_t printable_output = {.mode = C64_OUTPUT_PETSCII, .data.petscii = ch};
+        c64_keyboard_queue_output(printable_keyboard, &printable_output);
+    }
+    CHECK(wait_for_matrix_events(&printable_client, 95, 1000));
+    c64_keyboard_destroy(printable_keyboard);
 
     return 0;
 }

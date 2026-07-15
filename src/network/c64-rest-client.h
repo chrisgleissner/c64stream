@@ -41,9 +41,7 @@ typedef enum {
  *
  * Status 0 means no HTTP response was received (transport failure) and maps to
  * C64_REST_UNREACHABLE. 2xx maps to C64_REST_OK. 400 maps to BAD_REQUEST.
- * 401/403 map to FORBIDDEN. Every other code (including 404, 500, 501) maps to
- * NOT_SUPPORTED, i.e. fallback-eligible: it is neither an auth refusal nor a
- * payload bug, so falling back to the legacy transport is the robust choice.
+ * 401/403 map to FORBIDDEN. 404/501 map to NOT_SUPPORTED (fallback-eligible).
  *
  * Exposed so the classification is unit-testable without a network.
  */

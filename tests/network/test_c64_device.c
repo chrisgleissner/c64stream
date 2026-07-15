@@ -87,8 +87,10 @@ int main(void)
     CHECK(no_password_in_settings(settings_dir));
     c64_device_registry_cleanup();
     CHECK(c64_device_registry_init());
-    CHECK(c64_device_registry_get(selected));
+    const c64_device_t *device = c64_device_registry_get(selected);
+    CHECK(device);
     CHECK(c64_device_registry_delete(selected));
+    CHECK(strcmp(device->id, selected) == 0);
     CHECK(!c64_device_registry_get(selected));
     obs_data_release(settings);
     return 0;

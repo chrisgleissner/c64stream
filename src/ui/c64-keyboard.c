@@ -1082,7 +1082,7 @@ static bool petscii_to_matrix(uint8_t value, const char **key, bool *shift)
         return true;
     }
     *key = punctuation[value];
-    *shift = strchr("!\"#$%&()*,<>?", value) != NULL;
+    *shift = strchr("!\"#$%&)*,<>?", value) != NULL;
     return *key != NULL;
 }
 

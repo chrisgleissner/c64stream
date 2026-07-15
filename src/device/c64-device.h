@@ -23,6 +23,8 @@ typedef struct c64_device {
 
 bool c64_device_registry_init(void);
 void c64_device_registry_cleanup(void);
+/* Returned pointers refer to a per-thread snapshot and remain valid until the
+ * next registry get call on that thread. */
 const c64_device_t *c64_device_registry_get(const char *id);
 const c64_device_t *c64_device_registry_get_at(size_t index);
 size_t c64_device_registry_count(void);
