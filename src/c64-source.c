@@ -746,8 +746,9 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     c64_source_apply_crt_preset_if_needed(settings, initial_preset, false);
 
     context->source = source;
+    const char *initial_device_id = obs_data_get_string(settings, "c64_device");
     snprintf(context->active_device_id, sizeof(context->active_device_id), "%s",
-             obs_data_get_string(settings, "c64_device"));
+             initial_device_id ? initial_device_id : "");
 
     c64_av_sync_init(context);
 
