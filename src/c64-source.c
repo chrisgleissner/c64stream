@@ -57,6 +57,7 @@ static void c64_set_expected_peer_ip(struct c64_source *context, const char *ip_
 static void c64_stop_streaming_to(struct c64_source *context, const char *host, uint32_t control_port);
 static void c64_complete_pending_device_transition(struct c64_source *context);
 static void *c64_stop_streaming_thread(void *data);
+static void c64_abort_stream_start(struct c64_source *context);
 static void c64_attempt_script_autostart(struct c64_source *context, obs_data_t *settings);
 static void c64_queue_properties_refresh(struct c64_source *context);
 static void c64_rebuild_rest_client(struct c64_source *context);
@@ -65,6 +66,10 @@ static void c64_rebuild_rest_client(struct c64_source *context)
 {
     if (!context) {
         return;
+    }
+    if (context->script_executor && c64_script_executor_is_running(context->script_executor)) {
+        C64_LOG_INFO("Stopping active script before replacing its keyboard transport");
+        c64_script_executor_stop(context->script_executor);
     }
     if (context->keyboard) {
         c64_keyboard_destroy(context->keyboard);
@@ -258,14 +263,21 @@ void c64_async_retry_task(void *data)
     // Resolve hostname -> IP in the background (never do DNS on the OBS UI thread).
     c64_refresh_resolved_ip(context);
     c64_refresh_obs_ip(context);
+    if (os_atomic_compare_swap_long(&context->rest_rebuild_pending, 1, 0)) {
+        c64_rebuild_rest_client(context);
+    }
     c64_complete_pending_device_transition(context);
 
     bool tcp_success = false;
 
     if (!context->streaming) {
         // Initial streaming start - full setup with fresh UDP sockets
-        c64_start_streaming(context);
-        tcp_success = true; // c64_start_streaming handles TCP commands internally
+        tcp_success = c64_start_streaming(context);
+        if (tcp_success) {
+            context->consecutive_failures = 0;
+        } else {
+            context->consecutive_failures++;
+        }
     } else {
         // Already streaming - test connectivity and send start commands
         // Use quick connectivity test instead of recreating sockets (avoids race conditions)
@@ -734,6 +746,8 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     c64_source_apply_crt_preset_if_needed(settings, initial_preset, false);
 
     context->source = source;
+    snprintf(context->active_device_id, sizeof(context->active_device_id), "%s",
+             obs_data_get_string(settings, "c64_device"));
 
     c64_av_sync_init(context);
 
@@ -772,6 +786,7 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->audio_port = (uint32_t)obs_data_get_int(settings, "audio_port");
     context->control_port = (uint32_t)obs_data_get_int(settings, "control_port");
     context->stream_control_transport = (int)obs_data_get_int(settings, "stream_control_transport");
+    os_atomic_set_long(&context->rest_rebuild_pending, 0);
     context->streaming = false;
 
     // Read the configured OBS IP. Numeric route detection occurs in the
@@ -1083,10 +1098,6 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
         }
     }
 
-    // Start initial connection asynchronously to avoid blocking OBS UI thread.
-    C64_LOG_INFO("C64 Stream source created successfully - scheduling background initial connection");
-    c64_schedule_retry(context, "initial connection");
-
     // Initialize REST control and keyboard capture
     context->rest_client = NULL;
     context->keyboard = NULL;
@@ -1163,6 +1174,12 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     }
 
     c64_attempt_script_autostart(context, settings);
+
+    // Start only after all transport inputs exist. The retry worker probes REST
+    // capability, so scheduling it before the REST client is initialized would
+    // incorrectly select the legacy transport on a capable device.
+    C64_LOG_INFO("C64 Stream source created successfully - scheduling background initial connection");
+    c64_schedule_retry(context, "initial connection");
 
     return context;
 }
@@ -1386,10 +1403,16 @@ static void c64_queue_properties_refresh(struct c64_source *context)
 void c64_update(void *data, obs_data_t *settings)
 {
     struct c64_source *context = data;
-    c64_device_registry_migrate_legacy(settings);
-    c64_device_registry_apply_selected(settings);
     if (!context)
         return;
+
+    c64_device_registry_migrate_legacy(settings);
+    const char *selected_device_id = obs_data_get_string(settings, "c64_device");
+    if (strcmp(context->active_device_id, selected_device_id ? selected_device_id : "") != 0) {
+        c64_device_registry_apply_selected(settings);
+        snprintf(context->active_device_id, sizeof(context->active_device_id), "%s",
+                 selected_device_id ? selected_device_id : "");
+    }
 
     context->preserve_size = c64_effect_settings_resolve_preserve_size(settings, C64_SOURCE_SAVED_SETTING_KEYS,
                                                                        sizeof(C64_SOURCE_SAVED_SETTING_KEYS) /
@@ -1545,7 +1568,7 @@ void c64_update(void *data, obs_data_t *settings)
 
     if ((host_changed || strcmp(old_password, context->c64_password) != 0) && !needs_device_transition) {
         context->stream_rest_demoted_until_ns = 0;
-        c64_rebuild_rest_client(context);
+        os_atomic_set_long(&context->rest_rebuild_pending, 1);
     }
 
     // Update buffer delay setting with debouncing to prevent timestamp reset storms
@@ -1674,11 +1697,11 @@ static void c64_set_expected_peer_ip(struct c64_source *context, const char *ip_
     }
 }
 
-void c64_start_streaming(struct c64_source *context)
+bool c64_start_streaming(struct c64_source *context)
 {
     if (!context) {
         C64_LOG_WARNING("Cannot start streaming - invalid context");
-        return;
+        return false;
     }
 
     C64_LOG_INFO("Starting C64 Stream streaming to C64 %s (OBS IP: %s, video:%u, audio:%u)...", context->ip_address,
@@ -1723,7 +1746,7 @@ void c64_start_streaming(struct c64_source *context)
     if (context->video_socket == INVALID_SOCKET_VALUE || context->audio_socket == INVALID_SOCKET_VALUE) {
         C64_LOG_ERROR("Failed to create UDP sockets for streaming");
         close_and_reset_sockets(context);
-        return;
+        return false;
     }
 
 #ifdef _WIN32
@@ -1769,17 +1792,12 @@ void c64_start_streaming(struct c64_source *context)
         !c64_build_stream_dest(audio_dest, sizeof(audio_dest), context->obs_ip_address, context->audio_port)) {
         C64_LOG_ERROR("" NETWORK_LOG_PREFIX " Failed to build stream destination for start command");
         close_and_reset_sockets(context);
-        return;
+        return false;
     }
     if (!c64_stream_control(context, true, 0, video_dest) || !c64_stream_control(context, true, 1, audio_dest)) {
         C64_LOG_ERROR("" NETWORK_LOG_PREFIX " Failed to start C64 stream control");
-        if (context->keyboard) {
-            c64_keyboard_release_all(context->keyboard);
-        }
-        c64_stream_control(context, false, 0, NULL);
-        c64_stream_control(context, false, 1, NULL);
-        close_and_reset_sockets(context);
-        return;
+        c64_abort_stream_start(context);
+        return false;
     }
 
     // Start fresh worker threads
@@ -1794,8 +1812,8 @@ void c64_start_streaming(struct c64_source *context)
         C64_LOG_ERROR("Failed to create video receiver thread");
         context->streaming = false;
         os_atomic_set_bool(&context->thread_active, false);
-        close_and_reset_sockets(context);
-        return;
+        c64_abort_stream_start(context);
+        return false;
     }
     os_atomic_set_bool(&context->video_thread_active, true);
 
@@ -1808,8 +1826,8 @@ void c64_start_streaming(struct c64_source *context)
             pthread_join(context->video_thread, NULL);
             os_atomic_set_bool(&context->video_thread_active, false);
         }
-        close_and_reset_sockets(context);
-        return;
+        c64_abort_stream_start(context);
+        return false;
     }
     os_atomic_set_bool(&context->video_processor_thread_active, true);
 
@@ -1825,12 +1843,31 @@ void c64_start_streaming(struct c64_source *context)
             pthread_join(context->video_processor_thread, NULL);
             os_atomic_set_bool(&context->video_processor_thread_active, false);
         }
-        close_and_reset_sockets(context);
-        return;
+        c64_abort_stream_start(context);
+        return false;
     }
     os_atomic_set_bool(&context->audio_thread_active, true);
 
     C64_LOG_INFO("C64 Stream streaming started successfully");
+    return true;
+}
+
+static void c64_abort_stream_start(struct c64_source *context)
+{
+    if (!context) {
+        return;
+    }
+
+    /* A successful remote start can precede a local worker failure. Never
+     * leave the device streaming or a matrix key held in that partial state. */
+    if (context->keyboard) {
+        c64_keyboard_release_all(context->keyboard);
+    } else if (context->rest_client) {
+        c64_rest_release_all(context->rest_client);
+    }
+    c64_stream_control(context, false, 0, NULL);
+    c64_stream_control(context, false, 1, NULL);
+    close_and_reset_sockets(context);
 }
 
 static void c64_stop_streaming_to(struct c64_source *context, const char *host, uint32_t control_port)

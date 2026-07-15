@@ -9,6 +9,7 @@ See <https://www.gnu.org/licenses/> for details.
 #pragma once
 
 #include "c64-script-runtime.h"
+#include "c64-keyboard.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -16,6 +17,8 @@ extern "C" {
 
 bool c64script_vm_execute_instruction(c64script_runtime_t *runtime, const c64script_instruction_t *instr,
                                       bool *skip_line_update);
+
+bool c64script_queue_keyboard_output(c64script_runtime_t *runtime, const c64_output_t *output);
 
 void c64script_vm_record_trace_entry(c64script_runtime_t *runtime, int line_num);
 

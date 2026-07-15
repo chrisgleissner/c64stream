@@ -113,7 +113,7 @@ bool c64_keyboard_release_all(c64_keyboard_t *keyboard);
  * Queue keystroke for injection
  * @param output Output descriptor from keymap conversion
  */
-void c64_keyboard_queue_output(c64_keyboard_t *keyboard, const c64_output_t *output);
+bool c64_keyboard_queue_output(c64_keyboard_t *keyboard, const c64_output_t *output);
 
 /**
  * Get injection worker status

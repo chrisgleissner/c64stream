@@ -76,9 +76,137 @@ bool c64_device_scan_product_matches(const char *product)
     return strstr(lower, "ultimate") || !strcmp(lower, "c64u");
 }
 
+static const char *scan_json_array_end(const char *p)
+{
+    if (!p || *p != '[') {
+        return NULL;
+    }
+
+    int depth = 0;
+    bool in_string = false;
+    for (; *p; p++) {
+        if (in_string) {
+            if (*p == '\\' && p[1]) {
+                p++;
+            } else if (*p == '"') {
+                in_string = false;
+            }
+            continue;
+        }
+        if (*p == '"') {
+            in_string = true;
+        } else if (*p == '[') {
+            depth++;
+        } else if (*p == ']') {
+            depth--;
+            if (depth == 0) {
+                return p + 1;
+            }
+        }
+    }
+    return NULL;
+}
+
 bool c64_device_scan_is_ultimate_error(const char *body)
 {
-    return body && strstr(body, "\"errors\"") != NULL;
+    if (!body) {
+        return false;
+    }
+
+    const char *p = body;
+    while (isspace((unsigned char)*p)) {
+        p++;
+    }
+    if (*p++ != '{') {
+        return false;
+    }
+
+    for (;;) {
+        while (isspace((unsigned char)*p)) {
+            p++;
+        }
+        if (*p == '}') {
+            return false;
+        }
+        if (*p++ != '"') {
+            return false;
+        }
+
+        const char *key = p;
+        bool escaped = false;
+        while (*p && (*p != '"' || escaped)) {
+            escaped = (*p == '\\' && !escaped);
+            if (*p != '\\') {
+                escaped = false;
+            }
+            p++;
+        }
+        if (*p != '"') {
+            return false;
+        }
+        const size_t key_len = (size_t)(p - key);
+        const bool is_errors = key_len == strlen("errors") && !strncmp(key, "errors", key_len);
+        p++;
+        while (isspace((unsigned char)*p)) {
+            p++;
+        }
+        if (*p++ != ':') {
+            return false;
+        }
+        while (isspace((unsigned char)*p)) {
+            p++;
+        }
+        if (is_errors) {
+            const char *end = scan_json_array_end(p);
+            while (end && isspace((unsigned char)*end)) {
+                end++;
+            }
+            if (!end || *end++ != '}') {
+                return false;
+            }
+            while (isspace((unsigned char)*end)) {
+                end++;
+            }
+            return *end == '\0';
+        }
+
+        bool in_string = false;
+        int depth = 0;
+        for (; *p; p++) {
+            if (in_string) {
+                if (*p == '\\' && p[1]) {
+                    p++;
+                } else if (*p == '"') {
+                    in_string = false;
+                }
+                continue;
+            }
+            if (*p == '"') {
+                in_string = true;
+            } else if (*p == '[' || *p == '{') {
+                depth++;
+            } else if (*p == ']' || *p == '}') {
+                if (depth == 0) {
+                    break;
+                }
+                depth--;
+            } else if (*p == ',' && depth == 0) {
+                break;
+            }
+        }
+        if (!*p) {
+            return false;
+        }
+        if (*p == '}') {
+            return false;
+        }
+        p++;
+    }
+}
+
+bool c64_device_scan_response_is_candidate(long status, const char *body)
+{
+    return status == 401 || (status == 403 && c64_device_scan_is_ultimate_error(body));
 }
 
 size_t c64_device_scan_enumerate_subnet(uint32_t address, uint8_t prefix, uint32_t *out, size_t out_count)
@@ -153,7 +281,8 @@ static void scan_one_host(scan_job_t *job, const char *host)
     long status = 0;
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
     curl_easy_cleanup(curl);
-    if (code != CURLE_OK || (status != 200 && !(status == 403 && c64_device_scan_is_ultimate_error(body.data)))) {
+    const bool password_required = c64_device_scan_response_is_candidate(status, body.data);
+    if (code != CURLE_OK || (status != 200 && !password_required)) {
         return;
     }
     char product[64] = {0};
@@ -169,6 +298,10 @@ static void scan_one_host(scan_job_t *job, const char *host)
     }
     if (!extract_json_string(body.data, "hostname", device.name, sizeof(device.name))) {
         snprintf(device.name, sizeof(device.name), "%s", product[0] ? product : host);
+    }
+    if (password_required) {
+        const size_t used = strlen(device.name);
+        snprintf(device.name + used, sizeof(device.name) - used, " (password required)");
     }
     snprintf(device.host, sizeof(device.host), "%s", host);
     device.video_port = 11000;
@@ -207,10 +340,14 @@ static void *scan_main(void *opaque)
 {
     scan_job_t *job = opaque;
     pthread_t workers[C64_SCAN_WORKERS];
+    size_t worker_count = 0;
     for (size_t i = 0; i < C64_SCAN_WORKERS; i++) {
-        pthread_create(&workers[i], NULL, scan_worker, job);
+        if (pthread_create(&workers[worker_count], NULL, scan_worker, job) != 0) {
+            break;
+        }
+        worker_count++;
     }
-    for (size_t i = 0; i < C64_SCAN_WORKERS; i++) {
+    for (size_t i = 0; i < worker_count; i++) {
         pthread_join(workers[i], NULL);
     }
     pthread_mutex_destroy(&job->mutex);

@@ -63,7 +63,13 @@ c64_rest_client_t *c64_rest_client_create(const char *base_url, const char *pass
 void c64_rest_client_destroy(c64_rest_client_t *client);
 bool c64_rest_stream_start(c64_rest_client_t *client, bool audio, const char *destination);
 bool c64_rest_stream_stop(c64_rest_client_t *client, bool audio);
+bool c64_rest_stream_start_with_outcome(c64_rest_client_t *client, bool audio, const char *destination,
+                                        c64_rest_outcome_t *outcome, long *status);
+bool c64_rest_stream_stop_with_outcome(c64_rest_client_t *client, bool audio, c64_rest_outcome_t *outcome,
+                                       long *status);
 bool c64_rest_machine_input(c64_rest_client_t *client, const char *json);
+bool c64_rest_machine_input_with_outcome(c64_rest_client_t *client, const char *json, c64_rest_outcome_t *outcome,
+                                         long *status);
 bool c64_rest_release_all(c64_rest_client_t *client);
 
 /**

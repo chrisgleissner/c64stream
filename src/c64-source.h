@@ -36,7 +36,7 @@ void c64_focus(void *data, bool focus);
 void c64_key_click(void *data, const struct obs_key_event *event, bool key_up);
 
 // Streaming control functions
-void c64_start_streaming(struct c64_source *context);
+bool c64_start_streaming(struct c64_source *context);
 void c64_stop_streaming(struct c64_source *context);
 void c64_async_retry_task(void *data);
 void c64_schedule_retry_task(struct c64_source *context, const char *reason);

@@ -295,6 +295,20 @@ target_include_directories(test_keyboard_worker PRIVATE ${C64_ALL_INCLUDE_DIRS})
 target_link_libraries(test_keyboard_worker PRIVATE OBS::libobs)
 add_test(NAME keyboard_worker COMMAND test_keyboard_worker)
 
+add_executable(
+  test_c64script_keyboard_injection
+  test_c64script_keyboard_injection.c
+  c64script_test_logging.c
+  ${CMAKE_SOURCE_DIR}/src/ui/c64-keyboard.c
+  ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-dispatch-keyboard.c
+  ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-utils.c
+  ${CMAKE_SOURCE_DIR}/src/script/runtime/c64-script-runtime.c
+  ${CMAKE_SOURCE_DIR}/src/script/runtime/c64-script-builtins.c
+)
+target_include_directories(test_c64script_keyboard_injection PRIVATE ${C64_ALL_INCLUDE_DIRS})
+target_link_libraries(test_c64script_keyboard_injection PRIVATE c64script_vm_test_deps)
+add_test(NAME c64script_keyboard_injection COMMAND test_c64script_keyboard_injection)
+
 add_executable(test_playlist_window test_playlist_window.c ${CMAKE_SOURCE_DIR}/src/ui/c64-playlist-window.c)
 target_include_directories(test_playlist_window PRIVATE ${C64_ALL_INCLUDE_DIRS})
 add_test(NAME playlist_window COMMAND test_playlist_window)

@@ -96,6 +96,19 @@ bool c64_rest_machine_input(c64_rest_client_t *client, const char *json)
     return false;
 }
 
+bool c64_rest_machine_input_with_outcome(c64_rest_client_t *client, const char *json, c64_rest_outcome_t *outcome,
+                                         long *status)
+{
+    const bool ok = c64_rest_machine_input(client, json);
+    if (outcome) {
+        *outcome = C64_REST_NOT_SUPPORTED;
+    }
+    if (status) {
+        *status = 501;
+    }
+    return ok;
+}
+
 bool c64_rest_release_all(c64_rest_client_t *client)
 {
     (void)client;

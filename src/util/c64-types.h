@@ -89,6 +89,7 @@ struct c64_source {
     char hostname[64];            // C64 Ultimate hostname or IP as entered by user
     char ip_address[64];          // C64 Ultimate IP Address (resolved from hostname)
     char dns_server_ip[64];       // DNS server IP for resolving hostnames (optional)
+    char active_device_id[64];    // Selected profile currently applied to this source
     char c64_password[256];       // Optional Ultimate 64 REST password (sent as X-Password header)
     char obs_ip_address[64];      // OBS IP Address (this machine)
     pthread_mutex_t config_mutex; // Protects dns_server_ip/hostname/ip_address from concurrent access
@@ -329,6 +330,7 @@ struct c64_source {
     char keyboard_keymap_name[64]; // Keymap name (e.g., "symbolic_us")
     int stream_control_transport;  // 0 auto, 1 REST, 2 legacy
     uint64_t stream_rest_demoted_until_ns;
+    volatile long rest_rebuild_pending;
     bool device_transition_pending;
     char device_transition_host[64];
     uint32_t device_transition_control_port;

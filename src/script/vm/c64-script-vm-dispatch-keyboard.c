@@ -25,7 +25,9 @@ bool c64script_dispatch_keyboard(c64script_runtime_t *runtime, const c64script_i
             c64_output_t output = {0};
             output.mode = C64_OUTPUT_TEXT;
             snprintf(output.data.text, sizeof(output.data.text), "%s", "LOAD\"*\",8,1\rRUN\r");
-            c64_keyboard_queue_output((c64_keyboard_t *)runtime->keyboard, &output);
+            if (!c64script_queue_keyboard_output(runtime, &output)) {
+                return false;
+            }
         }
         break;
 
@@ -55,7 +57,10 @@ bool c64script_dispatch_keyboard(c64script_runtime_t *runtime, const c64script_i
             }
             memcpy(output.data.text, s, chunk);
             output.data.text[chunk] = '\0';
-            c64_keyboard_queue_output((c64_keyboard_t *)runtime->keyboard, &output);
+            if (!c64script_queue_keyboard_output(runtime, &output)) {
+                c64script_value_free(&text);
+                return false;
+            }
             s += chunk;
         }
         c64script_value_free(&text);
@@ -93,7 +98,10 @@ bool c64script_dispatch_keyboard(c64script_runtime_t *runtime, const c64script_i
             return false;
         }
 
-        c64_keyboard_queue_output((c64_keyboard_t *)runtime->keyboard, &output);
+        if (!c64script_queue_keyboard_output(runtime, &output)) {
+            c64script_value_free(&key);
+            return false;
+        }
         c64script_value_free(&key);
         break;
     }

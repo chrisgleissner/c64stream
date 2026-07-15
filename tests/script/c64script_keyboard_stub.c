@@ -8,8 +8,9 @@ See <https://www.gnu.org/licenses/> for details.
 
 #include "c64-keyboard.h"
 
-void c64_keyboard_queue_output(c64_keyboard_t *keyboard, const c64_output_t *output)
+bool c64_keyboard_queue_output(c64_keyboard_t *keyboard, const c64_output_t *output)
 {
     (void)keyboard;
     (void)output;
+    return true;
 }

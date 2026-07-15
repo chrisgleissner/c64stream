@@ -7,6 +7,7 @@ See <https://www.gnu.org/licenses/> for details.
 */
 
 #include "c64-script-vm-internal.h"
+#include "c64-keyboard.h"
 #include "c64-logging.h"
 
 #include <ctype.h>
@@ -34,6 +35,22 @@ bool c64script_debug_logging_enabled(void)
         return false;
     }
     return true;
+}
+
+bool c64script_queue_keyboard_output(c64script_runtime_t *runtime, const c64_output_t *output)
+{
+    if (!runtime || !runtime->keyboard || !output) {
+        if (runtime) {
+            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Keyboard not available");
+        }
+        return false;
+    }
+    if (c64_keyboard_queue_output((c64_keyboard_t *)runtime->keyboard, output)) {
+        return true;
+    }
+
+    snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Keyboard input queue rejected output");
+    return false;
 }
 
 static double wallclock_now_seconds(void)

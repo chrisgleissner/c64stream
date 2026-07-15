@@ -23,16 +23,17 @@ bool c64_stream_control_to(struct c64_source *context, const char *host, uint32_
     const bool try_rest = transport != C64_STREAM_TRANSPORT_LEGACY && context->rest_client &&
                           (transport == C64_STREAM_TRANSPORT_REST || now >= context->stream_rest_demoted_until_ns);
     if (try_rest) {
-        bool ok = enable ? c64_rest_stream_start(context->rest_client, stream_id == 1, destination)
-                         : c64_rest_stream_stop(context->rest_client, stream_id == 1);
+        c64_rest_outcome_t outcome = C64_REST_UNREACHABLE;
+        long status = 0;
+        bool ok = enable ? c64_rest_stream_start_with_outcome(context->rest_client, stream_id == 1, destination,
+                                                              &outcome, &status)
+                         : c64_rest_stream_stop_with_outcome(context->rest_client, stream_id == 1, &outcome, &status);
         if (ok) {
             return true;
         }
-        c64_rest_outcome_t outcome = c64_rest_get_last_outcome(context->rest_client);
         if (transport == C64_STREAM_TRANSPORT_REST || !c64_stream_control_should_fallback(outcome)) {
             return false;
         }
-        const long status = c64_rest_get_last_status(context->rest_client);
         context->stream_rest_demoted_until_ns = status == 404 ? UINT64_MAX : now + C64_STREAM_RETRY_NS;
     }
 

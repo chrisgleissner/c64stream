@@ -946,10 +946,10 @@ bool c64_rest_list_files(c64_rest_client_t *client, const char *path, bool recur
 // Keyboard stubs (sufficient for VM unit tests)
 // ----------------------------------------------------------------------------
 
-void c64_keyboard_queue_output(c64_keyboard_t *keyboard, const c64_output_t *output)
+bool c64_keyboard_queue_output(c64_keyboard_t *keyboard, const c64_output_t *output)
 {
     if (!keyboard || !output) {
-        return;
+        return false;
     }
 
     struct c64_keyboard *kb = (struct c64_keyboard *)keyboard;
@@ -1011,4 +1011,5 @@ void c64_keyboard_queue_output(c64_keyboard_t *keyboard, const c64_output_t *out
     memcpy(kb->log + kb->log_len, entry, entry_len);
     kb->log_len += entry_len;
     kb->log[kb->log_len] = '\0';
+    return true;
 }

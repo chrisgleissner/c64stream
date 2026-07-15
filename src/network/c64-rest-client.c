@@ -12,6 +12,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include <curl/curl.h>
 #include <ctype.h>
 #include <stdbool.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,6 +27,7 @@ struct c64_rest_client {
     long last_status;
     c64_rest_outcome_t last_outcome;
     CURL *curl;
+    pthread_mutex_t mutex;
 };
 
 c64_rest_outcome_t c64_rest_classify_status(long status)
@@ -521,6 +523,7 @@ c64_rest_client_t *c64_rest_client_create(const char *base_url, const char *pass
         free(client);
         return NULL;
     }
+    pthread_mutex_init(&client->mutex, NULL);
 
     // Set common curl options - CRITICAL: NOSIGNAL must be set to prevent crashes on Windows
     curl_easy_setopt(client->curl, CURLOPT_NOSIGNAL, 1L);
@@ -545,15 +548,16 @@ void c64_rest_client_destroy(c64_rest_client_t *client)
     }
     free(client->base_url);
     free(client->password);
+    pthread_mutex_destroy(&client->mutex);
     free(client);
 
     C64_LOG_DEBUG(REST_LOG_PREFIX "REST client destroyed");
 }
 
 // Perform HTTP request
-static bool http_request_ex(c64_rest_client_t *client, const char *method, const char *endpoint,
-                            const char *query_params, const uint8_t *body_data, size_t body_size,
-                            response_buffer_t *response, bool accept_reset_close)
+static bool http_request_ex_locked(c64_rest_client_t *client, const char *method, const char *endpoint,
+                                   const char *query_params, const uint8_t *body_data, size_t body_size,
+                                   response_buffer_t *response, bool accept_reset_close)
 {
     if (!client || !client->curl || !method || !endpoint) {
         C64_LOG_ERROR(REST_LOG_PREFIX "http_request called with invalid parameters");
@@ -668,6 +672,20 @@ static bool http_request_ex(c64_rest_client_t *client, const char *method, const
     return true;
 }
 
+static bool http_request_ex(c64_rest_client_t *client, const char *method, const char *endpoint,
+                            const char *query_params, const uint8_t *body_data, size_t body_size,
+                            response_buffer_t *response, bool accept_reset_close)
+{
+    if (!client) {
+        return false;
+    }
+    pthread_mutex_lock(&client->mutex);
+    const bool ok = http_request_ex_locked(client, method, endpoint, query_params, body_data, body_size, response,
+                                           accept_reset_close);
+    pthread_mutex_unlock(&client->mutex);
+    return ok;
+}
+
 static bool http_request(c64_rest_client_t *client, const char *method, const char *endpoint, const char *query_params,
                          const uint8_t *body_data, size_t body_size, response_buffer_t *response)
 {
@@ -676,37 +694,87 @@ static bool http_request(c64_rest_client_t *client, const char *method, const ch
 
 bool c64_rest_stream_start(c64_rest_client_t *client, bool audio, const char *destination)
 {
+    return c64_rest_stream_start_with_outcome(client, audio, destination, NULL, NULL);
+}
+
+bool c64_rest_stream_start_with_outcome(c64_rest_client_t *client, bool audio, const char *destination,
+                                        c64_rest_outcome_t *outcome, long *status)
+{
     if (!client || !destination || !destination[0]) {
         return false;
     }
 
-    char *escaped_destination = curl_easy_escape(client->curl, destination, 0);
+    char *escaped_destination = curl_easy_escape(NULL, destination, 0);
     if (!escaped_destination) {
+        pthread_mutex_lock(&client->mutex);
         snprintf(client->error_msg, sizeof(client->error_msg), "Failed to URL-escape stream destination");
         client->last_status = 0;
         client->last_outcome = C64_REST_UNREACHABLE;
+        pthread_mutex_unlock(&client->mutex);
         return false;
     }
 
     char query[160];
     snprintf(query, sizeof(query), "ip=%s", escaped_destination);
     curl_free(escaped_destination);
-    return http_request(client, "PUT", audio ? "/v1/streams/audio:start" : "/v1/streams/video:start", query, NULL, 0,
-                        NULL);
+    pthread_mutex_lock(&client->mutex);
+    const bool ok = http_request_ex_locked(client, "PUT", audio ? "/v1/streams/audio:start" : "/v1/streams/video:start",
+                                           query, NULL, 0, NULL, false);
+    if (outcome) {
+        *outcome = client->last_outcome;
+    }
+    if (status) {
+        *status = client->last_status;
+    }
+    pthread_mutex_unlock(&client->mutex);
+    return ok;
 }
 
 bool c64_rest_stream_stop(c64_rest_client_t *client, bool audio)
 {
-    return http_request(client, "PUT", audio ? "/v1/streams/audio:stop" : "/v1/streams/video:stop", NULL, NULL, 0,
-                        NULL);
+    return c64_rest_stream_stop_with_outcome(client, audio, NULL, NULL);
+}
+
+bool c64_rest_stream_stop_with_outcome(c64_rest_client_t *client, bool audio, c64_rest_outcome_t *outcome, long *status)
+{
+    if (!client) {
+        return false;
+    }
+    pthread_mutex_lock(&client->mutex);
+    const bool ok = http_request_ex_locked(client, "PUT", audio ? "/v1/streams/audio:stop" : "/v1/streams/video:stop",
+                                           NULL, NULL, 0, NULL, false);
+    if (outcome) {
+        *outcome = client->last_outcome;
+    }
+    if (status) {
+        *status = client->last_status;
+    }
+    pthread_mutex_unlock(&client->mutex);
+    return ok;
 }
 
 bool c64_rest_machine_input(c64_rest_client_t *client, const char *json)
 {
+    return c64_rest_machine_input_with_outcome(client, json, NULL, NULL);
+}
+
+bool c64_rest_machine_input_with_outcome(c64_rest_client_t *client, const char *json, c64_rest_outcome_t *outcome,
+                                         long *status)
+{
     if (!client || !json || !json[0]) {
         return false;
     }
-    return http_request(client, "POST", "/v1/machine:input", NULL, (const uint8_t *)json, strlen(json), NULL);
+    pthread_mutex_lock(&client->mutex);
+    const bool ok = http_request_ex_locked(client, "POST", "/v1/machine:input", NULL, (const uint8_t *)json,
+                                           strlen(json), NULL, false);
+    if (outcome) {
+        *outcome = client->last_outcome;
+    }
+    if (status) {
+        *status = client->last_status;
+    }
+    pthread_mutex_unlock(&client->mutex);
+    return ok;
 }
 
 bool c64_rest_release_all(c64_rest_client_t *client)
@@ -2376,7 +2444,15 @@ const char *c64_rest_get_error(c64_rest_client_t *client)
     if (!client) {
         return "Invalid client";
     }
-    return client->error_msg;
+#ifdef _MSC_VER
+    static __declspec(thread) char error_copy[2048];
+#else
+    static __thread char error_copy[2048];
+#endif
+    pthread_mutex_lock(&client->mutex);
+    snprintf(error_copy, sizeof(error_copy), "%s", client->error_msg);
+    pthread_mutex_unlock(&client->mutex);
+    return error_copy;
 }
 
 long c64_rest_get_last_status(const c64_rest_client_t *client)
@@ -2384,7 +2460,10 @@ long c64_rest_get_last_status(const c64_rest_client_t *client)
     if (!client) {
         return 0;
     }
-    return client->last_status;
+    pthread_mutex_lock((pthread_mutex_t *)&client->mutex);
+    const long status = client->last_status;
+    pthread_mutex_unlock((pthread_mutex_t *)&client->mutex);
+    return status;
 }
 
 c64_rest_outcome_t c64_rest_get_last_outcome(const c64_rest_client_t *client)
@@ -2392,7 +2471,10 @@ c64_rest_outcome_t c64_rest_get_last_outcome(const c64_rest_client_t *client)
     if (!client) {
         return C64_REST_UNREACHABLE;
     }
-    return client->last_outcome;
+    pthread_mutex_lock((pthread_mutex_t *)&client->mutex);
+    const c64_rest_outcome_t outcome = client->last_outcome;
+    pthread_mutex_unlock((pthread_mutex_t *)&client->mutex);
+    return outcome;
 }
 
 // Simple JSON parser for file list response

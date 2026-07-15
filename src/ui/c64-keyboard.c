@@ -879,21 +879,26 @@ bool c64_keymap_convert(c64_keymap_t *keymap, const char *key_code, const char *
     return false;
 }
 
-// Queue helper functions
-static bool queue_push(c64_keyboard_t *keyboard, uint8_t byte)
+static bool queue_push_many(c64_keyboard_t *keyboard, const uint8_t *bytes, size_t count)
 {
-    pthread_mutex_lock(&keyboard->queue_mutex);
-
-    if (keyboard->queue_count >= QUEUE_SIZE) {
-        pthread_mutex_unlock(&keyboard->queue_mutex);
-        return false; // Queue full
+    if (!keyboard || (!bytes && count > 0)) {
+        return false;
     }
 
-    keyboard->queue[keyboard->queue_tail] = byte;
-    keyboard->queue_tail = (keyboard->queue_tail + 1) % QUEUE_SIZE;
-    keyboard->queue_count++;
-    pthread_cond_signal(&keyboard->queue_cond);
+    pthread_mutex_lock(&keyboard->queue_mutex);
+    if (count > (size_t)(QUEUE_SIZE - keyboard->queue_count)) {
+        pthread_mutex_unlock(&keyboard->queue_mutex);
+        return false;
+    }
 
+    for (size_t i = 0; i < count; i++) {
+        keyboard->queue[keyboard->queue_tail] = bytes[i];
+        keyboard->queue_tail = (keyboard->queue_tail + 1) % QUEUE_SIZE;
+    }
+    keyboard->queue_count += (int)count;
+    if (count > 0) {
+        pthread_cond_signal(&keyboard->queue_cond);
+    }
     pthread_mutex_unlock(&keyboard->queue_mutex);
     return true;
 }
@@ -1143,17 +1148,18 @@ static void *injection_worker(void *arg)
             const int transport = keyboard_get_transport(keyboard);
             if (transport != C64_STREAM_TRANSPORT_LEGACY &&
                 build_rest_input_batch(pending_buffer, pending_count, json, sizeof(json))) {
-                if (c64_rest_machine_input(keyboard->rest_client, json)) {
+                c64_rest_outcome_t outcome = C64_REST_UNREACHABLE;
+                long status = 0;
+                if (c64_rest_machine_input_with_outcome(keyboard->rest_client, json, &outcome, &status)) {
                     queue_discard_many(keyboard, pending_count);
                     pending_count = 0;
                     last_batch_failed = false;
                     keyboard_set_status(keyboard, "complete");
                     continue;
                 }
-                if (transport == C64_STREAM_TRANSPORT_REST ||
-                    c64_rest_get_last_outcome(keyboard->rest_client) != C64_REST_NOT_SUPPORTED) {
+                if (transport == C64_STREAM_TRANSPORT_REST || outcome != C64_REST_NOT_SUPPORTED) {
                     C64_LOG_ERROR(KEYBOARD_LOG_PREFIX "machine:input refused batch (HTTP %ld); no legacy fallback",
-                                  c64_rest_get_last_status(keyboard->rest_client));
+                                  status);
                     queue_discard_many(keyboard, pending_count);
                     pending_count = 0;
                     last_batch_failed = true;
@@ -1397,57 +1403,47 @@ bool c64_keyboard_release_all(c64_keyboard_t *keyboard)
     return ok;
 }
 
-void c64_keyboard_queue_output(c64_keyboard_t *keyboard, const c64_output_t *output)
+bool c64_keyboard_queue_output(c64_keyboard_t *keyboard, const c64_output_t *output)
 {
     if (!keyboard || !output) {
-        return;
+        return false;
     }
 
     const uint64_t submission_count = keyboard_next_submission_count(keyboard);
+    uint8_t bytes[sizeof(output->data.text)] = {0};
+    size_t count = 0;
+    char label[288] = {0};
 
-    // Convert output to PETSCII bytes and queue them
     if (output->mode == C64_OUTPUT_PETSCII) {
-        if (!queue_push(keyboard, output->data.petscii)) {
-            C64_LOG_WARNING(KEYBOARD_LOG_PREFIX "Failed to queue #%llu PETSCII 0x%02X: queue full",
-                            (unsigned long long)submission_count, output->data.petscii);
-            return;
-        }
-
-        char label[64];
+        bytes[count++] = output->data.petscii;
         snprintf(label, sizeof(label), "PETSCII 0x%02X", output->data.petscii);
-        keyboard_log_queued_submission(keyboard, submission_count, label, queue_available(keyboard));
     } else if (output->mode == C64_OUTPUT_SYMBOLIC) {
-        // Symbolic keys map to single PETSCII codes
         uint8_t code = lookup_symbolic_key(output->data.symbol);
-        if (code != 0) {
-            if (!queue_push(keyboard, code)) {
-                C64_LOG_WARNING(KEYBOARD_LOG_PREFIX "Failed to queue #%llu %s (0x%02X): queue full",
-                                (unsigned long long)submission_count, output->data.symbol, code);
-                return;
-            }
-
-            char label[96];
-            snprintf(label, sizeof(label), "%s (0x%02X)", output->data.symbol, code);
-            keyboard_log_queued_submission(keyboard, submission_count, label, queue_available(keyboard));
-        } else {
+        if (code == 0) {
             C64_LOG_WARNING(KEYBOARD_LOG_PREFIX "Unknown symbolic key: %s", output->data.symbol);
+            return false;
         }
+        bytes[count++] = code;
+        snprintf(label, sizeof(label), "%s (0x%02X)", output->data.symbol, code);
     } else if (output->mode == C64_OUTPUT_TEXT) {
-        // Queue each character in the text
-        size_t len = 0;
-        for (size_t i = 0; i < sizeof(output->data.text) && output->data.text[i] != '\0'; i++) {
-            if (!queue_push(keyboard, (uint8_t)output->data.text[i])) {
-                C64_LOG_WARNING(KEYBOARD_LOG_PREFIX "Failed to queue #%llu text '%s': queue full after %zu chars",
-                                (unsigned long long)submission_count, output->data.text, len);
-                return;
-            }
-            len++;
+        while (count < sizeof(output->data.text) && output->data.text[count] != '\0') {
+            bytes[count] = (uint8_t)output->data.text[count];
+            count++;
         }
-
-        char label[288];
-        snprintf(label, sizeof(label), "text '%s' (%zu chars)", output->data.text, len);
-        keyboard_log_queued_submission(keyboard, submission_count, label, queue_available(keyboard));
+        snprintf(label, sizeof(label), "text '%s' (%zu chars)", output->data.text, count);
+    } else {
+        C64_LOG_WARNING(KEYBOARD_LOG_PREFIX "Unknown keyboard output mode: %d", output->mode);
+        return false;
     }
+
+    if (!queue_push_many(keyboard, bytes, count)) {
+        C64_LOG_WARNING(KEYBOARD_LOG_PREFIX "Failed to queue #%llu %s: queue full",
+                        (unsigned long long)submission_count, label);
+        return false;
+    }
+
+    keyboard_log_queued_submission(keyboard, submission_count, label, queue_available(keyboard));
+    return true;
 }
 
 const char *c64_keyboard_get_status(c64_keyboard_t *keyboard)

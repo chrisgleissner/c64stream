@@ -620,7 +620,7 @@ Control your Ultimate 64 remotely from within OBS Studio, enabling keyboard inpu
 
 ### Keyboard Capture
 
-Keyboard input can be sent to the C64 through the OBS **Interact** window. Keystrokes are translated to **PETSCII** and injected into the **KERNAL keyboard buffer**.
+Keyboard input can be sent to the C64 through the OBS **Interact** window. In Auto mode, supported devices use the REST keyboard matrix endpoint, including shifted chords and `release_all` on teardown. Devices without that endpoint transparently fall back to the KERNAL keyboard buffer for representable text input. C64Script `TYPE`, `KEY`, `LOAD`, `RUN`, and `SYS` use this same input path.
 
 #### Activating Keyboard Capture
 
@@ -632,7 +632,7 @@ To return keyboard control to OBS, click outside the Interact window and close i
 
 #### Compatibility
 
-Keyboard capture only works with programs that read input via the **KERNAL keyboard buffer**.
+The legacy fallback only works with programs that read input via the **KERNAL keyboard buffer**. REST matrix input can also drive supported direct-key programs.
 
 Many programs (especially games) read key state directly from **CIA1**. Since the **C64 Ultimate** does not allow writing to CIA1 registers, keyboard input will not work for those programs.
 
