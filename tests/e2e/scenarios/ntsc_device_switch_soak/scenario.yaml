@@ -4,7 +4,7 @@ preset: Default
 # CI-safe default: two independent mock devices, switched back and forth
 # twice (the script's own built-in default). For a soak against the two
 # real devices on the local network, see the separate, explicitly-run-only
-# scenario: ntsc_device_switch_soak_real (never runs automatically).
+# scenario: ntsc_real_switch_soak (never runs automatically).
 packet_source: mock
 # Second independent mock device, alongside the orchestrator's primary one
 # (control_port 6400, matching --control-port's default).

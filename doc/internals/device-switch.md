@@ -180,7 +180,7 @@ same convention `PALETTE`/`EFFECT` already use — so they don't break script te
 VM without full plugin context.
 
 See `doc/testing/device-switch-soak.md`: `ntsc_device_switch_soak` runs automatically in CI against
-two mock devices; `ntsc_device_switch_soak_real` is the explicit-only, real-hardware, long-duration
+two mock devices; `ntsc_real_switch_soak` is the explicit-only, real-hardware, long-duration
 variant.
 
 ## Testing
