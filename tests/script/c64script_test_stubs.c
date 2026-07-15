@@ -534,6 +534,22 @@ bool c64_create_directory_recursive(const char *path)
     return true;
 }
 
+bool c64_get_user_dir(c64_user_dir_type type, char *path_buffer, size_t buffer_size)
+{
+    (void)type;
+    (void)path_buffer;
+    (void)buffer_size;
+    return false;
+}
+
+bool c64_ini_foreach(const char *path, c64_ini_entry_cb callback, void *opaque)
+{
+    (void)path;
+    (void)callback;
+    (void)opaque;
+    return false;
+}
+
 bool c64_rest_mount_disk(c64_rest_client_t *client, char drive, const char *type, const char *mode,
                          const uint8_t *disk_data, size_t disk_size)
 {

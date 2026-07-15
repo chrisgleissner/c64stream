@@ -112,6 +112,7 @@ typedef enum {
     TOKEN_ASSERT,
     TOKEN_IMAGE_EQUALS,
     TOKEN_TOLERANCE,
+    TOKEN_PROBE_PORT,
     TOKEN_EFFECT,
     TOKEN_EFFECTPARAM,
     TOKEN_PALETTE,
@@ -121,6 +122,8 @@ typedef enum {
     TOKEN_RUNLOCAL,
     TOKEN_MOUNTDISK,
     TOKEN_AUTOSTART,
+    TOKEN_SWITCH_DEVICE,
+    TOKEN_DISCOVER_DEVICES,
     TOKEN_RESET,
     TOKEN_REBOOT,
     TOKEN_PAUSE,
@@ -321,6 +324,8 @@ typedef enum {
     AST_STMT_RUNLOCAL,
     AST_STMT_MOUNTDISK,
     AST_STMT_AUTOSTART,
+    AST_STMT_SWITCH_DEVICE,
+    AST_STMT_DISCOVER_DEVICES,
     AST_STMT_RESET,
     AST_STMT_REBOOT,
     AST_STMT_PAUSE,
@@ -596,6 +601,14 @@ struct c64script_ast_node {
         struct {
             c64script_ast_expr_t *palette_name;
         } palette_stmt;
+
+        struct {
+            c64script_ast_expr_t *device_ref; // registry id or host; resolved at runtime
+        } switch_device_stmt;
+
+        struct {
+            c64script_ast_expr_t *port; // NULL = default (80)
+        } discover_devices_stmt;
 
         struct {
             c64script_ast_expr_t *index;
@@ -876,6 +889,8 @@ typedef enum {
     OP_RUNLOCAL,
     OP_MOUNTDISK,
     OP_AUTOSTART,
+    OP_SWITCH_DEVICE,
+    OP_DISCOVER_DEVICES,
     OP_RESET,
     OP_REBOOT,
     OP_PAUSE,

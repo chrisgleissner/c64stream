@@ -21,6 +21,7 @@
 #define C64_SCAN_MAX_HOSTS 1024
 #define C64_SCAN_TIMEOUT_MS 650L
 #define C64_SCAN_OVERALL_TIMEOUT_NS (8ULL * 1000000000ULL)
+#define C64_SCAN_DEFAULT_PORT 80
 
 typedef struct {
     char data[2048];
@@ -34,6 +35,7 @@ typedef struct {
     pthread_mutex_t mutex;
     uint64_t deadline_ns;
     obs_source_t *source;
+    uint16_t port;
 } scan_job_t;
 
 static void scan_add_host(scan_job_t *job, const char *host)
@@ -269,8 +271,8 @@ static void scan_one_host(scan_job_t *job, const char *host)
     if (!curl) {
         return;
     }
-    char url[64];
-    snprintf(url, sizeof(url), "http://%s/v1/info", host);
+    char url[80];
+    snprintf(url, sizeof(url), "http://%s:%u/v1/info", host, job->port);
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, C64_SCAN_TIMEOUT_MS);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, C64_SCAN_TIMEOUT_MS);
@@ -358,13 +360,13 @@ static void *scan_main(void *opaque)
     return NULL;
 }
 
-bool c64_device_scan_async(obs_source_t *source)
+static scan_job_t *build_scan_job(obs_source_t *source, uint16_t port)
 {
-    (void)source;
     scan_job_t *job = calloc(1, sizeof(*job));
     if (!job) {
-        return false;
+        return NULL;
     }
+    job->port = port ? port : C64_SCAN_DEFAULT_PORT;
     /* Scan saved and manually configured hosts as well as local subnets. */
     for (size_t i = 0; i < c64_device_registry_count() && job->count < C64_SCAN_MAX_HOSTS; i++) {
         const c64_device_t *device = c64_device_registry_get_at(i);
@@ -383,7 +385,7 @@ bool c64_device_scan_async(obs_source_t *source)
     struct ifaddrs *interfaces = NULL;
     if (getifaddrs(&interfaces) != 0) {
         free(job);
-        return false;
+        return NULL;
     }
     for (struct ifaddrs *entry = interfaces; entry && job->count < C64_SCAN_MAX_HOSTS; entry = entry->ifa_next) {
         if (!entry->ifa_addr || entry->ifa_addr->sa_family != AF_INET || !(entry->ifa_flags & IFF_UP) ||
@@ -410,6 +412,15 @@ bool c64_device_scan_async(obs_source_t *source)
     }
     freeifaddrs(interfaces);
 #endif
+    return job;
+}
+
+bool c64_device_scan_async(obs_source_t *source)
+{
+    scan_job_t *job = build_scan_job(source, C64_SCAN_DEFAULT_PORT);
+    if (!job) {
+        return false;
+    }
     pthread_mutex_init(&job->mutex, NULL);
     job->deadline_ns = os_gettime_ns() + C64_SCAN_OVERALL_TIMEOUT_NS;
     job->source = source ? obs_source_get_ref(source) : NULL;
@@ -420,5 +431,20 @@ bool c64_device_scan_async(obs_source_t *source)
         return false;
     }
     pthread_detach(thread);
+    return true;
+}
+
+bool c64_device_scan_sync(obs_source_t *source, uint16_t port)
+{
+    scan_job_t *job = build_scan_job(source, port);
+    if (!job) {
+        return false;
+    }
+    pthread_mutex_init(&job->mutex, NULL);
+    job->deadline_ns = os_gettime_ns() + C64_SCAN_OVERALL_TIMEOUT_NS;
+    job->source = source ? obs_source_get_ref(source) : NULL;
+    /* Called from the script executor thread, already off the OBS UI thread,
+     * so blocking here (bounded by the deadline above) is safe. */
+    scan_main(job);
     return true;
 }

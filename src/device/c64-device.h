@@ -27,6 +27,7 @@ void c64_device_registry_cleanup(void);
  * next registry get call on that thread. */
 const c64_device_t *c64_device_registry_get(const char *id);
 const c64_device_t *c64_device_registry_get_at(size_t index);
+const c64_device_t *c64_device_registry_find_by_host(const char *host);
 size_t c64_device_registry_count(void);
 bool c64_device_registry_upsert(const c64_device_t *device);
 bool c64_device_registry_delete(const char *id);

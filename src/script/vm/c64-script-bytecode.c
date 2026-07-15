@@ -1122,6 +1122,24 @@ static bool compile_statement(compiler_context_t *ctx, c64script_ast_node_t *stm
         return true;
     }
 
+    case AST_STMT_SWITCH_DEVICE: {
+        if (!compile_expression(ctx, stmt->as.switch_device_stmt.device_ref))
+            return false;
+        emit(ctx, OP_SWITCH_DEVICE, 0, stmt->line);
+        return true;
+    }
+
+    case AST_STMT_DISCOVER_DEVICES: {
+        if (stmt->as.discover_devices_stmt.port) {
+            if (!compile_expression(ctx, stmt->as.discover_devices_stmt.port))
+                return false;
+            emit(ctx, OP_DISCOVER_DEVICES, 1, stmt->line);
+        } else {
+            emit(ctx, OP_DISCOVER_DEVICES, 0, stmt->line);
+        }
+        return true;
+    }
+
     case AST_STMT_PALETTECOLOR: {
         if (!compile_expression(ctx, stmt->as.palettecolor_stmt.index))
             return false;

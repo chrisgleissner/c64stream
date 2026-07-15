@@ -59,6 +59,8 @@ add_executable(
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-dispatch-io.c
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-dispatch-keyboard.c
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-dispatch-machine.c
+  ${CMAKE_SOURCE_DIR}/src/device/c64-device.c
+  ${CMAKE_SOURCE_DIR}/src/device/c64-device-scan.c
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-dispatch-memory.c
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-trace.c
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-utils.c
@@ -90,6 +92,8 @@ add_executable(
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-dispatch-io.c
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-dispatch-keyboard.c
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-dispatch-machine.c
+  ${CMAKE_SOURCE_DIR}/src/device/c64-device.c
+  ${CMAKE_SOURCE_DIR}/src/device/c64-device-scan.c
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-dispatch-memory.c
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-trace.c
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-utils.c
@@ -122,6 +126,8 @@ add_executable(
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-dispatch-io.c
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-dispatch-keyboard.c
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-dispatch-machine.c
+  ${CMAKE_SOURCE_DIR}/src/device/c64-device.c
+  ${CMAKE_SOURCE_DIR}/src/device/c64-device-scan.c
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-dispatch-memory.c
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-trace.c
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-utils.c
@@ -152,6 +158,8 @@ add_executable(
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-dispatch-io.c
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-dispatch-keyboard.c
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-dispatch-machine.c
+  ${CMAKE_SOURCE_DIR}/src/device/c64-device.c
+  ${CMAKE_SOURCE_DIR}/src/device/c64-device-scan.c
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-dispatch-memory.c
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-trace.c
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-utils.c
@@ -216,6 +224,8 @@ add_executable(
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-dispatch-io.c
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-dispatch-keyboard.c
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-dispatch-machine.c
+  ${CMAKE_SOURCE_DIR}/src/device/c64-device.c
+  ${CMAKE_SOURCE_DIR}/src/device/c64-device-scan.c
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-dispatch-memory.c
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-trace.c
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-utils.c
@@ -246,6 +256,8 @@ add_executable(
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-dispatch-io.c
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-dispatch-keyboard.c
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-dispatch-machine.c
+  ${CMAKE_SOURCE_DIR}/src/device/c64-device.c
+  ${CMAKE_SOURCE_DIR}/src/device/c64-device-scan.c
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-dispatch-memory.c
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-trace.c
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-utils.c

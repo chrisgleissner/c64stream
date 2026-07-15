@@ -125,6 +125,10 @@ static const char *opcode_name(c64script_opcode_t opcode)
         return "MOUNTDISK";
     case OP_AUTOSTART:
         return "AUTOSTART";
+    case OP_SWITCH_DEVICE:
+        return "SWITCH_DEVICE";
+    case OP_DISCOVER_DEVICES:
+        return "DISCOVER_DEVICES";
     case OP_RESET:
         return "RESET";
     case OP_REBOOT:

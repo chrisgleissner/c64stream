@@ -661,6 +661,48 @@ TEST(parse_autostart)
     c64script_ast_free(ast);
 }
 
+TEST(parse_switch_device)
+{
+    const char *source = "SWITCH_DEVICE \"u64\"";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse SWITCH_DEVICE");
+    assert(ast->type == AST_STMT_SWITCH_DEVICE);
+    assert(ast->as.switch_device_stmt.device_ref != NULL);
+    c64script_ast_free(ast);
+}
+
+TEST(parse_discover_devices)
+{
+    const char *source = "DISCOVER_DEVICES";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse DISCOVER_DEVICES");
+    assert(ast->type == AST_STMT_DISCOVER_DEVICES);
+    assert(ast->as.discover_devices_stmt.port == NULL);
+    c64script_ast_free(ast);
+}
+
+TEST(parse_discover_devices_with_probe_port)
+{
+    const char *source = "DISCOVER_DEVICES PROBE_PORT 8080";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "Failed to parse DISCOVER_DEVICES PROBE_PORT");
+    assert(ast->type == AST_STMT_DISCOVER_DEVICES);
+    assert(ast->as.discover_devices_stmt.port != NULL);
+    c64script_ast_free(ast);
+}
+
+TEST(parse_discover_devices_probe_port_rejects_equals)
+{
+    const char *source = "DISCOVER_DEVICES PROBE_PORT=8080";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast == NULL);
+    assert(strstr(error_msg, "PROBE_PORT clause uses whitespace-separated syntax") != NULL);
+}
+
 TEST(parse_reset)
 {
     const char *source = "RESET";
@@ -1510,6 +1552,10 @@ int main(int argc, char **argv)
     RUN_TEST(parse_runlocal);
     RUN_TEST(parse_mountdisk);
     RUN_TEST(parse_autostart);
+    RUN_TEST(parse_switch_device);
+    RUN_TEST(parse_discover_devices);
+    RUN_TEST(parse_discover_devices_with_probe_port);
+    RUN_TEST(parse_discover_devices_probe_port_rejects_equals);
     RUN_TEST(parse_reset);
     RUN_TEST(parse_reboot);
     RUN_TEST(parse_obs_recording_start);

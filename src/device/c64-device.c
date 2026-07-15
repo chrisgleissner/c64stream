@@ -242,6 +242,22 @@ bool c64_device_registry_delete(const char *id)
     return true;
 }
 
+const c64_device_t *c64_device_registry_find_by_host(const char *host)
+{
+    if (!host || !host[0])
+        return NULL;
+    pthread_mutex_lock(&registry_mutex);
+    for (size_t i = 0; i < device_count; i++) {
+        if (!strcmp(devices[i].host, host)) {
+            device_snapshot = devices[i];
+            pthread_mutex_unlock(&registry_mutex);
+            return &device_snapshot;
+        }
+    }
+    pthread_mutex_unlock(&registry_mutex);
+    return NULL;
+}
+
 void c64_device_registry_populate_list(obs_property_t *property)
 {
     if (!property)

@@ -1297,6 +1297,8 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
     case OP_MOUNTDISK:
         return c64script_dispatch_machine(runtime, instr);
 
+    case OP_SWITCH_DEVICE:
+    case OP_DISCOVER_DEVICES:
     case OP_RESET:
     case OP_REBOOT:
     case OP_PAUSE:

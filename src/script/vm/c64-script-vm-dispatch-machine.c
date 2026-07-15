@@ -8,6 +8,8 @@ See <https://www.gnu.org/licenses/> for details.
 
 #include "c64-script-vm-dispatch-machine.h"
 
+#include "device/c64-device.h"
+#include "device/c64-device-scan.h"
 #include "c64-keyboard.h"
 #include "c64-logging.h"
 #include "c64-rest-client.h"
@@ -215,6 +217,70 @@ bool c64script_dispatch_machine(c64script_runtime_t *runtime, const c64script_in
             return false;
         }
         c64script_value_free(&disk_file);
+        break;
+    }
+
+    case OP_SWITCH_DEVICE: {
+        c64script_value_t device_ref;
+        if (!c64script_runtime_pop(runtime, &device_ref))
+            return false;
+        if (device_ref.type != VALUE_STRING) {
+            c64script_value_free(&device_ref);
+            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "TYPE MISMATCH (SWITCH_DEVICE)");
+            return false;
+        }
+        if (!runtime->obs_source) {
+            if (c64script_debug_logging_enabled()) {
+                blog(LOG_DEBUG, "[c64script] SWITCH_DEVICE: OBS source not available, skipping");
+            }
+            c64script_value_free(&device_ref);
+            break;
+        }
+
+        const c64_device_t *device = c64_device_registry_get(device_ref.as.string);
+        if (!device) {
+            device = c64_device_registry_find_by_host(device_ref.as.string);
+        }
+        if (!device) {
+            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "SWITCH_DEVICE: unknown device '%s'",
+                     device_ref.as.string ? device_ref.as.string : "");
+            c64script_value_free(&device_ref);
+            return false;
+        }
+
+        obs_source_t *source = (obs_source_t *)runtime->obs_source;
+        bool ok =
+            c64_script_queue_source_update(source, C64_SCRIPT_UPDATE_STRING, "c64_device", device->id, 0.0, 0, false);
+        c64script_value_free(&device_ref);
+        if (!ok) {
+            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Failed to queue device switch");
+            return false;
+        }
+        break;
+    }
+
+    case OP_DISCOVER_DEVICES: {
+        uint16_t port = 0;
+        if (instr->operand == 1) {
+            c64script_value_t port_value;
+            if (!c64script_runtime_pop(runtime, &port_value))
+                return false;
+            bool port_ok = number_to_uint16(runtime, &port_value, &port, "DISCOVER_DEVICES");
+            c64script_value_free(&port_value);
+            if (!port_ok) {
+                return false;
+            }
+        }
+        if (!runtime->obs_source) {
+            if (c64script_debug_logging_enabled()) {
+                blog(LOG_DEBUG, "[c64script] DISCOVER_DEVICES: OBS source not available, skipping");
+            }
+            break;
+        }
+        if (!c64_device_scan_sync((obs_source_t *)runtime->obs_source, port)) {
+            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "DISCOVER_DEVICES failed");
+            return false;
+        }
         break;
     }
 
