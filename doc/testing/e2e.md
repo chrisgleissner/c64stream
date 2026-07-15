@@ -245,6 +245,7 @@ Available scenarios include:
 | ntsc_default                   | NTSC   | Default preset (no effects)                           |
 | ntsc_default_720p              | NTSC   | 720p, 59.826 Hz (standard HD)                         |
 | ntsc_default_record            | NTSC   | Default preset + recording enabled                    |
+| ntsc_device_switch_soak        | NTSC   | Real-device only: repeated device-switch soak (see `doc/testing/device-switch-soak.md`) |
 | ntsc_delay_buffer500           | NTSC   | 500ms buffer delay test                               |
 | ntsc_delay_buffer500_jitter10  | NTSC   | 500ms buffer + jitter simulation (10ms)               |
 | ntsc_delay_buffer500_jitter100 | NTSC   | 500ms buffer + jitter simulation (see scenario)       |

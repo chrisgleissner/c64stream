@@ -155,6 +155,33 @@ porting the algorithm already proven in C64 Commander's Android discovery plugin
 - The whole scan runs on a detached background thread; the UI is only touched once, at
   completion, via `obs_queue_task(OBS_TASK_UI, ...)`.
 
+## Scripting: `SWITCH_DEVICE` and `DISCOVER_DEVICES`
+
+Two C64Script commands (`src/script/vm/c64-script-vm-dispatch-machine.c`) drive device switching
+and discovery from an automation script, for repeated/soak testing:
+
+```
+SWITCH_DEVICE "u64"                 REM by registry id, or by host if no id matches
+DISCOVER_DEVICES                    REM synchronous LAN scan, probes port 80
+DISCOVER_DEVICES PROBE_PORT 8080    REM probe a different port (e.g. a test mock)
+```
+
+`SWITCH_DEVICE` resolves its argument against `c64_device_registry_get` (by id) and falls back to
+`c64_device_registry_find_by_host` (by host), then applies it via the same
+`c64_script_queue_source_update` path effects use (`OP_PALETTE`, etc.) — setting the `"c64_device"`
+source setting on the OBS UI thread, which triggers `c64_update()` and the exact device-transition
+machinery described above. `DISCOVER_DEVICES` calls a synchronous variant of the scan,
+`c64_device_scan_sync`, directly on the script executor thread (already off the OBS UI thread), so
+the script blocks until discovery completes (bounded by the scan's own 8-second deadline) before
+continuing.
+
+Both commands are no-ops (not errors) when the script runs without an attached OBS source — the
+same convention `PALETTE`/`EFFECT` already use — so they don't break script tests that exercise the
+VM without full plugin context.
+
+See `doc/testing/device-switch-soak.md` for the real-hardware soak test built on these commands,
+and `tests/e2e/test_device_switch_e2e.py` for the CI-safe two-mock-device equivalent.
+
 ## Testing
 
 - `tests/network/test_c64_device.c` — registry round-trip, id derivation, legacy migration.
@@ -164,3 +191,8 @@ porting the algorithm already proven in C64 Commander's Android discovery plugin
 - `tests/network/test_c64_rest_outcome.c` — status → outcome classification for every code.
 - `tests/network/test_c64_stream_control.c` — the negotiation table above, forced-transport
   overrides, and demotion-state transitions.
+- `tests/script/test_c64script_parser.c` / `test_c64script_compiler.c` — parsing and execution of
+  `SWITCH_DEVICE`/`DISCOVER_DEVICES`, including the no-obs-source no-op path and type-mismatch
+  errors.
+- `tests/e2e/test_device_switch_e2e.py` — OBS-driven E2E test with two independent mock devices;
+  switches twice and asserts each mock saw exactly the start/stop commands its active phase implies.

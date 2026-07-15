@@ -1,0 +1,34 @@
+name: NTSC Device Switch Soak (Real Devices)
+format: NTSC
+preset: Default
+# Use real C64 Ultimate device packets rather than the synthetic UDP sender.
+packet_source: device
+# Local-only: requires two reachable C64 Ultimate devices on the network.
+ci_skip: true
+ci_skip_reason: "Requires two real C64 Ultimate devices (hostnames: u64, c64u)"
+# Starts on "u64"; the script itself drives switching to "c64u" and back.
+# Register both devices once via the Device dropdown before the first soak
+# run -- see doc/testing/device-switch-soak.md.
+overrides:
+  # Deliberately not setting c64_device: the registry id for a pre-registered
+  # device is derived from its reported unique_id, not its hostname, so it
+  # can't be predicted here. c64_host below is used directly for the initial
+  # connection; the script's first SWITCH_DEVICE call moves to the
+  # registry-resolved device from then on.
+  c64_host: u64
+  control_port: 64
+  video_port: 11000
+  audio_port: 11001
+  auto_detect_ip: true
+  obs_ip_address: ""
+  # Auto: let REST be used where the device supports it, exactly as a real
+  # user's setup would behave.
+  stream_control_transport: 0
+  script_file: "${repo_root}/tests/e2e/scripts/device_switch.c64script"
+  script_auto_start: true
+  record_video: false
+  record_csv: true
+  record_frames: false
+  debug_logging: true
+assertions:
+  - debug_log_presence

@@ -28,6 +28,12 @@ class MockC64UServer:
         self._stream_start_mask = 0
         self._stream_start_lock = threading.Lock()
 
+        # Ordered ("start"|"stop", stream_id) log, used by tests that need to
+        # verify exactly which control commands this device instance received
+        # (e.g. a device-switch test running two independent mock instances).
+        self.events: list[Tuple[str, int]] = []
+        self._events_lock = threading.Lock()
+
     def start(self):
         """Start the TCP server."""
         logger.info(f"Starting mock C64 Ultimate TCP server on port {self.control_port}")
@@ -148,9 +154,18 @@ class MockC64UServer:
         cmd_byte = cmd[0]
         stream_id = cmd_byte & 0x0F
         is_start = (cmd_byte & 0xF0) == 0x20
+        is_stop = (cmd_byte & 0xF0) == 0x30
+
+        if is_stop:
+            logger.info(f"🛑 Received STOP command for stream {stream_id}")
+            with self._events_lock:
+                self.events.append(("stop", stream_id))
+            return
 
         if is_start:
             logger.info(f"✅ Received START command for stream {stream_id}")
+            with self._events_lock:
+                self.events.append(("start", stream_id))
             # payload starts at index 4 (header is 4 bytes: CMD, FF, LEN, 00)
             # Actually e2e.py said:
             # Format: [command_byte][0xFF][param_len][0x00][param_bytes...]
