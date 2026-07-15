@@ -32,6 +32,15 @@ if(UNIX)
 endif()
 add_test(NAME c64_stream_dest COMMAND test_c64_stream_dest)
 
+add_executable(test_c64_stream_control test_c64_stream_control.c
+               ${CMAKE_SOURCE_DIR}/src/network/c64-stream-control.c)
+target_include_directories(
+  test_c64_stream_control
+  PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/network ${CMAKE_SOURCE_DIR}/src/util
+          ${CMAKE_SOURCE_DIR}/src/video)
+target_link_libraries(test_c64_stream_control PRIVATE OBS::libobs)
+add_test(NAME c64_stream_control COMMAND test_c64_stream_control)
+
 add_executable(test_c64_device test_c64_device.c ${CMAKE_SOURCE_DIR}/src/device/c64-device.c
                ${CMAKE_SOURCE_DIR}/src/util/c64-file.c)
 target_include_directories(test_c64_device PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/device
