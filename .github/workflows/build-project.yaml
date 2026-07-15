@@ -786,7 +786,7 @@ jobs:
         if: ${{ matrix.distro == 'arch' }}
         run: |
           : "Install GStreamer Plugins (Arch) 🎞️"
-          pacman -Sy --noconfirm
+          pacman -Syu --noconfirm
           pacman -S --noconfirm gstreamer gst-plugins-good gst-plugins-bad gst-plugins-ugly gst-libav
 
       - name: Setup X11 Display 🖥️
