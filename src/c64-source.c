@@ -771,6 +771,7 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->video_port = (uint32_t)obs_data_get_int(settings, "video_port");
     context->audio_port = (uint32_t)obs_data_get_int(settings, "audio_port");
     context->control_port = (uint32_t)obs_data_get_int(settings, "control_port");
+    context->stream_control_transport = (int)obs_data_get_int(settings, "stream_control_transport");
     context->streaming = false;
 
     // Read the configured OBS IP. Numeric route detection occurs in the
@@ -1135,6 +1136,10 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     // Create keyboard module if REST client is available
     if (context->rest_client) {
         context->keyboard = c64_keyboard_create(context->rest_client);
+        if (context->keyboard) {
+            c64_keyboard_set_keymap(context->keyboard, context->keymap);
+            c64_keyboard_set_transport(context->keyboard, context->stream_control_transport);
+        }
     }
 
     // Initialize script automation fields
