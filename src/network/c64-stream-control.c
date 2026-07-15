@@ -1,10 +1,12 @@
 #include "c64-stream-control.h"
+#include "c64-logging.h"
 #include "c64-protocol.h"
 #include "c64-rest-client.h"
 #include "c64-types.h"
 #include <util/platform.h>
 
 #define C64_STREAM_RETRY_NS (60ULL * 1000000000ULL)
+#define STREAM_CONTROL_LOG_PREFIX "STREAM_CONTROL:"
 
 bool c64_stream_control_should_fallback(c64_rest_outcome_t outcome)
 {
@@ -29,6 +31,8 @@ bool c64_stream_control_to(struct c64_source *context, const char *host, uint32_
                                                               &outcome, &status)
                          : c64_rest_stream_stop_with_outcome(context->rest_client, stream_id == 1, &outcome, &status);
         if (ok) {
+            C64_LOG_INFO("" STREAM_CONTROL_LOG_PREFIX " Stream %u %s via REST", stream_id,
+                         enable ? "started" : "stopped");
             return true;
         }
         if (transport == C64_STREAM_TRANSPORT_REST || !c64_stream_control_should_fallback(outcome)) {

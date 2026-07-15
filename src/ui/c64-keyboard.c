@@ -1151,6 +1151,7 @@ static void *injection_worker(void *arg)
                 c64_rest_outcome_t outcome = C64_REST_UNREACHABLE;
                 long status = 0;
                 if (c64_rest_machine_input_with_outcome(keyboard->rest_client, json, &outcome, &status)) {
+                    C64_LOG_DEBUG(KEYBOARD_LOG_PREFIX "Injected %d bytes via machine:input", pending_count);
                     queue_discard_many(keyboard, pending_count);
                     pending_count = 0;
                     last_batch_failed = false;

@@ -151,12 +151,18 @@ def main():
     wait_for_script_completion = False
     script_completion_timeout_s = 30.0
     cleanup_device_host = None
+    mock_rest_enabled = False
+    extra_mock_control_ports = []
+    device_registry = []
     repo_root = Path(args.test_dir).resolve().parent.parent
     if args.scenario_yaml:
         try:
             with open(args.scenario_yaml, 'r') as f:
                 scenario_data = yaml.safe_load(f)
                 network_simulation = scenario_data.get('network_simulation', {})
+                mock_rest_enabled = bool(scenario_data.get('mock_rest_enabled', False))
+                extra_mock_control_ports = list(scenario_data.get('extra_mock_control_ports', []) or [])
+                device_registry = list(scenario_data.get('device_registry', []) or [])
                 overrides = scenario_data.get('overrides', {}) or {}
                 assertions = scenario_data.get('assertions', []) or []
                 cleanup_device_host = overrides.get('c64_host')
@@ -254,6 +260,9 @@ def main():
         cleanup_device_host=cleanup_device_host,
         wait_for_script_completion=wait_for_script_completion,
         script_completion_timeout_s=script_completion_timeout_s,
+        mock_rest_enabled=mock_rest_enabled,
+        extra_mock_control_ports=extra_mock_control_ports,
+        device_registry=device_registry,
     )
 
     return 0 if orchestrator.run() else 1
