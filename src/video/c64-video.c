@@ -1421,10 +1421,18 @@ void c64_process_video_packet_direct(struct c64_source *context, const uint8_t *
                                     frame_height, context->expected_fps, context->audio_sample_rate);
                 }
 
-                // Update context dimensions if they changed
+                /* The network-buffer path does not otherwise own the
+                 * assembly mutex. Publish the pair under the same short lock
+                 * used by the graphics thread to snapshot it. */
+                if (!locked && pthread_mutex_lock(&context->assembly_mutex) != 0) {
+                    return;
+                }
                 if (context->height != frame_height) {
                     context->height = frame_height;
                     context->width = C64_PIXELS_PER_LINE; // Always 384
+                }
+                if (!locked) {
+                    pthread_mutex_unlock(&context->assembly_mutex);
                 }
             }
         }

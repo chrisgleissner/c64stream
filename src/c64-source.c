@@ -2178,6 +2178,18 @@ void c64_video_tick(void *data, float seconds)
     if (!context)
         return;
 
+    /* Snapshot the format as one coherent pair.  Never retain the assembly
+     * lock over graphics calls. */
+    uint32_t frame_width;
+    uint32_t frame_height;
+    if (pthread_mutex_lock(&context->assembly_mutex) == 0) {
+        frame_width = context->width;
+        frame_height = context->height;
+        pthread_mutex_unlock(&context->assembly_mutex);
+    } else {
+        return;
+    }
+
     // Monitor script executor status for completion/errors
     if (context->script_executor) {
         c64_script_status_t current_status = c64_script_executor_get_status(context->script_executor);
@@ -2234,20 +2246,20 @@ void c64_video_tick(void *data, float seconds)
 
     // Always update texture from frame buffer for consistent rendering.
     // Important: do NOT call gs_texture_get_width/height outside graphics context; cache dimensions instead.
-    if (!context->render_texture || context->render_texture_width != context->width ||
-        context->render_texture_height != context->height) {
+    if (!context->render_texture || context->render_texture_width != frame_width ||
+        context->render_texture_height != frame_height) {
         obs_enter_graphics();
         if (context->render_texture) {
             gs_texture_destroy(context->render_texture);
         }
         // Must be dynamic: we update it every tick via gs_texture_set_image (which maps internally).
-        context->render_texture = gs_texture_create(context->width, context->height, GS_RGBA, 1, NULL, GS_DYNAMIC);
-        context->render_texture_width = context->width;
-        context->render_texture_height = context->height;
+        context->render_texture = gs_texture_create(frame_width, frame_height, GS_RGBA, 1, NULL, GS_DYNAMIC);
+        context->render_texture_width = frame_width;
+        context->render_texture_height = frame_height;
 
         // Upload initial pixels immediately to avoid a black/undefined frame and to keep update path consistent.
         if (context->render_texture && context->frame_buffer) {
-            gs_texture_set_image(context->render_texture, (const uint8_t *)context->frame_buffer, context->width * 4,
+            gs_texture_set_image(context->render_texture, (const uint8_t *)context->frame_buffer, frame_width * 4,
                                  false);
         }
 
@@ -2296,14 +2308,14 @@ void c64_video_tick(void *data, float seconds)
         // Note: afterglow is applied at frame delivery time (video thread) into `afterglow.accum`.
         // We must NOT write afterglow back into `frame_buffer` here; that creates feedback and flicker when
         // packets drop or when video thread is concurrently writing the raw buffer.
-        if (context->frame_buffer && context->width > 0 && context->height > 0) {
+        if (context->frame_buffer && frame_width > 0 && frame_height > 0) {
             const uint32_t *src_pixels = context->frame_buffer;
             if (context->afterglow_enable && context->afterglow.accum && context->afterglow.accum_valid &&
                 context->afterglow.duration_ms > 0) {
                 src_pixels = context->afterglow.accum;
             }
             obs_enter_graphics();
-            gs_texture_set_image(context->render_texture, (const uint8_t *)src_pixels, context->width * 4, false);
+            gs_texture_set_image(context->render_texture, (const uint8_t *)src_pixels, frame_width * 4, false);
             obs_leave_graphics();
         }
     }
