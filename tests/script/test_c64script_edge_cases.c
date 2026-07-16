@@ -677,6 +677,57 @@ TEST(parse_null_byte_in_source)
 }
 
 // ============================================================================
+// ============================================================================
+// C64STR-031: default execution budget + recursion depth cap
+// ============================================================================
+
+TEST(execute_infinite_while_hits_iteration_budget)
+{
+    /* A WHILE 1 loop with no exit must abort on the default iteration budget
+     * within a bounded number of steps, not run forever or OOM. */
+    const char *source = "WHILE 1\n    X = X + 1\nENDWHILE\n";
+    char error[256];
+
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error, sizeof(error));
+    assert(ast != NULL);
+
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    assert(runtime != NULL);
+    assert(runtime->max_iterations > 0 && "A finite default execution budget must be set");
+
+    assert(c64script_compile(ast, runtime, error, sizeof(error)));
+    bool success = c64script_execute(runtime);
+    assert(!success && "WHILE 1 must abort on the iteration budget");
+    assert(strstr(runtime->error_msg, "Iteration limit") != NULL);
+    assert(runtime->iteration_count <= runtime->max_iterations + 1);
+
+    c64script_runtime_destroy(runtime);
+    c64script_ast_free(ast);
+}
+
+TEST(execute_infinite_recursion_hits_depth_cap)
+{
+    /* Unbounded recursion must abort on the scope-stack depth cap, not grow the
+     * allocation without limit. */
+    const char *source = "FUN RECURSE(N)\n    RETURN RECURSE(N + 1)\nENDFUN\nY = RECURSE(1)\n";
+    char error[256];
+
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error, sizeof(error));
+    assert(ast != NULL);
+
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    assert(runtime != NULL);
+
+    assert(c64script_compile(ast, runtime, error, sizeof(error)));
+    bool success = c64script_execute(runtime);
+    assert(!success && "Infinite recursion must abort");
+    assert(strstr(runtime->error_msg, "recursion too deep") != NULL ||
+           strstr(runtime->error_msg, "Iteration limit") != NULL);
+
+    c64script_runtime_destroy(runtime);
+    c64script_ast_free(ast);
+}
+
 // MAIN TEST RUNNER
 // ============================================================================
 
@@ -736,6 +787,10 @@ int main(void)
     printf("\n--- Security Edge Cases ---\n");
     RUN_TEST(parse_potential_buffer_overflow_string);
     RUN_TEST(parse_null_byte_in_source);
+
+    printf("\n--- Execution Budget (C64STR-031) ---\n");
+    RUN_TEST(execute_infinite_while_hits_iteration_budget);
+    RUN_TEST(execute_infinite_recursion_hits_depth_cap);
 
     printf("\n=== All Edge Case Tests Passed! ===\n");
     return 0;
