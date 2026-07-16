@@ -1399,8 +1399,13 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
                 }
                 runtime->log_file = fopen(log_path, "a");
                 if (runtime->log_file) {
-                    strncpy(runtime->log_filename, log_path, sizeof(runtime->log_filename) - 1);
-                    runtime->log_filename[sizeof(runtime->log_filename) - 1] = '\0';
+                    /* log_path may already alias runtime->log_filename (when a
+                     * name was set on a prior LOG); a self-overlapping strncpy
+                     * is undefined behaviour, so only copy a distinct source. */
+                    if (log_path != runtime->log_filename) {
+                        strncpy(runtime->log_filename, log_path, sizeof(runtime->log_filename) - 1);
+                        runtime->log_filename[sizeof(runtime->log_filename) - 1] = '\0';
+                    }
                 }
             }
             if (!runtime->log_file) {
