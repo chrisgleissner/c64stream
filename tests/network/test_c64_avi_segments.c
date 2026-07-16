@@ -126,6 +126,21 @@ int main(void)
     write_and_validate_segment(seg0, 384, 272, 50.125, 8); /* PAL segment */
     write_and_validate_segment(seg1, 384, 234, 59.826, 5); /* NTSC continuation */
 
+    /* C64STR-034: the header is refreshed about once per second, not every
+     * frame. At 50 fps only every 50th frame triggers an update. */
+    int updates_pal = 0;
+    for (long frame = 1; frame <= 500; frame++) {
+        if (c64_avi_should_update_header(frame, 50.125)) {
+            updates_pal++;
+            assert(frame % 50 == 0); /* only on the ~1 s boundary */
+        }
+    }
+    assert(updates_pal == 10); /* 500 frames / 50 = 10 updates, not 500 */
+    /* No mid-second per-frame updates. */
+    assert(!c64_avi_should_update_header(1, 50.125));
+    assert(!c64_avi_should_update_header(49, 50.125));
+    assert(c64_avi_should_update_header(50, 50.125));
+
     remove(seg0);
     remove(seg1);
     remove(dir);

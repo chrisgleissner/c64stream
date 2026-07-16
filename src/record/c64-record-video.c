@@ -401,8 +401,7 @@ void c64_video_record_frame(struct c64_source *context, uint32_t *frame_buffer)
             context->avi_segment_bytes += chunk_bytes;
 
             // Keep crash recovery useful without forcing synchronous I/O per frame.
-            const uint32_t update_period = (uint32_t)(fps + 0.5);
-            if (update_period > 0 && (uint32_t)new_frame_count % update_period == 0) {
+            if (c64_avi_should_update_header(new_frame_count, fps)) {
                 c64_video_update_avi_header(context->video_file, context->avi_segment_frames, 0);
             }
 

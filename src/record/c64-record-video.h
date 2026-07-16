@@ -32,6 +32,18 @@ static inline bool c64_avi_segment_needs_rollover(uint32_t segment_width, uint32
 // Forward declarations
 struct c64_source;
 
+/*
+ * C64STR-034: the AVI header is refreshed periodically (about once per second)
+ * for crash recovery, not on every frame -- a per-frame header rewrite + flush
+ * stalled recording on slow mounts. Returns true only on the ~1 s boundary.
+ * Header-only so the cadence is regression-testable without OBS/filesystem.
+ */
+static inline bool c64_avi_should_update_header(long frame_count, double fps)
+{
+    const uint32_t update_period = (uint32_t)(fps + 0.5);
+    return update_period > 0 && (uint32_t)frame_count % update_period == 0;
+}
+
 /* Deterministic AVI segment filename: segment 0 is "<folder>/video.avi",
  * segment N (>0) is "<folder>/video.NNN.avi" (zero-padded to 3 digits). Kept
  * public so the continuation-name scheme can be regression-tested (C64STR-012). */
