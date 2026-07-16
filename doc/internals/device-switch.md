@@ -36,7 +36,7 @@ source's OBS settings. An empty registry cannot be the trigger on its own: the l
 `c64_host` key is deliberately kept for a compatibility release, so an empty-registry trigger
 re-fires on the very next `c64_update` and resurrects the profile the moment the user deletes
 their last device. The latch is set once migration has been *considered*, whether or not it
-had anything to do — the one exception being a failed registry write, which leaves it unset so
+had anything to migrate — the one exception being a failed registry write, which leaves it unset so
 the next update retries.
 
 The `Device` dropdown in `src/ui/c64-properties.c` is populated by

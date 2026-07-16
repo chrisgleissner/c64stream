@@ -2626,55 +2626,57 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
         return;
     }
 
+    c64_interact_key_t key = {{0}};
+    c64_interact_key_result_t key_result = c64_interact_translate_key_event(event->native_vkey, event->text, &key);
+    if (key_result == C64_INTERACT_KEY_WARM_START) {
+        if (context->keyboard) {
+            c64_keyboard_basic_warm_start(context->keyboard);
+        }
+        return;
+    }
+
+    // F9 toggles the device's on-screen menu via REST; F10/F11 toggle
+    // joystick emulation mode/port. All three are hoisted above the
+    // keymap/keyboard guard below so they stay active (even while
+    // joystick_mode_active, or while the keymap/keyboard worker failed to
+    // load) so F10 can always toggle back out of joystick mode.
+    if (strcmp(key.code, "F9") == 0) {
+        C64_LOG_INFO("Keyboard: F9 pressed - toggling device menu");
+        if (context->rest_client) {
+            c64_rest_menu_button(context->rest_client);
+        }
+        return;
+    }
+
+    const bool is_f10 = strcmp(key.code, "F10") == 0;
+    const bool is_f11 = strcmp(key.code, "F11") == 0;
+    if (is_f10 || is_f11) {
+        if (is_f10) {
+            // Release before clearing the flag: a direction held right now
+            // would otherwise never see its key-up reach the joystick path.
+            c64_release_joystick_inputs(context);
+            context->joystick_mode_active = !context->joystick_mode_active;
+            C64_LOG_INFO("Keyboard: F10 pressed - joystick emulation %s",
+                         context->joystick_mode_active ? "enabled" : "disabled");
+        } else {
+            context->joystick_emulation_port = context->joystick_emulation_port == 1 ? 2 : 1;
+            C64_LOG_INFO("Keyboard: F11 pressed - joystick emulation port %d", context->joystick_emulation_port);
+        }
+        obs_data_t *toggle_settings = obs_source_get_settings(context->source);
+        if (toggle_settings) {
+            obs_data_set_bool(toggle_settings, "joystick_mode_active", context->joystick_mode_active);
+            obs_data_set_int(toggle_settings, "joystick_emulation_port", context->joystick_emulation_port);
+            obs_source_update(context->source, toggle_settings);
+            obs_data_release(toggle_settings);
+        }
+        c64_queue_properties_refresh(context);
+        return;
+    }
+
     // Convert OBS key event to keymap format and queue for injection
     if (context->keymap && context->keyboard) {
         if (context->keyboard_ctrl_meta_armed) {
             context->keyboard_ctrl_meta_consumed = true;
-        }
-
-        c64_interact_key_t key = {{0}};
-        c64_interact_key_result_t key_result = c64_interact_translate_key_event(event->native_vkey, event->text, &key);
-        if (key_result == C64_INTERACT_KEY_WARM_START) {
-            if (context->keyboard) {
-                c64_keyboard_basic_warm_start(context->keyboard);
-            }
-            return;
-        }
-
-        // F9 toggles the device's on-screen menu via REST; F10/F11 toggle
-        // joystick emulation mode/port. All three are always active (even
-        // while joystick_mode_active) so F10 can toggle back out of it.
-        if (strcmp(key.code, "F9") == 0) {
-            C64_LOG_INFO("Keyboard: F9 pressed - toggling device menu");
-            if (context->rest_client) {
-                c64_rest_menu_button(context->rest_client);
-            }
-            return;
-        }
-
-        const bool is_f10 = strcmp(key.code, "F10") == 0;
-        const bool is_f11 = strcmp(key.code, "F11") == 0;
-        if (is_f10 || is_f11) {
-            if (is_f10) {
-                // Release before clearing the flag: a direction held right now
-                // would otherwise never see its key-up reach the joystick path.
-                c64_release_joystick_inputs(context);
-                context->joystick_mode_active = !context->joystick_mode_active;
-                C64_LOG_INFO("Keyboard: F10 pressed - joystick emulation %s",
-                             context->joystick_mode_active ? "enabled" : "disabled");
-            } else {
-                context->joystick_emulation_port = context->joystick_emulation_port == 1 ? 2 : 1;
-                C64_LOG_INFO("Keyboard: F11 pressed - joystick emulation port %d", context->joystick_emulation_port);
-            }
-            obs_data_t *toggle_settings = obs_source_get_settings(context->source);
-            if (toggle_settings) {
-                obs_data_set_bool(toggle_settings, "joystick_mode_active", context->joystick_mode_active);
-                obs_data_set_int(toggle_settings, "joystick_emulation_port", context->joystick_emulation_port);
-                obs_source_update(context->source, toggle_settings);
-                obs_data_release(toggle_settings);
-            }
-            c64_queue_properties_refresh(context);
-            return;
         }
 
         // Build modifiers bitmask

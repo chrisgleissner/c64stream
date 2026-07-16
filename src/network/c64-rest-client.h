@@ -72,7 +72,7 @@ bool c64_rest_machine_input_with_outcome(c64_rest_client_t *client, const char *
                                          long *status);
 bool c64_rest_release_all(c64_rest_client_t *client);
 /* input_name is a matrix input like "up"/"down"/"left"/"right"/"fire"; transition
- * is "press" or "release" (held movement, not a tap) or "tap". */
+ * is "press" or "release" (held movement, not a tap). */
 bool c64_rest_joystick_input(c64_rest_client_t *client, int port, const char *input_name, const char *transition);
 
 /**

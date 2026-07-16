@@ -512,6 +512,20 @@ static void apply_scan_results(scan_job_t *job)
     }
 }
 
+// Test-only entry point for the host_index "first wins" supersession rule in
+// apply_scan_results(), without spinning up a real scan (see
+// tests/network/test_c64_device_scan.c).
+void c64_device_scan_apply_results_for_test(const c64_device_t *devices, const size_t *host_indices, size_t count)
+{
+    scan_job_t job = {0};
+    for (size_t i = 0; i < count && i < C64_SCAN_MAX_RESULTS; i++) {
+        job.results[i].device = devices[i];
+        job.results[i].host_index = host_indices[i];
+        job.result_count++;
+    }
+    apply_scan_results(&job);
+}
+
 // Runs the worker pool over the host range [job->next, job->phase_end).
 static void scan_run_phase(scan_job_t *job)
 {
