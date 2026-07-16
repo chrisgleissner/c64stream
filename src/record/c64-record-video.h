@@ -15,6 +15,20 @@ See <https://www.gnu.org/licenses/> for details.
 #include <stdbool.h>
 #include <stdio.h>
 
+/* Keep well below the legacy AVI 2 GiB interoperability boundary. */
+#define C64_AVI_SEGMENT_LIMIT_BYTES (UINT64_C(2) * 1024 * 1024 * 1024 - 16 * 1024 * 1024)
+
+/* Kept header-only so the rollover decision can be regression-tested without
+ * filesystem or OBS dependencies. */
+static inline bool c64_avi_segment_needs_rollover(uint32_t segment_width, uint32_t segment_height, double segment_fps,
+                                                  uint32_t segment_frames, uint64_t segment_bytes, uint32_t width,
+                                                  uint32_t height, double fps, uint64_t next_chunk_bytes,
+                                                  uint64_t limit_bytes)
+{
+    return segment_width != width || segment_height != height || segment_fps != fps ||
+           (segment_frames > 0 && segment_bytes + next_chunk_bytes > limit_bytes);
+}
+
 // Forward declarations
 struct c64_source;
 

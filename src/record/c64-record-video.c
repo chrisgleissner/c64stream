@@ -10,11 +10,91 @@ See <https://www.gnu.org/licenses/> for details.
 #include <util/threading.h>
 #include <stdio.h>
 #include <pthread.h>
+#include <inttypes.h>
+#include <limits.h>
 #include "c64-logging.h"
 #include "c64-record.h"
 #include "c64-record-video.h"
 #include "c64-record-obs.h"
 #include "c64-types.h"
+
+static int64_t c64_avi_tell(FILE *file)
+{
+#ifdef _WIN32
+    return _ftelli64(file);
+#else
+    return (int64_t)ftello(file);
+#endif
+}
+
+static int c64_avi_seek(FILE *file, int64_t offset, int whence)
+{
+#ifdef _WIN32
+    return _fseeki64(file, offset, whence);
+#else
+    return fseeko(file, (off_t)offset, whence);
+#endif
+}
+
+static bool c64_video_finalize_segment_locked(struct c64_source *context)
+{
+    if (!context->video_file) {
+        return true;
+    }
+
+    c64_video_update_avi_header(context->video_file, context->avi_segment_frames, 0);
+    if (fclose(context->video_file) != 0) {
+        C64_LOG_ERROR("" RECORD_LOG_PREFIX " Failed to finalize AVI segment %u", context->avi_segment_index);
+        context->video_file = NULL;
+        return false;
+    }
+    context->video_file = NULL;
+    return true;
+}
+
+static bool c64_video_open_next_segment_locked(struct c64_source *context, uint32_t width, uint32_t height, double fps)
+{
+    char filename[950];
+    if (context->avi_segment_index == 0) {
+        snprintf(filename, sizeof(filename), "%s/video.avi", context->session_folder);
+    } else {
+        snprintf(filename, sizeof(filename), "%s/video.%03u.avi", context->session_folder, context->avi_segment_index);
+    }
+
+    context->video_file = fopen(filename, "wb");
+    if (!context->video_file) {
+        C64_LOG_ERROR("" RECORD_LOG_PREFIX " Failed to open AVI segment: %s", filename);
+        return false;
+    }
+
+    c64_video_write_avi_header(context->video_file, width, height, fps);
+    const int64_t header_size = c64_avi_tell(context->video_file);
+    if (header_size < 0) {
+        C64_LOG_ERROR("" RECORD_LOG_PREFIX " Failed to determine AVI header size: %s", filename);
+        fclose(context->video_file);
+        context->video_file = NULL;
+        return false;
+    }
+    context->avi_segment_width = width;
+    context->avi_segment_height = height;
+    context->avi_segment_fps = fps;
+    context->avi_segment_frames = 0;
+    context->avi_segment_bytes = (uint64_t)header_size;
+    C64_LOG_INFO("" RECORD_LOG_PREFIX " Started AVI segment %u: %s (%ux%u @ %.3f fps)", context->avi_segment_index,
+                 filename, width, height, fps);
+    return true;
+}
+
+static bool c64_video_roll_segment_locked(struct c64_source *context, uint32_t width, uint32_t height, double fps,
+                                          const char *reason)
+{
+    if (!c64_video_finalize_segment_locked(context)) {
+        return false;
+    }
+    context->avi_segment_index++;
+    C64_LOG_INFO("" RECORD_LOG_PREFIX " Rolling AVI recording to segment %u (%s)", context->avi_segment_index, reason);
+    return c64_video_open_next_segment_locked(context, width, height, fps);
+}
 
 // Helper function to write minimal, standard-compliant AVI header
 void c64_video_write_avi_header(FILE *file, uint32_t width, uint32_t height, double fps)
@@ -124,21 +204,29 @@ void c64_video_update_avi_header(FILE *file, uint32_t frame_count, uint32_t audi
     if (!file)
         return;
 
-    long current_pos = ftell(file);
-    uint32_t file_size = current_pos - 8; // Total file size minus RIFF header
+    const int64_t current_pos = c64_avi_tell(file);
+    if (current_pos < 8 || (uint64_t)current_pos - 8 > UINT32_MAX) {
+        C64_LOG_ERROR("" RECORD_LOG_PREFIX " AVI header update rejected invalid segment size");
+        return;
+    }
+    uint32_t file_size = (uint32_t)((uint64_t)current_pos - 8); // Total file size minus RIFF header
 
     // Update RIFF file size
-    fseek(file, 4, SEEK_SET);
+    if (c64_avi_seek(file, 4, SEEK_SET) != 0) {
+        return;
+    }
     fwrite(&file_size, 4, 1, file);
 
     // Update total frames in main AVI header (avih)
     // RIFF(4) + size(4) + AVI(4) + LIST(4) + size(4) + hdrl(4) + avih(4) + size(4) + period(4) + maxbytes(4) + pad(4) + flags(4) = 48
-    fseek(file, 48, SEEK_SET);
+    if (c64_avi_seek(file, 48, SEEK_SET) != 0) {
+        return;
+    }
     fwrite(&frame_count, 4, 1, file);
 
     // Seek back to end. The caller writes headers periodically and at stop;
     // flushing every video frame stalls recording on slow mounts.
-    fseek(file, current_pos, SEEK_SET);
+    (void)c64_avi_seek(file, current_pos, SEEK_SET);
 }
 
 // Helper function to convert RGBA to BGR24
@@ -210,15 +298,42 @@ void c64_video_record_frame(struct c64_source *context, uint32_t *frame_buffer)
         return;
     }
 
+    const uint32_t width = context->width;
+    const uint32_t height = context->height;
+    const double fps = context->expected_fps;
+    const uint64_t frame_bytes = (uint64_t)width * height * 3;
+    const uint64_t chunk_bytes = 8 + frame_bytes + (frame_bytes & 1);
+
+    if (width == 0 || height == 0 || frame_bytes > UINT32_MAX) {
+        C64_LOG_ERROR("" RECORD_LOG_PREFIX " Invalid AVI frame geometry: %ux%u", width, height);
+        pthread_mutex_unlock(&context->recording_mutex);
+        return;
+    }
+
+    const bool format_changed = context->avi_segment_width != width || context->avi_segment_height != height ||
+                                context->avi_segment_fps != fps;
+    const bool roll_segment = c64_avi_segment_needs_rollover(context->avi_segment_width, context->avi_segment_height,
+                                                             context->avi_segment_fps, context->avi_segment_frames,
+                                                             context->avi_segment_bytes, width, height, fps,
+                                                             chunk_bytes, C64_AVI_SEGMENT_LIMIT_BYTES);
+    if (roll_segment) {
+        if (!c64_video_roll_segment_locked(context, width, height, fps,
+                                           format_changed ? "video format changed" : "legacy RIFF size limit")) {
+            context->record_video = false;
+            pthread_mutex_unlock(&context->recording_mutex);
+            return;
+        }
+    }
+
     // Write AVI frame chunk with proper header
-    size_t frame_size = context->width * context->height * 3; // BGR24
+    size_t frame_size = (size_t)frame_bytes; // BGR24
     // Use pre-allocated buffer to eliminate malloc/free in hot path
     if (context->bgr_frame_buffer) {
         uint8_t *bgr_buffer = context->bgr_frame_buffer;
 
         // Check if frame_buffer has non-zero data
         uint32_t non_zero_pixels = 0;
-        for (uint32_t i = 0; i < context->width * context->height && i < 100; i++) {
+        for (uint32_t i = 0; i < width * height && i < 100; i++) {
             if (frame_buffer[i] != 0)
                 non_zero_pixels++;
         }
@@ -231,15 +346,15 @@ void c64_video_record_frame(struct c64_source *context, uint32_t *frame_buffer)
             (now - last_recording_log_time >= 600000000000ULL)) { // Every 10k frames OR 10 minutes
             C64_LOG_DEBUG("" RECORD_LOG_PREFIX
                           " RECORDING SPOT CHECK: frame %ld, %ux%u, non_zero=%u/100, fps=%.3f (total count: %d)",
-                          os_atomic_load_long(&context->recorded_frames), context->width, context->height,
-                          non_zero_pixels, context->expected_fps, recording_debug_count);
+                          os_atomic_load_long(&context->recorded_frames), width, height, non_zero_pixels, fps,
+                          recording_debug_count);
             last_recording_log_time = now;
         }
 
-        c64_video_convert_rgba_to_bgr24(frame_buffer, bgr_buffer, context->width, context->height);
+        c64_video_convert_rgba_to_bgr24(frame_buffer, bgr_buffer, width, height);
 
         // Very rare spot checks for BGR debug data (60Hz only, every 15 minutes)
-        if ((int)(context->expected_fps + 0.5) == 60) {
+        if ((int)(fps + 0.5) == 60) {
             static int bgr_debug_count = 0;
             static uint64_t last_bgr_log_time = 0;
             uint64_t now = os_gettime_ns();
@@ -274,11 +389,13 @@ void c64_video_record_frame(struct c64_source *context, uint32_t *frame_buffer)
 
         if (written == frame_size) {
             long new_frame_count = os_atomic_inc_long(&context->recorded_frames);
+            context->avi_segment_frames++;
+            context->avi_segment_bytes += chunk_bytes;
 
             // Keep crash recovery useful without forcing synchronous I/O per frame.
-            const uint32_t update_period = (uint32_t)(context->expected_fps + 0.5);
+            const uint32_t update_period = (uint32_t)(fps + 0.5);
             if (update_period > 0 && (uint32_t)new_frame_count % update_period == 0) {
-                c64_video_update_avi_header(context->video_file, (uint32_t)new_frame_count, 0);
+                c64_video_update_avi_header(context->video_file, context->avi_segment_frames, 0);
             }
 
             // Log video recording timing information to CSV (frame_num = 0 for recording events)
@@ -305,9 +422,7 @@ void c64_video_stop_recording(struct c64_source *context)
 
     // Close recording file and finalize format
     if (context->video_file) {
-        c64_video_update_avi_header(context->video_file, (uint32_t)os_atomic_load_long(&context->recorded_frames), 0);
-        fclose(context->video_file);
-        context->video_file = NULL;
+        (void)c64_video_finalize_segment_locked(context);
     }
 
     pthread_mutex_unlock(&context->recording_mutex);

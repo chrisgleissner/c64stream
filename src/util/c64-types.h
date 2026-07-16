@@ -279,6 +279,15 @@ struct c64_source {
     volatile long recorded_frames;
     volatile long recorded_audio_samples;
     uint64_t recorded_audio_bytes;
+    /* Each legacy AVI file is independently valid.  Keep per-segment state
+     * separate from session-wide counters so a rollover never wraps RIFF's
+     * 32-bit length fields. */
+    uint32_t avi_segment_index;
+    uint32_t avi_segment_width;
+    uint32_t avi_segment_height;
+    double avi_segment_fps;
+    uint32_t avi_segment_frames;
+    uint64_t avi_segment_bytes;
     pthread_mutex_t recording_mutex;
 
     // Debug-only A/V pop detection (edge-based)

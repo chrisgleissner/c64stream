@@ -819,9 +819,21 @@ bool c64_start_video_recording(struct c64_source *context)
     os_atomic_store_long(&context->recorded_frames, 0);
     os_atomic_store_long(&context->recorded_audio_samples, 0);
     context->recorded_audio_bytes = 0;
+    context->avi_segment_index = 0;
+    context->avi_segment_width = 0;
+    context->avi_segment_height = 0;
+    context->avi_segment_fps = 0.0;
+    context->avi_segment_frames = 0;
+    context->avi_segment_bytes = 0;
 
     // Write AVI header with detected frame rate
     c64_video_write_avi_header(context->video_file, context->width, context->height, context->expected_fps);
+    context->avi_segment_index = 0;
+    context->avi_segment_width = context->width;
+    context->avi_segment_height = context->height;
+    context->avi_segment_fps = context->expected_fps;
+    context->avi_segment_frames = 0;
+    context->avi_segment_bytes = 216; /* fixed header size written above */
 
     // Write WAV header to audio file
     c64_audio_write_wav_header(context->audio_file, (uint32_t)llround(context->audio_sample_rate), 2, 16);
@@ -848,9 +860,7 @@ void c64_stop_video_recording(struct c64_source *context)
 
     // Close recording files and finalize formats
     if (context->video_file) {
-        c64_video_update_avi_header(context->video_file, (uint32_t)os_atomic_load_long(&context->recorded_frames), 0);
-        fclose(context->video_file);
-        context->video_file = NULL;
+        c64_video_stop_recording(context);
     }
     if (context->audio_file) {
         // Update WAV header with final file size
@@ -893,6 +903,12 @@ void c64_record_init(struct c64_source *context)
     os_atomic_store_long(&context->recorded_frames, 0);
     os_atomic_store_long(&context->recorded_audio_samples, 0);
     context->recorded_audio_bytes = 0;
+    context->avi_segment_index = 0;
+    context->avi_segment_width = 0;
+    context->avi_segment_height = 0;
+    context->avi_segment_fps = 0.0;
+    context->avi_segment_frames = 0;
+    context->avi_segment_bytes = 0;
 
     context->audio_mixer_snapshot_items = NULL;
     context->audio_mixer_snapshot_values = NULL;

@@ -47,6 +47,10 @@ else()
 endif()
 add_test(NAME c64_network_buffer COMMAND test_c64_network_buffer)
 
+add_executable(test_c64_avi_segments test_c64_avi_segments.c)
+target_include_directories(test_c64_avi_segments PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/record)
+add_test(NAME c64_avi_segments COMMAND test_c64_avi_segments)
+
 add_executable(test_c64_stream_control test_c64_stream_control.c ${CMAKE_SOURCE_DIR}/src/network/c64-stream-control.c)
 target_include_directories(
   test_c64_stream_control
