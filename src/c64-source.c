@@ -2657,18 +2657,32 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
     const bool has_printable_text = (event->text && event->text[0] != '\0' && (unsigned char)event->text[0] > 0x20 &&
                                      (unsigned char)event->text[0] != 0x7F);
 
-    const bool is_ctrl_key =
-        (event->native_vkey == 0xFFE3 || event->native_vkey == 0xFFE4 || event->native_vkey == 0x11);
+    const bool is_ctrl_key = (event->native_vkey == 0xFFE3 || event->native_vkey == 0xFFE4 || event->native_vkey == 0x11
+#ifdef __APPLE__
+                              || event->native_vkey == 0x3B || event->native_vkey == 0x3E
+#endif
+    );
     const bool is_meta_key = (event->native_vkey == 0xFFEB || event->native_vkey == 0xFFEC ||
-                              ((!has_printable_text) && (event->native_vkey == 0x5B || event->native_vkey == 0x5C)));
-    const bool is_shift_key =
-        (event->native_vkey == 0xFFE1 || event->native_vkey == 0xFFE2 || event->native_vkey == 0x10);
+                              ((!has_printable_text) && (event->native_vkey == 0x5B || event->native_vkey == 0x5C))
+#ifdef __APPLE__
+                              || event->native_vkey == 0x37 || event->native_vkey == 0x36
+#endif
+    );
+    const bool is_shift_key = (event->native_vkey == 0xFFE1 || event->native_vkey == 0xFFE2 ||
+                               event->native_vkey == 0x10
+#ifdef __APPLE__
+                               || event->native_vkey == 0x38 || event->native_vkey == 0x3C
+#endif
+    );
     // Linux/X11: AltGr sends XK_ISO_Level3_Shift (0xFE03), not in this list, so it
     // correctly does not set the CBM modifier bit.
     // Windows: AltGr generates VK_MENU (0x12). It is treated the same as left Alt here;
     // the synthetic Ctrl+Alt pattern is cleared at the point of keymap lookup below.
-    const bool is_alt_key =
-        (event->native_vkey == 0xFFE9 || event->native_vkey == 0xFFEA || event->native_vkey == 0x12);
+    const bool is_alt_key = (event->native_vkey == 0xFFE9 || event->native_vkey == 0xFFEA || event->native_vkey == 0x12
+#ifdef __APPLE__
+                             || event->native_vkey == 0x3A || event->native_vkey == 0x3D
+#endif
+    );
     const bool is_modifier_key = (is_shift_key || is_ctrl_key || is_alt_key || is_meta_key);
     const bool is_escape_key = c64_interact_key_is_escape(event->native_vkey, event->native_scancode);
     const bool is_tab_key = c64_interact_key_is_tab(event->native_vkey, event->native_scancode);

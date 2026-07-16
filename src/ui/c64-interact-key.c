@@ -62,11 +62,23 @@ static bool has_visible_text(const char *text)
 
 bool c64_interact_key_is_escape(uint32_t native_vkey, uint32_t native_scancode)
 {
+#if defined(__APPLE__) || defined(C64_TEST_MACOS_KEYCODES)
+    /* Carbon kVK_Escape.  Keep this branch separate: 0x35 is not a Windows
+     * virtual key and macOS 0x7B..0x7E collide with Windows F12/etc. */
+    if (native_vkey == 0x35) {
+        return true;
+    }
+#endif
     return native_scancode == 0x01 || native_vkey == 0x1B || native_vkey == 0xFF1B;
 }
 
 bool c64_interact_key_is_tab(uint32_t native_vkey, uint32_t native_scancode)
 {
+#if defined(__APPLE__) || defined(C64_TEST_MACOS_KEYCODES)
+    if (native_vkey == 0x30) { /* Carbon kVK_Tab */
+        return true;
+    }
+#endif
     return native_scancode == 0x0F || native_vkey == 0x09 || native_vkey == 0xFF09;
 }
 
@@ -85,6 +97,22 @@ bool c64_interact_should_reboot_chord(uint32_t native_vkey, uint32_t native_scan
 
 const char *c64_interact_joystick_input_for_vkey(uint32_t native_vkey)
 {
+#if defined(__APPLE__) || defined(C64_TEST_MACOS_KEYCODES)
+    switch (native_vkey) {
+    case 0x7B: /* kVK_LeftArrow */
+        return "left";
+    case 0x7E: /* kVK_UpArrow */
+        return "up";
+    case 0x7C: /* kVK_RightArrow */
+        return "right";
+    case 0x7D: /* kVK_DownArrow */
+        return "down";
+    case 0x31: /* kVK_Space */
+        return "fire";
+    default:
+        return NULL;
+    }
+#else
     // Same vkey values as the ArrowLeft/Up/Right/Down/Space cases in
     // lookup_key_code_from_vkey() below (Windows VK_* and X11 keysym forms).
     switch (native_vkey) {
@@ -105,6 +133,7 @@ const char *c64_interact_joystick_input_for_vkey(uint32_t native_vkey)
     default:
         return NULL;
     }
+#endif
 }
 
 static bool lookup_key_code_from_vkey(uint32_t native_vkey, char key_code[64])
@@ -112,6 +141,58 @@ static bool lookup_key_code_from_vkey(uint32_t native_vkey, char key_code[64])
     if (!key_code) {
         return false;
     }
+
+#if defined(__APPLE__) || defined(C64_TEST_MACOS_KEYCODES)
+    /* Carbon virtual keycodes are physical key positions, not ASCII/Windows
+     * VKs.  Resolve all special keys before the generic tables so 0x7B maps
+     * to ArrowLeft rather than Windows F12. */
+    switch (native_vkey) {
+    case 0x33:
+        return copy_identifier(key_code, "Backspace");
+    case 0x30:
+        return copy_identifier(key_code, "Tab");
+    case 0x24:
+        return copy_identifier(key_code, "Enter");
+    case 0x35:
+        return copy_identifier(key_code, "Escape");
+    case 0x31:
+        return copy_identifier(key_code, "Space");
+    case 0x7B:
+        return copy_identifier(key_code, "ArrowLeft");
+    case 0x7E:
+        return copy_identifier(key_code, "ArrowUp");
+    case 0x7C:
+        return copy_identifier(key_code, "ArrowRight");
+    case 0x7D:
+        return copy_identifier(key_code, "ArrowDown");
+    case 0x7A:
+        return copy_identifier(key_code, "F1");
+    case 0x78:
+        return copy_identifier(key_code, "F2");
+    case 0x63:
+        return copy_identifier(key_code, "F3");
+    case 0x76:
+        return copy_identifier(key_code, "F4");
+    case 0x60:
+        return copy_identifier(key_code, "F5");
+    case 0x61:
+        return copy_identifier(key_code, "F6");
+    case 0x62:
+        return copy_identifier(key_code, "F7");
+    case 0x64:
+        return copy_identifier(key_code, "F8");
+    case 0x65:
+        return copy_identifier(key_code, "F9");
+    case 0x6D:
+        return copy_identifier(key_code, "F10");
+    case 0x67:
+        return copy_identifier(key_code, "F11");
+    case 0x6F:
+        return copy_identifier(key_code, "F12");
+    default:
+        break;
+    }
+#endif
 
     if ((native_vkey >= '0' && native_vkey <= '9') || (native_vkey >= 'A' && native_vkey <= 'Z')) {
         if (native_vkey >= '0' && native_vkey <= '9') {
@@ -331,7 +412,11 @@ c64_interact_key_result_t c64_interact_translate_key_event(uint32_t native_vkey,
 
     lookup_key_code_from_vkey(native_vkey, key->code);
 
-    if (native_vkey == 0x1B || native_vkey == 0xFF1B) {
+    if (native_vkey == 0x1B || native_vkey == 0xFF1B
+#if defined(__APPLE__) || defined(C64_TEST_MACOS_KEYCODES)
+        || native_vkey == 0x35
+#endif
+    ) {
         return C64_INTERACT_KEY_WARM_START;
     }
 
