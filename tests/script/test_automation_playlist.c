@@ -250,7 +250,88 @@ int main(void)
     CHECK(symlink(nested_root, nested_cycle) == 0);
     CHECK(c64_automation_refresh_playlist(automation, &nested_config, 0, true));
     CHECK(c64_automation_get_playlist_count(automation) == 2);
+
+    /* C64STR-015: mutual A<->B symlink cycle (two sibling directories each
+     * linking to the other, not an ancestor self-cycle). The scan must
+     * terminate with the single real file counted exactly once. */
+    char mutual_root[C64_AUTOMATION_PATH_MAX];
+    char mutual_a[C64_AUTOMATION_PATH_MAX];
+    char mutual_b[C64_AUTOMATION_PATH_MAX];
+    char mutual_song[C64_AUTOMATION_PATH_MAX];
+    char mutual_a_to_b[C64_AUTOMATION_PATH_MAX];
+    char mutual_b_to_a[C64_AUTOMATION_PATH_MAX];
+    CHECK(build_path(mutual_root, sizeof(mutual_root), temp_dir, "/mutual"));
+    CHECK(build_path(mutual_a, sizeof(mutual_a), mutual_root, "/A"));
+    CHECK(build_path(mutual_b, sizeof(mutual_b), mutual_root, "/B"));
+    CHECK(make_dir(mutual_root));
+    CHECK(make_dir(mutual_a));
+    CHECK(make_dir(mutual_b));
+    CHECK(build_path(mutual_song, sizeof(mutual_song), mutual_a, "/only.sid"));
+    CHECK(write_file(mutual_song, "SID"));
+    CHECK(build_path(mutual_a_to_b, sizeof(mutual_a_to_b), mutual_a, "/to_b"));
+    CHECK(build_path(mutual_b_to_a, sizeof(mutual_b_to_a), mutual_b, "/to_a"));
+    CHECK(symlink(mutual_b, mutual_a_to_b) == 0);
+    CHECK(symlink(mutual_a, mutual_b_to_a) == 0);
+    c64_automation_config_t mutual_config = config;
+    mutual_config.include_subfolders = true;
+    strncpy(mutual_config.folder_path, mutual_root, sizeof(mutual_config.folder_path) - 1);
+    CHECK(c64_automation_refresh_playlist(automation, &mutual_config, 0, true));
+    CHECK(c64_automation_get_playlist_count(automation) == 1);
+    CHECK(strcmp(c64_automation_get_playlist_item(automation, 0), mutual_song) == 0);
+    remove(mutual_a_to_b);
+    remove(mutual_b_to_a);
+    remove(mutual_song);
+    cleanup_empty_dir(mutual_a);
+    cleanup_empty_dir(mutual_b);
+    cleanup_empty_dir(mutual_root);
 #endif
+
+    /* C64STR-015: depth cap bounds a legitimately very deep tree. A chain deeper
+     * than the scan depth cap must terminate promptly, include files within the
+     * cap, and exclude files below it. */
+    {
+        char deep_root[C64_AUTOMATION_PATH_MAX];
+        char deep_shallow[C64_AUTOMATION_PATH_MAX];
+        CHECK(build_path(deep_root, sizeof(deep_root), temp_dir, "/deep"));
+        CHECK(make_dir(deep_root));
+        CHECK(build_path(deep_shallow, sizeof(deep_shallow), deep_root, "/shallow.sid"));
+        CHECK(write_file(deep_shallow, "SID"));
+
+        const int deep_levels = 72; /* > C64_AUTOMATION_LOCAL_SCAN_MAX_DEPTH (64) */
+        char cur[C64_AUTOMATION_PATH_MAX];
+        strncpy(cur, deep_root, sizeof(cur) - 1);
+        cur[sizeof(cur) - 1] = '\0';
+        for (int i = 0; i < deep_levels; i++) {
+            char next[C64_AUTOMATION_PATH_MAX];
+            CHECK(build_path(next, sizeof(next), cur, "/d"));
+            CHECK(make_dir(next));
+            strncpy(cur, next, sizeof(cur) - 1);
+            cur[sizeof(cur) - 1] = '\0';
+        }
+        char deep_song[C64_AUTOMATION_PATH_MAX];
+        CHECK(build_path(deep_song, sizeof(deep_song), cur, "/deep.sid"));
+        CHECK(write_file(deep_song, "SID"));
+
+        c64_automation_config_t deep_config = config;
+        deep_config.include_subfolders = true;
+        strncpy(deep_config.folder_path, deep_root, sizeof(deep_config.folder_path) - 1);
+        CHECK(c64_automation_refresh_playlist(automation, &deep_config, 0, true));
+        /* Only the file within the depth cap is included; the beyond-cap file is
+         * excluded and the scan terminated (no hang). */
+        CHECK(c64_automation_get_playlist_count(automation) == 1);
+        CHECK(strcmp(c64_automation_get_playlist_item(automation, 0), deep_shallow) == 0);
+
+        remove(deep_song);
+        remove(deep_shallow);
+        for (int i = 0; i < deep_levels; i++) {
+            cleanup_empty_dir(cur);
+            char *slash = strrchr(cur, '/');
+            if (slash) {
+                *slash = '\0';
+            }
+        }
+        cleanup_empty_dir(deep_root);
+    }
 
     char hvsc_root[C64_AUTOMATION_PATH_MAX];
     char c64music_root[C64_AUTOMATION_PATH_MAX];
