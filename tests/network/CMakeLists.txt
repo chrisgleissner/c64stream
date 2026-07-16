@@ -113,6 +113,13 @@ if(UNIX)
 endif()
 add_test(NAME frame_dimensions COMMAND test_frame_dimensions)
 
+# C64STR-021 (+C64STR-023): packet-derived frame height is clamped to the buffer size.
+add_executable(test_frame_height_clamp test_frame_height_clamp.c)
+target_include_directories(
+  test_frame_height_clamp PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/network
+)
+add_test(NAME frame_height_clamp COMMAND test_frame_height_clamp)
+
 add_executable(test_c64_stream_control test_c64_stream_control.c ${CMAKE_SOURCE_DIR}/src/network/c64-stream-control.c)
 target_include_directories(
   test_c64_stream_control

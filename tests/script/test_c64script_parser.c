@@ -1456,6 +1456,52 @@ TEST(parse_function_recursive)
 }
 
 // ============================================================================
+// C64STR-027: number-literal tokenizer overflow
+// ============================================================================
+
+TEST(number_literal_too_long_is_rejected)
+{
+    /* A 100-digit literal exceeds the tokenizer's 64-byte scratch buffer. It
+     * must produce a clean parse error, not a stack-buffer overflow. */
+    char source[160];
+    int n = snprintf(source, sizeof(source), "X = ");
+    for (int i = 0; i < 100; i++) {
+        source[n++] = '0' + (i % 10);
+    }
+    source[n++] = '\n';
+    source[n] = '\0';
+
+    char error_msg[1024] = {0};
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast == NULL && "Over-long number literal must be rejected, not overflow");
+}
+
+TEST(long_duration_suffix_is_rejected)
+{
+    /* Same overflow guard on the duration-suffix branches (ms/s/m/h). */
+    char source[160];
+    int n = snprintf(source, sizeof(source), "WAIT ");
+    for (int i = 0; i < 90; i++) {
+        source[n++] = '0' + (i % 10);
+    }
+    n += snprintf(source + n, sizeof(source) - (size_t)n, "ms\n");
+    source[n] = '\0';
+
+    char error_msg[1024] = {0};
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast == NULL && "Over-long duration literal must be rejected, not overflow");
+}
+
+TEST(normal_number_literal_still_parses)
+{
+    const char *source = "X = 1234567890\n";
+    char error_msg[1024] = {0};
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast != NULL && "A normal number literal must still parse");
+    c64script_ast_free(ast);
+}
+
+// ============================================================================
 // MAIN TEST RUNNER
 // ============================================================================
 
@@ -1649,6 +1695,10 @@ int main(int argc, char **argv)
     RUN_TEST(parse_function_end_fun_two_words);
     RUN_TEST(parse_function_local_variables);
     RUN_TEST(parse_function_recursive);
+
+    RUN_TEST(number_literal_too_long_is_rejected);
+    RUN_TEST(long_duration_suffix_is_rejected);
+    RUN_TEST(normal_number_literal_still_parses);
 
     printf("\n=== All Parser Tests Passed! ===\n");
     return 0;
