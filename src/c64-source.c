@@ -93,7 +93,18 @@ static void c64_rebuild_rest_client(struct c64_source *context)
         return;
     }
 
-    const bool have_valid_ip = context->ip_address[0] && strcmp(context->ip_address, "0.0.0.0") != 0;
+    // C64STR-003: ip_address and c64_password are written by c64_update on the
+    // OBS UI thread under config_mutex; this runs on the retry thread. Snapshot
+    // both as a coherent pair under the lock so the REST URL/credential is never
+    // built from a torn value.
+    char ip_snapshot[64];
+    char password_snapshot[256];
+    pthread_mutex_lock(&context->config_mutex);
+    snprintf(ip_snapshot, sizeof(ip_snapshot), "%s", context->ip_address);
+    snprintf(password_snapshot, sizeof(password_snapshot), "%s", context->c64_password);
+    pthread_mutex_unlock(&context->config_mutex);
+
+    const bool have_valid_ip = ip_snapshot[0] && strcmp(ip_snapshot, "0.0.0.0") != 0;
 
     // C64STR-017 / C64STR-002: retarget the existing client in place whenever we
     // have a valid new target. This keeps the same rest_client and keyboard
@@ -103,8 +114,8 @@ static void c64_rebuild_rest_client(struct c64_source *context)
     // without tearing anything down.
     if (context->rest_client && have_valid_ip) {
         char new_base_url[sizeof(context->rest_base_url)];
-        snprintf(new_base_url, sizeof(new_base_url), "http://%s", context->ip_address);
-        if (c64_rest_client_retarget(context->rest_client, new_base_url, context->c64_password)) {
+        snprintf(new_base_url, sizeof(new_base_url), "http://%s", ip_snapshot);
+        if (c64_rest_client_retarget(context->rest_client, new_base_url, password_snapshot)) {
             snprintf(context->rest_base_url, sizeof(context->rest_base_url), "%s", new_base_url);
             // The keyboard keeps the same (now retargeted) rest_client pointer;
             // only refresh its keymap/transport selection.
@@ -137,8 +148,8 @@ static void c64_rebuild_rest_client(struct c64_source *context)
     if (!have_valid_ip) {
         return;
     }
-    snprintf(context->rest_base_url, sizeof(context->rest_base_url), "http://%s", context->ip_address);
-    context->rest_client = c64_rest_client_create(context->rest_base_url, context->c64_password);
+    snprintf(context->rest_base_url, sizeof(context->rest_base_url), "http://%s", ip_snapshot);
+    context->rest_client = c64_rest_client_create(context->rest_base_url, password_snapshot);
     if (context->rest_client) {
         context->keyboard = c64_keyboard_create(context->rest_client);
         if (context->keyboard) {
