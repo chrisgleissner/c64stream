@@ -50,6 +50,16 @@ Example for `/v1/info` (Ultimate 64 device):
 }
 ```
 
+### Streaming and keyboard safety
+
+The stream endpoints are capability-probed rather than firmware-gated. Auto mode may use legacy control only after a
+`404` or `501`; `400`, `401`, `403`, transport failures, and unexpected server failures are reported without
+fallback. This prevents a password refusal from being bypassed through unauthenticated port 64.
+
+`POST /v1/machine:input` requires `Content-Type: application/json`. Each event includes a `kind`, for example
+`{"kind":"keyboard","inputs":["left_shift","a"],"transition":"tap"}` or `{"kind":"release_all"}`.
+Sources send `release_all` before stream teardown and destruction.
+
 ### Runners
 
 | Method | Path                   | Parameters         | Action                                                                                                                       |

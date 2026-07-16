@@ -24,6 +24,13 @@ The plugin connects directly to the Ultimate's network interface, eliminating th
 - **Built-in recording + diagnostics**: Record BMP frames, AVI video, and WAV audio, plus optional CSV timing logs (`obs.csv` / `network.csv`) for debugging.
 - **Keyboard capture**: Click the `Interact` button below the preview to type directly into the C64.
 - **Script-based automation**: C64Script, a BASIC-inspired language for programmatic control of your stream ([tutorial](doc/c64script/c64script-tutorial.md)).
+- **Saved devices**: Save network-only device profiles and switch from the Device list without retyping a host. Passwords stay in OBS source settings per device and are never written to profile `.ini` files.
+
+Saved-device stream control defaults to Auto: REST is used when the device supports the endpoint and legacy port 64 is
+used only after an explicit `404` or `501` capability response. Authentication failures never fall back. The same
+transport choice controls keyboard input: Auto uses the REST matrix endpoint when available, Force REST never demotes,
+and Force Legacy retains the KERNAL-buffer path. Teardown still uses REST `release_all` as a device-safety command when
+the endpoint is available.
 
 ## Contents
 
@@ -44,6 +51,8 @@ The plugin connects directly to the Ultimate's network interface, eliminating th
   - [🧩 Plugin Setup](#-plugin-setup)
     - [General](#general)
     - [Network](#network)
+      - [Device Management](#device-management)
+        - [Device Discovery Flow](#device-discovery-flow)
     - [Recording](#recording)
     - [Recording Options](#recording-options)
       - [File Organization](#file-organization)
@@ -325,12 +334,37 @@ The filter is included automatically with the plugin package.
 
 ### Network
 
+![C64 Stream Network / Device Configuration](https://raw.githubusercontent.com/chrisgleissner/c64stream/main/docs/images/properties-network.png "C64 Stream Network / Device Configuration")
+
+#### Device Management
+
+Instead of typing a host/IP every time, the plugin keeps a small **device registry** of devices you've saved or discovered, shown as a single dropdown:
+
+- **Device:** Choose a previously saved or discovered device. Selecting an entry immediately fills in its Host, DNS Server IP, and Password below (no need to reopen the dialog).
+- **Device Name:** Friendly name shown in the Device list. Edit this and click **Save Device** to rename the selected device.
+- **Save Device:** Saves the current Host/DNS/Password as the selected device, or creates a new device if none is selected yet.
+- **Delete Device:** Removes the selected device from the list (does not affect the physical device).
+- **Find Devices:** Scans the local network for devices (see [Device Discovery Flow](#device-discovery-flow) below). The button label switches to **Finding Devices…** while a scan is running.
+
+Each entry shows the device's IP in parentheses, e.g. `u64 (192.168.1.13)`; devices that require a password are additionally marked, e.g. `c64u (192.168.1.167, Password)`. A device that answers on more than one interface (e.g. Ethernet and Wi-Fi) collapses to a single entry — the interfaces share the device's `unique_id` — and stays on whichever address it was first discovered at rather than flipping between them on later scans.
+
+##### Device Discovery Flow
+
+Clicking **Find Devices** runs the following, entirely in a background thread so the UI stays responsive:
+
+1. **Enumerate candidate hosts:** every address already in the registry, the currently-configured Host, and every host on your machine's active local subnets (virtual/Docker-only interfaces are skipped).
+2. **Probe `/v1/info`:** each candidate is queried over REST; devices that require a password are recognized from the 401/403 response and listed as password-protected without needing credentials.
+3. **Filter by product:** only streaming-capable hardware is kept — the **Ultimate 64** family and **C64 Ultimate**. Ultimate II/II+/II+L units (disk/cartridge-only, no video/audio streaming) are rejected, and any such device previously saved by mistake is removed from the registry.
+4. **Confirm the control channel:** each remaining candidate must also accept a connection on its control port (64), the channel stream start/stop rides. An address that answers `/v1/info` but not the control port cannot actually drive a stream, so it is not offered. A saved device is probed before the subnet sweep and retried, so a slower interface is not dropped for a momentary timeout.
+5. **Update the registry:** confirmed devices are saved (one entry per physical device — see above) and immediately appear in the **Device** dropdown. A device already on file keeps its address unless that address has genuinely stopped responding, in which case it relocates to a working one.
+
+- **C64 Ultimate Host:** Hostname or IP address of the currently selected device (default: `c64u`), or set to `0.0.0.0` to accept streams from any C64 Ultimate on your network (requires manual control from the device)
+- **C64 Ultimate Password:** C64 Ultimate network password for REST `X-Password` header authentication. Leave empty if authentication is disabled
+- **Stream Control Transport:** How start/stop streaming commands are sent to the device. **Auto** (default) prefers REST and falls back to the legacy protocol if REST is unavailable; **Force REST** and **Force Legacy** pin one transport for troubleshooting.
 - **DNS resolution details:**
   - **Default:** `192.168.1.1` (most common home router DNS server)
   - **Fallback:** If router DNS fails, the plugin tries standard DNS servers
   - **Enhanced resolution:** The plugin uses multiple resolution strategies for maximum compatibility
-- **C64 Ultimate Host:** Enter your Ultimate device's hostname (default: `c64u`) or IP address to enable automatic streaming control from OBS (recommended for convenience), or set to `0.0.0.0` to accept streams from any C64 Ultimate on your network (requires manual control from the device)
-- **C64 Ultimate Password:** C64 Ultimate network password for REST `X-Password` header authentication. Leave empty if authentication is disabled
 - **OBS Server IP:** IP address where C64 Ultimate sends streams (auto-detected by default)
 - **Auto-detect OBS IP:** Automatically detect and use OBS server IP in streaming commands (recommended)
 - **Configure Ports:** Use the default ports (video: 11000, audio: 11001) unless network conflicts require different values
@@ -595,6 +629,8 @@ Control your Ultimate 64 remotely from within OBS Studio, enabling keyboard inpu
   - **Symbolic keymaps:** Match key labels. For example press the `[` key on a US PC keyboard and see the `[` character on the C64U.
   - **Positional keymaps:** Match physical location of keys. For example press the `[` key on US PC keyboard and see the `@` character on the C64U. This is because the PC `[` key is in the same physical location as the C64 `@` key, to the right of the `P` key.
   - Supports built-in and custom user keymaps (`.c64keymap.ini` format)
+- **Joystick Emulation:** When enabled, arrow keys and Space move/fire a virtual joystick instead of sending C64 keystrokes. Toggle live anytime with **F10** — an open Properties dialog updates to match.
+- **Joystick Port:** Which C64 joystick port (1 or 2, default 2) receives emulated input. Toggle live anytime with **F11**.
 - **File System:** Choose between local files or C64 Ultimate storage
 - **Playback Source:** Pick **Single File** or **Folder**
 - **Local/C64U Path:** File or folder path, shown based on file system + playback source
@@ -613,7 +649,7 @@ Control your Ultimate 64 remotely from within OBS Studio, enabling keyboard inpu
 
 ### Keyboard Capture
 
-Keyboard input can be sent to the C64 through the OBS **Interact** window. Keystrokes are translated to **PETSCII** and injected into the **KERNAL keyboard buffer**.
+Keyboard input can be sent to the C64 through the OBS **Interact** window. In Auto mode, supported devices use the REST keyboard matrix endpoint, including shifted chords and `release_all` on teardown. Devices without that endpoint transparently fall back to the KERNAL keyboard buffer for representable text input. C64Script `TYPE`, `KEY`, `LOAD`, `RUN`, and `SYS` use this same input path.
 
 #### Activating Keyboard Capture
 
@@ -625,7 +661,7 @@ To return keyboard control to OBS, click outside the Interact window and close i
 
 #### Compatibility
 
-Keyboard capture only works with programs that read input via the **KERNAL keyboard buffer**.
+The legacy fallback only works with programs that read input via the **KERNAL keyboard buffer**. REST matrix input can also drive supported direct-key programs.
 
 Many programs (especially games) read key state directly from **CIA1**. Since the **C64 Ultimate** does not allow writing to CIA1 registers, keyboard input will not work for those programs.
 
@@ -642,6 +678,14 @@ Many programs (especially games) read key state directly from **CIA1**. Since th
 | ESC + TAB   | Reboot               |
 
 On many keyboards, the **META** key corresponds to the **Windows key**.
+
+Unlike the table above, the following are plugin-level hotkeys rather than C64 keystrokes, and work regardless of the current Keymap or Joystick Emulation state:
+
+| Key | Action                                            |
+| --- | ------------------------------------------------- |
+| F9  | Toggle the device's on-screen configuration menu   |
+| F10 | Toggle Joystick Emulation on/off                   |
+| F11 | Toggle the Joystick Emulation port (1 ↔ 2)         |
 
 ---
 

@@ -637,7 +637,13 @@ bool c64script_dispatch_drives(c64script_runtime_t *runtime, const c64script_ins
         c64_output_t output = {0};
         output.mode = C64_OUTPUT_TEXT;
         snprintf(output.data.text, sizeof(output.data.text), "LOAD\"%s\",%d,1\r", filename.as.string, device_num);
-        c64_keyboard_queue_output((c64_keyboard_t *)runtime->keyboard, &output);
+        if (!c64script_queue_keyboard_output(runtime, &output)) {
+            c64script_value_free(&filename);
+            if (instr->operand != 0) {
+                c64script_value_free(&device_val);
+            }
+            return false;
+        }
 
         c64script_value_free(&filename);
         if (instr->operand != 0) {
@@ -704,7 +710,15 @@ bool c64script_dispatch_drives(c64script_runtime_t *runtime, const c64script_ins
         } else {
             snprintf(output.data.text, sizeof(output.data.text), "RUN\r");
         }
-        c64_keyboard_queue_output((c64_keyboard_t *)runtime->keyboard, &output);
+        if (!c64script_queue_keyboard_output(runtime, &output)) {
+            if (flags & 1u) {
+                c64script_value_free(&filename);
+                if (flags & 2u) {
+                    c64script_value_free(&device_val);
+                }
+            }
+            return false;
+        }
 
         if (flags & 1u) {
             c64script_value_free(&filename);
@@ -739,7 +753,10 @@ bool c64script_dispatch_drives(c64script_runtime_t *runtime, const c64script_ins
         c64_output_t output = {0};
         output.mode = C64_OUTPUT_TEXT;
         snprintf(output.data.text, sizeof(output.data.text), "SYS %u\r", (unsigned)addr);
-        c64_keyboard_queue_output((c64_keyboard_t *)runtime->keyboard, &output);
+        if (!c64script_queue_keyboard_output(runtime, &output)) {
+            c64script_value_free(&address);
+            return false;
+        }
 
         c64script_value_free(&address);
         break;

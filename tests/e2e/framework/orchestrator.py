@@ -19,6 +19,7 @@ from .obs.process import OBSProcessManager
 from .obs.websocket import OBSWebsocketClient, WEBSOCKET_AVAILABLE
 from .c64u_mock.server import MockC64UServer
 from .c64u_mock.replayer import PacketReplayer
+from .device_registry import seed_devices, remove_devices
 from .monitoring.resources import ResourceManager
 from .validation.recording import RecordingValidator
 from .validation.results import ResultValidator
@@ -58,7 +59,10 @@ class E2EOrchestrator:
                  disable_pops: bool = False,
                  cleanup_device_host: Optional[str] = None,
                  wait_for_script_completion: bool = False,
-                 script_completion_timeout_s: float = 30.0):
+                 script_completion_timeout_s: float = 30.0,
+                 mock_rest_enabled: bool = False,
+                 extra_mock_control_ports: Optional[list] = None,
+                 device_registry: Optional[list] = None):
 
         # 1. Environment Setup
         self.env = Environment(test_dir, output_dir, csv_max_rows=csv_max_rows)
@@ -80,6 +84,11 @@ class E2EOrchestrator:
         self.cleanup_device_host = cleanup_device_host
         self.wait_for_script_completion = wait_for_script_completion
         self.script_completion_timeout_s = script_completion_timeout_s
+        self.mock_rest_enabled = mock_rest_enabled
+        self.extra_mock_control_ports = extra_mock_control_ports or []
+        self.device_registry = device_registry or []
+        self.extra_mock_servers: list = []
+        self._seeded_device_paths: list = []
 
         # 2. Components
         # Use display from environment if set, otherwise default to :99
@@ -89,7 +98,13 @@ class E2EOrchestrator:
         self.obs_logs = OBSLogManager(self.env)
         self.obs_process = OBSProcessManager(self.env, self.obs_logs)
         self.obs_ws = OBSWebsocketClient(self.env, enabled=enable_websocket)
-        self.mock_server = MockC64UServer(self.env, control_port=control_port) if packet_source == 'mock' else None
+        # REST is served on port 80 (real hardware has no configurable REST
+        # port), so only enable it when a scenario explicitly asks for it --
+        # binding port 80 needs elevated privileges (fine in CI's root
+        # container; needs sudo/setcap for a manual local run).
+        mock_rest_port = 80 if mock_rest_enabled else None
+        self.mock_server = (MockC64UServer(self.env, control_port=control_port, rest_port=mock_rest_port)
+                            if packet_source == 'mock' else None)
         self.replayer = PacketReplayer(self.env, video_format, self.network_simulation) if packet_source == 'mock' else None
         self.resource_monitor = ResourceManager(self.env, pid=0, interval_ms=monitor_resource_interval_ms) # PID set later
         self.recording_validator = RecordingValidator(self.env)
@@ -106,6 +121,11 @@ class E2EOrchestrator:
             self.env.prepare()
             self._cleanup_disabled_pop_device_state()
 
+            # 1b. Seed device registry (if the scenario pre-registers devices,
+            # e.g. for a device-switch test) before the plugin ever reads it.
+            if self.device_registry:
+                self._seeded_device_paths = seed_devices(self.device_registry)
+
             # 2. Configure OBS
             # Copy E2E properties (record_av_sync=true by default in properties_e2e_*.ini)
             # Scenarios can override via their overrides/plugins/c64stream/data/properties.ini
@@ -120,6 +140,10 @@ class E2EOrchestrator:
             # 4. Start Mock Server (if applicable)
             if self.mock_server:
                 self.mock_server.start()
+            for port in self.extra_mock_control_ports:
+                extra_mock = MockC64UServer(self.env, control_port=port)
+                extra_mock.start()
+                self.extra_mock_servers.append(extra_mock)
 
             # 5. Start OBS
             # Note: OBS process start needs to be robust
@@ -238,10 +262,15 @@ class E2EOrchestrator:
                     time.sleep(2.0)
                 self.obs_process.stop()
                 if self.mock_server: self.mock_server.stop()
+                for extra_mock in self.extra_mock_servers:
+                    extra_mock.stop()
                 self.xvfb.stop()
                 self._cleanup_disabled_pop_device_state()
             except Exception:
                 pass
+
+            if self._seeded_device_paths:
+                remove_devices(self._seeded_device_paths)
 
             self.obs_config.restore_backup()
 

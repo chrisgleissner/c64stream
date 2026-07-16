@@ -30,3 +30,9 @@ bool c64_interact_key_is_escape(uint32_t native_vkey, uint32_t native_scancode);
 bool c64_interact_key_is_tab(uint32_t native_vkey, uint32_t native_scancode);
 bool c64_interact_should_reboot_chord(uint32_t native_vkey, uint32_t native_scancode, bool key_up, bool shift_down,
                                       bool ctrl_down, bool alt_down, bool meta_down, bool escape_down, bool tab_down);
+
+/* Joystick emulation mode maps cursor keys and space to matrix "joystick"
+ * input names ("up"/"down"/"left"/"right"/"fire"); NULL if vkey isn't one of
+ * those. Needed on both key-down and key-up (held movement), unlike the
+ * tap-oriented keyboard path. */
+const char *c64_interact_joystick_input_for_vkey(uint32_t native_vkey);

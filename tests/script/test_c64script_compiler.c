@@ -662,6 +662,93 @@ TEST(execute_machine_control_rest_calls)
     c64script_ast_free(ast);
 }
 
+TEST(execute_switch_device_without_obs_source_is_noop)
+{
+    // No obs_source is wired up in this harness; SWITCH_DEVICE must skip
+    // cleanly rather than crash or fail the script.
+    const char *source = "SWITCH_DEVICE \"u64\"\n";
+    char error[256];
+
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error, sizeof(error));
+    assert(ast != NULL);
+
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    assert(runtime != NULL);
+
+    bool success = c64script_compile(ast, runtime, error, sizeof(error));
+    assert(success);
+
+    success = c64script_execute(runtime);
+    assert(success);
+
+    c64script_runtime_destroy(runtime);
+    c64script_ast_free(ast);
+}
+
+TEST(execute_switch_device_type_mismatch_fails)
+{
+    const char *source = "SWITCH_DEVICE 123\n";
+    char error[256];
+
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error, sizeof(error));
+    assert(ast != NULL);
+
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    assert(runtime != NULL);
+
+    bool success = c64script_compile(ast, runtime, error, sizeof(error));
+    assert(success);
+
+    success = c64script_execute(runtime);
+    assert(!success);
+    assert(strstr(runtime->error_msg, "TYPE MISMATCH (SWITCH_DEVICE)") != NULL);
+
+    c64script_runtime_destroy(runtime);
+    c64script_ast_free(ast);
+}
+
+TEST(execute_discover_devices_without_obs_source_is_noop)
+{
+    const char *source = "DISCOVER_DEVICES\nDISCOVER_DEVICES PROBE_PORT 8080\n";
+    char error[256];
+
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error, sizeof(error));
+    assert(ast != NULL);
+
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    assert(runtime != NULL);
+
+    bool success = c64script_compile(ast, runtime, error, sizeof(error));
+    assert(success);
+
+    success = c64script_execute(runtime);
+    assert(success);
+
+    c64script_runtime_destroy(runtime);
+    c64script_ast_free(ast);
+}
+
+TEST(execute_discover_devices_bad_port_fails)
+{
+    const char *source = "DISCOVER_DEVICES PROBE_PORT \"not-a-number\"\n";
+    char error[256];
+
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error, sizeof(error));
+    assert(ast != NULL);
+
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    assert(runtime != NULL);
+
+    bool success = c64script_compile(ast, runtime, error, sizeof(error));
+    assert(success);
+
+    success = c64script_execute(runtime);
+    assert(!success);
+
+    c64script_runtime_destroy(runtime);
+    c64script_ast_free(ast);
+}
+
 TEST(execute_cfg_commands)
 {
     const char *source = "DIM CATS$(3)\n"
@@ -1617,6 +1704,10 @@ int main(void)
     RUN_TEST(execute_goto);
     RUN_TEST(execute_gosub_return);
     RUN_TEST(execute_stop);
+    RUN_TEST(execute_switch_device_without_obs_source_is_noop);
+    RUN_TEST(execute_switch_device_type_mismatch_fails);
+    RUN_TEST(execute_discover_devices_without_obs_source_is_noop);
+    RUN_TEST(execute_discover_devices_bad_port_fails);
 
     printf("\n--- Loop Execution Tests ---\n");
     RUN_TEST(execute_for_loop);

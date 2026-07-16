@@ -7,8 +7,10 @@ See <https://www.gnu.org/licenses/> for details.
 */
 
 #include "c64-script-vm-internal.h"
+#include "c64-keyboard.h"
 #include "c64-logging.h"
 
+#include <obs-module.h>
 #include <ctype.h>
 #include <limits.h>
 #include <math.h>
@@ -16,6 +18,88 @@ See <https://www.gnu.org/licenses/> for details.
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+
+typedef struct {
+    obs_source_t *source;
+    c64_script_update_type_t type;
+    char key[128];
+    char string_value[256];
+    double number_value;
+    int64_t int_value;
+    bool bool_value;
+} c64_script_source_update_t;
+
+static void c64_script_apply_source_update(void *data)
+{
+    c64_script_source_update_t *update = (c64_script_source_update_t *)data;
+    if (!update || !update->source) {
+        if (update) {
+            free(update);
+        }
+        return;
+    }
+
+    obs_data_t *settings = obs_source_get_settings(update->source);
+    if (settings) {
+        switch (update->type) {
+        case C64_SCRIPT_UPDATE_STRING:
+            obs_data_set_string(settings, update->key, update->string_value);
+            break;
+        case C64_SCRIPT_UPDATE_DOUBLE:
+            obs_data_set_double(settings, update->key, update->number_value);
+            break;
+        case C64_SCRIPT_UPDATE_INT:
+            obs_data_set_int(settings, update->key, update->int_value);
+            break;
+        case C64_SCRIPT_UPDATE_BOOL:
+            obs_data_set_bool(settings, update->key, update->bool_value);
+            break;
+        }
+        obs_source_update(update->source, settings);
+        if (c64script_debug_logging_enabled()) {
+            blog(LOG_DEBUG, "[c64script] source update apply: key=%s value=%s (OBS UI thread)", update->key,
+                 update->type == C64_SCRIPT_UPDATE_STRING ? update->string_value : "<numeric>");
+        }
+        obs_data_release(settings);
+    }
+
+    obs_source_release(update->source);
+    free(update);
+}
+
+bool c64_script_queue_source_update(obs_source_t *source, c64_script_update_type_t type, const char *key,
+                                    const char *string_value, double number_value, int64_t int_value, bool bool_value)
+{
+    if (!source || !key || key[0] == '\0') {
+        return false;
+    }
+
+    c64_script_source_update_t *update = calloc(1, sizeof(c64_script_source_update_t));
+    if (!update) {
+        return false;
+    }
+
+    update->type = type;
+    strncpy(update->key, key, sizeof(update->key) - 1);
+    update->key[sizeof(update->key) - 1] = '\0';
+
+    if (string_value) {
+        strncpy(update->string_value, string_value, sizeof(update->string_value) - 1);
+        update->string_value[sizeof(update->string_value) - 1] = '\0';
+    }
+    update->number_value = number_value;
+    update->int_value = int_value;
+    update->bool_value = bool_value;
+
+    update->source = obs_source_get_ref(source);
+    if (!update->source) {
+        free(update);
+        return false;
+    }
+
+    obs_queue_task(OBS_TASK_UI, c64_script_apply_source_update, update, false);
+    return true;
+}
 
 #ifdef _WIN32
 #define strcasecmp _stricmp
@@ -34,6 +118,22 @@ bool c64script_debug_logging_enabled(void)
         return false;
     }
     return true;
+}
+
+bool c64script_queue_keyboard_output(c64script_runtime_t *runtime, const c64_output_t *output)
+{
+    if (!runtime || !runtime->keyboard || !output) {
+        if (runtime) {
+            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Keyboard not available");
+        }
+        return false;
+    }
+    if (c64_keyboard_queue_output((c64_keyboard_t *)runtime->keyboard, output)) {
+        return true;
+    }
+
+    snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Keyboard input queue rejected output");
+    return false;
 }
 
 static double wallclock_now_seconds(void)

@@ -26,6 +26,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-source.h"
 #include "c64-types.h"
 #include "c64-protocol.h"
+#include "c64-stream-control.h"
 #include "c64-video.h"
 #include "c64-color.h"
 #include "c64-audio.h"
@@ -36,6 +37,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-properties.h"
 #include "c64-file.h"
 #include "c64-palette.h"
+#include "device/c64-device.h"
 #include "c64-keyboard.h"
 #include "c64-rest-client.h"
 #include "c64-script-executor.h"
@@ -50,53 +52,74 @@ See <https://www.gnu.org/licenses/> for details.
 static void close_and_reset_sockets(struct c64_source *context);
 static void c64_schedule_retry(struct c64_source *context, const char *reason);
 static void c64_refresh_resolved_ip(struct c64_source *context);
+static void c64_refresh_obs_ip(struct c64_source *context);
 static void c64_set_expected_peer_ip(struct c64_source *context, const char *ip_string);
+static void c64_stop_streaming_to(struct c64_source *context, const char *host, uint32_t control_port);
+static void c64_complete_pending_device_transition(struct c64_source *context);
+static void *c64_stop_streaming_thread(void *data);
+static void c64_abort_stream_start(struct c64_source *context);
 static void c64_attempt_script_autostart(struct c64_source *context, obs_data_t *settings);
 static void c64_queue_properties_refresh(struct c64_source *context);
+static void c64_rebuild_rest_client(struct c64_source *context);
+static void c64_release_joystick_inputs(struct c64_source *context);
+static bool c64_start_streaming_inner(struct c64_source *context);
+
+static void c64_rebuild_rest_client(struct c64_source *context)
+{
+    if (!context) {
+        return;
+    }
+    if (context->script_executor && c64_script_executor_is_running(context->script_executor)) {
+        C64_LOG_INFO("Stopping active script before replacing its keyboard transport");
+        c64_script_executor_stop(context->script_executor);
+    }
+    if (context->keyboard) {
+        c64_keyboard_destroy(context->keyboard);
+        context->keyboard = NULL;
+    }
+    if (context->rest_client) {
+        c64_rest_client_destroy(context->rest_client);
+        context->rest_client = NULL;
+    }
+    context->rest_base_url[0] = '\0';
+    if (!context->ip_address[0] || !strcmp(context->ip_address, "0.0.0.0")) {
+        return;
+    }
+    snprintf(context->rest_base_url, sizeof(context->rest_base_url), "http://%s", context->ip_address);
+    context->rest_client = c64_rest_client_create(context->rest_base_url, context->c64_password);
+    if (context->rest_client) {
+        context->keyboard = c64_keyboard_create(context->rest_client);
+        if (context->keyboard) {
+            c64_keyboard_set_keymap(context->keyboard, context->keymap);
+            c64_keyboard_set_transport(context->keyboard, context->stream_control_transport);
+        }
+        c64_record_on_rest_client_ready(context);
+    }
+}
 
 static const char *C64_PRESET_LAST_APPLIED_KEY = "crt_preset_last_applied";
 static const char *const C64_SOURCE_SAVED_SETTING_KEYS[] = {
-    "debug_logging",
-    "auto_detect_ip",
-    "dns_server_ip",
-    "c64_host",
-    "c64_password",
-    "obs_ip_address",
-    "video_port",
-    "audio_port",
-    "control_port",
-    "buffer_delay_ms",
-    "script_auto_start",
-    "script_file",
-    "record_frames",
-    "save_folder",
-    "record_video",
-    "record_csv",
-    "record_av_sync",
-    "crt_preset",
-    "scan_line_distance",
-    "scan_line_strength",
-    "pixel_width",
-    "pixel_height",
-    "blur_strength",
-    "bloom_strength",
-    "afterglow_duration_ms",
-    "afterglow_curve",
-    "tint_mode",
-    "tint_strength",
-    "palette",
-    "keyboard_keymap",
-    "file_system",
-    "playback_source",
-    "include_subfolders",
-    "shuffle_playback",
-    "automation_duration",
-    "automation_reset",
-    "automation_use_songlengths",
-    "local_folder_path",
-    "file_source",
-    "automation_path",
-    "automation_shuffle",
+    "debug_logging",      "auto_detect_ip",
+    "dns_server_ip",      "c64_host",
+    "c64_password",       "stream_control_transport",
+    "obs_ip_address",     "video_port",
+    "audio_port",         "control_port",
+    "buffer_delay_ms",    "script_auto_start",
+    "script_file",        "record_frames",
+    "save_folder",        "record_video",
+    "record_csv",         "record_av_sync",
+    "crt_preset",         "scan_line_distance",
+    "scan_line_strength", "pixel_width",
+    "pixel_height",       "blur_strength",
+    "bloom_strength",     "afterglow_duration_ms",
+    "afterglow_curve",    "tint_mode",
+    "tint_strength",      "palette",
+    "keyboard_keymap",    "file_system",
+    "playback_source",    "include_subfolders",
+    "shuffle_playback",   "automation_duration",
+    "automation_reset",   "automation_use_songlengths",
+    "local_folder_path",  "file_source",
+    "automation_path",    "automation_shuffle",
 };
 
 static bool c64_source_settings_have_effect_overrides(obs_data_t *settings)
@@ -241,23 +264,39 @@ void c64_async_retry_task(void *data)
 
     // Resolve hostname -> IP in the background (never do DNS on the OBS UI thread).
     c64_refresh_resolved_ip(context);
+    c64_refresh_obs_ip(context);
+    if (os_atomic_compare_swap_long(&context->rest_rebuild_pending, 1, 0)) {
+        c64_rebuild_rest_client(context);
+    }
+    c64_complete_pending_device_transition(context);
 
     bool tcp_success = false;
 
     if (!context->streaming) {
         // Initial streaming start - full setup with fresh UDP sockets
-        c64_start_streaming(context);
-        tcp_success = true; // c64_start_streaming handles TCP commands internally
+        tcp_success = c64_start_streaming(context);
+        if (tcp_success) {
+            context->consecutive_failures = 0;
+        } else {
+            context->consecutive_failures++;
+        }
     } else {
         // Already streaming - test connectivity and send start commands
         // Use quick connectivity test instead of recreating sockets (avoids race conditions)
         if (c64_test_connectivity(context->ip_address, context->control_port)) {
             // We are explicitly requesting the peer to (re)start streaming now.
             context->last_start_command_time_ns = os_gettime_ns();
-            c64_send_control_command(context, true, 0); // Video
-            c64_send_control_command(context, true, 1); // Audio
-            tcp_success = true;
-            context->consecutive_failures = 0; // Reset failure counter on success
+            char video_dest[C64_STREAM_DEST_MAX];
+            char audio_dest[C64_STREAM_DEST_MAX];
+            if (c64_build_stream_dest(video_dest, sizeof(video_dest), context->obs_ip_address, context->video_port) &&
+                c64_build_stream_dest(audio_dest, sizeof(audio_dest), context->obs_ip_address, context->audio_port) &&
+                c64_stream_control(context, true, 0, video_dest) && c64_stream_control(context, true, 1, audio_dest)) {
+                tcp_success = true;
+                context->consecutive_failures = 0; // Reset failure counter on success
+            } else {
+                tcp_success = false;
+                context->consecutive_failures++;
+            }
         } else {
             tcp_success = false;
             context->consecutive_failures++;
@@ -619,6 +658,37 @@ static void c64_refresh_resolved_ip(struct c64_source *context)
     }
 }
 
+/* Ultimate firmware needs a routable numeric address for its UDP destination;
+ * discover it only from the background retry task. */
+static void c64_refresh_obs_ip(struct c64_source *context)
+{
+    if (!context) {
+        return;
+    }
+
+    char current_ip[64];
+    char remote_ip[64];
+    pthread_mutex_lock(&context->config_mutex);
+    snprintf(current_ip, sizeof(current_ip), "%s", context->obs_ip_address);
+    snprintf(remote_ip, sizeof(remote_ip), "%s", context->ip_address);
+    pthread_mutex_unlock(&context->config_mutex);
+    if (c64_stream_dest_is_ipv4(current_ip)) {
+        return;
+    }
+
+    char detected_ip[64] = {0};
+    if (!c64_detect_local_ip_for_host(remote_ip, NULL, detected_ip, sizeof(detected_ip)) &&
+        !c64_detect_local_ip(detected_ip, sizeof(detected_ip))) {
+        C64_LOG_ERROR(NETWORK_LOG_PREFIX " Unable to determine a numeric OBS IP address for stream destination");
+        return;
+    }
+
+    pthread_mutex_lock(&context->config_mutex);
+    snprintf(context->obs_ip_address, sizeof(context->obs_ip_address), "%s", detected_ip);
+    pthread_mutex_unlock(&context->config_mutex);
+    C64_LOG_INFO(NETWORK_LOG_PREFIX " Using numeric OBS IP address for Ultimate stream destination: %s", detected_ip);
+}
+
 // Helper function to safely close and reset sockets
 static void close_and_reset_sockets(struct c64_source *context)
 {
@@ -671,11 +741,16 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
 
     // Load configuration file before initializing settings-dependent values
     c64_load_configuration(settings);
+    c64_device_registry_migrate_legacy(settings);
+    c64_device_registry_apply_selected(settings);
 
     const char *initial_preset = obs_data_get_string(settings, "crt_preset");
     c64_source_apply_crt_preset_if_needed(settings, initial_preset, false);
 
     context->source = source;
+    const char *initial_device_id = obs_data_get_string(settings, "c64_device");
+    snprintf(context->active_device_id, sizeof(context->active_device_id), "%s",
+             initial_device_id ? initial_device_id : "");
 
     c64_av_sync_init(context);
 
@@ -713,41 +788,25 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->video_port = (uint32_t)obs_data_get_int(settings, "video_port");
     context->audio_port = (uint32_t)obs_data_get_int(settings, "audio_port");
     context->control_port = (uint32_t)obs_data_get_int(settings, "control_port");
+    context->stream_control_transport = (int)obs_data_get_int(settings, "stream_control_transport");
+    context->joystick_mode_active = obs_data_get_bool(settings, "joystick_mode_active");
+    context->joystick_emulation_port = (int)obs_data_get_int(settings, "joystick_emulation_port");
+    if (context->joystick_emulation_port != 1 && context->joystick_emulation_port != 2) {
+        context->joystick_emulation_port = 2;
+    }
+    os_atomic_set_long(&context->rest_rebuild_pending, 0);
     context->streaming = false;
 
-    // Initialize OBS IP address from settings or auto-detect if enabled
+    // Read the configured OBS IP. Numeric route detection occurs in the
+    // background retry task, never during source creation on the OBS UI thread.
     memset(context->obs_ip_address, 0, sizeof(context->obs_ip_address));
     const char *saved_obs_ip = obs_data_get_string(settings, "obs_ip_address");
 
     if (saved_obs_ip && strlen(saved_obs_ip) > 0) {
-        // Use previously saved/configured OBS IP address
         strncpy(context->obs_ip_address, saved_obs_ip, sizeof(context->obs_ip_address) - 1);
-        context->initial_ip_detected = true;
         C64_LOG_INFO("" NETWORK_LOG_PREFIX " Using configured OBS IP address: %s", context->obs_ip_address);
-    } else if (context->auto_detect_ip) {
-        // Auto-detect local IP address only if auto-detection is enabled
-        if (c64_detect_local_ip_for_host(context->hostname, context->dns_server_ip, context->obs_ip_address,
-                                         sizeof(context->obs_ip_address)) ||
-            c64_detect_local_ip(context->obs_ip_address, sizeof(context->obs_ip_address))) {
-            C64_LOG_INFO("" NETWORK_LOG_PREFIX " Auto-detected OBS IP address: %s", context->obs_ip_address);
-            context->initial_ip_detected = true;
-            // Save the detected IP to settings for future use
-            obs_data_set_string(settings, "obs_ip_address", context->obs_ip_address);
-        } else {
-            C64_LOG_WARNING("" NETWORK_LOG_PREFIX " Failed to auto-detect OBS IP address, will use localhost fallback");
-            context->initial_ip_detected = false;
-        }
-    } else {
-        C64_LOG_INFO("" NETWORK_LOG_PREFIX " Auto-detection disabled, will use localhost fallback");
-        context->initial_ip_detected = false;
     }
-
-    // Ensure we have a valid OBS IP address - use localhost as last resort
-    if (strlen(context->obs_ip_address) == 0) {
-        C64_LOG_INFO("" NETWORK_LOG_PREFIX " No OBS IP configured, using localhost as fallback");
-        strncpy(context->obs_ip_address, "127.0.0.1", sizeof(context->obs_ip_address) - 1);
-        obs_data_set_string(settings, "obs_ip_address", context->obs_ip_address);
-    }
+    context->initial_ip_detected = c64_stream_dest_is_ipv4(context->obs_ip_address);
 
     // Set default ports if not configured
     if (context->video_port == 0)
@@ -1047,10 +1106,6 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
         }
     }
 
-    // Start initial connection asynchronously to avoid blocking OBS UI thread.
-    C64_LOG_INFO("C64 Stream source created successfully - scheduling background initial connection");
-    c64_schedule_retry(context, "initial connection");
-
     // Initialize REST control and keyboard capture
     context->rest_client = NULL;
     context->keyboard = NULL;
@@ -1100,6 +1155,10 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     // Create keyboard module if REST client is available
     if (context->rest_client) {
         context->keyboard = c64_keyboard_create(context->rest_client);
+        if (context->keyboard) {
+            c64_keyboard_set_keymap(context->keyboard, context->keymap);
+            c64_keyboard_set_transport(context->keyboard, context->stream_control_transport);
+        }
     }
 
     // Initialize script automation fields
@@ -1124,6 +1183,12 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
 
     c64_attempt_script_autostart(context, settings);
 
+    // Start only after all transport inputs exist. The retry worker probes REST
+    // capability, so scheduling it before the REST client is initialized would
+    // incorrectly select the legacy transport on a capable device.
+    C64_LOG_INFO("C64 Stream source created successfully - scheduling background initial connection");
+    c64_schedule_retry(context, "initial connection");
+
     return context;
 }
 
@@ -1147,24 +1212,16 @@ void c64_destroy(void *data)
         os_atomic_set_long(&context->retry_in_progress, 0);
     }
 
-    // Stop streaming if active
+    // Stop streaming if active. This sends release_all and explicit remote
+    // stream stops before closing local sockets.
     if (context->streaming) {
         C64_LOG_DEBUG("Stopping active streaming during destruction");
-        context->streaming = false;
-        os_atomic_set_bool(&context->thread_active, false);
-
-        close_and_reset_sockets(context);
-        if (os_atomic_load_bool(&context->video_thread_active)) {
-            pthread_join(context->video_thread, NULL);
-            os_atomic_set_bool(&context->video_thread_active, false);
-        }
-        if (os_atomic_load_bool(&context->video_processor_thread_active)) {
-            pthread_join(context->video_processor_thread, NULL);
-            os_atomic_set_bool(&context->video_processor_thread_active, false);
-        }
-        if (os_atomic_load_bool(&context->audio_thread_active)) {
-            pthread_join(context->audio_thread, NULL);
-            os_atomic_set_bool(&context->audio_thread_active, false);
+        pthread_t stop_thread;
+        if (pthread_create(&stop_thread, NULL, c64_stop_streaming_thread, context) == 0) {
+            pthread_join(stop_thread, NULL);
+        } else {
+            C64_LOG_ERROR("Failed to start background teardown thread; stopping source directly");
+            c64_stop_streaming(context);
         }
     }
 
@@ -1357,6 +1414,14 @@ void c64_update(void *data, obs_data_t *settings)
     if (!context)
         return;
 
+    c64_device_registry_migrate_legacy(settings);
+    const char *selected_device_id = obs_data_get_string(settings, "c64_device");
+    if (strcmp(context->active_device_id, selected_device_id ? selected_device_id : "") != 0) {
+        c64_device_registry_apply_selected(settings);
+        snprintf(context->active_device_id, sizeof(context->active_device_id), "%s",
+                 selected_device_id ? selected_device_id : "");
+    }
+
     context->preserve_size = c64_effect_settings_resolve_preserve_size(settings, C64_SOURCE_SAVED_SETTING_KEYS,
                                                                        sizeof(C64_SOURCE_SAVED_SETTING_KEYS) /
                                                                            sizeof(C64_SOURCE_SAVED_SETTING_KEYS[0]));
@@ -1390,20 +1455,9 @@ void c64_update(void *data, obs_data_t *settings)
         C64_LOG_INFO("Debug logging %s", c64_debug_logging ? "enabled" : "disabled");
     }
 
-    // Update IP detection setting - only auto-detect when checkbox state changes from off to on
+    // Route discovery is deferred to the background retry task.
     bool new_auto_detect = obs_data_get_bool(settings, "auto_detect_ip");
-    if (new_auto_detect && !context->auto_detect_ip) {
-        // Checkbox was just enabled - perform auto-detection
-        if (c64_detect_local_ip_for_host(context->hostname, context->dns_server_ip, context->obs_ip_address,
-                                         sizeof(context->obs_ip_address)) ||
-            c64_detect_local_ip(context->obs_ip_address, sizeof(context->obs_ip_address))) {
-            C64_LOG_INFO("" NETWORK_LOG_PREFIX " Auto-detected OBS IP address: %s", context->obs_ip_address);
-            // Save the updated IP to settings
-            obs_data_set_string(settings, "obs_ip_address", context->obs_ip_address);
-        } else {
-            C64_LOG_WARNING("" NETWORK_LOG_PREFIX " Failed to auto-detect OBS IP address");
-        }
-    }
+    const bool auto_detect_changed = new_auto_detect != context->auto_detect_ip;
     context->auto_detect_ip = new_auto_detect;
 
     // Update configuration
@@ -1413,6 +1467,21 @@ void c64_update(void *data, obs_data_t *settings)
     uint32_t new_video_port = (uint32_t)obs_data_get_int(settings, "video_port");
     uint32_t new_audio_port = (uint32_t)obs_data_get_int(settings, "audio_port");
     uint32_t new_control_port = (uint32_t)obs_data_get_int(settings, "control_port");
+    context->stream_control_transport = (int)obs_data_get_int(settings, "stream_control_transport");
+    if (context->keyboard) {
+        c64_keyboard_set_transport(context->keyboard, context->stream_control_transport);
+    }
+    // Unticking Joystick emulation in the properties dialog must strand no held
+    // direction either; the F10 path releases before clearing the flag itself,
+    // so it is already false here and this does not double-release.
+    if (context->joystick_mode_active && !obs_data_get_bool(settings, "joystick_mode_active")) {
+        c64_release_joystick_inputs(context);
+    }
+    context->joystick_mode_active = obs_data_get_bool(settings, "joystick_mode_active");
+    context->joystick_emulation_port = (int)obs_data_get_int(settings, "joystick_emulation_port");
+    if (context->joystick_emulation_port != 1 && context->joystick_emulation_port != 2) {
+        context->joystick_emulation_port = 2;
+    }
 
     // Set defaults
     if (!new_host)
@@ -1426,17 +1495,22 @@ void c64_update(void *data, obs_data_t *settings)
 
     // Snapshot existing network-related settings so we can avoid unnecessary retries/restarts.
     char old_hostname[64];
+    char old_ip_address[64];
     char old_dns_server_ip[64];
     pthread_mutex_lock(&context->config_mutex);
     strncpy(old_hostname, context->hostname, sizeof(old_hostname) - 1);
     old_hostname[sizeof(old_hostname) - 1] = '\0';
     strncpy(old_dns_server_ip, context->dns_server_ip, sizeof(old_dns_server_ip) - 1);
     old_dns_server_ip[sizeof(old_dns_server_ip) - 1] = '\0';
+    strncpy(old_ip_address, context->ip_address, sizeof(old_ip_address) - 1);
+    old_ip_address[sizeof(old_ip_address) - 1] = '\0';
     pthread_mutex_unlock(&context->config_mutex);
 
     char old_obs_ip[64];
+    char old_password[sizeof(context->c64_password)];
     strncpy(old_obs_ip, context->obs_ip_address, sizeof(old_obs_ip) - 1);
     old_obs_ip[sizeof(old_obs_ip) - 1] = '\0';
+    snprintf(old_password, sizeof(old_password), "%s", context->c64_password);
 
     const bool host_changed = (strcmp(old_hostname, new_host) != 0);
     const char *dns_server_ip = obs_data_get_string(settings, "dns_server_ip");
@@ -1449,7 +1523,16 @@ void c64_update(void *data, obs_data_t *settings)
     bool ports_changed = (new_video_port != context->video_port) || (new_audio_port != context->audio_port) ||
                          (new_control_port != context->control_port);
 
-    if ((ports_changed || host_changed) && context->streaming) {
+    // `streaming` only turns true at the very end of c64_start_streaming, but
+    // that function has already told the device to stream long before then.
+    // Testing `streaming` alone lets a switch that lands inside the start
+    // window record no transition, stranding the previous device streaming at
+    // OBS with nothing left to stop it. If neither flag is set, no start has
+    // read ip_address yet, so the retry worker will start the new host directly
+    // and there is genuinely nothing to stop.
+    const bool peer_may_be_streaming = context->streaming || os_atomic_load_bool(&context->stream_start_in_flight);
+    const bool needs_device_transition = (ports_changed || host_changed) && peer_may_be_streaming;
+    if (needs_device_transition) {
         if (ports_changed) {
             C64_LOG_INFO(
                 "Port configuration changed (video: %u->%u, audio: %u->%u, control: %u->%u), recreating sockets",
@@ -1460,11 +1543,14 @@ void c64_update(void *data, obs_data_t *settings)
             C64_LOG_INFO("C64 host changed (%s->%s), restarting streaming", old_hostname, new_host);
         }
 
-        // Stop streaming and close existing sockets
-        c64_stop_streaming(context);
-
-        // Give the C64 Ultimate device time to process stop commands
-        os_sleep_ms(100);
+        /* The retry worker owns remote teardown so no network I/O runs on
+         * OBS's UI thread. Keep the existing REST client alive until it has
+         * released keys and stopped this explicit old endpoint. */
+        if (!context->device_transition_pending) {
+            snprintf(context->device_transition_host, sizeof(context->device_transition_host), "%s", old_ip_address);
+            context->device_transition_control_port = context->control_port;
+            context->device_transition_pending = true;
+        }
     }
 
     // Update configuration - hostname and IP resolution (thread-safe)
@@ -1500,9 +1586,17 @@ void c64_update(void *data, obs_data_t *settings)
         strncpy(context->obs_ip_address, new_obs_ip, sizeof(context->obs_ip_address) - 1);
         context->obs_ip_address[sizeof(context->obs_ip_address) - 1] = '\0';
     }
+    if (new_auto_detect && auto_detect_changed) {
+        context->obs_ip_address[0] = '\0';
+    }
     context->video_port = new_video_port;
     context->audio_port = new_audio_port;
     context->control_port = new_control_port;
+
+    if ((host_changed || strcmp(old_password, context->c64_password) != 0) && !needs_device_transition) {
+        context->stream_rest_demoted_until_ns = 0;
+        os_atomic_set_long(&context->rest_rebuild_pending, 1);
+    }
 
     // Update buffer delay setting with debouncing to prevent timestamp reset storms
     uint32_t new_buffer_delay_ms = (uint32_t)obs_data_get_int(settings, "buffer_delay_ms");
@@ -1598,7 +1692,7 @@ void c64_update(void *data, obs_data_t *settings)
 
     // Only schedule a background retry when network-related settings changed or streaming is stopped.
     const bool should_schedule_retry = (!context->streaming) || ports_changed || host_changed || obs_ip_changed ||
-                                       dns_changed;
+                                       dns_changed || auto_detect_changed;
     if (should_schedule_retry) {
         const char *reason = !context->streaming ? "update (not streaming)"
                              : host_changed      ? "update (host changed)"
@@ -1630,13 +1724,25 @@ static void c64_set_expected_peer_ip(struct c64_source *context, const char *ip_
     }
 }
 
-void c64_start_streaming(struct c64_source *context)
+bool c64_start_streaming(struct c64_source *context)
 {
     if (!context) {
         C64_LOG_WARNING("Cannot start streaming - invalid context");
-        return;
+        return false;
     }
 
+    // Must be raised before the first read of ip_address below, so that any
+    // concurrent c64_update either sees this flag (and records the endpoint we
+    // are about to start, so it gets stopped) or has already rewritten
+    // ip_address (so we start the new host and there is nothing to strand).
+    os_atomic_set_bool(&context->stream_start_in_flight, true);
+    const bool started = c64_start_streaming_inner(context);
+    os_atomic_set_bool(&context->stream_start_in_flight, false);
+    return started;
+}
+
+static bool c64_start_streaming_inner(struct c64_source *context)
+{
     C64_LOG_INFO("Starting C64 Stream streaming to C64 %s (OBS IP: %s, video:%u, audio:%u)...", context->ip_address,
                  context->obs_ip_address, context->video_port, context->audio_port);
 
@@ -1644,8 +1750,8 @@ void c64_start_streaming(struct c64_source *context)
     // This prevents stale streaming state on the C64U from previous sessions
     if (strcmp(context->ip_address, "0.0.0.0") != 0) {
         C64_LOG_DEBUG("Sending proactive disconnect for all streams before starting");
-        c64_send_control_command(context, false, 0); // Stop video
-        c64_send_control_command(context, false, 1); // Stop audio
+        c64_stream_control(context, false, 0, NULL); // Stop video
+        c64_stream_control(context, false, 1, NULL); // Stop audio
         // Brief delay to ensure stop commands are processed before start commands
         os_sleep_ms(50);
     }
@@ -1658,14 +1764,23 @@ void c64_start_streaming(struct c64_source *context)
         context->streaming = false;
         os_atomic_set_bool(&context->thread_active, false);
 
-        // Wait for existing threads to finish BEFORE closing their sockets
+        // Wait for existing threads to finish BEFORE closing their sockets.
+        // All three must be joined: the processor thread's handle is overwritten
+        // by the pthread_create below, so skipping it would leak a running
+        // thread that can never be joined and let two processors race over the
+        // same FIFO.
         if (os_atomic_load_bool(&context->video_thread_active) && pthread_join(context->video_thread, NULL) != 0) {
             C64_LOG_WARNING("Failed to join existing video thread during reconnection");
+        }
+        if (os_atomic_load_bool(&context->video_processor_thread_active) &&
+            pthread_join(context->video_processor_thread, NULL) != 0) {
+            C64_LOG_WARNING("Failed to join existing video processor thread during reconnection");
         }
         if (os_atomic_load_bool(&context->audio_thread_active) && pthread_join(context->audio_thread, NULL) != 0) {
             C64_LOG_WARNING("Failed to join existing audio thread during reconnection");
         }
         os_atomic_set_bool(&context->video_thread_active, false);
+        os_atomic_set_bool(&context->video_processor_thread_active, false);
         os_atomic_set_bool(&context->audio_thread_active, false);
     }
 
@@ -1679,7 +1794,7 @@ void c64_start_streaming(struct c64_source *context)
     if (context->video_socket == INVALID_SOCKET_VALUE || context->audio_socket == INVALID_SOCKET_VALUE) {
         C64_LOG_ERROR("Failed to create UDP sockets for streaming");
         close_and_reset_sockets(context);
-        return;
+        return false;
     }
 
 #ifdef _WIN32
@@ -1719,8 +1834,19 @@ void c64_start_streaming(struct c64_source *context)
 
     // Send start commands to C64 Ultimate
     context->last_start_command_time_ns = os_gettime_ns();
-    c64_send_control_command(context, true, 0); // Start video
-    c64_send_control_command(context, true, 1); // Start audio
+    char video_dest[C64_STREAM_DEST_MAX];
+    char audio_dest[C64_STREAM_DEST_MAX];
+    if (!c64_build_stream_dest(video_dest, sizeof(video_dest), context->obs_ip_address, context->video_port) ||
+        !c64_build_stream_dest(audio_dest, sizeof(audio_dest), context->obs_ip_address, context->audio_port)) {
+        C64_LOG_ERROR("" NETWORK_LOG_PREFIX " Failed to build stream destination for start command");
+        close_and_reset_sockets(context);
+        return false;
+    }
+    if (!c64_stream_control(context, true, 0, video_dest) || !c64_stream_control(context, true, 1, audio_dest)) {
+        C64_LOG_ERROR("" NETWORK_LOG_PREFIX " Failed to start C64 stream control");
+        c64_abort_stream_start(context);
+        return false;
+    }
 
     // Start fresh worker threads
     os_atomic_set_bool(&context->thread_active, true);
@@ -1734,8 +1860,8 @@ void c64_start_streaming(struct c64_source *context)
         C64_LOG_ERROR("Failed to create video receiver thread");
         context->streaming = false;
         os_atomic_set_bool(&context->thread_active, false);
-        close_and_reset_sockets(context);
-        return;
+        c64_abort_stream_start(context);
+        return false;
     }
     os_atomic_set_bool(&context->video_thread_active, true);
 
@@ -1748,8 +1874,8 @@ void c64_start_streaming(struct c64_source *context)
             pthread_join(context->video_thread, NULL);
             os_atomic_set_bool(&context->video_thread_active, false);
         }
-        close_and_reset_sockets(context);
-        return;
+        c64_abort_stream_start(context);
+        return false;
     }
     os_atomic_set_bool(&context->video_processor_thread_active, true);
 
@@ -1765,22 +1891,58 @@ void c64_start_streaming(struct c64_source *context)
             pthread_join(context->video_processor_thread, NULL);
             os_atomic_set_bool(&context->video_processor_thread_active, false);
         }
-        close_and_reset_sockets(context);
-        return;
+        c64_abort_stream_start(context);
+        return false;
     }
     os_atomic_set_bool(&context->audio_thread_active, true);
 
     C64_LOG_INFO("C64 Stream streaming started successfully");
+    return true;
 }
 
-void c64_stop_streaming(struct c64_source *context)
+static void c64_abort_stream_start(struct c64_source *context)
 {
-    if (!context || !context->streaming) {
-        C64_LOG_WARNING("Cannot stop streaming - invalid context or not streaming");
+    if (!context) {
         return;
     }
 
-    C64_LOG_INFO("Stopping C64 Stream streaming...");
+    /* A successful remote start can precede a local worker failure. Never
+     * leave the device streaming or a matrix key held in that partial state. */
+    if (context->keyboard) {
+        c64_keyboard_release_all(context->keyboard);
+    } else if (context->rest_client) {
+        c64_rest_release_all(context->rest_client);
+    }
+    c64_stream_control(context, false, 0, NULL);
+    c64_stream_control(context, false, 1, NULL);
+    close_and_reset_sockets(context);
+}
+
+static void c64_stop_streaming_to(struct c64_source *context, const char *host, uint32_t control_port)
+{
+    if (!context || !host || !host[0]) {
+        return;
+    }
+
+    /* Remote teardown precedes socket teardown so the old device is never left
+     * streaming after a switch. release_all is deliberately attempted even if
+     * stream control fails. */
+    if (context->keyboard) {
+        c64_keyboard_release_all(context->keyboard);
+    } else if (context->rest_client) {
+        c64_rest_release_all(context->rest_client);
+    }
+    if (!c64_stream_control_to(context, host, control_port, false, 0, NULL) ||
+        !c64_stream_control_to(context, host, control_port, false, 1, NULL)) {
+        C64_LOG_WARNING("Remote stream stop failed for %s", host);
+    }
+}
+
+static void c64_stop_streaming_local(struct c64_source *context)
+{
+    if (!context || !context->streaming) {
+        return;
+    }
 
     context->streaming = false;
     os_atomic_set_bool(&context->thread_active, false);
@@ -1826,6 +1988,47 @@ void c64_stop_streaming(struct c64_source *context)
     }
 
     C64_LOG_INFO("C64 Stream streaming stopped");
+}
+
+void c64_stop_streaming(struct c64_source *context)
+{
+    if (!context) {
+        return;
+    }
+
+    C64_LOG_INFO("Stopping C64 Stream streaming...");
+    const char *host = context->device_transition_pending ? context->device_transition_host : context->ip_address;
+    const uint32_t control_port = context->device_transition_pending ? context->device_transition_control_port
+                                                                     : context->control_port;
+    c64_stop_streaming_to(context, host, control_port);
+    c64_stop_streaming_local(context);
+}
+
+static void *c64_stop_streaming_thread(void *data)
+{
+    c64_stop_streaming(data);
+    return NULL;
+}
+
+static void c64_complete_pending_device_transition(struct c64_source *context)
+{
+    if (!context || !context->device_transition_pending) {
+        return;
+    }
+
+    char old_host[64];
+    snprintf(old_host, sizeof(old_host), "%s", context->device_transition_host);
+    const uint32_t old_control_port = context->device_transition_control_port;
+    context->device_transition_pending = false;
+    context->device_transition_host[0] = '\0';
+    context->device_transition_control_port = 0;
+
+    C64_LOG_INFO("Completing asynchronous device transition: stopping %s before starting %s", old_host,
+                 context->ip_address);
+    c64_stop_streaming_to(context, old_host, old_control_port);
+    c64_stop_streaming_local(context);
+    context->stream_rest_demoted_until_ns = 0;
+    c64_rebuild_rest_client(context);
 }
 
 // Video tick callback - updates texture from async frame buffer when CRT effects are enabled
@@ -2256,6 +2459,20 @@ void c64_mouse_wheel(void *data, const struct obs_mouse_event *event, int x_delt
     // No mouse interaction needed for C64 keyboard capture
 }
 
+/* Joystick directions are held (press on key-down, release on key-up), unlike
+ * the tap-oriented keyboard path. Whenever the joystick path stops receiving
+ * key-ups -- focus loss, or F10 leaving joystick mode -- any direction still
+ * down would stay pressed on the device forever, because the matching release
+ * either never arrives or no longer routes here. release_all clears the whole
+ * matrix, which is exactly the desired state on both transitions. */
+static void c64_release_joystick_inputs(struct c64_source *context)
+{
+    if (!context || !context->joystick_mode_active || !context->rest_client) {
+        return;
+    }
+    c64_rest_release_all(context->rest_client);
+}
+
 void c64_focus(void *data, bool focus)
 {
     struct c64_source *context = (struct c64_source *)data;
@@ -2274,6 +2491,7 @@ void c64_focus(void *data, bool focus)
         // Disable capture when focus lost
         context->keyboard_capture_active = false;
         C64_LOG_INFO("Keyboard capture deactivated (source lost focus)");
+        c64_release_joystick_inputs(context);
         if (context->keyboard) {
             c64_keyboard_set_capture(context->keyboard, false);
         }
@@ -2357,16 +2575,33 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
         return;
     }
 
+    // Check if capture is enabled. Checked before the key-up filter below
+    // because joystick emulation needs both press and release (held
+    // movement), unlike the tap-oriented keyboard path.
+    if (!context->keyboard_capture_active) {
+        C64_LOG_DEBUG("🕹 KEYBOARD: Capture not active (active=%d)", context->keyboard_capture_active);
+        return;
+    }
+
+    // Joystick emulation mode (F10 toggles): cursor keys and space become
+    // joystick press/release on the selected port instead of C64 keystrokes.
+    // F9/F10/F11 themselves are handled below, on key-down only, so they
+    // always work to toggle back out of this mode.
+    if (context->joystick_mode_active) {
+        const char *joystick_input = c64_interact_joystick_input_for_vkey(event->native_vkey);
+        if (joystick_input) {
+            if (context->rest_client) {
+                c64_rest_joystick_input(context->rest_client, context->joystick_emulation_port, joystick_input,
+                                        key_up ? "release" : "press");
+            }
+            return;
+        }
+    }
+
     // Only process key press events (not key up). Key-repeat on some platforms
     // can synthesize transient key-up events between repeats, so do not flush
     // non-verbose logging state here.
     if (key_up) {
-        return;
-    }
-
-    // Check if capture is enabled
-    if (!context->keyboard_capture_active) {
-        C64_LOG_DEBUG("🕹 KEYBOARD: Capture not active (active=%d)", context->keyboard_capture_active);
         return;
     }
 
@@ -2391,19 +2626,57 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
         return;
     }
 
+    c64_interact_key_t key = {{0}};
+    c64_interact_key_result_t key_result = c64_interact_translate_key_event(event->native_vkey, event->text, &key);
+    if (key_result == C64_INTERACT_KEY_WARM_START) {
+        if (context->keyboard) {
+            c64_keyboard_basic_warm_start(context->keyboard);
+        }
+        return;
+    }
+
+    // F9 toggles the device's on-screen menu via REST; F10/F11 toggle
+    // joystick emulation mode/port. All three are hoisted above the
+    // keymap/keyboard guard below so they stay active (even while
+    // joystick_mode_active, or while the keymap/keyboard worker failed to
+    // load) so F10 can always toggle back out of joystick mode.
+    if (strcmp(key.code, "F9") == 0) {
+        C64_LOG_INFO("Keyboard: F9 pressed - toggling device menu");
+        if (context->rest_client) {
+            c64_rest_menu_button(context->rest_client);
+        }
+        return;
+    }
+
+    const bool is_f10 = strcmp(key.code, "F10") == 0;
+    const bool is_f11 = strcmp(key.code, "F11") == 0;
+    if (is_f10 || is_f11) {
+        if (is_f10) {
+            // Release before clearing the flag: a direction held right now
+            // would otherwise never see its key-up reach the joystick path.
+            c64_release_joystick_inputs(context);
+            context->joystick_mode_active = !context->joystick_mode_active;
+            C64_LOG_INFO("Keyboard: F10 pressed - joystick emulation %s",
+                         context->joystick_mode_active ? "enabled" : "disabled");
+        } else {
+            context->joystick_emulation_port = context->joystick_emulation_port == 1 ? 2 : 1;
+            C64_LOG_INFO("Keyboard: F11 pressed - joystick emulation port %d", context->joystick_emulation_port);
+        }
+        obs_data_t *toggle_settings = obs_source_get_settings(context->source);
+        if (toggle_settings) {
+            obs_data_set_bool(toggle_settings, "joystick_mode_active", context->joystick_mode_active);
+            obs_data_set_int(toggle_settings, "joystick_emulation_port", context->joystick_emulation_port);
+            obs_source_update(context->source, toggle_settings);
+            obs_data_release(toggle_settings);
+        }
+        c64_queue_properties_refresh(context);
+        return;
+    }
+
     // Convert OBS key event to keymap format and queue for injection
     if (context->keymap && context->keyboard) {
         if (context->keyboard_ctrl_meta_armed) {
             context->keyboard_ctrl_meta_consumed = true;
-        }
-
-        c64_interact_key_t key = {{0}};
-        c64_interact_key_result_t key_result = c64_interact_translate_key_event(event->native_vkey, event->text, &key);
-        if (key_result == C64_INTERACT_KEY_WARM_START) {
-            if (context->keyboard) {
-                c64_keyboard_basic_warm_start(context->keyboard);
-            }
-            return;
         }
 
         // Build modifiers bitmask

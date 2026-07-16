@@ -1,0 +1,17 @@
+name: NTSC Transport - REST (port 80, streams:start/stop + machine:input)
+format: NTSC
+preset: Default
+# Dedicated test for the REST transport: stream start/stop over
+# PUT /v1/streams/{video,audio}:start|stop, keyboard injection via
+# POST /v1/machine:input. See ntsc_transport_legacy for the legacy equivalent.
+mock_rest_enabled: true
+overrides:
+  stream_control_transport: 1 # Force REST
+  script_file: "${repo_root}/tests/e2e/scripts/keyboard_injection.c64script"
+  script_auto_start: true
+  debug_logging: true
+assertions:
+  - video_quality
+  - audio
+  - frame_progression
+  - rest_transport_log

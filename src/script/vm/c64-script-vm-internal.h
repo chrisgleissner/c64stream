@@ -9,6 +9,10 @@ See <https://www.gnu.org/licenses/> for details.
 #pragma once
 
 #include "c64-script-runtime.h"
+#include "c64-keyboard.h"
+
+#include <obs-module.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -16,6 +20,22 @@ extern "C" {
 
 bool c64script_vm_execute_instruction(c64script_runtime_t *runtime, const c64script_instruction_t *instr,
                                       bool *skip_line_update);
+
+typedef enum {
+    C64_SCRIPT_UPDATE_STRING,
+    C64_SCRIPT_UPDATE_DOUBLE,
+    C64_SCRIPT_UPDATE_INT,
+    C64_SCRIPT_UPDATE_BOOL,
+} c64_script_update_type_t;
+
+/* Queues an obs_data_t settings update + obs_source_update on the OBS UI
+ * thread. Shared by any dispatch handler that changes a source setting from
+ * script code (effects, device switch), so the update always applies via the
+ * same code path the properties UI would use. */
+bool c64_script_queue_source_update(obs_source_t *source, c64_script_update_type_t type, const char *key,
+                                    const char *string_value, double number_value, int64_t int_value, bool bool_value);
+
+bool c64script_queue_keyboard_output(c64script_runtime_t *runtime, const c64_output_t *output);
 
 void c64script_vm_record_trace_entry(c64script_runtime_t *runtime, int line_num);
 

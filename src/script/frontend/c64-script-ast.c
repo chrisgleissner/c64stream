@@ -216,6 +216,14 @@ void c64script_ast_free(c64script_ast_node_t *node)
             free_expr(node->as.palette_stmt.palette_name);
             break;
 
+        case AST_STMT_SWITCH_DEVICE:
+            free_expr(node->as.switch_device_stmt.device_ref);
+            break;
+
+        case AST_STMT_DISCOVER_DEVICES:
+            free_expr(node->as.discover_devices_stmt.port);
+            break;
+
         case AST_STMT_PALETTECOLOR:
             free_expr(node->as.palettecolor_stmt.index);
             free_expr(node->as.palettecolor_stmt.r);

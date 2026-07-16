@@ -95,6 +95,7 @@ void c64_keyboard_destroy(c64_keyboard_t *keyboard);
  * Set active keymap
  */
 void c64_keyboard_set_keymap(c64_keyboard_t *keyboard, c64_keymap_t *keymap);
+void c64_keyboard_set_transport(c64_keyboard_t *keyboard, int transport);
 
 /**
  * Enable/disable keyboard capture
@@ -106,12 +107,13 @@ void c64_keyboard_set_capture(c64_keyboard_t *keyboard, bool enabled);
  * Check if capture is currently active
  */
 bool c64_keyboard_is_capturing(c64_keyboard_t *keyboard);
+bool c64_keyboard_release_all(c64_keyboard_t *keyboard);
 
 /**
  * Queue keystroke for injection
  * @param output Output descriptor from keymap conversion
  */
-void c64_keyboard_queue_output(c64_keyboard_t *keyboard, const c64_output_t *output);
+bool c64_keyboard_queue_output(c64_keyboard_t *keyboard, const c64_output_t *output);
 
 /**
  * Get injection worker status

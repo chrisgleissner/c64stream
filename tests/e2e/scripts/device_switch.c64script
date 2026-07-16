@@ -1,0 +1,57 @@
+REM ================================================
+REM Device Switch - alternates the active source
+REM between two registered devices.
+REM
+REM Defaults are CI-safe: 2 switches, 250ms apart,
+REM against the two mock devices the E2E harness
+REM registers ("e2e-switch-a" / "e2e-switch-b").
+REM
+REM For an ad-hoc soak against real hardware, override
+REM via environment variables before launching OBS, e.g.:
+REM   C64_DEVICE_SWITCH_COUNT=200
+REM   C64_DEVICE_SWITCH_INTERVAL_MS=3000
+REM   C64_DEVICE_SWITCH_DEVICE_A=u64
+REM   C64_DEVICE_SWITCH_DEVICE_B=c64u
+REM   C64_DEVICE_SWITCH_DISCOVER=1
+REM ================================================
+
+SWITCH_COUNT = VAL(ENV("C64_DEVICE_SWITCH_COUNT", "2"))
+INTERVAL_MS = VAL(ENV("C64_DEVICE_SWITCH_INTERVAL_MS", "250"))
+DEVICE_A$ = ENV("C64_DEVICE_SWITCH_DEVICE_A", "e2e-switch-a")
+DEVICE_B$ = ENV("C64_DEVICE_SWITCH_DEVICE_B", "e2e-switch-b")
+SHOULD_DISCOVER$ = ENV("C64_DEVICE_SWITCH_DISCOVER", "0")
+
+PRINT "=== Device Switch Started ==="
+PRINT "switches=" + STR$(SWITCH_COUNT) + " interval_ms=" + STR$(INTERVAL_MS)
+PRINT "device_a=" + DEVICE_A$ + " device_b=" + DEVICE_B$
+
+IF SHOULD_DISCOVER$ = "1" THEN
+    PRINT "Discovering devices..."
+    DISCOVER_DEVICES
+    PRINT "Discovery complete"
+ENDIF
+
+CURRENT$ = DEVICE_A$
+COUNTER = 0
+
+LABEL switch_loop
+    IF COUNTER >= SWITCH_COUNT THEN
+        GOTO switch_done
+    ENDIF
+
+    IF CURRENT$ = DEVICE_A$ THEN
+        CURRENT$ = DEVICE_B$
+    ELSE
+        CURRENT$ = DEVICE_A$
+    ENDIF
+
+    PRINT "Switching to device: " + CURRENT$
+    SWITCH_DEVICE CURRENT$
+    WAIT INTERVAL_MS ms
+
+    COUNTER = COUNTER + 1
+    GOTO switch_loop
+
+LABEL switch_done
+PRINT "=== Device Switch Complete: " + STR$(COUNTER) + " switches ==="
+STOP

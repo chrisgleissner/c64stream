@@ -363,3 +363,39 @@ bool c64_get_user_dir(c64_user_dir_type type, char *path_buffer, size_t buffer_s
 
     return true;
 }
+
+bool c64_ini_foreach(const char *path, c64_ini_entry_cb callback, void *opaque)
+{
+    if (!path || !callback) {
+        return false;
+    }
+    FILE *file = fopen(path, "r");
+    if (!file) {
+        return false;
+    }
+    char line[1024];
+    bool ok = true;
+    while (fgets(line, sizeof(line), file)) {
+        char *key = line;
+        while (isspace((unsigned char)*key))
+            key++;
+        if (*key == '\0' || *key == '#' || *key == ';')
+            continue;
+        char *equals = strchr(key, '=');
+        if (!equals)
+            continue;
+        *equals++ = '\0';
+        char *key_end = key + strlen(key);
+        while (key_end > key && isspace((unsigned char)key_end[-1]))
+            *--key_end = '\0';
+        char *value_end = equals + strlen(equals);
+        while (value_end > equals && isspace((unsigned char)value_end[-1]))
+            *--value_end = '\0';
+        if (!callback(key, equals, opaque)) {
+            ok = false;
+            break;
+        }
+    }
+    fclose(file);
+    return ok;
+}

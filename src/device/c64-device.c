@@ -1,0 +1,348 @@
+#include "c64-device.h"
+#include "c64-file.h"
+#include "c64-logging.h"
+
+#include <util/platform.h>
+#include <ctype.h>
+#include <pthread.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define DEVICE_LOG_PREFIX "DEVICE:"
+/* Set once legacy migration has been considered for a source, so it never runs
+ * a second time.  Persisted with the source's OBS settings. */
+#define C64_DEVICE_MIGRATED_KEY "c64_device_migrated"
+
+static c64_device_t devices[C64_DEVICE_MAX];
+static size_t device_count;
+static bool initialized;
+static pthread_mutex_t registry_mutex = PTHREAD_MUTEX_INITIALIZER;
+static _Thread_local c64_device_t device_snapshot;
+
+static bool valid_id(const char *id);
+static bool read_entry(const char *key, const char *value, void *opaque);
+static bool registry_init_locked(void);
+static bool registry_upsert_locked(const c64_device_t *device);
+
+static bool load_device_file(const char *path)
+{
+    c64_device_t device = {0};
+    if (!c64_ini_foreach(path, read_entry, &device) || !valid_id(device.id) || !device.host[0] ||
+        device_count == C64_DEVICE_MAX) {
+        return false;
+    }
+    devices[device_count++] = device;
+    return true;
+}
+
+static bool valid_id(const char *id)
+{
+    return id && id[0] && !strstr(id, "..") && !strchr(id, '/') && !strchr(id, '\\');
+}
+
+static bool device_path(char *out, size_t size, const char *id)
+{
+    char directory[512];
+    return valid_id(id) && c64_get_user_dir(C64_USER_DIR_SETTINGS, directory, sizeof(directory)) &&
+           snprintf(out, size, "%s/device-%s.ini", directory, id) > 0;
+}
+
+void c64_device_password_key(char *out, size_t out_size, const char *id)
+{
+    if (!out || !out_size)
+        return;
+    snprintf(out, out_size, "device_password.%s", valid_id(id) ? id : "");
+}
+
+bool c64_device_id_from_host(char *out, size_t out_size, const char *unique_id, const char *host)
+{
+    const char *source = (unique_id && unique_id[0]) ? unique_id : host;
+    if (!out || !out_size || !source || !source[0])
+        return false;
+    size_t n = 0;
+    for (; *source && n + 1 < out_size; source++) {
+        unsigned char ch = (unsigned char)*source;
+        if (isalnum(ch))
+            out[n++] = (char)tolower(ch);
+        else if (n && out[n - 1] != '-')
+            out[n++] = '-';
+    }
+    while (n && out[n - 1] == '-')
+        n--;
+    out[n] = '\0';
+    return n != 0;
+}
+
+static bool read_entry(const char *key, const char *value, void *opaque)
+{
+    c64_device_t *device = opaque;
+    if (!strcmp(key, "id"))
+        snprintf(device->id, sizeof(device->id), "%s", value);
+    else if (!strcmp(key, "name"))
+        snprintf(device->name, sizeof(device->name), "%s", value);
+    else if (!strcmp(key, "host"))
+        snprintf(device->host, sizeof(device->host), "%s", value);
+    else if (!strcmp(key, "dns_server_ip"))
+        snprintf(device->dns_server_ip, sizeof(device->dns_server_ip), "%s", value);
+    else if (!strcmp(key, "video_port"))
+        device->video_port = (uint32_t)strtoul(value, NULL, 10);
+    else if (!strcmp(key, "audio_port"))
+        device->audio_port = (uint32_t)strtoul(value, NULL, 10);
+    else if (!strcmp(key, "control_port"))
+        device->control_port = (uint32_t)strtoul(value, NULL, 10);
+    return true;
+}
+
+static bool save_device(const c64_device_t *device)
+{
+    char path[640];
+    if (!device_path(path, sizeof(path), device->id))
+        return false;
+    FILE *file = fopen(path, "w");
+    if (!file)
+        return false;
+    /* Passwords must never appear in these network-only files. */
+    int result = fprintf(file,
+                         "id=%s\nname=%s\nhost=%s\ndns_server_ip=%s\nvideo_port=%u\naudio_port=%u\ncontrol_port=%u\n",
+                         device->id, device->name, device->host, device->dns_server_ip, device->video_port,
+                         device->audio_port, device->control_port);
+    fclose(file);
+    return result >= 0;
+}
+
+static bool registry_init_locked(void)
+{
+    if (initialized)
+        return true;
+    char directory[512];
+    if (!c64_get_user_dir(C64_USER_DIR_SETTINGS, directory, sizeof(directory)))
+        return false;
+    initialized = true;
+    os_dir_t *dir = os_opendir(directory);
+    if (!dir)
+        return true;
+    struct os_dirent *entry;
+    while ((entry = os_readdir(dir)) != NULL) {
+        if (entry->directory)
+            continue;
+        if (strncmp(entry->d_name, "device-", 7) || !strstr(entry->d_name, ".ini"))
+            continue;
+        char path[640];
+        if (snprintf(path, sizeof(path), "%s/%s", directory, entry->d_name) > 0)
+            load_device_file(path);
+    }
+    os_closedir(dir);
+    return true;
+}
+
+bool c64_device_registry_init(void)
+{
+    pthread_mutex_lock(&registry_mutex);
+    const bool result = registry_init_locked();
+    pthread_mutex_unlock(&registry_mutex);
+    return result;
+}
+
+void c64_device_registry_cleanup(void)
+{
+    pthread_mutex_lock(&registry_mutex);
+    memset(devices, 0, sizeof(devices));
+    device_count = 0;
+    initialized = false;
+    pthread_mutex_unlock(&registry_mutex);
+}
+
+const c64_device_t *c64_device_registry_get(const char *id)
+{
+    if (!id)
+        return NULL;
+    pthread_mutex_lock(&registry_mutex);
+    for (size_t i = 0; i < device_count; i++) {
+        if (!strcmp(devices[i].id, id)) {
+            device_snapshot = devices[i];
+            pthread_mutex_unlock(&registry_mutex);
+            return &device_snapshot;
+        }
+    }
+    pthread_mutex_unlock(&registry_mutex);
+    return NULL;
+}
+
+const c64_device_t *c64_device_registry_get_at(size_t index)
+{
+    pthread_mutex_lock(&registry_mutex);
+    if (index < device_count) {
+        device_snapshot = devices[index];
+        pthread_mutex_unlock(&registry_mutex);
+        return &device_snapshot;
+    }
+    pthread_mutex_unlock(&registry_mutex);
+    return NULL;
+}
+
+size_t c64_device_registry_count(void)
+{
+    pthread_mutex_lock(&registry_mutex);
+    const size_t count = device_count;
+    pthread_mutex_unlock(&registry_mutex);
+    return count;
+}
+
+static bool registry_upsert_locked(const c64_device_t *device)
+{
+    if (!initialized)
+        registry_init_locked();
+    if (!device || !valid_id(device->id) || !device->host[0])
+        return false;
+    size_t index = device_count;
+    for (size_t i = 0; i < device_count; i++)
+        if (!strcmp(devices[i].id, device->id)) {
+            index = i;
+            break;
+        }
+    if (index == device_count && device_count == C64_DEVICE_MAX)
+        return false;
+    c64_device_t copy = *device;
+    if (!copy.name[0])
+        snprintf(copy.name, sizeof(copy.name), "%s", copy.host);
+    if (!save_device(&copy))
+        return false;
+    devices[index] = copy;
+    if (index == device_count)
+        device_count++;
+    return true;
+}
+
+bool c64_device_registry_upsert(const c64_device_t *device)
+{
+    pthread_mutex_lock(&registry_mutex);
+    const bool result = registry_upsert_locked(device);
+    pthread_mutex_unlock(&registry_mutex);
+    return result;
+}
+
+bool c64_device_registry_delete(const char *id)
+{
+    char path[640];
+    size_t index;
+    if (!valid_id(id))
+        return false;
+    pthread_mutex_lock(&registry_mutex);
+    for (index = 0; index < device_count && strcmp(devices[index].id, id); index++) {
+    }
+    if (index == device_count || !device_path(path, sizeof(path), id)) {
+        pthread_mutex_unlock(&registry_mutex);
+        return false;
+    }
+    if (remove(path) != 0) {
+        pthread_mutex_unlock(&registry_mutex);
+        return false;
+    }
+    memmove(&devices[index], &devices[index + 1], (device_count - index - 1) * sizeof(devices[0]));
+    device_count--;
+    pthread_mutex_unlock(&registry_mutex);
+    return true;
+}
+
+const c64_device_t *c64_device_registry_find_by_host(const char *host)
+{
+    if (!host || !host[0])
+        return NULL;
+    pthread_mutex_lock(&registry_mutex);
+    for (size_t i = 0; i < device_count; i++) {
+        if (!strcmp(devices[i].host, host)) {
+            device_snapshot = devices[i];
+            pthread_mutex_unlock(&registry_mutex);
+            return &device_snapshot;
+        }
+    }
+    pthread_mutex_unlock(&registry_mutex);
+    return NULL;
+}
+
+void c64_device_registry_populate_list(obs_property_t *property)
+{
+    if (!property)
+        return;
+    pthread_mutex_lock(&registry_mutex);
+    obs_property_list_clear(property);
+    for (size_t i = 0; i < device_count; i++)
+        obs_property_list_add_string(property, devices[i].name, devices[i].id);
+    pthread_mutex_unlock(&registry_mutex);
+}
+
+bool c64_device_registry_migrate_legacy(obs_data_t *settings)
+{
+    if (!settings)
+        return false;
+    /* One-shot per source. "The registry is empty" cannot be the trigger: the
+     * legacy c64_host key is deliberately kept for a compatibility release, so
+     * an empty-registry trigger re-runs on the very next c64_update and
+     * resurrects the entry the moment the user deletes their last device. */
+    if (obs_data_get_bool(settings, C64_DEVICE_MIGRATED_KEY))
+        return false;
+    pthread_mutex_lock(&registry_mutex);
+    /* device_count is only meaningful once the on-disk profiles are loaded;
+     * without this, a migration racing module load sees an empty registry. */
+    if (!initialized)
+        registry_init_locked();
+    if (device_count) {
+        pthread_mutex_unlock(&registry_mutex);
+        obs_data_set_bool(settings, C64_DEVICE_MIGRATED_KEY, true);
+        return false;
+    }
+    const char *host = obs_data_get_string(settings, "c64_host");
+    if (!host || !host[0] || !strcmp(host, "0.0.0.0")) {
+        pthread_mutex_unlock(&registry_mutex);
+        obs_data_set_bool(settings, C64_DEVICE_MIGRATED_KEY, true);
+        return false;
+    }
+    c64_device_t device = {0};
+    if (!c64_device_id_from_host(device.id, sizeof(device.id), NULL, host)) {
+        pthread_mutex_unlock(&registry_mutex);
+        obs_data_set_bool(settings, C64_DEVICE_MIGRATED_KEY, true);
+        return false;
+    }
+    snprintf(device.name, sizeof(device.name), "Default");
+    snprintf(device.host, sizeof(device.host), "%s", host);
+    snprintf(device.dns_server_ip, sizeof(device.dns_server_ip), "%s", obs_data_get_string(settings, "dns_server_ip"));
+    device.video_port = (uint32_t)obs_data_get_int(settings, "video_port");
+    device.audio_port = (uint32_t)obs_data_get_int(settings, "audio_port");
+    device.control_port = (uint32_t)obs_data_get_int(settings, "control_port");
+    if (!registry_upsert_locked(&device)) {
+        /* Deliberately not marked migrated: the profile could not be written
+         * (e.g. transient disk failure), so the next update should retry. */
+        pthread_mutex_unlock(&registry_mutex);
+        return false;
+    }
+    obs_data_set_bool(settings, C64_DEVICE_MIGRATED_KEY, true);
+    char password_key[96];
+    c64_device_password_key(password_key, sizeof(password_key), device.id);
+    obs_data_set_string(settings, password_key, obs_data_get_string(settings, "c64_password"));
+    obs_data_set_string(settings, "c64_device", device.id);
+    /* Keep the legacy key for a compatibility release. The selected-device
+     * password is authoritative; no registry file receives either value. */
+    C64_LOG_INFO("%s migrated legacy host to device '%s'", DEVICE_LOG_PREFIX, device.id);
+    pthread_mutex_unlock(&registry_mutex);
+    return true;
+}
+
+bool c64_device_registry_apply_selected(obs_data_t *settings)
+{
+    if (!settings)
+        return false;
+    const c64_device_t *device = c64_device_registry_get(obs_data_get_string(settings, "c64_device"));
+    if (!device)
+        return false;
+    obs_data_set_string(settings, "device_name", device->name);
+    obs_data_set_string(settings, "c64_host", device->host);
+    obs_data_set_string(settings, "dns_server_ip", device->dns_server_ip);
+    obs_data_set_int(settings, "video_port", device->video_port);
+    obs_data_set_int(settings, "audio_port", device->audio_port);
+    obs_data_set_int(settings, "control_port", device->control_port);
+    char password_key[96];
+    c64_device_password_key(password_key, sizeof(password_key), device->id);
+    obs_data_set_string(settings, "c64_password", obs_data_get_string(settings, password_key));
+    return true;
+}

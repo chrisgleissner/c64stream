@@ -1,0 +1,44 @@
+name: NTSC Device Switch Soak (Mock)
+format: NTSC
+preset: Default
+# CI-safe default: two independent mock devices, switched back and forth
+# twice (the script's own built-in default). For a soak against the two
+# real devices on the local network, see the separate, explicitly-run-only
+# scenario: ntsc_real_switch_soak (never runs automatically).
+packet_source: mock
+# Second independent mock device, alongside the orchestrator's primary one
+# (control_port 6400, matching --control-port's default).
+extra_mock_control_ports:
+  - 6401
+# Pre-register both mock devices, exactly as a user would via the Device
+# dropdown, so the script can SWITCH_DEVICE by id without any discovery step.
+device_registry:
+  - id: e2e-switch-a
+    name: E2E Switch A
+    host: 127.0.0.1
+    video_port: 21000
+    audio_port: 21001
+    control_port: 6400
+  - id: e2e-switch-b
+    name: E2E Switch B
+    host: 127.0.0.1
+    video_port: 21000
+    audio_port: 21001
+    control_port: 6401
+overrides:
+  c64_host: 127.0.0.1
+  video_port: 21000
+  audio_port: 21001
+  control_port: 6400
+  c64_device: e2e-switch-a
+  # The mocks only speak legacy port-64 in this scenario; REST-based
+  # switching is exercised by ntsc_transport_rest instead.
+  stream_control_transport: 2
+  script_file: "${repo_root}/tests/e2e/scripts/device_switch.c64script"
+  script_auto_start: true
+  record_video: false
+  record_csv: true
+  record_frames: false
+  debug_logging: true
+assertions:
+  - device_switch_log

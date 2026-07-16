@@ -1,0 +1,18 @@
+name: NTSC Transport - Legacy (port 64 + KERNAL buffer)
+format: NTSC
+preset: Default
+# Dedicated test for the legacy transport: stream start/stop over port 64,
+# keyboard injection via the KERNAL-buffer polling model (still REST
+# readmem/writemem under the hood -- there is no legacy keyboard protocol).
+# See ntsc_transport_rest for the REST-forced equivalent.
+mock_rest_enabled: true
+overrides:
+  stream_control_transport: 2 # Force Legacy
+  script_file: "${repo_root}/tests/e2e/scripts/keyboard_injection.c64script"
+  script_auto_start: true
+  debug_logging: true
+assertions:
+  - video_quality
+  - audio
+  - frame_progression
+  - legacy_transport_log

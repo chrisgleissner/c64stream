@@ -2434,6 +2434,41 @@ static c64script_ast_node_t *autostart_statement(parser_t *p)
     return node;
 }
 
+// SWITCH_DEVICE device_ref
+static c64script_ast_node_t *switch_device_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_SWITCH_DEVICE;
+    node->line = p->previous.line;
+
+    node->as.switch_device_stmt.device_ref = expression(p);
+
+    return node;
+}
+
+// DISCOVER_DEVICES [PROBE_PORT port]
+static c64script_ast_node_t *discover_devices_statement(parser_t *p)
+{
+    c64script_ast_node_t *node = calloc(1, sizeof(c64script_ast_node_t));
+    if (!node)
+        return NULL;
+    node->type = AST_STMT_DISCOVER_DEVICES;
+    node->line = p->previous.line;
+    node->as.discover_devices_stmt.port = NULL;
+
+    if (match(p, TOKEN_PROBE_PORT)) {
+        if (!reject_clause_equals(p, "PROBE_PORT")) {
+            c64script_ast_free(node);
+            return NULL;
+        }
+        node->as.discover_devices_stmt.port = expression(p);
+    }
+
+    return node;
+}
+
 // RESET
 static c64script_ast_node_t *reset_statement(parser_t *p)
 {
@@ -2950,6 +2985,10 @@ static c64script_ast_node_t *statement(parser_t *p)
         return cpu_speed_statement(p);
     if (match(p, TOKEN_AUTOSTART))
         return autostart_statement(p);
+    if (match(p, TOKEN_SWITCH_DEVICE))
+        return switch_device_statement(p);
+    if (match(p, TOKEN_DISCOVER_DEVICES))
+        return discover_devices_statement(p);
     if (match(p, TOKEN_RESET))
         return reset_statement(p);
     if (match(p, TOKEN_REBOOT))

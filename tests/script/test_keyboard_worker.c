@@ -1,6 +1,7 @@
 #include "c64-file.h"
 #include "c64-keyboard.h"
 #include "c64-rest-client.h"
+#include "c64-stream-control.h"
 
 #include <obs-module.h>
 #include <util/platform.h>
@@ -30,6 +31,11 @@ typedef struct {
     int write_buffer_calls;
     int write_length_calls;
     int write_stop_calls;
+    int machine_input_calls;
+    int machine_input_events;
+    int release_all_calls;
+    bool machine_input_success;
+    char last_machine_input[8192];
     bool stall_buffer;
     int consume_after_reads;
     int consume_reads_remaining;
@@ -123,6 +129,54 @@ const char *c64_rest_get_error(c64_rest_client_t *client)
     return rest_client->error;
 }
 
+bool c64_rest_machine_input(c64_rest_client_t *client, const char *json)
+{
+    worker_test_rest_client_t *rest_client = (worker_test_rest_client_t *)client;
+    if (rest_client) {
+        rest_client->machine_input_calls++;
+        snprintf(rest_client->last_machine_input, sizeof(rest_client->last_machine_input), "%s", json);
+        for (const char *event = json; (event = strstr(event, "\"kind\"")) != NULL; event += sizeof("\"kind\"") - 1) {
+            rest_client->machine_input_events++;
+        }
+        return rest_client->machine_input_success;
+    }
+    return false;
+}
+
+bool c64_rest_machine_input_with_outcome(c64_rest_client_t *client, const char *json, c64_rest_outcome_t *outcome,
+                                         long *status)
+{
+    const bool ok = c64_rest_machine_input(client, json);
+    if (outcome) {
+        *outcome = C64_REST_NOT_SUPPORTED;
+    }
+    if (status) {
+        *status = 501;
+    }
+    return ok;
+}
+
+bool c64_rest_release_all(c64_rest_client_t *client)
+{
+    worker_test_rest_client_t *rest_client = (worker_test_rest_client_t *)client;
+    if (rest_client) {
+        rest_client->release_all_calls++;
+    }
+    return true;
+}
+
+long c64_rest_get_last_status(const c64_rest_client_t *client)
+{
+    (void)client;
+    return 501;
+}
+
+c64_rest_outcome_t c64_rest_get_last_outcome(const c64_rest_client_t *client)
+{
+    (void)client;
+    return C64_REST_NOT_SUPPORTED;
+}
+
 static bool wait_for_consumed_count(worker_test_rest_client_t *client, size_t expected_count, uint32_t timeout_ms)
 {
     const uint64_t deadline = os_gettime_ns() + ((uint64_t)timeout_ms * 1000000ULL);
@@ -145,6 +199,18 @@ static bool wait_for_status(c64_keyboard_t *keyboard, const char *expected_statu
         os_sleep_ms(10);
     }
     return strcmp(c64_keyboard_get_status(keyboard), expected_status) == 0;
+}
+
+static bool wait_for_matrix_events(worker_test_rest_client_t *client, int expected_count, uint32_t timeout_ms)
+{
+    const uint64_t deadline = os_gettime_ns() + ((uint64_t)timeout_ms * 1000000ULL);
+    while (os_gettime_ns() < deadline) {
+        if (client->machine_input_events >= expected_count) {
+            return true;
+        }
+        os_sleep_ms(10);
+    }
+    return client->machine_input_events >= expected_count;
 }
 
 int main(void)
@@ -191,6 +257,131 @@ int main(void)
     CHECK(stall_client.write_length_calls == 0);
     CHECK(stall_client.consumed_count == 0);
     c64_keyboard_destroy(stall_keyboard);
+
+    worker_test_rest_client_t legacy_client = {0};
+    c64_keyboard_t *legacy_keyboard = c64_keyboard_create(&legacy_client);
+    CHECK(legacy_keyboard != NULL);
+    c64_keyboard_set_transport(legacy_keyboard, C64_STREAM_TRANSPORT_LEGACY);
+    c64_output_t legacy_output = {.mode = C64_OUTPUT_PETSCII, .data.petscii = 'A'};
+    c64_keyboard_queue_output(legacy_keyboard, &legacy_output);
+    CHECK(wait_for_consumed_count(&legacy_client, 1, 1000));
+    CHECK(legacy_client.machine_input_calls == 0);
+    CHECK(c64_keyboard_release_all(legacy_keyboard));
+    CHECK(legacy_client.release_all_calls == 1);
+    c64_keyboard_destroy(legacy_keyboard);
+
+    worker_test_rest_client_t force_rest_client = {0};
+    c64_keyboard_t *force_rest_keyboard = c64_keyboard_create(&force_rest_client);
+    CHECK(force_rest_keyboard != NULL);
+    c64_keyboard_set_transport(force_rest_keyboard, C64_STREAM_TRANSPORT_REST);
+    c64_output_t force_rest_output = {.mode = C64_OUTPUT_PETSCII, .data.petscii = 'A'};
+    c64_keyboard_queue_output(force_rest_keyboard, &force_rest_output);
+    CHECK(wait_for_status(force_rest_keyboard, "failed", 1000));
+    CHECK(force_rest_client.machine_input_calls == 1);
+    CHECK(force_rest_client.write_buffer_calls == 0);
+    c64_keyboard_destroy(force_rest_keyboard);
+
+    // '(' is shift+8 on a real C64 keyboard (digit-row shift symbols:
+    // shift+1..shift+9 = !"#$%&'()). Regression for a shift-list bug where
+    // '(' was missing from the shift set entirely.
+    worker_test_rest_client_t punctuation_client = {.machine_input_success = true};
+    c64_keyboard_t *punctuation_keyboard = c64_keyboard_create(&punctuation_client);
+    CHECK(punctuation_keyboard != NULL);
+    c64_keyboard_set_transport(punctuation_keyboard, C64_STREAM_TRANSPORT_REST);
+    c64_output_t punctuation_output = {.mode = C64_OUTPUT_PETSCII, .data.petscii = '('};
+    c64_keyboard_queue_output(punctuation_keyboard, &punctuation_output);
+    CHECK(wait_for_matrix_events(&punctuation_client, 1, 1000));
+    CHECK(strstr(punctuation_client.last_machine_input, "\"inputs\":[\"left_shift\",\"8\"]") != NULL);
+    c64_keyboard_destroy(punctuation_keyboard);
+
+    // '*' is unshifted (its own dedicated matrix key); regression for a bug
+    // where it was previously treated as shift+8 and would have typed '('.
+    worker_test_rest_client_t star_client = {.machine_input_success = true};
+    c64_keyboard_t *star_keyboard = c64_keyboard_create(&star_client);
+    CHECK(star_keyboard != NULL);
+    c64_keyboard_set_transport(star_keyboard, C64_STREAM_TRANSPORT_REST);
+    c64_output_t star_output = {.mode = C64_OUTPUT_PETSCII, .data.petscii = '*'};
+    c64_keyboard_queue_output(star_keyboard, &star_output);
+    CHECK(wait_for_matrix_events(&star_client, 1, 1000));
+    CHECK(strstr(star_client.last_machine_input, "\"inputs\":[\"star\"]") != NULL);
+    c64_keyboard_destroy(star_keyboard);
+
+    // '|' and '~' have no C64 charset equivalent and are deliberately left
+    // unmapped (petscii_to_matrix returns false); excluded from this range
+    // so the count reflects only characters that do translate.
+    worker_test_rest_client_t printable_client = {.machine_input_success = true};
+    c64_keyboard_t *printable_keyboard = c64_keyboard_create(&printable_client);
+    CHECK(printable_keyboard != NULL);
+    c64_keyboard_set_transport(printable_keyboard, C64_STREAM_TRANSPORT_REST);
+    for (uint8_t ch = 32; ch <= 126; ch++) {
+        if (ch == '|' || ch == '~') {
+            continue;
+        }
+        c64_output_t printable_output = {.mode = C64_OUTPUT_PETSCII, .data.petscii = ch};
+        c64_keyboard_queue_output(printable_keyboard, &printable_output);
+    }
+    CHECK(wait_for_matrix_events(&printable_client, 93, 1000));
+    c64_keyboard_destroy(printable_keyboard);
+
+    // A byte with no matrix mapping falls back to the legacy KERNAL-buffer
+    // path for its whole batch rather than being sent with a bogus key name.
+    worker_test_rest_client_t unmapped_client = {.machine_input_success = true};
+    c64_keyboard_t *unmapped_keyboard = c64_keyboard_create(&unmapped_client);
+    CHECK(unmapped_keyboard != NULL);
+    c64_keyboard_set_transport(unmapped_keyboard, C64_STREAM_TRANSPORT_AUTO);
+    c64_output_t unmapped_output = {.mode = C64_OUTPUT_PETSCII, .data.petscii = '|'};
+    c64_keyboard_queue_output(unmapped_keyboard, &unmapped_output);
+    CHECK(wait_for_consumed_count(&unmapped_client, 1, 1000));
+    CHECK(unmapped_client.machine_input_calls == 0);
+    c64_keyboard_destroy(unmapped_keyboard);
+
+    // Once firmware reports machine:input unsupported, AUTO must stop
+    // re-probing it: every batch otherwise pays another failed HTTP round-trip
+    // before falling back to legacy. The stub answers 501 (NOT_SUPPORTED), so
+    // only the first of these five single-byte batches may reach REST.
+    worker_test_rest_client_t demote_client = {.machine_input_success = false};
+    c64_keyboard_t *demote_keyboard = c64_keyboard_create(&demote_client);
+    CHECK(demote_keyboard != NULL);
+    c64_keyboard_set_transport(demote_keyboard, C64_STREAM_TRANSPORT_AUTO);
+    for (int i = 0; i < 5; i++) {
+        c64_output_t demote_output = {.mode = C64_OUTPUT_PETSCII, .data.petscii = 'A'};
+        c64_keyboard_queue_output(demote_keyboard, &demote_output);
+        CHECK(wait_for_consumed_count(&demote_client, (size_t)(i + 1), 1000));
+    }
+    CHECK(demote_client.consumed_count == 5);
+    CHECK(demote_client.machine_input_calls == 1);
+    c64_keyboard_destroy(demote_keyboard);
+
+    // PETSCII control codes must translate too, not just printable ASCII --
+    // otherwise any batch containing one falls all the way back to the
+    // legacy KERNAL-buffer path (fallback is per-batch, never per-byte).
+    // RETURN (0x0D) is the most common case: nearly every typed line ends
+    // with \r. Cursor movement and HOME/CLR/DEL are the next most common.
+    struct {
+        uint8_t petscii;
+        const char *expected_inputs;
+    } control_codes[] = {
+        {0x0D, "\"inputs\":[\"return\"]"},
+        {0x11, "\"inputs\":[\"cursor_up_down\"]"},
+        {0x91, "\"inputs\":[\"left_shift\",\"cursor_up_down\"]"},
+        {0x1D, "\"inputs\":[\"cursor_left_right\"]"},
+        {0x9D, "\"inputs\":[\"left_shift\",\"cursor_left_right\"]"},
+        {0x13, "\"inputs\":[\"clr_home\"]"},
+        {0x93, "\"inputs\":[\"left_shift\",\"clr_home\"]"},
+        {0x14, "\"inputs\":[\"inst_del\"]"},
+        {0x94, "\"inputs\":[\"left_shift\",\"inst_del\"]"},
+    };
+    for (size_t i = 0; i < sizeof(control_codes) / sizeof(control_codes[0]); i++) {
+        worker_test_rest_client_t control_client = {.machine_input_success = true};
+        c64_keyboard_t *control_keyboard = c64_keyboard_create(&control_client);
+        CHECK(control_keyboard != NULL);
+        c64_keyboard_set_transport(control_keyboard, C64_STREAM_TRANSPORT_REST);
+        c64_output_t control_output = {.mode = C64_OUTPUT_PETSCII, .data.petscii = control_codes[i].petscii};
+        c64_keyboard_queue_output(control_keyboard, &control_output);
+        CHECK(wait_for_matrix_events(&control_client, 1, 1000));
+        CHECK(strstr(control_client.last_machine_input, control_codes[i].expected_inputs) != NULL);
+        c64_keyboard_destroy(control_keyboard);
+    }
 
     return 0;
 }

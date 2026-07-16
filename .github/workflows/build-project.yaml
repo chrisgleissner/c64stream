@@ -786,7 +786,7 @@ jobs:
         if: ${{ matrix.distro == 'arch' }}
         run: |
           : "Install GStreamer Plugins (Arch) 🎞️"
-          pacman -Sy --noconfirm
+          pacman -Syu --noconfirm
           pacman -S --noconfirm gstreamer gst-plugins-good gst-plugins-bad gst-plugins-ugly gst-libav
 
       - name: Setup X11 Display 🖥️
@@ -986,6 +986,7 @@ jobs:
           - ntsc_default_avsync
           - ntsc_default_record
           - ntsc_delay_buffer500
+          - ntsc_device_switch_soak
           # TODO: Investigate why these scenarios pass locally but experience large UDP packet loss on CI.
           # Theory: Related to 1MiB UDP buffer limit compared with 8MiB locally.
           # - ntsc_delay_buffer500_jitter10
@@ -1002,6 +1003,8 @@ jobs:
           - ntsc_script
           - ntsc_sharp_pixels
           - ntsc_sharp_scanlines
+          - ntsc_transport_legacy
+          - ntsc_transport_rest
           - ntsc_vintage_tv
           - pal_default
           - pal_default_720p

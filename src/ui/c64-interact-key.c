@@ -83,6 +83,30 @@ bool c64_interact_should_reboot_chord(uint32_t native_vkey, uint32_t native_scan
            c64_interact_key_is_tab(native_vkey, native_scancode);
 }
 
+const char *c64_interact_joystick_input_for_vkey(uint32_t native_vkey)
+{
+    // Same vkey values as the ArrowLeft/Up/Right/Down/Space cases in
+    // lookup_key_code_from_vkey() below (Windows VK_* and X11 keysym forms).
+    switch (native_vkey) {
+    case 0x25:
+    case 0xFF51:
+        return "left";
+    case 0x26:
+    case 0xFF52:
+        return "up";
+    case 0x27:
+    case 0xFF53:
+        return "right";
+    case 0x28:
+    case 0xFF54:
+        return "down";
+    case 0x20:
+        return "fire";
+    default:
+        return NULL;
+    }
+}
+
 static bool lookup_key_code_from_vkey(uint32_t native_vkey, char key_code[64])
 {
     if (!key_code) {

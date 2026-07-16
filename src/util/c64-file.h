@@ -66,3 +66,8 @@ bool c64_get_user_dir(c64_user_dir_type type, char *path_buffer, size_t buffer_s
  * @return true on successful classification, false on invalid input or normalization failure
  */
 bool c64_get_path_kind(const char *path, c64_path_kind_t *kind);
+
+/** Visit key/value entries in a simple settings INI file.  Lines without an
+ * equals sign and comment/blank lines are ignored. */
+typedef bool (*c64_ini_entry_cb)(const char *key, const char *value, void *opaque);
+bool c64_ini_foreach(const char *path, c64_ini_entry_cb callback, void *opaque);
