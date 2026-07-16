@@ -152,23 +152,26 @@ static struct c64_source *make_ctx(void)
 
 int main(void)
 {
-    /* Case 1: recording enabled but the session folder is not writable ->
-     * open fails -> must return false, no dangling handle, no false success. */
+    /* Case 1: the session folder path is actually a regular file, so opening
+     * "<session_folder>/video.avi" fails with ENOTDIR -> start must return
+     * false, no dangling handle, no false success. A regular-file parent is a
+     * privilege-independent open failure (unlike a read-only directory, which
+     * root bypasses), so it reproduces on CI runners that build as root. */
     struct c64_source *ctx = make_ctx();
     ctx->record_video = true;
 
-    char ro[] = "/tmp/c64ro_XXXXXX";
-    assert(mkdtemp(ro) != NULL);
-    assert(chmod(ro, 0500) == 0); /* read+execute only: cannot create files */
-    snprintf(ctx->session_folder, sizeof(ctx->session_folder), "%s", ro);
+    char notdir[] = "/tmp/c64ro_XXXXXX";
+    int notdir_fd = mkstemp(notdir);
+    assert(notdir_fd >= 0);
+    assert(close(notdir_fd) == 0);
+    snprintf(ctx->session_folder, sizeof(ctx->session_folder), "%s", notdir);
 
     bool ok = c64_start_video_recording(ctx);
     assert(!ok && "open failure must report failure, not false success");
     assert(ctx->video_file == NULL && "no dangling video handle on failure");
     assert(ctx->audio_file == NULL && "no dangling audio handle on failure");
 
-    chmod(ro, 0700);
-    rmdir(ro);
+    unlink(notdir);
     pthread_mutex_destroy(&ctx->recording_mutex);
     free(ctx);
 
