@@ -1541,7 +1541,11 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
             return false;
         }
 
-        // Create new scope
+        // Create new scope. Bound recursion before growing the allocation.
+        if (runtime->scope_stack_size >= 1024) {
+            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "recursion too deep");
+            return false;
+        }
         if (runtime->scope_stack_size >= runtime->scope_stack_capacity) {
             size_t new_cap = runtime->scope_stack_capacity == 0 ? 8 : runtime->scope_stack_capacity * 2;
             c64script_scope_t *new_stack = realloc(runtime->scope_stack, new_cap * sizeof(c64script_scope_t));

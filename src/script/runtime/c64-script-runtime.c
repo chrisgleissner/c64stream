@@ -306,7 +306,7 @@ c64script_runtime_t *c64script_runtime_create(void)
     runtime->step_mode = false;
     runtime->trace_enabled = false;
 
-    runtime->max_iterations = 0; // 0 = unlimited
+    runtime->max_iterations = 1000000; // Guard runaway scripts while allowing long WAIT-driven automation.
     runtime->iteration_count = 0;
 
     runtime->last_executed_line = 0;
