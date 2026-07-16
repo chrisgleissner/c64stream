@@ -103,8 +103,12 @@ static void copy_demo_scripts(void)
                         char buffer[4096];
                         size_t bytes;
                         bool copy_ok = true;
-                        while ((bytes = fread(buffer, 1, sizeof(buffer), src_file)) > 0)
-                            copy_ok = fwrite(buffer, 1, bytes, dst_file) == bytes;
+                        while ((bytes = fread(buffer, 1, sizeof(buffer), src_file)) > 0) {
+                            if (fwrite(buffer, 1, bytes, dst_file) != bytes) {
+                                copy_ok = false; // a short write anywhere fails the copy
+                                break;
+                            }
+                        }
                         copy_ok = copy_ok && !ferror(src_file) && fclose(dst_file) == 0;
                         dst_file = NULL;
                         if (copy_ok)
@@ -157,8 +161,12 @@ static void copy_demo_scripts(void)
                     char buffer[4096];
                     size_t bytes;
                     bool copy_ok = true;
-                    while ((bytes = fread(buffer, 1, sizeof(buffer), src_file)) > 0)
-                        copy_ok = fwrite(buffer, 1, bytes, dst_file) == bytes;
+                    while ((bytes = fread(buffer, 1, sizeof(buffer), src_file)) > 0) {
+                        if (fwrite(buffer, 1, bytes, dst_file) != bytes) {
+                            copy_ok = false; // a short write anywhere fails the copy
+                            break;
+                        }
+                    }
                     copy_ok = copy_ok && !ferror(src_file) && fclose(dst_file) == 0;
                     dst_file = NULL;
                     if (copy_ok)
