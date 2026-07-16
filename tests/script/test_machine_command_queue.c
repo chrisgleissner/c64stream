@@ -17,6 +17,7 @@
 #include "c64-rest-client.h"
 
 #include <obs-module.h>
+#include <util/platform.h>
 
 #include <assert.h>
 #include <pthread.h>
@@ -24,7 +25,6 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#include <time.h>
 
 #define REST_LATENCY_MS 20
 #define CMD_COUNT 8
@@ -43,8 +43,7 @@ static struct mock_rest g_mock;
 
 static void mock_sleep_ms(int ms)
 {
-    struct timespec ts = {.tv_sec = ms / 1000, .tv_nsec = (long)(ms % 1000) * 1000000L};
-    nanosleep(&ts, NULL);
+    os_sleep_ms((uint32_t)ms);
 }
 
 static void mock_record(c64_machine_cmd_type_t type, int port, const char *input, bool press)
@@ -158,9 +157,7 @@ bool c64_get_user_dir(c64_user_dir_type type, char *path_buffer, size_t buffer_s
 
 static double now_ms(void)
 {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return ts.tv_sec * 1000.0 + ts.tv_nsec / 1e6;
+    return (double)os_gettime_ns() / 1e6;
 }
 
 int main(void)
