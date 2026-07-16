@@ -145,6 +145,21 @@ add_executable(test_default_ports test_default_ports.c)
 target_include_directories(test_default_ports PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/network)
 add_test(NAME default_ports COMMAND test_default_ports)
 
+# C64STR-019: oversized REST responses are aborted (MAXFILESIZE survives reset).
+add_executable(
+  test_rest_response_cap test_rest_response_cap.c ${CMAKE_SOURCE_DIR}/src/network/c64-rest-client.c
+)
+target_include_directories(
+  test_rest_response_cap
+  PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/network ${CMAKE_SOURCE_DIR}/src/util
+)
+if(UNIX)
+  target_link_libraries(test_rest_response_cap PRIVATE OBS::libobs CURL::libcurl m pthread)
+else()
+  target_link_libraries(test_rest_response_cap PRIVATE OBS::libobs CURL::libcurl)
+endif()
+add_test(NAME rest_response_cap COMMAND test_rest_response_cap)
+
 # C64STR-004: native recursive directory creation (no system("mkdir")).
 add_executable(test_file_utils test_file_utils.c ${CMAKE_SOURCE_DIR}/src/util/c64-file.c)
 target_include_directories(
