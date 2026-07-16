@@ -51,6 +51,8 @@ the endpoint is available.
   - [🧩 Plugin Setup](#-plugin-setup)
     - [General](#general)
     - [Network](#network)
+      - [Device Management](#device-management)
+        - [Device Discovery Flow](#device-discovery-flow)
     - [Recording](#recording)
     - [Recording Options](#recording-options)
       - [File Organization](#file-organization)
@@ -332,12 +334,37 @@ The filter is included automatically with the plugin package.
 
 ### Network
 
+![C64 Stream Network / Device Configuration](https://raw.githubusercontent.com/chrisgleissner/c64stream/main/docs/images/properties-network.png "C64 Stream Network / Device Configuration")
+
+#### Device Management
+
+Instead of typing a host/IP every time, the plugin keeps a small **device registry** of devices you've saved or discovered, shown as a single dropdown:
+
+- **Device:** Choose a previously saved or discovered device. Selecting an entry immediately fills in its Host, DNS Server IP, and Password below (no need to reopen the dialog).
+- **Device Name:** Friendly name shown in the Device list. Edit this and click **Save Device** to rename the selected device.
+- **Save Device:** Saves the current Host/DNS/Password as the selected device, or creates a new device if none is selected yet.
+- **Delete Device:** Removes the selected device from the list (does not affect the physical device).
+- **Find Devices:** Scans the local network for devices (see [Device Discovery Flow](#device-discovery-flow) below). The button label switches to **Finding Devices…** while a scan is running.
+
+Multiple entries for the same physical device (e.g. discovered separately over Ethernet and Wi-Fi) are told apart by their IP shown in parentheses, e.g. `u64 (192.168.1.13)`; devices that require a password are additionally marked, e.g. `c64u (192.168.1.167, Password)`.
+
+##### Device Discovery Flow
+
+Clicking **Find Devices** runs the following, entirely in a background thread so the UI stays responsive:
+
+1. **Enumerate candidate hosts:** every address already in the registry, the currently-configured Host, and every host on your machine's active local subnets (virtual/Docker-only interfaces are skipped).
+2. **Probe `/v1/info`:** each candidate is queried over REST; devices that require a password are recognized from the 401/403 response and listed as password-protected without needing credentials.
+3. **Filter by product:** only streaming-capable hardware is kept — the **Ultimate 64** family and **C64 Ultimate**. Ultimate II/II+/II+L units (disk/cartridge-only, no video/audio streaming) are rejected, and any such device previously saved by mistake is removed from the registry.
+4. **Verify streaming actually works:** for every remaining, non-password-protected candidate, the plugin starts a real video stream to a throwaway local port and waits briefly for a packet before accepting the address. This catches cases like an Ultimate 64 that answers `/v1/info` identically on Ethernet and Wi-Fi but only streams reliably over one of them.
+5. **Update the registry:** verified devices are saved (or updated, if their address changed) and immediately appear in the **Device** dropdown.
+
+- **C64 Ultimate Host:** Hostname or IP address of the currently selected device (default: `c64u`), or set to `0.0.0.0` to accept streams from any C64 Ultimate on your network (requires manual control from the device)
+- **C64 Ultimate Password:** C64 Ultimate network password for REST `X-Password` header authentication. Leave empty if authentication is disabled
+- **Stream Control Transport:** How start/stop streaming commands are sent to the device. **Auto** (default) prefers REST and falls back to the legacy protocol if REST is unavailable; **Force REST** and **Force Legacy** pin one transport for troubleshooting.
 - **DNS resolution details:**
   - **Default:** `192.168.1.1` (most common home router DNS server)
   - **Fallback:** If router DNS fails, the plugin tries standard DNS servers
   - **Enhanced resolution:** The plugin uses multiple resolution strategies for maximum compatibility
-- **C64 Ultimate Host:** Enter your Ultimate device's hostname (default: `c64u`) or IP address to enable automatic streaming control from OBS (recommended for convenience), or set to `0.0.0.0` to accept streams from any C64 Ultimate on your network (requires manual control from the device)
-- **C64 Ultimate Password:** C64 Ultimate network password for REST `X-Password` header authentication. Leave empty if authentication is disabled
 - **OBS Server IP:** IP address where C64 Ultimate sends streams (auto-detected by default)
 - **Auto-detect OBS IP:** Automatically detect and use OBS server IP in streaming commands (recommended)
 - **Configure Ports:** Use the default ports (video: 11000, audio: 11001) unless network conflicts require different values
@@ -602,6 +629,8 @@ Control your Ultimate 64 remotely from within OBS Studio, enabling keyboard inpu
   - **Symbolic keymaps:** Match key labels. For example press the `[` key on a US PC keyboard and see the `[` character on the C64U.
   - **Positional keymaps:** Match physical location of keys. For example press the `[` key on US PC keyboard and see the `@` character on the C64U. This is because the PC `[` key is in the same physical location as the C64 `@` key, to the right of the `P` key.
   - Supports built-in and custom user keymaps (`.c64keymap.ini` format)
+- **Joystick Emulation:** When enabled, arrow keys and Space move/fire a virtual joystick instead of sending C64 keystrokes. Toggle live anytime with **F10** — an open Properties dialog updates to match.
+- **Joystick Port:** Which C64 joystick port (1 or 2, default 2) receives emulated input. Toggle live anytime with **F11**.
 - **File System:** Choose between local files or C64 Ultimate storage
 - **Playback Source:** Pick **Single File** or **Folder**
 - **Local/C64U Path:** File or folder path, shown based on file system + playback source
@@ -649,6 +678,14 @@ Many programs (especially games) read key state directly from **CIA1**. Since th
 | ESC + TAB   | Reboot               |
 
 On many keyboards, the **META** key corresponds to the **Windows key**.
+
+Unlike the table above, the following are plugin-level hotkeys rather than C64 keystrokes, and work regardless of the current Keymap or Joystick Emulation state:
+
+| Key | Action                                            |
+| --- | ------------------------------------------------- |
+| F9  | Toggle the device's on-screen configuration menu   |
+| F10 | Toggle Joystick Emulation on/off                   |
+| F11 | Toggle the Joystick Emulation port (1 ↔ 2)         |
 
 ---
 

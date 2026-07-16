@@ -723,7 +723,7 @@ static bool device_discovery_clicked(obs_properties_t *props, obs_property_t *pr
     // it must be mutated directly on the live property so the click that
     // started the scan is the one that shows the "in progress" label.
     if (property) {
-        obs_property_set_description(property, "Looking for devices...");
+        obs_property_set_description(property, obs_module_text("DeviceDiscovering"));
     }
     return true;
 }
@@ -1774,20 +1774,29 @@ obs_properties_t *c64_create_properties(void *data)
         props, "network_group", obs_module_text("NetworkConfiguration"), OBS_GROUP_NORMAL, obs_properties_create());
     obs_properties_t *network_props = obs_property_group_content(network_group);
 
-    obs_property_t *device_prop =
-        obs_properties_add_list(network_props, "c64_device", "Device", OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+    obs_property_t *device_prop = obs_properties_add_list(network_props, "c64_device", obs_module_text("Device"),
+                                                          OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+    obs_property_set_long_description(device_prop, obs_module_text("Device.Description"));
     c64_device_registry_populate_list(device_prop);
     obs_property_set_modified_callback(device_prop, device_selection_changed);
-    obs_properties_add_text(network_props, "device_name", "Device name", OBS_TEXT_DEFAULT);
-    obs_properties_add_button2(network_props, "device_save", "Save / Rename", device_save_clicked, data);
-    obs_properties_add_button2(network_props, "device_delete", "Delete", device_delete_clicked, data);
+    obs_property_t *device_name_prop =
+        obs_properties_add_text(network_props, "device_name", obs_module_text("DeviceName"), OBS_TEXT_DEFAULT);
+    obs_property_set_long_description(device_name_prop, obs_module_text("DeviceName.Description"));
+    obs_property_t *device_save_prop = obs_properties_add_button2(
+        network_props, "device_save", obs_module_text("DeviceSave"), device_save_clicked, data);
+    obs_property_set_long_description(device_save_prop, obs_module_text("DeviceSave.Description"));
+    obs_property_t *device_delete_prop = obs_properties_add_button2(
+        network_props, "device_delete", obs_module_text("DeviceDelete"), device_delete_clicked, data);
+    obs_property_set_long_description(device_delete_prop, obs_module_text("DeviceDelete.Description"));
     // Label reflects discovery-in-progress state; scan_complete_on_ui() clears the flag and
     // requests a properties refresh once the background scan finishes, which re-runs
     // get_properties() and restores this label via the same conditional.
-    obs_properties_add_button2(network_props, "device_discovery",
-                               context && context->device_discovery_in_progress ? "Looking for devices..."
-                                                                                : "Find Devices",
-                               device_discovery_clicked, data);
+    obs_property_t *device_discovery_prop = obs_properties_add_button2(network_props, "device_discovery",
+                                                                       context && context->device_discovery_in_progress
+                                                                           ? obs_module_text("DeviceDiscovering")
+                                                                           : obs_module_text("DeviceDiscover"),
+                                                                       device_discovery_clicked, data);
+    obs_property_set_long_description(device_discovery_prop, obs_module_text("DeviceDiscover.Description"));
 
     // DNS Server IP
     obs_property_t *dns_prop =
@@ -1805,11 +1814,15 @@ obs_properties_t *c64_create_properties(void *data)
     obs_property_set_long_description(password_prop, obs_module_text("C64UPassword.Description"));
 
     obs_property_t *stream_transport = obs_properties_add_list(network_props, "stream_control_transport",
-                                                               "Stream control transport", OBS_COMBO_TYPE_LIST,
-                                                               OBS_COMBO_FORMAT_INT);
-    obs_property_list_add_int(stream_transport, "Auto", C64_STREAM_TRANSPORT_AUTO);
-    obs_property_list_add_int(stream_transport, "Force REST", C64_STREAM_TRANSPORT_REST);
-    obs_property_list_add_int(stream_transport, "Force Legacy", C64_STREAM_TRANSPORT_LEGACY);
+                                                               obs_module_text("StreamControlTransport"),
+                                                               OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+    obs_property_set_long_description(stream_transport, obs_module_text("StreamControlTransport.Description"));
+    obs_property_list_add_int(stream_transport, obs_module_text("StreamControlTransport.Auto"),
+                              C64_STREAM_TRANSPORT_AUTO);
+    obs_property_list_add_int(stream_transport, obs_module_text("StreamControlTransport.ForceREST"),
+                              C64_STREAM_TRANSPORT_REST);
+    obs_property_list_add_int(stream_transport, obs_module_text("StreamControlTransport.ForceLegacy"),
+                              C64_STREAM_TRANSPORT_LEGACY);
 
     // OBS IP Address
     obs_property_t *obs_ip_prop =
@@ -2185,12 +2198,15 @@ obs_properties_t *c64_create_properties(void *data)
     }
 
     // Keyboard-driven joystick emulation (toggled live via F10/F11; see c64_key_click).
-    obs_properties_add_bool(rest_props, "joystick_mode_active", "Joystick emulation (F10 toggles)");
+    obs_property_t *joystick_mode_prop =
+        obs_properties_add_bool(rest_props, "joystick_mode_active", obs_module_text("JoystickEmulation"));
+    obs_property_set_long_description(joystick_mode_prop, obs_module_text("JoystickEmulation.Description"));
     obs_property_t *joystick_port_prop = obs_properties_add_list(rest_props, "joystick_emulation_port",
-                                                                 "Joystick port (F11 toggles)", OBS_COMBO_TYPE_LIST,
+                                                                 obs_module_text("JoystickPort"), OBS_COMBO_TYPE_LIST,
                                                                  OBS_COMBO_FORMAT_INT);
-    obs_property_list_add_int(joystick_port_prop, "Port 1", 1);
-    obs_property_list_add_int(joystick_port_prop, "Port 2", 2);
+    obs_property_set_long_description(joystick_port_prop, obs_module_text("JoystickPort.Description"));
+    obs_property_list_add_int(joystick_port_prop, obs_module_text("JoystickPort.Port1"), 1);
+    obs_property_list_add_int(joystick_port_prop, obs_module_text("JoystickPort.Port2"), 2);
 
     // File system dropdown (renamed from "File source")
     obs_property_t *file_system_prop = obs_properties_add_list(rest_props, "file_system", obs_module_text("FileSystem"),
