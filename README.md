@@ -346,7 +346,7 @@ Instead of typing a host/IP every time, the plugin keeps a small **device regist
 - **Delete Device:** Removes the selected device from the list (does not affect the physical device).
 - **Find Devices:** Scans the local network for devices (see [Device Discovery Flow](#device-discovery-flow) below). The button label switches to **Finding Devices…** while a scan is running.
 
-Multiple entries for the same physical device (e.g. discovered separately over Ethernet and Wi-Fi) are told apart by their IP shown in parentheses, e.g. `u64 (192.168.1.13)`; devices that require a password are additionally marked, e.g. `c64u (192.168.1.167, Password)`.
+Each entry shows the device's IP in parentheses, e.g. `u64 (192.168.1.13)`; devices that require a password are additionally marked, e.g. `c64u (192.168.1.167, Password)`. A device that answers on more than one interface (e.g. Ethernet and Wi-Fi) collapses to a single entry — the interfaces share the device's `unique_id` — and stays on whichever address it was first discovered at rather than flipping between them on later scans.
 
 ##### Device Discovery Flow
 
@@ -355,8 +355,8 @@ Clicking **Find Devices** runs the following, entirely in a background thread so
 1. **Enumerate candidate hosts:** every address already in the registry, the currently-configured Host, and every host on your machine's active local subnets (virtual/Docker-only interfaces are skipped).
 2. **Probe `/v1/info`:** each candidate is queried over REST; devices that require a password are recognized from the 401/403 response and listed as password-protected without needing credentials.
 3. **Filter by product:** only streaming-capable hardware is kept — the **Ultimate 64** family and **C64 Ultimate**. Ultimate II/II+/II+L units (disk/cartridge-only, no video/audio streaming) are rejected, and any such device previously saved by mistake is removed from the registry.
-4. **Verify streaming actually works:** for every remaining, non-password-protected candidate, the plugin starts a real video stream to a throwaway local port and waits briefly for a packet before accepting the address. This catches cases like an Ultimate 64 that answers `/v1/info` identically on Ethernet and Wi-Fi but only streams reliably over one of them. The device you are *currently* streaming from is skipped: this probe redirects a device's video and then stops it, so probing the active device would interrupt your live output — and its packets are already arriving, which is the proof this step looks for.
-5. **Update the registry:** verified devices are saved (or updated, if their address changed) and immediately appear in the **Device** dropdown.
+4. **Confirm the control channel:** each remaining candidate must also accept a connection on its control port (64), the channel stream start/stop rides. An address that answers `/v1/info` but not the control port cannot actually drive a stream, so it is not offered. A saved device is probed before the subnet sweep and retried, so a slower interface is not dropped for a momentary timeout.
+5. **Update the registry:** confirmed devices are saved (one entry per physical device — see above) and immediately appear in the **Device** dropdown. A device already on file keeps its address unless that address has genuinely stopped responding, in which case it relocates to a working one.
 
 - **C64 Ultimate Host:** Hostname or IP address of the currently selected device (default: `c64u`), or set to `0.0.0.0` to accept streams from any C64 Ultimate on your network (requires manual control from the device)
 - **C64 Ultimate Password:** C64 Ultimate network password for REST `X-Password` header authentication. Leave empty if authentication is disabled

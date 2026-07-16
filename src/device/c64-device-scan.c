@@ -24,39 +24,50 @@
 #define C64_SCAN_TIMEOUT_MS 650L
 #define C64_SCAN_OVERALL_TIMEOUT_NS (12ULL * 1000000000ULL)
 #define C64_SCAN_DEFAULT_PORT 80
-#define C64_SCAN_STREAM_TEST_WAIT_MS 900
+// Reachability attempts for an already-registered address before giving up on
+// it. Keeps a saved multi-homed device from flip-flopping when one interface
+// times out under scan load. Subnet-discovery hosts always get a single shot.
+#define C64_SCAN_KNOWN_HOST_ATTEMPTS 3
+#define C64_SCAN_KNOWN_HOST_BACKOFF_MS 250
 
 typedef struct {
     char data[2048];
     size_t used;
 } response_t;
 
-// A single host's successful match. is_new_host is set once, at match time,
-// by comparing against the registry *before* any result of this scan pass has
-// been applied -- it means "this candidate's host differs from what's
-// currently on file for this id (or the id isn't registered yet)".
+// A single host's successful match: the address answered /v1/info, is
+// streaming-capable hardware, and accepts control commands on its port.
+// host_index is the candidate's position in job->hosts, which is what makes
+// "first responsive address wins" deterministic -- see apply_scan_results().
 typedef struct {
     c64_device_t device;
-    bool is_new_host;
+    size_t host_index;
 } scan_result_t;
 
 typedef struct {
     char hosts[C64_SCAN_MAX_HOSTS][16];
     size_t count;
     size_t next;
+    // Number of leading hosts that are already-registered / configured
+    // ("known"). They are enumerated first (see build_scan_job) and probed in a
+    // quiet first phase, before the subnet flood, so a slow interface on a
+    // saved device is measured without contention -- see scan_main.
+    size_t known_count;
+    // Upper bound for the current worker pass; lets scan_main run the known
+    // hosts and the subnet sweep as two separate phases over one worker pool.
+    size_t phase_end;
     pthread_mutex_t mutex;
     uint64_t deadline_ns;
     obs_source_t *source;
     struct c64_source *context; // Nullable; set only when scanning drives the Scan button's label.
     uint16_t port;
-    // Resolved IP this source is currently streaming from, or "" if none.
-    // scan_verify_streaming() must never probe it -- see scan_one_host().
-    char active_host[64];
     // Candidate matches, applied to the registry only after every worker has
-    // finished (see scan_main). A single physical device can respond at more
-    // than one address in the same pass (e.g. a stale DHCP lease still being
-    // answered alongside the current one); collecting results first avoids a
-    // race where whichever worker happens to finish last wins arbitrarily.
+    // finished (see scan_main). One physical device routinely answers at more
+    // than one address in the same pass -- a multi-homed unit (Ethernet and
+    // Wi-Fi) reports the same unique_id on each, and a stale DHCP lease can
+    // still be answered alongside the current one. Collecting first, then
+    // resolving by host_index, keeps the choice independent of which worker
+    // happens to finish last.
     scan_result_t results[C64_SCAN_MAX_RESULTS];
     size_t result_count;
 } scan_job_t;
@@ -297,110 +308,24 @@ static bool extract_json_string(const char *json, const char *key, char *out, si
     return true;
 }
 
-// Confirms `host` actually delivers a video stream, not just a working
-// /v1/info response. Some Ultimate 64 units answer /v1/info identically on
-// every network interface (e.g. Ethernet and Wi-Fi), but streaming may only
-// work reliably over one of them; offering a non-streaming address would
-// otherwise silently produce a blank preview. Starts a short-lived video
-// stream to a throwaway local port and checks whether any packet arrives.
-static bool scan_verify_streaming(const char *host, uint16_t port)
-{
-    char local_ip[64] = {0};
-    if (!c64_detect_local_ip_for_host(host, NULL, local_ip, sizeof(local_ip))) {
-        return false;
-    }
+typedef enum {
+    SCAN_PROBE_MATCH,       // Streaming-capable device that answers REST + control port; device filled.
+    SCAN_PROBE_NOT_DEVICE,  // Answered /v1/info but is not streaming-capable hardware.
+    SCAN_PROBE_NO_RESPONSE, // No usable answer this attempt (may just be transient load; retryable).
+} scan_probe_result_t;
 
-    socket_t sock = c64_create_udp_socket(0);
-    if (sock == INVALID_SOCKET_VALUE) {
-        return false;
-    }
-
-    struct sockaddr_in local_addr;
-    socklen_t local_len = sizeof(local_addr);
-    if (getsockname(sock, (struct sockaddr *)&local_addr, &local_len) != 0) {
-        close(sock);
-        return false;
-    }
-
-    char dest[80];
-    snprintf(dest, sizeof(dest), "%s:%u", local_ip, ntohs(local_addr.sin_port));
-    char *escaped_dest = curl_easy_escape(NULL, dest, 0);
-    if (!escaped_dest) {
-        close(sock);
-        return false;
-    }
-
-    bool start_ok = false;
-    CURL *start_curl = curl_easy_init();
-    if (start_curl) {
-        char url[160];
-        snprintf(url, sizeof(url), "http://%s:%u/v1/streams/video:start?ip=%s", host, port, escaped_dest);
-        curl_easy_setopt(start_curl, CURLOPT_URL, url);
-        curl_easy_setopt(start_curl, CURLOPT_CUSTOMREQUEST, "PUT");
-        curl_easy_setopt(start_curl, CURLOPT_CONNECTTIMEOUT_MS, C64_SCAN_TIMEOUT_MS);
-        curl_easy_setopt(start_curl, CURLOPT_TIMEOUT_MS, C64_SCAN_TIMEOUT_MS);
-        curl_easy_setopt(start_curl, CURLOPT_NOSIGNAL, 1L);
-        CURLcode start_code = curl_easy_perform(start_curl);
-        long start_status = 0;
-        curl_easy_getinfo(start_curl, CURLINFO_RESPONSE_CODE, &start_status);
-        start_ok = (start_code == CURLE_OK && start_status >= 200 && start_status < 300);
-        curl_easy_cleanup(start_curl);
-    }
-    curl_free(escaped_dest);
-
-    bool received = false;
-    if (start_ok) {
-        /* c64_create_udp_socket() hands back a NON-BLOCKING socket, which makes
-         * SO_RCVTIMEO a silent no-op: recv() returns EAGAIN immediately and the
-         * intended wait never happens. That made the verdict a race -- it only
-         * passed when a packet happened to land during the start request's own
-         * round-trip, and any device that took a moment longer to start
-         * streaming was silently rejected (and pruned from the registry).
-         * select() waits regardless of the socket's blocking mode. */
-        fd_set read_fds;
-        FD_ZERO(&read_fds);
-        FD_SET(sock, &read_fds);
-        struct timeval wait;
-        wait.tv_sec = C64_SCAN_STREAM_TEST_WAIT_MS / 1000;
-        wait.tv_usec = (C64_SCAN_STREAM_TEST_WAIT_MS % 1000) * 1000;
-#ifdef _WIN32
-        const int ready = select(0, &read_fds, NULL, NULL, &wait);
-#else
-        const int ready = select((int)sock + 1, &read_fds, NULL, NULL, &wait);
-#endif
-        if (ready > 0) {
-            char buf[2048];
-            received = recv(sock, buf, sizeof(buf), 0) > 0;
-        }
-    }
-
-    // Best-effort stop -- failures here must not affect the verdict.
-    CURL *stop_curl = curl_easy_init();
-    if (stop_curl) {
-        char stop_url[80];
-        snprintf(stop_url, sizeof(stop_url), "http://%s:%u/v1/streams/video:stop", host, port);
-        curl_easy_setopt(stop_curl, CURLOPT_URL, stop_url);
-        curl_easy_setopt(stop_curl, CURLOPT_CUSTOMREQUEST, "PUT");
-        curl_easy_setopt(stop_curl, CURLOPT_CONNECTTIMEOUT_MS, C64_SCAN_TIMEOUT_MS);
-        curl_easy_setopt(stop_curl, CURLOPT_TIMEOUT_MS, C64_SCAN_TIMEOUT_MS);
-        curl_easy_setopt(stop_curl, CURLOPT_NOSIGNAL, 1L);
-        curl_easy_perform(stop_curl);
-        curl_easy_cleanup(stop_curl);
-    }
-
-    close(sock);
-    return received;
-}
-
-static void scan_one_host(scan_job_t *job, const char *host)
+// Single reachability probe of one address: /v1/info (REST) plus a control-port
+// connect. Fills `device` and reports `password_required` only on MATCH.
+static scan_probe_result_t scan_probe_host(const char *host, uint16_t port, c64_device_t *device,
+                                           bool *password_required)
 {
     response_t body = {0};
     CURL *curl = curl_easy_init();
     if (!curl) {
-        return;
+        return SCAN_PROBE_NO_RESPONSE;
     }
     char url[80];
-    snprintf(url, sizeof(url), "http://%s:%u/v1/info", host, job->port);
+    snprintf(url, sizeof(url), "http://%s:%u/v1/info", host, port);
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, C64_SCAN_TIMEOUT_MS);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, C64_SCAN_TIMEOUT_MS);
@@ -411,31 +336,24 @@ static void scan_one_host(scan_job_t *job, const char *host)
     long status = 0;
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
     curl_easy_cleanup(curl);
-    const bool password_required = c64_device_scan_response_is_candidate(status, body.data);
-    if (code != CURLE_OK || (status != 200 && !password_required)) {
-        return;
+    *password_required = c64_device_scan_response_is_candidate(status, body.data);
+    if (code != CURLE_OK || (status != 200 && !*password_required)) {
+        return SCAN_PROBE_NO_RESPONSE;
     }
     char product[64] = {0};
     if (status == 200 && (!extract_json_string(body.data, "product", product, sizeof(product)) ||
                           !c64_device_scan_product_matches(product))) {
-        // Confirmed non-streaming hardware (e.g. an Ultimate II family unit).
-        // If this host was previously registered under an earlier, looser
-        // product filter, prune it now: only streaming-capable devices
-        // (Ultimate 64 / C64 Ultimate) belong in the device list.
-        const c64_device_t *stale = c64_device_registry_find_by_host(host);
-        if (stale) {
-            c64_device_registry_delete(stale->id);
-        }
-        return;
+        return SCAN_PROBE_NOT_DEVICE;
     }
-    c64_device_t device = {0};
+
+    memset(device, 0, sizeof(*device));
     char unique_id[64] = {0};
     extract_json_string(body.data, "unique_id", unique_id, sizeof(unique_id));
-    if (!c64_device_id_from_host(device.id, sizeof(device.id), unique_id, host)) {
-        return;
+    if (!c64_device_id_from_host(device->id, sizeof(device->id), unique_id, host)) {
+        return SCAN_PROBE_NO_RESPONSE;
     }
-    if (!extract_json_string(body.data, "hostname", device.name, sizeof(device.name))) {
-        snprintf(device.name, sizeof(device.name), "%s", product[0] ? product : host);
+    if (!extract_json_string(body.data, "hostname", device->name, sizeof(device->name))) {
+        snprintf(device->name, sizeof(device->name), "%s", product[0] ? product : host);
     }
     // The same physical device can be discovered at more than one address
     // (e.g. Ethernet and Wi-Fi); show the host -- and whether it needs a
@@ -443,44 +361,89 @@ static void scan_one_host(scan_job_t *job, const char *host)
     // Baked into the editable name (not synthesized at display time) so the
     // user can trim it via Device name + Save if they don't want it.
     {
-        const size_t used = strlen(device.name);
-        snprintf(device.name + used, sizeof(device.name) - used, " (%s%s)", host,
-                 password_required ? ", Password" : "");
+        const size_t used = strlen(device->name);
+        snprintf(device->name + used, sizeof(device->name) - used, " (%s%s)", host,
+                 *password_required ? ", Password" : "");
     }
-    snprintf(device.host, sizeof(device.host), "%s", host);
-    device.video_port = 11000;
-    device.audio_port = 11001;
-    device.control_port = 64;
+    snprintf(device->host, sizeof(device->host), "%s", host);
+    device->video_port = 11000;
+    device->audio_port = 11001;
+    device->control_port = 64;
 
-    // Password-protected devices can't be verified without credentials --
-    // keep the existing behavior of listing them unverified. Everything else
-    // must prove it actually streams before it can be offered/registered.
+    // An address qualifies when it answers *both* control channels: /v1/info
+    // (REST) above, and the control port here. Stream start/stop rides the
+    // control port whenever the legacy transport is selected or REST is
+    // demoted, so an address that answers REST alone cannot actually drive a
+    // stream. A bare connect/close is non-destructive -- verified against live
+    // hardware not to disturb a running stream -- so it runs for every
+    // candidate, including the active device.
     //
-    // The device we are currently streaming from is exempt: verification
-    // repoints its video at a throwaway socket and then stops it outright, so
-    // probing it would black out the live OBS output (logo after 3s) until the
-    // retry loop notices and re-sends the start commands. It is also the one
-    // host that needs no proof -- its packets are arriving right now.
-    //
-    // A failed probe only withholds this address from the scan results; it must
-    // never delete an already-registered device. Unlike the product check
-    // above -- where the device positively identifies itself as non-streaming
-    // hardware -- this is a timing-sensitive network probe, and a single
-    // missed UDP packet is not evidence that a device the user saved has
-    // stopped existing. Deleting on it silently destroyed the profile (and
-    // stranded its password key) on any transient miss.
-    const bool is_active_host = job->active_host[0] && !strcmp(host, job->active_host);
-    if (!password_required && !is_active_host && !scan_verify_streaming(host, job->port)) {
+    // This deliberately replaced an earlier "start a throwaway video stream and
+    // wait for a packet" probe. That probe was destructive (it repointed the
+    // device's single video destination and then stopped it, blacking out live
+    // output) and unusable for the multi-homed devices it was meant to serve:
+    // every interface of one unit shares that single destination, so probing
+    // two addresses of the same device concurrently tore down each other's
+    // streams. REST + control-port reachability is the property that actually
+    // decides whether an address can drive a stream, and it composes cleanly
+    // across interfaces.
+    if (!c64_test_connectivity(host, device->control_port)) {
+        return SCAN_PROBE_NO_RESPONSE;
+    }
+    return SCAN_PROBE_MATCH;
+}
+
+static void scan_one_host(scan_job_t *job, const char *host, size_t host_index)
+{
+    // An address already on file for some device is retried before being given
+    // up on. Under the 48-worker fan-out a slower interface (Wi-Fi on a
+    // multi-homed unit) intermittently times out /v1/info or the control-port
+    // connect even though it is up; a single such miss must not drop a saved
+    // address and let a sibling address of the same device replace it, which is
+    // what made a multi-homed device flip between its interfaces every scan.
+    // Newly-discovered subnet hosts get a single attempt: there are ~254 of
+    // them, retrying every silent one would burn the scan deadline, and a
+    // genuinely new device simply shows up on the next scan.
+    const bool known_host = c64_device_registry_find_by_host(host) != NULL;
+    const int attempts = known_host ? C64_SCAN_KNOWN_HOST_ATTEMPTS : 1;
+
+    c64_device_t device = {0};
+    bool password_required = false;
+    scan_probe_result_t result = SCAN_PROBE_NO_RESPONSE;
+    for (int attempt = 0; attempt < attempts && os_gettime_ns() < job->deadline_ns; attempt++) {
+        // Space retries so the set straddles a brief latency spike rather than
+        // firing three times inside the same jitter window. Only between
+        // attempts, and only for the few known hosts, so it costs no time on
+        // the ~254 single-shot discovery hosts.
+        if (attempt > 0) {
+            os_sleep_ms(C64_SCAN_KNOWN_HOST_BACKOFF_MS);
+        }
+        result = scan_probe_host(host, job->port, &device, &password_required);
+        if (result != SCAN_PROBE_NO_RESPONSE) {
+            break;
+        }
+    }
+
+    if (result == SCAN_PROBE_NOT_DEVICE) {
+        // Answered /v1/info but is not streaming-capable hardware (e.g. an
+        // Ultimate II family unit). If this host was previously registered
+        // under an earlier, looser product filter, prune it now: only
+        // streaming-capable devices belong in the list. This is a positive
+        // identification, unlike a NO_RESPONSE, so acting on it is safe.
+        const c64_device_t *stale = c64_device_registry_find_by_host(host);
+        if (stale) {
+            c64_device_registry_delete(stale->id);
+        }
         return;
     }
-
-    const c64_device_t *existing = c64_device_registry_get(device.id);
-    const bool is_new_host = !existing || strcmp(existing->host, device.host) != 0;
+    if (result != SCAN_PROBE_MATCH) {
+        return;
+    }
 
     pthread_mutex_lock(&job->mutex);
     if (job->result_count < C64_SCAN_MAX_RESULTS) {
         job->results[job->result_count].device = device;
-        job->results[job->result_count].is_new_host = is_new_host;
+        job->results[job->result_count].host_index = host_index;
         job->result_count++;
     }
     pthread_mutex_unlock(&job->mutex);
@@ -491,15 +454,15 @@ static void *scan_worker(void *opaque)
     scan_job_t *job = opaque;
     for (;;) {
         pthread_mutex_lock(&job->mutex);
-        const size_t index = job->next++;
+        const size_t index = job->next < job->phase_end ? job->next++ : job->phase_end;
         pthread_mutex_unlock(&job->mutex);
-        if (index >= job->count) {
+        if (index >= job->phase_end) {
             return NULL;
         }
         if (os_gettime_ns() >= job->deadline_ns) {
             return NULL;
         }
-        scan_one_host(job, job->hosts[index]);
+        scan_one_host(job, job->hosts[index], index);
     }
 }
 
@@ -514,45 +477,44 @@ static void scan_complete_on_ui(void *opaque)
     free(completion);
 }
 
-// Applies collected scan results to the registry. A device that changed
-// address (is_new_host) always wins; a result that merely confirms an
-// already-registered host is applied only if no changed-address result was
-// seen for that same id, so a still-answering stale lease can never
-// overwrite a freshly-discovered address regardless of thread completion
-// order.
+// Applies collected scan results to the registry, one entry per physical
+// device: the first address that answered both REST and the control port wins.
+// A multi-homed unit reports the same unique_id on each interface, so all its
+// addresses share one device id and collapse to a single registry entry here.
+//
+// "First" is the lowest position in job->hosts, never thread completion order.
+// build_scan_job() enumerates already-registered hosts first, then the
+// configured host, then the local subnets in ascending address order; scan_main
+// probes that known-host prefix in a quiet first phase and retries it (see
+// scan_one_host). Together that gives the rule two properties worth having:
+//
+//   - A device already on file keeps the address it is on file with: that
+//     address is enumerated first and probed without the subnet flood
+//     competing, so a slower interface is not dropped for a load-induced
+//     timeout and the entry does not flip-flop between interfaces every scan.
+//   - A device that genuinely moved is still picked up: its old address no
+//     longer answers (even retried), so it produces no result, and the new
+//     address is the only -- hence first -- candidate for that id.
 static void apply_scan_results(scan_job_t *job)
 {
-    char changed_ids[C64_SCAN_MAX_RESULTS][C64_DEVICE_ID_MAX];
-    size_t changed_count = 0;
-
     for (size_t i = 0; i < job->result_count; i++) {
-        if (job->results[i].is_new_host) {
-            c64_device_registry_upsert(&job->results[i].device);
-            if (changed_count < C64_SCAN_MAX_RESULTS) {
-                snprintf(changed_ids[changed_count++], C64_DEVICE_ID_MAX, "%s", job->results[i].device.id);
-            }
-        }
-    }
-    for (size_t i = 0; i < job->result_count; i++) {
-        if (job->results[i].is_new_host) {
-            continue;
-        }
-        bool already_changed = false;
-        for (size_t j = 0; j < changed_count; j++) {
-            if (!strcmp(changed_ids[j], job->results[i].device.id)) {
-                already_changed = true;
+        bool superseded = false;
+        for (size_t j = 0; j < job->result_count; j++) {
+            if (j != i && !strcmp(job->results[j].device.id, job->results[i].device.id) &&
+                job->results[j].host_index < job->results[i].host_index) {
+                superseded = true;
                 break;
             }
         }
-        if (!already_changed) {
+        if (!superseded) {
             c64_device_registry_upsert(&job->results[i].device);
         }
     }
 }
 
-static void *scan_main(void *opaque)
+// Runs the worker pool over the host range [job->next, job->phase_end).
+static void scan_run_phase(scan_job_t *job)
 {
-    scan_job_t *job = opaque;
     pthread_t workers[C64_SCAN_WORKERS];
     size_t worker_count = 0;
     for (size_t i = 0; i < C64_SCAN_WORKERS; i++) {
@@ -564,6 +526,22 @@ static void *scan_main(void *opaque)
     for (size_t i = 0; i < worker_count; i++) {
         pthread_join(workers[i], NULL);
     }
+}
+
+static void *scan_main(void *opaque)
+{
+    scan_job_t *job = opaque;
+    // Phase 1: probe the already-known hosts before the subnet flood starts, so
+    // a saved device's slower interface (Wi-Fi on a multi-homed unit) is
+    // measured while the network is quiet and does not lose its address to a
+    // load-induced timeout. Phase 2: sweep the rest of the enumerated hosts for
+    // newly-appeared devices.
+    job->next = 0;
+    job->phase_end = job->known_count;
+    scan_run_phase(job);
+    job->next = job->known_count;
+    job->phase_end = job->count;
+    scan_run_phase(job);
     apply_scan_results(job);
     pthread_mutex_destroy(&job->mutex);
     scan_completion_t *completion = job->source ? malloc(sizeof(*completion)) : NULL;
@@ -594,13 +572,10 @@ static scan_job_t *build_scan_job(struct c64_source *context, uint16_t port)
     }
     job->port = port ? port : C64_SCAN_DEFAULT_PORT;
     obs_source_t *source = context ? context->source : NULL;
-    /* The resolved IP, not the configured host: the active device is reached
-     * through subnet enumeration as a numeric address, so only the resolved
-     * form reliably matches it. */
-    if (context) {
-        snprintf(job->active_host, sizeof(job->active_host), "%s", context->ip_address);
-    }
-    /* Scan saved and manually configured hosts as well as local subnets. */
+    /* Scan saved and manually configured hosts as well as local subnets.
+     * Registered hosts are enumerated first, so apply_scan_results() -- which
+     * keeps the lowest-index responsive address per device -- leaves an
+     * already-known device on the address it is already on file with. */
     for (size_t i = 0; i < c64_device_registry_count() && job->count < C64_SCAN_MAX_HOSTS; i++) {
         const c64_device_t *device = c64_device_registry_get_at(i);
         if (device) {
@@ -614,6 +589,10 @@ static scan_job_t *build_scan_job(struct c64_source *context, uint16_t port)
             obs_data_release(settings);
         }
     }
+    // Everything added so far is a known host (registered profile or the
+    // configured host); the subnet sweep below is pure discovery. scan_main
+    // probes [0, known_count) first, unflooded.
+    job->known_count = job->count;
 #ifndef _WIN32
     struct ifaddrs *interfaces = NULL;
     if (getifaddrs(&interfaces) != 0) {
