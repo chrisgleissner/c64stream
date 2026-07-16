@@ -145,6 +145,14 @@ add_executable(test_default_ports test_default_ports.c)
 target_include_directories(test_default_ports PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/network)
 add_test(NAME default_ports COMMAND test_default_ports)
 
+# C64STR-004: native recursive directory creation (no system("mkdir")).
+add_executable(test_file_utils test_file_utils.c ${CMAKE_SOURCE_DIR}/src/util/c64-file.c)
+target_include_directories(
+  test_file_utils PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/util
+)
+target_link_libraries(test_file_utils PRIVATE OBS::libobs)
+add_test(NAME file_utils COMMAND test_file_utils)
+
 # C64STR-018/024: CSV recording start/stop vs writes are serialised (no UAF).
 add_executable(
   test_record_csv_concurrency test_record_csv_concurrency.c
