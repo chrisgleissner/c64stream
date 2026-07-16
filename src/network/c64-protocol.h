@@ -23,6 +23,23 @@ See <https://www.gnu.org/licenses/> for details.
 #define C64_DEFAULT_AUDIO_PORT 21001
 #define C64_DEFAULT_HOST "c64u"
 
+/*
+ * C64STR-016: give each source instance a distinct default UDP port pair so two
+ * sources added with defaults do not both bind 21000/21001 (which starves one
+ * of video/audio). pair_index is a 0-based per-instance counter; instance N
+ * gets video=21000+2N, audio=video+1, so pairs never overlap.
+ */
+static inline void c64_default_ports_for_pair(long pair_index, uint32_t *video_port, uint32_t *audio_port)
+{
+    const uint32_t video = C64_DEFAULT_VIDEO_PORT + (uint32_t)(pair_index * 2);
+    if (video_port) {
+        *video_port = video;
+    }
+    if (audio_port) {
+        *audio_port = video + 1;
+    }
+}
+
 // Video format constants
 #define C64_PAL_WIDTH 384
 #define C64_PAL_HEIGHT 272

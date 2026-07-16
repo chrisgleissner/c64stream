@@ -140,6 +140,11 @@ if(UNIX)
 endif()
 add_test(NAME effect_clamp COMMAND test_effect_clamp)
 
+# C64STR-016: each source instance gets a distinct default UDP port pair.
+add_executable(test_default_ports test_default_ports.c)
+target_include_directories(test_default_ports PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/network)
+add_test(NAME default_ports COMMAND test_default_ports)
+
 add_executable(test_c64_stream_control test_c64_stream_control.c ${CMAKE_SOURCE_DIR}/src/network/c64-stream-control.c)
 target_include_directories(
   test_c64_stream_control

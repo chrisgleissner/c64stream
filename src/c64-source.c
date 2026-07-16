@@ -928,8 +928,9 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     const bool has_saved_audio_port = obs_data_has_user_value(settings, "audio_port");
     if (!has_saved_video_port && !has_saved_audio_port) {
         const long port_pair = os_atomic_inc_long(&c64_next_default_port_pair) - 1;
-        const uint32_t video_port = C64_DEFAULT_VIDEO_PORT + (uint32_t)(port_pair * 2);
-        const uint32_t audio_port = video_port + 1;
+        uint32_t video_port = 0;
+        uint32_t audio_port = 0;
+        c64_default_ports_for_pair(port_pair, &video_port, &audio_port);
         obs_data_set_int(settings, "video_port", video_port);
         obs_data_set_int(settings, "audio_port", audio_port);
         C64_LOG_INFO("" NETWORK_LOG_PREFIX " Assigned default UDP ports video:%u audio:%u", video_port, audio_port);
