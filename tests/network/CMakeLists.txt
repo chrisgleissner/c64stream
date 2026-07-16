@@ -64,6 +64,21 @@ if(UNIX)
 endif()
 add_test(NAME c64_palette_isolation COMMAND test_c64_palette_isolation)
 
+# C64STR-017: in-place REST retarget keeps a running script's client valid.
+add_executable(
+  test_rest_client_retarget test_rest_client_retarget.c ${CMAKE_SOURCE_DIR}/src/network/c64-rest-client.c
+)
+target_include_directories(
+  test_rest_client_retarget
+  PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/network ${CMAKE_SOURCE_DIR}/src/util
+)
+if(UNIX)
+  target_link_libraries(test_rest_client_retarget PRIVATE OBS::libobs CURL::libcurl m pthread)
+else()
+  target_link_libraries(test_rest_client_retarget PRIVATE OBS::libobs CURL::libcurl)
+endif()
+add_test(NAME rest_client_retarget COMMAND test_rest_client_retarget)
+
 add_executable(test_c64_stream_control test_c64_stream_control.c ${CMAKE_SOURCE_DIR}/src/network/c64-stream-control.c)
 target_include_directories(
   test_c64_stream_control

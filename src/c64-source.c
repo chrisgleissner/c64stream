@@ -109,6 +109,35 @@ static void c64_rebuild_rest_client(struct c64_source *context)
     if (!context) {
         return;
     }
+
+    const bool have_valid_ip = context->ip_address[0] && strcmp(context->ip_address, "0.0.0.0") != 0;
+
+    // C64STR-017 / C64STR-002: retarget the existing client in place whenever we
+    // have a valid new target. This keeps the same rest_client and keyboard
+    // objects alive, so a running C64Script -- whose runtime caches these
+    // transport pointers -- continues on the new device instead of being
+    // stopped and truncated. It also makes a live password change take effect
+    // without tearing anything down.
+    if (context->rest_client && have_valid_ip) {
+        char new_base_url[sizeof(context->rest_base_url)];
+        snprintf(new_base_url, sizeof(new_base_url), "http://%s", context->ip_address);
+        if (c64_rest_client_retarget(context->rest_client, new_base_url, context->c64_password)) {
+            snprintf(context->rest_base_url, sizeof(context->rest_base_url), "%s", new_base_url);
+            // The keyboard keeps the same (now retargeted) rest_client pointer;
+            // only refresh its keymap/transport selection.
+            if (context->keyboard) {
+                c64_keyboard_set_keymap(context->keyboard, context->keymap);
+                c64_keyboard_set_transport(context->keyboard, context->stream_control_transport);
+            }
+            c64_record_on_rest_client_ready(context);
+            return;
+        }
+        C64_LOG_WARNING("REST client retarget failed; falling back to full rebuild");
+    }
+
+    // Full rebuild path: no existing client, an invalid/cleared target, or a
+    // failed in-place retarget. Only here do we stop a running script, because
+    // its cached transport pointers are about to be freed.
     if (context->script_executor && c64_script_executor_is_running(context->script_executor)) {
         C64_LOG_INFO("Stopping active script before replacing its keyboard transport");
         c64_script_executor_stop(context->script_executor);
@@ -122,7 +151,7 @@ static void c64_rebuild_rest_client(struct c64_source *context)
         context->rest_client = NULL;
     }
     context->rest_base_url[0] = '\0';
-    if (!context->ip_address[0] || !strcmp(context->ip_address, "0.0.0.0")) {
+    if (!have_valid_ip) {
         return;
     }
     snprintf(context->rest_base_url, sizeof(context->rest_base_url), "http://%s", context->ip_address);

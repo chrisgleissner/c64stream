@@ -561,6 +561,64 @@ void c64_rest_client_destroy(c64_rest_client_t *client)
     C64_LOG_DEBUG(REST_LOG_PREFIX "REST client destroyed");
 }
 
+bool c64_rest_client_retarget(c64_rest_client_t *client, const char *base_url, const char *password)
+{
+    if (!client || !base_url) {
+        return false;
+    }
+
+    // Duplicate outside the lock so a strdup failure never leaves the client in
+    // a half-updated state.
+    char *new_url = strdup(base_url);
+    if (!new_url) {
+        C64_LOG_ERROR(REST_LOG_PREFIX "retarget: failed to duplicate base_url");
+        return false;
+    }
+    char *new_password = NULL;
+    if (password && password[0]) {
+        new_password = strdup(password);
+        if (!new_password) {
+            C64_LOG_ERROR(REST_LOG_PREFIX "retarget: failed to duplicate password");
+            free(new_url);
+            return false;
+        }
+    }
+
+    // Swap URL + credential atomically w.r.t. request builders, which read
+    // base_url/password under this same mutex (http_request_ex). An in-flight
+    // request on another thread observes either the whole old or whole new
+    // target, never a mix, and no pointer is freed while in use.
+    pthread_mutex_lock(&client->mutex);
+    char *old_url = client->base_url;
+    char *old_password = client->password;
+    client->base_url = new_url;
+    client->password = new_password;
+    // Clear any stale outcome so callers don't act on the previous device's
+    // last response after the switch.
+    client->last_status = 0;
+    client->last_outcome = C64_REST_UNREACHABLE;
+    pthread_mutex_unlock(&client->mutex);
+
+    free(old_url);
+    free(old_password);
+
+    C64_LOG_INFO(REST_LOG_PREFIX "Retargeted REST client to %s", base_url);
+    return true;
+}
+
+bool c64_rest_client_get_base_url(const c64_rest_client_t *client, char *buf, size_t buf_size)
+{
+    if (!client || !buf || buf_size == 0) {
+        return false;
+    }
+    // Cast away const only to take the mutex; the URL itself is not modified.
+    pthread_mutex_t *mutex = (pthread_mutex_t *)&client->mutex;
+    pthread_mutex_lock(mutex);
+    snprintf(buf, buf_size, "%s", client->base_url ? client->base_url : "");
+    pthread_mutex_unlock(mutex);
+    return true;
+}
+
 // Perform HTTP request
 static bool http_request_ex_locked(c64_rest_client_t *client, const char *method, const char *endpoint,
                                    const char *query_params, const uint8_t *body_data, size_t body_size,
