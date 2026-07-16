@@ -107,6 +107,31 @@ bool c64_rest_release_all(c64_rest_client_t *rest)
     return rest != NULL;
 }
 
+/* C64STR-022 machine-control stubs (inert here). */
+bool c64_rest_joystick_input(c64_rest_client_t *rest, int port, const char *input_name, const char *transition)
+{
+    (void)rest;
+    (void)port;
+    (void)input_name;
+    (void)transition;
+    return true;
+}
+bool c64_rest_menu_button(c64_rest_client_t *rest)
+{
+    (void)rest;
+    return true;
+}
+bool c64_rest_reset(c64_rest_client_t *rest)
+{
+    (void)rest;
+    return true;
+}
+bool c64_rest_reboot(c64_rest_client_t *rest)
+{
+    (void)rest;
+    return true;
+}
+
 long c64_rest_get_last_status(const c64_rest_client_t *rest)
 {
     (void)rest;

@@ -309,6 +309,17 @@ target_include_directories(test_keyboard_worker PRIVATE ${C64_ALL_INCLUDE_DIRS})
 target_link_libraries(test_keyboard_worker PRIVATE OBS::libobs)
 add_test(NAME keyboard_worker COMMAND test_keyboard_worker)
 
+# C64STR-022: async machine-command queue keeps blocking REST off the UI thread.
+add_executable(
+  test_machine_command_queue
+  test_machine_command_queue.c
+  c64script_test_logging.c
+  ${CMAKE_SOURCE_DIR}/src/ui/c64-keyboard.c
+)
+target_include_directories(test_machine_command_queue PRIVATE ${C64_ALL_INCLUDE_DIRS})
+target_link_libraries(test_machine_command_queue PRIVATE OBS::libobs)
+add_test(NAME machine_command_queue COMMAND test_machine_command_queue)
+
 add_executable(
   test_c64script_keyboard_injection
   test_c64script_keyboard_injection.c

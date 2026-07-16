@@ -2689,10 +2689,17 @@ void c64_mouse_wheel(void *data, const struct obs_mouse_event *event, int x_delt
  * matrix, which is exactly the desired state on both transitions. */
 static void c64_release_joystick_inputs(struct c64_source *context)
 {
-    if (!context || !context->joystick_mode_active || !context->rest_client) {
+    if (!context || !context->joystick_mode_active) {
         return;
     }
-    c64_rest_release_all(context->rest_client);
+    // C64STR-022: called from the OBS interact thread (focus loss, F10 toggle);
+    // dispatch release-all asynchronously so it never blocks on device latency.
+    if (context->keyboard) {
+        c64_machine_command_t cmd = {.type = C64_MACHINE_CMD_RELEASE_ALL};
+        c64_keyboard_queue_machine_command(context->keyboard, &cmd);
+    } else if (context->rest_client) {
+        c64_rest_release_all(context->rest_client);
+    }
 }
 
 void c64_focus(void *data, bool focus)
@@ -2826,9 +2833,13 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
     if (context->joystick_mode_active) {
         const char *joystick_input = c64_interact_joystick_input_for_vkey(event->native_vkey);
         if (joystick_input) {
-            if (context->rest_client) {
-                c64_rest_joystick_input(context->rest_client, context->joystick_emulation_port, joystick_input,
-                                        key_up ? "release" : "press");
+            // C64STR-022: enqueue for the async worker; never block the UI thread.
+            if (context->keyboard) {
+                c64_machine_command_t cmd = {.type = C64_MACHINE_CMD_JOYSTICK,
+                                             .joystick_port = context->joystick_emulation_port,
+                                             .joystick_press = !key_up};
+                snprintf(cmd.joystick_input, sizeof(cmd.joystick_input), "%s", joystick_input);
+                c64_keyboard_queue_machine_command(context->keyboard, &cmd);
             }
             return;
         }
@@ -2848,16 +2859,19 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
                                          context->keyboard_tab_down)) {
         context->keyboard_reboot_consumed = true;
         C64_LOG_INFO("Keyboard: ESC+TAB pressed - performing C64 reboot");
-        if (context->rest_client) {
-            c64_rest_reboot(context->rest_client);
+        // C64STR-022: async so a slow device cannot freeze the OBS UI thread.
+        if (context->keyboard) {
+            c64_machine_command_t cmd = {.type = C64_MACHINE_CMD_REBOOT};
+            c64_keyboard_queue_machine_command(context->keyboard, &cmd);
         }
         return;
     }
 
     if (is_escape_key && (ctrl_down || shift_down)) {
         C64_LOG_INFO("Keyboard: %s+ESC pressed - performing C64 reset", ctrl_down ? "Ctrl" : "Shift");
-        if (context->rest_client) {
-            c64_rest_reset(context->rest_client);
+        if (context->keyboard) {
+            c64_machine_command_t cmd = {.type = C64_MACHINE_CMD_RESET};
+            c64_keyboard_queue_machine_command(context->keyboard, &cmd);
         }
         return;
     }
@@ -2878,8 +2892,9 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
     // load) so F10 can always toggle back out of joystick mode.
     if (strcmp(key.code, "F9") == 0) {
         C64_LOG_INFO("Keyboard: F9 pressed - toggling device menu");
-        if (context->rest_client) {
-            c64_rest_menu_button(context->rest_client);
+        if (context->keyboard) {
+            c64_machine_command_t cmd = {.type = C64_MACHINE_CMD_MENU};
+            c64_keyboard_queue_machine_command(context->keyboard, &cmd);
         }
         return;
     }

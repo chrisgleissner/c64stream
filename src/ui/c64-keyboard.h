@@ -41,6 +41,32 @@ typedef struct {
 } c64_output_t;
 
 /**
+ * Machine-control command types (C64STR-022).
+ *
+ * These map to blocking REST calls (joystick input, on-screen menu, reset,
+ * reboot, release-all). They are enqueued from the OBS UI/interact thread and
+ * executed asynchronously on the keyboard worker thread so a slow or
+ * unreachable device never blocks the OBS UI.
+ */
+typedef enum {
+    C64_MACHINE_CMD_JOYSTICK,    // Joystick press/release on a port
+    C64_MACHINE_CMD_MENU,        // Toggle device on-screen menu (F9)
+    C64_MACHINE_CMD_RESET,       // Soft reset (Ctrl/Shift+ESC)
+    C64_MACHINE_CMD_REBOOT,      // Reboot (ESC+TAB)
+    C64_MACHINE_CMD_RELEASE_ALL, // Release all held joystick inputs
+} c64_machine_cmd_type_t;
+
+/**
+ * Machine-control command descriptor (enqueued for async execution).
+ */
+typedef struct {
+    c64_machine_cmd_type_t type;
+    int joystick_port;       // For C64_MACHINE_CMD_JOYSTICK
+    char joystick_input[16]; // For C64_MACHINE_CMD_JOYSTICK ("up"/"down"/...)
+    bool joystick_press;     // For C64_MACHINE_CMD_JOYSTICK: press vs release
+} c64_machine_command_t;
+
+/**
  * Load keymap from file
  * @param path Path to .c64keymap.ini file
  * @return Keymap instance or NULL on error
@@ -114,6 +140,21 @@ bool c64_keyboard_release_all(c64_keyboard_t *keyboard);
  * @param output Output descriptor from keymap conversion
  */
 bool c64_keyboard_queue_output(c64_keyboard_t *keyboard, const c64_output_t *output);
+
+/**
+ * Enqueue a machine-control command (joystick/menu/reset/reboot/release-all)
+ * for asynchronous execution on the worker thread (C64STR-022).
+ *
+ * Returns immediately without any network I/O. Commands run in FIFO order so
+ * joystick press/release ordering is preserved. Returns false only if the
+ * command queue is full (the worker has fallen far behind, e.g. a wedged
+ * device); callers may safely ignore the result for best-effort input.
+ *
+ * @param keyboard Keyboard instance
+ * @param cmd Command descriptor (copied)
+ * @return true if enqueued, false if the queue is full or args are invalid
+ */
+bool c64_keyboard_queue_machine_command(c64_keyboard_t *keyboard, const c64_machine_command_t *cmd);
 
 /**
  * Get injection worker status
