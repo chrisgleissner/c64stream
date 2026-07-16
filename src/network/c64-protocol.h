@@ -32,6 +32,19 @@ See <https://www.gnu.org/licenses/> for details.
 #define C64_BYTES_PER_LINE 192 // 384 pixels / 2 (4-bit per pixel) - keeping original
 #define C64_LINES_PER_PACKET 4
 
+/* All frame storage is PAL-sized.  Packet-derived heights must therefore
+ * never escape this range before reaching render or recording code. */
+static inline uint32_t c64_clamp_frame_height(uint32_t height)
+{
+    if (height < C64_NTSC_HEIGHT) {
+        return C64_NTSC_HEIGHT;
+    }
+    if (height > C64_PAL_HEIGHT) {
+        return C64_PAL_HEIGHT;
+    }
+    return height;
+}
+
 // Frame assembly constants
 #define C64_MAX_PACKETS_PER_FRAME 68           // PAL: 272 lines ÷ 4 lines/packet = 68 packets
 #define C64_FRAME_TIMEOUT_MS 100               // Timeout for incomplete frames

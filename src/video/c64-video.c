@@ -1646,7 +1646,8 @@ void *c64_video_processor_thread_func(void *data)
             }
 
             if (time_since_last_video > no_video_retry_threshold_ns && time_since_last_retry >= retry_interval_ns &&
-                !os_atomic_load_long(&context->retry_in_progress)) {
+                !os_atomic_load_long(&context->retry_in_progress) &&
+                !os_atomic_load_bool(&context->udp_port_conflict)) {
                 uint64_t time_since_last_audio = current_time - context->last_audio_packet_time;
                 C64_LOG_INFO(
                     "No video packets for %.1fs (audio: %.1fs), retrying TCP commands and recreating UDP sockets",

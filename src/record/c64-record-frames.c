@@ -22,10 +22,16 @@ void c64_frames_save_as_bmp(struct c64_source *context, uint32_t *frame_buffer)
         return;
     }
 
+    // The session/CSV check-and-open sequence is shared with UI recording toggles.
+    if (pthread_mutex_lock(&context->recording_mutex) != 0) {
+        return;
+    }
+
     // Ensure we have a recording session and CSV logging
     c64_session_ensure_exists(context);
     if (context->session_folder[0] == '\0') {
         C64_LOG_WARNING("" RECORD_LOG_PREFIX " Failed to create recording session for frame saving");
+        pthread_mutex_unlock(&context->recording_mutex);
         return;
     }
 
@@ -34,6 +40,7 @@ void c64_frames_save_as_bmp(struct c64_source *context, uint32_t *frame_buffer)
         c64_start_obs_csv_recording(context);
         c64_start_network_csv_recording(context);
     }
+    pthread_mutex_unlock(&context->recording_mutex);
 
     // Create frames subfolder within session folder
     char frames_folder[900];

@@ -214,8 +214,11 @@ struct c64_source {
     volatile long retry_in_progress;   // Flag to prevent redundant retry attempts (atomic: 0/1)
     pthread_t retry_thread;            // Background retry/connect thread (never run on OBS UI thread)
     volatile long retry_thread_active; // atomic: 0/1
-    uint32_t retry_count;              // Number of retry attempts
-    uint32_t consecutive_failures;     // Consecutive TCP failures for backoff
+    bool retry_thread_valid;           // retry_thread has been created and must be joined
+    pthread_mutex_t retry_thread_mutex;
+    volatile bool udp_port_conflict; // A local UDP port is in use; wait for a settings change before retrying
+    uint32_t retry_count;            // Number of retry attempts
+    uint32_t consecutive_failures;   // Consecutive TCP failures for backoff
 
     // Network buffer for packet jitter correction
     struct c64_network_buffer *network_buffer; // Unified network buffer for video and audio packets

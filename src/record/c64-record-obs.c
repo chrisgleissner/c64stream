@@ -23,8 +23,12 @@ See <https://www.gnu.org/licenses/> for details.
  */
 void c64_obs_write_header(struct c64_source *context)
 {
-    if (!context || !context->timing_file) {
+    if (!context || pthread_mutex_lock(&context->recording_mutex) != 0) {
+        return;
+    }
+    if (!context->timing_file) {
         C64_LOG_ERROR("" RECORD_LOG_PREFIX " Cannot write CSV header: context or timing file is NULL");
+        pthread_mutex_unlock(&context->recording_mutex);
         return;
     }
 
@@ -41,6 +45,7 @@ void c64_obs_write_header(struct c64_source *context)
     fflush(context->timing_file);
 
     C64_LOG_INFO("" RECORD_LOG_PREFIX " OBS timing CSV header written successfully");
+    pthread_mutex_unlock(&context->recording_mutex);
 }
 
 /**
@@ -51,7 +56,11 @@ void c64_obs_write_header(struct c64_source *context)
  */
 void c64_obs_log_video_event(struct c64_source *context, uint16_t frame_num, size_t frame_size, bool is_all_white)
 {
-    if (!context || !context->timing_file) {
+    if (!context || pthread_mutex_lock(&context->recording_mutex) != 0) {
+        return;
+    }
+    if (!context->timing_file) {
+        pthread_mutex_unlock(&context->recording_mutex);
         return; // Silently ignore if timing file not available
     }
 
@@ -80,6 +89,7 @@ void c64_obs_log_video_event(struct c64_source *context, uint16_t frame_num, siz
 
     // Flush immediately for real-time analysis
     fflush(context->timing_file);
+    pthread_mutex_unlock(&context->recording_mutex);
 }
 
 /**
@@ -89,7 +99,11 @@ void c64_obs_log_video_event(struct c64_source *context, uint16_t frame_num, siz
  */
 void c64_obs_log_audio_event(struct c64_source *context, size_t data_size, bool has_signal)
 {
-    if (!context || !context->timing_file) {
+    if (!context || pthread_mutex_lock(&context->recording_mutex) != 0) {
+        return;
+    }
+    if (!context->timing_file) {
+        pthread_mutex_unlock(&context->recording_mutex);
         return; // Silently ignore if timing file not available
     }
 
@@ -117,4 +131,5 @@ void c64_obs_log_audio_event(struct c64_source *context, size_t data_size, bool 
 
     // Flush immediately for real-time analysis
     fflush(context->timing_file);
+    pthread_mutex_unlock(&context->recording_mutex);
 }

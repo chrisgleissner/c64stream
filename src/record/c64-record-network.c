@@ -39,8 +39,12 @@ void c64_network_reset_timing(void)
 
 void c64_network_write_header(struct c64_source *context)
 {
-    if (!context || !context->network_file) {
+    if (!context || pthread_mutex_lock(&context->recording_mutex) != 0) {
+        return;
+    }
+    if (!context->network_file) {
         C64_LOG_ERROR("" RECORD_LOG_PREFIX " Cannot write network CSV header: context or network file is NULL");
+        pthread_mutex_unlock(&context->recording_mutex);
         return;
     }
 
@@ -61,6 +65,7 @@ void c64_network_write_header(struct c64_source *context)
     fflush(context->network_file);
 
     C64_LOG_INFO("" RECORD_LOG_PREFIX " Network packet CSV header written successfully");
+    pthread_mutex_unlock(&context->recording_mutex);
 }
 
 /**
@@ -78,7 +83,7 @@ void c64_network_log_video_packet(struct c64_source *context, uint16_t sequence_
                                   uint16_t line_num, bool is_last_packet, size_t packet_size, size_t data_payload,
                                   int64_t jitter_us, bool is_all_white, uint64_t packet_timestamp_ns)
 {
-    if (!context || !context->network_file) {
+    if (!context) {
         return; // Silently ignore if network file not available
     }
 
@@ -120,7 +125,13 @@ void c64_network_log_video_packet(struct c64_source *context, uint16_t sequence_
     }
 
     // Single fwrite call is much faster than multiple fprintfs due to reduced locking/overhead
-    fwrite(log_buffer, 1, len, context->network_file);
+    if (pthread_mutex_lock(&context->recording_mutex) != 0) {
+        return;
+    }
+    if (context->network_file) {
+        fwrite(log_buffer, 1, len, context->network_file);
+    }
+    pthread_mutex_unlock(&context->recording_mutex);
 
     // Flush trigger removed to improve performance - rely on OS buffering and fclose
     static int flush_counter = 0;
@@ -142,7 +153,7 @@ void c64_network_log_audio_packet(struct c64_source *context, uint16_t sequence_
                                   uint16_t sample_count, int64_t jitter_us, bool has_signal,
                                   uint64_t packet_timestamp_ns)
 {
-    if (!context || !context->network_file) {
+    if (!context) {
         return; // Silently ignore if network file not available
     }
 
@@ -190,7 +201,13 @@ void c64_network_log_audio_packet(struct c64_source *context, uint16_t sequence_
         len = (int)sizeof(log_buffer);
     }
 
-    fwrite(log_buffer, 1, (size_t)len, context->network_file);
+    if (pthread_mutex_lock(&context->recording_mutex) != 0) {
+        return;
+    }
+    if (context->network_file) {
+        fwrite(log_buffer, 1, (size_t)len, context->network_file);
+    }
+    pthread_mutex_unlock(&context->recording_mutex);
 
     // Flush removed for performance; rely on OS buffering and fclose.
 }

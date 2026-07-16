@@ -14,6 +14,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include <util/threading.h>
 #include <string.h>
 #include <inttypes.h>
+#include <math.h>
 #include <pthread.h>
 #include <sys/stat.h>
 #ifndef S_ISREG
@@ -63,6 +64,45 @@ static void c64_queue_properties_refresh(struct c64_source *context);
 static void c64_rebuild_rest_client(struct c64_source *context);
 static void c64_release_joystick_inputs(struct c64_source *context);
 static bool c64_start_streaming_inner(struct c64_source *context);
+
+static volatile long c64_next_default_port_pair;
+
+static float c64_clamp_effect_float(float value, float minimum, float maximum, float fallback)
+{
+    if (!isfinite(value)) {
+        return fallback;
+    }
+    return fmaxf(minimum, fminf(value, maximum));
+}
+
+static int c64_clamp_effect_int(int value, int minimum, int maximum)
+{
+    if (value < minimum) {
+        return minimum;
+    }
+    if (value > maximum) {
+        return maximum;
+    }
+    return value;
+}
+
+static void c64_clamp_effect_params(struct c64_source *context)
+{
+    if (!context) {
+        return;
+    }
+
+    context->pixel_width = c64_clamp_effect_float(context->pixel_width, 0.5f, 4.0f, 1.0f);
+    context->pixel_height = c64_clamp_effect_float(context->pixel_height, 0.5f, 4.0f, 1.0f);
+    context->scan_line_distance = c64_clamp_effect_float(context->scan_line_distance, 0.0f, 2.0f, 0.0f);
+    context->scan_line_strength = c64_clamp_effect_float(context->scan_line_strength, 0.0f, 1.0f, 0.0f);
+    context->blur_strength = c64_clamp_effect_float(context->blur_strength, 0.0f, 1.0f, 0.0f);
+    context->bloom_strength = c64_clamp_effect_float(context->bloom_strength, 0.0f, 1.0f, 0.0f);
+    context->tint_strength = c64_clamp_effect_float(context->tint_strength, 0.0f, 1.0f, 0.0f);
+    context->afterglow.duration_ms = c64_clamp_effect_int(context->afterglow.duration_ms, 0, 3000);
+    context->afterglow.curve = c64_clamp_effect_int(context->afterglow.curve, 0, 3);
+    context->tint_mode = c64_clamp_effect_int(context->tint_mode, 0, 3);
+}
 
 static void c64_rebuild_rest_client(struct c64_source *context)
 {
@@ -186,7 +226,8 @@ static float c64_obs_data_get_double_or_current(obs_data_t *settings, const char
         return current_value;
     }
 
-    return obs_data_has_user_value(settings, key) ? (float)obs_data_get_double(settings, key) : current_value;
+    const float configured_value = (float)obs_data_get_double(settings, key);
+    return obs_data_has_user_value(settings, key) || isfinite(configured_value) ? configured_value : current_value;
 }
 
 static int c64_obs_data_get_int_or_current(obs_data_t *settings, const char *key, int current_value)
@@ -195,7 +236,8 @@ static int c64_obs_data_get_int_or_current(obs_data_t *settings, const char *key
         return current_value;
     }
 
-    return obs_data_has_user_value(settings, key) ? (int)obs_data_get_int(settings, key) : current_value;
+    (void)current_value;
+    return (int)obs_data_get_int(settings, key);
 }
 
 static bool c64_try_get_prefer_pal_from_obs_fps(bool *prefer_pal)
@@ -270,6 +312,19 @@ void c64_async_retry_task(void *data)
     }
     c64_complete_pending_device_transition(context);
 
+    char ip_address[64];
+    char obs_ip_address[64];
+    uint32_t video_port;
+    uint32_t audio_port;
+    uint32_t control_port;
+    pthread_mutex_lock(&context->config_mutex);
+    snprintf(ip_address, sizeof(ip_address), "%s", context->ip_address);
+    snprintf(obs_ip_address, sizeof(obs_ip_address), "%s", context->obs_ip_address);
+    video_port = context->video_port;
+    audio_port = context->audio_port;
+    control_port = context->control_port;
+    pthread_mutex_unlock(&context->config_mutex);
+
     bool tcp_success = false;
 
     if (!context->streaming) {
@@ -283,14 +338,15 @@ void c64_async_retry_task(void *data)
     } else {
         // Already streaming - test connectivity and send start commands
         // Use quick connectivity test instead of recreating sockets (avoids race conditions)
-        if (c64_test_connectivity(context->ip_address, context->control_port)) {
+        if (c64_test_connectivity(ip_address, control_port)) {
             // We are explicitly requesting the peer to (re)start streaming now.
             context->last_start_command_time_ns = os_gettime_ns();
             char video_dest[C64_STREAM_DEST_MAX];
             char audio_dest[C64_STREAM_DEST_MAX];
-            if (c64_build_stream_dest(video_dest, sizeof(video_dest), context->obs_ip_address, context->video_port) &&
-                c64_build_stream_dest(audio_dest, sizeof(audio_dest), context->obs_ip_address, context->audio_port) &&
-                c64_stream_control(context, true, 0, video_dest) && c64_stream_control(context, true, 1, audio_dest)) {
+            if (c64_build_stream_dest(video_dest, sizeof(video_dest), obs_ip_address, video_port) &&
+                c64_build_stream_dest(audio_dest, sizeof(audio_dest), obs_ip_address, audio_port) &&
+                c64_stream_control_to(context, ip_address, control_port, true, 0, video_dest) &&
+                c64_stream_control_to(context, ip_address, control_port, true, 1, audio_dest)) {
                 tcp_success = true;
                 context->consecutive_failures = 0; // Reset failure counter on success
             } else {
@@ -341,12 +397,28 @@ static void c64_schedule_retry(struct c64_source *context, const char *reason)
         return;
     }
 
+    pthread_mutex_lock(&context->retry_thread_mutex);
+    if (context->retry_thread_valid) {
+        const int join_result = pthread_join(context->retry_thread, NULL);
+        if (join_result != 0) {
+            C64_LOG_WARNING("Failed to join completed retry thread (err=%d)", join_result);
+            pthread_mutex_unlock(&context->retry_thread_mutex);
+            os_atomic_set_long(&context->retry_in_progress, 0);
+            os_atomic_set_long(&context->retry_thread_active, 0);
+            return;
+        }
+        context->retry_thread_valid = false;
+    }
+
     int err = pthread_create(&context->retry_thread, NULL, c64_retry_thread_main, context);
     if (err != 0) {
+        pthread_mutex_unlock(&context->retry_thread_mutex);
         os_atomic_set_long(&context->retry_in_progress, 0);
         os_atomic_set_long(&context->retry_thread_active, 0);
         C64_LOG_WARNING("Failed to start retry thread (%s)", reason ? reason : "no reason");
     } else {
+        context->retry_thread_valid = true;
+        pthread_mutex_unlock(&context->retry_thread_mutex);
         C64_LOG_DEBUG("Scheduled background retry (%s)", reason ? reason : "no reason");
     }
 }
@@ -692,14 +764,20 @@ static void c64_refresh_obs_ip(struct c64_source *context)
 // Helper function to safely close and reset sockets
 static void close_and_reset_sockets(struct c64_source *context)
 {
+    uint32_t video_port;
+    uint32_t audio_port;
+    pthread_mutex_lock(&context->config_mutex);
+    video_port = context->video_port;
+    audio_port = context->audio_port;
+    pthread_mutex_unlock(&context->config_mutex);
     if (context->video_socket != INVALID_SOCKET_VALUE) {
-        C64_LOG_DEBUG("Closing video socket (port %u)", context->video_port);
+        C64_LOG_DEBUG("Closing video socket (port %u)", video_port);
         close(context->video_socket);
         context->video_socket = INVALID_SOCKET_VALUE;
         C64_LOG_DEBUG("Video socket closed and reset to INVALID_SOCKET_VALUE");
     }
     if (context->audio_socket != INVALID_SOCKET_VALUE) {
-        C64_LOG_DEBUG("Closing audio socket (port %u)", context->audio_port);
+        C64_LOG_DEBUG("Closing audio socket (port %u)", audio_port);
         close(context->audio_socket);
         context->audio_socket = INVALID_SOCKET_VALUE;
         C64_LOG_DEBUG("Audio socket closed and reset to INVALID_SOCKET_VALUE");
@@ -785,6 +863,16 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->ip_address[sizeof(context->ip_address) - 1] = '\0';
 
     context->auto_detect_ip = obs_data_get_bool(settings, "auto_detect_ip");
+    const bool has_saved_video_port = obs_data_has_user_value(settings, "video_port");
+    const bool has_saved_audio_port = obs_data_has_user_value(settings, "audio_port");
+    if (!has_saved_video_port && !has_saved_audio_port) {
+        const long port_pair = os_atomic_inc_long(&c64_next_default_port_pair) - 1;
+        const uint32_t video_port = C64_DEFAULT_VIDEO_PORT + (uint32_t)(port_pair * 2);
+        const uint32_t audio_port = video_port + 1;
+        obs_data_set_int(settings, "video_port", video_port);
+        obs_data_set_int(settings, "audio_port", audio_port);
+        C64_LOG_INFO("" NETWORK_LOG_PREFIX " Assigned default UDP ports video:%u audio:%u", video_port, audio_port);
+    }
     context->video_port = (uint32_t)obs_data_get_int(settings, "video_port");
     context->audio_port = (uint32_t)obs_data_get_int(settings, "audio_port");
     context->control_port = (uint32_t)obs_data_get_int(settings, "control_port");
@@ -909,6 +997,19 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
         return NULL;
     }
 
+    if (pthread_mutex_init(&context->retry_thread_mutex, NULL) != 0) {
+        C64_LOG_ERROR("Failed to initialize retry thread mutex");
+        c64_network_buffer_destroy(context->network_buffer);
+        pthread_mutex_destroy(&context->stream_start_mutex);
+        pthread_mutex_destroy(&context->config_mutex);
+        pthread_mutex_destroy(&context->assembly_mutex);
+        bfree(context->frame_buffer);
+        bfree(context->bmp_row_buffer);
+        bfree(context->bgr_frame_buffer);
+        bfree(context);
+        return NULL;
+    }
+
     // Set initial buffer delay for both video and audio
     c64_network_buffer_set_delay(context->network_buffer, context->buffer_delay_ms, context->buffer_delay_ms);
 
@@ -1002,6 +1103,8 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->retry_count = 0;
     context->consecutive_failures = 0;
     os_atomic_set_long(&context->retry_thread_active, 0);
+    context->retry_thread_valid = false;
+    os_atomic_set_bool(&context->udp_port_conflict, false);
 
     // Initialize synthetic A/V timeline state
     context->stream_start_ns = 0;
@@ -1060,6 +1163,8 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->afterglow_enable = (context->afterglow.duration_ms > 0);
     context->tint_mode = c64_obs_data_get_int_or_current(settings, "tint_mode", context->tint_mode);
     context->tint_strength = c64_obs_data_get_double_or_current(settings, "tint_strength", context->tint_strength);
+    c64_clamp_effect_params(context);
+    context->bloom_enable = context->bloom_strength > 0.0f;
     context->tint_enable = (context->tint_mode > 0 && context->tint_strength > 0.0f);
 
     context->frame_dirty = false;
@@ -1202,15 +1307,18 @@ void c64_destroy(void *data)
 
     c64_av_sync_cleanup(context);
 
-    // Stop any background retry thread.
-    if (os_atomic_load_long(&context->retry_thread_active)) {
+    // Stop any background retry thread, including a completed joinable retry.
+    pthread_mutex_lock(&context->retry_thread_mutex);
+    if (context->retry_thread_valid) {
         int join_result = pthread_join(context->retry_thread, NULL);
         if (join_result != 0) {
             C64_LOG_WARNING("Failed to join retry thread during destroy (err=%d)", join_result);
         }
+        context->retry_thread_valid = false;
         os_atomic_set_long(&context->retry_thread_active, 0);
         os_atomic_set_long(&context->retry_in_progress, 0);
     }
+    pthread_mutex_unlock(&context->retry_thread_mutex);
 
     // Stop streaming if active. This sends release_all and explicit remote
     // stream stops before closing local sockets.
@@ -1276,6 +1384,7 @@ void c64_destroy(void *data)
     pthread_mutex_destroy(&context->stream_start_mutex);
     pthread_mutex_destroy(&context->assembly_mutex);
     pthread_mutex_destroy(&context->config_mutex);
+    pthread_mutex_destroy(&context->retry_thread_mutex);
     if (context->frame_buffer) {
         bfree(context->frame_buffer);
     }
@@ -1497,6 +1606,11 @@ void c64_update(void *data, obs_data_t *settings)
     char old_hostname[64];
     char old_ip_address[64];
     char old_dns_server_ip[64];
+    char old_obs_ip[64];
+    char old_password[sizeof(context->c64_password)];
+    uint32_t old_video_port;
+    uint32_t old_audio_port;
+    uint32_t old_control_port;
     pthread_mutex_lock(&context->config_mutex);
     strncpy(old_hostname, context->hostname, sizeof(old_hostname) - 1);
     old_hostname[sizeof(old_hostname) - 1] = '\0';
@@ -1504,13 +1618,12 @@ void c64_update(void *data, obs_data_t *settings)
     old_dns_server_ip[sizeof(old_dns_server_ip) - 1] = '\0';
     strncpy(old_ip_address, context->ip_address, sizeof(old_ip_address) - 1);
     old_ip_address[sizeof(old_ip_address) - 1] = '\0';
-    pthread_mutex_unlock(&context->config_mutex);
-
-    char old_obs_ip[64];
-    char old_password[sizeof(context->c64_password)];
-    strncpy(old_obs_ip, context->obs_ip_address, sizeof(old_obs_ip) - 1);
-    old_obs_ip[sizeof(old_obs_ip) - 1] = '\0';
+    snprintf(old_obs_ip, sizeof(old_obs_ip), "%s", context->obs_ip_address);
     snprintf(old_password, sizeof(old_password), "%s", context->c64_password);
+    old_video_port = context->video_port;
+    old_audio_port = context->audio_port;
+    old_control_port = context->control_port;
+    pthread_mutex_unlock(&context->config_mutex);
 
     const bool host_changed = (strcmp(old_hostname, new_host) != 0);
     const char *dns_server_ip = obs_data_get_string(settings, "dns_server_ip");
@@ -1520,8 +1633,8 @@ void c64_update(void *data, obs_data_t *settings)
     const bool obs_ip_changed = (strcmp(old_obs_ip, new_obs_ip_str) != 0);
 
     // Check if ports have changed (requires socket recreation)
-    bool ports_changed = (new_video_port != context->video_port) || (new_audio_port != context->audio_port) ||
-                         (new_control_port != context->control_port);
+    bool ports_changed = (new_video_port != old_video_port) || (new_audio_port != old_audio_port) ||
+                         (new_control_port != old_control_port);
 
     // `streaming` only turns true at the very end of c64_start_streaming, but
     // that function has already told the device to stream long before then.
@@ -1536,8 +1649,7 @@ void c64_update(void *data, obs_data_t *settings)
         if (ports_changed) {
             C64_LOG_INFO(
                 "Port configuration changed (video: %u->%u, audio: %u->%u, control: %u->%u), recreating sockets",
-                context->video_port, new_video_port, context->audio_port, new_audio_port, context->control_port,
-                new_control_port);
+                old_video_port, new_video_port, old_audio_port, new_audio_port, old_control_port, new_control_port);
         }
         if (host_changed) {
             C64_LOG_INFO("C64 host changed (%s->%s), restarting streaming", old_hostname, new_host);
@@ -1548,7 +1660,7 @@ void c64_update(void *data, obs_data_t *settings)
          * released keys and stopped this explicit old endpoint. */
         if (!context->device_transition_pending) {
             snprintf(context->device_transition_host, sizeof(context->device_transition_host), "%s", old_ip_address);
-            context->device_transition_control_port = context->control_port;
+            context->device_transition_control_port = old_control_port;
             context->device_transition_pending = true;
         }
     }
@@ -1579,9 +1691,6 @@ void c64_update(void *data, obs_data_t *settings)
         strncpy(context->ip_address, new_host, sizeof(context->ip_address) - 1);
         context->ip_address[sizeof(context->ip_address) - 1] = '\0';
     }
-    c64_set_expected_peer_ip(context, context->ip_address);
-    pthread_mutex_unlock(&context->config_mutex);
-
     if (new_obs_ip) {
         strncpy(context->obs_ip_address, new_obs_ip, sizeof(context->obs_ip_address) - 1);
         context->obs_ip_address[sizeof(context->obs_ip_address) - 1] = '\0';
@@ -1592,10 +1701,16 @@ void c64_update(void *data, obs_data_t *settings)
     context->video_port = new_video_port;
     context->audio_port = new_audio_port;
     context->control_port = new_control_port;
+    c64_set_expected_peer_ip(context, context->ip_address);
+    pthread_mutex_unlock(&context->config_mutex);
 
-    if ((host_changed || strcmp(old_password, context->c64_password) != 0) && !needs_device_transition) {
+    const bool password_changed = strcmp(old_password, new_password ? new_password : "") != 0;
+    if ((host_changed || password_changed) && !needs_device_transition) {
         context->stream_rest_demoted_until_ns = 0;
         os_atomic_set_long(&context->rest_rebuild_pending, 1);
+    }
+    if (ports_changed || obs_ip_changed) {
+        os_atomic_set_bool(&context->udp_port_conflict, false);
     }
 
     // Update buffer delay setting with debouncing to prevent timestamp reset storms
@@ -1654,6 +1769,8 @@ void c64_update(void *data, obs_data_t *settings)
     context->afterglow_enable = (context->afterglow.duration_ms > 0);
     context->tint_mode = c64_obs_data_get_int_or_current(settings, "tint_mode", context->tint_mode);
     context->tint_strength = c64_obs_data_get_double_or_current(settings, "tint_strength", context->tint_strength);
+    c64_clamp_effect_params(context);
+    context->bloom_enable = context->bloom_strength > 0.0f;
     context->tint_enable = (context->tint_mode > 0 && context->tint_strength > 0.0f);
 
     // Check if dimension-affecting effects are now enabled
@@ -1692,13 +1809,14 @@ void c64_update(void *data, obs_data_t *settings)
 
     // Only schedule a background retry when network-related settings changed or streaming is stopped.
     const bool should_schedule_retry = (!context->streaming) || ports_changed || host_changed || obs_ip_changed ||
-                                       dns_changed || auto_detect_changed;
+                                       dns_changed || auto_detect_changed || password_changed;
     if (should_schedule_retry) {
         const char *reason = !context->streaming ? "update (not streaming)"
                              : host_changed      ? "update (host changed)"
                              : ports_changed     ? "update (ports changed)"
                              : obs_ip_changed    ? "update (OBS IP changed)"
                              : dns_changed       ? "update (DNS changed)"
+                             : password_changed  ? "update (password changed)"
                                                  : "update";
         C64_LOG_INFO("" NETWORK_LOG_PREFIX " Applying configuration and scheduling streaming start (%s)", reason);
         c64_schedule_retry(context, reason);
@@ -1743,21 +1861,34 @@ bool c64_start_streaming(struct c64_source *context)
 
 static bool c64_start_streaming_inner(struct c64_source *context)
 {
-    C64_LOG_INFO("Starting C64 Stream streaming to C64 %s (OBS IP: %s, video:%u, audio:%u)...", context->ip_address,
-                 context->obs_ip_address, context->video_port, context->audio_port);
+    char ip_address[64];
+    char obs_ip_address[64];
+    uint32_t video_port;
+    uint32_t audio_port;
+    uint32_t control_port;
+    pthread_mutex_lock(&context->config_mutex);
+    snprintf(ip_address, sizeof(ip_address), "%s", context->ip_address);
+    snprintf(obs_ip_address, sizeof(obs_ip_address), "%s", context->obs_ip_address);
+    video_port = context->video_port;
+    audio_port = context->audio_port;
+    control_port = context->control_port;
+    pthread_mutex_unlock(&context->config_mutex);
+
+    C64_LOG_INFO("Starting C64 Stream streaming to C64 %s (OBS IP: %s, video:%u, audio:%u)...", ip_address,
+                 obs_ip_address, video_port, audio_port);
 
     // Proactively disconnect all streams before starting to ensure clean state
     // This prevents stale streaming state on the C64U from previous sessions
-    if (strcmp(context->ip_address, "0.0.0.0") != 0) {
+    if (strcmp(ip_address, "0.0.0.0") != 0) {
         C64_LOG_DEBUG("Sending proactive disconnect for all streams before starting");
-        c64_stream_control(context, false, 0, NULL); // Stop video
-        c64_stream_control(context, false, 1, NULL); // Stop audio
+        c64_stream_control_to(context, ip_address, control_port, false, 0, NULL); // Stop video
+        c64_stream_control_to(context, ip_address, control_port, false, 1, NULL); // Stop audio
         // Brief delay to ensure stop commands are processed before start commands
         os_sleep_ms(50);
     }
 
     // Ensure expected peer IP matches current ip_address before binding sockets
-    c64_set_expected_peer_ip(context, context->ip_address);
+    c64_set_expected_peer_ip(context, ip_address);
 
     // Stop existing threads BEFORE closing sockets (prevents race conditions on Windows)
     if (context->streaming) {
@@ -1788,8 +1919,11 @@ static bool c64_start_streaming_inner(struct c64_source *context)
     close_and_reset_sockets(context);
 
     // Create fresh UDP sockets (required for reconnection after C64 restart)
-    context->video_socket = c64_create_udp_socket(context->video_port);
-    context->audio_socket = c64_create_udp_socket(context->audio_port);
+    bool video_port_in_use = false;
+    bool audio_port_in_use = false;
+    context->video_socket = c64_create_udp_socket(video_port, &video_port_in_use);
+    context->audio_socket = c64_create_udp_socket(audio_port, &audio_port_in_use);
+    os_atomic_set_bool(&context->udp_port_conflict, video_port_in_use || audio_port_in_use);
 
     if (context->video_socket == INVALID_SOCKET_VALUE || context->audio_socket == INVALID_SOCKET_VALUE) {
         C64_LOG_ERROR("Failed to create UDP sockets for streaming");
@@ -1836,13 +1970,14 @@ static bool c64_start_streaming_inner(struct c64_source *context)
     context->last_start_command_time_ns = os_gettime_ns();
     char video_dest[C64_STREAM_DEST_MAX];
     char audio_dest[C64_STREAM_DEST_MAX];
-    if (!c64_build_stream_dest(video_dest, sizeof(video_dest), context->obs_ip_address, context->video_port) ||
-        !c64_build_stream_dest(audio_dest, sizeof(audio_dest), context->obs_ip_address, context->audio_port)) {
+    if (!c64_build_stream_dest(video_dest, sizeof(video_dest), obs_ip_address, video_port) ||
+        !c64_build_stream_dest(audio_dest, sizeof(audio_dest), obs_ip_address, audio_port)) {
         C64_LOG_ERROR("" NETWORK_LOG_PREFIX " Failed to build stream destination for start command");
         close_and_reset_sockets(context);
         return false;
     }
-    if (!c64_stream_control(context, true, 0, video_dest) || !c64_stream_control(context, true, 1, audio_dest)) {
+    if (!c64_stream_control_to(context, ip_address, control_port, true, 0, video_dest) ||
+        !c64_stream_control_to(context, ip_address, control_port, true, 1, audio_dest)) {
         C64_LOG_ERROR("" NETWORK_LOG_PREFIX " Failed to start C64 stream control");
         c64_abort_stream_start(context);
         return false;
