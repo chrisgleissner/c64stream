@@ -171,6 +171,24 @@ else()
 endif()
 add_test(NAME record_csv_concurrency COMMAND test_record_csv_concurrency)
 
+# C64STR-009: recording start reports failure (no false success) on open error.
+add_executable(
+  test_recording_open_failure test_recording_open_failure.c
+  ${CMAKE_SOURCE_DIR}/src/record/c64-record.c ${CMAKE_SOURCE_DIR}/src/record/c64-record-obs.c
+  ${CMAKE_SOURCE_DIR}/src/record/c64-record-network.c
+)
+target_include_directories(
+  test_recording_open_failure
+  PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/record ${CMAKE_SOURCE_DIR}/src/util
+          ${CMAKE_SOURCE_DIR}/src/network ${CMAKE_SOURCE_DIR}/src/audio ${CMAKE_SOURCE_DIR}/src/video
+)
+if(UNIX)
+  target_link_libraries(test_recording_open_failure PRIVATE OBS::libobs pthread m)
+else()
+  target_link_libraries(test_recording_open_failure PRIVATE OBS::libobs)
+endif()
+add_test(NAME recording_open_failure COMMAND test_recording_open_failure)
+
 add_executable(test_c64_stream_control test_c64_stream_control.c ${CMAKE_SOURCE_DIR}/src/network/c64-stream-control.c)
 target_include_directories(
   test_c64_stream_control
