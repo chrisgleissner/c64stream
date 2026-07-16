@@ -515,8 +515,13 @@ static bool c64_source_copy_file(const char *src_path, const char *dst_path)
         }
     }
 
-    fclose(dst);
+    if (fclose(dst) != 0) {
+        ok = false;
+    }
     fclose(src);
+    if (!ok) {
+        remove(dst_path);
+    }
     return ok;
 }
 
