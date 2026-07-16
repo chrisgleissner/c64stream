@@ -39,6 +39,11 @@ struct packet_ring_buffer {
     volatile long delay_us;        // Delay in microseconds; updated by the UI thread
     buffer_type_t type;            // For logging and type-specific behavior
     pthread_mutex_t mutex;         // Guards buffer access
+    // C64STR-026: consumer-owned copy of the most recently popped packet. Pop
+    // copies the ring slot here under the mutex and returns a pointer to it, so
+    // the producer may immediately reuse the freed ring slot without racing the
+    // consumer's read of the popped data.
+    struct packet_slot pop_scratch;
 };
 
 struct c64_network_buffer {
@@ -50,6 +55,9 @@ struct c64_network_buffer {
     // Packet payload storage (kept separate so insertion sorting only moves small metadata structs).
     uint8_t video_packet_data[C64_MAX_VIDEO_PACKETS][C64_VIDEO_PACKET_SIZE];
     uint8_t audio_packet_data[C64_MAX_AUDIO_PACKETS][C64_AUDIO_PACKET_SIZE];
+    // Backing payload for each ring's pop_scratch (see packet_ring_buffer).
+    uint8_t video_pop_scratch_data[C64_VIDEO_PACKET_SIZE];
+    uint8_t audio_pop_scratch_data[C64_AUDIO_PACKET_SIZE];
 };
 
 // ----------------------------------
@@ -343,11 +351,25 @@ static int rb_pop_oldest_locked(struct packet_ring_buffer *rb, struct packet_slo
         return 0;
     }
 
-    *out = &rb->slots[tail];
+    // C64STR-026: copy the popped packet into the consumer-owned scratch while
+    // still holding the mutex. Returning a pointer to the live ring slot would
+    // let the producer overwrite that slot (payload + metadata) the moment tail
+    // advances, racing the consumer's read after it releases the lock. The
+    // scratch is only ever touched by the consumer, so the returned data stays
+    // stable until the next pop.
+    struct packet_slot *src = &rb->slots[tail];
+    memcpy(rb->pop_scratch.data, src->data, rb->packet_size);
+    rb->pop_scratch.size = src->size;
+    rb->pop_scratch.timestamp_us = src->timestamp_us;
+    rb->pop_scratch.sequence_num = src->sequence_num;
+    rb->pop_scratch.frame_num = src->frame_num;
+    rb->pop_scratch.line_num = src->line_num;
+    rb->pop_scratch.valid = true;
+    *out = &rb->pop_scratch;
 
     // Update expected sequence to track what we've consumed
-    if (rb->slots[tail].valid && os_atomic_load_bool(&rb->seq_initialized)) {
-        uint16_t popped_seq = rb->slots[tail].sequence_num;
+    if (src->valid && os_atomic_load_bool(&rb->seq_initialized)) {
+        uint16_t popped_seq = src->sequence_num;
         rb->next_expected_seq = popped_seq + 1;
     }
 
@@ -358,7 +380,7 @@ static int rb_pop_oldest_locked(struct packet_ring_buffer *rb, struct packet_slo
     /* A delay adjustment must not retimestamp a packet after it has been
      * handed to the consumer.  The producer owns revalidation when it wraps
      * to this slot. */
-    rb->slots[tail].valid = false;
+    src->valid = false;
 
     return 1;
 }
@@ -426,6 +448,9 @@ struct c64_network_buffer *c64_network_buffer_create(void)
 
     // Initialize video buffer
     buf->video.slots = buf->video_slots;
+    buf->video.pop_scratch.data = buf->video_pop_scratch_data;
+    buf->video.pop_scratch.size = C64_VIDEO_PACKET_SIZE;
+    buf->video.pop_scratch.valid = false;
     buf->video.max_capacity = C64_MAX_VIDEO_PACKETS;
     buf->video.packet_size = C64_VIDEO_PACKET_SIZE;
     os_atomic_set_long(&buf->video.delay_us, 0); // Initialize with no delay by default
@@ -435,6 +460,9 @@ struct c64_network_buffer *c64_network_buffer_create(void)
 
     // Initialize audio buffer (use smaller allocation for audio)
     buf->audio.slots = buf->audio_slots;
+    buf->audio.pop_scratch.data = buf->audio_pop_scratch_data;
+    buf->audio.pop_scratch.size = C64_AUDIO_PACKET_SIZE;
+    buf->audio.pop_scratch.valid = false;
     buf->audio.max_capacity = C64_MAX_AUDIO_PACKETS;
     buf->audio.packet_size = C64_AUDIO_PACKET_SIZE;
     os_atomic_set_long(&buf->audio.delay_us, 0); // Initialize with no delay by default
