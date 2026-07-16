@@ -32,6 +32,11 @@ static inline bool c64_avi_segment_needs_rollover(uint32_t segment_width, uint32
 // Forward declarations
 struct c64_source;
 
+/* Deterministic AVI segment filename: segment 0 is "<folder>/video.avi",
+ * segment N (>0) is "<folder>/video.NNN.avi" (zero-padded to 3 digits). Kept
+ * public so the continuation-name scheme can be regression-tested (C64STR-012). */
+void c64_avi_segment_filename(char *buf, size_t size, const char *session_folder, uint32_t segment_index);
+
 // Video recording functions (AVI format)
 void c64_video_write_avi_header(FILE *file, uint32_t width, uint32_t height, double fps);
 void c64_video_update_avi_header(FILE *file, uint32_t frame_count, uint32_t audio_samples_written);

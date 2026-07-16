@@ -47,8 +47,15 @@ else()
 endif()
 add_test(NAME c64_network_buffer COMMAND test_c64_network_buffer)
 
-add_executable(test_c64_avi_segments test_c64_avi_segments.c)
-target_include_directories(test_c64_avi_segments PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/record)
+add_executable(
+  test_c64_avi_segments test_c64_avi_segments.c ${CMAKE_SOURCE_DIR}/src/record/c64-record-video.c
+)
+target_include_directories(
+  test_c64_avi_segments
+  PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/record ${CMAKE_SOURCE_DIR}/src/util
+          ${CMAKE_SOURCE_DIR}/src/video ${CMAKE_SOURCE_DIR}/src/network ${CMAKE_SOURCE_DIR}/src/audio
+)
+target_link_libraries(test_c64_avi_segments PRIVATE OBS::libobs)
 add_test(NAME c64_avi_segments COMMAND test_c64_avi_segments)
 
 # C64STR-014: per-source palette / colour-LUT isolation. Links only the

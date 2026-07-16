@@ -36,6 +36,18 @@ static int c64_avi_seek(FILE *file, int64_t offset, int whence)
 #endif
 }
 
+void c64_avi_segment_filename(char *buf, size_t size, const char *session_folder, uint32_t segment_index)
+{
+    if (!buf || size == 0) {
+        return;
+    }
+    if (segment_index == 0) {
+        snprintf(buf, size, "%s/video.avi", session_folder ? session_folder : "");
+    } else {
+        snprintf(buf, size, "%s/video.%03u.avi", session_folder ? session_folder : "", segment_index);
+    }
+}
+
 static bool c64_video_finalize_segment_locked(struct c64_source *context)
 {
     if (!context->video_file) {
@@ -55,11 +67,7 @@ static bool c64_video_finalize_segment_locked(struct c64_source *context)
 static bool c64_video_open_next_segment_locked(struct c64_source *context, uint32_t width, uint32_t height, double fps)
 {
     char filename[950];
-    if (context->avi_segment_index == 0) {
-        snprintf(filename, sizeof(filename), "%s/video.avi", context->session_folder);
-    } else {
-        snprintf(filename, sizeof(filename), "%s/video.%03u.avi", context->session_folder, context->avi_segment_index);
-    }
+    c64_avi_segment_filename(filename, sizeof(filename), context->session_folder, context->avi_segment_index);
 
     context->video_file = fopen(filename, "wb");
     if (!context->video_file) {
