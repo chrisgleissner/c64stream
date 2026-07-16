@@ -64,20 +64,19 @@ if(NOT WIN32)
 endif()
 
 # C64STR-014: per-source palette / colour-LUT isolation. Links only the
-# dependency-free colour module.
-add_executable(
-  test_c64_palette_isolation test_c64_palette_isolation.c ${CMAKE_SOURCE_DIR}/src/video/c64-color.c
-)
-target_include_directories(
-  test_c64_palette_isolation PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/video
-)
-if(UNIX)
+# dependency-free colour module. POSIX-only test harness (pthreads plus GCC/
+# Clang __atomic_* builtins for a TSan-clean stop flag). Validated under TSan
+# on Linux; excluded from the Windows build, which only compiles the test tree.
+if(NOT WIN32)
+  add_executable(
+    test_c64_palette_isolation test_c64_palette_isolation.c ${CMAKE_SOURCE_DIR}/src/video/c64-color.c
+  )
+  target_include_directories(
+    test_c64_palette_isolation PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/video
+  )
   target_link_libraries(test_c64_palette_isolation PRIVATE pthread)
-else()
-  # Windows: pthreads (and its header) come from libobs' bundled w32-pthreads.
-  target_link_libraries(test_c64_palette_isolation PRIVATE OBS::libobs)
+  add_test(NAME c64_palette_isolation COMMAND test_c64_palette_isolation)
 endif()
-add_test(NAME c64_palette_isolation COMMAND test_c64_palette_isolation)
 
 # C64STR-017: in-place REST retarget keeps a running script's client valid.
 add_executable(
