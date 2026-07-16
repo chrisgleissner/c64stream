@@ -226,6 +226,9 @@ struct c64_source {
     pthread_t retry_thread;            // Background retry/connect thread (never run on OBS UI thread)
     volatile long retry_thread_active; // atomic: 0/1
     bool retry_thread_valid;           // retry_thread has been created and must be joined
+    bool retry_shutting_down;          // C64STR-001: set under retry_thread_mutex during destroy;
+                                       // blocks any late c64_schedule_retry from spawning a new
+                                       // worker on a context being torn down (use-after-free guard)
     pthread_mutex_t retry_thread_mutex;
     volatile bool udp_port_conflict; // A local UDP port is in use; wait for a settings change before retrying
     uint32_t retry_count;            // Number of retry attempts

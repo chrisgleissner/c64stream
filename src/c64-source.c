@@ -458,6 +458,16 @@ static void c64_schedule_retry(struct c64_source *context, const char *reason)
     }
 
     pthread_mutex_lock(&context->retry_thread_mutex);
+    // C64STR-001: once destruction has begun, never spawn a new retry worker.
+    // Checked under retry_thread_mutex, which destroy also holds while it sets
+    // the flag and joins the outstanding worker, so a late scheduler either
+    // creates a thread destroy will still join, or observes the flag and bails.
+    if (context->retry_shutting_down) {
+        pthread_mutex_unlock(&context->retry_thread_mutex);
+        os_atomic_set_long(&context->retry_in_progress, 0);
+        os_atomic_set_long(&context->retry_thread_active, 0);
+        return;
+    }
     if (context->retry_thread_valid) {
         const int join_result = pthread_join(context->retry_thread, NULL);
         if (join_result != 0) {
@@ -1392,7 +1402,11 @@ void c64_destroy(void *data)
     c64_av_sync_cleanup(context);
 
     // Stop any background retry thread, including a completed joinable retry.
+    // C64STR-001: latch retry_shutting_down under the same mutex so a video
+    // processor thread that reaches c64_schedule_retry_task after this point
+    // cannot spawn a new worker on the context we are about to free.
     pthread_mutex_lock(&context->retry_thread_mutex);
+    context->retry_shutting_down = true;
     if (context->retry_thread_valid) {
         int join_result = pthread_join(context->retry_thread, NULL);
         if (join_result != 0) {
