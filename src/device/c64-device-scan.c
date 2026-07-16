@@ -322,16 +322,6 @@ static bool scan_verify_streaming(const char *host, uint16_t port)
         return false;
     }
 
-#ifdef _WIN32
-    DWORD timeout_ms = C64_SCAN_STREAM_TEST_WAIT_MS;
-    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char *)&timeout_ms, sizeof(timeout_ms));
-#else
-    struct timeval timeout;
-    timeout.tv_sec = C64_SCAN_STREAM_TEST_WAIT_MS / 1000;
-    timeout.tv_usec = (C64_SCAN_STREAM_TEST_WAIT_MS % 1000) * 1000;
-    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char *)&timeout, sizeof(timeout));
-#endif
-
     char dest[80];
     snprintf(dest, sizeof(dest), "%s:%u", local_ip, ntohs(local_addr.sin_port));
     char *escaped_dest = curl_easy_escape(NULL, dest, 0);
@@ -360,8 +350,28 @@ static bool scan_verify_streaming(const char *host, uint16_t port)
 
     bool received = false;
     if (start_ok) {
-        char buf[2048];
-        received = recv(sock, buf, sizeof(buf), 0) > 0;
+        /* c64_create_udp_socket() hands back a NON-BLOCKING socket, which makes
+         * SO_RCVTIMEO a silent no-op: recv() returns EAGAIN immediately and the
+         * intended wait never happens. That made the verdict a race -- it only
+         * passed when a packet happened to land during the start request's own
+         * round-trip, and any device that took a moment longer to start
+         * streaming was silently rejected (and pruned from the registry).
+         * select() waits regardless of the socket's blocking mode. */
+        fd_set read_fds;
+        FD_ZERO(&read_fds);
+        FD_SET(sock, &read_fds);
+        struct timeval wait;
+        wait.tv_sec = C64_SCAN_STREAM_TEST_WAIT_MS / 1000;
+        wait.tv_usec = (C64_SCAN_STREAM_TEST_WAIT_MS % 1000) * 1000;
+#ifdef _WIN32
+        const int ready = select(0, &read_fds, NULL, NULL, &wait);
+#else
+        const int ready = select((int)sock + 1, &read_fds, NULL, NULL, &wait);
+#endif
+        if (ready > 0) {
+            char buf[2048];
+            received = recv(sock, buf, sizeof(buf), 0) > 0;
+        }
     }
 
     // Best-effort stop -- failures here must not affect the verdict.
@@ -451,12 +461,16 @@ static void scan_one_host(scan_job_t *job, const char *host)
     // probing it would black out the live OBS output (logo after 3s) until the
     // retry loop notices and re-sends the start commands. It is also the one
     // host that needs no proof -- its packets are arriving right now.
+    //
+    // A failed probe only withholds this address from the scan results; it must
+    // never delete an already-registered device. Unlike the product check
+    // above -- where the device positively identifies itself as non-streaming
+    // hardware -- this is a timing-sensitive network probe, and a single
+    // missed UDP packet is not evidence that a device the user saved has
+    // stopped existing. Deleting on it silently destroyed the profile (and
+    // stranded its password key) on any transient miss.
     const bool is_active_host = job->active_host[0] && !strcmp(host, job->active_host);
     if (!password_required && !is_active_host && !scan_verify_streaming(host, job->port)) {
-        const c64_device_t *stale = c64_device_registry_find_by_host(host);
-        if (stale) {
-            c64_device_registry_delete(stale->id);
-        }
         return;
     }
 
