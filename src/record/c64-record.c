@@ -881,6 +881,7 @@ void c64_record_init(struct c64_source *context)
     context->record_video = false;
     context->record_csv = false;
     context->record_av_sync = false;
+    context->av_sync_prg_started = false;
     context->video_file = NULL;
     context->audio_file = NULL;
     context->timing_file = NULL;
@@ -1026,6 +1027,7 @@ void c64_record_update_settings(struct c64_source *context, void *settings_ptr)
                     if (!c64_rest_run_prg_async(host, password, prg_path)) {
                         C64_LOG_WARNING("" RECORD_LOG_PREFIX " Failed to start av-sync PRG via REST");
                     } else {
+                        context->av_sync_prg_started = true;
                         C64_LOG_INFO("" RECORD_LOG_PREFIX " av-sync PRG async call initiated");
                     }
                     bfree(prg_path);
@@ -1045,13 +1047,14 @@ void c64_record_update_settings(struct c64_source *context, void *settings_ptr)
 
             const char *host = obs_data_get_string(settings, "c64_host");
             const char *password = obs_data_get_string(settings, "c64_password");
-            if (host && host[0] != '\0' && strcmp(host, "0.0.0.0") != 0) {
+            if (context->av_sync_prg_started && host && host[0] != '\0' && strcmp(host, "0.0.0.0") != 0) {
                 if (!c64_rest_reset_machine_async(host, password)) {
                     C64_LOG_WARNING("" RECORD_LOG_PREFIX " Failed to reset device via REST");
                 } else {
                     C64_LOG_INFO("" RECORD_LOG_PREFIX " Device reset async call initiated");
                 }
             }
+            context->av_sync_prg_started = false;
         }
     }
 

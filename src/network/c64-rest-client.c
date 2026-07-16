@@ -19,6 +19,7 @@ See <https://www.gnu.org/licenses/> for details.
 
 #define REST_LOG_PREFIX "📡 REST: "
 #define HTTP_TIMEOUT_SECONDS 5
+#define C64_REST_MAX_RESPONSE_BYTES (1024U * 1024U)
 
 struct c64_rest_client {
     char *base_url;
@@ -458,6 +459,11 @@ static size_t write_callback(void *contents, size_t size, size_t nmemb, void *us
     size_t realsize = size * nmemb;
     response_buffer_t *buf = (response_buffer_t *)userp;
 
+    if (realsize > C64_REST_MAX_RESPONSE_BYTES || buf->size > C64_REST_MAX_RESPONSE_BYTES - realsize) {
+        C64_LOG_WARNING(REST_LOG_PREFIX "Response exceeded %u byte limit", C64_REST_MAX_RESPONSE_BYTES);
+        return 0;
+    }
+
     if (buf->size + realsize > buf->capacity) {
         size_t new_capacity = buf->capacity == 0 ? 4096 : buf->capacity * 2;
         while (new_capacity < buf->size + realsize) {
@@ -528,6 +534,7 @@ c64_rest_client_t *c64_rest_client_create(const char *base_url, const char *pass
     // Set common curl options - CRITICAL: NOSIGNAL must be set to prevent crashes on Windows
     curl_easy_setopt(client->curl, CURLOPT_NOSIGNAL, 1L);
     curl_easy_setopt(client->curl, CURLOPT_TIMEOUT, HTTP_TIMEOUT_SECONDS);
+    curl_easy_setopt(client->curl, CURLOPT_MAXFILESIZE_LARGE, (curl_off_t)C64_REST_MAX_RESPONSE_BYTES);
     curl_easy_setopt(client->curl, CURLOPT_FOLLOWLOCATION, 1L);
 
     C64_LOG_DEBUG(REST_LOG_PREFIX "Created REST client for %s", base_url);

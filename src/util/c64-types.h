@@ -264,6 +264,7 @@ struct c64_source {
     bool record_video;
     bool record_csv;     // CSV recording control (network and OBS events)
     bool record_av_sync; // av-sync.csv recording control (OBS AV SYNC matches)
+    bool av_sync_prg_started;
     FILE *video_file;
     FILE *audio_file;
     FILE *timing_file;
