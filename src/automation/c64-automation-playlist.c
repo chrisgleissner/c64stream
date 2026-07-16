@@ -40,6 +40,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include <time.h>
 
 #define AUTOMATION_LOG_PREFIX "[c64-automation] "
+#define C64_AUTOMATION_LOCAL_SCAN_MAX_DEPTH 64
 
 static const char *get_extension(const char *path)
 {
@@ -349,6 +350,7 @@ static int c64_automation_scan_local(c64_automation_t *automation)
 
     typedef struct {
         char path[C64_AUTOMATION_PATH_MAX];
+        unsigned int depth;
     } dir_entry_t;
 
     int added = 0;
@@ -363,13 +365,92 @@ static int c64_automation_scan_local(c64_automation_t *automation)
 
     strncpy(dir_stack[0].path, automation->config.folder_path, sizeof(dir_stack[0].path) - 1);
     dir_stack[0].path[sizeof(dir_stack[0].path) - 1] = '\0';
+    dir_stack[0].depth = 0;
     dir_count = 1;
+
+#ifdef _WIN32
+    typedef struct {
+        DWORD volume_serial;
+        DWORD file_index_high;
+        DWORD file_index_low;
+    } visited_dir_t;
+#else
+    typedef struct {
+        dev_t device;
+        ino_t inode;
+    } visited_dir_t;
+#endif
+    size_t visited_count = 0;
+    size_t visited_capacity = 64;
+    visited_dir_t *visited = calloc(visited_capacity, sizeof(*visited));
+    if (!visited) {
+        free(dir_stack);
+        return 0;
+    }
 
     while (dir_count > 0 && automation->num_files < C64_AUTOMATION_PLAYLIST_MAX_FILES) {
         dir_count--;
         char current_dir[C64_AUTOMATION_PATH_MAX];
         strncpy(current_dir, dir_stack[dir_count].path, sizeof(current_dir) - 1);
         current_dir[sizeof(current_dir) - 1] = '\0';
+        const unsigned int current_depth = dir_stack[dir_count].depth;
+
+#ifdef _WIN32
+        HANDLE current_handle = CreateFileA(current_dir, 0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                                            NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
+        BY_HANDLE_FILE_INFORMATION current_info;
+        if (current_handle == INVALID_HANDLE_VALUE || !GetFileInformationByHandle(current_handle, &current_info)) {
+            if (current_handle != INVALID_HANDLE_VALUE) {
+                CloseHandle(current_handle);
+            }
+            continue;
+        }
+        CloseHandle(current_handle);
+        bool already_seen = false;
+        for (size_t i = 0; i < visited_count; i++) {
+            if (visited[i].volume_serial == current_info.dwVolumeSerialNumber &&
+                visited[i].file_index_high == current_info.nFileIndexHigh &&
+                visited[i].file_index_low == current_info.nFileIndexLow) {
+                already_seen = true;
+                break;
+            }
+        }
+#else
+        /* stat follows symlinks, which is intentional here: the target's
+         * device/inode identity catches self-links and multi-directory loops
+         * before we recurse into them. */
+        struct stat current_st;
+        if (stat(current_dir, &current_st) != 0 || !S_ISDIR(current_st.st_mode)) {
+            continue;
+        }
+        bool already_seen = false;
+        for (size_t i = 0; i < visited_count; i++) {
+            if (visited[i].device == current_st.st_dev && visited[i].inode == current_st.st_ino) {
+                already_seen = true;
+                break;
+            }
+        }
+#endif
+        if (already_seen) {
+            C64_LOG_DEBUG(AUTOMATION_LOG_PREFIX "Skipping already visited local directory: %s", current_dir);
+            continue;
+        }
+        if (visited_count == visited_capacity) {
+            const size_t new_capacity = visited_capacity * 2;
+            void *new_visited = realloc(visited, new_capacity * sizeof(*visited));
+            if (!new_visited) {
+                break;
+            }
+            visited = new_visited;
+            visited_capacity = new_capacity;
+        }
+#ifdef _WIN32
+        visited[visited_count++] = (visited_dir_t){.volume_serial = current_info.dwVolumeSerialNumber,
+                                                   .file_index_high = current_info.nFileIndexHigh,
+                                                   .file_index_low = current_info.nFileIndexLow};
+#else
+        visited[visited_count++] = (visited_dir_t){.device = current_st.st_dev, .inode = current_st.st_ino};
+#endif
 
 #ifdef _WIN32
 
@@ -423,6 +504,10 @@ static int c64_automation_scan_local(c64_automation_t *automation)
                 if (!automation->config.include_subfolders) {
                     continue;
                 }
+                if (current_depth >= C64_AUTOMATION_LOCAL_SCAN_MAX_DEPTH) {
+                    C64_LOG_WARNING(AUTOMATION_LOG_PREFIX "Skipping local directory beyond depth cap: %s", full_path);
+                    continue;
+                }
                 if (dir_count >= dir_capacity) {
                     int new_capacity = dir_capacity * 2;
                     void *new_stack = realloc(dir_stack, sizeof(*dir_stack) * (size_t)new_capacity);
@@ -434,6 +519,7 @@ static int c64_automation_scan_local(c64_automation_t *automation)
                 }
                 strncpy(dir_stack[dir_count].path, full_path, sizeof(dir_stack[dir_count].path) - 1);
                 dir_stack[dir_count].path[sizeof(dir_stack[dir_count].path) - 1] = '\0';
+                dir_stack[dir_count].depth = current_depth + 1;
                 dir_count++;
                 continue;
             }
@@ -491,6 +577,10 @@ static int c64_automation_scan_local(c64_automation_t *automation)
                 if (!automation->config.include_subfolders) {
                     continue;
                 }
+                if (current_depth >= C64_AUTOMATION_LOCAL_SCAN_MAX_DEPTH) {
+                    C64_LOG_WARNING(AUTOMATION_LOG_PREFIX "Skipping local directory beyond depth cap: %s", full_path);
+                    continue;
+                }
                 if (dir_count >= dir_capacity) {
                     int new_capacity = dir_capacity * 2;
                     void *new_stack = realloc(dir_stack, sizeof(*dir_stack) * (size_t)new_capacity);
@@ -502,6 +592,7 @@ static int c64_automation_scan_local(c64_automation_t *automation)
                 }
                 strncpy(dir_stack[dir_count].path, full_path, sizeof(dir_stack[dir_count].path) - 1);
                 dir_stack[dir_count].path[sizeof(dir_stack[dir_count].path) - 1] = '\0';
+                dir_stack[dir_count].depth = current_depth + 1;
                 dir_count++;
                 continue;
             }
@@ -527,6 +618,7 @@ static int c64_automation_scan_local(c64_automation_t *automation)
 #endif
     }
 
+    free(visited);
     free(dir_stack);
 
     if (open_failures > 0) {

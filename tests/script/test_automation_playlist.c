@@ -244,6 +244,14 @@ int main(void)
     CHECK(strcmp(c64_automation_get_playlist_item(automation, 0), nested_song_one) == 0);
     CHECK(strcmp(c64_automation_get_playlist_item(automation, 1), nested_song_two) == 0);
 
+#ifndef _WIN32
+    char nested_cycle[C64_AUTOMATION_PATH_MAX];
+    CHECK(build_path(nested_cycle, sizeof(nested_cycle), nested_level_two, "/back_to_root"));
+    CHECK(symlink(nested_root, nested_cycle) == 0);
+    CHECK(c64_automation_refresh_playlist(automation, &nested_config, 0, true));
+    CHECK(c64_automation_get_playlist_count(automation) == 2);
+#endif
+
     char hvsc_root[C64_AUTOMATION_PATH_MAX];
     char c64music_root[C64_AUTOMATION_PATH_MAX];
     char demos_root[C64_AUTOMATION_PATH_MAX];
@@ -342,6 +350,9 @@ int main(void)
     cleanup_file(songlengths_path);
     cleanup_file(nested_song_two);
     cleanup_file(nested_song_one);
+#ifndef _WIN32
+    cleanup_file(nested_cycle);
+#endif
     cleanup_empty_dir(nested_level_two);
     cleanup_empty_dir(nested_level_one);
     cleanup_empty_dir(nested_root);
