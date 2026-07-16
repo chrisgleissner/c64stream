@@ -199,7 +199,7 @@ static bool lookup_key_code_from_vkey(uint32_t native_vkey, char key_code[64])
      * keys resolve from the event's text in c64_interact_translate_key_event,
      * so return unresolved here and let the text path handle them. */
     return false;
-#endif
+#else
 
     if ((native_vkey >= '0' && native_vkey <= '9') || (native_vkey >= 'A' && native_vkey <= 'Z')) {
         if (native_vkey >= '0' && native_vkey <= '9') {
@@ -337,6 +337,7 @@ static bool lookup_key_code_from_vkey(uint32_t native_vkey, char key_code[64])
 
     key_code[0] = '\0';
     return false;
+#endif
 }
 
 static bool lookup_key_code_from_text_char(char ch, char key_code[64])
