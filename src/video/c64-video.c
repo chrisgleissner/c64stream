@@ -27,6 +27,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-logo.h"
 #include "c64-audio.h"
 #include "c64-color.h"
+#include "c64-dimensions.h"
 #include "c64-types.h"
 #include "c64-protocol.h"
 #include "c64-ingest-filter.h"
@@ -1430,18 +1431,19 @@ void c64_process_video_packet_direct(struct c64_source *context, const uint8_t *
                                     frame_height, context->expected_fps, context->audio_sample_rate);
                 }
 
-                /* The network-buffer path does not otherwise own the
-                 * assembly mutex. Publish the pair under the same short lock
-                 * used by the graphics thread to snapshot it. */
-                if (!locked && pthread_mutex_lock(&context->assembly_mutex) != 0) {
-                    return;
-                }
+                /* C64STR-008: publish width+height as one coherent pair so the
+                 * graphics thread never observes a torn (new-height/old-width)
+                 * combination. The non-buffer path already holds assembly_mutex
+                 * here; the network-buffer path does not, so it publishes under
+                 * the same short lock the graphics thread snapshots with. */
                 if (context->height != frame_height) {
-                    context->height = frame_height;
-                    context->width = C64_PIXELS_PER_LINE; // Always 384
-                }
-                if (!locked) {
-                    pthread_mutex_unlock(&context->assembly_mutex);
+                    if (locked) {
+                        context->width = C64_PIXELS_PER_LINE; // Always 384
+                        context->height = frame_height;
+                    } else {
+                        c64_dimensions_publish(&context->assembly_mutex, &context->width, &context->height,
+                                               C64_PIXELS_PER_LINE, frame_height);
+                    }
                 }
             }
         }

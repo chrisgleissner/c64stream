@@ -30,6 +30,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-stream-control.h"
 #include "c64-video.h"
 #include "c64-color.h"
+#include "c64-dimensions.h"
 #include "c64-audio.h"
 #include "c64-interact-key.h"
 #include "c64-logo.h"
@@ -2277,17 +2278,12 @@ void c64_video_tick(void *data, float seconds)
     if (!context)
         return;
 
-    /* Snapshot the format as one coherent pair.  Never retain the assembly
-     * lock over graphics calls. */
-    uint32_t frame_width;
-    uint32_t frame_height;
-    if (pthread_mutex_lock(&context->assembly_mutex) == 0) {
-        frame_width = context->width;
-        frame_height = context->height;
-        pthread_mutex_unlock(&context->assembly_mutex);
-    } else {
-        return;
-    }
+    /* C64STR-008: snapshot the format as one coherent pair under the same lock
+     * the video processor publishes it with. Never retain the assembly lock
+     * over graphics calls. */
+    uint32_t frame_width = 0;
+    uint32_t frame_height = 0;
+    c64_dimensions_snapshot(&context->assembly_mutex, &context->width, &context->height, &frame_width, &frame_height);
 
     // Monitor script executor status for completion/errors
     if (context->script_executor) {

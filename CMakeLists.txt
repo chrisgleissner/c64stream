@@ -204,6 +204,7 @@ target_sources(
     src/device/c64-device.c
     src/device/c64-device-scan.c
     src/util/c64-av-sync.c
+    src/util/c64-dimensions.c
     src/util/c64-file.c
     src/util/c64-version.c
     src/audio/c64-audio.c

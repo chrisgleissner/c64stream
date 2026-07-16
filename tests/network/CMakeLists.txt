@@ -94,6 +94,18 @@ else()
 endif()
 add_test(NAME rest_password_change COMMAND test_rest_password_change)
 
+# C64STR-008: coherent publication of frame dimensions vs the render thread.
+add_executable(
+  test_frame_dimensions test_frame_dimensions.c ${CMAKE_SOURCE_DIR}/src/util/c64-dimensions.c
+)
+target_include_directories(
+  test_frame_dimensions PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/util
+)
+if(UNIX)
+  target_link_libraries(test_frame_dimensions PRIVATE pthread)
+endif()
+add_test(NAME frame_dimensions COMMAND test_frame_dimensions)
+
 add_executable(test_c64_stream_control test_c64_stream_control.c ${CMAKE_SOURCE_DIR}/src/network/c64-stream-control.c)
 target_include_directories(
   test_c64_stream_control
