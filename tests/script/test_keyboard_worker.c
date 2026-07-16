@@ -335,6 +335,23 @@ int main(void)
     CHECK(unmapped_client.machine_input_calls == 0);
     c64_keyboard_destroy(unmapped_keyboard);
 
+    // Once firmware reports machine:input unsupported, AUTO must stop
+    // re-probing it: every batch otherwise pays another failed HTTP round-trip
+    // before falling back to legacy. The stub answers 501 (NOT_SUPPORTED), so
+    // only the first of these five single-byte batches may reach REST.
+    worker_test_rest_client_t demote_client = {.machine_input_success = false};
+    c64_keyboard_t *demote_keyboard = c64_keyboard_create(&demote_client);
+    CHECK(demote_keyboard != NULL);
+    c64_keyboard_set_transport(demote_keyboard, C64_STREAM_TRANSPORT_AUTO);
+    for (int i = 0; i < 5; i++) {
+        c64_output_t demote_output = {.mode = C64_OUTPUT_PETSCII, .data.petscii = 'A'};
+        c64_keyboard_queue_output(demote_keyboard, &demote_output);
+        CHECK(wait_for_consumed_count(&demote_client, (size_t)(i + 1), 1000));
+    }
+    CHECK(demote_client.consumed_count == 5);
+    CHECK(demote_client.machine_input_calls == 1);
+    c64_keyboard_destroy(demote_keyboard);
+
     // PETSCII control codes must translate too, not just printable ASCII --
     // otherwise any batch containing one falls all the way back to the
     // legacy KERNAL-buffer path (fallback is per-batch, never per-byte).

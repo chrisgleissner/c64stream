@@ -29,8 +29,15 @@ selected device's network fields *and* its password into the live `c64_host`/`c6
 settings that the rest of the plugin already reads; `c64_device_registry_migrate_legacy`
 performs the reverse on first load — if the registry is empty and a legacy `c64_host` is
 present, it creates a `Default` device from the existing settings, moves the password to that
-device's key, and selects it. Migration only runs when the registry is empty, so it can never
-overwrite a device the user already created.
+device's key, and selects it.
+
+Migration is a **one-shot per source**, latched by the `c64_device_migrated` bool in the
+source's OBS settings. An empty registry cannot be the trigger on its own: the legacy
+`c64_host` key is deliberately kept for a compatibility release, so an empty-registry trigger
+re-fires on the very next `c64_update` and resurrects the profile the moment the user deletes
+their last device. The latch is set once migration has been *considered*, whether or not it
+had anything to do — the one exception being a failed registry write, which leaves it unset so
+the next update retries.
 
 The `Device` dropdown in `src/ui/c64-properties.c` is populated by
 `c64_device_registry_populate_list`, mirroring how the palette and keymap lists are built.

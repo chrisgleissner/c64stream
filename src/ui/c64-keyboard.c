@@ -57,6 +57,11 @@ static char *c64_strtok_r(char *str, const char *delim, char **saveptr)
 #define C64_KEYBOARD_MAX_RETRIES 20
 #endif
 
+/* How long the AUTO transport stops re-probing machine:input after firmware
+ * reports it unsupported. Mirrors C64_STREAM_RETRY_NS in c64-stream-control.c,
+ * including its treatment of 404 as permanent for this device. */
+#define C64_KEYBOARD_REST_RETRY_NS (60ULL * 1000000000ULL)
+
 // C64 memory locations
 #define C64_KEYBOARD_BUFFER 0x0277
 #define C64_KEYBOARD_LENGTH 0x00C6
@@ -1186,6 +1191,8 @@ static void *injection_worker(void *arg)
     uint32_t retry_count = 0;
     uint32_t backoff_ms = C64_KEYBOARD_POLL_INITIAL_MS;
     bool last_batch_failed = false;
+    /* Worker-thread-local: nothing else reads it, so it needs no lock. */
+    uint64_t rest_demoted_until_ns = 0;
 
     C64_LOG_DEBUG(KEYBOARD_LOG_PREFIX "Injection worker started");
 
@@ -1208,8 +1215,13 @@ static void *injection_worker(void *arg)
 
             char json[8192];
             const int transport = keyboard_get_transport(keyboard);
-            if (transport != C64_STREAM_TRANSPORT_LEGACY &&
-                build_rest_input_batch(pending_buffer, pending_count, json, sizeof(json))) {
+            // Without the demotion memo, AUTO re-probes machine:input on every
+            // batch against firmware that has already said it does not support
+            // it -- a wasted HTTP round-trip (and an INFO line) per ten typed
+            // characters. Forced REST never demotes; it has nowhere to fall back to.
+            const bool try_rest = transport != C64_STREAM_TRANSPORT_LEGACY &&
+                                  (transport == C64_STREAM_TRANSPORT_REST || os_gettime_ns() >= rest_demoted_until_ns);
+            if (try_rest && build_rest_input_batch(pending_buffer, pending_count, json, sizeof(json))) {
                 c64_rest_outcome_t outcome = C64_REST_UNREACHABLE;
                 long status = 0;
                 if (c64_rest_machine_input_with_outcome(keyboard->rest_client, json, &outcome, &status)) {
@@ -1217,6 +1229,7 @@ static void *injection_worker(void *arg)
                     queue_discard_many(keyboard, pending_count);
                     pending_count = 0;
                     last_batch_failed = false;
+                    rest_demoted_until_ns = 0;
                     keyboard_set_status(keyboard, "complete");
                     continue;
                 }
@@ -1229,6 +1242,7 @@ static void *injection_worker(void *arg)
                     keyboard_set_status(keyboard, "failed");
                     continue;
                 }
+                rest_demoted_until_ns = status == 404 ? UINT64_MAX : os_gettime_ns() + C64_KEYBOARD_REST_RETRY_NS;
                 C64_LOG_INFO(KEYBOARD_LOG_PREFIX "machine:input unavailable; retrying batch via legacy input");
             } else if (transport == C64_STREAM_TRANSPORT_REST) {
                 C64_LOG_ERROR(KEYBOARD_LOG_PREFIX "input cannot be represented by machine:input; no legacy fallback");

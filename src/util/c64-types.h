@@ -94,9 +94,15 @@ struct c64_source {
     char obs_ip_address[64];      // OBS IP Address (this machine)
     pthread_mutex_t config_mutex; // Protects dns_server_ip/hostname/ip_address from concurrent access
     bool auto_detect_ip;
-    bool expected_peer_ip_set; // Whether expected_peer_ip contains a valid IPv4 address
-    uint32_t expected_peer_ip; // Expected peer IPv4 address in network byte order (AF_INET)
-    bool initial_ip_detected;  // Flag to track if initial IP detection was done
+    // Written under config_mutex, but read per-packet by the video/audio
+    // receivers without it (see c64-ingest-filter.h). volatile keeps the
+    // receive loop from hoisting the load and latching one verdict forever;
+    // the fields are word-sized, and the ip is published before the flag, so a
+    // reader racing a switch either fails open or drops a few packets from the
+    // device it is about to stop anyway.
+    volatile bool expected_peer_ip_set; // Whether expected_peer_ip contains a valid IPv4 address
+    volatile uint32_t expected_peer_ip; // Expected peer IPv4 address in network byte order (AF_INET)
+    bool initial_ip_detected;           // Flag to track if initial IP detection was done
     uint32_t video_port;
     uint32_t audio_port;
     uint32_t control_port;
@@ -331,12 +337,17 @@ struct c64_source {
     int stream_control_transport;  // 0 auto, 1 REST, 2 legacy
     uint64_t stream_rest_demoted_until_ns;
     volatile long rest_rebuild_pending;
+    // Set for the whole of c64_start_streaming, which leaves `streaming` false
+    // until its final step. Without it, a device switch landing inside that
+    // window sees "not streaming", records no pending transition, and leaves
+    // the previous device streaming at OBS forever. (atomic)
+    volatile bool stream_start_in_flight;
     bool device_transition_pending;
     char device_transition_host[64];
     uint32_t device_transition_control_port;
     bool device_discovery_in_progress; // Drives the Find Devices button's label while a scan runs
 
-    // Keyboard-driven joystick emulation (toggled by F9/F10; see c64_key_click)
+    // Keyboard-driven joystick emulation (toggled by F10/F11; see c64_key_click)
     bool joystick_mode_active;   // false = direct keyboard relay, true = cursor/space -> joystick
     int joystick_emulation_port; // 1 or 2; default 2
 

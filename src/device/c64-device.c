@@ -10,6 +10,9 @@
 #include <string.h>
 
 #define DEVICE_LOG_PREFIX "DEVICE:"
+/* Set once legacy migration has been considered for a source, so it never runs
+ * a second time.  Persisted with the source's OBS settings. */
+#define C64_DEVICE_MIGRATED_KEY "c64_device_migrated"
 
 static c64_device_t devices[C64_DEVICE_MAX];
 static size_t device_count;
@@ -273,19 +276,32 @@ bool c64_device_registry_migrate_legacy(obs_data_t *settings)
 {
     if (!settings)
         return false;
+    /* One-shot per source. "The registry is empty" cannot be the trigger: the
+     * legacy c64_host key is deliberately kept for a compatibility release, so
+     * an empty-registry trigger re-runs on the very next c64_update and
+     * resurrects the entry the moment the user deletes their last device. */
+    if (obs_data_get_bool(settings, C64_DEVICE_MIGRATED_KEY))
+        return false;
     pthread_mutex_lock(&registry_mutex);
+    /* device_count is only meaningful once the on-disk profiles are loaded;
+     * without this, a migration racing module load sees an empty registry. */
+    if (!initialized)
+        registry_init_locked();
     if (device_count) {
         pthread_mutex_unlock(&registry_mutex);
+        obs_data_set_bool(settings, C64_DEVICE_MIGRATED_KEY, true);
         return false;
     }
     const char *host = obs_data_get_string(settings, "c64_host");
     if (!host || !host[0] || !strcmp(host, "0.0.0.0")) {
         pthread_mutex_unlock(&registry_mutex);
+        obs_data_set_bool(settings, C64_DEVICE_MIGRATED_KEY, true);
         return false;
     }
     c64_device_t device = {0};
     if (!c64_device_id_from_host(device.id, sizeof(device.id), NULL, host)) {
         pthread_mutex_unlock(&registry_mutex);
+        obs_data_set_bool(settings, C64_DEVICE_MIGRATED_KEY, true);
         return false;
     }
     snprintf(device.name, sizeof(device.name), "Default");
@@ -295,9 +311,12 @@ bool c64_device_registry_migrate_legacy(obs_data_t *settings)
     device.audio_port = (uint32_t)obs_data_get_int(settings, "audio_port");
     device.control_port = (uint32_t)obs_data_get_int(settings, "control_port");
     if (!registry_upsert_locked(&device)) {
+        /* Deliberately not marked migrated: the profile could not be written
+         * (e.g. transient disk failure), so the next update should retry. */
         pthread_mutex_unlock(&registry_mutex);
         return false;
     }
+    obs_data_set_bool(settings, C64_DEVICE_MIGRATED_KEY, true);
     char password_key[96];
     c64_device_password_key(password_key, sizeof(password_key), device.id);
     obs_data_set_string(settings, password_key, obs_data_get_string(settings, "c64_password"));

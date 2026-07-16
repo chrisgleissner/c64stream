@@ -61,6 +61,8 @@ static void c64_abort_stream_start(struct c64_source *context);
 static void c64_attempt_script_autostart(struct c64_source *context, obs_data_t *settings);
 static void c64_queue_properties_refresh(struct c64_source *context);
 static void c64_rebuild_rest_client(struct c64_source *context);
+static void c64_release_joystick_inputs(struct c64_source *context);
+static bool c64_start_streaming_inner(struct c64_source *context);
 
 static void c64_rebuild_rest_client(struct c64_source *context)
 {
@@ -1469,6 +1471,12 @@ void c64_update(void *data, obs_data_t *settings)
     if (context->keyboard) {
         c64_keyboard_set_transport(context->keyboard, context->stream_control_transport);
     }
+    // Unticking Joystick emulation in the properties dialog must strand no held
+    // direction either; the F10 path releases before clearing the flag itself,
+    // so it is already false here and this does not double-release.
+    if (context->joystick_mode_active && !obs_data_get_bool(settings, "joystick_mode_active")) {
+        c64_release_joystick_inputs(context);
+    }
     context->joystick_mode_active = obs_data_get_bool(settings, "joystick_mode_active");
     context->joystick_emulation_port = (int)obs_data_get_int(settings, "joystick_emulation_port");
     if (context->joystick_emulation_port != 1 && context->joystick_emulation_port != 2) {
@@ -1515,7 +1523,15 @@ void c64_update(void *data, obs_data_t *settings)
     bool ports_changed = (new_video_port != context->video_port) || (new_audio_port != context->audio_port) ||
                          (new_control_port != context->control_port);
 
-    const bool needs_device_transition = (ports_changed || host_changed) && context->streaming;
+    // `streaming` only turns true at the very end of c64_start_streaming, but
+    // that function has already told the device to stream long before then.
+    // Testing `streaming` alone lets a switch that lands inside the start
+    // window record no transition, stranding the previous device streaming at
+    // OBS with nothing left to stop it. If neither flag is set, no start has
+    // read ip_address yet, so the retry worker will start the new host directly
+    // and there is genuinely nothing to stop.
+    const bool peer_may_be_streaming = context->streaming || os_atomic_load_bool(&context->stream_start_in_flight);
+    const bool needs_device_transition = (ports_changed || host_changed) && peer_may_be_streaming;
     if (needs_device_transition) {
         if (ports_changed) {
             C64_LOG_INFO(
@@ -1715,6 +1731,18 @@ bool c64_start_streaming(struct c64_source *context)
         return false;
     }
 
+    // Must be raised before the first read of ip_address below, so that any
+    // concurrent c64_update either sees this flag (and records the endpoint we
+    // are about to start, so it gets stopped) or has already rewritten
+    // ip_address (so we start the new host and there is nothing to strand).
+    os_atomic_set_bool(&context->stream_start_in_flight, true);
+    const bool started = c64_start_streaming_inner(context);
+    os_atomic_set_bool(&context->stream_start_in_flight, false);
+    return started;
+}
+
+static bool c64_start_streaming_inner(struct c64_source *context)
+{
     C64_LOG_INFO("Starting C64 Stream streaming to C64 %s (OBS IP: %s, video:%u, audio:%u)...", context->ip_address,
                  context->obs_ip_address, context->video_port, context->audio_port);
 
@@ -1736,14 +1764,23 @@ bool c64_start_streaming(struct c64_source *context)
         context->streaming = false;
         os_atomic_set_bool(&context->thread_active, false);
 
-        // Wait for existing threads to finish BEFORE closing their sockets
+        // Wait for existing threads to finish BEFORE closing their sockets.
+        // All three must be joined: the processor thread's handle is overwritten
+        // by the pthread_create below, so skipping it would leak a running
+        // thread that can never be joined and let two processors race over the
+        // same FIFO.
         if (os_atomic_load_bool(&context->video_thread_active) && pthread_join(context->video_thread, NULL) != 0) {
             C64_LOG_WARNING("Failed to join existing video thread during reconnection");
+        }
+        if (os_atomic_load_bool(&context->video_processor_thread_active) &&
+            pthread_join(context->video_processor_thread, NULL) != 0) {
+            C64_LOG_WARNING("Failed to join existing video processor thread during reconnection");
         }
         if (os_atomic_load_bool(&context->audio_thread_active) && pthread_join(context->audio_thread, NULL) != 0) {
             C64_LOG_WARNING("Failed to join existing audio thread during reconnection");
         }
         os_atomic_set_bool(&context->video_thread_active, false);
+        os_atomic_set_bool(&context->video_processor_thread_active, false);
         os_atomic_set_bool(&context->audio_thread_active, false);
     }
 
@@ -2422,6 +2459,20 @@ void c64_mouse_wheel(void *data, const struct obs_mouse_event *event, int x_delt
     // No mouse interaction needed for C64 keyboard capture
 }
 
+/* Joystick directions are held (press on key-down, release on key-up), unlike
+ * the tap-oriented keyboard path. Whenever the joystick path stops receiving
+ * key-ups -- focus loss, or F10 leaving joystick mode -- any direction still
+ * down would stay pressed on the device forever, because the matching release
+ * either never arrives or no longer routes here. release_all clears the whole
+ * matrix, which is exactly the desired state on both transitions. */
+static void c64_release_joystick_inputs(struct c64_source *context)
+{
+    if (!context || !context->joystick_mode_active || !context->rest_client) {
+        return;
+    }
+    c64_rest_release_all(context->rest_client);
+}
+
 void c64_focus(void *data, bool focus)
 {
     struct c64_source *context = (struct c64_source *)data;
@@ -2440,6 +2491,7 @@ void c64_focus(void *data, bool focus)
         // Disable capture when focus lost
         context->keyboard_capture_active = false;
         C64_LOG_INFO("Keyboard capture deactivated (source lost focus)");
+        c64_release_joystick_inputs(context);
         if (context->keyboard) {
             c64_keyboard_set_capture(context->keyboard, false);
         }
@@ -2604,6 +2656,9 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
         const bool is_f11 = strcmp(key.code, "F11") == 0;
         if (is_f10 || is_f11) {
             if (is_f10) {
+                // Release before clearing the flag: a direction held right now
+                // would otherwise never see its key-up reach the joystick path.
+                c64_release_joystick_inputs(context);
                 context->joystick_mode_active = !context->joystick_mode_active;
                 C64_LOG_INFO("Keyboard: F10 pressed - joystick emulation %s",
                              context->joystick_mode_active ? "enabled" : "disabled");

@@ -49,6 +49,9 @@ typedef struct {
     obs_source_t *source;
     struct c64_source *context; // Nullable; set only when scanning drives the Scan button's label.
     uint16_t port;
+    // Resolved IP this source is currently streaming from, or "" if none.
+    // scan_verify_streaming() must never probe it -- see scan_one_host().
+    char active_host[64];
     // Candidate matches, applied to the registry only after every worker has
     // finished (see scan_main). A single physical device can respond at more
     // than one address in the same pass (e.g. a stale DHCP lease still being
@@ -442,7 +445,14 @@ static void scan_one_host(scan_job_t *job, const char *host)
     // Password-protected devices can't be verified without credentials --
     // keep the existing behavior of listing them unverified. Everything else
     // must prove it actually streams before it can be offered/registered.
-    if (!password_required && !scan_verify_streaming(host, job->port)) {
+    //
+    // The device we are currently streaming from is exempt: verification
+    // repoints its video at a throwaway socket and then stops it outright, so
+    // probing it would black out the live OBS output (logo after 3s) until the
+    // retry loop notices and re-sends the start commands. It is also the one
+    // host that needs no proof -- its packets are arriving right now.
+    const bool is_active_host = job->active_host[0] && !strcmp(host, job->active_host);
+    if (!password_required && !is_active_host && !scan_verify_streaming(host, job->port)) {
         const c64_device_t *stale = c64_device_registry_find_by_host(host);
         if (stale) {
             c64_device_registry_delete(stale->id);
@@ -542,13 +552,19 @@ static void *scan_main(void *opaque)
     }
     apply_scan_results(job);
     pthread_mutex_destroy(&job->mutex);
-    if (job->source) {
-        scan_completion_t *completion = malloc(sizeof(*completion));
-        if (completion) {
-            completion->source = job->source;
-            completion->context = job->context;
-            obs_queue_task(OBS_TASK_UI, scan_complete_on_ui, completion, false);
-        } else {
+    scan_completion_t *completion = job->source ? malloc(sizeof(*completion)) : NULL;
+    if (completion) {
+        completion->source = job->source;
+        completion->context = job->context;
+        obs_queue_task(OBS_TASK_UI, scan_complete_on_ui, completion, false);
+    } else {
+        // No UI completion will run (no source ref, or the allocation failed).
+        // Clear the flag here instead, or the Find Devices button stays stuck
+        // on its "Discovering..." label for the rest of the session.
+        if (job->context) {
+            job->context->device_discovery_in_progress = false;
+        }
+        if (job->source) {
             obs_source_release(job->source);
         }
     }
@@ -556,13 +572,20 @@ static void *scan_main(void *opaque)
     return NULL;
 }
 
-static scan_job_t *build_scan_job(obs_source_t *source, uint16_t port)
+static scan_job_t *build_scan_job(struct c64_source *context, uint16_t port)
 {
     scan_job_t *job = calloc(1, sizeof(*job));
     if (!job) {
         return NULL;
     }
     job->port = port ? port : C64_SCAN_DEFAULT_PORT;
+    obs_source_t *source = context ? context->source : NULL;
+    /* The resolved IP, not the configured host: the active device is reached
+     * through subnet enumeration as a numeric address, so only the resolved
+     * form reliably matches it. */
+    if (context) {
+        snprintf(job->active_host, sizeof(job->active_host), "%s", context->ip_address);
+    }
     /* Scan saved and manually configured hosts as well as local subnets. */
     for (size_t i = 0; i < c64_device_registry_count() && job->count < C64_SCAN_MAX_HOSTS; i++) {
         const c64_device_t *device = c64_device_registry_get_at(i);
@@ -621,7 +644,7 @@ bool c64_device_scan_async(struct c64_source *context)
     if (!context) {
         return false;
     }
-    scan_job_t *job = build_scan_job(context->source, C64_SCAN_DEFAULT_PORT);
+    scan_job_t *job = build_scan_job(context, C64_SCAN_DEFAULT_PORT);
     if (!job) {
         return false;
     }
@@ -639,14 +662,15 @@ bool c64_device_scan_async(struct c64_source *context)
     return true;
 }
 
-bool c64_device_scan_sync(obs_source_t *source, uint16_t port)
+bool c64_device_scan_sync(struct c64_source *context, uint16_t port)
 {
-    scan_job_t *job = build_scan_job(source, port);
+    scan_job_t *job = build_scan_job(context, port);
     if (!job) {
         return false;
     }
     pthread_mutex_init(&job->mutex, NULL);
     job->deadline_ns = os_gettime_ns() + C64_SCAN_OVERALL_TIMEOUT_NS;
+    obs_source_t *source = context ? context->source : NULL;
     job->source = source ? obs_source_get_ref(source) : NULL;
     /* Called from the script executor thread, already off the OBS UI thread,
      * so blocking here (bounded by the deadline above) is safe. */

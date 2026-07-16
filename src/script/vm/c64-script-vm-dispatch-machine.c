@@ -271,13 +271,13 @@ bool c64script_dispatch_machine(c64script_runtime_t *runtime, const c64script_in
                 return false;
             }
         }
-        if (!runtime->obs_source) {
+        if (!runtime->source_data) {
             if (c64script_debug_logging_enabled()) {
                 blog(LOG_DEBUG, "[c64script] DISCOVER_DEVICES: OBS source not available, skipping");
             }
             break;
         }
-        if (!c64_device_scan_sync((obs_source_t *)runtime->obs_source, port)) {
+        if (!c64_device_scan_sync((struct c64_source *)runtime->source_data, port)) {
             snprintf(runtime->error_msg, sizeof(runtime->error_msg), "DISCOVER_DEVICES failed");
             return false;
         }

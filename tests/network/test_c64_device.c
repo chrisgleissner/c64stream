@@ -92,6 +92,14 @@ int main(void)
     CHECK(c64_device_registry_delete(selected));
     CHECK(strcmp(device->id, selected) == 0);
     CHECK(!c64_device_registry_get(selected));
+
+    /* Deleting the last device must stick: the legacy host key is still in
+     * settings, and re-running migration (as every c64_update does) must not
+     * resurrect the entry the user just removed. */
+    CHECK(!c64_device_registry_migrate_legacy(settings));
+    CHECK(!c64_device_registry_get(selected));
+    CHECK(c64_device_registry_count() == 0);
+
     obs_data_release(settings);
     return 0;
 }

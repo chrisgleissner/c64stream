@@ -713,6 +713,12 @@ static bool device_discovery_clicked(obs_properties_t *props, obs_property_t *pr
     if (!context) {
         return false;
     }
+    // The button stays clickable while its label reads "Discovering...", and
+    // each scan fans out to C64_SCAN_WORKERS threads sweeping the local
+    // subnets; re-entering would double that for no benefit.
+    if (context->device_discovery_in_progress) {
+        return false;
+    }
     context->device_discovery_in_progress = true;
     if (!c64_device_scan_async(context)) {
         context->device_discovery_in_progress = false;
