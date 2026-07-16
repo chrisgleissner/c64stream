@@ -79,6 +79,21 @@ else()
 endif()
 add_test(NAME rest_client_retarget COMMAND test_rest_client_retarget)
 
+# C64STR-002: a password change is carried by the next REST request.
+add_executable(
+  test_rest_password_change test_rest_password_change.c ${CMAKE_SOURCE_DIR}/src/network/c64-rest-client.c
+)
+target_include_directories(
+  test_rest_password_change
+  PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/network ${CMAKE_SOURCE_DIR}/src/util
+)
+if(UNIX)
+  target_link_libraries(test_rest_password_change PRIVATE OBS::libobs CURL::libcurl m pthread)
+else()
+  target_link_libraries(test_rest_password_change PRIVATE OBS::libobs CURL::libcurl)
+endif()
+add_test(NAME rest_password_change COMMAND test_rest_password_change)
+
 add_executable(test_c64_stream_control test_c64_stream_control.c ${CMAKE_SOURCE_DIR}/src/network/c64-stream-control.c)
 target_include_directories(
   test_c64_stream_control
