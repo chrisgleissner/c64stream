@@ -848,6 +848,7 @@ void c64_stop_video_recording(struct c64_source *context)
 
     // Close recording files and finalize formats
     if (context->video_file) {
+        c64_video_update_avi_header(context->video_file, (uint32_t)os_atomic_load_long(&context->recorded_frames), 0);
         fclose(context->video_file);
         context->video_file = NULL;
     }

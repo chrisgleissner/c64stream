@@ -136,9 +136,9 @@ void c64_video_update_avi_header(FILE *file, uint32_t frame_count, uint32_t audi
     fseek(file, 48, SEEK_SET);
     fwrite(&frame_count, 4, 1, file);
 
-    // Seek back to end
+    // Seek back to end. The caller writes headers periodically and at stop;
+    // flushing every video frame stalls recording on slow mounts.
     fseek(file, current_pos, SEEK_SET);
-    fflush(file); // Ensure changes are written to disk
 }
 
 // Helper function to convert RGBA to BGR24
@@ -275,8 +275,11 @@ void c64_video_record_frame(struct c64_source *context, uint32_t *frame_buffer)
         if (written == frame_size) {
             long new_frame_count = os_atomic_inc_long(&context->recorded_frames);
 
-            // Update AVI header with current frame count (video-only)
-            c64_video_update_avi_header(context->video_file, (uint32_t)new_frame_count, 0);
+            // Keep crash recovery useful without forcing synchronous I/O per frame.
+            const uint32_t update_period = (uint32_t)(context->expected_fps + 0.5);
+            if (update_period > 0 && (uint32_t)new_frame_count % update_period == 0) {
+                c64_video_update_avi_header(context->video_file, (uint32_t)new_frame_count, 0);
+            }
 
             // Log video recording timing information to CSV (frame_num = 0 for recording events)
             c64_obs_log_video_event(context, 0, frame_size, context->av_sync_last_video_all_white);
@@ -302,7 +305,7 @@ void c64_video_stop_recording(struct c64_source *context)
 
     // Close recording file and finalize format
     if (context->video_file) {
-        // Final header update is not needed since we update continuously
+        c64_video_update_avi_header(context->video_file, (uint32_t)os_atomic_load_long(&context->recorded_frames), 0);
         fclose(context->video_file);
         context->video_file = NULL;
     }
