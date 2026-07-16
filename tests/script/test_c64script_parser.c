@@ -44,6 +44,15 @@ TEST(parse_number_literal)
     c64script_ast_free(ast);
 }
 
+TEST(rejects_overlong_number_literal)
+{
+    const char *source = "X = 1234567890123456789012345678901234567890123456789012345678901234567890\n";
+    char error_msg[1024];
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error_msg, sizeof(error_msg));
+    assert(ast == NULL);
+    assert(strstr(error_msg, "number literal too long") != NULL);
+}
+
 TEST(parse_string_literal)
 {
     const char *source = "X$ = \"hello world\"\n";
@@ -1500,6 +1509,7 @@ int main(int argc, char **argv)
     // Otherwise run built-in tests
     printf("--- Expression Parsing Tests ---\n");
     RUN_TEST(parse_number_literal);
+    RUN_TEST(rejects_overlong_number_literal);
     RUN_TEST(parse_string_literal);
     RUN_TEST(parse_identifier);
     RUN_TEST(parse_addition);
