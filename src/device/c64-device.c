@@ -316,6 +316,7 @@ bool c64_device_registry_apply_selected(obs_data_t *settings)
     const c64_device_t *device = c64_device_registry_get(obs_data_get_string(settings, "c64_device"));
     if (!device)
         return false;
+    obs_data_set_string(settings, "device_name", device->name);
     obs_data_set_string(settings, "c64_host", device->host);
     obs_data_set_string(settings, "dns_server_ip", device->dns_server_ip);
     obs_data_set_int(settings, "video_port", device->video_port);

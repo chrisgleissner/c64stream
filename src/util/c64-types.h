@@ -334,6 +334,11 @@ struct c64_source {
     bool device_transition_pending;
     char device_transition_host[64];
     uint32_t device_transition_control_port;
+    bool device_discovery_in_progress; // Drives the Find Devices button's label while a scan runs
+
+    // Keyboard-driven joystick emulation (toggled by F9/F10; see c64_key_click)
+    bool joystick_mode_active;   // false = direct keyboard relay, true = cursor/space -> joystick
+    int joystick_emulation_port; // 1 or 2; default 2
 
     // Audio mixer snapshot for AV sync runs
     char **audio_mixer_snapshot_items;  // Item names (Audio Mixer)

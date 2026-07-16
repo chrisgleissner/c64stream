@@ -71,6 +71,9 @@ bool c64_rest_machine_input(c64_rest_client_t *client, const char *json);
 bool c64_rest_machine_input_with_outcome(c64_rest_client_t *client, const char *json, c64_rest_outcome_t *outcome,
                                          long *status);
 bool c64_rest_release_all(c64_rest_client_t *client);
+/* input_name is a matrix input like "up"/"down"/"left"/"right"/"fire"; transition
+ * is "press" or "release" (held movement, not a tap) or "tap". */
+bool c64_rest_joystick_input(c64_rest_client_t *client, int port, const char *input_name, const char *transition);
 
 /**
  * Machine reset (soft)
@@ -101,6 +104,13 @@ bool c64_rest_resume(c64_rest_client_t *client);
  * PUT /v1/machine:poweroff
  */
 bool c64_rest_poweroff(c64_rest_client_t *client);
+
+/**
+ * Toggle the on-screen configuration menu (same effect as the front-panel
+ * menu button on the physical device).
+ * PUT /v1/machine:menu_button
+ */
+bool c64_rest_menu_button(c64_rest_client_t *client);
 
 /**
  * Read memory via DMA

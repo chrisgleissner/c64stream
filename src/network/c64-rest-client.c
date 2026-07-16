@@ -782,6 +782,18 @@ bool c64_rest_release_all(c64_rest_client_t *client)
     return c64_rest_machine_input(client, "{\"events\":[{\"kind\":\"release_all\"}]}");
 }
 
+bool c64_rest_joystick_input(c64_rest_client_t *client, int port, const char *input_name, const char *transition)
+{
+    if (!input_name || !transition) {
+        return false;
+    }
+    char json[160];
+    snprintf(json, sizeof(json),
+             "{\"events\":[{\"kind\":\"joystick\",\"port\":%d,\"inputs\":[\"%s\"],\"transition\":\"%s\"}]}", port,
+             input_name, transition);
+    return c64_rest_machine_input(client, json);
+}
+
 static bool request_json(c64_rest_client_t *client, const char *method, const char *endpoint, const char *query_params,
                          char **out_json, size_t *out_len)
 {
@@ -863,6 +875,16 @@ bool c64_rest_poweroff(c64_rest_client_t *client)
 
     C64_LOG_DEBUG(REST_LOG_PREFIX "Power off machine");
     return http_request(client, "PUT", "/v1/machine:poweroff", NULL, NULL, 0, NULL);
+}
+
+bool c64_rest_menu_button(c64_rest_client_t *client)
+{
+    if (!client) {
+        return false;
+    }
+
+    C64_LOG_DEBUG(REST_LOG_PREFIX "Toggle menu button");
+    return http_request(client, "PUT", "/v1/machine:menu_button", NULL, NULL, 0, NULL);
 }
 
 int c64_rest_read_memory(c64_rest_client_t *client, uint16_t address, size_t length, uint8_t *buffer,

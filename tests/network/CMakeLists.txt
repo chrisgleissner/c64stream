@@ -64,6 +64,7 @@ add_executable(
   test_c64_device_scan
   test_c64_device_scan.c
   ${CMAKE_SOURCE_DIR}/src/device/c64-device-scan.c
+  ${CMAKE_SOURCE_DIR}/src/network/c64-network.c
   ${CMAKE_SOURCE_DIR}/src/device/c64-device.c
   ${CMAKE_SOURCE_DIR}/src/util/c64-file.c
 )
@@ -74,9 +75,10 @@ target_include_directories(
     ${CMAKE_SOURCE_DIR}/src/device
     ${CMAKE_SOURCE_DIR}/src/network
     ${CMAKE_SOURCE_DIR}/src/util
+    ${CMAKE_SOURCE_DIR}/src/video
 )
 if(UNIX)
-  target_link_libraries(test_c64_device_scan PRIVATE OBS::libobs CURL::libcurl m)
+  target_link_libraries(test_c64_device_scan PRIVATE OBS::libobs CURL::libcurl m resolv)
 else()
   target_link_libraries(test_c64_device_scan PRIVATE OBS::libobs CURL::libcurl)
 endif()

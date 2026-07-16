@@ -281,6 +281,9 @@ int main(void)
     CHECK(force_rest_client.write_buffer_calls == 0);
     c64_keyboard_destroy(force_rest_keyboard);
 
+    // '(' is shift+8 on a real C64 keyboard (digit-row shift symbols:
+    // shift+1..shift+9 = !"#$%&'()). Regression for a shift-list bug where
+    // '(' was missing from the shift set entirely.
     worker_test_rest_client_t punctuation_client = {.machine_input_success = true};
     c64_keyboard_t *punctuation_keyboard = c64_keyboard_create(&punctuation_client);
     CHECK(punctuation_keyboard != NULL);
@@ -288,20 +291,80 @@ int main(void)
     c64_output_t punctuation_output = {.mode = C64_OUTPUT_PETSCII, .data.petscii = '('};
     c64_keyboard_queue_output(punctuation_keyboard, &punctuation_output);
     CHECK(wait_for_matrix_events(&punctuation_client, 1, 1000));
-    CHECK(strstr(punctuation_client.last_machine_input, "\"inputs\":[\"8\"]") != NULL);
-    CHECK(strstr(punctuation_client.last_machine_input, "left_shift") == NULL);
+    CHECK(strstr(punctuation_client.last_machine_input, "\"inputs\":[\"left_shift\",\"8\"]") != NULL);
     c64_keyboard_destroy(punctuation_keyboard);
 
+    // '*' is unshifted (its own dedicated matrix key); regression for a bug
+    // where it was previously treated as shift+8 and would have typed '('.
+    worker_test_rest_client_t star_client = {.machine_input_success = true};
+    c64_keyboard_t *star_keyboard = c64_keyboard_create(&star_client);
+    CHECK(star_keyboard != NULL);
+    c64_keyboard_set_transport(star_keyboard, C64_STREAM_TRANSPORT_REST);
+    c64_output_t star_output = {.mode = C64_OUTPUT_PETSCII, .data.petscii = '*'};
+    c64_keyboard_queue_output(star_keyboard, &star_output);
+    CHECK(wait_for_matrix_events(&star_client, 1, 1000));
+    CHECK(strstr(star_client.last_machine_input, "\"inputs\":[\"star\"]") != NULL);
+    c64_keyboard_destroy(star_keyboard);
+
+    // '|' and '~' have no C64 charset equivalent and are deliberately left
+    // unmapped (petscii_to_matrix returns false); excluded from this range
+    // so the count reflects only characters that do translate.
     worker_test_rest_client_t printable_client = {.machine_input_success = true};
     c64_keyboard_t *printable_keyboard = c64_keyboard_create(&printable_client);
     CHECK(printable_keyboard != NULL);
     c64_keyboard_set_transport(printable_keyboard, C64_STREAM_TRANSPORT_REST);
     for (uint8_t ch = 32; ch <= 126; ch++) {
+        if (ch == '|' || ch == '~') {
+            continue;
+        }
         c64_output_t printable_output = {.mode = C64_OUTPUT_PETSCII, .data.petscii = ch};
         c64_keyboard_queue_output(printable_keyboard, &printable_output);
     }
-    CHECK(wait_for_matrix_events(&printable_client, 95, 1000));
+    CHECK(wait_for_matrix_events(&printable_client, 93, 1000));
     c64_keyboard_destroy(printable_keyboard);
+
+    // A byte with no matrix mapping falls back to the legacy KERNAL-buffer
+    // path for its whole batch rather than being sent with a bogus key name.
+    worker_test_rest_client_t unmapped_client = {.machine_input_success = true};
+    c64_keyboard_t *unmapped_keyboard = c64_keyboard_create(&unmapped_client);
+    CHECK(unmapped_keyboard != NULL);
+    c64_keyboard_set_transport(unmapped_keyboard, C64_STREAM_TRANSPORT_AUTO);
+    c64_output_t unmapped_output = {.mode = C64_OUTPUT_PETSCII, .data.petscii = '|'};
+    c64_keyboard_queue_output(unmapped_keyboard, &unmapped_output);
+    CHECK(wait_for_consumed_count(&unmapped_client, 1, 1000));
+    CHECK(unmapped_client.machine_input_calls == 0);
+    c64_keyboard_destroy(unmapped_keyboard);
+
+    // PETSCII control codes must translate too, not just printable ASCII --
+    // otherwise any batch containing one falls all the way back to the
+    // legacy KERNAL-buffer path (fallback is per-batch, never per-byte).
+    // RETURN (0x0D) is the most common case: nearly every typed line ends
+    // with \r. Cursor movement and HOME/CLR/DEL are the next most common.
+    struct {
+        uint8_t petscii;
+        const char *expected_inputs;
+    } control_codes[] = {
+        {0x0D, "\"inputs\":[\"return\"]"},
+        {0x11, "\"inputs\":[\"cursor_up_down\"]"},
+        {0x91, "\"inputs\":[\"left_shift\",\"cursor_up_down\"]"},
+        {0x1D, "\"inputs\":[\"cursor_left_right\"]"},
+        {0x9D, "\"inputs\":[\"left_shift\",\"cursor_left_right\"]"},
+        {0x13, "\"inputs\":[\"clr_home\"]"},
+        {0x93, "\"inputs\":[\"left_shift\",\"clr_home\"]"},
+        {0x14, "\"inputs\":[\"inst_del\"]"},
+        {0x94, "\"inputs\":[\"left_shift\",\"inst_del\"]"},
+    };
+    for (size_t i = 0; i < sizeof(control_codes) / sizeof(control_codes[0]); i++) {
+        worker_test_rest_client_t control_client = {.machine_input_success = true};
+        c64_keyboard_t *control_keyboard = c64_keyboard_create(&control_client);
+        CHECK(control_keyboard != NULL);
+        c64_keyboard_set_transport(control_keyboard, C64_STREAM_TRANSPORT_REST);
+        c64_output_t control_output = {.mode = C64_OUTPUT_PETSCII, .data.petscii = control_codes[i].petscii};
+        c64_keyboard_queue_output(control_keyboard, &control_output);
+        CHECK(wait_for_matrix_events(&control_client, 1, 1000));
+        CHECK(strstr(control_client.last_machine_input, control_codes[i].expected_inputs) != NULL);
+        c64_keyboard_destroy(control_keyboard);
+    }
 
     return 0;
 }

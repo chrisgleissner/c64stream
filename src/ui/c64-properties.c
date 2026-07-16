@@ -108,7 +108,8 @@ static bool reset_plugin_clicked(obs_properties_t *props, obs_property_t *proper
 static bool reset_c64u_clicked(obs_properties_t *props, obs_property_t *property, void *data);
 static bool device_save_clicked(obs_properties_t *props, obs_property_t *property, void *data);
 static bool device_delete_clicked(obs_properties_t *props, obs_property_t *property, void *data);
-static bool device_scan_clicked(obs_properties_t *props, obs_property_t *property, void *data);
+static bool device_discovery_clicked(obs_properties_t *props, obs_property_t *property, void *data);
+static bool device_selection_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings);
 
 static const char *script_status_to_text(c64_script_status_t status)
 {
@@ -617,9 +618,19 @@ static bool reset_c64u_clicked(obs_properties_t *props, obs_property_t *property
     return false; // No UI refresh needed
 }
 
-static bool device_save_clicked(obs_properties_t *props, obs_property_t *property, void *data)
+// Applies the newly-selected device's host/name/ports/password into the live
+// properties-dialog settings so the Host/Device name fields refresh
+// immediately, without requiring the dialog to be closed and reopened.
+static bool device_selection_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings)
 {
     UNUSED_PARAMETER(props);
+    UNUSED_PARAMETER(property);
+    c64_device_registry_apply_selected(settings);
+    return true;
+}
+
+static bool device_save_clicked(obs_properties_t *props, obs_property_t *property, void *data)
+{
     UNUSED_PARAMETER(property);
     struct c64_source *context = data;
     if (!context) {
@@ -657,12 +668,19 @@ static bool device_save_clicked(obs_properties_t *props, obs_property_t *propert
     obs_data_set_string(settings, "c64_device", device.id);
     obs_source_update(context->source, settings);
     obs_data_release(settings);
+
+    // Repopulate the device dropdown so a renamed entry's new label (and any
+    // newly-created entry) shows up immediately, without closing and
+    // reopening the properties dialog.
+    obs_property_t *device_prop = obs_properties_get(props, "c64_device");
+    if (device_prop) {
+        c64_device_registry_populate_list(device_prop);
+    }
     return true;
 }
 
 static bool device_delete_clicked(obs_properties_t *props, obs_property_t *property, void *data)
 {
-    UNUSED_PARAMETER(props);
     UNUSED_PARAMETER(property);
     struct c64_source *context = data;
     if (!context) {
@@ -673,7 +691,14 @@ static bool device_delete_clicked(obs_properties_t *props, obs_property_t *prope
     const bool deleted = selected && selected[0] && c64_device_registry_delete(selected);
     if (deleted) {
         obs_data_set_string(settings, "c64_device", "");
+        obs_data_set_string(settings, "device_name", "");
         obs_source_update(context->source, settings);
+
+        // Repopulate the device dropdown so the deleted entry disappears immediately.
+        obs_property_t *device_prop = obs_properties_get(props, "c64_device");
+        if (device_prop) {
+            c64_device_registry_populate_list(device_prop);
+        }
     }
     if (settings) {
         obs_data_release(settings);
@@ -681,12 +706,26 @@ static bool device_delete_clicked(obs_properties_t *props, obs_property_t *prope
     return deleted;
 }
 
-static bool device_scan_clicked(obs_properties_t *props, obs_property_t *property, void *data)
+static bool device_discovery_clicked(obs_properties_t *props, obs_property_t *property, void *data)
 {
     UNUSED_PARAMETER(props);
-    UNUSED_PARAMETER(property);
     struct c64_source *context = data;
-    return context && c64_device_scan_async(context->source);
+    if (!context) {
+        return false;
+    }
+    context->device_discovery_in_progress = true;
+    if (!c64_device_scan_async(context)) {
+        context->device_discovery_in_progress = false;
+        return false;
+    }
+    // A button's own label is not rebuilt from get_properties() just because
+    // the click handler returns true (unlike list/combo modified_callbacks);
+    // it must be mutated directly on the live property so the click that
+    // started the scan is the one that shows the "in progress" label.
+    if (property) {
+        obs_property_set_description(property, "Looking for devices...");
+    }
+    return true;
 }
 
 // File system changed callback - update path property visibility
@@ -1738,10 +1777,17 @@ obs_properties_t *c64_create_properties(void *data)
     obs_property_t *device_prop =
         obs_properties_add_list(network_props, "c64_device", "Device", OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
     c64_device_registry_populate_list(device_prop);
+    obs_property_set_modified_callback(device_prop, device_selection_changed);
     obs_properties_add_text(network_props, "device_name", "Device name", OBS_TEXT_DEFAULT);
     obs_properties_add_button2(network_props, "device_save", "Save / Rename", device_save_clicked, data);
     obs_properties_add_button2(network_props, "device_delete", "Delete", device_delete_clicked, data);
-    obs_properties_add_button2(network_props, "device_scan", "Scan", device_scan_clicked, data);
+    // Label reflects discovery-in-progress state; scan_complete_on_ui() clears the flag and
+    // requests a properties refresh once the background scan finishes, which re-runs
+    // get_properties() and restores this label via the same conditional.
+    obs_properties_add_button2(network_props, "device_discovery",
+                               context && context->device_discovery_in_progress ? "Looking for devices..."
+                                                                                : "Find Devices",
+                               device_discovery_clicked, data);
 
     // DNS Server IP
     obs_property_t *dns_prop =
@@ -2137,6 +2183,14 @@ obs_properties_t *c64_create_properties(void *data)
         obs_property_list_add_string(keymap_prop, "Default (symbolic us)", "symbolic_us");
         obs_property_list_add_string(keymap_prop, "Positional US", "positional_us");
     }
+
+    // Keyboard-driven joystick emulation (toggled live via F10/F11; see c64_key_click).
+    obs_properties_add_bool(rest_props, "joystick_mode_active", "Joystick emulation (F10 toggles)");
+    obs_property_t *joystick_port_prop = obs_properties_add_list(rest_props, "joystick_emulation_port",
+                                                                 "Joystick port (F11 toggles)", OBS_COMBO_TYPE_LIST,
+                                                                 OBS_COMBO_FORMAT_INT);
+    obs_property_list_add_int(joystick_port_prop, "Port 1", 1);
+    obs_property_list_add_int(joystick_port_prop, "Port 2", 2);
 
     // File system dropdown (renamed from "File source")
     obs_property_t *file_system_prop = obs_properties_add_list(rest_props, "file_system", obs_module_text("FileSystem"),
@@ -2899,6 +2953,8 @@ void c64_set_property_defaults(obs_data_t *settings)
     obs_data_set_default_string(settings, "c64_host", C64_DEFAULT_HOST);
     obs_data_set_default_string(settings, "c64_password", "");
     obs_data_set_default_int(settings, "stream_control_transport", C64_STREAM_TRANSPORT_AUTO);
+    obs_data_set_default_bool(settings, "joystick_mode_active", false);
+    obs_data_set_default_int(settings, "joystick_emulation_port", 2);
     // Default OBS IP should be the dynamically detected local IP so OBS "Defaults" fills it in immediately.
     // If detection fails, fall back to empty and the runtime code will use localhost.
     {

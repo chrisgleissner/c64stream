@@ -1054,21 +1054,77 @@ static int keyboard_get_transport(c64_keyboard_t *keyboard)
 }
 
 /* PETSCII and text both enter the queue as bytes. Keep their matrix mapping in
- * one place so a shifted character is sent as a single hardware chord. */
+ * one place so a shifted character is sent as a single hardware chord.
+ *
+ * Control codes (cursor keys, RETURN, HOME/CLR, INST/DEL) must resolve here
+ * too: build_rest_input_batch() rejects the whole batch if any byte fails to
+ * translate, and every batch falls back to the legacy KERNAL-buffer path
+ * when that happens (fallback is per-batch, never per-keystroke -- see
+ * doc/internals/keyboard-injection.md). Typed text routinely ends with \r,
+ * and interactive use routinely includes cursor movement, so leaving these
+ * untranslated made machine:input the exception rather than the rule. */
 static bool petscii_to_matrix(uint8_t value, const char **key, bool *shift)
 {
     static const char *const letters[] = {"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
                                           "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"};
     static const char *const digits[] = {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9"};
     static const char *const punctuation[128] = {
-        [' '] = "space",    ['!'] = "1",         ['\"'] = "2",        ['#'] = "3",     ['$'] = "4",
-        ['%'] = "5",        ['&'] = "6",         ['\''] = "7",        ['('] = "8",     [')'] = "9",
-        ['*'] = "8",        ['+'] = "plus",      [','] = "comma",     ['-'] = "minus", ['.'] = "period",
-        ['/'] = "slash",    [':'] = "colon",     [';'] = "semicolon", ['<'] = "comma", ['='] = "equals",
-        ['>'] = "period",   ['?'] = "slash",     ['@'] = "at",        ['['] = "colon", ['\\'] = "semicolon",
-        [']'] = "minus",    ['^'] = "arrow_up",  ['_'] = "plus",      ['`'] = "pound", ['{'] = "at",
-        ['|'] = "asterisk", ['}'] = "semicolon", ['~'] = "clear"};
-    if (!key || !shift || value < 32 || value > 126) {
+        [' '] = "space",    ['!'] = "1",        ['\"'] = "2",        ['#'] = "3",     ['$'] = "4",
+        ['%'] = "5",        ['&'] = "6",        ['\''] = "7",        ['('] = "8",     [')'] = "9",
+        ['*'] = "star",     ['+'] = "plus",     [','] = "comma",     ['-'] = "minus", ['.'] = "period",
+        ['/'] = "slash",    [':'] = "colon",    [';'] = "semicolon", ['<'] = "comma", ['='] = "equals",
+        ['>'] = "period",   ['?'] = "slash",    ['@'] = "at",        ['['] = "colon", ['\\'] = "semicolon",
+        [']'] = "minus",    ['^'] = "arrow_up", ['_'] = "plus",      ['`'] = "pound", ['{'] = "at",
+        ['}'] = "semicolon"};
+    if (!key || !shift) {
+        return false;
+    }
+
+    // PETSCII control codes -- matrix key names per the C64 keyboard matrix
+    // (row,col table verified against real hardware in 1541ultimate's
+    // tools/api/input_test.py KEYBOARD_MATRIX).
+    switch (value) {
+    case 0x0D: // RETURN
+        *key = "return";
+        *shift = false;
+        return true;
+    case 0x11: // CRSR DOWN
+        *key = "cursor_up_down";
+        *shift = false;
+        return true;
+    case 0x91: // CRSR UP (shifted down)
+        *key = "cursor_up_down";
+        *shift = true;
+        return true;
+    case 0x1D: // CRSR RIGHT
+        *key = "cursor_left_right";
+        *shift = false;
+        return true;
+    case 0x9D: // CRSR LEFT (shifted right)
+        *key = "cursor_left_right";
+        *shift = true;
+        return true;
+    case 0x13: // HOME
+        *key = "clr_home";
+        *shift = false;
+        return true;
+    case 0x93: // CLR (shifted home; clears the screen)
+        *key = "clr_home";
+        *shift = true;
+        return true;
+    case 0x14: // DEL (backspace)
+        *key = "inst_del";
+        *shift = false;
+        return true;
+    case 0x94: // INST (shifted delete)
+        *key = "inst_del";
+        *shift = true;
+        return true;
+    default:
+        break;
+    }
+
+    if (value < 32 || value > 126) {
         return false;
     }
     if (value >= 'A' && value <= 'Z') {
@@ -1087,7 +1143,10 @@ static bool petscii_to_matrix(uint8_t value, const char **key, bool *shift)
         return true;
     }
     *key = punctuation[value];
-    *shift = strchr("!\"#$%&)*,<>?", value) != NULL;
+    // Digit-row shifted symbols (shift+1..shift+9 = !"#$%&'()) plus the two
+    // characters that share a key with an unshifted sibling (< shares
+    // "comma" with ,; > shares "period" with .; ? shares "slash" with /).
+    *shift = strchr("!\"#$%&'()<>?", value) != NULL;
     return *key != NULL;
 }
 
@@ -1103,9 +1162,12 @@ static bool build_rest_input_batch(const uint8_t *bytes, int count, char *json, 
         if (!petscii_to_matrix(bytes[i], &key, &shift)) {
             return false;
         }
-        int written = snprintf(json + used, json_size - used,
-                               "%s{\"kind\":\"keyboard\",\"inputs\":[%s\"%s\"],\"transition\":\"tap\"}", i ? "," : "",
-                               shift ? "\"left_shift\",\"" : "", key);
+        int written =
+            shift ? snprintf(json + used, json_size - used,
+                             "%s{\"kind\":\"keyboard\",\"inputs\":[\"left_shift\",\"%s\"],\"transition\":\"tap\"}",
+                             i ? "," : "", key)
+                  : snprintf(json + used, json_size - used,
+                             "%s{\"kind\":\"keyboard\",\"inputs\":[\"%s\"],\"transition\":\"tap\"}", i ? "," : "", key);
         if (written < 0 || (size_t)written >= json_size - used) {
             return false;
         }

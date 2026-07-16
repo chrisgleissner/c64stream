@@ -17,8 +17,15 @@ static bool test_product_matching(void)
 {
     CHECK(c64_device_scan_product_matches("C64 Ultimate"));
     CHECK(c64_device_scan_product_matches("Ultimate 64 Elite"));
+    CHECK(c64_device_scan_product_matches("Ultimate 64-II"));
+    CHECK(c64_device_scan_product_matches("Ultimate 64"));
     CHECK(c64_device_scan_product_matches("c64u"));
     CHECK(!c64_device_scan_product_matches("unrelated device"));
+    // Ultimate II family: disk/cartridge-only add-ons, no video/audio streaming.
+    CHECK(!c64_device_scan_product_matches("Ultimate II+L"));
+    CHECK(!c64_device_scan_product_matches("Ultimate II+"));
+    CHECK(!c64_device_scan_product_matches("Ultimate II"));
+    CHECK(!c64_device_scan_product_matches("Ultimate"));
     return true;
 }
 
