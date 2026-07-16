@@ -12,6 +12,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 #include <sys/stat.h>
 #include <time.h>
 #include <errno.h>
@@ -766,14 +767,14 @@ void c64_start_network_csv_recording(struct c64_source *context)
  * Start video recording session (AVI + WAV + CSV)
  * @param context Source context
  */
-void c64_start_video_recording(struct c64_source *context)
+bool c64_start_video_recording(struct c64_source *context)
 {
     if (!context->record_video || context->video_file) {
-        return; // Already recording or not enabled
+        return context->video_file != NULL;
     }
 
     if (pthread_mutex_lock(&context->recording_mutex) != 0) {
-        return;
+        return false;
     }
 
     // Ensure session exists for video recording
@@ -781,7 +782,7 @@ void c64_start_video_recording(struct c64_source *context)
     if (context->session_folder[0] == '\0') {
         C64_LOG_ERROR("" RECORD_LOG_PREFIX " Failed to create recording session for video recording");
         pthread_mutex_unlock(&context->recording_mutex);
-        return;
+        return false;
     }
 
     // Start CSV and network recording if enabled
@@ -810,23 +811,25 @@ void c64_start_video_recording(struct c64_source *context)
             context->audio_file = NULL;
         }
         pthread_mutex_unlock(&context->recording_mutex);
-        return;
+        return false;
     }
 
     uint64_t timestamp_ms = os_gettime_ns() / 1000000;
     context->recording_start_time = timestamp_ms;
     os_atomic_store_long(&context->recorded_frames, 0);
     os_atomic_store_long(&context->recorded_audio_samples, 0);
+    context->recorded_audio_bytes = 0;
 
     // Write AVI header with detected frame rate
     c64_video_write_avi_header(context->video_file, context->width, context->height, context->expected_fps);
 
     // Write WAV header to audio file
-    c64_audio_write_wav_header(context->audio_file, 48000, 2, 16); // 48kHz stereo 16-bit
+    c64_audio_write_wav_header(context->audio_file, (uint32_t)llround(context->audio_sample_rate), 2, 16);
 
     C64_LOG_INFO("" RECORD_LOG_PREFIX " Started video recording: %s", video_filename);
 
     pthread_mutex_unlock(&context->recording_mutex);
+    return true;
 }
 
 /**
@@ -851,7 +854,7 @@ void c64_stop_video_recording(struct c64_source *context)
     if (context->audio_file) {
         // Update WAV header with final file size
         // recorded_audio_samples counts stereo samples, each stereo sample = 4 bytes (16-bit L + 16-bit R)
-        c64_audio_finalize_wav_header(context->audio_file, context->recorded_audio_samples * 4);
+        c64_audio_finalize_wav_header(context->audio_file, context->recorded_audio_bytes);
         fclose(context->audio_file);
         context->audio_file = NULL;
     }
@@ -887,6 +890,7 @@ void c64_record_init(struct c64_source *context)
     context->csv_timing_base_ns = 0;
     os_atomic_store_long(&context->recorded_frames, 0);
     os_atomic_store_long(&context->recorded_audio_samples, 0);
+    context->recorded_audio_bytes = 0;
 
     context->audio_mixer_snapshot_items = NULL;
     context->audio_mixer_snapshot_values = NULL;
@@ -1058,8 +1062,15 @@ void c64_record_update_settings(struct c64_source *context, void *settings_ptr)
 
         if (new_record_video) {
             // Start recording (will join/create session)
-            c64_start_video_recording(context);
-            C64_LOG_INFO("" RECORD_LOG_PREFIX " Video recording started");
+            if (c64_start_video_recording(context)) {
+                C64_LOG_INFO("" RECORD_LOG_PREFIX " Video recording started");
+            } else {
+                context->record_video = false;
+                obs_data_set_bool(settings, "record_video", false);
+                C64_LOG_ERROR("" RECORD_LOG_PREFIX
+                              " Video recording was not enabled because its files could not be opened");
+                c64_session_cleanup_if_needed(context);
+            }
         } else {
             // Stop recording
             c64_stop_video_recording(context);

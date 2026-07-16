@@ -42,19 +42,28 @@ void c64_audio_write_wav_header(FILE *file, uint32_t sample_rate, uint16_t chann
 }
 
 // Helper function to finalize WAV header with correct file sizes
-void c64_audio_finalize_wav_header(FILE *file, uint32_t data_size)
+void c64_audio_finalize_wav_header(FILE *file, uint64_t data_size)
 {
-    if (!file)
+    if (!file) {
         return;
+    }
+
+    if (data_size > UINT32_MAX - 36U) {
+        C64_LOG_WARNING("" RECORD_LOG_PREFIX " WAV exceeds the RIFF 4 GiB limit; header sizes are clamped");
+    }
+    const uint32_t data_size_32 = data_size > UINT32_MAX ? UINT32_MAX : (uint32_t)data_size;
+    const uint32_t chunk_size = data_size > UINT32_MAX - 36U ? UINT32_MAX : data_size_32 + 36U;
 
     // Update ChunkSize (file size - 8)
-    fseek(file, 4, SEEK_SET);
-    uint32_t chunk_size = data_size + 36;
-    fwrite(&chunk_size, 4, 1, file);
+    if (fseek(file, 4, SEEK_SET) != 0 || fwrite(&chunk_size, sizeof(chunk_size), 1, file) != 1) {
+        C64_LOG_ERROR("" RECORD_LOG_PREFIX " Failed to finalize WAV RIFF chunk size");
+        return;
+    }
 
     // Update Subchunk2Size (data size)
-    fseek(file, 40, SEEK_SET);
-    fwrite(&data_size, 4, 1, file);
+    if (fseek(file, 40, SEEK_SET) != 0 || fwrite(&data_size_32, sizeof(data_size_32), 1, file) != 1) {
+        C64_LOG_ERROR("" RECORD_LOG_PREFIX " Failed to finalize WAV data chunk size");
+    }
 }
 
 void c64_audio_record_data(struct c64_source *context, const uint8_t *audio_data, size_t data_size)
@@ -70,6 +79,7 @@ void c64_audio_record_data(struct c64_source *context, const uint8_t *audio_data
     size_t wav_written = fwrite(audio_data, 1, data_size, context->audio_file);
 
     if (wav_written == data_size) {
+        context->recorded_audio_bytes += wav_written;
         // Calculate samples correctly: data_size is in bytes, each stereo sample is 4 bytes (16-bit L + 16-bit R)
         long new_samples = (long)(data_size / 4);
         // Add samples atomically - need to manually implement atomic add since OBS doesn't have it

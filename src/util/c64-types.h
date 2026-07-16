@@ -277,6 +277,7 @@ struct c64_source {
     uint64_t last_audio_packet_us; // Last audio packet timestamp for interval calculation (per-session)
     volatile long recorded_frames;
     volatile long recorded_audio_samples;
+    uint64_t recorded_audio_bytes;
     pthread_mutex_t recording_mutex;
 
     // Debug-only A/V pop detection (edge-based)
