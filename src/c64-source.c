@@ -31,6 +31,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-video.h"
 #include "c64-color.h"
 #include "c64-dimensions.h"
+#include "c64-effect-clamp.h"
 #include "c64-audio.h"
 #include "c64-interact-key.h"
 #include "c64-logo.h"
@@ -67,25 +68,6 @@ static void c64_release_joystick_inputs(struct c64_source *context);
 static bool c64_start_streaming_inner(struct c64_source *context);
 
 static volatile long c64_next_default_port_pair;
-
-static float c64_clamp_effect_float(float value, float minimum, float maximum, float fallback)
-{
-    if (!isfinite(value)) {
-        return fallback;
-    }
-    return fmaxf(minimum, fminf(value, maximum));
-}
-
-static int c64_clamp_effect_int(int value, int minimum, int maximum)
-{
-    if (value < minimum) {
-        return minimum;
-    }
-    if (value > maximum) {
-        return maximum;
-    }
-    return value;
-}
 
 static void c64_clamp_effect_params(struct c64_source *context)
 {

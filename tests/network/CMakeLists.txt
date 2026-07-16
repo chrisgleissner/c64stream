@@ -132,6 +132,14 @@ target_include_directories(
 target_link_libraries(test_wav_header PRIVATE OBS::libobs)
 add_test(NAME wav_header COMMAND test_wav_header)
 
+# C64STR-028/029: effect parameter clamping and NaN/inf rejection.
+add_executable(test_effect_clamp test_effect_clamp.c)
+target_include_directories(test_effect_clamp PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/util)
+if(UNIX)
+  target_link_libraries(test_effect_clamp PRIVATE m)
+endif()
+add_test(NAME effect_clamp COMMAND test_effect_clamp)
+
 add_executable(test_c64_stream_control test_c64_stream_control.c ${CMAKE_SOURCE_DIR}/src/network/c64-stream-control.c)
 target_include_directories(
   test_c64_stream_control
