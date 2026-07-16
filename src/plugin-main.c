@@ -26,13 +26,16 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #include "c64-version.h"
 #include "c64-effect.h"
 #include "c64-palette.h"
+#include "c64-file.h"
 #include "device/c64-device.h"
 
 #ifdef _WIN32
 #include <windows.h>
+#include <io.h>
 #else
 #include <sys/stat.h>
 #include <dirent.h>
+#include <unistd.h>
 #endif
 
 #include <string.h>
@@ -55,38 +58,18 @@ static void copy_demo_scripts(void)
         return;
     }
 
-    // Get destination directory (user documents)
+    // Use the same canonical scripts directory as the UI and file dialogs.
     char dest_dir[2048];
-    const char *home = getenv("HOME");
-    if (!home) {
-        home = getenv("USERPROFILE"); // Windows fallback
-    }
-    if (!home) {
-        C64_LOG_WARNING("Could not determine home directory for script copying");
+    if (!c64_get_user_dir(C64_USER_DIR_SCRIPTS, dest_dir, sizeof(dest_dir))) {
+        C64_LOG_WARNING("Could not determine scripts directory for demo copying");
         bfree(source_dir);
         return;
     }
-
-#ifdef _WIN32
-    snprintf(dest_dir, sizeof(dest_dir), "%s\\Documents\\obs-studio\\c64stream\\scripts", home);
-#else
-    snprintf(dest_dir, sizeof(dest_dir), "%s/Documents/obs-studio/c64stream/scripts", home);
-#endif
-
-    // Create destination directory if it doesn't exist
-#ifdef _WIN32
-    char mkdir_cmd[2560];
-    snprintf(mkdir_cmd, sizeof(mkdir_cmd), "mkdir \"%s\"", dest_dir);
-    if (system(mkdir_cmd) != 0) {
+    if (!c64_create_directory_recursive(dest_dir)) {
         C64_LOG_WARNING("Failed to create scripts directory: %s", dest_dir);
+        bfree(source_dir);
+        return;
     }
-#else
-    char mkdir_cmd[2560];
-    snprintf(mkdir_cmd, sizeof(mkdir_cmd), "mkdir -p \"%s\"", dest_dir);
-    if (system(mkdir_cmd) != 0) {
-        C64_LOG_WARNING("Failed to create scripts directory: %s", dest_dir);
-    }
-#endif
 
     // Copy all .c64script files
     C64_LOG_INFO("Copying demo scripts from %s to %s", source_dir, dest_dir);
@@ -109,16 +92,8 @@ static void copy_demo_scripts(void)
                 snprintf(src_path, sizeof(src_path), "%s\\%s", source_dir, find_data.cFileName);
                 snprintf(dst_path, sizeof(dst_path), "%s\\%s", dest_dir, find_data.cFileName);
 
-                // Check if destination file exists and is newer
-                WIN32_FILE_ATTRIBUTE_DATA src_attr, dst_attr;
-                bool should_copy = true;
-                if (GetFileAttributesExA(dst_path, GetFileExInfoStandard, &dst_attr) &&
-                    GetFileAttributesExA(src_path, GetFileExInfoStandard, &src_attr)) {
-                    // Compare file times (only copy if source is newer)
-                    if (CompareFileTime(&src_attr.ftLastWriteTime, &dst_attr.ftLastWriteTime) <= 0) {
-                        should_copy = false;
-                    }
-                }
+                // Demo files are seed data; never overwrite a user file.
+                bool should_copy = GetFileAttributesA(dst_path) == INVALID_FILE_ATTRIBUTES;
 
                 if (should_copy) {
                     // Copy file
@@ -127,10 +102,15 @@ static void copy_demo_scripts(void)
                     if (src_file && dst_file) {
                         char buffer[4096];
                         size_t bytes;
-                        while ((bytes = fread(buffer, 1, sizeof(buffer), src_file)) > 0) {
-                            fwrite(buffer, 1, bytes, dst_file);
-                        }
-                        copied_count++;
+                        bool copy_ok = true;
+                        while ((bytes = fread(buffer, 1, sizeof(buffer), src_file)) > 0)
+                            copy_ok = fwrite(buffer, 1, bytes, dst_file) == bytes;
+                        copy_ok = copy_ok && !ferror(src_file) && fclose(dst_file) == 0;
+                        dst_file = NULL;
+                        if (copy_ok)
+                            copied_count++;
+                        else
+                            remove(dst_path);
                     } else {
                         C64_LOG_WARNING("Failed to open files for copying: %s -> %s (src=%p, dst=%p)", src_path,
                                         dst_path, (void *)src_file, (void *)dst_file);
@@ -166,15 +146,8 @@ static void copy_demo_scripts(void)
             snprintf(src_path, sizeof(src_path), "%s/%s", source_dir, entry->d_name);
             snprintf(dst_path, sizeof(dst_path), "%s/%s", dest_dir, entry->d_name);
 
-            // Check if destination file exists and is newer
-            struct stat src_stat, dst_stat;
-            bool should_copy = true;
-            if (stat(dst_path, &dst_stat) == 0 && stat(src_path, &src_stat) == 0) {
-                // Only copy if source is newer
-                if (src_stat.st_mtime <= dst_stat.st_mtime) {
-                    should_copy = false;
-                }
-            }
+            // Demo files are seed data; never overwrite a user file.
+            bool should_copy = access(dst_path, F_OK) != 0;
 
             if (should_copy) {
                 // Copy file
@@ -183,10 +156,15 @@ static void copy_demo_scripts(void)
                 if (src_file && dst_file) {
                     char buffer[4096];
                     size_t bytes;
-                    while ((bytes = fread(buffer, 1, sizeof(buffer), src_file)) > 0) {
-                        fwrite(buffer, 1, bytes, dst_file);
-                    }
-                    copied_count++;
+                    bool copy_ok = true;
+                    while ((bytes = fread(buffer, 1, sizeof(buffer), src_file)) > 0)
+                        copy_ok = fwrite(buffer, 1, bytes, dst_file) == bytes;
+                    copy_ok = copy_ok && !ferror(src_file) && fclose(dst_file) == 0;
+                    dst_file = NULL;
+                    if (copy_ok)
+                        copied_count++;
+                    else
+                        remove(dst_path);
                 } else {
                     C64_LOG_WARNING("Failed to open files for copying: %s -> %s (src=%p, dst=%p)", src_path, dst_path,
                                     (void *)src_file, (void *)dst_file);

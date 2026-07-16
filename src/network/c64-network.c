@@ -117,7 +117,8 @@ static bool resolve_hostname_direct_dns(const char *hostname, const char *dns_se
 }
 
 /**
- * Try multiple common DNS servers for hostname resolution
+ * Query only the DNS server explicitly configured by the user.  Guessing
+ * router addresses can resolve a hostname to an unrelated device.
  */
 static bool resolve_hostname_with_fallback_dns(const char *hostname, const char *custom_dns, char *ip_buffer,
                                                size_t buffer_size)
@@ -126,28 +127,10 @@ static bool resolve_hostname_with_fallback_dns(const char *hostname, const char 
         return false;
     }
 
-    // List of DNS servers to try (configured DNS first, then fallback to common routers)
-    const char *dns_servers[8];
-    int dns_count = 0;
-
-    // Add configured DNS server first if provided and not empty
-    if (custom_dns && strlen(custom_dns) > 0) {
-        dns_servers[dns_count++] = custom_dns;
+    if (custom_dns && custom_dns[0]) {
         C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Using configured DNS server: %s", custom_dns);
+        return resolve_hostname_direct_dns(hostname, custom_dns, ip_buffer, buffer_size);
     }
-
-    // Add common router DNS servers as fallback
-    dns_servers[dns_count++] = "192.168.0.1";
-    dns_servers[dns_count++] = "10.0.0.1";
-    dns_servers[dns_count++] = "172.16.0.1";
-    dns_servers[dns_count] = NULL;
-
-    for (int i = 0; i < dns_count; i++) {
-        if (resolve_hostname_direct_dns(hostname, dns_servers[i], ip_buffer, buffer_size)) {
-            return true;
-        }
-    }
-
     return false;
 }
 #endif
