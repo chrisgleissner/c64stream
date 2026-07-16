@@ -34,7 +34,7 @@ struct mock_device {
     int listen_fd;
     int port;
     pthread_t thread;
-    volatile bool stop;
+    bool stop; /* atomic access */
     char captured_password[MAX_CAPTURED][128];
     int captured_count;
 };
@@ -68,12 +68,12 @@ static void extract_password(const char *req, char *out, size_t out_size)
 static void *server_main(void *arg)
 {
     struct mock_device *dev = arg;
-    while (!dev->stop) {
+    while (!__atomic_load_n(&dev->stop, __ATOMIC_RELAXED)) {
         struct sockaddr_in cli;
         socklen_t clilen = sizeof(cli);
         int fd = accept(dev->listen_fd, (struct sockaddr *)&cli, &clilen);
         if (fd < 0) {
-            if (dev->stop)
+            if (__atomic_load_n(&dev->stop, __ATOMIC_RELAXED))
                 break;
             continue;
         }
@@ -92,10 +92,10 @@ static void *server_main(void *arg)
         }
         buf[total] = '\0';
 
-        if (dev->captured_count < MAX_CAPTURED) {
+        if (__atomic_load_n(&dev->captured_count, __ATOMIC_RELAXED) < MAX_CAPTURED) {
             extract_password(buf, dev->captured_password[dev->captured_count],
                              sizeof(dev->captured_password[dev->captured_count]));
-            dev->captured_count++;
+            __atomic_add_fetch(&dev->captured_count, 1, __ATOMIC_RELAXED);
         }
 
         const char *resp = "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n";
@@ -148,11 +148,11 @@ int main(void)
     c64_rest_reset(client);
 
     /* Give the server a moment to record the second request if needed. */
-    for (int i = 0; i < 100 && dev.captured_count < 2; i++) {
+    for (int i = 0; i < 100 && __atomic_load_n(&dev.captured_count, __ATOMIC_RELAXED) < 2; i++) {
         usleep(10000);
     }
 
-    dev.stop = true;
+    __atomic_store_n(&dev.stop, true, __ATOMIC_RELAXED);
     /* Unblock accept() by connecting once. */
     int poke = socket(AF_INET, SOCK_STREAM, 0);
     if (poke >= 0) {

@@ -97,15 +97,20 @@ static void test_two_source_isolation(void)
 struct churn_state {
     struct c64_color_lut lut;
     pthread_mutex_t lock;
-    volatile bool stop;
+    bool stop; /* accessed via __atomic_* to stay TSan-clean */
     uint32_t pal_a[16];
     uint32_t pal_b[16];
 };
 
+static bool churn_stopped(struct churn_state *s)
+{
+    return __atomic_load_n(&s->stop, __ATOMIC_RELAXED);
+}
+
 static void *writer_thread(void *opaque)
 {
     struct churn_state *s = opaque;
-    for (long i = 0; i < 200000 && !s->stop; i++) {
+    for (long i = 0; i < 200000 && !churn_stopped(s); i++) {
         const uint32_t *p = (i & 1) ? s->pal_b : s->pal_a;
         pthread_mutex_lock(&s->lock);
         c64_color_lut_update(&s->lut, p);
@@ -122,7 +127,7 @@ static void *reader_thread(void *opaque)
     uint64_t snapshot[256];
     uint32_t out[PIXELS];
 
-    for (long i = 0; i < 200000 && !s->stop; i++) {
+    for (long i = 0; i < 200000 && !churn_stopped(s); i++) {
         pthread_mutex_lock(&s->lock);
         c64_color_lut_snapshot(&s->lut, snapshot);
         pthread_mutex_unlock(&s->lock);
@@ -152,7 +157,7 @@ static void test_concurrent_rebuild(void)
     pthread_create(&w, NULL, writer_thread, &s);
     pthread_create(&r, NULL, reader_thread, &s);
     pthread_join(w, NULL);
-    s.stop = true;
+    __atomic_store_n(&s.stop, true, __ATOMIC_RELAXED);
     pthread_join(r, NULL);
     pthread_mutex_destroy(&s.lock);
 
