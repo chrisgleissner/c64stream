@@ -192,6 +192,13 @@ static bool lookup_key_code_from_vkey(uint32_t native_vkey, char key_code[64])
     default:
         break;
     }
+    /* Carbon virtual keycodes are physical key positions, not ASCII/Windows
+     * VKs. Any code not resolved above (letters, digits, keypad, punctuation)
+     * must NOT fall through to the ASCII-range / Windows-VK tables below: e.g.
+     * the keypad-decimal code 0x41 would be misread as "KeyA". On macOS those
+     * keys resolve from the event's text in c64_interact_translate_key_event,
+     * so return unresolved here and let the text path handle them. */
+    return false;
 #endif
 
     if ((native_vkey >= '0' && native_vkey <= '9') || (native_vkey >= 'A' && native_vkey <= 'Z')) {
