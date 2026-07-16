@@ -207,14 +207,18 @@ bool c64_palette_write_vpl(const char *path, const uint32_t *colors, const char 
 bool c64_palette_get_user_dir(char *path, size_t path_size);
 
 /**
- * @brief Rebuild the color conversion LUT from a palette
+ * @brief Resolve a palette's 16 BGRA colours by ID without touching shared state.
  *
- * This function rebuilds the pixel-pair LUT used for optimized pixel conversion.
- * It should be called whenever the active palette changes.
+ * Looks the palette up in the global catalogue, loading its colours from the
+ * VPL file on demand, and copies them into @p out_colors.  Unlike
+ * c64_palette_select this performs no global working-copy or LUT mutation, so
+ * it is safe to call per source (C64STR-014).
  *
- * @param colors Array of 16 BGRA colors to use for LUT generation
+ * @param palette_id Palette identifier ("Default" if NULL/empty)
+ * @param out_colors Destination array of 16 BGRA colours
+ * @return true if the palette was found (colours written), false otherwise
  */
-void c64_palette_rebuild_lut(const uint32_t *colors);
+bool c64_palette_resolve_colors(const char *palette_id, uint32_t *out_colors);
 
 /**
  * @brief Get the active palette colors for LUT generation

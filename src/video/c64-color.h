@@ -32,35 +32,72 @@ static const uint32_t c64_default_palette[16] = {
     0xFFB2B2B2, // 15: Light Grey
 };
 
-// Current active palette (used by LUT, modifiable by palette system)
-extern uint32_t c64_current_palette[16];
-
-// Pre-computed lookup table for pixel pairs
-// Individual uint64_t writes are atomic on x86_64 (naturally 8-byte aligned)
-// Lock-free: palette updates write directly, rendering reads directly
-// Worst case: single frame sees partial old/new palette during update
-extern uint64_t c64_color_pair_lut[256];
-extern bool c64_color_lut_initialized;
+// C64STR-014: per-source color-conversion state.
+//
+// Palette selection and the pixel-pair lookup table used to be process-wide
+// globals, which coupled every OBS source instance: the last source to select
+// a palette (or edit a color) rewrote the single shared LUT, so all sources
+// rendered with that one palette and edits bled across instances.  Each source
+// now owns a `struct c64_color_lut`; the render thread reads its own LUT and no
+// global mutable palette state remains in the conversion path.
+//
+// Concurrency: palette edits (UI thread) can overlap frame conversion (video
+// thread).  The struct itself is a plain POD; the owner (c64_source) serialises
+// writers and per-frame reads with its palette_mutex.  A reader takes one
+// snapshot of the whole table under the lock (once per frame, not per pixel)
+// and converts against that local copy, so it never observes a half-rebuilt
+// table and the hot per-pixel loop stays lock-free.
+struct c64_color_lut {
+    uint32_t palette[16]; // BGRA colors backing the current LUT
+    uint64_t lut[256];    // Pixel-pair lookup entries (two packed BGRA pixels)
+};
 
 /**
- * @brief Initialize the color conversion lookup table
+ * @brief Build a 256-entry pixel-pair lookup table from a 16-colour palette.
  *
- * Pre-computes all 256 possible 4-bit color pair combinations into a lookup table
- * for optimized pixel conversion. This function is thread-safe and can be called
- * multiple times - subsequent calls are ignored.
+ * Pure helper: packs two BGRA colours into each 64-bit entry so pixel
+ * conversion can emit two pixels per store.  Does not touch any shared state.
  *
- * The lookup table packs two 32-bit RGBA colors into 64-bit values for efficient
- * memory operations during pixel conversion.
+ * @param lut Destination array of 256 uint64_t entries
+ * @param palette Source array of 16 BGRA colours
  */
-void c64_init_color_conversion_lut(void);
+void c64_color_build_lut(uint64_t *lut, const uint32_t *palette);
 
 /**
- * @brief Convert C64 pixel data to RGBA using optimized lookup table
+ * @brief Initialise a per-source color LUT from a palette (build in place).
+ *
+ * Caller must hold the owning source's palette lock (or otherwise guarantee no
+ * concurrent reader) when the source is already live.
+ */
+void c64_color_lut_init(struct c64_color_lut *lut, const uint32_t *palette);
+
+/**
+ * @brief Rebuild a per-source color LUT from a new palette.
+ *
+ * Rebuilds @p lut in place.  Caller must hold the owning source's palette lock
+ * so a concurrent snapshot never sees a partially-written table.
+ */
+void c64_color_lut_update(struct c64_color_lut *lut, const uint32_t *palette);
+
+/**
+ * @brief Copy the current lookup table into a caller-owned buffer.
+ *
+ * Taken once per frame under the owning source's palette lock; the caller then
+ * releases the lock and runs the per-pixel conversion against @p out.
+ *
+ * @param lut Source per-source LUT
+ * @param out Destination array of 256 uint64_t entries
+ */
+void c64_color_lut_snapshot(const struct c64_color_lut *lut, uint64_t *out);
+
+/**
+ * @brief Convert C64 pixel data to RGBA using a caller-provided lookup table
  *
  * Converts C64 pixel pairs (4 bits per pixel) to 32-bit RGBA values using
- * a pre-computed lookup table. Each source byte contains 2 pixels, and each
- * pixel is converted to a 32-bit RGBA value.
+ * the given pre-computed lookup table. Each source byte contains 2 pixels, and
+ * each pixel is converted to a 32-bit RGBA value.
  *
+ * @param lut 256-entry pixel-pair lookup table (per-source, see c64_color_lut)
  * @param src Source pixel data (4-bit pairs)
  * @param dst Destination RGBA buffer (32-bit per pixel)
  * @param pixel_pairs Number of pixel pairs to convert (bytes to process)
@@ -68,7 +105,7 @@ void c64_init_color_conversion_lut(void);
  * Performance: Processes 8 pixels per loop iteration using 64-bit packed writes
  * for optimal cache efficiency in high-frequency video processing (3400+ packets/sec).
  */
-void c64_convert_pixels_optimized(const uint8_t *src, uint32_t *dst, int pixel_pairs);
+void c64_convert_pixels_optimized(const uint64_t *lut, const uint8_t *src, uint32_t *dst, int pixel_pairs);
 
 /**
  * @brief Convert internal color format to OBS color format

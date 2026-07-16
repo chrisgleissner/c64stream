@@ -21,6 +21,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-protocol.h"
 #include "c64-network-fifo.h"
 #include "c64-effect-afterglow.h"
+#include "c64-color.h"
 
 // Forward declarations
 typedef struct c64_rest_client c64_rest_client_t;
@@ -108,6 +109,16 @@ struct c64_source {
     uint32_t control_port;
     bool streaming;
     uint64_t last_start_command_time_ns; // When we last requested streaming (START commands or start_streaming)
+
+    // Per-source palette/color conversion state (C64STR-014).
+    // Owns this source's active palette colours and the double-buffered pixel
+    // LUT read by its video thread, so palette selection and colour edits stay
+    // isolated per instance.  edit_mutex serialises writers (UI-thread selects
+    // and colour edits); readers are lock-free via c64_color_lut_acquire.
+    struct c64_color_lut color_lut;
+    char palette_id[64];
+    bool palette_initialized;
+    pthread_mutex_t palette_mutex;
 
     // Video data
     uint32_t width;

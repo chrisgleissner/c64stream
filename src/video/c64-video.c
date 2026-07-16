@@ -689,6 +689,15 @@ void c64_assemble_frame_with_interpolation(struct c64_source *context, struct fr
     const uint32_t height = context->height;
     uint32_t lines_written_count = 0;
 
+    // C64STR-014: snapshot this source's own colour LUT once per frame under
+    // the palette lock, then convert lock-free against the local copy. A
+    // concurrent palette edit is fully applied or not at all, so the whole
+    // frame renders with one consistent palette and never a torn table.
+    uint64_t lut[256];
+    pthread_mutex_lock(&context->palette_mutex);
+    c64_color_lut_snapshot(&context->color_lut, lut);
+    pthread_mutex_unlock(&context->palette_mutex);
+
     if (height > 272) {
         C64_LOG_ERROR("" VIDEO_LOG_PREFIX " Frame height %u exceeds maximum 272", height);
         return;
@@ -712,7 +721,7 @@ void c64_assemble_frame_with_interpolation(struct c64_source *context, struct fr
             uint32_t *dst_line = context->frame_buffer + dst_line_offset;
             uint8_t *src_line = packet->packet_data + (line * C64_BYTES_PER_LINE);
 
-            c64_convert_pixels_optimized(src_line, dst_line, C64_BYTES_PER_LINE);
+            c64_convert_pixels_optimized(lut, src_line, dst_line, C64_BYTES_PER_LINE);
             if (!line_written[current_line]) {
                 line_written[current_line] = 1;
                 lines_written_count++;

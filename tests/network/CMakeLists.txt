@@ -51,6 +51,19 @@ add_executable(test_c64_avi_segments test_c64_avi_segments.c)
 target_include_directories(test_c64_avi_segments PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/record)
 add_test(NAME c64_avi_segments COMMAND test_c64_avi_segments)
 
+# C64STR-014: per-source palette / colour-LUT isolation. Links only the
+# dependency-free colour module.
+add_executable(
+  test_c64_palette_isolation test_c64_palette_isolation.c ${CMAKE_SOURCE_DIR}/src/video/c64-color.c
+)
+target_include_directories(
+  test_c64_palette_isolation PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/video
+)
+if(UNIX)
+  target_link_libraries(test_c64_palette_isolation PRIVATE pthread)
+endif()
+add_test(NAME c64_palette_isolation COMMAND test_c64_palette_isolation)
+
 add_executable(test_c64_stream_control test_c64_stream_control.c ${CMAKE_SOURCE_DIR}/src/network/c64-stream-control.c)
 target_include_directories(
   test_c64_stream_control

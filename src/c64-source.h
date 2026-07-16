@@ -52,4 +52,10 @@ bool c64_source_script_take_frontend_screenshot(struct c64_source *context, bool
 // Timing: initialize shared synthetic stream start time on first packet receipt (audio or video).
 void c64_try_init_stream_start_ns(struct c64_source *context, uint64_t packet_time_ns, const char *trigger);
 
+// Palette (C64STR-014): resolve this source's palette from its settings and
+// (re)build its per-source colour LUT.  Reads the "palette" id plus any
+// per-source "palette_color_N" overrides.  Safe to call from the UI thread
+// while the video thread is converting frames (double-buffered publish).
+void c64_source_apply_palette(struct c64_source *context, obs_data_t *settings);
+
 #endif // C64_SOURCE_H

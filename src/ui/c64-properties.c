@@ -3375,6 +3375,10 @@ static bool palette_changed(void *priv, obs_properties_t *props, obs_property_t 
     // (needed when switching between "Preset" and "Custom" versions with same base name)
     update_palette_color_properties(settings);
 
+    // C64STR-014: rebuild this source's own colour LUT so the selection takes
+    // effect without disturbing any other source instance.
+    c64_source_apply_palette(context, settings);
+
     return true; // Refresh UI
 }
 
@@ -3615,6 +3619,9 @@ static bool palette_delete_clicked(obs_properties_t *props, obs_property_t *prop
 
         // Update color pickers to show Default colors
         update_palette_color_properties(settings);
+
+        // C64STR-014: rebuild this source's LUT for the Default fallback.
+        c64_source_apply_palette(context, settings);
     }
 
     obs_data_release(settings);
@@ -3623,7 +3630,7 @@ static bool palette_delete_clicked(obs_properties_t *props, obs_property_t *prop
 
 static bool palette_color_changed(void *data, obs_properties_t *props, obs_property_t *property, obs_data_t *settings)
 {
-    UNUSED_PARAMETER(data);
+    struct c64_source *context = (struct c64_source *)data;
 
     if (!settings || !property) {
         return false;
@@ -3676,6 +3683,10 @@ static bool palette_color_changed(void *data, obs_properties_t *props, obs_prope
     // - For custom palettes: Overwrites in place
     // This updates settings with the new palette ID if a custom copy was created
     bool palette_changed = c64_palette_auto_save(settings);
+
+    // C64STR-014: rebuild only THIS source's colour LUT so a live colour edit
+    // does not bleed into other source instances.
+    c64_source_apply_palette(context, settings);
 
     // Refresh UI if palette was converted from preset to custom
     // This updates the dropdown to show the new custom palette

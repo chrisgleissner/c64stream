@@ -240,6 +240,54 @@ static int c64_obs_data_get_int_or_current(obs_data_t *settings, const char *key
     return (int)obs_data_get_int(settings, key);
 }
 
+void c64_source_apply_palette(struct c64_source *context, obs_data_t *settings)
+{
+    if (!context) {
+        return;
+    }
+
+    const char *palette_id = settings ? obs_data_get_string(settings, "palette") : NULL;
+    if (!palette_id || !palette_id[0]) {
+        palette_id = "Default";
+    }
+
+    // Resolve the catalogue colours for this palette (loads from VPL on demand).
+    // This reads only shared read-mostly catalogue state, never a shared LUT.
+    uint32_t colors[16];
+    if (!c64_palette_resolve_colors(palette_id, colors)) {
+        // Unknown palette (e.g. deleted): fall back to Default so the source
+        // still renders with a valid LUT rather than leaving it stale.
+        if (!c64_palette_resolve_colors("Default", colors)) {
+            memcpy(colors, c64_default_palette, sizeof(colors));
+        }
+        palette_id = "Default";
+    }
+
+    // Apply this source's own per-colour overrides (stored per source in its
+    // OBS settings), so colour edits stay isolated to this instance.
+    if (settings) {
+        for (int i = 0; i < 16; i++) {
+            char key[32];
+            snprintf(key, sizeof(key), "palette_color_%d", i);
+            if (obs_data_has_user_value(settings, key)) {
+                uint32_t obs_color = (uint32_t)obs_data_get_int(settings, key);
+                colors[i] = (obs_color & 0x00FFFFFF) | 0xFF000000;
+            }
+        }
+    }
+
+    pthread_mutex_lock(&context->palette_mutex);
+    if (!context->palette_initialized) {
+        c64_color_lut_init(&context->color_lut, colors);
+        context->palette_initialized = true;
+    } else {
+        c64_color_lut_update(&context->color_lut, colors);
+    }
+    strncpy(context->palette_id, palette_id, sizeof(context->palette_id) - 1);
+    context->palette_id[sizeof(context->palette_id) - 1] = '\0';
+    pthread_mutex_unlock(&context->palette_mutex);
+}
+
 static bool c64_try_get_prefer_pal_from_obs_fps(bool *prefer_pal)
 {
     struct obs_video_info ovi;
@@ -805,12 +853,8 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
         networking_initialized = true;
     }
 
-    // Initialize color conversion optimization on first use
-    static bool color_lut_initialized = false;
-    if (!color_lut_initialized) {
-        c64_init_color_conversion_lut();
-        color_lut_initialized = true;
-    }
+    // C64STR-014: colour LUTs are per-source now; each instance builds its own
+    // in c64_source_apply_palette below, so there is no global LUT to prime.
 
     struct c64_source *context = bzalloc(sizeof(struct c64_source));
     if (!context) {
@@ -1015,6 +1059,22 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
         return NULL;
     }
 
+    // C64STR-014: serialises per-source palette writers (UI-thread selects and
+    // colour edits); readers stay lock-free via c64_color_lut_acquire.
+    if (pthread_mutex_init(&context->palette_mutex, NULL) != 0) {
+        C64_LOG_ERROR("Failed to initialize palette mutex");
+        pthread_mutex_destroy(&context->retry_thread_mutex);
+        c64_network_buffer_destroy(context->network_buffer);
+        pthread_mutex_destroy(&context->stream_start_mutex);
+        pthread_mutex_destroy(&context->config_mutex);
+        pthread_mutex_destroy(&context->assembly_mutex);
+        bfree(context->frame_buffer);
+        bfree(context->bmp_row_buffer);
+        bfree(context->bgr_frame_buffer);
+        bfree(context);
+        return NULL;
+    }
+
     // Set initial buffer delay for both video and audio
     c64_network_buffer_set_delay(context->network_buffer, context->buffer_delay_ms, context->buffer_delay_ms);
 
@@ -1077,6 +1137,8 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
             }
             c64_network_buffer_destroy(context->network_buffer);
             context->network_buffer = NULL;
+            pthread_mutex_destroy(&context->palette_mutex);
+            pthread_mutex_destroy(&context->retry_thread_mutex);
             pthread_mutex_destroy(&context->stream_start_mutex);
             pthread_mutex_destroy(&context->assembly_mutex);
             pthread_mutex_destroy(&context->config_mutex);
@@ -1175,7 +1237,10 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->frame_dirty = false;
 
     // Initialize palette from settings (must be done after palette system init)
-    // Always select Default if settings are empty (first startup guarantee)
+    // Always select Default if settings are empty (first startup guarantee).
+    // c64_palette_select tracks the catalogue's active id for the properties
+    // dropdown; c64_source_apply_palette builds THIS source's own LUT so two
+    // sources render with independent palettes (C64STR-014).
     const char *palette_id = obs_data_get_string(settings, "palette");
     if (!palette_id || !palette_id[0]) {
         // No palette specified - select Default (first startup)
@@ -1187,6 +1252,7 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
             c64_palette_select("Default");
         }
     }
+    c64_source_apply_palette(context, settings);
 
     // Note: avoid noisy logging here; E2E expects deterministic behavior without requiring log parsing.
     context->render_texture = NULL;
@@ -1390,6 +1456,7 @@ void c64_destroy(void *data)
     pthread_mutex_destroy(&context->assembly_mutex);
     pthread_mutex_destroy(&context->config_mutex);
     pthread_mutex_destroy(&context->retry_thread_mutex);
+    pthread_mutex_destroy(&context->palette_mutex);
     if (context->frame_buffer) {
         bfree(context->frame_buffer);
     }
@@ -1745,7 +1812,9 @@ void c64_update(void *data, obs_data_t *settings)
     // Update recording settings
     c64_record_update_settings(context, settings);
 
-    // Update palette selection if changed
+    // Update palette selection if changed. Keep the catalogue's active id in
+    // sync for the properties dropdown, then rebuild this source's own LUT
+    // from its settings (id + per-source colour overrides) — C64STR-014.
     const char *palette_id = obs_data_get_string(settings, "palette");
     if (palette_id && palette_id[0]) {
         const char *current_palette = c64_palette_get_active_id();
@@ -1753,6 +1822,7 @@ void c64_update(void *data, obs_data_t *settings)
             c64_palette_select(palette_id);
         }
     }
+    c64_source_apply_palette(context, settings);
 
     // Check if dimension-affecting effects were previously disabled
     bool prev_dimension_effects = (context->scan_line_distance > 0.0f) || (context->pixel_width != 1.0f) ||
