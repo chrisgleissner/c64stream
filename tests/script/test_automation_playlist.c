@@ -277,7 +277,11 @@ int main(void)
     strncpy(mutual_config.folder_path, mutual_root, sizeof(mutual_config.folder_path) - 1);
     CHECK(c64_automation_refresh_playlist(automation, &mutual_config, 0, true));
     CHECK(c64_automation_get_playlist_count(automation) == 1);
-    CHECK(strcmp(c64_automation_get_playlist_item(automation, 0), mutual_song) == 0);
+    /* The one real file may be recorded via A/only.sid or via the equivalent
+     * B/to_a/only.sid depending on directory read order; both denote the same
+     * file. The guarantee under a mutual cycle is that it is counted exactly
+     * once, so assert on the basename rather than a read-order-dependent path. */
+    CHECK(strstr(c64_automation_get_playlist_item(automation, 0), "only.sid") != NULL);
     remove(mutual_a_to_b);
     remove(mutual_b_to_a);
     remove(mutual_song);
