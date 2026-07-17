@@ -957,10 +957,18 @@ void c64_record_cleanup(struct c64_source *context)
 {
     c64_audio_mixer_snapshot_restore(context);
 
-    c64_record_writer_stop(context);
     c64_audio_log_network_errors(context, true);
 
     if (pthread_mutex_lock(&context->recording_mutex) == 0) {
+        /* Stop the writer INSIDE the mutex, matching c64_stop_video_recording
+         * and the segment-roll path. c64_record_writer_stop joins the writer
+         * thread and then frees the writer struct (destroying its mutex); the
+         * packet thread reads context->record_writer under recording_mutex in
+         * c64_audio_record_data, so releasing the writer outside the lock would
+         * race that read. (The packet thread is already joined by
+         * c64_stop_streaming before this runs, so it is defence-in-depth, but
+         * it removes the reliance on that ordering.) */
+        c64_record_writer_stop(context);
         if (context->video_file) {
             c64_video_update_avi_header(context->video_file, context->avi_segment_frames, 0);
             fclose(context->video_file);
