@@ -163,11 +163,23 @@ class RecordAudioAssertion(EffectAssertion):
         # Check in plugin's default recording folder
         plugin_recordings = Path.home() / "Documents" / "obs-studio" / "c64stream" / "recordings"
         if plugin_recordings.exists():
-            # Find most recent session folder
+            # A shared plugin recording folder can contain WAVs from earlier
+            # scenarios.  When the current replay manifest exists, reject any
+            # session that predates it rather than letting a stale good WAV
+            # make the current recording look healthy.
+            manifest = output_dir / "audio_manifest.csv"
+            earliest_current_wav_mtime = (
+                manifest.stat().st_mtime - 5.0 if manifest.exists() else None
+            )
+
+            # Find most recent session folder created by this run.
             sessions = sorted(plugin_recordings.glob("session_*"), key=lambda p: p.stat().st_mtime, reverse=True)
             for session in sessions:
                 wav = session / "audio.wav"
-                if wav.exists():
+                if wav.exists() and (
+                    earliest_current_wav_mtime is None
+                    or wav.stat().st_mtime >= earliest_current_wav_mtime
+                ):
                     return wav
 
         return None
