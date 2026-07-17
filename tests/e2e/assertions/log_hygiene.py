@@ -172,6 +172,13 @@ class LogHygieneAssertion(EffectAssertion):
             if "Destroying C64 Stream source" in plugin_lines[i]:
                 end_idx = i
                 break
+        # A replay has a deliberate end-of-stream period before OBS shuts down.
+        # Retry chatter after the first no-video timeout is outside the streaming
+        # window and must not make a clean capture fail the quiet-log contract.
+        for i in range(start_idx, end_idx):
+            if "No video packets for" in plugin_lines[i]:
+                end_idx = i
+                break
 
         counter: Counter[str] = Counter()
         for line in plugin_lines[start_idx:end_idx]:
