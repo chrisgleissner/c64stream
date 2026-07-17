@@ -79,8 +79,12 @@ void c64_audio_record_data(struct c64_source *context, const uint8_t *audio_data
 
     /* C64CLK-005: never let a filesystem write stall the packet-processing
      * thread. The bounded writer queue copies this tiny fixed packet and the
-     * background thread owns fwrite and the byte/sample accounting. */
-    (void)c64_record_writer_enqueue(context, C64_RECORD_WRITE_AUDIO, audio_data, data_size);
+     * background thread owns fwrite and the byte/sample accounting. A full
+     * queue drops the packet (counted in record_write_drops by the enqueue);
+     * surface it like the video path so lost audio is never silent. */
+    if (!c64_record_writer_enqueue(context, C64_RECORD_WRITE_AUDIO, audio_data, data_size)) {
+        C64_LOG_WARNING("" RECORD_LOG_PREFIX " Recording queue full; dropped audio packet");
+    }
 
     pthread_mutex_unlock(&context->recording_mutex);
 }
