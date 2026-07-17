@@ -28,15 +28,6 @@ static int64_t c64_avi_tell(FILE *file)
 #endif
 }
 
-static int c64_avi_seek(FILE *file, int64_t offset, int whence)
-{
-#ifdef _WIN32
-    return _fseeki64(file, offset, whence);
-#else
-    return fseeko(file, (off_t)offset, whence);
-#endif
-}
-
 void c64_avi_segment_filename(char *buf, size_t size, const char *session_folder, uint32_t segment_index)
 {
     if (!buf || size == 0) {
@@ -210,32 +201,12 @@ void c64_video_write_avi_header(FILE *file, uint32_t width, uint32_t height, dou
 void c64_video_update_avi_header(FILE *file, uint32_t frame_count, uint32_t audio_samples_written)
 {
     UNUSED_PARAMETER(audio_samples_written);
-    if (!file)
-        return;
-
-    const int64_t current_pos = c64_avi_tell(file);
-    if (current_pos < 8 || (uint64_t)current_pos - 8 > UINT32_MAX) {
+    // Shared in-place patch (offsets 4 and 48, then seek back to end). The
+    // caller writes headers periodically and at stop; flushing every video
+    // frame stalls recording on slow mounts.
+    if (!c64_avi_patch_header_inplace(file, frame_count)) {
         C64_LOG_ERROR("" RECORD_LOG_PREFIX " AVI header update rejected invalid segment size");
-        return;
     }
-    uint32_t file_size = (uint32_t)((uint64_t)current_pos - 8); // Total file size minus RIFF header
-
-    // Update RIFF file size
-    if (c64_avi_seek(file, 4, SEEK_SET) != 0) {
-        return;
-    }
-    fwrite(&file_size, 4, 1, file);
-
-    // Update total frames in main AVI header (avih)
-    // RIFF(4) + size(4) + AVI(4) + LIST(4) + size(4) + hdrl(4) + avih(4) + size(4) + period(4) + maxbytes(4) + pad(4) + flags(4) = 48
-    if (c64_avi_seek(file, 48, SEEK_SET) != 0) {
-        return;
-    }
-    fwrite(&frame_count, 4, 1, file);
-
-    // Seek back to end. The caller writes headers periodically and at stop;
-    // flushing every video frame stalls recording on slow mounts.
-    (void)c64_avi_seek(file, current_pos, SEEK_SET);
 }
 
 // Helper function to convert RGBA to BGR24

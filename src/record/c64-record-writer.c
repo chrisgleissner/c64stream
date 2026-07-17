@@ -10,6 +10,7 @@ C64 Stream - asynchronous recording writer (C64CLK-005)
 
 #include "c64-logging.h"
 #include "c64-record-audio.h"
+#include "c64-record-video.h"
 #include "c64-types.h"
 
 #define C64_RECORD_WRITER_MAX_BYTES (8U * 1024U * 1024U)
@@ -28,6 +29,7 @@ struct c64_record_writer {
     struct c64_record_write_node *head;
     struct c64_record_write_node *tail;
     size_t queued_bytes;
+    uint32_t video_frames_written; /* frames flushed to the current AVI segment */
     bool stopping;
     bool running;
     struct c64_source *context;
@@ -75,6 +77,18 @@ static void *c64_record_writer_thread(void *opaque)
                 old_total = os_atomic_load_long(&context->recorded_audio_samples);
                 new_total = old_total + frames;
             } while (!os_atomic_compare_swap_long(&context->recorded_audio_samples, old_total, new_total));
+        } else {
+            /* C64STR-034 crash-recovery cadence, moved onto the writer thread:
+             * refresh dwTotalFrames / RIFF size about once per second so a hard
+             * crash leaves a recoverable AVI, WITHOUT putting the periodic
+             * fseek+fwrite back on the packet-processing thread. The writer is
+             * the sole owner of video_file, so the in-place patch is race-free;
+             * the count reflects frames actually flushed to disk. avi_segment_fps
+             * is stable while the writer runs (a roll stops the writer first). */
+            writer->video_frames_written++;
+            if (c64_avi_should_update_header((long)writer->video_frames_written, context->avi_segment_fps)) {
+                (void)c64_avi_patch_header_inplace(file, writer->video_frames_written);
+            }
         }
         free(node);
     }

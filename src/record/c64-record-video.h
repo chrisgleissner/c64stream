@@ -44,6 +44,50 @@ static inline bool c64_avi_should_update_header(long frame_count, double fps)
     return update_period > 0 && (uint32_t)frame_count % update_period == 0;
 }
 
+/*
+ * Patch an open legacy-AVI file's RIFF size (offset 4) and avih dwTotalFrames
+ * (offset 48) in place from its current length, then restore the write
+ * position to the end. Returns false if the file is not a valid AVI segment
+ * (too short, or larger than RIFF's 32-bit size field), true otherwise.
+ *
+ * Header-only and OBS-free so the async record writer thread can maintain the
+ * crash-recovery header without linking the whole video module; it is the
+ * single implementation shared with c64_video_update_avi_header.
+ */
+static inline bool c64_avi_patch_header_inplace(FILE *file, uint32_t frame_count)
+{
+    if (!file) {
+        return false;
+    }
+#ifdef _WIN32
+    const int64_t end = _ftelli64(file);
+#else
+    const int64_t end = (int64_t)ftello(file);
+#endif
+    if (end < 8 || (uint64_t)end - 8 > UINT32_MAX) {
+        return false;
+    }
+    const uint32_t file_size = (uint32_t)((uint64_t)end - 8); // total file size minus the RIFF(4)+size(4) prefix
+#ifdef _WIN32
+    if (_fseeki64(file, 4, SEEK_SET) == 0) {
+        fwrite(&file_size, 4, 1, file);
+    }
+    if (_fseeki64(file, 48, SEEK_SET) == 0) {
+        fwrite(&frame_count, 4, 1, file);
+    }
+    (void)_fseeki64(file, end, SEEK_SET);
+#else
+    if (fseeko(file, 4, SEEK_SET) == 0) {
+        fwrite(&file_size, 4, 1, file);
+    }
+    if (fseeko(file, 48, SEEK_SET) == 0) {
+        fwrite(&frame_count, 4, 1, file);
+    }
+    (void)fseeko(file, (off_t)end, SEEK_SET);
+#endif
+    return true;
+}
+
 /* Deterministic AVI segment filename: segment 0 is "<folder>/video.avi",
  * segment N (>0) is "<folder>/video.NNN.avi" (zero-padded to 3 digits). Kept
  * public so the continuation-name scheme can be regression-tested (C64STR-012). */
