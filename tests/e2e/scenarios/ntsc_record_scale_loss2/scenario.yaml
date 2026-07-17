@@ -1,0 +1,24 @@
+# Manual-listening counterpart to ntsc_record_loss2.  The mock audio stream is
+# a phase-continuous C3..C4 500 ms ladder and runs through a deterministic 2%
+# loss profile, so a splice or timing disruption is conspicuous in both the
+# preserved AAC reference and automated WAV checks.
+name: NTSC Record Scale 2% Loss
+format: NTSC
+preset: Default
+disable_pops: true
+skip_frame_logic_validation: true
+overrides:
+  record_video: true
+  record_audio: true
+  buffer_delay_ms: 10
+network_simulation:
+  seed: 64
+  loss_percent: 2
+  audio_packet_set: scale500
+assertions:
+  - record_audio_quality
+  - recording_click
+  - log_hygiene
+thresholds:
+  log_hygiene:
+    expect_error_summary: 1

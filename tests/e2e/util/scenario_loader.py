@@ -31,8 +31,11 @@ def validate_scenario_name(name: str) -> None:
     parts = name.split("_")
     if not name or name.lower() != name:
         raise ValueError(f"Scenario '{name}' must be lowercase")
-    if len(parts) > 4:
-        raise ValueError(f"Scenario '{name}' has {len(parts)} segments; max is 4")
+    # Scenario names identify the format and the fault being reproduced.  Five
+    # short segments are needed for names such as
+    # ``ntsc_record_video_burst_loss``; retain a finite limit to catch typos.
+    if len(parts) > 5:
+        raise ValueError(f"Scenario '{name}' has {len(parts)} segments; max is 5")
     for part in parts:
         if not part or len(part) > 9:
             raise ValueError(
