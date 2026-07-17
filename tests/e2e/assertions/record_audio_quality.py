@@ -50,7 +50,6 @@ class RecordAudioQualityAssertion(EffectAssertion):
 
         try:
             sample_rate, channels, raw = read_wav_pcm(audio_wav)
-            pcm_channels = deinterleave(raw, channels)
         except Exception as e:
             return AssertionResult(
                 status=AssertionStatus.FAIL,
@@ -59,6 +58,28 @@ class RecordAudioQualityAssertion(EffectAssertion):
                 details={"path": str(audio_wav)},
             )
 
+        # A valid RIFF header alone is not a recording.  Check this before
+        # running the discontinuity scanner: an empty PCM payload cannot
+        # meaningfully be called click-free.
+        frame_bytes = channels * 2
+        if len(raw) < frame_bytes:
+            return AssertionResult(
+                status=AssertionStatus.FAIL,
+                name=self.name,
+                message=(
+                    "audio.wav contains no PCM frames "
+                    "(recording creation/finalisation failure; click analysis not run)"
+                ),
+                details={
+                    "path": str(audio_wav),
+                    "sample_rate": sample_rate,
+                    "channels": channels,
+                    "pcm_bytes": len(raw),
+                },
+                metrics={"duration_seconds": 0.0},
+            )
+
+        pcm_channels = deinterleave(raw, channels)
         report = scan_clicks(
             pcm_channels,
             float(sample_rate),
