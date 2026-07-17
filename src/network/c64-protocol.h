@@ -23,6 +23,23 @@ See <https://www.gnu.org/licenses/> for details.
 #define C64_DEFAULT_AUDIO_PORT 21001
 #define C64_DEFAULT_HOST "c64u"
 
+/*
+ * C64STR-016: give each source instance a distinct default UDP port pair so two
+ * sources added with defaults do not both bind 21000/21001 (which starves one
+ * of video/audio). pair_index is a 0-based per-instance counter; instance N
+ * gets video=21000+2N, audio=video+1, so pairs never overlap.
+ */
+static inline void c64_default_ports_for_pair(long pair_index, uint32_t *video_port, uint32_t *audio_port)
+{
+    const uint32_t video = C64_DEFAULT_VIDEO_PORT + (uint32_t)(pair_index * 2);
+    if (video_port) {
+        *video_port = video;
+    }
+    if (audio_port) {
+        *audio_port = video + 1;
+    }
+}
+
 // Video format constants
 #define C64_PAL_WIDTH 384
 #define C64_PAL_HEIGHT 272
@@ -31,6 +48,19 @@ See <https://www.gnu.org/licenses/> for details.
 #define C64_PIXELS_PER_LINE 384
 #define C64_BYTES_PER_LINE 192 // 384 pixels / 2 (4-bit per pixel) - keeping original
 #define C64_LINES_PER_PACKET 4
+
+/* All frame storage is PAL-sized.  Packet-derived heights must therefore
+ * never escape this range before reaching render or recording code. */
+static inline uint32_t c64_clamp_frame_height(uint32_t height)
+{
+    if (height < C64_NTSC_HEIGHT) {
+        return C64_NTSC_HEIGHT;
+    }
+    if (height > C64_PAL_HEIGHT) {
+        return C64_PAL_HEIGHT;
+    }
+    return height;
+}
 
 // Frame assembly constants
 #define C64_MAX_PACKETS_PER_FRAME 68           // PAL: 272 lines ÷ 4 lines/packet = 68 packets

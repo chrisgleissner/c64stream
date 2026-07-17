@@ -36,9 +36,14 @@ struct packet_ring_buffer {
     size_t packet_size;            // Either C64_VIDEO_PACKET_SIZE or C64_AUDIO_PACKET_SIZE
     uint16_t next_expected_seq;    // Expected next sequence number
     volatile bool seq_initialized; // Whether we have initialized sequence tracking (atomic)
-    uint64_t delay_us;             // Delay in microseconds
+    volatile long delay_us;        // Delay in microseconds; updated by the UI thread
     buffer_type_t type;            // For logging and type-specific behavior
     pthread_mutex_t mutex;         // Guards buffer access
+    // C64STR-026: consumer-owned copy of the most recently popped packet. Pop
+    // copies the ring slot here under the mutex and returns a pointer to it, so
+    // the producer may immediately reuse the freed ring slot without racing the
+    // consumer's read of the popped data.
+    struct packet_slot pop_scratch;
 };
 
 struct c64_network_buffer {
@@ -50,6 +55,9 @@ struct c64_network_buffer {
     // Packet payload storage (kept separate so insertion sorting only moves small metadata structs).
     uint8_t video_packet_data[C64_MAX_VIDEO_PACKETS][C64_VIDEO_PACKET_SIZE];
     uint8_t audio_packet_data[C64_MAX_AUDIO_PACKETS][C64_AUDIO_PACKET_SIZE];
+    // Backing payload for each ring's pop_scratch (see packet_ring_buffer).
+    uint8_t video_pop_scratch_data[C64_VIDEO_PACKET_SIZE];
+    uint8_t audio_pop_scratch_data[C64_AUDIO_PACKET_SIZE];
 };
 
 // ----------------------------------
@@ -126,6 +134,15 @@ static void rb_push(struct packet_ring_buffer *rb, const uint8_t *data, size_t l
         return;
     }
 
+    /*
+     * Delay changes may trim or retimestamp the ring from the UI thread.
+     * The old single-producer/single-consumer atomics did not protect the
+     * slots themselves from that third writer.  Keep the critical section
+     * limited to ring bookkeeping and the metadata/payload copy; no network
+     * or graphics work is performed while this lock is held.
+     */
+    pthread_mutex_lock(&rb->mutex);
+
     // Extract sequence number from packet header (first 2 bytes, little-endian)
     uint16_t seq_num = *(uint16_t *)(data);
 
@@ -172,6 +189,7 @@ static void rb_push(struct packet_ring_buffer *rb, const uint8_t *data, size_t l
                             type_name, utilization_percent, current_packets, rb->max_capacity);
             last_full_log_time = now;
         }
+        pthread_mutex_unlock(&rb->mutex);
         return;
     } else if (utilization_percent >= 90) {
         // Warn when approaching capacity (but don't spam logs)
@@ -314,16 +332,17 @@ static void rb_push(struct packet_ring_buffer *rb, const uint8_t *data, size_t l
 
     // Verify buffer ordering in debug builds
     debug_verify_buffer_ordering(rb, type_name);
+    pthread_mutex_unlock(&rb->mutex);
 }
 
 // Pop the oldest packet (FIFO order) - essential for proper frame assembly (LOCK-FREE)
-static int rb_pop_oldest(struct packet_ring_buffer *rb, struct packet_slot **out)
+/* Caller holds rb->mutex. */
+static int rb_pop_oldest_locked(struct packet_ring_buffer *rb, struct packet_slot **out)
 {
     if (!rb || !out) {
         return 0;
     }
 
-    // Lock-free single consumer approach - only one thread should pop from each buffer
     long head = os_atomic_load_long(&rb->head);
     long tail = os_atomic_load_long(&rb->tail);
 
@@ -332,11 +351,25 @@ static int rb_pop_oldest(struct packet_ring_buffer *rb, struct packet_slot **out
         return 0;
     }
 
-    *out = &rb->slots[tail];
+    // C64STR-026: copy the popped packet into the consumer-owned scratch while
+    // still holding the mutex. Returning a pointer to the live ring slot would
+    // let the producer overwrite that slot (payload + metadata) the moment tail
+    // advances, racing the consumer's read after it releases the lock. The
+    // scratch is only ever touched by the consumer, so the returned data stays
+    // stable until the next pop.
+    struct packet_slot *src = &rb->slots[tail];
+    memcpy(rb->pop_scratch.data, src->data, rb->packet_size);
+    rb->pop_scratch.size = src->size;
+    rb->pop_scratch.timestamp_us = src->timestamp_us;
+    rb->pop_scratch.sequence_num = src->sequence_num;
+    rb->pop_scratch.frame_num = src->frame_num;
+    rb->pop_scratch.line_num = src->line_num;
+    rb->pop_scratch.valid = true;
+    *out = &rb->pop_scratch;
 
     // Update expected sequence to track what we've consumed
-    if (rb->slots[tail].valid && os_atomic_load_bool(&rb->seq_initialized)) {
-        uint16_t popped_seq = rb->slots[tail].sequence_num;
+    if (src->valid && os_atomic_load_bool(&rb->seq_initialized)) {
+        uint16_t popped_seq = src->sequence_num;
         rb->next_expected_seq = popped_seq + 1;
     }
 
@@ -344,17 +377,22 @@ static int rb_pop_oldest(struct packet_ring_buffer *rb, struct packet_slot **out
     long new_tail = (tail + 1) % rb->max_capacity;
     os_atomic_set_long(&rb->tail, new_tail);
 
+    /* A delay adjustment must not retimestamp a packet after it has been
+     * handed to the consumer.  The producer owns revalidation when it wraps
+     * to this slot. */
+    src->valid = false;
+
     return 1;
 }
 
 // Reset buffer with new active slot count
-static void rb_reset(struct packet_ring_buffer *rb, size_t active_slots)
+/* Caller holds rb->mutex. */
+static void rb_reset_locked(struct packet_ring_buffer *rb, size_t active_slots)
 {
     if (!rb) {
         return;
     }
 
-    pthread_mutex_lock(&rb->mutex);
     if (active_slots > rb->max_capacity) {
         active_slots = rb->max_capacity;
     }
@@ -372,6 +410,15 @@ static void rb_reset(struct packet_ring_buffer *rb, size_t active_slots)
     for (size_t i = 0; i < rb->max_capacity; i++) {
         rb->slots[i].valid = false;
     }
+}
+
+static void rb_reset(struct packet_ring_buffer *rb, size_t active_slots)
+{
+    if (!rb) {
+        return;
+    }
+    pthread_mutex_lock(&rb->mutex);
+    rb_reset_locked(rb, active_slots);
     pthread_mutex_unlock(&rb->mutex);
 }
 
@@ -401,18 +448,24 @@ struct c64_network_buffer *c64_network_buffer_create(void)
 
     // Initialize video buffer
     buf->video.slots = buf->video_slots;
+    buf->video.pop_scratch.data = buf->video_pop_scratch_data;
+    buf->video.pop_scratch.size = C64_VIDEO_PACKET_SIZE;
+    buf->video.pop_scratch.valid = false;
     buf->video.max_capacity = C64_MAX_VIDEO_PACKETS;
     buf->video.packet_size = C64_VIDEO_PACKET_SIZE;
-    buf->video.delay_us = 0; // Initialize with no delay by default
+    os_atomic_set_long(&buf->video.delay_us, 0); // Initialize with no delay by default
     buf->video.type = BUFFER_TYPE_VIDEO;
     pthread_mutex_init(&buf->video.mutex, NULL);
     rb_reset(&buf->video, C64_MAX_VIDEO_PACKETS);
 
     // Initialize audio buffer (use smaller allocation for audio)
     buf->audio.slots = buf->audio_slots;
+    buf->audio.pop_scratch.data = buf->audio_pop_scratch_data;
+    buf->audio.pop_scratch.size = C64_AUDIO_PACKET_SIZE;
+    buf->audio.pop_scratch.valid = false;
     buf->audio.max_capacity = C64_MAX_AUDIO_PACKETS;
     buf->audio.packet_size = C64_AUDIO_PACKET_SIZE;
-    buf->audio.delay_us = 0; // Initialize with no delay by default
+    os_atomic_set_long(&buf->audio.delay_us, 0); // Initialize with no delay by default
     buf->audio.type = BUFFER_TYPE_AUDIO;
     pthread_mutex_init(&buf->audio.mutex, NULL);
     rb_reset(&buf->audio, C64_MAX_AUDIO_PACKETS);
@@ -499,27 +552,29 @@ void c64_network_buffer_set_delay(struct c64_network_buffer *buf, size_t video_d
     }
 
     // Store new delay values in microseconds
-    uint64_t old_video_delay = buf->video.delay_us;
-    uint64_t old_audio_delay = buf->audio.delay_us;
-    buf->video.delay_us = video_delay_ms * 1000;
-    buf->audio.delay_us = audio_delay_ms * 1000;
+    uint64_t old_video_delay = (uint64_t)os_atomic_load_long(&buf->video.delay_us);
+    uint64_t old_audio_delay = (uint64_t)os_atomic_load_long(&buf->audio.delay_us);
+    const uint64_t new_video_delay = video_delay_ms * 1000;
+    const uint64_t new_audio_delay = audio_delay_ms * 1000;
+    os_atomic_set_long(&buf->video.delay_us, (long)new_video_delay);
+    os_atomic_set_long(&buf->audio.delay_us, (long)new_audio_delay);
 
     C64_LOG_INFO("" NETWORK_LOG_PREFIX " Buffer delay values set: video=%llu us (%zu ms), audio=%llu us (%zu ms)",
-                 (unsigned long long)buf->video.delay_us, video_delay_ms, (unsigned long long)buf->audio.delay_us,
+                 (unsigned long long)new_video_delay, video_delay_ms, (unsigned long long)new_audio_delay,
                  audio_delay_ms);
 
     // If delay was reduced, discard excess packets and adjust timestamps for immediate availability
     // IMPORTANT: Discard from tail (oldest in sequence order) to maintain packet ordering
 
-    if (buf->video.delay_us < old_video_delay) {
+    if (new_video_delay < old_video_delay) {
         // Only flush entire buffer for extreme delay reductions (to zero or very small delays)
         // This prevents black screens while still allowing cleanup when needed
-        if (buf->video.delay_us == 0 && old_video_delay > 50000) { // Only flush when going to zero from >50ms
+        if (new_video_delay == 0 && old_video_delay > 50000) { // Only flush when going to zero from >50ms
             C64_LOG_INFO("" NETWORK_LOG_PREFIX
                          " Extreme video delay reduction to zero (%llu->0 us), flushing buffer for immediate playback",
                          (unsigned long long)old_video_delay);
             pthread_mutex_lock(&buf->video.mutex);
-            rb_reset(&buf->video, video_slots);
+            rb_reset_locked(&buf->video, video_slots);
             pthread_mutex_unlock(&buf->video.mutex);
         } else {
             // Calculate how many packets to keep for new delay
@@ -569,7 +624,7 @@ void c64_network_buffer_set_delay(struct c64_network_buffer *buf, size_t video_d
             size_t adjusted = 0;
 
             // Calculate target timestamp that makes packets ready NOW for the new delay
-            uint64_t ready_timestamp = now_us - buf->video.delay_us - 1000; // 1ms safety margin
+            uint64_t ready_timestamp = now_us - new_video_delay - 1000; // 1ms safety margin
 
             // Adjust all slots in the buffer, not just occupied ones
             // This handles race conditions where packets might be in intermediate states
@@ -593,22 +648,22 @@ void c64_network_buffer_set_delay(struct c64_network_buffer *buf, size_t video_d
             if (adjusted > 0) {
                 C64_LOG_INFO("" NETWORK_LOG_PREFIX
                              " Video buffer: made %zu packets immediately ready for new delay (%llu us)",
-                             adjusted, (unsigned long long)buf->video.delay_us);
+                             adjusted, (unsigned long long)new_video_delay);
             }
 
             pthread_mutex_unlock(&buf->video.mutex);
         }
     }
 
-    if (buf->audio.delay_us < old_audio_delay) {
+    if (new_audio_delay < old_audio_delay) {
         // Only flush entire buffer for extreme delay reductions (to zero or very small delays)
         // This prevents audio dropouts while still allowing cleanup when needed
-        if (buf->audio.delay_us == 0 && old_audio_delay > 50000) { // Only flush when going to zero from >50ms
+        if (new_audio_delay == 0 && old_audio_delay > 50000) { // Only flush when going to zero from >50ms
             C64_LOG_INFO("" NETWORK_LOG_PREFIX
                          " Extreme audio delay reduction to zero (%llu->0 us), flushing buffer for immediate playback",
                          (unsigned long long)old_audio_delay);
             pthread_mutex_lock(&buf->audio.mutex);
-            rb_reset(&buf->audio, audio_slots);
+            rb_reset_locked(&buf->audio, audio_slots);
             pthread_mutex_unlock(&buf->audio.mutex);
         } else {
             // Calculate how many packets to keep for new delay
@@ -658,7 +713,7 @@ void c64_network_buffer_set_delay(struct c64_network_buffer *buf, size_t video_d
             size_t adjusted = 0;
 
             // Calculate target timestamp that makes packets ready NOW for the new delay
-            uint64_t ready_timestamp = now_us - buf->audio.delay_us - 1000; // 1ms safety margin
+            uint64_t ready_timestamp = now_us - new_audio_delay - 1000; // 1ms safety margin
 
             // Adjust all slots in the buffer, not just occupied ones
             // This handles race conditions where packets might be in intermediate states
@@ -681,7 +736,7 @@ void c64_network_buffer_set_delay(struct c64_network_buffer *buf, size_t video_d
             if (adjusted > 0) {
                 C64_LOG_INFO("" NETWORK_LOG_PREFIX
                              " Audio buffer: made %zu packets immediately ready for new delay (%llu us)",
-                             adjusted, (unsigned long long)buf->audio.delay_us);
+                             adjusted, (unsigned long long)new_audio_delay);
             }
 
             pthread_mutex_unlock(&buf->audio.mutex);
@@ -747,7 +802,7 @@ int c64_network_buffer_pop(struct c64_network_buffer *buf, const uint8_t **video
         return 0;
     }
 
-    // Lock-free check if we have video packets available
+    pthread_mutex_lock(&buf->video.mutex);
     long video_head = os_atomic_load_long(&buf->video.head);
     long video_tail = os_atomic_load_long(&buf->video.tail);
 
@@ -759,12 +814,14 @@ int c64_network_buffer_pop(struct c64_network_buffer *buf, const uint8_t **video
             C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " 📦 BUFFER EMPTY SPOT CHECK: No video packets available");
             last_empty_log_time = now;
         }
+        pthread_mutex_unlock(&buf->video.mutex);
         return 0;
     }
 
     // Check if the OLDEST packet (at tail) has been delayed long enough
     struct packet_slot *oldest_video = &buf->video.slots[video_tail];
-    if (!oldest_video->valid || !is_packet_ready_for_pop(oldest_video, buf->video.delay_us)) {
+    const uint64_t video_delay = (uint64_t)os_atomic_load_long(&buf->video.delay_us);
+    if (!oldest_video->valid || !is_packet_ready_for_pop(oldest_video, video_delay)) {
         // Oldest packet not ready yet - must wait to preserve FIFO ordering
         // Rare spot checks only (once per minute)
         static uint64_t last_delay_log_time = 0;
@@ -773,32 +830,38 @@ int c64_network_buffer_pop(struct c64_network_buffer *buf, const uint8_t **video
             uint64_t now_us = now / 1000;
             uint64_t age_us = oldest_video->valid ? (now_us - oldest_video->timestamp_us) : 0;
             C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " ⏰ DELAY WAIT SPOT CHECK: Oldest packet age=%llu us, need=%llu us",
-                          (unsigned long long)age_us, (unsigned long long)buf->video.delay_us);
+                          (unsigned long long)age_us, (unsigned long long)video_delay);
             last_delay_log_time = now;
         }
+        pthread_mutex_unlock(&buf->video.mutex);
         return 0;
     }
 
     // Pop the ready video packet (oldest first for proper FIFO)
     struct packet_slot *v;
-    if (!rb_pop_oldest(&buf->video, &v)) {
+    if (!rb_pop_oldest_locked(&buf->video, &v)) {
         C64_LOG_WARNING("" NETWORK_LOG_PREFIX " Failed to pop ready video packet");
+        pthread_mutex_unlock(&buf->video.mutex);
         return 0;
     }
+    pthread_mutex_unlock(&buf->video.mutex);
 
     // Try to get audio packet (optional - lock-free check)
     struct packet_slot *a = NULL;
     bool has_audio = false;
 
+    pthread_mutex_lock(&buf->audio.mutex);
     long audio_head = os_atomic_load_long(&buf->audio.head);
     long audio_tail = os_atomic_load_long(&buf->audio.tail);
 
     if (audio_head != audio_tail) {
         struct packet_slot *oldest_audio = &buf->audio.slots[audio_tail];
-        if (is_packet_ready_for_pop(oldest_audio, buf->audio.delay_us)) {
-            has_audio = rb_pop_oldest(&buf->audio, &a);
+        const uint64_t audio_delay = (uint64_t)os_atomic_load_long(&buf->audio.delay_us);
+        if (is_packet_ready_for_pop(oldest_audio, audio_delay)) {
+            has_audio = rb_pop_oldest_locked(&buf->audio, &a);
         }
     }
+    pthread_mutex_unlock(&buf->audio.mutex);
 
     // Periodic buffer pop monitoring (every 10 minutes)
     static int pop_count = 0;

@@ -86,12 +86,20 @@ bool c64script_dispatch_memory(c64script_runtime_t *runtime, const c64script_ins
 
     case OP_POKE_ARRAY: {
         uint32_t count = instr->operand;
+        if (count > 65536) {
+            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "POKE_ARRAY: count exceeds limit");
+            return false;
+        }
         if (count > runtime->stack_size) {
             snprintf(runtime->error_msg, sizeof(runtime->error_msg), "POKE_ARRAY: not enough values on stack");
             return false;
         }
 
         c64script_value_t *values = malloc(count * sizeof(c64script_value_t));
+        if (!values && count != 0) {
+            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "POKE_ARRAY: out of memory");
+            return false;
+        }
         for (int i = (int)count - 1; i >= 0; i--) {
             if (!c64script_runtime_pop(runtime, &values[i])) {
                 free(values);

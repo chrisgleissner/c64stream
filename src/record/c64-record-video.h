@@ -15,8 +15,39 @@ See <https://www.gnu.org/licenses/> for details.
 #include <stdbool.h>
 #include <stdio.h>
 
+/* Keep well below the legacy AVI 2 GiB interoperability boundary. */
+#define C64_AVI_SEGMENT_LIMIT_BYTES (UINT64_C(2) * 1024 * 1024 * 1024 - 16 * 1024 * 1024)
+
+/* Kept header-only so the rollover decision can be regression-tested without
+ * filesystem or OBS dependencies. */
+static inline bool c64_avi_segment_needs_rollover(uint32_t segment_width, uint32_t segment_height, double segment_fps,
+                                                  uint32_t segment_frames, uint64_t segment_bytes, uint32_t width,
+                                                  uint32_t height, double fps, uint64_t next_chunk_bytes,
+                                                  uint64_t limit_bytes)
+{
+    return segment_width != width || segment_height != height || segment_fps != fps ||
+           (segment_frames > 0 && segment_bytes + next_chunk_bytes > limit_bytes);
+}
+
 // Forward declarations
 struct c64_source;
+
+/*
+ * C64STR-034: the AVI header is refreshed periodically (about once per second)
+ * for crash recovery, not on every frame -- a per-frame header rewrite + flush
+ * stalled recording on slow mounts. Returns true only on the ~1 s boundary.
+ * Header-only so the cadence is regression-testable without OBS/filesystem.
+ */
+static inline bool c64_avi_should_update_header(long frame_count, double fps)
+{
+    const uint32_t update_period = (uint32_t)(fps + 0.5);
+    return update_period > 0 && (uint32_t)frame_count % update_period == 0;
+}
+
+/* Deterministic AVI segment filename: segment 0 is "<folder>/video.avi",
+ * segment N (>0) is "<folder>/video.NNN.avi" (zero-padded to 3 digits). Kept
+ * public so the continuation-name scheme can be regression-tested (C64STR-012). */
+void c64_avi_segment_filename(char *buf, size_t size, const char *session_folder, uint32_t segment_index);
 
 // Video recording functions (AVI format)
 void c64_video_write_avi_header(FILE *file, uint32_t width, uint32_t height, double fps);

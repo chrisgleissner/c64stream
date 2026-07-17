@@ -332,9 +332,14 @@ void c64_logo_render_to_frame(struct c64_source *context, uint64_t timestamp_ns)
         return; // No logo buffers available
     }
 
-    // Copy pre-rendered logo to main frame buffer (very fast)
-    size_t frame_size = context->width * context->height * sizeof(uint32_t);
-    memcpy(context->frame_buffer, logo_buffer, frame_size);
+    // Copy only rows present in the selected fixed-size logo buffer.
+    const uint32_t buffer_height = (logo_buffer == context->logo_frame_buffer_ntsc) ? C64_NTSC_HEIGHT : C64_PAL_HEIGHT;
+    const uint32_t copy_height = context->height < buffer_height ? context->height : buffer_height;
+    memcpy(context->frame_buffer, logo_buffer, context->width * copy_height * sizeof(uint32_t));
+    if (context->height > copy_height) {
+        memset(context->frame_buffer + context->width * copy_height, 0,
+               context->width * (context->height - copy_height) * sizeof(uint32_t));
+    }
     context->frame_dirty = true;
 
     // Output logo frame via async video

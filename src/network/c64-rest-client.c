@@ -19,6 +19,7 @@ See <https://www.gnu.org/licenses/> for details.
 
 #define REST_LOG_PREFIX "📡 REST: "
 #define HTTP_TIMEOUT_SECONDS 5
+#define C64_REST_MAX_RESPONSE_BYTES (1024U * 1024U)
 
 struct c64_rest_client {
     char *base_url;
@@ -458,6 +459,11 @@ static size_t write_callback(void *contents, size_t size, size_t nmemb, void *us
     size_t realsize = size * nmemb;
     response_buffer_t *buf = (response_buffer_t *)userp;
 
+    if (realsize > C64_REST_MAX_RESPONSE_BYTES || buf->size > C64_REST_MAX_RESPONSE_BYTES - realsize) {
+        C64_LOG_WARNING(REST_LOG_PREFIX "Response exceeded %u byte limit", C64_REST_MAX_RESPONSE_BYTES);
+        return 0;
+    }
+
     if (buf->size + realsize > buf->capacity) {
         size_t new_capacity = buf->capacity == 0 ? 4096 : buf->capacity * 2;
         while (new_capacity < buf->size + realsize) {
@@ -528,6 +534,7 @@ c64_rest_client_t *c64_rest_client_create(const char *base_url, const char *pass
     // Set common curl options - CRITICAL: NOSIGNAL must be set to prevent crashes on Windows
     curl_easy_setopt(client->curl, CURLOPT_NOSIGNAL, 1L);
     curl_easy_setopt(client->curl, CURLOPT_TIMEOUT, HTTP_TIMEOUT_SECONDS);
+    curl_easy_setopt(client->curl, CURLOPT_MAXFILESIZE_LARGE, (curl_off_t)C64_REST_MAX_RESPONSE_BYTES);
     curl_easy_setopt(client->curl, CURLOPT_FOLLOWLOCATION, 1L);
 
     C64_LOG_DEBUG(REST_LOG_PREFIX "Created REST client for %s", base_url);
@@ -552,6 +559,64 @@ void c64_rest_client_destroy(c64_rest_client_t *client)
     free(client);
 
     C64_LOG_DEBUG(REST_LOG_PREFIX "REST client destroyed");
+}
+
+bool c64_rest_client_retarget(c64_rest_client_t *client, const char *base_url, const char *password)
+{
+    if (!client || !base_url) {
+        return false;
+    }
+
+    // Duplicate outside the lock so a strdup failure never leaves the client in
+    // a half-updated state.
+    char *new_url = strdup(base_url);
+    if (!new_url) {
+        C64_LOG_ERROR(REST_LOG_PREFIX "retarget: failed to duplicate base_url");
+        return false;
+    }
+    char *new_password = NULL;
+    if (password && password[0]) {
+        new_password = strdup(password);
+        if (!new_password) {
+            C64_LOG_ERROR(REST_LOG_PREFIX "retarget: failed to duplicate password");
+            free(new_url);
+            return false;
+        }
+    }
+
+    // Swap URL + credential atomically w.r.t. request builders, which read
+    // base_url/password under this same mutex (http_request_ex). An in-flight
+    // request on another thread observes either the whole old or whole new
+    // target, never a mix, and no pointer is freed while in use.
+    pthread_mutex_lock(&client->mutex);
+    char *old_url = client->base_url;
+    char *old_password = client->password;
+    client->base_url = new_url;
+    client->password = new_password;
+    // Clear any stale outcome so callers don't act on the previous device's
+    // last response after the switch.
+    client->last_status = 0;
+    client->last_outcome = C64_REST_UNREACHABLE;
+    pthread_mutex_unlock(&client->mutex);
+
+    free(old_url);
+    free(old_password);
+
+    C64_LOG_INFO(REST_LOG_PREFIX "Retargeted REST client to %s", base_url);
+    return true;
+}
+
+bool c64_rest_client_get_base_url(const c64_rest_client_t *client, char *buf, size_t buf_size)
+{
+    if (!client || !buf || buf_size == 0) {
+        return false;
+    }
+    // Cast away const only to take the mutex; the URL itself is not modified.
+    pthread_mutex_t *mutex = (pthread_mutex_t *)&client->mutex;
+    pthread_mutex_lock(mutex);
+    snprintf(buf, buf_size, "%s", client->base_url ? client->base_url : "");
+    pthread_mutex_unlock(mutex);
+    return true;
 }
 
 // Perform HTTP request
@@ -583,6 +648,7 @@ static bool http_request_ex_locked(c64_rest_client_t *client, const char *method
 
     // CRITICAL: After curl_easy_reset, we must re-set NOSIGNAL to prevent Windows crashes
     curl_easy_setopt(client->curl, CURLOPT_NOSIGNAL, 1L);
+    curl_easy_setopt(client->curl, CURLOPT_MAXFILESIZE_LARGE, (curl_off_t)C64_REST_MAX_RESPONSE_BYTES);
     curl_easy_setopt(client->curl, CURLOPT_TIMEOUT, HTTP_TIMEOUT_SECONDS);
     curl_easy_setopt(client->curl, CURLOPT_URL, url);
 
@@ -966,6 +1032,7 @@ bool c64_rest_play_sid(c64_rest_client_t *client, const uint8_t *sid_data, size_
 
     // CRITICAL: Re-set NOSIGNAL after reset to prevent Windows crashes
     curl_easy_setopt(client->curl, CURLOPT_NOSIGNAL, 1L);
+    curl_easy_setopt(client->curl, CURLOPT_MAXFILESIZE_LARGE, (curl_off_t)C64_REST_MAX_RESPONSE_BYTES);
 
     // Create MIME structure (modern API)
     curl_mime *mime = curl_mime_init(client->curl);
@@ -1041,6 +1108,7 @@ bool c64_rest_run_prg(c64_rest_client_t *client, const uint8_t *prg_data, size_t
 
     // CRITICAL: Re-set NOSIGNAL after reset to prevent Windows crashes
     curl_easy_setopt(client->curl, CURLOPT_NOSIGNAL, 1L);
+    curl_easy_setopt(client->curl, CURLOPT_MAXFILESIZE_LARGE, (curl_off_t)C64_REST_MAX_RESPONSE_BYTES);
 
     // Create MIME structure (modern API)
     curl_mime *mime = curl_mime_init(client->curl);
@@ -1112,6 +1180,7 @@ bool c64_rest_mount_disk(c64_rest_client_t *client, char drive, const char *type
 
     // CRITICAL: Re-set NOSIGNAL after reset to prevent Windows crashes
     curl_easy_setopt(client->curl, CURLOPT_NOSIGNAL, 1L);
+    curl_easy_setopt(client->curl, CURLOPT_MAXFILESIZE_LARGE, (curl_off_t)C64_REST_MAX_RESPONSE_BYTES);
 
     // Create MIME structure (modern API)
     curl_mime *mime = curl_mime_init(client->curl);
@@ -1195,6 +1264,7 @@ bool c64_rest_play_sid_path(c64_rest_client_t *client, const char *c64u_path, in
 
     // CRITICAL: Re-set NOSIGNAL after reset to prevent Windows crashes
     curl_easy_setopt(client->curl, CURLOPT_NOSIGNAL, 1L);
+    curl_easy_setopt(client->curl, CURLOPT_MAXFILESIZE_LARGE, (curl_off_t)C64_REST_MAX_RESPONSE_BYTES);
 
     curl_easy_setopt(client->curl, CURLOPT_URL, url);
     curl_easy_setopt(client->curl, CURLOPT_CUSTOMREQUEST, "PUT"); // Use PUT not POST
@@ -1258,6 +1328,7 @@ bool c64_rest_run_prg_path(c64_rest_client_t *client, const char *c64u_path)
 
     // CRITICAL: Re-set NOSIGNAL after reset to prevent Windows crashes
     curl_easy_setopt(client->curl, CURLOPT_NOSIGNAL, 1L);
+    curl_easy_setopt(client->curl, CURLOPT_MAXFILESIZE_LARGE, (curl_off_t)C64_REST_MAX_RESPONSE_BYTES);
 
     curl_easy_setopt(client->curl, CURLOPT_URL, url);
     curl_easy_setopt(client->curl, CURLOPT_POST, 1L);
@@ -1312,6 +1383,7 @@ bool c64_rest_play_mod(c64_rest_client_t *client, const uint8_t *mod_data, size_
 
     // CRITICAL: Re-set NOSIGNAL after reset to prevent Windows crashes
     curl_easy_setopt(client->curl, CURLOPT_NOSIGNAL, 1L);
+    curl_easy_setopt(client->curl, CURLOPT_MAXFILESIZE_LARGE, (curl_off_t)C64_REST_MAX_RESPONSE_BYTES);
 
     // Create MIME structure (modern API)
     curl_mime *mime = curl_mime_init(client->curl);
@@ -1389,6 +1461,7 @@ bool c64_rest_play_mod_path(c64_rest_client_t *client, const char *c64u_path)
 
     // CRITICAL: Re-set NOSIGNAL after reset to prevent Windows crashes
     curl_easy_setopt(client->curl, CURLOPT_NOSIGNAL, 1L);
+    curl_easy_setopt(client->curl, CURLOPT_MAXFILESIZE_LARGE, (curl_off_t)C64_REST_MAX_RESPONSE_BYTES);
 
     curl_easy_setopt(client->curl, CURLOPT_URL, url);
     curl_easy_setopt(client->curl, CURLOPT_CUSTOMREQUEST, "PUT"); // Use PUT not POST
@@ -1444,6 +1517,7 @@ bool c64_rest_run_crt(c64_rest_client_t *client, const uint8_t *crt_data, size_t
 
     // CRITICAL: Re-set NOSIGNAL after reset to prevent Windows crashes
     curl_easy_setopt(client->curl, CURLOPT_NOSIGNAL, 1L);
+    curl_easy_setopt(client->curl, CURLOPT_MAXFILESIZE_LARGE, (curl_off_t)C64_REST_MAX_RESPONSE_BYTES);
 
     // Create MIME structure (modern API)
     curl_mime *mime = curl_mime_init(client->curl);
@@ -1521,6 +1595,7 @@ bool c64_rest_run_crt_path(c64_rest_client_t *client, const char *c64u_path)
 
     // CRITICAL: Re-set NOSIGNAL after reset to prevent Windows crashes
     curl_easy_setopt(client->curl, CURLOPT_NOSIGNAL, 1L);
+    curl_easy_setopt(client->curl, CURLOPT_MAXFILESIZE_LARGE, (curl_off_t)C64_REST_MAX_RESPONSE_BYTES);
 
     curl_easy_setopt(client->curl, CURLOPT_URL, url);
     curl_easy_setopt(client->curl, CURLOPT_CUSTOMREQUEST, "PUT"); // Use PUT not POST
@@ -1584,6 +1659,7 @@ bool c64_rest_mount_disk_path(c64_rest_client_t *client, char drive, const char 
 
     // CRITICAL: Re-set NOSIGNAL after reset to prevent Windows crashes
     curl_easy_setopt(client->curl, CURLOPT_NOSIGNAL, 1L);
+    curl_easy_setopt(client->curl, CURLOPT_MAXFILESIZE_LARGE, (curl_off_t)C64_REST_MAX_RESPONSE_BYTES);
 
     curl_easy_setopt(client->curl, CURLOPT_URL, url);
     curl_easy_setopt(client->curl, CURLOPT_POST, 1L);
@@ -1728,6 +1804,7 @@ bool c64_rest_drive_mount_upload(c64_rest_client_t *client, const char *drive, c
 
     curl_easy_reset(client->curl);
     curl_easy_setopt(client->curl, CURLOPT_NOSIGNAL, 1L);
+    curl_easy_setopt(client->curl, CURLOPT_MAXFILESIZE_LARGE, (curl_off_t)C64_REST_MAX_RESPONSE_BYTES);
 
     curl_mime *mime = curl_mime_init(client->curl);
     curl_mimepart *part = curl_mime_addpart(mime);
@@ -1869,6 +1946,7 @@ bool c64_rest_drive_load_rom_upload(c64_rest_client_t *client, const char *drive
 
     curl_easy_reset(client->curl);
     curl_easy_setopt(client->curl, CURLOPT_NOSIGNAL, 1L);
+    curl_easy_setopt(client->curl, CURLOPT_MAXFILESIZE_LARGE, (curl_off_t)C64_REST_MAX_RESPONSE_BYTES);
 
     curl_mime *mime = curl_mime_init(client->curl);
     curl_mimepart *part = curl_mime_addpart(mime);
@@ -2633,6 +2711,7 @@ bool c64_rest_list_files(c64_rest_client_t *client, const char *path, bool recur
 
     // CRITICAL: Re-set NOSIGNAL after reset to prevent Windows crashes
     curl_easy_setopt(client->curl, CURLOPT_NOSIGNAL, 1L);
+    curl_easy_setopt(client->curl, CURLOPT_MAXFILESIZE_LARGE, (curl_off_t)C64_REST_MAX_RESPONSE_BYTES);
 
     curl_easy_setopt(client->curl, CURLOPT_URL, url);
     curl_easy_setopt(client->curl, CURLOPT_HTTPGET, 1L);
@@ -2713,6 +2792,7 @@ bool c64_rest_stat_file(c64_rest_client_t *client, const char *path, bool *is_di
 
     // CRITICAL: Re-set NOSIGNAL after reset to prevent Windows crashes
     curl_easy_setopt(client->curl, CURLOPT_NOSIGNAL, 1L);
+    curl_easy_setopt(client->curl, CURLOPT_MAXFILESIZE_LARGE, (curl_off_t)C64_REST_MAX_RESPONSE_BYTES);
 
     curl_easy_setopt(client->curl, CURLOPT_URL, url);
     curl_easy_setopt(client->curl, CURLOPT_NOBODY, 1L); // HEAD request

@@ -12,6 +12,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 #include <sys/stat.h>
 #include <time.h>
 #include <errno.h>
@@ -440,8 +441,13 @@ static bool c64_rest_reset_machine_async(const char *host, const char *password)
  */
 void c64_session_ensure_exists(struct c64_source *context)
 {
+    if (!context || pthread_mutex_lock(&context->recording_mutex) != 0) {
+        return;
+    }
+
     // If session already exists, do nothing
     if (context->session_folder[0] != '\0') {
+        pthread_mutex_unlock(&context->recording_mutex);
         return;
     }
 
@@ -449,6 +455,7 @@ void c64_session_ensure_exists(struct c64_source *context)
     time_t rawtime = time(NULL);
     if (rawtime == (time_t)-1) {
         C64_LOG_ERROR("" RECORD_LOG_PREFIX " time() failed");
+        pthread_mutex_unlock(&context->recording_mutex);
         return;
     }
 
@@ -459,6 +466,7 @@ void c64_session_ensure_exists(struct c64_source *context)
     // Windows: use localtime_s (thread-safe)
     if (localtime_s(&timeinfo_buf, &rawtime) != 0) {
         C64_LOG_ERROR("" RECORD_LOG_PREFIX " localtime_s failed on Windows");
+        pthread_mutex_unlock(&context->recording_mutex);
         return;
     }
     timeinfo = &timeinfo_buf;
@@ -467,6 +475,7 @@ void c64_session_ensure_exists(struct c64_source *context)
     timeinfo = localtime_r(&rawtime, &timeinfo_buf);
     if (!timeinfo) {
         C64_LOG_ERROR("" RECORD_LOG_PREFIX " localtime_r failed");
+        pthread_mutex_unlock(&context->recording_mutex);
         return;
     }
 #endif
@@ -483,6 +492,8 @@ void c64_session_ensure_exists(struct c64_source *context)
     } else {
         C64_LOG_INFO("" RECORD_LOG_PREFIX " Successfully created recording session: %s", context->session_folder);
     }
+
+    pthread_mutex_unlock(&context->recording_mutex);
 }
 
 /**
@@ -496,13 +507,19 @@ bool c64_session_any_recording_active(struct c64_source *context)
         return false;
     }
 
+    bool record_frames = false;
+    bool record_video = false;
+    bool record_csv = false;
     bool record_av_sync = false;
     if (pthread_mutex_lock(&context->recording_mutex) == 0) {
+        record_frames = context->record_frames;
+        record_video = context->record_video;
+        record_csv = context->record_csv;
         record_av_sync = context->record_av_sync;
         pthread_mutex_unlock(&context->recording_mutex);
     }
 
-    return context->record_frames || context->record_video || context->record_csv || record_av_sync;
+    return record_frames || record_video || record_csv || record_av_sync;
 }
 
 /**
@@ -511,12 +528,16 @@ bool c64_session_any_recording_active(struct c64_source *context)
  */
 void c64_stop_obs_csv_recording(struct c64_source *context)
 {
+    if (!context || pthread_mutex_lock(&context->recording_mutex) != 0) {
+        return;
+    }
     if (context->timing_file) {
         fclose(context->timing_file);
         context->timing_file = NULL;
         context->csv_timing_base_ns = 0; // Reset timing base for next recording session
         C64_LOG_INFO("" RECORD_LOG_PREFIX " CSV timing recording stopped");
     }
+    pthread_mutex_unlock(&context->recording_mutex);
 }
 
 void c64_stop_av_sync_csv_recording(struct c64_source *context)
@@ -541,11 +562,15 @@ void c64_stop_av_sync_csv_recording(struct c64_source *context)
  */
 void c64_stop_network_csv_recording(struct c64_source *context)
 {
+    if (!context || pthread_mutex_lock(&context->recording_mutex) != 0) {
+        return;
+    }
     if (context->network_file) {
         fclose(context->network_file);
         context->network_file = NULL;
         C64_LOG_INFO("" RECORD_LOG_PREFIX " Network packet recording stopped");
     }
+    pthread_mutex_unlock(&context->recording_mutex);
 }
 
 /**
@@ -555,6 +580,7 @@ void c64_stop_network_csv_recording(struct c64_source *context)
 void c64_session_cleanup_if_needed(struct c64_source *context)
 {
     if (!c64_session_any_recording_active(context)) {
+        pthread_mutex_lock(&context->recording_mutex);
         // Stop all recording when session ends
         c64_stop_obs_csv_recording(context);
         c64_stop_network_csv_recording(context);
@@ -562,6 +588,7 @@ void c64_session_cleanup_if_needed(struct c64_source *context)
         context->session_folder[0] = '\0';
         context->csv_debug_enabled = false;
         C64_LOG_INFO("" RECORD_LOG_PREFIX " Recording session ended");
+        pthread_mutex_unlock(&context->recording_mutex);
     }
 }
 
@@ -604,7 +631,11 @@ void c64_record_audio_data(struct c64_source *context, const uint8_t *audio_data
  */
 void c64_start_obs_csv_recording(struct c64_source *context)
 {
+    if (!context || pthread_mutex_lock(&context->recording_mutex) != 0) {
+        return;
+    }
     if (context->timing_file) {
+        pthread_mutex_unlock(&context->recording_mutex);
         return; // Already recording CSV
     }
 
@@ -613,6 +644,7 @@ void c64_start_obs_csv_recording(struct c64_source *context)
     c64_session_ensure_exists(context);
     if (context->session_folder[0] == '\0') {
         C64_LOG_WARNING("" RECORD_LOG_PREFIX " Failed to create recording session for CSV logging");
+        pthread_mutex_unlock(&context->recording_mutex);
         return;
     }
     C64_LOG_INFO("" RECORD_LOG_PREFIX " Session folder created: %s", context->session_folder);
@@ -624,6 +656,7 @@ void c64_start_obs_csv_recording(struct c64_source *context)
     context->timing_file = fopen(timing_filename, "w");
     if (!context->timing_file) {
         C64_LOG_ERROR("" RECORD_LOG_PREFIX " Failed to create CSV timing file: %s", timing_filename);
+        pthread_mutex_unlock(&context->recording_mutex);
         return;
     }
 
@@ -632,24 +665,23 @@ void c64_start_obs_csv_recording(struct c64_source *context)
     // Write CSV header
     c64_obs_write_header(context);
     C64_LOG_INFO("" RECORD_LOG_PREFIX " Started CSV timing recording: %s", timing_filename);
+    pthread_mutex_unlock(&context->recording_mutex);
 }
 
 void c64_start_av_sync_csv_recording(struct c64_source *context)
 {
-    if (!context) {
+    if (!context || pthread_mutex_lock(&context->recording_mutex) != 0) {
         return;
     }
-
-    pthread_mutex_lock(&context->recording_mutex);
-    const bool already_open = (context->av_sync_file != NULL);
-    pthread_mutex_unlock(&context->recording_mutex);
-    if (already_open) {
+    if (context->av_sync_file) {
+        pthread_mutex_unlock(&context->recording_mutex);
         return;
     }
 
     c64_session_ensure_exists(context);
     if (context->session_folder[0] == '\0') {
         C64_LOG_WARNING("" RECORD_LOG_PREFIX " Failed to create recording session for av-sync CSV");
+        pthread_mutex_unlock(&context->recording_mutex);
         return;
     }
 
@@ -659,6 +691,7 @@ void c64_start_av_sync_csv_recording(struct c64_source *context)
     FILE *f = fopen(filename, "w");
     if (!f) {
         C64_LOG_ERROR("" RECORD_LOG_PREFIX " Failed to create av-sync CSV file: %s (errno=%d)", filename, errno);
+        pthread_mutex_unlock(&context->recording_mutex);
         return;
     }
 
@@ -671,11 +704,8 @@ void c64_start_av_sync_csv_recording(struct c64_source *context)
 
     fflush(f);
 
-    pthread_mutex_lock(&context->recording_mutex);
-    if (context->av_sync_file == NULL) {
-        context->av_sync_file = f;
-        f = NULL;
-    }
+    context->av_sync_file = f;
+    f = NULL;
     pthread_mutex_unlock(&context->recording_mutex);
 
     if (f) {
@@ -692,7 +722,11 @@ void c64_start_av_sync_csv_recording(struct c64_source *context)
  */
 void c64_start_network_csv_recording(struct c64_source *context)
 {
+    if (!context || pthread_mutex_lock(&context->recording_mutex) != 0) {
+        return;
+    }
     if (context->network_file) {
+        pthread_mutex_unlock(&context->recording_mutex);
         return; // Already recording network packets
     }
 
@@ -701,6 +735,7 @@ void c64_start_network_csv_recording(struct c64_source *context)
     c64_session_ensure_exists(context);
     if (context->session_folder[0] == '\0') {
         C64_LOG_WARNING("" RECORD_LOG_PREFIX " Failed to create recording session for network logging");
+        pthread_mutex_unlock(&context->recording_mutex);
         return;
     }
     C64_LOG_DEBUG("" RECORD_LOG_PREFIX " Network session folder: %s", context->session_folder);
@@ -712,6 +747,7 @@ void c64_start_network_csv_recording(struct c64_source *context)
     context->network_file = fopen(network_filename, "w");
     if (!context->network_file) {
         C64_LOG_ERROR("" RECORD_LOG_PREFIX " Failed to create network packet file: %s", network_filename);
+        pthread_mutex_unlock(&context->recording_mutex);
         return;
     }
 
@@ -724,20 +760,21 @@ void c64_start_network_csv_recording(struct c64_source *context)
     // Write network CSV header
     c64_network_write_header(context);
     C64_LOG_INFO("" RECORD_LOG_PREFIX " Started network packet recording: %s", network_filename);
+    pthread_mutex_unlock(&context->recording_mutex);
 }
 
 /**
  * Start video recording session (AVI + WAV + CSV)
  * @param context Source context
  */
-void c64_start_video_recording(struct c64_source *context)
+bool c64_start_video_recording(struct c64_source *context)
 {
     if (!context->record_video || context->video_file) {
-        return; // Already recording or not enabled
+        return context->video_file != NULL;
     }
 
     if (pthread_mutex_lock(&context->recording_mutex) != 0) {
-        return;
+        return false;
     }
 
     // Ensure session exists for video recording
@@ -745,7 +782,7 @@ void c64_start_video_recording(struct c64_source *context)
     if (context->session_folder[0] == '\0') {
         C64_LOG_ERROR("" RECORD_LOG_PREFIX " Failed to create recording session for video recording");
         pthread_mutex_unlock(&context->recording_mutex);
-        return;
+        return false;
     }
 
     // Start CSV and network recording if enabled
@@ -774,23 +811,37 @@ void c64_start_video_recording(struct c64_source *context)
             context->audio_file = NULL;
         }
         pthread_mutex_unlock(&context->recording_mutex);
-        return;
+        return false;
     }
 
     uint64_t timestamp_ms = os_gettime_ns() / 1000000;
     context->recording_start_time = timestamp_ms;
     os_atomic_store_long(&context->recorded_frames, 0);
     os_atomic_store_long(&context->recorded_audio_samples, 0);
+    context->recorded_audio_bytes = 0;
+    context->avi_segment_index = 0;
+    context->avi_segment_width = 0;
+    context->avi_segment_height = 0;
+    context->avi_segment_fps = 0.0;
+    context->avi_segment_frames = 0;
+    context->avi_segment_bytes = 0;
 
     // Write AVI header with detected frame rate
     c64_video_write_avi_header(context->video_file, context->width, context->height, context->expected_fps);
+    context->avi_segment_index = 0;
+    context->avi_segment_width = context->width;
+    context->avi_segment_height = context->height;
+    context->avi_segment_fps = context->expected_fps;
+    context->avi_segment_frames = 0;
+    context->avi_segment_bytes = 216; /* fixed header size written above */
 
     // Write WAV header to audio file
-    c64_audio_write_wav_header(context->audio_file, 48000, 2, 16); // 48kHz stereo 16-bit
+    c64_audio_write_wav_header(context->audio_file, (uint32_t)llround(context->audio_sample_rate), 2, 16);
 
     C64_LOG_INFO("" RECORD_LOG_PREFIX " Started video recording: %s", video_filename);
 
     pthread_mutex_unlock(&context->recording_mutex);
+    return true;
 }
 
 /**
@@ -809,13 +860,12 @@ void c64_stop_video_recording(struct c64_source *context)
 
     // Close recording files and finalize formats
     if (context->video_file) {
-        fclose(context->video_file);
-        context->video_file = NULL;
+        c64_video_stop_recording(context);
     }
     if (context->audio_file) {
         // Update WAV header with final file size
         // recorded_audio_samples counts stereo samples, each stereo sample = 4 bytes (16-bit L + 16-bit R)
-        c64_audio_finalize_wav_header(context->audio_file, context->recorded_audio_samples * 4);
+        c64_audio_finalize_wav_header(context->audio_file, context->recorded_audio_bytes);
         fclose(context->audio_file);
         context->audio_file = NULL;
     }
@@ -842,6 +892,7 @@ void c64_record_init(struct c64_source *context)
     context->record_video = false;
     context->record_csv = false;
     context->record_av_sync = false;
+    context->av_sync_prg_started = false;
     context->video_file = NULL;
     context->audio_file = NULL;
     context->timing_file = NULL;
@@ -851,16 +902,28 @@ void c64_record_init(struct c64_source *context)
     context->csv_timing_base_ns = 0;
     os_atomic_store_long(&context->recorded_frames, 0);
     os_atomic_store_long(&context->recorded_audio_samples, 0);
+    context->recorded_audio_bytes = 0;
+    context->avi_segment_index = 0;
+    context->avi_segment_width = 0;
+    context->avi_segment_height = 0;
+    context->avi_segment_fps = 0.0;
+    context->avi_segment_frames = 0;
+    context->avi_segment_bytes = 0;
 
     context->audio_mixer_snapshot_items = NULL;
     context->audio_mixer_snapshot_values = NULL;
     context->audio_mixer_snapshot_count = 0;
     context->audio_mixer_snapshot_active = false;
 
-    // Initialize recording mutex
-    if (pthread_mutex_init(&context->recording_mutex, NULL) != 0) {
+    // Recursive locking keeps the session/starters atomic even when video recording
+    // invokes them while it already owns this mutex.
+    pthread_mutexattr_t recording_mutex_attr;
+    pthread_mutexattr_init(&recording_mutex_attr);
+    pthread_mutexattr_settype(&recording_mutex_attr, PTHREAD_MUTEX_RECURSIVE);
+    if (pthread_mutex_init(&context->recording_mutex, &recording_mutex_attr) != 0) {
         C64_LOG_ERROR("" RECORD_LOG_PREFIX " Failed to initialize recording mutex");
     }
+    pthread_mutexattr_destroy(&recording_mutex_attr);
 }
 
 /**
@@ -981,6 +1044,7 @@ void c64_record_update_settings(struct c64_source *context, void *settings_ptr)
                     if (!c64_rest_run_prg_async(host, password, prg_path)) {
                         C64_LOG_WARNING("" RECORD_LOG_PREFIX " Failed to start av-sync PRG via REST");
                     } else {
+                        context->av_sync_prg_started = true;
                         C64_LOG_INFO("" RECORD_LOG_PREFIX " av-sync PRG async call initiated");
                     }
                     bfree(prg_path);
@@ -1000,13 +1064,14 @@ void c64_record_update_settings(struct c64_source *context, void *settings_ptr)
 
             const char *host = obs_data_get_string(settings, "c64_host");
             const char *password = obs_data_get_string(settings, "c64_password");
-            if (host && host[0] != '\0' && strcmp(host, "0.0.0.0") != 0) {
+            if (context->av_sync_prg_started && host && host[0] != '\0' && strcmp(host, "0.0.0.0") != 0) {
                 if (!c64_rest_reset_machine_async(host, password)) {
                     C64_LOG_WARNING("" RECORD_LOG_PREFIX " Failed to reset device via REST");
                 } else {
                     C64_LOG_INFO("" RECORD_LOG_PREFIX " Device reset async call initiated");
                 }
             }
+            context->av_sync_prg_started = false;
         }
     }
 
@@ -1017,8 +1082,15 @@ void c64_record_update_settings(struct c64_source *context, void *settings_ptr)
 
         if (new_record_video) {
             // Start recording (will join/create session)
-            c64_start_video_recording(context);
-            C64_LOG_INFO("" RECORD_LOG_PREFIX " Video recording started");
+            if (c64_start_video_recording(context)) {
+                C64_LOG_INFO("" RECORD_LOG_PREFIX " Video recording started");
+            } else {
+                context->record_video = false;
+                obs_data_set_bool(settings, "record_video", false);
+                C64_LOG_ERROR("" RECORD_LOG_PREFIX
+                              " Video recording was not enabled because its files could not be opened");
+                c64_session_cleanup_if_needed(context);
+            }
         } else {
             // Stop recording
             c64_stop_video_recording(context);

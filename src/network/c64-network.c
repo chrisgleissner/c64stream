@@ -117,7 +117,8 @@ static bool resolve_hostname_direct_dns(const char *hostname, const char *dns_se
 }
 
 /**
- * Try multiple common DNS servers for hostname resolution
+ * Query only the DNS server explicitly configured by the user.  Guessing
+ * router addresses can resolve a hostname to an unrelated device.
  */
 static bool resolve_hostname_with_fallback_dns(const char *hostname, const char *custom_dns, char *ip_buffer,
                                                size_t buffer_size)
@@ -126,28 +127,10 @@ static bool resolve_hostname_with_fallback_dns(const char *hostname, const char 
         return false;
     }
 
-    // List of DNS servers to try (configured DNS first, then fallback to common routers)
-    const char *dns_servers[8];
-    int dns_count = 0;
-
-    // Add configured DNS server first if provided and not empty
-    if (custom_dns && strlen(custom_dns) > 0) {
-        dns_servers[dns_count++] = custom_dns;
+    if (custom_dns && custom_dns[0]) {
         C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Using configured DNS server: %s", custom_dns);
+        return resolve_hostname_direct_dns(hostname, custom_dns, ip_buffer, buffer_size);
     }
-
-    // Add common router DNS servers as fallback
-    dns_servers[dns_count++] = "192.168.0.1";
-    dns_servers[dns_count++] = "10.0.0.1";
-    dns_servers[dns_count++] = "172.16.0.1";
-    dns_servers[dns_count] = NULL;
-
-    for (int i = 0; i < dns_count; i++) {
-        if (resolve_hostname_direct_dns(hostname, dns_servers[i], ip_buffer, buffer_size)) {
-            return true;
-        }
-    }
-
     return false;
 }
 #endif
@@ -440,20 +423,17 @@ bool c64_resolve_hostname_with_dns(const char *hostname, const char *custom_dns_
     return false;
 }
 
-socket_t c64_create_udp_socket(uint32_t port)
+socket_t c64_create_udp_socket(uint32_t port, bool *port_in_use)
 {
+    if (port_in_use) {
+        *port_in_use = false;
+    }
+
     socket_t sock = socket(AF_INET, SOCK_DGRAM, 0);
     if (sock == INVALID_SOCKET_VALUE) {
         int error = c64_get_socket_error();
         C64_LOG_ERROR("" NETWORK_LOG_PREFIX " Failed to create UDP socket: %s", c64_get_socket_error_string(error));
         return INVALID_SOCKET_VALUE;
-    }
-
-    // Enable SO_REUSEADDR to allow quick restart without "address already in use" errors
-    int reuse = 1;
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (char *)&reuse, sizeof(reuse)) < 0) {
-        int error = c64_get_socket_error();
-        C64_LOG_WARNING("" NETWORK_LOG_PREFIX " Failed to set SO_REUSEADDR: %s", c64_get_socket_error_string(error));
     }
 
     // Set close-on-exec flag to prevent child processes from inheriting the socket
@@ -517,8 +497,24 @@ socket_t c64_create_udp_socket(uint32_t port)
 
     if (bind(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
         int error = c64_get_socket_error();
-        C64_LOG_ERROR("" NETWORK_LOG_PREFIX " Failed to bind UDP socket to port %u: %s", port,
-                      c64_get_socket_error_string(error));
+        const bool address_in_use =
+#ifdef _WIN32
+            error == WSAEADDRINUSE;
+#else
+            error == EADDRINUSE;
+#endif
+        if (address_in_use) {
+            C64_LOG_ERROR(
+                "" NETWORK_LOG_PREFIX
+                " UDP port %u is already in use. Configure unique video/audio ports for each C64 Stream source.",
+                port);
+            if (port_in_use) {
+                *port_in_use = true;
+            }
+        } else {
+            C64_LOG_ERROR("" NETWORK_LOG_PREFIX " Failed to bind UDP socket to port %u: %s", port,
+                          c64_get_socket_error_string(error));
+        }
         close(sock);
         return INVALID_SOCKET_VALUE;
     }

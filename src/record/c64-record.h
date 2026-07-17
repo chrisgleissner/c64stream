@@ -43,7 +43,7 @@ void c64_stop_av_sync_csv_recording(struct c64_source *context);
 
 // Main entry point functions - delegate to appropriate modules
 void c64_save_frame_as_bmp(struct c64_source *context, uint32_t *frame_buffer);
-void c64_start_video_recording(struct c64_source *context);
+bool c64_start_video_recording(struct c64_source *context);
 void c64_record_video_frame(struct c64_source *context, uint32_t *frame_buffer);
 void c64_record_audio_data(struct c64_source *context, const uint8_t *audio_data, size_t data_size);
 void c64_stop_video_recording(struct c64_source *context);

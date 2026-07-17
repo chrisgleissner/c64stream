@@ -61,6 +61,37 @@ c64_rest_client_t *c64_rest_client_create(const char *base_url, const char *pass
  * Destroy REST client and free resources
  */
 void c64_rest_client_destroy(c64_rest_client_t *client);
+
+/**
+ * Retarget an existing REST client to a new device/credential in place
+ * (C64STR-017, C64STR-002).
+ *
+ * Atomically swaps the base URL and password under the client's mutex, so the
+ * same client object now talks to a new device without being destroyed. This
+ * lets a running C64Script SWITCH_DEVICE continue on the new device (its cached
+ * rest_client/keyboard pointers stay valid) and lets a live password change
+ * take effect without tearing down the client.
+ *
+ * @param client Existing client
+ * @param base_url New base URL (e.g. "http://192.168.1.65")
+ * @param password New password, or NULL for none
+ * @return true on success, false on invalid args or allocation failure
+ */
+bool c64_rest_client_retarget(c64_rest_client_t *client, const char *base_url, const char *password);
+
+/**
+ * Copy the client's current base URL into a caller buffer (thread-safe).
+ *
+ * Reads under the client mutex, so it is safe to call concurrently with
+ * c64_rest_client_retarget and returns a consistent snapshot (never a torn or
+ * freed pointer).
+ *
+ * @param client Client instance
+ * @param buf Destination buffer
+ * @param buf_size Size of destination buffer
+ * @return true if copied, false on invalid args
+ */
+bool c64_rest_client_get_base_url(const c64_rest_client_t *client, char *buf, size_t buf_size);
 bool c64_rest_stream_start(c64_rest_client_t *client, bool audio, const char *destination);
 bool c64_rest_stream_stop(c64_rest_client_t *client, bool audio);
 bool c64_rest_stream_start_with_outcome(c64_rest_client_t *client, bool audio, const char *destination,

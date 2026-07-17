@@ -313,12 +313,11 @@ bool c64_palette_select(const char *palette_id)
 
     palette_system.active_palette_index = index;
 
-    // Copy colors to working buffer
+    // Copy colors to working buffer (edit staging for the properties dialog).
+    // C64STR-014: rendering now uses per-source LUTs, so selection no longer
+    // rebuilds any shared render LUT here.
     memcpy(palette_system.working_colors, entry->colors, sizeof(entry->colors));
     palette_system.working_modified = false;
-
-    // Rebuild LUT with new palette
-    c64_palette_rebuild_lut(palette_system.working_colors);
 
     // Log palette activation with appropriate detail
     if (entry->path[0]) {
@@ -385,8 +384,9 @@ bool c64_palette_set_working_color(int index, uint32_t bgra_color)
     palette_system.working_colors[index] = bgra_color;
     palette_system.working_modified = true;
 
-    // Rebuild LUT immediately for live preview
-    c64_palette_rebuild_lut(palette_system.working_colors);
+    // C64STR-014: live preview now happens by rebuilding the editing source's
+    // own LUT (see c64_source_apply_palette in the properties callbacks); no
+    // shared render LUT is touched here.
 
     return true;
 }
@@ -421,8 +421,8 @@ void c64_palette_revert(void)
     memcpy(palette_system.working_colors, entry->colors, sizeof(entry->colors));
     palette_system.working_modified = false;
 
-    // Rebuild LUT with reverted colors
-    c64_palette_rebuild_lut(palette_system.working_colors);
+    // C64STR-014: per-source LUTs are refreshed by the properties callbacks; no
+    // shared render LUT to rebuild here.
 
     C64_LOG_INFO("" PALETTE_LOG_PREFIX " Reverted to saved palette: %s", entry->name);
 }
@@ -913,33 +913,53 @@ bool c64_palette_get_user_dir(char *path, size_t path_size)
     return c64_get_user_dir(C64_USER_DIR_PALETTES, path, path_size);
 }
 
-void c64_palette_rebuild_lut(const uint32_t *colors)
+bool c64_palette_resolve_colors(const char *palette_id, uint32_t *out_colors)
 {
-    if (!colors) {
-        return;
+    if (!out_colors) {
+        return false;
+    }
+    if (!palette_id || !palette_id[0]) {
+        palette_id = "Default";
     }
 
-    // Lock-free LUT rebuild: Direct writes to globally shared LUT
-    // Individual uint64_t writes are atomic on x86_64 (naturally 8-byte aligned)
-    // Worst case: one frame sees partial old/new palette during 256-entry update
-    // No locks in rendering path for maximum performance (3400+ packets/sec)
-    extern uint64_t c64_color_pair_lut[256];
-    extern uint32_t c64_current_palette[16];
-    extern bool c64_color_lut_initialized;
-
-    // Update the current palette
-    memcpy(c64_current_palette, colors, sizeof(c64_current_palette));
-
-    // Rebuild the LUT with direct atomic writes
-    for (int i = 0; i < 256; i++) {
-        uint8_t color1 = i & 0x0F;
-        uint8_t color2 = (i >> 4) & 0x0F;
-        uint64_t packed = ((uint64_t)colors[color2] << 32) | colors[color1];
-        c64_color_pair_lut[i] = packed; // Atomic write on x86_64
+    // Find the palette in the global catalogue.
+    int index = -1;
+    for (int i = 0; i < palette_system.palette_count; i++) {
+        if (strcmp(palette_system.palettes[i].id, palette_id) == 0) {
+            index = i;
+            break;
+        }
     }
 
-    c64_color_lut_initialized = true;
-    C64_LOG_INFO("" PALETTE_LOG_PREFIX " 🔄 Color LUT rebuilt with palette colors (256 lookup entries updated)");
+    if (index < 0) {
+        C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Palette not found for resolve: %s", palette_id);
+        return false;
+    }
+
+    struct c64_palette_entry *entry = &palette_system.palettes[index];
+
+    // Load colours from the VPL file on demand (catalogue is otherwise
+    // read-mostly global data loaded once).
+    if (!entry->colors_loaded && entry->path[0]) {
+        char name_buf[C64_PALETTE_NAME_MAX];
+        char desc_buf[256];
+        if (c64_palette_parse_vpl(entry->path, entry->colors, name_buf, sizeof(name_buf), desc_buf, sizeof(desc_buf))) {
+            entry->colors_loaded = true;
+            if (name_buf[0]) {
+                strncpy(entry->name, name_buf, sizeof(entry->name) - 1);
+            }
+            if (desc_buf[0]) {
+                strncpy(entry->desc, desc_buf, sizeof(entry->desc) - 1);
+                entry->desc[sizeof(entry->desc) - 1] = '\0';
+            }
+        } else {
+            C64_LOG_WARNING("" PALETTE_LOG_PREFIX " Failed to load palette for resolve: %s", entry->path);
+            return false;
+        }
+    }
+
+    memcpy(out_colors, entry->colors, sizeof(entry->colors));
+    return true;
 }
 
 const uint32_t *c64_palette_get_active_colors(void)

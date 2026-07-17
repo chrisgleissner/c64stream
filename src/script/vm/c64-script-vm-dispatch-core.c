@@ -1399,8 +1399,13 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
                 }
                 runtime->log_file = fopen(log_path, "a");
                 if (runtime->log_file) {
-                    strncpy(runtime->log_filename, log_path, sizeof(runtime->log_filename) - 1);
-                    runtime->log_filename[sizeof(runtime->log_filename) - 1] = '\0';
+                    /* log_path may already alias runtime->log_filename (when a
+                     * name was set on a prior LOG); a self-overlapping strncpy
+                     * is undefined behaviour, so only copy a distinct source. */
+                    if (log_path != runtime->log_filename) {
+                        strncpy(runtime->log_filename, log_path, sizeof(runtime->log_filename) - 1);
+                        runtime->log_filename[sizeof(runtime->log_filename) - 1] = '\0';
+                    }
                 }
             }
             if (!runtime->log_file) {
@@ -1541,7 +1546,11 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
             return false;
         }
 
-        // Create new scope
+        // Create new scope. Bound recursion before growing the allocation.
+        if (runtime->scope_stack_size >= 1024) {
+            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "recursion too deep");
+            return false;
+        }
         if (runtime->scope_stack_size >= runtime->scope_stack_capacity) {
             size_t new_cap = runtime->scope_stack_capacity == 0 ? 8 : runtime->scope_stack_capacity * 2;
             c64script_scope_t *new_stack = realloc(runtime->scope_stack, new_cap * sizeof(c64script_scope_t));

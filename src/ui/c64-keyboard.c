@@ -14,6 +14,7 @@ See <https://www.gnu.org/licenses/> for details.
 
 #include <obs-module.h>
 #include <util/platform.h>
+#include <util/threading.h>
 #include <ctype.h>
 #ifdef _WIN32
 #include <windows.h>
@@ -44,6 +45,9 @@ static char *c64_strtok_r(char *str, const char *delim, char **saveptr)
 #define MAX_KEYMAP_ENTRIES 512
 #define KEYMAP_VALUE_SEQUENCE_MAX 8
 #define QUEUE_SIZE 1024
+// Async machine-command FIFO depth (C64STR-022). Large enough that human-paced
+// joystick/menu/reset input never overflows even if the worker stalls briefly.
+#define CMD_QUEUE_SIZE 256
 
 #ifndef C64_KEYBOARD_POLL_INITIAL_MS
 #define C64_KEYBOARD_POLL_INITIAL_MS 50
@@ -165,9 +169,17 @@ struct c64_keyboard {
     pthread_mutex_t queue_mutex;
     pthread_cond_t queue_cond;
 
+    // FIFO queue for async machine-control commands (C64STR-022). Shares
+    // queue_mutex/queue_cond with the keystroke queue. Enqueued from the OBS UI
+    // thread, drained by the worker thread so no REST blocks the UI.
+    c64_machine_command_t cmd_queue[CMD_QUEUE_SIZE];
+    int cmd_head;
+    int cmd_tail;
+    int cmd_count;
+
     // Worker thread
     pthread_t worker_thread;
-    bool worker_running;
+    volatile bool worker_running; // atomic (os_atomic_*): read by worker, cleared by destroy
 };
 
 static uint8_t lookup_symbolic_key(const char *name)
@@ -1041,10 +1053,13 @@ static uint32_t keyboard_next_backoff_ms(uint32_t current_ms)
 static bool keyboard_wait_for_work(c64_keyboard_t *keyboard)
 {
     pthread_mutex_lock(&keyboard->queue_mutex);
-    while (keyboard->worker_running && keyboard->queue_count == 0) {
+    // Wake for either keystrokes or async machine commands (C64STR-022), so a
+    // joystick/menu/reset command with no pending keystrokes is not stranded.
+    while (os_atomic_load_bool(&keyboard->worker_running) && keyboard->queue_count == 0 && keyboard->cmd_count == 0) {
         pthread_cond_wait(&keyboard->queue_cond, &keyboard->queue_mutex);
     }
-    bool has_work = keyboard->worker_running && keyboard->queue_count > 0;
+    bool has_work = os_atomic_load_bool(&keyboard->worker_running) &&
+                    (keyboard->queue_count > 0 || keyboard->cmd_count > 0);
     pthread_mutex_unlock(&keyboard->queue_mutex);
     return has_work;
 }
@@ -1181,6 +1196,50 @@ static bool build_rest_input_batch(const uint8_t *bytes, int count, char *json, 
     return snprintf(json + used, json_size - used, "]}") > 0;
 }
 
+// Drain and execute any pending async machine-control commands (C64STR-022).
+// Pops each command under the queue lock, then issues the blocking REST call
+// WITHOUT holding the lock, so enqueue from the UI thread never waits on network
+// I/O. Runs at the top of every worker iteration so joystick/menu/reset stay
+// responsive even while a keystroke batch is polling the device buffer.
+static void process_machine_commands(c64_keyboard_t *keyboard)
+{
+    for (;;) {
+        c64_machine_command_t cmd;
+        pthread_mutex_lock(&keyboard->queue_mutex);
+        if (keyboard->cmd_count == 0) {
+            pthread_mutex_unlock(&keyboard->queue_mutex);
+            return;
+        }
+        cmd = keyboard->cmd_queue[keyboard->cmd_head];
+        keyboard->cmd_head = (keyboard->cmd_head + 1) % CMD_QUEUE_SIZE;
+        keyboard->cmd_count--;
+        pthread_mutex_unlock(&keyboard->queue_mutex);
+
+        if (!keyboard->rest_client) {
+            continue;
+        }
+
+        switch (cmd.type) {
+        case C64_MACHINE_CMD_JOYSTICK:
+            c64_rest_joystick_input(keyboard->rest_client, cmd.joystick_port, cmd.joystick_input,
+                                    cmd.joystick_press ? "press" : "release");
+            break;
+        case C64_MACHINE_CMD_MENU:
+            c64_rest_menu_button(keyboard->rest_client);
+            break;
+        case C64_MACHINE_CMD_RESET:
+            c64_rest_reset(keyboard->rest_client);
+            break;
+        case C64_MACHINE_CMD_REBOOT:
+            c64_rest_reboot(keyboard->rest_client);
+            break;
+        case C64_MACHINE_CMD_RELEASE_ALL:
+            c64_rest_release_all(keyboard->rest_client);
+            break;
+        }
+    }
+}
+
 // Worker thread function
 static void *injection_worker(void *arg)
 {
@@ -1196,7 +1255,12 @@ static void *injection_worker(void *arg)
 
     C64_LOG_DEBUG(KEYBOARD_LOG_PREFIX "Injection worker started");
 
-    while (keyboard->worker_running) {
+    while (os_atomic_load_bool(&keyboard->worker_running)) {
+        // C64STR-022: run queued machine-control commands first so joystick /
+        // menu / reset / reboot are dispatched promptly regardless of the
+        // keystroke state machine's current phase.
+        process_machine_commands(keyboard);
+
         switch (state) {
         case C64_KEYBOARD_STATE_IDLE:
             if (!last_batch_failed) {
@@ -1393,7 +1457,7 @@ c64_keyboard_t *c64_keyboard_create(void *rest_client)
     pthread_cond_init(&keyboard->queue_cond, NULL);
 
     // Start worker thread
-    keyboard->worker_running = true;
+    os_atomic_set_bool(&keyboard->worker_running, true);
     if (pthread_create(&keyboard->worker_thread, NULL, injection_worker, keyboard) != 0) {
         C64_LOG_ERROR(KEYBOARD_LOG_PREFIX "Failed to create worker thread");
         pthread_cond_destroy(&keyboard->queue_cond);
@@ -1413,7 +1477,7 @@ void c64_keyboard_destroy(c64_keyboard_t *keyboard)
     }
 
     // Stop worker thread
-    keyboard->worker_running = false;
+    os_atomic_set_bool(&keyboard->worker_running, false);
     pthread_mutex_lock(&keyboard->queue_mutex);
     pthread_cond_broadcast(&keyboard->queue_cond);
     pthread_mutex_unlock(&keyboard->queue_mutex);
@@ -1520,6 +1584,27 @@ bool c64_keyboard_queue_output(c64_keyboard_t *keyboard, const c64_output_t *out
     }
 
     keyboard_log_queued_submission(keyboard, submission_count, label, queue_available(keyboard));
+    return true;
+}
+
+bool c64_keyboard_queue_machine_command(c64_keyboard_t *keyboard, const c64_machine_command_t *cmd)
+{
+    if (!keyboard || !cmd) {
+        return false;
+    }
+
+    pthread_mutex_lock(&keyboard->queue_mutex);
+    if (keyboard->cmd_count >= CMD_QUEUE_SIZE) {
+        pthread_mutex_unlock(&keyboard->queue_mutex);
+        C64_LOG_WARNING(KEYBOARD_LOG_PREFIX "Machine-command queue full; dropping command type %d", cmd->type);
+        return false;
+    }
+    keyboard->cmd_queue[keyboard->cmd_tail] = *cmd;
+    keyboard->cmd_tail = (keyboard->cmd_tail + 1) % CMD_QUEUE_SIZE;
+    keyboard->cmd_count++;
+    // Wake the worker whether it is idle-waiting on keystrokes or commands.
+    pthread_cond_signal(&keyboard->queue_cond);
+    pthread_mutex_unlock(&keyboard->queue_mutex);
     return true;
 }
 

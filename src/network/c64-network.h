@@ -84,7 +84,7 @@ bool c64_resolve_hostname_with_dns(const char *hostname, const char *custom_dns_
                                    size_t buffer_size);
 
 // Socket operations
-socket_t c64_create_udp_socket(uint32_t port);
+socket_t c64_create_udp_socket(uint32_t port, bool *port_in_use);
 socket_t c64_create_tcp_socket(const char *ip, uint32_t port);
 bool c64_test_connectivity(const char *ip, uint32_t port);
 

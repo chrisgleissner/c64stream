@@ -71,6 +71,15 @@ TEST(rejects_truncation)
     assert(!c64_build_stream_dest(too_small, sizeof(too_small), "1.2.3.4", 1));
 }
 
+TEST(clamps_packet_derived_frame_height)
+{
+    assert(c64_clamp_frame_height(C64_NTSC_HEIGHT - 1) == C64_NTSC_HEIGHT);
+    assert(c64_clamp_frame_height(C64_NTSC_HEIGHT) == C64_NTSC_HEIGHT);
+    assert(c64_clamp_frame_height(245) == 245);
+    assert(c64_clamp_frame_height(C64_PAL_HEIGHT) == C64_PAL_HEIGHT);
+    assert(c64_clamp_frame_height(C64_PAL_HEIGHT + 1) == C64_PAL_HEIGHT);
+}
+
 int main(void)
 {
     RUN_TEST(builds_ip_port_string);
@@ -78,5 +87,6 @@ int main(void)
     RUN_TEST(rejects_empty_and_null);
     RUN_TEST(rejects_hostnames_and_invalid_ipv4);
     RUN_TEST(rejects_truncation);
+    RUN_TEST(clamps_packet_derived_frame_height);
     return 0;
 }

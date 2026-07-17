@@ -407,6 +407,8 @@ static c64script_token_t tokenize_number(tokenizer_t *t)
         advance(t);
         advance(t);
         c64script_token_t token = make_token(t, TOKEN_DURATION, start, length + 2);
+        if (length >= 64)
+            return error_token(t, "number literal too long");
         char num_str[64];
         memcpy(num_str, start, length);
         num_str[length] = '\0';
@@ -417,6 +419,8 @@ static c64script_token_t tokenize_number(tokenizer_t *t)
         // seconds
         advance(t);
         c64script_token_t token = make_token(t, TOKEN_DURATION, start, length + 1);
+        if (length >= 64)
+            return error_token(t, "number literal too long");
         char num_str[64];
         memcpy(num_str, start, length);
         num_str[length] = '\0';
@@ -427,6 +431,8 @@ static c64script_token_t tokenize_number(tokenizer_t *t)
         // minutes
         advance(t);
         c64script_token_t token = make_token(t, TOKEN_DURATION, start, length + 1);
+        if (length >= 64)
+            return error_token(t, "number literal too long");
         char num_str[64];
         memcpy(num_str, start, length);
         num_str[length] = '\0';
@@ -437,6 +443,8 @@ static c64script_token_t tokenize_number(tokenizer_t *t)
         // hours
         advance(t);
         c64script_token_t token = make_token(t, TOKEN_DURATION, start, length + 1);
+        if (length >= 64)
+            return error_token(t, "number literal too long");
         char num_str[64];
         memcpy(num_str, start, length);
         num_str[length] = '\0';
@@ -447,6 +455,8 @@ static c64script_token_t tokenize_number(tokenizer_t *t)
         // days
         advance(t);
         c64script_token_t token = make_token(t, TOKEN_DURATION, start, length + 1);
+        if (length >= 64)
+            return error_token(t, "number literal too long");
         char num_str[64];
         memcpy(num_str, start, length);
         num_str[length] = '\0';
@@ -457,6 +467,8 @@ static c64script_token_t tokenize_number(tokenizer_t *t)
 
     // Regular number
     c64script_token_t token = make_token(t, TOKEN_NUMBER, start, length);
+    if (length >= 64)
+        return error_token(t, "number literal too long");
     char num_str[64];
     memcpy(num_str, start, length);
     num_str[length] = '\0';

@@ -21,6 +21,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-protocol.h"
 #include "c64-network-fifo.h"
 #include "c64-effect-afterglow.h"
+#include "c64-color.h"
 
 // Forward declarations
 typedef struct c64_rest_client c64_rest_client_t;
@@ -108,6 +109,16 @@ struct c64_source {
     uint32_t control_port;
     bool streaming;
     uint64_t last_start_command_time_ns; // When we last requested streaming (START commands or start_streaming)
+
+    // Per-source palette/color conversion state (C64STR-014).
+    // Owns this source's active palette colours and the double-buffered pixel
+    // LUT read by its video thread, so palette selection and colour edits stay
+    // isolated per instance.  edit_mutex serialises writers (UI-thread selects
+    // and colour edits); readers are lock-free via c64_color_lut_acquire.
+    struct c64_color_lut color_lut;
+    char palette_id[64];
+    bool palette_initialized;
+    pthread_mutex_t palette_mutex;
 
     // Video data
     uint32_t width;
@@ -214,8 +225,14 @@ struct c64_source {
     volatile long retry_in_progress;   // Flag to prevent redundant retry attempts (atomic: 0/1)
     pthread_t retry_thread;            // Background retry/connect thread (never run on OBS UI thread)
     volatile long retry_thread_active; // atomic: 0/1
-    uint32_t retry_count;              // Number of retry attempts
-    uint32_t consecutive_failures;     // Consecutive TCP failures for backoff
+    bool retry_thread_valid;           // retry_thread has been created and must be joined
+    bool retry_shutting_down;          // C64STR-001: set under retry_thread_mutex during destroy;
+                                       // blocks any late c64_schedule_retry from spawning a new
+                                       // worker on a context being torn down (use-after-free guard)
+    pthread_mutex_t retry_thread_mutex;
+    volatile bool udp_port_conflict; // A local UDP port is in use; wait for a settings change before retrying
+    uint32_t retry_count;            // Number of retry attempts
+    uint32_t consecutive_failures;   // Consecutive TCP failures for backoff
 
     // Network buffer for packet jitter correction
     struct c64_network_buffer *network_buffer; // Unified network buffer for video and audio packets
@@ -261,6 +278,7 @@ struct c64_source {
     bool record_video;
     bool record_csv;     // CSV recording control (network and OBS events)
     bool record_av_sync; // av-sync.csv recording control (OBS AV SYNC matches)
+    bool av_sync_prg_started;
     FILE *video_file;
     FILE *audio_file;
     FILE *timing_file;
@@ -274,6 +292,16 @@ struct c64_source {
     uint64_t last_audio_packet_us; // Last audio packet timestamp for interval calculation (per-session)
     volatile long recorded_frames;
     volatile long recorded_audio_samples;
+    uint64_t recorded_audio_bytes;
+    /* Each legacy AVI file is independently valid.  Keep per-segment state
+     * separate from session-wide counters so a rollover never wraps RIFF's
+     * 32-bit length fields. */
+    uint32_t avi_segment_index;
+    uint32_t avi_segment_width;
+    uint32_t avi_segment_height;
+    double avi_segment_fps;
+    uint32_t avi_segment_frames;
+    uint64_t avi_segment_bytes;
     pthread_mutex_t recording_mutex;
 
     // Debug-only A/V pop detection (edge-based)

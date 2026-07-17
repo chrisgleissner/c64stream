@@ -22,10 +22,16 @@ void c64_frames_save_as_bmp(struct c64_source *context, uint32_t *frame_buffer)
         return;
     }
 
+    // The session/CSV check-and-open sequence is shared with UI recording toggles.
+    if (pthread_mutex_lock(&context->recording_mutex) != 0) {
+        return;
+    }
+
     // Ensure we have a recording session and CSV logging
     c64_session_ensure_exists(context);
     if (context->session_folder[0] == '\0') {
         C64_LOG_WARNING("" RECORD_LOG_PREFIX " Failed to create recording session for frame saving");
+        pthread_mutex_unlock(&context->recording_mutex);
         return;
     }
 
@@ -34,6 +40,7 @@ void c64_frames_save_as_bmp(struct c64_source *context, uint32_t *frame_buffer)
         c64_start_obs_csv_recording(context);
         c64_start_network_csv_recording(context);
     }
+    pthread_mutex_unlock(&context->recording_mutex);
 
     // Create frames subfolder within session folder
     char frames_folder[900];
@@ -48,7 +55,7 @@ void c64_frames_save_as_bmp(struct c64_source *context, uint32_t *frame_buffer)
     uint64_t timestamp_ms = os_gettime_ns() / 1000000;
     char filename[900];
     snprintf(filename, sizeof(filename), "%s/frames/frame_%llu_%05u.bmp", context->session_folder,
-             (unsigned long long)timestamp_ms, context->saved_frame_count++);
+             (unsigned long long)timestamp_ms, context->saved_frame_count);
 
     FILE *file = fopen(filename, "wb");
     if (!file) {
@@ -120,7 +127,7 @@ void c64_frames_save_as_bmp(struct c64_source *context, uint32_t *frame_buffer)
         0 // Colors important
     };
 
-    fwrite(header, 1, 54, file);
+    bool write_ok = fwrite(header, 1, 54, file) == 54;
 
     // Write image data (BMP stores bottom-to-top, convert RGBA to BGR)
     if (context->bmp_row_buffer) {
@@ -141,10 +148,21 @@ void c64_frames_save_as_bmp(struct c64_source *context, uint32_t *frame_buffer)
                 *dst++ = 0;
             }
 
-            fwrite(row_buffer, 1, row_padded, file);
+            if (fwrite(row_buffer, 1, row_padded, file) != row_padded) {
+                write_ok = false;
+                break;
+            }
         }
         // No free() needed - using pre-allocated buffer
     }
 
-    fclose(file);
+    if (fclose(file) != 0) {
+        write_ok = false;
+    }
+    if (!write_ok) {
+        remove(filename);
+        C64_LOG_WARNING("" RECORD_LOG_PREFIX " Failed to write complete BMP frame: %s", filename);
+        return;
+    }
+    context->saved_frame_count++;
 }
