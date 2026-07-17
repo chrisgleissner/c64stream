@@ -16,6 +16,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-record.h"
 #include "c64-record-video.h"
 #include "c64-record-obs.h"
+#include "c64-record-writer.h"
 #include "c64-types.h"
 
 static int64_t c64_avi_tell(FILE *file)
@@ -290,6 +291,14 @@ void c64_video_start_recording(struct c64_source *context)
         // Write AVI header with detected frame rate
         c64_video_write_avi_header(context->video_file, context->width, context->height, context->expected_fps);
 
+        if (!c64_record_writer_start(context)) {
+            C64_LOG_ERROR("" RECORD_LOG_PREFIX " Failed to start background recording writer");
+            fclose(context->video_file);
+            context->video_file = NULL;
+            pthread_mutex_unlock(&context->recording_mutex);
+            return;
+        }
+
         C64_LOG_INFO("" RECORD_LOG_PREFIX " Started video recording: %s", video_filename);
     }
 
@@ -325,8 +334,17 @@ void c64_video_record_frame(struct c64_source *context, uint32_t *frame_buffer)
                                                              context->avi_segment_bytes, width, height, fps,
                                                              chunk_bytes, C64_AVI_SEGMENT_LIMIT_BYTES);
     if (roll_segment) {
+        /* The writer owns all queued AVI bytes. Drain it before rewriting an
+         * AVI header or closing this segment, then restart it for the new
+         * file. Segment rolls are exceptional (format changes / 2 GiB). */
+        c64_record_writer_stop(context);
         if (!c64_video_roll_segment_locked(context, width, height, fps,
                                            format_changed ? "video format changed" : "legacy RIFF size limit")) {
+            context->record_video = false;
+            pthread_mutex_unlock(&context->recording_mutex);
+            return;
+        }
+        if (!c64_record_writer_start(context)) {
             context->record_video = false;
             pthread_mutex_unlock(&context->recording_mutex);
             return;
@@ -379,36 +397,20 @@ void c64_video_record_frame(struct c64_source *context, uint32_t *frame_buffer)
             }
         }
 
-        // Write AVI frame chunk header ("00db" = stream 0, uncompressed DIB)
-        fwrite("00db", 1, 4, context->video_file);
-        uint32_t chunk_size = (uint32_t)frame_size;
-        fwrite(&chunk_size, 4, 1, context->video_file);
-
-        // Write frame data
-        size_t written = fwrite(bgr_buffer, 1, frame_size, context->video_file);
-
-        // Ensure word alignment (AVI requirement)
-        if (frame_size % 2) {
-            uint8_t pad = 0;
-            fwrite(&pad, 1, 1, context->video_file);
-        }
-
-        // No free() needed - using pre-allocated buffer
-
-        if (written == frame_size) {
+        if (c64_record_writer_enqueue_avi_frame(context, bgr_buffer, frame_size)) {
             long new_frame_count = os_atomic_inc_long(&context->recorded_frames);
             context->avi_segment_frames++;
             context->avi_segment_bytes += chunk_bytes;
 
-            // Keep crash recovery useful without forcing synchronous I/O per frame.
-            if (c64_avi_should_update_header(new_frame_count, fps)) {
-                c64_video_update_avi_header(context->video_file, context->avi_segment_frames, 0);
-            }
+            /* Header finalisation occurs after the writer drains at stop/roll.
+             * Avoiding periodic fseek/fwrite here keeps all steady-state disk
+             * I/O off the processor thread. */
+            UNUSED_PARAMETER(new_frame_count);
 
             // Log video recording timing information to CSV (frame_num = 0 for recording events)
             c64_obs_log_video_event(context, 0, frame_size, context->av_sync_last_video_all_white);
         } else {
-            C64_LOG_WARNING("" RECORD_LOG_PREFIX " Failed to write video frame to recording");
+            C64_LOG_WARNING("" RECORD_LOG_PREFIX " Recording queue full; dropped video frame");
         }
     } else {
         C64_LOG_ERROR("" RECORD_LOG_PREFIX " Failed to allocate BGR conversion buffer");
@@ -429,6 +431,7 @@ void c64_video_stop_recording(struct c64_source *context)
 
     // Close recording file and finalize format
     if (context->video_file) {
+        c64_record_writer_stop(context);
         (void)c64_video_finalize_segment_locked(context);
     }
 

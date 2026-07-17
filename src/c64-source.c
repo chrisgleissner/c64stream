@@ -2056,9 +2056,14 @@ static bool c64_start_streaming_inner(struct c64_source *context)
         os_atomic_set_bool(&context->stream_start_set, false);
 
         context->audio_packet_count = 0;
-        context->last_audio_ts_seq = 0;
-        context->audio_ts_seq_set = false;
-        context->audio_packet_index = 0;
+        c64_audio_timeline_reset(&context->audio_timeline);
+        context->audio_last_sample_set = false;
+        context->network_error_last_warning_ns = 0;
+        context->network_error_window_lost = 0;
+        context->network_error_window_concealed = 0;
+        context->network_error_window_late = 0;
+        context->network_error_window_duplicates = 0;
+        context->network_error_window_resyncs = 0;
         context->audio_interval_ns = 0;
         context->last_audio_timestamp_validation = 0;
 
@@ -2617,9 +2622,14 @@ void c64_try_init_stream_start_ns(struct c64_source *context, uint64_t packet_ti
 
         // Reset per-stream synthetic counters at stream start.
         context->audio_packet_count = 0;
-        context->last_audio_ts_seq = 0;
-        context->audio_ts_seq_set = false;
-        context->audio_packet_index = 0;
+        c64_audio_timeline_reset(&context->audio_timeline);
+        context->audio_last_sample_set = false;
+        context->network_error_last_warning_ns = 0;
+        context->network_error_window_lost = 0;
+        context->network_error_window_concealed = 0;
+        context->network_error_window_late = 0;
+        context->network_error_window_duplicates = 0;
+        context->network_error_window_resyncs = 0;
         context->audio_interval_ns = 0;
         context->last_audio_timestamp_validation = 0;
 

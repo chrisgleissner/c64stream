@@ -12,6 +12,7 @@ See <https://www.gnu.org/licenses/> for details.
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
 
 // Forward declaration
 struct c64_source;
@@ -22,5 +23,10 @@ void *audio_thread_func(void *data);
 // Audio processing function
 void c64_process_audio_packet(struct c64_source *context, const uint8_t *audio_data, size_t data_size,
                               uint64_t timestamp_ns);
+
+/* C64CLK-003: emit the rate-limited sequence-error summary when errors have
+ * occurred. `force` is used while stopping a recording so short sessions do
+ * not hide losses that happened after the first immediate warning. */
+void c64_audio_log_network_errors(struct c64_source *context, bool force);
 
 #endif // C64_AUDIO_H

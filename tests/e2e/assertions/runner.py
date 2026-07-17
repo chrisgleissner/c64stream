@@ -32,8 +32,11 @@ from .effect_cycle_log import EffectCycleLogAssertion
 from .frame_progression import FrameProgressionAssertion
 from .palette_mapping import PaletteMappingAssertion
 from .palette_stability import PaletteStabilityAssertion
+from .log_hygiene import LogHygieneAssertion
 from .record_audio import RecordAudioAssertion
+from .record_audio_quality import RecordAudioQualityAssertion
 from .record_frames import RecordFramesAssertion
+from .recording_click import RecordingClickAssertion
 from .record_network import RecordNetworkAssertion
 from .record_obs import RecordObsAssertion
 from .record_video import RecordVideoAssertion
@@ -219,8 +222,11 @@ def create_assertions_from_list(
         "scanlines": ScanlineAssertion,
         "sharp_pixels": SharpPixelsAssertion,
         "frame_progression": FrameProgressionAssertion,
+        "log_hygiene": LogHygieneAssertion,
         "record_audio": RecordAudioAssertion,
+        "record_audio_quality": RecordAudioQualityAssertion,
         "record_video": RecordVideoAssertion,
+        "recording_click": RecordingClickAssertion,
         "record_obs": RecordObsAssertion,
         "record_network": RecordNetworkAssertion,
         "record_frames": RecordFramesAssertion,

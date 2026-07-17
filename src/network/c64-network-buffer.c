@@ -798,99 +798,68 @@ static bool is_packet_ready_for_pop(struct packet_slot *slot, uint64_t delay_us)
 int c64_network_buffer_pop(struct c64_network_buffer *buf, const uint8_t **video_data, size_t *video_size,
                            const uint8_t **audio_data, size_t *audio_size, uint64_t *timestamp_us)
 {
-    if (!buf || !video_data || !audio_data) {
+    if (!buf || !video_data || !video_size || !audio_data || !audio_size) {
         return 0;
     }
+
+    *video_data = NULL;
+    *video_size = 0;
+    *audio_data = NULL;
+    *audio_size = 0;
+
+    // C64CLK-004: video and audio have independent delivery clocks.  In
+    // particular, a video outage must never hold already-ready audio in this
+    // ring until it overflows.  Keep the existing API so the processor can
+    // consume either packet (or both) per call.
+    struct packet_slot *v = NULL;
+    struct packet_slot *a = NULL;
 
     pthread_mutex_lock(&buf->video.mutex);
     long video_head = os_atomic_load_long(&buf->video.head);
     long video_tail = os_atomic_load_long(&buf->video.tail);
-
-    if (video_head == video_tail) {
-        // No video packets available - rare spot checks only (once per minute)
-        static uint64_t last_empty_log_time = 0;
-        uint64_t now = os_gettime_ns();
-        if (now - last_empty_log_time >= 60000000000ULL) { // 1 minute in nanoseconds
-            C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " 📦 BUFFER EMPTY SPOT CHECK: No video packets available");
-            last_empty_log_time = now;
+    if (video_head != video_tail) {
+        struct packet_slot *oldest_video = &buf->video.slots[video_tail];
+        const uint64_t video_delay = (uint64_t)os_atomic_load_long(&buf->video.delay_us);
+        if (oldest_video->valid && is_packet_ready_for_pop(oldest_video, video_delay)) {
+            (void)rb_pop_oldest_locked(&buf->video, &v);
         }
-        pthread_mutex_unlock(&buf->video.mutex);
-        return 0;
-    }
-
-    // Check if the OLDEST packet (at tail) has been delayed long enough
-    struct packet_slot *oldest_video = &buf->video.slots[video_tail];
-    const uint64_t video_delay = (uint64_t)os_atomic_load_long(&buf->video.delay_us);
-    if (!oldest_video->valid || !is_packet_ready_for_pop(oldest_video, video_delay)) {
-        // Oldest packet not ready yet - must wait to preserve FIFO ordering
-        // Rare spot checks only (once per minute)
-        static uint64_t last_delay_log_time = 0;
-        uint64_t now = os_gettime_ns();
-        if (now - last_delay_log_time >= 60000000000ULL) { // 1 minute in nanoseconds
-            uint64_t now_us = now / 1000;
-            uint64_t age_us = oldest_video->valid ? (now_us - oldest_video->timestamp_us) : 0;
-            C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " ⏰ DELAY WAIT SPOT CHECK: Oldest packet age=%llu us, need=%llu us",
-                          (unsigned long long)age_us, (unsigned long long)video_delay);
-            last_delay_log_time = now;
-        }
-        pthread_mutex_unlock(&buf->video.mutex);
-        return 0;
-    }
-
-    // Pop the ready video packet (oldest first for proper FIFO)
-    struct packet_slot *v;
-    if (!rb_pop_oldest_locked(&buf->video, &v)) {
-        C64_LOG_WARNING("" NETWORK_LOG_PREFIX " Failed to pop ready video packet");
-        pthread_mutex_unlock(&buf->video.mutex);
-        return 0;
     }
     pthread_mutex_unlock(&buf->video.mutex);
-
-    // Try to get audio packet (optional - lock-free check)
-    struct packet_slot *a = NULL;
-    bool has_audio = false;
 
     pthread_mutex_lock(&buf->audio.mutex);
     long audio_head = os_atomic_load_long(&buf->audio.head);
     long audio_tail = os_atomic_load_long(&buf->audio.tail);
-
     if (audio_head != audio_tail) {
         struct packet_slot *oldest_audio = &buf->audio.slots[audio_tail];
         const uint64_t audio_delay = (uint64_t)os_atomic_load_long(&buf->audio.delay_us);
-        if (is_packet_ready_for_pop(oldest_audio, audio_delay)) {
-            has_audio = rb_pop_oldest_locked(&buf->audio, &a);
+        if (oldest_audio->valid && is_packet_ready_for_pop(oldest_audio, audio_delay)) {
+            (void)rb_pop_oldest_locked(&buf->audio, &a);
         }
     }
     pthread_mutex_unlock(&buf->audio.mutex);
 
-    // Periodic buffer pop monitoring (every 10 minutes)
-    static int pop_count = 0;
-    static uint64_t last_pop_log_time = 0;
-    uint64_t now = os_gettime_ns();
-    if ((++pop_count % 100000) == 0 || (now - last_pop_log_time >= 600000000000ULL)) { // Every 100k pops OR 10 minutes
-        C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Network buffer pop SPOT CHECK: video=yes, audio=%s (total count: %d)",
-                      has_audio ? "yes" : "no", pop_count);
-        last_pop_log_time = now;
+    if (v) {
+        *video_data = v->data;
+        *video_size = v->size;
     }
-
-    // Return packet data
-    *video_data = v->data;
-    *video_size = v->size;
-
-    if (has_audio && a) {
+    if (a) {
         *audio_data = a->data;
         *audio_size = a->size;
-    } else {
-        *audio_data = NULL;
-        *audio_size = 0;
     }
 
-    // Return timestamp (use video timestamp if no audio)
     if (timestamp_us) {
-        *timestamp_us = (has_audio && a && a->timestamp_us < v->timestamp_us) ? a->timestamp_us : v->timestamp_us;
+        if (a && v) {
+            *timestamp_us = a->timestamp_us < v->timestamp_us ? a->timestamp_us : v->timestamp_us;
+        } else if (a) {
+            *timestamp_us = a->timestamp_us;
+        } else if (v) {
+            *timestamp_us = v->timestamp_us;
+        } else {
+            *timestamp_us = 0;
+        }
     }
 
-    return 1;
+    return v || a;
 }
 
 void c64_network_buffer_flush(struct c64_network_buffer *buf)

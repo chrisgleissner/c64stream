@@ -18,6 +18,16 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+struct c64_source;
+
+/* c64-record.c emits the C64CLK-003 session-end summary. This open-failure
+ * harness deliberately links no audio pipeline. */
+void c64_audio_log_network_errors(struct c64_source *context, bool force)
+{
+    (void)context;
+    (void)force;
+}
+
 #include "c64-record.h"
 #include "c64-types.h"
 
@@ -38,6 +48,12 @@ void c64_audio_finalize_wav_header(FILE *f, uint64_t s)
 {
     (void)f;
     (void)s;
+}
+void c64_video_update_avi_header(FILE *f, uint32_t frames, uint32_t samples)
+{
+    (void)f;
+    (void)frames;
+    (void)samples;
 }
 void c64_audio_record_data(struct c64_source *c, const uint8_t *d, size_t n)
 {

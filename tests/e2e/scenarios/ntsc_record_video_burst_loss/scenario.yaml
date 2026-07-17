@@ -1,0 +1,26 @@
+# C64CLK-006: reproduce review.md §3.3 — periodic video-only outages (400ms
+# every 3s) with ZERO audio loss. Pre-fix: audio can only leave the delay
+# buffer alongside a video pop, so each video stall longer than the ~1s audio
+# ring while video is stalled, producing a packet-timeline hole and
+# clicks/holes in the recording despite perfect audio delivery. Post-fix
+# (C64CLK-004): audio drains independently of video and stays clean.
+# (Plan name ntsc_record_video_burst_loss shortened to fit scenario naming rules.)
+name: NTSC Record Video Burst Loss
+format: NTSC
+preset: Default
+duration: 12
+disable_pops: true
+skip_frame_logic_validation: true
+overrides:
+  record_video: true
+  record_audio: true
+  buffer_delay_ms: 10
+network_simulation:
+  seed: 64
+  burst_loss_ms: 400
+  burst_loss_interval_ms: 3000
+  burst_loss_stream: video
+  audio_packet_set: sine1k
+assertions:
+  - record_audio_quality
+  - log_hygiene

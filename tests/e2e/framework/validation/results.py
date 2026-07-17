@@ -190,6 +190,15 @@ class ResultValidator:
         if last_audio_arrival_ms > last_video_arrival_ms:
             expected_audio = int(last_video_arrival_ms / audio_packet_duration_ms) + 1
 
+        # When replay manifests exist they are the exact ground truth of what was
+        # sent (injected loss omits rows, duplication repeats rows), so prefer them
+        # over the analytic estimate. Without simulation they match the estimate.
+        manifest_video = self._count_manifest_rows('video_manifest.csv')
+        manifest_audio = self._count_manifest_rows('audio_manifest.csv')
+        if self.packet_source == 'mock' and manifest_video is not None and manifest_audio is not None:
+            expected_video = manifest_video
+            expected_audio = manifest_audio
+
         expected_total = expected_video + expected_audio
 
         if self.packet_source == 'mock':
@@ -235,6 +244,17 @@ class ResultValidator:
                  results['udp_reception'] = {'status': 'fail', 'details': "No packets"}
             else:
                  results['udp_reception'] = {'status': 'pass', 'details': f"Received {received}"}
+
+    def _count_manifest_rows(self, name: str) -> Optional[int]:
+        """Count data rows in a replay manifest (None if the manifest is missing)."""
+        manifest = self.env.output_dir / name
+        if not manifest.exists():
+            return None
+        try:
+            with open(manifest, 'r') as f:
+                return max(0, sum(1 for _ in f) - 1)  # minus header
+        except Exception:
+            return None
 
     def _check_video_brightness(self, recording_path, results, warnings):
         """Check video brightness to detect blank/black recordings."""

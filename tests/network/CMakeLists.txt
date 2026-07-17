@@ -53,6 +53,7 @@ add_test(NAME c64_network_buffer COMMAND test_c64_network_buffer)
 if(NOT WIN32)
   add_executable(
     test_c64_avi_segments test_c64_avi_segments.c ${CMAKE_SOURCE_DIR}/src/record/c64-record-video.c
+    ${CMAKE_SOURCE_DIR}/src/record/c64-record-writer.c
   )
   target_include_directories(
     test_c64_avi_segments
@@ -61,6 +62,22 @@ if(NOT WIN32)
   )
   target_link_libraries(test_c64_avi_segments PRIVATE OBS::libobs)
   add_test(NAME c64_avi_segments COMMAND test_c64_avi_segments)
+endif()
+
+# C64CLK-001/002: pure sequence timeline and click-free concealment fill.
+add_executable(test_audio_timeline test_audio_timeline.c ${CMAKE_SOURCE_DIR}/src/audio/c64-audio-timeline.c)
+target_include_directories(test_audio_timeline PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/audio)
+add_test(NAME audio_timeline COMMAND test_audio_timeline)
+
+add_executable(test_audio_conceal_fill test_audio_conceal_fill.c ${CMAKE_SOURCE_DIR}/src/audio/c64-audio-timeline.c)
+target_include_directories(test_audio_conceal_fill PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/audio)
+add_test(NAME audio_conceal_fill COMMAND test_audio_conceal_fill)
+
+if(UNIX)
+  add_executable(test_wav_gap_fill test_wav_gap_fill.c ${CMAKE_SOURCE_DIR}/src/audio/c64-audio-timeline.c)
+  target_include_directories(test_wav_gap_fill PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/audio)
+  target_link_libraries(test_wav_gap_fill PRIVATE m)
+  add_test(NAME wav_gap_fill COMMAND test_wav_gap_fill)
 endif()
 
 # C64STR-014: per-source palette / colour-LUT isolation. Links only the
@@ -136,6 +153,7 @@ add_test(NAME frame_height_clamp COMMAND test_frame_height_clamp)
 if(NOT WIN32)
   add_executable(
     test_wav_header test_wav_header.c ${CMAKE_SOURCE_DIR}/src/record/c64-record-audio.c
+    ${CMAKE_SOURCE_DIR}/src/record/c64-record-writer.c
   )
   target_include_directories(
     test_wav_header PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/record
@@ -194,7 +212,7 @@ if(NOT WIN32)
   add_executable(
     test_record_csv_concurrency test_record_csv_concurrency.c
     ${CMAKE_SOURCE_DIR}/src/record/c64-record.c ${CMAKE_SOURCE_DIR}/src/record/c64-record-obs.c
-    ${CMAKE_SOURCE_DIR}/src/record/c64-record-network.c
+    ${CMAKE_SOURCE_DIR}/src/record/c64-record-network.c ${CMAKE_SOURCE_DIR}/src/record/c64-record-writer.c
   )
   target_include_directories(
     test_record_csv_concurrency
@@ -212,7 +230,7 @@ if(NOT WIN32)
   add_executable(
     test_recording_open_failure test_recording_open_failure.c
     ${CMAKE_SOURCE_DIR}/src/record/c64-record.c ${CMAKE_SOURCE_DIR}/src/record/c64-record-obs.c
-    ${CMAKE_SOURCE_DIR}/src/record/c64-record-network.c
+    ${CMAKE_SOURCE_DIR}/src/record/c64-record-network.c ${CMAKE_SOURCE_DIR}/src/record/c64-record-writer.c
   )
   target_include_directories(
     test_recording_open_failure

@@ -236,6 +236,12 @@ def build_source_settings(
         "audio_port": 21001,
         "control_port": 6400,
         "buffer_delay_ms": 10,
+        # Force the legacy TCP transport (port 6400) like the static baseline
+        # scene config: the mock C64U serves REST only when a scenario opts in
+        # via mock_rest_enabled (binding port 80 needs privileges), and the
+        # AUTO transport does not fall back to legacy on an unreachable REST
+        # endpoint. Transport scenarios override this explicitly.
+        "stream_control_transport": 2,
     }
     for key, value in e2e_defaults.items():
         if key not in settings:

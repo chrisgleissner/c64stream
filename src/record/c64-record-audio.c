@@ -13,6 +13,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-logging.h"
 #include "c64-record-audio.h"
 #include "c64-record-obs.h"
+#include "c64-record-writer.h"
 #include "c64-types.h"
 
 // Helper function to write WAV file header
@@ -76,23 +77,10 @@ void c64_audio_record_data(struct c64_source *context, const uint8_t *audio_data
         return;
     }
 
-    size_t wav_written = fwrite(audio_data, 1, data_size, context->audio_file);
-
-    if (wav_written == data_size) {
-        context->recorded_audio_bytes += wav_written;
-        // Calculate samples correctly: data_size is in bytes, each stereo sample is 4 bytes (16-bit L + 16-bit R)
-        long new_samples = (long)(data_size / 4);
-        // Add samples atomically - need to manually implement atomic add since OBS doesn't have it
-        long old_samples, new_total_samples;
-        do {
-            old_samples = os_atomic_load_long(&context->recorded_audio_samples);
-            new_total_samples = old_samples + new_samples;
-        } while (!os_atomic_compare_swap_long(&context->recorded_audio_samples, old_samples, new_total_samples));
-
-        // Note: CSV logging for audio events is now handled independently in the video processor thread
-    } else {
-        C64_LOG_WARNING("" RECORD_LOG_PREFIX " Failed to write audio data to WAV recording");
-    }
+    /* C64CLK-005: never let a filesystem write stall the packet-processing
+     * thread. The bounded writer queue copies this tiny fixed packet and the
+     * background thread owns fwrite and the byte/sample accounting. */
+    (void)c64_record_writer_enqueue(context, C64_RECORD_WRITE_AUDIO, audio_data, data_size);
 
     pthread_mutex_unlock(&context->recording_mutex);
 }
