@@ -270,14 +270,18 @@ void c64_audio_log_network_errors(struct c64_source *context, bool force)
                     tl->resyncs - context->network_error_window_resyncs, fifo_drops,
                     os_atomic_load_long(&context->video_sequence_errors));
 
+    /* Advance the window baseline on EVERY emitted summary, including the
+     * immediate first warning. Skipping it there (the previous behaviour) left
+     * the baseline pinned at 0, so the first rate-limited 60 s summary re-counted
+     * every loss already shown in the first warning - contradicting the
+     * "last 60s" label. Each reported delta is now genuinely "since the last
+     * summary". */
     context->network_error_last_warning_ns = now;
-    if (force || !first_warning) {
-        context->network_error_window_lost = tl->packets_lost;
-        context->network_error_window_concealed = tl->concealed;
-        context->network_error_window_late = tl->late_dropped;
-        context->network_error_window_duplicates = tl->duplicates;
-        context->network_error_window_resyncs = tl->resyncs;
-    }
+    context->network_error_window_lost = tl->packets_lost;
+    context->network_error_window_concealed = tl->concealed;
+    context->network_error_window_late = tl->late_dropped;
+    context->network_error_window_duplicates = tl->duplicates;
+    context->network_error_window_resyncs = tl->resyncs;
 }
 
 // Hand one 192-frame packet (real or concealment fill) to OBS with its
