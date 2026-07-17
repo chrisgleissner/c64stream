@@ -21,6 +21,7 @@ network_simulation:
   audio_packet_set: sine1k
 assertions:
   - record_audio_quality
+  - recording_click
   - log_hygiene
 thresholds:
   record_audio_quality:
