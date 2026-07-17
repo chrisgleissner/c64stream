@@ -20,10 +20,12 @@ round-trip regardless of batch size.
 `TEXT` keymap output modes (`c64-keyboard.h`'s `C64_OUTPUT_PETSCII`/`C64_OUTPUT_TEXT`) — whichever
 mode queues a byte, it goes through the same translation before becoming a REST event:
 
-- Letters and digits map directly to their matrix key name (`"a"`.."z"`, `"0"`.."9"`); uppercase
-  letters set `shift = true`.
-- Punctuation is looked up in a 128-entry sparse table indexed by the ASCII value (e.g. `'!'` →
-  key `"1"` with shift, `'@'` → key `"at"` with no shift).
+- PETSCII `A`..`Z` and ASCII text `a`..`z` map to unshifted matrix keys; PETSCII
+  `$C1`..`$DA` maps to Shift+`a`..`z`. This preserves host-key capitalization while allowing
+  C64Script `TYPE "hello"` to use REST input.
+- Digits and punctuation map to their physical C64 matrix keys. For example, `'!'` maps to
+  Shift+`"1"`, `'+'` maps to `"plus"`, `'['` maps to Shift+`"plus"`, and `'^'` / `'_'`
+  map to the dedicated `"arrow_up"` / `"arrow_left"` keys.
 - A shifted character becomes a single hardware chord in the request body:
   `{"kind":"keyboard","inputs":["left_shift","<key>"],"transition":"tap"}`.
 

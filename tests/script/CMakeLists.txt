@@ -355,3 +355,27 @@ target_include_directories(test_macos_interact_key PRIVATE ${C64_ALL_INCLUDE_DIR
 target_compile_definitions(test_macos_interact_key PRIVATE C64_TEST_MACOS_KEYCODES)
 target_link_libraries(test_macos_interact_key PRIVATE OBS::libobs)
 add_test(NAME macos_interact_key COMMAND test_macos_interact_key)
+
+# Joystick emulation hotkey classification and input mapping.
+add_executable(
+  test_joystick_emulation
+  test_joystick_emulation.c
+  ${CMAKE_SOURCE_DIR}/src/c64-joystick-emulation.c
+  ${CMAKE_SOURCE_DIR}/src/ui/c64-interact-key.c
+)
+target_include_directories(test_joystick_emulation PRIVATE ${C64_ALL_INCLUDE_DIRS})
+target_link_libraries(test_joystick_emulation PRIVATE OBS::libobs)
+add_test(NAME joystick_emulation COMMAND test_joystick_emulation)
+
+# Compile the same mapping with Carbon virtual-key codes to cover macOS while
+# running the test suite on Linux CI.
+add_executable(
+  test_joystick_emulation_macos
+  test_joystick_emulation.c
+  ${CMAKE_SOURCE_DIR}/src/c64-joystick-emulation.c
+  ${CMAKE_SOURCE_DIR}/src/ui/c64-interact-key.c
+)
+target_include_directories(test_joystick_emulation_macos PRIVATE ${C64_ALL_INCLUDE_DIRS})
+target_compile_definitions(test_joystick_emulation_macos PRIVATE C64_TEST_MACOS_KEYCODES)
+target_link_libraries(test_joystick_emulation_macos PRIVATE OBS::libobs)
+add_test(NAME joystick_emulation_macos COMMAND test_joystick_emulation_macos)

@@ -34,6 +34,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-effect-clamp.h"
 #include "c64-audio.h"
 #include "c64-interact-key.h"
+#include "c64-joystick-emulation.h"
 #include "c64-logo.h"
 #include "c64-record.h"
 #include "c64-version.h"
@@ -1690,17 +1691,20 @@ void c64_update(void *data, obs_data_t *settings)
     if (context->keyboard) {
         c64_keyboard_set_transport(context->keyboard, context->stream_control_transport);
     }
-    // Unticking Joystick emulation in the properties dialog must strand no held
-    // direction either; the F10 path releases before clearing the flag itself,
-    // so it is already false here and this does not double-release.
-    if (context->joystick_mode_active && !obs_data_get_bool(settings, "joystick_mode_active")) {
+    const bool new_joystick_mode_active = obs_data_get_bool(settings, "joystick_mode_active");
+    int new_joystick_emulation_port = (int)obs_data_get_int(settings, "joystick_emulation_port");
+    if (new_joystick_emulation_port != 1 && new_joystick_emulation_port != 2) {
+        new_joystick_emulation_port = 2;
+    }
+    // Changing either setting while a direction is held must release it before
+    // the old route becomes unreachable. Without this, a key-up after a port
+    // switch targets the new port and leaves the old port stuck pressed.
+    if (context->joystick_mode_active &&
+        (!new_joystick_mode_active || context->joystick_emulation_port != new_joystick_emulation_port)) {
         c64_release_joystick_inputs(context);
     }
-    context->joystick_mode_active = obs_data_get_bool(settings, "joystick_mode_active");
-    context->joystick_emulation_port = (int)obs_data_get_int(settings, "joystick_emulation_port");
-    if (context->joystick_emulation_port != 1 && context->joystick_emulation_port != 2) {
-        context->joystick_emulation_port = 2;
-    }
+    context->joystick_mode_active = new_joystick_mode_active;
+    context->joystick_emulation_port = new_joystick_emulation_port;
 
     // Set defaults
     if (!new_host)
@@ -2874,7 +2878,7 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
     // F9/F10/F11 themselves are handled below, on key-down only, so they
     // always work to toggle back out of this mode.
     if (context->joystick_mode_active) {
-        const char *joystick_input = c64_interact_joystick_input_for_vkey(event->native_vkey);
+        const char *joystick_input = c64_joystick_input_for_vkey(event->native_vkey);
         if (joystick_input) {
             // C64STR-022: enqueue for the async worker; never block the UI thread.
             if (context->keyboard) {
@@ -2942,8 +2946,8 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
         return;
     }
 
-    const bool is_f10 = strcmp(key.code, "F10") == 0;
-    const bool is_f11 = strcmp(key.code, "F11") == 0;
+    const bool is_f10 = c64_joystick_classify_hotkey(key.code) == C64_JOYSTICK_HOTKEY_F10;
+    const bool is_f11 = c64_joystick_classify_hotkey(key.code) == C64_JOYSTICK_HOTKEY_F11;
     if (is_f10 || is_f11) {
         if (is_f10) {
             // Release before clearing the flag: a direction held right now
@@ -2953,6 +2957,9 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
             C64_LOG_INFO("Keyboard: F10 pressed - joystick emulation %s",
                          context->joystick_mode_active ? "enabled" : "disabled");
         } else {
+            // A release after switching ports would otherwise be sent to the
+            // new port, leaving the direction held on the old one.
+            c64_release_joystick_inputs(context);
             context->joystick_emulation_port = context->joystick_emulation_port == 1 ? 2 : 1;
             C64_LOG_INFO("Keyboard: F11 pressed - joystick emulation port %d", context->joystick_emulation_port);
         }

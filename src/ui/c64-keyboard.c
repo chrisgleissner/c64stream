@@ -1073,82 +1073,128 @@ static int keyboard_get_transport(c64_keyboard_t *keyboard)
     return transport;
 }
 
-/* PETSCII and text both enter the queue as bytes. Keep their matrix mapping in
- * one place so a shifted character is sent as a single hardware chord.
+/* PETSCII and text both enter the queue as bytes. Resolve codes that have a
+ * single-chord C64 keyboard matrix combination into the corresponding chord so
+ * the REST machine:input path can deliver them. Codes without a single-chord
+ * combination -- graphics characters, CBM (Commodore-key) graphics, Ctrl-
+ * letter codes, and Ctrl-digit color codes -- are returned as unmapped; the
+ * caller falls back to the legacy KERNAL keyboard buffer injection path,
+ * which the C64 KERNAL interprets as the right screen code directly.
  *
- * Control codes (cursor keys, RETURN, HOME/CLR, INST/DEL) must resolve here
- * too: build_rest_input_batch() rejects the whole batch if any byte fails to
- * translate, and every batch falls back to the legacy KERNAL-buffer path
- * when that happens (fallback is per-batch, never per-keystroke -- see
- * doc/internals/keyboard-injection.md). Typed text routinely ends with \r,
- * and interactive use routinely includes cursor movement, so leaving these
- * untranslated made machine:input the exception rather than the rule. */
+ * Key combinations are derived from the C64 keyboard matrix and the C64
+ * Ultimate machine:input KeyboardInput enumeration.
+ * Only one shift modifier is exposed because build_rest_input_batch() only
+ * emits a left_shift prefix; Ctrl and Commodore modifiers are not reachable
+ * here, so codes that require them fall through to the Kernal buffer. */
 static bool petscii_to_matrix(uint8_t value, const char **key, bool *shift)
 {
     static const char *const letters[] = {"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
                                           "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"};
     static const char *const digits[] = {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9"};
-    static const char *const punctuation[128] = {
-        [' '] = "space",    ['!'] = "1",        ['\"'] = "2",        ['#'] = "3",     ['$'] = "4",
-        ['%'] = "5",        ['&'] = "6",        ['\''] = "7",        ['('] = "8",     [')'] = "9",
-        ['*'] = "star",     ['+'] = "plus",     [','] = "comma",     ['-'] = "minus", ['.'] = "period",
-        ['/'] = "slash",    [':'] = "colon",    [';'] = "semicolon", ['<'] = "comma", ['='] = "equals",
-        ['>'] = "period",   ['?'] = "slash",    ['@'] = "at",        ['['] = "colon", ['\\'] = "semicolon",
-        [']'] = "minus",    ['^'] = "arrow_up", ['_'] = "plus",      ['`'] = "pound", ['{'] = "at",
-        ['}'] = "semicolon"};
     if (!key || !shift) {
         return false;
     }
 
-    // PETSCII control codes -- matrix key names per the C64 keyboard matrix
-    // (row,col table verified against real hardware in 1541ultimate's
-    // tools/api/input_test.py KEYBOARD_MATRIX).
+    // Dedicated C64 keys and their shifted variants.
     switch (value) {
-    case 0x0D: // RETURN
+    case 0x03: // Stop (Run/Stop)
+        *key = "run_stop";
+        *shift = false;
+        return true;
+    case 0x0D: // Return
         *key = "return";
         *shift = false;
         return true;
-    case 0x11: // CRSR DOWN
+    case 0x8D: // Shift+Return
+        *key = "return";
+        *shift = true;
+        return true;
+    case 0x11: // Cursor Down (also Ctrl-Q)
         *key = "cursor_up_down";
         *shift = false;
         return true;
-    case 0x91: // CRSR UP (shifted down)
+    case 0x91: // Cursor Up (Shift+Cursor Down)
         *key = "cursor_up_down";
         *shift = true;
         return true;
-    case 0x1D: // CRSR RIGHT
+    case 0x1D: // Cursor Right (also Ctrl-;)
         *key = "cursor_left_right";
         *shift = false;
         return true;
-    case 0x9D: // CRSR LEFT (shifted right)
+    case 0x9D: // Cursor Left (Shift+Cursor Right)
         *key = "cursor_left_right";
         *shift = true;
         return true;
-    case 0x13: // HOME
+    case 0x13: // Home (also Ctrl-S)
         *key = "clr_home";
         *shift = false;
         return true;
-    case 0x93: // CLR (shifted home; clears the screen)
+    case 0x93: // Clear (Shift+Home)
         *key = "clr_home";
         *shift = true;
         return true;
-    case 0x14: // DEL (backspace)
+    case 0x14: // Delete (also Ctrl-T)
         *key = "inst_del";
         *shift = false;
         return true;
-    case 0x94: // INST (shifted delete)
+    case 0x94: // Insert (Shift+Delete)
         *key = "inst_del";
+        *shift = true;
+        return true;
+    // Function keys (F1/F2 share one physical key, shifted toggles F2 etc.).
+    case 0x85: // F1
+        *key = "f1";
+        *shift = false;
+        return true;
+    case 0x89: // F2 (Shift-F1)
+        *key = "f1";
+        *shift = true;
+        return true;
+    case 0x86: // F3
+        *key = "f3";
+        *shift = false;
+        return true;
+    case 0x8A: // F4 (Shift-F3)
+        *key = "f3";
+        *shift = true;
+        return true;
+    case 0x87: // F5
+        *key = "f5";
+        *shift = false;
+        return true;
+    case 0x8B: // F6 (Shift-F5)
+        *key = "f5";
+        *shift = true;
+        return true;
+    case 0x88: // F7
+        *key = "f7";
+        *shift = false;
+        return true;
+    case 0x8C: // F8 (Shift-F7)
+        *key = "f7";
+        *shift = true;
+        return true;
+    case 0xA0: // Shift-Space
+        *key = "space";
         *shift = true;
         return true;
     default:
         break;
     }
 
-    if (value < 32 || value > 126) {
-        return false;
-    }
+    // PETSCII letter mapping mirrors the C64 keyboard matrix:
+    //   0x41-0x5A  unshifted letter keys   (C64 renders uppercase by default)
+    //   0xC1-0xDA  SHIFT+letter keys       (C64 renders lowercase / graphics)
+    // Text output is UTF-8/ASCII supplied by C64Script, so lowercase ASCII
+    // also means an unshifted matrix key. This lets TYPE "hello" use REST
+    // injection and produce the C64's default uppercase text.
     if (value >= 'A' && value <= 'Z') {
         *key = letters[value - 'A'];
+        *shift = false;
+        return true;
+    }
+    if (value >= 0xC1 && value <= 0xDA) {
+        *key = letters[value - 0xC1];
         *shift = true;
         return true;
     }
@@ -1157,17 +1203,111 @@ static bool petscii_to_matrix(uint8_t value, const char **key, bool *shift)
         *shift = false;
         return true;
     }
+
+    // Digits (unshifted).
     if (value >= '0' && value <= '9') {
         *key = digits[value - '0'];
         *shift = false;
         return true;
     }
-    *key = punctuation[value];
-    // Digit-row shifted symbols (shift+1..shift+9 = !"#$%&'()) plus the two
-    // characters that share a key with an unshifted sibling (< shares
-    // "comma" with ,; > shares "period" with .; ? shares "slash" with /).
-    *shift = strchr("!\"#$%&'()<>?", value) != NULL;
-    return *key != NULL;
+    // Digit-row shifted symbols: Shift+1..Shift+9 = !"#$%&'()
+    if (value >= 0x21 && value <= 0x29) {
+        *key = digits[value - 0x20];
+        *shift = true;
+        return true;
+    }
+
+    // Other characters with known single-chord C64 keyboard combinations.
+    switch (value) {
+    case 0x20:
+        *key = "space";
+        *shift = false;
+        return true; // Space
+    case 0x2A:
+        *key = "star";
+        *shift = false;
+        return true; // * (dedicated asterisk)
+    case 0x2B:
+        *key = "plus";
+        *shift = false;
+        return true; // + (dedicated key)
+    case 0x2C:
+        *key = "comma";
+        *shift = false;
+        return true; // , (unshifted comma)
+    case 0x2D:
+        *key = "minus";
+        *shift = false;
+        return true; // - (unshifted minus)
+    case 0x2E:
+        *key = "period";
+        *shift = false;
+        return true; // . (unshifted period)
+    case 0x2F:
+        *key = "slash";
+        *shift = false;
+        return true; // / (unshifted slash)
+    case 0x3A:
+        *key = "colon";
+        *shift = false;
+        return true; // : (colon key, unshifted)
+    case 0x3B:
+        *key = "semicolon";
+        *shift = false;
+        return true; // ; (semicolon key, unshifted)
+    case 0x3C:
+        *key = "comma";
+        *shift = true;
+        return true; // < is Shift+,
+    case 0x3D:
+        *key = "equals";
+        *shift = false;
+        return true; // = (unshifted equal)
+    case 0x3E:
+        *key = "period";
+        *shift = true;
+        return true; // > is Shift+.
+    case 0x3F:
+        *key = "slash";
+        *shift = true;
+        return true; // ? is Shift+/
+    case 0x40:
+        *key = "at";
+        *shift = false;
+        return true; // @ (dedicated)
+    case 0x5B:
+        *key = "plus";
+        *shift = true;
+        return true; // [ is Shift++
+    case 0x5C:
+        *key = "pound";
+        *shift = false;
+        return true; // £ (dedicated pound)
+    case 0x5D:
+        *key = "minus";
+        *shift = true;
+        return true; // ] is Shift+-
+    case 0x5E:
+        *key = "arrow_up";
+        *shift = false;
+        return true; // up arrow (dedicated key)
+    case 0x5F:
+        *key = "arrow_left";
+        *shift = false;
+        return true; // left arrow (dedicated key)
+    default:
+        break;
+    }
+
+    // No single-chord C64 keyboard combination is reachable from
+    // machine:input with shift as the only modifier. This includes graphics
+    // characters (0x60-0x7F, 0xE0-0xFF), CBM (Commodore-key) graphics
+    // (0xA1-0xBF), Ctrl-letter codes (0x01-0x1A, 0x08, 0x09, 0x12, 0x1B),
+    // Ctrl-digit color codes (0x05, 0x1C, 0x1E, 0x1F, 0x90, 0x92, 0x9C,
+    // 0x9E, 0x9F), and Ctrl-£ (0x1C). The caller routes these through the
+    // legacy Kernal keyboard buffer, which writes the PETSCII byte directly
+    // and the C64 KERNAL produces the right screen code.
+    return false;
 }
 
 static bool build_rest_input_batch(const uint8_t *bytes, int count, char *json, size_t json_size)

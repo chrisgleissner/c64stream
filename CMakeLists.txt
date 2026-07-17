@@ -201,6 +201,7 @@ target_sources(
   PRIVATE
     src/plugin-main.c
     src/c64-source.c
+    src/c64-joystick-emulation.c
     src/device/c64-device.c
     src/device/c64-device-scan.c
     src/util/c64-av-sync.c

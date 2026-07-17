@@ -332,22 +332,103 @@ int main(void)
     CHECK(strstr(star_client.last_machine_input, "\"inputs\":[\"star\"]") != NULL);
     c64_keyboard_destroy(star_keyboard);
 
-    // '|' and '~' have no C64 charset equivalent and are deliberately left
-    // unmapped (petscii_to_matrix returns false); excluded from this range
-    // so the count reflects only characters that do translate.
+    // '`', '|'/'~' and '{'/'}' have no C64 matrix chord. The first 64 queued
+    // bytes must still use REST; lowercase text is covered explicitly below.
     worker_test_rest_client_t printable_client = {.machine_input_success = true};
     c64_keyboard_t *printable_keyboard = c64_keyboard_create(&printable_client);
     CHECK(printable_keyboard != NULL);
     c64_keyboard_set_transport(printable_keyboard, C64_STREAM_TRANSPORT_REST);
     for (uint8_t ch = 32; ch <= 126; ch++) {
-        if (ch == '|' || ch == '~') {
+        if (ch == '`' || ch == '|' || ch == '~' || ch == '{' || ch == '}') {
             continue;
         }
         c64_output_t printable_output = {.mode = C64_OUTPUT_PETSCII, .data.petscii = ch};
         c64_keyboard_queue_output(printable_keyboard, &printable_output);
     }
-    CHECK(wait_for_matrix_events(&printable_client, 93, 1000));
+    CHECK(wait_for_matrix_events(&printable_client, 64, 1000));
     c64_keyboard_destroy(printable_keyboard);
+
+    // '`', '{', '}' and the remaining ASCII characters with no C64 matrix
+    // chord must fall back to the legacy Kernal keyboard buffer.
+    static const uint8_t unmapped[] = {'`', '{', '}', '|', '~'};
+    for (size_t i = 0; i < sizeof(unmapped) / sizeof(unmapped[0]); i++) {
+        worker_test_rest_client_t fallback_client = {.machine_input_success = true};
+        c64_keyboard_t *fallback_keyboard = c64_keyboard_create(&fallback_client);
+        CHECK(fallback_keyboard != NULL);
+        c64_keyboard_set_transport(fallback_keyboard, C64_STREAM_TRANSPORT_AUTO);
+        c64_output_t fallback_output = {.mode = C64_OUTPUT_PETSCII, .data.petscii = unmapped[i]};
+        c64_keyboard_queue_output(fallback_keyboard, &fallback_output);
+        CHECK(wait_for_consumed_count(&fallback_client, 1, 1000));
+        CHECK(fallback_client.machine_input_calls == 0);
+        CHECK(fallback_client.write_buffer_calls == 1);
+        c64_keyboard_destroy(fallback_keyboard);
+    }
+
+    // Regression: PETSCII uppercase letters (0x41-0x5A) must translate to the
+    // unshifted matrix key, not "left_shift"+"<letter>". A previous version of
+    // petscii_to_matrix set shift=true for this range, which made any unshifted
+    // PC keystroke arrive at the C64 as SHIFT+letter and rendered the wrong
+    // character on the default uppercase charset.
+    worker_test_rest_client_t uppercase_client = {.machine_input_success = true};
+    c64_keyboard_t *uppercase_keyboard = c64_keyboard_create(&uppercase_client);
+    CHECK(uppercase_keyboard != NULL);
+    c64_keyboard_set_transport(uppercase_keyboard, C64_STREAM_TRANSPORT_REST);
+    c64_output_t uppercase_output = {.mode = C64_OUTPUT_PETSCII, .data.petscii = 'A'};
+    c64_keyboard_queue_output(uppercase_keyboard, &uppercase_output);
+    CHECK(wait_for_matrix_events(&uppercase_client, 1, 1000));
+    CHECK(strstr(uppercase_client.last_machine_input, "\"inputs\":[\"a\"]") != NULL);
+    CHECK(strstr(uppercase_client.last_machine_input, "left_shift") == NULL);
+    c64_keyboard_destroy(uppercase_keyboard);
+
+    // Regression: PETSCII shifted letters (0xC1-0xDA) must translate to
+    // "left_shift"+"<letter>" so SHIFT+letter on the host keyboard reaches
+    // the C64 as a single hardware chord.
+    worker_test_rest_client_t shifted_letter_client = {.machine_input_success = true};
+    c64_keyboard_t *shifted_letter_keyboard = c64_keyboard_create(&shifted_letter_client);
+    CHECK(shifted_letter_keyboard != NULL);
+    c64_keyboard_set_transport(shifted_letter_keyboard, C64_STREAM_TRANSPORT_REST);
+    c64_output_t shifted_letter_output = {.mode = C64_OUTPUT_PETSCII, .data.petscii = 0xC1};
+    c64_keyboard_queue_output(shifted_letter_keyboard, &shifted_letter_output);
+    CHECK(wait_for_matrix_events(&shifted_letter_client, 1, 1000));
+    CHECK(strstr(shifted_letter_client.last_machine_input, "\"inputs\":[\"left_shift\",\"a\"]") != NULL);
+    c64_keyboard_destroy(shifted_letter_keyboard);
+
+    // C64Script TYPE produces lowercase ASCII. It must remain REST-injectable
+    // as the unshifted physical key, rather than forcing the whole text batch
+    // through the legacy buffer or making Force REST fail.
+    worker_test_rest_client_t text_client = {.machine_input_success = true};
+    c64_keyboard_t *text_keyboard = c64_keyboard_create(&text_client);
+    CHECK(text_keyboard != NULL);
+    c64_keyboard_set_transport(text_keyboard, C64_STREAM_TRANSPORT_REST);
+    c64_output_t text_output = {.mode = C64_OUTPUT_TEXT, .data.text = "hello"};
+    c64_keyboard_queue_output(text_keyboard, &text_output);
+    CHECK(wait_for_matrix_events(&text_client, 5, 1000));
+    CHECK(strstr(text_client.last_machine_input, "\"inputs\":[\"h\"]") != NULL);
+    CHECK(strstr(text_client.last_machine_input, "\"inputs\":[\"o\"]") != NULL);
+    c64_keyboard_destroy(text_keyboard);
+
+    // Matrix-key names must exactly match the C64 Ultimate API enum. These
+    // values exercise dedicated punctuation and their shifted variants.
+    static const struct {
+        uint8_t petscii;
+        const char *inputs;
+    } matrix_keys[] = {{'+', "\"inputs\":[\"plus\"]"},
+                       {'=', "\"inputs\":[\"equals\"]"},
+                       {'[', "\"inputs\":[\"left_shift\",\"plus\"]"},
+                       {']', "\"inputs\":[\"left_shift\",\"minus\"]"},
+                       {'^', "\"inputs\":[\"arrow_up\"]"},
+                       {'_', "\"inputs\":[\"arrow_left\"]"}};
+    for (size_t i = 0; i < sizeof(matrix_keys) / sizeof(matrix_keys[0]); i++) {
+        worker_test_rest_client_t matrix_client = {.machine_input_success = true};
+        c64_keyboard_t *matrix_keyboard = c64_keyboard_create(&matrix_client);
+        CHECK(matrix_keyboard != NULL);
+        c64_keyboard_set_transport(matrix_keyboard, C64_STREAM_TRANSPORT_REST);
+        c64_output_t matrix_output = {.mode = C64_OUTPUT_PETSCII, .data.petscii = matrix_keys[i].petscii};
+        c64_keyboard_queue_output(matrix_keyboard, &matrix_output);
+        CHECK(wait_for_matrix_events(&matrix_client, 1, 1000));
+        CHECK(strstr(matrix_client.last_machine_input, matrix_keys[i].inputs) != NULL);
+        c64_keyboard_destroy(matrix_keyboard);
+    }
 
     // A byte with no matrix mapping falls back to the legacy KERNAL-buffer
     // path for its whole batch rather than being sent with a bogus key name.
