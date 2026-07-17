@@ -1,0 +1,25 @@
+# C64CLK-006: reproduce Discussion #114 — 2% random UDP loss on both streams.
+# Pre-fix: every lost audio packet is spliced out of both recordings (clicks in
+# audio.wav and the OBS recording), the WAV runs ~2% short, and the loss is
+# invisible in the log. Post-fix (C64CLK-001/003): concealment removes the
+# clicks, the WAV stays duration-matched, and a WARNING summary reports the loss.
+name: NTSC Record 2% Loss
+format: NTSC
+preset: Default
+disable_pops: true
+skip_frame_logic_validation: true
+overrides:
+  record_video: true
+  record_audio: true
+  buffer_delay_ms: 10
+network_simulation:
+  seed: 64
+  loss_percent: 2
+  audio_packet_set: sine1k
+assertions:
+  - record_audio_quality
+  - recording_click
+  - log_hygiene
+thresholds:
+  log_hygiene:
+    expect_error_summary: 1

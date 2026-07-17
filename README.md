@@ -1020,6 +1020,13 @@ One of:
 - Bandwidth: ~22 Mbps total (21.7 Mbps video + 1.4 Mbps audio, uncompressed streams)
 - Built-in UDP jitter compensation via configurable frame buffering
 
+For reliable audio, connect the Ultimate and OBS machine by wired Ethernet on
+the same switch. Wi-Fi and powerline links are the most common cause of packet
+loss and audible crackle. C64 Stream conceals isolated audio losses and reports
+sustained transport errors in the OBS log as `Network errors (last 60s): …`.
+Healthy streams do not emit periodic network-status messages at normal log
+level; enable debug logging when diagnosing a network problem.
+
 **Recording Formats:**
 
 - BMP frames: 24-bit uncompressed bitmap images

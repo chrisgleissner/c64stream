@@ -130,4 +130,25 @@ PY
     audio_count=$(find test_packets/audio/"${FORMAT}" -name "*.bin" 2>/dev/null | wc -l)
 
     log_success "Generated ${video_count} video packets, ${audio_count} audio packets"
+
+    # Optional replacement audio packet set (e.g. sine1k or scale500 for click-detection
+    # scenarios). Selected by the scenario via network_simulation.audio_packet_set.
+    local audio_packet_set=""
+    if [[ -n "${SCENARIO_YAML_PATH:-}" && -f "${SCENARIO_YAML_PATH}" ]]; then
+        audio_packet_set=$(grep -m1 "audio_packet_set:" "${SCENARIO_YAML_PATH}" | sed 's/.*audio_packet_set: *//' | tr -d '"' || true)
+    fi
+
+    if [[ "${audio_packet_set}" == "sine1k" || "${audio_packet_set}" == "scale500" ]]; then
+        log_info "Generating ${audio_packet_set} audio packet set (${audio_count} packets)..."
+        if ! python3 "${TEST_DIR}/framework/c64u_mock/gen_audio_packets.py" \
+            --format "${FORMAT}" --count "${audio_count}" --output test_packets \
+            --packet-set "${audio_packet_set}"; then
+            log_error "${audio_packet_set} audio packet generation failed"
+            exit 1
+        fi
+        log_success "Generated ${audio_packet_set} audio packet set"
+    elif [[ -n "${audio_packet_set}" ]]; then
+        log_error "Unknown audio_packet_set: ${audio_packet_set} (expected: sine1k or scale500)"
+        exit 1
+    fi
 }

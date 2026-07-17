@@ -1,0 +1,30 @@
+# C64CLK-006: reproduce review.md §3.2 — jitter + reordering + duplication with
+# the default 10ms reorder window. Pre-fix: packets delayed past the window and
+# duplicates are PLAYED (stale 4ms slices → clicks) and each one permanently
+# shifts the synthetic audio timeline +4ms. Post-fix (C64CLK-002): late and
+# duplicate packets are dropped and counted; the recording stays click-free.
+name: NTSC Record Reorder + Duplicates
+format: NTSC
+preset: Default
+disable_pops: true
+skip_frame_logic_validation: true
+overrides:
+  record_video: true
+  record_audio: true
+  buffer_delay_ms: 10
+network_simulation:
+  seed: 64
+  max_jitter_ms: 40
+  reorder_percent: 20
+  reorder_max_delay_ms: 60
+  duplicate_percent: 3
+  audio_packet_set: sine1k
+assertions:
+  - record_audio_quality
+  - recording_click
+  - log_hygiene
+thresholds:
+  record_audio_quality:
+    # Heavy jitter/reordering also delays packets beyond the 150-slot sort cap;
+    # the duration check tolerates the reorder window at the stream tail.
+    duration_tolerance_ms: 100

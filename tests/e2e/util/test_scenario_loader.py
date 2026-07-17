@@ -72,12 +72,23 @@ class TestScenarioLoader(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "must use an ntsc_script_/pal_script_ prefix"):
                 self.loader.load_scenario(scenario_yaml)
 
+    def test_five_segment_scenario_name_is_valid(self):
+        with tempfile.TemporaryDirectory() as td:
+            scenario_yaml = self._write_scenario(
+                Path(td) / "ntsc_record_video_burst_loss",
+                name="NTSC Record Video Burst Loss",
+            )
+
+            scenario = self.loader.load_scenario(scenario_yaml)
+
+        self.assertEqual(scenario.name, "NTSC Record Video Burst Loss")
+
     def test_list_scenarios_rejects_invalid_directory_name(self):
         with tempfile.TemporaryDirectory() as td:
             scenarios_dir = Path(td)
             self._write_scenario(scenarios_dir / "bad_name_too_many_parts_here", name="Bad Name")
 
-            with self.assertRaisesRegex(ValueError, "max is 4"):
+            with self.assertRaisesRegex(ValueError, "max is 5"):
                 self.loader.list_scenarios(scenarios_dir)
 
 

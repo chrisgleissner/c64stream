@@ -1,0 +1,25 @@
+# C64CLK-006: reproduce review.md §3.1 OBS timeline compression — the A/V-sync
+# pop setup of ntsc_default_avsync with 2% random AUDIO loss (video intact so
+# the video-pop reference and the plugin's runtime pop matching stay reliable).
+# Pre-fix: each lost audio packet is glued over by OBS (TS_SMOOTHING_THRESHOLD),
+# pulling recorded audio ~4ms earlier per loss until OBS hard-resets at ~70ms —
+# a sawtooth A/V offset in the MP4. Post-fix (C64CLK-001): concealment leaves no
+# submission gaps, so the MP4 offset stays at the clean-run level.
+#
+# Threshold calibration (2026-07-17, Phase 0 clean run of ntsc_default_avsync):
+# clean MP4 pop offsets measured 14.5–17.2ms; pre-fix compression reaches
+# ~16+70ms. max_offset_ms_mp4=45 separates the two with margin on both sides.
+name: NTSC A/V Sync 2% Loss
+format: NTSC
+preset: Default
+full_frame_pop: true
+csv_max_rows: 6000
+network_simulation:
+  seed: 64
+  audio_loss_percent: 2
+assertions:
+  - av_sync_offset
+  - av_sync_csv_validation
+thresholds:
+  av_sync_offset:
+    max_offset_ms_mp4: 45

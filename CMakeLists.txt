@@ -208,6 +208,7 @@ target_sources(
     src/util/c64-file.c
     src/util/c64-version.c
     src/audio/c64-audio.c
+    src/audio/c64-audio-timeline.c
     src/network/c64-rest-client.c
     src/network/c64-network.c
     src/network/c64-network-buffer.c
@@ -226,6 +227,7 @@ target_sources(
     src/record/c64-record-network.c
     src/record/c64-record-video.c
     src/record/c64-record-audio.c
+    src/record/c64-record-writer.c
     src/record/c64-record-frames.c
     src/ui/c64-interact-key.c
     src/ui/c64-properties.c

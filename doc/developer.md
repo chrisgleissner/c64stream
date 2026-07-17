@@ -694,6 +694,16 @@ TEST(pause_and_resume) {
 6. Run tests: `ctest -V`
 7. Submit pull request
 
+## Audio transport diagnostics
+
+The audio pipeline keeps a sequence-derived timeline. Missing packets are
+concealed with a held/faded final sample and late or duplicate packets are
+dropped, preserving A/V timing rather than replaying stale PCM. Normal logs are
+quiet. If transport errors occur, the plugin emits the rate-limited warning
+`Network errors (last 60s): …`; periodic buffer and A/V health diagnostics are
+debug-only. Prefer a wired Ethernet connection between the Ultimate and OBS
+host—Wi-Fi and powerline links are frequent sources of UDP loss and crackling.
+
 ## Resources
 
 - **C64U Streaming Specification:** [`doc/c64/c64u-stream-spec.md`](c64/c64u-stream-spec.md)

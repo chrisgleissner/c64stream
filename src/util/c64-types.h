@@ -19,6 +19,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-network.h"
 #include "c64-network-buffer.h"
 #include "c64-protocol.h"
+#include "audio/c64-audio-timeline.h"
 #include "c64-network-fifo.h"
 #include "c64-effect-afterglow.h"
 #include "c64-color.h"
@@ -27,6 +28,7 @@ See <https://www.gnu.org/licenses/> for details.
 typedef struct c64_rest_client c64_rest_client_t;
 typedef struct c64_keyboard c64_keyboard_t;
 typedef struct c64_keymap c64_keymap_t;
+struct c64_record_writer;
 
 // Frame packet structure for reordering
 struct frame_packet {
@@ -197,9 +199,17 @@ struct c64_source {
 
     // Synthetic timestamp generation (monotonic, packet-index based)
     uint64_t audio_packet_count;              // Total audio packets processed since stream start
-    uint16_t last_audio_ts_seq;               // Last 16-bit audio packet sequence number seen (wrap-aware)
-    bool audio_ts_seq_set;                    // True once last_audio_ts_seq has been initialized
-    uint64_t audio_packet_index;              // Monotonic packet index derived from sequence progression
+    struct c64_audio_timeline audio_timeline; // C64CLK-001/002: seq -> index state machine + error counters
+    bool audio_last_sample_set;               // audio_last_left/right hold the final samples of the last played packet
+    int16_t audio_last_left;                  // Concealment hold value, left channel
+    int16_t audio_last_right;                 // Concealment hold value, right channel
+    uint64_t audio_resync_warn_ns;            // Last RESYNC warning time (rate limit)
+    uint64_t network_error_last_warning_ns;   // C64CLK-003 warning summary rate limit
+    uint64_t network_error_window_lost;       // Counters at the last 60 s summary
+    uint64_t network_error_window_concealed;
+    uint64_t network_error_window_late;
+    uint64_t network_error_window_duplicates;
+    uint64_t network_error_window_resyncs;
     uint64_t audio_interval_ns;               // Nanoseconds per audio packet (format-specific)
     double audio_sample_rate;                 // Audio sample rate (exact: 47982.887 Hz PAL, 47940.341 Hz NTSC)
     uint64_t last_audio_timestamp_validation; // Last timestamp for progression validation
@@ -293,6 +303,8 @@ struct c64_source {
     volatile long recorded_frames;
     volatile long recorded_audio_samples;
     uint64_t recorded_audio_bytes;
+    struct c64_record_writer *record_writer; /* C64CLK-005 background file writer */
+    volatile long record_write_drops;
     /* Each legacy AVI file is independently valid.  Keep per-segment state
      * separate from session-wide counters so a rollover never wraps RIFF's
      * 32-bit length fields. */

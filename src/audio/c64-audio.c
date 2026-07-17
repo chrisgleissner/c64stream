@@ -157,7 +157,7 @@ static void validate_audio_timestamp_progression(struct c64_source *context, uin
                               " expected=%" PRId64 "ns err=%" PRId64 "ns) ts=%" PRIu64 " packet_index=%" PRIu64
                               " processed_packets=%" PRIu64,
                               obs_source_get_name(context->source), timestamp_delta, k, expected, err,
-                              current_timestamp, context->audio_packet_index, context->audio_packet_count);
+                              current_timestamp, context->audio_timeline.packet_index, context->audio_packet_count);
             }
         }
     }
@@ -208,63 +208,129 @@ static bool c64_debug_audio_has_signal(const uint8_t *samples, size_t samples_si
     return false;
 }
 
-// Generate monotonic audio timestamps with format-specific intervals
-static uint64_t generate_monotonic_audio_timestamp(struct c64_source *context, uint16_t packet_seq)
+// Ensure the format-specific audio packet interval is initialized.
+// PAL:  192 samples ÷ 47982.8869047619 Hz = 4,001,416.96 ns/packet
+// NTSC: 192 samples ÷ 47940.3408482143 Hz = 4,005,005.95 ns/packet
+static void c64_ensure_audio_interval(struct c64_source *context)
 {
-    // Audio packet intervals are format-specific (exact fractional rates):
-    // PAL:  192 samples ÷ 47982.8869047619 Hz = 4,001,416.96 ns/packet
-    // NTSC: 192 samples ÷ 47940.3408482143 Hz = 4,005,005.95 ns/packet
-    //
-    // The interval_ns is calculated dynamically based on detected format
-
-    if (!context) {
-        return 0;
+    if (context->audio_interval_ns != 0) {
+        return;
     }
-
-    // Calculate format-specific audio packet interval once.
-    // interval_ns = (192 samples * 1,000,000,000 ns/sec) / sample_rate
-    if (context->audio_interval_ns == 0) {
-        if (context->audio_sample_rate > 0) {
-            context->audio_interval_ns = (uint64_t)((192ULL * 1000000000ULL) / context->audio_sample_rate);
-            C64_LOG_INFO("" AUDIO_LOG_PREFIX " Audio packet interval: %" PRIu64 " ns (rate=%.4f Hz)",
-                         context->audio_interval_ns, context->audio_sample_rate);
-        } else {
-            context->audio_sample_rate = C64_PAL_AUDIO_SAMPLE_RATE;
-            context->audio_interval_ns = (uint64_t)((192ULL * 1000000000ULL) / context->audio_sample_rate);
-            C64_LOG_WARNING("" AUDIO_LOG_PREFIX " Format not detected, using PAL audio rate: %.4f Hz",
-                            context->audio_sample_rate);
-        }
-    }
-
-    // Shared origin must exist; if we haven't seen any packets yet, keep timestamp at 0.
-    if (!os_atomic_load_bool(&context->stream_start_set) || context->stream_start_ns == 0) {
-        return 0;
-    }
-
-    // Derive a monotonic packet index from the 16-bit sequence number.
-    // This keeps the synthetic audio timeline advancing even when packets are dropped.
-    if (!context->audio_ts_seq_set) {
-        context->audio_ts_seq_set = true;
-        context->last_audio_ts_seq = packet_seq;
-        context->audio_packet_index = 0;
+    if (context->audio_sample_rate > 0) {
+        context->audio_interval_ns = (uint64_t)((192ULL * 1000000000ULL) / context->audio_sample_rate);
+        C64_LOG_INFO("" AUDIO_LOG_PREFIX " Audio packet interval: %" PRIu64 " ns (rate=%.4f Hz)",
+                     context->audio_interval_ns, context->audio_sample_rate);
     } else {
-        const int16_t delta = (int16_t)(packet_seq - context->last_audio_ts_seq);
-        if (delta > 0) {
-            context->audio_packet_index += (uint64_t)delta;
-            context->last_audio_ts_seq = packet_seq;
-        } else {
-            // Duplicate/out-of-order: still advance by 1 to avoid timestamp reuse.
-            context->audio_packet_index += 1;
-        }
+        context->audio_sample_rate = C64_PAL_AUDIO_SAMPLE_RATE;
+        context->audio_interval_ns = (uint64_t)((192ULL * 1000000000ULL) / context->audio_sample_rate);
+        C64_LOG_WARNING("" AUDIO_LOG_PREFIX " Format not detected, using PAL audio rate: %.4f Hz",
+                        context->audio_sample_rate);
+    }
+}
+
+// Synthetic timestamp for a packet index on the shared stream timeline.
+static inline uint64_t c64_audio_index_timestamp(const struct c64_source *context, uint64_t index)
+{
+    return context->stream_start_ns + index * context->audio_interval_ns;
+}
+
+void c64_audio_log_network_errors(struct c64_source *context, bool force)
+{
+    if (!context) {
+        return;
     }
 
-    // Keep the old counter as a processed-packet statistic.
-    context->audio_packet_count++;
+    const struct c64_audio_timeline *tl = &context->audio_timeline;
+    const uint64_t fifo_drops = (uint64_t)os_atomic_load_long(&context->audio_fifo.dropped_full);
+    const bool changed = tl->packets_lost != context->network_error_window_lost ||
+                         tl->concealed != context->network_error_window_concealed ||
+                         tl->late_dropped != context->network_error_window_late ||
+                         tl->duplicates != context->network_error_window_duplicates ||
+                         tl->resyncs != context->network_error_window_resyncs || fifo_drops != 0;
+    if (!changed) {
+        return;
+    }
 
-    uint64_t synthetic_timestamp =
-        context->stream_start_ns + (context->audio_packet_index * context->audio_interval_ns);
+    const uint64_t now = os_gettime_ns();
+    const bool first_warning = context->network_error_last_warning_ns == 0;
+    const bool due = first_warning || now - context->network_error_last_warning_ns >= 60000000000ULL;
+    if (!force && !due) {
+        return;
+    }
 
-    return synthetic_timestamp;
+    /* Do not emit any steady-state line for a clean stream. The first loss is
+     * immediately visible; thereafter the summary is rate-limited to 60 s.
+     * For a short recording `force` reports the still-open window at stop. */
+    C64_LOG_WARNING("Network errors (last 60s): audio lost=%" PRIu64 " concealed=%" PRIu64 " late=%" PRIu64
+                    " dup=%" PRIu64 " resync=%" PRIu64 " fifo_drops=%" PRIu64 " | video gaps=%ld drops=0",
+                    tl->packets_lost - context->network_error_window_lost,
+                    tl->concealed - context->network_error_window_concealed,
+                    tl->late_dropped - context->network_error_window_late,
+                    tl->duplicates - context->network_error_window_duplicates,
+                    tl->resyncs - context->network_error_window_resyncs, fifo_drops,
+                    os_atomic_load_long(&context->video_sequence_errors));
+
+    /* Advance the window baseline on EVERY emitted summary, including the
+     * immediate first warning. Skipping it there (the previous behaviour) left
+     * the baseline pinned at 0, so the first rate-limited 60 s summary re-counted
+     * every loss already shown in the first warning - contradicting the
+     * "last 60s" label. Each reported delta is now genuinely "since the last
+     * summary". */
+    context->network_error_last_warning_ns = now;
+    context->network_error_window_lost = tl->packets_lost;
+    context->network_error_window_concealed = tl->concealed;
+    context->network_error_window_late = tl->late_dropped;
+    context->network_error_window_duplicates = tl->duplicates;
+    context->network_error_window_resyncs = tl->resyncs;
+}
+
+// Hand one 192-frame packet (real or concealment fill) to OBS with its
+// seq-exact synthetic timestamp. Shared by the PLAY path and the concealment
+// path so both recordings stay sample- and timeline-identical.
+static void c64_audio_submit_to_obs(struct c64_source *context, const uint8_t *samples, uint64_t index)
+{
+    struct obs_source_audio audio_output = {0};
+    audio_output.frames = 192;
+    audio_output.samples_per_sec = (uint32_t)context->audio_sample_rate;
+    audio_output.format = AUDIO_FORMAT_16BIT;
+    audio_output.speakers = SPEAKERS_STEREO;
+    audio_output.timestamp = c64_audio_index_timestamp(context, index);
+    audio_output.data[0] = (uint8_t *)samples;
+
+    obs_source_output_audio(context->source, &audio_output);
+    context->last_audio_submit_ns = os_gettime_ns();
+    context->last_audio_ts_ns = audio_output.timestamp;
+}
+
+// C64CLK-001: materialise a sequence gap before playing the packet that ended
+// it. Fill is hold-last-sample with fade (never zeros - SID DC offset), each
+// synthetic packet carries its exact synthetic timestamp, and the same bytes
+// go to OBS and the WAV so A/V sync and WAV/AVI duration stay exact. The OBS
+// path conceals at most C64_AUDIO_CONCEAL_MAX_PACKETS (~100 ms) per gap; the
+// WAV is filled for the whole gap (capped upstream at
+// C64_AUDIO_WAV_FILL_MAX_PACKETS by the RESYNC policy).
+static void c64_audio_conceal_gap(struct c64_source *context, const uint8_t *next_samples, uint64_t real_index,
+                                  uint32_t gap)
+{
+    if (!context->audio_last_sample_set || gap == 0) {
+        return;
+    }
+
+    struct c64_audio_conceal_fill fill = {
+        .last_left = context->audio_last_left,
+        .last_right = context->audio_last_right,
+        .next_left = (int16_t)((uint16_t)next_samples[0] | ((uint16_t)next_samples[1] << 8)),
+        .next_right = (int16_t)((uint16_t)next_samples[2] | ((uint16_t)next_samples[3] << 8)),
+    };
+
+    uint8_t fill_pcm[768];
+    for (uint32_t k = 0; k < gap; k++) {
+        c64_audio_conceal_fill_packet(&fill, k, gap, fill_pcm);
+        if (k < C64_AUDIO_CONCEAL_MAX_PACKETS) {
+            c64_audio_submit_to_obs(context, fill_pcm, real_index - gap + k);
+        }
+        c64_record_audio_data(context, fill_pcm, sizeof(fill_pcm));
+    }
 }
 
 // Process audio packet and send to OBS for playback
@@ -272,18 +338,6 @@ void c64_process_audio_packet(struct c64_source *context, const uint8_t *audio_d
                               uint64_t timestamp_ns)
 {
     if (!context || !audio_data || data_size < 2) {
-        return;
-    }
-
-    // Ensure shared synthetic start time is initialized (fallback: receipt timestamp).
-    c64_try_init_stream_start_ns(context, timestamp_ns, "audio packet pop");
-
-    const uint16_t packet_seq = (uint16_t)audio_data[0] | ((uint16_t)audio_data[1] << 8);
-
-    // Generate synthetic audio timestamp for monotonic progression.
-    uint64_t audio_timestamp = generate_monotonic_audio_timestamp(context, packet_seq);
-    if (audio_timestamp == 0) {
-        // If we cannot generate a synthetic timestamp yet, do not submit audio with a zero timestamp.
         return;
     }
 
@@ -297,6 +351,45 @@ void c64_process_audio_packet(struct c64_source *context, const uint8_t *audio_d
         C64_LOG_WARNING("" AUDIO_LOG_PREFIX " Audio packet too small: %zu bytes (expected 768)", samples_size);
         return;
     }
+
+    // Ensure shared synthetic start time is initialized (fallback: receipt timestamp)
+    // and that the format-specific interval is ready before deriving the slot.
+    c64_try_init_stream_start_ns(context, timestamp_ns, "audio packet pop");
+    if (!os_atomic_load_bool(&context->stream_start_set) || context->stream_start_ns == 0) {
+        return;
+    }
+    c64_ensure_audio_interval(context);
+
+    const uint16_t packet_seq = (uint16_t)audio_data[0] | ((uint16_t)audio_data[1] << 8);
+    const uint64_t now_ns = os_gettime_ns();
+    const uint64_t now_slot =
+        now_ns > context->stream_start_ns ? (now_ns - context->stream_start_ns) / context->audio_interval_ns : 0;
+    uint64_t packet_index = 0;
+    uint32_t conceal_gap = 0;
+    const enum c64_audio_seq_action action =
+        c64_audio_timeline_advance(&context->audio_timeline, packet_seq, now_slot, &packet_index, &conceal_gap);
+    if (action == C64_AUDIO_SEQ_DROP) {
+        c64_audio_log_network_errors(context, false);
+        return;
+    }
+
+    if (action == C64_AUDIO_SEQ_RESYNC) {
+        // A device restart or outage beyond the fill cap is an honest stream
+        // discontinuity.  Rate-limit it here; C64CLK-003 adds the aggregate
+        // network summary for all sequence errors.
+        if (now_ns - context->audio_resync_warn_ns >= 60000000000ULL) {
+            C64_LOG_WARNING("" AUDIO_LOG_PREFIX " Audio timeline resynchronised after sequence discontinuity");
+            context->audio_resync_warn_ns = now_ns;
+        }
+    } else if (action == C64_AUDIO_SEQ_CONCEAL) {
+        c64_audio_conceal_gap(context, samples, packet_index, conceal_gap);
+    }
+    if (action != C64_AUDIO_SEQ_PLAY) {
+        c64_audio_log_network_errors(context, false);
+    }
+
+    const uint64_t audio_timestamp = c64_audio_index_timestamp(context, packet_index);
+    context->audio_packet_count++;
 
     bool has_signal = false;
     bool audio_pop_rise = false;
@@ -324,22 +417,7 @@ void c64_process_audio_packet(struct c64_source *context, const uint8_t *audio_d
     // Validate timestamp progression for debugging
     validate_audio_timestamp_progression(context, audio_timestamp);
 
-    // Set up OBS audio data structure - optimized for minimal latency
-    struct obs_source_audio audio_output = {0};
-    audio_output.frames = 192;                                           // 192 stereo samples per packet
-    audio_output.samples_per_sec = (uint32_t)context->audio_sample_rate; // Format-specific rate (PAL/NTSC)
-    audio_output.format = AUDIO_FORMAT_16BIT;
-    audio_output.speakers = SPEAKERS_STEREO;
-    audio_output.timestamp = audio_timestamp; // Use synthetic timestamp for smooth playback
-
-    // Point to the audio data (OBS expects planar format, but we have interleaved)
-    // For now, send interleaved data directly - OBS can handle it
-    audio_output.data[0] = (uint8_t *)samples;
-
-    // Send audio to OBS for playback
-    obs_source_output_audio(context->source, &audio_output);
-    context->last_audio_submit_ns = os_gettime_ns();
-    context->last_audio_ts_ns = audio_timestamp;
+    c64_audio_submit_to_obs(context, samples, packet_index);
 
     if (!context->first_audio_ts_logged) {
         context->first_audio_ts_logged = true;
@@ -382,7 +460,7 @@ void c64_process_audio_packet(struct c64_source *context, const uint8_t *audio_d
     // Very rare spot checks for audio timestamp debugging (every 10 minutes)
     static int audio_timestamp_debug_count = 0;
     static uint64_t last_audio_log_time = 0;
-    uint64_t now = os_gettime_ns();
+    uint64_t now = now_ns;
     if ((++audio_timestamp_debug_count % 50000) == 0 ||
         (now - last_audio_log_time >= 600000000000ULL)) { // Every 50k packets OR 10 minutes
         uint64_t delivery_delay = now - audio_timestamp;
@@ -394,4 +472,12 @@ void c64_process_audio_packet(struct c64_source *context, const uint8_t *audio_d
 
     // Also record to file if recording is enabled (use processed samples, not raw packet)
     c64_record_audio_data(context, samples, samples_size);
+
+    // The next gap starts from the final sample of this real packet.  Keeping
+    // this after all submissions means a late packet cannot perturb the hold
+    // value: DROP returns above before reaching here.
+    const size_t last = 191U * 4U;
+    context->audio_last_left = (int16_t)((uint16_t)samples[last] | ((uint16_t)samples[last + 1] << 8));
+    context->audio_last_right = (int16_t)((uint16_t)samples[last + 2] | ((uint16_t)samples[last + 3] << 8));
+    context->audio_last_sample_set = true;
 }

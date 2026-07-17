@@ -22,6 +22,8 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-record-network.h"
 #include "c64-record-video.h"
 #include "c64-record-audio.h"
+#include "c64-audio.h"
+#include "c64-record-writer.h"
 #include "c64-record-frames.h"
 #include "c64-rest-client.h"
 #include "c64-types.h"
@@ -838,6 +840,16 @@ bool c64_start_video_recording(struct c64_source *context)
     // Write WAV header to audio file
     c64_audio_write_wav_header(context->audio_file, (uint32_t)llround(context->audio_sample_rate), 2, 16);
 
+    if (!c64_record_writer_start(context)) {
+        C64_LOG_ERROR("" RECORD_LOG_PREFIX " Failed to start background recording writer");
+        fclose(context->video_file);
+        fclose(context->audio_file);
+        context->video_file = NULL;
+        context->audio_file = NULL;
+        pthread_mutex_unlock(&context->recording_mutex);
+        return false;
+    }
+
     C64_LOG_INFO("" RECORD_LOG_PREFIX " Started video recording: %s", video_filename);
 
     pthread_mutex_unlock(&context->recording_mutex);
@@ -857,6 +869,15 @@ void c64_stop_video_recording(struct c64_source *context)
     if (pthread_mutex_lock(&context->recording_mutex) != 0) {
         return;
     }
+
+    /* C64CLK-003: a short recording may end before the 60 s periodic
+     * summary. Surface its accumulated transport errors before finalising. */
+    c64_audio_log_network_errors(context, true);
+
+    /* Stop accepts no more queue entries and joins only after draining every
+     * queued WAV/AVI chunk. Headers are therefore finalised against stable,
+     * fully-written files. */
+    c64_record_writer_stop(context);
 
     // Close recording files and finalize formats
     if (context->video_file) {
@@ -903,6 +924,8 @@ void c64_record_init(struct c64_source *context)
     os_atomic_store_long(&context->recorded_frames, 0);
     os_atomic_store_long(&context->recorded_audio_samples, 0);
     context->recorded_audio_bytes = 0;
+    context->record_writer = NULL;
+    os_atomic_store_long(&context->record_write_drops, 0);
     context->avi_segment_index = 0;
     context->avi_segment_width = 0;
     context->avi_segment_height = 0;
@@ -934,12 +957,25 @@ void c64_record_cleanup(struct c64_source *context)
 {
     c64_audio_mixer_snapshot_restore(context);
 
+    c64_audio_log_network_errors(context, true);
+
     if (pthread_mutex_lock(&context->recording_mutex) == 0) {
+        /* Stop the writer INSIDE the mutex, matching c64_stop_video_recording
+         * and the segment-roll path. c64_record_writer_stop joins the writer
+         * thread and then frees the writer struct (destroying its mutex); the
+         * packet thread reads context->record_writer under recording_mutex in
+         * c64_audio_record_data, so releasing the writer outside the lock would
+         * race that read. (The packet thread is already joined by
+         * c64_stop_streaming before this runs, so it is defence-in-depth, but
+         * it removes the reliance on that ordering.) */
+        c64_record_writer_stop(context);
         if (context->video_file) {
+            c64_video_update_avi_header(context->video_file, context->avi_segment_frames, 0);
             fclose(context->video_file);
             context->video_file = NULL;
         }
         if (context->audio_file) {
+            c64_audio_finalize_wav_header(context->audio_file, context->recorded_audio_bytes);
             fclose(context->audio_file);
             context->audio_file = NULL;
         }

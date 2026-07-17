@@ -65,8 +65,38 @@ static void *pop_packets(void *opaque)
     return NULL;
 }
 
+/* C64CLK-004: audio must be independently deliverable when video is stalled
+ * or absent.  The old implementation returned before inspecting the audio
+ * ring whenever video was empty, eventually overflowing audio during a video
+ * outage. */
+static void test_audio_pop_without_video(void)
+{
+    struct c64_network_buffer *buffer = c64_network_buffer_create();
+    assert(buffer != NULL);
+
+    uint8_t packet[C64_AUDIO_PACKET_SIZE] = {0};
+    const uint16_t seq = 1234;
+    memcpy(packet, &seq, sizeof(seq));
+    c64_network_buffer_push_audio(buffer, packet, sizeof(packet), 0);
+
+    const uint8_t *video = NULL;
+    const uint8_t *audio = NULL;
+    size_t video_size = 0;
+    size_t audio_size = 0;
+    uint64_t timestamp_us = 0;
+    assert(c64_network_buffer_pop(buffer, &video, &video_size, &audio, &audio_size, &timestamp_us) == 1);
+    assert(video == NULL && video_size == 0);
+    assert(audio != NULL && audio_size == C64_AUDIO_PACKET_SIZE);
+    assert(memcmp(audio, packet, sizeof(packet)) == 0);
+    assert(timestamp_us == 0);
+
+    c64_network_buffer_destroy(buffer);
+}
+
 int main(void)
 {
+    test_audio_pop_without_video();
+
     struct test_state state = {.buffer = c64_network_buffer_create()};
     assert(state.buffer != NULL);
 

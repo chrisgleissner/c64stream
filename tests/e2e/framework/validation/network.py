@@ -95,7 +95,15 @@ class NetworkTimingValidator:
         check_spacing('Video', video_stats, expected_video_interval_us)
         check_spacing('Audio', audio_stats, expected_audio_interval_us)
 
-        if max_jitter_ms <= 0 and float(network_simulation.get('reorder_percent', 0) or 0) <= 0:
+        # Injected loss/duplication/burst outages perturb receive-side spacing, so the
+        # strict "no simulation" p99/out-of-order checks only apply when none are active.
+        has_loss_sim = any(
+            float(network_simulation.get(key, 0) or 0) > 0
+            for key in ('loss_percent', 'audio_loss_percent', 'video_loss_percent',
+                        'duplicate_percent', 'burst_loss_ms')
+        )
+
+        if max_jitter_ms <= 0 and float(network_simulation.get('reorder_percent', 0) or 0) <= 0 and not has_loss_sim:
             v_p99_us = video_stats.get('spacing_p99_us', None)
             a_p99_us = audio_stats.get('spacing_p99_us', None)
 

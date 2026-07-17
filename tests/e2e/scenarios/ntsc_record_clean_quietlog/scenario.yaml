@@ -1,0 +1,26 @@
+# C64CLK-006/003: the quiet-log guarantee. A clean session (no simulation) at
+# default (non-debug) logging must produce a click-free recording, NO
+# network-error WARNING summaries, and no recurring status lines during
+# streaming. Pre-fix: per-connection/per-retry INFO chatter ("Sending start
+# command", "Connected to C64 Ultimate", retry lines) recurs during a healthy
+# session → log_hygiene(expect_quiet) fails.
+name: NTSC Record Clean Quiet Log
+format: NTSC
+preset: Default
+disable_pops: true
+overrides:
+  record_video: true
+  record_audio: true
+  buffer_delay_ms: 10
+  debug_logging: false
+network_simulation:
+  seed: 64
+  audio_packet_set: sine1k
+assertions:
+  - record_audio_quality
+  - log_hygiene
+thresholds:
+  record_audio_quality:
+    max_clicks: 0
+  log_hygiene:
+    expect_quiet: 1
