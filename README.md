@@ -280,9 +280,9 @@ See the [OBS Plugins Guide](https://obsproject.com/kb/plugins-guide).
 
   ![C64 Stream Configuration](https://raw.githubusercontent.com/chrisgleissner/c64stream/main/docs/images/properties.png "C64 Stream Configuration")
 
-3. **Find your device (C64 Stream 1.2.0+):** In the Network section, click **Find Devices**, above the **Device** drop-down. Wait for the scan to finish, then choose your C64 Ultimate or Ultimate 64 from the list if it is not selected automatically. Click **OK** to start streaming.
+3. **Find your device (C64 Stream 1.2.0+):** In the Network section, click **Find Devices**, above the **Device** drop-down. Wait for the scan of you local network to finish, then choose your C64 Ultimate or Ultimate 64 from the list if it is not selected automatically. Click **OK** to start streaming.
 
-4. **Manual fallback (all versions):** If you use a version before 1.2.0, or **Find Devices** does not list your device, enter the C64U's IP address from step 1 in **C64U Host**, then click **OK**. Automatic discovery requires the device and OBS computer to be reachable on the local network; firewall rules, network isolation, or multiple network adapters can prevent a device from being found. Manual configuration remains supported in these cases.
+4. **Manual fallback (all versions):** If you use a version before 1.2.0, or **Find Devices** does not list your device, enter the C64U's IP address from step 1 in **C64U Host**, then click **OK**. 
 
 🎉 **DONE!** Enjoy streaming from your C64 Ultimate.
 
@@ -340,19 +340,9 @@ Instead of typing a host/IP every time, the plugin keeps a small **device regist
 - **Device Name:** Friendly name shown in the Device list. Edit this and click **Save Device** to rename the selected device.
 - **Save Device:** Saves the current **C64U Host**, **DNS Server IP**, and **C64U Password** as the selected device, or creates a new device if none is selected yet.
 - **Delete Device:** Removes the selected device from the list (does not affect the physical device).
-- **Find Devices (C64 Stream 1.2.0+):** Above the **Device** drop-down, scans the local network for devices (see [Device Discovery Flow](#device-discovery-flow) below). The button label switches to **Finding Devices...** while a scan is running. If it cannot find a device, enter its IP address manually in **C64U Host** instead.
+- **Find Devices (C64 Stream 1.2.0+):** Above the **Device** drop-down, scans the local network for devices. The button label switches to **Finding Devices...** while a scan is running. If it cannot find a device, enter its IP address manually in **C64U Host** instead.
 
-Each entry shows the device's IP in parentheses, e.g. `u64 (192.168.1.13)`; devices that require a password are additionally marked, e.g. `c64u (192.168.1.167, Password)`. A device that answers on more than one interface (e.g. Ethernet and Wi-Fi) collapses to a single entry — the interfaces share the device's `unique_id` — and stays on whichever address it was first discovered at rather than flipping between them on later scans.
-
-##### Device Discovery Flow
-
-Clicking **Find Devices** runs the following, entirely in a background thread so the UI stays responsive:
-
-1. **Enumerate candidate hosts:** every address already in the registry, the currently-configured Host, and every host on your machine's active local subnets (virtual/Docker-only interfaces are skipped).
-2. **Probe `/v1/info`:** each candidate is queried over REST; devices that require a password are recognized from the 401/403 response and listed as password-protected without needing credentials.
-3. **Filter by product:** only streaming-capable hardware is kept — the **Ultimate 64** family and **C64 Ultimate**. Ultimate II/II+/II+L units (disk/cartridge-only, no video/audio streaming) are rejected, and any such device previously saved by mistake is removed from the registry.
-4. **Confirm the control channel:** each remaining candidate must also accept a connection on its control port (64), the channel stream start/stop rides. An address that answers `/v1/info` but not the control port cannot actually drive a stream, so it is not offered. A saved device is probed before the subnet sweep and retried, so a slower interface is not dropped for a momentary timeout.
-5. **Update the registry:** confirmed devices are saved (one entry per physical device — see above) and immediately appear in the **Device** dropdown. If exactly one device is found and the source has no selected device (or still has its untouched `c64u` default), it is selected automatically and streaming is scheduled. A selected device whose address changed is refreshed automatically; if the selected device failed the scan and exactly one other device was confirmed, that reachable device replaces it. Enter the password first when the entry is marked as password-protected. A deliberate, reachable device choice is never replaced; if several devices are found, choose one from the list. A device already on file keeps its address unless that address has genuinely stopped responding, in which case it relocates to a working one.
+Each entry shows the device's IP in parentheses, e.g. `u64 (192.168.1.13)`; devices that require a password are additionally marked, e.g. `c64u (192.168.1.167, Password)`. A device that answers on more than one interface (e.g. Ethernet and Wi-Fi) uses whichever address it was first discovered at.
 
 - **C64U Host:** Hostname or IP address of the currently selected device (default: `c64u`), or set to `0.0.0.0` to accept streams from any C64 Ultimate on your network (requires manual control from the device)
 - **C64U Password:** Network password for REST `X-Password` header authentication. Leave empty if authentication is disabled
