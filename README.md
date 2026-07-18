@@ -657,16 +657,12 @@ Many programs (especially games) read key state directly from **CIA1**. Since th
 | ESC         | RUN/STOP             |
 | ESC + SHIFT | Reset                |
 | ESC + TAB   | Reboot               |
-
-On many keyboards, the **META** key corresponds to the **Windows key**.
-
-Unlike the table above, the following are plugin-level hotkeys rather than C64 keystrokes, and work regardless of the current Keymap or Joystick Emulation state:
-
-| Key | Action                                            |
-| --- | ------------------------------------------------- |
 | F9  | Toggle the device's on-screen configuration menu   |
 | F10 | Toggle Joystick Emulation on/off                   |
 | F11 | Toggle the Joystick Emulation port (1 ↔ 2)         |
+
+
+On many keyboards, the **META** key corresponds to the **Windows key**.
 
 ---
 
