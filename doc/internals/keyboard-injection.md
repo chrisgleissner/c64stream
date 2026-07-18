@@ -45,9 +45,12 @@ auto-repeat key-downs for an already-held key are ignored, and focus loss releas
 
 Shifted chords and multi-byte text are **not** holdable and stay `tap` (a single queued byte can't
 cleanly hold `left_shift`+key), so typing is unchanged. In *positional* keymaps the standalone
-Shift keys are mirrored as held `left_shift`/`right_shift` via a `C64_MACHINE_CMD_KEY` matrix
-command (the two C64 keyboard flippers); *symbolic* keymaps consume Shift for character selection
-and leave it a skipped modifier.
+modifier keys are mirrored as held matrix keys via a `C64_MACHINE_CMD_KEY` matrix command —
+Shift → `left_shift`/`right_shift` (the two C64 keyboard flippers), Ctrl → `ctrl`, and Alt →
+`commodore` (positional keymaps use Alt for the Commodore key). `c64_positional_modifier_input`
+resolves the matrix key from the modifier classification the interact handler already computed.
+*Symbolic* keymaps consume these modifiers for character selection and leave them skipped. Meta is
+not mirrored (it drives the `Ctrl+Meta` charset chord).
 
 On the legacy KERNAL-buffer fallback a key cannot be held: `press`/`tap` write the byte once and
 `release` is dropped (`pending_consumed` still drains the release from the queue). So typing works

@@ -2779,33 +2779,38 @@ static int c64_alloc_held_slot(struct c64_source *context, uint32_t vkey)
     return -1;
 }
 
-// Map a Shift key event to its C64 matrix input for positional "game" keymaps,
-// where Shift is a literal matrix key (left/right-shift flippers). Left and
-// right shift are distinct C64 matrix positions, so pinball games can drive the
-// two flippers independently.
-static const char *c64_shift_flipper_input(uint32_t native_vkey, uint32_t native_scancode)
+// Map a modifier key event to its C64 matrix input for positional ("game")
+// keymaps, where the modifiers are literal C64 matrix keys and are mirrored as
+// held press/release: Shift -> the two keyboard flippers (left/right shift are
+// distinct C64 matrix positions), Ctrl -> the C64 Ctrl key, and Alt -> the
+// Commodore (CBM) key (positional keymaps use Alt for CBM). The caller passes
+// the modifier classification it already computed so the vkey lists are not
+// duplicated; the vkey/scancode only disambiguate left vs right shift.
+// Meta is deliberately not mirrored (it drives the Ctrl+Meta charset chord).
+static const char *c64_positional_modifier_input(bool is_shift, bool is_ctrl, bool is_alt, uint32_t native_vkey,
+                                                 uint32_t native_scancode)
 {
+    if (is_ctrl) {
+        return "ctrl";
+    }
+    if (is_alt) {
+        return "commodore";
+    }
+    if (is_shift) {
 #if defined(__APPLE__)
-    if (native_vkey == 0x38) {
-        return "left_shift"; // kVK_Shift
-    }
-    if (native_vkey == 0x3C) {
-        return "right_shift"; // kVK_RightShift
-    }
-    return NULL;
+        return native_vkey == 0x3C ? "right_shift" : "left_shift"; // kVK_RightShift
 #else
-    if (native_vkey == 0xFFE1) {
-        return "left_shift"; // XK_Shift_L
-    }
-    if (native_vkey == 0xFFE2) {
-        return "right_shift"; // XK_Shift_R
-    }
-    if (native_vkey == 0x10) {
-        // Windows VK_SHIFT is generic; the scancode disambiguates (0x36 = right).
-        return native_scancode == 0x36 ? "right_shift" : "left_shift";
+        if (native_vkey == 0xFFE2) {
+            return "right_shift"; // XK_Shift_R
+        }
+        if (native_vkey == 0x10) {
+            // Windows VK_SHIFT is generic; the scancode disambiguates (0x36 = right).
+            return native_scancode == 0x36 ? "right_shift" : "left_shift";
+        }
+        return "left_shift";
+#endif
     }
     return NULL;
-#endif
 }
 
 // Release every held keyboard/joystick input and clear the tracker. Used on
@@ -2934,20 +2939,22 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
     }
 
     if (is_modifier_key) {
-        // Positional ("game") keymaps treat Shift as a literal C64 matrix key,
-        // so a standalone Shift is mirrored as a held left/right-shift flipper
-        // (pinball). Symbolic keymaps consume Shift to select characters, so it
-        // stays a skipped modifier there and typing is unaffected.
-        if (is_shift_key && context->keyboard_capture_active && context->keyboard &&
-            c64_keymap_is_positional(context->keymap)) {
-            const char *shift_input = c64_shift_flipper_input(event->native_vkey, event->native_scancode);
-            if (shift_input) {
+        // Positional ("game") keymaps treat the modifiers as literal C64 matrix
+        // keys, so a standalone Shift / Ctrl / Commodore(Alt) is mirrored as a
+        // held press/release: the two Shift keys drive the keyboard flippers
+        // (pinball), and games that read Ctrl or the Commodore key see them held.
+        // Symbolic keymaps consume these modifiers to select characters, so they
+        // stay skipped there and typing is unaffected.
+        if (context->keyboard_capture_active && context->keyboard && c64_keymap_is_positional(context->keymap)) {
+            const char *mod_input = c64_positional_modifier_input(is_shift_key, is_ctrl_key, is_alt_key,
+                                                                  event->native_vkey, event->native_scancode);
+            if (mod_input) {
                 const int slot = c64_find_held_slot(context, event->native_vkey);
                 const bool held = slot >= 0;
                 // Dedupe: press only on the first key-down, release only if held.
                 if ((!key_up && !held) || (key_up && held)) {
                     c64_machine_command_t cmd = {.type = C64_MACHINE_CMD_KEY, .key_press = !key_up};
-                    snprintf(cmd.key_input, sizeof(cmd.key_input), "%s", shift_input);
+                    snprintf(cmd.key_input, sizeof(cmd.key_input), "%s", mod_input);
                     c64_keyboard_queue_machine_command(context->keyboard, &cmd);
                     if (key_up) {
                         context->held_keys[slot].active = false;
