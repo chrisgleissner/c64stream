@@ -73,6 +73,7 @@ static bool test_selection_apply_policy(void)
     CHECK(c64_device_scan_should_apply_selection("device-a", "device-a", true, ""));
     CHECK(!c64_device_scan_should_apply_selection("device-a", "device-a", false, ""));
     CHECK(!c64_device_scan_should_apply_selection("device-a", "device-b", false, "device-c"));
+    CHECK(c64_device_scan_should_apply_selection("my-device", "my-device", false, "other-device"));
     return true;
 }
 

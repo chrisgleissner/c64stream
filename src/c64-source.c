@@ -1820,9 +1820,7 @@ void c64_update(void *data, obs_data_t *settings)
     context->control_port = new_control_port;
     c64_set_expected_peer_ip(context, context->ip_address);
     const char *peer_host = obs_data_get_string(settings, "c64_device_peer_host");
-    if (peer_host && peer_host[0]) {
-        c64_set_expected_peer_alias(context, peer_host);
-    }
+    c64_set_expected_peer_alias(context, peer_host);
     pthread_mutex_unlock(&context->config_mutex);
 
     const bool password_changed = strcmp(old_password, new_password ? new_password : "") != 0;

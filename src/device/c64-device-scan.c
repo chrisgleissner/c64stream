@@ -561,6 +561,10 @@ static void apply_scan_results(scan_job_t *job, char *auto_select_device_id, siz
             }
         }
         if (!superseded) {
+            if (selected_device_confirmed && job->selected_device_id[0] &&
+                !strcmp(job->selected_device_id, job->results[i].device.id)) {
+                *selected_device_confirmed = true;
+            }
             c64_device_t device = job->results[i].device;
             for (size_t j = 0; j < job->result_count; j++) {
                 if (j != i && !strcmp(job->results[j].device.id, device.id) &&
@@ -572,10 +576,6 @@ static void apply_scan_results(scan_job_t *job, char *auto_select_device_id, siz
             if (c64_device_registry_upsert(&device)) {
                 applied_count++;
                 snprintf(sole_device_id, sizeof(sole_device_id), "%s", job->results[i].device.id);
-                if (selected_device_confirmed && job->selected_device_id[0] &&
-                    !strcmp(job->selected_device_id, job->results[i].device.id)) {
-                    *selected_device_confirmed = true;
-                }
             }
         }
     }
