@@ -2817,6 +2817,9 @@ static int c64_alloc_held_slot(struct c64_source *context, uint32_t vkey)
 static const char *c64_positional_modifier_input(bool is_shift, bool is_ctrl, bool is_alt, uint32_t native_vkey,
                                                  uint32_t native_scancode)
 {
+#if defined(__APPLE__)
+    UNUSED_PARAMETER(native_scancode);
+#endif
     if (is_ctrl) {
         return "ctrl";
     }
