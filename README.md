@@ -290,9 +290,6 @@ See the [OBS Plugins Guide](https://obsproject.com/kb/plugins-guide).
 
 ### Configure C64 Stream Effects Filter (OPTIONAL)
 
-> [!NOTE]
-> **New in version 1.1:** Please share feedback or open an issue if you notice anything that could be improved.
-
 By default, **C64 Stream effects are applied internally by the C64 Stream input source** when streaming directly from a C64 Ultimate or Ultimate 64. In this common setup, **no additional filter is required**.
 
 However, the same visual effects engine can also be applied to *any* OBS source using the **C64 Stream Effects** filter. This is useful if:
@@ -596,9 +593,6 @@ Exported configurations are saved to the [settings directory](#file-system-struc
 
 ### Remote Control
 
-> [!NOTE]
-> **New in version 1.1:** Please share feedback or open an issue if you notice anything that could be improved.
-
 Control your Ultimate 64 remotely from within OBS Studio, enabling keyboard input capture and automated content playback.
 
 ![C64 Stream Remote Control](https://raw.githubusercontent.com/chrisgleissner/c64stream/main/docs/images/properties-remote-control.png "C64 Stream Remote Control")
@@ -677,9 +671,6 @@ Unlike the table above, the following are plugin-level hotkeys rather than C64 k
 ---
 
 ### C64Script Automation
-
-> [!NOTE]
-> **New in version 1.1:** Please share feedback or open an issue if you notice anything that could be improved.
 
 Automate your C64 stream with C64Script - a modernized BASIC-like language designed specifically for stream control.
 
