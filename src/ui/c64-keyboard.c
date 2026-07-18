@@ -1276,17 +1276,17 @@ static bool petscii_to_matrix(uint8_t value, const char **key, bool *shift)
         *shift = false;
         return true; // @ (dedicated)
     case 0x5B:
-        *key = "plus";
+        *key = "colon";
         *shift = true;
-        return true; // [ is Shift++
+        return true; // [ is Shift+: (colon key's shifted legend)
     case 0x5C:
         *key = "pound";
         *shift = false;
         return true; // £ (dedicated pound)
     case 0x5D:
-        *key = "minus";
+        *key = "semicolon";
         *shift = true;
-        return true; // ] is Shift+-
+        return true; // ] is Shift+; (semicolon key's shifted legend)
     case 0x5E:
         *key = "arrow_up";
         *shift = false;

@@ -414,8 +414,8 @@ int main(void)
         const char *inputs;
     } matrix_keys[] = {{'+', "\"inputs\":[\"plus\"]"},
                        {'=', "\"inputs\":[\"equals\"]"},
-                       {'[', "\"inputs\":[\"left_shift\",\"plus\"]"},
-                       {']', "\"inputs\":[\"left_shift\",\"minus\"]"},
+                       {'[', "\"inputs\":[\"left_shift\",\"colon\"]"},
+                       {']', "\"inputs\":[\"left_shift\",\"semicolon\"]"},
                        {'^', "\"inputs\":[\"arrow_up\"]"},
                        {'_', "\"inputs\":[\"arrow_left\"]"}};
     for (size_t i = 0; i < sizeof(matrix_keys) / sizeof(matrix_keys[0]); i++) {

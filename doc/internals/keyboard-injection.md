@@ -24,8 +24,9 @@ mode queues a byte, it goes through the same translation before becoming a REST 
   `$C1`..`$DA` maps to Shift+`a`..`z`. This preserves host-key capitalization while allowing
   C64Script `TYPE "hello"` to use REST input.
 - Digits and punctuation map to their physical C64 matrix keys. For example, `'!'` maps to
-  Shift+`"1"`, `'+'` maps to `"plus"`, `'['` maps to Shift+`"plus"`, and `'^'` / `'_'`
-  map to the dedicated `"arrow_up"` / `"arrow_left"` keys.
+  Shift+`"1"`, `'+'` maps to `"plus"`, `'['` maps to Shift+`"colon"` (the `:` key's shifted
+  legend on the C64), `']'` maps to Shift+`"semicolon"`, and `'^'` / `'_'` map to the
+  dedicated `"arrow_up"` / `"arrow_left"` keys.
 - A shifted character becomes a single hardware chord in the request body:
   `{"kind":"keyboard","inputs":["left_shift","<key>"],"transition":"tap"}`.
 
