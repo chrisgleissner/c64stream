@@ -67,6 +67,15 @@ static bool test_prefix_clamp_and_own_address(void)
     return true;
 }
 
+static bool test_selection_apply_policy(void)
+{
+    CHECK(c64_device_scan_should_apply_selection("", "", false, "device-a"));
+    CHECK(c64_device_scan_should_apply_selection("device-a", "device-a", true, ""));
+    CHECK(!c64_device_scan_should_apply_selection("device-a", "device-a", false, ""));
+    CHECK(!c64_device_scan_should_apply_selection("device-a", "device-b", false, "device-c"));
+    return true;
+}
+
 // Pins apply_scan_results()'s host_index "first wins" rule: when a single
 // unique_id is discovered at two addresses (e.g. Ethernet + Wi-Fi on a
 // multi-homed unit), the lower host_index wins so a saved device keeps the
@@ -87,6 +96,7 @@ static bool test_apply_scan_results_supersession(void)
     const c64_device_t *winner = c64_device_registry_get("dup-device");
     CHECK(winner != NULL);
     CHECK(strcmp(winner->host, "192.168.1.10") == 0);
+    CHECK(strcmp(winner->peer_host, "192.168.1.50") == 0);
     CHECK(c64_device_registry_count() == 1);
     c64_device_registry_delete("dup-device");
 
@@ -123,7 +133,7 @@ int main(void)
         return 1;
     }
     if (!test_product_matching() || !test_error_envelope() || !test_prefix_clamp_and_own_address() ||
-        !test_apply_scan_results_supersession()) {
+        !test_selection_apply_policy() || !test_apply_scan_results_supersession()) {
         return 1;
     }
     puts("c64 device scan tests passed");

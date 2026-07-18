@@ -58,6 +58,7 @@ static void c64_schedule_retry(struct c64_source *context, const char *reason);
 static void c64_refresh_resolved_ip(struct c64_source *context);
 static void c64_refresh_obs_ip(struct c64_source *context);
 static void c64_set_expected_peer_ip(struct c64_source *context, const char *ip_string);
+static void c64_set_expected_peer_alias(struct c64_source *context, const char *ip_string);
 static void c64_stop_streaming_to(struct c64_source *context, const char *host, uint32_t control_port);
 static void c64_complete_pending_device_transition(struct c64_source *context);
 static void *c64_stop_streaming_thread(void *data);
@@ -944,6 +945,8 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     // Initialize ip_address to the user-provided hostname; it will be resolved in the background.
     strncpy(context->ip_address, hostname, sizeof(context->ip_address) - 1);
     context->ip_address[sizeof(context->ip_address) - 1] = '\0';
+    c64_set_expected_peer_ip(context, context->ip_address);
+    c64_set_expected_peer_alias(context, obs_data_get_string(settings, "c64_device_peer_host"));
 
     context->auto_detect_ip = obs_data_get_bool(settings, "auto_detect_ip");
     const bool has_saved_video_port = obs_data_has_user_value(settings, "video_port");
@@ -1816,6 +1819,10 @@ void c64_update(void *data, obs_data_t *settings)
     context->audio_port = new_audio_port;
     context->control_port = new_control_port;
     c64_set_expected_peer_ip(context, context->ip_address);
+    const char *peer_host = obs_data_get_string(settings, "c64_device_peer_host");
+    if (peer_host && peer_host[0]) {
+        c64_set_expected_peer_alias(context, peer_host);
+    }
     pthread_mutex_unlock(&context->config_mutex);
 
     const bool password_changed = strcmp(old_password, new_password ? new_password : "") != 0;
@@ -1950,13 +1957,33 @@ static void c64_set_expected_peer_ip(struct c64_source *context, const char *ip_
 
     struct in_addr addr;
     if (inet_pton(AF_INET, ip_string, &addr) == 1) {
+        const bool changed = !context->expected_peer_ip_set || context->expected_peer_ip != addr.s_addr;
         context->expected_peer_ip = addr.s_addr;
         context->expected_peer_ip_set = true;
+        if (changed) {
+            context->expected_peer_alt_ip_set = false;
+        }
         C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Expected peer IP set to %s", ip_string);
     } else {
         context->expected_peer_ip_set = false;
+        context->expected_peer_alt_ip_set = false;
         C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Expected peer IP cleared (non-IPv4 input): %s", ip_string);
     }
+}
+
+static void c64_set_expected_peer_alias(struct c64_source *context, const char *ip_string)
+{
+    struct in_addr addr;
+    if (!context) {
+        return;
+    }
+    if (!ip_string || inet_pton(AF_INET, ip_string, &addr) != 1 ||
+        (context->expected_peer_ip_set && context->expected_peer_ip == addr.s_addr)) {
+        context->expected_peer_alt_ip_set = false;
+        return;
+    }
+    context->expected_peer_alt_ip = addr.s_addr;
+    context->expected_peer_alt_ip_set = true;
 }
 
 bool c64_start_streaming(struct c64_source *context)

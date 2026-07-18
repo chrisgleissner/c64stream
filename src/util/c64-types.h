@@ -103,9 +103,11 @@ struct c64_source {
     // the fields are word-sized, and the ip is published before the flag, so a
     // reader racing a switch either fails open or drops a few packets from the
     // device it is about to stop anyway.
-    volatile bool expected_peer_ip_set; // Whether expected_peer_ip contains a valid IPv4 address
-    volatile uint32_t expected_peer_ip; // Expected peer IPv4 address in network byte order (AF_INET)
-    bool initial_ip_detected;           // Flag to track if initial IP detection was done
+    volatile bool expected_peer_ip_set;     // Whether expected_peer_ip contains a valid IPv4 address
+    volatile uint32_t expected_peer_ip;     // Expected peer IPv4 address in network byte order (AF_INET)
+    volatile bool expected_peer_alt_ip_set; // Verified alternate interface of the selected physical device
+    volatile uint32_t expected_peer_alt_ip; // Alternate peer IPv4 address in network byte order (AF_INET)
+    bool initial_ip_detected;               // Flag to track if initial IP detection was done
     uint32_t video_port;
     uint32_t audio_port;
     uint32_t control_port;

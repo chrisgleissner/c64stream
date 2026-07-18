@@ -15,6 +15,10 @@ typedef struct c64_device {
     char id[C64_DEVICE_ID_MAX];
     char name[C64_DEVICE_NAME_MAX];
     char host[C64_DEVICE_HOST_MAX];
+    // A verified second address of the same physical unit. Some C64 Ultimate
+    // firmware versions accept control on one interface but source UDP from
+    // another.
+    char peer_host[C64_DEVICE_HOST_MAX];
     char dns_server_ip[C64_DEVICE_HOST_MAX];
     uint32_t video_port;
     uint32_t audio_port;

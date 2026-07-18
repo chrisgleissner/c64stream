@@ -1,5 +1,6 @@
 #include "c64-device-scan.h"
 #include "c64-device.h"
+#include "c64-logging.h"
 #include "c64-network.h"
 #include "c64-types.h"
 
@@ -70,12 +71,23 @@ typedef struct {
     // happens to finish last.
     scan_result_t results[C64_SCAN_MAX_RESULTS];
     size_t result_count;
+    // Snapshot of the source selection at scan start. The registry may update
+    // a selected device's address without changing its ID, so completion needs
+    // to know whether that selection was actually confirmed this pass.
+    char selected_device_id[C64_DEVICE_ID_MAX];
 } scan_job_t;
 
 // Outlives scan_job_t (freed before the UI-thread completion task runs).
 typedef struct {
     obs_source_t *source;
     struct c64_source *context;
+    // The only confirmed device from this scan, if there was exactly one.
+    // A UI scan may activate it when the source has no deliberate selection.
+    char auto_select_device_id[C64_DEVICE_ID_MAX];
+    // Do not apply a finished scan to a device the user selected while that
+    // scan was running.
+    char selected_device_id[C64_DEVICE_ID_MAX];
+    bool selected_device_confirmed;
 } scan_completion_t;
 
 static void scan_add_host(scan_job_t *job, const char *host)
@@ -253,6 +265,13 @@ bool c64_device_scan_is_ultimate_error(const char *body)
 bool c64_device_scan_response_is_candidate(long status, const char *body)
 {
     return status == 401 || (status == 403 && c64_device_scan_is_ultimate_error(body));
+}
+
+bool c64_device_scan_should_apply_selection(const char *selection_at_start, const char *selection_now,
+                                            bool selected_device_confirmed, const char *sole_discovered_device_id)
+{
+    return selection_at_start && selection_now && !strcmp(selection_at_start, selection_now) &&
+           (selected_device_confirmed || (sole_discovered_device_id && sole_discovered_device_id[0]));
 }
 
 size_t c64_device_scan_enumerate_subnet(uint32_t address, uint8_t prefix, uint32_t *out, size_t out_count)
@@ -472,6 +491,38 @@ static void scan_complete_on_ui(void *opaque)
     if (completion->context) {
         completion->context->device_discovery_in_progress = false;
     }
+
+    /* Discovery used to stop after adding an entry to the dropdown. A new
+     * source still had its migrated `c64u` placeholder selected, however, so
+     * the retry worker kept trying that hostname instead of the C64U it had
+     * just proved reachable. Activate an unambiguous result when the selected
+     * device did not answer this scan. A selected device that did answer keeps
+     * its selection even when other devices are found. */
+    if (completion->context) {
+        obs_data_t *settings = obs_source_get_settings(completion->source);
+        if (settings) {
+            const char *selected = obs_data_get_string(settings, "c64_device");
+            if (c64_device_scan_should_apply_selection(completion->selected_device_id, selected,
+                                                       completion->selected_device_confirmed,
+                                                       completion->auto_select_device_id)) {
+                if (!completion->selected_device_confirmed) {
+                    C64_LOG_INFO("DEVICE: replacing unconfirmed device '%s' with discovered device '%s'", selected,
+                                 completion->auto_select_device_id);
+                    obs_data_set_string(settings, "c64_device", completion->auto_select_device_id);
+                } else {
+                    /* A DHCP/interface change preserves the physical device's
+                     * unique ID. Reapply its freshly scanned profile even
+                     * though the ID did not change, otherwise c64_update
+                     * leaves c64_host pointed at the old address forever. */
+                    C64_LOG_INFO("DEVICE: refreshing confirmed device '%s' from discovery", selected);
+                }
+
+                c64_device_registry_apply_selected(settings);
+                obs_source_update(completion->source, settings);
+            }
+            obs_data_release(settings);
+        }
+    }
     obs_source_update_properties(completion->source);
     obs_source_release(completion->source);
     free(completion);
@@ -495,8 +546,11 @@ static void scan_complete_on_ui(void *opaque)
 //   - A device that genuinely moved is still picked up: its old address no
 //     longer answers (even retried), so it produces no result, and the new
 //     address is the only -- hence first -- candidate for that id.
-static void apply_scan_results(scan_job_t *job)
+static void apply_scan_results(scan_job_t *job, char *auto_select_device_id, size_t auto_select_device_id_size,
+                               bool *selected_device_confirmed)
 {
+    size_t applied_count = 0;
+    char sole_device_id[C64_DEVICE_ID_MAX] = {0};
     for (size_t i = 0; i < job->result_count; i++) {
         bool superseded = false;
         for (size_t j = 0; j < job->result_count; j++) {
@@ -507,8 +561,26 @@ static void apply_scan_results(scan_job_t *job)
             }
         }
         if (!superseded) {
-            c64_device_registry_upsert(&job->results[i].device);
+            c64_device_t device = job->results[i].device;
+            for (size_t j = 0; j < job->result_count; j++) {
+                if (j != i && !strcmp(job->results[j].device.id, device.id) &&
+                    strcmp(job->results[j].device.host, device.host) != 0) {
+                    snprintf(device.peer_host, sizeof(device.peer_host), "%s", job->results[j].device.host);
+                    break;
+                }
+            }
+            if (c64_device_registry_upsert(&device)) {
+                applied_count++;
+                snprintf(sole_device_id, sizeof(sole_device_id), "%s", job->results[i].device.id);
+                if (selected_device_confirmed && job->selected_device_id[0] &&
+                    !strcmp(job->selected_device_id, job->results[i].device.id)) {
+                    *selected_device_confirmed = true;
+                }
+            }
         }
+    }
+    if (auto_select_device_id && auto_select_device_id_size && applied_count == 1) {
+        snprintf(auto_select_device_id, auto_select_device_id_size, "%s", sole_device_id);
     }
 }
 
@@ -523,7 +595,7 @@ void c64_device_scan_apply_results_for_test(const c64_device_t *devices, const s
         job.results[i].host_index = host_indices[i];
         job.result_count++;
     }
-    apply_scan_results(&job);
+    apply_scan_results(&job, NULL, 0, NULL);
 }
 
 // Runs the worker pool over the host range [job->next, job->phase_end).
@@ -556,12 +628,18 @@ static void *scan_main(void *opaque)
     job->next = job->known_count;
     job->phase_end = job->count;
     scan_run_phase(job);
-    apply_scan_results(job);
+    char auto_select_device_id[C64_DEVICE_ID_MAX] = {0};
+    bool selected_device_confirmed = false;
+    apply_scan_results(job, auto_select_device_id, sizeof(auto_select_device_id), &selected_device_confirmed);
     pthread_mutex_destroy(&job->mutex);
     scan_completion_t *completion = job->source ? malloc(sizeof(*completion)) : NULL;
     if (completion) {
         completion->source = job->source;
         completion->context = job->context;
+        snprintf(completion->auto_select_device_id, sizeof(completion->auto_select_device_id), "%s",
+                 auto_select_device_id);
+        snprintf(completion->selected_device_id, sizeof(completion->selected_device_id), "%s", job->selected_device_id);
+        completion->selected_device_confirmed = selected_device_confirmed;
         obs_queue_task(OBS_TASK_UI, scan_complete_on_ui, completion, false);
     } else {
         // No UI completion will run (no source ref, or the allocation failed).
@@ -599,6 +677,8 @@ static scan_job_t *build_scan_job(struct c64_source *context, uint16_t port)
     if (source) {
         obs_data_t *settings = obs_source_get_settings(source);
         if (settings) {
+            snprintf(job->selected_device_id, sizeof(job->selected_device_id), "%s",
+                     obs_data_get_string(settings, "c64_device"));
             scan_add_host(job, obs_data_get_string(settings, "c64_host"));
             obs_data_release(settings);
         }
