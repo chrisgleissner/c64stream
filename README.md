@@ -114,7 +114,7 @@ The following sections will walk you through the entire setup. It should not tak
 
 ### 1. Configure the C64U
 
-First let's ensure the C64U is assigned an IP address:
+First, connect the C64U to the same local network as the computer running OBS and make sure it has an IP address:
 
 1. Turn off your C64U.
 2. Connect an Ethernet cable to the back of your C64U and the other side to your router.
@@ -122,12 +122,12 @@ First let's ensure the C64U is assigned an IP address:
 4. Enter its menu by holding the **Commodore** (C=) key whilst pressing **RESTORE**.
 5. Press **F1** to enter the configuration section.
 6. Use the cursor keys to navigate to **WIRED NETWORK SETUP** and press **RETURN**.
-7. Take a note of the address shown to the right of **Active IP address**. It should be something like **192.168.x.y**. This is the IP address you'll want to configure in the C64 Stream plugin later on.
+7. Confirm that an address appears to the right of **Active IP address** (for example, **192.168.x.y**). With C64 Stream 1.2.0 or later, device discovery normally finds this address automatically. Keep a note of it as the manual-configuration fallback.
 
 Now let's activate the network services that C64 Stream requires so it can connect to your C64U:
 
 1. Press the **Arrow Left** key on the top left of your keyboard.
-2. Use to cursor keys to navigate to **NETWORK SERVICES & TIMEZONE** and press **RETURN**.
+2. Use the cursor keys to navigate to **NETWORK SERVICES & TIMEZONE** and press **RETURN**.
 3. Set both **Ultimate DMA Service** and **Web Remote Control Service** to **Enabled**. The first setting is needed for audio/video streaming, the latter for remote control, e.g. keyboard control or remote playback of programs/songs. You should see something like this once done: ![C64U Config Network Services](./docs/images/c64u-config-network-services.png)
 4. Press the **Arrow Left** key until a confirmation appears that says **Save changes to Flash? Yes No**. Select **Yes** and press **RETURN**.
 
@@ -274,7 +274,7 @@ See the [OBS Plugins Guide](https://obsproject.com/kb/plugins-guide).
 
 **Getting Your C64 on Stream:**
 
-1. **Add Source:** In OBS, click the "+" icon in the Sources tab. A window of all sources appears. Select "C64 Source":
+1. **Add Source:** In OBS, click the "+" icon in the Sources tab. A window of all sources appears. Select "C64 Stream":
 
   ![Select Plugin](https://raw.githubusercontent.com/chrisgleissner/c64stream/main/docs/images/select-plugin.png "Select C64 Stream Plugin")
 
@@ -286,7 +286,9 @@ See the [OBS Plugins Guide](https://obsproject.com/kb/plugins-guide).
 
   ![C64 Stream Configuration](https://raw.githubusercontent.com/chrisgleissner/c64stream/main/docs/images/properties.png "C64 Stream Configuration")
 
-3. **Configure hostnames / IPs:** Set the hostname or IP address of your C64 Ultimate and click "OK".
+3. **Find your device (C64 Stream 1.2.0+):** In the Network section, click **Find Devices**, above the **Device** drop-down. Wait for the scan to finish, then choose your C64 Ultimate or Ultimate 64 from the list if it is not selected automatically. Click **OK** to start streaming.
+
+4. **Manual fallback (all versions):** If you use a version before 1.2.0, or **Find Devices** does not list your device, enter the C64U's IP address from step 1 in **C64U Host**, then click **OK**. Automatic discovery requires the device and OBS computer to be reachable on the local network; firewall rules, network isolation, or multiple network adapters can prevent a device from being found. Manual configuration remains supported in these cases.
 
 🎉 **DONE!** Enjoy streaming from your C64 Ultimate.
 
@@ -340,11 +342,11 @@ The filter is included automatically with the plugin package.
 
 Instead of typing a host/IP every time, the plugin keeps a small **device registry** of devices you've saved or discovered, shown as a single dropdown:
 
-- **Device:** Choose a previously saved or discovered device. Selecting an entry immediately fills in its Host, DNS Server IP, and Password below (no need to reopen the dialog).
+- **Device:** Choose a previously saved or discovered device. Selecting an entry immediately fills in **C64U Host**, **DNS Server IP**, and **C64U Password** below (no need to reopen the dialog).
 - **Device Name:** Friendly name shown in the Device list. Edit this and click **Save Device** to rename the selected device.
-- **Save Device:** Saves the current Host/DNS/Password as the selected device, or creates a new device if none is selected yet.
+- **Save Device:** Saves the current **C64U Host**, **DNS Server IP**, and **C64U Password** as the selected device, or creates a new device if none is selected yet.
 - **Delete Device:** Removes the selected device from the list (does not affect the physical device).
-- **Find Devices:** Scans the local network for devices (see [Device Discovery Flow](#device-discovery-flow) below). The button label switches to **Finding Devices…** while a scan is running.
+- **Find Devices (C64 Stream 1.2.0+):** Above the **Device** drop-down, scans the local network for devices (see [Device Discovery Flow](#device-discovery-flow) below). The button label switches to **Finding Devices...** while a scan is running. If it cannot find a device, enter its IP address manually in **C64U Host** instead.
 
 Each entry shows the device's IP in parentheses, e.g. `u64 (192.168.1.13)`; devices that require a password are additionally marked, e.g. `c64u (192.168.1.167, Password)`. A device that answers on more than one interface (e.g. Ethernet and Wi-Fi) collapses to a single entry — the interfaces share the device's `unique_id` — and stays on whichever address it was first discovered at rather than flipping between them on later scans.
 
@@ -356,19 +358,19 @@ Clicking **Find Devices** runs the following, entirely in a background thread so
 2. **Probe `/v1/info`:** each candidate is queried over REST; devices that require a password are recognized from the 401/403 response and listed as password-protected without needing credentials.
 3. **Filter by product:** only streaming-capable hardware is kept — the **Ultimate 64** family and **C64 Ultimate**. Ultimate II/II+/II+L units (disk/cartridge-only, no video/audio streaming) are rejected, and any such device previously saved by mistake is removed from the registry.
 4. **Confirm the control channel:** each remaining candidate must also accept a connection on its control port (64), the channel stream start/stop rides. An address that answers `/v1/info` but not the control port cannot actually drive a stream, so it is not offered. A saved device is probed before the subnet sweep and retried, so a slower interface is not dropped for a momentary timeout.
-5. **Update the registry:** confirmed devices are saved (one entry per physical device — see above) and immediately appear in the **Device** dropdown. A device already on file keeps its address unless that address has genuinely stopped responding, in which case it relocates to a working one.
+5. **Update the registry:** confirmed devices are saved (one entry per physical device — see above) and immediately appear in the **Device** dropdown. If exactly one device is found and the source has no selected device (or still has its untouched `c64u` default), it is selected automatically and streaming is scheduled. A selected device whose address changed is refreshed automatically; if the selected device failed the scan and exactly one other device was confirmed, that reachable device replaces it. Enter the password first when the entry is marked as password-protected. A deliberate, reachable device choice is never replaced; if several devices are found, choose one from the list. A device already on file keeps its address unless that address has genuinely stopped responding, in which case it relocates to a working one.
 
-- **C64 Ultimate Host:** Hostname or IP address of the currently selected device (default: `c64u`), or set to `0.0.0.0` to accept streams from any C64 Ultimate on your network (requires manual control from the device)
-- **C64 Ultimate Password:** C64 Ultimate network password for REST `X-Password` header authentication. Leave empty if authentication is disabled
+- **C64U Host:** Hostname or IP address of the currently selected device (default: `c64u`), or set to `0.0.0.0` to accept streams from any C64 Ultimate on your network (requires manual control from the device)
+- **C64U Password:** Network password for REST `X-Password` header authentication. Leave empty if authentication is disabled
 - **Stream Control Transport:** How start/stop streaming commands are sent to the device. **Auto** (default) prefers REST and falls back to the legacy protocol if REST is unavailable; **Force REST** and **Force Legacy** pin one transport for troubleshooting.
 - **DNS resolution details:**
   - **Default:** `192.168.1.1` (most common home router DNS server)
   - **Fallback:** If router DNS fails, the plugin tries standard DNS servers
   - **Enhanced resolution:** The plugin uses multiple resolution strategies for maximum compatibility
-- **OBS Server IP:** IP address where C64 Ultimate sends streams (auto-detected by default)
+- **OBS IP:** IP address where C64 Ultimate sends streams (auto-detected by default)
 - **Auto-detect OBS IP:** Automatically detect and use OBS server IP in streaming commands (recommended)
-- **Configure Ports:** Use the default ports (video: 11000, audio: 11001) unless network conflicts require different values
-- **Buffer Delay:** Sets the network buffer for incoming UDP packets arriving from the C64 Ultimate (0–500 ms, default 10 ms). The buffer size is expressed in milliseconds to represent the time-based delay it introduces, compensating for packet loss, reordering, and variable network latency. Larger buffers improve stability under high-latency or congested conditions but increase end-to-end delay.
+- **Video Port** / **Audio Port:** Use the default ports (11000 / 11001) unless network conflicts require different values
+- **Buffer Delay (millis):** Sets the network buffer for incoming UDP packets arriving from the C64 Ultimate (0–500 ms, default 10 ms). The buffer size is expressed in milliseconds to represent the time-based delay it introduces, compensating for packet loss, reordering, and variable network latency. Larger buffers improve stability under high-latency or congested conditions but increase end-to-end delay.
 
 ---
 
@@ -376,13 +378,13 @@ Clicking **Find Devices** runs the following, entirely in a background thread so
 
 The plugin includes built-in recording capabilities that work independently of OBS Studio's recording system, letting you save raw C64 Ultimate data streams directly to disk.
 
-**Debug Logging:** The **Debug Logging** option lives in this section of the source properties. Enable it when troubleshooting, then check the OBS log via **Help → Log Files → Show Current Log**.
+**Debug logging:** The **Show Debug Messages in OBS Logs** option lives in this section of the source properties. Enable it when troubleshooting, then check the OBS log via **Help → Log Files → Show Current Log**.
 
 ### Recording Options
 
 The plugin offers three independent recording options that can be enabled separately or together:
 
-**📊 Network and Streaming Events (CSV):**
+**📊 Record Network and Streaming Events (CSV):**
 
 - Records detailed timing data for network packets and OBS processing events
 - Creates `obs.csv` (OBS processing timeline) and `network.csv` (UDP packet analysis)
@@ -390,7 +392,7 @@ The plugin offers three independent recording options that can be enabled separa
 - **Use Cases:** Debug performance issues, analyze network jitter, validate frame timing
 - Files: `session_YYYYMMDD_HHMMSS/obs.csv` and `session_YYYYMMDD_HHMMSS/network.csv`
 
-**🖼️ Raw Frames (BMP):**
+**🖼️ Record Raw Frames (BMP):**
 
 - Saves individual video frames as uncompressed BMP files
 - Useful for debugging video issues or creating frame-by-frame analysis
@@ -398,7 +400,7 @@ The plugin offers three independent recording options that can be enabled separa
 - **Note:** CRT effects (scanlines, bloom, afterglow, etc.) are NOT applied to recorded frames. Palette changes ARE applied.
 - Files saved as: `session_YYYYMMDD_HHMMSS/frames/frame_NNNNNN.bmp`
 
-**🎬 Raw Video and Audio (AVI + WAV):**
+**🎬 Record Raw Video (AVI) and Audio (WAV):**
 
 - Records uncompressed AVI video and separate WAV audio files
 - Captures the raw data stream without OBS processing
@@ -437,7 +439,7 @@ recordings/
 
 #### Debug & Analysis CSV Logs
 
-When **"Network and Streaming Events (CSV)"** recording is enabled, the plugin generates detailed CSV logs for debugging OBS performance and analyzing C64 Ultimate network streams. These logs enable bit-accurate recording analysis and precise frame timing measurements.
+When **"Record Network and Streaming Events (CSV)"** is enabled, the plugin generates detailed CSV logs for debugging OBS performance and analyzing C64 Ultimate network streams. These logs enable bit-accurate recording analysis and precise frame timing measurements.
 
 **Generated CSV Files:**
 
@@ -474,7 +476,7 @@ audio,2341,847,0,0,192,125
 
 **Sample Recording:** See [docs/recordings/session_19700101_024625](docs/recordings/session_19700101_024625) for complete examples with all file types.
 
-**Activation:** Enable the **"Network and Streaming Events (CSV)"** checkbox in the Recording properties. CSV files are generated only when this option is explicitly enabled.
+**Activation:** Enable **Record Network and Streaming Events (CSV)** in the Recording properties. CSV files are generated only when this option is explicitly enabled.
 
 ---
 
@@ -496,12 +498,12 @@ Recreate the authentic look and feel of classic CRT monitors and TVs with config
 
 **Customizable Effects:**
 
-- **Scan Lines:** CRT raster line simulation with precise control (see table below). The "Scan Line Strength" slider (0.0–1.0) controls how dark the gaps appear. At 0.0, gaps are invisible; at 1.0, they are completely black.
+- **Scan Line Distance** / **Scan Line Strength:** CRT raster line simulation with precise control (see table below). The **Scan Line Strength** slider (0.0–1.0) controls how dark the gaps appear. At 0.0, gaps are invisible; at 1.0, they are completely black.
 - **Bloom:** Glow effect that makes bright pixels bleed into darker areas
-- **Pixel Geometry:** Independent width/height scaling for authentic pixel aspect ratios
-- **Blur Control:** Fine-tune between crisp pixels and soft scaling
-- **Afterglow**: CRT phosphor persistence effect (0-250ms) with configurable decay curves
-- **Screen Tint:** Amber, green, or monochrome overlays for period-accurate monitor simulation
+- **Pixel Width** / **Pixel Height:** Independent width/height scaling for authentic pixel aspect ratios
+- **Blur:** Fine-tune between crisp pixels and soft scaling
+- **Afterglow Duration (ms):** CRT phosphor persistence effect (0-250 ms) with configurable decay curves
+- **Tint Type:** Amber, green, or monochrome overlays for period-accurate monitor simulation
 - **Preserve preview size:** Keeps the OBS source or filter size stable when scanline and pixel settings change the internal effect size. Enabling may reduce scanline accuracy.
 
 **Reset:** To reset to default values, simply select the "Default" preset. If you have changed individual effects whilst the "Default" preset was active, select any other preset first and then re-select the "Default" preset.
@@ -558,7 +560,7 @@ Customize the VIC-II color palette to match different C64 hardware variants, per
 
 **Palette Controls:**
 
-- **Palette Dropdown:** Select from shipped palettes or any custom palettes you've added
+- **Palette:** Select from shipped palettes or any custom palettes you've added
 - **Import palette:** Imports a `.vpl` file
 - **Export palette:** Exports the currently active palette (with any color adjustments) to a `.vpl` file
 - **Color Editor:** Expand to access 16 color pickers (0-15) for editing individual VIC-II colors. Changes apply immediately to the video output
@@ -629,23 +631,24 @@ Control your Ultimate 64 remotely from within OBS Studio, enabling keyboard inpu
   - **Symbolic keymaps:** Match key labels. For example press the `[` key on a US PC keyboard and see the `[` character on the C64U.
   - **Positional keymaps:** Match physical location of keys. For example press the `[` key on US PC keyboard and see the `@` character on the C64U. This is because the PC `[` key is in the same physical location as the C64 `@` key, to the right of the `P` key.
   - Supports built-in and custom user keymaps (`.c64keymap.ini` format)
+  - **Held keys and games:** On firmware with the `machine:input` API, a key you hold stays pressed on the C64 for as long as you hold it (rather than a brief tap), so action games that read keys directly — e.g. pinball flippers — respond correctly. The two keymap types differ in how held **modifier** keys reach the C64: **positional** treats Shift, Ctrl and the Commodore key (mapped to the PC **Alt** key) as the literal C64 matrix keys and holds them down, so holding Left/Right Shift drives the two keyboard "flippers" that many games (e.g. *David's Midnight Magic*) use, and games that read Ctrl or the Commodore key see them held. **Symbolic** instead consumes these modifiers to pick characters for typing, so they do not act as held game keys there. Choose **positional** for such games. Ordinary keys (letters, digits, cursor keys, Space) hold identically in both modes. On older firmware without `machine:input`, keys always fall back to a single tap and cannot be held.
 - **Joystick Emulation:** When enabled, arrow keys and Space move/fire a virtual joystick instead of sending C64 keystrokes. Toggle live anytime with **F10** — an open Properties dialog updates to match.
 - **Joystick Port:** Which C64 joystick port (1 or 2, default 2) receives emulated input. Toggle live anytime with **F11**.
-- **File System:** Choose between local files or C64 Ultimate storage
-- **Playback Source:** Pick **Single File** or **Folder**
-- **Local/C64U Path:** File or folder path, shown based on file system + playback source
-- **Include Subfolders:** Include subfolders when enumerating folder playback (Folder only)
-- **Shuffle Playback:** Randomize folder playback order (Folder only)
-- **Duration per Item:** Playback duration in seconds before advancing (1-3600s, default 120s)
-- **Use Songlengths:** When enabled for local SID playback, uses a Songlengths.md5 file to set per-song durations
-- **Songlengths Path:** Optional path to a Songlengths.md5 file (local + songlengths enabled only)
+- **File system:** Choose between local files or C64 Ultimate storage
+- **Playback source:** Pick **Single file** or **Folder**
+- **File** / **Folder:** The path field shown depends on the selected file system and playback source
+- **Include subfolders:** Include subfolders when enumerating folder playback (Folder only)
+- **Shuffle playback:** Randomize folder playback order (Folder only)
+- **Duration per Item (seconds):** Playback duration before advancing (1-3600s, default 120s)
+- **Use song lengths:** When enabled for local SID playback, uses a Songlengths.md5 file to set per-song durations
+- **Songlengths file:** Optional path to a Songlengths.md5 file (local + songlengths enabled only)
 - **Reset Between Items:** Perform soft reset between items
 - **Playing:** Shows the current queue; selecting an entry jumps to that item (switches immediately while playing)
 - **Refresh Playlist:** Rebuilds the playlist based on current settings (disabled while playing)
-- **Play/Stop Content:** Starts or stops automated playback
+- **Play content** / **Stop content:** Starts or stops automated playback
 - **Next:** Skips to the next item while playing
-- **Reset Plugin:** Restarts the plugin state (no OBS restart needed)
-- **Reset C64U:** Sends a C64 Ultimate reset
+- **Reset C64 Stream:** Restarts the plugin state (no OBS restart needed)
+- **Reset C64 Ultimate:** Sends a C64 Ultimate reset
 
 ### Keyboard Capture
 
@@ -714,14 +717,14 @@ C64Script is like a simplified, modernized version of Commodore BASIC. If you've
 > [!NOTE]
 > C64Script never runs automatically without your consent.
 > Scripts execute only when you explicitly start them from the Properties window, ensuring full control at all times.
-> If desired, you may enable automatic execution when the plugin starts by selecting the Auto-start script checkbox.
+> If desired, you may enable automatic execution when the plugin starts by selecting **Auto-start script**.
 
 **Quick Start Example - Color Palette Cycle:**
 
 Let's run the demo program [demo_palette_cycle.c64script](./data/scripts/demo_palette_cycle.c64script) that ships with the plugin in the `scripts` folder:
 
 1. Click on **Browse** to the right of **Script File** and select the script.
-2. Click **Start Script**.
+2. Click **Start script**.
 3. You should now see C64 Stream cycle through all of its color palettes.
 
 **Debugging Your Scripts:**
@@ -729,22 +732,22 @@ Let's run the demo program [demo_palette_cycle.c64script](./data/scripts/demo_pa
 The plugin includes built-in controls for running and inspecting scripts:
 
 - **Script File** - Select the `.c64script` to run
-- **Auto Start** - Start the script automatically when the source becomes active
+- **Auto-start script** - Start the script automatically when the source becomes active
 - **Script Status** - High-level script status (idle, running, paused, error, completed)
-- **Start/Stop** - Start your script from the beginning or stop it
-- **Pause/Resume** - Pause at any point to inspect what's happening
+- **Start script** / **Stop script** - Start your script from the beginning or stop it
+- **Debug Script** / **Pause Script** / **Resume Script** - Start in debug mode, pause, or resume as appropriate
 - **Step** - Execute your script one line at a time (only while paused)
-- **Log variables** - See all variable values in the OBS log
-- **Execution state** - Shows running, paused, error, or completed
-- **Last executed** - Shows which line just ran
-- **Next to execute** - Shows which line will run next
-- **Last error** - Shows the most recent runtime error when one occurs
+- **Log Variables** - See all variable values in the OBS log
+- **Execution State** - Shows running, paused, error, or completed
+- **Last Executed** - Shows which line just ran
+- **Next to Execute** - Shows which line will run next
+- **Last Runtime Error** - Shows the most recent runtime error when one occurs
 
 Assuming you already ran the palette cycling script described earlier, let's now try and debug it:
 
-1. Click **Start Script** to run the script
+1. Click **Start script** to run the script
 2. Click **Pause Script** and then **Step** to walk through line-by-line
-3. Click **Log variables** to see any variables in the OBS log (Help → Log Files → Show Current Log)
+3. Click **Log Variables** to see any variables in the OBS log (Help → Log Files → Show Current Log)
 
 **Syntax Highlighting in VS Code**
 
@@ -798,9 +801,9 @@ Common effect-layout automation examples:
 
 ### Audio sync issues?
 
-- Check audio port configuration (default 11001)
+- Check **Audio Port** configuration (default 11001)
 - Verify OBS audio monitoring settings
-- **Buffer delay changes:** If you first increase the network buffer delay (e.g., to 500ms) and then decrease it (e.g., to 200ms), audio may become delayed relative to video. **Workaround:** Remove and re-add the C64 Stream source, or restart OBS Studio to reset the audio timing reference. For best results, set your desired buffer delay when initially configuring the source.
+- **Buffer Delay (millis) changes:** If you first increase the network buffer delay (e.g., to 500ms) and then decrease it (e.g., to 200ms), audio may become delayed relative to video. **Workaround:** Remove and re-add the C64 Stream source, or restart OBS Studio to reset the audio timing reference. For best results, set your desired buffer delay when initially configuring the source.
 
 ### Connection acting up?
 
@@ -814,7 +817,7 @@ If the plugin can't resolve your C64 Ultimate hostname (e.g., `c64u`), try these
 
 *Quick Fix:*
 
-1. **Use IP Address:** Instead of `c64u`, enter the device's IP address directly (e.g., `192.168.1.64`)
+1. **Use IP Address:** Instead of `c64u`, enter the device's IP address directly in **C64U Host** (e.g., `192.168.1.64`)
 2. **Check DNS Server IP:** Verify the DNS Server IP setting matches your router's IP address
    - Common router IPs: `192.168.1.1`, `192.168.0.1`, `10.0.0.1`
    - Find your router IP: Run `ip route | grep default` (Linux) or `ipconfig` (Windows)
@@ -841,8 +844,8 @@ If the plugin can't resolve your C64 Ultimate hostname (e.g., `c64u`), try these
    - Try alternative common router IPs: `192.168.0.1`, `10.0.0.1`
    - Check your router's DHCP settings for the correct DNS server IP
 
-4. **Enable Debug Logging:**
-   - In the source properties, open the **Recording** section and enable **Debug Logging**
+4. **Enable debug logging:**
+   - In the source properties, open the **Recording** section and enable **Show Debug Messages in OBS Logs**
    - Look for DNS resolution messages in OBS logs
    - Messages show which DNS resolution method succeeded
 
@@ -867,8 +870,8 @@ The plugin uses a `properties.ini` file to provide default settings for connecti
 
 - **Hostname**: `c64u` (the default C64 Ultimate hostname)
 - **Control Port**: `64` (the standard C64 Ultimate control port)
-- **DNS Server**: `192.168.1.1` (common router DNS)
-- **Video/Audio Ports**: `11000`/`11001` (C64 Ultimate streaming ports)
+- **DNS Server IP**: `192.168.1.1` (common router DNS)
+- **Video Port** / **Audio Port**: `11000` / `11001` (C64 Ultimate streaming ports)
 
 These settings work out-of-the-box with most C64 Ultimate setups. You can override any of these settings directly in the OBS source properties if your setup differs.
 
@@ -941,7 +944,7 @@ For easy access, simple backups, and visibility, it is always stored in `<Docume
 
 #### Hostname vs IP Address
 
-The plugin supports both **hostnames** and **IP addresses** for the C64 Ultimate Host field with enhanced DNS resolution that works reliably across all platforms:
+The plugin supports both **hostnames** and **IP addresses** for the C64U Host field with enhanced DNS resolution that works reliably across all platforms:
 
 **Using Hostnames (Recommended):**
 

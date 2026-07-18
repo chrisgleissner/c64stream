@@ -54,6 +54,7 @@ typedef enum {
     C64_MACHINE_CMD_RESET,       // Soft reset (Ctrl/Shift+ESC)
     C64_MACHINE_CMD_REBOOT,      // Reboot (ESC+TAB)
     C64_MACHINE_CMD_RELEASE_ALL, // Release all held joystick inputs
+    C64_MACHINE_CMD_KEY,         // Raw matrix key press/release (e.g. left_shift flipper)
 } c64_machine_cmd_type_t;
 
 /**
@@ -64,7 +65,24 @@ typedef struct {
     int joystick_port;       // For C64_MACHINE_CMD_JOYSTICK
     char joystick_input[16]; // For C64_MACHINE_CMD_JOYSTICK ("up"/"down"/...)
     bool joystick_press;     // For C64_MACHINE_CMD_JOYSTICK: press vs release
+    char key_input[16];      // For C64_MACHINE_CMD_KEY (matrix key, e.g. "left_shift")
+    bool key_press;          // For C64_MACHINE_CMD_KEY: press vs release
 } c64_machine_command_t;
+
+/**
+ * Keystroke transition for the REST machine:input path.
+ *
+ * TAP (default) presses and releases in one event, right for typed text.
+ * PRESS/RELEASE mirror a physically held key so real-time games (e.g. pinball
+ * flippers) see the key held down for its full duration. On the legacy
+ * KERNAL-buffer fallback, PRESS/TAP write the byte once and RELEASE is a no-op
+ * (the buffer cannot hold a key), so typing still works on old firmware.
+ */
+typedef enum {
+    C64_KEY_TAP = 0, // Press+release in one event (typed text)
+    C64_KEY_PRESS,   // Hold down (key-down of a physically held key)
+    C64_KEY_RELEASE, // Release (key-up of a physically held key)
+} c64_key_transition_t;
 
 /**
  * Load keymap from file
@@ -82,6 +100,14 @@ void c64_keymap_destroy(c64_keymap_t *keymap);
  * Get keymap name (from [meta] name field)
  */
 const char *c64_keymap_get_name(c64_keymap_t *keymap);
+
+/**
+ * True if this is a positional (physical-position) keymap. Positional maps
+ * treat Shift as a literal C64 matrix shift, so it is the natural "game" mode
+ * where standalone Shift keys are mirrored as flippers; symbolic maps consume
+ * Shift for layout-correct character selection.
+ */
+bool c64_keymap_is_positional(c64_keymap_t *keymap);
 
 /**
  * Normalize a keymap identifier into the canonical runtime form.
@@ -140,6 +166,29 @@ bool c64_keyboard_release_all(c64_keyboard_t *keyboard);
  * @param output Output descriptor from keymap conversion
  */
 bool c64_keyboard_queue_output(c64_keyboard_t *keyboard, const c64_output_t *output);
+
+/**
+ * Queue a keystroke with an explicit press/release/tap transition.
+ * c64_keyboard_queue_output() is the TAP shorthand. Interactive key-down/up
+ * pass PRESS/RELEASE so held keys reach the C64 held down; a non-holdable
+ * output (shifted chord or multi-byte text) is coerced to TAP.
+ * @param output Output descriptor from keymap conversion
+ * @param transition C64_KEY_TAP / C64_KEY_PRESS / C64_KEY_RELEASE
+ */
+bool c64_keyboard_queue_output_ex(c64_keyboard_t *keyboard, const c64_output_t *output,
+                                  c64_key_transition_t transition);
+
+/**
+ * True if an output resolves to a single, unshifted C64 matrix key and can
+ * therefore be held down (press/release) rather than tapped. Shifted chords
+ * and multi-byte text are not holdable. Lets the interact layer decide whether
+ * a key-down/up pair should become PRESS/RELEASE or a single TAP.
+ *
+ * @param out_byte If non-NULL and the output is holdable, receives the resolved
+ *                 PETSCII byte so the caller can replay it as a RELEASE on
+ *                 key-up without re-running keymap conversion.
+ */
+bool c64_keyboard_output_is_holdable(const c64_output_t *output, uint8_t *out_byte);
 
 /**
  * Enqueue a machine-control command (joystick/menu/reset/reboot/release-all)

@@ -83,6 +83,8 @@ static bool read_entry(const char *key, const char *value, void *opaque)
         snprintf(device->name, sizeof(device->name), "%s", value);
     else if (!strcmp(key, "host"))
         snprintf(device->host, sizeof(device->host), "%s", value);
+    else if (!strcmp(key, "peer_host"))
+        snprintf(device->peer_host, sizeof(device->peer_host), "%s", value);
     else if (!strcmp(key, "dns_server_ip"))
         snprintf(device->dns_server_ip, sizeof(device->dns_server_ip), "%s", value);
     else if (!strcmp(key, "video_port"))
@@ -103,10 +105,11 @@ static bool save_device(const c64_device_t *device)
     if (!file)
         return false;
     /* Passwords must never appear in these network-only files. */
-    int result = fprintf(file,
-                         "id=%s\nname=%s\nhost=%s\ndns_server_ip=%s\nvideo_port=%u\naudio_port=%u\ncontrol_port=%u\n",
-                         device->id, device->name, device->host, device->dns_server_ip, device->video_port,
-                         device->audio_port, device->control_port);
+    int result = fprintf(
+        file,
+        "id=%s\nname=%s\nhost=%s\npeer_host=%s\ndns_server_ip=%s\nvideo_port=%u\naudio_port=%u\ncontrol_port=%u\n",
+        device->id, device->name, device->host, device->peer_host, device->dns_server_ip, device->video_port,
+        device->audio_port, device->control_port);
     fclose(file);
     return result >= 0;
 }
@@ -337,6 +340,7 @@ bool c64_device_registry_apply_selected(obs_data_t *settings)
         return false;
     obs_data_set_string(settings, "device_name", device->name);
     obs_data_set_string(settings, "c64_host", device->host);
+    obs_data_set_string(settings, "c64_device_peer_host", device->peer_host);
     obs_data_set_string(settings, "dns_server_ip", device->dns_server_ip);
     obs_data_set_int(settings, "video_port", device->video_port);
     obs_data_set_int(settings, "audio_port", device->audio_port);

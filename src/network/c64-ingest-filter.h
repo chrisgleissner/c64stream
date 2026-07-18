@@ -37,7 +37,8 @@ static inline bool c64_packet_from_expected_peer(const struct c64_source *contex
     if (!context->expected_peer_ip_set) {
         return true; // Fail open: unresolved DNS / non-IPv4 host -> accept, as today.
     }
-    return from->sin_addr.s_addr == context->expected_peer_ip;
+    return from->sin_addr.s_addr == context->expected_peer_ip ||
+           (context->expected_peer_alt_ip_set && from->sin_addr.s_addr == context->expected_peer_alt_ip);
 }
 
 #endif // C64_INGEST_FILTER_H

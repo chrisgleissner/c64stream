@@ -34,6 +34,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-effect-clamp.h"
 #include "c64-audio.h"
 #include "c64-interact-key.h"
+#include "c64-joystick-emulation.h"
 #include "c64-logo.h"
 #include "c64-record.h"
 #include "c64-version.h"
@@ -57,6 +58,7 @@ static void c64_schedule_retry(struct c64_source *context, const char *reason);
 static void c64_refresh_resolved_ip(struct c64_source *context);
 static void c64_refresh_obs_ip(struct c64_source *context);
 static void c64_set_expected_peer_ip(struct c64_source *context, const char *ip_string);
+static void c64_set_expected_peer_alias(struct c64_source *context, const char *ip_string);
 static void c64_stop_streaming_to(struct c64_source *context, const char *host, uint32_t control_port);
 static void c64_complete_pending_device_transition(struct c64_source *context);
 static void *c64_stop_streaming_thread(void *data);
@@ -943,6 +945,8 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     // Initialize ip_address to the user-provided hostname; it will be resolved in the background.
     strncpy(context->ip_address, hostname, sizeof(context->ip_address) - 1);
     context->ip_address[sizeof(context->ip_address) - 1] = '\0';
+    c64_set_expected_peer_ip(context, context->ip_address);
+    c64_set_expected_peer_alias(context, obs_data_get_string(settings, "c64_device_peer_host"));
 
     context->auto_detect_ip = obs_data_get_bool(settings, "auto_detect_ip");
     const bool has_saved_video_port = obs_data_has_user_value(settings, "video_port");
@@ -1690,17 +1694,20 @@ void c64_update(void *data, obs_data_t *settings)
     if (context->keyboard) {
         c64_keyboard_set_transport(context->keyboard, context->stream_control_transport);
     }
-    // Unticking Joystick emulation in the properties dialog must strand no held
-    // direction either; the F10 path releases before clearing the flag itself,
-    // so it is already false here and this does not double-release.
-    if (context->joystick_mode_active && !obs_data_get_bool(settings, "joystick_mode_active")) {
+    const bool new_joystick_mode_active = obs_data_get_bool(settings, "joystick_mode_active");
+    int new_joystick_emulation_port = (int)obs_data_get_int(settings, "joystick_emulation_port");
+    if (new_joystick_emulation_port != 1 && new_joystick_emulation_port != 2) {
+        new_joystick_emulation_port = 2;
+    }
+    // Changing either setting while a direction is held must release it before
+    // the old route becomes unreachable. Without this, a key-up after a port
+    // switch targets the new port and leaves the old port stuck pressed.
+    if (context->joystick_mode_active &&
+        (!new_joystick_mode_active || context->joystick_emulation_port != new_joystick_emulation_port)) {
         c64_release_joystick_inputs(context);
     }
-    context->joystick_mode_active = obs_data_get_bool(settings, "joystick_mode_active");
-    context->joystick_emulation_port = (int)obs_data_get_int(settings, "joystick_emulation_port");
-    if (context->joystick_emulation_port != 1 && context->joystick_emulation_port != 2) {
-        context->joystick_emulation_port = 2;
-    }
+    context->joystick_mode_active = new_joystick_mode_active;
+    context->joystick_emulation_port = new_joystick_emulation_port;
 
     // Set defaults
     if (!new_host)
@@ -1812,6 +1819,8 @@ void c64_update(void *data, obs_data_t *settings)
     context->audio_port = new_audio_port;
     context->control_port = new_control_port;
     c64_set_expected_peer_ip(context, context->ip_address);
+    const char *peer_host = obs_data_get_string(settings, "c64_device_peer_host");
+    c64_set_expected_peer_alias(context, peer_host);
     pthread_mutex_unlock(&context->config_mutex);
 
     const bool password_changed = strcmp(old_password, new_password ? new_password : "") != 0;
@@ -1946,13 +1955,33 @@ static void c64_set_expected_peer_ip(struct c64_source *context, const char *ip_
 
     struct in_addr addr;
     if (inet_pton(AF_INET, ip_string, &addr) == 1) {
+        const bool changed = !context->expected_peer_ip_set || context->expected_peer_ip != addr.s_addr;
         context->expected_peer_ip = addr.s_addr;
         context->expected_peer_ip_set = true;
+        if (changed) {
+            context->expected_peer_alt_ip_set = false;
+        }
         C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Expected peer IP set to %s", ip_string);
     } else {
         context->expected_peer_ip_set = false;
+        context->expected_peer_alt_ip_set = false;
         C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Expected peer IP cleared (non-IPv4 input): %s", ip_string);
     }
+}
+
+static void c64_set_expected_peer_alias(struct c64_source *context, const char *ip_string)
+{
+    struct in_addr addr;
+    if (!context) {
+        return;
+    }
+    if (!ip_string || inet_pton(AF_INET, ip_string, &addr) != 1 ||
+        (context->expected_peer_ip_set && context->expected_peer_ip == addr.s_addr)) {
+        context->expected_peer_alt_ip_set = false;
+        return;
+    }
+    context->expected_peer_alt_ip = addr.s_addr;
+    context->expected_peer_alt_ip_set = true;
 }
 
 bool c64_start_streaming(struct c64_source *context)
@@ -2743,6 +2772,99 @@ static void c64_release_joystick_inputs(struct c64_source *context)
     } else if (context->rest_client) {
         c64_rest_release_all(context->rest_client);
     }
+    // The device just cleared every held input; forget our own held-key state so
+    // a later key-up does not emit a stray release for something already gone.
+    memset(context->held_keys, 0, sizeof(context->held_keys));
+}
+
+// Held-key tracker (vkey -> slot). The `active` flag marks occupancy; a plain
+// vkey==0 sentinel would be wrong because macOS Carbon keycode 0x00 is a real
+// key ('A').
+static int c64_find_held_slot(struct c64_source *context, uint32_t vkey)
+{
+    for (size_t i = 0; i < sizeof(context->held_keys) / sizeof(context->held_keys[0]); i++) {
+        if (context->held_keys[i].active && context->held_keys[i].vkey == vkey) {
+            return (int)i;
+        }
+    }
+    return -1;
+}
+
+static int c64_alloc_held_slot(struct c64_source *context, uint32_t vkey)
+{
+    int existing = c64_find_held_slot(context, vkey);
+    if (existing >= 0) {
+        return existing; // already held (auto-repeat) -- caller dedupes
+    }
+    for (size_t i = 0; i < sizeof(context->held_keys) / sizeof(context->held_keys[0]); i++) {
+        if (!context->held_keys[i].active) {
+            return (int)i;
+        }
+    }
+    return -1;
+}
+
+// Map a modifier key event to its C64 matrix input for positional ("game")
+// keymaps, where the modifiers are literal C64 matrix keys and are mirrored as
+// held press/release: Shift -> the two keyboard flippers (left/right shift are
+// distinct C64 matrix positions), Ctrl -> the C64 Ctrl key, and Alt -> the
+// Commodore (CBM) key (positional keymaps use Alt for CBM). The caller passes
+// the modifier classification it already computed so the vkey lists are not
+// duplicated; the vkey/scancode only disambiguate left vs right shift.
+// Meta is deliberately not mirrored (it drives the Ctrl+Meta charset chord).
+static const char *c64_positional_modifier_input(bool is_shift, bool is_ctrl, bool is_alt, uint32_t native_vkey,
+                                                 uint32_t native_scancode)
+{
+#if defined(__APPLE__)
+    UNUSED_PARAMETER(native_scancode);
+#endif
+    if (is_ctrl) {
+        return "ctrl";
+    }
+    if (is_alt) {
+        return "commodore";
+    }
+    if (is_shift) {
+#if defined(__APPLE__)
+        return native_vkey == 0x3C ? "right_shift" : "left_shift"; // kVK_RightShift
+#else
+        if (native_vkey == 0xFFE2) {
+            return "right_shift"; // XK_Shift_R
+        }
+        if (native_vkey == 0x10) {
+            // Windows VK_SHIFT is generic; the scancode disambiguates (0x36 = right).
+            return native_scancode == 0x36 ? "right_shift" : "left_shift";
+        }
+        return "left_shift";
+#endif
+    }
+    return NULL;
+}
+
+// Release every held keyboard/joystick input and clear the tracker. Used on
+// focus loss so nothing stays stuck down on the C64 when capture stops.
+static void c64_release_held_keys(struct c64_source *context)
+{
+    if (!context) {
+        return;
+    }
+    bool any = false;
+    for (size_t i = 0; i < sizeof(context->held_keys) / sizeof(context->held_keys[0]); i++) {
+        if (context->held_keys[i].active) {
+            any = true;
+            break;
+        }
+    }
+    if (!any) {
+        return;
+    }
+    if (context->keyboard) {
+        c64_machine_command_t cmd = {.type = C64_MACHINE_CMD_RELEASE_ALL};
+        c64_keyboard_queue_machine_command(context->keyboard, &cmd);
+    } else if (context->rest_client) {
+        c64_rest_release_all(context->rest_client);
+    }
+    memset(context->held_keys, 0, sizeof(context->held_keys));
 }
 
 void c64_focus(void *data, bool focus)
@@ -2764,6 +2886,10 @@ void c64_focus(void *data, bool focus)
         context->keyboard_capture_active = false;
         C64_LOG_INFO("Keyboard capture deactivated (source lost focus)");
         c64_release_joystick_inputs(context);
+        // Release any keys/flippers held at the moment focus was lost so they do
+        // not stay pressed on the C64 (release_all clears joystick too, but the
+        // above only fires in joystick mode; this covers held keystrokes).
+        c64_release_held_keys(context);
         if (context->keyboard) {
             c64_keyboard_set_capture(context->keyboard, false);
         }
@@ -2841,6 +2967,38 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
     }
 
     if (is_modifier_key) {
+        // Positional ("game") keymaps treat the modifiers as literal C64 matrix
+        // keys, so a standalone Shift / Ctrl / Commodore(Alt) is mirrored as a
+        // held press/release: the two Shift keys drive the keyboard flippers
+        // (pinball), and games that read Ctrl or the Commodore key see them held.
+        // Symbolic keymaps consume these modifiers to select characters, so they
+        // stay skipped there and typing is unaffected.
+        if (context->keyboard_capture_active && context->keyboard && c64_keymap_is_positional(context->keymap)) {
+            const char *mod_input = c64_positional_modifier_input(is_shift_key, is_ctrl_key, is_alt_key,
+                                                                  event->native_vkey, event->native_scancode);
+            if (mod_input) {
+                const int slot = c64_find_held_slot(context, event->native_vkey);
+                const bool held = slot >= 0;
+                // Dedupe: press only on the first key-down, release only if held.
+                if ((!key_up && !held) || (key_up && held)) {
+                    c64_machine_command_t cmd = {.type = C64_MACHINE_CMD_KEY, .key_press = !key_up};
+                    snprintf(cmd.key_input, sizeof(cmd.key_input), "%s", mod_input);
+                    c64_keyboard_queue_machine_command(context->keyboard, &cmd);
+                    if (key_up) {
+                        context->held_keys[slot].active = false;
+                    } else {
+                        const int free_slot = c64_alloc_held_slot(context, event->native_vkey);
+                        if (free_slot >= 0) {
+                            context->held_keys[free_slot].active = true;
+                            context->held_keys[free_slot].vkey = event->native_vkey;
+                            context->held_keys[free_slot].is_joystick = false;
+                        }
+                    }
+                }
+                return;
+            }
+        }
+
         if (!key_up && context->keyboard_ctrl_down && context->keyboard_meta_down &&
             !context->keyboard_ctrl_meta_armed && !context->keyboard_ctrl_meta_consumed) {
             context->keyboard_ctrl_meta_armed = true;
@@ -2874,8 +3032,20 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
     // F9/F10/F11 themselves are handled below, on key-down only, so they
     // always work to toggle back out of this mode.
     if (context->joystick_mode_active) {
-        const char *joystick_input = c64_interact_joystick_input_for_vkey(event->native_vkey);
+        const char *joystick_input = c64_joystick_input_for_vkey(event->native_vkey);
         if (joystick_input) {
+            // Dedupe held directions: OS auto-repeat resends key-down for a key
+            // that is already down, which would re-press and stutter the
+            // joystick. Press only on the first key-down, release only if it was
+            // actually held.
+            const int slot = c64_find_held_slot(context, event->native_vkey);
+            const bool held = slot >= 0;
+            if (!key_up && held) {
+                return; // auto-repeat of an already-held direction
+            }
+            if (key_up && !held) {
+                return; // release for a direction we never pressed
+            }
             // C64STR-022: enqueue for the async worker; never block the UI thread.
             if (context->keyboard) {
                 c64_machine_command_t cmd = {.type = C64_MACHINE_CMD_JOYSTICK,
@@ -2884,14 +3054,36 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
                 snprintf(cmd.joystick_input, sizeof(cmd.joystick_input), "%s", joystick_input);
                 c64_keyboard_queue_machine_command(context->keyboard, &cmd);
             }
+            if (key_up) {
+                context->held_keys[slot].active = false;
+            } else {
+                const int free_slot = c64_alloc_held_slot(context, event->native_vkey);
+                if (free_slot >= 0) {
+                    context->held_keys[free_slot].active = true;
+                    context->held_keys[free_slot].vkey = event->native_vkey;
+                    context->held_keys[free_slot].is_joystick = true;
+                    snprintf(context->held_keys[free_slot].joystick_input,
+                             sizeof(context->held_keys[free_slot].joystick_input), "%s", joystick_input);
+                }
+            }
             return;
         }
     }
 
-    // Only process key press events (not key up). Key-repeat on some platforms
-    // can synthesize transient key-up events between repeats, so do not flush
-    // non-verbose logging state here.
+    // Release a held interactive key on its key-up so the C64 sees the key held
+    // for exactly as long as the host key was down (real-time games). Keys that
+    // were tapped (shifted chords, unmapped) are not tracked and fall through.
     if (key_up) {
+        const int slot = c64_find_held_slot(context, event->native_vkey);
+        if (slot >= 0 && !context->held_keys[slot].is_joystick) {
+            if (context->keyboard) {
+                // Replay the held key's resolved byte as a matrix RELEASE.
+                c64_output_t release = {.mode = C64_OUTPUT_PETSCII,
+                                        .data.petscii = context->held_keys[slot].output_byte};
+                c64_keyboard_queue_output_ex(context->keyboard, &release, C64_KEY_RELEASE);
+            }
+            context->held_keys[slot].active = false;
+        }
         return;
     }
 
@@ -2942,8 +3134,8 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
         return;
     }
 
-    const bool is_f10 = strcmp(key.code, "F10") == 0;
-    const bool is_f11 = strcmp(key.code, "F11") == 0;
+    const bool is_f10 = c64_joystick_classify_hotkey(key.code) == C64_JOYSTICK_HOTKEY_F10;
+    const bool is_f11 = c64_joystick_classify_hotkey(key.code) == C64_JOYSTICK_HOTKEY_F11;
     if (is_f10 || is_f11) {
         if (is_f10) {
             // Release before clearing the flag: a direction held right now
@@ -2953,6 +3145,9 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
             C64_LOG_INFO("Keyboard: F10 pressed - joystick emulation %s",
                          context->joystick_mode_active ? "enabled" : "disabled");
         } else {
+            // A release after switching ports would otherwise be sent to the
+            // new port, leaving the direction held on the old one.
+            c64_release_joystick_inputs(context);
             context->joystick_emulation_port = context->joystick_emulation_port == 1 ? 2 : 1;
             C64_LOG_INFO("Keyboard: F11 pressed - joystick emulation port %d", context->joystick_emulation_port);
         }
@@ -3002,7 +3197,31 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
         // Convert key to C64 output
         c64_output_t output;
         if (c64_keymap_convert(context->keymap, key.code, key.text, modifiers, &output)) {
-            c64_keyboard_queue_output(context->keyboard, &output);
+            // Hold semantics: a key that resolves to a single unshifted matrix
+            // key is pressed on key-down and released on its key-up (tracked by
+            // vkey), so held keys reach the C64 held down for real-time games.
+            // Auto-repeat key-downs for an already-held key are ignored. Shifted
+            // chords and multi-byte text are not holdable and are tapped as
+            // before (and not tracked), so typing is unchanged.
+            uint8_t hold_byte = 0;
+            if (c64_keyboard_output_is_holdable(&output, &hold_byte)) {
+                if (c64_find_held_slot(context, event->native_vkey) >= 0) {
+                    return; // auto-repeat of an already-held key
+                }
+                const int free_slot = c64_alloc_held_slot(context, event->native_vkey);
+                if (free_slot >= 0) {
+                    context->held_keys[free_slot].active = true;
+                    context->held_keys[free_slot].vkey = event->native_vkey;
+                    context->held_keys[free_slot].is_joystick = false;
+                    context->held_keys[free_slot].output_byte = hold_byte;
+                    c64_keyboard_queue_output_ex(context->keyboard, &output, C64_KEY_PRESS);
+                } else {
+                    // Tracker full (>16 keys down): tap so the key is not lost.
+                    c64_keyboard_queue_output(context->keyboard, &output);
+                }
+            } else {
+                c64_keyboard_queue_output(context->keyboard, &output);
+            }
         }
     }
 }

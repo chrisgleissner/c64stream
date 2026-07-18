@@ -1780,6 +1780,16 @@ obs_properties_t *c64_create_properties(void *data)
         props, "network_group", obs_module_text("NetworkConfiguration"), OBS_GROUP_NORMAL, obs_properties_create());
     obs_properties_t *network_props = obs_property_group_content(network_group);
 
+    // Label reflects discovery-in-progress state; scan_complete_on_ui() clears the flag and
+    // requests a properties refresh once the background scan finishes, which re-runs
+    // get_properties() and restores this label via the same conditional.
+    obs_property_t *device_discovery_prop = obs_properties_add_button2(network_props, "device_discovery",
+                                                                       context && context->device_discovery_in_progress
+                                                                           ? obs_module_text("DeviceDiscovering")
+                                                                           : obs_module_text("DeviceDiscover"),
+                                                                       device_discovery_clicked, data);
+    obs_property_set_long_description(device_discovery_prop, obs_module_text("DeviceDiscover.Description"));
+
     obs_property_t *device_prop = obs_properties_add_list(network_props, "c64_device", obs_module_text("Device"),
                                                           OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
     obs_property_set_long_description(device_prop, obs_module_text("Device.Description"));
@@ -1794,16 +1804,6 @@ obs_properties_t *c64_create_properties(void *data)
     obs_property_t *device_delete_prop = obs_properties_add_button2(
         network_props, "device_delete", obs_module_text("DeviceDelete"), device_delete_clicked, data);
     obs_property_set_long_description(device_delete_prop, obs_module_text("DeviceDelete.Description"));
-    // Label reflects discovery-in-progress state; scan_complete_on_ui() clears the flag and
-    // requests a properties refresh once the background scan finishes, which re-runs
-    // get_properties() and restores this label via the same conditional.
-    obs_property_t *device_discovery_prop = obs_properties_add_button2(network_props, "device_discovery",
-                                                                       context && context->device_discovery_in_progress
-                                                                           ? obs_module_text("DeviceDiscovering")
-                                                                           : obs_module_text("DeviceDiscover"),
-                                                                       device_discovery_clicked, data);
-    obs_property_set_long_description(device_discovery_prop, obs_module_text("DeviceDiscover.Description"));
-
     // DNS Server IP
     obs_property_t *dns_prop =
         obs_properties_add_text(network_props, "dns_server_ip", obs_module_text("DNSServerIP"), OBS_TEXT_DEFAULT);

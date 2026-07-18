@@ -67,6 +67,25 @@ TEST(accepts_expected_peer_drops_others)
     assert(!c64_packet_from_expected_peer(&ctx, &rogue));
 }
 
+TEST(accepts_verified_alternate_peer)
+{
+    struct c64_source ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    struct in_addr primary;
+    struct in_addr alternate;
+    inet_pton(AF_INET, "192.168.1.15", &primary);
+    inet_pton(AF_INET, "192.168.1.167", &alternate);
+    ctx.expected_peer_ip = primary.s_addr;
+    ctx.expected_peer_ip_set = true;
+    ctx.expected_peer_alt_ip = alternate.s_addr;
+    ctx.expected_peer_alt_ip_set = true;
+
+    struct sockaddr_in peer = make_sender("192.168.1.167");
+    struct sockaddr_in rogue = make_sender("192.168.1.99");
+    assert(c64_packet_from_expected_peer(&ctx, &peer));
+    assert(!c64_packet_from_expected_peer(&ctx, &rogue));
+}
+
 TEST(null_safe_accepts)
 {
     struct c64_source ctx;
@@ -82,6 +101,7 @@ int main(void)
 {
     RUN_TEST(accepts_all_when_expected_peer_unknown);
     RUN_TEST(accepts_expected_peer_drops_others);
+    RUN_TEST(accepts_verified_alternate_peer);
     RUN_TEST(null_safe_accepts);
     return 0;
 }

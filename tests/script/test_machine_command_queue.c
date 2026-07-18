@@ -105,6 +105,26 @@ bool c64_rest_release_all(c64_rest_client_t *client)
     mock_record(C64_MACHINE_CMD_RELEASE_ALL, 0, NULL, false);
     return true;
 }
+/* Raw matrix key press/release (C64_MACHINE_CMD_KEY, e.g. a Shift flipper).
+ * Parse the single keyboard event so the test can assert key + transition. */
+bool c64_rest_machine_input(c64_rest_client_t *client, const char *json)
+{
+    (void)client;
+    char input[16] = {0};
+    const char *inp = json ? strstr(json, "\"inputs\":[\"") : NULL;
+    if (inp) {
+        inp += strlen("\"inputs\":[\"");
+        size_t n = 0;
+        while (inp[n] && inp[n] != '"' && n + 1 < sizeof(input)) {
+            input[n] = inp[n];
+            n++;
+        }
+        input[n] = '\0';
+    }
+    const bool press = json && strstr(json, "\"press\"") != NULL;
+    mock_record(C64_MACHINE_CMD_KEY, 0, input, press);
+    return true;
+}
 /* Keystroke-path stubs (unused here but needed for linking). */
 bool c64_rest_machine_input_with_outcome(c64_rest_client_t *client, const char *json, c64_rest_outcome_t *outcome,
                                          long *status)
@@ -220,6 +240,25 @@ int main(void)
     assert(g_mock.log[1] == C64_MACHINE_CMD_JOYSTICK && g_mock.joy_press[1] == false &&
            strcmp(g_mock.joy_input[1], "up") == 0);
     assert(g_mock.joy_port[3] == 1 && strcmp(g_mock.joy_input[3], "fire") == 0 && g_mock.joy_press[3] == true);
+
+    /* C64_MACHINE_CMD_KEY: a raw matrix key held then released (e.g. a Shift
+     * flipper in positional mode) must dispatch as a keyboard press then
+     * release carrying the matrix key name. */
+    c64_machine_command_t key_press = {.type = C64_MACHINE_CMD_KEY, .key_press = true};
+    snprintf(key_press.key_input, sizeof(key_press.key_input), "left_shift");
+    c64_machine_command_t key_release = {.type = C64_MACHINE_CMD_KEY, .key_press = false};
+    snprintf(key_release.key_input, sizeof(key_release.key_input), "left_shift");
+    assert(c64_keyboard_queue_machine_command(kb, &key_press));
+    assert(c64_keyboard_queue_machine_command(kb, &key_release));
+    deadline = now_ms() + 5000.0;
+    while (mock_executed() < CMD_COUNT + 2 && now_ms() < deadline) {
+        mock_sleep_ms(2);
+    }
+    assert(mock_executed() == CMD_COUNT + 2);
+    assert(g_mock.log[CMD_COUNT] == C64_MACHINE_CMD_KEY && g_mock.joy_press[CMD_COUNT] == true &&
+           strcmp(g_mock.joy_input[CMD_COUNT], "left_shift") == 0);
+    assert(g_mock.log[CMD_COUNT + 1] == C64_MACHINE_CMD_KEY && g_mock.joy_press[CMD_COUNT + 1] == false &&
+           strcmp(g_mock.joy_input[CMD_COUNT + 1], "left_shift") == 0);
 
     c64_keyboard_destroy(kb);
     pthread_mutex_destroy(&g_mock.lock);

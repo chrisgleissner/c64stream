@@ -20,15 +20,41 @@ round-trip regardless of batch size.
 `TEXT` keymap output modes (`c64-keyboard.h`'s `C64_OUTPUT_PETSCII`/`C64_OUTPUT_TEXT`) — whichever
 mode queues a byte, it goes through the same translation before becoming a REST event:
 
-- Letters and digits map directly to their matrix key name (`"a"`.."z"`, `"0"`.."9"`); uppercase
-  letters set `shift = true`.
-- Punctuation is looked up in a 128-entry sparse table indexed by the ASCII value (e.g. `'!'` →
-  key `"1"` with shift, `'@'` → key `"at"` with no shift).
+- PETSCII `A`..`Z` and ASCII text `a`..`z` map to unshifted matrix keys; PETSCII
+  `$C1`..`$DA` maps to Shift+`a`..`z`. This preserves host-key capitalization while allowing
+  C64Script `TYPE "hello"` to use REST input.
+- Digits and punctuation map to their physical C64 matrix keys. For example, `'!'` maps to
+  Shift+`"1"`, `'+'` maps to `"plus"`, `'['` maps to Shift+`"colon"` (the `:` key's shifted
+  legend on the C64), `']'` maps to Shift+`"semicolon"`, and `'^'` / `'_'` map to the
+  dedicated `"arrow_up"` / `"arrow_left"` keys.
 - A shifted character becomes a single hardware chord in the request body:
   `{"kind":"keyboard","inputs":["left_shift","<key>"],"transition":"tap"}`.
 
 `C64_OUTPUT_SYMBOLIC` mode (`c64:RETURN`-style names from the keymap) resolves through a separate
 symbol table (`lookup_symbolic_key`) directly to a matrix key name, bypassing PETSCII entirely.
+
+## Hold semantics (press / release / tap)
+
+Each queued byte carries a `c64_key_transition_t` (`tap` / `press` / `release`, parallel array
+`queue_tr`). Typed text and scripted `TYPE`/`KEY` use `tap` (press+release in one event). The
+interactive path (`c64_key_click`) instead **holds** keys: a key-down that resolves to a single
+*unshifted* matrix key (`c64_keyboard_output_is_holdable`) is queued as `press` and released on
+its key-up, so real-time games (e.g. pinball flippers) see the key held for its full duration
+rather than a one-frame tap. Held keys are tracked by host vkey in `c64_source.held_keys`; OS
+auto-repeat key-downs for an already-held key are ignored, and focus loss releases everything.
+
+Shifted chords and multi-byte text are **not** holdable and stay `tap` (a single queued byte can't
+cleanly hold `left_shift`+key), so typing is unchanged. In *positional* keymaps the standalone
+modifier keys are mirrored as held matrix keys via a `C64_MACHINE_CMD_KEY` matrix command —
+Shift → `left_shift`/`right_shift` (the two C64 keyboard flippers), Ctrl → `ctrl`, and Alt →
+`commodore` (positional keymaps use Alt for the Commodore key). `c64_positional_modifier_input`
+resolves the matrix key from the modifier classification the interact handler already computed.
+*Symbolic* keymaps consume these modifiers for character selection and leave them skipped. Meta is
+not mirrored (it drives the `Ctrl+Meta` charset chord).
+
+On the legacy KERNAL-buffer fallback a key cannot be held: `press`/`tap` write the byte once and
+`release` is dropped (`pending_consumed` still drains the release from the queue). So typing works
+on old firmware; only the hold behavior needs the `machine:input` API.
 
 ## Batching (`build_rest_input_batch`)
 

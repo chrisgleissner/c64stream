@@ -13,6 +13,11 @@ bool c64_device_scan_product_matches(const char *product);
 bool c64_device_scan_is_ultimate_error(const char *body);
 bool c64_device_scan_response_is_candidate(long status, const char *body);
 size_t c64_device_scan_enumerate_subnet(uint32_t address, uint8_t prefix, uint32_t *out, size_t out_count);
+/* A completed scan may update its starting selection only when the user did
+ * not select another device while the scan was running, and either that device
+ * was confirmed or exactly one replacement was confirmed. */
+bool c64_device_scan_should_apply_selection(const char *selection_at_start, const char *selection_now,
+                                            bool selected_device_confirmed, const char *sole_discovered_device_id);
 /* Test-only: applies the host_index "first wins" supersession rule (see
  * apply_scan_results() in c64-device-scan.c) to a synthetic result set and
  * upserts survivors into the registry, without running a real scan. */

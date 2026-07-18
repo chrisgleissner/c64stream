@@ -103,9 +103,11 @@ struct c64_source {
     // the fields are word-sized, and the ip is published before the flag, so a
     // reader racing a switch either fails open or drops a few packets from the
     // device it is about to stop anyway.
-    volatile bool expected_peer_ip_set; // Whether expected_peer_ip contains a valid IPv4 address
-    volatile uint32_t expected_peer_ip; // Expected peer IPv4 address in network byte order (AF_INET)
-    bool initial_ip_detected;           // Flag to track if initial IP detection was done
+    volatile bool expected_peer_ip_set;     // Whether expected_peer_ip contains a valid IPv4 address
+    volatile uint32_t expected_peer_ip;     // Expected peer IPv4 address in network byte order (AF_INET)
+    volatile bool expected_peer_alt_ip_set; // Verified alternate interface of the selected physical device
+    volatile uint32_t expected_peer_alt_ip; // Alternate peer IPv4 address in network byte order (AF_INET)
+    bool initial_ip_detected;               // Flag to track if initial IP detection was done
     uint32_t video_port;
     uint32_t audio_port;
     uint32_t control_port;
@@ -390,6 +392,19 @@ struct c64_source {
     // Keyboard-driven joystick emulation (toggled by F10/F11; see c64_key_click)
     bool joystick_mode_active;   // false = direct keyboard relay, true = cursor/space -> joystick
     int joystick_emulation_port; // 1 or 2; default 2
+
+    // Held interactive keys, so a physically held key reaches the C64 held down
+    // (real-time games / pinball flippers) instead of a one-frame tap. Tracked
+    // by native vkey: press on key-down, release on key-up, and auto-repeat
+    // key-downs for an already-held key are ignored. Also dedupes held joystick
+    // directions. See c64_key_click / c64_release_held_keys.
+    struct {
+        bool active;            // Slot occupied? (macOS vkey 0x00 = 'A' is valid, so no 0 sentinel)
+        uint32_t vkey;          // Host virtual key that is held
+        uint8_t output_byte;    // Resolved PETSCII byte, replayed as RELEASE on key-up
+        bool is_joystick;       // Slot holds a joystick direction rather than a keystroke
+        char joystick_input[8]; // For is_joystick: "up"/"down"/"left"/"right"/"fire"
+    } held_keys[16];
 
     // Audio mixer snapshot for AV sync runs
     char **audio_mixer_snapshot_items;  // Item names (Audio Mixer)
