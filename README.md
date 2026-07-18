@@ -640,14 +640,6 @@ Keyboard input can be sent to the C64 through the OBS **Interact** window. In Au
 
 To return keyboard control to OBS, click outside the Interact window and close it.
 
-#### Compatibility
-
-The legacy fallback only works with programs that read input via the **KERNAL keyboard buffer**. REST matrix input can also drive supported direct-key programs.
-
-Many programs (especially games) read key state directly from **CIA1**. Since the **C64 Ultimate** does not allow writing to CIA1 registers, keyboard input will not work for those programs.
-
-**Reset** and **Reboot** are exceptions because they use the **C64U REST API** and do not rely on keyboard injection.
-
 #### Special Key Mappings
 
 | OBS         | C64 Function         |
