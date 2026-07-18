@@ -2747,6 +2747,91 @@ static void c64_release_joystick_inputs(struct c64_source *context)
     } else if (context->rest_client) {
         c64_rest_release_all(context->rest_client);
     }
+    // The device just cleared every held input; forget our own held-key state so
+    // a later key-up does not emit a stray release for something already gone.
+    memset(context->held_keys, 0, sizeof(context->held_keys));
+}
+
+// Held-key tracker (vkey -> slot). The `active` flag marks occupancy; a plain
+// vkey==0 sentinel would be wrong because macOS Carbon keycode 0x00 is a real
+// key ('A').
+static int c64_find_held_slot(struct c64_source *context, uint32_t vkey)
+{
+    for (size_t i = 0; i < sizeof(context->held_keys) / sizeof(context->held_keys[0]); i++) {
+        if (context->held_keys[i].active && context->held_keys[i].vkey == vkey) {
+            return (int)i;
+        }
+    }
+    return -1;
+}
+
+static int c64_alloc_held_slot(struct c64_source *context, uint32_t vkey)
+{
+    int existing = c64_find_held_slot(context, vkey);
+    if (existing >= 0) {
+        return existing; // already held (auto-repeat) -- caller dedupes
+    }
+    for (size_t i = 0; i < sizeof(context->held_keys) / sizeof(context->held_keys[0]); i++) {
+        if (!context->held_keys[i].active) {
+            return (int)i;
+        }
+    }
+    return -1;
+}
+
+// Map a Shift key event to its C64 matrix input for positional "game" keymaps,
+// where Shift is a literal matrix key (left/right-shift flippers). Left and
+// right shift are distinct C64 matrix positions, so pinball games can drive the
+// two flippers independently.
+static const char *c64_shift_flipper_input(uint32_t native_vkey, uint32_t native_scancode)
+{
+#if defined(__APPLE__)
+    if (native_vkey == 0x38) {
+        return "left_shift"; // kVK_Shift
+    }
+    if (native_vkey == 0x3C) {
+        return "right_shift"; // kVK_RightShift
+    }
+    return NULL;
+#else
+    if (native_vkey == 0xFFE1) {
+        return "left_shift"; // XK_Shift_L
+    }
+    if (native_vkey == 0xFFE2) {
+        return "right_shift"; // XK_Shift_R
+    }
+    if (native_vkey == 0x10) {
+        // Windows VK_SHIFT is generic; the scancode disambiguates (0x36 = right).
+        return native_scancode == 0x36 ? "right_shift" : "left_shift";
+    }
+    return NULL;
+#endif
+}
+
+// Release every held keyboard/joystick input and clear the tracker. Used on
+// focus loss so nothing stays stuck down on the C64 when capture stops.
+static void c64_release_held_keys(struct c64_source *context)
+{
+    if (!context) {
+        return;
+    }
+    bool any = false;
+    for (size_t i = 0; i < sizeof(context->held_keys) / sizeof(context->held_keys[0]); i++) {
+        if (context->held_keys[i].active) {
+            any = true;
+            break;
+        }
+    }
+    if (!any) {
+        return;
+    }
+    if (context->keyboard) {
+        c64_machine_command_t cmd = {.type = C64_MACHINE_CMD_RELEASE_ALL};
+        c64_keyboard_queue_machine_command(context->keyboard, &cmd);
+    } else if (context->rest_client) {
+        c64_rest_release_all(context->rest_client);
+    }
+    memset(context->held_keys, 0, sizeof(context->held_keys));
 }
 
 void c64_focus(void *data, bool focus)
@@ -2768,6 +2853,10 @@ void c64_focus(void *data, bool focus)
         context->keyboard_capture_active = false;
         C64_LOG_INFO("Keyboard capture deactivated (source lost focus)");
         c64_release_joystick_inputs(context);
+        // Release any keys/flippers held at the moment focus was lost so they do
+        // not stay pressed on the C64 (release_all clears joystick too, but the
+        // above only fires in joystick mode; this covers held keystrokes).
+        c64_release_held_keys(context);
         if (context->keyboard) {
             c64_keyboard_set_capture(context->keyboard, false);
         }
@@ -2845,6 +2934,36 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
     }
 
     if (is_modifier_key) {
+        // Positional ("game") keymaps treat Shift as a literal C64 matrix key,
+        // so a standalone Shift is mirrored as a held left/right-shift flipper
+        // (pinball). Symbolic keymaps consume Shift to select characters, so it
+        // stays a skipped modifier there and typing is unaffected.
+        if (is_shift_key && context->keyboard_capture_active && context->keyboard &&
+            c64_keymap_is_positional(context->keymap)) {
+            const char *shift_input = c64_shift_flipper_input(event->native_vkey, event->native_scancode);
+            if (shift_input) {
+                const int slot = c64_find_held_slot(context, event->native_vkey);
+                const bool held = slot >= 0;
+                // Dedupe: press only on the first key-down, release only if held.
+                if ((!key_up && !held) || (key_up && held)) {
+                    c64_machine_command_t cmd = {.type = C64_MACHINE_CMD_KEY, .key_press = !key_up};
+                    snprintf(cmd.key_input, sizeof(cmd.key_input), "%s", shift_input);
+                    c64_keyboard_queue_machine_command(context->keyboard, &cmd);
+                    if (key_up) {
+                        context->held_keys[slot].active = false;
+                    } else {
+                        const int free_slot = c64_alloc_held_slot(context, event->native_vkey);
+                        if (free_slot >= 0) {
+                            context->held_keys[free_slot].active = true;
+                            context->held_keys[free_slot].vkey = event->native_vkey;
+                            context->held_keys[free_slot].is_joystick = false;
+                        }
+                    }
+                }
+                return;
+            }
+        }
+
         if (!key_up && context->keyboard_ctrl_down && context->keyboard_meta_down &&
             !context->keyboard_ctrl_meta_armed && !context->keyboard_ctrl_meta_consumed) {
             context->keyboard_ctrl_meta_armed = true;
@@ -2880,6 +2999,18 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
     if (context->joystick_mode_active) {
         const char *joystick_input = c64_joystick_input_for_vkey(event->native_vkey);
         if (joystick_input) {
+            // Dedupe held directions: OS auto-repeat resends key-down for a key
+            // that is already down, which would re-press and stutter the
+            // joystick. Press only on the first key-down, release only if it was
+            // actually held.
+            const int slot = c64_find_held_slot(context, event->native_vkey);
+            const bool held = slot >= 0;
+            if (!key_up && held) {
+                return; // auto-repeat of an already-held direction
+            }
+            if (key_up && !held) {
+                return; // release for a direction we never pressed
+            }
             // C64STR-022: enqueue for the async worker; never block the UI thread.
             if (context->keyboard) {
                 c64_machine_command_t cmd = {.type = C64_MACHINE_CMD_JOYSTICK,
@@ -2888,14 +3019,36 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
                 snprintf(cmd.joystick_input, sizeof(cmd.joystick_input), "%s", joystick_input);
                 c64_keyboard_queue_machine_command(context->keyboard, &cmd);
             }
+            if (key_up) {
+                context->held_keys[slot].active = false;
+            } else {
+                const int free_slot = c64_alloc_held_slot(context, event->native_vkey);
+                if (free_slot >= 0) {
+                    context->held_keys[free_slot].active = true;
+                    context->held_keys[free_slot].vkey = event->native_vkey;
+                    context->held_keys[free_slot].is_joystick = true;
+                    snprintf(context->held_keys[free_slot].joystick_input,
+                             sizeof(context->held_keys[free_slot].joystick_input), "%s", joystick_input);
+                }
+            }
             return;
         }
     }
 
-    // Only process key press events (not key up). Key-repeat on some platforms
-    // can synthesize transient key-up events between repeats, so do not flush
-    // non-verbose logging state here.
+    // Release a held interactive key on its key-up so the C64 sees the key held
+    // for exactly as long as the host key was down (real-time games). Keys that
+    // were tapped (shifted chords, unmapped) are not tracked and fall through.
     if (key_up) {
+        const int slot = c64_find_held_slot(context, event->native_vkey);
+        if (slot >= 0 && !context->held_keys[slot].is_joystick) {
+            if (context->keyboard) {
+                // Replay the held key's resolved byte as a matrix RELEASE.
+                c64_output_t release = {.mode = C64_OUTPUT_PETSCII,
+                                        .data.petscii = context->held_keys[slot].output_byte};
+                c64_keyboard_queue_output_ex(context->keyboard, &release, C64_KEY_RELEASE);
+            }
+            context->held_keys[slot].active = false;
+        }
         return;
     }
 
@@ -3009,7 +3162,31 @@ void c64_key_click(void *data, const struct obs_key_event *event, bool key_up)
         // Convert key to C64 output
         c64_output_t output;
         if (c64_keymap_convert(context->keymap, key.code, key.text, modifiers, &output)) {
-            c64_keyboard_queue_output(context->keyboard, &output);
+            // Hold semantics: a key that resolves to a single unshifted matrix
+            // key is pressed on key-down and released on its key-up (tracked by
+            // vkey), so held keys reach the C64 held down for real-time games.
+            // Auto-repeat key-downs for an already-held key are ignored. Shifted
+            // chords and multi-byte text are not holdable and are tapped as
+            // before (and not tracked), so typing is unchanged.
+            uint8_t hold_byte = 0;
+            if (c64_keyboard_output_is_holdable(&output, &hold_byte)) {
+                if (c64_find_held_slot(context, event->native_vkey) >= 0) {
+                    return; // auto-repeat of an already-held key
+                }
+                const int free_slot = c64_alloc_held_slot(context, event->native_vkey);
+                if (free_slot >= 0) {
+                    context->held_keys[free_slot].active = true;
+                    context->held_keys[free_slot].vkey = event->native_vkey;
+                    context->held_keys[free_slot].is_joystick = false;
+                    context->held_keys[free_slot].output_byte = hold_byte;
+                    c64_keyboard_queue_output_ex(context->keyboard, &output, C64_KEY_PRESS);
+                } else {
+                    // Tracker full (>16 keys down): tap so the key is not lost.
+                    c64_keyboard_queue_output(context->keyboard, &output);
+                }
+            } else {
+                c64_keyboard_queue_output(context->keyboard, &output);
+            }
         }
     }
 }

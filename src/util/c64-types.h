@@ -391,6 +391,19 @@ struct c64_source {
     bool joystick_mode_active;   // false = direct keyboard relay, true = cursor/space -> joystick
     int joystick_emulation_port; // 1 or 2; default 2
 
+    // Held interactive keys, so a physically held key reaches the C64 held down
+    // (real-time games / pinball flippers) instead of a one-frame tap. Tracked
+    // by native vkey: press on key-down, release on key-up, and auto-repeat
+    // key-downs for an already-held key are ignored. Also dedupes held joystick
+    // directions. See c64_key_click / c64_release_held_keys.
+    struct {
+        bool active;            // Slot occupied? (macOS vkey 0x00 = 'A' is valid, so no 0 sentinel)
+        uint32_t vkey;          // Host virtual key that is held
+        uint8_t output_byte;    // Resolved PETSCII byte, replayed as RELEASE on key-up
+        bool is_joystick;       // Slot holds a joystick direction rather than a keystroke
+        char joystick_input[8]; // For is_joystick: "up"/"down"/"left"/"right"/"fire"
+    } held_keys[16];
+
     // Audio mixer snapshot for AV sync runs
     char **audio_mixer_snapshot_items;  // Item names (Audio Mixer)
     char **audio_mixer_snapshot_values; // Original values for each item

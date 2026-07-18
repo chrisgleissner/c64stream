@@ -149,6 +149,7 @@ static const symbolic_key_t symbolic_keys[] = {{"c64:RETURN", 0x0D},
 struct c64_keymap {
     char name[128];
     char description[256];
+    bool positional; // [meta] type=positional
     keymap_entry_t entries[MAX_KEYMAP_ENTRIES];
     int num_entries;
 };
@@ -161,8 +162,11 @@ struct c64_keyboard {
     char status[64];
     uint64_t queued_submission_count;
 
-    // FIFO queue for keystroke bytes
+    // FIFO queue for keystroke bytes. queue_tr[] holds the parallel per-byte
+    // press/release/tap transition (C64STR: held-key game input); it shares the
+    // head/tail/count indices with queue[].
     uint8_t queue[QUEUE_SIZE];
+    uint8_t queue_tr[QUEUE_SIZE];
     int queue_head;
     int queue_tail;
     int queue_count;
@@ -658,6 +662,8 @@ c64_keymap_t *c64_keymap_load(const char *path)
                 strncpy(keymap->name, value, sizeof(keymap->name) - 1);
             } else if (strcmp(key, "description") == 0) {
                 strncpy(keymap->description, value, sizeof(keymap->description) - 1);
+            } else if (strcmp(key, "type") == 0) {
+                keymap->positional = string_ieq(value, "positional");
             }
         } else if (strcmp(section, "map") == 0) {
             // Map section
@@ -754,6 +760,11 @@ const char *c64_keymap_get_name(c64_keymap_t *keymap)
         return "";
     }
     return keymap->name;
+}
+
+bool c64_keymap_is_positional(c64_keymap_t *keymap)
+{
+    return keymap && keymap->positional;
 }
 
 static uint8_t keymap_entry_next_value(keymap_entry_t *entry)
@@ -896,7 +907,8 @@ bool c64_keymap_convert(c64_keymap_t *keymap, const char *key_code, const char *
     return false;
 }
 
-static bool queue_push_many(c64_keyboard_t *keyboard, const uint8_t *bytes, size_t count)
+static bool queue_push_many(c64_keyboard_t *keyboard, const uint8_t *bytes, size_t count,
+                            c64_key_transition_t transition)
 {
     if (!keyboard || (!bytes && count > 0)) {
         return false;
@@ -910,6 +922,7 @@ static bool queue_push_many(c64_keyboard_t *keyboard, const uint8_t *bytes, size
 
     for (size_t i = 0; i < count; i++) {
         keyboard->queue[keyboard->queue_tail] = bytes[i];
+        keyboard->queue_tr[keyboard->queue_tail] = (uint8_t)transition;
         keyboard->queue_tail = (keyboard->queue_tail + 1) % QUEUE_SIZE;
     }
     keyboard->queue_count += (int)count;
@@ -920,7 +933,7 @@ static bool queue_push_many(c64_keyboard_t *keyboard, const uint8_t *bytes, size
     return true;
 }
 
-static int queue_peek_batch(c64_keyboard_t *keyboard, uint8_t *buffer, int max_count)
+static int queue_peek_batch(c64_keyboard_t *keyboard, uint8_t *buffer, uint8_t *transitions, int max_count)
 {
     pthread_mutex_lock(&keyboard->queue_mutex);
 
@@ -937,6 +950,9 @@ static int queue_peek_batch(c64_keyboard_t *keyboard, uint8_t *buffer, int max_c
     int index = keyboard->queue_head;
     for (int i = 0; i < count; i++) {
         buffer[i] = keyboard->queue[index];
+        if (transitions) {
+            transitions[i] = keyboard->queue_tr[index];
+        }
         index = (index + 1) % QUEUE_SIZE;
     }
 
@@ -1310,7 +1326,20 @@ static bool petscii_to_matrix(uint8_t value, const char **key, bool *shift)
     return false;
 }
 
-static bool build_rest_input_batch(const uint8_t *bytes, int count, char *json, size_t json_size)
+static const char *transition_name(uint8_t transition)
+{
+    switch (transition) {
+    case C64_KEY_PRESS:
+        return "press";
+    case C64_KEY_RELEASE:
+        return "release";
+    default:
+        return "tap";
+    }
+}
+
+static bool build_rest_input_batch(const uint8_t *bytes, const uint8_t *transitions, int count, char *json,
+                                   size_t json_size)
 {
     if (!bytes || count <= 0 || count > C64_REST_INPUT_BATCH_SIZE || !json || json_size < 32) {
         return false;
@@ -1322,18 +1351,48 @@ static bool build_rest_input_batch(const uint8_t *bytes, int count, char *json, 
         if (!petscii_to_matrix(bytes[i], &key, &shift)) {
             return false;
         }
+        const char *tr = transition_name(transitions ? transitions[i] : C64_KEY_TAP);
         int written =
             shift ? snprintf(json + used, json_size - used,
-                             "%s{\"kind\":\"keyboard\",\"inputs\":[\"left_shift\",\"%s\"],\"transition\":\"tap\"}",
-                             i ? "," : "", key)
+                             "%s{\"kind\":\"keyboard\",\"inputs\":[\"left_shift\",\"%s\"],\"transition\":\"%s\"}",
+                             i ? "," : "", key, tr)
                   : snprintf(json + used, json_size - used,
-                             "%s{\"kind\":\"keyboard\",\"inputs\":[\"%s\"],\"transition\":\"tap\"}", i ? "," : "", key);
+                             "%s{\"kind\":\"keyboard\",\"inputs\":[\"%s\"],\"transition\":\"%s\"}", i ? "," : "", key,
+                             tr);
         if (written < 0 || (size_t)written >= json_size - used) {
             return false;
         }
         used += (size_t)written;
     }
     return snprintf(json + used, json_size - used, "]}") > 0;
+}
+
+bool c64_keyboard_output_is_holdable(const c64_output_t *output, uint8_t *out_byte)
+{
+    // Only a single, unshifted C64 matrix key can be held cleanly. A shifted
+    // chord would need left_shift held for the whole duration (and, in symbolic
+    // mode, the shift is a character selector, not a real held key), and
+    // multi-byte text has no single key to hold. Those coerce to TAP.
+    if (!output) {
+        return false;
+    }
+    uint8_t byte = 0;
+    if (output->mode == C64_OUTPUT_PETSCII) {
+        byte = output->data.petscii;
+    } else if (output->mode == C64_OUTPUT_SYMBOLIC) {
+        byte = lookup_symbolic_key(output->data.symbol);
+    } else {
+        return false; // C64_OUTPUT_TEXT: multi-byte, not holdable
+    }
+    const char *key = NULL;
+    bool shift = false;
+    if (!petscii_to_matrix(byte, &key, &shift) || shift) {
+        return false;
+    }
+    if (out_byte) {
+        *out_byte = byte;
+    }
+    return true;
 }
 
 // Drain and execute any pending async machine-control commands (C64STR-022).
@@ -1376,6 +1435,17 @@ static void process_machine_commands(c64_keyboard_t *keyboard)
         case C64_MACHINE_CMD_RELEASE_ALL:
             c64_rest_release_all(keyboard->rest_client);
             break;
+        case C64_MACHINE_CMD_KEY: {
+            // Raw matrix key held down / released (e.g. a Shift flipper in
+            // positional mode). REST-only: the legacy KERNAL buffer cannot hold
+            // a bare key, so there is deliberately no fallback here.
+            char json[128];
+            snprintf(json, sizeof(json),
+                     "{\"events\":[{\"kind\":\"keyboard\",\"inputs\":[\"%s\"],\"transition\":\"%s\"}]}", cmd.key_input,
+                     cmd.key_press ? "press" : "release");
+            c64_rest_machine_input(keyboard->rest_client, json);
+            break;
+        }
         }
     }
 }
@@ -1385,7 +1455,13 @@ static void *injection_worker(void *arg)
 {
     c64_keyboard_t *keyboard = (c64_keyboard_t *)arg;
     uint8_t pending_buffer[C64_REST_INPUT_BATCH_SIZE] = {0};
+    uint8_t pending_transitions[C64_REST_INPUT_BATCH_SIZE] = {0};
     int pending_count = 0;
+    // Queue entries this batch represents. On the legacy path pending_count is
+    // reduced to just the writable (non-RELEASE) bytes, but pending_consumed
+    // stays the number of queue slots to discard, so held-key RELEASE events
+    // (no-ops for the KERNAL buffer) are still drained.
+    int pending_consumed = 0;
     c64_keyboard_state_t state = C64_KEYBOARD_STATE_IDLE;
     uint32_t retry_count = 0;
     uint32_t backoff_ms = C64_KEYBOARD_POLL_INITIAL_MS;
@@ -1406,16 +1482,18 @@ static void *injection_worker(void *arg)
             if (!last_batch_failed) {
                 keyboard_set_status(keyboard, "idle");
             }
-            pending_count = queue_peek_batch(keyboard, pending_buffer, C64_REST_INPUT_BATCH_SIZE);
+            pending_count = queue_peek_batch(keyboard, pending_buffer, pending_transitions, C64_REST_INPUT_BATCH_SIZE);
             if (pending_count == 0) {
                 if (!keyboard_wait_for_work(keyboard)) {
                     continue;
                 }
-                pending_count = queue_peek_batch(keyboard, pending_buffer, C64_REST_INPUT_BATCH_SIZE);
+                pending_count =
+                    queue_peek_batch(keyboard, pending_buffer, pending_transitions, C64_REST_INPUT_BATCH_SIZE);
                 if (pending_count == 0) {
                     continue;
                 }
             }
+            pending_consumed = pending_count;
 
             char json[8192];
             const int transport = keyboard_get_transport(keyboard);
@@ -1425,12 +1503,13 @@ static void *injection_worker(void *arg)
             // characters. Forced REST never demotes; it has nowhere to fall back to.
             const bool try_rest = transport != C64_STREAM_TRANSPORT_LEGACY &&
                                   (transport == C64_STREAM_TRANSPORT_REST || os_gettime_ns() >= rest_demoted_until_ns);
-            if (try_rest && build_rest_input_batch(pending_buffer, pending_count, json, sizeof(json))) {
+            if (try_rest &&
+                build_rest_input_batch(pending_buffer, pending_transitions, pending_count, json, sizeof(json))) {
                 c64_rest_outcome_t outcome = C64_REST_UNREACHABLE;
                 long status = 0;
                 if (c64_rest_machine_input_with_outcome(keyboard->rest_client, json, &outcome, &status)) {
                     C64_LOG_DEBUG(KEYBOARD_LOG_PREFIX "Injected %d bytes via machine:input", pending_count);
-                    queue_discard_many(keyboard, pending_count);
+                    queue_discard_many(keyboard, pending_consumed);
                     pending_count = 0;
                     last_batch_failed = false;
                     rest_demoted_until_ns = 0;
@@ -1440,7 +1519,7 @@ static void *injection_worker(void *arg)
                 if (transport == C64_STREAM_TRANSPORT_REST || outcome != C64_REST_NOT_SUPPORTED) {
                     C64_LOG_ERROR(KEYBOARD_LOG_PREFIX "machine:input refused batch (HTTP %ld); no legacy fallback",
                                   status);
-                    queue_discard_many(keyboard, pending_count);
+                    queue_discard_many(keyboard, pending_consumed);
                     pending_count = 0;
                     last_batch_failed = true;
                     keyboard_set_status(keyboard, "failed");
@@ -1450,7 +1529,7 @@ static void *injection_worker(void *arg)
                 C64_LOG_INFO(KEYBOARD_LOG_PREFIX "machine:input unavailable; retrying batch via legacy input");
             } else if (transport == C64_STREAM_TRANSPORT_REST) {
                 C64_LOG_ERROR(KEYBOARD_LOG_PREFIX "input cannot be represented by machine:input; no legacy fallback");
-                queue_discard_many(keyboard, pending_count);
+                queue_discard_many(keyboard, pending_consumed);
                 pending_count = 0;
                 last_batch_failed = true;
                 keyboard_set_status(keyboard, "failed");
@@ -1460,6 +1539,26 @@ static void *injection_worker(void *arg)
              * demotion the queue remains ordered and subsequent chunks retry. */
             if (pending_count > C64_KEYBOARD_BUFFER_SIZE) {
                 pending_count = C64_KEYBOARD_BUFFER_SIZE;
+            }
+            // The KERNAL buffer cannot hold a key: PRESS/TAP write the byte
+            // once, RELEASE is a no-op. Compact the writable bytes to the front;
+            // pending_consumed still covers the dropped RELEASE slots so they
+            // are discarded from the queue. This is the graceful degradation on
+            // firmware without machine:input -- typing works, holds do not.
+            pending_consumed = pending_count;
+            int legacy_write = 0;
+            for (int i = 0; i < pending_count; i++) {
+                if (pending_transitions[i] != C64_KEY_RELEASE) {
+                    pending_buffer[legacy_write++] = pending_buffer[i];
+                }
+            }
+            pending_count = legacy_write;
+            if (pending_count == 0) {
+                // Nothing to type (all releases); just drain the consumed slots.
+                queue_discard_many(keyboard, pending_consumed);
+                pending_consumed = 0;
+                last_batch_failed = false;
+                continue;
             }
             last_batch_failed = false;
             retry_count = 0;
@@ -1548,9 +1647,10 @@ static void *injection_worker(void *arg)
         }
 
         case C64_KEYBOARD_STATE_COMPLETE:
-            queue_discard_many(keyboard, pending_count);
+            queue_discard_many(keyboard, pending_consumed);
             C64_LOG_DEBUG(KEYBOARD_LOG_PREFIX "Injected %d bytes with verification", pending_count);
             pending_count = 0;
+            pending_consumed = 0;
             retry_count = 0;
             backoff_ms = C64_KEYBOARD_POLL_INITIAL_MS;
             last_batch_failed = false;
@@ -1558,8 +1658,9 @@ static void *injection_worker(void *arg)
             break;
 
         case C64_KEYBOARD_STATE_FAILED:
-            queue_discard_many(keyboard, pending_count);
+            queue_discard_many(keyboard, pending_consumed);
             pending_count = 0;
+            pending_consumed = 0;
             retry_count = 0;
             backoff_ms = C64_KEYBOARD_POLL_INITIAL_MS;
             last_batch_failed = true;
@@ -1686,8 +1787,19 @@ bool c64_keyboard_release_all(c64_keyboard_t *keyboard)
 
 bool c64_keyboard_queue_output(c64_keyboard_t *keyboard, const c64_output_t *output)
 {
+    return c64_keyboard_queue_output_ex(keyboard, output, C64_KEY_TAP);
+}
+
+bool c64_keyboard_queue_output_ex(c64_keyboard_t *keyboard, const c64_output_t *output, c64_key_transition_t transition)
+{
     if (!keyboard || !output) {
         return false;
+    }
+
+    // Multi-byte text (and any non-holdable output) has no single key to hold;
+    // send it as discrete taps rather than a stray press/release.
+    if (transition != C64_KEY_TAP && !c64_keyboard_output_is_holdable(output, NULL)) {
+        transition = C64_KEY_TAP;
     }
 
     const uint64_t submission_count = keyboard_next_submission_count(keyboard);
@@ -1717,7 +1829,7 @@ bool c64_keyboard_queue_output(c64_keyboard_t *keyboard, const c64_output_t *out
         return false;
     }
 
-    if (!queue_push_many(keyboard, bytes, count)) {
+    if (!queue_push_many(keyboard, bytes, count, transition)) {
         C64_LOG_WARNING(KEYBOARD_LOG_PREFIX "Failed to queue #%llu %s: queue full",
                         (unsigned long long)submission_count, label);
         return false;
