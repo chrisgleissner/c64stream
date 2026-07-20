@@ -83,14 +83,23 @@ typedef struct {
     // a selected device's address without changing its ID, so completion needs
     // to know whether that selection was actually confirmed this pass.
     char selected_device_id[C64_DEVICE_ID_MAX];
+    // Host actually in use at scan start. A fresh source (or one still on a
+    // legacy migrated id) has no confirmed device id yet, so id-based
+    // confirmation never matches even when this scan re-observes the exact
+    // host it is already talking to. Falling back to a host match lets that
+    // profile -- including any peer_host this pass discovers -- attach to the
+    // active source instead of only ever landing in the registry unused.
+    char selected_host[C64_DEVICE_HOST_MAX];
 } scan_job_t;
 
 // Outlives scan_job_t (freed before the UI-thread completion task runs).
 typedef struct {
     obs_source_t *source;
     struct c64_source *context;
-    // The only confirmed device from this scan, if there was exactly one.
-    // A UI scan may activate it when the source has no deliberate selection.
+    // A device this scan confirms belongs to the active source: either the
+    // sole device this pass discovered, or one whose host matches the host
+    // already in use (see scan_job_t.selected_host). A UI scan may activate
+    // it when the source has no deliberate selection.
     char auto_select_device_id[C64_DEVICE_ID_MAX];
     // Do not apply a finished scan to a device the user selected while that
     // scan was running.
@@ -571,6 +580,7 @@ static void apply_scan_results(scan_job_t *job, char *auto_select_device_id, siz
 {
     size_t applied_count = 0;
     char sole_device_id[C64_DEVICE_ID_MAX] = {0};
+    char host_matched_device_id[C64_DEVICE_ID_MAX] = {0};
     for (size_t i = 0; i < job->result_count; i++) {
         bool superseded = false;
         for (size_t j = 0; j < job->result_count; j++) {
@@ -584,6 +594,9 @@ static void apply_scan_results(scan_job_t *job, char *auto_select_device_id, siz
             if (selected_device_confirmed && job->selected_device_id[0] &&
                 !strcmp(job->selected_device_id, job->results[i].device.id)) {
                 *selected_device_confirmed = true;
+            }
+            if (job->selected_host[0] && !strcmp(job->selected_host, job->results[i].device.host)) {
+                snprintf(host_matched_device_id, sizeof(host_matched_device_id), "%s", job->results[i].device.id);
             }
             c64_device_t device = job->results[i].device;
             for (size_t j = 0; j < job->result_count; j++) {
@@ -599,8 +612,15 @@ static void apply_scan_results(scan_job_t *job, char *auto_select_device_id, siz
             }
         }
     }
-    if (auto_select_device_id && auto_select_device_id_size && applied_count == 1) {
-        snprintf(auto_select_device_id, auto_select_device_id_size, "%s", sole_device_id);
+    if (auto_select_device_id && auto_select_device_id_size) {
+        // A host match is a stronger signal than "only one device answered":
+        // it proves this scan re-observed the exact address already in use,
+        // even alongside other devices on the network -- see selected_host.
+        if (host_matched_device_id[0]) {
+            snprintf(auto_select_device_id, auto_select_device_id_size, "%s", host_matched_device_id);
+        } else if (applied_count == 1) {
+            snprintf(auto_select_device_id, auto_select_device_id_size, "%s", sole_device_id);
+        }
     }
 }
 
@@ -835,6 +855,7 @@ static scan_job_t *build_scan_job(struct c64_source *context, uint16_t port)
             snprintf(job->selected_device_id, sizeof(job->selected_device_id), "%s",
                      obs_data_get_string(settings, "c64_device"));
             const char *configured_host = obs_data_get_string(settings, "c64_host");
+            snprintf(job->selected_host, sizeof(job->selected_host), "%s", configured_host ? configured_host : "");
             scan_add_host(job, configured_host);
             job->control_port = (uint16_t)obs_data_get_int(settings, "control_port");
             if (!job->control_port) {
@@ -899,6 +920,7 @@ bool c64_device_scan_sync(struct c64_source *context, uint16_t port)
     job->deadline_ns = os_gettime_ns() + C64_SCAN_OVERALL_TIMEOUT_NS;
     obs_source_t *source = context ? context->source : NULL;
     job->source = source ? obs_source_get_ref(source) : NULL;
+    job->context = context;
     /* Called from the script executor thread, already off the OBS UI thread,
      * so blocking here (bounded by the deadline above) is safe. */
     scan_main(job);

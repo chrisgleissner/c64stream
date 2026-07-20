@@ -987,6 +987,7 @@ jobs:
           - ntsc_default_record
           - ntsc_delay_buffer500
           - ntsc_device_switch_soak
+          - ntsc_discovery_dual_address_switch
           # TODO: Investigate why these scenarios pass locally but experience large UDP packet loss on CI.
           # Theory: Related to 1MiB UDP buffer limit compared with 8MiB locally.
           # - ntsc_delay_buffer500_jitter10

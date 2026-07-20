@@ -215,14 +215,21 @@ class MockC64UServer:
         finally:
             conn.close()
 
-    def _device_for_host(self, host: str) -> dict[str, Any]:
-        return self.devices_by_host.get(host, {
-            "id": self.unique_id,
-            "product": self.product,
-            "hostname": self.hostname,
-            "unique_id": self.unique_id,
-            "stream_hosts": {host},
-        })
+    def _device_for_host(self, host: str) -> Optional[dict[str, Any]]:
+        """The single-device profile for any host, or -- once a topology is
+        given -- only for a host that topology actually advertises. Both the
+        control and REST sockets bind 0.0.0.0, so without this a discovery
+        scan's subnet sweep would get an /v1/info reply from every loopback
+        address it probes, flooding results with phantom devices."""
+        if not self.devices_by_host:
+            return {
+                "id": self.unique_id,
+                "product": self.product,
+                "hostname": self.hostname,
+                "unique_id": self.unique_id,
+                "stream_hosts": {host},
+            }
+        return self.devices_by_host.get(host)
 
     def _process_command(self, cmd: bytearray, local_host: str):
         # cmd[0] is command byte
@@ -333,6 +340,9 @@ class MockC64UServer:
                 path = urlparse(self.path)
                 if path.path == "/v1/info":
                     device = mock._device_for_host(self.connection.getsockname()[0])
+                    if device is None:
+                        self.send_error(404, "No device at this address")
+                        return
                     self._send_json({
                         "product": device["product"],
                         "hostname": device["hostname"],
