@@ -1682,22 +1682,25 @@ static void c64_apply_peer_stream_failover(void *data)
 
     bool promoted = false;
     obs_data_t *settings = obs_source_get_settings(failover->source);
-    if (settings && !strcmp(obs_data_get_string(settings, "c64_device"), failover->device_id) &&
-        !strcmp(obs_data_get_string(settings, "c64_host"), failover->current_host)) {
-        const c64_device_t *registered = c64_device_registry_get(failover->device_id);
-        if (registered && registered->peer_host[0] && !strcmp(registered->host, failover->current_host)) {
-            c64_device_t wired_candidate = *registered;
-            snprintf(wired_candidate.host, sizeof(wired_candidate.host), "%s", registered->peer_host);
-            snprintf(wired_candidate.peer_host, sizeof(wired_candidate.peer_host), "%s", registered->host);
-            if (c64_device_registry_upsert(&wired_candidate) && c64_device_registry_apply_selected(settings)) {
-                C64_LOG_WARNING("DEVICE: no UDP video from %s after stream start; switching to alternate interface %s",
-                                failover->current_host, wired_candidate.host);
-                obs_source_update(failover->source, settings);
-                promoted = true;
+    if (settings) {
+        const char *current_device_id = obs_data_get_string(settings, "c64_device");
+        const char *current_host = obs_data_get_string(settings, "c64_host");
+        if (current_device_id && current_host && !strcmp(current_device_id, failover->device_id) &&
+            !strcmp(current_host, failover->current_host)) {
+            const c64_device_t *registered = c64_device_registry_get(failover->device_id);
+            if (registered && registered->peer_host[0] && !strcmp(registered->host, failover->current_host)) {
+                c64_device_t wired_candidate = *registered;
+                snprintf(wired_candidate.host, sizeof(wired_candidate.host), "%s", registered->peer_host);
+                snprintf(wired_candidate.peer_host, sizeof(wired_candidate.peer_host), "%s", registered->host);
+                if (c64_device_registry_upsert(&wired_candidate) && c64_device_registry_apply_selected(settings)) {
+                    C64_LOG_WARNING(
+                        "DEVICE: no UDP video from %s after stream start; switching to alternate interface %s",
+                        failover->current_host, wired_candidate.host);
+                    obs_source_update(failover->source, settings);
+                    promoted = true;
+                }
             }
         }
-    }
-    if (settings) {
         obs_data_release(settings);
     }
     if (!promoted) {
