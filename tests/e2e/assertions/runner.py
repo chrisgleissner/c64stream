@@ -24,6 +24,7 @@ from .av_sync_log_validation import AvSyncLogValidationAssertion
 from .base import AssertionResult, AssertionStatus, EffectAssertion, is_ci
 from .bounds import BoundsStabilityAssertion, BoundsVariationAssertion
 from .debug_log_presence import DebugLogPresenceAssertion
+from .discovered_stream_patterns import DiscoveredStreamPatternsAssertion
 from .device_switch_log import DeviceSwitchLogAssertion
 from .transport_log import LegacyTransportLogAssertion, RestTransportLogAssertion
 from .config import PresetConfig
@@ -205,6 +206,7 @@ def create_assertions_from_list(
         "av_sync_log_validation": AvSyncLogValidationAssertion,
         "debug_log_presence": DebugLogPresenceAssertion,
         "device_switch_log": DeviceSwitchLogAssertion,
+        "discovered_stream_patterns": DiscoveredStreamPatternsAssertion,
         "legacy_transport_log": LegacyTransportLogAssertion,
         "rest_transport_log": RestTransportLogAssertion,
         "bounds_stability": BoundsStabilityAssertion,

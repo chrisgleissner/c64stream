@@ -113,6 +113,9 @@ struct c64_source {
     uint32_t control_port;
     bool streaming;
     uint64_t last_start_command_time_ns; // When we last requested streaming (START commands or start_streaming)
+    // Timestamp of the first successful start awaiting video. It survives
+    // repeated control retries and clears on the first video packet.
+    uint64_t no_video_since_ns;
 
     // Per-source palette/color conversion state (C64STR-014).
     // Owns this source's active palette colours and the double-buffered pixel
@@ -388,6 +391,9 @@ struct c64_source {
     char device_transition_host[64];
     uint32_t device_transition_control_port;
     bool device_discovery_in_progress; // Drives the Find Devices button's label while a scan runs
+    // A discovered alternate address is tried once when the selected interface
+    // accepts control commands but produces no UDP video (e.g. Ultimate Wi-Fi).
+    volatile long peer_stream_failover_scheduled;
 
     // Keyboard-driven joystick emulation (toggled by F10/F11; see c64_key_click)
     bool joystick_mode_active;   // false = direct keyboard relay, true = cursor/space -> joystick

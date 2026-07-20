@@ -286,6 +286,6 @@ target_include_directories(
 if(UNIX)
   target_link_libraries(test_c64_device_scan PRIVATE OBS::libobs CURL::libcurl m resolv)
 else()
-  target_link_libraries(test_c64_device_scan PRIVATE OBS::libobs CURL::libcurl)
+  target_link_libraries(test_c64_device_scan PRIVATE OBS::libobs CURL::libcurl iphlpapi ws2_32)
 endif()
 add_test(NAME c64_device_scan COMMAND test_c64_device_scan)

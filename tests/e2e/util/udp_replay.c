@@ -195,13 +195,16 @@ int main(int argc, char **argv)
     setvbuf(stderr, NULL, _IOLBF, 0);
 
     if (argc < 6) {
-        printf("Usage: %s <manifest> <dir> <host> <port> <packet_size> [--verbose] [--start-at-us <t>]\n", argv[0]);
+        printf(
+            "Usage: %s <manifest> <dir> <host> <port> <packet_size> [--bind-host <ip>] [--verbose] [--start-at-us <t>]\n",
+            argv[0]);
         return 1;
     }
 
     const char *manifest_path = NULL;
     const char *dir_path = NULL;
     const char *host = NULL;
+    const char *bind_host = NULL;
     int port = 0;
     int packet_size = 0;
     int verbose = 0;
@@ -217,6 +220,8 @@ int main(int argc, char **argv)
             host = argv[++i];
         else if (strcmp(argv[i], "--port") == 0 && i + 1 < argc)
             port = atoi(argv[++i]);
+        else if (strcmp(argv[i], "--bind-host") == 0 && i + 1 < argc)
+            bind_host = argv[++i];
         else if (strcmp(argv[i], "--packet-size") == 0 && i + 1 < argc)
             packet_size = atoi(argv[++i]);
         else if (strcmp(argv[i], "--verbose") == 0)
@@ -245,7 +250,7 @@ int main(int argc, char **argv)
     if (!manifest_path || !dir_path || !host) {
         fprintf(
             stderr,
-            "Usage: %s --manifest <csv> --dir <dir> --host <ip> --port <port> [--packet-size <bytes>] [--verbose]\n",
+            "Usage: %s --manifest <csv> --dir <dir> --host <ip> --port <port> [--bind-host <ip>] [--packet-size <bytes>] [--verbose]\n",
             argv[0]);
         return 1;
     }
@@ -265,6 +270,18 @@ int main(int argc, char **argv)
     if (sock < 0) {
         fprintf(stderr, "Failed to create socket\n");
         return 1;
+    }
+
+    if (bind_host) {
+        struct sockaddr_in bind_addr;
+        memset(&bind_addr, 0, sizeof(bind_addr));
+        bind_addr.sin_family = AF_INET;
+        bind_addr.sin_port = 0;
+        if (inet_pton(AF_INET, bind_host, &bind_addr.sin_addr) != 1 ||
+            bind(sock, (const struct sockaddr *)&bind_addr, sizeof(bind_addr)) != 0) {
+            fprintf(stderr, "Failed to bind UDP sender to %s: %s\n", bind_host, strerror(errno));
+            return 1;
+        }
     }
 
     // Best-effort: increase UDP send buffer to reduce sender-side drops under load.

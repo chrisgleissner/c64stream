@@ -42,6 +42,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-file.h"
 #include "c64-palette.h"
 #include "device/c64-device.h"
+#include "device/c64-device-scan.h"
 #include "c64-keyboard.h"
 #include "c64-rest-client.h"
 #include "c64-script-executor.h"
@@ -65,11 +66,16 @@ static void *c64_stop_streaming_thread(void *data);
 static void c64_abort_stream_start(struct c64_source *context);
 static void c64_attempt_script_autostart(struct c64_source *context, obs_data_t *settings);
 static void c64_queue_properties_refresh(struct c64_source *context);
+static void c64_schedule_peer_stream_failover(struct c64_source *context);
 static void c64_rebuild_rest_client(struct c64_source *context);
 static void c64_release_joystick_inputs(struct c64_source *context);
 static bool c64_start_streaming_inner(struct c64_source *context);
 
 static volatile long c64_next_default_port_pair;
+
+// Waiting a little longer than the normal two-second initial packet grace
+// avoids switching interfaces for a device that is merely slow to start.
+#define C64_PEER_STREAM_FAILOVER_GRACE_NS (5ULL * 1000000000ULL)
 
 static void c64_clamp_effect_params(struct c64_source *context)
 {
@@ -399,6 +405,19 @@ void c64_async_retry_task(void *data)
     pthread_mutex_unlock(&context->config_mutex);
 
     bool tcp_success = false;
+
+    /* An Ultimate Wi-Fi adapter can acknowledge both REST and port-64 control
+     * commands, but firmware only sends A/V streams from its wired LAN port.
+     * Discovery records the other verified address as the peer alias. If the
+     * current start has yielded no video after a conservative grace period,
+     * promote that alias once on the UI thread and let the normal update path
+     * rebuild control and UDP state for it. */
+    const uint64_t now_ns = os_gettime_ns();
+    if (c64_device_stream_failover_needed(context->expected_peer_alt_ip_set,
+                                          os_atomic_load_long(&context->peer_stream_failover_scheduled) != 0,
+                                          context->no_video_since_ns, now_ns, C64_PEER_STREAM_FAILOVER_GRACE_NS)) {
+        c64_schedule_peer_stream_failover(context);
+    }
 
     if (!context->streaming) {
         // Initial streaming start - full setup with fresh UDP sockets
@@ -1204,9 +1223,11 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     context->last_udp_packet_time = now; // DEPRECATED - kept for compatibility
     context->last_video_packet_time = now;
     context->last_audio_packet_time = now;
+    context->no_video_since_ns = 0;
     os_atomic_set_long(&context->retry_in_progress, 0);
     context->retry_count = 0;
     context->consecutive_failures = 0;
+    os_atomic_set_long(&context->peer_stream_failover_scheduled, 0);
     os_atomic_set_long(&context->retry_thread_active, 0);
     context->retry_thread_valid = false;
     os_atomic_set_bool(&context->udp_port_conflict, false);
@@ -1397,10 +1418,21 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
 
     c64_attempt_script_autostart(context, settings);
 
+    // Discovery's network probes run on its detached worker, so source
+    // creation never waits for a subnet sweep. Completion applies a single
+    // unambiguous result through obs_source_update(), which in turn schedules
+    // the normal background connection attempt. A previously selected device
+    // remains selected when this scan confirms it can be started.
+    context->device_discovery_in_progress = true;
+    if (!c64_device_scan_startup_async(context)) {
+        context->device_discovery_in_progress = false;
+        C64_LOG_WARNING("DEVICE: failed to start background device discovery");
+    }
+
     // Start only after all transport inputs exist. The retry worker probes REST
     // capability, so scheduling it before the REST client is initialized would
     // incorrectly select the legacy transport on a capable device.
-    C64_LOG_INFO("C64 Stream source created successfully - scheduling background initial connection");
+    C64_LOG_INFO("C64 Stream source created successfully - scheduling background discovery and initial connection");
     c64_schedule_retry(context, "initial connection");
 
     return context;
@@ -1596,6 +1628,13 @@ typedef struct {
     obs_source_t *source;
 } c64_source_properties_refresh_t;
 
+typedef struct {
+    obs_source_t *source;
+    struct c64_source *context;
+    char device_id[C64_DEVICE_ID_MAX];
+    char current_host[C64_DEVICE_HOST_MAX];
+} c64_peer_stream_failover_t;
+
 static void c64_apply_properties_refresh(void *data)
 {
     c64_source_properties_refresh_t *refresh = (c64_source_properties_refresh_t *)data;
@@ -1629,6 +1668,72 @@ static void c64_queue_properties_refresh(struct c64_source *context)
     }
 
     obs_queue_task(OBS_TASK_UI, c64_apply_properties_refresh, refresh, false);
+}
+
+static void c64_apply_peer_stream_failover(void *data)
+{
+    c64_peer_stream_failover_t *failover = data;
+    if (!failover || !failover->source || !failover->context) {
+        if (failover) {
+            free(failover);
+        }
+        return;
+    }
+
+    bool promoted = false;
+    obs_data_t *settings = obs_source_get_settings(failover->source);
+    if (settings) {
+        const char *current_device_id = obs_data_get_string(settings, "c64_device");
+        const char *current_host = obs_data_get_string(settings, "c64_host");
+        if (current_device_id && current_host && !strcmp(current_device_id, failover->device_id) &&
+            !strcmp(current_host, failover->current_host)) {
+            const c64_device_t *registered = c64_device_registry_get(failover->device_id);
+            if (registered && registered->peer_host[0] && !strcmp(registered->host, failover->current_host)) {
+                c64_device_t wired_candidate = *registered;
+                snprintf(wired_candidate.host, sizeof(wired_candidate.host), "%s", registered->peer_host);
+                snprintf(wired_candidate.peer_host, sizeof(wired_candidate.peer_host), "%s", registered->host);
+                if (c64_device_registry_upsert(&wired_candidate) && c64_device_registry_apply_selected(settings)) {
+                    C64_LOG_WARNING(
+                        "DEVICE: no UDP video from %s after stream start; switching to alternate interface %s",
+                        failover->current_host, wired_candidate.host);
+                    obs_source_update(failover->source, settings);
+                    promoted = true;
+                }
+            }
+        }
+        obs_data_release(settings);
+    }
+    if (!promoted) {
+        os_atomic_set_long(&failover->context->peer_stream_failover_scheduled, 0);
+    }
+    obs_source_release(failover->source);
+    free(failover);
+}
+
+static void c64_schedule_peer_stream_failover(struct c64_source *context)
+{
+    if (!context || !context->source || !context->active_device_id[0] ||
+        !os_atomic_compare_swap_long(&context->peer_stream_failover_scheduled, 0, 1)) {
+        return;
+    }
+
+    c64_peer_stream_failover_t *failover = calloc(1, sizeof(*failover));
+    if (!failover) {
+        os_atomic_set_long(&context->peer_stream_failover_scheduled, 0);
+        return;
+    }
+    failover->source = obs_source_get_ref(context->source);
+    if (!failover->source) {
+        free(failover);
+        os_atomic_set_long(&context->peer_stream_failover_scheduled, 0);
+        return;
+    }
+    failover->context = context;
+    snprintf(failover->device_id, sizeof(failover->device_id), "%s", context->active_device_id);
+    pthread_mutex_lock(&context->config_mutex);
+    snprintf(failover->current_host, sizeof(failover->current_host), "%s", context->hostname);
+    pthread_mutex_unlock(&context->config_mutex);
+    obs_queue_task(OBS_TASK_UI, c64_apply_peer_stream_failover, failover, false);
 }
 
 void c64_update(void *data, obs_data_t *settings)
@@ -2128,6 +2233,9 @@ static bool c64_start_streaming_inner(struct c64_source *context)
         C64_LOG_ERROR("" NETWORK_LOG_PREFIX " Failed to start C64 stream control");
         c64_abort_stream_start(context);
         return false;
+    }
+    if (context->no_video_since_ns == 0) {
+        context->no_video_since_ns = context->last_start_command_time_ns;
     }
 
     // Start fresh worker threads

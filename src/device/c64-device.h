@@ -43,3 +43,10 @@ bool c64_device_id_from_host(char *out, size_t out_size, const char *unique_id, 
 bool c64_device_registry_migrate_legacy(obs_data_t *settings);
 bool c64_device_registry_apply_selected(obs_data_t *settings);
 void c64_device_password_key(char *out, size_t out_size, const char *id);
+
+/* A multi-homed Ultimate can accept control traffic on Wi-Fi even though its
+ * A/V streams only leave the wired LAN port. Promote a verified alternate
+ * address only after a completed start has produced no video for the grace
+ * interval, and never retry that promotion automatically. */
+bool c64_device_stream_failover_needed(bool alternate_available, bool already_attempted, uint64_t no_video_since_ns,
+                                       uint64_t now_ns, uint64_t grace_ns);

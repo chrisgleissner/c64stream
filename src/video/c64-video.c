@@ -1100,6 +1100,10 @@ void *c64_video_thread_func(void *data)
                 continue;
             }
 
+            // A valid packet proves that the selected interface can carry
+            // video; do not later auto-promote its discovered peer.
+            context->no_video_since_ns = 0;
+
             const uint64_t packet_time = os_gettime_ns();
             context->last_udp_packet_time = packet_time; // DEPRECATED - kept for compatibility
             context->last_video_packet_time = packet_time;

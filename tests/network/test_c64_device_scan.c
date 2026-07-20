@@ -71,7 +71,13 @@ static bool test_selection_apply_policy(void)
 {
     CHECK(c64_device_scan_should_apply_selection("", "", false, "device-a"));
     CHECK(c64_device_scan_should_apply_selection("device-a", "device-a", true, ""));
+    // A responsive previously selected device is deliberate: discovery may
+    // refresh its profile, but must not replace it with another device.
+    CHECK(c64_device_scan_should_apply_selection("device-a", "device-a", true, "device-b"));
     CHECK(!c64_device_scan_should_apply_selection("device-a", "device-a", false, ""));
+    // If the prior selection no longer answers, only one unambiguous
+    // replacement is allowed to take over automatically.
+    CHECK(c64_device_scan_should_apply_selection("device-a", "device-a", false, "device-b"));
     CHECK(!c64_device_scan_should_apply_selection("device-a", "device-b", false, "device-c"));
     CHECK(c64_device_scan_should_apply_selection("my-device", "my-device", false, "other-device"));
     return true;

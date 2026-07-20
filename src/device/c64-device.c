@@ -350,3 +350,10 @@ bool c64_device_registry_apply_selected(obs_data_t *settings)
     obs_data_set_string(settings, "c64_password", obs_data_get_string(settings, password_key));
     return true;
 }
+
+bool c64_device_stream_failover_needed(bool alternate_available, bool already_attempted, uint64_t no_video_since_ns,
+                                       uint64_t now_ns, uint64_t grace_ns)
+{
+    return alternate_available && !already_attempted && no_video_since_ns != 0 && now_ns >= no_video_since_ns &&
+           now_ns - no_video_since_ns >= grace_ns;
+}

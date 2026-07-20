@@ -4,6 +4,7 @@ import socket
 import threading
 import time
 import logging
+import queue
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 from typing import Any, Tuple, Optional
@@ -20,7 +21,8 @@ class MockC64UServer:
     can exercise either transport against the same simulated device."""
 
     def __init__(self, env: Environment, control_port: int = 6400, rest_port: Optional[int] = None,
-                 product: str = "Ultimate 64", hostname: str = "MockC64U", unique_id: str = "000000"):
+                 product: str = "Ultimate 64", hostname: str = "MockC64U", unique_id: str = "000000",
+                 devices: Optional[list[dict[str, Any]]] = None):
         self.env = env
         self.control_port = control_port
         self.control_bind_ip = "0.0.0.0"
@@ -28,6 +30,23 @@ class MockC64UServer:
         self.product = product
         self.hostname = hostname
         self.unique_id = unique_id
+        # A topology maps every advertised address to one physical device.
+        # A C64U may expose more than one address; stream_hosts identifies the
+        # addresses that can actually deliver UDP A/V (normally Ethernet).
+        self.devices_by_host: dict[str, dict[str, Any]] = {}
+        self.device_states: dict[str, dict[str, Any]] = {}
+        for index, device in enumerate(devices or []):
+            device_id = str(device.get("id") or device.get("unique_id") or f"mock-{index}")
+            copied = dict(device)
+            copied["id"] = device_id
+            copied.setdefault("product", product)
+            copied.setdefault("hostname", device_id)
+            copied.setdefault("unique_id", device_id)
+            copied["stream_hosts"] = set(copied.get("stream_hosts", copied.get("hosts", [])))
+            for host in copied.get("hosts", []):
+                self.devices_by_host[str(host)] = copied
+            self.device_states[device_id] = {"mask": 0, "video_dest": None, "audio_dest": None}
+        self.stream_requests: queue.Queue[tuple[dict[str, Any], Tuple[str, int], Tuple[str, int], str]] = queue.Queue()
 
         self.running = False
         self.server_socket: Optional[socket.socket] = None
@@ -185,7 +204,7 @@ class MockC64UServer:
                         cmd_data = buffer[:4+param_len]
                         del buffer[:4+param_len]
 
-                        self._process_command(cmd_data)
+                        self._process_command(cmd_data, conn.getsockname()[0])
 
                 except socket.timeout:
                     continue
@@ -196,7 +215,23 @@ class MockC64UServer:
         finally:
             conn.close()
 
-    def _process_command(self, cmd: bytearray):
+    def _device_for_host(self, host: str) -> Optional[dict[str, Any]]:
+        """The single-device profile for any host, or -- once a topology is
+        given -- only for a host that topology actually advertises. Both the
+        control and REST sockets bind 0.0.0.0, so without this a discovery
+        scan's subnet sweep would get an /v1/info reply from every loopback
+        address it probes, flooding results with phantom devices."""
+        if not self.devices_by_host:
+            return {
+                "id": self.unique_id,
+                "product": self.product,
+                "hostname": self.hostname,
+                "unique_id": self.unique_id,
+                "stream_hosts": {host},
+            }
+        return self.devices_by_host.get(host)
+
+    def _process_command(self, cmd: bytearray, local_host: str):
         # cmd[0] is command byte
         cmd_byte = cmd[0]
         stream_id = cmd_byte & 0x0F
@@ -227,11 +262,14 @@ class MockC64UServer:
                 except Exception:
                     dest_str = None
 
-            self._record_start(stream_id, dest_str)
+            self._record_start(stream_id, dest_str, self._device_for_host(local_host), local_host)
 
-    def _record_start(self, stream_id: int, dest_str: Optional[str]):
+    def _record_start(self, stream_id: int, dest_str: Optional[str], device: Optional[dict[str, Any]] = None,
+                      local_host: Optional[str] = None):
         """Shared by both transports: record a start event, capture the
         destination, and fire the trigger once both streams have started."""
+        state = self.device_states.setdefault((device or {}).get("id", self.unique_id),
+                                              {"mask": 0, "video_dest": None, "audio_dest": None})
         if dest_str:
             logger.info(f"Stream destination: {dest_str}")
             if ":" in dest_str:
@@ -240,8 +278,10 @@ class MockC64UServer:
                     port = int(port_s)
                     if stream_id == 0:
                         self.video_dest = (ip, port)
+                        state["video_dest"] = (ip, port)
                     elif stream_id == 1:
                         self.audio_dest = (ip, port)
+                        state["audio_dest"] = (ip, port)
                 except Exception:
                     pass
 
@@ -256,8 +296,19 @@ class MockC64UServer:
 
             # Trigger only when BOTH video (0x1) and audio (0x2) have started.
             # Starting replay early can create artificial A/V offset in the recording.
-            if self._stream_start_mask == 0x3:
+            if self._stream_start_mask == 0x3 and (not self.devices_by_host or
+                                                  local_host in (device or {}).get("stream_hosts", set())):
                 self._trigger_event.set()
+            if stream_id == 0:
+                state["mask"] |= 0x1
+            elif stream_id == 1:
+                state["mask"] |= 0x2
+            if state["mask"] == 0x3 and local_host in (device or {}).get("stream_hosts", set()):
+                video_dest = state.get("video_dest")
+                audio_dest = state.get("audio_dest")
+                if video_dest and audio_dest:
+                    self.stream_requests.put((device, video_dest, audio_dest, local_host))
+                state["mask"] = 0
 
     def _record_stop(self, stream_id: int):
         with self._events_lock:
@@ -288,10 +339,14 @@ class MockC64UServer:
             def do_GET(self):
                 path = urlparse(self.path)
                 if path.path == "/v1/info":
+                    device = mock._device_for_host(self.connection.getsockname()[0])
+                    if device is None:
+                        self.send_error(404, "No device at this address")
+                        return
                     self._send_json({
-                        "product": mock.product,
-                        "hostname": mock.hostname,
-                        "unique_id": mock.unique_id,
+                        "product": device["product"],
+                        "hostname": device["hostname"],
+                        "unique_id": device["unique_id"],
                         "firmware_version": "9.9",
                     })
                 elif path.path == "/v1/machine:readmem":
@@ -318,7 +373,8 @@ class MockC64UServer:
                     stream_id = 1 if path.path.startswith("/v1/streams/audio") else 0
                     params = parse_qs(path.query)
                     dest = params.get("ip", [None])[0]
-                    mock._record_start(stream_id, dest)
+                    local_host = self.connection.getsockname()[0]
+                    mock._record_start(stream_id, dest, mock._device_for_host(local_host), local_host)
                     self._send_json({})
                 elif path.path in ("/v1/streams/video:stop", "/v1/streams/audio:stop"):
                     stream_id = 1 if path.path.startswith("/v1/streams/audio") else 0

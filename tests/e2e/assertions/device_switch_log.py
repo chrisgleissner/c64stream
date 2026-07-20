@@ -48,9 +48,13 @@ class DeviceSwitchLogAssertion(EffectAssertion):
             )
 
         expected_switches = int(self.thresholds.get("expected_switches", 2))
+        start_marker = str(self.thresholds.get("start_marker", "=== Device Switch Started ==="))
+        completion_marker = str(
+            self.thresholds.get("completion_marker", f"=== Device Switch Complete: {expected_switches} switches ===")
+        )
         required_log_lines = [
-            "=== Device Switch Started ===",
-            f"=== Device Switch Complete: {expected_switches} switches ===",
+            start_marker,
+            completion_marker,
         ]
 
         missing = [line for line in required_log_lines if line not in content]

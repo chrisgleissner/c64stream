@@ -1,0 +1,44 @@
+name: NTSC discovery, dual-address recovery and switch
+format: NTSC
+preset: Default
+packet_source: mock
+mock_rest_port: 8080
+mock_devices:
+  # The addresses intentionally share a unique ID, as a real C64U connected
+  # through Wi-Fi and Ethernet does.  Only .3 supplies UDP A/V.
+  - id: e2e-c64u
+    unique_id: e2e-c64u
+    hostname: E2E C64U
+    hosts: [127.0.0.2, 127.0.0.3]
+    stream_hosts: [127.0.0.3]
+    pattern: solid
+    frames: 300
+  - id: e2e-u64
+    unique_id: e2e-u64
+    hostname: E2E U64
+    hosts: [127.0.0.4]
+    stream_hosts: [127.0.0.4]
+    pattern: dots
+    frames: 300
+overrides:
+  # Explicitly start from the non-streaming address: discovery must retain its
+  # peer address and the source must self-heal to the streaming one.
+  c64_host: 127.0.0.2
+  video_port: 21000
+  audio_port: 21001
+  control_port: 6400
+  stream_control_transport: 2
+  script_file: "${repo_root}/tests/e2e/scripts/discovery_dual_address_switch.c64script"
+  script_auto_start: true
+  record_video: true
+  record_csv: true
+  record_frames: false
+  debug_logging: true
+assertions:
+  - device_switch_log
+  - discovered_stream_patterns
+thresholds:
+  device_switch_log:
+    expected_switches: 2
+    start_marker: "=== Dual-address discovery started ==="
+    completion_marker: "=== Dual-address discovery complete ==="

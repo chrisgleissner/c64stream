@@ -169,6 +169,9 @@ find_package(libobs REQUIRED)
 find_package(CURL REQUIRED)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE OBS::libobs)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE CURL::libcurl)
+if(OS_WINDOWS)
+  target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE iphlpapi ws2_32)
+endif()
 
 # PNG read/write for ASSERT IMAGE_EQUALS is provided by the vendored stb_image
 # and stb_image_write headers in src/video/. We deliberately do NOT link

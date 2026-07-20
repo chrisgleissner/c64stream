@@ -1,0 +1,18 @@
+REM Discover two mock Ultimates.  The first is deliberately advertised through
+REM a Wi-Fi-like address that accepts control commands but never emits A/V; the
+REM plugin must recover to its second (Ethernet) address before these switches.
+
+PRINT "=== Dual-address discovery started ==="
+DISCOVER_DEVICES PROBE_PORT 8080
+PRINT "Discovery complete"
+
+REM Leave enough time for the five-second no-video recovery of e2e-c64u.
+WAIT 7500 ms
+PRINT "Switching to device: e2e-u64"
+SWITCH_DEVICE "e2e-u64"
+WAIT 4500 ms
+PRINT "Switching to device: e2e-c64u"
+SWITCH_DEVICE "e2e-c64u"
+WAIT 4500 ms
+PRINT "=== Dual-address discovery complete ==="
+STOP

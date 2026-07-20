@@ -19,6 +19,7 @@ from .av_sync_log_validation import AvSyncLogValidationAssertion
 from .base import AssertionResult, AssertionStatus, EffectAssertion
 from .bounds import BoundsStabilityAssertion, BoundsVariationAssertion
 from .debug_log_presence import DebugLogPresenceAssertion
+from .discovered_stream_patterns import DiscoveredStreamPatternsAssertion
 from .config import (
     PresetConfig,
     load_preset_from_ini,
