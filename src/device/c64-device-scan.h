@@ -22,8 +22,9 @@ bool c64_device_scan_should_apply_selection(const char *selection_at_start, cons
  * apply_scan_results() in c64-device-scan.c) to a synthetic result set and
  * upserts survivors into the registry, without running a real scan. */
 void c64_device_scan_apply_results_for_test(const c64_device_t *devices, const size_t *host_indices, size_t count);
-/* Drives the Find Devices button: sets context->device_discovery_in_progress
- * until the background scan completes and requests a properties refresh. */
+/* Starts a detached local-network scan. The caller marks
+ * context->device_discovery_in_progress before calling; completion clears it
+ * and requests a properties refresh. Used by Find Devices and source startup. */
 bool c64_device_scan_async(struct c64_source *context);
 /* Blocking variant for script-driven discovery: runs on the calling thread
  * (already off the OBS UI thread), bounded by the same overall scan deadline

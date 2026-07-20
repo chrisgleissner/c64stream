@@ -278,7 +278,7 @@ See the [OBS Plugins Guide](https://obsproject.com/kb/plugins-guide).
 
   ![C64 Stream Configuration](https://raw.githubusercontent.com/chrisgleissner/c64stream/main/docs/images/properties.png "C64 Stream Configuration")
 
-3. **Find your device (C64 Stream 1.2.0+):** In the Network section, click **Find Devices**, above the **Device** drop-down. Wait for the scan of you local network to finish, then choose your C64 Ultimate or Ultimate 64 from the list if it is not selected automatically. Click **OK** to start streaming.
+3. **Find your device (C64 Stream 1.2.0+):** C64 Stream automatically scans your local network in the background when the source starts and connects to one unambiguous device it finds. You can also click **Find Devices** above the **Device** drop-down. A reachable device you previously selected (from the list or **C64U Host**) is kept; discovery only switches when it can no longer be started. Click **OK** to start streaming.
 
 4. **Manual fallback (all versions):** If you use a version before 1.2.0, or **Find Devices** does not list your device, enter the C64U's IP address from step 1 in **C64U Host**, then click **OK**. 
 

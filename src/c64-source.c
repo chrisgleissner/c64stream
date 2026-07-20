@@ -42,6 +42,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-file.h"
 #include "c64-palette.h"
 #include "device/c64-device.h"
+#include "device/c64-device-scan.h"
 #include "c64-keyboard.h"
 #include "c64-rest-client.h"
 #include "c64-script-executor.h"
@@ -1397,10 +1398,21 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
 
     c64_attempt_script_autostart(context, settings);
 
+    // Discovery's network probes run on its detached worker, so source
+    // creation never waits for a subnet sweep. Completion applies a single
+    // unambiguous result through obs_source_update(), which in turn schedules
+    // the normal background connection attempt. A previously selected device
+    // remains selected when this scan confirms it can be started.
+    context->device_discovery_in_progress = true;
+    if (!c64_device_scan_async(context)) {
+        context->device_discovery_in_progress = false;
+        C64_LOG_WARNING("DEVICE: failed to start background device discovery");
+    }
+
     // Start only after all transport inputs exist. The retry worker probes REST
     // capability, so scheduling it before the REST client is initialized would
     // incorrectly select the legacy transport on a capable device.
-    C64_LOG_INFO("C64 Stream source created successfully - scheduling background initial connection");
+    C64_LOG_INFO("C64 Stream source created successfully - scheduling background discovery and initial connection");
     c64_schedule_retry(context, "initial connection");
 
     return context;
