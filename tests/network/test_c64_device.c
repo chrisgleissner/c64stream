@@ -51,6 +51,20 @@ static bool no_password_in_settings(const char *directory)
     return true;
 }
 
+static bool test_stream_failover_policy(void)
+{
+    const uint64_t start_ns = 10000000000ULL;
+    const uint64_t grace_ns = 5000000000ULL;
+
+    CHECK(!c64_device_stream_failover_needed(false, false, start_ns, start_ns + grace_ns, grace_ns));
+    CHECK(!c64_device_stream_failover_needed(true, true, start_ns, start_ns + grace_ns, grace_ns));
+    CHECK(!c64_device_stream_failover_needed(true, false, 0, start_ns + grace_ns, grace_ns));
+    CHECK(!c64_device_stream_failover_needed(true, false, start_ns, start_ns + grace_ns - 1, grace_ns));
+    CHECK(!c64_device_stream_failover_needed(true, false, start_ns, start_ns - 1, grace_ns));
+    CHECK(c64_device_stream_failover_needed(true, false, start_ns, start_ns + grace_ns, grace_ns));
+    return true;
+}
+
 int main(void)
 {
 #ifndef _WIN32
@@ -59,6 +73,7 @@ int main(void)
     CHECK(setenv("XDG_DOCUMENTS_DIR", root, 1) == 0);
 #endif
     CHECK(c64_device_registry_init());
+    CHECK(test_stream_failover_policy());
     char id[64];
     CHECK(c64_device_id_from_host(id, sizeof(id), "5D4E12", "ignored"));
     CHECK(strcmp(id, "5d4e12") == 0);

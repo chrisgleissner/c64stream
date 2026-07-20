@@ -6,6 +6,7 @@ import sys
 import shutil
 import csv
 import json
+import threading
 import urllib.request
 from pathlib import Path
 from typing import Optional, Dict
@@ -61,8 +62,10 @@ class E2EOrchestrator:
                  wait_for_script_completion: bool = False,
                  script_completion_timeout_s: float = 30.0,
                  mock_rest_enabled: bool = False,
+                 mock_rest_port: Optional[int] = None,
                  extra_mock_control_ports: Optional[list] = None,
-                 device_registry: Optional[list] = None):
+                 device_registry: Optional[list] = None,
+                 mock_devices: Optional[list] = None):
 
         # 1. Environment Setup
         self.env = Environment(test_dir, output_dir, csv_max_rows=csv_max_rows)
@@ -85,8 +88,10 @@ class E2EOrchestrator:
         self.wait_for_script_completion = wait_for_script_completion
         self.script_completion_timeout_s = script_completion_timeout_s
         self.mock_rest_enabled = mock_rest_enabled
+        self.mock_rest_port = mock_rest_port
         self.extra_mock_control_ports = extra_mock_control_ports or []
         self.device_registry = device_registry or []
+        self.mock_devices = mock_devices or []
         self.extra_mock_servers: list = []
         self._seeded_device_paths: list = []
 
@@ -102,8 +107,9 @@ class E2EOrchestrator:
         # port), so only enable it when a scenario explicitly asks for it --
         # binding port 80 needs elevated privileges (fine in CI's root
         # container; needs sudo/setcap for a manual local run).
-        mock_rest_port = 80 if mock_rest_enabled else None
-        self.mock_server = (MockC64UServer(self.env, control_port=control_port, rest_port=mock_rest_port)
+        mock_rest_port = mock_rest_port if mock_rest_port is not None else (80 if mock_rest_enabled else None)
+        self.mock_server = (MockC64UServer(self.env, control_port=control_port, rest_port=mock_rest_port,
+                                           devices=self.mock_devices)
                             if packet_source == 'mock' else None)
         self.replayer = PacketReplayer(self.env, video_format, self.network_simulation) if packet_source == 'mock' else None
         self.resource_monitor = ResourceManager(self.env, pid=0, interval_ms=monitor_resource_interval_ms) # PID set later
@@ -140,6 +146,7 @@ class E2EOrchestrator:
             # 4. Start Mock Server (if applicable)
             if self.mock_server:
                 self.mock_server.start()
+                self._start_mock_topology_streams()
             for port in self.extra_mock_control_ports:
                 extra_mock = MockC64UServer(self.env, control_port=port)
                 extra_mock.start()
@@ -165,7 +172,11 @@ class E2EOrchestrator:
 
             if self.packet_source == 'mock' and self.mock_server and self.replayer:
                 logger.info("⏳ Waiting for plugin to request streaming...")
-                if self.mock_server.wait_for_trigger(timeout=30) or (self.env.is_ci and self.obs_logs.wait_for_initialization(10)):
+                if self.mock_devices:
+                    # Topology mocks replay themselves only when an address
+                    # that supports UDP streaming has received both commands.
+                    replay_success = self.mock_server.wait_for_trigger(timeout=30)
+                elif self.mock_server.wait_for_trigger(timeout=30) or (self.env.is_ci and self.obs_logs.wait_for_initialization(10)):
                     # Get ports from mock server or fallback to defaults
                     vid_dest = self.mock_server.video_dest or ("127.0.0.1", 21000)
                     aud_dest = self.mock_server.audio_dest or ("127.0.0.1", 21001)
@@ -273,6 +284,38 @@ class E2EOrchestrator:
                 remove_devices(self._seeded_device_paths)
 
             self.obs_config.restore_backup()
+
+    def _start_mock_topology_streams(self) -> None:
+        """Replay a device-specific pattern whenever a topology mock accepts
+        both stream-start commands on a streaming-capable address."""
+        if not self.mock_devices or not self.mock_server:
+            return
+        from util.generate_packets import generate_packets
+
+        replayers: dict[str, PacketReplayer] = {}
+        for device in self.mock_devices:
+            device_id = str(device["id"])
+            packet_dir = self.env.output_dir / f"mock-packets-{device_id}"
+            generate_packets(packet_dir, num_frames=int(device.get("frames", 300)), formats=[self.format],
+                             pattern=str(device.get("pattern", "diagonal")), disable_pops=True)
+            replayers[device_id] = PacketReplayer(
+                self.env, self.format, self.network_simulation, packet_dir=packet_dir, lead_time_s=0.25
+            )
+
+        def serve_stream_requests() -> None:
+            while self.mock_server and self.mock_server.running:
+                try:
+                    device, video_dest, audio_dest, source_host = self.mock_server.stream_requests.get(timeout=0.25)
+                except Exception:
+                    continue
+                replayer = replayers.get(str(device["id"]))
+                if not replayer:
+                    continue
+                logger.info("▶️ Replaying %s pattern from mock %s", device.get("pattern"), device["id"])
+                threading.Thread(target=replayer.replay,
+                                 args=(self.udp_replay_path, video_dest, audio_dest, source_host), daemon=True).start()
+
+        threading.Thread(target=serve_stream_requests, name="mock-topology-streams", daemon=True).start()
 
     def _cleanup_disabled_pop_device_state(self) -> None:
         """Stop stale A/V pop generators when a real-device scenario disables pops."""

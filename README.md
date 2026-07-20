@@ -337,7 +337,7 @@ Instead of typing a host/IP every time, the plugin keeps a small **device regist
 - **Delete Device:** Removes the selected device from the list (does not affect the physical device).
 - **Find Devices (C64 Stream 1.2.0+):** Above the **Device** drop-down, scans the local network for devices. The button label switches to **Finding Devices...** while a scan is running. If it cannot find a device, enter its IP address manually in **C64U Host** instead.
 
-Each entry shows the device's IP in parentheses, e.g. `u64 (192.168.1.13)`; devices that require a password are additionally marked, e.g. `c64u (192.168.1.167, Password)`. A device that answers on more than one interface (e.g. Ethernet and Wi-Fi) uses whichever address it was first discovered at.
+Each entry shows the device's IP in parentheses, e.g. `u64 (192.168.1.13)`; devices that require a password are additionally marked, e.g. `c64u (192.168.1.167, Password)`. If one Ultimate answers on both Ethernet and Wi-Fi, C64 Stream automatically promotes the verified alternate address when the first one accepts control but sends no video; this selects the Ethernet address on Ultimate devices, whose A/V streams only use that port.
 
 - **C64U Host:** Hostname or IP address of the currently selected device (default: `c64u`), or set to `0.0.0.0` to accept streams from any C64 Ultimate on your network (requires manual control from the device)
 - **C64U Password:** Network password for REST `X-Password` header authentication. Leave empty if authentication is disabled
