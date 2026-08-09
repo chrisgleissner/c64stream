@@ -1,5 +1,17 @@
 # Pre-built Ubuntu container with OBS Studio and Qt6 dependencies
 # This dramatically speeds up CI builds by avoiding 3.5+ minute APT installations
+#
+# OBS Studio is installed from Ubuntu's own noble-backports pocket at a pinned version,
+# NOT from ppa:obsproject/obs-studio. The PPA only ever publishes the latest upstream
+# release with no retained history, so it silently drifts forward on every image
+# rebuild (this project's images auto-rebuild every 7 days). That drift previously broke
+# the build outright (a newer OBS Studio release deprecated an API this project used
+# with -Werror enabled) and separately broke E2E tests on Debian/Fedora, which pin an
+# older OBS Studio version for ABI compatibility with the plugin .so built in this image
+# (the same .so is copied into the Debian/Fedora/Arch containers for E2E testing without
+# recompiling). Pinning here to the same version Debian already pins keeps all three
+# ABI-compatible. If you deliberately bump this, update Dockerfile.debian-build's
+# OBS_VERSION to match.
 
 FROM ubuntu:24.04
 
@@ -11,18 +23,17 @@ LABEL org.opencontainers.image.licenses="GPL-2.0-or-later"
 # Prevent interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=UTC
+ENV OBS_STUDIO_VERSION=30.2.3+dfsg-3~bpo24.04.1
 
-# Install essential packages and add OBS Studio PPA
+# Install essential packages (noble-backports is already enabled by default in this
+# base image's /etc/apt/sources.list.d/ubuntu.sources, so no extra repo setup is needed)
 RUN apt-get update -qq && \
     apt-get install -y --no-install-recommends \
-        software-properties-common \
         ca-certificates \
         curl \
         wget \
         gnupg \
-        lsb-release && \
-    add-apt-repository --yes ppa:obsproject/obs-studio && \
-    apt-get update -qq
+        lsb-release
 
 # Install build dependencies and OBS Studio (the time-consuming part)
 RUN apt-get install -y --no-install-recommends \
@@ -49,7 +60,6 @@ RUN apt-get install -y --no-install-recommends \
         libgles2-mesa-dev \
         libsimde-dev \
         libcurl4-openssl-dev \
-        obs-studio \
         qt6-base-dev \
         libqt6svg6-dev \
         qt6-base-private-dev \
@@ -75,6 +85,9 @@ RUN apt-get install -y --no-install-recommends \
         libasound2-dev \
         libpulse-dev \
         linux-tools-generic && \
+    apt-get install -y --no-install-recommends -t noble-backports \
+        "obs-studio=${OBS_STUDIO_VERSION}" \
+        "libobs-dev=${OBS_STUDIO_VERSION}" && \
     apt-get update -qq && apt-get install -y file && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
