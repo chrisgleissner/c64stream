@@ -35,6 +35,14 @@ runs:
         echo ::group::Install Dependencies
         eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
         echo "/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin" >> $GITHUB_PATH
+        # GitHub-hosted runners set HOMEBREW_NO_AUTO_UPDATE, so the preinstalled
+        # Homebrew core (install_steps.rb etc.) can fall behind the live bottle
+        # index it pulls formulae from. That skew has caused installs to fail
+        # with "unknown install step: run" when a formula's bottle uses a
+        # post-install step type the stale core code doesn't recognize yet.
+        # Explicitly updating first keeps Homebrew's own code in sync with what
+        # it is about to install.
+        brew update --quiet
         brew install --quiet zsh
         echo ::endgroup::
 
