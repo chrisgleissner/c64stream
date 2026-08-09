@@ -2329,9 +2329,9 @@ obs_properties_t *c64_create_properties(void *data)
     obs_data_release(current_settings_for_playlist);
 
     // Refresh playlist button (directly below playlist dropdown)
-    obs_property_t *refresh_playlist_prop = obs_properties_add_button(rest_props, "automation_refresh_playlist",
-                                                                      obs_module_text("RefreshPlaylist"),
-                                                                      automation_refresh_playlist_clicked);
+    obs_property_t *refresh_playlist_prop = obs_properties_add_button2(rest_props, "automation_refresh_playlist",
+                                                                       obs_module_text("RefreshPlaylist"),
+                                                                       automation_refresh_playlist_clicked, data);
     obs_property_set_long_description(refresh_playlist_prop, obs_module_text("RefreshPlaylist.Description"));
 
     // Get automation status to determine button state
@@ -2347,8 +2347,8 @@ obs_properties_t *c64_create_properties(void *data)
     // Play/Stop Content button - label changes based on state
     const char *button_label = automation_running ? obs_module_text("AutomationStopContent")
                                                   : obs_module_text("AutomationPlayContent");
-    obs_property_t *auto_start_stop_prop =
-        obs_properties_add_button(rest_props, "automation_start_stop", button_label, automation_start_stop_clicked);
+    obs_property_t *auto_start_stop_prop = obs_properties_add_button2(rest_props, "automation_start_stop", button_label,
+                                                                      automation_start_stop_clicked, data);
     obs_property_set_long_description(auto_start_stop_prop, automation_running
                                                                 ? obs_module_text("AutomationStopContent.Description")
                                                                 : obs_module_text("AutomationPlayContent.Description"));
@@ -2359,18 +2359,18 @@ obs_properties_t *c64_create_properties(void *data)
     }
 
     // Next button (only enabled when playing)
-    obs_property_t *auto_next_prop = obs_properties_add_button(
-        rest_props, "automation_next", obs_module_text("AutomationNext"), automation_next_clicked);
+    obs_property_t *auto_next_prop = obs_properties_add_button2(
+        rest_props, "automation_next", obs_module_text("AutomationNext"), automation_next_clicked, data);
     obs_property_set_long_description(auto_next_prop, obs_module_text("AutomationNext.Description"));
     obs_property_set_enabled(auto_next_prop, automation_running);
 
     // Reset controls (split into two buttons)
-    obs_property_t *reset_plugin_prop =
-        obs_properties_add_button(rest_props, "reset_plugin", obs_module_text("ResetPlugin"), reset_plugin_clicked);
+    obs_property_t *reset_plugin_prop = obs_properties_add_button2(
+        rest_props, "reset_plugin", obs_module_text("ResetPlugin"), reset_plugin_clicked, data);
     obs_property_set_long_description(reset_plugin_prop, obs_module_text("ResetPlugin.Description"));
 
     obs_property_t *reset_c64u_prop =
-        obs_properties_add_button(rest_props, "reset_c64u", obs_module_text("ResetC64U"), reset_c64u_clicked);
+        obs_properties_add_button2(rest_props, "reset_c64u", obs_module_text("ResetC64U"), reset_c64u_clicked, data);
     obs_property_set_long_description(reset_c64u_prop, obs_module_text("ResetC64U.Description"));
 
     // Script Group
@@ -2450,8 +2450,8 @@ obs_properties_t *c64_create_properties(void *data)
     // Start/Stop button - label changes based on state
     const char *script_button_label = is_running_or_paused ? obs_module_text("ScriptStopScript")
                                                            : obs_module_text("ScriptStartScript");
-    obs_property_t *script_start_stop_prop =
-        obs_properties_add_button(script_props, "script_start_stop", script_button_label, script_start_stop_clicked);
+    obs_property_t *script_start_stop_prop = obs_properties_add_button2(
+        script_props, "script_start_stop", script_button_label, script_start_stop_clicked, data);
     obs_property_set_long_description(script_start_stop_prop, is_running_or_paused
                                                                   ? obs_module_text("ScriptStartStop.Stop")
                                                                   : obs_module_text("ScriptStartStop.Start"));
@@ -2470,19 +2470,19 @@ obs_properties_t *c64_create_properties(void *data)
         debug_desc = obs_module_text("ScriptDebugScript.Description");
     }
     obs_property_t *script_pause_resume_prop =
-        obs_properties_add_button(script_props, "script_pause_resume", debug_label, script_pause_resume_clicked);
+        obs_properties_add_button2(script_props, "script_pause_resume", debug_label, script_pause_resume_clicked, data);
     obs_property_set_long_description(script_pause_resume_prop, debug_desc);
     obs_property_set_enabled(script_pause_resume_prop, context->script_file_path[0] != '\0');
 
     // Step button - only enabled when paused
-    obs_property_t *script_step_prop =
-        obs_properties_add_button(script_props, "script_step", obs_module_text("ScriptStep"), script_step_clicked);
+    obs_property_t *script_step_prop = obs_properties_add_button2(
+        script_props, "script_step", obs_module_text("ScriptStep"), script_step_clicked, data);
     obs_property_set_long_description(script_step_prop, obs_module_text("ScriptStep.Description"));
     obs_property_set_enabled(script_step_prop, current_status == C64_SCRIPT_STATUS_PAUSED);
 
     // Log variables button
-    obs_property_t *script_log_vars_prop = obs_properties_add_button(
-        script_props, "script_log_vars", obs_module_text("ScriptLogVariables"), script_log_variables_clicked);
+    obs_property_t *script_log_vars_prop = obs_properties_add_button2(
+        script_props, "script_log_vars", obs_module_text("ScriptLogVariables"), script_log_variables_clicked, data);
     obs_property_set_long_description(script_log_vars_prop, obs_module_text("ScriptLogVariables.Description"));
     obs_property_set_enabled(script_log_vars_prop, is_running_or_paused);
 
