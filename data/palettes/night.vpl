@@ -7,15 +7,6 @@
 # NAME:Night
 # DESC:Red-shifted colors for comfortable late night viewing
 
-# VICE Palette file
-#
-# Syntax:
-# Red Green Blue
-#
-# TYPE:VICII
-# NAME:Night
-# DESC:Red-shifted colors for comfortable late night viewing
-
 00 00 00  # Black
 E8 C0 70  # White
 80 40 10  # Red
