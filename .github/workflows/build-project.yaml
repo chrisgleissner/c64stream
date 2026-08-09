@@ -133,6 +133,49 @@ jobs:
           fi
           echo "pluginVersion=${plugin_version}" >> $GITHUB_OUTPUT
 
+  resolve-obs-versions:
+    name: Resolve OBS Smoke Test Versions 🔎
+    runs-on: ubuntu-24.04
+    outputs:
+      versions_json: ${{ steps.resolve.outputs.versions_json }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve Latest OBS Studio Release 🔎
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          : Resolve Latest OBS Studio Release 🔎
+
+          # GitHub's /releases/latest endpoint already excludes drafts and
+          # pre-releases (beta/rc), returning the newest stable tag.
+          latest_version="$(gh api repos/obsproject/obs-studio/releases/latest --jq '.tag_name')"
+          if [[ -z "${latest_version}" ]]; then
+            echo "::error::Failed to resolve latest OBS Studio release from GitHub API"
+            exit 1
+          fi
+          echo "🔍 Latest stable OBS Studio release: ${latest_version}"
+
+          # Read from buildspec.json rather than hardcoding, so this can't itself
+          # go stale relative to the SDK version the plugin is actually built
+          # against (the same class of bug this job exists to fix).
+          build_version="$(jq -r '.dependencies."obs-studio".version' buildspec.json)"
+          if [[ -z "${build_version}" || "${build_version}" == "null" ]]; then
+            echo "::error::Failed to read obs-studio dependency version from buildspec.json"
+            exit 1
+          fi
+          echo "🔧 Build SDK OBS Studio version: ${build_version}"
+
+          # Normalize away a possible "v" tag prefix before comparing, so this
+          # still dedupes correctly if either side's version format changes.
+          if [[ "${latest_version#v}" == "${build_version#v}" ]]; then
+            versions_json="[\"${build_version}\"]"
+          else
+            versions_json="[\"${build_version}\", \"${latest_version}\"]"
+          fi
+          echo "🧪 Smoke test versions: ${versions_json}"
+          echo "versions_json=${versions_json}" >> "$GITHUB_OUTPUT"
+
   macos-build:
     name: Build for macOS 🍏
     runs-on: macos-15
@@ -659,13 +702,14 @@ jobs:
   macos-smoke-test:
     name: macOS Smoke Test (OBS ${{ matrix.obs-version }}) 💨
     uses: ./.github/workflows/macos-smoke-test.yaml
-    needs: [macos-build]
+    needs: [macos-build, resolve-obs-versions]
     strategy:
       fail-fast: false
       matrix:
-        # Validate against the OBS version we build against (buildspec.json) and
-        # the latest stable release
-        obs-version: ["32.0.4", "32.1.2"]
+        # Validates against the OBS version we build against (buildspec.json) and
+        # the latest stable release, resolved dynamically by resolve-obs-versions
+        # so this never goes stale as new OBS Studio versions ship.
+        obs-version: ${{ fromJSON(needs.resolve-obs-versions.outputs.versions_json) }}
     with:
       artifact-pattern: "*-macos-universal-*"
       obs-version: ${{ matrix.obs-version }}
@@ -673,11 +717,11 @@ jobs:
   windows-x64-smoke-test:
     name: Windows x64 Smoke Test (OBS ${{ matrix.obs-version }}) 💨
     uses: ./.github/workflows/windows-smoke-test.yaml
-    needs: [windows-build]
+    needs: [windows-build, resolve-obs-versions]
     strategy:
       fail-fast: false
       matrix:
-        obs-version: ["32.0.4", "32.1.2"]
+        obs-version: ${{ fromJSON(needs.resolve-obs-versions.outputs.versions_json) }}
     with:
       arch: x64
       artifact-pattern: "*-windows-x64-*"
@@ -687,11 +731,11 @@ jobs:
   windows-arm64-smoke-test:
     name: Windows ARM64 Smoke Test (OBS ${{ matrix.obs-version }}) 💨
     uses: ./.github/workflows/windows-smoke-test.yaml
-    needs: [windows-arm64-build]
+    needs: [windows-arm64-build, resolve-obs-versions]
     strategy:
       fail-fast: false
       matrix:
-        obs-version: ["32.0.4", "32.1.2"]
+        obs-version: ${{ fromJSON(needs.resolve-obs-versions.outputs.versions_json) }}
     with:
       arch: arm64
       artifact-pattern: "*-windows-arm64-*"
