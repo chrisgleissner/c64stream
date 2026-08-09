@@ -139,6 +139,7 @@ jobs:
     outputs:
       versions_json: ${{ steps.resolve.outputs.versions_json }}
     steps:
+      - uses: actions/checkout@v4
       - name: Resolve Latest OBS Studio Release 🔎
         id: resolve
         env:
@@ -155,11 +156,19 @@ jobs:
           fi
           echo "🔍 Latest stable OBS Studio release: ${latest_version}"
 
-          # Kept in sync with buildspec.json's obs-studio dependency version -
-          # this is the SDK version the plugin is actually compiled against.
-          build_version="32.0.4"
+          # Read from buildspec.json rather than hardcoding, so this can't itself
+          # go stale relative to the SDK version the plugin is actually built
+          # against (the same class of bug this job exists to fix).
+          build_version="$(jq -r '.dependencies."obs-studio".version' buildspec.json)"
+          if [[ -z "${build_version}" || "${build_version}" == "null" ]]; then
+            echo "::error::Failed to read obs-studio dependency version from buildspec.json"
+            exit 1
+          fi
+          echo "🔧 Build SDK OBS Studio version: ${build_version}"
 
-          if [[ "${latest_version}" == "${build_version}" ]]; then
+          # Normalize away a possible "v" tag prefix before comparing, so this
+          # still dedupes correctly if either side's version format changes.
+          if [[ "${latest_version#v}" == "${build_version#v}" ]]; then
             versions_json="[\"${build_version}\"]"
           else
             versions_json="[\"${build_version}\", \"${latest_version}\"]"
