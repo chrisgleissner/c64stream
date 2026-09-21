@@ -34,7 +34,7 @@ Results are written under:
 
 ## Notes
 
-- Builds use clang with ASan/UBSan and libFuzzer.
+- Builds use clang with ASan/UBSan and libFuzzer. Undefined behaviour aborts the run (`-fno-sanitize-recover=undefined`), and memory leaks are reported per input (`detect_leaks=1`).
 - If libFuzzer with trace-pc-guard is not available, the runner fetches and builds LLVM 12's libFuzzer locally.
 - IO, HTTP, and log file writes are blocked during fuzz runs.
 - Expect slower execution with sanitizers enabled.

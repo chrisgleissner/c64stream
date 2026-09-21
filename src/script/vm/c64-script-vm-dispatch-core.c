@@ -763,12 +763,13 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
     case OP_NOT:
         if (!c64script_runtime_pop(runtime, &a))
             return false;
-        if (!require_number(runtime, &a, "NOT")) {
+        int not_operand = 0;
+        if (!number_to_int(runtime, &a, &not_operand, "NOT")) {
             c64script_value_free(&a);
             return false;
         }
         result.type = VALUE_NUMBER;
-        result.as.number = (double)(~((int)a.as.number));
+        result.as.number = (double)(~not_operand);
         c64script_value_free(&a);
         if (!c64script_runtime_push(runtime, result))
             return false;
@@ -777,13 +778,15 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
     case OP_AND:
         if (!c64script_runtime_pop(runtime, &b) || !c64script_runtime_pop(runtime, &a))
             return false;
-        if (!require_number(runtime, &a, "AND") || !require_number(runtime, &b, "AND")) {
+        int and_left = 0;
+        int and_right = 0;
+        if (!number_to_int(runtime, &a, &and_left, "AND") || !number_to_int(runtime, &b, &and_right, "AND")) {
             c64script_value_free(&a);
             c64script_value_free(&b);
             return false;
         }
         result.type = VALUE_NUMBER;
-        result.as.number = (double)(((int)a.as.number) & ((int)b.as.number));
+        result.as.number = (double)(and_left & and_right);
         c64script_value_free(&a);
         c64script_value_free(&b);
         if (!c64script_runtime_push(runtime, result))
@@ -793,13 +796,15 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
     case OP_XOR:
         if (!c64script_runtime_pop(runtime, &b) || !c64script_runtime_pop(runtime, &a))
             return false;
-        if (!require_number(runtime, &a, "XOR") || !require_number(runtime, &b, "XOR")) {
+        int xor_left = 0;
+        int xor_right = 0;
+        if (!number_to_int(runtime, &a, &xor_left, "XOR") || !number_to_int(runtime, &b, &xor_right, "XOR")) {
             c64script_value_free(&a);
             c64script_value_free(&b);
             return false;
         }
         result.type = VALUE_NUMBER;
-        result.as.number = (double)(((int)a.as.number) ^ ((int)b.as.number));
+        result.as.number = (double)(xor_left ^ xor_right);
         c64script_value_free(&a);
         c64script_value_free(&b);
         if (!c64script_runtime_push(runtime, result))
@@ -809,13 +814,15 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
     case OP_OR:
         if (!c64script_runtime_pop(runtime, &b) || !c64script_runtime_pop(runtime, &a))
             return false;
-        if (!require_number(runtime, &a, "OR") || !require_number(runtime, &b, "OR")) {
+        int or_left = 0;
+        int or_right = 0;
+        if (!number_to_int(runtime, &a, &or_left, "OR") || !number_to_int(runtime, &b, &or_right, "OR")) {
             c64script_value_free(&a);
             c64script_value_free(&b);
             return false;
         }
         result.type = VALUE_NUMBER;
-        result.as.number = (double)(((int)a.as.number) | ((int)b.as.number));
+        result.as.number = (double)(or_left | or_right);
         c64script_value_free(&a);
         c64script_value_free(&b);
         if (!c64script_runtime_push(runtime, result))
@@ -1597,7 +1604,9 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
         scope->local_var_count = 0;
         scope->local_var_capacity = 0;
         scope->saved_var_count = runtime->variable_count;
-        scope->return_ip = runtime->ip + 1;
+        // The VM loop advances ip before executing an instruction, so ip already
+        // points at the instruction after this call.
+        scope->return_ip = runtime->ip;
 
         // Pop arguments from stack and create local parameter variables
         // Arguments are in reverse order on stack (last arg on top)

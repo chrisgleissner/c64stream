@@ -20,9 +20,14 @@ trace:
 - line: 3
   content: "RETURN X * 2"
   variables: {}
+- line: 5
+  content: "RESULT = DOUBLE(3)"
+  variables: {}
 - line: 6
   content: "LOG RESULT"
-  variables: {}
+  variables:
+    RESULT: 6
 - line: 7
   content: "STOP"
-  variables: {}
+  variables:
+    RESULT: 6

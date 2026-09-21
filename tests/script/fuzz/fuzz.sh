@@ -147,7 +147,9 @@ fi
 
 FUZZ_CMD="$CMD_PREFIX \"$FUZZ_BIN\" -artifact_prefix=\"$CRASH_DIR/\" -max_len=\"$MAX_LEN\" -max_total_time=\"$MAX_TIME\" -timeout=\"$INPUT_TIMEOUT\" $JOB_ARGS -print_final_stats=1 -verbosity=1 \"$OUTPUT_CORPUS\" \"$SEED_CORPUS\""
 
-ASAN_OPTIONS="detect_leaks=0${ASAN_OPTIONS:+:$ASAN_OPTIONS}"; export ASAN_OPTIONS
+# Leaks are reported per input. Without this, leaked parser nodes accumulate
+# until libFuzzer stops at its RSS limit, and the report names no leaking input.
+ASAN_OPTIONS="detect_leaks=1${ASAN_OPTIONS:+:$ASAN_OPTIONS}"; export ASAN_OPTIONS
 
 echo "=== Starting fuzzing for ${MAX_TIME}s (run ${RUN_ID}) ==="
 echo "  Binary:  $FUZZ_BIN"
@@ -288,6 +290,6 @@ if [ "$WRAPPER_TIMEOUT" -eq 1 ]; then
 else
     echo "Run completed without wrapper timeout." >>"$RUN_REPORT"
 fi
-echo "Leak detection disabled for fuzzing (ASAN_OPTIONS=detect_leaks=0)." >>"$RUN_REPORT"
+echo "Leak detection enabled (ASAN_OPTIONS=detect_leaks=1). UBSan findings abort the run." >>"$RUN_REPORT"
 
 exit "$EXIT_CODE"

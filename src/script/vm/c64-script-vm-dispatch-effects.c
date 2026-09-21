@@ -146,10 +146,20 @@ bool c64script_dispatch_effects(c64script_runtime_t *runtime, const c64script_in
             return false;
         }
 
-        int index = (int)index_val.as.number;
-        int r = (int)r_val.as.number;
-        int g = (int)g_val.as.number;
-        int b = (int)b_val.as.number;
+        int index = 0;
+        int r = 0;
+        int g = 0;
+        int b = 0;
+        if (!number_to_int(runtime, &index_val, &index, "PALETTECOLOR") ||
+            !number_to_int(runtime, &r_val, &r, "PALETTECOLOR") ||
+            !number_to_int(runtime, &g_val, &g, "PALETTECOLOR") ||
+            !number_to_int(runtime, &b_val, &b, "PALETTECOLOR")) {
+            c64script_value_free(&index_val);
+            c64script_value_free(&r_val);
+            c64script_value_free(&g_val);
+            c64script_value_free(&b_val);
+            return false;
+        }
 
         c64script_value_free(&index_val);
         c64script_value_free(&r_val);

@@ -49,11 +49,13 @@ target_include_directories(c64script_fuzz PRIVATE ${C64_ALL_INCLUDE_DIRS} ${CMAK
 target_compile_definitions(c64script_fuzz PRIVATE C64SCRIPT_FUZZING=1)
 
 set(FUZZ_SANITIZERS "-fsanitize=fuzzer-no-link,address,undefined")
+# Stop on the first undefined behaviour so libFuzzer records the input as a crash.
+set(FUZZ_UB_FATAL "-fno-sanitize-recover=undefined")
 set(FUZZ_COVERAGE "-fsanitize-coverage=inline-8bit-counters,trace-cmp,pc-table")
 
 target_compile_options(
   c64script_fuzz
-  PRIVATE ${FUZZ_SANITIZERS} ${FUZZ_COVERAGE} -fno-omit-frame-pointer -g -O1
+  PRIVATE ${FUZZ_SANITIZERS} ${FUZZ_UB_FATAL} ${FUZZ_COVERAGE} -fno-omit-frame-pointer -g -O1
 )
 target_link_options(c64script_fuzz PRIVATE ${FUZZ_SANITIZERS})
 
