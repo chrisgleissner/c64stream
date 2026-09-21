@@ -4,10 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       fuzz_time_seconds:
-        description: "Fuzz duration in seconds (default: 120 for dispatch, 14400 for nightly)"
+        description: "Fuzz duration in seconds (default: 120 for dispatch, 14400 for the weekly scheduled run)"
         required: false
         default: "120"
   schedule:
+    # Weekly, Sundays at 02:00 UTC
     - cron: "0 2 * * 0"
 
 jobs:
