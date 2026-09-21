@@ -749,6 +749,42 @@ TEST(execute_discover_devices_bad_port_fails)
     c64script_ast_free(ast);
 }
 
+// Runs a script that must fail at runtime and checks the error message.
+// DIM sizes and array indices were previously cast straight from double to
+// size_t, which is undefined for negative values and let DIM request
+// allocations of any size.
+static void expect_array_runtime_error(const char *source, const char *expected_error)
+{
+    char error[256];
+
+    c64script_ast_node_t *ast = c64script_parse(source, strlen(source), error, sizeof(error));
+    assert(ast != NULL);
+
+    c64script_runtime_t *runtime = c64script_runtime_create();
+    assert(runtime != NULL);
+
+    bool success = c64script_compile(ast, runtime, error, sizeof(error));
+    assert(success);
+
+    success = c64script_execute(runtime);
+    assert(!success);
+    assert(strstr(runtime->error_msg, expected_error) != NULL);
+
+    c64script_runtime_destroy(runtime);
+    c64script_ast_free(ast);
+}
+
+TEST(execute_array_rejects_invalid_size_and_index)
+{
+    expect_array_runtime_error("DIM A(-2)\n", "Array size must be greater than 0");
+    expect_array_runtime_error("DIM A(0.5)\n", "Array size must be greater than 0");
+    expect_array_runtime_error("DIM A(65537)\n", "Array size must not exceed 65536");
+    expect_array_runtime_error("DIM A(99999999999999999999)\n", "Array size must not exceed 65536");
+    expect_array_runtime_error("DIM A(3)\nX = A(-1)\n", "Array index out of bounds");
+    expect_array_runtime_error("DIM A(3)\nA(-1) = 1\n", "Array index out of bounds");
+    expect_array_runtime_error("DIM A(3)\nA(3) = 1\n", "Array index out of bounds");
+}
+
 TEST(execute_cfg_commands)
 {
     const char *source = "DIM CATS$(3)\n"
@@ -1712,6 +1748,7 @@ int main(void)
     printf("\n--- Loop Execution Tests ---\n");
     RUN_TEST(execute_for_loop);
     RUN_TEST(execute_while_loop);
+    RUN_TEST(execute_array_rejects_invalid_size_and_index);
 
     printf("\n--- Labels & I/O Tests ---\n");
     RUN_TEST(execute_line_numbers_and_goto);

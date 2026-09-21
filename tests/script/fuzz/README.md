@@ -38,3 +38,4 @@ Results are written under:
 - If libFuzzer with trace-pc-guard is not available, the runner fetches and builds LLVM 12's libFuzzer locally.
 - IO, HTTP, and log file writes are blocked during fuzz runs.
 - Expect slower execution with sanitizers enabled.
+- Each input has a 10s time limit (`FUZZ_INPUT_TIMEOUT`, passed to libFuzzer as `-timeout`). An input that exceeds it is saved to `crashes/` as a `timeout-*` file and fails the run. Set `FUZZ_INPUT_TIMEOUT=0` to disable the limit.

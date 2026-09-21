@@ -50,6 +50,19 @@ See <https://www.gnu.org/licenses/> for details.
 
 #define MACRO_LOG_PREFIX "[c64script-vm] "
 
+// Converts a script number to an array index. Returns false for NaN, infinity,
+// negative values and values at or above C64SCRIPT_MAX_ARRAY_SIZE, so the cast
+// to size_t is always defined.
+static bool array_index_from_number(double number, size_t *out)
+{
+    double truncated = trunc(number);
+    if (!isfinite(truncated) || truncated < 0.0 || truncated >= (double)C64SCRIPT_MAX_ARRAY_SIZE) {
+        return false;
+    }
+    *out = (size_t)truncated;
+    return true;
+}
+
 static bool c64script_name_is_string(const char *name)
 {
     if (!name) {
@@ -142,13 +155,19 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
             return false;
         }
 
-        size_t size = (size_t)size_val.as.number;
+        double requested_size = trunc(size_val.as.number);
         c64script_value_free(&size_val);
 
-        if (size == 0) {
+        if (!isfinite(requested_size) || requested_size < 1.0) {
             snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Array size must be greater than 0");
             return false;
         }
+        if (requested_size > (double)C64SCRIPT_MAX_ARRAY_SIZE) {
+            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Array size must not exceed %d",
+                     C64SCRIPT_MAX_ARRAY_SIZE);
+            return false;
+        }
+        size_t size = (size_t)requested_size;
 
         c64script_value_type_t element_type = c64script_name_is_string(arrayname) ? VALUE_STRING : VALUE_NUMBER;
         c64script_value_t array = c64script_value_array(size, element_type);
@@ -178,8 +197,13 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
             return false;
         }
 
-        size_t index = (size_t)index_val.as.number;
+        size_t index = 0;
+        bool index_valid = array_index_from_number(index_val.as.number, &index);
         c64script_value_free(&index_val);
+        if (!index_valid) {
+            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Array index out of bounds");
+            return false;
+        }
 
         c64script_value_t array_var;
         if (!c64script_runtime_get_var(runtime, arrayname, &array_var)) {
@@ -233,8 +257,14 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
             return false;
         }
 
-        size_t index = (size_t)index_val.as.number;
+        size_t index = 0;
+        bool index_valid = array_index_from_number(index_val.as.number, &index);
         c64script_value_free(&index_val);
+        if (!index_valid) {
+            snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Array index out of bounds");
+            c64script_value_free(&value_val);
+            return false;
+        }
 
         c64script_value_t array_var;
         if (!c64script_runtime_get_var(runtime, arrayname, &array_var)) {

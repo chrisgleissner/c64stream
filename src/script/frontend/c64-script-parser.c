@@ -1329,6 +1329,11 @@ static c64script_ast_node_t *if_statement(parser_t *p)
                     then_tail = stmt;
                 }
             }
+            if (p->had_error) {
+                node->as.if_stmt.then_branch = then_branch;
+                c64script_ast_free(node);
+                return NULL;
+            }
             while (match(p, TOKEN_NEWLINE))
                 ;
         }
@@ -1352,6 +1357,11 @@ static c64script_ast_node_t *if_statement(parser_t *p)
                         else_tail->next = stmt;
                         else_tail = stmt;
                     }
+                }
+                if (p->had_error) {
+                    node->as.if_stmt.else_branch = else_branch;
+                    c64script_ast_free(node);
+                    return NULL;
                 }
                 while (match(p, TOKEN_NEWLINE))
                     ;
@@ -1444,6 +1454,11 @@ static c64script_ast_node_t *for_statement(parser_t *p)
                 body_tail = stmt;
             }
         }
+        if (p->had_error) {
+            node->as.for_stmt.body = body;
+            c64script_ast_free(node);
+            return NULL;
+        }
         while (match(p, TOKEN_NEWLINE))
             ;
     }
@@ -1492,6 +1507,11 @@ static c64script_ast_node_t *while_statement(parser_t *p)
                 body_tail->next = stmt;
                 body_tail = stmt;
             }
+        }
+        if (p->had_error) {
+            node->as.while_stmt.body = body;
+            c64script_ast_free(node);
+            return NULL;
         }
         while (match(p, TOKEN_NEWLINE))
             ;
@@ -3176,16 +3196,15 @@ static c64script_ast_node_t *function_def_statement(parser_t *p)
             c64script_ast_free(node);
             return NULL;
         }
+        // The node owns the array from here on, so c64script_ast_free() releases
+        // the names parsed so far if a later parameter is invalid.
+        node->as.function_def.param_names = (const char **)params;
 
         // Parse parameters
         if (!check(p, TOKEN_RPAREN)) {
             do {
                 if (!match(p, TOKEN_IDENTIFIER)) {
                     error(p, "Expected parameter name");
-                    for (size_t i = 0; i < node->as.function_def.param_count; i++) {
-                        free(params[i]);
-                    }
-                    free(params);
                     c64script_ast_free(node);
                     return NULL;
                 }
@@ -3194,22 +3213,17 @@ static c64script_ast_node_t *function_def_statement(parser_t *p)
                     capacity *= 2;
                     char **new_params = realloc(params, capacity * sizeof(char *));
                     if (!new_params) {
-                        for (size_t i = 0; i < node->as.function_def.param_count; i++) {
-                            free(params[i]);
-                        }
-                        free(params);
                         c64script_ast_free(node);
                         return NULL;
                     }
                     params = new_params;
+                    node->as.function_def.param_names = (const char **)params;
                 }
 
                 params[node->as.function_def.param_count++] = dup_upper(p->previous.start, p->previous.length);
 
             } while (match(p, TOKEN_COMMA));
         }
-
-        node->as.function_def.param_names = (const char **)params;
 
         consume(p, TOKEN_RPAREN, "Expected ')' after parameters");
         if (p->panic_mode) {

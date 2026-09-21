@@ -34,6 +34,9 @@ add_executable(
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-dispatch-io.c
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-dispatch-keyboard.c
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-dispatch-machine.c
+  ${CMAKE_SOURCE_DIR}/src/device/c64-device.c
+  ${CMAKE_SOURCE_DIR}/src/device/c64-device-scan.c
+  ${CMAKE_SOURCE_DIR}/src/network/c64-network.c
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-dispatch-memory.c
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-trace.c
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-utils.c
@@ -57,7 +60,7 @@ target_link_options(c64script_fuzz PRIVATE ${FUZZ_SANITIZERS})
 if(UNIX)
   target_link_libraries(
     c64script_fuzz
-    PRIVATE OBS::libobs CURL::libcurl m ${LIBFUZZER_LIBRARY} stdc++
+    PRIVATE OBS::libobs CURL::libcurl m resolv ${LIBFUZZER_LIBRARY} stdc++
   )
 else()
   target_link_libraries(c64script_fuzz PRIVATE OBS::libobs CURL::libcurl ${LIBFUZZER_LIBRARY})

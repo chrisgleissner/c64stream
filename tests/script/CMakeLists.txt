@@ -39,6 +39,7 @@ add_executable(
 target_include_directories(test_c64script_parser PRIVATE ${C64_ALL_INCLUDE_DIRS})
 target_link_libraries(test_c64script_parser PRIVATE OBS::libobs)
 add_test(NAME c64script_parser COMMAND test_c64script_parser)
+set_tests_properties(c64script_parser PROPERTIES TIMEOUT 60)
 
 # Compiler and VM unit tests
 add_executable(
