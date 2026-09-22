@@ -22,6 +22,10 @@ Set a longer duration and more workers:
 - ./build --fuzz=14400
 - FUZZ_JOBS=4 ./build --fuzz=14400
 
+## Corpus in CI
+
+The `c64script-fuzz` workflow keeps its corpus between runs in the GitHub Actions cache. Each run restores the corpus saved by the most recent run, fuzzes, minimizes the corpus with `-merge=1`, and saves it under a new cache key. If no cache is available (first run, or GitHub expired it after 7 days without use), the run starts from the seed scripts.
+
 ## Output locations
 
 Results are written under:
@@ -34,7 +38,10 @@ Results are written under:
 
 ## Notes
 
-- Builds use clang with ASan/UBSan and libFuzzer.
+- Builds use clang with ASan/UBSan and libFuzzer. Undefined behaviour aborts the run (`-fno-sanitize-recover=undefined`), and memory leaks are reported per input (`detect_leaks=1`).
 - If libFuzzer with trace-pc-guard is not available, the runner fetches and builds LLVM 12's libFuzzer locally.
 - IO, HTTP, and log file writes are blocked during fuzz runs.
+- Script log output (`LOG`, `PRINT`, `TRON` and VM debug messages sent through `blog()`) is discarded by the harness. Sanitizer and libFuzzer reports are written to stderr directly and are not affected.
+- When a run fails, `fuzz.sh` prints each distinct sanitizer or libFuzzer finding at the end of its output and writes the same list to `summary.txt`.
 - Expect slower execution with sanitizers enabled.
+- Each input has a 10s time limit (`FUZZ_INPUT_TIMEOUT`, passed to libFuzzer as `-timeout`). An input that exceeds it is saved to `crashes/` as a `timeout-*` file and fails the run. Set `FUZZ_INPUT_TIMEOUT=0` to disable the limit.

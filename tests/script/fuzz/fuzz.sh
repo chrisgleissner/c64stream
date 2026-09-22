@@ -129,10 +129,36 @@ fi
 MAX_LEN=${FUZZ_MAX_LEN:-1024}
 MAX_TIME=${FUZZ_TIME_SECONDS:-60}
 JOBS=${FUZZ_JOBS:-1}
-INPUT_TIMEOUT=${FUZZ_INPUT_TIMEOUT:-0}
+INPUT_TIMEOUT=${FUZZ_INPUT_TIMEOUT:-10}
 TIMEOUT_GRACE=${FUZZ_TIMEOUT_GRACE:-0}
 
 LOG_FILE="$LOG_DIR/fuzz-$RUN_ID.log"
+
+# Prints each distinct sanitizer or libFuzzer finding with the lines that follow
+# it, up to the path of the saved input (stack trace, SUMMARY, input path). UBSan reports start with
+# "file:line:col: runtime error:", ASan and LSan reports with "==PID==ERROR:",
+# and libFuzzer's own findings (timeout, out-of-memory) with "==PID== ERROR:".
+sanitizer_findings() {
+    awk '
+        /runtime error:|^==[0-9]+== ?ERROR:/ {
+            key = $0
+            sub(/^==[0-9]+==/, "", key)
+            if (!(key in seen)) {
+                seen[key] = 1
+                remaining = 40
+                print ""
+            }
+        }
+        remaining > 0 {
+            print
+            remaining--
+            # libFuzzer prints the saved input path last; the finding ends there.
+            if ($0 ~ /Test unit written to/) {
+                remaining = 0
+            }
+        }
+    ' "$1" | sed -n '1,400p'
+}
 RUN_REPORT="$RESULTS_DIR/run-$RUN_ID.md"
 
 JOB_ARGS=""
@@ -147,7 +173,9 @@ fi
 
 FUZZ_CMD="$CMD_PREFIX \"$FUZZ_BIN\" -artifact_prefix=\"$CRASH_DIR/\" -max_len=\"$MAX_LEN\" -max_total_time=\"$MAX_TIME\" -timeout=\"$INPUT_TIMEOUT\" $JOB_ARGS -print_final_stats=1 -verbosity=1 \"$OUTPUT_CORPUS\" \"$SEED_CORPUS\""
 
-ASAN_OPTIONS="detect_leaks=0${ASAN_OPTIONS:+:$ASAN_OPTIONS}"; export ASAN_OPTIONS
+# Leaks are reported per input. Without this, leaked parser nodes accumulate
+# until libFuzzer stops at its RSS limit, and the report names no leaking input.
+ASAN_OPTIONS="detect_leaks=1${ASAN_OPTIONS:+:$ASAN_OPTIONS}"; export ASAN_OPTIONS
 
 echo "=== Starting fuzzing for ${MAX_TIME}s (run ${RUN_ID}) ==="
 echo "  Binary:  $FUZZ_BIN"
@@ -252,8 +280,8 @@ fi
     fi
     if [ -f "$LOG_FILE" ]; then
         echo ""
-        echo "=== Sanitizer output (first trace) ==="
-        awk 'found {print} /^==[0-9]+==/ {found=1; print}' "$LOG_FILE" | sed -n '1,200p'
+        echo "=== Sanitizer findings ==="
+        sanitizer_findings "$LOG_FILE"
     fi
 } >"$SUMMARY_FILE"
 
@@ -288,6 +316,11 @@ if [ "$WRAPPER_TIMEOUT" -eq 1 ]; then
 else
     echo "Run completed without wrapper timeout." >>"$RUN_REPORT"
 fi
-echo "Leak detection disabled for fuzzing (ASAN_OPTIONS=detect_leaks=0)." >>"$RUN_REPORT"
+echo "Leak detection enabled (ASAN_OPTIONS=detect_leaks=1). UBSan findings abort the run." >>"$RUN_REPORT"
+
+if [ "$EXIT_CODE" -ne 0 ]; then
+    echo "=== Sanitizer findings ==="
+    sanitizer_findings "$LOG_FILE"
+fi
 
 exit "$EXIT_CODE"

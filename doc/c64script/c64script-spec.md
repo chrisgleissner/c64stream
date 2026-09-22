@@ -2315,6 +2315,7 @@ END
 - Max loop nesting: **16** for FOR and WHILE loops each (`C64SCRIPT_MAX_FOR_NESTING`, `C64SCRIPT_MAX_WHILE_NESTING`)
 - Max GOSUB depth: **32** (`C64SCRIPT_MAX_GOSUB_DEPTH`)
 - Max variables: **512** (`C64SCRIPT_MAX_VARIABLES`)
+- Max array size: **65536** elements (`C64SCRIPT_MAX_ARRAY_SIZE`)
 - Max bytecode size: **256 KiB** (`C64SCRIPT_MAX_BYTECODE_SIZE`)
 
 ### 6.3 Differences from C64 BASIC V2

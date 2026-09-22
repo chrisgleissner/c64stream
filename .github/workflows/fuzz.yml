@@ -4,10 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       fuzz_time_seconds:
-        description: "Fuzz duration in seconds (default: 120 for dispatch, 14400 for nightly)"
+        description: "Fuzz duration in seconds (default: 120 for dispatch, 14400 for the weekly scheduled run)"
         required: false
         default: "120"
   schedule:
+    # Weekly, Sundays at 02:00 UTC
     - cron: "0 2 * * 0"
 
 jobs:
@@ -45,6 +46,23 @@ jobs:
           fi
           ls -la tests/script/fuzz/fuzz.sh
 
+      # Continue from the corpus saved by the most recent run. Without it, every
+      # run starts from the seed scripts and spends its first 20-30 minutes
+      # rediscovering coverage that earlier runs already reached. A cache miss
+      # (first run, or a cache GitHub has expired) starts from the seeds.
+      - name: Restore fuzz corpus
+        uses: actions/cache/restore@v4
+        with:
+          path: tests/script/fuzz/results/corpus
+          key: c64script-fuzz-corpus-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            c64script-fuzz-corpus-
+
+      - name: Report restored corpus
+        run: |
+          : Report restored corpus
+          echo "Restored corpus entries: $(ls -1 tests/script/fuzz/results/corpus 2>/dev/null | wc -l)"
+
       - name: Run fuzzing
         env:
           FUZZ_DURATION: ${{ github.event_name == 'schedule' && '14400' || github.event.inputs.fuzz_time_seconds || '120' }}
@@ -53,6 +71,39 @@ jobs:
           : Run fuzzing
           echo "Configured fuzz duration: ${FUZZ_DURATION}s (event: ${{ github.event_name }})"
           ./tests/script/fuzz/fuzz.sh "${FUZZ_DURATION}"
+
+      # libFuzzer adds every input that finds new coverage, so the corpus grows
+      # by hundreds of MB per run. -merge=1 keeps only the inputs needed for the
+      # coverage reached so far. The merged corpus replaces the working corpus
+      # only if the merge succeeds.
+      - name: Minimize fuzz corpus
+        id: minimize
+        if: always()
+        run: |
+          : Minimize fuzz corpus
+          FUZZ_BIN=build_fuzz_c64script/tests/script/fuzz/c64script_fuzz
+          CORPUS=tests/script/fuzz/results/corpus
+          if [ ! -x "${FUZZ_BIN}" ] || [ ! -d "${CORPUS}" ]; then
+            echo "Fuzz binary or corpus missing; nothing to minimize"
+            exit 1
+          fi
+          MERGED="${RUNNER_TEMP}/corpus-merged"
+          rm -rf "${MERGED}"
+          mkdir -p "${MERGED}"
+          echo "Corpus entries before merge: $(ls -1 "${CORPUS}" | wc -l)"
+          ASAN_OPTIONS=detect_leaks=0 "${FUZZ_BIN}" -merge=1 -timeout=10 "${MERGED}" "${CORPUS}" \
+            >"${RUNNER_TEMP}/corpus-merge.log" 2>&1
+          tail -2 "${RUNNER_TEMP}/corpus-merge.log"
+          rm -rf "${CORPUS}"
+          mv "${MERGED}" "${CORPUS}"
+          echo "Corpus entries after merge: $(ls -1 "${CORPUS}" | wc -l)"
+
+      - name: Save fuzz corpus
+        if: always() && steps.minimize.outcome == 'success'
+        uses: actions/cache/save@v4
+        with:
+          path: tests/script/fuzz/results/corpus
+          key: c64script-fuzz-corpus-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Upload fuzz results
         if: always()
@@ -82,13 +133,11 @@ jobs:
             ls -la "${RESULTS_DIR}/crashes"
           fi
           echo ""
-          echo "=== Latest fuzz log (last 50 lines) ==="
-          LATEST_LOG=$(ls -t "${RESULTS_DIR}/logs"/fuzz-*.log 2>/dev/null | head -1)
-          if [ -n "${LATEST_LOG}" ]; then
-            echo "Log: ${LATEST_LOG}"
-            tail -50 "${LATEST_LOG}"
+          echo "=== Summary with sanitizer findings ==="
+          if [ -f "${RESULTS_DIR}/summary.txt" ]; then
+            cat "${RESULTS_DIR}/summary.txt"
           else
-            echo "(no log files found)"
+            echo "(no summary found)"
           fi
           echo ""
           echo "=== Run report ==="

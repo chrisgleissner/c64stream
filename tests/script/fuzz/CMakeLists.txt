@@ -34,6 +34,9 @@ add_executable(
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-dispatch-io.c
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-dispatch-keyboard.c
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-dispatch-machine.c
+  ${CMAKE_SOURCE_DIR}/src/device/c64-device.c
+  ${CMAKE_SOURCE_DIR}/src/device/c64-device-scan.c
+  ${CMAKE_SOURCE_DIR}/src/network/c64-network.c
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-dispatch-memory.c
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-trace.c
   ${CMAKE_SOURCE_DIR}/src/script/vm/c64-script-vm-utils.c
@@ -46,18 +49,20 @@ target_include_directories(c64script_fuzz PRIVATE ${C64_ALL_INCLUDE_DIRS} ${CMAK
 target_compile_definitions(c64script_fuzz PRIVATE C64SCRIPT_FUZZING=1)
 
 set(FUZZ_SANITIZERS "-fsanitize=fuzzer-no-link,address,undefined")
+# Stop on the first undefined behaviour so libFuzzer records the input as a crash.
+set(FUZZ_UB_FATAL "-fno-sanitize-recover=undefined")
 set(FUZZ_COVERAGE "-fsanitize-coverage=inline-8bit-counters,trace-cmp,pc-table")
 
 target_compile_options(
   c64script_fuzz
-  PRIVATE ${FUZZ_SANITIZERS} ${FUZZ_COVERAGE} -fno-omit-frame-pointer -g -O1
+  PRIVATE ${FUZZ_SANITIZERS} ${FUZZ_UB_FATAL} ${FUZZ_COVERAGE} -fno-omit-frame-pointer -g -O1
 )
 target_link_options(c64script_fuzz PRIVATE ${FUZZ_SANITIZERS})
 
 if(UNIX)
   target_link_libraries(
     c64script_fuzz
-    PRIVATE OBS::libobs CURL::libcurl m ${LIBFUZZER_LIBRARY} stdc++
+    PRIVATE OBS::libobs CURL::libcurl m resolv ${LIBFUZZER_LIBRARY} stdc++
   )
 else()
   target_link_libraries(c64script_fuzz PRIVATE OBS::libobs CURL::libcurl ${LIBFUZZER_LIBRARY})
