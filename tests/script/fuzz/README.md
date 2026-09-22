@@ -22,6 +22,10 @@ Set a longer duration and more workers:
 - ./build --fuzz=14400
 - FUZZ_JOBS=4 ./build --fuzz=14400
 
+## Corpus in CI
+
+The `c64script-fuzz` workflow keeps its corpus between runs in the GitHub Actions cache. Each run restores the corpus saved by the most recent run, fuzzes, minimizes the corpus with `-merge=1`, and saves it under a new cache key. If no cache is available (first run, or GitHub expired it after 7 days without use), the run starts from the seed scripts.
+
 ## Output locations
 
 Results are written under:
