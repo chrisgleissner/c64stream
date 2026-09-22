@@ -95,11 +95,17 @@ bool c64script_dispatch_machine(c64script_runtime_t *runtime, const c64script_in
             snprintf(runtime->error_msg, sizeof(runtime->error_msg), "TYPE MISMATCH (PLAYSID)");
             return false;
         }
+        int song = 0;
+        if (!number_to_int(runtime, &song_nr, &song, "PLAYSID")) {
+            c64script_value_free(&sid_file);
+            c64script_value_free(&song_nr);
+            return false;
+        }
 
         const char *c64u_path = NULL;
         bool ok = false;
         if (is_c64u_path(sid_file.as.string, &c64u_path)) {
-            ok = c64_rest_play_sid_path((c64_rest_client_t *)runtime->rest_client, c64u_path, (int)song_nr.as.number);
+            ok = c64_rest_play_sid_path((c64_rest_client_t *)runtime->rest_client, c64u_path, song);
         } else {
             uint8_t *data = NULL;
             size_t size = 0;
@@ -110,8 +116,7 @@ bool c64script_dispatch_machine(c64script_runtime_t *runtime, const c64script_in
                 snprintf(runtime->error_msg, sizeof(runtime->error_msg), "%s", err[0] ? err : "Failed to load SID");
                 return false;
             }
-            ok = c64_rest_play_sid((c64_rest_client_t *)runtime->rest_client, data, size, (int)song_nr.as.number, NULL,
-                                   0);
+            ok = c64_rest_play_sid((c64_rest_client_t *)runtime->rest_client, data, size, song, NULL, 0);
             free(data);
         }
         if (!ok) {

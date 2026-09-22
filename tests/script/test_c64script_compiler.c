@@ -874,6 +874,15 @@ TEST(execute_bitwise_rejects_out_of_range_operands)
     expect_runtime_error("X = NOT 99999999999999999999\n", "ILLEGAL QUANTITY");
 }
 
+// WAIT converts its duration to milliseconds. A duration above UINT32_MAX ms
+// or NaN was previously cast anyway; it now reports ILLEGAL QUANTITY before
+// any waiting starts.
+TEST(execute_wait_rejects_out_of_range_duration)
+{
+    expect_runtime_error("WAIT 99999999999999999999\n", "ILLEGAL QUANTITY");
+    expect_runtime_error("X = 5000000\nWAIT X\n", "ILLEGAL QUANTITY");
+}
+
 TEST(execute_cfg_commands)
 {
     const char *source = "DIM CATS$(3)\n"
@@ -1841,6 +1850,7 @@ int main(void)
     RUN_TEST(execute_labelled_statement_inside_block);
     RUN_TEST(execute_array_rejects_invalid_size_and_index);
     RUN_TEST(execute_bitwise_rejects_out_of_range_operands);
+    RUN_TEST(execute_wait_rejects_out_of_range_duration);
 
     printf("\n--- Labels & I/O Tests ---\n");
     RUN_TEST(execute_line_numbers_and_goto);

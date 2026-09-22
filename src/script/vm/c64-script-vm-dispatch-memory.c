@@ -26,7 +26,7 @@ bool c64script_dispatch_memory(c64script_runtime_t *runtime, const c64script_ins
             return false;
         }
 
-        if (addr_val.as.number < 0.0 || addr_val.as.number > 65535.0) {
+        if (!(addr_val.as.number >= 0.0 && addr_val.as.number <= 65535.0)) {
             c64script_value_free(&addr_val);
             snprintf(runtime->error_msg, sizeof(runtime->error_msg), "ILLEGAL QUANTITY");
             return false;
@@ -63,7 +63,7 @@ bool c64script_dispatch_memory(c64script_runtime_t *runtime, const c64script_ins
             c64script_value_free(&value);
             return false;
         }
-        if (address.as.number < 0.0 || address.as.number > 65535.0) {
+        if (!(address.as.number >= 0.0 && address.as.number <= 65535.0)) {
             c64script_value_free(&address);
             c64script_value_free(&value);
             snprintf(runtime->error_msg, sizeof(runtime->error_msg), "ILLEGAL QUANTITY");
@@ -141,7 +141,7 @@ bool c64script_dispatch_memory(c64script_runtime_t *runtime, const c64script_ins
             return false;
         }
 
-        if (address.as.number < 0.0 || address.as.number > 65535.0) {
+        if (!(address.as.number >= 0.0 && address.as.number <= 65535.0)) {
             c64script_value_free(&address);
             for (uint32_t i = 0; i < count; i++) {
                 c64script_value_free(&values[i]);

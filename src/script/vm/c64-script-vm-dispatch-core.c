@@ -226,7 +226,6 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
         c64script_value_free(&array_var);
 
         if (!c64script_runtime_push(runtime, element)) {
-            c64script_value_free(&element);
             return false;
         }
         break;
@@ -375,7 +374,6 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
         c64script_value_free(&key_val);
 
         if (!c64script_runtime_push(runtime, value)) {
-            c64script_value_free(&value);
             return false;
         }
         break;
@@ -569,7 +567,6 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
             result = c64script_value_string(concat);
             free(concat);
             if (!c64script_runtime_push(runtime, result)) {
-                c64script_value_free(&result);
                 return false;
             }
         } else {
@@ -913,7 +910,6 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
 
             // Push return value onto stack
             if (!c64script_runtime_push(runtime, return_val)) {
-                c64script_value_free(&return_val);
                 return false;
             }
 
@@ -1103,7 +1099,9 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
 
         double v = duration.as.number;
         c64script_value_free(&duration);
-        if (v < 0.0) {
+        double multiplier = wait_unit_multiplier((c64script_wait_unit_t)instr->operand);
+        // Same limit as duration literals: whole milliseconds that fit in uint32_t.
+        if (!(v >= 0.0 && v * multiplier <= (double)UINT32_MAX)) {
             snprintf(runtime->error_msg, sizeof(runtime->error_msg), "ILLEGAL QUANTITY");
             return false;
         }
@@ -1113,7 +1111,6 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
             break;
         }
 
-        double multiplier = wait_unit_multiplier((c64script_wait_unit_t)instr->operand);
         uint64_t total_ms = (uint64_t)(v * multiplier);
         uint64_t remaining_ms = total_ms;
         if (c64script_debug_logging_enabled()) {
@@ -1206,7 +1203,7 @@ static bool execute_instruction(c64script_runtime_t *runtime, const c64script_in
                 return false;
             }
             double poll_seconds = poll_val.as.number;
-            if (poll_seconds < 0.0) {
+            if (!(poll_seconds >= 0.0 && poll_seconds * wait_unit_multiplier(poll_unit) <= (double)UINT32_MAX)) {
                 snprintf(runtime->error_msg, sizeof(runtime->error_msg), "ILLEGAL QUANTITY");
                 c64script_value_free(&poll_val);
                 c64script_value_free(&value_val);
