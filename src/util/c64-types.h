@@ -30,6 +30,13 @@ typedef struct c64_keyboard c64_keyboard_t;
 typedef struct c64_keymap c64_keymap_t;
 struct c64_record_writer;
 
+typedef enum {
+    C64_DEVICE_PALETTE_UNKNOWN = 0,
+    C64_DEVICE_PALETTE_REQUESTED,
+    C64_DEVICE_PALETTE_RECEIVED,
+    C64_DEVICE_PALETTE_UNSUPPORTED,
+} c64_device_palette_status_t;
+
 // Frame packet structure for reordering
 struct frame_packet {
     uint16_t line_num;
@@ -125,6 +132,10 @@ struct c64_source {
     struct c64_color_lut color_lut;
     char palette_id[64];
     bool palette_initialized;
+    struct c64_palette_state device_palette;
+    volatile bool follow_device_palette;
+    volatile bool device_palette_request_supported;
+    volatile long device_palette_status;
     pthread_mutex_t palette_mutex;
 
     // Video data
@@ -270,6 +281,9 @@ struct c64_source {
     volatile long debug_recvfrom_bytes_total; // Sum of all bytes from recvfrom (including partial/headers)
     volatile long debug_packets_dropped_size; // Packets dropped due to wrong size
     volatile long debug_packets_dropped_peer; // Packets dropped: sender != expected peer (ingest ownership filter)
+    volatile long palette_packets_received;
+    volatile long palette_packets_applied;
+    volatile long palette_packets_ignored;
 
     // Stage-1 UDP network FIFOs (decouple socket recv from buffering/order work)
     struct c64_network_fifo video_fifo;

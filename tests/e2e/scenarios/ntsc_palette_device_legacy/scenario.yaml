@@ -1,0 +1,20 @@
+name: NTSC Device Palette Legacy
+format: NTSC
+preset: Default
+mock_rest_enabled: true
+overrides:
+  c64_host: 127.0.0.1
+  video_port: 11000
+  audio_port: 11001
+  stream_control_transport: 1
+  palette: __device__
+  device_palette_expected: Default
+  debug_logging: true
+network_simulation:
+  reject_runtime_palette: true
+  expected_palette_requests: [true, false]
+assertions:
+  - video_quality
+  - audio
+  - frame_progression
+  - palette_mapping

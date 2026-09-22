@@ -73,6 +73,8 @@ class MockC64UServer:
         # and a log of raw machine:input request bodies for keyboard tests.
         self.memory = bytearray(65536)
         self.keyboard_events: list[Any] = []
+        self.rest_stream_starts: list[tuple[int, bool]] = []
+        self.reject_runtime_palette = False
 
     def start(self):
         """Start the TCP control server, and the REST server if configured."""
@@ -373,6 +375,12 @@ class MockC64UServer:
                     stream_id = 1 if path.path.startswith("/v1/streams/audio") else 0
                     params = parse_qs(path.query)
                     dest = params.get("ip", [None])[0]
+                    palette_requested = params.get("palette", ["0"])[0] == "1"
+                    with mock._events_lock:
+                        mock.rest_stream_starts.append((stream_id, palette_requested))
+                    if stream_id == 0 and palette_requested and mock.reject_runtime_palette:
+                        self._send_json({"errors": ["Unsupported parameter: palette"]}, 400)
+                        return
                     local_host = self.connection.getsockname()[0]
                     mock._record_start(stream_id, dest, mock._device_for_host(local_host), local_host)
                     self._send_json({})

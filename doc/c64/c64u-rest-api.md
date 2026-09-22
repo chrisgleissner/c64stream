@@ -243,7 +243,7 @@ Example for `/v1/drives`:
 
 | Method | Path                         | Parameters | Action                                                                                                                                                                                                       |
 | ------ | ---------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| PUT    | `/v1/streams/{stream}:start` | `ip`       | Starts the selected stream (`video`, `audio`, or `debug`). Supply an IP address and optional port (defaults: `video` 11000, `audio` 11001, `debug` 11002). Starting the video stream stops the debug stream. |
+| PUT    | `/v1/streams/{stream}:start` | `ip`, `[palette]` | Starts the selected stream (`video`, `audio`, or `debug`). Supply an IP address and optional port (defaults: `video` 11000, `audio` 11001, `debug` 11002). For video, `palette=1` opts into runtime palette packets; `palette=0` or omission preserves the ordinary stream. Starting the video stream stops the debug stream. |
 | PUT    | `/v1/streams/{stream}:stop`  | –          | Stops the selected stream (`video`, `audio`, or `debug`).                                                                                                                                                    |
 
 ### File Manipulation

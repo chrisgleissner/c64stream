@@ -78,6 +78,26 @@ class PacketReplayer:
                 'dest': video_dest
             })
 
+        packet_path = None
+        runtime_palette = str(self.network_simulation.get('runtime_palette_vpl', '') or '').strip()
+        if runtime_palette:
+            palette_path = Path(__file__).resolve().parents[4] / 'data' / 'palettes' / f'{runtime_palette}.vpl'
+            colors = []
+            for line in palette_path.read_text().splitlines():
+                fields = line.split('#', 1)[0].split()
+                if len(fields) >= 3:
+                    colors.extend(int(value, 16) for value in fields[:3])
+            if len(colors) != 48:
+                raise ValueError(f"Expected 16 RGB colors in {palette_path}")
+            packet_path = video_dir / '.runtime-palette.bin'
+            packet_path.write_bytes(bytes([1, 0, 0, 0, 239, 0, 0x80, 1, 1, 4, 1, 0] + colors))
+            timeline.append({
+                'time_us': float(self.network_simulation.get('runtime_palette_delay_ms', 100)) * 1000,
+                'type': 'video',
+                'file': str(packet_path),
+                'dest': video_dest,
+            })
+
         # Add audio packets to timeline
         for i, audio_file in enumerate(audio_files):
             timeline.append({
@@ -140,7 +160,11 @@ class PacketReplayer:
             audio_cmd.extend(['--bind-host', source_host])
 
         logger.info(f"🚀 Synchronized packet replay start: +{lead_s}s from now")
-        return self._execute_parallel_replay(udp_replay_bin, video_cmd, audio_cmd)
+        try:
+            return self._execute_parallel_replay(udp_replay_bin, video_cmd, audio_cmd)
+        finally:
+            if packet_path:
+                packet_path.unlink(missing_ok=True)
 
     # Keys that activate the loss/duplication simulation extensions. When none of
     # these are present the simulation behaves exactly as before (jitter/reorder

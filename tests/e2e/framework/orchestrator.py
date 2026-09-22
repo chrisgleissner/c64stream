@@ -111,6 +111,8 @@ class E2EOrchestrator:
         self.mock_server = (MockC64UServer(self.env, control_port=control_port, rest_port=mock_rest_port,
                                            devices=self.mock_devices)
                             if packet_source == 'mock' else None)
+        if self.mock_server:
+            self.mock_server.reject_runtime_palette = bool(self.network_simulation.get('reject_runtime_palette'))
         self.replayer = PacketReplayer(self.env, video_format, self.network_simulation) if packet_source == 'mock' else None
         self.resource_monitor = ResourceManager(self.env, pid=0, interval_ms=monitor_resource_interval_ms) # PID set later
         self.recording_validator = RecordingValidator(self.env)
@@ -204,6 +206,13 @@ class E2EOrchestrator:
 
             # 8. Post-Run Wait (Allow flushing)
             time.sleep(2.0)
+
+            expected_palette_requests = self.network_simulation.get('expected_palette_requests')
+            if expected_palette_requests is not None and self.mock_server:
+                actual = [requested for stream_id, requested in self.mock_server.rest_stream_starts if stream_id == 0]
+                expected = list(expected_palette_requests)
+                if actual[:len(expected)] != expected:
+                    raise RuntimeError(f"Expected video palette requests {expected}, got {actual}")
 
             if self.wait_for_script_completion:
                 self.obs_logs.wait_for_script_completion(

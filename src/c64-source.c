@@ -281,11 +281,15 @@ void c64_source_apply_palette(struct c64_source *context, obs_data_t *settings)
     if (!palette_id || !palette_id[0]) {
         palette_id = "Default";
     }
+    const bool follow_device = strcmp(palette_id, C64_DEVICE_PALETTE_ID) == 0;
+    const bool follow_changed = os_atomic_load_bool(&context->follow_device_palette) != follow_device;
 
     // Resolve the catalogue colours for this palette (loads from VPL on demand).
     // This reads only shared read-mostly catalogue state, never a shared LUT.
     uint32_t colors[16];
-    if (!c64_palette_resolve_colors(palette_id, colors)) {
+    if (follow_device) {
+        memcpy(colors, c64_default_palette, sizeof(colors));
+    } else if (!c64_palette_resolve_colors(palette_id, colors)) {
         // Unknown palette (e.g. deleted): fall back to Default so the source
         // still renders with a valid LUT rather than leaving it stale.
         if (!c64_palette_resolve_colors("Default", colors)) {
@@ -296,7 +300,7 @@ void c64_source_apply_palette(struct c64_source *context, obs_data_t *settings)
 
     // Apply this source's own per-colour overrides (stored per source in its
     // OBS settings), so colour edits stay isolated to this instance.
-    if (settings) {
+    if (settings && !follow_device) {
         for (int i = 0; i < 16; i++) {
             char key[32];
             snprintf(key, sizeof(key), "palette_color_%d", i);
@@ -308,6 +312,14 @@ void c64_source_apply_palette(struct c64_source *context, obs_data_t *settings)
     }
 
     pthread_mutex_lock(&context->palette_mutex);
+    os_atomic_set_bool(&context->follow_device_palette, follow_device);
+    if (follow_changed) {
+        os_atomic_set_bool(&context->device_palette_request_supported, true);
+        os_atomic_set_long(&context->device_palette_status, C64_DEVICE_PALETTE_UNKNOWN);
+    }
+    if (follow_device && context->device_palette.colors_valid) {
+        memcpy(colors, context->device_palette.colors, sizeof(colors));
+    }
     if (!context->palette_initialized) {
         c64_color_lut_init(&context->color_lut, colors);
         context->palette_initialized = true;
@@ -317,6 +329,10 @@ void c64_source_apply_palette(struct c64_source *context, obs_data_t *settings)
     strncpy(context->palette_id, palette_id, sizeof(context->palette_id) - 1);
     context->palette_id[sizeof(context->palette_id) - 1] = '\0';
     pthread_mutex_unlock(&context->palette_mutex);
+
+    if (follow_changed && context->streaming) {
+        c64_schedule_retry_task(context, "device palette mode changed");
+    }
 }
 
 static bool c64_try_get_prefer_pal_from_obs_fps(bool *prefer_pal)
@@ -1172,6 +1188,11 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     os_atomic_set_long(&context->debug_recvfrom_eagain, 0);
     os_atomic_set_long(&context->debug_recvfrom_bytes_total, 0);
     os_atomic_set_long(&context->debug_packets_dropped_size, 0);
+    os_atomic_set_long(&context->palette_packets_received, 0);
+    os_atomic_set_long(&context->palette_packets_applied, 0);
+    os_atomic_set_long(&context->palette_packets_ignored, 0);
+    os_atomic_set_bool(&context->device_palette_request_supported, true);
+    os_atomic_set_long(&context->device_palette_status, C64_DEVICE_PALETTE_UNKNOWN);
 
     // Preallocate Stage-1 network FIFOs (Stage-1: socket recv, Stage-2: buffering/order)
     // Video is higher PPS; keep a larger backlog to absorb short processing stalls.
@@ -1304,7 +1325,7 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     if (!palette_id || !palette_id[0]) {
         // No palette specified - select Default (first startup)
         c64_palette_select("Default");
-    } else {
+    } else if (strcmp(palette_id, C64_DEVICE_PALETTE_ID) != 0) {
         // Palette specified - try to select it, fall back to Default if not found
         if (!c64_palette_select(palette_id)) {
             // Palette not found (was deleted) - fall back to Default
@@ -1748,6 +1769,11 @@ void c64_update(void *data, obs_data_t *settings)
         c64_device_registry_apply_selected(settings);
         snprintf(context->active_device_id, sizeof(context->active_device_id), "%s",
                  selected_device_id ? selected_device_id : "");
+        os_atomic_set_bool(&context->device_palette_request_supported, true);
+        os_atomic_set_long(&context->device_palette_status, C64_DEVICE_PALETTE_UNKNOWN);
+        pthread_mutex_lock(&context->palette_mutex);
+        context->device_palette.ordering_valid = false;
+        pthread_mutex_unlock(&context->palette_mutex);
     }
 
     context->preserve_size = c64_effect_settings_resolve_preserve_size(settings, C64_SOURCE_SAVED_SETTING_KEYS,
@@ -1968,7 +1994,7 @@ void c64_update(void *data, obs_data_t *settings)
     // sync for the properties dropdown, then rebuild this source's own LUT
     // from its settings (id + per-source colour overrides) — C64STR-014.
     const char *palette_id = obs_data_get_string(settings, "palette");
-    if (palette_id && palette_id[0]) {
+    if (palette_id && palette_id[0] && strcmp(palette_id, C64_DEVICE_PALETTE_ID) != 0) {
         const char *current_palette = c64_palette_get_active_id();
         if (!current_palette || strcmp(current_palette, palette_id) != 0) {
             c64_palette_select(palette_id);

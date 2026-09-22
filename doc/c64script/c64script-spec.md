@@ -375,6 +375,7 @@ This table lists **all plugin-provided commands/functions** (not BASIC control-f
 **Target**: Plugin (updates OBS source settings)
 
 - `EFFECT`, `EFFECTPARAM`, `PALETTE` update OBS source settings.
+- `PALETTE "device"` follows runtime VIC palette changes reported by the Ultimate.
 
 <a id="cmd-runners"></a>
 

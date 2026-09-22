@@ -111,6 +111,8 @@ disable_pops: true
 | ntsc_arcade_cabinet          | NTSC   | Arcade Cabinet | video_quality, audio, scanlines                  |
 | ntsc_palette_vibrant         | NTSC   | Default        | video_quality, audio, palette_mapping            |
 | ntsc_palette_muted           | NTSC   | Default        | video_quality, audio, palette_mapping            |
+| ntsc_palette_device          | NTSC   | Default        | video_quality, audio, palette_mapping (device palette) |
+| ntsc_palette_device_legacy   | NTSC   | Default        | video_quality, audio, palette_mapping (no device palette) |
 | ntsc_delay_buffer500ms       | NTSC   | Default        | video_quality, audio (buffer test)               |
 | ntsc_preserve_compare        | NTSC   | Default        | video_quality, audio, script_status              |
 | ntsc_script_tutorial         | NTSC   | Default        | script_status (local C64 Ultimate required)      |

@@ -147,6 +147,12 @@ target_include_directories(
 )
 add_test(NAME frame_height_clamp COMMAND test_frame_height_clamp)
 
+add_executable(test_c64_palette_packet test_c64_palette_packet.c)
+target_include_directories(
+  test_c64_palette_packet PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/network
+)
+add_test(NAME c64_palette_packet COMMAND test_c64_palette_packet)
+
 # C64STR-010/011: WAV header carries the true rate and clamps past 4 GiB.
 # POSIX-only test harness (uses mkstemp). Excluded from the Windows build,
 # which only compiles the test tree and never runs it.

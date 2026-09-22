@@ -92,7 +92,7 @@ Each packet contains four consecutive raster lines.
 | 6–7    | Pixels per line  | Always 384                                       |
 | 8      | Lines per packet | Always 4                                         |
 | 9      | Bits per pixel   | Always 4                                         |
-| 10–11  | Encoding type    | Always 0 (uncompressed)                          |
+| 10–11  | Reserved (packet type indicator) | `0000` for video                    |
 
 ### Pixel Data
 
@@ -123,6 +123,52 @@ The following RGB colors are only indicative examples. The actual RGB color mapp
 | 13   | Light Green | #9AE29B |
 | 14   | Light Blue  | #887ECB |
 | 15   | Light Grey  | #ADADAD |
+
+### Runtime Palette Packet
+
+Supporting firmware can send the active 16-color RGB palette on the video UDP
+port. The client must opt in by starting video through REST with `palette=1`;
+ordinary and legacy stream starts remain unchanged.
+
+The 60-byte packet deliberately resembles a video packet so receivers that did
+not opt in degrade gracefully. It is software-generated and does not consume a
+video sequence number. Offset 10–11 is the sole normative packet-type
+discriminator; clients must also require the exact datagram size before parsing.
+
+| Offset | Reused video-header field | Value or meaning                                      |
+| ------ | ------------------------- | ----------------------------------------------------- |
+| 0–1    | Sequence number           | Palette generation, 16-bit LE                         |
+| 2–3    | Frame number              | Always 0                                              |
+| 4–5    | Line number               | 239                                                    |
+| 6–7    | Pixels per line           | 384                                                    |
+| 8      | Lines per packet          | 1                                                      |
+| 9      | Bits per pixel            | 4                                                      |
+| 10–11  | Reserved (packet type indicator) | `0001` for a palette packet                    |
+| 12–59  | Payload                   | 16 triples in VIC index order: `red`, `green`, `blue` |
+
+Line 239 is deliberately a valid, high raster line. A legacy receiver that
+ignores the packet-type indicator may briefly write the short payload there,
+then later real video packets overwrite it before the frame completes. One line
+of 384 four-bit pixels limits that accidental update to the smallest video
+packet geometry without disturbing PAL/NTSC detection. The declared geometry
+would imply a 192-byte payload, while only 48 bytes follow; every receiver must
+bound reads and copies by the UDP datagram length.
+
+Firmware sends the current palette immediately after an opted-in start, repeats
+it once per second so a lost UDP packet repairs itself, and coalesces rapid
+changes to at most one packet per 20 ms. Generation comparison uses 16-bit
+serial arithmetic so wrap from 65535 to 0 is newer. A receiver must reset its
+generation baseline whenever the stream restarts because firmware generation
+starts over after a device reboot and is not monotonic across boots.
+The c64stream renderer snapshots one complete lookup table per assembled frame,
+so a received update takes effect on a whole-frame boundary and cannot mix two
+palettes within one output frame.
+
+Palette packets leave through the same interface as the FPGA VIC stream and
+from its source port 53248, for unicast and multicast alike, so they arrive from
+the same address and port as the video. On an Ultimate that answers on both
+Ethernet and Wi-Fi, that is the Ethernet address; receivers must accept only
+the configured device address or another address verified by device discovery.
 
 ### Authentic C64 Display Border Dimensions
 

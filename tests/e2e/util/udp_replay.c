@@ -17,7 +17,7 @@ Manifest format (CSV):
 All simulation logic (jitter, reordering) is precalculated by Python.
 */
 
-#define _POSIX_C_SOURCE 199309L
+#define _POSIX_C_SOURCE 200112L
 
 #include <stdint.h>
 
@@ -100,6 +100,7 @@ static void sleep_until_us(uint64_t target_time_us)
 struct packet_entry {
     char filename[256];
     long delay_us;
+    size_t size;
 };
 
 static const struct packet_entry *g_entries_for_sort = NULL;
@@ -315,29 +316,8 @@ int main(int argc, char **argv)
     if (verbose)
         printf("Loaded %d entries from manifest\n", count);
 
-    // Auto-detect packet_size if not provided
-    if (packet_size <= 0 && count > 0) {
-        char path[MAX_PATH_LEN];
-#ifdef _WIN32
-        snprintf(path, sizeof(path), "%s\\%s", dir_path, entries[0].filename);
-#else
-        snprintf(path, sizeof(path), "%s/%s", dir_path, entries[0].filename);
-#endif
-        FILE *f = fopen(path, "rb");
-        if (f) {
-            fseek(f, 0, SEEK_END);
-            long fsize = ftell(f);
-            fclose(f);
-            if (fsize > 0 && fsize <= MAX_PACKET_SIZE) {
-                packet_size = (int)fsize;
-                if (verbose)
-                    printf("Auto-detected packet size: %d bytes\n", packet_size);
-            }
-        }
-    }
-
-    if (packet_size <= 0 || packet_size > MAX_PACKET_SIZE) {
-        fprintf(stderr, "Invalid or undetected packet size (max %d)\n", MAX_PACKET_SIZE);
+    if (packet_size < 0 || packet_size > MAX_PACKET_SIZE) {
+        fprintf(stderr, "Invalid packet size (max %d)\n", MAX_PACKET_SIZE);
         if (entries)
             free(entries);
         return 1;
@@ -346,7 +326,8 @@ int main(int argc, char **argv)
     // Preload packets into memory so send timing is not dominated by per-packet file I/O.
     // This is critical for keeping up with the ~3.8K packets/sec rate without relying on
     // catch-up bursts (which can overflow small UDP receive buffers in CI).
-    uint64_t total_bytes = (uint64_t)count * (uint64_t)packet_size;
+    const size_t packet_stride = packet_size > 0 ? (size_t)packet_size : MAX_PACKET_SIZE;
+    uint64_t total_bytes = (uint64_t)count * packet_stride;
     if (count <= 0 || total_bytes == 0) {
         fprintf(stderr, "No packets to send\n");
         free(entries);
@@ -403,11 +384,30 @@ int main(int argc, char **argv)
             return 1;
         }
 
-        uint8_t *dest = packet_data + ((uint64_t)i * (uint64_t)packet_size);
-        size_t n = fread(dest, 1, (size_t)packet_size, f);
+        if (fseek(f, 0, SEEK_END) != 0) {
+            fclose(f);
+            free(preload_indices);
+            free(packet_data);
+            free(entries);
+            return 1;
+        }
+        long file_size = ftell(f);
+        rewind(f);
+        if (file_size <= 0 || file_size > (long)packet_stride || (packet_size > 0 && file_size != packet_size)) {
+            fprintf(stderr, "Invalid packet file size: %s (%ld)\n", path, file_size);
+            fclose(f);
+            free(preload_indices);
+            free(packet_data);
+            free(entries);
+            return 1;
+        }
+
+        entries[i].size = (size_t)file_size;
+        uint8_t *dest = packet_data + ((uint64_t)i * packet_stride);
+        size_t n = fread(dest, 1, entries[i].size, f);
         fclose(f);
-        if (n != (size_t)packet_size) {
-            fprintf(stderr, "Short read for packet file: %s (%zu/%d)\n", path, n, packet_size);
+        if (n != entries[i].size) {
+            fprintf(stderr, "Short read for packet file: %s (%zu/%zu)\n", path, n, entries[i].size);
             free(preload_indices);
             free(packet_data);
             free(entries);
@@ -439,7 +439,14 @@ int main(int argc, char **argv)
     int send_errors = 0;
 
     for (int i = 0; i < count; i++) {
-        uint8_t *buf = packet_data + ((uint64_t)i * (uint64_t)packet_size);
+        uint8_t *buf = packet_data + ((uint64_t)i * packet_stride);
+        const size_t send_size = entries[i].size;
+#ifdef _WIN32
+        // Winsock sendto() takes int; send_size is bounded by MAX_PACKET_SIZE.
+        const int send_len = (int)send_size;
+#else
+        const size_t send_len = send_size;
+#endif
 
         // Wait until target time (absolute schedule).
         //
@@ -456,8 +463,8 @@ int main(int argc, char **argv)
 
         ssize_t rc = -1;
         for (int attempt = 0; attempt < 10; attempt++) {
-            rc = sendto(sock, (char *)buf, packet_size, 0, (struct sockaddr *)&addr, sizeof(addr));
-            if (rc == packet_size) {
+            rc = sendto(sock, (char *)buf, send_len, 0, (struct sockaddr *)&addr, sizeof(addr));
+            if (rc == (ssize_t)send_size) {
                 break;
             }
 
@@ -482,7 +489,7 @@ int main(int argc, char **argv)
             break;
         }
 
-        if (rc != packet_size) {
+        if (rc != (ssize_t)send_size) {
             send_errors++;
             break;
         }
