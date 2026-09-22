@@ -10,13 +10,35 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-script-runtime.h"
 #include "c64script_test_stubs.h"
 
+#include <stdarg.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <util/base.h>
 
 #define C64SCRIPT_FUZZ_MAX_INPUT 1024
 #define C64SCRIPT_FUZZ_MAX_ITERATIONS 1000
 #define C64SCRIPT_FUZZ_FIXED_TIME 1700000000
+
+// Fuzzed scripts log through blog() (LOG, PRINT, TRON and VM debug output).
+// The default libobs handler prints every message, which put more than 200,000
+// lines into a single CI job log and hid the sanitizer reports. Sanitizer
+// reports are written to stderr directly and are not affected by this handler.
+static void discard_script_log(int lvl, const char *msg, va_list args, void *param)
+{
+    (void)lvl;
+    (void)msg;
+    (void)args;
+    (void)param;
+}
+
+int LLVMFuzzerInitialize(int *argc, char ***argv)
+{
+    (void)argc;
+    (void)argv;
+    base_set_log_handler(discard_script_log, NULL);
+    return 0;
+}
 
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 {

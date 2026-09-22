@@ -83,13 +83,11 @@ jobs:
             ls -la "${RESULTS_DIR}/crashes"
           fi
           echo ""
-          echo "=== Latest fuzz log (last 50 lines) ==="
-          LATEST_LOG=$(ls -t "${RESULTS_DIR}/logs"/fuzz-*.log 2>/dev/null | head -1)
-          if [ -n "${LATEST_LOG}" ]; then
-            echo "Log: ${LATEST_LOG}"
-            tail -50 "${LATEST_LOG}"
+          echo "=== Summary with sanitizer findings ==="
+          if [ -f "${RESULTS_DIR}/summary.txt" ]; then
+            cat "${RESULTS_DIR}/summary.txt"
           else
-            echo "(no log files found)"
+            echo "(no summary found)"
           fi
           echo ""
           echo "=== Run report ==="

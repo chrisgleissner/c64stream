@@ -37,5 +37,7 @@ Results are written under:
 - Builds use clang with ASan/UBSan and libFuzzer. Undefined behaviour aborts the run (`-fno-sanitize-recover=undefined`), and memory leaks are reported per input (`detect_leaks=1`).
 - If libFuzzer with trace-pc-guard is not available, the runner fetches and builds LLVM 12's libFuzzer locally.
 - IO, HTTP, and log file writes are blocked during fuzz runs.
+- Script log output (`LOG`, `PRINT`, `TRON` and VM debug messages sent through `blog()`) is discarded by the harness. Sanitizer and libFuzzer reports are written to stderr directly and are not affected.
+- When a run fails, `fuzz.sh` prints each distinct sanitizer or libFuzzer finding at the end of its output and writes the same list to `summary.txt`.
 - Expect slower execution with sanitizers enabled.
 - Each input has a 10s time limit (`FUZZ_INPUT_TIMEOUT`, passed to libFuzzer as `-timeout`). An input that exceeds it is saved to `crashes/` as a `timeout-*` file and fails the run. Set `FUZZ_INPUT_TIMEOUT=0` to disable the limit.
