@@ -35,6 +35,7 @@ typedef struct {
     int machine_input_events;
     int release_all_calls;
     bool machine_input_success;
+    long not_supported_status;
     char last_machine_input[8192];
     bool stall_buffer;
     int consume_after_reads;
@@ -151,7 +152,8 @@ bool c64_rest_machine_input_with_outcome(c64_rest_client_t *client, const char *
         *outcome = C64_REST_NOT_SUPPORTED;
     }
     if (status) {
-        *status = 501;
+        worker_test_rest_client_t *rest_client = (worker_test_rest_client_t *)client;
+        *status = rest_client->not_supported_status ? rest_client->not_supported_status : 501;
     }
     return ok;
 }
@@ -295,6 +297,35 @@ int main(void)
     CHECK(c64_keyboard_release_all(legacy_keyboard));
     CHECK(legacy_client.release_all_calls == 1);
     c64_keyboard_destroy(legacy_keyboard);
+
+    // AUTO memoizes unsupported firmware only for the current device. A
+    // retarget keeps the same worker/client objects, but must probe the new
+    // device again for both temporary (501) and permanent (404) demotions.
+    static const long unsupported_statuses[] = {404, 501};
+    for (size_t i = 0; i < sizeof(unsupported_statuses) / sizeof(unsupported_statuses[0]); i++) {
+        worker_test_rest_client_t switched_client = {.not_supported_status = unsupported_statuses[i]};
+        c64_keyboard_t *switched_keyboard = c64_keyboard_create(&switched_client);
+        CHECK(switched_keyboard != NULL);
+        c64_output_t switched_output = {.mode = C64_OUTPUT_PETSCII, .data.petscii = 'A'};
+        CHECK(c64_keyboard_queue_output(switched_keyboard, &switched_output));
+        CHECK(wait_for_consumed_count(&switched_client, 1, 1000));
+        CHECK(wait_for_status(switched_keyboard, "idle", 1000));
+        CHECK(switched_client.machine_input_calls == 1);
+
+        CHECK(c64_keyboard_queue_output(switched_keyboard, &switched_output));
+        CHECK(wait_for_consumed_count(&switched_client, 2, 1000));
+        CHECK(wait_for_status(switched_keyboard, "idle", 1000));
+        CHECK(switched_client.machine_input_calls == 1);
+
+        switched_client.machine_input_success = true;
+        c64_keyboard_reset_transport_negotiation(switched_keyboard);
+        CHECK(c64_keyboard_queue_output(switched_keyboard, &switched_output));
+        CHECK(wait_for_matrix_events(&switched_client, 2, 1000));
+        CHECK(wait_for_status(switched_keyboard, "idle", 1000));
+        CHECK(switched_client.machine_input_calls == 2);
+        CHECK(switched_client.consumed_count == 2);
+        c64_keyboard_destroy(switched_keyboard);
+    }
 
     worker_test_rest_client_t force_rest_client = {0};
     c64_keyboard_t *force_rest_keyboard = c64_keyboard_create(&force_rest_client);

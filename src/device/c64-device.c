@@ -225,6 +225,48 @@ bool c64_device_registry_upsert(const c64_device_t *device)
     return result;
 }
 
+bool c64_device_registry_upsert_discovered(const c64_device_t *device)
+{
+    if (!device) {
+        return false;
+    }
+    pthread_mutex_lock(&registry_mutex);
+    registry_init_locked();
+    c64_device_t merged = *device;
+    const c64_device_t *profile = NULL;
+    for (size_t i = 0; i < device_count; i++) {
+        if (!strcmp(devices[i].id, device->id)) {
+            profile = &devices[i];
+            break;
+        }
+    }
+    if (!profile) {
+        // First discovery replaces a migrated host-based ID with the hardware
+        // ID. Carry its settings forward, but never inherit an unrelated
+        // hardware profile merely because it previously occupied this IP.
+        char legacy_id[C64_DEVICE_ID_MAX];
+        if (c64_device_id_from_host(legacy_id, sizeof(legacy_id), NULL, device->host)) {
+            for (size_t i = 0; i < device_count; i++) {
+                if (!strcmp(devices[i].id, legacy_id) && !strcmp(devices[i].host, device->host)) {
+                    profile = &devices[i];
+                    break;
+                }
+            }
+        }
+    }
+    if (profile) {
+        // Merge under the same lock as Save Device, so a scan cannot
+        // overwrite an edit made between reading and writing the profile.
+        merged = *profile;
+        snprintf(merged.id, sizeof(merged.id), "%s", device->id);
+        snprintf(merged.host, sizeof(merged.host), "%s", device->host);
+        snprintf(merged.peer_host, sizeof(merged.peer_host), "%s", device->peer_host);
+    }
+    const bool result = registry_upsert_locked(&merged);
+    pthread_mutex_unlock(&registry_mutex);
+    return result;
+}
+
 bool c64_device_registry_delete(const char *id)
 {
     char path[640];
