@@ -95,7 +95,8 @@
       "name": "windows-ci-arm64",
       "inherits": ["windows-arm64"],
       "displayName": "Windows ARM64 CI build",
-      "description": "Build for Windows ARM64 on CI",
+      "description": "Build for Windows ARM64 on CI with Visual Studio 2026",
+      "generator": "Visual Studio 18 2026",
       "cacheVariables": {
         "CMAKE_COMPILE_WARNING_AS_ERROR": true,
         "ENABLE_FRONTEND_API": true
