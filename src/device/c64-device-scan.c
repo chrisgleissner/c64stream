@@ -606,7 +606,7 @@ static void apply_scan_results(scan_job_t *job, char *auto_select_device_id, siz
                     break;
                 }
             }
-            if (c64_device_registry_upsert(&device)) {
+            if (c64_device_registry_upsert_discovered(&device)) {
                 applied_count++;
                 snprintf(sole_device_id, sizeof(sole_device_id), "%s", job->results[i].device.id);
             }

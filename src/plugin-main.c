@@ -109,7 +109,9 @@ static void copy_demo_scripts(void)
                                 break;
                             }
                         }
-                        copy_ok = copy_ok && !ferror(src_file) && fclose(dst_file) == 0;
+                        const bool read_ok = !ferror(src_file);
+                        const bool close_ok = fclose(dst_file) == 0;
+                        copy_ok = copy_ok && read_ok && close_ok;
                         dst_file = NULL;
                         if (copy_ok)
                             copied_count++;
@@ -167,7 +169,9 @@ static void copy_demo_scripts(void)
                             break;
                         }
                     }
-                    copy_ok = copy_ok && !ferror(src_file) && fclose(dst_file) == 0;
+                    const bool read_ok = !ferror(src_file);
+                    const bool close_ok = fclose(dst_file) == 0;
+                    copy_ok = copy_ok && read_ok && close_ok;
                     dst_file = NULL;
                     if (copy_ok)
                         copied_count++;

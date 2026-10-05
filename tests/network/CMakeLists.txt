@@ -52,13 +52,20 @@ add_test(NAME c64_network_buffer COMMAND test_c64_network_buffer)
 # only compiles the test tree and never runs it.
 if(NOT WIN32)
   add_executable(
-    test_c64_avi_segments test_c64_avi_segments.c ${CMAKE_SOURCE_DIR}/src/record/c64-record-video.c
+    test_c64_avi_segments
+    test_c64_avi_segments.c
+    ${CMAKE_SOURCE_DIR}/src/record/c64-record-video.c
     ${CMAKE_SOURCE_DIR}/src/record/c64-record-writer.c
   )
   target_include_directories(
     test_c64_avi_segments
-    PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/record ${CMAKE_SOURCE_DIR}/src/util
-            ${CMAKE_SOURCE_DIR}/src/video ${CMAKE_SOURCE_DIR}/src/network ${CMAKE_SOURCE_DIR}/src/audio
+    PRIVATE
+      ${CMAKE_SOURCE_DIR}/src
+      ${CMAKE_SOURCE_DIR}/src/record
+      ${CMAKE_SOURCE_DIR}/src/util
+      ${CMAKE_SOURCE_DIR}/src/video
+      ${CMAKE_SOURCE_DIR}/src/network
+      ${CMAKE_SOURCE_DIR}/src/audio
   )
   target_link_libraries(test_c64_avi_segments PRIVATE OBS::libobs)
   add_test(NAME c64_avi_segments COMMAND test_c64_avi_segments)
@@ -85,20 +92,14 @@ endif()
 # Clang __atomic_* builtins for a TSan-clean stop flag). Validated under TSan
 # on Linux; excluded from the Windows build, which only compiles the test tree.
 if(NOT WIN32)
-  add_executable(
-    test_c64_palette_isolation test_c64_palette_isolation.c ${CMAKE_SOURCE_DIR}/src/video/c64-color.c
-  )
-  target_include_directories(
-    test_c64_palette_isolation PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/video
-  )
+  add_executable(test_c64_palette_isolation test_c64_palette_isolation.c ${CMAKE_SOURCE_DIR}/src/video/c64-color.c)
+  target_include_directories(test_c64_palette_isolation PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/video)
   target_link_libraries(test_c64_palette_isolation PRIVATE pthread)
   add_test(NAME c64_palette_isolation COMMAND test_c64_palette_isolation)
 endif()
 
 # C64STR-017: in-place REST retarget keeps a running script's client valid.
-add_executable(
-  test_rest_client_retarget test_rest_client_retarget.c ${CMAKE_SOURCE_DIR}/src/network/c64-rest-client.c
-)
+add_executable(test_rest_client_retarget test_rest_client_retarget.c ${CMAKE_SOURCE_DIR}/src/network/c64-rest-client.c)
 target_include_directories(
   test_rest_client_retarget
   PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/network ${CMAKE_SOURCE_DIR}/src/util
@@ -115,7 +116,9 @@ add_test(NAME rest_client_retarget COMMAND test_rest_client_retarget)
 # Excluded from the Windows build, which only compiles the test tree.
 if(NOT WIN32)
   add_executable(
-    test_rest_password_change test_rest_password_change.c ${CMAKE_SOURCE_DIR}/src/network/c64-rest-client.c
+    test_rest_password_change
+    test_rest_password_change.c
+    ${CMAKE_SOURCE_DIR}/src/network/c64-rest-client.c
   )
   target_include_directories(
     test_rest_password_change
@@ -126,12 +129,8 @@ if(NOT WIN32)
 endif()
 
 # C64STR-008: coherent publication of frame dimensions vs the render thread.
-add_executable(
-  test_frame_dimensions test_frame_dimensions.c ${CMAKE_SOURCE_DIR}/src/util/c64-dimensions.c
-)
-target_include_directories(
-  test_frame_dimensions PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/util
-)
+add_executable(test_frame_dimensions test_frame_dimensions.c ${CMAKE_SOURCE_DIR}/src/util/c64-dimensions.c)
+target_include_directories(test_frame_dimensions PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/util)
 if(UNIX)
   target_link_libraries(test_frame_dimensions PRIVATE pthread)
 else()
@@ -142,9 +141,7 @@ add_test(NAME frame_dimensions COMMAND test_frame_dimensions)
 
 # C64STR-021 (+C64STR-023): packet-derived frame height is clamped to the buffer size.
 add_executable(test_frame_height_clamp test_frame_height_clamp.c)
-target_include_directories(
-  test_frame_height_clamp PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/network
-)
+target_include_directories(test_frame_height_clamp PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/network)
 add_test(NAME frame_height_clamp COMMAND test_frame_height_clamp)
 
 # C64STR-010/011: WAV header carries the true rate and clamps past 4 GiB.
@@ -152,13 +149,20 @@ add_test(NAME frame_height_clamp COMMAND test_frame_height_clamp)
 # which only compiles the test tree and never runs it.
 if(NOT WIN32)
   add_executable(
-    test_wav_header test_wav_header.c ${CMAKE_SOURCE_DIR}/src/record/c64-record-audio.c
+    test_wav_header
+    test_wav_header.c
+    ${CMAKE_SOURCE_DIR}/src/record/c64-record-audio.c
     ${CMAKE_SOURCE_DIR}/src/record/c64-record-writer.c
   )
   target_include_directories(
-    test_wav_header PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/record
-                            ${CMAKE_SOURCE_DIR}/src/util ${CMAKE_SOURCE_DIR}/src/audio
-                            ${CMAKE_SOURCE_DIR}/src/network ${CMAKE_SOURCE_DIR}/src/video
+    test_wav_header
+    PRIVATE
+      ${CMAKE_SOURCE_DIR}/src
+      ${CMAKE_SOURCE_DIR}/src/record
+      ${CMAKE_SOURCE_DIR}/src/util
+      ${CMAKE_SOURCE_DIR}/src/audio
+      ${CMAKE_SOURCE_DIR}/src/network
+      ${CMAKE_SOURCE_DIR}/src/video
   )
   target_link_libraries(test_wav_header PRIVATE OBS::libobs)
   add_test(NAME wav_header COMMAND test_wav_header)
@@ -181,9 +185,7 @@ add_test(NAME default_ports COMMAND test_default_ports)
 # POSIX-only test harness (spins up a loopback TCP server via BSD sockets).
 # Excluded from the Windows build, which only compiles the test tree.
 if(NOT WIN32)
-  add_executable(
-    test_rest_response_cap test_rest_response_cap.c ${CMAKE_SOURCE_DIR}/src/network/c64-rest-client.c
-  )
+  add_executable(test_rest_response_cap test_rest_response_cap.c ${CMAKE_SOURCE_DIR}/src/network/c64-rest-client.c)
   target_include_directories(
     test_rest_response_cap
     PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/network ${CMAKE_SOURCE_DIR}/src/util
@@ -197,9 +199,7 @@ endif()
 # Windows build, which only compiles the test tree and never runs it.
 if(NOT WIN32)
   add_executable(test_file_utils test_file_utils.c ${CMAKE_SOURCE_DIR}/src/util/c64-file.c)
-  target_include_directories(
-    test_file_utils PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/util
-  )
+  target_include_directories(test_file_utils PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/util)
   target_link_libraries(test_file_utils PRIVATE OBS::libobs)
   add_test(NAME file_utils COMMAND test_file_utils)
 endif()
@@ -210,14 +210,22 @@ endif()
 # test tree and never runs it.
 if(NOT WIN32)
   add_executable(
-    test_record_csv_concurrency test_record_csv_concurrency.c
-    ${CMAKE_SOURCE_DIR}/src/record/c64-record.c ${CMAKE_SOURCE_DIR}/src/record/c64-record-obs.c
-    ${CMAKE_SOURCE_DIR}/src/record/c64-record-network.c ${CMAKE_SOURCE_DIR}/src/record/c64-record-writer.c
+    test_record_csv_concurrency
+    test_record_csv_concurrency.c
+    ${CMAKE_SOURCE_DIR}/src/record/c64-record.c
+    ${CMAKE_SOURCE_DIR}/src/record/c64-record-obs.c
+    ${CMAKE_SOURCE_DIR}/src/record/c64-record-network.c
+    ${CMAKE_SOURCE_DIR}/src/record/c64-record-writer.c
   )
   target_include_directories(
     test_record_csv_concurrency
-    PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/record ${CMAKE_SOURCE_DIR}/src/util
-            ${CMAKE_SOURCE_DIR}/src/network ${CMAKE_SOURCE_DIR}/src/audio ${CMAKE_SOURCE_DIR}/src/video
+    PRIVATE
+      ${CMAKE_SOURCE_DIR}/src
+      ${CMAKE_SOURCE_DIR}/src/record
+      ${CMAKE_SOURCE_DIR}/src/util
+      ${CMAKE_SOURCE_DIR}/src/network
+      ${CMAKE_SOURCE_DIR}/src/audio
+      ${CMAKE_SOURCE_DIR}/src/video
   )
   target_link_libraries(test_record_csv_concurrency PRIVATE OBS::libobs pthread m)
   add_test(NAME record_csv_concurrency COMMAND test_record_csv_concurrency)
@@ -228,14 +236,22 @@ endif()
 # Excluded from the Windows build, which only compiles the test tree.
 if(NOT WIN32)
   add_executable(
-    test_recording_open_failure test_recording_open_failure.c
-    ${CMAKE_SOURCE_DIR}/src/record/c64-record.c ${CMAKE_SOURCE_DIR}/src/record/c64-record-obs.c
-    ${CMAKE_SOURCE_DIR}/src/record/c64-record-network.c ${CMAKE_SOURCE_DIR}/src/record/c64-record-writer.c
+    test_recording_open_failure
+    test_recording_open_failure.c
+    ${CMAKE_SOURCE_DIR}/src/record/c64-record.c
+    ${CMAKE_SOURCE_DIR}/src/record/c64-record-obs.c
+    ${CMAKE_SOURCE_DIR}/src/record/c64-record-network.c
+    ${CMAKE_SOURCE_DIR}/src/record/c64-record-writer.c
   )
   target_include_directories(
     test_recording_open_failure
-    PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/record ${CMAKE_SOURCE_DIR}/src/util
-            ${CMAKE_SOURCE_DIR}/src/network ${CMAKE_SOURCE_DIR}/src/audio ${CMAKE_SOURCE_DIR}/src/video
+    PRIVATE
+      ${CMAKE_SOURCE_DIR}/src
+      ${CMAKE_SOURCE_DIR}/src/record
+      ${CMAKE_SOURCE_DIR}/src/util
+      ${CMAKE_SOURCE_DIR}/src/network
+      ${CMAKE_SOURCE_DIR}/src/audio
+      ${CMAKE_SOURCE_DIR}/src/video
   )
   target_link_libraries(test_recording_open_failure PRIVATE OBS::libobs pthread m)
   add_test(NAME recording_open_failure COMMAND test_recording_open_failure)
@@ -252,6 +268,23 @@ target_include_directories(
 )
 target_link_libraries(test_c64_stream_control PRIVATE OBS::libobs)
 add_test(NAME c64_stream_control COMMAND test_c64_stream_control)
+
+# Local socket-pair harness for legacy control command delivery and failures.
+if(NOT WIN32)
+  add_executable(test_c64_control_send test_c64_control_send.c ${CMAKE_SOURCE_DIR}/src/network/c64-protocol.c)
+  target_include_directories(
+    test_c64_control_send
+    PRIVATE
+      ${CMAKE_SOURCE_DIR}/src
+      ${CMAKE_SOURCE_DIR}/src/network
+      ${CMAKE_SOURCE_DIR}/src/util
+      ${CMAKE_SOURCE_DIR}/src/video
+      ${CMAKE_SOURCE_DIR}/src/audio
+      ${CMAKE_SOURCE_DIR}/src/record
+  )
+  target_link_libraries(test_c64_control_send PRIVATE OBS::libobs)
+  add_test(NAME c64_control_send COMMAND test_c64_control_send)
+endif()
 
 add_executable(
   test_c64_device

@@ -118,20 +118,20 @@ static inline bool c64_audio_pop_fast_i16_le(const uint8_t *samples, size_t samp
     return max_abs >= 8000;
 }
 
-void c64_send_control_command_to(const char *host, uint32_t control_port, bool enable, uint8_t stream_id,
+bool c64_send_control_command_to(const char *host, uint32_t control_port, bool enable, uint8_t stream_id,
                                  const char *dest)
 {
-    if (!host || strcmp(host, "0.0.0.0") == 0) {
+    if (!host || !host[0] || strcmp(host, "0.0.0.0") == 0) {
         C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Skipping control command - no host configured (0.0.0.0)");
-        return;
+        return false;
     }
 
     if (enable) {
         // Destination string for the control protocol.
         // The C64U expects/accepts "IP:PORT" and streams to that UDP port.
-        if (!dest) {
+        if (!dest || !dest[0]) {
             C64_LOG_WARNING("" NETWORK_LOG_PREFIX " Cannot start stream %u: no destination configured", stream_id);
-            return;
+            return false;
         }
 
         const size_t dest_len = strlen(dest);
@@ -155,7 +155,7 @@ void c64_send_control_command_to(const char *host, uint32_t control_port, bool e
 
         socket_t sock = c64_create_tcp_socket(host, control_port);
         if (sock == INVALID_SOCKET_VALUE) {
-            return; // Error already logged in c64_create_tcp_socket
+            return false; // Error already logged in c64_create_tcp_socket
         }
 
         // Enable stream command with destination string
@@ -165,7 +165,7 @@ void c64_send_control_command_to(const char *host, uint32_t control_port, bool e
         if (dest_len > sizeof(cmd) - 6) {
             C64_LOG_ERROR("" NETWORK_LOG_PREFIX " Destination string too long for control command: '%s'", dest);
             close(sock);
-            return;
+            return false;
         }
         cmd[0] = 0x20 + stream_id; // 0x20 for video (stream 0), 0x21 for audio (stream 1)
         cmd[1] = 0xFF;
@@ -189,10 +189,11 @@ void c64_send_control_command_to(const char *host, uint32_t control_port, bool e
         }
 
         close(sock);
+        return sent == (ssize_t)cmd_len;
     } else {
         socket_t sock = c64_create_tcp_socket(host, control_port);
         if (sock == INVALID_SOCKET_VALUE) {
-            return; // Error already logged in c64_create_tcp_socket
+            return false; // Error already logged in c64_create_tcp_socket
         }
 
         // Disable stream command: FF3n where n is stream ID
@@ -214,6 +215,7 @@ void c64_send_control_command_to(const char *host, uint32_t control_port, bool e
         }
 
         close(sock);
+        return sent == (ssize_t)cmd_len;
     }
 }
 

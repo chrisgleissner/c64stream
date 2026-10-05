@@ -15,3 +15,5 @@ bool c64_stream_control_should_fallback(c64_rest_outcome_t outcome);
 bool c64_stream_control_to(struct c64_source *context, const char *host, uint32_t control_port, bool enable,
                            uint8_t stream_id, const char *destination);
 bool c64_stream_control(struct c64_source *context, bool enable, uint8_t stream_id, const char *destination);
+/* Attempts both remote stops, including audio when video teardown fails. */
+bool c64_stream_control_stop_all_to(struct c64_source *context, const char *host, uint32_t control_port);
