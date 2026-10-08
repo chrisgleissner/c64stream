@@ -37,13 +37,13 @@ program: |
   32: rem Test 8: Custom palette color - set light blue
   33: PALETTECOLOR 14, 128, 192, 255
   34: wait 100ms
-  35:
+  35: 
   36: rem Test 9: Multiple color customizations in sequence
   37: PALETTECOLOR 2, 255, 0, 0
   38: PALETTECOLOR 5, 0, 255, 0
   39: PALETTECOLOR 7, 255, 255, 0
   40: wait 100ms
-  41:
+  41: 
   42: stop
 trace:
 - line: 5

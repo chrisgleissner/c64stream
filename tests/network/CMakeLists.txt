@@ -382,11 +382,14 @@ if(APPLE)
   # not bundled, so point dyld at the directory that holds the framework.
   get_target_property(C64_OBS_LIBRARY OBS::libobs LOCATION)
   string(REGEX REPLACE "/[^/]+\\.framework/.*$" "" C64_OBS_FRAMEWORK_DIR "${C64_OBS_LIBRARY}")
+  # libobs in turn loads FFmpeg and other dylibs from the OBS dependency
+  # prefixes.
+  set(C64_DYLD_MODIFICATIONS "DYLD_FRAMEWORK_PATH=path_list_prepend:${C64_OBS_FRAMEWORK_DIR}")
+  foreach(prefix IN LISTS CMAKE_PREFIX_PATH)
+    list(APPEND C64_DYLD_MODIFICATIONS "DYLD_LIBRARY_PATH=path_list_append:${prefix}/lib")
+  endforeach()
   foreach(test_name IN LISTS C64_PLATFORM_CI_TESTS)
-    set_tests_properties(
-      ${test_name}
-      PROPERTIES ENVIRONMENT_MODIFICATION "DYLD_FRAMEWORK_PATH=path_list_prepend:${C64_OBS_FRAMEWORK_DIR}"
-    )
+    set_tests_properties(${test_name} PROPERTIES ENVIRONMENT_MODIFICATION "${C64_DYLD_MODIFICATIONS}")
   endforeach()
 endif()
 set_tests_properties(${C64_PLATFORM_CI_TESTS} PROPERTIES LABELS platform-ci)

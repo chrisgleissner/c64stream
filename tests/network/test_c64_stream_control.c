@@ -400,11 +400,10 @@ TEST(forced_legacy_never_tries_rest)
 {
     reset_stubs();
     struct c64_source ctx;
-    memset(&ctx, 0, sizeof(ctx));
+    // Follow mode locks palette_mutex. A zeroed pthread mutex happens to work
+    // on Linux but crashes on Windows (w32-pthreads), so initialise it.
+    init_follow_ctx(&ctx);
     ctx.stream_control_transport = C64_STREAM_TRANSPORT_LEGACY;
-    ctx.rest_client = kDummyClient;
-    ctx.follow_device_palette = true;
-    ctx.device_palette_request_supported = true;
 
     bool ok = c64_stream_control_to(&ctx, "1.2.3.4", 64, true, 0, "dest");
 
