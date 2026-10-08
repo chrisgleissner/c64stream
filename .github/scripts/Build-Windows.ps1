@@ -85,7 +85,8 @@ function Build {
         # switch tests are: they exercise the Windows socket, threading and
         # adapter-enumeration code that only this platform runs.
         Log-Group "Running platform tests (discovery and device switch)..."
-        Invoke-External ctest @('--test-dir', "build_${Target}", '--output-on-failure', '--config', $Configuration, '-L', 'platform-ci')
+        $CtestArgs = @('--test-dir', "build_${Target}", '--output-on-failure', '--config', $Configuration, '-L', 'platform-ci')
+        Invoke-External ctest @CtestArgs
     }
 
     Log-Group "Installing ${ProductName}..."
