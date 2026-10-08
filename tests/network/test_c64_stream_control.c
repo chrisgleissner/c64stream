@@ -436,7 +436,7 @@ TEST(permanent_demotion_skips_rest_on_next_call)
 {
     reset_stubs();
     struct c64_source ctx;
-    memset(&ctx, 0, sizeof(ctx));
+    init_follow_ctx(&ctx); // initialises palette_mutex, needed by follow mode
     ctx.stream_control_transport = C64_STREAM_TRANSPORT_AUTO;
     ctx.rest_client = kDummyClient;
     ctx.stream_rest_demoted_until_ns = UINT64_MAX;
