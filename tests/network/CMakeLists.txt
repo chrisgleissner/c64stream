@@ -145,9 +145,7 @@ target_include_directories(test_frame_height_clamp PRIVATE ${CMAKE_SOURCE_DIR}/s
 add_test(NAME frame_height_clamp COMMAND test_frame_height_clamp)
 
 add_executable(test_c64_palette_packet test_c64_palette_packet.c)
-target_include_directories(
-  test_c64_palette_packet PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/network
-)
+target_include_directories(test_c64_palette_packet PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/network)
 add_test(NAME c64_palette_packet COMMAND test_c64_palette_packet)
 
 # C64STR-010/011: WAV header carries the true rate and clamps past 4 GiB.
@@ -356,3 +354,27 @@ else()
   target_link_libraries(test_c64_device_scan_hermetic PRIVATE OBS::libobs CURL::libcurl iphlpapi ws2_32)
 endif()
 add_test(NAME c64_device_scan_hermetic COMMAND test_c64_device_scan_hermetic)
+
+# Discovery and device switch tests also run in the macOS and Windows CI
+# builds (see .github/scripts). On Windows the test executables need the OBS
+# and libcurl DLLs, which live next to the imported libraries.
+set(
+  C64_PLATFORM_CI_TESTS
+  c64_device
+  c64_device_scan
+  c64_device_scan_hermetic
+  c64_device_switch
+  c64_ingest_filter
+  c64_stream_control
+)
+if(WIN32)
+  foreach(test_name IN LISTS C64_PLATFORM_CI_TESTS)
+    set_tests_properties(
+      ${test_name}
+      PROPERTIES
+        ENVIRONMENT_MODIFICATION
+          "PATH=path_list_prepend:$<TARGET_FILE_DIR:OBS::libobs>;PATH=path_list_prepend:$<TARGET_FILE_DIR:CURL::libcurl>"
+    )
+  endforeach()
+endif()
+set_tests_properties(${C64_PLATFORM_CI_TESTS} PROPERTIES LABELS platform-ci)

@@ -153,7 +153,10 @@ build() {
     log_group "Running tests..."
     ctest --test-dir build_macos --verbose --output-on-failure -C ${config}
   else
-    log_info "Skipping tests in CI environment (tests disabled for CI builds)"
+    # The full suite is not run in CI builds, but the discovery and device
+    # switch tests are: they exercise the macOS socket and interface code.
+    log_group "Running platform tests (discovery and device switch)..."
+    ctest --test-dir build_macos --output-on-failure -C ${config} -L platform-ci
   fi
 
   log_group "Installing ${product_name}..."
