@@ -54,7 +54,8 @@ python3 tests/hil/c64stream_hil.py \
 Without scenario names every scenario runs (about 30 minutes). Name scenarios to run a subset,
 e.g. `switch soak`. `--switches`, `--soak-switches`, `--rapid-switches`, `--offline-switches`,
 `--loss` and `--gap-limit-ms` size the runs. Logs, the OBS log and the isolated `HOME` stay in the
-printed work directory.
+printed work directory. `--video-port` moves the test OBS's UDP ports (default 11000, audio on the
+next port) when another OBS on the machine already uses them.
 
 ## Scenarios
 
@@ -71,6 +72,7 @@ printed work directory.
 | `restart_selection` | OBS restarts while the selected device is unreachable | Selection kept (no hop to the other device); connects when it returns |
 | `power` | C64U power cycles while streaming | Live video after each boot |
 | `lossy` | Switching under 1 % and 3 % random packet loss | Every switch lands on the right device |
+| `palette` | Follow device with the device palette: built-in, file A, file B, file B overwritten with the same size, Force Legacy and back, then switching between the devices with a different file each | Border (colour 14) shows each palette's colour within 10 s of the setting change (20 s for the same-size overwrite); default palette under Force Legacy; each device shown with its own palette after every switch. Restores both settings and deletes the uploaded files |
 | `soak` | 200 live switches with random dwell; 60 rapid-fire switches; 15 round trips to an unreachable U64; 15 round trips to a powered-off C64U | Every live-to-live pause ≤ 1 s (from the plugin's per-switch log); back on a live device within 1 s; previous picture cleared; devices return |
 
 After every scenario the harness also checks that OBS destroyed the removed source. A source

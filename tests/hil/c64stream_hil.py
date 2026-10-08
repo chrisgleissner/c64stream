@@ -245,9 +245,12 @@ class NetCtl:
         self.active = False
 
     def count_udp_from(self, host: str, seconds: float) -> int:
-        """Counts UDP packets a device sends to this machine over a window."""
-        out = self._run(f"timeout {seconds} tcpdump -i any -n -q udp and src host {host} 2>/dev/null | wc -l",
-                        check=False)
+        """Counts UDP packets a device sends to the test OBS's video and audio
+        ports over a window. Streams to other ports (another OBS on this
+        machine) are not the test's."""
+        ports = f"(dst port {VIDEO_PORT} or dst port {VIDEO_PORT + 1})"
+        out = self._run(f"timeout {seconds} tcpdump -i any -n -q 'udp and src host {host} and {ports}' 2>/dev/null "
+                        "| wc -l", check=False)
         try:
             return int(out.strip() or "0")
         except ValueError:
@@ -1118,6 +1121,17 @@ def scenario_palette_follow(hil: Hil) -> None:
         """The plugin logged text since the current step began."""
         return text in hil.obs.log_text()[mark[0]:]
 
+    def logged_after(text: str, since: float) -> str:
+        """Seconds from since (wall clock) to the plugin's first log line with
+        text in the current step, from the log's own timestamps."""
+        for line in hil.obs.log_text()[mark[0]:].splitlines():
+            if text in line:
+                stamp = time.strptime(line[:8], "%H:%M:%S")
+                now = time.localtime(since)
+                logged = time.mktime(now[:3] + stamp[3:6] + now[6:]) + float("0" + line[8:12])
+                return f"{logged - since:.2f}s"
+        return "not logged"
+
     try:
         step()
         hil.obs.create_source(base_settings(c64_device=u64.device_id, palette="__device__",
@@ -1131,14 +1145,17 @@ def scenario_palette_follow(hil: Hil) -> None:
             u64.set_palette_setting(name)
             ok, seconds, detail = hil.wait_for_border(colour, 10)
             hil.record(f"palette_follow_{label}", ok and log_seen(f'file "{name}"'),
-                       f"{name} applied {time.time() - start:.2f}s after the device setting changed ({detail})")
+                       f"{name}: applied {logged_after(f'file \"{name}\"', start)} and rendered {seconds:.2f}s "
+                       f"after the device setting changed ({detail})")
 
-        # Same name, new content: picked up by the periodic recheck.
+        # Same name, same size, new content (colour 14 blue, rendered as
+        # colour 6): picked up by the content recheck on every 10th check.
         start = step()
-        u64.upload_palette(names[1], _vpl((0, 0, 0)))
-        ok, _, detail = hil.wait_for_border(0, 20)
+        u64.upload_palette(names[1], _vpl((0, 0, 255)))
+        ok, seconds, detail = hil.wait_for_border(6, 20)
         hil.record("palette_follow_file_overwritten", ok,
-                   f"overwritten {names[1]} applied after {time.time() - start:.2f}s ({detail})")
+                   f"overwritten {names[1]}: downloaded {logged_after('PALETTE: downloaded', start)}, rendered "
+                   f"{seconds:.2f}s after the upload finished ({detail})")
 
         # Legacy stream control cannot request palette information.
         step()
@@ -1147,7 +1164,7 @@ def scenario_palette_follow(hil: Hil) -> None:
         hil.record("palette_follow_legacy_uses_default", ok and log_seen("Follow device reads the palette over REST"),
                    f"legacy transport shows the default palette ({detail})")
         hil.obs.update({"stream_control_transport": 0})
-        ok, _, detail = hil.wait_for_border(0, 15)
+        ok, _, detail = hil.wait_for_border(6, 15)
         hil.record("palette_follow_rest_again", ok, f"back on REST, device palette again ({detail})")
 
         # Device switch: each device's own palette, never the other's.
