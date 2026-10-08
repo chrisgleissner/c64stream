@@ -91,7 +91,21 @@ device's first packet arrives, this is the pause a viewer sees.
 
 ## Results (2026-10-08, C64 Ultimate fw 1.2.1RC2 + Ultimate 64 Elite fw 3.15, Kubuntu 24.04, OBS 32.2)
 
-See the pull request that introduced this harness for the full table. Typical values: pause
-without video 30-60 ms between live devices; first frame of the new device about 250 ms after the
-request (REST round trips of the devices); back on a live device from an unreachable or
-powered-off one within 0.6 s.
+| Check | Result |
+| --- | --- |
+| 400 switches between the two live devices (two runs of 200) | pause without video: median 46 ms, p95 65 ms, max 176 ms; none over 1 s |
+| Visual: OBS program recording, 44 device changes at 60 fps | visible gap median 33 ms, max 67 ms; no frame of the previous device after the new one |
+| Visual: screen grab of the OBS window, 30 fps | gap median 33 ms, max 67 ms |
+| 60 rapid-fire switches, 30-300 ms apart | last choice wins; previous device stops |
+| 15 round trips to an unreachable U64 | back on the live device within 0.52 s; previous picture cleared within 0.39 s |
+| 15 round trips to a powered-off C64U | back on the U64 within 0.50 s |
+| Source created while its device is unreachable | connects once the device is reachable |
+| 3 s, 15 s and 40 s outages; 2 power cycles; OBS restart with selected device offline | recovers each time; selection kept |
+| C64U Host set to the Wi-Fi address, wired control port blocked | video via the verified wired sender |
+| Switching under 1 % and 3 % random packet loss | every switch lands on the right device |
+| Removed sources | every one destroyed |
+
+The new device's first frame usually arrives about 250 ms after the request (the devices' REST
+round trips). About every five minutes the Ultimate 64 Elite's web server stalls a request for
+~1 s and then ignores start commands for ~3 s; the previous device's picture is kept on screen
+during that time, so the pause stays below 200 ms.
