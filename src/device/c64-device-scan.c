@@ -17,7 +17,15 @@
 #include <string.h>
 #include <util/platform.h>
 
-#define C64_SCAN_WORKERS 48
+// Worker pool bounds. The pool grows with the number of enumerated addresses so
+// that a machine with several active interfaces (Docker/libvirt bridges,
+// Hyper-V vEthernet adapters, VPNs) still sweeps every subnet before the
+// overall deadline instead of silently dropping the tail of the host list.
+#define C64_SCAN_MIN_WORKERS 48
+#define C64_SCAN_MAX_WORKERS 128
+// Share of the overall deadline the sweep may plan to use; the remainder
+// absorbs control-port connects and the known-host retries.
+#define C64_SCAN_BUDGET_PERCENT 60
 #define C64_SCAN_MAX_HOSTS 1024
 #define C64_SCAN_MAX_RESULTS 64
 #define C64_SCAN_TIMEOUT_MS 650L
@@ -46,7 +54,9 @@ typedef struct {
 } scan_result_t;
 
 typedef struct {
-    char hosts[C64_SCAN_MAX_HOSTS][16];
+    // Full host length, not just dotted-quad: configured and registered hosts
+    // may be names such as "Ultimate-64-Elite-F83C87.fritz.box".
+    char hosts[C64_SCAN_MAX_HOSTS][C64_DEVICE_HOST_MAX];
     size_t count;
     size_t next;
     // Number of leading hosts that are already-registered / configured
@@ -59,6 +69,14 @@ typedef struct {
     size_t phase_end;
     bool retry_unmatched_only;
     bool startup_retry;
+    // Sized from the host count when the job is started; see
+    // c64_device_scan_worker_count().
+    size_t worker_count;
+    // Diagnostics for the completion log line: how many addresses were
+    // actually probed, and whether the deadline cut the sweep short.
+    size_t probed_count;
+    size_t subnet_count;
+    bool deadline_reached;
     pthread_mutex_t mutex;
     uint64_t deadline_ns;
     obs_source_t *source;
@@ -105,7 +123,12 @@ typedef struct {
     // scan was running.
     char selected_device_id[C64_DEVICE_ID_MAX];
     bool selected_device_confirmed;
+    // Last publish of this scan; only it clears the Find Devices label.
+    bool final;
 } scan_completion_t;
+
+static void scan_add_local_subnets(scan_job_t *job);
+static void scan_run_phase(scan_job_t *job);
 
 static void scan_add_host(scan_job_t *job, const char *host)
 {
@@ -123,12 +146,17 @@ static void scan_add_host(scan_job_t *job, const char *host)
 static size_t scan_write(void *data, size_t size, size_t nmemb, void *opaque)
 {
     response_t *response = opaque;
-    size_t bytes = size * nmemb;
-    if (!response || response->used + bytes >= sizeof(response->data)) {
+    const size_t bytes = size * nmemb;
+    if (!response) {
         return 0;
     }
-    memcpy(response->data + response->used, data, bytes);
-    response->used += bytes;
+    // Keep the head of an oversized body instead of failing the transfer: the
+    // identity fields come first in /v1/info, and a firmware that adds fields
+    // must not make every device undiscoverable.
+    const size_t room = sizeof(response->data) - 1 - response->used;
+    const size_t kept = bytes < room ? bytes : room;
+    memcpy(response->data + response->used, data, kept);
+    response->used += kept;
     response->data[response->used] = '\0';
     return bytes;
 }
@@ -285,10 +313,12 @@ bool c64_device_scan_response_is_candidate(long status, const char *body)
 }
 
 bool c64_device_scan_should_apply_selection(const char *selection_at_start, const char *selection_now,
-                                            bool selected_device_confirmed, const char *sole_discovered_device_id)
+                                            bool selected_device_confirmed, bool selection_replaceable,
+                                            const char *sole_discovered_device_id)
 {
     return selection_at_start && selection_now && !strcmp(selection_at_start, selection_now) &&
-           (selected_device_confirmed || (sole_discovered_device_id && sole_discovered_device_id[0]));
+           (selected_device_confirmed ||
+            (selection_replaceable && sole_discovered_device_id && sole_discovered_device_id[0]));
 }
 
 size_t c64_device_scan_enumerate_subnet(uint32_t address, uint8_t prefix, uint32_t *out, size_t out_count)
@@ -344,6 +374,48 @@ static bool extract_json_string(const char *json, const char *key, char *out, si
     return true;
 }
 
+bool c64_device_fetch_unique_id(const char *host, uint16_t port, const char *password, long timeout_ms, char *out,
+                                size_t out_size)
+{
+    if (!host || !host[0] || !out || !out_size) {
+        return false;
+    }
+    out[0] = '\0';
+    CURL *curl = curl_easy_init();
+    if (!curl) {
+        return false;
+    }
+    response_t body = {0};
+    char url[C64_DEVICE_HOST_MAX + 32];
+    snprintf(url, sizeof(url), "http://%s:%u/v1/info", host, port ? port : C64_SCAN_DEFAULT_PORT);
+    struct curl_slist *headers = NULL;
+    if (password && password[0]) {
+        char header[300];
+        snprintf(header, sizeof(header), "X-Password: %s", password);
+        headers = curl_slist_append(headers, header);
+    }
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, timeout_ms);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, timeout_ms);
+    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, scan_write);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &body);
+    if (headers) {
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    }
+    const CURLcode code = curl_easy_perform(curl);
+    long status = 0;
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
+    curl_easy_cleanup(curl);
+    curl_slist_free_all(headers);
+    char product[64] = {0};
+    if (code != CURLE_OK || status != 200 || !extract_json_string(body.data, "product", product, sizeof(product)) ||
+        !c64_device_scan_product_matches(product)) {
+        return false;
+    }
+    return extract_json_string(body.data, "unique_id", out, out_size) && out[0];
+}
+
 typedef enum {
     SCAN_PROBE_MATCH,       // Streaming-capable device that answers REST + control port; device filled.
     SCAN_PROBE_NOT_DEVICE,  // Answered /v1/info but is not streaming-capable hardware.
@@ -360,7 +432,7 @@ static scan_probe_result_t scan_probe_host(const char *host, uint16_t port, uint
     if (!curl) {
         return SCAN_PROBE_NO_RESPONSE;
     }
-    char url[80];
+    char url[C64_DEVICE_HOST_MAX + 32];
     snprintf(url, sizeof(url), "http://%s:%u/v1/info", host, port);
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, C64_SCAN_TIMEOUT_MS);
@@ -505,19 +577,25 @@ static void *scan_worker(void *opaque)
             return NULL;
         }
         if (os_gettime_ns() >= job->deadline_ns) {
+            pthread_mutex_lock(&job->mutex);
+            job->deadline_reached = true;
+            pthread_mutex_unlock(&job->mutex);
             return NULL;
         }
         if (already_matched) {
             continue;
         }
         scan_one_host(job, job->hosts[index], index);
+        pthread_mutex_lock(&job->mutex);
+        job->probed_count++;
+        pthread_mutex_unlock(&job->mutex);
     }
 }
 
 static void scan_complete_on_ui(void *opaque)
 {
     scan_completion_t *completion = opaque;
-    if (completion->context) {
+    if (completion->context && completion->final) {
         completion->context->device_discovery_in_progress = false;
     }
 
@@ -531,8 +609,13 @@ static void scan_complete_on_ui(void *opaque)
         obs_data_t *settings = obs_source_get_settings(completion->source);
         if (settings) {
             const char *selected = obs_data_get_string(settings, "c64_device");
+            const c64_device_t *profile = selected && selected[0] ? c64_device_registry_get(selected) : NULL;
+            const bool replaceable = !profile || !c64_device_profile_is_identified(profile);
+            if (!completion->selected_device_confirmed && !replaceable && completion->auto_select_device_id[0]) {
+                C64_LOG_INFO("DEVICE: keeping selected device '%s' although it did not answer discovery", selected);
+            }
             if (c64_device_scan_should_apply_selection(completion->selected_device_id, selected,
-                                                       completion->selected_device_confirmed,
+                                                       completion->selected_device_confirmed, replaceable,
                                                        completion->auto_select_device_id)) {
                 if (!completion->selected_device_confirmed) {
                     C64_LOG_INFO("DEVICE: replacing unconfirmed device '%s' with discovered device '%s'", selected,
@@ -590,13 +673,16 @@ static void apply_scan_results(scan_job_t *job, char *auto_select_device_id, siz
                 break;
             }
         }
+        // Any address of a device counts, not only the one that wins below: a
+        // source configured with a multi-homed unit's second (e.g. Wi-Fi)
+        // address is still talking to that physical device.
+        if (job->selected_host[0] && !strcmp(job->selected_host, job->results[i].device.host)) {
+            snprintf(host_matched_device_id, sizeof(host_matched_device_id), "%s", job->results[i].device.id);
+        }
         if (!superseded) {
             if (selected_device_confirmed && job->selected_device_id[0] &&
                 !strcmp(job->selected_device_id, job->results[i].device.id)) {
                 *selected_device_confirmed = true;
-            }
-            if (job->selected_host[0] && !strcmp(job->selected_host, job->results[i].device.host)) {
-                snprintf(host_matched_device_id, sizeof(host_matched_device_id), "%s", job->results[i].device.id);
             }
             c64_device_t device = job->results[i].device;
             for (size_t j = 0; j < job->result_count; j++) {
@@ -624,6 +710,52 @@ static void apply_scan_results(scan_job_t *job, char *auto_select_device_id, siz
     }
 }
 
+void c64_device_scan_hosts_for_test(const char *const *hosts, size_t count, uint16_t port, uint16_t control_port,
+                                    c64_device_scan_test_stats_t *stats)
+{
+    scan_job_t *job = calloc(1, sizeof(*job));
+    if (!job) {
+        return;
+    }
+    job->port = port;
+    job->control_port = control_port;
+    for (size_t i = 0; i < count; i++) {
+        scan_add_host(job, hosts[i]);
+    }
+    job->known_count = 0;
+    job->worker_count = c64_device_scan_worker_count(job->count, C64_SCAN_OVERALL_TIMEOUT_NS);
+    pthread_mutex_init(&job->mutex, NULL);
+    job->deadline_ns = os_gettime_ns() + C64_SCAN_OVERALL_TIMEOUT_NS;
+    const uint64_t started_ns = os_gettime_ns();
+    job->next = 0;
+    job->phase_end = job->count;
+    scan_run_phase(job);
+    if (stats) {
+        stats->probed = job->probed_count;
+        stats->responsive = job->result_count;
+        stats->elapsed_ms = (os_gettime_ns() - started_ns) / 1000000ULL;
+        snprintf(stats->first_host, sizeof(stats->first_host), "%s", job->count ? job->hosts[0] : "");
+    }
+    apply_scan_results(job, NULL, 0, NULL);
+    pthread_mutex_destroy(&job->mutex);
+    free(job);
+}
+
+size_t c64_device_scan_local_hosts_for_test(char (*hosts)[C64_DEVICE_HOST_MAX], size_t max_hosts)
+{
+    scan_job_t *job = calloc(1, sizeof(*job));
+    if (!job) {
+        return 0;
+    }
+    scan_add_local_subnets(job);
+    const size_t count = job->count < max_hosts ? job->count : max_hosts;
+    for (size_t i = 0; i < count; i++) {
+        snprintf(hosts[i], C64_DEVICE_HOST_MAX, "%s", job->hosts[i]);
+    }
+    free(job);
+    return count;
+}
+
 // Test-only entry point for the host_index "first wins" supersession rule in
 // apply_scan_results(), without spinning up a real scan (see
 // tests/network/test_c64_device_scan.c).
@@ -639,26 +771,103 @@ void c64_device_scan_apply_results_for_test(const c64_device_t *devices, const s
 }
 
 // Runs the worker pool over the host range [job->next, job->phase_end).
+size_t c64_device_scan_worker_count(size_t host_count, uint64_t budget_ns)
+{
+    const uint64_t planned_ns = budget_ns / 100 * C64_SCAN_BUDGET_PERCENT;
+    if (!planned_ns) {
+        return C64_SCAN_MAX_WORKERS;
+    }
+    // Each silent address costs one full probe timeout on its worker.
+    const uint64_t cost_ns = (uint64_t)host_count * (uint64_t)C64_SCAN_TIMEOUT_MS * 1000000ULL;
+    const uint64_t needed = (cost_ns + planned_ns - 1) / planned_ns;
+    if (needed < C64_SCAN_MIN_WORKERS) {
+        return C64_SCAN_MIN_WORKERS;
+    }
+    return needed > C64_SCAN_MAX_WORKERS ? C64_SCAN_MAX_WORKERS : (size_t)needed;
+}
+
 static void scan_run_phase(scan_job_t *job)
 {
-    pthread_t workers[C64_SCAN_WORKERS];
+    pthread_t workers[C64_SCAN_MAX_WORKERS];
     size_t worker_count = 0;
-    for (size_t i = 0; i < C64_SCAN_WORKERS; i++) {
+    size_t requested = job->worker_count ? job->worker_count : C64_SCAN_MIN_WORKERS;
+    const size_t phase_hosts = job->phase_end > job->next ? job->phase_end - job->next : 0;
+    if (requested > phase_hosts) {
+        requested = phase_hosts;
+    }
+    for (size_t i = 0; i < requested && i < C64_SCAN_MAX_WORKERS; i++) {
         if (pthread_create(&workers[worker_count], NULL, scan_worker, job) != 0) {
             break;
         }
         worker_count++;
+    }
+    if (!worker_count && phase_hosts) {
+        // Thread creation can fail under resource pressure. Probe on this
+        // thread instead: slower, but a scan must never report "no devices"
+        // without having looked.
+        C64_LOG_WARNING("DEVICE: could not start discovery workers; probing sequentially");
+        scan_worker(job);
     }
     for (size_t i = 0; i < worker_count; i++) {
         pthread_join(workers[i], NULL);
     }
 }
 
-static void scan_add_local_subnets(scan_job_t *job);
+// Applies the results collected so far and hands them to the UI thread. A
+// non-final publish leaves the Find Devices label alone and keeps the job's own
+// source reference for the passes still to come.
+static void scan_publish(scan_job_t *job, uint64_t started_ns, bool final)
+{
+    char auto_select_device_id[C64_DEVICE_ID_MAX] = {0};
+    bool selected_device_confirmed = false;
+    apply_scan_results(job, auto_select_device_id, sizeof(auto_select_device_id), &selected_device_confirmed);
+    // One summary line per pass: the evidence needed to diagnose "no device
+    // found" reports from platforms and networks we cannot reproduce.
+    C64_LOG_INFO("DEVICE: %s probed %zu of %zu addresses (%zu known, %zu local networks, %zu workers) "
+                 "in %llu ms; %zu responsive addresses",
+                 job->retry_unmatched_only ? "discovery retry" : "discovery", job->probed_count, job->count,
+                 job->known_count, job->subnet_count, job->worker_count,
+                 (unsigned long long)((os_gettime_ns() - started_ns) / 1000000ULL), job->result_count);
+    if (job->deadline_reached && !job->retry_unmatched_only) {
+        C64_LOG_WARNING("DEVICE: discovery deadline reached before every address was probed; "
+                        "enter the device address in C64U Host if it was not found");
+    }
+    obs_source_t *source = job->source;
+    if (source && !final) {
+        source = obs_source_get_ref(source);
+    }
+    scan_completion_t *completion = source ? calloc(1, sizeof(*completion)) : NULL;
+    if (completion) {
+        completion->source = source;
+        completion->context = job->context;
+        completion->final = final;
+        snprintf(completion->auto_select_device_id, sizeof(completion->auto_select_device_id), "%s",
+                 auto_select_device_id);
+        snprintf(completion->selected_device_id, sizeof(completion->selected_device_id), "%s", job->selected_device_id);
+        completion->selected_device_confirmed = selected_device_confirmed;
+        obs_queue_task(OBS_TASK_UI, scan_complete_on_ui, completion, false);
+        return;
+    }
+    if (source && source != job->source) {
+        obs_source_release(source);
+    }
+    if (final) {
+        // No UI completion will run (no source ref, or the allocation failed).
+        // Clear the flag here instead, or the Find Devices button stays stuck
+        // on its "Discovering..." label for the rest of the session.
+        if (job->context) {
+            job->context->device_discovery_in_progress = false;
+        }
+        if (job->source) {
+            obs_source_release(job->source);
+        }
+    }
+}
 
 static void *scan_main(void *opaque)
 {
     scan_job_t *job = opaque;
+    const uint64_t started_ns = os_gettime_ns();
     // Phase 1: probe the already-known hosts before the subnet flood starts, so
     // a saved device's slower interface (Wi-Fi on a multi-homed unit) is
     // measured while the network is quiet and does not lose its address to a
@@ -671,6 +880,10 @@ static void *scan_main(void *opaque)
     job->phase_end = job->count;
     scan_run_phase(job);
     if (job->startup_retry) {
+        // Publish the first sweep now: a source waiting for an unambiguous
+        // device must not also wait for the retry pass below.
+        scan_publish(job, started_ns, false);
+        const size_t first_pass_results = job->result_count;
         /* OBS can create a source before a DHCP route or USB Ethernet adapter
          * is ready. Give only hosts that were silent in the initial sweep one
          * later chance; responsive hosts are skipped, and the bounded retry
@@ -680,40 +893,106 @@ static void *scan_main(void *opaque)
         os_sleep_ms(C64_SCAN_STARTUP_RETRY_DELAY_MS);
         job->deadline_ns = os_gettime_ns() + C64_SCAN_STARTUP_RETRY_TIMEOUT_NS;
         job->retry_unmatched_only = true;
+        job->probed_count = 0;
+        job->deadline_reached = false;
         scan_add_local_subnets(job);
+        job->worker_count = c64_device_scan_worker_count(job->count, C64_SCAN_STARTUP_RETRY_TIMEOUT_NS);
         job->next = 0;
         job->phase_end = job->known_count;
         scan_run_phase(job);
         job->next = job->known_count;
         job->phase_end = job->count;
         scan_run_phase(job);
+        if (job->result_count == first_pass_results) {
+            // Nothing new: the first publish already applied everything.
+            C64_LOG_DEBUG("DEVICE: discovery retry found no additional addresses");
+            pthread_mutex_destroy(&job->mutex);
+            if (job->context) {
+                job->context->device_discovery_in_progress = false;
+            }
+            if (job->source) {
+                obs_source_release(job->source);
+            }
+            free(job);
+            return NULL;
+        }
     }
-    char auto_select_device_id[C64_DEVICE_ID_MAX] = {0};
-    bool selected_device_confirmed = false;
-    apply_scan_results(job, auto_select_device_id, sizeof(auto_select_device_id), &selected_device_confirmed);
     pthread_mutex_destroy(&job->mutex);
-    scan_completion_t *completion = job->source ? malloc(sizeof(*completion)) : NULL;
-    if (completion) {
-        completion->source = job->source;
-        completion->context = job->context;
-        snprintf(completion->auto_select_device_id, sizeof(completion->auto_select_device_id), "%s",
-                 auto_select_device_id);
-        snprintf(completion->selected_device_id, sizeof(completion->selected_device_id), "%s", job->selected_device_id);
-        completion->selected_device_confirmed = selected_device_confirmed;
-        obs_queue_task(OBS_TASK_UI, scan_complete_on_ui, completion, false);
-    } else {
-        // No UI completion will run (no source ref, or the allocation failed).
-        // Clear the flag here instead, or the Find Devices button stays stuck
-        // on its "Discovering..." label for the rest of the session.
-        if (job->context) {
-            job->context->device_discovery_in_progress = false;
-        }
-        if (job->source) {
-            obs_source_release(job->source);
-        }
-    }
+    scan_publish(job, started_ns, true);
     free(job);
     return NULL;
+}
+
+// One local IPv4 interface address whose subnet is a sweep candidate.
+typedef struct {
+    uint32_t address; // network byte order
+    uint8_t prefix;
+} scan_subnet_t;
+
+#define C64_SCAN_MAX_SUBNETS 32
+
+// Local address the OS would use for off-link traffic, i.e. the interface that
+// carries the default route. connect() on a UDP socket only performs the route
+// lookup; no packet is sent. The target is TEST-NET-1 (RFC 5737), which is
+// never assigned, so this cannot reach or depend on any real host.
+static bool scan_primary_ipv4(uint32_t *out)
+{
+    socket_t sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (sock == INVALID_SOCKET_VALUE) {
+        return false;
+    }
+    struct sockaddr_in target = {0};
+    target.sin_family = AF_INET;
+    target.sin_port = htons(9);
+    target.sin_addr.s_addr = htonl(0xC0000201u); // 192.0.2.1
+    struct sockaddr_in local = {0};
+    socklen_t local_len = sizeof(local);
+    const bool ok = connect(sock, (struct sockaddr *)&target, sizeof(target)) == 0 &&
+                    getsockname(sock, (struct sockaddr *)&local, &local_len) == 0 && local.sin_addr.s_addr != 0;
+    close(sock);
+    if (ok) {
+        *out = local.sin_addr.s_addr;
+    }
+    return ok;
+}
+
+bool c64_device_scan_same_subnet(uint32_t interface_address, uint8_t prefix, uint32_t address)
+{
+    // Same clamping as c64_device_scan_enumerate_subnet: the swept range.
+    if (prefix < 24) {
+        prefix = 24;
+    } else if (prefix > 30) {
+        prefix = 30;
+    }
+    const uint32_t mask = ~((1u << (32 - prefix)) - 1u);
+    return (ntohl(interface_address) & mask) == (ntohl(address) & mask);
+}
+
+int c64_device_scan_subnet_rank(uint32_t address, uint32_t primary_address)
+{
+    if (primary_address && address == primary_address) {
+        return 0;
+    }
+    const uint32_t host = ntohl(address);
+    // RFC 1918 private ranges: where home and studio LANs live.
+    const bool private_lan = (host >> 24) == 10 || (host >> 20) == ((172u << 4) | 1u) ||
+                             (host >> 16) == ((192u << 8) | 168u);
+    // Link-local (169.254/16) last: only reachable devices without DHCP or
+    // static configuration live there.
+    const bool link_local = (host >> 16) == ((169u << 8) | 254u);
+    return private_lan ? 1 : (link_local ? 3 : 2);
+}
+
+static void scan_add_subnet_hosts(scan_job_t *job, uint32_t address, uint8_t prefix)
+{
+    uint32_t addresses[254];
+    const size_t count = c64_device_scan_enumerate_subnet(address, prefix, addresses, 254);
+    for (size_t i = 0; i < count && job->count < C64_SCAN_MAX_HOSTS; i++) {
+        char host[INET_ADDRSTRLEN];
+        if (inet_ntop(AF_INET, &addresses[i], host, sizeof(host))) {
+            scan_add_host(job, host);
+        }
+    }
 }
 
 #ifndef _WIN32
@@ -724,38 +1003,38 @@ static bool scan_interface_should_enumerate(const struct ifaddrs *entry, bool in
            !(entry->ifa_flags & IFF_POINTOPOINT);
 }
 
-static void scan_add_interface_subnet(scan_job_t *job, const struct ifaddrs *entry)
+static size_t scan_collect_subnets(bool include_loopback, scan_subnet_t *out, size_t out_count)
 {
-    if (!job || !scan_interface_should_enumerate(entry, job->include_loopback_subnet) ||
-        job->count >= C64_SCAN_MAX_HOSTS) {
-        return;
+    struct ifaddrs *interfaces = NULL;
+    if (getifaddrs(&interfaces) != 0) {
+        C64_LOG_DEBUG("DEVICE: getifaddrs failed while enumerating local subnets");
+        return 0;
     }
-    struct sockaddr_in *addr = (struct sockaddr_in *)entry->ifa_addr;
-    struct sockaddr_in *netmask = (struct sockaddr_in *)entry->ifa_netmask;
-    uint32_t mask = netmask ? ntohl(netmask->sin_addr.s_addr) : 0;
-    uint8_t prefix = 0;
-    while (mask & 0x80000000u) {
-        prefix++;
-        mask <<= 1;
-    }
-    uint32_t addresses[254];
-    size_t count = c64_device_scan_enumerate_subnet(addr->sin_addr.s_addr, prefix, addresses, 254);
-    for (size_t i = 0; i < count && job->count < C64_SCAN_MAX_HOSTS; i++) {
-        char host[16];
-        if (inet_ntop(AF_INET, &addresses[i], host, sizeof(host))) {
-            scan_add_host(job, host);
+    // This uses interface flags rather than names, so it works with renamed
+    // adapters and on Darwin-family systems (macOS/iOS) as well as Linux.
+    size_t count = 0;
+    for (struct ifaddrs *entry = interfaces; entry && count < out_count; entry = entry->ifa_next) {
+        if (!scan_interface_should_enumerate(entry, include_loopback)) {
+            continue;
         }
+        const struct sockaddr_in *addr = (const struct sockaddr_in *)entry->ifa_addr;
+        const struct sockaddr_in *netmask = (const struct sockaddr_in *)entry->ifa_netmask;
+        uint32_t mask = netmask ? ntohl(netmask->sin_addr.s_addr) : 0;
+        uint8_t prefix = 0;
+        while (mask & 0x80000000u) {
+            prefix++;
+            mask <<= 1;
+        }
+        out[count].address = addr->sin_addr.s_addr;
+        out[count].prefix = prefix;
+        count++;
     }
+    freeifaddrs(interfaces);
+    return count;
 }
-#endif
-
-#ifdef _WIN32
-static void scan_add_windows_adapter_subnets(scan_job_t *job)
+#else
+static size_t scan_collect_subnets(bool include_loopback, scan_subnet_t *out, size_t out_count)
 {
-    if (!job || job->count >= C64_SCAN_MAX_HOSTS) {
-        return;
-    }
-
     ULONG bytes = 16 * 1024;
     IP_ADAPTER_ADDRESSES *adapters = NULL;
     DWORD status = ERROR_BUFFER_OVERFLOW;
@@ -763,7 +1042,7 @@ static void scan_add_windows_adapter_subnets(scan_job_t *job)
         free(adapters);
         adapters = malloc(bytes);
         if (!adapters) {
-            return;
+            return 0;
         }
         status = GetAdaptersAddresses(AF_INET,
                                       GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER, NULL,
@@ -772,62 +1051,68 @@ static void scan_add_windows_adapter_subnets(scan_job_t *job)
     if (status != NO_ERROR) {
         C64_LOG_DEBUG("DEVICE: GetAdaptersAddresses failed (%lu)", (unsigned long)status);
         free(adapters);
-        return;
+        return 0;
     }
 
-    for (IP_ADAPTER_ADDRESSES *adapter = adapters; adapter && job->count < C64_SCAN_MAX_HOSTS;
-         adapter = adapter->Next) {
+    // Windows exposes adapter state and IPv4 prefixes through IP Helper API.
+    // Enumerate every active, non-loopback/non-tunnel adapter.
+    size_t count = 0;
+    for (IP_ADAPTER_ADDRESSES *adapter = adapters; adapter && count < out_count; adapter = adapter->Next) {
         if (adapter->OperStatus != IfOperStatusUp ||
-            (!job->include_loopback_subnet && adapter->IfType == IF_TYPE_SOFTWARE_LOOPBACK) ||
-            adapter->IfType == IF_TYPE_TUNNEL) {
+            (!include_loopback && adapter->IfType == IF_TYPE_SOFTWARE_LOOPBACK) || adapter->IfType == IF_TYPE_TUNNEL) {
             continue;
         }
-        for (IP_ADAPTER_UNICAST_ADDRESS *unicast = adapter->FirstUnicastAddress;
-             unicast && job->count < C64_SCAN_MAX_HOSTS; unicast = unicast->Next) {
+        for (IP_ADAPTER_UNICAST_ADDRESS *unicast = adapter->FirstUnicastAddress; unicast && count < out_count;
+             unicast = unicast->Next) {
             if (!unicast->Address.lpSockaddr || unicast->Address.lpSockaddr->sa_family != AF_INET) {
                 continue;
             }
             const struct sockaddr_in *addr = (const struct sockaddr_in *)unicast->Address.lpSockaddr;
-            uint32_t addresses[254];
-            const size_t count =
-                c64_device_scan_enumerate_subnet(addr->sin_addr.s_addr, unicast->OnLinkPrefixLength, addresses, 254);
-            for (size_t i = 0; i < count && job->count < C64_SCAN_MAX_HOSTS; i++) {
-                char host[16];
-                if (inet_ntop(AF_INET, &addresses[i], host, sizeof(host))) {
-                    scan_add_host(job, host);
-                }
-            }
+            out[count].address = addr->sin_addr.s_addr;
+            out[count].prefix = unicast->OnLinkPrefixLength;
+            count++;
         }
     }
     free(adapters);
+    return count;
 }
 #endif
 
+// Adds every local subnet, the one carrying the default route first, then
+// private LANs, then everything else. Host enumeration is capped and the
+// sweep is deadline-bound, so the order decides which networks are covered
+// when a machine has many virtual adapters (Docker, libvirt, Hyper-V, VPNs):
+// the network the user's LAN is on must never be the one that is cut.
 static void scan_add_local_subnets(scan_job_t *job)
 {
     if (!job || job->count >= C64_SCAN_MAX_HOSTS) {
         return;
     }
-#ifndef _WIN32
-    struct ifaddrs *interfaces = NULL;
-    if (getifaddrs(&interfaces) != 0) {
-        C64_LOG_DEBUG("DEVICE: getifaddrs failed while enumerating local subnets");
-        return;
+    scan_subnet_t subnets[C64_SCAN_MAX_SUBNETS];
+    const size_t count = scan_collect_subnets(job->include_loopback_subnet, subnets, C64_SCAN_MAX_SUBNETS);
+    uint32_t primary = 0;
+    if (!scan_primary_ipv4(&primary)) {
+        primary = 0;
     }
-    // This uses interface flags rather than names, so it works with renamed
-    // adapters and on Darwin-family systems (macOS/iOS) as well as Linux.
-    for (struct ifaddrs *entry = interfaces; entry && job->count < C64_SCAN_MAX_HOSTS; entry = entry->ifa_next) {
-        if (scan_interface_should_enumerate(entry, job->include_loopback_subnet)) {
-            scan_add_interface_subnet(job, entry);
+    // The network the configured host is on comes before everything else:
+    // the user (or a test) pointed the source there.
+    struct in_addr configured;
+    const bool have_configured = job->selected_host[0] && inet_pton(AF_INET, job->selected_host, &configured) == 1;
+    bool added[C64_SCAN_MAX_SUBNETS] = {false};
+    for (size_t i = 0; have_configured && i < count && job->count < C64_SCAN_MAX_HOSTS; i++) {
+        if (c64_device_scan_same_subnet(subnets[i].address, subnets[i].prefix, configured.s_addr)) {
+            scan_add_subnet_hosts(job, subnets[i].address, subnets[i].prefix);
+            added[i] = true;
         }
     }
-    freeifaddrs(interfaces);
-#else
-    // Windows exposes adapter state and IPv4 prefixes through IP Helper API.
-    // Enumerate every active, non-loopback/non-tunnel adapter; actual UDP
-    // video delivery, not an adapter label, decides the working C64U address.
-    scan_add_windows_adapter_subnets(job);
-#endif
+    for (int rank = 0; rank <= 3; rank++) {
+        for (size_t i = 0; i < count && job->count < C64_SCAN_MAX_HOSTS; i++) {
+            if (!added[i] && c64_device_scan_subnet_rank(subnets[i].address, primary) == rank) {
+                scan_add_subnet_hosts(job, subnets[i].address, subnets[i].prefix);
+            }
+        }
+    }
+    job->subnet_count = count;
 }
 
 static scan_job_t *build_scan_job(struct c64_source *context, uint16_t port)
@@ -873,6 +1158,7 @@ static scan_job_t *build_scan_job(struct c64_source *context, uint16_t port)
     // probes [0, known_count) first, unflooded.
     job->known_count = job->count;
     scan_add_local_subnets(job);
+    job->worker_count = c64_device_scan_worker_count(job->count, C64_SCAN_OVERALL_TIMEOUT_NS);
     return job;
 }
 

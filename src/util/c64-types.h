@@ -16,6 +16,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
+#include "device/c64-device-switch.h"
 #include "c64-network.h"
 #include "c64-network-buffer.h"
 #include "c64-protocol.h"
@@ -114,7 +115,36 @@ struct c64_source {
     volatile uint32_t expected_peer_ip;     // Expected peer IPv4 address in network byte order (AF_INET)
     volatile bool expected_peer_alt_ip_set; // Verified alternate interface of the selected physical device
     volatile uint32_t expected_peer_alt_ip; // Alternate peer IPv4 address in network byte order (AF_INET)
-    bool initial_ip_detected;               // Flag to track if initial IP detection was done
+    // Sender address proven at runtime to belong to the same physical device as
+    // expected_peer_ip (same /v1/info unique_id). A/V always leaves an Ultimate's
+    // wired port, so a source configured with the device's Wi-Fi address only
+    // receives video through this. Cleared whenever expected_peer_ip changes.
+    volatile bool learned_peer_ip_set;
+    volatile uint32_t learned_peer_ip;
+    // Device being switched away from. Its packets stay accepted until the
+    // first packet of the new device arrives, so the old picture keeps
+    // running instead of freezing while the new device starts.
+    volatile bool handover_peer_ip_set;
+    volatile uint32_t handover_peer_ip;
+    // Set by a receive thread when the handover closes; the processor then
+    // discards what it still holds from the previous device.
+    volatile bool handover_flush_pending;
+    // Device-switch picture gap: from the switch request until the new
+    // device's first frame, the longest interval between two frames handed to
+    // OBS. Logged once per switch; this is the pause a viewer sees.
+    volatile bool switch_gap_measuring;
+    uint64_t switch_requested_ns;
+    uint64_t switch_gap_max_ns;
+    volatile bool switch_receivers_restarted; // the switch's receiver restart is behind us
+    char switch_from_host[64];                // device switched away from, for the log line
+    // Most recent sender the ingest filter rejected (network byte order, 0 if
+    // none). Written by the receive threads, read by the retry worker.
+    volatile uint32_t rejected_peer_ip;
+    // Last rejected sender the retry worker checked, and when, so a sender
+    // that is not the same device is not re-probed on every retry.
+    uint32_t sender_check_ip;
+    uint64_t sender_check_ns;
+    bool initial_ip_detected; // Flag to track if initial IP detection was done
     uint32_t video_port;
     uint32_t audio_port;
     uint32_t control_port;
@@ -251,8 +281,12 @@ struct c64_source {
     volatile long retry_in_progress;   // Flag to prevent redundant retry attempts (atomic: 0/1)
     pthread_t retry_thread;            // Background retry/connect thread (never run on OBS UI thread)
     volatile long retry_thread_active; // atomic: 0/1
+    // Set when a retry was requested while one was already running (e.g. a
+    // device switch during a slow start); the running worker repeats instead
+    // of the request being dropped. atomic: 0/1
+    volatile long retry_requested;
     bool retry_thread_valid;           // retry_thread has been created and must be joined
-    bool retry_shutting_down;          // C64STR-001: set under retry_thread_mutex during destroy;
+    volatile bool retry_shutting_down; // C64STR-001: set under retry_thread_mutex during destroy;
                                        // blocks any late c64_schedule_retry from spawning a new
                                        // worker on a context being torn down (use-after-free guard)
     pthread_mutex_t retry_thread_mutex;
@@ -404,6 +438,17 @@ struct c64_source {
     bool device_transition_pending;
     char device_transition_host[64];
     uint32_t device_transition_control_port;
+    // Credentials and REST demotion of the device being switched away from,
+    // so it can be stopped with its own client after the new device started.
+    char device_transition_password[256];
+    uint64_t device_transition_rest_demoted_until_ns;
+    // The next start belongs to a device switch: skip the proactive stop of
+    // the new device, which only matters for a stale stream from an earlier
+    // session and would add two round trips to the switch.
+    bool start_is_device_switch;
+    // Devices switched away from that still have to be told to stop. Owned by
+    // the retry worker; see c64_process_previous_device_stops.
+    c64_stop_queue_t pending_stops;
     bool device_discovery_in_progress; // Drives the Find Devices button's label while a scan runs
     // A discovered alternate address is tried once when the selected interface
     // accepts control commands but produces no UDP video (e.g. Ultimate Wi-Fi).

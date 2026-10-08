@@ -71,6 +71,16 @@ typedef int socket_t;
 #define SSIZE_T_CAST(x) (x)
 #endif
 
+// Flags for send() on TCP sockets. A peer that resets the connection (a device
+// rebooting mid-command) must yield EPIPE, never a SIGPIPE that terminates the
+// whole OBS process. Linux uses MSG_NOSIGNAL per call; macOS has no such flag
+// and sets SO_NOSIGPIPE on the socket instead (see c64_create_tcp_socket).
+#if defined(MSG_NOSIGNAL)
+#define C64_SEND_FLAGS MSG_NOSIGNAL
+#else
+#define C64_SEND_FLAGS 0
+#endif
+
 // Network initialization and cleanup
 bool c64_init_networking(void);
 void c64_cleanup_networking(void);
@@ -87,6 +97,10 @@ bool c64_resolve_hostname_with_dns(const char *hostname, const char *custom_dns_
 socket_t c64_create_udp_socket(uint32_t port, bool *port_in_use);
 socket_t c64_create_tcp_socket(const char *ip, uint32_t port);
 bool c64_test_connectivity(const char *ip, uint32_t port);
+/* Connects to up to four ports of host concurrently and returns true as soon as
+ * one accepts, within timeout_ms overall. Used to tell an unreachable device
+ * from a live one without paying one timeout per port. */
+bool c64_test_connectivity_any(const char *host, const uint32_t *ports, size_t port_count, int timeout_ms);
 
 // Error handling
 int c64_get_socket_error(void);

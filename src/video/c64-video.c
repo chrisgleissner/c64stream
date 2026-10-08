@@ -617,7 +617,23 @@ void c64_render_frame_direct(struct c64_source *context, struct frame_assembly *
 
     // Output frame directly to OBS
     obs_source_output_video(context->source, &obs_frame);
-    context->last_video_submit_ns = os_gettime_ns();
+    const uint64_t submit_ns = os_gettime_ns();
+    if (context->switch_gap_measuring) {
+        const uint64_t since_previous = context->last_video_submit_ns ? submit_ns - context->last_video_submit_ns : 0;
+        if (since_previous > context->switch_gap_max_ns) {
+            context->switch_gap_max_ns = since_previous;
+        }
+        // Frames from the previous device are only admitted while the
+        // handover is open; once it closed this frame is the new device's.
+        if (!context->handover_peer_ip_set && context->switch_receivers_restarted) {
+            context->switch_gap_measuring = false;
+            C64_LOG_INFO("Device switch from %s: first frame %.0f ms after the request; longest pause without video "
+                         "%.0f ms",
+                         context->switch_from_host, (submit_ns - context->switch_requested_ns) / 1e6,
+                         context->switch_gap_max_ns / 1e6);
+        }
+    }
+    context->last_video_submit_ns = submit_ns;
     context->last_video_ts_ns = monotonic_timestamp;
 
     if (!context->first_video_ts_logged) {
@@ -1012,10 +1028,13 @@ void *c64_video_thread_func(void *data)
 
             // Ingest ownership filter: drop packets from a sender that is not
             // the expected peer (e.g. an abandoned device still streaming).
-            if (!c64_packet_from_expected_peer(context, &addrs[i])) {
+            const bool from_handover = c64_packet_from_handover(context, &addrs[i]);
+            if (!c64_packet_admit(context, &addrs[i])) {
                 os_atomic_inc_long(&context->debug_packets_dropped_peer);
                 if ((os_atomic_load_long(&context->debug_packets_dropped_peer) & 0x3FF) == 0) {
-                    C64_LOG_DEBUG("" VIDEO_LOG_PREFIX " dropped packet: sender != expected peer (%ld total dropped)",
+                    C64_LOG_DEBUG("" VIDEO_LOG_PREFIX
+                                  " dropped packet: sender %u.%u.%u.%u != expected peer (%ld total dropped)",
+                                  C64_IPV4_ARGS(context->rejected_peer_ip),
                                   os_atomic_load_long(&context->debug_packets_dropped_peer));
                 }
                 continue;
@@ -1084,10 +1103,13 @@ void *c64_video_thread_func(void *data)
 
         // Ingest ownership filter: drop packets from a sender that is not the
         // expected peer (e.g. an abandoned device still streaming).
-        if (received > 0 && !c64_packet_from_expected_peer(context, &sender_addr)) {
+        const bool from_handover = received > 0 && c64_packet_from_handover(context, &sender_addr);
+        if (received > 0 && !c64_packet_admit(context, &sender_addr)) {
             os_atomic_inc_long(&context->debug_packets_dropped_peer);
             if ((os_atomic_load_long(&context->debug_packets_dropped_peer) & 0x3FF) == 0) {
-                C64_LOG_DEBUG("" VIDEO_LOG_PREFIX " dropped packet: sender != expected peer (%ld total dropped)",
+                C64_LOG_DEBUG("" VIDEO_LOG_PREFIX
+                              " dropped packet: sender %u.%u.%u.%u != expected peer (%ld total dropped)",
+                              C64_IPV4_ARGS(context->rejected_peer_ip),
                               os_atomic_load_long(&context->debug_packets_dropped_peer));
             }
             continue;
@@ -1154,7 +1176,8 @@ void *c64_video_thread_func(void *data)
             os_atomic_set_long(&context->video_bytes_received,
                                os_atomic_load_long(&context->video_bytes_received) + (long)received);
 
-            (void)c64_network_fifo_push(&context->video_fifo, packet, (uint16_t)received, packet_time);
+            (void)c64_network_fifo_push_tagged(&context->video_fifo, packet, (uint16_t)received, packet_time,
+                                               from_handover);
 
 #ifdef __linux__
         } // End batch packet processing loop
@@ -1499,6 +1522,18 @@ void c64_process_video_packet_direct(struct c64_source *context, const uint8_t *
     }
 }
 
+// Drops everything the processor still holds from the previous device: its
+// packets waiting in the reorder buffer and its partially assembled frame.
+static void c64_handover_flush(struct c64_source *context)
+{
+    if (context->network_buffer) {
+        c64_network_buffer_flush(context->network_buffer);
+    }
+    pthread_mutex_lock(&context->assembly_mutex);
+    c64_init_frame_assembly(&context->current_frame, 0);
+    pthread_mutex_unlock(&context->assembly_mutex);
+}
+
 static bool c64_stage2_drain_video_fifo(struct c64_source *context, uint32_t max_packets)
 {
     if (!context) {
@@ -1516,9 +1551,20 @@ static bool c64_stage2_drain_video_fifo(struct c64_source *context, uint32_t max
 
         const uint64_t packet_time = slot->timestamp_ns;
         const uint16_t received = slot->size;
+        const bool from_handover = slot->from_handover;
         memcpy(packet, slot->data, received);
         c64_network_fifo_commit_pop(&context->video_fifo);
         did_work = true;
+
+        // Device switch cut-over: never let the previous device's packets
+        // follow the new device's, whether still queued here or reordered.
+        bool flush = false;
+        if (c64_handover_should_drop(context, from_handover, &flush)) {
+            continue;
+        }
+        if (flush) {
+            c64_handover_flush(context);
+        }
 
         // Stage-2: buffering / ordering / validation / optional CSV logging.
         c64_log_video_packet_if_enabled(context, packet, received, packet_time);
@@ -1572,9 +1618,18 @@ static bool c64_stage2_drain_audio_fifo(struct c64_source *context, uint32_t max
 
         const uint64_t packet_time = slot->timestamp_ns;
         const uint16_t received = slot->size;
+        const bool from_handover = slot->from_handover;
         memcpy(packet, slot->data, received);
         c64_network_fifo_commit_pop(&context->audio_fifo);
         did_work = true;
+
+        bool flush = false;
+        if (c64_handover_should_drop(context, from_handover, &flush)) {
+            continue;
+        }
+        if (flush) {
+            c64_handover_flush(context);
+        }
 
         c64_log_audio_packet_if_enabled(context, packet, received, packet_time);
         c64_process_audio_statistics_batch(context, packet_time);

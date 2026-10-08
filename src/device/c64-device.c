@@ -24,6 +24,7 @@ static bool valid_id(const char *id);
 static bool read_entry(const char *key, const char *value, void *opaque);
 static bool registry_init_locked(void);
 static bool registry_upsert_locked(const c64_device_t *device);
+static bool registry_delete_locked(const char *id);
 
 static bool load_device_file(const char *path)
 {
@@ -72,6 +73,18 @@ bool c64_device_id_from_host(char *out, size_t out_size, const char *unique_id, 
         n--;
     out[n] = '\0';
     return n != 0;
+}
+
+bool c64_device_profile_is_identified(const c64_device_t *device)
+{
+    if (!device || !device->id[0])
+        return false;
+    char derived[C64_DEVICE_ID_MAX];
+    if (c64_device_id_from_host(derived, sizeof(derived), NULL, device->host) && !strcmp(derived, device->id))
+        return false;
+    if (c64_device_id_from_host(derived, sizeof(derived), NULL, device->peer_host) && !strcmp(derived, device->id))
+        return false;
+    return true;
 }
 
 static bool read_entry(const char *key, const char *value, void *opaque)
@@ -234,6 +247,7 @@ bool c64_device_registry_upsert_discovered(const c64_device_t *device)
     registry_init_locked();
     c64_device_t merged = *device;
     const c64_device_t *profile = NULL;
+    char legacy_profile_id[C64_DEVICE_ID_MAX] = {0};
     for (size_t i = 0; i < device_count; i++) {
         if (!strcmp(devices[i].id, device->id)) {
             profile = &devices[i];
@@ -249,6 +263,7 @@ bool c64_device_registry_upsert_discovered(const c64_device_t *device)
             for (size_t i = 0; i < device_count; i++) {
                 if (!strcmp(devices[i].id, legacy_id) && !strcmp(devices[i].host, device->host)) {
                     profile = &devices[i];
+                    snprintf(legacy_profile_id, sizeof(legacy_profile_id), "%s", legacy_id);
                     break;
                 }
             }
@@ -263,31 +278,39 @@ bool c64_device_registry_upsert_discovered(const c64_device_t *device)
         snprintf(merged.peer_host, sizeof(merged.peer_host), "%s", device->peer_host);
     }
     const bool result = registry_upsert_locked(&merged);
+    // The host-keyed profile now lives on under the hardware ID. Keeping it
+    // would list the same device twice in the dropdown, and its stale address
+    // would never be refreshed by discovery again.
+    if (result && legacy_profile_id[0] && strcmp(legacy_profile_id, merged.id) != 0) {
+        registry_delete_locked(legacy_profile_id);
+    }
     pthread_mutex_unlock(&registry_mutex);
     return result;
 }
 
-bool c64_device_registry_delete(const char *id)
+static bool registry_delete_locked(const char *id)
 {
     char path[640];
     size_t index;
     if (!valid_id(id))
         return false;
-    pthread_mutex_lock(&registry_mutex);
     for (index = 0; index < device_count && strcmp(devices[index].id, id); index++) {
     }
-    if (index == device_count || !device_path(path, sizeof(path), id)) {
-        pthread_mutex_unlock(&registry_mutex);
+    if (index == device_count || !device_path(path, sizeof(path), id))
         return false;
-    }
-    if (remove(path) != 0) {
-        pthread_mutex_unlock(&registry_mutex);
+    if (remove(path) != 0)
         return false;
-    }
     memmove(&devices[index], &devices[index + 1], (device_count - index - 1) * sizeof(devices[0]));
     device_count--;
-    pthread_mutex_unlock(&registry_mutex);
     return true;
+}
+
+bool c64_device_registry_delete(const char *id)
+{
+    pthread_mutex_lock(&registry_mutex);
+    const bool result = registry_delete_locked(id);
+    pthread_mutex_unlock(&registry_mutex);
+    return result;
 }
 
 const c64_device_t *c64_device_registry_find_by_host(const char *host)
@@ -398,4 +421,19 @@ bool c64_device_stream_failover_needed(bool alternate_available, bool already_at
 {
     return alternate_available && !already_attempted && no_video_since_ns != 0 && now_ns >= no_video_since_ns &&
            now_ns - no_video_since_ns >= grace_ns;
+}
+
+bool c64_device_sender_check_due(uint32_t rejected_ip, uint32_t expected_ip, bool alt_set, uint32_t alt_ip,
+                                 bool learned_set, uint32_t learned_ip, uint32_t last_checked_ip,
+                                 uint64_t last_checked_ns, uint64_t no_video_since_ns, uint64_t now_ns,
+                                 uint64_t grace_ns, uint64_t recheck_ns)
+{
+    if (!rejected_ip || rejected_ip == expected_ip || (alt_set && rejected_ip == alt_ip) ||
+        (learned_set && rejected_ip == learned_ip)) {
+        return false;
+    }
+    if (no_video_since_ns == 0 || now_ns < no_video_since_ns || now_ns - no_video_since_ns < grace_ns) {
+        return false;
+    }
+    return rejected_ip != last_checked_ip || now_ns < last_checked_ns || now_ns - last_checked_ns >= recheck_ns;
 }

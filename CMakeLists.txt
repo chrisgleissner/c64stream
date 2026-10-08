@@ -207,6 +207,7 @@ target_sources(
     src/c64-joystick-emulation.c
     src/device/c64-device.c
     src/device/c64-device-scan.c
+    src/device/c64-device-switch.c
     src/util/c64-av-sync.c
     src/util/c64-dimensions.c
     src/util/c64-file.c

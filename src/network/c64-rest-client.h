@@ -91,6 +91,9 @@ bool c64_rest_client_retarget(c64_rest_client_t *client, const char *base_url, c
  * @param buf_size Size of destination buffer
  * @return true if copied, false on invalid args
  */
+/* Caps every request of this client at timeout_ms (connect and transfer);
+ * 0 restores the per-request defaults. */
+void c64_rest_client_set_timeout_cap(c64_rest_client_t *client, long timeout_ms);
 bool c64_rest_client_get_base_url(const c64_rest_client_t *client, char *buf, size_t buf_size);
 bool c64_rest_stream_start(c64_rest_client_t *client, bool audio, const char *destination, bool palette);
 bool c64_rest_stream_stop(c64_rest_client_t *client, bool audio);

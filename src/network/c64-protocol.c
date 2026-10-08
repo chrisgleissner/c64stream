@@ -148,7 +148,7 @@ bool c64_send_control_command_to(const char *host, uint32_t control_port, bool e
                 stop_cmd[1] = 0xFF;
                 stop_cmd[2] = 0x00; // No parameters
                 stop_cmd[3] = 0x00;
-                (void)send(stop_sock, (const char *)stop_cmd, (int)sizeof(stop_cmd), 0);
+                (void)send(stop_sock, (const char *)stop_cmd, (int)sizeof(stop_cmd), C64_SEND_FLAGS);
                 close(stop_sock);
             }
         }
@@ -179,7 +179,7 @@ bool c64_send_control_command_to(const char *host, uint32_t control_port, bool e
         C64_LOG_INFO("" NETWORK_LOG_PREFIX " Sending start command for stream %u to %s with client destination: %s",
                      stream_id, host, dest);
 
-        ssize_t sent = send(sock, (const char *)cmd, cmd_len, 0);
+        ssize_t sent = send(sock, (const char *)cmd, cmd_len, C64_SEND_FLAGS);
         if (sent != (ssize_t)cmd_len) {
             int error = c64_get_socket_error();
             C64_LOG_ERROR("" NETWORK_LOG_PREFIX " Failed to send start control command: %s",
@@ -205,7 +205,7 @@ bool c64_send_control_command_to(const char *host, uint32_t control_port, bool e
         int cmd_len = 4;
         C64_LOG_INFO("" NETWORK_LOG_PREFIX " Sending stop command for stream %u to C64 %s", stream_id, host);
 
-        ssize_t sent = send(sock, (const char *)cmd, cmd_len, 0);
+        ssize_t sent = send(sock, (const char *)cmd, cmd_len, C64_SEND_FLAGS);
         if (sent != (ssize_t)cmd_len) {
             int error = c64_get_socket_error();
             C64_LOG_ERROR("" NETWORK_LOG_PREFIX " Failed to send stop control command: %s",

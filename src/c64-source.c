@@ -61,7 +61,8 @@ static void c64_refresh_obs_ip(struct c64_source *context);
 static void c64_set_expected_peer_ip(struct c64_source *context, const char *ip_string);
 static void c64_set_expected_peer_alias(struct c64_source *context, const char *ip_string);
 static void c64_stop_streaming_to(struct c64_source *context, const char *host, uint32_t control_port);
-static void c64_complete_pending_device_transition(struct c64_source *context);
+static bool c64_take_pending_device_transition(struct c64_source *context);
+static void c64_process_previous_device_stops(struct c64_source *context);
 static void *c64_stop_streaming_thread(void *data);
 static void c64_abort_stream_start(struct c64_source *context);
 static void c64_attempt_script_autostart(struct c64_source *context, obs_data_t *settings);
@@ -135,7 +136,6 @@ static void c64_rebuild_rest_client(struct c64_source *context)
                 c64_keyboard_set_keymap(context->keyboard, context->keymap);
                 c64_keyboard_set_transport(context->keyboard, context->stream_control_transport);
             }
-            c64_record_on_rest_client_ready(context);
             return;
         }
         C64_LOG_WARNING("REST client retarget failed; falling back to full rebuild");
@@ -168,7 +168,6 @@ static void c64_rebuild_rest_client(struct c64_source *context)
             c64_keyboard_set_keymap(context->keyboard, context->keymap);
             c64_keyboard_set_transport(context->keyboard, context->stream_control_transport);
         }
-        c64_record_on_rest_client_ready(context);
     }
 }
 
@@ -390,6 +389,92 @@ static void c64_update_format_hint_if_needed(struct c64_source *context)
     context->format_hint_set = true;
 }
 
+// No video for this long after a start, while one other sender is rejected,
+// prompts an identity check of that sender (see c64_try_adopt_rejected_sender).
+#define C64_SENDER_CHECK_GRACE_NS (1500ULL * 1000000ULL)
+// A sender that turned out not to be the selected device is re-checked only
+// this often, so an unrelated device streaming at us costs at most two short
+// REST requests per interval.
+#define C64_SENDER_RECHECK_NS (30ULL * 1000000000ULL)
+#define C64_SENDER_CHECK_TIMEOUT_MS 1000L
+
+/* An Ultimate sends A/V only from its wired port, but answers control and REST
+ * on Wi-Fi as well. A source configured with the Wi-Fi address (typed in by the
+ * user, or discovered when the wired address was missed) therefore rejects
+ * every packet in the ingest filter, which 1.1.2 did not have. When a started
+ * stream has produced no video and one other sender keeps being rejected, ask
+ * both addresses for their hardware unique_id. Only the same physical device
+ * is accepted; anything else keeps being dropped, as the filter intends. Runs
+ * on the retry worker, never on the UI or receive threads. */
+static void c64_try_adopt_rejected_sender(struct c64_source *context, const char *configured_ip, uint64_t now_ns)
+{
+    const uint32_t rejected = context->rejected_peer_ip;
+    if (!c64_device_sender_check_due(rejected, context->expected_peer_ip_set ? context->expected_peer_ip : 0,
+                                     context->expected_peer_alt_ip_set, context->expected_peer_alt_ip,
+                                     context->learned_peer_ip_set, context->learned_peer_ip, context->sender_check_ip,
+                                     context->sender_check_ns, context->no_video_since_ns, now_ns,
+                                     C64_SENDER_CHECK_GRACE_NS, C64_SENDER_RECHECK_NS) ||
+        context->device_transition_pending) {
+        return;
+    }
+    context->sender_check_ip = rejected;
+    context->sender_check_ns = now_ns;
+
+    char sender[INET_ADDRSTRLEN] = {0};
+    struct in_addr sender_addr;
+    sender_addr.s_addr = rejected;
+    if (!inet_ntop(AF_INET, &sender_addr, sender, sizeof(sender))) {
+        return;
+    }
+    char password[sizeof(context->c64_password)];
+    pthread_mutex_lock(&context->config_mutex);
+    snprintf(password, sizeof(password), "%s", context->c64_password);
+    pthread_mutex_unlock(&context->config_mutex);
+
+    char configured_id[64];
+    char sender_id[64];
+    const bool configured_known = c64_device_fetch_unique_id(configured_ip, 0, password, C64_SENDER_CHECK_TIMEOUT_MS,
+                                                             configured_id, sizeof(configured_id));
+    const bool sender_known =
+        configured_known &&
+        c64_device_fetch_unique_id(sender, 0, password, C64_SENDER_CHECK_TIMEOUT_MS, sender_id, sizeof(sender_id));
+    if (!configured_known || !sender_known || strcmp(configured_id, sender_id) != 0) {
+        C64_LOG_WARNING("DEVICE: ignoring A/V from %s: it is not the configured device %s%s", sender, configured_ip,
+                        configured_known && sender_known ? "" : " (identity could not be confirmed over REST)");
+        return;
+    }
+
+    pthread_mutex_lock(&context->config_mutex);
+    // Publish only if the configured endpoint did not change during the check.
+    const bool still_current = context->expected_peer_ip_set && strcmp(context->ip_address, configured_ip) == 0;
+    if (still_current) {
+        context->learned_peer_ip = rejected;
+        context->learned_peer_ip_set = true;
+    }
+    char device_id[sizeof(context->active_device_id)];
+    snprintf(device_id, sizeof(device_id), "%s", context->active_device_id);
+    pthread_mutex_unlock(&context->config_mutex);
+    if (!still_current) {
+        return;
+    }
+    C64_LOG_INFO("DEVICE: %s sends A/V from its other address %s (same unique_id %s); accepting it", configured_ip,
+                 sender, sender_id);
+
+    // Remember the address on the device profile, so later sessions and
+    // discovery start with it as the verified peer.
+    char sender_device_id[C64_DEVICE_ID_MAX];
+    const c64_device_t *profile = device_id[0] ? c64_device_registry_get(device_id) : NULL;
+    if (profile && c64_device_id_from_host(sender_device_id, sizeof(sender_device_id), sender_id, NULL) &&
+        !strcmp(sender_device_id, profile->id) && strcmp(profile->peer_host, sender) != 0 &&
+        strcmp(profile->host, sender) != 0) {
+        c64_device_t updated = *profile;
+        snprintf(updated.peer_host, sizeof(updated.peer_host), "%s", sender);
+        if (!c64_device_registry_upsert(&updated)) {
+            C64_LOG_DEBUG("DEVICE: could not persist peer address %s for '%s'", sender, profile->id);
+        }
+    }
+}
+
 // Async retry task - runs in OBS thread pool (NOT render thread)
 void c64_async_retry_task(void *data)
 {
@@ -409,7 +494,10 @@ void c64_async_retry_task(void *data)
     if (os_atomic_compare_swap_long(&context->rest_rebuild_pending, 1, 0)) {
         c64_rebuild_rest_client(context);
     }
-    c64_complete_pending_device_transition(context);
+    // Make before break: start the newly selected device first and stop the
+    // previous one afterwards, so neither the old device's round trips nor
+    // its timeouts (when it is off or unreachable) delay the new picture.
+    const bool switching_device = c64_take_pending_device_transition(context);
 
     char ip_address[64];
     char obs_ip_address[64];
@@ -438,9 +526,12 @@ void c64_async_retry_task(void *data)
                                           context->no_video_since_ns, now_ns, C64_PEER_STREAM_FAILOVER_GRACE_NS)) {
         c64_schedule_peer_stream_failover(context);
     }
+    c64_try_adopt_rejected_sender(context, ip_address, now_ns);
 
-    if (!context->streaming) {
-        // Initial streaming start - full setup with fresh UDP sockets
+    if (!context->streaming || switching_device) {
+        // Initial streaming start, or a device switch - full setup with fresh
+        // UDP sockets and reset timing state for the new device's stream.
+        context->start_is_device_switch = switching_device;
         tcp_success = c64_start_streaming(context);
         if (tcp_success) {
             context->consecutive_failures = 0;
@@ -471,6 +562,10 @@ void c64_async_retry_task(void *data)
         }
     }
 
+    // Stopping devices switched away from comes after the new start, and
+    // yields to a newer switch request between requests.
+    c64_process_previous_device_stops(context);
+
     context->retry_count++;
 
     if (!tcp_success) {
@@ -482,10 +577,98 @@ void c64_async_retry_task(void *data)
     os_atomic_set_long(&context->retry_in_progress, 0);
 }
 
+// Backoff between start attempts while the device cannot be reached.
+#define C64_START_RETRY_MIN_MS 1000
+#define C64_START_RETRY_MAX_MS 5000
+#define C64_START_RETRY_SLICE_MS 100
+// Longest time the previous device keeps streaming while the new one has not
+// delivered its first packet.
+#define C64_HANDOVER_HOLD_NS (5ULL * 1000000000ULL)
+// While holding, the new device's start is repeated this often: an Ultimate
+// whose firmware is busy can ignore a start command.
+#define C64_HANDOVER_RESTART_NS (1000ULL * 1000000ULL)
+
+// Read without retry_thread_mutex: c64_destroy holds that mutex while it joins
+// this worker, so taking it here would deadlock the destroy (and with it OBS's
+// source destruction thread). The flag only ever goes from false to true.
+static bool c64_retry_shutting_down(struct c64_source *context)
+{
+    return os_atomic_load_bool(&context->retry_shutting_down);
+}
+
+/* Runs retry attempts until the source is streaming (from then on the video
+ * receiver schedules retries when packets stop) or there is nothing to do.
+ *
+ * Only the receive threads detect a stalled stream, and they run only while
+ * streaming. A start that fails because the device is off or unreachable
+ * leaves no receive thread behind, so this worker keeps trying with a short
+ * backoff; otherwise a source created before its device is switched on would
+ * never connect. A request that arrives while an attempt is running (a device
+ * switch during a slow start) is repeated here instead of being dropped. */
 static void *c64_retry_thread_main(void *arg)
 {
     struct c64_source *context = (struct c64_source *)arg;
-    c64_async_retry_task(context);
+    uint32_t backoff_ms = C64_START_RETRY_MIN_MS;
+    bool run_task = true;
+    for (;;) {
+        if (run_task) {
+            os_atomic_set_long(&context->retry_requested, 0);
+            c64_async_retry_task(context);
+        } else {
+            // Streaming fine; only devices switched away from still need stopping.
+            c64_process_previous_device_stops(context);
+        }
+        if (c64_retry_shutting_down(context)) {
+            break;
+        }
+        bool requested = os_atomic_load_long(&context->retry_requested) != 0;
+        bool need_start = !context->streaming && !os_atomic_load_bool(&context->udp_port_conflict);
+        bool need_stops = context->pending_stops.count != 0;
+        bool resend = false;
+        if (!requested && (need_start || need_stops)) {
+            // During a switch handover, poll quickly: the previous device is
+            // stopped as soon as the new one delivers, and the new device's
+            // start is repeated while it has not.
+            const bool handover = need_stops && context->handover_peer_ip_set && context->streaming;
+            const uint32_t wait_ms = handover ? C64_START_RETRY_SLICE_MS : backoff_ms;
+            for (uint32_t waited = 0; waited < wait_ms && !requested; waited += C64_START_RETRY_SLICE_MS) {
+                os_sleep_ms(C64_START_RETRY_SLICE_MS);
+                if (c64_retry_shutting_down(context)) {
+                    break;
+                }
+                requested = os_atomic_load_long(&context->retry_requested) != 0;
+            }
+            if (!handover) {
+                backoff_ms = backoff_ms * 2 > C64_START_RETRY_MAX_MS ? C64_START_RETRY_MAX_MS : backoff_ms * 2;
+            } else if (context->handover_peer_ip_set && context->streaming &&
+                       os_gettime_ns() - context->last_start_command_time_ns >= C64_HANDOVER_RESTART_NS) {
+                resend = true;
+            }
+            if (c64_retry_shutting_down(context)) {
+                break;
+            }
+            need_start = !context->streaming && !os_atomic_load_bool(&context->udp_port_conflict);
+            need_stops = context->pending_stops.count != 0;
+        }
+        if (requested) {
+            backoff_ms = C64_START_RETRY_MIN_MS;
+        }
+        run_task = requested || need_start || resend;
+        if (!run_task && !need_stops) {
+            // Hand the slot back, then look once more: a request made between
+            // the check above and the release would otherwise be lost, since
+            // its scheduler still saw this worker as active.
+            os_atomic_set_long(&context->retry_thread_active, 0);
+            if (!os_atomic_load_long(&context->retry_requested) || c64_retry_shutting_down(context) ||
+                !os_atomic_compare_swap_long(&context->retry_thread_active, 0, 1)) {
+                return NULL;
+            }
+            run_task = true;
+        }
+        if (run_task && !os_atomic_compare_swap_long(&context->retry_in_progress, 0, 1)) {
+            break;
+        }
+    }
     os_atomic_set_long(&context->retry_thread_active, 0);
     return NULL;
 }
@@ -496,7 +679,10 @@ static void c64_schedule_retry(struct c64_source *context, const char *reason)
         return;
 
     if (os_atomic_load_long(&context->retry_in_progress) || os_atomic_load_long(&context->retry_thread_active)) {
-        C64_LOG_DEBUG("Retry already in progress, skipping (%s)", reason ? reason : "no reason");
+        // The running worker repeats once it finishes (see c64_retry_thread_main),
+        // so a settings change made during a slow attempt is never lost.
+        os_atomic_set_long(&context->retry_requested, 1);
+        C64_LOG_DEBUG("Retry already in progress, queued (%s)", reason ? reason : "no reason");
         return;
     }
 
@@ -1388,7 +1574,6 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     }
 
     if (context->rest_client) {
-        c64_record_on_rest_client_ready(context);
     }
 
     // Load keyboard settings and create keyboard module
@@ -1489,6 +1674,12 @@ void c64_destroy(void *data)
         os_atomic_set_long(&context->retry_in_progress, 0);
     }
     pthread_mutex_unlock(&context->retry_thread_mutex);
+
+    // Devices switched away from moments ago may still be queued for their
+    // stop; nothing would tell them once this source is gone.
+    os_atomic_set_long(&context->retry_requested, 0);
+    context->handover_peer_ip_set = false; // no hold: nothing will show it any more
+    c64_process_previous_device_stops(context);
 
     // Stop streaming if active. This sends release_all and explicit remote
     // stream stops before closing local sockets.
@@ -1770,14 +1961,22 @@ void c64_update(void *data, obs_data_t *settings)
     c64_device_registry_migrate_legacy(settings);
     const char *selected_device_id = obs_data_get_string(settings, "c64_device");
     if (strcmp(context->active_device_id, selected_device_id ? selected_device_id : "") != 0) {
-        c64_device_registry_apply_selected(settings);
-        snprintf(context->active_device_id, sizeof(context->active_device_id), "%s",
-                 selected_device_id ? selected_device_id : "");
-        os_atomic_set_bool(&context->device_palette_request_supported, true);
-        os_atomic_set_long(&context->device_palette_status, C64_DEVICE_PALETTE_UNKNOWN);
-        pthread_mutex_lock(&context->palette_mutex);
-        context->device_palette.ordering_valid = false;
-        pthread_mutex_unlock(&context->palette_mutex);
+        // Latch the selection only once its profile was applied. A device id
+        // that is not (yet) in the registry -- e.g. chosen by a script before
+        // discovery finished -- is applied by the next update instead of being
+        // recorded as active while the source keeps streaming the old host.
+        if (c64_device_registry_apply_selected(settings) || !selected_device_id || !selected_device_id[0]) {
+            snprintf(context->active_device_id, sizeof(context->active_device_id), "%s",
+                     selected_device_id ? selected_device_id : "");
+            os_atomic_set_bool(&context->device_palette_request_supported, true);
+            os_atomic_set_long(&context->device_palette_status, C64_DEVICE_PALETTE_UNKNOWN);
+            pthread_mutex_lock(&context->palette_mutex);
+            context->device_palette.ordering_valid = false;
+            pthread_mutex_unlock(&context->palette_mutex);
+        } else {
+            C64_LOG_WARNING("DEVICE: selected device '%s' is not registered; keeping host %s", selected_device_id,
+                            obs_data_get_string(settings, "c64_host"));
+        }
     }
 
     context->preserve_size = c64_effect_settings_resolve_preserve_size(settings, C64_SOURCE_SAVED_SETTING_KEYS,
@@ -1913,6 +2112,9 @@ void c64_update(void *data, obs_data_t *settings)
         if (!context->device_transition_pending) {
             snprintf(context->device_transition_host, sizeof(context->device_transition_host), "%s", old_ip_address);
             context->device_transition_control_port = old_control_port;
+            snprintf(context->device_transition_password, sizeof(context->device_transition_password), "%s",
+                     old_password);
+            context->device_transition_rest_demoted_until_ns = context->stream_rest_demoted_until_ns;
             context->device_transition_pending = true;
         }
     }
@@ -1953,9 +2155,29 @@ void c64_update(void *data, obs_data_t *settings)
     context->video_port = new_video_port;
     context->audio_port = new_audio_port;
     context->control_port = new_control_port;
+    // Captured before the new host is applied: the device being switched away
+    // from keeps being displayed until the new one delivers its first packet.
+    const bool had_peer = context->expected_peer_ip_set;
+    const uint32_t previous_peer = context->expected_peer_ip;
     c64_set_expected_peer_ip(context, context->ip_address);
     const char *peer_host = obs_data_get_string(settings, "c64_device_peer_host");
     c64_set_expected_peer_alias(context, peer_host);
+    if (needs_device_transition && host_changed && had_peer &&
+        (!context->expected_peer_ip_set || context->expected_peer_ip != previous_peer)) {
+        context->handover_peer_ip = previous_peer;
+        context->handover_peer_ip_set = true;
+    }
+    if (host_changed) {
+        // Every change of device is measured, including one away from a
+        // device that was not streaming (then the pause is the time since
+        // that device's last frame, and only the first-frame time says how
+        // fast the new device came up).
+        snprintf(context->switch_from_host, sizeof(context->switch_from_host), "%s", old_ip_address);
+        context->switch_requested_ns = os_gettime_ns();
+        context->switch_gap_max_ns = 0;
+        context->switch_receivers_restarted = false;
+        context->switch_gap_measuring = true;
+    }
     pthread_mutex_unlock(&context->config_mutex);
 
     const bool password_changed = strcmp(old_password, new_password ? new_password : "") != 0;
@@ -2095,11 +2317,15 @@ static void c64_set_expected_peer_ip(struct c64_source *context, const char *ip_
         context->expected_peer_ip_set = true;
         if (changed) {
             context->expected_peer_alt_ip_set = false;
+            context->learned_peer_ip_set = false;
+            context->rejected_peer_ip = 0;
+            context->sender_check_ip = 0;
         }
         C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Expected peer IP set to %s", ip_string);
     } else {
         context->expected_peer_ip_set = false;
         context->expected_peer_alt_ip_set = false;
+        context->learned_peer_ip_set = false;
         C64_LOG_DEBUG("" NETWORK_LOG_PREFIX " Expected peer IP cleared (non-IPv4 input): %s", ip_string);
     }
 }
@@ -2117,6 +2343,45 @@ static void c64_set_expected_peer_alias(struct c64_source *context, const char *
     }
     context->expected_peer_alt_ip = addr.s_addr;
     context->expected_peer_alt_ip_set = true;
+}
+
+// Either the REST port or the control port accepting a connection proves the
+// device is up (firmware without the web server only has the latter). Both are
+// tried at once, so an unreachable device costs one short timeout.
+static bool c64_device_reachable(const char *host, uint32_t control_port)
+{
+    const uint32_t ports[2] = {80, control_port};
+    return c64_test_connectivity_any(host, ports, control_port == 80 ? 1 : 2, 250);
+}
+
+// OBS keeps showing an async source's last frame. Once the receivers are gone
+// nothing replaces it, so a failed switch would leave the previous device's
+// picture frozen on screen as if it were the selected one. Show the idle logo
+// instead. Only call with the receive threads stopped (shared frame buffer).
+static void c64_show_idle_picture(struct c64_source *context)
+{
+    if (c64_logo_is_available(context)) {
+        c64_logo_render_to_frame(context, os_gettime_ns());
+    }
+}
+
+// Stops the receive threads of a running stream and waits for them.
+static void c64_join_receivers(struct c64_source *context)
+{
+    context->streaming = false;
+    os_atomic_set_bool(&context->thread_active, false);
+    if (os_atomic_load_bool(&context->video_thread_active)) {
+        pthread_join(context->video_thread, NULL);
+    }
+    if (os_atomic_load_bool(&context->video_processor_thread_active)) {
+        pthread_join(context->video_processor_thread, NULL);
+    }
+    if (os_atomic_load_bool(&context->audio_thread_active)) {
+        pthread_join(context->audio_thread, NULL);
+    }
+    os_atomic_set_bool(&context->video_thread_active, false);
+    os_atomic_set_bool(&context->video_processor_thread_active, false);
+    os_atomic_set_bool(&context->audio_thread_active, false);
 }
 
 bool c64_start_streaming(struct c64_source *context)
@@ -2154,9 +2419,27 @@ static bool c64_start_streaming_inner(struct c64_source *context)
     C64_LOG_INFO("Starting C64 Stream streaming to C64 %s (OBS IP: %s, video:%u, audio:%u)...", ip_address,
                  obs_ip_address, video_port, audio_port);
 
+    // Fail fast when the device cannot be reached (switched off, unplugged, or
+    // a device chosen while it was offline): a REST start would otherwise hold
+    // the retry worker for its full timeout, and a switch back to a working
+    // device would wait behind it. Either service answering is enough.
+    if (strcmp(ip_address, "0.0.0.0") != 0 && !c64_device_reachable(ip_address, control_port)) {
+        C64_LOG_INFO("C64 %s is not reachable; will retry", ip_address);
+        context->start_is_device_switch = false;
+        if (context->streaming) {
+            // A switch to an unreachable device: stop showing the previous one.
+            c64_join_receivers(context);
+            close_and_reset_sockets(context);
+            c64_show_idle_picture(context);
+        }
+        return false;
+    }
+
     // Proactively disconnect all streams before starting to ensure clean state
     // This prevents stale streaming state on the C64U from previous sessions
-    if (strcmp(ip_address, "0.0.0.0") != 0) {
+    const bool device_switch = context->start_is_device_switch;
+    context->start_is_device_switch = false;
+    if (strcmp(ip_address, "0.0.0.0") != 0 && !device_switch) {
         C64_LOG_DEBUG("Sending proactive disconnect for all streams before starting");
         c64_stream_control_stop_all_to(context, ip_address, control_port);
         // Brief delay to ensure stop commands are processed before start commands
@@ -2165,6 +2448,35 @@ static bool c64_start_streaming_inner(struct c64_source *context)
 
     // Ensure expected peer IP matches current ip_address before binding sockets
     c64_set_expected_peer_ip(context, ip_address);
+
+    char video_dest[C64_STREAM_DEST_MAX];
+    char audio_dest[C64_STREAM_DEST_MAX];
+    if (!c64_build_stream_dest(video_dest, sizeof(video_dest), obs_ip_address, video_port) ||
+        !c64_build_stream_dest(audio_dest, sizeof(audio_dest), obs_ip_address, audio_port)) {
+        C64_LOG_ERROR("" NETWORK_LOG_PREFIX " Failed to build stream destination for start command");
+        if (!context->streaming) {
+            close_and_reset_sockets(context);
+        }
+        return false;
+    }
+
+    // On a device switch the receivers are still running with the previous
+    // device's picture (see c64_packet_admit). Ask the new device for video
+    // first and recycle the receivers only afterwards: the old picture stays
+    // live for the whole round trip, and the new device's first packets are
+    // already in flight when the fresh sockets come up. The pause a viewer
+    // sees shrinks to the receiver restart instead of the REST round trip.
+    bool video_started = false;
+    if (device_switch && context->streaming) {
+        context->last_start_command_time_ns = os_gettime_ns();
+        if (!c64_stream_control_to(context, ip_address, control_port, true, 0, video_dest)) {
+            C64_LOG_ERROR("" NETWORK_LOG_PREFIX " Failed to start C64 stream control");
+            c64_join_receivers(context);
+            c64_abort_stream_start(context);
+            return false;
+        }
+        video_started = true;
+    }
 
     // Stop existing threads BEFORE closing sockets (prevents race conditions on Windows)
     if (context->streaming) {
@@ -2248,17 +2560,12 @@ static bool c64_start_streaming_inner(struct c64_source *context)
     C64_LOG_DEBUG("Synthetic A/V timing state reset for reconnection");
 
     // Send start commands to C64 Ultimate
-    context->last_start_command_time_ns = os_gettime_ns();
-    char video_dest[C64_STREAM_DEST_MAX];
-    char audio_dest[C64_STREAM_DEST_MAX];
-    if (!c64_build_stream_dest(video_dest, sizeof(video_dest), obs_ip_address, video_port) ||
-        !c64_build_stream_dest(audio_dest, sizeof(audio_dest), obs_ip_address, audio_port)) {
-        C64_LOG_ERROR("" NETWORK_LOG_PREFIX " Failed to build stream destination for start command");
-        close_and_reset_sockets(context);
-        return false;
+    if (!video_started) {
+        context->last_start_command_time_ns = os_gettime_ns();
     }
-    if (!c64_stream_control_to(context, ip_address, control_port, true, 0, video_dest) ||
-        !c64_stream_control_to(context, ip_address, control_port, true, 1, audio_dest)) {
+    // Video first, then the receivers, then audio: the picture can appear
+    // while the audio start round trip is still in flight.
+    if (!video_started && !c64_stream_control_to(context, ip_address, control_port, true, 0, video_dest)) {
         C64_LOG_ERROR("" NETWORK_LOG_PREFIX " Failed to start C64 stream control");
         c64_abort_stream_start(context);
         return false;
@@ -2315,7 +2622,20 @@ static bool c64_start_streaming_inner(struct c64_source *context)
     }
     os_atomic_set_bool(&context->audio_thread_active, true);
 
+    if (!c64_stream_control_to(context, ip_address, control_port, true, 1, audio_dest)) {
+        C64_LOG_ERROR("" NETWORK_LOG_PREFIX " Failed to start C64 audio stream control");
+        c64_join_receivers(context);
+        c64_abort_stream_start(context);
+        return false;
+    }
+
+    context->switch_receivers_restarted = true;
     C64_LOG_INFO("C64 Stream streaming started successfully");
+    // Diagnostic A/V-sync recording sets the device's mixer over REST. Done
+    // once video runs, not when the REST client is retargeted: a device that
+    // is switched to while unreachable would otherwise hold the retry worker
+    // (and the next device switch) for the full REST timeout.
+    c64_record_on_rest_client_ready(context);
     return true;
 }
 
@@ -2335,6 +2655,7 @@ static void c64_abort_stream_start(struct c64_source *context)
     c64_stream_control(context, false, 0, NULL);
     c64_stream_control(context, false, 1, NULL);
     close_and_reset_sockets(context);
+    c64_show_idle_picture(context);
 }
 
 static void c64_stop_streaming_to(struct c64_source *context, const char *host, uint32_t control_port)
@@ -2408,6 +2729,159 @@ static void c64_stop_streaming_local(struct c64_source *context)
     C64_LOG_INFO("C64 Stream streaming stopped");
 }
 
+// Upper bound for each request to a device that was switched away from. A
+// live device answers within tens of milliseconds; one that went offline must
+// not hold up the next switch for the default five seconds per request.
+#define C64_PREVIOUS_DEVICE_TIMEOUT_MS 300L
+// A device that cannot be told to stop is retried this often before giving up
+// (it then keeps streaming at this source, whose filter drops its packets).
+#define C64_PREVIOUS_DEVICE_STOP_ATTEMPTS 5
+
+// Moves a device switch recorded by c64_update into the retry worker's queue
+// of devices to stop, and retargets the REST client at the new device.
+static bool c64_take_pending_device_transition(struct c64_source *context)
+{
+    if (!context->device_transition_pending) {
+        return false;
+    }
+    char old_host[sizeof(context->device_transition_host)];
+    snprintf(old_host, sizeof(old_host), "%s", context->device_transition_host);
+    char dropped[C64_STOP_QUEUE_HOST_MAX];
+    c64_stop_queue_add(&context->pending_stops, old_host, context->device_transition_control_port,
+                       context->device_transition_password, context->device_transition_rest_demoted_until_ns, dropped,
+                       sizeof(dropped));
+    if (dropped[0]) {
+        C64_LOG_WARNING("Device switch: too many devices still to stop; dropping %s", dropped);
+    }
+    context->device_transition_pending = false;
+    context->device_transition_host[0] = '\0';
+    context->device_transition_control_port = 0;
+    context->device_transition_password[0] = '\0';
+    context->stream_rest_demoted_until_ns = 0;
+    C64_LOG_INFO("Device switch: starting %s, then stopping %s", context->ip_address, old_host);
+    c64_rebuild_rest_client(context);
+
+    // Switching back to a device that is still queued to be stopped: the stop
+    // must not follow the new start, or it would end the stream again.
+    c64_stop_queue_cancel(&context->pending_stops, context->ip_address, context->control_port);
+    return true;
+}
+
+// Stops one stream of a device that was switched away from, through a client
+// of its own (the source's client already targets the new device). Mirrors the
+// stream control negotiation: REST, legacy fallback on 404/501 only.
+static bool c64_stop_previous_stream(c64_rest_client_t *client, c64_stream_transport_t transport, const char *host,
+                                     uint32_t control_port, uint64_t rest_demoted_until_ns, uint8_t stream_id)
+{
+    const bool try_rest = client &&
+                          (transport == C64_STREAM_TRANSPORT_REST || os_gettime_ns() >= rest_demoted_until_ns);
+    if (try_rest) {
+        c64_rest_outcome_t outcome = C64_REST_UNREACHABLE;
+        long status = 0;
+        if (c64_rest_stream_stop_with_outcome(client, stream_id == 1, &outcome, &status)) {
+            return true;
+        }
+        if (transport == C64_STREAM_TRANSPORT_REST ||
+            (!c64_stream_control_should_fallback(outcome) && outcome != C64_REST_UNREACHABLE)) {
+            return false;
+        }
+    }
+    return c64_send_control_command_to(host, control_port, false, stream_id, NULL);
+}
+
+static void c64_process_previous_device_stops(struct c64_source *context)
+{
+    // Make before break: the previous device keeps streaming (and stays on
+    // screen through the handover) until the new device's first packet
+    // arrives. A new device that is slow to start therefore shows no gap; one
+    // that never starts is given up on after the hold, and the logo follows.
+    if (context->pending_stops.count && context->handover_peer_ip_set && context->streaming &&
+        os_gettime_ns() - context->switch_requested_ns < C64_HANDOVER_HOLD_NS) {
+        return;
+    }
+    size_t index = 0;
+    while (index < context->pending_stops.count) {
+        // A newer switch request is served first; the stop resumes afterwards.
+        if (os_atomic_load_long(&context->retry_requested)) {
+            return;
+        }
+        char current[64];
+        pthread_mutex_lock(&context->config_mutex);
+        snprintf(current, sizeof(current), "%s", context->ip_address);
+        const uint32_t current_port = context->control_port;
+        pthread_mutex_unlock(&context->config_mutex);
+        if (!strcmp(context->pending_stops.entries[index].host, current) &&
+            context->pending_stops.entries[index].control_port == current_port) {
+            c64_stop_queue_remove_at(&context->pending_stops, index);
+            continue;
+        }
+
+        const char *host = context->pending_stops.entries[index].host;
+        // An unreachable device costs one short check instead of a full
+        // timeout per request (1.6 s per legacy connect), so it cannot delay
+        // the next switch; it is retried later in case it comes back.
+        if (!c64_device_reachable(host, context->pending_stops.entries[index].control_port)) {
+            if (c64_stop_queue_record_failure(&context->pending_stops, index, C64_PREVIOUS_DEVICE_STOP_ATTEMPTS)) {
+                C64_LOG_INFO("Device switch: %s stayed unreachable; nothing to stop", host);
+                c64_stop_queue_remove_at(&context->pending_stops, index);
+            } else {
+                index++;
+            }
+            continue;
+        }
+        const c64_stream_transport_t transport = (c64_stream_transport_t)context->stream_control_transport;
+        c64_rest_client_t *client = NULL;
+        if (transport != C64_STREAM_TRANSPORT_LEGACY) {
+            char base_url[96];
+            snprintf(base_url, sizeof(base_url), "http://%s", host);
+            client = c64_rest_client_create(base_url, context->pending_stops.entries[index].password);
+            c64_rest_client_set_timeout_cap(client, C64_PREVIOUS_DEVICE_TIMEOUT_MS);
+        }
+        // A key held on the old device would otherwise stay pressed there.
+        if (client) {
+            c64_rest_release_all(client);
+        }
+        // Each request yields to a newer switch, so an unreachable old device
+        // delays the next switch by at most one request timeout.
+        bool video_stopped = false;
+        bool audio_stopped = false;
+        const bool interrupted = os_atomic_load_long(&context->retry_requested) != 0;
+        if (!interrupted) {
+            video_stopped = c64_stop_previous_stream(client, transport, host,
+                                                     context->pending_stops.entries[index].control_port,
+                                                     context->pending_stops.entries[index].rest_demoted_until_ns, 0);
+        }
+        if (!interrupted && !os_atomic_load_long(&context->retry_requested)) {
+            audio_stopped = c64_stop_previous_stream(client, transport, host,
+                                                     context->pending_stops.entries[index].control_port,
+                                                     context->pending_stops.entries[index].rest_demoted_until_ns, 1);
+        }
+        if (client) {
+            c64_rest_client_destroy(client);
+        }
+        if (os_atomic_load_long(&context->retry_requested) && !(video_stopped && audio_stopped)) {
+            return; // retried in full after the newer request
+        }
+        if (video_stopped && audio_stopped) {
+            C64_LOG_INFO("Device switch: stopped %s", host);
+            c64_stop_queue_remove_at(&context->pending_stops, index);
+        } else if (c64_stop_queue_record_failure(&context->pending_stops, index, C64_PREVIOUS_DEVICE_STOP_ATTEMPTS)) {
+            C64_LOG_WARNING("Device switch: giving up stopping %s after %u attempts", host,
+                            context->pending_stops.entries[index].attempts);
+            c64_stop_queue_remove_at(&context->pending_stops, index);
+        } else {
+            C64_LOG_DEBUG("Device switch: %s did not confirm the stop (attempt %u); retrying later", host,
+                          context->pending_stops.entries[index].attempts);
+            index++;
+        }
+    }
+    // Every device switched away from has been stopped (or given up on), so
+    // none of its packets are wanted any more.
+    if (!context->pending_stops.count) {
+        context->handover_peer_ip_set = false;
+    }
+}
+
 void c64_stop_streaming(struct c64_source *context)
 {
     if (!context) {
@@ -2426,27 +2900,6 @@ static void *c64_stop_streaming_thread(void *data)
 {
     c64_stop_streaming(data);
     return NULL;
-}
-
-static void c64_complete_pending_device_transition(struct c64_source *context)
-{
-    if (!context || !context->device_transition_pending) {
-        return;
-    }
-
-    char old_host[64];
-    snprintf(old_host, sizeof(old_host), "%s", context->device_transition_host);
-    const uint32_t old_control_port = context->device_transition_control_port;
-    context->device_transition_pending = false;
-    context->device_transition_host[0] = '\0';
-    context->device_transition_control_port = 0;
-
-    C64_LOG_INFO("Completing asynchronous device transition: stopping %s before starting %s", old_host,
-                 context->ip_address);
-    c64_stop_streaming_to(context, old_host, old_control_port);
-    c64_stop_streaming_local(context);
-    context->stream_rest_demoted_until_ns = 0;
-    c64_rebuild_rest_client(context);
 }
 
 // Video tick callback - updates texture from async frame buffer when CRT effects are enabled
