@@ -377,4 +377,14 @@ if(WIN32)
     )
   endforeach()
 endif()
+if(APPLE)
+  # libobs is a framework referenced through @rpath; the test executables are
+  # not bundled, so point dyld at the framework's directory.
+  foreach(test_name IN LISTS C64_PLATFORM_CI_TESTS)
+    set_tests_properties(
+      ${test_name}
+      PROPERTIES ENVIRONMENT_MODIFICATION "DYLD_FRAMEWORK_PATH=path_list_prepend:$<TARGET_BUNDLE_DIR:OBS::libobs>/.."
+    )
+  endforeach()
+endif()
 set_tests_properties(${C64_PLATFORM_CI_TESTS} PROPERTIES LABELS platform-ci)
