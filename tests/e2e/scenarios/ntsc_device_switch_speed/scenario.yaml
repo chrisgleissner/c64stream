@@ -1,0 +1,72 @@
+name: NTSC device switch speed and resilience (Mock)
+format: NTSC
+preset: Default
+# Runs on every CI build. Two mock devices on their own loopback addresses,
+# each streaming a distinct pattern from that address once started, plus a
+# registered device whose address never answers (TEST-NET-1). The script
+# switches back and forth between the live devices, fires switches faster than
+# a start completes, and makes round trips to the unreachable device. The
+# device_switch_speed assertion reads the plugin's per-switch measurements.
+packet_source: mock
+mock_rest_port: 8080
+mock_devices:
+  - id: e2e-speed-a
+    unique_id: e2e-speed-a
+    hostname: E2E Speed A
+    hosts: [127.0.0.2]
+    stream_hosts: [127.0.0.2]
+    pattern: solid
+    frames: 300
+  - id: e2e-speed-b
+    unique_id: e2e-speed-b
+    hostname: E2E Speed B
+    hosts: [127.0.0.4]
+    stream_hosts: [127.0.0.4]
+    pattern: dots
+    frames: 300
+device_registry:
+  - id: e2e-speed-a
+    name: E2E Speed A
+    host: 127.0.0.2
+    video_port: 21000
+    audio_port: 21001
+    control_port: 6400
+  - id: e2e-speed-b
+    name: E2E Speed B
+    host: 127.0.0.4
+    video_port: 21000
+    audio_port: 21001
+    control_port: 6400
+  - id: e2e-speed-offline
+    name: E2E Speed Offline
+    host: 192.0.2.1
+    video_port: 21000
+    audio_port: 21001
+    control_port: 6400
+overrides:
+  c64_host: 127.0.0.2
+  c64_device: e2e-speed-a
+  video_port: 21000
+  audio_port: 21001
+  control_port: 6400
+  stream_control_transport: 2
+  script_file: "${repo_root}/tests/e2e/scripts/device_switch_speed.c64script"
+  script_auto_start: true
+  record_video: true
+  record_csv: false
+  record_frames: false
+  debug_logging: true
+script_completion_timeout: 150
+assertions:
+  - device_switch_speed
+  - discovered_stream_patterns
+thresholds:
+  device_switch_speed:
+    # Requirement: from the last frame of one device to the first frame of the
+    # next, at most one second, on every switch between live devices.
+    max_pause_ms: 1000
+    # From the switch request to the first frame of a live device, including
+    # a switch away from the unreachable device. The mock adds a 100 ms lead
+    # time before it sends its first packet.
+    max_first_frame_ms: 1000
+    min_live_switches: 30

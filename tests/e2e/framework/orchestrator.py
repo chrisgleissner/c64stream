@@ -308,21 +308,74 @@ class E2EOrchestrator:
             generate_packets(packet_dir, num_frames=int(device.get("frames", 300)), formats=[self.format],
                              pattern=str(device.get("pattern", "diagonal")), disable_pops=True)
             replayers[device_id] = PacketReplayer(
-                self.env, self.format, self.network_simulation, packet_dir=packet_dir, lead_time_s=0.25
+                self.env, self.format, self.network_simulation, packet_dir=packet_dir, lead_time_s=0.1
             )
+
+        # Like real hardware, a device streams one stream at a time. A stop
+        # ends the replay running for it, unless a start follows within
+        # STOP_GRACE_S: the legacy protocol sends stop+start for every start,
+        # and a real device restarts its stream instantly, whereas preparing a
+        # new replay takes longer than the plugin's one-second start retry.
+        STOP_GRACE_S = 0.4
+        active: dict[str, threading.Event] = {}
+        pending_stops: dict[str, float] = {}
+        # The mock serves each control connection on its own thread, so the
+        # stop half of a stop+start pair can be processed just after the
+        # start. A stop that close to a start, in either order, is a restart.
+        last_start: dict[str, float] = {}
+
+        def end_stream(device_id: str) -> None:
+            event = active.pop(device_id, None)
+            if event is not None:
+                logger.info("⏹️ Mock %s stops streaming", device_id)
+                event.set()
+
+        def drain_stops() -> None:
+            while True:
+                try:
+                    pending_stops[self.mock_server.stream_stops.get_nowait()] = time.monotonic()
+                except Exception:
+                    break
 
         def serve_stream_requests() -> None:
             while self.mock_server and self.mock_server.running:
+                drain_stops()
+                now = time.monotonic()
+                for device_id, stopped_at in list(pending_stops.items()):
+                    if now - stopped_at >= STOP_GRACE_S:
+                        pending_stops.pop(device_id, None)
+                        if abs(stopped_at - last_start.get(device_id, -1e9)) >= STOP_GRACE_S:
+                            end_stream(device_id)
                 try:
-                    device, video_dest, audio_dest, source_host = self.mock_server.stream_requests.get(timeout=0.25)
+                    device, video_dest, audio_dest, source_host = self.mock_server.stream_requests.get(timeout=0.05)
                 except Exception:
                     continue
-                replayer = replayers.get(str(device["id"]))
+                # A stop sent just before this start must not end it later.
+                drain_stops()
+                device_id = str(device["id"])
+                replayer = replayers.get(device_id)
                 if not replayer:
                     continue
-                logger.info("▶️ Replaying %s pattern from mock %s", device.get("pattern"), device["id"])
-                threading.Thread(target=replayer.replay,
-                                 args=(self.udp_replay_path, video_dest, audio_dest, source_host), daemon=True).start()
+                pending_stops.pop(device_id, None)
+                last_start[device_id] = time.monotonic()
+                running = active.get(device_id)
+                if running is not None and not running.is_set():
+                    continue  # restarted in place: the running stream continues
+                cancel = threading.Event()
+                active[device_id] = cancel
+                logger.info("▶️ Replaying %s pattern from mock %s", device.get("pattern"), device_id)
+
+                def run(replayer=replayer, cancel=cancel, device_id=device_id, args=(
+                        self.udp_replay_path, video_dest, audio_dest, source_host)) -> None:
+                    try:
+                        replayer.replay(*args, cancel)
+                    finally:
+                        # A finished replay is a stopped stream; the next
+                        # start begins a new one.
+                        if active.get(device_id) is cancel:
+                            active.pop(device_id, None)
+
+                threading.Thread(target=run, daemon=True).start()
 
         threading.Thread(target=serve_stream_requests, name="mock-topology-streams", daemon=True).start()
 

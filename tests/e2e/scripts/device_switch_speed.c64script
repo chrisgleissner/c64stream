@@ -1,0 +1,55 @@
+REM Device switch speed and resilience (CI). See the scenario
+REM ntsc_device_switch_speed and assertions/device_switch_speed.py.
+
+PRINT "=== Device switch speed started ==="
+WAIT 3000 ms
+
+REM 1. Back and forth between two live devices.
+COUNTER = 0
+LABEL live_loop
+    IF COUNTER >= 20 THEN
+        GOTO live_done
+    ENDIF
+    SWITCH_DEVICE "e2e-speed-b"
+    WAIT 1200 ms
+    SWITCH_DEVICE "e2e-speed-a"
+    WAIT 1200 ms
+    COUNTER = COUNTER + 1
+    GOTO live_loop
+LABEL live_done
+PRINT "Live switches done"
+
+REM 2. Faster than a start completes; the last choice must win.
+COUNTER = 0
+LABEL rapid_loop
+    IF COUNTER >= 8 THEN
+        GOTO rapid_done
+    ENDIF
+    SWITCH_DEVICE "e2e-speed-b"
+    WAIT 60 ms
+    SWITCH_DEVICE "e2e-speed-a"
+    WAIT 60 ms
+    COUNTER = COUNTER + 1
+    GOTO rapid_loop
+LABEL rapid_done
+SWITCH_DEVICE "e2e-speed-b"
+WAIT 2000 ms
+PRINT "Rapid switches done"
+
+REM 3. Round trips to a device that never answers, and back.
+COUNTER = 0
+LABEL offline_loop
+    IF COUNTER >= 5 THEN
+        GOTO offline_done
+    ENDIF
+    SWITCH_DEVICE "e2e-speed-offline"
+    WAIT 700 ms
+    SWITCH_DEVICE "e2e-speed-a"
+    WAIT 1200 ms
+    COUNTER = COUNTER + 1
+    GOTO offline_loop
+LABEL offline_done
+PRINT "Offline round trips done"
+
+PRINT "=== Device switch speed complete ==="
+STOP

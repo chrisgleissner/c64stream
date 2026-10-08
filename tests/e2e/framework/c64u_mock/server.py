@@ -47,6 +47,9 @@ class MockC64UServer:
                 self.devices_by_host[str(host)] = copied
             self.device_states[device_id] = {"mask": 0, "video_dest": None, "audio_dest": None}
         self.stream_requests: queue.Queue[tuple[dict[str, Any], Tuple[str, int], Tuple[str, int], str]] = queue.Queue()
+        # Topology devices told to stop streaming, so their packet replay can
+        # end like a real device's stream does.
+        self.stream_stops: queue.Queue[str] = queue.Queue()
 
         self.running = False
         self.server_socket: Optional[socket.socket] = None
@@ -242,7 +245,7 @@ class MockC64UServer:
 
         if is_stop:
             logger.info(f"🛑 Received legacy STOP command for stream {stream_id}")
-            self._record_stop(stream_id)
+            self._record_stop(stream_id, local_host)
             return
 
         if is_start:
@@ -312,9 +315,13 @@ class MockC64UServer:
                     self.stream_requests.put((device, video_dest, audio_dest, local_host))
                 state["mask"] = 0
 
-    def _record_stop(self, stream_id: int):
+    def _record_stop(self, stream_id: int, local_host: Optional[str] = None):
         with self._events_lock:
             self.events.append(("stop", stream_id))
+        device = self._device_for_host(local_host) if (local_host and self.devices_by_host) else None
+        if device:
+            logger.info(f"🛑 Stop for mock {device['id']} (via {local_host})")
+            self.stream_stops.put(str(device["id"]))
 
     # ------------------------------------------------------------------
     # REST API (port 80 on real hardware)
@@ -386,7 +393,7 @@ class MockC64UServer:
                     self._send_json({})
                 elif path.path in ("/v1/streams/video:stop", "/v1/streams/audio:stop"):
                     stream_id = 1 if path.path.startswith("/v1/streams/audio") else 0
-                    mock._record_stop(stream_id)
+                    mock._record_stop(stream_id, self.connection.getsockname()[0])
                     self._send_json({})
                 elif path.path == "/v1/machine:writemem":
                     params = parse_qs(path.query)

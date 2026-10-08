@@ -66,7 +66,7 @@ class DeviceSwitchLogAssertion(EffectAssertion):
                 details={"obs_log": str(obs_log_path)},
             )
 
-        transition_count = len(re.findall(r"Completing asynchronous device transition:", content))
+        transition_count = len(re.findall(r"Device switch: starting ", content))
         if transition_count < expected_switches:
             return AssertionResult(
                 status=AssertionStatus.FAIL,

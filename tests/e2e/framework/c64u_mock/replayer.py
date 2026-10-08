@@ -31,8 +31,10 @@ class PacketReplayer:
                udp_replay_bin: Path,
                video_dest: Tuple[str, int],
                audio_dest: Tuple[str, int],
-               source_host: Optional[str] = None) -> bool:
-        """Replay packets to destination."""
+               source_host: Optional[str] = None,
+               cancel: Optional[threading.Event] = None) -> bool:
+        """Replay packets to destination. Setting cancel ends the replay early,
+        as a real device's stream ends when it is told to stop."""
 
         video_dir = (self.packet_dir / 'video' / self.format).resolve()
 
@@ -161,7 +163,7 @@ class PacketReplayer:
 
         logger.info(f"🚀 Synchronized packet replay start: +{lead_s}s from now")
         try:
-            return self._execute_parallel_replay(udp_replay_bin, video_cmd, audio_cmd)
+            return self._execute_parallel_replay(udp_replay_bin, video_cmd, audio_cmd, cancel)
         finally:
             if packet_path:
                 packet_path.unlink(missing_ok=True)
@@ -308,7 +310,8 @@ class PacketReplayer:
                 f.write(f"{filename},{int(delta_us)}\n")
                 last_sent_time_us += int(delta_us)
 
-    def _execute_parallel_replay(self, bin_path: Path, video_cmd: List[str], audio_cmd: List[str]) -> bool:
+    def _execute_parallel_replay(self, bin_path: Path, video_cmd: List[str], audio_cmd: List[str],
+                                 cancel: Optional[threading.Event] = None) -> bool:
         """Execute video and audio replay in parallel."""
         replay_start_time = time.time()
 
@@ -325,6 +328,12 @@ class PacketReplayer:
                     text=True,
                     bufsize=1
                 )
+                if cancel is not None:
+                    def stop_on_cancel(process=proc):
+                        cancel.wait()
+                        if process.poll() is None:
+                            process.terminate()
+                    threading.Thread(target=stop_on_cancel, daemon=True).start()
                 lines = []
                 for line in proc.stdout:
                     line = line.rstrip('\n')
@@ -348,6 +357,10 @@ class PacketReplayer:
         t2.join()
 
         elapsed_ms = (time.time() - replay_start_time) * 1000
+        if cancel is not None and cancel.is_set():
+            # Ended by a stop command, as a real device's stream would be.
+            logger.info(f"⏹️ Replay stopped by the device's stop command after {elapsed_ms:.0f} ms")
+            return True
 
         success = True
         if video_result['rc'] != 0:
