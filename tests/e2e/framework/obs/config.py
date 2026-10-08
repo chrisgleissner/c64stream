@@ -2,6 +2,8 @@ from __future__ import annotations
 import shutil
 import os
 import configparser
+import json
+import re
 import logging
 from pathlib import Path
 from typing import Optional
@@ -187,6 +189,20 @@ class OBSConfigManager:
             except Exception as e:
                 logger.error(f"❌ Failed to restore {original_path}: {e}")
         self._backed_up_properties.clear()
+
+    def write_websocket_config(self, port: int, password: str) -> None:
+        """Enables obs-websocket for the test OBS on the given port."""
+        path = self.obs_config_dir / 'plugin_config' / 'obs-websocket' / 'config.json'
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"alerts_enabled": False, "auth_required": False, "first_load": False,
+                                    "server_enabled": True, "server_password": password,
+                                    "server_port": port}, indent=2), encoding='utf-8')
+        # obs-websocket migrates [OBSWebSocket] from global.ini over config.json.
+        global_ini = self.obs_config_dir / 'global.ini'
+        if global_ini.exists():
+            text = global_ini.read_text(encoding='utf-8')
+            global_ini.write_text(re.sub(r'(?m)^ServerPort=\d+$', f'ServerPort={port}', text), encoding='utf-8')
+        logger.info(f"✅ obs-websocket configured on port {port}")
 
     def create_obs_profile(self, video_format: str, scenario_overrides_dir: Optional[Path] = None) -> Path:
         """Copy clean OBS configuration and apply overrides."""

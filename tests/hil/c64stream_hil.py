@@ -33,6 +33,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -134,6 +135,39 @@ class Device:
     def reset_machine(self) -> None:
         with contextlib.suppress(Exception):
             self.rest("PUT", "/v1/machine:reset", attempts=2)
+
+    # Palette Definition (Follow device tests) ----------------------------
+
+    PALETTE_SETTING = "/v1/configs/U64%20Specific%20Settings/Palette%20Definition"
+
+    def palette_setting(self) -> str:
+        return json.loads(self.rest("GET", self.PALETTE_SETTING))["U64 Specific Settings"]["Palette Definition"]["current"]
+
+    def set_palette_setting(self, name: str) -> None:
+        self.rest("PUT", f"{self.PALETTE_SETTING}?value={urllib.parse.quote(name)}")
+
+    def upload_palette(self, name: str, text: str) -> None:
+        path = Path(tempfile.mkstemp(suffix=".vpl")[1])
+        path.write_text(text)
+        try:
+            subprocess.run(["curl", "-s", "-f", "-m", "15", "--ftp-create-dirs", "-T", str(path),
+                            f"ftp://{self.host}/Flash/data/{name}"], check=True, capture_output=True)
+        finally:
+            path.unlink()
+
+    def has_flash_data_dir(self) -> bool:
+        listing = subprocess.run(["curl", "-s", "-m", "10", "--list-only", f"ftp://{self.host}/Flash/"],
+                                 capture_output=True, text=True)
+        return "data" in listing.stdout.split()
+
+    def remove_flash_data_dir(self) -> None:
+        """Removes /Flash/data (only succeeds when it is empty)."""
+        subprocess.run(["curl", "-s", "-m", "10", f"ftp://{self.host}/", "-Q", "RMD /Flash/data"],
+                       capture_output=True)
+
+    def delete_palette(self, name: str) -> None:
+        subprocess.run(["curl", "-s", "-m", "10", f"ftp://{self.host}/", "-Q", f"DELE /Flash/data/{name}"],
+                       capture_output=True)
 
     def graceful_power_off(self) -> None:
         """Shuts the machine down over REST before its outlet is cut. Refuses
@@ -460,7 +494,7 @@ class Hil:
         for device in self.devices:
             (self.obs.registry_dir / f"device-{device.device_id}.ini").write_text(
                 f"id={device.device_id}\nname={device.label} ({device.host})\nhost={device.host}\npeer_host=\n"
-                "dns_server_ip=\nvideo_port=11000\naudio_port=11001\ncontrol_port=64\n")
+                f"dns_server_ip=\nvideo_port={VIDEO_PORT}\naudio_port={VIDEO_PORT + 1}\ncontrol_port=64\n")
 
     def prove_live(self, device: Device, timeout: float = 45) -> tuple[bool, float, str]:
         """A frozen last frame looks identical to live video, so change the
@@ -522,8 +556,14 @@ class Hil:
 # Scenarios
 
 
+# UDP ports the test OBS receives on; --video-port moves them (audio is the
+# next port) when another OBS on this machine already holds 11000/11001.
+VIDEO_PORT = 11000
+
+
 def base_settings(**overrides) -> dict:
-    settings = {"debug_logging": True, "stream_control_transport": 0}
+    settings = {"debug_logging": True, "stream_control_transport": 0, "video_port": VIDEO_PORT,
+                "audio_port": VIDEO_PORT + 1}
     settings.update(overrides)
     return settings
 
@@ -1044,7 +1084,99 @@ def scenario_visual(hil: Hil) -> None:
     hil.obs.remove_source()
 
 
+def _vpl(light_blue: tuple[int, int, int]) -> str:
+    """A full VPL whose colour 14 (the READY screen border) is light_blue."""
+    colors = [(0, 0, 0), (255, 255, 255), (136, 57, 50), (103, 182, 189), (139, 63, 150), (85, 160, 73),
+              (64, 49, 141), (191, 206, 114), (139, 84, 41), (87, 66, 0), (184, 105, 98), (80, 80, 80),
+              (120, 120, 120), (148, 224, 137), (120, 105, 196), (159, 159, 159)]
+    colors[14] = light_blue
+    return "# c64stream HIL test palette\n" + "".join("%02X %02X %02X\n" % c for c in colors)
+
+
+def scenario_palette_follow(hil: Hil) -> None:
+    """Follow device without stream palette packets:
+    the plugin reads the device's Palette Definition, downloads the VPL over
+    FTP and applies it. The device border stays colour 14; the test palettes
+    map colour 14 to red (A) or green (B), so the rendered border shows which
+    palette OBS applied, and when."""
+    u64, c64u = hil.device("U64"), hil.device("C64U")
+    names = ("c64stream-test-a.vpl", "c64stream-test-b.vpl")
+    original = {d.label: d.palette_setting() for d in (u64, c64u)}
+    had_data_dir = {d.label: d.has_flash_data_dir() for d in (u64, c64u)}
+    for device in (u64, c64u):
+        device.set_border(14)
+        device.upload_palette(names[0], _vpl((255, 0, 0)))
+        device.upload_palette(names[1], _vpl((0, 255, 0)))
+        device.set_palette_setting("")
+    mark = [0]
+
+    def step() -> float:
+        mark[0] = len(hil.obs.log_text())
+        return time.time()
+
+    def log_seen(text: str) -> bool:
+        """The plugin logged text since the current step began."""
+        return text in hil.obs.log_text()[mark[0]:]
+
+    try:
+        step()
+        hil.obs.create_source(base_settings(c64_device=u64.device_id, palette="__device__",
+                                            stream_control_transport=0))
+        ok, _, detail = hil.wait_for_border(14, 30)
+        hil.record("palette_follow_builtin", ok and log_seen("built-in palette"),
+                   f"device setting empty: built-in palette ({detail})")
+
+        for name, colour, label in ((names[0], 2, "red"), (names[1], 5, "green")):
+            start = step()
+            u64.set_palette_setting(name)
+            ok, seconds, detail = hil.wait_for_border(colour, 10)
+            hil.record(f"palette_follow_{label}", ok and log_seen(f'file "{name}"'),
+                       f"{name} applied {time.time() - start:.2f}s after the device setting changed ({detail})")
+
+        # Same name, new content: picked up by the periodic recheck.
+        start = step()
+        u64.upload_palette(names[1], _vpl((0, 0, 0)))
+        ok, _, detail = hil.wait_for_border(0, 20)
+        hil.record("palette_follow_file_overwritten", ok,
+                   f"overwritten {names[1]} applied after {time.time() - start:.2f}s ({detail})")
+
+        # Legacy stream control cannot request palette information.
+        step()
+        hil.obs.update({"stream_control_transport": 2})
+        ok, _, detail = hil.wait_for_border(14, 15)
+        hil.record("palette_follow_legacy_uses_default", ok and log_seen("Follow device reads the palette over REST"),
+                   f"legacy transport shows the default palette ({detail})")
+        hil.obs.update({"stream_control_transport": 0})
+        ok, _, detail = hil.wait_for_border(0, 15)
+        hil.record("palette_follow_rest_again", ok, f"back on REST, device palette again ({detail})")
+
+        # Device switch: each device's own palette, never the other's.
+        u64.set_palette_setting(names[0])
+        c64u.set_palette_setting(names[1])
+        hil.wait_for_border(2, 10)
+        failures = []
+        for target, colour in ((c64u, 5), (u64, 2), (c64u, 5), (u64, 2)):
+            hil.obs.update({"c64_device": target.device_id})
+            ok, seconds, detail = hil.wait_for_border(colour, 10, forbid=2 if colour == 5 else 5)
+            if not ok:
+                failures.append(f"{target.label}: {detail}")
+        hil.record("palette_follow_device_switch", not failures,
+                   "each device shown with its own palette after every switch" if not failures else str(failures))
+    finally:
+        hil.obs.remove_source()
+        for device in (u64, c64u):
+            with contextlib.suppress(Exception):
+                device.set_palette_setting(original[device.label])
+            for name in names:
+                device.delete_palette(name)
+            if not had_data_dir[device.label]:
+                device.remove_flash_data_dir()
+            with contextlib.suppress(Exception):
+                device.set_border(device.border)
+
+
 SCENARIOS = {
+    "palette": scenario_palette_follow,
     "visual": scenario_visual,
     "soak": scenario_soak,
     "lossy": scenario_lossy_switch,
@@ -1086,8 +1218,11 @@ def main() -> int:
     parser.add_argument("--offline-seconds", type=float, default=20)
     parser.add_argument("--display", type=int, default=97)
     parser.add_argument("--ws-port", type=int, default=4466)
+    parser.add_argument("--video-port", type=int, default=11000)
     parser.add_argument("--workdir")
     args = parser.parse_args()
+    global VIDEO_PORT
+    VIDEO_PORT = args.video_port
 
     with Hil(args) as hil:
         hil.seed_registry()

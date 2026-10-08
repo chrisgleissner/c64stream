@@ -50,6 +50,8 @@ See <https://www.gnu.org/licenses/> for details.
 #include "plugin-support.h"
 #include "c64-effect.h"
 #include "c64-effect-geometry.h"
+#include "c64-palette-follow.h"
+#include "device/c64-device-palette.h"
 #include "c64-av-sync.h"
 #include "c64-network-fifo.h"
 
@@ -320,8 +322,10 @@ void c64_source_apply_palette(struct c64_source *context, obs_data_t *settings)
         os_atomic_set_bool(&context->device_palette_request_supported, true);
         os_atomic_set_long(&context->device_palette_status, C64_DEVICE_PALETTE_UNKNOWN);
     }
-    if (follow_device && context->device_palette.colors_valid) {
+    if (follow_device && context->device_palette.colors_valid && c64_palette_follow_stream_is_fresh(context)) {
         memcpy(colors, context->device_palette.colors, sizeof(colors));
+    } else if (follow_device && context->polled_palette_valid) {
+        memcpy(colors, context->polled_palette, sizeof(colors));
     }
     if (!context->palette_initialized) {
         c64_color_lut_init(&context->color_lut, colors);
@@ -335,6 +339,9 @@ void c64_source_apply_palette(struct c64_source *context, obs_data_t *settings)
 
     if (follow_changed && context->streaming) {
         c64_schedule_retry_task(context, "device palette mode changed");
+    }
+    if (follow_changed) {
+        c64_palette_follow_wake(context);
     }
 }
 
@@ -1288,6 +1295,8 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
 
     // Initialize buffer delay from settings - optimized for low latency
     context->buffer_delay_ms = (uint32_t)obs_data_get_int(settings, "buffer_delay_ms");
+    context->palette_poll_interval_ms =
+        (long)c64_device_palette_clamp_interval(obs_data_get_int(settings, "device_palette_poll_ms"));
     if (context->buffer_delay_ms == 0) {
         context->buffer_delay_ms = 10;
     }
@@ -1643,6 +1652,8 @@ void *c64_create(obs_data_t *settings, obs_source_t *source)
     // capability, so scheduling it before the REST client is initialized would
     // incorrectly select the legacy transport on a capable device.
     C64_LOG_INFO("C64 Stream source created successfully - scheduling background discovery and initial connection");
+    // The worker exists before the retry thread can wake it.
+    c64_palette_follow_start(context);
     c64_schedule_retry(context, "initial connection");
 
     return context;
@@ -1674,6 +1685,9 @@ void c64_destroy(void *data)
         os_atomic_set_long(&context->retry_in_progress, 0);
     }
     pthread_mutex_unlock(&context->retry_thread_mutex);
+
+    // The palette worker reads config and palette state; stop it first.
+    c64_palette_follow_stop(context);
 
     // Devices switched away from moments ago may still be queued for their
     // stop; nothing would tell them once this source is gone.
@@ -1740,6 +1754,9 @@ void c64_destroy(void *data)
         context->point_sampler = NULL;
     }
     obs_leave_graphics();
+
+    // Receive threads are gone: nothing can wake the palette worker now.
+    c64_palette_follow_release(context);
 
     // Cleanup resources
     pthread_mutex_destroy(&context->stream_start_mutex);
@@ -1886,6 +1903,11 @@ static void c64_queue_properties_refresh(struct c64_source *context)
     obs_queue_task(OBS_TASK_UI, c64_apply_properties_refresh, refresh, false);
 }
 
+void c64_source_request_properties_refresh(struct c64_source *context)
+{
+    c64_queue_properties_refresh(context);
+}
+
 static void c64_apply_peer_stream_failover(void *data)
 {
     c64_peer_stream_failover_t *failover = data;
@@ -1966,8 +1988,13 @@ void c64_update(void *data, obs_data_t *settings)
         // discovery finished -- is applied by the next update instead of being
         // recorded as active while the source keeps streaming the old host.
         if (c64_device_registry_apply_selected(settings) || !selected_device_id || !selected_device_id[0]) {
+            // The palette worker reads the id together with the host and the
+            // device generation; a check that saw the previous id is stale.
+            pthread_mutex_lock(&context->config_mutex);
             snprintf(context->active_device_id, sizeof(context->active_device_id), "%s",
                      selected_device_id ? selected_device_id : "");
+            os_atomic_inc_long(&context->palette_device_generation);
+            pthread_mutex_unlock(&context->config_mutex);
             os_atomic_set_bool(&context->device_palette_request_supported, true);
             os_atomic_set_long(&context->device_palette_status, C64_DEVICE_PALETTE_UNKNOWN);
             pthread_mutex_lock(&context->palette_mutex);
@@ -2119,6 +2146,7 @@ void c64_update(void *data, obs_data_t *settings)
         }
     }
 
+    char palette_device_key[sizeof(context->active_device_id)] = {0};
     // Update configuration - hostname and IP resolution (thread-safe)
     pthread_mutex_lock(&context->config_mutex);
     strncpy(context->hostname, new_host, sizeof(context->hostname) - 1);
@@ -2174,11 +2202,19 @@ void c64_update(void *data, obs_data_t *settings)
         // fast the new device came up).
         snprintf(context->switch_from_host, sizeof(context->switch_from_host), "%s", old_ip_address);
         context->switch_requested_ns = os_gettime_ns();
+        // The previous device's palette does not apply to the new one; told
+        // to the palette worker once config_mutex is released.
+        snprintf(palette_device_key, sizeof(palette_device_key), "%s",
+                 context->active_device_id[0] ? context->active_device_id : context->ip_address);
+        os_atomic_inc_long(&context->palette_device_generation);
         context->switch_gap_max_ns = 0;
         context->switch_receivers_restarted = false;
         context->switch_gap_measuring = true;
     }
     pthread_mutex_unlock(&context->config_mutex);
+    if (host_changed) {
+        c64_palette_follow_device_changed(context, palette_device_key);
+    }
 
     const bool password_changed = strcmp(old_password, new_password ? new_password : "") != 0;
     if ((host_changed || password_changed) && !needs_device_transition) {
@@ -2187,6 +2223,15 @@ void c64_update(void *data, obs_data_t *settings)
     }
     if (ports_changed || obs_ip_changed) {
         os_atomic_set_bool(&context->udp_port_conflict, false);
+    }
+
+    // A new interval or password takes effect now, not after a pending
+    // (possibly backed-off) wait.
+    const long new_palette_poll_ms =
+        (long)c64_device_palette_clamp_interval(obs_data_get_int(settings, "device_palette_poll_ms"));
+    if (os_atomic_set_long(&context->palette_poll_interval_ms, new_palette_poll_ms) != new_palette_poll_ms ||
+        password_changed) {
+        c64_palette_follow_wake(context);
     }
 
     // Update buffer delay setting with debouncing to prevent timestamp reset storms
@@ -2631,6 +2676,8 @@ static bool c64_start_streaming_inner(struct c64_source *context)
 
     context->switch_receivers_restarted = true;
     C64_LOG_INFO("C64 Stream streaming started successfully");
+    // Read the device palette now rather than at the next interval.
+    c64_palette_follow_wake(context);
     // Diagnostic A/V-sync recording sets the device's mixer over REST. Done
     // once video runs, not when the REST client is retargeted: a device that
     // is switched to while unreachable would otherwise hold the retry worker

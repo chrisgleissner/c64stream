@@ -58,4 +58,7 @@ void c64_try_init_stream_start_ns(struct c64_source *context, uint64_t packet_ti
 // while the video thread is converting frames (double-buffered publish).
 void c64_source_apply_palette(struct c64_source *context, obs_data_t *settings);
 
+// Rebuilds the source's Properties view on the UI thread (any thread may call).
+void c64_source_request_properties_refresh(struct c64_source *context);
+
 #endif // C64_SOURCE_H

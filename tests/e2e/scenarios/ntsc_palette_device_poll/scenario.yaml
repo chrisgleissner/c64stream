@@ -1,0 +1,29 @@
+name: NTSC Device Palette Polling
+format: NTSC
+preset: Default
+mock_rest_enabled: true
+overrides:
+  c64_host: 127.0.0.1
+  video_port: 11000
+  audio_port: 11001
+  stream_control_transport: 1
+  palette: __device__
+  device_palette_poll_ms: 250
+  device_palette_before_expected: Default
+  device_palette_expected: vibrant
+  device_palette_transition_fraction: 0.72
+  debug_logging: true
+network_simulation:
+  # No palette packets in the stream: the colours come from the device's
+  # Palette Definition setting (REST) and its file in /Flash/data (FTP).
+  device_palette_setting: ""
+  device_palette_files: [vibrant, muted]
+  device_palette_setting_changes:
+    - at_ms: 4000
+      name: vibrant.vpl
+  expected_palette_downloads: [vibrant.vpl]
+assertions:
+  - video_quality
+  - audio
+  - frame_progression
+  - palette_mapping

@@ -168,6 +168,33 @@ struct c64_source {
     volatile long device_palette_status;
     pthread_mutex_t palette_mutex;
 
+    // Follow device: worker that reads the device's configured palette when
+    // the stream carries no palette packets (src/video/c64-palette-follow.c).
+    pthread_t palette_worker;
+    bool palette_worker_valid;
+    os_event_t *palette_worker_event;         // signalled to wake the worker early
+    volatile bool palette_worker_stop;        // also cancels a request in flight
+    volatile bool palette_worker_wake;        // check now (mode change, device switch, stream start)
+    volatile bool palette_worker_reset;       // forget what was read from the previous device
+    volatile long palette_device_generation;  // bumped on every device switch; stale results are dropped
+    volatile bool palette_refresh_pending;    // a Properties refresh is held back (rate limit)
+    uint64_t palette_refresh_last_ns;         // worker thread only
+    volatile long palette_poll_interval_ms;   // device palette check interval
+    volatile uint64_t palette_packet_last_ns; // last palette packet taken from the stream
+    // Status shown in Properties; all three under palette_mutex.
+    volatile long palette_source; // c64_palette_source_t
+    volatile long palette_error;  // c64_palette_error_t when palette_source is ERROR
+    char palette_source_file[64]; // configured palette file name, if any
+    uint32_t polled_palette[16];  // colours read from the device setting; under palette_mutex
+    bool polled_palette_valid;
+    // Last colours per device, so switching back to a device shows its
+    // palette at once instead of the default until the next check.
+    struct {
+        char device_key[64];
+        uint32_t colors[16];
+    } palette_memory[8];
+    size_t palette_memory_count;
+
     // Video data
     uint32_t width;
     uint32_t height;

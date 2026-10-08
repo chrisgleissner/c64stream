@@ -158,7 +158,8 @@ build() {
     log_group "Running platform tests (discovery and device switch)..."
     # The Xcode build above only builds the plugin scheme.
     cmake --build build_macos --config ${config} --target test_c64_device test_c64_device_scan \
-      test_c64_device_scan_hermetic test_c64_device_switch test_c64_ingest_filter test_c64_stream_control
+      test_c64_device_scan_hermetic test_c64_device_switch test_c64_ingest_filter test_c64_stream_control \
+      test_c64_device_palette test_c64_palette_follow
     ctest --test-dir build_macos --output-on-failure -C ${config} -L platform-ci
   fi
 

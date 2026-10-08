@@ -1047,6 +1047,7 @@ jobs:
           - ntsc_palette_vibrant
           - ntsc_palette_device
           - ntsc_palette_device_legacy
+          - ntsc_palette_device_poll
           - ntsc_phosphor_glow
           - ntsc_script
           - ntsc_sharp_pixels

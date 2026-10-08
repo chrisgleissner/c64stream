@@ -47,6 +47,9 @@ class OBSProcessManager:
             '--disable-missing-files-check', # Prevent "Missing Files" dialog
             '--disable-updater',
             '--minimize-to-tray',
+            # A local run may happen while the user's own OBS is open; without
+            # this, OBS shows its "already running" prompt and exits.
+            '--multi',
         ])
 
         if start_recording:

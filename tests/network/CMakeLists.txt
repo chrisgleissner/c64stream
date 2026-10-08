@@ -355,6 +355,38 @@ else()
 endif()
 add_test(NAME c64_device_scan_hermetic COMMAND test_c64_device_scan_hermetic)
 
+# Follow device palette: REST/FTP client and worker against an in-process
+# fake Ultimate (fake_ultimate.h).
+foreach(palette_test c64_device_palette c64_palette_follow)
+  set(palette_sources test_${palette_test}.c ${CMAKE_SOURCE_DIR}/src/device/c64-device-palette.c)
+  if(palette_test STREQUAL "c64_palette_follow")
+    list(
+      APPEND palette_sources
+      ${CMAKE_SOURCE_DIR}/src/video/c64-palette-follow.c
+      ${CMAKE_SOURCE_DIR}/src/video/c64-color.c
+      ${CMAKE_SOURCE_DIR}/src/util/c64-file.c
+    )
+  endif()
+  add_executable(test_${palette_test} ${palette_sources})
+  target_include_directories(
+    test_${palette_test}
+    PRIVATE
+      ${CMAKE_SOURCE_DIR}/src
+      ${CMAKE_SOURCE_DIR}/src/device
+      ${CMAKE_SOURCE_DIR}/src/network
+      ${CMAKE_SOURCE_DIR}/src/util
+      ${CMAKE_SOURCE_DIR}/src/video
+      ${CMAKE_SOURCE_DIR}/src/audio
+      ${CMAKE_SOURCE_DIR}/src/record
+  )
+  if(UNIX)
+    target_link_libraries(test_${palette_test} PRIVATE OBS::libobs CURL::libcurl m pthread)
+  else()
+    target_link_libraries(test_${palette_test} PRIVATE OBS::libobs CURL::libcurl ws2_32 iphlpapi)
+  endif()
+  add_test(NAME ${palette_test} COMMAND test_${palette_test})
+endforeach()
+
 # Discovery and device switch tests also run in the macOS and Windows CI
 # builds (see .github/scripts). On Windows the test executables need the OBS
 # and libcurl DLLs, which live next to the imported libraries.
@@ -362,9 +394,11 @@ set(
   C64_PLATFORM_CI_TESTS
   c64_device
   c64_device_scan
+  c64_device_palette
   c64_device_scan_hermetic
   c64_device_switch
   c64_ingest_filter
+  c64_palette_follow
   c64_stream_control
 )
 if(WIN32)

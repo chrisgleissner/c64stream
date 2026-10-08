@@ -24,6 +24,7 @@ See <https://www.gnu.org/licenses/> for details.
 
 #include "c64-logging.h"
 #include "c64-video.h"
+#include "c64-palette-follow.h"
 #include "c64-logo.h"
 #include "c64-audio.h"
 #include "c64-color.h"
@@ -1128,12 +1129,19 @@ void *c64_video_thread_func(void *data)
             uint16_t generation;
             uint32_t palette[16];
             if (received > 0 && c64_parse_palette_packet(packet, (size_t)received, &generation, palette)) {
+                // The previous device's palette still arriving during a
+                // switch handover is not the new device's palette.
+                if (from_handover) {
+                    os_atomic_inc_long(&context->palette_packets_ignored);
+                    continue;
+                }
                 os_atomic_inc_long(&context->palette_packets_received);
                 bool applied = false;
                 bool following = false;
                 pthread_mutex_lock(&context->palette_mutex);
                 following = os_atomic_load_bool(&context->follow_device_palette);
                 if (following) {
+                    c64_palette_follow_note_stream_packet(context);
                     if (c64_palette_state_accept(&context->device_palette, generation, palette)) {
                         c64_color_lut_update(&context->color_lut, palette);
                         context->palette_initialized = true;

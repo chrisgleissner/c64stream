@@ -17,6 +17,8 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-effect.h"
 #include "c64-source.h"
 #include "c64-palette.h"
+#include "c64-palette-follow.h"
+#include "device/c64-device-palette.h"
 #include "device/c64-device.h"
 #include "device/c64-device-scan.h"
 #include "c64-color.h"
@@ -1988,6 +1990,29 @@ obs_properties_t *c64_create_properties(void *data)
                                                            obs_module_text("PaletteSelection"), OBS_COMBO_TYPE_LIST,
                                                            OBS_COMBO_FORMAT_STRING);
 
+    // Follow device: where the colours come from, and how often the device
+    // setting is checked. Shown only when Follow device is selected.
+    {
+        char source_text[256];
+        char label[320];
+        c64_palette_follow_describe(context, source_text, sizeof(source_text));
+        snprintf(label, sizeof(label), "%s: %s", obs_module_text("DevicePaletteSource"), source_text);
+        obs_property_t *source_prop =
+            obs_properties_add_text(palette_props, "device_palette_source", label, OBS_TEXT_INFO);
+        obs_property_set_long_description(source_prop, obs_module_text("DevicePaletteSource.Description"));
+        obs_property_t *poll_prop =
+            obs_properties_add_int_slider(palette_props, "device_palette_poll_ms", obs_module_text("DevicePalettePoll"),
+                                          C64_DEVICE_PALETTE_POLL_MIN_MS, C64_DEVICE_PALETTE_POLL_MAX_MS, 50);
+        obs_property_int_set_suffix(poll_prop, " ms");
+        obs_property_set_long_description(poll_prop, obs_module_text("DevicePalettePoll.Description"));
+        obs_data_t *follow_settings = obs_source_get_settings(context->source);
+        const bool following = follow_settings && strcmp(obs_data_get_string(follow_settings, C64_PALETTE_KEY),
+                                                         C64_DEVICE_PALETTE_ID) == 0;
+        obs_property_set_visible(source_prop, following);
+        obs_property_set_visible(poll_prop, following);
+        obs_data_release(follow_settings);
+    }
+
     // Set description based on currently active palette
     const char *active_id = c64_palette_get_active_id();
     const char *palette_desc = active_id ? c64_palette_get_description(active_id) : NULL;
@@ -3064,6 +3089,7 @@ void c64_set_property_defaults(obs_data_t *settings)
 
     // Palette defaults
     obs_data_set_default_string(settings, C64_PALETTE_KEY, "Default");
+    obs_data_set_default_int(settings, "device_palette_poll_ms", C64_DEVICE_PALETTE_POLL_DEFAULT_MS);
     // NOTE: Do NOT set default values for palette_import_path or palette_export_path.
     // Setting defaults triggers the modified callbacks (palette_import_path_changed, palette_export_path_changed),
     // which automatically creates unwanted VPL files (e.g., "palettes.vpl" from directory name "palettes").
@@ -3362,8 +3388,7 @@ static bool palette_changed(void *priv, obs_properties_t *props, obs_property_t 
     const bool follow_device = strcmp(palette_id, C64_DEVICE_PALETTE_ID) == 0;
 
     // Update tooltip with palette description
-    const bool unsupported = context &&
-                             os_atomic_load_long(&context->device_palette_status) == C64_DEVICE_PALETTE_UNSUPPORTED;
+    const bool unsupported = context && os_atomic_load_long(&context->palette_source) == C64_PALETTE_SOURCE_NEEDS_REST;
     const char *desc = follow_device ? obs_module_text(unsupported ? "PaletteFollowDevice.Unsupported"
                                                                    : "PaletteFollowDevice.Description")
                                      : c64_palette_get_description(palette_id);
@@ -3378,6 +3403,13 @@ static bool palette_changed(void *priv, obs_properties_t *props, obs_property_t 
     if (delete_btn) {
         bool is_custom = !follow_device && !c64_palette_is_preset(palette_id);
         obs_property_set_enabled(delete_btn, is_custom);
+    }
+    const char *follow_properties[] = {"device_palette_source", "device_palette_poll_ms"};
+    for (size_t i = 0; i < sizeof(follow_properties) / sizeof(follow_properties[0]); i++) {
+        obs_property_t *follow_prop = obs_properties_get(props, follow_properties[i]);
+        if (follow_prop) {
+            obs_property_set_visible(follow_prop, follow_device);
+        }
     }
     const char *editor_properties[] = {"palette_import_path", "palette_export_path", "color_editor_group"};
     for (size_t i = 0; i < sizeof(editor_properties) / sizeof(editor_properties[0]); i++) {

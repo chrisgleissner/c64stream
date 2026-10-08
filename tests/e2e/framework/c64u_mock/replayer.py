@@ -22,6 +22,9 @@ class PacketReplayer:
         self.network_simulation = network_simulation or {}
         self.packet_dir = Path(packet_dir) if packet_dir else env.packet_dir
         self.lead_time_s = lead_time_s
+        # (seconds after replay start, callable): device-side changes that
+        # happen at a point of the replay timeline, e.g. a setting change.
+        self.scheduled_actions: list[tuple[float, Any]] = []
         self.simulation_stats = {
             'dropped_video': 0, 'dropped_audio': 0,
             'duplicated_video': 0, 'duplicated_audio': 0,
@@ -162,9 +165,19 @@ class PacketReplayer:
             audio_cmd.extend(['--bind-host', source_host])
 
         logger.info(f"🚀 Synchronized packet replay start: +{lead_s}s from now")
+        timers = []
+        for at_s, action in self.scheduled_actions:
+            delay_s = start_at_us / 1_000_000 + at_s - time.monotonic()
+            timer = threading.Timer(max(0.0, delay_s), action)
+            timer.daemon = True
+            timer.start()
+            timers.append(timer)
+            logger.info(f"⏱️ Scheduled device action at +{at_s:.2f}s of the replay (in {delay_s:.2f}s)")
         try:
             return self._execute_parallel_replay(udp_replay_bin, video_cmd, audio_cmd, cancel)
         finally:
+            for timer in timers:
+                timer.cancel()
             if packet_path:
                 packet_path.unlink(missing_ok=True)
 

@@ -208,6 +208,7 @@ target_sources(
     src/device/c64-device.c
     src/device/c64-device-scan.c
     src/device/c64-device-switch.c
+    src/device/c64-device-palette.c
     src/util/c64-av-sync.c
     src/util/c64-dimensions.c
     src/util/c64-file.c
@@ -227,6 +228,7 @@ target_sources(
     src/video/c64-logo.c
     src/video/c64-effect.c
     src/video/c64-palette.c
+    src/video/c64-palette-follow.c
     src/record/c64-record.c
     src/record/c64-record-obs.c
     src/record/c64-record-network.c
