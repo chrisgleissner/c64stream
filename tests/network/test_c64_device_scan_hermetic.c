@@ -34,6 +34,14 @@
 
 bool c64_debug_logging = false;
 
+// Network-byte-order IPv4 address (inet_addr is deprecated on Windows).
+static uint32_t ipv4(const char *text)
+{
+    struct in_addr addr = {0};
+    inet_pton(AF_INET, text, &addr);
+    return addr.s_addr;
+}
+
 static const char *const C64U_INFO = "{\n  \"product\" : \"C64 Ultimate\",\n  \"firmware_version\" : \"1.2.1\",\n"
                                      "  \"hostname\" : \"c64u\",\n  \"unique_id\" : \"5D0464\",\n"
                                      "  \"errors\" : [  ]\n}";
@@ -477,18 +485,18 @@ static bool test_worker_sizing_and_subnet_order(void)
     CHECK((1024 + workers - 1) / workers * 650 <= 12000 * 60 / 100 + 650);
     CHECK(c64_device_scan_worker_count(100000, budget) == 128);
 
-    const uint32_t lan = inet_addr("192.168.1.185");
+    const uint32_t lan = ipv4("192.168.1.185");
     CHECK(c64_device_scan_subnet_rank(lan, lan) == 0);
-    CHECK(c64_device_scan_subnet_rank(inet_addr("172.17.0.1"), lan) == 1);
-    CHECK(c64_device_scan_subnet_rank(inet_addr("10.0.3.1"), lan) == 1);
-    CHECK(c64_device_scan_subnet_rank(inet_addr("100.64.0.5"), lan) == 2);
-    CHECK(c64_device_scan_subnet_rank(inet_addr("169.254.10.2"), lan) == 3);
-    CHECK(c64_device_scan_subnet_rank(inet_addr("192.168.1.185"), 0) == 1);
+    CHECK(c64_device_scan_subnet_rank(ipv4("172.17.0.1"), lan) == 1);
+    CHECK(c64_device_scan_subnet_rank(ipv4("10.0.3.1"), lan) == 1);
+    CHECK(c64_device_scan_subnet_rank(ipv4("100.64.0.5"), lan) == 2);
+    CHECK(c64_device_scan_subnet_rank(ipv4("169.254.10.2"), lan) == 3);
+    CHECK(c64_device_scan_subnet_rank(ipv4("192.168.1.185"), 0) == 1);
     // The configured host's network is swept first, with the /16 -> /24 clamp.
-    CHECK(c64_device_scan_same_subnet(inet_addr("127.0.0.1"), 8, inet_addr("127.0.0.2")));
-    CHECK(!c64_device_scan_same_subnet(inet_addr("127.0.0.1"), 8, inet_addr("127.0.1.2")));
-    CHECK(c64_device_scan_same_subnet(inet_addr("172.17.0.1"), 16, inet_addr("172.17.0.9")));
-    CHECK(!c64_device_scan_same_subnet(inet_addr("192.168.1.185"), 24, inet_addr("192.168.2.5")));
+    CHECK(c64_device_scan_same_subnet(ipv4("127.0.0.1"), 8, ipv4("127.0.0.2")));
+    CHECK(!c64_device_scan_same_subnet(ipv4("127.0.0.1"), 8, ipv4("127.0.1.2")));
+    CHECK(c64_device_scan_same_subnet(ipv4("172.17.0.1"), 16, ipv4("172.17.0.9")));
+    CHECK(!c64_device_scan_same_subnet(ipv4("192.168.1.185"), 24, ipv4("192.168.2.5")));
     return true;
 }
 
