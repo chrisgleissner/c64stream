@@ -26,6 +26,7 @@ extern "C" {
 #define C64_PALETTE_COLORS 16
 #define C64_PALETTE_NAME_MAX 64
 #define C64_PALETTE_PATH_MAX 512
+#define C64_DEVICE_PALETTE_ID "__device__"
 
 // Palette entry structure
 struct c64_palette_entry {

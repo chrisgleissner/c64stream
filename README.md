@@ -535,6 +535,7 @@ Customize the VIC-II color palette to match different C64 hardware variants, per
 **Palette Controls:**
 
 - **Palette:** Select from shipped palettes or any custom palettes you've added
+- **Follow device (experimental):** Uses the Ultimate's active runtime palette when supported. This requires Ultimate 64 firmware 3.16, which has not been released yet; it is not yet known when the C64 Ultimate firmware will support it. Older firmware is retried without palette packets and continues with the default colors.
 - **Import palette:** Imports a `.vpl` file
 - **Export palette:** Exports the currently active palette (with any color adjustments) to a `.vpl` file
 - **Color Editor:** Expand to access 16 color pickers (0-15) for editing individual VIC-II colors. Changes apply immediately to the video output

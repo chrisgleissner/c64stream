@@ -18,29 +18,33 @@ program: |
   13: palette "vice_new"
   14: wait 100ms
   15: 
-  16: rem Test 4: Custom palette color - set background to black
-  17: PALETTECOLOR 0, 0, 0, 0
+  16: rem Test 4: Follow the Ultimate runtime palette
+  17: palette "device"
   18: wait 100ms
   19: 
-  20: rem Test 5: Custom palette color - set white
-  21: PALETTECOLOR 1, 255, 255, 255
+  20: rem Test 5: Custom palette color - set background to black
+  21: PALETTECOLOR 0, 0, 0, 0
   22: wait 100ms
   23: 
-  24: rem Test 6: Custom palette color - set blue
-  25: PALETTECOLOR 6, 0, 0, 170
+  24: rem Test 6: Custom palette color - set white
+  25: PALETTECOLOR 1, 255, 255, 255
   26: wait 100ms
   27: 
-  28: rem Test 7: Custom palette color - set light blue  
-  29: PALETTECOLOR 14, 128, 192, 255
+  28: rem Test 7: Custom palette color - set blue
+  29: PALETTECOLOR 6, 0, 0, 170
   30: wait 100ms
   31: 
-  32: rem Test 8: Multiple color customizations in sequence
-  33: PALETTECOLOR 2, 255, 0, 0
-  34: PALETTECOLOR 5, 0, 255, 0
-  35: PALETTECOLOR 7, 255, 255, 0
-  36: wait 100ms
-  37: 
-  38: stop
+  32: rem Test 8: Custom palette color - set light blue
+  33: PALETTECOLOR 14, 128, 192, 255
+  34: wait 100ms
+  35:
+  36: rem Test 9: Multiple color customizations in sequence
+  37: PALETTECOLOR 2, 255, 0, 0
+  38: PALETTECOLOR 5, 0, 255, 0
+  39: PALETTECOLOR 7, 255, 255, 0
+  40: wait 100ms
+  41:
+  42: stop
 trace:
 - line: 5
   content: "palette \"colodore\""
@@ -61,41 +65,47 @@ trace:
   content: "wait 100ms"
   variables: {}
 - line: 17
-  content: "PALETTECOLOR 0, 0, 0, 0"
+  content: "palette \"device\""
   variables: {}
 - line: 18
   content: "wait 100ms"
   variables: {}
 - line: 21
-  content: "PALETTECOLOR 1, 255, 255, 255"
+  content: "PALETTECOLOR 0, 0, 0, 0"
   variables: {}
 - line: 22
   content: "wait 100ms"
   variables: {}
 - line: 25
-  content: "PALETTECOLOR 6, 0, 0, 170"
+  content: "PALETTECOLOR 1, 255, 255, 255"
   variables: {}
 - line: 26
   content: "wait 100ms"
   variables: {}
 - line: 29
-  content: "PALETTECOLOR 14, 128, 192, 255"
+  content: "PALETTECOLOR 6, 0, 0, 170"
   variables: {}
 - line: 30
   content: "wait 100ms"
   variables: {}
 - line: 33
-  content: "PALETTECOLOR 2, 255, 0, 0"
+  content: "PALETTECOLOR 14, 128, 192, 255"
   variables: {}
 - line: 34
-  content: "PALETTECOLOR 5, 0, 255, 0"
-  variables: {}
-- line: 35
-  content: "PALETTECOLOR 7, 255, 255, 0"
-  variables: {}
-- line: 36
   content: "wait 100ms"
   variables: {}
+- line: 37
+  content: "PALETTECOLOR 2, 255, 0, 0"
+  variables: {}
 - line: 38
+  content: "PALETTECOLOR 5, 0, 255, 0"
+  variables: {}
+- line: 39
+  content: "PALETTECOLOR 7, 255, 255, 0"
+  variables: {}
+- line: 40
+  content: "wait 100ms"
+  variables: {}
+- line: 42
   content: "stop"
   variables: {}

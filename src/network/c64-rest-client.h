@@ -92,9 +92,9 @@ bool c64_rest_client_retarget(c64_rest_client_t *client, const char *base_url, c
  * @return true if copied, false on invalid args
  */
 bool c64_rest_client_get_base_url(const c64_rest_client_t *client, char *buf, size_t buf_size);
-bool c64_rest_stream_start(c64_rest_client_t *client, bool audio, const char *destination);
+bool c64_rest_stream_start(c64_rest_client_t *client, bool audio, const char *destination, bool palette);
 bool c64_rest_stream_stop(c64_rest_client_t *client, bool audio);
-bool c64_rest_stream_start_with_outcome(c64_rest_client_t *client, bool audio, const char *destination,
+bool c64_rest_stream_start_with_outcome(c64_rest_client_t *client, bool audio, const char *destination, bool palette,
                                         c64_rest_outcome_t *outcome, long *status);
 bool c64_rest_stream_stop_with_outcome(c64_rest_client_t *client, bool audio, c64_rest_outcome_t *outcome,
                                        long *status);

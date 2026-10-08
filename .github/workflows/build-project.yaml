@@ -1044,6 +1044,8 @@ jobs:
           - ntsc_image_effects
           - ntsc_palette_muted
           - ntsc_palette_vibrant
+          - ntsc_palette_device
+          - ntsc_palette_device_legacy
           - ntsc_phosphor_glow
           - ntsc_script
           - ntsc_sharp_pixels

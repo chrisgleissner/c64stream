@@ -194,7 +194,7 @@ void c64_palette_validate_filesystem(obs_data_t *settings)
         const char *settings_palette_id = obs_data_get_string(settings, "palette");
         if (settings_palette_id && settings_palette_id[0]) {
             // Check if this palette exists in our system
-            bool found = false;
+            bool found = strcmp(settings_palette_id, C64_DEVICE_PALETTE_ID) == 0;
             for (int k = 0; k < palette_system.palette_count; k++) {
                 if (strcmp(palette_system.palettes[k].id, settings_palette_id) == 0) {
                     found = true;
@@ -243,6 +243,7 @@ void c64_palette_populate_list(obs_property_t *palette_prop)
     }
 
     obs_property_list_clear(palette_prop);
+    obs_property_list_add_string(palette_prop, obs_module_text("PaletteFollowDevice"), C64_DEVICE_PALETTE_ID);
 
     for (int i = 0; i < palette_system.palette_count; i++) {
         char display_name[C64_PALETTE_NAME_MAX + 16]; // Extra space for " (Preset)" suffix

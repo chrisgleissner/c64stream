@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Experimental: follow the device palette
+
+- **Palette → Follow device** and `PALETTE "device"` use the palette the Ultimate is currently
+  rendering with, including runtime changes. This requires Ultimate 64 firmware 3.16, which has
+  not been released yet; it is not yet known when the C64 Ultimate firmware will support it. With
+  other firmware the default palette stays in use.
+
 ### Device discovery and transport fixes
 
 - Rediscovery updates device addresses without replacing saved names, DNS settings,

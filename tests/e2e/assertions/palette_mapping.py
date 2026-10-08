@@ -203,9 +203,14 @@ class PaletteMappingAssertion(EffectAssertion):
                 message=f"Failed to load palette colors from: {vpl_path}",
             )
 
+        transition_fraction = properties.get("device_palette_transition_fraction")
+        after_range = None
+        if transition_fraction is not None:
+            after_range = (float(transition_fraction) + 0.1, 1.0)
+
         # Extract observed colors from the recording
         try:
-            observed_colors = self._extract_palette_colors(mp4_path, properties, verbose)
+            observed_colors = self._extract_palette_colors(mp4_path, properties, verbose, after_range)
         except Exception as e:
             return AssertionResult(
                 status=AssertionStatus.FAIL,
@@ -226,6 +231,32 @@ class PaletteMappingAssertion(EffectAssertion):
         )
 
         max_allowed = self.thresholds["max_channel_delta"]
+
+        before_name = properties.get("device_palette_before_expected")
+        if before_name and transition_fraction is not None:
+            before_path = find_palette_vpl(str(before_name), data_dir)
+            before_expected = load_vpl_palette(before_path) if before_path else None
+            before_observed = self._extract_palette_colors(
+                mp4_path,
+                properties,
+                verbose,
+                (float(transition_fraction) - 0.2, float(transition_fraction) - 0.1),
+            )
+            if before_expected is None or before_observed is None:
+                return AssertionResult(
+                    status=AssertionStatus.FAIL,
+                    name=self.name,
+                    message=f"Could not verify palette before transition: {before_name}",
+                )
+            before_delta, before_failures, _ = self._compare_palettes(
+                before_expected, before_observed, verbose
+            )
+            if before_failures:
+                return AssertionResult(
+                    status=AssertionStatus.FAIL,
+                    name=self.name,
+                    message=f"Palette before transition did not match {before_name}: max delta {before_delta:.1f}",
+                )
 
         if failing_indices:
             # Build failure message with worst offenders
@@ -258,6 +289,8 @@ class PaletteMappingAssertion(EffectAssertion):
         """Get the expected palette name from properties or preset."""
         # Check properties for palette setting
         if "palette" in properties:
+            if properties["palette"] == "__device__":
+                return properties.get("device_palette_expected", "Default")
             return properties["palette"]
         # Check if preset has palette override
         if hasattr(preset, "palette") and preset.palette:
@@ -332,7 +365,11 @@ class PaletteMappingAssertion(EffectAssertion):
         return rgb_colors
 
     def _extract_palette_colors(
-        self, mp4_path: Path, properties: dict[str, Any], verbose: bool
+        self,
+        mp4_path: Path,
+        properties: dict[str, Any],
+        verbose: bool,
+        frame_range: Optional[tuple[float, float]] = None,
     ) -> Optional[list[tuple[int, int, int]]]:
         """Extract the 16 palette colors from the recording's top-right watch region."""
 
@@ -364,11 +401,13 @@ class PaletteMappingAssertion(EffectAssertion):
                 content_top = 0
                 content_bottom = height
             else:
-                # Get content region from first content frame
-                first_frame_idx = bounds.first_content_frame
+                # Get content region from the middle of the content range. Frames right
+                # after the logo->content transition can still carry non-black letterbox
+                # pixels, which makes the region detector fall back to the full frame.
+                mid_frame_idx = (bounds.first_content_frame + bounds.last_content_frame) // 2
 
                 # Read a frame to determine content bounds
-                cap.set(cv2.CAP_PROP_POS_FRAMES, first_frame_idx + 5)
+                cap.set(cv2.CAP_PROP_POS_FRAMES, mid_frame_idx)
                 ret, frame = cap.read()
                 if not ret:
                     return None
@@ -435,6 +474,12 @@ class PaletteMappingAssertion(EffectAssertion):
             else:
                 start_frame = skip_frames
                 end_frame = total_frames - skip_frames - 1
+
+            if frame_range:
+                full_start = start_frame
+                frame_span = end_frame - full_start
+                start_frame = full_start + int(frame_span * frame_range[0])
+                end_frame = full_start + int(frame_span * frame_range[1])
 
             num_sample_frames = min(min_frames + 5, max(1, end_frame - start_frame))
             frame_step = max(1, (end_frame - start_frame) // num_sample_frames)

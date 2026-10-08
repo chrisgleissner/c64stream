@@ -9,6 +9,7 @@ See <https://www.gnu.org/licenses/> for details.
 #include "c64-script-vm-dispatch-effects.h"
 
 #include "c64-logging.h"
+#include "c64-palette.h"
 
 #include <obs-module.h>
 #include <stdint.h>
@@ -105,8 +106,11 @@ bool c64script_dispatch_effects(c64script_runtime_t *runtime, const c64script_in
         }
 
         obs_source_t *source = (obs_source_t *)runtime->obs_source;
-        if (!c64_script_queue_source_update(source, C64_SCRIPT_UPDATE_STRING, "palette",
-                                            palette.as.string ? palette.as.string : "", 0.0, 0, false)) {
+        const char *palette_id = palette.as.string ? palette.as.string : "";
+        if (strcmp(palette_id, "device") == 0) {
+            palette_id = C64_DEVICE_PALETTE_ID;
+        }
+        if (!c64_script_queue_source_update(source, C64_SCRIPT_UPDATE_STRING, "palette", palette_id, 0.0, 0, false)) {
             c64script_value_free(&palette);
             snprintf(runtime->error_msg, sizeof(runtime->error_msg), "Failed to queue OBS update");
             return false;

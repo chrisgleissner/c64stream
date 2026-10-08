@@ -758,12 +758,12 @@ static bool http_request(c64_rest_client_t *client, const char *method, const ch
     return http_request_ex(client, method, endpoint, query_params, body_data, body_size, response, false);
 }
 
-bool c64_rest_stream_start(c64_rest_client_t *client, bool audio, const char *destination)
+bool c64_rest_stream_start(c64_rest_client_t *client, bool audio, const char *destination, bool palette)
 {
-    return c64_rest_stream_start_with_outcome(client, audio, destination, NULL, NULL);
+    return c64_rest_stream_start_with_outcome(client, audio, destination, palette, NULL, NULL);
 }
 
-bool c64_rest_stream_start_with_outcome(c64_rest_client_t *client, bool audio, const char *destination,
+bool c64_rest_stream_start_with_outcome(c64_rest_client_t *client, bool audio, const char *destination, bool palette,
                                         c64_rest_outcome_t *outcome, long *status)
 {
     if (!client || !destination || !destination[0]) {
@@ -781,7 +781,7 @@ bool c64_rest_stream_start_with_outcome(c64_rest_client_t *client, bool audio, c
     }
 
     char query[160];
-    snprintf(query, sizeof(query), "ip=%s", escaped_destination);
+    snprintf(query, sizeof(query), "ip=%s%s", escaped_destination, (!audio && palette) ? "&palette=1" : "");
     curl_free(escaped_destination);
     pthread_mutex_lock(&client->mutex);
     const bool ok = http_request_ex_locked(client, "PUT", audio ? "/v1/streams/audio:start" : "/v1/streams/video:start",

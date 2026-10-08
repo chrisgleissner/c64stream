@@ -375,6 +375,7 @@ This table lists **all plugin-provided commands/functions** (not BASIC control-f
 **Target**: Plugin (updates OBS source settings)
 
 - `EFFECT`, `EFFECTPARAM`, `PALETTE` update OBS source settings.
+- `PALETTE "device"` follows runtime VIC palette changes reported by the Ultimate. Experimental: requires Ultimate 64 firmware 3.16, which has not been released yet. It is not yet known when the C64 Ultimate firmware will support it. On other firmware the default palette stays in use.
 
 <a id="cmd-runners"></a>
 

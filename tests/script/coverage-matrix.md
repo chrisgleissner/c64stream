@@ -65,6 +65,7 @@ It is a living checklist for `tests/script/` coverage.
 - TYPE/KEY: `tests/script/scripts/test_keyboard_injection.c64script`
 - EFFECT/PALLETTE/PALLETTECOLOR: `tests/script/scripts/test_effect_params.c64script`,
   `tests/script/scripts/test_palette_commands.c64script`
+- Device palette selection (`PALETTE "device"`): `tests/script/scripts/test_palette_commands.c64script`
 - Config (CFG/CFG$/CFG_ITEM$/CFG_OPTIONS$/SAVE/LOAD/RESET):
     `tests/script/test_c64script_compiler.c` (execute_config_commands),
     `tests/script/scripts/test_u64_config.c64script`
